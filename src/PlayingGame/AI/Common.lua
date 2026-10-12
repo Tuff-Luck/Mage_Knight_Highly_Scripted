@@ -40,6 +40,30 @@ function volkareReleaseRewindWhenStable()
 	end)
 end
 
+-- Common controller checks for automated choices. Selection criteria remain scenario-specific.
+function automatedChoicePlayerEligible(index,details)
+	return details~=nil and (details.seatPos or 99)<=4 and details.mage~=gStates.positionMageKnight[5] and
+		(playerDropoutInactive==nil or playerDropoutInactive(index)==false)
+end
+
+function automatedChoicePlayerLabel(index,missingLabel)
+	if index==nil or turnOrder[index]==nil then return missingLabel end
+	local color=positionToColor(index)
+	local mage=tostring(turnOrder[index].mage or "player")
+	if color~=nil and color~="Black" then return color.." ("..mage..")" end
+	return mage
+end
+
+function automatedChoiceAuthorized(player,pending,playerLabel,warningText,warningTint)
+	if pending==nil then return false end
+	local color=type(player)=="string" and player or (player~=nil and player.color or nil)
+	local allowed=pending.playerIndex~=nil and positionToColor(pending.playerIndex) or nil
+	-- Black is the table/controller seat; other players must use the selected player's seat.
+	if color==allowed or color=="Black" then return true end
+	if color~=nil then broadcastToAll(joinLang({playerLabel,warningText}),warningTint) end
+	return false
+end
+
 --Dummy and Volkare both use the center random-Tactic button, but their actual turns are processed separately.
 function automatedPlayerRandomTactic()
 	local dummyTactic=nil

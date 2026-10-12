@@ -819,10 +819,35 @@ function appendTerrainHexChoiceButton(key,index,xml,splitIndex,splitCount,spec)
 	local fontSize=tostring(split and (spec.splitFontSize or 60) or (spec.fontSize or 72))
 	xml=xml or terrain.UI.getXmlTable() or {}
 	xml[#xml+1]={tag="Button",attributes={id=id,onClick=spec.onClick,onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",
-		height=placement.height,width=spec.width or 320,color="rgba(0,0,0,0.0)",position=placement.x.." "..placement.y.." "..placement.depth,rotation="0 0 "..tostring(placement.rotation),scale=placement.scale.." "..placement.scale},
+		height=(split and placement.height or spec.height or placement.height),width=spec.width or 320,color="rgba(0,0,0,0.0)",position=placement.x.." "..placement.y.." "..placement.depth,rotation="0 0 "..tostring(placement.rotation),scale=placement.scale.." "..placement.scale},
 		children={{tag="Image",attributes={id=id.."Image",image=spec.image or "Sliced Button/Button Object Active",type="Sliced"}},
 			{tag="HorizontalLayout",attributes={padding=spec.padding or "20 20 12 12"},children={{tag="Text",attributes={id=id.."Text",font=spec.font or "Fonts/MKCardText",offsetXY=spec.offsetXY or "0 1",fontSize=fontSize,fontStyle="Normal",alignment="MiddleCenter",resizeTextForBestFit="true",resizeTextMaxSize=fontSize,text=spec.text or ""}}}}}}
 	return terrain,xml
+end
+
+--Build and apply a full set of hex-choice buttons, including multiple options on one hex.
+-- Callers retain their own labels/onClick handlers; grouping and XML writes happen once per tile.
+function applyTerrainHexChoiceButtons(options,buttonBuilder)
+	if type(buttonBuilder)~="function" then return false end
+	local byTerrain,sameHexCounts,sameHexSeen={},{},{}
+	for _,option in ipairs(options or {}) do
+		local key=option~=nil and option.key or nil
+		if key~=nil then sameHexCounts[key]=(sameHexCounts[key] or 0)+1 end
+	end
+	for index,option in ipairs(options or {}) do
+		local key=option~=nil and option.key or nil
+		local terrainGUID=key~=nil and tostring(key):match("^([^|]+)|") or nil
+		local terrain=terrainGUID~=nil and getObjectFromGUID(terrainGUID) or nil
+		if terrain~=nil then
+			local group=byTerrain[terrainGUID]
+			if group==nil then group={terrain=terrain,xml=terrain.UI.getXmlTable() or {}} byTerrain[terrainGUID]=group end
+			sameHexSeen[key]=(sameHexSeen[key] or 0)+1
+			local _,xml=buttonBuilder(option,index,group.xml,sameHexSeen[key],sameHexCounts[key])
+			group.xml=xml or group.xml
+		end
+	end
+	for _,group in pairs(byTerrain) do group.terrain.UI.setXmlTable(group.xml) end
+	return true
 end
 
 --Remove one subsystem's terrain-attached choice controls without disturbing other terrain UI.

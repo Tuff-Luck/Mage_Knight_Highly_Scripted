@@ -1211,8 +1211,7 @@ end
 function proxyChoicePlayerIndex()
 	local chosen=nil
 	for index,stats in ipairs(turnOrder or {}) do
-		local human=stats~=nil and (stats.seatPos or 99)<=4 and stats.mage~=gStates.positionMageKnight[5]
-		if human==true and (playerDropoutInactive==nil or playerDropoutInactive(index)==false) then
+		if automatedChoicePlayerEligible(index,stats) then
 			if chosen==nil or (stats.fame or 0)<(turnOrder[chosen].fame or 0) or ((stats.fame or 0)==(turnOrder[chosen].fame or 0) and index>chosen) then chosen=index end
 		end
 	end
@@ -1225,24 +1224,12 @@ function proxyChoicePlayerColor(index)
 end
 
 function proxyChoicePlayerLabel(index)
-	if index==nil or turnOrder[index]==nil then return "the lowest-Fame player" end
-	local color=proxyChoicePlayerColor(index)
-	local mage=tostring(turnOrder[index].mage or "player")
-	if color~=nil and color~="Black" then return color.." ("..mage..")" end
-	return mage
+	return automatedChoicePlayerLabel(index,"the lowest-Fame player")
 end
 
 function proxyChoiceAuthorized(player,pending)
-	if pending==nil then return false end
-	local color=type(player)=="string" and player or (player~=nil and player.color or nil)
-	local allowed=proxyChoicePlayerColor(pending.playerIndex)
-	--Black is the table/controller seat and may make Proxy choices as well as the designated
-	--lowest-Fame player's normal seat colour. Everyone else is rejected with a table-wide reminder.
-	if color==allowed or color=="Black" then return true end
-	if color~=nil then
-		broadcastToAll(joinLang({proxyChoicePlayerLabel(pending.playerIndex),"{en} has the lowest Fame and must make this Proxy choice. A player seated Black may also choose.{it} ha meno Fama e deve scegliere per il Proxy. Può scegliere anche un giocatore seduto al Nero.{ru} имеет наименьшую Славу и должен сделать этот выбор за Прокси. Игрок на чёрном месте также может выбрать.{zh-tw} 的聲望值最低，必須替代理玩家做出此選擇。坐在黑色席位的玩家也可以選擇。{zh-cn} 的声望值最低，必须替代理玩家做出此选择。坐在黑色席位的玩家也可以选择。{ko}의 명성이 가장 낮아 이 프록시 선택을 해야 합니다. 검은색 자리에 앉은 플레이어도 선택할 수 있습니다.{es} tiene la Fama más baja y debe tomar esta decisión del Proxy. Un jugador sentado en Negro también puede elegir.{fr} possède la Renommée la plus faible et doit faire ce choix pour le Proxy. Un joueur assis en Noir peut également choisir.{pt-br} tem a menor Fama e deve fazer esta escolha do Proxy. Um jogador sentado no Preto também pode escolher.{de} hat den niedrigsten Ruhm und muss diese Proxy-Auswahl treffen. Ein Spieler auf Schwarz darf ebenfalls wählen."}),{1,0.65,0.2})
-	end
-	return false
+	return automatedChoiceAuthorized(player,pending,proxyChoicePlayerLabel(pending~=nil and pending.playerIndex or nil),
+		"{en} has the lowest Fame and must make this Proxy choice. A player seated Black may also choose.{it} ha meno Fama e deve scegliere per il Proxy. Può scegliere anche un giocatore seduto al Nero.{ru} имеет наименьшую Славу и должен сделать этот выбор за Прокси. Игрок на чёрном месте также может выбрать.{zh-tw} 的聲望值最低，必須替代理玩家做出此選擇。坐在黑色席位的玩家也可以選擇。{zh-cn} 的声望值最低，必须替代理玩家做出此选择。坐在黑色席位的玩家也可以选择。{ko}의 명성이 가장 낮아 이 프록시 선택을 해야 합니다. 검은색 자리에 앉은 플레이어도 선택할 수 있습니다.{es} tiene la Fama más baja y debe tomar esta decisión del Proxy. Un jugador sentado en Negro también puede elegir.{fr} possède la Renommée la plus faible et doit faire ce choix pour le Proxy. Un joueur assis en Noir peut également choisir.{pt-br} tem a menor Fama e deve fazer esta escolha do Proxy. Um jogador sentado no Preto também pode escolher.{de} hat den niedrigsten Ruhm und muss diese Proxy-Auswahl treffen. Ein Spieler auf Schwarz darf ebenfalls wählen.",{1,0.65,0.2})
 end
 
 function proxyTargetSave(target)
@@ -1314,8 +1301,7 @@ function proxyDestinationChoiceButton(saved,index,xml,splitIndex,splitCount)
 end
 
 function proxyChoiceMapRefresh(pending)
-	--Keep the ordinary Explore controls on the map UI; Proxy destination/route choices live on the
-	--actual terrain tiles so each square button floats over the exact chosen hex.
+	-- Preserve the normal Explore controls; Proxy choices are attached to the terrain tiles.
 	local mapUI=getObjectFromGUID(GUID.ui.mapExplore)
 	if mapUI~=nil then
 		local xml={}
@@ -1324,22 +1310,7 @@ function proxyChoiceMapRefresh(pending)
 	end
 	proxyDestinationChoiceClearButtons()
 	if pending~=nil and (pending.type=="destination" or pending.type=="route") then
-		local byTerrain={}
-		local sameHexCounts={}
-		local sameHexSeen={}
-		for _,saved in ipairs(pending.options or {}) do if saved~=nil and saved.key~=nil then sameHexCounts[saved.key]=(sameHexCounts[saved.key] or 0)+1 end end
-		for index,saved in ipairs(pending.options or {}) do
-			local terrainGUID=saved~=nil and saved.key~=nil and tostring(saved.key):match("^([^|]+)|") or nil
-			local terrain=terrainGUID~=nil and getObjectFromGUID(terrainGUID) or nil
-			if terrain~=nil then
-				local group=byTerrain[terrainGUID]
-				if group==nil then group={terrain=terrain,xml=terrain.UI.getXmlTable() or {}} byTerrain[terrainGUID]=group end
-				sameHexSeen[saved.key]=(sameHexSeen[saved.key] or 0)+1
-				local _,xml=proxyDestinationChoiceButton(saved,index,group.xml,sameHexSeen[saved.key],sameHexCounts[saved.key])
-				group.xml=xml or group.xml
-			end
-		end
-		for _,group in pairs(byTerrain) do group.terrain.UI.setXmlTable(group.xml) end
+		applyTerrainHexChoiceButtons(pending.options,proxyDestinationChoiceButton)
 	end
 end
 

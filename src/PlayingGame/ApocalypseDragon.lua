@@ -48,6 +48,32 @@ function apocalypseDragonScenario()
 	return scenarioUsesApocalypseDragon()
 end
 
+-- The Dragon scenarios share physical round-order token movement but choose their own targets
+-- and whether the token is taken from its bag or relocked after resting.
+function apocalypseDragonPositionRoundOrderToken(target,options)
+	if target==nil then return false end
+	options=options or {}
+	local token=getObjectFromGUID(apocalypseDragon.roundOrder)
+	if token==nil and options.takeFromBag==true then
+		local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
+		if bag~=nil then token=bag.takeObject({guid=apocalypseDragon.roundOrder,position=target,rotation={0,180,0},smooth=false}) end
+	end
+	if token==nil then return false end
+	token.unlock()
+	token.setRotation({0,180,0})
+	token.setPositionSmooth(target,false,options.fastMove==true)
+	safeWaitCondition("Scenario",function()
+		local current=getObjectFromGUID(apocalypseDragon.roundOrder)
+		if current~=nil then current.lock() end
+	end,function()
+		local current=getObjectFromGUID(apocalypseDragon.roundOrder)
+		if current==nil then return true end
+		if options.waitForRest==true then return current.resting==true end
+		return current.isSmoothMoving()==false
+	end)
+	return true
+end
+
 function apocalypseDragonStartingLevel()
 	if apocalypseDragonScenario()~=true then return nil end
 	local override=tonumber(gStates.apocalypseDragonStartingLevelOverride)
@@ -1796,8 +1822,7 @@ end
 function apocalypseDragonChoicePlayerIndex()
 	local chosen=nil
 	for index,details in ipairs(turnOrder or {}) do
-		local human=details~=nil and (details.seatPos or 99)<=4 and details.mage~=gStates.positionMageKnight[5]
-		if human==true and playerDropoutInactive(index)==false then
+		if automatedChoicePlayerEligible(index,details) then
 			if chosen==nil or (details.tactic or 99)<(turnOrder[chosen].tactic or 99) then chosen=index end
 		end
 	end
@@ -1805,22 +1830,12 @@ function apocalypseDragonChoicePlayerIndex()
 end
 
 function apocalypseDragonChoicePlayerLabel(index)
-	if index==nil or turnOrder[index]==nil then return "the player with the lowest-numbered Tactic" end
-	local color=positionToColor(index)
-	local mage=tostring(turnOrder[index].mage or "player")
-	if color~=nil and color~="Black" then return color.." ("..mage..")" end
-	return mage
+	return automatedChoicePlayerLabel(index,"the player with the lowest-numbered Tactic")
 end
 
 function apocalypseDragonChoiceAuthorized(player,pending)
-	if pending==nil then return false end
-	local color=type(player)=="string" and player or (player~=nil and player.color or nil)
-	local allowed=pending.playerIndex~=nil and positionToColor(pending.playerIndex) or nil
-	if color=="Black" or color==allowed then return true end
-	if color~=nil then
-		broadcastToAll(joinLang({apocalypseDragonChoicePlayerLabel(pending.playerIndex),"{en} has the lowest-numbered Tactic and must make this Dragon choice. A player seated Black may also choose.{it} ha la Tattica col numero più basso e deve effettuare questa scelta del Drago. Può scegliere anche un giocatore seduto al Nero.{ru} имеет Тактику с наименьшим номером и должен сделать этот выбор Дракона. Игрок на чёрном месте также может выбрать.{zh-tw} 擁有編號最低的戰術，必須做出此巨龍選擇。坐在黑色席位的玩家也可以選擇。{zh-cn} 拥有编号最低的战术，必须做出此巨龙选择。坐在黑色席位的玩家也可以选择。{ko}이(가) 가장 낮은 번호의 전술을 가지고 있어 이 드래곤 선택을 해야 합니다. 검은색 자리에 앉은 플레이어도 선택할 수 있습니다.{es} tiene la Táctica con el número más bajo y debe realizar esta elección del Dragón. Un jugador sentado en Negro también puede elegir.{fr} possède la Tactique au numéro le plus bas et doit effectuer ce choix du Dragon. Un joueur assis en Noir peut également choisir.{pt-br} tem a Tática de menor número e deve fazer esta escolha do Dragão. Um jogador sentado no Preto também pode escolher.{de} hat die Taktik mit der niedrigsten Nummer und muss diese Drachenwahl treffen. Ein Spieler auf Schwarz darf ebenfalls wählen."}),warningColor)
-	end
-	return false
+	return automatedChoiceAuthorized(player,pending,apocalypseDragonChoicePlayerLabel(pending~=nil and pending.playerIndex or nil),
+		"{en} has the lowest-numbered Tactic and must make this Dragon choice. A player seated Black may also choose.{it} ha la Tattica col numero più basso e deve effettuare questa scelta del Drago. Può scegliere anche un giocatore seduto al Nero.{ru} имеет Тактику с наименьшим номером и должен сделать этот выбор Дракона. Игрок на чёрном месте также может выбрать.{zh-tw} 擁有編號最低的戰術，必須做出此巨龍選擇。坐在黑色席位的玩家也可以選擇。{zh-cn} 拥有编号最低的战术，必须做出此巨龙选择。坐在黑色席位的玩家也可以选择。{ko}이(가) 가장 낮은 번호의 전술을 가지고 있어 이 드래곤 선택을 해야 합니다. 검은색 자리에 앉은 플레이어도 선택할 수 있습니다.{es} tiene la Táctica con el número más bajo y debe realizar esta elección del Dragón. Un jugador sentado en Negro también puede elegir.{fr} possède la Tactique au numéro le plus bas et doit effectuer ce choix du Dragon. Un joueur assis en Noir peut également choisir.{pt-br} tem a Tática de menor número e deve fazer esta escolha do Dragão. Um jogador sentado no Preto também pode escolher.{de} hat die Taktik mit der niedrigsten Nummer und muss diese Drachenwahl treffen. Ein Spieler auf Schwarz darf ebenfalls wählen.",warningColor)
 end
 
 function positionApocalypseDragonHeads()

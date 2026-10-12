@@ -1667,17 +1667,7 @@ end
 
 function apocalypseIsHerePositionRoundOrderToken()
 	if apocalypseIsHereActive()~=true then return false end
-	local token=getObjectFromGUID(apocalypseDragon.roundOrder)
-	local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
-	local target={-1.90,0.97,-22.20}
-	if token==nil and bag~=nil then token=bag.takeObject({guid=apocalypseDragon.roundOrder,position=target,rotation={0,180,0},smooth=false}) end
-	if token==nil then return false end
-	token.unlock()
-	token.setRotation({0,180,0})
-	token.setPositionSmooth(target,false,true)
-	safeWaitCondition("Scenario",function() local current=getObjectFromGUID(apocalypseDragon.roundOrder) if current~=nil then current.lock() end end,
-		function() local current=getObjectFromGUID(apocalypseDragon.roundOrder) return current==nil or current.isSmoothMoving()==false end)
-	return true
+	return apocalypseDragonPositionRoundOrderToken({-1.90,0.97,-22.20},{takeFromBag=true,fastMove=true})
 end
 
 function apocalypseIsHereSetup()
@@ -2115,27 +2105,13 @@ apocalypseIsHereShowTargetChoice=function(name,options,previousReport,choicePlay
 		previousReport=previousReport~=nil and previousReport or (gStates.apocalypseHereHorsemenTurnReport or "")
 	}
 	gStates.apocalypseHereHorsemanPendingChoice=pending
-	local grouped={}
-	for index,option in ipairs(options or {}) do
-		local hex=option.hex
-		local terrain=hex~=nil and hex.terrain or nil
-		if terrain~=nil then
-			local group=grouped[terrain.guid] or {terrain=terrain,xml=terrain.UI.getXmlTable() or {}}
-			grouped[terrain.guid]=group
-			local localPos=terrain.positionToLocal({hex.position[1],terrain.getPosition()[2],hex.position[3]})
-			local tileScale=terrain.getScale()
-			local scaleX=tileScale.x or tileScale[1] or 2.25
-			local scaleZ=tileScale.z or tileScale[3] or 2.25
-			local uiFactor=0.16/0.38
-			local uiX=(localPos.x or localPos[1])*scaleX*110*uiFactor
-			local uiY=(localPos.z or localPos[3])*scaleZ*110*uiFactor
-			local uiDepth=-40*uiFactor
-			local buttonScale=0.16
-			local id=terrain.guid.."ApocalypseHorsemanTarget"..tostring(index)
-			group.xml[#group.xml+1]={tag="Button",attributes={id=id,onClick="global/apocalypseIsHereHorsemanTargetSelect",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",height=300,width=320,color="rgba(0,0,0,0.0)",position=uiX.." "..uiY.." "..uiDepth,rotation="0 0 "..tostring(terrain.getRotation()[2] or 180),scale=buttonScale.." "..buttonScale},children={{tag="Image",attributes={image="Sliced Button/Button Object Active",type="Sliced"}},{tag="Text",attributes={font="Fonts/MKCardText",fontSize="65",alignment="MiddleCenter",resizeTextForBestFit="true",resizeTextMaxSize="65",text=joinLang({name,"\n","{en}Target{it}Bersaglio{ru}Цель{zh-tw}目標{zh-cn}目标{ko}목표{es}Objetivo{fr}Cible{pt-br}Alvo{de}Ziel"})}}}}
-		end
-	end
-	for _,group in pairs(grouped) do group.terrain.UI.setXmlTable(group.xml) end
+	applyTerrainHexChoiceButtons(options,function(option,index,xml,splitIndex,splitCount)
+		return appendTerrainHexChoiceButton(option.key,index,xml,splitIndex,splitCount,{
+			idPrefix="ApocalypseHorsemanTarget",onClick="global/apocalypseIsHereHorsemanTargetSelect",
+			buttonScale=0.16,referenceScale=0.38,width=320,height=300,fontSize=65,splitFontSize=65,
+			text=joinLang({name,"\n","{en}Target{it}Bersaglio{ru}Цель{zh-tw}目標{zh-cn}目标{ko}목표{es}Objetivo{fr}Cible{pt-br}Alvo{de}Ziel"})
+		})
+	end)
 	gStates.apocalypseHereHorsemenUIState="WaitingChoice"
 	local choiceText=joinLang({name,"{en} has tied preferred targets. {it} ha più bersagli preferiti a pari merito. {ru} имеет несколько равноценных предпочтительных целей. {zh-tw} 有多個同等優先的目標。{zh-cn} 有多个同等优先的目标。{ko}에게 동률인 우선 목표가 있습니다. {es} tiene varios objetivos preferidos empatados. {fr} a plusieurs cibles prioritaires à égalité. {pt-br} tem vários alvos preferidos empatados. {de} hat mehrere gleichrangige bevorzugte Ziele. ",apocalypseDragonChoicePlayerLabel(pending.playerIndex),"{en} must choose which site it moves toward.{it} deve scegliere il sito verso cui si muove.{ru} должен выбрать, к какому месту он двинется.{zh-tw} 必須選擇它要朝哪個地點移動。{zh-cn} 必须选择它要朝哪个地点移动。{ko}이(가) 어느 장소로 이동할지 선택해야 합니다.{es} debe elegir hacia qué lugar se moverá.{fr} doit choisir vers quel site il se déplacera.{pt-br} deve escolher em direção a qual local ele se moverá.{de} muss wählen, auf welchen Ort er sich zubewegt."})
 	gStates.apocalypseHereHorsemenTurnReport=apocalypseIsHereJoinHorsemenTurnReport(pending.previousReport,choiceText)
@@ -2972,20 +2948,7 @@ end
 
 function againstDragonPositionRoundOrderToken()
 	if againstDragonActive()~=true then return false end
-	local token=getObjectFromGUID(apocalypseDragon.roundOrder)
-	if token==nil then return false end
-	local target={-1.90,0.97,-22.20}
-	token.unlock()
-	token.setRotation({0,180,0})
-	token.setPositionSmooth(target)
-	safeWaitCondition("Scenario",function()
-		local current=getObjectFromGUID(apocalypseDragon.roundOrder)
-		if current~=nil then current.lock() end
-	end,function()
-		local current=getObjectFromGUID(apocalypseDragon.roundOrder)
-		return current==nil or current.isSmoothMoving()==false
-	end)
-	return true
+	return apocalypseDragonPositionRoundOrderToken({-1.90,0.97,-22.20})
 end
 
 againstDragonPlayerIndexForMage=function(mage)
@@ -3077,23 +3040,7 @@ end
 againstDragonShowMapChoice=function(pending)
 	apocalypseDragonTurnChoiceClearButtons()
 	if pending==nil or pending.options==nil then return false end
-	local byTerrain={}
-	local sameHexCounts={}
-	local sameHexSeen={}
-	for _,option in ipairs(pending.options) do if option.key~=nil then sameHexCounts[option.key]=(sameHexCounts[option.key] or 0)+1 end end
-	for index,option in ipairs(pending.options) do
-		local terrainGUID=option.key~=nil and tostring(option.key):match("^([^|]+)|") or nil
-		local terrain=terrainGUID~=nil and getObjectFromGUID(terrainGUID) or nil
-		if terrain~=nil then
-			local group=byTerrain[terrainGUID]
-			if group==nil then group={terrain=terrain,xml=terrain.UI.getXmlTable() or {}} byTerrain[terrainGUID]=group end
-			sameHexSeen[option.key]=(sameHexSeen[option.key] or 0)+1
-			local _,xml=againstDragonTargetChoiceButton(option,index,group.xml,sameHexSeen[option.key],sameHexCounts[option.key])
-			group.xml=xml or group.xml
-		end
-	end
-	for _,group in pairs(byTerrain) do group.terrain.UI.setXmlTable(group.xml) end
-	return true
+	return applyTerrainHexChoiceButtons(pending.options,againstDragonTargetChoiceButton)
 end
 
 againstDragonShowOffMapChoice=function(pending)
@@ -3824,22 +3771,7 @@ end
 
 function furyDragonPositionRoundOrderToken()
 	if furyDragonIsActive()~=true then return false end
-	local token=getObjectFromGUID(apocalypseDragon.roundOrder)
-	local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
-	local target={-1.90,0.97,-18.00-(1.4*((#turnOrder or 0)+1))}
-	if token==nil and bag~=nil then token=bag.takeObject({guid=apocalypseDragon.roundOrder,position=target,rotation={0,180,0},smooth=false}) end
-	if token==nil then return false end
-	token.unlock()
-	token.setRotation({0,180,0})
-	token.setPositionSmooth(target,false)
-	safeWaitCondition("Scenario",function()
-		local current=getObjectFromGUID(apocalypseDragon.roundOrder)
-		if current~=nil then current.lock() end
-	end,function()
-		local current=getObjectFromGUID(apocalypseDragon.roundOrder)
-		return current==nil or current.resting==true
-	end)
-	return true
+	return apocalypseDragonPositionRoundOrderToken({-1.90,0.97,-18.00-(1.4*((#turnOrder or 0)+1))},{takeFromBag=true,waitForRest=true})
 end
 
 function furyDragonRoundStart()

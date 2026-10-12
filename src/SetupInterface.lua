@@ -305,10 +305,13 @@ local function apocalypseDragonCityVariantSelectable()
 	return apocalypseDragonCityVariantScenarioEligible()==true and (gStates.megapolis or 0)==0
 end
 
+local RANDOM_HEADS_BUTTON_TEXT={
+	on="{en}Random Heads - On{it}Teste Casuali - Sì{ru}Случ. головы - Вкл.{zh-tw}隨機龍首 - 開{zh-cn}随机龙首 - 开{ko}머리 무작위 - 켜짐{es}Cabezas aleatorias - Sí{fr}Têtes aléatoires - Oui{pt-br}Cabeças aleatórias - Ligado{de}Zufällige Köpfe - An",
+	off="{en}Random Heads - Off{it}Teste Casuali - No{ru}Случ. головы - Выкл.{zh-tw}隨機龍首 - 關{zh-cn}随机龙首 - 关{ko}머리 무작위 - 꺼짐{es}Cabezas aleatorias - No{fr}Têtes aléatoires - Non{pt-br}Cabeças aleatórias - Desligado{de}Zufällige Köpfe - Aus"
+}
+
 local SCENARIO_VARIANT_BUTTON_TEXT={
-	RandomizedDragonHeadsButton={
-		on="{en}Random Heads - On{it}Teste Casuali - Sì{ru}Случ. головы - Вкл.{zh-tw}隨機龍首 - 開{zh-cn}随机龙首 - 开{ko}머리 무작위 - 켜짐{es}Cabezas aleatorias - Sí{fr}Têtes aléatoires - Oui{pt-br}Cabeças aleatórias - Ligado{de}Zufällige Köpfe - An",
-		off="{en}Random Heads - Off{it}Teste Casuali - No{ru}Случ. головы - Выкл.{zh-tw}隨機龍首 - 關{zh-cn}随机龙首 - 关{ko}머리 무작위 - 꺼짐{es}Cabezas aleatorias - No{fr}Têtes aléatoires - Non{pt-br}Cabeças aleatórias - Desligado{de}Zufällige Köpfe - Aus"},
+	RandomizedDragonHeadsButton=RANDOM_HEADS_BUTTON_TEXT,
 	HorsemenHorsesButton={
 		on="{en}With Horse - On{it}Con Cavalcatura - Sì{ru}С лошадью - Вкл.{zh-tw}帶戰馬 - 開{zh-cn}带战马 - 开{ko}말 포함 - 켜짐{es}Con caballo - Sí{fr}Avec cheval - Oui{pt-br}Com cavalo - Ligado{de}Mit Pferd - An",
 		off="{en}With Horse - Off{it}Con Cavalcatura - No{ru}С лошадью - Выкл.{zh-tw}帶戰馬 - 關{zh-cn}带战马 - 关{ko}말 포함 - 꺼짐{es}Con caballo - No{fr}Avec cheval - Non{pt-br}Com cavalo - Desligado{de}Mit Pferd - Aus"},
@@ -318,9 +321,7 @@ local SCENARIO_VARIANT_BUTTON_TEXT={
 	ApocalypseDragonCityLastButton={
 		on="{en}Last City - On{it}Ultima Città - Sì{ru}Последний город - Вкл.{zh-tw}最後城市 - 開{zh-cn}最后城市 - 开{ko}마지막 도시 - 켜짐{es}Última Ciudad - Sí{fr}Dernière Cité - Oui{pt-br}Última Cidade - Ligado{de}Letzte Stadt - An",
 		off="{en}Last City - Off{it}Ultima Città - No{ru}Последний город - Выкл.{zh-tw}最後城市 - 關{zh-cn}最后城市 - 关{ko}마지막 도시 - 꺼짐{es}Última Ciudad - No{fr}Dernière Cité - Non{pt-br}Última Cidade - Desligado{de}Letzte Stadt - Aus"},
-	ApocalypseDragonCityRandomHeadsButton={
-		on="{en}Random Heads - On{it}Teste Casuali - Sì{ru}Случ. головы - Вкл.{zh-tw}隨機龍首 - 開{zh-cn}随机龙首 - 开{ko}머리 무작위 - 켜짐{es}Cabezas aleatorias - Sí{fr}Têtes aléatoires - Oui{pt-br}Cabeças aleatórias - Ligado{de}Zufällige Köpfe - An",
-		off="{en}Random Heads - Off{it}Teste Casuali - No{ru}Случ. головы - Выкл.{zh-tw}隨機龍首 - 關{zh-cn}随机龙首 - 关{ko}머리 무작위 - 꺼짐{es}Cabezas aleatorias - No{fr}Têtes aléatoires - Non{pt-br}Cabeças aleatórias - Desligado{de}Zufällige Köpfe - Aus"}
+	ApocalypseDragonCityRandomHeadsButton=RANDOM_HEADS_BUTTON_TEXT
 }
 
 local function setScenarioVariantButtonState(id,selected)
