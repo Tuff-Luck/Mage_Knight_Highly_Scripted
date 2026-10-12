@@ -252,7 +252,7 @@ function shieldLocation(obj, zone, status)
 								gStates.monasteryCount=gStates.monasteryCount+1
 								gStates.monasteryBurned[terTile.guid]=false
 							end
-							if hexFeature=="glade" and objectNotes~="Burned Monastery" and (gStates.gameScenario=="Druid Nights" or gStates.gameScenario=="Life and Death") then
+							if hexFeature=="glade" and objectNotes~="Burned Monastery" and (gStates.gameScenario=="Druid Nights" or gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The War of Four") then
 								broadcastToAll("{en}Glade Deactivated{it}Radura Disattivata{ru}Магическая поляна деактивирована{zh-tw}林地解除了{zh-cn}林地解除了{ko}숲속 빈터 비활성화{es}Glade Desactivado{fr}Clairière Désactivée{pt-br}Clareira Desativada{de}Lichtung Deaktiviert", positionToColor(b))
 								if gStates.gameScenario=="Druid Nights" then
 									for index, shields in pairs(mageSearch.gladesMarked) do
@@ -302,7 +302,7 @@ function shieldLocation(obj, zone, status)
 								broadcastToAll("{en}Glade Activated{it}Radura Attivata{ru}Магическая поляна активирована{zh-tw}林地激活了{zh-cn}林地激活了{ko}숲속 빈터 활성화{es}Glade Activado{fr}Clairière Activée{pt-br}Clareira Ativada{de}Glade Aktiviert", positionToColor(b))
 								mageSearch.gladesMarked[#mageSearch.gladesMarked+1]=obj.guid
 							end
-							if hexFeature=="glade" and objectNotes~="Burned Monastery" and gStates.gameScenario=="Life and Death" then
+							if hexFeature=="glade" and objectNotes~="Burned Monastery" and (gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The War of Four") then
 								broadcastToAll("{en}Glade Liberated{it}Radura Liberata{ru}Магическая поляна освобождена{zh-tw}林地解放了{zh-cn}林地解放了{ko}숲속 빈터 해방됨{es}Glade Liberado{fr}Clairière Libérée{pt-br}Clareira Liberada{de}Lichtung befreit", positionToColor(b))
 							end
 							if hexFeature=="graveyard" and objectNotes~="Burned Monastery" then
@@ -630,7 +630,7 @@ function playRampagingTokens(obj, startBearing, northBearing, hexLocation, hexFe
 						if 	(gStates.gameScenario=="Life and Death" and ((startBearing<northBearing-1) or
 								(startBearing<=northBearing+1 and startBearing>=northBearing-1 and gStates.coop==1 and factionPlayed==1) or
 								(gStates.coop==0 and factionPlayed==1 and obj.getPosition()[3]<-7 and obj.getPosition()[3]>-8 and obj.getPosition()[1]<-31 and obj.getPosition()[1]>-32))) or
-							(gStates.gameScenario=="The War of Four" and ((warOfFourLoc=="South" and math.random(1,2)==1) or (warOfFourLoc=="FarSouth" and math.random(1,3)==1))) then
+							(gStates.gameScenario=="The War of Four" and ((warOfFourLoc=="South" and math.random(1,3)==1) or (warOfFourLoc=="FarSouth" and math.random(1,3)<=2))) then
 								tokenFaction="Elem"
 							if getObjectFromGUID(monsterPiles.greenElem).getQuantity()>0 then tokenPileGreen=monsterPiles.greenElem end
 							if getObjectFromGUID(monsterPiles.tanElem).getQuantity()>0 then tokenPileBrown=monsterPiles.tanElem end
@@ -639,7 +639,7 @@ function playRampagingTokens(obj, startBearing, northBearing, hexLocation, hexFe
 						if 	(gStates.gameScenario=="Life and Death" and ((startBearing>northBearing+1) or
 								(startBearing<=northBearing+1 and startBearing>=northBearing-1 and gStates.coop==1 and factionPlayed==2) or
 								(gStates.coop==0 and factionPlayed==2 and obj.getPosition()[3]<-7 and obj.getPosition()[3]>-8 and obj.getPosition()[1]<-31 and obj.getPosition()[1]>-32))) or
-							(gStates.gameScenario=="The War of Four" and ((warOfFourLoc=="North" and math.random(1,2)==1) or (warOfFourLoc=="FarNorth" and math.random(1,3)==1))) then
+							(gStates.gameScenario=="The War of Four" and ((warOfFourLoc=="North" and math.random(1,3)==1) or (warOfFourLoc=="FarNorth" and math.random(1,3)<=2))) then
 								tokenFaction="Dark"
 							if getObjectFromGUID(monsterPiles.greenDark).getQuantity()>0 then tokenPileGreen=monsterPiles.greenDark end
 							if getObjectFromGUID(monsterPiles.tanDark).getQuantity()>0 then tokenPileBrown=monsterPiles.tanDark end
@@ -1639,8 +1639,8 @@ function mapHandleTerrainZoneEnter(ctx)
 								end
 								if (gStates.gameScenario=="Life and Death" or (gStates.gameScenario=="The War of Four" and warOfFourDeploy==true)) then -- and core==0
 									local tokenFaction=nil
-									if startBearing<=northBearing or
-										(((startBearing<=northBearing+1 and gStates.coop==1) or (gStates.coop==0 and enteredTilePosition[3]<-7 and enteredTilePosition[3]>-8 and enteredTilePosition[1]<-31 and enteredTilePosition[1]>-32)) and math.random(1,2)==1) then
+									if (gStates.gameScenario=="The War of Four" and enteredTilePosition[3]<-7.77) or (gStates.gameScenario~="The War of Four" and (startBearing<=northBearing or
+										(((startBearing<=northBearing+1 and gStates.coop==1) or (gStates.coop==0 and enteredTilePosition[3]<-7 and enteredTilePosition[3]>-8 and enteredTilePosition[1]<-31 and enteredTilePosition[1]>-32)) and math.random(1,2)==1))) then
 											tokenFaction="Elem"
 										if getObjectFromGUID(monsterPiles.greenElem).getQuantity()>0 then tokenPileGreen=monsterPiles.greenElem end
 										if getObjectFromGUID(monsterPiles.tanElem).getQuantity()>0 then tokenPileBrown=monsterPiles.tanElem end--elementalist Tokens
@@ -1655,7 +1655,11 @@ function mapHandleTerrainZoneEnter(ctx)
 										if gStates.hexOverideSave[objGUID]==nil then gStates.hexOverideSave[objGUID]={} end
 										gStates.hexOverideSave[objGUID][hexLocation]="graveyard"
 									end
-									if getObjectFromGUID(tokenPileBrown).getQuantity()>0 and getObjectFromGUID(tokenPileGreen).getQuantity()>0 then
+									if gStates.gameScenario=="The War of Four" and terrainTiles[objGUID].tileType~="country" then
+											if tokenFaction=="Elem" and getObjectFromGUID(monsterPiles.redElem).getQuantity()>0 then tokenPileGreen=monsterPiles.redElem end
+											if tokenFaction=="Dark" and getObjectFromGUID(monsterPiles.redDark).getQuantity()>0 then tokenPileGreen=monsterPiles.redDark end
+										end
+										if getObjectFromGUID(tokenPileBrown).getQuantity()>0 and getObjectFromGUID(tokenPileGreen).getQuantity()>0 then
 										local pos={angleToXY(obj,hexLocation)[1]-0.1, y, angleToXY(obj,hexLocation)[2]-0.1}
 										for i=1, 2, 1 do
 											local monsterPile={tokenPileBrown, tokenPileGreen}
