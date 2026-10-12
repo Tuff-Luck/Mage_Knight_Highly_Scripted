@@ -64,6 +64,88 @@ local function planVolkareExploreMove(volkarePos, originalBearing, moveCount, ma
 end
 
 
+-- Shared, read-only City targeting helpers (War of Four rules are unchanged).
+local function volkareDistance(a,b)
+	local dx,dz=a[1]-b[1],a[3]-b[3]
+	return math.sqrt(dx*dx+dz*dz)
+end
+
+local function volkareCityPositions(cityGUID)
+	local primary=getObjectFromGUID(cityGUID)
+	local pairGUID=cityMegapolisPair(cityGUID)
+	local pair=pairGUID~=nil and pairGUID~=cityGUID and getObjectFromGUID(pairGUID) or nil
+	return primary~=nil and primary.getPosition() or nil,pair~=nil and pair.getPosition() or nil
+end
+
+local function volkareClosestCity(origin)
+	local result={dist=500,key=0}
+	for key,city in pairs(gStates.cityRevealed) do
+		if city.state~="defeated" then
+			local primary,paired=volkareCityPositions(city.model)
+			local dist=volkareDistance(origin,primary or {500,0,500})
+			if paired~=nil then dist=math.min(dist,volkareDistance(origin,paired)) end
+			if dist<result.dist then result.dist=dist result.key=key end
+		end
+	end
+	return result
+end
+
+local function volkareNearestCityPosition(cityGUID,origin)
+	local primary,paired=volkareCityPositions(cityGUID)
+	if paired~=nil and (primary==nil or volkareDistance(origin,paired)<volkareDistance(origin,primary)) then return paired end
+	return primary
+end
+
+local function volkareBearingTowards(origin,target)
+	return normalizeVolkareBearing(math.floor((math.deg(math.atan2(origin[3]-target[3],origin[1]-target[1]))/60)+0.5)*60)
+end
+
+local function volkareAttackedMage()
+	local attacked=gStates.volkareAttacked~=nil and gStates.volkareAttacked[1] or nil
+	if attacked==nil then return nil,nil end
+	for index,details in pairs(turnOrder) do
+		if details.mage==attacked.mage then return index,details end
+	end
+	return nil,nil
+end
+
+local function volkareDisableButtons(...)
+	for i=1,select("#",...) do setUIButtonEnabled(select(i,...),false) end
+end
+
+local function volkareModelResting()
+	local obj=gStates.volkareModel~=nil and getObjectFromGUID(gStates.volkareModel) or nil
+	return obj==nil or (obj.resting and obj.isSmoothMoving()==false and obj.getPosition()[2]<1.5)
+end
+
+local function volkareStopMovement()
+	local obj=gStates.volkareModel~=nil and getObjectFromGUID(gStates.volkareModel) or nil
+	if obj~=nil then
+		obj.setVelocity({0,0,0})
+		obj.setAngularVelocity({0,0,0})
+		if gStates.volkareLock~=false then obj.lock() end
+	end
+end
+
+local function volkareWaitForRest(callback,timeout,onTimeout,frames)
+	local function wait() safeWaitCondition("AI.Volkare",callback,volkareModelResting,timeout,onTimeout) end
+	if frames~=nil then safeWaitFrames("AI.Volkare",wait,frames) else wait() end
+end
+
+-- Used only after cooperative city-defense combat and any rewards have finished.
+function volkareResumeCoopDefenseMovement()
+	if gStates.volkareMovementStepPending~=true or gStates.volkareMovementPaused~=true or gStates.volkareState~="Attacking City" then return false end
+	if gStates.volkareWon==true then
+		gStates.volkareMovementPaused=false
+		gStates.volkareMovementStepPending=false
+		return false
+	end
+	gStates.volkareMovementPaused=false
+	gStates.volkarePendingCombatMage=nil
+	gStates.volkareAdvanceAfterMovement=true
+	return true
+end
+
 --Volkare only. Keep his existing slower state/prompt sequence independent from the fast standard Dummy.
 function volkareTurn(player, mouseButton, id)
 	if mouseButton~="-1" or gStates.positionMageKnight[5]~="Volkare" then return end
@@ -198,18 +280,7 @@ function volkareTurn(player, mouseButton, id)
 
 					--Find closest city
 					local volkarePOS=getObjectFromGUID(gStates.volkareModel).getPosition()
-					local cityDistance={dist=500, key=0}
-					for key, city in pairs(gStates.cityRevealed) do
-						if city.state~="defeated" then
-							local cityObj=getObjectFromGUID(city.model)
-							local cityPos=cityObj~=nil and cityObj.getPosition() or {500,0,500}
-							local temp=math.sqrt(((volkarePOS[1]-cityPos[1])^2)+((volkarePOS[3]-cityPos[3])^2))
-							local pair=cityMegapolisPair(city.model)
-							local pairObj=pair~=nil and pair~=city.model and getObjectFromGUID(pair) or nil
-							if pairObj~=nil then local pairPos=pairObj.getPosition() local pairDist=math.sqrt(((volkarePOS[1]-pairPos[1])^2)+((volkarePOS[3]-pairPos[3])^2)) if pairDist<temp then temp=pairDist end end
-							if temp<cityDistance.dist then cityDistance.dist=temp cityDistance.key=key end
-						end
-					end
+					local cityDistance=volkareClosestCity(volkarePOS)
 					if cityDistance.key~=0 then gStates.volkareRazeCityKey=cityDistance.key end
 
 					--Blurb Update
@@ -287,14 +358,11 @@ function volkareTurn(player, mouseButton, id)
 
 								--change vector to move closer to the city
 								if cityDistance.key>0 and gStates.gameScenario~="Volkare's Quest" then
-									local cityPos=getObjectFromGUID(gStates.cityRevealed[cityDistance.key].model).getPosition()
+									local cityPos,pairPos=volkareCityPositions(gStates.cityRevealed[cityDistance.key].model)
 									getObjectFromGUID(gStates.volkareModel).setDecals({})
 									--stops automation next to city
 									local primaryDistance=math.sqrt(((volkarePOS[1]-cityPos[1])^2)+((volkarePOS[3]-cityPos[3])^2))
-									local pair=cityMegapolisPair(gStates.cityRevealed[cityDistance.key].model)
-									local pairObj=pair~=nil and pair~=gStates.cityRevealed[cityDistance.key].model and getObjectFromGUID(pair) or nil
-									local pairPos=pairObj~=nil and pairObj.getPosition() or nil
-									local pairDistance=pairPos~=nil and math.sqrt(((volkarePOS[1]-pairPos[1])^2)+((volkarePOS[3]-pairPos[3])^2)) or 500
+									local pairDistance=pairPos~=nil and volkareDistance(volkarePOS,pairPos) or 500
 									local attackingPrimary=primaryDistance<=pairDistance
 									if primaryDistance<2.5 or pairDistance<2.5 then
 										--check if city is beat by player or end game
@@ -391,13 +459,8 @@ function volkareTurn(player, mouseButton, id)
 										if gStates.gameScenario~="The War of Four" or #gStates.volkareAttacked>=1 then return end
 									end
 									--chooses a proper bearing
-									local targetCityPos=cityPos
-									local pair=cityMegapolisPair(gStates.cityRevealed[cityDistance.key].model)
-									local pairObj=pair~=nil and pair~=gStates.cityRevealed[cityDistance.key].model and getObjectFromGUID(pair) or nil
-									if pairObj~=nil then local pairPos=pairObj.getPosition() if math.sqrt(((volkarePOS[1]-pairPos[1])^2)+((volkarePOS[3]-pairPos[3])^2))<math.sqrt(((volkarePOS[1]-cityPos[1])^2)+((volkarePOS[3]-cityPos[3])^2)) then targetCityPos=pairPos end end
-									local cityBearing=math.floor((math.deg(math.atan2(volkarePOS[3]-targetCityPos[3], volkarePOS[1]-targetCityPos[1]))/60)+0.5)*60
-									if cityBearing>=360 then cityBearing=cityBearing-360 end
-									if cityBearing<0 then cityBearing=cityBearing+360 end
+									local targetCityPos=volkareNearestCityPosition(gStates.cityRevealed[cityDistance.key].model,volkarePOS)
+									local cityBearing=volkareBearingTowards(volkarePOS,targetCityPos)
 									volkareVector[gStates.gameScenario][volkareDrew.color]=cityBearing
 									arrowColor="Orange"
 								end
@@ -417,9 +480,7 @@ function volkareTurn(player, mouseButton, id)
 										return
 									end
 									--find the portal bearing
-									local portalBearing=math.floor((math.deg(math.atan2(volkarePOS[3]-portalPos[3], volkarePOS[1]-portalPos[1]))/60)+0.5)*60
-									if portalBearing>=360 then portalBearing=portalBearing-360 end
-									if portalBearing<0 then portalBearing=portalBearing+360 end
+									local portalBearing=volkareBearingTowards(volkarePOS,portalPos)
 									volkareVector[gStates.gameScenario][volkareDrew.color]=portalBearing
 									arrowColor="Orange"
 								end
@@ -428,7 +489,7 @@ function volkareTurn(player, mouseButton, id)
 								local volkareNewPos={volkarePOS[1]-(2.39*math.cos(math.rad(volkareVector[gStates.gameScenario][volkareDrew.color]))), 3.5, volkarePOS[3]-(2.39*math.sin(math.rad(volkareVector[gStates.gameScenario][volkareDrew.color])))}
 								getObjectFromGUID(gStates.volkareModel).unlock()
 								getObjectFromGUID(gStates.volkareModel).setPositionSmooth(volkareNewPos)
-								safeWaitFrames("AI.Volkare",function() safeWaitCondition("AI.Volkare",function() local v=getObjectFromGUID(gStates.volkareModel) if v~=nil and gStates.volkareLock~=false then v.lock() end end, function() local v=getObjectFromGUID(gStates.volkareModel) return v==nil or (v.resting and v.isSmoothMoving()==false and v.getPosition()[2]<1.5) end,8,function() local v=getObjectFromGUID(gStates.volkareModel) if v~=nil then v.setVelocity({0,0,0}) v.setAngularVelocity({0,0,0}) if gStates.volkareLock~=false then v.lock() end end end) end, 5)
+								volkareWaitForRest(function() local obj=getObjectFromGUID(gStates.volkareModel) if obj~=nil and gStates.volkareLock~=false then obj.lock() end end,8,volkareStopMovement,5)
 								local arrow=getObjectFromGUID("6647eb").clone({position={volkarePOS[1]-(1.1*math.cos(math.rad(volkareVector[gStates.gameScenario][volkareDrew.color]))), 1.11, volkarePOS[3]-(1.1*math.sin(math.rad(volkareVector[gStates.gameScenario][volkareDrew.color])))}})
 								local convert={[0]=270, [60]=210, [120]=150, [180]=90, [240]=30, [300]=330}
 								arrow.setRotation({90.00, convert[volkareVector[gStates.gameScenario][volkareDrew.color]], 0.00})
@@ -649,12 +710,12 @@ function volkareReturnCityDefenseMove()
 		if obj==nil then gStates.volkareCityDefenseMove=nil return end
 		if move.secondMove==true then
 			obj.setPositionSmooth({move.attackPos[1], 3.5, move.attackPos[3]})
-			safeWaitFrames("AI.Volkare",function() safeWaitCondition("AI.Volkare",lockAndFinish, function() local v=getObjectFromGUID(gStates.volkareModel) return v==nil or (v.resting and v.getPosition()[2]<1.5) end, 3, lockAndFinish) end, 3)
+			volkareWaitForRest(lockAndFinish,3,lockAndFinish,3)
 		else lockAndFinish() end
 	end
 	volkareObj.unlock()
 	volkareObj.setPositionSmooth(retreatPos)
-	safeWaitFrames("AI.Volkare",function() safeWaitCondition("AI.Volkare",finishRetreat, function() local v=getObjectFromGUID(gStates.volkareModel) return v==nil or (v.resting and v.getPosition()[2]<1.5) end, 3, finishRetreat) end, 3)
+	volkareWaitForRest(finishRetreat,3,finishRetreat,3)
 	return true
 end
 
