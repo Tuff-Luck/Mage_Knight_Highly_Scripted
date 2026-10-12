@@ -448,7 +448,7 @@ function scenarioRestLocationIsAvailable()
 		return true
 	end
 	local gladeOpen=true
-	if gStates.gameScenario=="Life and Death" and (location=="glade" or location=="graveyard") then
+	if (gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The War of Four") and (location=="glade" or location=="graveyard") then
 		gladeOpen=false
 		local avatarLocation=currentMageAvatarPosition(gStates.turnNumber)
 		if avatarLocation==nil then return false end
