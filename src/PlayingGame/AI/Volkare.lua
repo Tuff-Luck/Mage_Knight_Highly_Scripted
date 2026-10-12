@@ -111,6 +111,41 @@ local function volkareBearingTowards(origin,target)
 	return normalizeVolkareBearing(math.floor((math.deg(math.atan2(origin[3]-target[3],origin[1]-target[1]))/60)+0.5)*60)
 end
 
+-- Uniform selection among shortest steps on the hex grid.
+local function warOfFourShortestBearing(origin,target)
+	if target==nil then return nil end
+	local function distance(a,b)
+		local dx=(b[1]-a[1])/2.39
+		local dz=(b[3]-a[3])/2.39
+		local q=-(dx+dz/math.sqrt(3))
+		local r=2*dz/math.sqrt(3)
+		return math.max(math.abs(q),math.abs(r),math.abs(q+r))
+	end
+	local candidates,best={},math.huge
+	for _,bearing in ipairs({0,60,120,180,240,300}) do
+		local p={origin[1]-2.39*math.cos(math.rad(bearing)),origin[2],origin[3]-2.39*math.sin(math.rad(bearing))}
+		local d=distance(p,target)
+		if d<best-0.01 then candidates={bearing} best=d
+		elseif math.abs(d-best)<=0.01 then candidates[#candidates+1]=bearing end
+	end
+	return candidates[math.random(#candidates)]
+end
+
+local function warOfFourPortalLoss()
+	if gStates.gameScenario~="The War of Four" or gStates.volkareWon==true then return false end
+	local portal=volkareQuestPortalTile()
+	local model=gStates.volkareModel~=nil and getObjectFromGUID(gStates.volkareModel) or nil
+	if portal==nil or model==nil then return false end
+	local pPos=portal.getPosition()
+	if volkareDistance(model.getPosition(),pPos)>0.6 or #findNearbyMages(pPos,0.9)>0 then return false end
+	gStates.volkareWon=true
+	volkareReleaseRewindWhenStable()
+	gStates.blurb="{en}Volkare reached the undefended Portal. All players lose.{it}Volkare ha raggiunto il Portale indifeso. Tutti perdono.{ru}Волкар достиг незащищённого Портала. Все проиграли.{zh-tw}沃卡里抵達無人防守的傳送門。所有玩家落敗。{zh-cn}沃卡里抵达无人防守的传送门。所有玩家失败。{ko}볼카레가 무방비 상태의 차원문에 도착했습니다. 모두 패배합니다.{es}Volkare llegó al Portal indefenso. Todos pierden.{fr}Volkare a atteint le Portail sans défense. Tous perdent.{pt-br}Volkare alcançou o Portal sem defesa. Todos perdem.{de}Volkare erreichte das unverteidigte Portal. Alle verlieren."
+	UI.setAttribute("DummyNotes","Text",gStates.blurb)
+	mainUIUpdate("War of Four Portal lost")
+	return true
+end
+
 local function volkareAttackedMage()
 	local attacked=gStates.volkareAttacked~=nil and gStates.volkareAttacked[1] or nil
 	if attacked==nil then return nil,nil end
@@ -177,11 +212,13 @@ function volkareTurn(player, mouseButton, id)
 		return
 	end
 	local volkareDrew={color="Blue", spell=2}--this will give Volkare a Frenzy result.
+	local warOfFourDeckExhausted=false
 	gStates.volkareFrenzied=true
 	local function volkareDrawCard()
 		local stats=turnOrder[gStates.turnNumber]
 		if stats==nil then return nil end
 		local lastCard=automatedDeedDraw(stats.seatPos,1,1)
+		if lastCard==nil and gStates.gameScenario=="The War of Four" then warOfFourDeckExhausted=true end
 		if lastCard~=nil then
 			gStates.volkareFrenzied=false
 			local colors=dummyCardColors(lastCard)
@@ -483,7 +520,7 @@ function volkareTurn(player, mouseButton, id)
 								local portalSpecial=(gStates.gameScenario=="The War of Four") or gStates.gameScenario=="Volkare's Quest"
 								if portalSpecial and volkareToPortalDist<2.5 then
 									--stops automation when on portal need to inititiate a game over.
-									if volkareToPortalDist<0.5 then
+									if volkareToPortalDist<0.5 and gStates.gameScenario~="The War of Four" then
 										gStates.volkareWon=true; volkareReleaseRewindWhenStable()
 										gStates.blurb="{en}Volkare passed through the Portal. His unknowable intentions achieved.<size=6>\n\n</size>You have Lost.{it}Volkare ha attraversato il Portale, realizzando i suoi oscuri intenti.<size=6>\n\n</size>Avete perso.{ru}Волкар прошел через Портал. Его непостижимые намерения достигнуты.<size=6>\n\n</size>Вы проиграли.{zh-tw}沃卡里穿越了傳送門。\n他無人知曉的密謀達成了。<size=6>\n\n</size>你輸了。{zh-cn}沃卡里穿越了传送门。\n他无人知晓的密谋达成了。<size=6>\n\n</size>你输了。{ko}볼케어가 포탈에 도착했고 그의 알수 없는 목적을 달성했습니다.<size=6>\n\n</size>게임 패배.{es}Volkare pasó por el Portal. Sus incognoscibles intenciones logradas.<size=6>\n\n</size>Has perdido.{fr}Volkare passa par le Portail. Ses intentions inconnaissables se sont réalisées.<size=6>\n\n</size>Vous avez perdu.{pt-br}Volkare passou pelo portal. Suas intenções misteriosas conquistadas.<size=6>\n\n</size>Você perdeu.{de}Volkare ging durch das Portal. Seine unbekannten Absichten wurden erfüllt.<size=6>\n\n</size>Du hast verloren."
 										UI.setAttribute("DummyNotes", "Text", gStates.blurb)
@@ -494,6 +531,12 @@ function volkareTurn(player, mouseButton, id)
 									local portalBearing=volkareBearingTowards(volkarePOS,portalPos)
 									volkareVector[gStates.gameScenario][volkareDrew.color]=portalBearing
 									arrowColor="Orange"
+								end
+
+								if warOfFourDeckExhausted then
+									local target=cityDistance.key>0 and volkareNearestCityPosition(gStates.cityRevealed[cityDistance.key].model,volkarePOS) or portalPos
+									local bearing=warOfFourShortestBearing(volkarePOS,target)
+									if bearing~=nil then volkareVector[gStates.gameScenario][volkareDrew.color]=bearing end
 								end
 
 								--white green and blue card will move volkare (Red also when city revealed)
@@ -547,6 +590,7 @@ function volkareTurn(player, mouseButton, id)
 									if movementSequence~=gStates.volkareMovementSequence then return end
 									if timedOut then volkareStopMovement() end
 									volkareQuestPortalStatus()
+									if stepNumber==movementSteps and warOfFourPortalLoss() then return end
 									if #magesInRange==0 and stepNumber==movementSteps and gStates.volkareWon~=true then
 										gStates.volkareState="ReadyToEnd"
 										volkareReleaseRewindWhenStable()
