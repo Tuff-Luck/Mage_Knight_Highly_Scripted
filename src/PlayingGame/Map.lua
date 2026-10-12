@@ -1634,12 +1634,13 @@ function mapHandleTerrainZoneEnter(ctx)
 							if hexFeature=="glade" then --and objGUID~=GUID.tile.city05 then--stopped it happening on the green city tile but can't figure out why...
 								local pos=enteredTilePosition
 								local warOfFourDeploy=false
-								for _, coords in pairs(warOfFourGladeEdgeCoordinates) do
-									if math.sqrt(((pos[1]-coords[1])^2)+((pos[3]-coords[2])^2))<1 then warOfFourDeploy=true break end
+								local warOfFourSouth=false
+								for edgeIndex, coords in ipairs(warOfFourGladeEdgeCoordinates) do
+									if math.sqrt(((pos[1]-coords[1])^2)+((pos[3]-coords[2])^2))<1 then warOfFourDeploy=true warOfFourSouth=edgeIndex>10 break end
 								end
 								if (gStates.gameScenario=="Life and Death" or (gStates.gameScenario=="The War of Four" and warOfFourDeploy==true)) then -- and core==0
 									local tokenFaction=nil
-									if (gStates.gameScenario=="The War of Four" and enteredTilePosition[3]<-7.77) or (gStates.gameScenario~="The War of Four" and (startBearing<=northBearing or
+									if (gStates.gameScenario=="The War of Four" and warOfFourSouth) or (gStates.gameScenario~="The War of Four" and (startBearing<=northBearing or
 										(((startBearing<=northBearing+1 and gStates.coop==1) or (gStates.coop==0 and enteredTilePosition[3]<-7 and enteredTilePosition[3]>-8 and enteredTilePosition[1]<-31 and enteredTilePosition[1]>-32)) and math.random(1,2)==1))) then
 											tokenFaction="Elem"
 										if getObjectFromGUID(monsterPiles.greenElem).getQuantity()>0 then tokenPileGreen=monsterPiles.greenElem end
