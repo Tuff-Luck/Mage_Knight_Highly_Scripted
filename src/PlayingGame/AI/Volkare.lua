@@ -79,6 +79,17 @@ end
 
 local function volkareClosestCity(origin)
 	local result={dist=500,key=0}
+	if gStates.gameScenario=="The War of Four" then
+		for key,city in ipairs(gStates.cityRevealed) do
+			if city.state~="defeated" then
+				local primary,paired=volkareCityPositions(city.model)
+				local dist=volkareDistance(origin,primary or {500,0,500})
+				if paired~=nil then dist=math.min(dist,volkareDistance(origin,paired)) end
+				return {dist=dist,key=key}
+			end
+		end
+		return result
+	end
 	for key,city in pairs(gStates.cityRevealed) do
 		if city.state~="defeated" then
 			local primary,paired=volkareCityPositions(city.model)
@@ -515,8 +526,8 @@ function volkareTurn(player, mouseButton, id)
 									end
 									if #gStates.volkareAttacked<2 then
 										gStates.blurb=joinLang({gStates.blurb, "{en}Volkare attacked {it}Volkare ha attaccato {ru}Волкар атаковал {zh-tw}\n沃卡里攻擊了{zh-cn}\n沃卡里攻击了{ko}볼케어의 공격: {es}Volkare atacó {fr}Volkare a attaqué {pt-br}Volkare atacou {de}Volkare angegriffen ", translateWord[magesInRange[1].mage], "{en}. ", translateWord[magesInRange[1].mage], "{en} can take {it} può subire {ru} может взять {zh-tw}可拿取 {zh-cn}可拿取 {ko} 플레이어는 {es} puede tomar {fr} peut prendre {pt-br} pode receber {de} können sich ", (math.ceil(gStates.currentRound/2)+1), "{en} wounds to retreat.{it} Ferite per ritirarsi.{ru} раны и отступить.{zh-tw} 張創傷卡來躲避。\n{zh-cn} 张创伤卡来躲避。\n{ko} 장의 부상을 받고 후퇴할 수 있습니다.{es} heridas para retirarse.{fr} blessures à reculer.{pt-br} Ferimentos para recuar.{de} Wunden zum Rückzug."})
-										local questSkipTarget=gStates.gameScenario=="Volkare's Quest" and volkareQuestSkipThreshold() or (gStates.playerCount*2)
-										if (gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") then gStates.blurb=joinLang({gStates.blurb, "{en} Defeating at least {it} Sconfiggere almeno {ru} Победив по крайней мере {zh-tw}\n在沃卡里的下個回合之前，\n擊敗至少 {zh-cn}\n在沃卡里的下个回合之前，\n击败至少 {ko} 볼케어 군대의 최소 {es} Derrotando al menos {fr} Vaincre au moins {pt-br} Derrotar ao menos {de} Das Besiegen von mindestens ", tostring(questSkipTarget), "{en} of Volkare's army before his next turn will force him to skip that turn.{it} dell'esercito di Volkare prima del suo prossimo turno lo costringerà a saltarlo.{ru} отряда из армии Волкара до его следующего хода, вы заставите его пропустить этот ход.{zh-tw} 名沃卡里的手下，\n會讓沃卡里強制跳過他的回合。\n{zh-cn} 名沃卡里的手下，\n会让沃卡里强制跳过他的回合。\n{ko} 개의 적을 처치했다면 볼케어는 다음 차례를 쉽니다.{es} del ejército de Volkare antes de su próximo turno lo obligará a saltarse ese turno.{fr} de l'armée de Volkare avant son prochain tour le forcera à sauter ce tour.{pt-br} do Exército de Volkare antes do seu próximo turno o forçará a pular aquele turno.{de} der Armee von Volkare vor seinem nächsten Zug zu besiegen, zwingt ihn, diesen Zug auszulassen."}) end
+										local questSkipTarget=volkareQuestSkipThreshold()
+										if gStates.gameScenario=="Volkare's Quest" then gStates.blurb=joinLang({gStates.blurb, "{en} Defeating at least {it} Sconfiggere almeno {ru} Победив по крайней мере {zh-tw}\n在沃卡里的下個回合之前，\n擊敗至少 {zh-cn}\n在沃卡里的下个回合之前，\n击败至少 {ko} 볼케어 군대의 최소 {es} Derrotando al menos {fr} Vaincre au moins {pt-br} Derrotar ao menos {de} Das Besiegen von mindestens ", tostring(questSkipTarget), "{en} of Volkare's army before his next turn will force him to skip that turn.{it} dell'esercito di Volkare prima del suo prossimo turno lo costringerà a saltarlo.{ru} отряда из армии Волкара до его следующего хода, вы заставите его пропустить этот ход.{zh-tw} 名沃卡里的手下，\n會讓沃卡里強制跳過他的回合。\n{zh-cn} 名沃卡里的手下，\n会让沃卡里强制跳过他的回合。\n{ko} 개의 적을 처치했다면 볼케어는 다음 차례를 쉽니다.{es} del ejército de Volkare antes de su próximo turno lo obligará a saltarse ese turno.{fr} de l'armée de Volkare avant son prochain tour le forcera à sauter ce tour.{pt-br} do Exército de Volkare antes do seu próximo turno o forçará a pular aquele turno.{de} der Armee von Volkare vor seinem nächsten Zug zu besiegen, zwingt ihn, diesen Zug auszulassen."}) end
 										UI.setAttribute("VolkareAttacked", "active", "true")
 										volkareQuestRefreshFullAttend(magesInRange[1].mage)
 									else
