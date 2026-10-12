@@ -134,7 +134,7 @@ end
 
 -- Used only after cooperative city-defense combat and any rewards have finished.
 function volkareResumeCoopDefenseMovement()
-	if gStates.volkareMovementStepPending~=true or gStates.volkareMovementPaused~=true or gStates.volkareState~="Attacking City" then return false end
+	if gStates.volkareMovementStepPending~=true or gStates.volkareMovementPaused~=true then return false end
 	if gStates.volkareWon==true then
 		gStates.volkareMovementPaused=false
 		gStates.volkareMovementStepPending=false
