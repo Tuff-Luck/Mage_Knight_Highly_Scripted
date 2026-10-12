@@ -353,7 +353,7 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 		gStates.WarOfFourComp=false
 		if id=="WarOfFourStartButton" then
 			gStates.WarOfFourComp=true
-			local levels={{2, 2, 4, 4}, {3, 3, 6, 6}, {4, 4, 8, 8}}
+			local levels={{2, 2, 4, 4, 8}, {3, 3, 6, 6, 12}, {4, 4, 8, 8, 16}}
 			scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels=levels[gStates.volkareCombatLevel]
 		end
 
