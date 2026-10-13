@@ -1,11 +1,11 @@
 -- City-private helpers. Predeclared so forward references keep resolving locally.
 local cityModelDisplayLevel, initializeCityStaticData, cityMegapolisPending, cityHasMegapolis, cityPlayedContains, cityRemoveFromPlayed
-local refreshUltimateConquestCityCounts, ultimateConquestLeaderLevel, cityControlLockedByReveal, cityControlState, setCityDisplayLevel, factionLeaderForCity
-local setFactionLeaderLevel, cityArmyLevelData, cityDefenderPile, takeCityDefender, cityGarrisonBasePosition, cityArmyPlace
+local refreshUltimateConquestCityCounts, cityControlLockedByReveal, cityControlState, setCityDisplayLevel
+local cityArmyLevelData, cityDefenderPile, takeCityDefender, cityGarrisonBasePosition, cityArmyPlace
 local returnCityGarrisonTokens, resetCityGarrisonData, cityObjectsAreReady, disableCityControls, rebuildCityGarrisonNow, rebuildCityGarrison
 local scheduleCityRebuild, megapolisTerrainBearingData, megapolisReturnHexMonsters, megapolisRemoveGraveyardMarker, megapolisRemoveMonasteryOffer, megapolisWarOfFourGladeOnFactionEdge
 local megapolisDeployWarOfFourGlade, megapolisRestoreTerrainHex, chooseMegapolisPair, cityTerrainRotationKey, createCityMegapolisPair, addCityMegapolis
-local removeCityMegapolis, cityShouldCreateMegapolis, cityRegisterDeployOrder, cityLeaderDeployOrder, deployFriendlyCityShields, resolveCityForTerrain
+local removeCityMegapolis, cityShouldCreateMegapolis, cityRegisterDeployOrder, deployFriendlyCityShields, resolveCityForTerrain
 local revealCityInfoCard, cityLevelReadoutOnly, adjustCityLevel, cityCardMapSnapshot, cityCardExploreGroup, cityCardPositionForbidden
 local cityCardExploreSpaceFree, findCityCardPosition, moveCityCardExploreGroup, positionCityCardForExplore, cityControlTerrainGUID, refreshLockedCityControl
 
@@ -138,16 +138,6 @@ refreshUltimateConquestCityCounts=function()
 	return cityCount
 end
 
-ultimateConquestLeaderLevel=function(cityCount)
-	if cityCount>0 and gStates.cityLevels[cityCount]~=nil then return gStates.cityLevels[cityCount] end
-	local lowest=nil
-	for cityIndex=1, gStates.cityTiles do
-		local cityLevel=gStates.cityLevels[cityIndex]
-		if cityLevel~=nil and (lowest==nil or cityLevel<lowest) then lowest=cityLevel end
-	end
-	return lowest or 1
-end
-
 cityMaintenanceLockSeen={}
 
 --Once a City/Volkare garrison or faction leader reveals new information, its setup controls are permanently locked.
@@ -238,31 +228,6 @@ setCityDisplayLevel=function(cityGUID, level)
 	return true
 end
 
-
-factionLeaderForCity=function(cityGUID)
-	if cityGUID==elementalist.terrainHex then return elementalist end
-	if cityGUID==darkCrusader.terrainHex then return darkCrusader end
-	return nil
-end
-
-setFactionLeaderLevel=function(cityGUID, level)
-	local currentLeader=factionLeaderForCity(cityGUID)
-	local levelData=currentLeader~=nil and leaderData[currentLeader.terrainHex] or nil
-	level=math.min(tonumber(level) or 1, 12)
-	if currentLeader==nil or levelData==nil or levelData[level]==nil then return false end
-	local disc=getObjectFromGUID(currentLeader.disc)
-	local token=getObjectFromGUID(currentLeader.token)
-	if disc~=nil then disc.setCustomObject({image=levelData[level].discImg}) disc.reload() end
-	if token~=nil then
-		token.setCustomObject({image=levelData[level].tokenImg})
-		token.setName((currentLeader==elementalist and "Elementalist" or "Dark Crusader").." Leader Level "..level)
-		token.reload()
-	end
-	monsterPugs[currentLeader.token]=levelData[level].abilities
-	if currentLeader==elementalist then gStates.elementalistLevel=level else gStates.darkCrusaderLevel=level end
-	if gStates.cityMonsterQty[cityGUID]~=nil then gStates.cityMonsterQty[cityGUID][currentLeader.token]="alive" end
-	return true
-end
 
 cityArmyLevelData=function(cityGUID, cityLevel)
 	cityLevel=tonumber(cityLevel)
@@ -902,14 +867,6 @@ function cityReplacementLevelForDragon()
 	return order,gStates.cityLevels[order]
 end
 
-cityLeaderDeployOrder=function(cityGUID, ultimateCitiesPlayed, leaderLevel)
-	if gStates.cityDeployOrder[cityGUID]~=nil then return gStates.cityDeployOrder[cityGUID], gStates.cityLevels[gStates.cityDeployOrder[cityGUID]] end
-	local leaderOrder=#gStates.citiesPlayed-(gStates.megapolisPlayed or 0)
-	if gStates.gameScenario=="Ultimate Conquest" then leaderOrder=#gStates.cityLevels+1 gStates.cityLevels[leaderOrder]=leaderLevel end
-	gStates.cityDeployOrder[cityGUID]=leaderOrder
-	return leaderOrder, leaderLevel
-end
-
 deployFriendlyCityShields=function(cityGUID)
 	if gStates.friendlyCity==nil then gStates.friendlyCity={} end
 	gStates.friendlyCity[cityGUID]=true
@@ -993,26 +950,7 @@ function playCity(obj, hexFeature, dropped)
 		local ultimateCitiesPlayed=refreshUltimateConquestCityCounts()
 		local leader=factionLeaderForCity(cityGUID)
 		if leader~=nil then
-			local leaderLevel=gStates.cityLevels[#gStates.citiesPlayed-(gStates.megapolisPlayed or 0)-math.ceil((gStates.megapolisPlayed or 0)/2)]
-			if gStates.gameScenario=="Ultimate Conquest" then leaderLevel=ultimateConquestLeaderLevel(ultimateCitiesPlayed) end
-			if gStates.gameScenario=="The War of Four" then
-				leaderLevel=999
-				for _, level in pairs(gStates.cityLevels) do if level<leaderLevel then leaderLevel=level end end
-			end
-			local order
-			order, leaderLevel=cityLeaderDeployOrder(cityGUID, ultimateCitiesPlayed, leaderLevel)
-			leaderLevel=math.min(tonumber(leaderLevel) or 1,12)
-			gStates.cityLevels[order]=leaderLevel
-			setFactionLeaderLevel(cityGUID,leaderLevel)
-			if leader==elementalist then
-				runtimeMapSetHexFeature(obj.guid,"center","hidden valley")
-				gStates.hexOverideSave[obj.guid].center="hidden valley"
-				gStates.monsterPlayLocation[elementalist.token]={-55.3,1.5,15.3}
-			else
-				runtimeMapSetHexFeature(obj.guid,"center","necropolis")
-				gStates.hexOverideSave[obj.guid].center="necropolis"
-				gStates.monsterPlayLocation[darkCrusader.token]={-55.3,1.5,6.7}
-			end
+			local leaderLevel=factionLeaderDeploy(cityGUID,ultimateCitiesPlayed,obj)
 			local basePos, rotation=cityGarrisonBasePosition(cityGUID,cityGUID,false)
 			local delay=cityArmyPlace(cityGUID,leaderLevel,basePos,rotation,0,0,cityGUID)
 			safeWaitFrames("City",function() refreshCityScriptZones() mainUIUpdate("City card move") addCityButtons() end, delay+5)
@@ -1453,8 +1391,7 @@ function refreshCityDefeatState()
 		local cityMonsters=gStates.cityMonsterQty~=nil and gStates.cityMonsterQty[cityGUID] or nil
 		if cityMonsters~=nil and cityMonsters.extra~=nil and cityMonsters.extra.megapolisPair~=cityGUID and cityTargetDefeated(cityGUID)==true then
 			if cityGUID==darkCrusader.terrainHex or cityGUID==elementalist.terrainHex then
-				gStates.defeatedFaction=gStates.defeatedFaction+1
-				gStates.defeatedFactionTest[cityGUID]="Beat"
+				factionLeaderRegisterConquered(cityGUID)
 			else
 				--War of Four needs conquered cities recorded when beaten rather than when first revealed.
 				if gStates.gameScenario=="The War of Four" and cityZone~=darkCrusader.discZone and cityZone~=elementalist.discZone then
@@ -1483,8 +1420,7 @@ function refreshCityControlAndScoring()
 	local leadTest={}
 	local factionAssistTest={}
 	local bothTest=0
-	gStates.allPlayersFoughtAFactionLeaderCheck=false
-	gStates.allPlayersFoughtBothFactionLeaderCheck=false
+	factionLeaderResetScoring()
 	gStates.allLeaderCheck=false
 	--Zero out any existing city/faction scores and ownership.
 	local scoreVariable={"CityLead", "CityAssist", "ElemFactionAssist", "DarkFactionAssist", "ElemFactionLead", "DarkFactionLead"}
@@ -1517,15 +1453,7 @@ function refreshCityControlAndScoring()
 			end
 			--Sort shields into the physical tie-break order used for City/Faction leadership.
 			if cityZone==darkCrusader.discZone or cityZone==elementalist.discZone then
-				local tilePos=zoneObj.getPosition()
-				table.sort(objectsOnCity, function(k1, k2)
-					local rot=math.rad(90)
-					local p1=k1.getPosition()
-					local p2=k2.getPosition()
-					local var1=math.atan2(((p1[3]-tilePos[3])*math.cos(rot))+((p1[1]-tilePos[1])*math.sin(rot)), ((p1[1]-tilePos[1])*math.cos(rot))-((p1[3]-tilePos[3])*math.sin(rot)))
-					local var2=math.atan2(((p2[3]-tilePos[3])*math.cos(rot))+((p2[1]-tilePos[1])*math.sin(rot)), ((p2[1]-tilePos[1])*math.cos(rot))-((p2[3]-tilePos[3])*math.sin(rot)))
-					return var1<var2
-				end)
+				factionLeaderSortShields(objectsOnCity,zoneObj)
 			else
 				table.sort(objectsOnCity, function(k1, k2) return k1.getPosition()[1]<k2.getPosition()[1] end)
 			end
@@ -1544,16 +1472,7 @@ function refreshCityControlAndScoring()
                     end
 				end
 			end
-			--Faction areas also count the scenario-specific Graveyard/Glade contributions.
-			if (cityZone==darkCrusader.discZone or cityZone==elementalist.discZone) and (gStates.coop==0 or gStates.WarOfFourComp==true) then
-				for c=1, #turnOrder, 1 do
-					if turnOrder[c].mage~=gStates.positionMageKnight[5] then
-						if cityScoring[turnOrder[c].mage]==nil then cityScoring[turnOrder[c].mage]=0 end
-						if cityZone==elementalist.discZone then cityScoring[turnOrder[c].mage]=cityScoring[turnOrder[c].mage]+turnOrder[c].score.Glade end
-						if cityZone==darkCrusader.discZone then cityScoring[turnOrder[c].mage]=cityScoring[turnOrder[c].mage]+turnOrder[c].score.GraveYard end
-					end
-				end
-			end
+			factionLeaderAddTerrainContributions(cityZone,cityScoring)
 			local highest={0, nil}
 			--City control and City scoring are deliberately separate. A scenario-friendly City gives every
 			--player with a Shield the normal Assist hand-size benefit, but has no Leader and never awards
@@ -1586,50 +1505,14 @@ function refreshCityControlAndScoring()
 					end
 				end
 			end
-			--Faction Leader scoring retains the existing contribution behaviour.
-			if cityZone==darkCrusader.discZone or cityZone==elementalist.discZone then
-				local factionBothAssistTest={}
-				highest={0, nil}
-				for mage, value in pairs(cityScoring) do
-					if value>0 then
-						for c=1, #turnOrder, 1 do
-							if turnOrder[c].mage==mage then
-								if cityZone==elementalist.discZone then turnOrder[c].score.ElemFactionAssist=turnOrder[c].score.ElemFactionAssist+1 end
-								if cityZone==darkCrusader.discZone then turnOrder[c].score.DarkFactionAssist=turnOrder[c].score.DarkFactionAssist+1 end
-								if highest[1]<value then highest[1]=value highest[2]=mage end
-								factionAssistTest[turnOrder[c].mage]=true
-								factionBothAssistTest[turnOrder[c].mage]=true
-								break
-							end
-						end
-					end
-				end
-				for c=1, #turnOrder, 1 do
-					if turnOrder[c].mage==highest[2] then
-						if cityZone==darkCrusader.discZone then
-							turnOrder[c].score.DarkFactionAssist=turnOrder[c].score.DarkFactionAssist-1
-							turnOrder[c].score.DarkFactionLead=turnOrder[c].score.DarkFactionLead+1
-						end
-						if cityZone==elementalist.discZone then
-							turnOrder[c].score.ElemFactionAssist=turnOrder[c].score.ElemFactionAssist-1
-							turnOrder[c].score.ElemFactionLead=turnOrder[c].score.ElemFactionLead+1
-						end
-						break
-					end
-				end
-				local count=0
-				for _ in pairs(factionBothAssistTest) do count=count+1 end
-				if count==#turnOrder-1 then bothTest=bothTest+1 end
-			end
+
+			if factionLeaderScoreZone(cityZone,cityScoring,factionAssistTest) then bothTest=bothTest+1 end
 		end
 	end
 	local count=0
 	for _ in pairs(leadTest) do count=count+1 end
 	if count==#turnOrder-1 then gStates.allLeaderCheck=true end
-	if bothTest==2 then gStates.allPlayersFoughtBothFactionLeaderCheck=true end
-	count=0
-	for _ in pairs(factionAssistTest) do count=count+1 end
-	if count==#turnOrder-1 then gStates.allPlayersFoughtAFactionLeaderCheck=true end
+	factionLeaderFinishScoring(factionAssistTest,bothTest)
 end
 
 -- Build static City lookup data after the City module has defined its initializer.

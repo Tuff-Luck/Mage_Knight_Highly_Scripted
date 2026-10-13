@@ -1,7 +1,7 @@
 -- Combat-private helpers. Predeclared so forward references keep resolving locally.
-local clearCoopLeaderPreviewClones, clearCoopAssaultRuntime, createCoopLeaderPreviewClones, promoteCoopLeaderPreview, moveCoopAssaultAvatarToCityCard
+local clearCoopAssaultRuntime, moveCoopAssaultAvatarToCityCard
 local coopAssaultTargetDefeated, restoreCoopAssaultAvatar, resolveCoopAssaultLocations, factionRewardPileGUID, takeFactionRewardToken
-local awardFactionRewardToken, giveQueuedFactionReward, showCoopReward, coopAssaultAvatarsSettled, finalizeCoopLeaderCombat
+local awardFactionRewardToken, giveQueuedFactionReward, showCoopReward, coopAssaultAvatarsSettled
 local assaultOriginAdjacent, assaultTargetHasWall, resolveAssaultWallFortified, assaultCrossesWall, setAssaultWallFortified
 local settleAssaultWallFortified, applyCurrentAssaultWallFortified, combatCameraPlayerIndex, combatNearbyRampagerChoice, combatAttackOptionCount
 local coopAssaultDividableCount, coopAssaultHasLeader, coopAssaultLeadMage, coopAssaultAssignmentSource, coopAssaultCityMinimumEnemyRule
@@ -133,15 +133,6 @@ function coopAssaultPendingCombat()
 	return false
 end
 
---Faction-leader co-op participants get unlocked planning copies. These clones are visual only and are never registered as monsters.
-clearCoopLeaderPreviewClones=function()
-	for playerIndex, cloneGUID in pairs(gStates.coopLeaderPreviewClones or {}) do
-		local clone=getObjectFromGUID(cloneGUID)
-		if clone~=nil then clone.destruct() end
-	end
-	gStates.coopLeaderPreviewClones={}
-end
-
 clearCoopAssaultRuntime=function(keepAssignments)
 	gStates.coopAssaultPhase=nil
 	gStates.coopCombatHandoffReady=nil
@@ -157,53 +148,6 @@ clearCoopAssaultRuntime=function(keepAssignments)
 	gStates.coopAssaultConquered=nil
 	gStates.coopAssaultScenarioEndPending=false
 	gStates.coopAssaultMode=nil
-end
-
-createCoopLeaderPreviewClones=function()
-	clearCoopLeaderPreviewClones()
-	if gStates.coopAssaultPhase~="combat" or coopAssaultTargetType()~="leader" then return end
-	local leaderGUID=elementalist.token
-	if gStates.coopAssaultCityGUID==darkCrusader.terrainHex then leaderGUID=darkCrusader.token end
-	local leaderObj=getObjectFromGUID(leaderGUID)
-	if leaderObj==nil then return end
-	for playerIndex, _ in pairs(gStates.coopAssaultParticipants or {}) do
-		if playerIndex~=gStates.turnNumber and turnOrder[playerIndex]~=nil then
-			local clone=leaderObj.clone({position={turnOrder[playerIndex].seatPos*40-100, 1.5, -39.41}, rotation={0, 180, 0}, smooth=false})
-			if clone~=nil then
-				clone.unlock()
-				clone.interactable=true
-				clone.UI.setXmlTable({{}})
-				gStates.coopLeaderPreviewClones[playerIndex]=clone.guid
-			end
-		end
-	end
-end
-
---Replace the next player's movable planning copy with the real leader token and its combat controls.
-promoteCoopLeaderPreview=function(playerIndex, leaderObj)
-	if leaderObj==nil or turnOrder[playerIndex]==nil then return end
-	local destination={turnOrder[playerIndex].seatPos*40-100, 1.5, -39.41}
-	local cloneGUID=gStates.coopLeaderPreviewClones~=nil and gStates.coopLeaderPreviewClones[playerIndex] or nil
-	local clone=cloneGUID~=nil and getObjectFromGUID(cloneGUID) or nil
-	if clone~=nil then
-		--Respect where the player moved the preview as long as it is still inside that player's combat area.
-		local playZone=getObjectFromGUID(playerPlayAreas[turnOrder[playerIndex].seatPos])
-		if playZone~=nil then
-			for _, obj in pairs(playZone.getObjects()) do
-				if obj.guid==clone.guid then
-					local clonePos=clone.getPosition()
-					destination={clonePos[1], 1.5, clonePos[3]}
-					break
-				end
-			end
-		end
-		clone.destruct()
-	end
-	if gStates.coopLeaderPreviewClones~=nil then gStates.coopLeaderPreviewClones[playerIndex]=nil end
-	leaderObj.unlock()
-	leaderObj.setPositionSmooth(destination,false,false)
-	leaderObj.setRotation({0, 180, 0})
-	setMonsterObjectButtons(leaderObj)
 end
 
 --Assisting Mage Knights are treated as being in the assaulted city without moving their avatar until the assault result is known.
@@ -257,19 +201,8 @@ coopAssaultTargetDefeated=function()
 		return true
 	end
 
-	if assaultType=="leader" then
-		if cityTargetDefeated(target)==true then return true end
-		--The leader's followers are discarded shortly after the leader reaches level 0, so use the
-		--leader token/level as an immediate fallback while that delayed cleanup is still finishing.
-		if target==darkCrusader.terrainHex then
-			return (gStates.darkCrusaderLevel or 1)<=0 or (gStates.cityMonsterQty[target]~=nil and gStates.cityMonsterQty[target][darkCrusader.token]=="dead")
-		end
-		if target==elementalist.terrainHex then
-			return (gStates.elementalistLevel or 1)<=0 or (gStates.cityMonsterQty[target]~=nil and gStates.cityMonsterQty[target][elementalist.token]=="dead")
-		end
-		return false
-	end
 
+	if assaultType=="leader" then return factionLeaderTargetDefeated(target) end
 	return cityTargetDefeated(target)
 end
 
@@ -638,51 +571,11 @@ coopAssaultAvatarsSettled=function()
 	return true
 end
 
---Faction-leader level changes are resolved only after every participant in a cooperative assault has finished combat.
-finalizeCoopLeaderCombat=function()
-	if gStates.coopAssaultPhase~="combat" or coopAssaultTargetType()~="leader" then return end
-	clearCoopLeaderPreviewClones()
-	if (gStates.leaderReduction or 0)<=0 then return end
-	local currentLeader=elementalist
-	local currentLevel=gStates.elementalistLevel
-	if gStates.coopAssaultCityGUID==darkCrusader.terrainHex then currentLeader=darkCrusader currentLevel=gStates.darkCrusaderLevel end
-	if currentLevel==nil then gStates.leaderReduction=0 return end
-	local finalLevel=math.max(0, currentLevel-gStates.leaderReduction)
-	gStates.leaderReduction=0
-	if currentLeader==darkCrusader then gStates.darkCrusaderLevel=finalLevel else gStates.elementalistLevel=finalLevel end
-	local leaderObj=getObjectFromGUID(currentLeader.token)
-	if finalLevel==0 then
-		if leaderObj~=nil then getObjectFromGUID(trashCan).putObject(leaderObj) end
-		if gStates.cityMonsterQty[currentLeader.terrainHex]~=nil then gStates.cityMonsterQty[currentLeader.terrainHex][currentLeader.token]="dead" end
-		local disc=getObjectFromGUID(currentLeader.disc)
-		if disc~=nil then disc.setCustomObject({image=leaderData[currentLeader.terrainHex]["dead"].discImg}) disc.reload() end
-		--The whole cooperative assault is now over, so surviving followers may finally flee.
-		if gStates.cityMonsterQty[currentLeader.terrainHex]~=nil then
-			for monsterGUID, state in pairs(gStates.cityMonsterQty[currentLeader.terrainHex]) do
-				if monsterGUID~="extra" and monsterGUID~=currentLeader.token and state~="dead" then
-					local monster=getObjectFromGUID(monsterGUID)
-					if monster~=nil and monster.getRotationValues()[2]~=nil then combatDiscardMonster(monster,false,{player=gStates.turnNumber,avatarPos=mageKnightAvatarPosition(gStates.turnNumber) or {}}) end
-				end
-			end
-		end
-	else
-		if leaderObj~=nil then
-			if gStates.monsterPlayLocation[leaderObj.guid]~=nil then leaderObj.setPositionSmooth(gStates.monsterPlayLocation[leaderObj.guid],false,false) end
-			leaderObj.setCustomObject({image=leaderData[currentLeader.terrainHex][finalLevel].tokenImg})
-			leaderObj.setName(joinLang({currentLeader==darkCrusader and "{en}Dark Crusader Leader Level {it}Capo dei Crociati Oscuri, Livello {ru}Уровень лидера Тёмных крестоносцев: {zh-tw}黑暗十字軍領袖等級 {zh-cn}黑暗十字军领袖等级 {ko}다크 크루세이더 지도자 레벨 {es}Nivel del líder Cruzado Oscuro {fr}Niveau du chef Croisé Sombre {pt-br}Nível do líder Cruzado Sombrio {de}Stufe des Anführers der Dunklen Kreuzritter " or "{en}Elementalist Leader Level {it}Capo degli Elementalisti, Livello {ru}Уровень лидера Элементалистов: {zh-tw}元素使領袖等級 {zh-cn}元素使领袖等级 {ko}엘리멘탈리스트 지도자 레벨 {es}Nivel del líder Elementalista {fr}Niveau du chef Élémentaliste {pt-br}Nível do líder Elementalista {de}Stufe des Elementalisten-Anführers ", finalLevel}))
-			leaderObj.reload()
-			monsterPugs[currentLeader.token]=leaderData[currentLeader.terrainHex][finalLevel].abilities
-		end
-		local disc=getObjectFromGUID(currentLeader.disc)
-		if disc~=nil then disc.setCustomObject({image=leaderData[currentLeader.terrainHex][finalLevel].discImg}) disc.reload() end
-	end
-end
-
 --A cooperative faction-leader assault finalizes the leader after the normal end-of-combat scenario check has already run.
 --Re-check only scenario conditions that can become true specifically because that deferred leader was just defeated.
 function startCoopRewardPhase()
 	if coopAssaultTargetType()=="dragon" then finalizeCoopDragonCombat() end
-	finalizeCoopLeaderCombat()
+	factionLeaderFinalizeCoopCombat(combatDiscardMonster)
 	local assaultType=coopAssaultTargetType()
 	if gStates.endGameAchieved=="false" and ((assaultType=="leader" and coopLeaderScenarioEndAchieved()==true) or (assaultType=="horsemen" and againstHorsemenAllDefeated()==true) or (assaultType=="dragon" and apocalypseDragonAssaultScenarioEndAchieved()==true)) then gStates.coopAssaultScenarioEndPending=true end
 	resolveCoopAssaultLocations()
@@ -1181,17 +1074,8 @@ local function combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatRe
 							playAreaObj.setRotation({0,180,0})
 							playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid],false,false)
 							combatTrackReturningObject(state,playAreaObj)
-						elseif gStates.coopAssaultPhase=="combat" and coopAssaultTargetType()=="leader" and (playAreaObj.guid==elementalist.token or playAreaObj.guid==darkCrusader.token) then
-							--A face-down leader means this player defeated no leader levels. Advance the real token through
-							--the same preview handoff used by a face-up surviving leader so the next planning copy is consumed.
-							if coopAssaultPendingCombat()==true then
-								local nextPlayer=nextTurnMerged("nextMage")
-								promoteCoopLeaderPreview(nextPlayer, playAreaObj)
-							else
-								clearCoopLeaderPreviewClones()
-								playAreaObj.setRotation({0, 180, 0})
-								playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid],false,false)
-							end
+						elseif gStates.coopAssaultPhase=="combat" and coopAssaultTargetType()=="leader" and factionLeaderForToken(playAreaObj.guid)~=nil then
+							factionLeaderReturnUnbeatenCoopToken(playAreaObj)
 						elseif getObjectFromGUID(turnOrder[nextTurnMerged("nextMage")].turnOrderTokenGUID).is_face_down==true and playAreaObj.getRotationValues()[2]==nil then
 							--Move to next players play area.
 							playAreaObj.setPositionSmooth({turnOrder[nextTurnMerged("nextMage")].seatPos*40-100, 1.5, -39.41},false,false)
@@ -1215,72 +1099,9 @@ local function combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatRe
 						horsemanResolveDefeat(playAreaObj,cleanupPlayer,coopCombatReward)
 					elseif playAreaObj.getRotationValues()[2]~=nil then
 						combatDiscardMonster(playAreaObj,true,state.cleanupContext)
-					else--process leaders
+					else--Faction Leaders are resolved by their own damage handler
 						combatTrackReturningObject(state,playAreaObj)
-						local currentLeader=elementalist
-						if playAreaObj.guid==darkCrusader.token then currentLeader=darkCrusader end
-						--drop shield(s) on leader disc
-						for b=1, gStates.leaderOverkill, 1 do
-							local leaderDisc=getObjectFromGUID(currentLeader.disc)
-							if leaderDisc~=nil then
-								local hexRotationRad=math.rad(-1*(-120+tonumber(30*(gStates.elementalistLevel-gStates.leaderReduction-(b-1)))))
-								if playAreaObj.guid==darkCrusader.token then hexRotationRad=math.rad(-1*(-120+tonumber(30*(gStates.darkCrusaderLevel-gStates.leaderReduction-(b-1))))) end
-								local discPos=leaderDisc.getPosition()
-								local location={discPos[1]+(math.cos(hexRotationRad)*2.9),2+(b*1.5),discPos[3]+(math.sin(hexRotationRad)*2.9)}
-								dropShield(location,false,nil,cleanupPlayer)
-							end
-						end
-						--Record damage to the faction leader, but during a cooperative assault do not move its
-						--actual level marker/state until every participating player has finished combat.
-						gStates.leaderReduction=gStates.leaderReduction+gStates.leaderOverkill
-						local leaderStartingLevel=gStates.elementalistLevel
-						if playAreaObj.guid==darkCrusader.token then leaderStartingLevel=gStates.darkCrusaderLevel end
-						local leaderDefeatedNow=gStates.leaderReduction>=leaderStartingLevel
-						gStates.leaderOverkill=1
-						if gStates.coopAssaultPhase=="combat" and coopAssaultTargetType()=="leader" then
-							--The next participant already has a planning clone. Swap the real leader into that copy's
-							--current position so the combat controls move with the real token. If the leader was fully
-							--marked, remove every remaining preview because later participants no longer face it.
-							if coopAssaultPendingCombat()==true and leaderDefeatedNow==false then
-								local nextPlayer=nextTurnMerged("nextMage")
-								promoteCoopLeaderPreview(nextPlayer, playAreaObj)
-							else
-								clearCoopLeaderPreviewClones()
-								if gStates.monsterPlayLocation[playAreaObj.guid]~=nil then playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid],false,false) end
-							end
-						else
-							--Solo/non-co-op leader combat keeps the existing immediate resolution.
-							local currenLeaderLevel=math.max(0, leaderStartingLevel-gStates.leaderReduction)
-							if playAreaObj.guid==darkCrusader.token then gStates.darkCrusaderLevel=currenLeaderLevel else gStates.elementalistLevel=currenLeaderLevel end
-							gStates.leaderReduction=0
-							if currenLeaderLevel==0 then
-								getObjectFromGUID(trashCan).putObject(playAreaObj)
-								gStates.cityMonsterQty[currentLeader.terrainHex][currentLeader.token]="dead"
-								local leaderDisc=getObjectFromGUID(currentLeader.disc)
-								if leaderDisc~=nil then leaderDisc.setCustomObject({image=leaderData[currentLeader.terrainHex]["dead"].discImg}) leaderDisc.reload() end
-								safeWaitTime("Combat",function()
-									for monsterGUID, _ in pairs(gStates.cityMonsterQty[currentLeader.terrainHex]) do
-										local monster=getObjectFromGUID(monsterGUID)
-									if monster~=nil and monster.getRotationValues()[2]~=nil then combatDiscardMonster(monster,false,state.cleanupContext) end
-									end
-								end, 2)
-							else
-								playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid],false,false)
-								safeWaitFrames("Combat",function()
-									local levelData=leaderData[currentLeader.terrainHex]~=nil and leaderData[currentLeader.terrainHex][currenLeaderLevel] or nil
-									if levelData==nil then return end
-									local leaderDisc=getObjectFromGUID(currentLeader.disc)
-									if leaderDisc~=nil then leaderDisc.setCustomObject({image=levelData.discImg}) leaderDisc.reload() end
-									local leaderToken=getObjectFromGUID(currentLeader.token)
-									if leaderToken~=nil then
-										leaderToken.setCustomObject({image=levelData.tokenImg})
-										leaderToken.setName(joinLang({currentLeader==darkCrusader and "{en}Dark Crusader Leader Level {it}Capo dei Crociati Oscuri, Livello {ru}Уровень лидера Тёмных крестоносцев: {zh-tw}黑暗十字軍領袖等級 {zh-cn}黑暗十字军领袖等级 {ko}다크 크루세이더 지도자 레벨 {es}Nivel del líder Cruzado Oscuro {fr}Niveau du chef Croisé Sombre {pt-br}Nível do líder Cruzado Sombrio {de}Stufe des Anführers der Dunklen Kreuzritter " or "{en}Elementalist Leader Level {it}Capo degli Elementalisti, Livello {ru}Уровень лидера Элементалистов: {zh-tw}元素使領袖等級 {zh-cn}元素使领袖等级 {ko}엘리멘탈리스트 지도자 레벨 {es}Nivel del líder Elementalista {fr}Niveau du chef Élémentaliste {pt-br}Nível do líder Elementalista {de}Stufe des Elementalisten-Anführers ", currenLeaderLevel}))
-										leaderToken.reload()
-									end
-									monsterPugs[currentLeader.token]=levelData.abilities
-								end,100)
-							end
-						end
+						factionLeaderResolveCombatToken(playAreaObj,cleanupPlayer,state.cleanupContext,combatDiscardMonster)
 					end
 				end
 
@@ -1562,14 +1383,7 @@ function monsterObjectButtons(obj, forcedPossessed)
 	end
 	local dragonGroundButtons=apocalypseDragonGroundHeadButtons~=nil and apocalypseDragonGroundHeadButtons(obj) or {}
 	for _,button in ipairs(dragonGroundButtons) do addedButtons[#addedButtons+1]=button end
-	if obj.guid==darkCrusader.token or obj.guid==elementalist.token then
-		addedButtons[#addedButtons+1]={tag="Button", attributes={id=obj.guid.."OverkillUp", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/adjustOverkill", height=50/0.9, width=50/0.9,
-			color="rgba(0,0,0,0.0)", position="-62 "..tostring(-120/0.9).." "..tostring(-15/0.9), rotation="0 0 180"}, children={{tag="Image", attributes={id=obj.guid.."OverkillUpImage", image="Overkill Up"}}}}
-		addedButtons[#addedButtons+1]={tag="Image", attributes={image="Overkill Text", height=50/0.9, width=55/0.9, position="0 "..tostring(-120/0.9).." "..tostring(-15/0.9), rotation="0 0 180"},
-			children={{tag="Text", attributes={id=obj.guid.."Overkill", color="rgb(0,0,0)", fontSize="45", fontStyle="Bold", alignment="MiddleCenter", text=gStates.leaderOverkill}}}}
-		addedButtons[#addedButtons+1]={tag="Button", attributes={id=obj.guid.."OverkillDown", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/adjustOverkill", height=50/0.9, width=50/0.9,
-			color="rgba(0,0,0,0.0)", position="62 "..tostring(-120/0.9).." "..tostring(-15/0.9), rotation="0 0 180"}, children={{tag="Image", attributes={id=obj.guid.."OverkillDownImage", image="Overkill Down"}}}}
-	end
+	for _,button in ipairs(factionLeaderOverkillButtons(obj)) do addedButtons[#addedButtons+1]=button end
 	if possessedAttached then
 		addedButtons[#addedButtons+1]={tag="Button", attributes={id="detach"..obj.guid, onClick="global/attachEnemy", height=30, width=30, color="rgba(0,0,0,0.0)", position="62 -100 -15", rotation="0 0 180"},
 			children={{tag="Image", attributes={id=obj.guid.."detachImage", image="Unlink Button"}}}}
@@ -1582,15 +1396,6 @@ function setMonsterObjectButtons(obj, forcedPossessed)
 	if obj==nil then return end
 	local buttons=monsterObjectButtons(obj, forcedPossessed)
 	if #buttons>0 then obj.UI.setXmlTable(buttons) else obj.UI.setXmlTable({{}}) end
-end
-
---Object UI is not reliably restored by TTS after load/rewind. Rebuild a faction Leader's
---combat controls when the real Leader token is in either a player's Play Area or Unit Area.
-function refreshLeaderOverkillButtons()
-	for _, leaderGUID in ipairs({darkCrusader.token, elementalist.token}) do
-		local leaderObj=getObjectFromGUID(leaderGUID)
-		if leaderObj~=nil and objectInPlayerCombatArea(leaderGUID)==true then setMonsterObjectButtons(leaderObj) end
-	end
 end
 
 --Remove Possessed from an enemy and return the detached token references.
@@ -2518,7 +2323,7 @@ function attackCity(player, mouseButton, id)
 			else broadcastToAll("{en}Garrison moved to Player Board.{it}Guarnigione spostata sulla Plancia Giocatore.{ru}Гарнизон был помещен на стол игрока{zh-tw}守軍已移到玩家面板。{zh-cn}守军移动到玩家面板{ko}수비자와 전투합니다{es}Garrison se movió al tablero de jugador.{fr}La garnison a été transférée au plateau des joueurs.{pt-br}Guarnição movida para o tabuleiro do jogador{de}Garrison wird auf die Spielertafel verschoben.", positionToColor(gStates.turnNumber)) end
 		end
 		--Give later faction-leader participants an unlocked, buttonless copy now so they can plan their combat.
-		if coopStart==true and gStates.coopAssaultPhase=="combat" and gStates.coopAssaultType=="leader" then createCoopLeaderPreviewClones() end
+		if coopStart==true and gStates.coopAssaultPhase=="combat" and gStates.coopAssaultType=="leader" then factionLeaderCreateCoopPreview() end
 		gStates.assaultData={}
 		gStates.coopAssaultUnassigned={}
 		if coopStart==true then gStates.againstHorsemenAssaultOrigin=nil gStates.apocalypseDragonAssaultOrigin=nil end
@@ -2867,23 +2672,6 @@ summonMonster=function(player, mouseButton, id)
 	end
 	gStates.summonStates[id]="SummonDone"
 	setMonsterObjectButtons(summoner)
-end
-
---Leader overkill adjust
-adjustOverkill=function(player, mouseButton, id)
-	if mouseButton=="-1" then
-		local level=gStates.elementalistLevel-gStates.leaderReduction
-		if id:sub(1,6)==darkCrusader.token then level=gStates.darkCrusaderLevel-gStates.leaderReduction end
-		if id:sub(7,16)=="OverkillUp" and gStates.leaderOverkill<level then
-			gStates.leaderOverkill=gStates.leaderOverkill+1
-		end
-		if id:sub(7,18)=="OverkillDown" and gStates.leaderOverkill>1 then
-			gStates.leaderOverkill=gStates.leaderOverkill-1
-		end
-		local leaderObj=getObjectFromGUID(id:sub(1,6))
-		if leaderObj~=nil then leaderObj.UI.setAttribute(id:sub(1,14),"Text",gStates.leaderOverkill) end
-		mainUIUpdate("Leader Overkilled")
-	end
 end
 
 pursuitStunnedImageAsset="Pursuit Stunned"
@@ -3311,7 +3099,6 @@ publishPublicUICallbacks({
 	pursuingRampagers=pursuingRampagers,
 	wallAssaultChoice=wallAssaultChoice,
 	zigguratPyramidInteract=zigguratPyramidInteract,
-	adjustOverkill=adjustOverkill,
 	attachEnemy=attachEnemy,
 	attackLocation=attackLocation,
 	summonMonster=summonMonster
