@@ -1840,6 +1840,13 @@ function againstDragonRevealLair(tile)
 	return true
 end
 
+--The Dragon's cooperative assault completion condition also handles the Dragon-as-City variant.
+function apocalypseDragonAssaultScenarioEndAchieved()
+	if scenarioUsesApocalypseDragon()==true then return apocalypseDragonColoredHeadsDefeated()==true end
+	if gStates~=nil and gStates.apocalypseDragonCityPlaced==true then return cityConquestScenarioEndAchieved() end
+	return false
+end
+
 --Ground combat against the landed Apocalypse Dragon. A normal attack starts when the current
 --Mage Knight is dropped onto any of the three lair hexes. Solo attacks deploy every live head to
 --that board; cooperative attacks reuse the normal co-op assault interface to divide coloured heads.

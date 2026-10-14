@@ -184,12 +184,6 @@ function cityConquestScenarioEndAchieved()
 	return fanScenarioConquestEndAchieved(count)
 end
 
-function apocalypseDragonAssaultScenarioEndAchieved()
-	if scenarioUsesApocalypseDragon()==true then return apocalypseDragonColoredHeadsDefeated()==true end
-	if gStates~=nil and gStates.apocalypseDragonCityPlaced==true then return cityConquestScenarioEndAchieved() end
-	return false
-end
-
 function coopLeaderScenarioEndAchieved()
 	if gStates.endGameAchieved~="false" then return false end
 	refreshCityDefeatState()
