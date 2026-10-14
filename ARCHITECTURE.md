@@ -32,7 +32,11 @@ The project is authored as Lua modules and bundled by Sebastian's Tabletop Simul
 | `src/PlayingGame/Turn.lua` | Turn progression, reward gates, final-turn boundaries, end-of-round lifecycle, tactics and day/night transitions. End-turn and end-round are explicit phase pipelines rather than monolithic callbacks. |
 | `src/PlayingGame/City.lua` | City placement, levels, garrisons, city state and city runtime behaviour; delegates faction-specific work. |
 | `src/PlayingGame/FactionLeaders.lua` | Dark Crusader and Elementalist levels, deployment, cooperative previews, combat damage, overkill controls and faction scoring. |
-| `src/PlayingGame/Scenario.lua` | Scenario-specific runtime rules and scenario state transitions, including Fury elite-unit eligibility. |
+| `src/PlayingGame/BaseScenario.lua` | Shared scenario lifecycle/victory dispatch, original Mage Knight rules, mines, Druid Nights, Dungeon Lords and One to Return. |
+| `src/PlayingGame/LLScenario.lua` | Lost Legion scenario runtime: Volkare's Quest/Return, camp-as-city and pursuit helpers. |
+| `src/PlayingGame/SOTScenario.lua` | Shades of Tezla scenario-specific rules for Realm of the Dead and Hidden Valley. |
+| `src/PlayingGame/APOCScenario.lua` | Apocalypse scenario runtime: Fractured Lands, Horsemen, Dragon, destroyed sites and Fury elite eligibility. |
+| `src/PlayingGame/FanScenario.lua` | Fan-created scenario victory rules, including the custom Conquest variants and War of Four. |
 | `src/PlayingGame/ApocalypseDragon.lua` | Shared Apocalypse Dragon infrastructure for all Dragon scenarios: head levels/setup, landed Dragon combat, common choice helpers, and the interstitial Dragon-turn shell shared by Against the Dragon and Fury. |
 | `src/PlayingGame/Horsemen.lua` | Shared Four Horsemen entity/combat layer for Against the Horsemen and Apocalypse is Here: level projection, individual attacks/defeats, shared restore state and defeat summaries. |
 | `src/PlayingGame/Scoring.lua` | End-game and scenario scoring. |
@@ -49,7 +53,7 @@ The project is authored as Lua modules and bundled by Sebastian's Tabletop Simul
 
 ## Dependency shape
 
-`Data`, `ErrorReporting`, `Shared` and `PlayingGame.DeckCycle` load first. DeckCycle owns the standard returned-card cycle and live draw-pile lookup used across Quest, Offer, Turn and player-board flows. Shared owns the generic runtime-map geometry/topology primitives (hex keys, adjacency, BFS distance maps, axial conversion and terrain-hex UI placement). Error reporting loads before Shared because the shared async/object helpers use its protected callback machinery. Setup modules then define setup-facing globals. Gameplay modules load after setup; FactionLeaders loads after City and before Combat, with other specialized modules defining systems before the final UI/event/callback layers. `PlayingGame.Scenario` loads immediately before `PlayingGame.ApocalypseDragon` and `PlayingGame.Horsemen`; both shared encounter modules call scenario-owned hooks only at runtime.
+`Data`, `ErrorReporting`, `Shared` and `PlayingGame.DeckCycle` load first. DeckCycle owns the standard returned-card cycle and live draw-pile lookup used across Quest, Offer, Turn and player-board flows. Shared owns the generic runtime-map geometry/topology primitives (hex keys, adjacency, BFS distance maps, axial conversion and terrain-hex UI placement). Error reporting loads before Shared because the shared async/object helpers use its protected callback machinery. Setup modules then define setup-facing globals. Gameplay modules load after setup; FactionLeaders loads after City and before Combat, with other specialized modules defining systems before the final UI/event/callback layers. `PlayingGame.BaseScenario`, `PlayingGame.LLScenario`, `PlayingGame.SOTScenario`, `PlayingGame.APOCScenario` and `PlayingGame.FanScenario` load together before `PlayingGame.ApocalypseDragon` and `PlayingGame.Horsemen`; specialised encounter modules call scenario-owned hooks at runtime.
 
 Cross-cutting services must not replace another module's global by load order. The owning module should keep the public entry point, give its underlying implementation a unique base name when necessary, and delegate explicitly to the service.
 
