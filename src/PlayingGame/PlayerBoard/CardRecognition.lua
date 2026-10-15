@@ -101,7 +101,12 @@ local choiceLetters={move="M",influence="I",attack="A",block="B",
     ranged="R",siege="S",healing="H",draw="D"}
 
 local function sideChoices(rule,powered)
-    return rule~=nil and (powered and rule.poweredChoices or rule.normalChoices) or nil
+    if rule==nil then return nil end
+    -- Do not use 'powered and poweredChoices or normalChoices': Lua falls back
+    -- to normal choices when poweredChoices is nil, overriding a fixed powered
+    -- effect (e.g. Rage's Attack 4) with its unpowered Attack/Block 2 options.
+    if powered then return rule.poweredChoices end
+    return rule.normalChoices
 end
 
 local function choiceCategory(choice)
