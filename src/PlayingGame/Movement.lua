@@ -654,7 +654,9 @@ function renderMoveDisplay(id)
 					local destinationHex=hexMap~=nil and hexMap[tostring(hor)]~=nil and hexMap[tostring(hor)][tostring(vec)] or nil
 					if destinationHex~=nil then
 						local hexCost=999
-						if destinationHex.hexType~=nil and gStates.moveCost[destinationHex.hexType]~=nil then hexCost=gStates.moveCost[destinationHex.hexType]+moveSpent end
+						if destinationHex.hexType~=nil and gStates.moveCost[destinationHex.hexType]~=nil then
+                            hexCost=resourceCardsEffectiveTerrainCost(destinationHex.hexType)+moveSpent
+                        end
 						local wallhor=hexDetail.coord[1]+(vector[1]/2)
 						local wallvec=hexDetail.coord[2]+(vector[2]/2)
 						if hexMap[tostring(wallhor)]~=nil and hexMap[tostring(wallhor)][tostring(wallvec)]~=nil then hexCost=hexCost+1 end
