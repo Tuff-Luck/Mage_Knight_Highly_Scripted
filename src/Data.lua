@@ -1030,13 +1030,17 @@ cardResourceDefinitions={
     concentration={normalTrackerNeutral=true,
         poweredLink={mode="stronger",bonus=2,
             bonusFor={move=true,influence=true,block=true,attack=true,ranged=true,siege=true}}},
-    determination={normal={block=2},powered={block=5},normalPartial=true}, -- Normal: Attack or Block 2 (Block provisional); powered: Block 5
+    willFocus={normalTrackerNeutral=true,
+        poweredLink={mode="stronger",bonus=3,
+            bonusFor={move=true,influence=true,block=true,attack=true,ranged=true,siege=true}}},
+    determination={normal={block=2},normalChoices={{attack=2},{block=2}},powered={block=5},normalPartial=true}, -- Block provisional until player chooses
     threaten={normal={influence=2},powered={influence=5}}, -- Powered: -1 Reputation; fixed generated Influence is recognised
     rage={normalChoices={{attack=2},{block=2}},powered={attack=4},normalPartial=true}, -- Unpowered choice unresolved, powered Attack 4 is fixed
     tranquility={normal={healing=1},powered={healing=2}, -- Provisional default: Heal rather than draw
         normalChoices={{healing=1},{draw=1}},poweredChoices={{healing=2},{draw=2}},partial=true},
     improvisation={normalChoices={{move=3},{influence=3},{attack=3},{block=3}},
-        poweredChoices={{move=5},{influence=5},{attack=5},{block=5}},partial=true}, -- Requires another card discarded
+        poweredChoices={{move=5},{influence=5},{attack=5},{block=5}},
+        requiredLink={mode="discard"}}, -- Needs one other non-Wound hand card; source itself adds no resources
     battleVersatility={normalChoices={{attack=2},{block=2},{ranged=1}},
         poweredChoices={{attack=4},{block=4},{ranged=3},{siege=2}},partial=true}, -- Also Fire Attack/Block alternatives
     instinct={normalChoices={{move=2},{influence=2},{attack=2},{block=2}},
@@ -1143,7 +1147,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["9757b6"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
 			["9757b5"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
 			["450557"]={cardType="Starting", resourceKey="tranquility", name={"Tranquility"}, color={"Green"}, action={"Heal"}},
-			["acd316"]={cardType="Starting", name={"Will Focus"}, color={"Green"}, action={"Special"}},
+			["acd316"]={cardType="Starting", resourceKey="willFocus", name={"Will Focus"}, color={"Green"}, action={"Special"}},
 			["2f1c73"]={cardType="Starting", resourceKey="swiftness", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
 			["2f1c72"]={cardType="Starting", resourceKey="swiftness", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
 			["450572"]={cardType="Starting", resourceTracked=false, name={"Mana Draw"}, color={"White"}, action={"Special"}},
@@ -1362,7 +1366,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["4db67c"]={cardType="Starting", resourceKey="concentration", name={"Concentration"}, color={"Green"}, action={"Special"}},
 			["0f7f81"]={cardType="Starting", resourceKey="concentration", name={"Concentration"}, color={"Green"}, action={"Special"}},
 			["66fcf4"]={cardType="Starting", resourceKey="concentration", name={"Concentration"}, color={"Green"}, action={"Special"}},
-			["911ddb"]={cardType="Starting", name={"Will Focus"}, color={"Green"}, action={"Special"}},
+			["911ddb"]={cardType="Starting", resourceKey="willFocus", name={"Will Focus"}, color={"Green"}, action={"Special"}},
 			["e8747d"]={cardType="Starting", resourceKey="savageHarvesting", name={"Savage Harvesting"}, color={"Green"}, action={"Move", "Special"}},
 			--Volkare Starting Cards
 			["046154"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
