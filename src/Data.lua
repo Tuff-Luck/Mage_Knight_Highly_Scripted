@@ -1057,14 +1057,32 @@ cardResourceDefinitions={
     pathFinding={normal={move=2},powered={move=4},partial=true}, -- Changes terrain movement costs
     songOfWind={normal={move=2},powered={move=2},partial=true}, -- Changes terrain movement costs
     agility={normal={move=2},powered={move=4},partial=true}, -- Can convert Move into attacks
-    steadyTempo={normal={move=2},powered={move=4},partial=true}, -- May return to deed deck
+    steadyTempo={normal={move=2},powered={move=4}}, -- Deed-deck placement does not change Move
     mountainLore={normal={move=3},powered={move=5},partial=true}, -- Hand limit/terrain bonus
     refreshingWalk={normal={move=2,healing=1},powered={move=4,healing=2}},
     heroicTale={normal={influence=3},powered={influence=6},partial=true}, -- Unit recruitment changes Reputation/Fame
     peacefulMoment={normal={influence=3},powered={influence=6},partial=true}, -- Influence may be spent on Healing/refresh
-    learning={normal={influence=2},powered={influence=4},partial=true}, -- Can purchase an Advanced Action
+    learning={normal={influence=2},powered={influence=4}}, -- Optional Advanced Action purchase does not change Influence
     bloodRage={normal={attack=2},powered={attack=4},partial=true}, -- Wound-for-more-Attack option
-    inNeed={normal={influence=3},powered={influence=5},partial=true} -- Further Influence from Wounds
+    inNeed={normal={influence=3},powered={influence=5},partial=true}, -- Further Influence from Wounds
+    -- Verified against the Unofficial Mage Knight card wiki (base/expansion).
+    -- 'other' means a deliberate card effect that adds no tracked resource.
+    -- A crystal gained to inventory is not itself generated Move/Attack/etc.
+    rejuvenate={
+        normalChoices={{healing=1},{draw=1},{other=1}},
+        poweredChoices={{healing=2},{draw=2},{other=1}}},
+    swiftBolt={normalTrackerNeutral=true,powered={ranged=4}},
+    explosiveBolt={normalTrackerNeutral=true,powered={ranged=3}},
+    regeneration={normal={healing=1},powered={healing=2}},
+    forceOfNature={normalTrackerNeutral=true,
+        poweredChoices={{siege=3},{block=6}}},
+    chillingStare={
+        normalChoices={{influence=3},{other=1}},
+        poweredChoices={{influence=5},{other=1}}},
+    stoutResolve={
+        normalChoices={{move=2},{influence=2},{attack=2},{block=2}},
+        poweredChoices={{move=3},{influence=3},{attack=3},{block=3}},
+        partial=true} -- Optional discards add untracked bonuses
 }
 
 gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit",	name={"Peasants"}, 			recruit={"village", "camp", "oasis"}},
@@ -1164,7 +1182,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["450564"]={cardType="Starting", resourceTracked=false, name={"Crystallize"}, color={"Blue"}, action={"Special"}},
 			["9757b7"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
 			["9757b8"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
-			["c9c0f4"]={cardType="Starting", name={"Rejuvenate"}, color={"Green"}, action={"Heal"}},
+			["c9c0f4"]={cardType="Starting", resourceKey="rejuvenate", name={"Rejuvenate"}, color={"Green"}, action={"Heal"}},
 			["450562"]={cardType="Starting", resourceKey="concentration", name={"Concentration"}, color={"Green"}, action={"Special"}},
 			["2f1c74"]={cardType="Starting", resourceKey="swiftness", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
 			["2f1c75"]={cardType="Starting", resourceKey="swiftness", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
@@ -1400,19 +1418,19 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["1f362f"]={cardType="Advanced Action", resourceKey="steadyTempo", name={"Steady Tempo"}, 		color={"Blue"}, 		action={"Move"}},
 			["885b96"]={cardType="Advanced Action", name={"Crystal Mastery"},	color={"Blue"}, 		action={"Special"}},
 			["3d832c"]={cardType="Advanced Action", name={"Magic Talent"}, 		color={"Blue"}, 		action={"Special"}},
-			["878d91"]={cardType="Advanced Action", name={"Regeneration"}, 		color={"Green"}, 		action={"Heal"}},
+			["878d91"]={cardType="Advanced Action", resourceKey="regeneration", name={"Regeneration"}, 		color={"Green"}, 		action={"Heal"}},
 			["00c614"]={cardType="Advanced Action", resourceKey="pathFinding", name={"Path Finding"}, 		color={"Green"}, 		action={"Move"}},
 			["878d83"]={cardType="Advanced Action", name={"Crushing Bolt"}, 	color={"Green"}, 		action={"Combat", "Special"}},
 			["33bc9b"]={cardType="Advanced Action", resourceKey="refreshingWalk", name={"Refreshing Walk"},	color={"Green"}, 		action={"Move", "Heal"}},
-			["474418"]={cardType="Advanced Action", name={"Force of Nature"},	color={"Green"}, 		action={"Combat"}},
-			["54b5c4"]={cardType="Advanced Action", name={"Stout Resolve"}, 	color={"Green"}, 		action={"Move", "Combat", "Influence"}},
+			["474418"]={cardType="Advanced Action", resourceKey="forceOfNature", name={"Force of Nature"},	color={"Green"}, 		action={"Combat"}},
+			["54b5c4"]={cardType="Advanced Action", resourceKey="stoutResolve", name={"Stout Resolve"}, 	color={"Green"}, 		action={"Move", "Combat", "Influence"}},
 			["d3995b"]={cardType="Advanced Action", resourceKey="mountainLore", name={"Mountain Lore"}, 	color={"Green"}, 		action={"Move"}},
 			["6fdeb0"]={cardType="Advanced Action", name={"Training"},			color={"Green"}, 		action={"Special"}},
 			["c3153e"]={cardType="Advanced Action", resourceKey="inNeed", name={"In Need"}, 			color={"Green"}, 		action={"Influence"}},
 			["20cb85"]={cardType="Advanced Action", name={"Ambush"}, 			color={"Green"}, 		action={"Move"}},--I want to add combat
 			["878d88"]={cardType="Advanced Action", resourceKey="songOfWind", name={"Song of Wind"}, 		color={"White"}, 		action={"Move"}},
 			["8c3de6"]={cardType="Advanced Action", name={"Diplomacy"}, 		color={"White"}, 		action={"Combat", "Influence"}},
-			["878d82"]={cardType="Advanced Action", name={"Swift Bolt"}, 		color={"White"}, 		action={"Combat", "Special"}},
+			["878d82"]={cardType="Advanced Action", resourceKey="swiftBolt", name={"Swift Bolt"}, 		color={"White"}, 		action={"Combat", "Special"}},
 			["878d90"]={cardType="Advanced Action", resourceKey="heroicTale", name={"Heroic Tale"}, 		color={"White"}, 		action={"Influence"}},
 			["8122c2"]={cardType="Advanced Action", resourceKey="peacefulMoment", name={"Peaceful Moment"},	color={"White"}, 		action={"Action", "Influence"}},
 			["9de475"]={cardType="Advanced Action", name={"Dodge and Weave"},	color={"White"}, 		action={"Combat"}},
@@ -1430,12 +1448,12 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["8fac50"]={cardType="Advanced Action", name={"Maximal Effect"}, 	color={"Red"}, 			action={"Special"}},
 			["bb05a9"]={cardType="Advanced Action", name={"Into the Heat"},		color={"Red"}, 			action={"Combat"}},
 			["d74999"]={cardType="Advanced Action", name={"Decompose"}, 		color={"Red"}, 			action={"Special"}},
-			["1a1c02"]={cardType="Advanced Action", name={"Explosive Bolt"}, 	color={"White","Red"}, 	action={"Combat"}},
-			["409fe8"]={cardType="Advanced Action", name={"Chilling Stare"}, 	color={"Blue","White"},	action={"Combat", "Influence"}},
+			["1a1c02"]={cardType="Advanced Action", resourceKey="explosiveBolt", name={"Explosive Bolt"}, 	color={"White","Red"}, 	action={"Combat"}},
+			["409fe8"]={cardType="Advanced Action", resourceKey="chillingStare", name={"Chilling Stare"}, 	color={"Blue","White"},	action={"Combat", "Influence"}},
 			["d75285"]={cardType="Advanced Action", name={"Rush of Adrenaline"},color={"Red","Green"}, 	action={"Special"}},
 			["141527"]={cardType="Advanced Action", name={"Power of Crystals"}, color={"Green","Blue"},	action={"Special", "Move", "Heal"}},
-			["56adc8"]={cardType="Advanced Action", name={"Explosive Bolt"}, 	color={"White","Red"}, 	action={"Combat"}},--Rise of the Forgemaster Start
-			["eb128d"]={cardType="Advanced Action", name={"Chilling Stare"}, 	color={"Blue","White"}, action={"Combat", "Influence"}},
+			["56adc8"]={cardType="Advanced Action", resourceKey="explosiveBolt", name={"Explosive Bolt"}, 	color={"White","Red"}, 	action={"Combat"}},--Rise of the Forgemaster Start
+			["eb128d"]={cardType="Advanced Action", resourceKey="chillingStare", name={"Chilling Stare"}, 	color={"Blue","White"}, action={"Combat", "Influence"}},
 			["69fe48"]={cardType="Advanced Action", name={"Rush of Adrenaline"},color={"Red","Green"}, 	action={"Special", "Combat"}},
 			["121737"]={cardType="Advanced Action", name={"Power of Crystals"}, color={"Green","Blue"}, action={"Special", "Move", "Heal"}},
 			["2dcd89"]={cardType="Advanced Action", name={"Counter Attack"},	color={"Red"}, 			action={"Combat"}},
@@ -1449,7 +1467,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["2de429"]={cardType="Advanced Action", name={"Raving Prophecies"},	color={"Red"}, 			action={"Special", "Influence"}},
 			["96f56b"]={cardType="Advanced Action", name={"Flame Forge"}, 		color={"Red"}, 			action={"Special"}},
 			["4808f2"]={cardType="Advanced Action", name={"Training"}, 			color={"Green"}, 		action={"Special"}},
-			["db96c1"]={cardType="Advanced Action", name={"Force of Nature"},	color={"Green"}, 		action={"Combat"}},
+			["db96c1"]={cardType="Advanced Action", resourceKey="forceOfNature", name={"Force of Nature"},	color={"Green"}, 		action={"Combat"}},
 			["48b3d2"]={cardType="Advanced Action", name={"Reconnoiter"}, 		color={"Green"}, 		action={"Move", "Heal"}},
 			["bedf00"]={cardType="Advanced Action", name={"Ambush"},	 		color={"Green"}, 		action={"Move"}},
 			["5af8b5"]={cardType="Advanced Action", name={"Herbalism"}, 		color={"Green"}, 		action={"Heal"}},
