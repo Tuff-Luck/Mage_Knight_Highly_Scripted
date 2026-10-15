@@ -53,7 +53,8 @@ end
 local function setHighlight(obj,kind,powered)
     local choice=kind..(powered and "Bright" or "Normal")
     if shown[obj.guid]==choice then return end
-    obj.highlightOn(palette[kind][powered and 2 or 1],0)
+    -- Omit duration: TTS keeps this highlight until highlightOff() is called.
+    obj.highlightOn(palette[kind][powered and 2 or 1])
     shown[obj.guid]=choice
 end
 
