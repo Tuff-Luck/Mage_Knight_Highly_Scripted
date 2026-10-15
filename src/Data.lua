@@ -1024,6 +1024,7 @@ cardResourceDefinitions={
     stamina={normal={move=2},powered={move=4}},
     march={normal={move=2},powered={move=4}},
     promise={normal={influence=2},powered={influence=4}},
+    nobleManners={normal={influence=2},powered={influence=4}}, -- Other ability does not alter Influence
     swiftness={normal={move=2},powered={ranged=3}},
     -- Linked Action cards are interpreted by CardRecognition's generic
     -- poweredLink resolver. A normal Concentration creates mana, not tracker resources.
@@ -1054,7 +1055,9 @@ cardResourceDefinitions={
     ruthlessCoercion={normal={influence=2},powered={influence=6}}, -- Other effects do not change the numeric Influence contributed
     shieldBash={normal={block=3},powered={block=5},partial=true}, -- Swiftness and excess-Block modifiers
     frostBridge={normal={move=2},powered={move=4},partial=true}, -- Changes swamp/lake movement costs
-    pathFinding={normal={move=2},powered={move=4},partial=true}, -- Changes terrain movement costs
+    pathFinding={normal={move=2},powered={move=4},terrainReduction=true},
+    -- Basic: -1 Move cost per terrain (minimum 2); powered: set passable
+    -- terrain costs to 2. Computed by CardRecognition without mutating moveCost.
     songOfWind={normal={move=2},powered={move=2},partial=true}, -- Changes terrain movement costs
     agility={normal={move=2},powered={move=4},partial=true}, -- Can convert Move into attacks
     steadyTempo={normal={move=2},powered={move=4}}, -- Deed-deck placement does not change Move
@@ -1075,8 +1078,13 @@ cardResourceDefinitions={
     -- 'other' means a deliberate card effect that adds no tracked resource.
     -- A crystal gained to inventory is not itself generated Move/Attack/etc.
     rejuvenate={
-        normalChoices={{healing=1},{draw=1},{other=1}},
-        poweredChoices={{healing=2},{draw=2},{other=1}}},
+        -- H Heal, D Draw, G gain a mana token/crystal, R ready a Unit.
+        -- Only healing adds to the Resource Tracker; other outcomes are
+        -- deliberate player choices rather than incomplete card recognition.
+        normalChoices={{key="healing",healing=1},{key="draw",draw=1},
+            {key="gain"},{key="ready"}},
+        poweredChoices={{key="healing",healing=2},{key="draw",draw=2},
+            {key="gain"},{key="ready"}}},
     swiftBolt={normalTrackerNeutral=true,powered={ranged=4}},
     explosiveBolt={normalTrackerNeutral=true,powered={ranged=3}},
     regeneration={normal={healing=1},powered={healing=2}},
@@ -1206,7 +1214,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["2f1c74"]={cardType="Starting", resourceKey="swiftness", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
 			["2f1c75"]={cardType="Starting", resourceKey="swiftness", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
 			["450563"]={cardType="Starting", resourceTracked=false, name={"Mana Draw"}, color={"White"}, action={"Special"}},
-			["eaaaa5"]={cardType="Starting", name={"Noble Promise"}, color={"White"}, action={"Influence"}},
+			["eaaaa5"]={cardType="Starting", resourceKey="nobleManners", name={"Noble Manners"}, color={"White"}, action={"Influence"}},
 			["450566"]={cardType="Starting", resourceKey="improvisation", name={"Improvisation"}, color={"Red"}, action={"Move", "Combat", "Influence"}},
 			["450565"]={cardType="Starting", resourceKey="threaten", name={"Threaten"}, color={"Red"}, action={"Influence"}},
 			["52efb3"]={cardType="Starting", resourceKey="rage", name={"Rage"}, color={"Red"}, action={"Combat"}},
