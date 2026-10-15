@@ -1059,7 +1059,8 @@ cardResourceDefinitions={
     agility={normal={move=2},powered={move=4},partial=true}, -- Can convert Move into attacks
     steadyTempo={normal={move=2},powered={move=4}}, -- Deed-deck placement does not change Move
     mountainLore={normal={move=3},powered={move=5},partial=true}, -- Hand limit/terrain bonus
-    refreshingWalk={normal={move=2,healing=1},powered={move=4,healing=2}},
+    refreshingWalk={normal={move=2,healing=1},powered={move=4,healing=2},
+        partial=true}, -- In combat this card provides Move only, not Healing
     heroicTale={normal={influence=3},powered={influence=6},partial=true}, -- Unit recruitment changes Reputation/Fame
     peacefulMoment={normal={influence=3},powered={influence=6},partial=true}, -- Influence may be spent on Healing/refresh
     learning={normal={influence=2},powered={influence=4}}, -- Optional Advanced Action purchase does not change Influence
