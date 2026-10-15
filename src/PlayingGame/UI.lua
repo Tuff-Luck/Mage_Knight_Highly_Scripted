@@ -2332,6 +2332,11 @@ function refreshResourceTrackerText()
         local value=totalType~=nil and math.max(0,resourceTotal[totalType])
             or math.max(0,resourceCardsEffectiveValue(spec[1],spec[2]))
         UI.setAttribute(fieldId.."Text","text",joinLang({spec[3],value}))
+        -- Only the seven summary values need source tooltips; detail rows share
+        -- the same underlying estimate and do not need another UI write.
+        if totalType~=nil or fieldId=="MovemAmountPlain" or fieldId=="HealiAmountPlain" then
+            UI.setAttribute(fieldId.."Text","tooltip",resourceCardsSourceTooltip(spec[1]))
+        end
     end
     for fieldId, spec in pairs(MOVE_COST_FIELDS) do
 		local value=gStates.moveCost[spec[1]]

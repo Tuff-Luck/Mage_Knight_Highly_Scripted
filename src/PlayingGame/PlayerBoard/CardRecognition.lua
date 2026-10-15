@@ -43,6 +43,38 @@ function resourceCardsEffectiveMove()
     return math.max(0,resourceCardsEffectiveValue("move","move"))
 end
 
+-- Hovering over each main Resource Tracker total lists the actual physical
+-- cards behind the estimate. GUIDs distinguish otherwise identical copies.
+function resourceCardsSourceTooltip(category)
+    local lines={}
+    local scan=resourceCardsPanelOpen() and resourceCardsCurrentTotals() or nil
+    local active=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    local records=active~=nil and resourceCardScanBySeat[active.seatPos] or nil
+    if scan~=nil and records~=nil then
+        for guid,record in pairs(records.cards) do
+            local value=record.resources~=nil and record.resources[category] or nil
+            if type(value)=="number" and value~=0 then
+                local card=gameCards[guid]
+                local label=card~=nil and card.name~=nil and card.name[1] or record.kind or "Card"
+                local state=record.powered and " (powered)" or ""
+                local partial=record.complete==false and " (partial)" or ""
+                lines[#lines+1]=tostring(label).." ["..guid.."]"..state..partial
+                    ..": "..(value>0 and "+" or "")..tostring(value)
+            end
+        end
+    end
+    table.sort(lines)
+    if #lines==0 then lines[1]="No recognised effects calculated" end
+    local manual=0
+    local values=gStates~=nil and gStates.resourceTracker~=nil and gStates.resourceTracker[category] or nil
+    if values~=nil then
+        for _,value in pairs(values) do manual=manual+value end
+    end
+    return "Calculated sources:\n"..table.concat(lines,"\n")
+        .."\nManual / base: "..tostring(manual)
+        .."\nYellow = additional effects not yet understood."
+end
+
 local function clearHighlight(guid)
     if shown[guid]==nil then return end
     local obj=getObjectFromGUID(guid)
