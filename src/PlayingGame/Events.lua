@@ -164,6 +164,7 @@ function eventsOnLoadRawBase(saved_data, loaded_data)
 	safeWaitCondition("Events",function() refreshTableExtensionUI() end,function() return tableExtensionUIReady()==true end,5)
 	-----------
 	refreshResourceTrackerText()--Refresh the tracker from saved values so TTS resolves its language tags on load.
+    safeWaitFrames("Events",function() resourceCardsOnLoad() end,4)
 	UI.setAttribute("CoopAssaultMainTableText3", "active", "false")
 	--The wall assault interface is only shown when the assault entry side cannot be determined automatically.
 	UI.hide("WallAssaultChoice")
@@ -489,6 +490,7 @@ end
 function __onObjectDrop_raw(player_color, dropped_object)
 	if dropped_object==nil or dropped_object.guid==nil then return end
 	local droppedGUID=dropped_object.guid
+    resourceCardsObjectMoved(dropped_object)
 	if terrainTiles[droppedGUID]~=nil then
 		runtimeMapInvalidateTerrain()
 		--EXPLORE legality is derived from the settled physical map. onObjectEnterZone can fire while a
@@ -1320,6 +1322,7 @@ function __onObjectEnterZone_raw(zone, obj)
 	local ctx=zoneEventContext(zone,obj)
 	if ctx==nil then return end
 	if handleZoneEnterPrelude(ctx)==true then return end
+    if gStates.firstStarted==true then resourceCardsZoneEntered(ctx) end
 	if gStates.firstStarted==true then
 		handleStartedZoneEnterPrelude(ctx)
 		handleTurnOrderZoneEnter(ctx)
@@ -1440,6 +1443,7 @@ function __onObjectLeaveZone_raw(zone, obj)
 	local ctx=zoneEventContext(zone,obj)
 	if ctx==nil then return end
 	if handleZoneLeavePrelude(ctx)==true then return end
+    if gStates.firstStarted==true then resourceCardsZoneLeft(ctx) end
 	if gStates.firstStarted==true then
 		playerBoardZoneLeave(ctx)
 		handleClaimZoneLeave(ctx)
@@ -1803,6 +1807,7 @@ end
 
 function __onObjectRotate_raw(object, spin, flip, player_color, old_spin, old_flip)
 	if object==nil then return end
+    resourceCardsObjectMoved(object)
 	if terrainTiles[object.guid]~=nil then runtimeMapInvalidateTerrain() end
 	if apocalypseDragonGroundHeadToken~=nil and select(1,apocalypseDragonGroundHeadToken(object.guid))==true then
 		local _,dragonHeadName=apocalypseDragonGroundHeadToken(object.guid)

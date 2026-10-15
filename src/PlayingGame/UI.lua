@@ -2266,6 +2266,7 @@ function resourceTracker(player, mouseButton, id)
 			if tonumber(UI.getAttribute("ResourceTracker", "height"))>200 then temp="35" temp2="false" end
 			UI.setAttribute("ResourceTracker", "height", temp)
 			UI.setAttribute("ResourceTrackerDetail", "active", temp2)
+            resourceCardsPanelChanged(temp2=="true")
 			UI.setAttribute("ResourceTrackerDetail", "height", "210")
 			UI.setAttribute("MoveCosts", "active", "false")
 			UI.setAttribute("SiegeAmountDetails", "active", "false")
