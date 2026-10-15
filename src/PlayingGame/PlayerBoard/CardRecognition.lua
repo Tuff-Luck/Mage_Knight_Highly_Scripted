@@ -1,5 +1,5 @@
--- Resource-card inspection is presentation-only. Manual Resource Tracker values remain authoritative.
--- This runtime cache is intentionally reconstructed from physical cards, links and mana each scan.
+-- The physical play area supplies estimated resources to the Resource Tracker.
+-- Runtime-only observations never overwrite the saved manual +/- adjustments.
 resourceCardScanBySeat={}
 local generation={}
 local shown={}
@@ -16,6 +16,31 @@ function resourceCardsPanelOpen()
     return gStates~=nil and gStates.firstStarted==true
         and UI.getAttribute("ResourceTracker","active")~="false"
         and UI.getAttribute("ResourceTrackerDetail","active")=="true"
+end
+
+-- The tracker belongs to the active Mage Knight, not everyone whose cards are on the table.
+function resourceCardsCurrentTotals()
+    if not resourceCardsPanelOpen() or turnOrder==nil or gStates.turnNumber==nil then return nil end
+    local player=turnOrder[gStates.turnNumber]
+    local scan=player~=nil and resourceCardScanBySeat[player.seatPos] or nil
+    return scan~=nil and scan.totals or nil
+end
+
+local resourceFieldForCategory={
+    move="move",ranged="physical",siege="physical",attack="physical",
+    block="physical",influence="generated",healing="healing"
+}
+
+function resourceCardsEffectiveValue(category,field)
+    local tracker=gStates~=nil and gStates.resourceTracker or nil
+    local manual=tracker~=nil and tracker[category]~=nil and tracker[category][field] or 0
+    local totals=resourceCardsCurrentTotals()
+    local estimated=totals~=nil and resourceFieldForCategory[category]==field and (totals[category] or 0) or 0
+    return manual+estimated
+end
+
+function resourceCardsEffectiveMove()
+    return math.max(0,resourceCardsEffectiveValue("move","move"))
 end
 
 local function inspectable(obj)
@@ -142,17 +167,24 @@ local function renderSeat(seatPos)
         local result=calculateCard(card,powered[guid]==true,links[guid])
         records[guid]=result
         setHighlight(card,result.status,result.powered)
-        -- Keep observed amounts separate from manually entered tracker values.
-        -- Linked cards retain individual records, but their interactions are not resolved yet.
-        if result.complete and #result.links==0 and result.resources~=nil then
+        -- Even linked cards have their own base effect. Unknown interactions add no bonus yet.
+        -- The Resource Tracker combines these estimates with manual adjustments at display time.
+        if result.complete and result.resources~=nil then
             for category,value in pairs(result.resources) do
                 if totalsKeys[category] then totals[category]=(totals[category] or 0)+value end
             end
         end
     end
     local previous=bySeat[seatPos] or {}
+    local previousScan=resourceCardScanBySeat[seatPos]
+    local previousMove=previousScan~=nil and (previousScan.totals.move or 0) or 0
     bySeat[seatPos]=current
     resourceCardScanBySeat[seatPos]={cards=records,totals=totals}
+    local active=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    if active~=nil and active.seatPos==seatPos then
+        refreshResourceTrackerText()
+        if previousMove~=(totals.move or 0) then updateMoveDisplay() end
+    end
     for guid in pairs(previous) do
         if current[guid]~=true then
             local usedElsewhere=false
@@ -187,6 +219,11 @@ local function clearAll()
     for guid in pairs(shown) do clearHighlight(guid) end
     bySeat={}
     resourceCardScanBySeat={}
+    -- When the details close the automatic contribution disappears, but manual edits persist.
+    if gStates~=nil and gStates.resourceTracker~=nil then
+        refreshResourceTrackerText()
+        updateMoveDisplay()
+    end
 end
 
 function resourceCardsPanelChanged(open)

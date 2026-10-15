@@ -341,7 +341,7 @@ end
 
 function updateMoveDisplay(id)
 	--With zero Move and no active markers there is nothing for the movement display to do.
-	local moveValue=gStates.resourceTracker~=nil and gStates.resourceTracker.move~=nil and gStates.resourceTracker.move.move or 0
+	local moveValue=gStates.resourceTracker~=nil and gStates.resourceTracker.move~=nil and resourceCardsEffectiveMove() or 0
 	local hasMoveMarkers=(gStates.moveDisplayTextActiveCount or 0)>0
 	if moveValue<=0 and hasMoveMarkers==false then
 		clearMoveDisplayVisuals()
@@ -361,7 +361,7 @@ end
 
 function renderMoveDisplay(id)
 	--Preserve Global vector lines that existed before the movement display started.
-	local moveValue=gStates.resourceTracker~=nil and gStates.resourceTracker.move~=nil and gStates.resourceTracker.move.move or 0
+	local moveValue=gStates.resourceTracker~=nil and gStates.resourceTracker.move~=nil and resourceCardsEffectiveMove() or 0
 	if moveValue>0 and moveDisplayBaseVectorLines==nil then moveDisplayBaseVectorLines=Global.getVectorLines() or {} end
 
 	gStates.moveDisplayGeneration=(gStates.moveDisplayGeneration or 0)+1
@@ -626,7 +626,7 @@ function renderMoveDisplay(id)
 		end
 
 		local function recordMoveDestination(hor,vec,state,hexCost,predecessor,allowFringe)
-			if hexCost>=gStates.resourceTracker.move.move+searchLimit then return false end
+			if hexCost>=resourceCardsEffectiveMove()+searchLimit then return false end
 			local destinationMove=moveDestination(hor,vec)
 			local recordedCost=destinationMove[state] or 100
 			if hexCost>recordedCost then return false end
@@ -658,7 +658,7 @@ function renderMoveDisplay(id)
 						local wallhor=hexDetail.coord[1]+(vector[1]/2)
 						local wallvec=hexDetail.coord[2]+(vector[2]/2)
 						if hexMap[tostring(wallhor)]~=nil and hexMap[tostring(wallhor)][tostring(wallvec)]~=nil then hexCost=hexCost+1 end
-						if hexCost<=99 and hexCost<gStates.resourceTracker.move.move+searchLimit then
+						if hexCost<=99 and hexCost<resourceCardsEffectiveMove()+searchLimit then
 							--Don't add hex to fringe if passing a rampager.
 							local rampageHor={tostring(hexDetail.coord[1]+MOVE_DISPLAY_RAMPAGE_ADJACENT[currentVector][1]), tostring(hexDetail.coord[1]+MOVE_DISPLAY_RAMPAGE_ADJACENT[currentVector+2][1])}
 							local rampageVec={tostring(hexDetail.coord[2]+MOVE_DISPLAY_RAMPAGE_ADJACENT[currentVector][2]), tostring(hexDetail.coord[2]+MOVE_DISPLAY_RAMPAGE_ADJACENT[currentVector+2][2])}
@@ -795,9 +795,9 @@ function renderMoveDisplay(id)
 						local hexGridX,hexGridZ=world[1],world[3]
 						local startingHex=tonumber(hor)==playerHexGridHorizontal and tonumber(vec)==playerHexGridAxial
 						if startingHex==false then
-							if lowestHex<=gStates.resourceTracker.move.move then
+							if lowestHex<=resourceCardsEffectiveMove() then
 								addMoveCostText(displayCost,hexGridX,hexGridZ,true,lowestCombat,multipleCosts,dualCosts)
-							elseif lowestHex<=99 and lowestHex<gStates.resourceTracker.move.move+searchLimit then
+							elseif lowestHex<=99 and lowestHex<resourceCardsEffectiveMove()+searchLimit then
 								addMoveCostText(displayCost,hexGridX,hexGridZ,false,lowestCombat,multipleCosts,dualCosts)
 							end
 						end

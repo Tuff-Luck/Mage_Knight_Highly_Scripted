@@ -2287,27 +2287,19 @@ function resourceTracker(player, mouseButton, id)
 			UI.setAttribute("ResourceTrackerDetail", "height", tonumber(UI.getAttribute("ResourceTrackerDetail", "height"))+(IDConvert[id][2]*temp2))
 			return
 		end
-		--resource tracking
-		local IDConvert=RESOURCE_TRACKER_FIELDS
-		if IDConvert[id:sub(1,16)]~=nil then
-			local resourceTotal=0
-			for type, value in pairs(gStates.resourceTracker[IDConvert[id:sub(1,16)][1]]) do
-				resourceTotal=resourceTotal+value
-			end
-			if ((id:sub(17,20)=="Down" and (gStates.resourceTracker[IDConvert[id:sub(1,16)][1]][IDConvert[id:sub(1,16)][2]]>0 or id:sub(1,16)=="InfluAmountReput" or id:sub(1,16)=="InfluAmountPlain")) or id:sub(17,18)=="Up")
-				and not (id:sub(1,16)=="MovemAmountPlain" and id:sub(17,18)=="Up" and gStates.resourceTracker.move.move>=99) then
-				local temp=1
-				if id:sub(17,28)=="Down" then temp=-1 end
-				gStates.resourceTracker[IDConvert[id:sub(1,16)][1]][IDConvert[id:sub(1,16)][2]]=gStates.resourceTracker[IDConvert[id:sub(1,16)][1]][IDConvert[id:sub(1,16)][2]]+temp
-				resourceTotal=resourceTotal+temp
-				temp=id:sub(1,16)
-				if id:sub(12,16)=="Plain" and id:sub(1,16)~="MovemAmountPlain" and id:sub(1,16)~="HealiAmountPlain" then temp=id:sub(1,11).."Physi" end
-				UI.setAttribute(temp.."Text", "text", joinLang({IDConvert[temp][3], gStates.resourceTracker[IDConvert[temp][1]][IDConvert[temp][2]]}))
-				if id:sub(1,16)~="MovemAmountPlain" and id:sub(1,16)~="HealiAmountPlain" then
-					UI.setAttribute(id:sub(1,11).."PlainText", "text", joinLang({IDConvert[id:sub(1,11).."Plain"][3], resourceTotal}))
-				end
-			end
-		end
+		--Resource values shown to the player include detected cards plus saved manual offsets.
+        local resourceField=RESOURCE_TRACKER_FIELDS[id:sub(1,16)]
+        if resourceField~=nil then
+            local category,field=resourceField[1],resourceField[2]
+            local isDown=id:sub(17,20)=="Down"
+            local isUp=id:sub(17,18)=="Up"
+            local current=resourceCardsEffectiveValue(category,field)
+            if (isDown and (current>0 or id:sub(1,16)=="InfluAmountReput" or id:sub(1,16)=="InfluAmountPlain"))
+                or (isUp and (category~="move" or resourceCardsEffectiveMove()<99)) then
+                gStates.resourceTracker[category][field]=gStates.resourceTracker[category][field]+(isDown and -1 or 1)
+                refreshResourceTrackerText()
+            end
+        end
 		--move costs
 		if id:sub(1,8)=="MoveCost" then
 			local temp="1"
@@ -2328,19 +2320,20 @@ function resourceTracker(player, mouseButton, id)
 end
 
 function refreshResourceTrackerText()
-	if gStates.resourceTracker==nil or gStates.moveCost==nil then return end
-	local resourceTotal={siege=0, ranged=0, block=0, attack=0, influence=0}
-	for resourceType in pairs(resourceTotal) do
-		for _, value in pairs(gStates.resourceTracker[resourceType]) do
-			resourceTotal[resourceType]=resourceTotal[resourceType]+value
-		end
-	end
-	for fieldId, spec in pairs(RESOURCE_TRACKER_FIELDS) do
-		local totalType=RESOURCE_TRACKER_TOTAL_FIELDS[fieldId]
-		local value=totalType~=nil and resourceTotal[totalType] or gStates.resourceTracker[spec[1]][spec[2]]
-		UI.setAttribute(fieldId.."Text","text",joinLang({spec[3],value}))
-	end
-	for fieldId, spec in pairs(MOVE_COST_FIELDS) do
+    if gStates.resourceTracker==nil or gStates.moveCost==nil then return end
+    local resourceTotal={siege=0, ranged=0, block=0, attack=0, influence=0}
+    for resourceType in pairs(resourceTotal) do
+        for field in pairs(gStates.resourceTracker[resourceType]) do
+            resourceTotal[resourceType]=resourceTotal[resourceType]+resourceCardsEffectiveValue(resourceType,field)
+        end
+    end
+    for fieldId,spec in pairs(RESOURCE_TRACKER_FIELDS) do
+        local totalType=RESOURCE_TRACKER_TOTAL_FIELDS[fieldId]
+        local value=totalType~=nil and math.max(0,resourceTotal[totalType])
+            or math.max(0,resourceCardsEffectiveValue(spec[1],spec[2]))
+        UI.setAttribute(fieldId.."Text","text",joinLang({spec[3],value}))
+    end
+    for fieldId, spec in pairs(MOVE_COST_FIELDS) do
 		local value=gStates.moveCost[spec[1]]
 		local display=value>900 and "X" or tostring(value)
 		UI.setAttribute("MoveCost"..fieldId.."Text","text",joinLang({spec[2],display}))
@@ -2366,6 +2359,8 @@ function refreshResourceTracker()
 		gStates.resourceTracker.influence.reputation=tonumber(reputationTable[turnOrder[gStates.turnNumber].reputation].repDisplay)
 	end
 	refreshResourceTrackerText()
+    -- After the turn changes, recalculate for the newly active Mage Knight.
+    if resourceCardsPanelOpen() then resourceCardsPanelChanged(true) end
 end
 legacyObjectButtonImage=function(id,image)
 	if id==nil then return false end

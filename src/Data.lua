@@ -1023,7 +1023,7 @@ cardResourceDefinitions={
     stamina={normal={move=2},powered={move=4}},
     march={normal={move=2},powered={move=4}},
     promise={normal={influence=2},powered={influence=4}},
-    swiftness={normal={ranged=1},powered={ranged=3}}
+    swiftness={normal={move=2},powered={ranged=3}}
 }
 
 gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit",	name={"Peasants"}, 			recruit={"village", "camp", "oasis"}},
