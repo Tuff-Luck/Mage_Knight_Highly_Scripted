@@ -111,7 +111,8 @@ end
 local sidewaysChoices={{move=1},{influence=1},{attack=1},{block=1}}
 
 local choiceLetters={move="M",influence="I",attack="A",block="B",
-    ranged="R",siege="S",healing="H",draw="D",other="O"}
+    ranged="R",siege="S",healing="H",draw="D",other="O",
+    heal="H",combat="C",wound="W",reputation="P"}
 
 local function sideChoices(rule,powered)
     if rule==nil then return nil end
@@ -123,6 +124,10 @@ local function sideChoices(rule,powered)
 end
 
 local function choiceCategory(choice)
+    -- Two choices may provide the same resource at different values (e.g.
+    -- Blood Rage's Attack with/without a Wound). Their explicit key must
+    -- identify the button, rather than the first resource field in pairs().
+    if type(choice.key)=="string" then return choice.key end
     for category in pairs(choice) do return category end
     return nil
 end
@@ -134,7 +139,7 @@ end
 local function choiceAvailable(choices,category)
     if choices==nil or category==nil then return false end
     for _,effect in ipairs(choices) do
-        if effect[category]~=nil then return true end
+        if choiceCategory(effect)==category then return true end
     end
     return false
 end
@@ -152,7 +157,7 @@ local function currentChoice(guid,powered,choices,sideways)
         end
         if choiceAvailable(choices,preferred) then
             for _,effect in ipairs(choices) do
-                if effect[preferred]~=nil then return effect,preferred end
+                if choiceCategory(effect)==preferred then return effect,preferred end
             end
         end
     end
@@ -700,7 +705,7 @@ function resourceCardsChoiceClicked(player,value,id)
         or (not sideways and sideChoices(rule,powered) or nil)
     local valid=false
     for _,choice in ipairs(choices or {}) do
-        if choice[category]~=nil then valid=true break end
+        if choiceCategory(choice)==category then valid=true break end
     end
     if not valid then return end
     if choiceExpandedByGUID[guid]~=true then
