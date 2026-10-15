@@ -661,7 +661,21 @@ function resourceCardsPanelChanged(open)
     clearAll()
     if open~=true then return end
     local player=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
-    if player~=nil then queueSeat(player.seatPos,nil) end
+    if player==nil then return end
+    local seat=player.seatPos
+    -- TTS may not expose the just-set ResourceTrackerDetail.active attribute
+    -- until the next UI update. queueSeat rejects closed panels immediately,
+    -- so invoking it in the same button callback could silently lose the scan.
+    -- Wait only while opening, then read every physical object exactly once.
+    local serial=generation[seat]
+    safeWaitCondition("PlayerBoard.CardRecognition",function()
+        if generation[seat]==serial and resourceCardsPanelOpen() then
+            renderSeat(seat)
+        end
+    end,function()
+        -- Closing or reopening the panel invalidates this pending request.
+        return generation[seat]~=serial or resourceCardsPanelOpen()
+    end,1)
 end
 
 function resourceCardsOnLoad()
