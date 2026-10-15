@@ -2310,8 +2310,8 @@ function resourceTracker(player, mouseButton, id)
 			end
 			if gStates.moveCost[convert[id:sub(9,13)][1]]==998 then gStates.moveCost[convert[id:sub(9,13)][1]]=6 end
 			if gStates.moveCost[convert[id:sub(9,13)][1]]>6 then gStates.moveCost[convert[id:sub(9,13)][1]]=999 end
-			temp=tostring(gStates.moveCost[convert[id:sub(9,13)][1]])
-			if gStates.moveCost[convert[id:sub(9,13)][1]]>900 then temp="X" end
+			temp=tostring(resourceCardsEffectiveTerrainCost(convert[id:sub(9,13)][1]))
+			if resourceCardsEffectiveTerrainCost(convert[id:sub(9,13)][1])>900 then temp="X" end
 			UI.setAttribute(id:sub(1,13).."Text", "text", joinLang({convert[id:sub(9,13)][2], temp}))
 		end
 		local movementChanged=id:sub(1,16)=="MovemAmountPlain" or id=="MovemAmountUpdate" or id:sub(1,8)=="MoveCost"
@@ -2337,7 +2337,7 @@ function refreshResourceTrackerText()
         UI.setAttribute(fieldId.."Text","color",value==0 and "#666666" or "Black")
     end
     for fieldId, spec in pairs(MOVE_COST_FIELDS) do
-		local value=gStates.moveCost[spec[1]]
+		local value=resourceCardsEffectiveTerrainCost(spec[1])
 		local display=value>900 and "X" or tostring(value)
 		UI.setAttribute("MoveCost"..fieldId.."Text","text",joinLang({spec[2],display}))
 	end
