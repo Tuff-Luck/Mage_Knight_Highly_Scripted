@@ -137,16 +137,17 @@ local function showChoiceButtons(card,choices,powered)
         if attr~=nil and type(attr.id)=="string"
             and attr.id:sub(1,19)=="ResourceCardChoice_" then table.remove(xml,i) end
     end
-    -- Card-UI coordinates, matched to createClaimButton/Meditation (same -10 height).
-    -- Approx. 36 visual units per square, centred across the illustration.
+    -- Object XML has a local depth axis; negative Z lifts these above the
+    -- face-up card artwork. -10 left them partly hidden behind the card.
+    -- Keep the four-choice row narrow enough for the centre of a standard card.
     for i,category in ipairs(layout) do
-        local x=(i-(#layout+1)/2)*66
+        local x=(i-(#layout+1)/2)*44
         local active=(category==chosen)
         xml[#xml+1]={tag="Button",attributes={
             id="ResourceCardChoice_"..card.guid.."_"..category,
             onClick="global/resourceCardsChoiceClicked",
-            position=tostring(x).." -88 -10",rotation="0 0 180",
-            width=115,height=115,scale="0.30 0.30",
+            position=tostring(x).." -88 -35",rotation="0 0 180",
+            width=90,height=90,scale="0.25 0.25",
             colors=active and "#387D30|#4CA940|#387D30|#387D30"
                 or "#454D5D|#69798E|#444C63|#454D5D",
             fontSize=77,textColor="#FFFFFF",textAlignment="MiddleCenter"
