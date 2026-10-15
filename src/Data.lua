@@ -1088,7 +1088,10 @@ cardResourceDefinitions={
         normalChoices={{influence=4},{attack=3}},
         poweredChoices={{influence=8},{attack=7}}},
     ambush={normal={move=2},powered={move=4},partial=true}, -- Plus a bonus to a subsequent Attack or Block
-    counterattack={normal={attack=2},powered={attack=4},partial=true} -- Plus damage per enemy blocked
+    counterattack={normal={attack=2},powered={attack=4},partial=true}, -- Plus damage per enemy blocked
+    fireBolt={normalTrackerNeutral=true,powered={rangedFire=3}},
+    iceBolt={normalTrackerNeutral=true,powered={rangedIce=3}},
+    iceShield={normal={blockIce=3},powered={blockIce=3}} -- Powered side also reduces enemy Armor
 }
 
 gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit",	name={"Peasants"}, 			recruit={"village", "camp", "oasis"}},
@@ -1414,10 +1417,10 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["2eb8f0"]={cardType="Spell", name={"Energy Flow", "Energy Steal"}, color={"Green"}, action={"Heal"}},
 			["2eb8f2"]={cardType="Spell", name={"Mind Read", "Mind Steal"}, color={"White"}, action={"Special"}},
 			["8907d1"]={cardType="Spell", name={"Mana Meltdown", "Mana Radiance"}, color={"Red"}, action={"Special"}},
-			["878d85"]={cardType="Advanced Action", name={"Ice Shield"}, 		color={"Blue"}, 		action={"Combat"}},
+			["878d85"]={cardType="Advanced Action", resourceKey="iceShield", name={"Ice Shield"}, 		color={"Blue"}, 		action={"Combat"}},
 			["878d87"]={cardType="Advanced Action", resourceKey="frostBridge", name={"Frost Bridge"}, 		color={"Blue"}, 		action={"Move"}},
 			["878d89"]={cardType="Advanced Action", name={"Pure Magic"}, 		color={"Blue"}, 		action={"Move", "Combat", "Influence"}},
-			["878d81"]={cardType="Advanced Action", name={"Ice Bolt"}, 			color={"Blue"}, 		action={"Combat", "Special"}},
+			["878d81"]={cardType="Advanced Action", resourceKey="iceBolt", name={"Ice Bolt"}, 			color={"Blue"}, 		action={"Combat", "Special"}},
 			["87bc59"]={cardType="Advanced Action", name={"Spell Forge"}, 		color={"Blue"}, 		action={"Special"}},
 			["878d94"]={cardType="Advanced Action", name={"Temporal Portal"},	color={"Blue"}, 		action={"Action"}},
 			["878d93"]={cardType="Advanced Action", resourceKey="shieldBash", name={"Shield Bash"}, 		color={"Blue"}, 		action={"Combat"}},
@@ -1446,7 +1449,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["878d92"]={cardType="Advanced Action", resourceKey="agility", name={"Agility"},	 		color={"White"}, 		action={"Move", "Combat"}},
 			["8eccb3"]={cardType="Advanced Action", name={"Blood Ritual"}, 		color={"Red"}, 			action={"Special"}},
 			["878d86"]={cardType="Advanced Action", resourceKey="intimidate", name={"Intimidate"}, 		color={"Red"}, 			action={"Combat", "Influence"}},
-			["878d80"]={cardType="Advanced Action", name={"Fire Bolt"},	 		color={"Red"}, 			action={"Combat", "Special"}},
+			["878d80"]={cardType="Advanced Action", resourceKey="fireBolt", name={"Fire Bolt"},	 		color={"Red"}, 			action={"Combat", "Special"}},
 			["878d84"]={cardType="Advanced Action", resourceKey="bloodRage", name={"Blood Rage"}, 		color={"Red"}, 			action={"Combat"}},
 			["05ef61"]={cardType="Advanced Action", name={"Ritual Attack"}, 	color={"Red"}, 			action={"Combat"}},
 			["93b7d4"]={cardType="Advanced Action", name={"Blood of Ancients"},	color={"Red"}, 			action={"Special"}},
@@ -1497,7 +1500,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["1aaaad"]={cardType="Advanced Action", resourceKey="shieldBash", name={"Shield Bash"},		color={"Blue"}, 		action={"Combat"}},
 			["c15356"]={cardType="Advanced Action", name={"Perseverance"},		color={"Blue"}, 		action={"Move", "Combat"}},
 			["5702a0"]={cardType="Advanced Action", name={"Repel Ritual"},		color={"Blue"}, 		action={"Combat"}},
-			["7ff871"]={cardType="Advanced Action", name={"Ice Shield"}, 		color={"Blue"}, 		action={"Combat"}},
+			["7ff871"]={cardType="Advanced Action", resourceKey="iceShield", name={"Ice Shield"}, 		color={"Blue"}, 		action={"Combat"}},
 			["e1a957"]={cardType="Advanced Action", name={"Magic Talent"},		color={"Blue"}, 		action={"Special"}},
 			["9f31f3"]={cardType="Advanced Action", name={"Treasure Hunt"},		color={"Blue"}, 		action={"Move"}},
 			["f935e0"]={cardType="Advanced Action", name={"Cloud of Steel"}, 	color={"Blue"}, 		action={"Special", "Combat"}},
