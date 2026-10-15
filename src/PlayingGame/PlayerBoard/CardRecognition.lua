@@ -113,10 +113,6 @@ end
 -- card. The sideways +1 action also shares it when the resource type matches,
 -- but retains a separate choice when the printed effect is incompatible
 -- (e.g. Tranquility's Heal/Draw versus a sideways Move/Attack).
-local function choiceSlot(sideways)
-    return sideways and "sideways" or "effect"
-end
-
 local function choiceAvailable(choices,category)
     if choices==nil or category==nil then return false end
     for _,effect in ipairs(choices) do
