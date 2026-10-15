@@ -388,6 +388,31 @@ local function applyLinkedResourceBonus(effects,link)
     return values
 end
 
+-- Powered One with the Land references the *printed*, unmodified Move
+-- cost of the Mage Knight's actual hex, not player-adjusted gStates.moveCost.
+-- Lakes and Mountains explicitly have special printed values on the card.
+local landPrintedMoveDay={
+    plains=2,hills=3,forest=3,wasteland=4,desert=5,swamp=5,
+    lake=2,mountain=5,city=2
+}
+local landPrintedMoveNight={
+    plains=2,hills=3,forest=5,wasteland=4,desert=3,swamp=5,
+    lake=2,mountain=5,city=2
+}
+
+local function currentLandBlockValue()
+    if gStates==nil or gStates.turnNumber==nil
+        or fracturedLandsTeleportSourcePosition==nil then return nil end
+    -- Reuse the existing avatar-origin helper: it handles avatars moved
+    -- onto City boards as well as ordinary map-space positions.
+    local position=fracturedLandsTeleportSourcePosition(gStates.turnNumber)
+    if position==nil then return nil end
+    local hex,_,_,_,_,_,terrain=runtimeMapHexAtPosition(position)
+    terrain=terrain or (hex~=nil and hex.hexType or nil)
+    local costs=gStates.dayRound==true and landPrintedMoveDay or landPrintedMoveNight
+    return costs[terrain]
+end
+
 local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,hasDiscard)
     local data=gameCards[card.guid]
     local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
@@ -406,6 +431,17 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
     local sideTracked=tracked and not (not powered and rule~=nil and rule.normalTrackerNeutral==true)
     local choices=sideChoices(rule,powered)
     local chosen=chosenEffect(card.guid,powered,choices)
+    local usesTerrainBlock=chosen~=nil and chosen.terrainBlock==true
+    if usesTerrainBlock then
+        local value=currentLandBlockValue()
+        if value~=nil then
+            chosen=gStates.dayRound==true and {blockFire=value} or {blockIce=value}
+        else
+            -- Terrain not yet determinable. Preserve the B selection, but
+            -- do not invent a Block amount; show yellow until the next scan.
+            chosen=nil
+        end
+    end
     local choicePending=choices~=nil and #choices>1 and chosen==nil
     local statePartial=rule~=nil and ((powered and rule.poweredPartial==true)
         or (not powered and rule.normalPartial==true)) and chosen==nil
@@ -422,7 +458,8 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
         or not complete and "yellow" or "green"
     if #linked>0 then status="purple" end
     return {guid=card.guid,known=known,complete=complete,powered=powered,
-        links=linked,status=status,resources=effects}
+        links=linked,status=status,resources=effects,
+        usesTerrainBlock=usesTerrainBlock and faceUp and not discardTarget}
 end
 
 local function overlapArea(a,b)
@@ -582,6 +619,7 @@ local function renderSeat(seatPos)
 
     local links,boostBy,boostSource,discarded,hasDiscard=resolveActionLinks(cards,footprints,powered)
     local current,records,totals={}, {}, {}
+    local usesCurrentHexBlock=false
     local terrainModifiers={reduce=0,setToTwo=false}
     for _,card in ipairs(cards) do
         local result=calculateCard(card,powered[card.guid]==true,boostBy[card.guid],
@@ -625,6 +663,7 @@ local function renderSeat(seatPos)
         end
         records[card.guid]=result
         current[card.guid]=true
+        if result.usesTerrainBlock then usesCurrentHexBlock=true end
         setHighlight(card,result.status,result.powered)
     end
     -- The linking card itself contributes the target's upgraded effect. Mark it
@@ -665,7 +704,7 @@ local function renderSeat(seatPos)
             or prior.setToTwo~=terrainModifiers.setToTwo)
     bySeat[seatPos]=current
     resourceCardScanBySeat[seatPos]={cards=records,totals=totals,
-        terrainModifiers=terrainModifiers}
+        terrainModifiers=terrainModifiers,usesCurrentHexBlock=usesCurrentHexBlock}
     refreshResourceTrackerText()
     if previousMove~=(totals.move or 0) or terrainChanged then updateMoveDisplay() end
     for guid in pairs(previous) do
@@ -826,10 +865,26 @@ function resourceCardsZoneLeft(ctx)
 end
 
 function resourceCardsObjectMoved(obj)
-    if not resourceCardsPanelOpen() or resourceObjectKind(obj)==nil then return end
+    if not resourceCardsPanelOpen() or obj==nil then return end
     local player=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if player==nil then return end
     local seat=player.seatPos
+    if resourceObjectKind(obj)==nil then
+        -- A played powered One with the Land may change Block value when the
+        -- Mage Knight moves to different terrain. Only watch avatar drops
+        -- while that exact effect is selected; no continual background scan.
+        local scan=resourceCardScanBySeat[seat]
+        if scan~=nil and scan.usesCurrentHexBlock==true then
+            for _,hero in ipairs(mageKnights or {}) do
+                if hero.mage==player.mage and
+                    (obj.guid==hero.model or obj.guid==hero.token or obj.guid==hero.standee) then
+                    queueSeat(seat,obj.guid)
+                    return
+                end
+            end
+        end
+        return
+    end
     for _,zoneGUID in ipairs({playerPlayAreas[seat],playerUnitAreas[seat],playerCrystalAreas[seat]}) do
         local zone=getObjectFromGUID(zoneGUID)
         if zone~=nil then
