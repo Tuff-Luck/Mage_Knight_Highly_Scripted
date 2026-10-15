@@ -129,26 +129,91 @@ local function cardIsSideways(card)
     return y>25 and y<155
 end
 
-local function calculateCard(card,powered,linked)
+-- A powered link grants a target Action card its strong side for free and can
+-- amend only the resource types specified in that link's data definition.
+local function applyLinkedResourceBonus(effects,link)
+    if effects==nil or link==nil then return effects end
+    local values={}
+    for category,value in pairs(effects) do
+        if type(value)=="number" then
+            local bonus=link.bonusFor~=nil and link.bonusFor[category] and (link.bonus or 0) or 0
+            values[category]=value+bonus
+        end
+    end
+    return values
+end
+
+local function calculateCard(card,manaPowered,linkedBoost,linked)
     local data=gameCards[card.guid]
     local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
     local known=data~=nil
-    -- A known action that cannot contribute any tracked resource is explicitly red,
-    -- rather than yellow for a missing resource definition.
     local tracked=data==nil or data.resourceTracked~=false
+    local powered=manaPowered or linkedBoost~=nil
     local faceUp=card.is_face_down~=true and cardIsSideways(card)==false
-    -- Choices can be unresolved on only one side of the card: Determination and
-    -- Rage are yellow normally, but their powered Block 5 / Attack 4 is definite.
+    -- Some normal effects (Concentration's mana gain) are known to be irrelevant
+    -- to the tracker. Their powered side may still change another Action card.
+    local sideTracked=tracked and not (not powered and rule~=nil and rule.normalTrackerNeutral==true)
     local statePartial=rule~=nil and
         ((powered and rule.poweredPartial==true) or (not powered and rule.normalPartial==true))
-    local complete=tracked and rule~=nil and rule.partial~=true and not statePartial and faceUp
-    -- A known fixed component can contribute to the estimate even when the card's
-    -- additional rules are still unimplemented. Unresolved choices contribute nothing.
-    local effects=tracked and faceUp and rule~=nil and (powered and rule.powered or rule.normal) or nil
-    local kind=(not known or not tracked) and "red" or not complete and "yellow" or "green"
-    if tracked and #linked>0 then kind="purple" end
+    -- A link with no understood numeric result is not a fully resolved effect.
+    local base=rule~=nil and (powered and rule.powered or rule.normal) or nil
+    local complete=sideTracked and base~=nil and rule.partial~=true and not statePartial and faceUp
+    -- A partial card can still have a fixed component. Never treat the linked
+    -- stronger side as an extra copy of the normal effect.
+    local effects=sideTracked and faceUp and applyLinkedResourceBonus(base,linkedBoost) or nil
+    local kind=(not known or not sideTracked) and "red" or not complete and "yellow" or "green"
+    -- Purple is reserved for links intentionally resolved by a link-capable card,
+    -- not ordinary overlaps between otherwise independent cards.
+    if #linked>0 then kind="purple" end
     return {guid=card.guid,known=known,complete=complete,powered=powered,
         links=linked,status=kind,resources=effects}
+end
+
+-- General-purpose physical pairing: powered sources opt in via poweredLink in
+-- Data.lua. Each source selects at most one overlapping Action card; each target
+-- accepts at most one source. Players control the pairing by positioning cards.
+-- Unpowered sources and ordinary touching cards create no link at all.
+local function resolveActionLinks(cards,footprints,manaPowered)
+    local links,boostBy,boostSource,claimed={}, {}, {}, {}
+    for _,card in ipairs(cards) do links[card.guid]={} end
+    for _,source in ipairs(cards) do
+        local data=gameCards[source.guid]
+        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+        local link=rule~=nil and manaPowered[source.guid] and rule.poweredLink or nil
+        if link~=nil and link.mode=="stronger" and source.is_face_down~=true
+            and not cardIsSideways(source) then
+            local best,bestArea=nil,0
+            local a=footprints[source.guid]
+            for _,target in ipairs(cards) do
+                local targetData=gameCards[target.guid]
+                local targetRule=targetData~=nil and cardResourceDefinitions[targetData.resourceKey] or nil
+                -- A boosted card must be an Action, not a Spell/Artifact/Unit.
+                -- Do not chain two link sources together in this first pass.
+                if target.guid~=source.guid and not claimed[target.guid]
+                    and targetData~=nil
+                    and (targetData.cardType=="Starting" or targetData.cardType=="Advanced Action")
+                    and (targetRule==nil or targetRule.poweredLink==nil)
+                    and target.is_face_down~=true and not cardIsSideways(target)
+                    and overlaps(a,footprints[target.guid]) then
+                    local b=footprints[target.guid]
+                    local width=math.max(0,math.min(a.x+a.halfX,b.x+b.halfX)-math.max(a.x-a.halfX,b.x-b.halfX))
+                    local depth=math.max(0,math.min(a.z+a.halfZ,b.z+b.halfZ)-math.max(a.z-a.halfZ,b.z-b.halfZ))
+                    local area=width*depth
+                    if area>bestArea or (area==bestArea and best~=nil and target.guid<best.guid) then
+                        best,bestArea=target,area
+                    end
+                end
+            end
+            if best~=nil then
+                claimed[best.guid]=true
+                boostBy[best.guid]=link
+                boostSource[best.guid]=source.guid
+                links[source.guid][#links[source.guid]+1]=best.guid
+                links[best.guid][#links[best.guid]+1]=source.guid
+            end
+        end
+    end
+    return links,boostBy,boostSource
 end
 
 -- Scan the play area for used abilities, the Unit area for Units, and crystal
@@ -191,17 +256,9 @@ local function renderSeat(seatPos)
         end
     end
 
-    local links,powered,usedMana={}, {}, {}
-    for _,card in ipairs(cards) do links[card.guid]={} end
-    for i=1,#cards do
-        for j=i+1,#cards do
-            local a,b=cards[i],cards[j]
-            if overlaps(footprints[a.guid],footprints[b.guid]) then
-                links[a.guid][#links[a.guid]+1]=b.guid
-                links[b.guid][#links[b.guid]+1]=a.guid
-            end
-        end
-    end
+    -- Stable ordering also makes tied link targets deterministic across scans.
+    table.sort(cards,function(a,b) return a.guid<b.guid end)
+    local powered,usedMana={}, {}
 
     -- Track which physical mana token is powering which card. A crystal merely
     -- sitting in inventory must not be mistaken for a spent resource.
@@ -228,9 +285,10 @@ local function renderSeat(seatPos)
         end
     end
 
+    local links,boostBy,boostSource=resolveActionLinks(cards,footprints,powered)
     local current,records,totals={}, {}, {}
     for _,card in ipairs(cards) do
-        local result=calculateCard(card,powered[card.guid]==true,links[card.guid])
+        local result=calculateCard(card,powered[card.guid]==true,boostBy[card.guid],links[card.guid])
         result.kind=resourceObjectKind(card)
         result.contributes=false
         -- Fixed components of partially understood cards may be counted; an
@@ -246,6 +304,14 @@ local function renderSeat(seatPos)
         records[card.guid]=result
         current[card.guid]=true
         setHighlight(card,result.status,result.powered)
+    end
+    -- The linking card itself contributes the target's upgraded effect. Mark it
+    -- as a contributor so its powering mana token receives a green outline.
+    for targetGUID,sourceGUID in pairs(boostSource) do
+        if records[targetGUID]~=nil and records[targetGUID].contributes
+            and records[sourceGUID]~=nil then
+            records[sourceGUID].contributes=true
+        end
     end
 
     for guid,obj in pairs(objects) do
