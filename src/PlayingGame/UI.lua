@@ -2332,6 +2332,9 @@ function refreshResourceTrackerText()
         local value=totalType~=nil and math.max(0,resourceTotal[totalType])
             or math.max(0,resourceCardsEffectiveValue(spec[1],spec[2]))
         UI.setAttribute(fieldId.."Text","text",joinLang({spec[3],value}))
+        -- Dim empty resource rows, including the Move, Healing and expanded
+        -- breakdown fields; restore normal contrast when a total is nonzero.
+        UI.setAttribute(fieldId.."Text","color",value==0 and "#777777" or "Black")
     end
     for fieldId, spec in pairs(MOVE_COST_FIELDS) do
 		local value=gStates.moveCost[spec[1]]
