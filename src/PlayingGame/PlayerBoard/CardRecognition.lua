@@ -62,6 +62,11 @@ local function setHighlight(obj,kind,powered)
 end
 
 
+local function cardIsSideways(card)
+    local y=card.getRotation()[2]%180
+    return y>25 and y<155
+end
+
 local choiceLetters={move="M",influence="I",attack="A",block="B",
     ranged="R",siege="S",healing="H",draw="D"}
 
@@ -156,11 +161,6 @@ local function clearChoiceButtons()
         removeChoiceButtons(getObjectFromGUID(guid))
     end
     choiceButtonShown={}
-end
-
-local function cardIsSideways(card)
-    local y=card.getRotation()[2]%180
-    return y>25 and y<155
 end
 
 local function footprint(obj)
