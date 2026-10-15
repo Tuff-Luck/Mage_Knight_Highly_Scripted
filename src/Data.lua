@@ -1059,12 +1059,17 @@ cardResourceDefinitions={
     agility={normal={move=2},powered={move=4},partial=true}, -- Can convert Move into attacks
     steadyTempo={normal={move=2},powered={move=4}}, -- Deed-deck placement does not change Move
     mountainLore={normal={move=3},powered={move=5},partial=true}, -- Hand limit/terrain bonus
-    refreshingWalk={normal={move=2,healing=1},powered={move=4,healing=2},
-        partial=true}, -- In combat this card provides Move only, not Healing
+    refreshingWalk={
+        normalChoices={{key="heal",move=2,healing=1},{key="combat",move=2}},
+        poweredChoices={{key="heal",move=4,healing=2},{key="combat",move=4}}},
+    -- H = Move plus Healing, C = combat (Move without Healing).
     heroicTale={normal={influence=3},powered={influence=6},partial=true}, -- Unit recruitment changes Reputation/Fame
     peacefulMoment={normal={influence=3},powered={influence=6},partial=true}, -- Influence may be spent on Healing/refresh
     learning={normal={influence=2},powered={influence=4}}, -- Optional Advanced Action purchase does not change Influence
-    bloodRage={normal={attack=2},powered={attack=4},partial=true}, -- Wound-for-more-Attack option
+    bloodRage={
+        normalChoices={{key="attack",attack=2},{key="wound",attack=5}},
+        poweredChoices={{key="attack",attack=4},{key="wound",attack=9}}},
+    -- Wound option is a player-asserted cost; no Wound is created automatically.
     inNeed={normal={influence=3},powered={influence=5},partial=true}, -- Further Influence from Wounds
     -- Verified against the Unofficial Mage Knight card wiki (base/expansion).
     -- 'other' means a deliberate card effect that adds no tracked resource.
@@ -1092,7 +1097,11 @@ cardResourceDefinitions={
     counterattack={normal={attack=2},powered={attack=4},partial=true}, -- Plus damage per enemy blocked
     fireBolt={normalTrackerNeutral=true,powered={rangedFire=3}},
     iceBolt={normalTrackerNeutral=true,powered={rangedIce=3}},
-    iceShield={normal={blockIce=3},powered={blockIce=3}} -- Powered side also reduces enemy Armor
+    iceShield={normal={blockIce=3},powered={blockIce=3}}, -- Powered side also reduces enemy Armor
+    chivalry={
+        normalChoices={{key="attack",attack=3},{key="reputation",attack=2}},
+        poweredChoices={{key="attack",attack=6},{key="reputation",attack=4}}}
+    -- Reputation alternative gives a smaller Attack, with external Fame/Reputation bonus
 }
 
 gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit",	name={"Peasants"}, 			recruit={"village", "camp", "oasis"}},
@@ -1444,7 +1453,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["878d90"]={cardType="Advanced Action", resourceKey="heroicTale", name={"Heroic Tale"}, 		color={"White"}, 		action={"Influence"}},
 			["8122c2"]={cardType="Advanced Action", resourceKey="peacefulMoment", name={"Peaceful Moment"},	color={"White"}, 		action={"Action", "Influence"}},
 			["9de475"]={cardType="Advanced Action", name={"Dodge and Weave"},	color={"White"}, 		action={"Combat"}},
-			["42eb53"]={cardType="Advanced Action", name={"Chivalry"},	 		color={"White"}, 		action={"Combat"}},
+			["42eb53"]={cardType="Advanced Action", resourceKey="chivalry", name={"Chivalry"},	 		color={"White"}, 		action={"Combat"}},
 			["35aee6"]={cardType="Advanced Action", resourceKey="learning", name={"Learning"},			color={"White"}, 		action={"Special", "Influence"}},
 			["e2b570"]={cardType="Advanced Action", name={"Mana Storm"},		color={"White"}, 		action={"Special"}},
 			["878d92"]={cardType="Advanced Action", resourceKey="agility", name={"Agility"},	 		color={"White"}, 		action={"Move", "Combat"}},
