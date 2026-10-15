@@ -133,13 +133,20 @@ local function calculateCard(card,powered,linked)
     local data=gameCards[card.guid]
     local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
     local known=data~=nil
+    -- A known action that cannot contribute any tracked resource is explicitly red,
+    -- rather than yellow for a missing resource definition.
+    local tracked=data==nil or data.resourceTracked~=false
     local faceUp=card.is_face_down~=true and cardIsSideways(card)==false
-    local complete=rule~=nil and rule.partial~=true and faceUp
+    -- Choices can be unresolved on only one side of the card: Determination and
+    -- Rage are yellow normally, but their powered Block 5 / Attack 4 is definite.
+    local statePartial=rule~=nil and
+        ((powered and rule.poweredPartial==true) or (not powered and rule.normalPartial==true))
+    local complete=tracked and rule~=nil and rule.partial~=true and not statePartial and faceUp
     -- A known fixed component can contribute to the estimate even when the card's
     -- additional rules are still unimplemented. Unresolved choices contribute nothing.
-    local effects=faceUp and rule~=nil and (powered and rule.powered or rule.normal) or nil
-    local kind=not known and "red" or not complete and "yellow" or "green"
-    if #linked>0 then kind="purple" end
+    local effects=tracked and faceUp and rule~=nil and (powered and rule.powered or rule.normal) or nil
+    local kind=(not known or not tracked) and "red" or not complete and "yellow" or "green"
+    if tracked and #linked>0 then kind="purple" end
     return {guid=card.guid,known=known,complete=complete,powered=powered,
         links=linked,status=kind,resources=effects}
 end
