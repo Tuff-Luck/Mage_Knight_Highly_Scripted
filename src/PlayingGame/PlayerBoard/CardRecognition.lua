@@ -3,6 +3,9 @@
 resourceCardScanBySeat={}
 local generation={}
 local shown={}
+-- Mana crystal figurines are still read for powering cards, but should never
+-- receive Resource Tracker highlights. Avoid repeated highlightOff calls.
+local crystalHighlightCleared={}
 local bySeat={}
 -- Player choices are transient, never written into gStates or save JSON.
 local selectedResourceByGUID={}
@@ -93,6 +96,18 @@ local function clearHighlight(guid)
 end
 
 local function setHighlight(obj,kind,powered)
+    -- Crystal figurines represent mana but are visually distinctive already.
+    -- Keep their power detection/contribution records, without outlining the
+    -- figurine. Remove any highlight left from the previous tracker version.
+    if isManaTokenFigurine(obj) then
+        if shown[obj.guid]~=nil then
+            clearHighlight(obj.guid)
+        elseif crystalHighlightCleared[obj.guid]~=true then
+            obj.highlightOff()
+        end
+        crystalHighlightCleared[obj.guid]=true
+        return
+    end
     local choice=kind..(powered and "Bright" or "Normal")
     if shown[obj.guid]==choice then return end
     -- Omit duration: TTS keeps this highlight until highlightOff() is called.
