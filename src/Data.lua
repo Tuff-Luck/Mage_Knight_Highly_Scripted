@@ -1082,7 +1082,13 @@ cardResourceDefinitions={
     stoutResolve={
         normalChoices={{move=2},{influence=2},{attack=2},{block=2}},
         poweredChoices={{move=3},{influence=3},{attack=3},{block=3}},
-        partial=true} -- Optional discards add untracked bonuses
+        partial=true}, -- Optional discards add untracked bonuses
+    crushingBolt={normalTrackerNeutral=true,powered={siege=3}},
+    intimidate={
+        normalChoices={{influence=4},{attack=3}},
+        poweredChoices={{influence=8},{attack=7}}},
+    ambush={normal={move=2},powered={move=4},partial=true}, -- Plus a bonus to a subsequent Attack or Block
+    counterattack={normal={attack=2},powered={attack=4},partial=true} -- Plus damage per enemy blocked
 }
 
 gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit",	name={"Peasants"}, 			recruit={"village", "camp", "oasis"}},
@@ -1420,14 +1426,14 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["3d832c"]={cardType="Advanced Action", name={"Magic Talent"}, 		color={"Blue"}, 		action={"Special"}},
 			["878d91"]={cardType="Advanced Action", resourceKey="regeneration", name={"Regeneration"}, 		color={"Green"}, 		action={"Heal"}},
 			["00c614"]={cardType="Advanced Action", resourceKey="pathFinding", name={"Path Finding"}, 		color={"Green"}, 		action={"Move"}},
-			["878d83"]={cardType="Advanced Action", name={"Crushing Bolt"}, 	color={"Green"}, 		action={"Combat", "Special"}},
+			["878d83"]={cardType="Advanced Action", resourceKey="crushingBolt", name={"Crushing Bolt"}, 	color={"Green"}, 		action={"Combat", "Special"}},
 			["33bc9b"]={cardType="Advanced Action", resourceKey="refreshingWalk", name={"Refreshing Walk"},	color={"Green"}, 		action={"Move", "Heal"}},
 			["474418"]={cardType="Advanced Action", resourceKey="forceOfNature", name={"Force of Nature"},	color={"Green"}, 		action={"Combat"}},
 			["54b5c4"]={cardType="Advanced Action", resourceKey="stoutResolve", name={"Stout Resolve"}, 	color={"Green"}, 		action={"Move", "Combat", "Influence"}},
 			["d3995b"]={cardType="Advanced Action", resourceKey="mountainLore", name={"Mountain Lore"}, 	color={"Green"}, 		action={"Move"}},
 			["6fdeb0"]={cardType="Advanced Action", name={"Training"},			color={"Green"}, 		action={"Special"}},
 			["c3153e"]={cardType="Advanced Action", resourceKey="inNeed", name={"In Need"}, 			color={"Green"}, 		action={"Influence"}},
-			["20cb85"]={cardType="Advanced Action", name={"Ambush"}, 			color={"Green"}, 		action={"Move"}},--I want to add combat
+			["20cb85"]={cardType="Advanced Action", resourceKey="ambush", name={"Ambush"}, 			color={"Green"}, 		action={"Move"}},--I want to add combat
 			["878d88"]={cardType="Advanced Action", resourceKey="songOfWind", name={"Song of Wind"}, 		color={"White"}, 		action={"Move"}},
 			["8c3de6"]={cardType="Advanced Action", name={"Diplomacy"}, 		color={"White"}, 		action={"Combat", "Influence"}},
 			["878d82"]={cardType="Advanced Action", resourceKey="swiftBolt", name={"Swift Bolt"}, 		color={"White"}, 		action={"Combat", "Special"}},
@@ -1439,12 +1445,12 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["e2b570"]={cardType="Advanced Action", name={"Mana Storm"},		color={"White"}, 		action={"Special"}},
 			["878d92"]={cardType="Advanced Action", resourceKey="agility", name={"Agility"},	 		color={"White"}, 		action={"Move", "Combat"}},
 			["8eccb3"]={cardType="Advanced Action", name={"Blood Ritual"}, 		color={"Red"}, 			action={"Special"}},
-			["878d86"]={cardType="Advanced Action", name={"Intimidate"}, 		color={"Red"}, 			action={"Combat", "Influence"}},
+			["878d86"]={cardType="Advanced Action", resourceKey="intimidate", name={"Intimidate"}, 		color={"Red"}, 			action={"Combat", "Influence"}},
 			["878d80"]={cardType="Advanced Action", name={"Fire Bolt"},	 		color={"Red"}, 			action={"Combat", "Special"}},
 			["878d84"]={cardType="Advanced Action", resourceKey="bloodRage", name={"Blood Rage"}, 		color={"Red"}, 			action={"Combat"}},
 			["05ef61"]={cardType="Advanced Action", name={"Ritual Attack"}, 	color={"Red"}, 			action={"Combat"}},
 			["93b7d4"]={cardType="Advanced Action", name={"Blood of Ancients"},	color={"Red"}, 			action={"Special"}},
-			["65a1d5"]={cardType="Advanced Action", name={"Counterattack"}, 	color={"Red"}, 			action={"Combat"}},
+			["65a1d5"]={cardType="Advanced Action", resourceKey="counterattack", name={"Counterattack"}, 	color={"Red"}, 			action={"Combat"}},
 			["8fac50"]={cardType="Advanced Action", name={"Maximal Effect"}, 	color={"Red"}, 			action={"Special"}},
 			["bb05a9"]={cardType="Advanced Action", name={"Into the Heat"},		color={"Red"}, 			action={"Combat"}},
 			["d74999"]={cardType="Advanced Action", name={"Decompose"}, 		color={"Red"}, 			action={"Special"}},
@@ -1469,7 +1475,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["4808f2"]={cardType="Advanced Action", name={"Training"}, 			color={"Green"}, 		action={"Special"}},
 			["db96c1"]={cardType="Advanced Action", resourceKey="forceOfNature", name={"Force of Nature"},	color={"Green"}, 		action={"Combat"}},
 			["48b3d2"]={cardType="Advanced Action", name={"Reconnoiter"}, 		color={"Green"}, 		action={"Move", "Heal"}},
-			["bedf00"]={cardType="Advanced Action", name={"Ambush"},	 		color={"Green"}, 		action={"Move"}},
+			["bedf00"]={cardType="Advanced Action", resourceKey="ambush", name={"Ambush"},	 		color={"Green"}, 		action={"Move"}},
 			["5af8b5"]={cardType="Advanced Action", name={"Herbalism"}, 		color={"Green"}, 		action={"Heal"}},
 			["09391c"]={cardType="Advanced Action", name={"Poison Handling"},	color={"Green"}, 		action={"Combat", "Heal"}},
 			["7f381d"]={cardType="Advanced Action", name={"Noxiousness"}, 		color={"Green"}, 		action={"Special", "Combat", "Move"}},
