@@ -4,6 +4,9 @@ resourceCardScanBySeat={}
 local generation={}
 local shown={}
 local bySeat={}
+-- Player choices are transient, never written into gStates or save JSON.
+local selectedResourceByGUID={}
+local choiceButtonShown={}
 local palette={
     green={{0.10,0.55,0.14},{0.35,1.00,0.38}},
     yellow={{0.62,0.48,0.08},{1.00,0.94,0.19}},
@@ -56,6 +59,103 @@ local function setHighlight(obj,kind,powered)
     -- Omit duration: TTS keeps this highlight until highlightOff() is called.
     obj.highlightOn(palette[kind][powered and 2 or 1])
     shown[obj.guid]=choice
+end
+
+
+local choiceLetters={move="M",influence="I",attack="A",block="B",
+    ranged="R",siege="S",healing="H",draw="D"}
+
+local function sideChoices(rule,powered)
+    return rule~=nil and (powered and rule.poweredChoices or rule.normalChoices) or nil
+end
+
+local function choiceCategory(choice)
+    for category in pairs(choice) do return category end
+    return nil
+end
+
+local function chosenEffect(guid,powered,choices)
+    if choices==nil then return nil end
+    local choice=selectedResourceByGUID[guid]
+    local category=choice~=nil and choice[powered and "powered" or "normal"] or nil
+    if category==nil then return nil end
+    for _,value in ipairs(choices) do
+        if value[category]~=nil then return value end
+    end
+    return nil
+end
+
+-- These are tiny object XML buttons over the artwork, not the much larger
+-- Meditation buttons beside the card. Preserve other object UI elements.
+local function removeChoiceButtons(card)
+    if card==nil or card.UI==nil then return end
+    local xml=card.UI.getXmlTable() or {}
+    local changed=false
+    for i=#xml,1,-1 do
+        local attr=xml[i].attributes
+        if attr~=nil and type(attr.id)=="string"
+            and attr.id:sub(1,19)=="ResourceCardChoice_" then
+            table.remove(xml,i)
+            changed=true
+        end
+    end
+    if changed then card.UI.setXmlTable(#xml>0 and xml or {{}}) end
+    choiceButtonShown[card.guid]=nil
+end
+
+local function showChoiceButtons(card,choices,powered)
+    if card==nil then return end
+    if choices==nil or #choices<2 or card.is_face_down==true or cardIsSideways(card) then
+        if choiceButtonShown[card.guid]~=nil then removeChoiceButtons(card) end
+        return
+    end
+    local selection=selectedResourceByGUID[card.guid]
+    local chosen=selection~=nil and selection[powered and "powered" or "normal"] or nil
+    local layout={}
+    local seen={}
+    for _,choice in ipairs(choices) do
+        local category=choiceCategory(choice)
+        if category~=nil and choiceLetters[category]~=nil and not seen[category] then
+            seen[category]=true
+            layout[#layout+1]=category
+        end
+    end
+    if #layout<2 then
+        if choiceButtonShown[card.guid]~=nil then removeChoiceButtons(card) end
+        return
+    end
+    local signature=(powered and "P" or "N")..":"..(chosen or "")..":"..table.concat(layout,",")
+    if choiceButtonShown[card.guid]==signature then return end
+    local xml=card.UI.getXmlTable() or {}
+    for i=#xml,1,-1 do
+        local attr=xml[i].attributes
+        if attr~=nil and type(attr.id)=="string"
+            and attr.id:sub(1,19)=="ResourceCardChoice_" then table.remove(xml,i) end
+    end
+    -- Card-UI coordinates, matched to createClaimButton/Meditation (same -10 height).
+    -- Approx. 36 visual units per square, centred across the illustration.
+    for i,category in ipairs(layout) do
+        local x=(i-(#layout+1)/2)*66
+        local active=(category==chosen)
+        xml[#xml+1]={tag="Button",attributes={
+            id="ResourceCardChoice_"..card.guid.."_"..category,
+            onClick="global/resourceCardsChoiceClicked",
+            position=tostring(x).." -88 -10",rotation="0 0 180",
+            width=115,height=115,scale="0.30 0.30",
+            colors=active and "#387D30|#4CA940|#387D30|#387D30"
+                or "#454D5D|#69798E|#444C63|#454D5D",
+            text=choiceLetters[category],fontSize=77,textColor="#FFFFFF"
+        }}
+    end
+    card.UI.setXmlTable(xml)
+    choiceButtonShown[card.guid]=signature
+end
+
+local function clearChoiceButtons()
+    for guid in pairs(choiceButtonShown) do
+        removeChoiceButtons(getObjectFromGUID(guid))
+    end
+    choiceButtonShown={}
 end
 
 local function footprint(obj)
@@ -143,77 +243,115 @@ local function applyLinkedResourceBonus(effects,link)
     return values
 end
 
-local function calculateCard(card,manaPowered,linkedBoost,linked)
+local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,hasDiscard)
     local data=gameCards[card.guid]
     local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
     local known=data~=nil
     local tracked=data==nil or data.resourceTracked~=false
     local powered=manaPowered or linkedBoost~=nil
     local faceUp=card.is_face_down~=true and cardIsSideways(card)==false
-    -- Some normal effects (Concentration's mana gain) are known to be irrelevant
-    -- to the tracker. Their powered side may still change another Action card.
     local sideTracked=tracked and not (not powered and rule~=nil and rule.normalTrackerNeutral==true)
-    local statePartial=rule~=nil and
-        ((powered and rule.poweredPartial==true) or (not powered and rule.normalPartial==true))
-    -- A link with no understood numeric result is not a fully resolved effect.
-    local base=rule~=nil and (powered and rule.powered or rule.normal) or nil
-    local complete=sideTracked and base~=nil and rule.partial~=true and not statePartial and faceUp
-    -- A partial card can still have a fixed component. Never treat the linked
-    -- stronger side as an extra copy of the normal effect.
-    local effects=sideTracked and faceUp and applyLinkedResourceBonus(base,linkedBoost) or nil
-    local kind=(not known or not sideTracked) and "red" or not complete and "yellow" or "green"
-    -- Purple is reserved for links intentionally resolved by a link-capable card,
-    -- not ordinary overlaps between otherwise independent cards.
-    if #linked>0 then kind="purple" end
+    local choices=sideChoices(rule,powered)
+    local chosen=chosenEffect(card.guid,powered,choices)
+    local choicePending=choices~=nil and #choices>1 and chosen==nil
+    local statePartial=rule~=nil and ((powered and rule.poweredPartial==true)
+        or (not powered and rule.normalPartial==true)) and chosen==nil
+    local base=chosen or (rule~=nil and (powered and rule.powered or rule.normal) or nil)
+    -- A discard is an actual cost of Improvisation, even when its strong side
+    -- came free from Concentration/Will Focus.
+    local costPaid=rule==nil or rule.requiredLink==nil or hasDiscard==true
+    local effects=sideTracked and faceUp and costPaid and not discardTarget
+        and applyLinkedResourceBonus(base,linkedBoost) or nil
+    local complete=sideTracked and base~=nil and not choicePending and not statePartial
+        and rule.partial~=true and faceUp and costPaid and not discardTarget
+    local status=(not known or not sideTracked) and "red"
+        or not complete and "yellow" or "green"
+    if #linked>0 then status="purple" end
     return {guid=card.guid,known=known,complete=complete,powered=powered,
-        links=linked,status=kind,resources=effects}
+        links=linked,status=status,resources=effects}
 end
 
--- General-purpose physical pairing: powered sources opt in via poweredLink in
--- Data.lua. Each source selects at most one overlapping Action card; each target
--- accepts at most one source. Players control the pairing by positioning cards.
--- Unpowered sources and ordinary touching cards create no link at all.
+local function overlapArea(a,b)
+    if not overlaps(a,b) then return 0 end
+    local width=math.max(0,math.min(a.x+a.halfX,b.x+b.halfX)-math.max(a.x-a.halfX,b.x-b.halfX))
+    local depth=math.max(0,math.min(a.z+a.halfZ,b.z+b.halfZ)-math.max(a.z-a.halfZ,b.z-b.halfZ))
+    return width*depth
+end
+
+-- The common pairing engine is used for different reasons:
+-- "stronger" plays one Action card's stronger effect; "discard" consumes one
+-- OTHER unused, non-Wound card as a cost. Neither is inferred from overlap alone.
 local function resolveActionLinks(cards,footprints,manaPowered)
-    local links,boostBy,boostSource,claimed={}, {}, {}, {}
+    local links,boostBy,boostSource,discarded,hasDiscard={}, {}, {}, {}, {}
+    local boostClaimed={}
     for _,card in ipairs(cards) do links[card.guid]={} end
+    local function connect(source,target)
+        links[source.guid][#links[source.guid]+1]=target.guid
+        links[target.guid][#links[target.guid]+1]=source.guid
+    end
+    local function nearestOverlap(source,valid)
+        local best,bestArea=nil,0
+        local a=footprints[source.guid]
+        for _,target in ipairs(cards) do
+            if target.guid~=source.guid and valid(target) then
+                local area=overlapArea(a,footprints[target.guid])
+                if area>bestArea or (area==bestArea and best~=nil and target.guid<best.guid) then
+                    best,bestArea=target,area
+                end
+            end
+        end
+        return best
+    end
     for _,source in ipairs(cards) do
         local data=gameCards[source.guid]
         local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
         local link=rule~=nil and manaPowered[source.guid] and rule.poweredLink or nil
         if link~=nil and link.mode=="stronger" and source.is_face_down~=true
             and not cardIsSideways(source) then
-            local best,bestArea=nil,0
-            local a=footprints[source.guid]
-            for _,target in ipairs(cards) do
-                local targetData=gameCards[target.guid]
-                local targetRule=targetData~=nil and cardResourceDefinitions[targetData.resourceKey] or nil
-                -- A boosted card must be an Action, not a Spell/Artifact/Unit.
-                -- Do not chain two link sources together in this first pass.
-                if target.guid~=source.guid and not claimed[target.guid]
-                    and targetData~=nil
-                    and (targetData.cardType=="Starting" or targetData.cardType=="Advanced Action")
-                    and (targetRule==nil or targetRule.poweredLink==nil)
-                    and target.is_face_down~=true and not cardIsSideways(target)
-                    and overlaps(a,footprints[target.guid]) then
-                    local b=footprints[target.guid]
-                    local width=math.max(0,math.min(a.x+a.halfX,b.x+b.halfX)-math.max(a.x-a.halfX,b.x-b.halfX))
-                    local depth=math.max(0,math.min(a.z+a.halfZ,b.z+b.halfZ)-math.max(a.z-a.halfZ,b.z-b.halfZ))
-                    local area=width*depth
-                    if area>bestArea or (area==bestArea and best~=nil and target.guid<best.guid) then
-                        best,bestArea=target,area
-                    end
-                end
-            end
-            if best~=nil then
-                claimed[best.guid]=true
-                boostBy[best.guid]=link
-                boostSource[best.guid]=source.guid
-                links[source.guid][#links[source.guid]+1]=best.guid
-                links[best.guid][#links[best.guid]+1]=source.guid
+            local target=nearestOverlap(source,function(candidate)
+                local other=gameCards[candidate.guid]
+                local otherRule=other~=nil and cardResourceDefinitions[other.resourceKey] or nil
+                return not boostClaimed[candidate.guid] and other~=nil
+                    and (other.cardType=="Starting" or other.cardType=="Advanced Action")
+                    and (otherRule==nil or otherRule.poweredLink==nil)
+                    and candidate.is_face_down~=true and not cardIsSideways(candidate)
+            end)
+            if target~=nil then
+                boostClaimed[target.guid]=true
+                boostBy[target.guid]=link
+                boostSource[target.guid]=source.guid
+                connect(source,target)
             end
         end
     end
-    return links,boostBy,boostSource
+    -- Resolve discard costs after stronger links: a link-boosted Improvisation
+    -- can still discard ANOTHER card, but never its own booster as payment.
+    for _,source in ipairs(cards) do
+        local data=gameCards[source.guid]
+        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+        if rule~=nil and rule.requiredLink~=nil and rule.requiredLink.mode=="discard"
+            and source.is_face_down~=true and not cardIsSideways(source) then
+            local target=nearestOverlap(source,function(candidate)
+                local targetData=gameCards[candidate.guid]
+                return not discarded[candidate.guid] and not boostClaimed[candidate.guid]
+                    and candidate.guid~=boostSource[source.guid]
+                    and not manaPowered[candidate.guid]
+                    and #links[candidate.guid]==0
+                    and targetData~=nil
+                    and (targetData.cardType=="Starting" or targetData.cardType=="Advanced Action"
+                        or targetData.cardType=="Spell" or targetData.cardType=="Artifact")
+                    and candidate.getGMNotes()~="Wound"
+                    and candidate.getGMNotes()~="Quest"
+                    and not cardIsSideways(candidate)
+            end)
+            if target~=nil then
+                discarded[target.guid]=source.guid
+                hasDiscard[source.guid]=true
+                connect(source,target)
+            end
+        end
+    end
+    return links,boostBy,boostSource,discarded,hasDiscard
 end
 
 -- Scan the play area for used abilities, the Unit area for Units, and crystal
@@ -285,10 +423,14 @@ local function renderSeat(seatPos)
         end
     end
 
-    local links,boostBy,boostSource=resolveActionLinks(cards,footprints,powered)
+    local links,boostBy,boostSource,discarded,hasDiscard=resolveActionLinks(cards,footprints,powered)
     local current,records,totals={}, {}, {}
     for _,card in ipairs(cards) do
-        local result=calculateCard(card,powered[card.guid]==true,boostBy[card.guid],links[card.guid])
+        local result=calculateCard(card,powered[card.guid]==true,boostBy[card.guid],
+            links[card.guid],discarded[card.guid]~=nil,hasDiscard[card.guid]==true)
+        local cardData=gameCards[card.guid]
+        local rule=cardData~=nil and cardResourceDefinitions[cardData.resourceKey] or nil
+        showChoiceButtons(card,discarded[card.guid]==nil and sideChoices(rule,result.powered) or nil,result.powered)
         result.kind=resourceObjectKind(card)
         result.contributes=false
         -- Fixed components of partially understood cards may be counted; an
@@ -342,7 +484,11 @@ local function renderSeat(seatPos)
     refreshResourceTrackerText()
     if previousMove~=(totals.move or 0) then updateMoveDisplay() end
     for guid in pairs(previous) do
-        if current[guid]~=true then clearHighlight(guid) end
+        if current[guid]~=true then
+            clearHighlight(guid)
+            if choiceButtonShown[guid]~=nil then removeChoiceButtons(getObjectFromGUID(guid)) end
+            selectedResourceByGUID[guid]=nil
+        end
     end
 end
 
@@ -366,6 +512,8 @@ end
 
 local function clearAll()
     for seat=1,4 do generation[seat]=(generation[seat] or 0)+1 end
+    clearChoiceButtons()
+    selectedResourceByGUID={}
     for guid in pairs(shown) do clearHighlight(guid) end
     bySeat={}
     resourceCardScanBySeat={}
@@ -374,6 +522,42 @@ local function clearAll()
         refreshResourceTrackerText()
         updateMoveDisplay()
     end
+end
+
+-- A card records only an explicit player selection; no assumptions about
+-- movement versus combat are inferred from the board.
+function resourceCardsChoiceClicked(player,value,id)
+    local guid,category=type(id)=="string" and id:match("^ResourceCardChoice_([0-9a-f]+)_([%a]+)$")
+    if guid==nil then return end
+    if not resourceCardsPanelOpen() then return end
+    local card=getObjectFromGUID(guid)
+    local data=card~=nil and gameCards[guid] or nil
+    local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+    if card==nil or rule==nil then return end
+    local currentSeat=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    if currentSeat==nil then return end
+    local zone=getObjectFromGUID(playerPlayAreas[currentSeat.seatPos])
+    local inZone=false
+    if zone~=nil then
+        for _,obj in ipairs(zone.getObjects()) do
+            if obj.guid==guid then inZone=true break end
+        end
+    end
+    if not inZone then return end
+    -- Linked cards take the powered choice even without mana placed on them.
+    local scan=resourceCardScanBySeat[currentSeat.seatPos]
+    local record=scan~=nil and scan.cards[guid] or nil
+    local powered=record~=nil and record.powered==true
+    local choices=sideChoices(rule,powered)
+    local valid=false
+    for _,choice in ipairs(choices or {}) do
+        if choice[category]~=nil then valid=true break end
+    end
+    if not valid then return end
+    local selected=selectedResourceByGUID[guid] or {}
+    selected[powered and "powered" or "normal"]=category
+    selectedResourceByGUID[guid]=selected
+    queueSeat(currentSeat.seatPos,nil)
 end
 
 function resourceCardsPanelChanged(open)
