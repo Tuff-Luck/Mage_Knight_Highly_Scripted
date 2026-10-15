@@ -256,12 +256,13 @@ local function showChoiceButtons(card,choices,powered)
     end
     local expanded=choiceExpandedByGUID[card.guid]==true
     local visible=expanded and categories or {selected}
-    -- Keep each letter upright when a card is played sideways at 90/270 Y.
-    -- Positions remain card-local, so expanded choices still form a vertical
-    -- column on the table. Snap to quarter-turns to avoid UI churn from wobble.
+    -- The card's object UI has the opposite apparent Z rotation to the
+    -- card's world Y rotation. Counter-rotate each label in the correct
+    -- direction, while positions stay card-local (vertical when sideways).
+    -- Snap to quarter-turns to avoid UI churn from small rotation changes.
     local buttonRotation=180
     if posture=="sideways" then
-        buttonRotation=card.getRotation()[2]%360<180 and 270 or 90
+        buttonRotation=card.getRotation()[2]%360<180 and 90 or 270
     end
     local signature=(posture=="sideways" and "S" or (powered and "P" or "N"))
         ..":"..selected..":"..(expanded and "open" or "closed")
