@@ -112,7 +112,7 @@ local sidewaysChoices={{move=1},{influence=1},{attack=1},{block=1}}
 
 local choiceLetters={move="M",influence="I",attack="A",block="B",
     ranged="R",siege="S",healing="H",draw="D",other="O",
-    heal="H",combat="C",wound="W",reputation="P"}
+    heal="H",combat="C",wound="W",reputation="R"}
 
 local function sideChoices(rule,powered)
     if rule==nil then return nil end
