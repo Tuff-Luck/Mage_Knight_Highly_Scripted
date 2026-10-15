@@ -215,9 +215,16 @@ local function showChoiceButtons(card,choices,powered)
     end
     local expanded=choiceExpandedByGUID[card.guid]==true
     local visible=expanded and categories or {selected}
+    -- Keep each letter upright when a card is played sideways at 90/270 Y.
+    -- Positions remain card-local, so expanded choices still form a vertical
+    -- column on the table. Snap to quarter-turns to avoid UI churn from wobble.
+    local buttonRotation=180
+    if posture=="sideways" then
+        buttonRotation=card.getRotation()[2]%360<180 and 270 or 90
+    end
     local signature=(posture=="sideways" and "S" or (powered and "P" or "N"))
         ..":"..selected..":"..(expanded and "open" or "closed")
-        ..":"..table.concat(categories,",")
+        ..":"..table.concat(categories,",")..":"..buttonRotation
     if choiceButtonShown[card.guid]==signature then return end
     local xml=card.UI.getXmlTable() or {}
     for i=#xml,1,-1 do
@@ -231,7 +238,7 @@ local function showChoiceButtons(card,choices,powered)
         xml[#xml+1]={tag="Button",attributes={
             id="ResourceCardChoice_"..card.guid.."_"..category,
             onClick="global/resourceCardsChoiceClicked",
-            position=tostring(x).." -12 -35",rotation="0 0 180",
+            position=tostring(x).." -12 -35",rotation="0 0 "..buttonRotation,
             width=90,height=90,scale="0.25 0.25",
             colors=active and "#387D30|#4CA940|#387D30|#387D30"
                 or "#454D5D|#69798E|#444C63|#454D5D",
