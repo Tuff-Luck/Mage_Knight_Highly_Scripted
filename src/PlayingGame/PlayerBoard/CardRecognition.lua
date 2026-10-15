@@ -149,8 +149,8 @@ local function showChoiceButtons(card,choices,powered)
             width=115,height=115,scale="0.30 0.30",
             colors=active and "#387D30|#4CA940|#387D30|#387D30"
                 or "#454D5D|#69798E|#444C63|#454D5D",
-            text=choiceLetters[category],fontSize=77,textColor="#FFFFFF"
-        }}
+            fontSize=77,textColor="#FFFFFF",textAlignment="MiddleCenter"
+        },value=choiceLetters[category]}
     end
     card.UI.setXmlTable(xml)
     choiceButtonShown[card.guid]=signature
