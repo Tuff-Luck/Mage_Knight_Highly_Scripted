@@ -109,19 +109,37 @@ local function choiceCategory(choice)
     return nil
 end
 
-local function choiceSlot(powered,sideways)
-    return sideways and "sideways" or (powered and "powered" or "normal")
+-- The printed normal and powered effects share one choice for each physical
+-- card. The sideways +1 action also shares it when the resource type matches,
+-- but retains a separate choice when the printed effect is incompatible
+-- (e.g. Tranquility's Heal/Draw versus a sideways Move/Attack).
+local function choiceSlot(sideways)
+    return sideways and "sideways" or "effect"
 end
 
--- Use the first option on each card from the outset, unless the player has
--- explicitly chosen another. Store choices separately for normal/powered/+1.
+local function choiceAvailable(choices,category)
+    if choices==nil or category==nil then return false end
+    for _,effect in ipairs(choices) do
+        if effect[category]~=nil then return true end
+    end
+    return false
+end
+
+-- Use the first option on each card from the outset. A previously selected
+-- resource is reused on both card sides whenever that side supports it;
+-- otherwise display its first option without overwriting the preference.
 local function currentChoice(guid,powered,choices,sideways)
     if choices==nil or #choices==0 then return nil,nil end
     local stored=selectedResourceByGUID[guid]
-    local category=stored~=nil and stored[choiceSlot(powered,sideways)] or nil
-    if category~=nil then
-        for _,effect in ipairs(choices) do
-            if effect[category]~=nil then return effect,category end
+    if stored~=nil then
+        local preferred=stored.effect
+        if sideways and not choiceAvailable(choices,preferred) then
+            preferred=stored.sideways
+        end
+        if choiceAvailable(choices,preferred) then
+            for _,effect in ipairs(choices) do
+                if effect[preferred]~=nil then return effect,preferred end
+            end
         end
     end
     local first=choices[1]
@@ -648,7 +666,19 @@ function resourceCardsChoiceClicked(player,value,id)
     end
     -- Any choice, including the already selected one, closes the menu.
     local selected=selectedResourceByGUID[guid] or {}
-    selected[choiceSlot(powered,sideways)]=category
+    if not sideways then
+        -- Normal and powered abilities use the same card-wide preference.
+        selected.effect=category
+    elseif choiceAvailable(sideChoices(rule,false),category)
+        or choiceAvailable(sideChoices(rule,true),category) then
+        -- Keep a 90-degree generic resource in sync with the printed action
+        -- when the selected category is also an available printed choice.
+        selected.effect=category
+        selected.sideways=nil
+    else
+        -- A generic +1 with no matching printed category is independent.
+        selected.sideways=category
+    end
     selectedResourceByGUID[guid]=selected
     choiceExpandedByGUID[guid]=nil
     showChoiceButtons(card,choices,powered)
