@@ -16,7 +16,13 @@ local palette={
     red={{0.59,0.10,0.12},{1.00,0.27,0.25}},
     purple={{0.47,0.19,0.62},{0.92,0.43,1.00}}
 }
-local totalsKeys={move=true,ranged=true,siege=true,attack=true,block=true,influence=true,healing=true}
+-- Distinguish elemental and physical damage. Otherwise a Ranged Fire Attack
+-- would be incorrectly added to the Physical Ranged field.
+local totalsKeys={move=true,ranged=true,siege=true,attack=true,block=true,influence=true,healing=true,
+    rangedFire=true,rangedIce=true,rangedColdFire=true,
+    siegeFire=true,siegeIce=true,siegeColdFire=true,
+    attackFire=true,attackIce=true,attackColdFire=true,
+    blockFire=true,blockIce=true,blockColdFire=true}
 
 function resourceCardsPanelOpen()
     return gStates~=nil and gStates.firstStarted==true
@@ -32,16 +38,23 @@ function resourceCardsCurrentTotals()
     return scan~=nil and scan.totals or nil
 end
 
-local resourceFieldForCategory={
-    move="move",ranged="physical",siege="physical",attack="physical",
-    block="physical",influence="generated",healing="healing"
+local resourceTotalsKeyByField={
+    move={move="move"},
+    ranged={physical="ranged",fire="rangedFire",ice="rangedIce",iceFire="rangedColdFire"},
+    siege={physical="siege",fire="siegeFire",ice="siegeIce",iceFire="siegeColdFire"},
+    attack={physical="attack",fire="attackFire",ice="attackIce",iceFire="attackColdFire"},
+    block={physical="block",fire="blockFire",ice="blockIce",iceFire="blockColdFire"},
+    influence={generated="influence"},
+    healing={healing="healing"}
 }
 
 function resourceCardsEffectiveValue(category,field)
     local tracker=gStates~=nil and gStates.resourceTracker or nil
     local manual=tracker~=nil and tracker[category]~=nil and tracker[category][field] or 0
     local totals=resourceCardsCurrentTotals()
-    local estimated=totals~=nil and resourceFieldForCategory[category]==field and (totals[category] or 0) or 0
+    local fields=resourceTotalsKeyByField[category]
+    local totalKey=fields~=nil and fields[field] or nil
+    local estimated=totals~=nil and totalKey~=nil and (totals[totalKey] or 0) or 0
     return manual+estimated
 end
 
@@ -329,7 +342,17 @@ local function applyLinkedResourceBonus(effects,link)
     local values={}
     for category,value in pairs(effects) do
         if type(value)=="number" then
-            local bonus=link.bonusFor~=nil and link.bonusFor[category] and (link.bonus or 0) or 0
+            -- A stronger Action bonus also applies to elemental attacks/blocks
+            -- (e.g. Concentration + Ice Bolt = Ranged Ice Attack 5).
+            local bonusCategory=category
+            for _,prefix in ipairs({"ranged","siege","attack","block"}) do
+                if category:sub(1,#prefix)==prefix then
+                    bonusCategory=prefix
+                    break
+                end
+            end
+            local bonus=link.bonusFor~=nil and link.bonusFor[bonusCategory]
+                and (link.bonus or 0) or 0
             values[category]=value+bonus
         end
     end
