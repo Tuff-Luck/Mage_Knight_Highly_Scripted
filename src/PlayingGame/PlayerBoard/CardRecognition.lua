@@ -43,10 +43,6 @@ function resourceCardsEffectiveMove()
     return math.max(0,resourceCardsEffectiveValue("move","move"))
 end
 
-local function inspectable(obj)
-    return obj~=nil and (obj.type=="Card" or obj.type=="Dice" or isManaTokenFigurine(obj))
-end
-
 local function clearHighlight(guid)
     if shown[guid]==nil then return end
     local obj=getObjectFromGUID(guid)
@@ -85,6 +81,34 @@ local function manaColor(obj)
     return nil
 end
 
+-- Reuse the same stable identifiers as Skills and Combat's faction reward cleanup.
+-- No name/description guessing for Skills, Units or Faction Rewards.
+local factionRewardNotes={
+    ["Dark Crusader Reward"]="Dark",
+    ["Elementalist Reward"]="Elem",
+    ["Apocalypse Cult Reward"]="Apoc",
+    ["Council of the Void Reward"]="Coun"
+}
+
+local function resourceObjectKind(obj)
+    if obj==nil then return nil end
+    if obj.type=="Card" then
+        local data=gameCards[obj.guid]
+        if data~=nil then
+            if data.cardType=="Regular Unit" or data.cardType=="Elite Unit" then return "unit" end
+            return "card"
+        end
+        -- Wounds/Quests are not unknown resource cards.
+        local notes=obj.getGMNotes()
+        if notes=="Wound" or notes=="Quest" then return nil end
+        return "card"
+    end
+    if skillTokens[obj.guid]~=nil then return "skill" end
+    if manaColor(obj)~=nil then return "mana" end
+    if factionRewardNotes[obj.getGMNotes()]~=nil then return "factionReward" end
+    return nil
+end
+
 local function matchesCardMana(card,color)
     if color==nil then return false end
     local data=gameCards[card.guid]
@@ -119,20 +143,47 @@ local function calculateCard(card,powered,linked)
         links=linked,status=kind,resources=effects}
 end
 
+-- Scan the play area for used abilities, the Unit area for Units, and crystal
+-- inventory for unused mana. Only a played, supported effect enters the totals.
 local function renderSeat(seatPos)
     if not resourceCardsPanelOpen() then return end
-    local zone=getObjectFromGUID(playerPlayAreas[seatPos])
-    if zone==nil then return end
-    local cards,resources,footprints={}, {}, {}
-    for _,obj in ipairs(zone.getObjects()) do
-        if obj.type=="Card" then
-            cards[#cards+1]=obj
-            footprints[obj.guid]=footprint(obj)
-        elseif inspectable(obj) then
-            resources[#resources+1]=obj
+    local active=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    if active==nil or active.seatPos~=seatPos then return end
+
+    local objects,placements={},{}
+    local function inspectZone(guid,zoneKind)
+        local zone=guid~=nil and getObjectFromGUID(guid) or nil
+        if zone==nil then return end
+        for _,obj in ipairs(zone.getObjects()) do
+            local kind=resourceObjectKind(obj)
+            if kind~=nil and (zoneKind=="play"
+                or (zoneKind=="unit" and (kind=="unit" or kind=="mana"))
+                or (zoneKind=="crystal" and kind=="mana")) then
+                -- Play-area placement takes precedence when scripting zones overlap.
+                local existing=placements[obj.guid]
+                if existing==nil or (zoneKind=="play" and existing~="play") then
+                    objects[obj.guid]=obj
+                    placements[obj.guid]=zoneKind
+                end
+            end
         end
     end
-    local links,powered={},{}
+    inspectZone(playerCrystalAreas[seatPos],"crystal")
+    inspectZone(playerUnitAreas[seatPos],"unit")
+    inspectZone(playerPlayAreas[seatPos],"play")
+
+    local cards,manaObjects,footprints={}, {}, {}
+    for guid,obj in pairs(objects) do
+        local kind=resourceObjectKind(obj)
+        if obj.type=="Card" and placements[guid]=="play" then
+            cards[#cards+1]=obj
+            footprints[guid]=footprint(obj)
+        elseif kind=="mana" then
+            manaObjects[#manaObjects+1]=obj
+        end
+    end
+
+    local links,powered,usedMana={}, {}, {}
     for _,card in ipairs(cards) do links[card.guid]={} end
     for i=1,#cards do
         for j=i+1,#cards do
@@ -143,59 +194,81 @@ local function renderSeat(seatPos)
             end
         end
     end
-    -- Assign a placed mana object to the closest card it actually lies on.
-    for _,mana in ipairs(resources) do
-        local color=manaColor(mana)
-        if color~=nil then
-            local p=mana.getPosition()
-            local best,bestDistance=nil,nil
-            for _,card in ipairs(cards) do
-                local f=footprints[card.guid]
-                local dx,dz=p[1]-f.x,p[3]-f.z
-                if math.abs(dx)<f.halfX and math.abs(dz)<f.halfZ
-                    and matchesCardMana(card,color) then
-                    local distance=dx*dx+dz*dz
-                    if bestDistance==nil or distance<bestDistance then best,bestDistance=card,distance end
+
+    -- Track which physical mana token is powering which card. A crystal merely
+    -- sitting in inventory must not be mistaken for a spent resource.
+    for _,mana in ipairs(manaObjects) do
+        if placements[mana.guid]=="play" then
+            local color=manaColor(mana)
+            if color~=nil then
+                local p=mana.getPosition()
+                local best,bestDistance=nil,nil
+                for _,card in ipairs(cards) do
+                    local f=footprints[card.guid]
+                    local dx,dz=p[1]-f.x,p[3]-f.z
+                    if math.abs(dx)<f.halfX and math.abs(dz)<f.halfZ
+                        and matchesCardMana(card,color) then
+                        local distance=dx*dx+dz*dz
+                        if bestDistance==nil or distance<bestDistance then best,bestDistance=card,distance end
+                    end
+                end
+                if best~=nil then
+                    powered[best.guid]=true
+                    usedMana[mana.guid]=best.guid
                 end
             end
-            if best~=nil then powered[best.guid]=true end
         end
     end
-    local current={}
-    local records={}
-    local totals={}
+
+    local current,records,totals={}, {}, {}
     for _,card in ipairs(cards) do
-        local guid=card.guid
-        current[guid]=true
-        local result=calculateCard(card,powered[guid]==true,links[guid])
-        records[guid]=result
-        setHighlight(card,result.status,result.powered)
-        -- Even linked cards have their own base effect. Unknown interactions add no bonus yet.
-        -- The Resource Tracker combines these estimates with manual adjustments at display time.
-        if result.complete and result.resources~=nil then
+        local result=calculateCard(card,powered[card.guid]==true,links[card.guid])
+        result.kind=resourceObjectKind(card)
+        result.contributes=false
+        -- Fixed components of partially understood cards may be counted; an
+        -- unresolved choice never contributes an invented amount.
+        if result.resources~=nil then
             for category,value in pairs(result.resources) do
-                if totalsKeys[category] then totals[category]=(totals[category] or 0)+value end
+                if totalsKeys[category] and type(value)=="number" then
+                    totals[category]=(totals[category] or 0)+value
+                    if value~=0 then result.contributes=true end
+                end
             end
         end
+        records[card.guid]=result
+        current[card.guid]=true
+        setHighlight(card,result.status,result.powered)
     end
+
+    for guid,obj in pairs(objects) do
+        if records[guid]==nil then
+            local kind=resourceObjectKind(obj)
+            local poweredTarget=usedMana[guid]
+            local contributing=poweredTarget~=nil and records[poweredTarget]~=nil
+                and records[poweredTarget].contributes==true
+            local status="yellow" -- Registered Unit/Skill/Faction Reward effects still need numeric definitions.
+            local bright=false
+            if kind=="mana" then
+                status=contributing and "green" or "yellow"
+                bright=poweredTarget~=nil
+            end
+            records[guid]={guid=guid,kind=kind,known=true,complete=false,
+                contributes=contributing,powered=bright,status=status,
+                powers=poweredTarget,resources=nil}
+            current[guid]=true
+            setHighlight(obj,status,bright)
+        end
+    end
+
     local previous=bySeat[seatPos] or {}
     local previousScan=resourceCardScanBySeat[seatPos]
     local previousMove=previousScan~=nil and (previousScan.totals.move or 0) or 0
     bySeat[seatPos]=current
     resourceCardScanBySeat[seatPos]={cards=records,totals=totals}
-    local active=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
-    if active~=nil and active.seatPos==seatPos then
-        refreshResourceTrackerText()
-        if previousMove~=(totals.move or 0) then updateMoveDisplay() end
-    end
+    refreshResourceTrackerText()
+    if previousMove~=(totals.move or 0) then updateMoveDisplay() end
     for guid in pairs(previous) do
-        if current[guid]~=true then
-            local usedElsewhere=false
-            for otherSeat,otherCards in pairs(bySeat) do
-                if otherSeat~=seatPos and otherCards[guid]==true then usedElsewhere=true break end
-            end
-            if not usedElsewhere then clearHighlight(guid) end
-        end
+        if current[guid]~=true then clearHighlight(guid) end
     end
 end
 
@@ -222,7 +295,7 @@ local function clearAll()
     for guid in pairs(shown) do clearHighlight(guid) end
     bySeat={}
     resourceCardScanBySeat={}
-    -- When the details close the automatic contribution disappears, but manual edits persist.
+    -- Manual Resource Tracker adjustments are never changed by clearing estimates.
     if gStates~=nil and gStates.resourceTracker~=nil then
         refreshResourceTrackerText()
         updateMoveDisplay()
@@ -230,37 +303,50 @@ local function clearAll()
 end
 
 function resourceCardsPanelChanged(open)
-    if open~=true then clearAll() return end
-    for seatPos=1,4 do queueSeat(seatPos,nil) end
+    -- The tracker shows the current turn's Mage Knight; stale outlines on other
+    -- players' boards would falsely imply those pieces contribute to these totals.
+    clearAll()
+    if open~=true then return end
+    local player=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    if player~=nil then queueSeat(player.seatPos,nil) end
 end
 
 function resourceCardsOnLoad()
     if resourceCardsPanelOpen() then resourceCardsPanelChanged(true) else clearAll() end
 end
 
+local function resourceCardsRelevantZone(ctx)
+    if ctx==nil or ctx.zoneInfo==nil or resourceObjectKind(ctx.obj)==nil then return nil end
+    local kind=ctx.zoneInfo.kind
+    if kind=="play" then return ctx.zoneInfo.seatPos end
+    local objectKind=resourceObjectKind(ctx.obj)
+    if kind=="unit" and (objectKind=="unit" or objectKind=="mana") then return ctx.zoneInfo.seatPos end
+    if kind=="crystal" and objectKind=="mana" then return ctx.zoneInfo.seatPos end
+    return nil
+end
+
 function resourceCardsZoneEntered(ctx)
-    if ctx==nil or ctx.playerZoneKind~="play" or not inspectable(ctx.obj) then return end
-    queueSeat(ctx.zoneInfo.seatPos,ctx.objGUID)
+    local seat=resourceCardsRelevantZone(ctx)
+    if seat~=nil then queueSeat(seat,ctx.objGUID) end
 end
 
 function resourceCardsZoneLeft(ctx)
-    if ctx==nil or ctx.playerZoneKind~="play" or not inspectable(ctx.obj) then return end
-    -- An exiting object is intentionally not waited on: it may still be held.
-    queueSeat(ctx.zoneInfo.seatPos,nil)
+    local seat=resourceCardsRelevantZone(ctx)
+    if seat~=nil then queueSeat(seat,nil) end
 end
 
 function resourceCardsObjectMoved(obj)
-    if not resourceCardsPanelOpen() or not inspectable(obj) then return end
-    for seatPos=1,4 do
-        local zone=getObjectFromGUID(playerPlayAreas[seatPos])
+    if not resourceCardsPanelOpen() or resourceObjectKind(obj)==nil then return end
+    local player=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    if player==nil then return end
+    local seat=player.seatPos
+    for _,zoneGUID in ipairs({playerPlayAreas[seat],playerUnitAreas[seat],playerCrystalAreas[seat]}) do
+        local zone=getObjectFromGUID(zoneGUID)
         if zone~=nil then
-            local present=false
             for _,candidate in ipairs(zone.getObjects()) do
-                if candidate.guid==obj.guid then present=true break end
-            end
-            if present or (bySeat[seatPos]~=nil and bySeat[seatPos][obj.guid]==true) then
-                queueSeat(seatPos,present and obj.guid or nil)
+                if candidate.guid==obj.guid then queueSeat(seat,obj.guid) return end
             end
         end
     end
+    if bySeat[seat]~=nil and bySeat[seat][obj.guid]==true then queueSeat(seat,nil) end
 end
