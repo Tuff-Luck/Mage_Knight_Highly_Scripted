@@ -62,10 +62,28 @@ local function setHighlight(obj,kind,powered)
 end
 
 
-local function cardIsSideways(card)
+-- Separate the three physical orientations. A tilted card is paid as a
+-- discard (typically 45 degrees); a fully sideways card gives any basic 1.
+-- Reducing modulo 180 handles the face-up cards' normal Y=180 orientation.
+local function cardRotationOffset(card)
     local y=card.getRotation()[2]%180
-    return y>25 and y<155
+    return math.min(y,180-y)
 end
+
+local function cardPosture(card)
+    local tilt=cardRotationOffset(card)
+    if tilt<25 then return "upright" end
+    if tilt<=70 then return "discard" end
+    return "sideways"
+end
+
+-- A card lying at any angle through 70 degrees can be physically overlapped
+-- as Improvisation's discard payment; 90 degrees means something else.
+local function canPayDiscard(card)
+    return card.is_face_down~=true and cardRotationOffset(card)<=70
+end
+
+local sidewaysChoices={{move=1},{influence=1},{attack=1},{block=1}}
 
 local choiceLetters={move="M",influence="I",attack="A",block="B",
     ranged="R",siege="S",healing="H",draw="D"}
@@ -79,10 +97,14 @@ local function choiceCategory(choice)
     return nil
 end
 
-local function chosenEffect(guid,powered,choices)
+local function choiceSlot(powered,sideways)
+    return sideways and "sideways" or (powered and "powered" or "normal")
+end
+
+local function chosenEffect(guid,powered,choices,sideways)
     if choices==nil then return nil end
     local choice=selectedResourceByGUID[guid]
-    local category=choice~=nil and choice[powered and "powered" or "normal"] or nil
+    local category=choice~=nil and choice[choiceSlot(powered,sideways)] or nil
     if category==nil then return nil end
     for _,value in ipairs(choices) do
         if value[category]~=nil then return value end
@@ -110,12 +132,13 @@ end
 
 local function showChoiceButtons(card,choices,powered)
     if card==nil then return end
-    if choices==nil or #choices<2 or card.is_face_down==true or cardIsSideways(card) then
+    local posture=cardPosture(card)
+    if choices==nil or #choices<2 or card.is_face_down==true or posture=="discard" then
         if choiceButtonShown[card.guid]~=nil then removeChoiceButtons(card) end
         return
     end
     local selection=selectedResourceByGUID[card.guid]
-    local chosen=selection~=nil and selection[powered and "powered" or "normal"] or nil
+    local chosen=selection~=nil and selection[choiceSlot(powered,posture=="sideways")] or nil
     local layout={}
     local seen={}
     for _,choice in ipairs(choices) do
@@ -129,7 +152,8 @@ local function showChoiceButtons(card,choices,powered)
         if choiceButtonShown[card.guid]~=nil then removeChoiceButtons(card) end
         return
     end
-    local signature=(powered and "P" or "N")..":"..(chosen or "")..":"..table.concat(layout,",")
+    local signature=(posture=="sideways" and "S" or (powered and "P" or "N"))
+        ..":"..(chosen or "")..":"..table.concat(layout,",")
     if choiceButtonShown[card.guid]==signature then return end
     local xml=card.UI.getXmlTable() or {}
     for i=#xml,1,-1 do
@@ -137,16 +161,15 @@ local function showChoiceButtons(card,choices,powered)
         if attr~=nil and type(attr.id)=="string"
             and attr.id:sub(1,19)=="ResourceCardChoice_" then table.remove(xml,i) end
     end
-    -- Object XML has a local depth axis; negative Z lifts these above the
-    -- face-up card artwork. -10 left them partly hidden behind the card.
-    -- Keep the four-choice row narrow enough for the centre of a standard card.
+    -- Move the row down into the artwork immediately above the title banner.
+    -- Reverse local X so M/I/A/B reads left-to-right on a Y=180 face-up card.
     for i,category in ipairs(layout) do
-        local x=(i-(#layout+1)/2)*44
+        local x=((#layout+1)/2-i)*44
         local active=(category==chosen)
         xml[#xml+1]={tag="Button",attributes={
             id="ResourceCardChoice_"..card.guid.."_"..category,
             onClick="global/resourceCardsChoiceClicked",
-            position=tostring(x).." -88 -35",rotation="0 0 180",
+            position=tostring(x).." -12 -35",rotation="0 0 180",
             width=90,height=90,scale="0.25 0.25",
             colors=active and "#387D30|#4CA940|#387D30|#387D30"
                 or "#454D5D|#69798E|#444C63|#454D5D",
@@ -250,7 +273,15 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
     local known=data~=nil
     local tracked=data==nil or data.resourceTracked~=false
     local powered=manaPowered or linkedBoost~=nil
-    local faceUp=card.is_face_down~=true and cardIsSideways(card)==false
+    local posture=cardPosture(card)
+    local faceUp=card.is_face_down~=true and posture=="upright"
+    -- Any non-Wound card played at 90 degrees has one generic resource,
+    -- irrespective of its printed card effect. It requires an explicit choice.
+    if posture=="sideways" and card.is_face_down~=true then
+        local effect=chosenEffect(card.guid,false,sidewaysChoices,true)
+        return {guid=card.guid,known=known,complete=effect~=nil,powered=false,
+            links={},status=effect~=nil and "green" or "yellow",resources=effect}
+    end
     local sideTracked=tracked and not (not powered and rule~=nil and rule.normalTrackerNeutral==true)
     local choices=sideChoices(rule,powered)
     local chosen=chosenEffect(card.guid,powered,choices)
@@ -265,7 +296,7 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
         and applyLinkedResourceBonus(base,linkedBoost) or nil
     local complete=sideTracked and base~=nil and not choicePending and not statePartial
         and rule.partial~=true and faceUp and costPaid and not discardTarget
-    local status=(not known or not sideTracked) and "red"
+    local status=(not known or not sideTracked or posture=="discard") and "red"
         or not complete and "yellow" or "green"
     if #linked>0 then status="purple" end
     return {guid=card.guid,known=known,complete=complete,powered=powered,
@@ -308,14 +339,14 @@ local function resolveActionLinks(cards,footprints,manaPowered)
         local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
         local link=rule~=nil and manaPowered[source.guid] and rule.poweredLink or nil
         if link~=nil and link.mode=="stronger" and source.is_face_down~=true
-            and not cardIsSideways(source) then
+            and cardPosture(source)=="upright" then
             local target=nearestOverlap(source,function(candidate)
                 local other=gameCards[candidate.guid]
                 local otherRule=other~=nil and cardResourceDefinitions[other.resourceKey] or nil
                 return not boostClaimed[candidate.guid] and other~=nil
                     and (other.cardType=="Starting" or other.cardType=="Advanced Action")
                     and (otherRule==nil or otherRule.poweredLink==nil)
-                    and candidate.is_face_down~=true and not cardIsSideways(candidate)
+                    and candidate.is_face_down~=true and cardPosture(candidate)=="upright"
             end)
             if target~=nil then
                 boostClaimed[target.guid]=true
@@ -331,7 +362,7 @@ local function resolveActionLinks(cards,footprints,manaPowered)
         local data=gameCards[source.guid]
         local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
         if rule~=nil and rule.requiredLink~=nil and rule.requiredLink.mode=="discard"
-            and source.is_face_down~=true and not cardIsSideways(source) then
+            and source.is_face_down~=true and cardPosture(source)=="upright" then
             local target=nearestOverlap(source,function(candidate)
                 local targetData=gameCards[candidate.guid]
                 return not discarded[candidate.guid] and not boostClaimed[candidate.guid]
@@ -343,7 +374,7 @@ local function resolveActionLinks(cards,footprints,manaPowered)
                         or targetData.cardType=="Spell" or targetData.cardType=="Artifact")
                     and candidate.getGMNotes()~="Wound"
                     and candidate.getGMNotes()~="Quest"
-                    and not cardIsSideways(candidate)
+                    and canPayDiscard(candidate)
             end)
             if target~=nil then
                 discarded[target.guid]=source.guid
@@ -431,7 +462,12 @@ local function renderSeat(seatPos)
             links[card.guid],discarded[card.guid]~=nil,hasDiscard[card.guid]==true)
         local cardData=gameCards[card.guid]
         local rule=cardData~=nil and cardResourceDefinitions[cardData.resourceKey] or nil
-        showChoiceButtons(card,discarded[card.guid]==nil and sideChoices(rule,result.powered) or nil,result.powered)
+        local choices=nil
+        if discarded[card.guid]==nil then
+            choices=cardPosture(card)=="sideways" and sidewaysChoices
+                or sideChoices(rule,result.powered)
+        end
+        showChoiceButtons(card,choices,result.powered)
         result.kind=resourceObjectKind(card)
         result.contributes=false
         -- Fixed components of partially understood cards may be counted; an
@@ -535,7 +571,7 @@ function resourceCardsChoiceClicked(player,value,id)
     local card=getObjectFromGUID(guid)
     local data=card~=nil and gameCards[guid] or nil
     local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
-    if card==nil or rule==nil then return end
+    if card==nil or (rule==nil and cardPosture(card)~="sideways") then return end
     local currentSeat=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if currentSeat==nil then return end
     local zone=getObjectFromGUID(playerPlayAreas[currentSeat.seatPos])
@@ -550,14 +586,15 @@ function resourceCardsChoiceClicked(player,value,id)
     local scan=resourceCardScanBySeat[currentSeat.seatPos]
     local record=scan~=nil and scan.cards[guid] or nil
     local powered=record~=nil and record.powered==true
-    local choices=sideChoices(rule,powered)
+    local sideways=cardPosture(card)=="sideways"
+    local choices=sideways and sidewaysChoices or sideChoices(rule,powered)
     local valid=false
     for _,choice in ipairs(choices or {}) do
         if choice[category]~=nil then valid=true break end
     end
     if not valid then return end
     local selected=selectedResourceByGUID[guid] or {}
-    selected[powered and "powered" or "normal"]=category
+    selected[choiceSlot(powered,sideways)]=category
     selectedResourceByGUID[guid]=selected
     queueSeat(currentSeat.seatPos,nil)
 end
