@@ -62,6 +62,29 @@ function resourceCardsEffectiveMove()
     return math.max(0,resourceCardsEffectiveValue("move","move"))
 end
 
+-- Terrain abilities are an overlay, not changes to gStates.moveCost. This
+-- preserves day/night terrain settings, manual adjustments and other cards.
+-- City/Explore are not terrain: their special movement costs remain intact.
+local pathFindingTerrain={
+    plains=true,hills=true,forest=true,wasteland=true,desert=true,swamp=true,
+    lake=true,mountain=true
+}
+
+function resourceCardsEffectiveTerrainCost(terrain)
+    local base=gStates~=nil and gStates.moveCost~=nil and gStates.moveCost[terrain] or nil
+    if base==nil then return 999 end
+    -- Path Finding does not grant access to impassable lakes or mountains.
+    if base>=900 or not pathFindingTerrain[terrain] then return base end
+    local player=turnOrder~=nil and gStates~=nil
+        and turnOrder[gStates.turnNumber] or nil
+    local scan=player~=nil and resourceCardScanBySeat[player.seatPos] or nil
+    local modifiers=scan~=nil and scan.terrainModifiers or nil
+    if modifiers==nil then return base end
+    if modifiers.setToTwo then return math.min(base,2) end
+    if modifiers.reduce>0 then return math.min(base,math.max(2,base-modifiers.reduce)) end
+    return base
+end
+
 local function clearHighlight(guid)
     if shown[guid]==nil then return end
     local obj=getObjectFromGUID(guid)
@@ -558,6 +581,7 @@ local function renderSeat(seatPos)
 
     local links,boostBy,boostSource,discarded,hasDiscard=resolveActionLinks(cards,footprints,powered)
     local current,records,totals={}, {}, {}
+    local terrainModifiers={reduce=0,setToTwo=false}
     for _,card in ipairs(cards) do
         local result=calculateCard(card,powered[card.guid]==true,boostBy[card.guid],
             links[card.guid],discarded[card.guid]~=nil,hasDiscard[card.guid]==true)
@@ -576,6 +600,18 @@ local function renderSeat(seatPos)
         showChoiceButtons(card,choices,result.powered)
         result.kind=resourceObjectKind(card)
         result.contributes=false
+        -- Path Finding's movement modifier applies only when its printed
+        -- effect is actually played, not while discarded, linked as payment,
+        -- face down or used sideways for a basic +1.
+        if rule~=nil and rule.terrainReduction==true
+            and cardPosture(card)=="upright" and result.resources~=nil
+            and type(result.resources.move)=="number" then
+            if result.powered then
+                terrainModifiers.setToTwo=true
+            else
+                terrainModifiers.reduce=terrainModifiers.reduce+1
+            end
+        end
         -- Fixed components of partially understood cards may be counted; an
         -- unresolved choice never contributes an invented amount.
         if result.resources~=nil then
@@ -622,10 +658,15 @@ local function renderSeat(seatPos)
     local previous=bySeat[seatPos] or {}
     local previousScan=resourceCardScanBySeat[seatPos]
     local previousMove=previousScan~=nil and (previousScan.totals.move or 0) or 0
+    local prior=previousScan~=nil and previousScan.terrainModifiers or nil
+    local terrainChanged=prior==nil and (terrainModifiers.reduce>0 or terrainModifiers.setToTwo)
+        or prior~=nil and (prior.reduce~=terrainModifiers.reduce
+            or prior.setToTwo~=terrainModifiers.setToTwo)
     bySeat[seatPos]=current
-    resourceCardScanBySeat[seatPos]={cards=records,totals=totals}
+    resourceCardScanBySeat[seatPos]={cards=records,totals=totals,
+        terrainModifiers=terrainModifiers}
     refreshResourceTrackerText()
-    if previousMove~=(totals.move or 0) then updateMoveDisplay() end
+    if previousMove~=(totals.move or 0) or terrainChanged then updateMoveDisplay() end
     for guid in pairs(previous) do
         if current[guid]~=true then
             clearHighlight(guid)
