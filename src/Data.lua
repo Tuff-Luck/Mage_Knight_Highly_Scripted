@@ -1025,6 +1025,11 @@ cardResourceDefinitions={
     march={normal={move=2},powered={move=4}},
     promise={normal={influence=2},powered={influence=4}},
     nobleManners={normal={influence=2},powered={influence=4}}, -- Other ability does not alter Influence
+    oneWithTheLand={
+        normalChoices={{move=2},{healing=1},{block=2}},
+        poweredChoices={{move=4},{healing=2},{key="block",terrainBlock=true}}},
+    -- Powered Block uses the unmodified cost of the player's current hex;
+    -- it is Fire Block during day and Ice Block at night.
     swiftness={normal={move=2},powered={ranged=3}},
     -- Linked Action cards are interpreted by CardRecognition's generic
     -- poweredLink resolver. A normal Concentration creates mana, not tracker resources.
@@ -1050,7 +1055,7 @@ cardResourceDefinitions={
     swiftReflexes={normalChoices={{move=2},{ranged=1}},
         poweredChoices={{move=4},{ranged=3}},partial=true}, -- Also reduce-enemy-Attack alternatives
     tirelessness={normal={move=2},powered={move=4},partial=true}, -- Boosts other Move cards
-    druidicPaths={normal={move=2},powered={move=4},partial=true}, -- Reduces terrain costs
+    druidicPaths={normal={move=2},powered={move=4}}, -- Player manages the one-space/one-terrain-type discount
     savageHarvesting={normal={move=2},powered={move=4}}, -- Optional crystal gains do not affect Move calculation
     ruthlessCoercion={normal={influence=2},powered={influence=6}}, -- Other effects do not change the numeric Influence contributed
     shieldBash={normal={block=3},powered={block=5},partial=true}, -- Swiftness and excess-Block modifiers
@@ -1242,7 +1247,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["b9e885"]={cardType="Starting", resourceKey="determination", name={"Determination"}, color={"Blue"}, action={"Combat"}},
 			["450584"]={cardType="Starting", resourceTracked=false, name={"Crystallize"}, color={"Blue"}, action={"Special"}},
 			["9757c3"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
-			["c137e0"]={cardType="Starting", name={"One with the Land"}, color={"Green"}, action={"Move", "Heal", "Combat"}},
+			["c137e0"]={cardType="Starting", resourceKey="oneWithTheLand", name={"One with the Land"}, color={"Green"}, action={"Move", "Heal", "Combat"}},
 			["450580"]={cardType="Starting", resourceKey="tranquility", name={"Tranquility"}, color={"Green"}, action={"Heal"}},
 			["450581"]={cardType="Starting", resourceKey="concentration", name={"Concentration"}, color={"Green"}, action={"Special"}},
 			["2f1c80"]={cardType="Starting", resourceKey="swiftness", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
