@@ -6,6 +6,9 @@ local shown={}
 local bySeat={}
 -- Player choices are transient, never written into gStates or save JSON.
 local selectedResourceByGUID={}
+-- Display state is separate from player selections. Picks/drops may clear the
+-- buttons, but the chosen resource stays until the script reloads.
+local choiceExpandedByGUID={}
 local choiceButtonShown={}
 local palette={
     green={{0.10,0.55,0.14},{0.35,1.00,0.38}},
@@ -110,15 +113,33 @@ local function choiceSlot(powered,sideways)
     return sideways and "sideways" or (powered and "powered" or "normal")
 end
 
-local function chosenEffect(guid,powered,choices,sideways)
-    if choices==nil then return nil end
-    local choice=selectedResourceByGUID[guid]
-    local category=choice~=nil and choice[choiceSlot(powered,sideways)] or nil
-    if category==nil then return nil end
-    for _,value in ipairs(choices) do
-        if value[category]~=nil then return value end
+-- Use the first option on each card from the outset, unless the player has
+-- explicitly chosen another. Store choices separately for normal/powered/+1.
+local function currentChoice(guid,powered,choices,sideways)
+    if choices==nil or #choices==0 then return nil,nil end
+    local stored=selectedResourceByGUID[guid]
+    local category=stored~=nil and stored[choiceSlot(powered,sideways)] or nil
+    if category~=nil then
+        for _,effect in ipairs(choices) do
+            if effect[category]~=nil then return effect,category end
+        end
     end
-    return nil
+    local first=choices[1]
+    return first,choiceCategory(first)
+end
+
+local function chosenEffect(guid,powered,choices,sideways)
+    return currentChoice(guid,powered,choices,sideways)
+end
+
+local function effectHasTrackedResource(effects)
+    if effects==nil then return false end
+    for category,value in pairs(effects) do
+        if totalsKeys[category] and type(value)=="number" and value~=0 then
+            return true
+        end
+    end
+    return false
 end
 
 -- These are tiny object XML buttons over the artwork, not the much larger
@@ -139,31 +160,36 @@ local function removeChoiceButtons(card)
     choiceButtonShown[card.guid]=nil
 end
 
+-- A single selected letter sits above the title. Click to show the whole
+-- choice row; choosing any option immediately collapses back to one letter.
 local function showChoiceButtons(card,choices,powered)
     if card==nil then return end
     local posture=cardPosture(card)
     if choices==nil or #choices<2 or card.is_face_down==true or posture=="discard"
         or (posture=="sideways" and not cardCanPlaySideways(card)) then
         if choiceButtonShown[card.guid]~=nil then removeChoiceButtons(card) end
+        choiceExpandedByGUID[card.guid]=nil
         return
     end
-    local selection=selectedResourceByGUID[card.guid]
-    local chosen=selection~=nil and selection[choiceSlot(powered,posture=="sideways")] or nil
-    local layout={}
-    local seen={}
+    local _,selected=currentChoice(card.guid,powered,choices,posture=="sideways")
+    local categories,seen={},{}
     for _,choice in ipairs(choices) do
         local category=choiceCategory(choice)
         if category~=nil and choiceLetters[category]~=nil and not seen[category] then
             seen[category]=true
-            layout[#layout+1]=category
+            categories[#categories+1]=category
         end
     end
-    if #layout<2 then
+    if #categories<2 or selected==nil then
         if choiceButtonShown[card.guid]~=nil then removeChoiceButtons(card) end
+        choiceExpandedByGUID[card.guid]=nil
         return
     end
+    local expanded=choiceExpandedByGUID[card.guid]==true
+    local visible=expanded and categories or {selected}
     local signature=(posture=="sideways" and "S" or (powered and "P" or "N"))
-        ..":"..(chosen or "")..":"..table.concat(layout,",")
+        ..":"..selected..":"..(expanded and "open" or "closed")
+        ..":"..table.concat(categories,",")
     if choiceButtonShown[card.guid]==signature then return end
     local xml=card.UI.getXmlTable() or {}
     for i=#xml,1,-1 do
@@ -171,11 +197,9 @@ local function showChoiceButtons(card,choices,powered)
         if attr~=nil and type(attr.id)=="string"
             and attr.id:sub(1,19)=="ResourceCardChoice_" then table.remove(xml,i) end
     end
-    -- Move the row down into the artwork immediately above the title banner.
-    -- Reverse local X so M/I/A/B reads left-to-right on a Y=180 face-up card.
-    for i,category in ipairs(layout) do
-        local x=((#layout+1)/2-i)*44
-        local active=(category==chosen)
+    for i,category in ipairs(visible) do
+        local x=((#visible+1)/2-i)*44
+        local active=category==selected
         xml[#xml+1]={tag="Button",attributes={
             id="ResourceCardChoice_"..card.guid.."_"..category,
             onClick="global/resourceCardsChoiceClicked",
@@ -306,7 +330,8 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
         and applyLinkedResourceBonus(base,linkedBoost) or nil
     local complete=sideTracked and base~=nil and not choicePending and not statePartial
         and rule.partial~=true and faceUp and costPaid and not discardTarget
-    local status=(not known or not sideTracked or posture=="discard") and "red"
+    local choiceIsUntracked=chosen~=nil and not effectHasTrackedResource(chosen)
+    local status=(not known or not sideTracked or posture=="discard" or choiceIsUntracked) and "red"
         or not complete and "yellow" or "green"
     if #linked>0 then status="purple" end
     return {guid=card.guid,known=known,complete=complete,powered=powered,
@@ -540,7 +565,9 @@ local function renderSeat(seatPos)
         if current[guid]~=true then
             clearHighlight(guid)
             if choiceButtonShown[guid]~=nil then removeChoiceButtons(getObjectFromGUID(guid)) end
-            selectedResourceByGUID[guid]=nil
+            -- Keep the chosen resource, even if the object briefly leaves the
+            -- zone while being dragged. The collapsed UI is rebuilt on return.
+            choiceExpandedByGUID[guid]=nil
         end
     end
 end
@@ -566,7 +593,8 @@ end
 local function clearAll()
     for seat=1,4 do generation[seat]=(generation[seat] or 0)+1 end
     clearChoiceButtons()
-    selectedResourceByGUID={}
+    choiceExpandedByGUID={}
+    -- Do not discard choices when closing/reopening the Resource Tracker.
     for guid in pairs(shown) do clearHighlight(guid) end
     bySeat={}
     resourceCardScanBySeat={}
@@ -611,9 +639,19 @@ function resourceCardsChoiceClicked(player,value,id)
         if choice[category]~=nil then valid=true break end
     end
     if not valid then return end
+    if choiceExpandedByGUID[guid]~=true then
+        -- A click on the sole, selected button opens the alternatives. Merely
+        -- opening this menu must not change the calculated resource totals.
+        choiceExpandedByGUID[guid]=true
+        showChoiceButtons(card,choices,powered)
+        return
+    end
+    -- Any choice, including the already selected one, closes the menu.
     local selected=selectedResourceByGUID[guid] or {}
     selected[choiceSlot(powered,sideways)]=category
     selectedResourceByGUID[guid]=selected
+    choiceExpandedByGUID[guid]=nil
+    showChoiceButtons(card,choices,powered)
     queueSeat(currentSeat.seatPos,nil)
 end
 
