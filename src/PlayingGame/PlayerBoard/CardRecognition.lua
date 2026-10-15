@@ -83,6 +83,15 @@ local function canPayDiscard(card)
     return card.is_face_down~=true and cardRotationOffset(card)<=70
 end
 
+-- Only cards that may be played from hand can generate a sideways +1.
+-- In particular, recruited Units and unidentified cards are not candidates.
+local function cardCanPlaySideways(card)
+    local data=gameCards[card.guid]
+    return card.type=="Card" and card.is_face_down~=true and data~=nil
+        and (data.cardType=="Starting" or data.cardType=="Advanced Action"
+            or data.cardType=="Spell" or data.cardType=="Artifact")
+end
+
 local sidewaysChoices={{move=1},{influence=1},{attack=1},{block=1}}
 
 local choiceLetters={move="M",influence="I",attack="A",block="B",
@@ -133,7 +142,8 @@ end
 local function showChoiceButtons(card,choices,powered)
     if card==nil then return end
     local posture=cardPosture(card)
-    if choices==nil or #choices<2 or card.is_face_down==true or posture=="discard" then
+    if choices==nil or #choices<2 or card.is_face_down==true or posture=="discard"
+        or (posture=="sideways" and not cardCanPlaySideways(card)) then
         if choiceButtonShown[card.guid]~=nil then removeChoiceButtons(card) end
         return
     end
@@ -277,7 +287,7 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
     local faceUp=card.is_face_down~=true and posture=="upright"
     -- Any non-Wound card played at 90 degrees has one generic resource,
     -- irrespective of its printed card effect. It requires an explicit choice.
-    if posture=="sideways" and card.is_face_down~=true then
+    if posture=="sideways" and cardCanPlaySideways(card) then
         local effect=chosenEffect(card.guid,false,sidewaysChoices,true)
         return {guid=card.guid,known=known,complete=effect~=nil,powered=false,
             links={},status=effect~=nil and "green" or "yellow",resources=effect}
@@ -321,14 +331,17 @@ local function resolveActionLinks(cards,footprints,manaPowered)
         links[source.guid][#links[source.guid]+1]=target.guid
         links[target.guid][#links[target.guid]+1]=source.guid
     end
-    local function nearestOverlap(source,valid)
-        local best,bestArea=nil,0
+    local function nearestOverlap(source,valid,preferTilt)
+        local best,bestArea,bestPriority=nil,0,-1
         local a=footprints[source.guid]
         for _,target in ipairs(cards) do
             if target.guid~=source.guid and valid(target) then
                 local area=overlapArea(a,footprints[target.guid])
-                if area>bestArea or (area==bestArea and best~=nil and target.guid<best.guid) then
-                    best,bestArea=target,area
+                local priority=preferTilt and cardPosture(target)=="discard" and 1 or 0
+                if area>0 and (priority>bestPriority
+                    or (priority==bestPriority and (area>bestArea
+                        or (area==bestArea and best~=nil and target.guid<best.guid)))) then
+                    best,bestArea,bestPriority=target,area,priority
                 end
             end
         end
@@ -375,7 +388,7 @@ local function resolveActionLinks(cards,footprints,manaPowered)
                     and candidate.getGMNotes()~="Wound"
                     and candidate.getGMNotes()~="Quest"
                     and canPayDiscard(candidate)
-            end)
+            end,true)
             if target~=nil then
                 discarded[target.guid]=source.guid
                 hasDiscard[source.guid]=true
@@ -464,8 +477,11 @@ local function renderSeat(seatPos)
         local rule=cardData~=nil and cardResourceDefinitions[cardData.resourceKey] or nil
         local choices=nil
         if discarded[card.guid]==nil then
-            choices=cardPosture(card)=="sideways" and sidewaysChoices
-                or sideChoices(rule,result.powered)
+            if cardPosture(card)=="sideways" then
+                if cardCanPlaySideways(card) then choices=sidewaysChoices end
+            else
+                choices=sideChoices(rule,result.powered)
+            end
         end
         showChoiceButtons(card,choices,result.powered)
         result.kind=resourceObjectKind(card)
@@ -571,7 +587,8 @@ function resourceCardsChoiceClicked(player,value,id)
     local card=getObjectFromGUID(guid)
     local data=card~=nil and gameCards[guid] or nil
     local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
-    if card==nil or (rule==nil and cardPosture(card)~="sideways") then return end
+    if card==nil or (rule==nil and not (cardPosture(card)=="sideways"
+        and cardCanPlaySideways(card))) then return end
     local currentSeat=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if currentSeat==nil then return end
     local zone=getObjectFromGUID(playerPlayAreas[currentSeat.seatPos])
@@ -587,7 +604,8 @@ function resourceCardsChoiceClicked(player,value,id)
     local record=scan~=nil and scan.cards[guid] or nil
     local powered=record~=nil and record.powered==true
     local sideways=cardPosture(card)=="sideways"
-    local choices=sideways and sidewaysChoices or sideChoices(rule,powered)
+    local choices=(sideways and cardCanPlaySideways(card)) and sidewaysChoices
+        or (not sideways and sideChoices(rule,powered) or nil)
     local valid=false
     for _,choice in ipairs(choices or {}) do
         if choice[category]~=nil then valid=true break end
