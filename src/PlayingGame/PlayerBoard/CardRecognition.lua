@@ -108,8 +108,11 @@ local function calculateCard(card,powered,linked)
     local data=gameCards[card.guid]
     local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
     local known=data~=nil
-    local complete=rule~=nil and card.is_face_down~=true and cardIsSideways(card)==false
-    local effects=complete and (powered and rule.powered or rule.normal) or nil
+    local faceUp=card.is_face_down~=true and cardIsSideways(card)==false
+    local complete=rule~=nil and rule.partial~=true and faceUp
+    -- A known fixed component can contribute to the estimate even when the card's
+    -- additional rules are still unimplemented. Unresolved choices contribute nothing.
+    local effects=faceUp and rule~=nil and (powered and rule.powered or rule.normal) or nil
     local kind=not known and "red" or not complete and "yellow" or "green"
     if #linked>0 then kind="purple" end
     return {guid=card.guid,known=known,complete=complete,powered=powered,
