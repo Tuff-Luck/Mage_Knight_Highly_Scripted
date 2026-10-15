@@ -1050,7 +1050,7 @@ cardResourceDefinitions={
         poweredChoices={{move=4},{ranged=3}},partial=true}, -- Also reduce-enemy-Attack alternatives
     tirelessness={normal={move=2},powered={move=4},partial=true}, -- Boosts other Move cards
     druidicPaths={normal={move=2},powered={move=4},partial=true}, -- Reduces terrain costs
-    savageHarvesting={normal={move=2},powered={move=4},partial=true}, -- Optional crystal gains
+    savageHarvesting={normal={move=2},powered={move=4}}, -- Optional crystal gains do not affect Move calculation
     ruthlessCoercion={normal={influence=2},powered={influence=6}}, -- Other effects do not change the numeric Influence contributed
     shieldBash={normal={block=3},powered={block=5},partial=true}, -- Swiftness and excess-Block modifiers
     frostBridge={normal={move=2},powered={move=4},partial=true}, -- Changes swamp/lake movement costs
