@@ -782,7 +782,13 @@ local function finalizeSetup()
 	DisplayHelp(nil, "-1", nil)
 	artifactOfferControlsRestore()
 	artifactOfferRewardTextRefresh()
+	-- On the first game setup, present the Resource Tracker expanded.
+	-- Saved-game UI layout is left to the usual onLoad handling.
+	UI.setAttribute("ResourceTracker", "height", "245")
+	UI.setAttribute("ResourceTrackerDetail", "height", "210")
+	UI.setAttribute("ResourceTrackerDetail", "active", "true")
 	UI.setAttribute("ResourceTracker", "active", "true")
+	resourceCardsPanelChanged(true)
 	UI.setAttribute("cameraControl", "active", "true")
 	if gStates.gameScenario=="One to Return" then UI.hide("ScoreButton") end
 
