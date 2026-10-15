@@ -186,7 +186,13 @@ local function showChoiceButtons(card,choices,powered)
     local posture=cardPosture(card)
     if choices==nil or #choices<2 or card.is_face_down==true or posture=="discard"
         or (posture=="sideways" and not cardCanPlaySideways(card)) then
-        if choiceButtonShown[card.guid]~=nil then removeChoiceButtons(card) end
+        -- Once per card, inspect object XML even when our runtime cache is
+        -- empty: controls created before a script reload can still be present.
+        -- A 'hidden' marker avoids re-reading XML during every later scan.
+        if choiceButtonShown[card.guid]~="hidden" then
+            removeChoiceButtons(card)
+            choiceButtonShown[card.guid]="hidden"
+        end
         choiceExpandedByGUID[card.guid]=nil
         return
     end
@@ -200,7 +206,10 @@ local function showChoiceButtons(card,choices,powered)
         end
     end
     if #categories<2 or selected==nil then
-        if choiceButtonShown[card.guid]~=nil then removeChoiceButtons(card) end
+        if choiceButtonShown[card.guid]~="hidden" then
+            removeChoiceButtons(card)
+            choiceButtonShown[card.guid]="hidden"
+        end
         choiceExpandedByGUID[card.guid]=nil
         return
     end
@@ -234,8 +243,8 @@ local function showChoiceButtons(card,choices,powered)
 end
 
 local function clearChoiceButtons()
-    for guid in pairs(choiceButtonShown) do
-        removeChoiceButtons(getObjectFromGUID(guid))
+    for guid,signature in pairs(choiceButtonShown) do
+        if signature~="hidden" then removeChoiceButtons(getObjectFromGUID(guid)) end
     end
     choiceButtonShown={}
 end
@@ -523,7 +532,9 @@ local function renderSeat(seatPos)
         if discarded[card.guid]==nil then
             if cardPosture(card)=="sideways" then
                 if cardCanPlaySideways(card) then choices=sidewaysChoices end
-            else
+            elseif rule==nil or rule.requiredLink==nil or hasDiscard[card.guid]==true then
+                -- Hide the choice entirely until its cost is present. Powered
+                -- Rage has a fixed effect, so sideChoices is nil and hides it.
                 choices=sideChoices(rule,result.powered)
             end
         end
@@ -583,7 +594,11 @@ local function renderSeat(seatPos)
     for guid in pairs(previous) do
         if current[guid]~=true then
             clearHighlight(guid)
-            if choiceButtonShown[guid]~=nil then removeChoiceButtons(getObjectFromGUID(guid)) end
+            if choiceButtonShown[guid]~=nil and choiceButtonShown[guid]~="hidden" then
+                removeChoiceButtons(getObjectFromGUID(guid))
+            end
+            -- Drop cached hidden state so cards are inspected on re-entry.
+            choiceButtonShown[guid]=nil
             -- Keep the chosen resource, even if the object briefly leaves the
             -- zone while being dragged. The collapsed UI is rebuilt on return.
             choiceExpandedByGUID[guid]=nil
