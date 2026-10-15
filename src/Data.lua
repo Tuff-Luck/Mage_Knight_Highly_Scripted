@@ -1036,8 +1036,9 @@ cardResourceDefinitions={
     determination={normal={block=2},normalChoices={{attack=2},{block=2}},powered={block=5},normalPartial=true}, -- Block provisional until player chooses
     threaten={normal={influence=2},powered={influence=5}}, -- Powered: -1 Reputation; fixed generated Influence is recognised
     rage={normalChoices={{attack=2},{block=2}},powered={attack=4},normalPartial=true}, -- Unpowered choice unresolved, powered Attack 4 is fixed
-    tranquility={normal={healing=1},powered={healing=2}, -- Provisional default: Heal rather than draw
-        normalChoices={{healing=1},{draw=1}},poweredChoices={{healing=2},{draw=2}},partial=true},
+    -- Both branches are understood: Heal contributes to the tracker, Draw does not.
+    tranquility={normal={healing=1},powered={healing=2},
+        normalChoices={{healing=1},{draw=1}},poweredChoices={{healing=2},{draw=2}}},
     improvisation={normalChoices={{move=3},{influence=3},{attack=3},{block=3}},
         poweredChoices={{move=5},{influence=5},{attack=5},{block=5}},
         requiredLink={mode="discard"}}, -- Needs one other non-Wound hand card; source itself adds no resources
