@@ -527,7 +527,8 @@ end
 -- A card records only an explicit player selection; no assumptions about
 -- movement versus combat are inferred from the board.
 function resourceCardsChoiceClicked(player,value,id)
-    local guid,category=type(id)=="string" and id:match("^ResourceCardChoice_([0-9a-f]+)_([%a]+)$")
+    if type(id)~="string" then return end
+    local guid,category=id:match("^ResourceCardChoice_([0-9a-f]+)_([%a]+)$")
     if guid==nil then return end
     if not resourceCardsPanelOpen() then return end
     local card=getObjectFromGUID(guid)
