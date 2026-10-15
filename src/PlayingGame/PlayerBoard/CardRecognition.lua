@@ -158,6 +158,11 @@ local function clearChoiceButtons()
     choiceButtonShown={}
 end
 
+local function cardIsSideways(card)
+    local y=card.getRotation()[2]%180
+    return y>25 and y<155
+end
+
 local function footprint(obj)
     local position=obj.getPosition()
     local bounds=obj.getBounds()
@@ -222,11 +227,6 @@ local function matchesCardMana(card,color)
         for _,cardColor in ipairs(colors) do if cardColor==color then return true end end
     end
     return false
-end
-
-local function cardIsSideways(card)
-    local y=card.getRotation()[2]%180
-    return y>25 and y<155
 end
 
 -- A powered link grants a target Action card its strong side for free and can
