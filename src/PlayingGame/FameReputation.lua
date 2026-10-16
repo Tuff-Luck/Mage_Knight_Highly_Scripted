@@ -230,7 +230,9 @@ local function correctPossessedAttachmentAwards()
 end
 
 function fameReputationAttachEnemy(player,mouseButton,id,obj,zone)
-	if id~=nil and id:sub(1,6)=="detach" then
+	--Only a manual unlink cancels pending Fame. Combat uses detachCleanup after a defeated
+	--enemy has already contributed its Possessed bonus to the end-turn reward total.
+	if id~=nil and id:sub(1,6)=="detach" and id~="detachCleanup" then
 		local enemy=obj
 		if enemy==nil then enemy=getObjectFromGUID(id:sub(7,13)) end
 		if enemy~=nil then
