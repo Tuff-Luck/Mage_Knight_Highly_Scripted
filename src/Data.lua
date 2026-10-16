@@ -2376,7 +2376,7 @@ skillResourceDefinitions={
     ["210835"]={normal={healing=1}},
     ["216c1f"]={choices={{key="other"},{influence=6}},partial=true},
     ["24855b"]={day={influence=2},night={influence=3}},
-    ["257c0c"]={partial=true},
+    ["257c0c"]={unitCondition={resource="move",ready=true,unwounded=true,max=3}}, -- Forward March
     ["2a673e"]={untracked=true},
     ["2c74ca"]={untracked=true},
     ["2cbfd9"]={untracked=true},
