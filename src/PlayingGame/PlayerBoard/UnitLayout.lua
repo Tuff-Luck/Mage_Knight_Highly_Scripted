@@ -77,7 +77,9 @@ function unitLayoutIsCommand(obj)
 	if obj==nil then return false end
 	--Bonds of Loyalty is physically a Skill token, but while claimed in Norowas' Unit Area it provides
 	--an extra Command slot exactly like Banner of Command. Its asset does not reliably carry the GM Note.
-	return obj.getGMNotes()=="Command Token" or obj.getGMNotes()=="Bonds of Loyalty" or obj.guid==GUID.skill.bondsOfLoyalty or obj.guid==GUID.card.bannerOfCommandToken
+	return obj.getGMNotes()=="Command Token" or obj.getGMNotes()=="Bonds of Loyalty"
+        or obj.guid==GUID.skill.bondsOfLoyalty or obj.guid==GUID.card.bannerOfCommandToken
+        or obj.hasTag("Command")
 end
 
 unitLayoutCommandPriority=function(obj)
@@ -168,6 +170,62 @@ unitLayoutSnapshot=function(seatPos)
 		else slotX[slot]=command.getPosition()[1] end
 	end
 	return {objects=objects, commands=commands, units=units, unitByGuid=unitByGuid, unitBySlot=unitBySlot, unitSlotByGuid=unitSlotByGuid, slotX=slotX, expanded=expanded}
+end
+
+-- Unit condition is a reusable physical-board observation, not an effect of
+-- any particular Skill. The Wound models have GM Notes "Unit Wound"; the
+-- Apocalypse quest Command token uses the "Command" tag.
+function unitLayoutIsWound(obj)
+    if obj==nil then return false end
+    return obj.getGMNotes()=="Unit Wound"
+        or (obj.type=="Custom_Model" and obj.hasTag("Wound"))
+end
+
+local function unitLayoutTokenOnUnit(token,unit)
+    -- The used Command token / Wound sits *on* the Unit card. A ready
+    -- Command token below the card must not count as spent. Use live card
+    -- bounds so compressed/expanded Unit columns behave identically.
+    local bounds=unit.getBounds()
+    local size=bounds~=nil and bounds.size or nil
+    local center=bounds~=nil and bounds.center or unit.getPosition()
+    local position=token.getPosition()
+    local halfX=size~=nil and (size.x or size[1])*0.46 or 1.0
+    local halfZ=size~=nil and (size.z or size[3])*0.46 or 1.5
+    return math.abs(position.x-center.x)<halfX
+        and math.abs(position.z-center.z)<halfZ
+end
+
+-- Shared by Skills that count ready/unwounded Units or empty Command slots.
+-- One zone snapshot per tracker scan; no name/translation-based identification.
+function unitLayoutResourceState(seatPos)
+    if seatPos==nil then return nil end
+    local layout=unitLayoutSnapshot(seatPos)
+    local commandTokens,woundTokens={},{}
+    for _,obj in ipairs(layout.objects) do
+        if unitLayoutIsCommand(obj) then
+            commandTokens[#commandTokens+1]=obj
+        elseif unitLayoutIsWound(obj) then
+            woundTokens[#woundTokens+1]=obj
+        end
+    end
+    local units={}
+    for _,unit in ipairs(layout.units) do
+        local state={guid=unit.guid,unit=unit,ready=true,unwounded=true}
+        for _,token in ipairs(commandTokens) do
+            if unitLayoutTokenOnUnit(token,unit) then
+                state.ready=false
+                break
+            end
+        end
+        for _,token in ipairs(woundTokens) do
+            if unitLayoutTokenOnUnit(token,unit) then
+                state.unwounded=false
+                break
+            end
+        end
+        units[#units+1]=state
+    end
+    return {units=units,emptyCommandSlots=math.max(0,#layout.commands-#layout.units)}
 end
 
 function unitLayoutFirstFreeCommand(seatPos)
