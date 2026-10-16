@@ -55,6 +55,7 @@ require("PlayingGame.Help")
 require("PlayingGame.PlayerBoard.CardFlow")
 require("PlayingGame.PlayerBoard.UnitLayout")
 require("PlayingGame.PlayerBoard.Events")
+require("PlayingGame.PlayerBoard.CardRecognition")
 require("SetupGame.Components")
 require("SetupGame.Players")
 require("SetupGame.Decks")
@@ -63,6 +64,7 @@ require("SetupGame.Map")
 require("SetupGame")
 require("PlayingGame.Quests")
 require("PlayingGame.City")
+require("PlayingGame.FactionLeaders")
 require("PlayingGame.Map")
 require("PlayingGame.MapTokens")
 require("PlayingGame.TokenPools")
@@ -72,7 +74,11 @@ require("PlayingGame.PlayerBoard.Skills")
 require("PlayingGame.PlayerBoard.PuppetMaster")
 require("PlayingGame.Combat")
 require("PlayingGame.Turn")
-require("PlayingGame.Scenario")
+require("PlayingGame.BaseScenario")
+require("PlayingGame.LLScenario")
+require("PlayingGame.SOTScenario")
+require("PlayingGame.APOCScenario")
+require("PlayingGame.FanScenario")
 require("PlayingGame.ApocalypseDragon")
 require("PlayingGame.Horsemen")
 require("PlayingGame.Scoring")
@@ -517,7 +523,9 @@ local function correctPossessedAttachmentAwards()
 end
 
 function fameReputationAttachEnemy(player,mouseButton,id,obj,zone)
-	if id~=nil and id:sub(1,6)=="detach" then
+	--Only a manual unlink cancels pending Fame. Combat uses detachCleanup after a defeated
+	--enemy has already contributed its Possessed bonus to the end-turn reward total.
+	if id~=nil and id:sub(1,6)=="detach" and id~="detachCleanup" then
 		local enemy=obj
 		if enemy==nil then enemy=getObjectFromGUID(id:sub(7,13)) end
 		if enemy~=nil then
@@ -814,6 +822,7 @@ function eventsOnLoadRawBase(saved_data, loaded_data)
 	safeWaitCondition("Events",function() refreshTableExtensionUI() end,function() return tableExtensionUIReady()==true end,5)
 	-----------
 	refreshResourceTrackerText()--Refresh the tracker from saved values so TTS resolves its language tags on load.
+    safeWaitFrames("Events",function() resourceCardsOnLoad() end,4)
 	UI.setAttribute("CoopAssaultMainTableText3", "active", "false")
 	--The wall assault interface is only shown when the assault entry side cannot be determined automatically.
 	UI.hide("WallAssaultChoice")
@@ -1139,6 +1148,7 @@ end
 function __onObjectDrop_raw(player_color, dropped_object)
 	if dropped_object==nil or dropped_object.guid==nil then return end
 	local droppedGUID=dropped_object.guid
+    resourceCardsObjectMoved(dropped_object)
 	if terrainTiles[droppedGUID]~=nil then
 		runtimeMapInvalidateTerrain()
 		--EXPLORE legality is derived from the settled physical map. onObjectEnterZone can fire while a
@@ -1970,6 +1980,7 @@ function __onObjectEnterZone_raw(zone, obj)
 	local ctx=zoneEventContext(zone,obj)
 	if ctx==nil then return end
 	if handleZoneEnterPrelude(ctx)==true then return end
+    if gStates.firstStarted==true then resourceCardsZoneEntered(ctx) end
 	if gStates.firstStarted==true then
 		handleStartedZoneEnterPrelude(ctx)
 		handleTurnOrderZoneEnter(ctx)
@@ -2090,6 +2101,7 @@ function __onObjectLeaveZone_raw(zone, obj)
 	local ctx=zoneEventContext(zone,obj)
 	if ctx==nil then return end
 	if handleZoneLeavePrelude(ctx)==true then return end
+    if gStates.firstStarted==true then resourceCardsZoneLeft(ctx) end
 	if gStates.firstStarted==true then
 		playerBoardZoneLeave(ctx)
 		handleClaimZoneLeave(ctx)
@@ -2453,6 +2465,7 @@ end
 
 function __onObjectRotate_raw(object, spin, flip, player_color, old_spin, old_flip)
 	if object==nil then return end
+    resourceCardsObjectMoved(object)
 	if terrainTiles[object.guid]~=nil then runtimeMapInvalidateTerrain() end
 	if apocalypseDragonGroundHeadToken~=nil and select(1,apocalypseDragonGroundHeadToken(object.guid))==true then
 		local _,dragonHeadName=apocalypseDragonGroundHeadToken(object.guid)
@@ -4988,6 +5001,7 @@ function resourceTracker(player, mouseButton, id)
 			if tonumber(UI.getAttribute("ResourceTracker", "height"))>200 then temp="35" temp2="false" end
 			UI.setAttribute("ResourceTracker", "height", temp)
 			UI.setAttribute("ResourceTrackerDetail", "active", temp2)
+            resourceCardsPanelChanged(temp2=="true")
 			UI.setAttribute("ResourceTrackerDetail", "height", "210")
 			UI.setAttribute("MoveCosts", "active", "false")
 			UI.setAttribute("SiegeAmountDetails", "active", "false")
@@ -5008,27 +5022,19 @@ function resourceTracker(player, mouseButton, id)
 			UI.setAttribute("ResourceTrackerDetail", "height", tonumber(UI.getAttribute("ResourceTrackerDetail", "height"))+(IDConvert[id][2]*temp2))
 			return
 		end
-		--resource tracking
-		local IDConvert=RESOURCE_TRACKER_FIELDS
-		if IDConvert[id:sub(1,16)]~=nil then
-			local resourceTotal=0
-			for type, value in pairs(gStates.resourceTracker[IDConvert[id:sub(1,16)][1]]) do
-				resourceTotal=resourceTotal+value
-			end
-			if ((id:sub(17,20)=="Down" and (gStates.resourceTracker[IDConvert[id:sub(1,16)][1]][IDConvert[id:sub(1,16)][2]]>0 or id:sub(1,16)=="InfluAmountReput" or id:sub(1,16)=="InfluAmountPlain")) or id:sub(17,18)=="Up")
-				and not (id:sub(1,16)=="MovemAmountPlain" and id:sub(17,18)=="Up" and gStates.resourceTracker.move.move>=99) then
-				local temp=1
-				if id:sub(17,28)=="Down" then temp=-1 end
-				gStates.resourceTracker[IDConvert[id:sub(1,16)][1]][IDConvert[id:sub(1,16)][2]]=gStates.resourceTracker[IDConvert[id:sub(1,16)][1]][IDConvert[id:sub(1,16)][2]]+temp
-				resourceTotal=resourceTotal+temp
-				temp=id:sub(1,16)
-				if id:sub(12,16)=="Plain" and id:sub(1,16)~="MovemAmountPlain" and id:sub(1,16)~="HealiAmountPlain" then temp=id:sub(1,11).."Physi" end
-				UI.setAttribute(temp.."Text", "text", joinLang({IDConvert[temp][3], gStates.resourceTracker[IDConvert[temp][1]][IDConvert[temp][2]]}))
-				if id:sub(1,16)~="MovemAmountPlain" and id:sub(1,16)~="HealiAmountPlain" then
-					UI.setAttribute(id:sub(1,11).."PlainText", "text", joinLang({IDConvert[id:sub(1,11).."Plain"][3], resourceTotal}))
-				end
-			end
-		end
+		--Resource values shown to the player include detected cards plus saved manual offsets.
+        local resourceField=RESOURCE_TRACKER_FIELDS[id:sub(1,16)]
+        if resourceField~=nil then
+            local category,field=resourceField[1],resourceField[2]
+            local isDown=id:sub(17,20)=="Down"
+            local isUp=id:sub(17,18)=="Up"
+            local current=resourceCardsEffectiveValue(category,field)
+            if (isDown and (current>0 or id:sub(1,16)=="InfluAmountReput" or id:sub(1,16)=="InfluAmountPlain"))
+                or (isUp and (category~="move" or resourceCardsEffectiveMove()<99)) then
+                gStates.resourceTracker[category][field]=gStates.resourceTracker[category][field]+(isDown and -1 or 1)
+                refreshResourceTrackerText()
+            end
+        end
 		--move costs
 		if id:sub(1,8)=="MoveCost" then
 			local temp="1"
@@ -5039,8 +5045,8 @@ function resourceTracker(player, mouseButton, id)
 			end
 			if gStates.moveCost[convert[id:sub(9,13)][1]]==998 then gStates.moveCost[convert[id:sub(9,13)][1]]=6 end
 			if gStates.moveCost[convert[id:sub(9,13)][1]]>6 then gStates.moveCost[convert[id:sub(9,13)][1]]=999 end
-			temp=tostring(gStates.moveCost[convert[id:sub(9,13)][1]])
-			if gStates.moveCost[convert[id:sub(9,13)][1]]>900 then temp="X" end
+			temp=tostring(resourceCardsEffectiveTerrainCost(convert[id:sub(9,13)][1]))
+			if resourceCardsEffectiveTerrainCost(convert[id:sub(9,13)][1])>900 then temp="X" end
 			UI.setAttribute(id:sub(1,13).."Text", "text", joinLang({convert[id:sub(9,13)][2], temp}))
 		end
 		local movementChanged=id:sub(1,16)=="MovemAmountPlain" or id=="MovemAmountUpdate" or id:sub(1,8)=="MoveCost"
@@ -5049,20 +5055,24 @@ function resourceTracker(player, mouseButton, id)
 end
 
 function refreshResourceTrackerText()
-	if gStates.resourceTracker==nil or gStates.moveCost==nil then return end
-	local resourceTotal={siege=0, ranged=0, block=0, attack=0, influence=0}
-	for resourceType in pairs(resourceTotal) do
-		for _, value in pairs(gStates.resourceTracker[resourceType]) do
-			resourceTotal[resourceType]=resourceTotal[resourceType]+value
-		end
-	end
-	for fieldId, spec in pairs(RESOURCE_TRACKER_FIELDS) do
-		local totalType=RESOURCE_TRACKER_TOTAL_FIELDS[fieldId]
-		local value=totalType~=nil and resourceTotal[totalType] or gStates.resourceTracker[spec[1]][spec[2]]
-		UI.setAttribute(fieldId.."Text","text",joinLang({spec[3],value}))
-	end
-	for fieldId, spec in pairs(MOVE_COST_FIELDS) do
-		local value=gStates.moveCost[spec[1]]
+    if gStates.resourceTracker==nil or gStates.moveCost==nil then return end
+    local resourceTotal={siege=0, ranged=0, block=0, attack=0, influence=0}
+    for resourceType in pairs(resourceTotal) do
+        for field in pairs(gStates.resourceTracker[resourceType]) do
+            resourceTotal[resourceType]=resourceTotal[resourceType]+resourceCardsEffectiveValue(resourceType,field)
+        end
+    end
+    for fieldId,spec in pairs(RESOURCE_TRACKER_FIELDS) do
+        local totalType=RESOURCE_TRACKER_TOTAL_FIELDS[fieldId]
+        local value=totalType~=nil and math.max(0,resourceTotal[totalType])
+            or math.max(0,resourceCardsEffectiveValue(spec[1],spec[2]))
+        UI.setAttribute(fieldId.."Text","text",joinLang({spec[3],value}))
+        -- Dim empty resource rows, including the Move, Healing and expanded
+        -- breakdown fields; restore normal contrast when a total is nonzero.
+        UI.setAttribute(fieldId.."Text","color",value==0 and "#666666" or "Black")
+    end
+    for fieldId, spec in pairs(MOVE_COST_FIELDS) do
+		local value=resourceCardsEffectiveTerrainCost(spec[1])
 		local display=value>900 and "X" or tostring(value)
 		UI.setAttribute("MoveCost"..fieldId.."Text","text",joinLang({spec[2],display}))
 	end
@@ -5087,6 +5097,8 @@ function refreshResourceTracker()
 		gStates.resourceTracker.influence.reputation=tonumber(reputationTable[turnOrder[gStates.turnNumber].reputation].repDisplay)
 	end
 	refreshResourceTrackerText()
+    -- After the turn changes, recalculate for the newly active Mage Knight.
+    if resourceCardsPanelOpen() then resourceCardsPanelChanged(true) end
 end
 legacyObjectButtonImage=function(id,image)
 	if id==nil then return false end
@@ -5778,12 +5790,17 @@ function refreshMonsterHoverDescription(hover_object)
 					if monsterData~=nil and monsterData.elusive~=nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ELUSIVE[-][i] - This enemy's higher Armour value is used until successfully Blocked.[/i]\n\n{it}[00ff00]ELUSIVO[-][i] - Usa il valore di Armatura più alto di questo nemico finché non viene Bloccato con successo.[/i]\n\n{ru}[00ff00]НЕУЛОВИМЫЙ[-][i] - Меньшее значение брони используется только в фазе ближнего боя и только если все атаки этого врага были успешно заблокированы.[/i]\n\n{zh-tw}[00ff00]盾逸 [-][i]-该敌人的较高护甲值会被使用，直到成功阻挡。[/i]\n\n{zh-cn}[00ff00]盾逸 [-][i]-该敌人的较高护甲值会被使用，直到成功阻挡。[/i]\n\n{ko}[00ff00]은밀함[-][i] - 이 공격을 성공적으로 방어하기 전 까지, 더 높은 방어구 수치를 적용.[/i]\n\n{es}[00ff00]ELUSIVO[-][i] - El valor de Armadura más alto de este enemigo se utiliza hasta que es Bloqueado con éxito.[/i]\n\n{fr}[00ff00]ELUSIVE[-][i] - La valeur d'armure la plus élevée de cet ennemi est utilisée jusqu'à ce qu'il soit bloqué avec succès.[/i]\n\n{pt-br}[00ff00]ELUSIVO[-][i] - O valor mais alto de Armadura desse inimigo é usado até que ele seja bloqueado com sucesso[/i]\n\n{de}[00ff00]ELUSIV[-][i] - Der höhere Rüstungswert dieses Gegners wird verwendet, bis er erfolgreich geblockt wird[/i]\n\n"}) end
 					--defender
 					if monsterData~=nil and monsterData.defend~=nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]DEFENDER[-][i] - The first enemy attacked by the player gets {it}[00ff00]DIFENSORE[-][i] - Il primo nemico attaccato dal giocatore ottiene {ru}[00ff00]ПРИКРЫТИЕ[-][i] - Первый враг, атакованный игроком, получает {zh-tw}[00ff00]守护[-][i] - 第一个被玩家攻击的敌人会被增加护甲。{zh-cn}[00ff00]守护[-][i] - 第一个被玩家攻击的敌人会被增加护甲。{ko}[00ff00]수비[-][i] - 플레이어가 처음 공격하는 적에게{es}[00ff00]DEFENSOR[-][i] - El primer enemigo atacado por el jugador obtiene {fr}[00ff00]DEFENDER[-][i] - Le premier ennemi attaqué par le joueur voit son armure augmentée {pt-br}[00ff00]DEFENSOR[-][i] - O primeiro inimigo atacado pelo jogador recebe {de}[00ff00]VERTEIDIGER[-][i] - Der erste vom Spieler angegriffene Feind erhält ", monsterData.defend, "{en} added to its armour.[/i]\n\n{it} Armatura aggiuntiva.[/i]\n\n{ru} к его броне.[/i]\n\n{zh-tw}增加其护甲。[/i]\n\n{zh-cn}增加其护甲。[/i]\n\n{ko}방어구를 추가.[/i]\n\n{es} se añade a su armadura.[/i]\n\n{fr}ajouté à son armure.[/i]\n\n{pt-br} adicionado à sua armadura.[/i]\n\n{de} zu seiner Rüstung hinzugefügt.[/i]\n\n"}) end
+					--Printed, site/city and wall fortifications are separate sources; display only their combined effect.
+					local printedFortified=monsterData~=nil and monsterData.fortified~=nil
+					local grantedFortified=perkData~=nil and perkData.fortified~=nil
+					local wallFortified=perkData~=nil and perkData.wallFortified~=nil
+					local fortificationCount=(printedFortified and 1 or 0)+(grantedFortified and 1 or 0)+(wallFortified and 1 or 0)
 					--Fortified
-					if (monsterData~=nil and monsterData.fortified~=nil and (perkData==nil or (perkData.fortified==nil and perkData.wallFortified==nil))) or (monsterData~=nil and monsterData.fortified==nil and perkData~=nil and perkData.fortified~=nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]FORTIFIED[-][i] - This enemy can't be attacked with Ranged attacks in the Range phase.[/i]\n\n{it}[00ff00]FORTIFICATO[-][i] - Questo nemico non può essere colpito da Attacchi a Distanza nella relativa fase.[/i]\n\n{ru}[00ff00]УКРЕПЛЕННЫЙ[-][i] - Во время фазы боя на расстоянии против врага можно играть только Осадные атаки.[/i]\n\n{zh-tw}[00ff00]城防[-][i] - 在远程攻击阶段，该敌人无法受到远程攻击。[/i]\n\n{zh-cn}[00ff00]城防[-][i] - 在远程攻击阶段，该敌人无法受到远程攻击。[/i]\n\n{ko}[00ff00]요새화[-][i] - 이 적을 원거리 단계에서 원거리 공격으로 공격할 수 없음.[/i]\n\n{es}[00ff00]FORTIFICADO[-][i] - Este enemigo no puede ser atacado con ataques a distancia en la fase de Alcance.[/i]\n\n{fr}[00ff00]FORTIFIÉ[-][i] - Cet ennemi ne peut pas être attaqué avec des attaques à distance lors de la phase de portée.[/i]\n\n{pt-br}[00ff00]FORTIFICADO[-][i] - Esse inimigo não pode ser atacado com ataques de longo alcance na fase de alcance[/i]\n\n{de}[00ff00]VERTEIDIGT[-][i] - Dieser Gegner kann in der Fernkampfphase nicht mit Fernkampfangriffen angegriffen werden.[/i]\n\n"}) end
+					if fortificationCount==1 and not wallFortified then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]FORTIFIED[-][i] - This enemy can't be attacked with Ranged attacks in the Range phase.[/i]\n\n{it}[00ff00]FORTIFICATO[-][i] - Questo nemico non può essere colpito da Attacchi a Distanza nella relativa fase.[/i]\n\n{ru}[00ff00]УКРЕПЛЕННЫЙ[-][i] - Во время фазы боя на расстоянии против врага можно играть только Осадные атаки.[/i]\n\n{zh-tw}[00ff00]城防[-][i] - 在远程攻击阶段，该敌人无法受到远程攻击。[/i]\n\n{zh-cn}[00ff00]城防[-][i] - 在远程攻击阶段，该敌人无法受到远程攻击。[/i]\n\n{ko}[00ff00]요새화[-][i] - 이 적을 원거리 단계에서 원거리 공격으로 공격할 수 없음.[/i]\n\n{es}[00ff00]FORTIFICADO[-][i] - Este enemigo no puede ser atacado con ataques a distancia en la fase de Alcance.[/i]\n\n{fr}[00ff00]FORTIFIÉ[-][i] - Cet ennemi ne peut pas être attaqué avec des attaques à distance lors de la phase de portée.[/i]\n\n{pt-br}[00ff00]FORTIFICADO[-][i] - Esse inimigo não pode ser atacado com ataques de longo alcance na fase de alcance[/i]\n\n{de}[00ff00]VERTEIDIGT[-][i] - Dieser Gegner kann in der Fernkampfphase nicht mit Fernkampfangriffen angegriffen werden.[/i]\n\n"}) end
 					--double Fortified
-					if monsterData~=nil and monsterData.fortified~=nil and perkData~=nil and (perkData.fortified~=nil or perkData.wallFortified~=nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]DOUBLE FORTIFIED[-][i] - This enemy can't be attacked with Ranged or Siege attacks in the Range phase.[/i]\n\n{it}[00ff00]DOPPIAMENTE FORTIFICATO[-][i] - Questo nemico non può essere colpito da Attacchi a Distanza o d'Assedio nella relativa fase.[/i]\n\n{ru}[00ff00]ДВАЖДЫ УКРЕПЛЕННЫЙ[-][i] - Враг не может быть атакован во время фазы боя на расстоянии.[/i]\n\n{zh-tw}[00ff00]双重城防[-][i] - 在远程攻击阶段不能使用远程攻击或攻城攻击攻击该敌人。[/i]\n\n{zh-cn}[00ff00]双重城防[-][i] - 在远程攻击阶段不能使用远程攻击或攻城攻击攻击该敌人。[/i]\n\n{ko}[00ff00]이중 요새화[-][i] - 이 적을 원거리 단계에서 원거리 공격이나 공성 공격으로 공격할 수 없음.[/i]\n\n{es}[00ff00]DOBLE FORTIFICADO[-][i] - Este enemigo no puede ser atacado con ataques a distancia o de asedio en la fase de alcance.[/i]\n\n{fr}[00ff00]DOUBLE FORTIFIÉ[-][i] - Cet ennemi ne peut pas être attaqué avec des attaques à distance ou de siège lors de la phase à distance.[/i]\n\n{pt-br}[00ff00]DUPLAMENTE FORTIFICADO[-][i] - Esse inimigo não pode ser atacado com ataques de longo alcance ou de cerco na fase de alcance[/i]\n\n{de}[00ff00]DOPPELT BEFESTIGT[-][i] - Dieser Feind kann in der Fernkampfphase nicht mit Fernkampf- oder Belagerungsangriffen angegriffen werden[/i]\n\n"}) end
+					if fortificationCount>=2 then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]DOUBLE FORTIFIED[-][i] - This enemy can't be attacked with Ranged or Siege attacks in the Range phase.[/i]\n\n{it}[00ff00]DOPPIAMENTE FORTIFICATO[-][i] - Questo nemico non può essere colpito da Attacchi a Distanza o d'Assedio nella relativa fase.[/i]\n\n{ru}[00ff00]ДВАЖДЫ УКРЕПЛЕННЫЙ[-][i] - Враг не может быть атакован во время фазы боя на расстоянии.[/i]\n\n{zh-tw}[00ff00]双重城防[-][i] - 在远程攻击阶段不能使用远程攻击或攻城攻击攻击该敌人。[/i]\n\n{zh-cn}[00ff00]双重城防[-][i] - 在远程攻击阶段不能使用远程攻击或攻城攻击攻击该敌人。[/i]\n\n{ko}[00ff00]이중 요새화[-][i] - 이 적을 원거리 단계에서 원거리 공격이나 공성 공격으로 공격할 수 없음.[/i]\n\n{es}[00ff00]DOBLE FORTIFICADO[-][i] - Este enemigo no puede ser atacado con ataques a distancia o de asedio en la fase de alcance.[/i]\n\n{fr}[00ff00]DOUBLE FORTIFIÉ[-][i] - Cet ennemi ne peut pas être attaqué avec des attaques à distance ou de siège lors de la phase à distance.[/i]\n\n{pt-br}[00ff00]DUPLAMENTE FORTIFICADO[-][i] - Esse inimigo não pode ser atacado com ataques de longo alcance ou de cerco na fase de alcance[/i]\n\n{de}[00ff00]DOPPELT BEFESTIGT[-][i] - Dieser Feind kann in der Fernkampfphase nicht mit Fernkampf- oder Belagerungsangriffen angegriffen werden[/i]\n\n"}) end
 					--Wall Fortified
-					if perkData~=nil and perkData.wallFortified~=nil and (monsterData==nil or monsterData.fortified==nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]WALL FORTIFIED[-][i] - This enemy can't be attacked with Ranged attacks in the Range phase.[/i]\n\n{it}[00ff00]FORTIFICATO DA MURA[-][i] - Questo nemico non può essere colpito da Attacchi a Distanza nella relativa fase.[/i]\n\n{ru}[00ff00]УКРЕПЛЕННЫЙ ЗА СТЕНОЙ[-][i] - Во время фазы боя на расстоянии против врага можно играть только Осадные атаки.[/i]\n\n{zh-tw}[00ff00]城防[-][i] - 在远程攻击阶段，该敌人无法受到远程攻击。[/i]\n\n{zh-cn}[00ff00]城防[-][i] - 在远程攻击阶段，该敌人无法受到远程攻击。[/i]\n\n{ko}[00ff00]벽 요새화[-][i] - 이 적을 원거리 단계에서 원거리 공격으로 공격할 수 없음.[/i]\n\n{es}[00ff00]PARED FORTIFICADA[-][i] - Este enemigo no puede ser atacado con ataques a distancia en la fase de Alcance.[/i]\n\n{fr}[00ff00]FORTIFIÉ PAR UN MUR[-][i] - Cet ennemi ne peut pas être attaqué avec des attaques à distance lors de la phase de portée.[/i]\n\n{pt-br}[00ff00]PAREDE FORTIFICADA[-][i] - Esse inimigo não pode ser atacado com ataques de longo alcance na fase de alcance[/i]\n\n{de}[00ff00]DURCH MAUER BEFESTIGT[-][i] - Dieser Gegner kann in der Fernkampfphase nicht mit Fernkampfangriffen angegriffen werden.[/i]\n\n"}) end
+					if fortificationCount==1 and wallFortified then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]WALL FORTIFIED[-][i] - This enemy can't be attacked with Ranged attacks in the Range phase.[/i]\n\n{it}[00ff00]FORTIFICATO DA MURA[-][i] - Questo nemico non può essere colpito da Attacchi a Distanza nella relativa fase.[/i]\n\n{ru}[00ff00]УКРЕПЛЕННЫЙ ЗА СТЕНОЙ[-][i] - Во время фазы боя на расстоянии против врага можно играть только Осадные атаки.[/i]\n\n{zh-tw}[00ff00]城防[-][i] - 在远程攻击阶段，该敌人无法受到远程攻击。[/i]\n\n{zh-cn}[00ff00]城防[-][i] - 在远程攻击阶段，该敌人无法受到远程攻击。[/i]\n\n{ko}[00ff00]벽 요새화[-][i] - 이 적을 원거리 단계에서 원거리 공격으로 공격할 수 없음.[/i]\n\n{es}[00ff00]PARED FORTIFICADA[-][i] - Este enemigo no puede ser atacado con ataques a distancia en la fase de Alcance.[/i]\n\n{fr}[00ff00]FORTIFIÉ PAR UN MUR[-][i] - Cet ennemi ne peut pas être attaqué avec des attaques à distance lors de la phase de portée.[/i]\n\n{pt-br}[00ff00]PAREDE FORTIFICADA[-][i] - Esse inimigo não pode ser atacado com ataques de longo alcance na fase de alcance[/i]\n\n{de}[00ff00]DURCH MAUER BEFESTIGT[-][i] - Dieser Gegner kann in der Fernkampfphase nicht mit Fernkampfangriffen angegriffen werden.[/i]\n\n"}) end
 					--Unfortified
 					if monsterData~=nil and monsterData.unfortified~=nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]UN-FORTIFIED[-][i] - This enemy ignores site fortifications, and can be attacked with Range and Siege attacks.[/i]\n\n{it}[00ff00]NON FORTIFICATO[-][i] - Questo nemico ignora le fortificazioni del sito e può subire Attacchi a Distanza e d'Assedio.[/i]\n\n{ru}[00ff00]НЕУКРЕПЛЕННЫЙ[-][i] - Этот враг игнорирует все местные укрепления и может быть атакован с помощью Дальних и Осадных атак.[/i]\n\n{zh-tw}[00ff00]不设城防[-][i] - 该敌人无视地点城防，可以使用远程攻击和攻城攻击。[/i]\n\n{zh-cn}[00ff00]不设城防[-][i] - 该敌人无视地点城防，可以使用远程攻击和攻城攻击。[/i]\n\n{ko}[00ff00]무방비[-][i] - 이 적을 요새화를 무시하고 원거리 및 공성 공격으로 공격할 수 있음.[/i]\n\n{es}[00ff00]NO FORTIFICADO[-][i] - Este enemigo ignora las fortificaciones del sitio, y puede ser atacado con ataques de Alcance y Asedio.[/i]\n\n{fr}[00ff00]NON FORTIFIE[-][i] - Cet ennemi ignore les fortifications du site et peut être attaqué avec des attaques à distance et de siège.[/i]\n\n{pt-br}[00ff00]NÃO FORTIFICADO[-][i] - Esse inimigo ignora as fortificações do local e pode ser atacado com ataques de longo alcance e de cerco.[/i]\n\n{de}[00ff00]UNVERBESSERT[-][i] - Dieser Feind ignoriert Standortbefestigungen und kann mit Fernkampf- und Belagerungsangriffen angegriffen werden.[/i]\n\n"}) end
 					--physical resistance
@@ -6749,7 +6766,7 @@ end
 
 function updateMoveDisplay(id)
 	--With zero Move and no active markers there is nothing for the movement display to do.
-	local moveValue=gStates.resourceTracker~=nil and gStates.resourceTracker.move~=nil and gStates.resourceTracker.move.move or 0
+	local moveValue=gStates.resourceTracker~=nil and gStates.resourceTracker.move~=nil and resourceCardsEffectiveMove() or 0
 	local hasMoveMarkers=(gStates.moveDisplayTextActiveCount or 0)>0
 	if moveValue<=0 and hasMoveMarkers==false then
 		clearMoveDisplayVisuals()
@@ -6769,7 +6786,7 @@ end
 
 function renderMoveDisplay(id)
 	--Preserve Global vector lines that existed before the movement display started.
-	local moveValue=gStates.resourceTracker~=nil and gStates.resourceTracker.move~=nil and gStates.resourceTracker.move.move or 0
+	local moveValue=gStates.resourceTracker~=nil and gStates.resourceTracker.move~=nil and resourceCardsEffectiveMove() or 0
 	if moveValue>0 and moveDisplayBaseVectorLines==nil then moveDisplayBaseVectorLines=Global.getVectorLines() or {} end
 
 	gStates.moveDisplayGeneration=(gStates.moveDisplayGeneration or 0)+1
@@ -7034,7 +7051,7 @@ function renderMoveDisplay(id)
 		end
 
 		local function recordMoveDestination(hor,vec,state,hexCost,predecessor,allowFringe)
-			if hexCost>=gStates.resourceTracker.move.move+searchLimit then return false end
+			if hexCost>=resourceCardsEffectiveMove()+searchLimit then return false end
 			local destinationMove=moveDestination(hor,vec)
 			local recordedCost=destinationMove[state] or 100
 			if hexCost>recordedCost then return false end
@@ -7062,11 +7079,13 @@ function renderMoveDisplay(id)
 					local destinationHex=hexMap~=nil and hexMap[tostring(hor)]~=nil and hexMap[tostring(hor)][tostring(vec)] or nil
 					if destinationHex~=nil then
 						local hexCost=999
-						if destinationHex.hexType~=nil and gStates.moveCost[destinationHex.hexType]~=nil then hexCost=gStates.moveCost[destinationHex.hexType]+moveSpent end
+						if destinationHex.hexType~=nil and gStates.moveCost[destinationHex.hexType]~=nil then
+                            hexCost=resourceCardsEffectiveTerrainCost(destinationHex.hexType)+moveSpent
+                        end
 						local wallhor=hexDetail.coord[1]+(vector[1]/2)
 						local wallvec=hexDetail.coord[2]+(vector[2]/2)
 						if hexMap[tostring(wallhor)]~=nil and hexMap[tostring(wallhor)][tostring(wallvec)]~=nil then hexCost=hexCost+1 end
-						if hexCost<=99 and hexCost<gStates.resourceTracker.move.move+searchLimit then
+						if hexCost<=99 and hexCost<resourceCardsEffectiveMove()+searchLimit then
 							--Don't add hex to fringe if passing a rampager.
 							local rampageHor={tostring(hexDetail.coord[1]+MOVE_DISPLAY_RAMPAGE_ADJACENT[currentVector][1]), tostring(hexDetail.coord[1]+MOVE_DISPLAY_RAMPAGE_ADJACENT[currentVector+2][1])}
 							local rampageVec={tostring(hexDetail.coord[2]+MOVE_DISPLAY_RAMPAGE_ADJACENT[currentVector][2]), tostring(hexDetail.coord[2]+MOVE_DISPLAY_RAMPAGE_ADJACENT[currentVector+2][2])}
@@ -7203,9 +7222,9 @@ function renderMoveDisplay(id)
 						local hexGridX,hexGridZ=world[1],world[3]
 						local startingHex=tonumber(hor)==playerHexGridHorizontal and tonumber(vec)==playerHexGridAxial
 						if startingHex==false then
-							if lowestHex<=gStates.resourceTracker.move.move then
+							if lowestHex<=resourceCardsEffectiveMove() then
 								addMoveCostText(displayCost,hexGridX,hexGridZ,true,lowestCombat,multipleCosts,dualCosts)
-							elseif lowestHex<=99 and lowestHex<gStates.resourceTracker.move.move+searchLimit then
+							elseif lowestHex<=99 and lowestHex<resourceCardsEffectiveMove()+searchLimit then
 								addMoveCostText(displayCost,hexGridX,hexGridZ,false,lowestCombat,multipleCosts,dualCosts)
 							end
 						end
@@ -14754,32 +14773,49 @@ publishPublicUICallbacks({
 })
 
 end)
-__bundle_register("PlayingGame.Scenario", function(require, _LOADED, __bundle_register, __bundle_modules)
--- Scenario-private helpers. Predeclared so forward references keep resolving locally.
-local volkareCampMapPositionForPlayer, volkareCampHexInfoAtPosition, volkarePursuitHexUsed, volkarePursuitDropShield, oneToReturnPortalTile
-local oneToReturnSetPortalClosedDecal, oneToReturnPortalOccupant, currentMageAvatarPosition, mineLiberatedForClaim, mineClaimData
-local clearScenarioEndAchieved, dungeonLordsSecretSourceFeature, dungeonLordsSecretSourcePosition, dungeonLordsSecretSpaceBasicLegal, dungeonLordsFindAdjacentSecretSource
-local dungeonLordsSecretDestinationLegal, dungeonLordsSecretLegalDestinationCount, dungeonLordsSecretRequestMatches, dungeonLordsQueueSecretRequest, dungeonLordsPruneImpossibleSecretRequests
-local againstHorsemenRitualDefenders, againstHorsemenPortalCardLayout, againstHorsemenEliminateCentralPlayers, againstHorsemenPrepareRitual, againstHorsemenRefreshHorseman
-local againstHorsemenGladePosition, againstHorsemenInlineGridDistance, againstHorsemenDefaultNextPosition, againstHorsemenFinalizeMoveWave, againstHorsemenAnimateMoveWave
-local againstHorsemenContinueEndRoundMovement, againstHorsemenStartingLevel, apocalypseIsHereHorsemanStartingLevel, apocalypseIsHereRevealThreshold, apocalypseIsHereRecomputeNextHorseman
-local apocalypseIsHereCancelReservedReveal, apocalypseIsHereDeployReservedHorseman, apocalypseIsHereRevealNextHorseman, apocalypseIsHerePossessEnemy, apocalypseIsHerePossessRampagersOnTile
-local apocalypseIsHereRevealDragonCity, apocalypseIsHereCurrentHorsemanHex, apocalypseIsHereHorsemanTargetOptions, apocalypseIsHereHorsemanDestination, apocalypseIsHereClearChoiceButtons
-local apocalypseIsHereShowTargetChoice, apocalypseIsHereRefreshPendingTargetChoice, apocalypseIsHereHorsemanClearTarget, apocalypseIsHereHorsemanDestroyTarget
-local apocalypseIsHereHorsemanMoveFinished, apocalypseIsHereResolveHorsemanTarget, apocalypseIsHereProcessNextHorseman, apocalypseIsHereContinueHorsemenTurn, apocalypseIsHereActiveHorsemen
-local apocalypseIsHereMainUIRefresh, apocalypseIsHereFinishHorsemenTurn, takeDestroyedSiteToken, arrangeDestroyedSiteHex, againstApocalypseObjectivesComplete
-local againstApocalypseCheckCompletion, againstApocalypseMarkPossessedRampager, restoreDestroyedSite, furyDragonEliteConditionMet, againstDragonActive
-local againstDragonPlayerIndexForMage, againstDragonClearBlackManaMarkers, againstDragonPlayerMarked, againstDragonMarkPlayer, againstDragonTargetChoiceButton
-local againstDragonShowMapChoice, againstDragonShowOffMapChoice, againstDragonDistanceStarts, againstDragonDistanceChoices
-local againstDragonPlayerHex, againstDragonSiteEligible, againstDragonDestroyCandidates, againstDragonActionLabel, againstDragonFinalReport
-local againstDragonResolveDestroyOption, againstDragonGainFame, againstDragonAttendanceAuthorized, againstDragonFullAttendAllowed, againstDragonAirborneTokenPosition
-local againstDragonAirborneMonsterData, againstDragonDeployAirborneHeads, againstDragonAirborneProtectionLocation, againstDragonAirborneProtectionReminder, againstDragonCaptureAirborneSuppression
-local againstDragonAttendPartial, againstDragonBeginManualAttack, againstDragonResolveOffMapPlayer, againstDragonTurnAction, furyDragonCompleteTurn
-local furyDragonFeatureMatches, furyDragonHexHasLiveRampager, furyDragonTargetCategory, furyDragonMapTilesAdjacent, furyDragonCurrentHex
-local furyDragonLairTarget, furyDragonLowestHead, furyDragonTargetHead, furyDragonTargetWouldOverflow, furyDragonChooseTarget
-local furyDragonCityModelGUID, furyDragonCityCard, furyDragonTargetPosition, furyDragonManaColor, furyDragonTargetLabel
-local furyDragonMoveMarkerOffMap, furyDragonBeginLandedTurn, furyDragonPlayersOnTarget, furyDragonDiscardHexEnemies, furyDragonDestroyHex
-local furyDragonRemoveCityDefender, furyDragonIncreaseHead, furyDragonResolveArrivalEffect, furyDragonBeginInFlightTurn
+__bundle_register("PlayingGame.FanScenario", function(require, _LOADED, __bundle_register, __bundle_modules)
+-- Fan-made scenarios: specific victory conditions and custom rule helpers.
+
+
+-- Extra conquest variants and Ultimate Conquest retain their independent win rules.
+function fanScenarioConquestEndAchieved(count)
+	if gStates==nil then return false end
+	local scenario=gStates.gameScenario
+	if scenario=="First Conquest" or scenario=="Fast Forwarded Conquest" then return count==gStates.cityTiles end
+	if scenario=="Ultimate Conquest" then
+		return count==gStates.cityTiles and (gStates.removeShadesOfTezlaMonsters==true or gStates.defeatedFaction==2)
+	end
+	return false
+end
+
+-- Called by BaseScenario after Combat has returned enemies and settled shields.
+function fanScenarioCombatEndAchieved(cleanupLocation,cardInHand,volkareBeaten)
+	if gStates==nil then return false end
+	local scenario=gStates.gameScenario
+	if scenario=="First Conquest" or scenario=="Fast Forwarded Conquest" or scenario=="Ultimate Conquest" then
+		return fanScenarioConquestEndAchieved(conqueredCityObjectiveCount())
+	end
+	if scenario=="The War of Four" then return volkareBeaten==true end
+	if scenario=="Quest for the Golden Grail" then return cleanupLocation=="portal" and cardInHand==true end
+	if scenario=="The Gauntlet" then return gStates.theGauntletArtifactClaimed==true end
+	return false
+end
+
+end)
+__bundle_register("PlayingGame.APOCScenario", function(require, _LOADED, __bundle_register, __bundle_modules)
+-- Apocalypse: Fractured Lands, Horsemen, Dragon, and destroyed-site rules.
+local againstHorsemenRitualDefenders, againstHorsemenPortalCardLayout, againstHorsemenEliminateCentralPlayers, againstHorsemenPrepareRitual, againstHorsemenRefreshHorseman, againstHorsemenGladePosition, againstHorsemenInlineGridDistance, againstHorsemenDefaultNextPosition
+local againstHorsemenFinalizeMoveWave, againstHorsemenAnimateMoveWave, againstHorsemenContinueEndRoundMovement, againstHorsemenStartingLevel, apocalypseIsHereHorsemanStartingLevel, apocalypseIsHereRevealThreshold, apocalypseIsHereRecomputeNextHorseman, apocalypseIsHereCancelReservedReveal
+local apocalypseIsHereDeployReservedHorseman, apocalypseIsHereRevealNextHorseman, apocalypseIsHerePossessEnemy, apocalypseIsHerePossessRampagersOnTile, apocalypseIsHereRevealDragonCity, apocalypseIsHereCurrentHorsemanHex, apocalypseIsHereHorsemanTargetOptions, apocalypseIsHereHorsemanDestination
+local apocalypseIsHereClearChoiceButtons, apocalypseIsHereShowTargetChoice, apocalypseIsHereRefreshPendingTargetChoice, apocalypseIsHereHorsemanClearTarget, apocalypseIsHereHorsemanDestroyTarget, apocalypseIsHereHorsemanMoveFinished, apocalypseIsHereResolveHorsemanTarget, apocalypseIsHereProcessNextHorseman
+local apocalypseIsHereContinueHorsemenTurn, apocalypseIsHereActiveHorsemen, apocalypseIsHereMainUIRefresh, apocalypseIsHereFinishHorsemenTurn, takeDestroyedSiteToken, arrangeDestroyedSiteHex, againstApocalypseCheckCompletion, againstApocalypseMarkPossessedRampager
+local restoreDestroyedSite, furyDragonEliteConditionMet, againstDragonActive, againstDragonPlayerIndexForMage, againstDragonClearBlackManaMarkers, againstDragonPlayerMarked, againstDragonMarkPlayer, againstDragonTargetChoiceButton
+local againstDragonShowMapChoice, againstDragonShowOffMapChoice, againstDragonDistanceStarts, againstDragonDistanceChoices, againstDragonPlayerHex, againstDragonSiteEligible, againstDragonDestroyCandidates, againstDragonActionLabel
+local againstDragonFinalReport, againstDragonResolveDestroyOption, againstDragonGainFame, againstDragonAttendanceAuthorized, againstDragonFullAttendAllowed, againstDragonAirborneTokenPosition, againstDragonAirborneMonsterData, againstDragonDeployAirborneHeads
+local againstDragonAirborneProtectionLocation, againstDragonAirborneProtectionReminder, againstDragonCaptureAirborneSuppression, againstDragonAttendPartial, againstDragonBeginManualAttack, againstDragonResolveOffMapPlayer, againstDragonTurnAction, furyDragonCompleteTurn
+local furyDragonFeatureMatches, furyDragonHexHasLiveRampager, furyDragonTargetCategory, furyDragonMapTilesAdjacent, furyDragonCurrentHex, furyDragonLairTarget, furyDragonLowestHead, furyDragonTargetHead
+local furyDragonTargetWouldOverflow, furyDragonChooseTarget, furyDragonCityModelGUID, furyDragonCityCard, furyDragonTargetPosition, furyDragonManaColor, furyDragonTargetLabel, furyDragonMoveMarkerOffMap
+local furyDragonBeginLandedTurn, furyDragonPlayersOnTarget, furyDragonDiscardHexEnemies, furyDragonDestroyHex, furyDragonRemoveCityDefender, furyDragonIncreaseHead, furyDragonResolveArrivalEffect, furyDragonBeginInFlightTurn
 local furyDragonDestroyedSiteLimitReached, furyDragonBeginDefense, furyDragonStartDefenseParticipant, furyDragonFinishDefenseParticipant
 
 -- Scenario and variant runtime systems. Setup/menu construction remains in SetupGame.
@@ -14849,382 +14885,6 @@ function startFracturedLandsOrientation(tile, position)
 	fracturedLandsOrientationButtons(tile)
 end
 
---Volkare's Camp-as-City rules are proximity based. Keep the real avatarLocation intact so any
---printed site on one of the six surrounding hexes can still use its normal rules.
-function volkareCampAsCityConquered()
-	--During setup defeatedCities is still the legacy numeric sentinel until the first city-state refresh.
-	if gStates.volkareCampAsCity~=true or type(gStates.defeatedCities)~="table" then return false end
-	return gStates.defeatedCities[volkare.terrainHex]==true and gStates.cityVolkareTile~=nil
-end
-
-function volkarePursuitShieldRegistered(obj)
-	if obj==nil then return false end
-	if obj.getGMNotes~=nil and obj.getGMNotes()=="Volkare Pursuit" then return true end
-	return gStates.volkarePursuitShields~=nil and gStates.volkarePursuitShields[obj.guid]~=nil
-end
-
-volkareCampMapPositionForPlayer=function(playerIndex)
-	local player=turnOrder[playerIndex]
-	if player==nil then return nil end
-	local cityGUID=player.avatarSwapCity
-	local location=player.avatarLocation or ""
-	if cityGUID==nil then
-		local cityByLocation={["city blue"]=cityModel.blue,["raised blue"]=cityModel.blue,["city red"]=cityModel.red,["raised red"]=cityModel.red,
-			["city green"]=cityModel.green,["raised green"]=cityModel.green,["city white"]=cityModel.white,["raised white"]=cityModel.white}
-		cityGUID=cityByLocation[location]
-	end
-	if location=="Volkare's Camp" then cityGUID=volkare.terrainHex end
-	if cityGUID~=nil and gStates.cityMonsterQty~=nil and gStates.cityMonsterQty[cityGUID]~=nil then
-		local extra=gStates.cityMonsterQty[cityGUID].extra
-		local terrainGUID=extra~=nil and extra.terainGUID or nil
-		local terrain=terrainGUID~=nil and getObjectFromGUID(terrainGUID) or nil
-		if terrain~=nil then return terrain.getPosition() end
-	end
-	return mageKnightAvatarPosition(playerIndex)
-end
-
-volkareCampHexInfoAtPosition=function(position)
-	if volkareCampAsCityConquered()~=true or position==nil then return nil end
-	local campTerrain=getObjectFromGUID(gStates.cityVolkareTile)
-	if campTerrain==nil then return nil end
-	local terrain,bearing,hexCenter=terrainHexAtPosition(position)
-	if terrain==nil or bearing==nil or hexCenter==nil then return nil end
-	local campPos=campTerrain.getPosition()
-	local dx=hexCenter[1]-campPos[1]
-	local dz=hexCenter[3]-campPos[3]
-	if (dx*dx)+(dz*dz)>7 then return nil end
-	return {terrainGUID=terrain.guid,bearing=bearing,key=terrain.guid.."|"..tostring(bearing),position={hexCenter[1],2,hexCenter[3]}}
-end
-
-function volkareCampPlayerHexInfo(playerIndex)
-	return volkareCampHexInfoAtPosition(volkareCampMapPositionForPlayer(playerIndex))
-end
-
-function volkareCampContributionShieldCount(playerRef)
-	local playerIndex=type(playerRef)=="number" and playerRef or nil
-	local player=playerIndex~=nil and turnOrder[playerIndex] or playerRef
-	if player==nil or player.mage==nil or volkareCampAsCityConquered()~=true then return 0 end
-	local zone=getObjectFromGUID(volkare.discZone)
-	if zone==nil then return 0 end
-	local count=0
-	for _,obj in pairs(zone.getObjects()) do if isShieldObject(obj) and shieldOwner(obj)==player.mage then count=count+1 end end
-	return count
-end
-
-volkarePursuitHexUsed=function(hexKey)
-	if hexKey==nil then return false end
-	if gStates.volkarePursuitShields==nil then gStates.volkarePursuitShields={} end
-	for guid,storedKey in pairs(gStates.volkarePursuitShields) do
-		local shield=getObjectFromGUID(guid)
-		if shield==nil then
-			gStates.volkarePursuitShields[guid]=nil
-		else
-			local info=volkareCampHexInfoAtPosition(shield.getPosition())
-			if info~=nil then storedKey=info.key gStates.volkarePursuitShields[guid]=storedKey end
-			if storedKey==hexKey then return true end
-		end
-	end
-	return false
-end
-
-function volkarePursuitActionInfo(playerIndex)
-	local player=turnOrder[playerIndex]
-	if player==nil or gStates.preEndTurn==true or playerIndex~=gStates.turnNumber or player.combatIconHide~="None" then return nil end
-	local token=getObjectFromGUID(player.turnOrderTokenGUID)
-	if token==nil or token.is_face_down==true then return nil end
-	local info=volkareCampPlayerHexInfo(playerIndex)
-	if info==nil or volkarePursuitHexUsed(info.key)==true then return nil end
-	return info
-end
-
-volkarePursuitDropShield=function(playerIndex,combat)
-	local player=turnOrder[playerIndex]
-	if player==nil or combat==nil or combat.position==nil then return nil end
-	local details=mageKnightsByName[player.mage]
-	local container=details~=nil and getObjectFromGUID(details.shieldContainer) or nil
-	if container==nil then return nil end
-	local shield=container.takeObject({position={combat.position[1]+0.55,3,combat.position[3]},smooth=false})
-	if shield==nil then return nil end
-	shield.setGMNotes("Volkare Pursuit")
-	if gStates.volkarePursuitShields==nil then gStates.volkarePursuitShields={} end
-	gStates.volkarePursuitShields[shield.guid]=combat.hexKey
-	safeWaitTime("Scenario",function() if getObjectFromGUID(shield.guid)~=nil then safeWaitCondition("Scenario",function() shield.lock() end,function() return shield.resting end) end end,1.0)
-	broadcastToAll(joinLang({translateWord[player.mage],"{en} marked a Volkare Pursuit hex.{it} ha contrassegnato un esagono di Inseguimento di Volkare.{ru} отметил гекс преследования Волкара.{zh-tw}标记了一个沃卡里追击格。{zh-cn}标记了一个沃卡里追击格。{ko}: 볼케어 추격 칸을 표시했습니다.{es} marcó un hexágono de Persecución de Volkare.{fr} a marqué un hexagone de Poursuite de Volkare.{pt-br} marcou um hexágono de Perseguição de Volkare.{de} hat ein Feld für die Verfolgung Volkares markiert."}),positionToColor(playerIndex))
-	return shield
-end
-
-function volkarePursuitResolveCombat(playerIndex)
-	local combat=gStates.volkarePursuitCombat
-	if combat==nil or combat.player~=playerIndex then return end
-	local success=false
-	for _,obj in pairs(playerCombatObjects(turnOrder[playerIndex].seatPos)) do
-		if combat.monsters~=nil and combat.monsters[obj.guid]==true and obj.is_face_down==false then success=true break end
-	end
-	if success==true and volkarePursuitHexUsed(combat.hexKey)~=true then volkarePursuitDropShield(playerIndex,combat) end
-	gStates.volkarePursuitCombat=nil
-	gStates.volkarePursuitChoicePlayer=nil
-end
-
-function volkareArmyStillAlive()
-	local army=gStates~=nil and gStates.cityMonsterQty~=nil and gStates.cityMonsterQty[volkare.model] or nil
-	if type(army)~="table" then return false end
-	for guid,state in pairs(army) do if guid~="extra" and state=="alive" then return true end end
-	return false
-end
-
---City raising is needed by both Volkare's movement processor and later combat-prompt callbacks.
-function volkareRazesCity(cityKey)
-	if cityKey==nil or cityKey==0 or gStates.cityRevealed[cityKey]==nil then return end
-	local city=gStates.cityRevealed[cityKey]
-	local cityColor={[cityModel.blue]="blue", [cityModel.red]="red", [cityModel.green]="green", [cityModel.white]="white"}
-	runtimeMapSetHexFeature(city.terrain,"center","raised "..cityColor[city.model])
-	if gStates.hexOverideSave[city.terrain]==nil then gStates.hexOverideSave[city.terrain]={} end
-	gStates.hexOverideSave[city.terrain].center="raised "..cityColor[city.model]
-	local cityZone={[cityModel.blue]=GUID.zone.blueCity, [cityModel.red]=GUID.zone.redCity, [cityModel.green]=GUID.zone.greenCity, [cityModel.white]=GUID.zone.whiteCity}
-	getObjectFromGUID(cityScriptZones[cityZone[city.model]].cityCard).setDescription("{en}Raised City - Provides no Interaction{it}Città Rasa al Suolo - Nessuna Interazione{ru}Поднятый город — взаимодействие недоступно{zh-tw}升起的城市－無法互動{zh-cn}升起的城市－无法互动{ko}상승한 도시 - 상호작용 불가{es}Ciudad Elevada - No permite Interacción{fr}Cité Élevée - Aucune Interaction{pt-br}Cidade Elevada - Sem Interação{de}Erhöhte Stadt - Keine Interaktion")
-	getObjectFromGUID(cityScriptZones[cityZone[city.model]].cityCard).addDecal({name="City Raised", url="https://steamusercontent-a.akamaihd.net/ugc/938341811903683200/0910E72610C36BACDEF44CB3BA2A909BA4AFC12E/",
-		position={0.0,0.5,0.0}, rotation={90.0,180.0,0.0}, scale={1,2,2}})
-	gStates.volkareRaisedCity=true
-end
-
---Volkare's Quest only: once he reaches three spaces from the portal the Council closes it permanently.
---Mark the closed portal with the dedicated portal-closure artwork.
-volkarePortalClosedDecalURL="https://steamusercontent-a.akamaihd.net/ugc/9820771160644960489/29318B61F2A30E0E941F355C3664303B0C95BC60/"
-function volkareQuestPortalTile()
-	local portalTile=getObjectFromGUID(startTerrain.open)
-	if portalTile==nil then portalTile=getObjectFromGUID(startTerrain.wedge) end
-	return portalTile
-end
-local function scenarioEliminatePlayersAtPortal(message)
-	local eliminated=0
-	for playerIndex,details in pairs(turnOrder) do
-		if details.mage~=gStates.positionMageKnight[5] and playerDropoutInactive(playerIndex)==false and details.avatarLocation=="portal" then
-			details.dropoutState="dropped"
-			gStates.skipTurn[playerIndex]=nil
-			local token=getObjectFromGUID(details.turnOrderTokenGUID)
-			if token~=nil and token.is_face_down==true then token.flip() end
-			broadcastToAll(joinLang({translateWord[details.mage],message}),positionToColor(playerIndex))
-			eliminated=eliminated+1
-		end
-	end
-	return eliminated
-end
-
-function volkareQuestPortalStatus()
-	if gStates.gameScenario~="Volkare's Quest" or gStates.volkarePortalClosed==true then return false end
-	local volkareObj=gStates.volkareModel~=nil and getObjectFromGUID(gStates.volkareModel) or nil
-	local portalTile=volkareQuestPortalTile()
-	if volkareObj==nil or portalTile==nil then return false end
-	local vPos=volkareObj.getPosition()
-	local pPos=portalTile.getPosition()
-	local distance=math.sqrt(((vPos[1]-pPos[1])^2)+((vPos[3]-pPos[3])^2))
-	--Euclidean distance is sufficient here, but do not divide-and-round it: different hexes on the same ring have different radii.
-	--These thresholds sit in the clear gaps between the 3/4-space and 4/5-space rings.
-	local closeDistance=2.39*3.25
-	local warningDistance=2.39*4.20
-	if distance>closeDistance and distance<=warningDistance and gStates.volkarePortalWarningShown~=true then
-		gStates.volkarePortalWarningShown=true
-		broadcastToAll("{en}WARNING: Volkare is four spaces from the Portal. If he moves within three spaces, the Council of the Void will close it.{it}ATTENZIONE: Volkare è a quattro spazi dal Portale. Se arriva entro tre spazi, il Consiglio del Vuoto lo chiuderà.{ru}ВНИМАНИЕ: Волкар находится в четырёх клетках от Портала. Если он приблизится на три клетки, Совет Пустоты закроет Портал.{zh-tw}警告：沃卡里距離傳送門四格。若他進入三格範圍內，虛空議會將關閉傳送門。{zh-cn}警告：沃卡里距离传送门四格。若他进入三格范围内，虚空议会将关闭传送门。{ko}경고: 볼케어가 포털에서 4칸 떨어져 있습니다. 3칸 이내로 이동하면 공허의 의회가 포털을 닫습니다.{es}ADVERTENCIA: Volkare está a cuatro espacios del Portal. Si se acerca a tres espacios, el Consejo del Vacío lo cerrará.{fr}ATTENTION : Volkare se trouve à quatre cases du Portail. S’il s’approche à trois cases, le Conseil du Vide le fermera.{pt-br}AVISO: Volkare está a quatro espaços do Portal. Se ele chegar a três espaços, o Conselho do Vácuo fechará o Portal.{de}WARNUNG: Volkare ist vier Felder vom Portal entfernt. Kommt er auf drei Felder heran, wird der Rat der Leere das Portal schließen.", {1,0.65,0.15})
-	end
-	if distance>closeDistance then return false end
-	gStates.volkarePortalClosed=true
-	gStates.volkarePortalWarningShown=true
-	local decals=portalTile.getDecals() or {}
-	local marked=false
-	for _, decal in pairs(decals) do if decal.name=="Portal Closed" then marked=true break end end
-	if marked==false then portalTile.addDecal({name="Portal Closed",url=volkarePortalClosedDecalURL,position={0,0.15,0},rotation={90,180,0},scale={0.88,0.88,1}}) end
-	broadcastToAll("{en}The Council of the Void has closed the Portal. From now on it is an ordinary space, and Volkare may be attacked there.{it}Il Consiglio del Vuoto ha chiuso il Portale. Ora è uno spazio normale e vi si può attaccare Volkare.{ru}Совет Пустоты закрыл Портал. Теперь это обычная клетка, и Волкара можно атаковать там.{zh-tw}虛空議會已關閉傳送門。從現在起它視為一般空間，沃卡里可在此被攻擊。{zh-cn}虚空议会已关闭传送门。从现在起它视为一般空间，沃卡里可在此被攻击。{ko}공허의 의회가 포털을 닫았습니다. 이제 일반 칸으로 취급하며 그곳에서 볼케어를 공격할 수 있습니다.{es}El Consejo del Vacío ha cerrado el Portal. A partir de ahora es un espacio normal y Volkare puede ser atacado allí.{fr}Le Conseil du Vide a fermé le Portail. Désormais, il s’agit d’une case ordinaire et Volkare peut y être attaqué.{pt-br}O Conselho do Vácuo fechou o Portal. A partir de agora ele é um espaço comum, e Volkare pode ser atacado ali.{de}Der Rat der Leere hat das Portal geschlossen. Von nun an ist es ein normales Feld, und Volkare kann dort angegriffen werden.", {1,0.45,0.15})
-	scenarioEliminatePlayersAtPortal("{en} was caught on the Portal when it closed and is out of the game.{it} si trovava sul Portale alla chiusura ed è fuori dalla partita.{ru} оказался на Портале в момент его закрытия и выбывает из игры.{zh-tw} 在傳送門關閉時仍站在其上，因此退出遊戲。{zh-cn} 在传送门关闭时仍站在其上，因此退出游戏。{ko} 포탈이 닫힐 때 그 위에 있어 게임에서 탈락합니다.{es} estaba en el Portal cuando se cerró y queda fuera de la partida.{fr} se trouvait sur le Portail lors de sa fermeture et est éliminé de la partie.{pt-br} estava no Portal quando ele se fechou e está fora do jogo.{de} befand sich beim Schließen auf dem Portal und scheidet aus dem Spiel aus.")
-	applyColorBarButtons()
-	addAvatarButtons()
-	volkareQuestCheckSkipTurn()
-	if activeMageKnightCount()==0 then
-		gStates.volkareWon=true
-		gStates.blurb="{en}The Portal closed with every Mage Knight trapped upon it.<size=6>\n\n</size>No-one remains to oppose Volkare. You have Lost.{it}Il Portale si è chiuso con tutti i Mage Knight intrappolati sopra.<size=6>\n\n</size>Nessuno può più opporsi a Volkare. Avete perso.{ru}Портал закрылся, когда все Рыцари-Маги находились на нем.<size=6>\n\n</size>Некому противостоять Волкару. Вы проиграли.{zh-tw}傳送門關閉時所有魔法騎士都被困在其上。<size=6>\n\n</size>已無人能阻止沃卡里。你輸了。{zh-cn}传送门关闭时所有魔法骑士都被困在其上。<size=6>\n\n</size>已无人能阻止沃卡里。你输了。{ko}포탈이 닫히며 모든 마법기사가 그 위에 갇혔습니다.<size=6>\n\n</size>볼케어를 막을 자가 없습니다. 패배했습니다.{es}El Portal se cerró con todos los Caballeros Mago atrapados sobre él.<size=6>\n\n</size>Nadie queda para oponerse a Volkare. Has perdido.{fr}Le Portail s'est fermé alors que tous les Chevaliers-Mages s'y trouvaient.<size=6>\n\n</size>Plus personne ne peut s'opposer à Volkare. Vous avez perdu.{pt-br}O Portal se fechou com todos os Cavaleiros Magos presos sobre ele.<size=6>\n\n</size>Ninguém resta para enfrentar Volkare. Você perdeu.{de}Das Portal schloss sich, während alle Mage Knights darauf standen.<size=6>\n\n</size>Niemand kann Volkare noch aufhalten. Ihr habt verloren."
-		UI.setAttribute("DummyNotes", "Text", gStates.blurb)
-		mainUIUpdate("Volkare portal closure eliminated all players")
-	end
-	return true
-end
-
---One to Return: the starting Portal closes after the first Day, eliminating anyone still on it.
---After that it is an ordinary single-occupancy plains hex until it reopens at the end of the second Night.
-oneToReturnPortalTile=function()
-	return volkareQuestPortalTile()
-end
-
-oneToReturnSetPortalClosedDecal=function(closed)
-	local portalTile=oneToReturnPortalTile()
-	if portalTile==nil then return end
-	local decals=portalTile.getDecals() or {}
-	local kept={}
-	local marked=false
-	for _, decal in pairs(decals) do
-		if decal.name=="Portal Closed" then marked=true else kept[#kept+1]=decal end
-	end
-	if closed==true then
-		if marked==false then portalTile.addDecal({name="Portal Closed",url=volkarePortalClosedDecalURL,position={0,0.15,0},rotation={90,180,0},scale={0.88,0.88,1}}) end
-	elseif marked==true then portalTile.setDecals(kept) end
-end
-
-function oneToReturnClosePortal()
-	if gStates.gameScenario~="One to Return" or gStates.oneToReturnPortalClosed==true then return false end
-	gStates.oneToReturnPortalClosed=true
-	oneToReturnSetPortalClosedDecal(true)
-	broadcastToAll("{en}The Portal has closed. From now on it is an ordinary plains space until the end of the second Night.{it}Il Portale si è chiuso. Ora è un normale spazio pianura fino alla fine della seconda Notte.{ru}Портал закрылся. До конца второй Ночи это обычная клетка Равнины.{zh-tw}傳送門已關閉。從現在起直到第二個夜晚結束，它視為一般平原空間。{zh-cn}传送门已关闭。从现在起直到第二个夜晚结束，它视为一般平原空间。{ko}포털이 닫혔습니다. 두 번째 밤이 끝날 때까지 일반 평원 칸으로 취급합니다.{es}El Portal se ha cerrado. Hasta el final de la segunda Noche es un espacio normal de Llanura.{fr}Le Portail s’est fermé. Jusqu’à la fin de la deuxième Nuit, il s’agit d’une case de Plaine ordinaire.{pt-br}O Portal se fechou. Até o fim da segunda Noite ele é um espaço comum de Planície.{de}Das Portal hat sich geschlossen. Bis zum Ende der zweiten Nacht ist es ein normales Ebenenfeld.", warningColor)
-	scenarioEliminatePlayersAtPortal("{en} was still on the Portal when it closed and is out of the game.{it} era ancora sul Portale alla chiusura ed è fuori dalla partita.{ru} оставался на Портале, когда он закрылся, и выбывает из игры.{zh-tw} 在傳送門關閉時仍站在其上，因此退出遊戲。{zh-cn} 在传送门关闭时仍站在其上，因此退出游戏。{ko} 포탈이 닫힐 때 그 위에 있어 게임에서 탈락합니다.{es} seguía en el Portal cuando se cerró y queda fuera de la partida.{fr} se trouvait encore sur le Portail lorsqu'il s'est fermé et est éliminé de la partie.{pt-br} ainda estava no Portal quando ele se fechou e está fora do jogo.{de} befand sich noch auf dem Portal, als es sich schloss, und scheidet aus dem Spiel aus.")
-	applyColorBarButtons()
-	addAvatarButtons()
-	if activeMageKnightCount()==0 then
-		gStates.oneToReturnWinner=nil
-		gStates.oneToReturnWinnerLocked=true
-		gStates.blurb="{en}The Portal closed with every Mage Knight still upon it.<size=6>\n\n</size>No Hero remains to return. There is no winner.{it}Il Portale si è chiuso con tutti i Mage Knight ancora sopra.<size=6>\n\n</size>Nessun Eroe può tornare. Non c'è vincitore.{ru}Портал закрылся, когда все Рыцари-Маги оставались на нем.<size=6>\n\n</size>Никто не сможет вернуться. Победителя нет.{zh-tw}傳送門關閉時所有魔法騎士都還在其上。<size=6>\n\n</size>沒有英雄能夠返回。無人獲勝。{zh-cn}传送门关闭时所有魔法骑士都还在其上。<size=6>\n\n</size>没有英雄能够返回。无人获胜。{ko}포탈이 닫힐 때 모든 마법기사가 그 위에 남아 있었습니다.<size=6>\n\n</size>돌아갈 영웅이 없습니다. 승자는 없습니다.{es}El Portal se cerró con todos los Caballeros Mago todavía sobre él.<size=6>\n\n</size>No queda ningún Héroe que pueda regresar. No hay ganador.{fr}Le Portail s'est fermé alors que tous les Chevaliers-Mages s'y trouvaient encore.<size=6>\n\n</size>Aucun Héros ne peut rentrer. Il n'y a pas de vainqueur.{pt-br}O Portal se fechou com todos os Cavaleiros Magos ainda sobre ele.<size=6>\n\n</size>Nenhum Herói resta para retornar. Não há vencedor.{de}Das Portal schloss sich, während noch alle Mage Knights darauf standen.<size=6>\n\n</size>Kein Held kann zurückkehren. Es gibt keinen Gewinner."
-		UI.setAttribute("DummyNotes", "Text", gStates.blurb)
-		gStates.endGameAchieved="true"
-		gStates.gameOver=true
-		mainUIUpdate("One to Return portal closure eliminated all players")
-	end
-	return true
-end
-
-oneToReturnPortalOccupant=function()
-	if gStates.gameScenario~="One to Return" then return nil,nil end
-	local portalTile=oneToReturnPortalTile()
-	if portalTile==nil then return nil,nil end
-	local portalPos=portalTile.getPosition()
-	for playerIndex, details in pairs(turnOrder) do
-		if details.mage~=gStates.positionMageKnight[5] and playerDropoutInactive(playerIndex)==false then
-			local avatarObj=nil
-			for _, avatar in pairs(mageKnights) do
-				if avatar.mage==details.mage then
-					avatarObj=getObjectFromGUID(avatar.model) or getObjectFromGUID(avatar.standee) or getObjectFromGUID(avatar.token)
-					break
-				end
-			end
-			if avatarObj~=nil then
-				local pos=avatarObj.getPosition()
-				if ((pos[1]-portalPos[1])^2)+((pos[3]-portalPos[3])^2)<1 then return playerIndex,details end
-			end
-		end
-	end
-	return nil,nil
-end
-
-function oneToReturnLockFinalWinner()
-	if gStates.gameScenario~="One to Return" then return false end
-	oneToReturnSetPortalClosedDecal(false)
-	local _,winner=oneToReturnPortalOccupant()
-	if winner==nil then
-		gStates.oneToReturnWinner=nil
-		gStates.oneToReturnWinnerLocked=false
-		return false
-	end
-	if oneToReturnEnsureChosenMages~=nil then oneToReturnEnsureChosenMages() end
-	local teamVariant=gStates.oneToReturnChosenMages~=nil
-	local team=mageKnightSeatTeam(winner.seatPos)
-	gStates.oneToReturnWinner=(not teamVariant or gStates.oneToReturnChosenMages[team]==winner.mage) and winner.mage or nil
-	gStates.oneToReturnWinnerLocked=true
-	if gStates.oneToReturnWinner==nil then
-		broadcastToAll("{en}A Hero occupies the Portal, but they are not the chosen member of their team. No team wins.{it}Un eroe occupa il Portale, ma non è il prescelto della sua squadra. Nessuna squadra vince.{ru}Герой занял Портал, но он не избранный участник команды. Победителей нет.{zh-tw}傳送門有人佔據，但不是該隊選定的英雄。無隊伍獲勝。{zh-cn}传送门有人占据，但不是该队选定的英雄。无队伍获胜。{ko}포털에 영웅이 있지만 팀의 선택된 영웅이 아닙니다. 승자는 없습니다.{es}Un héroe ocupa el Portal, pero no es el elegido de su equipo. Ningún equipo gana.{fr}Un héros occupe le Portail, mais ce n'est pas l'élu de son équipe. Aucune équipe ne gagne.{pt-br}Um herói ocupa o Portal, mas não é o escolhido de sua equipe. Nenhuma equipe vence.{de}Ein Held besetzt das Portal, aber nicht der Auserwählte seines Teams. Kein Team gewinnt.",{1,1,0.5})
-	else
-		broadcastToAll(joinLang({translateWord[winner.mage], "{en} occupies the Portal as End of Night is announced and is the One to Return. Player vs. Player combat may not be initiated after End of Night is called.{it} occupa il Portale all'annuncio della fine della Notte ed è l'Unico a Tornare. Dopo l'annuncio non si possono iniziare combattimenti tra giocatori.{ru} занимает Портал в момент объявления конца Ночи и становится Единственным, кто вернется. После объявления конца Ночи нельзя начинать бой между игроками.{zh-tw} 在宣告黑夜輪結束時佔據傳送門，成為唯一能返回的英雄。宣告黑夜輪結束後不能再發起玩家對玩家戰鬥。{zh-cn} 在宣布黑夜轮结束时占据传送门，成为唯一能返回的英雄。宣布黑夜轮结束后不能再发起玩家对玩家战斗。{ko} 밤 종료가 선언될 때 포탈을 차지하고 있어 돌아갈 단 한 명의 영웅이 됩니다. 밤 종료 선언 후에는 PvP 전투를 시작할 수 없습니다.{es} ocupa el Portal cuando se anuncia el Fin de la Noche y es el Único que Regresa. No se puede iniciar combate entre jugadores después de anunciar el Fin de la Noche.{fr} occupe le Portail lorsque la Fin de la Nuit est annoncée et devient l'Unique à Revenir. Aucun combat entre joueurs ne peut être initié après l'annonce de la Fin de la Nuit.{pt-br} ocupa o Portal quando o Fim da Noite é anunciado e é o Único a Retornar. Combate entre jogadores não pode ser iniciado depois que o Fim da Noite é anunciado.{de} besetzt das Portal, als das Ende der Nacht ausgerufen wird, und ist der Eine, der zurückkehrt. Nach dem Ausrufen des Nachtendes darf kein PvP-Kampf mehr begonnen werden."}), {1,1,0.5})
-	end
-	return gStates.oneToReturnWinner~=nil
-end
-
-function oneToReturnResolveWinner()
-	if gStates.gameScenario~="One to Return" then return false end
-	oneToReturnSetPortalClosedDecal(false)
-	local winnerMage=gStates.oneToReturnWinnerLocked==true and gStates.oneToReturnWinner or nil
-	if winnerMage==nil and gStates.oneToReturnWinnerLocked~=true then
-		local _,winner=oneToReturnPortalOccupant()
-		if winner~=nil then
-			local chosen=gStates.oneToReturnChosenMages
-			local team=mageKnightSeatTeam(winner.seatPos)
-			if chosen==nil or chosen[team]==winner.mage then winnerMage=winner.mage end
-		end
-	end
-	gStates.oneToReturnWinner=winnerMage
-	if winnerMage~=nil then
-		gStates.blurb=joinLang({translateWord[winnerMage], "{en} is the One to Return.<size=6>\n\n</size>They occupy the Portal as the second Night ends and win the game.{it} è l'Unico a Tornare.<size=6>\n\n</size>Occupa il Portale alla fine della seconda Notte e vince la partita.{ru} — Единственный, кто вернется.<size=6>\n\n</size>Он занимает Портал в конце второй Ночи и выигрывает игру.{zh-tw} 是唯一能返回的英雄。<size=6>\n\n</size>第二個黑夜輪結束時佔據傳送門並贏得遊戲。{zh-cn} 是唯一能返回的英雄。<size=6>\n\n</size>第二个黑夜轮结束时占据传送门并赢得游戏。{ko} 돌아갈 단 한 명의 영웅입니다.<size=6>\n\n</size>두 번째 밤이 끝날 때 포탈을 차지해 승리합니다.{es} es el Único que Regresa.<size=6>\n\n</size>Ocupa el Portal cuando termina la segunda Noche y gana la partida.{fr} est l'Unique à Revenir.<size=6>\n\n</size>Ce Héros occupe le Portail à la fin de la deuxième Nuit et remporte la partie.{pt-br} é o Único a Retornar.<size=6>\n\n</size>Ocupa o Portal quando a segunda Noite termina e vence o jogo.{de} ist der Eine, der zurückkehrt.<size=6>\n\n</size>Dieser Held besetzt das Portal am Ende der zweiten Nacht und gewinnt das Spiel."})
-	else
-		gStates.blurb="{en}The second Night has ended and no Hero occupies the Portal.<size=6>\n\n</size>There is no winner.{it}La seconda Notte è finita e nessun Eroe occupa il Portale.<size=6>\n\n</size>Non c'è vincitore.{ru}Вторая Ночь закончилась, но Портал никто не занимает.<size=6>\n\n</size>Победителя нет.{zh-tw}第二個黑夜輪已結束，但沒有英雄佔據傳送門。<size=6>\n\n</size>無人獲勝。{zh-cn}第二个黑夜轮已结束，但没有英雄占据传送门。<size=6>\n\n</size>无人获胜。{ko}두 번째 밤이 끝났지만 포탈을 차지한 영웅이 없습니다.<size=6>\n\n</size>승자는 없습니다.{es}La segunda Noche ha terminado y ningún Héroe ocupa el Portal.<size=6>\n\n</size>No hay ganador.{fr}La deuxième Nuit est terminée et aucun Héros n'occupe le Portail.<size=6>\n\n</size>Il n'y a pas de vainqueur.{pt-br}A segunda Noite terminou e nenhum Herói ocupa o Portal.<size=6>\n\n</size>Não há vencedor.{de}Die zweite Nacht ist beendet und kein Held besetzt das Portal.<size=6>\n\n</size>Es gibt keinen Gewinner."
-	end
-	UI.setAttribute("DummyNotes", "Text", gStates.blurb)
-	broadcastToAll(gStates.blurb, {1,1,0.5})
-	return winnerMage~=nil
-end
-
-function realmDeadEnemiesAtPosition(position)
-	if position==nil or position[1]==nil then return false end
-	local map=getObjectFromGUID(mapArea)
-	if map==nil then return false end
-	for _, obj in pairs(map.getObjects()) do
-		local data=monsterPugs[obj.guid]
-		if data~=nil and data.pugType~="possessed" then
-			local pos=obj.getPosition()
-			if ((pos[1]-position[1])^2)+((pos[3]-position[3])^2)<1 then return true end
-		end
-	end
-	return false
-end
-
-currentMageAvatarPosition=function(playerIndex)
-	local player=turnOrder[playerIndex]
-	if player==nil then return nil end
-	for _, avatar in pairs(mageKnights) do
-		if avatar.mage==player.mage then
-			if getObjectFromGUID(avatar.model)~=nil then return getObjectFromGUID(avatar.model).getPosition() end
-			if getObjectFromGUID(avatar.token)~=nil then return getObjectFromGUID(avatar.token).getPosition() end
-			if getObjectFromGUID(avatar.standee)~=nil then return getObjectFromGUID(avatar.standee).getPosition() end
-		end
-	end
-	return nil
-end
-
-function hiddenValleyLiberated()
-	if gStates.gameScenario~="The Hidden Valley Blitz" then return true end
-	if (gStates.elementalistLevel or 1)<=0 then return true end
-	local monsters=gStates.cityMonsterQty~=nil and gStates.cityMonsterQty[elementalist.terrainHex] or nil
-	if monsters~=nil and monsters[elementalist.token]=="dead" then return true end
-	if gStates.defeatedFactionTest~=nil and gStates.defeatedFactionTest[elementalist.terrainHex]=="Beat" then return true end
-	return false
-end
-
-function scenarioRestLocationIsAvailable()
-	local player=turnOrder[gStates.turnNumber]
-	if player==nil then return true end
-	local location=player.avatarLocation
-	if gStates.gameScenario=="The Realm of the Dead Blitz" then
-		if location=="graveyard" then return realmDeadEnemiesAtPosition(currentMageAvatarPosition(gStates.turnNumber))~=true end
-		if location=="necropolis" then return (gStates.defeatedFaction or 0)>0 end
-		return true
-	end
-	if gStates.gameScenario=="The Hidden Valley Blitz" then
-		if location=="hidden valley" then return hiddenValleyLiberated() end
-		return true
-	end
-	local gladeOpen=true
-	if (gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The War of Four") and (location=="glade" or location=="graveyard") then
-		gladeOpen=false
-		local avatarLocation=currentMageAvatarPosition(gStates.turnNumber)
-		if avatarLocation==nil then return false end
-		local objectsInPlay=getObjectFromGUID(mapArea).getObjects()
-		table.sort(objectsInPlay, function (k1, k2) return k1.getPosition()[2]>k2.getPosition()[2] end)
-		for _, obj in pairs(objectsInPlay) do
-			if isShieldObject(obj) and volkarePursuitShieldRegistered(obj)~=true then
-				if math.sqrt(((obj.getPosition()[1]-avatarLocation[1])^2)+((obj.getPosition()[3]-avatarLocation[3])^2))<1 then
-					gladeOpen=true
-					break
-				end
-			end
-		end
-	end
-	return gladeOpen
-end
-
-
-
 againstHorsemenSharedHexKey="horsemenCentralGlade"
 
 function againstHorsemenCentralGladeHex(terrain, bearing)
@@ -15263,637 +14923,6 @@ function againstHorsemenSetStartingAvatarLocations()
 		end
 	end
 end
-
-function volkareQuestSkipThreshold()
-	return activeMageKnightCount()*2
-end
-
-function volkareQuestCheckSkipTurn()
-	if gStates.gameScenario~="Volkare's Quest" then return false end
-	local threshold=volkareQuestSkipThreshold()
-	local reminder=getObjectFromGUID("09a991")
-	if threshold<=0 or gStates.volkareArmyDefeated<threshold or reminder==nil or reminder.is_face_down==true then return false end
-	gStates.volkareQuestSkipThreshold=threshold
-	reminder.flip()
-	broadcastToAll(joinLang({"{en}At Least {it}Almeno {ru}Как минимум {zh-tw}至少{zh-cn}至少{ko}최소 {es}Al menos {fr}Au moins {pt-br}Pelo menos {de}Zumindest ", tostring(threshold), "{en} of Volkare's Army defeated, he skips his next turn.{it} dell'esercito di Volkare è sconfitto; salta il prossimo turno.{ru} отряда из армии Волкара побеждено, он пропускает следующий ход{zh-tw}个敌人被击败了, 沃里卡跳过了他的回合. {zh-cn}个敌人被击败了, 沃里卡跳过了他的回合. {ko}개의 볼케어 군대 적 토큰을 제거했기에, 볼케어의 차례를 건너뜁니다{es} de los ejércitos de Volkare derrotados, se salta su siguiente turno.{fr} de l'armée de Volkare vaincus, il saute son prochain tour.{pt-br} do exército de Volkare derrotado, ele pulará seu próximo turno.{de} von Volkare's Armee besiegt, überspringt er seinen nächsten Zug."}), {1,1,0.5})
-	return true
-end
-
-function volkareQuestFullAttendAllowed(mageName)
-	if gStates.gameScenario~="Volkare's Quest" then return true end
-	for _, details in pairs(turnOrder) do
-		if details.mage==mageName then
-			local token=getObjectFromGUID(details.turnOrderTokenGUID)
-			if token~=nil and token.is_face_down==true then return false end
-			local handZone=getObjectFromGUID(handZones[details.seatPos])
-			if handZone~=nil then
-				for _, card in pairs(handZone.getObjects()) do
-					if card.type=="Card" and card.getGMNotes()~="Wound" then return true end
-				end
-			end
-			return false
-		end
-	end
-	return false
-end
-
-function volkareQuestRefreshFullAttend(mageName)
-	if gStates.gameScenario~="Volkare's Quest" then return end
-	local allowed=volkareQuestFullAttendAllowed(mageName)
-	UI.setAttribute("VolkareAttackedFull", "interactable", allowed and "true" or "false")
-	UI.setAttribute("VolkareAttackedFullImage", "image", allowed and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
-end
-
-function volkareQuestCombatWithdrawalReminder(mageName)
-	if gStates.gameScenario~="Volkare's Quest" or gStates.volkareMovementStepPending==true or mageName==nil then return false end
-	local attacked=gStates.volkareAttacked~=nil and gStates.volkareAttacked[1] or nil
-	if attacked==nil or attacked.mage~=mageName then return false end
-	local volkareObj=gStates.volkareModel~=nil and getObjectFromGUID(gStates.volkareModel) or nil
-	if volkareObj==nil then return false end
-	local mageObj=nil
-	for _, avatar in pairs(mageKnights) do
-		if avatar.mage==mageName then
-			mageObj=getObjectFromGUID(avatar.model) or getObjectFromGUID(avatar.standee) or getObjectFromGUID(avatar.token)
-			break
-		end
-	end
-	if mageObj==nil then return false end
-	local vPos,mPos=volkareObj.getPosition(),mageObj.getPosition()
-	if math.sqrt(((vPos[1]-mPos[1])^2)+((vPos[3]-mPos[3])^2))>=1.5 then return false end
-	broadcastToAll(joinLang({translateWord[mageName], "{en} needs to withdraw to a neighboring Safe space after fighting Volkare.{it} deve ritirarsi in uno spazio Sicuro adiacente dopo il combattimento con Volkare.{ru} должен отступить на соседнюю безопасную клетку после боя с Волкаром.{zh-tw} 與沃卡里戰鬥後必須撤退到相鄰的安全格。{zh-cn} 与沃卡里战斗后必须撤退到相邻的安全格。{ko} 볼케어와 전투한 뒤 인접한 안전한 칸으로 후퇴해야 합니다.{es} debe retirarse a un espacio seguro vecino después de luchar contra Volkare.{fr} doit se retirer vers un espace sûr adjacent après avoir combattu Volkare.{pt-br} precisa recuar para um espaço Seguro adjacente depois de lutar com Volkare.{de} muss sich nach dem Kampf gegen Volkare auf ein benachbartes sicheres Feld zurückziehen."}), warningColor)
-	return true
-end
-
-function registerVolkareCampAsCityKeep()
-	if gStates.volkareCampAsCity~=true or gStates.volkareCityDefeat==true or gStates.defeatedCities[volkare.terrainHex]~=true then return end
-	gStates.volkareCityDefeat=true
-	for _, player in pairs(turnOrder) do
-		if player.defeatedCities[volkare.terrainHex]=="Lead" then player.keepsBeat=player.keepsBeat+1 break end
-	end
-end
-
-function conqueredCityObjectiveCount()
-	local count=gStates~=nil and gStates.defeatedCities~=nil and (tonumber(gStates.defeatedCities.amount) or 0) or 0
-	if gStates~=nil and gStates.apocalypseDragonCityPlaced==true and gStates.apocalypseDragonDefeated==true then count=count+1 end
-	return count
-end
-
-function cityConquestScenarioEndAchieved()
-	if gStates==nil then return false end
-	local count=conqueredCityObjectiveCount()
-	if gStates.gameScenario=="Conquest" or gStates.gameScenario=="Conquest Blitz" or
-		gStates.gameScenario=="First Conquest" or gStates.gameScenario=="Fast Forwarded Conquest" then
-		return count==gStates.cityTiles
-	end
-	if gStates.gameScenario=="The Council versus the Apocalypse" then return count>=2 end
-	if gStates.gameScenario=="Ultimate Conquest" then
-		return count==gStates.cityTiles and (gStates.removeShadesOfTezlaMonsters==true or gStates.defeatedFaction==2)
-	end
-	return false
-end
-
-function apocalypseDragonAssaultScenarioEndAchieved()
-	if scenarioUsesApocalypseDragon()==true then return apocalypseDragonColoredHeadsDefeated()==true end
-	if gStates~=nil and gStates.apocalypseDragonCityPlaced==true then return cityConquestScenarioEndAchieved() end
-	return false
-end
-
-function coopLeaderScenarioEndAchieved()
-	if gStates.endGameAchieved~="false" then return false end
-	refreshCityDefeatState()
-	if gStates.gameScenario=="Life and Death" then return gStates.defeatedFaction==2 end
-	if gStates.gameScenario=="The Hidden Valley Blitz" then return gStates.defeatedFaction==1 end
-	if gStates.gameScenario=="Ultimate Conquest" then
-		return conqueredCityObjectiveCount()==gStates.cityTiles and (gStates.removeShadesOfTezlaMonsters==true or gStates.defeatedFaction==2)
-	end
-	if gStates.gameScenario=="The Realm of the Dead Blitz" then
-		local graveYardCount=0
-		local graveYardTileCount=0
-		local objectsInPlay=getObjectFromGUID(mapArea).getObjects()
-		for _, obj in pairs(objectsInPlay) do
-			if scriptObjectId(obj)=="GraveYard" then graveYardTileCount=graveYardTileCount+1 end
-			if isShieldObject(obj) and volkarePursuitShieldRegistered(obj)~=true then
-				local shieldPos=obj.getPosition()
-				for _, graveYard in pairs(objectsInPlay) do
-					if scriptObjectId(graveYard)=="GraveYard" then
-						local gravePos=graveYard.getPosition()
-						if math.sqrt(((shieldPos[1]-gravePos[1])^2)+((shieldPos[3]-gravePos[3])^2))<1 then graveYardCount=graveYardCount+1 break end
-					end
-				end
-			end
-		end
-		return gStates.defeatedFaction==1 and graveYardCount==graveYardTileCount
-	end
-	return false
-end
-
-local combatCleanupMineTiles={
-	[GUID.tile.core02]=true,[GUID.tile.core04]=true,[GUID.tile.core03]=true,[GUID.tile.country03]=true,
-	[GUID.tile.country06]=true,[GUID.tile.country02]=true,[GUID.tile.country05]=true,[GUID.tile.city08]=true,
-	[GUID.tile.country13]=true,[GUID.tile.country14]=true,[GUID.tile.country15]=true,[GUID.tile.country17]=true,[GUID.tile.core10]=true
-}
-local combatCleanupDungeonTombTiles={
-	[GUID.tile.core01]=true,[GUID.tile.core03]=true,[GUID.tile.country07]=true,[GUID.tile.country09]=true
-}
-
---Combat calls this only after returned enemies and shields have settled. Scenario owns victory
---conditions and Volkare's Return defense resolution; Combat only owns when this boundary is reached.
-function scenarioCombatCleanupCheck(cleanupPlayer)
-	if gStates.endGameAchieved~="false" or gStates.tacticShown~=false then return end
-	local cleanupLocation=turnOrder[cleanupPlayer]~=nil and turnOrder[cleanupPlayer].avatarLocation or ""
-	local dungeonCount,dungeonHexCount=0,0
-	local mineCount,mineTileCount=0,0
-	local graveYardCount,graveYardTileCount=0,0
-	local relicCount=0
-
-	if gStates.gameScenario=="Mines Liberation" or gStates.gameScenario=="The Realm of the Dead Blitz" or
-		gStates.gameScenario=="Dungeon Lords" or gStates.gameScenario=="The Lost Relic Blitz" or
-		gStates.gameScenario=="Against the Apocalypse Blitz" then
-		local map=getObjectFromGUID(mapArea)
-		local objectsInPlay=map~=nil and map.getObjects() or {}
-		table.sort(objectsInPlay,function(k1,k2) return k1.getPosition()[2]>k2.getPosition()[2] end)
-		for _, playAreaObject in pairs(objectsInPlay) do
-			if isShieldObject(playAreaObject) and volkarePursuitShieldRegistered(playAreaObject)~=true then
-				local found=false
-				local shieldPos=playAreaObject.getPosition()
-				local locatedTerrain,_,_,locatedFeature=terrainHexAtPosition(shieldPos,objectsInPlay)
-				for _, terTile in pairs(objectsInPlay) do
-					local tilePos=terTile.getPosition()
-					local shieldToTileDist=math.sqrt(((shieldPos[1]-tilePos[1])^2)+((shieldPos[3]-tilePos[3])^2))
-					if terTile==locatedTerrain then
-						found=true
-						if locatedFeature=="dungeon" or locatedFeature=="tomb" then dungeonCount=dungeonCount+1 end
-						if locatedFeature=="mine" then mineCount=mineCount+1 end
-						if locatedFeature~=nil and (locatedFeature:sub(1,4)=="city" or locatedFeature=="Volkare's Camp") and gStates.gameScenario=="The Lost Relic Blitz" then relicCount=relicCount+1 end
-					end
-					if shieldToTileDist<1 and scriptObjectId(terTile)=="GraveYard" then graveYardCount=graveYardCount+1 found=true end
-					if found==true then break end
-				end
-			end
-			if terrainTiles[playAreaObject.guid]~=nil and combatCleanupMineTiles[playAreaObject.guid]==true then mineTileCount=mineTileCount+1 end
-			if scriptObjectId(playAreaObject)=="GraveYard" then graveYardTileCount=graveYardTileCount+1 end
-			if terrainTiles[playAreaObject.guid]~=nil and combatCleanupDungeonTombTiles[playAreaObject.guid]==true then dungeonHexCount=dungeonHexCount+1 end
-			if scriptObjectId(playAreaObject)=="Secret Tomb" or scriptObjectId(playAreaObject)=="Secret Dungeon" then dungeonHexCount=dungeonHexCount+1 end
-		end
-	end
-
-	local allRituals=true
-	if gStates.gameScenario=="Druid Nights" then
-		for _, playerDetails in pairs(turnOrder) do
-			if playerDetails.mage~=gStates.positionMageKnight[5] and playerDetails.druidNightsFinalRitual~=true then allRituals=false break end
-		end
-	end
-
-	local cardInHand=false
-	if gStates.gameScenario=="Quest for the Golden Grail" and turnOrder[cleanupPlayer]~=nil then
-		local handZone=getObjectFromGUID(handZones[turnOrder[cleanupPlayer].seatPos])
-		for _, handobject in pairs(handZone~=nil and handZone.getObjects() or {}) do
-			if handobject.guid=="085e59" then cardInHand=true break end
-		end
-	end
-
-	local volkareBeaten=true
-	local volkareObj=gStates.volkareModel~=nil and getObjectFromGUID(gStates.volkareModel) or nil
-	if volkareObj~=nil then
-		for _, state in pairs(gStates.cityMonsterQty[volkare.model]) do if state=="alive" then volkareBeaten=false break end end
-		if volkareBeaten==true then
-			local trash=getObjectFromGUID(trashCan)
-			if trash~=nil then trash.putObject(volkareObj) end
-		end
-	end
-
-	local terrainStack=getObjectFromGUID(GUID.bag.terrain.stack)
-	local terrainEmpty=terrainStack~=nil and terrainStack.getQuantity()==0
-	local complete=
-		((gStates.gameScenario=="Conquest" or gStates.gameScenario=="Conquest Blitz" or gStates.gameScenario=="First Conquest" or gStates.gameScenario=="Fast Forwarded Conquest") and conqueredCityObjectiveCount()==gStates.cityTiles) or
-		((gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") and volkareBeaten==true) or
-		(gStates.gameScenario=="First Reconnaissance" and #gStates.citiesPlayed>=1) or
-		(gStates.gameScenario=="Ultimate Conquest" and conqueredCityObjectiveCount()==gStates.cityTiles and (gStates.removeShadesOfTezlaMonsters==true or gStates.defeatedFaction==2)) or
-		(gStates.gameScenario=="The Council versus the Apocalypse" and conqueredCityObjectiveCount()>=2) or
-		(gStates.gameScenario=="The Hidden Valley Blitz" and gStates.defeatedFaction==1) or
-		(gStates.gameScenario=="Mines Liberation" and terrainEmpty and mineCount==mineTileCount) or
-		(gStates.gameScenario=="Dungeon Lords" and terrainEmpty and dungeonCount==dungeonHexCount-2) or
-		(gStates.gameScenario=="The Realm of the Dead Blitz" and gStates.defeatedFaction==1 and graveYardCount==graveYardTileCount) or
-		(gStates.gameScenario=="The Lost Relic Blitz" and relicCount==gStates.cityTiles) or
-		(gStates.gameScenario=="Quest for the Golden Grail" and cleanupLocation=="portal" and cardInHand==true) or
-		(gStates.gameScenario=="The Gauntlet" and gStates.theGauntletArtifactClaimed==true) or
-		(gStates.gameScenario=="Druid Nights" and gStates.currentRound==gStates.rounds and allRituals==true) or
-		(gStates.gameScenario=="Life and Death" and gStates.defeatedFaction==2) or
-		(gStates.gameScenario=="Against the Horsemen Blitz" and againstHorsemenAllDefeated()==true) or
-		(gStates.gameScenario=="Against the Dragon Blitz" and apocalypseDragonColoredHeadsDefeated()==true) or
-		(gStates.gameScenario=="Against the Apocalypse Blitz" and againstApocalypseObjectivesComplete~=nil and againstApocalypseObjectivesComplete()==true)
-	if complete==true then
-		if gStates.coopAssaultPhase=="combat" then gStates.coopAssaultScenarioEndPending=true else markScenarioEndAchieved() end
-	end
-
-	--Judge Volkare's Return city defense only when the entire defense is complete; co-op kills are combined across all defenders.
-	local volkareReturnDefense=gStates.positionMageKnight[5]=="Volkare" and gStates.volkareState=="Attacking City" and
-		(gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz")
-	local volkareReturnDefenseFinished=volkareReturnDefense and (gStates.coopAssaultPhase~="combat" or coopAssaultPendingCombat()==false)
-	if volkareReturnDefenseFinished then
-		if gStates.volkareArmyDefeated<gStates.playerCount then
-			gStates.volkareCityDefenseMove=nil
-			local trash=getObjectFromGUID(trashCan)
-			local liveVolkare=gStates.volkareModel~=nil and getObjectFromGUID(gStates.volkareModel) or nil
-			if trash~=nil and liveVolkare~=nil then trash.putObject(liveVolkare) end
-			gStates.volkareWon=true
-			mainUIUpdate("Volkare Won")
-		else volkareReturnCityDefenseMove() end
-	end
-end
-
---Mine crystal claim: resolve before cleanup/rewards so Deep Mine choice follows the End of Turn sequence.
-mineCrystalBagKey={Red="red", Blue="blue", Green="green", White="white"}
-
-function mineCrystalCount(playerIndex, color)
-	local details=turnOrder[playerIndex]
-	if details==nil then return 0 end
-	local zone=getObjectFromGUID(playerCrystalAreas[details.seatPos])
-	if zone==nil then return 0 end
-	local count=0
-	for _, obj in pairs(zone.getObjects()) do
-		if manaTokenColor(obj)==color then count=count+1 end
-	end
-	return count
-end
-
-mineLiberatedForClaim=function(playerIndex, terrainGUID, hexPos)
-	if gStates.gameScenario~="Mines Liberation" then return true end
-	local map=getObjectFromGUID(mapArea)
-	if map~=nil then
-		for _, obj in pairs(map.getObjects()) do
-			if isShieldObject(obj) and volkarePursuitShieldRegistered(obj)~=true then
-				local p=obj.getPosition()
-				if ((p[1]-hexPos[1])^2)+((p[3]-hexPos[3])^2)<1 then return true end
-			end
-		end
-	end
-	--A mine conquered this turn does not receive its Shield until cleanup. Treat its face-up
-	--mine enemies in this player's play area as defeated-pending so the crystal can be chosen first.
-	local monsters=gStates.mineMonsterQty~=nil and gStates.mineMonsterQty[terrainGUID] or nil
-	if monsters==nil then return false end
-	local playArea=getObjectFromGUID(playerPlayAreas[turnOrder[playerIndex].seatPos])
-	local pendingDefeat={}
-	if playArea~=nil then
-		for _, obj in pairs(playArea.getObjects()) do if obj.is_face_down==false then pendingDefeat[obj.guid]=true end end
-	end
-	local found=false
-	for monsterGUID, state in pairs(monsters) do
-		found=true
-		if state~="dead" and pendingDefeat[monsterGUID]~=true then return false end
-	end
-	return found
-end
-
-mineClaimData=function(playerIndex)
-	local avatar=coopAssaultAvatarObject(playerIndex)
-	if avatar==nil then return nil end
-	local terrain, bearing, hexPos, feature=terrainHexAtPosition(avatar.getPosition())
-	if terrain==nil or bearing==nil or feature~="mine" then return nil end
-	local details=terrainTiles[terrain.guid]
-	local colors=details~=nil and details.mineColors~=nil and details.mineColors[bearing] or nil
-	if colors==nil or #colors==0 or mineLiberatedForClaim(playerIndex, terrain.guid, hexPos)==false then return nil end
-	return {terrainGUID=terrain.guid, bearing=bearing, colors=colors}
-end
-
-function mineInventoryPosition(playerIndex, color)
-	local seatPos=turnOrder[playerIndex].seatPos
-	local board=getObjectFromGUID(playerBoard[seatPos])
-	local zone=getObjectFromGUID(playerCrystalAreas[seatPos])
-	if board==nil or zone==nil then return {(seatPos*40)-114, 2.0, -36.8} end
-	local zonePos, zoneScale=zone.getPosition(), zone.getScale()
-	local objects=zone.getObjects()
-	local matching={}
-	for _, obj in pairs(objects) do
-		if manaTokenColor(obj)==color then matching[#matching+1]=obj.getPosition() end
-	end
-	local choices={}
-	for _, snap in pairs(board.getSnapPoints() or {}) do
-		local p=board.positionToWorld(snap.position)
-		if math.abs(p[1]-zonePos[1])<=zoneScale[1]/2 and math.abs(p[3]-zonePos[3])<=zoneScale[3]/2 then
-			local occupied=false
-			for _, obj in pairs(objects) do
-				local op=obj.getPosition()
-				if ((op[1]-p[1])^2)+((op[3]-p[3])^2)<0.56 then occupied=true break end
-			end
-			if occupied==false then
-				local nearest=999999
-				for _, mp in pairs(matching) do nearest=math.min(nearest, ((mp[1]-p[1])^2)+((mp[3]-p[3])^2)) end
-				choices[#choices+1]={position={p[1], 2.0, p[3]}, score=nearest}
-			end
-		end
-	end
-	if #choices>0 then
-		table.sort(choices, function(a,b) if a.score==b.score then return a.position[1]<b.position[1] end return a.score<b.score end)
-		return choices[1].position
-	end
-	--No board snap is free (usually because reward tokens were placed over them). Find the clearest
-	--physical point in the inventory instead of stacking the new crystal on an existing object.
-	local best={position={zonePos[1],2.0,zonePos[3]}, clearance=-1}
-	for i=1, 24 do
-		local p={zonePos[1]-((zoneScale[1]/2)-0.6)+(math.random()*math.max(0.1,zoneScale[1]-1.2)), 2.0,
-			zonePos[3]-((zoneScale[3]/2)-0.6)+(math.random()*math.max(0.1,zoneScale[3]-1.2))}
-		local clearance=999999
-		for _, obj in pairs(objects) do local op=obj.getPosition() clearance=math.min(clearance, ((op[1]-p[1])^2)+((op[3]-p[3])^2)) end
-		if clearance>best.clearance then best={position=p, clearance=clearance} end
-	end
-	return best.position
-end
-
-function refreshMineClaimPanel()
-	local pending=gStates.mineClaimPending
-	if pending==nil or turnOrder[pending.playerIndex]==nil then UI.hide("MineClaimChoice") return end
-	UI.setAttribute("MineClaimChoiceTitle", "text", pending.source=="Quest" and "{en}Quest Crystal{it}Cristallo Missione{ru}Кристалл задания{zh-tw}任務水晶{zh-cn}任务水晶{ko}퀘스트 크리스털{es}Cristal de Misión{fr}Cristal de Quête{pt-br}Cristal de Missão{de}Quest-Kristall" or "{en}Mined Crystal{it}Cristallo Estratto{ru}Добытый кристалл{zh-tw}開採水晶{zh-cn}开采水晶{ko}채굴한 크리스털{es}Cristal Extraído{fr}Cristal Extrait{pt-br}Cristal Minerado{de}Abgebauter Kristall")
-	for i=1, 4 do
-		local color=pending.colors[i]
-		UI.setAttribute("MineClaimButton"..i, "active", color~=nil and "true" or "false")
-		if color~=nil then UI.setAttribute("MineClaimButtonText"..i, "text", translateWord[color] or color) end
-	end
-	UI.setAttribute("MineClaimRow2", "active", #pending.colors>2 and "true" or "false")
-	setUIVisibility("MineClaimChoice",{positionToColor(pending.playerIndex),"Black"})
-	UI.show("MineClaimChoice")
-end
-
-function beginMineCrystalClaim(playerIndex, messageColor)
-	local data=mineClaimData(playerIndex)
-	if data==nil then return false end
-	local available={}
-	for _, color in ipairs(data.colors) do if mineCrystalCount(playerIndex, color)<3 then available[#available+1]=color end end
-	if #available==0 then
-		if messageColor~=nil then broadcastToColor("{en}No crystal gained from the Mine: your Inventory already has 3 of every available color.{it}Nessun cristallo ottenuto dalla Miniera: hai già 3 cristalli di ogni colore disponibile nell'Inventario.{ru}Кристалл из Шахты не получен: в вашем Инвентаре уже по 3 кристалла каждого доступного цвета.{zh-tw}未從礦場獲得水晶：你的庫存中每種可用顏色都已有 3 顆水晶。{zh-cn}未从矿场获得水晶：你的库存中每种可用颜色都已有 3 颗水晶。{ko}광산에서 크리스털을 얻지 못했습니다. 인벤토리에 사용 가능한 모든 색의 크리스털이 이미 3개씩 있습니다.{es}No se obtuvo cristal de la Mina: tu Inventario ya tiene 3 de cada color disponible.{fr}Aucun cristal gagné de la Mine : votre Inventaire contient déjà 3 cristaux de chaque couleur disponible.{pt-br}Nenhum cristal foi ganho da Mina: seu Inventário já tem 3 de cada cor disponível.{de}Kein Kristall aus der Mine erhalten: Dein Inventar enthält bereits 3 Kristalle jeder verfügbaren Farbe.", messageColor, warningColor)
-		else broadcastToAll("{en}No crystal gained from the Mine: your Inventory already has 3 of every available color.{it}Nessun cristallo ottenuto dalla Miniera: hai già 3 cristalli di ogni colore disponibile nell'Inventario.{ru}Кристалл из Шахты не получен: в вашем Инвентаре уже по 3 кристалла каждого доступного цвета.{zh-tw}未從礦場獲得水晶：你的庫存中每種可用顏色都已有 3 顆水晶。{zh-cn}未从矿场获得水晶：你的库存中每种可用颜色都已有 3 颗水晶。{ko}광산에서 크리스털을 얻지 못했습니다. 인벤토리에 사용 가능한 모든 색의 크리스털이 이미 3개씩 있습니다.{es}No se obtuvo cristal de la Mina: tu Inventario ya tiene 3 de cada color disponible.{fr}Aucun cristal gagné de la Mine : votre Inventaire contient déjà 3 cristaux de chaque couleur disponible.{pt-br}Nenhum cristal foi ganho da Mina: seu Inventário já tem 3 de cada cor disponível.{de}Kein Kristall aus der Mine erhalten: Dein Inventar enthält bereits 3 Kristalle jeder verfügbaren Farbe.", warningColor) end
-		return false
-	end
-	gStates.mineClaimPending={source="Mine", playerIndex=playerIndex, terrainGUID=data.terrainGUID, bearing=data.bearing, colors=available}
-	refreshMineClaimPanel()
-	if mainUIUpdate~=nil then mainUIUpdate("Mine crystal pending") end
-	return true
-end
-
-function mineClaimChoice(player, mouseButton, id)
-	if mouseButton~="-1" or player==nil then return end
-	local pending=gStates.mineClaimPending
-	if pending==nil or turnOrder[pending.playerIndex]==nil then UI.hide("MineClaimChoice") return end
-	local claimantColor=positionToColor(pending.playerIndex)
-	local sourceName=pending.source=="Quest" and "Quest" or "Mine"
-	if player.color~=claimantColor and player.color~="Black" then
-		broadcastToColor(joinLang({"{en}Only the claiming player can choose this {it}Solo il giocatore che lo riceve può scegliere questo {ru}Только получающий игрок может выбрать этот кристалл из {zh-tw}只有領取的玩家可以選擇這顆來自 {zh-cn}只有领取的玩家可以选择这颗来自 {ko}이 크리스털은 획득하는 플레이어만 선택할 수 있습니다: {es}Solo el jugador que reclama puede elegir este cristal de {fr}Seul le joueur qui réclame peut choisir ce cristal de {pt-br}Apenas o jogador que está recebendo pode escolher este cristal de {de}Nur der beanspruchende Spieler kann diesen Kristall aus ",sourceName,"."}), player.color, {1,0.3,0.3})
-		return
-	end
-	local index=tonumber(id:match("(%d+)$"))
-	local color=index~=nil and pending.colors[index] or nil
-	if color==nil then return end
-	if mineCrystalCount(pending.playerIndex, color)>=3 then
-		broadcastToColor(joinLang({"{en}You already have 3 {it}Hai già 3 cristalli {ru}В вашем Инвентаре уже есть 3 {zh-tw}你的庫存中已有 3 顆 {zh-cn}你的库存中已有 3 颗 {ko}인벤토리에 이미 {es}Ya tienes 3 cristales {fr}Vous avez déjà 3 cristaux {pt-br}Você já tem 3 cristais {de}Du hast bereits 3 ",translateWord[color] or color,"{en} crystals in your Inventory.{it} nell'Inventario.{ru} кристалла.{zh-tw} 水晶。{zh-cn} 水晶。{ko} 크리스털이 3개 있습니다.{es} en tu Inventario.{fr} dans votre Inventaire.{pt-br} no seu Inventário.{de}-Kristalle in deinem Inventar."}), player.color, warningColor)
-		return
-	end
-	local bagKey=mineCrystalBagKey[color]
-	local bag=bagKey~=nil and getObjectFromGUID(GUID.bag.mana[bagKey]) or nil
-	if bag==nil or bag.getQuantity()==0 then
-		broadcastToColor(joinLang({"{en}No {it}Nessun {ru}В запасе нет {zh-tw}供應區沒有可用的 {zh-cn}供应区没有可用的 {ko}공급처에 사용할 수 있는 {es}No hay ningún cristal {fr}Aucun cristal {pt-br}Não há cristal {de}Im Vorrat ist kein ",translateWord[color] or color,"{en} crystal is available in the supply.{it} disponibile nella riserva.{ru} кристалла.{zh-tw} 水晶。{zh-cn} 水晶。{ko} 크리스털이 없습니다.{es} disponible en la reserva.{fr} disponible dans la réserve.{pt-br} disponível na reserva.{de}-Kristall verfügbar."}), player.color, {1,0.3,0.3})
-		return
-	end
-	local questCardGUID=pending.questCardGUID
-	takeManaCrystal(bag,{position=mineInventoryPosition(pending.playerIndex, color),smooth=false})
-	broadcastToColor(joinLang({"{en}Claimed a {it}Ottenuto un cristallo {ru}Получен {zh-tw}已領取 {zh-cn}已领取 {ko}획득: {es}Se reclamó un Cristal {fr}Cristal {pt-br}Recebeu um Cristal {de}Beansprucht: ",translateWord[color] or color,"{en} Crystal from the {it} da {ru} кристалл из {zh-tw} 水晶，來源：{zh-cn} 水晶，来源：{ko} 크리스털, 출처: {es} de {fr} réclamé depuis {pt-br} de {de}-Kristall aus ",sourceName,"."}), player.color, {1,1,0.5})
-	gStates.mineClaimPending=nil
-	UI.hide("MineClaimChoice")
-	if questCardGUID~=nil and getObjectFromGUID(questCardGUID)~=nil then apocalypseQuestUpdateProgressButtons(getObjectFromGUID(questCardGUID)) end
-	if mainUIUpdate~=nil then mainUIUpdate("Mine crystal claimed") end
-end
-
-function markScenarioEndAchieved(endImmediately)
-	if gStates.endGameAchieved~="false" then return false end
-	UI.setAttribute("EndGameButtonText", "text", "{en}Scenario End Achieved - Yes{it}Fine Scenario Raggiunta - Sì{ru}Конец сценария достигнут - Да{zh-tw}達成劇本結束 - 是{zh-cn}達成剧本结束 - 是{ko}시나리오 종료 조건 충족 됨{es}Escenario Fin Realizados - Sí{fr}Scénario Fin Atteint - Oui{pt-br}Fim do Cenário Alcançado - Sim{de}Szenarioziel Erreicht – Ja")
-	UI.setAttribute("EndGameButtonImage", "image", "Sliced Button/Button New Deactive")
-	UI.setAttribute("EndGameButtonImage", "color", "rgb(1.0,0.7,0.2)")
-	gStates.endGameAchieved="started"
-	turnOrder[gStates.realTurn].gameEnder=true
-	establishFinalTurnBoundary("victory", gStates.realTurn)
-	if gStates.gameScenario=="The Gauntlet" or gStates.gameScenario=="Quest for the Golden Grail" then
-		broadcastToAll("{en}Congratulations{it}Congratulazioni{ru}Поздравляем{zh-tw}恭喜{zh-cn}恭喜{ko}축하합니다{es}Felicidades{fr}Toutes nos félicitations{pt-br}Parabéns{de}Glückwunsch", {1,1,0.5})
-		gStates.endGameAchieved="true"
-		gStates.gameOver=true
-		mainUIUpdate("Scenario End")
-	elseif endImmediately==true then
-		gStates.endGameAchieved="true"
-		gStates.gameOver=true
-		mainUIUpdate("Game Over")
-	else
-		broadcastToAll("{en}Final Round of Turns Started{it}Iniziato l'Ultimo Giro di Turni{ru}Начался последний круг ходов{zh-tw}最终轮的回合开始了{zh-cn}最终轮的回合开始了{ko}마지막 턴 시작{es}Inicio de la Ultima Ronda de Turnos{fr}Dernier Rounde de Tours Commencé{pt-br}Rodada Final de Turnos começou{de}Die letzte Runde hat begonnen", {1,1,0.5})
-	end
-	refreshCoopCompSkillWarnings()
-	return true
-end
-
-clearScenarioEndAchieved=function()
-	if gStates.endGameAchieved=="false" then return false end
-	UI.setAttribute("EndGameButtonText", "text", "{en}Scenario End Achieved - No{it}Fine Scenario Raggiunta - No{ru}Конец сценария достигнут - Нет{zh-tw}達成劇本結束 - 否{zh-cn}達成剧本结束 - 否{ko}시나리오 종료 조건 충족 전{es}Escenario Fin Realizados - No{fr}Scénario Fin Atteint - Non{pt-br}Fim do Cenário Alcançado - Não{de}Szenarioziel Erreicht – Nein")
-	UI.setAttribute("EndGameButtonImage", "image", "Sliced Button/Button New Active")
-	UI.setAttribute("EndGameButtonImage", "color", "white")
-	UI.setAttribute("PreEndTurnImage", "image", "Sliced Button/Button New Active")
-	UI.setAttribute("PreEndTurn", "interactable", "True")
-	gStates.gameOver=false
-	for _, turnDetails in pairs(turnOrder) do turnDetails.gameEnder=false end
-	if gStates.finalTurnReason=="victory" then clearFinalTurnBoundary() else ensureFinalTurnBoundary() end
-	gStates.endGameAchieved=(gStates.finalTurnReason=="endRound" and gStates.currentRound==gStates.rounds) and "true" or "false"
-	broadcastToAll("{en}Turn order resumed{it}Ordine dei turni ripreso{ru}Порядок хода восстановлен{zh-tw}回合顺序恢复了{zh-cn}回合顺序恢复了{ko}턴 순서가 재개되었습니다{es}Se reanudó el orden de turno{fr}L'ordre des tours a repris{pt-br}Ordem de Turno retomada{de}Reihenfolge der Drehung wieder aufgenommen", {1,1,0.5})
-	mainUIUpdate("Scenario End")
-	refreshCoopCompSkillWarnings()
-	return true
-end
-
-function toggleScenarioEndAchieved(player, mouseButton, id)
-	if gStates.endGameAchieved=="false" then return markScenarioEndAchieved(false) end
-	return clearScenarioEndAchieved()
-end
-
---Dungeon Lords secret entrances remember the exact Village/Monastery that created each placement request.
---That lets the drop validator enforce the scenario's adjacency rule instead of accepting any empty map hex.
-function dungeonLordsPendingSecretName(entry)
-	if type(entry)=="table" then return entry.siteType or entry.name end
-	return entry
-end
-
-dungeonLordsSecretSourceFeature=function(secretName)
-	if secretName=="Secret Dungeon" then return "village" end
-	if secretName=="Secret Tomb" then return "monastery" end
-	return nil
-end
-
-dungeonLordsSecretSourcePosition=function(entry)
-	if type(entry)~="table" then return nil end
-	local terrain=entry.sourceTerrainGUID~=nil and getObjectFromGUID(entry.sourceTerrainGUID) or nil
-	if terrain~=nil and entry.sourceBearing~=nil then
-		local xy=angleToXY(terrain,tostring(entry.sourceBearing))
-		return {xy[1],terrain.getPosition()[2],xy[2]}
-	end
-	return entry.sourcePosition
-end
-
-dungeonLordsSecretSpaceBasicLegal=function(terrain,bearing)
-	if terrain==nil or bearing==nil or terrainTiles[terrain.guid]==nil then return false end
-	local details=terrainTiles[terrain.guid]
-	local key=tostring(bearing)
-	local feature=details.hexFeature~=nil and details.hexFeature[key] or nil
-	local terrainType=details.hexType~=nil and details.hexType[key] or nil
-	local noSite=feature=="" or feature=="rampaging" or feature=="draconum"
-	return noSite==true and terrainType~=nil and terrainType~="swamp" and terrainType~="lake" and terrainType~="mountain" and terrainType~="ocean"
-end
-
-dungeonLordsFindAdjacentSecretSource=function(secretName,destinationPosition)
-	local sourceFeature=dungeonLordsSecretSourceFeature(secretName)
-	local map=getObjectFromGUID(mapArea)
-	if sourceFeature==nil or destinationPosition==nil or map==nil then return nil end
-	for _,terrain in pairs(map.getObjects()) do
-		local details=terrainTiles[terrain.guid]
-		if details~=nil and terrain.is_face_down==false then
-			for sourceBearing,feature in pairs(details.hexFeature or {}) do
-				if feature==sourceFeature then
-					local xy=angleToXY(terrain,sourceBearing)
-					local sourcePos={xy[1],terrain.getPosition()[2],xy[2]}
-					if runtimeMapWorldHexDistance(sourcePos,destinationPosition)==1 then
-						return {siteType=secretName,sourceTerrainGUID=terrain.guid,sourceBearing=tostring(sourceBearing),sourcePosition=sourcePos}
-					end
-				end
-			end
-		end
-	end
-	return nil
-end
-
-dungeonLordsSecretDestinationLegal=function(terrain,bearing,request)
-	if dungeonLordsSecretSpaceBasicLegal(terrain,bearing)~=true then return false,nil end
-	local xy=angleToXY(terrain,tostring(bearing))
-	local destinationPosition={xy[1],terrain.getPosition()[2],xy[2]}
-	local normalized=request
-	if type(normalized)~="table" then normalized=dungeonLordsFindAdjacentSecretSource(dungeonLordsPendingSecretName(request),destinationPosition) end
-	local sourcePosition=dungeonLordsSecretSourcePosition(normalized)
-	if sourcePosition==nil or runtimeMapWorldHexDistance(sourcePosition,destinationPosition)~=1 then return false,normalized end
-	return true,normalized
-end
-
-dungeonLordsSecretLegalDestinationCount=function(request)
-	local map=getObjectFromGUID(mapArea)
-	if map==nil then return 0 end
-	local count=0
-	for _,terrain in pairs(map.getObjects()) do
-		local details=terrainTiles[terrain.guid]
-		if details~=nil and terrain.is_face_down==false then
-			for destinationBearing,_ in pairs(details.hexType or {}) do
-				if dungeonLordsSecretDestinationLegal(terrain,destinationBearing,request)==true then count=count+1 end
-			end
-		end
-	end
-	return count
-end
-
-dungeonLordsSecretRequestMatches=function(a,b)
-	if dungeonLordsPendingSecretName(a)~=dungeonLordsPendingSecretName(b) then return false end
-	if type(a)~="table" or type(b)~="table" then return false end
-	return a.sourceTerrainGUID==b.sourceTerrainGUID and tostring(a.sourceBearing)==tostring(b.sourceBearing)
-end
-
-dungeonLordsQueueSecretRequest=function(request,quiet)
-	if request==nil then return false end
-	gStates.locationPlace=gStates.locationPlace or {}
-	for _,existing in ipairs(gStates.locationPlace) do if dungeonLordsSecretRequestMatches(existing,request)==true then return false end end
-	if dungeonLordsSecretLegalDestinationCount(request)==0 then
-		if quiet~=true then
-			local source=dungeonLordsSecretSourceFeature(dungeonLordsPendingSecretName(request)) or "site"
-			broadcastToAll(joinLang({"{en}Dungeon Lords: no legal space exists next to the revealed {it}Signori dei Sotterranei: nessuno spazio valido accanto al sito rivelato {ru}Владыки Подземелий: рядом с открытым объектом нет подходящей клетки: {zh-tw}地下城領主：新揭示的 {zh-cn}地下城领主：新揭示的 {ko}던전 로드: 공개된 {es}Señores de las Mazmorras: no existe ningún espacio legal junto a {fr}Seigneurs des Donjons : aucune case légale n’existe à côté de {pt-br}Senhores das Masmorras: não existe espaço válido ao lado de {de}Kerkerfürsten: Neben dem aufgedeckten ",source,"{en}; no secret entrance is placed.{it}; nessun ingresso segreto posizionato.{ru}; тайный вход не размещается.{zh-tw} 旁沒有合法空間；不放置秘密入口。{zh-cn} 旁没有合法空间；不放置秘密入口。{ko} 옆에 합법적인 칸이 없어 비밀 입구를 배치하지 않습니다.{es}; no se coloca ninguna entrada secreta.{fr} ; aucune entrée secrète n’est placée.{pt-br}; nenhuma entrada secreta é colocada.{de} gibt es kein gültiges Feld; es wird kein Geheimeingang platziert."}),{1,0.75,0.2})
-		end
-		return false
-	end
-	gStates.locationPlace[#gStates.locationPlace+1]=request
-	return true
-end
-
-dungeonLordsPruneImpossibleSecretRequests=function()
-	gStates.locationPlace=gStates.locationPlace or {}
-	local removed=false
-	for i=#gStates.locationPlace,1,-1 do
-		local request=gStates.locationPlace[i]
-		if dungeonLordsSecretLegalDestinationCount(request)==0 then
-			local source=dungeonLordsSecretSourceFeature(dungeonLordsPendingSecretName(request)) or "site"
-			broadcastToAll(joinLang({"{en}Dungeon Lords: no legal space remains next to the revealed {it}Signori dei Sotterranei: nessuno spazio valido rimasto accanto al sito rivelato {ru}Владыки Подземелий: рядом с открытым объектом больше нет подходящей клетки: {zh-tw}地下城領主：新揭示的 {zh-cn}地下城领主：新揭示的 {ko}던전 로드: 공개된 {es}Señores de las Mazmorras: ya no queda ningún espacio legal junto a {fr}Seigneurs des Donjons : aucune case légale ne reste à côté de {pt-br}Senhores das Masmorras: não resta espaço válido ao lado de {de}Kerkerfürsten: Neben dem aufgedeckten ",source,"{en}; that secret entrance is skipped.{it}; questo ingresso segreto viene saltato.{ru}; этот тайный вход пропускается.{zh-tw} 旁已無合法空間；跳過該秘密入口。{zh-cn} 旁已无合法空间；跳过该秘密入口。{ko} 옆에 합법적인 칸이 남아 있지 않아 그 비밀 입구를 건너뜁니다.{es}; se omite esa entrada secreta.{fr} ; cette entrée secrète est ignorée.{pt-br}; essa entrada secreta é ignorada.{de} ist kein gültiges Feld mehr frei; dieser Geheimeingang wird übersprungen."}),{1,0.75,0.2})
-			table.remove(gStates.locationPlace,i)
-			removed=true
-		end
-	end
-	return removed
-end
-
-function dungeonLordsQueueSecretSite(terrain,bearing,sourceFeature)
-	if gStates.gameScenario~="Dungeon Lords" or terrain==nil then return false end
-	local secretName=sourceFeature=="village" and "Secret Dungeon" or sourceFeature=="monastery" and "Secret Tomb" or nil
-	if secretName==nil then return false end
-	local xy=angleToXY(terrain,tostring(bearing))
-	local request={siteType=secretName,sourceTerrainGUID=terrain.guid,sourceBearing=tostring(bearing),sourcePosition={xy[1],terrain.getPosition()[2],xy[2]}}
-	local queued=dungeonLordsQueueSecretRequest(request,false)
-	if queued==true then mainUIUpdate("Need Token") end
-	return queued
-end
-
-function dungeonLordsHandleSecretSiteToken(obj,status,terrain,bearing,hexFeature)
-	if gStates.gameScenario~="Dungeon Lords" or obj==nil or terrain==nil or bearing==nil then return false end
-	local secretName=scriptObjectId(obj)
-	if secretName~="Secret Dungeon" and secretName~="Secret Tomb" then return false end
-	local site=secretName=="Secret Dungeon" and "dungeon" or "tomb"
-	gStates.locationPlace=gStates.locationPlace or {}
-	gStates.dungeonLordsSecretSiteOrigins=gStates.dungeonLordsSecretSiteOrigins or {}
-	if status=="enter" then
-		local pending=gStates.locationPlace[#gStates.locationPlace]
-		local pendingName=dungeonLordsPendingSecretName(pending)
-		if pendingName~=secretName then
-			if pendingName~=nil then broadcastToAll(joinLang({"{en}Dungeon Lords: place the requested {it}Signori dei Sotterranei: posiziona prima il sito richiesto: {ru}Владыки Подземелий: сначала разместите требуемый {zh-tw}地下城領主：請先放置要求的 {zh-cn}地下城领主：请先放置要求的 {ko}던전 로드: 먼저 요청된 {es}Señores de las Mazmorras: coloca primero la entrada solicitada {fr}Seigneurs des Donjons : placez d’abord l’entrée demandée {pt-br}Senhores das Masmorras: coloque primeiro a entrada solicitada {de}Kerkerfürsten: Platziere zuerst den angeforderten ",tostring(pendingName),"{en} first.{it}.{ru}.{zh-tw}。{zh-cn}。{ko}을(를) 배치하십시오.{es}.{fr}.{pt-br}.{de}."}),{1,0.55,0.2})
-			else broadcastToAll("{en}Dungeon Lords: that secret entrance has not been requested by a newly revealed Village or Monastery.{it}Signori dei Sotterranei: questo ingresso segreto non è stato richiesto da un Villaggio o Monastero appena rivelato.{ru}Владыки Подземелий: этот тайный вход не был запрошен недавно открытой Деревней или Монастырём.{zh-tw}地下城領主：新揭示的村莊或修道院並未要求放置此秘密入口。{zh-cn}地下城领主：新揭示的村庄或修道院并未要求放置此秘密入口。{ko}던전 로드: 새로 공개된 마을이나 수도원이 이 비밀 입구를 요청하지 않았습니다.{es}Señores de las Mazmorras: esta entrada secreta no fue solicitada por una Aldea o Monasterio recién revelados.{fr}Seigneurs des Donjons : cette entrée secrète n’a pas été demandée par un Village ou un Monastère récemment révélé.{pt-br}Senhores das Masmorras: esta entrada secreta não foi solicitada por uma Vila ou Mosteiro recém-revelado.{de}Kerkerfürsten: Dieser Geheimeingang wurde nicht von einem neu aufgedeckten Dorf oder Kloster angefordert.",{1,0.55,0.2}) end
-			return true
-		end
-		local legal,normalized=dungeonLordsSecretDestinationLegal(terrain,bearing,pending)
-		if legal~=true then
-			broadcastToAll("{en}Dungeon Lords: the secret entrance must be on an accessible, non-Swamp empty space adjacent to the Village or Monastery that created it.{it}Signori dei Sotterranei: l'ingresso segreto deve essere su uno spazio vuoto accessibile, non Palude, adiacente al Villaggio o Monastero che l'ha creato.{ru}Владыки Подземелий: тайный вход должен находиться на доступной пустой клетке, не являющейся Болотом, рядом с создавшей его Деревней или Монастырём.{zh-tw}地下城領主：秘密入口必須放在建立它的村莊或修道院旁，一個可進入、非沼澤且空置的空間。{zh-cn}地下城领主：秘密入口必须放在建立它的村庄或修道院旁，一个可进入、非沼泽且空置的空间。{ko}던전 로드: 비밀 입구는 이를 생성한 마을 또는 수도원에 인접한, 접근 가능하고 늪이 아닌 빈 칸에 있어야 합니다.{es}Señores de las Mazmorras: la entrada secreta debe estar en un espacio vacío accesible, que no sea Pantano, adyacente a la Aldea o Monasterio que la creó.{fr}Seigneurs des Donjons : l’entrée secrète doit se trouver sur une case vide accessible, non-Marais, adjacente au Village ou au Monastère qui l’a créée.{pt-br}Senhores das Masmorras: a entrada secreta deve ficar em um espaço vazio acessível, que não seja Pântano, adjacente à Vila ou ao Mosteiro que a criou.{de}Kerkerfürsten: Der Geheimeingang muss auf einem zugänglichen, leeren Nicht-Sumpf-Feld neben dem Dorf oder Kloster liegen, das ihn erzeugt hat.",{1,0.55,0.2})
-			return true
-		end
-		runtimeMapSetHexFeature(terrain.guid,bearing,site)
-		if gStates.hexOverideSave[terrain.guid]==nil then gStates.hexOverideSave[terrain.guid]={} end
-		gStates.hexOverideSave[terrain.guid][tostring(bearing)]=site
-		normalized.destinationTerrainGUID=terrain.guid
-		normalized.destinationBearing=tostring(bearing)
-		gStates.dungeonLordsSecretSiteOrigins[obj.guid]=normalized
-		obj.lock()
-		broadcastToAll(joinLang({translateWord[secretName], "{en} located.{it} individuato.{ru} размещена(о).{zh-tw} 坐落于{zh-cn} 坐落于{ko} 설치됨{es} situado.{fr} situé.{pt-br} localizado.{de} liegt."}), {1,1,0.5})
-		table.remove(gStates.locationPlace)
-		dungeonLordsPruneImpossibleSecretRequests()
-		mainUIUpdate("Need Token")
-		local infoGUID=site=="tomb" and "1cab50" or "57dcab"
-		local info=getObjectFromGUID(infoGUID)
-		if info~=nil then info.setRotationSmooth({0.0,180.0,0.0}) end
-		moveDisplayTerrainCache={signature=nil,hexMap=nil}
-		updateMoveDisplay()
-		return true
-	end
-	if status=="remove" and hexFeature==site then
-		local origin=gStates.dungeonLordsSecretSiteOrigins[obj.guid]
-		if origin==nil then
-			local xy=angleToXY(terrain,tostring(bearing))
-			origin=dungeonLordsFindAdjacentSecretSource(secretName,{xy[1],terrain.getPosition()[2],xy[2]}) or secretName
-		end
-		runtimeMapSetHexFeature(terrain.guid,bearing,"")
-		if gStates.hexOverideSave[terrain.guid]==nil then gStates.hexOverideSave[terrain.guid]={} end
-		gStates.hexOverideSave[terrain.guid][tostring(bearing)]=""
-		gStates.dungeonLordsSecretSiteOrigins[obj.guid]=nil
-		broadcastToAll(joinLang({translateWord[secretName], "{en} removed.{it} rimosso.{ru} удалена(о).{zh-tw} 移除的{zh-cn} 移除的{ko} 제거됨{es} remoto.{fr} supprimé.{pt-br} removido.{de} entfernt."}), {1,1,0.5})
-		dungeonLordsQueueSecretRequest(origin,true)
-		dungeonLordsPruneImpossibleSecretRequests()
-		mainUIUpdate("Need Token")
-		moveDisplayTerrainCache={signature=nil,hexMap=nil}
-		updateMoveDisplay()
-		return true
-	end
-	return true
-end
-
 
 --Apocalypse is Here is the only scenario that uses the Horsemen's roaming target priorities.
 local function apocalypseIsHereHorsemanPriorityLocalizedList(text)
@@ -17263,81 +16292,6 @@ function apocalypseIsHereDragonCitySpacePlayer(playerIndex)
 	return false
 end
 
-function volkarePursuitAction(playerDud,mouseButton,id)
-	if mouseButton~="-1" then return end
-	local mage=id:match("|(.+)$")
-	local playerIndex=nil
-	for index,details in pairs(turnOrder) do if details.mage==mage then playerIndex=index break end end
-	if playerIndex==nil or playerIndex~=gStates.turnNumber then return end
-	if playerDud~=nil and playerDud.color~=nil and legalPlayerCheck(playerDud.color,turnOrder[playerIndex].seatPos)~=true then return end
-	local info=volkarePursuitActionInfo(playerIndex)
-	if info==nil then gStates.volkarePursuitChoicePlayer=nil addAvatarButtons() return end
-	if id:sub(1,12)=="VPursuitOpen" then gStates.volkarePursuitChoicePlayer=playerIndex addAvatarButtons() return end
-	local choice=id:match("^VPursuit([^|]+)")
-	if choice~="Green" and choice~="Red" and choice~="Both" then return end
-	gStates.volkarePursuitChoicePlayer=nil
-	gStates.volkarePursuitCombat={player=playerIndex,hexKey=info.key,position=info.position,monsters={}}
-	if gStates.volkarePursuitEnemies==nil then gStates.volkarePursuitEnemies={} end
-	combatCameraChoiceSuppressedPlayer=nil
-	turnOrder[playerIndex].combatIconHide="Avatar"
-	gStates.monsterOffsetX=0 gStates.monsterOffsetZ=0
-	if choice=="Green" or choice=="Both" then drawMonster(monsterPiles.green,turnOrder[playerIndex],"VPDraw|Green") end
-	if choice=="Red" or choice=="Both" then local delay=choice=="Both" and 7 or 0 safeWaitFrames("Scenario",function() drawMonster(monsterPiles.red,turnOrder[playerIndex],"VPDraw|Red") end,delay) end
-	broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage],"{en} pursues Volkare's fleeing army.{it} insegue l'esercito in fuga di Volkare.{ru} преследует отступающую армию Волкара.{zh-tw}追击沃卡里的溃军。{zh-cn}追击沃卡里的溃军。{ko}: 볼케어의 패주하는 군대를 추격합니다.{es} persigue al ejército en fuga de Volkare.{fr} poursuit l'armée de Volkare en fuite.{pt-br} persegue o exército em fuga de Volkare.{de} verfolgt Volkares fliehende Armee."}),positionToColor(playerIndex))
-	addAvatarButtons()
-end
-
---Druid Nights Incantation is legal anywhere the Mage Knight cannot Interact with Locals.
---Use the map's interaction helper first so burned Monasteries and conquered/unconquered sites resolve correctly;
---the logical-location fallback also covers Portal/City parking where the physical avatar may be off the map.
-
-function druidNightsCanIncantHere(playerIndex)
-	local player=turnOrder[playerIndex]
-	if player==nil or gStates.gameScenario~="Druid Nights" then return false end
-	local hexes,mapObjects=runtimeMapHexesAndObjects()
-	local hex=apocalypseQuestPlayerHex(hexes,mapObjects,playerIndex)
-	if hex~=nil then return apocalypseQuestHexInteractionSite(hex,mapObjects,playerIndex)~=true end
-	local location=string.lower(tostring(player.avatarLocation or ""))
-	if location=="village" or location=="monastery" or location=="keep" or location=="mage tower" or location=="camp" or location=="oasis" or location=="volkare's camp" or location:sub(1,4)=="city" then return false end
-	return true
-end
-
---Druid Nights Ritual is a separate combat action from a site attack. Keep it out of attackLocation
---so a legal site defender cannot intercept or add its assault side effects to the Incantation.
-function druidNightsRitualAction(playerDud, mouseButton, id)
-	if mouseButton~="-1" then return end
-	local mage=tostring(id or ""):match("^Incant(.+)$")
-	if mage==nil then return end
-	local playerIndex=nil
-	for index, details in pairs(turnOrder) do if details.mage==mage then playerIndex=index break end end
-	if playerIndex==nil or playerIndex~=gStates.turnNumber then return end
-	local player=turnOrder[playerIndex]
-	if player==nil or gStates.gameScenario~="Druid Nights" or gStates.dayRound~=false or player.combatIconHide~="None" or player.gladesMarked==nil or #player.gladesMarked<1 or player.druidNightsLastRitualRound==gStates.currentRound or druidNightsCanIncantHere(playerIndex)~=true then return end
-	local turnToken=getObjectFromGUID(player.turnOrderTokenGUID)
-	if turnToken==nil or turnToken.is_face_down==true then return end
-	if playerDud~=nil and playerDud.color~=nil and legalPlayerCheck(playerDud.color,player.seatPos)~=true then return end
-
-	combatCameraChoiceSuppressedPlayer=nil
-	gStates.monsterOffsetX=0
-	gStates.monsterOffsetZ=0
-	player.combatIconHide="Both"
-	player.druidNightsLastRitualRound=gStates.currentRound
-	player.druidNightsRitualCount=(player.druidNightsRitualCount or 0)+1
-	broadcastToAll("{en}Performed Incantation to summon Monster(s) to your Player Board{it}Rituale eseguito per evocare Mostri sulla tua Plancia Giocatore{ru}Прочтено заклинание, чтобы призвать Монстра(ов) на вашу игровую доску.{zh-tw}执行了咒语召唤怪物到你的玩家板{zh-cn}执行了咒语召唤怪物到你的玩家板{ko}주문을 시전하여 몬스터를 소환합니다{es}Encantamiento realizado para convocar Monstruos a tu Tablero de Jugador{fr}Incantation exécutée pour invoquer des monstres sur votre plateau de joueur{pt-br}Realizou um Encantamento para invocar Monstro(S) para seu Tabuleiro de Jogador{de}Beschwörung durchgeführt, um Monster auf dein Spielerbrett zu beschwören", positionToColor(playerIndex))
-	if gStates.currentRound==gStates.rounds then player.druidNightsFinalRitual=true end
-	local ritualCount=#player.gladesMarked
-	local crystalMultiple=gStates.currentRound>=5 and 3 or (gStates.currentRound>=3 and 2 or 1)
-	gStates.druidNightsSummon=ritualCount
-	gStates.druidNightsCrystalReward=ritualCount*crystalMultiple
-	local monsterSummoned=gStates.currentRound>=3 and monsterPiles.red or monsterPiles.tan
-	for _=1, ritualCount do safeWaitFrames("Scenario",function() drawMonster(monsterSummoned,player,id) end,10) end
-	if gStates.currentRound>=5 then
-		for _=1, ritualCount do safeWaitFrames("Scenario",function() drawMonster(monsterPiles.tan,player,id) end,10) end
-	end
-	--Activated Glade shields remain on the map until the end of the Night; round reset removes them.
-	addAvatarButtons()
-end
-
 --Draw a Destroyed Site beside its Infinite Bag. destroySite()/arrangeDestroyedSiteHex() owns the
 --visible smooth move to the target hex, so every scripted destruction follows the same placement path.
 takeDestroyedSiteToken=function(terrain,bearing)
@@ -17689,6 +16643,13 @@ function againstDragonRevealLair(tile)
 
 	broadcastToAll("{en}The Apocalypse Dragon's Lair has been revealed.{it}La Tana del Drago dell'Apocalisse è stata rivelata.{ru}Логово Дракона Апокалипсиса раскрыто.{zh-tw}末日巨龍的巢穴已揭露。{zh-cn}末日巨龙的巢穴已揭示。{ko}아포칼립스 드래곤의 둥지가 공개되었습니다.{es}La guarida del Dragón del Apocalipsis ha sido revelada.{fr}L'antre du Dragon de l'Apocalypse a été révélé.{pt-br}O covil do Dragão do Apocalipse foi revelado.{de}Der Hort des Apokalypse-Drachen wurde enthüllt.",{1,0.75,0.2})
 	return true
+end
+
+--The Dragon's cooperative assault completion condition also handles the Dragon-as-City variant.
+function apocalypseDragonAssaultScenarioEndAchieved()
+	if scenarioUsesApocalypseDragon()==true then return apocalypseDragonColoredHeadsDefeated()==true end
+	if gStates~=nil and gStates.apocalypseDragonCityPlaced==true then return cityConquestScenarioEndAchieved() end
+	return false
 end
 
 --Ground combat against the landed Apocalypse Dragon. A normal attack starts when the current
@@ -19142,6 +18103,1086 @@ publishPublicUICallbacks({
 	restoreDestroyedSiteAtCurrentPlayer=restoreDestroyedSiteAtCurrentPlayer,
 	volkarePursuitAction=volkarePursuitAction
 })
+
+end)
+__bundle_register("PlayingGame.SOTScenario", function(require, _LOADED, __bundle_register, __bundle_modules)
+-- Shades of Tezla: Realm of the Dead and Hidden Valley runtime rules.
+
+function realmDeadEnemiesAtPosition(position)
+	if position==nil or position[1]==nil then return false end
+	local map=getObjectFromGUID(mapArea)
+	if map==nil then return false end
+	for _, obj in pairs(map.getObjects()) do
+		local data=monsterPugs[obj.guid]
+		if data~=nil and data.pugType~="possessed" then
+			local pos=obj.getPosition()
+			if ((pos[1]-position[1])^2)+((pos[3]-position[3])^2)<1 then return true end
+		end
+	end
+	return false
+end
+
+function hiddenValleyLiberated()
+	if gStates.gameScenario~="The Hidden Valley Blitz" then return true end
+	if (gStates.elementalistLevel or 1)<=0 then return true end
+	local monsters=gStates.cityMonsterQty~=nil and gStates.cityMonsterQty[elementalist.terrainHex] or nil
+	if monsters~=nil and monsters[elementalist.token]=="dead" then return true end
+	if gStates.defeatedFactionTest~=nil and gStates.defeatedFactionTest[elementalist.terrainHex]=="Beat" then return true end
+	return false
+end
+
+end)
+__bundle_register("PlayingGame.LLScenario", function(require, _LOADED, __bundle_register, __bundle_modules)
+-- The Lost Legion: Volkare's Camp, pursuits, and Quest scenario rules.
+local volkareCampMapPositionForPlayer, volkareCampHexInfoAtPosition, volkarePursuitHexUsed, volkarePursuitDropShield
+
+--Volkare's Camp-as-City rules are proximity based. Keep the real avatarLocation intact so any
+--printed site on one of the six surrounding hexes can still use its normal rules.
+function volkareCampAsCityConquered()
+	--During setup defeatedCities is still the legacy numeric sentinel until the first city-state refresh.
+	if gStates.volkareCampAsCity~=true or type(gStates.defeatedCities)~="table" then return false end
+	return gStates.defeatedCities[volkare.terrainHex]==true and gStates.cityVolkareTile~=nil
+end
+
+function volkarePursuitShieldRegistered(obj)
+	if obj==nil then return false end
+	if obj.getGMNotes~=nil and obj.getGMNotes()=="Volkare Pursuit" then return true end
+	return gStates.volkarePursuitShields~=nil and gStates.volkarePursuitShields[obj.guid]~=nil
+end
+
+volkareCampMapPositionForPlayer=function(playerIndex)
+	local player=turnOrder[playerIndex]
+	if player==nil then return nil end
+	local cityGUID=player.avatarSwapCity
+	local location=player.avatarLocation or ""
+	if cityGUID==nil then
+		local cityByLocation={["city blue"]=cityModel.blue,["raised blue"]=cityModel.blue,["city red"]=cityModel.red,["raised red"]=cityModel.red,
+			["city green"]=cityModel.green,["raised green"]=cityModel.green,["city white"]=cityModel.white,["raised white"]=cityModel.white}
+		cityGUID=cityByLocation[location]
+	end
+	if location=="Volkare's Camp" then cityGUID=volkare.terrainHex end
+	if cityGUID~=nil and gStates.cityMonsterQty~=nil and gStates.cityMonsterQty[cityGUID]~=nil then
+		local extra=gStates.cityMonsterQty[cityGUID].extra
+		local terrainGUID=extra~=nil and extra.terainGUID or nil
+		local terrain=terrainGUID~=nil and getObjectFromGUID(terrainGUID) or nil
+		if terrain~=nil then return terrain.getPosition() end
+	end
+	return mageKnightAvatarPosition(playerIndex)
+end
+
+volkareCampHexInfoAtPosition=function(position)
+	if volkareCampAsCityConquered()~=true or position==nil then return nil end
+	local campTerrain=getObjectFromGUID(gStates.cityVolkareTile)
+	if campTerrain==nil then return nil end
+	local terrain,bearing,hexCenter=terrainHexAtPosition(position)
+	if terrain==nil or bearing==nil or hexCenter==nil then return nil end
+	local campPos=campTerrain.getPosition()
+	local dx=hexCenter[1]-campPos[1]
+	local dz=hexCenter[3]-campPos[3]
+	if (dx*dx)+(dz*dz)>7 then return nil end
+	return {terrainGUID=terrain.guid,bearing=bearing,key=terrain.guid.."|"..tostring(bearing),position={hexCenter[1],2,hexCenter[3]}}
+end
+
+function volkareCampPlayerHexInfo(playerIndex)
+	return volkareCampHexInfoAtPosition(volkareCampMapPositionForPlayer(playerIndex))
+end
+
+function volkareCampContributionShieldCount(playerRef)
+	local playerIndex=type(playerRef)=="number" and playerRef or nil
+	local player=playerIndex~=nil and turnOrder[playerIndex] or playerRef
+	if player==nil or player.mage==nil or volkareCampAsCityConquered()~=true then return 0 end
+	local zone=getObjectFromGUID(volkare.discZone)
+	if zone==nil then return 0 end
+	local count=0
+	for _,obj in pairs(zone.getObjects()) do if isShieldObject(obj) and shieldOwner(obj)==player.mage then count=count+1 end end
+	return count
+end
+
+volkarePursuitHexUsed=function(hexKey)
+	if hexKey==nil then return false end
+	if gStates.volkarePursuitShields==nil then gStates.volkarePursuitShields={} end
+	for guid,storedKey in pairs(gStates.volkarePursuitShields) do
+		local shield=getObjectFromGUID(guid)
+		if shield==nil then
+			gStates.volkarePursuitShields[guid]=nil
+		else
+			local info=volkareCampHexInfoAtPosition(shield.getPosition())
+			if info~=nil then storedKey=info.key gStates.volkarePursuitShields[guid]=storedKey end
+			if storedKey==hexKey then return true end
+		end
+	end
+	return false
+end
+
+function volkarePursuitActionInfo(playerIndex)
+	local player=turnOrder[playerIndex]
+	if player==nil or gStates.preEndTurn==true or playerIndex~=gStates.turnNumber or player.combatIconHide~="None" then return nil end
+	local token=getObjectFromGUID(player.turnOrderTokenGUID)
+	if token==nil or token.is_face_down==true then return nil end
+	local info=volkareCampPlayerHexInfo(playerIndex)
+	if info==nil or volkarePursuitHexUsed(info.key)==true then return nil end
+	return info
+end
+
+volkarePursuitDropShield=function(playerIndex,combat)
+	local player=turnOrder[playerIndex]
+	if player==nil or combat==nil or combat.position==nil then return nil end
+	local details=mageKnightsByName[player.mage]
+	local container=details~=nil and getObjectFromGUID(details.shieldContainer) or nil
+	if container==nil then return nil end
+	local shield=container.takeObject({position={combat.position[1]+0.55,3,combat.position[3]},smooth=false})
+	if shield==nil then return nil end
+	shield.setGMNotes("Volkare Pursuit")
+	if gStates.volkarePursuitShields==nil then gStates.volkarePursuitShields={} end
+	gStates.volkarePursuitShields[shield.guid]=combat.hexKey
+	safeWaitTime("Scenario",function() if getObjectFromGUID(shield.guid)~=nil then safeWaitCondition("Scenario",function() shield.lock() end,function() return shield.resting end) end end,1.0)
+	broadcastToAll(joinLang({translateWord[player.mage],"{en} marked a Volkare Pursuit hex.{it} ha contrassegnato un esagono di Inseguimento di Volkare.{ru} отметил гекс преследования Волкара.{zh-tw}标记了一个沃卡里追击格。{zh-cn}标记了一个沃卡里追击格。{ko}: 볼케어 추격 칸을 표시했습니다.{es} marcó un hexágono de Persecución de Volkare.{fr} a marqué un hexagone de Poursuite de Volkare.{pt-br} marcou um hexágono de Perseguição de Volkare.{de} hat ein Feld für die Verfolgung Volkares markiert."}),positionToColor(playerIndex))
+	return shield
+end
+
+function volkarePursuitResolveCombat(playerIndex)
+	local combat=gStates.volkarePursuitCombat
+	if combat==nil or combat.player~=playerIndex then return end
+	local success=false
+	for _,obj in pairs(playerCombatObjects(turnOrder[playerIndex].seatPos)) do
+		if combat.monsters~=nil and combat.monsters[obj.guid]==true and obj.is_face_down==false then success=true break end
+	end
+	if success==true and volkarePursuitHexUsed(combat.hexKey)~=true then volkarePursuitDropShield(playerIndex,combat) end
+	gStates.volkarePursuitCombat=nil
+	gStates.volkarePursuitChoicePlayer=nil
+end
+
+function volkareArmyStillAlive()
+	local army=gStates~=nil and gStates.cityMonsterQty~=nil and gStates.cityMonsterQty[volkare.model] or nil
+	if type(army)~="table" then return false end
+	for guid,state in pairs(army) do if guid~="extra" and state=="alive" then return true end end
+	return false
+end
+
+--City raising is needed by both Volkare's movement processor and later combat-prompt callbacks.
+function volkareRazesCity(cityKey)
+	if cityKey==nil or cityKey==0 or gStates.cityRevealed[cityKey]==nil then return end
+	local city=gStates.cityRevealed[cityKey]
+	local cityColor={[cityModel.blue]="blue", [cityModel.red]="red", [cityModel.green]="green", [cityModel.white]="white"}
+	runtimeMapSetHexFeature(city.terrain,"center","raised "..cityColor[city.model])
+	if gStates.hexOverideSave[city.terrain]==nil then gStates.hexOverideSave[city.terrain]={} end
+	gStates.hexOverideSave[city.terrain].center="raised "..cityColor[city.model]
+	local cityZone={[cityModel.blue]=GUID.zone.blueCity, [cityModel.red]=GUID.zone.redCity, [cityModel.green]=GUID.zone.greenCity, [cityModel.white]=GUID.zone.whiteCity}
+	getObjectFromGUID(cityScriptZones[cityZone[city.model]].cityCard).setDescription("{en}Raised City - Provides no Interaction{it}Città Rasa al Suolo - Nessuna Interazione{ru}Поднятый город — взаимодействие недоступно{zh-tw}升起的城市－無法互動{zh-cn}升起的城市－无法互动{ko}상승한 도시 - 상호작용 불가{es}Ciudad Elevada - No permite Interacción{fr}Cité Élevée - Aucune Interaction{pt-br}Cidade Elevada - Sem Interação{de}Erhöhte Stadt - Keine Interaktion")
+	getObjectFromGUID(cityScriptZones[cityZone[city.model]].cityCard).addDecal({name="City Raised", url="https://steamusercontent-a.akamaihd.net/ugc/938341811903683200/0910E72610C36BACDEF44CB3BA2A909BA4AFC12E/",
+		position={0.0,0.5,0.0}, rotation={90.0,180.0,0.0}, scale={1,2,2}})
+	gStates.volkareRaisedCity=true
+end
+
+--Volkare's Quest only: once he reaches three spaces from the portal the Council closes it permanently.
+--Mark the closed portal with the dedicated portal-closure artwork.
+volkarePortalClosedDecalURL="https://steamusercontent-a.akamaihd.net/ugc/9820771160644960489/29318B61F2A30E0E941F355C3664303B0C95BC60/"
+function volkareQuestPortalTile()
+	local portalTile=getObjectFromGUID(startTerrain.open)
+	if portalTile==nil then portalTile=getObjectFromGUID(startTerrain.wedge) end
+	return portalTile
+end
+
+
+function volkareQuestPortalStatus()
+	if gStates.gameScenario~="Volkare's Quest" or gStates.volkarePortalClosed==true then return false end
+	local volkareObj=gStates.volkareModel~=nil and getObjectFromGUID(gStates.volkareModel) or nil
+	local portalTile=volkareQuestPortalTile()
+	if volkareObj==nil or portalTile==nil then return false end
+	local vPos=volkareObj.getPosition()
+	local pPos=portalTile.getPosition()
+	local distance=math.sqrt(((vPos[1]-pPos[1])^2)+((vPos[3]-pPos[3])^2))
+	--Euclidean distance is sufficient here, but do not divide-and-round it: different hexes on the same ring have different radii.
+	--These thresholds sit in the clear gaps between the 3/4-space and 4/5-space rings.
+	local closeDistance=2.39*3.25
+	local warningDistance=2.39*4.20
+	if distance>closeDistance and distance<=warningDistance and gStates.volkarePortalWarningShown~=true then
+		gStates.volkarePortalWarningShown=true
+		broadcastToAll("{en}WARNING: Volkare is four spaces from the Portal. If he moves within three spaces, the Council of the Void will close it.{it}ATTENZIONE: Volkare è a quattro spazi dal Portale. Se arriva entro tre spazi, il Consiglio del Vuoto lo chiuderà.{ru}ВНИМАНИЕ: Волкар находится в четырёх клетках от Портала. Если он приблизится на три клетки, Совет Пустоты закроет Портал.{zh-tw}警告：沃卡里距離傳送門四格。若他進入三格範圍內，虛空議會將關閉傳送門。{zh-cn}警告：沃卡里距离传送门四格。若他进入三格范围内，虚空议会将关闭传送门。{ko}경고: 볼케어가 포털에서 4칸 떨어져 있습니다. 3칸 이내로 이동하면 공허의 의회가 포털을 닫습니다.{es}ADVERTENCIA: Volkare está a cuatro espacios del Portal. Si se acerca a tres espacios, el Consejo del Vacío lo cerrará.{fr}ATTENTION : Volkare se trouve à quatre cases du Portail. S’il s’approche à trois cases, le Conseil du Vide le fermera.{pt-br}AVISO: Volkare está a quatro espaços do Portal. Se ele chegar a três espaços, o Conselho do Vácuo fechará o Portal.{de}WARNUNG: Volkare ist vier Felder vom Portal entfernt. Kommt er auf drei Felder heran, wird der Rat der Leere das Portal schließen.", {1,0.65,0.15})
+	end
+	if distance>closeDistance then return false end
+	gStates.volkarePortalClosed=true
+	gStates.volkarePortalWarningShown=true
+	local decals=portalTile.getDecals() or {}
+	local marked=false
+	for _, decal in pairs(decals) do if decal.name=="Portal Closed" then marked=true break end end
+	if marked==false then portalTile.addDecal({name="Portal Closed",url=volkarePortalClosedDecalURL,position={0,0.15,0},rotation={90,180,0},scale={0.88,0.88,1}}) end
+	broadcastToAll("{en}The Council of the Void has closed the Portal. From now on it is an ordinary space, and Volkare may be attacked there.{it}Il Consiglio del Vuoto ha chiuso il Portale. Ora è uno spazio normale e vi si può attaccare Volkare.{ru}Совет Пустоты закрыл Портал. Теперь это обычная клетка, и Волкара можно атаковать там.{zh-tw}虛空議會已關閉傳送門。從現在起它視為一般空間，沃卡里可在此被攻擊。{zh-cn}虚空议会已关闭传送门。从现在起它视为一般空间，沃卡里可在此被攻击。{ko}공허의 의회가 포털을 닫았습니다. 이제 일반 칸으로 취급하며 그곳에서 볼케어를 공격할 수 있습니다.{es}El Consejo del Vacío ha cerrado el Portal. A partir de ahora es un espacio normal y Volkare puede ser atacado allí.{fr}Le Conseil du Vide a fermé le Portail. Désormais, il s’agit d’une case ordinaire et Volkare peut y être attaqué.{pt-br}O Conselho do Vácuo fechou o Portal. A partir de agora ele é um espaço comum, e Volkare pode ser atacado ali.{de}Der Rat der Leere hat das Portal geschlossen. Von nun an ist es ein normales Feld, und Volkare kann dort angegriffen werden.", {1,0.45,0.15})
+	scenarioEliminatePlayersAtPortal("{en} was caught on the Portal when it closed and is out of the game.{it} si trovava sul Portale alla chiusura ed è fuori dalla partita.{ru} оказался на Портале в момент его закрытия и выбывает из игры.{zh-tw} 在傳送門關閉時仍站在其上，因此退出遊戲。{zh-cn} 在传送门关闭时仍站在其上，因此退出游戏。{ko} 포탈이 닫힐 때 그 위에 있어 게임에서 탈락합니다.{es} estaba en el Portal cuando se cerró y queda fuera de la partida.{fr} se trouvait sur le Portail lors de sa fermeture et est éliminé de la partie.{pt-br} estava no Portal quando ele se fechou e está fora do jogo.{de} befand sich beim Schließen auf dem Portal und scheidet aus dem Spiel aus.")
+	applyColorBarButtons()
+	addAvatarButtons()
+	volkareQuestCheckSkipTurn()
+	if activeMageKnightCount()==0 then
+		gStates.volkareWon=true
+		gStates.blurb="{en}The Portal closed with every Mage Knight trapped upon it.<size=6>\n\n</size>No-one remains to oppose Volkare. You have Lost.{it}Il Portale si è chiuso con tutti i Mage Knight intrappolati sopra.<size=6>\n\n</size>Nessuno può più opporsi a Volkare. Avete perso.{ru}Портал закрылся, когда все Рыцари-Маги находились на нем.<size=6>\n\n</size>Некому противостоять Волкару. Вы проиграли.{zh-tw}傳送門關閉時所有魔法騎士都被困在其上。<size=6>\n\n</size>已無人能阻止沃卡里。你輸了。{zh-cn}传送门关闭时所有魔法骑士都被困在其上。<size=6>\n\n</size>已无人能阻止沃卡里。你输了。{ko}포탈이 닫히며 모든 마법기사가 그 위에 갇혔습니다.<size=6>\n\n</size>볼케어를 막을 자가 없습니다. 패배했습니다.{es}El Portal se cerró con todos los Caballeros Mago atrapados sobre él.<size=6>\n\n</size>Nadie queda para oponerse a Volkare. Has perdido.{fr}Le Portail s'est fermé alors que tous les Chevaliers-Mages s'y trouvaient.<size=6>\n\n</size>Plus personne ne peut s'opposer à Volkare. Vous avez perdu.{pt-br}O Portal se fechou com todos os Cavaleiros Magos presos sobre ele.<size=6>\n\n</size>Ninguém resta para enfrentar Volkare. Você perdeu.{de}Das Portal schloss sich, während alle Mage Knights darauf standen.<size=6>\n\n</size>Niemand kann Volkare noch aufhalten. Ihr habt verloren."
+		UI.setAttribute("DummyNotes", "Text", gStates.blurb)
+		mainUIUpdate("Volkare portal closure eliminated all players")
+	end
+	return true
+end
+
+function volkareQuestSkipThreshold()
+	return activeMageKnightCount()*2
+end
+
+function volkareQuestCheckSkipTurn()
+	if gStates.gameScenario~="Volkare's Quest" then return false end
+	local threshold=volkareQuestSkipThreshold()
+	local reminder=getObjectFromGUID("09a991")
+	if threshold<=0 or gStates.volkareArmyDefeated<threshold or reminder==nil or reminder.is_face_down==true then return false end
+	gStates.volkareQuestSkipThreshold=threshold
+	reminder.flip()
+	broadcastToAll(joinLang({"{en}At Least {it}Almeno {ru}Как минимум {zh-tw}至少{zh-cn}至少{ko}최소 {es}Al menos {fr}Au moins {pt-br}Pelo menos {de}Zumindest ", tostring(threshold), "{en} of Volkare's Army defeated, he skips his next turn.{it} dell'esercito di Volkare è sconfitto; salta il prossimo turno.{ru} отряда из армии Волкара побеждено, он пропускает следующий ход{zh-tw}个敌人被击败了, 沃里卡跳过了他的回合. {zh-cn}个敌人被击败了, 沃里卡跳过了他的回合. {ko}개의 볼케어 군대 적 토큰을 제거했기에, 볼케어의 차례를 건너뜁니다{es} de los ejércitos de Volkare derrotados, se salta su siguiente turno.{fr} de l'armée de Volkare vaincus, il saute son prochain tour.{pt-br} do exército de Volkare derrotado, ele pulará seu próximo turno.{de} von Volkare's Armee besiegt, überspringt er seinen nächsten Zug."}), {1,1,0.5})
+	return true
+end
+
+function volkareQuestFullAttendAllowed(mageName)
+	if gStates.gameScenario~="Volkare's Quest" then return true end
+	for _, details in pairs(turnOrder) do
+		if details.mage==mageName then
+			local token=getObjectFromGUID(details.turnOrderTokenGUID)
+			if token~=nil and token.is_face_down==true then return false end
+			local handZone=getObjectFromGUID(handZones[details.seatPos])
+			if handZone~=nil then
+				for _, card in pairs(handZone.getObjects()) do
+					if card.type=="Card" and card.getGMNotes()~="Wound" then return true end
+				end
+			end
+			return false
+		end
+	end
+	return false
+end
+
+function volkareQuestRefreshFullAttend(mageName)
+	if gStates.gameScenario~="Volkare's Quest" then return end
+	local allowed=volkareQuestFullAttendAllowed(mageName)
+	UI.setAttribute("VolkareAttackedFull", "interactable", allowed and "true" or "false")
+	UI.setAttribute("VolkareAttackedFullImage", "image", allowed and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
+end
+
+function volkareQuestCombatWithdrawalReminder(mageName)
+	if gStates.gameScenario~="Volkare's Quest" or gStates.volkareMovementStepPending==true or mageName==nil then return false end
+	local attacked=gStates.volkareAttacked~=nil and gStates.volkareAttacked[1] or nil
+	if attacked==nil or attacked.mage~=mageName then return false end
+	local volkareObj=gStates.volkareModel~=nil and getObjectFromGUID(gStates.volkareModel) or nil
+	if volkareObj==nil then return false end
+	local mageObj=nil
+	for _, avatar in pairs(mageKnights) do
+		if avatar.mage==mageName then
+			mageObj=getObjectFromGUID(avatar.model) or getObjectFromGUID(avatar.standee) or getObjectFromGUID(avatar.token)
+			break
+		end
+	end
+	if mageObj==nil then return false end
+	local vPos,mPos=volkareObj.getPosition(),mageObj.getPosition()
+	if math.sqrt(((vPos[1]-mPos[1])^2)+((vPos[3]-mPos[3])^2))>=1.5 then return false end
+	broadcastToAll(joinLang({translateWord[mageName], "{en} needs to withdraw to a neighboring Safe space after fighting Volkare.{it} deve ritirarsi in uno spazio Sicuro adiacente dopo il combattimento con Volkare.{ru} должен отступить на соседнюю безопасную клетку после боя с Волкаром.{zh-tw} 與沃卡里戰鬥後必須撤退到相鄰的安全格。{zh-cn} 与沃卡里战斗后必须撤退到相邻的安全格。{ko} 볼케어와 전투한 뒤 인접한 안전한 칸으로 후퇴해야 합니다.{es} debe retirarse a un espacio seguro vecino después de luchar contra Volkare.{fr} doit se retirer vers un espace sûr adjacent après avoir combattu Volkare.{pt-br} precisa recuar para um espaço Seguro adjacente depois de lutar com Volkare.{de} muss sich nach dem Kampf gegen Volkare auf ein benachbartes sicheres Feld zurückziehen."}), warningColor)
+	return true
+end
+
+function registerVolkareCampAsCityKeep()
+	if gStates.volkareCampAsCity~=true or gStates.volkareCityDefeat==true or gStates.defeatedCities[volkare.terrainHex]~=true then return end
+	gStates.volkareCityDefeat=true
+	for _, player in pairs(turnOrder) do
+		if player.defeatedCities[volkare.terrainHex]=="Lead" then player.keepsBeat=player.keepsBeat+1 break end
+	end
+end
+
+function volkarePursuitAction(playerDud,mouseButton,id)
+	if mouseButton~="-1" then return end
+	local mage=id:match("|(.+)$")
+	local playerIndex=nil
+	for index,details in pairs(turnOrder) do if details.mage==mage then playerIndex=index break end end
+	if playerIndex==nil or playerIndex~=gStates.turnNumber then return end
+	if playerDud~=nil and playerDud.color~=nil and legalPlayerCheck(playerDud.color,turnOrder[playerIndex].seatPos)~=true then return end
+	local info=volkarePursuitActionInfo(playerIndex)
+	if info==nil then gStates.volkarePursuitChoicePlayer=nil addAvatarButtons() return end
+	if id:sub(1,12)=="VPursuitOpen" then gStates.volkarePursuitChoicePlayer=playerIndex addAvatarButtons() return end
+	local choice=id:match("^VPursuit([^|]+)")
+	if choice~="Green" and choice~="Red" and choice~="Both" then return end
+	gStates.volkarePursuitChoicePlayer=nil
+	gStates.volkarePursuitCombat={player=playerIndex,hexKey=info.key,position=info.position,monsters={}}
+	if gStates.volkarePursuitEnemies==nil then gStates.volkarePursuitEnemies={} end
+	combatCameraChoiceSuppressedPlayer=nil
+	turnOrder[playerIndex].combatIconHide="Avatar"
+	gStates.monsterOffsetX=0 gStates.monsterOffsetZ=0
+	if choice=="Green" or choice=="Both" then drawMonster(monsterPiles.green,turnOrder[playerIndex],"VPDraw|Green") end
+	if choice=="Red" or choice=="Both" then local delay=choice=="Both" and 7 or 0 safeWaitFrames("Scenario",function() drawMonster(monsterPiles.red,turnOrder[playerIndex],"VPDraw|Red") end,delay) end
+	broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage],"{en} pursues Volkare's fleeing army.{it} insegue l'esercito in fuga di Volkare.{ru} преследует отступающую армию Волкара.{zh-tw}追击沃卡里的溃军。{zh-cn}追击沃卡里的溃军。{ko}: 볼케어의 패주하는 군대를 추격합니다.{es} persigue al ejército en fuga de Volkare.{fr} poursuit l'armée de Volkare en fuite.{pt-br} persegue o exército em fuga de Volkare.{de} verfolgt Volkares fliehende Armee."}),positionToColor(playerIndex))
+	addAvatarButtons()
+end
+
+end)
+__bundle_register("PlayingGame.BaseScenario", function(require, _LOADED, __bundle_register, __bundle_modules)
+-- Core scenario lifecycle, original-game rules, and shared scenario entry points.
+local oneToReturnPortalTile, oneToReturnSetPortalClosedDecal, oneToReturnPortalOccupant, mineLiberatedForClaim, mineClaimData, clearScenarioEndAchieved, dungeonLordsSecretSourceFeature, dungeonLordsSecretSourcePosition
+local dungeonLordsSecretSpaceBasicLegal, dungeonLordsFindAdjacentSecretSource, dungeonLordsSecretDestinationLegal, dungeonLordsSecretLegalDestinationCount, dungeonLordsSecretRequestMatches, dungeonLordsQueueSecretRequest, dungeonLordsPruneImpossibleSecretRequests
+
+function scenarioEliminatePlayersAtPortal(message)
+	local eliminated=0
+	for playerIndex,details in pairs(turnOrder) do
+		if details.mage~=gStates.positionMageKnight[5] and playerDropoutInactive(playerIndex)==false and details.avatarLocation=="portal" then
+			details.dropoutState="dropped"
+			gStates.skipTurn[playerIndex]=nil
+			local token=getObjectFromGUID(details.turnOrderTokenGUID)
+			if token~=nil and token.is_face_down==true then token.flip() end
+			broadcastToAll(joinLang({translateWord[details.mage],message}),positionToColor(playerIndex))
+			eliminated=eliminated+1
+		end
+	end
+	return eliminated
+end
+
+--One to Return: the starting Portal closes after the first Day, eliminating anyone still on it.
+--After that it is an ordinary single-occupancy plains hex until it reopens at the end of the second Night.
+oneToReturnPortalTile=function()
+	return volkareQuestPortalTile()
+end
+
+oneToReturnSetPortalClosedDecal=function(closed)
+	local portalTile=oneToReturnPortalTile()
+	if portalTile==nil then return end
+	local decals=portalTile.getDecals() or {}
+	local kept={}
+	local marked=false
+	for _, decal in pairs(decals) do
+		if decal.name=="Portal Closed" then marked=true else kept[#kept+1]=decal end
+	end
+	if closed==true then
+		if marked==false then portalTile.addDecal({name="Portal Closed",url=volkarePortalClosedDecalURL,position={0,0.15,0},rotation={90,180,0},scale={0.88,0.88,1}}) end
+	elseif marked==true then portalTile.setDecals(kept) end
+end
+
+function oneToReturnClosePortal()
+	if gStates.gameScenario~="One to Return" or gStates.oneToReturnPortalClosed==true then return false end
+	gStates.oneToReturnPortalClosed=true
+	oneToReturnSetPortalClosedDecal(true)
+	broadcastToAll("{en}The Portal has closed. From now on it is an ordinary plains space until the end of the second Night.{it}Il Portale si è chiuso. Ora è un normale spazio pianura fino alla fine della seconda Notte.{ru}Портал закрылся. До конца второй Ночи это обычная клетка Равнины.{zh-tw}傳送門已關閉。從現在起直到第二個夜晚結束，它視為一般平原空間。{zh-cn}传送门已关闭。从现在起直到第二个夜晚结束，它视为一般平原空间。{ko}포털이 닫혔습니다. 두 번째 밤이 끝날 때까지 일반 평원 칸으로 취급합니다.{es}El Portal se ha cerrado. Hasta el final de la segunda Noche es un espacio normal de Llanura.{fr}Le Portail s’est fermé. Jusqu’à la fin de la deuxième Nuit, il s’agit d’une case de Plaine ordinaire.{pt-br}O Portal se fechou. Até o fim da segunda Noite ele é um espaço comum de Planície.{de}Das Portal hat sich geschlossen. Bis zum Ende der zweiten Nacht ist es ein normales Ebenenfeld.", warningColor)
+	scenarioEliminatePlayersAtPortal("{en} was still on the Portal when it closed and is out of the game.{it} era ancora sul Portale alla chiusura ed è fuori dalla partita.{ru} оставался на Портале, когда он закрылся, и выбывает из игры.{zh-tw} 在傳送門關閉時仍站在其上，因此退出遊戲。{zh-cn} 在传送门关闭时仍站在其上，因此退出游戏。{ko} 포탈이 닫힐 때 그 위에 있어 게임에서 탈락합니다.{es} seguía en el Portal cuando se cerró y queda fuera de la partida.{fr} se trouvait encore sur le Portail lorsqu'il s'est fermé et est éliminé de la partie.{pt-br} ainda estava no Portal quando ele se fechou e está fora do jogo.{de} befand sich noch auf dem Portal, als es sich schloss, und scheidet aus dem Spiel aus.")
+	applyColorBarButtons()
+	addAvatarButtons()
+	if activeMageKnightCount()==0 then
+		gStates.oneToReturnWinner=nil
+		gStates.oneToReturnWinnerLocked=true
+		gStates.blurb="{en}The Portal closed with every Mage Knight still upon it.<size=6>\n\n</size>No Hero remains to return. There is no winner.{it}Il Portale si è chiuso con tutti i Mage Knight ancora sopra.<size=6>\n\n</size>Nessun Eroe può tornare. Non c'è vincitore.{ru}Портал закрылся, когда все Рыцари-Маги оставались на нем.<size=6>\n\n</size>Никто не сможет вернуться. Победителя нет.{zh-tw}傳送門關閉時所有魔法騎士都還在其上。<size=6>\n\n</size>沒有英雄能夠返回。無人獲勝。{zh-cn}传送门关闭时所有魔法骑士都还在其上。<size=6>\n\n</size>没有英雄能够返回。无人获胜。{ko}포탈이 닫힐 때 모든 마법기사가 그 위에 남아 있었습니다.<size=6>\n\n</size>돌아갈 영웅이 없습니다. 승자는 없습니다.{es}El Portal se cerró con todos los Caballeros Mago todavía sobre él.<size=6>\n\n</size>No queda ningún Héroe que pueda regresar. No hay ganador.{fr}Le Portail s'est fermé alors que tous les Chevaliers-Mages s'y trouvaient encore.<size=6>\n\n</size>Aucun Héros ne peut rentrer. Il n'y a pas de vainqueur.{pt-br}O Portal se fechou com todos os Cavaleiros Magos ainda sobre ele.<size=6>\n\n</size>Nenhum Herói resta para retornar. Não há vencedor.{de}Das Portal schloss sich, während noch alle Mage Knights darauf standen.<size=6>\n\n</size>Kein Held kann zurückkehren. Es gibt keinen Gewinner."
+		UI.setAttribute("DummyNotes", "Text", gStates.blurb)
+		gStates.endGameAchieved="true"
+		gStates.gameOver=true
+		mainUIUpdate("One to Return portal closure eliminated all players")
+	end
+	return true
+end
+
+oneToReturnPortalOccupant=function()
+	if gStates.gameScenario~="One to Return" then return nil,nil end
+	local portalTile=oneToReturnPortalTile()
+	if portalTile==nil then return nil,nil end
+	local portalPos=portalTile.getPosition()
+	for playerIndex, details in pairs(turnOrder) do
+		if details.mage~=gStates.positionMageKnight[5] and playerDropoutInactive(playerIndex)==false then
+			local avatarObj=nil
+			for _, avatar in pairs(mageKnights) do
+				if avatar.mage==details.mage then
+					avatarObj=getObjectFromGUID(avatar.model) or getObjectFromGUID(avatar.standee) or getObjectFromGUID(avatar.token)
+					break
+				end
+			end
+			if avatarObj~=nil then
+				local pos=avatarObj.getPosition()
+				if ((pos[1]-portalPos[1])^2)+((pos[3]-portalPos[3])^2)<1 then return playerIndex,details end
+			end
+		end
+	end
+	return nil,nil
+end
+
+function oneToReturnLockFinalWinner()
+	if gStates.gameScenario~="One to Return" then return false end
+	oneToReturnSetPortalClosedDecal(false)
+	local _,winner=oneToReturnPortalOccupant()
+	if winner==nil then
+		gStates.oneToReturnWinner=nil
+		gStates.oneToReturnWinnerLocked=false
+		return false
+	end
+	if oneToReturnEnsureChosenMages~=nil then oneToReturnEnsureChosenMages() end
+	local teamVariant=gStates.oneToReturnChosenMages~=nil
+	local team=mageKnightSeatTeam(winner.seatPos)
+	gStates.oneToReturnWinner=(not teamVariant or gStates.oneToReturnChosenMages[team]==winner.mage) and winner.mage or nil
+	gStates.oneToReturnWinnerLocked=true
+	if gStates.oneToReturnWinner==nil then
+		broadcastToAll("{en}A Hero occupies the Portal, but they are not the chosen member of their team. No team wins.{it}Un eroe occupa il Portale, ma non è il prescelto della sua squadra. Nessuna squadra vince.{ru}Герой занял Портал, но он не избранный участник команды. Победителей нет.{zh-tw}傳送門有人佔據，但不是該隊選定的英雄。無隊伍獲勝。{zh-cn}传送门有人占据，但不是该队选定的英雄。无队伍获胜。{ko}포털에 영웅이 있지만 팀의 선택된 영웅이 아닙니다. 승자는 없습니다.{es}Un héroe ocupa el Portal, pero no es el elegido de su equipo. Ningún equipo gana.{fr}Un héros occupe le Portail, mais ce n'est pas l'élu de son équipe. Aucune équipe ne gagne.{pt-br}Um herói ocupa o Portal, mas não é o escolhido de sua equipe. Nenhuma equipe vence.{de}Ein Held besetzt das Portal, aber nicht der Auserwählte seines Teams. Kein Team gewinnt.",{1,1,0.5})
+	else
+		broadcastToAll(joinLang({translateWord[winner.mage], "{en} occupies the Portal as End of Night is announced and is the One to Return. Player vs. Player combat may not be initiated after End of Night is called.{it} occupa il Portale all'annuncio della fine della Notte ed è l'Unico a Tornare. Dopo l'annuncio non si possono iniziare combattimenti tra giocatori.{ru} занимает Портал в момент объявления конца Ночи и становится Единственным, кто вернется. После объявления конца Ночи нельзя начинать бой между игроками.{zh-tw} 在宣告黑夜輪結束時佔據傳送門，成為唯一能返回的英雄。宣告黑夜輪結束後不能再發起玩家對玩家戰鬥。{zh-cn} 在宣布黑夜轮结束时占据传送门，成为唯一能返回的英雄。宣布黑夜轮结束后不能再发起玩家对玩家战斗。{ko} 밤 종료가 선언될 때 포탈을 차지하고 있어 돌아갈 단 한 명의 영웅이 됩니다. 밤 종료 선언 후에는 PvP 전투를 시작할 수 없습니다.{es} ocupa el Portal cuando se anuncia el Fin de la Noche y es el Único que Regresa. No se puede iniciar combate entre jugadores después de anunciar el Fin de la Noche.{fr} occupe le Portail lorsque la Fin de la Nuit est annoncée et devient l'Unique à Revenir. Aucun combat entre joueurs ne peut être initié après l'annonce de la Fin de la Nuit.{pt-br} ocupa o Portal quando o Fim da Noite é anunciado e é o Único a Retornar. Combate entre jogadores não pode ser iniciado depois que o Fim da Noite é anunciado.{de} besetzt das Portal, als das Ende der Nacht ausgerufen wird, und ist der Eine, der zurückkehrt. Nach dem Ausrufen des Nachtendes darf kein PvP-Kampf mehr begonnen werden."}), {1,1,0.5})
+	end
+	return gStates.oneToReturnWinner~=nil
+end
+
+function oneToReturnResolveWinner()
+	if gStates.gameScenario~="One to Return" then return false end
+	oneToReturnSetPortalClosedDecal(false)
+	local winnerMage=gStates.oneToReturnWinnerLocked==true and gStates.oneToReturnWinner or nil
+	if winnerMage==nil and gStates.oneToReturnWinnerLocked~=true then
+		local _,winner=oneToReturnPortalOccupant()
+		if winner~=nil then
+			local chosen=gStates.oneToReturnChosenMages
+			local team=mageKnightSeatTeam(winner.seatPos)
+			if chosen==nil or chosen[team]==winner.mage then winnerMage=winner.mage end
+		end
+	end
+	gStates.oneToReturnWinner=winnerMage
+	if winnerMage~=nil then
+		gStates.blurb=joinLang({translateWord[winnerMage], "{en} is the One to Return.<size=6>\n\n</size>They occupy the Portal as the second Night ends and win the game.{it} è l'Unico a Tornare.<size=6>\n\n</size>Occupa il Portale alla fine della seconda Notte e vince la partita.{ru} — Единственный, кто вернется.<size=6>\n\n</size>Он занимает Портал в конце второй Ночи и выигрывает игру.{zh-tw} 是唯一能返回的英雄。<size=6>\n\n</size>第二個黑夜輪結束時佔據傳送門並贏得遊戲。{zh-cn} 是唯一能返回的英雄。<size=6>\n\n</size>第二个黑夜轮结束时占据传送门并赢得游戏。{ko} 돌아갈 단 한 명의 영웅입니다.<size=6>\n\n</size>두 번째 밤이 끝날 때 포탈을 차지해 승리합니다.{es} es el Único que Regresa.<size=6>\n\n</size>Ocupa el Portal cuando termina la segunda Noche y gana la partida.{fr} est l'Unique à Revenir.<size=6>\n\n</size>Ce Héros occupe le Portail à la fin de la deuxième Nuit et remporte la partie.{pt-br} é o Único a Retornar.<size=6>\n\n</size>Ocupa o Portal quando a segunda Noite termina e vence o jogo.{de} ist der Eine, der zurückkehrt.<size=6>\n\n</size>Dieser Held besetzt das Portal am Ende der zweiten Nacht und gewinnt das Spiel."})
+	else
+		gStates.blurb="{en}The second Night has ended and no Hero occupies the Portal.<size=6>\n\n</size>There is no winner.{it}La seconda Notte è finita e nessun Eroe occupa il Portale.<size=6>\n\n</size>Non c'è vincitore.{ru}Вторая Ночь закончилась, но Портал никто не занимает.<size=6>\n\n</size>Победителя нет.{zh-tw}第二個黑夜輪已結束，但沒有英雄佔據傳送門。<size=6>\n\n</size>無人獲勝。{zh-cn}第二个黑夜轮已结束，但没有英雄占据传送门。<size=6>\n\n</size>无人获胜。{ko}두 번째 밤이 끝났지만 포탈을 차지한 영웅이 없습니다.<size=6>\n\n</size>승자는 없습니다.{es}La segunda Noche ha terminado y ningún Héroe ocupa el Portal.<size=6>\n\n</size>No hay ganador.{fr}La deuxième Nuit est terminée et aucun Héros n'occupe le Portail.<size=6>\n\n</size>Il n'y a pas de vainqueur.{pt-br}A segunda Noite terminou e nenhum Herói ocupa o Portal.<size=6>\n\n</size>Não há vencedor.{de}Die zweite Nacht ist beendet und kein Held besetzt das Portal.<size=6>\n\n</size>Es gibt keinen Gewinner."
+	end
+	UI.setAttribute("DummyNotes", "Text", gStates.blurb)
+	broadcastToAll(gStates.blurb, {1,1,0.5})
+	return winnerMage~=nil
+end
+
+currentMageAvatarPosition=function(playerIndex)
+	local player=turnOrder[playerIndex]
+	if player==nil then return nil end
+	for _, avatar in pairs(mageKnights) do
+		if avatar.mage==player.mage then
+			if getObjectFromGUID(avatar.model)~=nil then return getObjectFromGUID(avatar.model).getPosition() end
+			if getObjectFromGUID(avatar.token)~=nil then return getObjectFromGUID(avatar.token).getPosition() end
+			if getObjectFromGUID(avatar.standee)~=nil then return getObjectFromGUID(avatar.standee).getPosition() end
+		end
+	end
+	return nil
+end
+
+function scenarioRestLocationIsAvailable()
+	local player=turnOrder[gStates.turnNumber]
+	if player==nil then return true end
+	local location=player.avatarLocation
+	if gStates.gameScenario=="The Realm of the Dead Blitz" then
+		if location=="graveyard" then return realmDeadEnemiesAtPosition(currentMageAvatarPosition(gStates.turnNumber))~=true end
+		if location=="necropolis" then return (gStates.defeatedFaction or 0)>0 end
+		return true
+	end
+	if gStates.gameScenario=="The Hidden Valley Blitz" then
+		if location=="hidden valley" then return hiddenValleyLiberated() end
+		return true
+	end
+	local gladeOpen=true
+	if (gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The War of Four") and (location=="glade" or location=="graveyard") then
+		gladeOpen=false
+		local avatarLocation=currentMageAvatarPosition(gStates.turnNumber)
+		if avatarLocation==nil then return false end
+		local objectsInPlay=getObjectFromGUID(mapArea).getObjects()
+		table.sort(objectsInPlay, function (k1, k2) return k1.getPosition()[2]>k2.getPosition()[2] end)
+		for _, obj in pairs(objectsInPlay) do
+			if isShieldObject(obj) and volkarePursuitShieldRegistered(obj)~=true then
+				if math.sqrt(((obj.getPosition()[1]-avatarLocation[1])^2)+((obj.getPosition()[3]-avatarLocation[3])^2))<1 then
+					gladeOpen=true
+					break
+				end
+			end
+		end
+	end
+	return gladeOpen
+end
+
+function conqueredCityObjectiveCount()
+	local count=gStates~=nil and gStates.defeatedCities~=nil and (tonumber(gStates.defeatedCities.amount) or 0) or 0
+	if gStates~=nil and gStates.apocalypseDragonCityPlaced==true and gStates.apocalypseDragonDefeated==true then count=count+1 end
+	return count
+end
+
+function cityConquestScenarioEndAchieved()
+	if gStates==nil then return false end
+	local count=conqueredCityObjectiveCount()
+	if gStates.gameScenario=="Conquest" or gStates.gameScenario=="Conquest Blitz" then return count==gStates.cityTiles end
+	if gStates.gameScenario=="The Council versus the Apocalypse" then return count>=2 end
+	return fanScenarioConquestEndAchieved(count)
+end
+
+function coopLeaderScenarioEndAchieved()
+	if gStates.endGameAchieved~="false" then return false end
+	refreshCityDefeatState()
+	if gStates.gameScenario=="Life and Death" then return gStates.defeatedFaction==2 end
+	if gStates.gameScenario=="The Hidden Valley Blitz" then return gStates.defeatedFaction==1 end
+	if gStates.gameScenario=="Ultimate Conquest" then return fanScenarioConquestEndAchieved(conqueredCityObjectiveCount()) end
+	if gStates.gameScenario=="The Realm of the Dead Blitz" then
+		local graveYardCount=0
+		local graveYardTileCount=0
+		local objectsInPlay=getObjectFromGUID(mapArea).getObjects()
+		for _, obj in pairs(objectsInPlay) do
+			if scriptObjectId(obj)=="GraveYard" then graveYardTileCount=graveYardTileCount+1 end
+			if isShieldObject(obj) and volkarePursuitShieldRegistered(obj)~=true then
+				local shieldPos=obj.getPosition()
+				for _, graveYard in pairs(objectsInPlay) do
+					if scriptObjectId(graveYard)=="GraveYard" then
+						local gravePos=graveYard.getPosition()
+						if math.sqrt(((shieldPos[1]-gravePos[1])^2)+((shieldPos[3]-gravePos[3])^2))<1 then graveYardCount=graveYardCount+1 break end
+					end
+				end
+			end
+		end
+		return gStates.defeatedFaction==1 and graveYardCount==graveYardTileCount
+	end
+	return false
+end
+
+local combatCleanupMineTiles={
+	[GUID.tile.core02]=true,[GUID.tile.core04]=true,[GUID.tile.core03]=true,[GUID.tile.country03]=true,
+	[GUID.tile.country06]=true,[GUID.tile.country02]=true,[GUID.tile.country05]=true,[GUID.tile.city08]=true,
+	[GUID.tile.country13]=true,[GUID.tile.country14]=true,[GUID.tile.country15]=true,[GUID.tile.country17]=true,[GUID.tile.core10]=true
+}
+local combatCleanupDungeonTombTiles={
+	[GUID.tile.core01]=true,[GUID.tile.core03]=true,[GUID.tile.country07]=true,[GUID.tile.country09]=true
+}
+
+--Combat calls this only after returned enemies and shields have settled. Scenario owns victory
+--conditions and Volkare's Return defense resolution; Combat only owns when this boundary is reached.
+function scenarioCombatCleanupCheck(cleanupPlayer)
+	if gStates.endGameAchieved~="false" or gStates.tacticShown~=false then return end
+	local cleanupLocation=turnOrder[cleanupPlayer]~=nil and turnOrder[cleanupPlayer].avatarLocation or ""
+	local dungeonCount,dungeonHexCount=0,0
+	local mineCount,mineTileCount=0,0
+	local graveYardCount,graveYardTileCount=0,0
+	local relicCount=0
+
+	if gStates.gameScenario=="Mines Liberation" or gStates.gameScenario=="The Realm of the Dead Blitz" or
+		gStates.gameScenario=="Dungeon Lords" or gStates.gameScenario=="The Lost Relic Blitz" or
+		gStates.gameScenario=="Against the Apocalypse Blitz" then
+		local map=getObjectFromGUID(mapArea)
+		local objectsInPlay=map~=nil and map.getObjects() or {}
+		table.sort(objectsInPlay,function(k1,k2) return k1.getPosition()[2]>k2.getPosition()[2] end)
+		for _, playAreaObject in pairs(objectsInPlay) do
+			if isShieldObject(playAreaObject) and volkarePursuitShieldRegistered(playAreaObject)~=true then
+				local found=false
+				local shieldPos=playAreaObject.getPosition()
+				local locatedTerrain,_,_,locatedFeature=terrainHexAtPosition(shieldPos,objectsInPlay)
+				for _, terTile in pairs(objectsInPlay) do
+					local tilePos=terTile.getPosition()
+					local shieldToTileDist=math.sqrt(((shieldPos[1]-tilePos[1])^2)+((shieldPos[3]-tilePos[3])^2))
+					if terTile==locatedTerrain then
+						found=true
+						if locatedFeature=="dungeon" or locatedFeature=="tomb" then dungeonCount=dungeonCount+1 end
+						if locatedFeature=="mine" then mineCount=mineCount+1 end
+						if locatedFeature~=nil and (locatedFeature:sub(1,4)=="city" or locatedFeature=="Volkare's Camp") and gStates.gameScenario=="The Lost Relic Blitz" then relicCount=relicCount+1 end
+					end
+					if shieldToTileDist<1 and scriptObjectId(terTile)=="GraveYard" then graveYardCount=graveYardCount+1 found=true end
+					if found==true then break end
+				end
+			end
+			if terrainTiles[playAreaObject.guid]~=nil and combatCleanupMineTiles[playAreaObject.guid]==true then mineTileCount=mineTileCount+1 end
+			if scriptObjectId(playAreaObject)=="GraveYard" then graveYardTileCount=graveYardTileCount+1 end
+			if terrainTiles[playAreaObject.guid]~=nil and combatCleanupDungeonTombTiles[playAreaObject.guid]==true then dungeonHexCount=dungeonHexCount+1 end
+			if scriptObjectId(playAreaObject)=="Secret Tomb" or scriptObjectId(playAreaObject)=="Secret Dungeon" then dungeonHexCount=dungeonHexCount+1 end
+		end
+	end
+
+	local allRituals=true
+	if gStates.gameScenario=="Druid Nights" then
+		for _, playerDetails in pairs(turnOrder) do
+			if playerDetails.mage~=gStates.positionMageKnight[5] and playerDetails.druidNightsFinalRitual~=true then allRituals=false break end
+		end
+	end
+
+	local cardInHand=false
+	if gStates.gameScenario=="Quest for the Golden Grail" and turnOrder[cleanupPlayer]~=nil then
+		local handZone=getObjectFromGUID(handZones[turnOrder[cleanupPlayer].seatPos])
+		for _, handobject in pairs(handZone~=nil and handZone.getObjects() or {}) do
+			if handobject.guid=="085e59" then cardInHand=true break end
+		end
+	end
+
+	local volkareBeaten=true
+	local volkareObj=gStates.volkareModel~=nil and getObjectFromGUID(gStates.volkareModel) or nil
+	if volkareObj~=nil then
+		for _, state in pairs(gStates.cityMonsterQty[volkare.model]) do if state=="alive" then volkareBeaten=false break end end
+		if volkareBeaten==true then
+			local trash=getObjectFromGUID(trashCan)
+			if trash~=nil then trash.putObject(volkareObj) end
+		end
+	end
+
+	local terrainStack=getObjectFromGUID(GUID.bag.terrain.stack)
+	local terrainEmpty=terrainStack~=nil and terrainStack.getQuantity()==0
+	local complete=
+		((gStates.gameScenario=="Conquest" or gStates.gameScenario=="Conquest Blitz") and conqueredCityObjectiveCount()==gStates.cityTiles) or
+		((gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest") and volkareBeaten==true) or
+		(gStates.gameScenario=="First Reconnaissance" and #gStates.citiesPlayed>=1) or
+		(gStates.gameScenario=="The Council versus the Apocalypse" and conqueredCityObjectiveCount()>=2) or
+		(gStates.gameScenario=="The Hidden Valley Blitz" and gStates.defeatedFaction==1) or
+		(gStates.gameScenario=="Mines Liberation" and terrainEmpty and mineCount==mineTileCount) or
+		(gStates.gameScenario=="Dungeon Lords" and terrainEmpty and dungeonCount==dungeonHexCount-2) or
+		(gStates.gameScenario=="The Realm of the Dead Blitz" and gStates.defeatedFaction==1 and graveYardCount==graveYardTileCount) or
+		(gStates.gameScenario=="The Lost Relic Blitz" and relicCount==gStates.cityTiles) or
+		(gStates.gameScenario=="Druid Nights" and gStates.currentRound==gStates.rounds and allRituals==true) or
+		(gStates.gameScenario=="Life and Death" and gStates.defeatedFaction==2) or
+		fanScenarioCombatEndAchieved(cleanupLocation,cardInHand,volkareBeaten) or
+		(gStates.gameScenario=="Against the Horsemen Blitz" and againstHorsemenAllDefeated()==true) or
+		(gStates.gameScenario=="Against the Dragon Blitz" and apocalypseDragonColoredHeadsDefeated()==true) or
+		(gStates.gameScenario=="Against the Apocalypse Blitz" and againstApocalypseObjectivesComplete~=nil and againstApocalypseObjectivesComplete()==true)
+	if complete==true then
+		if gStates.coopAssaultPhase=="combat" then gStates.coopAssaultScenarioEndPending=true else markScenarioEndAchieved() end
+	end
+
+	--Judge Volkare's Return city defense only when the entire defense is complete; co-op kills are combined across all defenders.
+	local volkareReturnDefense=gStates.positionMageKnight[5]=="Volkare" and gStates.volkareState=="Attacking City" and
+		(gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz")
+	local volkareReturnDefenseFinished=volkareReturnDefense and (gStates.coopAssaultPhase~="combat" or coopAssaultPendingCombat()==false)
+	if volkareReturnDefenseFinished then
+		if gStates.volkareArmyDefeated<gStates.playerCount then
+			gStates.volkareCityDefenseMove=nil
+			local trash=getObjectFromGUID(trashCan)
+			local liveVolkare=gStates.volkareModel~=nil and getObjectFromGUID(gStates.volkareModel) or nil
+			if trash~=nil and liveVolkare~=nil then trash.putObject(liveVolkare) end
+			gStates.volkareWon=true
+			mainUIUpdate("Volkare Won")
+		else volkareReturnCityDefenseMove() end
+	end
+end
+
+--Mine crystal claim: resolve before cleanup/rewards so Deep Mine choice follows the End of Turn sequence.
+mineCrystalBagKey={Red="red", Blue="blue", Green="green", White="white"}
+
+function mineCrystalCount(playerIndex, color)
+	local details=turnOrder[playerIndex]
+	if details==nil then return 0 end
+	local zone=getObjectFromGUID(playerCrystalAreas[details.seatPos])
+	if zone==nil then return 0 end
+	local count=0
+	for _, obj in pairs(zone.getObjects()) do
+		if manaTokenColor(obj)==color then count=count+1 end
+	end
+	return count
+end
+
+mineLiberatedForClaim=function(playerIndex, terrainGUID, hexPos)
+	if gStates.gameScenario~="Mines Liberation" then return true end
+	local map=getObjectFromGUID(mapArea)
+	if map~=nil then
+		for _, obj in pairs(map.getObjects()) do
+			if isShieldObject(obj) and volkarePursuitShieldRegistered(obj)~=true then
+				local p=obj.getPosition()
+				if ((p[1]-hexPos[1])^2)+((p[3]-hexPos[3])^2)<1 then return true end
+			end
+		end
+	end
+	--A mine conquered this turn does not receive its Shield until cleanup. Treat its face-up
+	--mine enemies in this player's play area as defeated-pending so the crystal can be chosen first.
+	local monsters=gStates.mineMonsterQty~=nil and gStates.mineMonsterQty[terrainGUID] or nil
+	if monsters==nil then return false end
+	local playArea=getObjectFromGUID(playerPlayAreas[turnOrder[playerIndex].seatPos])
+	local pendingDefeat={}
+	if playArea~=nil then
+		for _, obj in pairs(playArea.getObjects()) do if obj.is_face_down==false then pendingDefeat[obj.guid]=true end end
+	end
+	local found=false
+	for monsterGUID, state in pairs(monsters) do
+		found=true
+		if state~="dead" and pendingDefeat[monsterGUID]~=true then return false end
+	end
+	return found
+end
+
+mineClaimData=function(playerIndex)
+	local avatar=coopAssaultAvatarObject(playerIndex)
+	if avatar==nil then return nil end
+	local terrain, bearing, hexPos, feature=terrainHexAtPosition(avatar.getPosition())
+	if terrain==nil or bearing==nil or feature~="mine" then return nil end
+	local details=terrainTiles[terrain.guid]
+	local colors=details~=nil and details.mineColors~=nil and details.mineColors[bearing] or nil
+	if colors==nil or #colors==0 or mineLiberatedForClaim(playerIndex, terrain.guid, hexPos)==false then return nil end
+	return {terrainGUID=terrain.guid, bearing=bearing, colors=colors}
+end
+
+function mineInventoryPosition(playerIndex, color)
+	local seatPos=turnOrder[playerIndex].seatPos
+	local board=getObjectFromGUID(playerBoard[seatPos])
+	local zone=getObjectFromGUID(playerCrystalAreas[seatPos])
+	if board==nil or zone==nil then return {(seatPos*40)-114, 2.0, -36.8} end
+	local zonePos, zoneScale=zone.getPosition(), zone.getScale()
+	local objects=zone.getObjects()
+	local matching={}
+	for _, obj in pairs(objects) do
+		if manaTokenColor(obj)==color then matching[#matching+1]=obj.getPosition() end
+	end
+	local choices={}
+	for _, snap in pairs(board.getSnapPoints() or {}) do
+		local p=board.positionToWorld(snap.position)
+		if math.abs(p[1]-zonePos[1])<=zoneScale[1]/2 and math.abs(p[3]-zonePos[3])<=zoneScale[3]/2 then
+			local occupied=false
+			for _, obj in pairs(objects) do
+				local op=obj.getPosition()
+				if ((op[1]-p[1])^2)+((op[3]-p[3])^2)<0.56 then occupied=true break end
+			end
+			if occupied==false then
+				local nearest=999999
+				for _, mp in pairs(matching) do nearest=math.min(nearest, ((mp[1]-p[1])^2)+((mp[3]-p[3])^2)) end
+				choices[#choices+1]={position={p[1], 2.0, p[3]}, score=nearest}
+			end
+		end
+	end
+	if #choices>0 then
+		table.sort(choices, function(a,b) if a.score==b.score then return a.position[1]<b.position[1] end return a.score<b.score end)
+		return choices[1].position
+	end
+	--No board snap is free (usually because reward tokens were placed over them). Find the clearest
+	--physical point in the inventory instead of stacking the new crystal on an existing object.
+	local best={position={zonePos[1],2.0,zonePos[3]}, clearance=-1}
+	for i=1, 24 do
+		local p={zonePos[1]-((zoneScale[1]/2)-0.6)+(math.random()*math.max(0.1,zoneScale[1]-1.2)), 2.0,
+			zonePos[3]-((zoneScale[3]/2)-0.6)+(math.random()*math.max(0.1,zoneScale[3]-1.2))}
+		local clearance=999999
+		for _, obj in pairs(objects) do local op=obj.getPosition() clearance=math.min(clearance, ((op[1]-p[1])^2)+((op[3]-p[3])^2)) end
+		if clearance>best.clearance then best={position=p, clearance=clearance} end
+	end
+	return best.position
+end
+
+function refreshMineClaimPanel()
+	local pending=gStates.mineClaimPending
+	if pending==nil or turnOrder[pending.playerIndex]==nil then UI.hide("MineClaimChoice") return end
+	UI.setAttribute("MineClaimChoiceTitle", "text", pending.source=="Quest" and "{en}Quest Crystal{it}Cristallo Missione{ru}Кристалл задания{zh-tw}任務水晶{zh-cn}任务水晶{ko}퀘스트 크리스털{es}Cristal de Misión{fr}Cristal de Quête{pt-br}Cristal de Missão{de}Quest-Kristall" or "{en}Mined Crystal{it}Cristallo Estratto{ru}Добытый кристалл{zh-tw}開採水晶{zh-cn}开采水晶{ko}채굴한 크리스털{es}Cristal Extraído{fr}Cristal Extrait{pt-br}Cristal Minerado{de}Abgebauter Kristall")
+	for i=1, 4 do
+		local color=pending.colors[i]
+		UI.setAttribute("MineClaimButton"..i, "active", color~=nil and "true" or "false")
+		if color~=nil then UI.setAttribute("MineClaimButtonText"..i, "text", translateWord[color] or color) end
+	end
+	UI.setAttribute("MineClaimRow2", "active", #pending.colors>2 and "true" or "false")
+	setUIVisibility("MineClaimChoice",{positionToColor(pending.playerIndex),"Black"})
+	UI.show("MineClaimChoice")
+end
+
+function beginMineCrystalClaim(playerIndex, messageColor)
+	local data=mineClaimData(playerIndex)
+	if data==nil then return false end
+	local available={}
+	for _, color in ipairs(data.colors) do if mineCrystalCount(playerIndex, color)<3 then available[#available+1]=color end end
+	if #available==0 then
+		if messageColor~=nil then broadcastToColor("{en}No crystal gained from the Mine: your Inventory already has 3 of every available color.{it}Nessun cristallo ottenuto dalla Miniera: hai già 3 cristalli di ogni colore disponibile nell'Inventario.{ru}Кристалл из Шахты не получен: в вашем Инвентаре уже по 3 кристалла каждого доступного цвета.{zh-tw}未從礦場獲得水晶：你的庫存中每種可用顏色都已有 3 顆水晶。{zh-cn}未从矿场获得水晶：你的库存中每种可用颜色都已有 3 颗水晶。{ko}광산에서 크리스털을 얻지 못했습니다. 인벤토리에 사용 가능한 모든 색의 크리스털이 이미 3개씩 있습니다.{es}No se obtuvo cristal de la Mina: tu Inventario ya tiene 3 de cada color disponible.{fr}Aucun cristal gagné de la Mine : votre Inventaire contient déjà 3 cristaux de chaque couleur disponible.{pt-br}Nenhum cristal foi ganho da Mina: seu Inventário já tem 3 de cada cor disponível.{de}Kein Kristall aus der Mine erhalten: Dein Inventar enthält bereits 3 Kristalle jeder verfügbaren Farbe.", messageColor, warningColor)
+		else broadcastToAll("{en}No crystal gained from the Mine: your Inventory already has 3 of every available color.{it}Nessun cristallo ottenuto dalla Miniera: hai già 3 cristalli di ogni colore disponibile nell'Inventario.{ru}Кристалл из Шахты не получен: в вашем Инвентаре уже по 3 кристалла каждого доступного цвета.{zh-tw}未從礦場獲得水晶：你的庫存中每種可用顏色都已有 3 顆水晶。{zh-cn}未从矿场获得水晶：你的库存中每种可用颜色都已有 3 颗水晶。{ko}광산에서 크리스털을 얻지 못했습니다. 인벤토리에 사용 가능한 모든 색의 크리스털이 이미 3개씩 있습니다.{es}No se obtuvo cristal de la Mina: tu Inventario ya tiene 3 de cada color disponible.{fr}Aucun cristal gagné de la Mine : votre Inventaire contient déjà 3 cristaux de chaque couleur disponible.{pt-br}Nenhum cristal foi ganho da Mina: seu Inventário já tem 3 de cada cor disponível.{de}Kein Kristall aus der Mine erhalten: Dein Inventar enthält bereits 3 Kristalle jeder verfügbaren Farbe.", warningColor) end
+		return false
+	end
+	gStates.mineClaimPending={source="Mine", playerIndex=playerIndex, terrainGUID=data.terrainGUID, bearing=data.bearing, colors=available}
+	refreshMineClaimPanel()
+	if mainUIUpdate~=nil then mainUIUpdate("Mine crystal pending") end
+	return true
+end
+
+function mineClaimChoice(player, mouseButton, id)
+	if mouseButton~="-1" or player==nil then return end
+	local pending=gStates.mineClaimPending
+	if pending==nil or turnOrder[pending.playerIndex]==nil then UI.hide("MineClaimChoice") return end
+	local claimantColor=positionToColor(pending.playerIndex)
+	local sourceName=pending.source=="Quest" and "Quest" or "Mine"
+	if player.color~=claimantColor and player.color~="Black" then
+		broadcastToColor(joinLang({"{en}Only the claiming player can choose this {it}Solo il giocatore che lo riceve può scegliere questo {ru}Только получающий игрок может выбрать этот кристалл из {zh-tw}只有領取的玩家可以選擇這顆來自 {zh-cn}只有领取的玩家可以选择这颗来自 {ko}이 크리스털은 획득하는 플레이어만 선택할 수 있습니다: {es}Solo el jugador que reclama puede elegir este cristal de {fr}Seul le joueur qui réclame peut choisir ce cristal de {pt-br}Apenas o jogador que está recebendo pode escolher este cristal de {de}Nur der beanspruchende Spieler kann diesen Kristall aus ",sourceName,"."}), player.color, {1,0.3,0.3})
+		return
+	end
+	local index=tonumber(id:match("(%d+)$"))
+	local color=index~=nil and pending.colors[index] or nil
+	if color==nil then return end
+	if mineCrystalCount(pending.playerIndex, color)>=3 then
+		broadcastToColor(joinLang({"{en}You already have 3 {it}Hai già 3 cristalli {ru}В вашем Инвентаре уже есть 3 {zh-tw}你的庫存中已有 3 顆 {zh-cn}你的库存中已有 3 颗 {ko}인벤토리에 이미 {es}Ya tienes 3 cristales {fr}Vous avez déjà 3 cristaux {pt-br}Você já tem 3 cristais {de}Du hast bereits 3 ",translateWord[color] or color,"{en} crystals in your Inventory.{it} nell'Inventario.{ru} кристалла.{zh-tw} 水晶。{zh-cn} 水晶。{ko} 크리스털이 3개 있습니다.{es} en tu Inventario.{fr} dans votre Inventaire.{pt-br} no seu Inventário.{de}-Kristalle in deinem Inventar."}), player.color, warningColor)
+		return
+	end
+	local bagKey=mineCrystalBagKey[color]
+	local bag=bagKey~=nil and getObjectFromGUID(GUID.bag.mana[bagKey]) or nil
+	if bag==nil or bag.getQuantity()==0 then
+		broadcastToColor(joinLang({"{en}No {it}Nessun {ru}В запасе нет {zh-tw}供應區沒有可用的 {zh-cn}供应区没有可用的 {ko}공급처에 사용할 수 있는 {es}No hay ningún cristal {fr}Aucun cristal {pt-br}Não há cristal {de}Im Vorrat ist kein ",translateWord[color] or color,"{en} crystal is available in the supply.{it} disponibile nella riserva.{ru} кристалла.{zh-tw} 水晶。{zh-cn} 水晶。{ko} 크리스털이 없습니다.{es} disponible en la reserva.{fr} disponible dans la réserve.{pt-br} disponível na reserva.{de}-Kristall verfügbar."}), player.color, {1,0.3,0.3})
+		return
+	end
+	local questCardGUID=pending.questCardGUID
+	takeManaCrystal(bag,{position=mineInventoryPosition(pending.playerIndex, color),smooth=false})
+	broadcastToColor(joinLang({"{en}Claimed a {it}Ottenuto un cristallo {ru}Получен {zh-tw}已領取 {zh-cn}已领取 {ko}획득: {es}Se reclamó un Cristal {fr}Cristal {pt-br}Recebeu um Cristal {de}Beansprucht: ",translateWord[color] or color,"{en} Crystal from the {it} da {ru} кристалл из {zh-tw} 水晶，來源：{zh-cn} 水晶，来源：{ko} 크리스털, 출처: {es} de {fr} réclamé depuis {pt-br} de {de}-Kristall aus ",sourceName,"."}), player.color, {1,1,0.5})
+	gStates.mineClaimPending=nil
+	UI.hide("MineClaimChoice")
+	if questCardGUID~=nil and getObjectFromGUID(questCardGUID)~=nil then apocalypseQuestUpdateProgressButtons(getObjectFromGUID(questCardGUID)) end
+	if mainUIUpdate~=nil then mainUIUpdate("Mine crystal claimed") end
+end
+
+function markScenarioEndAchieved(endImmediately)
+	if gStates.endGameAchieved~="false" then return false end
+	UI.setAttribute("EndGameButtonText", "text", "{en}Scenario End Achieved - Yes{it}Fine Scenario Raggiunta - Sì{ru}Конец сценария достигнут - Да{zh-tw}達成劇本結束 - 是{zh-cn}達成剧本结束 - 是{ko}시나리오 종료 조건 충족 됨{es}Escenario Fin Realizados - Sí{fr}Scénario Fin Atteint - Oui{pt-br}Fim do Cenário Alcançado - Sim{de}Szenarioziel Erreicht – Ja")
+	UI.setAttribute("EndGameButtonImage", "image", "Sliced Button/Button New Deactive")
+	UI.setAttribute("EndGameButtonImage", "color", "rgb(1.0,0.7,0.2)")
+	gStates.endGameAchieved="started"
+	turnOrder[gStates.realTurn].gameEnder=true
+	establishFinalTurnBoundary("victory", gStates.realTurn)
+	if gStates.gameScenario=="The Gauntlet" or gStates.gameScenario=="Quest for the Golden Grail" then
+		broadcastToAll("{en}Congratulations{it}Congratulazioni{ru}Поздравляем{zh-tw}恭喜{zh-cn}恭喜{ko}축하합니다{es}Felicidades{fr}Toutes nos félicitations{pt-br}Parabéns{de}Glückwunsch", {1,1,0.5})
+		gStates.endGameAchieved="true"
+		gStates.gameOver=true
+		mainUIUpdate("Scenario End")
+	elseif endImmediately==true then
+		gStates.endGameAchieved="true"
+		gStates.gameOver=true
+		mainUIUpdate("Game Over")
+	else
+		broadcastToAll("{en}Final Round of Turns Started{it}Iniziato l'Ultimo Giro di Turni{ru}Начался последний круг ходов{zh-tw}最终轮的回合开始了{zh-cn}最终轮的回合开始了{ko}마지막 턴 시작{es}Inicio de la Ultima Ronda de Turnos{fr}Dernier Rounde de Tours Commencé{pt-br}Rodada Final de Turnos começou{de}Die letzte Runde hat begonnen", {1,1,0.5})
+	end
+	refreshCoopCompSkillWarnings()
+	return true
+end
+
+clearScenarioEndAchieved=function()
+	if gStates.endGameAchieved=="false" then return false end
+	UI.setAttribute("EndGameButtonText", "text", "{en}Scenario End Achieved - No{it}Fine Scenario Raggiunta - No{ru}Конец сценария достигнут - Нет{zh-tw}達成劇本結束 - 否{zh-cn}達成剧本结束 - 否{ko}시나리오 종료 조건 충족 전{es}Escenario Fin Realizados - No{fr}Scénario Fin Atteint - Non{pt-br}Fim do Cenário Alcançado - Não{de}Szenarioziel Erreicht – Nein")
+	UI.setAttribute("EndGameButtonImage", "image", "Sliced Button/Button New Active")
+	UI.setAttribute("EndGameButtonImage", "color", "white")
+	UI.setAttribute("PreEndTurnImage", "image", "Sliced Button/Button New Active")
+	UI.setAttribute("PreEndTurn", "interactable", "True")
+	gStates.gameOver=false
+	for _, turnDetails in pairs(turnOrder) do turnDetails.gameEnder=false end
+	if gStates.finalTurnReason=="victory" then clearFinalTurnBoundary() else ensureFinalTurnBoundary() end
+	gStates.endGameAchieved=(gStates.finalTurnReason=="endRound" and gStates.currentRound==gStates.rounds) and "true" or "false"
+	broadcastToAll("{en}Turn order resumed{it}Ordine dei turni ripreso{ru}Порядок хода восстановлен{zh-tw}回合顺序恢复了{zh-cn}回合顺序恢复了{ko}턴 순서가 재개되었습니다{es}Se reanudó el orden de turno{fr}L'ordre des tours a repris{pt-br}Ordem de Turno retomada{de}Reihenfolge der Drehung wieder aufgenommen", {1,1,0.5})
+	mainUIUpdate("Scenario End")
+	refreshCoopCompSkillWarnings()
+	return true
+end
+
+function toggleScenarioEndAchieved(player, mouseButton, id)
+	if gStates.endGameAchieved=="false" then return markScenarioEndAchieved(false) end
+	return clearScenarioEndAchieved()
+end
+
+--Dungeon Lords secret entrances remember the exact Village/Monastery that created each placement request.
+--That lets the drop validator enforce the scenario's adjacency rule instead of accepting any empty map hex.
+function dungeonLordsPendingSecretName(entry)
+	if type(entry)=="table" then return entry.siteType or entry.name end
+	return entry
+end
+
+dungeonLordsSecretSourceFeature=function(secretName)
+	if secretName=="Secret Dungeon" then return "village" end
+	if secretName=="Secret Tomb" then return "monastery" end
+	return nil
+end
+
+dungeonLordsSecretSourcePosition=function(entry)
+	if type(entry)~="table" then return nil end
+	local terrain=entry.sourceTerrainGUID~=nil and getObjectFromGUID(entry.sourceTerrainGUID) or nil
+	if terrain~=nil and entry.sourceBearing~=nil then
+		local xy=angleToXY(terrain,tostring(entry.sourceBearing))
+		return {xy[1],terrain.getPosition()[2],xy[2]}
+	end
+	return entry.sourcePosition
+end
+
+dungeonLordsSecretSpaceBasicLegal=function(terrain,bearing)
+	if terrain==nil or bearing==nil or terrainTiles[terrain.guid]==nil then return false end
+	local details=terrainTiles[terrain.guid]
+	local key=tostring(bearing)
+	local feature=details.hexFeature~=nil and details.hexFeature[key] or nil
+	local terrainType=details.hexType~=nil and details.hexType[key] or nil
+	local noSite=feature=="" or feature=="rampaging" or feature=="draconum"
+	return noSite==true and terrainType~=nil and terrainType~="swamp" and terrainType~="lake" and terrainType~="mountain" and terrainType~="ocean"
+end
+
+dungeonLordsFindAdjacentSecretSource=function(secretName,destinationPosition)
+	local sourceFeature=dungeonLordsSecretSourceFeature(secretName)
+	local map=getObjectFromGUID(mapArea)
+	if sourceFeature==nil or destinationPosition==nil or map==nil then return nil end
+	for _,terrain in pairs(map.getObjects()) do
+		local details=terrainTiles[terrain.guid]
+		if details~=nil and terrain.is_face_down==false then
+			for sourceBearing,feature in pairs(details.hexFeature or {}) do
+				if feature==sourceFeature then
+					local xy=angleToXY(terrain,sourceBearing)
+					local sourcePos={xy[1],terrain.getPosition()[2],xy[2]}
+					if runtimeMapWorldHexDistance(sourcePos,destinationPosition)==1 then
+						return {siteType=secretName,sourceTerrainGUID=terrain.guid,sourceBearing=tostring(sourceBearing),sourcePosition=sourcePos}
+					end
+				end
+			end
+		end
+	end
+	return nil
+end
+
+dungeonLordsSecretDestinationLegal=function(terrain,bearing,request)
+	if dungeonLordsSecretSpaceBasicLegal(terrain,bearing)~=true then return false,nil end
+	local xy=angleToXY(terrain,tostring(bearing))
+	local destinationPosition={xy[1],terrain.getPosition()[2],xy[2]}
+	local normalized=request
+	if type(normalized)~="table" then normalized=dungeonLordsFindAdjacentSecretSource(dungeonLordsPendingSecretName(request),destinationPosition) end
+	local sourcePosition=dungeonLordsSecretSourcePosition(normalized)
+	if sourcePosition==nil or runtimeMapWorldHexDistance(sourcePosition,destinationPosition)~=1 then return false,normalized end
+	return true,normalized
+end
+
+dungeonLordsSecretLegalDestinationCount=function(request)
+	local map=getObjectFromGUID(mapArea)
+	if map==nil then return 0 end
+	local count=0
+	for _,terrain in pairs(map.getObjects()) do
+		local details=terrainTiles[terrain.guid]
+		if details~=nil and terrain.is_face_down==false then
+			for destinationBearing,_ in pairs(details.hexType or {}) do
+				if dungeonLordsSecretDestinationLegal(terrain,destinationBearing,request)==true then count=count+1 end
+			end
+		end
+	end
+	return count
+end
+
+dungeonLordsSecretRequestMatches=function(a,b)
+	if dungeonLordsPendingSecretName(a)~=dungeonLordsPendingSecretName(b) then return false end
+	if type(a)~="table" or type(b)~="table" then return false end
+	return a.sourceTerrainGUID==b.sourceTerrainGUID and tostring(a.sourceBearing)==tostring(b.sourceBearing)
+end
+
+dungeonLordsQueueSecretRequest=function(request,quiet)
+	if request==nil then return false end
+	gStates.locationPlace=gStates.locationPlace or {}
+	for _,existing in ipairs(gStates.locationPlace) do if dungeonLordsSecretRequestMatches(existing,request)==true then return false end end
+	if dungeonLordsSecretLegalDestinationCount(request)==0 then
+		if quiet~=true then
+			local source=dungeonLordsSecretSourceFeature(dungeonLordsPendingSecretName(request)) or "site"
+			broadcastToAll(joinLang({"{en}Dungeon Lords: no legal space exists next to the revealed {it}Signori dei Sotterranei: nessuno spazio valido accanto al sito rivelato {ru}Владыки Подземелий: рядом с открытым объектом нет подходящей клетки: {zh-tw}地下城領主：新揭示的 {zh-cn}地下城领主：新揭示的 {ko}던전 로드: 공개된 {es}Señores de las Mazmorras: no existe ningún espacio legal junto a {fr}Seigneurs des Donjons : aucune case légale n’existe à côté de {pt-br}Senhores das Masmorras: não existe espaço válido ao lado de {de}Kerkerfürsten: Neben dem aufgedeckten ",source,"{en}; no secret entrance is placed.{it}; nessun ingresso segreto posizionato.{ru}; тайный вход не размещается.{zh-tw} 旁沒有合法空間；不放置秘密入口。{zh-cn} 旁没有合法空间；不放置秘密入口。{ko} 옆에 합법적인 칸이 없어 비밀 입구를 배치하지 않습니다.{es}; no se coloca ninguna entrada secreta.{fr} ; aucune entrée secrète n’est placée.{pt-br}; nenhuma entrada secreta é colocada.{de} gibt es kein gültiges Feld; es wird kein Geheimeingang platziert."}),{1,0.75,0.2})
+		end
+		return false
+	end
+	gStates.locationPlace[#gStates.locationPlace+1]=request
+	return true
+end
+
+dungeonLordsPruneImpossibleSecretRequests=function()
+	gStates.locationPlace=gStates.locationPlace or {}
+	local removed=false
+	for i=#gStates.locationPlace,1,-1 do
+		local request=gStates.locationPlace[i]
+		if dungeonLordsSecretLegalDestinationCount(request)==0 then
+			local source=dungeonLordsSecretSourceFeature(dungeonLordsPendingSecretName(request)) or "site"
+			broadcastToAll(joinLang({"{en}Dungeon Lords: no legal space remains next to the revealed {it}Signori dei Sotterranei: nessuno spazio valido rimasto accanto al sito rivelato {ru}Владыки Подземелий: рядом с открытым объектом больше нет подходящей клетки: {zh-tw}地下城領主：新揭示的 {zh-cn}地下城领主：新揭示的 {ko}던전 로드: 공개된 {es}Señores de las Mazmorras: ya no queda ningún espacio legal junto a {fr}Seigneurs des Donjons : aucune case légale ne reste à côté de {pt-br}Senhores das Masmorras: não resta espaço válido ao lado de {de}Kerkerfürsten: Neben dem aufgedeckten ",source,"{en}; that secret entrance is skipped.{it}; questo ingresso segreto viene saltato.{ru}; этот тайный вход пропускается.{zh-tw} 旁已無合法空間；跳過該秘密入口。{zh-cn} 旁已无合法空间；跳过该秘密入口。{ko} 옆에 합법적인 칸이 남아 있지 않아 그 비밀 입구를 건너뜁니다.{es}; se omite esa entrada secreta.{fr} ; cette entrée secrète est ignorée.{pt-br}; essa entrada secreta é ignorada.{de} ist kein gültiges Feld mehr frei; dieser Geheimeingang wird übersprungen."}),{1,0.75,0.2})
+			table.remove(gStates.locationPlace,i)
+			removed=true
+		end
+	end
+	return removed
+end
+
+function dungeonLordsQueueSecretSite(terrain,bearing,sourceFeature)
+	if gStates.gameScenario~="Dungeon Lords" or terrain==nil then return false end
+	local secretName=sourceFeature=="village" and "Secret Dungeon" or sourceFeature=="monastery" and "Secret Tomb" or nil
+	if secretName==nil then return false end
+	local xy=angleToXY(terrain,tostring(bearing))
+	local request={siteType=secretName,sourceTerrainGUID=terrain.guid,sourceBearing=tostring(bearing),sourcePosition={xy[1],terrain.getPosition()[2],xy[2]}}
+	local queued=dungeonLordsQueueSecretRequest(request,false)
+	if queued==true then mainUIUpdate("Need Token") end
+	return queued
+end
+
+function dungeonLordsHandleSecretSiteToken(obj,status,terrain,bearing,hexFeature)
+	if gStates.gameScenario~="Dungeon Lords" or obj==nil or terrain==nil or bearing==nil then return false end
+	local secretName=scriptObjectId(obj)
+	if secretName~="Secret Dungeon" and secretName~="Secret Tomb" then return false end
+	local site=secretName=="Secret Dungeon" and "dungeon" or "tomb"
+	gStates.locationPlace=gStates.locationPlace or {}
+	gStates.dungeonLordsSecretSiteOrigins=gStates.dungeonLordsSecretSiteOrigins or {}
+	if status=="enter" then
+		local pending=gStates.locationPlace[#gStates.locationPlace]
+		local pendingName=dungeonLordsPendingSecretName(pending)
+		if pendingName~=secretName then
+			if pendingName~=nil then broadcastToAll(joinLang({"{en}Dungeon Lords: place the requested {it}Signori dei Sotterranei: posiziona prima il sito richiesto: {ru}Владыки Подземелий: сначала разместите требуемый {zh-tw}地下城領主：請先放置要求的 {zh-cn}地下城领主：请先放置要求的 {ko}던전 로드: 먼저 요청된 {es}Señores de las Mazmorras: coloca primero la entrada solicitada {fr}Seigneurs des Donjons : placez d’abord l’entrée demandée {pt-br}Senhores das Masmorras: coloque primeiro a entrada solicitada {de}Kerkerfürsten: Platziere zuerst den angeforderten ",tostring(pendingName),"{en} first.{it}.{ru}.{zh-tw}。{zh-cn}。{ko}을(를) 배치하십시오.{es}.{fr}.{pt-br}.{de}."}),{1,0.55,0.2})
+			else broadcastToAll("{en}Dungeon Lords: that secret entrance has not been requested by a newly revealed Village or Monastery.{it}Signori dei Sotterranei: questo ingresso segreto non è stato richiesto da un Villaggio o Monastero appena rivelato.{ru}Владыки Подземелий: этот тайный вход не был запрошен недавно открытой Деревней или Монастырём.{zh-tw}地下城領主：新揭示的村莊或修道院並未要求放置此秘密入口。{zh-cn}地下城领主：新揭示的村庄或修道院并未要求放置此秘密入口。{ko}던전 로드: 새로 공개된 마을이나 수도원이 이 비밀 입구를 요청하지 않았습니다.{es}Señores de las Mazmorras: esta entrada secreta no fue solicitada por una Aldea o Monasterio recién revelados.{fr}Seigneurs des Donjons : cette entrée secrète n’a pas été demandée par un Village ou un Monastère récemment révélé.{pt-br}Senhores das Masmorras: esta entrada secreta não foi solicitada por uma Vila ou Mosteiro recém-revelado.{de}Kerkerfürsten: Dieser Geheimeingang wurde nicht von einem neu aufgedeckten Dorf oder Kloster angefordert.",{1,0.55,0.2}) end
+			return true
+		end
+		local legal,normalized=dungeonLordsSecretDestinationLegal(terrain,bearing,pending)
+		if legal~=true then
+			broadcastToAll("{en}Dungeon Lords: the secret entrance must be on an accessible, non-Swamp empty space adjacent to the Village or Monastery that created it.{it}Signori dei Sotterranei: l'ingresso segreto deve essere su uno spazio vuoto accessibile, non Palude, adiacente al Villaggio o Monastero che l'ha creato.{ru}Владыки Подземелий: тайный вход должен находиться на доступной пустой клетке, не являющейся Болотом, рядом с создавшей его Деревней или Монастырём.{zh-tw}地下城領主：秘密入口必須放在建立它的村莊或修道院旁，一個可進入、非沼澤且空置的空間。{zh-cn}地下城领主：秘密入口必须放在建立它的村庄或修道院旁，一个可进入、非沼泽且空置的空间。{ko}던전 로드: 비밀 입구는 이를 생성한 마을 또는 수도원에 인접한, 접근 가능하고 늪이 아닌 빈 칸에 있어야 합니다.{es}Señores de las Mazmorras: la entrada secreta debe estar en un espacio vacío accesible, que no sea Pantano, adyacente a la Aldea o Monasterio que la creó.{fr}Seigneurs des Donjons : l’entrée secrète doit se trouver sur une case vide accessible, non-Marais, adjacente au Village ou au Monastère qui l’a créée.{pt-br}Senhores das Masmorras: a entrada secreta deve ficar em um espaço vazio acessível, que não seja Pântano, adjacente à Vila ou ao Mosteiro que a criou.{de}Kerkerfürsten: Der Geheimeingang muss auf einem zugänglichen, leeren Nicht-Sumpf-Feld neben dem Dorf oder Kloster liegen, das ihn erzeugt hat.",{1,0.55,0.2})
+			return true
+		end
+		runtimeMapSetHexFeature(terrain.guid,bearing,site)
+		if gStates.hexOverideSave[terrain.guid]==nil then gStates.hexOverideSave[terrain.guid]={} end
+		gStates.hexOverideSave[terrain.guid][tostring(bearing)]=site
+		normalized.destinationTerrainGUID=terrain.guid
+		normalized.destinationBearing=tostring(bearing)
+		gStates.dungeonLordsSecretSiteOrigins[obj.guid]=normalized
+		obj.lock()
+		broadcastToAll(joinLang({translateWord[secretName], "{en} located.{it} individuato.{ru} размещена(о).{zh-tw} 坐落于{zh-cn} 坐落于{ko} 설치됨{es} situado.{fr} situé.{pt-br} localizado.{de} liegt."}), {1,1,0.5})
+		table.remove(gStates.locationPlace)
+		dungeonLordsPruneImpossibleSecretRequests()
+		mainUIUpdate("Need Token")
+		local infoGUID=site=="tomb" and "1cab50" or "57dcab"
+		local info=getObjectFromGUID(infoGUID)
+		if info~=nil then info.setRotationSmooth({0.0,180.0,0.0}) end
+		moveDisplayTerrainCache={signature=nil,hexMap=nil}
+		updateMoveDisplay()
+		return true
+	end
+	if status=="remove" and hexFeature==site then
+		local origin=gStates.dungeonLordsSecretSiteOrigins[obj.guid]
+		if origin==nil then
+			local xy=angleToXY(terrain,tostring(bearing))
+			origin=dungeonLordsFindAdjacentSecretSource(secretName,{xy[1],terrain.getPosition()[2],xy[2]}) or secretName
+		end
+		runtimeMapSetHexFeature(terrain.guid,bearing,"")
+		if gStates.hexOverideSave[terrain.guid]==nil then gStates.hexOverideSave[terrain.guid]={} end
+		gStates.hexOverideSave[terrain.guid][tostring(bearing)]=""
+		gStates.dungeonLordsSecretSiteOrigins[obj.guid]=nil
+		broadcastToAll(joinLang({translateWord[secretName], "{en} removed.{it} rimosso.{ru} удалена(о).{zh-tw} 移除的{zh-cn} 移除的{ko} 제거됨{es} remoto.{fr} supprimé.{pt-br} removido.{de} entfernt."}), {1,1,0.5})
+		dungeonLordsQueueSecretRequest(origin,true)
+		dungeonLordsPruneImpossibleSecretRequests()
+		mainUIUpdate("Need Token")
+		moveDisplayTerrainCache={signature=nil,hexMap=nil}
+		updateMoveDisplay()
+		return true
+	end
+	return true
+end
+
+--Druid Nights Incantation is legal anywhere the Mage Knight cannot Interact with Locals.
+--Use the map's interaction helper first so burned Monasteries and conquered/unconquered sites resolve correctly;
+--the logical-location fallback also covers Portal/City parking where the physical avatar may be off the map.
+
+function druidNightsCanIncantHere(playerIndex)
+	local player=turnOrder[playerIndex]
+	if player==nil or gStates.gameScenario~="Druid Nights" then return false end
+	local hexes,mapObjects=runtimeMapHexesAndObjects()
+	local hex=apocalypseQuestPlayerHex(hexes,mapObjects,playerIndex)
+	if hex~=nil then return apocalypseQuestHexInteractionSite(hex,mapObjects,playerIndex)~=true end
+	local location=string.lower(tostring(player.avatarLocation or ""))
+	if location=="village" or location=="monastery" or location=="keep" or location=="mage tower" or location=="camp" or location=="oasis" or location=="volkare's camp" or location:sub(1,4)=="city" then return false end
+	return true
+end
+
+--Druid Nights Ritual is a separate combat action from a site attack. Keep it out of attackLocation
+--so a legal site defender cannot intercept or add its assault side effects to the Incantation.
+function druidNightsRitualAction(playerDud, mouseButton, id)
+	if mouseButton~="-1" then return end
+	local mage=tostring(id or ""):match("^Incant(.+)$")
+	if mage==nil then return end
+	local playerIndex=nil
+	for index, details in pairs(turnOrder) do if details.mage==mage then playerIndex=index break end end
+	if playerIndex==nil or playerIndex~=gStates.turnNumber then return end
+	local player=turnOrder[playerIndex]
+	if player==nil or gStates.gameScenario~="Druid Nights" or gStates.dayRound~=false or player.combatIconHide~="None" or player.gladesMarked==nil or #player.gladesMarked<1 or player.druidNightsLastRitualRound==gStates.currentRound or druidNightsCanIncantHere(playerIndex)~=true then return end
+	local turnToken=getObjectFromGUID(player.turnOrderTokenGUID)
+	if turnToken==nil or turnToken.is_face_down==true then return end
+	if playerDud~=nil and playerDud.color~=nil and legalPlayerCheck(playerDud.color,player.seatPos)~=true then return end
+
+	combatCameraChoiceSuppressedPlayer=nil
+	gStates.monsterOffsetX=0
+	gStates.monsterOffsetZ=0
+	player.combatIconHide="Both"
+	player.druidNightsLastRitualRound=gStates.currentRound
+	player.druidNightsRitualCount=(player.druidNightsRitualCount or 0)+1
+	broadcastToAll("{en}Performed Incantation to summon Monster(s) to your Player Board{it}Rituale eseguito per evocare Mostri sulla tua Plancia Giocatore{ru}Прочтено заклинание, чтобы призвать Монстра(ов) на вашу игровую доску.{zh-tw}执行了咒语召唤怪物到你的玩家板{zh-cn}执行了咒语召唤怪物到你的玩家板{ko}주문을 시전하여 몬스터를 소환합니다{es}Encantamiento realizado para convocar Monstruos a tu Tablero de Jugador{fr}Incantation exécutée pour invoquer des monstres sur votre plateau de joueur{pt-br}Realizou um Encantamento para invocar Monstro(S) para seu Tabuleiro de Jogador{de}Beschwörung durchgeführt, um Monster auf dein Spielerbrett zu beschwören", positionToColor(playerIndex))
+	if gStates.currentRound==gStates.rounds then player.druidNightsFinalRitual=true end
+	local ritualCount=#player.gladesMarked
+	local crystalMultiple=gStates.currentRound>=5 and 3 or (gStates.currentRound>=3 and 2 or 1)
+	gStates.druidNightsSummon=ritualCount
+	gStates.druidNightsCrystalReward=ritualCount*crystalMultiple
+	local monsterSummoned=gStates.currentRound>=3 and monsterPiles.red or monsterPiles.tan
+	for _=1, ritualCount do safeWaitFrames("Scenario",function() drawMonster(monsterSummoned,player,id) end,10) end
+	if gStates.currentRound>=5 then
+		for _=1, ritualCount do safeWaitFrames("Scenario",function() drawMonster(monsterPiles.tan,player,id) end,10) end
+	end
+	--Activated Glade shields remain on the map until the end of the Night; round reset removes them.
+	addAvatarButtons()
+end
 
 end)
 __bundle_register("PlayingGame.Turn", function(require, _LOADED, __bundle_register, __bundle_modules)
@@ -21164,9 +21205,9 @@ publishPublicUICallbacks({
 end)
 __bundle_register("PlayingGame.Combat", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Combat-private helpers. Predeclared so forward references keep resolving locally.
-local clearCoopLeaderPreviewClones, clearCoopAssaultRuntime, createCoopLeaderPreviewClones, promoteCoopLeaderPreview, moveCoopAssaultAvatarToCityCard
+local clearCoopAssaultRuntime, moveCoopAssaultAvatarToCityCard
 local coopAssaultTargetDefeated, restoreCoopAssaultAvatar, resolveCoopAssaultLocations, factionRewardPileGUID, takeFactionRewardToken
-local awardFactionRewardToken, giveQueuedFactionReward, showCoopReward, coopAssaultAvatarsSettled, finalizeCoopLeaderCombat
+local awardFactionRewardToken, giveQueuedFactionReward, showCoopReward, coopAssaultAvatarsSettled
 local assaultOriginAdjacent, assaultTargetHasWall, resolveAssaultWallFortified, assaultCrossesWall, setAssaultWallFortified
 local settleAssaultWallFortified, applyCurrentAssaultWallFortified, combatCameraPlayerIndex, combatNearbyRampagerChoice, combatAttackOptionCount
 local coopAssaultDividableCount, coopAssaultHasLeader, coopAssaultLeadMage, coopAssaultAssignmentSource, coopAssaultCityMinimumEnemyRule
@@ -21298,15 +21339,6 @@ function coopAssaultPendingCombat()
 	return false
 end
 
---Faction-leader co-op participants get unlocked planning copies. These clones are visual only and are never registered as monsters.
-clearCoopLeaderPreviewClones=function()
-	for playerIndex, cloneGUID in pairs(gStates.coopLeaderPreviewClones or {}) do
-		local clone=getObjectFromGUID(cloneGUID)
-		if clone~=nil then clone.destruct() end
-	end
-	gStates.coopLeaderPreviewClones={}
-end
-
 clearCoopAssaultRuntime=function(keepAssignments)
 	gStates.coopAssaultPhase=nil
 	gStates.coopCombatHandoffReady=nil
@@ -21322,53 +21354,6 @@ clearCoopAssaultRuntime=function(keepAssignments)
 	gStates.coopAssaultConquered=nil
 	gStates.coopAssaultScenarioEndPending=false
 	gStates.coopAssaultMode=nil
-end
-
-createCoopLeaderPreviewClones=function()
-	clearCoopLeaderPreviewClones()
-	if gStates.coopAssaultPhase~="combat" or coopAssaultTargetType()~="leader" then return end
-	local leaderGUID=elementalist.token
-	if gStates.coopAssaultCityGUID==darkCrusader.terrainHex then leaderGUID=darkCrusader.token end
-	local leaderObj=getObjectFromGUID(leaderGUID)
-	if leaderObj==nil then return end
-	for playerIndex, _ in pairs(gStates.coopAssaultParticipants or {}) do
-		if playerIndex~=gStates.turnNumber and turnOrder[playerIndex]~=nil then
-			local clone=leaderObj.clone({position={turnOrder[playerIndex].seatPos*40-100, 1.5, -39.41}, rotation={0, 180, 0}, smooth=false})
-			if clone~=nil then
-				clone.unlock()
-				clone.interactable=true
-				clone.UI.setXmlTable({{}})
-				gStates.coopLeaderPreviewClones[playerIndex]=clone.guid
-			end
-		end
-	end
-end
-
---Replace the next player's movable planning copy with the real leader token and its combat controls.
-promoteCoopLeaderPreview=function(playerIndex, leaderObj)
-	if leaderObj==nil or turnOrder[playerIndex]==nil then return end
-	local destination={turnOrder[playerIndex].seatPos*40-100, 1.5, -39.41}
-	local cloneGUID=gStates.coopLeaderPreviewClones~=nil and gStates.coopLeaderPreviewClones[playerIndex] or nil
-	local clone=cloneGUID~=nil and getObjectFromGUID(cloneGUID) or nil
-	if clone~=nil then
-		--Respect where the player moved the preview as long as it is still inside that player's combat area.
-		local playZone=getObjectFromGUID(playerPlayAreas[turnOrder[playerIndex].seatPos])
-		if playZone~=nil then
-			for _, obj in pairs(playZone.getObjects()) do
-				if obj.guid==clone.guid then
-					local clonePos=clone.getPosition()
-					destination={clonePos[1], 1.5, clonePos[3]}
-					break
-				end
-			end
-		end
-		clone.destruct()
-	end
-	if gStates.coopLeaderPreviewClones~=nil then gStates.coopLeaderPreviewClones[playerIndex]=nil end
-	leaderObj.unlock()
-	leaderObj.setPositionSmooth(destination,false,false)
-	leaderObj.setRotation({0, 180, 0})
-	setMonsterObjectButtons(leaderObj)
 end
 
 --Assisting Mage Knights are treated as being in the assaulted city without moving their avatar until the assault result is known.
@@ -21422,19 +21407,8 @@ coopAssaultTargetDefeated=function()
 		return true
 	end
 
-	if assaultType=="leader" then
-		if cityTargetDefeated(target)==true then return true end
-		--The leader's followers are discarded shortly after the leader reaches level 0, so use the
-		--leader token/level as an immediate fallback while that delayed cleanup is still finishing.
-		if target==darkCrusader.terrainHex then
-			return (gStates.darkCrusaderLevel or 1)<=0 or (gStates.cityMonsterQty[target]~=nil and gStates.cityMonsterQty[target][darkCrusader.token]=="dead")
-		end
-		if target==elementalist.terrainHex then
-			return (gStates.elementalistLevel or 1)<=0 or (gStates.cityMonsterQty[target]~=nil and gStates.cityMonsterQty[target][elementalist.token]=="dead")
-		end
-		return false
-	end
 
+	if assaultType=="leader" then return factionLeaderTargetDefeated(target) end
 	return cityTargetDefeated(target)
 end
 
@@ -21803,51 +21777,11 @@ coopAssaultAvatarsSettled=function()
 	return true
 end
 
---Faction-leader level changes are resolved only after every participant in a cooperative assault has finished combat.
-finalizeCoopLeaderCombat=function()
-	if gStates.coopAssaultPhase~="combat" or coopAssaultTargetType()~="leader" then return end
-	clearCoopLeaderPreviewClones()
-	if (gStates.leaderReduction or 0)<=0 then return end
-	local currentLeader=elementalist
-	local currentLevel=gStates.elementalistLevel
-	if gStates.coopAssaultCityGUID==darkCrusader.terrainHex then currentLeader=darkCrusader currentLevel=gStates.darkCrusaderLevel end
-	if currentLevel==nil then gStates.leaderReduction=0 return end
-	local finalLevel=math.max(0, currentLevel-gStates.leaderReduction)
-	gStates.leaderReduction=0
-	if currentLeader==darkCrusader then gStates.darkCrusaderLevel=finalLevel else gStates.elementalistLevel=finalLevel end
-	local leaderObj=getObjectFromGUID(currentLeader.token)
-	if finalLevel==0 then
-		if leaderObj~=nil then getObjectFromGUID(trashCan).putObject(leaderObj) end
-		if gStates.cityMonsterQty[currentLeader.terrainHex]~=nil then gStates.cityMonsterQty[currentLeader.terrainHex][currentLeader.token]="dead" end
-		local disc=getObjectFromGUID(currentLeader.disc)
-		if disc~=nil then disc.setCustomObject({image=leaderData[currentLeader.terrainHex]["dead"].discImg}) disc.reload() end
-		--The whole cooperative assault is now over, so surviving followers may finally flee.
-		if gStates.cityMonsterQty[currentLeader.terrainHex]~=nil then
-			for monsterGUID, state in pairs(gStates.cityMonsterQty[currentLeader.terrainHex]) do
-				if monsterGUID~="extra" and monsterGUID~=currentLeader.token and state~="dead" then
-					local monster=getObjectFromGUID(monsterGUID)
-					if monster~=nil and monster.getRotationValues()[2]~=nil then combatDiscardMonster(monster,false,{player=gStates.turnNumber,avatarPos=mageKnightAvatarPosition(gStates.turnNumber) or {}}) end
-				end
-			end
-		end
-	else
-		if leaderObj~=nil then
-			if gStates.monsterPlayLocation[leaderObj.guid]~=nil then leaderObj.setPositionSmooth(gStates.monsterPlayLocation[leaderObj.guid],false,false) end
-			leaderObj.setCustomObject({image=leaderData[currentLeader.terrainHex][finalLevel].tokenImg})
-			leaderObj.setName(joinLang({currentLeader==darkCrusader and "{en}Dark Crusader Leader Level {it}Capo dei Crociati Oscuri, Livello {ru}Уровень лидера Тёмных крестоносцев: {zh-tw}黑暗十字軍領袖等級 {zh-cn}黑暗十字军领袖等级 {ko}다크 크루세이더 지도자 레벨 {es}Nivel del líder Cruzado Oscuro {fr}Niveau du chef Croisé Sombre {pt-br}Nível do líder Cruzado Sombrio {de}Stufe des Anführers der Dunklen Kreuzritter " or "{en}Elementalist Leader Level {it}Capo degli Elementalisti, Livello {ru}Уровень лидера Элементалистов: {zh-tw}元素使領袖等級 {zh-cn}元素使领袖等级 {ko}엘리멘탈리스트 지도자 레벨 {es}Nivel del líder Elementalista {fr}Niveau du chef Élémentaliste {pt-br}Nível do líder Elementalista {de}Stufe des Elementalisten-Anführers ", finalLevel}))
-			leaderObj.reload()
-			monsterPugs[currentLeader.token]=leaderData[currentLeader.terrainHex][finalLevel].abilities
-		end
-		local disc=getObjectFromGUID(currentLeader.disc)
-		if disc~=nil then disc.setCustomObject({image=leaderData[currentLeader.terrainHex][finalLevel].discImg}) disc.reload() end
-	end
-end
-
 --A cooperative faction-leader assault finalizes the leader after the normal end-of-combat scenario check has already run.
 --Re-check only scenario conditions that can become true specifically because that deferred leader was just defeated.
 function startCoopRewardPhase()
 	if coopAssaultTargetType()=="dragon" then finalizeCoopDragonCombat() end
-	finalizeCoopLeaderCombat()
+	factionLeaderFinalizeCoopCombat(combatDiscardMonster)
 	local assaultType=coopAssaultTargetType()
 	if gStates.endGameAchieved=="false" and ((assaultType=="leader" and coopLeaderScenarioEndAchieved()==true) or (assaultType=="horsemen" and againstHorsemenAllDefeated()==true) or (assaultType=="dragon" and apocalypseDragonAssaultScenarioEndAchieved()==true)) then gStates.coopAssaultScenarioEndPending=true end
 	resolveCoopAssaultLocations()
@@ -22077,7 +22011,8 @@ local function combatPreEndTurnPreparePlayArea(cleanupPlayer,recovery)
 					end
 				end
 			end
-			attachEnemy(nil, nil, "detach", playAreaObj, nil)
+			--Automated separation must not reverse Fame already earned from the defeated enemy.
+			attachEnemy(nil, nil, "detachCleanup", playAreaObj, nil)
 		end
 		tokenWait=40
 	end
@@ -22346,17 +22281,8 @@ local function combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatRe
 							playAreaObj.setRotation({0,180,0})
 							playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid],false,false)
 							combatTrackReturningObject(state,playAreaObj)
-						elseif gStates.coopAssaultPhase=="combat" and coopAssaultTargetType()=="leader" and (playAreaObj.guid==elementalist.token or playAreaObj.guid==darkCrusader.token) then
-							--A face-down leader means this player defeated no leader levels. Advance the real token through
-							--the same preview handoff used by a face-up surviving leader so the next planning copy is consumed.
-							if coopAssaultPendingCombat()==true then
-								local nextPlayer=nextTurnMerged("nextMage")
-								promoteCoopLeaderPreview(nextPlayer, playAreaObj)
-							else
-								clearCoopLeaderPreviewClones()
-								playAreaObj.setRotation({0, 180, 0})
-								playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid],false,false)
-							end
+						elseif gStates.coopAssaultPhase=="combat" and coopAssaultTargetType()=="leader" and factionLeaderForToken(playAreaObj.guid)~=nil then
+							factionLeaderReturnUnbeatenCoopToken(playAreaObj)
 						elseif getObjectFromGUID(turnOrder[nextTurnMerged("nextMage")].turnOrderTokenGUID).is_face_down==true and playAreaObj.getRotationValues()[2]==nil then
 							--Move to next players play area.
 							playAreaObj.setPositionSmooth({turnOrder[nextTurnMerged("nextMage")].seatPos*40-100, 1.5, -39.41},false,false)
@@ -22380,72 +22306,9 @@ local function combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatRe
 						horsemanResolveDefeat(playAreaObj,cleanupPlayer,coopCombatReward)
 					elseif playAreaObj.getRotationValues()[2]~=nil then
 						combatDiscardMonster(playAreaObj,true,state.cleanupContext)
-					else--process leaders
+					else--Faction Leaders are resolved by their own damage handler
 						combatTrackReturningObject(state,playAreaObj)
-						local currentLeader=elementalist
-						if playAreaObj.guid==darkCrusader.token then currentLeader=darkCrusader end
-						--drop shield(s) on leader disc
-						for b=1, gStates.leaderOverkill, 1 do
-							local leaderDisc=getObjectFromGUID(currentLeader.disc)
-							if leaderDisc~=nil then
-								local hexRotationRad=math.rad(-1*(-120+tonumber(30*(gStates.elementalistLevel-gStates.leaderReduction-(b-1)))))
-								if playAreaObj.guid==darkCrusader.token then hexRotationRad=math.rad(-1*(-120+tonumber(30*(gStates.darkCrusaderLevel-gStates.leaderReduction-(b-1))))) end
-								local discPos=leaderDisc.getPosition()
-								local location={discPos[1]+(math.cos(hexRotationRad)*2.9),2+(b*1.5),discPos[3]+(math.sin(hexRotationRad)*2.9)}
-								dropShield(location,false,nil,cleanupPlayer)
-							end
-						end
-						--Record damage to the faction leader, but during a cooperative assault do not move its
-						--actual level marker/state until every participating player has finished combat.
-						gStates.leaderReduction=gStates.leaderReduction+gStates.leaderOverkill
-						local leaderStartingLevel=gStates.elementalistLevel
-						if playAreaObj.guid==darkCrusader.token then leaderStartingLevel=gStates.darkCrusaderLevel end
-						local leaderDefeatedNow=gStates.leaderReduction>=leaderStartingLevel
-						gStates.leaderOverkill=1
-						if gStates.coopAssaultPhase=="combat" and coopAssaultTargetType()=="leader" then
-							--The next participant already has a planning clone. Swap the real leader into that copy's
-							--current position so the combat controls move with the real token. If the leader was fully
-							--marked, remove every remaining preview because later participants no longer face it.
-							if coopAssaultPendingCombat()==true and leaderDefeatedNow==false then
-								local nextPlayer=nextTurnMerged("nextMage")
-								promoteCoopLeaderPreview(nextPlayer, playAreaObj)
-							else
-								clearCoopLeaderPreviewClones()
-								if gStates.monsterPlayLocation[playAreaObj.guid]~=nil then playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid],false,false) end
-							end
-						else
-							--Solo/non-co-op leader combat keeps the existing immediate resolution.
-							local currenLeaderLevel=math.max(0, leaderStartingLevel-gStates.leaderReduction)
-							if playAreaObj.guid==darkCrusader.token then gStates.darkCrusaderLevel=currenLeaderLevel else gStates.elementalistLevel=currenLeaderLevel end
-							gStates.leaderReduction=0
-							if currenLeaderLevel==0 then
-								getObjectFromGUID(trashCan).putObject(playAreaObj)
-								gStates.cityMonsterQty[currentLeader.terrainHex][currentLeader.token]="dead"
-								local leaderDisc=getObjectFromGUID(currentLeader.disc)
-								if leaderDisc~=nil then leaderDisc.setCustomObject({image=leaderData[currentLeader.terrainHex]["dead"].discImg}) leaderDisc.reload() end
-								safeWaitTime("Combat",function()
-									for monsterGUID, _ in pairs(gStates.cityMonsterQty[currentLeader.terrainHex]) do
-										local monster=getObjectFromGUID(monsterGUID)
-									if monster~=nil and monster.getRotationValues()[2]~=nil then combatDiscardMonster(monster,false,state.cleanupContext) end
-									end
-								end, 2)
-							else
-								playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid],false,false)
-								safeWaitFrames("Combat",function()
-									local levelData=leaderData[currentLeader.terrainHex]~=nil and leaderData[currentLeader.terrainHex][currenLeaderLevel] or nil
-									if levelData==nil then return end
-									local leaderDisc=getObjectFromGUID(currentLeader.disc)
-									if leaderDisc~=nil then leaderDisc.setCustomObject({image=levelData.discImg}) leaderDisc.reload() end
-									local leaderToken=getObjectFromGUID(currentLeader.token)
-									if leaderToken~=nil then
-										leaderToken.setCustomObject({image=levelData.tokenImg})
-										leaderToken.setName(joinLang({currentLeader==darkCrusader and "{en}Dark Crusader Leader Level {it}Capo dei Crociati Oscuri, Livello {ru}Уровень лидера Тёмных крестоносцев: {zh-tw}黑暗十字軍領袖等級 {zh-cn}黑暗十字军领袖等级 {ko}다크 크루세이더 지도자 레벨 {es}Nivel del líder Cruzado Oscuro {fr}Niveau du chef Croisé Sombre {pt-br}Nível do líder Cruzado Sombrio {de}Stufe des Anführers der Dunklen Kreuzritter " or "{en}Elementalist Leader Level {it}Capo degli Elementalisti, Livello {ru}Уровень лидера Элементалистов: {zh-tw}元素使領袖等級 {zh-cn}元素使领袖等级 {ko}엘리멘탈리스트 지도자 레벨 {es}Nivel del líder Elementalista {fr}Niveau du chef Élémentaliste {pt-br}Nível do líder Elementalista {de}Stufe des Elementalisten-Anführers ", currenLeaderLevel}))
-										leaderToken.reload()
-									end
-									monsterPugs[currentLeader.token]=levelData.abilities
-								end,100)
-							end
-						end
+						factionLeaderResolveCombatToken(playAreaObj,cleanupPlayer,state.cleanupContext,combatDiscardMonster)
 					end
 				end
 
@@ -22727,14 +22590,7 @@ function monsterObjectButtons(obj, forcedPossessed)
 	end
 	local dragonGroundButtons=apocalypseDragonGroundHeadButtons~=nil and apocalypseDragonGroundHeadButtons(obj) or {}
 	for _,button in ipairs(dragonGroundButtons) do addedButtons[#addedButtons+1]=button end
-	if obj.guid==darkCrusader.token or obj.guid==elementalist.token then
-		addedButtons[#addedButtons+1]={tag="Button", attributes={id=obj.guid.."OverkillUp", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/adjustOverkill", height=50/0.9, width=50/0.9,
-			color="rgba(0,0,0,0.0)", position="-62 "..tostring(-120/0.9).." "..tostring(-15/0.9), rotation="0 0 180"}, children={{tag="Image", attributes={id=obj.guid.."OverkillUpImage", image="Overkill Up"}}}}
-		addedButtons[#addedButtons+1]={tag="Image", attributes={image="Overkill Text", height=50/0.9, width=55/0.9, position="0 "..tostring(-120/0.9).." "..tostring(-15/0.9), rotation="0 0 180"},
-			children={{tag="Text", attributes={id=obj.guid.."Overkill", color="rgb(0,0,0)", fontSize="45", fontStyle="Bold", alignment="MiddleCenter", text=gStates.leaderOverkill}}}}
-		addedButtons[#addedButtons+1]={tag="Button", attributes={id=obj.guid.."OverkillDown", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/adjustOverkill", height=50/0.9, width=50/0.9,
-			color="rgba(0,0,0,0.0)", position="62 "..tostring(-120/0.9).." "..tostring(-15/0.9), rotation="0 0 180"}, children={{tag="Image", attributes={id=obj.guid.."OverkillDownImage", image="Overkill Down"}}}}
-	end
+	for _,button in ipairs(factionLeaderOverkillButtons(obj)) do addedButtons[#addedButtons+1]=button end
 	if possessedAttached then
 		addedButtons[#addedButtons+1]={tag="Button", attributes={id="detach"..obj.guid, onClick="global/attachEnemy", height=30, width=30, color="rgba(0,0,0,0.0)", position="62 -100 -15", rotation="0 0 180"},
 			children={{tag="Image", attributes={id=obj.guid.."detachImage", image="Unlink Button"}}}}
@@ -22747,15 +22603,6 @@ function setMonsterObjectButtons(obj, forcedPossessed)
 	if obj==nil then return end
 	local buttons=monsterObjectButtons(obj, forcedPossessed)
 	if #buttons>0 then obj.UI.setXmlTable(buttons) else obj.UI.setXmlTable({{}}) end
-end
-
---Object UI is not reliably restored by TTS after load/rewind. Rebuild a faction Leader's
---combat controls when the real Leader token is in either a player's Play Area or Unit Area.
-function refreshLeaderOverkillButtons()
-	for _, leaderGUID in ipairs({darkCrusader.token, elementalist.token}) do
-		local leaderObj=getObjectFromGUID(leaderGUID)
-		if leaderObj~=nil and objectInPlayerCombatArea(leaderGUID)==true then setMonsterObjectButtons(leaderObj) end
-	end
 end
 
 --Remove Possessed from an enemy and return the detached token references.
@@ -23683,7 +23530,7 @@ function attackCity(player, mouseButton, id)
 			else broadcastToAll("{en}Garrison moved to Player Board.{it}Guarnigione spostata sulla Plancia Giocatore.{ru}Гарнизон был помещен на стол игрока{zh-tw}守軍已移到玩家面板。{zh-cn}守军移动到玩家面板{ko}수비자와 전투합니다{es}Garrison se movió al tablero de jugador.{fr}La garnison a été transférée au plateau des joueurs.{pt-br}Guarnição movida para o tabuleiro do jogador{de}Garrison wird auf die Spielertafel verschoben.", positionToColor(gStates.turnNumber)) end
 		end
 		--Give later faction-leader participants an unlocked, buttonless copy now so they can plan their combat.
-		if coopStart==true and gStates.coopAssaultPhase=="combat" and gStates.coopAssaultType=="leader" then createCoopLeaderPreviewClones() end
+		if coopStart==true and gStates.coopAssaultPhase=="combat" and gStates.coopAssaultType=="leader" then factionLeaderCreateCoopPreview() end
 		gStates.assaultData={}
 		gStates.coopAssaultUnassigned={}
 		if coopStart==true then gStates.againstHorsemenAssaultOrigin=nil gStates.apocalypseDragonAssaultOrigin=nil end
@@ -24032,23 +23879,6 @@ summonMonster=function(player, mouseButton, id)
 	end
 	gStates.summonStates[id]="SummonDone"
 	setMonsterObjectButtons(summoner)
-end
-
---Leader overkill adjust
-adjustOverkill=function(player, mouseButton, id)
-	if mouseButton=="-1" then
-		local level=gStates.elementalistLevel-gStates.leaderReduction
-		if id:sub(1,6)==darkCrusader.token then level=gStates.darkCrusaderLevel-gStates.leaderReduction end
-		if id:sub(7,16)=="OverkillUp" and gStates.leaderOverkill<level then
-			gStates.leaderOverkill=gStates.leaderOverkill+1
-		end
-		if id:sub(7,18)=="OverkillDown" and gStates.leaderOverkill>1 then
-			gStates.leaderOverkill=gStates.leaderOverkill-1
-		end
-		local leaderObj=getObjectFromGUID(id:sub(1,6))
-		if leaderObj~=nil then leaderObj.UI.setAttribute(id:sub(1,14),"Text",gStates.leaderOverkill) end
-		mainUIUpdate("Leader Overkilled")
-	end
 end
 
 pursuitStunnedImageAsset="Pursuit Stunned"
@@ -24476,7 +24306,6 @@ publishPublicUICallbacks({
 	pursuingRampagers=pursuingRampagers,
 	wallAssaultChoice=wallAssaultChoice,
 	zigguratPyramidInteract=zigguratPyramidInteract,
-	adjustOverkill=adjustOverkill,
 	attachEnemy=attachEnemy,
 	attackLocation=attackLocation,
 	summonMonster=summonMonster
@@ -30439,15 +30268,412 @@ publishPublicUICallbacks({
 })
 
 end)
+__bundle_register("PlayingGame.FactionLeaders", function(require, _LOADED, __bundle_register, __bundle_modules)
+-- Dark Crusader and Elementalist: Faction Leader deployment, levels, combat and scoring.
+-- City owns shared garrisons and Combat owns generic turn cleanup.
+
+
+local function ultimateConquestLeaderLevel(cityCount)
+	if cityCount>0 and gStates.cityLevels[cityCount]~=nil then return gStates.cityLevels[cityCount] end
+	local lowest=nil
+	for cityIndex=1, gStates.cityTiles do
+		local cityLevel=gStates.cityLevels[cityIndex]
+		if cityLevel~=nil and (lowest==nil or cityLevel<lowest) then lowest=cityLevel end
+	end
+	return lowest or 1
+end
+
+
+function factionLeaderForCity(cityGUID)
+	if cityGUID==elementalist.terrainHex then return elementalist end
+	if cityGUID==darkCrusader.terrainHex then return darkCrusader end
+	return nil
+end
+
+function setFactionLeaderLevel(cityGUID, level)
+	local currentLeader=factionLeaderForCity(cityGUID)
+	local levelData=currentLeader~=nil and leaderData[currentLeader.terrainHex] or nil
+	level=math.min(tonumber(level) or 1, 12)
+	if currentLeader==nil or levelData==nil or levelData[level]==nil then return false end
+	local disc=getObjectFromGUID(currentLeader.disc)
+	local token=getObjectFromGUID(currentLeader.token)
+	if disc~=nil then disc.setCustomObject({image=levelData[level].discImg}) disc.reload() end
+	if token~=nil then
+		token.setCustomObject({image=levelData[level].tokenImg})
+		token.setName((currentLeader==elementalist and "Elementalist" or "Dark Crusader").." Leader Level "..level)
+		token.reload()
+	end
+	monsterPugs[currentLeader.token]=levelData[level].abilities
+	if currentLeader==elementalist then gStates.elementalistLevel=level else gStates.darkCrusaderLevel=level end
+	if gStates.cityMonsterQty[cityGUID]~=nil then gStates.cityMonsterQty[cityGUID][currentLeader.token]="alive" end
+	return true
+end
+
+
+function factionLeaderForToken(guid)
+	if guid==elementalist.token then return elementalist end
+	if guid==darkCrusader.token then return darkCrusader end
+	return nil
+end
+
+-- The followers can remain on the table briefly after a faction leader reaches level zero.
+function factionLeaderTargetDefeated(cityGUID)
+	if cityTargetDefeated(cityGUID)==true then return true end
+	local leader=factionLeaderForCity(cityGUID)
+	if leader==nil then return false end
+	local level=leader==darkCrusader and gStates.darkCrusaderLevel or gStates.elementalistLevel
+	return (level or 1)<=0 or (gStates.cityMonsterQty[cityGUID]~=nil and gStates.cityMonsterQty[cityGUID][leader.token]=="dead")
+end
+
+
+local function factionLeaderDeployOrder(cityGUID, ultimateCitiesPlayed, leaderLevel)
+	if gStates.cityDeployOrder[cityGUID]~=nil then return gStates.cityDeployOrder[cityGUID], gStates.cityLevels[gStates.cityDeployOrder[cityGUID]] end
+	local leaderOrder=#gStates.citiesPlayed-(gStates.megapolisPlayed or 0)
+	if gStates.gameScenario=="Ultimate Conquest" then leaderOrder=#gStates.cityLevels+1 gStates.cityLevels[leaderOrder]=leaderLevel end
+	gStates.cityDeployOrder[cityGUID]=leaderOrder
+	return leaderOrder, leaderLevel
+end
+
+
+-- The leader sets its level and map identity; City then deploys the ordinary garrison.
+function factionLeaderDeploy(cityGUID,ultimateCitiesPlayed,obj)
+	local leader=factionLeaderForCity(cityGUID)
+	if leader==nil then return nil end
+	local leaderLevel=gStates.cityLevels[#gStates.citiesPlayed-(gStates.megapolisPlayed or 0)-math.ceil((gStates.megapolisPlayed or 0)/2)]
+	if gStates.gameScenario=="Ultimate Conquest" then leaderLevel=ultimateConquestLeaderLevel(ultimateCitiesPlayed) end
+	if gStates.gameScenario=="The War of Four" then
+		leaderLevel=999
+		for _, level in pairs(gStates.cityLevels) do if level<leaderLevel then leaderLevel=level end end
+	end
+	local order
+	order, leaderLevel=factionLeaderDeployOrder(cityGUID, ultimateCitiesPlayed, leaderLevel)
+	leaderLevel=math.min(tonumber(leaderLevel) or 1,12)
+	gStates.cityLevels[order]=leaderLevel
+	setFactionLeaderLevel(cityGUID,leaderLevel)
+	if leader==elementalist then
+		runtimeMapSetHexFeature(obj.guid,"center","hidden valley")
+		gStates.hexOverideSave[obj.guid].center="hidden valley"
+		gStates.monsterPlayLocation[elementalist.token]={-55.3,1.5,15.3}
+	else
+		runtimeMapSetHexFeature(obj.guid,"center","necropolis")
+		gStates.hexOverideSave[obj.guid].center="necropolis"
+		gStates.monsterPlayLocation[darkCrusader.token]={-55.3,1.5,6.7}
+	end
+	return leaderLevel
+end
+
+
+function factionLeaderSortShields(objectsOnCity,zoneObj)
+	local tilePos=zoneObj.getPosition()
+	table.sort(objectsOnCity, function(k1, k2)
+		local rot=math.rad(90)
+		local p1=k1.getPosition()
+		local p2=k2.getPosition()
+		local var1=math.atan2(((p1[3]-tilePos[3])*math.cos(rot))+((p1[1]-tilePos[1])*math.sin(rot)), ((p1[1]-tilePos[1])*math.cos(rot))-((p1[3]-tilePos[3])*math.sin(rot)))
+		local var2=math.atan2(((p2[3]-tilePos[3])*math.cos(rot))+((p2[1]-tilePos[1])*math.sin(rot)), ((p2[1]-tilePos[1])*math.cos(rot))-((p2[3]-tilePos[3])*math.sin(rot)))
+		return var1<var2
+	end)
+end
+
+
+function factionLeaderAddTerrainContributions(cityZone,cityScoring)
+	if (cityZone==darkCrusader.discZone or cityZone==elementalist.discZone) and (gStates.coop==0 or gStates.WarOfFourComp==true) then
+		for c=1, #turnOrder, 1 do
+			if turnOrder[c].mage~=gStates.positionMageKnight[5] then
+				if cityScoring[turnOrder[c].mage]==nil then cityScoring[turnOrder[c].mage]=0 end
+				if cityZone==elementalist.discZone then cityScoring[turnOrder[c].mage]=cityScoring[turnOrder[c].mage]+turnOrder[c].score.Glade end
+				if cityZone==darkCrusader.discZone then cityScoring[turnOrder[c].mage]=cityScoring[turnOrder[c].mage]+turnOrder[c].score.GraveYard end
+			end
+		end
+	end
+
+end
+
+
+function factionLeaderScoreZone(cityZone,cityScoring,factionAssistTest)
+	if cityZone==darkCrusader.discZone or cityZone==elementalist.discZone then
+		local factionBothAssistTest={}
+		local highest={0, nil}
+		for mage, value in pairs(cityScoring) do
+			if value>0 then
+				for c=1, #turnOrder, 1 do
+					if turnOrder[c].mage==mage then
+						if cityZone==elementalist.discZone then turnOrder[c].score.ElemFactionAssist=turnOrder[c].score.ElemFactionAssist+1 end
+						if cityZone==darkCrusader.discZone then turnOrder[c].score.DarkFactionAssist=turnOrder[c].score.DarkFactionAssist+1 end
+						if highest[1]<value then highest[1]=value highest[2]=mage end
+						factionAssistTest[turnOrder[c].mage]=true
+						factionBothAssistTest[turnOrder[c].mage]=true
+						break
+					end
+				end
+			end
+		end
+		for c=1, #turnOrder, 1 do
+			if turnOrder[c].mage==highest[2] then
+				if cityZone==darkCrusader.discZone then
+					turnOrder[c].score.DarkFactionAssist=turnOrder[c].score.DarkFactionAssist-1
+					turnOrder[c].score.DarkFactionLead=turnOrder[c].score.DarkFactionLead+1
+				end
+				if cityZone==elementalist.discZone then
+					turnOrder[c].score.ElemFactionAssist=turnOrder[c].score.ElemFactionAssist-1
+					turnOrder[c].score.ElemFactionLead=turnOrder[c].score.ElemFactionLead+1
+				end
+				break
+			end
+		end
+		local count=0
+		for _ in pairs(factionBothAssistTest) do count=count+1 end
+		return count==#turnOrder-1
+	end
+	return false
+end
+
+function factionLeaderResetScoring()
+	gStates.allPlayersFoughtAFactionLeaderCheck=false
+	gStates.allPlayersFoughtBothFactionLeaderCheck=false
+end
+
+function factionLeaderFinishScoring(factionAssistTest,bothTest)
+	gStates.allPlayersFoughtBothFactionLeaderCheck=bothTest==2
+	local count=0
+	for _ in pairs(factionAssistTest) do count=count+1 end
+	gStates.allPlayersFoughtAFactionLeaderCheck=count==#turnOrder-1
+end
+
+function factionLeaderRegisterConquered(cityGUID)
+	gStates.defeatedFaction=gStates.defeatedFaction+1
+	gStates.defeatedFactionTest[cityGUID]="Beat"
+end
+
+
+--Faction-leader co-op participants get unlocked planning copies. These clones are visual only and are never registered as monsters.
+function factionLeaderClearCoopPreview()
+	for playerIndex, cloneGUID in pairs(gStates.coopLeaderPreviewClones or {}) do
+		local clone=getObjectFromGUID(cloneGUID)
+		if clone~=nil then clone.destruct() end
+	end
+	gStates.coopLeaderPreviewClones={}
+end
+
+
+function factionLeaderCreateCoopPreview()
+	factionLeaderClearCoopPreview()
+	if gStates.coopAssaultPhase~="combat" or coopAssaultTargetType()~="leader" then return end
+	local leaderGUID=elementalist.token
+	if gStates.coopAssaultCityGUID==darkCrusader.terrainHex then leaderGUID=darkCrusader.token end
+	local leaderObj=getObjectFromGUID(leaderGUID)
+	if leaderObj==nil then return end
+	for playerIndex, _ in pairs(gStates.coopAssaultParticipants or {}) do
+		if playerIndex~=gStates.turnNumber and turnOrder[playerIndex]~=nil then
+			local clone=leaderObj.clone({position={turnOrder[playerIndex].seatPos*40-100, 1.5, -39.41}, rotation={0, 180, 0}, smooth=false})
+			if clone~=nil then
+				clone.unlock()
+				clone.interactable=true
+				clone.UI.setXmlTable({{}})
+				gStates.coopLeaderPreviewClones[playerIndex]=clone.guid
+			end
+		end
+	end
+end
+
+--Replace the next player's movable planning copy with the real leader token and its combat controls.
+function factionLeaderPromoteCoopPreview(playerIndex, leaderObj)
+	if leaderObj==nil or turnOrder[playerIndex]==nil then return end
+	local destination={turnOrder[playerIndex].seatPos*40-100, 1.5, -39.41}
+	local cloneGUID=gStates.coopLeaderPreviewClones~=nil and gStates.coopLeaderPreviewClones[playerIndex] or nil
+	local clone=cloneGUID~=nil and getObjectFromGUID(cloneGUID) or nil
+	if clone~=nil then
+		--Respect where the player moved the preview as long as it is still inside that player's combat area.
+		local playZone=getObjectFromGUID(playerPlayAreas[turnOrder[playerIndex].seatPos])
+		if playZone~=nil then
+			for _, obj in pairs(playZone.getObjects()) do
+				if obj.guid==clone.guid then
+					local clonePos=clone.getPosition()
+					destination={clonePos[1], 1.5, clonePos[3]}
+					break
+				end
+			end
+		end
+		clone.destruct()
+	end
+	if gStates.coopLeaderPreviewClones~=nil then gStates.coopLeaderPreviewClones[playerIndex]=nil end
+	leaderObj.unlock()
+	leaderObj.setPositionSmooth(destination,false,false)
+	leaderObj.setRotation({0, 180, 0})
+	setMonsterObjectButtons(leaderObj)
+end
+
+
+function factionLeaderOverkillButtons(obj)
+	if obj==nil or factionLeaderForToken(obj.guid)==nil then return {} end
+	local addedButtons={}
+		addedButtons[#addedButtons+1]={tag="Button", attributes={id=obj.guid.."OverkillUp", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/adjustOverkill", height=50/0.9, width=50/0.9,
+			color="rgba(0,0,0,0.0)", position="-62 "..tostring(-120/0.9).." "..tostring(-15/0.9), rotation="0 0 180"}, children={{tag="Image", attributes={id=obj.guid.."OverkillUpImage", image="Overkill Up"}}}}
+		addedButtons[#addedButtons+1]={tag="Image", attributes={image="Overkill Text", height=50/0.9, width=55/0.9, position="0 "..tostring(-120/0.9).." "..tostring(-15/0.9), rotation="0 0 180"},
+			children={{tag="Text", attributes={id=obj.guid.."Overkill", color="rgb(0,0,0)", fontSize="45", fontStyle="Bold", alignment="MiddleCenter", text=gStates.leaderOverkill}}}}
+		addedButtons[#addedButtons+1]={tag="Button", attributes={id=obj.guid.."OverkillDown", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/adjustOverkill", height=50/0.9, width=50/0.9,
+			color="rgba(0,0,0,0.0)", position="62 "..tostring(-120/0.9).." "..tostring(-15/0.9), rotation="0 0 180"}, children={{tag="Image", attributes={id=obj.guid.."OverkillDownImage", image="Overkill Down"}}}}
+	return addedButtons
+end
+
+
+--Object UI is not reliably restored by TTS after load/rewind. Rebuild a faction Leader's
+--combat controls when the real Leader token is in either a player's Play Area or Unit Area.
+function refreshLeaderOverkillButtons()
+	for _, leaderGUID in ipairs({darkCrusader.token, elementalist.token}) do
+		local leaderObj=getObjectFromGUID(leaderGUID)
+		if leaderObj~=nil and objectInPlayerCombatArea(leaderGUID)==true then setMonsterObjectButtons(leaderObj) end
+	end
+end
+
+
+--Leader overkill adjust
+adjustOverkill=function(player, mouseButton, id)
+	if mouseButton=="-1" then
+		local level=gStates.elementalistLevel-gStates.leaderReduction
+		if id:sub(1,6)==darkCrusader.token then level=gStates.darkCrusaderLevel-gStates.leaderReduction end
+		if id:sub(7,16)=="OverkillUp" and gStates.leaderOverkill<level then
+			gStates.leaderOverkill=gStates.leaderOverkill+1
+		end
+		if id:sub(7,18)=="OverkillDown" and gStates.leaderOverkill>1 then
+			gStates.leaderOverkill=gStates.leaderOverkill-1
+		end
+		local leaderObj=getObjectFromGUID(id:sub(1,6))
+		if leaderObj~=nil then leaderObj.UI.setAttribute(id:sub(1,14),"Text",gStates.leaderOverkill) end
+		mainUIUpdate("Leader Overkilled")
+	end
+end
+
+
+-- Solo and cooperative damage use the same visual and ability level transition.
+local function factionLeaderApplyCombatLevel(leader,level)
+	local art=leaderData[leader.terrainHex]~=nil and leaderData[leader.terrainHex][level] or nil
+	if art==nil then return end
+	local token=getObjectFromGUID(leader.token)
+	if token~=nil then
+		token.setCustomObject({image=art.tokenImg})
+		token.setName(joinLang({leader==darkCrusader and "{en}Dark Crusader Leader Level {it}Capo dei Crociati Oscuri, Livello {ru}Уровень лидера Тёмных крестоносцев: {zh-tw}黑暗十字軍領袖等級 {zh-cn}黑暗十字军领袖等级 {ko}다크 크루세이더 지도자 레벨 {es}Nivel del líder Cruzado Oscuro {fr}Niveau du chef Croisé Sombre {pt-br}Nível do líder Cruzado Sombrio {de}Stufe des Anführers der Dunklen Kreuzritter " or "{en}Elementalist Leader Level {it}Capo degli Elementalisti, Livello {ru}Уровень лидера Элементалистов: {zh-tw}元素使領袖等級 {zh-cn}元素使领袖等级 {ko}엘리멘탈리스트 지도자 레벨 {es}Nivel del líder Elementalista {fr}Niveau du chef Élémentaliste {pt-br}Nível do líder Elementalista {de}Stufe des Elementalisten-Anführers ", level}))
+		token.reload()
+	end
+	monsterPugs[leader.token]=art.abilities
+	local disc=getObjectFromGUID(leader.disc)
+	if disc~=nil then disc.setCustomObject({image=art.discImg}) disc.reload() end
+end
+
+local function factionLeaderDiscardFollowers(leader,discardMonster,context)
+	local roster=gStates.cityMonsterQty[leader.terrainHex]
+	if roster==nil then return end
+	for monsterGUID,state in pairs(roster) do
+		if monsterGUID~="extra" and monsterGUID~=leader.token and state~="dead" then
+			local monster=getObjectFromGUID(monsterGUID)
+			if monster~=nil and monster.getRotationValues()[2]~=nil then discardMonster(monster,false,context) end
+		end
+	end
+end
+
+local function factionLeaderCombatDefeated(leader,discardMonster,context,deferFollowers)
+	local token=getObjectFromGUID(leader.token)
+	local trash=getObjectFromGUID(trashCan)
+	if token~=nil and trash~=nil then trash.putObject(token) end
+	local roster=gStates.cityMonsterQty[leader.terrainHex]
+	if roster~=nil then roster[leader.token]="dead" end
+	local disc=getObjectFromGUID(leader.disc)
+	local deadArt=leaderData[leader.terrainHex]~=nil and leaderData[leader.terrainHex]["dead"] or nil
+	if disc~=nil and deadArt~=nil then disc.setCustomObject({image=deadArt.discImg}) disc.reload() end
+	if deferFollowers then
+		safeWaitTime("FactionLeaders",function() factionLeaderDiscardFollowers(leader,discardMonster,context) end,2)
+	else
+		factionLeaderDiscardFollowers(leader,discardMonster,context)
+	end
+end
+
+-- A face-down Leader took no damage: pass the real token on without changing its level.
+function factionLeaderReturnUnbeatenCoopToken(token)
+	if coopAssaultPendingCombat()==true then
+		factionLeaderPromoteCoopPreview(nextTurnMerged("nextMage"),token)
+	else
+		factionLeaderClearCoopPreview()
+		token.setRotation({0,180,0})
+		local position=gStates.monsterPlayLocation[token.guid]
+		if position~=nil then token.setPositionSmooth(position,false,false) end
+	end
+end
+
+-- A face-up Leader is handled here, rather than by standard enemy token discard logic.
+function factionLeaderResolveCombatToken(token,playerIndex,cleanupContext,discardMonster)
+	local leader=factionLeaderForToken(token.guid)
+	if leader==nil then return end
+	local startingLevel=leader==darkCrusader and gStates.darkCrusaderLevel or gStates.elementalistLevel
+	local reduction=gStates.leaderReduction or 0
+	local overkill=gStates.leaderOverkill or 1
+	local disc=getObjectFromGUID(leader.disc)
+	if disc~=nil then
+		local position=disc.getPosition()
+		for count=1,overkill do
+			local angle=math.rad(120-30*(startingLevel-reduction-(count-1)))
+			dropShield({position[1]+math.cos(angle)*2.9,2+count*1.5,position[3]+math.sin(angle)*2.9},false,nil,playerIndex)
+		end
+	end
+	gStates.leaderReduction=reduction+overkill
+	local beaten=gStates.leaderReduction>=startingLevel
+	gStates.leaderOverkill=1
+	if gStates.coopAssaultPhase=="combat" and coopAssaultTargetType()=="leader" then
+		-- Co-op participants register damage without changing the shared level until combat is complete.
+		if coopAssaultPendingCombat()==true and beaten==false then
+			factionLeaderPromoteCoopPreview(nextTurnMerged("nextMage"),token)
+		else
+			factionLeaderClearCoopPreview()
+			local position=gStates.monsterPlayLocation[token.guid]
+			if position~=nil then token.setPositionSmooth(position,false,false) end
+		end
+		return
+	end
+	local remaining=math.max(0,startingLevel-gStates.leaderReduction)
+	if leader==darkCrusader then gStates.darkCrusaderLevel=remaining else gStates.elementalistLevel=remaining end
+	gStates.leaderReduction=0
+	if remaining==0 then
+		factionLeaderCombatDefeated(leader,discardMonster,cleanupContext,true)
+	else
+		local position=gStates.monsterPlayLocation[token.guid]
+		if position~=nil then token.setPositionSmooth(position,false,false) end
+		safeWaitFrames("FactionLeaders",function() factionLeaderApplyCombatLevel(leader,remaining) end,100)
+	end
+end
+
+-- Cooperative damage is finalized after every assault participant has fought.
+function factionLeaderFinalizeCoopCombat(discardMonster)
+	if gStates.coopAssaultPhase~="combat" or coopAssaultTargetType()~="leader" then return end
+	factionLeaderClearCoopPreview()
+	if (gStates.leaderReduction or 0)<=0 then return end
+	local leader=factionLeaderForCity(gStates.coopAssaultCityGUID)
+	if leader==nil then return end
+	local level=leader==darkCrusader and gStates.darkCrusaderLevel or gStates.elementalistLevel
+	if level==nil then gStates.leaderReduction=0 return end
+	local remaining=math.max(0,level-gStates.leaderReduction)
+	gStates.leaderReduction=0
+	if leader==darkCrusader then gStates.darkCrusaderLevel=remaining else gStates.elementalistLevel=remaining end
+	if remaining==0 then
+		factionLeaderCombatDefeated(leader,discardMonster,{player=gStates.turnNumber,avatarPos=mageKnightAvatarPosition(gStates.turnNumber) or {}},false)
+	else
+		local token=getObjectFromGUID(leader.token)
+		local position=token~=nil and gStates.monsterPlayLocation[token.guid] or nil
+		if position~=nil then token.setPositionSmooth(position,false,false) end
+		factionLeaderApplyCombatLevel(leader,remaining)
+	end
+end
+
+publishPublicUICallbacks({adjustOverkill=adjustOverkill})
+
+end)
 __bundle_register("PlayingGame.City", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- City-private helpers. Predeclared so forward references keep resolving locally.
 local cityModelDisplayLevel, initializeCityStaticData, cityMegapolisPending, cityHasMegapolis, cityPlayedContains, cityRemoveFromPlayed
-local refreshUltimateConquestCityCounts, ultimateConquestLeaderLevel, cityControlLockedByReveal, cityControlState, setCityDisplayLevel, factionLeaderForCity
-local setFactionLeaderLevel, cityArmyLevelData, cityDefenderPile, takeCityDefender, cityGarrisonBasePosition, cityArmyPlace
+local refreshUltimateConquestCityCounts, cityControlLockedByReveal, cityControlState, setCityDisplayLevel
+local cityArmyLevelData, cityDefenderPile, takeCityDefender, cityGarrisonBasePosition, cityArmyPlace
 local returnCityGarrisonTokens, resetCityGarrisonData, cityObjectsAreReady, disableCityControls, rebuildCityGarrisonNow, rebuildCityGarrison
 local scheduleCityRebuild, megapolisTerrainBearingData, megapolisReturnHexMonsters, megapolisRemoveGraveyardMarker, megapolisRemoveMonasteryOffer, megapolisWarOfFourGladeOnFactionEdge
 local megapolisDeployWarOfFourGlade, megapolisRestoreTerrainHex, chooseMegapolisPair, cityTerrainRotationKey, createCityMegapolisPair, addCityMegapolis
-local removeCityMegapolis, cityShouldCreateMegapolis, cityRegisterDeployOrder, cityLeaderDeployOrder, deployFriendlyCityShields, resolveCityForTerrain
+local removeCityMegapolis, cityShouldCreateMegapolis, cityRegisterDeployOrder, deployFriendlyCityShields, resolveCityForTerrain
 local revealCityInfoCard, cityLevelReadoutOnly, adjustCityLevel, cityCardMapSnapshot, cityCardExploreGroup, cityCardPositionForbidden
 local cityCardExploreSpaceFree, findCityCardPosition, moveCityCardExploreGroup, positionCityCardForExplore, cityControlTerrainGUID, refreshLockedCityControl
 
@@ -30580,16 +30806,6 @@ refreshUltimateConquestCityCounts=function()
 	return cityCount
 end
 
-ultimateConquestLeaderLevel=function(cityCount)
-	if cityCount>0 and gStates.cityLevels[cityCount]~=nil then return gStates.cityLevels[cityCount] end
-	local lowest=nil
-	for cityIndex=1, gStates.cityTiles do
-		local cityLevel=gStates.cityLevels[cityIndex]
-		if cityLevel~=nil and (lowest==nil or cityLevel<lowest) then lowest=cityLevel end
-	end
-	return lowest or 1
-end
-
 cityMaintenanceLockSeen={}
 
 --Once a City/Volkare garrison or faction leader reveals new information, its setup controls are permanently locked.
@@ -30680,31 +30896,6 @@ setCityDisplayLevel=function(cityGUID, level)
 	return true
 end
 
-
-factionLeaderForCity=function(cityGUID)
-	if cityGUID==elementalist.terrainHex then return elementalist end
-	if cityGUID==darkCrusader.terrainHex then return darkCrusader end
-	return nil
-end
-
-setFactionLeaderLevel=function(cityGUID, level)
-	local currentLeader=factionLeaderForCity(cityGUID)
-	local levelData=currentLeader~=nil and leaderData[currentLeader.terrainHex] or nil
-	level=math.min(tonumber(level) or 1, 12)
-	if currentLeader==nil or levelData==nil or levelData[level]==nil then return false end
-	local disc=getObjectFromGUID(currentLeader.disc)
-	local token=getObjectFromGUID(currentLeader.token)
-	if disc~=nil then disc.setCustomObject({image=levelData[level].discImg}) disc.reload() end
-	if token~=nil then
-		token.setCustomObject({image=levelData[level].tokenImg})
-		token.setName((currentLeader==elementalist and "Elementalist" or "Dark Crusader").." Leader Level "..level)
-		token.reload()
-	end
-	monsterPugs[currentLeader.token]=levelData[level].abilities
-	if currentLeader==elementalist then gStates.elementalistLevel=level else gStates.darkCrusaderLevel=level end
-	if gStates.cityMonsterQty[cityGUID]~=nil then gStates.cityMonsterQty[cityGUID][currentLeader.token]="alive" end
-	return true
-end
 
 cityArmyLevelData=function(cityGUID, cityLevel)
 	cityLevel=tonumber(cityLevel)
@@ -31344,14 +31535,6 @@ function cityReplacementLevelForDragon()
 	return order,gStates.cityLevels[order]
 end
 
-cityLeaderDeployOrder=function(cityGUID, ultimateCitiesPlayed, leaderLevel)
-	if gStates.cityDeployOrder[cityGUID]~=nil then return gStates.cityDeployOrder[cityGUID], gStates.cityLevels[gStates.cityDeployOrder[cityGUID]] end
-	local leaderOrder=#gStates.citiesPlayed-(gStates.megapolisPlayed or 0)
-	if gStates.gameScenario=="Ultimate Conquest" then leaderOrder=#gStates.cityLevels+1 gStates.cityLevels[leaderOrder]=leaderLevel end
-	gStates.cityDeployOrder[cityGUID]=leaderOrder
-	return leaderOrder, leaderLevel
-end
-
 deployFriendlyCityShields=function(cityGUID)
 	if gStates.friendlyCity==nil then gStates.friendlyCity={} end
 	gStates.friendlyCity[cityGUID]=true
@@ -31435,26 +31618,7 @@ function playCity(obj, hexFeature, dropped)
 		local ultimateCitiesPlayed=refreshUltimateConquestCityCounts()
 		local leader=factionLeaderForCity(cityGUID)
 		if leader~=nil then
-			local leaderLevel=gStates.cityLevels[#gStates.citiesPlayed-(gStates.megapolisPlayed or 0)-math.ceil((gStates.megapolisPlayed or 0)/2)]
-			if gStates.gameScenario=="Ultimate Conquest" then leaderLevel=ultimateConquestLeaderLevel(ultimateCitiesPlayed) end
-			if gStates.gameScenario=="The War of Four" then
-				leaderLevel=999
-				for _, level in pairs(gStates.cityLevels) do if level<leaderLevel then leaderLevel=level end end
-			end
-			local order
-			order, leaderLevel=cityLeaderDeployOrder(cityGUID, ultimateCitiesPlayed, leaderLevel)
-			leaderLevel=math.min(tonumber(leaderLevel) or 1,12)
-			gStates.cityLevels[order]=leaderLevel
-			setFactionLeaderLevel(cityGUID,leaderLevel)
-			if leader==elementalist then
-				runtimeMapSetHexFeature(obj.guid,"center","hidden valley")
-				gStates.hexOverideSave[obj.guid].center="hidden valley"
-				gStates.monsterPlayLocation[elementalist.token]={-55.3,1.5,15.3}
-			else
-				runtimeMapSetHexFeature(obj.guid,"center","necropolis")
-				gStates.hexOverideSave[obj.guid].center="necropolis"
-				gStates.monsterPlayLocation[darkCrusader.token]={-55.3,1.5,6.7}
-			end
+			local leaderLevel=factionLeaderDeploy(cityGUID,ultimateCitiesPlayed,obj)
 			local basePos, rotation=cityGarrisonBasePosition(cityGUID,cityGUID,false)
 			local delay=cityArmyPlace(cityGUID,leaderLevel,basePos,rotation,0,0,cityGUID)
 			safeWaitFrames("City",function() refreshCityScriptZones() mainUIUpdate("City card move") addCityButtons() end, delay+5)
@@ -31895,8 +32059,7 @@ function refreshCityDefeatState()
 		local cityMonsters=gStates.cityMonsterQty~=nil and gStates.cityMonsterQty[cityGUID] or nil
 		if cityMonsters~=nil and cityMonsters.extra~=nil and cityMonsters.extra.megapolisPair~=cityGUID and cityTargetDefeated(cityGUID)==true then
 			if cityGUID==darkCrusader.terrainHex or cityGUID==elementalist.terrainHex then
-				gStates.defeatedFaction=gStates.defeatedFaction+1
-				gStates.defeatedFactionTest[cityGUID]="Beat"
+				factionLeaderRegisterConquered(cityGUID)
 			else
 				--War of Four needs conquered cities recorded when beaten rather than when first revealed.
 				if gStates.gameScenario=="The War of Four" and cityZone~=darkCrusader.discZone and cityZone~=elementalist.discZone then
@@ -31925,8 +32088,7 @@ function refreshCityControlAndScoring()
 	local leadTest={}
 	local factionAssistTest={}
 	local bothTest=0
-	gStates.allPlayersFoughtAFactionLeaderCheck=false
-	gStates.allPlayersFoughtBothFactionLeaderCheck=false
+	factionLeaderResetScoring()
 	gStates.allLeaderCheck=false
 	--Zero out any existing city/faction scores and ownership.
 	local scoreVariable={"CityLead", "CityAssist", "ElemFactionAssist", "DarkFactionAssist", "ElemFactionLead", "DarkFactionLead"}
@@ -31959,15 +32121,7 @@ function refreshCityControlAndScoring()
 			end
 			--Sort shields into the physical tie-break order used for City/Faction leadership.
 			if cityZone==darkCrusader.discZone or cityZone==elementalist.discZone then
-				local tilePos=zoneObj.getPosition()
-				table.sort(objectsOnCity, function(k1, k2)
-					local rot=math.rad(90)
-					local p1=k1.getPosition()
-					local p2=k2.getPosition()
-					local var1=math.atan2(((p1[3]-tilePos[3])*math.cos(rot))+((p1[1]-tilePos[1])*math.sin(rot)), ((p1[1]-tilePos[1])*math.cos(rot))-((p1[3]-tilePos[3])*math.sin(rot)))
-					local var2=math.atan2(((p2[3]-tilePos[3])*math.cos(rot))+((p2[1]-tilePos[1])*math.sin(rot)), ((p2[1]-tilePos[1])*math.cos(rot))-((p2[3]-tilePos[3])*math.sin(rot)))
-					return var1<var2
-				end)
+				factionLeaderSortShields(objectsOnCity,zoneObj)
 			else
 				table.sort(objectsOnCity, function(k1, k2) return k1.getPosition()[1]<k2.getPosition()[1] end)
 			end
@@ -31986,16 +32140,7 @@ function refreshCityControlAndScoring()
                     end
 				end
 			end
-			--Faction areas also count the scenario-specific Graveyard/Glade contributions.
-			if (cityZone==darkCrusader.discZone or cityZone==elementalist.discZone) and (gStates.coop==0 or gStates.WarOfFourComp==true) then
-				for c=1, #turnOrder, 1 do
-					if turnOrder[c].mage~=gStates.positionMageKnight[5] then
-						if cityScoring[turnOrder[c].mage]==nil then cityScoring[turnOrder[c].mage]=0 end
-						if cityZone==elementalist.discZone then cityScoring[turnOrder[c].mage]=cityScoring[turnOrder[c].mage]+turnOrder[c].score.Glade end
-						if cityZone==darkCrusader.discZone then cityScoring[turnOrder[c].mage]=cityScoring[turnOrder[c].mage]+turnOrder[c].score.GraveYard end
-					end
-				end
-			end
+			factionLeaderAddTerrainContributions(cityZone,cityScoring)
 			local highest={0, nil}
 			--City control and City scoring are deliberately separate. A scenario-friendly City gives every
 			--player with a Shield the normal Assist hand-size benefit, but has no Leader and never awards
@@ -32028,50 +32173,14 @@ function refreshCityControlAndScoring()
 					end
 				end
 			end
-			--Faction Leader scoring retains the existing contribution behaviour.
-			if cityZone==darkCrusader.discZone or cityZone==elementalist.discZone then
-				local factionBothAssistTest={}
-				highest={0, nil}
-				for mage, value in pairs(cityScoring) do
-					if value>0 then
-						for c=1, #turnOrder, 1 do
-							if turnOrder[c].mage==mage then
-								if cityZone==elementalist.discZone then turnOrder[c].score.ElemFactionAssist=turnOrder[c].score.ElemFactionAssist+1 end
-								if cityZone==darkCrusader.discZone then turnOrder[c].score.DarkFactionAssist=turnOrder[c].score.DarkFactionAssist+1 end
-								if highest[1]<value then highest[1]=value highest[2]=mage end
-								factionAssistTest[turnOrder[c].mage]=true
-								factionBothAssistTest[turnOrder[c].mage]=true
-								break
-							end
-						end
-					end
-				end
-				for c=1, #turnOrder, 1 do
-					if turnOrder[c].mage==highest[2] then
-						if cityZone==darkCrusader.discZone then
-							turnOrder[c].score.DarkFactionAssist=turnOrder[c].score.DarkFactionAssist-1
-							turnOrder[c].score.DarkFactionLead=turnOrder[c].score.DarkFactionLead+1
-						end
-						if cityZone==elementalist.discZone then
-							turnOrder[c].score.ElemFactionAssist=turnOrder[c].score.ElemFactionAssist-1
-							turnOrder[c].score.ElemFactionLead=turnOrder[c].score.ElemFactionLead+1
-						end
-						break
-					end
-				end
-				local count=0
-				for _ in pairs(factionBothAssistTest) do count=count+1 end
-				if count==#turnOrder-1 then bothTest=bothTest+1 end
-			end
+
+			if factionLeaderScoreZone(cityZone,cityScoring,factionAssistTest) then bothTest=bothTest+1 end
 		end
 	end
 	local count=0
 	for _ in pairs(leadTest) do count=count+1 end
 	if count==#turnOrder-1 then gStates.allLeaderCheck=true end
-	if bothTest==2 then gStates.allPlayersFoughtBothFactionLeaderCheck=true end
-	count=0
-	for _ in pairs(factionAssistTest) do count=count+1 end
-	if count==#turnOrder-1 then gStates.allPlayersFoughtAFactionLeaderCheck=true end
+	factionLeaderFinishScoring(factionAssistTest,bothTest)
 end
 
 -- Build static City lookup data after the City module has defined its initializer.
@@ -39864,7 +39973,7 @@ local function removeUnselectedTerrain()
 end
 
 --Volkare is deployed before map construction, so his final lock belongs to the map-complete path.
---Waiting for the known map resting height here is safe: unlike the old readiness gate, the terrain now exists.
+--Wait for the model to stop moving; its resting pivot height can vary with the terrain.
 local function lockSetupVolkareOnMap(callback)
 	if gStates.positionMageKnight[5]~="Volkare" then callback() return end
 	local volkareGUID=gStates.volkareModel or volkare.model
@@ -39885,8 +39994,7 @@ local function lockSetupVolkareOnMap(callback)
 		end,function()
 			local settled=getObjectFromGUID(volkareGUID)
 			if settled==nil then return false end
-			local y=settled.getPosition()[2]
-			return settled.resting==true and settled.isSmoothMoving()==false and math.abs(y-1.08)<0.06
+			return settled.resting==true and settled.isSmoothMoving()==false
 		end,10,function()
 			setupReleaseRewind()
 			error("SetupGame timed out waiting for Volkare to settle on the completed map.",2)
@@ -39947,7 +40055,13 @@ local function finalizeSetup()
 	DisplayHelp(nil, "-1", nil)
 	artifactOfferControlsRestore()
 	artifactOfferRewardTextRefresh()
+	-- On the first game setup, present the Resource Tracker expanded.
+	-- Saved-game UI layout is left to the usual onLoad handling.
+	UI.setAttribute("ResourceTracker", "height", "245")
+	UI.setAttribute("ResourceTrackerDetail", "height", "210")
+	UI.setAttribute("ResourceTrackerDetail", "active", "true")
 	UI.setAttribute("ResourceTracker", "active", "true")
+	resourceCardsPanelChanged(true)
 	UI.setAttribute("cameraControl", "active", "true")
 	if gStates.gameScenario=="One to Return" then UI.hide("ScoreButton") end
 
@@ -42450,6 +42564,1439 @@ function monsterSetup()
 end
 
 end)
+__bundle_register("PlayingGame.PlayerBoard.CardRecognition", function(require, _LOADED, __bundle_register, __bundle_modules)
+-- The physical play area supplies estimated resources to the Resource Tracker.
+-- Runtime-only observations never overwrite the saved manual +/- adjustments.
+resourceCardScanBySeat={}
+local generation={}
+local shown={}
+-- Mana crystal figurines are still read for powering cards, but should never
+-- receive Resource Tracker highlights. Avoid repeated highlightOff calls.
+local crystalHighlightCleared={}
+local bySeat={}
+-- Player choices are transient, never written into gStates or save JSON.
+local selectedResourceByGUID={}
+-- A choice lasts for one play; delayed departure checks must not race a return.
+local choiceResetGenerationByGUID={}
+-- Display state is separate from player selections. Picks/drops may clear the
+-- buttons, but the chosen resource stays until the script reloads.
+local choiceExpandedByGUID={}
+local choiceButtonShown={}
+-- Highlights show how confidently the tracker understands the selected effect.
+-- Blue is a deliberate neutral/not-calculated state, not an illegal-play warning.
+-- Purple takes precedence when objects are linked; brightness indicates power.
+local palette={
+    green={{0.10,0.55,0.14},{0.35,1.00,0.38}},
+    yellow={{0.62,0.48,0.08},{1.00,0.94,0.19}},
+    blue={{0.08,0.34,0.64},{0.26,0.66,1.00}},
+    purple={{0.47,0.19,0.62},{0.92,0.43,1.00}}
+}
+-- Distinguish elemental and physical damage. Otherwise a Ranged Fire Attack
+-- would be incorrectly added to the Physical Ranged field.
+local totalsKeys={move=true,ranged=true,siege=true,attack=true,block=true,influence=true,healing=true,
+    rangedFire=true,rangedIce=true,rangedColdFire=true,
+    siegeFire=true,siegeIce=true,siegeColdFire=true,
+    attackFire=true,attackIce=true,attackColdFire=true,
+    blockFire=true,blockIce=true,blockColdFire=true}
+
+function resourceCardsPanelOpen()
+    return gStates~=nil and gStates.firstStarted==true
+        and UI.getAttribute("ResourceTracker","active")~="false"
+        and UI.getAttribute("ResourceTrackerDetail","active")=="true"
+end
+
+-- The tracker belongs to the active Mage Knight, not everyone whose cards are on the table.
+function resourceCardsCurrentTotals()
+    if not resourceCardsPanelOpen() or turnOrder==nil or gStates.turnNumber==nil then return nil end
+    local player=turnOrder[gStates.turnNumber]
+    local scan=player~=nil and resourceCardScanBySeat[player.seatPos] or nil
+    return scan~=nil and scan.totals or nil
+end
+
+local resourceTotalsKeyByField={
+    move={move="move"},
+    ranged={physical="ranged",fire="rangedFire",ice="rangedIce",iceFire="rangedColdFire"},
+    siege={physical="siege",fire="siegeFire",ice="siegeIce",iceFire="siegeColdFire"},
+    attack={physical="attack",fire="attackFire",ice="attackIce",iceFire="attackColdFire"},
+    block={physical="block",fire="blockFire",ice="blockIce",iceFire="blockColdFire"},
+    influence={generated="influence"},
+    healing={healing="healing"}
+}
+
+function resourceCardsEffectiveValue(category,field)
+    local tracker=gStates~=nil and gStates.resourceTracker or nil
+    local manual=tracker~=nil and tracker[category]~=nil and tracker[category][field] or 0
+    local totals=resourceCardsCurrentTotals()
+    local fields=resourceTotalsKeyByField[category]
+    local totalKey=fields~=nil and fields[field] or nil
+    local estimated=totals~=nil and totalKey~=nil and (totals[totalKey] or 0) or 0
+    return manual+estimated
+end
+
+function resourceCardsEffectiveMove()
+    return math.max(0,resourceCardsEffectiveValue("move","move"))
+end
+
+-- Terrain abilities are an overlay, not changes to gStates.moveCost. This
+-- preserves day/night terrain settings, manual adjustments and other cards.
+-- City/Explore are not terrain: their special movement costs remain intact.
+local passableTerrain={
+    plains=true,hills=true,forest=true,wasteland=true,desert=true,swamp=true,
+    lake=true,mountain=true
+}
+
+local function terrainEffectApplies(effect,terrain)
+    return effect.terrains=="passable" and passableTerrain[terrain]==true
+        or type(effect.terrains)=="table" and effect.terrains[terrain]==true
+end
+
+function resourceCardsEffectiveTerrainCost(terrain)
+    local base=gStates~=nil and gStates.moveCost~=nil and gStates.moveCost[terrain] or nil
+    if base==nil then return 999 end
+    local player=turnOrder~=nil and gStates~=nil
+        and turnOrder[gStates.turnNumber] or nil
+    local scan=player~=nil and resourceCardScanBySeat[player.seatPos] or nil
+    local effects=scan~=nil and scan.terrainModifiers or nil
+    if effects==nil then return base end
+    -- Explicit traversal permissions (e.g. Song of Wind + extra Blue mana)
+    -- may open a lake; ordinary discounts cannot open impassable terrain.
+    for _,effect in ipairs(effects) do
+        if effect.mode=="set" and terrainEffectApplies(effect,terrain) then
+            return effect.cost
+        end
+    end
+    if base>=900 then return base end
+    local cost=base
+    -- Cap effects are evaluated before reductions so Song of Wind and
+    -- Path Finding can stack, with higher-minimum reductions applied first.
+    for _,effect in ipairs(effects) do
+        if effect.mode=="cap" and terrainEffectApplies(effect,terrain) then
+            cost=math.min(cost,effect.cost)
+        elseif effect.mode=="reduce" and terrainEffectApplies(effect,terrain) then
+            cost=math.max(effect.minimum or 0,cost-effect.amount)
+        end
+    end
+    return cost
+end
+
+local function clearHighlight(guid)
+    if shown[guid]==nil then return end
+    local obj=getObjectFromGUID(guid)
+    if obj~=nil then obj.highlightOff() end
+    shown[guid]=nil
+end
+
+local function setHighlight(obj,kind,powered)
+    -- Crystal figurines represent mana but are visually distinctive already.
+    -- Keep their power detection/contribution records, without outlining the
+    -- figurine. Remove any highlight left from the previous tracker version.
+    if isManaTokenFigurine(obj) then
+        if shown[obj.guid]~=nil then
+            clearHighlight(obj.guid)
+        elseif crystalHighlightCleared[obj.guid]~=true then
+            obj.highlightOff()
+        end
+        crystalHighlightCleared[obj.guid]=true
+        return
+    end
+    local choice=kind..(powered and "Bright" or "Normal")
+    if shown[obj.guid]==choice then return end
+    -- Omit duration: TTS keeps this highlight until highlightOff() is called.
+    obj.highlightOn(palette[kind][powered and 2 or 1])
+    shown[obj.guid]=choice
+end
+
+
+-- Separate the three physical orientations. A tilted card is paid as a
+-- discard (typically 45 degrees); a fully sideways card gives any basic 1.
+-- Reducing modulo 180 handles the face-up cards' normal Y=180 orientation.
+local function cardRotationOffset(card)
+    local y=card.getRotation()[2]%180
+    return math.min(y,180-y)
+end
+
+local function cardPosture(card)
+    local tilt=cardRotationOffset(card)
+    if tilt<25 then return "upright" end
+    if tilt<=70 then return "discard" end
+    return "sideways"
+end
+
+-- A card lying at any angle through 70 degrees can be physically overlapped
+-- as Improvisation's discard payment; 90 degrees means something else.
+local function canPayDiscard(card)
+    return card.is_face_down~=true and cardRotationOffset(card)<=70
+end
+
+-- Only cards that may be played from hand can generate a sideways +1.
+-- In particular, recruited Units and unidentified cards are not candidates.
+local function cardCanPlaySideways(card)
+    local data=gameCards[card.guid]
+    return card.type=="Card" and card.is_face_down~=true and data~=nil
+        and (data.cardType=="Starting" or data.cardType=="Advanced Action"
+            or data.cardType=="Spell" or data.cardType=="Artifact")
+end
+
+local sidewaysChoices={{move=1},{influence=1},{attack=1},{block=1}}
+
+local choiceLetters={move="M",influence="I",attack="A",block="B",
+    ranged="R",siege="S",healing="H",draw="D",other="O",
+    fire="F",ice="I",coldFire="C",boost="H+",split="I/F",negative="N",
+    heal="H",combat="C",wound="W",reputation="R",gain="G",ready="R",
+    base="2",sourceUnused="3"}
+
+local function sideChoices(rule,powered)
+    if rule==nil then return nil end
+    -- Do not use 'powered and poweredChoices or normalChoices': Lua falls back
+    -- to normal choices when poweredChoices is nil, overriding a fixed powered
+    -- effect (e.g. Rage's Attack 4) with its unpowered Attack/Block 2 options.
+    if powered then return rule.poweredChoices end
+    return rule.normalChoices
+end
+
+local function choiceCategory(choice)
+    -- Two choices may provide the same resource at different values (e.g.
+    -- Blood Rage's Attack with/without a Wound). Their explicit key must
+    -- identify the button, rather than the first resource field in pairs().
+    if type(choice.key)=="string" then return choice.key end
+    for category in pairs(choice) do return category end
+    return nil
+end
+
+-- The printed normal and powered effects share one choice for each physical
+-- card. The sideways +1 action also shares it when the resource type matches,
+-- but retains a separate choice when the printed effect is incompatible
+-- (e.g. Tranquility's Heal/Draw versus a sideways Move/Attack).
+local function choiceAvailable(choices,category)
+    if choices==nil or category==nil then return false end
+    for _,effect in ipairs(choices) do
+        if choiceCategory(effect)==category then return true end
+    end
+    return false
+end
+
+-- Use the first option on each card from the outset. A previously selected
+-- resource is reused on both card sides whenever that side supports it;
+-- otherwise display its first option without overwriting the preference.
+local function currentChoice(guid,powered,choices,sideways)
+    if choices==nil or #choices==0 then return nil,nil end
+    local stored=selectedResourceByGUID[guid]
+    if stored~=nil then
+        -- A separately selected sideways action takes priority while sideways;
+        -- upright/strong effects continue to use the printed-action preference.
+        local preferred=sideways and stored.sideways or nil
+        if not choiceAvailable(choices,preferred) then preferred=stored.effect end
+        if choiceAvailable(choices,preferred) then
+            for _,effect in ipairs(choices) do
+                if choiceCategory(effect)==preferred then return effect,preferred end
+            end
+        end
+    end
+    local first=choices[1]
+    return first,choiceCategory(first)
+end
+
+local function chosenEffect(guid,powered,choices,sideways)
+    return currentChoice(guid,powered,choices,sideways)
+end
+
+local function effectHasTrackedResource(effects)
+    if effects==nil then return false end
+    for category,value in pairs(effects) do
+        if totalsKeys[category] and type(value)=="number" and value~=0 then
+            return true
+        end
+    end
+    return false
+end
+
+-- These are tiny object XML buttons over the artwork, not the much larger
+-- Meditation buttons beside the card. Preserve other object UI elements.
+local function removeChoiceButtons(card)
+    if card==nil or card.UI==nil then return end
+    local xml=card.UI.getXmlTable() or {}
+    local changed=false
+    for i=#xml,1,-1 do
+        local attr=xml[i].attributes
+        if attr~=nil and type(attr.id)=="string"
+            and attr.id:sub(1,19)=="ResourceCardChoice_" then
+            table.remove(xml,i)
+            changed=true
+        end
+    end
+    if changed then card.UI.setXmlTable(#xml>0 and xml or {{}}) end
+    choiceButtonShown[card.guid]=nil
+end
+
+-- A single selected letter sits above the title. Click to show the whole
+-- choice row; choosing any option immediately collapses back to one letter.
+local function showChoiceButtons(card,choices,powered)
+    if card==nil then return end
+    local posture=cardPosture(card)
+    local isSkill=skillTokens[card.guid]~=nil
+    if choices==nil or #choices<2 or (card.is_face_down==true and not isSkill)
+        or (not isSkill and posture=="discard")
+        or (not isSkill and posture=="sideways" and not (cardCanPlaySideways(card)
+            or card.getGMNotes()=="Wound")) then
+        -- Once per card, inspect object XML even when our runtime cache is
+        -- empty: controls created before a script reload can still be present.
+        -- A 'hidden' marker avoids re-reading XML during every later scan.
+        if choiceButtonShown[card.guid]~="hidden" then
+            removeChoiceButtons(card)
+            choiceButtonShown[card.guid]="hidden"
+        end
+        choiceExpandedByGUID[card.guid]=nil
+        return
+    end
+    local _,selected=currentChoice(card.guid,powered,choices,not isSkill and posture=="sideways")
+    local categories,seen={},{}
+    for _,choice in ipairs(choices) do
+        local category=choiceCategory(choice)
+        if category~=nil and choiceLetters[category]~=nil and not seen[category] then
+            seen[category]=true
+            categories[#categories+1]=category
+        end
+    end
+    if #categories<2 or selected==nil then
+        if choiceButtonShown[card.guid]~="hidden" then
+            removeChoiceButtons(card)
+            choiceButtonShown[card.guid]="hidden"
+        end
+        choiceExpandedByGUID[card.guid]=nil
+        return
+    end
+    local expanded=choiceExpandedByGUID[card.guid]==true
+    local visible=expanded and categories or {selected}
+    -- The card's object UI has the opposite apparent Z rotation to the
+    -- card's world Y rotation. Counter-rotate each label in the correct
+    -- direction, while positions stay card-local (vertical when sideways).
+    -- Snap to quarter-turns to avoid UI churn from small rotation changes.
+    local buttonRotation=180
+    if posture=="sideways" then
+        buttonRotation=card.getRotation()[2]%360<180 and 90 or 270
+    end
+    local signature=(posture=="sideways" and "S" or (powered and "P" or "N"))
+        ..":"..selected..":"..(expanded and "open" or "closed")
+        ..":"..table.concat(categories,",")..":"..buttonRotation
+    if choiceButtonShown[card.guid]==signature then return end
+    local xml=card.UI.getXmlTable() or {}
+    for i=#xml,1,-1 do
+        local attr=xml[i].attributes
+        if attr~=nil and type(attr.id)=="string"
+            and attr.id:sub(1,19)=="ResourceCardChoice_" then table.remove(xml,i) end
+    end
+    for i,category in ipairs(visible) do
+        local x=((#visible+1)/2-i)*44
+        local active=category==selected
+        xml[#xml+1]={tag="Button",attributes={
+            id="ResourceCardChoice_"..card.guid.."_"..category,
+            onClick="global/resourceCardsChoiceClicked",
+            position=tostring(x).." -12 -35",rotation="0 0 "..buttonRotation,
+            width=90,height=90,scale="0.25 0.25",
+            colors=active and "#387D30|#4CA940|#387D30|#387D30"
+                or "#454D5D|#69798E|#444C63|#454D5D",
+            fontSize=77,textColor="#FFFFFF",textAlignment="MiddleCenter"
+        },value=choiceLetters[category]}
+    end
+    card.UI.setXmlTable(xml)
+    choiceButtonShown[card.guid]=signature
+end
+
+local function clearChoiceButtons()
+    for guid,signature in pairs(choiceButtonShown) do
+        if signature~="hidden" then removeChoiceButtons(getObjectFromGUID(guid)) end
+    end
+    choiceButtonShown={}
+end
+
+-- Reset a player's explicit choice only after the card has actually finished
+-- leaving that player's Play Area. Zone exits while held are not new plays.
+local function cardInSeatPlayArea(guid,seatPos)
+    local zoneGUID=playerPlayAreas~=nil and playerPlayAreas[seatPos] or nil
+    local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
+    if zone==nil then return false end
+    for _,obj in ipairs(zone.getObjects()) do
+        if obj.guid==guid then return true end
+    end
+    return false
+end
+
+local function scheduleChoiceResetAfterPlay(guid,seatPos)
+    if guid==nil or seatPos==nil or selectedResourceByGUID[guid]==nil then return end
+    choiceResetGenerationByGUID[guid]=(choiceResetGenerationByGUID[guid] or 0)+1
+    local serial=choiceResetGenerationByGUID[guid]
+    -- Allow the zone's membership to settle before checking whether this
+    -- is a real departure or just a temporary lift/rearrangement.
+    safeWaitFrames("PlayerBoard.CardRecognition",function()
+        if choiceResetGenerationByGUID[guid]~=serial then return end
+        safeWaitCondition("PlayerBoard.CardRecognition",function()
+            if choiceResetGenerationByGUID[guid]~=serial then return end
+            if not cardInSeatPlayArea(guid,seatPos) then
+                selectedResourceByGUID[guid]=nil
+                choiceExpandedByGUID[guid]=nil
+            end
+        end,function()
+            if choiceResetGenerationByGUID[guid]~=serial then return true end
+            local obj=getObjectFromGUID(guid)
+            return obj==nil or (obj.held_by_color==nil and obj.resting==true
+                and obj.isSmoothMoving()==false)
+        end,8)
+    end,1)
+end
+
+local function footprint(obj)
+    local position=obj.getPosition()
+    local bounds=obj.getBounds()
+    local size=bounds~=nil and bounds.size or nil
+    local x=size~=nil and size[1] or 2
+    local z=size~=nil and size[3] or 3
+    return {x=position[1],z=position[3],halfX=math.max(0.4,x*0.5),halfZ=math.max(0.5,z*0.5)}
+end
+
+local function overlaps(a,b)
+    -- Strict overlap, not merely touching edges. Each card can link several others.
+    return math.abs(a.x-b.x)<(a.halfX+b.halfX)*0.92
+       and math.abs(a.z-b.z)<(a.halfZ+b.halfZ)*0.92
+end
+
+local function manaColor(obj)
+    if isManaTokenFigurine(obj) then return manaTokenColor(obj) end
+    if obj.type=="Dice" then
+        local face=obj.getRotationValue()
+        if type(face)=="string" then return face:match("^([%a]+) Mana$") end
+    end
+    return nil
+end
+
+-- Reuse the same stable identifiers as Skills and Combat's faction reward cleanup.
+-- No name/description guessing for Skills, Units or Faction Rewards.
+local factionRewardNotes={
+    ["Dark Crusader Reward"]="Dark",
+    ["Elementalist Reward"]="Elem",
+    ["Apocalypse Cult Reward"]="Apoc",
+    ["Council of the Void Reward"]="Coun"
+}
+
+local function resourceObjectKind(obj)
+    if obj==nil then return nil end
+    if skillTokens[obj.guid]~=nil then return "skill" end
+    if obj.type=="Card" then
+        local data=gameCards[obj.guid]
+        if data~=nil then
+            if data.cardType=="Regular Unit" or data.cardType=="Elite Unit" then return "unit" end
+            return "card"
+        end
+        -- Wounds/Quests are not unknown resource cards.
+        local notes=obj.getGMNotes()
+        if notes=="Wound" then return "wound" end
+        if notes=="Quest" then return nil end
+        return "card"
+    end
+    if manaColor(obj)~=nil then return "mana" end
+    if factionRewardNotes[obj.getGMNotes()]~=nil then return "factionReward" end
+    return nil
+end
+
+local function matchesCardMana(card,color)
+    if color==nil then return false end
+    local data=gameCards[card.guid]
+    if data==nil then return color=="Red" or color=="Blue" or color=="Green" or color=="White" end
+    if color=="Gold" then return gStates.dayRound==true end
+    if color=="Black" then return data.cardType=="Spell" and gStates.dayRound==false end
+    local colors=data.color
+    if type(colors)=="string" then return colors==color end
+    if type(colors)=="table" then
+        for _,cardColor in ipairs(colors) do if cardColor==color then return true end end
+    end
+    return false
+end
+
+-- A powered link grants a target Action card its strong side for free and can
+-- amend only the resource types specified in that link's data definition.
+local function applyLinkedResourceBonus(effects,link)
+    if effects==nil or link==nil then return effects end
+    local values={}
+    for category,value in pairs(effects) do
+        if type(value)=="number" then
+            -- A stronger Action bonus also applies to elemental attacks/blocks
+            -- (e.g. Concentration + Ice Bolt = Ranged Ice Attack 5).
+            local bonusCategory=category
+            for _,prefix in ipairs({"ranged","siege","attack","block"}) do
+                if category:sub(1,#prefix)==prefix then
+                    bonusCategory=prefix
+                    break
+                end
+            end
+            local bonus=link.bonusFor~=nil and link.bonusFor[bonusCategory]
+                and (link.bonus or 0) or 0
+            values[category]=value+bonus
+        end
+    end
+    return values
+end
+
+-- Powered One with the Land references the *printed*, unmodified Move
+-- cost of the Mage Knight's actual hex, not player-adjusted gStates.moveCost.
+-- Lakes and Mountains explicitly have special printed values on the card.
+local landPrintedMoveDay={
+    plains=2,hills=3,forest=3,wasteland=4,desert=5,swamp=5,
+    lake=2,mountain=5,city=2
+}
+local landPrintedMoveNight={
+    plains=2,hills=3,forest=5,wasteland=4,desert=3,swamp=5,
+    lake=2,mountain=5,city=2
+}
+
+local function currentLandBlockValue()
+    if gStates==nil or gStates.turnNumber==nil
+        or fracturedLandsTeleportSourcePosition==nil then return nil end
+    -- Reuse the existing avatar-origin helper: it handles avatars moved
+    -- onto City boards as well as ordinary map-space positions.
+    local position=fracturedLandsTeleportSourcePosition(gStates.turnNumber)
+    if position==nil then return nil end
+    local hex,_,_,_,_,_,terrain=runtimeMapHexAtPosition(position)
+    terrain=terrain or (hex~=nil and hex.hexType or nil)
+    local costs=gStates.dayRound==true and landPrintedMoveDay or landPrintedMoveNight
+    return costs[terrain]
+end
+
+-- One sideways calculator for ordinary Actions and Skill-linked exceptions.
+-- A linked Skill changes the value, not the player's chosen resource.
+local function calculateSideways(card,known,skillLink)
+    local choice=chosenEffect(card.guid,false,sidewaysChoices,true)
+    local resources=nil
+    if choice~=nil then
+        resources={}
+        for category,value in pairs(choice) do
+            resources[category]=value*(skillLink~=nil and skillLink.sidewaysValue or 1)
+        end
+    end
+    local linked=skillLink~=nil
+    local linkedObjects={}
+    if linked then
+        linkedObjects[1]=skillLink.skillGUID
+        if skillLink.manaGUID~=nil then linkedObjects[2]=skillLink.manaGUID end
+    end
+    return {guid=card.guid,known=known,complete=choice~=nil,powered=linked,
+        links=linkedObjects,
+        linkedSkill=linked and skillLink.skillGUID or nil,
+        status=linked and "purple" or (choice~=nil and "green" or "yellow"),
+        resources=resources}
+end
+
+local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,hasDiscard,skillLink)
+    local data=gameCards[card.guid]
+    local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+    local known=data~=nil
+    local tracked=data==nil or data.resourceTracked~=false
+    local powered=manaPowered or linkedBoost~=nil
+    local posture=cardPosture(card)
+    local faceUp=card.is_face_down~=true and posture=="upright"
+    -- Any non-Wound card played at 90 degrees has one generic resource,
+    -- irrespective of its printed card effect. It requires an explicit choice.
+    if posture=="sideways" and cardCanPlaySideways(card) then
+        return calculateSideways(card,known,skillLink)
+    end
+    local sideTracked=tracked and not (not powered and rule~=nil and rule.normalTrackerNeutral==true)
+    local choices=sideChoices(rule,powered)
+    local chosen=chosenEffect(card.guid,powered,choices)
+    local usesTerrainBlock=chosen~=nil and chosen.terrainBlock==true
+    if usesTerrainBlock then
+        local value=currentLandBlockValue()
+        if value~=nil then
+            chosen=gStates.dayRound==true and {blockFire=value} or {blockIce=value}
+        else
+            -- Terrain not yet determinable. Preserve the B selection, but
+            -- do not invent a Block amount; show yellow until the next scan.
+            chosen=nil
+        end
+    end
+    local choicePending=choices~=nil and #choices>1 and chosen==nil
+    local statePartial=rule~=nil and ((powered and rule.poweredPartial==true)
+        or (not powered and rule.normalPartial==true)) and chosen==nil
+    local base=chosen or (rule~=nil and (powered and rule.powered or rule.normal) or nil)
+    -- A discard is an actual cost of Improvisation, even when its strong side
+    -- came free from Concentration/Will Focus.
+    local costPaid=rule==nil or rule.requiredLink==nil or hasDiscard==true
+    local effects=sideTracked and faceUp and costPaid and not discardTarget
+        and applyLinkedResourceBonus(base,linkedBoost) or nil
+    -- A card's other unimplemented options do not make its currently selected
+    -- *known* resource effect uncertain. Keep the first option as the fast,
+    -- green default; only a genuinely unresolved selected effect stays yellow.
+    local knownSelectedOption=chosen~=nil and effectHasTrackedResource(chosen)
+    local complete=sideTracked and base~=nil and not choicePending and not statePartial
+        and (rule.partial~=true or knownSelectedOption)
+        and faceUp and costPaid and not discardTarget
+    local choiceIsUntracked=chosen~=nil and not effectHasTrackedResource(chosen)
+    local status=(not known or not sideTracked or posture=="discard" or choiceIsUntracked) and "blue"
+        or not complete and "yellow" or "green"
+    -- Linking information is more valuable than the underlying certainty colour.
+    if #linked>0 then status="purple" end
+    return {guid=card.guid,known=known,complete=complete,powered=powered,
+        links=linked,status=status,resources=effects,
+        usesTerrainBlock=usesTerrainBlock and faceUp and not discardTarget}
+end
+
+local function overlapArea(a,b)
+    if not overlaps(a,b) then return 0 end
+    local width=math.max(0,math.min(a.x+a.halfX,b.x+b.halfX)-math.max(a.x-a.halfX,b.x-b.halfX))
+    local depth=math.max(0,math.min(a.z+a.halfZ,b.z+b.halfZ)-math.max(a.z-a.halfZ,b.z-b.halfZ))
+    return width*depth
+end
+
+-- The common pairing engine is used for different reasons:
+-- "stronger" plays one Action card's stronger effect; "discard" consumes one
+-- OTHER unused, non-Wound card as a cost. Neither is inferred from overlap alone.
+local function resolveActionLinks(cards,footprints,manaPowered)
+    local links,boostBy,boostSource,discarded,hasDiscard={}, {}, {}, {}, {}
+    local boostClaimed={}
+    for _,card in ipairs(cards) do links[card.guid]={} end
+    local function connect(source,target)
+        links[source.guid][#links[source.guid]+1]=target.guid
+        links[target.guid][#links[target.guid]+1]=source.guid
+    end
+    local function nearestOverlap(source,valid,preferTilt)
+        local best,bestArea,bestPriority=nil,0,-1
+        local a=footprints[source.guid]
+        for _,target in ipairs(cards) do
+            if target.guid~=source.guid and valid(target) then
+                local area=overlapArea(a,footprints[target.guid])
+                local priority=preferTilt and cardPosture(target)=="discard" and 1 or 0
+                if area>0 and (priority>bestPriority
+                    or (priority==bestPriority and (area>bestArea
+                        or (area==bestArea and best~=nil and target.guid<best.guid)))) then
+                    best,bestArea,bestPriority=target,area,priority
+                end
+            end
+        end
+        return best
+    end
+    for _,source in ipairs(cards) do
+        local data=gameCards[source.guid]
+        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+        local link=rule~=nil and manaPowered[source.guid] and rule.poweredLink or nil
+        if link~=nil and link.mode=="stronger" and source.is_face_down~=true
+            and cardPosture(source)=="upright" then
+            local target=nearestOverlap(source,function(candidate)
+                local other=gameCards[candidate.guid]
+                local otherRule=other~=nil and cardResourceDefinitions[other.resourceKey] or nil
+                return not boostClaimed[candidate.guid] and other~=nil
+                    and (other.cardType=="Starting" or other.cardType=="Advanced Action")
+                    and (otherRule==nil or otherRule.poweredLink==nil)
+                    and candidate.is_face_down~=true and cardPosture(candidate)=="upright"
+            end)
+            if target~=nil then
+                boostClaimed[target.guid]=true
+                boostBy[target.guid]=link
+                boostSource[target.guid]=source.guid
+                connect(source,target)
+            end
+        end
+    end
+    -- Resolve discard costs after stronger links: a link-boosted Improvisation
+    -- can still discard ANOTHER card, but never its own booster as payment.
+    for _,source in ipairs(cards) do
+        local data=gameCards[source.guid]
+        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+        if discarded[source.guid]==nil and rule~=nil and rule.requiredLink~=nil
+            and rule.requiredLink.mode=="discard"
+            and source.is_face_down~=true and cardPosture(source)=="upright" then
+            local target=nearestOverlap(source,function(candidate)
+                local targetData=gameCards[candidate.guid]
+                return not discarded[candidate.guid] and not boostClaimed[candidate.guid]
+                    and candidate.guid~=boostSource[source.guid]
+                    and not manaPowered[candidate.guid]
+                    and #links[candidate.guid]==0
+                    and targetData~=nil
+                    and (targetData.cardType=="Starting" or targetData.cardType=="Advanced Action"
+                        or targetData.cardType=="Spell" or targetData.cardType=="Artifact")
+                    and candidate.getGMNotes()~="Wound"
+                    and candidate.getGMNotes()~="Quest"
+                    and canPayDiscard(candidate)
+            end,true)
+            if target~=nil then
+                discarded[target.guid]=source.guid
+                hasDiscard[source.guid]=true
+                connect(source,target)
+            end
+        end
+    end
+    return links,boostBy,boostSource,discarded,hasDiscard
+end
+
+-- Generic Skill-card links: one Skill per target, one target per Skill.
+-- The descriptor, not an individual Skill GUID, determines replacement value,
+-- card-type bonuses, mana payment and player-declared conditional values.
+local function manaInsideFootprint(mana,area)
+    local p=mana.getPosition()
+    return math.abs(p[1]-area.x)<area.halfX
+        and math.abs(p[3]-area.z)<area.halfZ
+end
+
+local function sidewaysManaAvailable(color)
+    return color~=nil and (color~="Gold" or gStates.dayRound==true)
+        and (color~="Black" or gStates.dayRound~=true)
+end
+
+local function matchingSidewaysMana(card,color)
+    if color=="Gold" or color=="Black" then return false end
+    local data=gameCards[card.guid]
+    if data==nil or (data.cardType~="Starting" and data.cardType~="Advanced Action"
+        and data.cardType~="Spell") then return false end
+    if type(data.color)=="string" then return data.color==color end
+    if type(data.color)=="table" then
+        for _,entry in ipairs(data.color) do if entry==color then return true end end
+    end
+    return false
+end
+
+local function sidewaysModifierValue(skill,target,descriptor,mana,unitState)
+    local value=descriptor.value or 1
+    local cardData=gameCards[target.guid]
+    if descriptor.cardTypeValues~=nil and cardData~=nil then
+        value=descriptor.cardTypeValues[cardData.cardType] or value
+    end
+    if descriptor.choiceValues~=nil then
+        local rule=skillResourceDefinitions[skill.guid]
+        local _,choice=currentChoice(skill.guid,false,rule.choices)
+        value=descriptor.choiceValues[choice] or value
+    end
+    if mana~=nil and descriptor.matchingManaValue~=nil
+        and matchingSidewaysMana(target,manaColor(mana)) then
+        value=descriptor.matchingManaValue
+    end
+    if descriptor.perEmptyCommandSlot~=nil and unitState~=nil then
+        value=value+descriptor.perEmptyCommandSlot*unitState.emptyCommandSlots
+    end
+    return value
+end
+
+local function resolveSkillCardLinks(skills,targets,footprints,manaObjects,placements,reservedMana,unitState)
+    local byTarget,bySkill,byMana={}, {}, {}
+    local candidates={}
+    for _,skill in ipairs(skills) do
+        local rule=skillResourceDefinitions[skill.guid]
+        local spec=rule~=nil and rule.linkedCard or nil
+        if spec~=nil and spec.sideways~=nil then
+            for _,target in ipairs(targets) do
+                if target.is_face_down~=true
+                    and resourceObjectKind(target)==spec.targetKind
+                    and (spec.posture==nil or cardPosture(target)==spec.posture) then
+                    local size=overlapArea(footprints[skill.guid],footprints[target.guid])
+                    if size>0 then
+                        candidates[#candidates+1]={skill=skill,target=target,size=size,rule=spec.sideways}
+                    end
+                end
+            end
+        end
+    end
+    -- The strongest physical overlap wins when two different Skills touch the
+    -- same sideways card; never combine multiple replacement values.
+    table.sort(candidates,function(a,b)
+        if a.size~=b.size then return a.size>b.size end
+        if a.skill.guid~=b.skill.guid then return a.skill.guid<b.skill.guid end
+        return a.target.guid<b.target.guid
+    end)
+    for _,candidate in ipairs(candidates) do
+        local skill,target,descriptor=candidate.skill,candidate.target,candidate.rule
+        if bySkill[skill.guid]==nil and byTarget[target.guid]==nil then
+            local mana=nil
+            if descriptor.manaRequired then
+                local closest=nil
+                local skillArea,targetArea=footprints[skill.guid],footprints[target.guid]
+                for _,available in ipairs(manaObjects) do
+                    if placements[available.guid]=="play" and reservedMana[available.guid]==nil
+                        and byMana[available.guid]==nil
+                        and sidewaysManaAvailable(manaColor(available))
+                        and (manaInsideFootprint(available,skillArea)
+                            or manaInsideFootprint(available,targetArea)) then
+                        local p=available.getPosition()
+                        local dx,dz=p[1]-targetArea.x,p[3]-targetArea.z
+                        local distance=dx*dx+dz*dz
+                        if closest==nil or distance<closest then
+                            mana,closest=available,distance
+                        end
+                    end
+                end
+            end
+            if not descriptor.manaRequired or mana~=nil then
+                byTarget[target.guid]={skillGUID=skill.guid,
+                    sidewaysValue=sidewaysModifierValue(skill,target,descriptor,mana,unitState),
+                    manaGUID=mana~=nil and mana.guid or nil}
+                bySkill[skill.guid]=target.guid
+                if mana~=nil then
+                    byMana[mana.guid]={skillGUID=skill.guid,targetGUID=target.guid}
+                end
+            end
+        end
+    end
+    return byTarget,bySkill,byMana
+end
+
+-- Physical mana transformations are distinct from Action-card boost links.
+-- The Skill selects one mana resting on it, then an overlapping powerable card.
+-- Neither the die nor the crystal is physically changed or double-counted.
+local oppositeMana={Red="Blue",Blue="Red",Green="White",White="Green",Gold="Black",Black="Gold"}
+
+local function convertedManaMatchesCard(card,color)
+    local data=gameCards[card.guid]
+    if data==nil or card.is_face_down==true or cardPosture(card)~="upright" then return false end
+    if data.cardType~="Starting" and data.cardType~="Advanced Action"
+        and data.cardType~="Spell" and data.cardType~="Artifact" then return false end
+    -- Gold may supply a basic colour by day; Black may supply a Spell at night.
+    if color=="Gold" and gStates.dayRound~=true then return false end
+    if color=="Black" and (gStates.dayRound==true or data.cardType~="Spell") then return false end
+    return matchesCardMana(card,color)
+end
+
+local function resolveManaSkillLinks(skills,manaObjects,cards,footprints,placements)
+    local byMana,bySkill,byCard={}, {}, {}
+    table.sort(manaObjects,function(a,b) return a.guid<b.guid end)
+    for _,skill in ipairs(skills) do
+        local rule=skillResourceDefinitions[skill.guid]
+        local spec=rule~=nil and rule.manaConversion or nil
+        if spec~=nil then
+            local area=footprints[skill.guid]
+            local nearest,distance=nil,nil
+            for _,mana in ipairs(manaObjects) do
+                if placements[mana.guid]=="play" and byMana[mana.guid]==nil
+                    and manaColor(mana)~=nil and manaInsideFootprint(mana,area) then
+                    local p=mana.getPosition()
+                    local dx,dz=p[1]-area.x,p[3]-area.z
+                    local d=dx*dx+dz*dz
+                    if distance==nil or d<distance then nearest,distance=mana,d end
+                end
+            end
+            if nearest~=nil then
+                local original=manaColor(nearest)
+                local converted=spec.mode=="opposite" and oppositeMana[original] or nil
+                local link={skillGUID=skill.guid,manaGUID=nearest.guid,
+                    original=original,converted=converted}
+                bySkill[skill.guid]=link
+                byMana[nearest.guid]=link
+                if converted~=nil then
+                    local best,areaSize=nil,0
+                    for _,card in ipairs(cards) do
+                        if byCard[card.guid]==nil and convertedManaMatchesCard(card,converted) then
+                            local size=overlapArea(area,footprints[card.guid])
+                            if size>areaSize or (size>0 and size==areaSize and best~=nil
+                                and card.guid<best.guid) then best,areaSize=card,size end
+                        end
+                    end
+                    if best~=nil then
+                        link.targetGUID=best.guid
+                        byCard[best.guid]=link
+                    end
+                end
+            end
+        end
+    end
+    return byMana,bySkill,byCard
+end
+
+-- Physical Skill GUIDs, not translated text, determine available resources.
+-- Skills outside the active player's Play Area are not counted.
+local function calculateSkill(skill,linkedTarget,unitState)
+    local rule=skillResourceDefinitions[skill.guid]
+    if rule==nil then
+        return {guid=skill.guid,kind="skill",known=true,complete=false,
+            status="yellow",powered=false,resources=nil}
+    end
+    local chosen=rule.choices~=nil and chosenEffect(skill.guid,false,rule.choices) or nil
+    local effects=chosen
+        or (skill.is_face_down==true and rule.flipped or nil)
+        or (gStates.dayRound==true and rule.day or rule.night)
+        or rule.normal
+
+    -- Reusable board-state rule: effects can count qualifying Units instead
+    -- of encoding Skill-specific calculations or depending on translated text.
+    local unitSources={}
+    local condition=rule.unitCondition
+    local unitResolved=condition~=nil and unitState~=nil
+    if unitResolved then
+        local qualified=0
+        local cap=condition.max or math.huge
+        for _,entry in ipairs(unitState.units) do
+            if (not condition.ready or entry.ready)
+                and (not condition.unwounded or entry.unwounded) then
+                qualified=qualified+1
+                if qualified<=cap then unitSources[#unitSources+1]=entry.guid end
+            end
+        end
+        effects={[condition.resource]=math.min(qualified,cap)}
+    end
+
+    local tracked=effectHasTrackedResource(effects)
+    local unitLinked=#unitSources>0
+    local status=rule.untracked and "blue"
+        or (linkedTarget~=nil or unitLinked) and "purple"
+        or unitResolved and "green"
+        or rule.linkedCard~=nil and linkedTarget==nil and "yellow"
+        or tracked and (rule.partial and "yellow" or "green")
+        or effects~=nil and "blue" or "yellow"
+    local links={}
+    if linkedTarget~=nil then links[#links+1]=linkedTarget end
+    for _,guid in ipairs(unitSources) do links[#links+1]=guid end
+    return {guid=skill.guid,kind="skill",known=true,
+        complete=unitResolved or (tracked and not rule.partial) or linkedTarget~=nil,
+        powered=skill.is_face_down==true or linkedTarget~=nil or unitLinked,
+        status=status,links=links,unitSources=unitSources,
+        resources=effects,choices=rule.choices}
+end
+
+local terrainEffectOrder={set=0,cap=1,reduce=2}
+local function terrainModifierPrecedes(a,b)
+    local first,second=terrainEffectOrder[a.mode] or 9,terrainEffectOrder[b.mode] or 9
+    if first~=second then return first<second end
+    if a.mode=="reduce" then return (a.minimum or 0)>(b.minimum or 0) end
+    return false
+end
+
+local function addResourceAmounts(result,totals)
+    result.contributes=false
+    if result.resources==nil then return end
+    for category,value in pairs(result.resources) do
+        if totalsKeys[category] and type(value)=="number" then
+            totals[category]=(totals[category] or 0)+value
+            if value~=0 then result.contributes=true end
+        end
+    end
+end
+
+-- Scan the play area for used abilities, the Unit area for Units, and crystal
+-- inventory for unused mana. Only a played, supported effect enters the totals.
+local function renderSeat(seatPos)
+    if not resourceCardsPanelOpen() then return end
+    local active=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    if active==nil or active.seatPos~=seatPos then return end
+
+    local objects,placements={},{}
+    local function inspectZone(guid,zoneKind)
+        local zone=guid~=nil and getObjectFromGUID(guid) or nil
+        if zone==nil then return end
+        for _,obj in ipairs(zone.getObjects()) do
+            local kind=resourceObjectKind(obj)
+            if kind~=nil and (zoneKind=="play"
+                or (zoneKind=="unit" and (kind=="unit" or kind=="mana"))
+                or (zoneKind=="crystal" and kind=="mana")) then
+                -- Play-area placement takes precedence when scripting zones overlap.
+                local existing=placements[obj.guid]
+                if existing==nil or (zoneKind=="play" and existing~="play") then
+                    objects[obj.guid]=obj
+                    placements[obj.guid]=zoneKind
+                end
+            end
+        end
+    end
+    inspectZone(playerCrystalAreas[seatPos],"crystal")
+    inspectZone(playerUnitAreas[seatPos],"unit")
+    inspectZone(playerPlayAreas[seatPos],"play")
+
+    local cards,wounds,skills,manaObjects,footprints={}, {}, {}, {}, {}
+    for guid,obj in pairs(objects) do
+        local kind=resourceObjectKind(obj)
+        if kind=="card" and placements[guid]=="play" then
+            cards[#cards+1]=obj
+            footprints[guid]=footprint(obj)
+        elseif kind=="wound" and placements[guid]=="play" then
+            wounds[#wounds+1]=obj
+            footprints[guid]=footprint(obj)
+        elseif kind=="skill" and placements[guid]=="play" then
+            skills[#skills+1]=obj
+            footprints[guid]=footprint(obj)
+        elseif kind=="mana" then
+            manaObjects[#manaObjects+1]=obj
+        end
+    end
+
+    -- Read the physical Unit state once per scan, only for played Skills
+    -- declaring that dependency. This also supplies which Unit cards to link.
+    local unitState=nil
+    for _,skill in ipairs(skills) do
+        local rule=skillResourceDefinitions[skill.guid]
+        local sideways=rule~=nil and rule.linkedCard~=nil and rule.linkedCard.sideways or nil
+        if rule~=nil and (rule.unitCondition~=nil
+            or (sideways~=nil and sideways.perEmptyCommandSlot~=nil)) then
+            unitState=unitLayoutResourceState(seatPos)
+            break
+        end
+    end
+
+    -- Wounds may be Skill targets, but are not ordinary Action-link candidates.
+    local skillTargets={}
+    for _,card in ipairs(cards) do skillTargets[#skillTargets+1]=card end
+    for _,wound in ipairs(wounds) do skillTargets[#skillTargets+1]=wound end
+
+    -- First reserve conversion mana (Polarization), then sideways-skill mana,
+    -- so one physical mana never powers two separate interactions.
+    table.sort(cards,function(a,b) return a.guid<b.guid end)
+    local manaByObject,manaBySkill,manaByCard=
+        resolveManaSkillLinks(skills,manaObjects,cards,footprints,placements)
+    local skillLinksByTarget,skillLinksBySkill,sidewaysSkillMana=
+        resolveSkillCardLinks(skills,skillTargets,footprints,manaObjects,placements,manaByObject,unitState)
+    local powered,usedMana,spellSupply={}, {}, {}
+    local function spendMana(card,color,manaGUID)
+        local data=gameCards[card.guid]
+        if data~=nil and data.cardType=="Spell" then
+            -- A Spell's stronger effect needs basic-colour AND Black mana at Night.
+            local supply=spellSupply[card.guid] or {basic=false,black=false}
+            if color=="Black" then supply.black=true else supply.basic=true end
+            spellSupply[card.guid]=supply
+        else
+            powered[card.guid]=true
+        end
+        usedMana[manaGUID]=card.guid
+    end
+    -- Mana physically on the Skill cannot also power the card directly.
+    for _,mana in ipairs(manaObjects) do
+        if placements[mana.guid]=="play" and manaByObject[mana.guid]==nil
+            and sidewaysSkillMana[mana.guid]==nil then
+            local color=manaColor(mana)
+            if color~=nil then
+                local p=mana.getPosition()
+                local best,bestDistance=nil,nil
+                for _,card in ipairs(cards) do
+                    local f=footprints[card.guid]
+                    local dx,dz=p[1]-f.x,p[3]-f.z
+                    if math.abs(dx)<f.halfX and math.abs(dz)<f.halfZ
+                        and cardPosture(card)=="upright" and card.is_face_down~=true
+                        and matchesCardMana(card,color) then
+                        local distance=dx*dx+dz*dz
+                        if bestDistance==nil or distance<bestDistance then best,bestDistance=card,distance end
+                    end
+                end
+                if best~=nil then spendMana(best,color,mana.guid) end
+            end
+        end
+    end
+    for _,link in pairs(manaBySkill) do
+        if link.targetGUID~=nil then
+            local card=getObjectFromGUID(link.targetGUID)
+            if card~=nil then spendMana(card,link.converted,link.manaGUID) end
+        end
+    end
+    for guid,supply in pairs(spellSupply) do
+        powered[guid]=gStates.dayRound~=true and supply.basic and supply.black
+    end
+
+    local links,boostBy,boostSource,discarded,hasDiscard=resolveActionLinks(cards,footprints,powered)
+    -- Extra terrain mana is an optional physical payment, separate from the
+    -- mana that powers the strong action. Never reuse a claimed mana object.
+    local extraTerrainManaByCard,extraTerrainManaByObject={},{}
+    for _,mana in ipairs(manaObjects) do
+        if placements[mana.guid]=="play" and usedMana[mana.guid]==nil
+            and manaByObject[mana.guid]==nil and sidewaysSkillMana[mana.guid]==nil then
+            local color=manaColor(mana)
+            local best,bestDistance=nil,nil
+            for _,card in ipairs(cards) do
+                local data=gameCards[card.guid]
+                local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+                local spec=rule~=nil and rule.extraTerrainMana or nil
+                if spec~=nil and spec.color==color and extraTerrainManaByCard[card.guid]==nil
+                    and (not spec.poweredOnly or powered[card.guid]==true or boostBy[card.guid]~=nil)
+                    and card.is_face_down~=true and cardPosture(card)=="upright"
+                    and manaInsideFootprint(mana,footprints[card.guid]) then
+                    local p=mana.getPosition()
+                    local f=footprints[card.guid]
+                    local distance=(p[1]-f.x)^2+(p[3]-f.z)^2
+                    if bestDistance==nil or distance<bestDistance then
+                        best,bestDistance=card,distance
+                    end
+                end
+            end
+            if best~=nil then
+                extraTerrainManaByCard[best.guid]=mana.guid
+                extraTerrainManaByObject[mana.guid]=best.guid
+                usedMana[mana.guid]=best.guid
+            end
+        end
+    end
+    local current,records,totals={}, {}, {}
+    local usesCurrentHexBlock=false
+    local terrainModifiers={}
+    for _,card in ipairs(cards) do
+        local result=calculateCard(card,powered[card.guid]==true,boostBy[card.guid],
+            links[card.guid],discarded[card.guid]~=nil,hasDiscard[card.guid]==true,
+            skillLinksByTarget[card.guid])
+        local manaLink=manaByCard[card.guid]
+        if manaLink~=nil then
+            result.status="purple"
+            result.links[#result.links+1]=manaLink.skillGUID
+            result.convertedMana=manaLink.converted
+        end
+        local cardData=gameCards[card.guid]
+        local rule=cardData~=nil and cardResourceDefinitions[cardData.resourceKey] or nil
+        local choices=nil
+        if discarded[card.guid]==nil then
+            if cardPosture(card)=="sideways" then
+                if cardCanPlaySideways(card) then choices=sidewaysChoices end
+            elseif rule==nil or rule.requiredLink==nil or hasDiscard[card.guid]==true then
+                -- Hide the choice entirely until its cost is present. Powered
+                -- Rage has a fixed effect, so sideChoices is nil and hides it.
+                choices=sideChoices(rule,result.powered)
+            end
+        end
+        showChoiceButtons(card,choices,result.powered)
+        result.kind=resourceObjectKind(card)
+        -- Only a played upright Move effect contributes terrain modifiers:
+        -- not a sideways card, discard payment or face-down card.
+        if rule~=nil and cardPosture(card)=="upright" and result.resources~=nil
+            and type(result.resources.move)=="number" then
+            local terrainEffects=rule.terrainEffects
+            if terrainEffects~=nil then
+                local chosen=result.powered and terrainEffects.powered or terrainEffects.normal
+                for _,effect in ipairs(chosen or {}) do
+                    terrainModifiers[#terrainModifiers+1]=effect
+                end
+            end
+            local extraManaGUID=extraTerrainManaByCard[card.guid]
+            if extraManaGUID~=nil and rule.extraTerrainMana~=nil then
+                terrainModifiers[#terrainModifiers+1]=rule.extraTerrainMana.effect
+                result.links[#result.links+1]=extraManaGUID
+                result.status="purple"
+            end
+        end
+        -- Fixed components of partially understood cards may be counted; an
+        -- unresolved choice never contributes an invented amount.
+        addResourceAmounts(result,totals)
+        records[card.guid]=result
+        current[card.guid]=true
+        if result.usesTerrainBlock then usesCurrentHexBlock=true end
+        setHighlight(card,result.status,result.powered)
+    end
+    -- An unlinked Wound is inert. Only an attached Skill permits sideways use.
+    for _,wound in ipairs(wounds) do
+        local skillLink=skillLinksByTarget[wound.guid]
+        if skillLink~=nil then
+            local result=calculateSideways(wound,true,skillLink)
+            result.kind="wound"
+            showChoiceButtons(wound,sidewaysChoices,result.powered)
+            addResourceAmounts(result,totals)
+            records[wound.guid]=result
+            current[wound.guid]=true
+            setHighlight(wound,result.status,result.powered)
+        end
+    end
+    -- The linking card itself contributes the target's upgraded effect. Mark it
+    -- as a contributor so its powering mana token receives a green outline.
+    for targetGUID,sourceGUID in pairs(boostSource) do
+        if records[targetGUID]~=nil and records[targetGUID].contributes
+            and records[sourceGUID]~=nil then
+            records[sourceGUID].contributes=true
+        end
+    end
+
+    for guid,obj in pairs(objects) do
+        -- No contribution or outline for a Wound without a matching Skill.
+        if records[guid]==nil and resourceObjectKind(obj)~="wound" then
+            local kind=resourceObjectKind(obj)
+            local poweredTarget=usedMana[guid]
+            local contributing=poweredTarget~=nil and records[poweredTarget]~=nil
+                and records[poweredTarget].contributes==true
+            local result
+            if kind=="skill" and placements[guid]=="play" then
+                local conversion=manaBySkill[guid]
+                result=calculateSkill(obj,skillLinksBySkill[guid]
+                    or (conversion~=nil and conversion.targetGUID or nil),unitState)
+                showChoiceButtons(obj,result.choices,result.powered)
+                addResourceAmounts(result,totals)
+                if skillLinksBySkill[guid]~=nil then
+                    result.contributes=true
+                    local link=skillLinksByTarget[skillLinksBySkill[guid]]
+                    if link~=nil and link.manaGUID~=nil then
+                        result.links[#result.links+1]=link.manaGUID
+                    end
+                end
+                if conversion~=nil then
+                    result.status="purple"
+                    result.powered=conversion.targetGUID~=nil
+                    result.links={conversion.manaGUID}
+                    if conversion.targetGUID~=nil then
+                        result.links[#result.links+1]=conversion.targetGUID
+                        local target=records[conversion.targetGUID]
+                        result.contributes=target~=nil and target.contributes==true
+                    end
+                end
+            else
+                local conversion=kind=="mana" and manaByObject[guid] or nil
+                local sidewaysLink=kind=="mana" and sidewaysSkillMana[guid] or nil
+                local extraTerrainTarget=kind=="mana" and extraTerrainManaByObject[guid] or nil
+                local skillContributes=sidewaysLink~=nil
+                    and records[sidewaysLink.targetGUID]~=nil
+                    and records[sidewaysLink.targetGUID].contributes==true
+                local status=(conversion~=nil or sidewaysLink~=nil or extraTerrainTarget~=nil) and "purple"
+                    or kind=="mana" and (contributing and "green" or "yellow") or "yellow"
+                local bright=kind=="mana" and (poweredTarget~=nil or sidewaysLink~=nil)
+                result={guid=guid,kind=kind,known=true,complete=false,
+                    contributes=contributing or skillContributes,powered=bright,status=status,
+                    powers=poweredTarget or (sidewaysLink~=nil and sidewaysLink.targetGUID or nil),
+                    links=conversion~=nil and {conversion.skillGUID}
+                        or sidewaysLink~=nil and {sidewaysLink.skillGUID,sidewaysLink.targetGUID}
+                        or extraTerrainTarget~=nil and {extraTerrainTarget} or {},
+                    convertedMana=conversion~=nil and conversion.converted or nil,
+                    resources=nil}
+            end
+            records[guid]=result
+            current[guid]=true
+            setHighlight(obj,result.status,result.powered)
+        end
+    end
+
+    -- Qualifying Units actually supplied the dynamic Skill resource. Show
+    -- their link just like physical Skill/card interactions, without treating
+    -- Command or Wound markers as resource sources themselves.
+    for guid,record in pairs(records) do
+        if record.kind=="skill" and record.unitSources~=nil then
+            for _,unitGUID in ipairs(record.unitSources) do
+                local unit,unitRecord=objects[unitGUID],records[unitGUID]
+                if unit~=nil and unitRecord~=nil then
+                    unitRecord.status="purple"
+                    unitRecord.powered=true
+                    unitRecord.contributes=true
+                    unitRecord.links[#unitRecord.links+1]=guid
+                    setHighlight(unit,unitRecord.status,unitRecord.powered)
+                end
+            end
+        end
+    end
+
+    local previous=bySeat[seatPos] or {}
+    local previousScan=resourceCardScanBySeat[seatPos]
+    local previousMove=previousScan~=nil and (previousScan.totals.move or 0) or 0
+    table.sort(terrainModifiers,terrainModifierPrecedes)
+    local prior=previousScan~=nil and previousScan.terrainModifiers or nil
+    local terrainChanged=prior==nil and #terrainModifiers>0
+        or prior~=nil and #prior~=#terrainModifiers
+    if prior~=nil and not terrainChanged then
+        for i,effect in ipairs(terrainModifiers) do
+            if prior[i]~=effect then terrainChanged=true break end
+        end
+    end
+    local totalsChanged=previousScan==nil
+    if not totalsChanged then
+        for category in pairs(totalsKeys) do
+            if (previousScan.totals[category] or 0)~=(totals[category] or 0) then
+                totalsChanged=true
+                break
+            end
+        end
+    end
+    bySeat[seatPos]=current
+    resourceCardScanBySeat[seatPos]={cards=records,totals=totals,
+        terrainModifiers=terrainModifiers,usesCurrentHexBlock=usesCurrentHexBlock}
+    -- Repeated scans for card position/highlight changes need no panel repaint
+    -- unless a calculated resource or movement modifier actually changed.
+    if totalsChanged or terrainChanged then refreshResourceTrackerText() end
+    if previousMove~=(totals.move or 0) or terrainChanged then updateMoveDisplay() end
+    for guid in pairs(previous) do
+        if current[guid]~=true then
+            clearHighlight(guid)
+            if choiceButtonShown[guid]~=nil and choiceButtonShown[guid]~="hidden" then
+                removeChoiceButtons(getObjectFromGUID(guid))
+            end
+            -- Drop cached hidden state so cards are inspected on re-entry.
+            choiceButtonShown[guid]=nil
+            -- Keep the chosen resource, even if the object briefly leaves the
+            -- zone while being dragged. The collapsed UI is rebuilt on return.
+            choiceExpandedByGUID[guid]=nil
+        end
+    end
+end
+
+local function queueSeat(seatPos,triggerGUID)
+    if not resourceCardsPanelOpen() or seatPos==nil or seatPos<1 or seatPos>4 then return end
+    generation[seatPos]=(generation[seatPos] or 0)+1
+    local serial=generation[seatPos]
+    -- Zone entry is the trigger, but never inspect a moving card/token's position.
+    safeWaitFrames("PlayerBoard.CardRecognition",function()
+        if generation[seatPos]~=serial or not resourceCardsPanelOpen() then return end
+        safeWaitCondition("PlayerBoard.CardRecognition",function()
+            if generation[seatPos]==serial and resourceCardsPanelOpen() then renderSeat(seatPos) end
+        end,function()
+            if generation[seatPos]~=serial or not resourceCardsPanelOpen() then return true end
+            if triggerGUID==nil then return true end
+            local obj=getObjectFromGUID(triggerGUID)
+            return obj==nil or (obj.held_by_color==nil and obj.resting==true and obj.isSmoothMoving()==false)
+        end,8)
+    end,1)
+end
+
+local function clearAll()
+    for seat=1,4 do generation[seat]=(generation[seat] or 0)+1 end
+    clearChoiceButtons()
+    choiceExpandedByGUID={}
+    -- Do not discard choices when closing/reopening the Resource Tracker.
+    for guid in pairs(shown) do clearHighlight(guid) end
+    bySeat={}
+    resourceCardScanBySeat={}
+    -- Manual Resource Tracker adjustments are never changed by clearing estimates.
+    if gStates~=nil and gStates.resourceTracker~=nil then
+        refreshResourceTrackerText()
+        updateMoveDisplay()
+    end
+end
+
+-- A card records only an explicit player selection; no assumptions about
+-- movement versus combat are inferred from the board.
+function resourceCardsChoiceClicked(player,value,id)
+    if type(id)~="string" then return end
+    local guid,category=id:match("^ResourceCardChoice_([0-9a-f]+)_([%a]+)$")
+    if guid==nil then return end
+    if not resourceCardsPanelOpen() then return end
+    local card=getObjectFromGUID(guid)
+    local data=card~=nil and gameCards[guid] or nil
+    local isSkill=skillTokens[guid]~=nil
+    local rule=isSkill and skillResourceDefinitions[guid]
+        or (data~=nil and cardResourceDefinitions[data.resourceKey] or nil)
+    local currentSeat=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    if card==nil or currentSeat==nil then return end
+    local scan=resourceCardScanBySeat[currentSeat.seatPos]
+    local record=scan~=nil and scan.cards[guid] or nil
+    local linkedWound=card.getGMNotes()=="Wound" and record~=nil
+        and record.linkedSkill~=nil
+    if rule==nil and not isSkill and not (cardPosture(card)=="sideways"
+        and (cardCanPlaySideways(card) or linkedWound)) then return end
+    local zone=getObjectFromGUID(playerPlayAreas[currentSeat.seatPos])
+    local inZone=false
+    if zone~=nil then
+        for _,obj in ipairs(zone.getObjects()) do
+            if obj.guid==guid then inZone=true break end
+        end
+    end
+    if not inZone then return end
+    -- Linked cards take the powered choice even without mana placed on them.
+    local powered=record~=nil and record.powered==true
+    local sideways=not isSkill and cardPosture(card)=="sideways"
+    local choices=isSkill and (rule~=nil and rule.choices or nil)
+        or ((sideways and (cardCanPlaySideways(card) or linkedWound)) and sidewaysChoices
+            or (not sideways and sideChoices(rule,powered) or nil))
+    local valid=false
+    for _,choice in ipairs(choices or {}) do
+        if choiceCategory(choice)==category then valid=true break end
+    end
+    if not valid then return end
+    if choiceExpandedByGUID[guid]~=true then
+        -- A click on the sole, selected button opens the alternatives. Merely
+        -- opening this menu must not change the calculated resource totals.
+        choiceExpandedByGUID[guid]=true
+        showChoiceButtons(card,choices,powered)
+        return
+    end
+    -- Any choice, including the already selected one, closes the menu.
+    local selected=selectedResourceByGUID[guid] or {}
+    if not sideways then
+        -- Normal and powered abilities use the same card-wide preference.
+        selected.effect=category
+    elseif choiceAvailable(sideChoices(rule,false),category)
+        or choiceAvailable(sideChoices(rule,true),category) then
+        -- Keep a 90-degree generic resource in sync with the printed action
+        -- when the selected category is also an available printed choice.
+        selected.effect=category
+        selected.sideways=nil
+    else
+        -- A generic +1 with no matching printed category is independent.
+        selected.sideways=category
+    end
+    selectedResourceByGUID[guid]=selected
+    choiceExpandedByGUID[guid]=nil
+    showChoiceButtons(card,choices,powered)
+    queueSeat(currentSeat.seatPos,nil)
+end
+
+function resourceCardsPanelChanged(open)
+    -- The tracker shows the current turn's Mage Knight; stale outlines on other
+    -- players' boards would falsely imply those pieces contribute to these totals.
+    clearAll()
+    if open~=true then return end
+    local player=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    if player==nil then return end
+    local seat=player.seatPos
+    -- TTS may not expose the just-set ResourceTrackerDetail.active attribute
+    -- until the next UI update. queueSeat rejects closed panels immediately,
+    -- so invoking it in the same button callback could silently lose the scan.
+    -- Wait only while opening, then read every physical object exactly once.
+    local serial=generation[seat]
+    safeWaitCondition("PlayerBoard.CardRecognition",function()
+        if generation[seat]==serial and resourceCardsPanelOpen() then
+            renderSeat(seat)
+        end
+    end,function()
+        -- Closing or reopening the panel invalidates this pending request.
+        return generation[seat]~=serial or resourceCardsPanelOpen()
+    end,1)
+end
+
+function resourceCardsOnLoad()
+    if resourceCardsPanelOpen() then resourceCardsPanelChanged(true) else clearAll() end
+end
+
+local function resourceCardsRelevantZone(ctx)
+    if ctx==nil or ctx.zoneInfo==nil or ctx.obj==nil then return nil end
+    local kind=ctx.zoneInfo.kind
+    local objectKind=resourceObjectKind(ctx.obj)
+    if kind=="play" and objectKind~=nil then return ctx.zoneInfo.seatPos end
+    if kind=="unit" and (objectKind=="unit" or objectKind=="mana"
+        or unitLayoutIsCommand(ctx.obj) or unitLayoutIsWound(ctx.obj)) then
+        return ctx.zoneInfo.seatPos
+    end
+    if kind=="crystal" and objectKind=="mana" then return ctx.zoneInfo.seatPos end
+    return nil
+end
+
+function resourceCardsZoneEntered(ctx)
+    local seat=resourceCardsRelevantZone(ctx)
+    if seat~=nil then queueSeat(seat,ctx.objGUID) end
+end
+
+function resourceCardsZoneLeft(ctx)
+    local seat=resourceCardsRelevantZone(ctx)
+    if ctx~=nil and ctx.zoneInfo~=nil and ctx.zoneInfo.kind=="play" then
+        scheduleChoiceResetAfterPlay(ctx.objGUID,ctx.zoneInfo.seatPos)
+    end
+    if seat~=nil then queueSeat(seat,nil) end
+end
+
+function resourceCardsObjectMoved(obj)
+    if not resourceCardsPanelOpen() or obj==nil then return end
+    local player=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    if player==nil then return end
+    local seat=player.seatPos
+    local isUnitStateToken=unitLayoutIsCommand(obj) or unitLayoutIsWound(obj)
+    if resourceObjectKind(obj)==nil and not isUnitStateToken then
+        -- A played powered One with the Land may change Block value when the
+        -- Mage Knight moves to different terrain. Only watch avatar drops
+        -- while that exact effect is selected; no continual background scan.
+        local scan=resourceCardScanBySeat[seat]
+        if scan~=nil and scan.usesCurrentHexBlock==true then
+            for _,hero in ipairs(mageKnights or {}) do
+                if hero.mage==player.mage and
+                    (obj.guid==hero.model or obj.guid==hero.token or obj.guid==hero.standee) then
+                    queueSeat(seat,obj.guid)
+                    return
+                end
+            end
+        end
+        return
+    end
+    for _,zoneGUID in ipairs({playerPlayAreas[seat],playerUnitAreas[seat],playerCrystalAreas[seat]}) do
+        local zone=getObjectFromGUID(zoneGUID)
+        if zone~=nil then
+            for _,candidate in ipairs(zone.getObjects()) do
+                if candidate.guid==obj.guid then queueSeat(seat,obj.guid) return end
+            end
+        end
+    end
+    if isUnitStateToken then
+        -- Zone exit usually handles this already, but a token can be dragged
+        -- straight out and dropped before its membership event settles.
+        queueSeat(seat,nil)
+    elseif bySeat[seat]~=nil and bySeat[seat][obj.guid]==true then
+        scheduleChoiceResetAfterPlay(obj.guid,seat)
+        queueSeat(seat,nil)
+    end
+end
+
+end)
 __bundle_register("PlayingGame.PlayerBoard.Events", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Module-private helpers. Predeclared so forward references keep resolving locally.
 local removeCardRemoveDecal
@@ -42874,7 +44421,9 @@ function unitLayoutIsCommand(obj)
 	if obj==nil then return false end
 	--Bonds of Loyalty is physically a Skill token, but while claimed in Norowas' Unit Area it provides
 	--an extra Command slot exactly like Banner of Command. Its asset does not reliably carry the GM Note.
-	return obj.getGMNotes()=="Command Token" or obj.getGMNotes()=="Bonds of Loyalty" or obj.guid==GUID.skill.bondsOfLoyalty or obj.guid==GUID.card.bannerOfCommandToken
+	return obj.getGMNotes()=="Command Token" or obj.getGMNotes()=="Bonds of Loyalty"
+        or obj.guid==GUID.skill.bondsOfLoyalty or obj.guid==GUID.card.bannerOfCommandToken
+        or obj.hasTag("Command")
 end
 
 unitLayoutCommandPriority=function(obj)
@@ -42965,6 +44514,62 @@ unitLayoutSnapshot=function(seatPos)
 		else slotX[slot]=command.getPosition()[1] end
 	end
 	return {objects=objects, commands=commands, units=units, unitByGuid=unitByGuid, unitBySlot=unitBySlot, unitSlotByGuid=unitSlotByGuid, slotX=slotX, expanded=expanded}
+end
+
+-- Unit condition is a reusable physical-board observation, not an effect of
+-- any particular Skill. The Wound models have GM Notes "Unit Wound"; the
+-- Apocalypse quest Command token uses the "Command" tag.
+function unitLayoutIsWound(obj)
+    if obj==nil then return false end
+    return obj.getGMNotes()=="Unit Wound"
+        or (obj.type=="Custom_Model" and obj.hasTag("Wound"))
+end
+
+local function unitLayoutTokenOnUnit(token,unit)
+    -- The used Command token / Wound sits *on* the Unit card. A ready
+    -- Command token below the card must not count as spent. Use live card
+    -- bounds so compressed/expanded Unit columns behave identically.
+    local bounds=unit.getBounds()
+    local size=bounds~=nil and bounds.size or nil
+    local center=bounds~=nil and bounds.center or unit.getPosition()
+    local position=token.getPosition()
+    local halfX=size~=nil and (size.x or size[1])*0.46 or 1.0
+    local halfZ=size~=nil and (size.z or size[3])*0.46 or 1.5
+    return math.abs(position.x-center.x)<halfX
+        and math.abs(position.z-center.z)<halfZ
+end
+
+-- Shared by Skills that count ready/unwounded Units or empty Command slots.
+-- One zone snapshot per tracker scan; no name/translation-based identification.
+function unitLayoutResourceState(seatPos)
+    if seatPos==nil then return nil end
+    local layout=unitLayoutSnapshot(seatPos)
+    local commandTokens,woundTokens={},{}
+    for _,obj in ipairs(layout.objects) do
+        if unitLayoutIsCommand(obj) then
+            commandTokens[#commandTokens+1]=obj
+        elseif unitLayoutIsWound(obj) then
+            woundTokens[#woundTokens+1]=obj
+        end
+    end
+    local units={}
+    for _,unit in ipairs(layout.units) do
+        local state={guid=unit.guid,unit=unit,ready=true,unwounded=true}
+        for _,token in ipairs(commandTokens) do
+            if unitLayoutTokenOnUnit(token,unit) then
+                state.ready=false
+                break
+            end
+        end
+        for _,token in ipairs(woundTokens) do
+            if unitLayoutTokenOnUnit(token,unit) then
+                state.unwounded=false
+                break
+            end
+        end
+        units[#units+1]=state
+    end
+    return {units=units,emptyCommandSlots=math.max(0,#layout.commands-#layout.units)}
 end
 
 function unitLayoutFirstFreeCommand(seatPos)
@@ -48371,7 +49976,7 @@ local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
 local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="448"
+local automaticLuaErrorReporterVersion="449"
 
 local function automaticLuaErrorValue(callback, fallback)
 	local ok, value=pcall(callback)
@@ -49754,6 +51359,116 @@ tooltip={	["ApocalypseDragonCityMode"]={
 				height=90,
 				text="{en}The dummy is given all the skills of the remaining Mage Knights instead of just one.{it}Il giocatore fittizio riceve tutte le abilità dei Mage Knight rimasti anziché quelle di uno solo.{ru}Виртуальному игроку даются навыки всех свободных героев, а не только одного.{zh-tw}虛擬玩家給予的技能會從全部剩餘的魔法騎\n士之中挑選，而非單一角色。{zh-cn}虚拟玩家给予的技能会从全部剩余的魔法骑\n士之中挑选，而非单一角色。{ko}가상 플레이어의 스킬 더미는 게임에 남은 다른 모든 스킬로 구성됩니다. {es}El muñeco recibe todas las habilidades de los Caballeros Mágicos restantes en lugar de solo uno.{fr}Le Mage Fantôme reçoit toutes les compétences des mages restants au lieu d'un seul.{pt-br}O Jogador Fictício recebe todas as habilidades dos Mage Knights restantes ao invés de apenas um.{de}Der Dummy erhält alle Fertigkeiten der verbleibenden Magierritter statt nur einer."}}
 
+-- Numeric effects the resource reader can identify. Additional card text that is not yet
+-- evaluated is marked partial so its highlight stays yellow, even when a fixed amount is known.
+-- "normalChoices"/"poweredChoices" record alternatives without choosing one on the player's behalf.
+cardResourceDefinitions={
+    stamina={normal={move=2},powered={move=4}},
+    march={normal={move=2},powered={move=4}},
+    promise={normal={influence=2},powered={influence=4}},
+    nobleManners={normal={influence=2},powered={influence=4}}, -- Other ability does not alter Influence
+    oneWithTheLand={
+        normalChoices={{move=2},{healing=1},{block=2}},
+        poweredChoices={{move=4},{healing=2},{key="block",terrainBlock=true}}},
+    -- Powered Block uses the unmodified cost of the player's current hex;
+    -- it is Fire Block during day and Ice Block at night.
+    swiftness={normal={move=2},powered={ranged=3}},
+    -- Linked Action cards are interpreted by CardRecognition's generic
+    -- poweredLink resolver. A normal Concentration creates mana, not tracker resources.
+    concentration={normalTrackerNeutral=true,
+        poweredLink={mode="stronger",bonus=2,
+            bonusFor={move=true,influence=true,block=true,attack=true,ranged=true,siege=true}}},
+    willFocus={normalTrackerNeutral=true,
+        poweredLink={mode="stronger",bonus=3,
+            bonusFor={move=true,influence=true,block=true,attack=true,ranged=true,siege=true}}},
+    determination={normal={block=2},normalChoices={{attack=2},{block=2}},powered={block=5},normalPartial=true}, -- Block provisional until player chooses
+    threaten={normal={influence=2},powered={influence=5}}, -- Powered: -1 Reputation; fixed generated Influence is recognised
+    rage={normalChoices={{attack=2},{block=2}},powered={attack=4},normalPartial=true}, -- Unpowered choice unresolved, powered Attack 4 is fixed
+    -- Both branches are understood: Heal contributes to the tracker, Draw does not.
+    tranquility={normal={healing=1},powered={healing=2},
+        normalChoices={{healing=1},{draw=1}},poweredChoices={{healing=2},{draw=2}}},
+    improvisation={normalChoices={{move=3},{influence=3},{attack=3},{block=3}},
+        poweredChoices={{move=5},{influence=5},{attack=5},{block=5}},
+        requiredLink={mode="discard"}}, -- Needs one other non-Wound hand card; source itself adds no resources
+    battleVersatility={normalChoices={{attack=2},{block=2},{ranged=1}},
+        poweredChoices={{attack=4},{block=4},{ranged=3},{siege=2}},partial=true}, -- Also Fire Attack/Block alternatives
+    instinct={normalChoices={{move=2},{influence=2},{attack=2},{block=2}},
+        poweredChoices={{move=4},{influence=4},{attack=4},{block=4}},partial=true},
+    swiftReflexes={normalChoices={{move=2},{ranged=1}},
+        poweredChoices={{move=4},{ranged=3}},partial=true}, -- Also reduce-enemy-Attack alternatives
+    tirelessness={normal={move=2},powered={move=4},partial=true}, -- Boosts other Move cards
+    druidicPaths={normal={move=2},powered={move=4}}, -- Player manages the one-space/one-terrain-type discount
+    savageHarvesting={normal={move=2},powered={move=4}}, -- Optional crystal gains do not affect Move calculation
+    ruthlessCoercion={normal={influence=2},powered={influence=6}}, -- Other effects do not change the numeric Influence contributed
+    shieldBash={normal={block=3},powered={block=5},partial=true}, -- Swiftness and excess-Block modifiers
+    frostBridge={normal={move=2},powered={move=4},partial=true}, -- Changes swamp/lake movement costs
+    -- Terrain effects are declarative: cap, reduce (with a floor), or set.
+    -- They affect movement guidance only, not saved terrain costs.
+    pathFinding={normal={move=2},powered={move=4},
+        terrainEffects={
+            normal={{mode="reduce",terrains="passable",amount=1,minimum=2}},
+            powered={{mode="cap",terrains="passable",cost=2}}}},
+    songOfWind={normal={move=2},powered={move=2},
+        terrainEffects={
+            normal={{mode="reduce",terrains={plains=true,desert=true,wasteland=true},amount=1,minimum=0}},
+            powered={{mode="reduce",terrains={plains=true,desert=true,wasteland=true},amount=2,minimum=0}}},
+        -- Optional extra Blue mana on the powered card makes lakes cost 0.
+        extraTerrainMana={color="Blue",poweredOnly=true,
+            effect={mode="set",terrains={lake=true},cost=0}}},
+    agility={normal={move=2},powered={move=4}}, -- Attack conversion remains manual
+    steadyTempo={normal={move=2},powered={move=4}}, -- Deed-deck placement does not change Move
+    mountainLore={normal={move=3},powered={move=5},partial=true}, -- Hand limit/terrain bonus
+    refreshingWalk={
+        normalChoices={{key="heal",move=2,healing=1},{key="combat",move=2}},
+        poweredChoices={{key="heal",move=4,healing=2},{key="combat",move=4}}},
+    -- H = Move plus Healing, C = combat (Move without Healing).
+    diplomacy={normal={influence=2},powered={influence=4}}, -- Other effects remain manual
+    heroicTale={normal={influence=3},powered={influence=6}}, -- Other effects remain manual
+    peacefulMoment={normal={influence=3},powered={influence=6}}, -- Healing/refresh remains manual
+    learning={normal={influence=2},powered={influence=4}}, -- Optional Advanced Action purchase does not change Influence
+    bloodRage={
+        normalChoices={{key="attack",attack=2},{key="wound",attack=5}},
+        poweredChoices={{key="attack",attack=4},{key="wound",attack=9}}},
+    -- Wound option is a player-asserted cost; no Wound is created automatically.
+    inNeed={normal={influence=3},powered={influence=5},partial=true}, -- Further Influence from Wounds
+    -- Verified against the Unofficial Mage Knight card wiki (base/expansion).
+    -- 'other' means a deliberate card effect that adds no tracked resource.
+    -- A crystal gained to inventory is not itself generated Move/Attack/etc.
+    rejuvenate={
+        -- H Heal, D Draw, G gain a mana token/crystal, R ready a Unit.
+        -- Only healing adds to the Resource Tracker; other outcomes are
+        -- deliberate player choices rather than incomplete card recognition.
+        normalChoices={{key="healing",healing=1},{key="draw",draw=1},
+            {key="gain"},{key="ready"}},
+        poweredChoices={{key="healing",healing=2},{key="draw",draw=2},
+            {key="gain"},{key="ready"}}},
+    swiftBolt={normalTrackerNeutral=true,powered={ranged=4}},
+    explosiveBolt={normalTrackerNeutral=true,powered={ranged=3}},
+    regeneration={normal={healing=1},powered={healing=2}},
+    forceOfNature={normalTrackerNeutral=true,
+        poweredChoices={{siege=3},{block=6}}},
+    chillingStare={
+        normalChoices={{influence=3},{other=1}},
+        poweredChoices={{influence=5},{other=1}}},
+    stoutResolve={
+        normalChoices={{move=2},{influence=2},{attack=2},{block=2}},
+        poweredChoices={{move=3},{influence=3},{attack=3},{block=3}},
+        partial=true}, -- Optional discards add untracked bonuses
+    crushingBolt={normalTrackerNeutral=true,powered={siege=3}},
+    intimidate={
+        normalChoices={{influence=4},{attack=3}},
+        poweredChoices={{influence=8},{attack=7}}},
+    ambush={normal={move=2},powered={move=4},partial=true}, -- Plus a bonus to a subsequent Attack or Block
+    counterattack={normal={attack=2},powered={attack=4},partial=true}, -- Plus damage per enemy blocked
+    fireBolt={normalTrackerNeutral=true,powered={rangedFire=3}},
+    iceBolt={normalTrackerNeutral=true,powered={rangedIce=3}},
+    iceShield={normal={blockIce=3},powered={blockIce=3}}, -- Powered side also reduces enemy Armor
+    chivalry={
+        normalChoices={{key="attack",attack=3},{key="reputation",attack=2}},
+        poweredChoices={{key="attack",attack=6},{key="reputation",attack=4}}}
+    -- Reputation alternative gives a smaller Attack, with external Fame/Reputation bonus
+}
+
 gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit",	name={"Peasants"}, 			recruit={"village", "camp", "oasis"}},
 			["794e16"]={influence= 4, level=1, armour=3, cardType="Regular Unit",	name={"Peasants"}, 			recruit={"village", "camp", "oasis"}},
 			["484fa3"]={influence= 4, level=1, armour=3, cardType="Regular Unit",	name={"Peasants"},			recruit={"village", "camp", "oasis"}},
@@ -49811,318 +51526,318 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["9c5c38"]={influence=13, level=4, armour=3, cardType="Elite Unit",		name={"Delphana Masters"},	recruit={"city", "camp"},								resistance={"Physical", "Fire", "Ice"}},
 			["5c2da0"]={influence=13, level=4, armour=3, cardType="Elite Unit",		name={"Delphana Masters"},	recruit={"city", "camp"}, 								resistance={"Physical", "Fire", "Ice"}},
 			--Arythea Starting Cards
-			["046141"]={cardType="Starting", name={"Stamina"}, color={"Blue"}, action={"Move"}},
-			["046140"]={cardType="Starting", name={"Stamina"}, color={"Blue"}, action={"Move"}},
-			["b9e881"]={cardType="Starting", name={"Determination"}, color={"Blue"}, action={"Combat"}},
-			["450554"]={cardType="Starting", name={"Crystallize"}, color={"Blue"}, action={"Special"}},
-			["9757b3"]={cardType="Starting", name={"March"}, color={"Green"}, action={"Move"}},
-			["9757b4"]={cardType="Starting", name={"March"}, color={"Green"}, action={"Move"}},
-			["450551"]={cardType="Starting", name={"Tranquility"}, color={"Green"}, action={"Heal"}},
-			["450552"]={cardType="Starting", name={"Concentration"}, color={"Green"}, action={"Special"}},
-			["2f1c70"]={cardType="Starting", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
-			["2f1c71"]={cardType="Starting", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
+			["046141"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
+			["046140"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
+			["b9e881"]={cardType="Starting", resourceKey="determination", name={"Determination"}, color={"Blue"}, action={"Combat"}},
+			["450554"]={cardType="Starting", resourceTracked=false, name={"Crystallize"}, color={"Blue"}, action={"Special"}},
+			["9757b3"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
+			["9757b4"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
+			["450551"]={cardType="Starting", resourceKey="tranquility", name={"Tranquility"}, color={"Green"}, action={"Heal"}},
+			["450552"]={cardType="Starting", resourceKey="concentration", name={"Concentration"}, color={"Green"}, action={"Special"}},
+			["2f1c70"]={cardType="Starting", resourceKey="swiftness", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
+			["2f1c71"]={cardType="Starting", resourceKey="swiftness", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
 			["d6ba6f"]={cardType="Starting", name={"Mana Pull"}, color={"White"}, action={"Special"}},
-			["450553"]={cardType="Starting", name={"Promise"}, color={"White"}, action={"Influence"}},
-			["450556"]={cardType="Starting", name={"Improvisation"}, color={"Red"}, action={"Move", "Combat", "Influence"}},
-			["450555"]={cardType="Starting", name={"Threaten"}, color={"Red"}, action={"Influence"}},
-			["fb481b"]={cardType="Starting", name={"Battle Versatility"}, color={"Red"}, action={"Combat"}},
-			["52efb0"]={cardType="Starting", name={"Rage"}, color={"Red"}, action={"Combat"}},
+			["450553"]={cardType="Starting", resourceKey="promise", name={"Promise"}, color={"White"}, action={"Influence"}},
+			["450556"]={cardType="Starting", resourceKey="improvisation", name={"Improvisation"}, color={"Red"}, action={"Move", "Combat", "Influence"}},
+			["450555"]={cardType="Starting", resourceKey="threaten", name={"Threaten"}, color={"Red"}, action={"Influence"}},
+			["fb481b"]={cardType="Starting", resourceKey="battleVersatility", name={"Battle Versatility"}, color={"Red"}, action={"Combat"}},
+			["52efb0"]={cardType="Starting", resourceKey="rage", name={"Rage"}, color={"Red"}, action={"Combat"}},
 			--Goldyx Starting Cards
-			["046143"]={cardType="Starting", name={"Stamina"}, color={"Blue"}, action={"Move"}},
-			["046142"]={cardType="Starting", name={"Stamina"}, color={"Blue"}, action={"Move"}},
-			["b9e882"]={cardType="Starting", name={"Determination"}, color={"Blue"}, action={"Combat"}},
-			["7ebe5e"]={cardType="Starting", name={"Crystal Joy"}, color={"Blue"}, action={"Special"}},
-			["9757b6"]={cardType="Starting", name={"March"}, color={"Green"}, action={"Move"}},
-			["9757b5"]={cardType="Starting", name={"March"}, color={"Green"}, action={"Move"}},
-			["450557"]={cardType="Starting", name={"Tranquility"}, color={"Green"}, action={"Heal"}},
-			["acd316"]={cardType="Starting", name={"Will Focus"}, color={"Green"}, action={"Special"}},
-			["2f1c73"]={cardType="Starting", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
-			["2f1c72"]={cardType="Starting", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
-			["450572"]={cardType="Starting", name={"Mana Draw"}, color={"White"}, action={"Special"}},
-			["450558"]={cardType="Starting", name={"Promise"}, color={"White"}, action={"Influence"}},
-			["450561"]={cardType="Starting", name={"Improvisation"}, color={"Red"}, action={"Move", "Combat", "Influence"}},
-			["450560"]={cardType="Starting", name={"Threaten"}, color={"Red"}, action={"Influence"}},
-			["52efb2"]={cardType="Starting", name={"Rage"}, color={"Red"}, action={"Combat"}},
-			["52efb1"]={cardType="Starting", name={"Rage"}, color={"Red"}, action={"Combat"}},
+			["046143"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
+			["046142"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
+			["b9e882"]={cardType="Starting", resourceKey="determination", name={"Determination"}, color={"Blue"}, action={"Combat"}},
+			["7ebe5e"]={cardType="Starting", resourceTracked=false, name={"Crystal Joy"}, color={"Blue"}, action={"Special"}},
+			["9757b6"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
+			["9757b5"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
+			["450557"]={cardType="Starting", resourceKey="tranquility", name={"Tranquility"}, color={"Green"}, action={"Heal"}},
+			["acd316"]={cardType="Starting", resourceKey="willFocus", name={"Will Focus"}, color={"Green"}, action={"Special"}},
+			["2f1c73"]={cardType="Starting", resourceKey="swiftness", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
+			["2f1c72"]={cardType="Starting", resourceKey="swiftness", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
+			["450572"]={cardType="Starting", resourceTracked=false, name={"Mana Draw"}, color={"White"}, action={"Special"}},
+			["450558"]={cardType="Starting", resourceKey="promise", name={"Promise"}, color={"White"}, action={"Influence"}},
+			["450561"]={cardType="Starting", resourceKey="improvisation", name={"Improvisation"}, color={"Red"}, action={"Move", "Combat", "Influence"}},
+			["450560"]={cardType="Starting", resourceKey="threaten", name={"Threaten"}, color={"Red"}, action={"Influence"}},
+			["52efb2"]={cardType="Starting", resourceKey="rage", name={"Rage"}, color={"Red"}, action={"Combat"}},
+			["52efb1"]={cardType="Starting", resourceKey="rage", name={"Rage"}, color={"Red"}, action={"Combat"}},
 			--Norowas Starting Cards
-			["046145"]={cardType="Starting", name={"Stamina"}, color={"Blue"}, action={"Move"}},
-			["046144"]={cardType="Starting", name={"Stamina"}, color={"Blue"}, action={"Move"}},
-			["b9e883"]={cardType="Starting", name={"Determination"}, color={"Blue"}, action={"Combat"}},
-			["450564"]={cardType="Starting", name={"Crystallize"}, color={"Blue"}, action={"Special"}},
-			["9757b7"]={cardType="Starting", name={"March"}, color={"Green"}, action={"Move"}},
-			["9757b8"]={cardType="Starting", name={"March"}, color={"Green"}, action={"Move"}},
-			["c9c0f4"]={cardType="Starting", name={"Rejuvenate"}, color={"Green"}, action={"Heal"}},
-			["450562"]={cardType="Starting", name={"Concentration"}, color={"Green"}, action={"Special"}},
-			["2f1c74"]={cardType="Starting", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
-			["2f1c75"]={cardType="Starting", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
-			["450563"]={cardType="Starting", name={"Mana Draw"}, color={"White"}, action={"Special"}},
-			["eaaaa5"]={cardType="Starting", name={"Noble Promise"}, color={"White"}, action={"Influence"}},
-			["450566"]={cardType="Starting", name={"Improvisation"}, color={"Red"}, action={"Move", "Combat", "Influence"}},
-			["450565"]={cardType="Starting", name={"Threaten"}, color={"Red"}, action={"Influence"}},
-			["52efb3"]={cardType="Starting", name={"Rage"}, color={"Red"}, action={"Combat"}},
-			["52efb4"]={cardType="Starting", name={"Rage"}, color={"Red"}, action={"Combat"}},
+			["046145"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
+			["046144"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
+			["b9e883"]={cardType="Starting", resourceKey="determination", name={"Determination"}, color={"Blue"}, action={"Combat"}},
+			["450564"]={cardType="Starting", resourceTracked=false, name={"Crystallize"}, color={"Blue"}, action={"Special"}},
+			["9757b7"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
+			["9757b8"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
+			["c9c0f4"]={cardType="Starting", resourceKey="rejuvenate", name={"Rejuvenate"}, color={"Green"}, action={"Heal"}},
+			["450562"]={cardType="Starting", resourceKey="concentration", name={"Concentration"}, color={"Green"}, action={"Special"}},
+			["2f1c74"]={cardType="Starting", resourceKey="swiftness", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
+			["2f1c75"]={cardType="Starting", resourceKey="swiftness", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
+			["450563"]={cardType="Starting", resourceTracked=false, name={"Mana Draw"}, color={"White"}, action={"Special"}},
+			["eaaaa5"]={cardType="Starting", resourceKey="nobleManners", name={"Noble Manners"}, color={"White"}, action={"Influence"}},
+			["450566"]={cardType="Starting", resourceKey="improvisation", name={"Improvisation"}, color={"Red"}, action={"Move", "Combat", "Influence"}},
+			["450565"]={cardType="Starting", resourceKey="threaten", name={"Threaten"}, color={"Red"}, action={"Influence"}},
+			["52efb3"]={cardType="Starting", resourceKey="rage", name={"Rage"}, color={"Red"}, action={"Combat"}},
+			["52efb4"]={cardType="Starting", resourceKey="rage", name={"Rage"}, color={"Red"}, action={"Combat"}},
 			--Tovak Starting Cards
-			["046146"]={cardType="Starting", name={"Stamina"}, color={"Blue"}, action={"Move"}},
-			["046147"]={cardType="Starting", name={"Stamina"}, color={"Blue"}, action={"Move"}},
+			["046146"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
+			["046147"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
 			["79bfbd"]={cardType="Starting", name={"Cold Toughness"}, color={"Blue"}, action={"Combat"}},
-			["450571"]={cardType="Starting", name={"Crystallize"}, color={"Blue"}, action={"Special"}},
-			["9757c1"]={cardType="Starting", name={"March"}, color={"Green"}, action={"Move"}},
-			["9757b9"]={cardType="Starting", name={"March"}, color={"Green"}, action={"Move"}},
-			["450567"]={cardType="Starting", name={"Tranquility"}, color={"Green"}, action={"Heal"}},
-			["450568"]={cardType="Starting", name={"Concentration"}, color={"Green"}, action={"Special"}},
-			["2f1c76"]={cardType="Starting", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
-			["2f1c77"]={cardType="Starting", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
-			["450570"]={cardType="Starting", name={"Mana Draw"}, color={"White"}, action={"Special"}},
-			["450569"]={cardType="Starting", name={"Promise"}, color={"White"}, action={"Influence"}},
-			["1a8e96"]={cardType="Starting", name={"Instinct"}, color={"Red"}, action={"Move", "Combat", "Influence"}},
-			["450550"]={cardType="Starting", name={"Threaten"}, color={"Red"}, action={"Influence"}},
-			["52efb5"]={cardType="Starting", name={"Rage"}, color={"Red"}, action={"Combat"}},
-			["52efb6"]={cardType="Starting", name={"Rage"}, color={"Red"}, action={"Combat"}},
+			["450571"]={cardType="Starting", resourceTracked=false, name={"Crystallize"}, color={"Blue"}, action={"Special"}},
+			["9757c1"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
+			["9757b9"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
+			["450567"]={cardType="Starting", resourceKey="tranquility", name={"Tranquility"}, color={"Green"}, action={"Heal"}},
+			["450568"]={cardType="Starting", resourceKey="concentration", name={"Concentration"}, color={"Green"}, action={"Special"}},
+			["2f1c76"]={cardType="Starting", resourceKey="swiftness", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
+			["2f1c77"]={cardType="Starting", resourceKey="swiftness", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
+			["450570"]={cardType="Starting", resourceTracked=false, name={"Mana Draw"}, color={"White"}, action={"Special"}},
+			["450569"]={cardType="Starting", resourceKey="promise", name={"Promise"}, color={"White"}, action={"Influence"}},
+			["1a8e96"]={cardType="Starting", resourceKey="instinct", name={"Instinct"}, color={"Red"}, action={"Move", "Combat", "Influence"}},
+			["450550"]={cardType="Starting", resourceKey="threaten", name={"Threaten"}, color={"Red"}, action={"Influence"}},
+			["52efb5"]={cardType="Starting", resourceKey="rage", name={"Rage"}, color={"Red"}, action={"Combat"}},
+			["52efb6"]={cardType="Starting", resourceKey="rage", name={"Rage"}, color={"Red"}, action={"Combat"}},
 			--Braevelar Starting Cards
-			["046150"]={cardType="Starting", name={"Stamina"}, color={"Blue"}, action={"Move"}},
-			["d54e79"]={cardType="Starting", name={"Druidic Paths"}, color={"Blue"}, action={"Move"}},
-			["b9e885"]={cardType="Starting", name={"Determination"}, color={"Blue"}, action={"Combat"}},
-			["450584"]={cardType="Starting", name={"Crystallize"}, color={"Blue"}, action={"Special"}},
-			["9757c3"]={cardType="Starting", name={"March"}, color={"Green"}, action={"Move"}},
-			["c137e0"]={cardType="Starting", name={"One with the Land"}, color={"Green"}, action={"Move", "Heal", "Combat"}},
-			["450580"]={cardType="Starting", name={"Tranquility"}, color={"Green"}, action={"Heal"}},
-			["450581"]={cardType="Starting", name={"Concentration"}, color={"Green"}, action={"Special"}},
-			["2f1c80"]={cardType="Starting", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
-			["2f1c81"]={cardType="Starting", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
-			["450583"]={cardType="Starting", name={"Mana Draw"}, color={"White"}, action={"Special"}},
-			["450582"]={cardType="Starting", name={"Promise"}, color={"White"}, action={"Influence"}},
-			["450586"]={cardType="Starting", name={"Improvisation"}, color={"Red"}, action={"Move", "Combat", "Influence"}},
-			["450585"]={cardType="Starting", name={"Threaten"}, color={"Red"}, action={"Influence"}},
-			["52ef10"]={cardType="Starting", name={"Rage"}, color={"Red"}, action={"Combat"}},
-			["52efb9"]={cardType="Starting", name={"Rage"}, color={"Red"}, action={"Combat"}},
+			["046150"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
+			["d54e79"]={cardType="Starting", resourceKey="druidicPaths", name={"Druidic Paths"}, color={"Blue"}, action={"Move"}},
+			["b9e885"]={cardType="Starting", resourceKey="determination", name={"Determination"}, color={"Blue"}, action={"Combat"}},
+			["450584"]={cardType="Starting", resourceTracked=false, name={"Crystallize"}, color={"Blue"}, action={"Special"}},
+			["9757c3"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
+			["c137e0"]={cardType="Starting", resourceKey="oneWithTheLand", name={"One with the Land"}, color={"Green"}, action={"Move", "Heal", "Combat"}},
+			["450580"]={cardType="Starting", resourceKey="tranquility", name={"Tranquility"}, color={"Green"}, action={"Heal"}},
+			["450581"]={cardType="Starting", resourceKey="concentration", name={"Concentration"}, color={"Green"}, action={"Special"}},
+			["2f1c80"]={cardType="Starting", resourceKey="swiftness", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
+			["2f1c81"]={cardType="Starting", resourceKey="swiftness", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
+			["450583"]={cardType="Starting", resourceTracked=false, name={"Mana Draw"}, color={"White"}, action={"Special"}},
+			["450582"]={cardType="Starting", resourceKey="promise", name={"Promise"}, color={"White"}, action={"Influence"}},
+			["450586"]={cardType="Starting", resourceKey="improvisation", name={"Improvisation"}, color={"Red"}, action={"Move", "Combat", "Influence"}},
+			["450585"]={cardType="Starting", resourceKey="threaten", name={"Threaten"}, color={"Red"}, action={"Influence"}},
+			["52ef10"]={cardType="Starting", resourceKey="rage", name={"Rage"}, color={"Red"}, action={"Combat"}},
+			["52efb9"]={cardType="Starting", resourceKey="rage", name={"Rage"}, color={"Red"}, action={"Combat"}},
 			--Krang Starting Cards
-			["046148"]={cardType="Starting", name={"Stamina"}, color={"Blue"}, action={"Move"}},
-			["046149"]={cardType="Starting", name={"Stamina"}, color={"Blue"}, action={"Move"}},
-			["b9e884"]={cardType="Starting", name={"Determination"}, color={"Blue"}, action={"Combat"}},
-			["450578"]={cardType="Starting", name={"Crystallize"}, color={"Blue"}, action={"Special"}},
-			["9757c2"]={cardType="Starting", name={"March"}, color={"Green"}, action={"Move"}},
-			["450573"]={cardType="Starting", name={"Savage Harvesting"}, color={"Green"}, action={"Move", "Special"}},
-			["450574"]={cardType="Starting", name={"Tranquility"}, color={"Green"}, action={"Heal"}},
-			["450575"]={cardType="Starting", name={"Concentration"}, color={"Green"}, action={"Special"}},
-			["2f1c78"]={cardType="Starting", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
-			["2f1c79"]={cardType="Starting", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
-			["450577"]={cardType="Starting", name={"Mana Draw"}, color={"White"}, action={"Special"}},
-			["450576"]={cardType="Starting", name={"Promise"}, color={"White"}, action={"Influence"}},
-			["450579"]={cardType="Starting", name={"Improvisation"}, color={"Red"}, action={"Move", "Combat", "Influence"}},
-			["0b90e5"]={cardType="Starting", name={"Ruthless Coercion"}, color={"Red"}, action={"Influence", "Heal"}},
-			["52efb7"]={cardType="Starting", name={"Rage"}, color={"Red"}, action={"Combat"}},
-			["52efb8"]={cardType="Starting", name={"Rage"}, color={"Red"}, action={"Combat"}},
+			["046148"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
+			["046149"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
+			["b9e884"]={cardType="Starting", resourceKey="determination", name={"Determination"}, color={"Blue"}, action={"Combat"}},
+			["450578"]={cardType="Starting", resourceTracked=false, name={"Crystallize"}, color={"Blue"}, action={"Special"}},
+			["9757c2"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
+			["450573"]={cardType="Starting", resourceKey="savageHarvesting", name={"Savage Harvesting"}, color={"Green"}, action={"Move", "Special"}},
+			["450574"]={cardType="Starting", resourceKey="tranquility", name={"Tranquility"}, color={"Green"}, action={"Heal"}},
+			["450575"]={cardType="Starting", resourceKey="concentration", name={"Concentration"}, color={"Green"}, action={"Special"}},
+			["2f1c78"]={cardType="Starting", resourceKey="swiftness", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
+			["2f1c79"]={cardType="Starting", resourceKey="swiftness", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
+			["450577"]={cardType="Starting", resourceTracked=false, name={"Mana Draw"}, color={"White"}, action={"Special"}},
+			["450576"]={cardType="Starting", resourceKey="promise", name={"Promise"}, color={"White"}, action={"Influence"}},
+			["450579"]={cardType="Starting", resourceKey="improvisation", name={"Improvisation"}, color={"Red"}, action={"Move", "Combat", "Influence"}},
+			["0b90e5"]={cardType="Starting", resourceKey="ruthlessCoercion", name={"Ruthless Coercion"}, color={"Red"}, action={"Influence", "Heal"}},
+			["52efb7"]={cardType="Starting", resourceKey="rage", name={"Rage"}, color={"Red"}, action={"Combat"}},
+			["52efb8"]={cardType="Starting", resourceKey="rage", name={"Rage"}, color={"Red"}, action={"Combat"}},
 			--Wolfhawk Starting Cards
-			["046153"]={cardType="Starting", name={"Stamina"}, color={"Blue"}, action={"Move"}},
-			["62731d"]={cardType="Starting", name={"Tirelessness"}, color={"Blue"}, action={"Move"}},
-			["b9e887"]={cardType="Starting", name={"Determination"}, color={"Blue"}, action={"Combat"}},
-			["450598"]={cardType="Starting", name={"Crystallize"}, color={"Blue"}, action={"Special"}},
-			["9757c7"]={cardType="Starting", name={"March"}, color={"Green"}, action={"Move"}},
-			["9757c6"]={cardType="Starting", name={"March"}, color={"Green"}, action={"Move"}},
-			["450594"]={cardType="Starting", name={"Tranquility"}, color={"Green"}, action={"Heal"}},
-			["450595"]={cardType="Starting", name={"Concentration"}, color={"Green"}, action={"Special"}},
-			["2f1c83"]={cardType="Starting", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
-			["092938"]={cardType="Starting", name={"Swift Reflexes"}, color={"White"}, action={"Move", "Combat"}},
-			["450597"]={cardType="Starting", name={"Mana Draw"}, color={"White"}, action={"Special"}},
-			["450596"]={cardType="Starting", name={"Promise"}, color={"White"}, action={"Influence"}},
-			["450600"]={cardType="Starting", name={"Improvisation"}, color={"Red"}, action={"Influence"}},
-			["450599"]={cardType="Starting", name={"Threaten"}, color={"Red"}, action={"Influence", "Heal"}},
-			["52ef13"]={cardType="Starting", name={"Rage"}, color={"Red"}, action={"Combat"}},
-			["52ef12"]={cardType="Starting", name={"Rage"}, color={"Red"}, action={"Combat"}},
+			["046153"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
+			["62731d"]={cardType="Starting", resourceKey="tirelessness", name={"Tirelessness"}, color={"Blue"}, action={"Move"}},
+			["b9e887"]={cardType="Starting", resourceKey="determination", name={"Determination"}, color={"Blue"}, action={"Combat"}},
+			["450598"]={cardType="Starting", resourceTracked=false, name={"Crystallize"}, color={"Blue"}, action={"Special"}},
+			["9757c7"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
+			["9757c6"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
+			["450594"]={cardType="Starting", resourceKey="tranquility", name={"Tranquility"}, color={"Green"}, action={"Heal"}},
+			["450595"]={cardType="Starting", resourceKey="concentration", name={"Concentration"}, color={"Green"}, action={"Special"}},
+			["2f1c83"]={cardType="Starting", resourceKey="swiftness", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
+			["092938"]={cardType="Starting", resourceKey="swiftReflexes", name={"Swift Reflexes"}, color={"White"}, action={"Move", "Combat"}},
+			["450597"]={cardType="Starting", resourceTracked=false, name={"Mana Draw"}, color={"White"}, action={"Special"}},
+			["450596"]={cardType="Starting", resourceKey="promise", name={"Promise"}, color={"White"}, action={"Influence"}},
+			["450600"]={cardType="Starting", resourceKey="improvisation", name={"Improvisation"}, color={"Red"}, action={"Influence"}},
+			["450599"]={cardType="Starting", resourceKey="threaten", name={"Threaten"}, color={"Red"}, action={"Influence", "Heal"}},
+			["52ef13"]={cardType="Starting", resourceKey="rage", name={"Rage"}, color={"Red"}, action={"Combat"}},
+			["52ef12"]={cardType="Starting", resourceKey="rage", name={"Rage"}, color={"Red"}, action={"Combat"}},
 			--Coral Starting Cards
-			["f78b9a"]={cardType="Starting", name={"Stamina"}, color={"Blue"}, action={"Move"}},
-			["a26980"]={cardType="Starting", name={"Stamina"}, color={"Blue"}, action={"Move"}},
-			["6d1ecc"]={cardType="Starting", name={"Determination"}, color={"Blue"}, action={"Combat"}},
-			["c84104"]={cardType="Starting", name={"Crystallize"}, color={"Blue"}, action={"Special"}},
-			["eab2e4"]={cardType="Starting", name={"March"}, color={"Green"}, action={"Move"}},
-			["f5b9be"]={cardType="Starting", name={"March"}, color={"Green"}, action={"Move"}},
-			["af7422"]={cardType="Starting", name={"Tranquility"}, color={"Green"}, action={"Heal"}},
-			["af9def"]={cardType="Starting", name={"Concentration"}, color={"Green"}, action={"Special"}},
-			["acdcb2"]={cardType="Starting", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
+			["f78b9a"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
+			["a26980"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
+			["6d1ecc"]={cardType="Starting", resourceKey="determination", name={"Determination"}, color={"Blue"}, action={"Combat"}},
+			["c84104"]={cardType="Starting", resourceTracked=false, name={"Crystallize"}, color={"Blue"}, action={"Special"}},
+			["eab2e4"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
+			["f5b9be"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
+			["af7422"]={cardType="Starting", resourceKey="tranquility", name={"Tranquility"}, color={"Green"}, action={"Heal"}},
+			["af9def"]={cardType="Starting", resourceKey="concentration", name={"Concentration"}, color={"Green"}, action={"Special"}},
+			["acdcb2"]={cardType="Starting", resourceKey="swiftness", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
 			[GUID.card.quickWitted]={cardType="Starting", name={"Quick Witted"}, color={"White"}, action={"Move", "Combat", "Influence"}},
-			["7b7f78"]={cardType="Starting", name={"Mana Draw"}, color={"White"}, action={"Special"}},
-			["3c32e2"]={cardType="Starting", name={"Promise"}, color={"White"}, action={"Influence"}},
-			["89b27f"]={cardType="Starting", name={"Improvisation"}, color={"Red"}, action={"Influence"}},
-			["36471b"]={cardType="Starting", name={"Threaten"}, color={"Red"}, action={"Influence", "Heal"}},
-			["60de5a"]={cardType="Starting", name={"Rage"}, color={"Red"}, action={"Combat"}},
+			["7b7f78"]={cardType="Starting", resourceTracked=false, name={"Mana Draw"}, color={"White"}, action={"Special"}},
+			["3c32e2"]={cardType="Starting", resourceKey="promise", name={"Promise"}, color={"White"}, action={"Influence"}},
+			["89b27f"]={cardType="Starting", resourceKey="improvisation", name={"Improvisation"}, color={"Red"}, action={"Influence"}},
+			["36471b"]={cardType="Starting", resourceKey="threaten", name={"Threaten"}, color={"Red"}, action={"Influence", "Heal"}},
+			["60de5a"]={cardType="Starting", resourceKey="rage", name={"Rage"}, color={"Red"}, action={"Combat"}},
 			["15904a"]={cardType="Starting", name={"Tempered Steel"}, color={"Red"}, action={"Combat"}},
 			--Ymirgh Starting Cards
-			["046151"]={cardType="Starting", name={"Stamina"}, color={"Blue"}, action={"Move"}},
-			["046152"]={cardType="Starting", name={"Stamina"}, color={"Blue"}, action={"Move"}},
-			["b9e886"]={cardType="Starting", name={"Determination"}, color={"Blue"}, action={"Combat"}},
-			["450591"]={cardType="Starting", name={"Crystallize"}, color={"Blue"}, action={"Special"}},
-			["9757c5"]={cardType="Starting", name={"March"}, color={"Green"}, action={"Move"}},
-			["9757c4"]={cardType="Starting", name={"March"}, color={"Green"}, action={"Move"}},
-			["450587"]={cardType="Starting", name={"Tranquility"}, color={"Green"}, action={"Heal"}},
-			["450588"]={cardType="Starting", name={"Concentration"}, color={"Green"}, action={"Special"}},
-			["2f1c82"]={cardType="Starting", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
+			["046151"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
+			["046152"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
+			["b9e886"]={cardType="Starting", resourceKey="determination", name={"Determination"}, color={"Blue"}, action={"Combat"}},
+			["450591"]={cardType="Starting", resourceTracked=false, name={"Crystallize"}, color={"Blue"}, action={"Special"}},
+			["9757c5"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
+			["9757c4"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
+			["450587"]={cardType="Starting", resourceKey="tranquility", name={"Tranquility"}, color={"Green"}, action={"Heal"}},
+			["450588"]={cardType="Starting", resourceKey="concentration", name={"Concentration"}, color={"Green"}, action={"Special"}},
+			["2f1c82"]={cardType="Starting", resourceKey="swiftness", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
 			["fb1a18"]={cardType="Starting", name={"Axe Throw"}, color={"White"}, action={"Move", "Combat"}},
-			["450590"]={cardType="Starting", name={"Mana Draw"}, color={"White"}, action={"Special"}},
-			["450589"]={cardType="Starting", name={"Promise"}, color={"White"}, action={"Influence"}},
-			["450593"]={cardType="Starting", name={"Improvisation"}, color={"Red"}, action={"Influence"}},
-			["450592"]={cardType="Starting", name={"Threaten"}, color={"Red"}, action={"Influence", "Heal"}},
-			["52ef11"]={cardType="Starting", name={"Rage"}, color={"Red"}, action={"Combat"}},
+			["450590"]={cardType="Starting", resourceTracked=false, name={"Mana Draw"}, color={"White"}, action={"Special"}},
+			["450589"]={cardType="Starting", resourceKey="promise", name={"Promise"}, color={"White"}, action={"Influence"}},
+			["450593"]={cardType="Starting", resourceKey="improvisation", name={"Improvisation"}, color={"Red"}, action={"Influence"}},
+			["450592"]={cardType="Starting", resourceKey="threaten", name={"Threaten"}, color={"Red"}, action={"Influence", "Heal"}},
+			["52ef11"]={cardType="Starting", resourceKey="rage", name={"Rage"}, color={"Red"}, action={"Combat"}},
 			["49f6ed"]={cardType="Starting", name={"Battle Rage"}, color={"Red"}, action={"Combat"}},
 			--Mevok Starting Cards
-			["3cfeb6"]={cardType="Starting", name={"Stamina"}, color={"Blue"}, action={"Move"}},
-			["98441e"]={cardType="Starting", name={"Stamina"}, color={"Blue"}, action={"Move"}},
-			["bfc394"]={cardType="Starting", name={"Determination"}, color={"Blue"}, action={"Combat"}},
-			["71a74a"]={cardType="Starting", name={"Crystallize"}, color={"Blue"}, action={"Special"}},
-			["29fa1e"]={cardType="Starting", name={"March"}, color={"Green"}, action={"Move"}},
-			["92aed4"]={cardType="Starting", name={"March"}, color={"Green"}, action={"Move"}},
-			["dea60c"]={cardType="Starting", name={"Tranquility"}, color={"Green"}, action={"Heal"}},
-			["9a67a9"]={cardType="Starting", name={"Concentration"}, color={"Green"}, action={"Special"}},
-			["2c15ec"]={cardType="Starting", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
-			["0cdfcd"]={cardType="Starting", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
-			["d619c6"]={cardType="Starting", name={"Mana Draw"}, color={"White"}, action={"Special"}},
+			["3cfeb6"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
+			["98441e"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
+			["bfc394"]={cardType="Starting", resourceKey="determination", name={"Determination"}, color={"Blue"}, action={"Combat"}},
+			["71a74a"]={cardType="Starting", resourceTracked=false, name={"Crystallize"}, color={"Blue"}, action={"Special"}},
+			["29fa1e"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
+			["92aed4"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
+			["dea60c"]={cardType="Starting", resourceKey="tranquility", name={"Tranquility"}, color={"Green"}, action={"Heal"}},
+			["9a67a9"]={cardType="Starting", resourceKey="concentration", name={"Concentration"}, color={"Green"}, action={"Special"}},
+			["2c15ec"]={cardType="Starting", resourceKey="swiftness", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
+			["0cdfcd"]={cardType="Starting", resourceKey="swiftness", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
+			["d619c6"]={cardType="Starting", resourceTracked=false, name={"Mana Draw"}, color={"White"}, action={"Special"}},
 			["585526"]={cardType="Starting", name={"Infamous  Reprisals"}, color={"White"}, action={"Influence", "Combat"}},
-			["c4ea63"]={cardType="Starting", name={"Improvisation"}, color={"Red"}, action={"Influence"}},
-			["4a2863"]={cardType="Starting", name={"Threaten"}, color={"Red"}, action={"Influence", "Heal"}},
-			["1c58fe"]={cardType="Starting", name={"Rage"}, color={"Red"}, action={"Combat"}},
+			["c4ea63"]={cardType="Starting", resourceKey="improvisation", name={"Improvisation"}, color={"Red"}, action={"Influence"}},
+			["4a2863"]={cardType="Starting", resourceKey="threaten", name={"Threaten"}, color={"Red"}, action={"Influence", "Heal"}},
+			["1c58fe"]={cardType="Starting", resourceKey="rage", name={"Rage"}, color={"Red"}, action={"Combat"}},
 			["ba5561"]={cardType="Starting", name={"Undead Horde"}, color={"Red"}, action={"Combat"}},
 			--Duscenia Starting Cards
-			["63076d"]={cardType="Starting", name={"Stamina"}, color={"Blue"}, action={"Move"}},
+			["63076d"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
 			["40422e"]={cardType="Starting", name={"Hidden River"}, color={"Blue"}, action={"Move"}},
-			["187cd2"]={cardType="Starting", name={"Determination"}, color={"Blue"}, action={"Combat"}},
-			["c48176"]={cardType="Starting", name={"Crystallize"}, color={"Blue"}, action={"Special"}},
-			["4c5881"]={cardType="Starting", name={"March"}, color={"Green"}, action={"Move"}},
-			["d890d8"]={cardType="Starting", name={"March"}, color={"Green"}, action={"Move"}},
+			["187cd2"]={cardType="Starting", resourceKey="determination", name={"Determination"}, color={"Blue"}, action={"Combat"}},
+			["c48176"]={cardType="Starting", resourceTracked=false, name={"Crystallize"}, color={"Blue"}, action={"Special"}},
+			["4c5881"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
+			["d890d8"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
 			["1a5a80"]={cardType="Starting", name={"Regeneration"}, color={"Green"}, action={"Heal", "Special"}},
-			["124af4"]={cardType="Starting", name={"Concentration"}, color={"Green"}, action={"Special"}},
-			["d90f22"]={cardType="Starting", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
-			["64b818"]={cardType="Starting", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
-			["bbd990"]={cardType="Starting", name={"Mana Draw"}, color={"White"}, action={"Special"}},
-			["42adeb"]={cardType="Starting", name={"Promise"}, color={"White"}, action={"Influence"}},
-			["690015"]={cardType="Starting", name={"Improvisation"}, color={"Red"}, action={"Influence"}},
-			["5c9d35"]={cardType="Starting", name={"Threaten"}, color={"Red"}, action={"Influence", "Heal"}},
-			["731725"]={cardType="Starting", name={"Rage"}, color={"Red"}, action={"Combat"}},
-			["78d7fc"]={cardType="Starting", name={"Rage"}, color={"Red"}, action={"Combat"}},
+			["124af4"]={cardType="Starting", resourceKey="concentration", name={"Concentration"}, color={"Green"}, action={"Special"}},
+			["d90f22"]={cardType="Starting", resourceKey="swiftness", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
+			["64b818"]={cardType="Starting", resourceKey="swiftness", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
+			["bbd990"]={cardType="Starting", resourceTracked=false, name={"Mana Draw"}, color={"White"}, action={"Special"}},
+			["42adeb"]={cardType="Starting", resourceKey="promise", name={"Promise"}, color={"White"}, action={"Influence"}},
+			["690015"]={cardType="Starting", resourceKey="improvisation", name={"Improvisation"}, color={"Red"}, action={"Influence"}},
+			["5c9d35"]={cardType="Starting", resourceKey="threaten", name={"Threaten"}, color={"Red"}, action={"Influence", "Heal"}},
+			["731725"]={cardType="Starting", resourceKey="rage", name={"Rage"}, color={"Red"}, action={"Combat"}},
+			["78d7fc"]={cardType="Starting", resourceKey="rage", name={"Rage"}, color={"Red"}, action={"Combat"}},
 			--Jormund Starting Cards
-			["ebe997"]={cardType="Starting", name={"Stamina"}, color={"Blue"}, action={"Move"}},
-			["886c99"]={cardType="Starting", name={"Stamina"}, color={"Blue"}, action={"Move"}},
-			["e7c959"]={cardType="Starting", name={"Determination"}, color={"Blue"}, action={"Combat"}},
-			["672275"]={cardType="Starting", name={"Crystallize"}, color={"Blue"}, action={"Special"}},
-			["3bfdc5"]={cardType="Starting", name={"March"}, color={"Green"}, action={"Move"}},
-			["0781fb"]={cardType="Starting", name={"March"}, color={"Green"}, action={"Move"}},
-			["f445fc"]={cardType="Starting", name={"Tranquility"}, color={"Green"}, action={"Heal"}},
-			["3e5391"]={cardType="Starting", name={"Concentration"}, color={"Green"}, action={"Special"}},
-			["d04de4"]={cardType="Starting", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
+			["ebe997"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
+			["886c99"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
+			["e7c959"]={cardType="Starting", resourceKey="determination", name={"Determination"}, color={"Blue"}, action={"Combat"}},
+			["672275"]={cardType="Starting", resourceTracked=false, name={"Crystallize"}, color={"Blue"}, action={"Special"}},
+			["3bfdc5"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
+			["0781fb"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
+			["f445fc"]={cardType="Starting", resourceKey="tranquility", name={"Tranquility"}, color={"Green"}, action={"Heal"}},
+			["3e5391"]={cardType="Starting", resourceKey="concentration", name={"Concentration"}, color={"Green"}, action={"Special"}},
+			["d04de4"]={cardType="Starting", resourceKey="swiftness", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
 			["ea7c3e"]={cardType="Starting", name={"Transmutation"}, color={"White"}, action={"Move", "Combat", "Special"}},
-			["1fa66d"]={cardType="Starting", name={"Mana Draw"}, color={"White"}, action={"Special"}},
-			["c93fe4"]={cardType="Starting", name={"Promise"}, color={"White"}, action={"Influence"}},
-			["8e2b85"]={cardType="Starting", name={"Improvisation"}, color={"Red"}, action={"Influence"}},
-			["9f20b7"]={cardType="Starting", name={"Threaten"}, color={"Red"}, action={"Influence", "Heal"}},
-			["43397d"]={cardType="Starting", name={"Rage"}, color={"Red"}, action={"Combat"}},
+			["1fa66d"]={cardType="Starting", resourceTracked=false, name={"Mana Draw"}, color={"White"}, action={"Special"}},
+			["c93fe4"]={cardType="Starting", resourceKey="promise", name={"Promise"}, color={"White"}, action={"Influence"}},
+			["8e2b85"]={cardType="Starting", resourceKey="improvisation", name={"Improvisation"}, color={"Red"}, action={"Influence"}},
+			["9f20b7"]={cardType="Starting", resourceKey="threaten", name={"Threaten"}, color={"Red"}, action={"Influence", "Heal"}},
+			["43397d"]={cardType="Starting", resourceKey="rage", name={"Rage"}, color={"Red"}, action={"Combat"}},
 			["f995d8"]={cardType="Starting", name={"Resilience"}, color={"Red"}, action={"Combat", "Heal"}},
 			--Malek Starting Cards
-			["737552"]={cardType="Starting", name={"Stamina"}, color={"Blue"}, action={"Move"}},
-			["5a6a71"]={cardType="Starting", name={"Stamina"}, color={"Blue"}, action={"Move"}},
-			["e50918"]={cardType="Starting", name={"Determination"}, color={"Blue"}, action={"Combat"}},
-			["44d4b8"]={cardType="Starting", name={"Crystallize"}, color={"Blue"}, action={"Special"}},
-			["2df5b2"]={cardType="Starting", name={"March"}, color={"Green"}, action={"Move"}},
-			["d7d07f"]={cardType="Starting", name={"March"}, color={"Green"}, action={"Move"}},
-			["3efd04"]={cardType="Starting", name={"Tranquility"}, color={"Green"}, action={"Heal"}},
-			["e77fa9"]={cardType="Starting", name={"Concentration"}, color={"Green"}, action={"Special"}},
-			["0827ed"]={cardType="Starting", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
-			["af9a0c"]={cardType="Starting", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
-			["fa2593"]={cardType="Starting", name={"Mana Draw"}, color={"White"}, action={"Special"}},
+			["737552"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
+			["5a6a71"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
+			["e50918"]={cardType="Starting", resourceKey="determination", name={"Determination"}, color={"Blue"}, action={"Combat"}},
+			["44d4b8"]={cardType="Starting", resourceTracked=false, name={"Crystallize"}, color={"Blue"}, action={"Special"}},
+			["2df5b2"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
+			["d7d07f"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
+			["3efd04"]={cardType="Starting", resourceKey="tranquility", name={"Tranquility"}, color={"Green"}, action={"Heal"}},
+			["e77fa9"]={cardType="Starting", resourceKey="concentration", name={"Concentration"}, color={"Green"}, action={"Special"}},
+			["0827ed"]={cardType="Starting", resourceKey="swiftness", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
+			["af9a0c"]={cardType="Starting", resourceKey="swiftness", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
+			["fa2593"]={cardType="Starting", resourceTracked=false, name={"Mana Draw"}, color={"White"}, action={"Special"}},
 			["aaa94f"]={cardType="Starting", name={"Bounty Hunter"}, color={"White","Red"}, action={"Influence", "Special"}},
-			["02eb43"]={cardType="Starting", name={"Improvisation"}, color={"Red"}, action={"Influence"}},
-			["f8262c"]={cardType="Starting", name={"Threaten"}, color={"Red"}, action={"Influence", "Heal"}},
-			["3ee33e"]={cardType="Starting", name={"Rage"}, color={"Red"}, action={"Combat"}},
+			["02eb43"]={cardType="Starting", resourceKey="improvisation", name={"Improvisation"}, color={"Red"}, action={"Influence"}},
+			["f8262c"]={cardType="Starting", resourceKey="threaten", name={"Threaten"}, color={"Red"}, action={"Influence", "Heal"}},
+			["3ee33e"]={cardType="Starting", resourceKey="rage", name={"Rage"}, color={"Red"}, action={"Combat"}},
 			["610579"]={cardType="Starting", name={"Elemental Bullets"}, color={"Red","Blue"}, action={"Combat"}},
 			--Zirtae Starting Cards
-			["33779c"]={cardType="Starting", name={"Stamina"}, color={"Blue"}, action={"Move"}},
-			["d9d900"]={cardType="Starting", name={"Stamina"}, color={"Blue"}, action={"Move"}},
+			["33779c"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
+			["d9d900"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
 			["a2a7ad"]={cardType="Starting", name={"Spear Glare"}, color={"Blue"}, action={"Combat"}},
-			["f674fa"]={cardType="Starting", name={"Crystallize"}, color={"Blue"}, action={"Special"}},
-			["316f4f"]={cardType="Starting", name={"March"}, color={"Green"}, action={"Move"}},
-			["74b3c0"]={cardType="Starting", name={"March"}, color={"Green"}, action={"Move"}},
-			["c5e13c"]={cardType="Starting", name={"Tranquility"}, color={"Green"}, action={"Heal"}},
-			["8ec305"]={cardType="Starting", name={"Concentration"}, color={"Green"}, action={"Special"}},
-			["b2a7b3"]={cardType="Starting", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
-			["41006a"]={cardType="Starting", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
-			["4ab0fd"]={cardType="Starting", name={"Mana Draw"}, color={"White"}, action={"Special"}},
-			["c31390"]={cardType="Starting", name={"Promise"}, color={"White"}, action={"Influence"}},
-			["d9ed5d"]={cardType="Starting", name={"Improvisation"}, color={"Red"}, action={"Influence"}},
-			["35cd32"]={cardType="Starting", name={"Threaten"}, color={"Red"}, action={"Influence", "Heal"}},
-			["de8c0f"]={cardType="Starting", name={"Rage"}, color={"Red"}, action={"Combat"}},
+			["f674fa"]={cardType="Starting", resourceTracked=false, name={"Crystallize"}, color={"Blue"}, action={"Special"}},
+			["316f4f"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
+			["74b3c0"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
+			["c5e13c"]={cardType="Starting", resourceKey="tranquility", name={"Tranquility"}, color={"Green"}, action={"Heal"}},
+			["8ec305"]={cardType="Starting", resourceKey="concentration", name={"Concentration"}, color={"Green"}, action={"Special"}},
+			["b2a7b3"]={cardType="Starting", resourceKey="swiftness", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
+			["41006a"]={cardType="Starting", resourceKey="swiftness", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
+			["4ab0fd"]={cardType="Starting", resourceTracked=false, name={"Mana Draw"}, color={"White"}, action={"Special"}},
+			["c31390"]={cardType="Starting", resourceKey="promise", name={"Promise"}, color={"White"}, action={"Influence"}},
+			["d9ed5d"]={cardType="Starting", resourceKey="improvisation", name={"Improvisation"}, color={"Red"}, action={"Influence"}},
+			["35cd32"]={cardType="Starting", resourceKey="threaten", name={"Threaten"}, color={"Red"}, action={"Influence", "Heal"}},
+			["de8c0f"]={cardType="Starting", resourceKey="rage", name={"Rage"}, color={"Red"}, action={"Combat"}},
 			["b1e132"]={cardType="Starting", name={"Deadly Precision"}, color={"Red"}, action={"Combat"}},
 			--Rise of the Forgemasters replacement starter cards
-			["d339f6"]={cardType="Starting", name={"Concentration"}, color={"Green"}, action={"Special"}},
-			["0b071b"]={cardType="Starting", name={"Concentration"}, color={"Green"}, action={"Special"}},
-			["4db67c"]={cardType="Starting", name={"Concentration"}, color={"Green"}, action={"Special"}},
-			["0f7f81"]={cardType="Starting", name={"Concentration"}, color={"Green"}, action={"Special"}},
-			["66fcf4"]={cardType="Starting", name={"Concentration"}, color={"Green"}, action={"Special"}},
-			["911ddb"]={cardType="Starting", name={"Will Focus"}, color={"Green"}, action={"Special"}},
-			["e8747d"]={cardType="Starting", name={"Savage Harvesting"}, color={"Green"}, action={"Move", "Special"}},
+			["d339f6"]={cardType="Starting", resourceKey="concentration", name={"Concentration"}, color={"Green"}, action={"Special"}},
+			["0b071b"]={cardType="Starting", resourceKey="concentration", name={"Concentration"}, color={"Green"}, action={"Special"}},
+			["4db67c"]={cardType="Starting", resourceKey="concentration", name={"Concentration"}, color={"Green"}, action={"Special"}},
+			["0f7f81"]={cardType="Starting", resourceKey="concentration", name={"Concentration"}, color={"Green"}, action={"Special"}},
+			["66fcf4"]={cardType="Starting", resourceKey="concentration", name={"Concentration"}, color={"Green"}, action={"Special"}},
+			["911ddb"]={cardType="Starting", resourceKey="willFocus", name={"Will Focus"}, color={"Green"}, action={"Special"}},
+			["e8747d"]={cardType="Starting", resourceKey="savageHarvesting", name={"Savage Harvesting"}, color={"Green"}, action={"Move", "Special"}},
 			--Volkare Starting Cards
-			["046154"]={cardType="Starting", name={"Stamina"}, color={"Blue"}, action={"Move"}},
-			["046155"]={cardType="Starting", name={"Stamina"}, color={"Blue"}, action={"Move"}},
-			["b9e888"]={cardType="Starting", name={"Determination"}, color={"Blue"}, action={"Combat"}},
-			["450604"]={cardType="Starting", name={"Crystallize"}, color={"Blue"}, action={"Special"}},
-			["9757b1"]={cardType="Starting", name={"March"}, color={"Green"}, action={"Move"}},
-			["9757b2"]={cardType="Starting", name={"March"}, color={"Green"}, action={"Move"}},
-			["450601"]={cardType="Starting", name={"Tranquility"}, color={"Green"}, action={"Heal"}},
-			["26a225"]={cardType="Starting", name={"Concentration"}, color={"Green"}, action={"Special"}},
-			["2f1c84"]={cardType="Starting", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
-			["2f1c85"]={cardType="Starting", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
-			["450603"]={cardType="Starting", name={"Mana Draw"}, color={"White"}, action={"Special"}},
-			["450602"]={cardType="Starting", name={"Promise"}, color={"White"}, action={"Influence"}},
-			["450610"]={cardType="Starting", name={"Improvisation"}, color={"Red"}, action={"Influence"}},
-			["450606"]={cardType="Starting", name={"Threaten"}, color={"Red"}, action={"Influence", "Heal"}},
-			["52ef15"]={cardType="Starting", name={"Rage"}, color={"Red"}, action={"Combat"}},
-			["52ef14"]={cardType="Starting", name={"Rage"}, color={"Red"}, action={"Combat"}},
+			["046154"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
+			["046155"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
+			["b9e888"]={cardType="Starting", resourceKey="determination", name={"Determination"}, color={"Blue"}, action={"Combat"}},
+			["450604"]={cardType="Starting", resourceTracked=false, name={"Crystallize"}, color={"Blue"}, action={"Special"}},
+			["9757b1"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
+			["9757b2"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
+			["450601"]={cardType="Starting", resourceKey="tranquility", name={"Tranquility"}, color={"Green"}, action={"Heal"}},
+			["26a225"]={cardType="Starting", resourceKey="concentration", name={"Concentration"}, color={"Green"}, action={"Special"}},
+			["2f1c84"]={cardType="Starting", resourceKey="swiftness", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
+			["2f1c85"]={cardType="Starting", resourceKey="swiftness", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
+			["450603"]={cardType="Starting", resourceTracked=false, name={"Mana Draw"}, color={"White"}, action={"Special"}},
+			["450602"]={cardType="Starting", resourceKey="promise", name={"Promise"}, color={"White"}, action={"Influence"}},
+			["450610"]={cardType="Starting", resourceKey="improvisation", name={"Improvisation"}, color={"Red"}, action={"Influence"}},
+			["450606"]={cardType="Starting", resourceKey="threaten", name={"Threaten"}, color={"Red"}, action={"Influence", "Heal"}},
+			["52ef15"]={cardType="Starting", resourceKey="rage", name={"Rage"}, color={"Red"}, action={"Combat"}},
+			["52ef14"]={cardType="Starting", resourceKey="rage", name={"Rage"}, color={"Red"}, action={"Combat"}},
 			["2eb8f1"]={cardType="Spell", name={"Mana Claim", "Mana Curse"}, color={"Blue"}, action={"Special"}},
 			["2eb8f0"]={cardType="Spell", name={"Energy Flow", "Energy Steal"}, color={"Green"}, action={"Heal"}},
 			["2eb8f2"]={cardType="Spell", name={"Mind Read", "Mind Steal"}, color={"White"}, action={"Special"}},
 			["8907d1"]={cardType="Spell", name={"Mana Meltdown", "Mana Radiance"}, color={"Red"}, action={"Special"}},
-			["878d85"]={cardType="Advanced Action", name={"Ice Shield"}, 		color={"Blue"}, 		action={"Combat"}},
-			["878d87"]={cardType="Advanced Action", name={"Frost Bridge"}, 		color={"Blue"}, 		action={"Move"}},
+			["878d85"]={cardType="Advanced Action", resourceKey="iceShield", name={"Ice Shield"}, 		color={"Blue"}, 		action={"Combat"}},
+			["878d87"]={cardType="Advanced Action", resourceKey="frostBridge", name={"Frost Bridge"}, 		color={"Blue"}, 		action={"Move"}},
 			["878d89"]={cardType="Advanced Action", name={"Pure Magic"}, 		color={"Blue"}, 		action={"Move", "Combat", "Influence"}},
-			["878d81"]={cardType="Advanced Action", name={"Ice Bolt"}, 			color={"Blue"}, 		action={"Combat", "Special"}},
+			["878d81"]={cardType="Advanced Action", resourceKey="iceBolt", name={"Ice Bolt"}, 			color={"Blue"}, 		action={"Combat", "Special"}},
 			["87bc59"]={cardType="Advanced Action", name={"Spell Forge"}, 		color={"Blue"}, 		action={"Special"}},
 			["878d94"]={cardType="Advanced Action", name={"Temporal Portal"},	color={"Blue"}, 		action={"Action"}},
-			["878d93"]={cardType="Advanced Action", name={"Shield Bash"}, 		color={"Blue"}, 		action={"Combat"}},
-			["1f362f"]={cardType="Advanced Action", name={"Steady Tempo"}, 		color={"Blue"}, 		action={"Move"}},
+			["878d93"]={cardType="Advanced Action", resourceKey="shieldBash", name={"Shield Bash"}, 		color={"Blue"}, 		action={"Combat"}},
+			["1f362f"]={cardType="Advanced Action", resourceKey="steadyTempo", name={"Steady Tempo"}, 		color={"Blue"}, 		action={"Move"}},
 			["885b96"]={cardType="Advanced Action", name={"Crystal Mastery"},	color={"Blue"}, 		action={"Special"}},
 			["3d832c"]={cardType="Advanced Action", name={"Magic Talent"}, 		color={"Blue"}, 		action={"Special"}},
-			["878d91"]={cardType="Advanced Action", name={"Regeneration"}, 		color={"Green"}, 		action={"Heal"}},
-			["00c614"]={cardType="Advanced Action", name={"Path Finding"}, 		color={"Green"}, 		action={"Move"}},
-			["878d83"]={cardType="Advanced Action", name={"Crushing Bolt"}, 	color={"Green"}, 		action={"Combat", "Special"}},
-			["33bc9b"]={cardType="Advanced Action", name={"Refreshing Walk"},	color={"Green"}, 		action={"Move", "Heal"}},
-			["474418"]={cardType="Advanced Action", name={"Force of Nature"},	color={"Green"}, 		action={"Combat"}},
-			["54b5c4"]={cardType="Advanced Action", name={"Stout Resolve"}, 	color={"Green"}, 		action={"Move", "Combat", "Influence"}},
-			["d3995b"]={cardType="Advanced Action", name={"Mountain Lore"}, 	color={"Green"}, 		action={"Move"}},
+			["878d91"]={cardType="Advanced Action", resourceKey="regeneration", name={"Regeneration"}, 		color={"Green"}, 		action={"Heal"}},
+			["00c614"]={cardType="Advanced Action", resourceKey="pathFinding", name={"Path Finding"}, 		color={"Green"}, 		action={"Move"}},
+			["878d83"]={cardType="Advanced Action", resourceKey="crushingBolt", name={"Crushing Bolt"}, 	color={"Green"}, 		action={"Combat", "Special"}},
+			["33bc9b"]={cardType="Advanced Action", resourceKey="refreshingWalk", name={"Refreshing Walk"},	color={"Green"}, 		action={"Move", "Heal"}},
+			["474418"]={cardType="Advanced Action", resourceKey="forceOfNature", name={"Force of Nature"},	color={"Green"}, 		action={"Combat"}},
+			["54b5c4"]={cardType="Advanced Action", resourceKey="stoutResolve", name={"Stout Resolve"}, 	color={"Green"}, 		action={"Move", "Combat", "Influence"}},
+			["d3995b"]={cardType="Advanced Action", resourceKey="mountainLore", name={"Mountain Lore"}, 	color={"Green"}, 		action={"Move"}},
 			["6fdeb0"]={cardType="Advanced Action", name={"Training"},			color={"Green"}, 		action={"Special"}},
-			["c3153e"]={cardType="Advanced Action", name={"In Need"}, 			color={"Green"}, 		action={"Influence"}},
-			["20cb85"]={cardType="Advanced Action", name={"Ambush"}, 			color={"Green"}, 		action={"Move"}},--I want to add combat
-			["878d88"]={cardType="Advanced Action", name={"Song of Wind"}, 		color={"White"}, 		action={"Move"}},
-			["8c3de6"]={cardType="Advanced Action", name={"Diplomacy"}, 		color={"White"}, 		action={"Combat", "Influence"}},
-			["878d82"]={cardType="Advanced Action", name={"Swift Bolt"}, 		color={"White"}, 		action={"Combat", "Special"}},
-			["878d90"]={cardType="Advanced Action", name={"Heroic Tale"}, 		color={"White"}, 		action={"Influence"}},
-			["8122c2"]={cardType="Advanced Action", name={"Peaceful Moment"},	color={"White"}, 		action={"Action", "Influence"}},
+			["c3153e"]={cardType="Advanced Action", resourceKey="inNeed", name={"In Need"}, 			color={"Green"}, 		action={"Influence"}},
+			["20cb85"]={cardType="Advanced Action", resourceKey="ambush", name={"Ambush"}, 			color={"Green"}, 		action={"Move"}},--I want to add combat
+			["878d88"]={cardType="Advanced Action", resourceKey="songOfWind", name={"Song of Wind"}, 		color={"White"}, 		action={"Move"}},
+			["8c3de6"]={cardType="Advanced Action", resourceKey="diplomacy", name={"Diplomacy"}, 		color={"White"}, 		action={"Combat", "Influence"}},
+			["878d82"]={cardType="Advanced Action", resourceKey="swiftBolt", name={"Swift Bolt"}, 		color={"White"}, 		action={"Combat", "Special"}},
+			["878d90"]={cardType="Advanced Action", resourceKey="heroicTale", name={"Heroic Tale"}, 		color={"White"}, 		action={"Influence"}},
+			["8122c2"]={cardType="Advanced Action", resourceKey="peacefulMoment", name={"Peaceful Moment"},	color={"White"}, 		action={"Action", "Influence"}},
 			["9de475"]={cardType="Advanced Action", name={"Dodge and Weave"},	color={"White"}, 		action={"Combat"}},
-			["42eb53"]={cardType="Advanced Action", name={"Chivalry"},	 		color={"White"}, 		action={"Combat"}},
-			["35aee6"]={cardType="Advanced Action", name={"Learning"},			color={"White"}, 		action={"Special", "Influence"}},
-			["e2b570"]={cardType="Advanced Action", name={"Mana Storm"},		color={"White"}, 		action={"Special"}},
-			["878d92"]={cardType="Advanced Action", name={"Agility"},	 		color={"White"}, 		action={"Move", "Combat"}},
+			["42eb53"]={cardType="Advanced Action", resourceKey="chivalry", name={"Chivalry"},	 		color={"White"}, 		action={"Combat"}},
+			["35aee6"]={cardType="Advanced Action", resourceKey="learning", name={"Learning"},			color={"White"}, 		action={"Special", "Influence"}},
+			["e2b570"]={cardType="Advanced Action", resourceTracked=false, name={"Mana Storm"},		color={"White"}, 		action={"Special"}},
+			["878d92"]={cardType="Advanced Action", resourceKey="agility", name={"Agility"},	 		color={"White"}, 		action={"Move", "Combat"}},
 			["8eccb3"]={cardType="Advanced Action", name={"Blood Ritual"}, 		color={"Red"}, 			action={"Special"}},
-			["878d86"]={cardType="Advanced Action", name={"Intimidate"}, 		color={"Red"}, 			action={"Combat", "Influence"}},
-			["878d80"]={cardType="Advanced Action", name={"Fire Bolt"},	 		color={"Red"}, 			action={"Combat", "Special"}},
-			["878d84"]={cardType="Advanced Action", name={"Blood Rage"}, 		color={"Red"}, 			action={"Combat"}},
+			["878d86"]={cardType="Advanced Action", resourceKey="intimidate", name={"Intimidate"}, 		color={"Red"}, 			action={"Combat", "Influence"}},
+			["878d80"]={cardType="Advanced Action", resourceKey="fireBolt", name={"Fire Bolt"},	 		color={"Red"}, 			action={"Combat", "Special"}},
+			["878d84"]={cardType="Advanced Action", resourceKey="bloodRage", name={"Blood Rage"}, 		color={"Red"}, 			action={"Combat"}},
 			["05ef61"]={cardType="Advanced Action", name={"Ritual Attack"}, 	color={"Red"}, 			action={"Combat"}},
 			["93b7d4"]={cardType="Advanced Action", name={"Blood of Ancients"},	color={"Red"}, 			action={"Special"}},
-			["65a1d5"]={cardType="Advanced Action", name={"Counterattack"}, 	color={"Red"}, 			action={"Combat"}},
+			["65a1d5"]={cardType="Advanced Action", resourceKey="counterattack", name={"Counterattack"}, 	color={"Red"}, 			action={"Combat"}},
 			["8fac50"]={cardType="Advanced Action", name={"Maximal Effect"}, 	color={"Red"}, 			action={"Special"}},
 			["bb05a9"]={cardType="Advanced Action", name={"Into the Heat"},		color={"Red"}, 			action={"Combat"}},
 			["d74999"]={cardType="Advanced Action", name={"Decompose"}, 		color={"Red"}, 			action={"Special"}},
-			["1a1c02"]={cardType="Advanced Action", name={"Explosive Bolt"}, 	color={"White","Red"}, 	action={"Combat"}},
-			["409fe8"]={cardType="Advanced Action", name={"Chilling Stare"}, 	color={"Blue","White"},	action={"Combat", "Influence"}},
+			["1a1c02"]={cardType="Advanced Action", resourceKey="explosiveBolt", name={"Explosive Bolt"}, 	color={"White","Red"}, 	action={"Combat"}},
+			["409fe8"]={cardType="Advanced Action", resourceKey="chillingStare", name={"Chilling Stare"}, 	color={"Blue","White"},	action={"Combat", "Influence"}},
 			["d75285"]={cardType="Advanced Action", name={"Rush of Adrenaline"},color={"Red","Green"}, 	action={"Special"}},
 			["141527"]={cardType="Advanced Action", name={"Power of Crystals"}, color={"Green","Blue"},	action={"Special", "Move", "Heal"}},
-			["56adc8"]={cardType="Advanced Action", name={"Explosive Bolt"}, 	color={"White","Red"}, 	action={"Combat"}},--Rise of the Forgemaster Start
-			["eb128d"]={cardType="Advanced Action", name={"Chilling Stare"}, 	color={"Blue","White"}, action={"Combat", "Influence"}},
+			["56adc8"]={cardType="Advanced Action", resourceKey="explosiveBolt", name={"Explosive Bolt"}, 	color={"White","Red"}, 	action={"Combat"}},--Rise of the Forgemaster Start
+			["eb128d"]={cardType="Advanced Action", resourceKey="chillingStare", name={"Chilling Stare"}, 	color={"Blue","White"}, action={"Combat", "Influence"}},
 			["69fe48"]={cardType="Advanced Action", name={"Rush of Adrenaline"},color={"Red","Green"}, 	action={"Special", "Combat"}},
 			["121737"]={cardType="Advanced Action", name={"Power of Crystals"}, color={"Green","Blue"}, action={"Special", "Move", "Heal"}},
 			["2dcd89"]={cardType="Advanced Action", name={"Counter Attack"},	color={"Red"}, 			action={"Combat"}},
@@ -50136,9 +51851,9 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["2de429"]={cardType="Advanced Action", name={"Raving Prophecies"},	color={"Red"}, 			action={"Special", "Influence"}},
 			["96f56b"]={cardType="Advanced Action", name={"Flame Forge"}, 		color={"Red"}, 			action={"Special"}},
 			["4808f2"]={cardType="Advanced Action", name={"Training"}, 			color={"Green"}, 		action={"Special"}},
-			["db96c1"]={cardType="Advanced Action", name={"Force of Nature"},	color={"Green"}, 		action={"Combat"}},
+			["db96c1"]={cardType="Advanced Action", resourceKey="forceOfNature", name={"Force of Nature"},	color={"Green"}, 		action={"Combat"}},
 			["48b3d2"]={cardType="Advanced Action", name={"Reconnoiter"}, 		color={"Green"}, 		action={"Move", "Heal"}},
-			["bedf00"]={cardType="Advanced Action", name={"Ambush"},	 		color={"Green"}, 		action={"Move"}},
+			["bedf00"]={cardType="Advanced Action", resourceKey="ambush", name={"Ambush"},	 		color={"Green"}, 		action={"Move"}},
 			["5af8b5"]={cardType="Advanced Action", name={"Herbalism"}, 		color={"Green"}, 		action={"Heal"}},
 			["09391c"]={cardType="Advanced Action", name={"Poison Handling"},	color={"Green"}, 		action={"Combat", "Heal"}},
 			["7f381d"]={cardType="Advanced Action", name={"Noxiousness"}, 		color={"Green"}, 		action={"Special", "Combat", "Move"}},
@@ -50147,20 +51862,20 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["b8fb4b"]={cardType="Advanced Action", name={"Earth Forge"}, 		color={"Green"}, 		action={"Special"}},
 			["3c0531"]={cardType="Advanced Action", name={"Dodge and Weave"},	color={"White"}, 		action={"Combat"}},
 			["d64923"]={cardType="Advanced Action", name={"Righteous Path"},	color={"White"}, 		action={"Combat", "Move"}},
-			["fbbad8"]={cardType="Advanced Action", name={"Learning"}, 			color={"White"}, 		action={"Special", "Influence"}},
-			["32b95a"]={cardType="Advanced Action", name={"Heroic Tale"},		color={"White"}, 		action={"Influence"}},
+			["fbbad8"]={cardType="Advanced Action", resourceKey="learning", name={"Learning"}, 			color={"White"}, 		action={"Special", "Influence"}},
+			["32b95a"]={cardType="Advanced Action", resourceKey="heroicTale", name={"Heroic Tale"},		color={"White"}, 		action={"Influence"}},
 			["e97caf"]={cardType="Advanced Action", name={"Shrewdness"}, 		color={"White"}, 		action={"Special", "Influence"}},
 			["9c73fc"]={cardType="Advanced Action", name={"Storm Forge"},		color={"White"}, 		action={"Special"}},
 			["eb8ead"]={cardType="Advanced Action", name={"Gust of Wind"},		color={"White"}, 		action={"Move"}},
 			["f08418"]={cardType="Advanced Action", name={"Feinting Flare"}, 	color={"White"}, 		action={"Special", "Combat"}},
 			["8f39d3"]={cardType="Advanced Action", name={"Disrupting Ray"},	color={"White"}, 		action={"Combat"}},
 			["cec194"]={cardType="Advanced Action", name={"Extemporization"},	color={"White"}, 		action={"Move", "Influence", "Combat"}},
-			["6e506a"]={cardType="Advanced Action", name={"Steady Tempo"},		color={"Blue"}, 		action={"Move"}},
+			["6e506a"]={cardType="Advanced Action", resourceKey="steadyTempo", name={"Steady Tempo"},		color={"Blue"}, 		action={"Move"}},
 			["1d7e33"]={cardType="Advanced Action", name={"Frost Forge"},		color={"Blue"}, 		action={"Special"}},
-			["1aaaad"]={cardType="Advanced Action", name={"Shield Bash"},		color={"Blue"}, 		action={"Combat"}},
+			["1aaaad"]={cardType="Advanced Action", resourceKey="shieldBash", name={"Shield Bash"},		color={"Blue"}, 		action={"Combat"}},
 			["c15356"]={cardType="Advanced Action", name={"Perseverance"},		color={"Blue"}, 		action={"Move", "Combat"}},
 			["5702a0"]={cardType="Advanced Action", name={"Repel Ritual"},		color={"Blue"}, 		action={"Combat"}},
-			["7ff871"]={cardType="Advanced Action", name={"Ice Shield"}, 		color={"Blue"}, 		action={"Combat"}},
+			["7ff871"]={cardType="Advanced Action", resourceKey="iceShield", name={"Ice Shield"}, 		color={"Blue"}, 		action={"Combat"}},
 			["e1a957"]={cardType="Advanced Action", name={"Magic Talent"},		color={"Blue"}, 		action={"Special"}},
 			["9f31f3"]={cardType="Advanced Action", name={"Treasure Hunt"},		color={"Blue"}, 		action={"Move"}},
 			["f935e0"]={cardType="Advanced Action", name={"Cloud of Steel"}, 	color={"Blue"}, 		action={"Special", "Combat"}},
@@ -50981,6 +52696,156 @@ skillTokens={	["1906f4"]={skillType="Turn", mage="Arythea"},				  	["33d341"]={s
 				["d9c83f"]={skillType="Round", mage="Zirtae"},				  	["68f864"]={skillType="Coop", mage="Zirtae", name="Athena's Guile"},
 				["1c413b"]={skillType="Turn", mage="Zirtae"}
 }
+
+-- Authoritative Skill GUIDs; matched to the Translation Matrix's English skill text.
+-- The tracker counts only used Skills physically placed in a Play Area.
+-- Partial effects may contribute known fixed amounts but remain yellow; Skills
+-- without a directly trackable resource are blue. Unmapped GUIDs remain yellow.
+skillResourceDefinitions={
+    ["036af1"]={untracked=true},
+    ["036e6b"]={untracked=true},
+    ["038787"]={untracked=true},
+    ["0397b5"]={choices={{block=3},{key="fire",blockFire=3},{key="ice",blockIce=3},{key="coldFire",blockColdFire=3}}},
+    ["04319a"]={untracked=true},
+    ["046187"]={day={ranged=2},night={ranged=1}},
+    ["062555"]={partial=true},
+    ["0688d8"]={untracked=true},
+    ["0951b9"]={untracked=true},
+    ["0d59f4"]={partial=true},
+    ["0db37a"]={untracked=true},
+    ["0db913"]={choices={{block=3},{key="ice",blockIce=2},{key="fire",blockFire=2}}},
+    ["0fbcfe"]={normal={attack=2},flipped={attack=4}},
+    ["107400"]={untracked=true},
+    ["122015"]={untracked=true},
+    ["14399f"]={untracked=true},
+    ["152a98"]={normal={move=1},partial=true},
+    ["171244"]={untracked=true},
+    ["1906f4"]={choices={{attack=2},{key="fire",attackFire=2}}},
+    ["19daf9"]={untracked=true},
+    ["1a78b3"]={day={ranged=1},night={ranged=2}},
+    ["1c413b"]={untracked=true},
+    ["1f6e26"]={choices={{ranged=2},{key="fire",rangedFire=2},{key="ice",rangedIce=2}}},
+    ["210835"]={normal={healing=1}},
+    ["216c1f"]={choices={{key="other"},{influence=6}},partial=true},
+    ["24855b"]={day={influence=2},night={influence=3}},
+    ["257c0c"]={unitCondition={resource="move",ready=true,unwounded=true,max=3}}, -- Forward March
+    ["2a673e"]={untracked=true},
+    ["2c74ca"]={untracked=true},
+    ["2cbfd9"]={untracked=true},
+    ["2f2ad9"]={choices={{siege=1},{key="fire",siegeFire=1}}},
+    ["31b225"]={choices={{move=1},{influence=1},{block=1},{attack=1}}},
+    ["335290"]={untracked=true},
+    ["33d341"]={linkedCard={targetKind="wound",posture="sideways",sideways={value=2}}}, -- Power of Pain
+    ["3a3f49"]={linkedCard={targetKind="card",posture="sideways",sideways={value=3,manaRequired=true,matchingManaValue=4}}}, -- Universal Power
+    ["3b3273"]={untracked=true},
+    ["3bd08e"]={untracked=true},
+    ["3d8336"]={untracked=true},
+    ["3dc067"]={untracked=true},
+    ["3f0f3b"]={day={influence=3},night={influence=2}},
+    ["3fba07"]={partial=true},
+    ["407c99"]={normal={influence=2},partial=true},
+    ["45fe78"]={untracked=true},
+    ["48fd35"]={untracked=true},
+    ["4ac9f6"]={untracked=true},
+    ["4b997c"]={day={move=1},night={move=2}},
+    ["4c6c1a"]={partial=true},
+    ["4c9273"]={choices={{attack=2},{key="ice",attackIce=2}}},
+    ["4d5351"]={untracked=true},
+    ["5049e5"]={day={move=2},night={move=1}},
+    ["527b47"]={untracked=true},
+    ["55e5e5"]={partial=true},
+    ["564392"]={linkedCard={targetKind="card",posture="sideways",sideways={value=4,perEmptyCommandSlot=1}},partial=true}, -- Howl of the Pack; follow-on combat is not tracked
+    ["590a46"]={normal={influence=1},partial=true},
+    ["5b42dc"]={partial=true},
+    ["5f61d5"]={choices={{key="other"},{healing=3}},partial=true},
+    ["6133e1"]={partial=true},
+    ["6413a1"]={choices={{key="base"},{key="sourceUnused"}},linkedCard={targetKind="card",posture="sideways",sideways={value=2,choiceValues={sourceUnused=3}}}}, -- Who Needs Magic? The +3 is player-declared.
+    ["676855"]={untracked=true},
+    ["676856"]={partial=true},
+    ["68568b"]={untracked=true},
+    ["68f864"]={untracked=true},
+    ["6a33c1"]={untracked=true},
+    ["6d7027"]={partial=true},
+    ["70c30f"]={normal={block=2},partial=true},
+    ["725de9"]={untracked=true},
+    ["755cca"]={choices={{healing=1},{key="boost",healing=2}},partial=true},
+    ["75a83d"]={untracked=true},
+    ["76da53"]={untracked=true},
+    ["79503e"]={partial=true},
+    ["7ad337"]={day={move=1},night={move=2},partial=true},
+    ["7b905d"]={normal={attackColdFire=2}},
+    ["7d1c32"]={normal={block=1,attack=1}},
+    ["7d21e6"]={partial=true},
+    ["7d5670"]={normal={move=1},partial=true},
+    ["80b843"]={choices={{block=2},{attack=2}},partial=true},
+    ["818aea"]={untracked=true},
+    ["8397f1"]={untracked=true},
+    ["84ea07"]={normal={healing=1}},
+    ["866002"]={normal={healing=2}},
+    ["8892c4"]={normal={move=1},partial=true},
+    ["893537"]={untracked=true},
+    ["8cea19"]={partial=true},
+    ["91bf3d"]={choices={{siege=1},{key="ice",siegeIce=1}}},
+    ["91c8a0"]={normal={influence=2}},
+    ["929377"]={choices={{healing=1},{key="boost",healing=2}}},
+    ["929d04"]={partial=true},
+    ["932b6a"]={normal={move=1}},
+    ["933090"]={untracked=true},
+    ["93c62e"]={partial=true},
+    ["9d866a"]={untracked=true},
+    ["9eb4c5"]={untracked=true},
+    ["9efc9b"]={untracked=true},
+    ["9f5dc0"]={partial=true},
+    ["a21a1a"]={untracked=true},
+    ["a3abbe"]={untracked=true},
+    ["a598f6"]={partial=true},
+    ["a883af"]={untracked=true},
+    ["a92d73"]={linkedCard={targetKind="card",posture="sideways",sideways={value=4,perEmptyCommandSlot=1}},partial=true}, -- Wolf's Howl; other players' penalties are not tracked
+    ["adf8ab"]={untracked=true},
+    ["ae8673"]={untracked=true},
+    ["b13d5f"]={untracked=true},
+    ["b1a698"]={untracked=true},
+    ["b2dfce"]={untracked=true},
+    ["b64ba8"]={normal={move=2}},
+    ["b66704"]={partial=true},
+    ["b6b035"]={untracked=true},
+    ["b73b21"]={untracked=true},
+    ["ba4df5"]={untracked=true},
+    ["babfbf"]={untracked=true},
+    ["bfd0c5"]={normal={influence=2},partial=true},
+    ["bfe38f"]={normal={siege=1},partial=true},
+    ["c2e5a3"]={partial=true},
+    ["c3b95f"]={untracked=true},
+    ["c4546c"]={untracked=true},
+    ["c73c8c"]={normal={attack=1},partial=true},
+    ["c82406"]={untracked=true},
+    ["c93979"]={untracked=true},
+    ["cae27e"]={untracked=true},
+    ["d013af"]={untracked=true},
+    ["d01b70"]={normal={rangedColdFire=1},partial=true},
+    ["d8824d"]={untracked=true},
+    ["d90de4"]={untracked=true},
+    ["d9c83f"]={untracked=true},
+    ["dfaee3"]={linkedCard={targetKind="card",posture="sideways",sideways={value=2,cardTypeValues={["Advanced Action"]=3,Spell=3,Artifact=3}}}}, -- I Don't Give a Damn
+    ["e31735"]={untracked=true},
+    ["e45fdf"]={untracked=true},
+    ["e68fed"]={untracked=true},
+    ["e7abd5"]={normal={move=1},partial=true},
+    ["e88483"]={choices={{key="split",rangedIce=1,rangedFire=1},{ranged=2}}},
+    ["ebbbfc"]={untracked=true},
+    ["eeb395"]={partial=true},
+    ["eec431"]={normal={healing=2}},
+    ["f36762"]={normal={move=1},partial=true},
+    ["f50f77"]={untracked=true},
+    ["f8292e"]={normal={healing=1}},
+    ["f8ba0b"]={partial=true},
+    ["f8edb4"]={choices={{influence=2},{key="negative",influence=4}}},
+    ["f96fd9"]={normal={healing=1}},
+    ["fc7930"]={partial=true},
+    ["fe29ca"]={manaConversion={mode="opposite"}}, -- Polarization
+    ["fe65de"]={untracked=true}
+}
+
 
 tacticClaimingZones={["9e319e"]="tactic1", ["32172f"]="tactic2", ["bc2046"]="tactic3", ["8363fc"]="tactic4", ["01ac7e"]="tactic5", ["582d2b"]="tactic6"}--Tactic Zones
 
