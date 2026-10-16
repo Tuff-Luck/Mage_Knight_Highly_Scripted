@@ -2319,6 +2319,8 @@ function resourceTracker(player, mouseButton, id)
 	end
 end
 
+local RESOURCE_TRACKER_ZERO_TEXT_COLOR="#555555" -- Adjust this shade to tune empty-resource contrast.
+
 function refreshResourceTrackerText()
     if gStates.resourceTracker==nil or gStates.moveCost==nil then return end
     local resourceTotal={siege=0, ranged=0, block=0, attack=0, influence=0}
@@ -2334,7 +2336,7 @@ function refreshResourceTrackerText()
         UI.setAttribute(fieldId.."Text","text",joinLang({spec[3],value}))
         -- Dim empty resource rows, including the Move, Healing and expanded
         -- breakdown fields; restore normal contrast when a total is nonzero.
-        UI.setAttribute(fieldId.."Text","color",value==0 and "#666666" or "Black")
+        UI.setAttribute(fieldId.."Text","color",value==0 and RESOURCE_TRACKER_ZERO_TEXT_COLOR or "Black")
     end
     for fieldId, spec in pairs(MOVE_COST_FIELDS) do
 		local value=resourceCardsEffectiveTerrainCost(spec[1])
