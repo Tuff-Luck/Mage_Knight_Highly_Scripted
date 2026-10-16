@@ -2402,7 +2402,7 @@ skillResourceDefinitions={
     ["5049e5"]={day={move=2},night={move=1}},
     ["527b47"]={untracked=true},
     ["55e5e5"]={partial=true},
-    ["564392"]={partial=true},
+    ["564392"]={linkedCard={targetKind="card",posture="sideways",sideways={value=4,perEmptyCommandSlot=1}},partial=true}, -- Howl of the Pack; follow-on combat is not tracked
     ["590a46"]={normal={influence=1},partial=true},
     ["5b42dc"]={partial=true},
     ["5f61d5"]={choices={{key="other"},{healing=3}},partial=true},
@@ -2448,7 +2448,7 @@ skillResourceDefinitions={
     ["a3abbe"]={untracked=true},
     ["a598f6"]={partial=true},
     ["a883af"]={untracked=true},
-    ["a92d73"]={partial=true},
+    ["a92d73"]={linkedCard={targetKind="card",posture="sideways",sideways={value=4,perEmptyCommandSlot=1}},partial=true}, -- Wolf\'s Howl; other players\' penalties are not tracked
     ["adf8ab"]={untracked=true},
     ["ae8673"]={untracked=true},
     ["b13d5f"]={untracked=true},
