@@ -260,7 +260,7 @@ local function showChoiceButtons(card,choices,powered)
         choiceExpandedByGUID[card.guid]=nil
         return
     end
-    local _,selected=currentChoice(card.guid,powered,choices,posture=="sideways")
+    local _,selected=currentChoice(card.guid,powered,choices,not isSkill and posture=="sideways")
     local categories,seen={},{}
     for _,choice in ipairs(choices) do
         local category=choiceCategory(choice)
@@ -889,7 +889,7 @@ function resourceCardsChoiceClicked(player,value,id)
     local scan=resourceCardScanBySeat[currentSeat.seatPos]
     local record=scan~=nil and scan.cards[guid] or nil
     local powered=record~=nil and record.powered==true
-    local sideways=cardPosture(card)=="sideways"
+    local sideways=not isSkill and cardPosture(card)=="sideways"
     local choices=isSkill and (rule~=nil and rule.choices or nil)
         or ((sideways and cardCanPlaySideways(card)) and sidewaysChoices
             or (not sideways and sideChoices(rule,powered) or nil))
