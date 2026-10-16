@@ -2383,8 +2383,8 @@ skillResourceDefinitions={
     ["2f2ad9"]={choices={{siege=1},{key="fire",siegeFire=1}}},
     ["31b225"]={choices={{move=1},{influence=1},{block=1},{attack=1}}},
     ["335290"]={untracked=true},
-    ["33d341"]={linkedCard={targetKind="wound",posture="sideways",sidewaysValue=2}}, -- Power of Pain
-    ["3a3f49"]={partial=true},
+    ["33d341"]={linkedCard={targetKind="wound",posture="sideways",sideways={value=2}}}, -- Power of Pain
+    ["3a3f49"]={linkedCard={targetKind="card",posture="sideways",sideways={value=3,manaRequired=true,matchingManaValue=4}}}, -- Universal Power
     ["3b3273"]={untracked=true},
     ["3bd08e"]={untracked=true},
     ["3d8336"]={untracked=true},
@@ -2407,7 +2407,7 @@ skillResourceDefinitions={
     ["5b42dc"]={partial=true},
     ["5f61d5"]={choices={{key="other"},{healing=3}},partial=true},
     ["6133e1"]={partial=true},
-    ["6413a1"]={partial=true},
+    ["6413a1"]={choices={{key="base"},{key="sourceUnused"}},linkedCard={targetKind="card",posture="sideways",sideways={value=2,choiceValues={sourceUnused=3}}}}, -- Who Needs Magic? The +3 is player-declared.
     ["676855"]={untracked=true},
     ["676856"]={partial=true},
     ["68568b"]={untracked=true},
@@ -2474,7 +2474,7 @@ skillResourceDefinitions={
     ["d8824d"]={untracked=true},
     ["d90de4"]={untracked=true},
     ["d9c83f"]={untracked=true},
-    ["dfaee3"]={partial=true},
+    ["dfaee3"]={linkedCard={targetKind="card",posture="sideways",sideways={value=2,cardTypeValues={["Advanced Action"]=3,Spell=3,Artifact=3}}}}, -- I Don't Give a Damn
     ["e31735"]={untracked=true},
     ["e45fdf"]={untracked=true},
     ["e68fed"]={untracked=true},

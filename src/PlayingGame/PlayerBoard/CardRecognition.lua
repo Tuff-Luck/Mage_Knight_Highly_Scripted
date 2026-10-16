@@ -156,7 +156,8 @@ local sidewaysChoices={{move=1},{influence=1},{attack=1},{block=1}}
 local choiceLetters={move="M",influence="I",attack="A",block="B",
     ranged="R",siege="S",healing="H",draw="D",other="O",
     fire="F",ice="I",coldFire="C",boost="H+",split="I/F",negative="N",
-    heal="H",combat="C",wound="W",reputation="R",gain="G",ready="R"}
+    heal="H",combat="C",wound="W",reputation="R",gain="G",ready="R",
+    base="2",sourceUnused="3"}
 
 local function sideChoices(rule,powered)
     if rule==nil then return nil end
@@ -485,8 +486,13 @@ local function calculateSideways(card,known,skillLink)
         end
     end
     local linked=skillLink~=nil
+    local linkedObjects={}
+    if linked then
+        linkedObjects[1]=skillLink.skillGUID
+        if skillLink.manaGUID~=nil then linkedObjects[2]=skillLink.manaGUID end
+    end
     return {guid=card.guid,known=known,complete=choice~=nil,powered=linked,
-        links=linked and {skillLink.skillGUID} or {},
+        links=linkedObjects,
         linkedSkill=linked and skillLink.skillGUID or nil,
         status=linked and "purple" or (choice~=nil and "green" or "yellow"),
         resources=resources}
@@ -632,47 +638,116 @@ local function resolveActionLinks(cards,footprints,manaPowered)
     return links,boostBy,boostSource,discarded,hasDiscard
 end
 
--- Resolve physical Skill-card attachments independently of the existing
--- Action boosts and discard-cost links. One target per Skill, one Skill per target.
--- Metadata identifies eligible object kinds and orientations for future Skills.
-local function resolveSkillCardLinks(skills,targets,footprints)
-    local byTarget,bySkill={},{}
-    table.sort(skills,function(a,b) return a.guid<b.guid end)
+-- Generic Skill-card links: one Skill per target, one target per Skill.
+-- The descriptor, not an individual Skill GUID, determines replacement value,
+-- card-type bonuses, mana payment and player-declared conditional values.
+local function manaInsideFootprint(mana,area)
+    local p=mana.getPosition()
+    return math.abs(p[1]-area.x)<area.halfX
+        and math.abs(p[3]-area.z)<area.halfZ
+end
+
+local function sidewaysManaAvailable(color)
+    return color~=nil and (color~="Gold" or gStates.dayRound==true)
+        and (color~="Black" or gStates.dayRound~=true)
+end
+
+local function matchingSidewaysMana(card,color)
+    if color=="Gold" or color=="Black" then return false end
+    local data=gameCards[card.guid]
+    if data==nil or (data.cardType~="Starting" and data.cardType~="Advanced Action"
+        and data.cardType~="Spell") then return false end
+    if type(data.color)=="string" then return data.color==color end
+    if type(data.color)=="table" then
+        for _,entry in ipairs(data.color) do if entry==color then return true end end
+    end
+    return false
+end
+
+local function sidewaysModifierValue(skill,target,descriptor,mana)
+    local value=descriptor.value or 1
+    local cardData=gameCards[target.guid]
+    if descriptor.cardTypeValues~=nil and cardData~=nil then
+        value=descriptor.cardTypeValues[cardData.cardType] or value
+    end
+    if descriptor.choiceValues~=nil then
+        local rule=skillResourceDefinitions[skill.guid]
+        local _,choice=currentChoice(skill.guid,false,rule.choices)
+        value=descriptor.choiceValues[choice] or value
+    end
+    if mana~=nil and descriptor.matchingManaValue~=nil
+        and matchingSidewaysMana(target,manaColor(mana)) then
+        value=descriptor.matchingManaValue
+    end
+    return value
+end
+
+local function resolveSkillCardLinks(skills,targets,footprints,manaObjects,placements,reservedMana)
+    local byTarget,bySkill,byMana={}, {}, {}
+    local candidates={}
     for _,skill in ipairs(skills) do
         local rule=skillResourceDefinitions[skill.guid]
         local spec=rule~=nil and rule.linkedCard or nil
-        if spec~=nil then
-            local best,bestArea=nil,0
+        if spec~=nil and spec.sideways~=nil then
             for _,target in ipairs(targets) do
-                if byTarget[target.guid]==nil and target.is_face_down~=true
+                if target.is_face_down~=true
                     and resourceObjectKind(target)==spec.targetKind
                     and (spec.posture==nil or cardPosture(target)==spec.posture) then
-                    local area=overlapArea(footprints[skill.guid],footprints[target.guid])
-                    if area>bestArea or (area>0 and area==bestArea
-                        and best~=nil and target.guid<best.guid) then
-                        best,bestArea=target,area
+                    local size=overlapArea(footprints[skill.guid],footprints[target.guid])
+                    if size>0 then
+                        candidates[#candidates+1]={skill=skill,target=target,size=size,rule=spec.sideways}
                     end
                 end
             end
-            if best~=nil then
-                byTarget[best.guid]={skillGUID=skill.guid,sidewaysValue=spec.sidewaysValue}
-                bySkill[skill.guid]=best.guid
+        end
+    end
+    -- The strongest physical overlap wins when two different Skills touch the
+    -- same sideways card; never combine multiple replacement values.
+    table.sort(candidates,function(a,b)
+        if a.size~=b.size then return a.size>b.size end
+        if a.skill.guid~=b.skill.guid then return a.skill.guid<b.skill.guid end
+        return a.target.guid<b.target.guid
+    end)
+    for _,candidate in ipairs(candidates) do
+        local skill,target,descriptor=candidate.skill,candidate.target,candidate.rule
+        if bySkill[skill.guid]==nil and byTarget[target.guid]==nil then
+            local mana=nil
+            if descriptor.manaRequired then
+                local closest=nil
+                local skillArea,targetArea=footprints[skill.guid],footprints[target.guid]
+                for _,available in ipairs(manaObjects) do
+                    if placements[available.guid]=="play" and reservedMana[available.guid]==nil
+                        and byMana[available.guid]==nil
+                        and sidewaysManaAvailable(manaColor(available))
+                        and (manaInsideFootprint(available,skillArea)
+                            or manaInsideFootprint(available,targetArea)) then
+                        local p=available.getPosition()
+                        local dx,dz=p[1]-targetArea.x,p[3]-targetArea.z
+                        local distance=dx*dx+dz*dz
+                        if closest==nil or distance<closest then
+                            mana,closest=available,distance
+                        end
+                    end
+                end
+            end
+            if not descriptor.manaRequired or mana~=nil then
+                byTarget[target.guid]={skillGUID=skill.guid,
+                    sidewaysValue=sidewaysModifierValue(skill,target,descriptor,mana),
+                    manaGUID=mana~=nil and mana.guid or nil}
+                bySkill[skill.guid]=target.guid
+                if mana~=nil then
+                    byMana[mana.guid]={skillGUID=skill.guid,targetGUID=target.guid}
+                end
             end
         end
     end
-    return byTarget,bySkill
+    return byTarget,bySkill,byMana
 end
 
 -- Physical mana transformations are distinct from Action-card boost links.
 -- The Skill selects one mana resting on it, then an overlapping powerable card.
 -- Neither the die nor the crystal is physically changed or double-counted.
 local oppositeMana={Red="Blue",Blue="Red",Green="White",White="Green",Gold="Black",Black="Gold"}
-
-local function manaInsideSkill(mana,skillArea)
-    local p=mana.getPosition()
-    return math.abs(p[1]-skillArea.x)<skillArea.halfX
-        and math.abs(p[3]-skillArea.z)<skillArea.halfZ
-end
 
 local function convertedManaMatchesCard(card,color)
     local data=gameCards[card.guid]
@@ -696,7 +771,7 @@ local function resolveManaSkillLinks(skills,manaObjects,cards,footprints,placeme
             local nearest,distance=nil,nil
             for _,mana in ipairs(manaObjects) do
                 if placements[mana.guid]=="play" and byMana[mana.guid]==nil
-                    and manaColor(mana)~=nil and manaInsideSkill(mana,area) then
+                    and manaColor(mana)~=nil and manaInsideFootprint(mana,area) then
                     local p=mana.getPosition()
                     local dx,dz=p[1]-area.x,p[3]-area.z
                     local d=dx*dx+dz*dz
@@ -745,6 +820,7 @@ local function calculateSkill(skill,linkedTarget)
         or rule.normal
     local tracked=effectHasTrackedResource(effects)
     local status=rule.untracked and "blue"
+        or rule.linkedCard~=nil and linkedTarget==nil and "yellow"
         or tracked and (rule.partial and "yellow" or "green")
         or effects~=nil and "blue" or "yellow"
     if linkedTarget~=nil then status="purple" end
@@ -812,16 +888,18 @@ local function renderSeat(seatPos)
         end
     end
 
-    -- Wounds can be Skill targets but never ordinary Action-link candidates.
+    -- Wounds may be Skill targets, but are not ordinary Action-link candidates.
     local skillTargets={}
     for _,card in ipairs(cards) do skillTargets[#skillTargets+1]=card end
     for _,wound in ipairs(wounds) do skillTargets[#skillTargets+1]=wound end
-    local skillLinksByTarget,skillLinksBySkill=resolveSkillCardLinks(skills,skillTargets,footprints)
 
-    -- The linked mana is reserved before any ordinary direct mana assignment.
+    -- First reserve conversion mana (Polarization), then sideways-skill mana,
+    -- so one physical mana never powers two separate interactions.
     table.sort(cards,function(a,b) return a.guid<b.guid end)
     local manaByObject,manaBySkill,manaByCard=
         resolveManaSkillLinks(skills,manaObjects,cards,footprints,placements)
+    local skillLinksByTarget,skillLinksBySkill,sidewaysSkillMana=
+        resolveSkillCardLinks(skills,skillTargets,footprints,manaObjects,placements,manaByObject)
     local powered,usedMana,spellSupply={}, {}, {}
     local function spendMana(card,color,manaGUID)
         local data=gameCards[card.guid]
@@ -837,7 +915,8 @@ local function renderSeat(seatPos)
     end
     -- Mana physically on the Skill cannot also power the card directly.
     for _,mana in ipairs(manaObjects) do
-        if placements[mana.guid]=="play" and manaByObject[mana.guid]==nil then
+        if placements[mana.guid]=="play" and manaByObject[mana.guid]==nil
+            and sidewaysSkillMana[mana.guid]==nil then
             local color=manaColor(mana)
             if color~=nil then
                 local p=mana.getPosition()
@@ -846,6 +925,7 @@ local function renderSeat(seatPos)
                     local f=footprints[card.guid]
                     local dx,dz=p[1]-f.x,p[3]-f.z
                     if math.abs(dx)<f.halfX and math.abs(dz)<f.halfZ
+                        and cardPosture(card)=="upright" and card.is_face_down~=true
                         and matchesCardMana(card,color) then
                         local distance=dx*dx+dz*dz
                         if bestDistance==nil or distance<bestDistance then best,bestDistance=card,distance end
@@ -949,7 +1029,13 @@ local function renderSeat(seatPos)
                     or (conversion~=nil and conversion.targetGUID or nil))
                 showChoiceButtons(obj,result.choices,result.powered)
                 addResourceAmounts(result,totals)
-                if skillLinksBySkill[guid]~=nil then result.contributes=true end
+                if skillLinksBySkill[guid]~=nil then
+                    result.contributes=true
+                    local link=skillLinksByTarget[skillLinksBySkill[guid]]
+                    if link~=nil and link.manaGUID~=nil then
+                        result.links[#result.links+1]=link.manaGUID
+                    end
+                end
                 if conversion~=nil then
                     result.status="purple"
                     result.powered=conversion.targetGUID~=nil
@@ -962,13 +1048,18 @@ local function renderSeat(seatPos)
                 end
             else
                 local conversion=kind=="mana" and manaByObject[guid] or nil
-                local status=conversion~=nil and "purple"
+                local sidewaysLink=kind=="mana" and sidewaysSkillMana[guid] or nil
+                local skillContributes=sidewaysLink~=nil
+                    and records[sidewaysLink.targetGUID]~=nil
+                    and records[sidewaysLink.targetGUID].contributes==true
+                local status=(conversion~=nil or sidewaysLink~=nil) and "purple"
                     or kind=="mana" and (contributing and "green" or "yellow") or "yellow"
-                local bright=kind=="mana" and poweredTarget~=nil
+                local bright=kind=="mana" and (poweredTarget~=nil or sidewaysLink~=nil)
                 result={guid=guid,kind=kind,known=true,complete=false,
-                    contributes=contributing,powered=bright,status=status,
-                    powers=poweredTarget,
-                    links=conversion~=nil and {conversion.skillGUID} or {},
+                    contributes=contributing or skillContributes,powered=bright,status=status,
+                    powers=poweredTarget or (sidewaysLink~=nil and sidewaysLink.targetGUID or nil),
+                    links=conversion~=nil and {conversion.skillGUID}
+                        or sidewaysLink~=nil and {sidewaysLink.skillGUID,sidewaysLink.targetGUID} or {},
                     convertedMana=conversion~=nil and conversion.converted or nil,
                     resources=nil}
             end
