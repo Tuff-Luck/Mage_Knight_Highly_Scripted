@@ -805,7 +805,8 @@ local function combatPreEndTurnPreparePlayArea(cleanupPlayer,recovery)
 					end
 				end
 			end
-			attachEnemy(nil, nil, "detach", playAreaObj, nil)
+			--Automated separation must not reverse Fame already earned from the defeated enemy.
+			attachEnemy(nil, nil, "detachCleanup", playAreaObj, nil)
 		end
 		tokenWait=40
 	end
