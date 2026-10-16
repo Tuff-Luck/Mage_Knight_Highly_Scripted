@@ -73,24 +73,43 @@ end
 -- Terrain abilities are an overlay, not changes to gStates.moveCost. This
 -- preserves day/night terrain settings, manual adjustments and other cards.
 -- City/Explore are not terrain: their special movement costs remain intact.
-local pathFindingTerrain={
+local passableTerrain={
     plains=true,hills=true,forest=true,wasteland=true,desert=true,swamp=true,
     lake=true,mountain=true
 }
 
+local function terrainEffectApplies(effect,terrain)
+    return effect.terrains=="passable" and passableTerrain[terrain]==true
+        or type(effect.terrains)=="table" and effect.terrains[terrain]==true
+end
+
 function resourceCardsEffectiveTerrainCost(terrain)
     local base=gStates~=nil and gStates.moveCost~=nil and gStates.moveCost[terrain] or nil
     if base==nil then return 999 end
-    -- Path Finding does not grant access to impassable lakes or mountains.
-    if base>=900 or not pathFindingTerrain[terrain] then return base end
     local player=turnOrder~=nil and gStates~=nil
         and turnOrder[gStates.turnNumber] or nil
     local scan=player~=nil and resourceCardScanBySeat[player.seatPos] or nil
-    local modifiers=scan~=nil and scan.terrainModifiers or nil
-    if modifiers==nil then return base end
-    if modifiers.setToTwo then return math.min(base,2) end
-    if modifiers.reduce>0 then return math.min(base,math.max(2,base-modifiers.reduce)) end
-    return base
+    local effects=scan~=nil and scan.terrainModifiers or nil
+    if effects==nil then return base end
+    -- Explicit traversal permissions (e.g. Song of Wind + extra Blue mana)
+    -- may open a lake; ordinary discounts cannot open impassable terrain.
+    for _,effect in ipairs(effects) do
+        if effect.mode=="set" and terrainEffectApplies(effect,terrain) then
+            return effect.cost
+        end
+    end
+    if base>=900 then return base end
+    local cost=base
+    -- Cap effects are evaluated before reductions so Song of Wind and
+    -- Path Finding can stack, with higher-minimum reductions applied first.
+    for _,effect in ipairs(effects) do
+        if effect.mode=="cap" and terrainEffectApplies(effect,terrain) then
+            cost=math.min(cost,effect.cost)
+        elseif effect.mode=="reduce" and terrainEffectApplies(effect,terrain) then
+            cost=math.max(effect.minimum or 0,cost-effect.amount)
+        end
+    end
+    return cost
 end
 
 local function clearHighlight(guid)
@@ -858,6 +877,14 @@ local function calculateSkill(skill,linkedTarget,unitState)
         resources=effects,choices=rule.choices}
 end
 
+local terrainEffectOrder={set=0,cap=1,reduce=2}
+local function terrainModifierPrecedes(a,b)
+    local first,second=terrainEffectOrder[a.mode] or 9,terrainEffectOrder[b.mode] or 9
+    if first~=second then return first<second end
+    if a.mode=="reduce" then return (a.minimum or 0)>(b.minimum or 0) end
+    return false
+end
+
 local function addResourceAmounts(result,totals)
     result.contributes=false
     if result.resources==nil then return end
@@ -986,9 +1013,40 @@ local function renderSeat(seatPos)
     end
 
     local links,boostBy,boostSource,discarded,hasDiscard=resolveActionLinks(cards,footprints,powered)
+    -- Extra terrain mana is an optional physical payment, separate from the
+    -- mana that powers the strong action. Never reuse a claimed mana object.
+    local extraTerrainManaByCard,extraTerrainManaByObject={},{}
+    for _,mana in ipairs(manaObjects) do
+        if placements[mana.guid]=="play" and usedMana[mana.guid]==nil
+            and manaByObject[mana.guid]==nil and sidewaysSkillMana[mana.guid]==nil then
+            local color=manaColor(mana)
+            local best,bestDistance=nil,nil
+            for _,card in ipairs(cards) do
+                local data=gameCards[card.guid]
+                local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+                local spec=rule~=nil and rule.extraTerrainMana or nil
+                if spec~=nil and spec.color==color and extraTerrainManaByCard[card.guid]==nil
+                    and (not spec.poweredOnly or powered[card.guid]==true or boostBy[card.guid]~=nil)
+                    and card.is_face_down~=true and cardPosture(card)=="upright"
+                    and manaInsideFootprint(mana,footprints[card.guid]) then
+                    local p=mana.getPosition()
+                    local f=footprints[card.guid]
+                    local distance=(p[1]-f.x)^2+(p[3]-f.z)^2
+                    if bestDistance==nil or distance<bestDistance then
+                        best,bestDistance=card,distance
+                    end
+                end
+            end
+            if best~=nil then
+                extraTerrainManaByCard[best.guid]=mana.guid
+                extraTerrainManaByObject[mana.guid]=best.guid
+                usedMana[mana.guid]=best.guid
+            end
+        end
+    end
     local current,records,totals={}, {}, {}
     local usesCurrentHexBlock=false
-    local terrainModifiers={reduce=0,setToTwo=false}
+    local terrainModifiers={}
     for _,card in ipairs(cards) do
         local result=calculateCard(card,powered[card.guid]==true,boostBy[card.guid],
             links[card.guid],discarded[card.guid]~=nil,hasDiscard[card.guid]==true,
@@ -1013,16 +1071,22 @@ local function renderSeat(seatPos)
         end
         showChoiceButtons(card,choices,result.powered)
         result.kind=resourceObjectKind(card)
-        -- Path Finding's movement modifier applies only when its printed
-        -- effect is actually played, not while discarded, linked as payment,
-        -- face down or used sideways for a basic +1.
-        if rule~=nil and rule.terrainReduction==true
-            and cardPosture(card)=="upright" and result.resources~=nil
+        -- Only a played upright Move effect contributes terrain modifiers:
+        -- not a sideways card, discard payment or face-down card.
+        if rule~=nil and cardPosture(card)=="upright" and result.resources~=nil
             and type(result.resources.move)=="number" then
-            if result.powered then
-                terrainModifiers.setToTwo=true
-            else
-                terrainModifiers.reduce=terrainModifiers.reduce+1
+            local terrainEffects=rule.terrainEffects
+            if terrainEffects~=nil then
+                local chosen=result.powered and terrainEffects.powered or terrainEffects.normal
+                for _,effect in ipairs(chosen or {}) do
+                    terrainModifiers[#terrainModifiers+1]=effect
+                end
+            end
+            local extraManaGUID=extraTerrainManaByCard[card.guid]
+            if extraManaGUID~=nil and rule.extraTerrainMana~=nil then
+                terrainModifiers[#terrainModifiers+1]=rule.extraTerrainMana.effect
+                result.links[#result.links+1]=extraManaGUID
+                result.status="purple"
             end
         end
         -- Fixed components of partially understood cards may be counted; an
@@ -1089,17 +1153,19 @@ local function renderSeat(seatPos)
             else
                 local conversion=kind=="mana" and manaByObject[guid] or nil
                 local sidewaysLink=kind=="mana" and sidewaysSkillMana[guid] or nil
+                local extraTerrainTarget=kind=="mana" and extraTerrainManaByObject[guid] or nil
                 local skillContributes=sidewaysLink~=nil
                     and records[sidewaysLink.targetGUID]~=nil
                     and records[sidewaysLink.targetGUID].contributes==true
-                local status=(conversion~=nil or sidewaysLink~=nil) and "purple"
+                local status=(conversion~=nil or sidewaysLink~=nil or extraTerrainTarget~=nil) and "purple"
                     or kind=="mana" and (contributing and "green" or "yellow") or "yellow"
                 local bright=kind=="mana" and (poweredTarget~=nil or sidewaysLink~=nil)
                 result={guid=guid,kind=kind,known=true,complete=false,
                     contributes=contributing or skillContributes,powered=bright,status=status,
                     powers=poweredTarget or (sidewaysLink~=nil and sidewaysLink.targetGUID or nil),
                     links=conversion~=nil and {conversion.skillGUID}
-                        or sidewaysLink~=nil and {sidewaysLink.skillGUID,sidewaysLink.targetGUID} or {},
+                        or sidewaysLink~=nil and {sidewaysLink.skillGUID,sidewaysLink.targetGUID}
+                        or extraTerrainTarget~=nil and {extraTerrainTarget} or {},
                     convertedMana=conversion~=nil and conversion.converted or nil,
                     resources=nil}
             end
@@ -1130,10 +1196,15 @@ local function renderSeat(seatPos)
     local previous=bySeat[seatPos] or {}
     local previousScan=resourceCardScanBySeat[seatPos]
     local previousMove=previousScan~=nil and (previousScan.totals.move or 0) or 0
+    table.sort(terrainModifiers,terrainModifierPrecedes)
     local prior=previousScan~=nil and previousScan.terrainModifiers or nil
-    local terrainChanged=prior==nil and (terrainModifiers.reduce>0 or terrainModifiers.setToTwo)
-        or prior~=nil and (prior.reduce~=terrainModifiers.reduce
-            or prior.setToTwo~=terrainModifiers.setToTwo)
+    local terrainChanged=prior==nil and #terrainModifiers>0
+        or prior~=nil and #prior~=#terrainModifiers
+    if prior~=nil and not terrainChanged then
+        for i,effect in ipairs(terrainModifiers) do
+            if prior[i]~=effect then terrainChanged=true break end
+        end
+    end
     local totalsChanged=previousScan==nil
     if not totalsChanged then
         for category in pairs(totalsKeys) do

@@ -1060,19 +1060,29 @@ cardResourceDefinitions={
     ruthlessCoercion={normal={influence=2},powered={influence=6}}, -- Other effects do not change the numeric Influence contributed
     shieldBash={normal={block=3},powered={block=5},partial=true}, -- Swiftness and excess-Block modifiers
     frostBridge={normal={move=2},powered={move=4},partial=true}, -- Changes swamp/lake movement costs
-    pathFinding={normal={move=2},powered={move=4},terrainReduction=true},
-    -- Basic: -1 Move cost per terrain (minimum 2); powered: set passable
-    -- terrain costs to 2. Computed by CardRecognition without mutating moveCost.
-    songOfWind={normal={move=2},powered={move=2},partial=true}, -- Changes terrain movement costs
-    agility={normal={move=2},powered={move=4},partial=true}, -- Can convert Move into attacks
+    -- Terrain effects are declarative: cap, reduce (with a floor), or set.
+    -- They affect movement guidance only, not saved terrain costs.
+    pathFinding={normal={move=2},powered={move=4},
+        terrainEffects={
+            normal={{mode="reduce",terrains="passable",amount=1,minimum=2}},
+            powered={{mode="cap",terrains="passable",cost=2}}}},
+    songOfWind={normal={move=2},powered={move=2},
+        terrainEffects={
+            normal={{mode="reduce",terrains={plains=true,desert=true,wasteland=true},amount=1,minimum=0}},
+            powered={{mode="reduce",terrains={plains=true,desert=true,wasteland=true},amount=2,minimum=0}}},
+        -- Optional extra Blue mana on the powered card makes lakes cost 0.
+        extraTerrainMana={color="Blue",poweredOnly=true,
+            effect={mode="set",terrains={lake=true},cost=0}}},
+    agility={normal={move=2},powered={move=4}}, -- Attack conversion remains manual
     steadyTempo={normal={move=2},powered={move=4}}, -- Deed-deck placement does not change Move
     mountainLore={normal={move=3},powered={move=5},partial=true}, -- Hand limit/terrain bonus
     refreshingWalk={
         normalChoices={{key="heal",move=2,healing=1},{key="combat",move=2}},
         poweredChoices={{key="heal",move=4,healing=2},{key="combat",move=4}}},
     -- H = Move plus Healing, C = combat (Move without Healing).
-    heroicTale={normal={influence=3},powered={influence=6},partial=true}, -- Unit recruitment changes Reputation/Fame
-    peacefulMoment={normal={influence=3},powered={influence=6},partial=true}, -- Influence may be spent on Healing/refresh
+    diplomacy={normal={influence=2},powered={influence=4}}, -- Other effects remain manual
+    heroicTale={normal={influence=3},powered={influence=6}}, -- Other effects remain manual
+    peacefulMoment={normal={influence=3},powered={influence=6}}, -- Healing/refresh remains manual
     learning={normal={influence=2},powered={influence=4}}, -- Optional Advanced Action purchase does not change Influence
     bloodRage={
         normalChoices={{key="attack",attack=2},{key="wound",attack=5}},
@@ -1461,14 +1471,14 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["c3153e"]={cardType="Advanced Action", resourceKey="inNeed", name={"In Need"}, 			color={"Green"}, 		action={"Influence"}},
 			["20cb85"]={cardType="Advanced Action", resourceKey="ambush", name={"Ambush"}, 			color={"Green"}, 		action={"Move"}},--I want to add combat
 			["878d88"]={cardType="Advanced Action", resourceKey="songOfWind", name={"Song of Wind"}, 		color={"White"}, 		action={"Move"}},
-			["8c3de6"]={cardType="Advanced Action", name={"Diplomacy"}, 		color={"White"}, 		action={"Combat", "Influence"}},
+			["8c3de6"]={cardType="Advanced Action", resourceKey="diplomacy", name={"Diplomacy"}, 		color={"White"}, 		action={"Combat", "Influence"}},
 			["878d82"]={cardType="Advanced Action", resourceKey="swiftBolt", name={"Swift Bolt"}, 		color={"White"}, 		action={"Combat", "Special"}},
 			["878d90"]={cardType="Advanced Action", resourceKey="heroicTale", name={"Heroic Tale"}, 		color={"White"}, 		action={"Influence"}},
 			["8122c2"]={cardType="Advanced Action", resourceKey="peacefulMoment", name={"Peaceful Moment"},	color={"White"}, 		action={"Action", "Influence"}},
 			["9de475"]={cardType="Advanced Action", name={"Dodge and Weave"},	color={"White"}, 		action={"Combat"}},
 			["42eb53"]={cardType="Advanced Action", resourceKey="chivalry", name={"Chivalry"},	 		color={"White"}, 		action={"Combat"}},
 			["35aee6"]={cardType="Advanced Action", resourceKey="learning", name={"Learning"},			color={"White"}, 		action={"Special", "Influence"}},
-			["e2b570"]={cardType="Advanced Action", name={"Mana Storm"},		color={"White"}, 		action={"Special"}},
+			["e2b570"]={cardType="Advanced Action", resourceTracked=false, name={"Mana Storm"},		color={"White"}, 		action={"Special"}},
 			["878d92"]={cardType="Advanced Action", resourceKey="agility", name={"Agility"},	 		color={"White"}, 		action={"Move", "Combat"}},
 			["8eccb3"]={cardType="Advanced Action", name={"Blood Ritual"}, 		color={"Red"}, 			action={"Special"}},
 			["878d86"]={cardType="Advanced Action", resourceKey="intimidate", name={"Intimidate"}, 		color={"Red"}, 			action={"Combat", "Influence"}},
