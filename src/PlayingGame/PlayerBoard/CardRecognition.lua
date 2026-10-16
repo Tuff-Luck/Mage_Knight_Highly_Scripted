@@ -664,7 +664,7 @@ local function matchingSidewaysMana(card,color)
     return false
 end
 
-local function sidewaysModifierValue(skill,target,descriptor,mana)
+local function sidewaysModifierValue(skill,target,descriptor,mana,unitState)
     local value=descriptor.value or 1
     local cardData=gameCards[target.guid]
     if descriptor.cardTypeValues~=nil and cardData~=nil then
@@ -679,10 +679,13 @@ local function sidewaysModifierValue(skill,target,descriptor,mana)
         and matchingSidewaysMana(target,manaColor(mana)) then
         value=descriptor.matchingManaValue
     end
+    if descriptor.perEmptyCommandSlot~=nil and unitState~=nil then
+        value=value+descriptor.perEmptyCommandSlot*unitState.emptyCommandSlots
+    end
     return value
 end
 
-local function resolveSkillCardLinks(skills,targets,footprints,manaObjects,placements,reservedMana)
+local function resolveSkillCardLinks(skills,targets,footprints,manaObjects,placements,reservedMana,unitState)
     local byTarget,bySkill,byMana={}, {}, {}
     local candidates={}
     for _,skill in ipairs(skills) do
@@ -732,7 +735,7 @@ local function resolveSkillCardLinks(skills,targets,footprints,manaObjects,place
             end
             if not descriptor.manaRequired or mana~=nil then
                 byTarget[target.guid]={skillGUID=skill.guid,
-                    sidewaysValue=sidewaysModifierValue(skill,target,descriptor,mana),
+                    sidewaysValue=sidewaysModifierValue(skill,target,descriptor,mana,unitState),
                     manaGUID=mana~=nil and mana.guid or nil}
                 bySkill[skill.guid]=target.guid
                 if mana~=nil then
@@ -917,7 +920,9 @@ local function renderSeat(seatPos)
     local unitState=nil
     for _,skill in ipairs(skills) do
         local rule=skillResourceDefinitions[skill.guid]
-        if rule~=nil and rule.unitCondition~=nil then
+        local sideways=rule~=nil and rule.linkedCard~=nil and rule.linkedCard.sideways or nil
+        if rule~=nil and (rule.unitCondition~=nil
+            or (sideways~=nil and sideways.perEmptyCommandSlot~=nil)) then
             unitState=unitLayoutResourceState(seatPos)
             break
         end
@@ -934,7 +939,7 @@ local function renderSeat(seatPos)
     local manaByObject,manaBySkill,manaByCard=
         resolveManaSkillLinks(skills,manaObjects,cards,footprints,placements)
     local skillLinksByTarget,skillLinksBySkill,sidewaysSkillMana=
-        resolveSkillCardLinks(skills,skillTargets,footprints,manaObjects,placements,manaByObject)
+        resolveSkillCardLinks(skills,skillTargets,footprints,manaObjects,placements,manaByObject,unitState)
     local powered,usedMana,spellSupply={}, {}, {}
     local function spendMana(card,color,manaGUID)
         local data=gameCards[card.guid]
