@@ -663,6 +663,73 @@ local function resolveSkillCardLinks(skills,targets,footprints)
     return byTarget,bySkill
 end
 
+-- Physical mana transformations are distinct from Action-card boost links.
+-- The Skill selects one mana resting on it, then an overlapping powerable card.
+-- Neither the die nor the crystal is physically changed or double-counted.
+local oppositeMana={Red="Blue",Blue="Red",Green="White",White="Green",Gold="Black",Black="Gold"}
+
+local function manaInsideSkill(mana,skillArea)
+    local p=mana.getPosition()
+    return math.abs(p[1]-skillArea.x)<skillArea.halfX
+        and math.abs(p[3]-skillArea.z)<skillArea.halfZ
+end
+
+local function convertedManaMatchesCard(card,color)
+    local data=gameCards[card.guid]
+    if data==nil or card.is_face_down==true or cardPosture(card)~="upright" then return false end
+    if data.cardType~="Starting" and data.cardType~="Advanced Action"
+        and data.cardType~="Spell" and data.cardType~="Artifact" then return false end
+    -- Gold may supply a basic colour by day; Black may supply a Spell at night.
+    if color=="Gold" and gStates.dayRound~=true then return false end
+    if color=="Black" and (gStates.dayRound==true or data.cardType~="Spell") then return false end
+    return matchesCardMana(card,color)
+end
+
+local function resolveManaSkillLinks(skills,manaObjects,cards,footprints,placements)
+    local byMana,bySkill,byCard={}, {}, {}
+    table.sort(manaObjects,function(a,b) return a.guid<b.guid end)
+    for _,skill in ipairs(skills) do
+        local rule=skillResourceDefinitions[skill.guid]
+        local spec=rule~=nil and rule.manaConversion or nil
+        if spec~=nil then
+            local area=footprints[skill.guid]
+            local nearest,distance=nil,nil
+            for _,mana in ipairs(manaObjects) do
+                if placements[mana.guid]=="play" and byMana[mana.guid]==nil
+                    and manaColor(mana)~=nil and manaInsideSkill(mana,area) then
+                    local p=mana.getPosition()
+                    local dx,dz=p[1]-area.x,p[3]-area.z
+                    local d=dx*dx+dz*dz
+                    if distance==nil or d<distance then nearest,distance=mana,d end
+                end
+            end
+            if nearest~=nil then
+                local original=manaColor(nearest)
+                local converted=spec.mode=="opposite" and oppositeMana[original] or nil
+                local link={skillGUID=skill.guid,manaGUID=nearest.guid,
+                    original=original,converted=converted}
+                bySkill[skill.guid]=link
+                byMana[nearest.guid]=link
+                if converted~=nil then
+                    local best,areaSize=nil,0
+                    for _,card in ipairs(cards) do
+                        if byCard[card.guid]==nil and convertedManaMatchesCard(card,converted) then
+                            local size=overlapArea(area,footprints[card.guid])
+                            if size>areaSize or (size>0 and size==areaSize and best~=nil
+                                and card.guid<best.guid) then best,areaSize=card,size end
+                        end
+                    end
+                    if best~=nil then
+                        link.targetGUID=best.guid
+                        byCard[best.guid]=link
+                    end
+                end
+            end
+        end
+    end
+    return byMana,bySkill,byCard
+end
+
 -- Physical Skill GUIDs, not translated text, determine available resources.
 -- Skills outside the active player's Play Area are not counted.
 local function calculateSkill(skill,linkedTarget)
@@ -751,14 +818,26 @@ local function renderSeat(seatPos)
     for _,wound in ipairs(wounds) do skillTargets[#skillTargets+1]=wound end
     local skillLinksByTarget,skillLinksBySkill=resolveSkillCardLinks(skills,skillTargets,footprints)
 
-    -- Stable ordering also makes tied Action link targets deterministic.
+    -- The linked mana is reserved before any ordinary direct mana assignment.
     table.sort(cards,function(a,b) return a.guid<b.guid end)
-    local powered,usedMana={}, {}
-
-    -- Track which physical mana token is powering which card. A crystal merely
-    -- sitting in inventory must not be mistaken for a spent resource.
+    local manaByObject,manaBySkill,manaByCard=
+        resolveManaSkillLinks(skills,manaObjects,cards,footprints,placements)
+    local powered,usedMana,spellSupply={}, {}, {}
+    local function spendMana(card,color,manaGUID)
+        local data=gameCards[card.guid]
+        if data~=nil and data.cardType=="Spell" then
+            -- A Spell's stronger effect needs basic-colour AND Black mana at Night.
+            local supply=spellSupply[card.guid] or {basic=false,black=false}
+            if color=="Black" then supply.black=true else supply.basic=true end
+            spellSupply[card.guid]=supply
+        else
+            powered[card.guid]=true
+        end
+        usedMana[manaGUID]=card.guid
+    end
+    -- Mana physically on the Skill cannot also power the card directly.
     for _,mana in ipairs(manaObjects) do
-        if placements[mana.guid]=="play" then
+        if placements[mana.guid]=="play" and manaByObject[mana.guid]==nil then
             local color=manaColor(mana)
             if color~=nil then
                 local p=mana.getPosition()
@@ -772,12 +851,18 @@ local function renderSeat(seatPos)
                         if bestDistance==nil or distance<bestDistance then best,bestDistance=card,distance end
                     end
                 end
-                if best~=nil then
-                    powered[best.guid]=true
-                    usedMana[mana.guid]=best.guid
-                end
+                if best~=nil then spendMana(best,color,mana.guid) end
             end
         end
+    end
+    for _,link in pairs(manaBySkill) do
+        if link.targetGUID~=nil then
+            local card=getObjectFromGUID(link.targetGUID)
+            if card~=nil then spendMana(card,link.converted,link.manaGUID) end
+        end
+    end
+    for guid,supply in pairs(spellSupply) do
+        powered[guid]=gStates.dayRound~=true and supply.basic and supply.black
     end
 
     local links,boostBy,boostSource,discarded,hasDiscard=resolveActionLinks(cards,footprints,powered)
@@ -788,6 +873,12 @@ local function renderSeat(seatPos)
         local result=calculateCard(card,powered[card.guid]==true,boostBy[card.guid],
             links[card.guid],discarded[card.guid]~=nil,hasDiscard[card.guid]==true,
             skillLinksByTarget[card.guid])
+        local manaLink=manaByCard[card.guid]
+        if manaLink~=nil then
+            result.status="purple"
+            result.links[#result.links+1]=manaLink.skillGUID
+            result.convertedMana=manaLink.converted
+        end
         local cardData=gameCards[card.guid]
         local rule=cardData~=nil and cardResourceDefinitions[cardData.resourceKey] or nil
         local choices=nil
@@ -853,17 +944,33 @@ local function renderSeat(seatPos)
                 and records[poweredTarget].contributes==true
             local result
             if kind=="skill" and placements[guid]=="play" then
-                result=calculateSkill(obj,skillLinksBySkill[guid])
+                local conversion=manaBySkill[guid]
+                result=calculateSkill(obj,skillLinksBySkill[guid]
+                    or (conversion~=nil and conversion.targetGUID or nil))
                 showChoiceButtons(obj,result.choices,result.powered)
                 addResourceAmounts(result,totals)
                 if skillLinksBySkill[guid]~=nil then result.contributes=true end
+                if conversion~=nil then
+                    result.status="purple"
+                    result.powered=conversion.targetGUID~=nil
+                    result.links={conversion.manaGUID}
+                    if conversion.targetGUID~=nil then
+                        result.links[#result.links+1]=conversion.targetGUID
+                        local target=records[conversion.targetGUID]
+                        result.contributes=target~=nil and target.contributes==true
+                    end
+                end
             else
-                -- Units/faction rewards remain pending; mana marks power links.
-                local status=kind=="mana" and (contributing and "green" or "yellow") or "yellow"
+                local conversion=kind=="mana" and manaByObject[guid] or nil
+                local status=conversion~=nil and "purple"
+                    or kind=="mana" and (contributing and "green" or "yellow") or "yellow"
                 local bright=kind=="mana" and poweredTarget~=nil
                 result={guid=guid,kind=kind,known=true,complete=false,
                     contributes=contributing,powered=bright,status=status,
-                    powers=poweredTarget,resources=nil}
+                    powers=poweredTarget,
+                    links=conversion~=nil and {conversion.skillGUID} or {},
+                    convertedMana=conversion~=nil and conversion.converted or nil,
+                    resources=nil}
             end
             records[guid]=result
             current[guid]=true

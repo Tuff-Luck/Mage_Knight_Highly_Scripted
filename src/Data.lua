@@ -2490,7 +2490,7 @@ skillResourceDefinitions={
     ["f8edb4"]={choices={{influence=2},{key="negative",influence=4}}},
     ["f96fd9"]={normal={healing=1}},
     ["fc7930"]={partial=true},
-    ["fe29ca"]={untracked=true},
+    ["fe29ca"]={manaConversion={mode="opposite"}}, -- Polarization
     ["fe65de"]={untracked=true}
 }
 
