@@ -177,6 +177,50 @@ local choiceLetters={move="M",influence="I",attack="A",block="B",
     fire="F",ice="I",coldFire="C",boost="H+",split="I/F",negative="N",
     heal="H",combat="C",wound="W",reputation="R",gain="G",ready="R",
     base="2",sourceUnused="3"}
+-- These icon names point to cached Custom UI Assets; every unmapped choice
+-- continues using its original one- or two-letter label.
+local choiceIconAssets={
+    siege={name="MKChoiceSiege",url="https://steamusercontent-a.akamaihd.net/ugc/13001275488421638021/429A4C25B493880579B1EEE1BA38C5E8C2C7DD2B/"},
+    ranged={name="MKChoiceRanged",url="https://steamusercontent-a.akamaihd.net/ugc/16825643705965136812/86750D2D0CE31C2AB2A08D518FDFA9606332DC69/"},
+    move={name="MKChoiceMove",url="https://steamusercontent-a.akamaihd.net/ugc/15089597231616187129/97560F942A1D143CC2BD816D1F8E0B117A659AFA/"},
+    influence={name="MKChoiceInfluence",url="https://steamusercontent-a.akamaihd.net/ugc/11982150083081031635/75C1352D375B05271C34514F3C578728423768AA/"},
+    healing={name="MKChoiceHealing",url="https://steamusercontent-a.akamaihd.net/ugc/18027929342726570953/67A059840F886E825064D757DD9EEA63AAC7D2B9/"},
+    block={name="MKChoiceBlock",url="https://steamusercontent-a.akamaihd.net/ugc/10652687051429766943/75A1D745D425D4D57D65971DB6F5E1BA1A80C6E6/"},
+    attack={name="MKChoiceAttack",url="https://steamusercontent-a.akamaihd.net/ugc/12125700784244572260/5257BAD169E970724105406C69CC5918293111EE/"},
+}
+local choiceIconOrder={"siege","ranged","move","influence","healing","block","attack"}
+
+-- Global UI and Object UI have separate asset lists. Keep existing images;
+-- TTS setCustomAssets and the assets parameter on setXmlTable replace lists.
+local function choiceMergedAssets(ui,categories)
+    local assets=ui.getCustomAssets() or {}
+    local indexes={}
+    for i,asset in ipairs(assets) do indexes[asset.name]=i end
+    local changed=false
+    for _,category in ipairs(categories) do
+        local icon=choiceIconAssets[category]
+        if icon~=nil then
+            local index=indexes[icon.name]
+            if index==nil then
+                assets[#assets+1]={name=icon.name,url=icon.url}
+                indexes[icon.name]=#assets
+                changed=true
+            elseif assets[index].url~=icon.url then
+                assets[index]={name=icon.name,url=icon.url}
+                changed=true
+            end
+        end
+    end
+    return changed and assets or nil
+end
+
+-- TTS loads these once from their URLs when the mod loads; newly played
+-- cards/Skills register the assets needed by their own object-attached UI.
+function resourceCardsRegisterIconAssets()
+    local assets=choiceMergedAssets(UI,choiceIconOrder)
+    if assets~=nil then UI.setCustomAssets(assets) end
+end
+
 
 local function sideChoices(rule,powered)
     if rule==nil then return nil end
@@ -321,7 +365,8 @@ local function showChoiceButtons(card,choices,powered)
     for i,category in ipairs(visible) do
         local x=((#visible+1)/2-i)*44
         local active=category==selected
-        xml[#xml+1]={tag="Button",attributes={
+        local icon=choiceIconAssets[category]
+        local button={tag="Button",attributes={
             id="ResourceCardChoice_"..card.guid.."_"..category,
             onClick="global/resourceCardsChoiceClicked",
             position=tostring(x).." -12 -35",rotation="0 0 "..buttonRotation,
@@ -329,9 +374,18 @@ local function showChoiceButtons(card,choices,powered)
             colors=active and "#387D30|#4CA940|#387D30|#387D30"
                 or "#454D5D|#69798E|#444C63|#454D5D",
             fontSize=77,textColor="#FFFFFF",textAlignment="MiddleCenter"
-        },value=choiceLetters[category]}
+        },value=icon==nil and choiceLetters[category] or ""}
+        if icon~=nil then
+            -- Keep the parent Button clickable while the sprite fills it.
+            button.children={{tag="Image",attributes={
+                image=icon.name,width=82,height=82,preserveAspect="true",
+                raycastTarget="false",color="#FFFFFF"}}}
+        end
+        xml[#xml+1]=button
     end
-    card.UI.setXmlTable(xml)
+    local assets=choiceMergedAssets(card.UI,visible)
+    if assets~=nil then card.UI.setXmlTable(xml,assets)
+    else card.UI.setXmlTable(xml) end
     choiceButtonShown[card.guid]=signature
 end
 

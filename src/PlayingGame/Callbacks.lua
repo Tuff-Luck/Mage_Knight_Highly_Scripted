@@ -27,6 +27,7 @@ end
 function onLoad(saved_data)
 	return safeCallback("onLoad",function()
 		validatePublicUICallbacks()
+		resourceCardsRegisterIconAssets()
 		local loadedData=nil
 		if type(saved_data)=="string" and saved_data~="" then loadedData=JSON.decode(saved_data) end
 		--These objects already exist when Global loads. Install their XML immediately, then use the
@@ -41,6 +42,8 @@ function onLoad(saved_data)
 			artifactOfferRewardTextRefresh()
 			siteDescriptionTranslationRefresh()
 			deedOfferArrowTextRefresh()
+			-- Recreate runtime card buttons if a saved tracker was already open.
+			if resourceCardsPanelOpen() then resourceCardsPanelChanged(true) end
 		end,2)
 		return result
 	end)
