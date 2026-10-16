@@ -9,6 +9,8 @@ local crystalHighlightCleared={}
 local bySeat={}
 -- Player choices are transient, never written into gStates or save JSON.
 local selectedResourceByGUID={}
+-- A choice lasts for one play; delayed departure checks must not race a return.
+local choiceResetGenerationByGUID={}
 -- Display state is separate from player selections. Picks/drops may clear the
 -- buttons, but the chosen resource stays until the script reloads.
 local choiceExpandedByGUID={}
@@ -189,10 +191,10 @@ local function currentChoice(guid,powered,choices,sideways)
     if choices==nil or #choices==0 then return nil,nil end
     local stored=selectedResourceByGUID[guid]
     if stored~=nil then
-        local preferred=stored.effect
-        if sideways and not choiceAvailable(choices,preferred) then
-            preferred=stored.sideways
-        end
+        -- A separately selected sideways action takes priority while sideways;
+        -- upright/strong effects continue to use the printed-action preference.
+        local preferred=sideways and stored.sideways or nil
+        if not choiceAvailable(choices,preferred) then preferred=stored.effect end
         if choiceAvailable(choices,preferred) then
             for _,effect in ipairs(choices) do
                 if choiceCategory(effect)==preferred then return effect,preferred end
@@ -311,6 +313,41 @@ local function clearChoiceButtons()
         if signature~="hidden" then removeChoiceButtons(getObjectFromGUID(guid)) end
     end
     choiceButtonShown={}
+end
+
+-- Reset a player's explicit choice only after the card has actually finished
+-- leaving that player's Play Area. Zone exits while held are not new plays.
+local function cardInSeatPlayArea(guid,seatPos)
+    local zoneGUID=playerPlayAreas~=nil and playerPlayAreas[seatPos] or nil
+    local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
+    if zone==nil then return false end
+    for _,obj in ipairs(zone.getObjects()) do
+        if obj.guid==guid then return true end
+    end
+    return false
+end
+
+local function scheduleChoiceResetAfterPlay(guid,seatPos)
+    if guid==nil or seatPos==nil or selectedResourceByGUID[guid]==nil then return end
+    choiceResetGenerationByGUID[guid]=(choiceResetGenerationByGUID[guid] or 0)+1
+    local serial=choiceResetGenerationByGUID[guid]
+    -- Allow the zone's membership to settle before checking whether this
+    -- is a real departure or just a temporary lift/rearrangement.
+    safeWaitFrames("PlayerBoard.CardRecognition",function()
+        if choiceResetGenerationByGUID[guid]~=serial then return end
+        safeWaitCondition("PlayerBoard.CardRecognition",function()
+            if choiceResetGenerationByGUID[guid]~=serial then return end
+            if not cardInSeatPlayArea(guid,seatPos) then
+                selectedResourceByGUID[guid]=nil
+                choiceExpandedByGUID[guid]=nil
+            end
+        end,function()
+            if choiceResetGenerationByGUID[guid]~=serial then return true end
+            local obj=getObjectFromGUID(guid)
+            return obj==nil or (obj.held_by_color==nil and obj.resting==true
+                and obj.isSmoothMoving()==false)
+        end,8)
+    end,1)
 end
 
 local function footprint(obj)
@@ -538,7 +575,8 @@ local function resolveActionLinks(cards,footprints,manaPowered)
     for _,source in ipairs(cards) do
         local data=gameCards[source.guid]
         local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
-        if rule~=nil and rule.requiredLink~=nil and rule.requiredLink.mode=="discard"
+        if discarded[source.guid]==nil and rule~=nil and rule.requiredLink~=nil
+            and rule.requiredLink.mode=="discard"
             and source.is_face_down~=true and cardPosture(source)=="upright" then
             local target=nearestOverlap(source,function(candidate)
                 local targetData=gameCards[candidate.guid]
@@ -717,10 +755,21 @@ local function renderSeat(seatPos)
     local terrainChanged=prior==nil and (terrainModifiers.reduce>0 or terrainModifiers.setToTwo)
         or prior~=nil and (prior.reduce~=terrainModifiers.reduce
             or prior.setToTwo~=terrainModifiers.setToTwo)
+    local totalsChanged=previousScan==nil
+    if not totalsChanged then
+        for category in pairs(totalsKeys) do
+            if (previousScan.totals[category] or 0)~=(totals[category] or 0) then
+                totalsChanged=true
+                break
+            end
+        end
+    end
     bySeat[seatPos]=current
     resourceCardScanBySeat[seatPos]={cards=records,totals=totals,
         terrainModifiers=terrainModifiers,usesCurrentHexBlock=usesCurrentHexBlock}
-    refreshResourceTrackerText()
+    -- Repeated scans for card position/highlight changes need no panel repaint
+    -- unless a calculated resource or movement modifier actually changed.
+    if totalsChanged or terrainChanged then refreshResourceTrackerText() end
     if previousMove~=(totals.move or 0) or terrainChanged then updateMoveDisplay() end
     for guid in pairs(previous) do
         if current[guid]~=true then
@@ -876,6 +925,9 @@ end
 
 function resourceCardsZoneLeft(ctx)
     local seat=resourceCardsRelevantZone(ctx)
+    if ctx~=nil and ctx.zoneInfo~=nil and ctx.zoneInfo.kind=="play" then
+        scheduleChoiceResetAfterPlay(ctx.objGUID,ctx.zoneInfo.seatPos)
+    end
     if seat~=nil then queueSeat(seat,nil) end
 end
 
@@ -908,5 +960,8 @@ function resourceCardsObjectMoved(obj)
             end
         end
     end
-    if bySeat[seat]~=nil and bySeat[seat][obj.guid]==true then queueSeat(seat,nil) end
+    if bySeat[seat]~=nil and bySeat[seat][obj.guid]==true then
+        scheduleChoiceResetAfterPlay(obj.guid,seat)
+        queueSeat(seat,nil)
+    end
 end
