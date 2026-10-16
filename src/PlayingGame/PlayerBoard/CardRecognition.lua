@@ -807,7 +807,7 @@ end
 
 -- Physical Skill GUIDs, not translated text, determine available resources.
 -- Skills outside the active player's Play Area are not counted.
-local function calculateSkill(skill,linkedTarget)
+local function calculateSkill(skill,linkedTarget,unitState)
     local rule=skillResourceDefinitions[skill.guid]
     if rule==nil then
         return {guid=skill.guid,kind="skill",known=true,complete=false,
@@ -818,16 +818,40 @@ local function calculateSkill(skill,linkedTarget)
         or (skill.is_face_down==true and rule.flipped or nil)
         or (gStates.dayRound==true and rule.day or rule.night)
         or rule.normal
+
+    -- Reusable board-state rule: effects can count qualifying Units instead
+    -- of encoding Skill-specific calculations or depending on translated text.
+    local unitSources={}
+    local condition=rule.unitCondition
+    local unitResolved=condition~=nil and unitState~=nil
+    if unitResolved then
+        local qualified=0
+        local cap=condition.max or math.huge
+        for _,entry in ipairs(unitState.units) do
+            if (not condition.ready or entry.ready)
+                and (not condition.unwounded or entry.unwounded) then
+                qualified=qualified+1
+                if qualified<=cap then unitSources[#unitSources+1]=entry.guid end
+            end
+        end
+        effects={[condition.resource]=math.min(qualified,cap)}
+    end
+
     local tracked=effectHasTrackedResource(effects)
+    local unitLinked=#unitSources>0
     local status=rule.untracked and "blue"
+        or (linkedTarget~=nil or unitLinked) and "purple"
+        or unitResolved and "green"
         or rule.linkedCard~=nil and linkedTarget==nil and "yellow"
         or tracked and (rule.partial and "yellow" or "green")
         or effects~=nil and "blue" or "yellow"
-    if linkedTarget~=nil then status="purple" end
+    local links={}
+    if linkedTarget~=nil then links[#links+1]=linkedTarget end
+    for _,guid in ipairs(unitSources) do links[#links+1]=guid end
     return {guid=skill.guid,kind="skill",known=true,
-        complete=(tracked and not rule.partial) or linkedTarget~=nil,
-        powered=skill.is_face_down==true or linkedTarget~=nil,
-        status=status,links=linkedTarget~=nil and {linkedTarget} or {},
+        complete=unitResolved or (tracked and not rule.partial) or linkedTarget~=nil,
+        powered=skill.is_face_down==true or linkedTarget~=nil or unitLinked,
+        status=status,links=links,unitSources=unitSources,
         resources=effects,choices=rule.choices}
 end
 
@@ -885,6 +909,17 @@ local function renderSeat(seatPos)
             footprints[guid]=footprint(obj)
         elseif kind=="mana" then
             manaObjects[#manaObjects+1]=obj
+        end
+    end
+
+    -- Read the physical Unit state once per scan, only for played Skills
+    -- declaring that dependency. This also supplies which Unit cards to link.
+    local unitState=nil
+    for _,skill in ipairs(skills) do
+        local rule=skillResourceDefinitions[skill.guid]
+        if rule~=nil and rule.unitCondition~=nil then
+            unitState=unitLayoutResourceState(seatPos)
+            break
         end
     end
 
@@ -1026,7 +1061,7 @@ local function renderSeat(seatPos)
             if kind=="skill" and placements[guid]=="play" then
                 local conversion=manaBySkill[guid]
                 result=calculateSkill(obj,skillLinksBySkill[guid]
-                    or (conversion~=nil and conversion.targetGUID or nil))
+                    or (conversion~=nil and conversion.targetGUID or nil),unitState)
                 showChoiceButtons(obj,result.choices,result.powered)
                 addResourceAmounts(result,totals)
                 if skillLinksBySkill[guid]~=nil then
@@ -1066,6 +1101,24 @@ local function renderSeat(seatPos)
             records[guid]=result
             current[guid]=true
             setHighlight(obj,result.status,result.powered)
+        end
+    end
+
+    -- Qualifying Units actually supplied the dynamic Skill resource. Show
+    -- their link just like physical Skill/card interactions, without treating
+    -- Command or Wound markers as resource sources themselves.
+    for guid,record in pairs(records) do
+        if record.kind=="skill" and record.unitSources~=nil then
+            for _,unitGUID in ipairs(record.unitSources) do
+                local unit,unitRecord=objects[unitGUID],records[unitGUID]
+                if unit~=nil and unitRecord~=nil then
+                    unitRecord.status="purple"
+                    unitRecord.powered=true
+                    unitRecord.contributes=true
+                    unitRecord.links[#unitRecord.links+1]=guid
+                    setHighlight(unit,unitRecord.status,unitRecord.powered)
+                end
+            end
         end
     end
 
@@ -1235,11 +1288,14 @@ function resourceCardsOnLoad()
 end
 
 local function resourceCardsRelevantZone(ctx)
-    if ctx==nil or ctx.zoneInfo==nil or resourceObjectKind(ctx.obj)==nil then return nil end
+    if ctx==nil or ctx.zoneInfo==nil or ctx.obj==nil then return nil end
     local kind=ctx.zoneInfo.kind
-    if kind=="play" then return ctx.zoneInfo.seatPos end
     local objectKind=resourceObjectKind(ctx.obj)
-    if kind=="unit" and (objectKind=="unit" or objectKind=="mana") then return ctx.zoneInfo.seatPos end
+    if kind=="play" and objectKind~=nil then return ctx.zoneInfo.seatPos end
+    if kind=="unit" and (objectKind=="unit" or objectKind=="mana"
+        or unitLayoutIsCommand(ctx.obj) or unitLayoutIsWound(ctx.obj)) then
+        return ctx.zoneInfo.seatPos
+    end
     if kind=="crystal" and objectKind=="mana" then return ctx.zoneInfo.seatPos end
     return nil
 end
@@ -1262,7 +1318,8 @@ function resourceCardsObjectMoved(obj)
     local player=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if player==nil then return end
     local seat=player.seatPos
-    if resourceObjectKind(obj)==nil then
+    local isUnitStateToken=unitLayoutIsCommand(obj) or unitLayoutIsWound(obj)
+    if resourceObjectKind(obj)==nil and not isUnitStateToken then
         -- A played powered One with the Land may change Block value when the
         -- Mage Knight moves to different terrain. Only watch avatar drops
         -- while that exact effect is selected; no continual background scan.
@@ -1286,7 +1343,11 @@ function resourceCardsObjectMoved(obj)
             end
         end
     end
-    if bySeat[seat]~=nil and bySeat[seat][obj.guid]==true then
+    if isUnitStateToken then
+        -- Zone exit usually handles this already, but a token can be dragged
+        -- straight out and dropped before its membership event settles.
+        queueSeat(seat,nil)
+    elseif bySeat[seat]~=nil and bySeat[seat][obj.guid]==true then
         scheduleChoiceResetAfterPlay(obj.guid,seat)
         queueSeat(seat,nil)
     end
