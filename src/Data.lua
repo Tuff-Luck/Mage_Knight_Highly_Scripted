@@ -2448,7 +2448,7 @@ skillResourceDefinitions={
     ["a3abbe"]={untracked=true},
     ["a598f6"]={partial=true},
     ["a883af"]={untracked=true},
-    ["a92d73"]={linkedCard={targetKind="card",posture="sideways",sideways={value=4,perEmptyCommandSlot=1}},partial=true}, -- Wolf\'s Howl; other players\' penalties are not tracked
+    ["a92d73"]={linkedCard={targetKind="card",posture="sideways",sideways={value=4,perEmptyCommandSlot=1}},partial=true}, -- Wolf's Howl; other players' penalties are not tracked
     ["adf8ab"]={untracked=true},
     ["ae8673"]={untracked=true},
     ["b13d5f"]={untracked=true},
