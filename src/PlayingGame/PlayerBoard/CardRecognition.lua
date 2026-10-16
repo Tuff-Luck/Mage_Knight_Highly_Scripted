@@ -155,6 +155,7 @@ local sidewaysChoices={{move=1},{influence=1},{attack=1},{block=1}}
 
 local choiceLetters={move="M",influence="I",attack="A",block="B",
     ranged="R",siege="S",healing="H",draw="D",other="O",
+    fire="F",ice="I",coldFire="C",boost="H+",split="I/F",negative="N",
     heal="H",combat="C",wound="W",reputation="R",gain="G",ready="R"}
 
 local function sideChoices(rule,powered)
@@ -245,8 +246,10 @@ end
 local function showChoiceButtons(card,choices,powered)
     if card==nil then return end
     local posture=cardPosture(card)
-    if choices==nil or #choices<2 or card.is_face_down==true or posture=="discard"
-        or (posture=="sideways" and not cardCanPlaySideways(card)) then
+    local isSkill=skillTokens[card.guid]~=nil
+    if choices==nil or #choices<2 or (card.is_face_down==true and not isSkill)
+        or (not isSkill and posture=="discard")
+        or (not isSkill and posture=="sideways" and not cardCanPlaySideways(card)) then
         -- Once per card, inspect object XML even when our runtime cache is
         -- empty: controls created before a script reload can still be present.
         -- A 'hidden' marker avoids re-reading XML during every later scan.
@@ -388,6 +391,7 @@ local factionRewardNotes={
 
 local function resourceObjectKind(obj)
     if obj==nil then return nil end
+    if skillTokens[obj.guid]~=nil then return "skill" end
     if obj.type=="Card" then
         local data=gameCards[obj.guid]
         if data~=nil then
@@ -399,7 +403,6 @@ local function resourceObjectKind(obj)
         if notes=="Wound" or notes=="Quest" then return nil end
         return "card"
     end
-    if skillTokens[obj.guid]~=nil then return "skill" end
     if manaColor(obj)~=nil then return "mana" end
     if factionRewardNotes[obj.getGMNotes()]~=nil then return "factionReward" end
     return nil
@@ -610,6 +613,39 @@ local function resolveActionLinks(cards,footprints,manaPowered)
     return links,boostBy,boostSource,discarded,hasDiscard
 end
 
+-- Physical Skill GUIDs, not translated text, determine available resources.
+-- Skills outside the active player's Play Area are not counted.
+local function calculateSkill(skill)
+    local rule=skillResourceDefinitions[skill.guid]
+    if rule==nil then
+        return {guid=skill.guid,kind="skill",known=true,complete=false,
+            status="yellow",powered=false,resources=nil}
+    end
+    local chosen=rule.choices~=nil and chosenEffect(skill.guid,false,rule.choices) or nil
+    local effects=chosen
+        or (skill.is_face_down==true and rule.flipped or nil)
+        or (gStates.dayRound==true and rule.day or rule.night)
+        or rule.normal
+    local tracked=effectHasTrackedResource(effects)
+    local status=rule.untracked and "blue"
+        or tracked and (rule.partial and "yellow" or "green")
+        or effects~=nil and "blue" or "yellow"
+    return {guid=skill.guid,kind="skill",known=true,
+        complete=tracked and not rule.partial,powered=skill.is_face_down==true,
+        status=status,resources=effects,choices=rule.choices}
+end
+
+local function addResourceAmounts(result,totals)
+    result.contributes=false
+    if result.resources==nil then return end
+    for category,value in pairs(result.resources) do
+        if totalsKeys[category] and type(value)=="number" then
+            totals[category]=(totals[category] or 0)+value
+            if value~=0 then result.contributes=true end
+        end
+    end
+end
+
 -- Scan the play area for used abilities, the Unit area for Units, and crystal
 -- inventory for unused mana. Only a played, supported effect enters the totals.
 local function renderSeat(seatPos)
@@ -700,7 +736,6 @@ local function renderSeat(seatPos)
         end
         showChoiceButtons(card,choices,result.powered)
         result.kind=resourceObjectKind(card)
-        result.contributes=false
         -- Path Finding's movement modifier applies only when its printed
         -- effect is actually played, not while discarded, linked as payment,
         -- face down or used sideways for a basic +1.
@@ -715,14 +750,7 @@ local function renderSeat(seatPos)
         end
         -- Fixed components of partially understood cards may be counted; an
         -- unresolved choice never contributes an invented amount.
-        if result.resources~=nil then
-            for category,value in pairs(result.resources) do
-                if totalsKeys[category] and type(value)=="number" then
-                    totals[category]=(totals[category] or 0)+value
-                    if value~=0 then result.contributes=true end
-                end
-            end
-        end
+        addResourceAmounts(result,totals)
         records[card.guid]=result
         current[card.guid]=true
         if result.usesTerrainBlock then usesCurrentHexBlock=true end
@@ -743,17 +771,22 @@ local function renderSeat(seatPos)
             local poweredTarget=usedMana[guid]
             local contributing=poweredTarget~=nil and records[poweredTarget]~=nil
                 and records[poweredTarget].contributes==true
-            local status="yellow" -- Registered Unit/Skill/Faction Reward effects still need numeric definitions.
-            local bright=false
-            if kind=="mana" then
-                status=contributing and "green" or "yellow"
-                bright=poweredTarget~=nil
+            local result
+            if kind=="skill" and placements[guid]=="play" then
+                result=calculateSkill(obj)
+                showChoiceButtons(obj,result.choices,result.powered)
+                addResourceAmounts(result,totals)
+            else
+                -- Units/faction rewards remain pending; mana marks power links.
+                local status=kind=="mana" and (contributing and "green" or "yellow") or "yellow"
+                local bright=kind=="mana" and poweredTarget~=nil
+                result={guid=guid,kind=kind,known=true,complete=false,
+                    contributes=contributing,powered=bright,status=status,
+                    powers=poweredTarget,resources=nil}
             end
-            records[guid]={guid=guid,kind=kind,known=true,complete=false,
-                contributes=contributing,powered=bright,status=status,
-                powers=poweredTarget,resources=nil}
+            records[guid]=result
             current[guid]=true
-            setHighlight(obj,status,bright)
+            setHighlight(obj,result.status,result.powered)
         end
     end
 
@@ -837,8 +870,10 @@ function resourceCardsChoiceClicked(player,value,id)
     if not resourceCardsPanelOpen() then return end
     local card=getObjectFromGUID(guid)
     local data=card~=nil and gameCards[guid] or nil
-    local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
-    if card==nil or (rule==nil and not (cardPosture(card)=="sideways"
+    local isSkill=skillTokens[guid]~=nil
+    local rule=isSkill and skillResourceDefinitions[guid]
+        or (data~=nil and cardResourceDefinitions[data.resourceKey] or nil)
+    if card==nil or (rule==nil and not isSkill and not (cardPosture(card)=="sideways"
         and cardCanPlaySideways(card))) then return end
     local currentSeat=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if currentSeat==nil then return end
@@ -855,8 +890,9 @@ function resourceCardsChoiceClicked(player,value,id)
     local record=scan~=nil and scan.cards[guid] or nil
     local powered=record~=nil and record.powered==true
     local sideways=cardPosture(card)=="sideways"
-    local choices=(sideways and cardCanPlaySideways(card)) and sidewaysChoices
-        or (not sideways and sideChoices(rule,powered) or nil)
+    local choices=isSkill and (rule~=nil and rule.choices or nil)
+        or ((sideways and cardCanPlaySideways(card)) and sidewaysChoices
+            or (not sideways and sideChoices(rule,powered) or nil))
     local valid=false
     for _,choice in ipairs(choices or {}) do
         if choiceCategory(choice)==category then valid=true break end
