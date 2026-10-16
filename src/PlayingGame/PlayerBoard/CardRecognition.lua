@@ -15,10 +15,13 @@ local choiceResetGenerationByGUID={}
 -- buttons, but the chosen resource stays until the script reloads.
 local choiceExpandedByGUID={}
 local choiceButtonShown={}
+-- Highlights show how confidently the tracker understands the selected effect.
+-- Blue is a deliberate neutral/not-calculated state, not an illegal-play warning.
+-- Purple takes precedence when objects are linked; brightness indicates power.
 local palette={
     green={{0.10,0.55,0.14},{0.35,1.00,0.38}},
     yellow={{0.62,0.48,0.08},{1.00,0.94,0.19}},
-    red={{0.59,0.10,0.12},{1.00,0.27,0.25}},
+    blue={{0.08,0.34,0.64},{0.26,0.66,1.00}},
     purple={{0.47,0.19,0.62},{0.92,0.43,1.00}}
 }
 -- Distinguish elemental and physical damage. Otherwise a Ranged Fire Attack
@@ -503,11 +506,17 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
     local costPaid=rule==nil or rule.requiredLink==nil or hasDiscard==true
     local effects=sideTracked and faceUp and costPaid and not discardTarget
         and applyLinkedResourceBonus(base,linkedBoost) or nil
+    -- A card's other unimplemented options do not make its currently selected
+    -- *known* resource effect uncertain. Keep the first option as the fast,
+    -- green default; only a genuinely unresolved selected effect stays yellow.
+    local knownSelectedOption=chosen~=nil and effectHasTrackedResource(chosen)
     local complete=sideTracked and base~=nil and not choicePending and not statePartial
-        and rule.partial~=true and faceUp and costPaid and not discardTarget
+        and (rule.partial~=true or knownSelectedOption)
+        and faceUp and costPaid and not discardTarget
     local choiceIsUntracked=chosen~=nil and not effectHasTrackedResource(chosen)
-    local status=(not known or not sideTracked or posture=="discard" or choiceIsUntracked) and "red"
+    local status=(not known or not sideTracked or posture=="discard" or choiceIsUntracked) and "blue"
         or not complete and "yellow" or "green"
+    -- Linking information is more valuable than the underlying certainty colour.
     if #linked>0 then status="purple" end
     return {guid=card.guid,known=known,complete=complete,powered=powered,
         links=linked,status=status,resources=effects,
