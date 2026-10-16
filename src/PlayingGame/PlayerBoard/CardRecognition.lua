@@ -678,7 +678,7 @@ local function renderSeat(seatPos)
     local cards,manaObjects,footprints={}, {}, {}
     for guid,obj in pairs(objects) do
         local kind=resourceObjectKind(obj)
-        if obj.type=="Card" and placements[guid]=="play" then
+        if kind=="card" and placements[guid]=="play" then
             cards[#cards+1]=obj
             footprints[guid]=footprint(obj)
         elseif kind=="mana" then
