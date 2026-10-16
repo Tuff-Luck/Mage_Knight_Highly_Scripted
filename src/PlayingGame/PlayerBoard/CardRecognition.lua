@@ -249,7 +249,8 @@ local function showChoiceButtons(card,choices,powered)
     local isSkill=skillTokens[card.guid]~=nil
     if choices==nil or #choices<2 or (card.is_face_down==true and not isSkill)
         or (not isSkill and posture=="discard")
-        or (not isSkill and posture=="sideways" and not cardCanPlaySideways(card)) then
+        or (not isSkill and posture=="sideways" and not (cardCanPlaySideways(card)
+            or card.getGMNotes()=="Wound")) then
         -- Once per card, inspect object XML even when our runtime cache is
         -- empty: controls created before a script reload can still be present.
         -- A 'hidden' marker avoids re-reading XML during every later scan.
@@ -400,7 +401,8 @@ local function resourceObjectKind(obj)
         end
         -- Wounds/Quests are not unknown resource cards.
         local notes=obj.getGMNotes()
-        if notes=="Wound" or notes=="Quest" then return nil end
+        if notes=="Wound" then return "wound" end
+        if notes=="Quest" then return nil end
         return "card"
     end
     if manaColor(obj)~=nil then return "mana" end
@@ -471,7 +473,26 @@ local function currentLandBlockValue()
     return costs[terrain]
 end
 
-local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,hasDiscard)
+-- One sideways calculator for ordinary Actions and Skill-linked exceptions.
+-- A linked Skill changes the value, not the player's chosen resource.
+local function calculateSideways(card,known,skillLink)
+    local choice=chosenEffect(card.guid,false,sidewaysChoices,true)
+    local resources=nil
+    if choice~=nil then
+        resources={}
+        for category,value in pairs(choice) do
+            resources[category]=value*(skillLink~=nil and skillLink.sidewaysValue or 1)
+        end
+    end
+    local linked=skillLink~=nil
+    return {guid=card.guid,known=known,complete=choice~=nil,powered=linked,
+        links=linked and {skillLink.skillGUID} or {},
+        linkedSkill=linked and skillLink.skillGUID or nil,
+        status=linked and "purple" or (choice~=nil and "green" or "yellow"),
+        resources=resources}
+end
+
+local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,hasDiscard,skillLink)
     local data=gameCards[card.guid]
     local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
     local known=data~=nil
@@ -482,9 +503,7 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
     -- Any non-Wound card played at 90 degrees has one generic resource,
     -- irrespective of its printed card effect. It requires an explicit choice.
     if posture=="sideways" and cardCanPlaySideways(card) then
-        local effect=chosenEffect(card.guid,false,sidewaysChoices,true)
-        return {guid=card.guid,known=known,complete=effect~=nil,powered=false,
-            links={},status=effect~=nil and "green" or "yellow",resources=effect}
+        return calculateSideways(card,known,skillLink)
     end
     local sideTracked=tracked and not (not powered and rule~=nil and rule.normalTrackerNeutral==true)
     local choices=sideChoices(rule,powered)
@@ -613,9 +632,40 @@ local function resolveActionLinks(cards,footprints,manaPowered)
     return links,boostBy,boostSource,discarded,hasDiscard
 end
 
+-- Resolve physical Skill-card attachments independently of the existing
+-- Action boosts and discard-cost links. One target per Skill, one Skill per target.
+-- Metadata identifies eligible object kinds and orientations for future Skills.
+local function resolveSkillCardLinks(skills,targets,footprints)
+    local byTarget,bySkill={},{}
+    table.sort(skills,function(a,b) return a.guid<b.guid end)
+    for _,skill in ipairs(skills) do
+        local rule=skillResourceDefinitions[skill.guid]
+        local spec=rule~=nil and rule.linkedCard or nil
+        if spec~=nil then
+            local best,bestArea=nil,0
+            for _,target in ipairs(targets) do
+                if byTarget[target.guid]==nil and target.is_face_down~=true
+                    and resourceObjectKind(target)==spec.targetKind
+                    and (spec.posture==nil or cardPosture(target)==spec.posture) then
+                    local area=overlapArea(footprints[skill.guid],footprints[target.guid])
+                    if area>bestArea or (area>0 and area==bestArea
+                        and best~=nil and target.guid<best.guid) then
+                        best,bestArea=target,area
+                    end
+                end
+            end
+            if best~=nil then
+                byTarget[best.guid]={skillGUID=skill.guid,sidewaysValue=spec.sidewaysValue}
+                bySkill[skill.guid]=best.guid
+            end
+        end
+    end
+    return byTarget,bySkill
+end
+
 -- Physical Skill GUIDs, not translated text, determine available resources.
 -- Skills outside the active player's Play Area are not counted.
-local function calculateSkill(skill)
+local function calculateSkill(skill,linkedTarget)
     local rule=skillResourceDefinitions[skill.guid]
     if rule==nil then
         return {guid=skill.guid,kind="skill",known=true,complete=false,
@@ -630,9 +680,12 @@ local function calculateSkill(skill)
     local status=rule.untracked and "blue"
         or tracked and (rule.partial and "yellow" or "green")
         or effects~=nil and "blue" or "yellow"
+    if linkedTarget~=nil then status="purple" end
     return {guid=skill.guid,kind="skill",known=true,
-        complete=tracked and not rule.partial,powered=skill.is_face_down==true,
-        status=status,resources=effects,choices=rule.choices}
+        complete=(tracked and not rule.partial) or linkedTarget~=nil,
+        powered=skill.is_face_down==true or linkedTarget~=nil,
+        status=status,links=linkedTarget~=nil and {linkedTarget} or {},
+        resources=effects,choices=rule.choices}
 end
 
 local function addResourceAmounts(result,totals)
@@ -675,18 +728,30 @@ local function renderSeat(seatPos)
     inspectZone(playerUnitAreas[seatPos],"unit")
     inspectZone(playerPlayAreas[seatPos],"play")
 
-    local cards,manaObjects,footprints={}, {}, {}
+    local cards,wounds,skills,manaObjects,footprints={}, {}, {}, {}, {}
     for guid,obj in pairs(objects) do
         local kind=resourceObjectKind(obj)
         if kind=="card" and placements[guid]=="play" then
             cards[#cards+1]=obj
+            footprints[guid]=footprint(obj)
+        elseif kind=="wound" and placements[guid]=="play" then
+            wounds[#wounds+1]=obj
+            footprints[guid]=footprint(obj)
+        elseif kind=="skill" and placements[guid]=="play" then
+            skills[#skills+1]=obj
             footprints[guid]=footprint(obj)
         elseif kind=="mana" then
             manaObjects[#manaObjects+1]=obj
         end
     end
 
-    -- Stable ordering also makes tied link targets deterministic across scans.
+    -- Wounds can be Skill targets but never ordinary Action-link candidates.
+    local skillTargets={}
+    for _,card in ipairs(cards) do skillTargets[#skillTargets+1]=card end
+    for _,wound in ipairs(wounds) do skillTargets[#skillTargets+1]=wound end
+    local skillLinksByTarget,skillLinksBySkill=resolveSkillCardLinks(skills,skillTargets,footprints)
+
+    -- Stable ordering also makes tied Action link targets deterministic.
     table.sort(cards,function(a,b) return a.guid<b.guid end)
     local powered,usedMana={}, {}
 
@@ -721,7 +786,8 @@ local function renderSeat(seatPos)
     local terrainModifiers={reduce=0,setToTwo=false}
     for _,card in ipairs(cards) do
         local result=calculateCard(card,powered[card.guid]==true,boostBy[card.guid],
-            links[card.guid],discarded[card.guid]~=nil,hasDiscard[card.guid]==true)
+            links[card.guid],discarded[card.guid]~=nil,hasDiscard[card.guid]==true,
+            skillLinksByTarget[card.guid])
         local cardData=gameCards[card.guid]
         local rule=cardData~=nil and cardResourceDefinitions[cardData.resourceKey] or nil
         local choices=nil
@@ -756,6 +822,19 @@ local function renderSeat(seatPos)
         if result.usesTerrainBlock then usesCurrentHexBlock=true end
         setHighlight(card,result.status,result.powered)
     end
+    -- An unlinked Wound is inert. Only an attached Skill permits sideways use.
+    for _,wound in ipairs(wounds) do
+        local skillLink=skillLinksByTarget[wound.guid]
+        if skillLink~=nil then
+            local result=calculateSideways(wound,true,skillLink)
+            result.kind="wound"
+            showChoiceButtons(wound,sidewaysChoices,result.powered)
+            addResourceAmounts(result,totals)
+            records[wound.guid]=result
+            current[wound.guid]=true
+            setHighlight(wound,result.status,result.powered)
+        end
+    end
     -- The linking card itself contributes the target's upgraded effect. Mark it
     -- as a contributor so its powering mana token receives a green outline.
     for targetGUID,sourceGUID in pairs(boostSource) do
@@ -766,16 +845,18 @@ local function renderSeat(seatPos)
     end
 
     for guid,obj in pairs(objects) do
-        if records[guid]==nil then
+        -- No contribution or outline for a Wound without a matching Skill.
+        if records[guid]==nil and resourceObjectKind(obj)~="wound" then
             local kind=resourceObjectKind(obj)
             local poweredTarget=usedMana[guid]
             local contributing=poweredTarget~=nil and records[poweredTarget]~=nil
                 and records[poweredTarget].contributes==true
             local result
             if kind=="skill" and placements[guid]=="play" then
-                result=calculateSkill(obj)
+                result=calculateSkill(obj,skillLinksBySkill[guid])
                 showChoiceButtons(obj,result.choices,result.powered)
                 addResourceAmounts(result,totals)
+                if skillLinksBySkill[guid]~=nil then result.contributes=true end
             else
                 -- Units/faction rewards remain pending; mana marks power links.
                 local status=kind=="mana" and (contributing and "green" or "yellow") or "yellow"
@@ -873,10 +954,14 @@ function resourceCardsChoiceClicked(player,value,id)
     local isSkill=skillTokens[guid]~=nil
     local rule=isSkill and skillResourceDefinitions[guid]
         or (data~=nil and cardResourceDefinitions[data.resourceKey] or nil)
-    if card==nil or (rule==nil and not isSkill and not (cardPosture(card)=="sideways"
-        and cardCanPlaySideways(card))) then return end
     local currentSeat=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
-    if currentSeat==nil then return end
+    if card==nil or currentSeat==nil then return end
+    local scan=resourceCardScanBySeat[currentSeat.seatPos]
+    local record=scan~=nil and scan.cards[guid] or nil
+    local linkedWound=card.getGMNotes()=="Wound" and record~=nil
+        and record.linkedSkill~=nil
+    if rule==nil and not isSkill and not (cardPosture(card)=="sideways"
+        and (cardCanPlaySideways(card) or linkedWound)) then return end
     local zone=getObjectFromGUID(playerPlayAreas[currentSeat.seatPos])
     local inZone=false
     if zone~=nil then
@@ -886,12 +971,10 @@ function resourceCardsChoiceClicked(player,value,id)
     end
     if not inZone then return end
     -- Linked cards take the powered choice even without mana placed on them.
-    local scan=resourceCardScanBySeat[currentSeat.seatPos]
-    local record=scan~=nil and scan.cards[guid] or nil
     local powered=record~=nil and record.powered==true
     local sideways=not isSkill and cardPosture(card)=="sideways"
     local choices=isSkill and (rule~=nil and rule.choices or nil)
-        or ((sideways and cardCanPlaySideways(card)) and sidewaysChoices
+        or ((sideways and (cardCanPlaySideways(card) or linkedWound)) and sidewaysChoices
             or (not sideways and sideChoices(rule,powered) or nil))
     local valid=false
     for _,choice in ipairs(choices or {}) do

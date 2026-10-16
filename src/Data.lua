@@ -2383,7 +2383,7 @@ skillResourceDefinitions={
     ["2f2ad9"]={choices={{siege=1},{key="fire",siegeFire=1}}},
     ["31b225"]={choices={{move=1},{influence=1},{block=1},{attack=1}}},
     ["335290"]={untracked=true},
-    ["33d341"]={partial=true},
+    ["33d341"]={linkedCard={targetKind="wound",posture="sideways",sidewaysValue=2}}, -- Power of Pain
     ["3a3f49"]={partial=true},
     ["3b3273"]={untracked=true},
     ["3bd08e"]={untracked=true},
