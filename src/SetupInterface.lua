@@ -382,6 +382,7 @@ function randomizedDragonHeadsSelection(player,mouseButton,id)
 	if scenarioUsesApocalypseDragon()~=true and apocalypseDragonCityVariantEnabled()~=true then return end
 	gStates.randomizedDragonHeads=gStates.randomizedDragonHeads~=true
 	refreshApocalypseDragonVariantControls()
+	ToolTipUpdate("randomizedDragonHeads")
 end
 
 function horsemenHorsesSelection(player,mouseButton,id)
