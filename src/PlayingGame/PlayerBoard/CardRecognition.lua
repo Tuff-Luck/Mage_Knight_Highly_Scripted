@@ -1316,6 +1316,27 @@ local function enemyPrintedIconBonus(enemy)
     return count
 end
 
+-- The stronger Possess Spell borrows the target enemy's printed melee Attacks.
+-- Every printed attack counts, with its element, but none of its abilities
+-- (Swift, Brutal, etc.) change the borrowed value.
+local possessedAttackKeys={P="attack",F="attackFire",I="attackIce",IF="attackColdFire"}
+local function enemyPrintedPossessAttack(enemy)
+    if enemy==nil or enemy.arcaneImmunity==true
+        or type(enemy.attack)~="table" then return nil end
+    local resources={}
+    for element,category in pairs(possessedAttackKeys) do
+        local attacks=enemy.attack[element]
+        if type(attacks)=="table" then
+            for _,value in ipairs(attacks) do
+                if type(value)=="number" and value>0 then
+                    resources[category]=(resources[category] or 0)+value
+                end
+            end
+        end
+    end
+    return next(resources)~=nil and resources or nil
+end
+
 local function addResourceAmounts(result,totals)
     result.contributes=false
     if result.resources==nil then return end
@@ -1562,6 +1583,7 @@ local function renderSeat(seatPos)
         end
         return choices
     end
+    local claimedPossessEnemies={}
     for _,card in ipairs(cards) do
         local cardData=gameCards[card.guid]
         local rule=cardData~=nil and cardResourceDefinitions[cardData.resourceKey] or nil
@@ -1612,6 +1634,34 @@ local function renderSeat(seatPos)
             skillLinksByTarget[card.guid],linkedChoices,repeatByTarget[card.guid],
             discardBoostBySource[card.guid],woundCount,enemyBonus,
             spellCastingPaid[card.guid]==true)
+
+        -- Possess links to one face-up enemy placed over the powered Spell.
+        -- The enemy cannot be Arcane Immune and its printed Attack (including
+        -- all printed elements/strikes) becomes our melee Attack this combat.
+        if rule~=nil and rule.enemyAttackLink==true and result.powered
+            and result.resources~=nil and cardPosture(card)=="upright"
+            and (discarded[card.guid]==nil or repeatByTarget[card.guid]~=nil) then
+            local best,bestResources,bestArea=nil,nil,0
+            for guid,enemy in pairs(monsters) do
+                if enemy.is_face_down~=true and claimedPossessEnemies[guid]~=true then
+                    local resources=enemyPrintedPossessAttack(monsterPugs[guid])
+                    if resources~=nil then
+                        local area=overlapArea(footprints[card.guid],footprint(enemy))
+                        if area>bestArea or (area==bestArea and area>0
+                            and best~=nil and guid<best.guid) then
+                            best,bestResources,bestArea=enemy,resources,area
+                        end
+                    end
+                end
+            end
+            if best~=nil then
+                claimedPossessEnemies[best.guid]=true
+                result.resources=bestResources
+                result.enemyGUID=best.guid
+                result.links[#result.links+1]=best.guid
+                result.status="purple"
+            end
+        end
 
         -- Sacrifice's four variants count physically stored crystal pairs.
         if rule~=nil and rule.crystalPairAttack~=nil and result.powered
@@ -1744,7 +1794,8 @@ local function renderSeat(seatPos)
         if result.usesTerrainBlock then usesCurrentHexBlock=true end
         setHighlight(card,result.status,result.powered)
     end
-    -- Outline the particular enemy whose printed icons modified Cold Toughness.
+    -- Outline an enemy that supplied a printed ability bonus or a Possess
+    -- Attack; the enemy record itself does not add those values twice.
     -- Iterate the card list, not records: the loop also adds enemy records.
     for _,card in ipairs(cards) do
         local record=records[card.guid]
