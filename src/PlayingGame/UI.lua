@@ -2669,6 +2669,10 @@ end
 
 -- Shared object claim button builder
 function createClaimButton(objGUID, source)
+	-- Claim controls on Cards belong to the visible front, not the discard
+	-- back. Skill tokens and other objects keep their existing visibility.
+	local obj=getObjectFromGUID(objGUID)
+	local faceVisible=obj==nil or obj.type~="Card" or obj.is_face_down~=true
 	local onClick="global/processCardClaim"
 	local width=500
 	local height=150
@@ -2734,7 +2738,7 @@ function createClaimButton(objGUID, source)
 			end
 		end
 	end
-    return {tag="Button", attributes={id=objGUID..source, onClick=onClick, onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", height=height, width=width, position=position, rotation=rotation, scale=tostring(scale).." "..tostring(scale)},
+    return {tag="Button", attributes={id=objGUID..source, active=faceVisible and "true" or "false", onClick=onClick, onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", height=height, width=width, position=position, rotation=rotation, scale=tostring(scale).." "..tostring(scale)},
 		children={{tag="Image", attributes={id=objGUID..source.."Image", image="Sliced Button/Button Object Active", type="Sliced"}},
 				  {tag="HorizontalLayout", attributes={padding="25 25 25 25"},
 				  children={{tag="Text", attributes={id=objGUID..source.."Text", font="Fonts/MKCardText", fontSize=fontSize, fontStyle="Normal", alignment="MiddleCenter", resizeTextForBestFit="true", resizeTextMaxSize=fontSize, text=text}}}}}}
