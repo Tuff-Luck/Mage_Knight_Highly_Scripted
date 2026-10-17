@@ -1770,6 +1770,23 @@ function __onObjectRandomize_raw(randomize_object, player_color)
 end
 
 cardEffectRotationGeneration={}
+-- Claim/remove buttons come from the shared card button builder. Face changes
+-- should update their visibility without rebuilding other object UI (notably
+-- Resource Tracker choices or pending Quest decisions).
+local function refreshCardClaimFaceVisibility(card)
+	if card==nil or card.type~="Card" then return end
+	local active=card.is_face_down==true and "false" or "true"
+	for _,node in ipairs(card.UI.getXmlTable() or {}) do
+		local attrs=node.attributes
+		if node.tag=="Button" and attrs~=nil and type(attrs.id)=="string"
+			and attrs.id:sub(1,#card.guid)==card.guid
+			and (attrs.onClick=="global/processCardClaim"
+				or attrs.onClick=="global/removeTactic") then
+			card.UI.setAttribute(attrs.id,"active",active)
+		end
+	end
+end
+
 refreshCardEffectAfterRotation=function(cardGUID)
 	if cardGUID==nil then return end
 	cardEffectRotationGeneration[cardGUID]=(cardEffectRotationGeneration[cardGUID] or 0)+1
@@ -1843,6 +1860,12 @@ function __onObjectRotate_raw(object, spin, flip, player_color, old_spin, old_fl
 	if object.type~="Card" then return end
 	local cardGUID=object.guid
 	if cardGUID==meditationTranceCardGUID or isSteadyTempoGUID(cardGUID)==true or cardGUID==tacticCard[2] then refreshCardEffectAfterRotation(cardGUID) end
+	-- The face state is settled after the rotate callback, including Q/E flips
+	-- while the card is being held. Preserve buttons' ownership and state.
+	safeWaitFrames("Events",function()
+		local card=getObjectFromGUID(cardGUID)
+		if card~=nil then refreshCardClaimFaceVisibility(card) end
+	end,2)
 end
 
 function __onPlayerConnect_raw(player)
