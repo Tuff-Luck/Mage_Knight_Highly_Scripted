@@ -107,9 +107,9 @@ function puppetMasterWarn(playerIndex,message,controllerColor)
 		color=playerIndex~=nil and positionToColor(playerIndex) or nil
 	end
 	if color~=nil and Player[color]~=nil and Player[color].seated==true then
-		broadcastToColor(text,color,warningColor)
+		safeBroadcastToColor(text,color,warningColor)
 	elseif Player["Black"]~=nil and Player["Black"].seated==true then
-		broadcastToColor(text,"Black",warningColor)
+		safeBroadcastToColor(text,"Black",warningColor)
 	else
 		broadcastToAll(text,warningColor)
 	end

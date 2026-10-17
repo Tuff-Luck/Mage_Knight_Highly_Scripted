@@ -1159,7 +1159,7 @@ end
 
 function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 	if gStates.apocalypseDragonTurnActive==true and (againstDragonFullAttendInProgress==nil or againstDragonFullAttendInProgress(gStates.turnNumber)~=true) then
-		if player~=nil and player.color~=nil then broadcastToColor("{en}Finish the Apocalypse Dragon turn first.{it}Termina prima il turno del Drago dell'Apocalisse.{ru}Сначала завершите ход Дракона Апокалипсиса.{zh-tw}請先完成末日巨龍的回合。{zh-cn}请先完成末日巨龙的回合。{ko}먼저 아포칼립스 드래곤의 차례를 끝내세요.{es}Primero termina el turno del Dragón del Apocalipsis.{fr}Terminez d’abord le tour du Dragon de l’Apocalypse.{pt-br}Termine primeiro o turno do Dragão do Apocalipse.{de}Beende zuerst den Zug des Apokalypse-Drachen.",player.color,warningColor) end
+		if player~=nil and player.color~=nil then safeBroadcastToColor("{en}Finish the Apocalypse Dragon turn first.{it}Termina prima il turno del Drago dell'Apocalisse.{ru}Сначала завершите ход Дракона Апокалипсиса.{zh-tw}請先完成末日巨龍的回合。{zh-cn}请先完成末日巨龙的回合。{ko}먼저 아포칼립스 드래곤의 차례를 끝내세요.{es}Primero termina el turno del Dragón del Apocalipsis.{fr}Terminez d’abord le tour du Dragon de l’Apocalypse.{pt-br}Termine primeiro o turno do Dragão do Apocalipse.{de}Beende zuerst den Zug des Apokalypse-Drachen.",player.color,warningColor) end
 		return
 	end
 	if mouseButton~="-1" or legalPlayerCheck(player.color,turnOrder[gStates.turnNumber].seatPos)~=true then return end
@@ -1170,7 +1170,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 		return
 	end
 	if gStates.mineClaimPending~=nil then
-		broadcastToColor("{en}Resolve the pending crystal choice before ending the turn.{it}Risolvi la scelta del cristallo prima di terminare il turno.{ru}Завершите ожидающий выбор кристалла, прежде чем заканчивать ход.{zh-tw}結束回合前，請先完成尚未處理的魔晶選擇。{zh-cn}结束回合前，请先完成尚未处理的魔晶选择。{ko}턴을 끝내기 전에 대기 중인 수정 선택을 완료하세요.{es}Resuelve la elección de cristal pendiente antes de terminar el turno.{fr}Résolvez le choix de cristal en attente avant de terminer le tour.{pt-br}Resolva a escolha de cristal pendente antes de encerrar o turno.{de}Schließe die ausstehende Kristallauswahl ab, bevor du den Zug beendest.",player.color,warningColor)
+		safeBroadcastToColor("{en}Resolve the pending crystal choice before ending the turn.{it}Risolvi la scelta del cristallo prima di terminare il turno.{ru}Завершите ожидающий выбор кристалла, прежде чем заканчивать ход.{zh-tw}結束回合前，請先完成尚未處理的魔晶選擇。{zh-cn}结束回合前，请先完成尚未处理的魔晶选择。{ko}턴을 끝내기 전에 대기 중인 수정 선택을 완료하세요.{es}Resuelve la elección de cristal pendiente antes de terminar el turno.{fr}Résolvez le choix de cristal en attente avant de terminer le tour.{pt-br}Resolva a escolha de cristal pendente antes de encerrar o turno.{de}Schließe die ausstehende Kristallauswahl ab, bevor du den Zug beendest.",player.color,warningColor)
 		if rewindReady==true then rewindTransactionFinish("Pre-end-turn cleanup") end
 		return
 	end

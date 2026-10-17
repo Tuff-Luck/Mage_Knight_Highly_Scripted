@@ -481,13 +481,13 @@ local function turnRewardClaimGate(player,rewindReady,rewardSoftLock,rewardSeat)
 		else
 			questGateMessage="{en}Complete or Progress the Quest first.{it}Prima Completa o fai avanzare la Missione.{ru}Сначала завершите или продвиньте Задание.{zh-tw}請先完成或推進任務。{zh-cn}请先完成或推进任务。{ko}먼저 퀘스트를 완료하거나 진행하세요.{es}Completa o progresa la Misión primero.{fr}Terminez ou faites d’abord progresser la Quête.{pt-br}Conclua ou avance a Missão primeiro.{de}Schließe die Quest zuerst ab oder setze sie fort."
 		end
-		broadcastToColor(questGateMessage,player.color,warningColor)
+		safeBroadcastToColor(questGateMessage,player.color,warningColor)
 		if rewindReady==true then rewindTransactionFinish("End turn") end
 		return true
 	end
 	if rewardSoftLock==true and gStates.preEndTurn==true and apocalypseIsHereActive~=nil and apocalypseIsHereActive()==true and gStates.apocalypseHereForcedRevealPending==true then
 		cameraControl(player,"-1","mapView")
-		broadcastToColor("{en}Reveal the overdue Map tile(s) before claiming rewards.{it}Rivela le tessere Mappa in ritardo prima di prendere le ricompense.{ru}Откройте просроченные тайлы карты перед получением наград.{zh-tw}領取獎勵前，先揭示逾期的地圖板塊。{zh-cn}领取奖励前，先揭示逾期的地图板块。{ko}보상을 받기 전에 지연된 지도 타일을 공개하세요.{es}Revela las losetas de Mapa pendientes antes de reclamar recompensas.{fr}Révélez les tuiles Carte en retard avant de réclamer les récompenses.{pt-br}Revele as peças de Mapa atrasadas antes de receber as recompensas.{de}Decke die überfälligen Kartenteile auf, bevor du Belohnungen beanspruchst.",player.color,warningColor)
+		safeBroadcastToColor("{en}Reveal the overdue Map tile(s) before claiming rewards.{it}Rivela le tessere Mappa in ritardo prima di prendere le ricompense.{ru}Откройте просроченные тайлы карты перед получением наград.{zh-tw}領取獎勵前，先揭示逾期的地圖板塊。{zh-cn}领取奖励前，先揭示逾期的地图板块。{ko}보상을 받기 전에 지연된 지도 타일을 공개하세요.{es}Revela las losetas de Mapa pendientes antes de reclamar recompensas.{fr}Révélez les tuiles Carte en retard avant de réclamer les récompenses.{pt-br}Revele as peças de Mapa atrasadas antes de receber as recompensas.{de}Decke die überfälligen Kartenteile auf, bevor du Belohnungen beanspruchst.",player.color,warningColor)
 		if rewindReady==true then rewindTransactionFinish("End turn") end
 		return true
 	end
@@ -499,13 +499,13 @@ local function turnRewardClaimGate(player,rewindReady,rewardSoftLock,rewardSeat)
 		return true
 	end
 	if rewardSoftLock==true and gStates.mineClaimPending~=nil and (gStates.mineClaimPending.playerIndex==nil or gStates.mineClaimPending.playerIndex==gStates.turnNumber) then
-		broadcastToColor("{en}Resolve the pending crystal choice before proceeding to the next player.{it}Risolvi la scelta del cristallo prima di passare al prossimo giocatore.{ru}Сначала выберите ожидающий кристалл, прежде чем переходить к следующему игроку.{zh-tw}前往下一位玩家前，先完成尚未處理的水晶選擇。{zh-cn}前往下一位玩家前，先完成尚未处理的水晶选择。{ko}다음 플레이어로 넘어가기 전에 대기 중인 크리스털 선택을 해결하십시오.{es}Resuelve la elección de cristal pendiente antes de pasar al siguiente jugador.{fr}Résolvez le choix de cristal en attente avant de passer au joueur suivant.{pt-br}Resolva a escolha de cristal pendente antes de passar para o próximo jogador.{de}Schließe die ausstehende Kristallauswahl ab, bevor du zum nächsten Spieler wechselst.", player.color, warningColor)
+		safeBroadcastToColor("{en}Resolve the pending crystal choice before proceeding to the next player.{it}Risolvi la scelta del cristallo prima di passare al prossimo giocatore.{ru}Сначала выберите ожидающий кристалл, прежде чем переходить к следующему игроку.{zh-tw}前往下一位玩家前，先完成尚未處理的水晶選擇。{zh-cn}前往下一位玩家前，先完成尚未处理的水晶选择。{ko}다음 플레이어로 넘어가기 전에 대기 중인 크리스털 선택을 해결하십시오.{es}Resuelve la elección de cristal pendiente antes de pasar al siguiente jugador.{fr}Résolvez le choix de cristal en attente avant de passer au joueur suivant.{pt-br}Resolva a escolha de cristal pendente antes de passar para o próximo jogador.{de}Schließe die ausstehende Kristallauswahl ab, bevor du zum nächsten Spieler wechselst.", player.color, warningColor)
 		if rewindReady==true then rewindTransactionFinish("End turn") end
 		return true
 	end
 	if rewardSoftLock==true and rewardRetreatRequired~=nil and rewardRetreatRequired(gStates.turnNumber)==true then
 		cameraControl(player,"-1","mapView")
-		broadcastToColor("{en}Retreat to a safe space before claiming rewards.{it}Ritirati in uno spazio sicuro prima di prendere le ricompense.{ru}Отступите на безопасное поле перед получением наград.{zh-tw}領取獎勵前先撤退到安全空間。{zh-cn}领取奖励前先撤退到安全空间。{ko}보상을 받기 전에 안전한 칸으로 후퇴하십시오.{es}Retírate a un espacio seguro antes de reclamar recompensas.{fr}Retirez-vous vers un espace sûr avant de réclamer les récompenses.{pt-br}Recue para um espaço seguro antes de receber as recompensas.{de}Ziehe dich auf ein sicheres Feld zurück, bevor du Belohnungen beanspruchst.",player.color,warningColor)
+		safeBroadcastToColor("{en}Retreat to a safe space before claiming rewards.{it}Ritirati in uno spazio sicuro prima di prendere le ricompense.{ru}Отступите на безопасное поле перед получением наград.{zh-tw}領取獎勵前先撤退到安全空間。{zh-cn}领取奖励前先撤退到安全空间。{ko}보상을 받기 전에 안전한 칸으로 후퇴하십시오.{es}Retírate a un espacio seguro antes de reclamar recompensas.{fr}Retirez-vous vers un espace sûr avant de réclamer les récompenses.{pt-br}Recue para um espaço seguro antes de receber as recompensas.{de}Ziehe dich auf ein sicheres Feld zurück, bevor du Belohnungen beanspruchst.",player.color,warningColor)
 		if rewindReady==true then rewindTransactionFinish("End turn") end
 		return true
 	end
@@ -929,11 +929,11 @@ end
 --record the player who called end of round
 function __PreEndRound_raw(player, mouseButton, id)
 	if gStates.apocalypseHereHorsemenTurnActive==true then
-		if player~=nil and player.color~=nil then broadcastToColor("{en}Finish the Horsemen turn first.{it}Termina prima il turno dei Cavalieri.{ru}Сначала завершите ход Всадников.{zh-tw}請先完成騎士的回合。{zh-cn}请先完成骑士的回合。{ko}먼저 기사들의 턴을 끝내십시오.{es}Termina primero el turno de los Jinetes.{fr}Terminez d’abord le tour des Cavaliers.{pt-br}Termine primeiro o turno dos Cavaleiros.{de}Beende zuerst den Zug der Reiter.",player.color,warningColor) end
+		if player~=nil and player.color~=nil then safeBroadcastToColor("{en}Finish the Horsemen turn first.{it}Termina prima il turno dei Cavalieri.{ru}Сначала завершите ход Всадников.{zh-tw}請先完成騎士的回合。{zh-cn}请先完成骑士的回合。{ko}먼저 기사들의 턴을 끝내십시오.{es}Termina primero el turno de los Jinetes.{fr}Terminez d’abord le tour des Cavaliers.{pt-br}Termine primeiro o turno dos Cavaleiros.{de}Beende zuerst den Zug der Reiter.",player.color,warningColor) end
 		return
 	end
 	if gStates.apocalypseDragonTurnActive==true then
-		if player~=nil and player.color~=nil then broadcastToColor("{en}Finish the Apocalypse Dragon turn first.{it}Termina prima il turno del Drago dell'Apocalisse.{ru}Сначала завершите ход Дракона Апокалипсиса.{zh-tw}請先完成末日巨龍的回合。{zh-cn}请先完成末日巨龙的回合。{ko}먼저 아포칼립스 드래곤의 턴을 끝내십시오.{es}Termina primero el turno del Dragón del Apocalipsis.{fr}Terminez d’abord le tour du Dragon de l’Apocalypse.{pt-br}Termine primeiro o turno do Dragão do Apocalipse.{de}Beende zuerst den Zug des Apokalypse-Drachen.",player.color,warningColor) end
+		if player~=nil and player.color~=nil then safeBroadcastToColor("{en}Finish the Apocalypse Dragon turn first.{it}Termina prima il turno del Drago dell'Apocalisse.{ru}Сначала завершите ход Дракона Апокалипсиса.{zh-tw}請先完成末日巨龍的回合。{zh-cn}请先完成末日巨龙的回合。{ko}먼저 아포칼립스 드래곤의 턴을 끝내십시오.{es}Termina primero el turno del Dragón del Apocalipsis.{fr}Terminez d’abord le tour du Dragon de l’Apocalypse.{pt-br}Termine primeiro o turno do Dragão do Apocalipse.{de}Beende zuerst den Zug des Apokalypse-Drachen.",player.color,warningColor) end
 		return
 	end
 	if gStates.endGameAchieved~="false" then
@@ -1717,7 +1717,7 @@ function nightTactic2(player, mouseButton, id)
 				end
 			end
 			if discards==nil then
-				broadcastToColor("{en}Night Tactic 2: there are no discarded Deed cards to return.{it}Tattica Notte 2: nessuna carta Gesta scartata da recuperare.{ru}Ночная тактика 2: нет сброшенных карт Действий для возврата.{zh-tw}夜間戰術 2：沒有可放回的已棄行動牌。{zh-cn}夜间战术 2：没有可放回的已弃行动牌。{ko}야간 전술 2: 되돌릴 버린 행동 카드가 없습니다.{es}Táctica Nocturna 2: no hay cartas de Acción descartadas para devolver.{fr}Tactique Nocturne 2 : aucune carte Action défaussée ne peut être remise.{pt-br}Tática Noturna 2: não há cartas de Ação descartadas para devolver.{de}Nachttaktik 2: Es gibt keine abgeworfenen Aktionskarten zum Zurücklegen.",player.color,warningColor)
+				safeBroadcastToColor("{en}Night Tactic 2: there are no discarded Deed cards to return.{it}Tattica Notte 2: nessuna carta Gesta scartata da recuperare.{ru}Ночная тактика 2: нет сброшенных карт Действий для возврата.{zh-tw}夜間戰術 2：沒有可放回的已棄行動牌。{zh-cn}夜间战术 2：没有可放回的已弃行动牌。{ko}야간 전술 2: 되돌릴 버린 행동 카드가 없습니다.{es}Táctica Nocturna 2: no hay cartas de Acción descartadas para devolver.{fr}Tactique Nocturne 2 : aucune carte Action défaussée ne peut être remise.{pt-br}Tática Noturna 2: não há cartas de Ação descartadas para devolver.{de}Nachttaktik 2: Es gibt keine abgeworfenen Aktionskarten zum Zurücklegen.",player.color,warningColor)
 				return
 			end
 

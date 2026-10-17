@@ -198,7 +198,7 @@ function __skillMove_raw(player, mouseButton, id, rewindReady)
 				if claimedColumn~=gStates.skillButtons then
 					claimedSkill.unlock()
 					claimedSkill.setPositionSmooth(claimedHome)
-					broadcastToColor("{en}Hero Challenges: choose one of your two newly flipped Skills.{it}Sfide degli Eroi: scegli una delle tue due Abilità appena rivelate.{ru}Испытания героев: выберите один из двух только что открытых навыков.{zh-tw}英雄挑戰：從你剛翻開的兩個技能中選擇一個。{zh-cn}英雄挑战：从你刚翻开的两个技能中选择一个。{ko}영웅 도전: 방금 공개한 두 스킬 중 하나를 선택하세요.{es}Desafíos de Héroe: elige una de tus dos Habilidades recién reveladas.{fr}Défis de Héros : choisissez l'une des deux Compétences que vous venez de révéler.{pt-br}Desafios de Herói: escolha uma das duas Habilidades recém-reveladas.{de}Heldenherausforderungen: Wähle eine deiner beiden gerade aufgedeckten Fertigkeiten.",player.color or "Black",{1,0.6,0.2})
+					safeBroadcastToColor("{en}Hero Challenges: choose one of your two newly flipped Skills.{it}Sfide degli Eroi: scegli una delle tue due Abilità appena rivelate.{ru}Испытания героев: выберите один из двух только что открытых навыков.{zh-tw}英雄挑戰：從你剛翻開的兩個技能中選擇一個。{zh-cn}英雄挑战：从你刚翻开的两个技能中选择一个。{ko}영웅 도전: 방금 공개한 두 스킬 중 하나를 선택하세요.{es}Desafíos de Héroe: elige una de tus dos Habilidades recién reveladas.{fr}Défis de Héros : choisissez l'une des deux Compétences que vous venez de révéler.{pt-br}Desafios de Herói: escolha uma das duas Habilidades recém-reveladas.{de}Heldenherausforderungen: Wähle eine deiner beiden gerade aufgedeckten Fertigkeiten.",player.color or "Black",{1,0.6,0.2})
 					if rewindReady==true then rewindTransactionFinish(skillRewindOwner) end
 					return
 				end

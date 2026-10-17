@@ -8,7 +8,7 @@ local function notifyBlackMageKnightTeamChange(seatPos,team)
     local teamText=team==0
         and "{en}No Team{it}Nessuna Squadra{ru}Без команды{zh-tw}無隊伍{zh-cn}无队伍{ko}팀 없음{es}Sin equipo{fr}Sans équipe{pt-br}Sem equipe{de}Kein Team"
         or ("{en}Team "..team.."{it}Squadra "..team.."{ru}Команда "..team.."{zh-tw}隊伍 "..team.."{zh-cn}队伍 "..team.."{ko}팀 "..team.."{es}Equipo "..team.."{fr}Équipe "..team.."{pt-br}Equipe "..team.."{de}Team "..team)
-    broadcastToColor(joinLang({"{en}Seat {it}Postazione {ru}Место {zh-tw}座位 {zh-cn}座位 {ko}좌석 {es}Asiento {fr}Place {pt-br}Assento {de}Sitz ",seatPos,": ",teamText}),"Black",{1,1,0.5})
+    safeBroadcastToColor(joinLang({"{en}Seat {it}Postazione {ru}Место {zh-tw}座位 {zh-cn}座位 {ko}좌석 {es}Asiento {fr}Place {pt-br}Assento {de}Sitz ",seatPos,": ",teamText}),"Black",{1,1,0.5})
 end
 
 function mageKnightSeatTeam(seatPos)
@@ -276,7 +276,7 @@ function oneToReturnEnsureChosenMages()
         for _,member in ipairs(members[team]) do
             for color,seat in pairs(gStates.handColors or {}) do
                 if seat==member.seatPos and Player[color]~=nil and Player[color].seated==true then
-                    broadcastToColor(message,color,{1,1,0.5})
+                    safeBroadcastToColor(message,color,{1,1,0.5})
                 end
             end
         end

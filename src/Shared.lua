@@ -1128,6 +1128,22 @@ function runtimeMapHexForPosition(hexes,position,mapObjects)
 	return nil
 end
 
+-- TTS lets the Black Game Master and Grey spectators trigger permitted UI actions,
+-- but broadcastToColor cannot address those colours. Keep their feedback visible
+-- without interrupting the action or changing who is allowed to click.
+function safeBroadcastToColor(message,color,tint)
+	if color=="Black" or color=="Grey" then
+		broadcastToAll(message,tint)
+		return
+	end
+	local recipient=type(color)=="string" and Player[color] or nil
+	if recipient==nil or recipient.seated~=true then
+		broadcastToAll(message,tint)
+		return
+	end
+	broadcastToColor(message,color,tint)
+end
+
 -- Player permission helpers
 --checks the clicking player matches the current turn
 function legalPlayerCheck(clickingPlayersColor, playerPosExpected, rule)
