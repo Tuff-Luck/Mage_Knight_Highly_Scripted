@@ -887,7 +887,7 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
         and (powered and rule.movementEffects.powered
             or (not powered and rule.movementEffects.normal))
     local status=(not known or not sideTracked or posture=="discard"
-        or (choiceIsUntracked and costPaid and scriptedMovement==nil)) and "blue"
+        or (choiceIsUntracked and costPaid and not scriptedMovement)) and "blue"
         or not complete and "yellow" or "green"
     -- Linking information is more valuable than the underlying certainty colour.
     if #linked>0 then status="purple" end
