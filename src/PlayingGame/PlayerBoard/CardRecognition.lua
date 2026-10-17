@@ -174,6 +174,7 @@ local sidewaysChoices={{move=1},{block=1},{attack=1},{influence=1}}
 
 local choiceLetters={move="M",influence="I",attack="A",block="B",
     ranged="R",siege="S",healing="H",draw="D",other="O",
+    siegeFire="SF",siegeIce="SI",rangedFire="RF",rangedIce="RI",
     fire="F",ice="I",coldFire="C",boost="H+",split="I/F",negative="N",
     heal="H",combat="C",wound="W",reputation="R",gain="G",ready="R",
     base="2",sourceUnused="3",red="R",blue="B",white="W",green="G",
@@ -607,7 +608,7 @@ local function matchesCardMana(card,color)
     local data=gameCards[card.guid]
     if data==nil then return color=="Red" or color=="Blue" or color=="Green" or color=="White" end
     if color=="Gold" then return gStates.dayRound==true end
-    if color=="Black" then return data.cardType=="Spell" and gStates.dayRound==false end
+    if color=="Black" then return data.cardType=="Spell" end
     local colors=data.color
     if type(colors)=="string" then return colors==color end
     if type(colors)=="table" then
@@ -690,6 +691,17 @@ local function currentLandBlockValue()
     terrain=terrain or (hex~=nil and hex.hexType or nil)
     local costs=gStates.dayRound==true and landPrintedMoveDay or landPrintedMoveNight
     return costs[terrain]
+end
+
+
+-- Used only for effects that vary with the Mage Knight's current terrain.
+local function currentSpellTerrain()
+    if gStates==nil or gStates.turnNumber==nil
+        or fracturedLandsTeleportSourcePosition==nil then return nil end
+    local position=fracturedLandsTeleportSourcePosition(gStates.turnNumber)
+    if position==nil then return nil end
+    local hex,_,_,_,_,_,terrain=runtimeMapHexAtPosition(position)
+    return terrain or (hex~=nil and hex.hexType or nil)
 end
 
 -- One sideways calculator for ordinary Actions and Skill-linked exceptions.
@@ -1096,9 +1108,9 @@ local function convertedManaMatchesCard(card,color)
     if data==nil or card.is_face_down==true or cardPosture(card)~="upright" then return false end
     if data.cardType~="Starting" and data.cardType~="Advanced Action"
         and data.cardType~="Spell" and data.cardType~="Artifact" then return false end
-    -- Gold may supply a basic colour by day; Black may supply a Spell at night.
+    -- Gold follows the day rule; Black Spell strength is not legality-checked.
     if color=="Gold" and gStates.dayRound~=true then return false end
-    if color=="Black" and (gStates.dayRound==true or data.cardType~="Spell") then return false end
+    if color=="Black" and data.cardType~="Spell" then return false end
     return matchesCardMana(card,color)
 end
 
@@ -1246,13 +1258,16 @@ local function renderSeat(seatPos)
     local active=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if active==nil or active.seatPos~=seatPos then return end
 
-    local objects,placements,monsters={},{},{}
+    local objects,placements,monsters,playMonsters={},{},{},{}
     local function inspectZone(guid,zoneKind)
         local zone=guid~=nil and getObjectFromGUID(guid) or nil
         if zone==nil then return end
         for _,obj in ipairs(zone.getObjects()) do
             if (zoneKind=="play" or zoneKind=="unit")
-                and monsterPugs[obj.guid]~=nil then monsters[obj.guid]=obj end
+                and monsterPugs[obj.guid]~=nil then
+                monsters[obj.guid]=obj
+                if zoneKind=="play" then playMonsters[obj.guid]=obj end
+            end
             local kind=resourceObjectKind(obj)
             if kind~=nil and (zoneKind=="play"
                 or (zoneKind=="unit" and (kind=="unit" or kind=="mana"))
@@ -1346,7 +1361,7 @@ local function renderSeat(seatPos)
         resolveManaSkillLinks(skills,manaObjects,cards,footprints,placements)
     local skillLinksByTarget,skillLinksBySkill,sidewaysSkillMana=
         resolveSkillCardLinks(skills,skillTargets,footprints,manaObjects,placements,manaByObject,unitState)
-    local powered,usedMana,spellSupply={}, {}, {}
+    local powered,usedMana={}, {}
     -- Some Actions require a separate coloured mana payment to choose their
     -- effect. Record those candidates before deciding which Blue mana powers
     -- the strong side; one token can never fill both roles.
@@ -1365,10 +1380,9 @@ local function renderSeat(seatPos)
             candidates[#candidates+1]={guid=manaGUID,color=color}
             effectManaByCard[card.guid]=candidates
         elseif data~=nil and data.cardType=="Spell" then
-            -- A Spell's stronger effect needs basic-colour AND Black mana at Night.
-            local supply=spellSupply[card.guid] or {basic=false,black=false}
-            if color=="Black" then supply.black=true else supply.basic=true end
-            spellSupply[card.guid]=supply
+            -- Black alone selects the stronger Spell for this estimate.
+            -- Other mana payments and legal casting are left to the player.
+            if color=="Black" then powered[card.guid]=true end
         else
             powered[card.guid]=true
         end
@@ -1418,10 +1432,6 @@ local function renderSeat(seatPos)
             end
         end
     end
-    for guid,supply in pairs(spellSupply) do
-        powered[guid]=gStates.dayRound~=true and supply.basic and supply.black
-    end
-
     local links,boostBy,boostSource,discarded,hasDiscard,linkedCardBySource,
         repeatByTarget,discardBoostBySource=
         resolveActionLinks(cards,wounds,footprints,powered,skillLinksByTarget)
@@ -1458,6 +1468,7 @@ local function renderSeat(seatPos)
     end
     local current,records,totals={}, {}, {}
     local usesCurrentHexBlock=false
+    local usesCurrentHexHealing=false
     local terrainModifiers={}
     -- Reduce the choice buttons to the mana colours that could actually pay.
     -- Gold (during Day) deliberately opens every choice for the player.
@@ -1539,6 +1550,43 @@ local function renderSeat(seatPos)
             links[card.guid],discarded[card.guid]~=nil,hasDiscard[card.guid]==true,
             skillLinksByTarget[card.guid],linkedChoices,repeatByTarget[card.guid],
             discardBoostBySource[card.guid],woundCount,enemyBonus)
+
+        -- Sacrifice's four variants count physically stored crystal pairs.
+        if rule~=nil and rule.crystalPairAttack~=nil and result.powered
+            and result.resources~=nil and cardPosture(card)=="upright" then
+            local chosen,category=currentChoice(card.guid,true,rule.poweredChoices)
+            local colors=rule.crystalPairAttack[category]
+            if colors~=nil and chosen~=nil then
+                local pairCount=math.min(inventoryCrystalCounts[colors[1]] or 0,
+                    inventoryCrystalCounts[colors[2]] or 0)
+                result.resources={[category]=(chosen[category] or 0)*pairCount}
+                result.complete=pairCount>0
+                result.status=pairCount>0 and "green" or "blue"
+            end
+        end
+        if rule~=nil and rule.poweredEnemyBonus~=nil and result.powered
+            and result.resources~=nil and cardPosture(card)=="upright" then
+            local enemyCount=0
+            for _,enemy in pairs(playMonsters) do
+                if enemy.is_face_down~=true then enemyCount=enemyCount+1 end
+            end
+            local updated={}
+            for category,value in pairs(result.resources) do
+                updated[category]=(totalsKeys[category] and type(value)=="number")
+                    and value+enemyCount*rule.poweredEnemyBonus or value
+            end
+            result.resources=updated
+        end
+        if rule~=nil and rule.forestHealing~=nil and result.resources~=nil
+            and result.resources.healing~=nil and cardPosture(card)=="upright" then
+            usesCurrentHexHealing=true
+            if currentSpellTerrain()=="forest" then
+                local updated={}
+                for category,value in pairs(result.resources) do updated[category]=value end
+                updated.healing=rule.forestHealing
+                result.resources=updated
+            end
+        end
         local inventorySpec=rule~=nil and rule.inventorySetChoices or nil
         local inventorySets=0
         if inventorySpec~=nil and result.powered and result.resources~=nil
@@ -1817,7 +1865,8 @@ local function renderSeat(seatPos)
     end
     bySeat[seatPos]=current
     resourceCardScanBySeat[seatPos]={cards=records,totals=totals,
-        terrainModifiers=terrainModifiers,usesCurrentHexBlock=usesCurrentHexBlock}
+        terrainModifiers=terrainModifiers,usesCurrentHexBlock=usesCurrentHexBlock,
+        usesCurrentHexHealing=usesCurrentHexHealing}
     -- Repeated scans for card position/highlight changes need no panel repaint
     -- unless a calculated resource or movement modifier actually changed.
     if totalsChanged or terrainChanged then refreshResourceTrackerText() end
@@ -2017,7 +2066,8 @@ function resourceCardsObjectMoved(obj)
         -- Mage Knight moves to different terrain. Only watch avatar drops
         -- while that exact effect is selected; no continual background scan.
         local scan=resourceCardScanBySeat[seat]
-        if scan~=nil and scan.usesCurrentHexBlock==true then
+        if scan~=nil and (scan.usesCurrentHexBlock==true
+            or scan.usesCurrentHexHealing==true) then
             for _,hero in ipairs(mageKnights or {}) do
                 if hero.mage==player.mage and
                     (obj.guid==hero.model or obj.guid==hero.token or obj.guid==hero.standee) then
