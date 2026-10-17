@@ -792,7 +792,7 @@ local function calculateSideways(card,known,skillLink)
         resources=resources}
 end
 
-local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,hasDiscard,skillLink,linkedChoices,repeatLink,discardBonus,woundCount,enemyIconBonus)
+local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,hasDiscard,skillLink,linkedChoices,repeatLink,discardBonus,woundCount,enemyIconBonus,spellCastPaid)
     local data=gameCards[card.guid]
     local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
     local known=data~=nil
@@ -842,7 +842,11 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
     end
     -- A discard is an actual cost of Improvisation, even when its strong side
     -- came free from Concentration/Will Focus.
-    local costPaid=rule==nil or rule.requiredLink==nil or hasDiscard==true
+    -- Spells on the table may be discarded or merely displayed. Their printed
+    -- effect is played only after a linked mana matches the Spell's own colour
+    -- (or Daytime Gold). Black alone can indicate a strong side, not a cast.
+    local costPaid=(data==nil or data.cardType~="Spell" or spellCastPaid==true)
+        and (rule==nil or rule.requiredLink==nil or hasDiscard==true)
     local canApply=not discardTarget or repeatLink~=nil
     local effects=sideTracked and faceUp and costPaid and canApply
         and applyLinkedResourceBonus(base,linkedBoost) or nil
@@ -875,13 +879,14 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
             or enemyIconBonus~=nil)
         and faceUp and costPaid and canApply
     local choiceIsUntracked=chosen~=nil and not effectHasTrackedResource(chosen)
-    local status=(not known or not sideTracked or posture=="discard" or choiceIsUntracked) and "blue"
+    local status=(not known or not sideTracked or posture=="discard"
+        or (choiceIsUntracked and costPaid)) and "blue"
         or not complete and "yellow" or "green"
     -- Linking information is more valuable than the underlying certainty colour.
     if #linked>0 then status="purple" end
     return {guid=card.guid,known=known,complete=complete,powered=powered,
         links=linked,status=status,resources=effects,
-        usesTerrainBlock=usesTerrainBlock and faceUp and canApply,
+        usesTerrainBlock=usesTerrainBlock and faceUp and costPaid and canApply,
         repeatCount=repeatLink~=nil and repeatLink.count or nil}
 end
 
@@ -1425,7 +1430,7 @@ local function renderSeat(seatPos)
         resolveManaSkillLinks(skills,manaObjects,cards,footprints,placements)
     local skillLinksByTarget,skillLinksBySkill,sidewaysSkillMana=
         resolveSkillCardLinks(skills,skillTargets,footprints,manaObjects,placements,manaByObject,unitState)
-    local powered,usedMana={}, {}
+    local powered,usedMana,spellCastingPaid={}, {}, {}
     -- Some cards require a separate coloured mana payment to choose their
     -- effect. Record those candidates before deciding which mana powers the
     -- strong side; one token can never fill both roles.
@@ -1439,6 +1444,10 @@ local function renderSeat(seatPos)
     end
     local function spendMana(card,color,manaGUID)
         local data=gameCards[card.guid]
+        if data~=nil and data.cardType=="Spell" and color~="Black"
+            and matchesCardMana(card,color) then
+            spellCastingPaid[card.guid]=true
+        end
         if specialPaymentByCard[card.guid]~=nil then
             local candidates=effectManaByCard[card.guid] or {}
             candidates[#candidates+1]={guid=manaGUID,color=color}
@@ -1581,7 +1590,9 @@ local function renderSeat(seatPos)
             if cardPosture(card)=="sideways" then
                 if cardCanPlaySideways(card) then choices=sidewaysChoices end
             elseif (cardData==nil or cardData.resourceAlwaysNeutral~=true)
-                and (rule==nil or rule.requiredLink==nil or hasDiscard[card.guid]==true) then
+                and (rule==nil or rule.requiredLink==nil or hasDiscard[card.guid]==true)
+                and (cardData==nil or cardData.cardType~="Spell"
+                    or spellCastingPaid[card.guid]==true) then
                 -- Don't guess an unavailable effect before its payment/link is present.
                 choices=linkedChoices or sideChoices(rule,isStrong)
             end
@@ -1592,7 +1603,8 @@ local function renderSeat(seatPos)
         local result=calculateCard(card,powered[card.guid]==true,boostBy[card.guid],
             links[card.guid],discarded[card.guid]~=nil,hasDiscard[card.guid]==true,
             skillLinksByTarget[card.guid],linkedChoices,repeatByTarget[card.guid],
-            discardBoostBySource[card.guid],woundCount,enemyBonus)
+            discardBoostBySource[card.guid],woundCount,enemyBonus,
+            spellCastingPaid[card.guid]==true)
 
         -- Sacrifice's four variants count physically stored crystal pairs.
         if rule~=nil and rule.crystalPairAttack~=nil and result.powered
@@ -1707,6 +1719,8 @@ local function renderSeat(seatPos)
         -- unpowered side's movement rules.
         if rule~=nil and rule.movementEffects~=nil and cardPosture(card)=="upright"
             and card.is_face_down~=true
+            and (cardData==nil or cardData.cardType~="Spell"
+                or spellCastingPaid[card.guid]==true)
             and (discarded[card.guid]==nil or repeatByTarget[card.guid]~=nil) then
             local effect=result.powered and rule.movementEffects.powered
                 or (not result.powered and rule.movementEffects.normal or nil)
