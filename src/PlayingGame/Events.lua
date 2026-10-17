@@ -1866,6 +1866,12 @@ function __onObjectRotate_raw(object, spin, flip, player_color, old_spin, old_fl
 		local card=getObjectFromGUID(cardGUID)
 		if card~=nil then refreshCardClaimFaceVisibility(card) end
 	end,2)
+	if gStates~=nil and gStates.apocalypseQuestCardGUIDs~=nil
+		and gStates.apocalypseQuestCardGUIDs[cardGUID]==true then
+		-- Quest action choices have their own guarded refresh; regenerate them
+		-- only on a face-up card without changing its unresolved Quest state.
+		safeWaitFrames("Events",function() apocalypseQuestRefreshOfferButtons() end,2)
+	end
 end
 
 function __onPlayerConnect_raw(player)
