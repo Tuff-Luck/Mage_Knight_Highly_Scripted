@@ -70,6 +70,14 @@ function resourceCardsEffectiveMove()
     return math.max(0,resourceCardsEffectiveValue("move","move"))
 end
 
+-- Active, reconstructable play-area effects, shared with the movement calculator.
+function resourceCardsCurrentMovementEffects()
+    if not resourceCardsPanelOpen() or turnOrder==nil then return nil end
+    local player=turnOrder[gStates.turnNumber]
+    local scan=player~=nil and resourceCardScanBySeat[player.seatPos] or nil
+    return scan~=nil and scan.movementEffects or nil
+end
+
 -- Terrain abilities are an overlay, not changes to gStates.moveCost. This
 -- preserves day/night terrain settings, manual adjustments and other cards.
 -- City/Explore are not terrain: their special movement costs remain intact.
@@ -1484,6 +1492,7 @@ local function renderSeat(seatPos)
     local usesCurrentHexBlock=false
     local usesCurrentHexHealing=false
     local terrainModifiers={}
+    local movementEffects={jumpTwoSpaces=false,ignoreRampagers=false}
     -- Reduce the choice buttons to the mana colours that could actually pay.
     -- Gold (during Day) deliberately opens every choice for the player.
     local function paidManaChoices(guid,rule,strong,boost)
@@ -1670,6 +1679,18 @@ local function renderSeat(seatPos)
                 terrainModifiers[#terrainModifiers+1]=rule.extraTerrainMana.effect
                 result.links[#result.links+1]=extraManaGUID
                 result.status="purple"
+            end
+        end
+        -- A played spell may alter travel without granting Move points.
+        -- Never fall back to a normal-side modifier on the powered side.
+        if rule~=nil and rule.movementEffects~=nil and result.complete
+            and result.resources~=nil and cardPosture(card)=="upright" then
+            local effect
+            if result.powered then effect=rule.movementEffects.powered
+            else effect=rule.movementEffects.normal end
+            if effect~=nil then
+                if effect.jumpTwoSpaces==true then movementEffects.jumpTwoSpaces=true end
+                if effect.ignoreRampagers==true then movementEffects.ignoreRampagers=true end
             end
         end
         -- Fixed components of partially understood cards may be counted; an
@@ -1877,14 +1898,20 @@ local function renderSeat(seatPos)
             end
         end
     end
+    local priorMovement=previousScan~=nil and previousScan.movementEffects or nil
+    local movementChanged=priorMovement==nil
+        or priorMovement.jumpTwoSpaces~=movementEffects.jumpTwoSpaces
+        or priorMovement.ignoreRampagers~=movementEffects.ignoreRampagers
     bySeat[seatPos]=current
     resourceCardScanBySeat[seatPos]={cards=records,totals=totals,
-        terrainModifiers=terrainModifiers,usesCurrentHexBlock=usesCurrentHexBlock,
+        terrainModifiers=terrainModifiers,movementEffects=movementEffects,
+        usesCurrentHexBlock=usesCurrentHexBlock,
         usesCurrentHexHealing=usesCurrentHexHealing}
-    -- Repeated scans for card position/highlight changes need no panel repaint
-    -- unless a calculated resource or movement modifier actually changed.
+    -- Redraw movement when ability flags change, even if total Move stays equal.
     if totalsChanged or terrainChanged then refreshResourceTrackerText() end
-    if previousMove~=(totals.move or 0) or terrainChanged then updateMoveDisplay() end
+    if previousMove~=(totals.move or 0) or terrainChanged or movementChanged then
+        updateMoveDisplay()
+    end
     for guid in pairs(previous) do
         if current[guid]~=true then
             clearHighlight(guid)

@@ -112,6 +112,23 @@ MOVE_DISPLAY_WALL_ADJUST={
 	["center"]={ ["0"]={0,-0.5}, ["60"]={-0.5,-0.5}, ["120"]={-0.5,0}, ["180"]={0,0.5}, ["240"]={0.5,0.5}, ["300"]={0.5,0}}
 }
 MOVE_DISPLAY_VECTORS={{0,-1}, {-1,-1}, {-1,0}, {0,1}, {1,1}, {1,0}}
+-- Precompute the twelve destinations at exactly two hexes' distance.
+MOVE_DISPLAY_TWO_HEX_VECTORS={}
+do
+    local seen={}
+    for _,first in ipairs(MOVE_DISPLAY_VECTORS) do
+        for _,second in ipairs(MOVE_DISPLAY_VECTORS) do
+            local hor,vec=first[1]+second[1],first[2]+second[2]
+            if math.max(math.abs(hor),math.abs(vec),math.abs(hor-vec))==2 then
+                local key=hor..":"..vec
+                if not seen[key] then
+                    seen[key]=true
+                    MOVE_DISPLAY_TWO_HEX_VECTORS[#MOVE_DISPLAY_TWO_HEX_VECTORS+1]={hor,vec}
+                end
+            end
+        end
+    end
+end
 MOVE_DISPLAY_RAMPAGE_ADJACENT={{1,0}, {0,-1}, {-1,-1}, {-1,0}, {0,1}, {1,1}, {1,0}, {0,-1}}
 MOVE_DISPLAY_RAMPAGE_WALL={{0.5,-0.5}, {-0.5,-1}, {-1,-0.5}, {-0.5,0.5}, {0.5,1}, {1,0.5}, {0.5,-0.5}}
 MOVE_DISPLAY_CITY_GUIDS=nil
@@ -479,6 +496,9 @@ function renderMoveDisplay(id)
 	end
 
 		local dungeonLordsTunnelNetwork=moveDisplayDungeonLordsTunnelNetwork(hexMap,playAreaObjects,startTilePos)
+        local movementEffects=resourceCardsCurrentMovementEffects()
+        local jumpTwoSpaces=movementEffects~=nil and movementEffects.jumpTwoSpaces==true
+        local ignoreRampagers=movementEffects~=nil and movementEffects.ignoreRampagers==true
 
 		--Fractured Lands: index every revealed safe no-site destination by its printed terrain.
 		--Teleporting costs 1 Move, ignores intervening spaces/walls/rampagers, and can be mixed with normal movement repeatedly.
@@ -668,7 +688,8 @@ function renderMoveDisplay(id)
 							local rampageWallVec={tostring(hexDetail.coord[2]+MOVE_DISPLAY_RAMPAGE_WALL[currentVector][2]), tostring(hexDetail.coord[2]+MOVE_DISPLAY_RAMPAGE_WALL[currentVector+1][2])}
 							local normalRampager=(hexMap[rampageHor[1]]~=nil and hexMap[rampageHor[1]][rampageVec[1]]~=nil and hexMap[rampageHor[1]][rampageVec[1]].hexType=="rampager" and (hexMap[rampageWallHor[1]]==nil or hexMap[rampageWallHor[1]][rampageWallVec[1]]==nil)) or
 								(hexMap[rampageHor[2]]~=nil and hexMap[rampageHor[2]][rampageVec[2]]~=nil and hexMap[rampageHor[2]][rampageVec[2]].hexType=="rampager" and (hexMap[rampageWallHor[2]]==nil or hexMap[rampageWallHor[2]][rampageWallVec[2]]==nil))
-							local rampageNeighbor=normalRampager or ambusherProvoked(hexDetail.coord[1],hexDetail.coord[2],hor,vec)
+							local rampageNeighbor=not ignoreRampagers and
+                                (normalRampager or ambusherProvoked(hexDetail.coord[1],hexDetail.coord[2],hor,vec))
 							local fortifiedDestination=destinationHex.hexType~="explore" and destinationHex.fortified~=nil and destinationHex.fortified~="shield"
 							local combatDestination=rampageNeighbor or destinationHex.dragonLair==true or fortifiedDestination
 							local predecessor={hor=hexDetail.coord[1],vec=hexDetail.coord[2],state="safe",teleport=false}
@@ -682,7 +703,34 @@ function renderMoveDisplay(id)
 					end
 				end
 
-				--Dungeon Lords underground edges. Another conquered Dungeon/Tomb costs 2 Move plus the
+				-- Space Bending: exactly two hexes away is treated as adjacent.
+                -- Only the destination terrain costs Move. The intervening space
+                -- and its walls are ignored; exploration targets stay unchanged.
+                if jumpTwoSpaces then
+                    for _,offset in ipairs(MOVE_DISPLAY_TWO_HEX_VECTORS) do
+                        local hor=hexDetail.coord[1]+offset[1]
+                        local vec=hexDetail.coord[2]+offset[2]
+                        local row=hexMap[tostring(hor)]
+                        local target=row~=nil and row[tostring(vec)] or nil
+                        if target~=nil and target.hexType~="explore"
+                            and target.hexType~=nil and gStates.moveCost[target.hexType]~=nil then
+                            local hexCost=moveSpent+resourceCardsEffectiveTerrainCost(target.hexType)
+                            if hexCost<=99 and hexCost<moveValue+searchLimit then
+                                local fortified=target.fortified~=nil and target.fortified~="shield"
+                                local combat=target.dragonLair==true or fortified
+                                local predecessor={hor=hexDetail.coord[1],vec=hexDetail.coord[2],
+                                    state="safe",teleport=false,leap=true}
+                                if combat then
+                                    recordMoveDestination(hor,vec,"combat",hexCost,predecessor,false)
+                                else
+                                    recordMoveDestination(hor,vec,"safe",hexCost,predecessor,true)
+                                end
+                            end
+                        end
+                    end
+                end
+
+                --Dungeon Lords underground edges. Another conquered Dungeon/Tomb costs 2 Move plus the
 				--shortest revealed-space distance that avoids Lakes and Swamps; tunnel travel never provokes Rampagers.
 				local tunnelSourceKey=tostring(hexDetail.coord[1])..":"..tostring(hexDetail.coord[2])
 				for _,tunnel in ipairs(dungeonLordsTunnelNetwork[tunnelSourceKey] or {}) do
@@ -724,7 +772,7 @@ function renderMoveDisplay(id)
 		local function routeWorldPosition(hor, vec)
 			return runtimeMapAxialToWorld(vec,hor,startTilePos,1.22)
 		end
-		local function addRouteSegment(fromHor, fromVec, toHor, toVec, teleport, tunnelPath)
+		local function addRouteSegment(fromHor, fromVec, toHor, toVec, teleport, tunnelPath, leap)
 			local function addOne(aHor,aVec,bHor,bVec,mode)
 				local key=tostring(aHor)..":"..tostring(aVec)..">"..tostring(bHor)..":"..tostring(bVec)..":"..tostring(mode)
 				if routeSegmentSeen[key]==true then return end
@@ -732,13 +780,15 @@ function renderMoveDisplay(id)
 				local color={0.50,0.50,0.50}
 				local thickness=0.07
 				if mode=="teleport" then color={0.20,0.70,1.00} thickness=0.12
-				elseif mode=="tunnel" then color={0.72,0.45,1.00} end
+                elseif mode=="leap" then color={0.28,0.86,0.57} thickness=0.11
+                elseif mode=="tunnel" then color={0.72,0.45,1.00} end
 				routeLines[#routeLines+1]={points={routeWorldPosition(aHor,aVec),routeWorldPosition(bHor,bVec)},color=color,thickness=thickness,rotation={0,0,0}}
 			end
 			if tunnelPath~=nil and #tunnelPath>1 then
 				for i=1,#tunnelPath-1 do addOne(tunnelPath[i].hor,tunnelPath[i].vec,tunnelPath[i+1].hor,tunnelPath[i+1].vec,"tunnel") end
 			else
-				addOne(fromHor,fromVec,toHor,toVec,teleport==true and "teleport" or "normal")
+				addOne(fromHor,fromVec,toHor,toVec,leap==true and "leap"
+                    or (teleport==true and "teleport" or "normal"))
 			end
 		end
 		local function queueRouteState(hor, vec, state)
@@ -762,7 +812,8 @@ function renderMoveDisplay(id)
 				local routeMove=routeRow~=nil and routeRow[tostring(current.vec)] or nil
 				local previous=routeMove~=nil and routeMove[current.state.."Prev"] or nil
 				if previous~=nil then
-					addRouteSegment(previous.hor, previous.vec, current.hor, current.vec, previous.teleport, previous.tunnelPath)
+					addRouteSegment(previous.hor, previous.vec, current.hor, current.vec,
+                        previous.teleport, previous.tunnelPath, previous.leap)
 					--Only a safe state used by a retained onward route deserves an alternate slash value.
 					local sourceRow=moveMap[tostring(previous.hor)]
 					local sourceMove=sourceRow~=nil and sourceRow[tostring(previous.vec)] or nil

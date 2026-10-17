@@ -1161,6 +1161,9 @@ cardResourceDefinitions={
     -- Spell resources are independent of the legality of the mana used.
     -- Purely narrative/non-numeric effects are deliberately blue, not unknown.
     spellUtility={normalChoices={{key="other"}},poweredChoices={{key="other"}}},
+    -- The unpowered spell affects routing without granting Move points.
+    spellSpaceBending={normal={},poweredChoices={{key="other"}},
+        movementEffects={normal={jumpTwoSpaces=true,ignoreRampagers=true}}},
     spellFireball={normal={rangedFire=5},powered={siegeFire=8}},
     spellSnowstorm={normal={rangedIce=5},powered={siegeIce=8}},
     spellExpose={normal={ranged=2},powered={ranged=3}},
@@ -1630,7 +1633,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["2eb8e3"]={cardType="Spell", resourceKey="spellManaBolt", name={"Mana Bolt", "Mana Thunderbolt"}, 		color={"Blue"}, action={"Combat"}},
 			["2eb8e4"]={cardType="Spell", resourceKey="spellSnowstorm", name={"Snowstorm", "Blizzard"}, 				color={"Blue"}, action={"Combat"}},
 			["2eb8e0"]={cardType="Spell", resourceKey="spellUtility", name={"Chill", "Lethal Chill"}, 				color={"Blue"}, action={"Combat"}},
-			[GUID.card.timeBending]={cardType="Spell", resourceKey="spellUtility", name={"Space Bending", "Time Bending"}, 		color={"Blue"}, action={"Move", "Special"}},
+			[GUID.card.timeBending]={cardType="Spell", resourceKey="spellSpaceBending", name={"Space Bending", "Time Bending"}, 		color={"Blue"}, action={"Move", "Special"}},
 			["2eb8f5"]={cardType="Spell", resourceKey="spellUtility", name={"Mind Read", "Mind Steal"}, 			color={"White"}, action={"Special"}},
 			["2eb8e6"]={cardType="Spell", resourceKey="spellCharm", name={"Charm", "Possess"}, 					color={"White"}, action={"Influence", "Combat"}},
 			["2eb8e9"]={cardType="Spell", resourceKey="spellUtility", name={"Wings of Wind", "Wings of Night"}, 	color={"White"}, action={"Move", "Combat"}},
