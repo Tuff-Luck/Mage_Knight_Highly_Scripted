@@ -996,11 +996,11 @@ local function meditationCardCount(cards)
 	for _, _ in pairs(cards or {}) do count=count+1 end
 	return count
 end
---Card-effect controls are only shown while the card is essentially vertical.
---Read the card's settled world rotation rather than inferring orientation from Q/E presses.
---The 10 degree tolerance is intentionally below TTS's normal 15 degree rotation step.
+--Card-effect controls are only shown while the card is face up and essentially
+--vertical. Read the actual card orientation rather than inferring from Q/E keys;
+--the 10-degree tolerance is below TTS's normal 15-degree rotation step.
 function cardEffectIsVertical(card)
-	if card==nil then return false end
+	if card==nil or card.is_face_down==true then return false end
 	local rotation=card.getRotation()
 	local y=((rotation~=nil and rotation[2]) or 0)%180
 	return math.min(y,180-y)<=10
@@ -1217,7 +1217,8 @@ end
 local function meditationResolve(destination, buttonPlayerColor)
 	local card=getObjectFromGUID(meditationTranceCardGUID)
 	local playerIndex=meditationPlayerIndex(card)
-	if card==nil or playerIndex==nil or legalPlayerCheck(buttonPlayerColor, turnOrder[playerIndex].seatPos)~=true then return end
+	if card==nil or playerIndex==nil or cardEffectIsVertical(card)==false
+		or legalPlayerCheck(buttonPlayerColor, turnOrder[playerIndex].seatPos)~=true then return end
 	local state=gStates.meditationTranceState
 	if state==nil or state.player~=playerIndex then refreshMeditationTrance() state=gStates.meditationTranceState end
 	if state==nil or state.resolved==true then return end
@@ -1362,7 +1363,8 @@ function steadyTempoChoice(player, mouseButton, id)
 	local seatPos=gStates.steadyTempoPending[cardGUID]
 	local playerIndex=seatPos~=nil and turnOrderIndexAtSeat(seatPos) or nil
 	local card=getObjectFromGUID(cardGUID)
-	if playerIndex==nil or card==nil or legalPlayerCheck(player.color, seatPos)~=true then return end
+	if playerIndex==nil or card==nil or cardEffectIsVertical(card)==false
+		or legalPlayerCheck(player.color, seatPos)~=true then return end
 	local choice=id:sub(7)
 	if choice=="steadyTempoBot" and steadyTempoHasDeedPile(playerIndex)==false then steadyTempoAddButtons(card, playerIndex) return end
 	--Remove the controls immediately, but keep the pending flag until the card physically reaches its destination.
