@@ -1060,7 +1060,8 @@ cardResourceDefinitions={
         powered={Red={attackFire=6},Blue={attackColdFire=4},
             White={rangedFire=4},Green={siegeFire=3}}}},
     battleVersatility={normalChoices={{attack=2},{block=2},{ranged=1}},
-        poweredChoices={{attack=4},{block=4},{ranged=3},{siege=2}},partial=true}, -- Also Fire Attack/Block alternatives
+        poweredChoices={{attack=4},{block=4},{key="fireAttack",attackFire=3},
+            {key="fireBlock",blockFire=3},{ranged=3},{siege=2}}},
     instinct={normalChoices={{move=2},{influence=2},{attack=2},{block=2}},
         poweredChoices={{move=4},{influence=4},{attack=4},{block=4}},partial=true},
     swiftReflexes={normalChoices={{move=2},{ranged=1}},
@@ -1210,7 +1211,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["450552"]={cardType="Starting", resourceKey="concentration", name={"Concentration"}, color={"Green"}, action={"Special"}},
 			["2f1c70"]={cardType="Starting", resourceKey="swiftness", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
 			["2f1c71"]={cardType="Starting", resourceKey="swiftness", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
-			["d6ba6f"]={cardType="Starting", name={"Mana Pull"}, color={"White"}, action={"Special"}},
+			["d6ba6f"]={cardType="Starting", resourceTracked=false, resourceAlwaysNeutral=true, name={"Mana Pull"}, color={"White"}, action={"Special"}},
 			["450553"]={cardType="Starting", resourceKey="promise", name={"Promise"}, color={"White"}, action={"Influence"}},
 			["450556"]={cardType="Starting", resourceKey="improvisation", name={"Improvisation"}, color={"Red"}, action={"Move", "Combat", "Influence"}},
 			["450555"]={cardType="Starting", resourceKey="threaten", name={"Threaten"}, color={"Red"}, action={"Influence"}},

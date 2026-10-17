@@ -170,13 +170,44 @@ local function cardCanPlaySideways(card)
             or data.cardType=="Spell" or data.cardType=="Artifact")
 end
 
-local sidewaysChoices={{move=1},{influence=1},{attack=1},{block=1}}
+local sidewaysChoices={{move=1},{block=1},{attack=1},{influence=1}}
 
 local choiceLetters={move="M",influence="I",attack="A",block="B",
     ranged="R",siege="S",healing="H",draw="D",other="O",
     fire="F",ice="I",coldFire="C",boost="H+",split="I/F",negative="N",
     heal="H",combat="C",wound="W",reputation="R",gain="G",ready="R",
-    base="2",sourceUnused="3",red="R",blue="B",white="W",green="G"}
+    base="2",sourceUnused="3",red="R",blue="B",white="W",green="G",
+    fireAttack="F",fireBlock="F"}
+-- Order the choice UI like the Resource Tracker, without changing which
+-- printed option is selected by default (still the first definition).
+local resourceChoiceOrder={
+    move=1,siege=2,ranged=3,block=4,attack=5,influence=6,healing=7,heal=7,
+    fireBlock=4,fireAttack=5
+}
+local resourceChoiceFamilies={"move","siege","ranged","block","attack","influence","healing"}
+local function resourceChoiceRank(category,choice)
+    local rank=resourceChoiceOrder[category]
+    if rank~=nil then return rank end
+    -- Choices with non-resource keys (e.g. heal, combat, wound) retain
+    -- their unique callback IDs while sorting by what they contribute.
+    for i,family in ipairs(resourceChoiceFamilies) do
+        for resource,value in pairs(choice) do
+            if type(value)=="number" and (resource==family
+                or (family=="healing" and resource=="healing")
+                or (family=="siege" or family=="ranged"
+                    or family=="block" or family=="attack")
+                    and resource:sub(1,#family)==family) then
+                return i
+            end
+        end
+    end
+    return #resourceChoiceFamilies+1
+end
+local function resourceChoiceColumn(category)
+    if category=="fireBlock" then return "block" end
+    if category=="fireAttack" then return "attack" end
+    return category
+end
 local function sideChoices(rule,powered)
     if rule==nil then return nil end
     -- Do not use 'powered and poweredChoices or normalChoices': Lua falls back
@@ -281,15 +312,16 @@ local function showChoiceButtons(card,choices,powered)
         return
     end
     local _,selected=currentChoice(card.guid,powered,choices,not isSkill and posture=="sideways")
-    local categories,seen={},{}
-    for _,choice in ipairs(choices) do
+    local entries,seen={},{}
+    for i,choice in ipairs(choices) do
         local category=choiceCategory(choice)
         if category~=nil and choiceLetters[category]~=nil and not seen[category] then
             seen[category]=true
-            categories[#categories+1]=category
+            entries[#entries+1]={category=category,rank=resourceChoiceRank(category,choice),
+                originalIndex=i}
         end
     end
-    if #categories<2 or selected==nil then
+    if #entries<2 or selected==nil then
         if choiceButtonShown[card.guid]~="hidden" then
             removeChoiceButtons(card)
             choiceButtonShown[card.guid]="hidden"
@@ -297,8 +329,24 @@ local function showChoiceButtons(card,choices,powered)
         choiceExpandedByGUID[card.guid]=nil
         return
     end
+    table.sort(entries,function(a,b)
+        if a.rank~=b.rank then return a.rank<b.rank end
+        return a.originalIndex<b.originalIndex
+    end)
+    local categories={}
+    for _,entry in ipairs(entries) do categories[#categories+1]=entry.category end
     local expanded=choiceExpandedByGUID[card.guid]==true
     local visible=expanded and categories or {selected}
+    -- Fire options share their normal Attack/Block column and appear above it;
+    -- collapsed choices still use the original single-button position.
+    local columns,columnByCategory={},{}
+    for _,category in ipairs(visible) do
+        local column=resourceChoiceColumn(category)
+        if columnByCategory[column]==nil then
+            columns[#columns+1]=column
+            columnByCategory[column]=#columns
+        end
+    end
     -- The card's object UI has the opposite apparent Z rotation to the
     -- card's world Y rotation. Counter-rotate each label in the correct
     -- direction, while positions stay card-local (vertical when sideways).
@@ -318,15 +366,18 @@ local function showChoiceButtons(card,choices,powered)
             and attr.id:sub(1,19)=="ResourceCardChoice_" then table.remove(xml,i) end
     end
     local assets,blocked=resourceCardsChoiceAssetsFor(card.UI,visible)
-    for i,category in ipairs(visible) do
-        local x=((#visible+1)/2-i)*44
+    for _,category in ipairs(visible) do
+        local column=resourceChoiceColumn(category)
+        local x=((#columns+1)/2-columnByCategory[column])*44
+        local above=expanded and category~=column and seen[column]==true
+        local z=above and -72 or -35
         local active=category==selected
         local icon=resourceCardsChoiceIcon(category)
         if icon~=nil and blocked[icon.name] then icon=nil end
         local button={tag="Button",attributes={
             id="ResourceCardChoice_"..card.guid.."_"..category,
             onClick="global/resourceCardsChoiceClicked",
-            position=tostring(x).." -12 -35",rotation="0 0 "..buttonRotation,
+            position=tostring(x).." -12 "..tostring(z),rotation="0 0 "..buttonRotation,
             width=90,height=90,scale="0.25 0.25",
             colors=active and "#387D30|#4CA940|#387D30|#387D30"
                 or "#454D5D|#69798E|#444C63|#454D5D",
