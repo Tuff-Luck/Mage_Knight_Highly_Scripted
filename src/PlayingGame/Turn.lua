@@ -1609,7 +1609,7 @@ end
 dayTactic2Discarded=function(player, mouseButton, id)
 	if mouseButton~="-1" or player==nil or player.color=="Grey" then return end
 	local tactic=getObjectFromGUID(tacticCard[2])
-	if tactic==nil then return end
+	if tactic==nil or cardEffectIsVertical(tactic)==false then return end
 	if gStates.tacticTwoState=="Used" then dayTactic2ButtonActivate() return end
 	local playerColor=player.color
 	local playerPosition=math.ceil((tactic.getPosition()[1]+78)/40)
