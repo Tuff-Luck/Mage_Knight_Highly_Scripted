@@ -262,6 +262,23 @@ local function chosenEffect(guid,powered,choices,sideways)
     return currentChoice(guid,powered,choices,sideways)
 end
 
+-- Bonus choices are independent of the card's primary selection. Until the
+-- player chooses a bonus explicitly, it follows the main choice (or the
+-- printed first alternative if the main category is unavailable).
+local function inventorySetChoice(guid,index,choices,mainChoices)
+    local stored=selectedResourceByGUID[guid]
+    local selected=stored~=nil and stored.inventorySets~=nil and stored.inventorySets[index] or nil
+    if not choiceAvailable(choices,selected) then
+        local _,primary=currentChoice(guid,true,mainChoices)
+        selected=choiceAvailable(choices,primary) and primary or nil
+    end
+    if not choiceAvailable(choices,selected) then selected=choiceCategory(choices[1]) end
+    for _,choice in ipairs(choices) do
+        if choiceCategory(choice)==selected then return choice,selected end
+    end
+    return nil,nil
+end
+
 -- Guess once for a newly played choice card. Compare the displayed Resource
 -- Tracker family totals (including manual +/-), excluding this card's previous
 -- contribution so it cannot vote for its own old selection.
@@ -343,7 +360,7 @@ end
 
 -- A single selected letter sits above the title. Click to show the whole
 -- choice row; choosing any option immediately collapses back to one letter.
-local function showChoiceButtons(card,choices,powered)
+local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySets)
     if card==nil then return end
     local posture=cardPosture(card)
     local isSkill=skillTokens[card.guid]~=nil
@@ -351,9 +368,6 @@ local function showChoiceButtons(card,choices,powered)
         or (not isSkill and posture=="discard")
         or (not isSkill and posture=="sideways" and not (cardCanPlaySideways(card)
             or card.getGMNotes()=="Wound")) then
-        -- Once per card, inspect object XML even when our runtime cache is
-        -- empty: controls created before a script reload can still be present.
-        -- A 'hidden' marker avoids re-reading XML during every later scan.
         if choiceButtonShown[card.guid]~="hidden" then
             removeChoiceButtons(card)
             choiceButtonShown[card.guid]="hidden"
@@ -361,53 +375,68 @@ local function showChoiceButtons(card,choices,powered)
         choiceExpandedByGUID[card.guid]=nil
         return
     end
-    local _,selected=currentChoice(card.guid,powered,choices,not isSkill and posture=="sideways")
-    local entries,seen={},{}
-    for i,choice in ipairs(choices) do
-        local category=choiceCategory(choice)
-        if category~=nil and choiceLetters[category]~=nil and not seen[category] then
-            seen[category]=true
-            entries[#entries+1]={category=category,rank=resourceChoiceRank(category,choice),
-                originalIndex=i}
+
+    -- Multiple-choice cards normally have one row. A declarative inventory
+    -- set rule adds one more compact row for each complete set of crystals.
+    local rows={{index=0,choices=choices}}
+    if powered and posture=="upright" and inventorySpec~=nil then
+        for i=1,(inventorySets or 0) do
+            rows[#rows+1]={index=i,choices=inventorySpec.choices}
         end
     end
-    if #entries<2 or selected==nil then
-        if choiceButtonShown[card.guid]~="hidden" then
-            removeChoiceButtons(card)
-            choiceButtonShown[card.guid]="hidden"
+    local expandedRow=choiceExpandedByGUID[card.guid]
+    local signatureParts,visibleAssets,assetSeen={}, {}, {}
+    for _,row in ipairs(rows) do
+        local _,selected
+        if row.index==0 then
+            _,selected=currentChoice(card.guid,powered,row.choices,
+                not isSkill and posture=="sideways")
+        else
+            _,selected=inventorySetChoice(card.guid,row.index,row.choices,choices)
         end
-        choiceExpandedByGUID[card.guid]=nil
-        return
-    end
-    table.sort(entries,function(a,b)
-        if a.rank~=b.rank then return a.rank<b.rank end
-        return a.originalIndex<b.originalIndex
-    end)
-    local categories={}
-    for _,entry in ipairs(entries) do categories[#categories+1]=entry.category end
-    local expanded=choiceExpandedByGUID[card.guid]==true
-    local visible=expanded and categories or {selected}
-    -- Fire options share their normal Attack/Block column and appear above it;
-    -- collapsed choices still use the original single-button position.
-    local columns,columnByCategory={},{}
-    for _,category in ipairs(visible) do
-        local column=resourceChoiceColumn(category)
-        if columnByCategory[column]==nil then
-            columns[#columns+1]=column
-            columnByCategory[column]=#columns
+        row.selected=selected
+        row.entries={}
+        local seen={}
+        for j,choice in ipairs(row.choices) do
+            local category=choiceCategory(choice)
+            if category~=nil and choiceLetters[category]~=nil and not seen[category] then
+                seen[category]=true
+                row.entries[#row.entries+1]={category=category,
+                    rank=resourceChoiceRank(category,choice),originalIndex=j}
+            end
         end
+        table.sort(row.entries,function(a,b)
+            if a.rank~=b.rank then return a.rank<b.rank end
+            return a.originalIndex<b.originalIndex
+        end)
+        if #row.entries<2 or selected==nil then
+            if choiceButtonShown[card.guid]~="hidden" then
+                removeChoiceButtons(card)
+                choiceButtonShown[card.guid]="hidden"
+            end
+            choiceExpandedByGUID[card.guid]=nil
+            return
+        end
+        row.expanded=(row.index==0 and (expandedRow==true or expandedRow=="base"))
+            or expandedRow=="set"..tostring(row.index)
+        row.visible=row.expanded and row.entries or {{category=selected}}
+        local categories={}
+        for _,entry in ipairs(row.visible) do
+            categories[#categories+1]=entry.category
+            if not assetSeen[entry.category] then
+                visibleAssets[#visibleAssets+1]=entry.category
+                assetSeen[entry.category]=true
+            end
+        end
+        signatureParts[#signatureParts+1]=row.index..":"..selected..":"
+            ..(row.expanded and "open" or "closed")..":"..table.concat(categories,",")
     end
-    -- The card's object UI has the opposite apparent Z rotation to the
-    -- card's world Y rotation. Counter-rotate each label in the correct
-    -- direction, while positions stay card-local (vertical when sideways).
-    -- Snap to quarter-turns to avoid UI churn from small rotation changes.
     local buttonRotation=180
     if posture=="sideways" then
         buttonRotation=card.getRotation()[2]%360<180 and 90 or 270
     end
     local signature=(posture=="sideways" and "S" or (powered and "P" or "N"))
-        ..":"..selected..":"..(expanded and "open" or "closed")
-        ..":"..table.concat(categories,",")..":"..buttonRotation
+        ..":"..table.concat(signatureParts,";")..":"..buttonRotation
     if choiceButtonShown[card.guid]==signature then return end
     local xml=card.UI.getXmlTable() or {}
     for i=#xml,1,-1 do
@@ -415,42 +444,63 @@ local function showChoiceButtons(card,choices,powered)
         if attr~=nil and type(attr.id)=="string"
             and attr.id:sub(1,19)=="ResourceCardChoice_" then table.remove(xml,i) end
     end
-    local assets,blocked=resourceCardsChoiceAssetsFor(card.UI,visible)
-    for _,category in ipairs(visible) do
-        local column=resourceChoiceColumn(category)
-        local x=((#columns+1)/2-columnByCategory[column])*44
-        local above=expanded and category~=column and seen[column]==true
-        -- UI Z is depth, not position up the artwork. The Fire row must
-        -- move along local Y; card orientation reverses that axis.
-        local y=above and -42 or -12
-        local active=category==selected
-        local icon=resourceCardsChoiceIcon(category)
-        if icon~=nil and blocked[icon.name] then icon=nil end
-        local button={tag="Button",attributes={
-            id="ResourceCardChoice_"..card.guid.."_"..category,
-            onClick="global/resourceCardsChoiceClicked",
-            position=tostring(x).." "..tostring(y).." -35",rotation="0 0 "..buttonRotation,
-            width=90,height=90,scale="0.25 0.25",
-            colors=active and "#387D30|#4CA940|#387D30|#387D30"
-                or "#454D5D|#69798E|#444C63|#454D5D",
-            fontSize=77,textColor="#FFFFFF",textAlignment="MiddleCenter"
-        },value=icon==nil and choiceLetters[category] or ""}
-        if icon~=nil then
-            -- Keep the parent Button clickable while the sprite fills it.
-            button.children={{tag="Image",attributes={
-                image=icon.name,width=82,height=82,preserveAspect="true",
-                raycastTarget="false",color="#FFFFFF"}}}
-            if category=="fireAttack" or category=="fireBlock" then
-                -- The real Attack/Block icon stays visible beneath a bold F.
-                -- Draw the non-clickable text last, above the image.
-                button.children[#button.children+1]={tag="Text",attributes={
-                    text="F",width=82,height=82,alignment="MiddleCenter",
-                    fontSize=62,fontStyle="Bold",color="#FF564A",
-                    outline="#1C1514",outlineSize="2 -2",
-                    raycastTarget="false"}}
+    local assets,blocked=resourceCardsChoiceAssetsFor(card.UI,visibleAssets)
+    local multi=#rows>1
+    for _,row in ipairs(rows) do
+        local columns,columnByCategory={},{}
+        for _,entry in ipairs(row.visible) do
+            local column=resourceChoiceColumn(entry.category)
+            if columnByCategory[column]==nil then
+                columns[#columns+1]=column
+                columnByCategory[column]=#columns
             end
         end
-        xml[#xml+1]=button
+        local y=-12-(#rows-1)*15+row.index*30
+        -- 0 = printed stronger effect; 1, 2, ... = crystal set bonuses.
+        if multi then
+            xml[#xml+1]={tag="Text",attributes={
+                id="ResourceCardChoice_"..card.guid.."_label"..row.index,
+                position="-80 "..tostring(y).." -35",rotation="0 0 "..buttonRotation,
+                width=60,height=90,scale="0.25 0.25",fontSize=62,
+                textColor="#DAE1EA",textAlignment="MiddleCenter",
+                raycastTarget="false"},value=tostring(row.index)}
+        end
+        local displayed={}
+        for _,entry in ipairs(row.visible) do displayed[entry.category]=true end
+        for _,entry in ipairs(row.visible) do
+            local category=entry.category
+            local column=resourceChoiceColumn(category)
+            local x=((#columns+1)/2-columnByCategory[column])*44
+            local above=row.expanded and category~=column and displayed[column]==true
+            local buttonY=y+(above and -30 or 0)
+            local active=category==row.selected
+            local icon=resourceCardsChoiceIcon(category)
+            if icon~=nil and blocked[icon.name] then icon=nil end
+            local buttonId="ResourceCardChoice_"..card.guid.."_"
+                ..(row.index>0 and ("set"..row.index.."_") or "")..category
+            local button={tag="Button",attributes={
+                id=buttonId,onClick="global/resourceCardsChoiceClicked",
+                position=tostring(x).." "..tostring(buttonY).." -35",
+                rotation="0 0 "..buttonRotation,width=90,height=90,
+                scale="0.25 0.25",
+                colors=active and "#387D30|#4CA940|#387D30|#387D30"
+                    or "#454D5D|#69798E|#444C63|#454D5D",
+                fontSize=77,textColor="#FFFFFF",textAlignment="MiddleCenter"
+            },value=icon==nil and choiceLetters[category] or ""}
+            if icon~=nil then
+                button.children={{tag="Image",attributes={
+                    image=icon.name,width=82,height=82,preserveAspect="true",
+                    raycastTarget="false",color="#FFFFFF"}}}
+                if category=="fireAttack" or category=="fireBlock" then
+                    button.children[#button.children+1]={tag="Text",attributes={
+                        text="F",width=82,height=82,alignment="MiddleCenter",
+                        fontSize=62,fontStyle="Bold",color="#FF564A",
+                        outline="#1C1514",outlineSize="2 -2",
+                        raycastTarget="false"}}
+                end
+            end
+            xml[#xml+1]=button
+        end
     end
     if assets~=nil then card.UI.setXmlTable(xml,assets)
     else card.UI.setXmlTable(xml) end
@@ -1220,6 +1270,18 @@ local function renderSeat(seatPos)
     inspectZone(playerUnitAreas[seatPos],"unit")
     inspectZone(playerPlayAreas[seatPos],"play")
 
+    -- Read *inventory* crystals only. A crystal moved to the Play Area is
+    -- mana being spent, not part of a complete set in inventory.
+    local inventoryCrystalCounts={}
+    for guid,obj in pairs(objects) do
+        if placements[guid]=="crystal" and isManaTokenFigurine(obj) then
+            local color=manaTokenColor(obj)
+            if color~=nil then
+                inventoryCrystalCounts[color]=(inventoryCrystalCounts[color] or 0)+1
+            end
+        end
+    end
+
     local cards,wounds,skills,manaObjects,footprints={}, {}, {}, {}, {}
     for guid,obj in pairs(objects) do
         local kind=resourceObjectKind(obj)
@@ -1477,6 +1539,36 @@ local function renderSeat(seatPos)
             links[card.guid],discarded[card.guid]~=nil,hasDiscard[card.guid]==true,
             skillLinksByTarget[card.guid],linkedChoices,repeatByTarget[card.guid],
             discardBoostBySource[card.guid],woundCount,enemyBonus)
+        local inventorySpec=rule~=nil and rule.inventorySetChoices or nil
+        local inventorySets=0
+        if inventorySpec~=nil and result.powered and result.resources~=nil
+            and cardPosture(card)=="upright" then
+            inventorySets=math.huge
+            for _,color in ipairs(inventorySpec.colors) do
+                inventorySets=math.min(inventorySets,inventoryCrystalCounts[color] or 0)
+            end
+            if inventorySets==math.huge then inventorySets=0 end
+            result.inventorySetCount=inventorySets
+            -- Each crystal set may make its own choice. Scale the result only
+            -- after summing those choices so repeated Actions remain correct.
+            local multiplier=result.repeatCount or 1
+            local adjusted={}
+            for category,value in pairs(result.resources) do adjusted[category]=value end
+            for index=1,inventorySets do
+                local bonus=inventorySetChoice(card.guid,index,inventorySpec.choices,choices)
+                if bonus~=nil then
+                    for category,value in pairs(bonus) do
+                        if type(value)=="number" then
+                            adjusted[category]=(adjusted[category] or 0)+value*multiplier
+                        end
+                    end
+                end
+            end
+            result.resources=adjusted
+            if result.status=="blue" and effectHasTrackedResource(adjusted) then
+                result.status="green"
+            end
+        end
         if enemyTarget~=nil and result.resources~=nil then
             result.enemyGUID=enemyTarget.guid
             result.links[#result.links+1]=enemyTarget.guid
@@ -1496,7 +1588,7 @@ local function renderSeat(seatPos)
             result.links[#result.links+1]=manaLink.skillGUID
             result.convertedMana=manaLink.converted
         end
-        showChoiceButtons(card,choices,result.powered)
+        showChoiceButtons(card,choices,result.powered,inventorySpec,inventorySets)
         result.kind=resourceObjectKind(card)
         -- Only a played upright Move effect contributes terrain modifiers:
         -- not a sideways card, discard payment or face-down card.
@@ -1782,8 +1874,13 @@ end
 -- alone leaves that selection and the Resource Tracker totals unchanged.
 function resourceCardsChoiceClicked(player,value,id)
     if type(id)~="string" then return end
-    local guid,category=id:match("^ResourceCardChoice_([0-9a-f]+)_([%a]+)$")
+    local guid,setIndex,category=id:match(
+        "^ResourceCardChoice_([0-9a-f]+)_set(%d+)_([%a]+)$")
+    if guid==nil then
+        guid,category=id:match("^ResourceCardChoice_([0-9a-f]+)_([%a]+)$")
+    end
     if guid==nil then return end
+    setIndex=setIndex~=nil and tonumber(setIndex) or nil
     if not resourceCardsPanelOpen() then return end
     local card=getObjectFromGUID(guid)
     local data=card~=nil and gameCards[guid] or nil
@@ -1812,36 +1909,42 @@ function resourceCardsChoiceClicked(player,value,id)
     local choices=isSkill and (rule~=nil and rule.choices or nil)
         or ((sideways and (cardCanPlaySideways(card) or linkedWound)) and sidewaysChoices
             or (not sideways and sideChoices(rule,powered) or nil))
-    local valid=false
-    for _,choice in ipairs(choices or {}) do
-        if choiceCategory(choice)==category then valid=true break end
+    local inventorySpec=not sideways and powered and rule~=nil
+        and rule.inventorySetChoices or nil
+    local inventorySets=inventorySpec~=nil and record~=nil
+        and record.inventorySetCount or 0
+    if setIndex~=nil then
+        if inventorySpec==nil or setIndex<1 or setIndex>inventorySets then return end
+        choices=inventorySpec.choices
     end
+    local valid=choiceAvailable(choices,category)
     if not valid then return end
-    if choiceExpandedByGUID[guid]~=true then
-        -- A click on the sole, selected button opens the alternatives. Merely
-        -- opening this menu must not change the calculated resource totals.
-        choiceExpandedByGUID[guid]=true
-        showChoiceButtons(card,choices,powered)
+    local rowId=setIndex~=nil and ("set"..setIndex) or "base"
+    local currentlyExpanded=choiceExpandedByGUID[guid]
+    if currentlyExpanded~=rowId and not (rowId=="base" and currentlyExpanded==true) then
+        -- Opening a row never changes the chosen resource.
+        choiceExpandedByGUID[guid]=rowId
+        local mainChoices=sideways and sidewaysChoices or sideChoices(rule,powered)
+        showChoiceButtons(card,mainChoices,powered,inventorySpec,inventorySets)
         return
     end
-    -- Any choice, including the already selected one, closes the menu.
     local selected=selectedResourceByGUID[guid] or {}
-    if not sideways then
-        -- Normal and powered abilities use the same card-wide preference.
+    if setIndex~=nil then
+        selected.inventorySets=selected.inventorySets or {}
+        selected.inventorySets[setIndex]=category
+    elseif not sideways then
         selected.effect=category
     elseif choiceAvailable(sideChoices(rule,false),category)
         or choiceAvailable(sideChoices(rule,true),category) then
-        -- Keep a 90-degree generic resource in sync with the printed action
-        -- when the selected category is also an available printed choice.
         selected.effect=category
         selected.sideways=nil
     else
-        -- A generic +1 with no matching printed category is independent.
         selected.sideways=category
     end
     selectedResourceByGUID[guid]=selected
     choiceExpandedByGUID[guid]=nil
-    showChoiceButtons(card,choices,powered)
+    local mainChoices=sideways and sidewaysChoices or sideChoices(rule,powered)
+    showChoiceButtons(card,mainChoices,powered,inventorySpec,inventorySets)
     queueSeat(currentSeat.seatPos,nil)
 end
 

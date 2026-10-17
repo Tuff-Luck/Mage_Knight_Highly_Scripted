@@ -1134,6 +1134,13 @@ cardResourceDefinitions={
     chillingStare={
         normalChoices={{influence=3},{other=1}},
         poweredChoices={{influence=5},{other=1}}},
+    -- One main strong choice plus an independent choice per complete set
+    -- of all four basic-colour crystals currently in the player's inventory.
+    powerOfCrystals={normalTrackerNeutral=true,
+        poweredChoices={{move=4},{healing=2},{draw=2}},
+        inventorySetChoices={
+            colors={"Red","Blue","Green","White"},
+            choices={{move=2},{healing=1},{draw=1}}}},
     stoutResolve={
         normalChoices={{move=2},{influence=2},{attack=2},{block=2}},
         poweredChoices={{move=3},{influence=3},{attack=3},{block=3}},
@@ -1521,12 +1528,12 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["d74999"]={cardType="Advanced Action", resourceTracked=false, name={"Decompose"}, 		color={"Red"}, 			action={"Special"}},
 			["1a1c02"]={cardType="Advanced Action", resourceKey="explosiveBolt", name={"Explosive Bolt"}, 	color={"White","Red"}, 	action={"Combat"}},
 			["409fe8"]={cardType="Advanced Action", resourceKey="chillingStare", name={"Chilling Stare"}, 	color={"Blue","White"},	action={"Combat", "Influence"}},
-			["d75285"]={cardType="Advanced Action", name={"Rush of Adrenaline"},color={"Red","Green"}, 	action={"Special"}},
-			["141527"]={cardType="Advanced Action", name={"Power of Crystals"}, color={"Green","Blue"},	action={"Special", "Move", "Heal"}},
+			["d75285"]={cardType="Advanced Action", resourceAlwaysNeutral=true, name={"Rush of Adrenaline"},color={"Red","Green"}, 	action={"Special"}},
+			["141527"]={cardType="Advanced Action", resourceKey="powerOfCrystals", name={"Power of Crystals"}, color={"Green","Blue"},	action={"Special", "Move", "Heal"}},
 			["56adc8"]={cardType="Advanced Action", resourceKey="explosiveBolt", name={"Explosive Bolt"}, 	color={"White","Red"}, 	action={"Combat"}},--Rise of the Forgemaster Start
 			["eb128d"]={cardType="Advanced Action", resourceKey="chillingStare", name={"Chilling Stare"}, 	color={"Blue","White"}, action={"Combat", "Influence"}},
-			["69fe48"]={cardType="Advanced Action", name={"Rush of Adrenaline"},color={"Red","Green"}, 	action={"Special", "Combat"}},
-			["121737"]={cardType="Advanced Action", name={"Power of Crystals"}, color={"Green","Blue"}, action={"Special", "Move", "Heal"}},
+			["69fe48"]={cardType="Advanced Action", resourceAlwaysNeutral=true, name={"Rush of Adrenaline"},color={"Red","Green"}, 	action={"Special", "Combat"}},
+			["121737"]={cardType="Advanced Action", resourceKey="powerOfCrystals", name={"Power of Crystals"}, color={"Green","Blue"}, action={"Special", "Move", "Heal"}},
 			["2dcd89"]={cardType="Advanced Action", name={"Counter Attack"},	color={"Red"}, 			action={"Combat"}},
 			["f47ed1"]={cardType="Advanced Action", resourceKey="ritualAttack", name={"Ritual Attack"},		color={"Red"}, 			action={"Combat"}},
 			["cc3085"]={cardType="Advanced Action", name={"Fury"}, 				color={"Red"}, 			action={"Special", "Combat"}},
