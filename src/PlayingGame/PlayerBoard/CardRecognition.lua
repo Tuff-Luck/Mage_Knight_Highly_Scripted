@@ -371,6 +371,18 @@ end
 
 -- A single selected letter sits above the title. Click to show the whole
 -- choice row; choosing any option immediately collapses back to one letter.
+local function artifactModeButtonEntry(card,strong)
+    return {tag="Button",attributes={
+        id="ResourceCardArtifactMode_"..card.guid,
+        onClick="global/resourceCardsArtifactModeClicked",
+        position="0 80 -35",rotation="0 0 180",
+        width=220,height=64,scale="0.25 0.25",fontSize=40,
+        textColor="#FFFFFF",textAlignment="MiddleCenter",
+        colors=strong and "#7D4C22|#A56A36|#7D4C22|#7D4C22"
+            or "#3B5268|#617993|#3B5268|#3B5268"
+    },value=strong and "Break" or "Basic"}
+end
+
 local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySets)
     if card==nil then return end
     local posture=cardPosture(card)
@@ -527,6 +539,24 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             xml[#xml+1]=button
         end
     end
+    -- Update the artifact mode and its resource options in ONE UI write.
+    -- Reading the object UI between two writes can return stale XML while
+    -- TTS is still loading, which would otherwise lose the choice icons.
+    local data=gameCards[card.guid]
+    local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+    if rule~=nil and rule.artifactMode==true then
+        for i=#xml,1,-1 do
+            local attributes=xml[i].attributes
+            if attributes~=nil
+                and attributes.id=="ResourceCardArtifactMode_"..card.guid then
+                table.remove(xml,i)
+            end
+        end
+        local selected=selectedResourceByGUID[card.guid]
+        local strong=selected~=nil and selected.artifactStrong==true
+        xml[#xml+1]=artifactModeButtonEntry(card,strong)
+        artifactModeShown[card.guid]=strong and "break" or "basic"
+    end
     if assets~=nil then card.UI.setXmlTable(xml,assets)
     else card.UI.setXmlTable(xml) end
     choiceButtonShown[card.guid]=signature
@@ -575,15 +605,7 @@ local function showArtifactModeButton(card,rule)
             table.remove(xml,i)
         end
     end
-    xml[#xml+1]={tag="Button",attributes={
-        id="ResourceCardArtifactMode_"..card.guid,
-        onClick="global/resourceCardsArtifactModeClicked",
-        position="0 80 -35",rotation="0 0 180",
-        width=220,height=64,scale="0.25 0.25",fontSize=40,
-        textColor="#FFFFFF",textAlignment="MiddleCenter",
-        colors=strong and "#7D4C22|#A56A36|#7D4C22|#7D4C22"
-            or "#3B5268|#617993|#3B5268|#3B5268"
-    },value=strong and "Break" or "Basic"}
+    xml[#xml+1]=artifactModeButtonEntry(card,strong)
     card.UI.setXmlTable(xml)
     artifactModeShown[card.guid]=signature
 end
