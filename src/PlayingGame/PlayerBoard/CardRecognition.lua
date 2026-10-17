@@ -7,7 +7,7 @@ local shown={}
 -- receive Resource Tracker highlights. Avoid repeated highlightOff calls.
 local crystalHighlightCleared={}
 local bySeat={}
--- Player choices are transient, never written into gStates or save JSON.
+-- Initial guesses and explicit player choices are transient, never saved in gStates or JSON.
 local selectedResourceByGUID={}
 -- A choice lasts for one play; delayed departure checks must not race a return.
 local choiceResetGenerationByGUID={}
@@ -178,8 +178,7 @@ local choiceLetters={move="M",influence="I",attack="A",block="B",
     heal="H",combat="C",wound="W",reputation="R",gain="G",ready="R",
     base="2",sourceUnused="3",red="R",blue="B",white="W",green="G",
     fireAttack="F",fireBlock="F"}
--- Order the choice UI like the Resource Tracker, without changing which
--- printed option is selected by default (still the first definition).
+-- The choice UI and initial-guess tie-breaks follow the Resource Tracker order.
 local resourceChoiceOrder={
     move=1,siege=2,ranged=3,block=4,attack=5,influence=6,healing=7,heal=7,
     fireBlock=4,fireAttack=5
@@ -261,6 +260,57 @@ end
 
 local function chosenEffect(guid,powered,choices,sideways)
     return currentChoice(guid,powered,choices,sideways)
+end
+
+-- Guess once for a newly played choice card. Compare the displayed Resource
+-- Tracker family totals (including manual +/-), excluding this card's previous
+-- contribution so it cannot vote for its own old selection.
+local function trackerChoiceScores(guid,seatPos)
+    local tracker=gStates~=nil and gStates.resourceTracker or nil
+    local previous=resourceCardScanBySeat[seatPos]
+    local estimated=previous~=nil and previous.totals or {}
+    local record=previous~=nil and previous.cards[guid] or nil
+    local own=record~=nil and record.resources or {}
+    local scores={}
+    for _,family in ipairs(resourceChoiceFamilies) do
+        local value=0
+        for _,offset in pairs(tracker~=nil and tracker[family] or {}) do
+            value=value+offset
+        end
+        for _,totalKey in pairs(resourceTotalsKeyByField[family]) do
+            value=value+(estimated[totalKey] or 0)-(own[totalKey] or 0)
+        end
+        scores[family]=math.max(0,value)
+    end
+    return scores
+end
+
+local function guessInitialCardChoice(card,choices,seatPos,rule,sideways)
+    if selectedResourceByGUID[card.guid]~=nil or choices==nil or #choices<2
+        or card.is_face_down==true then return end
+    local scores=trackerChoiceScores(card.guid,seatPos)
+    local best,bestValue,bestRank=nil,nil,nil
+    for _,choice in ipairs(choices) do
+        local category=choiceCategory(choice)
+        local rank=resourceChoiceRank(category,choice)
+        if category~=nil and choiceLetters[category]~=nil
+            and rank<=#resourceChoiceFamilies then
+            local value=scores[resourceChoiceFamilies[rank]]
+            if best==nil or value>bestValue or (value==bestValue and rank<bestRank) then
+                best,bestValue,bestRank=category,value,rank
+            end
+        end
+    end
+    -- Purely untracked choices (draw/other/etc.) retain their printed default.
+    if best==nil then return end
+    local selected={}
+    if sideways and not choiceAvailable(sideChoices(rule,false),best)
+        and not choiceAvailable(sideChoices(rule,true),best) then
+        selected.sideways=best
+    else
+        selected.effect=best
+    end
+    selectedResourceByGUID[card.guid]=selected
 end
 
 local function effectHasTrackedResource(effects)
@@ -1344,6 +1394,19 @@ local function renderSeat(seatPos)
                 enemyBonus=enemyPrintedIconBonus(monsterPugs[enemyTarget.guid])
             end
         end
+        local choices=nil
+        if discarded[card.guid]==nil or repeatByTarget[card.guid]~=nil then
+            if cardPosture(card)=="sideways" then
+                if cardCanPlaySideways(card) then choices=sidewaysChoices end
+            elseif (cardData==nil or cardData.resourceAlwaysNeutral~=true)
+                and (rule==nil or rule.requiredLink==nil or hasDiscard[card.guid]==true) then
+                -- Don't guess an unavailable effect before its payment/link is present.
+                choices=linkedChoices or sideChoices(rule,isStrong)
+            end
+        end
+        if choices~=nil and cardPosture(card)~="discard" then
+            guessInitialCardChoice(card,choices,seatPos,rule,cardPosture(card)=="sideways")
+        end
         local result=calculateCard(card,powered[card.guid]==true,boostBy[card.guid],
             links[card.guid],discarded[card.guid]~=nil,hasDiscard[card.guid]==true,
             skillLinksByTarget[card.guid],linkedChoices,repeatByTarget[card.guid],
@@ -1366,17 +1429,6 @@ local function renderSeat(seatPos)
             result.status="purple"
             result.links[#result.links+1]=manaLink.skillGUID
             result.convertedMana=manaLink.converted
-        end
-        local choices=nil
-        if discarded[card.guid]==nil or repeatByTarget[card.guid]~=nil then
-            if cardPosture(card)=="sideways" then
-                if cardCanPlaySideways(card) then choices=sidewaysChoices end
-            elseif (cardData==nil or cardData.resourceAlwaysNeutral~=true)
-                and (rule==nil or rule.requiredLink==nil or hasDiscard[card.guid]==true) then
-                -- Hide the choice entirely until its cost is present. Powered
-                -- Rage has a fixed effect, so sideChoices is nil and hides it.
-                choices=linkedChoices or sideChoices(rule,result.powered)
-            end
         end
         showChoiceButtons(card,choices,result.powered)
         result.kind=resourceObjectKind(card)
@@ -1660,8 +1712,8 @@ local function clearAll()
     end
 end
 
--- A card records only an explicit player selection; no assumptions about
--- movement versus combat are inferred from the board.
+-- Player clicks always replace the one-time guess; opening the choice menu
+-- alone leaves that selection and the Resource Tracker totals unchanged.
 function resourceCardsChoiceClicked(player,value,id)
     if type(id)~="string" then return end
     local guid,category=id:match("^ResourceCardChoice_([0-9a-f]+)_([%a]+)$")
