@@ -176,7 +176,7 @@ local choiceLetters={move="M",influence="I",attack="A",block="B",
     ranged="R",siege="S",healing="H",draw="D",other="O",
     fire="F",ice="I",coldFire="C",boost="H+",split="I/F",negative="N",
     heal="H",combat="C",wound="W",reputation="R",gain="G",ready="R",
-    base="2",sourceUnused="3"}
+    base="2",sourceUnused="3",red="R",blue="B",white="W",green="G"}
 local function sideChoices(rule,powered)
     if rule==nil then return nil end
     -- Do not use 'powered and poweredChoices or normalChoices': Lua falls back
@@ -478,6 +478,33 @@ local function applyLinkedResourceBonus(effects,link)
     return values
 end
 
+-- Colour-triggered Actions use stable target-card data, not translated text.
+-- Dual-colour Actions offer an explicit choice, using the existing card buttons.
+local basicActionColors={"Red","Blue","White","Green"}
+local function linkedColorChoices(rule,targetGUID,powered)
+    if rule==nil or rule.linkedColorEffects==nil or targetGUID==nil then return nil end
+    local data=gameCards[targetGUID]
+    local colors=data~=nil and data.color or nil
+    if colors==nil then return nil end
+    if type(colors)=="string" then colors={colors} end
+    local definitions=powered and rule.linkedColorEffects.powered
+        or rule.linkedColorEffects.normal
+    local choices={}
+    for _,color in ipairs(basicActionColors) do
+        if definitions[color]~=nil then
+            for _,cardColor in ipairs(colors) do
+                if cardColor==color then
+                    local effect={key=string.lower(color)}
+                    for resource,value in pairs(definitions[color]) do effect[resource]=value end
+                    choices[#choices+1]=effect
+                    break
+                end
+            end
+        end
+    end
+    return #choices>0 and choices or nil
+end
+
 -- Powered One with the Land references the *printed*, unmodified Move
 -- cost of the Mage Knight's actual hex, not player-adjusted gStates.moveCost.
 -- Lakes and Mountains explicitly have special printed values on the card.
@@ -527,21 +554,24 @@ local function calculateSideways(card,known,skillLink)
         resources=resources}
 end
 
-local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,hasDiscard,skillLink)
+local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,hasDiscard,skillLink,linkedChoices,repeatLink)
     local data=gameCards[card.guid]
     local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
     local known=data~=nil
     local tracked=data==nil or data.resourceTracked~=false
     local powered=manaPowered or linkedBoost~=nil
+    if repeatLink~=nil then powered=repeatLink.powered end
     local posture=cardPosture(card)
-    local faceUp=card.is_face_down~=true and posture=="upright"
+    -- A face-down Action underneath Maximal Effect is still identifiable by
+    -- GUID; flipping it face up for reference must not change the calculation.
+    local faceUp=(card.is_face_down~=true or repeatLink~=nil) and posture=="upright"
     -- Any non-Wound card played at 90 degrees has one generic resource,
     -- irrespective of its printed card effect. It requires an explicit choice.
     if posture=="sideways" and cardCanPlaySideways(card) then
         return calculateSideways(card,known,skillLink)
     end
     local sideTracked=tracked and not (not powered and rule~=nil and rule.normalTrackerNeutral==true)
-    local choices=sideChoices(rule,powered)
+    local choices=linkedChoices or sideChoices(rule,powered)
     local chosen=chosenEffect(card.guid,powered,choices)
     local usesTerrainBlock=chosen~=nil and chosen.terrainBlock==true
     if usesTerrainBlock then
@@ -561,15 +591,23 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
     -- A discard is an actual cost of Improvisation, even when its strong side
     -- came free from Concentration/Will Focus.
     local costPaid=rule==nil or rule.requiredLink==nil or hasDiscard==true
-    local effects=sideTracked and faceUp and costPaid and not discardTarget
+    local canApply=not discardTarget or repeatLink~=nil
+    local effects=sideTracked and faceUp and costPaid and canApply
         and applyLinkedResourceBonus(base,linkedBoost) or nil
+    if effects~=nil and repeatLink~=nil then
+        for category,value in pairs(effects) do
+            if totalsKeys[category] and type(value)=="number" then
+                effects[category]=value*repeatLink.count
+            end
+        end
+    end
     -- A card's other unimplemented options do not make its currently selected
     -- *known* resource effect uncertain. Keep the first option as the fast,
     -- green default; only a genuinely unresolved selected effect stays yellow.
     local knownSelectedOption=chosen~=nil and effectHasTrackedResource(chosen)
     local complete=sideTracked and base~=nil and not choicePending and not statePartial
         and (rule.partial~=true or knownSelectedOption)
-        and faceUp and costPaid and not discardTarget
+        and faceUp and costPaid and canApply
     local choiceIsUntracked=chosen~=nil and not effectHasTrackedResource(chosen)
     local status=(not known or not sideTracked or posture=="discard" or choiceIsUntracked) and "blue"
         or not complete and "yellow" or "green"
@@ -577,7 +615,8 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
     if #linked>0 then status="purple" end
     return {guid=card.guid,known=known,complete=complete,powered=powered,
         links=linked,status=status,resources=effects,
-        usesTerrainBlock=usesTerrainBlock and faceUp and not discardTarget}
+        usesTerrainBlock=usesTerrainBlock and faceUp and canApply,
+        repeatCount=repeatLink~=nil and repeatLink.count or nil}
 end
 
 local function overlapArea(a,b)
@@ -592,19 +631,21 @@ end
 -- OTHER unused, non-Wound card as a cost. Neither is inferred from overlap alone.
 local function resolveActionLinks(cards,footprints,manaPowered)
     local links,boostBy,boostSource,discarded,hasDiscard={}, {}, {}, {}, {}
+    local linkedCardBySource,repeatByTarget={}, {}
     local boostClaimed={}
     for _,card in ipairs(cards) do links[card.guid]={} end
     local function connect(source,target)
         links[source.guid][#links[source.guid]+1]=target.guid
         links[target.guid][#links[target.guid]+1]=source.guid
     end
-    local function nearestOverlap(source,valid,preferTilt)
+    local function nearestOverlap(source,valid,preference)
         local best,bestArea,bestPriority=nil,0,-1
         local a=footprints[source.guid]
         for _,target in ipairs(cards) do
             if target.guid~=source.guid and valid(target) then
                 local area=overlapArea(a,footprints[target.guid])
-                local priority=preferTilt and cardPosture(target)=="discard" and 1 or 0
+                local priority=((preference=="discard" and cardPosture(target)=="discard")
+                    or (preference=="faceDown" and target.is_face_down==true)) and 1 or 0
                 if area>0 and (priority>bestPriority
                     or (priority==bestPriority and (area>bestArea
                         or (area==bestArea and best~=nil and target.guid<best.guid)))) then
@@ -636,6 +677,36 @@ local function resolveActionLinks(cards,footprints,manaPowered)
             end
         end
     end
+    -- The same Action-target pairing serves copying and throwing away.
+    -- Reserve targets before ordinary discard payments to avoid double use.
+    for _,source in ipairs(cards) do
+        local data=gameCards[source.guid]
+        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+        local requirement=rule~=nil and rule.requiredLink or nil
+        if requirement~=nil and (requirement.mode=="repeat" or requirement.mode=="throwAway")
+            and discarded[source.guid]==nil and source.is_face_down~=true
+            and cardPosture(source)=="upright" then
+            local target=nearestOverlap(source,function(candidate)
+                local other=gameCards[candidate.guid]
+                return other~=nil
+                    and (other.cardType=="Starting" or other.cardType=="Advanced Action")
+                    and discarded[candidate.guid]==nil and not boostClaimed[candidate.guid]
+                    and not manaPowered[candidate.guid] and #links[candidate.guid]==0
+                    and cardPosture(candidate)=="upright"
+            end,"faceDown")
+            if target~=nil then
+                discarded[target.guid]=source.guid
+                hasDiscard[source.guid]=true
+                linkedCardBySource[source.guid]=target.guid
+                if requirement.mode=="repeat" then
+                    local strong=manaPowered[source.guid]==true or boostBy[source.guid]~=nil
+                    repeatByTarget[target.guid]={powered=strong,
+                        count=strong and requirement.poweredCount or requirement.normalCount}
+                end
+                connect(source,target)
+            end
+        end
+    end
     -- Resolve discard costs after stronger links: a link-boosted Improvisation
     -- can still discard ANOTHER card, but never its own booster as payment.
     for _,source in ipairs(cards) do
@@ -656,7 +727,7 @@ local function resolveActionLinks(cards,footprints,manaPowered)
                     and candidate.getGMNotes()~="Wound"
                     and candidate.getGMNotes()~="Quest"
                     and canPayDiscard(candidate)
-            end,true)
+            end,"discard")
             if target~=nil then
                 discarded[target.guid]=source.guid
                 hasDiscard[source.guid]=true
@@ -664,7 +735,7 @@ local function resolveActionLinks(cards,footprints,manaPowered)
             end
         end
     end
-    return links,boostBy,boostSource,discarded,hasDiscard
+    return links,boostBy,boostSource,discarded,hasDiscard,linkedCardBySource,repeatByTarget
 end
 
 -- Generic Skill-card links: one Skill per target, one target per Skill.
@@ -1022,7 +1093,8 @@ local function renderSeat(seatPos)
         powered[guid]=gStates.dayRound~=true and supply.basic and supply.black
     end
 
-    local links,boostBy,boostSource,discarded,hasDiscard=resolveActionLinks(cards,footprints,powered)
+    local links,boostBy,boostSource,discarded,hasDiscard,linkedCardBySource,repeatByTarget=
+        resolveActionLinks(cards,footprints,powered)
     -- Extra terrain mana is an optional physical payment, separate from the
     -- mana that powers the strong action. Never reuse a claimed mana object.
     local extraTerrainManaByCard,extraTerrainManaByObject={},{}
@@ -1058,25 +1130,27 @@ local function renderSeat(seatPos)
     local usesCurrentHexBlock=false
     local terrainModifiers={}
     for _,card in ipairs(cards) do
+        local cardData=gameCards[card.guid]
+        local rule=cardData~=nil and cardResourceDefinitions[cardData.resourceKey] or nil
+        local linkedChoices=linkedColorChoices(rule,linkedCardBySource[card.guid],
+            powered[card.guid]==true or boostBy[card.guid]~=nil)
         local result=calculateCard(card,powered[card.guid]==true,boostBy[card.guid],
             links[card.guid],discarded[card.guid]~=nil,hasDiscard[card.guid]==true,
-            skillLinksByTarget[card.guid])
+            skillLinksByTarget[card.guid],linkedChoices,repeatByTarget[card.guid])
         local manaLink=manaByCard[card.guid]
         if manaLink~=nil then
             result.status="purple"
             result.links[#result.links+1]=manaLink.skillGUID
             result.convertedMana=manaLink.converted
         end
-        local cardData=gameCards[card.guid]
-        local rule=cardData~=nil and cardResourceDefinitions[cardData.resourceKey] or nil
         local choices=nil
-        if discarded[card.guid]==nil then
+        if discarded[card.guid]==nil or repeatByTarget[card.guid]~=nil then
             if cardPosture(card)=="sideways" then
                 if cardCanPlaySideways(card) then choices=sidewaysChoices end
             elseif rule==nil or rule.requiredLink==nil or hasDiscard[card.guid]==true then
                 -- Hide the choice entirely until its cost is present. Powered
                 -- Rage has a fixed effect, so sideChoices is nil and hides it.
-                choices=sideChoices(rule,result.powered)
+                choices=linkedChoices or sideChoices(rule,result.powered)
             end
         end
         showChoiceButtons(card,choices,result.powered)
@@ -1088,8 +1162,10 @@ local function renderSeat(seatPos)
             local terrainEffects=rule.terrainEffects
             if terrainEffects~=nil then
                 local chosen=result.powered and terrainEffects.powered or terrainEffects.normal
-                for _,effect in ipairs(chosen or {}) do
-                    terrainModifiers[#terrainModifiers+1]=effect
+                for _=1,(result.repeatCount or 1) do
+                    for _,effect in ipairs(chosen or {}) do
+                        terrainModifiers[#terrainModifiers+1]=effect
+                    end
                 end
             end
             local extraManaGUID=extraTerrainManaByCard[card.guid]
