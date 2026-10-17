@@ -365,6 +365,7 @@ function apocalypseDragonCityVariantSelection(player,value,id)
 		gStates.apocalypseDragonCityMode=0
 	end
 	scenarioInfoUpdate()
+	ToolTipUpdate("ApocalypseDragonCityMode")
 end
 
 function apocalypseDragonCityModeSelection(player,mouseButton,id)
@@ -373,6 +374,7 @@ function apocalypseDragonCityModeSelection(player,mouseButton,id)
 	if mode==nil then return end
 	gStates.apocalypseDragonCityMode=mode
 	scenarioInfoUpdate()
+	ToolTipUpdate("ApocalypseDragonCityMode")
 end
 
 function randomizedDragonHeadsSelection(player,mouseButton,id)
