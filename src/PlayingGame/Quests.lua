@@ -5253,6 +5253,7 @@ end
 
 function apocalypseQuestUpdateProgressButtons(card)
 	if card==nil then return end
+	if card.is_face_down==true then QuestPrivate.apocalypseQuestInterfaceRemove(card) return end
 	if QuestPrivate.apocalypseQuestRetiringCards[card.guid]==true then
 		QuestPrivate.apocalypseQuestInterfaceRemove(card)
 		return
@@ -5352,6 +5353,7 @@ end
 
 function QuestPrivate.apocalypseQuestInterfaceAdd(card, forceRebuild)
 	if card==nil or card.type~="Card" then return end
+	if card.is_face_down==true then QuestPrivate.apocalypseQuestInterfaceRemove(card) return end
 	--A delayed offer/button refresh can fire after BottomDeck has already cleared this Quest's runtime
 	--state. Never let that callback relock the retiring card or rerun reveal setup, which would recreate
 	--its buttons, markers and tucked cards while the card is on its way back to the Quest deck.
@@ -6646,6 +6648,7 @@ function apocalypseQuestCardAction(player, mouseButton, id)
 	local guid=id:sub(16, 21)
 	local action=id:sub(22)
 	local card=getObjectFromGUID(guid)
+	if card~=nil and card.is_face_down==true then return end
 	--Quest actions serialize with the whole offer movement, not just this card's own animation. A card already
 	--at its destination may report isSmoothMoving()==false while neighbouring Quest cards are still crossing.
 	--Never wait for resting: locked Quest cards can remain resting=false because pieces are touching them.
