@@ -178,7 +178,7 @@ local choiceLetters={move="M",influence="I",attack="A",block="B",
     fire="F",ice="I",coldFire="C",boost="H+",split="I/F",negative="N",
     heal="H",combat="C",wound="W",reputation="R",gain="G",ready="R",
     base="2",sourceUnused="3",red="R",blue="B",white="W",green="G",
-    fireAttack="F",fireBlock="F"}
+    fireAttack="F",fireBlock="F",fireBlockOnly="B",fireBlockCounter="B+"}
 -- The choice UI and initial-guess tie-breaks follow the Resource Tracker order.
 local resourceChoiceOrder={
     move=1,siege=2,ranged=3,block=4,attack=5,influence=6,healing=7,heal=7,
@@ -403,7 +403,11 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             if category~=nil and choiceLetters[category]~=nil and not seen[category] then
                 seen[category]=true
                 row.entries[#row.entries+1]={category=category,
-                    rank=resourceChoiceRank(category,choice),originalIndex=j}
+                    rank=resourceChoiceRank(category,choice),originalIndex=j,
+                    icon=choice.icon or category,iconOverlay=choice.iconOverlay,
+                    iconOverlayColor=choice.iconOverlayColor,
+                    iconOverlayAlignment=choice.iconOverlayAlignment,
+                    iconOverlaySize=choice.iconOverlaySize}
             end
         end
         table.sort(row.entries,function(a,b)
@@ -420,13 +424,17 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         end
         row.expanded=(row.index==0 and (expandedRow==true or expandedRow=="base"))
             or expandedRow=="set"..tostring(row.index)
-        row.visible=row.expanded and row.entries or {{category=selected}}
+        local selectedEntry
+        for _,entry in ipairs(row.entries) do
+            if entry.category==selected then selectedEntry=entry break end
+        end
+        row.visible=row.expanded and row.entries or {selectedEntry}
         local categories={}
         for _,entry in ipairs(row.visible) do
             categories[#categories+1]=entry.category
-            if not assetSeen[entry.category] then
-                visibleAssets[#visibleAssets+1]=entry.category
-                assetSeen[entry.category]=true
+            if not assetSeen[entry.icon] then
+                visibleAssets[#visibleAssets+1]=entry.icon
+                assetSeen[entry.icon]=true
             end
         end
         signatureParts[#signatureParts+1]=row.index..":"..selected..":"
@@ -475,7 +483,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             local above=row.expanded and category~=column and displayed[column]==true
             local buttonY=y+(above and -30 or 0)
             local active=category==row.selected
-            local icon=resourceCardsChoiceIcon(category)
+            local icon=resourceCardsChoiceIcon(entry.icon)
             if icon~=nil and blocked[icon.name] then icon=nil end
             local buttonId="ResourceCardChoice_"..card.guid.."_"
                 ..(row.index>0 and ("set"..row.index.."_") or "")..category
@@ -492,10 +500,16 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                 button.children={{tag="Image",attributes={
                     image=icon.name,width=82,height=82,preserveAspect="true",
                     raycastTarget="false",color="#FFFFFF"}}}
-                if category=="fireAttack" or category=="fireBlock" then
+                local mark=entry.iconOverlay
+                if mark==nil and (category=="fireAttack" or category=="fireBlock") then
+                    mark="F" -- Existing Battle Versatility fire icons.
+                end
+                if mark~=nil then
                     button.children[#button.children+1]={tag="Text",attributes={
-                        text="F",width=82,height=82,alignment="MiddleCenter",
-                        fontSize=62,fontStyle="Bold",color="#FF564A",
+                        text=mark,width=82,height=82,
+                        alignment=entry.iconOverlayAlignment or "MiddleCenter",
+                        fontSize=tonumber(entry.iconOverlaySize) or 62,
+                        fontStyle="Bold",color=entry.iconOverlayColor or "#FF564A",
                         outline="#1C1514",outlineSize="2 -2",
                         raycastTarget="false"}}
                 end
