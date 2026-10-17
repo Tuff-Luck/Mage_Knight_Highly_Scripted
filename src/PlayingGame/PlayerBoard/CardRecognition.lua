@@ -370,14 +370,16 @@ local function showChoiceButtons(card,choices,powered)
         local column=resourceChoiceColumn(category)
         local x=((#columns+1)/2-columnByCategory[column])*44
         local above=expanded and category~=column and seen[column]==true
-        local z=above and -72 or -35
+        -- UI Z is depth, not position up the artwork. The Fire row must
+        -- move along local Y; card orientation reverses that axis.
+        local y=above and -42 or -12
         local active=category==selected
         local icon=resourceCardsChoiceIcon(category)
         if icon~=nil and blocked[icon.name] then icon=nil end
         local button={tag="Button",attributes={
             id="ResourceCardChoice_"..card.guid.."_"..category,
             onClick="global/resourceCardsChoiceClicked",
-            position=tostring(x).." -12 "..tostring(z),rotation="0 0 "..buttonRotation,
+            position=tostring(x).." "..tostring(y).." -35",rotation="0 0 "..buttonRotation,
             width=90,height=90,scale="0.25 0.25",
             colors=active and "#387D30|#4CA940|#387D30|#387D30"
                 or "#454D5D|#69798E|#444C63|#454D5D",
@@ -388,6 +390,15 @@ local function showChoiceButtons(card,choices,powered)
             button.children={{tag="Image",attributes={
                 image=icon.name,width=82,height=82,preserveAspect="true",
                 raycastTarget="false",color="#FFFFFF"}}}
+            if category=="fireAttack" or category=="fireBlock" then
+                -- The real Attack/Block icon stays visible beneath a bold F.
+                -- Draw the non-clickable text last, above the image.
+                button.children[#button.children+1]={tag="Text",attributes={
+                    text="F",width=82,height=82,alignment="MiddleCenter",
+                    fontSize=62,fontStyle="Bold",color="#FF564A",
+                    outline="#1C1514",outlineSize="2 -2",
+                    raycastTarget="false"}}
+            end
         end
         xml[#xml+1]=button
     end

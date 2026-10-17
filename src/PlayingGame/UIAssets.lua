@@ -69,6 +69,10 @@ local resourceChoiceImages={
     block={name="MKChoiceBlock",url="https://steamusercontent-a.akamaihd.net/ugc/10652687051429766943/75A1D745D425D4D57D65971DB6F5E1BA1A80C6E6/"},
     attack={name="MKChoiceAttack",url="https://steamusercontent-a.akamaihd.net/ugc/12125700784244572260/5257BAD169E970724105406C69CC5918293111EE/"},
 }
+-- Fire choices use the existing artwork. Their "F" overlay is drawn by
+-- CardRecognition, not stored as a second asset with a conflicting name.
+resourceChoiceImages.fireAttack=resourceChoiceImages.attack
+resourceChoiceImages.fireBlock=resourceChoiceImages.block
 
 local allGlobalImages={}
 for _,entry in ipairs(originalGlobalImages) do
