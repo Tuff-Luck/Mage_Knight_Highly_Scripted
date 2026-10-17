@@ -1347,8 +1347,10 @@ local function renderSeat(seatPos)
         setHighlight(card,result.status,result.powered)
     end
     -- Outline the particular enemy whose printed icons modified Cold Toughness.
-    for _,record in pairs(records) do
-        if record.enemyGUID~=nil then
+    -- Iterate the card list, not records: the loop also adds enemy records.
+    for _,card in ipairs(cards) do
+        local record=records[card.guid]
+        if record~=nil and record.enemyGUID~=nil then
             local enemy=monsters[record.enemyGUID]
             if enemy~=nil then
                 local enemyRecord=records[enemy.guid]
