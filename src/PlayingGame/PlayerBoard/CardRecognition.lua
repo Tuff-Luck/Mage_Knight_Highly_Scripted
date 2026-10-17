@@ -554,7 +554,7 @@ local function calculateSideways(card,known,skillLink)
         resources=resources}
 end
 
-local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,hasDiscard,skillLink,linkedChoices,repeatLink)
+local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,hasDiscard,skillLink,linkedChoices,repeatLink,discardBonus,woundCount)
     local data=gameCards[card.guid]
     local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
     local known=data~=nil
@@ -562,6 +562,11 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
     local powered=manaPowered or linkedBoost~=nil
     if repeatLink~=nil then powered=repeatLink.powered end
     local posture=cardPosture(card)
+    -- Non-resource Actions are intentionally neutral even when laid sideways.
+    if data~=nil and data.resourceAlwaysNeutral==true then
+        return {guid=card.guid,known=true,complete=true,powered=false,
+            links=linked,status=#linked>0 and "purple" or "blue",resources=nil}
+    end
     -- A face-down Action underneath Maximal Effect is still identifiable by
     -- GUID; flipping it face up for reference must not change the calculation.
     local faceUp=(card.is_face_down~=true or repeatLink~=nil) and posture=="upright"
@@ -588,12 +593,24 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
     local statePartial=rule~=nil and ((powered and rule.poweredPartial==true)
         or (not powered and rule.normalPartial==true)) and chosen==nil
     local base=chosen or (rule~=nil and (powered and rule.powered or rule.normal) or nil)
+    if base~=nil and rule~=nil and rule.woundBonus~=nil and woundCount~=nil then
+        local perWound=powered and rule.woundBonus.powered or rule.woundBonus.normal
+        base={influence=(base.influence or 0)+woundCount*perWound}
+    end
     -- A discard is an actual cost of Improvisation, even when its strong side
     -- came free from Concentration/Will Focus.
     local costPaid=rule==nil or rule.requiredLink==nil or hasDiscard==true
     local canApply=not discardTarget or repeatLink~=nil
     local effects=sideTracked and faceUp and costPaid and canApply
         and applyLinkedResourceBonus(base,linkedBoost) or nil
+    if effects~=nil and discardBonus~=nil and discardBonus>0 then
+        local adjusted={}
+        for category,value in pairs(effects) do
+            adjusted[category]=(totalsKeys[category] and type(value)=="number")
+                and value+discardBonus or value
+        end
+        effects=adjusted
+    end
     if effects~=nil and repeatLink~=nil then
         for category,value in pairs(effects) do
             if totalsKeys[category] and type(value)=="number" then
@@ -607,6 +624,7 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
     local knownSelectedOption=chosen~=nil and effectHasTrackedResource(chosen)
     local complete=sideTracked and base~=nil and not choicePending and not statePartial
         and (rule.partial~=true or knownSelectedOption)
+        and (rule==nil or rule.woundBonus==nil or woundCount~=nil)
         and faceUp and costPaid and canApply
     local choiceIsUntracked=chosen~=nil and not effectHasTrackedResource(chosen)
     local status=(not known or not sideTracked or posture=="discard" or choiceIsUntracked) and "blue"
@@ -629,11 +647,12 @@ end
 -- The common pairing engine is used for different reasons:
 -- "stronger" plays one Action card's stronger effect; "discard" consumes one
 -- OTHER unused, non-Wound card as a cost. Neither is inferred from overlap alone.
-local function resolveActionLinks(cards,footprints,manaPowered)
+local function resolveActionLinks(cards,wounds,footprints,manaPowered,skillLinksByTarget)
     local links,boostBy,boostSource,discarded,hasDiscard={}, {}, {}, {}, {}
-    local linkedCardBySource,repeatByTarget={}, {}
+    local linkedCardBySource,repeatByTarget,discardBoostBySource={}, {}, {}
     local boostClaimed={}
     for _,card in ipairs(cards) do links[card.guid]={} end
+    for _,wound in ipairs(wounds) do links[wound.guid]={} end
     local function connect(source,target)
         links[source.guid][#links[source.guid]+1]=target.guid
         links[target.guid][#links[target.guid]+1]=source.guid
@@ -735,7 +754,55 @@ local function resolveActionLinks(cards,footprints,manaPowered)
             end
         end
     end
-    return links,boostBy,boostSource,discarded,hasDiscard,linkedCardBySource,repeatByTarget
+    -- Stout Resolve can take multiple discard payments. Only deliberately
+    -- tilted, otherwise unused cards qualify; upright cards remain played.
+    -- The basic side permits one Wound, the strong side permits any number
+    -- of cards but at most one Wound.
+    for _,source in ipairs(cards) do
+        local data=gameCards[source.guid]
+        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+        local paid=rule~=nil and rule.discardBoost or nil
+        local repeated=repeatByTarget[source.guid]
+        if paid~=nil and (discarded[source.guid]==nil or repeated~=nil)
+            and source.is_face_down~=true and cardPosture(source)=="upright" then
+            local strong=manaPowered[source.guid]==true or boostBy[source.guid]~=nil
+            if repeated~=nil then strong=repeated.powered end
+            local spec=strong and paid.powered or paid.normal
+            local choices={}
+            for _,target in ipairs(cards) do choices[#choices+1]=target end
+            for _,target in ipairs(wounds) do choices[#choices+1]=target end
+            table.sort(choices,function(a,b)
+                local aa=overlapArea(footprints[source.guid],footprints[a.guid])
+                local bb=overlapArea(footprints[source.guid],footprints[b.guid])
+                if aa==bb then return a.guid<b.guid end
+                return aa>bb
+            end)
+            local woundPayments,bonus=0,0
+            for _,target in ipairs(choices) do
+                local isWound=target.getGMNotes()=="Wound"
+                local targetData=gameCards[target.guid]
+                local eligible=isWound or (targetData~=nil
+                    and (targetData.cardType=="Starting" or targetData.cardType=="Advanced Action"
+                        or targetData.cardType=="Spell" or targetData.cardType=="Artifact"))
+                if target.guid~=source.guid and eligible
+                    and (not spec.woundOnly or isWound)
+                    and (not isWound or woundPayments<(spec.maxWounds or 0))
+                    and discarded[target.guid]==nil and not boostClaimed[target.guid]
+                    and #links[target.guid]==0 and skillLinksByTarget[target.guid]==nil
+                    and not manaPowered[target.guid]
+                    and target.is_face_down~=true and cardPosture(target)=="discard"
+                    and overlapArea(footprints[source.guid],footprints[target.guid])>0 then
+                    discarded[target.guid]=source.guid
+                    connect(source,target)
+                    if isWound then woundPayments=woundPayments+1 end
+                    bonus=bonus+spec.perCard
+                end
+            end
+            if bonus>0 then discardBoostBySource[source.guid]=bonus end
+        end
+    end
+    return links,boostBy,boostSource,discarded,hasDiscard,linkedCardBySource,
+        repeatByTarget,discardBoostBySource
 end
 
 -- Generic Skill-card links: one Skill per target, one target per Skill.
@@ -1026,13 +1093,35 @@ local function renderSeat(seatPos)
     -- Read the physical Unit state once per scan, only for played Skills
     -- declaring that dependency. This also supplies which Unit cards to link.
     local unitState=nil
+    local countWounds=false
+    for _,card in ipairs(cards) do
+        local data=gameCards[card.guid]
+        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+        if rule~=nil and rule.woundBonus~=nil then countWounds=true break end
+    end
+    if countWounds then unitState=unitLayoutResourceState(seatPos) end
     for _,skill in ipairs(skills) do
         local rule=skillResourceDefinitions[skill.guid]
         local sideways=rule~=nil and rule.linkedCard~=nil and rule.linkedCard.sideways or nil
-        if rule~=nil and (rule.unitCondition~=nil
+        if unitState==nil and rule~=nil and (rule.unitCondition~=nil
             or (sideways~=nil and sideways.perEmptyCommandSlot~=nil)) then
             unitState=unitLayoutResourceState(seatPos)
             break
+        end
+    end
+    -- Hand-zone Wounds are not play-area Wounds. Count the latter only when
+    -- physically placed on a Unit, via the shared Unit layout observer.
+    local woundCount=nil
+    if countWounds and unitState~=nil then
+        local hand=getObjectFromGUID(handZones[seatPos])
+        if hand~=nil then
+            woundCount=unitState.woundCount or 0
+            for _,obj in ipairs(hand.getObjects()) do
+                if obj.type=="Card" and obj.getGMNotes()=="Wound"
+                    and placements[obj.guid]~="play" then
+                    woundCount=woundCount+1
+                end
+            end
         end
     end
 
@@ -1093,8 +1182,9 @@ local function renderSeat(seatPos)
         powered[guid]=gStates.dayRound~=true and supply.basic and supply.black
     end
 
-    local links,boostBy,boostSource,discarded,hasDiscard,linkedCardBySource,repeatByTarget=
-        resolveActionLinks(cards,footprints,powered)
+    local links,boostBy,boostSource,discarded,hasDiscard,linkedCardBySource,
+        repeatByTarget,discardBoostBySource=
+        resolveActionLinks(cards,wounds,footprints,powered,skillLinksByTarget)
     -- Extra terrain mana is an optional physical payment, separate from the
     -- mana that powers the strong action. Never reuse a claimed mana object.
     local extraTerrainManaByCard,extraTerrainManaByObject={},{}
@@ -1136,7 +1226,16 @@ local function renderSeat(seatPos)
             powered[card.guid]==true or boostBy[card.guid]~=nil)
         local result=calculateCard(card,powered[card.guid]==true,boostBy[card.guid],
             links[card.guid],discarded[card.guid]~=nil,hasDiscard[card.guid]==true,
-            skillLinksByTarget[card.guid],linkedChoices,repeatByTarget[card.guid])
+            skillLinksByTarget[card.guid],linkedChoices,repeatByTarget[card.guid],
+            discardBoostBySource[card.guid],woundCount)
+        if rule~=nil and rule.woundBonus~=nil and result.resources~=nil and unitState~=nil then
+            result.unitSources={}
+            for _,unit in ipairs(unitState.units) do
+                if unit.woundCount>0 then
+                    result.unitSources[#result.unitSources+1]=unit.guid
+                end
+            end
+        end
         local manaLink=manaByCard[card.guid]
         if manaLink~=nil then
             result.status="purple"
@@ -1144,7 +1243,8 @@ local function renderSeat(seatPos)
             result.convertedMana=manaLink.converted
         end
         local choices=nil
-        if discarded[card.guid]==nil or repeatByTarget[card.guid]~=nil then
+        if (discarded[card.guid]==nil or repeatByTarget[card.guid]~=nil)
+            and (cardData==nil or cardData.resourceAlwaysNeutral~=true) then
             if cardPosture(card)=="sideways" then
                 if cardCanPlaySideways(card) then choices=sidewaysChoices end
             elseif rule==nil or rule.requiredLink==nil or hasDiscard[card.guid]==true then
@@ -1183,7 +1283,62 @@ local function renderSeat(seatPos)
         if result.usesTerrainBlock then usesCurrentHexBlock=true end
         setHighlight(card,result.status,result.powered)
     end
-    -- An unlinked Wound is inert. Only an attached Skill permits sideways use.
+    -- Ambush boosts the physically linked Action's first Attack or Block,
+    -- rather than generating a separate untyped Attack resource.
+    local combatCategories={"attack","attackFire","attackIce","attackColdFire",
+        "ranged","rangedFire","rangedIce","rangedColdFire",
+        "siege","siegeFire","siegeIce","siegeColdFire",
+        "block","blockFire","blockIce","blockColdFire"}
+    for _,source in ipairs(cards) do
+        local data=gameCards[source.guid]
+        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+        local sourceRecord=records[source.guid]
+        if rule~=nil and rule.combatLink~=nil and sourceRecord~=nil
+            and sourceRecord.resources~=nil and cardPosture(source)=="upright"
+            and (discarded[source.guid]==nil or repeatByTarget[source.guid]~=nil) then
+            local best,bestCategory,bestType,bestOverlap=nil,nil,nil,0
+            for _,target in ipairs(cards) do
+                local record=records[target.guid]
+                local area=target.guid~=source.guid
+                    and overlapArea(footprints[source.guid],footprints[target.guid]) or 0
+                if area>0 and record~=nil and record.resources~=nil
+                    and discarded[target.guid]==nil then
+                    local category,kind=nil,nil
+                    for _,key in ipairs(combatCategories) do
+                        if type(record.resources[key])=="number" and record.resources[key]>0 then
+                            category=key
+                            kind=key:sub(1,5)=="block" and "block" or "attack"
+                            break
+                        end
+                    end
+                    if category~=nil and (area>bestOverlap
+                        or (area==bestOverlap and best~=nil and target.guid<best.guid)) then
+                        best,bestCategory,bestType,bestOverlap=target,category,kind,area
+                    end
+                end
+            end
+            if best~=nil then
+                local bonusRule=sourceRecord.powered and rule.combatLink.powered
+                    or rule.combatLink.normal
+                local bonus=bonusRule[bestType]*(sourceRecord.repeatCount or 1)
+                local targetRecord=records[best.guid]
+                local adjusted={}
+                for key,value in pairs(targetRecord.resources) do adjusted[key]=value end
+                adjusted[bestCategory]=adjusted[bestCategory]+bonus
+                targetRecord.resources=adjusted
+                totals[bestCategory]=(totals[bestCategory] or 0)+bonus
+                sourceRecord.links[#sourceRecord.links+1]=best.guid
+                targetRecord.links[#targetRecord.links+1]=source.guid
+                sourceRecord.status="purple"
+                targetRecord.status="purple"
+                sourceRecord.contributes=true
+                setHighlight(source,sourceRecord.status,sourceRecord.powered)
+                setHighlight(best,targetRecord.status,targetRecord.powered)
+            end
+        end
+    end
+    -- An unlinked Wound is inert. Only an attached Skill or a deliberate
+    -- discard payment gives it a tracker outline.
     for _,wound in ipairs(wounds) do
         local skillLink=skillLinksByTarget[wound.guid]
         if skillLink~=nil then
@@ -1194,6 +1349,12 @@ local function renderSeat(seatPos)
             records[wound.guid]=result
             current[wound.guid]=true
             setHighlight(wound,result.status,result.powered)
+        elseif links[wound.guid]~=nil and #links[wound.guid]>0 then
+            local result={guid=wound.guid,kind="wound",known=true,complete=true,
+                powered=false,links=links[wound.guid],status="purple",resources=nil}
+            records[wound.guid]=result
+            current[wound.guid]=true
+            setHighlight(wound,result.status,false)
         end
     end
     -- The linking card itself contributes the target's upgraded effect. Mark it
@@ -1265,7 +1426,7 @@ local function renderSeat(seatPos)
     -- their link just like physical Skill/card interactions, without treating
     -- Command or Wound markers as resource sources themselves.
     for guid,record in pairs(records) do
-        if record.kind=="skill" and record.unitSources~=nil then
+        if record.unitSources~=nil then
             for _,unitGUID in ipairs(record.unitSources) do
                 local unit,unitRecord=objects[unitGUID],records[unitGUID]
                 if unit~=nil and unitRecord~=nil then
@@ -1459,6 +1620,7 @@ local function resourceCardsRelevantZone(ctx)
         return ctx.zoneInfo.seatPos
     end
     if kind=="crystal" and objectKind=="mana" then return ctx.zoneInfo.seatPos end
+    if kind=="hand" and objectKind=="wound" then return ctx.zoneInfo.seatPos end
     return nil
 end
 
@@ -1497,7 +1659,8 @@ function resourceCardsObjectMoved(obj)
         end
         return
     end
-    for _,zoneGUID in ipairs({playerPlayAreas[seat],playerUnitAreas[seat],playerCrystalAreas[seat]}) do
+    for _,zoneGUID in ipairs({playerPlayAreas[seat],playerUnitAreas[seat],
+        playerCrystalAreas[seat],handZones[seat]}) do
         local zone=getObjectFromGUID(zoneGUID)
         if zone~=nil then
             for _,candidate in ipairs(zone.getObjects()) do

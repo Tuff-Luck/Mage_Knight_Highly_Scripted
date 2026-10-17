@@ -1083,7 +1083,8 @@ cardResourceDefinitions={
             effect={mode="set",terrains={lake=true},cost=0}}},
     agility={normal={move=2},powered={move=4}}, -- Attack conversion remains manual
     steadyTempo={normal={move=2},powered={move=4}}, -- Deed-deck placement does not change Move
-    mountainLore={normal={move=3},powered={move=5},partial=true}, -- Hand limit/terrain bonus
+    mountainLore={normal={move=3},powered={move=5},
+        terrainEffects={powered={{mode="set",terrains={mountain=true},cost=5}}}}, -- Hand-limit bonus remains manual
     refreshingWalk={
         normalChoices={{key="heal",move=2,healing=1},{key="combat",move=2}},
         poweredChoices={{key="heal",move=4,healing=2},{key="combat",move=4}}},
@@ -1096,7 +1097,8 @@ cardResourceDefinitions={
         normalChoices={{key="attack",attack=2},{key="wound",attack=5}},
         poweredChoices={{key="attack",attack=4},{key="wound",attack=9}}},
     -- Wound option is a player-asserted cost; no Wound is created automatically.
-    inNeed={normal={influence=3},powered={influence=5},partial=true}, -- Further Influence from Wounds
+    inNeed={normal={influence=3},powered={influence=5},
+        woundBonus={normal=1,powered=2}}, -- Lost Legion: Wounds in hand and on Units
     -- Verified against the Unofficial Mage Knight card wiki (base/expansion).
     -- 'other' means a deliberate card effect that adds no tracked resource.
     -- A crystal gained to inventory is not itself generated Move/Attack/etc.
@@ -1119,12 +1121,15 @@ cardResourceDefinitions={
     stoutResolve={
         normalChoices={{move=2},{influence=2},{attack=2},{block=2}},
         poweredChoices={{move=3},{influence=3},{attack=3},{block=3}},
-        partial=true}, -- Optional discards add untracked bonuses
+        discardBoost={
+            normal={perCard=1,woundOnly=true,maxWounds=1},
+            powered={perCard=2,maxWounds=1}}}, -- Costs require physically tilted cards
     crushingBolt={normalTrackerNeutral=true,powered={siege=3}},
     intimidate={
         normalChoices={{influence=4},{attack=3}},
         poweredChoices={{influence=8},{attack=7}}},
-    ambush={normal={move=2},powered={move=4},partial=true}, -- Plus a bonus to a subsequent Attack or Block
+    ambush={normal={move=2},powered={move=4},
+        combatLink={normal={attack=1,block=2},powered={attack=2,block=4}}}, -- First linked Action Attack/Block
     counterattack={normal={attack=2},powered={attack=4},partial=true}, -- Plus damage per enemy blocked
     fireBolt={normalTrackerNeutral=true,powered={rangedFire=3}},
     iceBolt={normalTrackerNeutral=true,powered={rangedIce=3}},
@@ -1475,7 +1480,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["474418"]={cardType="Advanced Action", resourceKey="forceOfNature", name={"Force of Nature"},	color={"Green"}, 		action={"Combat"}},
 			["54b5c4"]={cardType="Advanced Action", resourceKey="stoutResolve", name={"Stout Resolve"}, 	color={"Green"}, 		action={"Move", "Combat", "Influence"}},
 			["d3995b"]={cardType="Advanced Action", resourceKey="mountainLore", name={"Mountain Lore"}, 	color={"Green"}, 		action={"Move"}},
-			["6fdeb0"]={cardType="Advanced Action", name={"Training"},			color={"Green"}, 		action={"Special"}},
+			["6fdeb0"]={cardType="Advanced Action", resourceTracked=false, resourceAlwaysNeutral=true, name={"Training"},			color={"Green"}, 		action={"Special"}},
 			["c3153e"]={cardType="Advanced Action", resourceKey="inNeed", name={"In Need"}, 			color={"Green"}, 		action={"Influence"}},
 			["20cb85"]={cardType="Advanced Action", resourceKey="ambush", name={"Ambush"}, 			color={"Green"}, 		action={"Move"}},--I want to add combat
 			["878d88"]={cardType="Advanced Action", resourceKey="songOfWind", name={"Song of Wind"}, 		color={"White"}, 		action={"Move"}},

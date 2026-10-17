@@ -210,7 +210,7 @@ function unitLayoutResourceState(seatPos)
     end
     local units={}
     for _,unit in ipairs(layout.units) do
-        local state={guid=unit.guid,unit=unit,ready=true,unwounded=true}
+        local state={guid=unit.guid,unit=unit,ready=true,unwounded=true,woundCount=0}
         for _,token in ipairs(commandTokens) do
             if unitLayoutTokenOnUnit(token,unit) then
                 state.ready=false
@@ -220,12 +220,15 @@ function unitLayoutResourceState(seatPos)
         for _,token in ipairs(woundTokens) do
             if unitLayoutTokenOnUnit(token,unit) then
                 state.unwounded=false
-                break
+                state.woundCount=state.woundCount+1
             end
         end
         units[#units+1]=state
     end
-    return {units=units,emptyCommandSlots=math.max(0,#layout.commands-#layout.units)}
+    local woundCount=0
+    for _,state in ipairs(units) do woundCount=woundCount+state.woundCount end
+    return {units=units,woundCount=woundCount,
+        emptyCommandSlots=math.max(0,#layout.commands-#layout.units)}
 end
 
 function unitLayoutFirstFreeCommand(seatPos)
