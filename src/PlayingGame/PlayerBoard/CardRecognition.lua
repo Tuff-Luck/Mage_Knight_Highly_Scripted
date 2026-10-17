@@ -1285,9 +1285,24 @@ local function renderSeat(seatPos)
     local skillLinksByTarget,skillLinksBySkill,sidewaysSkillMana=
         resolveSkillCardLinks(skills,skillTargets,footprints,manaObjects,placements,manaByObject,unitState)
     local powered,usedMana,spellSupply={}, {}, {}
+    -- Some Actions require a separate coloured mana payment to choose their
+    -- effect. Record those candidates before deciding which Blue mana powers
+    -- the strong side; one token can never fill both roles.
+    local effectManaByCard,specialPaymentByCard={},{}
+    for _,card in ipairs(cards) do
+        local data=gameCards[card.guid]
+        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+        if rule~=nil and rule.effectManaChoice~=nil then
+            specialPaymentByCard[card.guid]=rule.effectManaChoice
+        end
+    end
     local function spendMana(card,color,manaGUID)
         local data=gameCards[card.guid]
-        if data~=nil and data.cardType=="Spell" then
+        if specialPaymentByCard[card.guid]~=nil then
+            local candidates=effectManaByCard[card.guid] or {}
+            candidates[#candidates+1]={guid=manaGUID,color=color}
+            effectManaByCard[card.guid]=candidates
+        elseif data~=nil and data.cardType=="Spell" then
             -- A Spell's stronger effect needs basic-colour AND Black mana at Night.
             local supply=spellSupply[card.guid] or {basic=false,black=false}
             if color=="Black" then supply.black=true else supply.basic=true end
@@ -1310,7 +1325,10 @@ local function renderSeat(seatPos)
                     local dx,dz=p[1]-f.x,p[3]-f.z
                     if math.abs(dx)<f.halfX and math.abs(dz)<f.halfZ
                         and cardPosture(card)=="upright" and card.is_face_down~=true
-                        and matchesCardMana(card,color) then
+                        and (matchesCardMana(card,color)
+                            or (specialPaymentByCard[card.guid]~=nil
+                                and (specialPaymentByCard[card.guid].colors[color]~=nil
+                                    or (color=="Gold" and gStates.dayRound==true)))) then
                         local distance=dx*dx+dz*dz
                         if bestDistance==nil or distance<bestDistance then best,bestDistance=card,distance end
                     end
@@ -1323,6 +1341,19 @@ local function renderSeat(seatPos)
         if link.targetGUID~=nil then
             local card=getObjectFromGUID(link.targetGUID)
             if card~=nil then spendMana(card,link.converted,link.manaGUID) end
+        end
+    end
+    -- A Blue payment alone is Pure Magic's normal Block effect. Only a
+    -- distinct second payment lets Blue power the stronger side.
+    for guid,candidates in pairs(effectManaByCard) do
+        if #candidates>=2 then
+            local spec=specialPaymentByCard[guid]
+            for _,candidate in ipairs(candidates) do
+                if candidate.color==spec.powerColor then
+                    powered[guid]=true
+                    break
+                end
+            end
         end
     end
     for guid,supply in pairs(spellSupply) do
@@ -1366,18 +1397,53 @@ local function renderSeat(seatPos)
     local current,records,totals={}, {}, {}
     local usesCurrentHexBlock=false
     local terrainModifiers={}
+    -- Reduce the choice buttons to the mana colours that could actually pay.
+    -- Gold (during Day) deliberately opens every choice for the player.
+    local function paidManaChoices(guid,rule,strong,boost)
+        local spec=rule.effectManaChoice
+        local payments=effectManaByCard[guid] or {}
+        local strongManaGUID=nil
+        if powered[guid]==true and boost==nil then
+            for _,payment in ipairs(payments) do
+                if payment.color==spec.powerColor then
+                    strongManaGUID=payment.guid
+                    break
+                end
+            end
+        end
+        local possible,anyColor={},false
+        for _,payment in ipairs(payments) do
+            if payment.guid~=strongManaGUID then
+                if payment.color=="Gold" and gStates.dayRound==true then
+                    anyColor=true
+                else
+                    local category=spec.colors[payment.color]
+                    if category~=nil then possible[category]=true end
+                end
+            end
+        end
+        local choices={}
+        for _,choice in ipairs(sideChoices(rule,strong) or {}) do
+            if anyColor or possible[choiceCategory(choice)] then
+                choices[#choices+1]=choice
+            end
+        end
+        return choices
+    end
     for _,card in ipairs(cards) do
         local cardData=gameCards[card.guid]
         local rule=cardData~=nil and cardResourceDefinitions[cardData.resourceKey] or nil
-        local linkedChoices=linkedColorChoices(rule,linkedCardBySource[card.guid],
-            powered[card.guid]==true or boostBy[card.guid]~=nil)
-        -- Enemy-targeted effects count the printed icons of the token actually
-        -- placed over the card. A missing target still gives the fixed base Block.
-        local enemyTarget,enemyBonus=nil,nil
         local isStrong=powered[card.guid]==true or boostBy[card.guid]~=nil
         if repeatByTarget[card.guid]~=nil then
             isStrong=repeatByTarget[card.guid].powered
         end
+        local linkedChoices=linkedColorChoices(rule,linkedCardBySource[card.guid],isStrong)
+        if rule~=nil and rule.effectManaChoice~=nil then
+            linkedChoices=paidManaChoices(card.guid,rule,isStrong,boostBy[card.guid])
+        end
+        -- Enemy-targeted effects count the printed icons of the token actually
+        -- placed over the card. A missing target still gives the fixed base Block.
+        local enemyTarget,enemyBonus=nil,nil
         if rule~=nil and rule.enemyIconBlock==true and isStrong
             and cardPosture(card)=="upright" then
             local bestArea=0

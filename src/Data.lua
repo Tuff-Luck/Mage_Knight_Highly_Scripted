@@ -1070,8 +1070,20 @@ cardResourceDefinitions={
     druidicPaths={normal={move=2},powered={move=4}}, -- Player manages the one-space/one-terrain-type discount
     savageHarvesting={normal={move=2},powered={move=4}}, -- Optional crystal gains do not affect Move calculation
     ruthlessCoercion={normal={influence=2},powered={influence=6}}, -- Other effects do not change the numeric Influence contributed
-    shieldBash={normal={block=3},powered={block=5},partial=true}, -- Swiftness and excess-Block modifiers
-    frostBridge={normal={move=2},powered={move=4},partial=true}, -- Changes swamp/lake movement costs
+    shieldBash={normal={block=3},powered={block=5}}, -- Fixed Block is fully tracked; other bonuses remain manual
+    frostBridge={normal={move=2},powered={move=4},
+        terrainEffects={
+            normal={{mode="set",terrains={swamp=true},cost=1}},
+            powered={{mode="set",terrains={swamp=true,lake=true},cost=1}}}},
+    -- One mana chooses the effect. A separate Blue mana powers the stronger
+    -- side; Gold by day or multiple viable colours leaves an explicit choice.
+    pureMagic={
+        normalChoices={{key="move",move=4},{key="influence",influence=4},
+            {key="block",block=4},{key="attack",attack=4}},
+        poweredChoices={{key="move",move=7},{key="influence",influence=7},
+            {key="block",block=7},{key="attack",attack=7}},
+        effectManaChoice={powerColor="Blue",
+            colors={Green="move",White="influence",Blue="block",Red="attack"}}},
     -- Terrain effects are declarative: cap, reduce (with a floor), or set.
     -- They affect movement guidance only, not saved terrain costs.
     pathFinding={normal={move=2},powered={move=4},
@@ -1469,13 +1481,13 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["8907d1"]={cardType="Spell", name={"Mana Meltdown", "Mana Radiance"}, color={"Red"}, action={"Special"}},
 			["878d85"]={cardType="Advanced Action", resourceKey="iceShield", name={"Ice Shield"}, 		color={"Blue"}, 		action={"Combat"}},
 			["878d87"]={cardType="Advanced Action", resourceKey="frostBridge", name={"Frost Bridge"}, 		color={"Blue"}, 		action={"Move"}},
-			["878d89"]={cardType="Advanced Action", name={"Pure Magic"}, 		color={"Blue"}, 		action={"Move", "Combat", "Influence"}},
+			["878d89"]={cardType="Advanced Action", resourceKey="pureMagic", name={"Pure Magic"}, 		color={"Blue"}, 		action={"Move", "Combat", "Influence"}},
 			["878d81"]={cardType="Advanced Action", resourceKey="iceBolt", name={"Ice Bolt"}, 			color={"Blue"}, 		action={"Combat", "Special"}},
-			["87bc59"]={cardType="Advanced Action", name={"Spell Forge"}, 		color={"Blue"}, 		action={"Special"}},
-			["878d94"]={cardType="Advanced Action", name={"Temporal Portal"},	color={"Blue"}, 		action={"Action"}},
+			["87bc59"]={cardType="Advanced Action", resourceAlwaysNeutral=true, name={"Spell Forge"}, 		color={"Blue"}, 		action={"Special"}},
+			["878d94"]={cardType="Advanced Action", resourceAlwaysNeutral=true, name={"Temporal Portal"},	color={"Blue"}, 		action={"Action"}},
 			["878d93"]={cardType="Advanced Action", resourceKey="shieldBash", name={"Shield Bash"}, 		color={"Blue"}, 		action={"Combat"}},
 			["1f362f"]={cardType="Advanced Action", resourceKey="steadyTempo", name={"Steady Tempo"}, 		color={"Blue"}, 		action={"Move"}},
-			["885b96"]={cardType="Advanced Action", name={"Crystal Mastery"},	color={"Blue"}, 		action={"Special"}},
+			["885b96"]={cardType="Advanced Action", resourceAlwaysNeutral=true, name={"Crystal Mastery"},	color={"Blue"}, 		action={"Special"}},
 			["3d832c"]={cardType="Advanced Action", name={"Magic Talent"}, 		color={"Blue"}, 		action={"Special"}},
 			["878d91"]={cardType="Advanced Action", resourceKey="regeneration", name={"Regeneration"}, 		color={"Green"}, 		action={"Heal"}},
 			["00c614"]={cardType="Advanced Action", resourceKey="pathFinding", name={"Path Finding"}, 		color={"Green"}, 		action={"Move"}},
