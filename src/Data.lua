@@ -1207,7 +1207,8 @@ cardResourceDefinitions={
                 desert=true,swamp=true,lake=true},cost=2},
             {mode="set",terrains={hills=true,mountain=true},cost=999}}}},
     spellRestoration={normal={healing=3},powered={healing=3},forestHealing=5},
-    spellCharm={normal={influence=4},poweredChoices={{key="other"}}},
+    spellCharm={normal={influence=4},poweredChoices={{key="other"}},
+        enemyAttackLink=true}, -- Possess: borrow a linked enemy's printed Attack
     spellCure={normal={healing=2},poweredChoices={{key="other"}}},
     chivalry={
         normalChoices={{key="attack",attack=3},{key="reputation",attack=2}},
