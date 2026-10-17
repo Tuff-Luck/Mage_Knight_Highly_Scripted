@@ -1161,8 +1161,9 @@ cardResourceDefinitions={
     -- Spell resources are independent of the legality of the mana used.
     -- Purely narrative/non-numeric effects are deliberately blue, not unknown.
     spellUtility={normalChoices={{key="other"}},poweredChoices={{key="other"}}},
-    -- The unpowered spell affects routing without granting Move points.
-    spellSpaceBending={normal={},poweredChoices={{key="other"}},
+    -- A played unpowered card changes movement routing, not Move points.
+    -- Its active ability is independent of numeric Resource Tracker totals.
+    spellSpaceBending={normalChoices={{key="other"}},poweredChoices={{key="other"}},
         movementEffects={normal={jumpTwoSpaces=true,ignoreRampagers=true}}},
     spellFireball={normal={rangedFire=5},powered={siegeFire=8}},
     spellSnowstorm={normal={rangedIce=5},powered={siegeIce=8}},

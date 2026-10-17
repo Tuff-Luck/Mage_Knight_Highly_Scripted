@@ -1701,13 +1701,15 @@ local function renderSeat(seatPos)
                 result.status="purple"
             end
         end
-        -- A played spell may alter travel without granting Move points.
-        -- Never fall back to a normal-side modifier on the powered side.
-        if rule~=nil and rule.movementEffects~=nil and result.complete
-            and result.resources~=nil and cardPosture(card)=="upright" then
-            local effect
-            if result.powered then effect=rule.movementEffects.powered
-            else effect=rule.movementEffects.normal end
+        -- Persistent movement rules are non-numeric abilities: collect them
+        -- from the actual played card, independently of Resource Tracker
+        -- resource values/completeness. A powered side must never inherit the
+        -- unpowered side's movement rules.
+        if rule~=nil and rule.movementEffects~=nil and cardPosture(card)=="upright"
+            and card.is_face_down~=true
+            and (discarded[card.guid]==nil or repeatByTarget[card.guid]~=nil) then
+            local effect=result.powered and rule.movementEffects.powered
+                or (not result.powered and rule.movementEffects.normal or nil)
             if effect~=nil then
                 if effect.jumpTwoSpaces==true then movementEffects.jumpTwoSpaces=true end
                 if effect.ignoreRampagers==true then movementEffects.ignoreRampagers=true end
