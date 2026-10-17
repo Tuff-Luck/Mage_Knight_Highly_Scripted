@@ -1025,6 +1025,9 @@ cardResourceDefinitions={
     march={normal={move=2},powered={move=4}},
     promise={normal={influence=2},powered={influence=4}},
     nobleManners={normal={influence=2},powered={influence=4}}, -- Other ability does not alter Influence
+    coldToughness={
+        normalChoices={{attack=2},{key="block",blockIce=3}},
+        powered={blockIce=5},enemyIconBlock=true}, -- Lost Legion; enemy icon bonus from linked token
     oneWithTheLand={
         normalChoices={{move=2},{healing=1},{block=2}},
         poweredChoices={{move=4},{healing=2},{key="block",terrainBlock=true}}},
@@ -1250,7 +1253,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			--Tovak Starting Cards
 			["046146"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
 			["046147"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
-			["79bfbd"]={cardType="Starting", name={"Cold Toughness"}, color={"Blue"}, action={"Combat"}},
+			["79bfbd"]={cardType="Starting", resourceKey="coldToughness", name={"Cold Toughness"}, color={"Blue"}, action={"Combat"}},
 			["450571"]={cardType="Starting", resourceTracked=false, name={"Crystallize"}, color={"Blue"}, action={"Special"}},
 			["9757c1"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
 			["9757b9"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},

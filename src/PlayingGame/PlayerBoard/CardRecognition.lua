@@ -554,7 +554,7 @@ local function calculateSideways(card,known,skillLink)
         resources=resources}
 end
 
-local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,hasDiscard,skillLink,linkedChoices,repeatLink,discardBonus,woundCount)
+local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,hasDiscard,skillLink,linkedChoices,repeatLink,discardBonus,woundCount,enemyIconBonus)
     local data=gameCards[card.guid]
     local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
     local known=data~=nil
@@ -598,6 +598,10 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
         local perWound=powered and rule.woundBonus.powered or rule.woundBonus.normal
         base={influence=(base.influence or 0)+woundCount*perWound}
     end
+    if powered and base~=nil and rule~=nil and rule.enemyIconBlock
+        and enemyIconBonus~=nil then
+        base={blockIce=(base.blockIce or 0)+enemyIconBonus}
+    end
     -- A discard is an actual cost of Improvisation, even when its strong side
     -- came free from Concentration/Will Focus.
     local costPaid=rule==nil or rule.requiredLink==nil or hasDiscard==true
@@ -613,11 +617,14 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
         effects=adjusted
     end
     if effects~=nil and repeatLink~=nil then
+        -- The base may be a cardResourceDefinitions entry. Never modify it:
+        -- each new placement/drop recalculates from the same printed values.
+        local repeated={}
         for category,value in pairs(effects) do
-            if totalsKeys[category] and type(value)=="number" then
-                effects[category]=value*repeatLink.count
-            end
+            repeated[category]=(totalsKeys[category] and type(value)=="number")
+                and value*repeatLink.count or value
         end
+        effects=repeated
     end
     -- A card's other unimplemented options do not make its currently selected
     -- *known* resource effect uncertain. Keep the first option as the fast,
@@ -626,6 +633,8 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
     local complete=sideTracked and base~=nil and not choicePending and not statePartial
         and (rule.partial~=true or knownSelectedOption)
         and (rule==nil or rule.woundBonus==nil or woundCount~=nil)
+        and (rule==nil or rule.enemyIconBlock~=true or not powered
+            or enemyIconBonus~=nil)
         and faceUp and costPaid and canApply
     local choiceIsUntracked=chosen~=nil and not effectHasTrackedResource(chosen)
     local status=(not known or not sideTracked or posture=="discard" or choiceIsUntracked) and "blue"
@@ -1034,6 +1043,29 @@ local function terrainModifierPrecedes(a,b)
     return false
 end
 
+-- Count only printed enemy-token icons, not site-given traits.
+-- A Coldfire attack represents both Fire and Ice attack-colour icons.
+local enemyPrintedAbilityKeys={
+    "swiftness","cumbersome","brutal","poison","paralyse",
+    "assassination","vampiric","elusive","fortified","unfortified",
+    "defend","pResist","fResist","iResist"
+}
+local function enemyPrintedIconBonus(enemy)
+    if enemy==nil then return nil end
+    if enemy.arcaneImmunity==true then return 0 end
+    local count=0
+    for _,key in ipairs(enemyPrintedAbilityKeys) do
+        local value=enemy[key]
+        if value==true or (type(value)=="number" and value>0) then
+            count=count+1
+        end
+    end
+    local attacks=enemy.attack or {}
+    if attacks.F~=nil or attacks.IF~=nil then count=count+1 end
+    if attacks.I~=nil or attacks.IF~=nil then count=count+1 end
+    return count
+end
+
 local function addResourceAmounts(result,totals)
     result.contributes=false
     if result.resources==nil then return end
@@ -1052,11 +1084,13 @@ local function renderSeat(seatPos)
     local active=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if active==nil or active.seatPos~=seatPos then return end
 
-    local objects,placements={},{}
+    local objects,placements,monsters={},{},{}
     local function inspectZone(guid,zoneKind)
         local zone=guid~=nil and getObjectFromGUID(guid) or nil
         if zone==nil then return end
         for _,obj in ipairs(zone.getObjects()) do
+            if (zoneKind=="play" or zoneKind=="unit")
+                and monsterPugs[obj.guid]~=nil then monsters[obj.guid]=obj end
             local kind=resourceObjectKind(obj)
             if kind~=nil and (zoneKind=="play"
                 or (zoneKind=="unit" and (kind=="unit" or kind=="mana"))
@@ -1225,10 +1259,38 @@ local function renderSeat(seatPos)
         local rule=cardData~=nil and cardResourceDefinitions[cardData.resourceKey] or nil
         local linkedChoices=linkedColorChoices(rule,linkedCardBySource[card.guid],
             powered[card.guid]==true or boostBy[card.guid]~=nil)
+        -- Enemy-targeted effects count the printed icons of the token actually
+        -- placed over the card. A missing target still gives the fixed base Block.
+        local enemyTarget,enemyBonus=nil,nil
+        local isStrong=powered[card.guid]==true or boostBy[card.guid]~=nil
+        if repeatByTarget[card.guid]~=nil then
+            isStrong=repeatByTarget[card.guid].powered
+        end
+        if rule~=nil and rule.enemyIconBlock==true and isStrong
+            and cardPosture(card)=="upright" then
+            local bestArea=0
+            for guid,monster in pairs(monsters) do
+                if monster.is_face_down~=true then
+                    local area=overlapArea(footprints[card.guid],footprint(monster))
+                    if area>bestArea or (area==bestArea and area>0 and enemyTarget~=nil
+                        and guid<enemyTarget.guid) then
+                        enemyTarget,bestArea=monster,area
+                    end
+                end
+            end
+            if enemyTarget~=nil then
+                enemyBonus=enemyPrintedIconBonus(monsterPugs[enemyTarget.guid])
+            end
+        end
         local result=calculateCard(card,powered[card.guid]==true,boostBy[card.guid],
             links[card.guid],discarded[card.guid]~=nil,hasDiscard[card.guid]==true,
             skillLinksByTarget[card.guid],linkedChoices,repeatByTarget[card.guid],
-            discardBoostBySource[card.guid],woundCount)
+            discardBoostBySource[card.guid],woundCount,enemyBonus)
+        if enemyTarget~=nil and result.resources~=nil then
+            result.enemyGUID=enemyTarget.guid
+            result.links[#result.links+1]=enemyTarget.guid
+            result.status="purple"
+        end
         if rule~=nil and rule.woundBonus~=nil and result.resources~=nil and unitState~=nil then
             result.unitSources={}
             for _,unit in ipairs(unitState.units) do
@@ -1283,6 +1345,23 @@ local function renderSeat(seatPos)
         current[card.guid]=true
         if result.usesTerrainBlock then usesCurrentHexBlock=true end
         setHighlight(card,result.status,result.powered)
+    end
+    -- Outline the particular enemy whose printed icons modified Cold Toughness.
+    for _,record in pairs(records) do
+        if record.enemyGUID~=nil then
+            local enemy=monsters[record.enemyGUID]
+            if enemy~=nil then
+                local enemyRecord=records[enemy.guid]
+                if enemyRecord==nil then
+                    enemyRecord={guid=enemy.guid,kind="monster",known=true,complete=true,
+                        powered=true,links={},status="purple",resources=nil}
+                    records[enemy.guid]=enemyRecord
+                end
+                enemyRecord.links[#enemyRecord.links+1]=record.guid
+                current[enemy.guid]=true
+                setHighlight(enemy,"purple",true)
+            end
+        end
     end
     -- Ambush boosts the physically linked Action's first Attack or Block,
     -- rather than generating a separate untyped Attack resource.
@@ -1615,8 +1694,11 @@ local function resourceCardsRelevantZone(ctx)
     if ctx==nil or ctx.zoneInfo==nil or ctx.obj==nil then return nil end
     local kind=ctx.zoneInfo.kind
     local objectKind=resourceObjectKind(ctx.obj)
-    if kind=="play" and objectKind~=nil then return ctx.zoneInfo.seatPos end
+    if kind=="play" and (objectKind~=nil or monsterPugs[ctx.objGUID]~=nil) then
+        return ctx.zoneInfo.seatPos
+    end
     if kind=="unit" and (objectKind=="unit" or objectKind=="mana"
+        or monsterPugs[ctx.objGUID]~=nil
         or unitLayoutIsCommand(ctx.obj) or unitLayoutIsWound(ctx.obj)) then
         return ctx.zoneInfo.seatPos
     end
@@ -1644,7 +1726,8 @@ function resourceCardsObjectMoved(obj)
     if player==nil then return end
     local seat=player.seatPos
     local isUnitStateToken=unitLayoutIsCommand(obj) or unitLayoutIsWound(obj)
-    if resourceObjectKind(obj)==nil and not isUnitStateToken then
+    local isMonster=monsterPugs[obj.guid]~=nil
+    if resourceObjectKind(obj)==nil and not isUnitStateToken and not isMonster then
         -- A played powered One with the Land may change Block value when the
         -- Mage Knight moves to different terrain. Only watch avatar drops
         -- while that exact effect is selected; no continual background scan.
@@ -1669,7 +1752,8 @@ function resourceCardsObjectMoved(obj)
             end
         end
     end
-    if isUnitStateToken then
+    if isUnitStateToken or (isMonster and bySeat[seat]~=nil
+        and bySeat[seat][obj.guid]==true) then
         -- Zone exit usually handles this already, but a token can be dragged
         -- straight out and dropped before its membership event settles.
         queueSeat(seat,nil)
