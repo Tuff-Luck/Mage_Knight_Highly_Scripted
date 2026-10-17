@@ -562,8 +562,9 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
     local powered=manaPowered or linkedBoost~=nil
     if repeatLink~=nil then powered=repeatLink.powered end
     local posture=cardPosture(card)
-    -- Non-resource Actions are intentionally neutral even when laid sideways.
-    if data~=nil and data.resourceAlwaysNeutral==true then
+    -- A non-resource Action is neutral upright, but still gives the standard
+    -- selectable +1 when played sideways like any other non-Wound Action.
+    if data~=nil and data.resourceAlwaysNeutral==true and posture~="sideways" then
         return {guid=card.guid,known=true,complete=true,powered=false,
             links=linked,status=#linked>0 and "purple" or "blue",resources=nil}
     end
@@ -1243,11 +1244,11 @@ local function renderSeat(seatPos)
             result.convertedMana=manaLink.converted
         end
         local choices=nil
-        if (discarded[card.guid]==nil or repeatByTarget[card.guid]~=nil)
-            and (cardData==nil or cardData.resourceAlwaysNeutral~=true) then
+        if discarded[card.guid]==nil or repeatByTarget[card.guid]~=nil then
             if cardPosture(card)=="sideways" then
                 if cardCanPlaySideways(card) then choices=sidewaysChoices end
-            elseif rule==nil or rule.requiredLink==nil or hasDiscard[card.guid]==true then
+            elseif (cardData==nil or cardData.resourceAlwaysNeutral~=true)
+                and (rule==nil or rule.requiredLink==nil or hasDiscard[card.guid]==true) then
                 -- Hide the choice entirely until its cost is present. Powered
                 -- Rage has a fixed effect, so sideChoices is nil and hides it.
                 choices=linkedChoices or sideChoices(rule,result.powered)
