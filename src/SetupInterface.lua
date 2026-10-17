@@ -389,6 +389,7 @@ function horsemenHorsesSelection(player,mouseButton,id)
 	if mouseButton~="-1" or scenarioUsesHorsemen()~=true then return end
 	gStates.horsemenHorses=gStates.horsemenHorses~=true
 	setScenarioVariantButtonState("HorsemenHorsesButton",gStates.horsemenHorses==true)
+	ToolTipUpdate("horsemenHorses")
 end
 
 local function refreshScenarioEnemyLevelTweaks()
