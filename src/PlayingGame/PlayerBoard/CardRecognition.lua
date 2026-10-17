@@ -1384,9 +1384,9 @@ local function renderSeat(seatPos)
     local skillLinksByTarget,skillLinksBySkill,sidewaysSkillMana=
         resolveSkillCardLinks(skills,skillTargets,footprints,manaObjects,placements,manaByObject,unitState)
     local powered,usedMana={}, {}
-    -- Some Actions require a separate coloured mana payment to choose their
-    -- effect. Record those candidates before deciding which Blue mana powers
-    -- the strong side; one token can never fill both roles.
+    -- Some cards require a separate coloured mana payment to choose their
+    -- effect. Record those candidates before deciding which mana powers the
+    -- strong side; one token can never fill both roles.
     local effectManaByCard,specialPaymentByCard={},{}
     for _,card in ipairs(cards) do
         local data=gameCards[card.guid]
@@ -1441,15 +1441,26 @@ local function renderSeat(seatPos)
             if card~=nil then spendMana(card,link.converted,link.manaGUID) end
         end
     end
-    -- A Blue payment alone is Pure Magic's normal Block effect. Only a
-    -- distinct second payment lets Blue power the stronger side.
+    -- An effect-selection mana must be separate from the stronger-effect
+    -- payment (Blue for Pure Magic, Black for Mana Thunderbolt). The power
+    -- payment never doubles as an effect choice.
     for guid,candidates in pairs(effectManaByCard) do
-        if #candidates>=2 then
-            local spec=specialPaymentByCard[guid]
+        local spec=specialPaymentByCard[guid]
+        if #candidates>=2 and spec~=nil then
+            local hasEffectMana=false
             for _,candidate in ipairs(candidates) do
-                if candidate.color==spec.powerColor then
-                    powered[guid]=true
+                if spec.colors[candidate.color]~=nil
+                    or (candidate.color=="Gold" and gStates.dayRound==true) then
+                    hasEffectMana=true
                     break
+                end
+            end
+            if hasEffectMana then
+                for _,candidate in ipairs(candidates) do
+                    if candidate.color==spec.powerColor then
+                        powered[guid]=true
+                        break
+                    end
                 end
             end
         end
@@ -1493,8 +1504,9 @@ local function renderSeat(seatPos)
     local usesCurrentHexHealing=false
     local terrainModifiers={}
     local movementEffects={jumpTwoSpaces=false,ignoreRampagers=false}
-    -- Reduce the choice buttons to the mana colours that could actually pay.
-    -- Gold (during Day) deliberately opens every choice for the player.
+    -- Infer a single choice from physically linked effect mana, requiring a
+    -- payment for effects such as Mana Bolt. Gold (during Day) or conflicting
+    -- linked colours leave the choices available for the player to resolve.
     local function paidManaChoices(guid,rule,strong,boost)
         local spec=rule.effectManaChoice
         local payments=effectManaByCard[guid] or {}

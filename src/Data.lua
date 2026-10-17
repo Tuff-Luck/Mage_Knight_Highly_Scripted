@@ -1172,11 +1172,14 @@ cardResourceDefinitions={
         poweredChoices={{key="attack",attackFire=5},{key="block",blockFire=7}},
         poweredEnemyBonus=2},
     spellManaBolt={
-        -- Another mana's color is a choice, not a requirement we validate.
+        -- One physically linked coloured mana selects the effect. Black separately
+        -- powers Mana Thunderbolt; Gold during Day leaves the effect ambiguous.
         normalChoices={{key="blue",attackIce=8},{key="red",attackColdFire=7},
             {key="white",rangedIce=6},{key="green",siegeIce=5}},
         poweredChoices={{key="blue",attackIce=11},{key="red",attackColdFire=10},
-            {key="white",rangedIce=9},{key="green",siegeIce=8}}},
+            {key="white",rangedIce=9},{key="green",siegeIce=8}},
+        effectManaChoice={powerColor="Black",
+            colors={Blue="blue",Red="red",White="white",Green="green"}}},
     spellBurningShield={
         normalChoices={{key="fireBlockOnly",blockFire=4,icon="block"},
             {key="fireBlockCounter",blockFire=4,attackFire=4,icon="block",
