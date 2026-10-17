@@ -663,6 +663,48 @@ local function applyLinkedResourceBonus(effects,link)
     return values
 end
 
+-- Resolve independent mana roles without relying on placement order or GUID
+-- order. A casting payment (if declared), stronger-effect payment, and
+-- effect-selection payment must be different physical mana objects. Daytime
+-- Gold can fill either a casting or effect role; its effect stays ambiguous.
+-- Other cards can reuse this by declaring effectManaChoice.castColor.
+local function effectManaPossibilities(spec,payments,needPower,daytime)
+    local possible,anyColor={},false
+    local function hasDistinctPower(effectGUID,castGUID)
+        if not needPower then return true end
+        for _,payment in ipairs(payments) do
+            if payment.guid~=effectGUID and payment.guid~=castGUID
+                and payment.color==spec.powerColor then return true end
+        end
+        return false
+    end
+    for _,effect in ipairs(payments) do
+        local category=spec.colors[effect.color]
+        local wildcard=effect.color=="Gold" and daytime
+        if category~=nil or wildcard then
+            local valid=false
+            if spec.castColor==nil then
+                valid=hasDistinctPower(effect.guid,nil)
+            else
+                for _,casting in ipairs(payments) do
+                    if casting.guid~=effect.guid
+                        and (casting.color==spec.castColor
+                            or (casting.color=="Gold" and daytime))
+                        and hasDistinctPower(effect.guid,casting.guid) then
+                        valid=true
+                        break
+                    end
+                end
+            end
+            if valid then
+                if wildcard then anyColor=true
+                else possible[category]=true end
+            end
+        end
+    end
+    return possible,anyColor
+end
+
 -- Colour-triggered Actions use stable target-card data, not translated text.
 -- Dual-colour Actions offer an explicit choice, using the existing card buttons.
 local basicActionColors={"Red","Blue","White","Green"}
@@ -1441,29 +1483,14 @@ local function renderSeat(seatPos)
             if card~=nil then spendMana(card,link.converted,link.manaGUID) end
         end
     end
-    -- An effect-selection mana must be separate from the stronger-effect
-    -- payment (Blue for Pure Magic, Black for Mana Thunderbolt). The power
-    -- payment never doubles as an effect choice.
+    -- Power the stronger side only when a complete distinct payment set is
+    -- possible. Pure Magic needs effect + Blue; Mana Thunderbolt needs
+    -- casting Blue/Gold + Black + a separate effect mana.
     for guid,candidates in pairs(effectManaByCard) do
         local spec=specialPaymentByCard[guid]
-        if #candidates>=2 and spec~=nil then
-            local hasEffectMana=false
-            for _,candidate in ipairs(candidates) do
-                if spec.colors[candidate.color]~=nil
-                    or (candidate.color=="Gold" and gStates.dayRound==true) then
-                    hasEffectMana=true
-                    break
-                end
-            end
-            if hasEffectMana then
-                for _,candidate in ipairs(candidates) do
-                    if candidate.color==spec.powerColor then
-                        powered[guid]=true
-                        break
-                    end
-                end
-            end
-        end
+        local options,wildcard=effectManaPossibilities(spec,candidates,true,
+            gStates.dayRound==true)
+        if wildcard or next(options)~=nil then powered[guid]=true end
     end
     local links,boostBy,boostSource,discarded,hasDiscard,linkedCardBySource,
         repeatByTarget,discardBoostBySource=
@@ -1504,32 +1531,13 @@ local function renderSeat(seatPos)
     local usesCurrentHexHealing=false
     local terrainModifiers={}
     local movementEffects={jumpTwoSpaces=false,ignoreRampagers=false}
-    -- Infer a single choice from physically linked effect mana, requiring a
-    -- payment for effects such as Mana Bolt. Gold (during Day) or conflicting
-    -- linked colours leave the choices available for the player to resolve.
+    -- Only infer an effect after assigning separate casting/power/effect
+    -- payments. If Gold or multiple valid assignments leave alternatives,
+    -- show the supported choices rather than choosing a mana token by GUID.
     local function paidManaChoices(guid,rule,strong,boost)
-        local spec=rule.effectManaChoice
-        local payments=effectManaByCard[guid] or {}
-        local strongManaGUID=nil
-        if powered[guid]==true and boost==nil then
-            for _,payment in ipairs(payments) do
-                if payment.color==spec.powerColor then
-                    strongManaGUID=payment.guid
-                    break
-                end
-            end
-        end
-        local possible,anyColor={},false
-        for _,payment in ipairs(payments) do
-            if payment.guid~=strongManaGUID then
-                if payment.color=="Gold" and gStates.dayRound==true then
-                    anyColor=true
-                else
-                    local category=spec.colors[payment.color]
-                    if category~=nil then possible[category]=true end
-                end
-            end
-        end
+        local needPower=powered[guid]==true and boost==nil
+        local possible,anyColor=effectManaPossibilities(rule.effectManaChoice,
+            effectManaByCard[guid] or {},needPower,gStates.dayRound==true)
         local choices={}
         for _,choice in ipairs(sideChoices(rule,strong) or {}) do
             if anyColor or possible[choiceCategory(choice)] then
