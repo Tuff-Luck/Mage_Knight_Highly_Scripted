@@ -879,8 +879,15 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
             or enemyIconBonus~=nil)
         and faceUp and costPaid and canApply
     local choiceIsUntracked=chosen~=nil and not effectHasTrackedResource(chosen)
+    -- Recognised movement rules change the calculator even without supplying
+    -- numeric Move. Show green when the paid, selected side has such an effect.
+    -- For example, Space Bending is green, but Time Bending stays neutral
+    -- until its distinct stronger-side effect is supported.
+    local scriptedMovement=rule~=nil and rule.movementEffects~=nil
+        and (powered and rule.movementEffects.powered
+            or (not powered and rule.movementEffects.normal))
     local status=(not known or not sideTracked or posture=="discard"
-        or (choiceIsUntracked and costPaid)) and "blue"
+        or (choiceIsUntracked and costPaid and scriptedMovement==nil)) and "blue"
         or not complete and "yellow" or "green"
     -- Linking information is more valuable than the underlying certainty colour.
     if #linked>0 then status="purple" end
