@@ -462,8 +462,8 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                 id="ResourceCardChoice_"..card.guid.."_label"..row.index,
                 position="-80 "..tostring(y).." -35",rotation="0 0 "..buttonRotation,
                 width=60,height=90,scale="0.25 0.25",fontSize=62,
-                textColor="#DAE1EA",textAlignment="MiddleCenter",
-                raycastTarget="false"},value=tostring(row.index)}
+                color="#DAE1EA",alignment="MiddleCenter",
+                raycastTarget="false",text=tostring(row.index)}}
         end
         local displayed={}
         for _,entry in ipairs(row.visible) do displayed[entry.category]=true end
