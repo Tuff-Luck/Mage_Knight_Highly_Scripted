@@ -721,7 +721,9 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded)
                     or "#454D5D|#69798E|#444C63|#454D5D",
                 fontSize=77,textColor="#FFFFFF",textAlignment="MiddleCenter",
                 tooltip=ability.tooltip or ((ability.key or "Unit ability").." "..tostring(ability[ability.key] or ""))
-            },value=icon==nil and (choiceLetters[ability.key] or "?") or ""}
+            },value=icon==nil and (ability.buttonLabel
+                or (ability.key=="other" and tostring(ability.row))
+                or choiceLetters[ability.key] or "?") or ""}
             if icon~=nil then
                 button.children={{tag="Image",attributes={
                     image=icon.name,width=82,height=82,preserveAspect="true",
