@@ -1646,7 +1646,9 @@ local function renderSeat(seatPos)
             footprints[guid]=footprint(obj)
         elseif kind=="mana" then
             manaObjects[#manaObjects+1]=obj
-        elseif kind=="unit" and placements[guid]=="unit" then
+        elseif kind=="unit" then
+            -- Unit and Play Areas overlap; placement may be "play" here.
+            -- The physical Unit-area snapshot still owns its wound/spent state.
             hasUnits=true
         end
     end
