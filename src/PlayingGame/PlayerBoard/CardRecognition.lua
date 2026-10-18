@@ -1926,6 +1926,7 @@ local function renderSeat(seatPos)
     local usesCurrentHexHealing=false
     local terrainModifiers={}
     local movementEffects={jumpTwoSpaces=false,ignoreRampagers=false}
+    local usesSkillLocation=false
     -- This is a reusable declarative overlay. All passives are owned-Skill
     -- effects, whether the physical token is resting at home or being played.
     -- Read immutable rule tables so identical scans don't invalidate movement.
@@ -2652,6 +2653,22 @@ local function renderSeat(seatPos)
                 result=calculateSkill(obj,skillLinksBySkill[guid]
                     or (conversion~=nil and conversion.targetGUID or nil),
                     unitState,inventoryCrystalCounts)
+                local skillRule=skillResourceDefinitions[guid]
+                if skillRule~=nil then
+                    if skillRule.locationInfluence~=nil
+                        or skillRule.day~=nil or skillRule.night~=nil then
+                        usesSkillLocation=true
+                    end
+                    -- Played Skill movement flags are declarative, just like
+                    -- equivalent printed Action/Spell effects.
+                    local spec=skillRule.movementEffects
+                    local effects=spec~=nil
+                        and (obj.is_face_down==true and spec.flipped or spec.normal) or nil
+                    if effects~=nil then
+                        if effects.jumpTwoSpaces then movementEffects.jumpTwoSpaces=true end
+                        if effects.ignoreRampagers then movementEffects.ignoreRampagers=true end
+                    end
+                end
                 showChoiceButtons(obj,result.choices,result.powered)
                 addResourceAmounts(result,totals)
                 if skillLinksBySkill[guid]~=nil then
@@ -2751,7 +2768,8 @@ local function renderSeat(seatPos)
     resourceCardScanBySeat[seatPos]={cards=records,totals=totals,
         terrainModifiers=terrainModifiers,movementEffects=movementEffects,
         usesCurrentHexBlock=usesCurrentHexBlock,
-        usesCurrentHexHealing=usesCurrentHexHealing}
+        usesCurrentHexHealing=usesCurrentHexHealing,
+        usesSkillLocation=usesSkillLocation}
     -- Redraw movement when ability flags change, even if total Move stays equal.
     if totalsChanged or terrainChanged then refreshResourceTrackerText() end
     if previousMove~=(totals.move or 0) or terrainChanged or movementChanged then
@@ -3132,7 +3150,7 @@ function resourceCardsObjectMoved(obj)
         -- while that exact effect is selected; no continual background scan.
         local scan=resourceCardScanBySeat[seat]
         if scan~=nil and (scan.usesCurrentHexBlock==true
-            or scan.usesCurrentHexHealing==true) then
+            or scan.usesCurrentHexHealing==true or scan.usesSkillLocation==true) then
             for _,hero in ipairs(mageKnights or {}) do
                 if hero.mage==player.mage and
                     (obj.guid==hero.model or obj.guid==hero.token or obj.guid==hero.standee) then
