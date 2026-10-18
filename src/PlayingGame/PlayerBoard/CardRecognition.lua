@@ -722,8 +722,7 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded)
                 rotation="0 0 180",width=90,height=90,scale="0.22 0.22",
                 colors=active and "#387D30|#4CA940|#387D30|#387D30"
                     or "#454D5D|#69798E|#444C63|#454D5D",
-                fontSize=77,textColor="#FFFFFF",textAlignment="MiddleCenter",
-                tooltip=ability.tooltip or ((ability.key or "Unit ability").." "..tostring(ability[ability.key] or ""))
+                fontSize=77,textColor="#FFFFFF",textAlignment="MiddleCenter"
             },value=icon==nil and (ability.buttonLabel
                 or (ability.key=="other" and tostring(ability.row))
                 or choiceLetters[ability.key] or "?") or ""}
