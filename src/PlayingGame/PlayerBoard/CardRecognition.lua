@@ -556,9 +556,13 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         buttonRotation=card.getRotation()[2]%360<180 and 90 or 270
     end
     local uiRotation=card.is_face_down==true and "0 180 180" or ("0 0 "..buttonRotation)
-    local buttonDepth=card.is_face_down==true and "35" or "-35"
+    -- Skill token UI used to float nearly four tokens above the surface at
+    -- depth -35. Put it near one token's thickness instead; normal card,
+    -- Artifact and Unit button heights remain unchanged.
+    local buttonDepth=isSkill and (card.is_face_down==true and "10" or "-10")
+        or (card.is_face_down==true and "35" or "-35")
     local signature=(posture=="sideways" and "S" or (powered and "P" or "N"))
-        ..":"..table.concat(signatureParts,";")..":"..uiRotation
+        ..":"..table.concat(signatureParts,";")..":"..uiRotation..":"..buttonDepth
     if choiceButtonShown[card.guid]==signature then return end
     local xml=card.UI.getXmlTable() or {}
     for i=#xml,1,-1 do
