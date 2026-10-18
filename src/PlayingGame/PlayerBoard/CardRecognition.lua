@@ -384,6 +384,11 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     if card==nil then return end
     local posture=cardPosture(card)
     local isSkill=skillTokens[card.guid]~=nil
+    -- Skill tokens are physically smaller than Action cards, so their choice
+    -- buttons (collapsed and expanded) need a larger dedicated scale.
+    local buttonScale=isSkill and "0.50 0.50" or "0.25 0.25"
+    local buttonSpacing=isSkill and 88 or 44
+    local buttonRowOffset=isSkill and -60 or -30
     local data=gameCards[card.guid]
     local isArtifact=data~=nil and data.cardType=="Artifact"
     if choices==nil or #choices<2
@@ -503,9 +508,9 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         for _,entry in ipairs(row.visible) do
             local category=entry.category
             local column=resourceChoiceColumn(category)
-            local x=((#columns+1)/2-columnByCategory[column])*44
+            local x=((#columns+1)/2-columnByCategory[column])*buttonSpacing
             local above=row.expanded and category~=column and displayed[column]==true
-            local buttonY=y+(above and -30 or 0)
+            local buttonY=y+(above and buttonRowOffset or 0)
             local active=category==row.selected
             local icon=resourceCardsChoiceIcon(entry.icon)
             if icon~=nil and blocked[icon.name] then icon=nil end
@@ -515,7 +520,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                 id=buttonId,onClick="global/resourceCardsChoiceClicked",
                 position=tostring(x).." "..tostring(buttonY).." "..buttonDepth,
                 rotation=uiRotation,width=90,height=90,
-                scale="0.25 0.25",
+                scale=buttonScale,
                 colors=active and "#387D30|#4CA940|#387D30|#387D30"
                     or "#454D5D|#69798E|#444C63|#454D5D",
                 fontSize=77,textColor="#FFFFFF",textAlignment="MiddleCenter"
@@ -2128,9 +2133,15 @@ function resourceCardsChoiceClicked(player,value,id)
     -- Linked cards take the powered choice even without mana placed on them.
     local powered=record~=nil and record.powered==true
     local sideways=not isSkill and cardPosture(card)=="sideways"
-    local choices=isSkill and (rule~=nil and rule.choices or nil)
-        or ((sideways and (cardCanPlaySideways(card) or linkedWound)) and sidewaysChoices
-            or (not sideways and sideChoices(rule,powered) or nil))
+    local mainChoices
+    if isSkill then
+        mainChoices=rule~=nil and rule.choices or nil
+    elseif sideways and (cardCanPlaySideways(card) or linkedWound) then
+        mainChoices=sidewaysChoices
+    elseif not sideways then
+        mainChoices=sideChoices(rule,powered)
+    end
+    local choices=mainChoices
     local inventorySpec=not sideways and powered and rule~=nil
         and rule.inventorySetChoices or nil
     local inventorySets=inventorySpec~=nil and record~=nil
@@ -2146,7 +2157,6 @@ function resourceCardsChoiceClicked(player,value,id)
     if currentlyExpanded~=rowId and not (rowId=="base" and currentlyExpanded==true) then
         -- Opening a row never changes the chosen resource.
         choiceExpandedByGUID[guid]=rowId
-        local mainChoices=sideways and sidewaysChoices or sideChoices(rule,powered)
         showChoiceButtons(card,mainChoices,powered,inventorySpec,inventorySets)
         return
     end
@@ -2165,7 +2175,6 @@ function resourceCardsChoiceClicked(player,value,id)
     end
     selectedResourceByGUID[guid]=selected
     choiceExpandedByGUID[guid]=nil
-    local mainChoices=sideways and sidewaysChoices or sideChoices(rule,powered)
     showChoiceButtons(card,mainChoices,powered,inventorySpec,inventorySets)
     queueSeat(currentSeat.seatPos,nil)
 end
