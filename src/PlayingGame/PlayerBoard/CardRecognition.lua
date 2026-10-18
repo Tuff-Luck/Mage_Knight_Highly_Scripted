@@ -39,6 +39,11 @@ local commandPickupForUnits={}
 -- Existing Command tokens and Wounds suppress Unit highlights regardless of
 -- whether an activated ability contributes resources this turn.
 local unitHighlightBlocked={}
+-- Reuse a single immutable terrain modifier. Constructing a new table on
+-- every scan would make the terrain-effect comparison think the cost changed
+-- even when Foresters' chosen ability is unchanged.
+local forestersTerrainModifier={mode="reduce",
+    terrains={forest=true,hills=true,swamp=true},amount=1,minimum=0}
 
 function resourceCardsPanelOpen()
     return gStates~=nil and gStates.firstStarted==true
@@ -2229,9 +2234,7 @@ local function renderSeat(seatPos)
                     current[unitGUID]=true
                     setHighlight(unit,result.status,false)
                     if selected.terrainReduce and result.complete then
-                        terrainModifiers[#terrainModifiers+1]={mode="reduce",
-                            terrains={forest=true,hills=true,swamp=true},
-                            amount=1,minimum=0}
+                        terrainModifiers[#terrainModifiers+1]=forestersTerrainModifier
                     end
                     if selected.boostOtherUnits and result.complete then
                         shocktroopsBoosts=shocktroopsBoosts+1
