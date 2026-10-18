@@ -396,6 +396,7 @@ function __onObjectPickUp_raw(player_color, picked_up_object)
 		mapTokenReleaseObject(picked_up_object)
 	end
 	puppetMasterTrackPickup(player_color,picked_up_object)
+	resourceUnitsCommandPickedUp(player_color,picked_up_object)
 	--Unlocking and lifting an active Destroyed token undoes that placement without awarding a restoration.
 	if player_color~=nil and picked_up_object.getGMNotes()=="Destroyed" and gStates.destroyedSites~=nil and gStates.destroyedSites[picked_up_object.guid]~=nil then
 		if undoDestroyedSitePlacement(picked_up_object)==true then
@@ -490,6 +491,7 @@ end
 function __onObjectDrop_raw(player_color, dropped_object)
 	if dropped_object==nil or dropped_object.guid==nil then return end
 	local droppedGUID=dropped_object.guid
+    resourceUnitsCommandDropped(player_color,dropped_object)
     resourceCardsObjectMoved(dropped_object)
 	if terrainTiles[droppedGUID]~=nil then
 		runtimeMapInvalidateTerrain()
