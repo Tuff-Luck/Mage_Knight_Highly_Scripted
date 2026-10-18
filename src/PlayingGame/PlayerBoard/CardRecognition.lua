@@ -408,7 +408,10 @@ local function skillChoicePositions(entries)
     local columns={}
     local grouped=#familyOrder<=3
     for _,family in ipairs(familyOrder) do
-        if #families[family]>2 then grouped=false break end
+        if #families[family]>2
+            and not (#familyOrder==1 and #families[family]==3) then
+            grouped=false break
+        end
     end
     if grouped then
         for _,family in ipairs(familyOrder) do
@@ -421,7 +424,7 @@ local function skillChoicePositions(entries)
         for _,family in ipairs(familyOrder) do
             for _,entry in ipairs(families[family]) do ordered[#ordered+1]=entry end
         end
-        local rowCount=math.ceil(#ordered/3)
+        local rowCount=math.max(2,math.ceil(#ordered/3))
         for i,entry in ipairs(ordered) do
             local columnIndex=math.ceil(i/rowCount)
             columns[columnIndex]=columns[columnIndex] or {}
@@ -432,8 +435,10 @@ local function skillChoicePositions(entries)
     local positions={}
     for columnIndex,column in ipairs(columns) do
         local x=((#columns+1)/2-columnIndex)*104
+        local verticalSpacing=#column==3 and 58 or 70
         for rowIndex,entry in ipairs(column) do
-            positions[entry.category]={x=x,y=((#column+1)/2-rowIndex)*70}
+            positions[entry.category]={x=x,
+                y=((#column+1)/2-rowIndex)*verticalSpacing}
         end
     end
     return positions
