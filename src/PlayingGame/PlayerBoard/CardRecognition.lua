@@ -695,7 +695,8 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded)
     -- The 180-degree UI rotation reverses the screen-space axes, so the
     -- first printed ability takes negative Y (above) and extra alternatives
     -- take negative X (to the screen-right of their primary option).
-    local baseX,baseY=72,80
+    -- Shift by one rendered Unit-button width (90 * 0.22) farther left.
+    local baseX,baseY=91.8,80
     local rowSpacing=34
     local columnSpacing=35
     for rowIndex,indices in ipairs(rows) do
@@ -2425,9 +2426,28 @@ function resourceCardsChoiceClicked(player,value,id)
     queueSeat(currentSeat.seatPos,nil)
 end
 
+-- An activation belongs to the physical Command token that started it.
+-- Dropping that token away from its Unit is an undo, not a spent ability:
+-- discard its saved choice and remove its buttons and tracked contribution.
+-- Returning the token to the same Unit preserves its selection.
+local function resourceUnitsCancelMovedCommand(tokenGUID,seatPos,targetGUID)
+    local activations=gStates~=nil and gStates.unitResourceActivations or nil
+    if activations==nil then return false end
+    local changed=false
+    for unitGUID,activation in pairs(activations) do
+        if activation.tokenGUID==tokenGUID and activation.seatPos==seatPos
+            and unitGUID~=targetGUID then
+            removeChoiceButtons(getObjectFromGUID(unitGUID))
+            choiceExpandedByGUID[unitGUID]=nil
+            activations[unitGUID]=nil
+            changed=true
+        end
+    end
+    return changed
+end
+
 -- The picked-up origin is transient; only completed activations belong in
--- saved state. This prevents simply dropping an already-spent token back onto
--- the same Unit from counting it as a new activation in a later turn.
+-- saved state. A token placed back on its original Unit isn't a new play.
 function resourceUnitsCommandPickedUp(playerColor,obj)
     if obj==nil or not unitLayoutIsCommand(obj)
         or gStates==nil or gStates.firstStarted~=true then return end
@@ -2449,8 +2469,11 @@ function resourceUnitsCommandDropped(playerColor,obj)
         if current==nil or current.seatPos~=pickup.seatPos
             or gStates.turnNumber~=pickup.turnNumber then return end
         local token=getObjectFromGUID(guid)
-        if token==nil then return end
-        local unit=unitLayoutCommandTarget(token,pickup.seatPos)
+        local unit=token~=nil and unitLayoutCommandTarget(token,pickup.seatPos) or nil
+        local targetGUID=unit~=nil and unit.guid or nil
+        if resourceUnitsCancelMovedCommand(guid,pickup.seatPos,targetGUID) then
+            queueSeat(pickup.seatPos,nil)
+        end
         if unit==nil or unit.guid==pickup.origin
             or unitResourceDefinitions[unit.guid]==nil then return end
         local state=unitLayoutResourceState(pickup.seatPos)
@@ -2509,8 +2532,8 @@ function resourceUnitsChoiceClicked(player,value,id)
     queueSeat(current.seatPos,nil)
 end
 
--- Cleared at turn end, not when the Command token leaves a card.
--- The token itself stays put until normal round reset or a gameplay ability.
+-- Clear any remaining activations at turn end without moving Command tokens.
+-- A token moved off its Unit during the turn cancels immediately on its drop.
 function resourceUnitsResetTurn()
     if gStates~=nil then
         for unitGUID in pairs(gStates.unitResourceActivations or {}) do
