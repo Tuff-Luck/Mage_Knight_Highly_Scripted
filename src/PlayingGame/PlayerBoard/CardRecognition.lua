@@ -2535,6 +2535,87 @@ local function renderSeat(seatPos)
             end
         end
     end
+    -- Coral's If It's Not Broken: a sideways card on the Skill copies a
+    -- previously played Action's BASIC effect of the same colour. We only
+    -- infer a result with one fixed numeric resource and one clear source.
+    -- No inferred play order, extra payments, or invented source card.
+    for _,skill in ipairs(skills) do
+        local skillRule=skillResourceDefinitions[skill.guid]
+        if skillRule~=nil and skillRule.copyBasicAction then
+            local sideways,bestOverlap=nil,0
+            for _,card in ipairs(cards) do
+                local record=records[card.guid]
+                if cardPosture(card)=="sideways" and record~=nil
+                    and record.resources~=nil
+                    and skillLinksByTarget[card.guid]==nil then
+                    local area=overlapArea(footprints[skill.guid],footprints[card.guid])
+                    if area>bestOverlap then sideways,bestOverlap=card,area end
+                end
+            end
+            if sideways~=nil then
+                local sidewaysData=gameCards[sideways.guid]
+                local sideIsArtifact=sidewaysData~=nil
+                    and sidewaysData.cardType=="Artifact"
+                local candidates={}
+                for _,source in ipairs(cards) do
+                    local data=gameCards[source.guid]
+                    if source.guid~=sideways.guid and data~=nil
+                        and (data.cardType=="Starting" or data.cardType=="Advanced Action")
+                        and cardPosture(source)=="upright" and source.is_face_down~=true
+                        and (sideIsArtifact or (sidewaysData~=nil
+                            and sidewaysData.color~=nil and data.color==sidewaysData.color)) then
+                        local definition=cardResourceDefinitions[data.resourceKey]
+                        if definition~=nil and definition.requiredLink==nil
+                            and definition.woundBonus==nil and definition.partial~=true then
+                            local base=definition.normalChoices~=nil
+                                and chosenEffect(source.guid,false,definition.normalChoices)
+                                or definition.normal
+                            local srcField,srcValue,count=nil,nil,0
+                            for key,value in pairs(base or {}) do
+                                if totalsKeys[key] and type(value)=="number" and value>0 then
+                                    srcField,srcValue,count=key,value,count+1
+                                end
+                            end
+                            if count==1 then
+                                candidates[#candidates+1]={source=source,field=srcField,
+                                    value=srcValue,overlap=overlapArea(footprints[sideways.guid],
+                                        footprints[source.guid])}
+                            end
+                        end
+                    end
+                end
+                table.sort(candidates,function(a,b)
+                    if a.overlap~=b.overlap then return a.overlap>b.overlap end
+                    return a.source.guid<b.source.guid
+                end)
+                if #candidates==1 or (#candidates>1 and candidates[1].overlap>0
+                    and candidates[1].overlap>candidates[2].overlap) then
+                    local original=records[sideways.guid]
+                    local oldField,oldCount=nil,0
+                    for key,value in pairs(original.resources) do
+                        if totalsKeys[key] and type(value)=="number" and value>0 then
+                            oldField,oldCount=key,oldCount+1
+                        end
+                    end
+                    if oldCount==1 then
+                        local chosen=candidates[1]
+                        skillTargetLinked(skill,sideways,oldField,chosen.value,chosen.field)
+                        local origin=records[chosen.source.guid]
+                        local skillRecord=records[skill.guid]
+                        if origin~=nil and skillRecord~=nil then
+                            origin.links[#origin.links+1]=skill.guid
+                            skillRecord.links[#skillRecord.links+1]=chosen.source.guid
+                            origin.status="purple"
+                            setHighlight(chosen.source,"purple",origin.powered)
+                        end
+                        -- The sideways generic Move/Attack/Block button no
+                        -- longer describes its copied basic effect.
+                        showChoiceButtons(sideways,nil,false)
+                    end
+                end
+            end
+        end
+    end
     -- Deadly Aim adds to one physically linked card's actual Attack element,
     -- never to Units or a guessed attack phase.
     for _,skill in ipairs(skills) do
