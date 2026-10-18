@@ -2411,7 +2411,12 @@ local function renderSeat(seatPos)
     local function skillTargetLinked(skill,target,field,amount,replaceField)
         local skillRecord,targetRecord=records[skill.guid],records[target.guid]
         if skillRecord==nil or targetRecord==nil or targetRecord.resources==nil then return end
-        local old=targetRecord.resources[field] or 0
+        -- Cards often return the catalog's immutable basic-effect table.
+        -- Never mutate a rule entry by adjusting the live played result.
+        local copy={}
+        for k,v in pairs(targetRecord.resources) do copy[k]=v end
+        targetRecord.resources=copy
+        local old=copy[field] or 0
         if replaceField~=nil then
             targetRecord.resources[field]=nil
             totals[field]=(totals[field] or 0)-old
@@ -2440,6 +2445,8 @@ local function renderSeat(seatPos)
         if rule~=nil and rule.unitBoost~=nil then
             local choice=chosenEffect(skill.guid,false,rule.choices)
             local family=choice~=nil and choiceCategory(choice) or nil
+            if family=="twiceAttack" then family="attack"
+            elseif family=="twiceBlock" then family="block" end
             if family~=nil and rule.unitBoost[family]~=nil then
                 local eligible={}
                 for unitGUID,activation in pairs(activations) do
@@ -2556,6 +2563,62 @@ local function renderSeat(seatPos)
             end
             if best~=nil then
                 skillTargetLinked(skill,best.card,best.field,best.amount)
+            end
+        end
+    end
+    -- Tovak's Mana Overload: the unused marker mana on the Skill declares
+    -- its colour. A *different* mana of that colour must actually power the
+    -- target Deed card. An explicit overlapping target wins; if exactly one
+    -- suitable powered card exists, the choice is unambiguous.
+    for _,skill in ipairs(skills) do
+        local rule=skillResourceDefinitions[skill.guid]
+        if rule~=nil and rule.manaOverload then
+            local colors={}
+            local skillArea=footprints[skill.guid]
+            for _,mana in ipairs(manaObjects) do
+                if placements[mana.guid]=="play" and usedMana[mana.guid]==nil
+                    and manaInsideFootprint(mana,skillArea) then
+                    local color=manaColor(mana)
+                    if color~=nil and color~="Gold" then colors[color]=true end
+                end
+            end
+            local candidates={}
+            if next(colors)~=nil then
+                for _,card in ipairs(cards) do
+                    local data=gameCards[card.guid]
+                    local target=records[card.guid]
+                    if data~=nil and (data.cardType=="Starting"
+                            or data.cardType=="Advanced Action"
+                            or data.cardType=="Spell" or data.cardType=="Artifact")
+                        and target~=nil and target.resources~=nil then
+                        local familyField=nil
+                        for _,family in ipairs({"move","influence","ranged","siege","attack","block"}) do
+                            local field=resourceFieldForFamily(target.resources,family)
+                            if field~=nil then
+                                if familyField~=nil then familyField=nil break end
+                                familyField=field
+                            end
+                        end
+                        if familyField~=nil then
+                            for _,mana in ipairs(manaObjects) do
+                                if usedMana[mana.guid]==card.guid and colors[manaColor(mana)]==true then
+                                    candidates[#candidates+1]={card=card,field=familyField,
+                                        overlap=overlapArea(skillArea,footprints[card.guid])}
+                                    break
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+            table.sort(candidates,function(a,b)
+                if a.overlap~=b.overlap then return a.overlap>b.overlap end
+                return a.card.guid<b.card.guid
+            end)
+            if #candidates==1 or (#candidates>1 and candidates[1].overlap>0
+                and candidates[1].overlap>candidates[2].overlap) then
+                local chosen=candidates[1]
+                skillTargetLinked(skill,chosen.card,chosen.field,4)
             end
         end
     end
