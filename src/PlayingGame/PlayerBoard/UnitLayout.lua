@@ -195,6 +195,16 @@ local function unitLayoutTokenOnUnit(token,unit)
         and math.abs(position.z-center.z)<halfZ
 end
 
+-- Find the Unit directly under a newly played Command token. The Unit's
+-- current bounds work for both native and compressed player-board columns.
+function unitLayoutCommandTarget(token,seatPos)
+    if token==nil or seatPos==nil then return nil end
+    for _,unit in ipairs(unitLayoutSnapshot(seatPos).units) do
+        if unitLayoutTokenOnUnit(token,unit) then return unit end
+    end
+    return nil
+end
+
 -- Shared by Skills that count ready/unwounded Units or empty Command slots.
 -- One zone snapshot per tracker scan; no name/translation-based identification.
 function unitLayoutResourceState(seatPos)
