@@ -508,6 +508,9 @@ function displayScore(player, mouseButton, id)
 		end
 		--Figure out who leads and assisted in cities
 		refreshCityControlAndScoring()
+		--Share the conquest objective's effective count; defeatedCities.amount only
+		--contains physical City garrisons and excludes the Dragon replacing one.
+		local conqueredCities=conqueredCityObjectiveCount()
 		local scoringGroups={}
 		local scoringGroupByKey={}
 		local teamScoring=false
@@ -1192,15 +1195,15 @@ function displayScore(player, mouseButton, id)
                                     totalScore=totalScore+bonus
                                 end
                             end
-                            if turnOrder[a].score.CityLead>0 and gStates.defeatedCities.amount>0 then
+                            if turnOrder[a].score.CityLead>0 and conqueredCities>0 then
 								assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.CityLead, "{en} Conquered City(s): +{it} Città Conquistate: +{ru} Захваченный Город: +{zh-tw}个城市已征服: +{zh-cn}个城市已征服: +{ko} 정복한 도시: +{es} Ciudades Conquistadas: +{fr} Villes Conquises: +{pt-br} Cidades Conquistadas: +{de} Eroberte Stadt(en): +", (turnOrder[a].score.CityLead*7)})
 								totalScore=totalScore+(turnOrder[a].score.CityLead*7)
 							end
-							if turnOrder[a].score.CityAssist>0 and gStates.defeatedCities.amount>0 then
+							if turnOrder[a].score.CityAssist>0 and conqueredCities>0 then
 								assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.CityAssist, "{en} Assisted City(s): +{it} Città Assistite: +{ru} Помощь с Городом: +{zh-tw}个城市已援助: +{zh-cn}个城市已援助: +{ko} 도와준 도시: +{es} Ciudades Asistidas: +{fr} Villes Aidées: +{pt-br} Cidades Assistidas: +{de} Unterstützte Stadt(en): +", (turnOrder[a].score.CityAssist*4)})
 								totalScore=totalScore+(turnOrder[a].score.CityAssist*4)
 							end
-							if turnOrder[a].score.gCityLead>0 and gStates.defeatedCities.amount>0 then
+							if turnOrder[a].score.gCityLead>0 and conqueredCities>0 then
 								assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Greatest City Leader: +{it}Grande Capo Cittadino: +{ru}Великий завоеватель городов: +{zh-tw}至强城市领袖： +{zh-cn}至强城市领袖： +{ko}위대한 도시 정복자: +{es}Mayor Líder de la Ciudad: +{fr}Plus Grand Chef de la Ville: +{pt-br}Maior Líder de Cidade: +{de}Größter Stadtführer: +", turnOrder[a].score.gCityLead})
 								totalScore=totalScore+turnOrder[a].score.gCityLead
 							end
@@ -1467,21 +1470,21 @@ function displayScore(player, mouseButton, id)
 					end
 
 					--City Coop Score. Fractured Lands explicitly does not use City scoring.
-					if fracturedLandsNoCityScore~=true and (gStates.defeatedCities.amount>0 or gStates.gameScenario=="The Gauntlet") then
+					if fracturedLandsNoCityScore~=true and (conqueredCities>0 or gStates.gameScenario=="The Gauntlet") then
 						assembledText="" lineFeed=0
 						local cityValue=10
 						if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" then cityValue=20 end
 						if gStates.gameScenario=="Volkare's Quest" then cityValue=5 end
 						if gStates.gameScenario~="The Gauntlet" then
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{gStates.defeatedCities.amount, "{en} Conquered City(s): +{it} Città Conquistate: +{ru} Захваченный Город: +{zh-tw}个城市已征服: +{zh-cn}个城市已征服: +{ko} 정복한 도시: +{es} Ciudades Conquistadas: +{fr} Villes Conquises: +{pt-br} Cidades Conquistadas: +{de} Eroberte Stadt(en): +", (gStates.defeatedCities.amount*cityValue)})
-							coopScore=coopScore+(gStates.defeatedCities.amount*cityValue)
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{conqueredCities, "{en} Conquered City(s): +{it} Città Conquistate: +{ru} Захваченный Город: +{zh-tw}个城市已征服: +{zh-cn}个城市已征服: +{ko} 정복한 도시: +{es} Ciudades Conquistadas: +{fr} Villes Conquises: +{pt-br} Cidades Conquistadas: +{de} Eroberte Stadt(en): +", (conqueredCities*cityValue)})
+							coopScore=coopScore+(conqueredCities*cityValue)
 						end
 						if gStates.gameScenario~="Volkare's Return" and gStates.gameScenario~="Volkare's Return Blitz" and gStates.gameScenario~="Volkare's Quest" then
 							if gStates.playersRef~=5 and gStates.allLeaderCheck==true then
 								assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Each Player is a Leader of a City: +10{it}Ogni Giocatore è Capo di una Città: +10{ru}Каждый игрок владеет Городом: +10{zh-tw}每个玩家都是一个城市的领袖: +10{zh-cn}每个玩家都是一个城市的领袖: +10{ko}각 플레이어가 도시 지도자: +10{es}Cada Jugador es un Líder de una Ciudad: +10{fr}Chaque Joueur est un Chef de Ville: +10{pt-br}Cada jogador é um líder de uma cidade: +10{de}Jeder Spieler ist ein Anführer einer Stadt: +10"})
 								coopScore=coopScore+10
 							end
-							if gStates.defeatedCities.amount==gStates.cityTiles then--+gStates.megapolis
+							if conqueredCities==gStates.cityTiles then--+gStates.megapolis
 								assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}All Cities are Conquered: +15{it}Tutte le Città Conquistate: +15{ru}Все города захвачены: +15{zh-tw}征服了所有城市: +15{zh-cn}征服了所有城市: +15{ko}모든 도시 정복됨: +15{es}Todas las Ciudades son Conquistadas: +15{fr}Toutes les Villes Sont Conquises: +15{pt-br}Todas Cidades Conquistadas: +15{de}Alle Städte sind erobert: +15"})
 								coopScore=coopScore+15
 							end
