@@ -2382,6 +2382,173 @@ local function renderSeat(seatPos)
             end
         end
     end
+    -- Physical Skill bonuses use the SAME record/totals as the target. Never
+    -- add a Skill's printed bonus independently of its activated Unit or card.
+    local function resourceFieldForFamily(resources,family)
+        if resources==nil then return nil end
+        local found=nil
+        for field,amount in pairs(resources) do
+            if type(amount)=="number" and amount>0
+                and (field==family or field:sub(1,#family)==family) then
+                -- Multiple independent elemental abilities need player
+                -- disambiguation rather than picking the first pairs() entry.
+                if found~=nil then return nil end
+                found=field
+            end
+        end
+        return found
+    end
+    local function skillTargetLinked(skill,target,field,amount,replaceField)
+        local skillRecord,targetRecord=records[skill.guid],records[target.guid]
+        if skillRecord==nil or targetRecord==nil or targetRecord.resources==nil then return end
+        local old=targetRecord.resources[field] or 0
+        if replaceField~=nil then
+            targetRecord.resources[field]=nil
+            totals[field]=(totals[field] or 0)-old
+            targetRecord.resources[replaceField]=(targetRecord.resources[replaceField] or 0)+amount
+            totals[replaceField]=(totals[replaceField] or 0)+amount
+        else
+            targetRecord.resources[field]=old+amount
+            totals[field]=(totals[field] or 0)+amount
+        end
+        skillRecord.complete=true
+        skillRecord.contributes=true
+        skillRecord.powered=true
+        skillRecord.status="purple"
+        skillRecord.links[#skillRecord.links+1]=target.guid
+        targetRecord.links[#targetRecord.links+1]=skill.guid
+        if targetRecord.kind~="unit" then targetRecord.status="purple" end
+        setHighlight(skill,"purple",true)
+        -- Activated Units retain their green/blue highlight; they are not
+        -- reclassified purple merely because Leadership enhanced the effect.
+        if targetRecord.kind~="unit" then
+            setHighlight(target,"purple",targetRecord.powered)
+        end
+    end
+    for _,skill in ipairs(skills) do
+        local rule=skillResourceDefinitions[skill.guid]
+        if rule~=nil and rule.unitBoost~=nil then
+            local choice=chosenEffect(skill.guid,false,rule.choices)
+            local family=choice~=nil and choiceCategory(choice) or nil
+            if family~=nil and rule.unitBoost[family]~=nil then
+                local eligible={}
+                for unitGUID,activation in pairs(activations) do
+                    local unit=objects[unitGUID]
+                    local record=records[unitGUID]
+                    if activation.seatPos==seatPos and unit~=nil and record~=nil
+                        and record.complete==true then
+                        local field=resourceFieldForFamily(record.resources,family)
+                        if field~=nil then
+                            eligible[#eligible+1]={unit=unit,field=field,
+                                overlap=overlapArea(footprint(skill),footprint(unit))}
+                        end
+                    end
+                end
+                table.sort(eligible,function(a,b)
+                    if a.overlap~=b.overlap then return a.overlap>b.overlap end
+                    return a.unit.guid<b.unit.guid
+                end)
+                -- One matching activated Unit is unambiguous. With several,
+                -- require a physical overlap to indicate the target.
+                if #eligible==1 or (#eligible>1 and eligible[1].overlap>0
+                    and eligible[1].overlap>eligible[2].overlap) then
+                    local chosenUnit=eligible[1]
+                    skillTargetLinked(skill,chosenUnit.unit,chosenUnit.field,
+                        rule.unitBoost[family])
+                end
+            end
+        end
+    end
+    -- Braevalar's Shapeshift: one upright Basic Action with exactly one
+    -- fixed Move/Attack/Block resource may switch to either other family.
+    -- The target is declared by overlapping the Skill with that card.
+    for _,skill in ipairs(skills) do
+        local rule=skillResourceDefinitions[skill.guid]
+        if rule~=nil and rule.shapeshift then
+            local best,bestOverlap=nil,0
+            for _,card in ipairs(cards) do
+                local data=gameCards[card.guid]
+                local record=records[card.guid]
+                if data~=nil and data.cardType=="Starting"
+                    and card.is_face_down~=true and cardPosture(card)=="upright"
+                    and record~=nil and record.resources~=nil then
+                    local field=nil
+                    local matches=0
+                    for category,value in pairs(record.resources) do
+                        if type(value)=="number" and value>0 and
+                            (category=="move" or category:sub(1,6)=="attack"
+                                or category:sub(1,5)=="block") then
+                            field=category
+                            matches=matches+1
+                        end
+                    end
+                    if matches==1 then
+                        local area=overlapArea(footprints[skill.guid],footprints[card.guid])
+                        if area>bestOverlap then
+                            best,bestOverlap={card=card,field=field},area
+                        end
+                    end
+                end
+            end
+            if best~=nil then
+                local sourceField=best.field
+                local sourceFamily=sourceField=="move" and "move"
+                    or (sourceField:sub(1,6)=="attack" and "attack" or "block")
+                local suffix=sourceField:sub(#sourceFamily+1)
+                local choices={}
+                for _,family in ipairs({"move","block","attack"}) do
+                    if family~=sourceFamily then
+                        local field=family=="move" and "move" or family..suffix
+                        choices[#choices+1]={key=family,icon=family,[field]=0}
+                    end
+                end
+                local result=records[skill.guid]
+                if result~=nil then
+                    result.choices=choices
+                    showChoiceButtons(skill,choices,false)
+                end
+                local selected=chosenEffect(skill.guid,false,choices)
+                if selected~=nil then
+                    local family=choiceCategory(selected)
+                    local newField=family=="move" and "move" or family..suffix
+                    local original=records[best.card.guid].resources[sourceField]
+                    skillTargetLinked(skill,best.card,sourceField,original,newField)
+                end
+            end
+        end
+    end
+    -- Deadly Aim adds to one physically linked card's actual Attack element,
+    -- never to Units or a guessed attack phase.
+    for _,skill in ipairs(skills) do
+        local rule=skillResourceDefinitions[skill.guid]
+        if rule~=nil and rule.attackCardBoost then
+            local best,bestOverlap=nil,0
+            for _,card in ipairs(cards) do
+                if card.is_face_down~=true then
+                    local record=records[card.guid]
+                    if record~=nil then
+                        local chosenField=nil
+                        local amount=nil
+                        for _,family in ipairs({"ranged","siege","attack"}) do
+                            local field=resourceFieldForFamily(record.resources,family)
+                            if field~=nil then
+                                if chosenField~=nil then chosenField=nil break end
+                                chosenField=field
+                                amount=family=="attack" and 2 or 1
+                            end
+                        end
+                        local area=overlapArea(footprints[skill.guid],footprints[card.guid])
+                        if chosenField~=nil and area>bestOverlap then
+                            best,bestOverlap={card=card,field=chosenField,amount=amount},area
+                        end
+                    end
+                end
+            end
+            if best~=nil then
+                skillTargetLinked(skill,best.card,best.field,best.amount)
+            end
+        end
+    end
     -- The linking card itself contributes the target's upgraded effect. Mark it
     -- as a contributor so its powering mana token receives a green outline.
     for targetGUID,sourceGUID in pairs(boostSource) do
