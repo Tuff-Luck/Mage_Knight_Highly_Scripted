@@ -2509,7 +2509,7 @@ skillResourceDefinitions={
         {key="twiceBlock",block=2,icon="block",iconOverlay="2"}},partial=true}, -- Tales of Conquest; shield use is player-declared.
     ["c4f5e9"]={normal={move=1},partial=true,
         passiveTerrain={{mode="set",terrains={lake=true},cost=2}}}, -- Commandeer Vessel.
-    ["694e27"]={untracked=true}, -- If It's Not Broken: copied Action effect is not inferred.
+    ["694e27"]={copyBasicAction=true,partial=true}, -- If It's Not Broken: requires a physical sideways target and one matching played Action.
     ["47800d"]={untracked=true}, -- Treasure Hunter: reward flow, not played resources.
     ["6f8b36"]={untracked=true}, -- Change Fate: draw/discard effect.
     ["a65a91"]={untracked=true}, -- Combat Healer: wound interception, not Heal points.
