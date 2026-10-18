@@ -674,8 +674,11 @@ function renderMoveDisplay(id)
 					local destinationHex=hexMap~=nil and hexMap[tostring(hor)]~=nil and hexMap[tostring(hor)][tostring(vec)] or nil
 					if destinationHex~=nil then
 						local hexCost=999
-						if destinationHex.hexType~=nil and gStates.moveCost[destinationHex.hexType]~=nil then
-                            hexCost=resourceCardsEffectiveTerrainCost(destinationHex.hexType)+moveSpent
+						if destinationHex.hexType~=nil then
+                            -- A claimed Skill may make normally impassable Lakes
+                            -- and Mountains traversable without changing moveCost.
+                            local terrainCost=resourceCardsEffectiveTerrainCost(destinationHex.hexType)
+                            if terrainCost<900 then hexCost=terrainCost+moveSpent end
                         end
 						local wallhor=hexDetail.coord[1]+(vector[1]/2)
 						local wallvec=hexDetail.coord[2]+(vector[2]/2)
@@ -712,8 +715,8 @@ function renderMoveDisplay(id)
                         local vec=hexDetail.coord[2]+offset[2]
                         local row=hexMap[tostring(hor)]
                         local target=row~=nil and row[tostring(vec)] or nil
-                        if target~=nil and target.hexType~="explore"
-                            and target.hexType~=nil and gStates.moveCost[target.hexType]~=nil then
+                        if target~=nil and target.hexType~="explore" and target.hexType~=nil
+                            and resourceCardsEffectiveTerrainCost(target.hexType)<900 then
                             local hexCost=moveSpent+resourceCardsEffectiveTerrainCost(target.hexType)
                             if hexCost<=99 and hexCost<moveValue+searchLimit then
                                 local fortified=target.fortified~=nil and target.fortified~="shield"
