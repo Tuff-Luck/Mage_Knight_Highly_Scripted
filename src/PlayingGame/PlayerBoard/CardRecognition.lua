@@ -3252,10 +3252,28 @@ function resourceUnitsChoiceClicked(player,value,id)
         return
     end
     if abilities.multi==true then
-        -- Only ambiguous Gold payments require Delphana button toggles.
+        -- Gold payments may be assigned to several different abilities, but
+        -- never more abilities than the actual number of Gold tokens.
+        -- Choosing another button reassigns Gold instead of silently
+        -- preserving an older choice the player can no longer see as active.
         activation.selected=activation.selected or {}
+        if activation.manaSignature~=decision.signature then activation.selected={} end
         activation.manaSignature=decision.signature
-        activation.selected[index]=not (decision.selected[index]==true)
+        if decision.selected[index]==true then
+            activation.selected[index]=nil
+        else
+            local goldCount=(unitManaCounts(unit,current.seatPos).Gold or 0)
+            local prior={}
+            for _,candidate in ipairs(decision.display) do
+                if candidate~=index and activation.selected[candidate]==true then
+                    prior[#prior+1]=candidate
+                end
+            end
+            while #prior>=goldCount and #prior>0 do
+                activation.selected[table.remove(prior,1)]=nil
+            end
+            activation.selected[index]=true
+        end
         choiceExpandedByGUID[unitGUID]=true
     elseif decision.ambiguous then
         activation.manaChoice=index
