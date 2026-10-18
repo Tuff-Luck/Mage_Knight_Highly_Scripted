@@ -100,9 +100,6 @@ local function ownedSkillAtSeat(guid,seatPos)
     return home~=nil and home[1]~=nil and home[3]~=nil
         and home[3]<-30.5 and math.abs(home[1]-(seatPos*40-109.5))<15
 end
-local passiveExploration={mode="reduce",terrains={explore=true},amount=1,minimum=0}
-local passiveMountains={mode="set",terrains={mountain=true},cost=5}
-local passiveLakes={mode="set",terrains={lake=true},cost=2}
 
 local passableTerrain={
     plains=true,hills=true,forest=true,wasteland=true,desert=true,swamp=true,
@@ -221,7 +218,7 @@ local choiceLetters={attackP1="A",attackP2="A2",attackP3="A3",
     attackF1="AF",attackF2="AF2",attackI1="AI",attackI2="AI2",
     attackIF1="AC",attackIF2="AC2",
     blockP1="B",blockF1="BF",blockI1="BI",blockIF1="BC",
-    move="M",influence="I",attack="A",block="B",
+    twiceAttack="A2",twiceBlock="B2",move="M",influence="I",attack="A",block="B",
     ranged="R",siege="S",healing="H",draw="D",other="O",
     siegeFire="SF",siegeIce="SI",rangedFire="RF",rangedIce="RI",
     fire="F",ice="I",coldFire="C",boost="H+",split="I/F",negative="N",
@@ -1348,7 +1345,8 @@ local function matchingSidewaysMana(card,color)
 end
 
 local function sidewaysModifierValue(skill,target,descriptor,mana,unitState)
-    local value=descriptor.value or 1
+    local value=skill.is_face_down==true and descriptor.faceDownValue
+        or descriptor.value or 1
     local cardData=gameCards[target.guid]
     if descriptor.cardTypeValues~=nil and cardData~=nil then
         value=descriptor.cardTypeValues[cardData.cardType] or value
@@ -1553,7 +1551,9 @@ local function calculateSkill(skill,linkedTarget,unitState,inventoryCrystalCount
         local nextSegment=((tonumber(gStates.masterOfChaos) or 0)%6)+1
         local segments={{move=1},{rangedColdFire=1},{influence=2},{attack=2},false,{block=3}}
         if nextSegment==5 then
-            choices={{block=3},{move=1},{rangedColdFire=1},{attack=2},{influence=2}}
+            choices={{block=3},{move=1},
+                {key="coldFire",rangedColdFire=1,icon="ranged",iconOverlay="C"},
+                {attack=2},{influence=2}}
             effects=chosenEffect(skill.guid,false,choices)
         else effects=segments[nextSegment] end
     end
@@ -1569,7 +1569,8 @@ local function calculateSkill(skill,linkedTarget,unitState,inventoryCrystalCount
     end
     -- Card/Unit linked bonuses must not be added until the linked target
     -- actually supplies a compatible printed resource.
-    if rule.unitBoost~=nil or rule.shapeshift or rule.attackCardBoost then
+    if rule.unitBoost~=nil or rule.shapeshift or rule.attackCardBoost
+        or rule.manaOverload then
         effects=nil
     end
 
@@ -1925,29 +1926,38 @@ local function renderSeat(seatPos)
     local usesCurrentHexHealing=false
     local terrainModifiers={}
     local movementEffects={jumpTwoSpaces=false,ignoreRampagers=false}
-    if ownedSkillAtSeat("c73c8c",seatPos) then
-        terrainModifiers[#terrainModifiers+1]=passiveExploration
-    end
-    if ownedSkillAtSeat("152a98",seatPos) and gStates.dayRound~=true then
-        terrainModifiers[#terrainModifiers+1]=passiveExploration
-    end
-    if ownedSkillAtSeat("8892c4",seatPos) then
-        terrainModifiers[#terrainModifiers+1]=passiveMountains
-        -- Blue is a separate optional payment, physically touching the Skill.
-        local skillToken=getObjectFromGUID("8892c4")
-        if skillToken~=nil then
-            local area=footprint(skillToken)
-            for _,mana in ipairs(manaObjects) do
-                if placements[mana.guid]=="play" and manaColor(mana)=="Blue"
-                    and manaInsideFootprint(mana,area) then
-                    terrainModifiers[#terrainModifiers+1]=passiveLakes
-                    break
+    -- This is a reusable declarative overlay. All passives are owned-Skill
+    -- effects, whether the physical token is resting at home or being played.
+    -- Read immutable rule tables so identical scans don't invalidate movement.
+    for skillGUID,rule in pairs(skillResourceDefinitions) do
+        if ownedSkillAtSeat(skillGUID,seatPos) then
+            for _,effect in ipairs(rule.passiveTerrain or {}) do
+                terrainModifiers[#terrainModifiers+1]=effect
+            end
+            if gStates.dayRound~=true then
+                for _,effect in ipairs(rule.passiveNightTerrain or {}) do
+                    terrainModifiers[#terrainModifiers+1]=effect
+                end
+            else
+                for _,effect in ipairs(rule.passiveDayTerrain or {}) do
+                    terrainModifiers[#terrainModifiers+1]=effect
+                end
+            end
+            local extra=rule.skillManaTerrain
+            if extra~=nil then
+                local token=getObjectFromGUID(skillGUID)
+                if token~=nil then
+                    local area=footprint(token)
+                    for _,mana in ipairs(manaObjects) do
+                        if placements[mana.guid]=="play" and manaColor(mana)==extra.color
+                            and manaInsideFootprint(mana,area) then
+                            terrainModifiers[#terrainModifiers+1]=extra.effect
+                            break
+                        end
+                    end
                 end
             end
         end
-    end
-    if ownedSkillAtSeat("c4f5e9",seatPos) then
-        terrainModifiers[#terrainModifiers+1]=passiveLakes
     end
     -- Only infer an effect after assigning separate casting/power/effect
     -- payments. If Gold or multiple valid assignments leave alternatives,
@@ -2454,7 +2464,7 @@ local function renderSeat(seatPos)
                     and eligible[1].overlap>eligible[2].overlap) then
                     local chosenUnit=eligible[1]
                     skillTargetLinked(skill,chosenUnit.unit,chosenUnit.field,
-                        rule.unitBoost[family])
+                        (choice[family] or rule.unitBoost[family]))
                 end
             end
         end
