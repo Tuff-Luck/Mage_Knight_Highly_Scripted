@@ -1509,6 +1509,41 @@ function refreshCityControlAndScoring()
 			if factionLeaderScoreZone(cityZone,cityScoring,factionAssistTest) then bothTest=bothTest+1 end
 		end
 	end
+	--The Dragon replaces a City without entering cityScriptZones. Its head boards hold
+	--one player Shield for each level reduced, so they are the authoritative evidence
+	--of who helped conquer this City. Rebuild the result on every score refresh, just
+	--like ordinary City ownership, without adding to defeatedCities.amount (the
+	--conquest objective already counts the Dragon separately).
+	if gStates.apocalypseDragonCityPlaced==true and gStates.apocalypseDragonDefeated==true then
+		local dragonScore=apocalypseDragonCompetitiveScoreSummary()
+		local bestPlayer,bestShields,bestLevel=nil,0,0
+		for playerIndex,details in ipairs(turnOrder) do
+			local mage=details.mage
+			local dragonPlayer=dragonScore.byMage[mage]
+			local shields=dragonPlayer~=nil and (dragonPlayer.levels or 0) or 0
+			if shields>0 then
+				details.score.CityAssist=details.score.CityAssist+1
+				details.defeatedCities[apocalypseDragon.model]="Assist"
+				local highestLevel=0
+				for _,head in pairs(dragonScore.heads) do
+					highestLevel=math.max(highestLevel,head.highestByMage[mage] or 0)
+				end
+				--Most reduced levels wins; highest printed head level breaks a tie.
+				--Remaining ties use player order so score refreshes cannot change owner.
+				if shields>bestShields or (shields==bestShields and highestLevel>bestLevel) then
+					bestPlayer,bestShields,bestLevel=playerIndex,shields,highestLevel
+				end
+			end
+		end
+		if bestPlayer~=nil then
+			local leader=turnOrder[bestPlayer]
+			leader.score.CityAssist=leader.score.CityAssist-1
+			leader.score.CityLead=leader.score.CityLead+1
+			leader.defeatedCities[apocalypseDragon.model]="Lead"
+			leadTest[bestPlayer]=true
+		end
+	end
+
 	local count=0
 	for _ in pairs(leadTest) do count=count+1 end
 	if count==#turnOrder-1 then gStates.allLeaderCheck=true end
