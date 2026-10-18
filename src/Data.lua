@@ -2504,8 +2504,11 @@ skillResourceDefinitions={
     ["201f72"]={normal={attack=1},partial=true}, -- Coordinated Attack: target-specific bonuses remain manual.
     ["82049d"]={normal={block=2},partial=true}, -- Shield Wall: same-enemy bonuses remain manual.
     ["9cf272"]={choices={{influence=2},{key="boost",influence=4}},partial=true}, -- Tales of Adventure: player removes a shield for +4.
-    ["de5b04"]={unitBoost={attack=1,block=1},choices={{attack=1},{block=1}},partial=true}, -- Tales of Conquest; extra shield activation manual.
-    ["c4f5e9"]={normal={move=1},partial=true}, -- Commandeer Vessel; coastline movement remains a player decision.
+    ["de5b04"]={unitBoost={attack=1,block=1},choices={{attack=1},{block=1},
+        {key="twiceAttack",attack=2,icon="attack",iconOverlay="2"},
+        {key="twiceBlock",block=2,icon="block",iconOverlay="2"}},partial=true}, -- Tales of Conquest; shield use is player-declared.
+    ["c4f5e9"]={normal={move=1},partial=true,
+        passiveTerrain={{mode="set",terrains={lake=true},cost=2}}}, -- Commandeer Vessel.
     ["694e27"]={untracked=true}, -- If It's Not Broken: copied Action effect is not inferred.
     ["47800d"]={untracked=true}, -- Treasure Hunter: reward flow, not played resources.
     ["6f8b36"]={untracked=true}, -- Change Fate: draw/discard effect.
@@ -2528,7 +2531,8 @@ skillResourceDefinitions={
     ["107400"]={untracked=true},
     ["122015"]={untracked=true},
     ["14399f"]={untracked=true},
-    ["152a98"]={normal={move=1}}, -- Hawk Eyes: passive night exploration discount.
+    ["152a98"]={normal={move=1},
+        passiveNightTerrain={{mode="reduce",terrains={explore=true},amount=1,minimum=0}}}, -- Hawk Eyes.
     ["171244"]={untracked=true},
     ["1906f4"]={choices={{attack=2},{key="fireAttack",attackFire=2,icon="attack",iconOverlay="F"}}},
     ["19daf9"]={untracked=true},
@@ -2589,11 +2593,13 @@ skillResourceDefinitions={
     ["7d21e6"]={shapeshift=true,partial=true}, -- Shapeshift needs a Basic Action target.
     ["7d5670"]={normal={move=1},partial=true},
     ["80b843"]={choices={{block=2},{attack=2}},partial=true},
-    ["818aea"]={untracked=true},
+    ["818aea"]={untracked=true,manaOverload=true}, -- Mana Overload; link to an actually mana-powered Deed card.
     ["8397f1"]={untracked=true},
     ["84ea07"]={normal={healing=1}},
     ["866002"]={normal={healing=2}},
-    ["8892c4"]={normal={move=1}}, -- Secret Ways: Mountain/Lake traversal is a movement overlay.
+    ["8892c4"]={normal={move=1},
+        passiveTerrain={{mode="set",terrains={mountain=true},cost=5}},
+        skillManaTerrain={color="Blue",effect={mode="set",terrains={lake=true},cost=2}}}, -- Secret Ways.
     ["893537"]={untracked=true},
     ["8cea19"]={inventoryDistinctColors={resource="influence",
         colors={"Red","Blue","Green","White"}}}, -- Glittering Fortune
@@ -2631,12 +2637,15 @@ skillResourceDefinitions={
     ["c2e5a3"]={partial=true},
     ["c3b95f"]={untracked=true},
     ["c4546c"]={untracked=true},
-    ["c73c8c"]={choices={{attack=1},{key="other"}},partial=true}, -- Feral Allies has a permanent exploration reduction.
+    ["c73c8c"]={choices={{attack=1},{key="other"}},partial=true,
+        passiveTerrain={{mode="reduce",terrains={explore=true},amount=1,minimum=0}}}, -- Feral Allies.
     ["c82406"]={untracked=true},
     ["c93979"]={untracked=true},
     ["cae27e"]={untracked=true},
     ["d013af"]={untracked=true},
-    ["d01b70"]={normal={rangedColdFire=1},partial=true},
+    ["d01b70"]={choices={{key="one",rangedColdFire=1,icon="ranged",iconOverlay="1"},
+        {key="two",rangedColdFire=2,icon="ranged",iconOverlay="2"},
+        {key="three",rangedColdFire=3,icon="ranged",iconOverlay="3"}},partial=true},
     ["d8824d"]={untracked=true},
     ["d90de4"]={untracked=true},
     ["d9c83f"]={untracked=true},
