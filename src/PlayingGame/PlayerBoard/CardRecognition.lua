@@ -15,6 +15,7 @@ local choiceResetGenerationByGUID={}
 -- buttons, but the chosen resource stays until the script reloads.
 local choiceExpandedByGUID={}
 local choiceButtonShown={}
+local unitManaDecision
 -- Highlights show how confidently the tracker understands the selected effect.
 -- Blue is a deliberate neutral/not-calculated state, not an illegal-play warning.
 -- Purple takes precedence when objects are linked; brightness indicates power.
@@ -688,25 +689,30 @@ end
 -- its Command token. Expand vertically in printed ability order.
 -- Alternatives sharing a printed row occupy adjacent columns to the right.
 -- This is intentionally independent of translated text position.
-local function showUnitAbilityButtons(unit,abilities,activation,unwounded)
+local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decision)
     if unit==nil then return end
     if not unwounded or activation==nil or abilities==nil or #abilities==0 then
         removeChoiceButtons(unit)
         choiceExpandedByGUID[unit.guid]=nil
         return
     end
-    local selected=math.max(1,math.min(#abilities,activation.choice or 1))
-    local expanded=(abilities.multi==true or choiceExpandedByGUID[unit.guid]==true) and #abilities>1
-    local selectedKeys={}
-    if abilities.multi==true then
-        for i=1,#abilities do
-            if activation.selected~=nil and activation.selected[i]==true then
-                selectedKeys[#selectedKeys+1]=tostring(i)
-            end
+    local decision=decision or unitManaDecision(unit,abilities,activation)
+    local available=decision.display
+    if #available<2 and not decision.ambiguous then
+        if choiceButtonShown[unit.guid]~="hidden" then
+            removeChoiceButtons(unit)
+            choiceButtonShown[unit.guid]="hidden"
         end
+        choiceExpandedByGUID[unit.guid]=nil
+        return
     end
-    local signature="Unit:"..selected..":"..tostring(expanded)..":"..tostring(#abilities)
-        ..":"..table.concat(selectedKeys,",")
+    local selected=decision.index
+    local expanded=decision.ambiguous or (choiceExpandedByGUID[unit.guid]==true and #available>1)
+    local selectedKeys={}
+    for i in pairs(decision.selected or {}) do selectedKeys[#selectedKeys+1]=tostring(i) end
+    table.sort(selectedKeys)
+    local signature="Unit:"..tostring(selected)..":"..tostring(expanded)
+        ..":"..table.concat(available,",")..":"..table.concat(selectedKeys,",")
     if choiceButtonShown[unit.guid]==signature then return end
 
     local xml=unit.UI.getXmlTable() or {}
@@ -716,8 +722,9 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded)
             and attr.id:sub(1,19)=="ResourceCardChoice_" then table.remove(xml,i) end
     end
     local visibleAssets,seen={},{}
-    local displayed=expanded and abilities or {abilities[selected]}
-    for _,ability in ipairs(displayed) do
+    local displayed=expanded and available or {selected or available[1]}
+    for _,index in ipairs(displayed) do
+        local ability=abilities[index]
         local name=ability.icon or ability.key
         if not seen[name] then visibleAssets[#visibleAssets+1]=name seen[name]=true end
     end
@@ -727,7 +734,8 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded)
     -- at the centre column and grow only to the right.
     local rows,rowByKey={},{}
     if expanded then
-        for i,ability in ipairs(abilities) do
+        for _,i in ipairs(displayed) do
+            local ability=abilities[i]
             local key=ability.row or i
             if rowByKey[key]==nil then
                 rowByKey[key]={}
@@ -736,7 +744,7 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded)
             rowByKey[key][#rowByKey[key]+1]=i
         end
     else
-        rows={{selected}}
+        rows={{displayed[1]}}
     end
 
     -- Fixed lower-left anchor works independently of translated text.
@@ -754,8 +762,8 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded)
         local y=baseY+(rowIndex-(#rows+1)/2)*rowSpacing
         for columnIndex,index in ipairs(indices) do
             local ability=abilities[index]
-            local active=abilities.multi==true and activation.selected~=nil
-                and activation.selected[index]==true or index==selected and abilities.multi~=true
+            local active=decision.selected~=nil and decision.selected[index]==true
+                or decision.selected==nil and index==selected
             local icon=resourceCardsChoiceIcon(ability.icon or ability.key)
             if icon~=nil and blocked[icon.name] then icon=nil end
             local button={tag="Button",attributes={
@@ -1354,6 +1362,115 @@ local function manaInsideFootprint(mana,area)
     local p=mana.getPosition()
     return math.abs(p[1]-area.x)<area.halfX
         and math.abs(p[3]-area.z)<area.halfZ
+end
+
+-- Physical mana is authoritative for a paid Unit ability. It is read from
+-- either overlapping board zone, even with the Resource Tracker collapsed.
+local function unitManaCounts(unit,seatPos,source)
+    local tokens=source
+    if tokens==nil then
+        tokens={}
+        local seen={}
+        for _,zoneGUID in ipairs({playerUnitAreas[seatPos],playerPlayAreas[seatPos]}) do
+            local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
+            if zone~=nil then
+                for _,obj in ipairs(zone.getObjects()) do
+                    if not seen[obj.guid] and manaColor(obj)~=nil then
+                        seen[obj.guid]=true
+                        tokens[#tokens+1]=obj
+                    end
+                end
+            end
+        end
+    end
+    local counts,area={},footprint(unit)
+    for _,mana in ipairs(tokens) do
+        local color=manaColor(mana)
+        if color~=nil and manaInsideFootprint(mana,area) then
+            counts[color]=(counts[color] or 0)+1
+        end
+    end
+    return counts
+end
+
+local function unitAbilityPaid(ability,counts)
+    local color=ability.manaCost
+    if color==nil then return true end
+    if (counts[color] or 0)>0 then return true end
+    -- Daytime Gold can pay any basic colour, but not Black.
+    return color~="Black" and gStates.dayRound==true and (counts.Gold or 0)>0
+end
+
+local function unitManaSignature(counts)
+    local parts={tostring(gStates.dayRound==true)}
+    for _,color in ipairs({"Red","Blue","Green","White","Black","Gold"}) do
+        parts[#parts+1]=tostring(counts[color] or 0)
+    end
+    return table.concat(parts,":")
+end
+
+unitManaDecision=function(unit,abilities,activation,counts)
+    counts=counts or unitManaCounts(unit,activation.seatPos)
+    local signature=unitManaSignature(counts)
+    local free,paid,direct,goldOnly={},{},{},{}
+    for index,ability in ipairs(abilities) do
+        if ability.manaCost==nil then
+            free[#free+1]=index
+        elseif unitAbilityPaid(ability,counts) then
+            paid[#paid+1]=index
+            if (counts[ability.manaCost] or 0)>0 then
+                direct[#direct+1]=index
+            else
+                goldOnly[#goldOnly+1]=index
+            end
+        end
+    end
+    local result={index=nil,display={},ambiguous=false,
+        signature=signature}
+    if abilities.multi==true then
+        local chosen={}
+        for _,index in ipairs(direct) do chosen[index]=true end
+        local goldCount=gStates.dayRound==true and (counts.Gold or 0) or 0
+        if #goldOnly<=goldCount then
+            for _,index in ipairs(goldOnly) do chosen[index]=true end
+        elseif goldCount>0 then
+            result.ambiguous=true
+            result.display=goldOnly
+            local remaining=goldCount
+            if activation.manaSignature==signature then
+                for _,index in ipairs(goldOnly) do
+                    if activation.selected~=nil and activation.selected[index]==true
+                        and remaining>0 then
+                        chosen[index]=true
+                        remaining=remaining-1
+                    end
+                end
+            end
+        end
+        result.selected=chosen
+        return result
+    end
+    if #paid==1 then
+        -- One payable ability means no option button is needed.
+        result.index=paid[1]
+    elseif #paid>1 then
+        -- E.g. Altem Mages' two Black options or Catapults paid by Gold.
+        result.ambiguous=true
+        result.display=paid
+        if activation.manaSignature==signature then
+            for _,index in ipairs(paid) do
+                if activation.manaChoice==index then result.index=index break end
+            end
+        end
+    else
+        -- Unpaid abilities stay hidden until matching mana is actually there.
+        result.display=free
+        for _,index in ipairs(free) do
+            if activation.choice==index then result.index=index break end
+        end
+        if result.index==nil then result.index=free[1] end
+    end
+    return result
 end
 
 local function sidewaysManaAvailable(color)
@@ -2315,27 +2432,6 @@ local function renderSeat(seatPos)
     -- during THIS turn creates an entry, never a static token found on load.
     -- Read only mana physically resting over each Unit; inventory mana does
     -- not pay costs. Familiar crystals are a persistent modifier, not a cost.
-    local function unitManaCounts(unit)
-        local counts={}
-        local area=footprint(unit)
-        for _,mana in ipairs(manaObjects) do
-            local color=manaColor(mana)
-            if color~=nil and manaInsideFootprint(mana,area) then
-                counts[color]=(counts[color] or 0)+1
-            end
-        end
-        return counts
-    end
-    local function unitAbilityPaid(ability,counts)
-        local cost=ability.manaCost
-        -- Explicit Catapult element selection declares payment of its mana cost.
-        -- Players remain responsible for resolving printed costs legally.
-        if cost==nil or ability.declaredPayment then return true end
-        if (counts[cost] or 0)>0 then return true end
-        -- Daytime Gold may be used as any basic mana. The selected button
-        -- records which basic colour the player meant to spend.
-        return cost~="Black" and gStates.dayRound==true and (counts.Gold or 0)>0
-    end
     local function unitAbilityResources(ability,counts)
         if ability==nil or (not unitAbilityPaid(ability,counts)
             and not ability.baseWithoutPayment) then return nil end
@@ -2369,37 +2465,28 @@ local function renderSeat(seatPos)
                 for _,entry in ipairs(unitState.units) do
                     if entry.guid==unitGUID then unwounded=entry.unwounded break end
                 end
-                showUnitAbilityButtons(unit,abilities,activation,unwounded)
-                local selected=abilities[activation.choice or 1]
-                if unwounded and selected~=nil then
-                    local counts=unitManaCounts(unit)
-                    local resources=unitAbilityResources(selected,counts)
+                local counts=unitManaCounts(unit,seatPos,manaObjects)
+                local decision=unitManaDecision(unit,abilities,activation,counts)
+                showUnitAbilityButtons(unit,abilities,activation,unwounded,decision)
+                local selected=decision.index~=nil and abilities[decision.index] or nil
+                if unwounded then
+                    local resources=selected~=nil and unitAbilityResources(selected,counts) or nil
                     local result={guid=unitGUID,kind="unit",known=true,
-                        complete=unitAbilityPaid(selected,counts),
+                        complete=selected~=nil and unitAbilityPaid(selected,counts)
+                            or abilities.multi==true and next(decision.selected or {})~=nil,
                         resources=resources,powered=false,links={}}
-                    if abilities.multi==true then
-                        -- Delphana Masters may apply several different
-                        -- mana-paid effects to one or more enemies.
-                        result.complete=true
-                        for i,ability in ipairs(abilities) do
-                            if activation.selected~=nil and activation.selected[i]==true
-                                and not unitAbilityPaid(ability,counts) then
-                                result.complete=false
-                            end
-                        end
-                    end
                     addResourceAmounts(result,totals)
                     result.status=result.contributes and "green" or "blue"
                     records[unitGUID]=result
                     current[unitGUID]=true
                     setHighlight(unit,result.status,false)
-                    if selected.terrainReduce and result.complete then
+                    if selected~=nil and selected.terrainReduce and result.complete then
                         terrainModifiers[#terrainModifiers+1]=forestersTerrainModifier
                     end
-                    if selected.boostOtherUnits and result.complete then
+                    if selected~=nil and selected.boostOtherUnits and result.complete then
                         shocktroopsBoosts=shocktroopsBoosts+1
                     end
-                    if selected.attackTransform~=nil and result.complete then
+                    if selected~=nil and selected.attackTransform~=nil and result.complete then
                         attackTransforms[selected.attackTransform]=true
                         transformingUnits[unitGUID]=selected.attackTransform
                     end
@@ -3109,15 +3196,16 @@ function resourceUnitsCommandDropped(playerColor,obj)
         for _,entry in ipairs(state.units) do
             if entry.guid==unit.guid and not entry.unwounded then return end
         end
-        -- For ordinary Units the strongest tracker family determines the
-        -- default choice; ties keep printed row order. Non-resource abilities
-        -- never outrank a tracked option solely for being first.
+        -- Choose an unpowered default only. Physical mana overrides it
+        -- automatically when a particular paid ability is unambiguous.
         local abilities=unitResourceDefinitions[unit.guid]
         local scores=trackerChoiceScores(unit.guid,pickup.seatPos)
         local choice,bestScore=1,-math.huge
         for i,ability in ipairs(abilities) do
-            local score=scores[ability.key] or 0
-            if score>bestScore then choice,bestScore=i,score end
+            if ability.manaCost==nil then
+                local score=scores[ability.key] or 0
+                if score>bestScore then choice,bestScore=i,score end
+            end
         end
         gStates.unitResourceActivations=gStates.unitResourceActivations or {}
         gStates.unitResourceActivations[unit.guid]={
@@ -3150,22 +3238,32 @@ function resourceUnitsChoiceClicked(player,value,id)
     for _,entry in ipairs(state.units) do
         if entry.guid==unitGUID and not entry.unwounded then return end
     end
-    if abilities.multi~=true and choiceExpandedByGUID[unitGUID]~=true and #abilities>1 then
-        -- First click reveals the compact vertical grid; no resource change.
+    local decision=unitManaDecision(unit,abilities,activation)
+    local available=false
+    for _,candidate in ipairs(decision.display) do
+        if candidate==index then available=true break end
+    end
+    if not available then return end
+    if not decision.ambiguous and choiceExpandedByGUID[unitGUID]~=true
+        and #decision.display>1 then
+        -- Expanding ordinary choices does not change what was played.
         choiceExpandedByGUID[unitGUID]=true
-        showUnitAbilityButtons(unit,abilities,activation,true)
+        showUnitAbilityButtons(unit,abilities,activation,true,decision)
         return
     end
-    -- Delphana Masters can use several different abilities with a single
-    -- activation. Toggle them individually without erasing earlier choices.
     if abilities.multi==true then
+        -- Only ambiguous Gold payments require Delphana button toggles.
         activation.selected=activation.selected or {}
-        activation.selected[index]=not (activation.selected[index]==true)
-        activation.choice=index
-        -- Keep all selected Delphana abilities visible for further toggles.
+        activation.manaSignature=decision.signature
+        activation.selected[index]=not (decision.selected[index]==true)
         choiceExpandedByGUID[unitGUID]=true
+    elseif decision.ambiguous then
+        activation.manaChoice=index
+        activation.manaSignature=decision.signature
     else
         activation.choice=index
+        activation.manaChoice=nil
+        activation.manaSignature=nil
         choiceExpandedByGUID[unitGUID]=nil
     end
     showUnitAbilityButtons(unit,abilities,activation,true)
@@ -3260,7 +3358,8 @@ local function resourceCardsRelevantZone(ctx)
 end
 
 function resourceCardsZoneEntered(ctx)
-    if ctx~=nil and ctx.obj~=nil and unitLayoutIsWound(ctx.obj) then
+    if ctx~=nil and ctx.obj~=nil and (unitLayoutIsWound(ctx.obj)
+        or manaColor(ctx.obj)~=nil) then
         resourceUnitsRefreshButtons()
     end
     local seat=resourceCardsRelevantZone(ctx)
@@ -3268,7 +3367,8 @@ function resourceCardsZoneEntered(ctx)
 end
 
 function resourceCardsZoneLeft(ctx)
-    if ctx~=nil and ctx.obj~=nil and unitLayoutIsWound(ctx.obj) then
+    if ctx~=nil and ctx.obj~=nil and (unitLayoutIsWound(ctx.obj)
+        or manaColor(ctx.obj)~=nil) then
         resourceUnitsRefreshButtons()
     end
     local seat=resourceCardsRelevantZone(ctx)
@@ -3279,7 +3379,7 @@ function resourceCardsZoneLeft(ctx)
 end
 
 function resourceCardsObjectMoved(obj)
-    if obj~=nil and unitLayoutIsWound(obj)
+    if obj~=nil and (unitLayoutIsWound(obj) or manaColor(obj)~=nil)
         and gStates~=nil and next(gStates.unitResourceActivations or {})~=nil then
         local woundGUID=obj.guid
         safeWaitCondition("PlayerBoard.CardRecognition",function()

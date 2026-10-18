@@ -118,8 +118,8 @@ local byType={
         special(2,"Chosen enemy does not attack and gets Armor -3 (minimum 1)")},
     Catapults={
         value(1,"siege",3,"Siege Attack 3"),
-        value(2,"siegeFire",5,"Pay red mana: Siege Fire Attack 5",{manaCost="Red",declaredPayment=true}),
-        value(3,"siegeIce",5,"Pay blue mana: Siege Ice Attack 5",{manaCost="Blue",declaredPayment=true})},
+        value(2,"siegeFire",5,"Pay red mana: Siege Fire Attack 5",{manaCost="Red"}),
+        value(3,"siegeIce",5,"Pay blue mana: Siege Ice Attack 5",{manaCost="Blue"})},
     AltemMages={
         special(1,"Gain two mana tokens of any colors",{key="gain"}),
         value(2,"attackColdFire",5,"Cold Fire Attack 5; +2 with red or blue mana, +4 with both",{manaScale=true}),
