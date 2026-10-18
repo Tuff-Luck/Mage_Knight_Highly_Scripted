@@ -1657,14 +1657,18 @@ local function renderSeat(seatPos)
         end
     end
 
-    -- Read the physical Unit state once per scan, for spent/wounded highlights
-    -- and for played Skills
-    -- declaring that dependency. This also supplies which Unit cards to link.
+    -- Read the physical Unit state once per scan for highlights and Skills.
+    -- A Command token already resting on a Unit from a previous turn means
+    -- spent; a Unit activated by a Command move THIS turn is still active.
     local unitState=hasUnits and unitLayoutResourceState(seatPos) or nil
+    local activations=gStates.unitResourceActivations or {}
     unitHighlightBlocked={}
     if unitState~=nil then
         for _,entry in ipairs(unitState.units) do
-            if not entry.ready or not entry.unwounded then
+            local activation=activations[entry.guid]
+            local activeThisTurn=activation~=nil and activation.seatPos==seatPos
+                and unitResourceDefinitions[entry.guid]~=nil
+            if not entry.unwounded or (not entry.ready and not activeThisTurn) then
                 unitHighlightBlocked[entry.guid]=true
                 clearHighlight(entry.guid)
             end
@@ -2148,7 +2152,6 @@ local function renderSeat(seatPos)
     -- Unit activation is historical: a Command token may stay on the card for
     -- the entire round, or be moved away by an ability. Only a Command move
     -- during THIS turn creates an entry, never a static token found on load.
-    local activations=gStates.unitResourceActivations or {}
     for unitGUID,activation in pairs(activations) do
         if activation.seatPos==seatPos then
             local unit=objects[unitGUID]
@@ -2168,11 +2171,14 @@ local function renderSeat(seatPos)
                     end
                     local result={guid=unitGUID,kind="unit",known=true,
                         complete=true,resources=resources,powered=false,
-                        links={},status="green"}
+                        links={}}
                     addResourceAmounts(result,totals)
+                    -- Green when the chosen ability contributes a tracked
+                    -- value, blue when it is active but contributes none.
+                    result.status=result.contributes and "green" or "blue"
                     records[unitGUID]=result
                     current[unitGUID]=true
-                    setHighlight(unit,"green",false) -- suppressed while its Command token remains on the Unit
+                    setHighlight(unit,result.status,false)
                 end
             end
         end
@@ -2251,8 +2257,16 @@ local function renderSeat(seatPos)
             for _,unitGUID in ipairs(record.unitSources) do
                 local unit,unitRecord=objects[unitGUID],records[unitGUID]
                 if unit~=nil and unitRecord~=nil then
-                    unitRecord.status="purple"
-                    unitRecord.powered=true
+                    local activated=activations[unitGUID]~=nil
+                        and activations[unitGUID].seatPos==seatPos
+                        and unitResourceDefinitions[unitGUID]~=nil
+                    -- Linked Skill sources normally show purple, but a Unit
+                    -- currently activated by its Command token keeps its
+                    -- own green/blue Resource Tracker status.
+                    unitRecord.status=activated
+                        and (effectHasTrackedResource(unitRecord.resources) and "green" or "blue")
+                        or "purple"
+                    unitRecord.powered=not activated
                     unitRecord.contributes=true
                     unitRecord.links[#unitRecord.links+1]=guid
                     setHighlight(unit,unitRecord.status,unitRecord.powered)
