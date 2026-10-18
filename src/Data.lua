@@ -2496,6 +2496,22 @@ skillTokens={	["1906f4"]={skillType="Turn", mage="Arythea"},				  	["33d341"]={s
 -- Partial effects may contribute known fixed amounts but remain yellow; Skills
 -- without a directly trackable resource are blue. Unmapped GUIDs remain yellow.
 skillResourceDefinitions={
+    -- Skills without numeric resources remain explicit so used tokens are blue, not unknown/yellow.
+    ["1ff34f"]={dynamic="masterOfChaos"},
+    ["958209"]={untracked=true}, -- Mana Suppression is handled by Skills.lua.
+    ["f30dd4"]={untracked=true}, -- Bonds of Loyalty is an occupied Command slot, not played Influence.
+    -- Coral / The Apocalypse Dragon. Permanent movement/reward rules are evaluated separately.
+    ["201f72"]={normal={attack=1},partial=true}, -- Coordinated Attack: target-specific bonuses remain manual.
+    ["82049d"]={normal={block=2},partial=true}, -- Shield Wall: same-enemy bonuses remain manual.
+    ["9cf272"]={choices={{influence=2},{key="boost",influence=4}},partial=true}, -- Tales of Adventure: player removes a shield for +4.
+    ["de5b04"]={unitBoost={attack=1,block=1},choices={{attack=1},{block=1}},partial=true}, -- Tales of Conquest; extra shield activation manual.
+    ["c4f5e9"]={normal={move=1},partial=true}, -- Commandeer Vessel; coastline movement remains a player decision.
+    ["694e27"]={untracked=true}, -- If It's Not Broken: copied Action effect is not inferred.
+    ["47800d"]={untracked=true}, -- Treasure Hunter: reward flow, not played resources.
+    ["6f8b36"]={untracked=true}, -- Change Fate: draw/discard effect.
+    ["a65a91"]={untracked=true}, -- Combat Healer: wound interception, not Heal points.
+    ["784a07"]={untracked=true}, -- Improve Fate: draw/discard effect.
+    ["73f2c6"]={linkedCard={targetKind="card",posture="sideways",sideways={value=2,faceDownValue=3}}}, -- Desperate Measures.
     ["036af1"]={untracked=true},
     ["036e6b"]={untracked=true},
     ["038787"]={untracked=true},
@@ -2512,7 +2528,7 @@ skillResourceDefinitions={
     ["107400"]={untracked=true},
     ["122015"]={untracked=true},
     ["14399f"]={untracked=true},
-    ["152a98"]={normal={move=1},partial=true},
+    ["152a98"]={normal={move=1}}, -- Hawk Eyes: passive night exploration discount.
     ["171244"]={untracked=true},
     ["1906f4"]={choices={{attack=2},{key="fireAttack",attackFire=2,icon="attack",iconOverlay="F"}}},
     ["19daf9"]={untracked=true},
@@ -2538,7 +2554,7 @@ skillResourceDefinitions={
     ["3f0f3b"]={day={influence=3},night={influence=2}},
     ["3fba07"]={partial=true,linkedCard={targetKind="wound",posture="sideways",
         sideways={value=3}}}, -- Ritual of Pain: first activation stays manual
-    ["407c99"]={normal={influence=2},partial=true},
+    ["407c99"]={locationInfluence={default=3,fortified=2,glade=4}}, -- Beguile.
     ["45fe78"]={untracked=true},
     ["48fd35"]={untracked=true},
     ["4ac9f6"]={untracked=true},
@@ -2550,7 +2566,7 @@ skillResourceDefinitions={
     ["527b47"]={untracked=true},
     ["55e5e5"]={partial=true},
     ["564392"]={linkedCard={targetKind="card",posture="sideways",sideways={value=4,perEmptyCommandSlot=1}},partial=true}, -- Howl of the Pack; follow-on combat is not tracked
-    ["590a46"]={normal={influence=1},partial=true},
+    ["590a46"]={choices={{influence=1},{key="boost",influence=3}},partial=true}, -- On Her Own: player decides whether they recruit.
     ["5b42dc"]={partial=true},
     ["5f61d5"]={choices={{key="other"},{healing=3}},partial=true},
     ["6133e1"]={partial=true},
@@ -2570,14 +2586,14 @@ skillResourceDefinitions={
     ["7ad337"]={day={move=1},night={move=2},partial=true},
     ["7b905d"]={normal={attackColdFire=2}},
     ["7d1c32"]={normal={block=1,attack=1}},
-    ["7d21e6"]={partial=true},
+    ["7d21e6"]={shapeshift=true,partial=true}, -- Shapeshift needs a Basic Action target.
     ["7d5670"]={normal={move=1},partial=true},
     ["80b843"]={choices={{block=2},{attack=2}},partial=true},
     ["818aea"]={untracked=true},
     ["8397f1"]={untracked=true},
     ["84ea07"]={normal={healing=1}},
     ["866002"]={normal={healing=2}},
-    ["8892c4"]={normal={move=1},partial=true},
+    ["8892c4"]={normal={move=1}}, -- Secret Ways: Mountain/Lake traversal is a movement overlay.
     ["893537"]={untracked=true},
     ["8cea19"]={inventoryDistinctColors={resource="influence",
         colors={"Red","Blue","Green","White"}}}, -- Glittering Fortune
@@ -2589,7 +2605,7 @@ skillResourceDefinitions={
     ["929d04"]={partial=true},
     ["932b6a"]={normal={move=1}},
     ["933090"]={untracked=true},
-    ["93c62e"]={partial=true},
+    ["93c62e"]={unitBoost={block=3,attack=2,ranged=1},choices={{block=3},{attack=2},{ranged=1}},partial=true}, -- Leadership needs an activated matching Unit.
     ["9d866a"]={untracked=true},
     ["9eb4c5"]={untracked=true},
     ["9efc9b"]={untracked=true},
@@ -2615,7 +2631,7 @@ skillResourceDefinitions={
     ["c2e5a3"]={partial=true},
     ["c3b95f"]={untracked=true},
     ["c4546c"]={untracked=true},
-    ["c73c8c"]={normal={attack=1},partial=true},
+    ["c73c8c"]={choices={{attack=1},{key="other"}},partial=true}, -- Feral Allies has a permanent exploration reduction.
     ["c82406"]={untracked=true},
     ["c93979"]={untracked=true},
     ["cae27e"]={untracked=true},
@@ -2631,7 +2647,7 @@ skillResourceDefinitions={
     ["e7abd5"]={normal={move=1},partial=true},
     ["e88483"]={choices={{key="split",rangedIce=1,rangedFire=1},{ranged=2}}},
     ["ebbbfc"]={untracked=true},
-    ["eeb395"]={partial=true},
+    ["eeb395"]={attackCardBoost=true,partial=true}, -- Deadly Aim; player links a specific Attack card.
     ["eec431"]={normal={healing=2}},
     ["f36762"]={normal={move=1},partial=true},
     ["f50f77"]={untracked=true},
