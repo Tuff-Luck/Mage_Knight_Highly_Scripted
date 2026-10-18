@@ -1800,6 +1800,7 @@ refreshCardEffectAfterRotation=function(cardGUID)
 			if cardEffectRotationGeneration[cardGUID]~=generation then return end
 			local settledCard=getObjectFromGUID(cardGUID)
 			if settledCard==nil then return end
+			if cardGUID==GUID.card.bannerOfCommandToken then bannerOfCommandDecal() end
 			if cardGUID==meditationTranceCardGUID then
 				refreshMeditationTrance()
 			elseif isSteadyTempoGUID(cardGUID)==true then
@@ -1815,6 +1816,7 @@ refreshCardEffectAfterRotation=function(cardGUID)
 			if cardEffectRotationGeneration[cardGUID]~=generation then return end
 			local settledCard=getObjectFromGUID(cardGUID)
 			if settledCard==nil then return end
+			if cardGUID==GUID.card.bannerOfCommandToken then bannerOfCommandDecal() end
 			if cardGUID==meditationTranceCardGUID then refreshMeditationTrance()
 			elseif isSteadyTempoGUID(cardGUID)==true then steadyTempoRefreshCard(cardGUID)
 			elseif cardGUID==tacticCard[2] and cardInPlayerPlayArea(cardGUID)==true then dayTactic2ButtonActivate() end
@@ -1859,7 +1861,10 @@ function __onObjectRotate_raw(object, spin, flip, player_color, old_spin, old_fl
 	end
 	if object.type~="Card" then return end
 	local cardGUID=object.guid
-	if cardGUID==meditationTranceCardGUID or isSteadyTempoGUID(cardGUID)==true or cardGUID==tacticCard[2] then refreshCardEffectAfterRotation(cardGUID) end
+	if cardGUID==meditationTranceCardGUID or isSteadyTempoGUID(cardGUID)==true
+		or cardGUID==tacticCard[2] or cardGUID==GUID.card.bannerOfCommandToken then
+		refreshCardEffectAfterRotation(cardGUID)
+	end
 	-- The face state is settled after the rotate callback, including Q/E flips
 	-- while the card is being held. Preserve buttons' ownership and state.
 	safeWaitFrames("Events",function()

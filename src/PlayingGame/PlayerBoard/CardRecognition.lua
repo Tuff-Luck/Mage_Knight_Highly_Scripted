@@ -15,7 +15,6 @@ local choiceResetGenerationByGUID={}
 -- buttons, but the chosen resource stays until the script reloads.
 local choiceExpandedByGUID={}
 local choiceButtonShown={}
-local artifactModeShown={}
 -- Highlights show how confidently the tracker understands the selected effect.
 -- Blue is a deliberate neutral/not-calculated state, not an illegal-play warning.
 -- Purple takes precedence when objects are linked; brightness indicates power.
@@ -86,6 +85,16 @@ local passableTerrain={
     plains=true,hills=true,forest=true,wasteland=true,desert=true,swamp=true,
     lake=true,mountain=true
 }
+
+local function cardTerrainEffects(rule,powered)
+    if rule==nil or rule.terrainEffects==nil then return nil end
+    if powered then return rule.terrainEffects.powered end
+    return rule.terrainEffects.normal
+end
+
+local function terrainEffectActive(effect)
+    return effect.dayRound==nil or effect.dayRound==(gStates.dayRound==true)
+end
 
 local function terrainEffectApplies(effect,terrain)
     return effect.terrains=="passable" and passableTerrain[terrain]==true
@@ -371,23 +380,14 @@ end
 
 -- A single selected letter sits above the title. Click to show the whole
 -- choice row; choosing any option immediately collapses back to one letter.
-local function artifactModeButtonEntry(card,strong)
-    return {tag="Button",attributes={
-        id="ResourceCardArtifactMode_"..card.guid,
-        onClick="global/resourceCardsArtifactModeClicked",
-        position="0 80 -35",rotation="0 0 180",
-        width=220,height=64,scale="0.25 0.25",fontSize=40,
-        textColor="#FFFFFF",textAlignment="MiddleCenter",
-        colors=strong and "#7D4C22|#A56A36|#7D4C22|#7D4C22"
-            or "#3B5268|#617993|#3B5268|#3B5268"
-    },value=strong and "Break" or "Basic"}
-end
-
 local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySets)
     if card==nil then return end
     local posture=cardPosture(card)
     local isSkill=skillTokens[card.guid]~=nil
-    if choices==nil or #choices<2 or (card.is_face_down==true and not isSkill)
+    local data=gameCards[card.guid]
+    local isArtifact=data~=nil and data.cardType=="Artifact"
+    if choices==nil or #choices<2
+        or (card.is_face_down==true and not isSkill and not isArtifact)
         or (not isSkill and posture=="discard")
         or (not isSkill and posture=="sideways" and not (cardCanPlaySideways(card)
             or card.getGMNotes()=="Wound")) then
@@ -466,8 +466,10 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     if posture=="sideways" then
         buttonRotation=card.getRotation()[2]%360<180 and 90 or 270
     end
+    local uiRotation=card.is_face_down==true and "0 180 180" or ("0 0 "..buttonRotation)
+    local buttonDepth=card.is_face_down==true and "35" or "-35"
     local signature=(posture=="sideways" and "S" or (powered and "P" or "N"))
-        ..":"..table.concat(signatureParts,";")..":"..buttonRotation
+        ..":"..table.concat(signatureParts,";")..":"..uiRotation
     if choiceButtonShown[card.guid]==signature then return end
     local xml=card.UI.getXmlTable() or {}
     for i=#xml,1,-1 do
@@ -491,7 +493,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         if multi then
             xml[#xml+1]={tag="Text",attributes={
                 id="ResourceCardChoice_"..card.guid.."_label"..row.index,
-                position="-80 "..tostring(y).." -35",rotation="0 0 "..buttonRotation,
+                position="-80 "..tostring(y).." "..buttonDepth,rotation=uiRotation,
                 width=60,height=90,scale="0.25 0.25",fontSize=62,
                 color="#DAE1EA",alignment="MiddleCenter",
                 raycastTarget="false",text=tostring(row.index)}}
@@ -511,8 +513,8 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                 ..(row.index>0 and ("set"..row.index.."_") or "")..category
             local button={tag="Button",attributes={
                 id=buttonId,onClick="global/resourceCardsChoiceClicked",
-                position=tostring(x).." "..tostring(buttonY).." -35",
-                rotation="0 0 "..buttonRotation,width=90,height=90,
+                position=tostring(x).." "..tostring(buttonY).." "..buttonDepth,
+                rotation=uiRotation,width=90,height=90,
                 scale="0.25 0.25",
                 colors=active and "#387D30|#4CA940|#387D30|#387D30"
                     or "#454D5D|#69798E|#444C63|#454D5D",
@@ -539,76 +541,11 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             xml[#xml+1]=button
         end
     end
-    -- Update the artifact mode and its resource options in ONE UI write.
-    -- Reading the object UI between two writes can return stale XML while
-    -- TTS is still loading, which would otherwise lose the choice icons.
-    local data=gameCards[card.guid]
-    local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
-    if rule~=nil and rule.artifactMode==true then
-        for i=#xml,1,-1 do
-            local attributes=xml[i].attributes
-            if attributes~=nil
-                and attributes.id=="ResourceCardArtifactMode_"..card.guid then
-                table.remove(xml,i)
-            end
-        end
-        local selected=selectedResourceByGUID[card.guid]
-        local strong=selected~=nil and selected.artifactStrong==true
-        xml[#xml+1]=artifactModeButtonEntry(card,strong)
-        artifactModeShown[card.guid]=strong and "break" or "basic"
-    end
     if assets~=nil then card.UI.setXmlTable(xml,assets)
     else card.UI.setXmlTable(xml) end
     choiceButtonShown[card.guid]=signature
 end
 
-
--- Artifact break effects are chosen deliberately, not powered by a linked mana.
--- Use an independent compact button so it remains available for single-effect
--- artifacts (which have no ordinary resource-choice row).
-local function removeArtifactModeButton(card)
-    if card==nil or card.UI==nil then return end
-    local xml=card.UI.getXmlTable() or {}
-    local changed=false
-    for i=#xml,1,-1 do
-        local attributes=xml[i].attributes
-        if attributes~=nil
-            and attributes.id=="ResourceCardArtifactMode_"..card.guid then
-            table.remove(xml,i)
-            changed=true
-        end
-    end
-    if changed then card.UI.setXmlTable(#xml>0 and xml or {{}}) end
-    artifactModeShown[card.guid]=nil
-end
-
-local function showArtifactModeButton(card,rule)
-    if card==nil then return end
-    local visible=rule~=nil and rule.artifactMode==true
-        and card.is_face_down~=true and cardPosture(card)=="upright"
-    if not visible then
-        if artifactModeShown[card.guid]~="hidden" then
-            removeArtifactModeButton(card)
-            artifactModeShown[card.guid]="hidden"
-        end
-        return
-    end
-    local selected=selectedResourceByGUID[card.guid]
-    local strong=selected~=nil and selected.artifactStrong==true
-    local signature=strong and "break" or "basic"
-    if artifactModeShown[card.guid]==signature then return end
-    local xml=card.UI.getXmlTable() or {}
-    for i=#xml,1,-1 do
-        local attributes=xml[i].attributes
-        if attributes~=nil
-            and attributes.id=="ResourceCardArtifactMode_"..card.guid then
-            table.remove(xml,i)
-        end
-    end
-    xml[#xml+1]=artifactModeButtonEntry(card,strong)
-    card.UI.setXmlTable(xml)
-    artifactModeShown[card.guid]=signature
-end
 
 local function clearChoiceButtons()
     for guid,signature in pairs(choiceButtonShown) do
@@ -887,9 +824,12 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
         return {guid=card.guid,known=true,complete=true,powered=false,
             links=linked,status=#linked>0 and "purple" or "blue",resources=nil}
     end
-    -- A face-down Action underneath Maximal Effect is still identifiable by
-    -- GUID; flipping it face up for reference must not change the calculation.
-    local faceUp=(card.is_face_down~=true or repeatLink~=nil) and posture=="upright"
+    -- Face-down Artifacts play their Break effect. Face-down Actions stay
+    -- inert unless they are the Action selected by Maximal Effect.
+    local artifactPlayed=known and data.cardType=="Artifact" and rule~=nil
+        and rule.artifactMode==true
+    local faceUp=(card.is_face_down~=true or repeatLink~=nil or artifactPlayed)
+        and posture=="upright"
     -- Any non-Wound card played at 90 degrees has one generic resource,
     -- irrespective of its printed card effect. It requires an explicit choice.
     if posture=="sideways" and cardCanPlaySideways(card) then
@@ -970,8 +910,12 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
     local scriptedMovement=rule~=nil and rule.movementEffects~=nil
         and (powered and rule.movementEffects.powered
             or (not powered and rule.movementEffects.normal))
+    local scriptedTerrain=false
+    for _,effect in ipairs(cardTerrainEffects(rule,powered) or {}) do
+        if terrainEffectActive(effect) then scriptedTerrain=true break end
+    end
     local status=(not known or not sideTracked or posture=="discard"
-        or (choiceIsUntracked and costPaid and not scriptedMovement)) and "blue"
+        or (choiceIsUntracked and costPaid and not scriptedMovement and not scriptedTerrain)) and "blue"
         or not complete and "yellow" or "green"
     -- Linking information is more valuable than the underlying certainty colour.
     if #linked>0 then status="purple" end
@@ -1079,8 +1023,7 @@ local function resolveActionLinks(cards,wounds,footprints,manaPowered,skillLinks
             and rule.requiredLink.mode=="discard"
             and source.is_face_down~=true and cardPosture(source)=="upright"
             and not (data~=nil and data.cardType=="Artifact"
-                and selectedResourceByGUID[source.guid]~=nil
-                and selectedResourceByGUID[source.guid].artifactStrong==true) then
+                and source.is_face_down==true) then
             local target=nearestOverlap(source,function(candidate)
                 local targetData=gameCards[candidate.guid]
                 return not discarded[candidate.guid] and not boostClaimed[candidate.guid]
@@ -1115,8 +1058,8 @@ local function resolveActionLinks(cards,wounds,footprints,manaPowered,skillLinks
             and source.is_face_down~=true and cardPosture(source)=="upright" then
             local chosen=selectedResourceByGUID[source.guid]
             local strong=manaPowered[source.guid]==true or boostBy[source.guid]~=nil
-                or (data~=nil and data.cardType=="Artifact" and chosen~=nil
-                    and chosen.artifactStrong==true)
+                or (data~=nil and data.cardType=="Artifact"
+                    and source.is_face_down==true)
             if repeated~=nil then strong=repeated.powered end
             local spec=paid.normal
             if strong then spec=paid.powered end
@@ -1681,9 +1624,8 @@ local function renderSeat(seatPos)
     for _,card in ipairs(cards) do
         local cardData=gameCards[card.guid]
         local rule=cardData~=nil and cardResourceDefinitions[cardData.resourceKey] or nil
-        local artifactChoice=selectedResourceByGUID[card.guid]
         local artifactBreak=cardData~=nil and cardData.cardType=="Artifact"
-            and artifactChoice~=nil and artifactChoice.artifactStrong==true
+            and card.is_face_down==true
         local isStrong=powered[card.guid]==true or boostBy[card.guid]~=nil or artifactBreak
         if repeatByTarget[card.guid]~=nil then
             isStrong=repeatByTarget[card.guid].powered
@@ -1846,17 +1788,15 @@ local function renderSeat(seatPos)
             result.convertedMana=manaLink.converted
         end
         showChoiceButtons(card,choices,result.powered,inventorySpec,inventorySets)
-        showArtifactModeButton(card,rule)
         result.kind=resourceObjectKind(card)
-        -- Only a played upright Move effect contributes terrain modifiers:
-        -- not a sideways card, discard payment or face-down card.
+        -- Ordinary Move cards and played Artifacts can both change terrain
+        -- costs; amulets grant no numeric Move and work on their Break side.
         if rule~=nil and cardPosture(card)=="upright" and result.resources~=nil
-            and type(result.resources.move)=="number" then
-            local terrainEffects=rule.terrainEffects
-            if terrainEffects~=nil then
-                local chosen=result.powered and terrainEffects.powered or terrainEffects.normal
-                for _=1,(result.repeatCount or 1) do
-                    for _,effect in ipairs(chosen or {}) do
+            and (type(result.resources.move)=="number"
+                or (cardData~=nil and cardData.cardType=="Artifact")) then
+            for _=1,(result.repeatCount or 1) do
+                for _,effect in ipairs(cardTerrainEffects(rule,result.powered) or {}) do
+                    if terrainEffectActive(effect) then
                         terrainModifiers[#terrainModifiers+1]=effect
                     end
                 end
@@ -2112,10 +2052,6 @@ local function renderSeat(seatPos)
             end
             -- Drop cached hidden state so cards are inspected on re-entry.
             choiceButtonShown[guid]=nil
-            if artifactModeShown[guid]~=nil then
-                removeArtifactModeButton(getObjectFromGUID(guid))
-            end
-            artifactModeShown[guid]=nil
             -- Keep the chosen resource, even if the object briefly leaves the
             -- zone while being dragged. The collapsed UI is rebuilt on return.
             choiceExpandedByGUID[guid]=nil
@@ -2144,10 +2080,6 @@ end
 local function clearAll()
     for seat=1,4 do generation[seat]=(generation[seat] or 0)+1 end
     clearChoiceButtons()
-    for guid in pairs(artifactModeShown) do
-        removeArtifactModeButton(getObjectFromGUID(guid))
-    end
-    artifactModeShown={}
     choiceExpandedByGUID={}
     -- Do not discard choices when closing/reopening the Resource Tracker.
     for guid in pairs(shown) do clearHighlight(guid) end
@@ -2158,36 +2090,6 @@ local function clearAll()
         refreshResourceTrackerText()
         updateMoveDisplay()
     end
-end
-
--- A pressed Break button is a player declaration, never inferred from mana
--- position or a face-down copy of an artifact attached to a Unit.
-function resourceCardsArtifactModeClicked(player,value,id)
-    if not resourceCardsPanelOpen() or type(id)~="string" then return end
-    local guid=id:match("^ResourceCardArtifactMode_([0-9a-f]+)$")
-    if guid==nil then return end
-    local card=getObjectFromGUID(guid)
-    local data=gameCards[guid]
-    local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
-    if card==nil or data==nil or data.cardType~="Artifact" or rule==nil
-        or rule.artifactMode~=true or card.is_face_down==true
-        or cardPosture(card)~="upright" then return end
-    local currentSeat=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
-    if currentSeat==nil then return end
-    local zone=getObjectFromGUID(playerPlayAreas[currentSeat.seatPos])
-    local found=false
-    if zone~=nil then
-        for _,obj in ipairs(zone.getObjects()) do
-            if obj.guid==guid then found=true break end
-        end
-    end
-    if not found then return end
-    local chosen=selectedResourceByGUID[guid] or {}
-    chosen.artifactStrong=not (chosen.artifactStrong==true)
-    chosen.effect=nil
-    selectedResourceByGUID[guid]=chosen
-    choiceExpandedByGUID[guid]=nil
-    queueSeat(currentSeat.seatPos,nil)
 end
 
 -- Player clicks always replace the one-time guess; opening the choice menu

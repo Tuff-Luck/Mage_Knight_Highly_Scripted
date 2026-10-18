@@ -1210,30 +1210,39 @@ cardResourceDefinitions={
     spellCharm={normal={influence=4},poweredChoices={{key="other"}},
         enemyAttackLink=true}, -- Possess: borrow a linked enemy's printed Attack
     spellCure={normal={healing=2},poweredChoices={{key="other"}}},
-    -- Artifacts use their printed basic effect unless the player deliberately
-    -- selects Break. Neither side consumes mana; their stronger side is a
-    -- throw-away action, not a powered spell.
+    -- Artifact sides are physical: face-up plays the basic effect and
+    -- face-down plays the break effect, without a separate mode control.
     artifactUtility={normalTrackerNeutral=true,artifactMode=true,
         poweredChoices={{key="other"}}},
+    -- These amulets change terrain routing in their matching round, not Move
+    -- points. The same ability is active on both sides of the artifact.
+    artifactAmuletDarkness={artifactMode=true,
+        normalChoices={{key="other"}},poweredChoices={{key="other"}},
+        terrainEffects={normal={{mode="cap",terrains={desert=true},cost=3,dayRound=true}},
+            powered={{mode="cap",terrains={desert=true},cost=3,dayRound=true}}}},
+    artifactAmuletSun={artifactMode=true,
+        normalChoices={{key="other"}},poweredChoices={{key="other"}},
+        terrainEffects={normal={{mode="cap",terrains={forest=true},cost=3,dayRound=false}},
+            powered={{mode="cap",terrains={forest=true},cost=3,dayRound=false}}}},
     artifactGoldenGrail={artifactMode=true,normal={healing=2},powered={healing=6}},
     artifactSoulHarvester={artifactMode=true,normal={attack=3},powered={attack=8}},
     artifactBannerOfCommand={artifactMode=true,normal={influence=4},
         poweredChoices={{key="other"}}},
     artifactEndlessBagOfGold={artifactMode=true,normal={influence=4},
-        poweredChoices={{key="other"}}},
+        powered={influence=9}},
     -- The Lost Legion revision of Horn of Wrath uses Siege Attack 5.
     -- Its Break side allows adding 0 through 5, chosen by the player.
     artifactHornOfWrath={artifactMode=true,normal={siege=5},
         poweredChoices={{key="zero",siege=5},{key="one",siege=6},
             {key="two",siege=7},{key="three",siege=8},
             {key="four",siege=9},{key="five",siege=10}}},
-    -- Repeated Blocks target different attacks. Only a single Block is
-    -- displayed, not a fictitious pooled Block 8 / Cold Fire Block 12.
+    -- The player is responsible for assigning each repeated Block to a
+    -- different attack; the tracker displays the total available Block.
     artifactShieldOfTheFallenKings={artifactMode=true,
         normalChoices={{key="block",block=6},
-            {key="splitBlock",block=4,icon="block",iconOverlay="x2"}},
+            {key="splitBlock",block=8,icon="block",iconOverlay="x2"}},
         poweredChoices={{key="block",blockColdFire=8},
-            {key="splitBlock",blockColdFire=4,icon="block",iconOverlay="x3"}}},
+            {key="splitBlock",blockColdFire=12,icon="block",iconOverlay="x3"}}},
     -- Reuse the physical tilted-card discard costs from Stout Resolve.
     artifactSwordOfJustice={artifactMode=true,normal={attack=0},
         discardBoost={normal={perCard=3,maxWounds=0}},
@@ -1722,8 +1731,8 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["596cfa"]={cardType="Artifact", resourceKey="artifactUtility", name={"Banner of Fortitude"}, 			color={}, action={"Heal", "Banner"}, full="7d608f"},
 			["98681f"]={cardType="Artifact", resourceKey="artifactBannerOfCommand", name={"Banner of Command"}, 			color={}, action={"Influence", "Banner"}, half=GUID.card.bannerOfCommandToken},
 			[GUID.card.bannerOfCommandToken]={cardType="Artifact", resourceKey="artifactBannerOfCommand", name={"Banner of Command"}, 			color={}, action={"Influence", "Banner"}, full="98681f"},
-			["085e62"]={cardType="Artifact", resourceKey="artifactUtility", name={"Amulet of Darkness"}, 			color={}, action={"Special"}},
-			["085e61"]={cardType="Artifact", resourceKey="artifactUtility", name={"Amulet of The Sun"}, 			color={}, action={"Special"}},
+			["085e62"]={cardType="Artifact", resourceKey="artifactAmuletDarkness", name={"Amulet of Darkness"}, 			color={}, action={"Special"}},
+			["085e61"]={cardType="Artifact", resourceKey="artifactAmuletSun", name={"Amulet of The Sun"}, 			color={}, action={"Special"}},
 			["085e59"]={cardType="Artifact", resourceKey="artifactGoldenGrail", name={"Golden Grail"}, 				color={}, action={"Heal"}},
 			["085e63"]={cardType="Artifact", resourceKey="artifactBowOfStarsdawn", name={"Bow of Starsdawn"}, 			color={}, action={"Combat"}},
 			["085e60"]={cardType="Artifact", resourceKey="artifactUtility", name={"Book of Wisdom"}, 				color={}, action={"Special"}},
