@@ -32,17 +32,8 @@ local totalsKeys={move=true,ranged=true,siege=true,attack=true,block=true,influe
     attackFire=true,attackIce=true,attackColdFire=true,
     blockFire=true,blockIce=true,blockColdFire=true}
 
--- Pilot for Unit abilities, identified by stable GUID, not translated text.
--- Printed rows remain in card order. Abilities that belong to one printed
--- effect can share a row; the extra alternatives expand to the right.
-local unitResourceDefinitions={
-    ["c1f77c"]={ -- Utem Guardsmen
-        {key="attack",icon="attack",attack=2,row=1},
-        {key="block",icon="block",block=4,row=2}},
-    ["00ebf3"]={
-        {key="attack",icon="attack",attack=2,row=1},
-        {key="block",icon="block",block=4,row=2}}
-}
+-- Catalog is defined once in UnitResources.lua and keyed by card GUID.
+local unitResourceDefinitions=unitResourceDefinitions
 local commandPickupForUnits={}
 -- Rebuilt with the live Unit layout for each Resource Tracker scan.
 -- Existing Command tokens and Wounds suppress Unit highlights regardless of
@@ -658,7 +649,16 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded)
     end
     local selected=math.max(1,math.min(#abilities,activation.choice or 1))
     local expanded=choiceExpandedByGUID[unit.guid]==true and #abilities>1
+    local selectedKeys={}
+    if abilities.multi==true then
+        for i=1,#abilities do
+            if activation.selected~=nil and activation.selected[i]==true then
+                selectedKeys[#selectedKeys+1]=tostring(i)
+            end
+        end
+    end
     local signature="Unit:"..selected..":"..tostring(expanded)..":"..tostring(#abilities)
+        ..":"..table.concat(selectedKeys,",")
     if choiceButtonShown[unit.guid]==signature then return end
 
     local xml=unit.UI.getXmlTable() or {}
@@ -703,7 +703,8 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded)
         local y=baseY+(rowIndex-(#rows+1)/2)*rowSpacing
         for columnIndex,index in ipairs(indices) do
             local ability=abilities[index]
-            local active=index==selected
+            local active=abilities.multi==true and activation.selected~=nil
+                and activation.selected[index]==true or index==selected and abilities.multi~=true
             local icon=resourceCardsChoiceIcon(ability.icon or ability.key)
             if icon~=nil and blocked[icon.name] then icon=nil end
             local button={tag="Button",attributes={
@@ -2152,6 +2153,47 @@ local function renderSeat(seatPos)
     -- Unit activation is historical: a Command token may stay on the card for
     -- the entire round, or be moved away by an ability. Only a Command move
     -- during THIS turn creates an entry, never a static token found on load.
+    -- Read only mana physically resting over each Unit; inventory mana does
+    -- not pay costs. Familiar crystals are a persistent modifier, not a cost.
+    local function unitManaCounts(unit)
+        local counts={}
+        local area=footprint(unit)
+        for _,mana in ipairs(manaObjects) do
+            local color=manaColor(mana)
+            if color~=nil and manaInsideFootprint(mana,area) then
+                counts[color]=(counts[color] or 0)+1
+            end
+        end
+        return counts
+    end
+    local function unitAbilityPaid(ability,counts)
+        local cost=ability.manaCost
+        if cost==nil then return true end
+        if (counts[cost] or 0)>0 then return true end
+        -- Daytime Gold may be used as any basic mana. The selected button
+        -- records which basic colour the player meant to spend.
+        return cost~="Black" and gStates.dayRound==true and (counts.Gold or 0)>0
+    end
+    local function unitAbilityResources(ability,counts)
+        if ability==nil or not unitAbilityPaid(ability,counts) then return nil end
+        local resources={}
+        for category,value in pairs(ability) do
+            if totalsKeys[category] and type(value)=="number" then
+                local bonus=0
+                if ability.bonusColor~=nil and (counts[ability.bonusColor] or 0)>0 then
+                    bonus=ability.bonus or 0
+                end
+                if ability.manaScale then
+                    if (counts.Red or 0)>0 then bonus=bonus+2 end
+                    if (counts.Blue or 0)>0 then bonus=bonus+2 end
+                end
+                resources[category]=value+bonus
+            end
+        end
+        return resources
+    end
+    local selectedUnitAttacks={}
+    local shocktroopsBoosts=0
     for unitGUID,activation in pairs(activations) do
         if activation.seatPos==seatPos then
             local unit=objects[unitGUID]
@@ -2165,20 +2207,59 @@ local function renderSeat(seatPos)
                 showUnitAbilityButtons(unit,abilities,activation,unwounded)
                 local selected=abilities[activation.choice or 1]
                 if unwounded and selected~=nil then
-                    local resources={}
-                    for key,value in pairs(selected) do
-                        if totalsKeys[key] then resources[key]=value end
-                    end
+                    local counts=unitManaCounts(unit)
+                    local resources=unitAbilityResources(selected,counts)
                     local result={guid=unitGUID,kind="unit",known=true,
-                        complete=true,resources=resources,powered=false,
-                        links={}}
+                        complete=unitAbilityPaid(selected,counts),
+                        resources=resources,powered=false,links={}}
+                    if abilities.multi==true then
+                        -- Delphana Masters may apply several different
+                        -- mana-paid effects to one or more enemies.
+                        result.complete=true
+                        for i,ability in ipairs(abilities) do
+                            if activation.selected~=nil and activation.selected[i]==true
+                                and not unitAbilityPaid(ability,counts) then
+                                result.complete=false
+                            end
+                        end
+                    end
                     addResourceAmounts(result,totals)
-                    -- Green when the chosen ability contributes a tracked
-                    -- value, blue when it is active but contributes none.
                     result.status=result.contributes and "green" or "blue"
                     records[unitGUID]=result
                     current[unitGUID]=true
                     setHighlight(unit,result.status,false)
+                    if selected.terrainReduce and result.complete then
+                        terrainModifiers[#terrainModifiers+1]={mode="reduce",
+                            terrains={forest=true,hills=true,swamp=true},
+                            amount=1,minimum=0}
+                    end
+                    if selected.boostOtherUnits and result.complete then
+                        shocktroopsBoosts=shocktroopsBoosts+1
+                    end
+                    if result.contributes then
+                        selectedUnitAttacks[#selectedUnitAttacks+1]=unitGUID
+                    end
+                end
+            end
+        end
+    end
+    -- Shocktroops' Ranged Attack 1 also boosts ALL other activated Units'
+    -- Attacks, even if their ability was activated earlier this turn.
+    if shocktroopsBoosts>0 then
+        for _,unitGUID in ipairs(selectedUnitAttacks) do
+            local record=records[unitGUID]
+            local selected=activations[unitGUID]~=nil
+                and unitResourceDefinitions[unitGUID][activations[unitGUID].choice or 1] or nil
+            local ownBoost=selected~=nil and selected.boostOtherUnits and 1 or 0
+            local bonus=shocktroopsBoosts-ownBoost
+            if bonus>0 and record~=nil and record.resources~=nil then
+                for category,value in pairs(record.resources) do
+                    if type(value)=="number" and (category:sub(1,6)=="attack"
+                        or category:sub(1,6)=="ranged"
+                        or category:sub(1,5)=="siege") then
+                        record.resources[category]=value+bonus
+                        totals[category]=(totals[category] or 0)+bonus
+                    end
                 end
             end
         end
@@ -2494,8 +2575,9 @@ function resourceUnitsCommandDropped(playerColor,obj)
         for _,entry in ipairs(state.units) do
             if entry.guid==unit.guid and not entry.unwounded then return end
         end
-        -- For Units the highest existing tracker family determines the initial
-        -- choice; equal scores retain the printed top-to-bottom order.
+        -- For ordinary Units the strongest tracker family determines the
+        -- default choice; ties keep printed row order. Non-resource abilities
+        -- never outrank a tracked option solely for being first.
         local abilities=unitResourceDefinitions[unit.guid]
         local scores=trackerChoiceScores(unit.guid,pickup.seatPos)
         local choice,bestScore=1,-math.huge
@@ -2505,7 +2587,8 @@ function resourceUnitsCommandDropped(playerColor,obj)
         end
         gStates.unitResourceActivations=gStates.unitResourceActivations or {}
         gStates.unitResourceActivations[unit.guid]={
-            seatPos=pickup.seatPos,tokenGUID=guid,choice=choice}
+            seatPos=pickup.seatPos,tokenGUID=guid,choice=choice,
+            selected=abilities.multi==true and {} or nil}
         choiceExpandedByGUID[unit.guid]=nil
         showUnitAbilityButtons(unit,abilities,gStates.unitResourceActivations[unit.guid],true)
         queueSeat(pickup.seatPos,nil)
@@ -2538,6 +2621,12 @@ function resourceUnitsChoiceClicked(player,value,id)
         choiceExpandedByGUID[unitGUID]=true
         showUnitAbilityButtons(unit,abilities,activation,true)
         return
+    end
+    -- Delphana Masters can use several different abilities with a single
+    -- activation. Toggle them individually without erasing earlier choices.
+    if abilities.multi==true then
+        activation.selected=activation.selected or {}
+        activation.selected[index]=not (activation.selected[index]==true)
     end
     -- Selecting an option closes the grid to the chosen centred icon.
     activation.choice=index
