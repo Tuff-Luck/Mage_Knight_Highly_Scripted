@@ -2503,7 +2503,7 @@ skillResourceDefinitions={
     -- Coral / The Apocalypse Dragon. Permanent movement/reward rules are evaluated separately.
     ["201f72"]={normal={attack=1},partial=true}, -- Coordinated Attack: target-specific bonuses remain manual.
     ["82049d"]={normal={block=2},partial=true}, -- Shield Wall: same-enemy bonuses remain manual.
-    ["9cf272"]={choices={{influence=2},{key="boost",influence=4}},partial=true}, -- Tales of Adventure: player removes a shield for +4.
+    ["9cf272"]={choices={{influence=2},{key="boost",influence=4,icon="influence",iconOverlay="4"}},partial=true}, -- Tales of Adventure: player removes a shield for +4.
     ["de5b04"]={unitBoost={attack=1,block=1},choices={{attack=1},{block=1},
         {key="twiceAttack",attack=2,icon="attack",iconOverlay="2"},
         {key="twiceBlock",block=2,icon="block",iconOverlay="2"}},partial=true}, -- Tales of Conquest; shield use is player-declared.
@@ -2570,7 +2570,7 @@ skillResourceDefinitions={
     ["527b47"]={untracked=true},
     ["55e5e5"]={partial=true},
     ["564392"]={linkedCard={targetKind="card",posture="sideways",sideways={value=4,perEmptyCommandSlot=1}},partial=true}, -- Howl of the Pack; follow-on combat is not tracked
-    ["590a46"]={choices={{influence=1},{key="boost",influence=3}},partial=true}, -- On Her Own: player decides whether they recruit.
+    ["590a46"]={choices={{influence=1},{key="boost",influence=3,icon="influence",iconOverlay="3"}},partial=true}, -- On Her Own: player decides whether they recruit.
     ["5b42dc"]={partial=true},
     ["5f61d5"]={choices={{key="other"},{healing=3}},partial=true},
     ["6133e1"]={partial=true},
