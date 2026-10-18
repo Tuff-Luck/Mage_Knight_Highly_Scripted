@@ -2570,7 +2570,7 @@ skillResourceDefinitions={
     ["527b47"]={untracked=true},
     ["55e5e5"]={partial=true},
     ["564392"]={linkedCard={targetKind="card",posture="sideways",sideways={value=4,perEmptyCommandSlot=1}},partial=true}, -- Howl of the Pack; follow-on combat is not tracked
-    ["590a46"]={choices={{influence=1},{key="boost",influence=3,icon="influence",iconOverlay="3"}},partial=true}, -- On Her Own: player decides whether they recruit.
+    ["590a46"]={choices={{influence=1},{key="boost",influence=3,icon="influence",iconOverlay="3"}}}, -- On Her Own: player decides whether they recruit.
     ["5b42dc"]={partial=true},
     ["5f61d5"]={choices={{key="other"},{healing=3}},partial=true},
     ["6133e1"]={partial=true},
@@ -2606,7 +2606,7 @@ skillResourceDefinitions={
     ["91bf3d"]={choices={{siege=1},
         {key="iceSiege",siegeIce=1,icon="siege",
             iconOverlay="I",iconOverlayColor="#358BFF"}}}, -- Freezing Power
-    ["91c8a0"]={normal={influence=2}},
+    ["91c8a0"]={normal={influence=2},flipped={}}, -- Arcane Disguise reputation mode generates no Influence.
     ["929377"]={choices={{healing=1},{key="boost",healing=2}}},
     ["929d04"]={partial=true},
     ["932b6a"]={normal={move=1}},
@@ -2637,7 +2637,7 @@ skillResourceDefinitions={
     ["c2e5a3"]={partial=true},
     ["c3b95f"]={untracked=true},
     ["c4546c"]={untracked=true},
-    ["c73c8c"]={choices={{attack=1},{key="other"}},partial=true,
+    ["c73c8c"]={choices={{attack=1},{key="other"}},
         passiveTerrain={{mode="reduce",terrains={explore=true},amount=1,minimum=0}}}, -- Feral Allies.
     ["c82406"]={untracked=true},
     ["c93979"]={untracked=true},
