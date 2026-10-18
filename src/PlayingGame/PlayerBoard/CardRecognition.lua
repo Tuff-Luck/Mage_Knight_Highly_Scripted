@@ -217,7 +217,11 @@ end
 
 local sidewaysChoices={{move=1},{block=1},{attack=1},{influence=1}}
 
-local choiceLetters={move="M",influence="I",attack="A",block="B",
+local choiceLetters={attackP1="A",attackP2="A2",attackP3="A3",
+    attackF1="AF",attackF2="AF2",attackI1="AI",attackI2="AI2",
+    attackIF1="AC",attackIF2="AC2",
+    blockP1="B",blockF1="BF",blockI1="BI",blockIF1="BC",
+    move="M",influence="I",attack="A",block="B",
     ranged="R",siege="S",healing="H",draw="D",other="O",
     siegeFire="SF",siegeIce="SI",rangedFire="RF",rangedIce="RI",
     fire="F",ice="I",coldFire="C",boost="H+",split="I/F",negative="N",
@@ -476,7 +480,7 @@ end
 local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySets)
     if card==nil then return end
     local posture=cardPosture(card)
-    local isSkill=skillTokens[card.guid]~=nil
+    local isSkill=skillTokens[card.guid]~=nil or card.getGMNotes()=="Puppet Master"
     -- Skill tokens are physically smaller than Action cards, so their choice
     -- buttons (collapsed and expanded) need a larger dedicated scale.
     local buttonScale=isSkill and "0.58 0.58" or "0.25 0.25"
@@ -839,6 +843,7 @@ local factionRewardNotes={
 local function resourceObjectKind(obj)
     if obj==nil then return nil end
     if skillTokens[obj.guid]~=nil then return "skill" end
+    if obj.getGMNotes()=="Puppet Master" then return "puppet" end
     if obj.type=="Card" then
         local data=gameCards[obj.guid]
         if data~=nil then
@@ -1494,6 +1499,40 @@ local function skillUsesDayStrength()
     local player=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     local site=player~=nil and player.avatarLocation or nil
     return site~="dungeon" and site~="tomb"
+end
+
+-- Puppet Master tokens already have authoritative half-strength Attack/Block
+-- perk data. Keep each printed Attack separate: a Puppet cannot combine all
+-- of its enemy's different attacks into one automatic total.
+local puppetTypes={P="",F="Fire",I="Ice",IF="ColdFire"}
+local puppetTypeOrder={"P","F","I","IF"}
+local function puppetResourceOptions(guid)
+    local record=gStates.puppetMasterPuppets~=nil and gStates.puppetMasterPuppets[guid] or nil
+    if record==nil then return nil end
+    local perks=gStates.monsterPerks~=nil and gStates.monsterPerks[guid] or nil
+    if perks==nil and puppetMasterDataForSourceGUID~=nil
+        and puppetMasterPerksForData~=nil then
+        local _,data=puppetMasterDataForSourceGUID(record.sourceGUID)
+        perks=puppetMasterPerksForData(data)
+    end
+    if perks==nil then return nil end
+    local choices={}
+    for _,family in ipairs({"attack","block"}) do
+        for _,attackType in ipairs(puppetTypeOrder) do
+            local entries=perks[family]~=nil and perks[family][attackType] or nil
+            if type(entries)=="table" then
+                for i,value in ipairs(entries) do
+                    if type(value)=="number" and value>0 then
+                        local choice={key=family..attackType..i,icon=family}
+                        if attackType~="P" then choice.iconOverlay=attackType=="IF" and "C" or attackType end
+                        choice[family..puppetTypes[attackType]]=value
+                        choices[#choices+1]=choice
+                    end
+                end
+            end
+        end
+    end
+    return #choices>0 and choices or nil
 end
 
 local function calculateSkill(skill,linkedTarget,unitState,inventoryCrystalCounts)
@@ -2360,7 +2399,15 @@ local function renderSeat(seatPos)
             local contributing=poweredTarget~=nil and records[poweredTarget]~=nil
                 and records[poweredTarget].contributes==true
             local result
-            if kind=="skill" and placements[guid]=="play" then
+            if kind=="puppet" and placements[guid]=="play" then
+                local choices=obj.is_face_down~=true and puppetResourceOptions(guid) or nil
+                local selected=choices~=nil and chosenEffect(guid,false,choices) or nil
+                result={guid=guid,kind="puppet",known=true,complete=selected~=nil,
+                    status=selected~=nil and "green" or "blue",
+                    resources=selected,choices=choices,powered=false,links={}}
+                showChoiceButtons(obj,choices,false)
+                addResourceAmounts(result,totals)
+            elseif kind=="skill" and placements[guid]=="play" then
                 local conversion=manaBySkill[guid]
                 result=calculateSkill(obj,skillLinksBySkill[guid]
                     or (conversion~=nil and conversion.targetGUID or nil),
@@ -2533,6 +2580,7 @@ function resourceCardsChoiceClicked(player,value,id)
     local card=getObjectFromGUID(guid)
     local data=card~=nil and gameCards[guid] or nil
     local isSkill=skillTokens[guid]~=nil
+    local isPuppet=card~=nil and card.getGMNotes()=="Puppet Master"
     local rule=isSkill and skillResourceDefinitions[guid]
         or (data~=nil and cardResourceDefinitions[data.resourceKey] or nil)
     local currentSeat=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
@@ -2541,7 +2589,7 @@ function resourceCardsChoiceClicked(player,value,id)
     local record=scan~=nil and scan.cards[guid] or nil
     local linkedWound=card.getGMNotes()=="Wound" and record~=nil
         and record.linkedSkill~=nil
-    if rule==nil and not isSkill and not (cardPosture(card)=="sideways"
+    if rule==nil and not isSkill and not isPuppet and not (cardPosture(card)=="sideways"
         and (cardCanPlaySideways(card) or linkedWound)) then return end
     local zone=getObjectFromGUID(playerPlayAreas[currentSeat.seatPos])
     local inZone=false
@@ -2555,7 +2603,7 @@ function resourceCardsChoiceClicked(player,value,id)
     local powered=record~=nil and record.powered==true
     local sideways=not isSkill and cardPosture(card)=="sideways"
     local mainChoices
-    if isSkill then
+    if isSkill or isPuppet then
         mainChoices=record~=nil and record.choices or (rule~=nil and rule.choices or nil)
     elseif sideways and (cardCanPlaySideways(card) or linkedWound) then
         mainChoices=sidewaysChoices
