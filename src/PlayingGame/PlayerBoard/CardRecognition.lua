@@ -94,6 +94,16 @@ end
 -- Terrain abilities are an overlay, not changes to gStates.moveCost. This
 -- preserves day/night terrain settings, manual adjustments and other cards.
 -- City/Explore are not terrain: their special movement costs remain intact.
+-- Claimed Skills keep their passive effects while their token remains at home.
+local function ownedSkillAtSeat(guid,seatPos)
+    local home=gStates~=nil and gStates.mageSkills~=nil and gStates.mageSkills[guid] or nil
+    return home~=nil and home[1]~=nil and home[3]~=nil
+        and home[3]<-30.5 and math.abs(home[1]-(seatPos*40-109.5))<15
+end
+local passiveExploration={mode="reduce",terrains={explore=true},amount=1,minimum=0}
+local passiveMountains={mode="set",terrains={mountain=true},cost=5}
+local passiveLakes={mode="set",terrains={lake=true},cost=2}
+
 local passableTerrain={
     plains=true,hills=true,forest=true,wasteland=true,desert=true,swamp=true,
     lake=true,mountain=true
@@ -116,7 +126,7 @@ end
 
 function resourceCardsEffectiveTerrainCost(terrain)
     local base=gStates~=nil and gStates.moveCost~=nil and gStates.moveCost[terrain] or nil
-    if base==nil then return 999 end
+    if base==nil then base=999 end
     local player=turnOrder~=nil and gStates~=nil
         and turnOrder[gStates.turnNumber] or nil
     local scan=player~=nil and resourceCardScanBySeat[player.seatPos] or nil
@@ -1478,17 +1488,51 @@ end
 
 -- Physical Skill GUIDs, not translated text, determine available resources.
 -- Skills outside the active player's Play Area are not counted.
+-- A combat inside a Dungeon/Tomb is always Night for day/night Skill bonuses.
+local function skillUsesDayStrength()
+    if gStates.dayRound~=true then return false end
+    local player=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    local site=player~=nil and player.avatarLocation or nil
+    return site~="dungeon" and site~="tomb"
+end
+
 local function calculateSkill(skill,linkedTarget,unitState,inventoryCrystalCounts)
     local rule=skillResourceDefinitions[skill.guid]
     if rule==nil then
         return {guid=skill.guid,kind="skill",known=true,complete=false,
             status="yellow",powered=false,resources=nil}
     end
-    local chosen=rule.choices~=nil and chosenEffect(skill.guid,false,rule.choices) or nil
+    local choices=rule.choices
+    local chosen=choices~=nil and chosenEffect(skill.guid,false,choices) or nil
     local effects=chosen
         or (skill.is_face_down==true and rule.flipped or nil)
-        or (gStates.dayRound==true and rule.day or rule.night)
+        or (skillUsesDayStrength() and rule.day or rule.night)
         or rule.normal
+    if rule.dynamic=="masterOfChaos" then
+        -- The Master of Chaos marker advances when the played token is
+        -- cleaned up: it earns the NEXT position's resource while in play.
+        local nextSegment=((tonumber(gStates.masterOfChaos) or 0)%6)+1
+        local segments={{move=1},{rangedColdFire=1},{influence=2},{attack=2},false,{block=3}}
+        if nextSegment==5 then
+            choices={{block=3},{move=1},{rangedColdFire=1},{attack=2},{influence=2}}
+            effects=chosenEffect(skill.guid,false,choices)
+        else effects=segments[nextSegment] end
+    end
+    if rule.locationInfluence~=nil then
+        local player=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+        local place=player~=nil and player.avatarLocation or nil
+        local fortified=place=="keep" or place=="mage tower"
+            or (type(place)=="string" and place:sub(1,4)=="city")
+        local value=place=="glade" and rule.locationInfluence.glade
+            or (fortified and rule.locationInfluence.fortified
+            or rule.locationInfluence.default)
+        effects={influence=value}
+    end
+    -- Card/Unit linked bonuses must not be added until the linked target
+    -- actually supplies a compatible printed resource.
+    if rule.unitBoost~=nil or rule.shapeshift or rule.attackCardBoost then
+        effects=nil
+    end
 
     -- Reusable board-state rule: effects can count qualifying Units instead
     -- of encoding Skill-specific calculations or depending on translated text.
@@ -1524,6 +1568,7 @@ local function calculateSkill(skill,linkedTarget,unitState,inventoryCrystalCount
     local tracked=effectHasTrackedResource(effects)
     local unitLinked=#unitSources>0
     local status=rule.untracked and "blue"
+        or (rule.unitBoost~=nil or rule.shapeshift or rule.attackCardBoost) and "yellow"
         or (linkedTarget~=nil or unitLinked) and "purple"
         or (unitResolved or inventoryResolved) and "green"
         or rule.linkedCard~=nil and linkedTarget==nil and "yellow"
@@ -1536,7 +1581,7 @@ local function calculateSkill(skill,linkedTarget,unitState,inventoryCrystalCount
         complete=unitResolved or inventoryResolved or (tracked and not rule.partial) or linkedTarget~=nil,
         powered=skill.is_face_down==true or linkedTarget~=nil or unitLinked,
         status=status,links=links,unitSources=unitSources,
-        resources=effects,choices=rule.choices}
+        resources=effects,choices=choices}
 end
 
 local terrainEffectOrder={set=0,cap=1,reduce=2}
@@ -1841,6 +1886,30 @@ local function renderSeat(seatPos)
     local usesCurrentHexHealing=false
     local terrainModifiers={}
     local movementEffects={jumpTwoSpaces=false,ignoreRampagers=false}
+    if ownedSkillAtSeat("c73c8c",seatPos) then
+        terrainModifiers[#terrainModifiers+1]=passiveExploration
+    end
+    if ownedSkillAtSeat("152a98",seatPos) and gStates.dayRound~=true then
+        terrainModifiers[#terrainModifiers+1]=passiveExploration
+    end
+    if ownedSkillAtSeat("8892c4",seatPos) then
+        terrainModifiers[#terrainModifiers+1]=passiveMountains
+        -- Blue is a separate optional payment, physically touching the Skill.
+        local skillToken=getObjectFromGUID("8892c4")
+        if skillToken~=nil then
+            local area=footprint(skillToken)
+            for _,mana in ipairs(manaObjects) do
+                if placements[mana.guid]=="play" and manaColor(mana)=="Blue"
+                    and manaInsideFootprint(mana,area) then
+                    terrainModifiers[#terrainModifiers+1]=passiveLakes
+                    break
+                end
+            end
+        end
+    end
+    if ownedSkillAtSeat("c4f5e9",seatPos) then
+        terrainModifiers[#terrainModifiers+1]=passiveLakes
+    end
     -- Only infer an effect after assigning separate casting/power/effect
     -- payments. If Gold or multiple valid assignments leave alternatives,
     -- show the supported choices rather than choosing a mana token by GUID.
@@ -2487,7 +2556,7 @@ function resourceCardsChoiceClicked(player,value,id)
     local sideways=not isSkill and cardPosture(card)=="sideways"
     local mainChoices
     if isSkill then
-        mainChoices=rule~=nil and rule.choices or nil
+        mainChoices=record~=nil and record.choices or (rule~=nil and rule.choices or nil)
     elseif sideways and (cardCanPlaySideways(card) or linkedWound) then
         mainChoices=sidewaysChoices
     elseif not sideways then
