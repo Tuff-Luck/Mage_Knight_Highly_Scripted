@@ -643,6 +643,7 @@ local function turnAdvanceCompletedTurnLifecycle()
 end
 
 local function turnFinishCompletedTurnUI()
+	resourceUnitsResetTurn()
 	resetResourceTrackerState()
 	refreshResourceTracker()
 	if gStates.coopAssaultPhase~="combat" then claimButtonRefresh() end
