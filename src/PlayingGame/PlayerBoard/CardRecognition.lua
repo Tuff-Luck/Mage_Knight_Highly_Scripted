@@ -2909,9 +2909,9 @@ end
 function resourceCardsChoiceClicked(player,value,id)
     if type(id)~="string" then return end
     local guid,setIndex,category=id:match(
-        "^ResourceCardChoice_([0-9a-f]+)_set(%d+)_([%a]+)$")
+        "^ResourceCardChoice_([0-9a-f]+)_set(%d+)_([%w]+)$")
     if guid==nil then
-        guid,category=id:match("^ResourceCardChoice_([0-9a-f]+)_([%a]+)$")
+        guid,category=id:match("^ResourceCardChoice_([0-9a-f]+)_([%w]+)$")
     end
     if guid==nil then return end
     setIndex=setIndex~=nil and tonumber(setIndex) or nil
