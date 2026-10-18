@@ -173,10 +173,10 @@ local function cardPosture(card)
     return "sideways"
 end
 
--- A card lying at any angle through 70 degrees can be physically overlapped
--- as Improvisation's discard payment; 90 degrees means something else.
+-- Only a deliberately tilted card can pay a discard cost, not an upright
+-- action or a fully sideways +1 play (notably Improvisation).
 local function canPayDiscard(card)
-    return card.is_face_down~=true and cardRotationOffset(card)<=70
+    return card.is_face_down~=true and cardPosture(card)=="discard"
 end
 
 -- Only cards that may be played from hand can generate a sideways +1.
@@ -196,12 +196,12 @@ local choiceLetters={move="M",influence="I",attack="A",block="B",
     fire="F",ice="I",coldFire="C",boost="H+",split="I/F",negative="N",
     heal="H",combat="C",wound="W",reputation="R",gain="G",ready="R",
     base="2",sourceUnused="3",red="R",blue="B",white="W",green="G",
-    fireAttack="F",fireBlock="F",fireBlockOnly="B",fireBlockCounter="B+",
+    fireAttack="F",fireBlock="F",fireSiege="F",fireBlockOnly="B",fireBlockCounter="B+",
     splitBlock="B2",zero="0",one="1",two="2",three="3",four="4",five="5"}
 -- The choice UI and initial-guess tie-breaks follow the Resource Tracker order.
 local resourceChoiceOrder={
     move=1,siege=2,ranged=3,block=4,attack=5,influence=6,healing=7,heal=7,
-    fireBlock=4,fireAttack=5
+    fireBlock=4,fireAttack=5,fireSiege=2
 }
 local resourceChoiceFamilies={"move","siege","ranged","block","attack","influence","healing"}
 local function resourceChoiceRank(category,choice)
@@ -225,6 +225,7 @@ end
 local function resourceChoiceColumn(category)
     if category=="fireBlock" then return "block" end
     if category=="fireAttack" then return "attack" end
+    if category=="fireSiege" then return "siege" end
     return category
 end
 local function sideChoices(rule,powered)
@@ -386,9 +387,9 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     local isSkill=skillTokens[card.guid]~=nil
     -- Skill tokens are physically smaller than Action cards, so their choice
     -- buttons (collapsed and expanded) need a larger dedicated scale.
-    local buttonScale=isSkill and "0.50 0.50" or "0.25 0.25"
-    local buttonSpacing=isSkill and 88 or 44
-    local buttonRowOffset=isSkill and -60 or -30
+    local buttonScale=isSkill and "0.58 0.58" or "0.25 0.25"
+    local buttonSpacing=isSkill and 104 or 44
+    local buttonRowOffset=isSkill and -70 or -30
     local data=gameCards[card.guid]
     local isArtifact=data~=nil and data.cardType=="Artifact"
     if choices==nil or #choices<2
@@ -493,7 +494,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                 columnByCategory[column]=#columns
             end
         end
-        local y=-12-(#rows-1)*15+row.index*30
+        local y=isSkill and 0 or (-12-(#rows-1)*15+row.index*30)
         -- 0 = printed stronger effect; 1, 2, ... = crystal set bonuses.
         if multi then
             xml[#xml+1]={tag="Text",attributes={

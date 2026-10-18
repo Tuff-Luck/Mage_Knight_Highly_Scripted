@@ -2514,7 +2514,7 @@ skillResourceDefinitions={
     ["14399f"]={untracked=true},
     ["152a98"]={normal={move=1},partial=true},
     ["171244"]={untracked=true},
-    ["1906f4"]={choices={{attack=2},{key="fire",attackFire=2}}},
+    ["1906f4"]={choices={{attack=2},{key="fireAttack",attackFire=2,icon="attack",iconOverlay="F"}}},
     ["19daf9"]={untracked=true},
     ["1a78b3"]={day={ranged=1},night={ranged=2}},
     ["1c413b"]={untracked=true},
@@ -2526,7 +2526,7 @@ skillResourceDefinitions={
     ["2a673e"]={untracked=true},
     ["2c74ca"]={untracked=true},
     ["2cbfd9"]={untracked=true},
-    ["2f2ad9"]={choices={{siege=1},{key="fire",siegeFire=1}}},
+    ["2f2ad9"]={choices={{siege=1},{key="fireSiege",siegeFire=1,icon="siege",iconOverlay="F"}}},
     ["31b225"]={choices={{move=1},{influence=1},{block=1},{attack=1}}},
     ["335290"]={untracked=true},
     ["33d341"]={linkedCard={targetKind="wound",posture="sideways",sideways={value=2}}}, -- Power of Pain
@@ -2536,7 +2536,8 @@ skillResourceDefinitions={
     ["3d8336"]={untracked=true},
     ["3dc067"]={untracked=true},
     ["3f0f3b"]={day={influence=3},night={influence=2}},
-    ["3fba07"]={partial=true},
+    ["3fba07"]={partial=true,linkedCard={targetKind="wound",posture="sideways",
+        sideways={value=3}}}, -- Ritual of Pain: first activation stays manual
     ["407c99"]={normal={influence=2},partial=true},
     ["45fe78"]={untracked=true},
     ["48fd35"]={untracked=true},
