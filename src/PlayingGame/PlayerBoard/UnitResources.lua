@@ -24,6 +24,11 @@ local function value(row,resource,amount,tooltip,extra)
         a.iconOverlayColor="#66BAFF"
     end
     for k,v in pairs(extra or {}) do a[k]=v end
+    if a.manaCost~=nil and a.iconOverlay==nil then
+        a.iconOverlay=a.manaCost:sub(1,1)
+        a.iconOverlayColor=({Red="#FF564A",Blue="#66BAFF",
+            White="#FFFFFF",Green="#69E370",Black="#333333"})[a.manaCost]
+    end
     return a
 end
 
@@ -119,8 +124,8 @@ local byType={
         special(1,"Gain two mana tokens of any colors",{key="gain"}),
         value(2,"attackColdFire",5,"Cold Fire Attack 5; +2 with red or blue mana, +4 with both",{manaScale=true}),
         value(2,"blockColdFire",5,"Cold Fire Block 5; +2 with red or blue mana, +4 with both",{manaScale=true}),
-        special(3,"Pay black mana: all your Attacks this combat become Cold Fire",{manaCost="Black"}),
-        special(3,"Pay black mana: all your Attacks this combat become Siege, retaining elements",{manaCost="Black"})},
+        special(3,"Pay black mana: all your Attacks this combat become Cold Fire",{manaCost="Black",buttonLabel="CF"}),
+        special(3,"Pay black mana: all your Attacks this combat become Siege, retaining elements",{manaCost="Black",buttonLabel="S"})},
     AltemGuardians={
         value(1,"attack",5,"Attack 5"),
         value(2,"block",8,"Block 8; counts twice against Swiftness"),
@@ -146,10 +151,10 @@ local byType={
         value(2,"ranged",3,"Pay white mana: target loses all fortifications; Ranged Attack 3",{manaCost="White"}),
         value(3,"ranged",3,"Pay green mana: target loses all resistances; Ranged Attack 3",{manaCost="Green"})},
     DelphanaMasters={
-        special(1,"Pay blue mana: target enemy does not attack",{manaCost="Blue"}),
-        special(2,"Pay red mana: target enemy is destroyed if blocked",{manaCost="Red"}),
-        special(3,"Pay green mana: target enemy Armor -5 (minimum 1)",{manaCost="Green"}),
-        special(4,"Pay white mana: target enemy loses all fortifications and resistances",{manaCost="White"})}
+        special(1,"Pay blue mana: target enemy does not attack",{manaCost="Blue",buttonLabel="B"}),
+        special(2,"Pay red mana: target enemy is destroyed if blocked",{manaCost="Red",buttonLabel="R"}),
+        special(3,"Pay green mana: target enemy Armor -5 (minimum 1)",{manaCost="Green",buttonLabel="G"}),
+        special(4,"Pay white mana: target enemy loses all fortifications and resistances",{manaCost="White",buttonLabel="W"})}
 }
 byType.DelphanaMasters.multi=true
 
