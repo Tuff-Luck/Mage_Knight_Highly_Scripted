@@ -54,7 +54,9 @@ require("SetupInterface")
 require("PlayingGame.Help")
 require("PlayingGame.PlayerBoard.CardFlow")
 require("PlayingGame.PlayerBoard.UnitLayout")
+require("PlayingGame.PlayerBoard.UnitResources")
 require("PlayingGame.PlayerBoard.Events")
+require("PlayingGame.UIAssets")
 require("PlayingGame.PlayerBoard.CardRecognition")
 require("SetupGame.Components")
 require("SetupGame.Players")
@@ -125,6 +127,7 @@ end
 function onLoad(saved_data)
 	return safeCallback("onLoad",function()
 		validatePublicUICallbacks()
+		resourceCardsRegisterIconAssets()
 		local loadedData=nil
 		if type(saved_data)=="string" and saved_data~="" then loadedData=JSON.decode(saved_data) end
 		--These objects already exist when Global loads. Install their XML immediately, then use the
@@ -139,6 +142,8 @@ function onLoad(saved_data)
 			artifactOfferRewardTextRefresh()
 			siteDescriptionTranslationRefresh()
 			deedOfferArrowTextRefresh()
+			-- Recreate runtime card buttons if a saved tracker was already open.
+			if resourceCardsPanelOpen() then resourceCardsPanelChanged(true) end
 		end,2)
 		return result
 	end)
@@ -1054,6 +1059,7 @@ function __onObjectPickUp_raw(player_color, picked_up_object)
 		mapTokenReleaseObject(picked_up_object)
 	end
 	puppetMasterTrackPickup(player_color,picked_up_object)
+	resourceUnitsCommandPickedUp(player_color,picked_up_object)
 	--Unlocking and lifting an active Destroyed token undoes that placement without awarding a restoration.
 	if player_color~=nil and picked_up_object.getGMNotes()=="Destroyed" and gStates.destroyedSites~=nil and gStates.destroyedSites[picked_up_object.guid]~=nil then
 		if undoDestroyedSitePlacement(picked_up_object)==true then
@@ -1148,6 +1154,7 @@ end
 function __onObjectDrop_raw(player_color, dropped_object)
 	if dropped_object==nil or dropped_object.guid==nil then return end
 	local droppedGUID=dropped_object.guid
+    resourceUnitsCommandDropped(player_color,dropped_object)
     resourceCardsObjectMoved(dropped_object)
 	if terrainTiles[droppedGUID]~=nil then
 		runtimeMapInvalidateTerrain()
@@ -2428,6 +2435,23 @@ function __onObjectRandomize_raw(randomize_object, player_color)
 end
 
 cardEffectRotationGeneration={}
+-- Claim/remove buttons come from the shared card button builder. Face changes
+-- should update their visibility without rebuilding other object UI (notably
+-- Resource Tracker choices or pending Quest decisions).
+local function refreshCardClaimFaceVisibility(card)
+	if card==nil or card.type~="Card" then return end
+	local active=card.is_face_down==true and "false" or "true"
+	for _,node in ipairs(card.UI.getXmlTable() or {}) do
+		local attrs=node.attributes
+		if node.tag=="Button" and attrs~=nil and type(attrs.id)=="string"
+			and attrs.id:sub(1,#card.guid)==card.guid
+			and (attrs.onClick=="global/processCardClaim"
+				or attrs.onClick=="global/removeTactic") then
+			card.UI.setAttribute(attrs.id,"active",active)
+		end
+	end
+end
+
 refreshCardEffectAfterRotation=function(cardGUID)
 	if cardGUID==nil then return end
 	cardEffectRotationGeneration[cardGUID]=(cardEffectRotationGeneration[cardGUID] or 0)+1
@@ -2441,6 +2465,7 @@ refreshCardEffectAfterRotation=function(cardGUID)
 			if cardEffectRotationGeneration[cardGUID]~=generation then return end
 			local settledCard=getObjectFromGUID(cardGUID)
 			if settledCard==nil then return end
+			if cardGUID==GUID.card.bannerOfCommandToken then bannerOfCommandDecal() end
 			if cardGUID==meditationTranceCardGUID then
 				refreshMeditationTrance()
 			elseif isSteadyTempoGUID(cardGUID)==true then
@@ -2456,6 +2481,7 @@ refreshCardEffectAfterRotation=function(cardGUID)
 			if cardEffectRotationGeneration[cardGUID]~=generation then return end
 			local settledCard=getObjectFromGUID(cardGUID)
 			if settledCard==nil then return end
+			if cardGUID==GUID.card.bannerOfCommandToken then bannerOfCommandDecal() end
 			if cardGUID==meditationTranceCardGUID then refreshMeditationTrance()
 			elseif isSteadyTempoGUID(cardGUID)==true then steadyTempoRefreshCard(cardGUID)
 			elseif cardGUID==tacticCard[2] and cardInPlayerPlayArea(cardGUID)==true then dayTactic2ButtonActivate() end
@@ -2500,7 +2526,22 @@ function __onObjectRotate_raw(object, spin, flip, player_color, old_spin, old_fl
 	end
 	if object.type~="Card" then return end
 	local cardGUID=object.guid
-	if cardGUID==meditationTranceCardGUID or isSteadyTempoGUID(cardGUID)==true or cardGUID==tacticCard[2] then refreshCardEffectAfterRotation(cardGUID) end
+	if cardGUID==meditationTranceCardGUID or isSteadyTempoGUID(cardGUID)==true
+		or cardGUID==tacticCard[2] or cardGUID==GUID.card.bannerOfCommandToken then
+		refreshCardEffectAfterRotation(cardGUID)
+	end
+	-- The face state is settled after the rotate callback, including Q/E flips
+	-- while the card is being held. Preserve buttons' ownership and state.
+	safeWaitFrames("Events",function()
+		local card=getObjectFromGUID(cardGUID)
+		if card~=nil then refreshCardClaimFaceVisibility(card) end
+	end,2)
+	if gStates~=nil and gStates.apocalypseQuestCardGUIDs~=nil
+		and gStates.apocalypseQuestCardGUIDs[cardGUID]==true then
+		-- Quest action choices have their own guarded refresh; regenerate them
+		-- only on a face-up card without changing its unresolved Quest state.
+		safeWaitFrames("Events",function() apocalypseQuestRefreshOfferButtons() end,2)
+	end
 end
 
 function __onPlayerConnect_raw(player)
@@ -5054,6 +5095,8 @@ function resourceTracker(player, mouseButton, id)
 	end
 end
 
+local RESOURCE_TRACKER_ZERO_TEXT_COLOR="#555555" -- Adjust this shade to tune empty-resource contrast.
+
 function refreshResourceTrackerText()
     if gStates.resourceTracker==nil or gStates.moveCost==nil then return end
     local resourceTotal={siege=0, ranged=0, block=0, attack=0, influence=0}
@@ -5069,7 +5112,7 @@ function refreshResourceTrackerText()
         UI.setAttribute(fieldId.."Text","text",joinLang({spec[3],value}))
         -- Dim empty resource rows, including the Move, Healing and expanded
         -- breakdown fields; restore normal contrast when a total is nonzero.
-        UI.setAttribute(fieldId.."Text","color",value==0 and "#666666" or "Black")
+        UI.setAttribute(fieldId.."Text","color",value==0 and RESOURCE_TRACKER_ZERO_TEXT_COLOR or "Black")
     end
     for fieldId, spec in pairs(MOVE_COST_FIELDS) do
 		local value=resourceCardsEffectiveTerrainCost(spec[1])
@@ -5402,6 +5445,10 @@ end
 
 -- Shared object claim button builder
 function createClaimButton(objGUID, source)
+	-- Claim controls on Cards belong to the visible front, not the discard
+	-- back. Skill tokens and other objects keep their existing visibility.
+	local obj=getObjectFromGUID(objGUID)
+	local faceVisible=obj==nil or obj.type~="Card" or obj.is_face_down~=true
 	local onClick="global/processCardClaim"
 	local width=500
 	local height=150
@@ -5467,7 +5514,7 @@ function createClaimButton(objGUID, source)
 			end
 		end
 	end
-    return {tag="Button", attributes={id=objGUID..source, onClick=onClick, onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", height=height, width=width, position=position, rotation=rotation, scale=tostring(scale).." "..tostring(scale)},
+    return {tag="Button", attributes={id=objGUID..source, active=faceVisible and "true" or "false", onClick=onClick, onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", height=height, width=width, position=position, rotation=rotation, scale=tostring(scale).." "..tostring(scale)},
 		children={{tag="Image", attributes={id=objGUID..source.."Image", image="Sliced Button/Button Object Active", type="Sliced"}},
 				  {tag="HorizontalLayout", attributes={padding="25 25 25 25"},
 				  children={{tag="Text", attributes={id=objGUID..source.."Text", font="Fonts/MKCardText", fontSize=fontSize, fontStyle="Normal", alignment="MiddleCenter", resizeTextForBestFit="true", resizeTextMaxSize=fontSize, text=text}}}}}}
@@ -5892,7 +5939,7 @@ local function notifyBlackMageKnightTeamChange(seatPos,team)
     local teamText=team==0
         and "{en}No Team{it}Nessuna Squadra{ru}Без команды{zh-tw}無隊伍{zh-cn}无队伍{ko}팀 없음{es}Sin equipo{fr}Sans équipe{pt-br}Sem equipe{de}Kein Team"
         or ("{en}Team "..team.."{it}Squadra "..team.."{ru}Команда "..team.."{zh-tw}隊伍 "..team.."{zh-cn}队伍 "..team.."{ko}팀 "..team.."{es}Equipo "..team.."{fr}Équipe "..team.."{pt-br}Equipe "..team.."{de}Team "..team)
-    broadcastToColor(joinLang({"{en}Seat {it}Postazione {ru}Место {zh-tw}座位 {zh-cn}座位 {ko}좌석 {es}Asiento {fr}Place {pt-br}Assento {de}Sitz ",seatPos,": ",teamText}),"Black",{1,1,0.5})
+    safeBroadcastToColor(joinLang({"{en}Seat {it}Postazione {ru}Место {zh-tw}座位 {zh-cn}座位 {ko}좌석 {es}Asiento {fr}Place {pt-br}Assento {de}Sitz ",seatPos,": ",teamText}),"Black",{1,1,0.5})
 end
 
 function mageKnightSeatTeam(seatPos)
@@ -6160,7 +6207,7 @@ function oneToReturnEnsureChosenMages()
         for _,member in ipairs(members[team]) do
             for color,seat in pairs(gStates.handColors or {}) do
                 if seat==member.seatPos and Player[color]~=nil and Player[color].seated==true then
-                    broadcastToColor(message,color,{1,1,0.5})
+                    safeBroadcastToColor(message,color,{1,1,0.5})
                 end
             end
         end
@@ -6537,6 +6584,23 @@ MOVE_DISPLAY_WALL_ADJUST={
 	["center"]={ ["0"]={0,-0.5}, ["60"]={-0.5,-0.5}, ["120"]={-0.5,0}, ["180"]={0,0.5}, ["240"]={0.5,0.5}, ["300"]={0.5,0}}
 }
 MOVE_DISPLAY_VECTORS={{0,-1}, {-1,-1}, {-1,0}, {0,1}, {1,1}, {1,0}}
+-- Precompute the twelve destinations at exactly two hexes' distance.
+MOVE_DISPLAY_TWO_HEX_VECTORS={}
+do
+    local seen={}
+    for _,first in ipairs(MOVE_DISPLAY_VECTORS) do
+        for _,second in ipairs(MOVE_DISPLAY_VECTORS) do
+            local hor,vec=first[1]+second[1],first[2]+second[2]
+            if math.max(math.abs(hor),math.abs(vec),math.abs(hor-vec))==2 then
+                local key=hor..":"..vec
+                if not seen[key] then
+                    seen[key]=true
+                    MOVE_DISPLAY_TWO_HEX_VECTORS[#MOVE_DISPLAY_TWO_HEX_VECTORS+1]={hor,vec}
+                end
+            end
+        end
+    end
+end
 MOVE_DISPLAY_RAMPAGE_ADJACENT={{1,0}, {0,-1}, {-1,-1}, {-1,0}, {0,1}, {1,1}, {1,0}, {0,-1}}
 MOVE_DISPLAY_RAMPAGE_WALL={{0.5,-0.5}, {-0.5,-1}, {-1,-0.5}, {-0.5,0.5}, {0.5,1}, {1,0.5}, {0.5,-0.5}}
 MOVE_DISPLAY_CITY_GUIDS=nil
@@ -6904,6 +6968,9 @@ function renderMoveDisplay(id)
 	end
 
 		local dungeonLordsTunnelNetwork=moveDisplayDungeonLordsTunnelNetwork(hexMap,playAreaObjects,startTilePos)
+        local movementEffects=resourceCardsCurrentMovementEffects()
+        local jumpTwoSpaces=movementEffects~=nil and movementEffects.jumpTwoSpaces==true
+        local ignoreRampagers=movementEffects~=nil and movementEffects.ignoreRampagers==true
 
 		--Fractured Lands: index every revealed safe no-site destination by its printed terrain.
 		--Teleporting costs 1 Move, ignores intervening spaces/walls/rampagers, and can be mixed with normal movement repeatedly.
@@ -7079,8 +7146,11 @@ function renderMoveDisplay(id)
 					local destinationHex=hexMap~=nil and hexMap[tostring(hor)]~=nil and hexMap[tostring(hor)][tostring(vec)] or nil
 					if destinationHex~=nil then
 						local hexCost=999
-						if destinationHex.hexType~=nil and gStates.moveCost[destinationHex.hexType]~=nil then
-                            hexCost=resourceCardsEffectiveTerrainCost(destinationHex.hexType)+moveSpent
+						if destinationHex.hexType~=nil then
+                            -- A claimed Skill may make normally impassable Lakes
+                            -- and Mountains traversable without changing moveCost.
+                            local terrainCost=resourceCardsEffectiveTerrainCost(destinationHex.hexType)
+                            if terrainCost<900 then hexCost=terrainCost+moveSpent end
                         end
 						local wallhor=hexDetail.coord[1]+(vector[1]/2)
 						local wallvec=hexDetail.coord[2]+(vector[2]/2)
@@ -7093,7 +7163,8 @@ function renderMoveDisplay(id)
 							local rampageWallVec={tostring(hexDetail.coord[2]+MOVE_DISPLAY_RAMPAGE_WALL[currentVector][2]), tostring(hexDetail.coord[2]+MOVE_DISPLAY_RAMPAGE_WALL[currentVector+1][2])}
 							local normalRampager=(hexMap[rampageHor[1]]~=nil and hexMap[rampageHor[1]][rampageVec[1]]~=nil and hexMap[rampageHor[1]][rampageVec[1]].hexType=="rampager" and (hexMap[rampageWallHor[1]]==nil or hexMap[rampageWallHor[1]][rampageWallVec[1]]==nil)) or
 								(hexMap[rampageHor[2]]~=nil and hexMap[rampageHor[2]][rampageVec[2]]~=nil and hexMap[rampageHor[2]][rampageVec[2]].hexType=="rampager" and (hexMap[rampageWallHor[2]]==nil or hexMap[rampageWallHor[2]][rampageWallVec[2]]==nil))
-							local rampageNeighbor=normalRampager or ambusherProvoked(hexDetail.coord[1],hexDetail.coord[2],hor,vec)
+							local rampageNeighbor=not ignoreRampagers and
+                                (normalRampager or ambusherProvoked(hexDetail.coord[1],hexDetail.coord[2],hor,vec))
 							local fortifiedDestination=destinationHex.hexType~="explore" and destinationHex.fortified~=nil and destinationHex.fortified~="shield"
 							local combatDestination=rampageNeighbor or destinationHex.dragonLair==true or fortifiedDestination
 							local predecessor={hor=hexDetail.coord[1],vec=hexDetail.coord[2],state="safe",teleport=false}
@@ -7107,7 +7178,34 @@ function renderMoveDisplay(id)
 					end
 				end
 
-				--Dungeon Lords underground edges. Another conquered Dungeon/Tomb costs 2 Move plus the
+				-- Space Bending: exactly two hexes away is treated as adjacent.
+                -- Only the destination terrain costs Move. The intervening space
+                -- and its walls are ignored; exploration targets stay unchanged.
+                if jumpTwoSpaces then
+                    for _,offset in ipairs(MOVE_DISPLAY_TWO_HEX_VECTORS) do
+                        local hor=hexDetail.coord[1]+offset[1]
+                        local vec=hexDetail.coord[2]+offset[2]
+                        local row=hexMap[tostring(hor)]
+                        local target=row~=nil and row[tostring(vec)] or nil
+                        if target~=nil and target.hexType~="explore" and target.hexType~=nil
+                            and resourceCardsEffectiveTerrainCost(target.hexType)<900 then
+                            local hexCost=moveSpent+resourceCardsEffectiveTerrainCost(target.hexType)
+                            if hexCost<=99 and hexCost<moveValue+searchLimit then
+                                local fortified=target.fortified~=nil and target.fortified~="shield"
+                                local combat=target.dragonLair==true or fortified
+                                local predecessor={hor=hexDetail.coord[1],vec=hexDetail.coord[2],
+                                    state="safe",teleport=false,leap=true}
+                                if combat then
+                                    recordMoveDestination(hor,vec,"combat",hexCost,predecessor,false)
+                                else
+                                    recordMoveDestination(hor,vec,"safe",hexCost,predecessor,true)
+                                end
+                            end
+                        end
+                    end
+                end
+
+                --Dungeon Lords underground edges. Another conquered Dungeon/Tomb costs 2 Move plus the
 				--shortest revealed-space distance that avoids Lakes and Swamps; tunnel travel never provokes Rampagers.
 				local tunnelSourceKey=tostring(hexDetail.coord[1])..":"..tostring(hexDetail.coord[2])
 				for _,tunnel in ipairs(dungeonLordsTunnelNetwork[tunnelSourceKey] or {}) do
@@ -7149,7 +7247,7 @@ function renderMoveDisplay(id)
 		local function routeWorldPosition(hor, vec)
 			return runtimeMapAxialToWorld(vec,hor,startTilePos,1.22)
 		end
-		local function addRouteSegment(fromHor, fromVec, toHor, toVec, teleport, tunnelPath)
+		local function addRouteSegment(fromHor, fromVec, toHor, toVec, teleport, tunnelPath, leap)
 			local function addOne(aHor,aVec,bHor,bVec,mode)
 				local key=tostring(aHor)..":"..tostring(aVec)..">"..tostring(bHor)..":"..tostring(bVec)..":"..tostring(mode)
 				if routeSegmentSeen[key]==true then return end
@@ -7157,13 +7255,15 @@ function renderMoveDisplay(id)
 				local color={0.50,0.50,0.50}
 				local thickness=0.07
 				if mode=="teleport" then color={0.20,0.70,1.00} thickness=0.12
-				elseif mode=="tunnel" then color={0.72,0.45,1.00} end
+                elseif mode=="leap" then color={0.28,0.86,0.57} thickness=0.11
+                elseif mode=="tunnel" then color={0.72,0.45,1.00} end
 				routeLines[#routeLines+1]={points={routeWorldPosition(aHor,aVec),routeWorldPosition(bHor,bVec)},color=color,thickness=thickness,rotation={0,0,0}}
 			end
 			if tunnelPath~=nil and #tunnelPath>1 then
 				for i=1,#tunnelPath-1 do addOne(tunnelPath[i].hor,tunnelPath[i].vec,tunnelPath[i+1].hor,tunnelPath[i+1].vec,"tunnel") end
 			else
-				addOne(fromHor,fromVec,toHor,toVec,teleport==true and "teleport" or "normal")
+				addOne(fromHor,fromVec,toHor,toVec,leap==true and "leap"
+                    or (teleport==true and "teleport" or "normal"))
 			end
 		end
 		local function queueRouteState(hor, vec, state)
@@ -7187,7 +7287,8 @@ function renderMoveDisplay(id)
 				local routeMove=routeRow~=nil and routeRow[tostring(current.vec)] or nil
 				local previous=routeMove~=nil and routeMove[current.state.."Prev"] or nil
 				if previous~=nil then
-					addRouteSegment(previous.hor, previous.vec, current.hor, current.vec, previous.teleport, previous.tunnelPath)
+					addRouteSegment(previous.hor, previous.vec, current.hor, current.vec,
+                        previous.teleport, previous.tunnelPath, previous.leap)
 					--Only a safe state used by a retained onward route deserves an alternate slash value.
 					local sourceRow=moveMap[tostring(previous.hor)]
 					local sourceMove=sourceRow~=nil and sourceRow[tostring(previous.vec)] or nil
@@ -11142,6 +11243,9 @@ function displayScore(player, mouseButton, id)
 		end
 		--Figure out who leads and assisted in cities
 		refreshCityControlAndScoring()
+		--Share the conquest objective's effective count; defeatedCities.amount only
+		--contains physical City garrisons and excludes the Dragon replacing one.
+		local conqueredCities=conqueredCityObjectiveCount()
 		local scoringGroups={}
 		local scoringGroupByKey={}
 		local teamScoring=false
@@ -11826,15 +11930,15 @@ function displayScore(player, mouseButton, id)
                                     totalScore=totalScore+bonus
                                 end
                             end
-                            if turnOrder[a].score.CityLead>0 and gStates.defeatedCities.amount>0 then
+                            if turnOrder[a].score.CityLead>0 and conqueredCities>0 then
 								assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.CityLead, "{en} Conquered City(s): +{it} Città Conquistate: +{ru} Захваченный Город: +{zh-tw}个城市已征服: +{zh-cn}个城市已征服: +{ko} 정복한 도시: +{es} Ciudades Conquistadas: +{fr} Villes Conquises: +{pt-br} Cidades Conquistadas: +{de} Eroberte Stadt(en): +", (turnOrder[a].score.CityLead*7)})
 								totalScore=totalScore+(turnOrder[a].score.CityLead*7)
 							end
-							if turnOrder[a].score.CityAssist>0 and gStates.defeatedCities.amount>0 then
+							if turnOrder[a].score.CityAssist>0 and conqueredCities>0 then
 								assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.CityAssist, "{en} Assisted City(s): +{it} Città Assistite: +{ru} Помощь с Городом: +{zh-tw}个城市已援助: +{zh-cn}个城市已援助: +{ko} 도와준 도시: +{es} Ciudades Asistidas: +{fr} Villes Aidées: +{pt-br} Cidades Assistidas: +{de} Unterstützte Stadt(en): +", (turnOrder[a].score.CityAssist*4)})
 								totalScore=totalScore+(turnOrder[a].score.CityAssist*4)
 							end
-							if turnOrder[a].score.gCityLead>0 and gStates.defeatedCities.amount>0 then
+							if turnOrder[a].score.gCityLead>0 and conqueredCities>0 then
 								assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Greatest City Leader: +{it}Grande Capo Cittadino: +{ru}Великий завоеватель городов: +{zh-tw}至强城市领袖： +{zh-cn}至强城市领袖： +{ko}위대한 도시 정복자: +{es}Mayor Líder de la Ciudad: +{fr}Plus Grand Chef de la Ville: +{pt-br}Maior Líder de Cidade: +{de}Größter Stadtführer: +", turnOrder[a].score.gCityLead})
 								totalScore=totalScore+turnOrder[a].score.gCityLead
 							end
@@ -12101,21 +12205,21 @@ function displayScore(player, mouseButton, id)
 					end
 
 					--City Coop Score. Fractured Lands explicitly does not use City scoring.
-					if fracturedLandsNoCityScore~=true and (gStates.defeatedCities.amount>0 or gStates.gameScenario=="The Gauntlet") then
+					if fracturedLandsNoCityScore~=true and (conqueredCities>0 or gStates.gameScenario=="The Gauntlet") then
 						assembledText="" lineFeed=0
 						local cityValue=10
 						if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" then cityValue=20 end
 						if gStates.gameScenario=="Volkare's Quest" then cityValue=5 end
 						if gStates.gameScenario~="The Gauntlet" then
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{gStates.defeatedCities.amount, "{en} Conquered City(s): +{it} Città Conquistate: +{ru} Захваченный Город: +{zh-tw}个城市已征服: +{zh-cn}个城市已征服: +{ko} 정복한 도시: +{es} Ciudades Conquistadas: +{fr} Villes Conquises: +{pt-br} Cidades Conquistadas: +{de} Eroberte Stadt(en): +", (gStates.defeatedCities.amount*cityValue)})
-							coopScore=coopScore+(gStates.defeatedCities.amount*cityValue)
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{conqueredCities, "{en} Conquered City(s): +{it} Città Conquistate: +{ru} Захваченный Город: +{zh-tw}个城市已征服: +{zh-cn}个城市已征服: +{ko} 정복한 도시: +{es} Ciudades Conquistadas: +{fr} Villes Conquises: +{pt-br} Cidades Conquistadas: +{de} Eroberte Stadt(en): +", (conqueredCities*cityValue)})
+							coopScore=coopScore+(conqueredCities*cityValue)
 						end
 						if gStates.gameScenario~="Volkare's Return" and gStates.gameScenario~="Volkare's Return Blitz" and gStates.gameScenario~="Volkare's Quest" then
 							if gStates.playersRef~=5 and gStates.allLeaderCheck==true then
 								assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Each Player is a Leader of a City: +10{it}Ogni Giocatore è Capo di una Città: +10{ru}Каждый игрок владеет Городом: +10{zh-tw}每个玩家都是一个城市的领袖: +10{zh-cn}每个玩家都是一个城市的领袖: +10{ko}각 플레이어가 도시 지도자: +10{es}Cada Jugador es un Líder de una Ciudad: +10{fr}Chaque Joueur est un Chef de Ville: +10{pt-br}Cada jogador é um líder de uma cidade: +10{de}Jeder Spieler ist ein Anführer einer Stadt: +10"})
 								coopScore=coopScore+10
 							end
-							if gStates.defeatedCities.amount==gStates.cityTiles then--+gStates.megapolis
+							if conqueredCities==gStates.cityTiles then--+gStates.megapolis
 								assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}All Cities are Conquered: +15{it}Tutte le Città Conquistate: +15{ru}Все города захвачены: +15{zh-tw}征服了所有城市: +15{zh-cn}征服了所有城市: +15{ko}모든 도시 정복됨: +15{es}Todas las Ciudades son Conquistadas: +15{fr}Toutes les Villes Sont Conquises: +15{pt-br}Todas Cidades Conquistadas: +15{de}Alle Städte sind erobert: +15"})
 								coopScore=coopScore+15
 							end
@@ -17018,7 +17122,7 @@ againstDragonAttendanceAuthorized=function(player,pending)
 	local color=type(player)=="string" and player or (player~=nil and player.color or nil)
 	local allowed=positionToColor(pending.playerIndex)
 	if color=="Black" or color==allowed then return true end
-	if color~=nil then broadcastToColor(joinLang({translateWord[details.mage] or tostring(details.mage),"{en} (or a player seated Black) must choose how to attend this Dragon attack.{it} (o un giocatore seduto al Nero) deve scegliere come affrontare questo attacco del Drago.{ru} (или игрок на чёрном месте) должен выбрать, как участвовать в атаке Дракона.{zh-tw}（或坐在黑色席位的玩家）必須選擇如何參與此巨龍攻擊。{zh-cn}（或坐在黑色席位的玩家）必须选择如何参与此巨龙攻击。{ko} (또는 검은색 자리에 앉은 플레이어)이 이 드래곤 공격에 어떻게 참가할지 선택해야 합니다.{es} (o un jugador sentado en Negro) debe elegir cómo participar en este ataque del Dragón.{fr} (ou un joueur assis en Noir) doit choisir comment participer à cette attaque du Dragon.{pt-br} (ou um jogador sentado no Preto) deve escolher como participar deste ataque do Dragão.{de} (oder ein Spieler auf Schwarz) muss wählen, wie er an diesem Drachenangriff teilnimmt."}),color,warningColor) end
+	if color~=nil then safeBroadcastToColor(joinLang({translateWord[details.mage] or tostring(details.mage),"{en} (or a player seated Black) must choose how to attend this Dragon attack.{it} (o un giocatore seduto al Nero) deve scegliere come affrontare questo attacco del Drago.{ru} (или игрок на чёрном месте) должен выбрать, как участвовать в атаке Дракона.{zh-tw}（或坐在黑色席位的玩家）必須選擇如何參與此巨龍攻擊。{zh-cn}（或坐在黑色席位的玩家）必须选择如何参与此巨龙攻击。{ko} (또는 검은색 자리에 앉은 플레이어)이 이 드래곤 공격에 어떻게 참가할지 선택해야 합니다.{es} (o un jugador sentado en Negro) debe elegir cómo participar en este ataque del Dragón.{fr} (ou un joueur assis en Noir) doit choisir comment participer à cette attaque du Dragon.{pt-br} (ou um jogador sentado no Preto) deve escolher como participar deste ataque do Dragão.{de} (oder ein Spieler auf Schwarz) muss wählen, wie er an diesem Drachenangriff teilnimmt."}),color,warningColor) end
 	return false
 end
 
@@ -17254,7 +17358,7 @@ function againstDragonAttendFull(player,mouseButton,id)
 	if againstDragonFullAttendAllowed(pending.playerIndex)~=true then
 		againstDragonAttendanceUIRefresh()
 		local color=player~=nil and player.color or positionToColor(pending.playerIndex)
-		if color~=nil then broadcastToColor("{en}Fully Defend is unavailable because this Mage Knight's Round Order token is already face down.{it}Difesa Completa non disponibile: il segnalino Ordine di Turno di questo Mage Knight è già coperto.{ru}Полная защита недоступна, потому что жетон порядка хода этого Рыцаря-мага уже лежит лицом вниз.{zh-tw}無法完全防禦，因為此魔法騎士的回合順位標記已經翻面。{zh-cn}无法完全防御，因为此魔法骑士的回合顺序标记已经翻面。{ko}이 마법 기사의 라운드 순서 토큰이 이미 뒷면이어서 완전 방어를 사용할 수 없습니다.{es}Defender por Completo no está disponible porque la ficha de Orden de Ronda de este Caballero Mago ya está boca abajo.{fr}La Défense Complète est indisponible car le jeton d’Ordre de Manche de ce Chevalier-Mage est déjà face cachée.{pt-br}Defender por Completo não está disponível porque a ficha de Ordem da Rodada deste Cavaleiro-Mago já está virada para baixo.{de}Vollständige Verteidigung ist nicht möglich, da der Rundenreihenfolgemarker dieses Magieritters bereits verdeckt liegt.",color,warningColor) end
+		if color~=nil then safeBroadcastToColor("{en}Fully Defend is unavailable because this Mage Knight's Round Order token is already face down.{it}Difesa Completa non disponibile: il segnalino Ordine di Turno di questo Mage Knight è già coperto.{ru}Полная защита недоступна, потому что жетон порядка хода этого Рыцаря-мага уже лежит лицом вниз.{zh-tw}無法完全防禦，因為此魔法騎士的回合順位標記已經翻面。{zh-cn}无法完全防御，因为此魔法骑士的回合顺序标记已经翻面。{ko}이 마법 기사의 라운드 순서 토큰이 이미 뒷면이어서 완전 방어를 사용할 수 없습니다.{es}Defender por Completo no está disponible porque la ficha de Orden de Ronda de este Caballero Mago ya está boca abajo.{fr}La Défense Complète est indisponible car le jeton d’Ordre de Manche de ce Chevalier-Mage est déjà face cachée.{pt-br}Defender por Completo não está disponível porque a ficha de Ordem da Rodada deste Cavaleiro-Mago já está virada para baixo.{de}Vollständige Verteidigung ist nicht möglich, da der Rundenreihenfolgemarker dieses Magieritters bereits verdeckt liegt.",color,warningColor) end
 		return
 	end
 	local playerIndex=pending.playerIndex
@@ -18859,7 +18963,7 @@ function beginMineCrystalClaim(playerIndex, messageColor)
 	local available={}
 	for _, color in ipairs(data.colors) do if mineCrystalCount(playerIndex, color)<3 then available[#available+1]=color end end
 	if #available==0 then
-		if messageColor~=nil then broadcastToColor("{en}No crystal gained from the Mine: your Inventory already has 3 of every available color.{it}Nessun cristallo ottenuto dalla Miniera: hai già 3 cristalli di ogni colore disponibile nell'Inventario.{ru}Кристалл из Шахты не получен: в вашем Инвентаре уже по 3 кристалла каждого доступного цвета.{zh-tw}未從礦場獲得水晶：你的庫存中每種可用顏色都已有 3 顆水晶。{zh-cn}未从矿场获得水晶：你的库存中每种可用颜色都已有 3 颗水晶。{ko}광산에서 크리스털을 얻지 못했습니다. 인벤토리에 사용 가능한 모든 색의 크리스털이 이미 3개씩 있습니다.{es}No se obtuvo cristal de la Mina: tu Inventario ya tiene 3 de cada color disponible.{fr}Aucun cristal gagné de la Mine : votre Inventaire contient déjà 3 cristaux de chaque couleur disponible.{pt-br}Nenhum cristal foi ganho da Mina: seu Inventário já tem 3 de cada cor disponível.{de}Kein Kristall aus der Mine erhalten: Dein Inventar enthält bereits 3 Kristalle jeder verfügbaren Farbe.", messageColor, warningColor)
+		if messageColor~=nil then safeBroadcastToColor("{en}No crystal gained from the Mine: your Inventory already has 3 of every available color.{it}Nessun cristallo ottenuto dalla Miniera: hai già 3 cristalli di ogni colore disponibile nell'Inventario.{ru}Кристалл из Шахты не получен: в вашем Инвентаре уже по 3 кристалла каждого доступного цвета.{zh-tw}未從礦場獲得水晶：你的庫存中每種可用顏色都已有 3 顆水晶。{zh-cn}未从矿场获得水晶：你的库存中每种可用颜色都已有 3 颗水晶。{ko}광산에서 크리스털을 얻지 못했습니다. 인벤토리에 사용 가능한 모든 색의 크리스털이 이미 3개씩 있습니다.{es}No se obtuvo cristal de la Mina: tu Inventario ya tiene 3 de cada color disponible.{fr}Aucun cristal gagné de la Mine : votre Inventaire contient déjà 3 cristaux de chaque couleur disponible.{pt-br}Nenhum cristal foi ganho da Mina: seu Inventário já tem 3 de cada cor disponível.{de}Kein Kristall aus der Mine erhalten: Dein Inventar enthält bereits 3 Kristalle jeder verfügbaren Farbe.", messageColor, warningColor)
 		else broadcastToAll("{en}No crystal gained from the Mine: your Inventory already has 3 of every available color.{it}Nessun cristallo ottenuto dalla Miniera: hai già 3 cristalli di ogni colore disponibile nell'Inventario.{ru}Кристалл из Шахты не получен: в вашем Инвентаре уже по 3 кристалла каждого доступного цвета.{zh-tw}未從礦場獲得水晶：你的庫存中每種可用顏色都已有 3 顆水晶。{zh-cn}未从矿场获得水晶：你的库存中每种可用颜色都已有 3 颗水晶。{ko}광산에서 크리스털을 얻지 못했습니다. 인벤토리에 사용 가능한 모든 색의 크리스털이 이미 3개씩 있습니다.{es}No se obtuvo cristal de la Mina: tu Inventario ya tiene 3 de cada color disponible.{fr}Aucun cristal gagné de la Mine : votre Inventaire contient déjà 3 cristaux de chaque couleur disponible.{pt-br}Nenhum cristal foi ganho da Mina: seu Inventário já tem 3 de cada cor disponível.{de}Kein Kristall aus der Mine erhalten: Dein Inventar enthält bereits 3 Kristalle jeder verfügbaren Farbe.", warningColor) end
 		return false
 	end
@@ -18876,25 +18980,25 @@ function mineClaimChoice(player, mouseButton, id)
 	local claimantColor=positionToColor(pending.playerIndex)
 	local sourceName=pending.source=="Quest" and "Quest" or "Mine"
 	if player.color~=claimantColor and player.color~="Black" then
-		broadcastToColor(joinLang({"{en}Only the claiming player can choose this {it}Solo il giocatore che lo riceve può scegliere questo {ru}Только получающий игрок может выбрать этот кристалл из {zh-tw}只有領取的玩家可以選擇這顆來自 {zh-cn}只有领取的玩家可以选择这颗来自 {ko}이 크리스털은 획득하는 플레이어만 선택할 수 있습니다: {es}Solo el jugador que reclama puede elegir este cristal de {fr}Seul le joueur qui réclame peut choisir ce cristal de {pt-br}Apenas o jogador que está recebendo pode escolher este cristal de {de}Nur der beanspruchende Spieler kann diesen Kristall aus ",sourceName,"."}), player.color, {1,0.3,0.3})
+		safeBroadcastToColor(joinLang({"{en}Only the claiming player can choose this {it}Solo il giocatore che lo riceve può scegliere questo {ru}Только получающий игрок может выбрать этот кристалл из {zh-tw}只有領取的玩家可以選擇這顆來自 {zh-cn}只有领取的玩家可以选择这颗来自 {ko}이 크리스털은 획득하는 플레이어만 선택할 수 있습니다: {es}Solo el jugador que reclama puede elegir este cristal de {fr}Seul le joueur qui réclame peut choisir ce cristal de {pt-br}Apenas o jogador que está recebendo pode escolher este cristal de {de}Nur der beanspruchende Spieler kann diesen Kristall aus ",sourceName,"."}), player.color, {1,0.3,0.3})
 		return
 	end
 	local index=tonumber(id:match("(%d+)$"))
 	local color=index~=nil and pending.colors[index] or nil
 	if color==nil then return end
 	if mineCrystalCount(pending.playerIndex, color)>=3 then
-		broadcastToColor(joinLang({"{en}You already have 3 {it}Hai già 3 cristalli {ru}В вашем Инвентаре уже есть 3 {zh-tw}你的庫存中已有 3 顆 {zh-cn}你的库存中已有 3 颗 {ko}인벤토리에 이미 {es}Ya tienes 3 cristales {fr}Vous avez déjà 3 cristaux {pt-br}Você já tem 3 cristais {de}Du hast bereits 3 ",translateWord[color] or color,"{en} crystals in your Inventory.{it} nell'Inventario.{ru} кристалла.{zh-tw} 水晶。{zh-cn} 水晶。{ko} 크리스털이 3개 있습니다.{es} en tu Inventario.{fr} dans votre Inventaire.{pt-br} no seu Inventário.{de}-Kristalle in deinem Inventar."}), player.color, warningColor)
+		safeBroadcastToColor(joinLang({"{en}You already have 3 {it}Hai già 3 cristalli {ru}В вашем Инвентаре уже есть 3 {zh-tw}你的庫存中已有 3 顆 {zh-cn}你的库存中已有 3 颗 {ko}인벤토리에 이미 {es}Ya tienes 3 cristales {fr}Vous avez déjà 3 cristaux {pt-br}Você já tem 3 cristais {de}Du hast bereits 3 ",translateWord[color] or color,"{en} crystals in your Inventory.{it} nell'Inventario.{ru} кристалла.{zh-tw} 水晶。{zh-cn} 水晶。{ko} 크리스털이 3개 있습니다.{es} en tu Inventario.{fr} dans votre Inventaire.{pt-br} no seu Inventário.{de}-Kristalle in deinem Inventar."}), player.color, warningColor)
 		return
 	end
 	local bagKey=mineCrystalBagKey[color]
 	local bag=bagKey~=nil and getObjectFromGUID(GUID.bag.mana[bagKey]) or nil
 	if bag==nil or bag.getQuantity()==0 then
-		broadcastToColor(joinLang({"{en}No {it}Nessun {ru}В запасе нет {zh-tw}供應區沒有可用的 {zh-cn}供应区没有可用的 {ko}공급처에 사용할 수 있는 {es}No hay ningún cristal {fr}Aucun cristal {pt-br}Não há cristal {de}Im Vorrat ist kein ",translateWord[color] or color,"{en} crystal is available in the supply.{it} disponibile nella riserva.{ru} кристалла.{zh-tw} 水晶。{zh-cn} 水晶。{ko} 크리스털이 없습니다.{es} disponible en la reserva.{fr} disponible dans la réserve.{pt-br} disponível na reserva.{de}-Kristall verfügbar."}), player.color, {1,0.3,0.3})
+		safeBroadcastToColor(joinLang({"{en}No {it}Nessun {ru}В запасе нет {zh-tw}供應區沒有可用的 {zh-cn}供应区没有可用的 {ko}공급처에 사용할 수 있는 {es}No hay ningún cristal {fr}Aucun cristal {pt-br}Não há cristal {de}Im Vorrat ist kein ",translateWord[color] or color,"{en} crystal is available in the supply.{it} disponibile nella riserva.{ru} кристалла.{zh-tw} 水晶。{zh-cn} 水晶。{ko} 크리스털이 없습니다.{es} disponible en la reserva.{fr} disponible dans la réserve.{pt-br} disponível na reserva.{de}-Kristall verfügbar."}), player.color, {1,0.3,0.3})
 		return
 	end
 	local questCardGUID=pending.questCardGUID
 	takeManaCrystal(bag,{position=mineInventoryPosition(pending.playerIndex, color),smooth=false})
-	broadcastToColor(joinLang({"{en}Claimed a {it}Ottenuto un cristallo {ru}Получен {zh-tw}已領取 {zh-cn}已领取 {ko}획득: {es}Se reclamó un Cristal {fr}Cristal {pt-br}Recebeu um Cristal {de}Beansprucht: ",translateWord[color] or color,"{en} Crystal from the {it} da {ru} кристалл из {zh-tw} 水晶，來源：{zh-cn} 水晶，来源：{ko} 크리스털, 출처: {es} de {fr} réclamé depuis {pt-br} de {de}-Kristall aus ",sourceName,"."}), player.color, {1,1,0.5})
+	safeBroadcastToColor(joinLang({"{en}Claimed a {it}Ottenuto un cristallo {ru}Получен {zh-tw}已領取 {zh-cn}已领取 {ko}획득: {es}Se reclamó un Cristal {fr}Cristal {pt-br}Recebeu um Cristal {de}Beansprucht: ",translateWord[color] or color,"{en} Crystal from the {it} da {ru} кристалл из {zh-tw} 水晶，來源：{zh-cn} 水晶，来源：{ko} 크리스털, 출처: {es} de {fr} réclamé depuis {pt-br} de {de}-Kristall aus ",sourceName,"."}), player.color, {1,1,0.5})
 	gStates.mineClaimPending=nil
 	UI.hide("MineClaimChoice")
 	if questCardGUID~=nil and getObjectFromGUID(questCardGUID)~=nil then apocalypseQuestUpdateProgressButtons(getObjectFromGUID(questCardGUID)) end
@@ -19669,13 +19773,13 @@ local function turnRewardClaimGate(player,rewindReady,rewardSoftLock,rewardSeat)
 		else
 			questGateMessage="{en}Complete or Progress the Quest first.{it}Prima Completa o fai avanzare la Missione.{ru}Сначала завершите или продвиньте Задание.{zh-tw}請先完成或推進任務。{zh-cn}请先完成或推进任务。{ko}먼저 퀘스트를 완료하거나 진행하세요.{es}Completa o progresa la Misión primero.{fr}Terminez ou faites d’abord progresser la Quête.{pt-br}Conclua ou avance a Missão primeiro.{de}Schließe die Quest zuerst ab oder setze sie fort."
 		end
-		broadcastToColor(questGateMessage,player.color,warningColor)
+		safeBroadcastToColor(questGateMessage,player.color,warningColor)
 		if rewindReady==true then rewindTransactionFinish("End turn") end
 		return true
 	end
 	if rewardSoftLock==true and gStates.preEndTurn==true and apocalypseIsHereActive~=nil and apocalypseIsHereActive()==true and gStates.apocalypseHereForcedRevealPending==true then
 		cameraControl(player,"-1","mapView")
-		broadcastToColor("{en}Reveal the overdue Map tile(s) before claiming rewards.{it}Rivela le tessere Mappa in ritardo prima di prendere le ricompense.{ru}Откройте просроченные тайлы карты перед получением наград.{zh-tw}領取獎勵前，先揭示逾期的地圖板塊。{zh-cn}领取奖励前，先揭示逾期的地图板块。{ko}보상을 받기 전에 지연된 지도 타일을 공개하세요.{es}Revela las losetas de Mapa pendientes antes de reclamar recompensas.{fr}Révélez les tuiles Carte en retard avant de réclamer les récompenses.{pt-br}Revele as peças de Mapa atrasadas antes de receber as recompensas.{de}Decke die überfälligen Kartenteile auf, bevor du Belohnungen beanspruchst.",player.color,warningColor)
+		safeBroadcastToColor("{en}Reveal the overdue Map tile(s) before claiming rewards.{it}Rivela le tessere Mappa in ritardo prima di prendere le ricompense.{ru}Откройте просроченные тайлы карты перед получением наград.{zh-tw}領取獎勵前，先揭示逾期的地圖板塊。{zh-cn}领取奖励前，先揭示逾期的地图板块。{ko}보상을 받기 전에 지연된 지도 타일을 공개하세요.{es}Revela las losetas de Mapa pendientes antes de reclamar recompensas.{fr}Révélez les tuiles Carte en retard avant de réclamer les récompenses.{pt-br}Revele as peças de Mapa atrasadas antes de receber as recompensas.{de}Decke die überfälligen Kartenteile auf, bevor du Belohnungen beanspruchst.",player.color,warningColor)
 		if rewindReady==true then rewindTransactionFinish("End turn") end
 		return true
 	end
@@ -19687,13 +19791,13 @@ local function turnRewardClaimGate(player,rewindReady,rewardSoftLock,rewardSeat)
 		return true
 	end
 	if rewardSoftLock==true and gStates.mineClaimPending~=nil and (gStates.mineClaimPending.playerIndex==nil or gStates.mineClaimPending.playerIndex==gStates.turnNumber) then
-		broadcastToColor("{en}Resolve the pending crystal choice before proceeding to the next player.{it}Risolvi la scelta del cristallo prima di passare al prossimo giocatore.{ru}Сначала выберите ожидающий кристалл, прежде чем переходить к следующему игроку.{zh-tw}前往下一位玩家前，先完成尚未處理的水晶選擇。{zh-cn}前往下一位玩家前，先完成尚未处理的水晶选择。{ko}다음 플레이어로 넘어가기 전에 대기 중인 크리스털 선택을 해결하십시오.{es}Resuelve la elección de cristal pendiente antes de pasar al siguiente jugador.{fr}Résolvez le choix de cristal en attente avant de passer au joueur suivant.{pt-br}Resolva a escolha de cristal pendente antes de passar para o próximo jogador.{de}Schließe die ausstehende Kristallauswahl ab, bevor du zum nächsten Spieler wechselst.", player.color, warningColor)
+		safeBroadcastToColor("{en}Resolve the pending crystal choice before proceeding to the next player.{it}Risolvi la scelta del cristallo prima di passare al prossimo giocatore.{ru}Сначала выберите ожидающий кристалл, прежде чем переходить к следующему игроку.{zh-tw}前往下一位玩家前，先完成尚未處理的水晶選擇。{zh-cn}前往下一位玩家前，先完成尚未处理的水晶选择。{ko}다음 플레이어로 넘어가기 전에 대기 중인 크리스털 선택을 해결하십시오.{es}Resuelve la elección de cristal pendiente antes de pasar al siguiente jugador.{fr}Résolvez le choix de cristal en attente avant de passer au joueur suivant.{pt-br}Resolva a escolha de cristal pendente antes de passar para o próximo jogador.{de}Schließe die ausstehende Kristallauswahl ab, bevor du zum nächsten Spieler wechselst.", player.color, warningColor)
 		if rewindReady==true then rewindTransactionFinish("End turn") end
 		return true
 	end
 	if rewardSoftLock==true and rewardRetreatRequired~=nil and rewardRetreatRequired(gStates.turnNumber)==true then
 		cameraControl(player,"-1","mapView")
-		broadcastToColor("{en}Retreat to a safe space before claiming rewards.{it}Ritirati in uno spazio sicuro prima di prendere le ricompense.{ru}Отступите на безопасное поле перед получением наград.{zh-tw}領取獎勵前先撤退到安全空間。{zh-cn}领取奖励前先撤退到安全空间。{ko}보상을 받기 전에 안전한 칸으로 후퇴하십시오.{es}Retírate a un espacio seguro antes de reclamar recompensas.{fr}Retirez-vous vers un espace sûr avant de réclamer les récompenses.{pt-br}Recue para um espaço seguro antes de receber as recompensas.{de}Ziehe dich auf ein sicheres Feld zurück, bevor du Belohnungen beanspruchst.",player.color,warningColor)
+		safeBroadcastToColor("{en}Retreat to a safe space before claiming rewards.{it}Ritirati in uno spazio sicuro prima di prendere le ricompense.{ru}Отступите на безопасное поле перед получением наград.{zh-tw}領取獎勵前先撤退到安全空間。{zh-cn}领取奖励前先撤退到安全空间。{ko}보상을 받기 전에 안전한 칸으로 후퇴하십시오.{es}Retírate a un espacio seguro antes de reclamar recompensas.{fr}Retirez-vous vers un espace sûr avant de réclamer les récompenses.{pt-br}Recue para um espaço seguro antes de receber as recompensas.{de}Ziehe dich auf ein sicheres Feld zurück, bevor du Belohnungen beanspruchst.",player.color,warningColor)
 		if rewindReady==true then rewindTransactionFinish("End turn") end
 		return true
 	end
@@ -19831,6 +19935,7 @@ local function turnAdvanceCompletedTurnLifecycle()
 end
 
 local function turnFinishCompletedTurnUI()
+	resourceUnitsResetTurn()
 	resetResourceTrackerState()
 	refreshResourceTracker()
 	if gStates.coopAssaultPhase~="combat" then claimButtonRefresh() end
@@ -20117,11 +20222,11 @@ end
 --record the player who called end of round
 function __PreEndRound_raw(player, mouseButton, id)
 	if gStates.apocalypseHereHorsemenTurnActive==true then
-		if player~=nil and player.color~=nil then broadcastToColor("{en}Finish the Horsemen turn first.{it}Termina prima il turno dei Cavalieri.{ru}Сначала завершите ход Всадников.{zh-tw}請先完成騎士的回合。{zh-cn}请先完成骑士的回合。{ko}먼저 기사들의 턴을 끝내십시오.{es}Termina primero el turno de los Jinetes.{fr}Terminez d’abord le tour des Cavaliers.{pt-br}Termine primeiro o turno dos Cavaleiros.{de}Beende zuerst den Zug der Reiter.",player.color,warningColor) end
+		if player~=nil and player.color~=nil then safeBroadcastToColor("{en}Finish the Horsemen turn first.{it}Termina prima il turno dei Cavalieri.{ru}Сначала завершите ход Всадников.{zh-tw}請先完成騎士的回合。{zh-cn}请先完成骑士的回合。{ko}먼저 기사들의 턴을 끝내십시오.{es}Termina primero el turno de los Jinetes.{fr}Terminez d’abord le tour des Cavaliers.{pt-br}Termine primeiro o turno dos Cavaleiros.{de}Beende zuerst den Zug der Reiter.",player.color,warningColor) end
 		return
 	end
 	if gStates.apocalypseDragonTurnActive==true then
-		if player~=nil and player.color~=nil then broadcastToColor("{en}Finish the Apocalypse Dragon turn first.{it}Termina prima il turno del Drago dell'Apocalisse.{ru}Сначала завершите ход Дракона Апокалипсиса.{zh-tw}請先完成末日巨龍的回合。{zh-cn}请先完成末日巨龙的回合。{ko}먼저 아포칼립스 드래곤의 턴을 끝내십시오.{es}Termina primero el turno del Dragón del Apocalipsis.{fr}Terminez d’abord le tour du Dragon de l’Apocalypse.{pt-br}Termine primeiro o turno do Dragão do Apocalipse.{de}Beende zuerst den Zug des Apokalypse-Drachen.",player.color,warningColor) end
+		if player~=nil and player.color~=nil then safeBroadcastToColor("{en}Finish the Apocalypse Dragon turn first.{it}Termina prima il turno del Drago dell'Apocalisse.{ru}Сначала завершите ход Дракона Апокалипсиса.{zh-tw}請先完成末日巨龍的回合。{zh-cn}请先完成末日巨龙的回合。{ko}먼저 아포칼립스 드래곤의 턴을 끝내십시오.{es}Termina primero el turno del Dragón del Apocalipsis.{fr}Terminez d’abord le tour du Dragon de l’Apocalypse.{pt-br}Termine primeiro o turno do Dragão do Apocalipse.{de}Beende zuerst den Zug des Apokalypse-Drachen.",player.color,warningColor) end
 		return
 	end
 	if gStates.endGameAchieved~="false" then
@@ -20797,7 +20902,7 @@ end
 dayTactic2Discarded=function(player, mouseButton, id)
 	if mouseButton~="-1" or player==nil or player.color=="Grey" then return end
 	local tactic=getObjectFromGUID(tacticCard[2])
-	if tactic==nil then return end
+	if tactic==nil or cardEffectIsVertical(tactic)==false then return end
 	if gStates.tacticTwoState=="Used" then dayTactic2ButtonActivate() return end
 	local playerColor=player.color
 	local playerPosition=math.ceil((tactic.getPosition()[1]+78)/40)
@@ -20905,7 +21010,7 @@ function nightTactic2(player, mouseButton, id)
 				end
 			end
 			if discards==nil then
-				broadcastToColor("{en}Night Tactic 2: there are no discarded Deed cards to return.{it}Tattica Notte 2: nessuna carta Gesta scartata da recuperare.{ru}Ночная тактика 2: нет сброшенных карт Действий для возврата.{zh-tw}夜間戰術 2：沒有可放回的已棄行動牌。{zh-cn}夜间战术 2：没有可放回的已弃行动牌。{ko}야간 전술 2: 되돌릴 버린 행동 카드가 없습니다.{es}Táctica Nocturna 2: no hay cartas de Acción descartadas para devolver.{fr}Tactique Nocturne 2 : aucune carte Action défaussée ne peut être remise.{pt-br}Tática Noturna 2: não há cartas de Ação descartadas para devolver.{de}Nachttaktik 2: Es gibt keine abgeworfenen Aktionskarten zum Zurücklegen.",player.color,warningColor)
+				safeBroadcastToColor("{en}Night Tactic 2: there are no discarded Deed cards to return.{it}Tattica Notte 2: nessuna carta Gesta scartata da recuperare.{ru}Ночная тактика 2: нет сброшенных карт Действий для возврата.{zh-tw}夜間戰術 2：沒有可放回的已棄行動牌。{zh-cn}夜间战术 2：没有可放回的已弃行动牌。{ko}야간 전술 2: 되돌릴 버린 행동 카드가 없습니다.{es}Táctica Nocturna 2: no hay cartas de Acción descartadas para devolver.{fr}Tactique Nocturne 2 : aucune carte Action défaussée ne peut être remise.{pt-br}Tática Noturna 2: não há cartas de Ação descartadas para devolver.{de}Nachttaktik 2: Es gibt keine abgeworfenen Aktionskarten zum Zurücklegen.",player.color,warningColor)
 				return
 			end
 
@@ -22365,7 +22470,7 @@ end
 
 function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 	if gStates.apocalypseDragonTurnActive==true and (againstDragonFullAttendInProgress==nil or againstDragonFullAttendInProgress(gStates.turnNumber)~=true) then
-		if player~=nil and player.color~=nil then broadcastToColor("{en}Finish the Apocalypse Dragon turn first.{it}Termina prima il turno del Drago dell'Apocalisse.{ru}Сначала завершите ход Дракона Апокалипсиса.{zh-tw}請先完成末日巨龍的回合。{zh-cn}请先完成末日巨龙的回合。{ko}먼저 아포칼립스 드래곤의 차례를 끝내세요.{es}Primero termina el turno del Dragón del Apocalipsis.{fr}Terminez d’abord le tour du Dragon de l’Apocalypse.{pt-br}Termine primeiro o turno do Dragão do Apocalipse.{de}Beende zuerst den Zug des Apokalypse-Drachen.",player.color,warningColor) end
+		if player~=nil and player.color~=nil then safeBroadcastToColor("{en}Finish the Apocalypse Dragon turn first.{it}Termina prima il turno del Drago dell'Apocalisse.{ru}Сначала завершите ход Дракона Апокалипсиса.{zh-tw}請先完成末日巨龍的回合。{zh-cn}请先完成末日巨龙的回合。{ko}먼저 아포칼립스 드래곤의 차례를 끝내세요.{es}Primero termina el turno del Dragón del Apocalipsis.{fr}Terminez d’abord le tour du Dragon de l’Apocalypse.{pt-br}Termine primeiro o turno do Dragão do Apocalipse.{de}Beende zuerst den Zug des Apokalypse-Drachen.",player.color,warningColor) end
 		return
 	end
 	if mouseButton~="-1" or legalPlayerCheck(player.color,turnOrder[gStates.turnNumber].seatPos)~=true then return end
@@ -22376,7 +22481,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 		return
 	end
 	if gStates.mineClaimPending~=nil then
-		broadcastToColor("{en}Resolve the pending crystal choice before ending the turn.{it}Risolvi la scelta del cristallo prima di terminare il turno.{ru}Завершите ожидающий выбор кристалла, прежде чем заканчивать ход.{zh-tw}結束回合前，請先完成尚未處理的魔晶選擇。{zh-cn}结束回合前，请先完成尚未处理的魔晶选择。{ko}턴을 끝내기 전에 대기 중인 수정 선택을 완료하세요.{es}Resuelve la elección de cristal pendiente antes de terminar el turno.{fr}Résolvez le choix de cristal en attente avant de terminer le tour.{pt-br}Resolva a escolha de cristal pendente antes de encerrar o turno.{de}Schließe die ausstehende Kristallauswahl ab, bevor du den Zug beendest.",player.color,warningColor)
+		safeBroadcastToColor("{en}Resolve the pending crystal choice before ending the turn.{it}Risolvi la scelta del cristallo prima di terminare il turno.{ru}Завершите ожидающий выбор кристалла, прежде чем заканчивать ход.{zh-tw}結束回合前，請先完成尚未處理的魔晶選擇。{zh-cn}结束回合前，请先完成尚未处理的魔晶选择。{ko}턴을 끝내기 전에 대기 중인 수정 선택을 완료하세요.{es}Resuelve la elección de cristal pendiente antes de terminar el turno.{fr}Résolvez le choix de cristal en attente avant de terminer le tour.{pt-br}Resolva a escolha de cristal pendente antes de encerrar o turno.{de}Schließe die ausstehende Kristallauswahl ab, bevor du den Zug beendest.",player.color,warningColor)
 		if rewindReady==true then rewindTransactionFinish("Pre-end-turn cleanup") end
 		return
 	end
@@ -24422,9 +24527,9 @@ function puppetMasterWarn(playerIndex,message,controllerColor)
 		color=playerIndex~=nil and positionToColor(playerIndex) or nil
 	end
 	if color~=nil and Player[color]~=nil and Player[color].seated==true then
-		broadcastToColor(text,color,warningColor)
+		safeBroadcastToColor(text,color,warningColor)
 	elseif Player["Black"]~=nil and Player["Black"].seated==true then
-		broadcastToColor(text,"Black",warningColor)
+		safeBroadcastToColor(text,"Black",warningColor)
 	else
 		broadcastToAll(text,warningColor)
 	end
@@ -24968,7 +25073,7 @@ function __skillMove_raw(player, mouseButton, id, rewindReady)
 				if claimedColumn~=gStates.skillButtons then
 					claimedSkill.unlock()
 					claimedSkill.setPositionSmooth(claimedHome)
-					broadcastToColor("{en}Hero Challenges: choose one of your two newly flipped Skills.{it}Sfide degli Eroi: scegli una delle tue due Abilità appena rivelate.{ru}Испытания героев: выберите один из двух только что открытых навыков.{zh-tw}英雄挑戰：從你剛翻開的兩個技能中選擇一個。{zh-cn}英雄挑战：从你刚翻开的两个技能中选择一个。{ko}영웅 도전: 방금 공개한 두 스킬 중 하나를 선택하세요.{es}Desafíos de Héroe: elige una de tus dos Habilidades recién reveladas.{fr}Défis de Héros : choisissez l'une des deux Compétences que vous venez de révéler.{pt-br}Desafios de Herói: escolha uma das duas Habilidades recém-reveladas.{de}Heldenherausforderungen: Wähle eine deiner beiden gerade aufgedeckten Fertigkeiten.",player.color or "Black",{1,0.6,0.2})
+					safeBroadcastToColor("{en}Hero Challenges: choose one of your two newly flipped Skills.{it}Sfide degli Eroi: scegli una delle tue due Abilità appena rivelate.{ru}Испытания героев: выберите один из двух только что открытых навыков.{zh-tw}英雄挑戰：從你剛翻開的兩個技能中選擇一個。{zh-cn}英雄挑战：从你刚翻开的两个技能中选择一个。{ko}영웅 도전: 방금 공개한 두 스킬 중 하나를 선택하세요.{es}Desafíos de Héroe: elige una de tus dos Habilidades recién reveladas.{fr}Défis de Héros : choisissez l'une des deux Compétences que vous venez de révéler.{pt-br}Desafios de Herói: escolha uma das duas Habilidades recém-reveladas.{de}Heldenherausforderungen: Wähle eine deiner beiden gerade aufgedeckten Fertigkeiten.",player.color or "Black",{1,0.6,0.2})
 					if rewindReady==true then rewindTransactionFinish(skillRewindOwner) end
 					return
 				end
@@ -25005,6 +25110,9 @@ function __skillMove_raw(player, mouseButton, id, rewindReady)
 			--move selected skill
 			claimedSkill.unlock()
 			claimedSkill.setPositionSmooth(gStates.mageSkills[claimedGUID])
+			-- Permanent exploration/terrain Skills take effect on claim, even
+			-- before the token is ever played. Rebuild only an open tracker.
+			if resourceCardsPanelOpen() then resourceCardsPanelChanged(true) end
 			if gStates.motivationSkill[claimedGUID]~=nil then
 				gStates.motivationSkill[claimedGUID].pos=gStates.skillButtons
 				gStates.motivationSkill[claimedGUID].state="active"
@@ -32177,6 +32285,41 @@ function refreshCityControlAndScoring()
 			if factionLeaderScoreZone(cityZone,cityScoring,factionAssistTest) then bothTest=bothTest+1 end
 		end
 	end
+	--The Dragon replaces a City without entering cityScriptZones. Its head boards hold
+	--one player Shield for each level reduced, so they are the authoritative evidence
+	--of who helped conquer this City. Rebuild the result on every score refresh, just
+	--like ordinary City ownership, without adding to defeatedCities.amount (the
+	--conquest objective already counts the Dragon separately).
+	if gStates.apocalypseDragonCityPlaced==true and gStates.apocalypseDragonDefeated==true then
+		local dragonScore=apocalypseDragonCompetitiveScoreSummary()
+		local bestPlayer,bestShields,bestLevel=nil,0,0
+		for playerIndex,details in ipairs(turnOrder) do
+			local mage=details.mage
+			local dragonPlayer=dragonScore.byMage[mage]
+			local shields=dragonPlayer~=nil and (dragonPlayer.levels or 0) or 0
+			if shields>0 then
+				details.score.CityAssist=details.score.CityAssist+1
+				details.defeatedCities[apocalypseDragon.model]="Assist"
+				local highestLevel=0
+				for _,head in pairs(dragonScore.heads) do
+					highestLevel=math.max(highestLevel,head.highestByMage[mage] or 0)
+				end
+				--Most reduced levels wins; highest printed head level breaks a tie.
+				--Remaining ties use player order so score refreshes cannot change owner.
+				if shields>bestShields or (shields==bestShields and highestLevel>bestLevel) then
+					bestPlayer,bestShields,bestLevel=playerIndex,shields,highestLevel
+				end
+			end
+		end
+		if bestPlayer~=nil then
+			local leader=turnOrder[bestPlayer]
+			leader.score.CityAssist=leader.score.CityAssist-1
+			leader.score.CityLead=leader.score.CityLead+1
+			leader.defeatedCities[apocalypseDragon.model]="Lead"
+			leadTest[bestPlayer]=true
+		end
+	end
+
 	local count=0
 	for _ in pairs(leadTest) do count=count+1 end
 	if count==#turnOrder-1 then gStates.allLeaderCheck=true end
@@ -36570,28 +36713,28 @@ function QuestPrivate.apocalypseQuestPlaceStepMarker(card, playerIndex, option, 
 	if rule==nil then return true end
 	local token=QuestPrivate.apocalypseQuestMarkerObject(rule)
 	if token==nil then
-		if playerColor~=nil then broadcastToColor("{en}The required Quest marker could not be found.{it}Segnalino Missione richiesto non trovato.{ru}Не удалось найти требуемый жетон задания.{zh-tw}找不到所需的任務標記。{zh-cn}找不到所需的任务标记。{ko}필요한 퀘스트 마커를 찾지 못했습니다.{es}No se pudo encontrar el marcador de Misión requerido.{fr}Le marqueur de Quête requis est introuvable.{pt-br}O marcador de Missão necessário não foi encontrado.{de}Der erforderliche Questmarker wurde nicht gefunden.", playerColor, {1,0.55,0.2}) end
+		if playerColor~=nil then safeBroadcastToColor("{en}The required Quest marker could not be found.{it}Segnalino Missione richiesto non trovato.{ru}Не удалось найти требуемый жетон задания.{zh-tw}找不到所需的任務標記。{zh-cn}找不到所需的任务标记。{ko}필요한 퀘스트 마커를 찾지 못했습니다.{es}No se pudo encontrar el marcador de Misión requerido.{fr}Le marqueur de Quête requis est introuvable.{pt-br}O marcador de Missão necessário não foi encontrado.{de}Der erforderliche Questmarker wurde nicht gefunden.", playerColor, {1,0.55,0.2}) end
 		return false
 	end
 	if rule.relocate~=true and QuestPrivate.apocalypseQuestMarkerPlacementCommitted(rule)==true then return true end
 	if rule.atPlayer==true then
 		if QuestPrivate.apocalypseQuestStarterLocationLegal(card,playerIndex,option)~=true then
-			if playerColor~=nil then broadcastToColor("{en}Your Mage Knight is not at a valid location for this Quest step.{it}Il tuo Mage Knight non è in una posizione valida per questo passo della Missione.{ru}Ваш Рыцарь-маг находится не в допустимом месте для этого шага задания.{zh-tw}你的魔法騎士不在此任務步驟的合法地點。{zh-cn}你的魔法骑士不在此任务步骤的合法地点。{ko}마법 기사가 이 퀘스트 단계에 유효한 장소에 있지 않습니다.{es}Tu Caballero Mago no está en un lugar válido para este paso de Misión.{fr}Votre Chevalier-Mage ne se trouve pas sur un lieu valide pour cette étape de Quête.{pt-br}Seu Cavaleiro-Mago não está em um local válido para esta etapa da Missão.{de}Dein Magieritter befindet sich nicht an einem gültigen Ort für diesen Quest-Schritt.", playerColor, warningColor) end
+			if playerColor~=nil then safeBroadcastToColor("{en}Your Mage Knight is not at a valid location for this Quest step.{it}Il tuo Mage Knight non è in una posizione valida per questo passo della Missione.{ru}Ваш Рыцарь-маг находится не в допустимом месте для этого шага задания.{zh-tw}你的魔法騎士不在此任務步驟的合法地點。{zh-cn}你的魔法骑士不在此任务步骤的合法地点。{ko}마법 기사가 이 퀘스트 단계에 유효한 장소에 있지 않습니다.{es}Tu Caballero Mago no está en un lugar válido para este paso de Misión.{fr}Votre Chevalier-Mage ne se trouve pas sur un lieu valide pour cette étape de Quête.{pt-br}Seu Cavaleiro-Mago não está em um local válido para esta etapa da Missão.{de}Dein Magieritter befindet sich nicht an einem gültigen Ort für diesen Quest-Schritt.", playerColor, warningColor) end
 			return false
 		end
 		local playerHex=QuestPrivate.apocalypseQuestCurrentPlayerHex(playerIndex)
 		if playerHex==nil or QuestPrivate.apocalypseQuestHexHasOtherQuestMarker(playerHex,token.guid)==true then
-			if playerColor~=nil then broadcastToColor("{en}That map space already contains a Quest marker. Only one Quest marker may be placed in a map space.{it}Questo spazio contiene già un segnalino Missione. Ne è consentito uno solo per spazio.{ru}На этой клетке карты уже есть жетон задания. На одной клетке может находиться только один жетон задания.{zh-tw}該地圖空間已有任務標記。每個地圖空間只能放置一個任務標記。{zh-cn}该地图空间已有任务标记。每个地图空间只能放置一个任务标记。{ko}해당 지도 칸에 이미 퀘스트 마커가 있습니다. 한 지도 칸에는 퀘스트 마커를 하나만 놓을 수 있습니다.{es}Ese espacio del mapa ya contiene un marcador de Misión. Solo puede colocarse un marcador de Misión en cada espacio.{fr}Cette case de carte contient déjà un marqueur de Quête. Un seul marqueur de Quête peut être placé par case.{pt-br}Esse espaço do mapa já contém um marcador de Missão. Apenas um marcador de Missão pode ser colocado em cada espaço.{de}Dieses Kartenfeld enthält bereits einen Questmarker. Pro Kartenfeld darf nur ein Questmarker platziert werden.", playerColor, warningColor) end
+			if playerColor~=nil then safeBroadcastToColor("{en}That map space already contains a Quest marker. Only one Quest marker may be placed in a map space.{it}Questo spazio contiene già un segnalino Missione. Ne è consentito uno solo per spazio.{ru}На этой клетке карты уже есть жетон задания. На одной клетке может находиться только один жетон задания.{zh-tw}該地圖空間已有任務標記。每個地圖空間只能放置一個任務標記。{zh-cn}该地图空间已有任务标记。每个地图空间只能放置一个任务标记。{ko}해당 지도 칸에 이미 퀘스트 마커가 있습니다. 한 지도 칸에는 퀘스트 마커를 하나만 놓을 수 있습니다.{es}Ese espacio del mapa ya contiene un marcador de Misión. Solo puede colocarse un marcador de Misión en cada espacio.{fr}Cette case de carte contient déjà un marqueur de Quête. Un seul marqueur de Quête peut être placé par case.{pt-br}Esse espaço do mapa já contém um marcador de Missão. Apenas um marcador de Missão pode ser colocado em cada espaço.{de}Dieses Kartenfeld enthält bereits einen Questmarker. Pro Kartenfeld darf nur ein Questmarker platziert werden.", playerColor, warningColor) end
 			return false
 		end
 		local placed=QuestPrivate.apocalypseQuestPlaceMarkerAtPlayer(token,playerIndex)
-		if placed~=true and playerColor~=nil then broadcastToColor("{en}The Quest marker could not be placed at your Mage Knight.{it}Impossibile mettere il segnalino Missione presso il tuo Mage Knight.{ru}Жетон задания не удалось разместить у вашего Рыцаря-мага.{zh-tw}無法在你的魔法騎士位置放置任務標記。{zh-cn}无法在你的魔法骑士位置放置任务标记。{ko}마법 기사 위치에 퀘스트 마커를 놓지 못했습니다.{es}No se pudo colocar el marcador de Misión junto a tu Caballero Mago.{fr}Le marqueur de Quête n’a pas pu être placé sur votre Chevalier-Mage.{pt-br}O marcador de Missão não pôde ser colocado em seu Cavaleiro-Mago.{de}Der Questmarker konnte nicht bei deinem Magieritter platziert werden.", playerColor, {1,0.55,0.2}) end
+		if placed~=true and playerColor~=nil then safeBroadcastToColor("{en}The Quest marker could not be placed at your Mage Knight.{it}Impossibile mettere il segnalino Missione presso il tuo Mage Knight.{ru}Жетон задания не удалось разместить у вашего Рыцаря-мага.{zh-tw}無法在你的魔法騎士位置放置任務標記。{zh-cn}无法在你的魔法骑士位置放置任务标记。{ko}마법 기사 위치에 퀘스트 마커를 놓지 못했습니다.{es}No se pudo colocar el marcador de Misión junto a tu Caballero Mago.{fr}Le marqueur de Quête n’a pas pu être placé sur votre Chevalier-Mage.{pt-br}O marcador de Missão não pôde ser colocado em seu Cavaleiro-Mago.{de}Der Questmarker konnte nicht bei deinem Magieritter platziert werden.", playerColor, {1,0.55,0.2}) end
 		return placed==true
 	end
 	local candidates,hexes,mapObjects=QuestPrivate.apocalypseQuestMarkerLegalHexes(card,playerIndex,rule,token)
 	if #candidates==0 then
 		QuestPrivate.apocalypseQuestClearMarkerHighlight(token)
-		if playerColor~=nil then broadcastToColor("{en}There is no legal map space for this Quest marker yet.{it}Non c'è ancora uno spazio valido per questo segnalino Missione.{ru}Для этого жетона задания пока нет допустимой клетки карты.{zh-tw}目前沒有可合法放置此任務標記的地圖空間。{zh-cn}目前没有可合法放置此任务标记的地图空间。{ko}아직 이 퀘스트 마커를 놓을 수 있는 합법적인 지도 칸이 없습니다.{es}Todavía no hay un espacio legal en el mapa para este marcador de Misión.{fr}Il n’existe pas encore de case de carte légale pour ce marqueur de Quête.{pt-br}Ainda não há espaço válido no mapa para este marcador de Missão.{de}Es gibt noch kein gültiges Kartenfeld für diesen Questmarker.", playerColor, warningColor) end
+		if playerColor~=nil then safeBroadcastToColor("{en}There is no legal map space for this Quest marker yet.{it}Non c'è ancora uno spazio valido per questo segnalino Missione.{ru}Для этого жетона задания пока нет допустимой клетки карты.{zh-tw}目前沒有可合法放置此任務標記的地圖空間。{zh-cn}目前没有可合法放置此任务标记的地图空间。{ko}아직 이 퀘스트 마커를 놓을 수 있는 합법적인 지도 칸이 없습니다.{es}Todavía no hay un espacio legal en el mapa para este marcador de Misión.{fr}Il n’existe pas encore de case de carte légale pour ce marqueur de Quête.{pt-br}Ainda não há espaço válido no mapa para este marcador de Missão.{de}Es gibt noch kein gültiges Kartenfeld für diesen Questmarker.", playerColor, warningColor) end
 		apocalypseQuestUpdateProgressButtons(card)
 		return false
 	end
@@ -36609,7 +36752,7 @@ function QuestPrivate.apocalypseQuestPlaceStepMarker(card, playerIndex, option, 
 	if #candidates>1 then
 		QuestPrivate.apocalypseQuestHighlightMarker(token)
 		if playerColor~=nil then
-			broadcastToColor(joinLang({tostring(#candidates),"{en} legal spaces are available. The first was selected; move the highlighted Quest marker if you prefer another.{it} spazi validi disponibili. Scelto il primo; sposta il segnalino evidenziato se ne preferisci un altro.{ru} допустимых клеток доступно. Выбрана первая; переместите выделенный жетон задания, если предпочитаете другую.{zh-tw} 個合法空間可用。已選擇第一個；若偏好其他位置，請移動高亮任務標記。{zh-cn} 个合法空间可用。已选择第一个；若偏好其他位置，请移动高亮任务标记。{ko}개의 합법적인 칸이 있습니다. 첫 번째를 선택했습니다. 다른 곳을 원하면 강조된 퀘스트 마커를 이동하십시오.{es} espacios legales disponibles. Se seleccionó el primero; mueve el marcador de Misión resaltado si prefieres otro.{fr} cases légales disponibles. La première a été sélectionnée ; déplacez le marqueur de Quête surligné si vous en préférez une autre.{pt-br} espaços válidos disponíveis. O primeiro foi selecionado; mova o marcador de Missão destacado se preferir outro.{de} gültige Felder sind verfügbar. Das erste wurde ausgewählt; bewege den hervorgehobenen Questmarker, wenn du ein anderes bevorzugst."}), playerColor, {1,1,0.5})
+			safeBroadcastToColor(joinLang({tostring(#candidates),"{en} legal spaces are available. The first was selected; move the highlighted Quest marker if you prefer another.{it} spazi validi disponibili. Scelto il primo; sposta il segnalino evidenziato se ne preferisci un altro.{ru} допустимых клеток доступно. Выбрана первая; переместите выделенный жетон задания, если предпочитаете другую.{zh-tw} 個合法空間可用。已選擇第一個；若偏好其他位置，請移動高亮任務標記。{zh-cn} 个合法空间可用。已选择第一个；若偏好其他位置，请移动高亮任务标记。{ko}개의 합법적인 칸이 있습니다. 첫 번째를 선택했습니다. 다른 곳을 원하면 강조된 퀘스트 마커를 이동하십시오.{es} espacios legales disponibles. Se seleccionó el primero; mueve el marcador de Misión resaltado si prefieres otro.{fr} cases légales disponibles. La première a été sélectionnée ; déplacez le marqueur de Quête surligné si vous en préférez une autre.{pt-br} espaços válidos disponíveis. O primeiro foi selecionado; mova o marcador de Missão destacado se preferir outro.{de} gültige Felder sind verfügbar. Das erste wurde ausgewählt; bewege den hervorgehobenen Questmarker, wenn du ein anderes bevorzugst."}), playerColor, {1,1,0.5})
 		end
 	else
 		QuestPrivate.apocalypseQuestClearMarkerHighlight(token)
@@ -36814,7 +36957,7 @@ underSiegeHandler.starterLocationLegal=function(card,playerIndex,option,hex)
 end
 underSiegeHandler.personalAction=function(player,card)
 	if QuestPrivate.apocalypseQuestPersonalShieldOwner(card)==nil then return false end
-	broadcastToColor("{en}Under Siege must be resolved with 2A or 2B; it cannot be abandoned after Step 1.{it}Sotto Assedio va risolta con 2A o 2B; non può essere abbandonata dopo il Passo 1.{ru}Under Siege должно быть разрешено через 2A или 2B; после шага 1 его нельзя покинуть.{zh-tw}Under Siege 必須以 2A 或 2B 結算；步驟 1 後不能放棄。{zh-cn}Under Siege 必须以 2A 或 2B 结算；步骤 1 后不能放弃。{ko}Under Siege는 2A 또는 2B로 해결해야 하며 1단계 이후에는 포기할 수 없습니다.{es}Under Siege debe resolverse con 2A o 2B; no puede abandonarse después del Paso 1.{fr}Under Siege doit être résolu avec 2A ou 2B ; il ne peut pas être abandonné après l’Étape 1.{pt-br}Under Siege deve ser resolvido com 2A ou 2B; não pode ser abandonado após a Etapa 1.{de}Under Siege muss mit 2A oder 2B abgewickelt werden; nach Schritt 1 kann es nicht aufgegeben werden.",player.color,warningColor)
+	safeBroadcastToColor("{en}Under Siege must be resolved with 2A or 2B; it cannot be abandoned after Step 1.{it}Sotto Assedio va risolta con 2A o 2B; non può essere abbandonata dopo il Passo 1.{ru}Under Siege должно быть разрешено через 2A или 2B; после шага 1 его нельзя покинуть.{zh-tw}Under Siege 必須以 2A 或 2B 結算；步驟 1 後不能放棄。{zh-cn}Under Siege 必须以 2A 或 2B 结算；步骤 1 后不能放弃。{ko}Under Siege는 2A 또는 2B로 해결해야 하며 1단계 이후에는 포기할 수 없습니다.{es}Under Siege debe resolverse con 2A o 2B; no puede abandonarse después del Paso 1.{fr}Under Siege doit être résolu avec 2A ou 2B ; il ne peut pas être abandonné après l’Étape 1.{pt-br}Under Siege deve ser resolvido com 2A ou 2B; não pode ser abandonado após a Etapa 1.{de}Under Siege muss mit 2A oder 2B abgewickelt werden; nach Schritt 1 kann es nicht aufgegeben werden.",player.color,warningColor)
 	QuestPrivate.apocalypseQuestInterfaceAdd(card,true)
 	return true
 end
@@ -37448,6 +37591,7 @@ end
 
 function apocalypseQuestUpdateProgressButtons(card)
 	if card==nil then return end
+	if card.is_face_down==true then QuestPrivate.apocalypseQuestInterfaceRemove(card) return end
 	if QuestPrivate.apocalypseQuestRetiringCards[card.guid]==true then
 		QuestPrivate.apocalypseQuestInterfaceRemove(card)
 		return
@@ -37547,6 +37691,7 @@ end
 
 function QuestPrivate.apocalypseQuestInterfaceAdd(card, forceRebuild)
 	if card==nil or card.type~="Card" then return end
+	if card.is_face_down==true then QuestPrivate.apocalypseQuestInterfaceRemove(card) return end
 	--A delayed offer/button refresh can fire after BottomDeck has already cleared this Quest's runtime
 	--state. Never let that callback relock the retiring card or rerun reveal setup, which would recreate
 	--its buttons, markers and tucked cards while the card is on its way back to the Quest deck.
@@ -38275,16 +38420,16 @@ if minimumReputationModifier~=nil and action~="Fail" then
 	local repData=reputationTable[effectiveReputation]
 	local repModifier=repData~=nil and tonumber(repData.repDisplay) or nil
 	if repModifier==nil or repModifier<minimumReputationModifier then
-		if playerColor~=nil then broadcastToColor(joinLang({"{en}This Quest step requires a Reputation Modifier of {it}Questo passo richiede un Modificatore di Reputazione di {ru}Этот шаг задания требует модификатор Репутации {zh-tw}此任務步驟需要聲望修正值至少為 {zh-cn}此任务步骤需要声望修正值至少为 {ko}이 퀘스트 단계에는 평판 수정치 {es}Este paso de Misión requiere un Modificador de Reputación de {fr}Cette étape de Quête exige un Modificateur de Réputation de {pt-br}Esta etapa da Missão exige um Modificador de Reputação de {de}Dieser Quest-Schritt erfordert einen Ansehensmodifikator von ",tostring(minimumReputationModifier),"{en} or higher.{it} o superiore.{ru} или выше.{zh-tw}。{zh-cn}。{ko} 이상이 필요합니다.{es} o superior.{fr} ou plus.{pt-br} ou superior.{de} oder höher."}), playerColor, warningColor) end
+		if playerColor~=nil then safeBroadcastToColor(joinLang({"{en}This Quest step requires a Reputation Modifier of {it}Questo passo richiede un Modificatore di Reputazione di {ru}Этот шаг задания требует модификатор Репутации {zh-tw}此任務步驟需要聲望修正值至少為 {zh-cn}此任务步骤需要声望修正值至少为 {ko}이 퀘스트 단계에는 평판 수정치 {es}Este paso de Misión requiere un Modificador de Reputación de {fr}Cette étape de Quête exige un Modificateur de Réputation de {pt-br}Esta etapa da Missão exige um Modificador de Reputação de {de}Dieser Quest-Schritt erfordert einen Ansehensmodifikator von ",tostring(minimumReputationModifier),"{en} or higher.{it} o superiore.{ru} или выше.{zh-tw}。{zh-cn}。{ko} 이상이 필요합니다.{es} o superior.{fr} ou plus.{pt-br} ou superior.{de} oder höher."}), playerColor, warningColor) end
 		return false
 	end
 end
 if action=="Fail" and apocalypseQuestFailureReady(card,option,playerIndex)~=true then
-	if playerColor~=nil then broadcastToColor("{en}Start this Quest combat before resolving Fail.{it}Inizia questo combattimento Missione prima di risolvere Fallisci.{ru}Начните бой задания перед разрешением Провала.{zh-tw}在結算失敗前先開始此任務戰鬥。{zh-cn}在结算失败前先开始此任务战斗。{ko}실패를 처리하기 전에 이 퀘스트 전투를 시작하십시오.{es}Inicia este combate de Misión antes de resolver Fallar.{fr}Commencez ce combat de Quête avant de résoudre Échouer.{pt-br}Inicie este combate da Missão antes de resolver Falhar.{de}Beginne diesen Quest-Kampf, bevor du Scheitern abwickelst.",playerColor,warningColor) end
+	if playerColor~=nil then safeBroadcastToColor("{en}Start this Quest combat before resolving Fail.{it}Inizia questo combattimento Missione prima di risolvere Fallisci.{ru}Начните бой задания перед разрешением Провала.{zh-tw}在結算失敗前先開始此任務戰鬥。{zh-cn}在结算失败前先开始此任务战斗。{ko}실패를 처리하기 전에 이 퀘스트 전투를 시작하십시오.{es}Inicia este combate de Misión antes de resolver Fallar.{fr}Commencez ce combat de Quête avant de résoudre Échouer.{pt-br}Inicie este combate da Missão antes de resolver Falhar.{de}Beginne diesen Quest-Kampf, bevor du Scheitern abwickelst.",playerColor,warningColor) end
 	return false
 end
 if action~="Fail" and apocalypseQuestStepSpecialLegal(card,playerIndex,option)~=true then
-	if playerColor~=nil then broadcastToColor(joinLang({"{en}The combat requirement for Quest step {it}Il requisito di combattimento del passo Missione {ru}Требование боя для шага задания {zh-tw}尚未偵測到任務步驟 {zh-cn}尚未检测到任务步骤 {ko}퀘스트 단계 {es}Aún no se ha detectado el requisito de combate del paso de Misión {fr}La condition de combat de l’étape de Quête {pt-br}O requisito de combate da etapa da Missão {de}Die Kampfanforderung für Quest-Schritt ",tostring(option.key),"{en} has not been detected yet.{it} non è ancora stato rilevato.{ru} ещё не обнаружено.{zh-tw} 的戰鬥要求。{zh-cn} 的战斗要求。{ko}의 전투 요구 사항이 아직 감지되지 않았습니다.{es}.{fr} n’a pas encore été détectée.{pt-br} ainda não foi detectado.{de} wurde noch nicht erkannt."}),playerColor,warningColor) end
+	if playerColor~=nil then safeBroadcastToColor(joinLang({"{en}The combat requirement for Quest step {it}Il requisito di combattimento del passo Missione {ru}Требование боя для шага задания {zh-tw}尚未偵測到任務步驟 {zh-cn}尚未检测到任务步骤 {ko}퀘스트 단계 {es}Aún no se ha detectado el requisito de combate del paso de Misión {fr}La condition de combat de l’étape de Quête {pt-br}O requisito de combate da etapa da Missão {de}Die Kampfanforderung für Quest-Schritt ",tostring(option.key),"{en} has not been detected yet.{it} non è ancora stato rilevato.{ru} ещё не обнаружено.{zh-tw} 的戰鬥要求。{zh-cn} 的战斗要求。{ko}의 전투 요구 사항이 아직 감지되지 않았습니다.{es}.{fr} n’a pas encore été détectée.{pt-br} ainda não foi detectado.{de} wurde noch nicht erkannt."}),playerColor,warningColor) end
 	return false
 end
 	return nil
@@ -38301,14 +38446,14 @@ local function apocalypseQuestResolveRichMerchantProgress(card,playerIndex,optio
 --Black advances to Step 2; the other results leave Step 1 ready to Complete.
 if QuestPrivate.apocalypseQuestPlaceStepMarker(card,playerIndex,option,playerColor)~=true then finishQuestResolution(0.5) return false end
 if QuestPrivate.apocalypseQuestClaimAbandonedPersonal(card,playerIndex)~=true then
-	if playerColor~=nil then broadcastToColor("{en}The Personal Quest Shield could not be claimed.{it}Impossibile prendere lo Scudo Missione Personale.{ru}Щит личного задания не удалось получить.{zh-tw}無法取得個人任務盾牌。{zh-cn}无法取得个人任务盾牌。{ko}개인 퀘스트 방패를 획득하지 못했습니다.{es}No se pudo reclamar el Escudo de Misión Personal.{fr}Le Bouclier de Quête Personnelle n’a pas pu être récupéré.{pt-br}O Escudo de Missão Pessoal não pôde ser recebido.{de}Der Schild der persönlichen Quest konnte nicht beansprucht werden.",playerColor,{1,0.55,0.2}) end
+	if playerColor~=nil then safeBroadcastToColor("{en}The Personal Quest Shield could not be claimed.{it}Impossibile prendere lo Scudo Missione Personale.{ru}Щит личного задания не удалось получить.{zh-tw}無法取得個人任務盾牌。{zh-cn}无法取得个人任务盾牌。{ko}개인 퀘스트 방패를 획득하지 못했습니다.{es}No se pudo reclamar el Escudo de Misión Personal.{fr}Le Bouclier de Quête Personnelle n’a pas pu être récupéré.{pt-br}O Escudo de Missão Pessoal não pôde ser recebido.{de}Der Schild der persönlichen Quest konnte nicht beansprucht werden.",playerColor,{1,0.55,0.2}) end
 	finishQuestResolution(0.5)
 	return false
 end
 apocalypseQuestBeginMoveAttachmentCapture(card,QuestPrivate.apocalypseQuestOfferPosition(1))
 if QuestPrivate.apocalypseQuestPositionProgressShield(card,playerIndex,option)~=true then
 	apocalypseQuestEndMoveAttachmentCapture(card)
-	if playerColor~=nil then broadcastToColor("{en}Quest progress could not place the required Shield.{it}Impossibile posizionare lo Scudo richiesto per proseguire la Missione.{ru}При продвижении задания не удалось разместить требуемый Щит.{zh-tw}任務進度無法放置所需盾牌。{zh-cn}任务进度无法放置所需盾牌。{ko}퀘스트 진행 중 필요한 방패를 놓지 못했습니다.{es}El progreso de la Misión no pudo colocar el Escudo requerido.{fr}La progression de la Quête n’a pas pu placer le Bouclier requis.{pt-br}O progresso da Missão não conseguiu colocar o Escudo necessário.{de}Beim Quest-Fortschritt konnte der erforderliche Schild nicht platziert werden.",playerColor,{1,0.55,0.2}) end
+	if playerColor~=nil then safeBroadcastToColor("{en}Quest progress could not place the required Shield.{it}Impossibile posizionare lo Scudo richiesto per proseguire la Missione.{ru}При продвижении задания не удалось разместить требуемый Щит.{zh-tw}任務進度無法放置所需盾牌。{zh-cn}任务进度无法放置所需盾牌。{ko}퀘스트 진행 중 필요한 방패를 놓지 못했습니다.{es}El progreso de la Misión no pudo colocar el Escudo requerido.{fr}La progression de la Quête n’a pas pu placer le Bouclier requis.{pt-br}O progresso da Missão não conseguiu colocar o Escudo necessário.{de}Beim Quest-Fortschritt konnte der erforderliche Schild nicht platziert werden.",playerColor,{1,0.55,0.2}) end
 	finishQuestResolution(0.5)
 	return false
 end
@@ -38354,13 +38499,13 @@ if apocalypseQuestUsesGenericStepMarker(card,option)==true and QuestPrivate.apoc
 apocalypseQuestBeginMoveAttachmentCapture(card,QuestPrivate.apocalypseQuestOfferPosition(1))
 if QuestPrivate.apocalypseQuestClaimAbandonedPersonal(card, playerIndex)~=true then
 	apocalypseQuestEndMoveAttachmentCapture(card)
-	if playerColor~=nil then broadcastToColor("{en}The Personal Quest Shield could not be claimed.{it}Impossibile prendere lo Scudo Missione Personale.{ru}Щит личного задания не удалось получить.{zh-tw}無法取得個人任務盾牌。{zh-cn}无法取得个人任务盾牌。{ko}개인 퀘스트 방패를 획득하지 못했습니다.{es}No se pudo reclamar el Escudo de Misión Personal.{fr}Le Bouclier de Quête Personnelle n’a pas pu être récupéré.{pt-br}O Escudo de Missão Pessoal não pôde ser recebido.{de}Der Schild der persönlichen Quest konnte nicht beansprucht werden.", playerColor, {1,0.55,0.2}) end
+	if playerColor~=nil then safeBroadcastToColor("{en}The Personal Quest Shield could not be claimed.{it}Impossibile prendere lo Scudo Missione Personale.{ru}Щит личного задания не удалось получить.{zh-tw}無法取得個人任務盾牌。{zh-cn}无法取得个人任务盾牌。{ko}개인 퀘스트 방패를 획득하지 못했습니다.{es}No se pudo reclamar el Escudo de Misión Personal.{fr}Le Bouclier de Quête Personnelle n’a pas pu être récupéré.{pt-br}O Escudo de Missão Pessoal não pôde ser recebido.{de}Der Schild der persönlichen Quest konnte nicht beansprucht werden.", playerColor, {1,0.55,0.2}) end
 	finishQuestResolution(0.5)
 	return false
 end
 if QuestPrivate.apocalypseQuestPositionProgressShield(card, playerIndex, option)~=true then
 	apocalypseQuestEndMoveAttachmentCapture(card)
-	if playerColor~=nil then broadcastToColor("{en}Quest progress could not place the required Shield.{it}Impossibile posizionare lo Scudo richiesto per proseguire la Missione.{ru}При продвижении задания не удалось разместить требуемый Щит.{zh-tw}任務進度無法放置所需盾牌。{zh-cn}任务进度无法放置所需盾牌。{ko}퀘스트 진행 중 필요한 방패를 놓지 못했습니다.{es}El progreso de la Misión no pudo colocar el Escudo requerido.{fr}La progression de la Quête n’a pas pu placer le Bouclier requis.{pt-br}O progresso da Missão não conseguiu colocar o Escudo necessário.{de}Beim Quest-Fortschritt konnte der erforderliche Schild nicht platziert werden.", playerColor, {1,0.55,0.2}) end
+	if playerColor~=nil then safeBroadcastToColor("{en}Quest progress could not place the required Shield.{it}Impossibile posizionare lo Scudo richiesto per proseguire la Missione.{ru}При продвижении задания не удалось разместить требуемый Щит.{zh-tw}任務進度無法放置所需盾牌。{zh-cn}任务进度无法放置所需盾牌。{ko}퀘스트 진행 중 필요한 방패를 놓지 못했습니다.{es}El progreso de la Misión no pudo colocar el Escudo requerido.{fr}La progression de la Quête n’a pas pu placer le Bouclier requis.{pt-br}O progresso da Missão não conseguiu colocar o Escudo necessário.{de}Beim Quest-Fortschritt konnte der erforderliche Schild nicht platziert werden.", playerColor, {1,0.55,0.2}) end
 	finishQuestResolution(0.5)
 	return false
 end
@@ -38404,7 +38549,7 @@ local function apocalypseQuestPrepareGuardDutyCompletion(card,playerIndex,option
 	if tostring(option.key)~="2" then return false,true,nil end
 	local distance=QuestPrivate.apocalypseQuestGuardDutyDistance(playerIndex)
 	if distance==nil then
-		if playerColor~=nil then broadcastToColor("{en}Guard Duty could not measure a revealed-space path back to the merchant marker.{it}Servizio di Guardia non ha potuto misurare un percorso di spazi rivelati fino al segnalino mercante.{ru}Guard Duty не смог определить путь по открытым клеткам обратно к жетону торговца.{zh-tw}Guard Duty 無法計算沿已揭示空間返回商人標記的路徑。{zh-cn}Guard Duty 无法计算沿已揭示空间返回商人标记的路径。{ko}Guard Duty에서 공개된 칸을 따라 상인 마커로 돌아가는 경로를 계산하지 못했습니다.{es}Guard Duty no pudo calcular una ruta por espacios revelados hasta el marcador del mercader.{fr}Guard Duty n’a pas pu calculer un trajet par les cases révélées jusqu’au marqueur du marchand.{pt-br}Guard Duty não conseguiu calcular uma rota por espaços revelados até o marcador do mercador.{de}Guard Duty konnte keinen Weg über aufgedeckte Felder zurück zum Händlermarker bestimmen.",playerColor,{1,0.55,0.2}) end
+		if playerColor~=nil then safeBroadcastToColor("{en}Guard Duty could not measure a revealed-space path back to the merchant marker.{it}Servizio di Guardia non ha potuto misurare un percorso di spazi rivelati fino al segnalino mercante.{ru}Guard Duty не смог определить путь по открытым клеткам обратно к жетону торговца.{zh-tw}Guard Duty 無法計算沿已揭示空間返回商人標記的路徑。{zh-cn}Guard Duty 无法计算沿已揭示空间返回商人标记的路径。{ko}Guard Duty에서 공개된 칸을 따라 상인 마커로 돌아가는 경로를 계산하지 못했습니다.{es}Guard Duty no pudo calcular una ruta por espacios revelados hasta el marcador del mercader.{fr}Guard Duty n’a pas pu calculer un trajet par les cases révélées jusqu’au marqueur du marchand.{pt-br}Guard Duty não conseguiu calcular uma rota por espaços revelados até o marcador do mercador.{de}Guard Duty konnte keinen Weg über aufgedeckte Felder zurück zum Händlermarker bestimmen.",playerColor,{1,0.55,0.2}) end
 		finishQuestResolution(0.5)
 		return true,false,nil
 	end
@@ -38532,7 +38677,7 @@ local function apocalypseQuestResolveCompleteAction(card,playerIndex,option,play
 	end
 if apocalypseQuestUsesGenericStepMarker(card,option)==true and QuestPrivate.apocalypseQuestPlaceStepMarker(card,playerIndex,option,playerColor)~=true then finishQuestResolution(0.5) return false end
 if QuestPrivate.apocalypseQuestClaimAbandonedPersonal(card, playerIndex)~=true then
-	if playerColor~=nil then broadcastToColor("{en}The Personal Quest Shield could not be claimed.{it}Impossibile prendere lo Scudo Missione Personale.{ru}Щит личного задания не удалось получить.{zh-tw}無法取得個人任務盾牌。{zh-cn}无法取得个人任务盾牌。{ko}개인 퀘스트 방패를 획득하지 못했습니다.{es}No se pudo reclamar el Escudo de Misión Personal.{fr}Le Bouclier de Quête Personnelle n’a pas pu être récupéré.{pt-br}O Escudo de Missão Pessoal não pôde ser recebido.{de}Der Schild der persönlichen Quest konnte nicht beansprucht werden.", playerColor, {1,0.55,0.2}) end
+	if playerColor~=nil then safeBroadcastToColor("{en}The Personal Quest Shield could not be claimed.{it}Impossibile prendere lo Scudo Missione Personale.{ru}Щит личного задания не удалось получить.{zh-tw}無法取得個人任務盾牌。{zh-cn}无法取得个人任务盾牌。{ko}개인 퀘스트 방패를 획득하지 못했습니다.{es}No se pudo reclamar el Escudo de Misión Personal.{fr}Le Bouclier de Quête Personnelle n’a pas pu être récupéré.{pt-br}O Escudo de Missão Pessoal não pôde ser recebido.{de}Der Schild der persönlichen Quest konnte nicht beansprucht werden.", playerColor, {1,0.55,0.2}) end
 	finishQuestResolution(0.5)
 	return false
 end
@@ -38568,7 +38713,7 @@ end
 
 local function apocalypseQuestResolveFailAction(card,playerIndex,option,playerColor,quest,finishQuestResolution)
 if QuestPrivate.apocalypseQuestClaimAbandonedPersonal(card, playerIndex)~=true then
-	if playerColor~=nil then broadcastToColor("{en}The Personal Quest Shield could not be claimed.{it}Impossibile prendere lo Scudo Missione Personale.{ru}Щит личного задания не удалось получить.{zh-tw}無法取得個人任務盾牌。{zh-cn}无法取得个人任务盾牌。{ko}개인 퀘스트 방패를 획득하지 못했습니다.{es}No se pudo reclamar el Escudo de Misión Personal.{fr}Le Bouclier de Quête Personnelle n’a pas pu être récupéré.{pt-br}O Escudo de Missão Pessoal não pôde ser recebido.{de}Der Schild der persönlichen Quest konnte nicht beansprucht werden.", playerColor, {1,0.55,0.2}) end
+	if playerColor~=nil then safeBroadcastToColor("{en}The Personal Quest Shield could not be claimed.{it}Impossibile prendere lo Scudo Missione Personale.{ru}Щит личного задания не удалось получить.{zh-tw}無法取得個人任務盾牌。{zh-cn}无法取得个人任务盾牌。{ko}개인 퀘스트 방패를 획득하지 못했습니다.{es}No se pudo reclamar el Escudo de Misión Personal.{fr}Le Bouclier de Quête Personnelle n’a pas pu être récupéré.{pt-br}O Escudo de Missão Pessoal não pôde ser recebido.{de}Der Schild der persönlichen Quest konnte nicht beansprucht werden.", playerColor, {1,0.55,0.2}) end
 	finishQuestResolution(0.5)
 	return false
 end
@@ -38773,12 +38918,12 @@ if action=="Abandon" then
 	local neutralShield=QuestPrivate.apocalypseQuestNeutralShield(card)
 	if quest.questType=="Personal" and ownerIndex==nil and neutralShield~=nil then
 		if QuestPrivate.apocalypseQuestPlayerMayAct(card, playerIndex)~=true then
-			broadcastToColor("{en}You cannot resume this Personal Quest while you have another Personal Quest.{it}Non puoi riprendere questa Missione Personale mentre ne hai un'altra.{ru}Нельзя возобновить это личное задание, пока у вас есть другое личное задание.{zh-tw}當你有另一個個人任務時，不能恢復此個人任務。{zh-cn}当你有另一个个人任务时，不能恢复此个人任务。{ko}다른 개인 퀘스트를 보유한 동안에는 이 개인 퀘스트를 재개할 수 없습니다.{es}No puedes reanudar esta Misión Personal mientras tengas otra Misión Personal.{fr}Vous ne pouvez pas reprendre cette Quête Personnelle tant que vous en avez une autre.{pt-br}Você não pode retomar esta Missão Pessoal enquanto tiver outra Missão Pessoal.{de}Du kannst diese persönliche Quest nicht fortsetzen, solange du eine andere persönliche Quest hast.", player.color, warningColor)
+			safeBroadcastToColor("{en}You cannot resume this Personal Quest while you have another Personal Quest.{it}Non puoi riprendere questa Missione Personale mentre ne hai un'altra.{ru}Нельзя возобновить это личное задание, пока у вас есть другое личное задание.{zh-tw}當你有另一個個人任務時，不能恢復此個人任務。{zh-cn}当你有另一个个人任务时，不能恢复此个人任务。{ko}다른 개인 퀘스트를 보유한 동안에는 이 개인 퀘스트를 재개할 수 없습니다.{es}No puedes reanudar esta Misión Personal mientras tengas otra Misión Personal.{fr}Vous ne pouvez pas reprendre cette Quête Personnelle tant que vous en avez une autre.{pt-br}Você não pode retomar esta Missão Pessoal enquanto tiver outra Missão Pessoal.{de}Du kannst diese persönliche Quest nicht fortsetzen, solange du eine andere persönliche Quest hast.", player.color, warningColor)
 			apocalypseQuestUpdateProgressButtons(card)
 			return
 		end
 		if QuestPrivate.apocalypseQuestClaimAbandonedPersonal(card, playerIndex)~=true then
-			broadcastToColor("{en}The Personal Quest Shield could not be resumed.{it}Impossibile riprendere lo Scudo Missione Personale.{ru}Щит личного задания не удалось восстановить.{zh-tw}無法恢復個人任務盾牌。{zh-cn}无法恢复个人任务盾牌。{ko}개인 퀘스트 방패를 재개하지 못했습니다.{es}No se pudo reanudar el Escudo de Misión Personal.{fr}Le Bouclier de Quête Personnelle n’a pas pu être repris.{pt-br}O Escudo de Missão Pessoal não pôde ser retomado.{de}Der Schild der persönlichen Quest konnte nicht wieder aufgenommen werden.", player.color, {1,0.55,0.2})
+			safeBroadcastToColor("{en}The Personal Quest Shield could not be resumed.{it}Impossibile riprendere lo Scudo Missione Personale.{ru}Щит личного задания не удалось восстановить.{zh-tw}無法恢復個人任務盾牌。{zh-cn}无法恢复个人任务盾牌。{ko}개인 퀘스트 방패를 재개하지 못했습니다.{es}No se pudo reanudar el Escudo de Misión Personal.{fr}Le Bouclier de Quête Personnelle n’a pas pu être repris.{pt-br}O Escudo de Missão Pessoal não pôde ser retomado.{de}Der Schild der persönlichen Quest konnte nicht wieder aufgenommen werden.", player.color, {1,0.55,0.2})
 			return
 		end
 		apocalypseQuestUpdateProgressButtons(card)
@@ -38786,12 +38931,12 @@ if action=="Abandon" then
 		return
 	end
 	if quest.questType~="Personal" or ownerIndex~=playerIndex or ownerShield==nil then
-		broadcastToColor("{en}You can only abandon a Personal Quest marked with your own Shield.{it}Puoi abbandonare solo una Missione Personale con il tuo Scudo.{ru}Вы можете отказаться только от личного задания, отмеченного вашим собственным Щитом.{zh-tw}你只能放棄以自己盾牌標記的個人任務。{zh-cn}你只能放弃以自己盾牌标记的个人任务。{ko}자신의 방패로 표시된 개인 퀘스트만 포기할 수 있습니다.{es}Solo puedes abandonar una Misión Personal marcada con tu propio Escudo.{fr}Vous ne pouvez abandonner qu’une Quête Personnelle marquée de votre propre Bouclier.{pt-br}Você só pode abandonar uma Missão Pessoal marcada com seu próprio Escudo.{de}Du kannst nur eine persönliche Quest aufgeben, die mit deinem eigenen Schild markiert ist.", player.color, warningColor)
+		safeBroadcastToColor("{en}You can only abandon a Personal Quest marked with your own Shield.{it}Puoi abbandonare solo una Missione Personale con il tuo Scudo.{ru}Вы можете отказаться только от личного задания, отмеченного вашим собственным Щитом.{zh-tw}你只能放棄以自己盾牌標記的個人任務。{zh-cn}你只能放弃以自己盾牌标记的个人任务。{ko}자신의 방패로 표시된 개인 퀘스트만 포기할 수 있습니다.{es}Solo puedes abandonar una Misión Personal marcada con tu propio Escudo.{fr}Vous ne pouvez abandonner qu’une Quête Personnelle marquée de votre propre Bouclier.{pt-br}Você só pode abandonar uma Missão Pessoal marcada com seu próprio Escudo.{de}Du kannst nur eine persönliche Quest aufgeben, die mit deinem eigenen Schild markiert ist.", player.color, warningColor)
 		apocalypseQuestUpdateProgressButtons(card)
 		return
 	end
 	if QuestPrivate.apocalypseQuestShieldSupplyBag("Neutral")==nil then
-		broadcastToColor("{en}The neutral Quest Shield bag could not be found.{it}Sacchetto Scudi Missione neutrali non trovato.{ru}Мешок нейтральных Щитов задания не найден.{zh-tw}找不到中立任務盾牌袋。{zh-cn}找不到中立任务盾牌袋。{ko}중립 퀘스트 방패 주머니를 찾지 못했습니다.{es}No se encontró la bolsa de Escudos de Misión neutrales.{fr}Le sac de Boucliers de Quête neutres est introuvable.{pt-br}A bolsa de Escudos de Missão neutros não foi encontrada.{de}Der Beutel mit neutralen Quest-Schilden wurde nicht gefunden.", player.color, {1,0.55,0.2})
+		safeBroadcastToColor("{en}The neutral Quest Shield bag could not be found.{it}Sacchetto Scudi Missione neutrali non trovato.{ru}Мешок нейтральных Щитов задания не найден.{zh-tw}找不到中立任務盾牌袋。{zh-cn}找不到中立任务盾牌袋。{ko}중립 퀘스트 방패 주머니를 찾지 못했습니다.{es}No se encontró la bolsa de Escudos de Misión neutrales.{fr}Le sac de Boucliers de Quête neutres est introuvable.{pt-br}A bolsa de Escudos de Missão neutros não foi encontrada.{de}Der Beutel mit neutralen Quest-Schilden wurde nicht gefunden.", player.color, {1,0.55,0.2})
 		return
 	end
 	local shieldPos=ownerShield.getPosition()
@@ -38802,7 +38947,7 @@ if action=="Abandon" then
 	local neutralShield=QuestPrivate.apocalypseQuestTakeNeutralShield(surface)
 	if neutralShield==nil then
 		apocalypseQuestEndMoveAttachmentCapture(card)
-		broadcastToColor("{en}A neutral Quest Shield could not be placed.{it}Impossibile posizionare uno Scudo Missione neutrale.{ru}Нейтральный Щит задания не удалось разместить.{zh-tw}無法放置中立任務盾牌。{zh-cn}无法放置中立任务盾牌。{ko}중립 퀘스트 방패를 놓지 못했습니다.{es}No se pudo colocar un Escudo de Misión neutral.{fr}Un Bouclier de Quête neutre n’a pas pu être placé.{pt-br}Um Escudo de Missão neutro não pôde ser colocado.{de}Ein neutraler Quest-Schild konnte nicht platziert werden.", player.color, {1,0.55,0.2})
+		safeBroadcastToColor("{en}A neutral Quest Shield could not be placed.{it}Impossibile posizionare uno Scudo Missione neutrale.{ru}Нейтральный Щит задания не удалось разместить.{zh-tw}無法放置中立任務盾牌。{zh-cn}无法放置中立任务盾牌。{ko}중립 퀘스트 방패를 놓지 못했습니다.{es}No se pudo colocar un Escudo de Misión neutral.{fr}Un Bouclier de Quête neutre n’a pas pu être placé.{pt-br}Um Escudo de Missão neutro não pôde ser colocado.{de}Ein neutraler Quest-Schild konnte nicht platziert werden.", player.color, {1,0.55,0.2})
 		return
 	end
 	neutralShield.setRotationSmooth(shieldRot)
@@ -38825,7 +38970,7 @@ local options=QuestPrivate.apocalypseQuestCurrentOptions(card, playerIndex, acti
 if #options==0 then
 	local state=QuestPrivate.apocalypseQuestProgressState(card, playerIndex, false)
 	local step=state~=nil and state.step or 1
-	broadcastToColor(joinLang({action,"{en} is not available for step {it} non è disponibile per il passo {ru} недоступно для шага {zh-tw} 不適用於此任務的步驟 {zh-cn} 不适用于此任务的步骤 {ko}은(는) 이 퀘스트의 {es} no está disponible para el paso {fr} n’est pas disponible pour l’étape {pt-br} não está disponível para a etapa {de} ist für Schritt ",tostring(step),"{en} of this Quest.{it} di questa Missione.{ru} этого задания.{zh-tw}。{zh-cn}。{ko}단계에서 사용할 수 없습니다.{es} de esta Misión.{fr} de cette Quête.{pt-br} desta Missão.{de} dieser Quest nicht verfügbar."}), player.color, warningColor)
+	safeBroadcastToColor(joinLang({action,"{en} is not available for step {it} non è disponibile per il passo {ru} недоступно для шага {zh-tw} 不適用於此任務的步驟 {zh-cn} 不适用于此任务的步骤 {ko}은(는) 이 퀘스트의 {es} no está disponible para el paso {fr} n’est pas disponible pour l’étape {pt-br} não está disponível para a etapa {de} ist für Schritt ",tostring(step),"{en} of this Quest.{it} di questa Missione.{ru} этого задания.{zh-tw}。{zh-cn}。{ko}단계에서 사용할 수 없습니다.{es} de esta Misión.{fr} de cette Quête.{pt-br} desta Missão.{de} dieser Quest nicht verfügbar."}), player.color, warningColor)
 	apocalypseQuestUpdateProgressButtons(card)
 	return
 end
@@ -38841,6 +38986,7 @@ function apocalypseQuestCardAction(player, mouseButton, id)
 	local guid=id:sub(16, 21)
 	local action=id:sub(22)
 	local card=getObjectFromGUID(guid)
+	if card~=nil and card.is_face_down==true then return end
 	--Quest actions serialize with the whole offer movement, not just this card's own animation. A card already
 	--at its destination may report isSmoothMoving()==false while neighbouring Quest cards are still crossing.
 	--Never wait for resting: locked Quest cards can remain resting=false because pieces are touching them.
@@ -42574,7 +42720,7 @@ local shown={}
 -- receive Resource Tracker highlights. Avoid repeated highlightOff calls.
 local crystalHighlightCleared={}
 local bySeat={}
--- Player choices are transient, never written into gStates or save JSON.
+-- Initial guesses and explicit player choices are transient, never saved in gStates or JSON.
 local selectedResourceByGUID={}
 -- A choice lasts for one play; delayed departure checks must not race a return.
 local choiceResetGenerationByGUID={}
@@ -42582,6 +42728,7 @@ local choiceResetGenerationByGUID={}
 -- buttons, but the chosen resource stays until the script reloads.
 local choiceExpandedByGUID={}
 local choiceButtonShown={}
+local unitManaDecision
 -- Highlights show how confidently the tracker understands the selected effect.
 -- Blue is a deliberate neutral/not-calculated state, not an illegal-play warning.
 -- Purple takes precedence when objects are linked; brightness indicates power.
@@ -42598,6 +42745,19 @@ local totalsKeys={move=true,ranged=true,siege=true,attack=true,block=true,influe
     siegeFire=true,siegeIce=true,siegeColdFire=true,
     attackFire=true,attackIce=true,attackColdFire=true,
     blockFire=true,blockIce=true,blockColdFire=true}
+
+-- Catalog is defined once in UnitResources.lua and keyed by card GUID.
+local unitResourceDefinitions=unitResourceDefinitions
+local commandPickupForUnits={}
+-- Rebuilt with the live Unit layout for each Resource Tracker scan.
+-- Existing Command tokens and Wounds suppress Unit highlights regardless of
+-- whether an activated ability contributes resources this turn.
+local unitHighlightBlocked={}
+-- Reuse a single immutable terrain modifier. Constructing a new table on
+-- every scan would make the terrain-effect comparison think the cost changed
+-- even when Foresters' chosen ability is unchanged.
+local forestersTerrainModifier={mode="reduce",
+    terrains={forest=true,hills=true,swamp=true},amount=1,minimum=0}
 
 function resourceCardsPanelOpen()
     return gStates~=nil and gStates.firstStarted==true
@@ -42623,27 +42783,81 @@ local resourceTotalsKeyByField={
     healing={healing="healing"}
 }
 
-function resourceCardsEffectiveValue(category,field)
-    local tracker=gStates~=nil and gStates.resourceTracker or nil
+local attackTransformFamilies={"attack","ranged","siege"}
+local attackTransformFields={"physical","fire","ice","iceFire"}
+
+local function resourceCardsRawValue(tracker,totals,category,field)
     local manual=tracker~=nil and tracker[category]~=nil and tracker[category][field] or 0
-    local totals=resourceCardsCurrentTotals()
     local fields=resourceTotalsKeyByField[category]
     local totalKey=fields~=nil and fields[field] or nil
     local estimated=totals~=nil and totalKey~=nil and (totals[totalKey] or 0) or 0
     return manual+estimated
 end
 
+function resourceCardsEffectiveValue(category,field)
+    local tracker=gStates~=nil and gStates.resourceTracker or nil
+    local totals=resourceCardsCurrentTotals()
+    local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    local scan=current~=nil and resourceCardScanBySeat[current.seatPos] or nil
+    local transform=totals~=nil and scan~=nil and scan.attackTransforms or nil
+    if transform==nil or (not transform.coldFire and not transform.siege)
+        or (category~="attack" and category~="ranged" and category~="siege") then
+        return resourceCardsRawValue(tracker,totals,category,field)
+    end
+
+    -- Change the displayed Attack category, not original card/Unit records.
+    -- Manual +/- values follow the same transformation as scanned attacks.
+    local amount=0
+    for _,sourceFamily in ipairs(attackTransformFamilies) do
+        local destinationFamily=transform.siege and "siege" or sourceFamily
+        if destinationFamily==category then
+            for _,sourceField in ipairs(attackTransformFields) do
+                local destinationField=transform.coldFire and "iceFire" or sourceField
+                if destinationField==field then
+                    amount=amount+resourceCardsRawValue(tracker,totals,sourceFamily,sourceField)
+                end
+            end
+        end
+    end
+    return amount
+end
+
 function resourceCardsEffectiveMove()
     return math.max(0,resourceCardsEffectiveValue("move","move"))
+end
+
+-- Active, reconstructable play-area effects, shared with the movement calculator.
+function resourceCardsCurrentMovementEffects()
+    if not resourceCardsPanelOpen() or turnOrder==nil then return nil end
+    local player=turnOrder[gStates.turnNumber]
+    local scan=player~=nil and resourceCardScanBySeat[player.seatPos] or nil
+    return scan~=nil and scan.movementEffects or nil
 end
 
 -- Terrain abilities are an overlay, not changes to gStates.moveCost. This
 -- preserves day/night terrain settings, manual adjustments and other cards.
 -- City/Explore are not terrain: their special movement costs remain intact.
+-- Claimed Skills keep their passive effects while their token remains at home.
+local function ownedSkillAtSeat(guid,seatPos)
+    local home=gStates~=nil and gStates.mageSkills~=nil and gStates.mageSkills[guid] or nil
+    return home~=nil and home[1]~=nil and home[3]~=nil
+        and home[3]<-30.5 and math.abs(home[1]-(seatPos*40-109.5))<15
+end
+
 local passableTerrain={
     plains=true,hills=true,forest=true,wasteland=true,desert=true,swamp=true,
     lake=true,mountain=true
 }
+
+local function cardTerrainEffects(rule,powered)
+    if rule==nil or rule.terrainEffects==nil then return nil end
+    if powered then return rule.terrainEffects.powered end
+    return rule.terrainEffects.normal
+end
+
+local function terrainEffectActive(effect)
+    return effect.dayRound==nil or effect.dayRound==(gStates.dayRound==true)
+end
 
 local function terrainEffectApplies(effect,terrain)
     return effect.terrains=="passable" and passableTerrain[terrain]==true
@@ -42652,7 +42866,7 @@ end
 
 function resourceCardsEffectiveTerrainCost(terrain)
     local base=gStates~=nil and gStates.moveCost~=nil and gStates.moveCost[terrain] or nil
-    if base==nil then return 999 end
+    if base==nil then base=999 end
     local player=turnOrder~=nil and gStates~=nil
         and turnOrder[gStates.turnNumber] or nil
     local scan=player~=nil and resourceCardScanBySeat[player.seatPos] or nil
@@ -42687,6 +42901,10 @@ local function clearHighlight(guid)
 end
 
 local function setHighlight(obj,kind,powered)
+    if unitHighlightBlocked[obj.guid]==true then
+        clearHighlight(obj.guid)
+        return
+    end
     -- Crystal figurines represent mana but are visually distinctive already.
     -- Keep their power detection/contribution records, without outlining the
     -- figurine. Remove any highlight left from the previous tracker version.
@@ -42722,10 +42940,10 @@ local function cardPosture(card)
     return "sideways"
 end
 
--- A card lying at any angle through 70 degrees can be physically overlapped
--- as Improvisation's discard payment; 90 degrees means something else.
+-- Only a deliberately tilted card can pay a discard cost, not an upright
+-- action or a fully sideways +1 play (notably Improvisation).
 local function canPayDiscard(card)
-    return card.is_face_down~=true and cardRotationOffset(card)<=70
+    return card.is_face_down~=true and cardPosture(card)=="discard"
 end
 
 -- Only cards that may be played from hand can generate a sideways +1.
@@ -42737,14 +42955,50 @@ local function cardCanPlaySideways(card)
             or data.cardType=="Spell" or data.cardType=="Artifact")
 end
 
-local sidewaysChoices={{move=1},{influence=1},{attack=1},{block=1}}
+local sidewaysChoices={{move=1},{block=1},{attack=1},{influence=1}}
 
-local choiceLetters={move="M",influence="I",attack="A",block="B",
+local choiceLetters={attackP1="A",attackP2="A2",attackP3="A3",
+    attackF1="AF",attackF2="AF2",attackI1="AI",attackI2="AI2",
+    attackIF1="AC",attackIF2="AC2",
+    blockP1="B",blockF1="BF",blockI1="BI",blockIF1="BC",
+    twiceAttack="A2",twiceBlock="B2",move="M",influence="I",attack="A",block="B",
     ranged="R",siege="S",healing="H",draw="D",other="O",
+    siegeFire="SF",siegeIce="SI",rangedFire="RF",rangedIce="RI",
     fire="F",ice="I",coldFire="C",boost="H+",split="I/F",negative="N",
     heal="H",combat="C",wound="W",reputation="R",gain="G",ready="R",
-    base="2",sourceUnused="3"}
-
+    base="2",sourceUnused="3",red="R",blue="B",white="W",green="G",
+    fireAttack="F",fireBlock="F",fireSiege="F",iceSiege="I",fireBlockOnly="B",fireBlockCounter="B+",
+    splitBlock="B2",zero="0",one="1",two="2",three="3",four="4",five="5"}
+-- The choice UI and initial-guess tie-breaks follow the Resource Tracker order.
+local resourceChoiceOrder={
+    move=1,siege=2,ranged=3,block=4,attack=5,influence=6,healing=7,heal=7,
+    fireBlock=4,fireAttack=5,fireSiege=2,iceSiege=2
+}
+local resourceChoiceFamilies={"move","siege","ranged","block","attack","influence","healing"}
+local function resourceChoiceRank(category,choice)
+    local rank=resourceChoiceOrder[category]
+    if rank~=nil then return rank end
+    -- Choices with non-resource keys (e.g. heal, combat, wound) retain
+    -- their unique callback IDs while sorting by what they contribute.
+    for i,family in ipairs(resourceChoiceFamilies) do
+        for resource,value in pairs(choice) do
+            if type(value)=="number" and (resource==family
+                or (family=="healing" and resource=="healing")
+                or (family=="siege" or family=="ranged"
+                    or family=="block" or family=="attack")
+                    and resource:sub(1,#family)==family) then
+                return i
+            end
+        end
+    end
+    return #resourceChoiceFamilies+1
+end
+local function resourceChoiceColumn(category)
+    if category=="fireBlock" then return "block" end
+    if category=="fireAttack" then return "attack" end
+    if category=="fireSiege" or category=="iceSiege" then return "siege" end
+    return category
+end
 local function sideChoices(rule,powered)
     if rule==nil then return nil end
     -- Do not use 'powered and poweredChoices or normalChoices': Lua falls back
@@ -42800,6 +43054,74 @@ local function chosenEffect(guid,powered,choices,sideways)
     return currentChoice(guid,powered,choices,sideways)
 end
 
+-- Bonus choices are independent of the card's primary selection. Until the
+-- player chooses a bonus explicitly, it follows the main choice (or the
+-- printed first alternative if the main category is unavailable).
+local function inventorySetChoice(guid,index,choices,mainChoices)
+    local stored=selectedResourceByGUID[guid]
+    local selected=stored~=nil and stored.inventorySets~=nil and stored.inventorySets[index] or nil
+    if not choiceAvailable(choices,selected) then
+        local _,primary=currentChoice(guid,true,mainChoices)
+        selected=choiceAvailable(choices,primary) and primary or nil
+    end
+    if not choiceAvailable(choices,selected) then selected=choiceCategory(choices[1]) end
+    for _,choice in ipairs(choices) do
+        if choiceCategory(choice)==selected then return choice,selected end
+    end
+    return nil,nil
+end
+
+-- Guess once for a newly played choice card. Compare the displayed Resource
+-- Tracker family totals (including manual +/-), excluding this card's previous
+-- contribution so it cannot vote for its own old selection.
+local function trackerChoiceScores(guid,seatPos)
+    local tracker=gStates~=nil and gStates.resourceTracker or nil
+    local previous=resourceCardScanBySeat[seatPos]
+    local estimated=previous~=nil and previous.totals or {}
+    local record=previous~=nil and previous.cards[guid] or nil
+    local own=record~=nil and record.resources or {}
+    local scores={}
+    for _,family in ipairs(resourceChoiceFamilies) do
+        local value=0
+        for _,offset in pairs(tracker~=nil and tracker[family] or {}) do
+            value=value+offset
+        end
+        for _,totalKey in pairs(resourceTotalsKeyByField[family]) do
+            value=value+(estimated[totalKey] or 0)-(own[totalKey] or 0)
+        end
+        scores[family]=math.max(0,value)
+    end
+    return scores
+end
+
+local function guessInitialCardChoice(card,choices,seatPos,rule,sideways)
+    if selectedResourceByGUID[card.guid]~=nil or choices==nil or #choices<2
+        or card.is_face_down==true then return end
+    local scores=trackerChoiceScores(card.guid,seatPos)
+    local best,bestValue,bestRank=nil,nil,nil
+    for _,choice in ipairs(choices) do
+        local category=choiceCategory(choice)
+        local rank=resourceChoiceRank(category,choice)
+        if category~=nil and choiceLetters[category]~=nil
+            and rank<=#resourceChoiceFamilies then
+            local value=scores[resourceChoiceFamilies[rank]]
+            if best==nil or value>bestValue or (value==bestValue and rank<bestRank) then
+                best,bestValue,bestRank=category,value,rank
+            end
+        end
+    end
+    -- Purely untracked choices (draw/other/etc.) retain their printed default.
+    if best==nil then return end
+    local selected={}
+    if sideways and not choiceAvailable(sideChoices(rule,false),best)
+        and not choiceAvailable(sideChoices(rule,true),best) then
+        selected.sideways=best
+    else
+        selected.effect=best
+    end
+    selectedResourceByGUID[card.guid]=selected
+end
+
 local function effectHasTrackedResource(effects)
     if effects==nil then return false end
     for category,value in pairs(effects) do
@@ -42828,19 +43150,89 @@ local function removeChoiceButtons(card)
     choiceButtonShown[card.guid]=nil
 end
 
--- A single selected letter sits above the title. Click to show the whole
--- choice row; choosing any option immediately collapses back to one letter.
-local function showChoiceButtons(card,choices,powered)
+-- Skills use their own centred layout; Action/Spell/Artifact buttons keep their
+-- existing horizontal layout. Elemental options for the same resource family
+-- share a column, centred vertically around the Skill's midpoint.
+local function skillChoiceFamily(category,choice)
+    for _,family in ipairs(resourceChoiceFamilies) do
+        for resource,value in pairs(choice) do
+            if type(value)=="number"
+                and (resource==family or resource:sub(1,#family)==family) then
+                return family
+            end
+        end
+    end
+    return resourceChoiceColumn(category)
+end
+
+local function skillChoicePositions(entries)
+    local families,familyOrder={},{}
+    for _,entry in ipairs(entries) do
+        local family=entry.skillFamily
+        if families[family]==nil then
+            families[family]={}
+            familyOrder[#familyOrder+1]=family
+        end
+        families[family][#families[family]+1]=entry
+    end
+
+    local columns={}
+    local grouped=#familyOrder<=3
+    for _,family in ipairs(familyOrder) do
+        if #families[family]>2
+            and not (#familyOrder==1 and #families[family]==3) then
+            grouped=false break
+        end
+    end
+    if grouped then
+        for _,family in ipairs(familyOrder) do
+            columns[#columns+1]=families[family]
+        end
+    else
+        -- Four alternatives of one element family or four unrelated resource
+        -- families fit in a centred 2x2 grid, rather than a wide four-button row.
+        local ordered={}
+        for _,family in ipairs(familyOrder) do
+            for _,entry in ipairs(families[family]) do ordered[#ordered+1]=entry end
+        end
+        local rowCount=math.max(2,math.ceil(#ordered/3))
+        for i,entry in ipairs(ordered) do
+            local columnIndex=math.ceil(i/rowCount)
+            columns[columnIndex]=columns[columnIndex] or {}
+            columns[columnIndex][#columns[columnIndex]+1]=entry
+        end
+    end
+
+    local positions={}
+    for columnIndex,column in ipairs(columns) do
+        local x=((#columns+1)/2-columnIndex)*104
+        local verticalSpacing=#column==3 and 58 or 70
+        for rowIndex,entry in ipairs(column) do
+            positions[entry.category]={x=x,
+                y=((#column+1)/2-rowIndex)*verticalSpacing}
+        end
+    end
+    return positions
+end
+
+-- A single selected icon is centred on the object. Click to expand all
+-- choices; selecting one immediately collapses back to its icon.
+local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySets)
     if card==nil then return end
     local posture=cardPosture(card)
-    local isSkill=skillTokens[card.guid]~=nil
-    if choices==nil or #choices<2 or (card.is_face_down==true and not isSkill)
+    local isSkill=skillTokens[card.guid]~=nil or card.getGMNotes()=="Puppet Master"
+    -- Skill tokens are physically smaller than Action cards, so their choice
+    -- buttons (collapsed and expanded) need a larger dedicated scale.
+    local buttonScale=isSkill and "0.58 0.58" or "0.25 0.25"
+    local buttonSpacing=44
+    local buttonRowOffset=-30
+    local data=gameCards[card.guid]
+    local isArtifact=data~=nil and data.cardType=="Artifact"
+    if choices==nil or #choices<2
+        or (card.is_face_down==true and not isSkill and not isArtifact)
         or (not isSkill and posture=="discard")
         or (not isSkill and posture=="sideways" and not (cardCanPlaySideways(card)
             or card.getGMNotes()=="Wound")) then
-        -- Once per card, inspect object XML even when our runtime cache is
-        -- empty: controls created before a script reload can still be present.
-        -- A 'hidden' marker avoids re-reading XML during every later scan.
         if choiceButtonShown[card.guid]~="hidden" then
             removeChoiceButtons(card)
             choiceButtonShown[card.guid]="hidden"
@@ -42848,36 +43240,82 @@ local function showChoiceButtons(card,choices,powered)
         choiceExpandedByGUID[card.guid]=nil
         return
     end
-    local _,selected=currentChoice(card.guid,powered,choices,not isSkill and posture=="sideways")
-    local categories,seen={},{}
-    for _,choice in ipairs(choices) do
-        local category=choiceCategory(choice)
-        if category~=nil and choiceLetters[category]~=nil and not seen[category] then
-            seen[category]=true
-            categories[#categories+1]=category
+
+    -- Multiple-choice cards normally have one row. A declarative inventory
+    -- set rule adds one more compact row for each complete set of crystals.
+    local rows={{index=0,choices=choices}}
+    if powered and posture=="upright" and inventorySpec~=nil then
+        for i=1,(inventorySets or 0) do
+            rows[#rows+1]={index=i,choices=inventorySpec.choices}
         end
     end
-    if #categories<2 or selected==nil then
-        if choiceButtonShown[card.guid]~="hidden" then
-            removeChoiceButtons(card)
-            choiceButtonShown[card.guid]="hidden"
+    local expandedRow=choiceExpandedByGUID[card.guid]
+    local signatureParts,visibleAssets,assetSeen={}, {}, {}
+    for _,row in ipairs(rows) do
+        local _,selected
+        if row.index==0 then
+            _,selected=currentChoice(card.guid,powered,row.choices,
+                not isSkill and posture=="sideways")
+        else
+            _,selected=inventorySetChoice(card.guid,row.index,row.choices,choices)
         end
-        choiceExpandedByGUID[card.guid]=nil
-        return
+        row.selected=selected
+        row.entries={}
+        local seen={}
+        for j,choice in ipairs(row.choices) do
+            local category=choiceCategory(choice)
+            if category~=nil and choiceLetters[category]~=nil and not seen[category] then
+                seen[category]=true
+                row.entries[#row.entries+1]={category=category,
+                    rank=resourceChoiceRank(category,choice),originalIndex=j,
+                    skillFamily=isSkill and skillChoiceFamily(category,choice) or nil,
+                    icon=choice.icon or category,iconOverlay=choice.iconOverlay,
+                    iconOverlayColor=choice.iconOverlayColor,
+                    iconOverlayAlignment=choice.iconOverlayAlignment,
+                    iconOverlaySize=choice.iconOverlaySize}
+            end
+        end
+        table.sort(row.entries,function(a,b)
+            if a.rank~=b.rank then return a.rank<b.rank end
+            return a.originalIndex<b.originalIndex
+        end)
+        if #row.entries<2 or selected==nil then
+            if choiceButtonShown[card.guid]~="hidden" then
+                removeChoiceButtons(card)
+                choiceButtonShown[card.guid]="hidden"
+            end
+            choiceExpandedByGUID[card.guid]=nil
+            return
+        end
+        row.expanded=(row.index==0 and (expandedRow==true or expandedRow=="base"))
+            or expandedRow=="set"..tostring(row.index)
+        local selectedEntry
+        for _,entry in ipairs(row.entries) do
+            if entry.category==selected then selectedEntry=entry break end
+        end
+        row.visible=row.expanded and row.entries or {selectedEntry}
+        local categories={}
+        for _,entry in ipairs(row.visible) do
+            categories[#categories+1]=entry.category
+            if not assetSeen[entry.icon] then
+                visibleAssets[#visibleAssets+1]=entry.icon
+                assetSeen[entry.icon]=true
+            end
+        end
+        signatureParts[#signatureParts+1]=row.index..":"..selected..":"
+            ..(row.expanded and "open" or "closed")..":"..table.concat(categories,",")
     end
-    local expanded=choiceExpandedByGUID[card.guid]==true
-    local visible=expanded and categories or {selected}
-    -- The card's object UI has the opposite apparent Z rotation to the
-    -- card's world Y rotation. Counter-rotate each label in the correct
-    -- direction, while positions stay card-local (vertical when sideways).
-    -- Snap to quarter-turns to avoid UI churn from small rotation changes.
     local buttonRotation=180
     if posture=="sideways" then
         buttonRotation=card.getRotation()[2]%360<180 and 90 or 270
     end
+    local uiRotation=card.is_face_down==true and "0 180 180" or ("0 0 "..buttonRotation)
+    -- Keep Skill icons just clear of the token surface to prevent
+    -- z-fighting/flicker when the camera moves. Other object UI depths stay put.
+    local buttonDepth=isSkill and (card.is_face_down==true and "12" or "-12")
+        or (card.is_face_down==true and "35" or "-35")
     local signature=(posture=="sideways" and "S" or (powered and "P" or "N"))
-        ..":"..selected..":"..(expanded and "open" or "closed")
-        ..":"..table.concat(categories,",")..":"..buttonRotation
+        ..":"..table.concat(signatureParts,";")..":"..uiRotation..":"..buttonDepth
     if choiceButtonShown[card.guid]==signature then return end
     local xml=card.UI.getXmlTable() or {}
     for i=#xml,1,-1 do
@@ -42885,22 +43323,194 @@ local function showChoiceButtons(card,choices,powered)
         if attr~=nil and type(attr.id)=="string"
             and attr.id:sub(1,19)=="ResourceCardChoice_" then table.remove(xml,i) end
     end
-    for i,category in ipairs(visible) do
-        local x=((#visible+1)/2-i)*44
-        local active=category==selected
-        xml[#xml+1]={tag="Button",attributes={
-            id="ResourceCardChoice_"..card.guid.."_"..category,
-            onClick="global/resourceCardsChoiceClicked",
-            position=tostring(x).." -12 -35",rotation="0 0 "..buttonRotation,
-            width=90,height=90,scale="0.25 0.25",
-            colors=active and "#387D30|#4CA940|#387D30|#387D30"
-                or "#454D5D|#69798E|#444C63|#454D5D",
-            fontSize=77,textColor="#FFFFFF",textAlignment="MiddleCenter"
-        },value=choiceLetters[category]}
+    local assets,blocked=resourceCardsChoiceAssetsFor(card.UI,visibleAssets)
+    local multi=#rows>1
+    for _,row in ipairs(rows) do
+        local columns,columnByCategory={},{}
+        for _,entry in ipairs(row.visible) do
+            local column=resourceChoiceColumn(entry.category)
+            if columnByCategory[column]==nil then
+                columns[#columns+1]=column
+                columnByCategory[column]=#columns
+            end
+        end
+        local y=isSkill and 0 or (-12-(#rows-1)*15+row.index*30)
+        -- 0 = printed stronger effect; 1, 2, ... = crystal set bonuses.
+        if multi then
+            xml[#xml+1]={tag="Text",attributes={
+                id="ResourceCardChoice_"..card.guid.."_label"..row.index,
+                position="-80 "..tostring(y).." "..buttonDepth,rotation=uiRotation,
+                width=60,height=90,scale="0.25 0.25",fontSize=62,
+                color="#DAE1EA",alignment="MiddleCenter",
+                raycastTarget="false",text=tostring(row.index)}}
+        end
+        local displayed={}
+        for _,entry in ipairs(row.visible) do displayed[entry.category]=true end
+        local skillPositions=isSkill and skillChoicePositions(row.visible) or nil
+        for _,entry in ipairs(row.visible) do
+            local category=entry.category
+            local column=resourceChoiceColumn(category)
+            local x=((#columns+1)/2-columnByCategory[column])*buttonSpacing
+            local above=row.expanded and category~=column and displayed[column]==true
+            local buttonY=y+(above and buttonRowOffset or 0)
+            if skillPositions~=nil then
+                x=skillPositions[category].x
+                buttonY=skillPositions[category].y
+            end
+            local active=category==row.selected
+            local icon=resourceCardsChoiceIcon(entry.icon)
+            if icon~=nil and blocked[icon.name] then icon=nil end
+            local buttonId="ResourceCardChoice_"..card.guid.."_"
+                ..(row.index>0 and ("set"..row.index.."_") or "")..category
+            local button={tag="Button",attributes={
+                id=buttonId,onClick="global/resourceCardsChoiceClicked",
+                position=tostring(x).." "..tostring(buttonY).." "..buttonDepth,
+                rotation=uiRotation,width=90,height=90,
+                scale=buttonScale,
+                colors=active and "#387D30|#4CA940|#387D30|#387D30"
+                    or "#454D5D|#69798E|#444C63|#454D5D",
+                fontSize=77,textColor="#FFFFFF",textAlignment="MiddleCenter"
+            },value=icon==nil and choiceLetters[category] or ""}
+            if icon~=nil then
+                button.children={{tag="Image",attributes={
+                    image=icon.name,width=82,height=82,preserveAspect="true",
+                    raycastTarget="false",color="#FFFFFF"}}}
+                local mark=entry.iconOverlay
+                if mark==nil and (category=="fireAttack" or category=="fireBlock") then
+                    mark="F" -- Existing Battle Versatility fire icons.
+                end
+                if mark~=nil then
+                    button.children[#button.children+1]={tag="Text",attributes={
+                        text=mark,width=82,height=82,
+                        alignment=entry.iconOverlayAlignment or "MiddleCenter",
+                        fontSize=tonumber(entry.iconOverlaySize) or 62,
+                        fontStyle="Bold",color=entry.iconOverlayColor or "#FF564A",
+                        outline="#1C1514",outlineSize="2 -2",
+                        raycastTarget="false"}}
+                end
+            end
+            xml[#xml+1]=button
+        end
     end
-    card.UI.setXmlTable(xml)
+    if assets~=nil then card.UI.setXmlTable(xml,assets)
+    else card.UI.setXmlTable(xml) end
     choiceButtonShown[card.guid]=signature
 end
+
+
+-- One selected icon in the Unit's lower-left artwork margin, away from
+-- its Command token. Expand vertically in printed ability order.
+-- Alternatives sharing a printed row occupy adjacent columns to the right.
+-- This is intentionally independent of translated text position.
+local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decision)
+    if unit==nil then return end
+    if not unwounded or activation==nil or abilities==nil or #abilities==0 then
+        removeChoiceButtons(unit)
+        choiceExpandedByGUID[unit.guid]=nil
+        return
+    end
+    local decision=decision or unitManaDecision(unit,abilities,activation)
+    local available=decision.display
+    if #available<2 and not decision.ambiguous then
+        if choiceButtonShown[unit.guid]~="hidden" then
+            removeChoiceButtons(unit)
+            choiceButtonShown[unit.guid]="hidden"
+        end
+        choiceExpandedByGUID[unit.guid]=nil
+        return
+    end
+    local selected=decision.index
+    local expanded=decision.ambiguous or (choiceExpandedByGUID[unit.guid]==true and #available>1)
+    local selectedKeys={}
+    for i in pairs(decision.selected or {}) do selectedKeys[#selectedKeys+1]=tostring(i) end
+    table.sort(selectedKeys)
+    local signature="Unit:"..tostring(selected)..":"..tostring(expanded)
+        ..":"..table.concat(available,",")..":"..table.concat(selectedKeys,",")
+    if choiceButtonShown[unit.guid]==signature then return end
+
+    local xml=unit.UI.getXmlTable() or {}
+    for i=#xml,1,-1 do
+        local attr=xml[i].attributes
+        if attr~=nil and type(attr.id)=="string"
+            and attr.id:sub(1,19)=="ResourceCardChoice_" then table.remove(xml,i) end
+    end
+    local visibleAssets,seen={},{}
+    local displayed=expanded and available or {selected or available[1]}
+    for _,index in ipairs(displayed) do
+        local ability=abilities[index]
+        local name=ability.icon or ability.key
+        if not seen[name] then visibleAssets[#visibleAssets+1]=name seen[name]=true end
+    end
+    local assets,blocked=resourceCardsChoiceAssetsFor(unit.UI,visibleAssets)
+
+    -- Shared printed rows keep a stable vertical slot; all sub-options start
+    -- at the centre column and grow only to the right.
+    local rows,rowByKey={},{}
+    if expanded then
+        for _,i in ipairs(displayed) do
+            local ability=abilities[i]
+            local key=ability.row or i
+            if rowByKey[key]==nil then
+                rowByKey[key]={}
+                rows[#rows+1]=rowByKey[key]
+            end
+            rowByKey[key][#rowByKey[key]+1]=i
+        end
+    else
+        rows={{displayed[1]}}
+    end
+
+    -- Fixed lower-left anchor works independently of translated text.
+    -- The 180-degree UI rotation reverses the screen-space axes, so the
+    -- first printed ability takes negative Y (above) and extra alternatives
+    -- take negative X (to the screen-right of their primary option).
+    -- Shift by one rendered Unit-button width (90 * 0.22) farther left.
+    local baseX,baseY=91.8,80
+    -- Button footprint is 90 * 0.22 = 19.8 UI units. Halve the
+    -- *empty gap* (not the centre spacing) so neighbouring buttons
+    -- remain separate and clickable: 34 -> 26.9, 35 -> 27.4.
+    local rowSpacing=26.9
+    local columnSpacing=27.4
+    for rowIndex,indices in ipairs(rows) do
+        local y=baseY+(rowIndex-(#rows+1)/2)*rowSpacing
+        for columnIndex,index in ipairs(indices) do
+            local ability=abilities[index]
+            local active=decision.selected~=nil and decision.selected[index]==true
+                or decision.selected==nil and index==selected
+            local icon=resourceCardsChoiceIcon(ability.icon or ability.key)
+            if icon~=nil and blocked[icon.name] then icon=nil end
+            local button={tag="Button",attributes={
+                id="ResourceCardChoice_"..unit.guid.."_unit"..index,
+                onClick="global/resourceUnitsChoiceClicked",
+                position=tostring(baseX-(columnIndex-1)*columnSpacing).." "..tostring(y).." -35",
+                rotation="0 0 180",width=90,height=90,scale="0.22 0.22",
+                colors=active and "#387D30|#4CA940|#387D30|#387D30"
+                    or "#454D5D|#69798E|#444C63|#454D5D",
+                fontSize=77,textColor="#FFFFFF",textAlignment="MiddleCenter"
+            },value=icon==nil and (ability.buttonLabel
+                or (ability.key=="other" and tostring(ability.row))
+                or choiceLetters[ability.key] or "?") or ""}
+            if icon~=nil then
+                button.children={{tag="Image",attributes={
+                    image=icon.name,width=82,height=82,preserveAspect="true",
+                    raycastTarget="false",color="#FFFFFF"}}}
+                if ability.iconOverlay~=nil then
+                    button.children[#button.children+1]={tag="Text",attributes={
+                        text=ability.iconOverlay,width=82,height=82,
+                        alignment="MiddleCenter",fontSize=62,fontStyle="Bold",
+                        color=ability.iconOverlayColor or "#FF564A",
+                        outline="#1C1514",outlineSize="2 -2",
+                        raycastTarget="false"}}
+                end
+            end
+            xml[#xml+1]=button
+        end
+    end
+    if assets~=nil then unit.UI.setXmlTable(xml,assets)
+    else unit.UI.setXmlTable(xml) end
+    choiceButtonShown[unit.guid]=signature
+end
+
 
 local function clearChoiceButtons()
     for guid,signature in pairs(choiceButtonShown) do
@@ -42980,6 +43590,7 @@ local factionRewardNotes={
 local function resourceObjectKind(obj)
     if obj==nil then return nil end
     if skillTokens[obj.guid]~=nil then return "skill" end
+    if obj.getGMNotes()=="Puppet Master" then return "puppet" end
     if obj.type=="Card" then
         local data=gameCards[obj.guid]
         if data~=nil then
@@ -43001,8 +43612,9 @@ local function matchesCardMana(card,color)
     if color==nil then return false end
     local data=gameCards[card.guid]
     if data==nil then return color=="Red" or color=="Blue" or color=="Green" or color=="White" end
+    if data.cardType=="Artifact" then return false end
     if color=="Gold" then return gStates.dayRound==true end
-    if color=="Black" then return data.cardType=="Spell" and gStates.dayRound==false end
+    if color=="Black" then return data.cardType=="Spell" end
     local colors=data.color
     if type(colors)=="string" then return colors==color end
     if type(colors)=="table" then
@@ -43035,6 +43647,75 @@ local function applyLinkedResourceBonus(effects,link)
     return values
 end
 
+-- Resolve independent mana roles without relying on placement order or GUID
+-- order. A casting payment (if declared), stronger-effect payment, and
+-- effect-selection payment must be different physical mana objects. Daytime
+-- Gold can fill either a casting or effect role; its effect stays ambiguous.
+-- Other cards can reuse this by declaring effectManaChoice.castColor.
+local function effectManaPossibilities(spec,payments,needPower,daytime)
+    local possible,anyColor={},false
+    local function hasDistinctPower(effectGUID,castGUID)
+        if not needPower then return true end
+        for _,payment in ipairs(payments) do
+            if payment.guid~=effectGUID and payment.guid~=castGUID
+                and payment.color==spec.powerColor then return true end
+        end
+        return false
+    end
+    for _,effect in ipairs(payments) do
+        local category=spec.colors[effect.color]
+        local wildcard=effect.color=="Gold" and daytime
+        if category~=nil or wildcard then
+            local valid=false
+            if spec.castColor==nil then
+                valid=hasDistinctPower(effect.guid,nil)
+            else
+                for _,casting in ipairs(payments) do
+                    if casting.guid~=effect.guid
+                        and (casting.color==spec.castColor
+                            or (casting.color=="Gold" and daytime))
+                        and hasDistinctPower(effect.guid,casting.guid) then
+                        valid=true
+                        break
+                    end
+                end
+            end
+            if valid then
+                if wildcard then anyColor=true
+                else possible[category]=true end
+            end
+        end
+    end
+    return possible,anyColor
+end
+
+-- Colour-triggered Actions use stable target-card data, not translated text.
+-- Dual-colour Actions offer an explicit choice, using the existing card buttons.
+local basicActionColors={"Red","Blue","White","Green"}
+local function linkedColorChoices(rule,targetGUID,powered)
+    if rule==nil or rule.linkedColorEffects==nil or targetGUID==nil then return nil end
+    local data=gameCards[targetGUID]
+    local colors=data~=nil and data.color or nil
+    if colors==nil then return nil end
+    if type(colors)=="string" then colors={colors} end
+    local definitions=powered and rule.linkedColorEffects.powered
+        or rule.linkedColorEffects.normal
+    local choices={}
+    for _,color in ipairs(basicActionColors) do
+        if definitions[color]~=nil then
+            for _,cardColor in ipairs(colors) do
+                if cardColor==color then
+                    local effect={key=string.lower(color)}
+                    for resource,value in pairs(definitions[color]) do effect[resource]=value end
+                    choices[#choices+1]=effect
+                    break
+                end
+            end
+        end
+    end
+    return #choices>0 and choices or nil
+end
+
 -- Powered One with the Land references the *printed*, unmodified Move
 -- cost of the Mage Knight's actual hex, not player-adjusted gStates.moveCost.
 -- Lakes and Mountains explicitly have special printed values on the card.
@@ -43058,6 +43739,17 @@ local function currentLandBlockValue()
     terrain=terrain or (hex~=nil and hex.hexType or nil)
     local costs=gStates.dayRound==true and landPrintedMoveDay or landPrintedMoveNight
     return costs[terrain]
+end
+
+
+-- Used only for effects that vary with the Mage Knight's current terrain.
+local function currentSpellTerrain()
+    if gStates==nil or gStates.turnNumber==nil
+        or fracturedLandsTeleportSourcePosition==nil then return nil end
+    local position=fracturedLandsTeleportSourcePosition(gStates.turnNumber)
+    if position==nil then return nil end
+    local hex,_,_,_,_,_,terrain=runtimeMapHexAtPosition(position)
+    return terrain or (hex~=nil and hex.hexType or nil)
 end
 
 -- One sideways calculator for ordinary Actions and Skill-linked exceptions.
@@ -43084,21 +43776,33 @@ local function calculateSideways(card,known,skillLink)
         resources=resources}
 end
 
-local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,hasDiscard,skillLink)
+local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,hasDiscard,skillLink,linkedChoices,repeatLink,discardBonus,woundCount,enemyIconBonus,spellCastPaid)
     local data=gameCards[card.guid]
     local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
     local known=data~=nil
     local tracked=data==nil or data.resourceTracked~=false
     local powered=manaPowered or linkedBoost~=nil
+    if repeatLink~=nil then powered=repeatLink.powered end
     local posture=cardPosture(card)
-    local faceUp=card.is_face_down~=true and posture=="upright"
+    -- A non-resource Action is neutral upright, but still gives the standard
+    -- selectable +1 when played sideways like any other non-Wound Action.
+    if data~=nil and data.resourceAlwaysNeutral==true and posture~="sideways" then
+        return {guid=card.guid,known=true,complete=true,powered=false,
+            links=linked,status=#linked>0 and "purple" or "blue",resources=nil}
+    end
+    -- Face-down Artifacts play their Break effect. Face-down Actions stay
+    -- inert unless they are the Action selected by Maximal Effect.
+    local artifactPlayed=known and data.cardType=="Artifact" and rule~=nil
+        and rule.artifactMode==true
+    local faceUp=(card.is_face_down~=true or repeatLink~=nil or artifactPlayed)
+        and posture=="upright"
     -- Any non-Wound card played at 90 degrees has one generic resource,
     -- irrespective of its printed card effect. It requires an explicit choice.
     if posture=="sideways" and cardCanPlaySideways(card) then
         return calculateSideways(card,known,skillLink)
     end
     local sideTracked=tracked and not (not powered and rule~=nil and rule.normalTrackerNeutral==true)
-    local choices=sideChoices(rule,powered)
+    local choices=linkedChoices or sideChoices(rule,powered)
     local chosen=chosenEffect(card.guid,powered,choices)
     local usesTerrainBlock=chosen~=nil and chosen.terrainBlock==true
     if usesTerrainBlock then
@@ -43115,26 +43819,76 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
     local statePartial=rule~=nil and ((powered and rule.poweredPartial==true)
         or (not powered and rule.normalPartial==true)) and chosen==nil
     local base=chosen or (rule~=nil and (powered and rule.powered or rule.normal) or nil)
+    if base~=nil and rule~=nil and rule.woundBonus~=nil and woundCount~=nil then
+        local perWound=powered and rule.woundBonus.powered or rule.woundBonus.normal
+        base={influence=(base.influence or 0)+woundCount*perWound}
+    end
+    if powered and base~=nil and rule~=nil and rule.enemyIconBlock
+        and enemyIconBonus~=nil then
+        base={blockIce=(base.blockIce or 0)+enemyIconBonus}
+    end
     -- A discard is an actual cost of Improvisation, even when its strong side
     -- came free from Concentration/Will Focus.
-    local costPaid=rule==nil or rule.requiredLink==nil or hasDiscard==true
-    local effects=sideTracked and faceUp and costPaid and not discardTarget
+    -- Spells on the table may be discarded or merely displayed. Their printed
+    -- effect is played only after a linked mana matches the Spell's own colour
+    -- (or Daytime Gold). Black alone can indicate a strong side, not a cast.
+    local costPaid=(data==nil or data.cardType~="Spell" or spellCastPaid==true)
+        and (rule==nil or rule.requiredLink==nil or hasDiscard==true
+            or (powered and rule.strongNoDiscard==true))
+        and (rule==nil or not rule.artifactMode or rule.discardBoost==nil
+            or powered or discardBonus~=nil)
+    local canApply=not discardTarget or repeatLink~=nil
+    local effects=sideTracked and faceUp and costPaid and canApply
         and applyLinkedResourceBonus(base,linkedBoost) or nil
+    if effects~=nil and discardBonus~=nil and discardBonus>0 then
+        local adjusted={}
+        for category,value in pairs(effects) do
+            adjusted[category]=(totalsKeys[category] and type(value)=="number")
+                and value+discardBonus or value
+        end
+        effects=adjusted
+    end
+    if effects~=nil and repeatLink~=nil then
+        -- The base may be a cardResourceDefinitions entry. Never modify it:
+        -- each new placement/drop recalculates from the same printed values.
+        local repeated={}
+        for category,value in pairs(effects) do
+            repeated[category]=(totalsKeys[category] and type(value)=="number")
+                and value*repeatLink.count or value
+        end
+        effects=repeated
+    end
     -- A card's other unimplemented options do not make its currently selected
     -- *known* resource effect uncertain. Keep the first option as the fast,
     -- green default; only a genuinely unresolved selected effect stays yellow.
     local knownSelectedOption=chosen~=nil and effectHasTrackedResource(chosen)
     local complete=sideTracked and base~=nil and not choicePending and not statePartial
         and (rule.partial~=true or knownSelectedOption)
-        and faceUp and costPaid and not discardTarget
+        and (rule==nil or rule.woundBonus==nil or woundCount~=nil)
+        and (rule==nil or rule.enemyIconBlock~=true or not powered
+            or enemyIconBonus~=nil)
+        and faceUp and costPaid and canApply
     local choiceIsUntracked=chosen~=nil and not effectHasTrackedResource(chosen)
-    local status=(not known or not sideTracked or posture=="discard" or choiceIsUntracked) and "blue"
+    -- Recognised movement rules change the calculator even without supplying
+    -- numeric Move. Show green when the paid, selected side has such an effect.
+    -- For example, Space Bending is green, but Time Bending stays neutral
+    -- until its distinct stronger-side effect is supported.
+    local scriptedMovement=rule~=nil and rule.movementEffects~=nil
+        and (powered and rule.movementEffects.powered
+            or (not powered and rule.movementEffects.normal))
+    local scriptedTerrain=false
+    for _,effect in ipairs(cardTerrainEffects(rule,powered) or {}) do
+        if terrainEffectActive(effect) then scriptedTerrain=true break end
+    end
+    local status=(not known or not sideTracked or posture=="discard"
+        or (choiceIsUntracked and costPaid and not scriptedMovement and not scriptedTerrain)) and "blue"
         or not complete and "yellow" or "green"
     -- Linking information is more valuable than the underlying certainty colour.
     if #linked>0 then status="purple" end
     return {guid=card.guid,known=known,complete=complete,powered=powered,
         links=linked,status=status,resources=effects,
-        usesTerrainBlock=usesTerrainBlock and faceUp and not discardTarget}
+        usesTerrainBlock=usesTerrainBlock and faceUp and costPaid and canApply,
+        repeatCount=repeatLink~=nil and repeatLink.count or nil}
 end
 
 local function overlapArea(a,b)
@@ -43147,21 +43901,24 @@ end
 -- The common pairing engine is used for different reasons:
 -- "stronger" plays one Action card's stronger effect; "discard" consumes one
 -- OTHER unused, non-Wound card as a cost. Neither is inferred from overlap alone.
-local function resolveActionLinks(cards,footprints,manaPowered)
+local function resolveActionLinks(cards,wounds,footprints,manaPowered,skillLinksByTarget)
     local links,boostBy,boostSource,discarded,hasDiscard={}, {}, {}, {}, {}
+    local linkedCardBySource,repeatByTarget,discardBoostBySource={}, {}, {}
     local boostClaimed={}
     for _,card in ipairs(cards) do links[card.guid]={} end
+    for _,wound in ipairs(wounds) do links[wound.guid]={} end
     local function connect(source,target)
         links[source.guid][#links[source.guid]+1]=target.guid
         links[target.guid][#links[target.guid]+1]=source.guid
     end
-    local function nearestOverlap(source,valid,preferTilt)
+    local function nearestOverlap(source,valid,preference)
         local best,bestArea,bestPriority=nil,0,-1
         local a=footprints[source.guid]
         for _,target in ipairs(cards) do
             if target.guid~=source.guid and valid(target) then
                 local area=overlapArea(a,footprints[target.guid])
-                local priority=preferTilt and cardPosture(target)=="discard" and 1 or 0
+                local priority=((preference=="discard" and cardPosture(target)=="discard")
+                    or (preference=="faceDown" and target.is_face_down==true)) and 1 or 0
                 if area>0 and (priority>bestPriority
                     or (priority==bestPriority and (area>bestArea
                         or (area==bestArea and best~=nil and target.guid<best.guid)))) then
@@ -43193,6 +43950,36 @@ local function resolveActionLinks(cards,footprints,manaPowered)
             end
         end
     end
+    -- The same Action-target pairing serves copying and throwing away.
+    -- Reserve targets before ordinary discard payments to avoid double use.
+    for _,source in ipairs(cards) do
+        local data=gameCards[source.guid]
+        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+        local requirement=rule~=nil and rule.requiredLink or nil
+        if requirement~=nil and (requirement.mode=="repeat" or requirement.mode=="throwAway")
+            and discarded[source.guid]==nil and source.is_face_down~=true
+            and cardPosture(source)=="upright" then
+            local target=nearestOverlap(source,function(candidate)
+                local other=gameCards[candidate.guid]
+                return other~=nil
+                    and (other.cardType=="Starting" or other.cardType=="Advanced Action")
+                    and discarded[candidate.guid]==nil and not boostClaimed[candidate.guid]
+                    and not manaPowered[candidate.guid] and #links[candidate.guid]==0
+                    and cardPosture(candidate)=="upright"
+            end,"faceDown")
+            if target~=nil then
+                discarded[target.guid]=source.guid
+                hasDiscard[source.guid]=true
+                linkedCardBySource[source.guid]=target.guid
+                if requirement.mode=="repeat" then
+                    local strong=manaPowered[source.guid]==true or boostBy[source.guid]~=nil
+                    repeatByTarget[target.guid]={powered=strong,
+                        count=strong and requirement.poweredCount or requirement.normalCount}
+                end
+                connect(source,target)
+            end
+        end
+    end
     -- Resolve discard costs after stronger links: a link-boosted Improvisation
     -- can still discard ANOTHER card, but never its own booster as payment.
     for _,source in ipairs(cards) do
@@ -43200,7 +43987,9 @@ local function resolveActionLinks(cards,footprints,manaPowered)
         local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
         if discarded[source.guid]==nil and rule~=nil and rule.requiredLink~=nil
             and rule.requiredLink.mode=="discard"
-            and source.is_face_down~=true and cardPosture(source)=="upright" then
+            and source.is_face_down~=true and cardPosture(source)=="upright"
+            and not (data~=nil and data.cardType=="Artifact"
+                and source.is_face_down==true) then
             local target=nearestOverlap(source,function(candidate)
                 local targetData=gameCards[candidate.guid]
                 return not discarded[candidate.guid] and not boostClaimed[candidate.guid]
@@ -43213,15 +44002,70 @@ local function resolveActionLinks(cards,footprints,manaPowered)
                     and candidate.getGMNotes()~="Wound"
                     and candidate.getGMNotes()~="Quest"
                     and canPayDiscard(candidate)
-            end,true)
+            end,"discard")
             if target~=nil then
                 discarded[target.guid]=source.guid
                 hasDiscard[source.guid]=true
+                linkedCardBySource[source.guid]=target.guid
                 connect(source,target)
             end
         end
     end
-    return links,boostBy,boostSource,discarded,hasDiscard
+    -- Stout Resolve can take multiple discard payments. Only deliberately
+    -- tilted, otherwise unused cards qualify; upright cards remain played.
+    -- The basic side permits one Wound, the strong side permits any number
+    -- of cards but at most one Wound.
+    for _,source in ipairs(cards) do
+        local data=gameCards[source.guid]
+        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+        local paid=rule~=nil and rule.discardBoost or nil
+        local repeated=repeatByTarget[source.guid]
+        if paid~=nil and (discarded[source.guid]==nil or repeated~=nil)
+            and source.is_face_down~=true and cardPosture(source)=="upright" then
+            local chosen=selectedResourceByGUID[source.guid]
+            local strong=manaPowered[source.guid]==true or boostBy[source.guid]~=nil
+                or (data~=nil and data.cardType=="Artifact"
+                    and source.is_face_down==true)
+            if repeated~=nil then strong=repeated.powered end
+            local spec=paid.normal
+            if strong then spec=paid.powered end
+            if spec~=nil then
+            local choices={}
+            for _,target in ipairs(cards) do choices[#choices+1]=target end
+            for _,target in ipairs(wounds) do choices[#choices+1]=target end
+            table.sort(choices,function(a,b)
+                local aa=overlapArea(footprints[source.guid],footprints[a.guid])
+                local bb=overlapArea(footprints[source.guid],footprints[b.guid])
+                if aa==bb then return a.guid<b.guid end
+                return aa>bb
+            end)
+            local woundPayments,bonus=0,0
+            for _,target in ipairs(choices) do
+                local isWound=target.getGMNotes()=="Wound"
+                local targetData=gameCards[target.guid]
+                local eligible=isWound or (targetData~=nil
+                    and (targetData.cardType=="Starting" or targetData.cardType=="Advanced Action"
+                        or targetData.cardType=="Spell" or targetData.cardType=="Artifact"))
+                if target.guid~=source.guid and eligible
+                    and (not spec.woundOnly or isWound)
+                    and (not isWound or woundPayments<(spec.maxWounds or 0))
+                    and discarded[target.guid]==nil and not boostClaimed[target.guid]
+                    and #links[target.guid]==0 and skillLinksByTarget[target.guid]==nil
+                    and not manaPowered[target.guid]
+                    and target.is_face_down~=true and cardPosture(target)=="discard"
+                    and overlapArea(footprints[source.guid],footprints[target.guid])>0 then
+                    discarded[target.guid]=source.guid
+                    connect(source,target)
+                    if isWound then woundPayments=woundPayments+1 end
+                    bonus=bonus+spec.perCard
+                end
+            end
+            if bonus>0 then discardBoostBySource[source.guid]=bonus end
+            end
+        end
+    end
+    return links,boostBy,boostSource,discarded,hasDiscard,linkedCardBySource,
+        repeatByTarget,discardBoostBySource
 end
 
 -- Generic Skill-card links: one Skill per target, one target per Skill.
@@ -43231,6 +44075,115 @@ local function manaInsideFootprint(mana,area)
     local p=mana.getPosition()
     return math.abs(p[1]-area.x)<area.halfX
         and math.abs(p[3]-area.z)<area.halfZ
+end
+
+-- Physical mana is authoritative for a paid Unit ability. It is read from
+-- either overlapping board zone, even with the Resource Tracker collapsed.
+local function unitManaCounts(unit,seatPos,source)
+    local tokens=source
+    if tokens==nil then
+        tokens={}
+        local seen={}
+        for _,zoneGUID in ipairs({playerUnitAreas[seatPos],playerPlayAreas[seatPos]}) do
+            local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
+            if zone~=nil then
+                for _,obj in ipairs(zone.getObjects()) do
+                    if not seen[obj.guid] and manaColor(obj)~=nil then
+                        seen[obj.guid]=true
+                        tokens[#tokens+1]=obj
+                    end
+                end
+            end
+        end
+    end
+    local counts,area={},footprint(unit)
+    for _,mana in ipairs(tokens) do
+        local color=manaColor(mana)
+        if color~=nil and manaInsideFootprint(mana,area) then
+            counts[color]=(counts[color] or 0)+1
+        end
+    end
+    return counts
+end
+
+local function unitAbilityPaid(ability,counts)
+    local color=ability.manaCost
+    if color==nil then return true end
+    if (counts[color] or 0)>0 then return true end
+    -- Daytime Gold can pay any basic colour, but not Black.
+    return color~="Black" and gStates.dayRound==true and (counts.Gold or 0)>0
+end
+
+local function unitManaSignature(counts)
+    local parts={tostring(gStates.dayRound==true)}
+    for _,color in ipairs({"Red","Blue","Green","White","Black","Gold"}) do
+        parts[#parts+1]=tostring(counts[color] or 0)
+    end
+    return table.concat(parts,":")
+end
+
+unitManaDecision=function(unit,abilities,activation,counts)
+    counts=counts or unitManaCounts(unit,activation.seatPos)
+    local signature=unitManaSignature(counts)
+    local free,paid,direct,goldOnly={},{},{},{}
+    for index,ability in ipairs(abilities) do
+        if ability.manaCost==nil then
+            free[#free+1]=index
+        elseif unitAbilityPaid(ability,counts) then
+            paid[#paid+1]=index
+            if (counts[ability.manaCost] or 0)>0 then
+                direct[#direct+1]=index
+            else
+                goldOnly[#goldOnly+1]=index
+            end
+        end
+    end
+    local result={index=nil,display={},ambiguous=false,
+        signature=signature}
+    if abilities.multi==true then
+        local chosen={}
+        for _,index in ipairs(direct) do chosen[index]=true end
+        local goldCount=gStates.dayRound==true and (counts.Gold or 0) or 0
+        if #goldOnly<=goldCount then
+            for _,index in ipairs(goldOnly) do chosen[index]=true end
+        elseif goldCount>0 then
+            result.ambiguous=true
+            result.display=goldOnly
+            local remaining=goldCount
+            if activation.manaSignature==signature then
+                for _,index in ipairs(goldOnly) do
+                    if activation.selected~=nil and activation.selected[index]==true
+                        and remaining>0 then
+                        chosen[index]=true
+                        remaining=remaining-1
+                    end
+                end
+            end
+        end
+        result.selected=chosen
+        return result
+    end
+    if #paid==1 then
+        -- One payable ability means no option button is needed.
+        result.index=paid[1]
+    elseif #paid>1 then
+        -- E.g. Altem Mages' two Black options or Catapults paid by Gold.
+        result.ambiguous=true
+        result.display=paid
+        if activation.manaSignature==signature then
+            for _,index in ipairs(paid) do
+                if activation.manaChoice==index then result.index=index break end
+            end
+        end
+    else
+        -- Unpaid abilities stay hidden until matching mana is actually there.
+        result.display=free
+        for _,index in ipairs(free) do
+            if activation.choice==index then result.index=index break end
+        end
+        if result.index==nil then result.index=free[1] end
+    end
+    return result
 end
 
 local function sidewaysManaAvailable(color)
@@ -43251,7 +44204,8 @@ local function matchingSidewaysMana(card,color)
 end
 
 local function sidewaysModifierValue(skill,target,descriptor,mana,unitState)
-    local value=descriptor.value or 1
+    local value=skill.is_face_down==true and descriptor.faceDownValue
+        or descriptor.value or 1
     local cardData=gameCards[target.guid]
     if descriptor.cardTypeValues~=nil and cardData~=nil then
         value=descriptor.cardTypeValues[cardData.cardType] or value
@@ -43343,9 +44297,9 @@ local function convertedManaMatchesCard(card,color)
     if data==nil or card.is_face_down==true or cardPosture(card)~="upright" then return false end
     if data.cardType~="Starting" and data.cardType~="Advanced Action"
         and data.cardType~="Spell" and data.cardType~="Artifact" then return false end
-    -- Gold may supply a basic colour by day; Black may supply a Spell at night.
+    -- Gold follows the day rule; Black Spell strength is not legality-checked.
     if color=="Gold" and gStates.dayRound~=true then return false end
-    if color=="Black" and (gStates.dayRound==true or data.cardType~="Spell") then return false end
+    if color=="Black" and data.cardType~="Spell" then return false end
     return matchesCardMana(card,color)
 end
 
@@ -43396,17 +44350,88 @@ end
 
 -- Physical Skill GUIDs, not translated text, determine available resources.
 -- Skills outside the active player's Play Area are not counted.
-local function calculateSkill(skill,linkedTarget,unitState)
+-- A combat inside a Dungeon/Tomb is always Night for day/night Skill bonuses.
+local function skillUsesDayStrength()
+    if gStates.dayRound~=true then return false end
+    local player=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    local site=player~=nil and player.avatarLocation or nil
+    return site~="dungeon" and site~="tomb"
+end
+
+-- Puppet Master tokens already have authoritative half-strength Attack/Block
+-- perk data. Keep each printed Attack separate: a Puppet cannot combine all
+-- of its enemy's different attacks into one automatic total.
+local puppetTypes={P="",F="Fire",I="Ice",IF="ColdFire"}
+local puppetTypeOrder={"P","F","I","IF"}
+local function puppetResourceOptions(guid)
+    local record=gStates.puppetMasterPuppets~=nil and gStates.puppetMasterPuppets[guid] or nil
+    if record==nil then return nil end
+    local perks=gStates.monsterPerks~=nil and gStates.monsterPerks[guid] or nil
+    if perks==nil and puppetMasterDataForSourceGUID~=nil
+        and puppetMasterPerksForData~=nil then
+        local _,data=puppetMasterDataForSourceGUID(record.sourceGUID)
+        perks=puppetMasterPerksForData(data)
+    end
+    if perks==nil then return nil end
+    local choices={}
+    for _,family in ipairs({"attack","block"}) do
+        for _,attackType in ipairs(puppetTypeOrder) do
+            local entries=perks[family]~=nil and perks[family][attackType] or nil
+            if type(entries)=="table" then
+                for i,value in ipairs(entries) do
+                    if type(value)=="number" and value>0 then
+                        local choice={key=family..attackType..i,icon=family}
+                        if attackType~="P" then choice.iconOverlay=attackType=="IF" and "C" or attackType end
+                        choice[family..puppetTypes[attackType]]=value
+                        choices[#choices+1]=choice
+                    end
+                end
+            end
+        end
+    end
+    return #choices>0 and choices or nil
+end
+
+local function calculateSkill(skill,linkedTarget,unitState,inventoryCrystalCounts)
     local rule=skillResourceDefinitions[skill.guid]
     if rule==nil then
         return {guid=skill.guid,kind="skill",known=true,complete=false,
             status="yellow",powered=false,resources=nil}
     end
-    local chosen=rule.choices~=nil and chosenEffect(skill.guid,false,rule.choices) or nil
+    local choices=rule.choices
+    local chosen=choices~=nil and chosenEffect(skill.guid,false,choices) or nil
     local effects=chosen
         or (skill.is_face_down==true and rule.flipped or nil)
-        or (gStates.dayRound==true and rule.day or rule.night)
+        or (skillUsesDayStrength() and rule.day or rule.night)
         or rule.normal
+    if rule.dynamic=="masterOfChaos" then
+        -- The Master of Chaos marker advances when the played token is
+        -- cleaned up: it earns the NEXT position's resource while in play.
+        local nextSegment=((tonumber(gStates.masterOfChaos) or 0)%6)+1
+        local segments={{move=1},{rangedColdFire=1},{influence=2},{attack=2},false,{block=3}}
+        if nextSegment==5 then
+            choices={{block=3},{move=1},
+                {key="coldFire",rangedColdFire=1,icon="ranged",iconOverlay="C"},
+                {attack=2},{influence=2}}
+            effects=chosenEffect(skill.guid,false,choices)
+        else effects=segments[nextSegment] end
+    end
+    if rule.locationInfluence~=nil then
+        local player=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+        local place=player~=nil and player.avatarLocation or nil
+        local fortified=place=="keep" or place=="mage tower"
+            or (type(place)=="string" and place:sub(1,4)=="city")
+        local value=place=="glade" and rule.locationInfluence.glade
+            or (fortified and rule.locationInfluence.fortified
+            or rule.locationInfluence.default)
+        effects={influence=value}
+    end
+    -- Card/Unit linked bonuses must not be added until the linked target
+    -- actually supplies a compatible printed resource.
+    if rule.unitBoost~=nil or rule.shapeshift or rule.attackCardBoost
+        or rule.manaOverload then
+        effects=nil
+    end
 
     -- Reusable board-state rule: effects can count qualifying Units instead
     -- of encoding Skill-specific calculations or depending on translated text.
@@ -43426,11 +44451,25 @@ local function calculateSkill(skill,linkedTarget,unitState)
         effects={[condition.resource]=math.min(qualified,cap)}
     end
 
+    -- Derive resource values directly from the physical crystal inventory;
+    -- multiple crystals of one colour count only once.
+    local inventoryResolved=false
+    if rule.inventoryDistinctColors~=nil then
+        local spec=rule.inventoryDistinctColors
+        local count=0
+        for _,color in ipairs(spec.colors) do
+            if (inventoryCrystalCounts[color] or 0)>0 then count=count+1 end
+        end
+        effects={[spec.resource]=count*(spec.valuePerColor or 1)}
+        inventoryResolved=true
+    end
+
     local tracked=effectHasTrackedResource(effects)
     local unitLinked=#unitSources>0
     local status=rule.untracked and "blue"
+        or (rule.unitBoost~=nil or rule.shapeshift or rule.attackCardBoost) and "yellow"
         or (linkedTarget~=nil or unitLinked) and "purple"
-        or unitResolved and "green"
+        or (unitResolved or inventoryResolved) and "green"
         or rule.linkedCard~=nil and linkedTarget==nil and "yellow"
         or tracked and (rule.partial and "yellow" or "green")
         or effects~=nil and "blue" or "yellow"
@@ -43438,10 +44477,10 @@ local function calculateSkill(skill,linkedTarget,unitState)
     if linkedTarget~=nil then links[#links+1]=linkedTarget end
     for _,guid in ipairs(unitSources) do links[#links+1]=guid end
     return {guid=skill.guid,kind="skill",known=true,
-        complete=unitResolved or (tracked and not rule.partial) or linkedTarget~=nil,
+        complete=unitResolved or inventoryResolved or (tracked and not rule.partial) or linkedTarget~=nil,
         powered=skill.is_face_down==true or linkedTarget~=nil or unitLinked,
         status=status,links=links,unitSources=unitSources,
-        resources=effects,choices=rule.choices}
+        resources=effects,choices=choices}
 end
 
 local terrainEffectOrder={set=0,cap=1,reduce=2}
@@ -43450,6 +44489,50 @@ local function terrainModifierPrecedes(a,b)
     if first~=second then return first<second end
     if a.mode=="reduce" then return (a.minimum or 0)>(b.minimum or 0) end
     return false
+end
+
+-- Count only printed enemy-token icons, not site-given traits.
+-- A Coldfire attack represents both Fire and Ice attack-colour icons.
+local enemyPrintedAbilityKeys={
+    "swiftness","cumbersome","brutal","poison","paralyse",
+    "assassination","vampiric","elusive","fortified","unfortified",
+    "defend","pResist","fResist","iResist"
+}
+local function enemyPrintedIconBonus(enemy)
+    if enemy==nil then return nil end
+    if enemy.arcaneImmunity==true then return 0 end
+    local count=0
+    for _,key in ipairs(enemyPrintedAbilityKeys) do
+        local value=enemy[key]
+        if value==true or (type(value)=="number" and value>0) then
+            count=count+1
+        end
+    end
+    local attacks=enemy.attack or {}
+    if attacks.F~=nil or attacks.IF~=nil then count=count+1 end
+    if attacks.I~=nil or attacks.IF~=nil then count=count+1 end
+    return count
+end
+
+-- The stronger Possess Spell borrows the target enemy's printed melee Attacks.
+-- Every printed attack counts, with its element, but none of its abilities
+-- (Swift, Brutal, etc.) change the borrowed value.
+local possessedAttackKeys={P="attack",F="attackFire",I="attackIce",IF="attackColdFire"}
+local function enemyPrintedPossessAttack(enemy)
+    if enemy==nil or enemy.arcaneImmunity==true
+        or type(enemy.attack)~="table" then return nil end
+    local resources={}
+    for element,category in pairs(possessedAttackKeys) do
+        local attacks=enemy.attack[element]
+        if type(attacks)=="table" then
+            for _,value in ipairs(attacks) do
+                if type(value)=="number" and value>0 then
+                    resources[category]=(resources[category] or 0)+value
+                end
+            end
+        end
+    end
+    return next(resources)~=nil and resources or nil
 end
 
 local function addResourceAmounts(result,totals)
@@ -43470,14 +44553,19 @@ local function renderSeat(seatPos)
     local active=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if active==nil or active.seatPos~=seatPos then return end
 
-    local objects,placements={},{}
+    local objects,placements,monsters,playMonsters={},{},{},{}
     local function inspectZone(guid,zoneKind)
         local zone=guid~=nil and getObjectFromGUID(guid) or nil
         if zone==nil then return end
         for _,obj in ipairs(zone.getObjects()) do
+            if (zoneKind=="play" or zoneKind=="unit")
+                and monsterPugs[obj.guid]~=nil then
+                monsters[obj.guid]=obj
+                if zoneKind=="play" then playMonsters[obj.guid]=obj end
+            end
             local kind=resourceObjectKind(obj)
             if kind~=nil and (zoneKind=="play"
-                or (zoneKind=="unit" and (kind=="unit" or kind=="mana"))
+                or (zoneKind=="unit" and (kind=="unit" or kind=="mana" or kind=="puppet"))
                 or (zoneKind=="crystal" and kind=="mana")) then
                 -- Play-area placement takes precedence when scripting zones overlap.
                 local existing=placements[obj.guid]
@@ -43492,7 +44580,20 @@ local function renderSeat(seatPos)
     inspectZone(playerUnitAreas[seatPos],"unit")
     inspectZone(playerPlayAreas[seatPos],"play")
 
+    -- Read *inventory* crystals only. A crystal moved to the Play Area is
+    -- mana being spent, not part of a complete set in inventory.
+    local inventoryCrystalCounts={}
+    for guid,obj in pairs(objects) do
+        if placements[guid]=="crystal" and isManaTokenFigurine(obj) then
+            local color=manaTokenColor(obj)
+            if color~=nil then
+                inventoryCrystalCounts[color]=(inventoryCrystalCounts[color] or 0)+1
+            end
+        end
+    end
+
     local cards,wounds,skills,manaObjects,footprints={}, {}, {}, {}, {}
+    local hasUnits=false
     for guid,obj in pairs(objects) do
         local kind=resourceObjectKind(obj)
         if kind=="card" and placements[guid]=="play" then
@@ -43506,19 +44607,59 @@ local function renderSeat(seatPos)
             footprints[guid]=footprint(obj)
         elseif kind=="mana" then
             manaObjects[#manaObjects+1]=obj
+        elseif kind=="unit" then
+            -- Unit and Play Areas overlap; placement may be "play" here.
+            -- The physical Unit-area snapshot still owns its wound/spent state.
+            hasUnits=true
         end
     end
 
-    -- Read the physical Unit state once per scan, only for played Skills
-    -- declaring that dependency. This also supplies which Unit cards to link.
-    local unitState=nil
+    -- Read the physical Unit state once per scan for highlights and Skills.
+    -- A Command token already resting on a Unit from a previous turn means
+    -- spent; a Unit activated by a Command move THIS turn is still active.
+    local unitState=hasUnits and unitLayoutResourceState(seatPos) or nil
+    local activations=gStates.unitResourceActivations or {}
+    unitHighlightBlocked={}
+    if unitState~=nil then
+        for _,entry in ipairs(unitState.units) do
+            local activation=activations[entry.guid]
+            local activeThisTurn=activation~=nil and activation.seatPos==seatPos
+                and unitResourceDefinitions[entry.guid]~=nil
+            if not entry.unwounded or (not entry.ready and not activeThisTurn) then
+                unitHighlightBlocked[entry.guid]=true
+                clearHighlight(entry.guid)
+            end
+        end
+    end
+    local countWounds=false
+    for _,card in ipairs(cards) do
+        local data=gameCards[card.guid]
+        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+        if rule~=nil and rule.woundBonus~=nil then countWounds=true break end
+    end
+    if countWounds then unitState=unitLayoutResourceState(seatPos) end
     for _,skill in ipairs(skills) do
         local rule=skillResourceDefinitions[skill.guid]
         local sideways=rule~=nil and rule.linkedCard~=nil and rule.linkedCard.sideways or nil
-        if rule~=nil and (rule.unitCondition~=nil
+        if unitState==nil and rule~=nil and (rule.unitCondition~=nil
             or (sideways~=nil and sideways.perEmptyCommandSlot~=nil)) then
             unitState=unitLayoutResourceState(seatPos)
             break
+        end
+    end
+    -- Hand-zone Wounds are not play-area Wounds. Count the latter only when
+    -- physically placed on a Unit, via the shared Unit layout observer.
+    local woundCount=nil
+    if countWounds and unitState~=nil then
+        local hand=getObjectFromGUID(handZones[seatPos])
+        if hand~=nil then
+            woundCount=unitState.woundCount or 0
+            for _,obj in ipairs(hand.getObjects()) do
+                if obj.type=="Card" and obj.getGMNotes()=="Wound"
+                    and placements[obj.guid]~="play" then
+                    woundCount=woundCount+1
+                end
+            end
         end
     end
 
@@ -43534,14 +44675,32 @@ local function renderSeat(seatPos)
         resolveManaSkillLinks(skills,manaObjects,cards,footprints,placements)
     local skillLinksByTarget,skillLinksBySkill,sidewaysSkillMana=
         resolveSkillCardLinks(skills,skillTargets,footprints,manaObjects,placements,manaByObject,unitState)
-    local powered,usedMana,spellSupply={}, {}, {}
+    local powered,usedMana,spellCastingPaid={}, {}, {}
+    -- Some cards require a separate coloured mana payment to choose their
+    -- effect. Record those candidates before deciding which mana powers the
+    -- strong side; one token can never fill both roles.
+    local effectManaByCard,specialPaymentByCard={},{}
+    for _,card in ipairs(cards) do
+        local data=gameCards[card.guid]
+        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+        if rule~=nil and rule.effectManaChoice~=nil then
+            specialPaymentByCard[card.guid]=rule.effectManaChoice
+        end
+    end
     local function spendMana(card,color,manaGUID)
         local data=gameCards[card.guid]
-        if data~=nil and data.cardType=="Spell" then
-            -- A Spell's stronger effect needs basic-colour AND Black mana at Night.
-            local supply=spellSupply[card.guid] or {basic=false,black=false}
-            if color=="Black" then supply.black=true else supply.basic=true end
-            spellSupply[card.guid]=supply
+        if data~=nil and data.cardType=="Spell" and color~="Black"
+            and matchesCardMana(card,color) then
+            spellCastingPaid[card.guid]=true
+        end
+        if specialPaymentByCard[card.guid]~=nil then
+            local candidates=effectManaByCard[card.guid] or {}
+            candidates[#candidates+1]={guid=manaGUID,color=color}
+            effectManaByCard[card.guid]=candidates
+        elseif data~=nil and data.cardType=="Spell" then
+            -- Black alone selects the stronger Spell for this estimate.
+            -- Other mana payments and legal casting are left to the player.
+            if color=="Black" then powered[card.guid]=true end
         else
             powered[card.guid]=true
         end
@@ -43560,7 +44719,10 @@ local function renderSeat(seatPos)
                     local dx,dz=p[1]-f.x,p[3]-f.z
                     if math.abs(dx)<f.halfX and math.abs(dz)<f.halfZ
                         and cardPosture(card)=="upright" and card.is_face_down~=true
-                        and matchesCardMana(card,color) then
+                        and (matchesCardMana(card,color)
+                            or (specialPaymentByCard[card.guid]~=nil
+                                and (specialPaymentByCard[card.guid].colors[color]~=nil
+                                    or (color=="Gold" and gStates.dayRound==true)))) then
                         local distance=dx*dx+dz*dz
                         if bestDistance==nil or distance<bestDistance then best,bestDistance=card,distance end
                     end
@@ -43575,11 +44737,18 @@ local function renderSeat(seatPos)
             if card~=nil then spendMana(card,link.converted,link.manaGUID) end
         end
     end
-    for guid,supply in pairs(spellSupply) do
-        powered[guid]=gStates.dayRound~=true and supply.basic and supply.black
+    -- Power the stronger side only when a complete distinct payment set is
+    -- possible. Pure Magic needs effect + Blue; Mana Thunderbolt needs
+    -- casting Blue/Gold + Black + a separate effect mana.
+    for guid,candidates in pairs(effectManaByCard) do
+        local spec=specialPaymentByCard[guid]
+        local options,wildcard=effectManaPossibilities(spec,candidates,true,
+            gStates.dayRound==true)
+        if wildcard or next(options)~=nil then powered[guid]=true end
     end
-
-    local links,boostBy,boostSource,discarded,hasDiscard=resolveActionLinks(cards,footprints,powered)
+    local links,boostBy,boostSource,discarded,hasDiscard,linkedCardBySource,
+        repeatByTarget,discardBoostBySource=
+        resolveActionLinks(cards,wounds,footprints,powered,skillLinksByTarget)
     -- Extra terrain mana is an optional physical payment, separate from the
     -- mana that powers the strong action. Never reuse a claimed mana object.
     local extraTerrainManaByCard,extraTerrainManaByObject={},{}
@@ -43613,40 +44782,237 @@ local function renderSeat(seatPos)
     end
     local current,records,totals={}, {}, {}
     local usesCurrentHexBlock=false
+    local usesCurrentHexHealing=false
     local terrainModifiers={}
+    local movementEffects={jumpTwoSpaces=false,ignoreRampagers=false}
+    local usesSkillLocation=false
+    -- This is a reusable declarative overlay. All passives are owned-Skill
+    -- effects, whether the physical token is resting at home or being played.
+    -- Read immutable rule tables so identical scans don't invalidate movement.
+    for skillGUID,rule in pairs(skillResourceDefinitions) do
+        if ownedSkillAtSeat(skillGUID,seatPos) then
+            for _,effect in ipairs(rule.passiveTerrain or {}) do
+                terrainModifiers[#terrainModifiers+1]=effect
+            end
+            if gStates.dayRound~=true then
+                for _,effect in ipairs(rule.passiveNightTerrain or {}) do
+                    terrainModifiers[#terrainModifiers+1]=effect
+                end
+            else
+                for _,effect in ipairs(rule.passiveDayTerrain or {}) do
+                    terrainModifiers[#terrainModifiers+1]=effect
+                end
+            end
+            local extra=rule.skillManaTerrain
+            if extra~=nil then
+                local token=getObjectFromGUID(skillGUID)
+                if token~=nil then
+                    local area=footprint(token)
+                    for _,mana in ipairs(manaObjects) do
+                        if placements[mana.guid]=="play" and manaColor(mana)==extra.color
+                            and manaInsideFootprint(mana,area) then
+                            terrainModifiers[#terrainModifiers+1]=extra.effect
+                            break
+                        end
+                    end
+                end
+            end
+        end
+    end
+    -- Only infer an effect after assigning separate casting/power/effect
+    -- payments. If Gold or multiple valid assignments leave alternatives,
+    -- show the supported choices rather than choosing a mana token by GUID.
+    local function paidManaChoices(guid,rule,strong,boost)
+        local needPower=powered[guid]==true and boost==nil
+        local possible,anyColor=effectManaPossibilities(rule.effectManaChoice,
+            effectManaByCard[guid] or {},needPower,gStates.dayRound==true)
+        local choices={}
+        for _,choice in ipairs(sideChoices(rule,strong) or {}) do
+            if anyColor or possible[choiceCategory(choice)] then
+                choices[#choices+1]=choice
+            end
+        end
+        return choices
+    end
+    local claimedPossessEnemies={}
     for _,card in ipairs(cards) do
-        local result=calculateCard(card,powered[card.guid]==true,boostBy[card.guid],
+        local cardData=gameCards[card.guid]
+        local rule=cardData~=nil and cardResourceDefinitions[cardData.resourceKey] or nil
+        local artifactBreak=cardData~=nil and cardData.cardType=="Artifact"
+            and card.is_face_down==true
+        local isStrong=powered[card.guid]==true or boostBy[card.guid]~=nil or artifactBreak
+        if repeatByTarget[card.guid]~=nil then
+            isStrong=repeatByTarget[card.guid].powered
+        end
+        local linkedChoices=linkedColorChoices(rule,linkedCardBySource[card.guid],isStrong)
+        if rule~=nil and rule.effectManaChoice~=nil then
+            linkedChoices=paidManaChoices(card.guid,rule,isStrong,boostBy[card.guid])
+        end
+        -- Enemy-targeted effects count the printed icons of the token actually
+        -- placed over the card. A missing target still gives the fixed base Block.
+        local enemyTarget,enemyBonus=nil,nil
+        if rule~=nil and rule.enemyIconBlock==true and isStrong
+            and cardPosture(card)=="upright" then
+            local bestArea=0
+            for guid,monster in pairs(monsters) do
+                if monster.is_face_down~=true then
+                    local area=overlapArea(footprints[card.guid],footprint(monster))
+                    if area>bestArea or (area==bestArea and area>0 and enemyTarget~=nil
+                        and guid<enemyTarget.guid) then
+                        enemyTarget,bestArea=monster,area
+                    end
+                end
+            end
+            if enemyTarget~=nil then
+                enemyBonus=enemyPrintedIconBonus(monsterPugs[enemyTarget.guid])
+            end
+        end
+        local choices=nil
+        if discarded[card.guid]==nil or repeatByTarget[card.guid]~=nil then
+            if cardPosture(card)=="sideways" then
+                if cardCanPlaySideways(card) then choices=sidewaysChoices end
+            elseif (cardData==nil or cardData.resourceAlwaysNeutral~=true)
+                and (rule==nil or rule.requiredLink==nil or hasDiscard[card.guid]==true)
+                and (cardData==nil or cardData.cardType~="Spell"
+                    or spellCastingPaid[card.guid]==true) then
+                -- Don't guess an unavailable effect before its payment/link is present.
+                choices=linkedChoices or sideChoices(rule,isStrong)
+            end
+        end
+        if choices~=nil and cardPosture(card)~="discard" then
+            guessInitialCardChoice(card,choices,seatPos,rule,cardPosture(card)=="sideways")
+        end
+        local result=calculateCard(card,powered[card.guid]==true or artifactBreak,boostBy[card.guid],
             links[card.guid],discarded[card.guid]~=nil,hasDiscard[card.guid]==true,
-            skillLinksByTarget[card.guid])
+            skillLinksByTarget[card.guid],linkedChoices,repeatByTarget[card.guid],
+            discardBoostBySource[card.guid],woundCount,enemyBonus,
+            spellCastingPaid[card.guid]==true)
+
+        -- Possess links to one face-up enemy placed over the powered Spell.
+        -- The enemy cannot be Arcane Immune and its printed Attack (including
+        -- all printed elements/strikes) becomes our melee Attack this combat.
+        if rule~=nil and rule.enemyAttackLink==true and result.powered
+            and result.resources~=nil and cardPosture(card)=="upright"
+            and (discarded[card.guid]==nil or repeatByTarget[card.guid]~=nil) then
+            local best,bestResources,bestArea=nil,nil,0
+            for guid,enemy in pairs(monsters) do
+                if enemy.is_face_down~=true and claimedPossessEnemies[guid]~=true then
+                    local resources=enemyPrintedPossessAttack(monsterPugs[guid])
+                    if resources~=nil then
+                        local area=overlapArea(footprints[card.guid],footprint(enemy))
+                        if area>bestArea or (area==bestArea and area>0
+                            and best~=nil and guid<best.guid) then
+                            best,bestResources,bestArea=enemy,resources,area
+                        end
+                    end
+                end
+            end
+            if best~=nil then
+                claimedPossessEnemies[best.guid]=true
+                result.resources=bestResources
+                result.enemyGUID=best.guid
+                result.links[#result.links+1]=best.guid
+                result.status="purple"
+            end
+        end
+
+        -- Sacrifice's four variants count physically stored crystal pairs.
+        if rule~=nil and rule.crystalPairAttack~=nil and result.powered
+            and result.resources~=nil and cardPosture(card)=="upright" then
+            local chosen,category=currentChoice(card.guid,true,rule.poweredChoices)
+            local colors=rule.crystalPairAttack[category]
+            if colors~=nil and chosen~=nil then
+                local pairCount=math.min(inventoryCrystalCounts[colors[1]] or 0,
+                    inventoryCrystalCounts[colors[2]] or 0)
+                result.resources={[category]=(chosen[category] or 0)*pairCount}
+                result.complete=pairCount>0
+                result.status=pairCount>0 and "green" or "blue"
+            end
+        end
+        if rule~=nil and rule.poweredEnemyBonus~=nil and result.powered
+            and result.resources~=nil and cardPosture(card)=="upright" then
+            local enemyCount=0
+            for _,enemy in pairs(playMonsters) do
+                if enemy.is_face_down~=true then enemyCount=enemyCount+1 end
+            end
+            local updated={}
+            for category,value in pairs(result.resources) do
+                updated[category]=(totalsKeys[category] and type(value)=="number")
+                    and value+enemyCount*rule.poweredEnemyBonus or value
+            end
+            result.resources=updated
+        end
+        if rule~=nil and rule.forestHealing~=nil and result.resources~=nil
+            and result.resources.healing~=nil and cardPosture(card)=="upright" then
+            usesCurrentHexHealing=true
+            if currentSpellTerrain()=="forest" then
+                local updated={}
+                for category,value in pairs(result.resources) do updated[category]=value end
+                updated.healing=rule.forestHealing
+                result.resources=updated
+            end
+        end
+        local inventorySpec=rule~=nil and rule.inventorySetChoices or nil
+        local inventorySets=0
+        if inventorySpec~=nil and result.powered and result.resources~=nil
+            and cardPosture(card)=="upright" then
+            inventorySets=math.huge
+            for _,color in ipairs(inventorySpec.colors) do
+                inventorySets=math.min(inventorySets,inventoryCrystalCounts[color] or 0)
+            end
+            if inventorySets==math.huge then inventorySets=0 end
+            result.inventorySetCount=inventorySets
+            -- Each crystal set may make its own choice. Scale the result only
+            -- after summing those choices so repeated Actions remain correct.
+            local multiplier=result.repeatCount or 1
+            local adjusted={}
+            for category,value in pairs(result.resources) do adjusted[category]=value end
+            for index=1,inventorySets do
+                local bonus=inventorySetChoice(card.guid,index,inventorySpec.choices,choices)
+                if bonus~=nil then
+                    for category,value in pairs(bonus) do
+                        if type(value)=="number" then
+                            adjusted[category]=(adjusted[category] or 0)+value*multiplier
+                        end
+                    end
+                end
+            end
+            result.resources=adjusted
+            if result.status=="blue" and effectHasTrackedResource(adjusted) then
+                result.status="green"
+            end
+        end
+        if enemyTarget~=nil and result.resources~=nil then
+            result.enemyGUID=enemyTarget.guid
+            result.links[#result.links+1]=enemyTarget.guid
+            result.status="purple"
+        end
+        if rule~=nil and rule.woundBonus~=nil and result.resources~=nil and unitState~=nil then
+            result.unitSources={}
+            for _,unit in ipairs(unitState.units) do
+                if unit.woundCount>0 then
+                    result.unitSources[#result.unitSources+1]=unit.guid
+                end
+            end
+        end
         local manaLink=manaByCard[card.guid]
         if manaLink~=nil then
             result.status="purple"
             result.links[#result.links+1]=manaLink.skillGUID
             result.convertedMana=manaLink.converted
         end
-        local cardData=gameCards[card.guid]
-        local rule=cardData~=nil and cardResourceDefinitions[cardData.resourceKey] or nil
-        local choices=nil
-        if discarded[card.guid]==nil then
-            if cardPosture(card)=="sideways" then
-                if cardCanPlaySideways(card) then choices=sidewaysChoices end
-            elseif rule==nil or rule.requiredLink==nil or hasDiscard[card.guid]==true then
-                -- Hide the choice entirely until its cost is present. Powered
-                -- Rage has a fixed effect, so sideChoices is nil and hides it.
-                choices=sideChoices(rule,result.powered)
-            end
-        end
-        showChoiceButtons(card,choices,result.powered)
+        showChoiceButtons(card,choices,result.powered,inventorySpec,inventorySets)
         result.kind=resourceObjectKind(card)
-        -- Only a played upright Move effect contributes terrain modifiers:
-        -- not a sideways card, discard payment or face-down card.
+        -- Ordinary Move cards and played Artifacts can both change terrain
+        -- costs; amulets grant no numeric Move and work on their Break side.
         if rule~=nil and cardPosture(card)=="upright" and result.resources~=nil
-            and type(result.resources.move)=="number" then
-            local terrainEffects=rule.terrainEffects
-            if terrainEffects~=nil then
-                local chosen=result.powered and terrainEffects.powered or terrainEffects.normal
-                for _,effect in ipairs(chosen or {}) do
-                    terrainModifiers[#terrainModifiers+1]=effect
+            and (type(result.resources.move)=="number"
+                or (cardData~=nil and cardData.cardType=="Artifact")) then
+            for _=1,(result.repeatCount or 1) do
+                for _,effect in ipairs(cardTerrainEffects(rule,result.powered) or {}) do
+                    if terrainEffectActive(effect) then
+                        terrainModifiers[#terrainModifiers+1]=effect
+                    end
                 end
             end
             local extraManaGUID=extraTerrainManaByCard[card.guid]
@@ -43654,6 +45020,22 @@ local function renderSeat(seatPos)
                 terrainModifiers[#terrainModifiers+1]=rule.extraTerrainMana.effect
                 result.links[#result.links+1]=extraManaGUID
                 result.status="purple"
+            end
+        end
+        -- Persistent movement rules are non-numeric abilities: collect them
+        -- from the actual played card, independently of Resource Tracker
+        -- resource values/completeness. A powered side must never inherit the
+        -- unpowered side's movement rules.
+        if rule~=nil and rule.movementEffects~=nil and cardPosture(card)=="upright"
+            and card.is_face_down~=true
+            and (cardData==nil or cardData.cardType~="Spell"
+                or spellCastingPaid[card.guid]==true)
+            and (discarded[card.guid]==nil or repeatByTarget[card.guid]~=nil) then
+            local effect=result.powered and rule.movementEffects.powered
+                or (not result.powered and rule.movementEffects.normal or nil)
+            if effect~=nil then
+                if effect.jumpTwoSpaces==true then movementEffects.jumpTwoSpaces=true end
+                if effect.ignoreRampagers==true then movementEffects.ignoreRampagers=true end
             end
         end
         -- Fixed components of partially understood cards may be counted; an
@@ -43664,7 +45046,82 @@ local function renderSeat(seatPos)
         if result.usesTerrainBlock then usesCurrentHexBlock=true end
         setHighlight(card,result.status,result.powered)
     end
-    -- An unlinked Wound is inert. Only an attached Skill permits sideways use.
+    -- Outline an enemy that supplied a printed ability bonus or a Possess
+    -- Attack; the enemy record itself does not add those values twice.
+    -- Iterate the card list, not records: the loop also adds enemy records.
+    for _,card in ipairs(cards) do
+        local record=records[card.guid]
+        if record~=nil and record.enemyGUID~=nil then
+            local enemy=monsters[record.enemyGUID]
+            if enemy~=nil then
+                local enemyRecord=records[enemy.guid]
+                if enemyRecord==nil then
+                    enemyRecord={guid=enemy.guid,kind="monster",known=true,complete=true,
+                        powered=true,links={},status="purple",resources=nil}
+                    records[enemy.guid]=enemyRecord
+                end
+                enemyRecord.links[#enemyRecord.links+1]=record.guid
+                current[enemy.guid]=true
+                setHighlight(enemy,"purple",true)
+            end
+        end
+    end
+    -- Ambush boosts the physically linked Action's first Attack or Block,
+    -- rather than generating a separate untyped Attack resource.
+    local combatCategories={"attack","attackFire","attackIce","attackColdFire",
+        "ranged","rangedFire","rangedIce","rangedColdFire",
+        "siege","siegeFire","siegeIce","siegeColdFire",
+        "block","blockFire","blockIce","blockColdFire"}
+    for _,source in ipairs(cards) do
+        local data=gameCards[source.guid]
+        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+        local sourceRecord=records[source.guid]
+        if rule~=nil and rule.combatLink~=nil and sourceRecord~=nil
+            and sourceRecord.resources~=nil and cardPosture(source)=="upright"
+            and (discarded[source.guid]==nil or repeatByTarget[source.guid]~=nil) then
+            local best,bestCategory,bestType,bestOverlap=nil,nil,nil,0
+            for _,target in ipairs(cards) do
+                local record=records[target.guid]
+                local area=target.guid~=source.guid
+                    and overlapArea(footprints[source.guid],footprints[target.guid]) or 0
+                if area>0 and record~=nil and record.resources~=nil
+                    and discarded[target.guid]==nil then
+                    local category,kind=nil,nil
+                    for _,key in ipairs(combatCategories) do
+                        if type(record.resources[key])=="number" and record.resources[key]>0 then
+                            category=key
+                            kind=key:sub(1,5)=="block" and "block" or "attack"
+                            break
+                        end
+                    end
+                    if category~=nil and (area>bestOverlap
+                        or (area==bestOverlap and best~=nil and target.guid<best.guid)) then
+                        best,bestCategory,bestType,bestOverlap=target,category,kind,area
+                    end
+                end
+            end
+            if best~=nil then
+                local bonusRule=sourceRecord.powered and rule.combatLink.powered
+                    or rule.combatLink.normal
+                local bonus=bonusRule[bestType]*(sourceRecord.repeatCount or 1)
+                local targetRecord=records[best.guid]
+                local adjusted={}
+                for key,value in pairs(targetRecord.resources) do adjusted[key]=value end
+                adjusted[bestCategory]=adjusted[bestCategory]+bonus
+                targetRecord.resources=adjusted
+                totals[bestCategory]=(totals[bestCategory] or 0)+bonus
+                sourceRecord.links[#sourceRecord.links+1]=best.guid
+                targetRecord.links[#targetRecord.links+1]=source.guid
+                sourceRecord.status="purple"
+                targetRecord.status="purple"
+                sourceRecord.contributes=true
+                setHighlight(source,sourceRecord.status,sourceRecord.powered)
+                setHighlight(best,targetRecord.status,targetRecord.powered)
+            end
+        end
+    end
+    -- An unlinked Wound is inert. Only an attached Skill or a deliberate
+    -- discard payment gives it a tracker outline.
     for _,wound in ipairs(wounds) do
         local skillLink=skillLinksByTarget[wound.guid]
         if skillLink~=nil then
@@ -43675,6 +45132,414 @@ local function renderSeat(seatPos)
             records[wound.guid]=result
             current[wound.guid]=true
             setHighlight(wound,result.status,result.powered)
+        elseif links[wound.guid]~=nil and #links[wound.guid]>0 then
+            local result={guid=wound.guid,kind="wound",known=true,complete=true,
+                powered=false,links=links[wound.guid],status="purple",resources=nil}
+            records[wound.guid]=result
+            current[wound.guid]=true
+            setHighlight(wound,result.status,false)
+        end
+    end
+    -- Unit activation is historical: a Command token may stay on the card for
+    -- the entire round, or be moved away by an ability. Only a Command move
+    -- during THIS turn creates an entry, never a static token found on load.
+    -- Read only mana physically resting over each Unit; inventory mana does
+    -- not pay costs. Familiar crystals are a persistent modifier, not a cost.
+    local function unitAbilityResources(ability,counts)
+        if ability==nil or (not unitAbilityPaid(ability,counts)
+            and not ability.baseWithoutPayment) then return nil end
+        local resources={}
+        for category,value in pairs(ability) do
+            if totalsKeys[category] and type(value)=="number" then
+                local bonus=0
+                if ability.bonusColor~=nil and (counts[ability.bonusColor] or 0)>0 then
+                    bonus=ability.bonus or 0
+                end
+                if ability.manaScale then
+                    if (counts.Red or 0)>0 then bonus=bonus+2 end
+                    if (counts.Blue or 0)>0 then bonus=bonus+2 end
+                end
+                resources[category]=value+bonus
+            end
+        end
+        return resources
+    end
+    local selectedUnitAttacks={}
+    local shocktroopsBoosts=0
+    local attackTransforms={}
+    local transformingUnits={}
+    for unitGUID,activation in pairs(activations) do
+        if activation.seatPos==seatPos then
+            local unit=objects[unitGUID]
+            local abilities=unitResourceDefinitions[unitGUID]
+            if unit~=nil and abilities~=nil then
+                if unitState==nil then unitState=unitLayoutResourceState(seatPos) end
+                local unwounded=true
+                for _,entry in ipairs(unitState.units) do
+                    if entry.guid==unitGUID then unwounded=entry.unwounded break end
+                end
+                local counts=unitManaCounts(unit,seatPos,manaObjects)
+                local decision=unitManaDecision(unit,abilities,activation,counts)
+                showUnitAbilityButtons(unit,abilities,activation,unwounded,decision)
+                local selected=decision.index~=nil and abilities[decision.index] or nil
+                if unwounded then
+                    local resources=selected~=nil and unitAbilityResources(selected,counts) or nil
+                    local result={guid=unitGUID,kind="unit",known=true,
+                        complete=selected~=nil and unitAbilityPaid(selected,counts)
+                            or abilities.multi==true and next(decision.selected or {})~=nil,
+                        resources=resources,powered=false,links={}}
+                    addResourceAmounts(result,totals)
+                    result.status=result.contributes and "green" or "blue"
+                    records[unitGUID]=result
+                    current[unitGUID]=true
+                    setHighlight(unit,result.status,false)
+                    if selected~=nil and selected.terrainReduce and result.complete then
+                        terrainModifiers[#terrainModifiers+1]=forestersTerrainModifier
+                    end
+                    if selected~=nil and selected.boostOtherUnits and result.complete then
+                        shocktroopsBoosts=shocktroopsBoosts+1
+                    end
+                    if selected~=nil and selected.attackTransform~=nil and result.complete then
+                        attackTransforms[selected.attackTransform]=true
+                        transformingUnits[unitGUID]=selected.attackTransform
+                    end
+                    if result.contributes then
+                        selectedUnitAttacks[#selectedUnitAttacks+1]=unitGUID
+                    end
+                end
+            end
+        end
+    end
+    -- Shocktroops' Ranged Attack 1 also boosts ALL other activated Units'
+    -- Attacks, even if their ability was activated earlier this turn.
+    if shocktroopsBoosts>0 then
+        for _,unitGUID in ipairs(selectedUnitAttacks) do
+            local record=records[unitGUID]
+            local selected=activations[unitGUID]~=nil
+                and unitResourceDefinitions[unitGUID][activations[unitGUID].choice or 1] or nil
+            local ownBoost=selected~=nil and selected.boostOtherUnits and 1 or 0
+            local bonus=shocktroopsBoosts-ownBoost
+            if bonus>0 and record~=nil and record.resources~=nil then
+                for category,value in pairs(record.resources) do
+                    if type(value)=="number" and (category:sub(1,6)=="attack"
+                        or category:sub(1,6)=="ranged"
+                        or category:sub(1,5)=="siege") then
+                        record.resources[category]=value+bonus
+                        totals[category]=(totals[category] or 0)+bonus
+                    end
+                end
+            end
+        end
+    end
+    -- Physical Skill bonuses use the SAME record/totals as the target. Never
+    -- add a Skill's printed bonus independently of its activated Unit or card.
+    local function resourceFieldForFamily(resources,family)
+        if resources==nil then return nil end
+        local found=nil
+        for field,amount in pairs(resources) do
+            if type(amount)=="number" and amount>0
+                and (field==family or field:sub(1,#family)==family) then
+                -- Multiple independent elemental abilities need player
+                -- disambiguation rather than picking the first pairs() entry.
+                if found~=nil then return nil end
+                found=field
+            end
+        end
+        return found
+    end
+    local function skillTargetLinked(skill,target,field,amount,replaceField)
+        local skillRecord,targetRecord=records[skill.guid],records[target.guid]
+        if skillRecord==nil or targetRecord==nil or targetRecord.resources==nil then return end
+        -- Cards often return the catalog's immutable basic-effect table.
+        -- Never mutate a rule entry by adjusting the live played result.
+        local copy={}
+        for k,v in pairs(targetRecord.resources) do copy[k]=v end
+        targetRecord.resources=copy
+        local old=copy[field] or 0
+        if replaceField~=nil then
+            targetRecord.resources[field]=nil
+            totals[field]=(totals[field] or 0)-old
+            targetRecord.resources[replaceField]=(targetRecord.resources[replaceField] or 0)+amount
+            totals[replaceField]=(totals[replaceField] or 0)+amount
+        else
+            targetRecord.resources[field]=old+amount
+            totals[field]=(totals[field] or 0)+amount
+        end
+        skillRecord.complete=true
+        skillRecord.contributes=true
+        skillRecord.powered=true
+        skillRecord.status="purple"
+        skillRecord.links[#skillRecord.links+1]=target.guid
+        targetRecord.links[#targetRecord.links+1]=skill.guid
+        if targetRecord.kind~="unit" then targetRecord.status="purple" end
+        setHighlight(skill,"purple",true)
+        -- Activated Units retain their green/blue highlight; they are not
+        -- reclassified purple merely because Leadership enhanced the effect.
+        if targetRecord.kind~="unit" then
+            setHighlight(target,"purple",targetRecord.powered)
+        end
+    end
+    for _,skill in ipairs(skills) do
+        local rule=skillResourceDefinitions[skill.guid]
+        if rule~=nil and rule.unitBoost~=nil then
+            local choice=chosenEffect(skill.guid,false,rule.choices)
+            local family=choice~=nil and choiceCategory(choice) or nil
+            if family=="twiceAttack" then family="attack"
+            elseif family=="twiceBlock" then family="block" end
+            if family~=nil and rule.unitBoost[family]~=nil then
+                local eligible={}
+                for unitGUID,activation in pairs(activations) do
+                    local unit=objects[unitGUID]
+                    local record=records[unitGUID]
+                    if activation.seatPos==seatPos and unit~=nil and record~=nil
+                        and record.complete==true then
+                        local field=resourceFieldForFamily(record.resources,family)
+                        if field~=nil then
+                            eligible[#eligible+1]={unit=unit,field=field,
+                                overlap=overlapArea(footprint(skill),footprint(unit))}
+                        end
+                    end
+                end
+                table.sort(eligible,function(a,b)
+                    if a.overlap~=b.overlap then return a.overlap>b.overlap end
+                    return a.unit.guid<b.unit.guid
+                end)
+                -- One matching activated Unit is unambiguous. With several,
+                -- require a physical overlap to indicate the target.
+                if #eligible==1 or (#eligible>1 and eligible[1].overlap>0
+                    and eligible[1].overlap>eligible[2].overlap) then
+                    local chosenUnit=eligible[1]
+                    skillTargetLinked(skill,chosenUnit.unit,chosenUnit.field,
+                        (choice[family] or rule.unitBoost[family]))
+                end
+            end
+        end
+    end
+    -- Braevalar's Shapeshift: one upright Basic Action with exactly one
+    -- fixed Move/Attack/Block resource may switch to either other family.
+    -- The target is declared by overlapping the Skill with that card.
+    for _,skill in ipairs(skills) do
+        local rule=skillResourceDefinitions[skill.guid]
+        if rule~=nil and rule.shapeshift then
+            local best,bestOverlap=nil,0
+            for _,card in ipairs(cards) do
+                local data=gameCards[card.guid]
+                local record=records[card.guid]
+                if data~=nil and data.cardType=="Starting"
+                    and card.is_face_down~=true and cardPosture(card)=="upright"
+                    and record~=nil and record.resources~=nil then
+                    local field=nil
+                    local matches=0
+                    for category,value in pairs(record.resources) do
+                        if type(value)=="number" and value>0 and
+                            (category=="move" or category:sub(1,6)=="attack"
+                                or category:sub(1,5)=="block") then
+                            field=category
+                            matches=matches+1
+                        end
+                    end
+                    if matches==1 then
+                        local area=overlapArea(footprints[skill.guid],footprints[card.guid])
+                        if area>bestOverlap then
+                            best,bestOverlap={card=card,field=field},area
+                        end
+                    end
+                end
+            end
+            if best~=nil then
+                local sourceField=best.field
+                local sourceFamily=sourceField=="move" and "move"
+                    or (sourceField:sub(1,6)=="attack" and "attack" or "block")
+                local suffix=sourceField:sub(#sourceFamily+1)
+                local choices={}
+                for _,family in ipairs({"move","block","attack"}) do
+                    if family~=sourceFamily then
+                        local field=family=="move" and "move" or family..suffix
+                        choices[#choices+1]={key=family,icon=family,[field]=0}
+                    end
+                end
+                local result=records[skill.guid]
+                if result~=nil then
+                    result.choices=choices
+                    showChoiceButtons(skill,choices,false)
+                end
+                local selected=chosenEffect(skill.guid,false,choices)
+                if selected~=nil then
+                    local family=choiceCategory(selected)
+                    local newField=family=="move" and "move" or family..suffix
+                    local original=records[best.card.guid].resources[sourceField]
+                    skillTargetLinked(skill,best.card,sourceField,original,newField)
+                end
+            end
+        end
+    end
+    -- Coral's If It's Not Broken: a sideways card on the Skill copies a
+    -- previously played Action's BASIC effect of the same colour. We only
+    -- infer a result with one fixed numeric resource and one clear source.
+    -- No inferred play order, extra payments, or invented source card.
+    for _,skill in ipairs(skills) do
+        local skillRule=skillResourceDefinitions[skill.guid]
+        if skillRule~=nil and skillRule.copyBasicAction then
+            local sideways,bestOverlap=nil,0
+            for _,card in ipairs(cards) do
+                local record=records[card.guid]
+                if cardPosture(card)=="sideways" and record~=nil
+                    and record.resources~=nil
+                    and skillLinksByTarget[card.guid]==nil then
+                    local area=overlapArea(footprints[skill.guid],footprints[card.guid])
+                    if area>bestOverlap then sideways,bestOverlap=card,area end
+                end
+            end
+            if sideways~=nil then
+                local sidewaysData=gameCards[sideways.guid]
+                local sideIsArtifact=sidewaysData~=nil
+                    and sidewaysData.cardType=="Artifact"
+                local candidates={}
+                for _,source in ipairs(cards) do
+                    local data=gameCards[source.guid]
+                    if source.guid~=sideways.guid and data~=nil
+                        and (data.cardType=="Starting" or data.cardType=="Advanced Action")
+                        and cardPosture(source)=="upright" and source.is_face_down~=true
+                        and (sideIsArtifact or (sidewaysData~=nil
+                            and sidewaysData.color~=nil and data.color==sidewaysData.color)) then
+                        local definition=cardResourceDefinitions[data.resourceKey]
+                        if definition~=nil and definition.requiredLink==nil
+                            and definition.woundBonus==nil and definition.partial~=true then
+                            local base=definition.normalChoices~=nil
+                                and chosenEffect(source.guid,false,definition.normalChoices)
+                                or definition.normal
+                            local srcField,srcValue,count=nil,nil,0
+                            for key,value in pairs(base or {}) do
+                                if totalsKeys[key] and type(value)=="number" and value>0 then
+                                    srcField,srcValue,count=key,value,count+1
+                                end
+                            end
+                            if count==1 then
+                                candidates[#candidates+1]={source=source,field=srcField,
+                                    value=srcValue,overlap=overlapArea(footprints[sideways.guid],
+                                        footprints[source.guid])}
+                            end
+                        end
+                    end
+                end
+                table.sort(candidates,function(a,b)
+                    if a.overlap~=b.overlap then return a.overlap>b.overlap end
+                    return a.source.guid<b.source.guid
+                end)
+                if #candidates==1 or (#candidates>1 and candidates[1].overlap>0
+                    and candidates[1].overlap>candidates[2].overlap) then
+                    local original=records[sideways.guid]
+                    local oldField,oldCount=nil,0
+                    for key,value in pairs(original.resources) do
+                        if totalsKeys[key] and type(value)=="number" and value>0 then
+                            oldField,oldCount=key,oldCount+1
+                        end
+                    end
+                    if oldCount==1 then
+                        local chosen=candidates[1]
+                        skillTargetLinked(skill,sideways,oldField,chosen.value,chosen.field)
+                        local origin=records[chosen.source.guid]
+                        local skillRecord=records[skill.guid]
+                        if origin~=nil and skillRecord~=nil then
+                            origin.links[#origin.links+1]=skill.guid
+                            skillRecord.links[#skillRecord.links+1]=chosen.source.guid
+                            origin.status="purple"
+                            setHighlight(chosen.source,"purple",origin.powered)
+                        end
+                        -- The sideways generic Move/Attack/Block button no
+                        -- longer describes its copied basic effect.
+                        showChoiceButtons(sideways,nil,false)
+                    end
+                end
+            end
+        end
+    end
+    -- Deadly Aim adds to one physically linked card's actual Attack element,
+    -- never to Units or a guessed attack phase.
+    for _,skill in ipairs(skills) do
+        local rule=skillResourceDefinitions[skill.guid]
+        if rule~=nil and rule.attackCardBoost then
+            local best,bestOverlap=nil,0
+            for _,card in ipairs(cards) do
+                if card.is_face_down~=true then
+                    local record=records[card.guid]
+                    if record~=nil then
+                        local chosenField=nil
+                        local amount=nil
+                        for _,family in ipairs({"ranged","siege","attack"}) do
+                            local field=resourceFieldForFamily(record.resources,family)
+                            if field~=nil then
+                                if chosenField~=nil then chosenField=nil break end
+                                chosenField=field
+                                amount=family=="attack" and 2 or 1
+                            end
+                        end
+                        local area=overlapArea(footprints[skill.guid],footprints[card.guid])
+                        if chosenField~=nil and area>bestOverlap then
+                            best,bestOverlap={card=card,field=chosenField,amount=amount},area
+                        end
+                    end
+                end
+            end
+            if best~=nil then
+                skillTargetLinked(skill,best.card,best.field,best.amount)
+            end
+        end
+    end
+    -- Tovak's Mana Overload: the unused marker mana on the Skill declares
+    -- its colour. A *different* mana of that colour must actually power the
+    -- target Deed card. An explicit overlapping target wins; if exactly one
+    -- suitable powered card exists, the choice is unambiguous.
+    for _,skill in ipairs(skills) do
+        local rule=skillResourceDefinitions[skill.guid]
+        if rule~=nil and rule.manaOverload then
+            local colors={}
+            local skillArea=footprints[skill.guid]
+            for _,mana in ipairs(manaObjects) do
+                if placements[mana.guid]=="play" and usedMana[mana.guid]==nil
+                    and manaInsideFootprint(mana,skillArea) then
+                    local color=manaColor(mana)
+                    if color~=nil and color~="Gold" then colors[color]=true end
+                end
+            end
+            local candidates={}
+            if next(colors)~=nil then
+                for _,card in ipairs(cards) do
+                    local data=gameCards[card.guid]
+                    local target=records[card.guid]
+                    if data~=nil and (data.cardType=="Starting"
+                            or data.cardType=="Advanced Action"
+                            or data.cardType=="Spell" or data.cardType=="Artifact")
+                        and target~=nil and target.resources~=nil then
+                        local familyField=nil
+                        for _,family in ipairs({"move","influence","ranged","siege","attack","block"}) do
+                            local field=resourceFieldForFamily(target.resources,family)
+                            if field~=nil then
+                                if familyField~=nil then familyField=nil break end
+                                familyField=field
+                            end
+                        end
+                        if familyField~=nil then
+                            for _,mana in ipairs(manaObjects) do
+                                if usedMana[mana.guid]==card.guid and colors[manaColor(mana)]==true then
+                                    candidates[#candidates+1]={card=card,field=familyField,
+                                        overlap=overlapArea(skillArea,footprints[card.guid])}
+                                    break
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+            table.sort(candidates,function(a,b)
+                if a.overlap~=b.overlap then return a.overlap>b.overlap end
+                return a.card.guid<b.card.guid
+            end)
+            if #candidates==1 or (#candidates>1 and candidates[1].overlap>0
+                and candidates[1].overlap>candidates[2].overlap) then
+                local chosen=candidates[1]
+                skillTargetLinked(skill,chosen.card,chosen.field,4)
+            end
         end
     end
     -- The linking card itself contributes the target's upgraded effect. Mark it
@@ -43694,10 +45559,35 @@ local function renderSeat(seatPos)
             local contributing=poweredTarget~=nil and records[poweredTarget]~=nil
                 and records[poweredTarget].contributes==true
             local result
-            if kind=="skill" and placements[guid]=="play" then
+            if kind=="puppet" and (placements[guid]=="play" or placements[guid]=="unit") then
+                local choices=obj.is_face_down~=true and puppetResourceOptions(guid) or nil
+                local selected=choices~=nil and chosenEffect(guid,false,choices) or nil
+                result={guid=guid,kind="puppet",known=true,complete=selected~=nil,
+                    status=selected~=nil and "green" or "blue",
+                    resources=selected,choices=choices,powered=false,links={}}
+                showChoiceButtons(obj,choices,false)
+                addResourceAmounts(result,totals)
+            elseif kind=="skill" and placements[guid]=="play" then
                 local conversion=manaBySkill[guid]
                 result=calculateSkill(obj,skillLinksBySkill[guid]
-                    or (conversion~=nil and conversion.targetGUID or nil),unitState)
+                    or (conversion~=nil and conversion.targetGUID or nil),
+                    unitState,inventoryCrystalCounts)
+                local skillRule=skillResourceDefinitions[guid]
+                if skillRule~=nil then
+                    if skillRule.locationInfluence~=nil
+                        or skillRule.day~=nil or skillRule.night~=nil then
+                        usesSkillLocation=true
+                    end
+                    -- Played Skill movement flags are declarative, just like
+                    -- equivalent printed Action/Spell effects.
+                    local spec=skillRule.movementEffects
+                    local effects=spec~=nil
+                        and (obj.is_face_down==true and spec.flipped or spec.normal) or nil
+                    if effects~=nil then
+                        if effects.jumpTwoSpaces then movementEffects.jumpTwoSpaces=true end
+                        if effects.ignoreRampagers then movementEffects.ignoreRampagers=true end
+                    end
+                end
                 showChoiceButtons(obj,result.choices,result.powered)
                 addResourceAmounts(result,totals)
                 if skillLinksBySkill[guid]~=nil then
@@ -43746,17 +45636,50 @@ local function renderSeat(seatPos)
     -- their link just like physical Skill/card interactions, without treating
     -- Command or Wound markers as resource sources themselves.
     for guid,record in pairs(records) do
-        if record.kind=="skill" and record.unitSources~=nil then
+        if record.unitSources~=nil then
             for _,unitGUID in ipairs(record.unitSources) do
                 local unit,unitRecord=objects[unitGUID],records[unitGUID]
                 if unit~=nil and unitRecord~=nil then
-                    unitRecord.status="purple"
-                    unitRecord.powered=true
+                    local activated=activations[unitGUID]~=nil
+                        and activations[unitGUID].seatPos==seatPos
+                        and unitResourceDefinitions[unitGUID]~=nil
+                    -- Linked Skill sources normally show purple, but a Unit
+                    -- currently activated by its Command token keeps its
+                    -- own green/blue Resource Tracker status.
+                    unitRecord.status=activated
+                        and (effectHasTrackedResource(unitRecord.resources) and "green" or "blue")
+                        or "purple"
+                    unitRecord.powered=not activated
                     unitRecord.contributes=true
                     unitRecord.links[#unitRecord.links+1]=guid
                     setHighlight(unit,unitRecord.status,unitRecord.powered)
                 end
             end
+        end
+    end
+
+    -- Global Altem effects contribute when they upgrade an Attack, including
+    -- a value entered manually into the Resource Tracker.
+    local tracker=gStates.resourceTracker or {}
+    for unitGUID,mode in pairs(transformingUnits) do
+        local affected=false
+        for _,family in ipairs(attackTransformFamilies) do
+            for _,field in ipairs(attackTransformFields) do
+                if (mode=="coldFire" and field~="iceFire")
+                    or (mode=="siege" and family~="siege") then
+                    if resourceCardsRawValue(tracker,totals,family,field)~=0 then
+                        affected=true
+                        break
+                    end
+                end
+            end
+            if affected then break end
+        end
+        local record=records[unitGUID]
+        if record~=nil then
+            record.contributes=affected
+            record.status=affected and "green" or "blue"
+            setHighlight(objects[unitGUID],record.status,false)
         end
     end
 
@@ -43781,13 +45704,26 @@ local function renderSeat(seatPos)
             end
         end
     end
+    local priorMovement=previousScan~=nil and previousScan.movementEffects or nil
+    local movementChanged=priorMovement==nil
+        or priorMovement.jumpTwoSpaces~=movementEffects.jumpTwoSpaces
+        or priorMovement.ignoreRampagers~=movementEffects.ignoreRampagers
+    local previousTransform=previousScan~=nil and previousScan.attackTransforms or nil
+    local transformChanged=previousTransform==nil
+        or (previousTransform.coldFire==true)~=(attackTransforms.coldFire==true)
+        or (previousTransform.siege==true)~=(attackTransforms.siege==true)
     bySeat[seatPos]=current
     resourceCardScanBySeat[seatPos]={cards=records,totals=totals,
-        terrainModifiers=terrainModifiers,usesCurrentHexBlock=usesCurrentHexBlock}
-    -- Repeated scans for card position/highlight changes need no panel repaint
-    -- unless a calculated resource or movement modifier actually changed.
-    if totalsChanged or terrainChanged then refreshResourceTrackerText() end
-    if previousMove~=(totals.move or 0) or terrainChanged then updateMoveDisplay() end
+        attackTransforms=attackTransforms,
+        terrainModifiers=terrainModifiers,movementEffects=movementEffects,
+        usesCurrentHexBlock=usesCurrentHexBlock,
+        usesCurrentHexHealing=usesCurrentHexHealing,
+        usesSkillLocation=usesSkillLocation}
+    -- Redraw movement when ability flags change, even if total Move stays equal.
+    if totalsChanged or terrainChanged or transformChanged then refreshResourceTrackerText() end
+    if previousMove~=(totals.move or 0) or terrainChanged or movementChanged then
+        updateMoveDisplay()
+    end
     for guid in pairs(previous) do
         if current[guid]~=true then
             clearHighlight(guid)
@@ -43836,16 +45772,22 @@ local function clearAll()
     end
 end
 
--- A card records only an explicit player selection; no assumptions about
--- movement versus combat are inferred from the board.
+-- Player clicks always replace the one-time guess; opening the choice menu
+-- alone leaves that selection and the Resource Tracker totals unchanged.
 function resourceCardsChoiceClicked(player,value,id)
     if type(id)~="string" then return end
-    local guid,category=id:match("^ResourceCardChoice_([0-9a-f]+)_([%a]+)$")
+    local guid,setIndex,category=id:match(
+        "^ResourceCardChoice_([0-9a-f]+)_set(%d+)_([%w]+)$")
+    if guid==nil then
+        guid,category=id:match("^ResourceCardChoice_([0-9a-f]+)_([%w]+)$")
+    end
     if guid==nil then return end
+    setIndex=setIndex~=nil and tonumber(setIndex) or nil
     if not resourceCardsPanelOpen() then return end
     local card=getObjectFromGUID(guid)
     local data=card~=nil and gameCards[guid] or nil
     local isSkill=skillTokens[guid]~=nil
+    local isPuppet=card~=nil and card.getGMNotes()=="Puppet Master"
     local rule=isSkill and skillResourceDefinitions[guid]
         or (data~=nil and cardResourceDefinitions[data.resourceKey] or nil)
     local currentSeat=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
@@ -43854,7 +45796,7 @@ function resourceCardsChoiceClicked(player,value,id)
     local record=scan~=nil and scan.cards[guid] or nil
     local linkedWound=card.getGMNotes()=="Wound" and record~=nil
         and record.linkedSkill~=nil
-    if rule==nil and not isSkill and not (cardPosture(card)=="sideways"
+    if rule==nil and not isSkill and not isPuppet and not (cardPosture(card)=="sideways"
         and (cardCanPlaySideways(card) or linkedWound)) then return end
     local zone=getObjectFromGUID(playerPlayAreas[currentSeat.seatPos])
     local inZone=false
@@ -43867,46 +45809,238 @@ function resourceCardsChoiceClicked(player,value,id)
     -- Linked cards take the powered choice even without mana placed on them.
     local powered=record~=nil and record.powered==true
     local sideways=not isSkill and cardPosture(card)=="sideways"
-    local choices=isSkill and (rule~=nil and rule.choices or nil)
-        or ((sideways and (cardCanPlaySideways(card) or linkedWound)) and sidewaysChoices
-            or (not sideways and sideChoices(rule,powered) or nil))
-    local valid=false
-    for _,choice in ipairs(choices or {}) do
-        if choiceCategory(choice)==category then valid=true break end
+    local mainChoices
+    if isSkill or isPuppet then
+        mainChoices=record~=nil and record.choices or (rule~=nil and rule.choices or nil)
+    elseif sideways and (cardCanPlaySideways(card) or linkedWound) then
+        mainChoices=sidewaysChoices
+    elseif not sideways then
+        mainChoices=sideChoices(rule,powered)
     end
+    local choices=mainChoices
+    local inventorySpec=not sideways and powered and rule~=nil
+        and rule.inventorySetChoices or nil
+    local inventorySets=inventorySpec~=nil and record~=nil
+        and record.inventorySetCount or 0
+    if setIndex~=nil then
+        if inventorySpec==nil or setIndex<1 or setIndex>inventorySets then return end
+        choices=inventorySpec.choices
+    end
+    local valid=choiceAvailable(choices,category)
     if not valid then return end
-    if choiceExpandedByGUID[guid]~=true then
-        -- A click on the sole, selected button opens the alternatives. Merely
-        -- opening this menu must not change the calculated resource totals.
-        choiceExpandedByGUID[guid]=true
-        showChoiceButtons(card,choices,powered)
+    local rowId=setIndex~=nil and ("set"..setIndex) or "base"
+    local currentlyExpanded=choiceExpandedByGUID[guid]
+    if currentlyExpanded~=rowId and not (rowId=="base" and currentlyExpanded==true) then
+        -- Opening a row never changes the chosen resource.
+        choiceExpandedByGUID[guid]=rowId
+        showChoiceButtons(card,mainChoices,powered,inventorySpec,inventorySets)
         return
     end
-    -- Any choice, including the already selected one, closes the menu.
     local selected=selectedResourceByGUID[guid] or {}
-    if not sideways then
-        -- Normal and powered abilities use the same card-wide preference.
+    if setIndex~=nil then
+        selected.inventorySets=selected.inventorySets or {}
+        selected.inventorySets[setIndex]=category
+    elseif not sideways then
         selected.effect=category
     elseif choiceAvailable(sideChoices(rule,false),category)
         or choiceAvailable(sideChoices(rule,true),category) then
-        -- Keep a 90-degree generic resource in sync with the printed action
-        -- when the selected category is also an available printed choice.
         selected.effect=category
         selected.sideways=nil
     else
-        -- A generic +1 with no matching printed category is independent.
         selected.sideways=category
     end
     selectedResourceByGUID[guid]=selected
     choiceExpandedByGUID[guid]=nil
-    showChoiceButtons(card,choices,powered)
+    showChoiceButtons(card,mainChoices,powered,inventorySpec,inventorySets)
     queueSeat(currentSeat.seatPos,nil)
+end
+
+-- An activation belongs to the physical Command token that started it.
+-- Dropping that token away from its Unit is an undo, not a spent ability:
+-- discard its saved choice and remove its buttons and tracked contribution.
+-- Returning the token to the same Unit preserves its selection.
+local function resourceUnitsCancelMovedCommand(tokenGUID,seatPos,targetGUID)
+    local activations=gStates~=nil and gStates.unitResourceActivations or nil
+    if activations==nil then return false end
+    local changed=false
+    for unitGUID,activation in pairs(activations) do
+        if activation.tokenGUID==tokenGUID and activation.seatPos==seatPos
+            and unitGUID~=targetGUID then
+            removeChoiceButtons(getObjectFromGUID(unitGUID))
+            choiceExpandedByGUID[unitGUID]=nil
+            activations[unitGUID]=nil
+            changed=true
+        end
+    end
+    return changed
+end
+
+-- The picked-up origin is transient; only completed activations belong in
+-- saved state. A token placed back on its original Unit isn't a new play.
+function resourceUnitsCommandPickedUp(playerColor,obj)
+    if obj==nil or not unitLayoutIsCommand(obj)
+        or gStates==nil or gStates.firstStarted~=true then return end
+    local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    if current==nil or legalPlayerCheck(playerColor,current.seatPos)~=true then return end
+    local origin=unitLayoutCommandTarget(obj,current.seatPos)
+    commandPickupForUnits[obj.guid]={seatPos=current.seatPos,
+        turnNumber=gStates.turnNumber,origin=origin~=nil and origin.guid or nil}
+end
+
+function resourceUnitsCommandDropped(playerColor,obj)
+    if obj==nil or not unitLayoutIsCommand(obj) then return end
+    local pickup=commandPickupForUnits[obj.guid]
+    commandPickupForUnits[obj.guid]=nil
+    if pickup==nil then return end
+    local guid=obj.guid
+    safeWaitCondition("PlayerBoard.CardRecognition",function()
+        local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+        if current==nil or current.seatPos~=pickup.seatPos
+            or gStates.turnNumber~=pickup.turnNumber then return end
+        local token=getObjectFromGUID(guid)
+        local unit=token~=nil and unitLayoutCommandTarget(token,pickup.seatPos) or nil
+        local targetGUID=unit~=nil and unit.guid or nil
+        if resourceUnitsCancelMovedCommand(guid,pickup.seatPos,targetGUID) then
+            queueSeat(pickup.seatPos,nil)
+        end
+        if unit==nil or unit.guid==pickup.origin
+            or unitResourceDefinitions[unit.guid]==nil then return end
+        local state=unitLayoutResourceState(pickup.seatPos)
+        for _,entry in ipairs(state.units) do
+            if entry.guid==unit.guid and not entry.unwounded then return end
+        end
+        -- Choose an unpowered default only. Physical mana overrides it
+        -- automatically when a particular paid ability is unambiguous.
+        local abilities=unitResourceDefinitions[unit.guid]
+        local scores=trackerChoiceScores(unit.guid,pickup.seatPos)
+        local choice,bestScore=1,-math.huge
+        for i,ability in ipairs(abilities) do
+            if ability.manaCost==nil then
+                local score=scores[ability.key] or 0
+                if score>bestScore then choice,bestScore=i,score end
+            end
+        end
+        gStates.unitResourceActivations=gStates.unitResourceActivations or {}
+        gStates.unitResourceActivations[unit.guid]={
+            seatPos=pickup.seatPos,tokenGUID=guid,choice=choice,
+            selected=abilities.multi==true and {} or nil}
+        choiceExpandedByGUID[unit.guid]=nil
+        showUnitAbilityButtons(unit,abilities,gStates.unitResourceActivations[unit.guid],true)
+        queueSeat(pickup.seatPos,nil)
+    end,function()
+        local token=getObjectFromGUID(guid)
+        return token==nil or (token.held_by_color==nil and token.resting==true
+            and token.isSmoothMoving()==false)
+    end,8)
+end
+
+function resourceUnitsChoiceClicked(player,value,id)
+    if type(id)~="string" then return end
+    local unitGUID,index=id:match("^ResourceCardChoice_([0-9a-f]+)_unit(%d+)$")
+    index=tonumber(index)
+    local activation=unitGUID~=nil and gStates.unitResourceActivations
+        and gStates.unitResourceActivations[unitGUID] or nil
+    local abilities=unitGUID~=nil and unitResourceDefinitions[unitGUID] or nil
+    local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    if activation==nil or abilities==nil or current==nil or index==nil
+        or abilities[index]==nil or activation.seatPos~=current.seatPos
+        or legalPlayerCheck(player.color,current.seatPos)~=true then return end
+    local unit=getObjectFromGUID(unitGUID)
+    if unit==nil then return end
+    local state=unitLayoutResourceState(current.seatPos)
+    for _,entry in ipairs(state.units) do
+        if entry.guid==unitGUID and not entry.unwounded then return end
+    end
+    local decision=unitManaDecision(unit,abilities,activation)
+    local available=false
+    for _,candidate in ipairs(decision.display) do
+        if candidate==index then available=true break end
+    end
+    if not available then return end
+    if not decision.ambiguous and choiceExpandedByGUID[unitGUID]~=true
+        and #decision.display>1 then
+        -- Expanding ordinary choices does not change what was played.
+        choiceExpandedByGUID[unitGUID]=true
+        showUnitAbilityButtons(unit,abilities,activation,true,decision)
+        return
+    end
+    if abilities.multi==true then
+        -- Gold payments may be assigned to several different abilities, but
+        -- never more abilities than the actual number of Gold tokens.
+        -- Choosing another button reassigns Gold instead of silently
+        -- preserving an older choice the player can no longer see as active.
+        activation.selected=activation.selected or {}
+        if activation.manaSignature~=decision.signature then activation.selected={} end
+        activation.manaSignature=decision.signature
+        if decision.selected[index]==true then
+            activation.selected[index]=nil
+        else
+            local goldCount=(unitManaCounts(unit,current.seatPos).Gold or 0)
+            local prior={}
+            for _,candidate in ipairs(decision.display) do
+                if candidate~=index and activation.selected[candidate]==true then
+                    prior[#prior+1]=candidate
+                end
+            end
+            while #prior>=goldCount and #prior>0 do
+                activation.selected[table.remove(prior,1)]=nil
+            end
+            activation.selected[index]=true
+        end
+        choiceExpandedByGUID[unitGUID]=true
+    elseif decision.ambiguous then
+        activation.manaChoice=index
+        activation.manaSignature=decision.signature
+    else
+        activation.choice=index
+        activation.manaChoice=nil
+        activation.manaSignature=nil
+        choiceExpandedByGUID[unitGUID]=nil
+    end
+    showUnitAbilityButtons(unit,abilities,activation,true)
+    queueSeat(current.seatPos,nil)
+end
+
+-- Clear any remaining activations at turn end without moving Command tokens.
+-- A token moved off its Unit during the turn cancels immediately on its drop.
+function resourceUnitsResetTurn()
+    if gStates~=nil then
+        for unitGUID in pairs(gStates.unitResourceActivations or {}) do
+            removeChoiceButtons(getObjectFromGUID(unitGUID))
+            choiceExpandedByGUID[unitGUID]=nil
+        end
+        gStates.unitResourceActivations={}
+    end
+    commandPickupForUnits={}
+end
+
+-- Unit buttons depend on this turn's activation record, not on whether
+-- the Resource Tracker details panel is currently expanded.
+function resourceUnitsRefreshButtons()
+    if gStates==nil or next(gStates.unitResourceActivations or {})==nil then return end
+    local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    if current==nil then return end
+    local state=unitLayoutResourceState(current.seatPos)
+    local conditionByGUID={}
+    for _,entry in ipairs(state.units) do
+        conditionByGUID[entry.guid]=entry.unwounded
+    end
+    for unitGUID,activation in pairs(gStates.unitResourceActivations) do
+        if activation.seatPos==current.seatPos then
+            local unit=getObjectFromGUID(unitGUID)
+            if unit~=nil then
+                showUnitAbilityButtons(unit,unitResourceDefinitions[unitGUID],
+                    activation,conditionByGUID[unitGUID]==true)
+            end
+        end
+    end
 end
 
 function resourceCardsPanelChanged(open)
     -- The tracker shows the current turn's Mage Knight; stale outlines on other
     -- players' boards would falsely imply those pieces contribute to these totals.
     clearAll()
+    resourceUnitsRefreshButtons()
     if open~=true then return end
     local player=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if player==nil then return end
@@ -43927,28 +46061,47 @@ function resourceCardsPanelChanged(open)
 end
 
 function resourceCardsOnLoad()
-    if resourceCardsPanelOpen() then resourceCardsPanelChanged(true) else clearAll() end
+    if resourceCardsPanelOpen() then
+        resourceCardsPanelChanged(true)
+    else
+        clearAll()
+        -- The Unit's activation buttons exist independently of the expanded
+        -- Resource Tracker panel and must survive a mid-turn save/reload.
+        resourceUnitsRefreshButtons()
+    end
 end
 
 local function resourceCardsRelevantZone(ctx)
     if ctx==nil or ctx.zoneInfo==nil or ctx.obj==nil then return nil end
     local kind=ctx.zoneInfo.kind
     local objectKind=resourceObjectKind(ctx.obj)
-    if kind=="play" and objectKind~=nil then return ctx.zoneInfo.seatPos end
-    if kind=="unit" and (objectKind=="unit" or objectKind=="mana"
+    if kind=="play" and (objectKind~=nil or monsterPugs[ctx.objGUID]~=nil) then
+        return ctx.zoneInfo.seatPos
+    end
+    if kind=="unit" and (objectKind=="unit" or objectKind=="mana" or objectKind=="puppet"
+        or monsterPugs[ctx.objGUID]~=nil
         or unitLayoutIsCommand(ctx.obj) or unitLayoutIsWound(ctx.obj)) then
         return ctx.zoneInfo.seatPos
     end
     if kind=="crystal" and objectKind=="mana" then return ctx.zoneInfo.seatPos end
+    if kind=="hand" and objectKind=="wound" then return ctx.zoneInfo.seatPos end
     return nil
 end
 
 function resourceCardsZoneEntered(ctx)
+    if ctx~=nil and ctx.obj~=nil and (unitLayoutIsWound(ctx.obj)
+        or manaColor(ctx.obj)~=nil) then
+        resourceUnitsRefreshButtons()
+    end
     local seat=resourceCardsRelevantZone(ctx)
     if seat~=nil then queueSeat(seat,ctx.objGUID) end
 end
 
 function resourceCardsZoneLeft(ctx)
+    if ctx~=nil and ctx.obj~=nil and (unitLayoutIsWound(ctx.obj)
+        or manaColor(ctx.obj)~=nil) then
+        resourceUnitsRefreshButtons()
+    end
     local seat=resourceCardsRelevantZone(ctx)
     if ctx~=nil and ctx.zoneInfo~=nil and ctx.zoneInfo.kind=="play" then
         scheduleChoiceResetAfterPlay(ctx.objGUID,ctx.zoneInfo.seatPos)
@@ -43957,17 +46110,30 @@ function resourceCardsZoneLeft(ctx)
 end
 
 function resourceCardsObjectMoved(obj)
+    if obj~=nil and (unitLayoutIsWound(obj) or manaColor(obj)~=nil)
+        and gStates~=nil and next(gStates.unitResourceActivations or {})~=nil then
+        local woundGUID=obj.guid
+        safeWaitCondition("PlayerBoard.CardRecognition",function()
+            resourceUnitsRefreshButtons()
+        end,function()
+            local wound=getObjectFromGUID(woundGUID)
+            return wound==nil or (wound.held_by_color==nil and wound.resting==true
+                and wound.isSmoothMoving()==false)
+        end,8)
+    end
     if not resourceCardsPanelOpen() or obj==nil then return end
     local player=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if player==nil then return end
     local seat=player.seatPos
     local isUnitStateToken=unitLayoutIsCommand(obj) or unitLayoutIsWound(obj)
-    if resourceObjectKind(obj)==nil and not isUnitStateToken then
+    local isMonster=monsterPugs[obj.guid]~=nil
+    if resourceObjectKind(obj)==nil and not isUnitStateToken and not isMonster then
         -- A played powered One with the Land may change Block value when the
         -- Mage Knight moves to different terrain. Only watch avatar drops
         -- while that exact effect is selected; no continual background scan.
         local scan=resourceCardScanBySeat[seat]
-        if scan~=nil and scan.usesCurrentHexBlock==true then
+        if scan~=nil and (scan.usesCurrentHexBlock==true
+            or scan.usesCurrentHexHealing==true or scan.usesSkillLocation==true) then
             for _,hero in ipairs(mageKnights or {}) do
                 if hero.mage==player.mage and
                     (obj.guid==hero.model or obj.guid==hero.token or obj.guid==hero.standee) then
@@ -43978,7 +46144,8 @@ function resourceCardsObjectMoved(obj)
         end
         return
     end
-    for _,zoneGUID in ipairs({playerPlayAreas[seat],playerUnitAreas[seat],playerCrystalAreas[seat]}) do
+    for _,zoneGUID in ipairs({playerPlayAreas[seat],playerUnitAreas[seat],
+        playerCrystalAreas[seat],handZones[seat]}) do
         local zone=getObjectFromGUID(zoneGUID)
         if zone~=nil then
             for _,candidate in ipairs(zone.getObjects()) do
@@ -43986,7 +46153,8 @@ function resourceCardsObjectMoved(obj)
             end
         end
     end
-    if isUnitStateToken then
+    if isUnitStateToken or (isMonster and bySeat[seat]~=nil
+        and bySeat[seat][obj.guid]==true) then
         -- Zone exit usually handles this already, but a token can be dragged
         -- straight out and dropped before its membership event settles.
         queueSeat(seat,nil)
@@ -43994,6 +46162,151 @@ function resourceCardsObjectMoved(obj)
         scheduleChoiceResetAfterPlay(obj.guid,seat)
         queueSeat(seat,nil)
     end
+end
+
+end)
+__bundle_register("PlayingGame.UIAssets", function(require, _LOADED, __bundle_register, __bundle_modules)
+-- Canonical Custom UI image registry taken from the current TTS save JSON.
+-- Keep original registered asset names: Global XML and object controls use them.
+-- Fonts and Sliced Button are special type-1 assets. Keep those entries in the
+-- saved JSON; Lua's documented setCustomAssets API only supports image assets.
+-- The save's existing registrations are intentionally retained as a bootstrap
+-- until script-based loading has been tested on the TTS desktop.
+local originalGlobalImages={
+    {name="Cover",url="{en}https://steamusercontent-a.akamaihd.net/ugc/1001431857106606245/56F9EF00A526043AA1D6D7AD68C3EBD4DEA0AD1D/{ru}https://steamusercontent-a.akamaihd.net/ugc/23178046637433768/A8670F5F2554A00C22800E7F3A6C070BA1673917/{zh-tw}https://steamusercontent-a.akamaihd.net/ugc/18118113768376199548/C906F520D66B8FB611535FBD85A0B85F944FE9E6/{zh-cn}https://steamusercontent-a.akamaihd.net/ugc/1722045645694644325/B47636C60FD1BD9C002BC9C5298406899E9C88A1/{ko}https://steamusercontent-a.akamaihd.net/ugc/1710786701654505469/8B9265F16224ABC429332BF91D382E663810D294/{es}https://steamusercontent-a.akamaihd.net/ugc/1028454670706702049/E5A416003E52198C9AD317E7858DAC8EDEA0E161/"},
+    {name="Background",url="https://steamusercontent-a.akamaihd.net/ugc/1692777521334268216/66D5DE3D4B7BAEB8D40F9B7C7F7F291BA8243D9F/"},
+    {name="Ambush Circle",url="https://steamusercontent-a.akamaihd.net/ugc/1617313257052487169/A0FE9D65A1E285BC563116914A5D6C36DF0B7B6E/"},
+    {name="Shield Button Arythea",url="https://steamusercontent-a.akamaihd.net/ugc/1478823218929326097/5CCE1BAD2CA52C846D233A207EC5E1207BBF02FC/"},
+    {name="Shield Button Braevalar",url="https://steamusercontent-a.akamaihd.net/ugc/1478823218929326822/51CEC6AB36E912FF509CEA91C0F9C5522EA03BB9/"},
+    {name="Shield Button Goldyx",url="https://steamusercontent-a.akamaihd.net/ugc/1478823218929327577/C637088E8131F23A2A49870FA12237A05C82D506/"},
+    {name="Shield Button Coral",url="https://steamusercontent-a.akamaihd.net/ugc/10610372278788842040/2D5B9D46272240F75F6A9E66ED31EEEB2425136A/"},
+    {name="Shield Button Mevok",url="https://steamusercontent-a.akamaihd.net/ugc/2546304515602238427/658CFE0897AC8F2C7C78CE9CDFE3E722B879C213/"},
+    {name="Shield Button Duscenia",url="https://steamusercontent-a.akamaihd.net/ugc/2546304515607467014/4CF3182975623739C7BDA7289F68A5DB6486BD21/"},
+    {name="Shield Button Malek",url="https://steamusercontent-a.akamaihd.net/ugc/12424961374538369837/2012206D5BB83801410056E8D0AB4FEA2525EDFC/"},
+    {name="Shield Button Zirtae",url="https://steamusercontent-a.akamaihd.net/ugc/16461512022954963475/A1F601513AA7E6EB96C877B520144B451BFC627B/"},
+    {name="Shield Button Krang",url="https://steamusercontent-a.akamaihd.net/ugc/1478823218929328785/877D06E4394E2085FE76D68E570C4EE88A4B0494/"},
+    {name="Shield Button Jormund",url="https://steamusercontent-a.akamaihd.net/ugc/1771580164154280004/8B48C21581945BBCCDA60548A8E1B615A92CA9C6/"},
+    {name="Shield Button Norowas",url="https://steamusercontent-a.akamaihd.net/ugc/2308724878077147072/B6CE29FBF5DA1A716B79F7185665746CBC23F36E/"},
+    {name="Shield Button Tovak",url="https://steamusercontent-a.akamaihd.net/ugc/2308724878077364817/479E6B88CC3F769C1DF7C6916190B2FCBB0AAC49/"},
+    {name="Shield Button Wolfhawk",url="https://steamusercontent-a.akamaihd.net/ugc/2308724878077506154/AAC2FE8D26864A0A817B77719446CA0DE62FD73F/"},
+    {name="Shield Button Ymirgh",url="https://steamusercontent-a.akamaihd.net/ugc/1478823218929331940/2337A82743D4BA6AD9FE3F948A30AA33591675BC/"},
+    {name="Marker Button Krang",url="https://steamusercontent-a.akamaihd.net/ugc/938341811900454919/BE8DC0BAC1C9114838EBFBAE63E4F48DC610C9F1/"},
+    {name="Marker Button Jormund",url="https://steamusercontent-a.akamaihd.net/ugc/1771580164154422300/D10B1F46315559284ADF4C886C412A660942B214/"},
+    {name="Marker Button Arythea",url="https://steamusercontent-a.akamaihd.net/ugc/938341811900459001/C5C3C2D266749057903B3A4FC65AF929B8D73034/"},
+    {name="Marker Button Norowas",url="https://steamusercontent-a.akamaihd.net/ugc/938341811900458181/A01EA1C74D0C351F3766BF671AE27DD0EAF29688/"},
+    {name="Marker Button Mevok",url="https://steamusercontent-a.akamaihd.net/ugc/2546304515608577393/E3187F6F09AB17C3C69716098CF3C63C7CCD3775/"},
+    {name="Marker Button Duscenia",url="https://steamusercontent-a.akamaihd.net/ugc/2546304515608573142/6FA2F15189718A0B6628CF9FDBB34CD48BBBF31C/"},
+    {name="Marker Button Malek",url="https://steamusercontent-a.akamaihd.net/ugc/15111052234560841989/97B5D9EED9CD204FCEF022F5D9F9A01E53ED7244/"},
+    {name="Marker Button Zirtae",url="https://steamusercontent-a.akamaihd.net/ugc/9712078442154105947/CA4245E023B94D832778B37CC1BDFB6485565B66/"},
+    {name="Marker Button Tovak",url="https://steamusercontent-a.akamaihd.net/ugc/938341811900457603/0A91310F070E085C89C5169652391D05107A8CFC/"},
+    {name="Marker Button Braevalar",url="https://steamusercontent-a.akamaihd.net/ugc/938341811900456916/199CFF14DC36DEA07DA4F4A4B748F901244BA633/"},
+    {name="Marker Button Goldyx",url="https://steamusercontent-a.akamaihd.net/ugc/938341811900456092/138D851EF2F5039F6D2D31A4AEDC6EA340687EC4/"},
+    {name="Marker Button Wolfhawk",url="https://steamusercontent-a.akamaihd.net/ugc/938341811900455545/878C60CB8DF08C33EC9A798E0F55E889E36B17F4/"},
+    {name="Marker Button Coral",url="https://steamusercontent-a.akamaihd.net/ugc/11960801215047559534/F6A0015AA2DCCA2BFED337BB02EEDA33248E1B53/"},
+    {name="Marker Button Ymirgh",url="https://steamusercontent-a.akamaihd.net/ugc/938341811900426220/77D486C8959DE0B7183EC0C946F04A01C394D12E/"},
+    {name="Attack Button",url="https://steamusercontent-a.akamaihd.net/ugc/1478823458284696597/E384FED8D0278DC024FF21A6B892BB5D4FC5F947/"},
+    {name="Restore Button",url="https://steamusercontent-a.akamaihd.net/ugc/9877613356937477628/AAE49A069E26436B6EB4BB8B316EEC047D343ECB/"},
+    {name="Unlink Button",url="https://steamusercontent-a.akamaihd.net/ugc/18034186033810785733/8DE1541ACFB46B4B63EC44CFA30276B7C3905385/"},
+    {name="Overkill Up",url="https://steamusercontent-a.akamaihd.net/ugc/1617310718810263627/D8529784D1CF63D5C8F2594149276FE1AFDE65EE/"},
+    {name="Overkill Down",url="https://steamusercontent-a.akamaihd.net/ugc/1617310718810264528/A1A8BCBC8028B6AA3630F12CF1374EC1FD5C82BC/"},
+    {name="Overkill Up Deactive",url="https://steamusercontent-a.akamaihd.net/ugc/1754683441111500070/3FD48DA490B88DEB39FF767B920A3203151DD6C3/"},
+    {name="Overkill Down Deactive",url="https://steamusercontent-a.akamaihd.net/ugc/1754683441111499559/52B367C71FDCE6BDBAB0DFBB0184FB332504FEFB/"},
+    {name="Overkill Text",url="https://steamusercontent-a.akamaihd.net/ugc/1617310718810265172/BEC692EFD0588753AE8E3C09D25A6BA59D8945FC/"},
+    {name="Fortified",url="https://steamusercontent-a.akamaihd.net/ugc/15769941683634999180/45D8BF9859C1F2C026A3B40DA634B74286E2C3EB/"},
+    {name="Wall Fortified",url="https://steamusercontent-a.akamaihd.net/ugc/11147958722484508587/09808504747D568FFAECC06537C487DF223C3872/"},
+    {name="Offer Button",url="https://steamusercontent-a.akamaihd.net/ugc/1646593864307901145/CFDEFA739F127EC9D29B7E3AC3BA47E3397BC65D/"},
+    {name="Megapolis Add",url="https://steamusercontent-a.akamaihd.net/ugc/1754683565841541012/5BBE54C97CBEE0DFBF4391A55891FFC68DE37860/"},
+    {name="Megapolis Subtract",url="https://steamusercontent-a.akamaihd.net/ugc/1754683565841541650/C496D0404524A37E77050A8E9A104505CAC7A730/"},
+    {name="Banner Command",url="https://steamusercontent-a.akamaihd.net/ugc/18012141070723747826/A01D57BBED437196992DA98622DE5728C46CB5D5/"},
+    {name="Card Remove",url="https://steamusercontent-a.akamaihd.net/ugc/1661232230977162756/90D8AEB60005119DD4182B5FD24D7BDD8243B5F3/"},
+    {name="Quick Witted",url="https://steamusercontent-a.akamaihd.net/ugc/14433121776859152176/48DBFDAE388D5BA84AC56BB045184714B6628072/"},
+    {name="Glade Heal Button",url="https://steamusercontent-a.akamaihd.net/ugc/15126280775024282950/D258DCBD2A2FD392BA1132CD71B28CDC90E48CFE/"},
+    {name="Horseman Attack Button",url="https://steamusercontent-a.akamaihd.net/ugc/12647478740119221952/A4E3602A20A7A1C0FA03DA5C0FBEDF8910DE1E7D/"},
+    {name="Volkare Pursuit Button",url="https://steamusercontent-a.akamaihd.net/ugc/13293042467654760772/E72DCC400EC451ABB80DC722F3657A631FC30C70/"},
+    {name="Pursuit Stunned",url="https://steamusercontent-a.akamaihd.net/ugc/9820771160644960489/29318B61F2A30E0E941F355C3664303B0C95BC60/"},
+    {name="Incantation Button",url="https://steamusercontent-a.akamaihd.net/ugc/2252424264022049991/BE0E6510D1DC7D3CD43FF6986F8373AE88DE7D8C/"},
+}
+
+-- New resource/Skill choice images use a dedicated prefix to avoid clashes.
+local resourceChoiceImages={
+    siege={name="MKChoiceSiege",url="https://steamusercontent-a.akamaihd.net/ugc/13001275488421638021/429A4C25B493880579B1EEE1BA38C5E8C2C7DD2B/"},
+    ranged={name="MKChoiceRanged",url="https://steamusercontent-a.akamaihd.net/ugc/16825643705965136812/86750D2D0CE31C2AB2A08D518FDFA9606332DC69/"},
+    move={name="MKChoiceMove",url="https://steamusercontent-a.akamaihd.net/ugc/15089597231616187129/97560F942A1D143CC2BD816D1F8E0B117A659AFA/"},
+    influence={name="MKChoiceInfluence",url="https://steamusercontent-a.akamaihd.net/ugc/11982150083081031635/75C1352D375B05271C34514F3C578728423768AA/"},
+    healing={name="MKChoiceHealing",url="https://steamusercontent-a.akamaihd.net/ugc/18027929342726570953/67A059840F886E825064D757DD9EEA63AAC7D2B9/"},
+    block={name="MKChoiceBlock",url="https://steamusercontent-a.akamaihd.net/ugc/10652687051429766943/75A1D745D425D4D57D65971DB6F5E1BA1A80C6E6/"},
+    attack={name="MKChoiceAttack",url="https://steamusercontent-a.akamaihd.net/ugc/12125700784244572260/5257BAD169E970724105406C69CC5918293111EE/"},
+}
+-- Fire choices use the existing artwork. Their "F" overlay is drawn by
+-- CardRecognition, not stored as a second asset with a conflicting name.
+resourceChoiceImages.fireAttack=resourceChoiceImages.attack
+resourceChoiceImages.fireBlock=resourceChoiceImages.block
+
+local allGlobalImages={}
+for _,entry in ipairs(originalGlobalImages) do
+    allGlobalImages[#allGlobalImages+1]=entry
+end
+for _,category in ipairs({"siege","ranged","move","influence","healing","block","attack"}) do
+    allGlobalImages[#allGlobalImages+1]=resourceChoiceImages[category]
+end
+
+-- Runtime-only diagnostics. Never silently overwrite someone else's asset
+-- when the same name is already registered with a different URL.
+local warnedAssetCollisions={}
+local function warnAssetCollision(name)
+    if warnedAssetCollisions[name] then return end
+    warnedAssetCollisions[name]=true
+    print("Custom UI Asset conflict: '"..name.."' has a different URL; keeping the existing asset.")
+end
+
+local function mergeCustomImages(ui,desired)
+    local existing=ui.getCustomAssets() or {}
+    local nameIndexes={}
+    local blocked={}
+    for i,entry in ipairs(existing) do
+        local name=entry.name
+        if type(name)=="string" then
+            if nameIndexes[name]~=nil then
+                -- Preserve TTS's original list but do not add a third entry.
+                warnAssetCollision(name)
+            else
+                nameIndexes[name]=i
+            end
+        end
+    end
+    local changed=false
+    for _,entry in ipairs(desired) do
+        local index=nameIndexes[entry.name]
+        if index==nil then
+            existing[#existing+1]={name=entry.name,url=entry.url}
+            nameIndexes[entry.name]=#existing
+            changed=true
+        elseif existing[index].url~=entry.url then
+            warnAssetCollision(entry.name)
+            blocked[entry.name]=true
+        end
+    end
+    -- Only call setCustomAssets/setXmlTable(...,assets) when required; these
+    -- replace the asset list and can otherwise reload unrelated assets.
+    return changed and existing or nil,blocked
+end
+
+function resourceCardsRegisterIconAssets()
+    local merged=mergeCustomImages(UI,allGlobalImages)
+    if merged~=nil then UI.setCustomAssets(merged) end
+end
+
+function resourceCardsChoiceIcon(category)
+    return resourceChoiceImages[category]
+end
+
+function resourceCardsChoiceAssetsFor(ui,categories)
+    local needed={}
+    for _,category in ipairs(categories) do
+        local asset=resourceChoiceImages[category]
+        if asset~=nil then needed[#needed+1]=asset end
+    end
+    return mergeCustomImages(ui,needed)
 end
 
 end)
@@ -44341,6 +46654,208 @@ function playerBoardZoneLeave(ctx)
 end
 
 end)
+__bundle_register("PlayingGame.PlayerBoard.UnitResources", function(require, _LOADED, __bundle_register, __bundle_modules)
+-- Printed abilities for all 56 Regular and Elite Units (including Lost Legion).
+-- Stable physical GUIDs identify cards. Type labels below are identifiers for
+-- maintainers only: never compare a translated nickname or description.
+-- A shared row means alternate options printed on the SAME line of the card.
+-- Unit selection, Command history and object UI live in CardRecognition.lua.
+local function value(row,resource,amount,tooltip,extra)
+    local a={row=row,tooltip=tooltip}
+    a[resource]=amount
+    for _,family in ipairs({"siege","ranged","block","attack","move","influence","healing"}) do
+        if resource:sub(1,#family)==family then
+            a.key=family
+            a.icon=family
+            break
+        end
+    end
+    if resource:find("ColdFire",1,true) then
+        a.iconOverlay="CF"
+        a.iconOverlayColor="#EC75F8"
+    elseif resource:find("Fire",1,true) then
+        a.iconOverlay="F"
+        a.iconOverlayColor="#FF564A"
+    elseif resource:find("Ice",1,true) then
+        a.iconOverlay="I"
+        a.iconOverlayColor="#66BAFF"
+    end
+    for k,v in pairs(extra or {}) do a[k]=v end
+    if a.manaCost~=nil and a.iconOverlay==nil then
+        a.iconOverlay=a.manaCost:sub(1,1)
+        a.iconOverlayColor=({Red="#FF564A",Blue="#66BAFF",
+            White="#FFFFFF",Green="#69E370",Black="#333333"})[a.manaCost]
+    end
+    return a
+end
+
+local function special(row,tooltip,extra)
+    local a={row=row,key="other",tooltip=tooltip}
+    for k,v in pairs(extra or {}) do a[k]=v end
+    return a
+end
+
+local byType={
+    Peasants={
+        value(1,"attack",2,"Attack 2"),value(1,"block",2,"Block 2"),
+        value(2,"influence",2,"Influence 2"),value(3,"move",2,"Move 2")},
+    Herbalists={
+        value(1,"healing",2,"Heal 2",{manaCost="Green"}),
+        special(2,"Ready a Level I or II Unit",{key="ready"}),
+        special(3,"Gain a green mana token",{key="gain"})},
+    Foresters={
+        value(1,"move",2,"Move 2; forests, hills and swamps cost 1 less (minimum 0)",{terrainReduce=true}),
+        value(2,"block",3,"Block 3")},
+    UtemCrossbowmen={
+        value(1,"attack",3,"Attack 3"),value(1,"block",3,"Block 3"),
+        value(2,"ranged",2,"Ranged Attack 2")},
+    UtemGuardsmen={
+        value(1,"attack",2,"Attack 2"),
+        value(2,"block",4,"Block 4; counts twice against Swiftness")},
+    UtemSwordsmen={
+        value(1,"attack",3,"Attack 3"),value(1,"block",3,"Block 3"),
+        value(2,"attack",6,"Attack 6; wound this Unit after resolving",{woundsSelf=true,iconOverlay="W",iconOverlayColor="#FFFFFF"}),
+        value(2,"block",6,"Block 6; wound this Unit after resolving",{woundsSelf=true,iconOverlay="W",iconOverlayColor="#FFFFFF"})},
+    GuardianGolems={
+        value(1,"attack",2,"Attack 2"),value(1,"block",2,"Block 2"),
+        value(2,"blockFire",4,"Fire Block 4",{manaCost="Red"}),
+        value(3,"blockIce",4,"Ice Block 4",{manaCost="Blue"})},
+    Illusionists={
+        value(1,"influence",4,"Influence 4"),
+        special(2,"An unfortified enemy does not attack this combat",{manaCost="White"}),
+        special(3,"Gain a white crystal to your inventory",{key="gain"})},
+    RedCapeMonks={
+        value(1,"attack",3,"Attack 3"),value(1,"block",3,"Block 3"),
+        value(2,"attackFire",4,"Fire Attack 4",{manaCost="Red"}),
+        value(2,"blockFire",4,"Fire Block 4",{manaCost="Red"})},
+    NorthernMonks={
+        value(1,"attack",3,"Attack 3"),value(1,"block",3,"Block 3"),
+        value(2,"attackIce",4,"Ice Attack 4",{manaCost="Blue"}),
+        value(2,"blockIce",4,"Ice Block 4",{manaCost="Blue"})},
+    SavageMonks={
+        value(1,"attack",3,"Attack 3"),value(1,"block",3,"Block 3"),
+        value(2,"siege",4,"Siege Attack 4",{manaCost="Green"})},
+    Scouts={
+        value(1,"siege",1,"Siege Attack 1"),
+        special(2,"Peek at a face-down enemy token within 3 spaces, or top of an unused enemy pile; +1 Fame if defeated this turn"),
+        value(3,"move",2,"Move 2; you may reveal a tile from 2 spaces away")},
+    Thugs={
+        value(1,"block",3,"Block 3"),
+        value(2,"attack",3,"Attack 3; Reputation -1"),
+        value(3,"influence",4,"Influence 4; Reputation -1")},
+    Shocktroops={
+        value(1,"ranged",1,"Ranged Attack 1; all your other Units get +1 to all Attacks this turn",{boostOtherUnits=true}),
+        special(2,"Chosen enemy gets Armor -1 and one Attack -1"),
+        special(3,"Reduce one enemy Attack by 3; assign its damage to Shocktroops first")},
+    MagicFamiliars={
+        value(1,"attack",3,"Attack 3 (+2 if the Unit's crystal is red)",{bonusColor="Red",bonus=2}),
+        value(2,"block",4,"Block 4 (+3 if the Unit's crystal is blue)",{bonusColor="Blue",bonus=3}),
+        value(3,"move",3,"Move 3 (+2 if the Unit's crystal is white)",{bonusColor="White",bonus=2}),
+        value(3,"influence",3,"Influence 3 (+2 if the Unit's crystal is white)",{bonusColor="White",bonus=2}),
+        value(4,"healing",2,"Heal 2 (+1 if the Unit's crystal is green)",{bonusColor="Green",bonus=1})},
+    FireGolems={
+        value(1,"attack",3,"Attack 3"),value(1,"block",3,"Block 3"),
+        value(2,"rangedFire",4,"Ranged Fire Attack 4",{manaCost="Red"})},
+    IceGolems={
+        value(1,"attack",3,"Attack 3"),value(1,"block",3,"Block 3"),
+        value(2,"attackIce",6,"Ice Attack 6",{manaCost="Blue"})},
+    FireMages={
+        value(1,"rangedFire",3,"Ranged Fire Attack 3"),
+        value(2,"attackFire",6,"Fire Attack 6",{manaCost="Red"}),value(2,"blockFire",6,"Fire Block 6",{manaCost="Red"}),
+        special(3,"Gain a red mana token and a red crystal",{key="gain"})},
+    IceMages={
+        value(1,"attackIce",4,"Ice Attack 4"),value(1,"blockIce",4,"Ice Block 4"),
+        value(2,"siegeIce",4,"Siege Ice Attack 4",{manaCost="Blue"}),
+        special(3,"Gain a blue mana token and a blue crystal",{key="gain"})},
+    AmotepGunners={
+        value(1,"attack",5,"Attack 5"),value(1,"block",5,"Block 5"),
+        value(2,"rangedFire",6,"Ranged Fire Attack 6",{manaCost="Red"})},
+    AmotepFreezers={
+        value(1,"attack",5,"Attack 5"),value(1,"block",5,"Block 5"),
+        special(2,"Chosen enemy does not attack and gets Armor -3 (minimum 1)",{manaCost="Blue"})},
+    Catapults={
+        value(1,"siege",3,"Siege Attack 3"),
+        value(2,"siegeFire",5,"Pay red mana: Siege Fire Attack 5",{manaCost="Red"}),
+        value(3,"siegeIce",5,"Pay blue mana: Siege Ice Attack 5",{manaCost="Blue"})},
+    AltemMages={
+        special(1,"Gain two mana tokens of any colors",{key="gain"}),
+        value(2,"attackColdFire",5,"Cold Fire Attack 5; +2 with red or blue mana, +4 with both",{manaScale=true}),
+        value(2,"blockColdFire",5,"Cold Fire Block 5; +2 with red or blue mana, +4 with both",{manaScale=true}),
+        special(3,"Pay black mana: all your Attacks this combat become Cold Fire",{manaCost="Black",buttonLabel="CF",attackTransform="coldFire"}),
+        special(3,"Pay black mana: all your Attacks this combat become Siege, retaining elements",{manaCost="Black",buttonLabel="S",attackTransform="siege"})},
+    AltemGuardians={
+        value(1,"attack",5,"Attack 5"),
+        value(2,"block",8,"Block 8; counts twice against Swiftness"),
+        special(3,"Pay green mana: all your Units gain all resistances this turn",{manaCost="Green"})},
+    HeroesWhite={
+        value(1,"attack",5,"Attack 5"),value(1,"block",5,"Block 5"),
+        value(2,"ranged",7,"Ranged Attack 7",{manaCost="White"}),
+        value(3,"influence",5,"Influence 5; +1 Reputation if used in interaction")},
+    HeroesGreen={
+        value(1,"attack",5,"Attack 5"),value(1,"block",5,"Block 5"),
+        value(2,"healing",4,"Heal 4",{manaCost="Green"}),
+        value(3,"influence",5,"Influence 5; +1 Reputation if used in interaction")},
+    HeroesBlue={
+        value(1,"attack",5,"Attack 5"),value(1,"block",5,"Block 5"),
+        value(2,"blockColdFire",8,"Cold Fire Block 8",{manaCost="Blue"}),
+        value(3,"influence",5,"Influence 5; +1 Reputation if used in interaction")},
+    HeroesRed={
+        value(1,"attack",5,"Attack 5"),value(1,"block",5,"Block 5"),
+        value(2,"attackColdFire",6,"Cold Fire Attack 6",{manaCost="Red"}),
+        value(3,"influence",5,"Influence 5; +1 Reputation if used in interaction")},
+    Sorcerers={
+        value(1,"ranged",3,"Ranged Attack 3"),
+        value(2,"ranged",3,"Pay white mana: target loses all fortifications; Ranged Attack 3",{manaCost="White",baseWithoutPayment=true}),
+        value(3,"ranged",3,"Pay green mana: target loses all resistances; Ranged Attack 3",{manaCost="Green",baseWithoutPayment=true})},
+    DelphanaMasters={
+        special(1,"Pay blue mana: target enemy does not attack",{manaCost="Blue",buttonLabel="B"}),
+        special(2,"Pay red mana: target enemy is destroyed if blocked",{manaCost="Red",buttonLabel="R"}),
+        special(3,"Pay green mana: target enemy Armor -5 (minimum 1)",{manaCost="Green",buttonLabel="G"}),
+        special(4,"Pay white mana: target enemy loses all fortifications and resistances",{manaCost="White",buttonLabel="W"})}
+}
+byType.DelphanaMasters.multi=true
+
+local guidGroups={
+    Peasants={"a0a6cb","794e16","484fa3"},
+    Herbalists={"b33811","db04a7"},
+    Foresters={"e8acd7","d55e5c"},
+    UtemCrossbowmen={"004558","506ea7"},
+    UtemGuardsmen={"c1f77c","00ebf3"},
+    UtemSwordsmen={"c10664","aff9b6"},
+    GuardianGolems={"84e5d3","b5500d"},
+    Illusionists={"8dc143","c72d43"},
+    RedCapeMonks={"868e12"},
+    NorthernMonks={"f17813"},
+    SavageMonks={"b8d41f"},
+    Scouts={"246b0d","bd1011"},
+    Thugs={"4339c4","ff2a54"},
+    Shocktroops={"75307e","422b8b"},
+    MagicFamiliars={"0a2e0b","d8e49b"},
+    FireGolems={"d81a4f","97f64a"},
+    IceGolems={"18446c","c6ca7b"},
+    FireMages={"9ea578","f80455"},
+    IceMages={"2806cf","094bd9"},
+    AmotepGunners={"7ba7be","f60766"},
+    AmotepFreezers={"9e8205","f8ebe0"},
+    Catapults={"1aa68c","1aa681","d6d932"},
+    AltemMages={"bb1660","0fe22e"},
+    AltemGuardians={"f288ea","5726ab","f288e1"},
+    HeroesWhite={"8ccbdd"},
+    HeroesGreen={"613dca"},
+    HeroesBlue={"88f3f2"},
+    HeroesRed={"4ee245"},
+    Sorcerers={"c3e3c5","223b47"},
+    DelphanaMasters={"9c5c38","5c2da0"}
+}
+
+unitResourceDefinitions={}
+for unitType,guids in pairs(guidGroups) do
+    for _,guid in ipairs(guids) do
+        unitResourceDefinitions[guid]=byType[unitType]
+    end
+end
+
+end)
 __bundle_register("PlayingGame.PlayerBoard.UnitLayout", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Module-private helpers. Predeclared so forward references keep resolving locally.
 local unitLayoutSnapType, refreshUnitLayoutSnapPoints, unitLayoutCommandPriority, unitLayoutObjects
@@ -44539,6 +47054,16 @@ local function unitLayoutTokenOnUnit(token,unit)
         and math.abs(position.z-center.z)<halfZ
 end
 
+-- Find the Unit directly under a newly played Command token. The Unit's
+-- current bounds work for both native and compressed player-board columns.
+function unitLayoutCommandTarget(token,seatPos)
+    if token==nil or seatPos==nil then return nil end
+    for _,unit in ipairs(unitLayoutSnapshot(seatPos).units) do
+        if unitLayoutTokenOnUnit(token,unit) then return unit end
+    end
+    return nil
+end
+
 -- Shared by Skills that count ready/unwounded Units or empty Command slots.
 -- One zone snapshot per tracker scan; no name/translation-based identification.
 function unitLayoutResourceState(seatPos)
@@ -44554,7 +47079,7 @@ function unitLayoutResourceState(seatPos)
     end
     local units={}
     for _,unit in ipairs(layout.units) do
-        local state={guid=unit.guid,unit=unit,ready=true,unwounded=true}
+        local state={guid=unit.guid,unit=unit,ready=true,unwounded=true,woundCount=0}
         for _,token in ipairs(commandTokens) do
             if unitLayoutTokenOnUnit(token,unit) then
                 state.ready=false
@@ -44564,12 +47089,15 @@ function unitLayoutResourceState(seatPos)
         for _,token in ipairs(woundTokens) do
             if unitLayoutTokenOnUnit(token,unit) then
                 state.unwounded=false
-                break
+                state.woundCount=state.woundCount+1
             end
         end
         units[#units+1]=state
     end
-    return {units=units,emptyCommandSlots=math.max(0,#layout.commands-#layout.units)}
+    local woundCount=0
+    for _,state in ipairs(units) do woundCount=woundCount+state.woundCount end
+    return {units=units,woundCount=woundCount,
+        emptyCommandSlots=math.max(0,#layout.commands-#layout.units)}
 end
 
 function unitLayoutFirstFreeCommand(seatPos)
@@ -45541,7 +48069,7 @@ function drawUpTo(player, mouseButton, id)
 			local deedZone=deedZoneGUID~=nil and getObjectFromGUID(deedZoneGUID) or nil
 			if deedZone==nil then
 				log("drawUpTo missing Deed Deck zone for seat "..tostring(playerPosition))
-				broadcastToColor("{en}Could not find your Deed Deck area. Draw to your hand manually and include the save with any bug report.{it}Area del mazzo Gesta non trovata. Pesca manualmente in mano e allega il salvataggio alla segnalazione del problema.{ru}Область колоды деяний не найдена. Возьмите карты в руку вручную и приложите сохранение к отчёту об ошибке.{zh-tw}找不到你的行動牌庫區域。請手動抽牌，回報錯誤時附上存檔。{zh-cn}找不到你的行动牌库区域。请手动抽牌，报告错误时附上存档。{ko}행동 덱 영역을 찾을 수 없습니다. 수동으로 카드를 뽑고 오류 보고 시 저장 파일을 첨부하십시오.{es}No se encontró la zona de tu mazo de Gesta. Roba manualmente e incluye la partida guardada al informar del error.{fr}Zone du deck d'Actions introuvable. Piochez manuellement et joignez la sauvegarde au rapport d'erreur.{pt-br}Área do baralho de Façanhas não encontrada. Compre manualmente e inclua o arquivo salvo no relato do erro.{de}Dein Handlungsdeckbereich wurde nicht gefunden. Ziehe manuell und füge dem Fehlerbericht den Spielstand bei.",player.color,warningColor)
+				safeBroadcastToColor("{en}Could not find your Deed Deck area. Draw to your hand manually and include the save with any bug report.{it}Area del mazzo Gesta non trovata. Pesca manualmente in mano e allega il salvataggio alla segnalazione del problema.{ru}Область колоды деяний не найдена. Возьмите карты в руку вручную и приложите сохранение к отчёту об ошибке.{zh-tw}找不到你的行動牌庫區域。請手動抽牌，回報錯誤時附上存檔。{zh-cn}找不到你的行动牌库区域。请手动抽牌，报告错误时附上存档。{ko}행동 덱 영역을 찾을 수 없습니다. 수동으로 카드를 뽑고 오류 보고 시 저장 파일을 첨부하십시오.{es}No se encontró la zona de tu mazo de Gesta. Roba manualmente e incluye la partida guardada al informar del error.{fr}Zone du deck d'Actions introuvable. Piochez manuellement et joignez la sauvegarde au rapport d'erreur.{pt-br}Área do baralho de Façanhas não encontrada. Compre manualmente e inclua o arquivo salvo no relato do erro.{de}Dein Handlungsdeckbereich wurde nicht gefunden. Ziehe manuell und füge dem Fehlerbericht den Spielstand bei.",player.color,warningColor)
 				return
 			end
 			local deedDeck=nil
@@ -45715,11 +48243,11 @@ local function meditationCardCount(cards)
 	for _, _ in pairs(cards or {}) do count=count+1 end
 	return count
 end
---Card-effect controls are only shown while the card is essentially vertical.
---Read the card's settled world rotation rather than inferring orientation from Q/E presses.
---The 10 degree tolerance is intentionally below TTS's normal 15 degree rotation step.
+--Card-effect controls are only shown while the card is face up and essentially
+--vertical. Read the actual card orientation rather than inferring from Q/E keys;
+--the 10-degree tolerance is below TTS's normal 15-degree rotation step.
 function cardEffectIsVertical(card)
-	if card==nil then return false end
+	if card==nil or card.is_face_down==true then return false end
 	local rotation=card.getRotation()
 	local y=((rotation~=nil and rotation[2]) or 0)%180
 	return math.min(y,180-y)<=10
@@ -45936,7 +48464,8 @@ end
 local function meditationResolve(destination, buttonPlayerColor)
 	local card=getObjectFromGUID(meditationTranceCardGUID)
 	local playerIndex=meditationPlayerIndex(card)
-	if card==nil or playerIndex==nil or legalPlayerCheck(buttonPlayerColor, turnOrder[playerIndex].seatPos)~=true then return end
+	if card==nil or playerIndex==nil or cardEffectIsVertical(card)==false
+		or legalPlayerCheck(buttonPlayerColor, turnOrder[playerIndex].seatPos)~=true then return end
 	local state=gStates.meditationTranceState
 	if state==nil or state.player~=playerIndex then refreshMeditationTrance() state=gStates.meditationTranceState end
 	if state==nil or state.resolved==true then return end
@@ -46081,7 +48610,8 @@ function steadyTempoChoice(player, mouseButton, id)
 	local seatPos=gStates.steadyTempoPending[cardGUID]
 	local playerIndex=seatPos~=nil and turnOrderIndexAtSeat(seatPos) or nil
 	local card=getObjectFromGUID(cardGUID)
-	if playerIndex==nil or card==nil or legalPlayerCheck(player.color, seatPos)~=true then return end
+	if playerIndex==nil or card==nil or cardEffectIsVertical(card)==false
+		or legalPlayerCheck(player.color, seatPos)~=true then return end
 	local choice=id:sub(7)
 	if choice=="steadyTempoBot" and steadyTempoHasDeedPile(playerIndex)==false then steadyTempoAddButtons(card, playerIndex) return end
 	--Remove the controls immediately, but keep the pending flag until the card physically reaches its destination.
@@ -46997,6 +49527,7 @@ function apocalypseDragonCityVariantSelection(player,value,id)
 		gStates.apocalypseDragonCityMode=0
 	end
 	scenarioInfoUpdate()
+	ToolTipUpdate("ApocalypseDragonCityMode")
 end
 
 function apocalypseDragonCityModeSelection(player,mouseButton,id)
@@ -47005,6 +49536,7 @@ function apocalypseDragonCityModeSelection(player,mouseButton,id)
 	if mode==nil then return end
 	gStates.apocalypseDragonCityMode=mode
 	scenarioInfoUpdate()
+	ToolTipUpdate("ApocalypseDragonCityMode")
 end
 
 function randomizedDragonHeadsSelection(player,mouseButton,id)
@@ -47012,12 +49544,14 @@ function randomizedDragonHeadsSelection(player,mouseButton,id)
 	if scenarioUsesApocalypseDragon()~=true and apocalypseDragonCityVariantEnabled()~=true then return end
 	gStates.randomizedDragonHeads=gStates.randomizedDragonHeads~=true
 	refreshApocalypseDragonVariantControls()
+	ToolTipUpdate("randomizedDragonHeads")
 end
 
 function horsemenHorsesSelection(player,mouseButton,id)
 	if mouseButton~="-1" or scenarioUsesHorsemen()~=true then return end
 	gStates.horsemenHorses=gStates.horsemenHorses~=true
 	setScenarioVariantButtonState("HorsemenHorsesButton",gStates.horsemenHorses==true)
+	ToolTipUpdate("horsemenHorses")
 end
 
 local function refreshScenarioEnemyLevelTweaks()
@@ -49782,6 +52316,22 @@ function runtimeMapHexForPosition(hexes,position,mapObjects)
 	return nil
 end
 
+-- TTS lets the Black Game Master and Grey spectators trigger permitted UI actions,
+-- but broadcastToColor cannot address those colours. Keep their feedback visible
+-- without interrupting the action or changing who is allowed to click.
+function safeBroadcastToColor(message,color,tint)
+	if color=="Black" or color=="Grey" then
+		broadcastToAll(message,tint)
+		return
+	end
+	local recipient=type(color)=="string" and Player[color] or nil
+	if recipient==nil or recipient.seated~=true then
+		broadcastToAll(message,tint)
+		return
+	end
+	broadcastToColor(message,color,tint)
+end
+
 -- Player permission helpers
 --checks the clicking player matches the current turn
 function legalPlayerCheck(clickingPlayersColor, playerPosExpected, rule)
@@ -49976,7 +52526,7 @@ local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
 local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="449"
+local automaticLuaErrorReporterVersion="450"
 
 local function automaticLuaErrorValue(callback, fallback)
 	local ok, value=pcall(callback)
@@ -51367,6 +53917,9 @@ cardResourceDefinitions={
     march={normal={move=2},powered={move=4}},
     promise={normal={influence=2},powered={influence=4}},
     nobleManners={normal={influence=2},powered={influence=4}}, -- Other ability does not alter Influence
+    coldToughness={
+        normalChoices={{attack=2},{key="block",blockIce=3}},
+        powered={blockIce=5},enemyIconBlock=true}, -- Lost Legion; enemy icon bonus from linked token
     oneWithTheLand={
         normalChoices={{move=2},{healing=1},{block=2}},
         poweredChoices={{move=4},{healing=2},{key="block",terrainBlock=true}}},
@@ -51390,8 +53943,17 @@ cardResourceDefinitions={
     improvisation={normalChoices={{move=3},{influence=3},{attack=3},{block=3}},
         poweredChoices={{move=5},{influence=5},{attack=5},{block=5}},
         requiredLink={mode="discard"}}, -- Needs one other non-Wound hand card; source itself adds no resources
+    -- Play another Action three times for its basic effect, or twice for its
+    -- stronger effect; the linked Action is thrown away afterward.
+    maximalEffect={requiredLink={mode="repeat",normalCount=3,poweredCount=2}},
+    -- The physically linked, thrown-away Action determines the attack type.
+    ritualAttack={requiredLink={mode="throwAway"},linkedColorEffects={
+        normal={Red={attack=5},Blue={attackIce=3},White={ranged=3},Green={siege=2}},
+        powered={Red={attackFire=6},Blue={attackColdFire=4},
+            White={rangedFire=4},Green={siegeFire=3}}}},
     battleVersatility={normalChoices={{attack=2},{block=2},{ranged=1}},
-        poweredChoices={{attack=4},{block=4},{ranged=3},{siege=2}},partial=true}, -- Also Fire Attack/Block alternatives
+        poweredChoices={{attack=4},{block=4},{key="fireAttack",attackFire=3},
+            {key="fireBlock",blockFire=3},{ranged=3},{siege=2}}},
     instinct={normalChoices={{move=2},{influence=2},{attack=2},{block=2}},
         poweredChoices={{move=4},{influence=4},{attack=4},{block=4}},partial=true},
     swiftReflexes={normalChoices={{move=2},{ranged=1}},
@@ -51400,8 +53962,20 @@ cardResourceDefinitions={
     druidicPaths={normal={move=2},powered={move=4}}, -- Player manages the one-space/one-terrain-type discount
     savageHarvesting={normal={move=2},powered={move=4}}, -- Optional crystal gains do not affect Move calculation
     ruthlessCoercion={normal={influence=2},powered={influence=6}}, -- Other effects do not change the numeric Influence contributed
-    shieldBash={normal={block=3},powered={block=5},partial=true}, -- Swiftness and excess-Block modifiers
-    frostBridge={normal={move=2},powered={move=4},partial=true}, -- Changes swamp/lake movement costs
+    shieldBash={normal={block=3},powered={block=5}}, -- Fixed Block is fully tracked; other bonuses remain manual
+    frostBridge={normal={move=2},powered={move=4},
+        terrainEffects={
+            normal={{mode="set",terrains={swamp=true},cost=1}},
+            powered={{mode="set",terrains={swamp=true,lake=true},cost=1}}}},
+    -- One mana chooses the effect. A separate Blue mana powers the stronger
+    -- side; Gold by day or multiple viable colours leaves an explicit choice.
+    pureMagic={
+        normalChoices={{key="move",move=4},{key="influence",influence=4},
+            {key="block",block=4},{key="attack",attack=4}},
+        poweredChoices={{key="move",move=7},{key="influence",influence=7},
+            {key="block",block=7},{key="attack",attack=7}},
+        effectManaChoice={powerColor="Blue",
+            colors={Green="move",White="influence",Blue="block",Red="attack"}}},
     -- Terrain effects are declarative: cap, reduce (with a floor), or set.
     -- They affect movement guidance only, not saved terrain costs.
     pathFinding={normal={move=2},powered={move=4},
@@ -51417,7 +53991,8 @@ cardResourceDefinitions={
             effect={mode="set",terrains={lake=true},cost=0}}},
     agility={normal={move=2},powered={move=4}}, -- Attack conversion remains manual
     steadyTempo={normal={move=2},powered={move=4}}, -- Deed-deck placement does not change Move
-    mountainLore={normal={move=3},powered={move=5},partial=true}, -- Hand limit/terrain bonus
+    mountainLore={normal={move=3},powered={move=5},
+        terrainEffects={powered={{mode="set",terrains={mountain=true},cost=5}}}}, -- Hand-limit bonus remains manual
     refreshingWalk={
         normalChoices={{key="heal",move=2,healing=1},{key="combat",move=2}},
         poweredChoices={{key="heal",move=4,healing=2},{key="combat",move=4}}},
@@ -51430,7 +54005,8 @@ cardResourceDefinitions={
         normalChoices={{key="attack",attack=2},{key="wound",attack=5}},
         poweredChoices={{key="attack",attack=4},{key="wound",attack=9}}},
     -- Wound option is a player-asserted cost; no Wound is created automatically.
-    inNeed={normal={influence=3},powered={influence=5},partial=true}, -- Further Influence from Wounds
+    inNeed={normal={influence=3},powered={influence=5},
+        woundBonus={normal=1,powered=2}}, -- Lost Legion: Wounds in hand and on Units
     -- Verified against the Unofficial Mage Knight card wiki (base/expansion).
     -- 'other' means a deliberate card effect that adds no tracked resource.
     -- A crystal gained to inventory is not itself generated Move/Attack/etc.
@@ -51450,19 +54026,129 @@ cardResourceDefinitions={
     chillingStare={
         normalChoices={{influence=3},{other=1}},
         poweredChoices={{influence=5},{other=1}}},
+    -- One main strong choice plus an independent choice per complete set
+    -- of all four basic-colour crystals currently in the player's inventory.
+    powerOfCrystals={normalTrackerNeutral=true,
+        poweredChoices={{move=4},{healing=2},{draw=2}},
+        inventorySetChoices={
+            colors={"Red","Blue","Green","White"},
+            choices={{move=2},{healing=1},{draw=1}}}},
     stoutResolve={
         normalChoices={{move=2},{influence=2},{attack=2},{block=2}},
         poweredChoices={{move=3},{influence=3},{attack=3},{block=3}},
-        partial=true}, -- Optional discards add untracked bonuses
+        discardBoost={
+            normal={perCard=1,woundOnly=true,maxWounds=1},
+            powered={perCard=2,maxWounds=1}}}, -- Costs require physically tilted cards
     crushingBolt={normalTrackerNeutral=true,powered={siege=3}},
     intimidate={
         normalChoices={{influence=4},{attack=3}},
         poweredChoices={{influence=8},{attack=7}}},
-    ambush={normal={move=2},powered={move=4},partial=true}, -- Plus a bonus to a subsequent Attack or Block
+    ambush={normal={move=2},powered={move=4},
+        combatLink={normal={attack=1,block=2},powered={attack=2,block=4}}}, -- First linked Action Attack/Block
     counterattack={normal={attack=2},powered={attack=4},partial=true}, -- Plus damage per enemy blocked
     fireBolt={normalTrackerNeutral=true,powered={rangedFire=3}},
     iceBolt={normalTrackerNeutral=true,powered={rangedIce=3}},
     iceShield={normal={blockIce=3},powered={blockIce=3}}, -- Powered side also reduces enemy Armor
+
+    -- Spell resources are independent of the legality of the mana used.
+    -- Purely narrative/non-numeric effects are deliberately blue, not unknown.
+    spellUtility={normalChoices={{key="other"}},poweredChoices={{key="other"}}},
+    -- A played unpowered card changes movement routing, not Move points.
+    -- Its active ability is independent of numeric Resource Tracker totals.
+    spellSpaceBending={normalChoices={{key="other"}},poweredChoices={{key="other"}},
+        movementEffects={normal={jumpTwoSpaces=true,ignoreRampagers=true}}},
+    spellFireball={normal={rangedFire=5},powered={siegeFire=8}},
+    spellSnowstorm={normal={rangedIce=5},powered={siegeIce=8}},
+    spellExpose={normal={ranged=2},powered={ranged=3}},
+    spellFlameWall={
+        normalChoices={{key="attack",attackFire=5},{key="block",blockFire=7}},
+        poweredChoices={{key="attack",attackFire=5},{key="block",blockFire=7}},
+        poweredEnemyBonus=2},
+    spellManaBolt={
+        -- Casting, powering and effect selection are separate mana payments.
+        -- The shared resolver assigns each physically linked token at most
+        -- one role and offers choices when several assignments are possible.
+        normalChoices={{key="blue",attackIce=8},{key="red",attackColdFire=7},
+            {key="white",rangedIce=6},{key="green",siegeIce=5}},
+        poweredChoices={{key="blue",attackIce=11},{key="red",attackColdFire=10},
+            {key="white",rangedIce=9},{key="green",siegeIce=8}},
+        effectManaChoice={castColor="Blue",powerColor="Black",
+            colors={Blue="blue",Red="red",White="white",Green="green"}}},
+    spellBurningShield={
+        normalChoices={{key="fireBlockOnly",blockFire=4,icon="block"},
+            {key="fireBlockCounter",blockFire=4,attackFire=4,icon="block",
+                iconOverlay="✓",iconOverlayColor="#9EEA85",
+                iconOverlayAlignment="UpperRight",iconOverlaySize="54"}},
+        powered={blockFire=4}},
+    spellOffering={
+        normalChoices={{key="other"}},
+        poweredChoices={
+            {key="siegeFire",siegeFire=4,icon="siege",iconOverlay="F",
+                iconOverlayColor="#FF564A"},
+            {key="siegeIce",siegeIce=4,icon="siege",iconOverlay="I",
+                iconOverlayColor="#55AFFF"},
+            {key="rangedFire",rangedFire=6,icon="ranged",iconOverlay="F",
+                iconOverlayColor="#FF564A"},
+            {key="rangedIce",rangedIce=6,icon="ranged",iconOverlay="I",
+                iconOverlayColor="#55AFFF"}},
+        crystalPairAttack={siegeFire={"Green","Red"},siegeIce={"Green","Blue"},
+            rangedFire={"White","Red"},rangedIce={"White","Blue"}}},
+    spellMistForm={normal={move=4},poweredChoices={{key="other"}},
+        terrainEffects={normal={
+            {mode="set",terrains={plains=true,forest=true,wasteland=true,
+                desert=true,swamp=true,lake=true},cost=2},
+            {mode="set",terrains={hills=true,mountain=true},cost=999}}}},
+    spellRestoration={normal={healing=3},powered={healing=3},forestHealing=5},
+    spellCharm={normal={influence=4},poweredChoices={{key="other"}},
+        enemyAttackLink=true}, -- Possess: borrow a linked enemy's printed Attack
+    spellCure={normal={healing=2},poweredChoices={{key="other"}}},
+    -- Artifact sides are physical: face-up plays the basic effect and
+    -- face-down plays the break effect, without a separate mode control.
+    artifactUtility={normalTrackerNeutral=true,artifactMode=true,
+        poweredChoices={{key="other"}}},
+    -- These amulets change terrain routing in their matching round, not Move
+    -- points. The same ability is active on both sides of the artifact.
+    artifactAmuletDarkness={artifactMode=true,
+        normalChoices={{key="other"}},poweredChoices={{key="other"}},
+        terrainEffects={normal={{mode="cap",terrains={desert=true},cost=3,dayRound=true}},
+            powered={{mode="cap",terrains={desert=true},cost=3,dayRound=true}}}},
+    artifactAmuletSun={artifactMode=true,
+        normalChoices={{key="other"}},poweredChoices={{key="other"}},
+        terrainEffects={normal={{mode="cap",terrains={forest=true},cost=3,dayRound=false}},
+            powered={{mode="cap",terrains={forest=true},cost=3,dayRound=false}}}},
+    artifactGoldenGrail={artifactMode=true,normal={healing=2},powered={healing=6}},
+    artifactSoulHarvester={artifactMode=true,normal={attack=3},powered={attack=8}},
+    artifactBannerOfCommand={artifactMode=true,normal={influence=4},
+        poweredChoices={{key="other"}}},
+    artifactEndlessBagOfGold={artifactMode=true,normal={influence=4},
+        powered={influence=9}},
+    -- The Lost Legion revision of Horn of Wrath uses Siege Attack 5.
+    -- Its Break side allows adding 0 through 5, chosen by the player.
+    artifactHornOfWrath={artifactMode=true,normal={siege=5},
+        poweredChoices={{key="zero",siege=5},{key="one",siege=6},
+            {key="two",siege=7},{key="three",siege=8},
+            {key="four",siege=9},{key="five",siege=10}}},
+    -- The player is responsible for assigning each repeated Block to a
+    -- different attack; the tracker displays the total available Block.
+    artifactShieldOfTheFallenKings={artifactMode=true,
+        normalChoices={{key="block",block=6},
+            {key="splitBlock",block=8,icon="block",iconOverlay="x2"}},
+        poweredChoices={{key="block",blockColdFire=8},
+            {key="splitBlock",blockColdFire=12,icon="block",iconOverlay="x3"}}},
+    -- Reuse the physical tilted-card discard costs from Stout Resolve.
+    artifactSwordOfJustice={artifactMode=true,normal={attack=0},
+        discardBoost={normal={perCard=3,maxWounds=0}},
+        poweredChoices={{key="other"}}},
+    artifactBowOfStarsdawn={artifactMode=true,normal={ranged=0},
+        discardBoost={normal={perCard=2,maxWounds=0}},
+        poweredChoices={{key="other"}}},
+    -- A tilted Green card on the Staff pays for Heal 3. The Break side
+    -- offers two independent effects, not yet represented by one number.
+    artifactDruidicStaff={artifactMode=true,requiredLink={mode="discard"},
+        strongNoDiscard=true,poweredChoices={{key="other"}},
+        linkedColorEffects={normal={Green={healing=3},
+            Red={other=1},Blue={other=1},White={other=1}}}},
+
     chivalry={
         normalChoices={{key="attack",attack=3},{key="reputation",attack=2}},
         poweredChoices={{key="attack",attack=6},{key="reputation",attack=4}}}
@@ -51536,7 +54222,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["450552"]={cardType="Starting", resourceKey="concentration", name={"Concentration"}, color={"Green"}, action={"Special"}},
 			["2f1c70"]={cardType="Starting", resourceKey="swiftness", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
 			["2f1c71"]={cardType="Starting", resourceKey="swiftness", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
-			["d6ba6f"]={cardType="Starting", name={"Mana Pull"}, color={"White"}, action={"Special"}},
+			["d6ba6f"]={cardType="Starting", resourceTracked=false, resourceAlwaysNeutral=true, name={"Mana Pull"}, color={"White"}, action={"Special"}},
 			["450553"]={cardType="Starting", resourceKey="promise", name={"Promise"}, color={"White"}, action={"Influence"}},
 			["450556"]={cardType="Starting", resourceKey="improvisation", name={"Improvisation"}, color={"Red"}, action={"Move", "Combat", "Influence"}},
 			["450555"]={cardType="Starting", resourceKey="threaten", name={"Threaten"}, color={"Red"}, action={"Influence"}},
@@ -51579,7 +54265,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			--Tovak Starting Cards
 			["046146"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
 			["046147"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
-			["79bfbd"]={cardType="Starting", name={"Cold Toughness"}, color={"Blue"}, action={"Combat"}},
+			["79bfbd"]={cardType="Starting", resourceKey="coldToughness", name={"Cold Toughness"}, color={"Blue"}, action={"Combat"}},
 			["450571"]={cardType="Starting", resourceTracked=false, name={"Crystallize"}, color={"Blue"}, action={"Special"}},
 			["9757c1"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
 			["9757b9"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
@@ -51788,19 +54474,19 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["450606"]={cardType="Starting", resourceKey="threaten", name={"Threaten"}, color={"Red"}, action={"Influence", "Heal"}},
 			["52ef15"]={cardType="Starting", resourceKey="rage", name={"Rage"}, color={"Red"}, action={"Combat"}},
 			["52ef14"]={cardType="Starting", resourceKey="rage", name={"Rage"}, color={"Red"}, action={"Combat"}},
-			["2eb8f1"]={cardType="Spell", name={"Mana Claim", "Mana Curse"}, color={"Blue"}, action={"Special"}},
-			["2eb8f0"]={cardType="Spell", name={"Energy Flow", "Energy Steal"}, color={"Green"}, action={"Heal"}},
-			["2eb8f2"]={cardType="Spell", name={"Mind Read", "Mind Steal"}, color={"White"}, action={"Special"}},
-			["8907d1"]={cardType="Spell", name={"Mana Meltdown", "Mana Radiance"}, color={"Red"}, action={"Special"}},
+			["2eb8f1"]={cardType="Spell", resourceKey="spellUtility", name={"Mana Claim", "Mana Curse"}, color={"Blue"}, action={"Special"}},
+			["2eb8f0"]={cardType="Spell", resourceKey="spellUtility", name={"Energy Flow", "Energy Steal"}, color={"Green"}, action={"Heal"}},
+			["2eb8f2"]={cardType="Spell", resourceKey="spellUtility", name={"Mind Read", "Mind Steal"}, color={"White"}, action={"Special"}},
+			["8907d1"]={cardType="Spell", resourceKey="spellUtility", name={"Mana Meltdown", "Mana Radiance"}, color={"Red"}, action={"Special"}},
 			["878d85"]={cardType="Advanced Action", resourceKey="iceShield", name={"Ice Shield"}, 		color={"Blue"}, 		action={"Combat"}},
 			["878d87"]={cardType="Advanced Action", resourceKey="frostBridge", name={"Frost Bridge"}, 		color={"Blue"}, 		action={"Move"}},
-			["878d89"]={cardType="Advanced Action", name={"Pure Magic"}, 		color={"Blue"}, 		action={"Move", "Combat", "Influence"}},
+			["878d89"]={cardType="Advanced Action", resourceKey="pureMagic", name={"Pure Magic"}, 		color={"Blue"}, 		action={"Move", "Combat", "Influence"}},
 			["878d81"]={cardType="Advanced Action", resourceKey="iceBolt", name={"Ice Bolt"}, 			color={"Blue"}, 		action={"Combat", "Special"}},
-			["87bc59"]={cardType="Advanced Action", name={"Spell Forge"}, 		color={"Blue"}, 		action={"Special"}},
-			["878d94"]={cardType="Advanced Action", name={"Temporal Portal"},	color={"Blue"}, 		action={"Action"}},
+			["87bc59"]={cardType="Advanced Action", resourceAlwaysNeutral=true, name={"Spell Forge"}, 		color={"Blue"}, 		action={"Special"}},
+			["878d94"]={cardType="Advanced Action", resourceAlwaysNeutral=true, name={"Temporal Portal"},	color={"Blue"}, 		action={"Action"}},
 			["878d93"]={cardType="Advanced Action", resourceKey="shieldBash", name={"Shield Bash"}, 		color={"Blue"}, 		action={"Combat"}},
 			["1f362f"]={cardType="Advanced Action", resourceKey="steadyTempo", name={"Steady Tempo"}, 		color={"Blue"}, 		action={"Move"}},
-			["885b96"]={cardType="Advanced Action", name={"Crystal Mastery"},	color={"Blue"}, 		action={"Special"}},
+			["885b96"]={cardType="Advanced Action", resourceAlwaysNeutral=true, name={"Crystal Mastery"},	color={"Blue"}, 		action={"Special"}},
 			["3d832c"]={cardType="Advanced Action", name={"Magic Talent"}, 		color={"Blue"}, 		action={"Special"}},
 			["878d91"]={cardType="Advanced Action", resourceKey="regeneration", name={"Regeneration"}, 		color={"Green"}, 		action={"Heal"}},
 			["00c614"]={cardType="Advanced Action", resourceKey="pathFinding", name={"Path Finding"}, 		color={"Green"}, 		action={"Move"}},
@@ -51809,7 +54495,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["474418"]={cardType="Advanced Action", resourceKey="forceOfNature", name={"Force of Nature"},	color={"Green"}, 		action={"Combat"}},
 			["54b5c4"]={cardType="Advanced Action", resourceKey="stoutResolve", name={"Stout Resolve"}, 	color={"Green"}, 		action={"Move", "Combat", "Influence"}},
 			["d3995b"]={cardType="Advanced Action", resourceKey="mountainLore", name={"Mountain Lore"}, 	color={"Green"}, 		action={"Move"}},
-			["6fdeb0"]={cardType="Advanced Action", name={"Training"},			color={"Green"}, 		action={"Special"}},
+			["6fdeb0"]={cardType="Advanced Action", resourceTracked=false, resourceAlwaysNeutral=true, name={"Training"},			color={"Green"}, 		action={"Special"}},
 			["c3153e"]={cardType="Advanced Action", resourceKey="inNeed", name={"In Need"}, 			color={"Green"}, 		action={"Influence"}},
 			["20cb85"]={cardType="Advanced Action", resourceKey="ambush", name={"Ambush"}, 			color={"Green"}, 		action={"Move"}},--I want to add combat
 			["878d88"]={cardType="Advanced Action", resourceKey="songOfWind", name={"Song of Wind"}, 		color={"White"}, 		action={"Move"}},
@@ -51822,31 +54508,31 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["35aee6"]={cardType="Advanced Action", resourceKey="learning", name={"Learning"},			color={"White"}, 		action={"Special", "Influence"}},
 			["e2b570"]={cardType="Advanced Action", resourceTracked=false, name={"Mana Storm"},		color={"White"}, 		action={"Special"}},
 			["878d92"]={cardType="Advanced Action", resourceKey="agility", name={"Agility"},	 		color={"White"}, 		action={"Move", "Combat"}},
-			["8eccb3"]={cardType="Advanced Action", name={"Blood Ritual"}, 		color={"Red"}, 			action={"Special"}},
+			["8eccb3"]={cardType="Advanced Action", resourceTracked=false, name={"Blood Ritual"}, 		color={"Red"}, 			action={"Special"}},
 			["878d86"]={cardType="Advanced Action", resourceKey="intimidate", name={"Intimidate"}, 		color={"Red"}, 			action={"Combat", "Influence"}},
 			["878d80"]={cardType="Advanced Action", resourceKey="fireBolt", name={"Fire Bolt"},	 		color={"Red"}, 			action={"Combat", "Special"}},
 			["878d84"]={cardType="Advanced Action", resourceKey="bloodRage", name={"Blood Rage"}, 		color={"Red"}, 			action={"Combat"}},
-			["05ef61"]={cardType="Advanced Action", name={"Ritual Attack"}, 	color={"Red"}, 			action={"Combat"}},
-			["93b7d4"]={cardType="Advanced Action", name={"Blood of Ancients"},	color={"Red"}, 			action={"Special"}},
+			["05ef61"]={cardType="Advanced Action", resourceKey="ritualAttack", name={"Ritual Attack"}, 	color={"Red"}, 			action={"Combat"}},
+			["93b7d4"]={cardType="Advanced Action", resourceTracked=false, name={"Blood of Ancients"},	color={"Red"}, 			action={"Special"}},
 			["65a1d5"]={cardType="Advanced Action", resourceKey="counterattack", name={"Counterattack"}, 	color={"Red"}, 			action={"Combat"}},
-			["8fac50"]={cardType="Advanced Action", name={"Maximal Effect"}, 	color={"Red"}, 			action={"Special"}},
+			["8fac50"]={cardType="Advanced Action", resourceKey="maximalEffect", name={"Maximal Effect"}, 	color={"Red"}, 			action={"Special"}},
 			["bb05a9"]={cardType="Advanced Action", name={"Into the Heat"},		color={"Red"}, 			action={"Combat"}},
-			["d74999"]={cardType="Advanced Action", name={"Decompose"}, 		color={"Red"}, 			action={"Special"}},
+			["d74999"]={cardType="Advanced Action", resourceTracked=false, name={"Decompose"}, 		color={"Red"}, 			action={"Special"}},
 			["1a1c02"]={cardType="Advanced Action", resourceKey="explosiveBolt", name={"Explosive Bolt"}, 	color={"White","Red"}, 	action={"Combat"}},
 			["409fe8"]={cardType="Advanced Action", resourceKey="chillingStare", name={"Chilling Stare"}, 	color={"Blue","White"},	action={"Combat", "Influence"}},
-			["d75285"]={cardType="Advanced Action", name={"Rush of Adrenaline"},color={"Red","Green"}, 	action={"Special"}},
-			["141527"]={cardType="Advanced Action", name={"Power of Crystals"}, color={"Green","Blue"},	action={"Special", "Move", "Heal"}},
+			["d75285"]={cardType="Advanced Action", resourceAlwaysNeutral=true, name={"Rush of Adrenaline"},color={"Red","Green"}, 	action={"Special"}},
+			["141527"]={cardType="Advanced Action", resourceKey="powerOfCrystals", name={"Power of Crystals"}, color={"Green","Blue"},	action={"Special", "Move", "Heal"}},
 			["56adc8"]={cardType="Advanced Action", resourceKey="explosiveBolt", name={"Explosive Bolt"}, 	color={"White","Red"}, 	action={"Combat"}},--Rise of the Forgemaster Start
 			["eb128d"]={cardType="Advanced Action", resourceKey="chillingStare", name={"Chilling Stare"}, 	color={"Blue","White"}, action={"Combat", "Influence"}},
-			["69fe48"]={cardType="Advanced Action", name={"Rush of Adrenaline"},color={"Red","Green"}, 	action={"Special", "Combat"}},
-			["121737"]={cardType="Advanced Action", name={"Power of Crystals"}, color={"Green","Blue"}, action={"Special", "Move", "Heal"}},
+			["69fe48"]={cardType="Advanced Action", resourceAlwaysNeutral=true, name={"Rush of Adrenaline"},color={"Red","Green"}, 	action={"Special", "Combat"}},
+			["121737"]={cardType="Advanced Action", resourceKey="powerOfCrystals", name={"Power of Crystals"}, color={"Green","Blue"}, action={"Special", "Move", "Heal"}},
 			["2dcd89"]={cardType="Advanced Action", name={"Counter Attack"},	color={"Red"}, 			action={"Combat"}},
-			["f47ed1"]={cardType="Advanced Action", name={"Ritual Attack"},		color={"Red"}, 			action={"Combat"}},
+			["f47ed1"]={cardType="Advanced Action", resourceKey="ritualAttack", name={"Ritual Attack"},		color={"Red"}, 			action={"Combat"}},
 			["cc3085"]={cardType="Advanced Action", name={"Fury"}, 				color={"Red"}, 			action={"Special", "Combat"}},
 			["cc6d13"]={cardType="Advanced Action", name={"Abrupt Emanation"},	color={"Red"}, 			action={"Special"}},
 			["51178e"]={cardType="Advanced Action", name={"Bloodlust"}, 		color={"Red"}, 			action={"Combat"}},
 			["6fca63"]={cardType="Advanced Action", name={"Dark Dealings"}, 	color={"Red"}, 			action={"Combat", "Influence"}},
-			["d030d8"]={cardType="Advanced Action", name={"Maximal Effect"},	color={"Red"}, 			action={"Special"}},
+			["d030d8"]={cardType="Advanced Action", resourceKey="maximalEffect", name={"Maximal Effect"},	color={"Red"}, 			action={"Special"}},
 			["061eb6"]={cardType="Advanced Action", name={"Thirst for Power"},	color={"Red"}, 			action={"Special"}},
 			["2de429"]={cardType="Advanced Action", name={"Raving Prophecies"},	color={"Red"}, 			action={"Special", "Influence"}},
 			["96f56b"]={cardType="Advanced Action", name={"Flame Forge"}, 		color={"Red"}, 			action={"Special"}},
@@ -51881,73 +54567,73 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["f935e0"]={cardType="Advanced Action", name={"Cloud of Steel"}, 	color={"Blue"}, 		action={"Special", "Combat"}},
 			["b4e580"]={cardType="Advanced Action", name={"Witches Brew"}, 		color={"Blue"}, 		action={"Special", "Heal", "Action"}},
 			["d8d54a"]={cardType="Advanced Action", name={"Ebb and Flow"}, 		color={"Blue"}, 		action={"Special", "Combat"}},--Rise of the Forgemaster End
-			["8907d7"]={cardType="Spell", name={"Mana Meltdown", "Mana Radiance"}, 		color={"Red"}, action={"Special"}},
-			["2eb8d9"]={cardType="Spell", name={"Offering", "Sacrifice"}, 				color={"Red"}, action={"Special", "Combat"}},
-			["2eb8d4"]={cardType="Spell", name={"Demolish", "Disintegrate"}, 			color={"Red"}, action={"Combat"}},
-			["2eb8d6"]={cardType="Spell", name={"Fireball", "Firestorm"}, 				color={"Red"}, action={"Combat"}},
-			["2eb8d7"]={cardType="Spell", name={"Burning Shield", "Exploding Shield"}, 	color={"Red"}, action={"Combat"}},
-			["2eb8d8"]={cardType="Spell", name={"Flame Wall", "Flame Wave"}, 			color={"Red"}, action={"Combat"}},
-			["2eb8f4"]={cardType="Spell", name={"Mana Claim", "Mana Curse"}, 			color={"Blue"}, action={"Special"}},
-			["2eb8e1"]={cardType="Spell", name={"Mist Form", "Veil of Mist"}, 			color={"Blue"}, action={"Move", "Combat"}},
-			["2eb8e3"]={cardType="Spell", name={"Mana Bolt", "Mana Thunderbolt"}, 		color={"Blue"}, action={"Combat"}},
-			["2eb8e4"]={cardType="Spell", name={"Snowstorm", "Blizzard"}, 				color={"Blue"}, action={"Combat"}},
-			["2eb8e0"]={cardType="Spell", name={"Chill", "Lethal Chill"}, 				color={"Blue"}, action={"Combat"}},
-			[GUID.card.timeBending]={cardType="Spell", name={"Space Bending", "Time Bending"}, 		color={"Blue"}, action={"Move", "Special"}},
-			["2eb8f5"]={cardType="Spell", name={"Mind Read", "Mind Steal"}, 			color={"White"}, action={"Special"}},
-			["2eb8e6"]={cardType="Spell", name={"Charm", "Possess"}, 					color={"White"}, action={"Influence", "Combat"}},
-			["2eb8e9"]={cardType="Spell", name={"Wings of Wind", "Wings of Night"}, 	color={"White"}, action={"Move", "Combat"}},
-			["2eb8e5"]={cardType="Spell", name={"Expose", "Mass Expose"}, 				color={"White"}, action={"Combat"}},
-			["2eb8e8"]={cardType="Spell", name={"Call to Arms", "Call to Glory"}, 		color={"White"}, action={"Special"}},
-			["2eb8e7"]={cardType="Spell", name={"Whirlwind", "Tornado"}, 				color={"White"}, action={"Combat"}},
-			["2eb8f3"]={cardType="Spell", name={"Energy Flow", "Energy Steal"}, 		color={"Green"}, action={"Heal"}},
-			["47e71c"]={cardType="Spell", name={"Cure", "Disease"}, 					color={"Green"}, action={"Heal", "Combat"}},
-			["2eb8d3"]={cardType="Spell", name={"Restoration", "Rebirth"}, 				color={"Green"}, action={"Heal"}},
-			["2eb8d2"]={cardType="Spell", name={"Underground Travel", "Underground Attack"}, color={"Green"}, action={"Move"}},
-			["2eb8d1"]={cardType="Spell", name={"Tremor", "Earthquake"}, 				color={"Green"}, action={"Combat"}},
-			["2eb8d0"]={cardType="Spell", name={"Meditation", "Trance"}, 				color={"Green"}, action={"Special"}},
-			["995f43"]={cardType="Spell", name={"Restoration", "Rebirth"}, 				color={"Green"}, action={"Heal"}},--Rise of the Forgemaster Start
-			["20b391"]={cardType="Spell", name={"Poison Breath", "Breath of Life"}, 	color={"Green"}, action={"Special"}},
-			["4bf1a4"]={cardType="Spell", name={"Hone Senses", "Trance"}, 				color={"Green"}, action={"Special"}},
-			["b4ce88"]={cardType="Spell", name={"Offering", "Sacrifice"}, 				color={"Red"}, action={"Special", "Combat"}},
-			["7c0a57"]={cardType="Spell", name={"Frenzy", "Spectral Guise"}, 			color={"Red"}, action={"Special", "Combat"}},
-			["81b086"]={cardType="Spell", name={"Phantom Image", "Phantasmal Killer"}, 	color={"Blue"}, action={"Combat"}},
-			["8eac5c"]={cardType="Spell", name={"Blinding Light", "Chain Lightning"}, 	color={"White"}, action={"Combat"}},--Rise of the Forgemaster End
-			["085e51"]={cardType="Artifact", name={"Ruby Ring"}, 					color={}, action={"Special"}},
-			["085e54"]={cardType="Artifact", name={"Emerald Ring"},	 				color={}, action={"Special"}},
-			["085e53"]={cardType="Artifact", name={"Diamond Ring"}, 				color={}, action={"Special"}},
-			["085e52"]={cardType="Artifact", name={"Sapphire Ring"}, 				color={}, action={"Special"}},
-			["085e58"]={cardType="Artifact", name={"Endless Gem Pouch"}, 			color={}, action={"Special"}},
-			["085e55"]={cardType="Artifact", name={"Sword of Justice"}, 			color={}, action={"Combat"}},
-			["085e67"]={cardType="Artifact", name={"Circlet of Proficiency"}, 		color={}, action={"Special"}},
-			["085e69"]={cardType="Artifact", name={"Mysterious Box"}, 				color={}, action={"Special"}},
-			["085e56"]={cardType="Artifact", name={"Horn of Wrath"}, 				color={}, action={"Combat"}},
-			["085e57"]={cardType="Artifact", name={"Endless Bag of Gold"}, 			color={}, action={"Influence"}},
-			["085e68"]={cardType="Artifact", name={"Tome of All Spells"}, 			color={}, action={"Special"}},
-			["085e66"]={cardType="Artifact", name={"Druidic Staff"},	 			color={}, action={"Special", "Move", "Heal"}},
-			["085e64"]={cardType="Artifact", name={"Soul Harvester"}, 				color={}, action={"Combat"}},
-			["7b9ec1"]={cardType="Artifact", name={"Banner of Fear"}, 				color={}, action={"Combat", "Banner"}, half="8e4b92"},
-			["8e4b92"]={cardType="Artifact", name={"Banner of Fear"}, 				color={}, action={"Combat", "Banner"}, full="7b9ec1"},
-			["6b4654"]={cardType="Artifact", name={"Banner of Courage"},	 		color={}, action={"Influence", "Banner"}, half="986216"},
-			["986216"]={cardType="Artifact", name={"Banner of Courage"}, 			color={}, action={"Influence", "Banner"}, full="6b4654"},
-			["085e50"]={cardType="Artifact", name={"Banner of Glory"}, 				color={}, action={"Combat", "Banner"}, half="0b5b32"},
-			["0b5b32"]={cardType="Artifact", name={"Banner of Glory"}, 				color={}, action={"Combat", "Banner"}, full="085e50"},
-			["df2eae"]={cardType="Artifact", name={"Banner of Protection"}, 		color={}, action={"Combat", "Banner"}, half="e48e44"},
-			["e48e44"]={cardType="Artifact", name={"Banner of Protection"}, 		color={}, action={"Combat", "Banner"}, full="df2eae"},
-			["7d608f"]={cardType="Artifact", name={"Banner of Fortitude"}, 			color={}, action={"Heal", "Banner"}, half="596cfa"},
-			["596cfa"]={cardType="Artifact", name={"Banner of Fortitude"}, 			color={}, action={"Heal", "Banner"}, full="7d608f"},
-			["98681f"]={cardType="Artifact", name={"Banner of Command"}, 			color={}, action={"Influence", "Banner"}, half=GUID.card.bannerOfCommandToken},
-			[GUID.card.bannerOfCommandToken]={cardType="Artifact", name={"Banner of Command"}, 			color={}, action={"Influence", "Banner"}, full="98681f"},
-			["085e62"]={cardType="Artifact", name={"Amulet of Darkness"}, 			color={}, action={"Special"}},
-			["085e61"]={cardType="Artifact", name={"Amulet of The Sun"}, 			color={}, action={"Special"}},
-			["085e59"]={cardType="Artifact", name={"Golden Grail"}, 				color={}, action={"Heal"}},
-			["085e63"]={cardType="Artifact", name={"Bow of Starsdawn"}, 			color={}, action={"Combat"}},
-			["085e60"]={cardType="Artifact", name={"Book of Wisdom"}, 				color={}, action={"Special"}},
-			["085e65"]={cardType="Artifact", name={"Shield of the Fallen Kings"},	color={}, action={"Combat"}},
-			["abe28e"]={cardType="Artifact", name={"Shield of the Fallen Kings"},	color={}, action={"Combat"}},
-			["393021"]={cardType="Artifact", name={"Horn of Wrath"}, 				color={}, action={"Combat"}},
-			["00e5e2"]={cardType="Artifact", name={"Golden Grail"}, 				color={}, action={"Heal"}},
-			["3d50e6"]={cardType="Artifact", name={"Banner of Glory"}, 				color={}, action={"Combat", "Banner"}, half="75a627"},
-			["75a627"]={cardType="Artifact", name={"Banner of Glory"}, 				color={}, action={"Combat", "Banner"}, full="3d50e6"}
+			["8907d7"]={cardType="Spell", resourceKey="spellUtility", name={"Mana Meltdown", "Mana Radiance"}, 		color={"Red"}, action={"Special"}},
+			["2eb8d9"]={cardType="Spell", resourceKey="spellOffering", name={"Offering", "Sacrifice"}, 				color={"Red"}, action={"Special", "Combat"}},
+			["2eb8d4"]={cardType="Spell", resourceKey="spellUtility", name={"Demolish", "Disintegrate"}, 			color={"Red"}, action={"Combat"}},
+			["2eb8d6"]={cardType="Spell", resourceKey="spellFireball", name={"Fireball", "Firestorm"}, 				color={"Red"}, action={"Combat"}},
+			["2eb8d7"]={cardType="Spell", resourceKey="spellBurningShield", name={"Burning Shield", "Exploding Shield"}, 	color={"Red"}, action={"Combat"}},
+			["2eb8d8"]={cardType="Spell", resourceKey="spellFlameWall", name={"Flame Wall", "Flame Wave"}, 			color={"Red"}, action={"Combat"}},
+			["2eb8f4"]={cardType="Spell", resourceKey="spellUtility", name={"Mana Claim", "Mana Curse"}, 			color={"Blue"}, action={"Special"}},
+			["2eb8e1"]={cardType="Spell", resourceKey="spellMistForm", name={"Mist Form", "Veil of Mist"}, 			color={"Blue"}, action={"Move", "Combat"}},
+			["2eb8e3"]={cardType="Spell", resourceKey="spellManaBolt", name={"Mana Bolt", "Mana Thunderbolt"}, 		color={"Blue"}, action={"Combat"}},
+			["2eb8e4"]={cardType="Spell", resourceKey="spellSnowstorm", name={"Snowstorm", "Blizzard"}, 				color={"Blue"}, action={"Combat"}},
+			["2eb8e0"]={cardType="Spell", resourceKey="spellUtility", name={"Chill", "Lethal Chill"}, 				color={"Blue"}, action={"Combat"}},
+			[GUID.card.timeBending]={cardType="Spell", resourceKey="spellSpaceBending", name={"Space Bending", "Time Bending"}, 		color={"Blue"}, action={"Move", "Special"}},
+			["2eb8f5"]={cardType="Spell", resourceKey="spellUtility", name={"Mind Read", "Mind Steal"}, 			color={"White"}, action={"Special"}},
+			["2eb8e6"]={cardType="Spell", resourceKey="spellCharm", name={"Charm", "Possess"}, 					color={"White"}, action={"Influence", "Combat"}},
+			["2eb8e9"]={cardType="Spell", resourceKey="spellUtility", name={"Wings of Wind", "Wings of Night"}, 	color={"White"}, action={"Move", "Combat"}},
+			["2eb8e5"]={cardType="Spell", resourceKey="spellExpose", name={"Expose", "Mass Expose"}, 				color={"White"}, action={"Combat"}},
+			["2eb8e8"]={cardType="Spell", resourceKey="spellUtility", name={"Call to Arms", "Call to Glory"}, 		color={"White"}, action={"Special"}},
+			["2eb8e7"]={cardType="Spell", resourceKey="spellUtility", name={"Whirlwind", "Tornado"}, 				color={"White"}, action={"Combat"}},
+			["2eb8f3"]={cardType="Spell", resourceKey="spellUtility", name={"Energy Flow", "Energy Steal"}, 		color={"Green"}, action={"Heal"}},
+			["47e71c"]={cardType="Spell", resourceKey="spellCure", name={"Cure", "Disease"}, 					color={"Green"}, action={"Heal", "Combat"}},
+			["2eb8d3"]={cardType="Spell", resourceKey="spellRestoration", name={"Restoration", "Rebirth"}, 				color={"Green"}, action={"Heal"}},
+			["2eb8d2"]={cardType="Spell", resourceKey="spellUtility", name={"Underground Travel", "Underground Attack"}, color={"Green"}, action={"Move"}},
+			["2eb8d1"]={cardType="Spell", resourceKey="spellUtility", name={"Tremor", "Earthquake"}, 				color={"Green"}, action={"Combat"}},
+			["2eb8d0"]={cardType="Spell", resourceKey="spellUtility", name={"Meditation", "Trance"}, 				color={"Green"}, action={"Special"}},
+			["995f43"]={cardType="Spell", resourceKey="spellRestoration", name={"Restoration", "Rebirth"}, 				color={"Green"}, action={"Heal"}},--Rise of the Forgemaster Start
+			["20b391"]={cardType="Spell", resourceKey="spellUtility", name={"Poison Breath", "Breath of Life"}, 	color={"Green"}, action={"Special"}},
+			["4bf1a4"]={cardType="Spell", resourceKey="spellUtility", name={"Hone Senses", "Trance"}, 				color={"Green"}, action={"Special"}},
+			["b4ce88"]={cardType="Spell", resourceKey="spellOffering", name={"Offering", "Sacrifice"}, 				color={"Red"}, action={"Special", "Combat"}},
+			["7c0a57"]={cardType="Spell", resourceKey="spellUtility", name={"Frenzy", "Spectral Guise"}, 			color={"Red"}, action={"Special", "Combat"}},
+			["81b086"]={cardType="Spell", resourceKey="spellUtility", name={"Phantom Image", "Phantasmal Killer"}, 	color={"Blue"}, action={"Combat"}},
+			["8eac5c"]={cardType="Spell", resourceKey="spellUtility", name={"Blinding Light", "Chain Lightning"}, 	color={"White"}, action={"Combat"}},--Rise of the Forgemaster End
+			["085e51"]={cardType="Artifact", resourceKey="artifactUtility", name={"Ruby Ring"}, 					color={}, action={"Special"}},
+			["085e54"]={cardType="Artifact", resourceKey="artifactUtility", name={"Emerald Ring"},	 				color={}, action={"Special"}},
+			["085e53"]={cardType="Artifact", resourceKey="artifactUtility", name={"Diamond Ring"}, 				color={}, action={"Special"}},
+			["085e52"]={cardType="Artifact", resourceKey="artifactUtility", name={"Sapphire Ring"}, 				color={}, action={"Special"}},
+			["085e58"]={cardType="Artifact", resourceKey="artifactUtility", name={"Endless Gem Pouch"}, 			color={}, action={"Special"}},
+			["085e55"]={cardType="Artifact", resourceKey="artifactSwordOfJustice", name={"Sword of Justice"}, 			color={}, action={"Combat"}},
+			["085e67"]={cardType="Artifact", resourceKey="artifactUtility", name={"Circlet of Proficiency"}, 		color={}, action={"Special"}},
+			["085e69"]={cardType="Artifact", resourceKey="artifactUtility", name={"Mysterious Box"}, 				color={}, action={"Special"}},
+			["085e56"]={cardType="Artifact", resourceKey="artifactHornOfWrath", name={"Horn of Wrath"}, 				color={}, action={"Combat"}},
+			["085e57"]={cardType="Artifact", resourceKey="artifactEndlessBagOfGold", name={"Endless Bag of Gold"}, 			color={}, action={"Influence"}},
+			["085e68"]={cardType="Artifact", resourceKey="artifactUtility", name={"Tome of All Spells"}, 			color={}, action={"Special"}},
+			["085e66"]={cardType="Artifact", resourceKey="artifactDruidicStaff", name={"Druidic Staff"},	 			color={}, action={"Special", "Move", "Heal"}},
+			["085e64"]={cardType="Artifact", resourceKey="artifactSoulHarvester", name={"Soul Harvester"}, 				color={}, action={"Combat"}},
+			["7b9ec1"]={cardType="Artifact", resourceKey="artifactUtility", name={"Banner of Fear"}, 				color={}, action={"Combat", "Banner"}, half="8e4b92"},
+			["8e4b92"]={cardType="Artifact", resourceKey="artifactUtility", name={"Banner of Fear"}, 				color={}, action={"Combat", "Banner"}, full="7b9ec1"},
+			["6b4654"]={cardType="Artifact", resourceKey="artifactUtility", name={"Banner of Courage"},	 		color={}, action={"Influence", "Banner"}, half="986216"},
+			["986216"]={cardType="Artifact", resourceKey="artifactUtility", name={"Banner of Courage"}, 			color={}, action={"Influence", "Banner"}, full="6b4654"},
+			["085e50"]={cardType="Artifact", resourceKey="artifactUtility", name={"Banner of Glory"}, 				color={}, action={"Combat", "Banner"}, half="0b5b32"},
+			["0b5b32"]={cardType="Artifact", resourceKey="artifactUtility", name={"Banner of Glory"}, 				color={}, action={"Combat", "Banner"}, full="085e50"},
+			["df2eae"]={cardType="Artifact", resourceKey="artifactUtility", name={"Banner of Protection"}, 		color={}, action={"Combat", "Banner"}, half="e48e44"},
+			["e48e44"]={cardType="Artifact", resourceKey="artifactUtility", name={"Banner of Protection"}, 		color={}, action={"Combat", "Banner"}, full="df2eae"},
+			["7d608f"]={cardType="Artifact", resourceKey="artifactUtility", name={"Banner of Fortitude"}, 			color={}, action={"Heal", "Banner"}, half="596cfa"},
+			["596cfa"]={cardType="Artifact", resourceKey="artifactUtility", name={"Banner of Fortitude"}, 			color={}, action={"Heal", "Banner"}, full="7d608f"},
+			["98681f"]={cardType="Artifact", resourceKey="artifactBannerOfCommand", name={"Banner of Command"}, 			color={}, action={"Influence", "Banner"}, half=GUID.card.bannerOfCommandToken},
+			[GUID.card.bannerOfCommandToken]={cardType="Artifact", resourceKey="artifactBannerOfCommand", name={"Banner of Command"}, 			color={}, action={"Influence", "Banner"}, full="98681f"},
+			["085e62"]={cardType="Artifact", resourceKey="artifactAmuletDarkness", name={"Amulet of Darkness"}, 			color={}, action={"Special"}},
+			["085e61"]={cardType="Artifact", resourceKey="artifactAmuletSun", name={"Amulet of The Sun"}, 			color={}, action={"Special"}},
+			["085e59"]={cardType="Artifact", resourceKey="artifactGoldenGrail", name={"Golden Grail"}, 				color={}, action={"Heal"}},
+			["085e63"]={cardType="Artifact", resourceKey="artifactBowOfStarsdawn", name={"Bow of Starsdawn"}, 			color={}, action={"Combat"}},
+			["085e60"]={cardType="Artifact", resourceKey="artifactUtility", name={"Book of Wisdom"}, 				color={}, action={"Special"}},
+			["085e65"]={cardType="Artifact", resourceKey="artifactShieldOfTheFallenKings", name={"Shield of the Fallen Kings"},	color={}, action={"Combat"}},
+			["abe28e"]={cardType="Artifact", resourceKey="artifactShieldOfTheFallenKings", name={"Shield of the Fallen Kings"},	color={}, action={"Combat"}},
+			["393021"]={cardType="Artifact", resourceKey="artifactHornOfWrath", name={"Horn of Wrath"}, 				color={}, action={"Combat"}},
+			["00e5e2"]={cardType="Artifact", resourceKey="artifactGoldenGrail", name={"Golden Grail"}, 				color={}, action={"Heal"}},
+			["3d50e6"]={cardType="Artifact", resourceKey="artifactUtility", name={"Banner of Glory"}, 				color={}, action={"Combat", "Banner"}, half="75a627"},
+			["75a627"]={cardType="Artifact", resourceKey="artifactUtility", name={"Banner of Glory"}, 				color={}, action={"Combat", "Banner"}, full="3d50e6"}
 		}
 
 terrainTiles={	[startTerrain.wedge]={tileType="starting", tileNumber=0,
@@ -52702,6 +55388,25 @@ skillTokens={	["1906f4"]={skillType="Turn", mage="Arythea"},				  	["33d341"]={s
 -- Partial effects may contribute known fixed amounts but remain yellow; Skills
 -- without a directly trackable resource are blue. Unmapped GUIDs remain yellow.
 skillResourceDefinitions={
+    -- Skills without numeric resources remain explicit so used tokens are blue, not unknown/yellow.
+    ["1ff34f"]={dynamic="masterOfChaos"},
+    ["958209"]={untracked=true}, -- Mana Suppression is handled by Skills.lua.
+    ["f30dd4"]={untracked=true}, -- Bonds of Loyalty is an occupied Command slot, not played Influence.
+    -- Coral / The Apocalypse Dragon. Permanent movement/reward rules are evaluated separately.
+    ["201f72"]={normal={attack=1},partial=true}, -- Coordinated Attack: target-specific bonuses remain manual.
+    ["82049d"]={normal={block=2},partial=true}, -- Shield Wall: same-enemy bonuses remain manual.
+    ["9cf272"]={choices={{influence=2},{key="boost",influence=4,icon="influence",iconOverlay="4"}},partial=true}, -- Tales of Adventure: player removes a shield for +4.
+    ["de5b04"]={unitBoost={attack=1,block=1},choices={{attack=1},{block=1},
+        {key="twiceAttack",attack=2,icon="attack",iconOverlay="2"},
+        {key="twiceBlock",block=2,icon="block",iconOverlay="2"}},partial=true}, -- Tales of Conquest; shield use is player-declared.
+    ["c4f5e9"]={normal={move=1},partial=true,
+        passiveTerrain={{mode="set",terrains={lake=true},cost=2}}}, -- Commandeer Vessel.
+    ["694e27"]={copyBasicAction=true,partial=true}, -- If It's Not Broken: requires a physical sideways target and one matching played Action.
+    ["47800d"]={untracked=true}, -- Treasure Hunter: reward flow, not played resources.
+    ["6f8b36"]={untracked=true}, -- Change Fate: draw/discard effect.
+    ["a65a91"]={untracked=true}, -- Combat Healer: wound interception, not Heal points.
+    ["784a07"]={untracked=true}, -- Improve Fate: draw/discard effect.
+    ["73f2c6"]={linkedCard={targetKind="card",posture="sideways",sideways={value=2,faceDownValue=3}}}, -- Desperate Measures.
     ["036af1"]={untracked=true},
     ["036e6b"]={untracked=true},
     ["038787"]={untracked=true},
@@ -52718,9 +55423,10 @@ skillResourceDefinitions={
     ["107400"]={untracked=true},
     ["122015"]={untracked=true},
     ["14399f"]={untracked=true},
-    ["152a98"]={normal={move=1},partial=true},
+    ["152a98"]={normal={move=1},
+        passiveNightTerrain={{mode="reduce",terrains={explore=true},amount=1,minimum=0}}}, -- Hawk Eyes.
     ["171244"]={untracked=true},
-    ["1906f4"]={choices={{attack=2},{key="fire",attackFire=2}}},
+    ["1906f4"]={choices={{attack=2},{key="fireAttack",attackFire=2,icon="attack",iconOverlay="F"}}},
     ["19daf9"]={untracked=true},
     ["1a78b3"]={day={ranged=1},night={ranged=2}},
     ["1c413b"]={untracked=true},
@@ -52732,7 +55438,7 @@ skillResourceDefinitions={
     ["2a673e"]={untracked=true},
     ["2c74ca"]={untracked=true},
     ["2cbfd9"]={untracked=true},
-    ["2f2ad9"]={choices={{siege=1},{key="fire",siegeFire=1}}},
+    ["2f2ad9"]={choices={{siege=1},{key="fireSiege",siegeFire=1,icon="siege",iconOverlay="F"}}},
     ["31b225"]={choices={{move=1},{influence=1},{block=1},{attack=1}}},
     ["335290"]={untracked=true},
     ["33d341"]={linkedCard={targetKind="wound",posture="sideways",sideways={value=2}}}, -- Power of Pain
@@ -52742,8 +55448,9 @@ skillResourceDefinitions={
     ["3d8336"]={untracked=true},
     ["3dc067"]={untracked=true},
     ["3f0f3b"]={day={influence=3},night={influence=2}},
-    ["3fba07"]={partial=true},
-    ["407c99"]={normal={influence=2},partial=true},
+    ["3fba07"]={partial=true,linkedCard={targetKind="wound",posture="sideways",
+        sideways={value=3}}}, -- Ritual of Pain: first activation stays manual
+    ["407c99"]={locationInfluence={default=3,fortified=2,glade=4}}, -- Beguile.
     ["45fe78"]={untracked=true},
     ["48fd35"]={untracked=true},
     ["4ac9f6"]={untracked=true},
@@ -52755,7 +55462,7 @@ skillResourceDefinitions={
     ["527b47"]={untracked=true},
     ["55e5e5"]={partial=true},
     ["564392"]={linkedCard={targetKind="card",posture="sideways",sideways={value=4,perEmptyCommandSlot=1}},partial=true}, -- Howl of the Pack; follow-on combat is not tracked
-    ["590a46"]={normal={influence=1},partial=true},
+    ["590a46"]={choices={{influence=1},{key="boost",influence=3,icon="influence",iconOverlay="3"}}}, -- On Her Own: player decides whether they recruit.
     ["5b42dc"]={partial=true},
     ["5f61d5"]={choices={{key="other"},{healing=3}},partial=true},
     ["6133e1"]={partial=true},
@@ -52775,23 +55482,28 @@ skillResourceDefinitions={
     ["7ad337"]={day={move=1},night={move=2},partial=true},
     ["7b905d"]={normal={attackColdFire=2}},
     ["7d1c32"]={normal={block=1,attack=1}},
-    ["7d21e6"]={partial=true},
+    ["7d21e6"]={shapeshift=true,partial=true}, -- Shapeshift needs a Basic Action target.
     ["7d5670"]={normal={move=1},partial=true},
     ["80b843"]={choices={{block=2},{attack=2}},partial=true},
-    ["818aea"]={untracked=true},
+    ["818aea"]={untracked=true,manaOverload=true}, -- Mana Overload; link to an actually mana-powered Deed card.
     ["8397f1"]={untracked=true},
     ["84ea07"]={normal={healing=1}},
     ["866002"]={normal={healing=2}},
-    ["8892c4"]={normal={move=1},partial=true},
+    ["8892c4"]={normal={move=1},
+        passiveTerrain={{mode="set",terrains={mountain=true},cost=5}},
+        skillManaTerrain={color="Blue",effect={mode="set",terrains={lake=true},cost=2}}}, -- Secret Ways.
     ["893537"]={untracked=true},
-    ["8cea19"]={partial=true},
-    ["91bf3d"]={choices={{siege=1},{key="ice",siegeIce=1}}},
-    ["91c8a0"]={normal={influence=2}},
+    ["8cea19"]={inventoryDistinctColors={resource="influence",
+        colors={"Red","Blue","Green","White"}}}, -- Glittering Fortune
+    ["91bf3d"]={choices={{siege=1},
+        {key="iceSiege",siegeIce=1,icon="siege",
+            iconOverlay="I",iconOverlayColor="#358BFF"}}}, -- Freezing Power
+    ["91c8a0"]={normal={influence=2},flipped={}}, -- Arcane Disguise reputation mode generates no Influence.
     ["929377"]={choices={{healing=1},{key="boost",healing=2}}},
     ["929d04"]={partial=true},
     ["932b6a"]={normal={move=1}},
     ["933090"]={untracked=true},
-    ["93c62e"]={partial=true},
+    ["93c62e"]={unitBoost={block=3,attack=2,ranged=1},choices={{block=3},{attack=2},{ranged=1}},partial=true}, -- Leadership needs an activated matching Unit.
     ["9d866a"]={untracked=true},
     ["9eb4c5"]={untracked=true},
     ["9efc9b"]={untracked=true},
@@ -52817,12 +55529,15 @@ skillResourceDefinitions={
     ["c2e5a3"]={partial=true},
     ["c3b95f"]={untracked=true},
     ["c4546c"]={untracked=true},
-    ["c73c8c"]={normal={attack=1},partial=true},
+    ["c73c8c"]={choices={{attack=1},{key="other"}},
+        passiveTerrain={{mode="reduce",terrains={explore=true},amount=1,minimum=0}}}, -- Feral Allies.
     ["c82406"]={untracked=true},
     ["c93979"]={untracked=true},
     ["cae27e"]={untracked=true},
     ["d013af"]={untracked=true},
-    ["d01b70"]={normal={rangedColdFire=1},partial=true},
+    ["d01b70"]={choices={{key="one",rangedColdFire=1,icon="ranged",iconOverlay="1"},
+        {key="two",rangedColdFire=2,icon="ranged",iconOverlay="2"},
+        {key="three",rangedColdFire=3,icon="ranged",iconOverlay="3"}},partial=true},
     ["d8824d"]={untracked=true},
     ["d90de4"]={untracked=true},
     ["d9c83f"]={untracked=true},
@@ -52833,7 +55548,7 @@ skillResourceDefinitions={
     ["e7abd5"]={normal={move=1},partial=true},
     ["e88483"]={choices={{key="split",rangedIce=1,rangedFire=1},{ranged=2}}},
     ["ebbbfc"]={untracked=true},
-    ["eeb395"]={partial=true},
+    ["eeb395"]={attackCardBoost=true,partial=true}, -- Deadly Aim; player links a specific Attack card.
     ["eec431"]={normal={healing=2}},
     ["f36762"]={normal={move=1},partial=true},
     ["f50f77"]={untracked=true},
