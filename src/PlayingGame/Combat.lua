@@ -78,8 +78,11 @@ function playerCombatObjects(seatPos)
 		local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
 		if zone==nil then return end
 		for _, obj in pairs(zone.getObjects()) do
-			if seen[obj.guid]~=true and (monstersOnly~=true or monsterPugs[obj.guid]~=nil) then
-				seen[obj.guid]=true
+			--A card/deck merging or being replaced can briefly appear without a usable GUID.
+			--Never index the de-duplication table with nil during a deferred UI refresh.
+			local guid=obj~=nil and obj.guid or nil
+			if guid~=nil and seen[guid]~=true and (monstersOnly~=true or monsterPugs[guid]~=nil) then
+				seen[guid]=true
 				objects[#objects+1]=obj
 			end
 		end
