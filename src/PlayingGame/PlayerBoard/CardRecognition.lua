@@ -645,8 +645,8 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
 end
 
 
--- One selected icon at the Unit's centre, like the existing card/skill
--- choices. Expand vertically from that centre in printed ability order.
+-- One selected icon in the Unit's lower-left artwork margin, away from
+-- its Command token. Expand vertically in printed ability order.
 -- Alternatives sharing a printed row occupy adjacent columns to the right.
 -- This is intentionally independent of translated text position.
 local function showUnitAbilityButtons(unit,abilities,activation,unwounded)
@@ -691,12 +691,15 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded)
         rows={{selected}}
     end
 
-    -- Unit cards are smaller once compressed in the Unit area. Keep a tighter
-    -- grid than Action/Spell choices, centred on the Unit rather than its text.
+    -- Fixed lower-left anchor works independently of translated text.
+    -- The 180-degree UI rotation reverses the screen-space axes, so the
+    -- first printed ability takes negative Y (above) and extra alternatives
+    -- take negative X (to the screen-right of their primary option).
+    local baseX,baseY=72,80
     local rowSpacing=34
     local columnSpacing=35
     for rowIndex,indices in ipairs(rows) do
-        local y=((#rows+1)/2-rowIndex)*rowSpacing
+        local y=baseY+(rowIndex-(#rows+1)/2)*rowSpacing
         for columnIndex,index in ipairs(indices) do
             local ability=abilities[index]
             local active=index==selected
@@ -705,7 +708,7 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded)
             local button={tag="Button",attributes={
                 id="ResourceCardChoice_"..unit.guid.."_unit"..index,
                 onClick="global/resourceUnitsChoiceClicked",
-                position=tostring((columnIndex-1)*columnSpacing).." "..tostring(y).." -35",
+                position=tostring(baseX-(columnIndex-1)*columnSpacing).." "..tostring(y).." -35",
                 rotation="0 0 180",width=90,height=90,scale="0.22 0.22",
                 colors=active and "#387D30|#4CA940|#387D30|#387D30"
                     or "#454D5D|#69798E|#444C63|#454D5D",
