@@ -2698,7 +2698,14 @@ function resourceCardsPanelChanged(open)
 end
 
 function resourceCardsOnLoad()
-    if resourceCardsPanelOpen() then resourceCardsPanelChanged(true) else clearAll() end
+    if resourceCardsPanelOpen() then
+        resourceCardsPanelChanged(true)
+    else
+        clearAll()
+        -- The Unit's activation buttons exist independently of the expanded
+        -- Resource Tracker panel and must survive a mid-turn save/reload.
+        resourceUnitsRefreshButtons()
+    end
 end
 
 local function resourceCardsRelevantZone(ctx)
