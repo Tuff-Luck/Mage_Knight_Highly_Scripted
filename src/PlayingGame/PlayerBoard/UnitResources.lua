@@ -57,8 +57,8 @@ local byType={
         value(2,"block",4,"Block 4; counts twice against Swiftness")},
     UtemSwordsmen={
         value(1,"attack",3,"Attack 3"),value(1,"block",3,"Block 3"),
-        value(2,"attack",6,"Attack 6; wound this Unit after resolving",{woundsSelf=true}),
-        value(2,"block",6,"Block 6; wound this Unit after resolving",{woundsSelf=true})},
+        value(2,"attack",6,"Attack 6; wound this Unit after resolving",{woundsSelf=true,iconOverlay="W",iconOverlayColor="#FFFFFF"}),
+        value(2,"block",6,"Block 6; wound this Unit after resolving",{woundsSelf=true,iconOverlay="W",iconOverlayColor="#FFFFFF"})},
     GuardianGolems={
         value(1,"attack",2,"Attack 2"),value(1,"block",2,"Block 2"),
         value(2,"blockFire",4,"Fire Block 4"),
@@ -118,14 +118,14 @@ local byType={
         special(2,"Chosen enemy does not attack and gets Armor -3 (minimum 1)")},
     Catapults={
         value(1,"siege",3,"Siege Attack 3"),
-        value(2,"siegeFire",5,"Pay red mana: Siege Fire Attack 5",{manaCost="Red"}),
-        value(3,"siegeIce",5,"Pay blue mana: Siege Ice Attack 5",{manaCost="Blue"})},
+        value(2,"siegeFire",5,"Pay red mana: Siege Fire Attack 5",{manaCost="Red",declaredPayment=true}),
+        value(3,"siegeIce",5,"Pay blue mana: Siege Ice Attack 5",{manaCost="Blue",declaredPayment=true})},
     AltemMages={
         special(1,"Gain two mana tokens of any colors",{key="gain"}),
         value(2,"attackColdFire",5,"Cold Fire Attack 5; +2 with red or blue mana, +4 with both",{manaScale=true}),
         value(2,"blockColdFire",5,"Cold Fire Block 5; +2 with red or blue mana, +4 with both",{manaScale=true}),
-        special(3,"Pay black mana: all your Attacks this combat become Cold Fire",{manaCost="Black",buttonLabel="CF"}),
-        special(3,"Pay black mana: all your Attacks this combat become Siege, retaining elements",{manaCost="Black",buttonLabel="S"})},
+        special(3,"Pay black mana: all your Attacks this combat become Cold Fire",{manaCost="Black",buttonLabel="CF",attackTransform="coldFire"}),
+        special(3,"Pay black mana: all your Attacks this combat become Siege, retaining elements",{manaCost="Black",buttonLabel="S",attackTransform="siege"})},
     AltemGuardians={
         value(1,"attack",5,"Attack 5"),
         value(2,"block",8,"Block 8; counts twice against Swiftness"),
@@ -148,8 +148,8 @@ local byType={
         value(3,"influence",5,"Influence 5; +1 Reputation if used in interaction")},
     Sorcerers={
         value(1,"ranged",3,"Ranged Attack 3"),
-        value(2,"ranged",3,"Pay white mana: target loses all fortifications; Ranged Attack 3",{manaCost="White"}),
-        value(3,"ranged",3,"Pay green mana: target loses all resistances; Ranged Attack 3",{manaCost="Green"})},
+        value(2,"ranged",3,"Pay white mana: target loses all fortifications; Ranged Attack 3",{manaCost="White",baseWithoutPayment=true}),
+        value(3,"ranged",3,"Pay green mana: target loses all resistances; Ranged Attack 3",{manaCost="Green",baseWithoutPayment=true})},
     DelphanaMasters={
         special(1,"Pay blue mana: target enemy does not attack",{manaCost="Blue",buttonLabel="B"}),
         special(2,"Pay red mana: target enemy is destroyed if blocked",{manaCost="Red",buttonLabel="R"}),

@@ -69,14 +69,43 @@ local resourceTotalsKeyByField={
     healing={healing="healing"}
 }
 
-function resourceCardsEffectiveValue(category,field)
-    local tracker=gStates~=nil and gStates.resourceTracker or nil
+local attackTransformFamilies={"attack","ranged","siege"}
+local attackTransformFields={"physical","fire","ice","iceFire"}
+
+local function resourceCardsRawValue(tracker,totals,category,field)
     local manual=tracker~=nil and tracker[category]~=nil and tracker[category][field] or 0
-    local totals=resourceCardsCurrentTotals()
     local fields=resourceTotalsKeyByField[category]
     local totalKey=fields~=nil and fields[field] or nil
     local estimated=totals~=nil and totalKey~=nil and (totals[totalKey] or 0) or 0
     return manual+estimated
+end
+
+function resourceCardsEffectiveValue(category,field)
+    local tracker=gStates~=nil and gStates.resourceTracker or nil
+    local totals=resourceCardsCurrentTotals()
+    local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    local scan=current~=nil and resourceCardScanBySeat[current.seatPos] or nil
+    local transform=totals~=nil and scan~=nil and scan.attackTransforms or nil
+    if transform==nil or (not transform.coldFire and not transform.siege)
+        or (category~="attack" and category~="ranged" and category~="siege") then
+        return resourceCardsRawValue(tracker,totals,category,field)
+    end
+
+    -- Change the displayed Attack category, not original card/Unit records.
+    -- Manual +/- values follow the same transformation as scanned attacks.
+    local amount=0
+    for _,sourceFamily in ipairs(attackTransformFamilies) do
+        local destinationFamily=transform.siege and "siege" or sourceFamily
+        if destinationFamily==category then
+            for _,sourceField in ipairs(attackTransformFields) do
+                local destinationField=transform.coldFire and "iceFire" or sourceField
+                if destinationField==field then
+                    amount=amount+resourceCardsRawValue(tracker,totals,sourceFamily,sourceField)
+                end
+            end
+        end
+    end
+    return amount
 end
 
 function resourceCardsEffectiveMove()
@@ -667,7 +696,7 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded)
         return
     end
     local selected=math.max(1,math.min(#abilities,activation.choice or 1))
-    local expanded=choiceExpandedByGUID[unit.guid]==true and #abilities>1
+    local expanded=(abilities.multi==true or choiceExpandedByGUID[unit.guid]==true) and #abilities>1
     local selectedKeys={}
     if abilities.multi==true then
         for i=1,#abilities do
@@ -2299,14 +2328,17 @@ local function renderSeat(seatPos)
     end
     local function unitAbilityPaid(ability,counts)
         local cost=ability.manaCost
-        if cost==nil then return true end
+        -- Explicit Catapult element selection declares payment of its mana cost.
+        -- Players remain responsible for resolving printed costs legally.
+        if cost==nil or ability.declaredPayment then return true end
         if (counts[cost] or 0)>0 then return true end
         -- Daytime Gold may be used as any basic mana. The selected button
         -- records which basic colour the player meant to spend.
         return cost~="Black" and gStates.dayRound==true and (counts.Gold or 0)>0
     end
     local function unitAbilityResources(ability,counts)
-        if ability==nil or not unitAbilityPaid(ability,counts) then return nil end
+        if ability==nil or (not unitAbilityPaid(ability,counts)
+            and not ability.baseWithoutPayment) then return nil end
         local resources={}
         for category,value in pairs(ability) do
             if totalsKeys[category] and type(value)=="number" then
@@ -2325,6 +2357,8 @@ local function renderSeat(seatPos)
     end
     local selectedUnitAttacks={}
     local shocktroopsBoosts=0
+    local attackTransforms={}
+    local transformingUnits={}
     for unitGUID,activation in pairs(activations) do
         if activation.seatPos==seatPos then
             local unit=objects[unitGUID]
@@ -2364,6 +2398,10 @@ local function renderSeat(seatPos)
                     end
                     if selected.boostOtherUnits and result.complete then
                         shocktroopsBoosts=shocktroopsBoosts+1
+                    end
+                    if selected.attackTransform~=nil and result.complete then
+                        attackTransforms[selected.attackTransform]=true
+                        transformingUnits[unitGUID]=selected.attackTransform
                     end
                     if result.contributes then
                         selectedUnitAttacks[#selectedUnitAttacks+1]=unitGUID
@@ -2820,6 +2858,31 @@ local function renderSeat(seatPos)
         end
     end
 
+    -- Global Altem effects contribute when they upgrade an Attack, including
+    -- a value entered manually into the Resource Tracker.
+    local tracker=gStates.resourceTracker or {}
+    for unitGUID,mode in pairs(transformingUnits) do
+        local affected=false
+        for _,family in ipairs(attackTransformFamilies) do
+            for _,field in ipairs(attackTransformFields) do
+                if (mode=="coldFire" and field~="iceFire")
+                    or (mode=="siege" and family~="siege") then
+                    if resourceCardsRawValue(tracker,totals,family,field)~=0 then
+                        affected=true
+                        break
+                    end
+                end
+            end
+            if affected then break end
+        end
+        local record=records[unitGUID]
+        if record~=nil then
+            record.contributes=affected
+            record.status=affected and "green" or "blue"
+            setHighlight(objects[unitGUID],record.status,false)
+        end
+    end
+
     local previous=bySeat[seatPos] or {}
     local previousScan=resourceCardScanBySeat[seatPos]
     local previousMove=previousScan~=nil and (previousScan.totals.move or 0) or 0
@@ -2845,14 +2908,19 @@ local function renderSeat(seatPos)
     local movementChanged=priorMovement==nil
         or priorMovement.jumpTwoSpaces~=movementEffects.jumpTwoSpaces
         or priorMovement.ignoreRampagers~=movementEffects.ignoreRampagers
+    local previousTransform=previousScan~=nil and previousScan.attackTransforms or nil
+    local transformChanged=previousTransform==nil
+        or (previousTransform.coldFire==true)~=(attackTransforms.coldFire==true)
+        or (previousTransform.siege==true)~=(attackTransforms.siege==true)
     bySeat[seatPos]=current
     resourceCardScanBySeat[seatPos]={cards=records,totals=totals,
+        attackTransforms=attackTransforms,
         terrainModifiers=terrainModifiers,movementEffects=movementEffects,
         usesCurrentHexBlock=usesCurrentHexBlock,
         usesCurrentHexHealing=usesCurrentHexHealing,
         usesSkillLocation=usesSkillLocation}
     -- Redraw movement when ability flags change, even if total Move stays equal.
-    if totalsChanged or terrainChanged then refreshResourceTrackerText() end
+    if totalsChanged or terrainChanged or transformChanged then refreshResourceTrackerText() end
     if previousMove~=(totals.move or 0) or terrainChanged or movementChanged then
         updateMoveDisplay()
     end
@@ -3082,7 +3150,7 @@ function resourceUnitsChoiceClicked(player,value,id)
     for _,entry in ipairs(state.units) do
         if entry.guid==unitGUID and not entry.unwounded then return end
     end
-    if choiceExpandedByGUID[unitGUID]~=true and #abilities>1 then
+    if abilities.multi~=true and choiceExpandedByGUID[unitGUID]~=true and #abilities>1 then
         -- First click reveals the compact vertical grid; no resource change.
         choiceExpandedByGUID[unitGUID]=true
         showUnitAbilityButtons(unit,abilities,activation,true)
@@ -3093,10 +3161,13 @@ function resourceUnitsChoiceClicked(player,value,id)
     if abilities.multi==true then
         activation.selected=activation.selected or {}
         activation.selected[index]=not (activation.selected[index]==true)
+        activation.choice=index
+        -- Keep all selected Delphana abilities visible for further toggles.
+        choiceExpandedByGUID[unitGUID]=true
+    else
+        activation.choice=index
+        choiceExpandedByGUID[unitGUID]=nil
     end
-    -- Selecting an option closes the grid to the chosen centred icon.
-    activation.choice=index
-    choiceExpandedByGUID[unitGUID]=nil
     showUnitAbilityButtons(unit,abilities,activation,true)
     queueSeat(current.seatPos,nil)
 end
