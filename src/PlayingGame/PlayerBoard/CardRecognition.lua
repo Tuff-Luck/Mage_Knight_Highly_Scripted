@@ -705,8 +705,11 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded)
     -- take negative X (to the screen-right of their primary option).
     -- Shift by one rendered Unit-button width (90 * 0.22) farther left.
     local baseX,baseY=91.8,80
-    local rowSpacing=34
-    local columnSpacing=35
+    -- Button footprint is 90 * 0.22 = 19.8 UI units. Halve the
+    -- *empty gap* (not the centre spacing) so neighbouring buttons
+    -- remain separate and clickable: 34 -> 26.9, 35 -> 27.4.
+    local rowSpacing=26.9
+    local columnSpacing=27.4
     for rowIndex,indices in ipairs(rows) do
         local y=baseY+(rowIndex-(#rows+1)/2)*rowSpacing
         for columnIndex,index in ipairs(indices) do
