@@ -43,7 +43,7 @@ local byType={
         value(1,"attack",2,"Attack 2"),value(1,"block",2,"Block 2"),
         value(2,"influence",2,"Influence 2"),value(3,"move",2,"Move 2")},
     Herbalists={
-        value(1,"healing",2,"Heal 2"),
+        value(1,"healing",2,"Heal 2",{manaCost="Green"}),
         special(2,"Ready a Level I or II Unit",{key="ready"}),
         special(3,"Gain a green mana token",{key="gain"})},
     Foresters={
@@ -61,23 +61,23 @@ local byType={
         value(2,"block",6,"Block 6; wound this Unit after resolving",{woundsSelf=true,iconOverlay="W",iconOverlayColor="#FFFFFF"})},
     GuardianGolems={
         value(1,"attack",2,"Attack 2"),value(1,"block",2,"Block 2"),
-        value(2,"blockFire",4,"Fire Block 4"),
-        value(3,"blockIce",4,"Ice Block 4")},
+        value(2,"blockFire",4,"Fire Block 4",{manaCost="Red"}),
+        value(3,"blockIce",4,"Ice Block 4",{manaCost="Blue"})},
     Illusionists={
         value(1,"influence",4,"Influence 4"),
-        special(2,"An unfortified enemy does not attack this combat"),
+        special(2,"An unfortified enemy does not attack this combat",{manaCost="White"}),
         special(3,"Gain a white crystal to your inventory",{key="gain"})},
     RedCapeMonks={
         value(1,"attack",3,"Attack 3"),value(1,"block",3,"Block 3"),
-        value(2,"attackFire",4,"Fire Attack 4"),
-        value(2,"blockFire",4,"Fire Block 4")},
+        value(2,"attackFire",4,"Fire Attack 4",{manaCost="Red"}),
+        value(2,"blockFire",4,"Fire Block 4",{manaCost="Red"})},
     NorthernMonks={
         value(1,"attack",3,"Attack 3"),value(1,"block",3,"Block 3"),
-        value(2,"attackIce",4,"Ice Attack 4"),
-        value(2,"blockIce",4,"Ice Block 4")},
+        value(2,"attackIce",4,"Ice Attack 4",{manaCost="Blue"}),
+        value(2,"blockIce",4,"Ice Block 4",{manaCost="Blue"})},
     SavageMonks={
         value(1,"attack",3,"Attack 3"),value(1,"block",3,"Block 3"),
-        value(2,"siege",4,"Siege Attack 4")},
+        value(2,"siege",4,"Siege Attack 4",{manaCost="Green"})},
     Scouts={
         value(1,"siege",1,"Siege Attack 1"),
         special(2,"Peek at a face-down enemy token within 3 spaces, or top of an unused enemy pile; +1 Fame if defeated this turn"),
@@ -98,24 +98,24 @@ local byType={
         value(4,"healing",2,"Heal 2 (+1 if the Unit's crystal is green)",{bonusColor="Green",bonus=1})},
     FireGolems={
         value(1,"attack",3,"Attack 3"),value(1,"block",3,"Block 3"),
-        value(2,"rangedFire",4,"Ranged Fire Attack 4")},
+        value(2,"rangedFire",4,"Ranged Fire Attack 4",{manaCost="Red"})},
     IceGolems={
         value(1,"attack",3,"Attack 3"),value(1,"block",3,"Block 3"),
-        value(2,"attackIce",6,"Ice Attack 6")},
+        value(2,"attackIce",6,"Ice Attack 6",{manaCost="Blue"})},
     FireMages={
         value(1,"rangedFire",3,"Ranged Fire Attack 3"),
-        value(2,"attackFire",6,"Fire Attack 6"),value(2,"blockFire",6,"Fire Block 6"),
+        value(2,"attackFire",6,"Fire Attack 6",{manaCost="Red"}),value(2,"blockFire",6,"Fire Block 6",{manaCost="Red"}),
         special(3,"Gain a red mana token and a red crystal",{key="gain"})},
     IceMages={
         value(1,"attackIce",4,"Ice Attack 4"),value(1,"blockIce",4,"Ice Block 4"),
-        value(2,"siegeIce",4,"Siege Ice Attack 4"),
+        value(2,"siegeIce",4,"Siege Ice Attack 4",{manaCost="Blue"}),
         special(3,"Gain a blue mana token and a blue crystal",{key="gain"})},
     AmotepGunners={
         value(1,"attack",5,"Attack 5"),value(1,"block",5,"Block 5"),
-        value(2,"rangedFire",6,"Ranged Fire Attack 6")},
+        value(2,"rangedFire",6,"Ranged Fire Attack 6",{manaCost="Red"})},
     AmotepFreezers={
         value(1,"attack",5,"Attack 5"),value(1,"block",5,"Block 5"),
-        special(2,"Chosen enemy does not attack and gets Armor -3 (minimum 1)")},
+        special(2,"Chosen enemy does not attack and gets Armor -3 (minimum 1)",{manaCost="Blue"})},
     Catapults={
         value(1,"siege",3,"Siege Attack 3"),
         value(2,"siegeFire",5,"Pay red mana: Siege Fire Attack 5",{manaCost="Red"}),
@@ -132,19 +132,19 @@ local byType={
         special(3,"Pay green mana: all your Units gain all resistances this turn",{manaCost="Green"})},
     HeroesWhite={
         value(1,"attack",5,"Attack 5"),value(1,"block",5,"Block 5"),
-        value(2,"ranged",7,"Ranged Attack 7"),
+        value(2,"ranged",7,"Ranged Attack 7",{manaCost="White"}),
         value(3,"influence",5,"Influence 5; +1 Reputation if used in interaction")},
     HeroesGreen={
         value(1,"attack",5,"Attack 5"),value(1,"block",5,"Block 5"),
-        value(2,"healing",4,"Heal 4"),
+        value(2,"healing",4,"Heal 4",{manaCost="Green"}),
         value(3,"influence",5,"Influence 5; +1 Reputation if used in interaction")},
     HeroesBlue={
         value(1,"attack",5,"Attack 5"),value(1,"block",5,"Block 5"),
-        value(2,"blockColdFire",8,"Cold Fire Block 8"),
+        value(2,"blockColdFire",8,"Cold Fire Block 8",{manaCost="Blue"}),
         value(3,"influence",5,"Influence 5; +1 Reputation if used in interaction")},
     HeroesRed={
         value(1,"attack",5,"Attack 5"),value(1,"block",5,"Block 5"),
-        value(2,"attackColdFire",6,"Cold Fire Attack 6"),
+        value(2,"attackColdFire",6,"Cold Fire Attack 6",{manaCost="Red"}),
         value(3,"influence",5,"Influence 5; +1 Reputation if used in interaction")},
     Sorcerers={
         value(1,"ranged",3,"Ranged Attack 3"),
