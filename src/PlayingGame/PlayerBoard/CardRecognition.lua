@@ -1706,7 +1706,7 @@ local function renderSeat(seatPos)
             end
             local kind=resourceObjectKind(obj)
             if kind~=nil and (zoneKind=="play"
-                or (zoneKind=="unit" and (kind=="unit" or kind=="mana"))
+                or (zoneKind=="unit" and (kind=="unit" or kind=="mana" or kind=="puppet"))
                 or (zoneKind=="crystal" and kind=="mana")) then
                 -- Play-area placement takes precedence when scripting zones overlap.
                 local existing=placements[obj.guid]
@@ -2721,7 +2721,7 @@ local function renderSeat(seatPos)
             local contributing=poweredTarget~=nil and records[poweredTarget]~=nil
                 and records[poweredTarget].contributes==true
             local result
-            if kind=="puppet" and placements[guid]=="play" then
+            if kind=="puppet" and (placements[guid]=="play" or placements[guid]=="unit") then
                 local choices=obj.is_face_down~=true and puppetResourceOptions(guid) or nil
                 local selected=choices~=nil and chosenEffect(guid,false,choices) or nil
                 result={guid=guid,kind="puppet",known=true,complete=selected~=nil,
@@ -3178,7 +3178,7 @@ local function resourceCardsRelevantZone(ctx)
     if kind=="play" and (objectKind~=nil or monsterPugs[ctx.objGUID]~=nil) then
         return ctx.zoneInfo.seatPos
     end
-    if kind=="unit" and (objectKind=="unit" or objectKind=="mana"
+    if kind=="unit" and (objectKind=="unit" or objectKind=="mana" or objectKind=="puppet"
         or monsterPugs[ctx.objGUID]~=nil
         or unitLayoutIsCommand(ctx.obj) or unitLayoutIsWound(ctx.obj)) then
         return ctx.zoneInfo.seatPos
