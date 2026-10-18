@@ -235,6 +235,9 @@ function __skillMove_raw(player, mouseButton, id, rewindReady)
 			--move selected skill
 			claimedSkill.unlock()
 			claimedSkill.setPositionSmooth(gStates.mageSkills[claimedGUID])
+			-- Permanent exploration/terrain Skills take effect on claim, even
+			-- before the token is ever played. Rebuild only an open tracker.
+			if resourceCardsPanelOpen() then resourceCardsPanelChanged(true) end
 			if gStates.motivationSkill[claimedGUID]~=nil then
 				gStates.motivationSkill[claimedGUID].pos=gStates.skillButtons
 				gStates.motivationSkill[claimedGUID].state="active"
