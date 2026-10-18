@@ -2579,8 +2579,11 @@ skillResourceDefinitions={
     ["866002"]={normal={healing=2}},
     ["8892c4"]={normal={move=1},partial=true},
     ["893537"]={untracked=true},
-    ["8cea19"]={partial=true},
-    ["91bf3d"]={choices={{siege=1},{key="ice",siegeIce=1}}},
+    ["8cea19"]={inventoryDistinctColors={resource="influence",
+        colors={"Red","Blue","Green","White"}}}, -- Glittering Fortune
+    ["91bf3d"]={choices={{siege=1},
+        {key="iceSiege",siegeIce=1,icon="siege",
+            iconOverlay="I",iconOverlayColor="#358BFF"}}}, -- Freezing Power
     ["91c8a0"]={normal={influence=2}},
     ["929377"]={choices={{healing=1},{key="boost",healing=2}}},
     ["929d04"]={partial=true},

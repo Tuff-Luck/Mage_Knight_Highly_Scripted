@@ -196,12 +196,12 @@ local choiceLetters={move="M",influence="I",attack="A",block="B",
     fire="F",ice="I",coldFire="C",boost="H+",split="I/F",negative="N",
     heal="H",combat="C",wound="W",reputation="R",gain="G",ready="R",
     base="2",sourceUnused="3",red="R",blue="B",white="W",green="G",
-    fireAttack="F",fireBlock="F",fireSiege="F",fireBlockOnly="B",fireBlockCounter="B+",
+    fireAttack="F",fireBlock="F",fireSiege="F",iceSiege="I",fireBlockOnly="B",fireBlockCounter="B+",
     splitBlock="B2",zero="0",one="1",two="2",three="3",four="4",five="5"}
 -- The choice UI and initial-guess tie-breaks follow the Resource Tracker order.
 local resourceChoiceOrder={
     move=1,siege=2,ranged=3,block=4,attack=5,influence=6,healing=7,heal=7,
-    fireBlock=4,fireAttack=5,fireSiege=2
+    fireBlock=4,fireAttack=5,fireSiege=2,iceSiege=2
 }
 local resourceChoiceFamilies={"move","siege","ranged","block","attack","influence","healing"}
 local function resourceChoiceRank(category,choice)
@@ -225,7 +225,7 @@ end
 local function resourceChoiceColumn(category)
     if category=="fireBlock" then return "block" end
     if category=="fireAttack" then return "attack" end
-    if category=="fireSiege" then return "siege" end
+    if category=="fireSiege" or category=="iceSiege" then return "siege" end
     return category
 end
 local function sideChoices(rule,powered)
@@ -379,8 +379,68 @@ local function removeChoiceButtons(card)
     choiceButtonShown[card.guid]=nil
 end
 
--- A single selected letter sits above the title. Click to show the whole
--- choice row; choosing any option immediately collapses back to one letter.
+-- Skills use their own centred layout; Action/Spell/Artifact buttons keep their
+-- existing horizontal layout. Elemental options for the same resource family
+-- share a column, centred vertically around the Skill's midpoint.
+local function skillChoiceFamily(category,choice)
+    for _,family in ipairs(resourceChoiceFamilies) do
+        for resource,value in pairs(choice) do
+            if type(value)=="number"
+                and (resource==family or resource:sub(1,#family)==family) then
+                return family
+            end
+        end
+    end
+    return resourceChoiceColumn(category)
+end
+
+local function skillChoicePositions(entries)
+    local families,familyOrder={},{}
+    for _,entry in ipairs(entries) do
+        local family=entry.skillFamily
+        if families[family]==nil then
+            families[family]={}
+            familyOrder[#familyOrder+1]=family
+        end
+        families[family][#families[family]+1]=entry
+    end
+
+    local columns={}
+    local grouped=#familyOrder<=3
+    for _,family in ipairs(familyOrder) do
+        if #families[family]>2 then grouped=false break end
+    end
+    if grouped then
+        for _,family in ipairs(familyOrder) do
+            columns[#columns+1]=families[family]
+        end
+    else
+        -- Four alternatives of one element family or four unrelated resource
+        -- families fit in a centred 2x2 grid, rather than a wide four-button row.
+        local ordered={}
+        for _,family in ipairs(familyOrder) do
+            for _,entry in ipairs(families[family]) do ordered[#ordered+1]=entry end
+        end
+        local rowCount=math.ceil(#ordered/3)
+        for i,entry in ipairs(ordered) do
+            local columnIndex=math.ceil(i/rowCount)
+            columns[columnIndex]=columns[columnIndex] or {}
+            columns[columnIndex][#columns[columnIndex]+1]=entry
+        end
+    end
+
+    local positions={}
+    for columnIndex,column in ipairs(columns) do
+        local x=((#columns+1)/2-columnIndex)*104
+        for rowIndex,entry in ipairs(column) do
+            positions[entry.category]={x=x,y=((#column+1)/2-rowIndex)*70}
+        end
+    end
+    return positions
+end
+
+-- A single selected icon is centred on the object. Click to expand all
+-- choices; selecting one immediately collapses back to its icon.
 local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySets)
     if card==nil then return end
     local posture=cardPosture(card)
@@ -388,8 +448,8 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     -- Skill tokens are physically smaller than Action cards, so their choice
     -- buttons (collapsed and expanded) need a larger dedicated scale.
     local buttonScale=isSkill and "0.58 0.58" or "0.25 0.25"
-    local buttonSpacing=isSkill and 104 or 44
-    local buttonRowOffset=isSkill and -70 or -30
+    local buttonSpacing=44
+    local buttonRowOffset=-30
     local data=gameCards[card.guid]
     local isArtifact=data~=nil and data.cardType=="Artifact"
     if choices==nil or #choices<2
@@ -432,6 +492,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                 seen[category]=true
                 row.entries[#row.entries+1]={category=category,
                     rank=resourceChoiceRank(category,choice),originalIndex=j,
+                    skillFamily=isSkill and skillChoiceFamily(category,choice) or nil,
                     icon=choice.icon or category,iconOverlay=choice.iconOverlay,
                     iconOverlayColor=choice.iconOverlayColor,
                     iconOverlayAlignment=choice.iconOverlayAlignment,
@@ -506,12 +567,17 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         end
         local displayed={}
         for _,entry in ipairs(row.visible) do displayed[entry.category]=true end
+        local skillPositions=isSkill and skillChoicePositions(row.visible) or nil
         for _,entry in ipairs(row.visible) do
             local category=entry.category
             local column=resourceChoiceColumn(category)
             local x=((#columns+1)/2-columnByCategory[column])*buttonSpacing
             local above=row.expanded and category~=column and displayed[column]==true
             local buttonY=y+(above and buttonRowOffset or 0)
+            if skillPositions~=nil then
+                x=skillPositions[category].x
+                buttonY=skillPositions[category].y
+            end
             local active=category==row.selected
             local icon=resourceCardsChoiceIcon(entry.icon)
             if icon~=nil and blocked[icon.name] then icon=nil end
@@ -1280,7 +1346,7 @@ end
 
 -- Physical Skill GUIDs, not translated text, determine available resources.
 -- Skills outside the active player's Play Area are not counted.
-local function calculateSkill(skill,linkedTarget,unitState)
+local function calculateSkill(skill,linkedTarget,unitState,inventoryCrystalCounts)
     local rule=skillResourceDefinitions[skill.guid]
     if rule==nil then
         return {guid=skill.guid,kind="skill",known=true,complete=false,
@@ -1310,11 +1376,24 @@ local function calculateSkill(skill,linkedTarget,unitState)
         effects={[condition.resource]=math.min(qualified,cap)}
     end
 
+    -- Derive resource values directly from the physical crystal inventory;
+    -- multiple crystals of one colour count only once.
+    local inventoryResolved=false
+    if rule.inventoryDistinctColors~=nil then
+        local spec=rule.inventoryDistinctColors
+        local count=0
+        for _,color in ipairs(spec.colors) do
+            if (inventoryCrystalCounts[color] or 0)>0 then count=count+1 end
+        end
+        effects={[spec.resource]=count*(spec.valuePerColor or 1)}
+        inventoryResolved=true
+    end
+
     local tracked=effectHasTrackedResource(effects)
     local unitLinked=#unitSources>0
     local status=rule.untracked and "blue"
         or (linkedTarget~=nil or unitLinked) and "purple"
-        or unitResolved and "green"
+        or (unitResolved or inventoryResolved) and "green"
         or rule.linkedCard~=nil and linkedTarget==nil and "yellow"
         or tracked and (rule.partial and "yellow" or "green")
         or effects~=nil and "blue" or "yellow"
@@ -1322,7 +1401,7 @@ local function calculateSkill(skill,linkedTarget,unitState)
     if linkedTarget~=nil then links[#links+1]=linkedTarget end
     for _,guid in ipairs(unitSources) do links[#links+1]=guid end
     return {guid=skill.guid,kind="skill",known=true,
-        complete=unitResolved or (tracked and not rule.partial) or linkedTarget~=nil,
+        complete=unitResolved or inventoryResolved or (tracked and not rule.partial) or linkedTarget~=nil,
         powered=skill.is_face_down==true or linkedTarget~=nil or unitLinked,
         status=status,links=links,unitSources=unitSources,
         resources=effects,choices=rule.choices}
@@ -1952,7 +2031,8 @@ local function renderSeat(seatPos)
             if kind=="skill" and placements[guid]=="play" then
                 local conversion=manaBySkill[guid]
                 result=calculateSkill(obj,skillLinksBySkill[guid]
-                    or (conversion~=nil and conversion.targetGUID or nil),unitState)
+                    or (conversion~=nil and conversion.targetGUID or nil),
+                    unitState,inventoryCrystalCounts)
                 showChoiceButtons(obj,result.choices,result.powered)
                 addResourceAmounts(result,totals)
                 if skillLinksBySkill[guid]~=nil then
