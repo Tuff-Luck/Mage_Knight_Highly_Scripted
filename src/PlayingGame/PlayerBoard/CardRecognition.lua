@@ -32,6 +32,19 @@ local totalsKeys={move=true,ranged=true,siege=true,attack=true,block=true,influe
     attackFire=true,attackIce=true,attackColdFire=true,
     blockFire=true,blockIce=true,blockColdFire=true}
 
+-- Pilot for printed Unit abilities. Keep GUID-based identities rather than
+-- reading the card's translated nickname. Row positions are in card UI space,
+-- top to bottom, and are intentionally NOT Resource Tracker family order.
+local unitResourceDefinitions={
+    ["c1f77c"]={ -- Utem Guardsmen
+        {key="attack",icon="attack",attack=2,y=-69},
+        {key="block",icon="block",block=4,y=-132}},
+    ["00ebf3"]={
+        {key="attack",icon="attack",attack=2,y=-69},
+        {key="block",icon="block",block=4,y=-132}}
+}
+local commandPickupForUnits={}
+
 function resourceCardsPanelOpen()
     return gStates~=nil and gStates.firstStarted==true
         and UI.getAttribute("ResourceTracker","active")~="false"
@@ -623,6 +636,53 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     choiceButtonShown[card.guid]=signature
 end
 
+
+-- Unlike normal cards, Unit choices stay visible next to their printed lines
+-- while the Unit has been activated this turn. One click selects an ability;
+-- there is no central collapsed icon for a Command token to cover.
+local function showUnitAbilityButtons(unit,abilities,activation,unwounded)
+    if unit==nil then return end
+    if not unwounded or activation==nil or abilities==nil then
+        removeChoiceButtons(unit)
+        return
+    end
+    local selected=activation.choice or 1
+    local signature="Unit:"..selected..":"..tostring(#abilities)
+    if choiceButtonShown[unit.guid]==signature then return end
+    local xml=unit.UI.getXmlTable() or {}
+    for i=#xml,1,-1 do
+        local attr=xml[i].attributes
+        if attr~=nil and type(attr.id)=="string"
+            and attr.id:sub(1,19)=="ResourceCardChoice_" then table.remove(xml,i) end
+    end
+    local names={}
+    for _,ability in ipairs(abilities) do names[#names+1]=ability.icon or ability.key end
+    local assets,blocked=resourceCardsChoiceAssetsFor(unit.UI,names)
+    for i,ability in ipairs(abilities) do
+        local active=i==selected
+        local icon=resourceCardsChoiceIcon(ability.icon or ability.key)
+        if icon~=nil and blocked[icon.name] then icon=nil end
+        local button={tag="Button",attributes={
+            id="ResourceCardChoice_"..unit.guid.."_unit"..i,
+            onClick="global/resourceUnitsChoiceClicked",
+            position="-121 "..tostring(ability.y).." -35",
+            rotation="0 0 180",width=90,height=90,scale="0.25 0.25",
+            colors=active and "#387D30|#4CA940|#387D30|#387D30"
+                or "#454D5D|#69798E|#444C63|#454D5D",
+            fontSize=77,textColor="#FFFFFF",textAlignment="MiddleCenter",
+            tooltip=(ability.key=="attack" and "Attack 2" or "Block 4")
+        },value=icon==nil and (choiceLetters[ability.key] or "?") or ""}
+        if icon~=nil then
+            button.children={{tag="Image",attributes={
+                image=icon.name,width=82,height=82,preserveAspect="true",
+                raycastTarget="false",color="#FFFFFF"}}}
+        end
+        xml[#xml+1]=button
+    end
+    if assets~=nil then unit.UI.setXmlTable(xml,assets)
+    else unit.UI.setXmlTable(xml) end
+    choiceButtonShown[unit.guid]=signature
+end
 
 local function clearChoiceButtons()
     for guid,signature in pairs(choiceButtonShown) do
@@ -2016,6 +2076,38 @@ local function renderSeat(seatPos)
             setHighlight(wound,result.status,false)
         end
     end
+    -- Unit activation is historical: a Command token may stay on the card for
+    -- the entire round, or be moved away by an ability. Only a Command move
+    -- during THIS turn creates an entry, never a static token found on load.
+    local activations=gStates.unitResourceActivations or {}
+    for unitGUID,activation in pairs(activations) do
+        if activation.seatPos==seatPos then
+            local unit=objects[unitGUID]
+            local abilities=unitResourceDefinitions[unitGUID]
+            if unit~=nil and abilities~=nil then
+                if unitState==nil then unitState=unitLayoutResourceState(seatPos) end
+                local unwounded=true
+                for _,entry in ipairs(unitState.units) do
+                    if entry.guid==unitGUID then unwounded=entry.unwounded break end
+                end
+                showUnitAbilityButtons(unit,abilities,activation,unwounded)
+                local selected=abilities[activation.choice or 1]
+                if unwounded and selected~=nil then
+                    local resources={}
+                    for key,value in pairs(selected) do
+                        if totalsKeys[key] then resources[key]=value end
+                    end
+                    local result={guid=unitGUID,kind="unit",known=true,
+                        complete=true,resources=resources,powered=false,
+                        links={},status="green"}
+                    addResourceAmounts(result,totals)
+                    records[unitGUID]=result
+                    current[unitGUID]=true
+                    setHighlight(unit,"green",false)
+                end
+            end
+        end
+    end
     -- The linking card itself contributes the target's upgraded effect. Mark it
     -- as a contributor so its powering mana token receives a green outline.
     for targetGUID,sourceGUID in pairs(boostSource) do
@@ -2263,6 +2355,93 @@ function resourceCardsChoiceClicked(player,value,id)
     choiceExpandedByGUID[guid]=nil
     showChoiceButtons(card,mainChoices,powered,inventorySpec,inventorySets)
     queueSeat(currentSeat.seatPos,nil)
+end
+
+-- The picked-up origin is transient; only completed activations belong in
+-- saved state. This prevents simply dropping an already-spent token back onto
+-- the same Unit from counting it as a new activation in a later turn.
+function resourceUnitsCommandPickedUp(playerColor,obj)
+    if obj==nil or not unitLayoutIsCommand(obj)
+        or gStates==nil or gStates.firstStarted~=true then return end
+    local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    if current==nil or legalPlayerCheck(playerColor,current.seatPos)~=true then return end
+    local origin=unitLayoutCommandTarget(obj,current.seatPos)
+    commandPickupForUnits[obj.guid]={seatPos=current.seatPos,
+        turnNumber=gStates.turnNumber,origin=origin~=nil and origin.guid or nil}
+end
+
+function resourceUnitsCommandDropped(playerColor,obj)
+    if obj==nil or not unitLayoutIsCommand(obj) then return end
+    local pickup=commandPickupForUnits[obj.guid]
+    commandPickupForUnits[obj.guid]=nil
+    if pickup==nil then return end
+    local guid=obj.guid
+    safeWaitCondition("PlayerBoard.CardRecognition",function()
+        local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+        if current==nil or current.seatPos~=pickup.seatPos
+            or gStates.turnNumber~=pickup.turnNumber then return end
+        local token=getObjectFromGUID(guid)
+        if token==nil then return end
+        local unit=unitLayoutCommandTarget(token,pickup.seatPos)
+        if unit==nil or unit.guid==pickup.origin
+            or unitResourceDefinitions[unit.guid]==nil then return end
+        local state=unitLayoutResourceState(pickup.seatPos)
+        for _,entry in ipairs(state.units) do
+            if entry.guid==unit.guid and not entry.unwounded then return end
+        end
+        -- For Units the highest existing tracker family determines the initial
+        -- choice; equal scores retain the printed top-to-bottom order.
+        local abilities=unitResourceDefinitions[unit.guid]
+        local scores=trackerChoiceScores(unit.guid,pickup.seatPos)
+        local choice,bestScore=1,-math.huge
+        for i,ability in ipairs(abilities) do
+            local score=scores[ability.key] or 0
+            if score>bestScore then choice,bestScore=i,score end
+        end
+        gStates.unitResourceActivations=gStates.unitResourceActivations or {}
+        gStates.unitResourceActivations[unit.guid]={
+            seatPos=pickup.seatPos,tokenGUID=guid,choice=choice}
+        showUnitAbilityButtons(unit,abilities,gStates.unitResourceActivations[unit.guid],true)
+        queueSeat(pickup.seatPos,nil)
+    end,function()
+        local token=getObjectFromGUID(guid)
+        return token==nil or (token.held_by_color==nil and token.resting==true
+            and token.isSmoothMoving()==false)
+    end,8)
+end
+
+function resourceUnitsChoiceClicked(player,value,id)
+    if type(id)~="string" then return end
+    local unitGUID,index=id:match("^ResourceCardChoice_([0-9a-f]+)_unit(%d+)$")
+    index=tonumber(index)
+    local activation=unitGUID~=nil and gStates.unitResourceActivations
+        and gStates.unitResourceActivations[unitGUID] or nil
+    local abilities=unitGUID~=nil and unitResourceDefinitions[unitGUID] or nil
+    local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    if activation==nil or abilities==nil or current==nil or index==nil
+        or abilities[index]==nil or activation.seatPos~=current.seatPos
+        or legalPlayerCheck(player.color,current.seatPos)~=true then return end
+    local unit=getObjectFromGUID(unitGUID)
+    if unit==nil then return end
+    local state=unitLayoutResourceState(current.seatPos)
+    for _,entry in ipairs(state.units) do
+        if entry.guid==unitGUID and not entry.unwounded then return end
+    end
+    activation.choice=index
+    showUnitAbilityButtons(unit,abilities,activation,true)
+    queueSeat(current.seatPos,nil)
+end
+
+-- Cleared at turn end, not when the Command token leaves a card.
+-- The token itself stays put until normal round reset or a gameplay ability.
+function resourceUnitsResetTurn()
+    if gStates~=nil then
+        for unitGUID in pairs(gStates.unitResourceActivations or {}) do
+            removeChoiceButtons(getObjectFromGUID(unitGUID))
+        end
+        gStates.unitResourceActivations={}
+    end
+    commandPickupForUnits={}
 end
 
 function resourceCardsPanelChanged(open)
