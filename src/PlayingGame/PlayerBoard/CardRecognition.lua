@@ -32,18 +32,22 @@ local totalsKeys={move=true,ranged=true,siege=true,attack=true,block=true,influe
     attackFire=true,attackIce=true,attackColdFire=true,
     blockFire=true,blockIce=true,blockColdFire=true}
 
--- Pilot for printed Unit abilities. Keep GUID-based identities rather than
--- reading the card's translated nickname. Row positions are in card UI space,
--- top to bottom, and are intentionally NOT Resource Tracker family order.
+-- Pilot for Unit abilities, identified by stable GUID, not translated text.
+-- Printed rows remain in card order. Abilities that belong to one printed
+-- effect can share a row; the extra alternatives expand to the right.
 local unitResourceDefinitions={
     ["c1f77c"]={ -- Utem Guardsmen
-        {key="attack",icon="attack",attack=2,y=-69},
-        {key="block",icon="block",block=4,y=-132}},
+        {key="attack",icon="attack",attack=2,row=1},
+        {key="block",icon="block",block=4,row=2}},
     ["00ebf3"]={
-        {key="attack",icon="attack",attack=2,y=-69},
-        {key="block",icon="block",block=4,y=-132}}
+        {key="attack",icon="attack",attack=2,row=1},
+        {key="block",icon="block",block=4,row=2}}
 }
 local commandPickupForUnits={}
+-- Rebuilt with the live Unit layout for each Resource Tracker scan.
+-- Existing Command tokens and Wounds suppress Unit highlights regardless of
+-- whether an activated ability contributes resources this turn.
+local unitHighlightBlocked={}
 
 function resourceCardsPanelOpen()
     return gStates~=nil and gStates.firstStarted==true
@@ -151,6 +155,10 @@ local function clearHighlight(guid)
 end
 
 local function setHighlight(obj,kind,powered)
+    if unitHighlightBlocked[obj.guid]==true then
+        clearHighlight(obj.guid)
+        return
+    end
     -- Crystal figurines represent mana but are visually distinctive already.
     -- Keep their power detection/contribution records, without outlining the
     -- figurine. Remove any highlight left from the previous tracker version.
@@ -637,52 +645,94 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
 end
 
 
--- Unlike normal cards, Unit choices stay visible next to their printed lines
--- while the Unit has been activated this turn. One click selects an ability;
--- there is no central collapsed icon for a Command token to cover.
+-- One selected icon at the Unit's centre, like the existing card/skill
+-- choices. Expand vertically from that centre in printed ability order.
+-- Alternatives sharing a printed row occupy adjacent columns to the right.
+-- This is intentionally independent of translated text position.
 local function showUnitAbilityButtons(unit,abilities,activation,unwounded)
     if unit==nil then return end
-    if not unwounded or activation==nil or abilities==nil then
+    if not unwounded or activation==nil or abilities==nil or #abilities==0 then
         removeChoiceButtons(unit)
+        choiceExpandedByGUID[unit.guid]=nil
         return
     end
-    local selected=activation.choice or 1
-    local signature="Unit:"..selected..":"..tostring(#abilities)
+    local selected=math.max(1,math.min(#abilities,activation.choice or 1))
+    local expanded=choiceExpandedByGUID[unit.guid]==true and #abilities>1
+    local signature="Unit:"..selected..":"..tostring(expanded)..":"..tostring(#abilities)
     if choiceButtonShown[unit.guid]==signature then return end
+
     local xml=unit.UI.getXmlTable() or {}
     for i=#xml,1,-1 do
         local attr=xml[i].attributes
         if attr~=nil and type(attr.id)=="string"
             and attr.id:sub(1,19)=="ResourceCardChoice_" then table.remove(xml,i) end
     end
-    local names={}
-    for _,ability in ipairs(abilities) do names[#names+1]=ability.icon or ability.key end
-    local assets,blocked=resourceCardsChoiceAssetsFor(unit.UI,names)
-    for i,ability in ipairs(abilities) do
-        local active=i==selected
-        local icon=resourceCardsChoiceIcon(ability.icon or ability.key)
-        if icon~=nil and blocked[icon.name] then icon=nil end
-        local button={tag="Button",attributes={
-            id="ResourceCardChoice_"..unit.guid.."_unit"..i,
-            onClick="global/resourceUnitsChoiceClicked",
-            position="-121 "..tostring(ability.y).." -35",
-            rotation="0 0 180",width=90,height=90,scale="0.25 0.25",
-            colors=active and "#387D30|#4CA940|#387D30|#387D30"
-                or "#454D5D|#69798E|#444C63|#454D5D",
-            fontSize=77,textColor="#FFFFFF",textAlignment="MiddleCenter",
-            tooltip=(ability.key=="attack" and "Attack 2" or "Block 4")
-        },value=icon==nil and (choiceLetters[ability.key] or "?") or ""}
-        if icon~=nil then
-            button.children={{tag="Image",attributes={
-                image=icon.name,width=82,height=82,preserveAspect="true",
-                raycastTarget="false",color="#FFFFFF"}}}
+    local visibleAssets,seen={},{}
+    local displayed=expanded and abilities or {abilities[selected]}
+    for _,ability in ipairs(displayed) do
+        local name=ability.icon or ability.key
+        if not seen[name] then visibleAssets[#visibleAssets+1]=name seen[name]=true end
+    end
+    local assets,blocked=resourceCardsChoiceAssetsFor(unit.UI,visibleAssets)
+
+    -- Shared printed rows keep a stable vertical slot; all sub-options start
+    -- at the centre column and grow only to the right.
+    local rows,rowByKey={},{}
+    if expanded then
+        for i,ability in ipairs(abilities) do
+            local key=ability.row or i
+            if rowByKey[key]==nil then
+                rowByKey[key]={}
+                rows[#rows+1]=rowByKey[key]
+            end
+            rowByKey[key][#rowByKey[key]+1]=i
         end
-        xml[#xml+1]=button
+    else
+        rows={{selected}}
+    end
+
+    -- Unit cards are smaller once compressed in the Unit area. Keep a tighter
+    -- grid than Action/Spell choices, centred on the Unit rather than its text.
+    local rowSpacing=34
+    local columnSpacing=35
+    for rowIndex,indices in ipairs(rows) do
+        local y=((#rows+1)/2-rowIndex)*rowSpacing
+        for columnIndex,index in ipairs(indices) do
+            local ability=abilities[index]
+            local active=index==selected
+            local icon=resourceCardsChoiceIcon(ability.icon or ability.key)
+            if icon~=nil and blocked[icon.name] then icon=nil end
+            local button={tag="Button",attributes={
+                id="ResourceCardChoice_"..unit.guid.."_unit"..index,
+                onClick="global/resourceUnitsChoiceClicked",
+                position=tostring((columnIndex-1)*columnSpacing).." "..tostring(y).." -35",
+                rotation="0 0 180",width=90,height=90,scale="0.22 0.22",
+                colors=active and "#387D30|#4CA940|#387D30|#387D30"
+                    or "#454D5D|#69798E|#444C63|#454D5D",
+                fontSize=77,textColor="#FFFFFF",textAlignment="MiddleCenter",
+                tooltip=ability.tooltip or ((ability.key or "Unit ability").." "..tostring(ability[ability.key] or ""))
+            },value=icon==nil and (choiceLetters[ability.key] or "?") or ""}
+            if icon~=nil then
+                button.children={{tag="Image",attributes={
+                    image=icon.name,width=82,height=82,preserveAspect="true",
+                    raycastTarget="false",color="#FFFFFF"}}}
+                if ability.iconOverlay~=nil then
+                    button.children[#button.children+1]={tag="Text",attributes={
+                        text=ability.iconOverlay,width=82,height=82,
+                        alignment="MiddleCenter",fontSize=62,fontStyle="Bold",
+                        color=ability.iconOverlayColor or "#FF564A",
+                        outline="#1C1514",outlineSize="2 -2",
+                        raycastTarget="false"}}
+                end
+            end
+            xml[#xml+1]=button
+        end
     end
     if assets~=nil then unit.UI.setXmlTable(xml,assets)
     else unit.UI.setXmlTable(xml) end
     choiceButtonShown[unit.guid]=signature
 end
+
 
 local function clearChoiceButtons()
     for guid,signature in pairs(choiceButtonShown) do
@@ -1582,6 +1632,7 @@ local function renderSeat(seatPos)
     end
 
     local cards,wounds,skills,manaObjects,footprints={}, {}, {}, {}, {}
+    local hasUnits=false
     for guid,obj in pairs(objects) do
         local kind=resourceObjectKind(obj)
         if kind=="card" and placements[guid]=="play" then
@@ -1595,12 +1646,24 @@ local function renderSeat(seatPos)
             footprints[guid]=footprint(obj)
         elseif kind=="mana" then
             manaObjects[#manaObjects+1]=obj
+        elseif kind=="unit" and placements[guid]=="unit" then
+            hasUnits=true
         end
     end
 
-    -- Read the physical Unit state once per scan, only for played Skills
+    -- Read the physical Unit state once per scan, for spent/wounded highlights
+    -- and for played Skills
     -- declaring that dependency. This also supplies which Unit cards to link.
-    local unitState=nil
+    local unitState=hasUnits and unitLayoutResourceState(seatPos) or nil
+    unitHighlightBlocked={}
+    if unitState~=nil then
+        for _,entry in ipairs(unitState.units) do
+            if not entry.ready or not entry.unwounded then
+                unitHighlightBlocked[entry.guid]=true
+                clearHighlight(entry.guid)
+            end
+        end
+    end
     local countWounds=false
     for _,card in ipairs(cards) do
         local data=gameCards[card.guid]
@@ -2103,7 +2166,7 @@ local function renderSeat(seatPos)
                     addResourceAmounts(result,totals)
                     records[unitGUID]=result
                     current[unitGUID]=true
-                    setHighlight(unit,"green",false)
+                    setHighlight(unit,"green",false) -- suppressed while its Command token remains on the Unit
                 end
             end
         end
@@ -2401,6 +2464,7 @@ function resourceUnitsCommandDropped(playerColor,obj)
         gStates.unitResourceActivations=gStates.unitResourceActivations or {}
         gStates.unitResourceActivations[unit.guid]={
             seatPos=pickup.seatPos,tokenGUID=guid,choice=choice}
+        choiceExpandedByGUID[unit.guid]=nil
         showUnitAbilityButtons(unit,abilities,gStates.unitResourceActivations[unit.guid],true)
         queueSeat(pickup.seatPos,nil)
     end,function()
@@ -2427,7 +2491,15 @@ function resourceUnitsChoiceClicked(player,value,id)
     for _,entry in ipairs(state.units) do
         if entry.guid==unitGUID and not entry.unwounded then return end
     end
+    if choiceExpandedByGUID[unitGUID]~=true and #abilities>1 then
+        -- First click reveals the compact vertical grid; no resource change.
+        choiceExpandedByGUID[unitGUID]=true
+        showUnitAbilityButtons(unit,abilities,activation,true)
+        return
+    end
+    -- Selecting an option closes the grid to the chosen centred icon.
     activation.choice=index
+    choiceExpandedByGUID[unitGUID]=nil
     showUnitAbilityButtons(unit,abilities,activation,true)
     queueSeat(current.seatPos,nil)
 end
@@ -2438,6 +2510,7 @@ function resourceUnitsResetTurn()
     if gStates~=nil then
         for unitGUID in pairs(gStates.unitResourceActivations or {}) do
             removeChoiceButtons(getObjectFromGUID(unitGUID))
+            choiceExpandedByGUID[unitGUID]=nil
         end
         gStates.unitResourceActivations={}
     end
