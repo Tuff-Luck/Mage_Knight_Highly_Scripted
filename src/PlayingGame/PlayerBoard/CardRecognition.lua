@@ -2444,10 +2444,33 @@ function resourceUnitsResetTurn()
     commandPickupForUnits={}
 end
 
+-- Unit buttons depend on this turn's activation record, not on whether
+-- the Resource Tracker details panel is currently expanded.
+function resourceUnitsRefreshButtons()
+    if gStates==nil or next(gStates.unitResourceActivations or {})==nil then return end
+    local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    if current==nil then return end
+    local state=unitLayoutResourceState(current.seatPos)
+    local conditionByGUID={}
+    for _,entry in ipairs(state.units) do
+        conditionByGUID[entry.guid]=entry.unwounded
+    end
+    for unitGUID,activation in pairs(gStates.unitResourceActivations) do
+        if activation.seatPos==current.seatPos then
+            local unit=getObjectFromGUID(unitGUID)
+            if unit~=nil then
+                showUnitAbilityButtons(unit,unitResourceDefinitions[unitGUID],
+                    activation,conditionByGUID[unitGUID]==true)
+            end
+        end
+    end
+end
+
 function resourceCardsPanelChanged(open)
     -- The tracker shows the current turn's Mage Knight; stale outlines on other
     -- players' boards would falsely imply those pieces contribute to these totals.
     clearAll()
+    resourceUnitsRefreshButtons()
     if open~=true then return end
     local player=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if player==nil then return end
@@ -2489,11 +2512,17 @@ local function resourceCardsRelevantZone(ctx)
 end
 
 function resourceCardsZoneEntered(ctx)
+    if ctx~=nil and ctx.obj~=nil and unitLayoutIsWound(ctx.obj) then
+        resourceUnitsRefreshButtons()
+    end
     local seat=resourceCardsRelevantZone(ctx)
     if seat~=nil then queueSeat(seat,ctx.objGUID) end
 end
 
 function resourceCardsZoneLeft(ctx)
+    if ctx~=nil and ctx.obj~=nil and unitLayoutIsWound(ctx.obj) then
+        resourceUnitsRefreshButtons()
+    end
     local seat=resourceCardsRelevantZone(ctx)
     if ctx~=nil and ctx.zoneInfo~=nil and ctx.zoneInfo.kind=="play" then
         scheduleChoiceResetAfterPlay(ctx.objGUID,ctx.zoneInfo.seatPos)
@@ -2502,6 +2531,17 @@ function resourceCardsZoneLeft(ctx)
 end
 
 function resourceCardsObjectMoved(obj)
+    if obj~=nil and unitLayoutIsWound(obj)
+        and gStates~=nil and next(gStates.unitResourceActivations or {})~=nil then
+        local woundGUID=obj.guid
+        safeWaitCondition("PlayerBoard.CardRecognition",function()
+            resourceUnitsRefreshButtons()
+        end,function()
+            local wound=getObjectFromGUID(woundGUID)
+            return wound==nil or (wound.held_by_color==nil and wound.resting==true
+                and wound.isSmoothMoving()==false)
+        end,8)
+    end
     if not resourceCardsPanelOpen() or obj==nil then return end
     local player=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if player==nil then return end
