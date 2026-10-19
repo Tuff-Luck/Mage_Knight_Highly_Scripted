@@ -2877,8 +2877,11 @@ local function renderSeat(seatPos)
 
     for guid,obj in pairs(objects) do
         -- No contribution or outline for a Wound without a matching Skill.
-        if records[guid]==nil and resourceObjectKind(obj)~="wound" then
-            local kind=resourceObjectKind(obj)
+        -- Previously linked Skills need their button/highlight finalization
+        -- even though their resource record was created before target bonuses.
+        local kind=resourceObjectKind(obj)
+        if (records[guid]==nil or (kind=="skill" and placements[guid]=="play"))
+            and kind~="wound" then
             local poweredTarget=usedMana[guid]
             local contributing=poweredTarget~=nil and records[poweredTarget]~=nil
                 and records[poweredTarget].contributes==true
