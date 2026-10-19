@@ -156,6 +156,13 @@ local byType={
         special(3,"Pay green mana: target enemy Armor -5 (minimum 1)",{manaCost="Green",buttonLabel="G"}),
         special(4,"Pay white mana: target enemy loses all fortifications and resistances",{manaCost="White",buttonLabel="W"})}
 }
+-- These paid abilities still require a player choice when matching mana
+-- activates more than one printed option. Keep their buttons collapsible
+-- instead of permanently showing every mana-powered alternative.
+for _,unitType in ipairs({"GuardianGolems","RedCapeMonks","NorthernMonks",
+    "Catapults","Sorcerers","AltemMages"}) do
+    byType[unitType].paidChoiceExpandable=true
+end
 byType.DelphanaMasters.multi=true
 
 local guidGroups={

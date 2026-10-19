@@ -727,7 +727,10 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decisi
         return
     end
     local selected=decision.index
-    local expanded=decision.ambiguous or (choiceExpandedByGUID[unit.guid]==true and #available>1)
+    -- Paid choices explicitly marked expandable start as a single button.
+    -- Opening that button must not activate an undecided mana-powered effect.
+    local expanded=(decision.ambiguous and not abilities.paidChoiceExpandable)
+        or (choiceExpandedByGUID[unit.guid]==true and #available>1)
     local selectedKeys={}
     for i in pairs(decision.selected or {}) do selectedKeys[#selectedKeys+1]=tostring(i) end
     table.sort(selectedKeys)
@@ -3438,8 +3441,8 @@ function resourceUnitsChoiceClicked(player,value,id)
         if candidate==index then available=true break end
     end
     if not available then return end
-    if not decision.ambiguous and choiceExpandedByGUID[unitGUID]~=true
-        and #decision.display>1 then
+    if (not decision.ambiguous or abilities.paidChoiceExpandable)
+        and choiceExpandedByGUID[unitGUID]~=true and #decision.display>1 then
         -- Expanding ordinary choices does not change what was played.
         choiceExpandedByGUID[unitGUID]=true
         showUnitAbilityButtons(unit,abilities,activation,true,decision)
@@ -3472,6 +3475,7 @@ function resourceUnitsChoiceClicked(player,value,id)
     elseif decision.ambiguous then
         activation.manaChoice=index
         activation.manaSignature=decision.signature
+        if abilities.paidChoiceExpandable then choiceExpandedByGUID[unitGUID]=nil end
     else
         activation.choice=index
         activation.manaChoice=nil
