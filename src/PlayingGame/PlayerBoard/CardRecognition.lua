@@ -46,8 +46,14 @@ local unitHighlightBlocked={}
 local forestersTerrainModifier={mode="reduce",
     terrains={forest=true,hills=true,swamp=true},amount=1,minimum=0}
 
+-- Game effects must continue working while the Resource Tracker is collapsed
+-- or hidden. Detail visibility controls only the over-card choice buttons.
 function resourceCardsPanelOpen()
     return gStates~=nil and gStates.firstStarted==true
+end
+
+local function resourceCardsDetailsOpen()
+    return resourceCardsPanelOpen()
         and UI.getAttribute("ResourceTracker","active")~="false"
         and UI.getAttribute("ResourceTrackerDetail","active")=="true"
 end
@@ -161,11 +167,15 @@ function resourceCardsEffectiveTerrainCost(terrain)
     if effects==nil then return base end
     -- Explicit traversal permissions (e.g. Song of Wind + extra Blue mana)
     -- may open a lake; ordinary discounts cannot open impassable terrain.
+    -- Several simultaneous "set" effects use the lowest applicable cost,
+    -- independently of the order in which card/Skill effects were discovered.
+    local setCost=nil
     for _,effect in ipairs(effects) do
         if effect.mode=="set" and terrainEffectApplies(effect,terrain) then
-            return effect.cost
+            setCost=setCost==nil and effect.cost or math.min(setCost,effect.cost)
         end
     end
+    if setCost~=nil then return setCost end
     if base>=900 then return base end
     local cost=base
     -- Cap effects are evaluated before reductions so Song of Wind and
@@ -508,6 +518,14 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     if card==nil then return end
     local posture=cardPosture(card)
     local isSkill=skillTokens[card.guid]~=nil or card.getGMNotes()=="Puppet Master"
+    if not resourceCardsDetailsOpen() then
+        if choiceButtonShown[card.guid]~="hidden" then
+            removeChoiceButtons(card)
+            choiceButtonShown[card.guid]="hidden"
+        end
+        choiceExpandedByGUID[card.guid]=nil
+        return
+    end
     -- Skill tokens are physically smaller than Action cards, so their choice
     -- buttons (collapsed and expanded) need a larger dedicated scale.
     local buttonScale=isSkill and "0.58 0.58" or "0.25 0.25"
@@ -1366,7 +1384,7 @@ end
 
 -- Physical mana is authoritative for a paid Unit ability. It is read from
 -- either overlapping board zone, even with the Resource Tracker collapsed.
-local function unitManaCounts(unit,seatPos,source)
+local function unitManaCounts(unit,seatPos,source,crystalsOnly)
     local tokens=source
     if tokens==nil then
         tokens={}
@@ -1386,7 +1404,8 @@ local function unitManaCounts(unit,seatPos,source)
     local counts,area={},footprint(unit)
     for _,mana in ipairs(tokens) do
         local color=manaColor(mana)
-        if color~=nil and manaInsideFootprint(mana,area) then
+        if color~=nil and (not crystalsOnly or isManaTokenFigurine(mana))
+            and manaInsideFootprint(mana,area) then
             counts[color]=(counts[color] or 0)+1
         end
     end
@@ -2288,6 +2307,7 @@ local function renderSeat(seatPos)
             result.links[#result.links+1]=manaLink.skillGUID
             result.convertedMana=manaLink.converted
         end
+        result.choices=choices -- Also authoritative for payment-restricted click validation.
         showChoiceButtons(card,choices,result.powered,inventorySpec,inventorySets)
         result.kind=resourceObjectKind(card)
         -- Ordinary Move cards and played Artifacts can both change terrain
@@ -2432,14 +2452,14 @@ local function renderSeat(seatPos)
     -- during THIS turn creates an entry, never a static token found on load.
     -- Read only mana physically resting over each Unit; inventory mana does
     -- not pay costs. Familiar crystals are a persistent modifier, not a cost.
-    local function unitAbilityResources(ability,counts)
+    local function unitAbilityResources(ability,counts,crystalCounts)
         if ability==nil or (not unitAbilityPaid(ability,counts)
             and not ability.baseWithoutPayment) then return nil end
         local resources={}
         for category,value in pairs(ability) do
             if totalsKeys[category] and type(value)=="number" then
                 local bonus=0
-                if ability.bonusColor~=nil and (counts[ability.bonusColor] or 0)>0 then
+                if ability.bonusColor~=nil and (crystalCounts[ability.bonusColor] or 0)>0 then
                     bonus=ability.bonus or 0
                 end
                 if ability.manaScale then
@@ -2470,7 +2490,10 @@ local function renderSeat(seatPos)
                 showUnitAbilityButtons(unit,abilities,activation,unwounded,decision)
                 local selected=decision.index~=nil and abilities[decision.index] or nil
                 if unwounded then
-                    local resources=selected~=nil and unitAbilityResources(selected,counts) or nil
+                    local crystalCounts=selected~=nil and selected.bonusColor~=nil
+                        and unitManaCounts(unit,seatPos,manaObjects,true) or nil
+                    local resources=selected~=nil
+                        and unitAbilityResources(selected,counts,crystalCounts) or nil
                     local result={guid=unitGUID,kind="unit",known=true,
                         complete=selected~=nil and unitAbilityPaid(selected,counts)
                             or abilities.multi==true and next(decision.selected or {})~=nil,
@@ -2520,6 +2543,20 @@ local function renderSeat(seatPos)
     end
     -- Physical Skill bonuses use the SAME record/totals as the target. Never
     -- add a Skill's printed bonus independently of its activated Unit or card.
+    -- Links must create their Skill record before modifying the target; the
+    -- final object pass reuses it instead of overwriting or double-counting it.
+    local function ensureSkillRecord(skill)
+        local record=records[skill.guid]
+        if record~=nil then return record end
+        local conversion=manaBySkill[skill.guid]
+        record=calculateSkill(skill,skillLinksBySkill[skill.guid]
+            or (conversion~=nil and conversion.targetGUID or nil),
+            unitState,inventoryCrystalCounts)
+        addResourceAmounts(record,totals)
+        records[skill.guid]=record
+        current[skill.guid]=true
+        return record
+    end
     local function resourceFieldForFamily(resources,family)
         if resources==nil then return nil end
         local found=nil
@@ -2535,7 +2572,7 @@ local function renderSeat(seatPos)
         return found
     end
     local function skillTargetLinked(skill,target,field,amount,replaceField)
-        local skillRecord,targetRecord=records[skill.guid],records[target.guid]
+        local skillRecord,targetRecord=ensureSkillRecord(skill),records[target.guid]
         if skillRecord==nil or targetRecord==nil or targetRecord.resources==nil then return end
         -- Cards often return the catalog's immutable basic-effect table.
         -- Never mutate a rule entry by adjusting the live played result.
@@ -2856,9 +2893,11 @@ local function renderSeat(seatPos)
                 addResourceAmounts(result,totals)
             elseif kind=="skill" and placements[guid]=="play" then
                 local conversion=manaBySkill[guid]
-                result=calculateSkill(obj,skillLinksBySkill[guid]
-                    or (conversion~=nil and conversion.targetGUID or nil),
-                    unitState,inventoryCrystalCounts)
+                local alreadyRecorded=records[guid]~=nil
+                result=alreadyRecorded and records[guid]
+                    or calculateSkill(obj,skillLinksBySkill[guid]
+                        or (conversion~=nil and conversion.targetGUID or nil),
+                        unitState,inventoryCrystalCounts)
                 local skillRule=skillResourceDefinitions[guid]
                 if skillRule~=nil then
                     if skillRule.locationInfluence~=nil
@@ -2876,7 +2915,7 @@ local function renderSeat(seatPos)
                     end
                 end
                 showChoiceButtons(obj,result.choices,result.powered)
-                addResourceAmounts(result,totals)
+                if not alreadyRecorded then addResourceAmounts(result,totals) end
                 if skillLinksBySkill[guid]~=nil then
                     result.contributes=true
                     local link=skillLinksByTarget[skillLinksBySkill[guid]]
@@ -3070,7 +3109,7 @@ function resourceCardsChoiceClicked(player,value,id)
     end
     if guid==nil then return end
     setIndex=setIndex~=nil and tonumber(setIndex) or nil
-    if not resourceCardsPanelOpen() then return end
+    if not resourceCardsDetailsOpen() then return end
     local card=getObjectFromGUID(guid)
     local data=card~=nil and gameCards[guid] or nil
     local isSkill=skillTokens[guid]~=nil
@@ -3102,7 +3141,9 @@ function resourceCardsChoiceClicked(player,value,id)
     elseif sideways and (cardCanPlaySideways(card) or linkedWound) then
         mainChoices=sidewaysChoices
     elseif not sideways then
-        mainChoices=sideChoices(rule,powered)
+        -- Paid mana choices were filtered during the most recent physical scan.
+        -- Do not rediscover the full printed menu and offer unpaid alternatives.
+        mainChoices=record~=nil and record.choices or nil
     end
     local choices=mainChoices
     local inventorySpec=not sideways and powered and rule~=nil
@@ -3324,11 +3365,20 @@ function resourceUnitsRefreshButtons()
 end
 
 function resourceCardsPanelChanged(open)
-    -- The tracker shows the current turn's Mage Knight; stale outlines on other
-    -- players' boards would falsely imply those pieces contribute to these totals.
+    if open~=true then
+        -- Collapsing hides choice controls, not live resources or movement
+        -- effects. Unit activation controls remain independently available.
+        clearChoiceButtons()
+        choiceExpandedByGUID={}
+        resourceUnitsRefreshButtons()
+        local active=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+        if active~=nil then queueSeat(active.seatPos,nil) end
+        return
+    end
+    -- A newly opened detail panel (also invoked on turn change) drops the
+    -- previous player's outlines before scanning the current Mage Knight.
     clearAll()
     resourceUnitsRefreshButtons()
-    if open~=true then return end
     local player=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if player==nil then return end
     local seat=player.seatPos
@@ -3349,7 +3399,7 @@ end
 
 function resourceCardsOnLoad()
     if resourceCardsPanelOpen() then
-        resourceCardsPanelChanged(true)
+        resourceCardsPanelChanged(resourceCardsDetailsOpen())
     else
         clearAll()
         -- The Unit's activation buttons exist independently of the expanded
