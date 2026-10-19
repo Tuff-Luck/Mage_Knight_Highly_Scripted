@@ -2670,6 +2670,44 @@ skillResourceDefinitions={
 }
 
 
+-- All physical Faction Reward copies from the pushed TTS JSON.
+-- Six GUIDs are reused between the Elementalist/Apocalypse Cult bags;
+-- the distinct image hashes disambiguate tokens after they are taken out.
+factionRewardResourceDefinitions={
+    ["AmuletofReawakening"]={name="Amulet of Reawakening",notes="Dark Crusader Reward",imageHash="9AAFAF70427D1F6664C21E4C97248ADF22A65F2D",guids={"1432aa","24980d"}},
+    ["AuraGauntlet"]={name="Aura Gauntlet",notes="Council of the Void Reward",imageHash="52285695A4A0AF44BDEC296C2D948F294EF1030B",guids={"6f1f8d","512b2e"},choices={{key="blue",icon="block",iconOverlay="B",block=2},{key="green",icon="healing",iconOverlay="G",healing=1},{key="red",icon="attack",iconOverlay="R",attack=2},{key="white",icon="influence",iconOverlay="W",influence=2}},partial=true},
+    ["BindingContract"]={name="Binding Contract",notes="Council of the Void Reward",imageHash="896BF6AF73E16C73C3C09FC38B45EB8F196EDC5F",guids={"e13be2","bedce3"}},
+    ["BladeofDominance"]={name="Blade of Dominance",notes="Apocalypse Cult Reward",imageHash="5312F4FEA02019FB21911122C8CCA40F1CEADDA6",guids={"20ec1f","ff7836"}},
+    ["BloodFuryDagger"]={name="Blood Fury Dagger",notes="Apocalypse Cult Reward",imageHash="A3E337C9387FD4A67F25FDF789BFA544195465B0",guids={"90b0b3","dddcdd"},choices={{key="zero",icon="attack",iconOverlay="0"},{key="one",icon="attack",iconOverlay="2",attack=2},{key="two",icon="attack",iconOverlay="4",attack=4},{key="three",icon="attack",iconOverlay="6",attack=6}}},
+    ["BootofCharging"]={name="Boot of Charging",notes="Apocalypse Cult Reward",imageHash="F24661198BE97BC5A687D41FCCE400C08A0D9656",guids={"2722b3","72e29e"},resources={move=2,attack=2},partial=true},
+    ["CloakofShielding"]={name="Cloak of Shielding",notes="Elementalist Reward",imageHash="B03F5A28795462A6B66B95B5D100BA194D619326",guids={"41decd","504178"}},
+    ["CloakoftheMartyr"]={name="Cloak of the Martyr",notes="Apocalypse Cult Reward",imageHash="0B4ABC0D5840AF6FAD68E398F66AA0729F04710D",guids={"cc1f9f","592fd8"}},
+    ["FireGem"]={name="Fire Gem",notes="Elementalist Reward",imageHash="3BA57B65C60A918FCAB2D8832FFB909336AA1D8B",guids={"4433df","90b0b3"},modifier="addFire"},
+    ["GhostlyElixir"]={name="Ghostly Elixir",notes="Dark Crusader Reward",imageHash="7ADC741EDDB8B27915DB5BB14C88DBEE0CFF911E",guids={"2411db","cc1f91"},modifier="makeRanged"},
+    ["HealingHerbs"]={name="Healing Herbs",notes="Elementalist Reward",imageHash="9052FB0DB4018C8349D61790A6827BFCAE52165A",guids={"daeaea","f26d0b"},choices={{healing=1},{key="wound",icon="healing",iconOverlay="W"}}},
+    ["HelmofMindShielding"]={name="Helm of Mind Shielding",notes="Council of the Void Reward",imageHash="78C53A8FE2DD172E286F8483D1FCE900CCA8B42F",guids={"48c4cd","75399a"},resources={block=2},partial=true},
+    ["IceShard"]={name="Ice Shard",notes="Elementalist Reward",imageHash="9C13774698F48F1C38D29283CCF9BE559FF4030D",guids={"8c8d3b","72e29e"},modifier="addIce"},
+    ["MaskofFear"]={name="Mask of Fear",notes="Apocalypse Cult Reward",imageHash="E57F577671D51002FB6B0EBFFAFEDFA958A4B980",guids={"f7bbaa","504178"}},
+    ["MaskofImpersonation"]={name="Mask of Impersonation",notes="Council of the Void Reward",imageHash="2C62D7E68A4CEF90E287823D42F829A54B21C9E1",guids={"a85444","00bcec"}},
+    ["MysticalMap"]={name="Mystical Map",notes="Elementalist Reward",imageHash="D2602B7028FEA1A4CC4B6A6837571A0D872C6D8F",guids={"d0f7d2","cc1f9f"}},
+    ["OrbofTwilight"]={name="Orb of Twilight",notes="Dark Crusader Reward",imageHash="01DA59604306918F9B7878C5042044F294A604B5",guids={"6a4733","2df3e8"}},
+    ["RingofShadows"]={name="Ring of Shadows",notes="Apocalypse Cult Reward",imageHash="365D15DBE60E571AF3C05FB727B6CCD93584C1DD",guids={"e25781","f26d0b"}},
+    ["ScrollofSeeking"]={name="Scroll of Seeking",notes="Council of the Void Reward",imageHash="34896BA83A8456CDF9497486BB9DEC5421DF7436",guids={"98cefc","23fc82"}},
+    ["StaffofConcealment"]={name="Staff of Concealment",notes="Dark Crusader Reward",imageHash="CF818B9633D93D827B251E674ED508612C081B49",guids={"bc134b","765bfd"},resources={move=2},movement={ignoreRampagers=true}},
+    ["TomeofRelearning"]={name="Tome of Relearning",notes="Elementalist Reward",imageHash="8CAAF6BC06095F2B880EC71708DC45965BCC91AC",guids={"277533","ff7836"}},
+    ["TomeofTrading"]={name="Tome of Trading",notes="Council of the Void Reward",imageHash="5BAABC844FEDA94871EB51112497CBDC74B48CBC",guids={"77b06c","fd1fd8"}},
+    ["VampiricChalice"]={name="Vampiric Chalice",notes="Dark Crusader Reward",imageHash="832AE78694CCC56F0E898649157D3AC281E176F8",guids={"5313bc","782c98"}},
+    ["VialofToxin"]={name="Vial of Toxin",notes="Dark Crusader Reward",imageHash="8881A5C82A462DDC2E1BB53CE277F1348916AE65",guids={"2b4d21","9bbd00"},modifier="physicalBoost"},
+}
+factionRewardResourceByImage={}
+factionRewardResourceByGUID={}
+for _,definition in pairs(factionRewardResourceDefinitions) do
+    factionRewardResourceByImage[definition.imageHash]=definition
+    for _,guid in ipairs(definition.guids) do
+        factionRewardResourceByGUID[definition.notes..":"..guid]=definition
+    end
+end
+
 tacticClaimingZones={["9e319e"]="tactic1", ["32172f"]="tactic2", ["bc2046"]="tactic3", ["8363fc"]="tactic4", ["01ac7e"]="tactic5", ["582d2b"]="tactic6"}--Tactic Zones
 
 cardClaimingZones={	[GUID.zone.offer]="offer", --Broad Advanced Action + Spell offer zone
