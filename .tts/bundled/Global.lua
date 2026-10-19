@@ -4984,10 +4984,10 @@ function cameraControlTopDown(player, value, id)
 end
 
 local RESOURCE_TRACKER_EXPANDERS={	["DisplayMoveCosts"]={"MoveCosts", 240},
-					["DisplaySiegeDetails"]={"SiegeAmountDetails", 120},
-					["DisplayRangeDetails"]={"RangeAmountDetails", 120},
-					["DisplayBlockDetails"]={"BlockAmountDetails", 120},
-					["DisplayAttacDetails"]={"AttacAmountDetails", 120},
+					["DisplaySiegeDetails"]={"SiegeAmountDetails", 150},
+					["DisplayRangeDetails"]={"RangeAmountDetails", 150},
+					["DisplayBlockDetails"]={"BlockAmountDetails", 150},
+					["DisplayAttacDetails"]={"AttacAmountDetails", 150},
 					["DisplayInfluDetails"]={"InfluAmountDetails", 90}}
 
 local RESOURCE_TRACKER_FIELDS={	["MovemAmountPlain"]={"move", "move", "{en}Move : {it}Movimento : {ru}Движение: {zh-tw}移動：{zh-cn}移动：{ko}이동 : {es}Mover : {fr}Se déplacer : {pt-br}Mover : {de}Bewegen : "},
@@ -4996,21 +4996,25 @@ local RESOURCE_TRACKER_FIELDS={	["MovemAmountPlain"]={"move", "move", "{en}Move 
 					["SiegeAmountFirex"]={"siege", "fire", "{en}Fire : {it}Fuoco : {ru}Огненная(ый): {zh-tw}火焰：{zh-cn}火焰：{ko}불 : {es}Fuego : {fr}Feu : {pt-br}Fogo : {de}Feuer : "},
 					["SiegeAmountIcexx"]={"siege", "ice", "{en}Ice : {it}Ghiaccio : {ru}Ледяная(ой): {zh-tw}寒冰：{zh-cn}寒冰：{ko}얼음 : {es}Hielo : {fr}Glace : {pt-br}Gelo : {de}Eis : "},
 					["SiegeAmountColdF"]={"siege", "iceFire", "{en}Cold Fire : {it}Fuoco Freddo : {ru}Холодный огонь: {zh-tw}冰火：{zh-cn}冰火：{ko}차가운 불 : {es}Fuego Frío :{fr}Feu Froid : {pt-br}Fogo Frio : {de}Kaltes Feuer : "},
+					["SiegeAmountPsych"]={"siege", "psychic", "{en}Psychic : {it}Psichico : {ru}Психическая : {zh-tw}心靈：{zh-cn}心灵：{ko}정신 : {es}Psíquico : {fr}Psychique : {pt-br}Psíquico : {de}Psychisch : "},
 					["RangeAmountPlain"]={"ranged", "physical", "{en}Range : {it}Distanza : {ru}Дальняя: {zh-tw}遠程：{zh-cn}远程：{ko}원거리 : {es}Rango : {fr}Gamme : {pt-br}Distância : {de}Reichweite : "},
 					["RangeAmountPhysi"]={"ranged", "physical", "{en}Physical : {it}Fisico : {ru}Физическая(ий): {zh-tw}物理：{zh-cn}物理：{ko}물리 : {es}Físico : {fr}Physique : {pt-br}Físico : {de}Physikalisch : "},
 					["RangeAmountFirex"]={"ranged", "fire", "{en}Fire : {it}Fuoco : {ru}Огненная(ый): {zh-tw}火焰：{zh-cn}火焰：{ko}불 : {es}Fuego : {fr}Feu : {pt-br}Fogo : {de}Feuer : "},
 					["RangeAmountIcexx"]={"ranged", "ice", "{en}Ice : {it}Ghiaccio : {ru}Ледяная(ой): {zh-tw}寒冰：{zh-cn}寒冰：{ko}얼음 : {es}Hielo : {fr}Glace : {pt-br}Gelo : {de}Eis : "},
 					["RangeAmountColdF"]={"ranged", "iceFire", "{en}Cold Fire : {it}Fuoco Freddo : {ru}Холодный огонь: {zh-tw}冰火：{zh-cn}冰火：{ko}차가운 불 : {es}Fuego Frío :{fr}Feu Froid : {pt-br}Fogo Frio : {de}Kaltes Feuer : "},
+					["RangeAmountPsych"]={"ranged", "psychic", "{en}Psychic : {it}Psichico : {ru}Психическая : {zh-tw}心靈：{zh-cn}心灵：{ko}정신 : {es}Psíquico : {fr}Psychique : {pt-br}Psíquico : {de}Psychisch : "},
 					["BlockAmountPlain"]={"block", "physical", "{en}Block : {it}Blocco : {ru}Блок: {zh-tw}格擋：{zh-cn}格档：{ko}방어 : {es}Bloqueo : {fr}Blocage : {pt-br}Bloqueio : {de}Blockieren : "},
 					["BlockAmountPhysi"]={"block", "physical", "{en}Physical : {it}Fisico : {ru}Физическая(ий): {zh-tw}物理：{zh-cn}物理：{ko}물리 : {es}Físico : {fr}Physique : {pt-br}Físico : {de}Physikalisch : "},
 					["BlockAmountFirex"]={"block", "fire", "{en}Fire : {it}Fuoco : {ru}Огненная(ый): {zh-tw}火焰：{zh-cn}火焰：{ko}불 : {es}Fuego : {fr}Feu : {pt-br}Fogo : {de}Feuer : "},
 					["BlockAmountIcexx"]={"block", "ice", "{en}Ice : {it}Ghiaccio : {ru}Ледяная(ой): {zh-tw}寒冰：{zh-cn}寒冰：{ko}얼음 : {es}Hielo : {fr}Glace : {pt-br}Gelo : {de}Eis : "},
 					["BlockAmountColdF"]={"block", "iceFire", "{en}Cold Fire : {it}Fuoco Freddo : {ru}Холодный огонь: {zh-tw}冰火：{zh-cn}冰火：{ko}차가운 불 : {es}Fuego Frío :{fr}Feu Froid : {pt-br}Fogo Frio : {de}Kaltes Feuer : "},
+					["BlockAmountPsych"]={"block", "psychic", "{en}Psychic : {it}Psichico : {ru}Психическая : {zh-tw}心靈：{zh-cn}心灵：{ko}정신 : {es}Psíquico : {fr}Psychique : {pt-br}Psíquico : {de}Psychisch : "},
 					["AttacAmountPlain"]={"attack", "physical", "{en}Attack : {it}Attacco : {ru}Атака: {zh-tw}攻擊：{zh-cn}攻击：{ko}공격 : {es}Ataque : {fr}Attaque : {pt-br}Ataque : {de}Angriff : "},
 					["AttacAmountPhysi"]={"attack", "physical", "{en}Physical : {it}Fisico : {ru}Физическая(ий): {zh-tw}物理：{zh-cn}物理：{ko}물리 : {es}Físico : {fr}Physique : {pt-br}Físico : {de}Physikalisch : "},
 					["AttacAmountFirex"]={"attack", "fire", "{en}Fire : {it}Fuoco : {ru}Огненная(ый): {zh-tw}火焰：{zh-cn}火焰：{ko}불 : {es}Fuego : {fr}Feu : {pt-br}Fogo : {de}Feuer : "},
 					["AttacAmountIcexx"]={"attack", "ice", "{en}Ice : {it}Ghiaccio : {ru}Ледяная(ой): {zh-tw}寒冰：{zh-cn}寒冰：{ko}얼음 : {es}Hielo : {fr}Glace : {pt-br}Gelo : {de}Eis : "},
 					["AttacAmountColdF"]={"attack", "iceFire", "{en}Cold Fire : {it}Fuoco Freddo : {ru}Холодный огонь: {zh-tw}冰火：{zh-cn}冰火：{ko}차가운 불 : {es}Fuego Frío :{fr}Feu Froid : {pt-br}Fogo Frio : {de}Kaltes Feuer : "},
+					["AttacAmountPsych"]={"attack", "psychic", "{en}Psychic : {it}Psichico : {ru}Психическая : {zh-tw}心靈：{zh-cn}心灵：{ko}정신 : {es}Psíquico : {fr}Psychique : {pt-br}Psíquico : {de}Psychisch : "},
 					["InfluAmountPlain"]={"influence", "generated", "{en}Influence : {it}Influenza : {ru}Влияние: {zh-tw}影響力：{zh-cn}影响力：{ko}영향력 : {es}Influencia : {fr}Influence : {pt-br}Influência : {de}Einfluss : "},
 					["InfluAmountPhysi"]={"influence", "generated", "{en}Generated : {it}Generato : {ru}Сгенерировано: {zh-tw}產生的：{zh-cn}产生的：{ko}사용 : {es}Generación : {fr}Généré : {pt-br}Gerado : {de}Erzeugt : "},
 					["InfluAmountReput"]={"influence", "reputation", "{en}Reputation : {it}Reputazione : {ru}Репутация: {zh-tw}聲譽：{zh-cn}声誉：{ko}평판 : {es}Reputación : {fr}Réputation : {pt-br}Reputação : {de}Reputation : "},
@@ -5123,10 +5127,10 @@ end
 
 function resetResourceTrackerState()
 		gStates.resourceTracker={move=		{move=0},
-								siege=		{physical=0, fire=0, ice=0, iceFire=0},
-								ranged=		{physical=0, fire=0, ice=0, iceFire=0},
-								block=		{physical=0, fire=0, ice=0, iceFire=0},
-								attack=		{physical=0, fire=0, ice=0, iceFire=0},
+								siege=		{physical=0, fire=0, ice=0, iceFire=0, psychic=0},
+								ranged=		{physical=0, fire=0, ice=0, iceFire=0, psychic=0},
+								block=		{physical=0, fire=0, ice=0, iceFire=0, psychic=0},
+								attack=		{physical=0, fire=0, ice=0, iceFire=0, psychic=0},
 								influence=	{generated=0, reputation=0, cityShields=0},
 								healing=	{healing=0}}
 		gStates.moveCost={["plains"]=2, ["hills"]=3, ["forest"]=5, ["wasteland"]=4, ["desert"]=3, ["swamp"]=5, ["lake"]=999, ["mountain"]=999, ["city"]=2, ["explore"]=2}
@@ -21389,8 +21393,11 @@ function playerCombatObjects(seatPos)
 		local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
 		if zone==nil then return end
 		for _, obj in pairs(zone.getObjects()) do
-			if seen[obj.guid]~=true and (monstersOnly~=true or monsterPugs[obj.guid]~=nil) then
-				seen[obj.guid]=true
+			--A card/deck merging or being replaced can briefly appear without a usable GUID.
+			--Never index the de-duplication table with nil during a deferred UI refresh.
+			local guid=obj~=nil and obj.guid or nil
+			if guid~=nil and seen[guid]~=true and (monstersOnly~=true or monsterPugs[guid]~=nil) then
+				seen[guid]=true
 				objects[#objects+1]=obj
 			end
 		end
@@ -26620,7 +26627,10 @@ function mirrorSourceUpdate(from)
 		end
 	end
 	--The normal fast path: same Source GUIDs, so only update/re-sort the existing physical copies.
-	if mirrorSourceSyncExisting(sourceDice,colorRotate,separate)==true then return end
+	if mirrorSourceSyncExisting(sourceDice,colorRotate,separate)==true then
+        if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
+        return
+    end
 
 	--Structural change (die spent/returned/added, player set changed, stale save): rebuild the mirror set.
 	if gStates.manaMirror~=nil then
@@ -26657,6 +26667,7 @@ function mirrorSourceUpdate(from)
 			safeWaitFrames("ManaSource",function() mirrorSpawnEnterIgnore[mirrorGUID]=nil end, 3)
 		end
 	end
+    if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
 end
 
 mirrorSourceFaceSync=function(diceGUID, sourceGUID, from)
@@ -42729,6 +42740,7 @@ local choiceResetGenerationByGUID={}
 local choiceExpandedByGUID={}
 local choiceButtonShown={}
 local unitManaDecision
+local factionRewardForObject
 -- Highlights show how confidently the tracker understands the selected effect.
 -- Blue is a deliberate neutral/not-calculated state, not an illegal-play warning.
 -- Purple takes precedence when objects are linked; brightness indicates power.
@@ -42741,10 +42753,10 @@ local palette={
 -- Distinguish elemental and physical damage. Otherwise a Ranged Fire Attack
 -- would be incorrectly added to the Physical Ranged field.
 local totalsKeys={move=true,ranged=true,siege=true,attack=true,block=true,influence=true,healing=true,
-    rangedFire=true,rangedIce=true,rangedColdFire=true,
-    siegeFire=true,siegeIce=true,siegeColdFire=true,
-    attackFire=true,attackIce=true,attackColdFire=true,
-    blockFire=true,blockIce=true,blockColdFire=true}
+    rangedFire=true,rangedIce=true,rangedColdFire=true,rangedPsychic=true,
+    siegeFire=true,siegeIce=true,siegeColdFire=true,siegePsychic=true,
+    attackFire=true,attackIce=true,attackColdFire=true,attackPsychic=true,
+    blockFire=true,blockIce=true,blockColdFire=true,blockPsychic=true}
 
 -- Catalog is defined once in UnitResources.lua and keyed by card GUID.
 local unitResourceDefinitions=unitResourceDefinitions
@@ -42759,8 +42771,14 @@ local unitHighlightBlocked={}
 local forestersTerrainModifier={mode="reduce",
     terrains={forest=true,hills=true,swamp=true},amount=1,minimum=0}
 
+-- Game effects must continue working while the Resource Tracker is collapsed
+-- or hidden. Detail visibility controls only the over-card choice buttons.
 function resourceCardsPanelOpen()
     return gStates~=nil and gStates.firstStarted==true
+end
+
+local function resourceCardsDetailsOpen()
+    return resourceCardsPanelOpen()
         and UI.getAttribute("ResourceTracker","active")~="false"
         and UI.getAttribute("ResourceTrackerDetail","active")=="true"
 end
@@ -42775,16 +42793,16 @@ end
 
 local resourceTotalsKeyByField={
     move={move="move"},
-    ranged={physical="ranged",fire="rangedFire",ice="rangedIce",iceFire="rangedColdFire"},
-    siege={physical="siege",fire="siegeFire",ice="siegeIce",iceFire="siegeColdFire"},
-    attack={physical="attack",fire="attackFire",ice="attackIce",iceFire="attackColdFire"},
-    block={physical="block",fire="blockFire",ice="blockIce",iceFire="blockColdFire"},
+    ranged={physical="ranged",fire="rangedFire",ice="rangedIce",iceFire="rangedColdFire",psychic="rangedPsychic"},
+    siege={physical="siege",fire="siegeFire",ice="siegeIce",iceFire="siegeColdFire",psychic="siegePsychic"},
+    attack={physical="attack",fire="attackFire",ice="attackIce",iceFire="attackColdFire",psychic="attackPsychic"},
+    block={physical="block",fire="blockFire",ice="blockIce",iceFire="blockColdFire",psychic="blockPsychic"},
     influence={generated="influence"},
     healing={healing="healing"}
 }
 
 local attackTransformFamilies={"attack","ranged","siege"}
-local attackTransformFields={"physical","fire","ice","iceFire"}
+local attackTransformFields={"physical","fire","ice","iceFire","psychic"}
 
 local function resourceCardsRawValue(tracker,totals,category,field)
     local manual=tracker~=nil and tracker[category]~=nil and tracker[category][field] or 0
@@ -42874,11 +42892,15 @@ function resourceCardsEffectiveTerrainCost(terrain)
     if effects==nil then return base end
     -- Explicit traversal permissions (e.g. Song of Wind + extra Blue mana)
     -- may open a lake; ordinary discounts cannot open impassable terrain.
+    -- Several simultaneous "set" effects use the lowest applicable cost,
+    -- independently of the order in which card/Skill effects were discovered.
+    local setCost=nil
     for _,effect in ipairs(effects) do
         if effect.mode=="set" and terrainEffectApplies(effect,terrain) then
-            return effect.cost
+            setCost=setCost==nil and effect.cost or math.min(setCost,effect.cost)
         end
     end
+    if setCost~=nil then return setCost end
     if base>=900 then return base end
     local cost=base
     -- Cap effects are evaluated before reductions so Song of Wind and
@@ -42965,13 +42987,13 @@ local choiceLetters={attackP1="A",attackP2="A2",attackP3="A3",
     ranged="R",siege="S",healing="H",draw="D",other="O",
     siegeFire="SF",siegeIce="SI",rangedFire="RF",rangedIce="RI",
     fire="F",ice="I",coldFire="C",boost="H+",split="I/F",negative="N",
-    heal="H",combat="C",wound="W",reputation="R",gain="G",ready="R",
+    heal="H",combat="C",wound="W",fame="F",reputation="R",gain="G",ready="R",
     base="2",sourceUnused="3",red="R",blue="B",white="W",green="G",
     fireAttack="F",fireBlock="F",fireSiege="F",iceSiege="I",fireBlockOnly="B",fireBlockCounter="B+",
     splitBlock="B2",zero="0",one="1",two="2",three="3",four="4",five="5"}
 -- The choice UI and initial-guess tie-breaks follow the Resource Tracker order.
 local resourceChoiceOrder={
-    move=1,siege=2,ranged=3,block=4,attack=5,influence=6,healing=7,heal=7,
+    move=1,siege=2,ranged=3,block=4,attack=5,influence=6,healing=7,heal=7,fame=8,
     fireBlock=4,fireAttack=5,fireSiege=2,iceSiege=2
 }
 local resourceChoiceFamilies={"move","siege","ranged","block","attack","influence","healing"}
@@ -43220,7 +43242,17 @@ end
 local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySets)
     if card==nil then return end
     local posture=cardPosture(card)
+    local reward=factionRewardForObject~=nil and factionRewardForObject(card) or nil
     local isSkill=skillTokens[card.guid]~=nil or card.getGMNotes()=="Puppet Master"
+        or reward~=nil
+    if not resourceCardsDetailsOpen() then
+        if choiceButtonShown[card.guid]~="hidden" then
+            removeChoiceButtons(card)
+            choiceButtonShown[card.guid]="hidden"
+        end
+        choiceExpandedByGUID[card.guid]=nil
+        return
+    end
     -- Skill tokens are physically smaller than Action cards, so their choice
     -- buttons (collapsed and expanded) need a larger dedicated scale.
     local buttonScale=isSkill and "0.58 0.58" or "0.25 0.25"
@@ -43347,7 +43379,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         local displayed={}
         for _,entry in ipairs(row.visible) do displayed[entry.category]=true end
         local skillPositions=isSkill and skillChoicePositions(row.visible) or nil
-        for _,entry in ipairs(row.visible) do
+        for entryIndex,entry in ipairs(row.visible) do
             local category=entry.category
             local column=resourceChoiceColumn(category)
             local x=((#columns+1)/2-columnByCategory[column])*buttonSpacing
@@ -43356,6 +43388,11 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             if skillPositions~=nil then
                 x=skillPositions[category].x
                 buttonY=skillPositions[category].y
+            end
+            -- Blood Fury has three wound-scaled Attacks in one horizontal row.
+            if reward~=nil and reward.name=="Blood Fury Dagger" then
+                x=((#row.visible+1)/2-entryIndex)*104
+                buttonY=0
             end
             local active=category==row.selected
             local icon=resourceCardsChoiceIcon(entry.icon)
@@ -43420,7 +43457,10 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decisi
         return
     end
     local selected=decision.index
-    local expanded=decision.ambiguous or (choiceExpandedByGUID[unit.guid]==true and #available>1)
+    -- Paid choices explicitly marked expandable start as a single button.
+    -- Opening that button must not activate an undecided mana-powered effect.
+    local expanded=(decision.ambiguous and not abilities.paidChoiceExpandable)
+        or (choiceExpandedByGUID[unit.guid]==true and #available>1)
     local selectedKeys={}
     for i in pairs(decision.selected or {}) do selectedKeys[#selectedKeys+1]=tostring(i) end
     table.sort(selectedKeys)
@@ -43586,6 +43626,19 @@ local factionRewardNotes={
     ["Apocalypse Cult Reward"]="Apoc",
     ["Council of the Void Reward"]="Coun"
 }
+
+-- Original container GUIDs collide across factions in the pushed JSON.
+-- Front-art image hashes are independent of translated names and survive
+-- regenerated GUIDs when a token is extracted from a bag.
+factionRewardForObject=function(obj)
+    if obj==nil or factionRewardNotes[obj.getGMNotes()]==nil then return nil end
+    local custom=obj.getCustomObject()
+    local image=custom~=nil and custom.image or nil
+    local hash=type(image)=="string" and image:match("([0-9A-Fa-f]+)/?$") or nil
+    local definition=hash~=nil and factionRewardResourceByImage[hash:upper()] or nil
+    if definition~=nil and definition.notes==obj.getGMNotes() then return definition end
+    return factionRewardResourceByGUID[obj.getGMNotes()..":"..obj.guid]
+end
 
 local function resourceObjectKind(obj)
     if obj==nil then return nil end
@@ -44079,7 +44132,7 @@ end
 
 -- Physical mana is authoritative for a paid Unit ability. It is read from
 -- either overlapping board zone, even with the Resource Tracker collapsed.
-local function unitManaCounts(unit,seatPos,source)
+local function unitManaCounts(unit,seatPos,source,crystalsOnly)
     local tokens=source
     if tokens==nil then
         tokens={}
@@ -44099,7 +44152,8 @@ local function unitManaCounts(unit,seatPos,source)
     local counts,area={},footprint(unit)
     for _,mana in ipairs(tokens) do
         local color=manaColor(mana)
-        if color~=nil and manaInsideFootprint(mana,area) then
+        if color~=nil and (not crystalsOnly or isManaTokenFigurine(mana))
+            and manaInsideFootprint(mana,area) then
             counts[color]=(counts[color] or 0)+1
         end
     end
@@ -45001,6 +45055,7 @@ local function renderSeat(seatPos)
             result.links[#result.links+1]=manaLink.skillGUID
             result.convertedMana=manaLink.converted
         end
+        result.choices=choices -- Also authoritative for payment-restricted click validation.
         showChoiceButtons(card,choices,result.powered,inventorySpec,inventorySets)
         result.kind=resourceObjectKind(card)
         -- Ordinary Move cards and played Artifacts can both change terrain
@@ -45145,14 +45200,14 @@ local function renderSeat(seatPos)
     -- during THIS turn creates an entry, never a static token found on load.
     -- Read only mana physically resting over each Unit; inventory mana does
     -- not pay costs. Familiar crystals are a persistent modifier, not a cost.
-    local function unitAbilityResources(ability,counts)
+    local function unitAbilityResources(ability,counts,crystalCounts)
         if ability==nil or (not unitAbilityPaid(ability,counts)
             and not ability.baseWithoutPayment) then return nil end
         local resources={}
         for category,value in pairs(ability) do
             if totalsKeys[category] and type(value)=="number" then
                 local bonus=0
-                if ability.bonusColor~=nil and (counts[ability.bonusColor] or 0)>0 then
+                if ability.bonusColor~=nil and (crystalCounts[ability.bonusColor] or 0)>0 then
                     bonus=ability.bonus or 0
                 end
                 if ability.manaScale then
@@ -45183,7 +45238,10 @@ local function renderSeat(seatPos)
                 showUnitAbilityButtons(unit,abilities,activation,unwounded,decision)
                 local selected=decision.index~=nil and abilities[decision.index] or nil
                 if unwounded then
-                    local resources=selected~=nil and unitAbilityResources(selected,counts) or nil
+                    local crystalCounts=selected~=nil and selected.bonusColor~=nil
+                        and unitManaCounts(unit,seatPos,manaObjects,true) or nil
+                    local resources=selected~=nil
+                        and unitAbilityResources(selected,counts,crystalCounts) or nil
                     local result={guid=unitGUID,kind="unit",known=true,
                         complete=selected~=nil and unitAbilityPaid(selected,counts)
                             or abilities.multi==true and next(decision.selected or {})~=nil,
@@ -45233,6 +45291,20 @@ local function renderSeat(seatPos)
     end
     -- Physical Skill bonuses use the SAME record/totals as the target. Never
     -- add a Skill's printed bonus independently of its activated Unit or card.
+    -- Links must create their Skill record before modifying the target; the
+    -- final object pass reuses it instead of overwriting or double-counting it.
+    local function ensureSkillRecord(skill)
+        local record=records[skill.guid]
+        if record~=nil then return record end
+        local conversion=manaBySkill[skill.guid]
+        record=calculateSkill(skill,skillLinksBySkill[skill.guid]
+            or (conversion~=nil and conversion.targetGUID or nil),
+            unitState,inventoryCrystalCounts)
+        addResourceAmounts(record,totals)
+        records[skill.guid]=record
+        current[skill.guid]=true
+        return record
+    end
     local function resourceFieldForFamily(resources,family)
         if resources==nil then return nil end
         local found=nil
@@ -45248,7 +45320,7 @@ local function renderSeat(seatPos)
         return found
     end
     local function skillTargetLinked(skill,target,field,amount,replaceField)
-        local skillRecord,targetRecord=records[skill.guid],records[target.guid]
+        local skillRecord,targetRecord=ensureSkillRecord(skill),records[target.guid]
         if skillRecord==nil or targetRecord==nil or targetRecord.resources==nil then return end
         -- Cards often return the catalog's immutable basic-effect table.
         -- Never mutate a rule entry by adjusting the live played result.
@@ -45553,8 +45625,11 @@ local function renderSeat(seatPos)
 
     for guid,obj in pairs(objects) do
         -- No contribution or outline for a Wound without a matching Skill.
-        if records[guid]==nil and resourceObjectKind(obj)~="wound" then
-            local kind=resourceObjectKind(obj)
+        -- Previously linked Skills need their button/highlight finalization
+        -- even though their resource record was created before target bonuses.
+        local kind=resourceObjectKind(obj)
+        if (records[guid]==nil or (kind=="skill" and placements[guid]=="play"))
+            and kind~="wound" then
             local poweredTarget=usedMana[guid]
             local contributing=poweredTarget~=nil and records[poweredTarget]~=nil
                 and records[poweredTarget].contributes==true
@@ -45569,9 +45644,11 @@ local function renderSeat(seatPos)
                 addResourceAmounts(result,totals)
             elseif kind=="skill" and placements[guid]=="play" then
                 local conversion=manaBySkill[guid]
-                result=calculateSkill(obj,skillLinksBySkill[guid]
-                    or (conversion~=nil and conversion.targetGUID or nil),
-                    unitState,inventoryCrystalCounts)
+                local alreadyRecorded=records[guid]~=nil
+                result=alreadyRecorded and records[guid]
+                    or calculateSkill(obj,skillLinksBySkill[guid]
+                        or (conversion~=nil and conversion.targetGUID or nil),
+                        unitState,inventoryCrystalCounts)
                 local skillRule=skillResourceDefinitions[guid]
                 if skillRule~=nil then
                     if skillRule.locationInfluence~=nil
@@ -45589,7 +45666,7 @@ local function renderSeat(seatPos)
                     end
                 end
                 showChoiceButtons(obj,result.choices,result.powered)
-                addResourceAmounts(result,totals)
+                if not alreadyRecorded then addResourceAmounts(result,totals) end
                 if skillLinksBySkill[guid]~=nil then
                     result.contributes=true
                     local link=skillLinksByTarget[skillLinksBySkill[guid]]
@@ -45632,6 +45709,56 @@ local function renderSeat(seatPos)
         end
     end
 
+
+    -- Aura Gauntlet can only choose colours currently showing on physical
+    -- Mana Source dice (not spent dice or mirror copies).
+    local sourceRewardColors={}
+    for _,die in ipairs(gStates.manaSource or {}) do
+        local color=({[1]="blue",[2]="white",[3]="green",[4]="red"})[die.color]
+        if color~=nil then sourceRewardColors[color]=true end
+    end
+
+    -- A Faction Reward is available only after the player actually places it
+    -- in the Play Area. Face-down is the alternative interaction exchange:
+    -- choose +3 Influence or 1 Fame (Fame itself is not a Tracker column).
+    -- Do not infer its effect from being stored face-up in inventory.
+    local exchangeChoices={{key="fame"},{influence=3}}
+    for guid,token in pairs(objects) do
+        if resourceObjectKind(token)=="factionReward" and placements[guid]=="play" then
+            local rule=factionRewardForObject(token)
+            local flipped=token.is_face_down==true
+            local choices=flipped and exchangeChoices or (rule~=nil and rule.choices or nil)
+            if not flipped and rule~=nil and rule.name=="Aura Gauntlet" then
+                local available={}
+                for _,choice in ipairs(choices or {}) do
+                    if sourceRewardColors[choice.key] then available[#available+1]=choice end
+                end
+                choices=available
+            end
+            local effect=choices~=nil and chosenEffect(guid,flipped,choices) or nil
+            if effect==nil and not flipped and rule~=nil then effect=rule.resources end
+            local contributes=effectHasTrackedResource(effect)
+            local result={guid=guid,kind="factionReward",known=rule~=nil,
+                complete=rule~=nil,resources=effect,choices=choices,
+                modifier=not flipped and rule~=nil and rule.modifier or nil,
+                powered=flipped,links={},contributes=contributes,
+                status=contributes and "green" or "blue",
+                nameKey=rule~=nil and rule.name or nil}
+            if rule~=nil and not flipped and (rule.partial or rule.modifier~=nil) then
+                result.status="yellow"
+            end
+            if not flipped and rule~=nil and rule.movement~=nil
+                and rule.movement.ignoreRampagers then
+                movementEffects.ignoreRampagers=true
+            end
+            showChoiceButtons(token,choices,flipped)
+            addResourceAmounts(result,totals)
+            records[guid]=result
+            current[guid]=true
+            setHighlight(token,result.status,result.powered)
+        end
+    end
+
     -- Qualifying Units actually supplied the dynamic Skill resource. Show
     -- their link just like physical Skill/card interactions, without treating
     -- Command or Wound markers as resource sources themselves.
@@ -45653,6 +45780,107 @@ local function renderSeat(seatPos)
                     unitRecord.contributes=true
                     unitRecord.links[#unitRecord.links+1]=guid
                     setHighlight(unit,unitRecord.status,unitRecord.powered)
+                end
+            end
+        end
+    end
+
+    -- Physical faction reward overlays. Place the token on its target:
+    -- gems convert one Action card's Attack/Block element; Ghostly Elixir
+    -- changes one melee Attack to Ranged; Vial of Toxin boosts one physical
+    -- Attack source. Nothing is awarded for a missing or ambiguous target.
+    local function rewardConversion(mode,category)
+        if mode=="makeRanged" then
+            return ({attack="ranged",attackFire="rangedFire",
+                attackIce="rangedIce",attackColdFire="rangedColdFire"})[category]
+        end
+        local family,suffix=category:match("^(attack)(.*)$")
+        if family==nil then family,suffix=category:match("^(ranged)(.*)$") end
+        if family==nil then family,suffix=category:match("^(siege)(.*)$") end
+        if family==nil then family,suffix=category:match("^(block)(.*)$") end
+        if family==nil then return nil end
+        if mode=="addFire" then
+            if suffix=="" then return family.."Fire" end
+            if suffix=="Ice" then return family.."ColdFire" end
+        elseif mode=="addIce" then
+            if suffix=="" then return family.."Ice" end
+            if suffix=="Fire" then return family.."ColdFire" end
+        end
+        return nil
+    end
+    -- Resolve element conversions before the toxin. Toxin's extra physical
+    -- Attack must vanish if a Gem subsequently makes that attack elemental.
+    for _,mode in ipairs({"makeRanged","addFire","addIce","physicalBoost"}) do
+        for rewardGUID,reward in pairs(records) do
+            local token=reward.kind=="factionReward" and reward.modifier==mode
+                and objects[rewardGUID] or nil
+            if token~=nil then
+                local winner,sourceRecord,selected,bestArea=nil,nil,nil,0
+                local tokenArea=footprint(token)
+                for sourceGUID,candidate in pairs(objects) do
+                    local data=gameCards[sourceGUID]
+                    local action=data~=nil and (data.cardType=="Starting"
+                        or data.cardType=="Advanced Action")
+                    local unit=mode=="physicalBoost" and data~=nil
+                        and (data.cardType=="Regular Unit" or data.cardType=="Elite Unit")
+                    local record=records[sourceGUID]
+                    if sourceGUID~=rewardGUID and (action or unit) and record~=nil
+                        and record.contributes==true and record.resources~=nil
+                        and (unit or (candidate.is_face_down~=true
+                            and cardPosture(candidate)=="upright")) then
+                        local overlap=overlapArea(tokenArea,footprint(candidate))
+                        if overlap>bestArea then
+                            local possible={}
+                            for field,amount in pairs(record.resources) do
+                                if type(amount)=="number" and amount>0 then
+                                    local to=rewardConversion(mode,field)
+                                    if mode=="physicalBoost" then
+                                        -- Only the source's current physical
+                                        -- category qualifies for Vial of Toxin.
+                                        if not attackTransforms.coldFire
+                                            and (field=="attack" or field=="ranged"
+                                                or field=="siege") then to=field
+                                        else to=nil end
+                                    end
+                                    if to~=nil then
+                                        possible[#possible+1]={from=field,to=to}
+                                    end
+                                end
+                            end
+                            if #possible==1 then
+                                winner,sourceRecord,selected,bestArea=
+                                    candidate,record,possible[1],overlap
+                            end
+                        end
+                    end
+                end
+                if winner~=nil and selected~=nil then
+                    local from,to=selected.from,selected.to
+                    if mode=="physicalBoost" then
+                        local effectiveFamily=attackTransforms.siege and "siege" or from
+                        local bonus=effectiveFamily=="siege" and 1
+                            or (effectiveFamily=="ranged" and 2 or 3)
+                        reward.resources={[from]=bonus}
+                        addResourceAmounts(reward,totals)
+                    else
+                        -- Never mutate the declarative global resource data,
+                        -- which can be reused by another identical card.
+                        local newResources={}
+                        for k,v in pairs(sourceRecord.resources) do newResources[k]=v end
+                        local amount=newResources[from]
+                        newResources[from]=nil
+                        newResources[to]=(newResources[to] or 0)+amount
+                        sourceRecord.resources=newResources
+                        totals[from]=(totals[from] or 0)-amount
+                        totals[to]=(totals[to] or 0)+amount
+                        reward.contributes=true
+                    end
+                    reward.links[#reward.links+1]=winner.guid
+                    sourceRecord.links[#sourceRecord.links+1]=rewardGUID
+                    reward.status="purple"
+                    sourceRecord.status="purple"
+                    setHighlight(token,reward.status,true)
+                    setHighlight(winner,sourceRecord.status,sourceRecord.powered)
                 end
             end
         end
@@ -45757,6 +45985,11 @@ local function queueSeat(seatPos,triggerGUID)
     end,1)
 end
 
+function resourceCardsSourceChanged()
+    local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    if current~=nil and resourceCardsPanelOpen() then queueSeat(current.seatPos,nil) end
+end
+
 local function clearAll()
     for seat=1,4 do generation[seat]=(generation[seat] or 0)+1 end
     clearChoiceButtons()
@@ -45783,10 +46016,11 @@ function resourceCardsChoiceClicked(player,value,id)
     end
     if guid==nil then return end
     setIndex=setIndex~=nil and tonumber(setIndex) or nil
-    if not resourceCardsPanelOpen() then return end
+    if not resourceCardsDetailsOpen() then return end
     local card=getObjectFromGUID(guid)
     local data=card~=nil and gameCards[guid] or nil
     local isSkill=skillTokens[guid]~=nil
+    local isReward=card~=nil and factionRewardForObject(card)~=nil
     local isPuppet=card~=nil and card.getGMNotes()=="Puppet Master"
     local rule=isSkill and skillResourceDefinitions[guid]
         or (data~=nil and cardResourceDefinitions[data.resourceKey] or nil)
@@ -45796,7 +46030,7 @@ function resourceCardsChoiceClicked(player,value,id)
     local record=scan~=nil and scan.cards[guid] or nil
     local linkedWound=card.getGMNotes()=="Wound" and record~=nil
         and record.linkedSkill~=nil
-    if rule==nil and not isSkill and not isPuppet and not (cardPosture(card)=="sideways"
+    if rule==nil and not isSkill and not isPuppet and not isReward and not (cardPosture(card)=="sideways"
         and (cardCanPlaySideways(card) or linkedWound)) then return end
     local zone=getObjectFromGUID(playerPlayAreas[currentSeat.seatPos])
     local inZone=false
@@ -45808,14 +46042,16 @@ function resourceCardsChoiceClicked(player,value,id)
     if not inZone then return end
     -- Linked cards take the powered choice even without mana placed on them.
     local powered=record~=nil and record.powered==true
-    local sideways=not isSkill and cardPosture(card)=="sideways"
+    local sideways=not isSkill and not isReward and cardPosture(card)=="sideways"
     local mainChoices
-    if isSkill or isPuppet then
+    if isSkill or isPuppet or isReward then
         mainChoices=record~=nil and record.choices or (rule~=nil and rule.choices or nil)
     elseif sideways and (cardCanPlaySideways(card) or linkedWound) then
         mainChoices=sidewaysChoices
     elseif not sideways then
-        mainChoices=sideChoices(rule,powered)
+        -- Paid mana choices were filtered during the most recent physical scan.
+        -- Do not rediscover the full printed menu and offer unpaid alternatives.
+        mainChoices=record~=nil and record.choices or nil
     end
     local choices=mainChoices
     local inventorySpec=not sideways and powered and rule~=nil
@@ -45957,8 +46193,8 @@ function resourceUnitsChoiceClicked(player,value,id)
         if candidate==index then available=true break end
     end
     if not available then return end
-    if not decision.ambiguous and choiceExpandedByGUID[unitGUID]~=true
-        and #decision.display>1 then
+    if (not decision.ambiguous or abilities.paidChoiceExpandable)
+        and choiceExpandedByGUID[unitGUID]~=true and #decision.display>1 then
         -- Expanding ordinary choices does not change what was played.
         choiceExpandedByGUID[unitGUID]=true
         showUnitAbilityButtons(unit,abilities,activation,true,decision)
@@ -45991,6 +46227,7 @@ function resourceUnitsChoiceClicked(player,value,id)
     elseif decision.ambiguous then
         activation.manaChoice=index
         activation.manaSignature=decision.signature
+        if abilities.paidChoiceExpandable then choiceExpandedByGUID[unitGUID]=nil end
     else
         activation.choice=index
         activation.manaChoice=nil
@@ -46037,11 +46274,20 @@ function resourceUnitsRefreshButtons()
 end
 
 function resourceCardsPanelChanged(open)
-    -- The tracker shows the current turn's Mage Knight; stale outlines on other
-    -- players' boards would falsely imply those pieces contribute to these totals.
+    if open~=true then
+        -- Collapsing hides choice controls, not live resources or movement
+        -- effects. Unit activation controls remain independently available.
+        clearChoiceButtons()
+        choiceExpandedByGUID={}
+        resourceUnitsRefreshButtons()
+        local active=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+        if active~=nil then queueSeat(active.seatPos,nil) end
+        return
+    end
+    -- A newly opened detail panel (also invoked on turn change) drops the
+    -- previous player's outlines before scanning the current Mage Knight.
     clearAll()
     resourceUnitsRefreshButtons()
-    if open~=true then return end
     local player=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if player==nil then return end
     local seat=player.seatPos
@@ -46062,7 +46308,7 @@ end
 
 function resourceCardsOnLoad()
     if resourceCardsPanelOpen() then
-        resourceCardsPanelChanged(true)
+        resourceCardsPanelChanged(resourceCardsDetailsOpen())
     else
         clearAll()
         -- The Unit's activation buttons exist independently of the expanded
@@ -46813,6 +47059,13 @@ local byType={
         special(3,"Pay green mana: target enemy Armor -5 (minimum 1)",{manaCost="Green",buttonLabel="G"}),
         special(4,"Pay white mana: target enemy loses all fortifications and resistances",{manaCost="White",buttonLabel="W"})}
 }
+-- These paid abilities still require a player choice when matching mana
+-- activates more than one printed option. Keep their buttons collapsible
+-- instead of permanently showing every mana-powered alternative.
+for _,unitType in ipairs({"GuardianGolems","RedCapeMonks","NorthernMonks",
+    "Catapults","Sorcerers","AltemMages"}) do
+    byType[unitType].paidChoiceExpandable=true
+end
 byType.DelphanaMasters.multi=true
 
 local guidGroups={
@@ -55561,6 +55814,44 @@ skillResourceDefinitions={
     ["fe65de"]={untracked=true}
 }
 
+
+-- All physical Faction Reward copies from the pushed TTS JSON.
+-- Six GUIDs are reused between the Elementalist/Apocalypse Cult bags;
+-- the distinct image hashes disambiguate tokens after they are taken out.
+factionRewardResourceDefinitions={
+    ["AmuletofReawakening"]={name="Amulet of Reawakening",notes="Dark Crusader Reward",imageHash="9AAFAF70427D1F6664C21E4C97248ADF22A65F2D",guids={"1432aa","24980d"}},
+    ["AuraGauntlet"]={name="Aura Gauntlet",notes="Council of the Void Reward",imageHash="52285695A4A0AF44BDEC296C2D948F294EF1030B",guids={"6f1f8d","512b2e"},choices={{key="blue",icon="block",iconOverlay="B",block=2},{key="green",icon="healing",iconOverlay="G",healing=1},{key="red",icon="attack",iconOverlay="R",attack=2},{key="white",icon="influence",iconOverlay="W",influence=2}},partial=true},
+    ["BindingContract"]={name="Binding Contract",notes="Council of the Void Reward",imageHash="896BF6AF73E16C73C3C09FC38B45EB8F196EDC5F",guids={"e13be2","bedce3"}},
+    ["BladeofDominance"]={name="Blade of Dominance",notes="Apocalypse Cult Reward",imageHash="5312F4FEA02019FB21911122C8CCA40F1CEADDA6",guids={"20ec1f","ff7836"}},
+    ["BloodFuryDagger"]={name="Blood Fury Dagger",notes="Apocalypse Cult Reward",imageHash="A3E337C9387FD4A67F25FDF789BFA544195465B0",guids={"90b0b3","dddcdd"},choices={{key="one",icon="attack",iconOverlay="2",attack=2},{key="two",icon="attack",iconOverlay="4",attack=4},{key="three",icon="attack",iconOverlay="6",attack=6}}},
+    ["BootofCharging"]={name="Boot of Charging",notes="Apocalypse Cult Reward",imageHash="F24661198BE97BC5A687D41FCCE400C08A0D9656",guids={"2722b3","72e29e"},resources={move=2,attack=2},partial=true},
+    ["CloakofShielding"]={name="Cloak of Shielding",notes="Elementalist Reward",imageHash="B03F5A28795462A6B66B95B5D100BA194D619326",guids={"41decd","504178"}},
+    ["CloakoftheMartyr"]={name="Cloak of the Martyr",notes="Apocalypse Cult Reward",imageHash="0B4ABC0D5840AF6FAD68E398F66AA0729F04710D",guids={"cc1f9f","592fd8"}},
+    ["FireGem"]={name="Fire Gem",notes="Elementalist Reward",imageHash="3BA57B65C60A918FCAB2D8832FFB909336AA1D8B",guids={"4433df","90b0b3"},modifier="addFire"},
+    ["GhostlyElixir"]={name="Ghostly Elixir",notes="Dark Crusader Reward",imageHash="7ADC741EDDB8B27915DB5BB14C88DBEE0CFF911E",guids={"2411db","cc1f91"},modifier="makeRanged"},
+    ["HealingHerbs"]={name="Healing Herbs",notes="Elementalist Reward",imageHash="9052FB0DB4018C8349D61790A6827BFCAE52165A",guids={"daeaea","f26d0b"},choices={{healing=1},{key="wound",icon="healing",iconOverlay="W"}}},
+    ["HelmofMindShielding"]={name="Helm of Mind Shielding",notes="Council of the Void Reward",imageHash="78C53A8FE2DD172E286F8483D1FCE900CCA8B42F",guids={"48c4cd","75399a"},resources={blockPsychic=2},partial=true},
+    ["IceShard"]={name="Ice Shard",notes="Elementalist Reward",imageHash="9C13774698F48F1C38D29283CCF9BE559FF4030D",guids={"8c8d3b","72e29e"},modifier="addIce"},
+    ["MaskofFear"]={name="Mask of Fear",notes="Apocalypse Cult Reward",imageHash="E57F577671D51002FB6B0EBFFAFEDFA958A4B980",guids={"f7bbaa","504178"}},
+    ["MaskofImpersonation"]={name="Mask of Impersonation",notes="Council of the Void Reward",imageHash="2C62D7E68A4CEF90E287823D42F829A54B21C9E1",guids={"a85444","00bcec"}},
+    ["MysticalMap"]={name="Mystical Map",notes="Elementalist Reward",imageHash="D2602B7028FEA1A4CC4B6A6837571A0D872C6D8F",guids={"d0f7d2","cc1f9f"}},
+    ["OrbofTwilight"]={name="Orb of Twilight",notes="Dark Crusader Reward",imageHash="01DA59604306918F9B7878C5042044F294A604B5",guids={"6a4733","2df3e8"}},
+    ["RingofShadows"]={name="Ring of Shadows",notes="Apocalypse Cult Reward",imageHash="365D15DBE60E571AF3C05FB727B6CCD93584C1DD",guids={"e25781","f26d0b"}},
+    ["ScrollofSeeking"]={name="Scroll of Seeking",notes="Council of the Void Reward",imageHash="34896BA83A8456CDF9497486BB9DEC5421DF7436",guids={"98cefc","23fc82"}},
+    ["StaffofConcealment"]={name="Staff of Concealment",notes="Dark Crusader Reward",imageHash="CF818B9633D93D827B251E674ED508612C081B49",guids={"bc134b","765bfd"},resources={move=2},movement={ignoreRampagers=true}},
+    ["TomeofRelearning"]={name="Tome of Relearning",notes="Elementalist Reward",imageHash="8CAAF6BC06095F2B880EC71708DC45965BCC91AC",guids={"277533","ff7836"}},
+    ["TomeofTrading"]={name="Tome of Trading",notes="Council of the Void Reward",imageHash="5BAABC844FEDA94871EB51112497CBDC74B48CBC",guids={"77b06c","fd1fd8"}},
+    ["VampiricChalice"]={name="Vampiric Chalice",notes="Dark Crusader Reward",imageHash="832AE78694CCC56F0E898649157D3AC281E176F8",guids={"5313bc","782c98"}},
+    ["VialofToxin"]={name="Vial of Toxin",notes="Dark Crusader Reward",imageHash="8881A5C82A462DDC2E1BB53CE277F1348916AE65",guids={"2b4d21","9bbd00"},modifier="physicalBoost"},
+}
+factionRewardResourceByImage={}
+factionRewardResourceByGUID={}
+for _,definition in pairs(factionRewardResourceDefinitions) do
+    factionRewardResourceByImage[definition.imageHash]=definition
+    for _,guid in ipairs(definition.guids) do
+        factionRewardResourceByGUID[definition.notes..":"..guid]=definition
+    end
+end
 
 tacticClaimingZones={["9e319e"]="tactic1", ["32172f"]="tactic2", ["bc2046"]="tactic3", ["8363fc"]="tactic4", ["01ac7e"]="tactic5", ["582d2b"]="tactic6"}--Tactic Zones
 

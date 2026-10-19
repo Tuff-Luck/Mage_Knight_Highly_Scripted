@@ -1226,7 +1226,7 @@ Einheiten</Text></Cell>
 					</HorizontalLayout>
 				</VerticalLayout>
 			</Panel>
-			<Panel id="SiegeAmountDetails" active="false" preferredHeight="120" outlineSize="0 0">
+			<Panel id="SiegeAmountDetails" active="false" preferredHeight="150" outlineSize="0 0">
 				<VerticalLayout>
 					<HorizontalLayout childForceExpandWidth="false">
 						<Button id="SiegeAmountPhysiDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
@@ -1284,6 +1284,20 @@ Einheiten</Text></Cell>
 							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
 						</Button>
 					</HorizontalLayout>
+					<HorizontalLayout childForceExpandWidth="false">
+						<Button id="SiegeAmountPsychDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="SiegeAmountPsychDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
+							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
+						</Button>
+						<Button preferredWidth="210" interactable="false" onClick="">
+							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
+							<Text id="SiegeAmountPsychText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Psychic : 0{it}Psichico : 0{ru}Психическая : 0{zh-tw}心靈：0{zh-cn}心灵：0{ko}정신 : 0{es}Psíquico : 0{fr}Psychique : 0{pt-br}Psíquico : 0{de}Psychisch : 0</Text>
+						</Button>
+						<Button id="SiegeAmountPsychUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="SiegeAmountPsychUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
+							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
+						</Button>
+					</HorizontalLayout>
 				</VerticalLayout>
 			</Panel>
 			<Panel preferredHeight="30" outlineSize="0 0">
@@ -1308,7 +1322,7 @@ Einheiten</Text></Cell>
 					</HorizontalLayout>
 				</VerticalLayout>
 			</Panel>
-			<Panel id="RangeAmountDetails" active="false" preferredHeight="120" outlineSize="0 0">
+			<Panel id="RangeAmountDetails" active="false" preferredHeight="150" outlineSize="0 0">
 				<VerticalLayout>
 					<HorizontalLayout childForceExpandWidth="false">
 						<Button id="RangeAmountPhysiDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
@@ -1366,6 +1380,20 @@ Einheiten</Text></Cell>
 							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
 						</Button>
 					</HorizontalLayout>
+					<HorizontalLayout childForceExpandWidth="false">
+						<Button id="RangeAmountPsychDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="RangeAmountPsychDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
+							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
+						</Button>
+						<Button preferredWidth="210" interactable="false" onClick="">
+							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
+							<Text id="RangeAmountPsychText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Psychic : 0{it}Psichico : 0{ru}Психическая : 0{zh-tw}心靈：0{zh-cn}心灵：0{ko}정신 : 0{es}Psíquico : 0{fr}Psychique : 0{pt-br}Psíquico : 0{de}Psychisch : 0</Text>
+						</Button>
+						<Button id="RangeAmountPsychUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="RangeAmountPsychUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
+							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
+						</Button>
+					</HorizontalLayout>
 				</VerticalLayout>
 			</Panel>
 			<Panel preferredHeight="30" outlineSize="0 0">
@@ -1390,7 +1418,7 @@ Einheiten</Text></Cell>
 					</HorizontalLayout>
 				</VerticalLayout>
 			</Panel>
-			<Panel id="BlockAmountDetails" active="false" preferredHeight="120" outlineSize="0 0">
+			<Panel id="BlockAmountDetails" active="false" preferredHeight="150" outlineSize="0 0">
 				<VerticalLayout>
 					<HorizontalLayout childForceExpandWidth="false">
 						<Button id="BlockAmountPhysiDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
@@ -1448,6 +1476,20 @@ Einheiten</Text></Cell>
 							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
 						</Button>
 					</HorizontalLayout>
+					<HorizontalLayout childForceExpandWidth="false">
+						<Button id="BlockAmountPsychDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="BlockAmountPsychDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
+							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
+						</Button>
+						<Button preferredWidth="210" interactable="false" onClick="">
+							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
+							<Text id="BlockAmountPsychText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Psychic : 0{it}Psichico : 0{ru}Психическая : 0{zh-tw}心靈：0{zh-cn}心灵：0{ko}정신 : 0{es}Psíquico : 0{fr}Psychique : 0{pt-br}Psíquico : 0{de}Psychisch : 0</Text>
+						</Button>
+						<Button id="BlockAmountPsychUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="BlockAmountPsychUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
+							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
+						</Button>
+					</HorizontalLayout>
 				</VerticalLayout>
 			</Panel>
 			<Panel preferredHeight="30" outlineSize="0 0">
@@ -1472,7 +1514,7 @@ Einheiten</Text></Cell>
 					</HorizontalLayout>
 				</VerticalLayout>
 			</Panel>
-			<Panel id="AttacAmountDetails" active="false" preferredHeight="120" outlineSize="0 0">
+			<Panel id="AttacAmountDetails" active="false" preferredHeight="150" outlineSize="0 0">
 				<VerticalLayout>
 					<HorizontalLayout childForceExpandWidth="false">
 						<Button id="AttacAmountPhysiDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
@@ -1527,6 +1569,20 @@ Einheiten</Text></Cell>
 						</Button>
 						<Button id="AttacAmountColdFUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
 							<Image id="AttacAmountColdFUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
+							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
+						</Button>
+					</HorizontalLayout>
+					<HorizontalLayout childForceExpandWidth="false">
+						<Button id="AttacAmountPsychDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="AttacAmountPsychDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
+							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
+						</Button>
+						<Button preferredWidth="210" interactable="false" onClick="">
+							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
+							<Text id="AttacAmountPsychText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Psychic : 0{it}Psichico : 0{ru}Психическая : 0{zh-tw}心靈：0{zh-cn}心灵：0{ko}정신 : 0{es}Psíquico : 0{fr}Psychique : 0{pt-br}Psíquico : 0{de}Psychisch : 0</Text>
+						</Button>
+						<Button id="AttacAmountPsychUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="AttacAmountPsychUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
 							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
 						</Button>
 					</HorizontalLayout>
