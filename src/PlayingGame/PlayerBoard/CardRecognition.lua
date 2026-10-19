@@ -16,6 +16,7 @@ local choiceResetGenerationByGUID={}
 local choiceExpandedByGUID={}
 local choiceButtonShown={}
 local unitManaDecision
+local factionRewardForObject
 -- Highlights show how confidently the tracker understands the selected effect.
 -- Blue is a deliberate neutral/not-calculated state, not an illegal-play warning.
 -- Purple takes precedence when objects are linked; brightness indicates power.
@@ -262,13 +263,13 @@ local choiceLetters={attackP1="A",attackP2="A2",attackP3="A3",
     ranged="R",siege="S",healing="H",draw="D",other="O",
     siegeFire="SF",siegeIce="SI",rangedFire="RF",rangedIce="RI",
     fire="F",ice="I",coldFire="C",boost="H+",split="I/F",negative="N",
-    heal="H",combat="C",wound="W",reputation="R",gain="G",ready="R",
+    heal="H",combat="C",wound="W",fame="F",reputation="R",gain="G",ready="R",
     base="2",sourceUnused="3",red="R",blue="B",white="W",green="G",
     fireAttack="F",fireBlock="F",fireSiege="F",iceSiege="I",fireBlockOnly="B",fireBlockCounter="B+",
     splitBlock="B2",zero="0",one="1",two="2",three="3",four="4",five="5"}
 -- The choice UI and initial-guess tie-breaks follow the Resource Tracker order.
 local resourceChoiceOrder={
-    move=1,siege=2,ranged=3,block=4,attack=5,influence=6,healing=7,heal=7,
+    move=1,siege=2,ranged=3,block=4,attack=5,influence=6,healing=7,heal=7,fame=8,
     fireBlock=4,fireAttack=5,fireSiege=2,iceSiege=2
 }
 local resourceChoiceFamilies={"move","siege","ranged","block","attack","influence","healing"}
@@ -518,6 +519,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     if card==nil then return end
     local posture=cardPosture(card)
     local isSkill=skillTokens[card.guid]~=nil or card.getGMNotes()=="Puppet Master"
+        or (factionRewardForObject~=nil and factionRewardForObject(card)~=nil)
     if not resourceCardsDetailsOpen() then
         if choiceButtonShown[card.guid]~="hidden" then
             removeChoiceButtons(card)
@@ -891,6 +893,19 @@ local factionRewardNotes={
     ["Apocalypse Cult Reward"]="Apoc",
     ["Council of the Void Reward"]="Coun"
 }
+
+-- Original container GUIDs collide across factions in the pushed JSON.
+-- Front-art image hashes are independent of translated names and survive
+-- regenerated GUIDs when a token is extracted from a bag.
+factionRewardForObject=function(obj)
+    if obj==nil or factionRewardNotes[obj.getGMNotes()]==nil then return nil end
+    local custom=obj.getCustomObject()
+    local image=custom~=nil and custom.image or nil
+    local hash=type(image)=="string" and image:match("([0-9A-Fa-f]+)/?$") or nil
+    local definition=hash~=nil and factionRewardResourceByImage[hash:upper()] or nil
+    if definition~=nil and definition.notes==obj.getGMNotes() then return definition end
+    return factionRewardResourceByGUID[obj.getGMNotes()..":"..obj.guid]
+end
 
 local function resourceObjectKind(obj)
     if obj==nil then return nil end
@@ -2961,6 +2976,39 @@ local function renderSeat(seatPos)
         end
     end
 
+
+    -- A Faction Reward is available only after the player actually places it
+    -- in the Play Area. Face-down is the alternative interaction exchange:
+    -- choose +3 Influence or 1 Fame (Fame itself is not a Tracker column).
+    -- Do not infer its effect from being stored face-up in inventory.
+    local exchangeChoices={{key="fame"},{influence=3}}
+    for guid,token in pairs(objects) do
+        if resourceObjectKind(token)=="factionReward" and placements[guid]=="play" then
+            local rule=factionRewardForObject(token)
+            local flipped=token.is_face_down==true
+            local choices=flipped and exchangeChoices or (rule~=nil and rule.choices or nil)
+            local effect=choices~=nil and chosenEffect(guid,flipped,choices) or nil
+            if effect==nil and not flipped and rule~=nil then effect=rule.resources end
+            local contributes=effectHasTrackedResource(effect)
+            local result={guid=guid,kind="factionReward",known=rule~=nil,
+                complete=rule~=nil,resources=effect,choices=choices,
+                modifier=not flipped and rule~=nil and rule.modifier or nil,
+                powered=flipped,links={},contributes=contributes,
+                status=contributes and "green" or "blue",
+                nameKey=rule~=nil and rule.name or nil}
+            if rule~=nil and rule.partial and not flipped then result.status="yellow" end
+            if not flipped and rule~=nil and rule.movement~=nil
+                and rule.movement.ignoreRampagers then
+                movementEffects.ignoreRampagers=true
+            end
+            showChoiceButtons(token,choices,flipped)
+            addResourceAmounts(result,totals)
+            records[guid]=result
+            current[guid]=true
+            setHighlight(token,result.status,result.powered)
+        end
+    end
+
     -- Qualifying Units actually supplied the dynamic Skill resource. Show
     -- their link just like physical Skill/card interactions, without treating
     -- Command or Wound markers as resource sources themselves.
@@ -3116,6 +3164,7 @@ function resourceCardsChoiceClicked(player,value,id)
     local card=getObjectFromGUID(guid)
     local data=card~=nil and gameCards[guid] or nil
     local isSkill=skillTokens[guid]~=nil
+    local isReward=card~=nil and factionRewardForObject(card)~=nil
     local isPuppet=card~=nil and card.getGMNotes()=="Puppet Master"
     local rule=isSkill and skillResourceDefinitions[guid]
         or (data~=nil and cardResourceDefinitions[data.resourceKey] or nil)
@@ -3125,7 +3174,7 @@ function resourceCardsChoiceClicked(player,value,id)
     local record=scan~=nil and scan.cards[guid] or nil
     local linkedWound=card.getGMNotes()=="Wound" and record~=nil
         and record.linkedSkill~=nil
-    if rule==nil and not isSkill and not isPuppet and not (cardPosture(card)=="sideways"
+    if rule==nil and not isSkill and not isPuppet and not isReward and not (cardPosture(card)=="sideways"
         and (cardCanPlaySideways(card) or linkedWound)) then return end
     local zone=getObjectFromGUID(playerPlayAreas[currentSeat.seatPos])
     local inZone=false
@@ -3137,9 +3186,9 @@ function resourceCardsChoiceClicked(player,value,id)
     if not inZone then return end
     -- Linked cards take the powered choice even without mana placed on them.
     local powered=record~=nil and record.powered==true
-    local sideways=not isSkill and cardPosture(card)=="sideways"
+    local sideways=not isSkill and not isReward and cardPosture(card)=="sideways"
     local mainChoices
-    if isSkill or isPuppet then
+    if isSkill or isPuppet or isReward then
         mainChoices=record~=nil and record.choices or (rule~=nil and rule.choices or nil)
     elseif sideways and (cardCanPlaySideways(card) or linkedWound) then
         mainChoices=sidewaysChoices
