@@ -2208,10 +2208,10 @@ function cameraControlTopDown(player, value, id)
 end
 
 local RESOURCE_TRACKER_EXPANDERS={	["DisplayMoveCosts"]={"MoveCosts", 240},
-					["DisplaySiegeDetails"]={"SiegeAmountDetails", 120},
-					["DisplayRangeDetails"]={"RangeAmountDetails", 120},
-					["DisplayBlockDetails"]={"BlockAmountDetails", 120},
-					["DisplayAttacDetails"]={"AttacAmountDetails", 120},
+					["DisplaySiegeDetails"]={"SiegeAmountDetails", 150},
+					["DisplayRangeDetails"]={"RangeAmountDetails", 150},
+					["DisplayBlockDetails"]={"BlockAmountDetails", 150},
+					["DisplayAttacDetails"]={"AttacAmountDetails", 150},
 					["DisplayInfluDetails"]={"InfluAmountDetails", 90}}
 
 local RESOURCE_TRACKER_FIELDS={	["MovemAmountPlain"]={"move", "move", "{en}Move : {it}Movimento : {ru}Движение: {zh-tw}移動：{zh-cn}移动：{ko}이동 : {es}Mover : {fr}Se déplacer : {pt-br}Mover : {de}Bewegen : "},
@@ -2220,21 +2220,25 @@ local RESOURCE_TRACKER_FIELDS={	["MovemAmountPlain"]={"move", "move", "{en}Move 
 					["SiegeAmountFirex"]={"siege", "fire", "{en}Fire : {it}Fuoco : {ru}Огненная(ый): {zh-tw}火焰：{zh-cn}火焰：{ko}불 : {es}Fuego : {fr}Feu : {pt-br}Fogo : {de}Feuer : "},
 					["SiegeAmountIcexx"]={"siege", "ice", "{en}Ice : {it}Ghiaccio : {ru}Ледяная(ой): {zh-tw}寒冰：{zh-cn}寒冰：{ko}얼음 : {es}Hielo : {fr}Glace : {pt-br}Gelo : {de}Eis : "},
 					["SiegeAmountColdF"]={"siege", "iceFire", "{en}Cold Fire : {it}Fuoco Freddo : {ru}Холодный огонь: {zh-tw}冰火：{zh-cn}冰火：{ko}차가운 불 : {es}Fuego Frío :{fr}Feu Froid : {pt-br}Fogo Frio : {de}Kaltes Feuer : "},
+					["SiegeAmountPsych"]={"siege", "psychic", "{en}Psychic : {it}Psichico : {ru}Психическая : {zh-tw}心靈：{zh-cn}心灵：{ko}정신 : {es}Psíquico : {fr}Psychique : {pt-br}Psíquico : {de}Psychisch : "},
 					["RangeAmountPlain"]={"ranged", "physical", "{en}Range : {it}Distanza : {ru}Дальняя: {zh-tw}遠程：{zh-cn}远程：{ko}원거리 : {es}Rango : {fr}Gamme : {pt-br}Distância : {de}Reichweite : "},
 					["RangeAmountPhysi"]={"ranged", "physical", "{en}Physical : {it}Fisico : {ru}Физическая(ий): {zh-tw}物理：{zh-cn}物理：{ko}물리 : {es}Físico : {fr}Physique : {pt-br}Físico : {de}Physikalisch : "},
 					["RangeAmountFirex"]={"ranged", "fire", "{en}Fire : {it}Fuoco : {ru}Огненная(ый): {zh-tw}火焰：{zh-cn}火焰：{ko}불 : {es}Fuego : {fr}Feu : {pt-br}Fogo : {de}Feuer : "},
 					["RangeAmountIcexx"]={"ranged", "ice", "{en}Ice : {it}Ghiaccio : {ru}Ледяная(ой): {zh-tw}寒冰：{zh-cn}寒冰：{ko}얼음 : {es}Hielo : {fr}Glace : {pt-br}Gelo : {de}Eis : "},
 					["RangeAmountColdF"]={"ranged", "iceFire", "{en}Cold Fire : {it}Fuoco Freddo : {ru}Холодный огонь: {zh-tw}冰火：{zh-cn}冰火：{ko}차가운 불 : {es}Fuego Frío :{fr}Feu Froid : {pt-br}Fogo Frio : {de}Kaltes Feuer : "},
+					["RangeAmountPsych"]={"ranged", "psychic", "{en}Psychic : {it}Psichico : {ru}Психическая : {zh-tw}心靈：{zh-cn}心灵：{ko}정신 : {es}Psíquico : {fr}Psychique : {pt-br}Psíquico : {de}Psychisch : "},
 					["BlockAmountPlain"]={"block", "physical", "{en}Block : {it}Blocco : {ru}Блок: {zh-tw}格擋：{zh-cn}格档：{ko}방어 : {es}Bloqueo : {fr}Blocage : {pt-br}Bloqueio : {de}Blockieren : "},
 					["BlockAmountPhysi"]={"block", "physical", "{en}Physical : {it}Fisico : {ru}Физическая(ий): {zh-tw}物理：{zh-cn}物理：{ko}물리 : {es}Físico : {fr}Physique : {pt-br}Físico : {de}Physikalisch : "},
 					["BlockAmountFirex"]={"block", "fire", "{en}Fire : {it}Fuoco : {ru}Огненная(ый): {zh-tw}火焰：{zh-cn}火焰：{ko}불 : {es}Fuego : {fr}Feu : {pt-br}Fogo : {de}Feuer : "},
 					["BlockAmountIcexx"]={"block", "ice", "{en}Ice : {it}Ghiaccio : {ru}Ледяная(ой): {zh-tw}寒冰：{zh-cn}寒冰：{ko}얼음 : {es}Hielo : {fr}Glace : {pt-br}Gelo : {de}Eis : "},
 					["BlockAmountColdF"]={"block", "iceFire", "{en}Cold Fire : {it}Fuoco Freddo : {ru}Холодный огонь: {zh-tw}冰火：{zh-cn}冰火：{ko}차가운 불 : {es}Fuego Frío :{fr}Feu Froid : {pt-br}Fogo Frio : {de}Kaltes Feuer : "},
+					["BlockAmountPsych"]={"block", "psychic", "{en}Psychic : {it}Psichico : {ru}Психическая : {zh-tw}心靈：{zh-cn}心灵：{ko}정신 : {es}Psíquico : {fr}Psychique : {pt-br}Psíquico : {de}Psychisch : "},
 					["AttacAmountPlain"]={"attack", "physical", "{en}Attack : {it}Attacco : {ru}Атака: {zh-tw}攻擊：{zh-cn}攻击：{ko}공격 : {es}Ataque : {fr}Attaque : {pt-br}Ataque : {de}Angriff : "},
 					["AttacAmountPhysi"]={"attack", "physical", "{en}Physical : {it}Fisico : {ru}Физическая(ий): {zh-tw}物理：{zh-cn}物理：{ko}물리 : {es}Físico : {fr}Physique : {pt-br}Físico : {de}Physikalisch : "},
 					["AttacAmountFirex"]={"attack", "fire", "{en}Fire : {it}Fuoco : {ru}Огненная(ый): {zh-tw}火焰：{zh-cn}火焰：{ko}불 : {es}Fuego : {fr}Feu : {pt-br}Fogo : {de}Feuer : "},
 					["AttacAmountIcexx"]={"attack", "ice", "{en}Ice : {it}Ghiaccio : {ru}Ледяная(ой): {zh-tw}寒冰：{zh-cn}寒冰：{ko}얼음 : {es}Hielo : {fr}Glace : {pt-br}Gelo : {de}Eis : "},
 					["AttacAmountColdF"]={"attack", "iceFire", "{en}Cold Fire : {it}Fuoco Freddo : {ru}Холодный огонь: {zh-tw}冰火：{zh-cn}冰火：{ko}차가운 불 : {es}Fuego Frío :{fr}Feu Froid : {pt-br}Fogo Frio : {de}Kaltes Feuer : "},
+					["AttacAmountPsych"]={"attack", "psychic", "{en}Psychic : {it}Psichico : {ru}Психическая : {zh-tw}心靈：{zh-cn}心灵：{ko}정신 : {es}Psíquico : {fr}Psychique : {pt-br}Psíquico : {de}Psychisch : "},
 					["InfluAmountPlain"]={"influence", "generated", "{en}Influence : {it}Influenza : {ru}Влияние: {zh-tw}影響力：{zh-cn}影响力：{ko}영향력 : {es}Influencia : {fr}Influence : {pt-br}Influência : {de}Einfluss : "},
 					["InfluAmountPhysi"]={"influence", "generated", "{en}Generated : {it}Generato : {ru}Сгенерировано: {zh-tw}產生的：{zh-cn}产生的：{ko}사용 : {es}Generación : {fr}Généré : {pt-br}Gerado : {de}Erzeugt : "},
 					["InfluAmountReput"]={"influence", "reputation", "{en}Reputation : {it}Reputazione : {ru}Репутация: {zh-tw}聲譽：{zh-cn}声誉：{ko}평판 : {es}Reputación : {fr}Réputation : {pt-br}Reputação : {de}Reputation : "},
@@ -2347,10 +2351,10 @@ end
 
 function resetResourceTrackerState()
 		gStates.resourceTracker={move=		{move=0},
-								siege=		{physical=0, fire=0, ice=0, iceFire=0},
-								ranged=		{physical=0, fire=0, ice=0, iceFire=0},
-								block=		{physical=0, fire=0, ice=0, iceFire=0},
-								attack=		{physical=0, fire=0, ice=0, iceFire=0},
+								siege=		{physical=0, fire=0, ice=0, iceFire=0, psychic=0},
+								ranged=		{physical=0, fire=0, ice=0, iceFire=0, psychic=0},
+								block=		{physical=0, fire=0, ice=0, iceFire=0, psychic=0},
+								attack=		{physical=0, fire=0, ice=0, iceFire=0, psychic=0},
 								influence=	{generated=0, reputation=0, cityShields=0},
 								healing=	{healing=0}}
 		gStates.moveCost={["plains"]=2, ["hills"]=3, ["forest"]=5, ["wasteland"]=4, ["desert"]=3, ["swamp"]=5, ["lake"]=999, ["mountain"]=999, ["city"]=2, ["explore"]=2}

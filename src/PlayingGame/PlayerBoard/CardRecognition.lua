@@ -29,10 +29,10 @@ local palette={
 -- Distinguish elemental and physical damage. Otherwise a Ranged Fire Attack
 -- would be incorrectly added to the Physical Ranged field.
 local totalsKeys={move=true,ranged=true,siege=true,attack=true,block=true,influence=true,healing=true,
-    rangedFire=true,rangedIce=true,rangedColdFire=true,
-    siegeFire=true,siegeIce=true,siegeColdFire=true,
-    attackFire=true,attackIce=true,attackColdFire=true,
-    blockFire=true,blockIce=true,blockColdFire=true}
+    rangedFire=true,rangedIce=true,rangedColdFire=true,rangedPsychic=true,
+    siegeFire=true,siegeIce=true,siegeColdFire=true,siegePsychic=true,
+    attackFire=true,attackIce=true,attackColdFire=true,attackPsychic=true,
+    blockFire=true,blockIce=true,blockColdFire=true,blockPsychic=true}
 
 -- Catalog is defined once in UnitResources.lua and keyed by card GUID.
 local unitResourceDefinitions=unitResourceDefinitions
@@ -69,16 +69,16 @@ end
 
 local resourceTotalsKeyByField={
     move={move="move"},
-    ranged={physical="ranged",fire="rangedFire",ice="rangedIce",iceFire="rangedColdFire"},
-    siege={physical="siege",fire="siegeFire",ice="siegeIce",iceFire="siegeColdFire"},
-    attack={physical="attack",fire="attackFire",ice="attackIce",iceFire="attackColdFire"},
-    block={physical="block",fire="blockFire",ice="blockIce",iceFire="blockColdFire"},
+    ranged={physical="ranged",fire="rangedFire",ice="rangedIce",iceFire="rangedColdFire",psychic="rangedPsychic"},
+    siege={physical="siege",fire="siegeFire",ice="siegeIce",iceFire="siegeColdFire",psychic="siegePsychic"},
+    attack={physical="attack",fire="attackFire",ice="attackIce",iceFire="attackColdFire",psychic="attackPsychic"},
+    block={physical="block",fire="blockFire",ice="blockIce",iceFire="blockColdFire",psychic="blockPsychic"},
     influence={generated="influence"},
     healing={healing="healing"}
 }
 
 local attackTransformFamilies={"attack","ranged","siege"}
-local attackTransformFields={"physical","fire","ice","iceFire"}
+local attackTransformFields={"physical","fire","ice","iceFire","psychic"}
 
 local function resourceCardsRawValue(tracker,totals,category,field)
     local manual=tracker~=nil and tracker[category]~=nil and tracker[category][field] or 0
@@ -518,8 +518,9 @@ end
 local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySets)
     if card==nil then return end
     local posture=cardPosture(card)
+    local reward=factionRewardForObject~=nil and factionRewardForObject(card) or nil
     local isSkill=skillTokens[card.guid]~=nil or card.getGMNotes()=="Puppet Master"
-        or (factionRewardForObject~=nil and factionRewardForObject(card)~=nil)
+        or reward~=nil
     if not resourceCardsDetailsOpen() then
         if choiceButtonShown[card.guid]~="hidden" then
             removeChoiceButtons(card)
@@ -654,7 +655,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         local displayed={}
         for _,entry in ipairs(row.visible) do displayed[entry.category]=true end
         local skillPositions=isSkill and skillChoicePositions(row.visible) or nil
-        for _,entry in ipairs(row.visible) do
+        for entryIndex,entry in ipairs(row.visible) do
             local category=entry.category
             local column=resourceChoiceColumn(category)
             local x=((#columns+1)/2-columnByCategory[column])*buttonSpacing
@@ -663,6 +664,11 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             if skillPositions~=nil then
                 x=skillPositions[category].x
                 buttonY=skillPositions[category].y
+            end
+            -- Blood Fury has three wound-scaled Attacks in one horizontal row.
+            if reward~=nil and reward.name=="Blood Fury Dagger" then
+                x=((#row.visible+1)/2-entryIndex)*104
+                buttonY=0
             end
             local active=category==row.selected
             local icon=resourceCardsChoiceIcon(entry.icon)
@@ -2980,6 +2986,14 @@ local function renderSeat(seatPos)
     end
 
 
+    -- Aura Gauntlet can only choose colours currently showing on physical
+    -- Mana Source dice (not spent dice or mirror copies).
+    local sourceRewardColors={}
+    for _,die in ipairs(gStates.manaSource or {}) do
+        local color=({[1]="blue",[2]="white",[3]="green",[4]="red"})[die.color]
+        if color~=nil then sourceRewardColors[color]=true end
+    end
+
     -- A Faction Reward is available only after the player actually places it
     -- in the Play Area. Face-down is the alternative interaction exchange:
     -- choose +3 Influence or 1 Fame (Fame itself is not a Tracker column).
@@ -2990,6 +3004,13 @@ local function renderSeat(seatPos)
             local rule=factionRewardForObject(token)
             local flipped=token.is_face_down==true
             local choices=flipped and exchangeChoices or (rule~=nil and rule.choices or nil)
+            if not flipped and rule~=nil and rule.name=="Aura Gauntlet" then
+                local available={}
+                for _,choice in ipairs(choices or {}) do
+                    if sourceRewardColors[choice.key] then available[#available+1]=choice end
+                end
+                choices=available
+            end
             local effect=choices~=nil and chosenEffect(guid,flipped,choices) or nil
             if effect==nil and not flipped and rule~=nil then effect=rule.resources end
             local contributes=effectHasTrackedResource(effect)
@@ -2999,7 +3020,9 @@ local function renderSeat(seatPos)
                 powered=flipped,links={},contributes=contributes,
                 status=contributes and "green" or "blue",
                 nameKey=rule~=nil and rule.name or nil}
-            if rule~=nil and rule.partial and not flipped then result.status="yellow" end
+            if rule~=nil and not flipped and (rule.partial or rule.modifier~=nil) then
+                result.status="yellow"
+            end
             if not flipped and rule~=nil and rule.movement~=nil
                 and rule.movement.ignoreRampagers then
                 movementEffects.ignoreRampagers=true
@@ -3236,6 +3259,11 @@ local function queueSeat(seatPos,triggerGUID)
             return obj==nil or (obj.held_by_color==nil and obj.resting==true and obj.isSmoothMoving()==false)
         end,8)
     end,1)
+end
+
+function resourceCardsSourceChanged()
+    local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    if current~=nil and resourceCardsPanelOpen() then queueSeat(current.seatPos,nil) end
 end
 
 local function clearAll()

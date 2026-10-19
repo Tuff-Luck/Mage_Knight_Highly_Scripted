@@ -216,7 +216,10 @@ function mirrorSourceUpdate(from)
 		end
 	end
 	--The normal fast path: same Source GUIDs, so only update/re-sort the existing physical copies.
-	if mirrorSourceSyncExisting(sourceDice,colorRotate,separate)==true then return end
+	if mirrorSourceSyncExisting(sourceDice,colorRotate,separate)==true then
+        if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
+        return
+    end
 
 	--Structural change (die spent/returned/added, player set changed, stale save): rebuild the mirror set.
 	if gStates.manaMirror~=nil then
@@ -253,6 +256,7 @@ function mirrorSourceUpdate(from)
 			safeWaitFrames("ManaSource",function() mirrorSpawnEnterIgnore[mirrorGUID]=nil end, 3)
 		end
 	end
+    if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
 end
 
 mirrorSourceFaceSync=function(diceGUID, sourceGUID, from)
