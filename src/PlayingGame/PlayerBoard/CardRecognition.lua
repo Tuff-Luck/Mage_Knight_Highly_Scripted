@@ -3035,6 +3035,107 @@ local function renderSeat(seatPos)
         end
     end
 
+    -- Physical faction reward overlays. Place the token on its target:
+    -- gems convert one Action card's Attack/Block element; Ghostly Elixir
+    -- changes one melee Attack to Ranged; Vial of Toxin boosts one physical
+    -- Attack source. Nothing is awarded for a missing or ambiguous target.
+    local function rewardConversion(mode,category)
+        if mode=="makeRanged" then
+            return ({attack="ranged",attackFire="rangedFire",
+                attackIce="rangedIce",attackColdFire="rangedColdFire"})[category]
+        end
+        local family,suffix=category:match("^(attack)(.*)$")
+        if family==nil then family,suffix=category:match("^(ranged)(.*)$") end
+        if family==nil then family,suffix=category:match("^(siege)(.*)$") end
+        if family==nil then family,suffix=category:match("^(block)(.*)$") end
+        if family==nil then return nil end
+        if mode=="addFire" then
+            if suffix=="" then return family.."Fire" end
+            if suffix=="Ice" then return family.."ColdFire" end
+        elseif mode=="addIce" then
+            if suffix=="" then return family.."Ice" end
+            if suffix=="Fire" then return family.."ColdFire" end
+        end
+        return nil
+    end
+    -- Resolve element conversions before the toxin. Toxin's extra physical
+    -- Attack must vanish if a Gem subsequently makes that attack elemental.
+    for _,mode in ipairs({"makeRanged","addFire","addIce","physicalBoost"}) do
+        for rewardGUID,reward in pairs(records) do
+            local token=reward.kind=="factionReward" and reward.modifier==mode
+                and objects[rewardGUID] or nil
+            if token~=nil then
+                local winner,sourceRecord,selected,bestArea=nil,nil,nil,0
+                local tokenArea=footprint(token)
+                for sourceGUID,candidate in pairs(objects) do
+                    local data=gameCards[sourceGUID]
+                    local action=data~=nil and (data.cardType=="Starting"
+                        or data.cardType=="Advanced Action")
+                    local unit=mode=="physicalBoost" and data~=nil
+                        and (data.cardType=="Regular Unit" or data.cardType=="Elite Unit")
+                    local record=records[sourceGUID]
+                    if sourceGUID~=rewardGUID and (action or unit) and record~=nil
+                        and record.contributes==true and record.resources~=nil
+                        and (unit or (candidate.is_face_down~=true
+                            and cardPosture(candidate)=="upright")) then
+                        local overlap=overlapArea(tokenArea,footprint(candidate))
+                        if overlap>bestArea then
+                            local possible={}
+                            for field,amount in pairs(record.resources) do
+                                if type(amount)=="number" and amount>0 then
+                                    local to=rewardConversion(mode,field)
+                                    if mode=="physicalBoost" then
+                                        -- Only the source's current physical
+                                        -- category qualifies for Vial of Toxin.
+                                        if not attackTransforms.coldFire
+                                            and (field=="attack" or field=="ranged"
+                                                or field=="siege") then to=field
+                                        else to=nil end
+                                    end
+                                    if to~=nil then
+                                        possible[#possible+1]={from=field,to=to}
+                                    end
+                                end
+                            end
+                            if #possible==1 then
+                                winner,sourceRecord,selected,bestArea=
+                                    candidate,record,possible[1],overlap
+                            end
+                        end
+                    end
+                end
+                if winner~=nil and selected~=nil then
+                    local from,to=selected.from,selected.to
+                    if mode=="physicalBoost" then
+                        local effectiveFamily=attackTransforms.siege and "siege" or from
+                        local bonus=effectiveFamily=="siege" and 1
+                            or (effectiveFamily=="ranged" and 2 or 3)
+                        reward.resources={[from]=bonus}
+                        addResourceAmounts(reward,totals)
+                    else
+                        -- Never mutate the declarative global resource data,
+                        -- which can be reused by another identical card.
+                        local newResources={}
+                        for k,v in pairs(sourceRecord.resources) do newResources[k]=v end
+                        local amount=newResources[from]
+                        newResources[from]=nil
+                        newResources[to]=(newResources[to] or 0)+amount
+                        sourceRecord.resources=newResources
+                        totals[from]=(totals[from] or 0)-amount
+                        totals[to]=(totals[to] or 0)+amount
+                        reward.contributes=true
+                    end
+                    reward.links[#reward.links+1]=winner.guid
+                    sourceRecord.links[#sourceRecord.links+1]=rewardGUID
+                    reward.status="purple"
+                    sourceRecord.status="purple"
+                    setHighlight(token,reward.status,true)
+                    setHighlight(winner,sourceRecord.status,sourceRecord.powered)
+                end
+            end
+        end
+    end
+
     -- Global Altem effects contribute when they upgrade an Attack, including
     -- a value entered manually into the Resource Tracker.
     local tracker=gStates.resourceTracker or {}
