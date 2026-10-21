@@ -61,6 +61,7 @@ local originalGlobalImages={
 
 -- New resource/Skill choice images use a dedicated prefix to avoid clashes.
 local resourceChoiceImages={
+    target={name="MKTargetIcon",url="https://steamusercontent-a.akamaihd.net/ugc/10727875827929703324/92E5145A412AFBE2EB1716DF8B6CF965359A0372/"},
     siege={name="MKChoiceSiege",url="https://steamusercontent-a.akamaihd.net/ugc/13001275488421638021/429A4C25B493880579B1EEE1BA38C5E8C2C7DD2B/"},
     ranged={name="MKChoiceRanged",url="https://steamusercontent-a.akamaihd.net/ugc/16825643705965136812/86750D2D0CE31C2AB2A08D518FDFA9606332DC69/"},
     move={name="MKChoiceMove",url="https://steamusercontent-a.akamaihd.net/ugc/15089597231616187129/97560F942A1D143CC2BD816D1F8E0B117A659AFA/"},
@@ -78,7 +79,7 @@ local allGlobalImages={}
 for _,entry in ipairs(originalGlobalImages) do
     allGlobalImages[#allGlobalImages+1]=entry
 end
-for _,category in ipairs({"siege","ranged","move","influence","healing","block","attack"}) do
+for _,category in ipairs({"target","siege","ranged","move","influence","healing","block","attack"}) do
     allGlobalImages[#allGlobalImages+1]=resourceChoiceImages[category]
 end
 

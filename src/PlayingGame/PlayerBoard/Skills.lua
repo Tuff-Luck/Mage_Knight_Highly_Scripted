@@ -697,7 +697,7 @@ function refreshCoopCompSkillWarnings()
 				clearCoopCompSkillWarning(skill)
 				local inRotation=gStates.doingTheRounds[skillGUID]~=nil
 				if boundaryActive==true and inRotation==false then
-					skill.createButton({click_function="coopCompSkillWarningClick", function_owner=Global, label="!", position={0,0.25,0}, rotation={0,0,0}, width=0, height=0, font_size=800, font_color={1,0.65,0.1}, tooltip="End of Round / Scenario End has been called. Interactive Skill timing may be restricted; the script will not prevent this play."})
+					skill.createButton({click_function="coopCompSkillWarningClick", function_owner=Global, label="!", position={0,0.25,0}, rotation={0,0,0}, width=0, height=0, font_size=800, font_color={1,0.65,0.1}})
 				end
 			end
 		end

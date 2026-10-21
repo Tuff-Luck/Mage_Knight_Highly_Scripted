@@ -333,9 +333,15 @@ local function playerSetupDeployUniqueComponents(orderIndex,position,offsetPosit
 							error("Dummy setup found an unrecognized crystal color on "..tostring(obj.guid)..": "..tostring(b),2)
 						end
 						if scenarioList[gStates.scenarioRef][gStates.playersRef].dummyTacticSelection=="F" then
-							turnOrder[1].dummyCrystals[b]=turnOrder[1].dummyCrystals[b]+1
+							local dummyPlayer=turnOrder[1]
+							local dummyCrystals=dummyPlayer~=nil and dummyPlayer.dummyCrystals or nil
+							if dummyCrystals==nil then error("Dummy crystal inventory is missing during setup.",2) end
+							dummyCrystals[b]=(dummyCrystals[b] or 0)+1
 						else
-							turnOrder[gStates.playerCount+1].dummyCrystals[b]=turnOrder[gStates.playerCount+1].dummyCrystals[b]+1
+							local dummyPlayer=turnOrder[gStates.playerCount+1]
+							local dummyCrystals=dummyPlayer~=nil and dummyPlayer.dummyCrystals or nil
+							if dummyCrystals==nil then error("Dummy crystal inventory is missing during setup.",2) end
+							dummyCrystals[b]=(dummyCrystals[b] or 0)+1
 						end
 					end
 					break

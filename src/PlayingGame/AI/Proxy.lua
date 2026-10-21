@@ -226,7 +226,7 @@ function proxySnapshotCrystals(stats)
 	if zone~=nil then
 		for _,obj in pairs(zone.getObjects()) do
 			local color=manaTokenColor(obj)
-			if result[color]~=nil then result[color]=result[color]+1 end
+			if color~=nil and result[color]~=nil then result[color]=result[color]+1 end
 		end
 	end
 	stats.dummyCrystals={Red=result.Red,White=result.White,Green=result.Green,Blue=result.Blue}

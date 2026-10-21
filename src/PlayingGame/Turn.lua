@@ -1170,8 +1170,10 @@ local function turnEndRoundRefreshOffers()
 					for a=1, #turnOrder, 1 do
 						if turnOrder[a].mage==gStates.positionMageKnight[5] then
 							local b=manaTokenColor(obj)
-							if turnOrder[a].dummyCrystals[b]==nil then turnOrder[a].dummyCrystals[b]=0 end
-							turnOrder[a].dummyCrystals[b]=turnOrder[a].dummyCrystals[b]+1
+							if b==nil then error("Dummy received a mana crystal without a recognized color.",2) end
+							local crystals=turnOrder[a].dummyCrystals
+							if crystals==nil then error("Dummy crystal inventory is missing during round setup.",2) end
+							crystals[b]=(crystals[b] or 0)+1
 							break
 						end
 					end

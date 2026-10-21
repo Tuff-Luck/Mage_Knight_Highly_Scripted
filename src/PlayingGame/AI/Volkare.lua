@@ -392,7 +392,9 @@ function volkareTurn(player, mouseButton, id)
 								volkareQuestPortalStatus()
 								if gStates.volkareWon==true then return end
 								--correct course if going out of bounds
-								volkarePOS=getObjectFromGUID(gStates.volkareModel).getPosition()
+								local volkareModel=getObjectFromGUID(gStates.volkareModel)
+								if volkareModel==nil then error("Volkare's model disappeared during movement resolution.",2) end
+								volkarePOS=volkareModel.getPosition()
 								if cityDistance.key==0 and volkareExploreBearings[pass]~=nil then volkareVector[gStates.gameScenario][volkareDrew.color]=volkareExploreBearings[pass] end
 								--Use the shared runtime-map membership/cache here. terrainHexAtPosition is kept for this
 								--one movement test so a just-explored tile remains valid during its brief face-down settle.
@@ -407,6 +409,7 @@ function volkareTurn(player, mouseButton, id)
 								--change vector to move closer to the city
 								if cityDistance.key>0 and gStates.gameScenario~="Volkare's Quest" then
 									local cityPos,pairPos=volkareCityPositions(gStates.cityRevealed[cityDistance.key].model)
+									if cityPos==nil then error("Volkare could not resolve the target City position.",2) end
 									getObjectFromGUID(gStates.volkareModel).setDecals({})
 									--stops automation next to city
 									local primaryDistance=math.sqrt(((volkarePOS[1]-cityPos[1])^2)+((volkarePOS[3]-cityPos[3])^2))
@@ -449,6 +452,7 @@ function volkareTurn(player, mouseButton, id)
 												--If this attack is the first half of a Spell/Frenzy double move, the remaining step brings him forward again after the retreat.
 												if (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz") and gStates.volkareCityDefenseMove==nil then
 													local targetPos=attackingPrimary==false and pairPos or cityPos
+													if targetPos==nil then error("Volkare could not resolve the selected City position.",2) end
 													gStates.volkareCityDefenseMove={attackPos={volkarePOS[1], volkarePOS[2], volkarePOS[3]}, cityPos={targetPos[1], targetPos[2], targetPos[3]}, secondMove=(movementSteps==2 and pass==1), resolving=false}
 												end
 												if (movementSteps==2 and pass==2) or movementSteps==1 then
@@ -831,6 +835,7 @@ local function volkareApplyReminder(guid,result)
 	if token==nil or image==nil or effect==nil then return end
 	token.setCustomObject({image=image})
 	token.reload()
+	---@type table<string, any>
 	local perks={arcaneImmunity=true,brutal=true,assassination=true}
 	for key,value in pairs(effect) do perks[key]=value end
 	gStates.monsterPerks[guid]=perks

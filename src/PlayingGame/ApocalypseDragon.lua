@@ -396,8 +396,13 @@ function apocalypseDragonCompetitiveScoreSummary()
 				end
 				if nearest~=nil then
 					local headSummary=summary.heads[nearest.head]
-					headSummary.countByMage[mage]=(headSummary.countByMage[mage] or 0)+1
-					headSummary.highestByMage[mage]=math.max(headSummary.highestByMage[mage] or 0,nearest.level)
+					if headSummary==nil then error("Missing Apocalypse Dragon summary for "..tostring(nearest.head)..".",2) end
+					local countsByMage=headSummary.countByMage
+					if countsByMage==nil then countsByMage={} headSummary.countByMage=countsByMage end
+					local highestByMage=headSummary.highestByMage
+					if highestByMage==nil then highestByMage={} headSummary.highestByMage=highestByMage end
+					countsByMage[mage]=(countsByMage[mage] or 0)+1
+					highestByMage[mage]=math.max(highestByMage[mage] or 0,nearest.level)
 				end
 			end
 		end
@@ -410,7 +415,9 @@ function apocalypseDragonCompetitiveScoreSummary()
 			local headSummary=summary.heads[headName]
 			if state~=nil and state.defeated==true and mage~=nil and summary.byMage[mage]~=nil and headSummary~=nil then
 				local bonus=math.max(1,math.min(6,tonumber(state.defeatedLevel or state.level) or 1))
-				headSummary.countByMage[mage]=(headSummary.countByMage[mage] or 0)+bonus
+				local countsByMage=headSummary.countByMage
+				if countsByMage==nil then countsByMage={} headSummary.countByMage=countsByMage end
+				countsByMage[mage]=(countsByMage[mage] or 0)+bonus
 			end
 		end
 	end
@@ -738,6 +745,9 @@ function apocalypseDragonInitializeHeadLevels(baseLevel,onComplete)
 	local centerX,centerZ=0,0
 	for _,headName in ipairs(apocalypseDragonColoredHeads) do
 		local headData=apocalypseDragonHeadData(headName)
+		if headData==nil or headData.position==nil then
+			error("Missing Apocalypse Dragon head position for "..tostring(headName)..".",2)
+		end
 		centerX=centerX+headData.position[1]
 		centerZ=centerZ+headData.position[3]
 	end

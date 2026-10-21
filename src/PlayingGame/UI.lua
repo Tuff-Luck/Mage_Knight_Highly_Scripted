@@ -2265,19 +2265,29 @@ function resourceTracker(player, mouseButton, id)
 	if mouseButton=="-1" then--and legalPlayerCheck(player.color, turnOrder[gStates.turnNumber].seatPos)==true then
 		--expand Resource Tracker
 		if id=="DisplayResourceTrackerDetails" then
-			local temp="245"
+			local temp="275"
 			local temp2="true"
 			if tonumber(UI.getAttribute("ResourceTracker", "height"))>200 then temp="35" temp2="false" end
 			UI.setAttribute("ResourceTracker", "height", temp)
 			UI.setAttribute("ResourceTrackerDetail", "active", temp2)
             resourceCardsPanelChanged(temp2=="true")
-			UI.setAttribute("ResourceTrackerDetail", "height", "210")
+			UI.setAttribute("ResourceTrackerDetail", "height", "240")
 			UI.setAttribute("MoveCosts", "active", "false")
 			UI.setAttribute("SiegeAmountDetails", "active", "false")
 			UI.setAttribute("RangeAmountDetails", "active", "false")
 			UI.setAttribute("BlockAmountDetails", "active", "false")
 			UI.setAttribute("AttacAmountDetails", "active", "false")
 			UI.setAttribute("InfluAmountDetails", "active", "false")
+			return
+		end
+		if id=="DisplayCombatEnemies" or id=="CloseCombatEnemyPanel" then
+			local active=UI.getAttribute("CombatEnemyPanel","active")=="true"
+			UI.setAttribute("CombatEnemyPanel","active",active and "false" or "true")
+			resourceCardsRefreshCombatEnemies()
+			return
+		end
+		if id:match("^CombatSourceSlot")~=nil then
+			resourceCardsCombatAssignmentClick(id)
 			return
 		end
 		--expander buttons
@@ -2499,7 +2509,7 @@ end
 
 
 function applyAltViewAngle(obj)
-	if obj==nil then return end
+	if obj==nil or obj.isDestroyed() then return end
 	for _, cityGUID in pairs(cityModel) do
 		if obj.guid==cityGUID then
 			obj.alt_view_angle={CITY_ALT_VIEW_ANGLE[1], CITY_ALT_VIEW_ANGLE[2], CITY_ALT_VIEW_ANGLE[3]}

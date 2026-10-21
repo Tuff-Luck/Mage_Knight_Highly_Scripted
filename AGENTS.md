@@ -115,9 +115,13 @@ Do not parse English out of translation-tagged Name/Description strings as an id
 
 GM Notes are internal script metadata and must remain **English only**. Do not add translation tags to object `GMNotes` fields when localizing the save JSON or object text. Display-facing fields such as Nickname and Description may be localized; script logic should prefer stable GUID/data fields or existing English-only GM Notes rather than translated display text.
 
+Tabletop Simulator may fail to resolve translation-tagged text in Global XML on load. Give every translated Global UI `<Text>` or `<Toggle>` element a unique `id`, so the existing load-time translation reapply pass can restore it with `UI.setAttribute`. For translated text created or changed at runtime, likewise set the text through its element ID after the UI exists. Prefer this existing reapply mechanism over adding a separate localization refresh pass for individual panels.
+
 In the current Tabletop Simulator version targeted by this project, XML/UI `tooltip` attributes do **not** process the `{en}`, `{ru}`, `{zh-tw}`, etc. translation-tag format. Tagged tooltip strings are shown literally. Keep tooltips as plain English unless Tabletop Simulator adds working tooltip localization in a later version and it is explicitly re-tested.
 
 This limitation applies both to tooltips declared in `Global.xml` and tooltips assigned at runtime with `UI.setAttribute(..., "tooltip", ...)`. Do not add translation tags to either form.
+
+Do not add tooltips to object-attached interfaces, including classic object buttons and object Custom UI. TTS object-interface tooltips can appear upside down and cannot be rotated; communicate the necessary guidance through visible labels or other appropriate UI instead. This restriction does not apply to the Global UI.
 
 The script does not manage a player's internal Move/Combat/Interact phases. Do not classify missing phase enforcement as a bug unless a scripted helper gives incorrect guidance or changes game state incorrectly.
 

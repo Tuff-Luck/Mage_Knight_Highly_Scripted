@@ -391,7 +391,16 @@ restoreZigguratPyramidUI=function()
 end
 
 --city pickup warning.
+local function eventsLiveObject(object)
+	if object==nil then return nil end
+	local guid=object.guid
+	return guid~=nil and getObjectFromGUID(guid) or nil
+end
+
 function __onObjectPickUp_raw(player_color, picked_up_object)
+	picked_up_object=eventsLiveObject(picked_up_object)
+	if picked_up_object==nil then return end
+	attackAssignmentsObjectMoved(picked_up_object)
 	if picked_up_object~=nil and mapTokenNeedsArrangement~=nil and mapTokenNeedsArrangement(picked_up_object)==true then
 		mapTokenReleaseObject(picked_up_object)
 	end
@@ -434,6 +443,8 @@ end
 local privateDeckHoverDescription="{en}Deck contents are only visible for this player.{it}Il contenuto del mazzo è visibile solo a questo giocatore.{ru}Содержимое колоды видно только этому игроку.{zh-tw}牌庫內容僅此玩家可見。{zh-cn}牌库内容仅此玩家可见。{ko}덱 내용은 이 플레이어에게만 보입니다.{es}El contenido del mazo solo es visible para este jugador.{fr}Le contenu du paquet n’est visible que par ce joueur.{pt-br}O conteúdo do baralho só é visível para este jogador.{de}Der Inhalt des Decks ist nur für diesen Spieler sichtbar."
 local privateDeckHoverApplied={}
 function __onObjectHover_raw(player_color, hover_object)
+	hover_object=eventsLiveObject(hover_object)
+	if hover_object==nil then return end
 	if hover_object~=nil and hover_object.type=="Deck" then
 		local ownerColor=hover_object.getGMNotes()
 		if ownerColor~=nil and ownerColor~="" then
@@ -489,6 +500,9 @@ end
 
 --Update skill Locations, Update Players Location details, and Update the UI and trigger a Level up if a mage shield was moved manually
 function __onObjectDrop_raw(player_color, dropped_object)
+	dropped_object=eventsLiveObject(dropped_object)
+	if dropped_object==nil then return end
+	attackAssignmentsObjectMoved(dropped_object)
 	if dropped_object==nil or dropped_object.guid==nil then return end
 	local droppedGUID=dropped_object.guid
     resourceUnitsCommandDropped(player_color,dropped_object)
@@ -683,7 +697,7 @@ end
 
 --fix for new objects getting existing GUID, and update competative skill location
 function __onObjectSpawn_raw(spawn_object)
-	if spawn_object==nil or spawn_object.guid==nil then return end
+	if spawn_object==nil or spawn_object.isDestroyed() or spawn_object.guid==nil then return end
 	applyAltViewAngle(spawn_object)
 	if puppetMasterManualCopyDropEligible~=nil and puppetMasterManualCopyDropEligible(spawn_object)==true then puppetMasterCheckManualCopyWhenResting(spawn_object) end
 	--code stops objects getting a GUID of a registered object.
@@ -746,6 +760,7 @@ end
 --Alter Fame board Values, Skill register, and Add icons when changing avatar **This script runs when exiting the game**
 function __onObjectDestroy_raw(destroyedObj)
 	if destroyedObj==nil then return end
+	attackAssignmentsClearForObject(destroyedObj)
 	local destroyedGuid=destroyedObj.guid
 	if runtimeMapContainsGUID(destroyedGuid)==true then
 		if terrainTiles[destroyedGuid]~=nil then runtimeMapInvalidateTerrain() else runtimeMapInvalidateObjects() end
@@ -1495,6 +1510,7 @@ local function containerShufflesOnEntry(guid)
 end
 
 function __onObjectEnterContainer_raw(bag, obj)
+	attackAssignmentsClearForObject(obj)
 	if obj~=nil and runtimeMapContainsGUID(obj.guid)==true then
 		if terrainTiles[obj.guid]~=nil then runtimeMapInvalidateTerrain() else runtimeMapInvalidateObjects() end
 	end
@@ -1581,6 +1597,9 @@ local competitiveSkillStateTargetByGUID={
 }
 
 function __onObjectLeaveContainer_raw(bag, obj)
+	obj=eventsLiveObject(obj)
+	if obj==nil then return end
+	bag=eventsLiveObject(bag)
 	if bag~=nil and obj~=nil and bag.guid==GUID.bag.apocalypseQuestTokens then
 		if gStates.apocalypseQuestTokenGUIDs==nil or gStates.apocalypseQuestTokenInBag==nil then apocalypseQuestTokenBagSetup() end
 		if gStates.apocalypseQuestTokenGUIDs[obj.guid]==true then gStates.apocalypseQuestTokenInBag[obj.guid]=false end
@@ -1590,17 +1609,19 @@ function __onObjectLeaveContainer_raw(bag, obj)
 	scheduleContainerEndRoundStateRefresh(bag)
 	--Manual Coral draw: a player-dragged card is held immediately after it leaves the Deed Deck.
 	--Scripted takeObject/deal calls also leave the Deck, but are not held, so they pass through untouched.
-	if obj~=nil and obj.type=="Card" and obj.guid~=GUID.card.quickWitted and coralDrawPending==nil and bagSearch~=bag.guid then
+	if bag~=nil and obj.type=="Card" and obj.guid~=GUID.card.quickWitted and coralDrawPending==nil and bagSearch~=bag.guid then
 		local playerIndex=coralManualQuickWittedLeaveSource(bag)
 		if playerIndex~=nil then
 			local seatPos=turnOrder[playerIndex].seatPos
 			local deckGuid=bag.guid
+			local objectGUID=obj.guid
 			safeWaitFrames("Events",function()
-				if obj==nil or obj.isDestroyed() then return end
-				local playerColor=obj.held_by_color
+				local currentObject=getObjectFromGUID(objectGUID)
+				if currentObject==nil then return end
+				local playerColor=currentObject.held_by_color
 				if playerColor~=nil and playerColor~="" and coralDrawPending==nil then
 					local authorized=legalPlayerCheck(playerColor, seatPos, "NoDummyException")==true
-					coralRestoreManualDraw(playerIndex, deckGuid, obj, authorized)
+					coralRestoreManualDraw(playerIndex, deckGuid, currentObject, authorized)
 				end
 			end, 3)
 		end

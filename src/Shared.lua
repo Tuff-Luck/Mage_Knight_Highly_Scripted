@@ -838,11 +838,12 @@ function applyTerrainHexChoiceButtons(options,buttonBuilder)
 		local key=option~=nil and option.key or nil
 		local terrainGUID=key~=nil and tostring(key):match("^([^|]+)|") or nil
 		local terrain=terrainGUID~=nil and getObjectFromGUID(terrainGUID) or nil
-		if terrain~=nil then
+		if key~=nil and terrain~=nil then
 			local group=byTerrain[terrainGUID]
 			if group==nil then group={terrain=terrain,xml=terrain.UI.getXmlTable() or {}} byTerrain[terrainGUID]=group end
-			sameHexSeen[key]=(sameHexSeen[key] or 0)+1
-			local _,xml=buttonBuilder(option,index,group.xml,sameHexSeen[key],sameHexCounts[key])
+			local seen=sameHexSeen[key] or 0
+			sameHexSeen[key]=seen+1
+			local _,xml=buttonBuilder(option,index,group.xml,seen+1,sameHexCounts[key])
 			group.xml=xml or group.xml
 		end
 	end
@@ -1021,7 +1022,8 @@ function runtimeMapHexDistanceMap(hexes,starts)
 		local currentKey=runtimeMapHexKey(current)
 		local currentDistance=distances[currentKey] or 0
 		if useCachedTopology==true then
-			for _,candidate in ipairs(terrainCache.neighbors[currentKey] or {}) do
+			local neighbors=terrainCache~=nil and terrainCache.neighbors[currentKey] or nil
+			for _,candidate in ipairs(neighbors or {}) do
 				local key=runtimeMapHexKey(candidate)
 				if key~=nil and distances[key]==nil then
 					distances[key]=currentDistance+1

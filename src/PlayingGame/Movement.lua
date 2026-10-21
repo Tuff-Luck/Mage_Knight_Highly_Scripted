@@ -351,7 +351,7 @@ function clearMoveDisplayVisuals()
 	moveDisplayTextSlotRequests={}
 	moveDisplayHideUnusedText(0)
 	if moveDisplayBaseVectorLines~=nil then
-		Global.setVectorLines(moveDisplayBaseVectorLines)
+		Global.setVectorLines(attackAssignmentsAppendVectorLines(moveDisplayBaseVectorLines))
 		moveDisplayBaseVectorLines=nil
 	end
 end
@@ -379,7 +379,7 @@ end
 function renderMoveDisplay(id)
 	--Preserve Global vector lines that existed before the movement display started.
 	local moveValue=gStates.resourceTracker~=nil and gStates.resourceTracker.move~=nil and resourceCardsEffectiveMove() or 0
-	if moveValue>0 and moveDisplayBaseVectorLines==nil then moveDisplayBaseVectorLines=Global.getVectorLines() or {} end
+	if moveValue>0 and moveDisplayBaseVectorLines==nil then moveDisplayBaseVectorLines=attackAssignmentsWithoutVectorLines(Global.getVectorLines() or {}) end
 
 	gStates.moveDisplayGeneration=(gStates.moveDisplayGeneration or 0)+1
 	local displayGeneration=gStates.moveDisplayGeneration
@@ -825,7 +825,7 @@ function renderMoveDisplay(id)
 				end
 			end
 		end
-		Global.setVectorLines(routeLines)
+		Global.setVectorLines(attackAssignmentsAppendVectorLines(routeLines))
 
 		--Highlight movement costs with spawned text instead of numbered image decals.
 		for hor,rowOfHexes in pairs(moveMap) do

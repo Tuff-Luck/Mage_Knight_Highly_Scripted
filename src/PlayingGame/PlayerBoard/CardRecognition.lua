@@ -59,6 +59,358 @@ local function resourceCardsDetailsOpen()
         and UI.getAttribute("ResourceTrackerDetail","active")=="true"
 end
 
+local COMBAT_ENEMY_DEFENCE_TRAITS={
+    {"fortified","Fortified"},{"unfortified","Unfortified"},{"elusive","Elusive"},
+    {"arcaneImmunity","Arcane Immunity"},{"pResist","Physical Resist"},
+    {"fResist","Fire Resist"},{"iResist","Ice Resist"},{"mResist","Psychic Resist"}
+}
+local COMBAT_SOURCE_FIELDS={
+    {key="ranged",family="ranged",type="Physical Range"},
+    {key="rangedFire",family="ranged",type="Fire Range"},
+    {key="rangedIce",family="ranged",type="Ice Range"},
+    {key="rangedColdFire",family="ranged",type="Cold Fire Range"},
+    {key="rangedPsychic",family="ranged",type="Psychic Range"},
+    {key="siege",family="siege",type="Physical Siege"},
+    {key="siegeFire",family="siege",type="Fire Siege"},
+    {key="siegeIce",family="siege",type="Ice Siege"},
+    {key="siegeColdFire",family="siege",type="Cold Fire Siege"},
+    {key="siegePsychic",family="siege",type="Psychic Siege"},
+    {key="attack",family="attack",type="Physical"},
+    {key="attackFire",family="attack",type="Fire"},
+    {key="attackIce",family="attack",type="Ice"},
+    {key="attackColdFire",family="attack",type="Cold Fire"},
+    {key="attackPsychic",family="attack",type="Psychic"}
+}
+local combatAssignmentState={seat=nil,selected=nil,targets={}}
+local combatAssignmentSlotSources={}
+local combatAssignmentRowTargets={}
+local COMBAT_ASSIGNMENT_ROW_COUNT=8
+local COMBAT_ASSIGNMENT_SLOT_COUNT=8
+local COMBAT_ASSIGNMENT_ROW_HEIGHT=30
+local COMBAT_ASSIGNMENT_PANEL_BASE_HEIGHT=125
+
+local function combatEnemyTraitsText(data,perks,traitDefinitions)
+    local traits={}
+    local unfortified=data.unfortified==true or (perks~=nil and perks.unfortified==true)
+    local fortified=not unfortified and
+        (data.fortified==true or (perks~=nil and perks.fortified==true))
+    for _,trait in ipairs(traitDefinitions) do
+        if trait[1]=="fortified" and fortified then
+            traits[#traits+1]=trait[2]
+        elseif trait[1]=="unfortified" and unfortified then
+            traits[#traits+1]=trait[2]
+        elseif trait[1]~="fortified" and trait[1]~="unfortified"
+            and (data[trait[1]]==true or (perks~=nil and perks[trait[1]]==true)) then
+            traits[#traits+1]=trait[2]
+        end
+    end
+    local defender=(tonumber(data.defend) or 0)+(perks~=nil and (tonumber(perks.defend) or 0) or 0)
+    if defender>0 and traitDefinitions==COMBAT_ENEMY_DEFENCE_TRAITS then
+        traits[#traits+1]="Defender +"..tostring(defender)
+    end
+    return #traits>0 and table.concat(traits,", ") or "None"
+end
+
+local function combatAssignmentActiveSeat()
+    local active=turnOrder~=nil and gStates~=nil and gStates.turnNumber~=nil
+        and turnOrder[gStates.turnNumber] or nil
+    return active~=nil and active.seatPos or nil
+end
+
+local function combatAssignmentSources(seat)
+    local scan=seat~=nil and resourceCardScanBySeat[seat] or nil
+    local sources={}
+    for guid,record in pairs(scan~=nil and scan.cards or {}) do
+        if record.resources~=nil then
+            local source=nil
+            for _,field in ipairs(COMBAT_SOURCE_FIELDS) do
+                local amount=tonumber(record.resources[field.key]) or 0
+                if amount>0 then
+                    if source==nil then
+                        local cardData=gameCards[guid]
+                        local sourceName=cardData~=nil and cardData.name or nil
+                        if type(sourceName)=="table" then sourceName=sourceName[1] end
+                        source={guid=guid,name=tostring(sourceName or record.kind or "Resource"),
+                            ranged=0,siege=0,attack=0,details={}}
+                        sources[#sources+1]=source
+                    end
+                    local resourceFamily=field.family
+                    source[resourceFamily]=source[resourceFamily]+amount
+                    source.details[#source.details+1]=field.type.." "..tostring(amount)
+                end
+            end
+        end
+    end
+    table.sort(sources,function(a,b)
+        if a.name==b.name then return a.guid<b.guid end
+        return a.name<b.name
+    end)
+    return sources
+end
+
+local function combatAssignmentActiveSeat()
+    local active=turnOrder~=nil and gStates~=nil and gStates.turnNumber~=nil
+        and turnOrder[gStates.turnNumber] or nil
+    return active~=nil and active.seatPos or nil
+end
+
+-- The assignment panel is rescanned with every card scan; only send attributes that changed.
+local combatPanelAttributes={}
+local function combatPanelSetAttribute(id,attribute,value)
+    local key=id.."\0"..attribute
+    if combatPanelAttributes[key]==value then return end
+    combatPanelAttributes[key]=value
+    UI.setAttribute(id,attribute,value)
+end
+
+local function combatAssignmentIconButton(id,active,amount,icon,tooltip,selected)
+    combatPanelSetAttribute(id,"active","true")
+    if active then
+        combatPanelSetAttribute(id.."Image","active","true")
+        combatPanelSetAttribute(id.."Amount","active","true")
+        combatPanelSetAttribute(id.."Image","image",icon)
+        combatPanelSetAttribute(id.."Amount","text",tostring(amount))
+        combatPanelSetAttribute(id,"color",
+            selected and "rgb(1,0.75,0.2)" or "rgb(0.45,0.45,0.45)")
+        combatPanelSetAttribute(id,"tooltip",tooltip)
+    else
+        combatPanelSetAttribute(id.."Image","active","false")
+        combatPanelSetAttribute(id.."Amount","active","false")
+        combatPanelSetAttribute(id,"color","rgba(0,0,0,0)")
+        combatPanelSetAttribute(id,"tooltip","")
+    end
+end
+
+local function combatAssignmentRefreshRows(entries,sources)
+    local rowByGUID={}
+    combatAssignmentRowTargets={}
+    for index,entry in ipairs(entries) do
+        if index<=COMBAT_ASSIGNMENT_ROW_COUNT then
+            rowByGUID[entry.guid]=index
+            combatAssignmentRowTargets[index]=entry.guid
+        end
+    end
+    local overflow=math.max(0,#entries-COMBAT_ASSIGNMENT_ROW_COUNT)
+    for index=1,COMBAT_ASSIGNMENT_ROW_COUNT do
+        local entry=entries[index]
+        combatPanelSetAttribute("CombatEnemyRow"..index,"active",entry~=nil and "true" or "false")
+        if entry~=nil then
+            combatPanelSetAttribute("CombatEnemyRow"..index.."Name","text",entry.name)
+            combatPanelSetAttribute("CombatEnemyRow"..index.."Armour","text",entry.armour)
+            combatPanelSetAttribute("CombatEnemyRow"..index.."Traits","text",
+                combatEnemyTraitsText(entry.data,entry.perks,COMBAT_ENEMY_DEFENCE_TRAITS))
+        end
+    end
+
+    combatAssignmentSlotSources={}
+    local allocated={}
+    for _,source in ipairs(sources) do
+        local targetGUID=combatAssignmentState.targets[source.guid]
+        local targetIndex=rowByGUID[targetGUID]
+        if targetIndex==nil then
+            targetGUID=entries[1]~=nil and entries[1].guid or nil
+            combatAssignmentState.targets[source.guid]=targetGUID
+            targetIndex=targetGUID~=nil and rowByGUID[targetGUID] or nil
+        end
+        if targetIndex~=nil then
+            local target=allocated[targetIndex]
+            if target==nil then
+                target={range={},attack={},strength=0}
+                allocated[targetIndex]=target
+            end
+            if source.ranged>0 then
+                target.range[#target.range+1]={source=source,amount=source.ranged,icon="MKChoiceRanged"}
+            end
+            if source.siege>0 then
+                target.range[#target.range+1]={source=source,amount=source.siege,icon="MKChoiceSiege"}
+            end
+            if source.attack>0 then
+                target.attack[#target.attack+1]={source=source,amount=source.attack,icon="MKChoiceAttack"}
+            end
+            target.strength=target.strength+source.ranged+source.siege+source.attack
+        end
+    end
+
+    for index=1,COMBAT_ASSIGNMENT_ROW_COUNT do
+        local target=allocated[index] or {range={},attack={},strength=0}
+        for _,family in ipairs({"range","attack"}) do
+            local items=target[family]
+            overflow=overflow+math.max(0,#items-COMBAT_ASSIGNMENT_SLOT_COUNT)
+            for slot=1,COMBAT_ASSIGNMENT_SLOT_COUNT do
+                local id="CombatSourceSlot"..index..family..slot
+                local item=items[slot]
+                if item~=nil then
+                    local source=item.source
+                    combatAssignmentSlotSources[id]=source.guid
+                    combatAssignmentIconButton(id,true,item.amount,item.icon,
+                        source.name..": "..table.concat(source.details,", "),
+                        combatAssignmentState.selected==source.guid)
+                else
+                    combatAssignmentIconButton(id,false,0,"","",false)
+                end
+            end
+        end
+        local entry=entries[index]
+        if entry~=nil then
+            local remaining=entry.baseArmour-target.strength
+            local result=remaining<=0 and joinLang({
+                "{en}Killed","{it}Ucciso","{ru}Убит","{zh-tw}已擊敗",
+                "{zh-cn}已击败","{ko}처치됨","{es}Derrotado","{fr}Tué",
+                "{pt-br}Derrotado","{de}Besiegt"
+            }) or joinLang({
+                "{en}"..tostring(remaining).." armour left",
+                "{it}"..tostring(remaining).." armatura rimasta",
+                "{ru}"..tostring(remaining).." брони осталось",
+                "{zh-tw}剩餘護甲 "..tostring(remaining),
+                "{zh-cn}剩余护甲 "..tostring(remaining),
+                "{ko}남은 방어구 "..tostring(remaining),
+                "{es}"..tostring(remaining).." de armadura restante",
+                "{fr}"..tostring(remaining).." armure restante",
+                "{pt-br}"..tostring(remaining).." de armadura restante",
+                "{de}"..tostring(remaining).." Rüstung übrig"
+            })
+            combatPanelSetAttribute("CombatEnemyRow"..index.."Result","text",result)
+        end
+    end
+
+    local selectionText
+    if combatAssignmentState.selected~=nil then
+        selectionText=joinLang({
+            "{en}Source selected: click its Range/Siege or Attack cell to move all resources to that enemy.",
+            "{it}Fonte selezionata: clicca la cella Distanza/Assedio o Attacco per spostare tutte le risorse su quel nemico.",
+            "{ru}Источник выбран: нажмите на ячейку Дальняя/Осадная или Атака, чтобы переместить все ресурсы к этому врагу.",
+            "{zh-tw}已選擇來源：點擊該敵人的遠程／攻城或攻擊欄位，即可移動所有資源。",
+            "{zh-cn}已选择来源：点击该敌人的远程／攻城或攻击栏位，即可移动所有资源。",
+            "{ko}자원이 선택됨: 적의 원거리/공성 또는 공격 칸을 클릭해 모든 자원을 이동하세요.",
+            "{es}Fuente seleccionada: haz clic en la celda de Rango/Asedio o Ataque para mover todos los recursos a ese enemigo.",
+            "{fr}Source sélectionnée : cliquez sur la cellule Distance/Siège ou Attaque de l'ennemi pour y déplacer toutes les ressources.",
+            "{pt-br}Fonte selecionada: clique na célula Distância/Cerco ou Ataque para mover todos os recursos para esse inimigo.",
+            "{de}Quelle ausgewählt: Klicke auf das Fernkampf-/Belagerungs- oder Angriffsfeld des Feindes, um alle Ressourcen dorthin zu verschieben."
+        })
+    else
+        selectionText=joinLang({
+            "{en}Attack resources start on the first enemy. Click an icon, then that enemy's Range/Siege or Attack cell to move its source.",
+            "{it}Le risorse d'attacco iniziano sul primo nemico. Clicca un'icona, poi la cella Distanza/Assedio o Attacco del nemico.",
+            "{ru}Ресурсы атаки изначально назначены первому врагу. Нажмите на значок, затем на ячейку Дальняя/Осадная или Атака нужного врага.",
+            "{zh-tw}攻擊資源預設分配給第一個敵人。點擊圖示，再點擊該敵人的遠程／攻城或攻擊欄位。",
+            "{zh-cn}攻击资源默认分配给第一个敌人。点击图标，再点击该敌人的远程／攻城或攻击栏位。",
+            "{ko}공격 자원은 처음에 첫 번째 적에게 배정됩니다. 아이콘을 클릭한 다음 해당 적의 원거리/공성 또는 공격 칸을 클릭하세요.",
+            "{es}Los recursos de ataque empiezan en el primer enemigo. Haz clic en un icono y luego en la celda de Rango/Asedio o Ataque del enemigo.",
+            "{fr}Les ressources d'attaque commencent sur le premier ennemi. Cliquez sur une icône, puis sur sa cellule Distance/Siège ou Attaque.",
+            "{pt-br}Os recursos de ataque começam no primeiro inimigo. Clique em um ícone e depois na célula Distância/Cerco ou Ataque do inimigo.",
+            "{de}Angriffsressourcen beginnen beim ersten Feind. Klicke auf ein Symbol und dann auf das Fernkampf-/Belagerungs- oder Angriffsfeld dieses Feindes."
+        })
+    end
+    if overflow>0 then
+        selectionText=selectionText..joinLang({
+            "{en}\nWarning: "..tostring(overflow).." enemies/resources exceed the visible assignment slots.",
+            "{it}\nAvviso: "..tostring(overflow).." nemici/risorse superano gli spazi visibili.",
+            "{ru}\nПредупреждение: врагов/ресурсов вне видимых ячеек: "..tostring(overflow)..".",
+            "{zh-tw}\n警告：有 "..tostring(overflow).." 個敵人／資源超出可見欄位。",
+            "{zh-cn}\n警告：有 "..tostring(overflow).." 个敌人／资源超出可见栏位。",
+            "{ko}\n경고: 표시 슬롯을 초과한 적/자원 "..tostring(overflow).."개.",
+            "{es}\nAviso: "..tostring(overflow).." enemigos/recursos exceden los espacios visibles.",
+            "{fr}\nAttention : "..tostring(overflow).." ennemis/ressources dépassent les emplacements visibles.",
+            "{pt-br}\nAviso: "..tostring(overflow).." inimigos/recursos excedem os espaços visíveis.",
+            "{de}\nWarnung: "..tostring(overflow).." Feinde/Ressourcen überschreiten die sichtbaren Plätze."
+        })
+    end
+    combatPanelSetAttribute("CombatAssignmentSelection","text",selectionText)
+end
+
+local function refreshCombatEnemyPanel(monsters)
+    local entries={}
+    for guid in pairs(monsters or {}) do
+        local data=monsterPugs[guid]
+        if data~=nil then
+            local perks=gStates~=nil and gStates.monsterPerks~=nil and gStates.monsterPerks[guid] or nil
+            local baseArmour=tonumber(data.armour) or 0
+            local armourBonus=perks~=nil and (tonumber(perks.armour) or 0) or 0
+            local armour=baseArmour+armourBonus
+            local armourText=tostring(armour)
+            if data.elusive==true or (perks~=nil and perks.elusive==true) then
+                armourText=armourText.." / "..tostring(baseArmour*2+armourBonus).." R/S"
+            end
+            entries[#entries+1]={guid=guid,name=tostring(data.name or "Enemy"),
+                armour=armourText,baseArmour=armour,data=data,perks=perks}
+        end
+    end
+    table.sort(entries,function(a,b)
+        if a.name==b.name then return a.guid<b.guid end
+        return a.name<b.name
+    end)
+    local visibleEnemyCount=math.min(#entries,COMBAT_ASSIGNMENT_ROW_COUNT)
+    combatPanelSetAttribute("CombatEnemyPanel","height",tostring(
+        COMBAT_ASSIGNMENT_PANEL_BASE_HEIGHT+visibleEnemyCount*COMBAT_ASSIGNMENT_ROW_HEIGHT))
+
+    local currentSeat=combatAssignmentActiveSeat()
+    if currentSeat~=combatAssignmentState.seat then
+        combatAssignmentState={seat=currentSeat,selected=nil,targets={}}
+    end
+    local sources=combatAssignmentSources(currentSeat)
+    local activeSources={}
+    for _,source in ipairs(sources) do activeSources[source.guid]=true end
+    for guid in pairs(combatAssignmentState.targets) do
+        if activeSources[guid]~=true then combatAssignmentState.targets[guid]=nil end
+    end
+    if combatAssignmentState.selected~=nil and activeSources[combatAssignmentState.selected]~=true then
+        combatAssignmentState.selected=nil
+    end
+    combatAssignmentRefreshRows(entries,sources)
+    combatPanelSetAttribute("CombatEnemyButtonText","text",joinLang({
+        "{en}Enemies ("..tostring(#entries)..")",
+        "{it}Nemici ("..tostring(#entries)..")",
+        "{ru}Враги ("..tostring(#entries)..")",
+        "{zh-tw}敵人 ("..tostring(#entries)..")",
+        "{zh-cn}敌人 ("..tostring(#entries)..")",
+        "{ko}적 ("..tostring(#entries)..")",
+        "{es}Enemigos ("..tostring(#entries)..")",
+        "{fr}Ennemis ("..tostring(#entries)..")",
+        "{pt-br}Inimigos ("..tostring(#entries)..")",
+        "{de}Feinde ("..tostring(#entries)..")"
+    }))
+end
+
+function resourceCardsRefreshCombatEnemies()
+    local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    local monsters={}
+    local zone=active~=nil and active.seatPos~=nil and playerPlayAreas[active.seatPos]~=nil
+        and getObjectFromGUID(playerPlayAreas[active.seatPos]) or nil
+    if zone~=nil then
+        for _,obj in ipairs(zone.getObjects()) do
+            if monsterPugs[obj.guid]~=nil then monsters[obj.guid]=obj end
+        end
+    end
+    refreshCombatEnemyPanel(monsters)
+end
+
+function resourceCardsCombatAssignSource(sourceGUID,enemyGUID)
+    combatAssignmentState.targets[sourceGUID]=enemyGUID
+    resourceCardsRefreshCombatEnemies()
+end
+
+function resourceCardsCombatAssignmentClick(id)
+    local row=id:match("^CombatSourceSlot(%d+)")
+    local index=row~=nil and tonumber(row) or nil
+    local targetGUID=index~=nil and combatAssignmentRowTargets[index] or nil
+    if targetGUID==nil then return end
+    local sourceGUID=combatAssignmentSlotSources[id]
+    if combatAssignmentState.selected~=nil then
+        if sourceGUID==combatAssignmentState.selected then
+            combatAssignmentState.selected=nil
+        else
+            local moved=combatAssignmentState.selected
+            combatAssignmentState.targets[moved]=targetGUID
+            combatAssignmentState.selected=nil
+            attackAssignmentsSetSourceTarget(moved,targetGUID)
+        end
+        resourceCardsRefreshCombatEnemies()
+        return
+    end
+    if sourceGUID~=nil then combatAssignmentState.selected=sourceGUID end
+    resourceCardsRefreshCombatEnemies()
+end
+
 -- The tracker belongs to the active Mage Knight, not everyone whose cards are on the table.
 function resourceCardsCurrentTotals()
     if not resourceCardsPanelOpen() or turnOrder==nil or gStates.turnNumber==nil then return nil end
@@ -315,6 +667,15 @@ local function choiceCategory(choice)
     return nil
 end
 
+local function choiceHasTargetableCombatResource(category)
+	return type(category)=="string" and
+		(category:find("attack",1,true)~=nil or category:find("Attack",1,true)~=nil
+			or category:find("block",1,true)~=nil or category:find("Block",1,true)~=nil
+			or category:find("siege",1,true)~=nil or category:find("Siege",1,true)~=nil
+			or category:find("ranged",1,true)~=nil or category:find("Range",1,true)~=nil
+			or category=="twiceAttack" or category=="twiceBlock")
+end
+
 -- The printed normal and powered effects share one choice for each physical
 -- card. The sideways +1 action also shares it when the resource type matches,
 -- but retains a separate choice when the printed effect is incompatible
@@ -439,7 +800,8 @@ local function removeChoiceButtons(card)
     for i=#xml,1,-1 do
         local attr=xml[i].attributes
         if attr~=nil and type(attr.id)=="string"
-            and attr.id:sub(1,19)=="ResourceCardChoice_" then
+            and (attr.id:sub(1,19)=="ResourceCardChoice_"
+                or attr.id:find("^AttackAssignmentSource_")~=nil) then
             table.remove(xml,i)
             changed=true
         end
@@ -515,8 +877,22 @@ end
 
 -- A single selected icon is centred on the object. Click to expand all
 -- choices; selecting one immediately collapses back to its icon.
-local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySets)
+local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySets,resources)
     if card==nil then return end
+    -- A fixed effect (no alternatives) still needs a Target button for its combat resource.
+    if (choices==nil or #choices==0) and type(resources)=="table" then
+        local bestKey,bestRank
+        for key,value in pairs(resources) do
+            if type(value)=="number" and value>0 and choiceLetters[key]~=nil
+                and choiceHasTargetableCombatResource(key) then
+                local rank=resourceChoiceRank(key,{[key]=value})
+                if bestKey==nil or rank<bestRank or (rank==bestRank and key<bestKey) then
+                    bestKey,bestRank=key,rank
+                end
+            end
+        end
+        if bestKey~=nil then choices={{[bestKey]=resources[bestKey]}} end
+    end
     local posture=cardPosture(card)
     local reward=factionRewardForObject~=nil and factionRewardForObject(card) or nil
     local isSkill=skillTokens[card.guid]~=nil or card.getGMNotes()=="Puppet Master"
@@ -536,7 +912,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     local buttonRowOffset=-30
     local data=gameCards[card.guid]
     local isArtifact=data~=nil and data.cardType=="Artifact"
-    if choices==nil or #choices<2
+    if choices==nil or #choices==0
         or (card.is_face_down==true and not isSkill and not isArtifact)
         or (not isSkill and posture=="discard")
         or (not isSkill and posture=="sideways" and not (cardCanPlaySideways(card)
@@ -587,7 +963,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             if a.rank~=b.rank then return a.rank<b.rank end
             return a.originalIndex<b.originalIndex
         end)
-        if #row.entries<2 or selected==nil then
+        if #row.entries<1 or selected==nil then
             if choiceButtonShown[card.guid]~="hidden" then
                 removeChoiceButtons(card)
                 choiceButtonShown[card.guid]="hidden"
@@ -595,8 +971,8 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             choiceExpandedByGUID[card.guid]=nil
             return
         end
-        row.expanded=(row.index==0 and (expandedRow==true or expandedRow=="base"))
-            or expandedRow=="set"..tostring(row.index)
+        row.expanded=#row.entries>1 and ((row.index==0 and (expandedRow==true or expandedRow=="base"))
+            or expandedRow=="set"..tostring(row.index))
         local selectedEntry
         for _,entry in ipairs(row.entries) do
             if entry.category==selected then selectedEntry=entry break end
@@ -608,6 +984,11 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             if not assetSeen[entry.icon] then
                 visibleAssets[#visibleAssets+1]=entry.icon
                 assetSeen[entry.icon]=true
+            end
+            if not row.expanded and choiceHasTargetableCombatResource(entry.category)
+                and not assetSeen.target then
+                visibleAssets[#visibleAssets+1]="target"
+                assetSeen.target=true
             end
         end
         signatureParts[#signatureParts+1]=row.index..":"..selected..":"
@@ -629,7 +1010,8 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     for i=#xml,1,-1 do
         local attr=xml[i].attributes
         if attr~=nil and type(attr.id)=="string"
-            and attr.id:sub(1,19)=="ResourceCardChoice_" then table.remove(xml,i) end
+            and (attr.id:sub(1,19)=="ResourceCardChoice_"
+                or attr.id:find("^AttackAssignmentSource_")~=nil) then table.remove(xml,i) end
     end
     local assets,blocked=resourceCardsChoiceAssetsFor(card.UI,visibleAssets)
     local multi=#rows>1
@@ -675,34 +1057,51 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             if icon~=nil and blocked[icon.name] then icon=nil end
             local buttonId="ResourceCardChoice_"..card.guid.."_"
                 ..(row.index>0 and ("set"..row.index.."_") or "")..category
-            local button={tag="Button",attributes={
-                id=buttonId,onClick="global/resourceCardsChoiceClicked",
-                position=tostring(x).." "..tostring(buttonY).." "..buttonDepth,
-                rotation=uiRotation,width=90,height=90,
-                scale=buttonScale,
-                colors=active and "#387D30|#4CA940|#387D30|#387D30"
-                    or "#454D5D|#69798E|#444C63|#454D5D",
-                fontSize=77,textColor="#FFFFFF",textAlignment="MiddleCenter"
-            },value=icon==nil and choiceLetters[category] or ""}
-            if icon~=nil then
-                button.children={{tag="Image",attributes={
-                    image=icon.name,width=82,height=82,preserveAspect="true",
-                    raycastTarget="false",color="#FFFFFF"}}}
-                local mark=entry.iconOverlay
-                if mark==nil and (category=="fireAttack" or category=="fireBlock") then
-                    mark="F" -- Existing Battle Versatility fire icons.
-                end
-                if mark~=nil then
-                    button.children[#button.children+1]={tag="Text",attributes={
-                        text=mark,width=82,height=82,
-                        alignment=entry.iconOverlayAlignment or "MiddleCenter",
-                        fontSize=tonumber(entry.iconOverlaySize) or 62,
-                        fontStyle="Bold",color=entry.iconOverlayColor or "#FF564A",
-                        outline="#1C1514",outlineSize="2 -2",
-                        raycastTarget="false"}}
+            if #row.entries>1 then
+                local button={tag="Button",attributes={
+                    id=buttonId,onClick="global/resourceCardsChoiceClicked",
+                    position=tostring(x).." "..tostring(buttonY).." "..buttonDepth,
+                    rotation=uiRotation,width=90,height=90,
+                    scale=buttonScale,
+                    colors=active and "#387D30|#4CA940|#387D30|#387D30"
+                        or "#454D5D|#69798E|#444C63|#454D5D",
+                    fontSize=77,textColor="#FFFFFF",textAlignment="MiddleCenter"
+                },value=icon==nil and choiceLetters[category] or ""}
+                if icon~=nil then
+                    button.children={{tag="Image",attributes={
+                        image=icon.name,width=82,height=82,preserveAspect="true",
+                        raycastTarget="false",color="#FFFFFF"}}
+                    }
+                    local mark=entry.iconOverlay
+                    if mark==nil and (category=="fireAttack" or category=="fireBlock") then
+                        mark="F" -- Existing Battle Versatility fire icons.
+                    end
+                    if mark~=nil then
+                        button.children[#button.children+1]={tag="Text",attributes={
+                            text=mark,width=82,height=82,
+                            alignment=entry.iconOverlayAlignment or "MiddleCenter",
+                            fontSize=tonumber(entry.iconOverlaySize) or 62,
+                            fontStyle="Bold",color=entry.iconOverlayColor or "#FF564A",
+                            outline="#1C1514",outlineSize="2 -2",
+                            raycastTarget="false"}}
+                    end
+                    xml[#xml+1]=button
                 end
             end
-            xml[#xml+1]=button
+            if not row.expanded and choiceHasTargetableCombatResource(category) then
+                local resource=row.index>0 and ("set"..row.index..":"..category) or category
+                local targetX=x
+                if #row.entries>1 then targetX=x+(x>=0 and buttonSpacing/2 or -buttonSpacing/2) end
+                xml[#xml+1]={tag="Button",attributes={
+                    id="AttackAssignmentSource_"..card.guid.."_"..tostring(row.index).."_"..category,
+                    onClick="global/attackAssignmentSourceClicked",
+                    position=tostring(targetX).." "..tostring(buttonY).." "..buttonDepth,
+                    rotation=uiRotation,width=90,height=90,scale=buttonScale,
+                    colors="#454D5D|#69798E|#444C63|#454D5D",textColor="#FFFFFF",textAlignment="MiddleCenter"
+                },value="",children={{tag="Image",attributes={
+                    image=resourceCardsChoiceIcon("target").name,width=82,height=82,
+                    preserveAspect="true",raycastTarget="false",color="#FFFFFF"}}}}
+            end
         end
     end
     if assets~=nil then card.UI.setXmlTable(xml,assets)
@@ -1011,7 +1410,7 @@ local function effectManaPossibilities(spec,payments,needPower,daytime)
             end
             if valid then
                 if wildcard then anyColor=true
-                else possible[category]=true end
+                elseif category~=nil then possible[category]=true end
             end
         end
     end
@@ -1192,7 +1591,7 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
     -- green default; only a genuinely unresolved selected effect stays yellow.
     local knownSelectedOption=chosen~=nil and effectHasTrackedResource(chosen)
     local complete=sideTracked and base~=nil and not choicePending and not statePartial
-        and (rule.partial~=true or knownSelectedOption)
+        and (rule==nil or rule.partial~=true or knownSelectedOption)
         and (rule==nil or rule.woundBonus==nil or woundCount~=nil)
         and (rule==nil or rule.enemyIconBlock~=true or not powered
             or enemyIconBonus~=nil)
@@ -1710,6 +2109,7 @@ local function puppetResourceOptions(guid)
             if type(entries)=="table" then
                 for i,value in ipairs(entries) do
                     if type(value)=="number" and value>0 then
+                        ---@type table<string, string|number>
                         local choice={key=family..attackType..i,icon=family}
                         if attackType~="P" then choice.iconOverlay=attackType=="IF" and "C" or attackType end
                         choice[family..puppetTypes[attackType]]=value
@@ -1909,6 +2309,7 @@ local function renderSeat(seatPos)
     inspectZone(playerCrystalAreas[seatPos],"crystal")
     inspectZone(playerUnitAreas[seatPos],"unit")
     inspectZone(playerPlayAreas[seatPos],"play")
+    refreshCombatEnemyPanel(playMonsters)
 
     -- Read *inventory* crystals only. A crystal moved to the Play Area is
     -- mana being spent, not part of a complete set in inventory.
@@ -2332,8 +2733,7 @@ local function renderSeat(seatPos)
             result.convertedMana=manaLink.converted
         end
         result.choices=choices -- Also authoritative for payment-restricted click validation.
-        showChoiceButtons(card,choices,result.powered,inventorySpec,inventorySets)
-        result.kind=resourceObjectKind(card)
+        showChoiceButtons(card,choices,result.powered,inventorySpec,inventorySets,result.resources)
         -- Ordinary Move cards and played Artifacts can both change terrain
         -- costs; amulets grant no numeric Move and work on their Break side.
         if rule~=nil and cardPosture(card)=="upright" and result.resources~=nil
@@ -2431,16 +2831,26 @@ local function renderSeat(seatPos)
                     end
                 end
             end
-            if best~=nil then
+            if best~=nil and bestCategory~=nil and bestType~=nil then
                 local bonusRule=sourceRecord.powered and rule.combatLink.powered
                     or rule.combatLink.normal
                 local bonus=bonusRule[bestType]*(sourceRecord.repeatCount or 1)
                 local targetRecord=records[best.guid]
+                if targetRecord==nil or targetRecord.resources==nil then
+                    error("The linked combat target has no resource record.",2)
+                end
                 local adjusted={}
                 for key,value in pairs(targetRecord.resources) do adjusted[key]=value end
-                adjusted[bestCategory]=adjusted[bestCategory]+bonus
+                local targetAmount=adjusted[bestCategory]
+                if type(targetAmount)~="number" then
+                    error("The linked combat target is missing its selected resource.",2)
+                end
+                adjusted[bestCategory]=targetAmount+bonus
                 targetRecord.resources=adjusted
                 totals[bestCategory]=(totals[bestCategory] or 0)+bonus
+                if sourceRecord.links==nil or targetRecord.links==nil then
+                    error("A linked combat record has no link list.",2)
+                end
                 sourceRecord.links[#sourceRecord.links+1]=best.guid
                 targetRecord.links[#targetRecord.links+1]=source.guid
                 sourceRecord.status="purple"
@@ -2505,6 +2915,7 @@ local function renderSeat(seatPos)
             local abilities=unitResourceDefinitions[unitGUID]
             if unit~=nil and abilities~=nil then
                 if unitState==nil then unitState=unitLayoutResourceState(seatPos) end
+                if unitState==nil then error("Unable to read Unit resource state.",2) end
                 local unwounded=true
                 for _,entry in ipairs(unitState.units) do
                     if entry.guid==unitGUID then unwounded=entry.unwounded break end
@@ -2634,7 +3045,8 @@ local function renderSeat(seatPos)
             local family=choice~=nil and choiceCategory(choice) or nil
             if family=="twiceAttack" then family="attack"
             elseif family=="twiceBlock" then family="block" end
-            if family~=nil and rule.unitBoost[family]~=nil then
+            local unitBoost=rule.unitBoost
+            if family~=nil and unitBoost~=nil and unitBoost[family]~=nil then
                 local eligible={}
                 for unitGUID,activation in pairs(activations) do
                     local unit=objects[unitGUID]
@@ -2658,7 +3070,7 @@ local function renderSeat(seatPos)
                     and eligible[1].overlap>eligible[2].overlap) then
                     local chosenUnit=eligible[1]
                     skillTargetLinked(skill,chosenUnit.unit,chosenUnit.field,
-                        (choice[family] or rule.unitBoost[family]))
+                        (choice[family] or unitBoost[family]))
                 end
             end
         end
@@ -2694,7 +3106,7 @@ local function renderSeat(seatPos)
                     end
                 end
             end
-            if best~=nil then
+            if best~=nil and best.field~=nil then
                 local sourceField=best.field
                 local sourceFamily=sourceField=="move" and "move"
                     or (sourceField:sub(1,6)=="attack" and "attack" or "block")
@@ -3091,7 +3503,14 @@ local function renderSeat(seatPos)
             local token=reward.kind=="factionReward" and reward.modifier==mode
                 and objects[rewardGUID] or nil
             if token~=nil then
-                local winner,sourceRecord,selected,bestArea=nil,nil,nil,0
+                ---@class CardRecognitionRecord
+                ---@field resources table<string, number>|nil
+                ---@field links string[]
+                ---@field status string
+                ---@field powered boolean
+                local winner,selected,bestArea=nil,nil,0
+                ---@type CardRecognitionRecord|nil
+                local sourceRecord=nil
                 local tokenArea=footprint(token)
                 for sourceGUID,candidate in pairs(objects) do
                     local data=gameCards[sourceGUID]
@@ -3130,7 +3549,7 @@ local function renderSeat(seatPos)
                         end
                     end
                 end
-                if winner~=nil and selected~=nil then
+                if winner~=nil and sourceRecord~=nil and selected~=nil then
                     local from,to=selected.from,selected.to
                     if mode=="physicalBoost" then
                         local effectiveFamily=attackTransforms.siege and "siege" or from
@@ -3141,15 +3560,24 @@ local function renderSeat(seatPos)
                     else
                         -- Never mutate the declarative global resource data,
                         -- which can be reused by another identical card.
+                        if sourceRecord.resources==nil then
+                            error("The linked resource source has no resource values.",2)
+                        end
                         local newResources={}
                         for k,v in pairs(sourceRecord.resources) do newResources[k]=v end
                         local amount=newResources[from]
+                        if type(amount)~="number" then
+                            error("The linked resource source is missing its selected value.",2)
+                        end
                         newResources[from]=nil
                         newResources[to]=(newResources[to] or 0)+amount
                         sourceRecord.resources=newResources
                         totals[from]=(totals[from] or 0)-amount
                         totals[to]=(totals[to] or 0)+amount
                         reward.contributes=true
+                    end
+                    if reward.links==nil or sourceRecord.links==nil then
+                        error("A linked resource record has no link list.",2)
                     end
                     reward.links[#reward.links+1]=winner.guid
                     sourceRecord.links[#sourceRecord.links+1]=rewardGUID
@@ -3223,6 +3651,7 @@ local function renderSeat(seatPos)
         usesCurrentHexBlock=usesCurrentHexBlock,
         usesCurrentHexHealing=usesCurrentHexHealing,
         usesSkillLocation=usesSkillLocation}
+    refreshCombatEnemyPanel(playMonsters)
     -- Redraw movement when ability flags change, even if total Move stays equal.
     if totalsChanged or terrainChanged or transformChanged then refreshResourceTrackerText() end
     if previousMove~=(totals.move or 0) or terrainChanged or movementChanged then
@@ -3418,6 +3847,7 @@ function resourceUnitsCommandDropped(playerColor,obj)
         if unit==nil or unit.guid==pickup.origin
             or unitResourceDefinitions[unit.guid]==nil then return end
         local state=unitLayoutResourceState(pickup.seatPos)
+        if state==nil then return end
         for _,entry in ipairs(state.units) do
             if entry.guid==unit.guid and not entry.unwounded then return end
         end
@@ -3460,6 +3890,7 @@ function resourceUnitsChoiceClicked(player,value,id)
     local unit=getObjectFromGUID(unitGUID)
     if unit==nil then return end
     local state=unitLayoutResourceState(current.seatPos)
+    if state==nil then return end
     for _,entry in ipairs(state.units) do
         if entry.guid==unitGUID and not entry.unwounded then return end
     end
@@ -3534,6 +3965,7 @@ function resourceUnitsRefreshButtons()
     local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if current==nil then return end
     local state=unitLayoutResourceState(current.seatPos)
+    if state==nil then return end
     local conditionByGUID={}
     for _,entry in ipairs(state.units) do
         conditionByGUID[entry.guid]=entry.unwounded

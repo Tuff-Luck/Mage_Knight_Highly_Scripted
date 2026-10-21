@@ -8,6 +8,7 @@ The project is authored as Lua modules and bundled by Sebastian's Tabletop Simul
 | `src/ErrorReporting.lua` | Automatic Lua error reporting, protected callback helpers, breadcrumbs and diagnostic context builders. |
 | `src/Shared.lua` | Shared helpers used across setup/runtime modules, including protected asynchronous/callback helpers. |
 | `src/PlayingGame/DeckCycle.lua` | Shared live-pile lookup and bottom-return cycle tracking for Artifact, Unit, Advanced Action and Spell decks. |
+| `src/PlayingGame/AttackAssignments.lua` | Runtime attack-target selection, temporary enemy buttons, and persistent source-to-enemy vector arrows. |
 | `src/SetupInterface.lua` | Setup menu/UI state, scenario/variant option presentation, cross-option locks and setup-facing controls. |
 | `src/SetupGame.lua` | Setup orchestration: Start handling, final option normalization, delayed completion and setup callback boundary. |
 | `src/SetupGame/Components.lua` | Monster pools and setup-time expansion bag merging. |

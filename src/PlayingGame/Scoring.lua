@@ -11,7 +11,10 @@ local function councilApocalypseScoreBonus(playerIndex)
     local counts={Council=0,Apocalypse=0}
     for _,player in ipairs(turnOrder) do
         local side=councilApocalypseFactionAtSeat(player.seatPos)
-        if counts[side]~=nil then counts[side]=counts[side]+1 end
+        if side~=nil then
+            local count=counts[side]
+            if count~=nil then counts[side]=count+1 end
+        end
     end
     local bonus=0
     local blueFallen=gStates.defeatedCities~=nil and gStates.defeatedCities[cityModel.blue]==true

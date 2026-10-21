@@ -12,7 +12,10 @@ function dummyProcessTurn(dummyIndex,dummySeat)
 	local crystalSnapshot={Red=0,White=0,Green=0,Blue=0}
 	for _, obj in pairs(getObjectFromGUID(playerCrystalAreas[dummySeat]).getObjects()) do
 		local color=manaTokenColor(obj)
-		if crystalSnapshot[color]~=nil then crystalSnapshot[color]=crystalSnapshot[color]+1 end
+		if color~=nil then
+			local count=crystalSnapshot[color]
+			if count~=nil then crystalSnapshot[color]=count+1 end
+		end
 	end
 	dummyStats.dummyCrystals["Red"]=crystalSnapshot.Red
 	dummyStats.dummyCrystals["White"]=crystalSnapshot.White

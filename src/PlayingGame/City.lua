@@ -1465,10 +1465,11 @@ function refreshCityControlAndScoring()
                     -- contribute to City scoring once its City is conquered.
                     local homeFaction=gStates.gameScenario=="The Council versus the Apocalypse" and gStates.gameOver==true
                         and ((cityGUID==cityModel.blue and "Council") or (cityGUID==cityModel.red and "Apocalypse")) or nil
-                    if homeFaction==nil or councilApocalypseFactionForMage(mage)~=homeFaction then
-					if cityScoring[mage]~=nil then cityScoring[mage]=cityScoring[mage]+1
-					elseif firstShield==true then cityScoring[mage]=1.5 firstShield=false
-					else cityScoring[mage]=1 end
+                    if mage~=nil and (homeFaction==nil or councilApocalypseFactionForMage(mage)~=homeFaction) then
+                    local score=cityScoring[mage]
+                    if score~=nil then cityScoring[mage]=score+1
+                    elseif firstShield==true then cityScoring[mage]=1.5 firstShield=false
+                    else cityScoring[mage]=1 end
                     end
 				end
 			end

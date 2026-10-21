@@ -784,8 +784,8 @@ local function finalizeSetup()
 	artifactOfferRewardTextRefresh()
 	-- On the first game setup, present the Resource Tracker expanded.
 	-- Saved-game UI layout is left to the usual onLoad handling.
-	UI.setAttribute("ResourceTracker", "height", "245")
-	UI.setAttribute("ResourceTrackerDetail", "height", "210")
+	UI.setAttribute("ResourceTracker", "height", "275")
+	UI.setAttribute("ResourceTrackerDetail", "height", "240")
 	UI.setAttribute("ResourceTrackerDetail", "active", "true")
 	UI.setAttribute("ResourceTracker", "active", "true")
 	resourceCardsPanelChanged(true)

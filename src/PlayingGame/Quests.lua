@@ -399,11 +399,16 @@ local function apocalypseQuestReturnTuckedCard(card, questName)
 	local staging=(QuestPrivate.apocalypseQuestPendingTuckedReturns or 0)
 	card.setPosition({target[1]+3.0+(staging%4)*2.0,target[2]+0.3,target[3]+3.0})
 	QuestPrivate.apocalypseQuestPendingTuckedReturns=QuestPrivate.apocalypseQuestPendingTuckedReturns+1
-	local queue=QuestPrivate.apocalypseQuestTuckedQueues[destinationName] or {}
-	QuestPrivate.apocalypseQuestTuckedQueues[destinationName]=queue
+	local tuckedQueues=QuestPrivate.apocalypseQuestTuckedQueues
+	local tuckedActive=QuestPrivate.apocalypseQuestTuckedActive
+	if tuckedQueues==nil or tuckedActive==nil then
+		error("Quest tucked-card return queues are not initialized.",2)
+	end
+	local queue=tuckedQueues[destinationName] or {}
+	tuckedQueues[destinationName]=queue
 	local function processNext()
 		if #queue==0 then
-			QuestPrivate.apocalypseQuestTuckedActive[destinationName]=nil
+			tuckedActive[destinationName]=nil
 			return
 		end
 		local nextTask=table.remove(queue,1)
@@ -437,8 +442,8 @@ local function apocalypseQuestReturnTuckedCard(card, questName)
 			end)
 		end,2)
 	end
-	if QuestPrivate.apocalypseQuestTuckedActive[destinationName]~=true then
-		QuestPrivate.apocalypseQuestTuckedActive[destinationName]=true
+	if tuckedActive[destinationName]~=true then
+		tuckedActive[destinationName]=true
 		performReturn()
 	else
 		queue[#queue+1]=performReturn
