@@ -21375,6 +21375,7 @@ local assignmentColor={0.95,0.18,0.78}
 local assignmentThickness=0.12
 local previewThickness=0.07
 local assignmentHeight=1.1
+local previewHeight=1.3
 local arrowHeadLength=0.34
 local arrowHeadAngle=0.55
 local assignmentRegistry={}
@@ -21440,8 +21441,8 @@ function attackAssignmentsWithoutVectorLines(lines)
 	return result
 end
 
-local function positionAtHeight(position)
-	return {position[1],assignmentHeight,position[3]}
+local function positionAtHeight(position,height)
+	return {position[1],height or assignmentHeight,position[3]}
 end
 
 local function assignmentLines(source,target)
@@ -21475,8 +21476,8 @@ local function activeVisualLines()
 		local player=Player[color]
 		local pointer=player~=nil and player.getPointerPosition() or nil
 		if pointer~=nil and pending.source~=nil and not pending.source.isDestroyed() then
-			local from=positionAtHeight(pending.source.getPosition())
-			local to=positionAtHeight(pointer)
+			local from=positionAtHeight(pending.source.getPosition(),previewHeight)
+			local to=positionAtHeight(pointer,previewHeight)
 			lines[#lines+1]={points={from,to},color=assignmentColor,thickness=previewThickness,rotation={0,0,0}}
 		end
 	end
@@ -21599,26 +21600,15 @@ end
 
 function attackAssignmentSourceClicked(player,value,id)
 	return safeCallback("attackAssignmentSourceClicked",function()
-		broadcastToAll("Attack assignment button clicked. Choose an enemy by clicking it; click the source icon again to cancel (right-click the icon to add a second target).",{1,0.85,0.35})
-		if type(id)~="string" then
-			broadcastToAll("Attack assignment could not read the source button ID.",{1,0.4,0.4})
-			return
-		end
+		if type(id)~="string" then return end
 		local guid,rowIndex,category=id:match("^AttackAssignmentSource_([0-9a-f]+)_(%d+)_(.+)$")
-		if guid==nil then
-			broadcastToAll("Attack assignment could not identify this source button.",{1,0.4,0.4})
-			return
-		end
+		if guid==nil then return end
 		rowIndex=tonumber(rowIndex)
 		local resource=rowIndex>0 and ("set"..rowIndex..":"..category) or category
 		local color=player~=nil and player.color or nil
 		local source=guid~=nil and getObjectFromGUID(guid) or nil
-		if source==nil then
-			broadcastToAll("Attack assignment source card is no longer available.",{1,0.4,0.4})
-			return
-		end
+		if source==nil then return end
 		local pending=type(color)=="string" and targetingByPlayer[color] or nil
-		local cancelling=pending~=nil and pending.sourceGUID==guid and pending.resource==resource
 		-- Left click moves the whole source to a single new target; right click keeps the
 		-- existing arrow so one source can feed a second enemy.
 		local additional=tostring(value)=="-2"
@@ -21632,15 +21622,7 @@ function attackAssignmentSourceClicked(player,value,id)
 			end
 			if removed then persistAssignments() end
 		end
-		if attackAssignmentsBegin(source,resource,color,additional) then
-			if cancelling then
-				broadcastToAll("Attack targeting cancelled.",{1,0.85,0.35})
-			else
-				broadcastToAll("Targeting "..resource.." from "..tostring(source.getName())..". Click an enemy to assign it.",{1,0.85,0.35})
-			end
-		else
-			broadcastToAll("Attack targeting could not start; verify that you are seated as a player.",{1,0.4,0.4})
-		end
+		attackAssignmentsBegin(source,resource,color,additional)
 	end)
 end
 
@@ -21648,10 +21630,7 @@ function attackAssignmentTargetClicked(target,playerColor)
 	return safeCallback("attackAssignmentTargetClicked",function()
 		local pending=type(playerColor)=="string" and targetingByPlayer[playerColor] or nil
 		if pending==nil or target==nil or target.guid==nil or monsterPugs[target.guid]==nil
-			or target.isDestroyed() or pending.source==nil or pending.source.isDestroyed() then
-			broadcastToAll("Enemy target button clicked, but no valid attack is awaiting a target.",{1,0.4,0.4})
-			return
-		end
+			or target.isDestroyed() or pending.source==nil or pending.source.isDestroyed() 			then return end
 		local duplicate=false
 		if not pending.additional then
 			for entryId,entry in pairs(assignmentRegistry) do
@@ -21669,7 +21648,6 @@ function attackAssignmentTargetClicked(target,playerColor)
 				sourceGUID=pending.sourceGUID,targetGUID=target.guid,
 				resource=pending.resource,playerColor=playerColor}
 			persistAssignments()
-			broadcastToColor("Attack resource assigned to enemy.",playerColor,{1,0.85,0.35})
 		end
 		targetingByPlayer[playerColor]=nil
 		syncTargetButtons()
