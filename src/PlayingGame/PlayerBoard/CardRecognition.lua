@@ -2613,6 +2613,7 @@ local function renderSeat(seatPos)
     end
 
     local cards,wounds,skills,manaObjects,footprints={}, {}, {}, {}, {}
+    local enemyEffects={}
     local hasUnits=false
     for guid,obj in pairs(objects) do
         local kind=resourceObjectKind(obj)
@@ -3006,6 +3007,25 @@ local function renderSeat(seatPos)
             result.enemyGUID=enemyTarget.guid
             result.links[#result.links+1]=enemyTarget.guid
             result.status="purple"
+        end
+        -- Enemy effects follow the card's *selected* option, so changing the
+        -- option re-links (or unlinks) the nearest enemy on the next scan.
+        if rule~=nil and rule.enemyEffect~=nil and result.resources~=nil
+            and result.powered~=nil and cardPosture(card)=="upright"
+            and result.status~="yellow" and result.enemyGUID==nil then
+            local _,chosenCategory=currentChoice(card.guid,result.powered,choices)
+            local spec=combatEffectSpec(rule,result.powered,chosenCategory)
+            if spec~=nil then
+                local target=combatEffectNearestEnemy(footprints[card.guid],monsters,footprint,overlapArea)
+                if target~=nil then
+                    for _=1,(result.repeatCount or 1) do
+                        combatEffectAdd(enemyEffects,target.guid,card.guid,spec)
+                    end
+                    result.enemyGUID=target.guid
+                    result.links[#result.links+1]=target.guid
+                    result.status="purple"
+                end
+            end
         end
         if rule~=nil and rule.woundBonus~=nil and result.resources~=nil and unitState~=nil then
             result.unitSources={}
@@ -3933,10 +3953,12 @@ local function renderSeat(seatPos)
     local transformChanged=previousTransform==nil
         or (previousTransform.coldFire==true)~=(attackTransforms.coldFire==true)
         or (previousTransform.siege==true)~=(attackTransforms.siege==true)
+    combatEffectReport(seatPos,enemyEffects)
     bySeat[seatPos]=current
     resourceCardScanBySeat[seatPos]={cards=records,totals=totals,
         attackTransforms=attackTransforms,
         terrainModifiers=terrainModifiers,movementEffects=movementEffects,
+        enemyEffects=enemyEffects,
         usesCurrentHexBlock=usesCurrentHexBlock,
         usesCurrentHexHealing=usesCurrentHexHealing,
         usesSkillLocation=usesSkillLocation}
