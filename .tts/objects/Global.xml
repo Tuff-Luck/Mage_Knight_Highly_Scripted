@@ -1688,8 +1688,9 @@ Einheiten</Text></Cell>
 	</Panel>
 </Panel>
 
-<Panel id="CombatEnemyPanel" active="false" class="Floating" rectAlignment="UpperLeft" offsetXY="360 -80" width="1400" height="125" color="rgb(0.2, 0.2, 0.2)" outlineSize="1 -1">
-	<Panel rectAlignment="UpperCenter" height="32" color="rgb(0.3, 0.3, 0.3)" outlineSize="0 0">
+<Panel id="CombatEnemyPanel" active="false" class="Floating" rectAlignment="UpperLeft" offsetXY="360 -80" width="1400" height="125" color="rgb(0.24, 0.2, 0.15)" outlineSize="1 -1">
+	<Panel rectAlignment="UpperCenter" height="32" color="rgb(0.78, 0.72, 0.58)" outlineSize="0 0">
+		<Image image="Sliced Button/Button New Active" type="Sliced" raycastTarget="false"/>
 		<HorizontalLayout childForceExpandWidth="false">
 			<Text id="CombatEnemyPanelTitle" class="Title18" color="White" preferredWidth="1360" alignment="MiddleCenter">{en}Attack Assignment{it}Assegnazione attacchi{ru}Распределение атак{zh-tw}攻擊分配{zh-cn}攻击分配{ko}공격 할당{es}Asignación de ataques{fr}Affectation des attaques{pt-br}Atribuição de ataques{de}Angriffszuweisung</Text>
 			<Button id="CloseCombatEnemyPanel" preferredWidth="32" onClick="resourceTracker" text="X"/>
