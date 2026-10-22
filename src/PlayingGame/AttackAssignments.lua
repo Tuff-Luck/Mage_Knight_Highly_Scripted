@@ -205,9 +205,12 @@ end
 
 local function removeAssignment(id)
 	if assignmentRegistry[id]==nil then return false end
+	local sourceGUID=assignmentRegistry[id].sourceGUID
 	assignmentRegistry[id]=nil
+	if resourceCardsCombatForgetSource~=nil and sourceGUID~=nil then resourceCardsCombatForgetSource(sourceGUID) end
 	persistAssignments()
 	refreshRenderedLines()
+	if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
 	return true
 end
 
@@ -283,6 +286,8 @@ function attackAssignmentTargetClicked(target,playerColor)
 		refreshRenderedLines()
 		if not pending.additional and resourceCardsCombatAssignSource~=nil then
 			resourceCardsCombatAssignSource(pending.sourceGUID,target.guid)
+		elseif pending.additional and resourceCardsSourceChanged~=nil then
+			resourceCardsSourceChanged()
 		end
 	end)
 end
@@ -301,6 +306,22 @@ function attackAssignmentsSetSourceTarget(sourceGUID,targetGUID)
 	persistAssignments()
 	refreshRenderedLines()
 	scheduleRefresh()
+end
+
+-- Auto-targeted sources get the same arrow a manual assignment would draw.
+function attackAssignmentsEnsureTarget(sourceGUID,targetGUID)
+	for _,entry in pairs(assignmentRegistry) do
+		if entry.sourceGUID==sourceGUID and entry.targetGUID==targetGUID then return end
+	end
+	attackAssignmentsSetSourceTarget(sourceGUID,targetGUID)
+end
+
+function attackAssignmentsTargetGUIDs(sourceGUID)
+	local targets={}
+	for _,entry in pairs(assignmentRegistry) do
+		if entry.sourceGUID==sourceGUID then targets[entry.targetGUID]=true end
+	end
+	return targets
 end
 
 function attackAssignmentsRemove(id)
@@ -327,6 +348,7 @@ function attackAssignmentsClearForObject(objectOrGUID)
 	if #remove>0 or pendingRemoved then
 		syncTargetButtons()
 		refreshRenderedLines()
+		if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
 	end
 	return #remove
 end

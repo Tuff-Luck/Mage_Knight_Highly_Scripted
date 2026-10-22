@@ -2290,6 +2290,10 @@ function resourceTracker(player, mouseButton, id)
 			resourceCardsCombatAssignmentClick(id)
 			return
 		end
+		if id:match("^CombatEnemyJoin%d+$")~=nil then
+			resourceCardsCombatToggleGroup(tonumber(id:match("%d+")))
+			return
+		end
 		--expander buttons
 		local IDConvert=RESOURCE_TRACKER_EXPANDERS
 		if IDConvert[id]~=nil then
@@ -2413,8 +2417,10 @@ end
 buttonImageResetGeneration={}
 function buttonClicked(player, mouseButton, ButtonPressed)
 	if mouseButton~="-1" then return end
+	-- Combat panel slots draw their own icon; the standard button image must not replace it.
+	if ButtonPressed:match("^CombatSourceSlot") or ButtonPressed:match("^CombatEnemyRow")
+		or ButtonPressed:match("^CombatEnemyJoin") then return end
 
-	local obj=getObjectFromGUID(ButtonPressed:sub(1,6))
 	local ui=obj and obj.UI or UI
 	local active, deactive
 	local setupScenarioLevelButton=ButtonPressed=="HorsemenLevelUp" or ButtonPressed=="HorsemenLevelDown" or

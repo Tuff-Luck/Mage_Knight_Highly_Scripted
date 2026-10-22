@@ -1045,6 +1045,16 @@ cardResourceDefinitions={
     determination={normal={block=2},normalChoices={{attack=2},{block=2}},powered={block=5},normalPartial=true}, -- Block provisional until player chooses
     threaten={normal={influence=2},powered={influence=5}}, -- Powered: -1 Reputation; fixed generated Influence is recognised
     rage={normalChoices={{attack=2},{block=2}},powered={attack=4},normalPartial=true}, -- Unpowered choice unresolved, powered Attack 4 is fixed
+    quickWitted={normalChoices={{move=2},{influence=2}},
+        poweredChoices={{ranged=3},{influence=4}}},
+    temperedSteel={
+        normalChoices={
+            {key="block2Attack1",block=2,attack=1,icon="attack",            stackedIcons={"attack","block"}}, -- listed back to front: Block on top
+                        {key="block1Attack2",block=1,attack=2,icon="attack",stackedIcons={"block","attack"}}}, -- Attack on top
+        poweredChoices={{key="attack",attack=4},{key="block",block=4}},
+        poweredTargetBonuses={
+            attack={amount=2,traits={"pResist","fResist","iResist","mResist"}},
+            block={amount=2,traits={"swiftness"}}}},
     -- Both branches are understood: Heal contributes to the tracker, Draw does not.
     tranquility={normal={healing=1},powered={healing=2},
         normalChoices={{healing=1},{draw=1}},poweredChoices={{healing=2},{draw=2}}},
@@ -1451,13 +1461,13 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["af7422"]={cardType="Starting", resourceKey="tranquility", name={"Tranquility"}, color={"Green"}, action={"Heal"}},
 			["af9def"]={cardType="Starting", resourceKey="concentration", name={"Concentration"}, color={"Green"}, action={"Special"}},
 			["acdcb2"]={cardType="Starting", resourceKey="swiftness", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
-			[GUID.card.quickWitted]={cardType="Starting", name={"Quick Witted"}, color={"White"}, action={"Move", "Combat", "Influence"}},
+			[GUID.card.quickWitted]={cardType="Starting", resourceKey="quickWitted", name={"Quick Witted"}, color={"White"}, action={"Move", "Combat", "Influence"}},
 			["7b7f78"]={cardType="Starting", resourceTracked=false, name={"Mana Draw"}, color={"White"}, action={"Special"}},
 			["3c32e2"]={cardType="Starting", resourceKey="promise", name={"Promise"}, color={"White"}, action={"Influence"}},
 			["89b27f"]={cardType="Starting", resourceKey="improvisation", name={"Improvisation"}, color={"Red"}, action={"Influence"}},
 			["36471b"]={cardType="Starting", resourceKey="threaten", name={"Threaten"}, color={"Red"}, action={"Influence", "Heal"}},
 			["60de5a"]={cardType="Starting", resourceKey="rage", name={"Rage"}, color={"Red"}, action={"Combat"}},
-			["15904a"]={cardType="Starting", name={"Tempered Steel"}, color={"Red"}, action={"Combat"}},
+			["15904a"]={cardType="Starting", resourceKey="temperedSteel", name={"Tempered Steel"}, color={"Red"}, action={"Combat"}},
 			--Ymirgh Starting Cards
 			["046151"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
 			["046152"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
