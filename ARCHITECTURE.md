@@ -25,6 +25,7 @@ The project is authored as Lua modules and bundled by Sebastian's Tabletop Simul
 | `src/PlayingGame/PlayerBoard/CardFlow.lua` | Player deed/deck/discard/hand flow, wound dealing and Glade discard-healing runtime. |
 | `src/PlayingGame/PlayerBoard/UnitLayout.lua` | Runtime Unit/Command-slot layout, compression and player-board unit positioning. |
 | `src/PlayingGame/PlayerBoard/Events.lua` | Player-board scripting-zone reactions and card presentation helpers dispatched by the global event layer. |
+| `src/PlayingGame/PlayerBoard/CombatEffects.lua` | Runtime enemy-targeted Combat Action effects (nearest-enemy linking, Armour/attack modifiers) driven by `enemyEffect` rules in `Data.lua`. |
 | `src/PlayingGame/PlayerBoard/Skills.lua` | Skill offers, claims, skill state and player skill interactions. |
 | `src/PlayingGame/PlayerBoard/PuppetMaster.lua` | Krang Puppet Master enemy/puppet behaviour. |
 | `src/PlayingGame/Combat.lua` | Combat areas, attacks, assaults, combat UI/camera support, summons, pursuit and physical pre-end-turn combat cleanup. The public pre-end-turn path is a phase orchestrator; generic extra-turn/reward sequencing stays in Turn. |

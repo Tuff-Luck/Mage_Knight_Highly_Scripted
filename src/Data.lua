@@ -1133,7 +1133,9 @@ cardResourceDefinitions={
         poweredChoices={{siege=3},{block=6}}},
     chillingStare={
         normalChoices={{influence=3},{other=1}},
-        poweredChoices={{influence=5},{other=1}}},
+        poweredChoices={{influence=5},{other=1}},
+        enemyEffect={normal={choice="other",removeAbilities=true},
+            powered={choice="other",noAttack=true}}},
     -- One main strong choice plus an independent choice per complete set
     -- of all four basic-colour crystals currently in the player's inventory.
     powerOfCrystals={normalTrackerNeutral=true,
@@ -1156,7 +1158,8 @@ cardResourceDefinitions={
     counterattack={normal={attack=2},powered={attack=4},partial=true}, -- Plus damage per enemy blocked
     fireBolt={normalTrackerNeutral=true,powered={rangedFire=3}},
     iceBolt={normalTrackerNeutral=true,powered={rangedIce=3}},
-    iceShield={normal={blockIce=3},powered={blockIce=3}}, -- Powered side also reduces enemy Armor
+    iceShield={normal={blockIce=3},powered={blockIce=3},
+        enemyEffect={powered={armourReduce=3}}}, -- Blocked enemy loses 3 Armour (applied to the linked enemy)
 
     -- Spell resources are independent of the legality of the mana used.
     -- Purely narrative/non-numeric effects are deliberately blue, not unknown.
