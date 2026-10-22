@@ -217,9 +217,9 @@ local function combatEnemyAttacks(data,perks)
         local values=override[attackType.key] or base[attackType.key]
         for _,printedValue in ipairs(type(values)=="table" and values or {}) do
             local bonus=elemental and (attackType.key=="IF" and 1 or 2) or 0
-            if not boostUsed and boost>0 then bonus=bonus+boost boostUsed=true end
+            if not boostUsed and boost~=0 then bonus=bonus+boost boostUsed=true end
             attacks[#attacks+1]={key=attackType.key,label=attackType.label,
-                value=printedValue+bonus,block=attackType.block}
+                value=math.max(0,printedValue+bonus),block=attackType.block}
         end
     end
     return attacks
@@ -249,12 +249,6 @@ local function combatSourceAttackTotal(sources,category,data,perks)
         end
     end
     return total
-end
-
-local function combatAssignmentActiveSeat()
-    local active=turnOrder~=nil and gStates~=nil and gStates.turnNumber~=nil
-        and turnOrder[gStates.turnNumber] or nil
-    return active~=nil and active.seatPos or nil
 end
 
 -- The assignment panel is rescanned with every card scan; only send attributes that changed.
@@ -287,8 +281,7 @@ end
 local function combatEnemyCalculation(entry,assigned)
     local data,perks=entry.data,entry.perks
     local fortification=combatEnemyFortificationCount(data,perks)
-    local armor=entry.baseArmour+(tonumber(data.defend) or 0)
-        +(perks~=nil and (tonumber(perks.defend) or 0) or 0)
+    local armor=entry.baseArmour
     local elusive=combatEnemyHasTrait(data,perks,"elusive")
     local rangedSources,siegeSources,attackSources,blockSources={},{},{},{}
     for _,source in ipairs(assigned.sources) do
@@ -302,7 +295,8 @@ local function combatEnemyCalculation(entry,assigned)
     local siegeTotal=fortification<2
         and combatSourceAttackTotal(siegeSources,"siege",data,perks) or 0
     local rangeTotal=rangedTotal+siegeTotal
-    local rangeArmor=elusive and armor*2 or armor
+    local elusiveArmor=entry.elusiveArmour or armor*2
+    local rangeArmor=elusive and elusiveArmor or armor
     local rangeDefeated=rangeTotal>=rangeArmor and rangeTotal>0
     local attackLines,damageLeft={},0
     local blockedAny=false
@@ -346,19 +340,20 @@ local function combatEnemyCalculation(entry,assigned)
                 damageLeft=damageLeft+damage
             end
             attackLines[#attackLines+1]=attack.label.." "..tostring(attack.value)
-                ..(blocked and " Blocked" or (" needs "
-                    ..tostring(math.max(0,required-spent)).." Block; "
-                    ..tostring(damage).." damage"))
+                ..(blocked and (" Blocked ("..tostring(spent).."/"..tostring(required)..")")
+                    or (" Block "..tostring(spent).."/"..tostring(required).."; "
+                        ..tostring(damage).." damage"))
         end
     end
-    local attackArmor=elusive and not blockedAny and armor*2 or armor
+    local attackArmor=elusive and not blockedAny and elusiveArmor or armor
     local carriedRange=not rangeDefeated
         and combatSourceAttackTotal(rangedSources,"ranged",data,perks)
             +combatSourceAttackTotal(siegeSources,"siege",data,perks) or 0
-    local meleeTotal=not rangeDefeated
-        and combatSourceAttackTotal(attackSources,"attack",data,perks)+carriedRange or 0
+    local directAttackTotal=combatSourceAttackTotal(attackSources,"attack",data,perks)
+    local meleeTotal=not rangeDefeated and directAttackTotal+carriedRange or 0
     local meleeDefeated=meleeTotal>=attackArmor and meleeTotal>0
-    local result={"R/S "..tostring(rangeTotal).."/"..tostring(rangeArmor)
+    local result={"Ranged "..tostring(rangedTotal).." + Siege "..tostring(siegeTotal)
+        .." = "..tostring(rangeTotal).."/"..tostring(rangeArmor)
         ..(rangeDefeated and " Defeated" or "")}
     if rangeDefeated then
         result[#result+1]="No enemy attacks"
@@ -366,7 +361,8 @@ local function combatEnemyCalculation(entry,assigned)
         if #attackLines==0 then attackLines[1]="No enemy attacks" end
         for _,line in ipairs(attackLines) do result[#result+1]=line end
         result[#result+1]="Damage left: "..tostring(damageLeft).." Wounds"
-        result[#result+1]="Attack "..tostring(meleeTotal).."/"..tostring(attackArmor)
+        result[#result+1]="Attack "..tostring(directAttackTotal).." + carried R/S "
+            ..tostring(carriedRange).." = "..tostring(meleeTotal).."/"..tostring(attackArmor)
             ..(meleeDefeated and " Defeated" or "")
     end
     local blockSummary=0
@@ -376,6 +372,7 @@ end
 
 local function combatAssignmentRefreshRows(entries,sources)
     local rowByGUID={}
+    local totalRowHeight=0
     combatAssignmentRowTargets={}
     for index,entry in ipairs(entries) do
         if index<=COMBAT_ASSIGNMENT_ROW_COUNT then
@@ -387,7 +384,6 @@ local function combatAssignmentRefreshRows(entries,sources)
     for index=1,COMBAT_ASSIGNMENT_ROW_COUNT do
         local entry=entries[index]
         combatPanelSetAttribute("CombatEnemyRow"..index,"active",entry~=nil and "true" or "false")
-        combatPanelSetAttribute("CombatEnemyRow"..index,"preferredHeight","68")
         if entry~=nil then
             combatPanelSetAttribute("CombatEnemyRow"..index.."Name","text",entry.name)
             combatPanelSetAttribute("CombatEnemyRow"..index.."Armour","text",entry.armour)
@@ -458,23 +454,28 @@ local function combatAssignmentRefreshRows(entries,sources)
             end
         end
         local entry=entries[index]
+        local rowHeight=COMBAT_ASSIGNMENT_ROW_HEIGHT
         if entry~=nil then
             local result,rangeDefeated,meleeDefeated,blockSummary=
                 combatEnemyCalculation(entry,target)
             if blockSummary>0 then result=result.."\nBlock assigned: "..tostring(blockSummary) end
+            local lineCount=select(2,result:gsub("\n",""))+1
+            rowHeight=math.max(rowHeight,lineCount*14+8)
             local resultID="CombatEnemyRow"..index.."Result"
             combatPanelSetAttribute(resultID,"text",result)
             combatPanelSetAttribute(resultID,"preferredWidth","350")
             combatPanelSetAttribute(resultID,"fontSize","12")
             combatPanelSetAttribute(resultID,"color",
                 (rangeDefeated or meleeDefeated) and "rgb(0.55,1,0.55)" or "White")
+            totalRowHeight=totalRowHeight+rowHeight
         end
+        combatPanelSetAttribute("CombatEnemyRow"..index,"preferredHeight",tostring(rowHeight))
     end
 
     local selectionText
     if combatAssignmentState.selected~=nil then
         selectionText=joinLang({
-            "{en}Source selected: click its Range/Siege or Attack cell to move all resources to that enemy.",
+            "{en}Source selected: click its Ranged/Siege, Block, or Attack cell to assign it to that enemy.",
             "{it}Fonte selezionata: clicca la cella Distanza/Assedio o Attacco per spostare tutte le risorse su quel nemico.",
             "{ru}Источник выбран: нажмите на ячейку Дальняя/Осадная или Атака, чтобы переместить все ресурсы к этому врагу.",
             "{zh-tw}已選擇來源：點擊該敵人的遠程／攻城或攻擊欄位，即可移動所有資源。",
@@ -487,16 +488,38 @@ local function combatAssignmentRefreshRows(entries,sources)
         })
     else
         selectionText=joinLang({
-            "{en}Attack resources start on the first enemy. Click an icon, then that enemy's Range/Siege or Attack cell to move its source.",
-            "{it}Le risorse d'attacco iniziano sul primo nemico. Clicca un'icona, poi la cella Distanza/Assedio o Attacco del nemico.",
-            "{ru}Ресурсы атаки изначально назначены первому врагу. Нажмите на значок, затем на ячейку Дальняя/Осадная или Атака нужного врага.",
-            "{zh-tw}攻擊資源預設分配給第一個敵人。點擊圖示，再點擊該敵人的遠程／攻城或攻擊欄位。",
-            "{zh-cn}攻击资源默认分配给第一个敌人。点击图标，再点击该敌人的远程／攻城或攻击栏位。",
-            "{ko}공격 자원은 처음에 첫 번째 적에게 배정됩니다. 아이콘을 클릭한 다음 해당 적의 원거리/공성 또는 공격 칸을 클릭하세요.",
-            "{es}Los recursos de ataque empiezan en el primer enemigo. Haz clic en un icono y luego en la celda de Rango/Asedio o Ataque del enemigo.",
-            "{fr}Les ressources d'attaque commencent sur le premier ennemi. Cliquez sur une icône, puis sur sa cellule Distance/Siège ou Attaque.",
-            "{pt-br}Os recursos de ataque começam no primeiro inimigo. Clique em um ícone e depois na célula Distância/Cerco ou Ataque do inimigo.",
-            "{de}Angriffsressourcen beginnen beim ersten Feind. Klicke auf ein Symbol und dann auf das Fernkampf-/Belagerungs- oder Angriffsfeld dieses Feindes."
+            "{en}Sources start on the nearest enemy. Click an icon, then that enemy's phase cell to retarget it.",
+            "{it}Le fonti iniziano sul nemico più vicino. Clicca un'icona, poi la cella della fase del nemico per riassegnarla.",
+            "{ru}Источники изначально назначены ближайшему врагу. Нажмите на значок, затем на ячейку фазы нужного врага.",
+            "{zh-tw}資源預設分配給最近的敵人。點擊圖示，再點擊另一敵人的階段欄位即可重新指定。",
+            "{zh-cn}资源默认分配给最近的敌人。点击图标，再点击另一敌人的阶段栏位即可重新指定。",
+            "{ko}자원은 가장 가까운 적에게 배정됩니다. 아이콘을 클릭한 다음 다른 적의 단계 칸을 클릭해 다시 지정하세요.",
+            "{es}Las fuentes empiezan en el enemigo más cercano. Haz clic en un icono y luego en la fase de otro enemigo para reasignarla.",
+            "{fr}Les sources commencent sur l'ennemi le plus proche. Cliquez sur une icône, puis sur la phase d'un autre ennemi pour la réattribuer.",
+            "{pt-br}As fontes começam no inimigo mais próximo. Clique em um ícone e depois na fase de outro inimigo para reatribuí-la.",
+            "{de}Quellen beginnen beim nächsten Feind. Klicke auf ein Symbol und dann auf die Phasenzelle eines anderen Feindes, um es neu zuzuweisen."
+        })
+    end
+    local hasDefender=false
+    for _,entry in ipairs(entries) do
+        if (tonumber(entry.data.defend) or 0)>0
+            or (entry.perks~=nil and (tonumber(entry.perks.defend) or 0)>0) then
+            hasDefender=true
+            break
+        end
+    end
+    if hasDefender then
+        selectionText=selectionText..joinLang({
+            "{en}\nReminder: Defender armor applies to the first enemy attacked; target order is not inferred.",
+            "{it}\nPromemoria: il bonus Difensore si applica al primo nemico attaccato; l'ordine dei bersagli non è dedotto.",
+            "{ru}\nНапоминание: бонус Защитника применяется к первому атакованному врагу; порядок целей не определяется.",
+            "{zh-tw}\n提醒：守護者護甲加成適用於第一個被攻擊的敵人；系統不推定目標順序。",
+            "{zh-cn}\n提醒：守护者护甲加成适用于第一个被攻击的敌人；系统不推定目标顺序。",
+            "{ko}\n알림: 수비자 방어구 보너스는 처음 공격받는 적에게 적용되며, 대상 순서는 추정하지 않습니다.",
+            "{es}\nAviso: el bono de Defensor se aplica al primer enemigo atacado; no se infiere el orden de los objetivos.",
+            "{fr}\nRappel : le bonus de défenseur s'applique au premier ennemi attaqué ; l'ordre des cibles n'est pas déduit.",
+            "{pt-br}\nLembrete: o bônus de Defensor se aplica ao primeiro inimigo atacado; a ordem dos alvos não é inferida.",
+            "{de}\nHinweis: Der Verteidigerbonus gilt für den ersten angegriffenen Feind; die Zielreihenfolge wird nicht abgeleitet."
         })
     end
     if overflow>0 then
@@ -513,6 +536,10 @@ local function combatAssignmentRefreshRows(entries,sources)
             "{de}\nWarnung: "..tostring(overflow).." Feinde/Ressourcen überschreiten die sichtbaren Plätze."
         })
     end
+    local selectionLines=select(2,selectionText:gsub("\n",""))+1
+    local selectionHeight=math.max(24,selectionLines*14+4)
+    combatPanelSetAttribute("CombatAssignmentSelection","preferredHeight",
+        tostring(selectionHeight))
     combatPanelSetAttribute("CombatAssignmentSelection","text",selectionText)
     combatPanelSetAttribute("CombatEnemyPanel","width","1400")
     combatPanelSetAttribute("CombatEnemyPanelTitle","preferredWidth","1360")
@@ -520,8 +547,28 @@ local function combatAssignmentRefreshRows(entries,sources)
     combatPanelSetAttribute("CombatArmourHeader","preferredWidth","70")
     combatPanelSetAttribute("CombatDefenceTraitsHeader","preferredWidth","230")
     combatPanelSetAttribute("CombatResultHeader","preferredWidth","350")
-    combatPanelSetAttribute("CombatResultHeader","text","Combat phases / damage")
-    combatPanelSetAttribute("CombatAssignedAttackHeader","text","Block / Attack Phase")
+    combatPanelSetAttribute("CombatResultHeader","text",joinLang({
+        "{en}Combat phases / damage","{it}Fasi di combattimento / danni",
+        "{ru}Фазы боя / урон","{zh-tw}戰鬥階段／傷害","{zh-cn}战斗阶段／伤害",
+        "{ko}전투 단계 / 피해","{es}Fases de combate / daño",
+        "{fr}Phases de combat / dégâts","{pt-br}Fases de combate / dano",
+        "{de}Kampfphasen / Schaden"
+    }))
+    combatPanelSetAttribute("CombatRangeSiegeHeader","text",joinLang({
+        "{en}Ranged / Siege Phase","{it}Fase a distanza / assedio",
+        "{ru}Фаза дальних / осадных атак","{zh-tw}遠程／攻城階段",
+        "{zh-cn}远程／攻城阶段","{ko}원거리 / 공성 단계",
+        "{es}Fase de rango / asedio","{fr}Phase à distance / siège",
+        "{pt-br}Fase de alcance / cerco","{de}Fernkampf- / Belagerungsphase"
+    }))
+    combatPanelSetAttribute("CombatAssignedAttackHeader","text",joinLang({
+        "{en}Block / Attack Phase","{it}Fase di blocco / attacco",
+        "{ru}Фаза блока / атаки","{zh-tw}格擋／攻擊階段",
+        "{zh-cn}格挡／攻击阶段","{ko}방어 / 공격 단계",
+        "{es}Fase de bloqueo / ataque","{fr}Phase de blocage / attaque",
+        "{pt-br}Fase de bloqueio / ataque","{de}Block- / Angriffsphase"
+    }))
+    return totalRowHeight,selectionHeight
 end
 
 local function refreshCombatEnemyPanel(monsters)
@@ -532,24 +579,21 @@ local function refreshCombatEnemyPanel(monsters)
             local perks=gStates~=nil and gStates.monsterPerks~=nil and gStates.monsterPerks[guid] or nil
             local baseArmour=tonumber(data.armour) or 0
             local armourBonus=perks~=nil and (tonumber(perks.armour) or 0) or 0
-            local armour=baseArmour+armourBonus+(tonumber(data.defend) or 0)
-                +(perks~=nil and (tonumber(perks.defend) or 0) or 0)
+            local armour=baseArmour+armourBonus
             local armourText=tostring(armour)
-            if data.elusive==true or (perks~=nil and perks.elusive==true) then
-                armourText=armourText.." / "..tostring(armour*2).." R/S"
+            local elusive=combatEnemyHasTrait(data,perks,"elusive")
+            if elusive then
+                armourText=armourText.." / "..tostring(baseArmour*2+armourBonus).." R/S"
             end
             entries[#entries+1]={guid=guid,name=tostring(data.name or "Enemy"),
-                armour=armourText,baseArmour=baseArmour+armourBonus,data=data,perks=perks}
+                armour=armourText,baseArmour=baseArmour+armourBonus,
+                elusiveArmour=baseArmour*2+armourBonus,data=data,perks=perks}
         end
     end
     table.sort(entries,function(a,b)
         if a.name==b.name then return a.guid<b.guid end
         return a.name<b.name
     end)
-    local visibleEnemyCount=math.min(#entries,COMBAT_ASSIGNMENT_ROW_COUNT)
-    combatPanelSetAttribute("CombatEnemyPanel","height",tostring(
-        COMBAT_ASSIGNMENT_PANEL_BASE_HEIGHT+visibleEnemyCount*COMBAT_ASSIGNMENT_ROW_HEIGHT))
-
     local currentSeat=combatAssignmentActiveSeat()
     if currentSeat~=combatAssignmentState.seat then
         combatAssignmentState={seat=currentSeat,selected=nil,targets={},manualTargets={}}
@@ -563,7 +607,10 @@ local function refreshCombatEnemyPanel(monsters)
     if combatAssignmentState.selected~=nil and activeSources[combatAssignmentState.selected]~=true then
         combatAssignmentState.selected=nil
     end
-    combatAssignmentRefreshRows(entries,sources)
+    local rowHeight,selectionHeight=combatAssignmentRefreshRows(entries,sources)
+    combatPanelSetAttribute("CombatEnemyPanel","height",
+        tostring(COMBAT_ASSIGNMENT_PANEL_BASE_HEIGHT+rowHeight
+            +math.max(0,selectionHeight-24)))
     combatPanelSetAttribute("CombatEnemyButtonText","text",joinLang({
         "{en}Enemies ("..tostring(#entries)..")",
         "{it}Nemici ("..tostring(#entries)..")",
@@ -2521,7 +2568,6 @@ local function renderSeat(seatPos)
     inspectZone(playerCrystalAreas[seatPos],"crystal")
     inspectZone(playerUnitAreas[seatPos],"unit")
     inspectZone(playerPlayAreas[seatPos],"play")
-    refreshCombatEnemyPanel(playMonsters)
 
     -- Read *inventory* crystals only. A crystal moved to the Play Area is
     -- mana being spent, not part of a complete set in inventory.
@@ -3863,7 +3909,7 @@ local function renderSeat(seatPos)
         usesCurrentHexBlock=usesCurrentHexBlock,
         usesCurrentHexHealing=usesCurrentHexHealing,
         usesSkillLocation=usesSkillLocation}
-    refreshCombatEnemyPanel(playMonsters)
+    refreshCombatEnemyPanel(monsters)
     -- Redraw movement when ability flags change, even if total Move stays equal.
     if totalsChanged or terrainChanged or transformChanged then refreshResourceTrackerText() end
     if previousMove~=(totals.move or 0) or terrainChanged or movementChanged then
