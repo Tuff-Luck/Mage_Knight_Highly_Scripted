@@ -1,0 +1,147 @@
+<Panel id="CoopAssault"	active="false" class="Floating" rectAlignment="UpperLeft" offsetXY="90 -350" width="525" height="230">
+	<Image image="Sliced Button/Button New Active" type="Sliced"/>
+	<TableLayout id="CoopAssaultMainTable"
+		columnWidths="135 85 100 85 120"
+		cellSpacing="0"
+		autoCalculateHeight="false"
+		cellPadding="5 5 5 5"
+		cellBackgroundColor="Clear"
+		rectAlignment="UpperCenter">
+		<Row id="CoopAssaultMainTableTitle" preferredHeight="34" dontUseTableRowBackground="true" color="rgb(0.3,0.3,0.3)">
+			<Image image="Sliced Button/Title Border Tan" type="Sliced"/>
+			<VerticalLayout padding="5 5 5 5"><Text id="CoopAssaultMainTableText1" class="Title20">{en}Combined Assault Possible{it}Assalto Combinato Possibile{ru}Доступен Совместный штурм города{zh-tw}可以進行合作突襲{zh-cn}可以进行合作突袭{ko}협력 강습 가능{es}Asalto Combinado Posible{fr}Assaut Combiné Possible{pt-br}Ataque Combinado Possível{de}Gemeinsamer Angriff möglich</Text></VerticalLayout>
+		</Row>
+		<Row id="CoopAssaultMainTableHeading" preferredHeight="56">
+			<Cell columnSpan="5">
+				<VerticalLayout>					
+					<Text id="CoopAssaultMainTableText2" class="Text14">{en}Nearby Mage Knights can choose to join this assault by skipping their next turn. This tool randomly gives the amount of defenders chosen to each player. (Remember to pay movement costs){it}I Mage Knight vicini possono unirsi all'assalto saltando il prossimo turno. Lo strumento assegna casualmente a ciascuno il numero di difensori scelto. Ricordate di pagare i costi di movimento.{ru}Герои, находящиеся на соседней с городом клетке, могут присоединиться к штурму. Этот инструмент случайным образом выдаст каждому игроку защитников согласно выбранному количеству, а также перевернет их Жетоны Порядка хода лицом вниз.{zh-tw}附近的魔法騎士可以選擇加入突襲。
+此工具會依據數量隨機分配敵人給每位參與者，
+同時也會將這些玩家的輪次順位標記翻面。
+{zh-cn}附近的魔法骑士可以选择加入突袭。 
+此工具会依据数量随机分配敌人给每位参与者，
+同时也会将这些玩家的轮次顺位标记翻面。 
+{ko}근처의 메이지 나이트들은 이 강습에 참여할 수 있습니다. 이 툴은 참여한 각 플레이어에게 무작위로 선택된 수비자 토큰을 배분합니다. 그리고 라운드 순서 토큰을 뒤집습니다.{es}Los caballeros magos cercanos pueden elegir unirse al asalto. Esta herramienta da al azar la cantidad de defensores elegidos para cada jugador, mientras que también coloca boca abajo su Ficha de Orden de Turno.{fr}Les chevaliers mages à proximité peuvent choisir de se joindre à l'assaut. Cet outil donne au hasard le nombre de défenseurs choisis à chaque joueur, tout en retournant son jeton d'ordre du tour face cachée.{pt-br}Os Mage Knights próximos podem escolher se juntar ao ataque. Esta ferramenta fornece aleatoriamente a quantidade de defensores escolhidos para cada jogador, ao mesmo tempo que vira a ficha de ordem do turno para baixo.{de}Mage Knights in der Nähe können sich dem Angriff anschließen. Mit diesem Werkzeug erhält jeder Spieler zufällig die gewählte Anzahl an Verteidigern und dreht gleichzeitig sein Zugreihenfolgeplättchen um.</Text>
+					<Text id="CoopAssaultMainTableText3" class="Text14">Script Modified</Text>
+				</VerticalLayout>
+			</Cell>
+		</Row>
+		<Row preferredHeight="30">
+			<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
+			<Button id="Mage1AssaultJoin" active="true" width="140" interactable="false" shadowDistance="0 0" rectAlignment="MiddleLeft" offsetXY="0 0" onClick="coopAssaultJoin" class="ShortButton">
+				<Image id="Mage1AssaultJoinImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+				<Text id="Mage1AssaulterMageName" class="Text18" alignment="MiddleCenter" offsetXY="0 1">{en} fights{it} combatte{ru} сражается с{zh-cn} 打架{ko} 전투:{es} peleas{fr} combats{pt-br} lutas{de} kämpft{zh-tw} 戰鬥</Text>
+			</Button>
+			<Button id="Mage1AssaultAdjustPrimDo" active="true" width="24" shadowDistance="0 0" rectAlignment="MiddleLeft" offsetXY="137 0" onClick="assaultAdjust" class="ShortButton">
+				<Image id="Mage1AssaultAdjustPrimDoImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+				<Text class="Text20" alignment="MiddleCenter" offsetXY="0 1">-</Text>
+			</Button>
+			<Button id="Mage1AssaultAdjustPrimUp" active="true" width="24" shadowDistance="0 0" rectAlignment="MiddleLeft" offsetXY="194 0" onClick="assaultAdjust" class="ShortButton">
+				<Image id="Mage1AssaultAdjustPrimUpImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+				<Text class="Text20" alignment="MiddleCenter" offsetXY="0 1">+</Text>
+			</Button>
+			<Button id="Mage1AssaultAdjustSecoDo" active="true" width="24" shadowDistance="0 0" rectAlignment="MiddleLeft" offsetXY="322 0" onClick="assaultAdjust" class="ShortButton">
+				<Image id="Mage1AssaultAdjustSecoDoImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+				<Text class="Text20" alignment="MiddleCenter" offsetXY="0 1">-</Text>
+			</Button>
+			<Button id="Mage1AssaultAdjustSecoUp" active="true" width="24" shadowDistance="0 0" rectAlignment="MiddleLeft" offsetXY="380 0" onClick="assaultAdjust" class="ShortButton">
+				<Image id="Mage1AssaultAdjustSecoUpImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+				<Text class="Text20" alignment="MiddleCenter" offsetXY="0 1">+</Text>
+			</Button>
+			<Cell></Cell>
+			<Cell><Text id="Mage1AssaulterAmountOne" class="Text18" offsetXY="0 1">{en}All{it}Tutti{ru}Все{zh-tw}全部{zh-cn}全部{ko}모두{es}Todos{fr}Tous{pt-br}Todos{de}Alle</Text></Cell>
+			<Cell><Text id="Mage1AssaulterOpponentType" class="Text18" alignment="MiddleCenter" offsetXY="0 1">{en}Regular and{it}Unità Regolari ed{ru}Обычные и{zh-cn}常规和{ko}일반 및{es}Regular y{fr}Régulier et{pt-br}Regular e{de}Reguläre und{zh-tw}常規和</Text></Cell>
+			<Cell id="Mage1VolkareCellOne" active="true"><Text id="Mage1AssaulterAmountTwo" class="Text18" offsetXY="0 1">{en}All{it}Tutti{ru}Все{zh-tw}全部{zh-cn}全部{ko}모두{es}Todos{fr}Tous{pt-br}Todos{de}Alle</Text></Cell>
+			<Cell id="Mage1VolkareCellTwo" active="true"><Text id="Mage1AssaulterOpponentTypeTwo" class="Text18" alignment="MiddleLeft" offsetXY="0 1">{en}Elite Units{it}Élite{ru}Элитные отряды{zh-cn}精英部队{ko}엘리트 유닛{es}Unidades de Elite{fr}Unités d'élite{pt-br}Unidades Elites{de}Elite-Einheiten{zh-tw}精英部隊</Text></Cell>
+		</Row>
+		<Row preferredHeight="30">
+			<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
+			<Button id="Mage2AssaultJoin" active="true" width="140" interactable="false" shadowDistance="0 0" rectAlignment="MiddleLeft" offsetXY="0 0" onClick="coopAssaultJoin" class="ShortButton">
+				<Image id="Mage2AssaultJoinImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+				<Text id="Mage2AssaulterMageName" class="Text18" alignment="MiddleCenter" offsetXY="0 1">{en} fights{it} combatte{ru} сражается с{zh-cn} 打架{ko} 전투:{es} peleas{fr} combats{pt-br} lutas{de} kämpft{zh-tw} 戰鬥</Text>
+			</Button>
+			<Button id="Mage2AssaultAdjustPrimDo" active="true" width="24" shadowDistance="0 0" rectAlignment="MiddleLeft" offsetXY="137 0" onClick="assaultAdjust" class="ShortButton">
+				<Image id="Mage2AssaultAdjustPrimDoImage" image="Sliced Button/Button New Active" type="Sliced"/>
+				<Text class="Text20" alignment="MiddleCenter" offsetXY="0 1">-</Text>
+			</Button>
+			<Button id="Mage2AssaultAdjustPrimUp" active="true" width="24" shadowDistance="0 0" rectAlignment="MiddleLeft" offsetXY="194 0" onClick="assaultAdjust" class="ShortButton" >
+				<Image id="Mage2AssaultAdjustPrimUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
+				<Text class="Text20" alignment="MiddleCenter" offsetXY="0 1">+</Text>
+			</Button>
+			<Button id="Mage2AssaultAdjustSecoDo" active="true" width="24" shadowDistance="0 0" rectAlignment="MiddleLeft" offsetXY="322 0" onClick="assaultAdjust" class="ShortButton">
+				<Image id="Mage2AssaultAdjustSecoDoImage" image="Sliced Button/Button New Active" type="Sliced"/>
+				<Text class="Text20" alignment="MiddleCenter" offsetXY="0 1">-</Text>
+			</Button>
+			<Button id="Mage2AssaultAdjustSecoUp" active="true" width="24" shadowDistance="0 0" rectAlignment="MiddleLeft" offsetXY="380 0" onClick="assaultAdjust" class="ShortButton" >
+				<Image id="Mage2AssaultAdjustSecoUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
+				<Text class="Text20" alignment="MiddleCenter" offsetXY="0 1">+</Text>
+			</Button>
+			<Cell></Cell>
+			<Cell><Text id="Mage2AssaulterAmountOne" class="Text18" offsetXY="0 1"></Text></Cell>
+			<Cell><Text id="Mage2AssaulterOpponentType" class="Text18" alignment="MiddleLeft" offsetXY="0 1"></Text></Cell>
+			<Cell id="Mage2VolkareCellOne" active="true"><Text id="Mage2AssaulterAmountTwo" class="Text18" offsetXY="0 1"></Text></Cell>
+			<Cell id="Mage2VolkareCellTwo" active="true"><Text id="Mage2AssaulterOpponentTypeTwo" class="Text18" alignment="MiddleLeft" offsetXY="0 1">{en}not Assaulting{it}non Assalta{ru}не нападает{zh-cn}不攻击{ko}강습 안함{es}no Agredir{fr}ne pas Agresser{pt-br}não Agredindo{de}nicht angreifend{zh-tw}不突襲</Text></Cell>
+		</Row>
+		<Row id="Mage3Assault" active="true" preferredHeight="30">
+			<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
+			<Button id="Mage3AssaultJoin" active="true" width="140" interactable="false" shadowDistance="0 0" rectAlignment="MiddleLeft" offsetXY="0 0" onClick="coopAssaultJoin" class="ShortButton">
+				<Image id="Mage3AssaultJoinImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+				<Text id="Mage3AssaulterMageName" class="Text18" alignment="MiddleCenter" offsetXY="0 1">{en} fights{it} combatte{ru} сражается с{zh-cn} 打架{ko} 전투:{es} peleas{fr} combats{pt-br} lutas{de} kämpft{zh-tw} 戰鬥</Text>
+			</Button>
+			<Button id="Mage3AssaultAdjustPrimDo" active="true" width="24" shadowDistance="0 0" rectAlignment="MiddleLeft" offsetXY="137 0" onClick="assaultAdjust" class="ShortButton">
+				<Image id="Mage3AssaultAdjustPrimDoImage" image="Sliced Button/Button New Active" type="Sliced"/>
+				<Text class="Text20" alignment="MiddleCenter" offsetXY="0 1">-</Text>
+			</Button>
+			<Button id="Mage3AssaultAdjustPrimUp" active="true" width="24" shadowDistance="0 0" rectAlignment="MiddleLeft" offsetXY="194 0" onClick="assaultAdjust" class="ShortButton" >
+				<Image id="Mage3AssaultAdjustPrimUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
+				<Text class="Text20" alignment="MiddleCenter" offsetXY="0 1">+</Text>
+			</Button>
+			<Button id="Mage3AssaultAdjustSecoDo" active="true" width="24" shadowDistance="0 0" rectAlignment="MiddleLeft" offsetXY="322 0" onClick="assaultAdjust" class="ShortButton">
+				<Image id="Mage3AssaultAdjustSecoDoImage" image="Sliced Button/Button New Active" type="Sliced"/>
+				<Text class="Text20" alignment="MiddleCenter" offsetXY="0 1">-</Text>
+			</Button>
+			<Button id="Mage3AssaultAdjustSecoUp" active="true" width="24" shadowDistance="0 0" rectAlignment="MiddleLeft" offsetXY="380 0" onClick="assaultAdjust" class="ShortButton" >
+				<Image id="Mage3AssaultAdjustSecoUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
+				<Text class="Text20" alignment="MiddleCenter" offsetXY="0 1">+</Text>
+			</Button>
+			<Cell></Cell>
+			<Cell><Text id="Mage3AssaulterAmountOne" class="Text18" offsetXY="0 1"></Text></Cell>
+			<Cell><Text id="Mage3AssaulterOpponentType" class="Text18" alignment="MiddleLeft" offsetXY="0 1"></Text></Cell>
+			<Cell id="Mage3VolkareCellOne" active="true"><Text id="Mage3AssaulterAmountTwo" class="Text18" offsetXY="0 1"></Text></Cell>
+			<Cell id="Mage3VolkareCellTwo" active="true"><Text id="Mage3AssaulterOpponentTypeTwo" class="Text18" alignment="MiddleLeft" offsetXY="0 1">{en}not Assaulting{it}non Assalta{ru}не нападает{zh-cn}不攻击{ko}강습 안함{es}no Agredir{fr}ne pas Agresser{pt-br}não Agredindo{de}nicht angreifend{zh-tw}不突襲</Text></Cell>
+		</Row>
+		<Row id="Mage4Assault" active="true" preferredHeight="30">
+			<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
+			<Button id="Mage4AssaultJoin" active="true" width="140" interactable="false" shadowDistance="0 0" rectAlignment="MiddleLeft" offsetXY="0 0" onClick="coopAssaultJoin" class="ShortButton">
+				<Image id="Mage4AssaultJoinImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+				<Text id="Mage4AssaulterMageName" class="Text18" alignment="MiddleCenter" offsetXY="0 1">{en} fights{it} combatte{ru} сражается с{zh-cn} 打架{ko} 전투:{es} peleas{fr} combats{pt-br} lutas{de} kämpft{zh-tw} 戰鬥</Text>
+			</Button>
+			<Button id="Mage4AssaultAdjustPrimDo" active="true" width="24" shadowDistance="0 0" rectAlignment="MiddleLeft" offsetXY="137 0" onClick="assaultAdjust" class="ShortButton">
+				<Image id="Mage4AssaultAdjustPrimDoImage" image="Sliced Button/Button New Active" type="Sliced"/>
+				<Text class="Text20" alignment="MiddleCenter" offsetXY="0 1">-</Text>
+			</Button>
+			<Button id="Mage4AssaultAdjustPrimUp" active="true" width="24" shadowDistance="0 0" rectAlignment="MiddleLeft" offsetXY="194 0" onClick="assaultAdjust" class="ShortButton" >
+				<Image id="Mage4AssaultAdjustPrimUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
+				<Text class="Text20" alignment="MiddleCenter" offsetXY="0 1">+</Text>
+			</Button>
+			<Button id="Mage4AssaultAdjustSecoDo" active="true" width="24" shadowDistance="0 0" rectAlignment="MiddleLeft" offsetXY="322 0" onClick="assaultAdjust" class="ShortButton">
+				<Image id="Mage4AssaultAdjustSecoDoImage" image="Sliced Button/Button New Active" type="Sliced"/>
+				<Text class="Text20" alignment="MiddleCenter" offsetXY="0 1">-</Text>
+			</Button>
+			<Button id="Mage4AssaultAdjustSecoUp" active="true" width="24" shadowDistance="0 0" rectAlignment="MiddleLeft" offsetXY="380 0" onClick="assaultAdjust" class="ShortButton" >
+				<Image id="Mage4AssaultAdjustSecoUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
+				<Text class="Text20" alignment="MiddleCenter" offsetXY="0 1">+</Text>
+			</Button>
+			<Cell></Cell>
+			<Cell><Text id="Mage4AssaulterAmountOne" class="Text18" offsetXY="0 1"></Text></Cell>
+			<Cell><Text id="Mage4AssaulterOpponentType" class="Text18" alignment="MiddleLeft" offsetXY="0 1"></Text></Cell>
+			<Cell id="Mage4VolkareCellOne" active="true"><Text id="Mage4AssaulterAmountTwo" class="Text18" offsetXY="0 1"></Text></Cell>
+			<Cell id="Mage4VolkareCellTwo" active="true"><Text id="Mage4AssaulterOpponentTypeTwo" class="Text18" alignment="MiddleLeft" offsetXY="0 1">{en}not Assaulting{it}non Assalta{ru}не нападает{zh-cn}不攻击{ko}강습 안함{es}no Agredir{fr}ne pas Agresser{pt-br}não Agredindo{de}nicht angreifend{zh-tw}不突襲</Text></Cell>
+		</Row>
+		<Row preferredHeight="30">
+			<Button id="startAssault" active="true" interactable="false" shadowDistance="0 0" rectAlignment="MiddleCenter" onClick="attackCity" class="LongButton">
+				<Image id="startAssaultImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+				<Text id="startAssaultText" class="Text20" alignment="MiddleCenter" offsetXY="0 1">{en}Begin Assault{it}Inizia Assalto{ru}Начать штурм{zh-tw}開始突襲{zh-cn}开始突袭{ko}강습 시작{es}Empezar Asalto{fr}Commencer l'Assaut{pt-br}Comece o Assalto{de}Angriff Starten</Text>
+			</Button>
+		</Row>
+	</TableLayout>
+</Panel>

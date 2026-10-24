@@ -1,0 +1,5 @@
+<Panel id="welcome" width="960" height="735" color="rgb(0, 0, 0)">
+    <Button id="splashButton" interactable="true" onClick="closeSplash">
+		<Image image="Cover" preserveAspect="true" height="735" width="960" rectAlignment="MiddleCenter"/>
+	</Button>
+</Panel>

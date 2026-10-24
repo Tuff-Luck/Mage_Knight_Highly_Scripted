@@ -1,0 +1,22 @@
+<Panel id="ExtraTurnChoice" active="false" class="Floating" rectAlignment="LowerCenter" offsetXY="0 300" width="300" height="60">
+	<Image image="Sliced Button/Button New Active" type="Sliced"/>
+	<Panel rectAlignment="UpperCenter" offsetXY="0 32" width="300" height="34" outlineSize="0 0">
+		<Image image="Sliced Button/Title Border Tan" type="Sliced"/>
+		<VerticalLayout padding="5 5 5 5"><Text id="ExtraTurnChoiceTitle" class="Title20" alignment="MiddleCenter">{en}Extra Turn{it}Turno Extra{ru}Дополнительный ход{zh-tw}額外回合{zh-cn}额外回合{ko}추가 턴{es}Turno Extra{fr}Tour Supplémentaire{pt-br}Turno Extra{de}Extra-Zug</Text></VerticalLayout>
+	</Panel>
+	<VerticalLayout padding="5 5 5 5">
+		<Text id="ExtraTurnChoiceQuestion" class="Text16" alignment="MiddleCenter">{en}Which effect gives the extra turn?{it}Quale effetto concede il turno extra?{ru}Какой эффект даёт дополнительный ход?{zh-tw}哪個效果提供額外回合？{zh-cn}哪个效果提供额外回合？{ko}어떤 효과로 추가 턴을 받습니까?{es}¿Qué efecto concede el turno extra?{fr}Quel effet accorde le tour supplémentaire ?{pt-br}Qual efeito concede o turno extra?{de}Welcher Effekt gewährt den Extra-Zug?</Text>
+	</VerticalLayout>
+	<Panel rectAlignment="LowerLeft" offsetXY="0 -28" width="150" height="30" outlineSize="0 0">
+		<Button id="ExtraTurnChoiceTimeBending" shadowDistance="0 0" onClick="extraTurnChoice" onMouseDown="" onMouseUp="">
+			<Image image="Sliced Button/Button New Active" type="Sliced"/>
+			<VerticalLayout padding="5 5 5 5"><Text id="ExtraTurnChoiceTimeBendingText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Time Bending{it}Distorsione Temporale{ru}Изгиб Времени{zh-tw}時間扭曲{zh-cn}时间扭曲{ko}시간 왜곡{es}Salto en el Tiempo{fr}Courbe du Temps{pt-br}Dobrar Tempo{de}Zeitkrümmung</Text></VerticalLayout>
+		</Button>
+	</Panel>
+	<Panel rectAlignment="LowerRight" offsetXY="0 -28" width="150" height="30" outlineSize="0 0">
+		<Button id="ExtraTurnChoiceTactic6" shadowDistance="0 0" onClick="extraTurnChoice" onMouseDown="" onMouseUp="">
+			<Image image="Sliced Button/Button New Active" type="Sliced"/>
+			<VerticalLayout padding="5 5 5 5"><Text id="ExtraTurnChoiceTactic6Text" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Day Tactic 6{it}Tattica Giorno 6{ru}Дневная Тактика 6{zh-tw}白天戰術卡 6{zh-cn}白天战术卡 6{ko}낮 전략 6{es}Táctica de Día 6{fr}Tactique de Jour 6{pt-br}Tática do Dia 6{de}Tagestaktik 6</Text></VerticalLayout>
+		</Button>
+	</Panel>
+</Panel>

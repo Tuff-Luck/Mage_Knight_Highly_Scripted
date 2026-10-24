@@ -1,0 +1,175 @@
+<Panel id="ScoreBoard" active="false" width="1400" height="720"	class="Floating">
+	<TableLayout id="ScoreBoardTable"
+		cellSpacing="0"
+		columnWidths="280 280 280 280"
+		autoCalculateHeight="false"
+		cellPadding="5 5 3 3"
+		cellBackgroundColor="Clear"
+		rectAlignment="UpperCenter">
+		<Image image="Sliced Button/Button New Deactive" rotation="0 0 180" type="Sliced"/>
+		<Row preferredHeight="32" dontUseTableRowBackground="false" color="rgb(0.3,0.3,0.3)">
+			<Text id="ScoreBoardTableTitleText1" Color="White" offsetXY="0 -3" class="Title24">{en}Mage Knight Current Score{it}Punteggio Attuale dei Mage Knight{ru}Текущий счет{zh-tw}魔法骑士当前得分{zh-cn}魔法骑士当前得分{ko}현재 점수{es}Puntuación Actual de Mage Knight{fr}Mage Knight Score Actuel{pt-br}Pontuação atual do Mage Knight{de}Mage Knight Aktueller Spielstand</Text>
+		</Row>
+		<Row preferredHeight="22" dontUseTableRowBackground="false" color="rgb(0.3,0.3,0.3)">
+			<Text id="ScoreBoardTableTitleText2" Color="White" class="Text14" offsetXY="0 3">{en}Scores are calculated as if the game has been completed{it}I punteggi sono calcolati come se la partita fosse terminata{ru}Очки подсчитываются так, как будто игра уже завершена{zh-tw}此分数视为游戏结束而统计{zh-cn}此分数视为游戏结束而统计{ko}점수는 게임이 종료된 것으로 간주하여 계산합니다{es}Las puntuaciones se calculan como si el juego se ubiera completado.{fr}Les scores sont calculés comme si le jeu était terminé{pt-br}Pontuação é calculada como se o jogo tivesse sido completado{de}Der Punktestand wird so berechnet, als ob das Spiel abgeschlossen wäre.</Text>
+		</Row>
+		<Row id="RewardScoreData" preferredHeight="0">
+			<Cell id="Reward1ScoreCell" active="false"><Text id="Reward1ScoreText" class="Text16"></Text></Cell>
+			<Cell id="Reward2ScoreCell" active="false"><Text id="Reward2ScoreText" class="Text16"></Text></Cell>
+			<Cell id="Reward3ScoreCell" active="false"><Text id="Reward3ScoreText" class="Text16"></Text></Cell>
+			<Cell id="Reward4ScoreCell" active="false"><Text id="Reward4ScoreText" class="Text16"></Text></Cell>
+		</Row>
+		<Row id="QuestScoreHeading" class="ScoreHeading">
+			<Image image="Sliced Button/Button New Active" type="Sliced" color="rgb(0.8,0.7,0.1)"/>
+			<Text class="Text18" id="QuestScoreHeadingText">{en}Quests{it}Missioni{ru}Quests{zh-tw}Quests{zh-cn}Quests{ko}Quests{es}Quests{fr}Quests{pt-br}Quests{de}Quests</Text>
+		</Row>
+		<Row id="QuestScoreData" preferredHeight="0">
+			<Cell id="Quest1ScoreCell" active="false"><Text id="Quest1ScoreText" class="Text16"></Text></Cell>
+			<Cell id="Quest2ScoreCell" active="false"><Text id="Quest2ScoreText" class="Text16"></Text></Cell>
+			<Cell id="Quest3ScoreCell" active="false"><Text id="Quest3ScoreText" class="Text16"></Text></Cell>
+			<Cell id="Quest4ScoreCell" active="false"><Text id="Quest4ScoreText" class="Text16"></Text></Cell>
+		</Row>
+		<Row id="ReputationScoreHeading" class="ScoreHeading">
+			<Image image="Sliced Button/Button New Active" type="Sliced" color="rgb(0.8,0.7,0.1)"/>
+			<Text class="Text18" id="ReputationScoreHeadingText">{en}Reputation{it}Reputazione{ru}Reputation{zh-tw}Reputation{zh-cn}Reputation{ko}Reputation{es}Reputation{fr}Reputation{pt-br}Reputation{de}Reputation</Text>
+		</Row>
+		<Row id="ReputationScoreData" preferredHeight="0">
+			<Cell id="Reputation1ScoreCell" active="false"><Text id="Reputation1ScoreText" class="Text16"></Text></Cell>
+			<Cell id="Reputation2ScoreCell" active="false"><Text id="Reputation2ScoreText" class="Text16"></Text></Cell>
+			<Cell id="Reputation3ScoreCell" active="false"><Text id="Reputation3ScoreText" class="Text16"></Text></Cell>
+			<Cell id="Reputation4ScoreCell" active="false"><Text id="Reputation4ScoreText" class="Text16"></Text></Cell>
+		</Row>
+		<Row id="KnowledgeScoreHeading" class="ScoreHeading">
+			<Image image="Sliced Button/Button New Active" type="Sliced" color="rgb(0.8,0.7,0.1)"/>
+			<Text class="Text18" id="KnowledgeScoreHeadingText">{en}Knowledge{it}Conoscenza{ru}Мудрец{zh-tw}博古通今{zh-cn}博古通今{ko}지식{es}Conocimiento{fr}Connaissances{pt-br}Conhecimento{de}Wissen</Text>
+		</Row>
+		<Row id="KnowledgeScoreData" preferredHeight="0">
+			<Cell id="Knowledge1ScoreCell" active="false"><Text id="Knowledge1ScoreText" class="Text16"></Text></Cell>
+			<Cell id="Knowledge2ScoreCell" active="false"><Text id="Knowledge2ScoreText" class="Text16"></Text></Cell>
+			<Cell id="Knowledge3ScoreCell" active="false"><Text id="Knowledge3ScoreText" class="Text16"></Text></Cell>
+			<Cell id="Knowledge4ScoreCell" active="false"><Text id="Knowledge4ScoreText" class="Text16"></Text></Cell>
+		</Row>
+		<Row id="LootScoreHeading" class="ScoreHeading">
+			<Image image="Sliced Button/Button New Active" type="Sliced" color="rgb(0.8,0.7,0.1)"/>
+			<Text class="Text18" id="LootScoreHeadingText">{en}Loot{it}Bottino{ru}Добыча{zh-tw}富可敌国{zh-cn}富可敌国{ko}전리품{es}Botín{fr}Butin{pt-br}Saque{de}Beute</Text>
+		</Row>
+		<Row id="LootScoreData" preferredHeight="0">
+			<Cell id="Loot1ScoreCell" active="false"><Text id="Loot1ScoreText" class="Text16"></Text></Cell>
+			<Cell id="Loot2ScoreCell" active="false"><Text id="Loot2ScoreText" class="Text16"></Text></Cell>
+			<Cell id="Loot3ScoreCell" active="false"><Text id="Loot3ScoreText" class="Text16"></Text></Cell>
+			<Cell id="Loot4ScoreCell" active="false"><Text id="Loot4ScoreText" class="Text16"></Text></Cell>
+		</Row>
+		<Row id="LeaderScoreHeading" class="ScoreHeading">
+			<Image image="Sliced Button/Button New Active" type="Sliced" color="rgb(0.8,0.7,0.1)"/>
+			<Text class="Text18" id="LeaderScoreHeadingText">{en}Leader{it}Condottiero{ru}Лидер{zh-tw}至高领袖{zh-cn}至高领袖{ko}지도자{es}Líder{fr}Chef{pt-br}Líder{de}Anführer</Text>
+		</Row>
+		<Row id="LeaderScoreData" preferredHeight="0">
+			<Cell id="Leader1ScoreCell" active="false"><Text id="Leader1ScoreText" class="Text16"></Text></Cell>
+			<Cell id="Leader2ScoreCell" active="false"><Text id="Leader2ScoreText" class="Text16"></Text></Cell>
+			<Cell id="Leader3ScoreCell" active="false"><Text id="Leader3ScoreText" class="Text16"></Text></Cell>
+			<Cell id="Leader4ScoreCell" active="false"><Text id="Leader4ScoreText" class="Text16"></Text></Cell>
+		</Row>
+		<Row id="ConquerorScoreHeading" class="ScoreHeading">
+			<Image image="Sliced Button/Button New Active" type="Sliced" color="rgb(0.8,0.7,0.1)"/>
+			<Text class="Text18" id="ConquerorScoreHeadingText">{en}Conqueror{it}Conquistatore{ru}Завоеватель{zh-tw}战无不胜{zh-cn}战无不胜{ko}정복자{es}Conquistador{fr}Conquérant{pt-br}Conquistador{de}Eroberer</Text>
+		</Row>
+		<Row id="ConquerorScoreData" preferredHeight="0">
+			<Cell id="Conqueror1ScoreCell" active="false"><Text id="Conqueror1ScoreText" class="Text16"></Text></Cell>
+			<Cell id="Conqueror2ScoreCell" active="false"><Text id="Conqueror2ScoreText" class="Text16"></Text></Cell>
+			<Cell id="Conqueror3ScoreCell" active="false"><Text id="Conqueror3ScoreText" class="Text16"></Text></Cell>
+			<Cell id="Conqueror4ScoreCell" active="false"><Text id="Conqueror4ScoreText" class="Text16"></Text></Cell>
+		</Row>
+		<Row id="AdventurerScoreHeading" class="ScoreHeading">
+			<Image image="Sliced Button/Button New Active" type="Sliced" color="rgb(0.8,0.7,0.1)"/>
+			<Text class="Text18" id="AdventurerScoreHeadingText">{en}Adventurer{it}Avventuriero{ru}Искатель приключений{zh-tw}披荆斩棘{zh-cn}披荆斩棘{ko}모험가{es}Aventurero{fr}Aventurier{pt-br}Aventureiro{de}Abenteurer</Text>
+		</Row>
+		<Row id="AdventurerScoreData" preferredHeight="0">
+			<Cell id="Adventurer1ScoreCell" active="false"><Text id="Adventurer1ScoreText" class="Text16"></Text></Cell>
+			<Cell id="Adventurer2ScoreCell" active="false"><Text id="Adventurer2ScoreText" class="Text16"></Text></Cell>
+			<Cell id="Adventurer3ScoreCell" active="false"><Text id="Adventurer3ScoreText" class="Text16"></Text></Cell>
+			<Cell id="Adventurer4ScoreCell" active="false"><Text id="Adventurer4ScoreText" class="Text16"></Text></Cell>
+		</Row>
+		<Row id="RestorerScoreHeading" class="ScoreHeading">
+			<Image image="Sliced Button/Button New Active" type="Sliced" color="rgb(0.8,0.7,0.1)"/>
+			<Text class="Text18" id="RestorerScoreHeadingText">{en}Restorer{it}Restauratore{ru}Восстановитель{zh-tw}修復者{zh-cn}修复者{ko}복원자{es}Restaurador{fr}Restaurateur{pt-br}Restaurador{de}Wiederhersteller</Text>
+		</Row>
+		<Row id="RestorerScoreData" preferredHeight="0">
+			<Cell id="Restorer1ScoreCell" active="false"><Text id="Restorer1ScoreText" class="Text16"></Text></Cell>
+			<Cell id="Restorer2ScoreCell" active="false"><Text id="Restorer2ScoreText" class="Text16"></Text></Cell>
+			<Cell id="Restorer3ScoreCell" active="false"><Text id="Restorer3ScoreText" class="Text16"></Text></Cell>
+			<Cell id="Restorer4ScoreCell" active="false"><Text id="Restorer4ScoreText" class="Text16"></Text></Cell>
+		</Row>
+		<Row id="LiberatorScoreHeading" class="ScoreHeading">
+			<Image image="Sliced Button/Button New Active" type="Sliced" color="rgb(0.8,0.7,0.1)"/>
+			<Text class="Text18" id="LiberatorScoreHeadingText">{en}Liberator{it}Liberatore{ru}Исследователь подземелий{zh-tw}解放邻邦{zh-cn}解放邻邦{ko}해방자{es}Libertador{fr}Libérateur{pt-br}Libertador{de}Befreier</Text>
+		</Row>
+		<Row id="LiberatorScoreData" preferredHeight="0">
+			<Cell id="Liberator1ScoreCell" active="false"><Text id="Liberator1ScoreText" class="Text16"></Text></Cell>
+			<Cell id="Liberator2ScoreCell" active="false"><Text id="Liberator2ScoreText" class="Text16"></Text></Cell>
+			<Cell id="Liberator3ScoreCell" active="false"><Text id="Liberator3ScoreText" class="Text16"></Text></Cell>
+			<Cell id="Liberator4ScoreCell" active="false"><Text id="Liberator4ScoreText" class="Text16"></Text></Cell>
+		</Row>
+		<Row id="BeatingScoreHeading" class="ScoreHeading">
+			<Image image="Sliced Button/Button New Active" type="Sliced" color="rgb(0.8,0.7,0.1)"/>
+			<Text class="Text18" id="BeatingScoreHeadingText">{en}Beating{it}Pestaggio{ru}Поражение{zh-tw}满身疮痍{zh-cn}满身疮痍{ko}패배자{es}Golpeando{fr}Battement{pt-br}Espancamento{de}Schlagen</Text>
+		</Row>
+		<Row id="BeatingScoreData" preferredHeight="0">
+			<Cell id="Beating1ScoreCell" active="false"><Text id="Beating1ScoreText" class="Text16"></Text></Cell>
+			<Cell id="Beating2ScoreCell" active="false"><Text id="Beating2ScoreText" class="Text16"></Text></Cell>
+			<Cell id="Beating3ScoreCell" active="false"><Text id="Beating3ScoreText" class="Text16"></Text></Cell>
+			<Cell id="Beating4ScoreCell" active="false"><Text id="Beating4ScoreText" class="Text16"></Text></Cell>
+		</Row>
+		<Row id="RelicScoreHeading" class="ScoreHeading">
+			<Image image="Sliced Button/Button New Active" type="Sliced" color="rgb(0.8,0.7,0.1)"/>
+			<Text class="Text18" id="RelicScoreHeadingText">{en}Relic Hunter{it}Cacciatore di Reliquie{ru}Охотник за древностями{zh-tw}圣器猎者{zh-cn}圣器猎者{ko}유물 사냥꾼{es}Cazador de Reliquias{fr}Chasseur de Reliques{pt-br}Caçador de Relíquia{de}Reliquienjäger</Text>
+		</Row>
+		<Row id="RelicScoreData" preferredHeight="0">
+			<Cell id="Relic1ScoreCell" active="false"><Text id="Relic1ScoreText" class="Text16"></Text></Cell>
+			<Cell id="Relic2ScoreCell" active="false"><Text id="Relic2ScoreText" class="Text16"></Text></Cell>
+			<Cell id="Relic3ScoreCell" active="false"><Text id="Relic3ScoreText" class="Text16"></Text></Cell>
+			<Cell id="Relic4ScoreCell" active="false"><Text id="Relic4ScoreText" class="Text16"></Text></Cell>
+		</Row>
+		<Row id="CityScoreHeading" class="ScoreHeading">
+			<Image image="Sliced Button/Button New Active" type="Sliced" color="rgb(0.8,0.7,0.1)"/>
+			<Text class="Text18" id="CityScoreHeadingText">{en}Conquered Cities{it}Città Conquistate{ru}Захваченный город{zh-tw}被征服的城市{zh-cn}被征服的城市{ko}정복한 도시{es}Ciudades Conquistadas{fr}Villes Conquises{pt-br}Cidades Conquistadas{de}Eroberte Städte</Text>
+		</Row>
+		<Row id="CityScoreData" preferredHeight="0">
+			<Cell id="City1ScoreCell" active="false"><Text id="City1ScoreText" class="Text16"></Text></Cell>
+			<Cell id="City2ScoreCell" active="false"><Text id="City2ScoreText" class="Text16"></Text></Cell>
+			<Cell id="City3ScoreCell" active="false"><Text id="City3ScoreText" class="Text16"></Text></Cell>
+			<Cell id="City4ScoreCell" active="false"><Text id="City4ScoreText" class="Text16"></Text></Cell>
+		</Row>
+		<Row id="TezlaScoreHeading" class="ScoreHeading">
+			<Image image="Sliced Button/Button New Active" type="Sliced" color="rgb(0.8,0.7,0.1)"/>
+			<Text class="Text18" id="TezlaScoreHeadingText">{en}Faction Greatest Enemy{it}Grande Nemico delle Fazioni{ru}Величайший враг фракций{zh-tw}派系的至高敌人{zh-cn}派系的至高敌人{ko}세력의 위대한 적{es}El Mayor Enemigo de la Facción{fr}Le Plus Grand Ennemi de la Faction{pt-br}Maior Inimigo da Facção{de}Größter Feind der Fraktion</Text>
+		</Row>
+		<Row id="TezlaScoreData" preferredHeight="0">
+			<Cell id="Tezla1ScoreCell" active="false"><Text id="Tezla1ScoreText" class="Text16"></Text></Cell>
+			<Cell id="Tezla2ScoreCell" active="false"><Text id="Tezla2ScoreText" class="Text16"></Text></Cell>
+			<Cell id="Tezla3ScoreCell" active="false"><Text id="Tezla3ScoreText" class="Text16"></Text></Cell>
+			<Cell id="Tezla4ScoreCell" active="false"><Text id="Tezla4ScoreText" class="Text16"></Text></Cell>
+		</Row>
+		<Row id="VolkareScoreHeading" class="ScoreHeading">
+			<Image image="Sliced Button/Button New Active" type="Sliced" color="rgb(0.8,0.7,0.1)"/>
+			<Text class="Text18" id="VolkareScoreHeadingText">{en}General Volkare{it}Generale Volkare{ru}Генерал Волкар{zh-tw}沃卡里将军{zh-cn}沃卡里将军{ko}볼케어 장군{es}General Volkare{fr}Général Volkare{pt-br}General Volkare{de}General Volkare</Text>
+		</Row>
+		<Row id="VolkareScoreData" preferredHeight="0"><Cell columnSpan="4"><Text id="VolkareScoreText" class="Text16" alignment="MiddleCenter"></Text></Cell></Row>
+		<Row id="EfficiencyScoreHeading" class="ScoreHeading">
+			<Image image="Sliced Button/Button New Active" type="Sliced" color="rgb(0.8,0.7,0.1)"/>
+			<Text class="Text18" id="EfficiencyScoreHeadingText">{en}Efficiency{it}Efficienza{ru}Эффектиность{zh-tw}效率{zh-cn}效率{ko}효율 점수{es}Eficiencia{fr}Efficacité{pt-br}Eficiência{de}Effizienz</Text>
+		</Row>
+		<Row id="EfficiencyScoreData" preferredHeight="0"><Cell columnSpan="4"><Text id="EfficiencyScoreText" class="Text16" alignment="MiddleCenter"></Text></Cell></Row>
+		<Row class="ScoreHeading" color="rgb(0.6, 0.45, 0.1)">
+			<Image image="Sliced Button/Button New Active" type="Sliced" color="rgb(1.0,0.7,0.2)"/>
+			<Text class="Text18" id="TotalScoreText">{en}Total{it}Totale{ru}Итого{zh-tw}合计{zh-cn}合计{ko}총합{es}Total{fr}Le Total{pt-br}Total{de}Gesamt</Text>
+		</Row>
+		<Row id="CompScoreData" active="false" preferredHeight="30">
+			<Cell id="Total1ScoreCell" active="false"><Text id="Total1ScoreText" class="Text18" color="Black"></Text></Cell>
+			<Cell id="Total2ScoreCell" active="false"><Text id="Total2ScoreText" class="Text18" color="Black"></Text></Cell>
+			<Cell id="Total3ScoreCell" active="false"><Text id="Total3ScoreText" class="Text18" color="Black"></Text></Cell>
+			<Cell id="Total4ScoreCell" active="false"><Text id="Total4ScoreText" class="Text18" color="Black"></Text></Cell>
+		</Row>
+		<Row id="CoopScoreData" active="false" preferredHeight="30"><Text id="CoopScoreText" class="Text18" alignment="MiddleCenter" color="Black"></Text></Row>
+	</TableLayout>
+	<Button id="closeScoreButton" width="25" height="25" offsetXY="-3 -3" rectAlignment="UpperRight" color="#990000" textColor="#FFFFFF" Text="X" onClick="closePanel"/>
+</Panel>

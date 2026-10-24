@@ -1,0 +1,60 @@
+<Panel id="cameraControl" class="Floating" active="false" rectAlignment="UpperRight" offsetXY="-50 -180" width="150" height="35" color="Clear" outlineSize="0 0" raycastTarget="false">
+	<Panel height="35" rectAlignment="UpperCenter" outlineSize="0 0">
+		<VerticalLayout>
+			<Button id="cameraControlStart" preferredWidth="210" preferredHeight="278" onClick="cameraControl">
+				<Image id="cameraControlStartImage" image="Sliced Button/Button New Active" type="Sliced"/>
+				<VerticalLayout padding="6 6 6 6"><Text class="Title20" alignment="MiddleCenter" id="cameraControlText" offsetXY="0 1">{en}Camera Control{it}Controllo Telecamera{ru}Управление Камерой{zh-tw}視角控制{zh-cn}摄像机控制{ko}카메라 제어{es}Control de la Cámara{fr}Contrôle de la Caméra{pt-br}Controle de Câmera{de}Kamera-Steuerung</Text></VerticalLayout>
+			</Button>
+		</VerticalLayout>
+	</Panel>
+	<Panel id="cameraControlDetail" active="false" rectAlignment="LowerCenter" height="35" outlineSize="0 0">
+		<VerticalLayout>
+			<Button id="tacticView" active="true" interactable="true" onClick="cameraControl">
+				<Image id="tacticViewImage" image="Sliced Button/Button New Active" type="Sliced"/>
+				<VerticalLayout padding="6 6 6 6"><Text id="tacticViewText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Tactics{it}Tattiche{ru}Тактики{zh-tw}戰術卡{zh-cn}战术卡{ko}전술{es}Tácticas{fr}Tactique{pt-br}Táticas{de}Taktik</Text></VerticalLayout>
+			</Button>
+			<Button id="mapView" interactable="true" onClick="cameraControl">
+				<Image id="mapViewImage" image="Sliced Button/Button New Active" type="Sliced"/>
+				<VerticalLayout padding="6 6 6 6"><Text id="mapViewText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Map{it}Mappa{ru}Игровое поле{zh-tw}地圖{zh-cn}地图{ko}맵{es}Mapa{fr}Carte{pt-br}Mapa{de}Karte</Text></VerticalLayout>
+			</Button>
+			<Button id="playAreaView" interactable="true" onClick="cameraControl">
+				<Image id="playAreaViewImage" image="Sliced Button/Button New Active" type="Sliced"/>
+				<VerticalLayout padding="6 6 6 6"><Text id="playAreaViewText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Player Board{it}Plancia Giocatore{ru}Доска игрока{zh-tw}玩家面板{zh-cn}玩家面板{ko}플레이어 보드{es}Tablero del jugador{fr}Tableau des joueurs{pt-br}Quadro do jogador{de}Spielertafel</Text></VerticalLayout>
+			</Button>
+			<Button id="offerView" interactable="true" onClick="cameraControl">
+				<Image id="offerViewImage" image="Sliced Button/Button New Active" type="Sliced"/>
+				<VerticalLayout padding="6 6 6 6"><Text id="offerViewText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Card Offers{it}Offerte di Carte{ru}Доступные карты{zh-tw}卡牌供應區{zh-cn}卡牌供应区{ko}카드 공급처{es}Ofertas de cartas{fr}Offres de cartes{pt-br}Ofertas de cartas{de}Kartenangebote</Text></VerticalLayout>
+			</Button>
+			<Button id="questView" interactable="true" onClick="cameraControl">
+				<Image id="questViewImage" image="Sliced Button/Button New Active" type="Sliced"/>
+				<VerticalLayout padding="6 6 6 6"><Text id="questViewText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Quests{it}Missioni{ru}Квесты{zh-tw}任務{zh-cn}任务{ko}퀘스트{es}Misiones{fr}Quêtes{pt-br}Missões{de}Quests</Text></VerticalLayout>
+			</Button>
+			<Button id="siteInfoView" interactable="true" onClick="cameraControl">
+				<Image id="siteInfoViewImage" image="Sliced Button/Button New Active" type="Sliced"/>
+				<VerticalLayout padding="6 6 6 6"><Text id="siteInfoViewText" class="Text16" color="Purple" alignment="MiddleCenter" offsetXY="0 1">{en}Site Info{it}Info Sito{ru}Описание Мест{zh-tw}地點資訊{zh-cn}地点信息{ko}장소 정보{es}Información{fr}Site Info{pt-br}Informações do site{de}Standort-Infos</Text></VerticalLayout>
+			</Button>
+			<Button id="monsterInfoView" interactable="true" onClick="cameraControl">
+				<Image id="monsterInfoViewImage" image="Sliced Button/Button New Active" type="Sliced"/>
+				<VerticalLayout padding="6 6 6 6"><Text id="monsterInfoViewText" class="Text16" color="Purple" alignment="MiddleCenter" offsetXY="0 1">{en}Monster Info{it}Info Mostro{ru}Описание врагов{zh-tw}敵人資訊{zh-cn}敌人信息{ko}몬스터 정보{es}Monstruos{fr}Infos sur les monstres{pt-br}Informações sobre monstros{de}Monster-Infos</Text></VerticalLayout>
+			</Button>
+			<Button id="fameView" interactable="true" onClick="cameraControl">
+				<Image id="fameViewImage" image="Sliced Button/Button New Active" type="Sliced"/>
+				<VerticalLayout padding="6 6 6 6"><Text id="fameViewText" class="Text16" color="Brown" alignment="MiddleCenter" offsetXY="0 1">{en}Fame Board{it}Plancia Fama{ru}Планшет славы{zh-tw}名望面板{zh-cn}名望面板{ko}명성 보드{es}Fama{fr}Tableau de la renommée{pt-br}Quadro da Fama{de}Ruhm-Tafel</Text></VerticalLayout>
+			</Button>
+			<Button id="rulesView" interactable="true" onClick="cameraControl">
+				<Image id="rulesViewImage" image="Sliced Button/Button New Active" type="Sliced"/>
+				<VerticalLayout padding="6 6 6 6"><Text id="rulesViewText" class="Text16" color="Brown" alignment="MiddleCenter" offsetXY="0 1">{en}Rules{it}Regole{ru}Правила{zh-tw}規則書{zh-cn}规则书{ko}규칙서{es}Reglas{fr}Règles{pt-br}Regras{de}Regeln</Text></VerticalLayout>
+			</Button>
+			<Button id="dummyView" interactable="true" onClick="cameraControl">
+				<Image id="dummyViewImage" image="Sliced Button/Button New Active" type="Sliced"/>
+				<VerticalLayout padding="6 6 6 6"><Text id="dummyViewText" class="Text16" color="Brown" alignment="MiddleCenter" offsetXY="0 1">{en}Dummy Board{it}Plancia Fittizio{ru}Доска виртуального игрока{zh-tw}虛擬玩家面板{zh-cn}虚拟玩家面板{ko}가상 플레이어{es}Tablero Dummy{fr}Tableau factice{pt-br}Quadro de Jog. Fictício{de}Dummy-Brett</Text></VerticalLayout>
+			</Button>
+		</VerticalLayout>
+		<Panel active="true" rectAlignment="LowerCenter" height="45" outlineSize="0 0" offsetXY="0 -46">
+			<VerticalLayout padding="1 5 1 1">
+				<Toggle id="followEnemyView" class="Toggle16" onValueChanged="cameraControlFollowEnemy">{en}Follow Enemy{it}Segui Nemico{ru}Следовать за врагом{zh-tw}跟隨敵人{zh-cn}跟随敌人{ko}적 따라가기{es}Seguir al enemigo{fr}Suivre l'ennemi{pt-br}Seguir inimigo{de}Feind folgen</Toggle>
+				<Toggle id="topDownView" class="Toggle16" onValueChanged="cameraControlTopDown">{en}Top Down View{it}Vista dall'Alto{ru}Вид сверху вниз{zh-tw}俯視視角{zh-cn}俯视视角{ko}탑뷰{es}Vista superior{fr}Vue de haut en bas{pt-br}Visão de cima para baixo{de}Top-Down-Ansicht</Toggle>
+			</VerticalLayout>
+		</Panel>
+	</Panel>	
+</Panel>

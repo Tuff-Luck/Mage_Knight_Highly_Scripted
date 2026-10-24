@@ -1,0 +1,59 @@
+<Panel id="Mage1LevelBoard" active="false" offsetXY="-730 -150" width="230" height="340" hideAnimation="Shrink" showAnimation="Grow" class="Floating">
+	<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
+	<VerticalLayout padding="4 4 4 4">
+		<Panel id="Mage1NamePanel" preferredHeight="35" color="rgb(0.3, 0.3, 0.3)">
+			<Text id="Mage1NameText" color="rgb(0, 0, 0)" class="Title22" alignment="MiddleCenter">Mage1Name</Text>
+		</Panel>
+		<Panel preferredHeight="35">
+			<VerticalLayout padding="4 4 2 2">
+				<Row>
+					<Button id="Mage1levelDown" class="ScenarioTweak" rectAlignment="MiddleLeft" onClick="adjustHigherLevelSetupValue">
+						<Image id="Mage1levelDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
+						<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">-</Text>
+					</Button>
+					<Text id="Mage1levelText" class="Text17" alignment="MiddleCenter">{en}Start at Level {it}Inizia al Livello {ru}Начать с уровнем {zh-cn}开始的级别：{ko}시작 레벨: {es}Empezar en el Nivel {fr}Début Niveau {pt-br}Iníciar no Nível {de}Start bei Level {zh-tw}起始等级：</Text>
+					<Button id="Mage1levelUp" class="ScenarioTweak" rectAlignment="MiddleRight" onClick="adjustHigherLevelSetupValue">
+						<Image id="Mage1levelUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
+						<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">+</Text>
+					</Button>
+				</Row>
+			</VerticalLayout>
+		</Panel>
+		<Panel preferredHeight="85">
+			<VerticalLayout padding="4 4 2 2">
+				<Row>
+					<Button id="Mage1influenceDown" class="ScenarioTweak" rectAlignment="MiddleLeft" onClick="adjustHigherLevelSetupValue">
+						<Image id="Mage1influenceDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
+						<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">-</Text>
+					</Button>
+					<Text id="Mage1influenceText" class="Text17" alignment="MiddleCenter">{en} Influence Per Level{it} Influenza per Livello{ru} Влияние(я) за ур.{zh-cn}影响力/级{ko} 영향력*레벨{es} Influencia por Nivel{fr} Influence par Niveau{pt-br} Influência por Nível{de} Einfluss pro Stufe{zh-tw}每级构筑点数</Text>
+					<Button id="Mage1influenceUp" class="ScenarioTweak" Text="+" rectAlignment="MiddleRight" onClick="adjustHigherLevelSetupValue">
+						<Image id="Mage1influenceUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
+						<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">+</Text>
+					</Button>
+				</Row>
+				<Row><Text id="Mage1influenceTotalText" class="Text17">{en}Influence to Spend : {it}Influenza da Spendere : {ru}Доступно влияния: {zh-cn}需要花费的影响力：{ko}주어진 영향력: {es}Influencia para Gastar : {fr}Influence à Dépenser : {pt-br}Influência para Gastar : {de}Einfluss zum Ausgeben : {zh-tw}可花費影響力：</Text></Row>
+				<Row><Text id="Mage1AdvancedActionFreeText" class="Text17">{en} Free Advanced Action(s){it} Azioni Avanzate Gratuite{ru} Бесплатное(ых) особое(ых) действие(ия/ий){zh-cn}张免费高级行动卡{ko}장의 무료 상급 액션{es} Acción Avanzada Gratuita{fr} Action Avancée Gratuite{pt-br} Cartas de Ação Avançadas Gratuitas{de} Freie Fortgeschrittene Aktion(en){zh-tw} 張免費的高級行動卡</Text></Row>
+			</VerticalLayout>
+		</Panel>
+		<Panel preferredHeight="125">
+			<VerticalLayout padding="7 7 2 2">
+				<Text id="Mage1AdvancedActionCostText" class="Text17">{en} Advanced Action(s) : {it} Azioni Avanzate : {ru} Особое(ых) действие(ия/ий): {zh-cn}高级行动卡 : {ko}장의 상급 액션 : {es} Acción Avanzada : {fr} Action Avancée : {pt-br} Ações Avançadas : {de} Fortgeschrittene Aktion(en) : {zh-tw} 張高級行動卡：</Text>
+				<Text id="Mage1RegularUnitCostText" class="Text17">{en} Regular Unit(s) : {it} Unità Regolari : {ru} Обычный(ых) отряд(а/ов): {zh-cn}普通部队：{ko}개의 일반 유닛 : {es} Unidad(es) Regulares : {fr} Unité(s) Régulières : {pt-br} Unidade(s) Regulares : {de} Reguläre Einheit(en) :{zh-tw} 支常规部队：</Text>
+				<Text id="Mage1SpellCostText" class="Text17">{en} Spell(s) : {it} Incantesimi : {ru} Заклинание(я/ий): {zh-cn}法术卡 : {ko}장의 마법 : {es} Hechizo(s) : {fr} Sort(s) : {pt-br} Feitiços : {de} Zauberspruch(e) : {zh-tw} 張法術卡：</Text>
+				<Text id="Mage1ArtifactCostText" class="Text17">{en} Artifact(s) : {it} Artefatti : {ru} Артефакт(а/ов): {zh-cn}圣器卡 : {ko}장의 유물 : {es} Artefacto(s) : {fr} Artefact(s) : {pt-br} Artefatos : {de} Artefakt(e) : {zh-tw} 張神器卡：</Text>
+				<Text id="Mage1CrystalCostText" class="Text17">{en} Mana Crystal(s) : {it} Cristalli Mana : {ru} Кристалл(а/ов) маны: {zh-cn}魔晶：{ko}개의 수정 : {es} Cristales de Maná : {fr} Cristaux de Mana : {pt-br} Cristais de Mana : {de} Manakristall(e) : {zh-tw} 顆魔晶：</Text>
+			</VerticalLayout>
+		</Panel>
+		<Panel preferredHeight="70">
+			<VerticalLayout padding="4 4 2 2">
+				<Row><Text id="Mage1RemainingText" class="Text17">{en}Remaining : {it}Rimanenti : {ru}Остаток: {zh-cn}剩余影响力 : {ko}남은 영향력 : {es}Restante : {fr}Restant : {pt-br}Restando : {de}Verbleibend : {zh-tw}剩餘：</Text></Row>
+				<Row><Button id="Mage1CompleteButton" height="30" shadow="rgb(0,0,0)" rectAlignment="MiddleCenter" onClick="createHigherLevelCardPool">
+						<Image id="Mage1CompleteButtonImage" image="Sliced Button/Button New Active" type="Sliced"/>
+						<Text id="Mage1CompleteText" class="Text17" offsetXY="0 1">{en}Create Card Pool{it}Crea Riserva Carte{ru}Создать пул карт{zh-tw}创建卡池{zh-cn}创建卡池{ko}카드 풀 생성{es}Crear Grupo de Cartas{fr}Créer un Pool de Cartes{pt-br}Criar Conjunto de Cartas{de}Kartenpool erstellen</Text>
+					</Button>
+				</Row>
+			</VerticalLayout>
+		</Panel>
+	</VerticalLayout>
+</Panel>

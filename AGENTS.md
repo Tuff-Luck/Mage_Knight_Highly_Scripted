@@ -2,7 +2,7 @@
 
 ## Source authority
 
-The authoritative project code is under `src/`, with `.tts/objects/Global.lua` as the bundler entry point and `.tts/objects/Global.xml` as the Global UI source.
+The authoritative project code is under `src/`, with `.tts/objects/Global.lua` as the bundler entry point and `.tts/objects/Global.xml` as the Global UI entry point. `Global.xml` only holds `<Include src="UI/Name.xml"/>` lines; the actual UI panels live in `src/UI/` (one file per top-level panel, plus `Defaults.xml`). Edit the `src/UI/` files, not `Global.xml`.
 
 Files under `.tts/objects/*.data.json` are object metadata snapshots. Their embedded `LuaScript`, `LuaScriptState`, and `XmlUI` fields can be stale and must never be used as the source of current code. A compiled Tabletop Simulator save JSON is also reference material for objects/layout only unless the user explicitly says otherwise.
 

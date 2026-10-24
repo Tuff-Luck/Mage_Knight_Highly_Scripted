@@ -1,0 +1,10 @@
+<Panel id="EndReminder" active="false" rectAlignment="LowerLeft" offsetXY="90 75" width="610" height="100" class="Floating">
+	<Image image="Sliced Button/Button New Active" type="Sliced"/>
+	<TableLayout padding="10 10 0 2">
+		<Row preferredHeight="30" dontUseTableRowBackground="true" >
+			<Image image="Sliced Button/Title Border Tan" type="Sliced" width="610" height="30" rectAlignment="MiddleCenter"/>
+			<Text id="EndReminderTitleText" class="Title18" alignment="MiddleCenter" offsetXY="0 -1">{en}Scenario Ends{it}Lo Scenario Termina{ru}Конец Cценария{zh-tw}劇本結束條件{zh-cn}剧本结束条件{ko}시나리오 종료{es}Fin del Escenario{fr}Fin du Scénario{pt-br}Fim do Cenário{de}Szenario Endet</Text>
+		</Row>
+		<Row preferredHeight="0"><Text id="EndReminderText" class="Text16" alignment="MiddleLeft" offsetXY="0 1">End Reminder Text Box Script Updated</Text></Row>
+	</TableLayout>
+</Panel>

@@ -1,0 +1,45 @@
+<Defaults>
+	<Panel	color="rgb(0.7, 0.7, 0.7)" rectAlignment="MiddleCenter" active="true"
+			allowDragging="false" returnToOriginalPositionWhenReleased="true" raycastTarget="true"
+			hideAnimation="None" showAnimation="None" animationDuration="0.5"
+			outline="rgb(0, 0, 0)" outlineSize="1 -1" offsetXY="0 0"/>
+	<Panel	class="Floating" allowDragging="true" returnToOriginalPositionWhenReleased="false"/>
+	<Panel	class="MainGamePanel" width="300" allowDragging="true" returnToOriginalPositionWhenReleased="false"/>
+	<Panel	class="MainGameSubPanel" width="300"/>
+
+	<Text 	fontSize="18" font="Fonts/MKCardText" fontStyle="Normal"
+			resizeTextForBestFit="false" offsetXY="0 0"
+			color="rgb(0, 0, 0)" alignment="MiddleCenter"/>
+	<Text 	class="Title30" fontSize="30" font="Fonts/MKCardTittle" resizeTextForBestFit="true" resizeTextMaxSize="30"/>
+	<Text 	class="Title24" fontSize="24" font="Fonts/MKCardTittle" resizeTextForBestFit="true" resizeTextMaxSize="24"/>
+	<Text 	class="Title22" fontSize="22" font="Fonts/MKCardTittle" resizeTextForBestFit="true" resizeTextMaxSize="22"/>
+	<Text 	class="Title20" fontSize="20" font="Fonts/MKCardTittle" resizeTextForBestFit="true" resizeTextMaxSize="20"/>
+	<Text 	class="Title18" fontSize="18" font="Fonts/MKCardTittle" resizeTextForBestFit="true" resizeTextMaxSize="18"/>
+	<Text 	class="Text26" fontSize="26" resizeTextForBestFit="true" resizeTextMaxSize="26"/>
+	<Text 	class="Text24" fontSize="24" resizeTextForBestFit="true" resizeTextMaxSize="24"/>
+	<Text 	class="Text20" fontSize="20" resizeTextForBestFit="true" resizeTextMaxSize="20"/>	
+	<Text 	class="Text18" fontSize="18" resizeTextForBestFit="true" resizeTextMaxSize="18"/>
+	<Text 	class="Text17" fontSize="17" resizeTextForBestFit="true" resizeTextMaxSize="17"/>
+	<Text 	class="Text16" fontSize="16" resizeTextForBestFit="true" resizeTextMaxSize="16"/>
+	<Text 	class="Text15" fontSize="15" resizeTextForBestFit="true" resizeTextMaxSize="15"/>
+	<Text 	class="Text14" fontSize="14" resizeTextForBestFit="true" resizeTextMaxSize="14"/>
+
+	<Toggle fontSize="18" font="Fonts/MKCardText" fontStyle="Normal" textColor="rgb(0, 0, 0)"
+			isOn="false" interactable="true"
+			rectAlignment="MiddleLeft" offsetXY="5 0" height="26"/>
+	<Toggle class="Toggle18" fontSize="18" resizeTextForBestFit="true" resizeTextMaxSize="18"/>
+	<Toggle class="Toggle16" fontSize="16" resizeTextForBestFit="true" resizeTextMaxSize="16"/>
+
+	<Button	fontSize="18" font="Fonts/MKCardText" fontStyle="Normal" textColor="rgb(0, 0, 0)"
+			onMouseDown="buttonClicked" onMouseUp="buttonClicked"
+			tooltipPosition="Left" tooltipBackgroundColor="clear" tooltipOffset="20"
+			shadow="rgb(0, 0, 0)" shadowDistance="0 -0"/>
+	<Button class="ScenarioTweak" width="25" height="25" color="#7F7F7F" textColor="#FFFFFF" onClick="baseValueTweak"/>
+	<Button class="ShortButton" preferredWidth="45" onMouseDown="buttonClicked" onMouseUp="buttonClicked"/>
+	<Button class="LongButton" preferredWidth="45" onMouseDown="buttonClicked" onMouseUp="buttonClicked"/>
+	<Button class="CombatSlot" active="false" preferredWidth="28" preferredHeight="34" onClick="resourceTracker"/>
+	<Image class="CombatSlotIcon" rectAlignment="MiddleCenter" width="26" height="26" preserveAspect="true" raycastTarget="false"/>
+	<Text class="CombatSlotAmount" rectAlignment="MiddleCenter" fontSize="20" fontStyle="Bold" color="White" outline="rgb(0, 0, 0)" outlineSize="1 -1" alignment="MiddleCenter" raycastTarget="false"/>
+
+	<Row class="ScoreHeading" preferredHeight="30" color="rgb(0.5, 0.5, 0.1)" dontUseTableRowBackground="true"/>
+</Defaults>

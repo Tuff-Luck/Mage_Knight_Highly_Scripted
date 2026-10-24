@@ -1,0 +1,334 @@
+<Panel id="MainGame" class="MainGamePanel" active="false" color="rgba(0.2, 0.2, 0.2, 0.0)"  rectAlignment="LowerRight" offsetXY="-10 20" height="445">
+	<Panel class="MainGameSubPanel" color="rgb(0.2, 0.2, 0.2)" rectAlignment="LowerRight" offsetXY="0 55" height="350">
+		<VerticalLayout > 
+			<HorizontalLayout padding="5 5 5 5">
+				<Text id="MainGameNotes" class="Text20" alignment="MiddleCenter" preferredHeight="120">Script Modifies - Main Game Notes</Text>
+			</HorizontalLayout>
+			<HorizontalLayout childForceExpandWidth="false">
+				<Button id="ShrinkHand" onClick="valueAdjust" class="ShortButton">
+					<Image id="ShrinkHandImage" image="Sliced Button/Button New Active" type="Sliced"/><Text class="Text26" offsetXY="0 1">-</Text>
+				</Button>
+				<Button id="DrawHand" preferredWidth="250" interactable="false" onClick="drawUpTo" onMouseDown="" onMouseUp="" tooltipOffset="65" tooltip="Hand size will be purple when above your base Hand size. Achieved by proximity to Keeps and Cities, or Day Tactic 4.">
+					<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<HorizontalLayout padding="5 5 0 0"><Text id="DrawHandText" class="Text20" offsetXY="0 1">Script Modifies - Hand Size</Text></HorizontalLayout>
+				</Button>
+				<Button id="GrowHand" onClick="valueAdjust" class="ShortButton">
+					<Image id="GrowHandImage" image="Sliced Button/Button New Active" type="Sliced"/><Text class="Text26" alignment="MiddleCenter" offsetXY="0 1">+</Text>
+				</Button>
+			</HorizontalLayout>
+			<Button id="DrawOne" height="1" onClick="drawUpTo" padding="5 5 5 5">
+				<Image id="DrawOneImage" image="Sliced Button/Button New Active" type="Sliced"/>
+				<HorizontalLayout padding="5 5 0 0"><Text id="drawOneCardText" class="Text20" offsetXY="0 1">{en}Draw One Card{it}Pesca una Carta{ru}Вытянуть одну карту{zh-tw}抽一張牌{zh-cn}抽一张牌{ko}카드 1장 뽑기{es}Roba Una Carta{fr}Prendre Une Carte{pt-br}Compre Uma Carta{de}Ziehe eine Karte</Text></HorizontalLayout>
+			</Button>
+			<HorizontalLayout childForceExpandWidth="false">
+				<Button id="ShrinkFame" onClick="valueAdjust" class="ShortButton">
+					<Image id="ShrinkFameImage" image="Sliced Button/Button New Active" type="Sliced"/><Text class="Text26" alignment="MiddleCenter" offsetXY="0 1">-</Text>
+				</Button>
+				<Button id="EndRoundPlusFame" preferredWidth="250" interactable="false" onClick="PreEndRound" tooltipOffset="65" tooltip="How much Fame is added at 'End of Turn'">
+					<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<HorizontalLayout padding="5 5 0 0"><Text id="EndRoundPlusFameText" class="Text20" offsetXY="0 1">Script Modifies - Fame amount</Text></HorizontalLayout>
+				</Button>
+				<Button id="GrowFame" onClick="valueAdjust" class="ShortButton">
+					<Image id="GrowFameImage" image="Sliced Button/Button New Active" type="Sliced"/><Text class="Text26" alignment="MiddleCenter" offsetXY="0 1">+</Text>
+				</Button>
+			</HorizontalLayout>
+			<HorizontalLayout childForceExpandWidth="false">
+				<Button id="ShrinkRep" onClick="valueAdjust" class="ShortButton">
+					<Image id="ShrinkRepImage" image="Sliced Button/Button New Active" type="Sliced"/><Text class="Text26" alignment="MiddleCenter" offsetXY="0 1">-</Text>
+				</Button>
+				<Button id="EndRoundPlusRep" preferredWidth="250" interactable="false" onClick="PreEndRound" padding="5 5 5 5" tooltipOffset="65" tooltip="How much Reputation is added (subtracted) at 'End of Turn'">
+					<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<HorizontalLayout padding="6 6 0 0"><Text id="EndRoundPlusRepText" class="Text20" offsetXY="0 1">Script Modifies - Reputation Amount</Text></HorizontalLayout>
+				</Button>
+				<Button id="GrowRep" onClick="valueAdjust" class="ShortButton">
+					<Image id="GrowRepImage" image="Sliced Button/Button New Active" type="Sliced"/><Text class="Text26" alignment="MiddleCenter" offsetXY="0 1">+</Text>
+				</Button>
+			</HorizontalLayout>
+			<Button id="EndTurnButton" height="1" onClick="preEndTurn" tooltip="At least one card must be played or discarded to 'End Your Turn'.">
+				<Image id="EndTurnButtonImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+				<HorizontalLayout padding="6 6 6 6"><Text id="EndTurnButtonText" class="Text20" offsetXY="0 1">Script Modifies - End Turn Button</Text></HorizontalLayout>
+			</Button>
+			<Button id="EndRoundButton" height="1" onClick="PreEndRound" tooltip="Your deed deck needs to be empty and no cards played to 'End the Round'.">
+				<Image id="EndRoundButtonImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+				<Text id="EndRoundButtonText" class="Text20" offsetXY="0 1">Script Modifies - End Round Button</Text>
+			</Button>
+		</VerticalLayout>
+		<Panel id="DummyTurn" class="MainGameSubPanel" active="false" color="rgb(0.2, 0.2, 0.2)" outlineSize="0 0" rectAlignment="LowerCenter" height="250">
+			<VerticalLayout padding="10 10 0 45">
+				<Text id="DummyNotes" class="Text20" color="gray" alignment="TopCenter">Script Modifies</Text>
+			</VerticalLayout>
+			<Button id="DummyButton" height="40" rectAlignment="LowerCenter" interactable="false" onClick="dummyTurn">
+				<Image id="DummyButtonImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+				<Text id="DummyButtonText" class="Text20" offsetXY="0 1">Script Modifies - End Dummy Turn Button</Text>
+			</Button>
+			<Panel id="DummyChoiceButtons" active="false" width="300" height="40" rectAlignment="LowerCenter" color="clear" outlineSize="0 0">
+				<HorizontalLayout spacing="4" childForceExpandWidth="true">
+					<Button id="DummyChoiceLeft" interactable="true" onClick="proxyManaChoiceSelect">
+						<Image id="DummyChoiceLeftImage" image="Sliced Button/Button New Active" type="Sliced"/>
+						<Text id="DummyChoiceLeftText" class="Text18" offsetXY="0 1">{en}Reroll Red{it}Ritira Rosso{ru}Перебросить красный{zh-tw}重擲紅色{zh-cn}重掷红色{ko}빨강 다시 굴리기{es}Volver a tirar Rojo{fr}Relancer Rouge{pt-br}Rolar Vermelho novamente{de}Rot neu würfeln</Text>
+					</Button>
+					<Button id="DummyChoiceRight" interactable="true" onClick="proxyManaChoiceSelect">
+						<Image id="DummyChoiceRightImage" image="Sliced Button/Button New Active" type="Sliced"/>
+						<Text id="DummyChoiceRightText" class="Text18" offsetXY="0 1">{en}Reroll White{it}Ritira Bianco{ru}Перебросить белый{zh-tw}重擲白色{zh-cn}重掷白色{ko}흰색 다시 굴리기{es}Volver a tirar Blanco{fr}Relancer Blanc{pt-br}Rolar Branco novamente{de}Weiß neu würfeln</Text>
+					</Button>
+				</HorizontalLayout>
+			</Panel>
+		</Panel>
+		<Panel id="ExtraTurnTactic"	class="MainGameSubPanel" active="false" color="rgb(0.2, 0.2, 0.2)" outlineSize="0 0" rectAlignment="LowerCenter" offsetXY="0 33" height="34">
+			<HorizontalLayout>
+				<Button id="EndTurnButtonAlt" height="1" onClick="preEndTurn" tooltip="At least one card must be played or discarded to 'End Your Turn'.">
+					<Image id="EndTurnButtonAltImage" image="Sliced Button/Button New Active" type="Sliced"/>
+					<HorizontalLayout padding="6 6 6 6"><Text id="EndTurnButtonAltText" class="Text20" offsetXY="0 1">{en}End Turn{it}Fine Turno{ru}Конец хода{zh-tw}結束回合{zh-cn}结束回合{ko}차례 종료{es}Fin de Turno{fr}Fin de Tour{pt-br}Fim de Turno{de}Zug Beenden</Text></HorizontalLayout>
+				</Button>
+				<Button id="ExtraTurnTacticButton" height="1" onClick="extraTurnButton">
+					<Image id="ExtraTurnTacticButtonImage" image="Sliced Button/Button New Active" type="Sliced"/>
+					<HorizontalLayout padding="6 6 6 6"><Text id="ExtraTurnTacticButtonText" class="Text20" offsetXY="0 1">Script Modifies</Text></HorizontalLayout>
+				</Button>
+			</HorizontalLayout>
+		</Panel>
+		<Panel id="RewardCheck"	class="MainGameSubPanel" active="false" color="rgb(0.2, 0.2, 0.2)" outlineSize="0 0" rectAlignment="LowerCenter" offsetXY="0 -15" height="180">
+			<VerticalLayout>
+				<HorizontalLayout padding="6 6 6 6"><Text id="RewardNotes" class="Text20" alignment="UpperLeft" preferredHeight="110">Script Modifies - Reward Claim</Text></HorizontalLayout>
+				<Button id="PreEndTurn" rectAlignment="LowerCenter" height="40" fontSize="18" onClick="endTurn">
+					<Image id="PreEndTurnImage" image="Sliced Button/Button New Active" type="Sliced"/>
+					<Text id="PreEndTurnText" class="Text20" offsetXY="0 1">{en}Rewards Claimed{it}Ricompense Prese{ru}Награды получены{zh-cn}继  续{ko}보상 처리 완료{es}Recompensas Reclamadas{fr}Récompenses réclamées{pt-br}Recompensas Coletadas{de}Belohnungen Beansprucht{zh-tw}獲得獎勵</Text>
+				</Button>
+			</VerticalLayout>
+		</Panel>
+		<Panel id="EndGameButton" class="MainGameSubPanel" active="false" outlineSize="0 0" rectAlignment="LowerLeft" offsetXY="0 -45" height="30">
+			<ToggleButton id="EndGameButtonReal" onClick="toggleScenarioEndAchieved"
+				tooltipPosition="Left" tooltipOffset="20" tooltip="Toggle to trigger final round of turns">
+				<Image id="EndGameButtonImage" image="Sliced Button/Button New Active" type="Sliced"/>
+				<Text id="EndGameButtonText" class="Text18" offsetXY="0 1">{en}Scenario End Achieved - No{it}Fine Scenario Raggiunta - No{ru}Конец сценария достигнут - Нет{zh-tw}声明结束剧本-否{zh-cn}声明结束剧本-否{ko}시나리오 종료 조건 충족 전{es}Escenario Fin Realizados - No{fr}Scénario Fin Atteint - Non{pt-br}Fim do Cenário Alcançado - Não{de}Szenarioziel Erreicht – Nein</Text>
+			</ToggleButton>
+		</Panel>
+		<Panel id="OutOfTurnActions" class="MainGameSubPanel" rectAlignment="UpperLeft" offsetXY="0 200" height="150">
+			<Panel class="MainGameSubPanel" color="rgb(0.2, 0.2, 0.2)" rectAlignment="UpperLeft" height="30">
+				<Text id="OutOfTurnActionsTitle" color="white" class="Text20">{en}Optional Actions{it}Azioni Opzionali{ru}Дополнительные действия{zh-tw}可選操作{zh-cn}可选操作{ko}추가 행동{es}Acciones Opcionales{fr}Actions Facultatives{pt-br}Ações Opcionais{de}Optionale Aktionen</Text>
+			</Panel>
+			<Panel id="OutOfTurnActionsSub" class="MainGameSubPanel" color="rgb(0.4, 0.4, 0.4)" rectAlignment="LowerLeft" height="120">
+				<VerticalLayout padding="0 0 0 0">
+					<Button id="Plunder1" active="false" onClick="plunderVillage" tooltip="Draw two cards but Lose 1 reputation">
+						<Image id="Plunder1Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="Plunder1Text" class="Text17">Pos1 Plunder Village (-1 Rep)</Text></HorizontalLayout>
+					</Button>
+					<Button id="Pursuit1" active="false" onClick="pursuingRampagers" tooltip="Moves all the pursuing Monster tokens. Resting, Calling End of Round, and Cooperative Assualts don't have a Move Phase.">
+						<Image id="Pursuit1Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="Pursuit1Text" class="Text17">Pos1 skips Movement Phase</Text></HorizontalLayout>
+					</Button>
+					<Button id="NightTactic2-1" active="false" onClick="nightTactic2">
+						<Image id="NightTactic2-1Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="NightTactic2-1Text" class="Text17">Pos1 Use Night Tactic 2</Text></HorizontalLayout>
+					</Button>
+					<Button id="NightTactic4-1" active="false" onClick="nightTactic4" tooltip="Return Cards to Deed deck to activate this button">
+						<Image id="NightTactic4-1Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="NightTactic4-1Text" class="Text17">Pos1 Tactic 4 Draw ? Card(s)</Text></HorizontalLayout>
+					</Button>
+					<Button id="NightTactic6Store1" active="false" onClick="nightTactic6">
+						<Image id="NightTactic6Store1Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="NightTactic6Store1Text" class="Text17">Pos1 Tactic 6 Store Card</Text></HorizontalLayout>
+					</Button>
+					<Button id="NightTactic6Claim1" active="false" onClick="nightTactic6">
+						<Image id="NightTactic6Claim1Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="NightTactic6Claim1Text" class="Text17">Pos1 Tactic 6 Claim X Card(s)</Text></HorizontalLayout>
+					</Button>
+					<Button id="3d8336-Motivation1" active="false" onClick="motivation" tooltip="Draw two cards">
+						<Image id="3d8336-Motivation1Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="3d8336-Motivation1Text" class="Text17">Pos1 Motivation Arythea Claim X Card(s)</Text></HorizontalLayout>
+					</Button>
+					<Button id="171244-Motivation1" active="false" onClick="motivation" tooltip="Draw two cards">
+						<Image id="171244-Motivation1Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="171244-Motivation1Text" class="Text17">Pos1 Motivation Goldyx Claim X Card(s)</Text></HorizontalLayout>
+					</Button>
+					<Button id="14399f-Motivation1" active="false" onClick="motivation" tooltip="Draw two cards">
+						<Image id="14399f-Motivation1Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="14399f-Motivation1Text" class="Text17">Pos1 Motivation Norowas Claim X Card(s)</Text></HorizontalLayout>
+					</Button>
+					<Button id="ba4df5-Motivation1" active="false" onClick="motivation" tooltip="Draw two cards">
+						<Image id="ba4df5-Motivation1Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="ba4df5-Motivation1Text" class="Text17">Pos1 Motivation Tovak Claim X Card(s)</Text></HorizontalLayout>
+					</Button>
+					<Button id="527b47-Motivation1" active="false" onClick="motivation" tooltip="Draw two cards">
+						<Image id="527b47-Motivation1Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="527b47-Motivation1Text" class="Text17">Pos1 Motivation Wolfhawk Claim X Card(s)</Text></HorizontalLayout>
+					</Button>
+					<Button id="MasterOfChaos1" active="false" onClick="masterOfChaos">
+						<Image id="MasterOfChaos1Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="MasterOfChaos1Text" class="Text17">Pos1 Master of Chaos increment</Text></HorizontalLayout>
+					</Button>
+
+					<Button id="Plunder2" active="false" onClick="plunderVillage" tooltip="Draw two cards but Lose 1 reputation">
+						<Image id="Plunder2Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="Plunder2Text" class="Text17">Pos2 Plunder Village (-1 Rep)</Text></HorizontalLayout>
+					</Button>
+					<Button id="Pursuit2" active="false" onClick="pursuingRampagers" tooltip="Moves all the pursuing Monster tokens. Resting, Calling End of Round, and Cooperative Assualts don't have a Move Phase.">
+						<Image id="Pursuit2Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="Pursuit2Text" class="Text17">Pos2 skips Movement Phase</Text></HorizontalLayout>
+					</Button>
+					<Button id="NightTactic2-2" active="false" onClick="nightTactic2">
+						<Image id="NightTactic2-2Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="NightTactic2-2Text" class="Text17">Pos2 Use Night Tactic 2</Text></HorizontalLayout>
+					</Button>
+					<Button id="NightTactic4-2" active="false" onClick="nightTactic4" tooltip="Return Cards to Deed deck to activate this button">
+						<Image id="NightTactic4-2Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="NightTactic4-2Text" class="Text17">Pos2 Tactic 4 Draw ? Card(s)</Text></HorizontalLayout>
+					</Button>
+					<Button id="NightTactic6Store2" active="false" onClick="nightTactic6">
+						<Image id="NightTactic6Store2Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="NightTactic6Store2Text" class="Text17">Pos2 Tactic 6 Store Card</Text></HorizontalLayout>
+					</Button>
+					<Button id="NightTactic6Claim2" active="false" onClick="nightTactic6">
+						<Image id="NightTactic6Claim2Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="NightTactic6Claim2Text" class="Text17">Pos2 Tactic 6 Claim X Card(s)</Text></HorizontalLayout>
+					</Button>
+					<Button id="3d8336-Motivation2" active="false" onClick="motivation" tooltip="Draw two cards">
+						<Image id="3d8336-Motivation2Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="3d8336-Motivation2Text" class="Text17">Pos2 Motivation Arythea Claim X Card(s)</Text></HorizontalLayout>
+					</Button>
+					<Button id="171244-Motivation2" active="false" onClick="motivation" tooltip="Draw two cards">
+						<Image id="171244-Motivation2Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="171244-Motivation2Text" class="Text17">Pos2 Motivation Goldyx Claim X Card(s)</Text></HorizontalLayout>
+					</Button>
+					<Button id="14399f-Motivation2" active="false" onClick="motivation" tooltip="Draw two cards">
+						<Image id="14399f-Motivation2Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="14399f-Motivation2Text" class="Text17">Pos2 Motivation Norowas Claim X Card(s)</Text></HorizontalLayout>
+					</Button>
+					<Button id="ba4df5-Motivation2" active="false" onClick="motivation" tooltip="Draw two cards">
+						<Image id="ba4df5-Motivation2Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="ba4df5-Motivation2Text" class="Text17">Pos2 Motivation Tovak Claim X Card(s)</Text></HorizontalLayout>
+					</Button>
+					<Button id="527b47-Motivation2" active="false" onClick="motivation" tooltip="Draw two cards">
+						<Image id="527b47-Motivation2Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="527b47-Motivation2Text" class="Text17">Pos2 Motivation Wolfhawk Claim X Card(s)</Text></HorizontalLayout>
+					</Button>
+					<Button id="MasterOfChaos2" active="false" onClick="masterOfChaos">
+						<Image id="MasterOfChaos2Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="MasterOfChaos2Text" class="Text17">Pos2 Master of Chaos increment</Text></HorizontalLayout>
+					</Button>
+
+					<Button id="Plunder3" active="false" onClick="plunderVillage" tooltip="Draw two cards but Lose 1 reputation">
+						<Image id="Plunder3Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="Plunder3Text" class="Text17">Pos3 Plunder Village (-1 Rep)</Text></HorizontalLayout>
+					</Button>
+					<Button id="Pursuit3" active="false" onClick="pursuingRampagers" tooltip="Moves all the pursuing Monster tokens. Resting, Calling End of Round, and Cooperative Assualts don't have a Move Phase.">
+						<Image id="Pursuit3Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="Pursuit3Text" class="Text17">Pos3 skips Movement Phase</Text></HorizontalLayout>
+					</Button>
+					<Button id="NightTactic2-3" active="false" onClick="nightTactic2">
+						<Image id="NightTactic2-3Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="NightTactic2-3Text" class="Text17">Pos3 Use Night Tactic 2</Text></HorizontalLayout>
+					</Button>
+					<Button id="NightTactic4-3" active="false" onClick="nightTactic4" tooltip="Return Cards to Deed deck to activate this button">
+						<Image id="NightTactic4-3Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="NightTactic4-3Text" class="Text17">Pos3 Tactic 4 Draw ? Card(s)</Text></HorizontalLayout>
+					</Button>
+					<Button id="NightTactic6Store3" active="false" onClick="nightTactic6">
+						<Image id="NightTactic6Store3Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="NightTactic6Store3Text" class="Text17">Pos3 Tactic 6 Store Card</Text></HorizontalLayout>
+					</Button>
+					<Button id="NightTactic6Claim3" active="false" onClick="nightTactic6">
+						<Image id="NightTactic6Claim3Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="NightTactic6Claim3Text" class="Text17">Pos3 Tactic 6 Claim X Card(s)</Text></HorizontalLayout>
+					</Button>
+					<Button id="3d8336-Motivation3" active="false" onClick="motivation" tooltip="Draw two cards">
+						<Image id="3d8336-Motivation3Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="3d8336-Motivation3Text" class="Text17">Pos3 Motivation Arythea Claim X Card(s)</Text></HorizontalLayout>
+					</Button>
+					<Button id="171244-Motivation3" active="false" onClick="motivation" tooltip="Draw two cards">
+						<Image id="171244-Motivation3Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="171244-Motivation3Text" class="Text17">Pos3 Motivation Goldyx Claim X Card(s)</Text></HorizontalLayout>
+					</Button>
+					<Button id="14399f-Motivation3" active="false" onClick="motivation" tooltip="Draw two cards">
+						<Image id="14399f-Motivation3Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="14399f-Motivation3Text" class="Text17">Pos3 Motivation Norowas Claim X Card(s)</Text></HorizontalLayout>
+					</Button>
+					<Button id="ba4df5-Motivation3" active="false" onClick="motivation" tooltip="Draw two cards">
+						<Image id="ba4df5-Motivation3Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="ba4df5-Motivation3Text" class="Text17">Pos3 Motivation Tovak Claim X Card(s)</Text></HorizontalLayout>
+					</Button>
+					<Button id="527b47-Motivation3" active="false" onClick="motivation" tooltip="Draw two cards">
+						<Image id="527b47-Motivation3Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="527b47-Motivation3Text" class="Text17">Pos3 Motivation Wolfhawk Claim X Card(s)</Text></HorizontalLayout>
+					</Button>
+					<Button id="MasterOfChaos3" active="false" onClick="masterOfChaos">
+						<Image id="MasterOfChaos3Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="MasterOfChaos3Text" class="Text17">Pos3 Master of Chaos increment</Text></HorizontalLayout>
+					</Button>
+
+					<Button id="Plunder4" active="false" onClick="plunderVillage" tooltip="Draw two cards but Lose 1 reputation">
+						<Image id="Plunder4Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="Plunder4Text" class="Text17">Pos4 Plunder Village (-1 Rep)</Text></HorizontalLayout>
+					</Button>
+					<Button id="Pursuit4" active="false" onClick="pursuingRampagers" tooltip="Moves all the pursuing Monster tokens. Resting, Calling End of Round, and Cooperative Assualts don't have a Move Phase.">
+						<Image id="Pursuit4Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="Pursuit4Text" class="Text17">Pos4 skips Movement Phase</Text></HorizontalLayout>
+					</Button>
+					<Button id="NightTactic2-4" active="false" onClick="nightTactic2">
+						<Image id="NightTactic2-4Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="NightTactic2-4Text" class="Text17">Pos4 Use Night Tactic 2</Text></HorizontalLayout>
+					</Button>
+					<Button id="NightTactic4-4" active="false" onClick="nightTactic4" tooltip="Return Cards to Deed deck to activate this button">
+						<Image id="NightTactic4-4Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="NightTactic4-4Text" class="Text17">Pos4 Tactic 4 Draw ? Card(s)</Text></HorizontalLayout>
+					</Button>
+					<Button id="NightTactic6Store4" active="false" onClick="nightTactic6">
+						<Image id="NightTactic6Store4Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="NightTactic6Store4Text" class="Text17">Pos4 Tactic 6 Store Card</Text></HorizontalLayout>
+					</Button>
+					<Button id="NightTactic6Claim4" active="false" onClick="nightTactic6">
+						<Image id="NightTactic6Claim4Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="NightTactic6Claim4Text" class="Text17">Pos4 Tactic 6 Claim X Card(s)</Text></HorizontalLayout>
+					</Button>
+					<Button id="3d8336-Motivation4" active="false" onClick="motivation" tooltip="Draw two cards">
+						<Image id="3d8336-Motivation4Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="3d8336-Motivation4Text" class="Text17">Pos4 Motivation Arythea Claim X Card(s)</Text></HorizontalLayout>
+					</Button>
+					<Button id="171244-Motivation4" active="false" onClick="motivation" tooltip="Draw two cards">
+						<Image id="171244-Motivation4Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="171244-Motivation4Text" class="Text17">Pos4 Motivation Goldyx Claim X Card(s)</Text></HorizontalLayout>
+					</Button>
+					<Button id="14399f-Motivation4" active="false" onClick="motivation" tooltip="Draw two cards">
+						<Image id="14399f-Motivation4Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="14399f-Motivation4Text" class="Text17">Pos4 Motivation Norowas Claim X Card(s)</Text></HorizontalLayout>
+					</Button>
+					<Button id="ba4df5-Motivation4" active="false" onClick="motivation" tooltip="Draw two cards">
+						<Image id="ba4df5-Motivation4Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="ba4df5-Motivation4Text" class="Text17">Pos4 Motivation Tovak Claim X Card(s)</Text></HorizontalLayout>
+					</Button>
+					<Button id="527b47-Motivation4" active="false" onClick="motivation" tooltip="Draw two cards">
+						<Image id="527b47-Motivation4Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="527b47-Motivation4Text" class="Text17">Pos4 Motivation Wolfhawk Claim X Card(s)</Text></HorizontalLayout>
+					</Button>
+					<Button id="MasterOfChaos4" active="false" onClick="masterOfChaos">
+						<Image id="MasterOfChaos4Image" image="Sliced Button/Button New Active" type="Sliced"/>
+						<HorizontalLayout padding="5 5 5 5"><Text id="MasterOfChaos4Text" class="Text17">Pos4 Master of Chaos increment</Text></HorizontalLayout>
+					</Button>
+				</VerticalLayout>
+			</Panel>
+		</Panel>
+		<Panel id="GameOver" class="MainGameSubPanel" active="false" padding="10 10 10 10" color="rgb(0.2, 0.2, 0.2)" rectAlignment="LowerRight" height="390">
+			<VerticalLayout>
+				<Text id="GameOverText" class="Text20" color="white">Script Edits - Game over</Text>
+			</VerticalLayout>
+		</Panel>
+		<Panel id="VolkareAttacked" class="MainGameSubPanel" active="false" rectAlignment="LowerLeft" offsetXY="0 -55" height="100">
+			<VerticalLayout>
+				<Button id="VolkareAttackedFull" onClick="dummyTurn"
+					tooltip="Flips the attacked players Turn Order Token Down and proceeds to their turn. Attack Volkare with access to everything">
+					<Image id="VolkareAttackedFullImage" image="Sliced Button/Button New Active" type="Sliced"/>
+					<Text id="VolkareAttackedFullText" class="Text20" offsetXY="0 1">Script Modifies - Fully Attend the Battle</Text>
+				</Button>
+				<Button id="VolkareAttackedPartial" onClick="volkarePartial"
+					tooltip="Attack Volkare with cards and units only. Play area will be cleaned when your turn next arrives">
+					<Image id="VolkareAttackedPartialImage" image="Sliced Button/Button New Active" type="Sliced"/>
+					<Text id="VolkareAttackedPartialText" class="Text20" offsetXY="0 1">Script Modifies - Partially Attend the Battle</Text>
+				</Button>
+				<Button id="VolkareRetreat" onClick="volkareRetreat"
+					tooltip="Gives the attacked player's hand the wounds, and continues to the next player">
+					<Image id="VolkareRetreatImage" image="Sliced Button/Button New Active" type="Sliced"/>
+					<Text id="VolkareRetreatText" class="Text20" offsetXY="0 1">Script Modifies - Retreat from the Battle</Text>
+				</Button>
+			</VerticalLayout>
+		</Panel>
+	</Panel>
+</Panel>

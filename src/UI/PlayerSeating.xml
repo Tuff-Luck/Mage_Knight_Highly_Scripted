@@ -1,0 +1,54 @@
+<Panel id="PlayerSeating" active="false" rectAlignment="UpperRight" offsetXY="-219 -5" width="250" height="205">
+	<Image image="Sliced Button/Button New Active" type="Sliced"/>
+	<VerticalLayout padding="5 5 5 5">
+		<Text class="Text15" id="PlayerSeatingText1">{en}This mod runs it own Turn System, which makes 'Hot Seat' unnecessary.&lt;size=6&gt;
+
+&lt;/size&gt;To switch to another Mage Knight Click the name to the right and &lt;b&gt;'Change Color'&lt;/b&gt;. For Multi Hand play you should choose the &lt;b&gt;Black Game Master Color&lt;/b&gt; in the Center.&lt;size=6&gt;
+
+&lt;/size&gt;&lt;b&gt;Cooperative&lt;/b&gt; Players should also choose the same team to see each others hands.{it}Questa mod gestisce autonomamente i turni, quindi Hot Seat non serve.&lt;size=6&gt;
+
+&lt;/size&gt;Per passare a un altro Mage Knight, premi il nome a destra e &lt;b&gt;Cambia Colore&lt;/b&gt;. Per controllare più personaggi, scegli il &lt;b&gt;Game Master Nero&lt;/b&gt; al Centro.&lt;size=6&gt;
+
+&lt;/size&gt;In &lt;b&gt;Cooperativo&lt;/b&gt;, scegliete anche la stessa squadra per vedere le mani degli altri.{ru}Этот мод использует собственную Систему Ходов, что делает «Hot seat» ненужным.&lt;size=6&gt;
+
+&lt;/size&gt;Чтобы переключиться на другого героя, щелкните имя в правом верхем углу экрана и &lt;b&gt;«Изменить цвет»&lt;/b&gt;. Для игры сразу несколькими героями вам следует выбрать &lt;b&gt;«Черный Game Master»&lt;/b&gt; в центре.&lt;size=6&gt;
+
+&lt;/size&gt;&lt;b&gt;Кооперативные&lt;/b&gt; Игроки также должны выбрать одну и ту же команду, чтобы видеть руки друг друга.{zh-tw}这个模组使用它自己的回合系统，
+所以你无需使用“热座”模式。&lt;size=6&gt;
+
+&lt;/size&gt;切换到另一个魔法骑士点击右边
+的名字和&lt;b&gt;'改变颜色'。&lt;/b&gt; 对于多人游
+戏，您应该在版图中间选&lt;b&gt;黑色。&lt;/b&gt;&lt;size=6&gt;
+
+&lt;/size&gt;&lt;b&gt;合作模式&lt;/b&gt; 玩家们应该选择同一
+支队伍以便看队友的手牌。{zh-cn}这个模组使用它自己的回合系统，
+所以你无需使用“热座”模式。&lt;size=6&gt;
+
+&lt;/size&gt;切换到另一个魔法骑士点击右边
+的名字和&lt;b&gt;'改变颜色'。&lt;/b&gt; 对于多人游
+戏，您应该在版图中间选&lt;b&gt;黑色。&lt;/b&gt;&lt;size=6&gt;
+
+&lt;/size&gt;&lt;b&gt;合作模式&lt;/b&gt; 玩家们应该选择同一
+支队伍以便看队友的手牌。{ko}이 모드는 자체 턴 시스템을 실행하므로 '핫 시트'를 따로 필요로 하지 않습니다.&lt;size=6&gt;
+
+&lt;/size&gt;다른 자리로 바꾸려면 우측 상단의 이름을 클릭하고 &lt;b&gt; '색상 변경'&lt;/b&gt;을 클릭하세요. 다중 핸드로 플레이할 경우 중앙에서 &lt;b&gt; 검정(게임 마스터 색상) &lt;/b&gt;을 선택하세요.&lt;size=6&gt;
+
+&lt;/size&gt;&lt;b&gt; 협동 임무&lt;/b&gt;  플레이시, 같은 팀을 선택해야 서로의 핸드를 볼 수 있습니다. {es}Este mod lleva su propio sistema de turnos, lo que hace que el 'Hot Seat' sea innecesario.&lt;size=6&gt;
+
+&lt;/size&gt;Para cambiar a otro Mage Knight pulsa el nombre a la derecha y &lt;b&gt;'Change Color'&lt;/b&gt;. Para jugar con múltiples magos deberías escoger el &lt;b&gt;Black Game Master Color&lt;/b&gt; en el centro.&lt;size=6&gt;
+
+&lt;/size&gt;&lt;b&gt;Cooperativo&lt;/b&gt; Los jugadores deberían elegir el mismo equipo para poder verse las manos.{fr}Ce mod exécute son propre système de virage, ce qui rend inutile le « siège chaud ».&lt;size=6&gt;
+
+&lt;/size&gt;Pour passer à un autre Mage Cliquez sur le nom à droite et &lt;b&gt;'Changer de couleur'&lt;/b&gt;. Pour le jeu à plusieurs mains, vous devez choisir la &lt;b&gt;Couleur Black Game Master&lt;/b&gt; au centre.&lt;size=6&gt;
+
+&lt;/size&gt;&lt;b&gt;Coopératif&lt;/b&gt; Les joueurs doivent également choisir la même équipe pour se voir les mains.{pt-br}Este Mod usa seu próprio sistema de turnos, o que faz 'Hot sear' desnecessário.&lt;size=6&gt;
+
+&lt;/size&gt;Para mudar para outro Mage Knight clique o nome a direita e &lt;b&gt;'Mudar Cor'&lt;/b&gt;. Para jogar com multi jogadores escolha a &lt;b&gt;Cor Negra de Mestre de jogo&lt;/b&gt; no Centro.&lt;size=6&gt;
+
+&lt;/size&gt;&lt;b&gt;Cooperativo&lt;/b&gt; Jogadores deveriam também escolher o mesmo time para ver a mão um do outro.{de}Dieser Mod verfügt über ein eigenes Turn-System, das den „Hot Seat“ überflüssig macht.&lt;size=6&gt;
+
+&lt;/size&gt;To switch to another Mage Knight Click the name to the right and &lt;b&gt;'Change Color'&lt;/b&gt;. For Multi Hand play you should choose the &lt;b&gt;Black Game Master Color&lt;/b&gt; in the Center.&lt;size=6&gt;
+
+&lt;/size&gt;&lt;b&gt;Kooperativ&lt;/b&gt; Die Spieler sollten auch das gleiche Team wählen, um die Hände der anderen zu sehen.</Text>
+	</VerticalLayout>
+</Panel>

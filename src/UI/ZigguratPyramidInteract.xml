@@ -1,0 +1,64 @@
+<Panel id="zigguratPyramidInteract" active="false" class="Floating" rectAlignment="UpperLeft" offsetXY="90 -350" width="345" height="250" hideAnimation="Shrink" showAnimation="Grow">
+	<Image image="Sliced Button/Button New Active" type="Sliced"/>
+	<Panel rectAlignment="UpperLeft" offsetXY="0 0" width="345" height="30" outlineSize="0 0">
+		<Image image="Sliced Button/Title Border Tan" type="Sliced"/>
+		<VerticalLayout>
+			<Text id="zigguratPyramidInteractText1" class="Title20" alignment="MiddleCenter">{en}Ziggurat Interaction{it}Interazione Ziggurat{ru}Взаимодействие с зиккуратом{zh-tw}金字塔互動{zh-cn}金字塔互动{ko}지구라트 상호작용{es}Interacción con el Zigurat{fr}Interaction avec la Ziggourat{pt-br}Interação com o Zigurate{de}Zikkurat-Interaktion</Text>
+		</VerticalLayout>
+	</Panel>
+	<Panel rectAlignment="UpperLeft" offsetXY="0 -35" width="345" height="30" outlineSize="0 0" color="clear">
+		<VerticalLayout padding="5 5 0 0">
+			<Text id="zigguratPyramidInteractText2" class="Text14">{en}Entered Floor 1. Pick one of the three Trap Tokens
+to Deal with. Then either:-{it}Sei al Piano 1. Scegli una delle tre Trappole
+da affrontare. Poi scegli:{ru}Вышли на 1-й этаж. Выберите один из трёх жетонов ловушки,
+с которым нужно разобраться. Затем либо:—{zh-tw}進入第一層，從三個陷阱中，處理其中一個。
+然後選擇：{zh-cn}进入第一层，从三个陷阱中，处理其中一个。
+然后选择：{ko}1층에 진입했습니다. 3개의 함정 중 하나 선택하여 방어.
+그 후 다음 중 선택:-{es}Has entrado en la planta 1. Elige una de las tres fichas de trampa
+con las que quieres lidiar. A continuación, puedes: -{fr}Entrée au 1er étage. Choisissez l'un des trois jetons 'Piège'
+à gérer. Ensuite, vous pouvez soit : -{pt-br}Entrou no 1º andar. Escolha uma das três fichas de armadilha
+para lidar com ela. Em seguida, faça uma das seguintes opções:-{de}Du betrittst Etage 1. Wähle einen der drei Fallenzettel aus,
+mit dem du dich befassen möchtest. Dann entweder:-</Text>
+		</VerticalLayout>
+	</Panel>
+	<Panel rectAlignment="UpperLeft" offsetXY="8 -70" width="125" height="60" outlineSize="0 0">
+		<Button id="zigguratPyramidInteractClimb1" onClick="zigguratPyramidInteract">
+			<Image id="zigguratPyramidInteractClimb1Image" image="Sliced Button/Button New Active" type="Sliced"/>
+			<VerticalLayout padding="5 5 5 5"><Text id="zigguratPyramidInteractClimb1Text" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Ascend to Floor 2 and pick one of two Trap tokens to deal with.{it}Sali al Piano 2 e scegli una delle due Trappole da affrontare.{ru}Поднимитесь на 2-й этаж и выберите один из двух жетонов ловушек.{zh-tw}前往第 2 層，從兩個陷阱標記中選擇一個處理。{zh-cn}前往第 2 层，从两个陷阱标记中选择一个处理。{ko}2층으로 올라가 함정 토큰 2개 중 하나를 선택해 처리합니다.{es}Sube al Piso 2 y elige una de las dos fichas de Trampa para resolverla.{fr}Montez à l’étage 2 et choisissez l’un des deux jetons Piège à résoudre.{pt-br}Suba ao Andar 2 e escolha uma das duas fichas de Armadilha para resolver.{de}Steige in Ebene 2 auf und wähle einen von zwei Fallenmarkern aus, den du abhandelst.</Text></VerticalLayout>
+		</Button>
+	</Panel>
+	<Panel rectAlignment="UpperRight" offsetXY="-8 -70" width="180" height="60" outlineSize="0 0">
+		<Button id="zigguratPyramidInteractFight1" onClick="zigguratPyramidInteract">
+			<Image id="zigguratPyramidInteractFight1Image" image="Sliced Button/Button New Active" type="Sliced"/>
+			<VerticalLayout padding="5 5 5 5"><Text id="zigguratPyramidInteractFight1Text" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Fight the Floor 1 Apocalypse Possessed Green Enemy for two Crystals.{it}Combatti il nemico Verde Posseduto dell'Apocalisse al Piano 1 per due Cristalli.{ru}Сразитесь с зелёным одержимым врагом Апокалипсиса на 1-м этаже за два кристалла.{zh-tw}與第 1 層的末日附身綠色敵人戰鬥，獎勵為兩顆水晶。{zh-cn}与第 1 层的末日附身绿色敌人战斗，奖励为两颗水晶。{ko}1층의 아포칼립스 빙의 녹색 적과 싸워 크리스털 2개를 획득합니다.{es}Lucha contra el Enemigo Verde Poseído del Apocalipsis del Piso 1 para obtener dos Cristales.{fr}Combattez l’Ennemi Vert Possédé de l’Apocalypse de l’étage 1 pour obtenir deux Cristaux.{pt-br}Lute contra o Inimigo Verde Possuído do Apocalipse do Andar 1 por dois Cristais.{de}Bekämpfe den grünen besessenen Apocalypse-Gegner auf Ebene 1 für zwei Kristalle.</Text></VerticalLayout>
+		</Button>
+	</Panel>
+	<Panel rectAlignment="UpperLeft" offsetXY="125 -70" width="40" height="60" outlineSize="0 0" color="clear">
+		<VerticalLayout padding="5 5 5 5">
+			<Text id="zigguratPyramidInteractText3" class="Text14">{en}Or{it}Oppure{ru}Или{zh-tw}或{zh-cn}或{ko}또는{es}O{fr}Ou{pt-br}Ou{de}Oder</Text>
+		</VerticalLayout>
+	</Panel>
+	<Panel rectAlignment="UpperLeft" offsetXY="8 -135" width="125" height="60" outlineSize="0 0">
+		<Button id="zigguratPyramidInteractClimb2" onClick="zigguratPyramidInteract" interactable="false">
+			<Image id="zigguratPyramidInteractClimb2Image" image="Sliced Button/Button New Active" type="Sliced" color="Gray"/>
+			<VerticalLayout padding="5 5 5 5"><Text id="zigguratPyramidInteractClimb2Text" class="Text16" alignment="MiddleCenter" offsetXY="0 1" color="Black">{en}Ascend to Floor 3 and deal with the last Trap token.{it}Sali al Piano 3 e affronta l'ultima Trappola.{ru}Поднимитесь на 3-й этаж и разберитесь с последним жетоном ловушки.{zh-tw}前往第 3 層並處理最後一個陷阱標記。{zh-cn}前往第 3 层并处理最后一个陷阱标记。{ko}3층으로 올라가 마지막 함정 토큰을 처리합니다.{es}Sube al Piso 3 y resuelve la última ficha de Trampa.{fr}Montez à l’étage 3 et résolvez le dernier jeton Piège.{pt-br}Suba ao Andar 3 e resolva a última ficha de Armadilha.{de}Steige in Ebene 3 auf und handle den letzten Fallenmarker ab.</Text></VerticalLayout>
+		</Button>
+	</Panel>
+	<Panel rectAlignment="UpperRight" offsetXY="-8 -135" width="180" height="60" outlineSize="0 0">
+		<Button id="zigguratPyramidInteractFight2" onClick="zigguratPyramidInteract" interactable="false">
+			<Image id="zigguratPyramidInteractFight2Image" image="Sliced Button/Button New Active" type="Sliced" color="Gray"/>
+			<VerticalLayout padding="5 5 5 5"><Text id="zigguratPyramidInteractFight2Text" class="Text16" alignment="MiddleCenter" offsetXY="0 1" color="Black">{en}Fight the Floor 1 Apocalypse Possessed Green Enemy for two Crystals.{it}Combatti il nemico Verde Posseduto dell'Apocalisse al Piano 1 per due Cristalli.{ru}Сразитесь с зелёным одержимым врагом Апокалипсиса на 1-м этаже за два кристалла.{zh-tw}與第 1 層的末日附身綠色敵人戰鬥，獎勵為兩顆水晶。{zh-cn}与第 1 层的末日附身绿色敌人战斗，奖励为两颗水晶。{ko}1층의 아포칼립스 빙의 녹색 적과 싸워 크리스털 2개를 획득합니다.{es}Lucha contra el Enemigo Verde Poseído del Apocalipsis del Piso 1 para obtener dos Cristales.{fr}Combattez l’Ennemi Vert Possédé de l’Apocalypse de l’étage 1 pour obtenir deux Cristaux.{pt-br}Lute contra o Inimigo Verde Possuído do Apocalipse do Andar 1 por dois Cristais.{de}Bekämpfe den grünen besessenen Apocalypse-Gegner auf Ebene 1 für zwei Kristalle.</Text></VerticalLayout>
+		</Button>
+	</Panel>
+	<Panel rectAlignment="UpperLeft" offsetXY="125 -135" width="40" height="60" outlineSize="0 0" color="clear">
+		<VerticalLayout padding="5 5 5 5">
+			<Text id="zigguratPyramidInteractText4" class="Text14">{en}Or{it}Oppure{ru}Или{zh-tw}或{zh-cn}或{ko}또는{es}O{fr}Ou{pt-br}Ou{de}Oder</Text>
+		</VerticalLayout>
+	</Panel>
+	<Panel rectAlignment="UpperLeft" offsetXY="8 -200" width="329" height="42" outlineSize="0 0" color="clear">
+		<Button id="zigguratPyramidInteractFight3" onClick="zigguratPyramidInteract" interactable="false">
+			<Image id="zigguratPyramidInteractFight3Image" image="Sliced Button/Button New Active" type="Sliced" color="Gray"/>
+			<VerticalLayout padding="5 5 0 0"><Text id="zigguratPyramidInteractFight3Text" class="Text16" alignment="MiddleCenter" offsetXY="0 1" color="Black">{en}Fight the Floor 3 Apocalypse Possessed Tan Enemy for an Artifact.{it}Combatti il nemico Ocra Posseduto dell'Apocalisse al Piano 3 per un Artefatto.{ru}Сразитесь с бежевым одержимым врагом Апокалипсиса на 3-м этаже за Артефакт.{zh-tw}與第 3 層的末日附身棕褐色敵人戰鬥，獎勵為一件神器。{zh-cn}与第 3 层的末日附身棕褐色敌人战斗，奖励为一件神器。{ko}3층의 아포칼립스 빙의 황갈색 적과 싸워 유물 1개를 획득합니다.{es}Lucha contra el Enemigo Beige Poseído del Apocalipsis del Piso 3 para obtener un Artefacto.{fr}Combattez l’Ennemi Beige Possédé de l’Apocalypse de l’étage 3 pour obtenir un Artefact.{pt-br}Lute contra o Inimigo Bege Possuído do Apocalipse do Andar 3 por um Artefato.{de}Bekämpfe den hellbraunen besessenen Apocalypse-Gegner auf Ebene 3 für ein Artefakt.</Text></VerticalLayout>
+		</Button>
+	</Panel>
+</Panel>

@@ -21,7 +21,7 @@ try {
     }
 
     Write-Host "Validating TTS XML fragments..."
-    $xmlFiles = Get-ChildItem -Path ".tts/objects" -File -Filter *.xml
+    $xmlFiles = @(Get-ChildItem -Path ".tts/objects" -File -Filter *.xml) + @(Get-ChildItem -Path "src/UI" -File -Filter *.xml -ErrorAction SilentlyContinue)
     foreach ($file in $xmlFiles) {
         $content = Get-Content -Raw -LiteralPath $file.FullName
         if (-not [string]::IsNullOrWhiteSpace($content)) {
@@ -30,6 +30,11 @@ try {
             }
             catch {
                 throw "Invalid XML fragment: $($file.FullName)`n$($_.Exception.Message)"
+            }
+            foreach ($include in [regex]::Matches($content, '<Include\s+src="([^"]+)"')) {
+                if (-not (Test-Path -LiteralPath (Join-Path "src" $include.Groups[1].Value))) {
+                    throw "Unresolved XML Include '$($include.Groups[1].Value)' in $($file.FullName)"
+                }
             }
         }
     }

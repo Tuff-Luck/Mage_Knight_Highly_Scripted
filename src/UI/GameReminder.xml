@@ -1,0 +1,10 @@
+<Panel id="GameReminder" active="false" rectAlignment="UpperLeft" offsetXY="90 -75" width="300" height="100" class="Floating">
+	<Image image="Sliced Button/Button New Active" type="Sliced"/>
+	<TableLayout padding="8 8 0 2">
+		<Row preferredHeight="30" dontUseTableRowBackground="true">
+			<Image image="Sliced Button/Title Border Tan" type="Sliced" width="300" height="30" rectAlignment="MiddleCenter"/>
+			<Text id="GameReminderTitleText" class="Title18" alignment="MiddleCenter" offsetXY="0 -1">{en}Scenario Info{it}Informazioni sullo Scenario{ru}Информация о сценарии{zh-tw}剧本信息{zh-cn}剧本信息{ko}시나리오 정보{es}Información del escenario{fr}Informations sur le scénario{pt-br}Informação do cenário{de}Szenario-Infos</Text>
+		</Row>
+		<Row preferredHeight="0"><Text id="GameReminderText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">Game Reminder Text Box Script Updated</Text></Row>
+	</TableLayout>
+</Panel>

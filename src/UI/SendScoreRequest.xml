@@ -1,0 +1,75 @@
+<Panel id="SendScoreRequest" active="false"	visibility="Admin" class="Floating"	rectAlignment="UpperLeft" offsetXY="90 -350" width="300" height="160">
+	<Image image="Sliced Button/Button New Active" type="Sliced"/>
+	<Panel rectAlignment="LowerLeft" offsetXY="0 156" width="300" height="35" outlineSize="0 0">
+		<Image image="Sliced Button/Title Border Tan" type="Sliced"/>
+		<VerticalLayout padding="5 5 5 5"><Text id="SendScoreRequestText1" class="Text20" alignment="MiddleCenter">{en}Record Your Score{it}Registra il Punteggio{ru}Записать свой результат{zh-tw}記錄你的分數{zh-cn}记录你的分数{ko}점수 기록{es}Registre su puntaje{fr}Enregistrez votre score{pt-br}Grave Sua Pontuação{de}Punktzahl Aufzeichnen</Text></VerticalLayout>
+	</Panel>
+	<VerticalLayout padding="5 5 5 5">
+		<Text id="SendScoreRequestText2" class="Text14">{en}Would you like to record this games score(s) on the Public List? (Find a link to it on the Mod's Workshop Page)&lt;size=6&gt;
+
+&lt;/size&gt;The list contains the game setups and scores of other players across the world. You can see how well you did compared to others. See what the average score is for a scenario. Try to beat your existing score.&lt;size=6&gt;
+
+&lt;/size&gt;Optionally type something to help you find your entry in the list. Ie 'Volkare killed by epic fireball attack'{it}Vuoi registrare i punteggi di questa partita nell'elenco pubblico? Il link è sulla pagina Workshop della mod.&lt;size=6&gt;
+
+&lt;/size&gt;L'elenco contiene configurazioni e punteggi di giocatori di tutto il mondo. Puoi confrontare i risultati, vedere la media di uno scenario o cercare di battere il tuo record.&lt;size=6&gt;
+
+&lt;/size&gt;Puoi aggiungere una nota per ritrovare la tua voce, per esempio: Volkare ucciso da un'epica palla di fuoco.{ru}Хотите ли вы записать результаты этой игры в публичный список? (Ссылку на него можно найти на странице мастерской мода)&lt;size=6&gt;
+
+&lt;/size&gt;Список содержит настройки игры и результаты других игроков по всему миру. Вы можете увидеть, насколько хорошо вы справились по сравнению с другими. Увидеть, какой средний результат за сценарий. Попробуйте превзойти свой текущий результат!&lt;size=6&gt;
+
+&lt;/size&gt;При желании, можно написать что-нибудь, что поможет вам найти вашу запись в списке. Например, «Волкар был убит эпической атакой огненного шара».{zh-tw}你想要將你的分數紀錄在公開的清單嗎？
+(可以在此mod的頁面看到這個連結)&lt;size=6&gt;
+
+&lt;/size&gt;清單中會有世界各地玩家的遊戲設置與分數。
+你可以跟其它人比較你的成績如何。
+看看劇本的平均分數是多少。
+試著超越你原有的分數。&lt;size=6&gt;
+
+&lt;/size&gt;你可以隨意輸入些什麼來幫助你從列表中找
+到你的項目，例如沃卡里被史詩級火球擊殺。{zh-cn}你想要将你的分数纪录在公开的列表吗？
+(可以在此mod的页面看到这个链接)&lt;size=6&gt;
+
+&lt;/size&gt;列表中会有世界各地玩家的游戏设置与分数。
+你可以跟其它人比较你的成绩如何。
+看看剧本的平均分数是多少。
+试着超越你原有的分数。&lt;size=6&gt;
+
+&lt;/size&gt;你可以随意输入些什么来帮助你从列表中找
+到你的项目，例如沃卡里被史诗级火球击杀。{ko}공개 리스트에 점수를 기록할까요? (스팀 워크샵에 링크가 있습니다)&lt;size=6&gt;
+
+&lt;/size&gt;공개 리스트는 전세계의 플레이어들의 점수를 기록합니다. 평균 점수를 확인하고 비교해보세요. 그리고 기존 기록을 갱신해보세요.&lt;size=6&gt;
+
+&lt;/size&gt;리스트에서 쉽게 찾으려면, '정의의 검으로 볼케어 뚝배기를 깼다'와 같은 특별한 메모를 하셔도 됩니다.{es}¿Le gustaría registrar la (s) puntuación (s) de este juego en la lista pública? (Encuentre un enlace en la página de taller del Mod)&lt;size=6&gt;
+
+&lt;/size&gt;La lista contiene las configuraciones del juego y las puntuaciones de otros jugadores de todo el mundo. Puede ver lo bien que lo hizo en comparación con los demás. Vea cuál es la puntuación media de un escenario. Intenta superar tu puntuación actual.&lt;size=6&gt;
+
+&lt;/size&gt;Opcionalmente, escriba algo que le ayude a encontrar su entrada en la lista. Es decir, 'Volkare asesinado por un épico ataque con bola de fuego'{fr}Souhaitez-vous enregistrer le(s) score(s) de ce jeu sur la liste publique ? (Trouvez un lien vers celui-ci sur la page de l'atelier du mod)&lt;size=6&gt;
+
+&lt;/size&gt;La liste contient les configurations de jeu et les scores des autres joueurs à travers le monde. Vous pouvez voir à quel point vous avez réussi par rapport aux autres. Voyez quel est le score moyen pour un scénario. Essayez de battre votre score existant.&lt;size=6&gt;
+
+&lt;/size&gt;Tapez éventuellement quelque chose pour vous aider à trouver votre entrée dans la liste. C'est-à-dire 'Volkare tué par une attaque épique de boule de feu'{pt-br}Você gostaria de gravar a pontuação destes jogos numa lista pública? (Encontre um link para ele na página da Oficina do Mod)&lt;size=6&gt;
+
+&lt;/size&gt;A lista contém as configurações dos jogos e pontuações dos jogadores ao redor do mundo. Você pode ver o quão bem você foi comparado aos outros. Veja qual a pontuação média de um cenário. Tente derrotar sua pontuação existente.&lt;size=6&gt;
+
+&lt;/size&gt;Opcionalmente digite algo para ajudar você a encontrar sua entrada na lista. Ex. 'Volkare morto por ataque épico de Bola de fogo'{de}Möchten Sie diese Spielergebnisse in die öffentliche Liste aufnehmen? (Einen Link dazu finden Sie auf der Workshop-Seite des Mods)&lt;size=6&gt;
+
+&lt;/size&gt;Die Liste enthält die Spielaufbauten und Punktzahlen anderer Spieler auf der ganzen Welt. Sie können sehen, wie gut Sie im Vergleich zu anderen abgeschnitten haben. Sehen Sie, was die durchschnittliche Punktzahl für ein Szenario ist. Versuchen Sie, Ihre vorhandene Punktzahl zu schlagen.&lt;size=6&gt;
+
+&lt;/size&gt;Geben Sie optional etwas ein, das Ihnen hilft, Ihren Eintrag in der Liste zu finden. Dh 'Volkare durch epischen Feuerballangriff getötet'</Text>
+	</VerticalLayout>
+	<Panel rectAlignment="LowerCenter" offsetXY="0 -60" width="300" height="60" outlineSize="0 0">
+		<InputField id="SendScoreComment" lineType="MultiLineNewLine" height="60" width="300" onEndEdit="setBugReportComment"></InputField>
+	</Panel>
+	<Panel rectAlignment="LowerLeft" offsetXY="0 -90" width="150" height="30" outlineSize="0 0">
+		<Button id="SendScoreRequestYes" onClick="SendDataRequest">
+			<Image id="SendScoreRequestYesImage" image="Sliced Button/Button New Active" type="Sliced"/>
+			<VerticalLayout padding="5 5 5 5"><Text id="SendScoreRequestYesText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Send Score{it}Invia Punteggio{ru}Отправить Результат{zh-tw}上傳分數{zh-cn}上传分数{ko}점수 입력{es}Enviar puntuación{fr}Envoyer la note{pt-br}Enviar pontuação{de}Punkte Eintragen</Text></VerticalLayout>
+		</Button>
+	</Panel>
+	<Panel rectAlignment="LowerRight" offsetXY="0 -90" width="150" height="30" outlineSize="0 0">
+		<Button id="SendScoreRequestNo" onClick="SendDataRequest">
+			<Image id="SendScoreRequestNoImage" image="Sliced Button/Button New Active" type="Sliced"/>
+			<VerticalLayout padding="5 5 5 5"><Text id="SendScoreRequestNoText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}No Thanks{it}No, Grazie{ru}Нет, спасибо{zh-tw}不了謝謝{zh-cn}不了谢谢{ko}다음에{es}No, gracias{fr}Non merci{pt-br}Não, obrigado{de}Nein Danke</Text></VerticalLayout>
+		</Button>
+	</Panel>
+</Panel>

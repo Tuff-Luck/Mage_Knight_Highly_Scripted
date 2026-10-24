@@ -1,0 +1,1072 @@
+<Panel id="Setup" active="false" width="1000" height="780" color="rgb(0.2, 0.2, 0.2)" outlineSize="3 -3" class="Floating">
+	<Panel outlineSize="1 -1" rectAlignment="UpperCenter" width="1000" height="40" color="rgb(0.3,0.3,0.3)">
+		<Text id="SetupTitle" color="White" class="Title30">{en}MAGE KNIGHT (HIGHLY SCRIPTED) - SETUP{it}MAGE KNIGHT (HIGHLY SCRIPTED) - PREPARAZIONE{ru}MAGE KNIGHT (HIGHLY SCRIPTED) - НАСТРОЙКИ{zh-tw}魔法騎士（高度腳本化）－設置{zh-cn}魔法骑士（高度脚本化）－设置{ko}메이지 나이트 (하이 스크립트) - 설정{es}MAGE KNIGHT (HIGHLY SCRIPTED) - CONFIGURACION{fr}MAGE KNIGHT (HIGHLY SCRIPTED) - INSTALLER{pt-br}MAGE KNIGHT (HIGHLY SCRIPTED) - Preparação{de}MAGE KNIGHT (HOCHGRADIG GESCRIPTET) - EINRICHTUNG</Text>
+		<Button id="closeButton" width="25" height="25" offsetXY="-3 0" rectAlignment="MiddleRight" color="#990000" textColor="#FFFFFF" text="X" onClick="closePanel" />
+	</Panel>
+	<Button id="StartButton" interactable="False" rectAlignment="LowerLeft" width="1000" height="40" onClick="setupGame" class="LongButton">
+		<Image id="StartButtonImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+		<VerticalLayout padding="5 5 5 5"><Text id="StartButtonText" class="Text24">{en}Start - Select at least two Mage Knights first{it}Inizia - Seleziona prima almeno due Mage Knight{ru}Начало - Сначала выберите как минимум двух Рыцарей-магов.{zh-tw}開始 - 首先選擇至少兩位魔法騎士{zh-cn}开始 - 首先选择至少两位魔法骑士{ko}시작 - 먼저 두 명 이상의 플레이어를 선택하세요{es}Comenzar - Selecciona al menos dos Mage Knight {fr}Démarrer - Sélectionnez d'abord au moins deux Mages{pt-br}Início - Selecione ao menos dois Mage Knights primeiro{de}Start - Wähle vorher mindestens 2 Mage Knights</Text></VerticalLayout>
+	</Button>
+	<Button id="WarOfFourStartButton" interactable="true" active="false" rectAlignment="LowerRight" width="500" height="40" onClick="setupGame" class="LongButton">
+		<Image id="WarOfFourStartButtonImage" image="Sliced Button/Button New Active" type="Sliced"/>
+		<VerticalLayout padding="5 5 5 5"><Text id="SWarOfFourtartButtonText" class="Text24" offsetXY="0 1">{en}Start - Competitive{it}Inizia - Competitivo{ru}Начало - Соревновательный{zh-tw}開始 - 對抗模式{zh-cn}开始 - 对抗模式{ko}시작 - 경쟁{es}Comenzar - Competitivo{fr}Démarrer - Compétitif{pt-br}Início - Competitivo{de}Start - Wettbewerbsfähig</Text></VerticalLayout>
+	</Button>
+	<Panel outlineSize="0 0" rectAlignment="MiddleLeft" width="392" height="700">
+		<Image image="Sliced Button/Button New Active" type="Sliced"/>
+		<Panel id="ScenarioSetupHeader" outlineSize="0 0" rectAlignment="UpperCenter" width="392" height="60" color="clear">
+			<VerticalLayout padding="0 0 0 0"><!-- childAlignment="MiddleCenter" color="rgb(0.8, 0.8, 0.8)"> -->
+				<TableLayout>
+					<Row preferredHeight="30" dontUseTableRowBackground="true" >
+						<Image image="Sliced Button/Title Border Tan" type="Sliced" width="392" height="30"/>
+						<VerticalLayout padding="6 6 5 5"><Text id="ScenarioSettingsTitle" class="Title22">{en}1. Scenario Selection{it}1. Scelta dello Scenario{ru}1. Выбор сценария{zh-tw}1. 劇本選擇{zh-cn}1. 剧本选择{ko}1. 시나리오 선택{es}1. Selección del Escenario{fr}1. Sélection des Scénarios{pt-br}1. Seleção de Cenários{de}1. Auswahl des Szenarios</Text></VerticalLayout>
+						<Button id="randomButton" width="65" height="24" offsetXY="8 0" rectAlignment="MiddleLeft" color="#990000" onClick="randomSetup">
+							<Text Color="#FFFFFF" class="Text15" alignment="MiddleCenter" id="RandomButtonText">{en}Random{it}Casuale{ru}Случайный{zh-tw}隨機{zh-cn}随机{ko}무작위{es}Aleatorio{fr}Aléatoire{pt-br}Aleatório{de}Zufällig</Text>
+						</Button>
+					</Row>
+				</TableLayout>
+				<Row preferredHeight="30">
+					<Text id="ScenarioText" alignment="MiddleRight" offsetXY="-240 3">{en}Scenario -{it}Scenario -{ru}Сценарий -{zh-tw}選擇劇本：{zh-cn}选择剧本：{ko}시나리오{es}Escenario -{fr}Scénario -{pt-br}Cenário -{de}Szenario -</Text>
+					<Button id="ScenarioSelection" onClick="toggleDropDown" offsetXY="0 2" rectAlignment="MiddleRight" width="230" height="33" onMouseDown="" onMouseUp="">
+						<Image id="ScenarioSelectionImage" image="Sliced Button/Button New Active" type="Sliced"/>
+						<Text id="ScenarioSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Conquest{it}Conquista{ru}Завоевание{zh-tw}征服{zh-cn}征服{ko}정식 정복{es}Conquista{fr}Conquête{pt-br}Conquista{de}Eroberung</Text>
+					</Button>
+				</Row>
+			</VerticalLayout>
+		</Panel>
+		<Panel id="Setup1Details" outlineSize="0 0" rectAlignment="UpperCenter" offsetXY="0 -57" width="392" height="466" color="clear" active="True">
+			<TableLayout cellBackgroundColor="Clear">
+				<Row preferredHeight="30" dontUseTableRowBackground="true" >
+					<Image image="Sliced Button/Title Border Tan" type="Sliced" width="392" height="30"/>
+					<VerticalLayout padding="6 6 5 5"><Text id="GameSettings1Title" class="Title22">{en}2. Optional Variants{it}2. Varianti Opzionali{ru}2. Дополнительные параметры{zh-tw}2. 可選變體規則{zh-cn}2. 可选变体规则{ko}2. 게임 설정{es}2. Variantes opcionales{fr}2. Variantes facultatives{pt-br}2. Variantes opcionais{de}2. Optionale Varianten</Text></VerticalLayout>
+				</Row>
+				<Row preferredHeight="30">
+					<cell rectAlignment="MiddleLeft" width="198">
+						<VerticalLayout padding="6 6 1 1">
+							<Text id="Setup1Text" alignment="MiddleCenter" class="Text18">{en}Setup Variants{it}Varianti di Preparazione{ru}Параметры сценария{zh-tw}變體設定{zh-cn}变体设置{ko}세팅 설정{es}Variantes de Instalación{fr}Variantes d'Installation{pt-br}Variantes de Instalação{de}Setup-Varianten</Text>
+						</VerticalLayout>
+					</cell>
+					<cell rectAlignment="MiddleRight" width="198" padding="20 20 1 1">
+					</cell>
+					<Button id="Setup2Selection" onClick="switchSetup" offsetXY="0 3" rectAlignment="MiddleRight" width="198" height="30" onMouseDown="buttonClicked" onMouseUp="buttonClicked">
+						<Image id="Setup2SelectionImage" image="Sliced Button/Button New Active" type="Sliced"/>
+						<VerticalLayout padding="6 6 1 1">
+							<Text id="Setup2SelectionText" class="Text18" alignment="MiddleCenter" offsetXY="0 1">{en}Play Variants{it}Varianti di Gioco{ru}Опциональные правила{zh-tw}變體玩法{zh-cn}变体玩法{ko}플레이 설정{es}Variantes de Juego{fr}Variantes de Jeu{pt-br}Variantes de Jogo{de}Spiel-Varianten</Text>
+						</VerticalLayout>
+					</Button>
+				</Row>
+			</TableLayout>
+			<Panel id="Setup1DetailsSub" outlineSize="0 0" rectAlignment="UpperCenter" offsetXY="0 -57" width="392" height="406" color="clear">
+				<VerticalLayout padding="6 8 5 5">
+					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="removeLostLegionExpansion" class="Toggle18" onValueChanged="optionsUpdate">{en}Remove Lost Legion Expansion{it}Rimuovi l'Espansione Lost Legion{ru}Убрать Потерянный Легион{zh-tw}移除失落軍團擴充{zh-cn}移除失落军团扩展{ko}사라진 군단 확장 제거{es}Quitar Expansión La Legión Perdida{fr}Enlever l'extention Lost Legion{pt-br}Remover Legião Perdida{de}Lost Legion Erweiterung Entfernen</Toggle></VerticalLayout></Row>
+					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="removeShadesOfTezlaMonsters" class="Toggle18" onValueChanged="optionsUpdate">{en}Remove 'Shades of Tezla' Monsters{it}Rimuovi i Mostri di Shades of Tezla{ru}Убрать врагов из «Тени Тезлы»{zh-tw}移除「特茲拉之影」怪物{zh-cn}移除“特兹拉之影”怪物{ko}'테즐라의 그림자' 적 토큰 제거{es}Quitar Monstruos de 'Sombras de Tezla'{fr}Retirer les Monstres de 'Ombres de Tezla'{pt-br}Remover Monstros de 'Sombras de Tezla'{de}'Shades of Tezla'-Monster entfernen</Toggle></VerticalLayout></Row>
+					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="removeBonusCards" class="Toggle18" onValueChanged="optionsUpdate">{en}Remove Ultimate Edition Bonus Cards{it}Rimuovi le Carte Bonus della Ultimate Edition{ru}Убрать карты Полного Издания{zh-tw}移除終極版的額外卡牌{zh-cn}移除终极版的额外卡牌{ko}UE 카드 제거{es}Eliminar las tarjetas de bonificación de Ultimate Edition{fr}Supprimer les cartes bonus Ultimate Edition{pt-br}Remova os cartões de bônus da Ultimate Edition{de}Bonuskarten der Ultimate Edition Entfernen</Toggle></VerticalLayout></Row>
+					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="removeApocalypseTerrain" class="Toggle18" onValueChanged="optionsUpdate">{en}Remove 'Apocalypse Dragon' Terrain{it}Rimuovi il Terreno di Apocalypse Dragon{ru}Убрать ландшафт «Апокалиптический дракон»{zh-tw}移除「末日巨龍」地形{zh-cn}移除“末日巨龙”地形{ko}'아포칼립스 드래곤' 지형 제거{es}Quitar el terreno 'Dragón del Apocalipsis'{fr}Retirer le terrain 'Apocalypse Dragon'{pt-br}Remover o terreno 'Apocalypse Dragon'{de}'Apocalypse Dragon'-Gelände entfernen</Toggle></VerticalLayout></Row>
+					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="removeFactionRewards" class="Toggle18" onValueChanged="optionsUpdate">{en}Remove Faction Rewards{it}Rimuovi le Ricompense di Fazione{ru}Убрать награды фракций{zh-tw}移除派系獎勵{zh-cn}移除派系奖励{ko}세력 보상 제거{es}Eliminar Recompensas de Facción{fr}Retirer les Récompenses de Faction{pt-br}Remover Recompensas de Facção{de}Fraktionsbelohnungen Entfernen</Toggle></VerticalLayout></Row>
+					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="BlitzSelection" class="Toggle18" onValueChanged="BlitzSelection">{en}Blitz{it}Blitz{ru}Сокращенный (Блиц) сценарий{zh-tw}快速規則{zh-cn}快速规则{ko}기습{es}Relámpago{fr}Eclair{pt-br}Relâmpago{de}Blitz</Toggle></VerticalLayout></Row>
+					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="mageKnightLevels" class="Toggle18" onValueChanged="optionsUpdate">{en}Start at a Higher Level{it}Inizia a un Livello Superiore{ru}Старт с высоким уровнем{zh-tw}從較高等級開始遊戲{zh-cn}从较高等级开始游戏{ko}높은 레벨로 시작하기{es}Comenzar en un Nivel Superior{fr}Débuter Avec un Meilleur Niveau{pt-br}Começar em um Nível Mais Alto{de}Auf Höherem Level Starten</Toggle></VerticalLayout></Row>
+					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="startAtNight" class="Toggle18" onValueChanged="optionsUpdate">{en}Start at Night{it}Inizia di Notte{ru}Ночное прибытие{zh-tw}黑夜降臨{zh-cn}黑夜降临{ko}야간 도착{es}Empezar de Noche{fr}La Nuit Commence{pt-br}Iniciar a Noite{de}In Nacht Starten</Toggle></VerticalLayout></Row>
+					<Row id="VolkareCampAsCityRow"><VerticalLayout padding="6 6 1 1"><Toggle id="volkareCampAsCity" class="Toggle18" onValueChanged="optionsUpdate">{en}Volkare's Camp as a Possible City{it}L'Accampamento di Volkare come Possibile Città{ru}Лагерь Волкара как возможный город{zh-tw}沃卡里軍營成為可使用城市{zh-cn}沃卡里军营成为可使用城市{ko}볼케어 진영을 도시 중 하나로 추가{es}El Campamento de Volkare Como una Posible Ciudad{fr}Le Camp de Volkare dans une Cité, Possible{pt-br}Campo do Volkare Como uma Possível Cidade{de}Volkares Lager als Mögliche Stadt</Toggle></VerticalLayout></Row>
+					<Row id="ApocalypseDragonCityVariantRow" active="false"><VerticalLayout padding="6 6 1 1"><Toggle id="apocalypseDragonCityVariant" class="Toggle18" onValueChanged="apocalypseDragonCityVariantSelection">{en}Apocalypse Dragon as a City{it}Drago dell'Apocalisse come Città{ru}Дракон Апокалипсиса вместо города{zh-tw}末日巨龍取代城市{zh-cn}末日巨龙取代城市{ko}도시 대신 아포칼립스 드래곤{es}Dragón del Apocalipsis como Ciudad{fr}Dragon de l’Apocalypse à la place d’une Cité{pt-br}Dragão do Apocalipse no lugar de uma Cidade{de}Apokalypse-Drache statt Stadt</Toggle></VerticalLayout></Row>
+		            <Row><VerticalLayout padding="6 6 1 1"><Toggle id="useCustomMageKnights" class="Toggle18" onValueChanged="optionsUpdate" textColor="brown">{en}Add custom Mage Knights{it}Aggiungi Mage Knight Personalizzati{ru}&lt;size=17&gt;Добавить пользовательских Рыцарей-магов&lt;/size&gt;{zh-tw}加入玩家自創的魔法騎士{zh-cn}加入玩家自创的魔法骑士{ko}커스텀 영웅 추가{es}Añadir Caballeros Mago personalizados{fr}Ajouter des chevaliers mages personnalisés{pt-br}Adicionar Mage Knights personalizados{de}Magier-Ritter hinzufügen</Toggle></VerticalLayout></Row>
+					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="removeTerrain" class="Toggle18" onValueChanged="optionsUpdate" textColor="brown">{en}Remove Easier Terrain Tiles 1 and 2{it}Rimuovi le Tessere più Facili 1 e 2{ru}Убрать плитки простых земель 1 и 2{zh-tw}移除簡易地形板塊 1 和 2{zh-cn}移除简易地形块板 1 和 2{ko}쉬운 지형 타일 1, 2 제거{es}Eliminar las Baldosas de Terreno más Fáciles 1 y 2{fr}Supprimer les Tuiles 1 et 2 du Terrain le Plus Facile{pt-br}Remover os Blocos de Terreno Mais Fáceis 1 e 2{de}Einfachere Geländekacheln 1 und 2 Entfernen</Toggle></VerticalLayout></Row>
+					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="useAlternatePugs" class="Toggle18" onValueChanged="optionsUpdate" textColor="brown">{en}Use Alternate Monster Tokens{it}Usa Segnalini Mostro Alternativi{ru}&lt;size=15&gt;Использовать альтернативные жетоны врагов&lt;/size&gt;{zh-tw}使用另一種怪物標記{zh-cn}使用另一種怪物標記{ko}몬스터 토큰 대체{es}Usar Fichas de Monstruo Alternativas{fr}Utiliser des Jetons de Monstres Alternatifs{pt-br}Use Fichas de Monstro Alternativas{de}Alternative Monstermarken Verwenden</Toggle></VerticalLayout></Row>
+				</VerticalLayout>
+			</Panel>
+		</Panel>
+		<Panel id="Setup2Details" outlineSize="0 0" rectAlignment="UpperCenter" offsetXY="0 -57" width="392" height="466" color="clear" active="false">
+			<TableLayout cellBackgroundColor="Clear">
+				<Row preferredHeight="30" dontUseTableRowBackground="true" >
+					<Image image="Sliced Button/Title Border Tan" type="Sliced" width="392" height="30"/>
+					<VerticalLayout padding="6 6 5 5"><Text id="GameSettings2Title" class="Title22">{en}2. Optional Variants{it}2. Varianti Opzionali{ru}2. Дополнительные параметры{zh-tw}2. 可選變體規則{zh-cn}2. 可选变体规则{ko}2. 게임 설정{es}2. Variantes opcionales{fr}2. Variantes facultatives{pt-br}2. Variantes opcionais{de}2. Optionale Varianten</Text></VerticalLayout>
+				</Row>
+				<Row preferredHeight="30">
+					<cell rectAlignment="MiddleLeft" width="198" >
+					</cell>
+					<cell rectAlignment="MiddleRight" width="198">
+						<VerticalLayout padding="6 6 1 1">
+							<Text id="Setup2Text" class="Text18">{en}Play Variants{it}Varianti di Gioco{ru}Опциональные правила{zh-tw}變體玩法{zh-cn}变体玩法{ko}플레이 설정{es}Variantes de Juego{fr}Variantes de Jeu{pt-br}Variantes de Jogo{de}Spiel-Varianten</Text>
+						</VerticalLayout>
+					</cell>
+					<Button id="Setup1Selection" onClick="switchSetup" offsetXY="0 3" rectAlignment="MiddleLeft" width="198" height="30" onMouseDown="buttonClicked" onMouseUp="buttonClicked">
+						<Image id="Setup1SelectionImage" image="Sliced Button/Button New Active" type="Sliced"/>
+						<VerticalLayout padding="6 6 1 1">
+							<Text id="Setup1SelectionText" class="Text18" alignment="MiddleCenter" offsetXY="0 1">{en}Setup Variants{it}Varianti di Preparazione{ru}Параметры сценария{zh-tw}變體設定{zh-cn}变体设置{ko}세팅 설정{es}Variantes de Instalación{fr}Variantes d'Installation{pt-br}Variantes de Instalação{de}Setup-Varianten</Text>
+						</VerticalLayout>
+					</Button>
+				</Row>
+			</TableLayout>
+			<Panel id="Setup2DetailsSub" outlineSize="0 0" rectAlignment="UpperCenter" offsetXY="0 -57" width="392" height="406" color="clear">
+				<VerticalLayout padding="6 8 3 3">
+					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="randomTileOrientation" class="Toggle18" onValueChanged="optionsUpdate">{en}Random Terrain Tile Orientation{it}Orientamento Casuale delle Tessere Terreno{ru}Случайная ориентация Земель{zh-tw}隨機的地圖板塊方向{zh-cn}随机的地图板块方向{ko}타일 방향 무작위로 놓기{es}Orientación del Terreno al Azar{fr}Orientation Aléatoire des Tuiles de Terrain{pt-br}Orientação Aleatória de Peças de Mapa{de}Zufällige Ausrichtung der Geländekacheln</Toggle></VerticalLayout></Row>
+					<Row id="RandomCitiesOptionRow"><VerticalLayout padding="6 6 1 1"><Toggle id="randomCities" class="Toggle18" onValueChanged="optionsUpdate">{en}Random Cities{it}Città Casuali{ru}Случайные города{zh-tw}隨機城市{zh-cn}随机城市{ko}무작위의 도시들{es}Ciudades Aleatorias{fr}Citées Aléatoire{pt-br}Cidades Aleatórias{de}Zufällige Städte</Toggle></VerticalLayout></Row>
+					<Row>
+						<cell rectAlignment="MiddleLeft" width="198" padding="6 6 1 1">
+							<Toggle id="RampageSelection" class="Toggle18" onValueChanged="RampageSelection">{en}Rampage!{it}Devastazione!{ru}Темные времена!{zh-tw}怪物肆虐！{zh-cn}怪物肆虐！{ko}광분하라!{es}Al Acecho!{fr}Déchainement!{pt-br}Tempos de Violência!{de}Amoklauf!</Toggle>
+						</cell>
+						<cell rectAlignment="MiddleRight" width="180" padding="6 6 1 1">
+							<Toggle id="MoreRampageSelection" class="Toggle18" onValueChanged="MoreRampageSelection">{en}More Rampage!{it}Ancora Devastazione!{ru}Тьма сгущается!{zh-tw}怪物橫行！{zh-cn}怪物横行！{ko}더욱더 광분하라!{es}Máximo Acecho!{fr}Plus de Déchainement!{pt-br}Mais Violência!{de}Mehr Rampage!</Toggle>
+						</cell>
+					</Row>
+					<Row>
+						<cell rectAlignment="MiddleLeft" width="198" padding="6 6 1 1">
+							<Toggle id="rampageAmbush" class="Toggle18" onValueChanged="optionsUpdate">{en}Ambushing Rampager{it}Nemici Erranti in Agguato{ru}Враги в Засаде{zh-tw}怪物伏擊{zh-cn}怪物伏击{ko}매복하는 적{es}Emboscada de Acechadores{fr}Saccageurs Embusqués{pt-br}Irascível Emboscador{de}Hinterhalt Rampager</Toggle>
+						</cell>
+						<cell rectAlignment="MiddleRight" width="180" padding="6 6 1 1">
+							<Toggle id="rampagePursuit" class="Toggle18" onValueChanged="optionsUpdate">{en}Pursuing Rampager{it}Nemici Erranti Inseguitori{ru}Преследующие враги{zh-tw}怪物追擊{zh-cn}怪物追击{ko}추적하는 적{es}Acechadores Perseguidores{fr}Poursuivre les Saccageurs{pt-br}Irascível Perseguidor{de}Rampager Verfolgen</Toggle>
+						</cell>
+					</Row>
+					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="darknessComing" class="Toggle18" onValueChanged="optionsUpdate">{en}Darkness is Coming{it}Arriva l'Oscurità{ru}Надвигается тьма{zh-tw}黑暗侵襲{zh-cn}黑暗侵袭{ko}어둠의 도래{es}La Oscuridad se Acerca{fr}Les Ombres Arrivent{pt-br}Trevas Chegando{de}Es Wird Dunkel</Toggle></VerticalLayout></Row>
+					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="apocalypseQuestCards" class="Toggle18" onValueChanged="optionsUpdate">{en}Apocalypse Dragon Quest Cards{it}Carte Missione di Apocalypse Dragon{ru}Карты заданий Дракона Апокалипсиса{zh-tw}末日巨龍任務卡{zh-cn}末日巨龙任务卡{ko}아포칼립스 드래곤 퀘스트 카드{es}Cartas de misión del Dragón del Apocalipsis{fr}Cartes de quête du Dragon de l’Apocalypse{pt-br}Cartas de Missão do Dragão do Apocalipse{de}Questkarten des Apokalypse-Drachen</Toggle></VerticalLayout></Row>
+					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="heroChallenges" class="Toggle18" onValueChanged="optionsUpdate">{en}Hero Challenges{it}Sfide degli Eroi{ru}Испытания героев{zh-tw}英雄挑戰{zh-cn}英雄挑战{ko}영웅 도전{es}Desafíos de Héroes{fr}Défis des Héros{pt-br}Desafios de Heróis{de}Heldenherausforderungen</Toggle></VerticalLayout></Row>
+					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="proxyPlayer" class="Toggle18" onValueChanged="optionsUpdate">{en}Proxy Player{it}Giocatore Proxy{ru}Прокси-игрок{zh-tw}代理玩家{zh-cn}代理玩家{ko}프록시 플레이어{es}Jugador Proxy{fr}Joueur Proxy{pt-br}Jogador Proxy{de}Proxy-Spieler</Toggle></VerticalLayout></Row>
+					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="weatherMod" class="Toggle18" onValueChanged="optionsUpdate" textColor="brown">{en}Atlantean Weather Custom Mod{it}Mod Meteo Atlantideo{ru}Пользовательский мод Погоды Атлантиды{zh-tw}亞特蘭提斯天氣{zh-cn}亚特兰蒂斯天气{ko}아틀란티안 날씨{es}Tiempo Atlante{fr}Météo Atlante{pt-br}Clima Atlânteano{de}Atlantisches Wetter</Toggle></VerticalLayout></Row>
+		            <Row><VerticalLayout padding="6 6 1 1"><Toggle id="questMod" class="Toggle18" onValueChanged="optionsUpdate" textColor="brown">{en}Quest Cards Custom Mod{it}Mod Carte Missione{ru}Пользовательский мод Квест карт{zh-tw}自製任務卡{zh-cn}自制任务卡{ko}퀘스트 카드{es}Cartas de Misión{fr}Cartes de Quête{pt-br}Cartas de Missão{de}Quest Karten</Toggle></VerticalLayout></Row>
+					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="itemShopMod" class="Toggle18" onValueChanged="optionsUpdate" textColor="brown">{en}Item Shop Custom Mod{it}Mod Negozio di Oggetti{ru}Пользовательский мод магазина предметов{zh-tw}物品商店{zh-cn}物品商店{ko}아이템 상점{es}Tienda de artículos{fr}Boutique d'articles{pt-br}Loja de itens{de}Artikel Shop</Toggle></VerticalLayout></Row>
+					<Row preferredHeight="30">
+						<cell rectAlignment="MiddleLeft" height="25" width="235" padding="6 6 1 1">
+							<Text id="ROTFText" alignment="MiddleLeft" offsetXY="0 0" Color="brown" class="Text18">{en}Rise of the Forgemasters -{it}Rise of the Forgemasters -{ru}Восстание Мастеров Кузни -{zh-tw}鍛造師崛起{zh-cn}锻造师崛起{ko}라이즈 오브 포지마스터{es}El Ascenso de los Forjadores - {fr}L'essor des Maîtres de Forge -{pt-br}Ascensão dos Forjadores -{de}Aufstieg der Schmiedemeister -</Text>
+						</cell>
+						<cell rectAlignment="MiddleRight" width="150" padding="6 6 1 1">
+						</cell>
+						<Button id="ROTFSelection" onClick="toggleDropDown" offsetXY="0 0" rectAlignment="MiddleRight" width="150" height="30" onMouseDown="" onMouseUp="">
+							<Image id="ROTFSelectionImage" image="Sliced Button/Button New Active" type="Sliced"/>
+							<Text id="ROTFSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Not Used{it}Non Usato{ru}Не используется{zh-tw}未使用{zh-cn}未使用{ko}사용 안 함{es}No se Utiliza{fr}Non Utilisé{pt-br}Não Utilizado{de}Nicht Verwendet</Text>
+						</Button>
+					</Row>
+				</VerticalLayout>
+			</Panel>
+		</Panel>
+		<Panel id="MageKnightDetails" outlineSize="0 0" rectAlignment="LowerCenter" width="392" height="180" color="clear">
+			<TableLayout preferredHeight="180">
+				<Row preferredHeight="30" dontUseTableRowBackground="true" >
+					<Image image="Sliced Button/Title Border Tan" type="Sliced" width="392" height="30"/>
+					<VerticalLayout padding="6 6 5 5"><Text id="MageAssignmentTitle" class="Title22">{en}3. Mage Knight Assignment{it}3. Assegnazione dei Mage Knight{ru}3. Выбор Рыцарей-магов{zh-tw}3. 分配魔法騎士{zh-cn}3. 分配魔法骑士{ko}3. 메이지 나이트 선택{es}3. Asignación de Mage Knight{fr}3. Affectation du Mage Knight{pt-br}3. Seleção de Mage Knight{de}3. Mage Knight Auftrag</Text></VerticalLayout>
+				</Row>
+				<Row preferredHeight="30">
+					<Text alignment="MiddleRight" offsetXY="-140 0" id="FirstPosText">{en}1st Position Mage Knight -{it}Mage Knight al 1° Posto -{ru}1-ый Рыцарь-маг -{zh-tw}1號位魔法騎士：{zh-cn}1号位魔法骑士：{ko}메이지 나이트 플레이어 1 -{es}Primer Mage Knight -{fr}1ère position Mage Knight -{pt-br}Mage Knight da 1ª Posição -{de}Position 1 Magier-Ritter -</Text>
+					<Button id="firstMKSelection" onClick="toggleDropDown" offsetXY="0 0" rectAlignment="MiddleRight" width="130" height="30" onMouseDown="" onMouseUp="">
+						<Image id="firstMKSelectionImage" image="Sliced Button/Button New Active" type="Sliced"/>
+						<Text id="firstMKSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}nobody{it}nessuno{ru}никто{zh-cn}关闭的{ko}없음{es}ninguno{fr}personne{pt-br}ninguém{de}Niemand{zh-tw}無玩家</Text>
+					</Button>
+				</Row>
+				<Row preferredHeight="30">
+					<Text alignment="MiddleRight" offsetXY="-140 0" id="SecondPosText">{en}2nd Position Mage Knight -{it}Mage Knight al 2° Posto -{ru}2-ой Рыцарь-маг -{zh-tw}2號位魔法騎士：{zh-cn}2号位魔法骑士：{ko}메이지 나이트 플레이어 2 -{es}Segundo Mage Knight -{fr}2ème position Mage Knight -{pt-br}Mage Knight da 2ª Posição -{de}Position 2 Magier-Ritter -</Text>
+					<Button id="secondMKSelection" onClick="toggleDropDown" offsetXY="0 0" rectAlignment="MiddleRight" width="130" height="30" onMouseDown="" onMouseUp="">
+						<Image id="secondMKSelectionImage" image="Sliced Button/Button New Active" type="Sliced"/>
+						<Text id="secondMKSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}nobody{it}nessuno{ru}никто{zh-cn}关闭的{ko}없음{es}ninguno{fr}personne{pt-br}ninguém{de}Niemand{zh-tw}無玩家</Text>
+					</Button>
+				</Row>
+				<Row preferredHeight="30">
+					<Text alignment="MiddleRight" offsetXY="-140 0" id="ThirdPosText">{en}3rd Position Mage Knight -{it}Mage Knight al 3° Posto -{ru}3-ий Рыцарь-маг -{zh-tw}3號位魔法騎士：{zh-cn}3号位魔法骑士：{ko}메이지 나이트 플레이어 3 -{es}Tercer Mage Knight -{fr}3ème position Mage Knight -{pt-br}Mage Knight da 3ª Posição -{de}Position 3 Magier-Ritter -</Text>
+					<Button id="thirdMKSelection" onClick="toggleDropDown" offsetXY="0 0" rectAlignment="MiddleRight" width="130" height="30" onMouseDown="" onMouseUp="">
+						<Image id="thirdMKSelectionImage" image="Sliced Button/Button New Active" type="Sliced"/>
+						<Text id="thirdMKSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}nobody{it}nessuno{ru}никто{zh-cn}关闭的{ko}없음{es}ninguno{fr}personne{pt-br}ninguém{de}Niemand{zh-tw}無玩家</Text>
+					</Button>
+				</Row>
+				<Row preferredHeight="30">
+					<Text alignment="MiddleRight" offsetXY="-140 0" id="FourthPosText">{en}4th Position Mage Knight -{it}Mage Knight al 4° Posto -{ru}4-ый Рыцарь-маг -{zh-tw}4號位魔法騎士：{zh-cn}4号位魔法骑士：{ko}메이지 나이트 플레이어 4 -{es}Cuarto Mage Knight -{fr}4ème Position Mage Knight -{pt-br}Mage Knight da 4ª Posição -{de}Position 4 Magier-Ritter -</Text>
+					<Button id="fourthMKSelection" onClick="toggleDropDown" offsetXY="0 0" rectAlignment="MiddleRight" width="130" height="30" onMouseDown="" onMouseUp="">
+						<Image id="fourthMKSelectionImage" image="Sliced Button/Button New Active" type="Sliced"/>
+						<Text id="fourthMKSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}nobody{it}nessuno{ru}никто{zh-cn}关闭的{ko}없음{es}ninguno{fr}personne{pt-br}ninguém{de}Niemand{zh-tw}無玩家</Text>
+					</Button>
+				</Row>
+				<Row preferredHeight="30">
+					<Text alignment="MiddleRight" offsetXY="-140 0" id="DummyPosText">{en}Dummy Mage Knight -{it}Mage Knight Fittizio -{ru}Виртуальный Рыцарь-маг -{zh-cn}虚拟玩家：{ko}가상 플레이어 -{es}Mage Knight Virtual -{fr}Mage fantôme -{pt-br}Mage Knight Fictício -{de}Dummy-Magier-Ritter -{zh-tw}虛擬玩家：</Text>
+					<Button id="dummyMKSelection" onClick="toggleDropDown" offsetXY="0 0" rectAlignment="MiddleRight" width="130" height="30" onMouseDown="" onMouseUp="">
+						<Image id="dummyMKSelectionImage" image="Sliced Button/Button New Active" type="Sliced"/>
+						<Text id="dummyMKSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}nobody{it}nessuno{ru}никто{zh-cn}关闭的{ko}없음{es}ninguno{fr}personne{pt-br}ninguém{de}Niemand{zh-tw}無玩家</Text>
+					</Button>
+				</Row>
+				<Row id="VolkareLevelSelectionRow" active="false" preferredHeight="30">
+					<Text alignment="MiddleRight" offsetXY="-140 0" id="VolkareCombatText">{en}Volkare's Combat Level -{it}Livello Combattimento di Volkare -{ru}Уровень битвы Волкара -{zh-tw}沃卡里的戰鬥等級：{zh-cn}沃卡里的战斗等级： {ko}볼케어 전투 레벨 -{es}Nivel de Combate de Volkare -{fr}Niveau de Combat de Volkare -{pt-br}Nível de combate de Volkare -{de}Volkare´s Kampf Level -</Text>
+					<Button id="VolkareLevelSelection" onClick="toggleDropDown" offsetXY="0 0" rectAlignment="MiddleRight" width="130" height="30" onMouseDown="" onMouseUp="">
+						<Image id="VolkareLevelSelectionImage" image="Sliced Button/Button New Active" type="Sliced"/>
+						<Text id="VolkareLevelSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Daring{it}Audace{ru}Смельчак{zh-tw}勇者{zh-cn}勇者{ko}웅장한{es}Atrevido{fr}Audacieux{pt-br}Ousado{de}Gewagt</Text>
+					</Button>
+				</Row>
+				<Row id="VolkareRaceSelectionRow" active="false" preferredHeight="30">
+					<Text alignment="MiddleRight" offsetXY="-140 0" id="VolkareRaceText">{en}Volkare's Race Level -{it}Livello Corsa contro Volkare -{ru}Уровень гонки Волкара -{zh-tw}沃卡里的競速等級：{zh-cn}沃卡里的竞速等级： {ko}볼케어 레이스 레벨 -{es}Nivel de Carrera de Volkare -{fr}Niveau de Course Volkare -{pt-br}Nível da Corrida de Volkare -{de}Volkares Rennstufe -</Text>
+					<Button id="VolkareRaceSelection" onClick="toggleDropDown" offsetXY="0 0" rectAlignment="MiddleRight" width="130" height="30" onMouseDown="" onMouseUp="">
+						<Image id="VolkareRaceSelectionImage" image="Sliced Button/Button New Active" type="Sliced"/>
+						<Text id="VolkareRaceSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Fair{it}Equilibrato{ru}Шаг{zh-tw}正常{zh-cn}正常{ko}평범한{es}Justo{fr}Équitable{pt-br}Justo{de}Messe</Text>
+					</Button>
+				</Row>
+			</TableLayout>
+		</Panel>
+	</Panel>
+	<Panel id="IntroBoard" outlineSize="0 0" rectAlignment="MiddleRight" width="610" height="700">
+		<Image image="Sliced Button/Button New Active" type="Sliced"/>
+		<TableLayout>
+			<Row dontUseTableRowBackground="true">
+				<VerticalLayout spacing="0" padding="8 8 12 8" childForceExpandHeight="true">
+					<Text id="IntroBoard1" class="Text26">{en}Welcome to my Mage Knight Highly Scripted Table.{it}Benvenuti al mio tavolo Mage Knight Highly Scripted.{ru}Добро пожаловать в мой мод с высоким уровнем заскриптованности сценариев для настольной игры Mage Knight.{zh-tw}歡迎遊玩我製作的高度腳本化魔法騎士。{zh-cn}欢迎游玩我制作的智能脚本版魔法骑士。{ko}메이지 나이트(하이 스크립트)에 오신 것을 환영합니다.{es}Bienvenido a mi mesa altamente escrita de Mage Knight.{fr}Bienvenue sur ma table hautement scriptée Mage Knight.{pt-br}Bem-vindo à minha mesa de Mage Knight Altamente Scriptada.{de}Willkommen zu Mage Knight fully scripted</Text>
+					<Text id="IntroBoard2" class="Text18" alignment="MiddleLeft">{en}Use this menu to configure your game, and have it setup for you. Mage Knight has lots of Variants and Adjustments experienced players can apply to increase the challenge if they wish. Despite this, the default settings are recommended for most games.&lt;size=6&gt;
+
+&lt;/size&gt;During the Game, a LOT of things are automated. I tried to make things intuitive to use, or work with multiple play styles. I recommend not being shy, and just experimenting. The scripts save their data properly, making the 'Rewind' button safe to use.&lt;size=6&gt;
+
+&lt;/size&gt;My work on this Table is never ending and feels like it's constantly evolving. I'm always keen to hear of ways I can improve things, or new ideas entirely. You can leave me a comment using the feedback button (top left of Screen), or on the workshop page.&lt;size=6&gt;
+
+&lt;/size&gt;Mage Knight is designed by Vlaada Chvátil and published by the good folk at WizKids Games using amazing art from J.Lonnee. It is highly encouraged you purchase a copy for yourself.&lt;size=6&gt;
+
+&lt;/size&gt;&lt;b&gt;----------------------
+1. Choose your Scenario
+2. Select any Optional Variants.
+3. Pick the Mage Knights that are playing.
+4. Customize the Scenario if desired.
+5. Click Start.
+----------------------&lt;/b&gt;&lt;size=6&gt;
+
+&lt;/size&gt;The Start Button unlocks when you have two or more Mage Knights selected. Picking a Dummy Mage Knight implies you are playing Solo or Cooperative, otherwise it's Competitive.{it}Usa questo menu per configurare e preparare automaticamente la partita. Mage Knight offre molte varianti e modifiche con cui i giocatori esperti possono aumentare la sfida. Le impostazioni predefinite restano consigliate nella maggior parte dei casi.&lt;size=6&gt;
+
+&lt;/size&gt;Durante il gioco moltissime cose sono automatiche. Ho cercato di rendere tutto intuitivo e compatibile con vari stili di gioco. Sperimentate senza timore: gli script salvano correttamente i dati, quindi il pulsante Riavvolgi è sicuro.&lt;size=6&gt;
+
+&lt;/size&gt;Il mio lavoro su questo tavolo non finisce mai e continua a evolversi. Sono sempre interessato a suggerimenti e nuove idee. Potete lasciare un commento tramite il pulsante Commenti in alto a sinistra o sulla pagina Workshop.&lt;size=6&gt;
+
+&lt;/size&gt;Mage Knight è ideato da Vlaada Chvátil e pubblicato da WizKids Games, con le splendide illustrazioni di J.Lonnee. Vi invito ad acquistarne una copia.&lt;size=6&gt;
+
+&lt;/size&gt;&lt;b&gt;----------------------
+1. Scegli lo Scenario.
+2. Seleziona le Varianti Opzionali.
+3. Scegli i Mage Knight.
+4. Personalizza lo Scenario, se vuoi.
+5. Premi Inizia.
+----------------------&lt;/b&gt;&lt;size=6&gt;
+
+&lt;/size&gt;Inizia si sblocca quando sono selezionati almeno due Mage Knight. Scegliere un Fittizio indica una partita Solitaria o Cooperativa; altrimenti è Competitiva.{ru}Используйте это меню для настройки игры и автоматической настройки параметров. В игре «Mage Knight» предусмотрено множество вариантов и настроек, которые опытные игроки могут применять по желанию, чтобы повысить уровень сложности. Тем не менее для большинства партий рекомендуется использовать настройки по умолчанию.&lt;size=6&gt;
+
+&lt;/size&gt;В ходе игры ОЧЕНЬ МНОГОЕ происходит автоматически. Я постарался сделать интерфейс интуитивно понятным и адаптированным к различным стилям игры. Рекомендую не стесняться и просто экспериментировать. Скрипты надёжно сохраняют данные, поэтому кнопку «Перемотка» можно использовать без опасений.&lt;size=6&gt;
+
+&lt;/size&gt;Моя работа над этой таблицей никогда не заканчивается, и мне кажется, что она постоянно развивается. Я всегда рад услышать предложения по улучшению или совершенно новые идеи. Вы можете оставить мне комментарий, воспользовавшись кнопкой обратной связи (в левом верхнем углу экрана) или на странице в Workshop.&lt;size=6&gt;
+
+&lt;/size&gt;Игра «Mage Knight» разработана Владой Чватилом и издана замечательной командой WizKids Games с использованием потрясающих иллюстраций от J.Lonnee. Настоятельно рекомендую приобрести себе экземпляр этой игры.&lt;size=6&gt;
+
+&lt;/size&gt;&lt;b&gt;----------------------
+1. Выберите сценарий.
+2. Выберите любые дополнительные варианты.
+3. Выберите «Маг-рыцарей», которые будут участвовать в игре.
+4. При желании настройте сценарий.
+5. Нажмите «Старт».
+--------------------- -&lt;/b&gt;&lt;size=6&gt;
+
+&lt;/size&gt;Кнопка «Старт» становится доступной, когда выбраны два или более «Магических рыцарей». Выбор фиктивного «Магического рыцаря» означает, что вы играете в одиночном или кооперативном режиме, в противном случае игра проходит в соревновательном режиме.{zh-tw}使用此選單調整你的遊戲，系統將幫你自動完成設置。
+魔法騎士有許多變體規則和調整選項，
+經驗豐富的玩家可以根據需求，調整選項來增加遊戲難度。
+儘管如此，建議大多數遊戲仍然使用預設設置。&lt;size=6&gt;
+
+&lt;/size&gt;遊戲中有許多操作會由腳本自動完成，
+我儘量讓操作介面簡單易用，並支援各種遊玩方式。
+建議你不用拘謹，多嘗試操作。
+腳本會自動儲存數據，所以你可以放心使用“回溯”按鈕。&lt;size=8&gt;
+
+&lt;/size&gt;我對這個模組的開發永無止境，讓它會不斷進化與改進。
+我很樂意接受各種改善建議，或是任何新的想法。
+你可以透過回饋按鈕（螢幕左上角）或是工作坊頁面來留言給我。&lt;size=6&gt;
+
+&lt;/size&gt;魔法騎士是規則由Vlaada Chvátil設計，插圖由J.Lonnee繪製，
+並由WizKids Games出版的遊戲。強烈建議你自己購買一份實體版。&lt;size=6&gt;
+
+&lt;/size&gt;&lt;b&gt;----------------------
+1. 選擇要玩的劇本
+2. 調整任何變體規則選項
+3. 挑選要遊玩的魔法騎士。
+4. 如果有需要，調整劇本的設置內容
+5. 點擊“開始”。
+----------------------&lt;/b&gt;&lt;size=6&gt;
+
+&lt;/size&gt;“開始遊戲”按鈕會在你選擇至少兩個魔法騎士出場後解鎖，
+要進行單人或合作模式需要再選一個“虛擬玩家”的魔法騎士，
+否則會以對抗模式開始遊戲。{zh-cn}使用此菜单调整你的游戏，系统将帮你自动完成设置。
+魔法骑士有许多变体规则和调整选项，
+经验丰富的玩家可以根据需求，调整选项来增加游戏难度。
+尽管如此，建议大多数游戏仍然使用默认设置。 &lt;size=6&gt;
+
+&lt;/size&gt;游戏中有许多操作会由脚本自动完成，
+我尽量让操作介面简单易用，并支援各种游玩方式。
+建议你不用拘谨，多尝试操作。
+脚本会自动保存数据，所以你可以放心使用“回溯”按钮。 &lt;size=8&gt;
+
+&lt;/size&gt;我对这个模组的开发永无止尽，让它会不断进化与改进。
+我很乐意接受各种改善建议，或是任何新的想法。
+你可以通过反馈按钮（屏幕左上角）或是创意工坊页面来留言给我。 &lt;size=6&gt;
+
+&lt;/size&gt;魔法骑士是规则由Vlaada Chvátil设计，插图由J.Lonnee绘制，
+并由WizKids Games出版的游戏。强烈建议你自己购买一份实体版。 &lt;size=6&gt;
+
+&lt;/size&gt;&lt;b&gt;----------------------
+1. 选择要玩的剧本
+2. 调整任何变体规则选项
+3. 挑选要游玩的魔法骑士。 
+4. 如果有需要，调整剧本的设置内容
+5. 点击“开始”。 
+----------------------&lt;/b&gt;&lt;size=6&gt;
+
+&lt;/size&gt;“开始游戏”按钮会在你选择至少两个魔法骑士出场后解锁，
+要进行单人或合作模式需要再选一个“虚拟玩家”的魔法骑士，
+否则会以对抗模式开始游戏。{ko}이 메뉴를 사용하여 게임을 구성하고, 원하는 대로 설정을 조정하세요. 숙련된 플레이어를 위한 더 높은 난도를 적용할 수 있는 다양한 변형 규칙과 조정 사항을 제공합니다. 그러나 대부분의 게임에서 기본 설정을 사용하는 것을 권장합니다.&lt;size=6&gt;
+
+&lt;/size&gt;게임 중에는 정말 많은 부분이 자동화되어 있습니다. 사용법이 직관적이고 다양한 플레이 스타일에 맞게 작동하도록 노력했습니다. 주저하지 말고 마음껏 실험해 보시길 권합니다. 스크립트가 데이터를 제대로 저장하므로 ‘되감기’ 버튼을 안전하게 사용할 수 있습니다.&lt;size=6&gt;
+
+&lt;/size&gt;이 테이블에 대한 제 작업은 끝이 없으며, 끊임없이 진화하고 있는 느낌입니다. 개선할 수 있는 방법이나 완전히 새로운 아이디어가 있다면 언제든지 기꺼이 듣고 싶습니다. 화면 왼쪽 상단의 피드백 버튼을 이용하거나 워크숍 페이지에 댓글을 남겨 주시면 됩니다.&lt;size=6&gt;
+
+&lt;/size&gt;『Mage Knight』는 Vlaada Chvátil이 디자인했으며, J.Lonnee의 멋진 일러스트와 함께 WizKids Games에서 출시했습니다. 실물 게임을 구매해 보시기를 적극 권장합니다.&lt;size=6&gt;
+
+&lt;/size&gt;&lt;b&gt;----------------------
+1. 시나리오를 선택하세요.
+2. 원하는 추가 설정을 선택하세요.
+3. 플레이할 메이지 나이트를 선택하세요.
+4. 원한다면 시나리오를 커스텀 설정하세요.
+5. ‘시작’을 클릭하세요.
+--------------------- -&lt;/b&gt;&lt;size=6&gt;
+
+&lt;/size&gt;시작 버튼은 두 명 이상의 영웅(Mage Knight)을 선택했을 때 활성화됩니다. 더미 플레이어의 영웅을 설정하면 솔로 또는 협동 모드로 플레이하는 것이며, 그렇지 않은 경우 경쟁 모드로 진행됩니다.{es}Utiliza este menú para configurar tu partida y dejar que el juego se ajuste automáticamente a tus preferencias. Mage Knight cuenta con numerosas variantes y ajustes que los jugadores experimentados pueden aplicar para aumentar la dificultad si así lo desean. A pesar de ello, se recomienda utilizar la configuración predeterminada para la mayoría de las partidas.&lt;size=6&gt;
+
+&lt;/size&gt;Durante la partida, MUCHAS cosas están automatizadas. He intentado que todo resulte intuitivo y se adapte a distintos estilos de juego. Te recomiendo que no te cortes y simplemente experimentes. Los scripts guardan los datos correctamente, por lo que el botón «Rebobinar» es seguro de usar.&lt;size=6&gt;
+
+&lt;/size&gt;Mi trabajo en esta mesa es interminable y parece que está en constante evolución. Siempre estoy dispuesto a escuchar sugerencias sobre cómo puedo mejorar las cosas o ideas completamente nuevas. Puedes dejarme un comentario utilizando el botón de comentarios (arriba a la izquierda de la pantalla) o en la página del taller.&lt;size=6&gt;
+
+&lt;/size&gt;«Mage Knight» ha sido diseñado por Vlaada Chvátil y publicado por la gente de WizKids Games, con las increíbles ilustraciones de J. Lonnee. Te recomiendo encarecidamente que compres un ejemplar para ti.&lt;size=6&gt;
+
+&lt;/size&gt;&lt;b&gt;----------------------
+1. Elige tu escenario
+2. Selecciona cualquier variante opcional.
+3. Elige los Mage Knights que van a jugar.
+4. Personaliza el escenario si lo deseas.
+5. Haz clic en «Empezar».
+--------------------- -&lt;/b&gt;&lt;size=6&gt;
+
+&lt;/size&gt;El botón «Empezar» se desbloquea cuando tienes seleccionados dos o más Caballeros Magos. Elegir un Caballero Mago ficticio implica que estás jugando en modo individual o cooperativo; de lo contrario, se trata de un modo competitivo.{fr}Utilisez ce menu pour configurer votre partie et la personnaliser selon vos préférences. Mage Knight propose de nombreuses variantes et options que les joueurs expérimentés peuvent appliquer pour augmenter la difficulté s’ils le souhaitent. Malgré cela, les paramètres par défaut sont recommandés pour la plupart des parties.&lt;size=6&gt;
+
+&lt;/size&gt;Pendant la partie, de TRÈS nombreux éléments sont automatisés. J’ai essayé de rendre l’interface intuitive et adaptée à différents styles de jeu. Je vous recommande de ne pas hésiter et de vous lancer dans l’expérimentation. Les scripts enregistrent correctement leurs données, ce qui permet d’utiliser le bouton « Rewind » en toute sécurité.&lt;size=6&gt;
+
+&lt;/size&gt;Mon travail sur cette table est sans fin et j’ai l’impression qu’elle évolue constamment. Je suis toujours ravi d’entendre des suggestions d’amélioration ou de découvrir de nouvelles idées. Vous pouvez me laisser un commentaire via le bouton « Feedback » (en haut à gauche de l’écran) ou sur la page de l’Atelier.&lt;size=6&gt;
+
+&lt;/size&gt;Mage Knight a été conçu par Vlaada Chvátil et publié par la formidable équipe de WizKids Games, avec les superbes illustrations de J.Lonnee. Je vous encourage vivement à vous procurer un exemplaire.&lt;size=6&gt;
+
+&lt;/size&gt;&lt;b&gt;----------------------
+1. Choisissez votre scénario
+2. Sélectionnez les variantes optionnelles de votre choix.
+3. Choisissez les Mage Knights qui participent à la partie.
+4. Personnalisez le scénario si vous le souhaitez.
+5. Cliquez sur « Démarrer ».
+--------------------- -&lt;/b&gt;&lt;size=6&gt;
+
+&lt;/size&gt;Le bouton « Démarrer » se déverrouille lorsque vous avez sélectionné au moins deux Mage Knights. Choisir un Mage Knight factice signifie que vous jouez en solo ou en mode coopératif ; dans le cas contraire, le jeu se déroule en mode compétitif.{pt-br}Use este menu para configurar seu jogo e deixar tudo pronto para você. O Mage Knight possui diversas variantes e ajustes que jogadores experientes podem aplicar para aumentar o desafio, se assim desejarem. Apesar disso, as configurações padrão são recomendadas para a maioria das partidas.&lt;size=6&gt;
+
+&lt;/size&gt;Durante o jogo, MUITAS coisas são automatizadas. Tentei tornar tudo intuitivo de usar e compatível com vários estilos de jogo. Recomendo que você não tenha vergonha e simplesmente experimente. Os scripts salvam seus dados corretamente, tornando o botão “Rewind” seguro para uso.&lt;size=6&gt;
+
+&lt;/size&gt;Meu trabalho nesta mesa é interminável e parece estar em constante evolução. Estou sempre aberto a sugestões de como posso melhorar as coisas ou a novas ideias completamente diferentes. Você pode me deixar um comentário usando o botão de feedback (canto superior esquerdo da tela) ou na página do Workshop.&lt;size=6&gt;
+
+&lt;/size&gt;Mage Knight foi criado por Vlaada Chvátil e publicado pela equipe da WizKids Games, com a incrível arte de J.Lonnee. Recomendo fortemente que você compre um exemplar para si mesmo.&lt;size=6&gt;
+
+&lt;/size&gt;&lt;b&gt;----------------------
+1. Escolha seu Cenário
+2. Selecione quaisquer Variantes Opcionais.
+3. Escolha os Mage Knights que vão jogar.
+4. Personalize o Cenário, se desejar.
+5. Clique em Iniciar.
+--------------------- -&lt;/b&gt;&lt;size=6&gt;
+
+&lt;/size&gt;O botão “Iniciar” é desbloqueado quando você seleciona dois ou mais Cavaleiros Magos. Escolher um Cavaleiro Mago fictício significa que você está jogando no modo Solo ou Cooperativo; caso contrário, o modo é Competitivo.{de}Verwende dieses Menü, um dein Spiel zu konfigurieren und die Einstellungen für dich vornehmen zu lassen. Mage Knight bietet zahlreiche Varianten und Anpassungsmöglichkeiten, mit denen erfahrene Spieler den Schwierigkeitsgrad nach Belieben erhöhen können. Dennoch werden für die meisten Spiele die Standardeinstellungen empfohlen.&lt;size=6&gt;
+
+&lt;/size&gt;Während des Spiels laufen VIELE Abläufe automatisch ab. Ich habe versucht, die Bedienung intuitiv zu gestalten und sie für verschiedene Spielstile geeignet zu machen. Ich empfehle, sich nicht zu scheuen und einfach zu experimentieren. Die Skripte speichern ihre Daten ordnungsgemäß, sodass die Rewind-Schaltfläche sicher verwendet werden kann.&lt;size=6&gt;
+
+&lt;/size&gt;Meine Arbeit an diesem Spieltisch ist nie abgeschlossen und es fühlt sich an, als würde er sich ständig weiterentwickeln. Ich bin immer daran interessiert, Vorschläge zur Verbesserung oder ganz neue Ideen zu hören. Ihr könnt mir über die Feedback-Schaltfläche (oben links auf dem Bildschirm) oder auf der Workshop-Seite einen Kommentar hinterlassen.&lt;size=6&gt;
+
+&lt;/size&gt;Mage Knight wurde von Vlaada Chvátil entworfen und von den netten Leuten bei WizKids Games unter Verwendung der fantastischen Illustrationen von J. Lonnee veröffentlicht. Ich kann euch nur wärmstens empfehlen, euch ein Exemplar zu kaufen.&lt;size=6&gt;
+
+&lt;/size&gt;&lt;b&gt;--------------------
+1. Wähle dein Szenario aus.
+2. Wähle beliebige optionale Varianten aus.
+3. Wähle die Mage Knights aus, die mitspielen sollen.
+4. Passe das Szenario nach Wunsch an.
+5. Klicke auf Start.
+--------------------- -&lt;/b&gt;&lt;size=6&gt;
+
+&lt;/size&gt;Die Schaltfläche Start wird freigeschaltet, sobald Sie zwei oder mehr Magierritter ausgewählt haben. Die Auswahl eines Dummy-Magierritters bedeutet, dass Sie im Solo- oder Kooperationsmodus spielen; andernfalls handelt es sich um einen Wettkampfangang.</Text>
+				</VerticalLayout>
+			</Row>
+			<Row preferredHeight="90" dontUseTableRowBackground="true">
+				<VerticalLayout spacing="5" padding="8 8 8 8" childForceExpandHeight="false">
+					<Button id="NewUser" interactable="true" shadowDistance="0 0" rectAlignment="UpperCenter" preferredHeight="35" onClick="setupGame" class="LongButton">
+						<Image id="NewUserImage" image="Sliced Button/Button New Active" type="Sliced"/>
+						<VerticalLayout padding="5 5 5 5"><Text id="newPlayerText" class="Text20" offsetXY="0 1">{en}I'm a new Player and want the Walkthrough Scenario{it}Sono un nuovo giocatore: voglio lo scenario introduttivo{ru}Я новый игрок и хочу пройти Обучающий сценарий{zh-tw}我是一名新玩家，開始“首次勘察”劇本{zh-cn}我是一名新玩家，开始“首次勘察”剧本{ko}입문자를 위한 튜토리얼 시나리오{es}Soy un jugador novel y quiero el escenario de introducción{fr}Je suis un nouveau joueur et je veux le scénario pas à pas{pt-br}Sou um jogador novo e quero o Cenário Tutorial{de}Ich bin ein neuer Spieler und möchte das Walkthrough-Szenario</Text></VerticalLayout>
+					</Button>
+					<Button id="RandomGame" interactable="true" shadowDistance="0 0" rectAlignment="BottomCenter" preferredHeight="35" onClick="setupGame" class="LongButton">
+						<Image id="RandomGameImage" image="Sliced Button/Button New Active" type="Sliced"/>
+						<VerticalLayout padding="5 5 5 5"><Text id="RandomGameButtonText" class="Text20" offsetXY="0 1">{en}Give me a Mystery Solo Setup{it}Prepara una partita solitaria a sorpresa{ru}Дайте мне одиночный сценарий со случайными параметрами{zh-tw}幫我設置一場神秘的單人遊戲{zh-cn}帮我设置一局神秘的单人游戏{ko}랜덤 솔로 시나리오 빠른 시작{es}Dame una preparación misteriosa en Solitario{fr}Donnez-moi une configuration aléatoire Solo{pt-br}Me dê um Cenário Misterioso Aleatório{de}Gib mir ein Mystery-Solo-Setup</Text></VerticalLayout>
+					</Button>
+				</VerticalLayout>
+			</Row>
+		</TableLayout>
+	</Panel>
+	<Panel id="ScenarioDetails"	active="false" outlineSize="0 0" rectAlignment="MiddleRight" width="610" height="700">
+		<Image image="Sliced Button/Button New Active" type="Sliced"/>
+		<Panel id="ScenarioSummaryPanel" active="true" outlineSize="0 0" rectAlignment="UpperCenter" width="610" height="478" color="clear">
+			<VerticalLayout childForceExpandHeight="False">
+				<TableLayout preferredHeight="30">
+					<Image image="Sliced Button/Title Border Tan" type="Sliced" width="610" height="30" rectAlignment="UpperCenter"/>
+					<Row preferredHeight="30" dontUseTableRowBackground="true">
+						<VerticalLayout padding="5 5 5 5"><Text id="ScenarioName" class="Title22"><b>{en} Purpose{it} Scopo{ru} Цель{zh-cn}目的{ko} 목적{es} Propósito{fr} Objectif{pt-br} Finalidade{de} Zweck{zh-tw} 目的</b></Text></VerticalLayout>
+					</Row>
+				</TableLayout>
+				<HorizontalLayout padding="5 5 5 5"><Text id="ScenarioPurpose" alignment="UpperLeft" class="Text18">Purpose - </Text></HorizontalLayout>
+				<TableLayout preferredHeight="30">
+					<Row preferredHeight="30" dontUseTableRowBackground="true" >
+						<Image image="Sliced Button/Title Border Tan" type="Sliced" width="610" height="30"/>
+						<VerticalLayout padding="5 5 5 5"><Text id="ScenarioEndText" class="Title22">{en}Scenario End{it}Fine Scenario{ru}Конец сценария{zh-tw}劇本結束{zh-cn}剧本结束{ko}시나리오 종료{es}Fin del Escenario{fr}Fin du Scénario{pt-br}Fim do Cenário{de}Szenario Ende</Text></VerticalLayout>
+					</Row>
+				</TableLayout>
+				<HorizontalLayout padding="5 5 5 5"><Text id="ScenarioEnd" alignment="UpperLeft" class="Text18">Scenario End - </Text></HorizontalLayout>
+				<TableLayout preferredHeight="60">
+					<Row preferredHeight="30" dontUseTableRowBackground="true" >
+						<Image image="Sliced Button/Title Border Tan" type="Sliced" width="610" height="30"/>
+						<VerticalLayout padding="5 5 5 5"><Text id="ScenarioPlayerLimitText" class="Title22">{en}Scenario Player Limit{it}Limite Giocatori dello Scenario{ru}Ограничение количества игроков в сценарии{zh-tw}劇本人數限制{zh-cn}剧本人数限制{ko}시나리오 플레이어 수{es}Escenario Límite de Jugadores{fr}Scénario Limite de Joueurs{pt-br}Limite de Jogadores do Cenário{de}Szenario Spielerlimit</Text></VerticalLayout>
+					</Row>
+					<Row preferredHeight="30" dontUseTableRowBackground="true" >
+						<HorizontalLayout preferredHeight="30" padding="5 5 5 5"><Text id="PlayerCount" alignment="UpperLeft" class="Text18">Players - </Text></HorizontalLayout>
+					</Row>
+				</TableLayout>				
+			</VerticalLayout>
+		</Panel>
+		<Panel id="ScenarioTweaksPanel" active="true" outlineSize="0 0" rectAlignment="LowerCenter" width="610" height="210">
+			<TableLayout id="ScenarioTweaksTable" preferredHeight="208">
+				<Row preferredHeight="30" dontUseTableRowBackground="true" >
+					<Image image="Sliced Button/Title Border Tan" type="Sliced" width="610" height="30"/>
+					<VerticalLayout padding="6 6 5 5"><Text id="scenarioTweaksText" class="Title22">{en}4. Optional Scenario Tweaks{it}4. Modifiche Opzionali allo Scenario{ru}4. Дополнительные настройки сценария{zh-tw}4. 劇本設定調整{zh-cn}4. 剧本设置调整{ko}4. 시나리오 조정{es}4. Ajustes Opcionales del Escenario{fr}4. Ajustements Facultatifs du Scénario{pt-br}4. Ajustes Opcionais do Cenário{de}4. Optionale Änderungen am Szenario</Text></VerticalLayout>
+				</Row>
+				<Row preferredHeight="30">
+					<Image image="Sliced Button/Button New Deactive" type="Sliced" width="594" height="30"/>
+					<Button id="RoundsDown" class="ScenarioTweak" offsetXY="0 0" rectAlignment="MiddleLeft" width="28" height="30">
+						<Image id="RoundsDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
+						<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">-</Text>
+					</Button>
+					<VerticalLayout padding="6 6 6 6"><Text id="ScenarioLength" class="Text18" offsetXY="0 1">Length - 6 Rounds</Text></VerticalLayout>
+					<Button id="RoundsUp" class="ScenarioTweak" offsetXY="0 0" rectAlignment="MiddleRight" width="28" height="30">
+						<Image id="RoundsUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
+						<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">+</Text>
+					</Button>
+				</Row>
+				<Row preferredHeight="30">
+					<Image image="Sliced Button/Button New Deactive" type="Sliced" width="594" height="30"/>
+					<Button id="MapDown" class="ScenarioTweak" offsetXY="0 0" rectAlignment="MiddleLeft" width="28" height="30">
+						<Image id="MapDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
+						<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1" text="&#60;"/>
+					</Button>
+					<VerticalLayout padding="6 6 6 6"><Text id="ScenarioShape" class="Text18" offsetXY="0 1">Map Shape - Wedge</Text></VerticalLayout>
+					<Button id="MapUp" class="ScenarioTweak" offsetXY="0 0" rectAlignment="MiddleRight" width="28" height="30">
+						<Image id="MapUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
+						<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1" text="&#62;"/>
+					</Button>
+				</Row>
+				<Row preferredHeight="30">
+					<Image image="Sliced Button/Button New Deactive" type="Sliced" width="594" height="30"/>
+					<Button id="CountryDown" class="ScenarioTweak" offsetXY="0 0" rectAlignment="MiddleLeft" width="28" height="30">
+						<Image id="CountryDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
+						<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1" text="-"/>
+					</Button>
+					<VerticalLayout padding="6 6 6 6"><Text id="ScenarioCountry" class="Text18" offsetXY="0 1">Country Tiles - 7</Text></VerticalLayout>
+					<Button id="CountryUp" class="ScenarioTweak" offsetXY="0 0" rectAlignment="MiddleRight" width="28" height="30">
+						<Image id="CountryUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
+						<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1" text="+"/>
+					</Button>
+				</Row>
+				<Row preferredHeight="30">
+					<Image image="Sliced Button/Button New Deactive" type="Sliced" width="594" height="30"/>
+					<Button id="CoreDown" class="ScenarioTweak" offsetXY="0 0" rectAlignment="MiddleLeft" width="28" height="30">
+						<Image id="CoreDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
+						<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1" text="-"/>
+					</Button>
+					<VerticalLayout padding="6 6 6 6"><Text id="ScenarioCore" class="Text18" offsetXY="0 1">Core Tiles - 2</Text></VerticalLayout>
+					<Button id="CoreUp" class="ScenarioTweak" offsetXY="0 0" rectAlignment="MiddleRight" width="28" height="30">
+						<Image id="CoreUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
+						<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1" text="+"/>
+					</Button>
+				</Row>
+				<Row preferredHeight="30">
+					<Image image="Sliced Button/Button New Deactive" type="Sliced" width="570" height="30"/>
+					<Button id="CityDown" class="ScenarioTweak" offsetXY="0 0" rectAlignment="MiddleLeft" width="28" height="30">
+						<Image id="CityDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
+						<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1" text="-"/>
+					</Button>
+					<VerticalLayout padding="6 6 6 6"><Text id="ScenarioCity" class="Text18" offsetXY="0 1">City Tiles - 2</Text></VerticalLayout>
+					<Button id="CityUp" class="ScenarioTweak" offsetXY="0 0" rectAlignment="MiddleRight" width="28" height="30">
+						<Image id="CityUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
+						<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1" text="+"/>
+					</Button>
+				</Row>
+				<Row preferredHeight="30" id="CityLevelsRow" active="true">
+					<TableLayout id="CityLevelschange" active="false" columnWidths="28 0 0 28" cellBackgroundColor="Clear">
+						<Image image="Sliced Button/Button New Deactive" type="Sliced" width="570" height="30"/>
+						<Row>
+							<Cell id="MegapolisLeft" active="true">
+								<Row>
+									<Button id="MegapolisUp" class="ScenarioTweak" offsetXY="0 0" rectAlignment="MiddleLeft" onClick="baseValueTweak" width="28" height="30">
+										<Image id="MegapolisUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
+										<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1" text="&#60;"/>
+									</Button>
+								</Row>
+							</Cell>
+							<Cell id="CL1" active="true">
+								<Row>
+									<Button id="CityLevel1Down" class="ScenarioTweak" offsetXY="0 0" rectAlignment="MiddleLeft" onClick="baseValueTweak" width="28" height="30">
+										<Image id="CityLevel1DownImage" image="Sliced Button/Button New Active" type="Sliced"/>
+										<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1" text="-"/>
+									</Button>
+									<VerticalLayout padding="6 6 6 6"><Text id="ScenarioCity1Level" class="Text18" offsetXY="0 1">City 1</Text></VerticalLayout>
+									<Button id="CityLevel1Up" class="ScenarioTweak" offsetXY="0 0" rectAlignment="MiddleRight" onClick="baseValueTweak" width="28" height="30">
+										<Image id="CityLevel1UpImage" image="Sliced Button/Button New Active" type="Sliced"/>
+										<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1" text="+"/>
+									</Button>
+								</Row>
+							</Cell>
+							<Cell id="CL2" active="true">
+								<Row>
+									<Button id="CityLevel2Down" class="ScenarioTweak" offsetXY="0 0" rectAlignment="MiddleLeft" onClick="baseValueTweak" width="28" height="30">
+										<Image id="CityLevel2DownImage" image="Sliced Button/Button New Active" type="Sliced"/>
+										<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1" text="-"/>
+									</Button>
+									<VerticalLayout padding="6 6 6 6"><Text id="ScenarioCity2Level" class="Text18" offsetXY="0 1">City 2</Text></VerticalLayout>
+									<Button id="CityLevel2Up" class="ScenarioTweak" offsetXY="0 0" rectAlignment="MiddleRight" onClick="baseValueTweak" width="28" height="30">
+										<Image id="CityLevel2UpImage" image="Sliced Button/Button New Active" type="Sliced"/>
+										<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1" text="+"/>
+									</Button>
+								</Row>
+							</Cell>
+							<Cell id="CL3" active="true">
+								<Row>
+									<Button id="CityLevel3Down" class="ScenarioTweak" offsetXY="0 0" rectAlignment="MiddleLeft" onClick="baseValueTweak" width="28" height="30">
+										<Image id="CityLevel3DownImage" image="Sliced Button/Button New Active" type="Sliced"/>
+										<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1" text="-"/>
+									</Button>
+									<VerticalLayout padding="6 6 6 6"><Text id="ScenarioCity3Level" class="Text18" offsetXY="0 1">City 3</Text></VerticalLayout>
+									<Button id="CityLevel3Up" class="ScenarioTweak" offsetXY="0 0" rectAlignment="MiddleRight" onClick="baseValueTweak" width="28" height="30">
+										<Image id="CityLevel3UpImage" image="Sliced Button/Button New Active" type="Sliced"/>
+										<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1" text="+"/>
+									</Button>
+								</Row>
+							</Cell>
+							<Cell id="CL4" active="true">
+								<Row>
+									<Button id="CityLevel4Down" class="ScenarioTweak" offsetXY="0 0" rectAlignment="MiddleLeft" onClick="baseValueTweak" width="28" height="30">
+										<Image id="CityLevel4DownImage" image="Sliced Button/Button New Active" type="Sliced"/>
+										<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1" text="-"/>
+									</Button>
+									<VerticalLayout padding="6 6 6 6"><Text id="ScenarioCity4Level" class="Text18" offsetXY="0 1">City 4</Text></VerticalLayout>
+									<Button id="CityLevel4Up" class="ScenarioTweak" offsetXY="0 0" rectAlignment="MiddleRight" onClick="baseValueTweak" width="28" height="30">
+										<Image id="CityLevel4UpImage" image="Sliced Button/Button New Active" type="Sliced"/>
+										<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1" text="+"/>
+									</Button>
+								</Row>
+							</Cell>
+							<Cell id="CL5" preferredWidth="30">
+								<Row>
+									<Button id="CityLevel5Down" class="ScenarioTweak" offsetXY="0 0" rectAlignment="MiddleLeft" onClick="baseValueTweak" width="28" height="30">
+										<Image id="CityLevel5DownImage" image="Sliced Button/Button New Active" type="Sliced"/>
+										<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1" text="-"/>
+									</Button>
+									<VerticalLayout padding="6 6 6 6"><Text id="ScenarioCity5Level" class="Text18" offsetXY="0 1">City 5</Text></VerticalLayout>
+									<Button id="CityLevel5Up" class="ScenarioTweak" offsetXY="0 0" rectAlignment="MiddleRight" onClick="baseValueTweak" width="28" height="30">
+										<Image id="CityLevel5UpImage" image="Sliced Button/Button New Active" type="Sliced"/>
+										<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1" text="+"/>
+									</Button>
+								</Row>
+							</Cell>
+							<Cell id="MegapolisRight" active="true">
+								<Row>
+									<Button id="MegapolisDown" class="ScenarioTweak" offsetXY="0 0" rectAlignment="MiddleRight" onClick="baseValueTweak" width="28" height="30">
+										<Image id="MegapolisDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
+										<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1" text="&#62;"/>
+									</Button>
+								</Row>
+							</Cell>
+						</Row>
+					</TableLayout>
+				</Row>
+				<Row preferredHeight="30" id="CityDescriptionRow" active="false">
+					<Image image="Sliced Button/Button New Deactive" type="Sliced" width="610"/>
+					<VerticalLayout padding="6 6 6 6"><Text id="CityNote" class="Text18" offsetXY="0 1">City Level(s) - No attacking</Text></VerticalLayout>
+				</Row>
+				<Row preferredHeight="30" id="ApocalypseDragonLevelCell" active="false">
+					<TableLayout columnWidths="28 0 28 145" cellBackgroundColor="Clear">
+						<Image image="Sliced Button/Button New Deactive" type="Sliced" width="594" height="30"/>
+						<Row>
+							<Cell><Button id="ApocalypseDragonLevelDown" class="ScenarioTweak" onClick="apocalypseDragonLevelSelection" width="28" height="30">
+								<Image id="ApocalypseDragonLevelDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
+								<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">-</Text>
+							</Button></Cell>
+							<Cell><VerticalLayout padding="6 6 6 6"><Text id="ApocalypseDragonLevelSelectionText" class="Text18" offsetXY="0 1">Dragon, Level 1</Text></VerticalLayout></Cell>
+							<Cell><Button id="ApocalypseDragonLevelUp" class="ScenarioTweak" onClick="apocalypseDragonLevelSelection" width="28" height="30">
+								<Image id="ApocalypseDragonLevelUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
+								<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">+</Text>
+							</Button></Cell>
+							<Cell><Button id="RandomizedDragonHeadsButton" onClick="randomizedDragonHeadsSelection" onMouseDown="" onMouseUp="" width="140" height="30">
+								<Image id="RandomizedDragonHeadsButtonImage" image="Sliced Button/Button New Active" type="Sliced"/>
+								<VerticalLayout padding="6 6 6 6"><Text id="RandomizedDragonHeadsButtonText" class="Text18" alignment="MiddleCenter" offsetXY="0 1">{en}Random Heads - Off{it}Teste Casuali - No{ru}Случ. головы - Выкл.{zh-tw}隨機龍首 - 關{zh-cn}随机龙首 - 关{ko}머리 무작위 - 꺼짐{es}Cabezas aleatorias - No{fr}Têtes aléatoires - Non{pt-br}Cabeças aleatórias - Desligado{de}Zufällige Köpfe - Aus</Text></VerticalLayout>
+							</Button></Cell>
+						</Row>
+					</TableLayout>
+				</Row>
+				<Row preferredHeight="30" id="ApocalypseDragonCityOptionsRow" active="false">
+					<TableLayout columnWidths="0 0 0" cellBackgroundColor="Clear">
+						<Row>
+							<Cell><Button id="ApocalypseDragonCityRandomButton" onClick="apocalypseDragonCityModeSelection" onMouseDown="" onMouseUp="" height="30">
+								<Image id="ApocalypseDragonCityRandomButtonImage" image="Sliced Button/Button New Active" type="Sliced"/>
+								<VerticalLayout padding="6 6 6 6"><Text id="ApocalypseDragonCityRandomButtonText" class="Text18" alignment="MiddleCenter" offsetXY="0 1">{en}Random City - Off{it}Città Casuale - No{ru}Случайный город - Выкл.{zh-tw}隨機城市 - 關{zh-cn}随机城市 - 关{ko}무작위 도시 - 꺼짐{es}Ciudad Aleatoria - No{fr}Cité aléatoire - Non{pt-br}Cidade Aleatória - Desligado{de}Zufällige Stadt - Aus</Text></VerticalLayout>
+							</Button></Cell>
+							<Cell><Button id="ApocalypseDragonCityLastButton" onClick="apocalypseDragonCityModeSelection" onMouseDown="" onMouseUp="" height="30">
+								<Image id="ApocalypseDragonCityLastButtonImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+								<VerticalLayout padding="6 6 6 6"><Text id="ApocalypseDragonCityLastButtonText" class="Text18" alignment="MiddleCenter" offsetXY="0 1">{en}Last City - On{it}Ultima Città - Sì{ru}Последний город - Вкл.{zh-tw}最後城市 - 開{zh-cn}最后城市 - 开{ko}마지막 도시 - 켜짐{es}Última Ciudad - Sí{fr}Dernière Cité - Oui{pt-br}Última Cidade - Ligado{de}Letzte Stadt - An</Text></VerticalLayout>
+							</Button></Cell>
+							<Cell><Button id="ApocalypseDragonCityRandomHeadsButton" onClick="randomizedDragonHeadsSelection" onMouseDown="" onMouseUp="" height="30">
+								<Image id="ApocalypseDragonCityRandomHeadsButtonImage" image="Sliced Button/Button New Active" type="Sliced"/>
+								<VerticalLayout padding="6 6 6 6"><Text id="ApocalypseDragonCityRandomHeadsButtonText" class="Text18" alignment="MiddleCenter" offsetXY="0 1">{en}Random Heads - Off{it}Teste Casuali - No{ru}Случ. головы - Выкл.{zh-tw}隨機龍首 - 關{zh-cn}随机龙首 - 关{ko}머리 무작위 - 꺼짐{es}Cabezas aleatorias - No{fr}Têtes aléatoires - Non{pt-br}Cabeças aleatórias - Desligado{de}Zufällige Köpfe - Aus</Text></VerticalLayout>
+							</Button></Cell>
+						</Row>
+					</TableLayout>
+				</Row>
+				<Row preferredHeight="30" id="HorsemenLevelCell" active="false">
+					<TableLayout columnWidths="28 0 28 145" cellBackgroundColor="Clear">
+						<Image image="Sliced Button/Button New Deactive" type="Sliced" width="594" height="30"/>
+						<Row>
+							<Cell><Button id="HorsemenLevelDown" class="ScenarioTweak" onClick="horsemanLevelSelection" width="28" height="30">
+								<Image id="HorsemenLevelDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
+								<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">-</Text>
+							</Button></Cell>
+							<Cell><VerticalLayout padding="6 6 6 6"><Text id="HorsemenLevelSelectionText" class="Text18" offsetXY="0 1">Horsemen, Level 1</Text></VerticalLayout></Cell>
+							<Cell><Button id="HorsemenLevelUp" class="ScenarioTweak" onClick="horsemanLevelSelection" width="28" height="30">
+								<Image id="HorsemenLevelUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
+								<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">+</Text>
+							</Button></Cell>
+							<Cell><Button id="HorsemenHorsesButton" onClick="horsemenHorsesSelection" onMouseDown="" onMouseUp="" width="135" height="30">
+								<Image id="HorsemenHorsesButtonImage" image="Sliced Button/Button New Active" type="Sliced"/>
+								<VerticalLayout padding="6 6 6 6"><Text id="HorsemenHorsesButtonText" class="Text18" alignment="MiddleCenter" offsetXY="0 1">{en}With Horse - Off{it}Con Cavalcatura - No{ru}С лошадью - Выкл.{zh-tw}帶戰馬 - 關{zh-cn}带战马 - 关{ko}말 포함 - 꺼짐{es}Con caballo - No{fr}Avec cheval - Non{pt-br}Com cavalo - Desligado{de}Mit Pferd - Aus</Text></VerticalLayout>
+							</Button></Cell>
+						</Row>
+					</TableLayout>
+				</Row>
+			</TableLayout>
+		</Panel>
+	</Panel>
+	<Panel id="toolTip"	active="false" offsetXY="-670 0" width="320" height="200" outlineSize="1 -1" >
+		<Image image="Sliced Button/Button New Active" type="Sliced"/>
+		<TableLayout cellPadding="6 6 6 6" cellBackgroundColor="Clear">
+			<Row preferredHeight="30" dontUseTableRowBackground="true">
+				<Image image="Sliced Button/Title Border Tan" type="Sliced" width="320" height="30" rectAlignment="UpperCenter"/>
+				<HorizontalLayout padding="6 6 6 6"><Text id="toolTipTitle" class="Title18">{en}Scenario Info{it}Informazioni sullo Scenario{zh-cn}剧本信息{ko}시나리오 정보{es}Información del escenario{fr}Informations sur le scénario{pt-br}Informação do cenário{ru}Информация о сценарии{zh-tw}劇本資訊{de}Szenario-Info</Text></HorizontalLayout>
+			</Row>
+			<Row><cell childAlignment="MiddleCenter">
+				<Text id="toolTipText" alignment="UpperLeft" class="Text16">Game Reminder Text Box</Text>
+			</cell></Row>
+		</TableLayout>			
+	</Panel>
+	<Panel id="MegapolisReminder" active="false" offsetXY="670 -242" width="320" height="190" outlineSize="1 -1">
+		<Image image="Sliced Button/Button New Active" type="Sliced"/>
+		<VerticalLayout padding="6 6 0 6" childForceExpandHeight="False">
+			<TableLayout preferredHeight="34">
+				<Row preferredHeight="30" dontUseTableRowBackground="true" >
+					<Image image="Sliced Button/Title Border Tan" type="Sliced" width="320" height="30" rectAlignment="UpperCenter"/>
+					<Text id="MegapolisReminderTitle" class="Title18">{en}Megapolis Available{it}Megapoli Disponibile{ru}Мегаполис Доступен{zh-tw}可以使用大型城市{zh-cn}可以使用大型城市{ko}거대도시 옵션{es}Megapolis Disponible{fr}Megapolis Disponible{pt-br}Megalópole Disponível{de}Metropole Vorhanden</Text>
+				</Row>
+			</TableLayout>
+			<HorizontalLayout padding="0 0 0 0"><Text id="MegapolisReminderText1" class="Text16" alignment="MiddleCenter">{en}Use the arrows next to the City Levels, to change a City into a Megapolis.&lt;size=6&gt;
+
+&lt;/size&gt;When a city deploys in game, a second random city also deploys with it (each at half the level chosen here). Their two garrisons combine and get the bonuses from both cities applied.&lt;size=6&gt;
+
+&lt;/size&gt;After conquering the Megapolis, interactions from either city can be accessed.{it}Usa le frecce accanto ai livelli delle Città per trasformare una Città in Megapoli.&lt;size=6&gt;
+
+&lt;/size&gt;Quando viene posizionata, compare anche una seconda città casuale, ciascuna a metà del livello scelto qui. Le guarnigioni si uniscono e ricevono i bonus di entrambe.&lt;size=6&gt;
+
+&lt;/size&gt;Dopo la conquista, sono disponibili le interazioni di entrambe le città.{ru}Используйте стрелки рядом с ур. города, чтобы из Города сделать Мегаполис.&lt;size=6&gt;
+
+&lt;/size&gt;Вместо одного Города, появятся сразу два. Уровень каждого равен половине ур. выбранного здесь. Оба их гарнизона объединяются и получают бонусы от обоих городов.&lt;size=6&gt;
+
+&lt;/size&gt;Завоеванный Мегаполис позволяет взаимодействовать с каждым из городов.{zh-tw}使用城市等級選項旁邊的箭頭按鈕，
+來將一個城市更換成大型城市。&lt;size=3&gt;
+
+&lt;/size&gt;當一個城市在遊戲中部署時，
+會跟著部屬另一個隨機城市在它旁邊。
+（每座城市的等級為選項中的一半。）
+兩座城市的守軍會合併，全部具有城防，
+並同時受到兩座城市的戰鬥加成。&lt;size=3&gt;
+
+&lt;/size&gt;征服大型城市後，無論位於哪片城區，
+在交涉時都可以選擇任意城區的購買選項。{zh-cn}使用城市等级选项旁边的箭头按钮，
+来将一个城市更换成大型城市。&lt;size=3&gt;
+
+&lt;/size&gt;当一个城市在游戏中部署时，
+会跟着部属另一个随机城市在它旁边。
+（每座城市的等级为选项中的一半。）
+两座城市的守军会合并，全部具有城防，
+并同时受到两座城市的战斗加成。&lt;size=3&gt;
+
+&lt;/size&gt;征服大型城市后，无论位于哪片城区，
+在交涉时都可以选择任意城区的购买选项。{ko}거대도시를 사용하려면, 도시 레벨 옆 화살표를 누르세요.&lt;size=6&gt;
+
+&lt;/size&gt;도시가 놓일 때, 두 번째 도시가 무작위로 선택되어 좌측에 같이 놓입니다.(각각 절반의 레벨)두 도시의 수비대가 합쳐지고 두 도시의 전투 보너스를 동시에 적용받습니다.&lt;size=6&gt;
+
+&lt;/size&gt;정복된 후, 플레이어는 도시 어느 부분에 있던지 두 도시의 모든 교류 혜택을 사용할 수 있습니다.{es}Usa las flechas al lado de los niveles de la ciudad para convertir una ciudad en una Megapolis.&lt;size=6&gt;
+
+&lt;/size&gt;Cuando una ciudad se despliega en el juego, también se despliega una segunda ciudad aleatoria con ella (cada una a la mitad del nivel elegido aquí). Sus dos guarniciones se combinan y se aplican las bonificaciones de ambas ciudades.&lt;size=6&gt;
+
+&lt;/size&gt;Después de conquistar la Megalópolis, se puede acceder a las interacciones de cualquiera de las ciudades.{fr}Utilisez les flèches à côté des niveaux de la ville pour transformer une ville en Mégapole.&lt;size=6&gt;
+
+&lt;/size&gt;Lorsqu'une ville se déploie en jeu, une seconde ville aléatoire se déploie également avec elle (chacune à la moitié du niveau choisi ici). Leurs deux garnisons se combinent et obtiennent les bonus des deux villes appliqués.&lt;size=6&gt;
+
+&lt;/size&gt;Après avoir conquis la Mégapole, les interactions de l'une ou l'autre ville sont accessibles.{pt-br}Use as setas próximas ao níveis da Cidade, para transformar uma Cidade em uma Megalópole.&lt;size=6&gt;
+
+&lt;/size&gt;Quando uma cidade é implementada no jogo, uma segunda cidade aleatória também é implementada com ela (cada uma a metade do nível escolhido aqui). Suas duas Guarnições combinam e ganham os bônus de ambas as cidades.&lt;size=6&gt;
+
+&lt;/size&gt;Depois de conquistar a Megalópolis, interações de ambras cidades podem ser acessadas.{de}Verwenden Sie die Pfeile neben den Stadtebenen, um eine Stadt in eine Metropole zu verwandeln.&lt;size=6&gt;
+
+&lt;/size&gt;Wenn eine Stadt im Spiel aufgestellt wird, wird auch eine zweite zufällige Stadt aufgestellt (jeweils auf der Hälfte des hier gewählten Levels). Ihre beiden Garnisonen verbinden sich und bekommen die Boni aus beiden Städten zugerechnet.&lt;size=6&gt;
+
+&lt;/size&gt;Nach der Eroberung der Metropole kann auf Interaktionen aus beiden Städten zugegriffen werden.</Text></HorizontalLayout>
+		</VerticalLayout>
+	</Panel>
+	<Panel id="DropDown" active="false" offsetXY="-100 -275" width="120" outlineSize="1 -1" scale="1">
+		<TableLayout>
+			<Row id="nobodyRow">
+				<Button id="nobodySelection" onClick="PlayerChosen">
+					<Image id="nobodySelectionImage" image="Sliced Button/Button New Active" type="Sliced"/>
+					<Text id="nobodySelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}nobody{it}nessuno{ru}никто{zh-tw}無玩家{zh-cn}无玩家{ko}없음{es}ninguno{fr}personne{pt-br}ninguém{de}Niemand</Text>
+				</Button>
+			</Row>
+			<Row id="RANDOMRow">
+				<Button id="RANDOMSelection" onClick="PlayerChosen">
+					<Image id="RANDOMSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="RANDOMSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Random{it}Casuale{ru}Случайный{zh-tw}隨機{zh-cn}随机{ko}무작위{es}Aleatorio{fr}Aléatoire{pt-br}Aleatório{de}Zufällig</Text>
+				</Button>
+			</Row>
+			<Row id="AllSkillsRow">
+				<Button id="AllSkillsSelection" onClick="PlayerChosen">
+					<Image id="AllSkillsSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="AllSkillsSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}All Skills{it}Tutte le Abilità{ru}Все навыки{zh-tw}所有技能{zh-cn}所有技能{ko}모든 스킬{es}Todas las Habilidades{fr}Toutes les Compétences{pt-br}Todas Habilidades{de}Alle skills</Text>
+				</Button>
+			</Row>
+			<Row id="ArytheaRow">
+				<Button id="ArytheaSelection" onClick="PlayerChosen">
+					<Image id="ArytheaSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="ArytheaSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Arythea{it}Arythea{ru}Аритея{zh-tw}艾莉西亞{zh-cn}艾莉西亚{ko}아리시아{es}Arythea{fr}Arythea{pt-br}Arythea{de}Arythea</Text>
+				</Button>
+			</Row>
+			<Row id="GoldyxRow">
+				<Button id="GoldyxSelection" onClick="PlayerChosen">
+					<Image id="GoldyxSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="GoldyxSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Goldyx{it}Goldyx{ru}Голдикс{zh-tw}歌狄克斯{zh-cn}歌狄克斯{ko}골딕스{es}Goldyx{fr}Goldyx{pt-br}Goldyx{de}Goldyx</Text>
+				</Button>
+			</Row>
+			<Row id="NorowasRow">
+				<Button id="NorowasSelection" onClick="PlayerChosen">
+					<Image id="NorowasSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="NorowasSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Norowas{it}Norowas{ru}Норовас{zh-tw}諾羅瓦斯{zh-cn}诺罗瓦斯{ko}노로워즈{es}Norowas{fr}Norowas{pt-br}Norowas{de}Norowas</Text>
+				</Button>
+			</Row>
+			<Row id="TovakRow">
+				<Button id="TovakSelection" onClick="PlayerChosen">
+					<Image id="TovakSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="TovakSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Tovak{it}Tovak{ru}Товак{zh-tw}托維克{zh-cn}托维克{ko}토백{es}Tovak{fr}Tovak{pt-br}Tovak{de}Tovak</Text>
+				</Button>
+			</Row>
+			<Row id="BraevalarRow">
+				<Button id="BraevalarSelection" onClick="PlayerChosen">
+					<Image id="BraevalarSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="BraevalarSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Braevalar{it}Braevalar{ru}Бравалар{zh-tw}布雷維勒{zh-cn}布雷维勒{ko}브레이바라{es}Braevalar{fr}Braevalar{pt-br}Braevalar{de}Braevalar</Text>
+				</Button>
+			</Row>
+			<Row id="KrangRow">
+				<Button id="KrangSelection" onClick="PlayerChosen">
+					<Image id="KrangSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="KrangSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Krang{it}Krang{ru}Крэнг{zh-tw}朗格{zh-cn}朗格{ko}크랑{es}Krang{fr}Krang{pt-br}Krang{de}Krang</Text>
+				</Button>
+			</Row>
+			<Row id="WolfhawkRow">
+				<Button id="WolfhawkSelection" onClick="PlayerChosen">
+					<Image id="WolfhawkSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="WolfhawkSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Wolfhawk{it}Wolfhawk{ru}Вульфхок{zh-tw}狼鷹{zh-cn}狼鹰{ko}울프호크{es}Wolfhawk{fr}Wolfhawk{pt-br}Wolfhawk{de}Wolfhawk</Text>
+				</Button>
+			</Row>
+			<Row id="CoralRow">
+				<Button id="CoralSelection" onClick="PlayerChosen">
+					<Image id="CoralSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="CoralSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Coral{it}Coral{ru}Коралл{zh-tw}珊瑚{zh-cn}珊瑚{ko}코랄{es}Coral{fr}Coral{pt-br}Coral{de}Coral</Text>
+				</Button>
+			</Row>
+			<Row id="JormundRow">
+				<Button id="JormundSelection" onClick="PlayerChosen">
+					<Image id="JormundSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="JormundSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}Jormund{it}Jormund{ru}Йормунд{zh-tw}約爾蒙德{zh-cn}约尔蒙德{ko}요르문{es}Jormund{fr}Jormund{pt-br}Jormund{de}Jormund</Text>
+				</Button>
+			</Row>
+			<Row id="YmirghRow">
+				<Button id="YmirghSelection" onClick="PlayerChosen">
+					<Image id="YmirghSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="YmirghSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}Ymirgh{it}Ymirgh{ru}Имирх{zh-tw}伊米爾{zh-cn}伊米尔{ko}유미르{es}Ymirgh{fr}Ymirgh{pt-br}Ymirgh{de}Ymirgh</Text>
+				</Button>
+			</Row>
+			<Row id="MevokRow">
+				<Button id="MevokSelection" onClick="PlayerChosen">
+					<Image id="MevokSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="MevokSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}Mevok{it}Mevok{ru}Мевок{zh-tw}梅沃克{zh-cn}梅沃克{ko}Mevok{es}Mevok{fr}Mevok{pt-br}Mevok{de}Mevok</Text>
+				</Button>
+			</Row>
+			<Row id="DusceniaRow">
+				<Button id="DusceniaSelection" onClick="PlayerChosen">
+					<Image id="DusceniaSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="DusceniaSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}Duscenia{it}Duscenia{ru}Дусцения{zh-tw}達塞尼亞{zh-cn}达塞尼亚{ko}Duscenia{es}Duscenia{fr}Duscenia{pt-br}Duscenia{de}Duscenia</Text>
+				</Button>
+			</Row>
+			<Row id="MalekRow">
+				<Button id="MalekSelection" onClick="PlayerChosen">
+					<Image id="MalekSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="MalekSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}Malek{it}Malek{ru}Малек{zh-tw}馬萊克{zh-cn}马莱克{ko}Malek{es}Malek{fr}Malek{pt-br}Malek{de}Malek</Text>
+				</Button>
+			</Row>
+			<Row id="ZirtaeRow">
+				<Button id="ZirtaeSelection" onClick="PlayerChosen">
+					<Image id="ZirtaeSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="ZirtaeSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}Zirtae{it}Zirtae{ru}Зиртэй{zh-tw}齊爾泰{zh-cn}齐尔泰{ko}지르테이{es}Zirtae{fr}Zirtae{pt-br}Zirtae{de}Zirtae</Text>
+				</Button>
+			</Row>
+			<Row id="DaringRow">
+				<Button id="DaringSelection" onClick="VolkareLevelSelection">
+					<Image id="DaringSelectionImage" image="Sliced Button/Button New Active" type="Sliced"/>
+					<Text id="DaringSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Daring{it}Audace{ru}Смельчак{zh-tw}勇者{zh-cn}勇者{ko}웅장한{es}Atrevido{fr}Audacieux{pt-br}Ousado{de}Gewagt</Text>
+				</Button>
+			</Row>
+			<Row id="HeroicRow">
+				<Button id="HeroicSelection" onClick="VolkareLevelSelection">
+					<Image id="HeroicSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="HeroicSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Heroic{it}Eroico{ru}Герой{zh-tw}英雄{zh-cn}英雄{ko}영웅적{es}Heroico{fr}Héroïque{pt-br}Heróico{de}Heroisch</Text>
+				</Button>
+			</Row>
+			<Row id="LegendaryRow">
+				<Button id="LegendarySelection" onClick="VolkareLevelSelection">
+					<Image id="LegendarySelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="LegendarySelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Legendary{it}Leggendario{ru}Легенда{zh-tw}傳奇{zh-cn}传奇{ko}전설적{es}Legendario{fr}Légendaire{pt-br}Lendário{de}Legendär</Text>
+				</Button>
+			</Row>
+			<Row id="FairRow">
+				<Button id="FairSelection" onClick="VolkareRaceSelection">
+					<Image id="FairSelectionImage" image="Sliced Button/Button New Active" type="Sliced"/>
+					<Text id="FairSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Fair{it}Equilibrato{ru}Шаг{zh-tw}正常{zh-cn}正常{ko}평범한{es}Justo{fr}Équitable{pt-br}Justo{de}Messe</Text>
+				</Button>
+			</Row>
+			<Row id="TightRow">
+				<Button id="TightSelection" onClick="VolkareRaceSelection">
+					<Image id="TightSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="TightSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Tight{it}Serrato{ru}Рысь{zh-tw}緊急{zh-cn}紧急{ko}빠듯한{es}Apretado{fr}Serré{pt-br}Acirrado{de}Dichtes</Text>
+				</Button>
+			</Row>
+			<Row id="ThrillingRow">
+				<Button id="ThrillingSelection" onClick="VolkareRaceSelection">
+					<Image id="ThrillingSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="ThrillingSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Thrilling{it}Emozionante{ru}Галоп{zh-tw}狂飆{zh-cn}狂飙{ko}스릴있는{es}Emocionante{fr}Palpitant{pt-br}Emocionante{de}Spannend</Text>
+				</Button>
+			</Row>
+			<Row id="FirstReconnaissanceRow">
+				<Button id="FirstReconnaissanceSelection" onClick="scenarioSelection">
+					<Image id="FirstReconnaissanceSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="FirstReconnaissanceSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}First Reconnaissance{it}Prima Ricognizione{ru}Первая Вылазка{zh-tw}首次勘察{zh-cn}首次勘察{ko}첫 번째 정찰{es}Primer reconocimiento{fr}Première Reconnaissance{pt-br}Primeiro Reconhecimento{de}Blitz-Eroberung</Text>
+				</Button>
+			</Row>
+			<Row id="ConquestRow">
+				<Button id="ConquestSelection" onClick="scenarioSelection">
+					<Image id="ConquestSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="ConquestSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Conquest{it}Conquista{ru}Завоевание{zh-tw}征服{zh-cn}征服{ko}정식 정복{es}Conquista{fr}Conquête{pt-br}Conquista{de}Eroberung</Text>
+				</Button>
+			</Row>
+			<Row id="MinesLiberationRow">
+				<Button id="MinesLiberationSelection" onClick="scenarioSelection">
+					<Image id="MinesLiberationSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="MinesLiberationSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Mines Liberation{it}Liberazione delle Miniere{ru}Освобождение Шахт{zh-tw}解放礦山{zh-cn}解放矿山{ko}광산 해방{es}Liberación de Minas{fr}Libération des Mines{pt-br}Liberação das MInas{de}Befreiung der Minen</Text>
+				</Button>
+			</Row>
+			<Row id="DruidNightsRow">
+				<Button id="DruidNightsSelection" onClick="scenarioSelection">
+					<Image id="DruidNightsSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="DruidNightsSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Druid Nights{it}Notti Druidiche{ru}Ночи Друидов{zh-tw}德魯伊之夜{zh-cn}德鲁伊之夜{ko}드루이드의 밤{es}Noches de Druidas{fr}Nuits de Druide{pt-br}Noites Druídicas{de}Druiden Nächte</Text>
+				</Button>
+			</Row>
+			<Row id="DungeonLordsRow">
+				<Button id="DungeonLordsSelection" onClick="scenarioSelection">
+					<Image id="DungeonLordsSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="DungeonLordsSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Dungeon Lords{it}Signori dei Sotterranei{ru}Владыки Подземелий{zh-tw}地下城領主{zh-cn}地下城领主{ko}던전 로드{es}Señores de las Mazmorras{fr}Seigneurs des Donjons{pt-br}Senhores das Marmorras{de}Kerkerfürsten</Text>
+				</Button>
+			</Row>
+			<Row id="ConquerAndHoldRow">
+				<Button id="ConquerAndHoldSelection" onClick="scenarioSelection">
+					<Image id="ConquerAndHoldSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="ConquerAndHoldSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Conquer and Hold{it}Conquista e Mantieni{ru}Захват и Удержание{zh-tw}征服與掌控{zh-cn}征服与掌控{ko}정복과 유지{es}Conquistar y Mantener{fr}Conquérir et Tenir{pt-br}Conquistar e Defender{de}Erobern und Halten</Text>
+				</Button>
+			</Row>
+			<Row id="OneToReturnRow">
+				<Button id="OneToReturnSelection" onClick="scenarioSelection">
+					<Image id="OneToReturnSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="OneToReturnSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}One to Return{it}Uno Solo Tornerà{ru}Вернется только Один{zh-tw}絕地求生{zh-cn}绝地求生{ko}돌아갈 수 있는 자{es}Uno Para Volver{fr}Un Seul Revenu{pt-br}Um Para Retornar{de}Einer zum Zurückkehren</Text>
+				</Button>
+			</Row>
+			<Row id="VolkaresReturnRow">
+				<Button id="VolkaresReturnSelection" onClick="scenarioSelection">
+					<Image id="VolkaresReturnSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="VolkaresReturnSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Volkare's Return{it}Il Ritorno di Volkare{ru}Возвращение Волкара{zh-tw}沃卡里的歸來{zh-cn}沃卡里的归来{ko}볼케어의 귀환{es}El Regreso de Volkare{fr}Le Retour de Volkare{pt-br}Retorno de Volkare{de}Volkare's Rückkehr</Text>
+				</Button>
+			</Row>
+			<Row id="VolkaresQuestRow">
+				<Button id="VolkaresQuestSelection" onClick="scenarioSelection">
+					<Image id="VolkaresQuestSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="VolkaresQuestSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Volkare's Quest{it}La Missione di Volkare{ru}Поход Волкара{zh-tw}沃卡里的使命{zh-cn}沃卡里的使命{ko}볼케어의 원정{es}La Búsqueda de Volkare{fr}La Quête de Volkare{pt-br}Missão de Volkare{de}Volkare's Suche</Text>
+				</Button>
+			</Row>
+			<Row id="LifeAndDeathRow">
+				<Button id="LifeAndDeathSelection" onClick="scenarioSelection">
+					<Image id="LifeAndDeathSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="LifeAndDeathSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Life and Death{it}Vita e Morte{ru}Жизнь и Смерть{zh-tw}生死之間{zh-cn}生死之间{ko}삶과 죽음{es}Vida y Muerte{fr}Vie et Mort{pt-br}Vida e Morte{de}Leben und Tod</Text>
+				</Button>
+			</Row>
+			<Row id="TheRealmOfTheDeadRow">
+				<Button id="TheRealmOfTheDeadSelection" onClick="scenarioSelection">
+					<Image id="TheRealmOfTheDeadSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="TheRealmOfTheDeadSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}The Realm of the Dead{it}Il Regno dei Morti{ru}Царство Мертвых{zh-tw}亡靈國度{zh-cn}亡灵国度{ko}죽은 자의 왕국{es}El Reino de los Muertos{fr}Le Royaume des Morts{pt-br}O Reino dos Mortos{de}Das Reich der Toten</Text>
+				</Button>
+			</Row>
+			<Row id="TheHiddenValleyRow">
+				<Button id="TheHiddenValleySelection" onClick="scenarioSelection">
+					<Image id="TheHiddenValleySelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="TheHiddenValleySelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}The Hidden Valley{it}La Valle Nascosta{ru}Скрытая Долина{zh-tw}神秘幽谷{zh-cn}神秘幽谷{ko}숨겨진 계곡{es}El Valle Escondido{fr}La Vallée Cachée{pt-br}O Vale Escondido{de}Das verborgene Tal</Text>
+				</Button>
+			</Row>
+			<Row id="TheLostRelicRow">
+				<Button id="TheLostRelicSelection" onClick="scenarioSelection">
+					<Image id="TheLostRelicSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="TheLostRelicSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}The Lost Relic{it}La Reliquia Perduta{ru}Потерянная Реликвия{zh-tw}失落聖器{zh-cn}失落圣器{ko}사라진 유물{es}La Reliquia Perdida{fr}La Relique Perdue{pt-br}A Relíquia Perdida{de}Die verlorene Reliquie</Text>
+				</Button>
+			</Row>
+			<Row id="ForTheCouncilRow">
+				<Button id="ForTheCouncilSelection" onClick="scenarioSelection">
+					<Image id="ForTheCouncilSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="ForTheCouncilSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}For the Council{it}Per il Consiglio{ru}За Совет{zh-tw}為了議會{zh-cn}为了议会{ko}평의회를 위하여{es}Por el Consejo{fr}Pour le Conseil{pt-br}Pelo Conselho{de}Für den Rat</Text>
+				</Button>
+			</Row>
+			<Row id="AgainsttheApocalypseRow">
+				<Button id="AgainsttheApocalypseSelection" onClick="scenarioSelection">
+					<Image id="AgainsttheApocalypseSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="AgainsttheApocalypseSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Against the Apocalypse{it}Contro l'Apocalisse{ru}Против Апокалипсиса{zh-tw}抵禦末日{zh-cn}抵禦末日{ko}아포칼립스에 맞서{es}Contra el Apocalipsis{fr}Contre l'Apocalypse{pt-br}Contra o Apocalipse{de}Gegen die Apokalypse</Text>
+				</Button>
+			</Row>
+			<Row id="AgainsttheHorsemenRow">
+				<Button id="AgainsttheHorsemenSelection" onClick="scenarioSelection">
+					<Image id="AgainsttheHorsemenSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="AgainsttheHorsemenSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Against the Horsemen{it}Contro i Cavalieri{ru}Против Всадников{zh-tw}對抗四騎士{zh-cn}对抗四骑士{ko}사기사들에 맞서{es}Contra los Caballeros{fr}Contre les Cavaliers{pt-br}Contra os Cavaleiros{de}Gegen die Reiter</Text>
+				</Button>
+			</Row>
+			<Row id="AgainsttheDragonRow">
+				<Button id="AgainsttheDragonSelection" onClick="scenarioSelection">
+					<Image id="AgainsttheDragonSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="AgainsttheDragonSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Against the Dragon{it}Contro il Drago{ru}Против Дракона{zh-tw}對抗巨龍{zh-cn}对抗巨龙{ko}드래곤에 맞서{es}Contra el Dragón{fr}Contre le Dragon{pt-br}Contra o Dragão{de}Gegen den Drachen</Text>
+				</Button>
+			</Row>
+			<Row id="ApocalypseIsHereRow">
+				<Button id="ApocalypseIsHereSelection" onClick="scenarioSelection">
+					<Image id="ApocalypseIsHereSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="ApocalypseIsHereSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Apocalypse is Here{it}L'Apocalisse è Qui{ru}Апокалипсис наступил{zh-tw}末日降臨{zh-cn}末日降临{ko}아포칼립스가 왔다{es}El Apocalipsis Está Aquí{fr}L'Apocalypse est Là{pt-br}O Apocalipse Chegou{de}Die Apokalypse ist da</Text>
+				</Button>
+			</Row>
+			<Row id="TheCouncilVersusTheApocalypseRow">
+				<Button id="TheCouncilVersusTheApocalypseSelection" onClick="scenarioSelection">
+					<Image id="TheCouncilVersusTheApocalypseSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="TheCouncilVersusTheApocalypseSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}The Council Vs the Apocalypse{it}Il Consiglio contro l'Apocalisse{ru}Совет против Апокалипсиса{zh-tw}議會對抗末日{zh-cn}议会对抗末日{ko}평의회 대 아포칼립스{es}El Consejo contra el Apocalipsis{fr}Le Conseil contre l'Apocalypse{pt-br}O Conselho contra o Apocalipse{de}Der Rat gegen die Apokalypse</Text>
+				</Button>
+			</Row>
+			<Row id="FuryOfTheApocalypseDragonRow">
+				<Button id="FuryOfTheApocalypseDragonSelection" onClick="scenarioSelection">
+					<Image id="FuryOfTheApocalypseDragonSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="FuryOfTheApocalypseDragonSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Fury of the Apocalypse Dragon{it}Furia del Drago dell'Apocalisse{ru}Ярость Дракона Апокалипсиса{zh-tw}末日巨龍之怒{zh-cn}末日巨龙之怒{ko}아포칼립스 드래곤의 분노{es}La Furia del Dragón del Apocalipsis{fr}La Fureur du Dragon de l'Apocalypse{pt-br}A Fúria do Dragão do Apocalipse{de}Der Zorn des Apokalypse-Drachen</Text>
+				</Button>
+			</Row>
+			<Row id="TheFracturedLandsRow">
+				<Button id="TheFracturedLandsSelection" onClick="scenarioSelection">
+					<Image id="TheFracturedLandsSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="TheFracturedLandsSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}The Fractured Lands{it}Le Terre Frantumate{ru}Расколотые Земли{zh-tw}破碎之地{zh-cn}破碎之地{ko}분열된 대지{es}Las Tierras Fracturadas{fr}Les Terres Fracturées{pt-br}As Terras Fraturadas{de}Die Zersplitterten Lande</Text>
+				</Button>
+			</Row>
+			<Row id="FirstConquestRow">
+				<Button id="FirstConquestSelection" onClick="scenarioSelection">
+					<Image id="FirstConquestSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="FirstConquestSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}First Conquest{it}Prima Conquista{ru}Первое Завоевание{zh-tw}首次征服{zh-cn}首次征服{ko}첫 번째 정복{es}Primera Conquista{fr}Première Conquête{pt-br}Conquista Final{de}Solo-Eroberung</Text>
+				</Button>
+			</Row>
+			<Row id="FastForwardedConquestRow">
+				<Button id="FastForwardedConquestSelection" onClick="scenarioSelection">
+					<Image id="FastForwardedConquestSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="FastForwardedConquestSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}Fast Forwarded Conquest{it}Conquista Accelerata{ru}Ускоренное Завоевание{zh-tw}快速征服{zh-cn}快速征服{ko}앞서간 정복{es}Conquista Acelerada{fr}Conquête Rapide{pt-br}Conquista Acelerada{de}Blitz-Eroberung</Text>
+				</Button>
+			</Row><Row id="UltimateConquestRow">
+				<Button id="UltimateConquestSelection" onClick="scenarioSelection">
+					<Image id="UltimateConquestSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="UltimateConquestSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}Ultimate Conquest{it}Conquista Suprema{ru}Абсолютное Завоевание{zh-tw}終極征服{zh-cn}终极征服{ko}궁극의 정복{es}Conquista Definitiva{fr}Conquête Ultime{pt-br}Conquista Derradeira{de}Ultimative Eroberung</Text>
+				</Button>
+			</Row>
+			<Row id="TheGauntletRow">
+				<Button id="TheGauntletSelection" onClick="scenarioSelection">
+					<Image id="TheGauntletSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="TheGauntletSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}The Gauntlet{it}La Sfida{ru}Вызов{zh-tw}大漠尋寶{zh-cn}大漠寻宝{ko}건틀릿{es}El Guantelete{fr}Le Gantelet{pt-br}A Manopla{de}Der Fehdehandschuh</Text>
+				</Button>
+			</Row>
+			<Row id="QuestForTheGoldenGrailRow">
+				<Button id="QuestForTheGoldenGrailSelection" onClick="scenarioSelection">
+					<Image id="QuestForTheGoldenGrailSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="QuestForTheGoldenGrailSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}Quest for the Golden Grail{it}Alla Ricerca del Graal d'Oro{ru}В поисках Золотого Грааля{zh-tw}搜尋金色聖杯{zh-cn}搜寻金色圣杯{ko}황금 성배 원정{es}Búsqueda del Grial Dorado{fr}Quête du Graal d'or{pt-br}Busca pelo Graal Dourado{de}Die Suche nach dem Goldenen Gral</Text>
+				</Button>
+			</Row>
+			<Row id="TheChaosRiftRow">
+				<Button id="TheChaosRiftSelection" onClick="scenarioSelection">
+					<Image id="TheChaosRiftSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="TheChaosRiftSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}The Chaos Rift{it}La Fenditura del Caos{ru}Разлом Хаоса{zh-tw}混沌裂縫{zh-cn}混沌裂缝{ko}혼돈의 균열{es}La Grieta del Caos{fr}La Faille du Chaos{pt-br}A Fenda Caótica{de}Der Chaos-Spalt</Text>
+				</Button>
+			</Row>
+			<Row id="TheWarOfFourRow">
+				<Button id="TheWarOfFourSelection" onClick="scenarioSelection">
+					<Image id="TheWarOfFourSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="TheWarOfFourSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}The War of Four{it}La Guerra dei Quattro{ru}Война Четырех{zh-tw}四國爭霸{zh-cn}四国争霸{ko}워 오브 포{es}A Guerra dos Quatro{fr}La Gerre des Quatres{pt-br}A Guerra dos Quatro{de}Der Krieg der Vier</Text>
+				</Button>
+			</Row>
+			<Row id="RaidersOfTheCrusaderTempleRow">
+				<Button id="RaidersOfTheCrusaderTempleSelection" onClick="scenarioSelection">
+					<Image id="RaidersOfTheCrusaderTempleSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="RaidersOfTheCrusaderTempleSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}Raiders of the Crusader Temple{it}Predoni del Tempio dei Crociati{ru}Рейдеры храма крестоносцев{zh-tw}聖教軍奇兵{zh-cn}圣教军奇兵{ko}십자군 성전의 침입자{es}Asaltantes del Templo de los Cruzados{fr}Les aventuriers du temple des croisés{pt-br}Salteadores do Templo dos Cruzados{de}Räuber des Kreuzrittertempels</Text>
+				</Button>
+			</Row>
+			<Row id="CustomRow">
+				<Button id="CustomSelection" onClick="scenarioSelection">
+					<Image id="CustomSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="CustomSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}Custom{it}Personalizzato{ru}Пользовательский{zh-tw}自訂{zh-cn}自定义{ko}커스텀{es}Personalizado{fr}Personnalisé{pt-br}Customizado{de}Benutzerdefiniert</Text>
+				</Button>
+			</Row>
+			<Row id="ROTF0Row">
+				<Button id="ROTF0Selection" onClick="riseOfTheForgemasterOption">
+					<Image id="ROTF0SelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="ROTF0SelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}Not Used{it}Non Usato{ru}Не используется{zh-tw}未使用{zh-cn}未使用{ko}사용 안 함{es}No se Utiliza{fr}Non Utilisé{pt-br}Não Utilizado{de}Nicht Verwendet</Text>
+				</Button>
+			</Row>
+			<Row id="ROTF1Row">
+				<Button id="ROTF1Selection" onClick="riseOfTheForgemasterOption">
+					<Image id="ROTF1SelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="ROTF1SelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}1. New Beginning{it}1. Nuovo Inizio{ru}1. Новое начало{zh-tw}新的開始{zh-cn}新的开始{ko}1.새로운 시작{es}1. Un nuevo comienzo{fr}1. Nouveau départ{pt-br}1. Novo Começo{de}1. Neubeginn</Text>
+				</Button>
+			</Row>
+			<Row id="ROTF2Row">
+				<Button id="ROTF2Selection" onClick="riseOfTheForgemasterOption">
+					<Image id="ROTF2SelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="ROTF2SelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}2. Spoils of War{it}2. Bottino di Guerra{ru}2. Военные трофеи{zh-tw}戰爭犒賞{zh-cn}战争犒赏{ko}2.전쟁의 전리품{es}2. Botín de Guerra{fr}2. Butin de Guerre{pt-br}2. Despojos de Guerra{de}2. Kriegsbeute</Text>
+				</Button>
+			</Row>
+			<Row id="ROTF3Row">
+				<Button id="ROTF3Selection" onClick="riseOfTheForgemasterOption">
+					<Image id="ROTF3SelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="ROTF3SelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}3. Elixir of Life{it}3. Elisir di Vita{ru}3. Эликсир Жизни{zh-tw}⽣命靈藥{zh-cn}⽣命灵药{ko}3.생명의 엘릭서{es}3. El Elixir de la Vida{fr}3. Élixir de vie{pt-br}3. Elixir da Vida{de}3. Lebenselixier</Text>
+				</Button>
+			</Row>
+
+		</TableLayout>
+	</Panel>
+</Panel>

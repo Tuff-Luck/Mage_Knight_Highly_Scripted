@@ -1,0 +1,16 @@
+<Panel id="MineClaimChoice" active="false" class="Floating" rectAlignment="LowerRight" offsetXY="-320 100" width="150" height="50" outlineSize="0 0">
+	<Image image="Sliced Button/Button New Active" type="Sliced"/>
+	<Panel rectAlignment="UpperCenter" offsetXY="0 32" width="150" height="34" outlineSize="0 0">
+		<Image image="Sliced Button/Title Border Tan" type="Sliced"/>
+		<VerticalLayout padding="5 5 5 5"><Text id="MineClaimChoiceTitle" class="Title20" alignment="MiddleCenter">{en}Mined Crystal{it}Cristallo Estratto{ru}Добытый кристалл{zh-tw}開採水晶{zh-cn}开采水晶{ko}채굴한 크리스털{es}Cristal Extraído{fr}Cristal Extrait{pt-br}Cristal Minerado{de}Abgebauter Kristall</Text></VerticalLayout>
+	</Panel>
+	<VerticalLayout padding="5 5 5 5"><Text id="MineClaimInstructionText" class="Text16" alignment="UpperCenter">{en}Claim a Crystal from the Mine{it}Prendi un Cristallo dalla Miniera{ru}Получите кристалл из шахты{zh-tw}從礦山取得一顆水晶{zh-cn}从矿山取得一颗水晶{ko}광산에서 크리스털 획득{es}Obtén un Cristal de la Mina{fr}Récupérez un Cristal de la Mine{pt-br}Colete um Cristal da Mina{de}Nimm einen Kristall aus der Mine</Text></VerticalLayout>
+	<HorizontalLayout id="MineClaimRow1" rectAlignment="LowerCenter" offsetXY="0 -28" width="150" height="30" spacing="0" childForceExpandWidth="true">
+		<Button id="MineClaimButton1" shadowDistance="0 0" onClick="mineClaimChoice" onMouseDown="" onMouseUp=""><Image image="Sliced Button/Button New Active" type="Sliced"/><Text id="MineClaimButtonText1" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Red{it}Rosso{ru}Красный{zh-tw}紅色{zh-cn}红色{ko}빨강{es}Rojo{fr}Rouge{pt-br}Vermelho{de}Rot</Text></Button>
+		<Button id="MineClaimButton2" shadowDistance="0 0" onClick="mineClaimChoice" onMouseDown="" onMouseUp=""><Image image="Sliced Button/Button New Active" type="Sliced"/><Text id="MineClaimButtonText2" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Blue{it}Blu{ru}Синий{zh-tw}藍色{zh-cn}蓝色{ko}파랑{es}Azul{fr}Bleu{pt-br}Azul{de}Blau</Text></Button>
+	</HorizontalLayout>
+	<HorizontalLayout id="MineClaimRow2" active="false" rectAlignment="LowerCenter" offsetXY="0 -58" width="150" height="30" spacing="0" childForceExpandWidth="true">
+		<Button id="MineClaimButton3" shadowDistance="0 0" onClick="mineClaimChoice" onMouseDown="" onMouseUp=""><Image image="Sliced Button/Button New Active" type="Sliced"/><Text id="MineClaimButtonText3" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Green{it}Verde{ru}Зелёный{zh-tw}綠色{zh-cn}绿色{ko}초록{es}Verde{fr}Vert{pt-br}Verde{de}Grün</Text></Button>
+		<Button id="MineClaimButton4" shadowDistance="0 0" onClick="mineClaimChoice" onMouseDown="" onMouseUp=""><Image image="Sliced Button/Button New Active" type="Sliced"/><Text id="MineClaimButtonText4" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}White{it}Bianco{ru}Белый{zh-tw}白色{zh-cn}白色{ko}흰색{es}Blanco{fr}Blanc{pt-br}Branco{de}Weiß</Text></Button>
+	</HorizontalLayout>
+</Panel>

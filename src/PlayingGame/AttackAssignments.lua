@@ -261,8 +261,19 @@ end
 function attackAssignmentTargetClicked(target,playerColor)
 	return safeCallback("attackAssignmentTargetClicked",function()
 		local pending=type(playerColor)=="string" and targetingByPlayer[playerColor] or nil
+		-- A summoned token stands in for the enemy that summoned it.
+		local summoned=target~=nil and target.guid~=nil and gStates.attackedMonsters~=nil
+			and gStates.attackedMonsters[target.guid] or nil
+		if summoned~=nil and summoned[3]=="summoned" and summoned[4]~=nil then
+			target=getObjectFromGUID(summoned[4]) or target
+		end
 		if pending==nil or target==nil or target.guid==nil or monsterPugs[target.guid]==nil
 			or target.isDestroyed() or pending.source==nil or pending.source.isDestroyed() 			then return end
+		if tostring(pending.resource):find("move$")~=nil and resourceCardsCombatTargetAcceptsMove~=nil
+			and not resourceCardsCombatTargetAcceptsMove(target.guid) then
+			broadcastToColor("Move can only be assigned to a Cumbersome enemy.",playerColor,{1,0.6,0.2})
+			return
+		end
 		local duplicate=false
 		if not pending.additional then
 			for entryId,entry in pairs(assignmentRegistry) do
@@ -314,6 +325,17 @@ function attackAssignmentsEnsureTarget(sourceGUID,targetGUID)
 		if entry.sourceGUID==sourceGUID and entry.targetGUID==targetGUID then return end
 	end
 	attackAssignmentsSetSourceTarget(sourceGUID,targetGUID)
+end
+
+function attackAssignmentsIsTargeting(sourceGUID)
+	for _,pending in pairs(targetingByPlayer) do
+		if pending.sourceGUID==sourceGUID then return true end
+	end
+	return false
+end
+
+function attackAssignmentsHasAny()
+	return next(assignmentRegistry)~=nil or next(targetingByPlayer)~=nil
 end
 
 function attackAssignmentsTargetGUIDs(sourceGUID)

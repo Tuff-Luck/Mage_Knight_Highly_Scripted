@@ -1,0 +1,6 @@
+<Panel id="NoticeBoard" active="false" hideAnimation="Shrink" showAnimation="Grow" rectAlignment="UpperCenter" offsetXY="0 -200" width="500" height="50">
+	<Image image="Sliced Button/Button New Active" type="Sliced"/>
+	<VerticalLayout>
+		<HorizontalLayout padding="6 6 6 6"><Text id="NoticeText" class="Text20"></Text></HorizontalLayout>
+	</VerticalLayout>
+</Panel>

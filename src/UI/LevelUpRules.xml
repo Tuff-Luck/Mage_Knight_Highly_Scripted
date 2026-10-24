@@ -1,0 +1,150 @@
+<Panel id="LevelUpRules" active="false" offsetXY="0 320" width="480" height="260" hideAnimation="Shrink" showAnimation="Grow" class="Floating">
+	<Image image="Sliced Button/Button New Active" type="Sliced"/>
+	<VerticalLayout padding="10 10 0 8">
+		<TableLayout cellPadding="2 2 1 1" cellBackgroundColor="Clear" columnWidths="125 0" automaticallyRemoveEmptyColumns="true">
+			<Row preferredHeight="30" dontUseTableRowBackground="true">
+				<Image image="Sliced Button/Title Border Tan" type="Sliced" width="480" height="30" rectAlignment="MiddleCenter"/>
+				<Text id="StartingAtAHigherLevelTitle" alignment="MiddleCenter" offsetXY="0 -1" class="Title18">{en}Starting at a Higher Level{it}Iniziare a un Livello Superiore{ru}Старт с высоким уровнем{zh-tw}從較高等級開始遊戲{zh-cn}从较高等级开始游戏{ko}높은 레벨로 시작{es}Empezar en Nivel Más Alto{fr}Commencer à un Niveau Supérieur{pt-br}Iniciar em um Nível mais Alto{de}Start auf höherem Level</Text>
+			</Row>
+			<!-- <Row preferredHeight="25"><Text id="StartingAtAHigherLevelTitle" alignment="UpperCenter" class="Title22">{en}Starting at a Higher Level{it}Iniziare a un Livello Superiore{ru}Старт с высоким уровнем{zh-cn}从更高的等级开始{ko}높은 레벨로 시작{es}Empezar en Nivel Más Alto{fr}Commencer à un Niveau Supérieur{pt-br}Iniciar em um Nível mais Alto{de}Start auf höherem Niveau</Text></Row> -->
+			<Row><Text id="StartingAtAHigherLevelRules1" class="Text14" alignment="MiddleLeft">{en}1) Select the desired Starting level in your Mage Knight's panel.
+2) Optionaly, adjust the Influence per Level value. Increasing makes things easier.
+3) Click the 'Create Card Pool' button to fill your hand with Cards you can choose from.
+4) Place cards and Crystals in your play area to update the amount you have spent.
+5) Clicking 'Complete' lets everyone else know you’re ready.**{it}1) Scegli il livello iniziale nel pannello del tuo Mage Knight.
+2) Se vuoi, regola l'Influenza per Livello. Aumentarla rende il gioco più facile.
+3) Premi Crea Riserva Carte per ricevere in mano le carte tra cui scegliere.
+4) Metti carte e Cristalli nella tua area di gioco per aggiornare la spesa.
+5) Premi Completa per indicare agli altri che sei pronto.**{ru}1) Выберите желаемый начальный уровень на панели вашего героя.
+2) При желании, отрегулируйте значение Влияния за уровень. Чем больше значение, тем легче.
+3) Нажмите кнопку «Создать пул карт», чтобы заполнить руку картами, которые можно выбрать.
+4) Разместите карты и кристаллы в своей игровой зоне. Скрипт обновится и отразит остаток.
+5) Кнопка «Завершить» даст всем остальным знать, что вы готовы**.
+
+Стоимость:{zh-tw}1) 在魔法骑士面板中调整起始等级。
+2) 点击“创建卡池”按钮，卡牌会抽到手牌区来供你选择。
+3) 非强制：调整每个等级所获得的影响力。增加会使游戏较为容易。
+4) 将想要的卡牌和魔晶放在你的玩家面板上，选单会更新你的花费。
+5) 点击“完成”让其他人知道你准备好了。**{zh-cn}1) 在魔法骑士面板中调整起始等级。
+2) 点击“创建卡池”按钮，卡牌会抽到手牌区来供你选择。
+3) 非强制：调整每个等级所获得的影响力。增加会使游戏较为容易。
+4) 将想要的卡牌和魔晶放在你的玩家面板上，选单会更新你的花费。
+5) 点击“完成”让其他人知道你准备好了。**{ko}1) 메이지 나이트 패널에서 원하는 시작 레벨을 선택하세요.
+2) 원한다면 레벨당 영향력 값을 조정하세요. 값을 높이면 진행이 더 수월해집니다.
+3) ‘카드 풀 생성’ 버튼을 클릭하여 선택할 수 있는 카드로 패를 채우세요.
+4) 플레이 영역에 카드와 크리스탈을 배치하여 사용한 양을 업데이트하세요.
+5) '완료'를 클릭하면 다른 플레이어들에게 준비가 끝났음을 알릴 수 있습니다.**{es}1) Selecciona el nivel inicial que desees en el panel de tu Mage Knight.
+2) Si lo deseas, ajusta el valor de 'Influencia por nivel'. Si lo aumentas, te resultará más fácil.
+3) Haz clic en el botón 'Crear mazo' para llenar tu mano con cartas entre las que podrás elegir.
+4) Coloca cartas y cristales en tu zona de juego para actualizar la cantidad que has gastado.
+5) Al hacer clic en 'Completar', les indicas a los demás que estás listo.**{fr}1) Sélectionnez le niveau de départ souhaité dans le panneau de votre Mage Knight.
+2) Si vous le souhaitez, ajustez la valeur 'Influence par niveau'. L'augmenter facilite les choses.
+3) Cliquez sur le bouton 'Créer un paquet de cartes' pour remplir votre main de cartes parmi lesquelles vous pourrez choisir.
+4) Placez les cartes et les cristaux dans votre zone de jeu pour mettre à jour le montant que vous avez dépensé.
+5) En cliquant sur 'Terminer', vous indiquez à tous les autres joueurs que vous êtes prêt.**{pt-br}1) Selecione o nível inicial desejado no painel do seu Mage Knight.
+2) Se desejar, ajuste o valor de Influência por Nível. Aumentar esse valor facilita as coisas.
+3) Clique no botão 'Criar Baralho de Cartas' para preencher sua mão com cartas que você pode escolher.
+4) Coloque cartas e cristais na sua área de jogo para atualizar a quantidade que você gastou.
+5) Clicar em “Concluir' avisa a todos que você está pronto.**{de}1) Wähle das gewünschte Startlevel im Panel deines Mage Knights.
+2) Optional: Passe den Wert für Einfluss pro Level an. Ein höherer Wert macht den Start einfacher.
+3) Klicke auf „Kartenauswahl erzeugen“, um deine Hand mit Karten zu füllen, aus denen du wählen kannst.
+4) Lege Karten und Kristalle in deinen Spielbereich, um den bereits ausgegebenen Einfluss zu aktualisieren.
+5) Mit einem Klick auf „Fertig“ zeigst du an, dass du bereit bist. Sobald alle „Fertig“ klicken, wird das Spiel vollständig vorbereitet.**</Text></Row>
+			<Row preferredHeight="95">
+				<Cell><Text id="StartingAtAHigherLevelRules2" class="Text14" alignment="MiddleRight">{en}Crystals
+Advanced Actions
+Spells
+Artifacts
+Units{it}Cristalli
+Azioni Avanzate
+Incantesimi
+Artefatti
+Unità{ru}Кристаллы
+Особые действия
+Заклинания
+Артефакты
+Отряды{zh-tw}魔晶
+高级行动卡
+法术卡
+神器
+部队{zh-cn}魔晶
+高级行动卡
+法术卡
+神器
+部队{ko}수정
+상급 액션
+마법
+유물
+유닛{es}Cristales
+Acciones Avanzadas
+Hechizos
+Artefactos
+Unidades{fr}Cristaux
+Actions Avancées
+Sorts
+Artefacts
+Unités{pt-br}Cristais
+Ações Avançadas
+Feitiços
+Artefatos
+Unidades{de}Kristalle
+Fortgeschrittene Aktionen
+Zauber
+Artefakte
+Einheiten</Text></Cell>
+				<Cell><Text id="StartingAtAHigherLevelRules3" class="Text14" alignment="MiddleLeft">{en}- 3 Influence each (put in your inventory)
+- 6 Influence each
+- 9 Influence each (7 Influence with a crystal of the same color)*
+- 12 Influence each
+- Their normal Influence cost each{it}- 3 Influenza ciascuno (mettili nell'inventario)
+- 6 Influenza ciascuna
+- 9 Influenza ciascuno (7 con un cristallo dello stesso colore)*
+- 12 Influenza ciascuno
+- Il normale costo in Influenza{ru}- 3 Влияния каждый (положите в свой инвентарь)
+- 6 Влияний каждая
+- 9 Влияний или 7 Влияний плюс кристалл того же цвета*
+- 12 Влияний каждый
+- их обычная стоимость Влияния{zh-tw}- 每颗花费 3 点影响力（放入你的物品栏）。
+- 每张花费 6 点影响力。
+- 每张花费 9 点影响力（或 7 点 + 1 颗同色魔晶。）*
+- 每张花费 12 点影响力。
+- 本身的部队费用。{zh-cn}- 每颗花费 3 点影响力（放入你的物品栏）。
+- 每张花费 6 点影响力。
+- 每张花费 9 点影响力（或 7 点 + 1 颗同色魔晶。）*
+- 每张花费 12 点影响力。
+- 本身的部队费用。{ko}- 각각 3 영향력 (인벤토리에 넣기)
+- 각각 6 영향력
+- 각각 9 영향력 (같은 색상의 크리스탈을 사용하면 7 영향력)*
+- 각각 12 영향력
+- 각각 일반 영향력 소모량{es}- 3 de influencia cada uno (añádelos a tu inventario)
+- 6 de influencia cada uno
+- 9 de influencia cada uno (7 de influencia con un cristal del mismo color)*
+- 12 de influencia cada uno
+- Su coste normal de influencia cada uno{fr}- 3 points d'influence chacun (à ajouter à votre inventaire)
+- 6 points d'influence chacun
+- 9 points d'influence chacun (7 points d'influence avec un cristal de la même couleur)*
+- 12 points d'influence chacun
+- Leur coût normal en points d'influence chacun{pt-br}- 3 de Influência cada (colocar no seu inventário)
+- 6 de Influência cada
+- 9 de Influência cada (7 de Influência com um cristal da mesma cor)*
+- 12 de Influência cada
+- Seu custo normal de Influência cada{de}- je 3 Einfluss (legt in dein Inventar)
+- 6 Einfluss jeweils
+- 9 Einfluss oder 7, wenn ein Kristall derselben Farbe gelegt wird*
+- 12 Einfluss jeweils
+- jeweils die normalen Einflusskosten</Text></Cell>
+			</Row>
+			<Row preferredHeight="29"><Text id="StartingAtAHigherLevelRules4" fontSize="12" alignment="MiddleLeft" resizeTextForBestFit="true" resizeTextMaxSize="12">{en}*Put starting crystal from your inventory on the spell
+**When everyone clicks 'Complete', the game will finish setting up.{it}*Metti il cristallo iniziale dell'inventario sull'incantesimo
+**Quando tutti premono Completa, la preparazione termina.{ru}*Положите начальный кристалл из своего инвентаря на Заклинание.
+**Когда все нажмут «Завершить», игра завершит настройку.{zh-tw}*获得你英雄卡牌底部上显示的两个不同颜色魔晶
+**当所有人点击“完成”时， 游戏将完成设置。{zh-cn}*获得你英雄卡牌底部上显示的两个不同颜色魔晶
+**当所有人点击“完成”时， 游戏将完成设置。{ko}*마법을 구매할때 수정을 사용하려면, 주어진 저장 칸의 수정을 마법 위에 올려두면 됩니다.
+**모든 플레이어가 '완료' 버튼을 누르고 난 뒤 게임이 시작됩니다. {es}*Coloca un cristal inicial de tu inventario en el hechizo.
+**Cuando todos los jugadores pulsen 'Completo', el mod finalizará la preparación.{fr}*Mettez le cristal de départ de votre inventaire sur le sort.
+**Lorsque tout le monde clique sur 'Terminer', la configuration du jeu est terminée.{pt-br}*Coloque cristais iniciais do seu inventário no feitiço.
+**Quando todos clicam em 'Completo', o jogo irá terminar a preparação.{de}*Legt den Startkristall aus eurem Inventar auf den Zauber.
+**Wenn alle auf „Fertig stellen“ klicken, wird der Spielaufbau abgeschlossen.</Text></Row>
+		</TableLayout>
+	</VerticalLayout>
+</Panel>

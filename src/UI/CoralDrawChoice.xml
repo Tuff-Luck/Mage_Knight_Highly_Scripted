@@ -1,0 +1,31 @@
+<Panel id="CoralDrawChoice" active="false" class="Floating" rectAlignment="LowerLeft" offsetXY="900 150" width="150" height="85">
+	<Image image="Sliced Button/Button New Active" type="Sliced"/>
+	<Panel rectAlignment="MiddleLeft" offsetXY="-145 -26" width="140" height="200" outlineSize="1 1">
+		<Image image="Quick Witted"/>
+	</Panel>
+	<Panel rectAlignment="UpperCenter" offsetXY="0 32" width="150" height="34" outlineSize="0 0">
+		<Image image="Sliced Button/Title Border Tan" type="Sliced"/>
+		<VerticalLayout padding="5 5 5 5"><Text id="CoralDrawChoiceTitle" class="Title20" alignment="MiddleCenter">{en}Quick Witted{it}Prontezza di Spirito{ru}Сообразительность{zh-tw}機智過人{zh-cn}机智过人{ko}재치{es}Ingenio Rápido{fr}Vif d’Esprit{pt-br}Raciocínio Rápido{de}Schnelle Auffassung</Text></VerticalLayout>
+	</Panel>
+	<VerticalLayout padding="5 5 5 5">
+		<Text id="CoralDrawChoiceQuestion" class="Text16" alignment="MiddleCenter">Script Updated</Text>
+	</VerticalLayout>
+	<Panel rectAlignment="LowerCenter" offsetXY="0 -28" width="150" height="30" outlineSize="0 0">
+		<Button id="CoralDrawQuickWitted" shadowDistance="0 0" onClick="coralDrawChoice" onMouseDown="" onMouseUp="">
+			<Image image="Sliced Button/Button New Active" type="Sliced"/>
+			<VerticalLayout padding="5 5 5 5"><Text id="CoralDrawQuickWittedText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Draw Quick Witted{it}Pesca Prontezza di Spirito{ru}Добрать до «Сообразительности»{zh-tw}抽牌至「機智過人」{zh-cn}抽牌至“机智过人”{ko}'재치'만큼 뽑기{es}Robar hasta Ingenio Rápido{fr}Piocher jusqu’à Vif d’Esprit{pt-br}Comprar até Raciocínio Rápido{de}Bis Schnelle Auffassung ziehen</Text></VerticalLayout>
+		</Button>
+	</Panel>
+	<Panel rectAlignment="LowerCenter" offsetXY="0 -56" width="150" height="30" outlineSize="0 0">
+		<Button id="CoralDrawOne" shadowDistance="0 0" onClick="coralDrawChoice" onMouseDown="" onMouseUp="">
+			<Image image="Sliced Button/Button New Active" type="Sliced"/>
+			<VerticalLayout padding="5 5 5 5"><Text id="CoralDrawOneText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Draw One{it}Pesca Una{ru}Взять одну{zh-tw}抽一張{zh-cn}抽一张{ko}1장 뽑기{es}Robar una{fr}Piocher une{pt-br}Comprar uma{de}Eine ziehen</Text></VerticalLayout>
+		</Button>
+	</Panel>
+	<Panel id="CoralDrawFullPanel" active="false" rectAlignment="LowerCenter" offsetXY="0 -84" width="150" height="30" outlineSize="0 0">
+		<Button id="CoralDrawFull" shadowDistance="0 0" onClick="coralDrawChoice" onMouseDown="" onMouseUp="">
+			<Image image="Sliced Button/Button New Active" type="Sliced"/>
+			<VerticalLayout padding="5 5 5 5"><Text id="CoralDrawFullText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Draw Full{it}Pesca Tutte{ru}Добрать до полного{zh-tw}抽滿手牌{zh-cn}抽满手牌{ko}손패 한도까지 뽑기{es}Robar hasta el máximo{fr}Piocher jusqu’au maximum{pt-br}Comprar até o limite{de}Bis zum Maximum ziehen</Text></VerticalLayout>
+		</Button>
+	</Panel>
+</Panel>

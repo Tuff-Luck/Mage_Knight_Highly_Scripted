@@ -1,0 +1,38 @@
+<Panel id="topButtons" active="true" rectAlignment="UpperLeft" offsetXY="130 -5" width="330" height="60" outlineSize="0 0" class="Floating">
+	<Panel id="sendBugReportButton"	active="false" visibility="Admin" rectAlignment="UpperLeft" offsetXY="0 0" width="110" height="30" outlineSize="0 0">
+		<Button id="sendBugReportButtonReal" onClick="openBugReportPanel">
+			<Image id="sendBugReportButtonRealImage" image="Sliced Button/Button New Active" type="Sliced"/>
+			<VerticalLayout padding="6 6 6 6"><Text id="sendBugReportButtonRealText" class="Text18" offsetXY="0 1">{en}Feedback{it}Commenti{ru}Обратная связь{zh-tw}回饋意見{zh-cn}反馈{ko}피드백{es}Realimentación{fr}Retour{pt-br}Comentários{de}Feedback</Text></VerticalLayout>
+		</Button>
+	</Panel>
+	<Panel id="HelpButton" active="false" rectAlignment="UpperLeft" offsetXY="110 0" width="110" height="30" outlineSize="0 0">
+		<Button id="helpButtonReal" onClick="SetupMenu" interactable="false">
+			<Image id="helpButtonRealImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+			<VerticalLayout padding="6 6 6 6"><Text id="helpButtonRealText" class="Text18" offsetXY="0 1">{en}Setup{it}Preparazione{ru}Настройки{zh-tw}设  置{zh-cn}设  置{ko}설정{es}Preparación{fr}Préparation{pt-br}Preparação{de}Einrichtung</Text></VerticalLayout>
+		</Button>
+	</Panel>
+	<Panel id="TableButton" active="false" rectAlignment="UpperLeft" offsetXY="220 0" width="110" height="30" outlineSize="0 0">
+		<Button id="TableButtonReal" onClick="lowerTable">
+			<Image id="TableButtonRealImage" image="Sliced Button/Button New Active" type="Sliced"/>
+			<VerticalLayout padding="6 6 6 6"><Text id="TableButtonRealText" class="Text18" offsetXY="0 1">{en}Switch Table{it}Cambia Tavolo{ru}Дизайн стола{zh-tw}开关表{zh-cn}开关表{ko}테이블 전환{es}Cambiar Mesa{fr}Table de commutation{pt-br}Mudar de mesa{de}Tabelle wechseln</Text></VerticalLayout>
+		</Button>
+	</Panel>
+	<Panel id="AutoFlipButton" active="false" rectAlignment="UpperLeft" offsetXY="0 -30" width="110" height="30" outlineSize="0 0">
+		<Button id="AutoFlipButtonReal" onClick="autoflip" tooltipPosition="Below" tooltipOffset="5" tooltip="Dropping a Mage Knight next to a Fortified site will reveal the Garrisons for you.">
+			<Image id="AutoFlipButtonRealImage" image="Sliced Button/Button New Active" type="Sliced"/>
+			<VerticalLayout padding="6 6 6 6"><Text id="AutoFlipButtonRealText" class="Text18" offsetXY="0 1">{en}Auto Flip - On{it}Gira Automaticamente - Sì{ru}Авто-переворот - Вкл.{zh-tw}自動翻轉 - 開{zh-cn}自动翻转 - 开{ko}자동 공개 - 켜짐{es}Volteo Automático - Sí{fr}Retournement auto - Oui{pt-br}Auto-Virar - Ligado{de}Auto-Flip - An</Text></VerticalLayout>
+		</Button>
+	</Panel>
+	<Panel id="MonsterButton" active="false" rectAlignment="UpperLeft" offsetXY="110 -30" width="110" height="30" outlineSize="0 0">
+		<Button id="MonsterButtonReal" onClick="monsterImageSwap" interactable="false">
+			<Image id="MonsterButtonRealImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+			<VerticalLayout padding="6 6 6 6"><Text id="MonsterButtonRealText" class="Text18" offsetXY="0 1">{en}Switch Enemy{it}Cambia Nemici{ru}Дизайн врагов{zh-tw}切换敌人{zh-cn}切换敌人{ko}적 토큰 전환{es}Cambiar Enemigo{fr}Changement d'ennemi{pt-br}Trocar o inimigo{de}Feind wechseln</Text></VerticalLayout>
+		</Button>
+	</Panel>
+	<Panel id="ScoreButton" active="false" rectAlignment="UpperLeft" offsetXY="220 -30" width="110" height="30" outlineSize="0 0">
+		<Button id="ScoreButtonReal" onClick="displayScore" interactable="false">
+			<Image id="ScoreButtonRealImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+			<VerticalLayout padding="6 6 6 6"><Text id="ScoreButtonRealText" class="Text18" offsetXY="0 1">{en}Score{it}Punteggio{ru}Результат{zh-tw}得  分{zh-cn}得  分{ko}점수{es}Puntuación{fr}Score{pt-br}Pontuação{de}Ergebnis</Text></VerticalLayout>
+		</Button>
+	</Panel>
+</Panel>

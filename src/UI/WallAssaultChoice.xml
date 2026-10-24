@@ -1,0 +1,32 @@
+<Panel id="WallAssaultChoice" active="false" class="Floating" rectAlignment="UpperCenter" offsetXY="0 -300" width="300" height="60">
+	<Image image="Sliced Button/Button New Active" type="Sliced"/>
+	<Panel rectAlignment="UpperLeft" offsetXY="0 32" width="300" height="34" outlineSize="0 0">
+		<Image image="Sliced Button/Title Border Tan" type="Sliced"/>
+		<VerticalLayout padding="5 5 5 5"><Text id="WallAssaultChoiceTitle" class="Title20" alignment="MiddleCenter">{en}Wall Fortification{it}Fortificazione da Mura{ru}Укрепление стеной{zh-tw}城墙防御{zh-cn}城墙防御{ko}성벽 요새화{es}Fortificación de Muralla{fr}Fortification du mur{pt-br}Fortificação de Muralha{de}Mauerbefestigung</Text></VerticalLayout>
+	</Panel>
+	<VerticalLayout padding="5 5 5 5">
+		<Text id="WallAssaultChoiceQuestion" class="Text16" alignment="MiddleCenter">{en}The assault approach is unclear.
+Did your assault cross a wall?{it}La direzione d'assalto non è chiara.
+Il tuo assalto ha attraversato un muro?{ru}Направление штурма неясно.
+Ваш штурм проходил через стену?{zh-tw}突襲的進入方向不明確。
+你的突襲是否穿過城牆？{zh-cn}突袭的进入方向不明确。
+你的突袭是否穿过城墙？{ko}강습 진입 방향이 불분명합니다.
+강습 중 성벽을 넘었습니까?{es}La dirección del asalto no está clara.
+¿Tu asalto cruzó una muralla?{fr}La direction de l'assaut n'est pas claire.
+Votre assaut a-t-il franchi un mur ?{pt-br}A direção do ataque não está clara.
+Seu ataque atravessou uma muralha?{de}Die Angriffsrichtung ist unklar.
+Hat dein Angriff eine Mauer überquert?</Text>
+	</VerticalLayout>
+	<Panel rectAlignment="LowerLeft" offsetXY="0 -28" width="150" height="30" outlineSize="0 0">
+		<Button id="WallAssaultChoiceYes" shadowDistance="0 0" onClick="wallAssaultChoice" onMouseDown="" onMouseUp="">
+			<Image id="WallAssaultChoiceYesImage" image="Sliced Button/Button New Active" type="Sliced"/>
+			<VerticalLayout padding="5 5 5 5"><Text id="WallAssaultChoiceYesText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Crossed Wall{it}Attraversato un Muro{ru}Через стену{zh-tw}穿过城墙{zh-cn}穿过城墙{ko}성벽 통과{es}Cruzó Muralla{fr}Mur franchi{pt-br}Atravessou Muralha{de}Über Mauer</Text></VerticalLayout>
+		</Button>
+	</Panel>
+	<Panel rectAlignment="LowerRight" offsetXY="0 -28" width="150" height="30" outlineSize="0 0">
+		<Button id="WallAssaultChoiceNo" shadowDistance="0 0" onClick="wallAssaultChoice" onMouseDown="" onMouseUp="">
+			<Image id="WallAssaultChoiceNoImage" image="Sliced Button/Button New Active" type="Sliced"/>
+			<VerticalLayout padding="5 5 5 5"><Text id="WallAssaultChoiceNoText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Open Side{it}Lato Aperto{ru}Без стены{zh-tw}无墙一侧{zh-cn}无墙一侧{ko}열린 쪽{es}Lado abierto{fr}Côté ouvert{pt-br}Lado aberto{de}Offene Seite</Text></VerticalLayout>
+		</Button>
+	</Panel>
+</Panel>
