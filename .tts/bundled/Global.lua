@@ -3595,6 +3595,7 @@ local function mainUIRefreshPlayerState(context)
 	if boardFame<0 then boardFame=0 end
 	local fameVerticle=math.floor(math.sqrt(boardFame+1))
 	if fameVerticle>gStates.rowsOnBoard then fameVerticle=gStates.rowsOnBoard end
+	if currentPlayer.level==nil then currentPlayer.level=0 end
 	if currentPlayer.level<gStates.rowsOnBoard then
 		local fameToLevel=math.floor(math.sqrt(currentPlayer.fame+1))
 		if fameToLevel>gStates.rowsOnBoard then fameToLevel=gStates.rowsOnBoard end
@@ -26110,8 +26111,6 @@ local function competitiveSkillReminderCount(seatPos)
 	return count
 end
 
-local basicManaToken={ ["Red Mana"]=true, ["Blue Mana"]=true, ["Green Mana"]=true, ["White Mana"]=true }
-
 local function competitiveSkillReminderForSeat(record, seatPos)
 	for reminderGUID, reminderSeat in pairs(record.reminders or {}) do
 		if reminderSeat==seatPos then
@@ -26143,6 +26142,7 @@ local function nextCompetitiveSkillReminder(record, fromSeat, nextPlayer)
 	return best or getObjectFromGUID(GUID.skill.manaSuppression)
 end
 
+local basicManaToken={ ["Red Mana"]=true, ["Blue Mana"]=true, ["Green Mana"]=true, ["White Mana"]=true }
 local function manaSuppressionTokensAtReminder(record, seatPos)
 	local tokens={}
 	local reminder=record~=nil and competitiveSkillReminderForSeat(record, seatPos) or nil
@@ -26150,7 +26150,7 @@ local function manaSuppressionTokensAtReminder(record, seatPos)
 	if reminder==nil or playArea==nil then return tokens, reminder end
 	local reminderPos=reminder.getPosition()
 	for _, token in pairs(playArea.getObjects()) do
-		if isBasicManaToken(token) then
+		if basicManaToken[token.getName()] == true then
 			local tokenPos=token.getPosition()
 			if math.abs(tokenPos[1]-reminderPos[1])<=1 and math.abs(tokenPos[3]-reminderPos[3])<=0.65 then tokens[#tokens+1]=token end
 		end
@@ -55255,10 +55255,9 @@ translateWord={	["Red"]="{en}Red{it}Rosso{ru}Красный{zh-tw}红色的{zh-c
 				["First Reconnaissance"]="{en}First Reconnaissance{it}Prima Ricognizione{ru}Первая Вылазка{zh-tw}首次勘察{zh-cn}首次勘察{ko}첫 번째 정찰{es}Primer reconocimiento{fr}Première Reconnaissance{pt-br}Primeiro Reconhecimento{de}Blitz-Eroberung",
 				["Raiders of the Crusader Temple"]="{en}Raiders of the Crusader Temple{it}Predoni del Tempio dei Crociati{ru}Рейдеры храма крестоносцев{zh-tw}聖教軍奇兵{zh-cn}圣教军奇兵{ko}십자군 성전의 침입자{es}Asaltantes del Templo de los Cruzados{fr}Les aventuriers du temple des croisés{pt-br}Salteadores do Templo dos Cruzados{de}Räuber des Kreuzrittertempels",
 				["The Council versus the Apocalypse"]="{en}The Council Vs the Apocalypse{it}Il Consiglio contro l'Apocalisse{ru}Совет против Апокалипсиса{zh-tw}議會對抗末日{zh-cn}议会对抗末日{ko}평의회 대 아포칼립스{es}El Consejo contra el Apocalipsis{fr}Le Conseil contre l'Apocalypse{pt-br}O Conselho contra o Apocalipse{de}Der Rat gegen die Apokalypse",
-		["For the Council"]="{en}For the Council{it}Per il Consiglio{ru}За Совет{zh-tw}為了議會{zh-cn}为了议会{ko}평의회를 위하여{es}Por el Consejo{fr}Pour le Conseil{pt-br}Pelo Conselho{de}Für den Rat",
+				["For the Council"]="{en}For the Council{it}Per il Consiglio{ru}За Совет{zh-tw}為了議會{zh-cn}为了议会{ko}평의회를 위하여{es}Por el Consejo{fr}Pour le Conseil{pt-br}Pelo Conselho{de}Für den Rat",
 				["The Fractured Lands"]="{en}The Fractured Lands{it}Le Terre Frantumate{ru}Расколотые земли{zh-tw}破碎之地{zh-cn}破碎之地{ko}분열된 대지{es}Las Tierras Fracturadas{fr}Les Terres Fracturées{pt-br}As Terras Fraturadas{de}Die Zersplitterten Lande",
 				["The Fractured Lands Blitz"]="{en}The Fractured Lands{it}Le Terre Frantumate{ru}Расколотые земли{zh-tw}破碎之地{zh-cn}破碎之地{ko}분열된 대지{es}Las Tierras Fracturadas{fr}Les Terres Fracturées{pt-br}As Terras Fraturadas{de}Die Zersplitterten Lande",
-
 				["The War of Four Blitz"]="{en}The War of Four{it}La Guerra dei Quattro{ru}Война Четырех{zh-tw}四國爭霸{zh-cn}四国争霸{ko}워 오브 포{es}A Guerra dos Quatro{fr}La Gerre des Quatres{pt-br}A Guerra dos Quatro{de}Der Krieg der Vier",
 				["Fast Forwarded Conquest Blitz"]="{en}Fast Forwarded Conquest{it}Conquista Accelerata{ru}Ускоренное Завоевание{zh-tw}快速征服{zh-cn}快速征服{ko}앞서간 정복{es}Conquista Acelerada{fr}Conquête Rapide{pt-br}Conquista Acelerada{de}Blitz-Eroberung",
 				["One to Return Blitz"]="{en}One to Return{it}Uno Solo Tornerà{ru}Вернется только Один{zh-tw}絕地求生{zh-cn}绝地求生{ko}돌아갈 수 있는 자{es}Uno Para Volver{fr}Un Seul Revenu{pt-br}Um Para Retornar{de}Einer zum Zurückkehren",
@@ -57372,12 +57371,12 @@ skillTokens={	["1906f4"]={skillType="Turn", mage="Arythea"},				  	["33d341"]={s
 				["0688d8"]={skillType="Turn", mage="Krang"},					["6a33c1"]={skillType="Turn", mage="Krang"},
 				["893537"]={skillType="Turn", mage="Krang"},					["adf8ab"]={skillType="Turn", mage="Krang"},
 				["f36762"]={skillType="Turn", mage="Krang"},					[GUID.skill.manaSuppression]={competitiveState=true, skillType="Comp", mage="Krang", name="Mana Suppression"},
-				[GUID.skill.masterOfChaos]={skillType="Turn", mage="Krang"},					["725de9"]={skillType="Coop", mage="Krang", name="Mana Enhancement"},
+				[GUID.skill.masterOfChaos]={skillType="Turn", mage="Krang"},	["725de9"]={skillType="Coop", mage="Krang", name="Mana Enhancement"},
 				["d8824d"]={skillType="Round", mage="Krang"},
 
 				["93c62e"]={skillType="Turn", mage="Norowas"},				  	["257c0c"]={skillType="Turn", mage="Norowas"},
 				["046187"]={skillType="Turn", mage="Norowas"},				  	["3f0f3b"]={skillType="Turn", mage="Norowas"},
-				[GUID.skill.bondsOfLoyalty]={skillType="Round", mage="Norowas"},				  	["b2dfce"]={skillType="Round", mage="Norowas"},
+				[GUID.skill.bondsOfLoyalty]={skillType="Round", mage="Norowas"},["b2dfce"]={skillType="Round", mage="Norowas"},
 				["e45fdf"]={skillType="Round", mage="Norowas"},				  	["676856"]={competitiveState=true, skillType="Comp", mage="Norowas", name="Prayer of the Weather"},
 				["3dc067"]={skillType="Round", mage="Norowas"},				  	["55e5e5"]={skillType="Coop", mage="Norowas", name="Calming the Weather"},
 				["14399f"]={skillType="Round", mage="Norowas"},
@@ -57684,15 +57683,14 @@ reputationTable={	[-7]={repZone="8cab8a", reputationPos={30.03, 1.15, 24.06}, re
 					[6]={repZone="0cee8e", reputationPos={40.45, 1.15, 9.87}, repDisplay="+3"},
 					[7]={repZone="ae71a7", reputationPos={40.64, 1.15, 8.30}, repDisplay="+5"}}
 
-cityScriptZones={	[GUID.zone.blueCity]={				cityGUID=cityModel.blue, 			cityName="Blue City", 		cityReminder="ad7b3f", 	cityCard="79a723"},--Blue City Card
-					[GUID.zone.redCity]={				cityGUID=cityModel.red, 			cityName="Red City", 		cityReminder="a0ec73", 	cityCard="bd6ab1"},--Red City Card
-					[GUID.zone.greenCity]={				cityGUID=cityModel.green, 			cityName="Green City", 		cityReminder="39d3f3", 	cityCard="8de450"},--Green City Card
-					[GUID.zone.whiteCity]={				cityGUID=cityModel.white, 			cityName="White City", 		cityReminder="b9bc1c", 	cityCard="a37b57"},--White City Card
+cityScriptZones={	[GUID.zone.blueCity]={		cityGUID=cityModel.blue, 			cityName="Blue City", 		cityReminder="ad7b3f", 					cityCard="79a723"},--Blue City Card
+					[GUID.zone.redCity]={		cityGUID=cityModel.red, 			cityName="Red City", 		cityReminder="a0ec73", 					cityCard="bd6ab1"},--Red City Card
+					[GUID.zone.greenCity]={		cityGUID=cityModel.green, 			cityName="Green City", 		cityReminder="39d3f3", 					cityCard="8de450"},--Green City Card
+					[GUID.zone.whiteCity]={		cityGUID=cityModel.white, 			cityName="White City", 		cityReminder="b9bc1c", 					cityCard="a37b57"},--White City Card
 					[volkare.discZone]={		cityGUID=volkare.terrainHex, 		cityName="Volkare's Camp", 	cityReminder=GUID.bag.volkareReminder, 	cityCard=volkare.disc},--Volkare Large Token
-					[darkCrusader.discZone]={	cityGUID=darkCrusader.terrainHex, 	cityName="Dark Crusader", 	cityReminder="", 		cityCard=darkCrusader.disc},--Dark Cultists Large Token (Update with 13th "Killed" state GUID]
-					[elementalist.discZone]={	cityGUID=elementalist.terrainHex, 	cityName="Elementalist", 	cityReminder="", 		cityCard=elementalist.disc},--Elementalist Large Token (Update with 13th "Killed" state GUID]
-					["f5f202"]={				cityGUID=portal.terrainHex, 					cityName="Portal", 			cityReminder="", 		cityCard="e20dc0"}--Portal Card
-					}
+					[darkCrusader.discZone]={	cityGUID=darkCrusader.terrainHex, 	cityName="Dark Crusader", 	cityReminder="", 						cityCard=darkCrusader.disc},--Dark Cultists Large Token (Update with 13th "Killed" state GUID]
+					[elementalist.discZone]={	cityGUID=elementalist.terrainHex, 	cityName="Elementalist", 	cityReminder="", 						cityCard=elementalist.disc},--Elementalist Large Token (Update with 13th "Killed" state GUID]
+					["f5f202"]={				cityGUID=portal.terrainHex, 		cityName="Portal", 			cityReminder="", 						cityCard="e20dc0"}}--Portal Card
 
 masterOfChaosData={	[0]={image="https://steamusercontent-a.akamaihd.net/ugc/772852176386101689/C8ED97C0CCB74F31C131C2A36D2EDE0B9462EFEF/",
 					description="{en}When you gain this Skill, a starting color will be chosen randomly.\n\nOnce a Turn:\n\nYou may play this skill to the Play Area to increment it clockwise, and depending on the color, gain\n• Blue - Block 3\n• Green - Move 1\n• White - Influence 2\n• Red - Attack 2\n• Black - Cold/Fire Ranged Attack 1\n• Gold - Your Choice\n\nIf not used for your last Turn, it can be incremented clockwise one spot before your next Turn.{it}Quando ottieni questa Abilità, viene scelto un colore iniziale casuale.\n\nUna volta per turno:\n\nPuoi giocarla nell'Area di Gioco per farla avanzare in senso orario e ottenere, in base al colore:\n• Blu - Blocco 3\n• Verde - Movimento 1\n• Bianco - Influenza 2\n• Rosso - Attacco 2\n• Nero - Attacco a Distanza di Ghiaccio/Fuoco 1\n• Oro - A tua scelta\n\nSe non l'hai usata nel turno precedente, puoi farla avanzare di uno scatto prima del prossimo turno.{ru}Получив этот навык, стартовый цвет будет выбран случайно.\n\nОдин раз в ход:\n\nМожете сдвинуть щит на одно деление по часовой стрелке и получить бонус (его определяет цвет нового деления):\n• Синий - Блок 3\n• Зеленый - Движение 1\n• Белый - Влияние 2\n• Красный - Атака 2\n• Черный - Огненно-ледяная дальняя атака 1\n• Золотой - Любой из этих бонусов\n\nЕсли навык не был использован за ход, он может быть передвинут один раз между вашими ходами.{zh-tw}你获得本技能时, 投掷一颗魔力骰子, 将你的盾徽标记放在掷出的颜色上以作标记. 每回合一次, 你可以按顺时针方向将盾徽移动到下一个颜色上, 根据移动后的颜色获得: \n蓝色: 格挡3\n绿色: 移动力1\n黑色: 冰火远程攻击1\n白色: 影响力2\n红色: 攻击2\n金色: 以上任选其一. \n如果你没有在你的回合中使用本技能, 在你下个回合开始前任何时候, 你可以按顺时针方向将盾徽移动到下一个颜色上. {zh-cn}你获得本技能时, 投掷一颗魔力骰子, 将你的盾徽标记放在掷出的颜色上以作标记. 每回合一次, 你可以按顺时针方向将盾徽移动到下一个颜色上, 根据移动后的颜色获得: \n蓝色: 格挡3\n绿色: 移动力1\n黑色: 冰火远程攻击1\n白色: 影响力2\n红色: 攻击2\n金色: 以上任选其一. \n如果你没有在你的回合中使用本技能, 在你下个回合开始前任何时候, 你可以按顺时针方向将盾徽移动到下一个颜色上. {ko}이 기술을 획득할 때, 시작 색상 칸이 무작위로 결정된다.\n\n차례에 한번 이 토큰의 칸을 시계 방향의 다음 칸으로 이동시켜 해당 칸의 효과를 얻는다:\n\n청색-방어 3\n녹색-이동 1\n흑색-원거리 차가운불 공격 1\n백색-영향력 2\n적색-공격 2\n금색-이 중 원하는 효과\n\n마지막 턴에 사용하지 않은 경우, 다음 턴 전에 시계 방향으로 한 칸씩 증가시킬 수 있습니다.{es}Cuando obtenga esta habilidad, se elegirá un color inicial al azar.\n\nUna vez por turno:\n\nPuede jugar esta habilidad en el Área de juego para incrementarla en el sentido de las agujas del reloj y, según el color, ganar\n• Azul - Bloque 3\n• Verde: movimiento 1\n• Blanco - Infulencia 2\n• Rojo - Ataque 2\n• Negro - Ataque a distancia frío / fuego 1\n• Oro: su elección\n\nSi no se utiliza en el último Turno, puede incrementarse un punto en el sentido de las agujas del reloj antes del siguiente Turno.{fr}Lorsque vous gagnez cette compétence, une couleur de départ sera choisie au hasard.\n\nUne fois par tour:\n\nVous pouvez jouer cette compétence dans la zone de jeu pour l'incrémenter dans le sens des aiguilles d'une montre, et selon la couleur, gagner\n• Bleu - Bloc 3\n• Vert - Coup 1\n• Blanc - Influence 2\n• Rouge - Attaque 2\n• Noir - Attaque à distance froid/feu 1\n• Or - Votre choix\n\nS'il n'a pas été utilisé lors de votre dernier tour, il peut être incrémenté d'un point dans le sens des aiguilles d'une montre avant votre prochain tour.{pt-br}Quando você ganha esta habilidade, uma cor inicial será escolhida aleatóriamente.\n\nUma vez po Turno:\n\nVocê pode jogar esta habilidade na área de jogo para incrementar em sentido horário e dependendo da cor, ganhe\n• Azul - Bloqueio 3\n• Verde - Movimento 1\n• Branco - Influência 2\n• Vermelho - Ataque 2\n• Preto - Ataque a Distância de Fogo-Gelo 1\n• Dourado - Sua escolha\n\nSe não for usado em seu último turno, ele pode ser incrementado em sentido horário em um ponto antes do seu próximo turno.{de}Wenn du diese Fähigkeit erhältst, wird eine Startfarbe zufällig ausgewählt.\n\nEinmal pro Runde:\n\nDu kannst diese Fertigkeit auf das Spielfeld spielen, um sie im Uhrzeigersinn zu erhöhen und je nach Farbe Folgendes zu erhalten\n- Blau - Blockieren 3\n- Grün - Bewegen 1\n- Weiß - Beeinflussung 2\n- Rot - Angriff 2\n- Schwarz - Kälte/Feuer-Fernangriff 1\n- Gold - Deine Wahl\n\nWenn du sie in deinem letzten Zug nicht benutzt hast, kann sie vor deinem nächsten Zug um einen Punkt im Uhrzeigersinn erhöht werden."},
