@@ -57,6 +57,7 @@ require("PlayingGame.PlayerBoard.UnitLayout")
 require("PlayingGame.PlayerBoard.UnitResources")
 require("PlayingGame.PlayerBoard.Events")
 require("PlayingGame.UIAssets")
+--require("PlayingGame.PlayerBoard.CombatEffects")
 require("PlayingGame.PlayerBoard.CardRecognition")
 require("SetupGame.Components")
 require("SetupGame.Players")
@@ -75,6 +76,7 @@ require("PlayingGame.ManaSource")
 require("PlayingGame.PlayerBoard.Skills")
 require("PlayingGame.PlayerBoard.PuppetMaster")
 require("PlayingGame.Combat")
+--require("PlayingGame.AttackAssignments")
 require("PlayingGame.Turn")
 require("PlayingGame.BaseScenario")
 require("PlayingGame.LLScenario")
@@ -3571,6 +3573,7 @@ local function mainUIRefreshPlayerState(context)
 	if boardFame<0 then boardFame=0 end
 	local fameVerticle=math.floor(math.sqrt(boardFame+1))
 	if fameVerticle>gStates.rowsOnBoard then fameVerticle=gStates.rowsOnBoard end
+	if currentPlayer.level==nil then currentPlayer.level=0 end
 	if currentPlayer.level<gStates.rowsOnBoard then
 		local fameToLevel=math.floor(math.sqrt(currentPlayer.fame+1))
 		if fameToLevel>gStates.rowsOnBoard then fameToLevel=gStates.rowsOnBoard end
@@ -25622,8 +25625,6 @@ local function competitiveSkillReminderCount(seatPos)
 	return count
 end
 
-local basicManaToken={ ["Red Mana"]=true, ["Blue Mana"]=true, ["Green Mana"]=true, ["White Mana"]=true }
-
 local function competitiveSkillReminderForSeat(record, seatPos)
 	for reminderGUID, reminderSeat in pairs(record.reminders or {}) do
 		if reminderSeat==seatPos then
@@ -25655,6 +25656,7 @@ local function nextCompetitiveSkillReminder(record, fromSeat, nextPlayer)
 	return best or getObjectFromGUID(GUID.skill.manaSuppression)
 end
 
+local basicManaToken={ ["Red Mana"]=true, ["Blue Mana"]=true, ["Green Mana"]=true, ["White Mana"]=true }
 local function manaSuppressionTokensAtReminder(record, seatPos)
 	local tokens={}
 	local reminder=record~=nil and competitiveSkillReminderForSeat(record, seatPos) or nil
@@ -25662,7 +25664,7 @@ local function manaSuppressionTokensAtReminder(record, seatPos)
 	if reminder==nil or playArea==nil then return tokens, reminder end
 	local reminderPos=reminder.getPosition()
 	for _, token in pairs(playArea.getObjects()) do
-		if isBasicManaToken(token) then
+		if basicManaToken[token.getName()] == true then
 			local tokenPos=token.getPosition()
 			if math.abs(tokenPos[1]-reminderPos[1])<=1 and math.abs(tokenPos[3]-reminderPos[3])<=0.65 then tokens[#tokens+1]=token end
 		end

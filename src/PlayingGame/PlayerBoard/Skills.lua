@@ -740,8 +740,6 @@ local function competitiveSkillReminderCount(seatPos)
 	return count
 end
 
-local basicManaToken={ ["Red Mana"]=true, ["Blue Mana"]=true, ["Green Mana"]=true, ["White Mana"]=true }
-
 local function competitiveSkillReminderForSeat(record, seatPos)
 	for reminderGUID, reminderSeat in pairs(record.reminders or {}) do
 		if reminderSeat==seatPos then
@@ -773,6 +771,7 @@ local function nextCompetitiveSkillReminder(record, fromSeat, nextPlayer)
 	return best or getObjectFromGUID(GUID.skill.manaSuppression)
 end
 
+local basicManaToken={ ["Red Mana"]=true, ["Blue Mana"]=true, ["Green Mana"]=true, ["White Mana"]=true }
 local function manaSuppressionTokensAtReminder(record, seatPos)
 	local tokens={}
 	local reminder=record~=nil and competitiveSkillReminderForSeat(record, seatPos) or nil
@@ -780,7 +779,7 @@ local function manaSuppressionTokensAtReminder(record, seatPos)
 	if reminder==nil or playArea==nil then return tokens, reminder end
 	local reminderPos=reminder.getPosition()
 	for _, token in pairs(playArea.getObjects()) do
-		if isBasicManaToken(token) then
+		if basicManaToken[token.getName()] == true then
 			local tokenPos=token.getPosition()
 			if math.abs(tokenPos[1]-reminderPos[1])<=1 and math.abs(tokenPos[3]-reminderPos[3])<=0.65 then tokens[#tokens+1]=token end
 		end
