@@ -795,6 +795,7 @@ local function mainUIRefreshPlayerState(context)
 	if boardFame<0 then boardFame=0 end
 	local fameVerticle=math.floor(math.sqrt(boardFame+1))
 	if fameVerticle>gStates.rowsOnBoard then fameVerticle=gStates.rowsOnBoard end
+	if currentPlayer.level==nil then currentPlayer.level=0 end
 	if currentPlayer.level<gStates.rowsOnBoard then
 		local fameToLevel=math.floor(math.sqrt(currentPlayer.fame+1))
 		if fameToLevel>gStates.rowsOnBoard then fameToLevel=gStates.rowsOnBoard end
