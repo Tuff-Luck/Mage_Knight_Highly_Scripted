@@ -1,3 +1,5 @@
+<!-- Mage Knight Highly Scripted Global UI entry point. The TTS editor bundles each Include from src/UI. -->
+<!-- include UI/Defaults.xml -->
 <Defaults>
 	<Panel	color="rgb(0.7, 0.7, 0.7)" rectAlignment="MiddleCenter" active="true"
 			allowDragging="false" returnToOriginalPositionWhenReleased="true" raycastTarget="true"
@@ -37,10 +39,15 @@
 	<Button class="ScenarioTweak" width="25" height="25" color="#7F7F7F" textColor="#FFFFFF" onClick="baseValueTweak"/>
 	<Button class="ShortButton" preferredWidth="45" onMouseDown="buttonClicked" onMouseUp="buttonClicked"/>
 	<Button class="LongButton" preferredWidth="45" onMouseDown="buttonClicked" onMouseUp="buttonClicked"/>
+	<Button class="CombatSlot" active="false" preferredWidth="28" preferredHeight="34" onClick="resourceTracker"/>
+	<Image class="CombatSlotIcon" rectAlignment="MiddleCenter" width="26" height="26" preserveAspect="true" raycastTarget="false"/>
+	<Text class="CombatSlotAmount" rectAlignment="MiddleCenter" fontSize="20" fontStyle="Bold" color="White" outline="rgb(0, 0, 0)" outlineSize="1 -1" alignment="MiddleCenter" raycastTarget="false"/>
 
 	<Row class="ScoreHeading" preferredHeight="30" color="rgb(0.5, 0.5, 0.1)" dontUseTableRowBackground="true"/>
 </Defaults>
 
+<!-- include UI/Defaults.xml -->
+<!-- include UI/MainGame.xml -->
 <Panel id="MainGame" class="MainGamePanel" active="false" color="rgba(0.2, 0.2, 0.2, 0.0)"  rectAlignment="LowerRight" offsetXY="-10 20" height="445">
 	<Panel class="MainGameSubPanel" color="rgb(0.2, 0.2, 0.2)" rectAlignment="LowerRight" offsetXY="0 55" height="350">
 		<VerticalLayout > 
@@ -376,6 +383,8 @@
 	</Panel>
 </Panel>
 
+<!-- include UI/MainGame.xml -->
+<!-- include UI/NoticeBoard.xml -->
 <Panel id="NoticeBoard" active="false" hideAnimation="Shrink" showAnimation="Grow" rectAlignment="UpperCenter" offsetXY="0 -200" width="500" height="50">
 	<Image image="Sliced Button/Button New Active" type="Sliced"/>
 	<VerticalLayout>
@@ -383,6 +392,8 @@
 	</VerticalLayout>
 </Panel>
 
+<!-- include UI/NoticeBoard.xml -->
+<!-- include UI/TopButtons.xml -->
 <Panel id="topButtons" active="true" rectAlignment="UpperLeft" offsetXY="130 -5" width="330" height="60" outlineSize="0 0" class="Floating">
 	<Panel id="sendBugReportButton"	active="false" visibility="Admin" rectAlignment="UpperLeft" offsetXY="0 0" width="110" height="30" outlineSize="0 0">
 		<Button id="sendBugReportButtonReal" onClick="openBugReportPanel">
@@ -422,6 +433,8 @@
 	</Panel>
 </Panel>
 
+<!-- include UI/TopButtons.xml -->
+<!-- include UI/ScoreBoard.xml -->
 <Panel id="ScoreBoard" active="false" width="1400" height="720"	class="Floating">
 	<TableLayout id="ScoreBoardTable"
 		cellSpacing="0"
@@ -598,6 +611,8 @@
 	<Button id="closeScoreButton" width="25" height="25" offsetXY="-3 -3" rectAlignment="UpperRight" color="#990000" textColor="#FFFFFF" Text="X" onClick="closePanel"/>
 </Panel>
 
+<!-- include UI/ScoreBoard.xml -->
+<!-- include UI/Mage1LevelBoard.xml -->
 <Panel id="Mage1LevelBoard" active="false" offsetXY="-730 -150" width="230" height="340" hideAnimation="Shrink" showAnimation="Grow" class="Floating">
 	<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
 	<VerticalLayout padding="4 4 4 4">
@@ -658,6 +673,8 @@
 	</VerticalLayout>
 </Panel>
 
+<!-- include UI/Mage1LevelBoard.xml -->
+<!-- include UI/Mage2LevelBoard.xml -->
 <Panel id="Mage2LevelBoard" active="false" offsetXY="-730 250" width="230" height="340" hideAnimation="Shrink" showAnimation="Grow" class="Floating">
 	<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
 	<VerticalLayout padding="4 4 4 4">
@@ -718,6 +735,8 @@
 	</VerticalLayout>
 </Panel>
 
+<!-- include UI/Mage2LevelBoard.xml -->
+<!-- include UI/Mage3LevelBoard.xml -->
 <Panel id="Mage3LevelBoard" active="false" offsetXY="730 250" width="230" height="340" hideAnimation="Shrink" showAnimation="Grow" class="Floating">
 	<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
 	<VerticalLayout padding="4 4 4 4">
@@ -778,6 +797,8 @@
 	</VerticalLayout>
 </Panel>
 
+<!-- include UI/Mage3LevelBoard.xml -->
+<!-- include UI/Mage4LevelBoard.xml -->
 <Panel id="Mage4LevelBoard" active="false" offsetXY="730 -150" width="230" height="340"	hideAnimation="Shrink" showAnimation="Grow" class="Floating">
 	<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
 	<VerticalLayout padding="4 4 4 4">
@@ -838,6 +859,8 @@
 	</VerticalLayout>
 </Panel>
 
+<!-- include UI/Mage4LevelBoard.xml -->
+<!-- include UI/LevelUpRules.xml -->
 <Panel id="LevelUpRules" active="false" offsetXY="0 320" width="480" height="260" hideAnimation="Shrink" showAnimation="Grow" class="Floating">
 	<Image image="Sliced Button/Button New Active" type="Sliced"/>
 	<VerticalLayout padding="10 10 0 8">
@@ -989,6 +1012,8 @@ Einheiten</Text></Cell>
 	</VerticalLayout>
 </Panel>
 
+<!-- include UI/LevelUpRules.xml -->
+<!-- include UI/PlayerSeating.xml -->
 <Panel id="PlayerSeating" active="false" rectAlignment="UpperRight" offsetXY="-219 -5" width="250" height="205">
 	<Image image="Sliced Button/Button New Active" type="Sliced"/>
 	<VerticalLayout padding="5 5 5 5">
@@ -1044,6 +1069,8 @@ Einheiten</Text></Cell>
 	</VerticalLayout>
 </Panel>
 
+<!-- include UI/PlayerSeating.xml -->
+<!-- include UI/ObjectRotating.xml -->
 <Panel id="ObjectRotating" active="false" rectAlignment="UpperRight" offsetXY="-500 -75" width="200" height="50">
 	<Image image="Sliced Button/Button New Active" type="Sliced"/>
 	<VerticalLayout padding="5 5 5 5">
@@ -1051,6 +1078,8 @@ Einheiten</Text></Cell>
 	</VerticalLayout>
 </Panel>
 
+<!-- include UI/ObjectRotating.xml -->
+<!-- include UI/ResourceTracker.xml -->
 <Panel id="ResourceTracker"	active="false" class="Floating" rectAlignment="UpperLeft" offsetXY="135 -80" width="210" height="35">
 	<Panel height="35" rectAlignment="UpperCenter" outlineSize="0 0">
 		<Button id="DisplayResourceTrackerDetails" preferredWidth="210" onClick="resourceTracker">
@@ -1682,6 +1711,815 @@ Einheiten</Text></Cell>
 	</Panel>
 </Panel>
 
+<!-- include UI/ResourceTracker.xml -->
+<!-- include UI/CombatEnemyPanel.xml -->
+<Panel id="CombatEnemyPanel" active="false" class="Floating" rectAlignment="UpperLeft" offsetXY="360 -80" width="1100" height="125" color="rgb(0.2, 0.2, 0.2)" outlineSize="1 -1">
+	<VerticalLayout rectAlignment="UpperCenter" offsetXY="0 0" padding="8 8 4 4" childForceExpandHeight="false">
+		<HorizontalLayout padding="8 0 0 0" preferredHeight="24" childForceExpandWidth="false">
+			<Text id="CombatMonsterHeader" class="Text14" color="White" preferredWidth="150" alignment="MiddleLeft">{en}Enemy{it}Nemico{ru}Враг{zh-tw}敵人{zh-cn}敌人{ko}적{es}Enemigo{fr}Ennemi{pt-br}Inimigo{de}Feind</Text>
+			<Text id="CombatArmourHeader" class="Text14" color="White" preferredWidth="55" alignment="MiddleCenter">{en}Armour{it}Armatura{ru}Броня{zh-tw}護甲{zh-cn}护甲{ko}방어구{es}Armadura{fr}Armure{pt-br}Armadura{de}Rüstung</Text>
+			<Text id="CombatDefenceTraitsHeader" class="Text14" color="White" preferredWidth="150" alignment="MiddleLeft">{en}Defence Abilities{it}Abilità difensive{ru}Защитные способности{zh-tw}防禦能力{zh-cn}防御能力{ko}방어 능력{es}Habilidades defensivas{fr}Capacités défensives{pt-br}Habilidades defensivas{de}Verteidigungsfähigkeiten</Text>
+			<Text id="CombatRangeSiegeHeader" class="Text14" color="White" preferredWidth="170" alignment="MiddleLeft">{en}Range / Siege Phase{it}Fase a distanza / assedio{ru}Фаза дальних / осадных атак{zh-tw}遠程／攻城階段{zh-cn}远程／攻城阶段{ko}원거리 / 공성 단계{es}Fase de rango / asedio{fr}Phase à distance / siège{pt-br}Fase de alcance / cerco{de}Fernkampf- / Belagerungsphase</Text>
+			<Text id="CombatEnemyAttackHeader" class="Text14" color="White" preferredWidth="110" alignment="MiddleCenter">{en}Enemy Attack{it}Attacco nemico{ru}Атака врага{zh-tw}敵人攻擊{zh-cn}敌人攻击{ko}적 공격{es}Ataque enemigo{fr}Attaque ennemie{pt-br}Ataque inimigo{de}Feindangriff</Text>
+			<Text id="CombatOffenceHeader" class="Text14" color="White" preferredWidth="130" alignment="MiddleLeft">{en}Offence Abilities{it}Abilità offensive{ru}Атакующие способности{zh-tw}攻擊能力{zh-cn}攻击能力{ko}공격 능력{es}Habilidades ofensivas{fr}Capacités offensives{pt-br}Habilidades ofensivas{de}Angriffsfähigkeiten</Text>
+			<Text id="CombatBlockHeader" class="Text14" color="White" preferredWidth="170" alignment="MiddleLeft">{en}Block Phase{it}Fase di blocco{ru}Фаза блока{zh-tw}格擋階段{zh-cn}格挡阶段{ko}방어 단계{es}Fase de bloqueo{fr}Phase de blocage{pt-br}Fase de bloqueio{de}Blockphase</Text>
+			<Text id="CombatAssignedAttackHeader" class="Text14" color="White" preferredWidth="170" alignment="MiddleLeft">{en}Attack Phase{it}Fase di attacco{ru}Фаза атаки{zh-tw}攻擊階段{zh-cn}攻击阶段{ko}공격 단계{es}Fase de ataque{fr}Phase d'attaque{pt-br}Fase de ataque{de}Angriffsphase</Text>
+			<Text id="CombatResultHeader" class="Text14" color="White" preferredWidth="230" alignment="MiddleLeft">{en}Result{it}Risultato{ru}Результат{zh-tw}結果{zh-cn}结果{ko}결과{es}Resultado{fr}Résultat{pt-br}Resultado{de}Ergebnis</Text>
+		</HorizontalLayout>
+		<Panel id="CombatEnemyRow1" active="false" preferredHeight="30" outlineSize="0 0">
+			<HorizontalLayout padding="8 0 0 0" childForceExpandWidth="false">
+				<Panel preferredWidth="130" color="rgba(0,0,0,0)" outlineSize="0 0">
+					<Button id="CombatEnemyJoin1" onClick="resourceTracker" color="rgba(0,0,0,0)"/><Text id="CombatEnemyRow1Name" class="Text14" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
+				</Panel>
+				<Text id="CombatEnemyRow1Armour" class="Text14" color="White" preferredWidth="55" alignment="MiddleCenter"/>
+				<Text id="CombatEnemyRow1Traits" class="Text14" color="White" preferredWidth="190" alignment="MiddleLeft"/>
+				<Panel id="CombatSourceCell1range" preferredWidth="170" color="rgba(0,0,0,0)" outlineSize="0 0">
+					<Button id="CombatSourceSlot1rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
+					<HorizontalLayout childForceExpandWidth="false" childForceExpandHeight="false" childAlignment="MiddleLeft">
+						<Button id="CombatSourceSlot1range1" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot1range1Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot1range1Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot1range2" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot1range2Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot1range2Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot1range3" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot1range3Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot1range3Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot1range4" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot1range4Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot1range4Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot1range5" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot1range5Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot1range5Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot1range6" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot1range6Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot1range6Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot1range7" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot1range7Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot1range7Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot1range8" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot1range8Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot1range8Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+					</HorizontalLayout>
+				</Panel>
+				<Text id="CombatEnemyRow1Attacks" class="Text14" color="White" preferredWidth="110" alignment="MiddleCenter"/>
+				<Text id="CombatEnemyRow1Offence" class="Text14" color="White" preferredWidth="130" alignment="MiddleLeft"/>
+				<Panel id="CombatSourceCell1block" preferredWidth="170" color="rgba(0,0,0,0)" outlineSize="0 0">
+					<Button id="CombatSourceSlot1blockCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
+					<HorizontalLayout childForceExpandWidth="false" childForceExpandHeight="false" childAlignment="MiddleLeft">
+						<Button id="CombatSourceSlot1block1" class="CombatSlot"><Image id="CombatSourceSlot1block1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot1block1Amount" class="CombatSlotAmount"/></Button>
+						<Button id="CombatSourceSlot1block2" class="CombatSlot"><Image id="CombatSourceSlot1block2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot1block2Amount" class="CombatSlotAmount"/></Button>
+						<Button id="CombatSourceSlot1block3" class="CombatSlot"><Image id="CombatSourceSlot1block3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot1block3Amount" class="CombatSlotAmount"/></Button>
+						<Button id="CombatSourceSlot1block4" class="CombatSlot"><Image id="CombatSourceSlot1block4Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot1block4Amount" class="CombatSlotAmount"/></Button>
+						<Button id="CombatSourceSlot1block5" class="CombatSlot"><Image id="CombatSourceSlot1block5Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot1block5Amount" class="CombatSlotAmount"/></Button>
+						<Button id="CombatSourceSlot1block6" class="CombatSlot"><Image id="CombatSourceSlot1block6Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot1block6Amount" class="CombatSlotAmount"/></Button>
+					</HorizontalLayout>
+				</Panel>
+				<Panel id="CombatSourceCell1attack" preferredWidth="170" color="rgba(0,0,0,0)" outlineSize="0 0">
+					<Button id="CombatSourceSlot1attackCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
+					<HorizontalLayout childForceExpandWidth="false" childForceExpandHeight="false" childAlignment="MiddleLeft">
+						<Button id="CombatSourceSlot1attack1" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot1attack1Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot1attack1Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot1attack2" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot1attack2Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot1attack2Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot1attack3" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot1attack3Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot1attack3Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot1attack4" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot1attack4Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot1attack4Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot1attack5" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot1attack5Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot1attack5Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot1attack6" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot1attack6Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot1attack6Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot1attack7" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot1attack7Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot1attack7Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot1attack8" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot1attack8Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot1attack8Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+					</HorizontalLayout>
+				</Panel>
+				<Text id="CombatEnemyRow1Result" class="Text14" color="White" preferredWidth="230" alignment="MiddleLeft"/>
+			</HorizontalLayout>
+		</Panel>
+		<Panel id="CombatEnemyRow2" active="false" preferredHeight="30" outlineSize="0 0">
+			<HorizontalLayout padding="8 0 0 0" childForceExpandWidth="false">
+				<Panel preferredWidth="130" color="rgba(0,0,0,0)" outlineSize="0 0">
+					<Button id="CombatEnemyJoin2" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
+					<Text id="CombatEnemyRow2Name" class="Text14" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
+				</Panel>
+				<Text id="CombatEnemyRow2Armour" class="Text14" color="White" preferredWidth="55" alignment="MiddleCenter"/>
+				<Text id="CombatEnemyRow2Traits" class="Text14" color="White" preferredWidth="190" alignment="MiddleLeft"/>
+				<Panel id="CombatSourceCell2range" preferredWidth="170" color="rgba(0,0,0,0)" outlineSize="0 0">
+					<Button id="CombatSourceSlot2rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
+					<HorizontalLayout childForceExpandWidth="false" childForceExpandHeight="false" childAlignment="MiddleLeft">
+						<Button id="CombatSourceSlot2range1" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot2range1Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot2range1Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot2range2" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot2range2Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot2range2Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot2range3" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot2range3Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot2range3Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot2range4" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot2range4Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot2range4Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot2range5" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot2range5Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot2range5Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot2range6" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot2range6Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot2range6Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot2range7" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot2range7Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot2range7Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot2range8" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot2range8Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot2range8Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+					</HorizontalLayout>
+				</Panel>
+				<Text id="CombatEnemyRow2Attacks" class="Text14" color="White" preferredWidth="110" alignment="MiddleCenter"/>
+				<Text id="CombatEnemyRow2Offence" class="Text14" color="White" preferredWidth="130" alignment="MiddleLeft"/>
+				<Panel id="CombatSourceCell2block" preferredWidth="170" color="rgba(0,0,0,0)" outlineSize="0 0">
+					<Button id="CombatSourceSlot2blockCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
+					<HorizontalLayout childForceExpandWidth="false" childForceExpandHeight="false" childAlignment="MiddleLeft">
+						<Button id="CombatSourceSlot2block1" class="CombatSlot"><Image id="CombatSourceSlot2block1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot2block1Amount" class="CombatSlotAmount"/></Button>
+						<Button id="CombatSourceSlot2block2" class="CombatSlot"><Image id="CombatSourceSlot2block2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot2block2Amount" class="CombatSlotAmount"/></Button>
+						<Button id="CombatSourceSlot2block3" class="CombatSlot"><Image id="CombatSourceSlot2block3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot2block3Amount" class="CombatSlotAmount"/></Button>
+						<Button id="CombatSourceSlot2block4" class="CombatSlot"><Image id="CombatSourceSlot2block4Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot2block4Amount" class="CombatSlotAmount"/></Button>
+						<Button id="CombatSourceSlot2block5" class="CombatSlot"><Image id="CombatSourceSlot2block5Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot2block5Amount" class="CombatSlotAmount"/></Button>
+						<Button id="CombatSourceSlot2block6" class="CombatSlot"><Image id="CombatSourceSlot2block6Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot2block6Amount" class="CombatSlotAmount"/></Button>
+					</HorizontalLayout>
+				</Panel>
+				<Panel id="CombatSourceCell2attack" preferredWidth="170" color="rgba(0,0,0,0)" outlineSize="0 0">
+					<Button id="CombatSourceSlot2attackCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
+					<HorizontalLayout childForceExpandWidth="false" childForceExpandHeight="false" childAlignment="MiddleLeft">
+						<Button id="CombatSourceSlot2attack1" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot2attack1Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot2attack1Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot2attack2" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot2attack2Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot2attack2Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot2attack3" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot2attack3Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot2attack3Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot2attack4" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot2attack4Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot2attack4Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot2attack5" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot2attack5Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot2attack5Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot2attack6" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot2attack6Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot2attack6Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot2attack7" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot2attack7Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot2attack7Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot2attack8" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot2attack8Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot2attack8Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+					</HorizontalLayout>
+				</Panel>
+				<Text id="CombatEnemyRow2Result" class="Text14" color="White" preferredWidth="230" alignment="MiddleLeft"/>
+			</HorizontalLayout>
+		</Panel>
+		<Panel id="CombatEnemyRow3" active="false" preferredHeight="30" outlineSize="0 0">
+			<HorizontalLayout padding="8 0 0 0" childForceExpandWidth="false">
+				<Panel preferredWidth="130" color="rgba(0,0,0,0)" outlineSize="0 0">
+					<Button id="CombatEnemyJoin3" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
+					<Text id="CombatEnemyRow3Name" class="Text14" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
+				</Panel>
+				<Text id="CombatEnemyRow3Armour" class="Text14" color="White" preferredWidth="55" alignment="MiddleCenter"/>
+				<Text id="CombatEnemyRow3Traits" class="Text14" color="White" preferredWidth="190" alignment="MiddleLeft"/>
+				<Panel id="CombatSourceCell3range" preferredWidth="170" color="rgba(0,0,0,0)" outlineSize="0 0">
+					<Button id="CombatSourceSlot3rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
+					<HorizontalLayout childForceExpandWidth="false" childForceExpandHeight="false" childAlignment="MiddleLeft">
+						<Button id="CombatSourceSlot3range1" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot3range1Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot3range1Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot3range2" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot3range2Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot3range2Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot3range3" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot3range3Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot3range3Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot3range4" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot3range4Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot3range4Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot3range5" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="ComatSourceSlot3range5Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot3range5Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot3range6" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot3range6Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot3range6Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot3range7" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot3range7Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot3range7Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot3range8" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot3range8Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot3range8Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+					</HorizontalLayout>
+				</Panel>
+				<Text id="CombatEnemyRow3Attacks" class="Text14" color="White" preferredWidth="110" alignment="MiddleCenter"/>
+				<Text id="CombatEnemyRow3Offence" class="Text14" color="White" preferredWidth="130" alignment="MiddleLeft"/>
+				<Panel id="CombatSourceCell3block" preferredWidth="170" color="rgba(0,0,0,0)" outlineSize="0 0">
+					<Button id="CombatSourceSlot3blockCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
+					<HorizontalLayout childForceExpandWidth="false" childForceExpandHeight="false" childAlignment="MiddleLeft">
+						<Button id="CombatSourceSlot3block1" class="CombatSlot"><Image id="CombatSourceSlot3block1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot3block1Amount" class="CombatSlotAmount"/></Button>
+						<Button id="CombatSourceSlot3block2" class="CombatSlot"><Image id="CombatSourceSlot3block2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot3block2Amount" class="CombatSlotAmount"/></Button>
+						<Button id="CombatSourceSlot3block3" class="CombatSlot"><Image id="CombatSourceSlot3block3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot3block3Amount" class="CombatSlotAmount"/></Button>
+						<Button id="CombatSourceSlot3block4" class="CombatSlot"><Image id="CombatSourceSlot3block4Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot3block4Amount" class="CombatSlotAmount"/></Button>
+						<Button id="CombatSourceSlot3block5" class="CombatSlot"><Image id="CombatSourceSlot3block5Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot3block5Amount" class="CombatSlotAmount"/></Button>
+						<Button id="CombatSourceSlot3block6" class="CombatSlot"><Image id="CombatSourceSlot3block6Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot3block6Amount" class="CombatSlotAmount"/></Button>
+					</HorizontalLayout>
+				</Panel>
+				<Panel id="CombatSourceCell3attack" preferredWidth="170" color="rgba(0,0,0,0)" outlineSize="0 0">
+					<Button id="CombatSourceSlot3attackCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
+					<HorizontalLayout childForceExpandWidth="false" childForceExpandHeight="false" childAlignment="MiddleLeft">
+						<Button id="CombatSourceSlot3attack1" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot3attack1Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot3attack1Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot3attack2" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot3attack2Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot3attack2Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot3attack3" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot3attack3Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot3attack3Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot3attack4" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot3attack4Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot3attack4Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot3attack5" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot3attack5Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot3attack5Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot3attack6" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot3attack6Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot3attack6Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot3attack7" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot3attack7Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot3attack7Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot3attack8" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot3attack8Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot3attack8Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+					</HorizontalLayout>
+				</Panel>
+				<Text id="CombatEnemyRow3Result" class="Text14" color="White" preferredWidth="230" alignment="MiddleLeft"/>
+			</HorizontalLayout>
+		</Panel>
+		<Panel id="CombatEnemyRow4" active="false" preferredHeight="30" outlineSize="0 0">
+			<HorizontalLayout padding="8 0 0 0" childForceExpandWidth="false">
+				<Panel preferredWidth="130" color="rgba(0,0,0,0)" outlineSize="0 0">
+					<Button id="CombatEnemyJoin4" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
+					<Text id="CombatEnemyRow4Name" class="Text14" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
+				</Panel>
+				<Text id="CombatEnemyRow4Armour" class="Text14" color="White" preferredWidth="55" alignment="MiddleCenter"/>
+				<Text id="CombatEnemyRow4Traits" class="Text14" color="White" preferredWidth="190" alignment="MiddleLeft"/>
+				<Panel id="CombatSourceCell4range" preferredWidth="170" color="rgba(0,0,0,0)" outlineSize="0 0">
+					<Button id="CombatSourceSlot4rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
+					<HorizontalLayout childForceExpandWidth="false" childForceExpandHeight="false" childAlignment="MiddleLeft">
+						<Button id="CombatSourceSlot4range1" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot4range1Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot4range1Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot4range2" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot4range2Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot4range2Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot4range3" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot4range3Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot4range3Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot4range4" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot4range4Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot4range4Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot4range5" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot4range5Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot4range5Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot4range6" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot4range6Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot4range6Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot4range7" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot4range7Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot4range7Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot4range8" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot4range8Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot4range8Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+					</HorizontalLayout>
+				</Panel>
+				<Text id="CombatEnemyRow4Attacks" class="Text14" color="White" preferredWidth="110" alignment="MiddleCenter"/>
+				<Text id="CombatEnemyRow4Offence" class="Text14" color="White" preferredWidth="130" alignment="MiddleLeft"/>
+				<Panel id="CombatSourceCell4block" preferredWidth="170" color="rgba(0,0,0,0)" outlineSize="0 0">
+					<Button id="CombatSourceSlot4blockCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
+					<HorizontalLayout childForceExpandWidth="false" childForceExpandHeight="false" childAlignment="MiddleLeft">
+						<Button id="CombatSourceSlot4block1" class="CombatSlot"><Image id="CombatSourceSlot4block1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot4block1Amount" class="CombatSlotAmount"/></Button>
+						<Button id="CombatSourceSlot4block2" class="CombatSlot"><Image id="CombatSourceSlot4block2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot4block2Amount" class="CombatSlotAmount"/></Button>
+						<Button id="CombatSourceSlot4block3" class="CombatSlot"><Image id="CombatSourceSlot4block3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot4block3Amount" class="CombatSlotAmount"/></Button>
+						<Button id="CombatSourceSlot4block4" class="CombatSlot"><Image id="CombatSourceSlot4block4Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot4block4Amount" class="CombatSlotAmount"/></Button>
+						<Button id="CombatSourceSlot4block5" class="CombatSlot"><Image id="CombatSourceSlot4block5Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot4block5Amount" class="CombatSlotAmount"/></Button>
+						<Button id="CombatSourceSlot4block6" class="CombatSlot"><Image id="CombatSourceSlot4block6Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot4block6Amount" class="CombatSlotAmount"/></Button>
+					</HorizontalLayout>
+				</Panel>
+				<Panel id="CombatSourceCell4attack" preferredWidth="170" color="rgba(0,0,0,0)" outlineSize="0 0">
+					<Button id="CombatSourceSlot4attackCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
+					<HorizontalLayout childForceExpandWidth="false" childForceExpandHeight="false" childAlignment="MiddleLeft">
+						<Button id="CombatSourceSlot4attack1" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot4attack1Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot4attack1Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot4attack2" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot4attack2Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot4attack2Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot4attack3" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot4attack3Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot4attack3Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot4attack4" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot4attack4Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot4attack4Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot4attack5" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot4attack5Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot4attack5Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot4attack6" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot4attack6Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot4attack6Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot4attack7" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot4attack7Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot4attack7Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot4attack8" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot4attack8Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot4attack8Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+					</HorizontalLayout>
+				</Panel>
+				<Text id="CombatEnemyRow4Result" class="Text14" color="White" preferredWidth="230" alignment="MiddleLeft"/>
+			</HorizontalLayout>
+		</Panel>
+		<Panel id="CombatEnemyRow5" active="false" preferredHeight="30" outlineSize="0 0">
+			<HorizontalLayout padding="8 0 0 0" childForceExpandWidth="false">
+				<Panel preferredWidth="130" color="rgba(0,0,0,0)" outlineSize="0 0">
+					<Button id="CombatEnemyJoin5" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
+					<Text id="CombatEnemyRow5Name" class="Text14" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
+				</Panel>
+				<Text id="CombatEnemyRow5Armour" class="Text14" color="White" preferredWidth="55" alignment="MiddleCenter"/>
+				<Text id="CombatEnemyRow5Traits" class="Text14" color="White" preferredWidth="190" alignment="MiddleLeft"/>
+				<Panel id="CombatSourceCell5range" preferredWidth="170" color="rgba(0,0,0,0)" outlineSize="0 0">
+					<Button id="CombatSourceSlot5rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
+					<HorizontalLayout childForceExpandWidth="false" childForceExpandHeight="false" childAlignment="MiddleLeft">
+						<Button id="CombatSourceSlot5range1" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot5range1Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot5range1Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot5range2" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot5range2Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot5range2Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot5range3" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot5range3Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot5range3Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot5range4" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot5range4Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot5range4Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot5range5" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot5range5Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot5range5Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot5range6" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot5range6Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot5range6Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot5range7" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot5range7Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot5range7Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot5range8" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot5range8Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot5range8Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+					</HorizontalLayout>
+				</Panel>
+				<Text id="CombatEnemyRow5Attacks" class="Text14" color="White" preferredWidth="110" alignment="MiddleCenter"/>
+				<Text id="CombatEnemyRow5Offence" class="Text14" color="White" preferredWidth="130" alignment="MiddleLeft"/>
+				<Panel id="CombatSourceCell5block" preferredWidth="170" color="rgba(0,0,0,0)" outlineSize="0 0">
+					<Button id="CombatSourceSlot5blockCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
+					<HorizontalLayout childForceExpandWidth="false" childForceExpandHeight="false" childAlignment="MiddleLeft">
+						<Button id="CombatSourceSlot5block1" class="CombatSlot"><Image id="CombatSourceSlot5block1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot5block1Amount" class="CombatSlotAmount"/></Button>
+						<Button id="CombatSourceSlot5block2" class="CombatSlot"><Image id="CombatSourceSlot5block2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot5block2Amount" class="CombatSlotAmount"/></Button>
+						<Button id="CombatSourceSlot5block3" class="CombatSlot"><Image id="CombatSourceSlot5block3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot5block3Amount" class="CombatSlotAmount"/></Button>
+						<Button id="CombatSourceSlot5block4" class="CombatSlot"><Image id="CombatSourceSlot5block4Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot5block4Amount" class="CombatSlotAmount"/></Button>
+						<Button id="CombatSourceSlot5block5" class="CombatSlot"><Image id="CombatSourceSlot5block5Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot5block5Amount" class="CombatSlotAmount"/></Button>
+						<Button id="CombatSourceSlot5block6" class="CombatSlot"><Image id="CombatSourceSlot5block6Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot5block6Amount" class="CombatSlotAmount"/></Button>
+					</HorizontalLayout>
+				</Panel>
+				<Panel id="CombatSourceCell5attack" preferredWidth="170" color="rgba(0,0,0,0)" outlineSize="0 0">
+					<Button id="CombatSourceSlot5attackCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
+					<HorizontalLayout childForceExpandWidth="false" childForceExpandHeight="false" childAlignment="MiddleLeft">
+						<Button id="CombatSourceSlot5attack1" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot5attack1Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot5attack1Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot5attack2" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot5attack2Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot5attack2Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot5attack3" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot5attack3Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot5attack3Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot5attack4" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot5attack4Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot5attack4Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot5attack5" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot5attack5Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot5attack5Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot5attack6" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot5attack6Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot5attack6Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot5attack7" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot5attack7Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot5attack7Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot5attack8" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot5attack8Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot5attack8Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+					</HorizontalLayout>
+				</Panel>
+				<Text id="CombatEnemyRow5Result" class="Text14" color="White" preferredWidth="230" alignment="MiddleLeft"/>
+			</HorizontalLayout>
+		</Panel>
+		<Panel id="CombatEnemyRow6" active="false" preferredHeight="30" outlineSize="0 0">
+			<HorizontalLayout padding="8 0 0 0" childForceExpandWidth="false">
+				<Panel preferredWidth="130" color="rgba(0,0,0,0)" outlineSize="0 0">
+					<Button id="CombatEnemyJoin6" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
+					<Text id="CombatEnemyRow6Name" class="Text14" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
+				</Panel>
+				<Text id="CombatEnemyRow6Armour" class="Text14" color="White" preferredWidth="55" alignment="MiddleCenter"/>
+				<Text id="CombatEnemyRow6Traits" class="Text14" color="White" preferredWidth="190" alignment="MiddleLeft"/>
+				<Panel id="CombatSourceCell6range" preferredWidth="170" color="rgba(0,0,0,0)" outlineSize="0 0">
+					<Button id="CombatSourceSlot6rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
+					<HorizontalLayout childForceExpandWidth="false" childForceExpandHeight="false" childAlignment="MiddleLeft">
+						<Button id="CombatSourceSlot6range1" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot6range1Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot6range1Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot6range2" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot6range2Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot6range2Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot6range3" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot6range3Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot6range3Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot6range4" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot6range4Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot6range4Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot6range5" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot6range5Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot6range5Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot6range6" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot6range6Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot6range6Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot6range7" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot6range7Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot6range7Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot6range8" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot6range8Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot6range8Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+					</HorizontalLayout>
+				</Panel>
+				<Text id="CombatEnemyRow6Attacks" class="Text14" color="White" preferredWidth="110" alignment="MiddleCenter"/>
+				<Text id="CombatEnemyRow6Offence" class="Text14" color="White" preferredWidth="130" alignment="MiddleLeft"/>
+				<Panel id="CombatSourceCell6block" preferredWidth="170" color="rgba(0,0,0,0)" outlineSize="0 0">
+					<Button id="CombatSourceSlot6blockCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
+					<HorizontalLayout childForceExpandWidth="false" childForceExpandHeight="false" childAlignment="MiddleLeft">
+						<Button id="CombatSourceSlot6block1" class="CombatSlot"><Image id="CombatSourceSlot6block1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot6block1Amount" class="CombatSlotAmount"/></Button>
+						<Button id="CombatSourceSlot6block2" class="CombatSlot"><Image id="CombatSourceSlot6block2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot6block2Amount" class="CombatSlotAmount"/></Button>
+						<Button id="CombatSourceSlot6block3" class="CombatSlot"><Image id="CombatSourceSlot6block3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot6block3Amount" class="CombatSlotAmount"/></Button>
+						<Button id="CombatSourceSlot6block4" class="CombatSlot"><Image id="CombatSourceSlot6block4Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot6block4Amount" class="CombatSlotAmount"/></Button>
+						<Button id="CombatSourceSlot6block5" class="CombatSlot"><Image id="CombatSourceSlot6block5Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot6block5Amount" class="CombatSlotAmount"/></Button>
+						<Button id="CombatSourceSlot6block6" class="CombatSlot"><Image id="CombatSourceSlot6block6Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot6block6Amount" class="CombatSlotAmount"/></Button>
+					</HorizontalLayout>
+				</Panel>
+				<Panel id="CombatSourceCell6attack" preferredWidth="170" color="rgba(0,0,0,0)" outlineSize="0 0">
+					<Button id="CombatSourceSlot6attackCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
+					<HorizontalLayout childForceExpandWidth="false" childForceExpandHeight="false" childAlignment="MiddleLeft">
+						<Button id="CombatSourceSlot6attack1" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot6attack1Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot6attack1Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot6attack2" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot6attack2Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot6attack2Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot6attack3" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot6attack3Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot6attack3Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot6attack4" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot6attack4Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot6attack4Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot6attack5" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot6attack5Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot6attack5Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot6attack6" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot6attack6Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot6attack6Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot6attack7" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot6attack7Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot6attack7Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot6attack8" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot6attack8Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot6attack8Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+					</HorizontalLayout>
+				</Panel>
+				<Text id="CombatEnemyRow6Result" class="Text14" color="White" preferredWidth="230" alignment="MiddleLeft"/>
+			</HorizontalLayout>
+		</Panel>
+		<Panel id="CombatEnemyRow7" active="false" preferredHeight="30" outlineSize="0 0">
+			<HorizontalLayout padding="8 0 0 0" childForceExpandWidth="false">
+				<Panel preferredWidth="130" color="rgba(0,0,0,0)" outlineSize="0 0">
+					<Button id="CombatEnemyJoin7" onClick="resourceTracker" color="rgba(0,0,0,0)"/><Text id="CombatEnemyRow7Name" class="Text14" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
+				</Panel>
+				<Text id="CombatEnemyRow7Armour" class="Text14" color="White" preferredWidth="55" alignment="MiddleCenter"/>
+				<Text id="CombatEnemyRow7Traits" class="Text14" color="White" preferredWidth="190" alignment="MiddleLeft"/>
+				<Panel id="CombatSourceCell7range" preferredWidth="170" color="rgba(0,0,0,0)" outlineSize="0 0">
+					<Button id="CombatSourceSlot7rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
+					<HorizontalLayout childForceExpandWidth="false" childForceExpandHeight="false" childAlignment="MiddleLeft">
+						<Button id="CombatSourceSlot7range1" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot7range1Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot7range1Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot7range2" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot7range2Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot7range2Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot7range3" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot7range3Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot7range3Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot7range4" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot7range4Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot7range4Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot7range5" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot7range5Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot7range5Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot7range6" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot7range6Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot7range6Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot7range7" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot7range7Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot7range7Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot7range8" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot7range8Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot7range8Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+					</HorizontalLayout>
+				</Panel>
+				<Text id="CombatEnemyRow7Attacks" class="Text14" color="White" preferredWidth="110" alignment="MiddleCenter"/>
+				<Text id="CombatEnemyRow7Offence" class="Text14" color="White" preferredWidth="130" alignment="MiddleLeft"/>
+				<Panel id="CombatSourceCell7block" preferredWidth="170" color="rgba(0,0,0,0)" outlineSize="0 0">
+					<Button id="CombatSourceSlot7blockCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
+					<HorizontalLayout childForceExpandWidth="false" childForceExpandHeight="false" childAlignment="MiddleLeft">
+						<Button id="CombatSourceSlot7block1" class="CombatSlot"><Image id="CombatSourceSlot7block1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot7block1Amount" class="CombatSlotAmount"/></Button>
+						<Button id="CombatSourceSlot7block2" class="CombatSlot"><Image id="CombatSourceSlot7block2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot7block2Amount" class="CombatSlotAmount"/></Button>
+						<Button id="CombatSourceSlot7block3" class="CombatSlot"><Image id="CombatSourceSlot7block3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot7block3Amount" class="CombatSlotAmount"/></Button>
+						<Button id="CombatSourceSlot7block4" class="CombatSlot"><Image id="CombatSourceSlot7block4Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot7block4Amount" class="CombatSlotAmount"/></Button>
+						<Button id="CombatSourceSlot7block5" class="CombatSlot"><Image id="CombatSourceSlot7block5Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot7block5Amount" class="CombatSlotAmount"/></Button>
+						<Button id="CombatSourceSlot7block6" class="CombatSlot"><Image id="CombatSourceSlot7block6Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot7block6Amount" class="CombatSlotAmount"/></Button>
+					</HorizontalLayout>
+				</Panel>
+				<Panel id="CombatSourceCell7attack" preferredWidth="170" color="rgba(0,0,0,0)" outlineSize="0 0">
+					<Button id="CombatSourceSlot7attackCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
+					<HorizontalLayout childForceExpandWidth="false" childForceExpandHeight="false" childAlignment="MiddleLeft">
+						<Button id="CombatSourceSlot7attack1" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot7attack1Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot7attack1Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot7attack2" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot7attack2Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot7attack2Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot7attack3" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot7attack3Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot7attack3Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot7attack4" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot7attack4Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot7attack4Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot7attack5" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot7attack5Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot7attack5Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot7attack6" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot7attack6Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot7attack6Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot7attack7" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot7attack7Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot7attack7Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot7attack8" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot7attack8Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot7attack8Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+					</HorizontalLayout>
+				</Panel>
+				<Text id="CombatEnemyRow7Result" class="Text14" color="White" preferredWidth="230" alignment="MiddleLeft"/>
+			</HorizontalLayout>
+		</Panel>
+		<Panel id="CombatEnemyRow8" active="false" preferredHeight="30" outlineSize="0 0">
+			<HorizontalLayout padding="8 0 0 0" childForceExpandWidth="false">
+				<Panel preferredWidth="130" color="rgba(0,0,0,0)" outlineSize="0 0">
+					<Button id="CombatEnemyJoin8" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
+					<Text id="CombatEnemyRow8Name" class="Text14" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
+				</Panel>
+				<Text id="CombatEnemyRow8Armour" class="Text14" color="White" preferredWidth="55" alignment="MiddleCenter"/>
+				<Text id="CombatEnemyRow8Traits" class="Text14" color="White" preferredWidth="190" alignment="MiddleLeft"/>
+				<Panel id="CombatSourceCell8range" preferredWidth="170" color="rgba(0,0,0,0)" outlineSize="0 0">
+					<Button id="CombatSourceSlot8rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
+					<HorizontalLayout childForceExpandWidth="false" childForceExpandHeight="false" childAlignment="MiddleLeft">
+						<Button id="CombatSourceSlot8range1" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot8range1Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot8range1Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot8range2" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot8range2Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot8range2Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot8range3" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot8range3Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot8range3Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot8range4" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot8range4Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot8range4Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot8range5" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot8range5Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot8range5Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot8range6" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot8range6Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot8range6Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot8range7" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot8range7Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot8range7Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot8range8" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot8range8Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot8range8Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+					</HorizontalLayout>
+				</Panel>
+				<Text id="CombatEnemyRow8Attacks" class="Text14" color="White" preferredWidth="110" alignment="MiddleCenter"/>
+				<Text id="CombatEnemyRow8Offence" class="Text14" color="White" preferredWidth="130" alignment="MiddleLeft"/>
+				<Panel id="CombatSourceCell8block" preferredWidth="170" color="rgba(0,0,0,0)" outlineSize="0 0">
+					<Button id="CombatSourceSlot8blockCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
+					<HorizontalLayout childForceExpandWidth="false" childForceExpandHeight="false" childAlignment="MiddleLeft">
+						<Button id="CombatSourceSlot8block1" class="CombatSlot"><Image id="CombatSourceSlot8block1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot8block1Amount" class="CombatSlotAmount"/></Button>
+						<Button id="CombatSourceSlot8block2" class="CombatSlot"><Image id="CombatSourceSlot8block2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot8block2Amount" class="CombatSlotAmount"/></Button>
+						<Button id="CombatSourceSlot8block3" class="CombatSlot"><Image id="CombatSourceSlot8block3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot8block3Amount" class="CombatSlotAmount"/></Button>
+						<Button id="CombatSourceSlot8block4" class="CombatSlot"><Image id="CombatSourceSlot8block4Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot8block4Amount" class="CombatSlotAmount"/></Button>
+						<Button id="CombatSourceSlot8block5" class="CombatSlot"><Image id="CombatSourceSlot8block5Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot8block5Amount" class="CombatSlotAmount"/></Button>
+						<Button id="CombatSourceSlot8block6" class="CombatSlot"><Image id="CombatSourceSlot8block6Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot8block6Amount" class="CombatSlotAmount"/></Button>
+					</HorizontalLayout>
+				</Panel>
+				<Panel id="CombatSourceCell8attack" preferredWidth="170" color="rgba(0,0,0,0)" outlineSize="0 0">
+					<Button id="CombatSourceSlot8attackCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
+					<HorizontalLayout childForceExpandWidth="false" childForceExpandHeight="false" childAlignment="MiddleLeft">
+						<Button id="CombatSourceSlot8attack1" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot8attack1Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot8attack1Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot8attack2" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot8attack2Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot8attack2Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot8attack3" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot8attack3Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot8attack3Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot8attack4" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot8attack4Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot8attack4Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot8attack5" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot8attack5Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot8attack5Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot8attack6" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot8attack6Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot8attack6Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot8attack7" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot8attack7Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot8attack7Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+						<Button id="CombatSourceSlot8attack8" active="false" preferredWidth="26" preferredHeight="30" onClick="resourceTracker" class="ShortButton">
+							<Image id="CombatSourceSlot8attack8Image" image="MKChoiceAttack" rectAlignment="MiddleCenter" offsetXY="0 -5" width="22" height="18" preserveAspect="true" raycastTarget="false"/>
+							<Text id="CombatSourceSlot8attack8Amount" rectAlignment="MiddleCenter" offsetXY="0 10" preferredHeight="12" fontSize="12" alignment="MiddleCenter" color="White" raycastTarget="false"/>
+						</Button>
+					</HorizontalLayout>
+				</Panel>
+				<Text id="CombatEnemyRow8Result" class="Text14" color="White" preferredWidth="230" alignment="MiddleLeft"/>
+			</HorizontalLayout>
+		</Panel>
+		<HorizontalLayout id="CombatTotalRow" active="false" padding="8 0 0 0" preferredHeight="20" childForceExpandWidth="false">
+			<Panel id="CombatTotalSpacer" preferredWidth="1000" color="rgba(0,0,0,0)" outlineSize="0 0"/>
+			<Text id="CombatTotalDamage" class="Text14" color="White" preferredWidth="180" alignment="MiddleLeft"/>
+		</HorizontalLayout>
+		<HorizontalLayout childForceExpandWidth="false">
+			<Text id="CombatAssignmentNote" class="Text12" color="White" preferredWidth="850" alignment="MiddleLeft">{en}Prototype estimate: assigned strength is compared with printed armour. Traits and special rules are reminders only.{it}Stima prototipo: la forza assegnata viene confrontata con l'armatura stampata. Tratti e regole speciali sono solo promemoria.{ru}Оценка прототипа: назначенная сила сравнивается с указанной бронёй. Свойства и особые правила приведены только для напоминания.{zh-tw}原型估算：以分配的攻擊力對照印刷護甲。特性與特殊規則僅供提醒。{zh-cn}原型估算：以分配的攻击力对照印刷护甲。特性与特殊规则仅供提醒。{ko}시험용 예상치: 할당된 공격력을 표시 방어구와 비교합니다. 특성과 특수 규칙은 참고용입니다.{es}Estimación de prueba: la fuerza asignada se compara con la armadura impresa. Los rasgos y reglas especiales son solo recordatorios.{fr}Estimation de test : la force attribuée est comparée à l'armure imprimée. Les traits et règles spéciales sont des rappels uniquement.{pt-br}Estimativa de teste: a força atribuída é comparada à armadura impressa. Traços e regras especiais são apenas lembretes.{de}Prototyp-Schätzung: Zugewiesene Stärke wird mit der gedruckten Rüstung verglichen. Merkmale und Sonderregeln dienen nur als Erinnerung.</Text>
+		</HorizontalLayout>
+	</VerticalLayout>
+</Panel>
+
+<!-- include UI/CombatEnemyPanel.xml -->
+<!-- include UI/Setup.xml -->
 <Panel id="Setup" active="false" width="1000" height="780" color="rgb(0.2, 0.2, 0.2)" outlineSize="3 -3" class="Floating">
 	<Panel outlineSize="1 -1" rectAlignment="UpperCenter" width="1000" height="40" color="rgb(0.3,0.3,0.3)">
 		<Text id="SetupTitle" color="White" class="Title30">{en}MAGE KNIGHT (HIGHLY SCRIPTED) - SETUP{it}MAGE KNIGHT (HIGHLY SCRIPTED) - PREPARAZIONE{ru}MAGE KNIGHT (HIGHLY SCRIPTED) - НАСТРОЙКИ{zh-tw}魔法騎士（高度腳本化）－設置{zh-cn}魔法骑士（高度脚本化）－设置{ko}메이지 나이트 (하이 스크립트) - 설정{es}MAGE KNIGHT (HIGHLY SCRIPTED) - CONFIGURACION{fr}MAGE KNIGHT (HIGHLY SCRIPTED) - INSTALLER{pt-br}MAGE KNIGHT (HIGHLY SCRIPTED) - Preparação{de}MAGE KNIGHT (HOCHGRADIG GESCRIPTET) - EINRICHTUNG</Text>
@@ -2755,6 +3593,8 @@ Einheiten</Text></Cell>
 	</Panel>
 </Panel>
 
+<!-- include UI/Setup.xml -->
+<!-- include UI/GameReminder.xml -->
 <Panel id="GameReminder" active="false" rectAlignment="UpperLeft" offsetXY="90 -75" width="300" height="100" class="Floating">
 	<Image image="Sliced Button/Button New Active" type="Sliced"/>
 	<TableLayout padding="8 8 0 2">
@@ -2766,6 +3606,8 @@ Einheiten</Text></Cell>
 	</TableLayout>
 </Panel>
 
+<!-- include UI/GameReminder.xml -->
+<!-- include UI/EndReminder.xml -->
 <Panel id="EndReminder" active="false" rectAlignment="LowerLeft" offsetXY="90 75" width="610" height="100" class="Floating">
 	<Image image="Sliced Button/Button New Active" type="Sliced"/>
 	<TableLayout padding="10 10 0 2">
@@ -2777,12 +3619,16 @@ Einheiten</Text></Cell>
 	</TableLayout>
 </Panel>
 
+<!-- include UI/EndReminder.xml -->
+<!-- include UI/Welcome.xml -->
 <Panel id="welcome" width="960" height="735" color="rgb(0, 0, 0)">
     <Button id="splashButton" interactable="true" onClick="closeSplash">
 		<Image image="Cover" preserveAspect="true" height="735" width="960" rectAlignment="MiddleCenter"/>
 	</Button>
 </Panel>
 
+<!-- include UI/Welcome.xml -->
+<!-- include UI/SendBugRequest.xml -->
 <Panel id="SendBugRequest" active="false" visibility="Admin" class="Floating" rectAlignment="UpperLeft" offsetXY="90 -350" width="350" height="160">
 	<Image image="Sliced Button/Button New Active" type="Sliced"/>
 	<Panel rectAlignment="LowerLeft" offsetXY="0 156" width="350" height="35" outlineSize="0 0">
@@ -2857,6 +3703,8 @@ Einheiten</Text></Cell>
 	</Panel>
 </Panel>
 
+<!-- include UI/SendBugRequest.xml -->
+<!-- include UI/SendScoreRequest.xml -->
 <Panel id="SendScoreRequest" active="false"	visibility="Admin" class="Floating"	rectAlignment="UpperLeft" offsetXY="90 -350" width="300" height="160">
 	<Image image="Sliced Button/Button New Active" type="Sliced"/>
 	<Panel rectAlignment="LowerLeft" offsetXY="0 156" width="300" height="35" outlineSize="0 0">
@@ -2933,6 +3781,8 @@ Einheiten</Text></Cell>
 	</Panel>
 </Panel>
 
+<!-- include UI/SendScoreRequest.xml -->
+<!-- include UI/ExtraTurnChoice.xml -->
 <Panel id="ExtraTurnChoice" active="false" class="Floating" rectAlignment="LowerCenter" offsetXY="0 300" width="300" height="60">
 	<Image image="Sliced Button/Button New Active" type="Sliced"/>
 	<Panel rectAlignment="UpperCenter" offsetXY="0 32" width="300" height="34" outlineSize="0 0">
@@ -2956,6 +3806,8 @@ Einheiten</Text></Cell>
 	</Panel>
 </Panel>
 
+<!-- include UI/ExtraTurnChoice.xml -->
+<!-- include UI/WallAssaultChoice.xml -->
 <Panel id="WallAssaultChoice" active="false" class="Floating" rectAlignment="UpperCenter" offsetXY="0 -300" width="300" height="60">
 	<Image image="Sliced Button/Button New Active" type="Sliced"/>
 	<Panel rectAlignment="UpperLeft" offsetXY="0 32" width="300" height="34" outlineSize="0 0">
@@ -2989,6 +3841,8 @@ Hat dein Angriff eine Mauer überquert?</Text>
 	</Panel>
 </Panel>
 
+<!-- include UI/WallAssaultChoice.xml -->
+<!-- include UI/CoralDrawChoice.xml -->
 <Panel id="CoralDrawChoice" active="false" class="Floating" rectAlignment="LowerLeft" offsetXY="900 150" width="150" height="85">
 	<Image image="Sliced Button/Button New Active" type="Sliced"/>
 	<Panel rectAlignment="MiddleLeft" offsetXY="-145 -26" width="140" height="200" outlineSize="1 1">
@@ -3021,6 +3875,8 @@ Hat dein Angriff eine Mauer überquert?</Text>
 	</Panel>
 </Panel>
 
+<!-- include UI/CoralDrawChoice.xml -->
+<!-- include UI/MineClaimChoice.xml -->
 <Panel id="MineClaimChoice" active="false" class="Floating" rectAlignment="LowerRight" offsetXY="-320 100" width="150" height="50" outlineSize="0 0">
 	<Image image="Sliced Button/Button New Active" type="Sliced"/>
 	<Panel rectAlignment="UpperCenter" offsetXY="0 32" width="150" height="34" outlineSize="0 0">
@@ -3038,6 +3894,8 @@ Hat dein Angriff eine Mauer überquert?</Text>
 	</HorizontalLayout>
 </Panel>
 
+<!-- include UI/MineClaimChoice.xml -->
+<!-- include UI/CoopAssault.xml -->
 <Panel id="CoopAssault"	active="false" class="Floating" rectAlignment="UpperLeft" offsetXY="90 -350" width="525" height="230">
 	<Image image="Sliced Button/Button New Active" type="Sliced"/>
 	<TableLayout id="CoopAssaultMainTable"
@@ -3186,6 +4044,8 @@ Hat dein Angriff eine Mauer überquert?</Text>
 	</TableLayout>
 </Panel>
 
+<!-- include UI/CoopAssault.xml -->
+<!-- include UI/CameraControl.xml -->
 <Panel id="cameraControl" class="Floating" active="false" rectAlignment="UpperRight" offsetXY="-50 -180" width="150" height="35" color="Clear" outlineSize="0 0" raycastTarget="false">
 	<Panel height="35" rectAlignment="UpperCenter" outlineSize="0 0">
 		<VerticalLayout>
@@ -3247,6 +4107,8 @@ Hat dein Angriff eine Mauer überquert?</Text>
 	</Panel>	
 </Panel>
 
+<!-- include UI/CameraControl.xml -->
+<!-- include UI/ZigguratPyramidInteract.xml -->
 <Panel id="zigguratPyramidInteract" active="false" class="Floating" rectAlignment="UpperLeft" offsetXY="90 -350" width="345" height="250" hideAnimation="Shrink" showAnimation="Grow">
 	<Image image="Sliced Button/Button New Active" type="Sliced"/>
 	<Panel rectAlignment="UpperLeft" offsetXY="0 0" width="345" height="30" outlineSize="0 0">
@@ -3311,3 +4173,5 @@ mit dem du dich befassen möchtest. Dann entweder:-</Text>
 		</Button>
 	</Panel>
 </Panel>
+
+<!-- include UI/ZigguratPyramidInteract.xml -->
