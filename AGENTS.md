@@ -1,5 +1,29 @@
 # Working Rules for Agents
 
+## Mandatory AI onboarding
+
+Before making project changes, read this file and `ARCHITECTURE.md` in full. Treat them as the current project guidance, but verify implementation details against the current source rather than assuming every historical note is still accurate.
+
+At the start of a task:
+- Confirm the repository, current branch, and working-tree state. Preserve existing user changes; never reset, overwrite, stash, or discard them without explicit permission.
+- Identify the owning source module from `ARCHITECTURE.md` and inspect the relevant implementation and its callers before editing.
+- Trace important dependencies, state ownership, UI entry points, and callbacks far enough to understand the complete behavior being changed.
+- Check relevant project data and current scenario/card definitions when a task depends on game content. Do not rely on old conversations, remembered assumptions, generated bundles, or stale snapshots instead of current source.
+- If instructions or source leave a material rule/design decision ambiguous, ask before choosing an interpretation that changes gameplay or architecture.
+
+Do not begin by rewriting a subsystem or introducing a new abstraction simply because another implementation would be conventional. Prefer the smallest coherent change that fits the existing architecture.
+
+## AI decision-making and handoff
+
+The repository source and these project documents are the authority for current implementation. Prior chat history, AI-generated summaries, issue descriptions, and assumptions are context only; verify them against the branch being edited.
+
+Do not invent Mage Knight rules, card effects, scenario behavior, or TTS API behavior. When a rule is unclear, identify the uncertainty and ask for clarification or cite the authoritative project/game reference supplied for the task.
+
+Do not silently change established design decisions, remove apparently redundant behavior, broaden scope, or perform unrelated cleanup. Preserve existing functionality unless the requested change requires otherwise. Distinguish a genuine defect from a deliberate manual player procedure or an intentional limitation of the automation.
+
+Explain significant design choices and any non-obvious trade-offs. Report what changed, which files were affected, what validation was actually run, its result, and any checks that could not be run. Never claim a test or validation passed unless it was executed successfully.
+
+
 ## Source authority
 
 The authoritative project code is under `src/`, with `.tts/objects/Global.lua` as the bundler entry point and `.tts/objects/Global.xml` as the Global UI entry point. `Global.xml` only holds `<Include src="UI/Name.xml"/>` lines; the actual UI panels live in `src/UI/` (one file per top-level panel, plus `Defaults.xml`). Edit the `src/UI/` files, not `Global.xml`.
@@ -154,9 +178,20 @@ Do not bump a numbered release solely because source modules are being reorganiz
 
 ## Validation
 
-Run `tools/validate-project.ps1` before considering a structural change complete. GitHub CI runs the same validator with Lua 5.2 required.
+Run `tools/validate-project.ps1` before considering a structural change complete. Run it from the repository root in PowerShell. GitHub CI runs the same validator with Lua 5.2 required.
 
-Validation should cover source Lua syntax, object Lua syntax, JSON parsing, TTS XML fragment parsing, Global `require()` resolution, and whitespace errors.
+The validator currently checks:
+- JSON parsing for repository JSON files, excluding generated `.tts/bundled/` output.
+- TTS XML fragment parsing for object XML and `src/UI/` XML, including resolution of XML `<Include>` targets.
+- Every `require()` target in `.tts/objects/Global.lua` resolves to a source module under `src/`.
+- Duplicate global function definitions across `src/` modules.
+- Risky local `state`/`context` table shadowing patterns.
+- Lua 5.2 syntax for Lua files under `src/` and `.tts/objects/`.
+- Unstaged and staged Git whitespace errors via `git diff --check` and `git diff --cached --check`.
+
+A local run without `luac5.2` or `luac52` warns and skips Lua parsing unless invoked with `-RequireLua52`. That warning is **not** a successful Lua syntax check. Install/use a Lua 5.2 compiler or rely on the required CI check, and clearly report when local Lua parsing was skipped.
+
+Run relevant focused tests or manual checks in addition to the project validator when the change affects runtime behavior. The validator is a structural/syntax check, not proof that the feature works correctly in Tabletop Simulator. Do not claim runtime behavior was tested unless it was actually exercised in TTS.
 
 ## Safe TTS desktop workflow
 
