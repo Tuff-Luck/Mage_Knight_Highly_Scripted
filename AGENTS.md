@@ -32,6 +32,19 @@ Files under `.tts/objects/*.data.json` are object metadata snapshots. Their embe
 
 `.tts/bundled/` is generated output. Do not edit generated bundled files as source.
 
+## Mage Knight rules and reference material
+
+The `Rules/` folder contains the project's Mage Knight rules and game reference data. Treat it as the primary project reference for verifying game mechanics, card effects, scenario rules, and other game-specific facts.
+
+When implementing or auditing gameplay behaviour:
+- Consult the relevant material in `Rules/` before relying on memory or making assumptions about a rule, card, or scenario.
+- Do not invent, simplify, or reinterpret game rules. If the reference material does not clearly resolve an interaction, identify the uncertainty and ask for clarification.
+- Distinguish the game's rules/reference material in `Rules/` from the mod's current implementation in `src/`. The implementation may include deliberate automation choices, reminders, limitations, or player-managed procedures.
+- If the reference material appears to conflict with the current implementation, report the discrepancy and explain the relevant evidence rather than silently changing gameplay behaviour.
+- Do not modify the reference material unless explicitly asked.
+
+For source-of-truth purposes: use `Rules/` to establish what the game rules and data say, `src/` to establish what the mod currently implements, and `ARCHITECTURE.md` to establish where implementation responsibilities belong.
+
 ## Git workflow
 
 Work on the repository's current default branch unless the user explicitly requests another branch. Before writing to a named branch, verify that it still exists; do not rely on historical branch names.
