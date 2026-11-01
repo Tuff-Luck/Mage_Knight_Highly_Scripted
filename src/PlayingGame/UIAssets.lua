@@ -57,6 +57,8 @@ local originalGlobalImages={
     {name="Volkare Pursuit Button",url="https://steamusercontent-a.akamaihd.net/ugc/13293042467654760772/E72DCC400EC451ABB80DC722F3657A631FC30C70/"},
     {name="Pursuit Stunned",url="https://steamusercontent-a.akamaihd.net/ugc/9820771160644960489/29318B61F2A30E0E941F355C3664303B0C95BC60/"},
     {name="Incantation Button",url="https://steamusercontent-a.akamaihd.net/ugc/2252424264022049991/BE0E6510D1DC7D3CD43FF6986F8373AE88DE7D8C/"},
+    {name="Defender Decal 1",url="https://steamusercontent-a.akamaihd.net/ugc/10632112705667530745/ABBA1BEC1D6355C0F4E08DA79140A8CB24A03A7A/"},
+    {name="Defender Decal 2",url="https://steamusercontent-a.akamaihd.net/ugc/10268219428207943773/49479D6AF430568A0B487F79709FD20C77E3BA6C/"},
 }
 
 -- New resource/Skill choice images use a dedicated prefix to avoid clashes.

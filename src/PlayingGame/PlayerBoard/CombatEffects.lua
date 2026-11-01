@@ -24,8 +24,12 @@ end
 -- Returns the effect for the played side, if the selected option applies.
 function combatEffectSpec(rule,powered,chosenCategory)
     local sides=rule~=nil and rule.enemyEffect or nil
-    local spec=sides~=nil and (powered and sides.powered or sides.normal) or nil
+    local spec=nil
+    if sides~=nil then
+        if powered then spec=sides.powered else spec=sides.normal end
+    end
     if spec==nil then return nil end
+    -- A powered play never falls back to the normal effect: the sides are distinct effects.
     -- A side may list one spec per option; the selected option picks the matching one.
     if spec[1]~=nil then
         for _,candidate in ipairs(spec) do
@@ -39,14 +43,26 @@ end
 
 -- Spec fields: noAttackUnfortified, armourReduce, armourReduceFortified (replaces it against a fortified enemy),
 -- armourReduceByResist (per resistance), noAttack, removeAbilities, removeFortify,
--- removeResist, removeFireResist, all (every face-up enemy instead of one).
+-- removeResist, removeFireResist, destroy, all (every face-up enemy instead of one).
+-- Arcane Immunity ignores everything except effects that directly modify the enemy's attacks (removeAbilities).
+local function combatEffectImmune(enemyGUID)
+    local pug=monsterPugs[enemyGUID]
+    local perks=gStates~=nil and gStates.monsterPerks~=nil and gStates.monsterPerks[enemyGUID] or nil
+    return (pug~=nil and pug.arcaneImmunity==true) or (perks~=nil and perks.arcaneImmunity==true)
+end
+
 function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec)
     local entry=enemyEffects[enemyGUID]
     if entry==nil then
-        entry={armourReduce=0,armourReduceFortified=0,armourReduceByResist=0,noAttack=false,
+        entry={armourReduce=0,armourReduceFortified=0,armourReduceByResist=0,noAttack=false,destroy=false,
             removeAbilities=false,removeFortify=false,removeResist=false,removeFireResist=false,sources={}}
         enemyEffects[enemyGUID]=entry
     end
+    if combatEffectImmune(enemyGUID) then
+        entry.immuneIgnored=true
+        spec={removeAbilities=spec.removeAbilities}
+    end
+    entry.destroy=entry.destroy or spec.destroy==true
     entry.armourReduce=entry.armourReduce+(spec.armourReduce or 0)
     entry.armourReduceFortified=entry.armourReduceFortified+(spec.armourReduceFortified or spec.armourReduce or 0)
     entry.armourReduceByResist=entry.armourReduceByResist+(spec.armourReduceByResist or 0)
@@ -79,6 +95,8 @@ function combatEffectReport(seatPos,enemyEffects)
         if entry.noAttack then text=text.." does not attack" end
         if entry.noAttackUnfortified and not entry.noAttack then text=text.." does not attack if unfortified" end
         if entry.removeAbilities then text=text.." attack loses abilities (keeps colour)" end
+        if entry.destroy then text=text.." is destroyed" end
+        if entry.immuneIgnored then text=text.." (Arcane Immunity ignores non-attack effects)" end
         parts[#parts+1]=text
     end
     table.sort(parts)

@@ -43498,6 +43498,13 @@ local function combatAssignmentActiveSeat()
     return active~=nil and active.seatPos or nil
 end
 
+-- Card effects recorded against any enemy GUID (including summoned tokens) by the active seat's scan.
+local function combatEffectOf(guid)
+    local seat=combatAssignmentActiveSeat()
+    local scan=seat~=nil and resourceCardScanBySeat[seat] or nil
+    return scan~=nil and scan.enemyEffects~=nil and scan.enemyEffects[guid] or nil
+end
+
 local COMBAT_TRANSFORM_FAMILIES={attack=true,ranged=true,siege=true}
 local COMBAT_ELEMENT_SUFFIXES={"ColdFire","Fire","Ice","Psychic"}
 
@@ -43544,8 +43551,10 @@ local function combatAssignmentSources(seat)
                     if type(sourceName)=="table" then sourceName=sourceName[1] end
                     parts[slot]={guid=guid,key=part~=nil and (guid.."#"..part) or guid,part=part,
                         name=tostring(sourceName or record.kind or "Resource"),
-                        ranged=0,siege=0,block=0,attack=0,move=0,details={},resources=effective,
-                        swiftDouble=record.swiftDouble==true,defeatFameRep=record.defeatFameRep}
+                        ranged=0,siege=0,block=0,attack=0,move=0,details={},
+                        resources=record.splitTargets~=nil and {} or effective,
+                        swiftDouble=record.swiftDouble==true,defeatFameRep=record.defeatFameRep,
+                        repeatBlocks=record.repeatBlocks}
                     sources[#sources+1]=parts[slot]
                 end
                 source=parts[slot]
@@ -43557,6 +43566,7 @@ local function combatAssignmentSources(seat)
                     ensureSource(field.family=="block" and "block" or "attack")
                     local resourceFamily=field.family
                     source[resourceFamily]=source[resourceFamily]+amount
+                    if record.splitTargets~=nil then source.resources[field.key]=amount end
                     local typeKey="P"
                     if field.key:find("ColdFire$") then typeKey="IF"
                     elseif field.key:find("Fire$") then typeKey="F"
@@ -43621,16 +43631,16 @@ local function combatEnemyFortificationCount(data,perks)
         +(perks~=nil and perks.wallFortified==true and 1 or 0)
 end
 
-local function combatEnemyPrintedAttacks(data,perks)
+local function combatEnemyPrintedAttacks(data,perks,stripAbilities)
     local attacks={}
     local base=type(data.attack)=="table" and data.attack or {}
     local override=perks~=nil and type(perks.attack)=="table" and perks.attack or {}
     local elemental=perks~=nil and perks.elemental==true
     local boost=perks~=nil and tonumber(perks.boost) or 0
     local boostUsed=false
-    local swift=combatEnemyHasTrait(data,perks,"swiftness")
-    local brutal=combatEnemyHasTrait(data,perks,"brutal")
-    local cumbersome=combatEnemyHasTrait(data,perks,"cumbersome")
+    local swift=not stripAbilities and combatEnemyHasTrait(data,perks,"swiftness")
+    local brutal=not stripAbilities and combatEnemyHasTrait(data,perks,"brutal")
+    local cumbersome=not stripAbilities and combatEnemyHasTrait(data,perks,"cumbersome")
     for _,attackType in ipairs(COMBAT_ATTACK_TYPES) do
         local values=override[attackType.key] or base[attackType.key]
         for _,printedValue in ipairs(type(values)=="table" and values or {}) do
@@ -43652,7 +43662,7 @@ local function combatSummonedFor(summonerGUID)
         if type(details)=="table" and details[3]=="summoned" and details[4]==summonerGUID
             and data~=nil and getObjectFromGUID(guid)~=nil then
             local perks=gStates.monsterPerks~=nil and gStates.monsterPerks[guid] or nil
-            summoned[#summoned+1]={guid=guid,data=data,perks=perks}
+            summoned[#summoned+1]={guid=guid,data=data,perks=perks,effect=combatEffectOf(guid)}
         end
     end
     table.sort(summoned,function(a,b) return a.guid<b.guid end)
@@ -43663,17 +43673,27 @@ local function combatIsSummonedToken(guid)
     return gStates~=nil and gStates.summonStates~=nil and gStates.summonStates[guid]=="summoned"
 end
 
--- A summoner with no token out yet counts as one 0 attack with no abilities.
+-- A summoner with no token out yet counts as one 0 attack with no abilities per token still to come.
+-- Effects stored against a summoned token apply to that token's attacks while it replaces its summoner.
+local function combatSummonedAttackPrevented(summoned)
+    local effect=summoned.effect
+    return effect~=nil and (effect.noAttack==true or effect.destroy==true or (effect.noAttackUnfortified==true
+        and combatEnemyFortificationCount(summoned.data,summoned.perks)==0))
+end
+
 local function combatEnemyAttacks(entry)
-    if entry.noAttack then return {} end
-    local attacks=combatEnemyPrintedAttacks(entry.data,entry.perks)
+    if entry.noAttack or entry.destroyed then return {} end
+    local attacks=combatEnemyPrintedAttacks(entry.data,entry.perks,entry.removeAbilities)
     if entry.data.monsters~=nil then
         for _,summoned in ipairs(entry.summoned or {}) do
-            for _,attack in ipairs(combatEnemyPrintedAttacks(summoned.data,summoned.perks)) do
-                attacks[#attacks+1]=attack
+            if not combatSummonedAttackPrevented(summoned) then
+                local strip=summoned.effect~=nil and summoned.effect.removeAbilities==true
+                for _,attack in ipairs(combatEnemyPrintedAttacks(summoned.data,summoned.perks,strip)) do
+                    attacks[#attacks+1]=attack
+                end
             end
         end
-        if #(entry.summoned or {})==0 then
+        for _=1,math.max(0,#entry.data.monsters-#(entry.summoned or {})) do
             attacks[#attacks+1]={key="P",label="Summon",value=0,block="block",pending=true}
         end
     end
@@ -43682,23 +43702,28 @@ end
 
 -- Offence abilities shown for a summoner are the ones carried by its summoned tokens.
 local function combatEnemyOffenceTraits(entry)
+    if entry.removeAbilities and entry.data.monsters==nil then return "None" end
     if entry.data.monsters==nil then
         return combatEnemyTraitsText(entry.data,entry.perks,COMBAT_ENEMY_OFFENCE_TRAITS)
     end
     local merged={}
     for _,summoned in ipairs(entry.summoned or {}) do
-        for _,trait in ipairs(COMBAT_ENEMY_OFFENCE_TRAITS) do
-            if combatEnemyHasTrait(summoned.data,summoned.perks,trait[1]) then merged[trait[1]]=true end
+        if not (summoned.effect~=nil and summoned.effect.removeAbilities==true) then
+            for _,trait in ipairs(COMBAT_ENEMY_OFFENCE_TRAITS) do
+                if combatEnemyHasTrait(summoned.data,summoned.perks,trait[1]) then merged[trait[1]]=true end
+            end
         end
     end
     return combatEnemyTraitsText(merged,nil,COMBAT_ENEMY_OFFENCE_TRAITS)
 end
 
 local function combatEntryHasCumbersome(guid,data,perks)
-    if combatEnemyHasTrait(data,perks,"cumbersome") then return true end
+    local effect=combatEffectOf(guid)
+    if combatEnemyHasTrait(data,perks,"cumbersome") and not (effect~=nil and effect.removeAbilities) then return true end
     if data.monsters~=nil then
         for _,summoned in ipairs(combatSummonedFor(guid)) do
-            if combatEnemyHasTrait(summoned.data,summoned.perks,"cumbersome") then return true end
+            if combatEnemyHasTrait(summoned.data,summoned.perks,"cumbersome")
+                and not (summoned.effect~=nil and summoned.effect.removeAbilities) then return true end
         end
     end
     return false
@@ -43798,7 +43823,8 @@ local function combatAttackTotal(groups,data,perks)
     return normal+math.floor(resisted/2)
 end
 
--- Blocks of the wrong element are halved against Fire, Ice and Cold Fire attacks.
+-- Blocks of the wrong element are halved against Fire, Ice and Cold Fire attacks. Every Block type is
+-- fully efficient against Physical attacks (P), so that entry lists all of them.
 local COMBAT_EFFICIENT_BLOCKS={
     P={block=true,blockFire=true,blockIce=true,blockColdFire=true,blockPsychic=true},
     F={blockIce=true,blockColdFire=true},
@@ -43999,7 +44025,13 @@ local function combatBlockResult(entry,sources)
             for _,field in ipairs(COMBAT_SOURCE_FIELDS) do
                 local value=tonumber(source.resources[field.key]) or 0
                 if field.family=="block" and value>0 then
-                    items[#items+1]={source=source,key=field.key,value=value,swiftDouble=source.swiftDouble}
+                    -- Repeated Block icons (Shield of the Fallen Kings) are separate, equal effects.
+                    local repeats=tonumber(source.repeatBlocks) or 1
+                    if repeats<2 or value%repeats~=0 then repeats=1 end
+                    for part=1,repeats do
+                        items[#items+1]={source=source,key=field.key,value=value/repeats,
+                            swiftDouble=source.swiftDouble,part=part}
+                    end
                 end
             end
         end
@@ -44023,7 +44055,17 @@ local function combatBlockResult(entry,sources)
         end
     end
     if attempted~=nil then plan[attempted.index].mask=bit32.bor(plan[attempted.index].mask,leftover) end
-    local lines,reductions,totalDamage,damageCount,allBlocked={},{},0,0,#attacks>0 or entry.noAttack==true
+    local lines,reductions,totalDamage,damageCount,allBlocked={},{},0,0,#attacks>0
+    -- Block items applied at the wrong element (halved) against their attack, keyed source.key..field.key.
+    local wrongBlock={}
+    for index,attack in ipairs(attacks) do
+        local efficient=COMBAT_EFFICIENT_BLOCKS[attack.key] or {}
+        for j,item in ipairs(solved) do
+            if bit32.band(plan[index].mask,bit32.lshift(1,j-1))~=0 and efficient[item.key]~=true then
+                wrongBlock[item.source.key..item.key]=true
+            end
+        end
+    end
     for index,attack in ipairs(attacks) do
         local step=plan[index]
         local remaining=attack.value-step.reduction
@@ -44042,7 +44084,7 @@ local function combatBlockResult(entry,sources)
                 ..combatRich(tostring(damage).." Damage",COMBAT_RED)
         end
     end
-    return lines,totalDamage,damageCount,allBlocked,reductions
+    return lines,totalDamage,damageCount,allBlocked,reductions,wrongBlock
 end
 
 -- A group is attacked as one: fortification and resistance of any member apply to all of
@@ -44094,31 +44136,123 @@ local function combatGroupAttackLine(group,sources,attackArmour)
     return meleeTotal>=attackArmour and (line.." "..combatRich("Defeated",COMBAT_GREEN)) or line
 end
 
-local combatDefenderMarkedGUID=nil
-local COMBAT_DEFENDER_DECAL_URL="https://steamusercontent-a.akamaihd.net/ugc/14077412532545838280/E5508FB0ADB512C72FA29D49665D051B12B8C015/"
+local combatDefenderMarks={}
+local COMBAT_DEFENDER_DECAL_URLS={
+    [1]="https://steamusercontent-a.akamaihd.net/ugc/10632112705667530745/ABBA1BEC1D6355C0F4E08DA79140A8CB24A03A7A/",
+    [2]="https://steamusercontent-a.akamaihd.net/ugc/10268219428207943773/49479D6AF430568A0B487F79709FD20C77E3BA6C/"}
 
-local function combatSetDefenderDecal(guid,on)
+local function combatSetDefenderDecal(guid,amount)
     local obj=guid~=nil and getObjectFromGUID(guid) or nil
     if obj==nil then return end
-    local decals,found={},false
+    local decals={}
     for _,decal in pairs(obj.getDecals() or {}) do
-        if decal.name=="DefenderArmour" then found=true else decals[#decals+1]=decal end
+        if decal.name~="DefenderArmour" then decals[#decals+1]=decal end
     end
-    if on and not found then
-        obj.addDecal({name="DefenderArmour",url=COMBAT_DEFENDER_DECAL_URL,position={0.0,0.15,1.2},
-            rotation={90,180,0},scale={0.72,0.72,1}})
-    elseif not on and found then
-        obj.setDecals(decals)
+    if amount~=nil then
+        decals[#decals+1]={name="DefenderArmour",url=COMBAT_DEFENDER_DECAL_URLS[amount>=2 and 2 or 1],
+            position={0.0,0.15,-1.2},rotation={90,180,0},scale={0.72,0.72,1}}
     end
+    obj.setDecals(decals)
 end
 
--- Marks the enemy currently receiving the Defender armour bonus; pass nil to clear.
-local function combatSyncDefenderMark(guid)
-    if combatDefenderMarkedGUID~=nil and combatDefenderMarkedGUID~=guid then
-        combatSetDefenderDecal(combatDefenderMarkedGUID,false)
+-- Marks the enemies currently receiving a Defender armour bonus ({guid=bonus}); pass nil to clear.
+local function combatSyncDefenderMark(marks)
+    local wanted={}
+    for guid,amount in pairs(marks or {}) do wanted[guid]=amount>=2 and 2 or 1 end
+    for guid,key in pairs(combatDefenderMarks) do
+        if wanted[guid]==nil then combatSetDefenderDecal(guid,nil) end
     end
-    combatDefenderMarkedGUID=guid
-    if guid~=nil then combatSetDefenderDecal(guid,true) end
+    for guid,key in pairs(wanted) do
+        if combatDefenderMarks[guid]~=key then combatSetDefenderDecal(guid,key) end
+    end
+    combatDefenderMarks=wanted
+end
+
+-- Defender: each Defend bonus goes to a different attacked enemy, highest bonus to the leftmost. A Defender that is destroyed, or defeated in the Ranged phase without being a defended enemy,
+-- loses its contribution. Returns {enemyIndex=bonus} and adds the bonuses to those enemies' armour.
+local function combatApplyDefend(entries,groups,allocated)
+    local defenders,indexByGUID={},{}
+    for index,entry in ipairs(entries) do
+        indexByGUID[entry.guid]=index
+        local bonus=(tonumber(entry.data.defend) or 0)+(entry.perks~=nil and tonumber(entry.perks.defend) or 0)
+        if bonus>0 and not entry.destroyed then defenders[#defenders+1]={index=index,bonus=bonus} end
+    end
+    if #defenders==0 then return {} end
+    -- Attacked enemies, left to right; the highest bonus goes to the leftmost, the next highest to the next.
+    local targets={}
+    for index,entry in ipairs(entries) do
+        for _,item in ipairs(allocated[index]~=nil and allocated[index].details or {}) do
+            local family=item.detail.family
+            if family~="block" and family~="move" and not entry.destroyed then
+                targets[#targets+1]=index
+                break
+            end
+        end
+    end
+    table.sort(defenders,function(a,b)
+        if a.bonus~=b.bonus then return a.bonus>b.bonus end
+        return a.index<b.index
+    end)
+    if #targets==0 then return {} end
+    local groupSources={}
+    for _,group in ipairs(groups) do
+        groupSources[group]={}
+        for _,index in ipairs(group.members) do
+            for _,source in ipairs((allocated[index] or {sources={}}).sources) do
+                groupSources[group][#groupSources[group]+1]=source
+            end
+        end
+    end
+    local groupIndexOf={}
+    for groupIndex,group in ipairs(groups) do
+        for _,index in ipairs(group.members) do groupIndexOf[index]=groupIndex end
+    end
+    local lost,applied={},{}
+    for _=1,#defenders+1 do
+        applied={}
+        local slot=0
+        local defenderTarget={}
+        for _,defender in ipairs(defenders) do
+            if not lost[defender.index] then
+                slot=slot+1
+                local target=targets[slot]
+                defenderTarget[defender.index]=target
+                if target~=nil then applied[target]=(applied[target] or 0)+defender.bonus end
+            end
+        end
+        local nextLost,changed={},false
+        for groupIndex,group in ipairs(groups) do
+            local members={}
+            for _,index in ipairs(group.members) do
+                local entry=entries[index]
+                members[#members+1]={guid=entry.guid,data=entry.data,perks=entry.perks,
+                    baseArmour=entry.baseArmour+(applied[index] or 0),
+                    elusiveArmour=entry.elusiveArmour+(applied[index] or 0),
+                    stripFortify=entry.stripFortify,stripResist=entry.stripResist,
+                    stripFireResist=entry.stripFireResist}
+            end
+            local _,_,rangeDefeated=combatRangeResult((combatGroupEntry(members,{})),groupSources[group])
+            if rangeDefeated then
+                -- Defeated before its ability could reach an enemy in a later (or its own) group: bonus kept.
+                for _,defender in ipairs(defenders) do
+                    local target=defenderTarget[defender.index]
+                    if groupIndexOf[defender.index]==groupIndex and target~=nil
+                        and groupIndexOf[target]>groupIndex then
+                        nextLost[defender.index]=true
+                    end
+                end
+            end
+        end
+        for index in pairs(nextLost) do if not lost[index] then changed=true end end
+        for index in pairs(lost) do if not nextLost[index] then changed=true end end
+        lost=nextLost
+        if not changed then break end
+    end
+    for index,amount in pairs(applied) do
+        entries[index].baseArmour=entries[index].baseArmour+amount
+        entries[index].elusiveArmour=entries[index].elusiveArmour+amount
+    end
+    return applied
 end
 
 local function combatAssignmentRefreshRows(entries,sources)
@@ -44137,7 +44271,8 @@ local function combatAssignmentRefreshRows(entries,sources)
     local groups,groupOf={},{}
     for index=1,math.min(#entries,COMBAT_ASSIGNMENT_ROW_COUNT) do
         local group=groups[#groups]
-        if index==1 or combatAssignmentJoined[entries[index].guid]~=true then
+        if index==1 or combatAssignmentJoined[entries[index].guid]~=true
+            or entries[index].destroyed or entries[index-1].destroyed then
             group={members={},sources={}}
             groups[#groups+1]=group
         end
@@ -44251,51 +44386,19 @@ local function combatAssignmentRefreshRows(entries,sources)
 
     local emptyTarget={sources={},details={}}
     local rowBlock={}
-    -- Defender: the leftmost enemy being attacked takes every Defend bonus. A lone enemy defends itself.
-    local totalDefend=0
-    for _,entry in ipairs(entries) do
-        totalDefend=totalDefend+(tonumber(entry.data.defend) or 0)
-            +(entry.perks~=nil and tonumber(entry.perks.defend) or 0)
-    end
-    local defendedGUID=nil
-    if totalDefend>0 then
-        if #entries==1 then
-            defendedGUID=entries[1].guid
-        else
-            local leftX
-            for _,group in ipairs(groups) do
-                local attacked=false
-                for _,index in ipairs(group.members) do
-                    for _,item in ipairs((allocated[index] or emptyTarget).details) do
-                        local family=item.detail.family
-                        if family~="block" and family~="move" then attacked=true end
-                    end
-                end
-                if attacked then
-                    for _,index in ipairs(group.members) do
-                        local obj=getObjectFromGUID(entries[index].guid)
-                        local x=obj~=nil and obj.getPosition().x or nil
-                        if x~=nil and (leftX==nil or x<leftX) then leftX,defendedGUID=x,entries[index].guid end
-                    end
-                end
-            end
-        end
-        for _,entry in ipairs(entries) do
-            if entry.guid==defendedGUID then
-                entry.baseArmour=entry.baseArmour+totalDefend
-                entry.elusiveArmour=entry.elusiveArmour+totalDefend
-            end
-        end
-    end
-    combatSyncDefenderMark(defendedGUID)
+    local defended=combatApplyDefend(entries,groups,allocated)
+    local defendMarks={}
+    for index,amount in pairs(defended) do defendMarks[entries[index].guid]=amount end
+    combatSyncDefenderMark(defendMarks)
     local defeatFame,defeatRep=0,0
     for _,group in ipairs(groups) do
         local members,blockedAll={},{}
         for _,index in ipairs(group.members) do
             local entry=entries[index]
             local target=allocated[index] or emptyTarget
-            local lines,damage,count,allBlocked,reductions=combatBlockResult(entry,target.sources)
-            rowBlock[index]={lines=lines,damage=damage,count=count,allBlocked=allBlocked,reductions=reductions}
+            local lines,damage,count,allBlocked,reductions,wrongBlock=combatBlockResult(entry,target.sources)
+            rowBlock[index]={lines=lines,damage=damage,count=count,allBlocked=allBlocked,reductions=reductions,
+                wrongBlock=wrongBlock}
             blockedAll[entry.guid]=allBlocked
             members[#members+1]=entry
             for _,source in ipairs(target.sources) do group.sources[#group.sources+1]=source end
@@ -44308,7 +44411,10 @@ local function combatAssignmentRefreshRows(entries,sources)
             {sources=group.sources,category="ranged"},
             {sources=group.sources,category="siege"}},group.entry.data,group.entry.perks)
         group.defeated=group.rangeDefeated or (meleeTotal>0 and meleeTotal>=group.attackArmour)
-        if group.defeated then
+        -- A destroyed enemy is defeated without any attack; it stays out of "defeated by this attack" rewards.
+        group.destroyed=#group.members==1 and entries[group.members[1]].destroyed==true
+        if group.destroyed then group.defeated,group.rangeDefeated=true,false end
+        if group.defeated and not group.destroyed then
             local count=#group.members
             local counted={}
             for _,source in ipairs(group.sources) do
@@ -44350,7 +44456,8 @@ local function combatAssignmentRefreshRows(entries,sources)
             for _,item in ipairs((allocated[index] or emptyTarget).details) do
                 if item.detail.family=="block" or item.detail.family=="move" then
                     lists.block[#lists.block+1]={source=item.source,amount=item.detail.amount,
-                        icon=item.detail.icon,text=item.detail.text,typeKey=item.detail.typeKey}
+                        icon=item.detail.icon,text=item.detail.text,typeKey=item.detail.typeKey,
+                        reduced=rowBlock[index].wrongBlock[item.source.key..tostring(item.detail.key)]==true}
                 end
             end
             -- Range, Siege and Attack resources of a group share the leader's merged cells.
@@ -44397,7 +44504,8 @@ local function combatAssignmentRefreshRows(entries,sources)
             if combatEnemyHasTrait(entry.data,entry.perks,"elusive") and not rowBlock[index].allBlocked then
                 armourValue=entry.elusiveArmour
             end
-            combatPanelSetAttribute("CombatEnemyRow"..index.."Armour","text",tostring(armourValue))
+            combatPanelSetAttribute("CombatEnemyRow"..index.."Armour","text",
+                entry.destroyed and "-" or tostring(armourValue))
             if #group.members>1 then
                 local sharedText=combatGroupTraitsText(entry,group.entry)
                 combatPanelSetAttribute("CombatEnemyRow"..index.."Traits","text",sharedText)
@@ -44413,7 +44521,9 @@ local function combatAssignmentRefreshRows(entries,sources)
                 #attackLines>0 and table.concat(attackLines,"\n") or "-")
             local lines={}
             local isLast=group.members[#group.members]==index
-            if group.rangeDefeated then
+            if group.destroyed then
+                lines[1]=combatRich("Destroyed",COMBAT_GREEN)
+            elseif group.rangeDefeated then
                 -- Group results sit under the last enemy of the group.
                 if isLast then
                     lines[1]=combatRich("Ranged "..tostring(group.rangeTotal).."/"..tostring(group.rangeArmour)
@@ -44572,6 +44682,8 @@ local function refreshCombatEnemyPanel(monsters)
         end
         entry.noAttack=effect~=nil and (effect.noAttack==true or (effect.noAttackUnfortified==true
             and combatEnemyFortificationCount(entry.data,entry.perks)==0))
+        entry.destroyed=effect~=nil and effect.destroy==true
+        entry.removeAbilities=effect~=nil and effect.removeAbilities==true
     end
     -- Board order, left to right, so enemies placed side by side group the way the player laid them out.
     table.sort(entries,function(a,b)
@@ -45376,7 +45488,11 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             if not row.expanded and choiceHasTargetableCombatResource(category) then
                 local resource=row.index>0 and ("set"..row.index..":"..category) or category
                 local targetX=x
-                if #row.entries>1 then targetX=x+(x>=0 and buttonSpacing/2 or -buttonSpacing/2) end
+                if #row.entries>1 then
+                    -- Skill tokens push the target button out a further half button width.
+                    local gap=buttonSpacing/2+(isSkill and 90*0.70/2 or 0)
+                    targetX=x+(x>=0 and gap or -gap)
+                end
                 local targetAsset=resourceCardsChoiceIcon("target")
                 -- A split choice gets one target button per resource, each marked with its icon.
                 local parts=entry.splitTargets or {false}
@@ -45924,6 +46040,7 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
         and (chosen==nil or choiceCategory(chosen)~=defeatSide.choice) then defeatSide=nil end
     return {guid=card.guid,known=known,complete=complete,powered=powered,fameRep=fameRepSide,
         defeatFameRep=defeatSide,splitTargets=chosen~=nil and chosen.splitTargets or nil,
+        repeatBlocks=chosen~=nil and chosen.repeatBlocks or nil,
         links=linked,status=status,resources=effects,
         usesTerrainBlock=usesTerrainBlock and faceUp and costPaid and canApply,
         repeatCount=repeatLink~=nil and repeatLink.count or nil}
@@ -47113,6 +47230,13 @@ local function renderSeat(seatPos)
                             end
                         else
                             combatEffectAdd(enemyEffects,target.guid,card.guid,spec)
+                            if spec.othersArmourReduce~=nil then
+                                for guid,monster in pairs(monsters) do
+                                    if guid~=target.guid and monster.is_face_down~=true then
+                                        combatEffectAdd(enemyEffects,guid,card.guid,{armourReduce=spec.othersArmourReduce})
+                                    end
+                                end
+                            end
                         end
                     end
                     result.enemyGUID=target.guid
@@ -48604,8 +48728,12 @@ end
 -- Returns the effect for the played side, if the selected option applies.
 function combatEffectSpec(rule,powered,chosenCategory)
     local sides=rule~=nil and rule.enemyEffect or nil
-    local spec=sides~=nil and (powered and sides.powered or sides.normal) or nil
+    local spec=nil
+    if sides~=nil then
+        if powered then spec=sides.powered else spec=sides.normal end
+    end
     if spec==nil then return nil end
+    -- A powered play never falls back to the normal effect: the sides are distinct effects.
     -- A side may list one spec per option; the selected option picks the matching one.
     if spec[1]~=nil then
         for _,candidate in ipairs(spec) do
@@ -48619,14 +48747,26 @@ end
 
 -- Spec fields: noAttackUnfortified, armourReduce, armourReduceFortified (replaces it against a fortified enemy),
 -- armourReduceByResist (per resistance), noAttack, removeAbilities, removeFortify,
--- removeResist, removeFireResist, all (every face-up enemy instead of one).
+-- removeResist, removeFireResist, destroy, all (every face-up enemy instead of one).
+-- Arcane Immunity ignores everything except effects that directly modify the enemy's attacks (removeAbilities).
+local function combatEffectImmune(enemyGUID)
+    local pug=monsterPugs[enemyGUID]
+    local perks=gStates~=nil and gStates.monsterPerks~=nil and gStates.monsterPerks[enemyGUID] or nil
+    return (pug~=nil and pug.arcaneImmunity==true) or (perks~=nil and perks.arcaneImmunity==true)
+end
+
 function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec)
     local entry=enemyEffects[enemyGUID]
     if entry==nil then
-        entry={armourReduce=0,armourReduceFortified=0,armourReduceByResist=0,noAttack=false,
+        entry={armourReduce=0,armourReduceFortified=0,armourReduceByResist=0,noAttack=false,destroy=false,
             removeAbilities=false,removeFortify=false,removeResist=false,removeFireResist=false,sources={}}
         enemyEffects[enemyGUID]=entry
     end
+    if combatEffectImmune(enemyGUID) then
+        entry.immuneIgnored=true
+        spec={removeAbilities=spec.removeAbilities}
+    end
+    entry.destroy=entry.destroy or spec.destroy==true
     entry.armourReduce=entry.armourReduce+(spec.armourReduce or 0)
     entry.armourReduceFortified=entry.armourReduceFortified+(spec.armourReduceFortified or spec.armourReduce or 0)
     entry.armourReduceByResist=entry.armourReduceByResist+(spec.armourReduceByResist or 0)
@@ -48659,6 +48799,8 @@ function combatEffectReport(seatPos,enemyEffects)
         if entry.noAttack then text=text.." does not attack" end
         if entry.noAttackUnfortified and not entry.noAttack then text=text.." does not attack if unfortified" end
         if entry.removeAbilities then text=text.." attack loses abilities (keeps colour)" end
+        if entry.destroy then text=text.." is destroyed" end
+        if entry.immuneIgnored then text=text.." (Arcane Immunity ignores non-attack effects)" end
         parts[#parts+1]=text
     end
     table.sort(parts)
@@ -48732,6 +48874,8 @@ local originalGlobalImages={
     {name="Volkare Pursuit Button",url="https://steamusercontent-a.akamaihd.net/ugc/13293042467654760772/E72DCC400EC451ABB80DC722F3657A631FC30C70/"},
     {name="Pursuit Stunned",url="https://steamusercontent-a.akamaihd.net/ugc/9820771160644960489/29318B61F2A30E0E941F355C3664303B0C95BC60/"},
     {name="Incantation Button",url="https://steamusercontent-a.akamaihd.net/ugc/2252424264022049991/BE0E6510D1DC7D3CD43FF6986F8373AE88DE7D8C/"},
+    {name="Defender Decal 1",url="https://steamusercontent-a.akamaihd.net/ugc/10632112705667530745/ABBA1BEC1D6355C0F4E08DA79140A8CB24A03A7A/"},
+    {name="Defender Decal 2",url="https://steamusercontent-a.akamaihd.net/ugc/10268219428207943773/49479D6AF430568A0B487F79709FD20C77E3BA6C/"},
 }
 
 -- New resource/Skill choice images use a dedicated prefix to avoid clashes.
@@ -54964,8 +55108,16 @@ end
 
 end)
 __bundle_register("ErrorReporting", function(require, _LOADED, __bundle_register, __bundle_modules)
--- Automatic Lua error reporting, protected callback helpers and diagnostic context builders.
+-- Automatic Lua error reporting
+local automaticLuaErrorReporting=false
+local automaticLuaErrorCooldown=10
+local automaticLuaErrorSignatures={}
+local automaticLuaErrorBreadcrumbs={}
+local automaticLuaErrorBreadcrumbLimit=10
+local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
+local automaticLuaErrorReporterVersion="452"
 
+-- Automatic Lua error reporting, protected callback helpers and diagnostic context builders.
 local automaticLuaZoneContext
 local automaticLuaProtectedCallbackDepth=0
 local automaticLuaPublicUICallbackRegistry={}
@@ -55035,15 +55187,6 @@ function safeObjectCallbackParams(scope, params)
 	safeParams.callback_function=safeAsyncCallback(automaticLuaAsyncLabel(scope,"callback_function"),params.callback_function)
 	return safeParams
 end
-
--- Automatic Lua error reporting
-local automaticLuaErrorReporting=false
-local automaticLuaErrorCooldown=10
-local automaticLuaErrorSignatures={}
-local automaticLuaErrorBreadcrumbs={}
-local automaticLuaErrorBreadcrumbLimit=10
-local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="450"
 
 local function automaticLuaErrorValue(callback, fallback)
 	local ok, value=pcall(callback)
@@ -56641,7 +56784,7 @@ cardResourceDefinitions={
     spellCure={normal={healing=2},poweredChoices={{key="other"}}},
     -- Combat spells that act on enemies; see CombatEffects.lua for the effect fields.
     spellWhirlwind={normalChoices={{key="other"}},poweredChoices={{key="other"}},
-        enemyEffect={normal={choice="other",noAttack=true}}}, -- Powered destroys the enemy; not computed
+        enemyEffect={normal={choice="other",noAttack=true},powered={choice="other",destroy=true}}},
     spellChill={normalChoices={{key="other"}},poweredChoices={{key="other"}},
         enemyEffect={normal={choice="other",noAttack=true,removeFireResist=true},
             powered={choice="other",noAttack=true,armourReduce=4}}},
@@ -56653,7 +56796,8 @@ cardResourceDefinitions={
             powered={{choice="single",armourReduce=3,armourReduceFortified=6},
                 {choice="all",armourReduce=2,armourReduceFortified=4,all=true}}}},
     spellDemolish={normalChoices={{key="other"}},poweredChoices={{key="other"}},
-        enemyEffect={normal={choice="other",armourReduce=1,all=true}}}, -- Powered destroys one enemy; not computed
+        enemyEffect={normal={choice="other",armourReduce=1,all=true},
+            powered={choice="other",destroy=true,othersArmourReduce=1}}},
     -- Artifact sides are physical: face-up plays the basic effect and
     -- face-down plays the break effect, without a separate mode control.
     artifactUtility={normalTrackerNeutral=true,artifactMode=true,
@@ -56683,13 +56827,12 @@ cardResourceDefinitions={
         poweredChoices={{key="zero",siege=5},{key="one",siege=6},
             {key="two",siege=7},{key="three",siege=8},
             {key="four",siege=9},{key="five",siege=10}}},
-    -- The player is responsible for assigning each repeated Block to a
-    -- different attack; the tracker displays the total available Block.
+    -- Each repeated Block is a separate effect (repeatBlocks) the calculator assigns to different attacks.
     artifactShieldOfTheFallenKings={artifactMode=true,
         normalChoices={{key="block",block=6},
-            {key="splitBlock",block=8,icon="block",iconOverlay="x2"}},
+            {key="splitBlock",block=8,icon="block",iconOverlay="x2",repeatBlocks=2}},
         poweredChoices={{key="block",blockColdFire=8},
-            {key="splitBlock",blockColdFire=12,icon="block",iconOverlay="x3"}}},
+            {key="splitBlock",blockColdFire=12,icon="block",iconOverlay="x3",repeatBlocks=3}}},
     -- Reuse the physical tilted-card discard costs from Stout Resolve.
     artifactSwordOfJustice={artifactMode=true,normal={attack=0},
         defeatFameRep={normal={fame=1,scope="all"}},

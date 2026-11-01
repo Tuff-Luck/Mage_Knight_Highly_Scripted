@@ -183,6 +183,10 @@ Only use a Rewards Claimed lock when the script has authoritative state that the
 
 Hard-disable **Rewards Claimed** only for short asynchronous/script-settling safety windows where player input cannot resolve the condition; those are not Rewards Claimed locks and do not need a **“Have you:-”** reminder.
 
+## Image assets and decals
+
+Every image URL the script applies at runtime (decals, object/custom-token images, etc.) must also be registered as a Custom UI Asset in `src/PlayingGame/UIAssets.lua` (use the same URL). Otherwise TTS shows a white square for a frame while the image first loads. When adding or changing a scripted decal/image URL, update `UIAssets.lua` in the same change.
+
 ## Build/version conventions
 
 When producing numbered release files, keep the Global Lua and Global XML build numbers matched whenever both change. The automatic Lua Error Reporter version must match the Global Lua build number in brackets.

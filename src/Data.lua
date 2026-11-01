@@ -1232,7 +1232,7 @@ cardResourceDefinitions={
     spellCure={normal={healing=2},poweredChoices={{key="other"}}},
     -- Combat spells that act on enemies; see CombatEffects.lua for the effect fields.
     spellWhirlwind={normalChoices={{key="other"}},poweredChoices={{key="other"}},
-        enemyEffect={normal={choice="other",noAttack=true}}}, -- Powered destroys the enemy; not computed
+        enemyEffect={normal={choice="other",noAttack=true},powered={choice="other",destroy=true}}},
     spellChill={normalChoices={{key="other"}},poweredChoices={{key="other"}},
         enemyEffect={normal={choice="other",noAttack=true,removeFireResist=true},
             powered={choice="other",noAttack=true,armourReduce=4}}},
@@ -1244,7 +1244,8 @@ cardResourceDefinitions={
             powered={{choice="single",armourReduce=3,armourReduceFortified=6},
                 {choice="all",armourReduce=2,armourReduceFortified=4,all=true}}}},
     spellDemolish={normalChoices={{key="other"}},poweredChoices={{key="other"}},
-        enemyEffect={normal={choice="other",armourReduce=1,all=true}}}, -- Powered destroys one enemy; not computed
+        enemyEffect={normal={choice="other",armourReduce=1,all=true},
+            powered={choice="other",destroy=true,othersArmourReduce=1}}},
     -- Artifact sides are physical: face-up plays the basic effect and
     -- face-down plays the break effect, without a separate mode control.
     artifactUtility={normalTrackerNeutral=true,artifactMode=true,
@@ -1274,13 +1275,12 @@ cardResourceDefinitions={
         poweredChoices={{key="zero",siege=5},{key="one",siege=6},
             {key="two",siege=7},{key="three",siege=8},
             {key="four",siege=9},{key="five",siege=10}}},
-    -- The player is responsible for assigning each repeated Block to a
-    -- different attack; the tracker displays the total available Block.
+    -- Each repeated Block is a separate effect (repeatBlocks) the calculator assigns to different attacks.
     artifactShieldOfTheFallenKings={artifactMode=true,
         normalChoices={{key="block",block=6},
-            {key="splitBlock",block=8,icon="block",iconOverlay="x2"}},
+            {key="splitBlock",block=8,icon="block",iconOverlay="x2",repeatBlocks=2}},
         poweredChoices={{key="block",blockColdFire=8},
-            {key="splitBlock",blockColdFire=12,icon="block",iconOverlay="x3"}}},
+            {key="splitBlock",blockColdFire=12,icon="block",iconOverlay="x3",repeatBlocks=3}}},
     -- Reuse the physical tilted-card discard costs from Stout Resolve.
     artifactSwordOfJustice={artifactMode=true,normal={attack=0},
         defeatFameRep={normal={fame=1,scope="all"}},
