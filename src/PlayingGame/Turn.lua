@@ -559,6 +559,7 @@ local function turnResetCompletedTurnState()
 	--baseline before zeroing pending gains, otherwise a queued UI reconciliation
 	--can mistake the reset (e.g. -1 to 0) for a new +1 reputation award.
 	if gStates.fameRepCommitted~=nil then gStates.fameRepCommitted[gStates.turnNumber]=nil end
+	resourceFameRepForget(gStates.turnNumber)
 	turnOrder[gStates.turnNumber].fameGain=0 gStates.gainList={}
 	turnOrder[gStates.turnNumber].repGain=0
 	turnOrder[gStates.turnNumber].combatIconHide="None"

@@ -1048,8 +1048,10 @@ cardResourceDefinitions={
         poweredChoices={{ranged=3},{influence=4}}},
     temperedSteel={
         normalChoices={
-            {key="block2Attack1",block=2,attack=1,icon="attack",            stackedIcons={"attack","block"}}, -- listed back to front: Block on top
-                        {key="block1Attack2",block=1,attack=2,icon="attack",stackedIcons={"block","attack"}}}, -- Attack on top
+            {key="block2Attack1",block=2,attack=1,icon="attack",splitTargets={"block","attack"},
+                stackedIcons={"attack","block"}}, -- listed back to front: Block on top
+            {key="block1Attack2",block=1,attack=2,icon="attack",splitTargets={"block","attack"},
+                stackedIcons={"block","attack"}}}, -- Attack on top
         poweredChoices={{key="attack",attack=4},{key="block",block=4}},
         poweredTargetBonuses={
             attack={amount=2,traits={"pResist","fResist","iResist","mResist"}},
@@ -1078,7 +1080,7 @@ cardResourceDefinitions={
     tirelessness={normal={move=2},powered={move=4},partial=true}, -- Boosts other Move cards
     druidicPaths={normal={move=2},powered={move=4}}, -- Player manages the one-space/one-terrain-type discount
     savageHarvesting={normal={move=2},powered={move=4}}, -- Optional crystal gains do not affect Move calculation
-    ruthlessCoercion={normal={influence=2},powered={influence=6}}, -- Other effects do not change the numeric Influence contributed
+    ruthlessCoercion={normal={influence=2},powered={influence=6},fameRep={powered={rep=-1}}}, -- Basic's Reputation loss depends on recruiting a Unit
     shieldBash={normal={block=3},powered={block=5}}, -- Fixed Block is fully tracked; other bonuses remain manual
     frostBridge={normal={move=2},powered={move=4},
         terrainEffects={
@@ -1161,7 +1163,8 @@ cardResourceDefinitions={
     crushingBolt={normalTrackerNeutral=true,powered={siege=3}},
     intimidate={
         normalChoices={{influence=4},{attack=3}},
-        poweredChoices={{influence=8},{attack=7}}},
+        poweredChoices={{influence=8},{attack=7}},
+        fameRep={normal={rep=-1},powered={rep=-2}}},
     ambush={normal={move=2},powered={move=4},
         combatLink={normal={attack=1,block=2},powered={attack=2,block=4}}}, -- First linked Action Attack/Block
     counterattack={normal={attack=2},powered={attack=4},partial=true}, -- Plus damage per enemy blocked
@@ -1179,7 +1182,12 @@ cardResourceDefinitions={
         movementEffects={normal={jumpTwoSpaces=true,ignoreRampagers=true}}},
     spellFireball={normal={rangedFire=5},powered={siegeFire=8}},
     spellSnowstorm={normal={rangedIce=5},powered={siegeIce=8}},
-    spellExpose={normal={ranged=2},powered={ranged=3}},
+    spellExpose={normal={ranged=2},
+        poweredChoices={{key="fortify",icon="ranged",iconOverlay="Fort",ranged=3},
+            {key="resist",icon="ranged",iconOverlay="Res",ranged=3}},
+        enemyEffect={normal={removeFortify=true,removeResist=true},
+            powered={{choice="fortify",removeFortify=true,all=true},
+                {choice="resist",removeResist=true,all=true}}}},
     spellFlameWall={
         normalChoices={{key="attack",attackFire=5},{key="block",blockFire=7}},
         poweredChoices={{key="attack",attackFire=5},{key="block",blockFire=7}},
@@ -1222,6 +1230,21 @@ cardResourceDefinitions={
     spellCharm={normal={influence=4},poweredChoices={{key="other"}},
         enemyAttackLink=true}, -- Possess: borrow a linked enemy's printed Attack
     spellCure={normal={healing=2},poweredChoices={{key="other"}}},
+    -- Combat spells that act on enemies; see CombatEffects.lua for the effect fields.
+    spellWhirlwind={normalChoices={{key="other"}},poweredChoices={{key="other"}},
+        enemyEffect={normal={choice="other",noAttack=true}}}, -- Powered destroys the enemy; not computed
+    spellChill={normalChoices={{key="other"}},poweredChoices={{key="other"}},
+        enemyEffect={normal={choice="other",noAttack=true,removeFireResist=true},
+            powered={choice="other",noAttack=true,armourReduce=4}}},
+    spellTremor={
+        normalChoices={{key="single",icon="other",iconOverlay="1"},{key="all",icon="other",iconOverlay="All"}},
+        poweredChoices={{key="single",icon="other",iconOverlay="1"},{key="all",icon="other",iconOverlay="All"}},
+        enemyEffect={
+            normal={{choice="single",armourReduce=3},{choice="all",armourReduce=2,all=true}},
+            powered={{choice="single",armourReduce=3,armourReduceFortified=6},
+                {choice="all",armourReduce=2,armourReduceFortified=4,all=true}}}},
+    spellDemolish={normalChoices={{key="other"}},poweredChoices={{key="other"}},
+        enemyEffect={normal={choice="other",armourReduce=1,all=true}}}, -- Powered destroys one enemy; not computed
     -- Artifact sides are physical: face-up plays the basic effect and
     -- face-down plays the break effect, without a separate mode control.
     artifactUtility={normalTrackerNeutral=true,artifactMode=true,
@@ -1239,9 +1262,12 @@ cardResourceDefinitions={
     artifactGoldenGrail={artifactMode=true,normal={healing=2},powered={healing=6}},
     artifactSoulHarvester={artifactMode=true,normal={attack=3},powered={attack=8}},
     artifactBannerOfCommand={artifactMode=true,normal={influence=4},
-        poweredChoices={{key="other"}}},
+        poweredChoices={{key="other"}},fameRep={powered={fame=2}}},
     artifactEndlessBagOfGold={artifactMode=true,normal={influence=4},
-        powered={influence=9}},
+        powered={influence=9},fameRep={normal={fame=2},powered={fame=3}}},
+    -- Elemental Rings: the basic side's Fame +1 is unconditional; the strong side's per-Spell Fame is not read.
+    artifactRing={normalTrackerNeutral=true,artifactMode=true,
+        poweredChoices={{key="other"}},fameRep={normal={fame=1}}},
     -- The Lost Legion revision of Horn of Wrath uses Siege Attack 5.
     -- Its Break side allows adding 0 through 5, chosen by the player.
     artifactHornOfWrath={artifactMode=true,normal={siege=5},
@@ -1257,9 +1283,11 @@ cardResourceDefinitions={
             {key="splitBlock",blockColdFire=12,icon="block",iconOverlay="x3"}}},
     -- Reuse the physical tilted-card discard costs from Stout Resolve.
     artifactSwordOfJustice={artifactMode=true,normal={attack=0},
+        defeatFameRep={normal={fame=1,scope="all"}},
         discardBoost={normal={perCard=3,maxWounds=0}},
         poweredChoices={{key="other"}}},
     artifactBowOfStarsdawn={artifactMode=true,normal={ranged=0},
+        defeatFameRep={normal={fame=1,scope="ranged"}},
         discardBoost={normal={perCard=2,maxWounds=0}},
         poweredChoices={{key="other"}}},
     -- A tilted Green card on the Staff pays for Heal 3. The Break side
@@ -1271,7 +1299,12 @@ cardResourceDefinitions={
 
     chivalry={
         normalChoices={{key="attack",attack=3},{key="reputation",attack=2}},
-        poweredChoices={{key="attack",attack=6},{key="reputation",attack=4}}}
+        poweredChoices={{key="attack",attack=6},{key="reputation",attack=4}},
+        defeatFameRep={normal={choice="reputation",rep=1},powered={choice="reputation",rep=1,fame=1}}},
+    axeThrow={
+        normalChoices={{key="move",move=2},{key="ranged",ranged=1}},
+        powered={ranged=3},
+        defeatFameRep={powered={fame=1,once=true}}}
     -- Reputation alternative gives a smaller Attack, with external Fame/Reputation bonus
 }
 
@@ -1477,7 +1510,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["450587"]={cardType="Starting", resourceKey="tranquility", name={"Tranquility"}, color={"Green"}, action={"Heal"}},
 			["450588"]={cardType="Starting", resourceKey="concentration", name={"Concentration"}, color={"Green"}, action={"Special"}},
 			["2f1c82"]={cardType="Starting", resourceKey="swiftness", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
-			["fb1a18"]={cardType="Starting", name={"Axe Throw"}, color={"White"}, action={"Move", "Combat"}},
+			["fb1a18"]={cardType="Starting", resourceKey="axeThrow", name={"Axe Throw"}, color={"White"}, action={"Move", "Combat"}},
 			["450590"]={cardType="Starting", resourceTracked=false, name={"Mana Draw"}, color={"White"}, action={"Special"}},
 			["450589"]={cardType="Starting", resourceKey="promise", name={"Promise"}, color={"White"}, action={"Influence"}},
 			["450593"]={cardType="Starting", resourceKey="improvisation", name={"Improvisation"}, color={"Red"}, action={"Influence"}},
@@ -1689,7 +1722,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["d8d54a"]={cardType="Advanced Action", name={"Ebb and Flow"}, 		color={"Blue"}, 		action={"Special", "Combat"}},--Rise of the Forgemaster End
 			["8907d7"]={cardType="Spell", resourceKey="spellUtility", name={"Mana Meltdown", "Mana Radiance"}, 		color={"Red"}, action={"Special"}},
 			["2eb8d9"]={cardType="Spell", resourceKey="spellOffering", name={"Offering", "Sacrifice"}, 				color={"Red"}, action={"Special", "Combat"}},
-			["2eb8d4"]={cardType="Spell", resourceKey="spellUtility", name={"Demolish", "Disintegrate"}, 			color={"Red"}, action={"Combat"}},
+			["2eb8d4"]={cardType="Spell", resourceKey="spellDemolish", name={"Demolish", "Disintegrate"}, 			color={"Red"}, action={"Combat"}},
 			["2eb8d6"]={cardType="Spell", resourceKey="spellFireball", name={"Fireball", "Firestorm"}, 				color={"Red"}, action={"Combat"}},
 			["2eb8d7"]={cardType="Spell", resourceKey="spellBurningShield", name={"Burning Shield", "Exploding Shield"}, 	color={"Red"}, action={"Combat"}},
 			["2eb8d8"]={cardType="Spell", resourceKey="spellFlameWall", name={"Flame Wall", "Flame Wave"}, 			color={"Red"}, action={"Combat"}},
@@ -1697,19 +1730,19 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["2eb8e1"]={cardType="Spell", resourceKey="spellMistForm", name={"Mist Form", "Veil of Mist"}, 			color={"Blue"}, action={"Move", "Combat"}},
 			["2eb8e3"]={cardType="Spell", resourceKey="spellManaBolt", name={"Mana Bolt", "Mana Thunderbolt"}, 		color={"Blue"}, action={"Combat"}},
 			["2eb8e4"]={cardType="Spell", resourceKey="spellSnowstorm", name={"Snowstorm", "Blizzard"}, 				color={"Blue"}, action={"Combat"}},
-			["2eb8e0"]={cardType="Spell", resourceKey="spellUtility", name={"Chill", "Lethal Chill"}, 				color={"Blue"}, action={"Combat"}},
+			["2eb8e0"]={cardType="Spell", resourceKey="spellChill", name={"Chill", "Lethal Chill"}, 				color={"Blue"}, action={"Combat"}},
 			[GUID.card.timeBending]={cardType="Spell", resourceKey="spellSpaceBending", name={"Space Bending", "Time Bending"}, 		color={"Blue"}, action={"Move", "Special"}},
 			["2eb8f5"]={cardType="Spell", resourceKey="spellUtility", name={"Mind Read", "Mind Steal"}, 			color={"White"}, action={"Special"}},
 			["2eb8e6"]={cardType="Spell", resourceKey="spellCharm", name={"Charm", "Possess"}, 					color={"White"}, action={"Influence", "Combat"}},
 			["2eb8e9"]={cardType="Spell", resourceKey="spellUtility", name={"Wings of Wind", "Wings of Night"}, 	color={"White"}, action={"Move", "Combat"}},
 			["2eb8e5"]={cardType="Spell", resourceKey="spellExpose", name={"Expose", "Mass Expose"}, 				color={"White"}, action={"Combat"}},
 			["2eb8e8"]={cardType="Spell", resourceKey="spellUtility", name={"Call to Arms", "Call to Glory"}, 		color={"White"}, action={"Special"}},
-			["2eb8e7"]={cardType="Spell", resourceKey="spellUtility", name={"Whirlwind", "Tornado"}, 				color={"White"}, action={"Combat"}},
+			["2eb8e7"]={cardType="Spell", resourceKey="spellWhirlwind", name={"Whirlwind", "Tornado"}, 				color={"White"}, action={"Combat"}},
 			["2eb8f3"]={cardType="Spell", resourceKey="spellUtility", name={"Energy Flow", "Energy Steal"}, 		color={"Green"}, action={"Heal"}},
 			["47e71c"]={cardType="Spell", resourceKey="spellCure", name={"Cure", "Disease"}, 					color={"Green"}, action={"Heal", "Combat"}},
 			["2eb8d3"]={cardType="Spell", resourceKey="spellRestoration", name={"Restoration", "Rebirth"}, 				color={"Green"}, action={"Heal"}},
 			["2eb8d2"]={cardType="Spell", resourceKey="spellUtility", name={"Underground Travel", "Underground Attack"}, color={"Green"}, action={"Move"}},
-			["2eb8d1"]={cardType="Spell", resourceKey="spellUtility", name={"Tremor", "Earthquake"}, 				color={"Green"}, action={"Combat"}},
+			["2eb8d1"]={cardType="Spell", resourceKey="spellTremor", name={"Tremor", "Earthquake"}, 				color={"Green"}, action={"Combat"}},
 			["2eb8d0"]={cardType="Spell", resourceKey="spellUtility", name={"Meditation", "Trance"}, 				color={"Green"}, action={"Special"}},
 			["995f43"]={cardType="Spell", resourceKey="spellRestoration", name={"Restoration", "Rebirth"}, 				color={"Green"}, action={"Heal"}},--Rise of the Forgemaster Start
 			["20b391"]={cardType="Spell", resourceKey="spellUtility", name={"Poison Breath", "Breath of Life"}, 	color={"Green"}, action={"Special"}},
@@ -1718,10 +1751,10 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["7c0a57"]={cardType="Spell", resourceKey="spellUtility", name={"Frenzy", "Spectral Guise"}, 			color={"Red"}, action={"Special", "Combat"}},
 			["81b086"]={cardType="Spell", resourceKey="spellUtility", name={"Phantom Image", "Phantasmal Killer"}, 	color={"Blue"}, action={"Combat"}},
 			["8eac5c"]={cardType="Spell", resourceKey="spellUtility", name={"Blinding Light", "Chain Lightning"}, 	color={"White"}, action={"Combat"}},--Rise of the Forgemaster End
-			["085e51"]={cardType="Artifact", resourceKey="artifactUtility", name={"Ruby Ring"}, 					color={}, action={"Special"}},
-			["085e54"]={cardType="Artifact", resourceKey="artifactUtility", name={"Emerald Ring"},	 				color={}, action={"Special"}},
-			["085e53"]={cardType="Artifact", resourceKey="artifactUtility", name={"Diamond Ring"}, 				color={}, action={"Special"}},
-			["085e52"]={cardType="Artifact", resourceKey="artifactUtility", name={"Sapphire Ring"}, 				color={}, action={"Special"}},
+			["085e51"]={cardType="Artifact", resourceKey="artifactRing", name={"Ruby Ring"}, 					color={}, action={"Special"}},
+			["085e54"]={cardType="Artifact", resourceKey="artifactRing", name={"Emerald Ring"},	 				color={}, action={"Special"}},
+			["085e53"]={cardType="Artifact", resourceKey="artifactRing", name={"Diamond Ring"}, 				color={}, action={"Special"}},
+			["085e52"]={cardType="Artifact", resourceKey="artifactRing", name={"Sapphire Ring"}, 				color={}, action={"Special"}},
 			["085e58"]={cardType="Artifact", resourceKey="artifactUtility", name={"Endless Gem Pouch"}, 			color={}, action={"Special"}},
 			["085e55"]={cardType="Artifact", resourceKey="artifactSwordOfJustice", name={"Sword of Justice"}, 			color={}, action={"Combat"}},
 			["085e67"]={cardType="Artifact", resourceKey="artifactUtility", name={"Circlet of Proficiency"}, 		color={}, action={"Special"}},
@@ -2591,9 +2624,10 @@ skillResourceDefinitions={
     ["676856"]={partial=true},
     ["68568b"]={untracked=true},
     ["68f864"]={untracked=true},
-    ["6a33c1"]={untracked=true},
+    ["6a33c1"]={choices={{key="attack",icon="other",iconOverlay="Atk"},{key="armour",icon="other",iconOverlay="Arm"}},
+        enemyEffect={normal={choice="armour",armourReduce=1}}}, -- Curse; the attack reduction is not computed
     ["6d7027"]={partial=true},
-    ["70c30f"]={normal={block=2},partial=true},
+    ["70c30f"]={normal={block=2},partial=true,coldFireCrystals={"Red","Blue"},swiftDoubleCrystals={"Green","White"}},
     ["725de9"]={untracked=true},
     ["755cca"]={choices={{healing=1},{key="boost",healing=2}},partial=true},
     ["75a83d"]={untracked=true},
@@ -2626,7 +2660,7 @@ skillResourceDefinitions={
     ["93c62e"]={unitBoost={block=3,attack=2,ranged=1},choices={{block=3},{attack=2},{ranged=1}},partial=true}, -- Leadership needs an activated matching Unit.
     ["9d866a"]={untracked=true},
     ["9eb4c5"]={untracked=true},
-    ["9efc9b"]={untracked=true},
+    ["9efc9b"]={choices={{key="other"}},enemyEffect={normal={armourReduceByResist=1}}}, -- Resistance Break
     ["9f5dc0"]={partial=true},
     ["a21a1a"]={untracked=true},
     ["a3abbe"]={untracked=true},

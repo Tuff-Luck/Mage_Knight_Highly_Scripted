@@ -606,6 +606,7 @@ end
 function combatAdvanceCoopRewardPhaseBase()
 	local entry=gStates.coopRewardQueue[gStates.coopRewardIndex]
 	if entry~=nil then
+		resourceFameRepForget(entry.player)
 		turnOrder[entry.player].fameGain=0
 		turnOrder[entry.player].repGain=0
 	end

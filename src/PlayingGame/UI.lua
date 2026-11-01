@@ -2278,8 +2278,16 @@ function resourceTracker(player, mouseButton, id)
 			UI.setAttribute("RangeAmountDetails", "active", "false")
 			UI.setAttribute("BlockAmountDetails", "active", "false")
 			UI.setAttribute("AttacAmountDetails", "active", "false")
-			UI.setAttribute("InfluAmountDetails", "active", "false")
-			return
+            UI.setAttribute("InfluAmountDetails", "active", "false")
+            -- Combat resources are read from the play area; only Move, Influence and Heal stay adjustable.
+            for _,family in ipairs({"Siege","Range","Block","Attac"}) do
+                for _,element in ipairs({"Plain","Physi","Firex","Icexx","ColdF","Psych"}) do
+                    for _,direction in ipairs({"Up","Down"}) do
+                        UI.setAttribute(family.."Amount"..element..direction,"interactable","false")
+                    end
+                end
+            end
+            return
 		end
 		if id:match("^CombatSourceSlot")~=nil then
 			resourceCardsCombatAssignmentClick(id)
@@ -2304,6 +2312,7 @@ function resourceTracker(player, mouseButton, id)
         local resourceField=RESOURCE_TRACKER_FIELDS[id:sub(1,16)]
         if resourceField~=nil then
             local category,field=resourceField[1],resourceField[2]
+            if category=="attack" or category=="ranged" or category=="siege" or category=="block" then return end
             local isDown=id:sub(17,20)=="Down"
             local isUp=id:sub(17,18)=="Up"
             local current=resourceCardsEffectiveValue(category,field)

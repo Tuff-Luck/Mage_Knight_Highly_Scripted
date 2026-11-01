@@ -54,7 +54,7 @@ local byType={
         value(2,"ranged",2,"Ranged Attack 2")},
     UtemGuardsmen={
         value(1,"attack",2,"Attack 2"),
-        value(2,"block",4,"Block 4; counts twice against Swiftness")},
+        value(2,"block",4,"Block 4; counts twice against Swiftness",{countsTwiceVsSwift=true})},
     UtemSwordsmen={
         value(1,"attack",3,"Attack 3"),value(1,"block",3,"Block 3"),
         value(2,"attack",6,"Attack 6; wound this Unit after resolving",{woundsSelf=true,iconOverlay="W",iconOverlayColor="#FFFFFF"}),
@@ -65,7 +65,7 @@ local byType={
         value(3,"blockIce",4,"Ice Block 4",{manaCost="Blue"})},
     Illusionists={
         value(1,"influence",4,"Influence 4"),
-        special(2,"An unfortified enemy does not attack this combat",{manaCost="White"}),
+        special(2,"An unfortified enemy does not attack this combat",{manaCost="White",enemyEffect={noAttackUnfortified=true}}),
         special(3,"Gain a white crystal to your inventory",{key="gain"})},
     RedCapeMonks={
         value(1,"attack",3,"Attack 3"),value(1,"block",3,"Block 3"),
@@ -84,11 +84,11 @@ local byType={
         value(3,"move",2,"Move 2; you may reveal a tile from 2 spaces away")},
     Thugs={
         value(1,"block",3,"Block 3"),
-        value(2,"attack",3,"Attack 3; Reputation -1"),
-        value(3,"influence",4,"Influence 4; Reputation -1")},
+        value(2,"attack",3,"Attack 3; Reputation -1",{fameRep={rep=-1}}),
+        value(3,"influence",4,"Influence 4; Reputation -1",{fameRep={rep=-1}})},
     Shocktroops={
         value(1,"ranged",1,"Ranged Attack 1; all your other Units get +1 to all Attacks this turn",{boostOtherUnits=true}),
-        special(2,"Chosen enemy gets Armor -1 and one Attack -1"),
+        special(2,"Chosen enemy gets Armor -1 and one Attack -1",{enemyEffect={armourReduce=1}}),
         special(3,"Reduce one enemy Attack by 3; assign its damage to Shocktroops first")},
     MagicFamiliars={
         value(1,"attack",3,"Attack 3 (+2 if the Unit's crystal is red)",{bonusColor="Red",bonus=2}),
@@ -115,7 +115,7 @@ local byType={
         value(2,"rangedFire",6,"Ranged Fire Attack 6",{manaCost="Red"})},
     AmotepFreezers={
         value(1,"attack",5,"Attack 5"),value(1,"block",5,"Block 5"),
-        special(2,"Chosen enemy does not attack and gets Armor -3 (minimum 1)",{manaCost="Blue"})},
+        special(2,"Chosen enemy does not attack and gets Armor -3 (minimum 1)",{manaCost="Blue",enemyEffect={noAttack=true,armourReduce=3}})},
     Catapults={
         value(1,"siege",3,"Siege Attack 3"),
         value(2,"siegeFire",5,"Pay red mana: Siege Fire Attack 5",{manaCost="Red"}),
@@ -128,7 +128,7 @@ local byType={
         special(3,"Pay black mana: all your Attacks this combat become Siege, retaining elements",{manaCost="Black",buttonLabel="S",attackTransform="siege"})},
     AltemGuardians={
         value(1,"attack",5,"Attack 5"),
-        value(2,"block",8,"Block 8; counts twice against Swiftness"),
+        value(2,"block",8,"Block 8; counts twice against Swiftness",{countsTwiceVsSwift=true}),
         special(3,"Pay green mana: all your Units gain all resistances this turn",{manaCost="Green"})},
     HeroesWhite={
         value(1,"attack",5,"Attack 5"),value(1,"block",5,"Block 5"),
@@ -148,13 +148,13 @@ local byType={
         value(3,"influence",5,"Influence 5; +1 Reputation if used in interaction")},
     Sorcerers={
         value(1,"ranged",3,"Ranged Attack 3"),
-        value(2,"ranged",3,"Pay white mana: target loses all fortifications; Ranged Attack 3",{manaCost="White",baseWithoutPayment=true}),
-        value(3,"ranged",3,"Pay green mana: target loses all resistances; Ranged Attack 3",{manaCost="Green",baseWithoutPayment=true})},
+        value(2,"ranged",3,"Pay white mana: target loses all fortifications; Ranged Attack 3",{manaCost="White",baseWithoutPayment=true,enemyEffect={removeFortify=true}}),
+        value(3,"ranged",3,"Pay green mana: target loses all resistances; Ranged Attack 3",{manaCost="Green",baseWithoutPayment=true,enemyEffect={removeResist=true}})},
     DelphanaMasters={
-        special(1,"Pay blue mana: target enemy does not attack",{manaCost="Blue",buttonLabel="B"}),
+        special(1,"Pay blue mana: target enemy does not attack",        {manaCost="Blue",buttonLabel="B",enemyEffect={noAttack=true}}),
         special(2,"Pay red mana: target enemy is destroyed if blocked",{manaCost="Red",buttonLabel="R"}),
-        special(3,"Pay green mana: target enemy Armor -5 (minimum 1)",{manaCost="Green",buttonLabel="G"}),
-        special(4,"Pay white mana: target enemy loses all fortifications and resistances",{manaCost="White",buttonLabel="W"})}
+                special(3,"Pay green mana: target enemy Armor -5 (minimum 1)",{manaCost="Green",buttonLabel="G",enemyEffect={armourReduce=5}}),
+                special(4,"Pay white mana: target enemy loses all fortifications and resistances",{manaCost="White",buttonLabel="W",enemyEffect={removeFortify=true,removeResist=true}})}
 }
 -- These paid abilities still require a player choice when matching mana
 -- activates more than one printed option. Keep their buttons collapsible

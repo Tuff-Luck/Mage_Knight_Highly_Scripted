@@ -1,6 +1,9 @@
 -- Persistent visual links between generated combat resources and enemy objects.
 
-local assignmentColor={0.95,0.18,0.78}
+local assignmentColors={
+	armour={1.0,0.55,0.1},   -- Attack, Ranged, Siege and anything else aimed at armour
+	attack={0.25,0.6,1.0},   -- Block and anything that reduces or stops an enemy attack
+	other={0.95,0.18,0.78}}
 local assignmentThickness=0.12
 local previewThickness=0.07
 local assignmentHeight=1.1
@@ -15,16 +18,46 @@ local refreshScheduled=false
 local renderedSignature=nil
 local renderedAssignmentLineKeys={}
 
-local function assignmentColorMatches(color)
-	if type(color)~="table" then return false end
+-- A split source (one card feeding two targets) is keyed "<card guid>#<part>"; the physical object is the card.
+local function assignmentBaseGUID(key)
+	return type(key)=="string" and key:match("^[^#]+") or key
+end
+
+local function assignmentKeyMatches(entryKey,wanted)
+	if entryKey==wanted then return true end
+	return type(wanted)=="string" and wanted:find("#",1,true)==nil and assignmentBaseGUID(entryKey)==wanted
+end
+
+-- Resource names/parts map to an arrow kind: armour (orange), enemy attack (blue) or other (purple).
+function attackAssignmentsKindFor(resource)
+	local text=tostring(resource or ""):lower()
+	if text:find("attack",1,true) or text:find("siege",1,true) or text:find("ranged",1,true)
+		or text:find("range",1,true) then return "armour" end
+	if text:find("block",1,true) or text:find("move",1,true) then return "attack" end
+	return "other"
+end
+
+local function assignmentColorFor(kind)
+	return assignmentColors[kind] or assignmentColors.other
+end
+
+local function colorComponentsMatch(color,wanted)
 	local red=color[1] or color.r
 	local green=color[2] or color.g
 	local blue=color[3] or color.b
 	if type(red)~="number" or type(green)~="number" or type(blue)~="number" then return false end
 	if red>1 or green>1 or blue>1 then red,green,blue=red/255,green/255,blue/255 end
-	return math.abs(red-assignmentColor[1])<0.02
-		and math.abs(green-assignmentColor[2])<0.02
-		and math.abs(blue-assignmentColor[3])<0.02
+	return math.abs(red-wanted[1])<0.02
+		and math.abs(green-wanted[2])<0.02
+		and math.abs(blue-wanted[3])<0.02
+end
+
+local function assignmentColorMatches(color)
+	if type(color)~="table" then return false end
+	for _,wanted in pairs(assignmentColors) do
+		if colorComponentsMatch(color,wanted) then return true end
+	end
+	return false
 end
 
 local function isAssignmentLine(line)
@@ -74,8 +107,9 @@ local function positionAtHeight(position,height)
 	return {position[1],height or assignmentHeight,position[3]}
 end
 
-local function assignmentLines(source,target)
+local function assignmentLines(source,target,color)
 	if source==nil or target==nil or source.isDestroyed() or target.isDestroyed() then return nil end
+	color=color or assignmentColors.other
 	local from=positionAtHeight(source.getPosition())
 	local to=positionAtHeight(target.getPosition())
 	local dx,dz=to[1]-from[1],to[3]-from[3]
@@ -85,12 +119,12 @@ local function assignmentLines(source,target)
 	local pullBack=math.min(arrowHeadLength*3,distance*0.5)
 	to={to[1]-dirX*pullBack,assignmentHeight,to[3]-dirZ*pullBack}
 	local sideX,sideZ=-dirZ,dirX
-	local lines={{points={from,to},color=assignmentColor,thickness=assignmentThickness,rotation={0,0,0}}}
+	local lines={{points={from,to},color=color,thickness=assignmentThickness,rotation={0,0,0}}}
 	for _,side in ipairs({-1,1}) do
 		local backX=dirX*math.cos(arrowHeadAngle)+sideX*side*math.sin(arrowHeadAngle)
 		local backZ=dirZ*math.cos(arrowHeadAngle)+sideZ*side*math.sin(arrowHeadAngle)
 		local wing={to[1]-backX*arrowHeadLength,assignmentHeight,to[3]-backZ*arrowHeadLength}
-		lines[#lines+1]={points={to,wing},color=assignmentColor,thickness=assignmentThickness,rotation={0,0,0}}
+		lines[#lines+1]={points={to,wing},color=color,thickness=assignmentThickness,rotation={0,0,0}}
 	end
 	return lines
 end
@@ -98,7 +132,7 @@ end
 local function activeVisualLines()
 	local lines={}
 	for _,entry in pairs(assignmentRegistry) do
-		local assignment=assignmentLines(entry.source,entry.target)
+		local assignment=assignmentLines(entry.source,entry.target,assignmentColorFor(entry.kind))
 		for _,line in ipairs(assignment or {}) do lines[#lines+1]=line end
 	end
 	for color,pending in pairs(targetingByPlayer) do
@@ -107,7 +141,7 @@ local function activeVisualLines()
 		if pointer~=nil and pending.source~=nil and not pending.source.isDestroyed() then
 			local from=positionAtHeight(pending.source.getPosition(),previewHeight)
 			local to=positionAtHeight(pointer,previewHeight)
-			lines[#lines+1]={points={from,to},color=assignmentColor,thickness=previewThickness,rotation={0,0,0}}
+			lines[#lines+1]={points={from,to},color=assignmentColorFor(pending.kind),thickness=previewThickness,rotation={0,0,0}}
 		end
 	end
 	return lines
@@ -128,6 +162,8 @@ local function vectorLineSignature(lines)
 			parts[#parts+1]=string.format("%.2f,%.2f,%.2f",point[1],point[2],point[3])
 		end
 		parts[#parts+1]=tostring(line.thickness)
+		local color=line.color or {}
+		parts[#parts+1]=tostring(color[1])..tostring(color[2])..tostring(color[3])
 	end
 	return table.concat(parts,";")
 end
@@ -197,7 +233,7 @@ local function persistAssignments()
 	local saved={}
 	for id,entry in pairs(assignmentRegistry) do
 		saved[#saved+1]={id=id,sourceGUID=entry.sourceGUID,targetGUID=entry.targetGUID,
-			resource=entry.resource,playerColor=entry.playerColor}
+			resource=entry.resource,playerColor=entry.playerColor,kind=entry.kind}
 	end
 	table.sort(saved,function(a,b) return a.id<b.id end)
 	gStates.attackAssignments=saved
@@ -214,15 +250,17 @@ local function removeAssignment(id)
 	return true
 end
 
-function attackAssignmentsBegin(source,resource,playerColor,additional)
+function attackAssignmentsBegin(source,resource,playerColor,additional,sourceKey,part)
 	if source==nil or source.guid==nil or source.isDestroyed()
 		or type(resource)~="string" or resource=="" or type(playerColor)~="string"
 		or Player[playerColor]==nil then return false end
+	sourceKey=sourceKey or source.guid
 	local pending=targetingByPlayer[playerColor]
-	if pending~=nil and pending.sourceGUID==source.guid and pending.resource==resource then
+	if pending~=nil and pending.sourceGUID==sourceKey and pending.resource==resource then
 		targetingByPlayer[playerColor]=nil
 	else
-		targetingByPlayer[playerColor]={source=source,sourceGUID=source.guid,resource=resource,additional=additional==true}
+		targetingByPlayer[playerColor]={source=source,sourceGUID=sourceKey,resource=resource,
+			additional=additional==true,kind=attackAssignmentsKindFor(part or resource)}
 	end
 	syncTargetButtons()
 	refreshRenderedLines()
@@ -235,8 +273,13 @@ function attackAssignmentSourceClicked(player,value,id)
 		if type(id)~="string" then return end
 		local guid,rowIndex,category=id:match("^AttackAssignmentSource_([0-9a-f]+)_(%d+)_(.+)$")
 		if guid==nil then return end
+		-- "category@part" targets one resource of a card that splits its targets.
+		local baseCategory,part=category:match("^(.-)@(.+)$")
+		if baseCategory~=nil then category=baseCategory end
 		rowIndex=tonumber(rowIndex)
 		local resource=rowIndex>0 and ("set"..rowIndex..":"..category) or category
+		local sourceKey=part~=nil and (guid.."#"..part) or guid
+		if part~=nil then resource=resource.."@"..part end
 		local color=player~=nil and player.color or nil
 		local source=guid~=nil and getObjectFromGUID(guid) or nil
 		if source==nil then return end
@@ -247,14 +290,14 @@ function attackAssignmentSourceClicked(player,value,id)
 		if not additional and pending==nil then
 			local removed=false
 			for entryId,entry in pairs(assignmentRegistry) do
-				if entry.sourceGUID==guid then
+				if entry.sourceGUID==sourceKey then
 					assignmentRegistry[entryId]=nil
 					removed=true
 				end
 			end
 			if removed then persistAssignments() end
 		end
-		attackAssignmentsBegin(source,resource,color,additional)
+		attackAssignmentsBegin(source,resource,color,additional,sourceKey,part)
 	end)
 end
 
@@ -289,7 +332,7 @@ function attackAssignmentTargetClicked(target,playerColor)
 			local id=tostring(assignmentCounter)
 			assignmentRegistry[id]={id=id,source=pending.source,target=target,
 				sourceGUID=pending.sourceGUID,targetGUID=target.guid,
-				resource=pending.resource,playerColor=playerColor}
+				resource=pending.resource,playerColor=playerColor,kind=pending.kind}
 			persistAssignments()
 		end
 		targetingByPlayer[playerColor]=nil
@@ -304,8 +347,8 @@ function attackAssignmentTargetClicked(target,playerColor)
 end
 
 -- Called by the Attack Assignment panel so both interfaces show the same single target.
-function attackAssignmentsSetSourceTarget(sourceGUID,targetGUID)
-	local source,target=getObjectFromGUID(sourceGUID),getObjectFromGUID(targetGUID)
+function attackAssignmentsSetSourceTarget(sourceGUID,targetGUID,kind)
+	local source,target=getObjectFromGUID(assignmentBaseGUID(sourceGUID)),getObjectFromGUID(targetGUID)
 	if source==nil or target==nil or monsterPugs[targetGUID]==nil then return end
 	for entryId,entry in pairs(assignmentRegistry) do
 		if entry.sourceGUID==sourceGUID then assignmentRegistry[entryId]=nil end
@@ -313,18 +356,41 @@ function attackAssignmentsSetSourceTarget(sourceGUID,targetGUID)
 	assignmentCounter=assignmentCounter+1
 	local id=tostring(assignmentCounter)
 	assignmentRegistry[id]={id=id,source=source,target=target,sourceGUID=sourceGUID,
-		targetGUID=targetGUID,resource="panel",playerColor=nil}
+		targetGUID=targetGUID,resource="panel",playerColor=nil,kind=kind}
 	persistAssignments()
 	refreshRenderedLines()
 	scheduleRefresh()
 end
 
 -- Auto-targeted sources get the same arrow a manual assignment would draw.
-function attackAssignmentsEnsureTarget(sourceGUID,targetGUID)
+function attackAssignmentsEnsureTarget(sourceGUID,targetGUID,kind)
 	for _,entry in pairs(assignmentRegistry) do
-		if entry.sourceGUID==sourceGUID and entry.targetGUID==targetGUID then return end
+		if entry.sourceGUID==sourceGUID and entry.targetGUID==targetGUID then
+			if kind~=nil and entry.kind~=kind then
+				entry.kind=kind
+				persistAssignments()
+				refreshRenderedLines()
+			end
+			return
+		end
 	end
-	attackAssignmentsSetSourceTarget(sourceGUID,targetGUID)
+	attackAssignmentsSetSourceTarget(sourceGUID,targetGUID,kind)
+end
+
+-- Removes arrows of sources that still exist on the table but no longer offer that target
+-- (for example when a card's choice stops splitting its resources).
+function attackAssignmentsPruneInactive(activeKeys,activeObjects)
+	local remove={}
+	for id,entry in pairs(assignmentRegistry) do
+		if activeKeys[entry.sourceGUID]~=true and activeObjects[assignmentBaseGUID(entry.sourceGUID)]==true then
+			remove[#remove+1]=id
+		end
+	end
+	for _,id in ipairs(remove) do assignmentRegistry[id]=nil end
+	if #remove>0 then
+		persistAssignments()
+		refreshRenderedLines()
+	end
 end
 
 function attackAssignmentsIsTargeting(sourceGUID)
@@ -356,12 +422,12 @@ function attackAssignmentsClearForObject(objectOrGUID)
 	if guid==nil then return 0 end
 	local remove={}
 	for id,entry in pairs(assignmentRegistry) do
-		if entry.sourceGUID==guid or entry.targetGUID==guid then remove[#remove+1]=id end
+		if assignmentKeyMatches(entry.sourceGUID,guid) or entry.targetGUID==guid then remove[#remove+1]=id end
 	end
 	for _,id in ipairs(remove) do assignmentRegistry[id]=nil end
 	local pendingRemoved=false
 	for color,pending in pairs(targetingByPlayer) do
-		if pending.sourceGUID==guid then
+		if assignmentKeyMatches(pending.sourceGUID,guid) then
 			targetingByPlayer[color]=nil
 			pendingRemoved=true
 		end
@@ -380,11 +446,11 @@ function attackAssignmentsObjectMoved(object)
 	local guid=object.guid
 	local relevant=false
 	for _,entry in pairs(assignmentRegistry) do
-		if entry.sourceGUID==guid or entry.targetGUID==guid then relevant=true break end
+		if assignmentBaseGUID(entry.sourceGUID)==guid or entry.targetGUID==guid then relevant=true break end
 	end
 	if not relevant then
 		for _,pending in pairs(targetingByPlayer) do
-			if pending.sourceGUID==guid then relevant=true break end
+			if assignmentBaseGUID(pending.sourceGUID)==guid then relevant=true break end
 		end
 	end
 	if relevant then
@@ -406,7 +472,7 @@ function attackAssignmentsRestore()
 	assignmentRegistry={}
 	assignmentCounter=0
 	for _,saved in ipairs(gStates~=nil and gStates.attackAssignments or {}) do
-		local source=getObjectFromGUID(saved.sourceGUID)
+		local source=getObjectFromGUID(assignmentBaseGUID(saved.sourceGUID))
 		local target=getObjectFromGUID(saved.targetGUID)
 		if source~=nil and target~=nil and monsterPugs[target.guid]~=nil
 			and type(saved.resource)=="string" then
@@ -418,8 +484,8 @@ function attackAssignmentsRestore()
 				assignmentCounter=math.max(assignmentCounter,tonumber(id) or 0)
 			end
 			assignmentRegistry[id]={id=id,source=source,target=target,
-				sourceGUID=source.guid,targetGUID=target.guid,
-				resource=saved.resource,playerColor=saved.playerColor}
+				sourceGUID=saved.sourceGUID,targetGUID=target.guid,
+				resource=saved.resource,playerColor=saved.playerColor,kind=saved.kind}
 		end
 	end
 	persistAssignments()

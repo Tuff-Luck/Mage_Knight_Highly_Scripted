@@ -26,19 +26,36 @@ function combatEffectSpec(rule,powered,chosenCategory)
     local sides=rule~=nil and rule.enemyEffect or nil
     local spec=sides~=nil and (powered and sides.powered or sides.normal) or nil
     if spec==nil then return nil end
+    -- A side may list one spec per option; the selected option picks the matching one.
+    if spec[1]~=nil then
+        for _,candidate in ipairs(spec) do
+            if candidate.choice==nil or candidate.choice==chosenCategory then return candidate end
+        end
+        return nil
+    end
     if spec.choice~=nil and spec.choice~=chosenCategory then return nil end
     return spec
 end
 
+-- Spec fields: noAttackUnfortified, armourReduce, armourReduceFortified (replaces it against a fortified enemy),
+-- armourReduceByResist (per resistance), noAttack, removeAbilities, removeFortify,
+-- removeResist, removeFireResist, all (every face-up enemy instead of one).
 function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec)
     local entry=enemyEffects[enemyGUID]
     if entry==nil then
-        entry={armourReduce=0,noAttack=false,removeAbilities=false,sources={}}
+        entry={armourReduce=0,armourReduceFortified=0,armourReduceByResist=0,noAttack=false,
+            removeAbilities=false,removeFortify=false,removeResist=false,removeFireResist=false,sources={}}
         enemyEffects[enemyGUID]=entry
     end
     entry.armourReduce=entry.armourReduce+(spec.armourReduce or 0)
+    entry.armourReduceFortified=entry.armourReduceFortified+(spec.armourReduceFortified or spec.armourReduce or 0)
+    entry.armourReduceByResist=entry.armourReduceByResist+(spec.armourReduceByResist or 0)
     entry.noAttack=entry.noAttack or spec.noAttack==true
+    entry.noAttackUnfortified=entry.noAttackUnfortified or spec.noAttackUnfortified==true
     entry.removeAbilities=entry.removeAbilities or spec.removeAbilities==true
+    entry.removeFortify=entry.removeFortify or spec.removeFortify==true
+    entry.removeResist=entry.removeResist or spec.removeResist==true
+    entry.removeFireResist=entry.removeFireResist or spec.removeFireResist==true
     entry.sources[#entry.sources+1]=sourceGUID
 end
 
@@ -49,8 +66,18 @@ function combatEffectReport(seatPos,enemyEffects)
         local pug=monsterPugs[guid]
         local name=pug~=nil and pug.name~=nil and tostring(pug.name) or guid
         local text=name..":"
-        if entry.armourReduce>0 then text=text.." Armour -"..entry.armourReduce end
+        if entry.armourReduce>0 or entry.armourReduceByResist>0 then
+            text=text.." Armour -"..entry.armourReduce
+            if entry.armourReduceFortified~=entry.armourReduce then
+                text=text.." (-"..entry.armourReduceFortified.." if fortified)"
+            end
+            if entry.armourReduceByResist>0 then text=text.." (-"..entry.armourReduceByResist.." per resistance)" end
+        end
+        if entry.removeFortify then text=text.." loses fortification" end
+        if entry.removeResist then text=text.." loses resistances" end
+        if entry.removeFireResist then text=text.." loses Fire Resistance" end
         if entry.noAttack then text=text.." does not attack" end
+        if entry.noAttackUnfortified and not entry.noAttack then text=text.." does not attack if unfortified" end
         if entry.removeAbilities then text=text.." attack loses abilities (keeps colour)" end
         parts[#parts+1]=text
     end

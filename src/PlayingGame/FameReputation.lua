@@ -107,6 +107,35 @@ function fameReputationSetReversiblePending(playerIndex,entry,key,nominal)
 	return applied
 end
 
+--Resource Tracker Fame/Reputation is runtime-only and rebuilt on every scan. It lives in the same
+--pending fameGain/repGain the main interface shows, and is reversed whenever the played source leaves.
+local resourceFameRepState={}
+
+function resourceFameRepApply(playerIndex,fame,rep)
+	local player=turnOrder[playerIndex]
+	if player==nil or gStates.preEndTurn==true then return end
+	local state=resourceFameRepState[playerIndex]
+	if state==nil then
+		if (fame or 0)==0 and (rep or 0)==0 then return end
+		state={fame=0,entry={}}
+		resourceFameRepState[playerIndex]=state
+	end
+	local fameDelta=(fame or 0)-state.fame
+	local previousRep=state.entry.repEffects~=nil and state.entry.repEffects.resourceTracker~=nil
+		and state.entry.repEffects.resourceTracker.nominal or 0
+	if fameDelta==0 and (rep or 0)==previousRep then return end
+	state.fame=fame or 0
+	player.fameGain=math.max(0,(player.fameGain or 0)+fameDelta)
+	fameReputationSetReversiblePending(playerIndex,state.entry,"resourceTracker",rep or 0)
+	if state.fame==0 and state.entry.repEffects==nil then resourceFameRepState[playerIndex]=nil end
+	mainUIUpdate("Resource Tracker Fame/Reputation")
+end
+
+--Called when the turn's pending Fame/Reputation is committed or zeroed, so nothing is reversed twice.
+function resourceFameRepForget(playerIndex)
+	resourceFameRepState[playerIndex]=nil
+end
+
 local function hiddenValleyNormalizeSiteLoss()
 	if gStates.hiddenValleyKeep==nil then return end
 	local found=false

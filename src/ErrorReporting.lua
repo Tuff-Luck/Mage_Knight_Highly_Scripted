@@ -1,5 +1,13 @@
--- Automatic Lua error reporting, protected callback helpers and diagnostic context builders.
+-- Automatic Lua error reporting
+local automaticLuaErrorReporting=false
+local automaticLuaErrorCooldown=10
+local automaticLuaErrorSignatures={}
+local automaticLuaErrorBreadcrumbs={}
+local automaticLuaErrorBreadcrumbLimit=10
+local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
+local automaticLuaErrorReporterVersion="452"
 
+-- Automatic Lua error reporting, protected callback helpers and diagnostic context builders.
 local automaticLuaZoneContext
 local automaticLuaProtectedCallbackDepth=0
 local automaticLuaPublicUICallbackRegistry={}
@@ -69,15 +77,6 @@ function safeObjectCallbackParams(scope, params)
 	safeParams.callback_function=safeAsyncCallback(automaticLuaAsyncLabel(scope,"callback_function"),params.callback_function)
 	return safeParams
 end
-
--- Automatic Lua error reporting
-local automaticLuaErrorReporting=false
-local automaticLuaErrorCooldown=10
-local automaticLuaErrorSignatures={}
-local automaticLuaErrorBreadcrumbs={}
-local automaticLuaErrorBreadcrumbLimit=10
-local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="450"
 
 local function automaticLuaErrorValue(callback, fallback)
 	local ok, value=pcall(callback)
