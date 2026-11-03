@@ -3,7 +3,7 @@ name: Convert rule PDFs to AI-readable text
 on:
   push:
     branches:
-      - rules-text-conversion-temp
+      - Play-Area-Smarts-WIP
     paths:
       - '.github/workflows/convert-rule-pdfs.yml'
       - 'tools/convert-rule-pdfs.py'
@@ -31,6 +31,6 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add Rules/AI-Text
           if ! git diff --cached --quiet; then
-            git commit -m "Generate AI-readable text versions of rule PDFs"
+            git commit -m "Regenerate AI-readable rule text with corrected reading order"
             git push
           fi
