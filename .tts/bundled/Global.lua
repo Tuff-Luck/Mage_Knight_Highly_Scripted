@@ -21415,9 +21415,17 @@ __bundle_register("PlayingGame.AttackAssignments", function(require, _LOADED, __
 local assignmentColors={
 	armour={1.0,0.55,0.1},   -- Attack, Ranged, Siege and anything else aimed at armour
 	attack={0.25,0.6,1.0},   -- Block and anything that reduces or stops an enemy attack
+	damage={1.0,0.1,0.1},    -- Damage that an unblocked enemy attack assigns to a Unit
 	other={0.95,0.18,0.78}}
-local assignmentThickness=0.12
-local previewThickness=0.07
+local DAMAGE_BUTTON_LIMIT=6
+-- Damage phase state is runtime-only: every unblocked attack starts on the Hero until the player targets Units.
+local damageTargets={}   -- attack key -> ordered Unit GUIDs
+local damagePending=nil  -- {key=,color=} while the player is choosing a Unit for an attack
+local damageSpec={attacks={},units={},byOwner={},byKey={}}
+local damageButtonObjects={}
+local damageSignature=""
+local assignmentThickness=0.08
+local previewThickness=0.047
 local assignmentHeight=1.1
 local previewHeight=1.3
 local arrowHeadLength=0.34
@@ -21519,7 +21527,7 @@ local function positionAtHeight(position,height)
 	return {position[1],height or assignmentHeight,position[3]}
 end
 
-local function assignmentLines(source,target,color)
+local function assignmentLines(source,target,color,noHead)
 	if source==nil or target==nil or source.isDestroyed() or target.isDestroyed() then return nil end
 	color=color or assignmentColors.other
 	local from=positionAtHeight(source.getPosition())
@@ -21527,6 +21535,7 @@ local function assignmentLines(source,target,color)
 	local dx,dz=to[1]-from[1],to[3]-from[3]
 	local distance=math.sqrt(dx*dx+dz*dz)
 	if distance<0.01 then return nil end
+	if noHead then return {{points={from,to},color=color,thickness=assignmentThickness,rotation={0,0,0}}} end
 	local dirX,dirZ=dx/distance,dz/distance
 	local pullBack=math.min(arrowHeadLength*3,distance*0.5)
 	to={to[1]-dirX*pullBack,assignmentHeight,to[3]-dirZ*pullBack}
@@ -21546,6 +21555,24 @@ local function activeVisualLines()
 	for _,entry in pairs(assignmentRegistry) do
 		local assignment=assignmentLines(entry.source,entry.target,assignmentColorFor(entry.kind))
 		for _,line in ipairs(assignment or {}) do lines[#lines+1]=line end
+	end
+	for key,guids in pairs(damageTargets) do
+		local attack=damageSpec.byKey[key]
+		local owner=attack~=nil and getObjectFromGUID(attack.owner) or nil
+		for _,guid in ipairs(guids) do
+			local assignment=assignmentLines(owner,getObjectFromGUID(guid),assignmentColors.damage,true)
+			for _,line in ipairs(assignment or {}) do lines[#lines+1]=line end
+		end
+	end
+	if damagePending~=nil then
+		local attack=damageSpec.byKey[damagePending.key]
+		local owner=attack~=nil and getObjectFromGUID(attack.owner) or nil
+		local player=Player[damagePending.color]
+		local pointer=player~=nil and player.getPointerPosition() or nil
+		if owner~=nil and pointer~=nil then
+			lines[#lines+1]={points={positionAtHeight(owner.getPosition(),previewHeight),positionAtHeight(pointer,previewHeight)},
+				color=assignmentColors.damage,thickness=previewThickness,rotation={0,0,0}}
+		end
 	end
 	for color,pending in pairs(targetingByPlayer) do
 		local player=Player[color]
@@ -21627,6 +21654,7 @@ end
 
 local function hasRuntimeWork()
 	return next(assignmentRegistry)~=nil or next(targetingByPlayer)~=nil
+		or next(damageTargets)~=nil or damagePending~=nil
 end
 
 local function scheduleRefresh()
@@ -21638,6 +21666,213 @@ local function scheduleRefresh()
 		refreshRenderedLines()
 		if hasRuntimeWork() then scheduleRefresh() end
 	end,0.2)
+end
+
+local DAMAGE_DECAL_URL="https://steamusercontent-a.akamaihd.net/ugc/10727875827929703324/92E5145A412AFBE2EB1716DF8B6CF965359A0372/"
+local damageButtonX={}
+
+local function removeDamageButtons(obj)
+	local buttons=obj.getButtons() or {}
+	for i=#buttons,1,-1 do
+		if tostring(buttons[i].click_function):find("^attackAssignmentDamage")~=nil then obj.removeButton(buttons[i].index) end
+	end
+	local decals,kept,found=obj.getDecals() or {},{},false
+	for _,decal in ipairs(decals) do
+		if tostring(decal.name):find("^DamageTarget")~=nil then found=true else kept[#kept+1]=decal end
+	end
+	if found then obj.setDecals(kept) end
+end
+
+local function damageUsedBy(guid,exceptKey)
+	for key,guids in pairs(damageTargets) do
+		if key~=exceptKey then
+			for _,used in ipairs(guids) do
+				if used==guid then return key end
+			end
+		end
+	end
+	return nil
+end
+
+-- Full-size invisible button over a free Unit card, used only while an attack is being targeted.
+local function addDamageTargetButton(obj,clickFunction)
+	if obj==nil or obj.isDestroyed() then return end
+	local bounds=obj.getBounds()
+	local scale=obj.getScale() or {x=1,y=1,z=1}
+	if bounds==nil or bounds.size==nil then return end
+	obj.createButton({click_function=clickFunction,function_owner=Global,label="",
+		position={0,bounds.size[2]/(scale.y or 1)/2+0.2,0},rotation={0,0,0},
+		width=bounds.size[1]/(scale.x or 1)*500,height=bounds.size[3]/(scale.z or 1)*500,color={0,0,0,0}})
+	damageButtonObjects[obj.guid]=obj
+end
+
+local function rebuildDamageButtons()
+	for guid in pairs(damageButtonObjects) do
+		local obj=getObjectFromGUID(guid)
+		if obj~=nil then removeDamageButtons(obj) end
+	end
+	damageButtonObjects={}
+	for owner,list in pairs(next(damageSpec.units)~=nil and damageSpec.byOwner or {}) do
+		local obj=getObjectFromGUID(owner)
+		if obj~=nil and not obj.isDestroyed() then
+			-- Measured once per token, while no damage decal or button of ours can influence the result.
+			if damageButtonX[owner]==nil then
+				local bounds=obj.getBounds()
+				local scale=obj.getScale()
+				local radius=(bounds~=nil and bounds.size~=nil and bounds.size[1] or 1.5)/((scale~=nil and scale.x) or 1)/2
+				-- Buttons sit outside the token's left edge, and further out when a bonus decal already occupies it.
+				local x=-(radius+0.35)
+				for _,decal in ipairs(obj.getDecals() or {}) do
+					local position=decal.position
+					local px=type(position)=="table" and (position[1] or position.x) or nil
+					if px~=nil and px<-0.8 then x=math.min(x,px-0.36-0.35) end
+				end
+				damageButtonX[owner]=x
+			end
+			local x=damageButtonX[owner]
+			local decals=obj.getDecals() or {}
+			for i,attack in ipairs(list) do
+				local z=(i-(#list+1)/2)*0.65
+				obj.createButton({click_function="attackAssignmentDamageClick"..i,function_owner=Global,
+					label="",position={x,0.25,z},rotation={0,0,0},width=300,height=300,color={0,0,0,0}})
+				-- Decal x runs opposite to button x, so the icon is mirrored to land on the button.
+				decals[#decals+1]={name="DamageTarget"..i,url=DAMAGE_DECAL_URL,position={-x,0.15,z},
+					rotation={90,180,0},scale={0.5,0.5,1}}
+			end
+			obj.setDecals(decals)
+			damageButtonObjects[owner]=obj
+		end
+	end
+	if damagePending~=nil then
+		local own={}
+		for _,guid in ipairs(damageTargets[damagePending.key] or {}) do own[guid]=true end
+		for guid in pairs(damageSpec.units) do
+			if own[guid] or damageUsedBy(guid,nil)==nil then
+				addDamageTargetButton(getObjectFromGUID(guid),"attackAssignmentDamageUnitClicked")
+			end
+		end
+	end
+end
+
+-- spec: attacks={{key,owner,damage,assassination}} in token order, units={guid=true} for Units that can still be assigned
+-- damage. Drops targets that no longer apply. An attack keeps its button only while it still has legal Units to pick
+-- or an assignment to undo.
+function attackAssignmentsDamageSync(spec)
+	damageSpec={attacks=spec.attacks,units=spec.units or {},byOwner={},byKey={}}
+	for _,attack in ipairs(spec.attacks) do damageSpec.byKey[attack.key]=attack end
+	for key,guids in pairs(damageTargets) do
+		local kept={}
+		for _,guid in ipairs(damageSpec.byKey[key]~=nil and guids or {}) do
+			if damageSpec.units[guid] then kept[#kept+1]=guid end
+		end
+		damageTargets[key]=#kept>0 and kept or nil
+	end
+	local freeUnit=false
+	for guid in pairs(damageSpec.units) do
+		if damageUsedBy(guid,nil)==nil then freeUnit=true break end
+	end
+	for _,attack in ipairs(spec.attacks) do
+		if damageTargets[attack.key]~=nil or (freeUnit and not attack.assassination) then
+			local list=damageSpec.byOwner[attack.owner] or {}
+			damageSpec.byOwner[attack.owner]=list
+			if #list<DAMAGE_BUTTON_LIMIT then list[#list+1]=attack end
+		end
+	end
+	if damagePending~=nil then
+		local visible=false
+		for _,attack in ipairs(damageSpec.byOwner[damageSpec.byKey[damagePending.key] and damageSpec.byKey[damagePending.key].owner or ""] or {}) do
+			if attack.key==damagePending.key then visible=true end
+		end
+		if not visible then damagePending=nil end
+	end
+	local parts={damagePending~=nil and damagePending.key or "-",tostring(freeUnit)}
+	for _,attack in ipairs(spec.attacks) do
+		local assigned=damageTargets[attack.key]
+		parts[#parts+1]=attack.key.."="..tostring(attack.damage)..":"..(assigned~=nil and table.concat(assigned,",") or "")
+	end
+	local unitGUIDs={}
+	for guid in pairs(damageSpec.units) do unitGUIDs[#unitGUIDs+1]=guid end
+	table.sort(unitGUIDs)
+	parts[#parts+1]=table.concat(unitGUIDs,",")
+	local signature=table.concat(parts,";")
+	if signature~=damageSignature then
+		damageSignature=signature
+		rebuildDamageButtons()
+	end
+	if hasRuntimeWork() then scheduleRefresh() end
+end
+
+function attackAssignmentsDamageTargetsOf(key)
+	return damageTargets[key] or {}
+end
+
+function attackAssignmentsDamageClear()
+	damageTargets={}
+	damagePending=nil
+	damageSpec={attacks={},units={},byOwner={},byKey={}}
+	damageSignature=""
+	for guid in pairs(damageButtonObjects) do
+		local obj=getObjectFromGUID(guid)
+		if obj~=nil then removeDamageButtons(obj) end
+	end
+	damageButtonObjects={}
+	damageButtonX={}
+	refreshRenderedLines()
+end
+
+local function damageChanged()
+	damageSignature=""
+	if resourceCardsRefreshCombatEnemies~=nil then resourceCardsRefreshCombatEnemies() end
+end
+
+local function damageAttackClicked(obj,playerColor,index,altClick)
+	local list=obj~=nil and damageSpec.byOwner[obj.guid] or nil
+	local attack=list~=nil and list[index] or nil
+	if attack==nil then return end
+	if altClick then
+		-- Right click returns the whole attack to the Hero.
+		damageTargets[attack.key]=nil
+		damagePending=nil
+	elseif damagePending~=nil and damagePending.key==attack.key then
+		damagePending=nil
+	else
+		damagePending={key=attack.key,color=playerColor}
+	end
+	damageChanged()
+end
+
+for index=1,DAMAGE_BUTTON_LIMIT do
+	_G["attackAssignmentDamageClick"..index]=function(obj,playerColor,altClick)
+		return safeCallback("attackAssignmentDamageClick"..index,function() damageAttackClicked(obj,playerColor,index,altClick==true) end)
+	end
+end
+
+-- Clicking a free Unit adds it to the attack in order; clicking one already on the attack returns its share to the Hero.
+function attackAssignmentDamageUnitClicked(unit,playerColor)
+	return safeCallback("attackAssignmentDamageUnitClicked",function()
+		if damagePending==nil or unit==nil then return end
+		local key=damagePending.key
+		local list=damageTargets[key] or {}
+		for position,guid in ipairs(list) do
+			if guid==unit.guid then
+				table.remove(list,position)
+				damageTargets[key]=#list>0 and list or nil
+				damagePending=nil
+				damageChanged()
+				return
+			end
+		end
+		if not damageSpec.units[unit.guid] then
+			broadcastToColor("That Unit is Wounded and cannot be assigned damage.",playerColor,{1,0.6,0.2})
+		elseif damageUsedBy(unit.guid,key)~=nil then
+			broadcastToColor("That Unit already takes damage from another attack this combat.",playerColor,{1,0.6,0.2})
+		else
+			list[#list+1]=unit.guid
+			damageTargets[key]=list
+			damagePending=nil
+			damageChanged()
+		end
+	end)
 end
 
 local function persistAssignments()
@@ -21791,10 +22026,11 @@ end
 
 -- Removes arrows of sources that still exist on the table but no longer offer that target
 -- (for example when a card's choice stops splitting its resources).
-function attackAssignmentsPruneInactive(activeKeys,activeObjects)
+function attackAssignmentsPruneInactive(activeKeys,activeObjects,keepsLock)
 	local remove={}
 	for id,entry in pairs(assignmentRegistry) do
-		if activeKeys[entry.sourceGUID]~=true and activeObjects[assignmentBaseGUID(entry.sourceGUID)]==true then
+		if activeKeys[entry.sourceGUID]~=true and (activeObjects[assignmentBaseGUID(entry.sourceGUID)]==true
+			or (keepsLock~=nil and not keepsLock(entry.sourceGUID))) then
 			remove[#remove+1]=id
 		end
 	end
@@ -21813,7 +22049,7 @@ function attackAssignmentsIsTargeting(sourceGUID)
 end
 
 function attackAssignmentsHasAny()
-	return next(assignmentRegistry)~=nil or next(targetingByPlayer)~=nil
+	return next(assignmentRegistry)~=nil or next(targetingByPlayer)~=nil or next(damageTargets)~=nil or damagePending~=nil
 end
 
 function attackAssignmentsTargetGUIDs(sourceGUID)
@@ -21872,6 +22108,7 @@ function attackAssignmentsObjectMoved(object)
 end
 
 function attackAssignmentsClearAll()
+	attackAssignmentsDamageClear()
 	assignmentRegistry={}
 	targetingByPlayer={}
 	assignmentCounter=0
@@ -43447,7 +43684,7 @@ local COMBAT_ASSIGNMENT_ROW_COUNT=8
 local COMBAT_ASSIGNMENT_SLOT_COUNT=6
 local COMBAT_ASSIGNMENT_ROW_HEIGHT=40
 local COMBAT_ASSIGNMENT_PANEL_BASE_HEIGHT=52
-local COMBAT_ASSIGNMENT_COLUMNS={Name=130,Armour=55,Traits=150,Attacks=110,Offence=130,Result=180}
+local COMBAT_ASSIGNMENT_COLUMNS={Name=130,Armour=55,Traits=150,Attacks=110,Offence=130,Result=270}
 -- Damage/resistance colours: normal, then the darker shade used once a value has been reduced.
 local COMBAT_TYPE_COLORS={P={"#FFFFFF","#9A9A9A"},F={"#FF5555","#992E2E"},I={"#5AA0FF","#2F5F9A"},
     IF={"#C070FF","#74429A"},M={"#FFE055","#9A8A33"}}
@@ -43631,7 +43868,8 @@ local function combatEnemyFortificationCount(data,perks)
         +(perks~=nil and perks.wallFortified==true and 1 or 0)
 end
 
-local function combatEnemyPrintedAttacks(data,perks,stripAbilities)
+-- owner/slot identify the physical token carrying each attack, so its damage button can find it again.
+local function combatEnemyPrintedAttacks(data,perks,stripAbilities,ownerGUID)
     local attacks={}
     local base=type(data.attack)=="table" and data.attack or {}
     local override=perks~=nil and type(perks.attack)=="table" and perks.attack or {}
@@ -43641,6 +43879,9 @@ local function combatEnemyPrintedAttacks(data,perks,stripAbilities)
     local swift=not stripAbilities and combatEnemyHasTrait(data,perks,"swiftness")
     local brutal=not stripAbilities and combatEnemyHasTrait(data,perks,"brutal")
     local cumbersome=not stripAbilities and combatEnemyHasTrait(data,perks,"cumbersome")
+    local poison=not stripAbilities and combatEnemyHasTrait(data,perks,"poison")
+    local paralyse=not stripAbilities and combatEnemyHasTrait(data,perks,"paralyse")
+    local assassination=not stripAbilities and combatEnemyHasTrait(data,perks,"assassination")
     for _,attackType in ipairs(COMBAT_ATTACK_TYPES) do
         local values=override[attackType.key] or base[attackType.key]
         for _,printedValue in ipairs(type(values)=="table" and values or {}) do
@@ -43648,7 +43889,8 @@ local function combatEnemyPrintedAttacks(data,perks,stripAbilities)
             if not boostUsed and boost~=0 then bonus=bonus+boost boostUsed=true end
             attacks[#attacks+1]={key=attackType.key,label=attackType.label,
                 value=math.max(0,printedValue+bonus),block=attackType.block,
-                swift=swift,brutal=brutal,cumbersome=cumbersome}
+                swift=swift,brutal=brutal,cumbersome=cumbersome,poison=poison,paralyse=paralyse,
+                assassination=assassination,owner=ownerGUID,slot=#attacks+1}
         end
     end
     return attacks
@@ -43683,12 +43925,12 @@ end
 
 local function combatEnemyAttacks(entry)
     if entry.noAttack or entry.destroyed then return {} end
-    local attacks=combatEnemyPrintedAttacks(entry.data,entry.perks,entry.removeAbilities)
+    local attacks=combatEnemyPrintedAttacks(entry.data,entry.perks,entry.removeAbilities,entry.guid)
     if entry.data.monsters~=nil then
         for _,summoned in ipairs(entry.summoned or {}) do
             if not combatSummonedAttackPrevented(summoned) then
                 local strip=summoned.effect~=nil and summoned.effect.removeAbilities==true
-                for _,attack in ipairs(combatEnemyPrintedAttacks(summoned.data,summoned.perks,strip)) do
+                for _,attack in ipairs(combatEnemyPrintedAttacks(summoned.data,summoned.perks,strip,summoned.guid)) do
                     attacks[#attacks+1]=attack
                 end
             end
@@ -43741,8 +43983,13 @@ function resourceCardsCombatTargetAcceptsMove(guid)
 end
 
 -- A lifted card keeps its target while its arrow still exists.
+-- A card being carried (for example lifted to rearrange the play area) keeps its targeting. Once it is put down
+-- anywhere without being an active source (hand, discard, elsewhere) its targeting is dropped.
 local function combatSourceKeepsLock(key)
-    return getObjectFromGUID(key:match("^[^#]+"))~=nil and next(attackAssignmentsTargetGUIDs(key))~=nil
+    local obj=getObjectFromGUID(key:match("^[^#]+"))
+    if obj==nil or next(attackAssignmentsTargetGUIDs(key))==nil then return false end
+    local held=obj.held_by_color
+    return (held~=nil and held~="") or obj.isSmoothMoving()
 end
 
 -- Orange arrows aim at armour; blue arrows (Block, Move) affect an enemy attack.
@@ -44056,6 +44303,7 @@ local function combatBlockResult(entry,sources)
     end
     if attempted~=nil then plan[attempted.index].mask=bit32.bor(plan[attempted.index].mask,leftover) end
     local lines,reductions,totalDamage,damageCount,allBlocked={},{},0,0,#attacks>0
+    local unblocked={}
     -- Block items applied at the wrong element (halved) against their attack, keyed source.key..field.key.
     local wrongBlock={}
     for index,attack in ipairs(attacks) do
@@ -44080,11 +44328,106 @@ local function combatBlockResult(entry,sources)
             local damage=remaining*(attack.brutal and 2 or 1)
             totalDamage=totalDamage+damage
             damageCount=damageCount+1
-            lines[index]=(spent>0 and (tostring(spent).."/"..tostring(required).." Block, ") or "Not blocked, ")
-                ..combatRich(tostring(damage).." Damage",COMBAT_RED)
+            local prefix=spent>0 and (tostring(spent).."/"..tostring(required).." Block, ") or "Not blocked, "
+            unblocked[index]={prefix=prefix,damage=damage,attack=attack}
+            lines[index]=prefix..combatRich(tostring(damage).." Damage",COMBAT_RED)
         end
     end
-    return lines,totalDamage,damageCount,allBlocked,reductions,wrongBlock
+    return lines,totalDamage,damageCount,allBlocked,reductions,wrongBlock,unblocked
+end
+
+-- Damage phase. Every unblocked attack starts wholly on the Hero; the player may route it through free Units first
+-- with the damage buttons. A Unit takes damage from one attack per combat and is Wounded whenever it is assigned damage,
+-- unless a resistance absorbs all of it.
+local COMBAT_UNIT_RESIST_KEYS={Physical="P",Fire="F",Ice="I"}
+
+-- Armour printed on the Hero's Level token: 2 for levels 1-2, then +1 per pair of levels.
+local function combatHeroArmour()
+    local player=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    local level=math.max(1,math.min(10,tonumber(player~=nil and player.level or 1) or 1))
+    return 2+math.floor((level-1)/2)
+end
+
+local function combatDamageUnits(seat)
+    local state=seat~=nil and unitLayoutResourceState(seat) or nil
+    local units={}
+    for _,unitState in ipairs(state~=nil and state.units or {}) do
+        local data=gameCards[unitState.guid]
+        if data~=nil and tonumber(data.armour)~=nil then
+            local resist={}
+            for _,name in ipairs(data.resistance or {}) do resist[COMBAT_UNIT_RESIST_KEYS[name] or name]=true end
+            units[unitState.guid]={guid=unitState.guid,name=type(data.name)=="table" and tostring(data.name[1]) or tostring(data.name),
+                armour=tonumber(data.armour),resist=resist,wounded=not unitState.unwounded}
+        end
+    end
+    return units
+end
+
+-- Cold Fire only counts as resisted by a Unit with both Fire and Ice resistance. Psychic has no Unit resistance rule.
+local function combatUnitResists(unit,attackKey)
+    if attackKey=="IF" then return unit.resist.F==true and unit.resist.I==true end
+    return unit.resist[attackKey]==true
+end
+
+-- items: {key,type,damage,poison,paralyse,assassination} in resolution order; targetsOf(key) lists the Unit GUIDs the player chose.
+local function combatDamageResolve(items,units,heroArmour,targetsOf)
+    local used,results={},{}
+    for _,item in ipairs(items) do
+        local remaining=item.damage
+        local result={units={},heroWounds=0,discard=0,heroDamage=0}
+        for _,guid in ipairs(item.assassination and {} or targetsOf(item.key)) do
+            local unit=units[guid]
+            if unit~=nil and not unit.wounded and not used[guid] and remaining>0 then
+                used[guid]=true
+                local entry={unit=unit,wounded=true,resisted=combatUnitResists(unit,item.type)}
+                if entry.resisted then
+                    remaining=remaining-unit.armour
+                    if remaining<=0 then entry.wounded,remaining=false,0 end
+                end
+                if entry.wounded then
+                    remaining=math.max(0,remaining-unit.armour)
+                    entry.wounds=item.poison and 2 or 1
+                    entry.destroyed=item.paralyse==true
+                end
+                result.units[#result.units+1]=entry
+            end
+        end
+        if remaining>0 then
+            result.heroDamage=remaining
+            result.heroWounds=math.ceil(remaining/math.max(1,heroArmour))
+            if item.poison then result.discard=result.heroWounds end
+        end
+        result.paralyse=item.paralyse==true and result.heroWounds>0
+        result.unitWounds=0
+        for _,entry in ipairs(result.units) do result.unitWounds=result.unitWounds+(entry.wounded and entry.wounds or 0) end
+        results[item.key]=result
+    end
+    return results
+end
+
+local function combatWoundsText(count)
+    return tostring(count)..(count==1 and " Wound" or " Wounds")
+end
+
+-- Short notes under an attack's line: what each chosen Unit took and what is left for the Hero.
+local function combatDamageNotes(item,result)
+    local notes={}
+    for _,entry in ipairs(result.units) do
+        local text
+        if entry.destroyed then text="Destroyed (Paralyse)"
+        elseif not entry.wounded then text="resisted, no Wound"
+        elseif entry.wounds>1 then text="Wounded x"..tostring(entry.wounds)
+        else text="Wounded"..(entry.resisted and " (resisted)" or "") end
+        notes[#notes+1]="> "..entry.unit.name..": "..text
+    end
+    if item.assassination then notes[#notes+1]="> Assassination: Hero only" end
+    if result.heroWounds>0 or result.discard>0 or result.paralyse then
+        local hero="> Hero: "..combatWoundsText(result.heroWounds)
+        if result.discard>0 then hero=hero.." +"..tostring(result.discard).." to discard" end
+        if result.paralyse then hero=hero..", discard hand" end
+        notes[#notes+1]=hero
+    end
+    return notes
 end
 
 -- A group is attacked as one: fortification and resistance of any member apply to all of
@@ -44267,6 +44610,8 @@ local function combatAssignmentRefreshRows(entries,sources)
         end
     end
     local overflow=math.max(0,#entries-COMBAT_ASSIGNMENT_ROW_COUNT)
+    -- Text shown in the ability columns and the columns that hold anything, so empty columns can be hidden.
+    local shownTraits,shownOffence,colUsed={},{},{range=false,block=false,attack=false}
     -- Joined enemies form a group (the leader is its first row) that is attacked as one.
     local groups,groupOf={},{}
     for index=1,math.min(#entries,COMBAT_ASSIGNMENT_ROW_COUNT) do
@@ -44290,9 +44635,9 @@ local function combatAssignmentRefreshRows(entries,sources)
         if entry~=nil then
             combatPanelSetAttribute("CombatEnemyRow"..index.."Name","text",
                 (group.leader~=index and "+ " or "")..entry.name)
-            combatPanelSetAttribute("CombatEnemyRow"..index.."Traits","text",
-                combatEnemyTraitsText(entry.data,entry.perks,COMBAT_ENEMY_DEFENCE_TRAITS))
-            combatPanelSetAttribute("CombatEnemyRow"..index.."Name","font","Fonts/MKCardText")
+            local ownTraits=combatEnemyTraitsText(entry.data,entry.perks,COMBAT_ENEMY_DEFENCE_TRAITS)
+            shownTraits[index]=ownTraits
+            combatPanelSetAttribute("CombatEnemyRow"..index.."Traits","text",ownTraits)
             combatPanelSetAttribute("CombatEnemyRow"..index.."Armour","font","Fonts/MKCardText")
             combatPanelSetAttribute("CombatEnemyRow"..index.."Traits","font","Fonts/MKCardText")
             combatPanelSetAttribute("CombatEnemyRow"..index.."Name","color","rgb(0.96,0.92,0.82)")
@@ -44306,6 +44651,7 @@ local function combatAssignmentRefreshRows(entries,sources)
                 combatPanelSetAttribute(id,"alignment","MiddleCenter")
             end
             local offenceText=combatEnemyOffenceTraits(entry)
+            shownOffence[index]=offenceText
             combatPanelSetAttribute("CombatEnemyRow"..index.."Offence","text",offenceText)
             local traitLines=math.max(select(2,offenceText:gsub("\n",""))+1,
                 select(2,combatEnemyTraitsText(entry.data,entry.perks,COMBAT_ENEMY_DEFENCE_TRAITS):gsub("\n",""))+1)
@@ -44396,9 +44742,9 @@ local function combatAssignmentRefreshRows(entries,sources)
         for _,index in ipairs(group.members) do
             local entry=entries[index]
             local target=allocated[index] or emptyTarget
-            local lines,damage,count,allBlocked,reductions,wrongBlock=combatBlockResult(entry,target.sources)
+            local lines,damage,count,allBlocked,reductions,wrongBlock,unblocked=combatBlockResult(entry,target.sources)
             rowBlock[index]={lines=lines,damage=damage,count=count,allBlocked=allBlocked,reductions=reductions,
-                wrongBlock=wrongBlock}
+                wrongBlock=wrongBlock,unblocked=unblocked,damageItems={}}
             blockedAll[entry.guid]=allBlocked
             members[#members+1]=entry
             for _,source in ipairs(target.sources) do group.sources[#group.sources+1]=source end
@@ -44430,9 +44776,47 @@ local function combatAssignmentRefreshRows(entries,sources)
             end
         end
     end
+    -- Damage phase: each unblocked attack of an enemy that is not already defeated starts on the Hero.
+    local damageSeat=combatAssignmentActiveSeat()
+    local damageUnits=combatDamageUnits(damageSeat)
+    local damageSpec={attacks={},units={}}
+    local damageItems={}
+    for guid,unit in pairs(damageUnits) do
+        if not unit.wounded then damageSpec.units[guid]=true end
+    end
+    for _,group in ipairs(groups) do
+        if not group.rangeDefeated and not group.destroyed then
+            for _,index in ipairs(group.members) do
+                local unblocked=rowBlock[index].unblocked
+                local last=0
+                for attackIndex in pairs(unblocked) do last=math.max(last,attackIndex) end
+                for attackIndex=1,last do
+                    local info=unblocked[attackIndex]
+                    if info~=nil and info.attack.owner~=nil then
+                        local attack=info.attack
+                        local item={key=attack.owner..":"..tostring(attack.slot),owner=attack.owner,type=attack.key,
+                            damage=info.damage,poison=attack.poison,paralyse=attack.paralyse,assassination=attack.assassination}
+                        damageItems[#damageItems+1]=item
+                        rowBlock[index].damageItems[attackIndex]=item
+                        damageSpec.attacks[#damageSpec.attacks+1]={key=item.key,owner=item.owner,damage=item.damage,
+                            assassination=item.assassination}
+                    end
+                end
+            end
+        end
+    end
+    attackAssignmentsDamageSync(damageSpec)
+    local damageResults=combatDamageResolve(damageItems,damageUnits,combatHeroArmour(),attackAssignmentsDamageTargetsOf)
+    local totalHeroWounds,totalHeroDamage,totalDiscardWounds=0,0,0
+    for _,result in pairs(damageResults) do
+        totalHeroWounds=totalHeroWounds+result.heroWounds
+        totalHeroDamage=totalHeroDamage+result.heroDamage
+        totalDiscardWounds=totalDiscardWounds+result.discard
+    end
+
     -- Sources that reward every defeated enemy, whichever attack defeated it.
     local seenScope={}
-    for _,source in ipairs(combatAssignmentSources(currentSeat)) do
+    for _,source in ipairs(combatAssignmentSources(damageSeat)) do
         local spec=source.defeatFameRep
         if spec~=nil and spec.scope~=nil and not seenScope[source.guid] then
             seenScope[source.guid]=true
@@ -44445,7 +44829,7 @@ local function combatAssignmentRefreshRows(entries,sources)
         end
     end
     combatDefeatFameRep.fame,combatDefeatFameRep.rep=defeatFame,defeatRep
-    resourceCardsApplyFameRep(currentSeat)
+    resourceCardsApplyFameRep(damageSeat)
 
     for index=1,COMBAT_ASSIGNMENT_ROW_COUNT do
         local entry=entries[index]
@@ -44477,6 +44861,7 @@ local function combatAssignmentRefreshRows(entries,sources)
         end
         for _,family in ipairs({"range","block","attack"}) do
             local items=lists[family]
+            if #items>0 then colUsed[family]=true end
             overflow=overflow+math.max(0,#items-COMBAT_ASSIGNMENT_SLOT_COUNT)
             for slot=1,COMBAT_ASSIGNMENT_SLOT_COUNT do
                 local id="CombatSourceSlot"..index..family..slot
@@ -44508,6 +44893,7 @@ local function combatAssignmentRefreshRows(entries,sources)
                 entry.destroyed and "-" or tostring(armourValue))
             if #group.members>1 then
                 local sharedText=combatGroupTraitsText(entry,group.entry)
+                shownTraits[index]=sharedText
                 combatPanelSetAttribute("CombatEnemyRow"..index.."Traits","text",sharedText)
                 entry.attackCount=math.max(entry.attackCount or 1,select(2,sharedText:gsub("\n",""))+1)
             end
@@ -44530,7 +44916,20 @@ local function combatAssignmentRefreshRows(entries,sources)
                         .." Defeated",COMBAT_GREEN)
                 end
             else
-                for _,line in ipairs(rowBlock[index].lines) do lines[#lines+1]=line end
+                for lineIndex,line in ipairs(rowBlock[index].lines) do
+                    local item=rowBlock[index].damageItems[lineIndex]
+                    if item~=nil then
+                        local result=damageResults[item.key]
+                        line=rowBlock[index].unblocked[lineIndex].prefix..combatRich(tostring(item.damage).." Damage",COMBAT_RED)
+                    end
+                    lines[#lines+1]=line
+                end
+                for lineIndex in ipairs(rowBlock[index].lines) do
+                    local item=rowBlock[index].damageItems[lineIndex]
+                    if item~=nil then
+                        for _,note in ipairs(combatDamageNotes(item,damageResults[item.key])) do lines[#lines+1]=note end
+                    end
+                end
                 grandDamage=grandDamage+rowBlock[index].damage
                 damageSources=damageSources+rowBlock[index].count
                 if isLast then
@@ -44549,15 +44948,41 @@ local function combatAssignmentRefreshRows(entries,sources)
         combatPanelSetAttribute("CombatEnemyRow"..index,"preferredHeight",tostring(rowHeight))
     end
 
-    local showTotal=grandDamage>0
+    -- Hide a column when every visible enemy leaves it blank or "None".
+    local function textBlank(text) return text==nil or text=="" or text=="None" or text=="-" end
+    local colShown={range=colUsed.range,block=colUsed.block,attack=colUsed.attack,traits=false,offence=false}
+    for index=1,math.min(#entries,COMBAT_ASSIGNMENT_ROW_COUNT) do
+        if not textBlank(shownTraits[index]) then colShown.traits=true end
+        if not textBlank(shownOffence[index]) then colShown.offence=true end
+    end
+    local columnWidths={traits=150,range=170,offence=130,block=170,attack=170}
+    local headerIDs={traits="CombatDefenceTraitsHeader",range="CombatRangeSiegeHeader",offence="CombatOffenceHeader",
+        block="CombatBlockHeader",attack="CombatAssignedAttackHeader"}
+    local hiddenWidth=0
+    for column,shown in pairs(colShown) do
+        local active=shown and "true" or "false"
+        if not shown then hiddenWidth=hiddenWidth+columnWidths[column] end
+        combatPanelSetAttribute(headerIDs[column],"active",active)
+        for index=1,COMBAT_ASSIGNMENT_ROW_COUNT do
+            local cell=(column=="traits" and "CombatEnemyRow"..index.."Traits")
+                or (column=="offence" and "CombatEnemyRow"..index.."Offence")
+                or "CombatSourceCell"..index..column
+            combatPanelSetAttribute(cell,"active",active)
+        end
+    end
+
+    local showTotal=totalHeroDamage>0
     combatPanelSetAttribute("CombatTotalRow","active",showTotal and "true" or "false")
     if showTotal then
         -- The spacer pushes the total under the Result column.
-        local spacer=0
+        local spacer=-hiddenWidth
         for _,width in ipairs({130,55,150,170,110,130,170,170}) do spacer=spacer+width end
         combatPanelSetAttribute("CombatTotalSpacer","preferredWidth",tostring(spacer))
+        -- Only damage that reaches the Hero counts; Wounds to hand and to the discard pile are in brackets.
+        local woundsText=combatWoundsText(totalHeroWounds).." to hand"
+        if totalDiscardWounds>0 then woundsText=woundsText..", "..combatWoundsText(totalDiscardWounds).." to discard" end
         combatPanelSetAttribute("CombatTotalDamage","text",
-            "Total damage - "..combatRich(tostring(grandDamage),COMBAT_RED))
+            "Total damage - "..combatRich(tostring(totalHeroDamage).." ("..woundsText..")",COMBAT_RED))
         combatPanelSetAttribute("CombatTotalDamage","font","Fonts/MKCardText")
         totalRowHeight=totalRowHeight+20
     end
@@ -44604,10 +45029,10 @@ local function combatAssignmentRefreshRows(entries,sources)
             "{de}\nWarnung: "..tostring(overflow).." Feinde/Ressourcen überschreiten die sichtbaren Plätze."
         })
     end
-    combatPanelSetAttribute("CombatEnemyPanel","width","1320")
+    combatPanelSetAttribute("CombatEnemyPanel","width",tostring(1410-hiddenWidth))
     combatPanelSetAttribute("CombatEnemyPanel","color","rgb(0.24,0.2,0.15)")
     local headerWidths={Monster=130,Armour=55,DefenceTraits=150,RangeSiege=170,EnemyAttack=110,
-        Offence=130,Block=170,AssignedAttack=170,Result=180}
+        Offence=130,Block=170,AssignedAttack=170,Result=270}
     for name,width in pairs(headerWidths) do
         local id="Combat"..name.."Header"
         combatPanelSetAttribute(id,"font","Fonts/MKCardTittle")
@@ -44630,6 +45055,7 @@ local function combatCalcShutdown()
     if seat~=nil then resourceCardsApplyFameRep(seat) end
     combatAssignmentState={seat=nil,selected=nil,targets={},explicit={}}
     combatAssignmentJoined={}
+    attackAssignmentsDamageClear()
     if attackAssignmentsHasAny() then attackAssignmentsClearAll() end
 end
 
@@ -44707,7 +45133,7 @@ local function refreshCombatEnemyPanel(monsters)
             end
         end
     end
-    attackAssignmentsPruneInactive(activeSources,activeObjects)
+    attackAssignmentsPruneInactive(activeSources,activeObjects,combatSourceKeepsLock)
     for guid in pairs(combatAssignmentState.targets) do
         if activeSources[guid]~=true and not combatSourceKeepsLock(guid) then combatAssignmentState.targets[guid]=nil end
     end
