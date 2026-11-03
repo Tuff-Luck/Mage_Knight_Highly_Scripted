@@ -1,7 +1,7 @@
 SOURCE PDF: Rules/Mage Knight Scenario Ultimate Conquest.pdf
 PAGE COUNT: 2
-EXTRACTION: Existing PDF text layer
-NOTE: Original wording is retained. Page boundaries are labelled below. Visual-only material such as diagrams, maps, icons and images may not be represented.
+EXTRACTION: PDF text extraction in content-stream reading order
+NOTE: Original wording is retained. Each page is presented as a single text flow in reading order; page boundaries are labelled below. Visual-only material such as diagrams, maps, icons and images may not be represented.
 
 ==============================================================================
 
@@ -10,17 +10,14 @@ Ultimate Conquest by ArthurDent
 Mage Knight Ultimate Edition did not introduce any new scenarios.
 The two variant scenarios that follow explore the possibilities of playing with a full complement of
 the games components.
-
 I.MEGA CONQUEST
 Purpose:
 The objective of this scenario is to provide a fulfilling experience by using most game components
 included in MK UE. The main highlight is the utilisation of all the map tiles as well as the extended
 duration allowing for epic scale games.
-
 Players: 1 ‐ 4+
 Type: Solo or Co‐operative.
 Length: 12 rounds (6 days, 6 nights)
-
 Map:
 Shape: Fully Open (even in solo)
 Tiles: There are 2 Tile Stacks. Players draw tiles from the 1st Tile Stack when setting up the map and
@@ -29,15 +26,12 @@ Then they continue drawing tiles from the second Stack.
 Tile Stack 1: 8 country side tiles. Shuffle and place face down.
 Tile Stack 2: All remaining tiles (6 countryside, 6 core, 4 city, Volkare Camp). Shuffle all together and
 place face down.
-
 Cities: Use the Volkare's camp as a city variant.
 The 1st city to be revealed is level 4. Subsequent cities are one level higher each time. (1st city: 4,
 2nd city: 5, 3rd city: 6, 4th city: 7, 5th city :8)
 Add one to the level of the first city for every additional player. (i.e. in a 3 player game the 1st City is
 level 6, then Level 7 etc.)
-
 Dummy Player: There is one standard dummy player.
-
 Tactics Selection: A player cannot choose the same tactic more than once (both for night and day).
 With a 12 turn duration, each player will get to choose each tactic only once. Keep a record of which
 tactics have already been selected by each player.
@@ -45,14 +39,12 @@ The dummy player will always select a random tactic from the remaining pool last
 are removed after each round. The only limitation is that no player can select the same tactic more
 than once.
 You cannot select a day tactic at night and vice versa as per the standard rules.
-
 Scenario End: The player(s) wins if all cities are conquered before time runs out.
 
 
 [PAGE 002]
 Character Levels
 Characters can level up to level 12 as follows:
-
 Level 11: Fame requirement = 142. Acquire an extra token for level 11‐12 with Armor=5/Cards=7.
 Flip the 9‐10 token and use as a command token. You can use this token to recruit an additional unit.
 You CANNOT recruit more than 6 units at any time even if using Banner of Command.
@@ -64,22 +56,17 @@ You can choose to forfeit acquiring a skill from the Common offer in order to se
 two (i.e. not the bottom one) Advanced action cards.
 Both the additional Skill and Advanced Action card acquisitions are optional. You can choose not to
 add either.
-
 NOTES:
 Volkare is *not* considered a player for purposes of adding dice to the mana pool and unit selection.
 If you do not own the Lost Legion Expansion, play with all the tiles and 4 cities. Otherwise, all above
 rules apply. If you own Tezla, you can add the Tezla monsters in the corresponding stacks as well as
 use faction tokens if desired.
-
 II.ULTIMATE CONQUEST
 Purpose: This is the ultimate scenario in terms of size. Enduring through and hopefully winning this
 scenario will provide an unparalleled sense of accomplishment in the MK universe.
-
 Rules: Use the same rules for MEGA CONQUEST except as modified below:
-
 Scenario End: The player(s) wins if all cities are conquered and both Faction Leaders are defeated
 before time runs out.
-
 Hidden Valley and Necropolis:
 Standard rules apply. Each contains it's corresponding Faction Leader.
 Location: The Hidden Valley is always located at the central location of Core Tile *10*
@@ -87,13 +74,11 @@ The Necropolis is always located at the central location of Core Tile *3*
 (Easy memorisation: Of the 6 non‐city Core tiles, there are only 2 that have an accessible central
 location. Hidden Valley is in the Marsh location and Necropolis is in the Wasteland location.)
 NOTE: The movement cost to enter both sites is 2 MPs.
-
 Faction Leaders:
 The level of each Faction Leader is determined by the current revealed City Level when the Hidden
 Valley or the Necropolis are revealed. (Example: For a solo game, FLs revealed before the 2nd City
 are level 4, then level 5 etc. FLs revealed after the last city are level 8. Sequence:
 4/1st/4/2nd/5/3rd/6/4th/7/5th/8)
-
 Monsters:
 You do not have to use faction specific monsters for the Faction Leaders. It is recommended to mix
 all monsters together from all expansions due to the number of tiles available for exploration.

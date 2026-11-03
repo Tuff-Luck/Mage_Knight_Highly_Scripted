@@ -1,16 +1,15 @@
 SOURCE PDF: Rules/Mage Knight Scenario The Gauntlet.pdf
 PAGE COUNT: 1
-EXTRACTION: Existing PDF text layer
-NOTE: Original wording is retained. Page boundaries are labelled below. Visual-only material such as diagrams, maps, icons and images may not be represented.
+EXTRACTION: PDF text extraction in content-stream reading order
+NOTE: Original wording is retained. Each page is presented as a single text flow in reading order; page boundaries are labelled below. Visual-only material such as diagrams, maps, icons and images may not be represented.
 
 ==============================================================================
 
 [PAGE 001]
 The Gauntlet by Trevin
- I came up with this scenario while exploring the possibilities of the “Map Shape” variant — i.e. what ways can one
- lay out the map tiles other than wedge or 3–5 columns? This scenario must be played solo due to the very limiting
-              map shape: a straight line! This will require about 4 feet × 6" of table space for the map.
-
+I came up with this scenario while exploring the possibilities of the “Map Shape” variant — i.e. what ways can one
+lay out the map tiles other than wedge or 3–5 columns? This scenario must be played solo due to the very limiting
+map shape: a straight line! This will require about 4 feet × 6" of table space for the map.
 • Players: 1
 • Type: Solo
 • Length: Six rounds (3 days and 3 nights)
@@ -18,7 +17,6 @@ The Gauntlet by Trevin
 The Council of the Void has taken note of your deeds and selected you to go on a mission to retrieve a rare artifact
 from the city of the desert. This city can only be reached through a long and treacherous canyon. Hurry, your time is
 limited!
-
 Map
 • Map Shape: Linear. Use side B of the starting tile. Each new tile extends in the opposite direction from the point of
 the coast. (The “Random Tiles Orientation” variant is not recommended for this scenario.) The first tile next to the
@@ -31,7 +29,6 @@ just the base game, use tile #’s 2, 4, and one other random tile (remove one w
 • Dummy Player: There is one standard Dummy player (see the General Principles section).
 • Cards and Skills: Remove the four competitive Spells (numbered 17–20) from the Spell deck. You may use either
 the competitive or cooperative Skill in the player’s Skill deck.
-
 Special Rules
 • When taking Tactics, you always choose first. The Dummy player then takes one random card from those
 remaining.
@@ -43,11 +40,9 @@ tokens to the city.
 the city.
 You can double‐check the number of shield tokens which should be on the city by adding half of the defeated
 rampaging orc spaces plus all the defeated rampaging draconum spaces.
-
 Scenario End
 The game ends at the end of the turn in which you buy an artifact from the red city, or at the end of the sixth round,
 whichever comes first.
-
 Scoring
 If you succeed in entering the red city and buy an artifact, your mission was successful. If not, you have failed. In
 both cases you may count your score to see how good you were.

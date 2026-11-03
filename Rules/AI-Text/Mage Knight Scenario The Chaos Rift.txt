@@ -1,58 +1,40 @@
 SOURCE PDF: Rules/Mage Knight Scenario The Chaos Rift.pdf
 PAGE COUNT: 4
-EXTRACTION: Existing PDF text layer
-NOTE: Original wording is retained. Page boundaries are labelled below. Visual-only material such as diagrams, maps, icons and images may not be represented.
+EXTRACTION: PDF text extraction in content-stream reading order
+NOTE: Original wording is retained. Each page is presented as a single text flow in reading order; page boundaries are labelled below. Visual-only material such as diagrams, maps, icons and images may not be represented.
 
 ==============================================================================
 
 [PAGE 001]
 The Chaos Rift
 Players: 1
-
 Type: Solo
-
 Length: Six rounds (3 days and 3 nights)
-
 Purpose: Seal the Chaos Rift before it is too late
-
 One of the last great Mages of the Empire, Malakov, planned a masterstroke that would turn the conflict
 against the Council of the Void back in his favor. He made an attempt to open a gateway to the Realm of
 Chaos, and summon vast armies of its denizens to do his bidding. Alas, the magic involved was much too
 strong to control, and Malakov was destroyed. A chaotic rift was left behind from which monstrosities
 began to pour forth into the countryside. Inside Malakov’s once great city, the rift is growing… soon no
 magic will be able to control it.
-
 Hearing rumors of this event, the Council dispatched you to scout the area and report back. You found a
 realm wracked with terror and destruction. Quickly gathering information, you prepared to return with
 your findings, only to find the Portal now inert. It appears no magic will open it. As the sun rises over the
 cliffs, only one option remains: seal the rift before you are destroyed, and an even worse catastrophe
 befalls the world you leave behind…
-
-
 Setup
-
 Special Setup Note: Divide Countryside tiles into two categories. Select the specified number of each,
 then shuffle them together in one stack (so that all Countryside tiles are drawn prior to Core tiles):
-
-    1) Knowledge sites (tiles that contain either a Monastery or a Mage tower).
-    2) Wilderness sites (tiles that contain neither a Monastery nor a Mage tower).
-
+1) Knowledge sites (tiles that contain either a Monastery or a Mage tower).
+2) Wilderness sites (tiles that contain neither a Monastery nor a Mage tower).
 Map Shape: Wedge
-
 Knowledge site tiles: 4
-
 Wilderness site tiles: 3
-
 Core city tiles: 1 (always place the Red city at the bottom of the stack, so it is the last tile drawn).
-
 Core non‐city tiles: 2
-
 Dummy player: There is one standard dummy player.
-
 Cards and skills: See rules for Solo Conquest.
-
 Scouting: Reveal one additional tile during Setup because of your initial scouting of the area.
-
 Chaos Flux: There is one extra die available in the Source due to the flux of the Chaos Rift.
 
 
@@ -60,46 +42,33 @@ Chaos Flux: There is one extra die available in the Source due to the flux of th
 Red City: The city when found has a level of 6. When assaulting the city, add one additional brown
 token to the defenders. Due to the destructive effects of the Chaos rift do not treat the defenders as
 fortified. As the city is ruined, you may not conduct Influence actions while in the city.
-
 Spell deck: Search the deck and set aside the Time Bending spell. Shuffle the remaining spell cards, and
 place them on top so that the Time Bending spell is the bottom card in the deck.
-
 Artifact deck: Search the deck and set aside the Amulet of Sun. Shuffle the remaining artifact cards, and
 place them on top of the Amulet (so that the Amulet of Sun is the bottom card in the deck). As a free
 action to start the game, you may draw 4 artifact cards and discard one back to the top of the artifact
 deck and the remaining three to the bottom of the deck. This represents information you collected from
 fleeing refugees during your initial scouting mission.
-
 Important Note: This scenario is balanced using a 24 card artifact deck which requires the Lost Legion
 expansion. If you have only the base game, add 8 wound cards to the artifact deck. See the notes below
 on the Challenging game for handling wounds in the artifact deck when receiving a reward (be aware
 this will be somewhat more difficult than the standard game).
-
-
 Special Rules
-
 Tactics cards are handled identically to the Solo Conquest scenario.
-
 Quest for the Ritual: When receiving a spell as a reward, or purchasing one via an Influence action, you
 may throw the spell away to search the deck for the spell “Time Bending”. This spell is then available for
 the remainder of the game (in addition to the normal Spell offer) and can be claimed the next time the
 player receives a spell as a reward. The Time Bending spell may not be purchased via an Influence
 action.
-
 Unit offer: As there are no cities available for recruiting, if a unit appears in the offer that may only be
 recruited in a city, you have the option to discard that unit and replace it in the offer with a regular
 (silver) unit instead.
-
 For this scenario, units that normally are available in Villages may be recruited from a Keep instead.
-
-
 Additional rules for sites:
-
 Village: The villages of this province have been burned and pillaged. There is nothing to be gained by
 visiting them, and dangerous enemies still lurk there. When revealed, place a monster token (one
 brown token on a Countryside tile, two brown tokens on a Core tile) on the village. Treat these enemies
 exactly the same as rampaging monsters.
-
 Keep: The last terrorized inhabitants of this land hide inside these fortifications. They represent
 potential allies, but terror and paranoia may make them hostile. Keeps are always hostile when entered
 
@@ -112,7 +81,6 @@ token from the game and place a shield on the location. You may also select a fr
 offer (which can be recruited from a Keep or Village) that wants to assist you in sealing the Rift. The
 “Negotiate” action cannot be used on a Keep that has already been claimed, via either a “Negotiate”
 action or an assault.
-
 Monastery: At a monastery, during an Influence action, you may spend 4 Influence to “Search the
 Ancient Texts” for clues to an artifact’s location. Draw 3 cards from the artifact deck. Discard 2 of the
 cards to the bottom of the Artifact deck, and return one to the top of the deck. This action may be
@@ -120,7 +88,6 @@ performed only once per location per game, mark the location with a crystal to i
 been used. Special exception: If a monastery is burned that has had “Search the Ancient Texts”
 performed on that location, the player draws only one artifact card as a reward (rather than choosing
 between two).
-
 Mage Tower: At a mage tower, during an Influence action, you may spend 4 Influence to perform a
 “Ritual of Scrying”. In addition, you may also fuel the ritual with up to 3 additional mana. Draw 2
 artifact cards, plus one additional card per mana spent. Discard one of the cards drawn back to the top
@@ -128,64 +95,52 @@ of the artifact deck, and the remaining cards to the bottom of the deck. In addi
 as part of the ritual, you may explore one tile adjacent to the tile in which you are currently located for
 free. This action may be performed only once per location per game, mark the location with a crystal to
 indicate this once it has been used.
-
 Ancient Ruins: Ruins may hold clues about ancient artifacts. If you clear a Ruin that does not include an
 artifact as a reward, you may draw two artifact cards. If one of the artifacts is the Amulet of the Sun,
 you may return it to the top of the artifact deck, and discard the other card to the bottom of the deck. If
 neither card drawn is the Amulet of the Sun, then discard both of them to the bottom of the artifact
 deck. This bonus can occur only once per location, when the ruin is cleared and its reward claimed.
-
 The Red City: The Chaos Rift lies in the rubble of the Red City. When placing the tile, place a draconum
 token on the mine in addition to the other two locations. In addition, place a brown token on the two
 remaining empty locations around the city. All enemy tokens on this tile are treated as rampaging
 monsters, and also gain the city’s special power due to the proximity of the Rift (Physical attacks gain
 the brutal ability). Do not treat the Red City’s defenders as fortified when conducting an assault.
-
 Sealing the Rift: To seal the Rift, the player must enter the Red City and perform a “Ritual of Sealing” as
 their action for the turn. The “Ritual of Sealing” requires the following:
-
-           The Ritual must be performed while located in the Red City during a Night round
-           Cast the spell Time Bending. Ignore the normal casting cost of the spell, using the following
-            mana requirement instead:
+ The Ritual must be performed while located in the Red City during a Night round
+ Cast the spell Time Bending. Ignore the normal casting cost of the spell, using the following
+mana requirement instead:
 
 
 [PAGE 004]
-   The ritual is cast by using one black mana and one gold mana (requiring the Amulet of the
-            Sun), as well as a total of 11 additional mana that includes at least one mana of each basic
-            color.
-
-
+ The ritual is cast by using one black mana and one gold mana (requiring the Amulet of the
+Sun), as well as a total of 11 additional mana that includes at least one mana of each basic
+color.
 Scenario End
-
 If the “Ritual of Sealing” is completed before the end of the last round, then the Rift is sealed and the
 player is victorious.
-
-
 Variants
-
 Chaos Demons (challenging): All rampaging monsters (including rampaging enemies unique to this
 scenario as well as the defenders of the Red City) are denizens of the Realm of Chaos whom arrived via
 the Rift and have dangerous abilities due to their origin. After engaging any of these enemies, but prior
 to resolving combat, roll a mana die for each enemy (if there are more enemies than available dice, use
 mana tokens to identify the result for each enemy). The enemy gains the following bonuses based on
 the result:
-
- Red: +1 Attack, Green: +1 Armor, Blue: Sorcery, White: Illusion, Black: Curse, Gold: Elite
- Sorcery: Enemy attacks prior to the player in the     Curse: When this enemy is defeated, take one
- Ranged attack phase (this attack can be blocked)      Wound into your discard pile
-
- Illusion: You may not use Units to attack or block    Elite: +1 Attack and +1 Armor, +1 fame when this
- this enemy                                            enemy is defeated
-
-
+Red: +1 Attack, Green: +1 Armor, Blue: Sorcery, White: Illusion, Black: Curse, Gold: Elite
+Sorcery: Enemy attacks prior to the player in the
+Ranged attack phase (this attack can be blocked)
+Curse: When this enemy is defeated, take one
+Wound into your discard pile
+Illusion: You may not use Units to attack or block
+this enemy
+Elite: +1 Attack and +1 Armor, +1 fame when this
+enemy is defeated
 Challenging Quest: Add 4 wound cards to the artifact deck when shuffling. When drawing artifact cards
 for a reward (not when performing the actions “Search the Ancient Texts” or “Ritual of Scrying”, or when
 finding clues in a Ruin), a wound card represents a spell tome that allows you to select a spell from the
 Spell offer. For example, if an artifact and a wound are drawn, you may take either the artifact or a spell
 from the offer. If two wounds are drawn, you must take a (single) spell from the offer as your reward.
-
 Challenging option: If a monastery is burned, the “Search the Ancient Texts” action is unavailable for the
 remainder of the game.
-
 Nightmare games: In addition to adding wounds to the artifact deck, increase the level of the Red City to
 level 8 or level 10, or make it a megapolis.
