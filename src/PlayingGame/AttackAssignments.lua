@@ -3,7 +3,15 @@
 local assignmentColors={
 	armour={1.0,0.55,0.1},   -- Attack, Ranged, Siege and anything else aimed at armour
 	attack={0.25,0.6,1.0},   -- Block and anything that reduces or stops an enemy attack
+	damage={1.0,0.1,0.1},    -- Damage that an unblocked enemy attack assigns to a Unit
 	other={0.95,0.18,0.78}}
+local DAMAGE_BUTTON_LIMIT=6
+-- Damage phase state is runtime-only: every unblocked attack starts on the Hero until the player targets Units.
+local damageTargets={}   -- attack key -> ordered Unit GUIDs
+local damagePending=nil  -- {key=,color=} while the player is choosing a Unit for an attack
+local damageSpec={attacks={},units={},byOwner={},byKey={}}
+local damageButtonObjects={}
+local damageSignature=""
 local assignmentThickness=0.12
 local previewThickness=0.07
 local assignmentHeight=1.1
@@ -135,6 +143,24 @@ local function activeVisualLines()
 		local assignment=assignmentLines(entry.source,entry.target,assignmentColorFor(entry.kind))
 		for _,line in ipairs(assignment or {}) do lines[#lines+1]=line end
 	end
+	for key,guids in pairs(damageTargets) do
+		local attack=damageSpec.byKey[key]
+		local owner=attack~=nil and getObjectFromGUID(attack.owner) or nil
+		for _,guid in ipairs(guids) do
+			local assignment=assignmentLines(owner,getObjectFromGUID(guid),assignmentColors.damage)
+			for _,line in ipairs(assignment or {}) do lines[#lines+1]=line end
+		end
+	end
+	if damagePending~=nil then
+		local attack=damageSpec.byKey[damagePending.key]
+		local owner=attack~=nil and getObjectFromGUID(attack.owner) or nil
+		local player=Player[damagePending.color]
+		local pointer=player~=nil and player.getPointerPosition() or nil
+		if owner~=nil and pointer~=nil then
+			lines[#lines+1]={points={positionAtHeight(owner.getPosition(),previewHeight),positionAtHeight(pointer,previewHeight)},
+				color=assignmentColors.damage,thickness=previewThickness,rotation={0,0,0}}
+		end
+	end
 	for color,pending in pairs(targetingByPlayer) do
 		local player=Player[color]
 		local pointer=player~=nil and player.getPointerPosition() or nil
@@ -215,6 +241,7 @@ end
 
 local function hasRuntimeWork()
 	return next(assignmentRegistry)~=nil or next(targetingByPlayer)~=nil
+		or next(damageTargets)~=nil or damagePending~=nil
 end
 
 local function scheduleRefresh()
@@ -226,6 +253,184 @@ local function scheduleRefresh()
 		refreshRenderedLines()
 		if hasRuntimeWork() then scheduleRefresh() end
 	end,0.2)
+end
+
+local function removeDamageButtons(obj)
+	local buttons=obj.getButtons() or {}
+	for i=#buttons,1,-1 do
+		if tostring(buttons[i].click_function):find("^attackAssignmentDamage")~=nil then obj.removeButton(buttons[i].index) end
+	end
+end
+
+local function damageUsedBy(guid,exceptKey)
+	for key,guids in pairs(damageTargets) do
+		if key~=exceptKey then
+			for _,used in ipairs(guids) do
+				if used==guid then return key end
+			end
+		end
+	end
+	return nil
+end
+
+-- Full-size invisible button over a Unit card or the Command token pile, used only while an attack is being targeted.
+local function addDamageTargetButton(obj,clickFunction)
+	if obj==nil or obj.isDestroyed() then return end
+	local bounds=obj.getBounds()
+	local scale=obj.getScale() or {x=1,y=1,z=1}
+	if bounds==nil or bounds.size==nil then return end
+	obj.createButton({click_function=clickFunction,function_owner=Global,label="",
+		position={0,bounds.size[2]/(scale.y or 1)/2+0.2,0},rotation={0,0,0},
+		width=bounds.size[1]/(scale.x or 1)*500,height=bounds.size[3]/(scale.z or 1)*500,color={0,0,0,0}})
+	damageButtonObjects[obj.guid]=obj
+end
+
+local function rebuildDamageButtons()
+	for guid in pairs(damageButtonObjects) do
+		local obj=getObjectFromGUID(guid)
+		if obj~=nil then removeDamageButtons(obj) end
+	end
+	damageButtonObjects={}
+	for owner,list in pairs(damageSpec.byOwner) do
+		local obj=getObjectFromGUID(owner)
+		if obj~=nil and not obj.isDestroyed() then
+			local bounds=obj.getBounds()
+			local scale=obj.getScale()
+			local radius=(bounds~=nil and bounds.size~=nil and bounds.size[1] or 1.5)/((scale~=nil and scale.x) or 1)/2
+			-- Buttons sit outside the token's left edge, and further out when a bonus decal already occupies it.
+			local x=-(radius+0.35)
+			for _,decal in ipairs(obj.getDecals() or {}) do
+				local position=decal.position
+				local px=type(position)=="table" and (position[1] or position.x) or nil
+				if px~=nil and px<-0.8 then x=math.min(x,px-0.36-0.35) end
+			end
+			for i,attack in ipairs(list) do
+				local assigned=damageTargets[attack.key]~=nil
+				local pending=damagePending~=nil and damagePending.key==attack.key
+				obj.createButton({click_function="attackAssignmentDamageClick"..i,function_owner=Global,
+					label=tostring(attack.damage),position={x,0.25,(i-(#list+1)/2)*0.65},rotation={0,0,0},
+					width=300,height=300,font_size=200,font_color={1,1,1,1},
+					color=pending and {1,0.85,0.15,1} or (assigned and {0.85,0.45,0.1,0.95} or {0.75,0.1,0.1,0.95})})
+			end
+			damageButtonObjects[owner]=obj
+		end
+	end
+	if damagePending~=nil then
+		for guid in pairs(damageSpec.units) do addDamageTargetButton(getObjectFromGUID(guid),"attackAssignmentDamageUnitClicked") end
+		addDamageTargetButton(damageSpec.pile~=nil and getObjectFromGUID(damageSpec.pile) or nil,"attackAssignmentDamagePileClicked")
+	end
+end
+
+-- spec: attacks={{key,owner,damage}} in token order, units={guid=true} for Units that can still be assigned damage,
+-- pile=GUID of the Hero's Command token pile. Drops targets that no longer apply and refreshes the buttons.
+function attackAssignmentsDamageSync(spec)
+	damageSpec={attacks=spec.attacks,units=spec.units or {},pile=spec.pile,byOwner={},byKey={}}
+	for _,attack in ipairs(spec.attacks) do
+		local list=damageSpec.byOwner[attack.owner] or {}
+		damageSpec.byOwner[attack.owner]=list
+		if #list<DAMAGE_BUTTON_LIMIT then list[#list+1]=attack end
+		damageSpec.byKey[attack.key]=attack
+	end
+	for key,guids in pairs(damageTargets) do
+		local kept={}
+		for _,guid in ipairs(damageSpec.byKey[key]~=nil and guids or {}) do
+			if damageSpec.units[guid] then kept[#kept+1]=guid end
+		end
+		damageTargets[key]=#kept>0 and kept or nil
+	end
+	if damagePending~=nil and damageSpec.byKey[damagePending.key]==nil then damagePending=nil end
+	local parts={damagePending~=nil and damagePending.key or "-"}
+	for _,attack in ipairs(spec.attacks) do
+		parts[#parts+1]=attack.key.."="..tostring(attack.damage)..":"..tostring(damageTargets[attack.key]~=nil)
+	end
+	local unitGUIDs={}
+	for guid in pairs(damageSpec.units) do unitGUIDs[#unitGUIDs+1]=guid end
+	table.sort(unitGUIDs)
+	parts[#parts+1]=table.concat(unitGUIDs,",")
+	local signature=table.concat(parts,";")
+	if signature~=damageSignature then
+		damageSignature=signature
+		rebuildDamageButtons()
+	end
+	if hasRuntimeWork() then scheduleRefresh() end
+end
+
+function attackAssignmentsDamageTargetsOf(key)
+	return damageTargets[key] or {}
+end
+
+function attackAssignmentsDamageClear()
+	damageTargets={}
+	damagePending=nil
+	damageSpec={attacks={},units={},byOwner={},byKey={}}
+	damageSignature=""
+	for guid in pairs(damageButtonObjects) do
+		local obj=getObjectFromGUID(guid)
+		if obj~=nil then removeDamageButtons(obj) end
+	end
+	damageButtonObjects={}
+	refreshRenderedLines()
+end
+
+local function damageChanged()
+	damageSignature=""
+	if resourceCardsRefreshCombatEnemies~=nil then resourceCardsRefreshCombatEnemies() end
+end
+
+local function damageAttackClicked(obj,playerColor,index)
+	local list=obj~=nil and damageSpec.byOwner[obj.guid] or nil
+	local attack=list~=nil and list[index] or nil
+	if attack==nil then return end
+	if damagePending~=nil and damagePending.key==attack.key then
+		damagePending=nil
+	else
+		damagePending={key=attack.key,color=playerColor}
+	end
+	damageChanged()
+end
+
+for index=1,DAMAGE_BUTTON_LIMIT do
+	_G["attackAssignmentDamageClick"..index]=function(obj,playerColor)
+		return safeCallback("attackAssignmentDamageClick"..index,function() damageAttackClicked(obj,playerColor,index) end)
+	end
+end
+
+-- Clicking a free Unit adds it to the attack in order; clicking one already on the attack returns its share to the Hero.
+function attackAssignmentDamageUnitClicked(unit,playerColor)
+	return safeCallback("attackAssignmentDamageUnitClicked",function()
+		if damagePending==nil or unit==nil then return end
+		local key=damagePending.key
+		local list=damageTargets[key] or {}
+		for position,guid in ipairs(list) do
+			if guid==unit.guid then
+				table.remove(list,position)
+				damageTargets[key]=#list>0 and list or nil
+				damagePending=nil
+				damageChanged()
+				return
+			end
+		end
+		if not damageSpec.units[unit.guid] then
+			broadcastToColor("That Unit is Wounded and cannot be assigned damage.",playerColor,{1,0.6,0.2})
+		elseif damageUsedBy(unit.guid,key)~=nil then
+			broadcastToColor("That Unit already takes damage from another attack this combat.",playerColor,{1,0.6,0.2})
+		else
+			list[#list+1]=unit.guid
+			damageTargets[key]=list
+			damagePending=nil
+			damageChanged()
+		end
+	end)
+end
+
+-- The Command token pile stands for the Hero: clicking it returns the whole attack to the Hero.
+function attackAssignmentDamagePileClicked(pile,playerColor)
+	return safeCallback("attackAssignmentDamagePileClicked",function()
+		if damagePending==nil then return end
+		damageTargets[damagePending.key]=nil
+		damagePending=nil
+		damageChanged()
+	end)
 end
 
 local function persistAssignments()
@@ -401,7 +606,7 @@ function attackAssignmentsIsTargeting(sourceGUID)
 end
 
 function attackAssignmentsHasAny()
-	return next(assignmentRegistry)~=nil or next(targetingByPlayer)~=nil
+	return next(assignmentRegistry)~=nil or next(targetingByPlayer)~=nil or next(damageTargets)~=nil or damagePending~=nil
 end
 
 function attackAssignmentsTargetGUIDs(sourceGUID)
@@ -460,6 +665,7 @@ function attackAssignmentsObjectMoved(object)
 end
 
 function attackAssignmentsClearAll()
+	attackAssignmentsDamageClear()
 	assignmentRegistry={}
 	targetingByPlayer={}
 	assignmentCounter=0
