@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Create plain-text, page-labelled copies of the PDFs in Rules/."""
+"""Create page-labelled, single-flow AI-readable copies of the PDFs in Rules/."""
 
 from pathlib import Path
 import re
 import subprocess
 import tempfile
+import unicodedata
 
 ROOT = Path(__file__).resolve().parents[1]
 RULES_DIR = ROOT / "Rules"
@@ -32,11 +33,12 @@ def get_page_count(pdf_path):
 
 
 def extract_text(pdf_path):
-    result = run_command([
-        "pdftotext", "-layout", "-enc", "UTF-8", "-eol", "unix",
+    # -raw follows the PDF content stream instead of preserving page coordinates.
+    # This avoids placing the left and right columns beside each other in the text.
+    return run_command([
+        "pdftotext", "-raw", "-enc", "UTF-8", "-eol", "unix",
         str(pdf_path), "-",
-    ])
-    return result.stdout
+    ]).stdout
 
 
 def split_pages(raw_text, expected_count):
@@ -53,21 +55,50 @@ def text_size(pages):
     return sum(len(re.sub(r"\s+", "", page)) for page in pages)
 
 
-def needs_ocr(pages):
-    return any(len(re.sub(r"\s+", "", page)) < 20 for page in pages)
+def bad_character_count(text):
+    count = 0
+    for char in text:
+        category = unicodedata.category(char)
+        if char == "\ufffd" or category == "Cc" and char not in "\n\t" or category == "Co":
+            count += 1
+    return count
+
+
+def page_quality(page):
+    visible = [char for char in page if not char.isspace()]
+    if not visible:
+        return 0.0
+    bad = bad_character_count(page)
+    letters = sum(char.isalpha() for char in visible)
+    words = len(re.findall(r"[A-Za-z]{2,}", page))
+    return (letters / len(visible)) - (bad / len(visible) * 8) + min(words / 500, 1) * 0.08
+
+
+def pages_need_ocr(pages):
+    return any(
+        len(re.sub(r"\s+", "", page)) < 20
+        or bad_character_count(page) > max(2, len(page) * 0.002)
+        for page in pages
+    )
 
 
 def clean_page(page):
-    page = page.replace("\x00", "")
-    page = re.sub(r"[ \t]+\n", "", page)
-    page = re.sub(r"\n{4,}", "\n\n\n", page)
+    page = page.replace("\x00", "").replace("\ufffd", " ")
+    page = "".join(
+        char for char in page
+        if char in "\n\t" or unicodedata.category(char) not in {"Cc", "Cf"}
+    )
+    # Remove visual table-of-contents leader dots, not punctuation within prose.
+    page = re.sub(r"[.·…]{4,}", " ", page)
+    page = re.sub(r"[ \t]+", " ", page)
+    page = re.sub(r" *\n *", "\n", page)
+    page = re.sub(r"\n{3,}", "\n\n", page)
     return page.strip()
 
 
-def run_ocr(pdf_path, output_path, force=False):
-    mode = ["--force-ocr"] if force else ["--skip-text"]
+def run_ocr(pdf_path, output_path):
     return run_command([
-        "ocrmypdf", *mode, "--rotate-pages", "--deskew",
+        "ocrmypdf", "--force-ocr", "--rotate-pages", "--deskew",
         "--language", "eng", "--jobs", "2",
         str(pdf_path), str(output_path),
     ])
@@ -77,39 +108,35 @@ def convert_pdf(pdf_path):
     page_count = get_page_count(pdf_path)
     original_pages = split_pages(extract_text(pdf_path), page_count)
     best_pages = original_pages
-    extraction_method = "Existing PDF text layer"
+    extraction_method = "PDF text extraction in content-stream reading order"
     warnings = []
 
-    if needs_ocr(original_pages):
+    if pages_need_ocr(original_pages):
         with tempfile.TemporaryDirectory(prefix="mage-knight-ocr-") as temp_dir:
-            ocr_pdf = Path(temp_dir) / "searchable.pdf"
+            ocr_pdf = Path(temp_dir) / "forced-ocr.pdf"
             try:
-                run_ocr(pdf_path, ocr_pdf, force=False)
+                run_ocr(pdf_path, ocr_pdf)
                 ocr_pages = split_pages(extract_text(ocr_pdf), page_count)
-                if text_size(ocr_pages) > text_size(best_pages):
-                    best_pages = ocr_pages
-                extraction_method = "PDF text extraction with OCR fallback for pages without a text layer"
+                best_pages = [
+                    ocr if page_quality(ocr) > page_quality(original) else original
+                    for original, ocr in zip(original_pages, ocr_pages)
+                ]
+                extraction_method = "Content-stream text extraction with page-level OCR replacement for missing or corrupted text"
             except subprocess.CalledProcessError as error:
                 detail = (error.stderr or str(error)).strip().splitlines()
                 warnings.append("OCR fallback failed: " + (detail[-1] if detail else "unknown OCR error"))
 
-            # Some scans contain a minimal or unusable text layer on every page.
-            # In that case, retry by rasterising the PDF and OCRing every page.
-            if text_size(best_pages) < 50:
-                forced_pdf = Path(temp_dir) / "forced-ocr.pdf"
-                try:
-                    run_ocr(pdf_path, forced_pdf, force=True)
-                    forced_pages = split_pages(extract_text(forced_pdf), page_count)
-                    if text_size(forced_pages) > text_size(best_pages):
-                        best_pages = forced_pages
-                        extraction_method = "Full-page OCR (PDF rasterised before text recognition)"
-                except subprocess.CalledProcessError as error:
-                    detail = (error.stderr or str(error)).strip().splitlines()
-                    warnings.append("Full-page OCR failed: " + (detail[-1] if detail else "unknown OCR error"))
-
-    low_text = text_size(best_pages) < 50
-    if low_text:
-        warnings.append("Very little text was extracted; compare this document with the original PDF.")
+    low_quality_pages = [
+        number for number, page in enumerate(best_pages, start=1)
+        if len(re.sub(r"\s+", "", page)) < 20
+        or bad_character_count(page) > max(2, len(page) * 0.002)
+    ]
+    if low_quality_pages:
+        warnings.append(
+            "Text remains sparse or contains encoding artefacts on page(s): "
+            + ", ".join(map(str, low_quality_pages))
+            + ". Compare these pages with the original PDF."
+        )
 
     output_lines = [
         f"SOURCE PDF: {pdf_path.relative_to(ROOT).as_posix()}",
@@ -119,8 +146,7 @@ def convert_pdf(pdf_path):
     if warnings:
         output_lines.append("REVIEW REQUIRED: " + " ".join(warnings))
     output_lines.extend([
-        "NOTE: Original wording is retained. Page boundaries are labelled below. "
-        "Visual-only material such as diagrams, maps, icons and images may not be represented.",
+        "NOTE: Original wording is retained. Each page is presented as a single text flow in reading order; page boundaries are labelled below. Visual-only material such as diagrams, maps, icons and images may not be represented.",
         "",
         "=" * 78,
         "",
@@ -170,16 +196,16 @@ def main():
         "",
         "Each text file:",
         "- Corresponds to the PDF with the same base filename.",
-        "- Preserves extracted wording and reading order as provided by Poppler/Tesseract.",
-        "- Uses layout-aware extraction to retain indentation and table alignment where possible.",
+        "- Uses PDF content-stream reading order rather than fixed page coordinates, so multi-column pages become a single text flow (normally left column before right column).",
         "- Labels each page so rules can be traced back to the original PDF.",
-        "- Uses OCR for pages without a usable embedded text layer; full-page OCR is a fallback for scan-only documents.",
+        "- Uses OCR as a page-level replacement when embedded text is missing or has obvious encoding corruption.",
+        "- Cleans control characters and decorative table-of-contents leader dots while preserving normal punctuation and wording.",
         "",
         "Limitations:",
         "- OCR can misread small, decorative, rotated or low-resolution text.",
         "- Visual-only content (maps, diagrams, icons, illustrations and symbols) may not be captured.",
         "- Complex tables should be checked against the original PDF.",
-        "- Files marked REVIEW REQUIRED need comparison with the original PDF.",
+        "- Files marked REVIEW REQUIRED contain pages that remain sparse or have encoding artefacts.",
         "- These files are transcriptions, not rewritten or interpreted rules.",
         "",
         "Converted PDFs:",
