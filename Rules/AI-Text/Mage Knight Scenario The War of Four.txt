@@ -1,52 +1,46 @@
 SOURCE PDF: Rules/Mage Knight Scenario The War of Four.pdf
 PAGE COUNT: 9
-EXTRACTION: Existing PDF text layer
-NOTE: Original wording is retained. Page boundaries are labelled below. Visual-only material such as diagrams, maps, icons and images may not be represented.
+EXTRACTION: PDF text extraction in content-stream reading order
+NOTE: Original wording is retained. Each page is presented as a single text flow in reading order; page boundaries are labelled below. Visual-only material such as diagrams, maps, icons and images may not be represented.
 
 ==============================================================================
 
 [PAGE 001]
 The War of Four
-                                      A Mage Knight Scenario by Jesse Stern
-
+A Mage Knight Scenario by Jesse Stern
 Basic Info
 Players: 1-6
-
 Type: Very Competitive or Cooperative
-
 Length: No Limit (but keep track of round number, as this is used for the retreat penalty outlined in the
 “Defense from Volkare” section).
-
 Purpose: A long scenario that is primarily a combination between the scenarios “Volkare’s Quest” and “Life and
 Death.” This scenario is for people looking for an epic scenario combining the rules of both enemy factions and
 their territory with an epic final series of battles with Volkare. Players also have the opportunity to take control
 of the enemy factions and use their minions to help fight Volkare and hinder foes.
-
 Flavor Text
-       As the Atlantean Empire tries to survive, caught between the war of the Elementalists and Dark
+As the Atlantean Empire tries to survive, caught between the war of the Elementalists and Dark
 Crusaders, Volkare returns from far off lands with an army in tow. The Atlanteans know naught whether
 Volkare intends to be their savior or a new tyrant. They fear the horde of creatures he brings with him to the
 land, but they will need to wait to find out their fate until after Volkare’s march towards the portal. The Council
 of The Void is all that can stop him now, but with the destruction of the portal, the world will be his.
-       Though seemingly unstoppable, The Council finds hope in two key pieces of intelligence. The first is that
+Though seemingly unstoppable, The Council finds hope in two key pieces of intelligence. The first is that
 one who seizes control of an Avatar of Tesla’s heart will command the loyalty of the faction that follows it. They
 would then be able to insert agents into Volkare’s army to strengthen it against foes and to turn on his followers
 upon your arrival. Additionally, the cities nearest the portal have ancient magical wards to protect the portal.
 Now, having learned how to activate them, control of the cities can prevent Volkare’s continued progress until
 he can destroy the barrier’s source in the city.
-       The Council sends for its Mage Knights to stop him, with promises of even greater power upon Volkare’s
+The Council sends for its Mage Knights to stop him, with promises of even greater power upon Volkare’s
 demise at their hand (or hands if cooperative). Will you find friends among your peers, dominate the armies of
 the two other great powers of the land, or simply stride forth alone and cut Volkare down? Will anything you do
 really be able to stop Volkare from reaching his goal? Well, as a Mage Knight, I suppose that is up to you...
-
 Objective
-     The player who defeats Volkare wins the scenario (if cooperative, all players win when Volkare is
+The player who defeats Volkare wins the scenario (if cooperative, all players win when Volkare is
 defeated). If Volkare moves on to the space with the Portal (the starting hex for players), all players lose.
 
 
 [PAGE 002]
 Tiles
-       Always set up as pictured below. Randomize three stacks of tiles one each for, countryside, city, and
+Always set up as pictured below. Randomize three stacks of tiles one each for, countryside, city, and
 non-city core tiles. Tiles with white crystals are always cities, tiles with green crystals are exactly one non-city
 core tile and one city tile (used for Elementalist Hidden Valley), and tiles with red crystals are exactly one non-
 city core tile and one city tile (used for Dark Crusaders Necropolis). Which of the two tiles with green (or red)
@@ -56,15 +50,13 @@ crystal on them is a non-city core tile and which is a city tile should be rando
 
 [PAGE 003]
 General Location Rules Changes
-    Graveyards/Necropolis: Graveyards now also remove wounds as if they were magical glades.
-
-       Cities: Cities are no longer safe spaces in competitive play. Multiple players may still be in a city without
+Graveyards/Necropolis: Graveyards now also remove wounds as if they were magical glades.
+Cities: Cities are no longer safe spaces in competitive play. Multiple players may still be in a city without
 fighting, but anytime a player ends their movement in a city with at least one other player they may select a
 player they wish to fight. They fight this player using normal PvP rules except that if no retreat is forced, both
 players end their turn in the city.
-
 Volkare Setup and Movement
-       Set up as in Volkare’s Quest scenario. If the game is competitive, leave the four competitive spells in the
+Set up as in Volkare’s Quest scenario. If the game is competitive, leave the four competitive spells in the
 spell deck and proxy for these four cards in Volkare’s deck (this can be done using the cards of an unplayed
 character or some other means). [ThDo not use faction enemy tokens in Volkare’s army during set-up. When
 Volkare is on a tile adjacent to the start tile and moves, he moves only directly towards the portal following the
@@ -82,22 +74,20 @@ heading toward the 2nd city followed by the portal. If Volkare's deck runs out, 
 portal along the shortest route (or to undestroyed conquered cities as described prior if applicable). When
 moving towards the portal or a captured city by the shortest route, if Volkare ever has two possible shortest
 routes, each of his moves are decided uniformly at random from among the valid options.
-
 Setup and Rules for Factions With an Avatar
-      Factions specific units are separated at the beginning of the game. North and South are defined as in the
+Factions specific units are separated at the beginning of the game. North and South are defined as in the
 Life and Death scenario from Shades of Tezla. We call the tiles bordering the edge of the board (except the
 ones adjacent to the starting tile) the Far North/Far South (these still count as being in the north/south). When
 a North/South tile is revealed, roll for each rampaging monster and draw a monster of the appropriate color
 from the non-faction monster pile, or based upon the following criteria depending on the tile location and die
 roll:
-      ● If on a North tile and black or red is rolled, draw instead from the Dark Crusader’s monster pile.
-      ● If on a Far North tile and black, red, white, or gold is rolled, draw instead from the Dark Crusader’s
-         monster pile.
-      ● If on a South tile and gold or green is rolled, draw instead from the Elementalist’s monster pile.
-      ● If on a Far South tile and gold, green, blue, or black is rolled, draw instead from the Elementalist’s
-         monster pile.
-
-        When a magical glade is revealed in the North on a countryside tile, replace it with a graveyard and add
+● If on a North tile and black or red is rolled, draw instead from the Dark Crusader’s monster pile.
+● If on a Far North tile and black, red, white, or gold is rolled, draw instead from the Dark Crusader’s
+monster pile.
+● If on a South tile and gold or green is rolled, draw instead from the Elementalist’s monster pile.
+● If on a Far South tile and gold, green, blue, or black is rolled, draw instead from the Elementalist’s
+monster pile.
+When a magical glade is revealed in the North on a countryside tile, replace it with a graveyard and add
 a Green and Brown Dark Crusader face up that can be challenged like at a ruin. Magical glades are treated
 similarly in the South countryside tiles except that the Green and Brown monsters are drawn from the
 Elementalist’s monter pile and no graveyard is placed. For a magical glade revealed on a core tile (including
@@ -113,13 +103,12 @@ occupied magical glade or graveyard liberates it and gains a Spell and two cryst
 colors (in the North) or an Artifact (in the South). On a core or city tile, a player instead gains an Artifact, a
 Spell and an Advanced Action. Players get +1 reputation for liberating a magical glade or graveyard on a
 countryside tile and +2 reputation for liberating a magical glade or graveyard on a core tile (including city tiles).
-       Faction stronghold tiles always use their faction’s enemy tokens for supporting monsters depicted on
+Faction stronghold tiles always use their faction’s enemy tokens for supporting monsters depicted on
 their dial. Large Faction Leader Tokens work as described in the rules and are fought at the Hidden Valley and
 Graveyard as described in the Life and Death scenario. The Hidden Valley and Necropolis work as in the Life
 and Death Scenario, though note the changed rules for Graveyards apply to the Necropolis as well.
-
 Becoming a Faction Leader and Followers
-       When an avatar and all enemy tokens it came with are defeated, the player with the most shields (ties
+When an avatar and all enemy tokens it came with are defeated, the player with the most shields (ties
 broken by shield at the highest level) gains the avatar’s token face down as a Faction Leader token and
 becomes the corresponding faction’s Faction Leader. All shields from the avatar are moved to the city card of
 the city under the faction's stronghold. The Faction Leader may interact at the site as if it were the underlying
@@ -134,18 +123,15 @@ Red, but they still get the corresponding faction token reward). Magical glades 
 controlled by a player are never considered occupied (and thus, can no longer be liberated). At the beginning
 of a Round or when a player becomes a Faction Leader, a Player may assign any shield to each token in their
 faction with the following effects:
-
-      Shield of an opponent: The token is now pursuing that opponent
-      Shield of the owner: The token is now ambushing
-      Shield of the Volkare’s Dummy deck: The token is now pursuing Volkare
-
-      If there are multiple Followers in the same hex, the stack is treated as one Follower for the purpose of
+Shield of an opponent: The token is now pursuing that opponent
+Shield of the owner: The token is now ambushing
+Shield of the Volkare’s Dummy deck: The token is now pursuing Volkare
+If there are multiple Followers in the same hex, the stack is treated as one Follower for the purpose of
 assigning shields and resolving their actions as a Faction Leader. Volkare can provoke Followers or be
 attacked by pursuing Followers. When this happens, they are added to his army (see Army Phase below for
 how they behave in Volkare’s army).
-
 Stealing Faction Leadership
-       In PvP, a faction leader token may be stolen for 8 damage. When a player steals a Faction Leader token,
+In PvP, a faction leader token may be stolen for 8 damage. When a player steals a Faction Leader token,
 all shields of both players involved in this PvP on followers of the Faction Leader associated with the Faction
 Leader token being stolen are swapped for the other players shield (thus, all Followers that were ambushing
 would still ambushing and followers that were previously pursuing the new Faction Leader pursue the previous
@@ -156,7 +142,7 @@ ignoring pursuit). If they do not move on their next turn, forced retreat rules 
 
 [PAGE 005]
 Recruiting as a Faction Leader
-       If you are the leader of a faction, you can recruit followers of your faction. Elementalist enemy token
+If you are the leader of a faction, you can recruit followers of your faction. Elementalist enemy token
 followers can be recruited at the Elementalist stronghold or any magical glade in the South by the Faction
 Leader of the Elementalists. Dark Crusader enemy token followers can be recruited at the Dark Crusader
 stronghold or any graveyard in the North by the Faction Leader of the Dark Crusaders. A newly recruited
@@ -169,35 +155,32 @@ color is on the board, no more enemy faction tokens of that color can be recruit
 them runs out but there are some that have been discarded throughout the game, re-shuffle these and form a
 new stack). Note that this last rule overrides the usual Shades of Tezla rules for running out of faction enemy
 tokens.
-       At these same sites, a Faction Leader can also pay 4 influence for a faction token. You must place such
+At these same sites, a Faction Leader can also pay 4 influence for a faction token. You must place such
 a token in your inventory on your character's card. Unlike faction tokens gained in other ways, it cannot be
 used to gain fame or reputation. You can only store 3 faction tokens in your inventory, but may discard any
 number of them at any time for no effect (though you can still have any number from other sources).
-
 Combat with Volkare
-      To fight Volkare, a player must move into his space, be in a space he moves into, or be attacked due to a
+To fight Volkare, a player must move into his space, be in a space he moves into, or be attacked due to a
 red card he draws. If a player has a hand of all wounds, they cannot participate in combat with Volkare. If
 Volkare is in an unconquered city when attacked, treat the enemy tokens in Volkare’s army as fortified, but
 ignore the city guards and do not lose reputation.
-
 Army Phase
-        At the start of combat with Volkare, remove all of your followers from Volkare’s army (in co-operative,
+At the start of combat with Volkare, remove all of your followers from Volkare’s army (in co-operative,
 instead remove all followers in his army) and place them in a separate pile called your personal army. We call
 the sum of the fame value of each of the followers in your personal army your army strength. Followers of
 opposing players remain in Volkare’s army and are treated as any other enemy token (though rewards for
 destroying enemy followers is still as described in Becoming a Faction Leader and Followers above).
-        Enemy tokens in Volkare’s army are then flipped one at a time at random (except for any single flip, for
+Enemy tokens in Volkare’s army are then flipped one at a time at random (except for any single flip, for
 which the player may choose the color of the token to be flipped) from Volkare’s army until an enemy is flipped
 such that the total fame of all flipped tokens would exceed your army strength. The last drawn enemy token
 (i.e. the one that causes the total fame to exceed your army strength) is then returned to Volkare’s army and all
 other flipped enemy tokens are discarded. The followers in your personal army are then also discarded. You
 do not gain any fame or rewards for enemy tokens or followers discarded in this way.
-
 Combined Assault on Volkare
-       Players can agree to a combined assault on Volkare, which initially works as in the normal rules. If all
+Players can agree to a combined assault on Volkare, which initially works as in the normal rules. If all
 enemy tokens are defeated, the player who defeated the most fame worth of enemy tokens this combat wins
 the game (or everyone wins if playing cooperatively).
-       If any player(s) defeats their share of enemy tokens while other player(s) fail to, we call the set of players
+If any player(s) defeats their share of enemy tokens while other player(s) fail to, we call the set of players
 who defeat their share of enemy tokens victorious and those who had enemy tokens that went undefeated
 distressed. If all enemy tokens are not destroyed in a combined assault, the first victorious player in player
 order (starting from the player who initiated the combat) becomes the prime victor. The prime victor may pass,
@@ -217,18 +200,17 @@ selected. This additional combat includes a new attack by Volkare himself as per
 Volkare’s Attack in The Lost Legion rules). The selected distressed players are no longer considered
 distressed. If the prime victor defeated all of the enemy tokens in their additional combat, they remain
 victorious. If not, they become distressed.
-       No matter what the prime victor’s choice or the additional combat outcome, the next victorious player in
+No matter what the prime victor’s choice or the additional combat outcome, the next victorious player in
 player order then becomes prime victor and repeats the process described above. This continues until either
 all enemy tokens have been defeated or no victorious players remain. Any crystals indicating a player should
 miss additional turns still present at the end of a round are discarded with no effect at the end of a round and a
 player's round order token is always placed face up at the start of a new round.
-
 Defense from Volkare
-        If Volkare attacks a player, they can retreat to an adjacent space for a number of wounds equal to the
+If Volkare attacks a player, they can retreat to an adjacent space for a number of wounds equal to the
 round number divided by 2 plus 1 (rounded up). Otherwise, a player may partially or fully attend combat. If
 multiple players are attacked, they decide if they wish to fully or partially attend combat or retreat in reverse
 order from their round order token.
-        When multiple players are attacked in a city (after players decide if they will retreat or partially/fully attend
+When multiple players are attacked in a city (after players decide if they will retreat or partially/fully attend
 combat), the city leader determines the order players will fight Volkare in if they are present. When multiple
 players are attacked outside of a city or inside a city when the city leader is not present, the players decide (in
 the order of the round order tokens) when they wish to fight Volkare in the combat order (example: 3 players
@@ -239,11 +221,11 @@ smaller groups for determining combat order, breaking group size ties by lowest 
 the group members and further breaking this tie by lowest initiative of the lowest initiative member of the
 groups (note that, if Volkare is moving onto a city occupied by a city leader who chooses to fight, the city leader
 will still choose the combat order of individuals and groups).
-        If the defending player(s) was attacked due to Volkare moving into a city he can be repealed. If Volkare
+If the defending player(s) was attacked due to Volkare moving into a city he can be repealed. If Volkare
 loses at least one token, he is repealed and. In co-operative, Volkare must instead lose a number of tokens
 equal to or greater than the number of players during the combat to be repelled (though it does not matter
 which player(s) eliminate these tokens).
-        If Volkare is undefeated, players suffer forced retreat. In a city, if Volkare loses 3 or more enemy tokens
+If Volkare is undefeated, players suffer forced retreat. In a city, if Volkare loses 3 or more enemy tokens
 (or 3 times the number of players in co-op) he is repelled, and must retreat to 2 spaces away from the city in a
 straight line in the direction from which he moved into the city. A player with a hand of all wounds that is
 attacked by Volkare must retreat and suffer the aforementioned retreat penalty.
@@ -251,77 +233,51 @@ attacked by Volkare must retreat and suffer the aforementioned retreat penalty.
 
 [PAGE 007]
 Competitive Combat Levels
-                          Daring                   Heroic                  Legendary
-
- Faction Avatar’s Level   2                       3                        4
-
- City Levels              4                       6                        8
-
- Volkare’s Level          10                      14                       18
-
-
+Daring Heroic Legendary
+Faction Avatar’s Level 2 3 4
+City Levels 4 6 8
+Volkare’s Level 10 14 18
 Avatar Level Co-operative
-                          Daring                   Heroic                  Legendary
-
- Solo                     2                        3                       4
-
- Two-Player               4                        5                       6
-
- Three-Player             6                        8                       10
-
- Four-Player              8                       10                       12
-
- Five-Player              10                      12                       12+1*
-      *For a faction leader of level 12+x, treat the faction leader as having two separate sets of attacks, those
+Daring Heroic Legendary
+Solo 2 3 4
+Two-Player 4 5 6
+Three-Player 6 8 10
+Four-Player 8 10 12
+Five-Player 10 12 12+1*
+*For a faction leader of level 12+x, treat the faction leader as having two separate sets of attacks, those
 at level 12 and those at level x. Combine the enemy tokens from level 12 and x. When the leader is marked
 with shield, mark them starting with level x and proceeding down to 12. As soon as the first x numbers are
 marked, clear the shields from the faction leader and treat the leader as per normal rules of level 12 faction
 leaders. At first, the armor of the leader is the highest unmarked level’s armor among the first x. The armor of
 the leader is as normal once the faction leader has had shields cleared from the first x levels.
-
 City Level Co-operative
-                          Daring                   Heroic                  Legendary
-
- Solo                     4                        6                       8
-
- Two-Player               6                        9                       12
-
- Three-Player             8                        12                      16
-
- Four-Player              10                      15                       20
-
- Five-Player              12                      18                       24
-
-
+Daring Heroic Legendary
+Solo 4 6 8
+Two-Player 6 9 12
+Three-Player 8 12 16
+Four-Player 10 15 20
+Five-Player 12 18 24
 Volkare’s Level Co-operative
-                          Daring                   Heroic                  Legendary
-
- Solo                     16                       18                      22
-
- Two-Player               32                       36                      44
-
- Three-Player             46                       52                      64
-
- Four-Player              58                      66                       72
-
- Five-Player              68                      78                       88
+Daring Heroic Legendary
+Solo 16 18 22
+Two-Player 32 36 44
+Three-Player 46 52 64
+Four-Player 58 66 72
+Five-Player 68 78 88
 
 
 [PAGE 008]
 Race Level
-     Always 12 wounds and no indecisive units.
-
+Always 12 wounds and no indecisive units.
 Comments on Competitive Difficulty Levels
-     Heroic: Players will be racing to beat an avatar first and hold on to their leader token to maintain
+Heroic: Players will be racing to beat an avatar first and hold on to their leader token to maintain
 leadership of a faction. They will then race back to fight Volkare before he is stolen by either the other faction
 leader or a particularly strong non-leader.
-
-      Daring: Players will be harder pressed to defeat avatars or to delay Volkare by taking a city, Volkare
+Daring: Players will be harder pressed to defeat avatars or to delay Volkare by taking a city, Volkare
 himself is stronger and thus, very difficult to defeat without being a faction leader. Players will have less time to
 devout to fighting amongst themselves and may even wish to resort to cooperative attacks to avoid everyone
 losing.
-
-       Legendary: Avatars and cities are now very difficult to defeat alone and players will be extremely hard
+Legendary: Avatars and cities are now very difficult to defeat alone and players will be extremely hard
 pressed to defeat Volkare without cooperative action or being a faction leader. The time crunch of this scenario
 will almost assuredly force cooperative action, with players fighting one another only when Volkare is
 significantly weakened. The probability of all of the players losing is quite high.
@@ -331,49 +287,43 @@ significantly weakened. The probability of all of the players losing is quite hi
 REFERENCE
 Graveyards/Necropolis: Graveyards now also remove wounds as if they were magical glades. Graveyards are
 only placed in the North.
-
 When a North/South tile is revealed, roll for each rampaging monster and draw a monster of the appropriate
 color from the Non-Faction monster pile, or based upon the following criteria depending on the tile location and
 die roll:
-     ● If on a North tile and black or red is rolled, draw instead from the Dark Crusader’s monster pile.
-     ● If on a Far North tile and black, red, white, or gold is rolled, draw instead from the Dark Crusader’s
-         monster pile.
-     ● If on a South tile and gold or green is rolled, draw instead from the Elementalist’s monster pile.
-     ● If on a Far South tile and gold, green, blue, or black is rolled, draw instead from the Elementalist’s
-         monster pile.
+● If on a North tile and black or red is rolled, draw instead from the Dark Crusader’s monster pile.
+● If on a Far North tile and black, red, white, or gold is rolled, draw instead from the Dark Crusader’s
+monster pile.
+● If on a South tile and gold or green is rolled, draw instead from the Elementalist’s monster pile.
+● If on a Far South tile and gold, green, blue, or black is rolled, draw instead from the Elementalist’s
+monster pile.
 Enemy Placement:
-         Graveyard (North/Far North) enemies on a countryside tile:
-         Green + Brown Dark Crusader
-         Graveyard (North/Far North) enemies on a core/city tile:
-         Brown + Red Dark Crusader
-
-       Magical Glade (South/Far South) enemies on a countryside tile:
-       Green + Brown Elementalist
-       Magical Glade (South/Far South) enemies on a core/city tile:
-       Brown + Red Elementalist
-
+Graveyard (North/Far North) enemies on a countryside tile:
+Green + Brown Dark Crusader
+Graveyard (North/Far North) enemies on a core/city tile:
+Brown + Red Dark Crusader
+Magical Glade (South/Far South) enemies on a countryside tile:
+Green + Brown Elementalist
+Magical Glade (South/Far South) enemies on a core/city tile:
+Brown + Red Elementalist
 Night rules apply in a Graveyard and Necropolis, but none of the other effects of a Magical Glade, Hidden
 Valley, Graveyard or Necropolis can be used until they have been Liberated. Once liberated, they act as
 normal.
-
-     Liberation Rewards:
-     Countryside Tile North:
-     +1 Reputation + Spell + 2 Crystals of any colors.
-     Countryside Tile South:
-     +1 Reputation + Artifact.
-     Core/City Tile North/South:
-     +2 Reputation + Artifact + Spell + Advanced Action.
-
-     Liberated Faction Interaction:
-     3 Influence- Green Follower
-     5 Influence- Brown Follower
-     7 Influence- Red Follower
-     (One each per site per turn)
+Liberation Rewards:
+Countryside Tile North:
++1 Reputation + Spell + 2 Crystals of any colors.
+Countryside Tile South:
++1 Reputation + Artifact.
+Core/City Tile North/South:
++2 Reputation + Artifact + Spell + Advanced Action.
+Liberated Faction Interaction:
+3 Influence- Green Follower
+5 Influence- Brown Follower
+7 Influence- Red Follower
+(One each per site per turn)
 While you are the Leader of a Faction, you may interact in the Necropolis and Graveyards if Leader of the
 North or in the Hidden Valley and Magical Glades if Leader of the South.
-
 Buying Faction Tokens with Influence
-●    4 influence per faction token and placed in your inventory
-●    Maximum of 3 faction tokens in your Inventory
-●    You cannot use these faction tokens to gain Fame or Reputation
-●    You may discard any number of them at any time for no effect
+● 4 influence per faction token and placed in your inventory
+● Maximum of 3 faction tokens in your Inventory
+● You cannot use these faction tokens to gain Fame or Reputation
+● You may discard any number of them at any time for no effect

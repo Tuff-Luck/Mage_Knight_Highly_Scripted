@@ -1,54 +1,37 @@
 SOURCE PDF: Rules/Mage Knight Scenario Quest for the Golden Grail.pdf
 PAGE COUNT: 3
-EXTRACTION: Existing PDF text layer
-NOTE: Original wording is retained. Page boundaries are labelled below. Visual-only material such as diagrams, maps, icons and images may not be represented.
+EXTRACTION: PDF text extraction in content-stream reading order
+NOTE: Original wording is retained. Each page is presented as a single text flow in reading order; page boundaries are labelled below. Visual-only material such as diagrams, maps, icons and images may not be represented.
 
 ==============================================================================
 
 [PAGE 001]
 Quest for the Golden Grail
 Players: 1
-
 Type: Solo
-
 Length: Six rounds (3 days and 3 nights)
-
 Purpose: Find the Golden Grail and return it to the Council of the Void
-
 The Lord of the Council of the Void has been stricken by a powerful curse. The Council exerts great
 magics to hold him at the threshold of death, but they will soon fail. According to legend, the great
 prophet Solandir forged the Golden Grail in ancient times, and it had the power to heal the wounded,
 cure the sick, and to cleanse any curse. However, after the prophet’s death the Grail was lost, its final
 resting place a mystery. The Council has dispatched Mage Knights to every corner of the realm to seek
 the Grail. Will you be the one to find it, and save the Lord of the Council?
-
 Setup
-
 Special Setup Note: Divide Countryside tiles into two categories. Select the specified number of each,
 then shuffle them together in one stack (so that all Countryside tiles are drawn prior to Core tiles):
-
-    1) Knowledge sites (tiles that contain either a Monastery or a Mage tower).
-    2) Wilderness sites (tiles that contain neither a Monastery nor a Mage tower).
-
+1) Knowledge sites (tiles that contain either a Monastery or a Mage tower).
+2) Wilderness sites (tiles that contain neither a Monastery nor a Mage tower).
 Map Shape: Wedge
-
 Knowledge site tiles: 4
-
 Wilderness site tiles: 3
-
 Core city tiles: 1
-
 Core non‐city tiles: 2
-
 Cities: The city when found has a level of 4.
-
 Dummy player: There is one standard dummy player.
-
 Cards and skills: See rules for Solo Conquest.
-
 Artifact deck: Search the deck and set aside the Golden Grail. Shuffle the remaining artifact cards, and
 place them on top of the Golden Grail (so that the Grail is the bottom card in the deck).
-
 Important Note: This scenario is balanced using a 24 card artifact deck which requires the Lost Legion
 expansion. If you have only the base game, add 8 wound cards to the artifact deck. See the notes below
 on the Challenging game for handling wounds in the artifact deck when receiving a reward (be aware
@@ -57,11 +40,8 @@ this will be somewhat more difficult than the standard game).
 
 [PAGE 002]
 Special Rules
-
 Tactics cards are handled identically to the Solo Conquest scenario.
-
 Additional rules for sites:
-
 Monastery: At a monastery, during an Influence action, you may spend 4 Influence to “Search the
 Ancient Texts” for clues to the Grail’s location. Draw 3 cards from the artifact deck. Discard 2 of the
 cards to the bottom of the Artifact deck, and return one to the top of the deck. This action may be
@@ -69,7 +49,6 @@ performed only once per location per game, mark the location with a crystal to i
 been used. Special exception: If a monastery is burned that has had “Search the Ancient Texts”
 performed on that location, the player draws only one artifact card as a reward (rather than choosing
 between two).
-
 Mage Tower: At a mage tower, during an Influence action, you may spend 4 Influence to perform a
 “Ritual of Scrying”. In addition, you may also fuel the ritual with up to 3 additional mana. Draw 2
 artifact cards, plus one additional card per mana spent. Discard one of the cards drawn back to the top
@@ -77,14 +56,12 @@ of the artifact deck, and the remaining cards to the bottom of the deck. In addi
 as part of the ritual, you may explore one tile adjacent to the tile in which you are currently located for
 free. This action may be performed only once per location per game, mark the location with a crystal to
 indicate this once it has been used.
-
 Ancient Ruins: Ruins may hold important clues to the fate of the Grail. If you clear a Ruin that does not
 include an artifact as a reward, you may draw two cards from the artifact deck. If one of the artifacts is
 the Golden Grail, you may return it to the top of the artifact deck, and discard the other card to the
 bottom of the deck. If neither card drawn is the Golden Grail, then discard both of them to the bottom
 of the artifact deck. This bonus can occur only once per location, when the ruin is cleared and its reward
 claimed.
-
 City: When a city is defeated during an assault, the player must immediately decide whether to “Loot
 the City”. If the player decides to loot the city, he may draw 4 artifact cards, keep one as a reward and
 discard the remaining cards to the bottom of the artifact deck. If this reward is taken, then the city
@@ -92,27 +69,21 @@ cannot be used to recruit any units, you cannot use its special influence action
 extra cards when drawing (although while in the city you can draw extra cards based on your Keep
 bonus, just not for the city itself). If the player decides not to “Loot the City”, the choice is permanent
 and cannot be changed later. The defeated city is then treated as per the standard rules.
-
 Scenario End
-
 The player must find the Golden Grail, and return to the Portal with it in hand (it cannot be in your deed
 deck or discard pile). If this is completed before the end of the last round, the player wins the game.
 
 
 [PAGE 003]
 Variants
-
 Easier game: The player must find the Golden Grail before the end of the game. It does not have to be
 returned to the portal.
-
 Challenging game: Add 4 wound cards to the artifact deck when shuffling. When drawing artifact cards
 for a reward (not when performing the actions “Search the Ancient Texts” or “Ritual of Scrying”, or when
 finding clues in a Ruin), a wound card represents a spell tome that allows you to select a spell from the
 Spell offer. For example, if an artifact and a wound are drawn, you may take either the artifact or a spell
 from the offer. If two wounds are drawn, you must take a (single) spell from the offer as your reward.
-
 Challenging option: If a monastery is burned, the “Search the Ancient Texts” action is unavailable for the
 remainder of the game.
-
 Nightmare games: In addition to adding wounds to the artifact deck, increase the level of the city to
 level 6 or level 8 (or further, if you wish).
