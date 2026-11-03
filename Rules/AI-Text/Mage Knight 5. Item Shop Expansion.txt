@@ -1,0 +1,123 @@
+SOURCE PDF: Rules/Mage Knight 5. Item Shop Expansion.pdf
+PAGE COUNT: 4
+EXTRACTION: Existing PDF text layer
+NOTE: Original wording is retained. Page boundaries are labelled below. Visual-only material such as diagrams, maps, icons and images may not be represented.
+
+==============================================================================
+
+[PAGE 001]
+Mage Knight: Board Game
+         Item Shop Mini-Expansion
+           ***Beta Version 2.0***
+First off thank you for taking the time to try out this little fan made addition to one of the greatest games of all
+time. The following is a rules description and overview of the content. Please leave me feedback on any
+suggestions or corrections. Enjoy!
+
+Changes in V 2.0:
+
+-Rules clarification on Resistances with Armor items
+-Rules change: looting gets you gold equal to half of fame per enemy
+-Stealing now DOES count as your action
+-Added a specific gold cost to each item
+-Mage Staff has been adjusted for balance
+-Removed the basic color restriction on "Spare Crystals"
+-Added the missing flavor text for Work Pony
+-Grammatical errors/typos on a few cards
+-Added multiple copies (5 each) of "Spare Crystals" and "Healing Tonic to card file
+
+Overview:
+This expansion introduces another option during your interaction at villages, monasteries, and cities. Now as
+part of your interaction you can visit the Item Shop to purchase items, weapons, armor, and mounts. Items are
+purchased from the Item Shop (offer) using a combination of gold and influence. These cards are not part of
+your deck, but rather they are used as equippable gear or items to be used when the need arises. Unless
+
+
+[PAGE 002]
+otherwise noted, these cards remain in play, and their effects and abilities are constant or can be triggered by
+Exhausting them. More on that later…
+
+***Note that most uses of the word “item” will also refer to weapons, armor, and mounts. Basically anything
+purchased in the Item Shop.
+
+Components:
+- Items: This expansion contains 40 cards including items, weapons, armor, and mounts.
+- Gold: This isn’t provided, but you can use any tokens, or bits you have available. I would recommend using
+denominations of 1, 5, and 10.
+-Dice: Again not provided, but you will need 1 or more d6. These are used for Stealing gold at locations. You
+could also use another means of randomizing the numbers 1-6.
+
+Setup:
+Located directly to the right of the Spells Offer, setup a 3 card queue in the same way the Advanced Action or
+Spells Offer is setup (from top to bottom). This is called the Item Shop; or Item Offer if you prefer. The items in
+the shop also need to be cycled through in the same way the Advanced Action or Spells Offer is refreshed
+during the “End of the Round”.
+
+How to Earn Gold:
+Gold is earned through defeating enemies or Stealing from locals at villages, monasteries, keeps, and mage
+towers.
+
+Looting from Enemies:
+Earn gold equal to half the Fame reward granted by the defeated enemy. For example: defeating Swordsmen
+would earn you 2 gold. There is no limit to the amount of gold you can hold.
+
+Stealing:
+Stealing from someone at a location is another way of earning gold. Stealing does count as your action for the
+turn and it can be performed either before or after your turn is taken. To Steal from someone at a location you
+must declare that you are doing so. Next is deciding how much Reputation you’re willing to suffer in order to
+gain the desired payoff. Consult the chart below, and roll a die(dice) for the corresponding Reputation loss.
+
+
+[PAGE 003]
+Steal from a villager: Reputation -1: Roll a d6.
+Steal from a shop keeper: Reputation -2: Roll 2d6.
+Steal from a nobleman: Reputation -3: Roll 4d6.
+
+You earn gold equal to the die result(s).
+
+How to Purchase Items:
+For your action, if you chose interaction at a village, monastery, or city you may purchase cards from the Item
+Shop. Cards in the Item Shop can be paid for with gold OR influence OR a combination of both. All items in
+the shop have a printed cost on them. So, with this expansion you can use Influence points in place of gold,
+and gold in place of Influence points when purchasing items. Think of it as haggling for a better price! You
+may purchase more than one item provided you have enough gold/influence to do so. This DOES NOT count
+as your interaction for the turn. It is simply an extra step you’re able to take while visiting.
+
+***As an added variant you may try using gold along with Influence as a way to hire allies at the cost of 2 gold
+per Influence point.
+
+How to Use Items:
+Most of the items are equippable, meaning they will remain in play for the duration of the game; unless you
+discard it for another card of the same type. After purchasing an item, place it in your player area. You
+immediately gain its effect, and in every turn thereafter. In general you are only allowed to have one of each
+type of item (weapon, armor, etc.) equipped. Additionally, if any two items share two traits than you cannot
+keep them both. For example you can only have one shield (not two), or one weapon (not two). An example
+of sharing two traits: A player cannot equip “Apprentice’s Spellbook” and “Dragon Amulet” because they
+share the “Item” and “Magic” traits. However, you may choose to discard your currently equipped item in
+place of a newly purchased one.
+
+***Note that the “Work Pony” will allow you to carry an extra item you would otherwise have to discard.
+
+Armor with Resistances:
+These items work in the same way Unit Resistance does. Refer to pp. 11 of the Game Walkthrough booklet:
+
+
+[PAGE 004]
+When you assign damage to such a Unit (player), the damage is first reduced by the Unit’s Armor. If this
+reduces the damage to zero or below, the Unit (player) is not Wounded. If not, we continue as normal – the
+Unit (player) gets Wounded, and the damage is reduced once more by its Armor.
+
+Key Words on Items:
+Exhaust: Some items have the “Exhaust” key word. Exhausting an item requires you to turn the card
+horizontally; indicating that you’ve used it for the round. Any Exhausted items will refresh along with any
+other allies, skills, etc. during the “End of the Round”.
+
+Discard: This refers to one time use items that take immediate effect once discarded. For example “Healing
+Tonic” says -- Discard: Heal 1.
+Meaning that in order to gain the Heal 1, you must discard the card.
+
+
+Additional Suggested Rules:
+
+-Another possible variant is that once the first core tile is revealed add one Artifact to the Item Shop offer.
+These will need to be purchased at 14 gold; and only get replaced with a new Artifact at the “End of the
+Round”. Only 1 Artifact should be available in the Item Shop at a time.

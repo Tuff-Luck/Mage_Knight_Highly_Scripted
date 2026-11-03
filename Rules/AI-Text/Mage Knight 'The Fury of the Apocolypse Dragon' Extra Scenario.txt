@@ -1,0 +1,318 @@
+SOURCE PDF: Rules/Mage Knight 'The Fury of the Apocolypse Dragon' Extra Scenario.pdf
+PAGE COUNT: 5
+EXTRACTION: Existing PDF text layer
+NOTE: Original wording is retained. Page boundaries are labelled below. Visual-only material such as diagrams, maps, icons and images may not be represented.
+
+==============================================================================
+
+[PAGE 001]
+3-player map:
+
+
+                                                                                                                                           *1*
+                                                                                                                     City
+
+
+                                                                                                                                                 City
+
+THE FURY OF THE APOCALYPSE                                                                                                non-
+                                                                                                                          City
+
+DRAGON                                                                                                                             non-
+                                                                                                                                   City
+The Mage Knights sent to defeat the Apocalypse Dragon have failed, and now
+it rampages across the land laying waste to all in a furious frenzy. You are all
+that stands between it and total annihilation
+                                                                                            face
+                                                                                             up
+The Fury of the Apocalypse                                                                                  face
+                                                                                                             up
+Dragon, Overview
+Length: Six rounds (3 days and 3 nights)
+Purpose: An epic scenario where you must give chase to the mighty
+Apocalypse Dragon and defeat it.                                                                               face
+                                                                                                                up
+
+Set up
+The map is set up at the start of the game according to your player count.
+Some of the Map tiles will start face up (including all of the Core tiles) and
+some of the Countryside tiles will start face down. Face-down Map tiles            4-player map:
+may be flipped face up by exploring from an adjacent space.
+
+Solo and 2-player map:
+
+                                                                                                                                           *1*
+                                                                                                                      City
+                                                       *1*
+                         City
+                                                                                                                                                 City
+
+                                                                                                                            non-
+                                                                                                                            City
+                                                               City                                                                 non-
+                                                                                                                                    City
+                             non-
+                             City
+                                                non-
+                                                City                                           face
+                                                                                                up
+                                                                                                              face
+                                                                                                               up
+
+
+                                                                                                                   face
+                 face                                                                                               up
+                  up
+                                    face
+                                     up
+
+
+                                                                                   In this scenario the Apocalypse Dragon figure covers one Map space
+                                                                                   (rather than 3 as it normally does). It starts on the space containing a
+                                                                                   tomb on Core Map tile *1*. This tomb space is the Apocalypse Dragon’s
+                                                                                   lair (it may return here from time to time) and no longer counts as a tomb.
+
+
+[PAGE 002]
+Each of the Apocalypse Dragon’s heads starts at a given level depending         Landed
+on your player count and whether you are playing competitive,                   If the Apocalypse Dragon is landed at the start of its turn (its figure is on
+cooperative, or solo. They will increase in level as the game progresses.       the map or on a City card), roll a mana die.
+Mark the level of each head with a neutral Shield token.
+                                                                                Find the space closest to the Apocalypse Dragon with an undestroyed
+                                                                                site or undefeated rampaging enemy of the type indicated for the color
+Special Rules                                                                   you rolled.
+Cities                                                                          Only consider spaces on the Map tile the Apocalypse Dragon is on or on
+The Cities in this scenario are friendly even though they have defenders;       adjacent face-up Map tiles.
+the defenders are there to protect the city from the Apocalypse Dragon,         Ignore the space the Apocalypse Dragon is on (the Apocalypse Dragon
+not your Heroes. You may not attack a city.                                     prefers to move around).
+Units                                                                           According to the color you rolled:
+Elite Units do not immediately get dealt into the Unit offer at the start            Blue: The closest fortified site (keep, mage tower, city)
+of the game, even though there are revealed Core tiles. Instead, when
+creating the Unit offer at the start of a Round, if at least one Countryside         Green: The closest adventure site (monster den, dungeon, maze (LL),
+tile adjacent to a Core City tile has been flipped face up, or a Hero has                   ziggurat, spawning grounds, tomb, labyrinth (LL), pyramid,
+entered a City during the game, alternate dealing Elite (gold) and                          ancient ruins)
+Regular Units.
+                                                                                     Red: The closest rampaging enemy (marauding orc, draconum)
+Round Order                                                                          White: T
+                                                                                             he closest inhabited site (village, refugee camp (LL), oasis,
+At the start of each Round: Place the Apocalypse Round Order token                          monastery)
+below all other Round Order tokens - the Apocalypse Dragon always
+takes its turn last.                                                                 Gold: T
+                                                                                            he closest mine or magical glade (crystal mine, deep mine,
+                                                                                           magical glade)
+The Apocalypse Dragon’s Lair                                                         Black: The closest site of any type
+Your Hero may move onto the space continuing the Apocalypse Dragon’s
+lair. If the Apocalypse Dragon is in that space, you will have to fight it      If there are two or more spaces that are equally close, choose the one
+(see Attacking the Apocalypse Dragon). If the Apocalypse Dragon moves           containing the site earlier in the list shown for that color (and, for black,
+there during its next turn it will attack you (see Being Attacked by the        the earlier list). If there are two or more sites of the same type that are
+Apocalypse Dragon). Remember that the space no longer counts as a               equally close, choose one of them at random.
+tomb.                                                                           Place the mana die on the space. In the case of a city, place it on the
+                                                                                City card. Remember, the tomb on Core Map tile *1* is the Apocalypse
+The Apocalypse Dragon’s Turn                                                    Dragon’s lair and no longer counts as a tomb.
+What happens during the Apocalypse Dragon’s turn depends on where
+its figure is at the start of its turn: on the map or a City card (landed) or
+                                                                                Exception: There are 3 cases where the mana die is placed on the
+not (in flight). During the game it will alternate between these two types
+                                                                                Apocalypse Dragon’s lair instead of the site indicated above, no matter
+of turns, landed and in flight, starting with a landed turn.
+                                                                                how far away the lair is or whether the Apocalypse Dragon is already in
+Once the End of the Round has been announced, the Apocalypse Dragon             its lair:
+takes no further turns in that Round.
+                                                                                  ♦ If there are no valid spaces of the indicated types within one Map
+                                                                                      tile of the Apocalypse Dragon.
+                                                                                 ♦ If you have used all 16 Destroyed Site tokens and you roll a color that
+                                                                                   may require you to place a Destroyed Site token next turn (see the
+                                                                                   description of the In Flight turn).
+                                                                                 ♦ You have rolled a color that may cause a head to be increased above
+                                                                                   level 12 (see the description of the In Flight turn).
+                                                                                No matter where the mana die is placed, remove the Apocalypse
+                                                                                Dragon’s figure from the map at the end of this turn.
+
+
+[PAGE 003]
+In Flight                                                                        Attacking the Apocalypse Dragon
+If the Apocalypse Dragon is in flight (its figure is not on the map or on a      See the rules for Combat Versus The Apocalypse Dragon starting on
+City card), it will move to where its mana die is. Remove the mana die and       page 10 of The Apocalypse Dragon rulebook, but remember that in this
+place the Apocalypse Dragon’s figure there instead. In the case of a city,       scenario the Apocalypse Dragon figure covers only one Map space.
+place it on the City card.                                                       Cooperative attacks on the Apocalypse Dragon are allowed, whether you
+If the Apocalypse Dragon moves to a space containing a player (or                are playing competitively or cooperatively.
+possibly more than one player in the case of a city), the Apocalypse             If you attack the Apocalypse Dragon in its lair, it is fortified. Similarly,
+Dragon will attack them (see Combat Versus the Apocalypse Dragon).               if you attack the Apocalypse Dragon when it is a city space that has no
+Otherwise:                                                                       defenders and no Destroyed Site token, it is fortified.
+ ♦ If the Apocalypse Dragon moved to a fortified site:
+                                                                                 Being Attacked by the Apocalypse Dragon
+		 • If the site is a keep or mage tower, remove any enemy token on the         When attacked by the Apocalypse Dragon, a player may choose whether
+       space and place a Destroyed Site token on it.                             to take their full turn in advance (as when attacked by another player) in
+		 • If the site is a city, remove the lowest Fame enemy token in the city      order to attend the combat fully or not. Follow the same rules:
+       (choose randomly if tied). If there were no enemy tokens in the             ♦ If the player chooses to take their turn, they flip their Round order
+       city, place a Destroyed Site token on it instead.                              token face down and may use everything as if it is their turn, and
+		 • In all cases, increase the level of the Apocalypse Dragon’s Death               then perform their end of turn sequence (but then they skip their
+     head by 1.                                                                       next turn).
+
+ ♦ If the Apocalypse Dragon moved to an adventure site, remove any                ♦ If they decide to not take their turn, they cannot use their normal
+   enemy tokens on the space and place a Destroyed Site token on it.                one mana die or skills usable once per turn, and they do not perform
+                                                                                    their end of turn sequence.
+		 • Increase the level of the Apocalypse Dragon’s Pestilence head by 1.
+                                                                                  ♦ In either case, they may not move, reveal a new Map tile, or perform
+ ♦ If the Apocalypse Dragon moved to a rampaging enemy, remove the                  any other action.
+   rampaging enemy token. Do not place a Destroyed Site token in the             Note that the Apocalypse Dragon may attack a player that has their
+   space.                                                                        Round Order token flipped face down (because they have been attacked
+		 • Increase the level of the Apocalypse Dragon’s War head by 1.               by another player and chose to fully attend). In that case, the player does
+                                                                                 not have the choice of taking their full turn.
+ ♦ If the Apocalypse Dragon moved to an inhabited site, place a                  Any site in the space your Hero is in is ignored and does not affect the
+   Destroyed Site token on it.                                                   combat in any way.
+		 • Increase the level of the Apocalypse Dragon’s Famine head by 1.            After combat, the Apocalypse Dragon immediately takes a landed turn
+                                                                                 (roll and place its mana die and remove its figure from the map).
+ ♦ If the Apocalypse dragon moved to a mine or magical glade, place a
+   Destroyed Site token on it.
+                                                                                 Attacking Multiple Heroes in a City
+		 • Increase the level of the Apocalypse Dragon’s lowest level head by         If more than one Hero is being attacked (only possible when the
+      1. If there is a tie for lowest, increase the level of the head tied for   Apocalypse Dragon attacks a city continuing multiple Heroes), perform
+      lowest that is earlier in this list: Famine, War, Pestilence, Death.       this combat as you would a cooperative attack, except that all players in
+      Note: A head may still have its level increased (to level 1) even if       the space are assumed to have agreed to take part:
+      that head has previously been defeated.                                      ♦ Only heads that have not been defeated are randomly distributed,
+                                                                                      and the Control head is never randomly distributed. The Control
+ ♦ If the Apocalypse Dragon moved to its lair, increase the level of the
+                                                                                      head will attack all participating Heroes or, at levels 4, 8, and 12, will
+   Apocalypse Dragon’s lowest level head by 1, settling ties as for mines
+                                                                                      grant its attack bonus to each of the other heads’ attacks.
+   and magical glades above.
+                                                                                  ♦ If players can agree on how to distribute the heads, distribute the
+See the rules for Destroyed Site tokens on page 11 of the Apocalypse
+                                                                                    relevant number of heads to those players randomly, as you would
+Dragon rulebook.
+                                                                                    for a normal cooperative attack. If players cannot agree, distribute
+                                                                                    each head randomly one at a time starting with the player later in
+Combat Versus the Apocalypse Dragon                                                 the Round order and continuing in reverse Round order until all
+Combat with the Apocalypse Dragon occurs whenever one or more
+                                                                                    heads have been distributed. If there are fewer heads than players,
+players move into the space containing the Apocalypse Dragon
+                                                                                    some players will only have the control head to deal with. If there
+(Attacking the Apocalypse Dragon), or the Apocalypse Dragon moves
+                                                                                    are more heads than players, some players will have more than one
+to a space containing one or more players (Being Attacked by the
+                                                                                    head to fight in addition to the control head.
+Apocalypse Dragon).
+                                                                                  ♦ Participants then take turns according to the Round order, starting
+                                                                                    with the player earlier in the Round order.
+                                                                                  ♦ When it is their turn, each player may make their own choice as to
+                                                                                    whether to fully attend the combat or not.
+
+
+[PAGE 004]
+Multiple Shield tokens                                                              The Fury of the Apocalypse
+marking the same level                                                              Dragon, Cooperative
+You may find the Apocalypse Dragon increases the level of a head that               Players: 2 to 4
+has previously been lowered in level during combat. In this case you may            Type: Cooperative
+end up having 2 (or more) player Shield tokens marking the same level.
+                                                                                    Setup (for 2, 3, or 4 players)
+Variant Rule: More evenly leveled heads                                              ♦ Map Shape: See diagram
+This variant rule more evenly distributes the levels of the Apocalypse
+Dragon’s heads. During a landed turn, if one of the heads is of a higher             ♦ Countryside tiles: 7, 10, or 12
+level than the rest (excluding the control head):                                    ♦ Core city tiles: 2
+If you roll the head’s associated color, reroll until you roll a different color.    ♦ Core non-city tiles: 3 (always include tile *1*)
+If you roll black, ignore the sites associated with that head.
+                                                                                     ♦ Cities: Each city is level 4, but they are friendly. Each player puts one
+                                                                                       Shield token on each City, but no-one is their leader.
+
+The Fury of the Apocalypse                                                           ♦ Apocalypse Dragon: Each head of the Apocalypse Dragon starts at
+                                                                                       a level equal to the number of players (2, 3, or 4).
+Dragon, Competitive
+Players: 2 to 4                                                                      ♦ Dummy Player: There is one standard Dummy player. See the
+Type: Competitive                                                                      Dummy Player section of the Mage Knight rulebook.
+                                                                                     ♦ Cards and Skills: Remove the four competitive Spells (numbered
+Setup (for 2, 3, or 4 players)                                                         17-20) from the Spell deck. and the one competitive interactive Skill
+ ♦ Map Shape: See diagram                                                              from each player’s Skill tokens. Use the cooperative interactive Skill
+ ♦ Countryside tiles: 7, 10, or 12                                                     tokens if you have them.
+ ♦ Core city tiles: 2
+                                                                                    Additional Special Rules
+ ♦ Core non-city tiles: 3 (always include tile *1*)                                 When taking Tactics, the Dummy player takes a random Tactic first, and
+                                                                                    then the players choose theirs.
+ ♦ Cities: Each city is level 4, but they are friendly. Each player puts one
+   Shield token on each City, but no-one is their leader.                           Team Rules apply, except you are all one team (see the Team Rules
+                                                                                    section of the Mage Knight rulebook).
+ ♦ Apocalypse Dragon: Each head of the Apocalypse Dragon has a
+   starting level equal to the number of players minus 1 (1, 2, or 3).              Scenario End
+                                                                                    When the Apocalypse Dragon is defeated, all players (except the Dummy
+Scenario End                                                                        player) have one last turn. If the Round ends during this, the game ends
+When the Apocalypse Dragon is defeated, all players (including the one              immediately.
+who defeated it) have one last turn. If the Round ends during this, the
+game ends immediately.                                                              Scoring
+                                                                                    If you defeated the Apocalypse Dragon, you are all victorious. If not, you
+Scoring                                                                             have all failed. In both cases you may count your score, to see how good
+If you defeated the Apocalypse Dragon, the mission was successful.                  you were.
+In any case, apply standard Achievements scoring.                                   You have one score as a team. As a base score, take the lowest Fame of all
+In addition, for each head except the Control head:                                 players. Then apply standard Achievements scoring, except:
+  ♦ Count the number of Shield tokens each player has on the head’s                   ♦ In each category, you score only the player with the highest score (or
+     large enemy token. Each player scores Fame equal to their total. The                most negative points in case of Greatest Beating).
+     player with the highest total gets an additional +5 Fame for being the          ♦ No titles are awarded.
+     Greatest Slayer of that head.
+                                                                                    Then score for your goal and for the time taken to reach it.
+ ♦ In each case ties are broken in favour of the player with their shield
+                                                                                     ♦ Score 5 points for each head you defeated (except the Control head).
+   token on the highest level on the large enemy token. If there is still a
+   tie, each tied player gets an additional +3 Fame instead.                         ♦ Score an additional 15 points if you defeated all the heads.
+                                                                                     ♦ If you finished the game one or more Rounds before the Round limit,
+                                                                                       score 30 points for each such Round.
+                                                                                     ♦ Score 1 point for each card in the Dummy player’s Deed deck (that
+                                                                                       was not yet flipped this Round).
+                                                                                     ♦ If the End of the Round was not announced yet in your last Round,
+                                                                                       score an additional 5 points.
+
+
+[PAGE 005]
+The Fury of the Apocalypse Dragon, Solo
+Players: 1
+Type: Solo
+
+Setup
+ ♦ Map Shape: See diagram
+ ♦ Countryside tiles: 7
+ ♦ Core city tiles: 2
+ ♦ Core non-city tiles: 3 (always include tile *1*)
+ ♦ Cities: Each City is level 4, but they are friendly. Both the player and
+   the Dummy player put one Shield token on each, but no-one is their
+   leader.
+ ♦ Apocalypse Dragon: Each head of the Apocalypse Dragon starts at
+   level 1.
+ ♦ Dummy Player: There is one standard Dummy player. See the
+   Dummy Player section of the Mage Knight rulebook.
+ ♦ Cards and Skills: Remove the four competitive Spells (numbered
+   17-20) from the Spell deck. and the one competitive interactive Skill
+   from each player’s Skill tokens. Use the cooperative interactive Skill
+   tokens if you have them.
+
+Additional Special Rules
+When taking Tactics, you always choose first. The Dummy player then
+takes one random card from those remaining.
+At the end of each Day or Night, remove both used Tactic cards from the
+game. That means, each Tactic card is picked exactly once during the
+game.
+
+Scenario End
+When the Apocalypse Dragon is defeated, you have one last turn (the
+dummy player does not). If the Round ends during this, the game ends
+immediately.
+
+Scoring
+If you defeated the Apocalypse Dragon, you are victorious. If not, you
+have failed. In both cases you may count your score, to see how good you
+were.
+Take your Fame as the base. Then apply standard Achievements scoring,
+except no titles are awarded.
+Then score for your goal and for the time taken to reach it.
+  ♦ Score 5 points for each head you defeated (except the Control head).
+ ♦ Score an additional 15 points if you defeated all the heads.
+ ♦ If you finished the game one or more Rounds before the limit, score
+   30 points for each such Round.
+ ♦ Score 1 point for each card in the Dummy player’s Deed deck (that
+   was not yet flipped this Round).
+ ♦ If the End of the Round was not announced yet in your last Round,
+   score an additional 5 points.
+
+                                                                              © 2026 WIZKIDS/NECA, LLC. WIZKIDS and related marks
+                                                                              and logos are trademarks of WizKids. All rights reserved.
+                                                                              WIZKIDS/NECA, LLC
+                                                                              603 Sweetland Ave.
+                                                                              Hillside, NJ 07205
+                                                                              www.wizkids.com

@@ -1,0 +1,61 @@
+SOURCE PDF: Rules/Mage Knight Scenario The Gauntlet.pdf
+PAGE COUNT: 1
+EXTRACTION: Existing PDF text layer
+NOTE: Original wording is retained. Page boundaries are labelled below. Visual-only material such as diagrams, maps, icons and images may not be represented.
+
+==============================================================================
+
+[PAGE 001]
+The Gauntlet by Trevin
+ I came up with this scenario while exploring the possibilities of the “Map Shape” variant — i.e. what ways can one
+ lay out the map tiles other than wedge or 3–5 columns? This scenario must be played solo due to the very limiting
+              map shape: a straight line! This will require about 4 feet × 6" of table space for the map.
+
+• Players: 1
+• Type: Solo
+• Length: Six rounds (3 days and 3 nights)
+• Purpose: A solitaire game whose goal is to get to the end!
+The Council of the Void has taken note of your deeds and selected you to go on a mission to retrieve a rare artifact
+from the city of the desert. This city can only be reached through a long and treacherous canyon. Hurry, your time is
+limited!
+
+Map
+• Map Shape: Linear. Use side B of the starting tile. Each new tile extends in the opposite direction from the point of
+the coast. (The “Random Tiles Orientation” variant is not recommended for this scenario.) The first tile next to the
+starting tile is revealed as normal.
+• Countryside tiles: 7. Remove country tile #11 before shuffling and drawing the country tiles.
+• Core non‐city tiles: 3. If playing with the Lost Legion expansion, choose three of the core tile #’s 2, 4, 9, & 10. With
+just the base game, use tile #’s 2, 4, and one other random tile (remove one with no rampaging site).
+• Core city tiles: 1, always the red city, at the bottom of the tile stack.
+• Cities: The city is friendly, but do not put any shield token on it during setup.
+• Dummy Player: There is one standard Dummy player (see the General Principles section).
+• Cards and Skills: Remove the four competitive Spells (numbered 17–20) from the Spell deck. You may use either
+the competitive or cooperative Skill in the player’s Skill deck.
+
+Special Rules
+• When taking Tactics, you always choose first. The Dummy player then takes one random card from those
+remaining.
+• At the end of each Day or Night, remove the Tactic card that you used from the game. Return the Dummy player’s
+Tactic card to the deck.
+• For every second rampaging orc you defeat, in addition to increasing your reputation, add one of your shield
+tokens to the city.
+• When you defeat a rampaging draconum, in addition to increasing your reputation by 2, add one shield token to
+the city.
+You can double‐check the number of shield tokens which should be on the city by adding half of the defeated
+rampaging orc spaces plus all the defeated rampaging draconum spaces.
+
+Scenario End
+The game ends at the end of the turn in which you buy an artifact from the red city, or at the end of the sixth round,
+whichever comes first.
+
+Scoring
+If you succeed in entering the red city and buy an artifact, your mission was successful. If not, you have failed. In
+both cases you may count your score to see how good you were.
+Take your Fame as the base. Then apply standard Achievements scoring, except no achievement bonuses are
+awarded.
+Then score for your goal and for the time to reach it.
+• Score 10 points for entering the red city.
+• Score an additional 10 points for buying an artifact from the red city.
+• If you finished the game one or more Rounds before the limit, score 40 points for each such Round.
+• Score 2 points for each card in the Dummy player’s Deed deck that was not yet flipped this Round.
+• If the End of the Round was not announced yet in your last Round, score an additional 5 points.
