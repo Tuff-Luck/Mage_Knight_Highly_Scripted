@@ -20,3 +20,26 @@ jobs:
         run: ./tools/validate-project.ps1 -RequireLua52
       - name: Check commit whitespace
         run: git diff --check HEAD^
+
+  convert-rules:
+    if: github.ref_name == 'rules-text-conversion-temp'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+      - name: Install PDF text and OCR tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq poppler-utils ocrmypdf tesseract-ocr tesseract-ocr-eng
+      - name: Convert rule PDFs
+        run: python3 tools/convert-rule-pdfs.py
+      - name: Commit generated text files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Rules/AI-Text
+          if ! git diff --cached --quiet; then
+            git commit -m "Generate AI-readable text versions of rule PDFs"
+            git push
+          fi

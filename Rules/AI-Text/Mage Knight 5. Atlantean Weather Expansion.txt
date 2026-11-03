@@ -1,0 +1,71 @@
+SOURCE PDF: Rules/Mage Knight 5. Atlantean Weather Expansion.pdf
+PAGE COUNT: 5
+EXTRACTION: Existing PDF text layer
+NOTE: Original wording is retained. Page boundaries are labelled below. Visual-only material such as diagrams, maps, icons and images may not be represented.
+
+==============================================================================
+
+[PAGE 001]
+Atlantean
+Weather
+ A Mage Knight Mini Expansion
+
+
+[PAGE 002]
+Concept
+The day/night cycle in Mage Knight is a fantastic and thematic facet of the game. I always
+loved how the rolling of the sun or the coming of night really made you feel part of a living,
+breathing world. I wanted to add weather patterns to this to help accentuate the day/night
+cycle.
+Cards
+There are two sheets of cards:
+1 x Day Card Set
+1 x Night Card Set
+Print two copies of each sheet, use the corresponding Day or Night Card Back. This will give
+you 18 cards in both the Day weather deck, and the Night weather deck. Feel free to use
+more Day or Night sheets, but each deck must be a minimum of 18 cards.
+
+
+[PAGE 003]
+Rules
+A player will be affected by an Atlantean Weather card rules whenever a weather card is
+drawn for the tile they are on, and until they leave the tiles affected by that weather card.
+Immediate effects of the card upon a player are resolved as soon as the card is drawn to
+determine the weather of the tile that player is on. Ongoing effects are active for as long as
+that Atlantean Weather card is in play.
+
+In addition, if the player attacks or interacts with tokens on a different tile to the one they
+are on, the rules for the tile the player is on are used for both the player and the target of the
+action/attack.
+
+Do not draw an Atlantean Weather card for the starting tile.
+
+
+[PAGE 004]
+Variant 1 - Continental Weather
+This variant of Atlantean Weather simulates the weather across large tracts of the Atlantean
+Empire. It requires less upkeep that other variants. Feel free to choose your own weather
+rows.
+
+A - At the start of each round, draw one day/night weather card for each row.
+
+
+B – Each card affects the tiles in the row it has been drawn for.
+C – At the start of a new round, discard all in-play Atlantean Weather cards, and draw new
+    cards from the alternate day or night deck.
+
+
+[PAGE 005]
+Variant 2 - Regional Weather
+This variant of Atlantean Weather simulates the weather across individual regions of the
+Atlantean Empire. Each tile will have individual weather effects rolling across them over the
+course of the game. This variant requires more upkeep.
+
+A – At the start of each round, draw an Atlantean Weather card for the tile each player is on,
+and each tile connected to theirs. Unless the card is ‘Clear Skies’, or ‘Rising Moon’ then place
+the corresponding weather token in that tile.
+B – Place each unique Atlantean Weather card on the Day (or Night) Weather Track. The
+Weather Tracks are rules reminders for weather tokens on the tiles.
+
+
+For Example:

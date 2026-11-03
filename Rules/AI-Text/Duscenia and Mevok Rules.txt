@@ -1,0 +1,84 @@
+SOURCE PDF: Rules/Duscenia and Mevok Rules.pdf
+PAGE COUNT: 1
+EXTRACTION: Full-page OCR (PDF rasterised before text recognition)
+NOTE: Original wording is retained. Page boundaries are labelled below. Visual-only material such as diagrams, maps, icons and images may not be represented.
+
+==============================================================================
+
+[PAGE 001]
+Kier      n\
+                                                                                                                                         ORD        eA
+                                                                                                                                                    ees
+
+
+                                                                                     Life and Death
+                                                                                                  (fan expansion)
+    oe                                                         INTRODUCTION
+    Welcome to my custom Print and Play expansion, Life and Death, designed for Mage Knight: The Board Game. This expansion introduces two new knights: a Forest Dryad
+    representing Life Magic, and a Necromancer representing Death Magic. Each knight comes with their own unique Action Cards, Skills, Command Tokens, Reference Cards, and
+    Player  Turn Tokens.
+
+    This expansion is a free Print and Play project. It will always be free, I ask you do not try and offer me any kind compensation for the work done on it. I hope you like the new
+    knights. Feel free to comment in the Release Thread, I would love to hear any thoughts you may have. Comments are the Blogger and Hobby Creator’s crack. I toyed with the
+    idea of making this is detailed instructional guide, but I felt it overly complicated it. All the rules you need are printed in the Reference Cards provided. If you have any
+    questions, please feel free to contact me via BoardGameGeek in the file section for this project, or the release thread in the Variations Forum
+
+
+    —                                .                Mevok the Boneshaper
+                                                                             As a hero of the Dark Crusaders, worships the Blood Goddess, Dark Tesla. He has delved         deep into
+                                                                             forbidden arcane arts with his ruinous experiments to find antHife, the key to his eventual nullification and
+                                                                             destruction of the Tesla Spirit and the disillusioned Elementalists who follow it. His quest for antilife has led
+                                                                             to the glorious art of necromancy: the ability to raise soulless automatons from the recently deceased.
+                                                                         _   Devoid of free will, Mevok’s hordes march, propelled by his own hideous resolve, across the land. Ever
+                                                                           _ searching for the Forbidden Forest and the newly dead to feed the flesh pits and expand his ever-growing
+                                                                             necrotic legion.
+
+                                                                             Mevok is a Necromancer and has a few additional rules to consider.
+
+                                                                             His entire gameplay resolves around the new game mechanisms for the reanimation of defeated enemies
+                                                                             and using them like units during combat. He is also themed around Dark Magic and has a number of skills
+                                                                             and abilities that utilise Black Mana, even during the day.
+
+                                                                             Mevok is essentially a Combo Deck. The combo, when it goes off is very, very strong, but it is hard to get
+                                                                             everything into place for it to trigger at full strength. The design goal was for it to trigger once every 3 or 4
+                                                                             games, When the combo is not functioning, he is aimed at being a mid strength hero in relation to the
+                                                                             official Knights.
+
+                                                                             The best way to ensure the triggering of the combo is to focus on Crystal Generation as the main priority
+                                                                             for this character. Due to his heavy crystal generation he is a good Spell Caster. Artefact hunting will also
+                                                                             greatly  aid in both smoothing the combo trigger and during End Game Scoring.
+
+ Raising undead is a very unpopular act, and each time you resurrect any amount of units as undead, during a single combat, you will suffer a total of -3 reputation. This will lead to
+ Mevok quickly hitting X Reputation on the Reputation Track. He dose have a number of skills and cards that help him ignore the X space, allowing him to still interact with locals,
+ Still, due to his almost quaranteed loss of the Reputation End Game Scoring tally, it is advisable to seek victory in other categories as your end game focus.
+
+
+ Duscenia Warden of the Verdant Sanctuary
+   Her rise among the Elementalists was assured as her connection to the flow of life between all living                                                 4 ‘3 ee
+   beings is so strong that her mere presence can heal the sick and bring growth to barren ground. As a
+   sage she spends most of her time communing with the Tesla Spirit, but the taint of the necrotic legion
+   has corrupted the very mechanisms of entropy and creation, forcing her to step out of the Forbidden
+   Forest. Aglow with the light of creation itself, she moves to stand against Mevok’s madness and bring
+   balance to the natural forces that bind us all.
+
+   Duscenia is a much more traditional Mage Knight. She has no new rules mechanisms and should be
+   easy to play with for anyone moderately experienced with Mage Knight. I would say that in general
+   she is a more powerful Knight than Mevok and lands around the middle, power wise ,when
+   compared    to the Official Knights.
+
+   Much of her skills and abilities revolve around the generation of mana tokens, but really her main
+   theme is the utilisation of wounds. She should be able to absorb large amounts of damage and then               ii
+   be able to either heal those wounds, or use them. This can give her a good early ramp for she should             1
+   be able to win many early combat situations other knights might feel would need more time to
+   prepare. Once the other Knights power up, she can feel weak, particularly if you have not invested in
+   units.
+
+   Her lack of elemental blocks or attacks via skills means that she is reliant on Advanced Action cards
+   and Units to gain those defence or offence abilities. So unit collection and the acquisition of cards that
+
+
+6)_
+   allow elemental blocks and attacks will go a long way to maker her end game run smoother.
+
+
+                                                                                     CC@s”

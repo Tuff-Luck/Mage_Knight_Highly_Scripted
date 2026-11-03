@@ -1,0 +1,466 @@
+SOURCE PDF: Rules/Mage Knight 5. Rise of the Forgemaster.pdf
+PAGE COUNT: 7
+EXTRACTION: PDF text extraction with OCR fallback for pages without a text layer
+NOTE: Original wording is retained. Page boundaries are labelled below. Visual-only material such as diagrams, maps, icons and images may not be represented.
+
+==============================================================================
+
+[PAGE 001]
+Rise of the
+                             rorgemasters
+            fan made expansion for Mage Knight
+                                                            Version 1.01 - 9th May 2021
+
+| Expansion Overview                                                         Detailed Game Concepts
+¥ Thisexpansion contains 3 modules:                                          Immediate Effects
+ In New Beginning, you can find most of the original Advanced                An immediate effect is an effect that resolves when it is played
+"Action cards (some of them rebalanced and tweaked) as well                  (most effects are immediate). Some immediate effects allow
+ mae afewnew simple cards and some new terminology.                         you to immediately play other effects. An immediate effect that
+  The pre    of War module introduces Mana Shards into the                   just provides Move, Influence or any types of Block or Attack, is
+  game, and some new game concepts like delayed effects and                  called a modifiable effect. In many cases, an effect is composed
+  the ability to play an effect with a bonus or penalty. It also             of multiple effects - some that are modifiable and some that
+  includes some changes to the Basic Action cards.                           are not. In particular - gaining Heal, Fame, Reputation, or
+  Elixir of Life
+              a includes more complex rules and is intended for              modifying armor or attack of a target are not modifiable effects.
+  experienced players. It adds Potions, new abilities, new attack           Some immediate effects can be repeated a limited or unlimited
+  CPEs, and a brand new character.                                           number of times as part of resolving those effects.
+
+  New        Begin nin a                                                    Delayed Effects
+
+  The first module of the Rise of the Forgemasters expansion                An effect that is not immediate is called a delayed effect. There
+
+  adds several new cards, and modifies some of the existing
+                                                                            are two types of delayed effects: triggered effects and lasting
+
+  cards. The more complex cards were removed from this
+                                                                            effects. A triggered effect is an effect that automatically
+
+  module, but appear in the second and third modules.                       resolves when a certain event occurs or a set of conditions is
+                                                                            met. A lasting effect is an effect that can be resolved by the
+
+  There arent any new or changed rules required in order to use
+                                                                            player's choice at any time unless specified otherwise.
+
+  this module. All future content that can be added to the game
+                                                                            A delayed effect details if it is resolved a limited or unlimited
+                                                                            number of times. Unless specified otherwise, a delayed effect
+  without adding more rules will be added to this module.
+
+  Spoils of War
+                                                                            ends at the end of the turn it was played.
+
+                                                                           Examples
+ This module adds many more cards into the game, and
+                                                                           - You play the Advanced Action card Path Finding to gain Move 2
+ introduces some new rules and tokens. This module is
+                                                                           and reduce the Move cost of all terrains by 1, to a minimum of 2
+ recommended for players who feel adventurous and wish to
+                                                                           this turn. That card provides you with two immediate effects.
+ spice up their game with a few new game concepts.
+                                                                           Only the Move 2 is a modifiable effect.
+  Updated Basic Actions                                                    - You play the Spell card Burning Shield for Fire Block 4 during the
+ Some Basic Action cards have been updated inthe game. For                 block step of combat (this is an immediate effect). You
+  example, you can now play Concentration to play the basic                successfully block an enemy's attack using that block and so you
+  effect of another Action card with a bonus of +2.                        will gain Fire Attack 4 during the Attack phase of combat (this is
+                                                                           a triggered delayed effect).
+
+
+[PAGE 002]
+- You play the basic effect of the Advanced Action Learning and       - Suppose   you have a way to play the stronger effect of the Basic
+ gain Influence 2 as an immediate effect. You also gain a             Action card Swiftness with a penalty of -1. Instead of Ranged
+ delayed lasting effect (which can be resolved once at any time       Attack 3, you would gain only Ranged Attack 2.
+ during your turn) that allows you to gain an Advanced Action          - Suppose
+                                                                               you have a way to play the stronger effect of the Basic
+ from the Advanced Actions offer to your discard pile.                Action card Tranquility with a penalty of -1. You will either draw
+                                                                       two cards or gain Heal 2, and then when the effect of Tranquility
+Playing an effect with a bonus
+                                                                       resolves
+                                                                             you will gain a Wound, because the penalty can only be
+When an immediate effect is played with a bonus, that
+                                                                       applied to modifiable effects.
+_bonus’s modifier applies to the first modifiable effect it
+                                                                       - Suppose
+                                                                               you have a way to play the stronger effect of the Basic
+        des. Delayed effects are not affected by bonuses. A
+                                                                      Action card Concentration with a penalty of -1, and with it you
+       IS might be limited to only Move, Influence, Block or
+                                                                       play the Basic Action card Rage. You first apply all bonuses to the
+        k - in that case the bonus applies only if the effect would
+                                                                      first modifiable effect (Attack 4 + 2), and then you apply as many
+2 provide the mentioned effect.
+                                                                       penalties as you can (Attack4 + 2 -    1= Attack 5).
+ Playing an affect with a penalty
+                                                                      Color Scarcity
+ When an immediate effect is played with a penalty, that
+                                                                      Some new effects require you to determine which colors are
+ penalty's   modifier applies to the first modifiable effect it
+                                                                      scarce, or whether a specific color is scarce. A Scarce color is one of
+ provides. Apply as much of that penalty’s modifier as possible
+                                                                      the least common basic colors among all mana dice. This includes
+ (modifiable effects cannot have a negative value), and apply
+                                                                      dice that are taken or being used, but excludes stolen dice.
+ the rest to the next modifiable effect that is provided by
+ effect with that penalty. When an effect resolves without            Example
+ applying some of its penalty’s modifier, the player who has          - There are 3 mana dice in the game - two red dice in the Source,
+ played it gains Wounds to their hand according to the penalty        and a blue mana die that you currently use on the Basic Action
+ modifier that was not applied. Delayed effects are not               card Determination. In this case, the basic colors green and
+ affected by bonuses.                                                 white both appear 0 times among all dice, so they are considered
+Playing an effect with both bonuses and penalties
+                                                                      the scarce colors in this situation.
+ If a modifiable effect is affected by both bonuses and               - You picked the Day Tactics card Mana Steal and stole a blue
+ penalties, apply all bonuses first and then apply as many            mana die. There are three white mana dice in the Source, so all
+ penalties as possible (starting from the most recent penalty).       basic colors except white (blue, green, red) are considered
+
+Examples                                                              scarce colors now. When you take the blue die from Mana Steal
+                                                                      and use it, then only green and red are scarce.
+ - You play the stronger effect of the Basic Action card
+                                                                      - There are four dice in the Source - red white, green and blue. In
+ Concentration to play the stronger effect of the Advanced
+                                                                      this case, all basic colors are tied for the least common basic
+ Action card Diligence, and with it you play the Basic Action
+                                                                      color, so all basic colors are considered scarce.
+ card Rage. The bonuses of +2 from Concentration and +3
+ from Diligence are applied to the Attack gained by Rage, so          Tuck acard
+you get Attack 9 (4+3+2).                                             When a player is instructed to tuck cards (usually unplayed
+ - You play the stronger effect of Concentration to play the          cards from thier hand), they reveal those cards and place them
+ stronger effect of the Advanced Action card Dodge and                on the bottom of their Deed deck in any order. Players cannot
+ Weave. Neither of the effects benefit from the bonus,                tuck Wound cards, and are unable to tuck any cards while their
+ because the reduction to the enemy's attack is not a                 Deed deck is empty. When a player tucks multiple cards at the
+ modifiable effect, and the Attack 2 part is a delayed effect.        same time, they are not required to reveal the order of these
+                                                                      cards to the other players.
+
+
+[PAGE 003]
+Prepare a card                                                             Elixir of Life
+ When a       player is instructed to prepare cards, they place those       This module builds upon the previous modules and adds more
+ cards on top of their Deed deck. Players are allowed to prepare            complex game concepts and a brand new character. This module is
+ cards even if their Deed deck is empty, and they are even                  intended for players who are already experienced with the
+ allowed to prepare Wound cards. Whenever a player prepares                 previous modules, and dare to venture into more intricate content.
+ cards, they are not required to reveal those cards or their order.
+
+
+"Mana shards
+    mana shard is an incomplete mana crystal. It counts as a
+   rystal of that color for all intents and purposes, except it has a
+                                                                            Innate Fortification
+  penalty
+       of -1 when being used or paid and it does not count as
+                                                                            When an enemy or Unit has Innate Fortification, thematically it
+          ral for final scoring. If the shard is not used or paid, but is
+                                                                            means that using thier quick reflexes and armor proficiency,
+| being converted into anything else, you gain a Wound.
+                                                                            they can easily block projectile attacks. When an enemy has the
+: Inyou r inventory, you are limited to one shard of each color,
+                                                                            Fortified ability printed on them (not gained from site
+  and a total of three crystals of each color (one of them can be a
+                                                                            fortification), it means they have Innate Fortification.
+  shard). You are allowed to move unused shards between your
+  play are.    and your inventory.
+                                                                            A Unit with Innate Fortification has all its blocks count twice
+  During the Clear upyour Play Area step of your End of Turn
+                                                                            against an attack with Swiftness (Utem Guardsmen and Altem
+  phase, gain a Wound for each excess unused shards you have
+                                                                            Guardians already have Innate Fortification).
+  and discard them. If you get a crystal after that step, you may
+  either forfeit it, or move your shard to the play area and make
+                                                                            An enemy with Unfortified cannot benefit from Innate
+  room for the new crystal.
+                                                                            Fortification and is never considered Fortified. When an enemy's
+                                                                            Innate Fortification is removed, it does not affect their Site
+  During Interaction in a Mage Tower, you can buy any number
+                                                                            Fortification and vice versa.
+  of mana shards, each for a mana of that color and 1 Influence.
+
+ Examples                                                                    Arcane Immunity
+                                                                            A Unit with Arcane Immunity is immune to any additional effects
+ - You use a green shard on the Basic Action card Concentration
+                                                                            of Wounds, such as Poison, Paralyze and Vampiric. In PvP, the
+ to play the Basic Action card Swiftness for Ranged Attack 4.
+                                                                            Unit is immune to all special effects played by your opponents.
+ - You use. a white shard on Dodge and Weave in the block
+ phase to reduce an enemy's attack by 4, and then you receive a             Arcane Vulnerability
+ Wound (because the effect resolved without applying the                    An enemy with Arcane Vulnerablity can be affected by any
+ shard's penalty). In the Attack phase you do not gain Attack 2,            special effects regardless of other resistances. A Unit with
+ because you gained a Wound ina         previous phase.                     Arcane Vulnerability is affected by the additional effects of
+ - You pay two blue shards along with a blue mana token in an               Wounds, such as Poison, Paralyze, Vampiric, regardless of
+Altar (3 blue mana), so you gain 2 Wound cards and 7 Fame.                  whether the Unit was wounded or not after assigning damage
+ - You use a red shard to play the Spell card Fire Shield. You get          to them. In PvP, the Unit can be the target of any special effects
+ Fire Block 3 as an immediate effect, and if you successfully               regardless of their other resistances. Opponents and bosses
+ block with it then you gain Fire Attack 4 (delayed effect).                (like Volkare and faction leaders) can never be affected by
+- You have a white crystal and a red mana shard in your                     Arcane Vulnerability.
+ Inventory. You play the Advanced Action card Crystal Mastery
+and gain a red crystal (shards are still crystals).                         A Unit or enemy that gains Arcane Immunity immediately loses
+                                                                            their Arcane Vulnerability, and vice versa (Arcane Immunity
+                                                                            does not protect against Arcane Vulnerability).
+
+
+[PAGE 004]
+Let a Unit drink a potion
+                                                                        You can discard a potion token to give one of your Units a
+  A potion is a new type of token, with multiple purposes, that
+                                                                        positive effect that will last until the end of the turn. Mark that
+  can be gained during the game. There are four colors of
+                                                                        Unit with the potion token and discard the token to the supply
+  potions: white, green, blue and red. Each potion token has two
+                                                                        at the end of the turn. The effect on that Unit depends on the
+  sides - full side and spent side. Gaining a new potion or refilling
+                                                                        potion's color:
+“s one of your potions (flipping it to the full side) are always
+                                                                        - White: Gains Arcane Immunity
+considered healing effects (cannot be done during combat).
+                                                                        - Green: Gains Innate Fortification
+                                                                        - Blue: Gains Ice Resistance
+ : When you gain a potion, take the corresponding token from
+                                                                        - Red: Gains Fire Resistance
+       upply and place it in your Inventory. You can have only
+        otion of each color in your Inventory. If you gain a potion     Throw a potion on an enemy
+          u already have in your inventory,
+                                          you simply refill it.         You can discard a potion token to apply a negative effect to an
+                                                                        enemy   you are facing, that will last until the end of the combat.
+       e aot the game, each potion is worth 1 point for the             Mark that enemy with the potion token and discard the token
+- Greatest Loot title.                                                  at the end of the combat. The effect on that enemy depends on
+                                                                        the potion’s color:
+  During Interaction in a Mage Tower, Monastery or City, you            - White: Gains Arcane Vulnerability
+  may buy any number of potions of non-scarce colors for 2              - Green: Loses Innate Fortification
+  Influence each. You may also buy one potion of a scarce color         - Blue: Loses Ice Resistance
+  for 3 Influence.                                                      - Red: Loses Fire Resistance
+
+                                                                        Examples
+  You
+   may also buy potions in the Village, each costs 1 more               - You have only a spent white potion in your Inventory, and
+  Influence than usual.                                                 want to buy potions during an Interaction in a Monastery.
+                                                                        The scarce colors are red and blue. You can buy potions - 2 for
+                                                                        a white potion (simply flip the one you have), 2 for a green
+  During the game, there are four different uses for potions:           potion, and 3 for a blue or red potion (not both).
+                                                                        - You spend a white potion and pay a white crystal to play the
+  Apply some potion to a crystal being used
+                                                                        Basic Action card Swiftness. You gain Ranged Attack 4.
+  Whenever
+         you use (or pay) a crystal of any color, if you have
+                                                                        - You spend a green potion and pay a green shard to play the
+  a full potion of that color in your Inventory,
+                                               you may spend it
+                                                                        Basic Action card Tranquility. You draw two cards and don't
+  (flip it to spent side) to add a bonus of +1 to the effect that
+                                                                        get any Wound because     you prevented the shard's penalty.
+  will be provided by the crystal. You have to do so at the exact
+                                                                        Had you drawn the two cards without spending the green
+  time that you   use (or pay) the crystal, and not after the
+                                                                        potion, you wouldn't have been able to spend it because the
+  effect has already resolved.
+                                                                        effect has already resolved (new information revealed).
+  Apply some potion to a mana shard being used
+                                                                        - You discard a red potion to remove the Fire Resistance of the
+  Whenever
+         you         use (or pay) a mana shard of any color, if you
+                                                                        Lava Dragon you are facing, and then you defeat it using the
+  have a full potion of that color in your Inventory, you may
+                                                                        Firestorm spell card (Take a Wound. Siege Fire Attack 8).
+  spend it to prevent the shard's -1 penalty (and the Wound
+                                                                        - You discard a blue potion to remove the Ice Resistance of the
+  you'd receive from that penalty). You have to do so at the
+                                                                        Ice Dragon you are facing, and use the spell Chill to prevent
+  exact time that you use (or pay) the shard, and not after the
+                                                                        the dragon's attack.
+  effect has already resolved. Cannot be used to prevent the
+                                                                        - You discard a white potion to give the Dragon Summoner
+  Wound froma        discarded or converted mana shard.
+                                                                        you are facing Arcane Vulnerability, and defeat it using the
+                                                                        spell Tornado.
+
+
+[PAGE 005]
+Attack phase
+      - You discard a green potion to remove the Innate
+      Fortification of the Crypt Worm you are facing, and defeat it     When using the effect of a Poisonous Attack in the Attack phase,
+
+      using Ranged Attack 6.                                            you will receive 1 less Fame for each enemy defeated by that
+
+      - You discard a green potion to give Innate Fortification to      attack, to a minimum of 1. If the Fame you receive is multiplied
+
+     your Guardian Golems Unit and then you spend a red potion          (e.g. Druid Nights Scenario), apply this reduction afterwards.
+
+    g with ared shard to activate the Guardian Golems for Fire
+    s Block4 that counts twice against an attack with Swiftness.        Enemies Immune to Poisonous Attacks
+
+You          can use this Block to successfully block a Storm Dragon.   Currently, only enemies with Arcane Immunity are immune to
+      - You discard a white potion to give Arcane Immunity to your      Poisonous Attacks. If you play a Poisonous Attack during an
+           elphana Masters Unit, and assign the attack of an Ice        attack targeting at least one enemy with Arcane Immunity,
+                                                                                                                                you
+              onto them. This will cause them to be Wounded, but not    cannot use the effect of that Attack.
+      de     royed because the Arcane Immunity protects them
+                                                                        Player vs Player combat
+E     against additional effects of the Wound.
+                                                                        In Player vs Player combat Poisonous Attacks work differently
+      Restricted Move Points                                            than against normal enemies. When all Attacks played in a single
+     Some effects provide a special type of Move Points that cannot     attack are Poisonous Attacks, all damage assigned using this
+     be spentto pay terrain costs. Count these Restricted Move          attack has the same effect as the normal Poisonous effect:
+     Points separately than your normal Move Points, and                - A Unit will be assigned two Wounds instead of one (unless it has
+     announce which ones you       use when   you need to spend Move    Arcane Immunity)
+     Points. Restricted Move Points can be used for all other uses of   - A player will receive a Wound card to their discard pile for each
+     Move Points: exploring, paying to move over walls, entering a      Wound card received to their hand.
+     maze, reducing an attack of an enemy with Cumbersome, etc.
+                                                                        Examples
+     Poisonous Attacks
+                                                                        - You use a Poisonous Ranged Attack 5 in the Ranged and Siege
+     Some effects allow players to play Poisonous Attacks, which
+                                                                        phase combat against a Werewolf and a Minotaur. Since neither
+     deal more damage at the cost of defeating their target ata
+                                                                        of them has Arcane Immunity, you can count that Attack an
+     slower pace.
+                                                                        additional time, Ranged Attack 10 is enough to defeat them
+                                                                        (they have a combined armor of 10), and so they will be defeated
+     One Poisonous Attack in each attack can be counted an
+                                                                        only at the end of the combat. The      Werewolf will attack witha
+     additional time. If the targeted enemies would be defeated,
+                                                                        Swift attack of 4 (instead of 7) and the Minotaur will attack with
+     instead their attacks are halved rounded up and they are
+                                                                        a Brutal attack of 3 (instead of 5). You get the normal Fame (9).
+     defeated only at the end of the combat. This means that the
+                                                                        - You fight two enemies in the same combat: Swordsmen and
+     player will not receive any bonuses for defeating them in that
+                                                                        Guardsmen. In the Attack phase    you    play the Ultimate of the
+     attack or that attack phase.
+                                                                        Artifact Soul Harvester (Attack 8. Gain one crystal as above for
+     Ranged and Siege Attacks phase                                     each enemy defeated in the current phase of combat.) and the
+                                                                        basic effect of the Advanced Action Pernicious Bolt for Poisonous
+     You cannot use a Poisonous Attack in the Ranged and Siege
+                                                                        Attack 2. You use the Poisonous effect to add an additional
+     Attacks phase of combat, unless it also has a type that allows
+                                                                        Attack 2, and then you have a total of Attack 12, which is enough
+     you to do so (like Ranged). When using the effect of a
+                                                                        to defeat them both ina   single attack. They will both be
+     Poisonous Attack in the Ranged and Siege phase of combat,
+                                                                        defeated only at the end of the combat, so you get no crystals
+     the targeted enemies have all thier attacks halved (rounded
+                                                                        from Soul Harvester, and you gain only 5 Fame for defeating
+     up). Summoning Attacks ignore this effect.
+                                                                        them (instead of 7).
+
+
+[PAGE 006]
+Examples
+
+  Some effects allow players to play Assassinating Attacks,         - Inthe Dungeon you play the stronger effect of the Advanced
+  which are quick sneaky surprise strikes. These attacks are        Action Dark Dealings for Assassinating Attack 4. This is enough
+
+  extremly deadly when used in attacks against a single target.     to defeat the Shadow in the Ranged and Siege phase, because
+                                                                    you count it an additional time (Attack 8) when attacking the
+  ‘Count each Assassinating Attack an additional time when          higher armor (8) of Shadow.
+_ being used against the higher armor of a single Elusive enemy.    - When fighting a Storm Dragon,
+                                                                                                  you play the stronger effect of
+
+z During each of your attacks in the Ranged and Siege phase,        the Basic Action card Concentration to play the stronger effect
+‘ you may use one Assassinating Attack if the attack targets        of Advanced Action card Noxiousness for Poisonous
+   ynly.a                                                           Assassinating Attack 5 in the Ranged and Siege phase. You
+     ty. single
+            § enem ly
+                                                                    count the Attack an additional time because     you are attacking
+     e Fortification and Innate Fortification
+                                                                    the higher armor of the Storm Dragon. You can count it an
+  Facies wich Innate Fortification are immune to the effects of     additional time from the Poisonous, for a total of Attack 15.
+| Assassinating Attacks. You can use Assassinating Attacks in the   This is enough to defeat the Storm Dragon, but because you
+ Ranged and Siege phase even if the target has Site Fortification   had to use the effect of Poisonous then it will be defeated only
+ (you sneak pastit).                                                at the end of the combat. It will still attack you with an Ice
+                                                                    Attack 2 with Swiftness (instead of 4).
+ Attacking multiple enemies
+                                                                    - When fighting a Medusa and a Hydra, you play the stronger
+ All bonuses of Assassinating Attacks apply only during attacks     effect of Concentration to play the stronger effect of the
+ targeting a single enemy. If you attack multiple enemies in the    Advanced Action card Feinting Flare in the Ranged and Siege
+ same attack, you can treat Assassinating Attacks as if they        phase. You reduce all attacks of the Hydra by 2 (all become 0),
+ were simple (melee) Attacks.                                       and gain Assassinating Attack 4 against the second enemy
+
+ Greater than the sum of its parts                                  (won't work against a single enemy) which is enough to defeat
+                                                                    the Medusa. Since the Assassinating Attack from Feinting Flare
+The limitation of only one Assassinating Attack in each attack      is gained in the Ranged and Siege phase,    you must use it in that
+ in the Ranged and Siege phase, means that if you have several      phase (otherwise it is lost).
+ small Assassinating Attacks then you must use each against a       - During the Ranged and Siege phase of Player vs Player
+ different enemy.                                                   combat,
+                                                                          you play the stronger effect of the Advanced Action
+
+ Player vs Player combat                                            card Cloud of Steel, which gives you Ice Assassinating Attack 2
+                                                                    as an immediate effect. You also play the stronger effect of Ice
+ In Player vs Player combat Assassinating Attacks work
+                                                                    Bolt in the same attack. So you have a total of Ice Attack 5, and
+ differently than against normal enemies. You can use one
+                                                                    some of it is Assassinating. The opponent decides to use thier
+ Assassinating Attack during each attack in the Ranged and
+                                                                    Guardian Golems Unit for Fire Block4, which reduces the
+ Siege phase. If you do, then you must assign all the damage
+                                                                    Attack to Ice Attack 3. You have to assign this damage toa
+ from the entire attack to a single target. If the Assassinating
+                                                                    single target, and you assign it to the Guardian Golems. After
+ Attack was the only Attack you played during that attack,
+                                                                    this attack, the opponent decdies not to attack, and then you
+ then the damage you assign to the opponent can be spent as if
+                                                                    get to attack again. You then choose to use the delayed effect
+ it was assigned in the Attack phase of PvP combat (can push
+                                                                    from Cloud of Steel for Ice Assassinating Attack 2. The
+ and steal Artifacts). In the (melee) Attack phase, you can play
+                                                                    opponent decides not to block, and you use the damage to push
+ Assassinating Attacks as if they were normal Attacks (you can
+                                                                    the opponent to an adjacent plains space.
+ play multiple during the same attack and assign damage
+ normally).
+
+
+[PAGE 007]
+Jormund the Dwarf of the Forgemasters
+  Coposite effects allow you to play another effect as part of                   Treat Jormund    as any other hero in the game. Since Jormund
+  their effect. In most cases, these effects are played as an                     uses many rules that were introduced in the Rise of the
+  immediate effect, so they are affected from the bonuses and                     Forgemasters expansion, it is recommanded that you play him
+  penalties of their originating effect.                                         when you are familiar with the new rules.
+
+                                                                                 Notes on Jormund's Skills
+ Cards with effects like the Advanced Action Maximal Effect
+                                                                                 The skills Wind of Change and Song of Storms depend on
+~ were especially complicated and raised many      questions. In                     3                                              ;
+ee          P     y      P                      Yq                               which colors are scarce. When you play the skill and choose
+    this module, there are some forked composite effects -                        4         :                       ;                  %           :
+  :                                                                              either of its two effects, check if the corresponding color is
+ _ composite effets that allow you to play multiple other effects.                            eo                      3           SEA           ;
+    cue             ‘          z      Pe.        P                               scarce. If it is, the chosen effect is doubled (it is still a single
+_ All of these effects are resolved in order and as part of                                                                              :
+  ;             e                                                                effect, so you cannot reduce the armor of two different
+  resolving their originating effect.                                                   :    :                       :
+        $e 8         8       8                                                   enemies with Song of Courage. Notice that these effects have
+                                                                                 some restrictions on them (e.g. the Siege Attack from Song of
+                                                                                 Courage cannot be played in the Attack phase).
+  When resolving a composite effect with bonuses and penalties:
+  1. Apply all bonuses to the first modifiable effect resolved                                                                                  ;
+    st.                                                                          The skill Burst of Enegy allows you to play both the basic and
+  2. Apply as many       penalties as       possible to the first modifiable
+        PP 3   a                        P                                        the stronger effect of a single Action card in the same turn.
+  effect resolved. Apply the rest to the next effect resolved.                                     ‘                                 :
+                                                                                 You cannot use it to play cards that are not in your play area
+  3. In case an effect is resolved with some penalties still not
+             =                                                                   (you cannot play cards that you threw away or cards you
+  fully applied, take Wounds equal to the amount that was not                                                       :
+        oe                                                                       played from the Advanced Action offer). For example,
+                                                                                                                                    you can
+  applied.
+                                                                                 use the basic effect of the Basic Action card Swiftness for
+    ae     ;                                                                     Move 2 and move to an adjacent plains space, and later use
+  Bonuses and penalties for an effect can never apply to its
+  #      :                                                                       Burst of Energy with a white crystal to play Ranged Attack 3.
+  originating effect. In other words, if effect A provides
+                                                         you with
+  multiple effects and one of them allows you             to play effect B,               :            :       :                :
+                                                                                 The skills Sparkling Diamonds and Healing Stones allow you to
+  bonuses and penalties for effect B cannot apply to effect A and                  :                                                or                  ;
+                                                                                 either spend a crystal, or to spend something in order to gain
+  its other subeffect.                                                                                     :            :   2
+                                                                                 two crystals, Notice that Sparkling Diamonds must be used as
+  Arrifact colons                                                                part of Interaction, and Healing Stones cannot be played
+                                                                                 during combat.
+ All Artifact cards are considered colorless.            During your turn you
+ can treat your own Artifact cards as any color or a combination                Expansion         Notes
+ of multiple colors. There is no longer a need to mention on each
+ specific effect that deals with a card's colors how it handles                 The Rise of the Forgemasters, designed by Lior Kiperman, is an
+ epee         AP                                                                unofficial expansion for Mage Knight Board Game designed by
+                                                                                Viaada Chvatil. Mage Knight Board Game is a game by WizKids.
+                                                                                The expansion is still under development so it only uses
+                                                                                prototype art that was found online.
+
+
+                                                                                [Space for playtesters list and special thanks]
