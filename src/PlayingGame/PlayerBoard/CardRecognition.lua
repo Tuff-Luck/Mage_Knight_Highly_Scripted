@@ -2208,6 +2208,7 @@ local function unitAbilityTargetCategory(ability)
     for _,field in ipairs(COMBAT_SOURCE_FIELDS) do
         if (tonumber(ability[field.key]) or 0)>0 then return field.key end
     end
+    if combatPsychicActive and (tonumber(ability.influence) or 0)>0 then return "influence" end
     if combatCumbersomeActive and (tonumber(ability.move) or 0)>0 then return "move" end
     return nil
 end
