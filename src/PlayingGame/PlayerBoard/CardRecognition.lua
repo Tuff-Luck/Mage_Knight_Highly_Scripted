@@ -2459,7 +2459,7 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decisi
             if category~=nil then
                 targetSpecs[#targetSpecs+1]={index=index,category=category,
                     idCategory=category}
-            elseif ability.enemyEffect~=nil then
+            elseif ability.enemyEffect~=nil or ability.targetableEnemy==true then
                 targetSpecs[#targetSpecs+1]={index=index,category="effect",
                     idCategory="effect@effect"..index}
             end
@@ -4451,25 +4451,28 @@ local function renderSeat(seatPos)
                         end
                         for _,pickedAbility in ipairs(picked) do
                             local index,ability=pickedAbility.index,pickedAbility.ability
-                            if ability.enemyEffect~=nil then
+                            if ability.enemyEffect~=nil or ability.targetableEnemy==true then
                                 local sourceKey=unitAbilityTargetKey(unitGUID,index,ability)
                                 if sourceKey~=unitGUID then
                                     result.enemyEffectTargetKeys=result.enemyEffectTargetKeys or {}
                                     result.enemyEffectTargetKeys[#result.enemyEffectTargetKeys+1]=sourceKey
                                 end
-                                -- A hand-picked target takes precedence over physical proximity.
-                                local explicitTargetGUID=nil
-                                for guid in pairs(attackAssignmentsTargetGUIDs(sourceKey)) do
-                                    if monsters[guid]~=nil and monsters[guid].is_face_down~=true
-                                        and (explicitTargetGUID==nil or guid<explicitTargetGUID) then
-                                        explicitTargetGUID=guid
+                                -- Only implemented effects change enemy stats. Other printed target
+                                -- abilities can still have an arrow for the player's manual resolution.
+                                if ability.enemyEffect~=nil then
+                                    local explicitTargetGUID=nil
+                                    for guid in pairs(attackAssignmentsTargetGUIDs(sourceKey)) do
+                                        if monsters[guid]~=nil and monsters[guid].is_face_down~=true
+                                            and (explicitTargetGUID==nil or guid<explicitTargetGUID) then
+                                            explicitTargetGUID=guid
+                                        end
                                     end
-                                end
-                                local target=explicitTargetGUID~=nil and monsters[explicitTargetGUID]
-                                    or combatEffectNearestEnemy(footprint(unit),monsters,footprint,overlapArea)
-                                if target~=nil then
-                                    combatEffectAdd(enemyEffects,target.guid,unitGUID,ability.enemyEffect)
-                                    result.links[#result.links+1]=target.guid
+                                    local target=explicitTargetGUID~=nil and monsters[explicitTargetGUID]
+                                        or combatEffectNearestEnemy(footprint(unit),monsters,footprint,overlapArea)
+                                    if target~=nil then
+                                        combatEffectAdd(enemyEffects,target.guid,unitGUID,ability.enemyEffect)
+                                        result.links[#result.links+1]=target.guid
+                                    end
                                 end
                             end
                         end
