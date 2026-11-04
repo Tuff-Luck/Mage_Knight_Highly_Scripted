@@ -114,6 +114,7 @@ local combatPsychicActive=false
 local combatAssignmentJoined={}
 local combatAssignmentSlotSources={}
 local combatAssignmentRowTargets={}
+local combatEnemyPage=1
 local COMBAT_ASSIGNMENT_ROW_COUNT=8
 local COMBAT_ASSIGNMENT_SLOT_COUNT=6
 local COMBAT_ASSIGNMENT_ROW_HEIGHT=40
@@ -1136,18 +1137,24 @@ local function combatAssignmentRefreshRows(entries,sources)
     local totalRowHeight=0
     local grandDamage,damageSources=0,0
     combatAssignmentRowTargets={}
-    for index,entry in ipairs(entries) do
-        if index<=COMBAT_ASSIGNMENT_ROW_COUNT then
-            rowByGUID[entry.guid]=index
-            combatAssignmentRowTargets[index]=entry.guid
-        end
+    local pages=math.max(1,math.ceil(#entries/COMBAT_ASSIGNMENT_ROW_COUNT))
+    combatEnemyPage=math.min(combatEnemyPage,pages)
+    local pageOffset=(combatEnemyPage-1)*COMBAT_ASSIGNMENT_ROW_COUNT
+    for index,entry in ipairs(entries) do rowByGUID[entry.guid]=index end
+    for row=1,COMBAT_ASSIGNMENT_ROW_COUNT do
+        local entry=entries[pageOffset+row]
+        if entry~=nil then combatAssignmentRowTargets[row]=entry.guid end
     end
-    local overflow=math.max(0,#entries-COMBAT_ASSIGNMENT_ROW_COUNT)
+    combatPanelSetAttribute("CombatEnemyPageControls","active",pages>1 and "true" or "false")
+    combatPanelSetAttribute("CombatEnemyPageLabel","text",
+        tostring(pageOffset+1).."-"..tostring(math.min(#entries,pageOffset+COMBAT_ASSIGNMENT_ROW_COUNT))
+            .." / "..tostring(#entries))
+    local overflow=0
     -- Text shown in the ability columns and the columns that hold anything, so empty columns can be hidden.
     local shownTraits,shownOffence,colUsed={},{},{range=false,block=false,attack=false}
     -- Joined enemies form a group (the leader is its first row) that is attacked as one.
     local groups,groupOf={},{}
-    for index=1,math.min(#entries,COMBAT_ASSIGNMENT_ROW_COUNT) do
+    for index=1,#entries do
         local group=groups[#groups]
         if index==1 or combatAssignmentJoined[entries[index].guid]~=true
             or entries[index].destroyed or entries[index-1].destroyed then
@@ -1158,38 +1165,39 @@ local function combatAssignmentRefreshRows(entries,sources)
         group.leader=group.members[1]
         groupOf[index]=group
     end
-    for index=1,COMBAT_ASSIGNMENT_ROW_COUNT do
+    for row=1,COMBAT_ASSIGNMENT_ROW_COUNT do
+        local index=pageOffset+row
         local entry=entries[index]
         local group=groupOf[index]
-        combatPanelSetAttribute("CombatEnemyRow"..index,"active",entry~=nil and "true" or "false")
-        combatPanelSetAttribute("CombatEnemyRow"..index,"color",
+        combatPanelSetAttribute("CombatEnemyRow"..row,"active",entry~=nil and "true" or "false")
+        combatPanelSetAttribute("CombatEnemyRow"..row,"color",
             (group~=nil and #group.members>1) and "rgb(0.27,0.31,0.38)"
             or (index%2==0 and "rgb(0.34,0.29,0.22)" or "rgb(0.29,0.25,0.19)"))
         if entry~=nil then
-            combatPanelSetAttribute("CombatEnemyRow"..index.."Name","text",
+            combatPanelSetAttribute("CombatEnemyRow"..row.."Name","text",
                 (group.leader~=index and "+ " or "")..entry.name)
             local ownTraits=combatEnemyTraitsText(entry.data,entry.perks,COMBAT_ENEMY_DEFENCE_TRAITS)
-            shownTraits[index]=ownTraits
-            combatPanelSetAttribute("CombatEnemyRow"..index.."Traits","text",ownTraits)
-            combatPanelSetAttribute("CombatEnemyRow"..index.."Armour","font","Fonts/MKCardText")
-            combatPanelSetAttribute("CombatEnemyRow"..index.."Traits","font","Fonts/MKCardText")
-            combatPanelSetAttribute("CombatEnemyRow"..index.."Name","color","rgb(0.96,0.92,0.82)")
-            combatPanelSetAttribute("CombatEnemyRow"..index.."Armour","color","rgb(0.96,0.92,0.82)")
-            combatPanelSetAttribute("CombatEnemyRow"..index.."Traits","color","rgb(0.88,0.84,0.73)")
+            shownTraits[row]=ownTraits
+            combatPanelSetAttribute("CombatEnemyRow"..row.."Traits","text",ownTraits)
+            combatPanelSetAttribute("CombatEnemyRow"..row.."Armour","font","Fonts/MKCardText")
+            combatPanelSetAttribute("CombatEnemyRow"..row.."Traits","font","Fonts/MKCardText")
+            combatPanelSetAttribute("CombatEnemyRow"..row.."Name","color","rgb(0.96,0.92,0.82)")
+            combatPanelSetAttribute("CombatEnemyRow"..row.."Armour","color","rgb(0.96,0.92,0.82)")
+            combatPanelSetAttribute("CombatEnemyRow"..row.."Traits","color","rgb(0.88,0.84,0.73)")
             local attacks=combatEnemyAttacks(entry)
             for _,column in ipairs({"Attacks","Offence","Traits"}) do
-                local id="CombatEnemyRow"..index..column
+                local id="CombatEnemyRow"..row..column
                 combatPanelSetAttribute(id,"font","Fonts/MKCardText")
                 combatPanelSetAttribute(id,"color","rgb(0.88,0.84,0.73)")
                 combatPanelSetAttribute(id,"alignment","MiddleCenter")
             end
             local offenceText=combatEnemyOffenceTraits(entry)
-            shownOffence[index]=offenceText
-            combatPanelSetAttribute("CombatEnemyRow"..index.."Offence","text",offenceText)
+            shownOffence[row]=offenceText
+            combatPanelSetAttribute("CombatEnemyRow"..row.."Offence","text",offenceText)
             local traitLines=math.max(select(2,offenceText:gsub("\n",""))+1,
                 select(2,combatEnemyTraitsText(entry.data,entry.perks,COMBAT_ENEMY_DEFENCE_TRAITS):gsub("\n",""))+1)
             for column,width in pairs(COMBAT_ASSIGNMENT_COLUMNS) do
-                combatPanelSetAttribute("CombatEnemyRow"..index..column,"preferredWidth",tostring(width))
+                combatPanelSetAttribute("CombatEnemyRow"..row..column,"preferredWidth",tostring(width))
             end
             entry.attackCount=math.max(#attacks,traitLines)
         end
@@ -1280,7 +1288,7 @@ local function combatAssignmentRefreshRows(entries,sources)
     -- Evaluate that condition against the assigned Blocks before building final group stats:
     -- destroyed enemies cease giving Defender bonuses and cannot contribute Armour to a group.
     local conditionalDestroyed=false
-    for index=1,math.min(#entries,COMBAT_ASSIGNMENT_ROW_COUNT) do
+    for index=1,#entries do
         local entry=entries[index]
         if entry.destroyIfBlocked and not entry.destroyed then
             local hasAttack=false
@@ -1298,7 +1306,7 @@ local function combatAssignmentRefreshRows(entries,sources)
         -- A newly destroyed member splits joined groups just like a pre-destroyed member.
         -- Keep group visuals and group memberships consistent with the resulting combat.
         groups,groupOf={},{}
-        for index=1,math.min(#entries,COMBAT_ASSIGNMENT_ROW_COUNT) do
+        for index=1,#entries do
             local group=groups[#groups]
             if index==1 or combatAssignmentJoined[entries[index].guid]~=true
                 or entries[index].destroyed or entries[index-1].destroyed then
@@ -1309,11 +1317,14 @@ local function combatAssignmentRefreshRows(entries,sources)
             group.leader=group.members[1]
             groupOf[index]=group
         end
-        for index=1,math.min(#entries,COMBAT_ASSIGNMENT_ROW_COUNT) do
+        for index=1,#entries do
             local group=groupOf[index]
-            combatPanelSetAttribute("CombatEnemyRow"..index,"color",
-                #group.members>1 and "rgb(0.27,0.31,0.38)"
-                or (index%2==0 and "rgb(0.34,0.29,0.22)" or "rgb(0.29,0.25,0.19)"))
+            local row=index-pageOffset
+            if row>=1 and row<=COMBAT_ASSIGNMENT_ROW_COUNT then
+                combatPanelSetAttribute("CombatEnemyRow"..row,"color",
+                    #group.members>1 and "rgb(0.27,0.31,0.38)"
+                    or (row%2==0 and "rgb(0.34,0.29,0.22)" or "rgb(0.29,0.25,0.19)"))
+            end
             if entries[index].destroyed then entries[index].attackCount=1 end
         end
     end
@@ -1435,7 +1446,8 @@ local function combatAssignmentRefreshRows(entries,sources)
         end
     end
     combatSetDefeatMarks(trackedGuids,defeatedGuids)
-    for index=1,COMBAT_ASSIGNMENT_ROW_COUNT do
+    for row=1,COMBAT_ASSIGNMENT_ROW_COUNT do
+        local index=pageOffset+row
         local entry=entries[index]
         local group=groupOf[index]
         local isLeader=group~=nil and group.leader==index
@@ -1469,7 +1481,7 @@ local function combatAssignmentRefreshRows(entries,sources)
             if #items>0 then colUsed[family]=true end
             overflow=overflow+math.max(0,#items-COMBAT_ASSIGNMENT_SLOT_COUNT)
             for slot=1,COMBAT_ASSIGNMENT_SLOT_COUNT do
-                local id="CombatSourceSlot"..index..family..slot
+                local id="CombatSourceSlot"..row..family..slot
                 local item=items[slot]
                 if item~=nil then
                     combatAssignmentSlotSources[id]=item.source.key
@@ -1484,7 +1496,7 @@ local function combatAssignmentRefreshRows(entries,sources)
         end
         local merged=group~=nil and #group.members>1
         for _,family in ipairs({"range","attack"}) do
-            combatPanelSetAttribute("CombatSourceCell"..index..family,"color",
+            combatPanelSetAttribute("CombatSourceCell"..row..family,"color",
                 merged and "rgba(1,1,1,0.10)" or "rgba(0,0,0,0)")
         end
         local rowHeight=COMBAT_ASSIGNMENT_ROW_HEIGHT
@@ -1494,12 +1506,12 @@ local function combatAssignmentRefreshRows(entries,sources)
             if combatEnemyHasTrait(entry.data,entry.perks,"elusive") and not rowBlock[index].allBlocked then
                 armourValue=entry.elusiveArmour
             end
-            combatPanelSetAttribute("CombatEnemyRow"..index.."Armour","text",
+            combatPanelSetAttribute("CombatEnemyRow"..row.."Armour","text",
                 entry.destroyed and "-" or tostring(armourValue))
             if #group.members>1 then
                 local sharedText=combatGroupTraitsText(entry,group.entry)
-                shownTraits[index]=sharedText
-                combatPanelSetAttribute("CombatEnemyRow"..index.."Traits","text",sharedText)
+                shownTraits[row]=sharedText
+                combatPanelSetAttribute("CombatEnemyRow"..row.."Traits","text",sharedText)
                 entry.attackCount=math.max(entry.attackCount or 1,select(2,sharedText:gsub("\n",""))+1)
             end
             local attackLines={}
@@ -1508,7 +1520,7 @@ local function combatAssignmentRefreshRows(entries,sources)
                 attackLines[#attackLines+1]=combatTypeRich(attack.label.." "..tostring(attack.value-reduction),
                     attack.key,reduction>0)
             end
-            combatPanelSetAttribute("CombatEnemyRow"..index.."Attacks","text",
+            combatPanelSetAttribute("CombatEnemyRow"..row.."Attacks","text",
                 #attackLines>0 and table.concat(attackLines,"\n") or "-")
             local lines={}
             local isLast=group.members[#group.members]==index
@@ -1543,22 +1555,22 @@ local function combatAssignmentRefreshRows(entries,sources)
                 end
             end
             rowHeight=math.max(rowHeight,math.max(#lines,entry.attackCount or 1)*17+8)
-            local resultID="CombatEnemyRow"..index.."Result"
+            local resultID="CombatEnemyRow"..row.."Result"
             combatPanelSetAttribute(resultID,"text",table.concat(lines,"\n"))
             combatPanelSetAttribute(resultID,"fontSize","13")
             combatPanelSetAttribute(resultID,"font","Fonts/MKCardText")
             combatPanelSetAttribute(resultID,"color","White")
             totalRowHeight=totalRowHeight+rowHeight
         end
-        combatPanelSetAttribute("CombatEnemyRow"..index,"preferredHeight",tostring(rowHeight))
+        combatPanelSetAttribute("CombatEnemyRow"..row,"preferredHeight",tostring(rowHeight))
     end
 
     -- Hide a column when every visible enemy leaves it blank or "None".
     local function textBlank(text) return text==nil or text=="" or text=="None" or text=="-" end
     local colShown={range=colUsed.range,block=colUsed.block,attack=colUsed.attack,traits=false,offence=false}
-    for index=1,math.min(#entries,COMBAT_ASSIGNMENT_ROW_COUNT) do
-        if not textBlank(shownTraits[index]) then colShown.traits=true end
-        if not textBlank(shownOffence[index]) then colShown.offence=true end
+    for row=1,COMBAT_ASSIGNMENT_ROW_COUNT do
+        if not textBlank(shownTraits[row]) then colShown.traits=true end
+        if not textBlank(shownOffence[row]) then colShown.offence=true end
     end
     local columnWidths={traits=150,range=170,offence=130,block=170,attack=170}
     local headerIDs={traits="CombatDefenceTraitsHeader",range="CombatRangeSiegeHeader",offence="CombatOffenceHeader",
@@ -1662,6 +1674,7 @@ local function combatCalcShutdown()
     if seat~=nil then resourceCardsApplyFameRep(seat) end
     combatAssignmentState={seat=nil,selected=nil,targets={},explicit={}}
     combatAssignmentJoined={}
+    combatEnemyPage=1
     attackAssignmentsDamageClear()
     if attackAssignmentsHasAny() then attackAssignmentsClearAll() end
 end
@@ -1786,6 +1799,11 @@ function resourceCardsCombatAssignSource(sourceGUID,enemyGUID)
 end
 
 -- Click an enemy name to join it with the row above, or click again to split it off.
+function resourceCardsCombatPage(delta)
+    combatEnemyPage=math.max(1,combatEnemyPage+delta)
+    resourceCardsRefreshCombatEnemies()
+end
+
 function resourceCardsCombatToggleGroup(row)
     local guid=combatAssignmentRowTargets[row]
     if guid==nil or row<2 then return end
