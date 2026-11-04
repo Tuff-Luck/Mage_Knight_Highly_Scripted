@@ -1534,6 +1534,7 @@ function removeTactic(player, mouseButton, id)
 			for b=1, 6, 1 do
 				for _, obj in pairs(getObjectFromGUID(tacticZones[b]).getObjects()) do
 					if isTacticCard(obj) then
+						protectedObjectAllowScriptRemoval(obj.guid,trashCan,"End-of-round tactic removal")
 						getObjectFromGUID(trashCan).putObject(obj)
 						testTactic=obj.guid
 						break
@@ -1541,7 +1542,11 @@ function removeTactic(player, mouseButton, id)
 				end
 			end
 		else
-			getObjectFromGUID(trashCan).putObject(getObjectFromGUID(testTactic))
+			local selected=getObjectFromGUID(testTactic)
+			if selected~=nil then
+				protectedObjectAllowScriptRemoval(testTactic,trashCan,"End-of-round tactic removal")
+				getObjectFromGUID(trashCan).putObject(selected)
+			end
 		end
 		gStates.tacticRemove=false
 		safeWaitCondition("Turn",function() tacticToggle() end, function() return getObjectFromGUID(testTactic)==nil end)

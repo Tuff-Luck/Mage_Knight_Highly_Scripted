@@ -50,6 +50,16 @@ function onLoad(saved_data)
 	end)
 end
 
+-- TTS player Delete/Cut actions can be vetoed before any object is destroyed.
+-- Keep the existing tryObjectRotate flip safeguard independent of this callback.
+function onPlayerAction(player, action, targets)
+	local allowed=true
+	safeCallback("onPlayerAction",function()
+		allowed=__onPlayerAction_raw(player,action,targets)~=false
+	end)
+	return allowed
+end
+
 function onObjectPickUp(player_color, picked_up_object)
 	return safeCallback("onObjectPickUp", function() __onObjectPickUp_raw(player_color, picked_up_object) end)
 end

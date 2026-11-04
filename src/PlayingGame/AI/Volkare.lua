@@ -422,6 +422,7 @@ function volkareTurn(player, mouseButton, id)
 										if gStates.defeatedCities.amount==0 then
 											gStates.blurb="{en}Volkare has been welcomed in by the City, making him unbeatable.<size=6>\n\n</size>You have Lost.{it}La Città ha accolto Volkare, rendendolo invincibile.<size=6>\n\n</size>Avete perso.{ru}Волкара радушно приняли в Городе, и теперь его невозможно победить.<size=6>\n\n</size>Вы проиграли.{zh-tw}\n沃卡里受到城市的熱烈歡迎，\n他已經無人能敵。你輸了。{zh-cn}\n沃卡里受到城市的热烈欢迎，\n他已经无人能敌。你输了。{ko}볼케어는 무수한 환영을 받으며 도시에 도착했다. 이제 그를 막을 자는 없다.<size=6>\n\n</size>게임 패배.{es}Volkare ha sido recibido por la ciudad, haciéndolo invencible.<size=6>\n\n</size>Has perdido.{fr}Volkare a été accueilli par la Cité, ce qui le rend imbattable.<size=6>\n\n</size>Vous avez perdu.{pt-br}Volkare foi recebido com louvores na Cidade, fazendo-o imbatível.<size=6>\n\n</size>Você perdeu.{de}Volkare wurde von der Stadt aufgenommen, was ihn unschlagbar macht.<size=6>\n\n</size>Du hast verloren."
 											gStates.volkareWon=true; volkareReleaseRewindWhenStable()
+											protectedObjectAllowScriptRemoval(gStates.volkareModel,trashCan,"Volkare scenario defeat")
 											getObjectFromGUID(trashCan).putObject(getObjectFromGUID(gStates.volkareModel))
 										else
 											--check if player is there defending or end game
@@ -489,7 +490,8 @@ function volkareTurn(player, mouseButton, id)
 													--check if this is Volkare's second attack or end game
 													if gStates.volkareRaisedCity==true then
 														gStates.blurb="{en}Volkare has conquered the city.<size=6>\n\n</size>You have Lost.{it}Volkare ha conquistato la città.<size=6>\n\n</size>Avete perso.{ru}Волкар захватил город.<size=6>\n\n</size>Вы проиграли.{zh-tw}\n沃卡里已經征服了這座城市。<size=6>\n\n</size>你輸了。{zh-cn}\n沃卡里已经征服了这座城市。<size=6>\n\n</size>你输了。{ko}볼케어가 도시를 정복했습니다.<size=6>\n\n</size>게임 패배{es}Volkare ha conquistado la ciudad.<size=6>\n\n</size>Has perdido.{fr}Volkare a conquis la ville.<size=6>\n\n</size>Vous avez perdu.{pt-br}Volkare conquistou a Cidade<size=6>\n\n</size>Você Perdeu.{de}Volkare hat die Stadt erobert.<size=6>\n\n</size>Du hast verloren."
-														getObjectFromGUID(trashCan).putObject(getObjectFromGUID(gStates.volkareModel))
+														protectedObjectAllowScriptRemoval(gStates.volkareModel,trashCan,"Volkare scenario defeat")
+											getObjectFromGUID(trashCan).putObject(getObjectFromGUID(gStates.volkareModel))
 														gStates.volkareWon=true; volkareReleaseRewindWhenStable()
 													else
 														if (movementSteps==2 and pass==2) or movementSteps==1 then gStates.blurb=joinLang({"{en}Volkare has raised the city\n(it provides no Interaction or Hand Size bonus from now on){it}Volkare ha raso al suolo la città\n(non fornisce più Interazione né bonus al limite di mano){ru}Волкар поднял город\n(с этого момента он не дает бонусов за взаимодействие или для предела руки){zh-tw}\n沃卡里劫掠了城市四周\n（從現在起此城市不能交涉，\n並且不會增加手牌上限）{zh-cn}\n沃卡里劫掠了城市四周\n（从现在起此城市不能交涉，\n并且不会增加手牌上限）{ko}볼케어가 도시를 파괴했습니다.\n(이제 도시에서 교류를 할 수 없고 카드 보유 제한 혜택이 사라집니다.){es}Volkare ha elevado la ciudad\n(a partir de ahora no proporciona ninguna bonificación por interacción o tamaño de la mano){fr}Volkare a élevé la ville\n(il ne fournit plus de bonus d'interaction ou de taille de main à partir de maintenant){pt-br}Volkare ergueu a Cidade\n(Ela não fornece Interação ou Bonus de Tamanho de mão por hora){de}Volkare hat die Stadt erhöht\n(sie bietet von nun an keinen Interaktions- oder Handgrößenbonus mehr)", gStates.blurb}) end
@@ -783,7 +785,10 @@ function volkareRetreat(player, mouseButton, id)
 					if returnScenario and gStates.volkareRaisedCity==true then
 						gStates.blurb="{en}Volkare has conquered the city.<size=6>\n\n</size>You have Lost.{it}Volkare ha conquistato la città.<size=6>\n\n</size>Avete perso.{ru}Волкар захватил город.<size=6>\n\n</size>Вы проиграли.{zh-tw}\n沃卡里已經征服了這座城市。<size=6>\n\n</size>你輸了。{zh-cn}\n沃卡里已经征服了这座城市。<size=6>\n\n</size>你输了。{ko}볼케어가 도시를 정복했습니다.<size=6>\n\n</size>게임 패배{es}Volkare ha conquistado la ciudad.<size=6>\n\n</size>Has perdido.{fr}Volkare a conquis la ville.<size=6>\n\n</size>Vous avez perdu.{pt-br}Volkare conquistou a Cidade<size=6>\n\n</size>Você Perdeu.{de}Volkare hat die Stadt erobert.<size=6>\n\n</size>Du hast verloren."
 						local volkareObj=gStates.volkareModel~=nil and getObjectFromGUID(gStates.volkareModel) or nil
-						if volkareObj~=nil then getObjectFromGUID(trashCan).putObject(volkareObj) end
+						if volkareObj~=nil then
+							protectedObjectAllowScriptRemoval(volkareObj.guid,trashCan,"Volkare scenario defeat")
+							getObjectFromGUID(trashCan).putObject(volkareObj)
+						end
 						gStates.volkareWon=true
 						volkareReleaseRewindWhenStable()
 						UI.setAttribute("VolkareRetreatText", "text", "{en}Volkare Processed{it}Volkare Completato{ru}Волкар сходил{zh-tw}沃卡里行動結束{zh-cn}沃卡里行动结束{ko}진행 완료{es}Volkare Procesado{fr}Volkare Traité{pt-br}Volkare Processado{de}Volkare Verarbeitet")

@@ -2,7 +2,115 @@
 local saveZigguratPyramidUI, restoreZigguratPyramidUI, refreshCardEffectAfterRotation, normalizePlayerLiftHeight, __maintenanceTick_raw, startMaintenanceTick
 -- TTS persistence, raw event handling, maintenance and runtime event dispatch.
 
+-- Essential table pieces are player-delete/cut protected. Keep the registry derived from
+-- existing GUID data and live turnOrder so it also works after saving/reloading.
+-- Script destruction is only diagnosed; expected lifecycle removals are marked explicitly.
+local protectedFixedObjectKind={
+	[mapArea]="Map scripting zone",
+	[turnOrderArea]="Turn-order scripting zone",
+	[GUID.bag.spareDice]="Mana dice supply bag",
+	[dummyBoard]="Dummy board",
+	["3d4319"]="Table extension",
+	["519f96"]="Table surface"
+}
+local function protectGUIDGroup(guids,label)
+	for _,guid in pairs(guids or {}) do
+		if type(guid)=="string" and guid~="" then protectedFixedObjectKind[guid]=label end
+	end
+end
+protectGUIDGroup(GUID.zone,"Game scripting zone")
+protectGUIDGroup(tacticCard,"Tactic card")
+protectGUIDGroup(tacticZones,"Tactic scripting zone")
+protectGUIDGroup(playerBoard,"Player board")
+protectGUIDGroup(colorBand,"Player colour bar")
+protectGUIDGroup(playerPlayAreas,"Player play-area zone")
+protectGUIDGroup(playerUnitAreas,"Player unit zone")
+protectGUIDGroup(playerCrystalAreas,"Player crystal zone")
+protectGUIDGroup(deedDeckZones,"Player deed zone")
+protectGUIDGroup(deedDeckDiscardZones,"Player discard zone")
+protectGUIDGroup(handZones,"Player hand zone")
+protectGUIDGroup(monsterPiles,"Monster supply bag")
+-- Registry lookup returns whether an unexpected script destruction should be reported.
+-- Mana dice are intentionally consumed/replaced by the Mana Source and are player-protected only.
+local function protectedObjectKind(guid)
+	if type(guid)~="string" then return nil,false end
+	local fixed=protectedFixedObjectKind[guid]
+	if fixed~=nil then return fixed,true end
+	if type(turnOrder)=="table" then
+		for _,details in pairs(turnOrder) do
+			if type(details)=="table" then
+				if details.turnOrderTokenGUID==guid then return "Round Order token",true end
+				if details.fameGUID==guid then return "Fame shield",true end
+				if details.reputationGUID==guid then return "Reputation shield",true end
+			end
+		end
+	end
+	if type(gStates)=="table" then
+		if gStates.volkareModel==guid and type(gStates.positionMageKnight)=="table" and gStates.positionMageKnight[5]=="Volkare" then
+			return "Volkare model",true
+		end
+		if type(gStates.manaMirror)=="table" and gStates.manaMirror[guid]~=nil then return "Mana mirror die",false end
+		if type(gStates.manaSource)=="table" then
+			for _,entry in pairs(gStates.manaSource) do
+				if type(entry)=="table" and entry.manaDie==guid then return "Mana Source die",false end
+			end
+		end
+	end
+	return nil,false
+end
+
+local protectedExpectedScriptRemovals={}
+local protectedUnexpectedDestroyReported={}
+-- The game intentionally moves certain protected pieces into Trash: tactics at round end,
+-- and Volkare when his scenario ends. The permit is scoped to that destination and expires.
+function protectedObjectAllowScriptRemoval(guid,containerGUID,reason)
+	if protectedObjectKind(guid)==nil then return end
+	local permit={destination=containerGUID,reason=reason or "scripted cleanup"}
+	protectedExpectedScriptRemovals[guid]=permit
+	safeWaitFrames("ProtectedObjects",function()
+		if protectedExpectedScriptRemovals[guid]==permit then protectedExpectedScriptRemovals[guid]=nil end
+	end,30)
+end
+
+local function protectedObjectCanEnterContainer(container,obj)
+	if container==nil or obj==nil or type(gStates)~="table" or gStates.firstStarted~=true then return true end
+	local kind=protectedObjectKind(obj.guid)
+	if kind==nil then return true end
+	local permit=protectedExpectedScriptRemovals[obj.guid]
+	return permit~=nil and permit.destination==container.guid
+end
+
+function __onPlayerAction_raw(player,action,targets)
+	if action~=Player.Action.Delete and action~=Player.Action.Cut then return true end
+	for _,obj in ipairs(targets or {}) do
+		local kind=obj~=nil and protectedObjectKind(obj.guid) or nil
+		if kind~=nil then
+			if player~=nil and player.color~=nil then
+				broadcastToColor(kind.." is protected against player deletion.",player.color,{1,0.72,0.35})
+			end
+			return false -- Cancel the whole multi-object action, not just one selected piece.
+		end
+	end
+	return true
+end
+
+local function protectedObjectDestroyAudit(guid)
+	if type(gStates)~="table" or gStates.firstStarted~=true then return end
+	local kind,diagnose=protectedObjectKind(guid)
+	if kind==nil or diagnose~=true or protectedExpectedScriptRemovals[guid]~=nil or protectedUnexpectedDestroyReported[guid]==true then return end
+	-- Wait for actual disappearance, not an object temporarily reloading/changing state.
+	safeWaitFrames("ProtectedObjects",function()
+		if getObjectFromGUID(guid)~=nil or protectedExpectedScriptRemovals[guid]~=nil then return end
+		if protectedUnexpectedDestroyReported[guid]==true then return end
+		protectedUnexpectedDestroyReported[guid]=true
+		log("PROTECTED OBJECT MISSING: "..kind.." ["..guid.."] in scenario "..tostring(gStates.gameScenario)
+			..", round "..tostring(gStates.currentRound)..", turn "..tostring(gStates.turnNumber)
+			..". Check unexpected script destruction/container cleanup.")
+	end,2)
+end
+
 function __tryObjectEnterContainer_raw(container, object)
+	if protectedObjectCanEnterContainer(container,object)==false then return false end
     if gStates.preEndTurn==false and container.type=="Card" and object.type=="Card" then
 		for _, turnDetails in pairs(turnOrder) do
 			if turnDetails.seatPos~=nil then
@@ -762,6 +870,7 @@ function __onObjectDestroy_raw(destroyedObj)
 	if destroyedObj==nil then return end
 	attackAssignmentsClearForObject(destroyedObj)
 	local destroyedGuid=destroyedObj.guid
+	protectedObjectDestroyAudit(destroyedGuid)
 	if runtimeMapContainsGUID(destroyedGuid)==true then
 		if terrainTiles[destroyedGuid]~=nil then runtimeMapInvalidateTerrain() else runtimeMapInvalidateObjects() end
 	end
@@ -1992,6 +2101,7 @@ end
 
 --stop crystal entering command token bag
 function __filterObjectEnterContainer_raw(container, enter_object)
+	if protectedObjectCanEnterContainer(container,enter_object)==false then return false end
 	if container.getGMNotes()=="Command Tokens" and enter_object.getGMNotes()~="Command Token" then return false end
 	if container.getGMNotes()=="Skills" and skillTokens[enter_object.guid]==nil then return false end
 	return true -- Allows object to enter.
