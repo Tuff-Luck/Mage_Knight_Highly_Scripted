@@ -1378,6 +1378,36 @@ local combatDefeatDefeated={}
 combatDefeatMarksActive=false
 combatDefeatCleanupSnapshot=nil
 local combatDefeatFlipRestoring={}
+local combatDefeatFlipWarning="{en}There is no need to flip an enemy face down while the Combat Calculator is open. It marks defeated enemies with a red X and returns the rest at the end of the turn."
+local combatDefeatMarkerClick="combatDefeatMarkerNoop"
+
+--Zero-size classic TTS button: only its red label renders, attached to and moving with the token.
+function combatDefeatMarkerNoop() end
+
+local function combatDefeatUpdateMarker(obj, defeated)
+	local indices={}
+	for _,button in ipairs(obj.getButtons() or {}) do
+		if button.click_function==combatDefeatMarkerClick then indices[#indices+1]=button.index end
+	end
+	if defeated~=true or #indices>1 then
+		--Remove backwards: TTS immediately reindexes higher buttons after each removal.
+		for i=#indices,(defeated==true and 2 or 1),-1 do obj.removeButton(indices[i]) end
+	end
+	if defeated~=true or #indices>0 then return end
+	local bounds=obj.getBoundsNormalized()
+	local scale=obj.getScale()
+	local height=bounds~=nil and bounds.size~=nil and (bounds.size.y or bounds.size[2]) or 0
+	local scaleY=scale~=nil and (scale.y or scale[2]) or 1
+	local y=math.max(0.12,height/(2*math.max(0.01,scaleY))+0.08)
+	obj.createButton({click_function=combatDefeatMarkerClick,function_owner=Global,label="X",
+		position={0,y,0},rotation={0,0,0},width=0,height=0,font_size=160,
+		font_color={1,0.04,0.04},tooltip="Combat Calculator: defeated"})
+end
+
+local function combatDefeatFlipChanged(flip,oldFlip)
+	if type(flip)~="number" or type(oldFlip)~="number" then return false end
+	return math.abs((flip-oldFlip+180)%360-180)>90
+end
 
 function combatEnemyTokenDefeated(obj)
 	if obj==nil then return false end
@@ -1388,7 +1418,9 @@ end
 local function combatDefeatRefreshTokens(guids)
 	for guid in pairs(guids) do
 		local obj=getObjectFromGUID(guid)
-		if obj~=nil and monsterPugs[guid]~=nil then setMonsterObjectButtons(obj) end
+		if obj~=nil and monsterPugs[guid]~=nil then
+			combatDefeatUpdateMarker(obj,combatDefeatMarksActive==true and combatDefeatDefeated[guid]==true)
+		end
 	end
 end
 
@@ -1400,13 +1432,11 @@ function combatSetDefeatMarks(tracked,defeated)
 	local trackingChanged=combatDefeatMarksActive~=true
 	for guid in pairs(tracked) do if combatDefeatTracked[guid]~=true then trackingChanged=true end end
 	for guid in pairs(combatDefeatTracked) do if tracked[guid]~=true then trackingChanged=true end end
-	--Refresh every evaluated enemy, not only state changes. Other object systems can rebuild
-	--a monster's UI while the calculator is open, which would otherwise silently remove its X.
+	--Native buttons are separate from object XML, so only reconcile actual changes.
 	local refresh={}
-	for guid in pairs(tracked) do refresh[guid]=true end
-	for guid in pairs(combatDefeatTracked) do refresh[guid]=true end
-	for guid in pairs(defeated) do refresh[guid]=true end
-	for guid in pairs(combatDefeatDefeated) do refresh[guid]=true end
+	for guid in pairs(changed) do refresh[guid]=true end
+	for guid in pairs(tracked) do if combatDefeatTracked[guid]~=true then refresh[guid]=true end end
+	for guid in pairs(combatDefeatTracked) do if tracked[guid]~=true then refresh[guid]=true end end
 	combatDefeatMarksActive=true
 	combatDefeatTracked,combatDefeatDefeated=tracked,defeated
 	combatDefeatRefreshTokens(refresh)
@@ -1443,45 +1473,36 @@ function combatDefeatFlipUndefeated(obj)
 	obj.setRotation({rotation.x,rotation.y,180})
 end
 
---A manual flip face down is unnecessary and would fight the calculator's result, so put it back.
-function combatDefeatGuardManualFlip(object)
-	if combatDefeatMarksActive~=true or gStates.preEndTurn==true or object==nil then return end
+--Block the F-key flip before TTS rotates the token. Do not prevent normal Q/E spins.
+function combatDefeatRejectManualFlip(object,flip,oldFlip)
+	if combatDefeatMarksActive~=true or gStates==nil or gStates.preEndTurn==true
+		or object==nil or object.is_face_down==true or not combatDefeatFlipChanged(flip,oldFlip) then return end
+	if combatDefeatTracked[object.guid]~=true then return end
+	broadcastToAll(combatDefeatFlipWarning,warningColor)
+	return false
+end
+
+--Fallback for an explicit rotation event that was not cancelled by the pre-rotation handler.
+function combatDefeatGuardManualFlip(object,flip,oldFlip)
+	if combatDefeatMarksActive~=true or gStates==nil or gStates.preEndTurn==true or object==nil
+		or not combatDefeatFlipChanged(flip,oldFlip) then return end
 	local guid=object.guid
 	if combatDefeatTracked[guid]~=true or combatDefeatFlipRestoring[guid]==true then return end
 	combatDefeatFlipRestoring[guid]=true
-	local attempts=0
-	local function check()
-		local obj=getObjectFromGUID(guid)
-		if obj==nil or combatDefeatMarksActive~=true or gStates.preEndTurn==true or combatDefeatTracked[guid]~=true then
-			combatDefeatFlipRestoring[guid]=nil
-			return
-		end
-		attempts=attempts+1
-		--Still held or moving: look again shortly. Gives up after about 10 seconds.
-		if obj.held_by_color~=nil or obj.isSmoothMoving() or not obj.resting then
-			if attempts<40 then safeWaitTime("Combat",check,0.25) else combatDefeatFlipRestoring[guid]=nil end
-			return
-		end
+	safeWaitFrames("Combat",function()
 		combatDefeatFlipRestoring[guid]=nil
-		if obj.is_face_down~=true then return end
-		--Flip the token back over in place. Do not alter its height or force a world rotation:
-		--that can push it beneath the mat and can disturb its original orientation.
+		local obj=getObjectFromGUID(guid)
+		if obj==nil or combatDefeatMarksActive~=true or gStates.preEndTurn==true
+			or combatDefeatTracked[guid]~=true or obj.is_face_down~=true then return end
 		obj.flip()
-		broadcastToAll("{en}There is no need to flip an enemy face down while the Combat Calculator is open. It marks defeated enemies with a red X and returns the rest at the end of the turn.",warningColor)
-	end
-	safeWaitTime("Combat",check,0.25)
+		broadcastToAll(combatDefeatFlipWarning,warningColor)
+	end,2)
 end
 
 --Build the buttons that live on a monster token so attaching/detaching Possessed updates them immediately.
 function monsterObjectButtons(obj, forcedPossessed)
 	local addedButtons={}
 	if obj==nil or obj.guid==nil or monsterPugs[obj.guid]==nil then return addedButtons end
-	if combatDefeatMarksActive==true and combatDefeatDefeated[obj.guid]==true then
-		addedButtons[#addedButtons+1]={tag="Panel", attributes={id="DefeatedXPanel"..obj.guid, width=220, height=220,
-			position="0 0 -15", rotation="0 0 180", color="rgba(0,0,0,0)", raycastTarget="false"},
-			children={{tag="Text", attributes={id="DefeatedX"..obj.guid, text="X", font="Fonts/MKCardText", fontSize=220,
-				fontStyle="Bold", color="#E01010", alignment="MiddleCenter"}}}}
-	end
 	local possessedAttached=forcedPossessed
 	if possessedAttached==nil then
 		possessedAttached=false
