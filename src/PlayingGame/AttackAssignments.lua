@@ -43,7 +43,8 @@ function attackAssignmentsKindFor(resource)
 	local text=tostring(resource or ""):lower()
 	if text:find("attack",1,true) or text:find("siege",1,true) or text:find("ranged",1,true)
 		or text:find("range",1,true) then return "armour" end
-	if text:find("block",1,true) or text:find("move",1,true) then return "attack" end
+	if text:find("block",1,true) or text:find("move",1,true)
+        or text:find("influence",1,true) then return "attack" end
 	return "other"
 end
 
@@ -633,6 +634,9 @@ function attackAssignmentTargetClicked(target,playerColor)
 			if entry.sourceGUID==pending.sourceGUID and entry.targetGUID==target.guid
 				and entry.resource==pending.resource then duplicate=true break end
 		end
+        -- Each additional right-clicked Influence arrow is ONE extra point
+        -- allocated to that enemy. Repeating it assigns more points.
+        if pending.additional and pending.resource=="influence" then duplicate=false end
 		if not duplicate then
 			assignmentCounter=assignmentCounter+1
 			local id=tostring(assignmentCounter)
@@ -717,6 +721,19 @@ function attackAssignmentsTargetGUIDs(sourceGUID)
 		if entry.sourceGUID==sourceGUID then targets[entry.targetGUID]=true end
 	end
 	return targets
+end
+
+-- Counts preserve repeated Influence arrows. A normal source uses the set
+-- version above; a Psychic Influence source can spend more than one point
+-- on a secondary enemy without duplicating any points in the calculator.
+function attackAssignmentsTargetCounts(sourceGUID)
+    local targets={}
+    for _,entry in pairs(assignmentRegistry) do
+        if entry.sourceGUID==sourceGUID then
+            targets[entry.targetGUID]=(targets[entry.targetGUID] or 0)+1
+        end
+    end
+    return targets
 end
 
 function attackAssignmentsRemove(id)
