@@ -1108,8 +1108,10 @@ local function combatAssignmentRefreshRows(entries,sources)
         local moveOnly=source.ranged+source.siege+source.block+source.attack==0
         -- Once locked, a source stays on its enemy until it is retargeted or its arrow is removed.
         local targetGUID=combatAssignmentState.targets[source.key]
-        if targetGUID==nil and moveOnly then
-            -- Move is never aimed automatically; keep an arrow the player drew earlier.
+        if targetGUID==nil then
+            -- Restore the saved visual assignment for every source after a reload.
+            -- Move has no automatic target, while other resources use nearest-enemy only
+            -- when no valid persisted assignment exists.
             for guid in pairs(attackAssignmentsTargetGUIDs(source.key)) do
                 if rowByGUID[guid]~=nil then
                     targetGUID=guid
@@ -5475,6 +5477,9 @@ end
 
 local function resourceCardsRelevantZone(ctx)
     if ctx==nil or ctx.zoneInfo==nil or ctx.obj==nil then return nil end
+    -- The tracker only renders the active Mage Knight's board; ignore other seats early.
+    local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    if active==nil or active.seatPos~=ctx.zoneInfo.seatPos then return nil end
     local kind=ctx.zoneInfo.kind
     local objectKind=resourceObjectKind(ctx.obj)
     if kind=="play" and (objectKind~=nil or monsterPugs[ctx.objGUID]~=nil) then
