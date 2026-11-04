@@ -89,7 +89,7 @@ local byType={
     Shocktroops={
         value(1,"ranged",1,"Ranged Attack 1; all your other Units get +1 to all Attacks this turn",{boostOtherUnits=true}),
         special(2,"Chosen enemy gets Armor -1 and one Attack -1",{enemyEffect={armourReduce=1}}),
-        special(3,"Reduce one enemy Attack by 3; assign its damage to Shocktroops first")},
+        special(3,"Reduce one enemy Attack by 3; assign its damage to Shocktroops first",{targetableEnemy=true})},
     MagicFamiliars={
         value(1,"attack",3,"Attack 3 (+2 if the Unit's crystal is red)",{bonusColor="Red",bonus=2}),
         value(2,"block",4,"Block 4 (+3 if the Unit's crystal is blue)",{bonusColor="Blue",bonus=3}),
@@ -152,7 +152,7 @@ local byType={
         value(3,"ranged",3,"Pay green mana: target loses all resistances; Ranged Attack 3",{manaCost="Green",baseWithoutPayment=true,enemyEffect={removeResist=true}})},
     DelphanaMasters={
         special(1,"Pay blue mana: target enemy does not attack",        {manaCost="Blue",buttonLabel="B",enemyEffect={noAttack=true}}),
-        special(2,"Pay red mana: target enemy is destroyed if blocked",{manaCost="Red",buttonLabel="R"}),
+        special(2,"Pay red mana: target enemy is destroyed if blocked",{manaCost="Red",buttonLabel="R",targetableEnemy=true}),
                 special(3,"Pay green mana: target enemy Armor -5 (minimum 1)",{manaCost="Green",buttonLabel="G",enemyEffect={armourReduce=5}}),
                 special(4,"Pay white mana: target enemy loses all fortifications and resistances",{manaCost="White",buttonLabel="W",enemyEffect={removeFortify=true,removeResist=true}})}
 }
