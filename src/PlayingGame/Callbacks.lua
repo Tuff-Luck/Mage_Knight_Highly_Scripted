@@ -107,7 +107,14 @@ function onObjectRandomize(randomize_object, player_color)
 end
 
 function tryObjectRotate(object, spin, flip, player_color, old_spin, old_flip)
-	return safeDirectCallback("tryObjectRotate", __tryObjectRotate_raw, object, spin, flip, player_color, old_spin, old_flip)
+	--Rotation is allowed by default. Only an explicit combat-guard rejection may block it.
+	--safeDirectCallback forwards just two arguments, so use the full error-wrapped boundary here.
+	--If the guard itself errors, fail open: unrelated map/terrain rotations must still work.
+	local allowed=true
+	safeCallback("tryObjectRotate",function()
+		allowed=__tryObjectRotate_raw(object,spin,flip,player_color,old_spin,old_flip)~=false
+	end)
+	return allowed
 end
 
 function onObjectRotate(object, spin, flip, player_color, old_spin, old_flip)
