@@ -1861,6 +1861,11 @@ refreshCardEffectAfterRotation=function(cardGUID)
 	end, 1)
 end
 
+--TTS calls this before a player's Q/E/F rotation; returning false cancels an unwanted flip.
+function __tryObjectRotate_raw(object,spin,flip,player_color,old_spin,old_flip)
+	return combatDefeatRejectManualFlip(object,flip,old_flip)
+end
+
 function __onObjectRotate_raw(object, spin, flip, player_color, old_spin, old_flip)
 	if object==nil then return end
     resourceCardsObjectMoved(object)
@@ -1880,7 +1885,7 @@ function __onObjectRotate_raw(object, spin, flip, player_color, old_spin, old_fl
 	--Quest enemy tokens can be manually flipped while waiting on a Quest card. Refresh only
 	--an existing Quest Attack control after TTS has applied the new face.
 	if monsterPugs[object.guid]~=nil then
-		combatDefeatGuardManualFlip(object)
+		combatDefeatGuardManualFlip(object,flip,old_flip)
 		apocalypseQuestScheduleEnemyAttackButtonOrientation(object.guid)
 		refreshCityRevealForMonster(object.guid)
 	end
