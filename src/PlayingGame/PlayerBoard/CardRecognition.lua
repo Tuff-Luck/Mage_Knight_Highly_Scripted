@@ -356,6 +356,33 @@ local function combatSummonedAttackPrevented(summoned)
         and combatEnemyFortificationCount(summoned.data,summoned.perks)==0))
 end
 
+-- An Attack reduction modifies one printed Attack, not every Attack on a multi-attack enemy.
+-- When several Attacks exist, use the currently strongest one, with stable order on ties.
+-- All reductions are rebuilt from the original printed values on every scan (never cumulative).
+local function combatApplyAttackReductions(attacks,effect,ownerGUID)
+    local reductions=effect~=nil and effect.attackReductions or nil
+    if reductions==nil or #reductions==0 then return end
+    local ordered={}
+    for _,reduction in ipairs(reductions) do ordered[#ordered+1]=reduction end
+    table.sort(ordered,function(a,b)
+        if a.amount~=b.amount then return a.amount>b.amount end
+        return tostring(a.source)<tostring(b.source)
+    end)
+    for _,reduction in ipairs(ordered) do
+        local target=nil
+        for _,attack in ipairs(attacks) do
+            if not attack.pending and (ownerGUID==nil or attack.owner==ownerGUID)
+                and attack.value>0 and (target==nil or attack.value>target.value) then
+                target=attack
+            end
+        end
+        if target~=nil then
+            target.value=math.max(0,target.value-reduction.amount)
+            if reduction.firstDamageUnit~=nil then target.firstDamageUnit=reduction.firstDamageUnit end
+        end
+    end
+end
+
 local function combatEnemyAttacks(entry)
     if entry.noAttack or entry.destroyed then return {} end
     local attacks=combatEnemyPrintedAttacks(entry.data,entry.perks,entry.removeAbilities,entry.guid)
@@ -363,15 +390,16 @@ local function combatEnemyAttacks(entry)
         for _,summoned in ipairs(entry.summoned or {}) do
             if not combatSummonedAttackPrevented(summoned) then
                 local strip=summoned.effect~=nil and summoned.effect.removeAbilities==true
-                for _,attack in ipairs(combatEnemyPrintedAttacks(summoned.data,summoned.perks,strip,summoned.guid)) do
-                    attacks[#attacks+1]=attack
-                end
+                local summonedAttacks=combatEnemyPrintedAttacks(summoned.data,summoned.perks,strip,summoned.guid)
+                combatApplyAttackReductions(summonedAttacks,summoned.effect,summoned.guid)
+                for _,attack in ipairs(summonedAttacks) do attacks[#attacks+1]=attack end
             end
         end
         for _=1,math.max(0,#entry.data.monsters-#(entry.summoned or {})) do
             attacks[#attacks+1]={key="P",label="Summon",value=0,block="block",pending=true}
         end
     end
+    combatApplyAttackReductions(attacks,entry.effect,nil)
     return attacks
 end
 
@@ -1547,6 +1575,7 @@ local function refreshCombatEnemyPanel(monsters)
         entry.x=obj~=nil and obj.getPosition()[1] or 0
         -- Card effects on one enemy (Armour reduction never goes below 1).
         local effect=enemyEffects~=nil and enemyEffects[entry.guid] or nil
+        entry.effect=effect
         if effect~=nil then
             local reduction=combatEnemyFortificationCount(entry.data,entry.perks)>0
                 and effect.armourReduceFortified or effect.armourReduce
@@ -1568,6 +1597,7 @@ local function refreshCombatEnemyPanel(monsters)
         entry.noAttack=effect~=nil and (effect.noAttack==true or (effect.noAttackUnfortified==true
             and combatEnemyFortificationCount(entry.data,entry.perks)==0))
         entry.destroyed=effect~=nil and effect.destroy==true
+        entry.destroyIfBlocked=effect~=nil and effect.destroyIfBlocked==true
         entry.removeAbilities=effect~=nil and effect.removeAbilities==true
     end
     -- Board order, left to right, so enemies placed side by side group the way the player laid them out.
