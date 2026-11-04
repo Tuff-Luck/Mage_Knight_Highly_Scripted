@@ -1931,6 +1931,22 @@ local function choiceHasTargetableCombatResource(category)
 			or category=="twiceAttack" or category=="twiceBlock")
 end
 
+-- Units have a separate ability UI from cards, but share the same combat target-arrow handler.
+local function unitAbilityTargetCategory(ability)
+    if not combatCalcOn or ability==nil then return nil end
+    for _,field in ipairs(COMBAT_SOURCE_FIELDS) do
+        if (tonumber(ability[field.key]) or 0)>0 then return field.key end
+    end
+    if combatCumbersomeActive and (tonumber(ability.move) or 0)>0 then return "move" end
+    return nil
+end
+
+-- Effects without numeric combat resources need their own source keys (one per paid ability).
+-- Resource-producing abilities use the Unit GUID itself, matching the Combat Calculator.
+local function unitAbilityTargetKey(unitGUID,index,ability)
+    return unitAbilityTargetCategory(ability)~=nil and unitGUID or (unitGUID.."#effect"..index)
+end
+
 -- The printed normal and powered effects share one choice for each physical
 -- card. The sideways +1 action also shares it when the resource type matches,
 -- but retains a separate choice when the printed effect is incompatible
@@ -2426,7 +2442,30 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decisi
     end
     local decision=decision or unitManaDecision(unit,abilities,activation)
     local available=decision.display
-    if #available<2 and not decision.ambiguous then
+    local targetSpecs={}
+    if combatCalcOn then
+        local function addTarget(index)
+            local ability=abilities[index]
+            if ability==nil then return end
+            local category=unitAbilityTargetCategory(ability)
+            if category~=nil then
+                targetSpecs[#targetSpecs+1]={index=index,category=category,
+                    idCategory=category}
+            elseif ability.enemyEffect~=nil then
+                targetSpecs[#targetSpecs+1]={index=index,category="effect",
+                    idCategory="effect@effect"..index}
+            end
+        end
+        if abilities.multi==true then
+            for index in ipairs(abilities) do
+                if decision.selected~=nil and decision.selected[index]==true then addTarget(index) end
+            end
+        elseif decision.index~=nil then
+            addTarget(decision.index)
+        end
+    end
+    local hasChoices=#available>=2 or decision.ambiguous
+    if not hasChoices and #targetSpecs==0 then
         if choiceButtonShown[unit.guid]~="hidden" then
             removeChoiceButtons(unit)
             choiceButtonShown[unit.guid]="hidden"
@@ -2442,23 +2481,30 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decisi
     local selectedKeys={}
     for i in pairs(decision.selected or {}) do selectedKeys[#selectedKeys+1]=tostring(i) end
     table.sort(selectedKeys)
+    local targetLabels={}
+    if not expanded then
+        for _,spec in ipairs(targetSpecs) do targetLabels[#targetLabels+1]=spec.idCategory end
+    end
     local signature="Unit:"..tostring(selected)..":"..tostring(expanded)
         ..":"..table.concat(available,",")..":"..table.concat(selectedKeys,",")
+        ..":targets="..table.concat(targetLabels,",")
     if choiceButtonShown[unit.guid]==signature then return end
 
     local xml=unit.UI.getXmlTable() or {}
     for i=#xml,1,-1 do
         local attr=xml[i].attributes
         if attr~=nil and type(attr.id)=="string"
-            and attr.id:sub(1,19)=="ResourceCardChoice_" then table.remove(xml,i) end
+            and (attr.id:sub(1,19)=="ResourceCardChoice_"
+                or attr.id:find("^AttackAssignmentSource_")~=nil) then table.remove(xml,i) end
     end
     local visibleAssets,seen={},{}
-    local displayed=expanded and available or {selected or available[1]}
+    local displayed=hasChoices and (expanded and available or {selected or available[1]}) or {}
     for _,index in ipairs(displayed) do
         local ability=abilities[index]
         local name=ability.icon or ability.key
         if not seen[name] then visibleAssets[#visibleAssets+1]=name seen[name]=true end
     end
+    if #targetLabels>0 then visibleAssets[#visibleAssets+1]="target" end
     local assets,blocked=resourceCardsChoiceAssetsFor(unit.UI,visibleAssets)
 
     -- Shared printed rows keep a stable vertical slot; all sub-options start
@@ -2474,7 +2520,7 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decisi
             end
             rowByKey[key][#rowByKey[key]+1]=i
         end
-    else
+    elseif hasChoices then
         rows={{displayed[1]}}
     end
 
@@ -2522,6 +2568,27 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decisi
                 end
             end
             xml[#xml+1]=button
+        end
+    end
+    if #targetLabels>0 then
+        local targetAsset=resourceCardsChoiceIcon("target")
+        local count=#targetSpecs
+        for i,spec in ipairs(targetSpecs) do
+            local x=hasChoices and baseX-columnSpacing or baseX
+            local y=baseY+(i-(count+1)/2)*rowSpacing
+            local children={}
+            if targetAsset~=nil and not blocked[targetAsset.name] then
+                children={{tag="Image",attributes={image=targetAsset.name,
+                    width=82,height=82,preserveAspect="true",raycastTarget="false",color="#FFFFFF"}}}
+            end
+            xml[#xml+1]={tag="Button",attributes={
+                id="AttackAssignmentSource_"..unit.guid.."_0_"..spec.idCategory,
+                onClick="global/attackAssignmentSourceClicked",
+                position=tostring(x).." "..tostring(y).." -35",
+                rotation="0 0 180",width=90,height=90,scale="0.22 0.22",
+                colors="#454D5D|#69798E|#444C63|#454D5D",textColor="#FFFFFF",
+                textAlignment="MiddleCenter"
+            },value="",children=children}
         end
     end
     if assets~=nil then unit.UI.setXmlTable(xml,assets)
