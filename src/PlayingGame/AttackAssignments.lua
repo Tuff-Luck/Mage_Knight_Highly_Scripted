@@ -383,7 +383,11 @@ function attackAssignmentsDamageSync(spec)
 	end
 	local freeUnit=false
 	for guid in pairs(damageSpec.units) do
-		if damageUsedBy(guid,nil)==nil then freeUnit=true break end
+		-- A Unit required by Shocktroops' effect is not free for other attacks.
+		if damageSpec.reserved[guid]==nil and damageUsedBy(guid,nil)==nil then
+			freeUnit=true
+			break
+		end
 	end
 	for _,attack in ipairs(spec.attacks) do
 		if damageTargets[attack.key]~=nil or (freeUnit and not attack.assassination) then
@@ -413,6 +417,8 @@ function attackAssignmentsDamageSync(spec)
 	if signature~=damageSignature then
 		damageSignature=signature
 		rebuildDamageButtons()
+		-- Required damage arrows change even without a manual click.
+		refreshRenderedLines()
 	end
 	if hasRuntimeWork() then scheduleRefresh() end
 end
