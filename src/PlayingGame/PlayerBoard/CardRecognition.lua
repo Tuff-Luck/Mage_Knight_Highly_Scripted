@@ -2313,6 +2313,20 @@ end
 -- choices; selecting one immediately collapses back to its icon.
 local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySets,resources)
     if card==nil then return end
+    local cardData=gameCards[card.guid]
+    local rule=cardData~=nil and cardResourceDefinitions[cardData.resourceKey]
+        or skillResourceDefinitions[card.guid]
+    local function targetResourceFor(choice,category)
+        if not combatCalcOn then return nil end
+        for _,field in ipairs(COMBAT_SOURCE_FIELDS) do
+            if (tonumber(choice[field.key]) or 0)>0 then return field.key end
+        end
+        if combatPsychicActive and (tonumber(choice.influence) or 0)>0 then return "influence" end
+        if combatCumbersomeActive and (tonumber(choice.move) or 0)>0 then return "move" end
+        local spec=combatEffectSpec(rule,powered,category)
+        if spec~=nil and not spec.all then return "effect" end
+        return choiceHasTargetableCombatResource(category) and category or nil
+    end
     -- A fixed effect (no alternatives) still needs a Target button for its combat resource.
     if (choices==nil or #choices==0) and type(resources)=="table" then
         local bestKey,bestRank
@@ -2389,6 +2403,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                     skillFamily=isSkill and skillChoiceFamily(category,choice) or nil,
                     icon=choice.icon or category,iconOverlay=choice.iconOverlay,
                     stackedIcons=choice.stackedIcons,splitTargets=choice.splitTargets,
+                    targetResource=targetResourceFor(choice,category),
                     iconOverlayColor=choice.iconOverlayColor,
                     iconOverlayAlignment=choice.iconOverlayAlignment,
                     iconOverlaySize=choice.iconOverlaySize}
@@ -2426,7 +2441,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                     assetSeen[stackedIcon]=true
                 end
             end
-            if not row.expanded and choiceHasTargetableCombatResource(entry.category)
+            if not row.expanded and entry.targetResource~=nil
                 and not assetSeen.target then
                 visibleAssets[#visibleAssets+1]="target"
                 assetSeen.target=true
@@ -2551,8 +2566,8 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                 -- real buttons even when no custom icon asset exists.
                 xml[#xml+1]=button
             end
-            if not row.expanded and choiceHasTargetableCombatResource(category) then
-                local resource=row.index>0 and ("set"..row.index..":"..category) or category
+            if not row.expanded and entry.targetResource~=nil then
+                local resource=row.index>0 and ("set"..row.index..":"..entry.targetResource) or entry.targetResource
                 local targetX=x
                 if #row.entries>1 then
                     -- Skill tokens push the target button out a further half button width.
@@ -2577,7 +2592,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                         image=targetAsset.name,width=82,height=82,
                         preserveAspect="true",raycastTarget="false",color="#FFFFFF"}}
                     xml[#xml+1]={tag="Button",attributes={
-                        id="AttackAssignmentSource_"..card.guid.."_"..tostring(row.index).."_"..category
+                        id="AttackAssignmentSource_"..card.guid.."_"..tostring(row.index).."_"..entry.targetResource
                             ..(part and ("@"..part) or ""),
                         onClick="global/attackAssignmentSourceClicked",
                         position=tostring(partX).." "..tostring(buttonY).." "..buttonDepth,
@@ -3834,6 +3849,17 @@ end
 
 -- Scan the play area for used abilities, the Unit area for Units, and crystal
 -- inventory for unused mana. Only a played, supported effect enters the totals.
+-- Explicit arrows always win; proximity is only an initial default.
+local function combatEffectChosenEnemy(sourceGUID,area,monsters)
+    local chosen=nil
+    for guid in pairs(attackAssignmentsTargetGUIDs(sourceGUID)) do
+        local target=monsters[guid]
+        if target~=nil and target.is_face_down~=true
+            and (chosen==nil or guid<chosen.guid) then chosen=target end
+    end
+    return chosen or combatEffectNearestEnemy(area,monsters,footprint,overlapArea)
+end
+
 local function renderSeat(seatPos)
     if not resourceCardsPanelOpen() then return end
     local active=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
@@ -4336,7 +4362,7 @@ local function renderSeat(seatPos)
             local _,chosenCategory=currentChoice(card.guid,result.powered,choices)
             local spec=combatEffectSpec(rule,result.powered,chosenCategory)
             if spec~=nil then
-                local target=combatEffectNearestEnemy(footprints[card.guid],monsters,footprint,overlapArea)
+                local target=combatEffectChosenEnemy(card.guid,footprints[card.guid],monsters)
                 if target~=nil then
                     for _=1,(result.repeatCount or 1) do
                         if spec.all then
@@ -4359,6 +4385,10 @@ local function renderSeat(seatPos)
                     result.enemyGUID=target.guid
                     result.links[#result.links+1]=target.guid
                     result.status="purple"
+                    if not spec.all then
+                        result.enemyEffectTargetKeys={card.guid}
+                        result.enemyEffectTargetGUIDs={[card.guid]=target.guid}
+                    end
                 end
             end
         end
@@ -4913,12 +4943,16 @@ local function renderSeat(seatPos)
         if rule~=nil and rule.enemyEffect~=nil and record~=nil then
             local choice=rule.choices~=nil and chosenEffect(skill.guid,false,rule.choices) or nil
             local spec=combatEffectSpec(rule,false,choice~=nil and choiceCategory(choice) or nil)
-            local target=spec~=nil and combatEffectNearestEnemy(footprints[skill.guid],monsters,footprint,overlapArea) or nil
+            local target=spec~=nil and combatEffectChosenEnemy(skill.guid,footprints[skill.guid],monsters) or nil
             if target~=nil then
                 combatEffectAdd(enemyEffects,target.guid,skill.guid,spec)
                 record.enemyGUID=target.guid
                 record.links[#record.links+1]=target.guid
                 record.status="purple"
+                if not spec.all then
+                    record.enemyEffectTargetKeys={skill.guid}
+                    record.enemyEffectTargetGUIDs={[skill.guid]=target.guid}
+                end
             end
         end
     end
