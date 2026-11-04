@@ -1403,6 +1403,13 @@ local function combatAssignmentRefreshRows(entries,sources)
         totalDiscardWounds=totalDiscardWounds+result.discard
     end
 
+    -- Knockout uses the unmodified Hand limit, never temporary draw bonuses.
+    -- Wounds from card costs are not inferred here; players may need to add
+    -- them when deciding whether to apply Knockout.
+    local currentPlayer=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    local handLimit=math.max(1,tonumber(currentPlayer~=nil and currentPlayer.baseHand) or 5)
+    local knockout=totalHeroWounds>=handLimit
+
     -- Sources that reward every defeated enemy, whichever attack defeated it.
     local seenScope={}
     for _,source in ipairs(combatAssignmentSources(damageSeat)) do
@@ -1579,6 +1586,7 @@ local function combatAssignmentRefreshRows(entries,sources)
         -- Only damage that reaches the Hero counts; Wounds to hand and to the discard pile are in brackets.
         local woundsText=combatWoundsText(totalHeroWounds).." to hand"
         if totalDiscardWounds>0 then woundsText=woundsText..", "..combatWoundsText(totalDiscardWounds).." to discard" end
+        if knockout then woundsText=woundsText.." — KNOCKED OUT (discard non-Wound hand cards)" end
         combatPanelSetAttribute("CombatTotalDamage","text",
             "Total damage - "..combatRich(tostring(totalHeroDamage).." ("..woundsText..")",COMBAT_RED))
         combatPanelSetAttribute("CombatTotalDamage","font","Fonts/MKCardText")
