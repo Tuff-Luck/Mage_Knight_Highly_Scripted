@@ -1456,9 +1456,9 @@ function combatDefeatGuardManualFlip(object)
 		end
 		combatDefeatFlipRestoring[guid]=nil
 		if obj.is_face_down~=true then return end
-		local position=obj.getPosition()
-		obj.setPositionSmooth({position.x,math.max(position.y,1.3),position.z},false,false)
-		obj.setRotationSmooth({0,180,0},false,false)
+		--Flip the token back over in place. Do not alter its height or force a world rotation:
+		--that can push it beneath the mat and can disturb its original orientation.
+		obj.flip()
 		broadcastToAll("{en}There is no need to flip an enemy face down while the Combat Calculator is open. It marks defeated enemies with a red X and returns the rest at the end of the turn.",warningColor)
 	end
 	safeWaitTime("Combat",check,0.25)
