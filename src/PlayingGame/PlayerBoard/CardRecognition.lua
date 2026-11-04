@@ -476,6 +476,9 @@ local function combatEnemyResists(data,perks,attackType)
     if attackType=="I" then return combatEnemyHasTrait(data,perks,"iResist") end
     -- Cold Fire is only resisted by an enemy with both Fire and Ice Resistance.
     if attackType=="IF" then
+        -- A group resists Cold Fire only if one individual member has both traits.
+        -- The ordinary group resistance flags are merged independently.
+        if data~=nil and data.coldFireResist~=nil then return data.coldFireResist==true end
         return combatEnemyHasTrait(data,perks,"fResist")
             and combatEnemyHasTrait(data,perks,"iResist")
     end
@@ -625,11 +628,17 @@ local function combatSolveBlocks(attacks,items,movePool)
         return cached
     end
     local memo,choice={},{}
-    local moveCap=math.min(movePool,63)
+    -- Move can only reduce Cumbersome attacks, and never by more than their total value.
+    -- Cap the search to useful reductions rather than carrying an arbitrary 0..63 state range.
+    local usefulMove=0
+    for _,attack in ipairs(attacks) do
+        if attack.cumbersome then usefulMove=usefulMove+math.max(0,attack.value) end
+    end
+    local moveCap=math.min(movePool,usefulMove)
     local solve
     solve=function(index,available,move)
         if index>#attacks then return 0 end
-        local key=(index*(fullMask+1)+available)*64+move
+        local key=(index*(fullMask+1)+available)*(moveCap+1)+move
         if memo[key]~=nil then return memo[key] end
         local attack=attacks[index]
         local brutal=attack.brutal and 2 or 1
@@ -669,7 +678,7 @@ local function combatSolveBlocks(attacks,items,movePool)
     solve(1,fullMask,moveCap)
     local plan,available,move={},fullMask,moveCap
     for index=1,#attacks do
-        local key=(index*(fullMask+1)+available)*64+move
+        local key=(index*(fullMask+1)+available)*(moveCap+1)+move
         local picked=choice[key]
         plan[index]={mask=picked[1],reduction=picked[2],blocked=picked[3]}
         available=bit32.band(available,bit32.bnot(picked[1]))
@@ -867,7 +876,7 @@ end
 -- them and the armours add together. Elusive members only use their higher armour in the
 -- Attack phase while one of their attacks is unblocked.
 local function combatGroupEntry(members,blockedAll)
-    local data={fortified=false,elusive=true}
+    local data={fortified=false,elusive=true,coldFireResist=false}
     local perks={}
     local fortification=0
     local armour,elusiveArmour,attackArmour=0,0,0
@@ -878,6 +887,12 @@ local function combatGroupEntry(members,blockedAll)
         for _,key in ipairs({"pResist","fResist","iResist","mResist"}) do
             if not member.stripResist and not (key=="fResist" and member.stripFireResist)
                 and combatEnemyHasTrait(member.data,member.perks,key) then data[key]=true end
+        end
+        if not member.stripResist
+            and not member.stripFireResist
+            and combatEnemyHasTrait(member.data,member.perks,"fResist")
+            and combatEnemyHasTrait(member.data,member.perks,"iResist") then
+            data.coldFireResist=true
         end
         local elusive=combatEnemyHasTrait(member.data,member.perks,"elusive")
         local rangeArmour=elusive and member.elusiveArmour or member.baseArmour
@@ -1101,8 +1116,10 @@ local function combatAssignmentRefreshRows(entries,sources)
         local moveOnly=source.ranged+source.siege+source.block+source.attack==0
         -- Once locked, a source stays on its enemy until it is retargeted or its arrow is removed.
         local targetGUID=combatAssignmentState.targets[source.key]
-        if targetGUID==nil and moveOnly then
-            -- Move is never aimed automatically; keep an arrow the player drew earlier.
+        if targetGUID==nil then
+            -- Restore the saved visual assignment for every source after a reload.
+            -- Move has no automatic target, while other resources use nearest-enemy only
+            -- when no valid persisted assignment exists.
             for guid in pairs(attackAssignmentsTargetGUIDs(source.key)) do
                 if rowByGUID[guid]~=nil then
                     targetGUID=guid
@@ -5468,6 +5485,9 @@ end
 
 local function resourceCardsRelevantZone(ctx)
     if ctx==nil or ctx.zoneInfo==nil or ctx.obj==nil then return nil end
+    -- The tracker only renders the active Mage Knight's board; ignore other seats early.
+    local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    if active==nil or active.seatPos~=ctx.zoneInfo.seatPos then return nil end
     local kind=ctx.zoneInfo.kind
     local objectKind=resourceObjectKind(ctx.obj)
     if kind=="play" and (objectKind~=nil or monsterPugs[ctx.objGUID]~=nil) then
