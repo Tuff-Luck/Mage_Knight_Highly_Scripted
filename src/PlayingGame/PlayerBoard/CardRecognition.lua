@@ -487,13 +487,17 @@ local function combatCalcUpdate(monsters)
     if resourceCardsDetailsOpen() then
         for guid,obj in pairs(monsters or {}) do
             local data=monsterPugs[guid]
-            if data~=nil and not combatIsSummonedToken(guid) and obj.is_face_down~=true then
-                on=true
+            if data~=nil and obj.is_face_down~=true then
                 local perks=gStates~=nil and gStates.monsterPerks~=nil and gStates.monsterPerks[guid] or nil
-                if combatEntryHasCumbersome(guid,data,perks) then cumbersome=true end
-                local attacks=perks~=nil and perks.attack or nil
-                if type(attacks)~="table" then attacks=data.attack end
-                if type(attacks)=="table" and attacks.M~=nil then psychic=true end
+                -- Summoned enemies count for their Psychic Attack, even though
+                -- only the summoner gets a separate calculator row.
+                local printed=type(data.attack)=="table" and data.attack or {}
+                local override=perks~=nil and type(perks.attack)=="table" and perks.attack or {}
+                if override.M~=nil or printed.M~=nil then psychic=true end
+                if not combatIsSummonedToken(guid) then
+                    on=true
+                    if combatEntryHasCumbersome(guid,data,perks) then cumbersome=true end
+                end
             end
         end
     end
