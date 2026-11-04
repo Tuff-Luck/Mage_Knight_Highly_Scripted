@@ -901,6 +901,7 @@ local function scheduleSettledZoneEntry(ctx,callback,channel)
 		local liveCtx=zoneEventContext(liveZone,liveObj)
 		if liveCtx~=nil then callback(liveCtx) end
 	end,function()
+		if settledZoneEntrySerial[key]~=serial then return true end
 		local liveObj=getObjectFromGUID(objGUID)
 		return liveObj==nil or (liveObj.resting==true and liveObj.isSmoothMoving()==false)
 	end)
@@ -913,7 +914,7 @@ local function cancelSettledZoneEntries(zoneGUID,objGUID)
 	local suffix="|"..zoneGUID.."|"..objGUID
 	for key,serial in pairs(settledZoneEntrySerial) do
 		if type(key)=="string" and key:sub(-#suffix)==suffix then
-			settledZoneEntrySerial[key]=nil
+			settledZoneEntrySerial[key]=(settledZoneEntrySerial[key] or 0)+1
 		end
 	end
 end
