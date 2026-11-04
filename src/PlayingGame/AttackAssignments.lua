@@ -249,9 +249,9 @@ local function syncTargetButtons()
 	end
 end
 
-local function refreshRenderedLines()
+local function refreshRenderedLines(force)
 	local signature=vectorLineSignature(activeVisualLines())
-	if signature==renderedSignature then return end
+	if not force and signature==renderedSignature then return end
 	Global.setVectorLines(attackAssignmentsAppendVectorLines(Global.getVectorLines() or {}))
 	renderedSignature=signature
 end
@@ -417,8 +417,9 @@ function attackAssignmentsDamageSync(spec)
 	if signature~=damageSignature then
 		damageSignature=signature
 		rebuildDamageButtons()
-		-- Required damage arrows change even without a manual click.
-		refreshRenderedLines()
+		-- Red damage lines coexist with Unit source-target lines. On block/unblock
+		-- transitions, force reconciliation even if another system redrew vectors.
+		refreshRenderedLines(true)
 	end
 	if hasRuntimeWork() then scheduleRefresh() end
 end
