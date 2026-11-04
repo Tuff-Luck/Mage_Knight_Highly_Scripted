@@ -320,10 +320,14 @@ local function combatEnemyPrintedAttacks(data,perks,stripAbilities,ownerGUID)
         for _,printedValue in ipairs(type(values)=="table" and values or {}) do
             local bonus=elemental and (attackType.key=="IF" and 1 or 2) or 0
             if not boostUsed and boost~=0 then bonus=bonus+boost boostUsed=true end
+            -- Psychic Attacks never inherit offensive abilities (Apocalypse Dragon).
+            local psychic=attackType.key=="M"
             attacks[#attacks+1]={key=attackType.key,label=attackType.label,
                 value=math.max(0,printedValue+bonus),block=attackType.block,
-                swift=swift,brutal=brutal,cumbersome=cumbersome,poison=poison,paralyse=paralyse,
-                assassination=assassination,owner=ownerGUID,slot=#attacks+1}
+                swift=not psychic and swift,brutal=not psychic and brutal,
+                cumbersome=not psychic and cumbersome,poison=not psychic and poison,
+                paralyse=not psychic and paralyse,assassination=not psychic and assassination,
+                owner=ownerGUID,slot=#attacks+1}
         end
     end
     return attacks
@@ -537,11 +541,11 @@ end
 -- Blocks of the wrong element are halved against Fire, Ice and Cold Fire attacks. Every Block type is
 -- fully efficient against Physical attacks (P), so that entry lists all of them.
 local COMBAT_EFFICIENT_BLOCKS={
-    P={block=true,blockFire=true,blockIce=true,blockColdFire=true,blockPsychic=true},
+    P={block=true,blockFire=true,blockIce=true,blockColdFire=true},
     F={blockIce=true,blockColdFire=true},
     I={blockFire=true,blockColdFire=true},
     IF={blockColdFire=true},
-    M={block=true,blockPsychic=true}
+    M={blockPsychic=true}
 }
 
 -- The assignment panel is rescanned with every card scan; only send attributes that changed.
@@ -831,7 +835,8 @@ local function combatDamageUnits(seat)
             local resist={}
             for _,name in ipairs(data.resistance or {}) do resist[COMBAT_UNIT_RESIST_KEYS[name] or name]=true end
             units[unitState.guid]={guid=unitState.guid,name=type(data.name)=="table" and tostring(data.name[1]) or tostring(data.name),
-                armour=tonumber(data.armour),resist=resist,wounded=not unitState.unwounded}
+                armour=tonumber(data.armour),level=math.max(1,tonumber(data.level) or 1),
+                resist=resist,wounded=not unitState.unwounded}
         end
     end
     return units,state~=nil and state.nativeCommandCount or 0
@@ -864,12 +869,13 @@ local function combatDamageResolve(items,units,heroArmour,targetsOf)
                 or (not forced and reserved[guid]~=nil and reserved[guid]~=item.key) then return end
             used[guid]=true
             local entry={unit=unit,wounded=true,resisted=combatUnitResists(unit,item.type),forced=forced}
+            local armour=item.type=="M" and unit.level or unit.armour
             if entry.resisted then
-                remaining=remaining-unit.armour
+                remaining=remaining-armour
                 if remaining<=0 then entry.wounded,remaining=false,0 end
             end
             if entry.wounded then
-                remaining=math.max(0,remaining-unit.armour)
+                remaining=math.max(0,remaining-armour)
                 entry.wounds=item.poison and 2 or 1
                 entry.destroyed=item.paralyse==true
             end
