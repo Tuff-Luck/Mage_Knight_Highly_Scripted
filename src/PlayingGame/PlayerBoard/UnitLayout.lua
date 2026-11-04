@@ -214,8 +214,12 @@ function unitLayoutResourceState(seatPos)
     if seatPos==nil then return nil end
     local layout=unitLayoutSnapshot(seatPos)
     local commandTokens,woundTokens={},{}
+    local nativeCommandCount=0
     for _,obj in ipairs(layout.objects) do
         if unitLayoutIsCommand(obj) then
+            -- Native Command tokens gained at odd levels also imply the Hero's
+            -- matching Armor increase. Banner/Bonds provide slots but not Armor.
+            if obj.getGMNotes()=="Command Token" then nativeCommandCount=nativeCommandCount+1 end
             local p=obj.getPosition()
             commandTokens[#commandTokens+1]={x=p.x or p[1],z=p.z or p[3]}
         elseif unitLayoutIsWound(obj) then
@@ -248,7 +252,7 @@ function unitLayoutResourceState(seatPos)
     end
     local woundCount=0
     for _,state in ipairs(units) do woundCount=woundCount+state.woundCount end
-    return {units=units,woundCount=woundCount,
+    return {units=units,woundCount=woundCount,nativeCommandCount=nativeCommandCount,
         emptyCommandSlots=math.max(0,#layout.commands-#layout.units)}
 end
 
