@@ -1221,6 +1221,48 @@ local function combatAssignmentRefreshRows(entries,sources)
         end
     end
 
+    -- A blocked-enemy destruction resolves only after its Block requirement is met.
+    -- Evaluate that condition against the assigned Blocks before building final group stats:
+    -- destroyed enemies cease giving Defender bonuses and cannot contribute Armour to a group.
+    local conditionalDestroyed=false
+    for index=1,math.min(#entries,COMBAT_ASSIGNMENT_ROW_COUNT) do
+        local entry=entries[index]
+        if entry.destroyIfBlocked and not entry.destroyed then
+            local hasAttack=false
+            for _,attack in ipairs(combatEnemyAttacks(entry)) do
+                if not attack.pending and attack.value>0 then hasAttack=true break end
+            end
+            if hasAttack then
+                local target=allocated[index]
+                local _,_,_,allBlocked=combatBlockResult(entry,target~=nil and target.sources or {})
+                if allBlocked then entry.destroyed=true conditionalDestroyed=true end
+            end
+        end
+    end
+    if conditionalDestroyed then
+        -- A newly destroyed member splits joined groups just like a pre-destroyed member.
+        -- Keep group visuals and group memberships consistent with the resulting combat.
+        groups,groupOf={},{}
+        for index=1,math.min(#entries,COMBAT_ASSIGNMENT_ROW_COUNT) do
+            local group=groups[#groups]
+            if index==1 or combatAssignmentJoined[entries[index].guid]~=true
+                or entries[index].destroyed or entries[index-1].destroyed then
+                group={members={},sources={}}
+                groups[#groups+1]=group
+            end
+            group.members[#group.members+1]=index
+            group.leader=group.members[1]
+            groupOf[index]=group
+        end
+        for index=1,math.min(#entries,COMBAT_ASSIGNMENT_ROW_COUNT) do
+            local group=groupOf[index]
+            combatPanelSetAttribute("CombatEnemyRow"..index,"color",
+                #group.members>1 and "rgb(0.27,0.31,0.38)"
+                or (index%2==0 and "rgb(0.34,0.29,0.22)" or "rgb(0.29,0.25,0.19)"))
+            if entries[index].destroyed then entries[index].attackCount=1 end
+        end
+    end
+
     local emptyTarget={sources={},details={}}
     local rowBlock={}
     local defended=combatApplyDefend(entries,groups,allocated)
