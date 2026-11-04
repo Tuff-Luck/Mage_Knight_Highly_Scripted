@@ -882,7 +882,9 @@ local function combatGroupEntry(members,blockedAll)
             if not member.stripResist and not (key=="fResist" and member.stripFireResist)
                 and combatEnemyHasTrait(member.data,member.perks,key) then data[key]=true end
         end
-        if combatEnemyHasTrait(member.data,member.perks,"fResist")
+        if not member.stripResist
+            and not member.stripFireResist
+            and combatEnemyHasTrait(member.data,member.perks,"fResist")
             and combatEnemyHasTrait(member.data,member.perks,"iResist") then
             data.coldFireResist=true
         end
