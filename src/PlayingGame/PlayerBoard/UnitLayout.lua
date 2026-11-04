@@ -114,13 +114,16 @@ unitLayoutSnapshot=function(seatPos)
 	local commands={}
 	local units={}
 	local unitByGuid={}
+	local objectX={}
 	for _, obj in pairs(objects) do
-		if unitLayoutIsCommand(obj) then commands[#commands+1]=obj end
-		if unitLayoutIsUnit(obj) then units[#units+1]=obj unitByGuid[obj.guid]=obj end
+		if unitLayoutIsCommand(obj) then commands[#commands+1]=obj objectX[obj.guid]=obj.getPosition()[1] end
+		if unitLayoutIsUnit(obj) then units[#units+1]=obj unitByGuid[obj.guid]=obj objectX[obj.guid]=obj.getPosition()[1] end
 	end
+	-- Cache each object's X coordinate once. TTS object calls inside sort comparators
+	-- multiply quickly as the Unit/Command count grows.
 	table.sort(commands, function(a,b)
-		local ax=a.getPosition()[1]
-		local bx=b.getPosition()[1]
+		local ax=objectX[a.guid]
+		local bx=objectX[b.guid]
 		if math.abs(ax-bx)<0.05 then
 			local ap=unitLayoutCommandPriority(a)
 			local bp=unitLayoutCommandPriority(b)
@@ -130,8 +133,8 @@ unitLayoutSnapshot=function(seatPos)
 		return ax<bx
 	end)
 	table.sort(units, function(a,b)
-		local ax=a.getPosition()[1]
-		local bx=b.getPosition()[1]
+		local ax=objectX[a.guid]
+		local bx=objectX[b.guid]
 		if math.abs(ax-bx)<0.05 then return a.guid<b.guid end
 		return ax<bx
 	end)
@@ -140,12 +143,12 @@ unitLayoutSnapshot=function(seatPos)
 	local unitSlotByGuid={}
 	local usedCommand={}
 	for _, unit in ipairs(units) do
-		local unitX=unit.getPosition()[1]
+		local unitX=objectX[unit.guid]
 		local bestSlot=nil
 		local bestDistance=nil
 		for slot, command in ipairs(commands) do
 			if usedCommand[slot]~=true then
-				local distance=math.abs(unitX-command.getPosition()[1])
+				local distance=math.abs(unitX-objectX[command.guid])
 				if bestDistance==nil or distance<bestDistance then bestDistance=distance bestSlot=slot end
 			end
 		end
@@ -213,22 +216,30 @@ function unitLayoutResourceState(seatPos)
     local commandTokens,woundTokens={},{}
     for _,obj in ipairs(layout.objects) do
         if unitLayoutIsCommand(obj) then
-            commandTokens[#commandTokens+1]=obj
+            local p=obj.getPosition()
+            commandTokens[#commandTokens+1]={x=p.x or p[1],z=p.z or p[3]}
         elseif unitLayoutIsWound(obj) then
-            woundTokens[#woundTokens+1]=obj
+            local p=obj.getPosition()
+            woundTokens[#woundTokens+1]={x=p.x or p[1],z=p.z or p[3]}
         end
     end
     local units={}
     for _,unit in ipairs(layout.units) do
+        local bounds=unit.getBounds()
+        local size=bounds~=nil and bounds.size or nil
+        local center=bounds~=nil and bounds.center or unit.getPosition()
+        local halfX=size~=nil and (size.x or size[1])*0.46 or 1.0
+        local halfZ=size~=nil and (size.z or size[3])*0.46 or 1.5
+        local cx,cz=center.x or center[1],center.z or center[3]
         local state={guid=unit.guid,unit=unit,ready=true,unwounded=true,woundCount=0}
         for _,token in ipairs(commandTokens) do
-            if unitLayoutTokenOnUnit(token,unit) then
+            if math.abs(token.x-cx)<halfX and math.abs(token.z-cz)<halfZ then
                 state.ready=false
                 break
             end
         end
         for _,token in ipairs(woundTokens) do
-            if unitLayoutTokenOnUnit(token,unit) then
+            if math.abs(token.x-cx)<halfX and math.abs(token.z-cz)<halfZ then
                 state.unwounded=false
                 state.woundCount=state.woundCount+1
             end
