@@ -110,6 +110,7 @@ end
 -- The calculator runs only while the Resource Tracker details are open and an enemy is in play.
 local combatCalcOn=false
 local combatCumbersomeActive=false
+local combatPsychicActive=false
 local combatAssignmentJoined={}
 local combatAssignmentSlotSources={}
 local combatAssignmentRowTargets={}
@@ -221,7 +222,8 @@ local function combatAssignmentSources(seat)
                     if type(sourceName)=="table" then sourceName=sourceName[1] end
                     parts[slot]={guid=guid,key=part~=nil and (guid.."#"..part) or guid,part=part,
                         name=tostring(sourceName or record.kind or "Resource"),
-                        ranged=0,siege=0,block=0,attack=0,move=0,details={},
+                        ranged=0,siege=0,block=0,attack=0,move=0,
+                        psychicInfluence=0,psychicInfluenceCounts=false,details={},
                         resources=record.splitTargets~=nil and {} or effective,
                         swiftDouble=record.swiftDouble==true,defeatFameRep=record.defeatFameRep,
                         repeatBlocks=record.repeatBlocks}
@@ -252,6 +254,13 @@ local function combatAssignmentSources(seat)
                 source.move=moveAmount
                 source.details[#source.details+1]={text="Move "..tostring(moveAmount),
                     amount=moveAmount,icon="MKChoiceMove",key="move",family="move"}
+            end
+            local psychicInfluence=tonumber(effective.influence) or 0
+            if combatPsychicActive and psychicInfluence>0 then
+                ensureSource("block")
+                source.psychicInfluence=psychicInfluence
+                source.details[#source.details+1]={text="Influence "..tostring(psychicInfluence).." → Psychic Block",
+                    amount=psychicInfluence,icon="MKChoiceBlock",key="influence",family="influence"}
             end
         end
     end
@@ -466,19 +475,23 @@ end
 -- True while the Resource Tracker details are open and an enemy stands in the play area.
 local function combatCalcUpdate(monsters)
     local on=false
-    local cumbersome=false
+    local cumbersome,psychic=false,false
     if resourceCardsDetailsOpen() then
-        for guid in pairs(monsters or {}) do
+        for guid,obj in pairs(monsters or {}) do
             local data=monsterPugs[guid]
-            if data~=nil and not combatIsSummonedToken(guid) then
+            if data~=nil and not combatIsSummonedToken(guid) and obj.is_face_down~=true then
                 on=true
                 local perks=gStates~=nil and gStates.monsterPerks~=nil and gStates.monsterPerks[guid] or nil
-                if combatEntryHasCumbersome(guid,data,perks) then cumbersome=true break end
+                if combatEntryHasCumbersome(guid,data,perks) then cumbersome=true end
+                local attacks=perks~=nil and perks.attack or nil
+                if type(attacks)~="table" then attacks=data.attack end
+                if type(attacks)=="table" and attacks.M~=nil then psychic=true end
             end
         end
     end
     combatCalcOn=on
     combatCumbersomeActive=cumbersome
+    combatPsychicActive=psychic
     return on
 end
 
@@ -750,6 +763,13 @@ local function combatBlockResult(entry,sources)
     local movePool=0
     for _,source in ipairs(sources) do
         if source.moveCounts==true then movePool=movePool+source.move end
+        if source.psychicInfluenceCounts==true and source.psychicInfluence>0 then
+            -- Influence may be divided between attacks; individual points are
+            -- independent legal Psychic Block resources, never generic Block.
+            for point=1,source.psychicInfluence do
+                items[#items+1]={source=source,key="blockPsychic",value=1,part=point}
+            end
+        end
         if source.block>0 then
             for _,field in ipairs(COMBAT_SOURCE_FIELDS) do
                 local value=tonumber(source.resources[field.key]) or 0
@@ -1179,6 +1199,9 @@ local function combatAssignmentRefreshRows(entries,sources)
     local allocated={}
     for _,source in ipairs(sources) do
         local moveOnly=source.ranged+source.siege+source.block+source.attack==0
+            and source.psychicInfluence==0
+        local influenceOnly=source.ranged+source.siege+source.block+source.attack==0
+            and source.psychicInfluence>0 and source.move==0
         -- Once locked, a source stays on its enemy until it is retargeted or its arrow is removed.
         local targetGUID=combatAssignmentState.targets[source.key]
         if targetGUID==nil then
@@ -1202,7 +1225,7 @@ local function combatAssignmentRefreshRows(entries,sources)
             attackAssignmentsClearForObject(source.key)
             targetGUID,targetIndex=nil,nil
         end
-        if targetIndex==nil and not moveOnly then
+        if targetIndex==nil and not moveOnly and not influenceOnly then
             targetGUID=combatNearestEnemyGUID(source.guid,entries)
             combatAssignmentState.targets[source.key]=targetGUID
             combatAssignmentState.explicit[source.key]=nil
@@ -1220,6 +1243,13 @@ local function combatAssignmentRefreshRows(entries,sources)
             local explicit=combatAssignmentState.explicit[source.key]==true
                 and combatGUIDHasCumbersome(targetGUID)
             source.moveCounts=explicit
+            source.psychicInfluenceCounts=explicit
+                and source.psychicInfluence>0 and (function()
+                    for _,attack in ipairs(combatEnemyAttacks(entries[targetIndex])) do
+                        if attack.key=="M" then return true end
+                    end
+                    return false
+                end)()
             local target=allocated[targetIndex]
             if target==nil then
                 target={range={},block={},attack={},sources={},details={}}
@@ -1227,7 +1257,8 @@ local function combatAssignmentRefreshRows(entries,sources)
             end
             target.sources[#target.sources+1]=source
             for _,detail in ipairs(source.details) do
-                if detail.family~="move" or explicit then
+                if (detail.family~="move" or explicit)
+                    and (detail.family~="influence" or source.psychicInfluenceCounts) then
                     target.details[#target.details+1]={source=source,detail=detail}
                 end
             end
@@ -1404,7 +1435,8 @@ local function combatAssignmentRefreshRows(entries,sources)
         local lists={range={},block={},attack={}}
         if entry~=nil then
             for _,item in ipairs((allocated[index] or emptyTarget).details) do
-                if item.detail.family=="block" or item.detail.family=="move" then
+                if item.detail.family=="block" or item.detail.family=="move"
+                    or item.detail.family=="influence" then
                     lists.block[#lists.block+1]={source=item.source,amount=item.detail.amount,
                         icon=item.detail.icon,text=item.detail.text,typeKey=item.detail.typeKey,
                         reduced=rowBlock[index].wrongBlock[item.source.key..tostring(item.detail.key)]==true}
@@ -2054,6 +2086,7 @@ end
 local function choiceHasTargetableCombatResource(category)
 	if not combatCalcOn or type(category)~="string" then return false end
 	if category=="move" then return combatCumbersomeActive end
+    if category=="influence" then return combatPsychicActive end
 	return (category:find("attack",1,true)~=nil or category:find("Attack",1,true)~=nil
 			or category:find("block",1,true)~=nil or category:find("Block",1,true)~=nil
 			or category:find("siege",1,true)~=nil or category:find("Siege",1,true)~=nil
