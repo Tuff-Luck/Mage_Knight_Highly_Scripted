@@ -811,11 +811,14 @@ end
 -- unless a resistance absorbs all of it.
 local COMBAT_UNIT_RESIST_KEYS={Physical="P",Fire="F",Ice="I"}
 
--- Armour printed on the Hero's Level token: 2 for levels 1-2, then +1 per pair of levels.
-local function combatHeroArmour()
+-- The physical native Command tokens can lead the recorded level during testing.
+-- Every additional level-up Command token corresponds to +1 Armor, but Banner
+-- of Command and Bonds of Loyalty add Unit slots without increasing Hero Armor.
+local function combatHeroArmour(nativeCommandCount)
     local player=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
     local level=math.max(1,math.min(10,tonumber(player~=nil and player.level or 1) or 1))
-    return 2+math.floor((level-1)/2)
+    local levelArmour=2+math.floor((level-1)/2)
+    return math.max(levelArmour,1+(tonumber(nativeCommandCount) or 0))
 end
 
 local function combatDamageUnits(seat)
@@ -830,7 +833,7 @@ local function combatDamageUnits(seat)
                 armour=tonumber(data.armour),resist=resist,wounded=not unitState.unwounded}
         end
     end
-    return units
+    return units,state~=nil and state.nativeCommandCount or 0
 end
 
 -- Cold Fire only counts as resisted by a Unit with both Fire and Ice resistance. Psychic has no Unit resistance rule.
@@ -1311,7 +1314,7 @@ local function combatAssignmentRefreshRows(entries,sources)
     end
     -- Damage phase: each unblocked attack of an enemy that is not already defeated starts on the Hero.
     local damageSeat=combatAssignmentActiveSeat()
-    local damageUnits=combatDamageUnits(damageSeat)
+    local damageUnits,nativeCommandCount=combatDamageUnits(damageSeat)
     local damageSpec={attacks={},units={}}
     local damageItems={}
     for guid,unit in pairs(damageUnits) do
@@ -1340,7 +1343,7 @@ local function combatAssignmentRefreshRows(entries,sources)
         end
     end
     attackAssignmentsDamageSync(damageSpec)
-    local damageResults=combatDamageResolve(damageItems,damageUnits,combatHeroArmour(),attackAssignmentsDamageTargetsOf)
+    local damageResults=combatDamageResolve(damageItems,damageUnits,combatHeroArmour(nativeCommandCount),attackAssignmentsDamageTargetsOf)
     local totalHeroWounds,totalHeroDamage,totalDiscardWounds=0,0,0
     for _,result in pairs(damageResults) do
         totalHeroWounds=totalHeroWounds+result.heroWounds
@@ -1687,6 +1690,18 @@ local function refreshCombatEnemyPanel(monsters)
         end
     end
     attackAssignmentsPruneInactive(activeSources,activeObjects,combatSourceKeepsLock)
+    -- Reconcile effect-only Unit arrows on *every* calculator refresh, not only
+    -- when an assignment is clicked. The damage overlay may come and go as
+    -- attacks are blocked; its removal must not remove the originating arrow.
+    for guid,record in pairs(seatScan~=nil and seatScan.cards or {}) do
+        for sourceKey,targetGUID in pairs(record.enemyEffectTargetGUIDs or {}) do
+            if activeSources[sourceKey]==true and monsters[targetGUID]~=nil
+                and not attackAssignmentsIsTargeting(sourceKey)
+                and next(attackAssignmentsTargetGUIDs(sourceKey))==nil then
+                attackAssignmentsEnsureTarget(sourceKey,targetGUID,"attack")
+            end
+        end
+    end
     for guid in pairs(combatAssignmentState.targets) do
         if activeSources[guid]~=true and not combatSourceKeepsLock(guid) then combatAssignmentState.targets[guid]=nil end
     end
@@ -4558,6 +4573,12 @@ local function renderSeat(seatPos)
                                     if target~=nil then
                                         combatEffectAdd(enemyEffects,target.guid,unitGUID,ability.enemyEffect)
                                         result.links[#result.links+1]=target.guid
+                                        -- Keep the Unit->enemy line independent of the enemy->Unit
+                                        -- damage arrow. It must remain after the attack gets blocked.
+                                        if sourceKey~=unitGUID then
+                                            result.enemyEffectTargetGUIDs=result.enemyEffectTargetGUIDs or {}
+                                            result.enemyEffectTargetGUIDs[sourceKey]=target.guid
+                                        end
                                     end
                                 end
                             end
