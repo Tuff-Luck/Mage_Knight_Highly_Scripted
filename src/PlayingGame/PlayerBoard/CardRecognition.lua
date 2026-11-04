@@ -1660,7 +1660,7 @@ local function combatAssignmentRefreshRows(entries,sources)
             combatPanelSetAttribute(id,"alignment","MiddleCenter")
         end
     end
-    return totalRowHeight
+    return totalRowHeight+(pages>1 and 25 or 0)
 end
 
 local function combatCalcShutdown()
