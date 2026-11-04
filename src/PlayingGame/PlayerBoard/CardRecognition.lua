@@ -842,25 +842,38 @@ end
 -- items: {key,type,damage,poison,paralyse,assassination} in resolution order; targetsOf(key) lists the Unit GUIDs the player chose.
 local function combatDamageResolve(items,units,heroArmour,targetsOf)
     local used,results={},{}
+    -- Reserve a Unit required to receive its own protected enemy's damage first.
+    -- An earlier, unrelated enemy must not consume that Unit before its forced assignment.
+    local reserved={}
+    for _,item in ipairs(items) do
+        local guid=item.firstDamageUnit
+        if guid~=nil and not item.assassination and units[guid]~=nil and not units[guid].wounded then
+            reserved[guid]=item.key
+        end
+    end
     for _,item in ipairs(items) do
         local remaining=item.damage
         local result={units={},heroWounds=0,discard=0,heroDamage=0}
-        for _,guid in ipairs(item.assassination and {} or targetsOf(item.key)) do
+        local function assign(guid,forced)
             local unit=units[guid]
-            if unit~=nil and not unit.wounded and not used[guid] and remaining>0 then
-                used[guid]=true
-                local entry={unit=unit,wounded=true,resisted=combatUnitResists(unit,item.type)}
-                if entry.resisted then
-                    remaining=remaining-unit.armour
-                    if remaining<=0 then entry.wounded,remaining=false,0 end
-                end
-                if entry.wounded then
-                    remaining=math.max(0,remaining-unit.armour)
-                    entry.wounds=item.poison and 2 or 1
-                    entry.destroyed=item.paralyse==true
-                end
-                result.units[#result.units+1]=entry
+            if unit==nil or unit.wounded or used[guid] or remaining<=0
+                or (not forced and reserved[guid]~=nil and reserved[guid]~=item.key) then return end
+            used[guid]=true
+            local entry={unit=unit,wounded=true,resisted=combatUnitResists(unit,item.type),forced=forced}
+            if entry.resisted then
+                remaining=remaining-unit.armour
+                if remaining<=0 then entry.wounded,remaining=false,0 end
             end
+            if entry.wounded then
+                remaining=math.max(0,remaining-unit.armour)
+                entry.wounds=item.poison and 2 or 1
+                entry.destroyed=item.paralyse==true
+            end
+            result.units[#result.units+1]=entry
+        end
+        if not item.assassination and item.firstDamageUnit~=nil then assign(item.firstDamageUnit,true) end
+        for _,guid in ipairs(item.assassination and {} or targetsOf(item.key)) do
+            if guid~=item.firstDamageUnit then assign(guid,false) end
         end
         if remaining>0 then
             result.heroDamage=remaining
@@ -888,7 +901,7 @@ local function combatDamageNotes(item,result)
         elseif not entry.wounded then text="resisted, no Wound"
         elseif entry.wounds>1 then text="Wounded x"..tostring(entry.wounds)
         else text="Wounded"..(entry.resisted and " (resisted)" or "") end
-        notes[#notes+1]="> "..entry.unit.name..": "..text
+        notes[#notes+1]="> "..entry.unit.name..(entry.forced and " (must take damage first)" or "")..": "..text
     end
     if item.assassination then notes[#notes+1]="> Assassination: Hero only" end
     if result.heroWounds>0 or result.discard>0 or result.paralyse then
@@ -1273,7 +1286,8 @@ local function combatAssignmentRefreshRows(entries,sources)
                     if info~=nil and info.attack.owner~=nil then
                         local attack=info.attack
                         local item={key=attack.owner..":"..tostring(attack.slot),owner=attack.owner,type=attack.key,
-                            damage=info.damage,poison=attack.poison,paralyse=attack.paralyse,assassination=attack.assassination}
+                            damage=info.damage,poison=attack.poison,paralyse=attack.paralyse,
+                            assassination=attack.assassination,firstDamageUnit=attack.firstDamageUnit}
                         damageItems[#damageItems+1]=item
                         rowBlock[index].damageItems[attackIndex]=item
                         damageSpec.attacks[#damageSpec.attacks+1]={key=item.key,owner=item.owner,damage=item.damage,
