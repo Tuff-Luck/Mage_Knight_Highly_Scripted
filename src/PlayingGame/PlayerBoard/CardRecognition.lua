@@ -1299,13 +1299,44 @@ local function combatAssignmentRefreshRows(entries,sources)
         end
     end
 
-    -- A blocked-enemy destruction resolves only after its Block requirement is met.
-    -- Evaluate that condition against the assigned Blocks before building final group stats:
-    -- destroyed enemies cease giving Defender bonuses and cannot contribute Armour to a group.
+    -- Complete the Ranged/Siege phase BEFORE resolving any "destroyed if
+    -- blocked" effect. A preview uses shallow copies so Defender bonuses
+    -- cannot be applied twice to the actual combat entries.
+    local rangedBeforeBlock=nil
+    local hasConditional=false
+    for _,entry in ipairs(entries) do
+        if entry.destroyIfBlocked and not entry.destroyed then hasConditional=true break end
+    end
+    if hasConditional then
+        local preview={}
+        for i,entry in ipairs(entries) do
+            local copy={}
+            for key,value in pairs(entry) do copy[key]=value end
+            preview[i]=copy
+        end
+        combatApplyDefend(preview,groups,allocated)
+        rangedBeforeBlock={}
+        for _,group in ipairs(groups) do
+            local members,sources={},{}
+            for _,index in ipairs(group.members) do
+                members[#members+1]=preview[index]
+                for _,source in ipairs((allocated[index] or {sources={}}).sources) do
+                    sources[#sources+1]=source
+                end
+            end
+            local _,_,ranged=combatRangeResult(combatGroupEntry(members,{}),sources)
+            if ranged then
+                for _,index in ipairs(group.members) do rangedBeforeBlock[index]=true end
+            end
+        end
+    end
+
+    -- Only enemies surviving Ranged/Siege can be destroyed in the Block phase.
     local conditionalDestroyed=false
     for index=1,#entries do
         local entry=entries[index]
-        if entry.destroyIfBlocked and not entry.destroyed then
+        if entry.destroyIfBlocked and not entry.destroyed
+            and (rangedBeforeBlock==nil or rangedBeforeBlock[index]~=true) then
             local hasAttack=false
             for _,attack in ipairs(combatEnemyAttacks(entry)) do
                 if not attack.pending and attack.value>0 then hasAttack=true break end
@@ -1366,6 +1397,14 @@ local function combatAssignmentRefreshRows(entries,sources)
         group.entry,group.attackArmour=combatGroupEntry(members,blockedAll)
         group.rangeTotal,group.rangeArmour,group.rangeDefeated,group.fortification=
             combatRangeResult(group.entry,group.sources)
+        if rangedBeforeBlock~=nil then
+            -- A later Block-phase destruction cannot retrospectively win the
+            -- Ranged phase or create extra Ranged-only rewards.
+            group.rangeDefeated=true
+            for _,index in ipairs(group.members) do
+                if rangedBeforeBlock[index]~=true then group.rangeDefeated=false break end
+            end
+        end
         local meleeTotal=combatAttackTotal({
             {sources=group.sources,category="attack"},
             {sources=group.sources,category="ranged"},
