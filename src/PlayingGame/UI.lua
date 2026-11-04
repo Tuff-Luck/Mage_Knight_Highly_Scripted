@@ -2302,6 +2302,11 @@ function resourceTracker(player, mouseButton, id)
             resourceCardsCombatPage(id=="CombatEnemyPagePrev" and -1 or 1)
             return
         end
+        local attackCycleRow=id:match("^CombatEnemyAttackCycle(%d+)$")
+        if attackCycleRow~=nil then
+            resourceCardsCombatCycleAttack(tonumber(attackCycleRow))
+            return
+        end
 		--expander buttons
 		local IDConvert=RESOURCE_TRACKER_EXPANDERS
 		if IDConvert[id]~=nil then
