@@ -628,7 +628,13 @@ local function combatSolveBlocks(attacks,items,movePool)
         return cached
     end
     local memo,choice={},{}
-    local moveCap=math.min(movePool,63)
+    -- Move can only reduce Cumbersome attacks, and never by more than their total value.
+    -- Cap the search to useful reductions rather than carrying an arbitrary 0..63 state range.
+    local usefulMove=0
+    for _,attack in ipairs(attacks) do
+        if attack.cumbersome then usefulMove=usefulMove+math.max(0,attack.value) end
+    end
+    local moveCap=math.min(movePool,usefulMove)
     local solve
     solve=function(index,available,move)
         if index>#attacks then return 0 end
