@@ -476,6 +476,9 @@ local function combatEnemyResists(data,perks,attackType)
     if attackType=="I" then return combatEnemyHasTrait(data,perks,"iResist") end
     -- Cold Fire is only resisted by an enemy with both Fire and Ice Resistance.
     if attackType=="IF" then
+        -- A group resists Cold Fire only if one individual member has both traits.
+        -- The ordinary group resistance flags are merged independently.
+        if data~=nil and data.coldFireResist~=nil then return data.coldFireResist==true end
         return combatEnemyHasTrait(data,perks,"fResist")
             and combatEnemyHasTrait(data,perks,"iResist")
     end
@@ -867,7 +870,7 @@ end
 -- them and the armours add together. Elusive members only use their higher armour in the
 -- Attack phase while one of their attacks is unblocked.
 local function combatGroupEntry(members,blockedAll)
-    local data={fortified=false,elusive=true}
+    local data={fortified=false,elusive=true,coldFireResist=false}
     local perks={}
     local fortification=0
     local armour,elusiveArmour,attackArmour=0,0,0
@@ -878,6 +881,10 @@ local function combatGroupEntry(members,blockedAll)
         for _,key in ipairs({"pResist","fResist","iResist","mResist"}) do
             if not member.stripResist and not (key=="fResist" and member.stripFireResist)
                 and combatEnemyHasTrait(member.data,member.perks,key) then data[key]=true end
+        end
+        if combatEnemyHasTrait(member.data,member.perks,"fResist")
+            and combatEnemyHasTrait(member.data,member.perks,"iResist") then
+            data.coldFireResist=true
         end
         local elusive=combatEnemyHasTrait(member.data,member.perks,"elusive")
         local rangeArmour=elusive and member.elusiveArmour or member.baseArmour
