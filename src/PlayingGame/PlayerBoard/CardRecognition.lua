@@ -2493,8 +2493,10 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                             outline="#1C1514",outlineSize="2 -2",
                             raycastTarget="false"}}
                     end
-                    xml[#xml+1]=button
                 end
+                -- Text-only alternatives (e.g. Chivalry's Reputation choice) are
+                -- real buttons even when no custom icon asset exists.
+                xml[#xml+1]=button
             end
             if not row.expanded and choiceHasTargetableCombatResource(category) then
                 local resource=row.index>0 and ("set"..row.index..":"..category) or category
