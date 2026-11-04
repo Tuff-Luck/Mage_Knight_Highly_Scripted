@@ -115,6 +115,8 @@ local combatAssignmentJoined={}
 local combatAssignmentSlotSources={}
 local combatAssignmentRowTargets={}
 local combatEnemyPage=1
+local combatReductionAttackChoice={}
+local combatAttackChoiceByRow={}
 local COMBAT_ASSIGNMENT_ROW_COUNT=8
 local COMBAT_ASSIGNMENT_SLOT_COUNT=6
 local COMBAT_ASSIGNMENT_ROW_HEIGHT=40
@@ -373,7 +375,7 @@ end
 -- An Attack reduction modifies one printed Attack, not every Attack on a multi-attack enemy.
 -- When several Attacks exist, use the currently strongest one, with stable order on ties.
 -- All reductions are rebuilt from the original printed values on every scan (never cumulative).
-local function combatApplyAttackReductions(attacks,effect,ownerGUID)
+local function combatApplyAttackReductions(attacks,effect,ownerGUID,chosenAttack)
     local reductions=effect~=nil and effect.attackReductions or nil
     if reductions==nil or #reductions==0 then return end
     local ordered={}
@@ -383,11 +385,16 @@ local function combatApplyAttackReductions(attacks,effect,ownerGUID)
         return tostring(a.source)<tostring(b.source)
     end)
     for _,reduction in ipairs(ordered) do
-        local target=nil
-        for _,attack in ipairs(attacks) do
-            if not attack.pending and (ownerGUID==nil or attack.owner==ownerGUID)
-                and attack.value>0 and (target==nil or attack.value>target.value) then
-                target=attack
+        local target=chosenAttack~=nil and attacks[chosenAttack] or nil
+        if target~=nil and (target.pending or (ownerGUID~=nil and target.owner~=ownerGUID)) then
+            target=nil
+        end
+        if chosenAttack==nil then
+            for _,attack in ipairs(attacks) do
+                if not attack.pending and (ownerGUID==nil or attack.owner==ownerGUID)
+                    and attack.value>0 and (target==nil or attack.value>target.value) then
+                    target=attack
+                end
             end
         end
         if target~=nil then
@@ -413,7 +420,7 @@ local function combatEnemyAttacks(entry)
             attacks[#attacks+1]={key="P",label="Summon",value=0,block="block",pending=true}
         end
     end
-    combatApplyAttackReductions(attacks,entry.effect,nil)
+    combatApplyAttackReductions(attacks,entry.effect,nil,combatReductionAttackChoice[entry.guid])
     return attacks
 end
 
@@ -1185,6 +1192,14 @@ local function combatAssignmentRefreshRows(entries,sources)
             combatPanelSetAttribute("CombatEnemyRow"..row.."Armour","color","rgb(0.96,0.92,0.82)")
             combatPanelSetAttribute("CombatEnemyRow"..row.."Traits","color","rgb(0.88,0.84,0.73)")
             local attacks=combatEnemyAttacks(entry)
+            local options={}
+            if entry.effect~=nil and #(entry.effect.attackReductions or {})>0 then
+                for index,attack in ipairs(attacks) do
+                    if not attack.pending then options[#options+1]=index end
+                end
+            end
+            combatAttackChoiceByRow[row]=#options>1 and options or nil
+            combatPanelSetAttribute("CombatEnemyAttackCycle"..row,"active",#options>1 and "true" or "false")
             for _,column in ipairs({"Attacks","Offence","Traits"}) do
                 local id="CombatEnemyRow"..row..column
                 combatPanelSetAttribute(id,"font","Fonts/MKCardText")
@@ -1517,8 +1532,10 @@ local function combatAssignmentRefreshRows(entries,sources)
             local attackLines={}
             for attackIndex,attack in ipairs(combatEnemyAttacks(entry)) do
                 local reduction=rowBlock[index].reductions[attackIndex] or 0
-                attackLines[#attackLines+1]=combatTypeRich(attack.label.." "..tostring(attack.value-reduction),
-                    attack.key,reduction>0)
+                local chosen=combatReductionAttackChoice[entry.guid]==attackIndex
+                attackLines[#attackLines+1]=(chosen and "▶ " or "")
+                    ..combatTypeRich(attack.label.." "..tostring(attack.value-reduction),
+                        attack.key,reduction>0)
             end
             combatPanelSetAttribute("CombatEnemyRow"..row.."Attacks","text",
                 #attackLines>0 and table.concat(attackLines,"\n") or "-")
@@ -1563,6 +1580,10 @@ local function combatAssignmentRefreshRows(entries,sources)
             totalRowHeight=totalRowHeight+rowHeight
         end
         combatPanelSetAttribute("CombatEnemyRow"..row,"preferredHeight",tostring(rowHeight))
+        if entry==nil then
+            combatAttackChoiceByRow[row]=nil
+            combatPanelSetAttribute("CombatEnemyAttackCycle"..row,"active","false")
+        end
     end
 
     -- Hide a column when every visible enemy leaves it blank or "None".
@@ -1675,6 +1696,8 @@ local function combatCalcShutdown()
     combatAssignmentState={seat=nil,selected=nil,targets={},explicit={}}
     combatAssignmentJoined={}
     combatEnemyPage=1
+    combatReductionAttackChoice={}
+    combatAttackChoiceByRow={}
     attackAssignmentsDamageClear()
     if attackAssignmentsHasAny() then attackAssignmentsClearAll() end
 end
@@ -1801,6 +1824,20 @@ end
 -- Click an enemy name to join it with the row above, or click again to split it off.
 function resourceCardsCombatPage(delta)
     combatEnemyPage=math.max(1,combatEnemyPage+delta)
+    resourceCardsRefreshCombatEnemies()
+end
+
+function resourceCardsCombatCycleAttack(row)
+    local guid=combatAssignmentRowTargets[row]
+    local options=combatAttackChoiceByRow[row]
+    if guid==nil or options==nil or #options<2 then return end
+    local chosen=combatReductionAttackChoice[guid]
+    local nextIndex=nil
+    for i,index in ipairs(options) do
+        if chosen==nil then nextIndex=options[1] break end
+        if chosen==index then nextIndex=options[i+1] break end
+    end
+    combatReductionAttackChoice[guid]=nextIndex
     resourceCardsRefreshCombatEnemies()
 end
 
