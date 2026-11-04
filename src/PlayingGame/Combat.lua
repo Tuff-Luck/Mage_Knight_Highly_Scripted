@@ -791,6 +791,7 @@ local function combatPreEndTurnPreparePlayArea(cleanupPlayer,recovery)
 	if recovery~=nil and recovery.playAreaPrepared==true then return cardDestination,#combatObjects>0 and 40 or 0 end
 	local tokenWait=0
 	for _, playAreaObj in pairs(combatObjects) do
+		combatDefeatFlipUndefeated(playAreaObj)
 		--separate decks
 		if playAreaObj.type=="Deck" then
 			for count=1, #playAreaObj.getObjects()-1, 1 do
@@ -799,7 +800,7 @@ local function combatPreEndTurnPreparePlayArea(cleanupPlayer,recovery)
 		end
 		--Separate possessed tokens only after the base enemy was actually defeated.
 		--An undefeated face-down rampager returns to the map with its possession still attached.
-		if playAreaObj.getAttachments()[1]~=nil and playAreaObj.is_face_down==false then
+		if playAreaObj.getAttachments()[1]~=nil and playAreaObj.is_face_down==false and (combatDefeatCleanupSnapshot==nil or combatDefeatCleanupSnapshot[playAreaObj.guid]~=true) then
 			local destroyedSiteRewards=againstApocalypseRampagerDestroyedSiteRewards~=nil and againstApocalypseRampagerDestroyedSiteRewards(playAreaObj) or 0
 			if destroyedSiteRewards>0 then
 				local destroyedBag=getObjectFromGUID(GUID.bag.destroyedSite)
@@ -1185,6 +1186,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 	end
 
 	local cleanupPlayer=gStates.turnNumber
+	combatDefeatSnapshotForCleanup()
 	local coopCombatReward,recovery=combatPreEndTurnOpenRewardBoundary(cleanupPlayer)
 	turnPreparePreEndTurn(cleanupPlayer,player.color,id)
 	local tokenRaised,avatarPos,avatarModel=combatPreEndTurnRaiseAvatar(cleanupPlayer)
@@ -1369,10 +1371,109 @@ applyCurrentAssaultWallFortified=function(fortified)
 	end
 end
 
+--Runtime-only defeat marks. While the Combat Calculator is running it decides which tracked enemy tokens are
+--defeated; they carry a red X instead of being flipped face down. Cleared whenever the calculator stops.
+local combatDefeatTracked={}
+local combatDefeatDefeated={}
+combatDefeatMarksActive=false
+combatDefeatCleanupSnapshot=nil
+local combatDefeatFlipRestoring={}
+
+function combatEnemyTokenDefeated(obj)
+	if obj==nil then return false end
+	if combatDefeatMarksActive==true and combatDefeatTracked[obj.guid]==true then return combatDefeatDefeated[obj.guid]==true end
+	return obj.is_face_down==false
+end
+
+local function combatDefeatRefreshTokens(guids)
+	for guid in pairs(guids) do
+		local obj=getObjectFromGUID(guid)
+		if obj~=nil and monsterPugs[guid]~=nil then setMonsterObjectButtons(obj) end
+	end
+end
+
+--tracked: {guid=true} for every enemy the calculator is evaluating; defeated: {guid=true} for those it shows defeated.
+function combatSetDefeatMarks(tracked,defeated)
+	local changed={}
+	for guid in pairs(defeated) do if combatDefeatDefeated[guid]~=true then changed[guid]=true end end
+	for guid in pairs(combatDefeatDefeated) do if defeated[guid]~=true then changed[guid]=true end end
+	local trackingChanged=combatDefeatMarksActive~=true
+	for guid in pairs(tracked) do if combatDefeatTracked[guid]~=true then trackingChanged=true end end
+	for guid in pairs(combatDefeatTracked) do if tracked[guid]~=true then trackingChanged=true end end
+	combatDefeatMarksActive=true
+	combatDefeatTracked,combatDefeatDefeated=tracked,defeated
+	if next(changed)==nil and not trackingChanged then return end
+	combatDefeatRefreshTokens(changed)
+	mainUIUpdate("Combat Calculator defeat marks")
+end
+
+function combatClearDefeatMarks()
+	if combatDefeatMarksActive~=true then return end
+	local changed=combatDefeatDefeated
+	combatDefeatMarksActive=false
+	combatDefeatTracked,combatDefeatDefeated={},{}
+	combatDefeatRefreshTokens(changed)
+	mainUIUpdate("Combat Calculator defeat marks")
+end
+
+--End Turn snapshot, taken before the calculator can stop. Undefeated tracked tokens are flipped face down
+--during cleanup so the unchanged face-down cleanup returns them without rewards.
+function combatDefeatSnapshotForCleanup()
+	if combatDefeatMarksActive~=true then combatDefeatCleanupSnapshot=nil return end
+	local snapshot={}
+	for guid in pairs(combatDefeatTracked) do
+		if combatDefeatDefeated[guid]~=true then snapshot[guid]=true end
+	end
+	combatDefeatCleanupSnapshot=snapshot
+end
+
+function combatDefeatFlipUndefeated(obj)
+	local snapshot=combatDefeatCleanupSnapshot
+	if snapshot==nil or obj==nil or snapshot[obj.guid]~=true or obj.is_face_down==true then return end
+	if monsterPugs[obj.guid]==nil or gStates.summonStates[obj.guid]=="summoned" then return end
+	local rotation=obj.getRotation()
+	obj.setRotation({rotation.x,rotation.y,180})
+end
+
+--A manual flip face down is unnecessary and would fight the calculator's result, so put it back.
+function combatDefeatGuardManualFlip(object)
+	if combatDefeatMarksActive~=true or gStates.preEndTurn==true or object==nil then return end
+	local guid=object.guid
+	if combatDefeatTracked[guid]~=true or combatDefeatFlipRestoring[guid]==true then return end
+	combatDefeatFlipRestoring[guid]=true
+	local attempts=0
+	local function check()
+		local obj=getObjectFromGUID(guid)
+		if obj==nil or combatDefeatMarksActive~=true or gStates.preEndTurn==true or combatDefeatTracked[guid]~=true then
+			combatDefeatFlipRestoring[guid]=nil
+			return
+		end
+		attempts=attempts+1
+		--Still held or moving: look again shortly. Gives up after about 10 seconds.
+		if obj.held_by_color~=nil or obj.isSmoothMoving() or not obj.resting then
+			if attempts<40 then safeWaitTime("Combat",check,0.25) else combatDefeatFlipRestoring[guid]=nil end
+			return
+		end
+		combatDefeatFlipRestoring[guid]=nil
+		if obj.is_face_down~=true then return end
+		local position=obj.getPosition()
+		obj.setPositionSmooth({position.x,math.max(position.y,1.3),position.z},false,false)
+		obj.setRotationSmooth({0,180,0},false,false)
+		broadcastToAll("{en}There is no need to flip an enemy face down while the Combat Calculator is open. It marks defeated enemies with a red X and returns the rest at the end of the turn.",warningColor)
+	end
+	safeWaitTime("Combat",check,0.25)
+end
+
 --Build the buttons that live on a monster token so attaching/detaching Possessed updates them immediately.
 function monsterObjectButtons(obj, forcedPossessed)
 	local addedButtons={}
 	if obj==nil or obj.guid==nil or monsterPugs[obj.guid]==nil then return addedButtons end
+	if combatDefeatMarksActive==true and combatDefeatDefeated[obj.guid]==true then
+		addedButtons[#addedButtons+1]={tag="Panel", attributes={id="DefeatedXPanel"..obj.guid, width=220, height=220,
+			position="0 0 -15", rotation="0 0 180", color="rgba(0,0,0,0)", raycastTarget="false"},
+			children={{tag="Text", attributes={id="DefeatedX"..obj.guid, text="X", font="Fonts/MKCardText", fontSize=220,
+				fontStyle="Bold", color="#E01010", alignment="MiddleCenter"}}}}
+	end
 	local possessedAttached=forcedPossessed
 	if possessedAttached==nil then
 		possessedAttached=false

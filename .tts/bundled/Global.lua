@@ -1596,9 +1596,22 @@ local function scheduleSettledZoneEntry(ctx,callback,channel)
 		local liveCtx=zoneEventContext(liveZone,liveObj)
 		if liveCtx~=nil then callback(liveCtx) end
 	end,function()
+		if settledZoneEntrySerial[key]~=serial then return true end
 		local liveObj=getObjectFromGUID(objGUID)
 		return liveObj==nil or (liveObj.resting==true and liveObj.isSmoothMoving()==false)
 	end)
+end
+
+-- Invalidate settling callbacks as soon as an object leaves the zone that scheduled them.
+-- Wait.condition cannot be cancelled individually, so its condition observes this serial map.
+local function cancelSettledZoneEntries(zoneGUID,objGUID)
+	if zoneGUID==nil or objGUID==nil then return end
+	local suffix="|"..zoneGUID.."|"..objGUID
+	for key,serial in pairs(settledZoneEntrySerial) do
+		if type(key)=="string" and key:sub(-#suffix)==suffix then
+			settledZoneEntrySerial[key]=(settledZoneEntrySerial[key] or 0)+1
+		end
+	end
 end
 
 local function handleZoneEnterPrelude(ctx)
@@ -2154,6 +2167,7 @@ function __onObjectLeaveZone_raw(zone, obj)
 	end
 	local ctx=zoneEventContext(zone,obj)
 	if ctx==nil then return end
+	cancelSettledZoneEntries(ctx.zoneGUID,ctx.objGUID)
 	if handleZoneLeavePrelude(ctx)==true then return end
     if gStates.firstStarted==true then resourceCardsZoneLeft(ctx) end
 	if gStates.firstStarted==true then
@@ -2561,6 +2575,7 @@ function __onObjectRotate_raw(object, spin, flip, player_color, old_spin, old_fl
 	--Quest enemy tokens can be manually flipped while waiting on a Quest card. Refresh only
 	--an existing Quest Attack control after TTS has applied the new face.
 	if monsterPugs[object.guid]~=nil then
+		combatDefeatGuardManualFlip(object)
 		apocalypseQuestScheduleEnemyAttackButtonOrientation(object.guid)
 		refreshCityRevealForMonster(object.guid)
 	end
@@ -3657,7 +3672,7 @@ local function mainUIRefreshPlayerState(context)
 				if gStates.gainList[obj.guid]==nil then
 					--record token orientation and do the math if face up.
 					gStates.gainList[obj.guid]={exists=true, siteRepLoss=0, keepHalfFame=false}
-					if obj.is_face_down==false then
+					if combatEnemyTokenDefeated(obj) then
 						gStates.gainList[obj.guid].tokenDirection=1
 						doMath=true
 					else
@@ -3704,8 +3719,9 @@ local function mainUIRefreshPlayerState(context)
                             and councilApocalypseSiteOwnerAt(mageKnightAvatarPosition(gStates.turnNumber))~=nil)
 				end
 				--existing token found, but it has been flipped
-				if (obj.is_face_down==false and gStates.gainList[obj.guid].tokenDirection==-1)
-				or (obj.is_face_down==true and gStates.gainList[obj.guid].tokenDirection==1) then
+				local defeatedNow=combatEnemyTokenDefeated(obj)
+				if (defeatedNow and gStates.gainList[obj.guid].tokenDirection==-1)
+				or (not defeatedNow and gStates.gainList[obj.guid].tokenDirection==1) then
 					gStates.gainList[obj.guid].tokenDirection=gStates.gainList[obj.guid].tokenDirection*-1
 					doMath=true
 				end
@@ -3746,7 +3762,7 @@ local function mainUIRefreshPlayerState(context)
 					end
 				end
 				--Check if leader Overkill Changed
-				if gStates.gainList[obj.guid].overkill~=nil and gStates.gainList[obj.guid].overkill~=gStates.leaderOverkill and obj.is_face_down==false then doMath=true end
+				if gStates.gainList[obj.guid].overkill~=nil and gStates.gainList[obj.guid].overkill~=gStates.leaderOverkill and defeatedNow then doMath=true end
 				--if allowed add or subtract fame and reputation
 				if doMath==true then
 					--All tokens Fame
@@ -21652,9 +21668,10 @@ local function refreshRenderedLines()
 	renderedSignature=signature
 end
 
+-- Static arrows are refreshed by object/assignment events. Only live pointer previews
+-- need the repeating refresh loop.
 local function hasRuntimeWork()
-	return next(assignmentRegistry)~=nil or next(targetingByPlayer)~=nil
-		or next(damageTargets)~=nil or damagePending~=nil
+	return next(targetingByPlayer)~=nil or damagePending~=nil
 end
 
 local function scheduleRefresh()
@@ -22099,6 +22116,16 @@ function attackAssignmentsObjectMoved(object)
 	if not relevant then
 		for _,pending in pairs(targetingByPlayer) do
 			if assignmentBaseGUID(pending.sourceGUID)==guid then relevant=true break end
+		end
+	end
+	if not relevant then
+		for key,guids in pairs(damageTargets) do
+			local attack=damageSpec.byKey[key]
+			if attack~=nil and attack.owner==guid then relevant=true break end
+			for _,targetGUID in ipairs(guids) do
+				if targetGUID==guid then relevant=true break end
+			end
+			if relevant then break end
 		end
 	end
 	if relevant then
@@ -22937,6 +22964,7 @@ local function combatPreEndTurnPreparePlayArea(cleanupPlayer,recovery)
 	if recovery~=nil and recovery.playAreaPrepared==true then return cardDestination,#combatObjects>0 and 40 or 0 end
 	local tokenWait=0
 	for _, playAreaObj in pairs(combatObjects) do
+		combatDefeatFlipUndefeated(playAreaObj)
 		--separate decks
 		if playAreaObj.type=="Deck" then
 			for count=1, #playAreaObj.getObjects()-1, 1 do
@@ -22945,7 +22973,7 @@ local function combatPreEndTurnPreparePlayArea(cleanupPlayer,recovery)
 		end
 		--Separate possessed tokens only after the base enemy was actually defeated.
 		--An undefeated face-down rampager returns to the map with its possession still attached.
-		if playAreaObj.getAttachments()[1]~=nil and playAreaObj.is_face_down==false then
+		if playAreaObj.getAttachments()[1]~=nil and playAreaObj.is_face_down==false and (combatDefeatCleanupSnapshot==nil or combatDefeatCleanupSnapshot[playAreaObj.guid]~=true) then
 			local destroyedSiteRewards=againstApocalypseRampagerDestroyedSiteRewards~=nil and againstApocalypseRampagerDestroyedSiteRewards(playAreaObj) or 0
 			if destroyedSiteRewards>0 then
 				local destroyedBag=getObjectFromGUID(GUID.bag.destroyedSite)
@@ -23331,6 +23359,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 	end
 
 	local cleanupPlayer=gStates.turnNumber
+	combatDefeatSnapshotForCleanup()
 	local coopCombatReward,recovery=combatPreEndTurnOpenRewardBoundary(cleanupPlayer)
 	turnPreparePreEndTurn(cleanupPlayer,player.color,id)
 	local tokenRaised,avatarPos,avatarModel=combatPreEndTurnRaiseAvatar(cleanupPlayer)
@@ -23515,10 +23544,109 @@ applyCurrentAssaultWallFortified=function(fortified)
 	end
 end
 
+--Runtime-only defeat marks. While the Combat Calculator is running it decides which tracked enemy tokens are
+--defeated; they carry a red X instead of being flipped face down. Cleared whenever the calculator stops.
+local combatDefeatTracked={}
+local combatDefeatDefeated={}
+combatDefeatMarksActive=false
+combatDefeatCleanupSnapshot=nil
+local combatDefeatFlipRestoring={}
+
+function combatEnemyTokenDefeated(obj)
+	if obj==nil then return false end
+	if combatDefeatMarksActive==true and combatDefeatTracked[obj.guid]==true then return combatDefeatDefeated[obj.guid]==true end
+	return obj.is_face_down==false
+end
+
+local function combatDefeatRefreshTokens(guids)
+	for guid in pairs(guids) do
+		local obj=getObjectFromGUID(guid)
+		if obj~=nil and monsterPugs[guid]~=nil then setMonsterObjectButtons(obj) end
+	end
+end
+
+--tracked: {guid=true} for every enemy the calculator is evaluating; defeated: {guid=true} for those it shows defeated.
+function combatSetDefeatMarks(tracked,defeated)
+	local changed={}
+	for guid in pairs(defeated) do if combatDefeatDefeated[guid]~=true then changed[guid]=true end end
+	for guid in pairs(combatDefeatDefeated) do if defeated[guid]~=true then changed[guid]=true end end
+	local trackingChanged=combatDefeatMarksActive~=true
+	for guid in pairs(tracked) do if combatDefeatTracked[guid]~=true then trackingChanged=true end end
+	for guid in pairs(combatDefeatTracked) do if tracked[guid]~=true then trackingChanged=true end end
+	combatDefeatMarksActive=true
+	combatDefeatTracked,combatDefeatDefeated=tracked,defeated
+	if next(changed)==nil and not trackingChanged then return end
+	combatDefeatRefreshTokens(changed)
+	mainUIUpdate("Combat Calculator defeat marks")
+end
+
+function combatClearDefeatMarks()
+	if combatDefeatMarksActive~=true then return end
+	local changed=combatDefeatDefeated
+	combatDefeatMarksActive=false
+	combatDefeatTracked,combatDefeatDefeated={},{}
+	combatDefeatRefreshTokens(changed)
+	mainUIUpdate("Combat Calculator defeat marks")
+end
+
+--End Turn snapshot, taken before the calculator can stop. Undefeated tracked tokens are flipped face down
+--during cleanup so the unchanged face-down cleanup returns them without rewards.
+function combatDefeatSnapshotForCleanup()
+	if combatDefeatMarksActive~=true then combatDefeatCleanupSnapshot=nil return end
+	local snapshot={}
+	for guid in pairs(combatDefeatTracked) do
+		if combatDefeatDefeated[guid]~=true then snapshot[guid]=true end
+	end
+	combatDefeatCleanupSnapshot=snapshot
+end
+
+function combatDefeatFlipUndefeated(obj)
+	local snapshot=combatDefeatCleanupSnapshot
+	if snapshot==nil or obj==nil or snapshot[obj.guid]~=true or obj.is_face_down==true then return end
+	if monsterPugs[obj.guid]==nil or gStates.summonStates[obj.guid]=="summoned" then return end
+	local rotation=obj.getRotation()
+	obj.setRotation({rotation.x,rotation.y,180})
+end
+
+--A manual flip face down is unnecessary and would fight the calculator's result, so put it back.
+function combatDefeatGuardManualFlip(object)
+	if combatDefeatMarksActive~=true or gStates.preEndTurn==true or object==nil then return end
+	local guid=object.guid
+	if combatDefeatTracked[guid]~=true or combatDefeatFlipRestoring[guid]==true then return end
+	combatDefeatFlipRestoring[guid]=true
+	local attempts=0
+	local function check()
+		local obj=getObjectFromGUID(guid)
+		if obj==nil or combatDefeatMarksActive~=true or gStates.preEndTurn==true or combatDefeatTracked[guid]~=true then
+			combatDefeatFlipRestoring[guid]=nil
+			return
+		end
+		attempts=attempts+1
+		--Still held or moving: look again shortly. Gives up after about 10 seconds.
+		if obj.held_by_color~=nil or obj.isSmoothMoving() or not obj.resting then
+			if attempts<40 then safeWaitTime("Combat",check,0.25) else combatDefeatFlipRestoring[guid]=nil end
+			return
+		end
+		combatDefeatFlipRestoring[guid]=nil
+		if obj.is_face_down~=true then return end
+		local position=obj.getPosition()
+		obj.setPositionSmooth({position.x,math.max(position.y,1.3),position.z},false,false)
+		obj.setRotationSmooth({0,180,0},false,false)
+		broadcastToAll("{en}There is no need to flip an enemy face down while the Combat Calculator is open. It marks defeated enemies with a red X and returns the rest at the end of the turn.",warningColor)
+	end
+	safeWaitTime("Combat",check,0.25)
+end
+
 --Build the buttons that live on a monster token so attaching/detaching Possessed updates them immediately.
 function monsterObjectButtons(obj, forcedPossessed)
 	local addedButtons={}
 	if obj==nil or obj.guid==nil or monsterPugs[obj.guid]==nil then return addedButtons end
+	if combatDefeatMarksActive==true and combatDefeatDefeated[obj.guid]==true then
+		addedButtons[#addedButtons+1]={tag="Panel", attributes={id="DefeatedXPanel"..obj.guid, width=220, height=220,
+			position="0 0 -15", rotation="0 0 180", color="rgba(0,0,0,0)", raycastTarget="false"},
+			children={{tag="Text", attributes={id="DefeatedX"..obj.guid, text="X", font="Fonts/MKCardText", fontSize=220,
+				fontStyle="Bold", color="#E01010", alignment="MiddleCenter"}}}}
+	end
 	local possessedAttached=forcedPossessed
 	if possessedAttached==nil then
 		possessedAttached=false
@@ -44043,6 +44171,9 @@ local function combatEnemyResists(data,perks,attackType)
     if attackType=="I" then return combatEnemyHasTrait(data,perks,"iResist") end
     -- Cold Fire is only resisted by an enemy with both Fire and Ice Resistance.
     if attackType=="IF" then
+        -- A group resists Cold Fire only if one individual member has both traits.
+        -- The ordinary group resistance flags are merged independently.
+        if data~=nil and data.coldFireResist~=nil then return data.coldFireResist==true end
         return combatEnemyHasTrait(data,perks,"fResist")
             and combatEnemyHasTrait(data,perks,"iResist")
     end
@@ -44192,11 +44323,17 @@ local function combatSolveBlocks(attacks,items,movePool)
         return cached
     end
     local memo,choice={},{}
-    local moveCap=math.min(movePool,63)
+    -- Move can only reduce Cumbersome attacks, and never by more than their total value.
+    -- Cap the search to useful reductions rather than carrying an arbitrary 0..63 state range.
+    local usefulMove=0
+    for _,attack in ipairs(attacks) do
+        if attack.cumbersome then usefulMove=usefulMove+math.max(0,attack.value) end
+    end
+    local moveCap=math.min(movePool,usefulMove)
     local solve
     solve=function(index,available,move)
         if index>#attacks then return 0 end
-        local key=(index*(fullMask+1)+available)*64+move
+        local key=(index*(fullMask+1)+available)*(moveCap+1)+move
         if memo[key]~=nil then return memo[key] end
         local attack=attacks[index]
         local brutal=attack.brutal and 2 or 1
@@ -44236,7 +44373,7 @@ local function combatSolveBlocks(attacks,items,movePool)
     solve(1,fullMask,moveCap)
     local plan,available,move={},fullMask,moveCap
     for index=1,#attacks do
-        local key=(index*(fullMask+1)+available)*64+move
+        local key=(index*(fullMask+1)+available)*(moveCap+1)+move
         local picked=choice[key]
         plan[index]={mask=picked[1],reduction=picked[2],blocked=picked[3]}
         available=bit32.band(available,bit32.bnot(picked[1]))
@@ -44434,7 +44571,7 @@ end
 -- them and the armours add together. Elusive members only use their higher armour in the
 -- Attack phase while one of their attacks is unblocked.
 local function combatGroupEntry(members,blockedAll)
-    local data={fortified=false,elusive=true}
+    local data={fortified=false,elusive=true,coldFireResist=false}
     local perks={}
     local fortification=0
     local armour,elusiveArmour,attackArmour=0,0,0
@@ -44445,6 +44582,12 @@ local function combatGroupEntry(members,blockedAll)
         for _,key in ipairs({"pResist","fResist","iResist","mResist"}) do
             if not member.stripResist and not (key=="fResist" and member.stripFireResist)
                 and combatEnemyHasTrait(member.data,member.perks,key) then data[key]=true end
+        end
+        if not member.stripResist
+            and not member.stripFireResist
+            and combatEnemyHasTrait(member.data,member.perks,"fResist")
+            and combatEnemyHasTrait(member.data,member.perks,"iResist") then
+            data.coldFireResist=true
         end
         local elusive=combatEnemyHasTrait(member.data,member.perks,"elusive")
         local rangeArmour=elusive and member.elusiveArmour or member.baseArmour
@@ -44668,8 +44811,10 @@ local function combatAssignmentRefreshRows(entries,sources)
         local moveOnly=source.ranged+source.siege+source.block+source.attack==0
         -- Once locked, a source stays on its enemy until it is retargeted or its arrow is removed.
         local targetGUID=combatAssignmentState.targets[source.key]
-        if targetGUID==nil and moveOnly then
-            -- Move is never aimed automatically; keep an arrow the player drew earlier.
+        if targetGUID==nil then
+            -- Restore the saved visual assignment for every source after a reload.
+            -- Move has no automatic target, while other resources use nearest-enemy only
+            -- when no valid persisted assignment exists.
             for guid in pairs(attackAssignmentsTargetGUIDs(source.key)) do
                 if rowByGUID[guid]~=nil then
                     targetGUID=guid
@@ -44830,7 +44975,15 @@ local function combatAssignmentRefreshRows(entries,sources)
     end
     combatDefeatFameRep.fame,combatDefeatFameRep.rep=defeatFame,defeatRep
     resourceCardsApplyFameRep(damageSeat)
-
+    local trackedGuids,defeatedGuids={},{}
+    for _,group in ipairs(groups) do
+        for _,index in ipairs(group.members) do
+            local guid=entries[index].guid
+            trackedGuids[guid]=true
+            if group.defeated then defeatedGuids[guid]=true end
+        end
+    end
+    combatSetDefeatMarks(trackedGuids,defeatedGuids)
     for index=1,COMBAT_ASSIGNMENT_ROW_COUNT do
         local entry=entries[index]
         local group=groupOf[index]
@@ -45049,6 +45202,7 @@ local function combatCalcShutdown()
     combatCalcOn=false
     combatCumbersomeActive=false
     combatSyncDefenderMark(nil)
+    combatClearDefeatMarks()
     combatPanelSetAttribute("CombatEnemyPanel","active","false")
     local seat=combatAssignmentState.seat
     combatDefeatFameRep.fame,combatDefeatFameRep.rep=0,0
@@ -49035,6 +49189,9 @@ end
 
 local function resourceCardsRelevantZone(ctx)
     if ctx==nil or ctx.zoneInfo==nil or ctx.obj==nil then return nil end
+    -- The tracker only renders the active Mage Knight's board; ignore other seats early.
+    local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    if active==nil or active.seatPos~=ctx.zoneInfo.seatPos then return nil end
     local kind=ctx.zoneInfo.kind
     local objectKind=resourceObjectKind(ctx.obj)
     if kind=="play" and (objectKind~=nil or monsterPugs[ctx.objGUID]~=nil) then
@@ -50058,13 +50215,16 @@ unitLayoutSnapshot=function(seatPos)
 	local commands={}
 	local units={}
 	local unitByGuid={}
+	local objectX={}
 	for _, obj in pairs(objects) do
-		if unitLayoutIsCommand(obj) then commands[#commands+1]=obj end
-		if unitLayoutIsUnit(obj) then units[#units+1]=obj unitByGuid[obj.guid]=obj end
+		if unitLayoutIsCommand(obj) then commands[#commands+1]=obj objectX[obj.guid]=obj.getPosition()[1] end
+		if unitLayoutIsUnit(obj) then units[#units+1]=obj unitByGuid[obj.guid]=obj objectX[obj.guid]=obj.getPosition()[1] end
 	end
+	-- Cache each object's X coordinate once. TTS object calls inside sort comparators
+	-- multiply quickly as the Unit/Command count grows.
 	table.sort(commands, function(a,b)
-		local ax=a.getPosition()[1]
-		local bx=b.getPosition()[1]
+		local ax=objectX[a.guid]
+		local bx=objectX[b.guid]
 		if math.abs(ax-bx)<0.05 then
 			local ap=unitLayoutCommandPriority(a)
 			local bp=unitLayoutCommandPriority(b)
@@ -50074,8 +50234,8 @@ unitLayoutSnapshot=function(seatPos)
 		return ax<bx
 	end)
 	table.sort(units, function(a,b)
-		local ax=a.getPosition()[1]
-		local bx=b.getPosition()[1]
+		local ax=objectX[a.guid]
+		local bx=objectX[b.guid]
 		if math.abs(ax-bx)<0.05 then return a.guid<b.guid end
 		return ax<bx
 	end)
@@ -50084,12 +50244,12 @@ unitLayoutSnapshot=function(seatPos)
 	local unitSlotByGuid={}
 	local usedCommand={}
 	for _, unit in ipairs(units) do
-		local unitX=unit.getPosition()[1]
+		local unitX=objectX[unit.guid]
 		local bestSlot=nil
 		local bestDistance=nil
 		for slot, command in ipairs(commands) do
 			if usedCommand[slot]~=true then
-				local distance=math.abs(unitX-command.getPosition()[1])
+				local distance=math.abs(unitX-objectX[command.guid])
 				if bestDistance==nil or distance<bestDistance then bestDistance=distance bestSlot=slot end
 			end
 		end
@@ -50157,22 +50317,30 @@ function unitLayoutResourceState(seatPos)
     local commandTokens,woundTokens={},{}
     for _,obj in ipairs(layout.objects) do
         if unitLayoutIsCommand(obj) then
-            commandTokens[#commandTokens+1]=obj
+            local p=obj.getPosition()
+            commandTokens[#commandTokens+1]={x=p.x or p[1],z=p.z or p[3]}
         elseif unitLayoutIsWound(obj) then
-            woundTokens[#woundTokens+1]=obj
+            local p=obj.getPosition()
+            woundTokens[#woundTokens+1]={x=p.x or p[1],z=p.z or p[3]}
         end
     end
     local units={}
     for _,unit in ipairs(layout.units) do
+        local bounds=unit.getBounds()
+        local size=bounds~=nil and bounds.size or nil
+        local center=bounds~=nil and bounds.center or unit.getPosition()
+        local halfX=size~=nil and (size.x or size[1])*0.46 or 1.0
+        local halfZ=size~=nil and (size.z or size[3])*0.46 or 1.5
+        local cx,cz=center.x or center[1],center.z or center[3]
         local state={guid=unit.guid,unit=unit,ready=true,unwounded=true,woundCount=0}
         for _,token in ipairs(commandTokens) do
-            if unitLayoutTokenOnUnit(token,unit) then
+            if math.abs(token.x-cx)<halfX and math.abs(token.z-cz)<halfZ then
                 state.ready=false
                 break
             end
         end
         for _,token in ipairs(woundTokens) do
-            if unitLayoutTokenOnUnit(token,unit) then
+            if math.abs(token.x-cx)<halfX and math.abs(token.z-cz)<halfZ then
                 state.unwounded=false
                 state.woundCount=state.woundCount+1
             end

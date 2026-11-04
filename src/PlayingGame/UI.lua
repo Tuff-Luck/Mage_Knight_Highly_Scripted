@@ -828,7 +828,7 @@ local function mainUIRefreshPlayerState(context)
 				if gStates.gainList[obj.guid]==nil then
 					--record token orientation and do the math if face up.
 					gStates.gainList[obj.guid]={exists=true, siteRepLoss=0, keepHalfFame=false}
-					if obj.is_face_down==false then
+					if combatEnemyTokenDefeated(obj) then
 						gStates.gainList[obj.guid].tokenDirection=1
 						doMath=true
 					else
@@ -875,8 +875,9 @@ local function mainUIRefreshPlayerState(context)
                             and councilApocalypseSiteOwnerAt(mageKnightAvatarPosition(gStates.turnNumber))~=nil)
 				end
 				--existing token found, but it has been flipped
-				if (obj.is_face_down==false and gStates.gainList[obj.guid].tokenDirection==-1)
-				or (obj.is_face_down==true and gStates.gainList[obj.guid].tokenDirection==1) then
+				local defeatedNow=combatEnemyTokenDefeated(obj)
+				if (defeatedNow and gStates.gainList[obj.guid].tokenDirection==-1)
+				or (not defeatedNow and gStates.gainList[obj.guid].tokenDirection==1) then
 					gStates.gainList[obj.guid].tokenDirection=gStates.gainList[obj.guid].tokenDirection*-1
 					doMath=true
 				end
@@ -917,7 +918,7 @@ local function mainUIRefreshPlayerState(context)
 					end
 				end
 				--Check if leader Overkill Changed
-				if gStates.gainList[obj.guid].overkill~=nil and gStates.gainList[obj.guid].overkill~=gStates.leaderOverkill and obj.is_face_down==false then doMath=true end
+				if gStates.gainList[obj.guid].overkill~=nil and gStates.gainList[obj.guid].overkill~=gStates.leaderOverkill and defeatedNow then doMath=true end
 				--if allowed add or subtract fame and reputation
 				if doMath==true then
 					--All tokens Fame

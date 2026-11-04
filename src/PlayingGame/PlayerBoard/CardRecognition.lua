@@ -1280,7 +1280,15 @@ local function combatAssignmentRefreshRows(entries,sources)
     end
     combatDefeatFameRep.fame,combatDefeatFameRep.rep=defeatFame,defeatRep
     resourceCardsApplyFameRep(damageSeat)
-
+    local trackedGuids,defeatedGuids={},{}
+    for _,group in ipairs(groups) do
+        for _,index in ipairs(group.members) do
+            local guid=entries[index].guid
+            trackedGuids[guid]=true
+            if group.defeated then defeatedGuids[guid]=true end
+        end
+    end
+    combatSetDefeatMarks(trackedGuids,defeatedGuids)
     for index=1,COMBAT_ASSIGNMENT_ROW_COUNT do
         local entry=entries[index]
         local group=groupOf[index]
@@ -1499,6 +1507,7 @@ local function combatCalcShutdown()
     combatCalcOn=false
     combatCumbersomeActive=false
     combatSyncDefenderMark(nil)
+    combatClearDefeatMarks()
     combatPanelSetAttribute("CombatEnemyPanel","active","false")
     local seat=combatAssignmentState.seat
     combatDefeatFameRep.fame,combatDefeatFameRep.rep=0,0

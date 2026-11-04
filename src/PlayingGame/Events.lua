@@ -1880,6 +1880,7 @@ function __onObjectRotate_raw(object, spin, flip, player_color, old_spin, old_fl
 	--Quest enemy tokens can be manually flipped while waiting on a Quest card. Refresh only
 	--an existing Quest Attack control after TTS has applied the new face.
 	if monsterPugs[object.guid]~=nil then
+		combatDefeatGuardManualFlip(object)
 		apocalypseQuestScheduleEnemyAttackButtonOrientation(object.guid)
 		refreshCityRevealForMonster(object.guid)
 	end
