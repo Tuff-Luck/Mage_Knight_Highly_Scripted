@@ -621,112 +621,120 @@ end
 -- is taken. Every Block resource is used by at most one attack. Move only reduces Cumbersome attacks,
 -- one point each, and the reduction stands even when the rest of the attack cannot be blocked.
 -- Ties prefer fewer Block resources, then less Move. Returns one {mask,reduction,blocked} per attack.
-local COMBAT_MAX_BLOCK_ITEMS=12
+-- Exact Block allocation without the old 12-item/bitmask limit.
+-- States track each attack's useful contribution in half-points, so inefficient
+-- Blocks round down only once per attack. Matching states keep the fewest spent
+-- resources; a point above an attack's threshold has no additional value.
+local function combatBlockLegal(attack,item)
+    return item.key~="blockPsychic" or attack.key=="M"
+end
+
 local function combatSolveBlocks(attacks,items,movePool)
     table.sort(items,function(a,b)
         if a.value~=b.value then return a.value>b.value end
         if a.source.key~=b.source.key then return a.source.key<b.source.key end
-        return a.key<b.key
+        if a.key~=b.key then return a.key<b.key end
+        return (a.part or 0)<(b.part or 0)
     end)
-    while #items>COMBAT_MAX_BLOCK_ITEMS do items[#items]=nil end
-    local count=#items
-    local fullMask=bit32.lshift(1,count)-1
-    local bitIndex,bitCount={},{[0]=0}
-    for j=1,count do bitIndex[bit32.lshift(1,j-1)]=j end
-    for mask=1,fullMask do
-        bitCount[mask]=bitCount[bit32.band(mask,mask-1)]+1
+    local targets={}
+    local initial={}
+    for index,attack in ipairs(attacks) do
+        targets[index]=2*attack.value*(attack.swift and 2 or 1)
+        initial[index]=0
     end
-    local sumCache={}
-    local function sumsFor(attack)
-        local cacheKey=attack.key..(attack.swift and "S" or "N")
-        local cached=sumCache[cacheKey]
-        if cached~=nil then return cached end
-        local efficient=COMBAT_EFFICIENT_BLOCKS[attack.key] or {}
-        local full,wrong={[0]=0},{[0]=0}
-        for mask=1,fullMask do
-            local low=bit32.band(mask,-mask)
-            local rest=bit32.bxor(mask,low)
-            local item=items[bitIndex[low]]
-            local amount=item.value
-            -- Counting twice against Swiftness cancels the doubled requirement for that source.
-            if attack.swift and item.swiftDouble then amount=amount*2 end
-            full[mask]=full[rest]
-            wrong[mask]=wrong[rest]
-            if efficient[item.key]==true then full[mask]=full[mask]+amount
-            else wrong[mask]=wrong[mask]+amount end
-        end
-        cached={full=full,wrong=wrong}
-        sumCache[cacheKey]=cached
-        return cached
-    end
-    local memo,choice={},{}
-    -- Move can only reduce Cumbersome attacks, and never by more than their total value.
-    -- Cap the search to useful reductions rather than carrying an arbitrary 0..63 state range.
-    local usefulMove=0
-    for _,attack in ipairs(attacks) do
-        if attack.cumbersome then usefulMove=usefulMove+math.max(0,attack.value) end
-    end
-    local moveCap=math.min(movePool,usefulMove)
-    local solve
-    solve=function(index,available,move)
-        if index>#attacks then return 0 end
-        local key=(index*(fullMask+1)+available)*(moveCap+1)+move
-        if memo[key]~=nil then return memo[key] end
-        local attack=attacks[index]
-        local brutal=attack.brutal and 2 or 1
-        local swiftFactor=attack.swift and 2 or 1
-        local maxReduction=attack.cumbersome and math.min(move,attack.value) or 0
-        local sums=sumsFor(attack)
-        local best,bestChoice=math.huge,nil
-        for reduction=0,maxReduction do
-            local remaining=attack.value-reduction
-            local required=remaining*swiftFactor
-            local next0=solve(index+1,available,move-reduction)
-            -- Not blocked: all remaining damage is taken (nothing spent on Block).
-            if remaining>0 then
-                local score=remaining*brutal*10000+reduction+next0
-                if score<best then best,bestChoice=score,{0,reduction,false} end
-            else
-                local score=reduction+next0
-                if score<best then best,bestChoice=score,{0,reduction,true} end
+    local states={["0"]={points=initial,spent=0,route=""}}
+    local efficientByAttack={}
+    for index,attack in ipairs(attacks) do efficientByAttack[index]=COMBAT_EFFICIENT_BLOCKS[attack.key] or {} end
+    for _,item in ipairs(items) do
+        local nextStates={}
+        local function retain(points,spent,route)
+            local key=table.concat(points,",")
+            local prior=nextStates[key]
+            if prior==nil or spent<prior.spent then
+                nextStates[key]={points=points,spent=spent,route=route}
             end
-            if remaining>0 then
-                local subset=available
-                while subset>0 do
-                    local spent=sums.full[subset]+math.floor(sums.wrong[subset]/2)
-                    if spent>=required then
-                        local score=bitCount[subset]*100+reduction
-                            +solve(index+1,bit32.band(available,bit32.bnot(subset)),move-reduction)
-                        if score<best then best,bestChoice=score,{subset,reduction,true} end
-                    end
-                    subset=bit32.band(subset-1,available)
+        end
+        for _,state in pairs(states) do
+            retain(state.points,state.spent,state.route..string.char(64))
+            for index,attack in ipairs(attacks) do
+                if combatBlockLegal(attack,item) and state.points[index]<targets[index] then
+                    local amount=item.value*(attack.swift and item.swiftDouble and 2 or 1)
+                    local contributed=amount*(efficientByAttack[index][item.key]==true and 2 or 1)
+                    local points={}
+                    for j=1,#attacks do points[j]=state.points[j] end
+                    points[index]=math.min(targets[index],points[index]+contributed)
+                    retain(points,state.spent+1,state.route..string.char(64+index))
                 end
             end
         end
-        memo[key]=best
-        choice[key]=bestChoice
-        return best
+        states=nextStates
     end
-    solve(1,fullMask,moveCap)
-    local plan,available,move={},fullMask,moveCap
-    for index=1,#attacks do
-        local key=(index*(fullMask+1)+available)*(moveCap+1)+move
-        local picked=choice[key]
-        plan[index]={mask=picked[1],reduction=picked[2],blocked=picked[3]}
-        available=bit32.band(available,bit32.bnot(picked[1]))
-        move=move-picked[2]
+    local bestScore,bestState,bestReductions=nil,nil,nil
+    -- Move allocation is independent of which individual Block cards supplied
+    -- the totals. Evaluate it with a small memoized knapsack for each state.
+    local usefulMove=0
+    for _,attack in ipairs(attacks) do
+        if attack.cumbersome then usefulMove=usefulMove+attack.value end
     end
-    return plan,items,available
+    local cap=math.min(math.max(0,movePool),usefulMove)
+    for _,state in pairs(states) do
+        local memo,chosen={},{}
+        local function scoreMoves(index,remaining)
+            if index>#attacks then return 0 end
+            local key=index..":"..remaining
+            if memo[key]~=nil then return memo[key] end
+            local attack=attacks[index]
+            local maxReduction=attack.cumbersome and math.min(remaining,attack.value) or 0
+            local best,bestReduction=math.huge,0
+            for reduction=0,maxReduction do
+                local leftover=attack.value-reduction
+                local threshold=2*leftover*(attack.swift and 2 or 1)
+                local blocked=leftover<=0 or state.points[index]>=threshold
+                local damage=blocked and 0 or leftover*(attack.brutal and 2 or 1)
+                local score=damage*1000000+reduction+scoreMoves(index+1,remaining-reduction)
+                if score<best then best,bestReduction=score,reduction end
+            end
+            memo[key]=best
+            chosen[key]=bestReduction
+            return best
+        end
+        local score=scoreMoves(1,cap)+state.spent*100
+        if bestScore==nil or score<bestScore then
+            bestScore,bestState=score,state
+            local reductions,remaining={},cap
+            for index=1,#attacks do
+                local reduction=chosen[index..":"..remaining] or 0
+                reductions[index]=reduction
+                remaining=remaining-reduction
+            end
+            bestReductions=reductions
+        end
+    end
+    local plan,used={},{}
+    for index,attack in ipairs(attacks) do
+        local reduction=bestReductions[index] or 0
+        local required=2*(attack.value-reduction)*(attack.swift and 2 or 1)
+        plan[index]={used={},reduction=reduction,
+            blocked=attack.value-reduction<=0 or bestState.points[index]>=required}
+    end
+    for index=1,#items do
+        local attackIndex=string.byte(bestState.route,index)-64
+        if attackIndex>0 then
+            plan[attackIndex].used[index]=true
+            used[index]=true
+        end
+    end
+    local leftover={}
+    for index=1,#items do if not used[index] then leftover[#leftover+1]=index end end
+    return plan,items,leftover
 end
 
--- Spent Block of one attack for a set of items, with wrong-element halving and Swiftness metadata.
-local function combatBlockSpent(attack,items,mask)
+local function combatBlockSpent(attack,items,used)
     local efficient=COMBAT_EFFICIENT_BLOCKS[attack.key] or {}
     local full,wrong=0,0
-    for j,item in ipairs(items) do
-        if bit32.band(mask,bit32.lshift(1,j-1))~=0 then
-            local amount=item.value
-            if attack.swift and item.swiftDouble then amount=amount*2 end
+    for index,item in ipairs(items) do
+        if used[index] and combatBlockLegal(attack,item) then
+            local amount=item.value*(attack.swift and item.swiftDouble and 2 or 1)
             if efficient[item.key]==true then full=full+amount else wrong=wrong+amount end
         end
     end
@@ -775,7 +783,13 @@ local function combatBlockResult(entry,sources)
             end
         end
     end
-    if attempted~=nil then plan[attempted.index].mask=bit32.bor(plan[attempted.index].mask,leftover) end
+    if attempted~=nil then
+        for _,itemIndex in ipairs(leftover) do
+            if combatBlockLegal(attacks[attempted.index],solved[itemIndex]) then
+                plan[attempted.index].used[itemIndex]=true
+            end
+        end
+    end
     local lines,reductions,totalDamage,damageCount,allBlocked={},{},0,0,#attacks>0
     local unblocked={}
     -- Block items applied at the wrong element (halved) against their attack, keyed source.key..field.key.
@@ -783,7 +797,7 @@ local function combatBlockResult(entry,sources)
     for index,attack in ipairs(attacks) do
         local efficient=COMBAT_EFFICIENT_BLOCKS[attack.key] or {}
         for j,item in ipairs(solved) do
-            if bit32.band(plan[index].mask,bit32.lshift(1,j-1))~=0 and efficient[item.key]~=true then
+            if plan[index].used[j] and efficient[item.key]~=true then
                 wrongBlock[item.source.key..item.key]=true
             end
         end
@@ -792,7 +806,7 @@ local function combatBlockResult(entry,sources)
         local step=plan[index]
         local remaining=attack.value-step.reduction
         local required=remaining*(attack.swift and 2 or 1)
-        local spent=combatBlockSpent(attack,solved,step.mask)
+        local spent=combatBlockSpent(attack,solved,step.used)
         reductions[index]=step.reduction
         if step.blocked then
             lines[index]=attack.pending and "Summon pending" or (attack.value<=0 and "No attack"
