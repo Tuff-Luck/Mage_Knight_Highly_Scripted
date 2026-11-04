@@ -106,6 +106,10 @@ function onObjectRandomize(randomize_object, player_color)
 	return safeCallback("onObjectRandomize", function() __onObjectRandomize_raw(randomize_object, player_color) end)
 end
 
+function tryObjectRotate(object, spin, flip, player_color, old_spin, old_flip)
+	return safeDirectCallback("tryObjectRotate", __tryObjectRotate_raw, object, spin, flip, player_color, old_spin, old_flip)
+end
+
 function onObjectRotate(object, spin, flip, player_color, old_spin, old_flip)
 	return safeCallback("onObjectRotate", function() __onObjectRotate_raw(object, spin, flip, player_color, old_spin, old_flip) end)
 end
@@ -165,7 +169,7 @@ local expectedProtectedUICallbacks={
 	"processCardClaim","proxyDestinationChoiceSelect","proxyEnemyChoiceSelect","proxyInteractionChoiceSelect",
 	"proxyTurn","refillMonsterTokenPiles","removeTactic","restoreDestroyedSiteAtCurrentPlayer","shieldDrop",
 	"steadyTempoChoice","summonMonster","togglePlayerDropoutRequest","volkarePursuitAction","volkareTurn",
-	"coopCompSkillWarningClick","nightTactic6StoredCountNoop"
+	"coopCompSkillWarningClick","combatDefeatMarkerNoop","nightTactic6StoredCountNoop"
 }
 
 validatePublicUICallbacks=function()
