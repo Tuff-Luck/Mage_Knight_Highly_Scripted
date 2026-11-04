@@ -11,6 +11,11 @@
 			<Text id="CombatAssignedAttackHeader" class="Text14" color="White" preferredWidth="170" alignment="MiddleLeft">{en}Attack Phase{it}Fase di attacco{ru}Фаза атаки{zh-tw}攻擊階段{zh-cn}攻击阶段{ko}공격 단계{es}Fase de ataque{fr}Phase d'attaque{pt-br}Fase de ataque{de}Angriffsphase</Text>
 			<Text id="CombatResultHeader" class="Text14" color="White" preferredWidth="230" alignment="MiddleLeft">{en}Result{it}Risultato{ru}Результат{zh-tw}結果{zh-cn}结果{ko}결과{es}Resultado{fr}Résultat{pt-br}Resultado{de}Ergebnis</Text>
 		</HorizontalLayout>
+        <HorizontalLayout id="CombatEnemyPageControls" active="false" preferredHeight="25" childForceExpandWidth="false" childAlignment="MiddleCenter">
+            <Button id="CombatEnemyPagePrev" onClick="resourceTracker" text="◀" preferredWidth="45" preferredHeight="23" class="ShortButton" />
+            <Text id="CombatEnemyPageLabel" class="Text14" preferredWidth="140" alignment="MiddleCenter" color="White">1-8 / 8</Text>
+            <Button id="CombatEnemyPageNext" onClick="resourceTracker" text="▶" preferredWidth="45" preferredHeight="23" class="ShortButton" />
+        </HorizontalLayout>
 		<Panel id="CombatEnemyRow1" active="false" preferredHeight="30" outlineSize="0 0">
 			<HorizontalLayout padding="8 0 0 0" childForceExpandWidth="false">
 				<Panel preferredWidth="130" color="rgba(0,0,0,0)" outlineSize="0 0">
