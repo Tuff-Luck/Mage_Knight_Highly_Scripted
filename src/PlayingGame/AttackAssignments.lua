@@ -11,6 +11,8 @@ local damageTargets={}   -- attack key -> ordered Unit GUIDs
 local damagePending=nil  -- {key=,color=} while the player is choosing a Unit for an attack
 local damageSpec={attacks={},units={},byOwner={},byKey={},reserved={}}
 local damageButtonObjects={}
+local damageOwnerSignatures={}
+local damageTargetUnits={}
 local damageSignature=""
 local assignmentThickness=0.08
 local previewThickness=0.047
@@ -312,55 +314,86 @@ local function addDamageTargetButton(obj,clickFunction)
 end
 
 local function rebuildDamageButtons()
-	for guid in pairs(damageButtonObjects) do
-		local obj=getObjectFromGUID(guid)
-		if obj~=nil then removeDamageButtons(obj) end
-	end
-	damageButtonObjects={}
-	for owner,list in pairs(next(damageSpec.units)~=nil and damageSpec.byOwner or {}) do
-		local obj=getObjectFromGUID(owner)
-		if obj~=nil and not obj.isDestroyed() then
-			-- Measured once per token, while no damage decal or button of ours can influence the result.
-			if damageButtonX[owner]==nil then
-				local bounds=obj.getBounds()
-				local scale=obj.getScale()
-				local radius=(bounds~=nil and bounds.size~=nil and bounds.size[1] or 1.5)/((scale~=nil and scale.x) or 1)/2
-				-- Buttons sit outside the token's left edge, and further out when a bonus decal already occupies it.
-				local x=-(radius+0.35)
-				for _,decal in ipairs(obj.getDecals() or {}) do
-					local position=decal.position
-					local px=type(position)=="table" and (position[1] or position.x) or nil
-					if px~=nil and px<-0.8 then x=math.min(x,px-0.36-0.35) end
-				end
-				damageButtonX[owner]=x
-			end
-			local x=damageButtonX[owner]
-			local decals=obj.getDecals() or {}
-			for i,attack in ipairs(list) do
-				local z=(i-(#list+1)/2)*0.65
-				obj.createButton({click_function="attackAssignmentDamageClick"..i,function_owner=Global,
-					label="",position={x,0.25,z},rotation={0,0,0},width=300,height=300,color={0,0,0,0}})
-				-- Decal x runs opposite to button x, so the icon is mirrored to land on the button.
-				decals[#decals+1]={name="DamageTarget"..i,url=DAMAGE_DECAL_URL,position={-x,0.15,z},
-					rotation={90,180,0},scale={0.5,0.5,1}}
-			end
-			obj.setDecals(decals)
-			damageButtonObjects[owner]=obj
-		end
-	end
-	if damagePending~=nil then
-		local own={}
-		for _,guid in ipairs(damageTargets[damagePending.key] or {}) do own[guid]=true end
-		for guid in pairs(damageSpec.units) do
-			if damageSpec.reserved[guid]==nil or damageSpec.reserved[guid]==damagePending.key then
-				if own[guid] or damageUsedBy(guid,nil)==nil then
-					addDamageTargetButton(getObjectFromGUID(guid),"attackAssignmentDamageUnitClicked")
-				end
-			end
-		end
-	end
+    -- Change only owners whose attack buttons have changed. A Block adjustment
+    -- often changes damage values but not the physical buttons/decals.
+    local desiredOwners={}
+    for owner,list in pairs(next(damageSpec.units)~=nil and damageSpec.byOwner or {}) do
+        local obj=getObjectFromGUID(owner)
+        if obj~=nil and not obj.isDestroyed() then
+            local keys={}
+            for _,attack in ipairs(list) do keys[#keys+1]=attack.key end
+            local signature=table.concat(keys,"|")
+            desiredOwners[owner]=signature
+            if damageOwnerSignatures[owner]~=signature then
+                if damageOwnerSignatures[owner]~=nil then removeDamageButtons(obj) end
+                if damageButtonX[owner]==nil then
+                    local bounds=obj.getBounds()
+                    local scale=obj.getScale()
+                    local radius=(bounds~=nil and bounds.size~=nil and bounds.size[1] or 1.5)
+                        /((scale~=nil and scale.x) or 1)/2
+                    local x=-(radius+0.35)
+                    for _,decal in ipairs(obj.getDecals() or {}) do
+                        local p=decal.position
+                        local px=type(p)=="table" and (p[1] or p.x) or nil
+                        if px~=nil and px<-0.8 then x=math.min(x,px-0.71) end
+                    end
+                    damageButtonX[owner]=x
+                end
+                local x=damageButtonX[owner]
+                local decals=obj.getDecals() or {}
+                for index in ipairs(list) do
+                    local z=(index-(#list+1)/2)*0.65
+                    obj.createButton({click_function="attackAssignmentDamageClick"..index,
+                        function_owner=Global,label="",position={x,0.25,z},rotation={0,0,0},
+                        width=300,height=300,color={0,0,0,0}})
+                    decals[#decals+1]={name="DamageTarget"..index,url=DAMAGE_DECAL_URL,
+                        position={-x,0.15,z},rotation={90,180,0},scale={0.5,0.5,1}}
+                end
+                obj.setDecals(decals)
+                damageOwnerSignatures[owner]=signature
+            end
+            damageButtonObjects[owner]=obj
+        end
+    end
+    for owner in pairs(damageOwnerSignatures) do
+        if desiredOwners[owner]==nil then
+            local obj=getObjectFromGUID(owner)
+            if obj~=nil then removeDamageButtons(obj) end
+            damageOwnerSignatures[owner]=nil
+            damageButtonX[owner]=nil
+            damageButtonObjects[owner]=nil
+        end
+    end
+    -- Unit click overlays are separately reconciled, so a changed enemy does
+    -- not touch every Unit card in the player's command row.
+    local wanted={}
+    if damagePending~=nil then
+        local own={}
+        for _,guid in ipairs(damageTargets[damagePending.key] or {}) do own[guid]=true end
+        for guid in pairs(damageSpec.units) do
+            if damageSpec.reserved[guid]==nil or damageSpec.reserved[guid]==damagePending.key then
+                if own[guid] or damageUsedBy(guid,nil)==nil then wanted[guid]=true end
+            end
+        end
+    end
+    for guid in pairs(damageTargetUnits) do
+        if wanted[guid]~=true then
+            local obj=getObjectFromGUID(guid)
+            if obj~=nil then removeDamageButtons(obj) end
+            damageTargetUnits[guid]=nil
+            damageButtonObjects[guid]=nil
+        end
+    end
+    for guid in pairs(wanted) do
+        if damageTargetUnits[guid]~=true then
+            local obj=getObjectFromGUID(guid)
+            if obj~=nil then
+                addDamageTargetButton(obj,"attackAssignmentDamageUnitClicked")
+                damageTargetUnits[guid]=true
+            end
+        end
+    end
 end
-
 -- spec: attacks={{key,owner,damage,assassination,firstDamageUnit}} in token order, units={guid=true} for Units that can still be assigned
 -- damage. Drops targets that no longer apply. An attack keeps its button only while it still has legal Units to pick
 -- or an assignment to undo.
@@ -438,6 +471,8 @@ function attackAssignmentsDamageClear()
 		if obj~=nil then removeDamageButtons(obj) end
 	end
 	damageButtonObjects={}
+    damageOwnerSignatures={}
+    damageTargetUnits={}
 	damageButtonX={}
 	refreshRenderedLines()
 end
