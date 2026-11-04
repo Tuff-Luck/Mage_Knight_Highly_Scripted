@@ -9,7 +9,7 @@ local DAMAGE_BUTTON_LIMIT=6
 -- Damage phase state is runtime-only: every unblocked attack starts on the Hero until the player targets Units.
 local damageTargets={}   -- attack key -> ordered Unit GUIDs
 local damagePending=nil  -- {key=,color=} while the player is choosing a Unit for an attack
-local damageSpec={attacks={},units={},byOwner={},byKey={}}
+local damageSpec={attacks={},units={},byOwner={},byKey={},reserved={}}
 local damageButtonObjects={}
 local damageSignature=""
 local assignmentThickness=0.08
@@ -150,6 +150,22 @@ local function activeVisualLines()
 		for _,guid in ipairs(guids) do
 			local assignment=assignmentLines(owner,getObjectFromGUID(guid),assignmentColors.damage,true)
 			for _,line in ipairs(assignment or {}) do lines[#lines+1]=line end
+		end
+	end
+	-- A forced first recipient is also a real damage assignment and should be visible
+	-- without making the player click an additional control.
+	for _,attack in ipairs(damageSpec.attacks) do
+		local guid=attack.firstDamageUnit
+		if guid~=nil and damageSpec.units[guid]==true and not attack.assassination then
+			local manuallyLinked=false
+			for _,manual in ipairs(damageTargets[attack.key] or {}) do
+				if manual==guid then manuallyLinked=true break end
+			end
+			if not manuallyLinked then
+				local owner=getObjectFromGUID(attack.owner)
+				local assignment=assignmentLines(owner,getObjectFromGUID(guid),assignmentColors.damage,true)
+				for _,line in ipairs(assignment or {}) do lines[#lines+1]=line end
+			end
 		end
 	end
 	if damagePending~=nil then
@@ -336,23 +352,32 @@ local function rebuildDamageButtons()
 		local own={}
 		for _,guid in ipairs(damageTargets[damagePending.key] or {}) do own[guid]=true end
 		for guid in pairs(damageSpec.units) do
-			if own[guid] or damageUsedBy(guid,nil)==nil then
-				addDamageTargetButton(getObjectFromGUID(guid),"attackAssignmentDamageUnitClicked")
+			if damageSpec.reserved[guid]==nil or damageSpec.reserved[guid]==damagePending.key then
+				if own[guid] or damageUsedBy(guid,nil)==nil then
+					addDamageTargetButton(getObjectFromGUID(guid),"attackAssignmentDamageUnitClicked")
+				end
 			end
 		end
 	end
 end
 
--- spec: attacks={{key,owner,damage,assassination}} in token order, units={guid=true} for Units that can still be assigned
+-- spec: attacks={{key,owner,damage,assassination,firstDamageUnit}} in token order, units={guid=true} for Units that can still be assigned
 -- damage. Drops targets that no longer apply. An attack keeps its button only while it still has legal Units to pick
 -- or an assignment to undo.
 function attackAssignmentsDamageSync(spec)
-	damageSpec={attacks=spec.attacks,units=spec.units or {},byOwner={},byKey={}}
-	for _,attack in ipairs(spec.attacks) do damageSpec.byKey[attack.key]=attack end
+	damageSpec={attacks=spec.attacks,units=spec.units or {},byOwner={},byKey={},reserved={}}
+	for _,attack in ipairs(spec.attacks) do
+		damageSpec.byKey[attack.key]=attack
+		local guid=attack.firstDamageUnit
+		if guid~=nil and damageSpec.units[guid]==true and not attack.assassination then
+			damageSpec.reserved[guid]=attack.key
+		end
+	end
 	for key,guids in pairs(damageTargets) do
 		local kept={}
 		for _,guid in ipairs(damageSpec.byKey[key]~=nil and guids or {}) do
-			if damageSpec.units[guid] then kept[#kept+1]=guid end
+			if damageSpec.units[guid] and (damageSpec.reserved[guid]==nil
+				or damageSpec.reserved[guid]==key) then kept[#kept+1]=guid end
 		end
 		damageTargets[key]=#kept>0 and kept or nil
 	end
@@ -378,6 +403,7 @@ function attackAssignmentsDamageSync(spec)
 	for _,attack in ipairs(spec.attacks) do
 		local assigned=damageTargets[attack.key]
 		parts[#parts+1]=attack.key.."="..tostring(attack.damage)..":"..(assigned~=nil and table.concat(assigned,",") or "")
+			..":"..tostring(attack.firstDamageUnit or "")
 	end
 	local unitGUIDs={}
 	for guid in pairs(damageSpec.units) do unitGUIDs[#unitGUIDs+1]=guid end
@@ -398,7 +424,7 @@ end
 function attackAssignmentsDamageClear()
 	damageTargets={}
 	damagePending=nil
-	damageSpec={attacks={},units={},byOwner={},byKey={}}
+	damageSpec={attacks={},units={},byOwner={},byKey={},reserved={}}
 	damageSignature=""
 	for guid in pairs(damageButtonObjects) do
 		local obj=getObjectFromGUID(guid)
@@ -453,6 +479,8 @@ function attackAssignmentDamageUnitClicked(unit,playerColor)
 		end
 		if not damageSpec.units[unit.guid] then
 			broadcastToColor("That Unit is Wounded and cannot be assigned damage.",playerColor,{1,0.6,0.2})
+		elseif damageSpec.reserved[unit.guid]~=nil and damageSpec.reserved[unit.guid]~=key then
+			broadcastToColor("This Unit must receive its protected enemy's damage first.",playerColor,{1,0.6,0.2})
 		elseif damageUsedBy(unit.guid,key)~=nil then
 			broadcastToColor("That Unit already takes damage from another attack this combat.",playerColor,{1,0.6,0.2})
 		else
