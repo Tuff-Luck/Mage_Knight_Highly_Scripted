@@ -240,9 +240,10 @@ local function refreshRenderedLines()
 	renderedSignature=signature
 end
 
+-- Static arrows are refreshed by object/assignment events. Only live pointer previews
+-- need the repeating refresh loop.
 local function hasRuntimeWork()
-	return next(assignmentRegistry)~=nil or next(targetingByPlayer)~=nil
-		or next(damageTargets)~=nil or damagePending~=nil
+	return next(targetingByPlayer)~=nil or damagePending~=nil
 end
 
 local function scheduleRefresh()
@@ -687,6 +688,16 @@ function attackAssignmentsObjectMoved(object)
 	if not relevant then
 		for _,pending in pairs(targetingByPlayer) do
 			if assignmentBaseGUID(pending.sourceGUID)==guid then relevant=true break end
+		end
+	end
+	if not relevant then
+		for key,guids in pairs(damageTargets) do
+			local attack=damageSpec.byKey[key]
+			if attack~=nil and attack.owner==guid then relevant=true break end
+			for _,targetGUID in ipairs(guids) do
+				if targetGUID==guid then relevant=true break end
+			end
+			if relevant then break end
 		end
 	end
 	if relevant then
