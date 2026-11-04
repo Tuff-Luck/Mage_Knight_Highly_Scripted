@@ -1333,7 +1333,7 @@ local function combatAssignmentRefreshRows(entries,sources)
                         damageItems[#damageItems+1]=item
                         rowBlock[index].damageItems[attackIndex]=item
                         damageSpec.attacks[#damageSpec.attacks+1]={key=item.key,owner=item.owner,damage=item.damage,
-                            assassination=item.assassination}
+                            assassination=item.assassination,firstDamageUnit=item.firstDamageUnit}
                     end
                 end
             end
