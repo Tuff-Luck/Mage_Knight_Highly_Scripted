@@ -1580,6 +1580,14 @@ local function refreshCombatEnemyPanel(monsters)
     end
     local sources=combatAssignmentSources(currentSeat)
     local activeSources,activeObjects={},{}
+    -- Unit effects such as Illusionists and Delphana Masters can target an enemy
+    -- without creating Attack/Block points. Keep their arrows while that ability is active.
+    for guid,record in pairs(seatScan~=nil and seatScan.cards or {}) do
+        for _,key in ipairs(record.enemyEffectTargetKeys or {}) do
+            activeSources[key]=true
+            activeObjects[guid]=true
+        end
+    end
     for _,source in ipairs(sources) do
         activeSources[source.key]=true
         activeObjects[source.guid]=true
@@ -4434,14 +4442,31 @@ local function renderSeat(seatPos)
                         local picked={}
                         if abilities.multi==true then
                             for index,ability in ipairs(abilities) do
-                                if decision.selected~=nil and decision.selected[index]==true then picked[#picked+1]=ability end
+                                if decision.selected~=nil and decision.selected[index]==true then
+                                    picked[#picked+1]={index=index,ability=ability}
+                                end
                             end
                         elseif selected~=nil then
-                            picked[1]=selected
+                            picked[1]={index=decision.index,ability=selected}
                         end
-                        for _,ability in ipairs(picked) do
+                        for _,pickedAbility in ipairs(picked) do
+                            local index,ability=pickedAbility.index,pickedAbility.ability
                             if ability.enemyEffect~=nil then
-                                local target=combatEffectNearestEnemy(footprint(unit),monsters,footprint,overlapArea)
+                                local sourceKey=unitAbilityTargetKey(unitGUID,index,ability)
+                                if sourceKey~=unitGUID then
+                                    result.enemyEffectTargetKeys=result.enemyEffectTargetKeys or {}
+                                    result.enemyEffectTargetKeys[#result.enemyEffectTargetKeys+1]=sourceKey
+                                end
+                                -- A hand-picked target takes precedence over physical proximity.
+                                local explicitTargetGUID=nil
+                                for guid in pairs(attackAssignmentsTargetGUIDs(sourceKey)) do
+                                    if monsters[guid]~=nil and monsters[guid].is_face_down~=true
+                                        and (explicitTargetGUID==nil or guid<explicitTargetGUID) then
+                                        explicitTargetGUID=guid
+                                    end
+                                end
+                                local target=explicitTargetGUID~=nil and monsters[explicitTargetGUID]
+                                    or combatEffectNearestEnemy(footprint(unit),monsters,footprint,overlapArea)
                                 if target~=nil then
                                     combatEffectAdd(enemyEffects,target.guid,unitGUID,ability.enemyEffect)
                                     result.links[#result.links+1]=target.guid
