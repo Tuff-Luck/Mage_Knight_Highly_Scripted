@@ -812,13 +812,14 @@ end
 local COMBAT_UNIT_RESIST_KEYS={Physical="P",Fire="F",Ice="I"}
 
 -- The physical native Command tokens can lead the recorded level during testing.
--- Every additional level-up Command token corresponds to +1 Armor, but Banner
--- of Command and Bonds of Loyalty add Unit slots without increasing Hero Armor.
+-- Command slots imply Armor 2, 3, 3, 4, 4, 5, 5, 6, 6... for 1, 2, 3, 4...
+-- Banner of Command and Bonds of Loyalty add slots, but not Hero Armor.
 local function combatHeroArmour(nativeCommandCount)
     local player=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
     local level=math.max(1,math.min(10,tonumber(player~=nil and player.level or 1) or 1))
     local levelArmour=2+math.floor((level-1)/2)
-    return math.max(levelArmour,1+(tonumber(nativeCommandCount) or 0))
+    local physicalArmour=2+math.floor(math.max(0,tonumber(nativeCommandCount) or 0)/2)
+    return math.max(levelArmour,physicalArmour)
 end
 
 local function combatDamageUnits(seat)
