@@ -1400,19 +1400,27 @@ function combatSetDefeatMarks(tracked,defeated)
 	local trackingChanged=combatDefeatMarksActive~=true
 	for guid in pairs(tracked) do if combatDefeatTracked[guid]~=true then trackingChanged=true end end
 	for guid in pairs(combatDefeatTracked) do if tracked[guid]~=true then trackingChanged=true end end
+	--Refresh every evaluated enemy, not only state changes. Other object systems can rebuild
+	--a monster's UI while the calculator is open, which would otherwise silently remove its X.
+	local refresh={}
+	for guid in pairs(tracked) do refresh[guid]=true end
+	for guid in pairs(combatDefeatTracked) do refresh[guid]=true end
+	for guid in pairs(defeated) do refresh[guid]=true end
+	for guid in pairs(combatDefeatDefeated) do refresh[guid]=true end
 	combatDefeatMarksActive=true
 	combatDefeatTracked,combatDefeatDefeated=tracked,defeated
-	if next(changed)==nil and not trackingChanged then return end
-	combatDefeatRefreshTokens(changed)
-	mainUIUpdate("Combat Calculator defeat marks")
+	combatDefeatRefreshTokens(refresh)
+	if next(changed)~=nil or trackingChanged then mainUIUpdate("Combat Calculator defeat marks") end
 end
 
 function combatClearDefeatMarks()
 	if combatDefeatMarksActive~=true then return end
-	local changed=combatDefeatDefeated
+	local refresh={}
+	for guid in pairs(combatDefeatTracked) do refresh[guid]=true end
+	for guid in pairs(combatDefeatDefeated) do refresh[guid]=true end
 	combatDefeatMarksActive=false
 	combatDefeatTracked,combatDefeatDefeated={},{}
-	combatDefeatRefreshTokens(changed)
+	combatDefeatRefreshTokens(refresh)
 	mainUIUpdate("Combat Calculator defeat marks")
 end
 
