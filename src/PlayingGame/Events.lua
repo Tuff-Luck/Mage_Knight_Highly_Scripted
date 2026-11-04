@@ -906,6 +906,18 @@ local function scheduleSettledZoneEntry(ctx,callback,channel)
 	end)
 end
 
+-- Invalidate settling callbacks as soon as an object leaves the zone that scheduled them.
+-- Wait.condition cannot be cancelled individually, so its condition observes this serial map.
+local function cancelSettledZoneEntries(zoneGUID,objGUID)
+	if zoneGUID==nil or objGUID==nil then return end
+	local suffix="|"..zoneGUID.."|"..objGUID
+	for key,serial in pairs(settledZoneEntrySerial) do
+		if type(key)=="string" and key:sub(-#suffix)==suffix then
+			settledZoneEntrySerial[key]=nil
+		end
+	end
+end
+
 local function handleZoneEnterPrelude(ctx)
 	local zone=ctx.zone
 	local obj=ctx.obj
@@ -1459,6 +1471,7 @@ function __onObjectLeaveZone_raw(zone, obj)
 	end
 	local ctx=zoneEventContext(zone,obj)
 	if ctx==nil then return end
+	cancelSettledZoneEntries(ctx.zoneGUID,ctx.objGUID)
 	if handleZoneLeavePrelude(ctx)==true then return end
     if gStates.firstStarted==true then resourceCardsZoneLeft(ctx) end
 	if gStates.firstStarted==true then
