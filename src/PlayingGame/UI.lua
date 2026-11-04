@@ -2298,6 +2298,10 @@ function resourceTracker(player, mouseButton, id)
 			resourceCardsCombatToggleGroup(tonumber(id:match("%d+")))
 			return
 		end
+        if id=="CombatEnemyPagePrev" or id=="CombatEnemyPageNext" then
+            resourceCardsCombatPage(id=="CombatEnemyPagePrev" and -1 or 1)
+            return
+        end
 		--expander buttons
 		local IDConvert=RESOURCE_TRACKER_EXPANDERS
 		if IDConvert[id]~=nil then
