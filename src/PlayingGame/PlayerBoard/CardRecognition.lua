@@ -1269,10 +1269,10 @@ local function combatAssignmentRefreshRows(entries,sources)
             if not attackAssignmentsIsTargeting(source.key) then
                 attackAssignmentsEnsureTarget(source.key,targetGUID,combatSourceArrowKind(source))
             end
-            local explicit=combatAssignmentState.explicit[source.key]==true
-                and combatGUIDHasCumbersome(targetGUID)
+            local manuallyTargeted=combatAssignmentState.explicit[source.key]==true
+            local explicit=manuallyTargeted and combatGUIDHasCumbersome(targetGUID)
             source.moveCounts=explicit
-            source.psychicInfluenceCounts=explicit
+            source.psychicInfluenceCounts=manuallyTargeted
                 and source.psychicInfluence>0 and (function()
                     for _,attack in ipairs(combatEnemyAttacks(entries[targetIndex])) do
                         if attack.key=="M" then return true end
@@ -1289,6 +1289,56 @@ local function combatAssignmentRefreshRows(entries,sources)
                 if (detail.family~="move" or explicit)
                     and (detail.family~="influence" or source.psychicInfluenceCounts) then
                     target.details[#target.details+1]={source=source,detail=detail}
+                end
+            end
+            if source.psychicInfluenceCounts then
+                -- The primary left-click target initially receives all Influence.
+                -- Each additional right-click arrow transfers one point; repeated
+                -- arrows to the same enemy transfer more. No point is double-spent.
+                local targetCounts=attackAssignmentsTargetCounts(source.key)
+                local extraTargets={}
+                for guid in pairs(targetCounts) do
+                    if guid~=targetGUID and rowByGUID[guid]~=nil then
+                        extraTargets[#extraTargets+1]=guid
+                    end
+                end
+                table.sort(extraTargets)
+                local remaining=source.psychicInfluence
+                for _,guid in ipairs(extraTargets) do
+                    if remaining<=0 then break end
+                    local index=rowByGUID[guid]
+                    local psychic=false
+                    for _,attack in ipairs(combatEnemyAttacks(entries[index])) do
+                        if attack.key=="M" then psychic=true break end
+                    end
+                    if psychic then
+                        local amount=math.min(targetCounts[guid],remaining)
+                        local portion={guid=source.guid,key=source.key,name=source.name.." (Influence)",
+                            ranged=0,siege=0,block=0,attack=0,move=0,resources={},
+                            psychicInfluence=amount,psychicInfluenceCounts=true,details={}}
+                        local detail={text="Influence "..tostring(amount).." → Psychic Block",
+                            amount=amount,icon="MKChoiceBlock",key="influence",family="influence"}
+                        portion.details[1]=detail
+                        local extra=allocated[index]
+                        if extra==nil then
+                            extra={range={},block={},attack={},sources={},details={}}
+                            allocated[index]=extra
+                        end
+                        extra.sources[#extra.sources+1]=portion
+                        extra.details[#extra.details+1]={source=portion,detail=detail}
+                        remaining=remaining-amount
+                    end
+                end
+                source.psychicInfluence=remaining
+                for i=#target.details,1,-1 do
+                    local item=target.details[i]
+                    if item.source==source and item.detail.family=="influence" then
+                        if remaining<=0 then table.remove(target.details,i)
+                        else
+                            item.detail.amount=remaining
+                            item.detail.text="Influence "..tostring(remaining).." → Psychic Block"
+                        end
+                    end
                 end
             end
         end
