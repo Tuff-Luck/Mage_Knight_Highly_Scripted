@@ -638,7 +638,7 @@ local function combatSolveBlocks(attacks,items,movePool)
     local solve
     solve=function(index,available,move)
         if index>#attacks then return 0 end
-        local key=(index*(fullMask+1)+available)*64+move
+        local key=(index*(fullMask+1)+available)*(moveCap+1)+move
         if memo[key]~=nil then return memo[key] end
         local attack=attacks[index]
         local brutal=attack.brutal and 2 or 1
@@ -678,7 +678,7 @@ local function combatSolveBlocks(attacks,items,movePool)
     solve(1,fullMask,moveCap)
     local plan,available,move={},fullMask,moveCap
     for index=1,#attacks do
-        local key=(index*(fullMask+1)+available)*64+move
+        local key=(index*(fullMask+1)+available)*(moveCap+1)+move
         local picked=choice[key]
         plan[index]={mask=picked[1],reduction=picked[2],blocked=picked[3]}
         available=bit32.band(available,bit32.bnot(picked[1]))
