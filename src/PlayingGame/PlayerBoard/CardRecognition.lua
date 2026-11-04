@@ -869,7 +869,9 @@ local function combatHeroArmour(nativeCommandCount)
 end
 
 local function combatDamageUnits(seat)
-    local state=seat~=nil and unitLayoutResourceState(seat) or nil
+    local scan=seat~=nil and resourceCardScanBySeat[seat] or nil
+    local state=scan~=nil and scan.unitState
+        or (seat~=nil and unitLayoutResourceState(seat) or nil)
     local units={}
     for _,unitState in ipairs(state~=nil and state.units or {}) do
         local data=gameCards[unitState.guid]
@@ -3968,6 +3970,7 @@ local function renderSeat(seatPos)
     if active==nil or active.seatPos~=seatPos then return end
 
     local objects,placements,monsters,playMonsters={},{},{},{}
+    local objectKinds={}
     local function inspectZone(guid,zoneKind)
         local zone=guid~=nil and getObjectFromGUID(guid) or nil
         if zone==nil then return end
@@ -3977,7 +3980,11 @@ local function renderSeat(seatPos)
                 monsters[obj.guid]=obj
                 if zoneKind=="play" then playMonsters[obj.guid]=obj end
             end
-            local kind=resourceObjectKind(obj)
+            local kind=objectKinds[obj.guid]
+            if kind==nil then
+                kind=resourceObjectKind(obj)
+                if kind~=nil then objectKinds[obj.guid]=kind end
+            end
             if kind~=nil and (zoneKind=="play"
                 or (zoneKind=="unit" and (kind=="unit" or kind=="mana" or kind=="puppet"))
                 or (zoneKind=="crystal" and kind=="mana")) then
@@ -4015,7 +4022,7 @@ local function renderSeat(seatPos)
     local enemyEffects={}
     local hasUnits=false
     for guid,obj in pairs(objects) do
-        local kind=resourceObjectKind(obj)
+        local kind=objectKinds[guid]
         if kind=="card" and placements[guid]=="play" then
             cards[#cards+1]=obj
             footprints[guid]=footprint(obj)
@@ -5503,6 +5510,7 @@ local function renderSeat(seatPos)
         attackTransforms=attackTransforms,
         terrainModifiers=terrainModifiers,movementEffects=movementEffects,
         enemyEffects=enemyEffects,fameRepBase=fameRepBase,
+        unitState=unitState,
         usesCurrentHexBlock=usesCurrentHexBlock,
         usesCurrentHexHealing=usesCurrentHexHealing,
         usesSkillLocation=usesSkillLocation}
