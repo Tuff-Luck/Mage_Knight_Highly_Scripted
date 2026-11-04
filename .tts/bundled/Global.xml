@@ -1726,6 +1726,11 @@ Einheiten</Text></Cell>
 			<Text id="CombatAssignedAttackHeader" class="Text14" color="White" preferredWidth="170" alignment="MiddleLeft">{en}Attack Phase{it}Fase di attacco{ru}Фаза атаки{zh-tw}攻擊階段{zh-cn}攻击阶段{ko}공격 단계{es}Fase de ataque{fr}Phase d'attaque{pt-br}Fase de ataque{de}Angriffsphase</Text>
 			<Text id="CombatResultHeader" class="Text14" color="White" preferredWidth="230" alignment="MiddleLeft">{en}Result{it}Risultato{ru}Результат{zh-tw}結果{zh-cn}结果{ko}결과{es}Resultado{fr}Résultat{pt-br}Resultado{de}Ergebnis</Text>
 		</HorizontalLayout>
+        <HorizontalLayout id="CombatEnemyPageControls" active="false" preferredHeight="25" childForceExpandWidth="false" childAlignment="MiddleCenter">
+            <Button id="CombatEnemyPagePrev" onClick="resourceTracker" text="◀" preferredWidth="45" preferredHeight="23" class="ShortButton" />
+            <Text id="CombatEnemyPageLabel" class="Text14" preferredWidth="140" alignment="MiddleCenter" color="White">1-8 / 8</Text>
+            <Button id="CombatEnemyPageNext" onClick="resourceTracker" text="▶" preferredWidth="45" preferredHeight="23" class="ShortButton" />
+        </HorizontalLayout>
 		<Panel id="CombatEnemyRow1" active="false" preferredHeight="30" outlineSize="0 0">
 			<HorizontalLayout padding="8 0 0 0" childForceExpandWidth="false">
 				<Panel preferredWidth="130" color="rgba(0,0,0,0)" outlineSize="0 0">
@@ -1762,7 +1767,13 @@ Einheiten</Text></Cell>
 						</Button>
 					</HorizontalLayout>
 				</Panel>
-				<Text id="CombatEnemyRow1Attacks" class="Text14" color="White" preferredWidth="110" alignment="MiddleCenter"/>
+				<Panel preferredWidth="110" color="rgba(0,0,0,0)" outlineSize="0 0">
+
+				    <Button id="CombatEnemyAttackCycle1" active="false" onClick="resourceTracker" color="rgba(0,0,0,0)" />
+
+				    <Text id="CombatEnemyRow1Attacks" class="Text14" color="White" alignment="MiddleCenter" raycastTarget="false" />
+
+				</Panel>
 				<Text id="CombatEnemyRow1Offence" class="Text14" color="White" preferredWidth="130" alignment="MiddleLeft"/>
 				<Panel id="CombatSourceCell1block" preferredWidth="170" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot1blockCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
@@ -1844,7 +1855,13 @@ Einheiten</Text></Cell>
 						</Button>
 					</HorizontalLayout>
 				</Panel>
-				<Text id="CombatEnemyRow2Attacks" class="Text14" color="White" preferredWidth="110" alignment="MiddleCenter"/>
+				<Panel preferredWidth="110" color="rgba(0,0,0,0)" outlineSize="0 0">
+
+				    <Button id="CombatEnemyAttackCycle2" active="false" onClick="resourceTracker" color="rgba(0,0,0,0)" />
+
+				    <Text id="CombatEnemyRow2Attacks" class="Text14" color="White" alignment="MiddleCenter" raycastTarget="false" />
+
+				</Panel>
 				<Text id="CombatEnemyRow2Offence" class="Text14" color="White" preferredWidth="130" alignment="MiddleLeft"/>
 				<Panel id="CombatSourceCell2block" preferredWidth="170" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot2blockCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
@@ -1926,7 +1943,13 @@ Einheiten</Text></Cell>
 						</Button>
 					</HorizontalLayout>
 				</Panel>
-				<Text id="CombatEnemyRow3Attacks" class="Text14" color="White" preferredWidth="110" alignment="MiddleCenter"/>
+				<Panel preferredWidth="110" color="rgba(0,0,0,0)" outlineSize="0 0">
+
+				    <Button id="CombatEnemyAttackCycle3" active="false" onClick="resourceTracker" color="rgba(0,0,0,0)" />
+
+				    <Text id="CombatEnemyRow3Attacks" class="Text14" color="White" alignment="MiddleCenter" raycastTarget="false" />
+
+				</Panel>
 				<Text id="CombatEnemyRow3Offence" class="Text14" color="White" preferredWidth="130" alignment="MiddleLeft"/>
 				<Panel id="CombatSourceCell3block" preferredWidth="170" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot3blockCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
@@ -2008,7 +2031,13 @@ Einheiten</Text></Cell>
 						</Button>
 					</HorizontalLayout>
 				</Panel>
-				<Text id="CombatEnemyRow4Attacks" class="Text14" color="White" preferredWidth="110" alignment="MiddleCenter"/>
+				<Panel preferredWidth="110" color="rgba(0,0,0,0)" outlineSize="0 0">
+
+				    <Button id="CombatEnemyAttackCycle4" active="false" onClick="resourceTracker" color="rgba(0,0,0,0)" />
+
+				    <Text id="CombatEnemyRow4Attacks" class="Text14" color="White" alignment="MiddleCenter" raycastTarget="false" />
+
+				</Panel>
 				<Text id="CombatEnemyRow4Offence" class="Text14" color="White" preferredWidth="130" alignment="MiddleLeft"/>
 				<Panel id="CombatSourceCell4block" preferredWidth="170" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot4blockCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
@@ -2090,7 +2119,13 @@ Einheiten</Text></Cell>
 						</Button>
 					</HorizontalLayout>
 				</Panel>
-				<Text id="CombatEnemyRow5Attacks" class="Text14" color="White" preferredWidth="110" alignment="MiddleCenter"/>
+				<Panel preferredWidth="110" color="rgba(0,0,0,0)" outlineSize="0 0">
+
+				    <Button id="CombatEnemyAttackCycle5" active="false" onClick="resourceTracker" color="rgba(0,0,0,0)" />
+
+				    <Text id="CombatEnemyRow5Attacks" class="Text14" color="White" alignment="MiddleCenter" raycastTarget="false" />
+
+				</Panel>
 				<Text id="CombatEnemyRow5Offence" class="Text14" color="White" preferredWidth="130" alignment="MiddleLeft"/>
 				<Panel id="CombatSourceCell5block" preferredWidth="170" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot5blockCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
@@ -2172,7 +2207,13 @@ Einheiten</Text></Cell>
 						</Button>
 					</HorizontalLayout>
 				</Panel>
-				<Text id="CombatEnemyRow6Attacks" class="Text14" color="White" preferredWidth="110" alignment="MiddleCenter"/>
+				<Panel preferredWidth="110" color="rgba(0,0,0,0)" outlineSize="0 0">
+
+				    <Button id="CombatEnemyAttackCycle6" active="false" onClick="resourceTracker" color="rgba(0,0,0,0)" />
+
+				    <Text id="CombatEnemyRow6Attacks" class="Text14" color="White" alignment="MiddleCenter" raycastTarget="false" />
+
+				</Panel>
 				<Text id="CombatEnemyRow6Offence" class="Text14" color="White" preferredWidth="130" alignment="MiddleLeft"/>
 				<Panel id="CombatSourceCell6block" preferredWidth="170" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot6blockCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
@@ -2253,7 +2294,13 @@ Einheiten</Text></Cell>
 						</Button>
 					</HorizontalLayout>
 				</Panel>
-				<Text id="CombatEnemyRow7Attacks" class="Text14" color="White" preferredWidth="110" alignment="MiddleCenter"/>
+				<Panel preferredWidth="110" color="rgba(0,0,0,0)" outlineSize="0 0">
+
+				    <Button id="CombatEnemyAttackCycle7" active="false" onClick="resourceTracker" color="rgba(0,0,0,0)" />
+
+				    <Text id="CombatEnemyRow7Attacks" class="Text14" color="White" alignment="MiddleCenter" raycastTarget="false" />
+
+				</Panel>
 				<Text id="CombatEnemyRow7Offence" class="Text14" color="White" preferredWidth="130" alignment="MiddleLeft"/>
 				<Panel id="CombatSourceCell7block" preferredWidth="170" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot7blockCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
@@ -2335,7 +2382,13 @@ Einheiten</Text></Cell>
 						</Button>
 					</HorizontalLayout>
 				</Panel>
-				<Text id="CombatEnemyRow8Attacks" class="Text14" color="White" preferredWidth="110" alignment="MiddleCenter"/>
+				<Panel preferredWidth="110" color="rgba(0,0,0,0)" outlineSize="0 0">
+
+				    <Button id="CombatEnemyAttackCycle8" active="false" onClick="resourceTracker" color="rgba(0,0,0,0)" />
+
+				    <Text id="CombatEnemyRow8Attacks" class="Text14" color="White" alignment="MiddleCenter" raycastTarget="false" />
+
+				</Panel>
 				<Text id="CombatEnemyRow8Offence" class="Text14" color="White" preferredWidth="130" alignment="MiddleLeft"/>
 				<Panel id="CombatSourceCell8block" preferredWidth="170" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot8blockCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
