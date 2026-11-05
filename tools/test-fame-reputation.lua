@@ -8,6 +8,17 @@ publishPublicUICallbacks=function(_) end
 local errors,notices={},{}
 log=function(message) errors[#errors+1]=message end
 broadcastToAll=function(message) notices[#notices+1]=message end
+local function keys(prefix)
+	return setmetatable({},{__index=function(t,key)
+		local value=prefix..tostring(key)
+		rawset(t,key,value)
+		return value
+	end})
+end
+monsterPiles=keys("pile-")
+cityModel=keys("city-")
+volkare=keys("volkare-")
+GUID={bag={discard=keys("discard-")},zone=keys("zone-")}
 local objects={}
 getObjectFromGUID=function(id) return objects[id] end
 local function shield(guid,fail)
