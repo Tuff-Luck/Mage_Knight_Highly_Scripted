@@ -1075,8 +1075,10 @@ cardResourceDefinitions={
             {key="fireBlock",blockFire=3},{ranged=3},{siege=2}}},
     instinct={normalChoices={{move=2},{influence=2},{attack=2},{block=2}},
         poweredChoices={{move=4},{influence=4},{attack=4},{block=4}},partial=true},
-    swiftReflexes={normalChoices={{move=2},{ranged=1}},
-        poweredChoices={{move=4},{ranged=3}},partial=true}, -- Also reduce-enemy-Attack alternatives
+    swiftReflexes={normalChoices={{move=2},{ranged=1},{key="reduce",icon="other"}},
+        poweredChoices={{move=4},{ranged=3},{key="reduce",icon="other"}},
+        enemyEffect={normal={choice="reduce",attackReduce=1},
+            powered={choice="reduce",attackReduce=2}}},
     tirelessness={normal={move=2},powered={move=4},partial=true}, -- Boosts other Move cards
     druidicPaths={normal={move=2},powered={move=4}}, -- Player manages the one-space/one-terrain-type discount
     savageHarvesting={normal={move=2},powered={move=4}}, -- Optional crystal gains do not affect Move calculation
@@ -1297,6 +1299,37 @@ cardResourceDefinitions={
         linkedColorEffects={normal={Green={healing=3},
             Red={other=1},Blue={other=1},White={other=1}}}},
 
+    -- Wound-taking bonuses require the player to select how many Wounds were
+    -- actually received during this combat; do not confuse them with Wounds
+    -- already present in hand at the start of the combat.
+    battleRage={
+        normalChoices={{key="base",attack=2,icon="attack"},
+            {key="one",attack=3,icon="attack",iconOverlay="+1"}},
+        poweredChoices={{key="base",attack=4,icon="attack"},
+            {key="one",attack=5,icon="attack",iconOverlay="+1"},
+            {key="two",attack=6,icon="attack",iconOverlay="+2"},
+            {key="three",attack=7,icon="attack",iconOverlay="+3"},
+            {key="four",attack=8,icon="attack",iconOverlay="+4"}}},
+    spearGlare={normalChoices={{attack=2},{block=2}},
+        powered={block=3},partial=true}, -- Removing ONE enemy attack modifier/colour remains manual.
+    deadlyPrecision={normalChoices={{attack=2},{block=2}},
+        poweredChoices={{attack=4},{ranged=2},{key="convert",icon="ranged"}},
+        partial=true}, -- The stronger linked Attack conversion still needs physical matching.
+    -- The conditional Attack is optional; it is only available if no Wounds
+    -- were added to the Hero's hand during earlier combat phases. The player
+    -- declares eligibility with the second option. Two -2 reductions on the
+    -- powered side still require manual resolution (one -4 is calculated).
+    dodgeAndWeave={
+        normalChoices={{key="safe",attack=0,icon="attack"},
+            {key="eligible",attack=1,icon="attack",iconOverlay="+1"}},
+        poweredChoices={{key="safe",attack=0,icon="attack"},
+            {key="eligible",attack=2,icon="attack",iconOverlay="+2"}},
+        enemyEffect={normal={attackReduce=2},powered={attackReduce=4}},
+        partial=true},
+    -- Buffs any activated Unit's printed combat resource (not its Influence,
+    -- Move, Heal or resource-independent effects); no Units may receive damage.
+    intoTheHeat={normal={other=1},powered={other=1},
+        unitCombatBoost={normal=2,powered=3},preventUnitDamage=true},
     chivalry={
         normalChoices={{key="attack",attack=3},{key="reputation",attack=2}},
         poweredChoices={{key="attack",attack=6},{key="reputation",attack=4}},
@@ -1516,7 +1549,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["450593"]={cardType="Starting", resourceKey="improvisation", name={"Improvisation"}, color={"Red"}, action={"Influence"}},
 			["450592"]={cardType="Starting", resourceKey="threaten", name={"Threaten"}, color={"Red"}, action={"Influence", "Heal"}},
 			["52ef11"]={cardType="Starting", resourceKey="rage", name={"Rage"}, color={"Red"}, action={"Combat"}},
-			["49f6ed"]={cardType="Starting", name={"Battle Rage"}, color={"Red"}, action={"Combat"}},
+			["49f6ed"]={cardType="Starting", resourceKey="battleRage", name={"Battle Rage"}, color={"Red"}, action={"Combat"}},
 			--Mevok Starting Cards
 			["3cfeb6"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
 			["98441e"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
@@ -1588,7 +1621,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			--Zirtae Starting Cards
 			["33779c"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
 			["d9d900"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
-			["a2a7ad"]={cardType="Starting", name={"Spear Glare"}, color={"Blue"}, action={"Combat"}},
+			["a2a7ad"]={cardType="Starting", resourceKey="spearGlare", name={"Spear Glare"}, color={"Blue"}, action={"Combat"}},
 			["f674fa"]={cardType="Starting", resourceTracked=false, name={"Crystallize"}, color={"Blue"}, action={"Special"}},
 			["316f4f"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
 			["74b3c0"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
@@ -1601,7 +1634,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["d9ed5d"]={cardType="Starting", resourceKey="improvisation", name={"Improvisation"}, color={"Red"}, action={"Influence"}},
 			["35cd32"]={cardType="Starting", resourceKey="threaten", name={"Threaten"}, color={"Red"}, action={"Influence", "Heal"}},
 			["de8c0f"]={cardType="Starting", resourceKey="rage", name={"Rage"}, color={"Red"}, action={"Combat"}},
-			["b1e132"]={cardType="Starting", name={"Deadly Precision"}, color={"Red"}, action={"Combat"}},
+			["b1e132"]={cardType="Starting", resourceKey="deadlyPrecision", name={"Deadly Precision"}, color={"Red"}, action={"Combat"}},
 			--Rise of the Forgemasters replacement starter cards
 			["d339f6"]={cardType="Starting", resourceKey="concentration", name={"Concentration"}, color={"Green"}, action={"Special"}},
 			["0b071b"]={cardType="Starting", resourceKey="concentration", name={"Concentration"}, color={"Green"}, action={"Special"}},
@@ -1656,7 +1689,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["878d82"]={cardType="Advanced Action", resourceKey="swiftBolt", name={"Swift Bolt"}, 		color={"White"}, 		action={"Combat", "Special"}},
 			["878d90"]={cardType="Advanced Action", resourceKey="heroicTale", name={"Heroic Tale"}, 		color={"White"}, 		action={"Influence"}},
 			["8122c2"]={cardType="Advanced Action", resourceKey="peacefulMoment", name={"Peaceful Moment"},	color={"White"}, 		action={"Action", "Influence"}},
-			["9de475"]={cardType="Advanced Action", name={"Dodge and Weave"},	color={"White"}, 		action={"Combat"}},
+			["9de475"]={cardType="Advanced Action", resourceKey="dodgeAndWeave", name={"Dodge and Weave"},	color={"White"}, 		action={"Combat"}},
 			["42eb53"]={cardType="Advanced Action", resourceKey="chivalry", name={"Chivalry"},	 		color={"White"}, 		action={"Combat"}},
 			["35aee6"]={cardType="Advanced Action", resourceKey="learning", name={"Learning"},			color={"White"}, 		action={"Special", "Influence"}},
 			["e2b570"]={cardType="Advanced Action", resourceTracked=false, name={"Mana Storm"},		color={"White"}, 		action={"Special"}},
@@ -1669,7 +1702,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["93b7d4"]={cardType="Advanced Action", resourceTracked=false, name={"Blood of Ancients"},	color={"Red"}, 			action={"Special"}},
 			["65a1d5"]={cardType="Advanced Action", resourceKey="counterattack", name={"Counterattack"}, 	color={"Red"}, 			action={"Combat"}},
 			["8fac50"]={cardType="Advanced Action", resourceKey="maximalEffect", name={"Maximal Effect"}, 	color={"Red"}, 			action={"Special"}},
-			["bb05a9"]={cardType="Advanced Action", name={"Into the Heat"},		color={"Red"}, 			action={"Combat"}},
+			["bb05a9"]={cardType="Advanced Action", resourceKey="intoTheHeat", name={"Into the Heat"},		color={"Red"}, 			action={"Combat"}},
 			["d74999"]={cardType="Advanced Action", resourceTracked=false, name={"Decompose"}, 		color={"Red"}, 			action={"Special"}},
 			["1a1c02"]={cardType="Advanced Action", resourceKey="explosiveBolt", name={"Explosive Bolt"}, 	color={"White","Red"}, 	action={"Combat"}},
 			["409fe8"]={cardType="Advanced Action", resourceKey="chillingStare", name={"Chilling Stare"}, 	color={"Blue","White"},	action={"Combat", "Influence"}},
@@ -1699,7 +1732,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["364845"]={cardType="Advanced Action", name={"Pernicious Bolt"}, 	color={"Green"}, 		action={"Special", "Combat"}},
 			["f8b18a"]={cardType="Advanced Action", name={"Deligence"}, 		color={"Green"}, 		action={"Special", "Influence"}},
 			["b8fb4b"]={cardType="Advanced Action", name={"Earth Forge"}, 		color={"Green"}, 		action={"Special"}},
-			["3c0531"]={cardType="Advanced Action", name={"Dodge and Weave"},	color={"White"}, 		action={"Combat"}},
+			["3c0531"]={cardType="Advanced Action", resourceKey="dodgeAndWeave", name={"Dodge and Weave"},	color={"White"}, 		action={"Combat"}},
 			["d64923"]={cardType="Advanced Action", name={"Righteous Path"},	color={"White"}, 		action={"Combat", "Move"}},
 			["fbbad8"]={cardType="Advanced Action", resourceKey="learning", name={"Learning"}, 			color={"White"}, 		action={"Special", "Influence"}},
 			["32b95a"]={cardType="Advanced Action", resourceKey="heroicTale", name={"Heroic Tale"},		color={"White"}, 		action={"Influence"}},
