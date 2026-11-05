@@ -778,10 +778,11 @@ local function manaSuppressionTokensAtReminder(record, seatPos)
 	local playArea=playerPlayAreas[seatPos]~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
 	if reminder==nil or playArea==nil then return tokens, reminder end
 	local reminderPos=reminder.getPosition()
+	if reminderPos==nil then return tokens, reminder end
 	for _, token in pairs(playArea.getObjects()) do
 		if basicManaToken[token.getName()] == true then
 			local tokenPos=token.getPosition()
-			if math.abs(tokenPos[1]-reminderPos[1])<=1 and math.abs(tokenPos[3]-reminderPos[3])<=0.65 then tokens[#tokens+1]=token end
+			if tokenPos~=nil and math.abs(tokenPos[1]-reminderPos[1])<=1 and math.abs(tokenPos[3]-reminderPos[3])<=0.65 then tokens[#tokens+1]=token end
 		end
 	end
 	return tokens, reminder
