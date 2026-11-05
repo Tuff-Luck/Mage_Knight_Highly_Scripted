@@ -110,4 +110,54 @@ fail=false
 fameReputationMainUIUpdate("test")
 check("a failed commit does not leave synchronization suppressed",
 	turnOrder[1].fame==7 and gStates.fameRepCommitted[1].fame==7)
+-- Reward gates must not clear pending gains when the target shield is gone.
+local turnAdvances=0
+turnEndTurnRawBase=function()
+	turnAdvances=turnAdvances+1
+	return "advanced"
+end
+gStates.preEndTurn=true
+turnOrder[1].fameGain=9
+objects.fame01=nil
+check("Rewards Claimed is blocked until missing Fame is restored",
+	fameReputationEndTurnRaw({}, "-1", "PreEndTurn")==false
+	and turnAdvances==0 and gStates.fameRepCommitted[1].fame==7)
+objects.fame01=fameShield
+check("Rewards Claimed retries the delta after restoration",
+	fameReputationEndTurnRaw({}, "-1", "PreEndTurn")=="advanced"
+	and turnAdvances==1 and gStates.fameRepCommitted[1].fame==9)
+-- Co-op reward handoff must follow the same rule.
+gStates.coopAssaultPhase="rewards"
+gStates.coopRewardQueue={{player=1}}
+gStates.coopRewardIndex=1
+local handoffs=0
+combatAdvanceCoopRewardPhaseBase=function() handoffs=handoffs+1 return "next" end
+turnOrder[1].fameGain=10
+objects.rep01=nil
+check("co-op handoff cannot consume a missing-marker reward",
+	fameReputationAdvanceCoopRewardPhase()==false and handoffs==0
+	and gStates.fameRepCommitted[1].fame==9)
+objects.rep01=repShield
+check("co-op handoff advances after marker recovery",
+	fameReputationAdvanceCoopRewardPhase()=="next" and handoffs==1)
+-- Verify initial (not post-commit) failures do not stamp a committed baseline.
+local thirdFame=shield("fame03")
+local failInitial=true
+local thirdRep=shield("rep03")
+thirdRep.setPosition=function(position)
+	if failInitial then error("injected initial reward failure") end
+	thirdRep.position=position
+end
+objects.fame03=thirdFame
+objects.rep03=thirdRep
+turnOrder[3]={mage="Arythea",seatPos=3,fameGUID="fame03",reputationGUID="rep03",
+	fame=0,fameGain=3,scoreLoop=0,reputation=0,repGain=1}
+local initialOK=pcall(fameReputationApplyPlayerFameReputation,3)
+check("initial failure leaves no committed marker and no logical gain",
+	not initialOK and gStates.fameRepCommitted[3]==nil and turnOrder[3].fame==0
+	and turnOrder[3].fameGain==3 and turnOrder[3].repGain==1
+	and thirdFame.position[1]==0)
+failInitial=false
+check("initial failure remains retriable",fameReputationApplyPlayerFameReputation(3)==true
+	and turnOrder[3].fame==3 and gStates.fameRepCommitted[3].fame==3)
 print("Fame and Reputation commit regression tests passed.")

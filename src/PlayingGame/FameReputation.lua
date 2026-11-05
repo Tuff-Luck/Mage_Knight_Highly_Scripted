@@ -427,9 +427,21 @@ function fameReputationPlunderVillage(player,mouseButton,id)
 	end
 end
 
+-- The player can correct a missing shield and retry Rewards Claimed. Do not
+-- advance the turn and zero the pending reward while its physical commit failed.
+local function fameRepEnsureRewardCommitted(playerIndex)
+	local player=turnOrder[playerIndex]
+	if player==nil or player.mage==gStates.positionMageKnight[5] then return true end
+	local committed=gStates.fameRepCommitted~=nil and gStates.fameRepCommitted[playerIndex] or nil
+	if committed==nil and ((player.fameGain or 0)~=0 or (player.repGain or 0)~=0) then
+		if fameReputationApplyPlayerFameReputation(playerIndex)~=true then return false end
+	end
+	return syncPostCommitAdjustments(playerIndex)~=false
+end
+
 function fameReputationAdvanceCoopRewardPhase()
 	local entry=gStates.coopRewardQueue~=nil and gStates.coopRewardQueue[gStates.coopRewardIndex] or nil
-	if entry~=nil then syncPostCommitAdjustments(entry.player) end
+	if entry~=nil and fameRepEnsureRewardCommitted(entry.player)~=true then return false end
 	return fameRepWithSyncSuppressed(function()
 		local result=combatAdvanceCoopRewardPhaseBase()
 		if entry~=nil and gStates.fameRepCommitted~=nil then gStates.fameRepCommitted[entry.player]=nil end
@@ -440,7 +452,13 @@ end
 function fameReputationEndTurnRaw(player,mouseButton,id,rewindReady)
 	local playerIndex=gStates.turnNumber
 	local coopRewards=gStates.coopAssaultPhase=="rewards"
-	if coopRewards~=true then syncPostCommitAdjustments(playerIndex) end
+	if coopRewards~=true then
+		if gStates.preEndTurn==true then
+			if fameRepEnsureRewardCommitted(playerIndex)~=true then return false end
+		elseif syncPostCommitAdjustments(playerIndex)==false then
+			return false
+		end
+	end
 	local result
 	if coopRewards~=true then
 		result=fameRepWithSyncSuppressed(function() return turnEndTurnRawBase(player,mouseButton,id,rewindReady) end)
