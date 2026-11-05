@@ -53,7 +53,8 @@ cityModel={blue="modelA",red="modelB",green="other1",white="other2"}
 GUID={zone={blueCity="zoneA",redCity="zoneB",greenCity="zoneC",whiteCity="zoneD"}}
 cityScriptZones={zoneA={cityGUID="modelA"},zoneB={cityGUID="modelB"}}
 gStates={cityCard={modelA="cardA",modelB="cardB"},
-    cityMonsterQty={modelA={extra={},troopA="alive"},modelB={extra={},troopB="alive"}}}
+    cityMonsterQty={modelA={extra={},troopA="alive"},modelB={extra={},troopB="alive"}},
+    monsterPlayLocation={troopA={-55,1.5,0},troopB={-39,1.5,0}}}
 mageKnights={}
 cityGarrisonCardOwners=function()
     return {{guid="modelA",position=cityA.getPosition()},{guid="modelB",position=cityB.getPosition()}}
@@ -91,7 +92,9 @@ assert(cityA.target[1]==-54 and defenderA.target[1]==-49 and manualA.target[1]==
     "City card and loose army retain their relative positions")
 assert(not defenderB.target and not reference.target and not distantRef.target,
     "Unrelated armies and reference tiles must never move")
-assert(gStates.monsterPlayLocation.troopA==nil,"Unregistered home locations stay absent")
+assert(gStates.monsterPlayLocation.troopA[1]==-49 and
+    gStates.monsterPlayLocation.troopB[1]==-39,
+    "Only the owner's saved garrison return location changes")
 assert(not cityCardExploreSpaceFree({}, {-54,1.09,0},{cardB=true},nil,nil),
     "Other City's reserved target is blocked even when it is not in map-zone snapshot")
 assert(not cityCardExploreSpaceFree({}, {-60,1.09,0},{cardB=true},nil,nil),
