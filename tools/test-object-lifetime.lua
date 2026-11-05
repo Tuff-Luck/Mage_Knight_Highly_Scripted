@@ -18,7 +18,9 @@ local liveDeck={guid="live01",type="Deck",isDestroyed=function() return false en
 	getQuantity=function() return 3 end}
 local liveCard={guid="card01",type="Card",isDestroyed=function() return false end}
 local actionZone={guid="actz01",getObjects=function() return {stale,liveDeck,liveCard} end}
-local deedZone={guid="deed01",getObjects=function() return {stale,liveDeck,liveCard} end}
+-- Change the zone contents between tests without redefining its getObjects method.
+local deedZoneContents={stale,liveDeck,liveCard}
+local deedZone={guid="deed01",getObjects=function() return deedZoneContents end}
 local objects={actz01=actionZone,deed01=deedZone,live01=liveDeck,card01=liveCard}
 getObjectFromGUID=function(guid) return objects[guid] end
 GUID={zone={actionDeck="actz01",spellDeck="actz01",regularUnit="actz01",eliteUnit="actz01"},deck={artifact="live01"}}
@@ -41,10 +43,10 @@ objects.live01=nil
 check("zone lookup falls back to live Card when Deck expired",standardDeckCycleObject("Advanced Action")==nil)
 -- A freshly-invalidated object should not be used for deck numeric shortcuts.
 objects.live01=liveDeck
-deedZone.getObjects=function() return {stale,liveDeck} end
+deedZoneContents={stale,liveDeck}
 setDeedDeckImmediateNumberTyping(1)
 check("deed typing skips dead userdata",liveDeck.max_typed_number==1)
-deedZone.getObjects=function() return {stale} end
+deedZoneContents={stale}
 setDeedDeckImmediateNumberTyping(1)
 check("all-dead zone does not crash",true)
 
