@@ -312,7 +312,9 @@ local function apocalypseQuestObjectsOnCard(card)
 				seen[obj.guid]=true
 			elseif explicitOwner==nil then
 				local pos=obj.getPosition()
-				local normalFootprint=math.abs(pos[1]-source[1])<1.7 and math.abs(pos[3]-source[3])<2.5 and pos[2]>source[2]-1.5 and pos[2]<source[2]+3.0
+				local normalFootprint=pos~=nil and source~=nil
+					and math.abs(pos[1]-source[1])<1.7 and math.abs(pos[3]-source[3])<2.5
+					and pos[2]>source[2]-1.5 and pos[2]<source[2]+3.0
 				--Independent rows can reach into a neighbouring Quest's normal footprint. Give row Shields/mana
 				--tokens to the Quest whose row slot they are actually nearest, rather than letting both cards claim them.
 				local rowOwner=QuestPrivate.apocalypseQuestIndependentShieldRowOwnerGUID~=nil and QuestPrivate.apocalypseQuestIndependentShieldRowOwnerGUID(obj,offerCards) or nil
@@ -376,7 +378,7 @@ QuestPrivate.apocalypseQuestTuckedQueues=QuestPrivate.apocalypseQuestTuckedQueue
 QuestPrivate.apocalypseQuestTuckedActive=QuestPrivate.apocalypseQuestTuckedActive or {}
 local function apocalypseQuestReturnTuckedCard(card, questName)
 	local destinationGUID, destinationName=apocalypseQuestTuckedCardDestination(card)
-	if destinationGUID==nil then
+	if destinationGUID==nil or destinationName==nil then
 		broadcastToAll(joinLang({"{en}Quest cleanup: Could not identify where \"{it}Pulizia Missioni: impossibile individuare la destinazione di \"{ru}Очистка задания: не удалось определить, куда вернуть \"{zh-tw}任務清理：無法判斷 \"{zh-cn}任务清理：无法判断 \"{ko}퀘스트 정리: \"{es}Limpieza de Misión: no se pudo determinar dónde va \"{fr}Nettoyage de Quête : impossible de déterminer où doit aller \"{pt-br}Limpeza da Missão: não foi possível determinar onde \"{de}Quest-Bereinigung: Es konnte nicht ermittelt werden, wohin \"",apocalypseQuestCardTitle(card),"{en}\" from \"{it}\" da \"{ru}\" из задания \"{zh-tw}\"（來自 \"{zh-cn}\"（来自 \"{ko}\" 카드가 \"{es}\" de \"{fr}\" provenant de \"{pt-br}\" de \"{de}\" aus \"",questName,"{en}\" belongs. It has been left on the table.{it}\". È stato lasciato sul tavolo.{ru}\". Карта оставлена на столе.{zh-tw}\"）應歸還到哪裡。它已留在桌上。{zh-cn}\"）应归还到哪里。它已留在桌上。{ko}\"에서 어디로 돌아가야 하는지 확인하지 못했습니다. 테이블에 남겨 두었습니다.{es}\". Se ha dejado sobre la mesa.{fr}\". La carte a été laissée sur la table.{pt-br}\" deve ir. Ela foi deixada na mesa.{de}\" gehört. Die Karte wurde auf dem Tisch liegen gelassen."}), {1,0.55,0.2})
 		return false
 	end
@@ -3004,6 +3006,7 @@ function apocalypseQuestEndRoundCleanup(onComplete)
 		local guid=card.guid
 		local expected=deck.getQuantity()+1
 		local pos=deck.getPosition()
+		if pos==nil then callback(false) return end
 		card.setRotation(deck.getRotation())
 		card.setPosition({pos[1]+3,pos[2]-0.6,pos[3]})
 		safeWaitFrames("Quests",function()
@@ -3964,13 +3967,16 @@ function QuestPrivate.apocalypseQuestVeryPersonalUnit(card)
 	local token=getObjectFromGUID("7e4e4c")
 	if token==nil then return nil end
 	local pos=token.getPosition()
+	if pos==nil then return nil end
 	local best=nil
 	local bestDistance=9
 	for _, obj in pairs(QuestPrivate.apocalypseQuestAreaObjects()) do
 		if obj.type=="Card" and (gameCardType(obj)=="Regular Unit" or gameCardType(obj)=="Elite Unit") then
 			local p=obj.getPosition()
-			local d=((p[1]-pos[1])^2)+((p[3]-pos[3])^2)
-			if d<bestDistance then best=obj bestDistance=d end
+			if p~=nil then
+				local d=((p[1]-pos[1])^2)+((p[3]-pos[3])^2)
+				if d<bestDistance then best=obj bestDistance=d end
+			end
 		end
 	end
 	return bestDistance<2.5 and best or nil
@@ -4477,7 +4483,9 @@ function apocalypseQuestRefreshOfferButtons()
 				local pos=obj.getPosition()
 				for _, questCard in ipairs(offerCards) do
 					local source=cardPositions[questCard.guid]
-					if math.abs(pos[1]-source[1])<1.7 and math.abs(pos[3]-source[3])<2.5 and pos[2]>source[2]-1.5 and pos[2]<source[2]+3.0 then
+					if pos~=nil and source~=nil
+						and math.abs(pos[1]-source[1])<1.7 and math.abs(pos[3]-source[3])<2.5
+						and pos[2]>source[2]-1.5 and pos[2]<source[2]+3.0 then
 						objectCache[questCard.guid][#objectCache[questCard.guid]+1]=obj
 						break
 					end
@@ -5726,7 +5734,9 @@ local function apocalypseQuestRemoveShields(card)
 	for _, obj in pairs(areaObjects) do
 		if obj.guid~=card.guid and isShieldObject(obj) then
 			local pos=obj.getPosition()
-			local normalFootprint=math.abs(pos[1]-source[1])<1.7 and math.abs(pos[3]-source[3])<2.5 and pos[2]>source[2]-0.25 and pos[2]<source[2]+3.0
+			local normalFootprint=pos~=nil and source~=nil
+				and math.abs(pos[1]-source[1])<1.7 and math.abs(pos[3]-source[3])<2.5
+				and pos[2]>source[2]-0.25 and pos[2]<source[2]+3.0
 			local rowOwner=QuestPrivate.apocalypseQuestIndependentShieldRowOwnerGUID(obj,offerCards)
 			if rowOwner==card.guid or (rowOwner==nil and normalFootprint) then shields[#shields+1]=obj end
 		end
@@ -6719,7 +6729,7 @@ function QuestPrivate.apocalypseQuestLiveDeck()
 	for _,obj in pairs(QuestPrivate.apocalypseQuestAreaObjects()) do
 		if obj.type=="Deck" then
 			local pos=obj.getPosition()
-			if math.abs(pos[1]-deckX)<2.0 and math.abs(pos[3]-deckZ)<2.0 then
+			if pos~=nil and math.abs(pos[1]-deckX)<2.0 and math.abs(pos[3]-deckZ)<2.0 then
 				local ok,contents=pcall(function() return obj.getObjects() end)
 				if ok==true then
 					for _,data in pairs(contents or {}) do
@@ -6729,7 +6739,7 @@ function QuestPrivate.apocalypseQuestLiveDeck()
 			end
 		elseif obj.type=="Card" and known[obj.guid]==true then
 			local pos=obj.getPosition()
-			if math.abs(pos[1]-deckX)<2.0 and math.abs(pos[3]-deckZ)<2.0 then GUID.deck.apocalypseQuest=obj.guid return obj end
+			if pos~=nil and math.abs(pos[1]-deckX)<2.0 and math.abs(pos[3]-deckZ)<2.0 then GUID.deck.apocalypseQuest=obj.guid return obj end
 		end
 	end
 	return nil
