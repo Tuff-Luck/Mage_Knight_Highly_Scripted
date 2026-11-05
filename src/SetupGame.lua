@@ -503,28 +503,55 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 			onObjectRandomize({type="Dice"})
 		end
 
-		--Deploy Volkare City support pieces whenever the Camp is eligible. These stay visible even if the hidden terrain draw does not select the Camp tile.
+		--Deploy Volkare's Camp support stack on the Volkare disc, bottom to top:
+		--Camp Hex, Reminder bag, then die. Do not mark readiness until all three exist.
 		if setupUsesVolkareCampCity() then
 			gStates.volkareCampSupportReady=false
-			getObjectFromGUID(GUID.bag.volkare).takeObject({rotation={0.0, 180.0, 0.0}, position=scenarioDiscGridPosition("Volkare"), smooth=false, guid=volkare.disc})--Volkare staging disc
-			getObjectFromGUID(GUID.bag.volkare).takeObject({rotation={0.0, 180.0, 0.0}, position={-62.2, 0.98, 0.5}, smooth=false, guid=volkare.terrainHex})--Volkare's Camp Hex
-			local campCityCardGUID=cityScriptZones[volkare.discZone].cityCard
+			local volkareBag=getObjectFromGUID(GUID.bag.volkare)
+			local discPosition=scenarioDiscGridPosition("Volkare")
+			local stack=scenarioDiscGrid.volkareCampStackY
+			if volkareBag==nil or discPosition==nil then error("SetupGame missing Volkare Camp staging objects.",2) end
+			local disc=safeTakeObject("SetupGame",volkareBag,{
+				guid=volkare.disc,position=discPosition,rotation={0,180,0},smooth=false})
+			if disc==nil then error("SetupGame could not deploy Volkare's Camp disc.",2) end
+			local campHex=safeTakeObject("SetupGame",volkareBag,{
+				guid=volkare.terrainHex,
+				position={discPosition[1],discPosition[2]+stack.hex,discPosition[3]},
+				rotation={0,180,0},smooth=false})
+			if campHex==nil then error("SetupGame could not deploy Volkare's Camp hex.",2) end
 			safeWaitCondition("SetupGame",function()
-				local campHex=getObjectFromGUID(volkare.terrainHex)
-				local cityCard=getObjectFromGUID(campCityCardGUID)
+				local currentDisc=getObjectFromGUID(volkare.disc)
+				local currentHex=getObjectFromGUID(volkare.terrainHex)
 				local bag=getObjectFromGUID(GUID.bag.volkare)
-				campHex.lock()
-				local p=cityCard.getPosition()
+				if currentDisc==nil or currentHex==nil or bag==nil then error("SetupGame lost Volkare Camp support during setup.",2) end
+				local p=currentDisc.getPosition()
+				currentHex.setPosition({p[1],p[2]+stack.hex,p[3]})
+				currentHex.lock()
 				local zone=getObjectFromGUID(volkare.discZone)
-				if zone~=nil then zone.setPosition({p[1],1.4,p[3]}) end
-				local reminder=safeTakeObject("SetupGame",bag,{rotation={0.0,180.0,0.0},position={p[1]+2.2,1.5,p[3]+2.2},smooth=false,guid=GUID.bag.volkareReminder})
-				if reminder==nil then error("SetupGame could not deploy the Volkare Camp reminder.",2) end
+				if zone~=nil then
+					local pos,scale=scenarioDiscGridZoneTransform("Volkare")
+					zone.setPosition(pos or {p[1],1.4,p[3]})
+					if scale~=nil then zone.setScale(scale) end
+				end
+				local reminder=safeTakeObject("SetupGame",bag,{
+					guid=GUID.bag.volkareReminder,rotation={0,180,0},
+					position={p[1],p[2]+stack.reminder,p[3]},smooth=false})
+				if reminder==nil then error("SetupGame could not deploy Volkare's reminder bag.",2) end
+				reminder.lock()
+				local die=safeTakeObject("SetupGame",bag,{
+					guid=GUID.object.volkareDie,rotation={0,45,0},
+					position={p[1],p[2]+stack.die,p[3]},smooth=false})
+				if die==nil then error("SetupGame could not deploy Volkare's die.",2) end
+				die.unlock()
 				gStates.volkareCampSupportReady=true
 			end,function()
-				return getObjectFromGUID(volkare.terrainHex)~=nil and getObjectFromGUID(campCityCardGUID)~=nil and getObjectFromGUID(GUID.bag.volkare)~=nil
+				return getObjectFromGUID(volkare.disc)~=nil and
+					getObjectFromGUID(volkare.terrainHex)~=nil and getObjectFromGUID(GUID.bag.volkare)~=nil
 			end,10,function() error("SetupGame timed out waiting for Volkare Camp support objects.",2) end)
-			safeTakeObject("SetupGame",getObjectFromGUID(GUID.bag.volkare),{rotation={0.0, 180.0, 0.0}, position={39.16, 0.97, 35.00}, callback_function=function(spawnedObject) spawnedObject.setScale({7.05, 1.00, 6.51}) end, smooth=false, guid="b2ec85"})--Volkare Level Chart
-			getObjectFromGUID(GUID.bag.volkare).takeObject({rotation={0.0,  45.0, 0.0}, position={-57.60, 1.57, -2.45}, smooth=false, guid=GUID.object.volkareDie})--Volker Dice
+			safeTakeObject("SetupGame",getObjectFromGUID(GUID.bag.volkare),{
+				rotation={0,180,0},position={39.16,0.97,35.00},
+				callback_function=function(spawnedObject) spawnedObject.setScale({7.05,1.00,6.51}) end,
+				smooth=false,guid="b2ec85"})--Volkare Level Chart
 		end
 
 		--display the help button

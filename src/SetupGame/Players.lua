@@ -617,28 +617,38 @@ function volkareArmy()
 							{2,2,4,4},{2,2,4,5},{2,2,4,6},{2,2,4,8},{2,2,4,10},{3,1,4,10},{4,0,4,10},{4,0,4,11},{4,0,4,12},{4,0,4,13},{4,0,4,14},{4,0,5,13},{4,0,6,12},{4,1,6,12},{4,2,6,12}}
 		--{no. White Units, No. Gray Units, No. Red Units, No. Green Units}(Level 4 to 15 shown, other levels made by adding levels togeather)
 		local PugDraw={monsterPiles.white,monsterPiles.gray,monsterPiles.red,monsterPiles.green}
-		local armyIndex=0
-		--{White Unit Bag, Gray Unit Bag, Red Unit Bag, Green Unit Bag}
+		-- Compute the full roster before spawning, so the first and last tokens always
+		-- occupy the two ends of the same five-unit army row.
 		if (gStates.volkareLevel<=20 and gStates.removeShadesOfTezlaMonsters==true and gStates.removeLostLegionExpansion==true) or (gStates.volkareLevel<=30 and (gStates.removeShadesOfTezlaMonsters~=true or gStates.removeLostLegionExpansion==false)) or (gStates.removeShadesOfTezlaMonsters~=true and gStates.removeLostLegionExpansion==false) then
-			for i=1, 4, 1 do
-				local LoopsNeeded=math.ceil(gStates.volkareLevel/30)
-				local levelConverted=math.floor(gStates.volkareLevel/LoopsNeeded)
-				local leftover=gStates.volkareLevel-(LoopsNeeded*levelConverted)+levelConverted
-				getObjectFromGUID(PugDraw[i]).shuffle()
-				for x=1, LoopsNeeded, 1 do
-					if x==LoopsNeeded then levelConverted=leftover end
-					for a=1, VolkareArmy[levelConverted][i], 1 do
-						armyIndex=armyIndex+1
-						local params={position=scenarioDiscGridArmyPosition("Volkare",armyIndex,1.5),rotation={0,180,180}}
-						if params.position==nil then
-							local boardPos=getObjectFromGUID(dummyBoard).getPosition()
-							params.position={boardPos[1]+(0.2*a)+(2.2*x)+2.5,boardPos[2]+(0.2*a)+1,boardPos[3]+(0.2*a)+(2.2*i)-2.9}
-						end
-						local obj2=getObjectFromGUID(PugDraw[i]).takeObject(params)
-						gStates.cityMonsterQty[volkare.model][obj2.guid]="alive"
-						gStates.monsterPlayLocation[obj2.guid]={params.position[1], params.position[2], params.position[3]}
+			local plan={}
+			local loopsNeeded=math.ceil(gStates.volkareLevel/30)
+			local levelConverted=math.floor(gStates.volkareLevel/loopsNeeded)
+			local leftover=gStates.volkareLevel-(loopsNeeded*levelConverted)+levelConverted
+			for pileIndex=1,4 do
+				for batch=1,loopsNeeded do
+					local level=batch==loopsNeeded and leftover or levelConverted
+					for number=1,VolkareArmy[level][pileIndex] do
+						plan[#plan+1]={pile=pileIndex,batch=batch,number=number}
 					end
 				end
+			end
+			end
+			gStates.scenarioDiscArmyOrder=gStates.scenarioDiscArmyOrder or {}
+			local shuffledPile=nil
+			for index,entry in ipairs(plan) do
+				local pile=getObjectFromGUID(PugDraw[entry.pile])
+				if shuffledPile~=entry.pile then pile.shuffle() shuffledPile=entry.pile end
+				local position=scenarioDiscGridArmyPosition("Volkare",index,1.5,#plan)
+				if position==nil then
+					local boardPos=getObjectFromGUID(dummyBoard).getPosition()
+					position={boardPos[1]+(0.2*entry.number)+(2.2*entry.batch)+2.5,
+						boardPos[2]+(0.2*entry.number)+1,
+						boardPos[3]+(0.2*entry.number)+(2.2*entry.pile)-2.9}
+				end
+				local obj=pile.takeObject({position=position,rotation={0,180,180}})
+				gStates.cityMonsterQty[volkare.model][obj.guid]="alive"
+				gStates.monsterPlayLocation[obj.guid]={position[1],position[2],position[3]}
+				gStates.scenarioDiscArmyOrder[obj.guid]=index
 			end
 		else
 			broadcastToAll("{en}Volkare's Army is too large with your setup. You will need to create it when you fight him for the first time{it}L'esercito di Volkare è troppo grande per questa preparazione. Dovrai crearlo al primo combattimento contro di lui.{ru}Армия Волкара слишком велика с вашей настройкой. Вам нужно будет создать ее, когда вы сразитесь с ним в первый раз{zh-tw}现在不用设置沃里卡的军队, 你将在首次和他交锋时设置这些{zh-cn}现在不用设置沃里卡的军队, 你将在首次和他交锋时设置这些{ko}볼케어의 군대 규모가 너무 큽니다. 플레이어가 직접 첫 전투 세팅을 준비해주세요.{es}El ejército de Volkare es demasiado grande con tu configuración. Necesitarás crearlo cuando luches contra él por primera vez.{fr}L'armée de Volkare est trop grande avec votre configuration. Vous devrez le créer lorsque vous le combattrez pour la première fois{pt-br}O exército de Volkare é muito grande com a sua configuração. Você precisará criá-lo quando você for lutar com ele pela primeira vez{de}Volkare's Armee ist mit deiner Aufstellung zu groß. Du musst sie erstellen, wenn du zum ersten Mal gegen ihn kämpfst.", warningColor)

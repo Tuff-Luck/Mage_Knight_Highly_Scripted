@@ -39,9 +39,9 @@ scenarioDiscGrid={
 	spacingZ=9.0,
 	controlSide="left", -- "left" or "right"; leaders use the opposite outer column
 	armyOffsetZ=5.3,
-	armyTokenSpacingX=1.2,
-	armyRowSpacingZ=2.0,
-	armyTokensPerRow=6
+	armySpanX=5.0, -- first token at -2.5, final token at +2.5
+	armyRiseY=0.15, -- successive tokens fall into a tidy overlapping row
+	volkareCampStackY={hex=0.12,reminder=0.85,die=1.75}
 }
 
 GUID={	deck={	artifact="ac75c4", 

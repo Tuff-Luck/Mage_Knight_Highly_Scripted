@@ -97,7 +97,12 @@ local function deployTezlaComponents(entries,includeScenarioComponents)
 				rotation={0,180,entry.flip or 0},
 				smooth=false})
 			if obj==nil then error("SetupGame could not deploy Shades of Tezla component "..tostring(entry.guid),2) end
-			obj.lock()
+			-- Leader tokens are enemies in the outward army row, not locked board components.
+			if entry.guid==darkCrusader.token or entry.guid==elementalist.token then
+				obj.unlock()
+			else
+				obj.lock()
+			end
 		end
 	end
 end
@@ -194,15 +199,21 @@ function monsterSetup()
 			local disc=getObjectFromGUID(leader.disc)
 			local zone=getObjectFromGUID(leader.discZone)
 			if disc~=nil and zone~=nil then
+				local owner=leader==darkCrusader and "DarkCrusader" or "Elementalist"
+				local position,scale=scenarioDiscGridZoneTransform(owner)
 				local p=disc.getPosition()
-				zone.setPosition({p[1],1.4,p[3]})
+				zone.setPosition(position or {p[1],1.4,p[3]})
+				if scale~=nil then zone.setScale(scale) end
 			end
 		end
 		local darkToken=getObjectFromGUID(darkCrusader.token)
 		if darkToken~=nil then
+			darkToken.unlock() -- reload() must not leave a leader token frozen above the table
 			darkToken.addDecal({name="NightRules",position={0.85,0.15,-0.85},rotation={90,180,0},scale={0.6,0.6,1},url=nightRulesDecal})
 			if gStates.monsterPerks[darkCrusader.token]==nil then gStates.monsterPerks[darkCrusader.token]={nightRules=true} else gStates.monsterPerks[darkCrusader.token].nightRules=true end
 		end
+		local elemToken=getObjectFromGUID(elementalist.token)
+		if elemToken~=nil then elemToken.unlock() end
 		monsterSetupLeadersReady=true
 	end
 

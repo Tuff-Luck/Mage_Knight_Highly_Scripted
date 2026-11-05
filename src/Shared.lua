@@ -69,18 +69,31 @@ function scenarioDiscGridPosition(owner)
 	return {o[1]-(4-cell[1])*scenarioDiscGrid.spacingX,o[2],o[3]-(cell[2]-1)*scenarioDiscGrid.spacingZ}
 end
 
-function scenarioDiscGridArmyPosition(owner,index,height)
+-- Army positions are one centred horizontal row outside the owning disc.
+-- Keep the first slot at -2.5 even before the remainder of a leader's army is known.
+-- Once total is known, distribute ALL pieces (including the leader) across the 5-unit span.
+function scenarioDiscGridArmyPosition(owner,index,height,total)
 	local disc=scenarioDiscGridPosition(owner)
 	if disc==nil then return nil end
 	local config=scenarioDiscGrid
-	index=math.max(1,math.floor(tonumber(index) or 1))-1
-	local perRow=config.armyTokensPerRow
-	local row=math.floor(index/perRow)
-	local slot=index%perRow
-	local horizontal=slot==0 and 0 or (slot%2==1 and 1 or -1)*math.ceil(slot/2)
+	index=math.max(1,math.floor(tonumber(index) or 1))
+	total=math.max(index,math.floor(tonumber(total) or index))
+	local offsetX=-(config.armySpanX/2)
+	if total>1 then offsetX=offsetX+((index-1)*config.armySpanX/(total-1)) end
 	local outward=disc[3]==config.topRight[3] and 1 or -1
-	return {disc[1]+horizontal*config.armyTokenSpacingX,height or 1.5,
-		disc[3]+outward*(config.armyOffsetZ+row*config.armyRowSpacingZ)}
+	return {disc[1]+offsetX,(height or 1.5)+((index-1)*config.armyRiseY),
+		disc[3]+outward*config.armyOffsetZ}
+end
+
+-- A City scripting zone must cover both the disc and its outward army row.
+-- Ordinary City zones retain their original transforms.
+function scenarioDiscGridZoneTransform(owner)
+	local disc=scenarioDiscGridPosition(owner)
+	if disc==nil then return nil,nil end
+	local config=scenarioDiscGrid
+	local outward=disc[3]==config.topRight[3] and 1 or -1
+	return {disc[1],1.4,disc[3]+outward*(config.armyOffsetZ/2)},
+		{x=math.max(7.5,config.armySpanX+2.0),y=1,z=config.armyOffsetZ+6.7}
 end
 
 ---@overload fun(scope: "SetupGame", container: any, params: table): any
