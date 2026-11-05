@@ -906,6 +906,8 @@ function toggleDropDown(player, mouseButton, id)
 	local control=SETUP_DROPDOWN_CONTROL_BY_ID[id]
 	if control==nil then return end
 	local color=player~=nil and player.color or nil
+	-- Scenario/reset paths can close this popup without calling toggleDropDown.
+	if mageChoiceToken~=nil and MAGE_KNIGHT_CONTROL_POSITION[dropDownIdLink]==nil then clearMageChoiceOpening() end
 	-- The Global UI popup is shared by all clients. Do not let another player
 	-- retarget it while its Mage Knight selector is in use.
 	if mageChoiceOwner~=nil and color~=nil and mageChoiceOwner~=color then
@@ -966,7 +968,8 @@ function PlayerChosen(player, clickToken, id)
 	-- arrive after a second click, scenario change, or another client action.
 	local chosen=MAGE_KNIGHT_SELECTION_BY_ID[id]
 	local position=MAGE_KNIGHT_CONTROL_POSITION[dropDownIdLink]
-	local tokenPosition,tokenOpening=type(clickToken)=="string" and clickToken:match("^mk(%d+)x(%d+)$")
+	local tokenPosition,tokenOpening
+	if type(clickToken)=="string" then tokenPosition,tokenOpening=clickToken:match("^mk(%d+)x(%d+)$") end
 	local color=player~=nil and player.color or nil
 	if chosen==nil or position==nil or mageChoiceToken==nil or
 		clickToken~=mageChoiceToken or tonumber(tokenPosition)~=position or
