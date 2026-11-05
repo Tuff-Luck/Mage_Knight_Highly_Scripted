@@ -8,7 +8,7 @@ function realmDeadEnemiesAtPosition(position)
 		local data=monsterPugs[obj.guid]
 		if data~=nil and data.pugType~="possessed" then
 			local pos=obj.getPosition()
-			if ((pos[1]-position[1])^2)+((pos[3]-position[3])^2)<1 then return true end
+			if pos~=nil and ((pos[1]-position[1])^2)+((pos[3]-position[3])^2)<1 then return true end
 		end
 	end
 	return false
