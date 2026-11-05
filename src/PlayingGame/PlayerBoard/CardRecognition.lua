@@ -230,6 +230,7 @@ local function combatAssignmentSources(seat)
                         psychicInfluence=0,psychicInfluenceCounts=false,details={},
                         resources=record.splitTargets~=nil and {} or effective,
                         swiftDouble=record.swiftDouble==true,defeatFameRep=record.defeatFameRep,
+                        heroPsychicBlock=scan~=nil and scan.heroPsychicBlock==true and record.kind~="unit",
                         repeatBlocks=record.repeatBlocks}
                     sources[#sources+1]=parts[slot]
                 end
@@ -706,7 +707,10 @@ local function combatSolveBlocks(attacks,items,movePool)
         for index,attack in ipairs(attacks) do
             if targets[index]>0 and combatBlockLegal(attack,item) then
                 local amount=item.value*(attack.swift and item.swiftDouble and 2 or 1)
-                local contribution=amount*(efficientByAttack[index][item.key]==true and 2 or 1)
+                local efficient=efficientByAttack[index][item.key]==true
+                    or (attack.key=="M" and item.source.heroPsychicBlock==true
+                        and item.key~="blockPsychic")
+                local contribution=amount*(efficient and 2 or 1)
                 if contribution>0 then options[#options+1]={index=index,points=contribution} end
             end
         end
@@ -954,11 +958,18 @@ local function combatDamageUnits(seat)
     local state=scan~=nil and scan.unitState
         or (seat~=nil and unitLayoutResourceState(seat) or nil)
     local units={}
+    -- Into the Heat forbids assigning damage to Units, even if they are ready.
+    if scan~=nil and scan.preventUnitDamage==true then
+        return units,state~=nil and state.nativeCommandCount or 0
+    end
     for _,unitState in ipairs(state~=nil and state.units or {}) do
         local data=gameCards[unitState.guid]
         if data~=nil and tonumber(data.armour)~=nil then
             local resist={}
             for _,name in ipairs(data.resistance or {}) do resist[COMBAT_UNIT_RESIST_KEYS[name] or name]=true end
+            if scan~=nil and scan.allUnitResistances==true then
+                resist.P,resist.F,resist.I=true,true,true
+            end
             units[unitState.guid]={guid=unitState.guid,name=type(data.name)=="table" and tostring(data.name[1]) or tostring(data.name),
                 armour=tonumber(data.armour),level=math.max(1,tonumber(data.level) or 1),
                 resist=resist,wounded=not unitState.unwounded}
@@ -4202,6 +4213,8 @@ local function renderSeat(seatPos)
 
     local cards,wounds,skills,manaObjects,footprints={}, {}, {}, {}, {}
     local enemyEffects={}
+    local unitCombatBoost,preventUnitDamage,allUnitResistances=0,false,false
+    local heroPsychicBlock=false
     local hasUnits=false
     for guid,obj in pairs(objects) do
         local kind=objectKinds[guid]
@@ -4734,6 +4747,20 @@ local function renderSeat(seatPos)
                 if effect.ignoreRampagers==true then movementEffects.ignoreRampagers=true end
             end
         end
+        -- Conditional combat effects apply only on a paid, upright, actually
+        -- played side, never when the card is merely in the zone for display.
+        if rule~=nil and result.complete and result.resources~=nil
+            and cardPosture(card)=="upright" and card.is_face_down~=true then
+            if rule.unitCombatBoost~=nil then
+                local bonus=result.powered and rule.unitCombatBoost.powered
+                    or rule.unitCombatBoost.normal
+                unitCombatBoost=unitCombatBoost+(bonus or 0)*(result.repeatCount or 1)
+                if rule.preventUnitDamage==true then preventUnitDamage=true end
+            end
+            if rule.poweredUnitResistances==true and result.powered then
+                allUnitResistances=true
+            end
+        end
         -- Fixed components of partially understood cards may be counted; an
         -- unresolved choice never contributes an invented amount.
         addResourceAmounts(result,totals)
@@ -4865,6 +4892,12 @@ local function renderSeat(seatPos)
                     if (counts.Red or 0)>0 then bonus=bonus+2 end
                     if (counts.Blue or 0)>0 then bonus=bonus+2 end
                 end
+                if unitCombatBoost>0 and (category:sub(1,6)=="attack"
+                    or category:sub(1,6)=="ranged"
+                    or category:sub(1,5)=="siege"
+                    or category:sub(1,5)=="block") then
+                    bonus=bonus+unitCombatBoost
+                end
                 resources[category]=value+bonus
             end
         end
@@ -4911,6 +4944,9 @@ local function renderSeat(seatPos)
                     end
                     if selected~=nil and selected.boostOtherUnits and result.complete then
                         shocktroopsBoosts=shocktroopsBoosts+1
+                    end
+                    if selected~=nil and selected.grantUnitResistances and result.complete then
+                        allUnitResistances=true
                     end
                     if selected~=nil and selected.attackTransform~=nil and result.complete then
                         attackTransforms[selected.attackTransform]=true
@@ -5472,6 +5508,19 @@ local function renderSeat(seatPos)
                 and rule.movement.ignoreRampagers then
                 movementEffects.ignoreRampagers=true
             end
+            if not flipped and rule~=nil and rule.heroPsychicBlock==true then
+                heroPsychicBlock=true
+            end
+            if not flipped and rule~=nil and rule.enemyEffect~=nil then
+                local target=combatEffectChosenEnemy(guid,footprint(token),monsters)
+                if target~=nil then
+                    combatEffectAdd(enemyEffects,target.guid,guid,rule.enemyEffect)
+                    result.enemyEffectTargetKeys={guid}
+                    result.enemyEffectTargetGUIDs={[guid]=target.guid}
+                    result.links[#result.links+1]=target.guid
+                    result.status="purple"
+                end
+            end
             showChoiceButtons(token,choices,flipped)
             addResourceAmounts(result,totals)
             records[guid]=result
@@ -5692,7 +5741,8 @@ local function renderSeat(seatPos)
         attackTransforms=attackTransforms,
         terrainModifiers=terrainModifiers,movementEffects=movementEffects,
         enemyEffects=enemyEffects,fameRepBase=fameRepBase,
-        unitState=unitState,
+        unitState=unitState,preventUnitDamage=preventUnitDamage,
+        allUnitResistances=allUnitResistances,heroPsychicBlock=heroPsychicBlock,
         usesCurrentHexBlock=usesCurrentHexBlock,
         usesCurrentHexHealing=usesCurrentHexHealing,
         usesSkillLocation=usesSkillLocation}
