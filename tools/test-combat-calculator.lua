@@ -49,6 +49,14 @@ plan=solve({attack("P",1)},{item("mind","blockPsychic",100)},0)
 check("Psychic Block is illegal against Physical Attack",not plan[1].blocked)
 plan=solve({attack("M",3)},{item("physical","block",6)},0)
 check("six ordinary Block stops Psychic Attack three inefficiently",plan[1].blocked)
+local heroBlock=item("hero","block",3)
+heroBlock.source.heroPsychicBlock=true
+plan=solve({attack("M",3)},{heroBlock},0)
+check("Helm of Mind Shielding makes a Hero's normal Block efficient against Psychic",plan[1].blocked)
+local unitBlock=item("unit","block",3)
+plan=solve({attack("M",3)},{unitBlock},0)
+check("Helm does not grant Psychic Block to Units",not plan[1].blocked)
+
 local points={}
 for i=1,5 do points[i]=item("Influence","blockPsychic",1) end
 plan=solve({attack("M",2),attack("M",3)},points,0)
@@ -110,6 +118,19 @@ check("group inherits elemental resistance and fortification",
     and grouped.baseArmour==7 and groupArmour==10)
 check("separate Fire and Ice resistances do not give Cold Fire resistance",
     not grouped.data.coldFireResist)
+local readUnits=assert(findFunction(root,"combatDamageUnits"),"Damage Unit scanner not reachable")
+resourceCardScanBySeat[1]={unitState={units={{guid="unit",unwounded=true}},
+    nativeCommandCount=2},preventUnitDamage=true}
+local forbiddenUnits,nativeCount=readUnits(1)
+check("Into the Heat removes Unit damage recipients without changing native Command count",
+    next(forbiddenUnits)==nil and nativeCount==2)
+gameCards={unit={armour=3,level=2,name={"Tester"},resistance={}}}
+resourceCardScanBySeat[1]={unitState={units={{guid="unit",unwounded=true}},
+    nativeCommandCount=2},allUnitResistances=true}
+local enhancedUnits=readUnits(1)
+check("Altem Guardians and Mist Form grant all three Unit resistances",
+    enhancedUnits.unit.resist.P and enhancedUnits.unit.resist.F and enhancedUnits.unit.resist.I)
+resourceCardScanBySeat[1]=nil
 local unit={guid="unit",name="Tester",armour=6,level=2,resist={},wounded=false}
 local resolved=damage({{key="enemy:1",type="M",damage=4}}, {unit=unit},2,function() return {"unit"} end)
 check("Psychic damage uses Unit level instead of printed Armor",
