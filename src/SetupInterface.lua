@@ -889,19 +889,50 @@ function MoreRampageSelection(player,value,id,deferRefresh)
 end
 
 dropDownIdLink="none"
+-- A Mage selection belongs to one opening, seat, and player. TTS XML buttons can pass an
+-- explicit string to their callback; embedding the seat and opening number prevents stale
+-- clicks from being applied to whichever dropdown happens to be open later.
+local mageChoiceOpening=0
+local mageChoiceToken=nil
+local mageChoiceOwner=nil
+
+local function clearMageChoiceOpening()
+	mageChoiceToken=nil
+	mageChoiceOwner=nil
+end
+
 function toggleDropDown(player, mouseButton, id)
 	if mouseButton~="-1" then return end
 	local control=SETUP_DROPDOWN_CONTROL_BY_ID[id]
 	if control==nil then return end
+	local color=player~=nil and player.color or nil
+	-- The Global UI popup is shared by all clients. Do not let another player
+	-- retarget it while its Mage Knight selector is in use.
+	if mageChoiceOwner~=nil and color~=nil and mageChoiceOwner~=color then
+		broadcastToColor("Another player is choosing a Mage Knight.",color,{1,0.72,0.35})
+		return
+	end
 	UI.setAttribute(dropDownIdLink.."Image", "image", "Sliced Button/Button New Active")
 	if dropDownIdLink==id then
 		dropDownIdLink="none"
+		clearMageChoiceOpening()
 		UI.setAttribute("DropDown", "active", "false")
 		UI.setAttribute(id.."Image", "image", "Sliced Button/Button New Active")
 		return
 	end
 
 	dropDownIdLink=id
+	clearMageChoiceOpening()
+	if control[2]=="MageDropDown" and color~=nil then
+		mageChoiceOpening=mageChoiceOpening+1
+		mageChoiceOwner=color
+		mageChoiceToken="mk"..control[1].."x"..mageChoiceOpening
+		-- Keep the choice button's ID (the selected Mage) but bind its click
+		-- value to this exact popup opening, rather than a mutable global seat.
+		for choiceId in pairs(MAGE_KNIGHT_SELECTION_BY_ID) do
+			UI.setAttribute(choiceId,"onClick","PlayerChosen("..mageChoiceToken..")")
+		end
+	end
 	local count=0
 	for uiId,data in pairs(SETUP_DROPDOWN_ROWS) do
 		UI.setAttribute(data[2], "image", "Sliced Button/Button New Active")
@@ -930,41 +961,43 @@ function toggleDropDown(player, mouseButton, id)
 	UI.setAttribute("DropDown", "active", "true")
 end
 
-function PlayerChosen(player, mouseButton, id)
-	if mouseButton=="-1" then
-		UI.setAttribute(dropDownIdLink.."Text", "text", translateWord[MAGE_KNIGHT_SELECTION_BY_ID[id]])
-		UI.setAttribute(dropDownIdLink.."Image", "image", "Sliced Button/Button New Active")
-		UI.setAttribute("DropDown", "active", "false")
-		--adjust number of players
-		local MKDropDownUI=MAGE_KNIGHT_CONTROL_POSITION
-		if dropDownIdLink~="dummyMKSelection" then
-			if MAGE_KNIGHT_SELECTION_BY_ID[id]=="nobody" then
-				if gStates.playerCount>0 then gStates.playerCount=gStates.playerCount-1 end
-			else
-				if gStates.positionMageKnight[MKDropDownUI[dropDownIdLink]]=="nobody" then gStates.playerCount=gStates.playerCount+1 end
-			end
-		end
-		if dropDownIdLink=="dummyMKSelection" and gStates.positionMageKnight[MKDropDownUI[dropDownIdLink]]=="Volkare" then
-			gStates.volkareSkills=MAGE_KNIGHT_SELECTION_BY_ID[id]
-			gStates.setupDummyMageChoice=MAGE_KNIGHT_SELECTION_BY_ID[id]
-		else
-			gStates.positionMageKnight[MKDropDownUI[dropDownIdLink]]=MAGE_KNIGHT_SELECTION_BY_ID[id]
-			if dropDownIdLink=="dummyMKSelection" then gStates.setupDummyMageChoice=MAGE_KNIGHT_SELECTION_BY_ID[id] end
-		end
+function PlayerChosen(player, clickToken, id)
+	-- Validate everything before touching the UI or player count. Old clicks can
+	-- arrive after a second click, scenario change, or another client action.
+	local chosen=MAGE_KNIGHT_SELECTION_BY_ID[id]
+	local position=MAGE_KNIGHT_CONTROL_POSITION[dropDownIdLink]
+	local tokenPosition,tokenOpening=type(clickToken)=="string" and clickToken:match("^mk(%d+)x(%d+)$")
+	local color=player~=nil and player.color or nil
+	if chosen==nil or position==nil or mageChoiceToken==nil or
+		clickToken~=mageChoiceToken or tonumber(tokenPosition)~=position or
+		tonumber(tokenOpening)~=mageChoiceOpening or color==nil or color~=mageChoiceOwner then return end
 
-		if MAGE_KNIGHT_SELECTION_BY_ID[id]=="Jormund" then
-			UI.setAttribute("ROTFSelectionText","text",ROTF_TEXT_BY_LEVEL[3])
-			gStates.riseOfTheForgemasters=3
-		end
-		refreshProxySetupLabel()
-		ToolTipUpdate(MAGE_KNIGHT_SELECTION_BY_ID[id])
-		--Set Coop flag
-		gStates.coop=gStates.positionMageKnight[5]=="nobody" and 0 or 1
-		--reset megapolis
-		gStates.megapolis=0
-		scenarioInfoUpdate()
-		dropDownIdLink="none"
+	local selectionId=dropDownIdLink
+	-- Consume the opening before any UI refresh can trigger another callback.
+	dropDownIdLink="none"
+	clearMageChoiceOpening()
+	UI.setAttribute(selectionId.."Text", "text", translateWord[chosen])
+	UI.setAttribute(selectionId.."Image", "image", "Sliced Button/Button New Active")
+	UI.setAttribute("DropDown", "active", "false")
+	if position==5 and gStates.positionMageKnight[5]=="Volkare" then
+		gStates.volkareSkills=chosen
+		gStates.setupDummyMageChoice=chosen
+	else
+		gStates.positionMageKnight[position]=chosen
+		if position==5 then gStates.setupDummyMageChoice=chosen end
 	end
+	-- Count real assignments, not click deltas: repeated Nobody/Random selections
+	-- and any setup reconciliation must never leave the count out of sync.
+	recountSetupMageKnights()
+
+	if chosen=="Jormund" then
+		UI.setAttribute("ROTFSelectionText","text",ROTF_TEXT_BY_LEVEL[3])
+		gStates.riseOfTheForgemasters=3
+	end
+	refreshProxySetupLabel()
+	ToolTipUpdate(chosen)
+	gStates.megapolis=0
+	scenarioInfoUpdate()
 end
 
 function VolkareLevelSelection(player, mouseButton, id)
