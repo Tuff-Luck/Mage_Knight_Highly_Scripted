@@ -19,6 +19,49 @@ local function fameRepClamp(value,minimum,maximum)
 	return value
 end
 
+-- The setup Dummy/Proxy has no Fame/Reputation shields. Only real Mage Knights
+-- can commit physical rewards; missing markers on a real player are not a
+-- valid reason to apply the reward to the saved numbers alone.
+local fameRepMissingMarkerNotices={}
+local function fameRepResolveCommitMarkers(playerIndex)
+	local player=turnOrder[playerIndex]
+	if player==nil then return nil,nil end
+	if player.fameGUID==nil and player.reputationGUID==nil and player.mage==gStates.positionMageKnight[5] then
+		return nil,nil -- Virtual Dummy/Proxy; never create a physical Fame commit.
+	end
+	local fameShield=player.fameGUID~=nil and getObjectFromGUID(player.fameGUID) or nil
+	local reputationShield=player.reputationGUID~=nil and getObjectFromGUID(player.reputationGUID) or nil
+	if fameShield~=nil and fameShield.isDestroyed()==true then fameShield=nil end
+	if reputationShield~=nil and reputationShield.isDestroyed()==true then reputationShield=nil end
+	if fameShield~=nil and reputationShield~=nil then
+		fameRepMissingMarkerNotices[playerIndex]=nil
+		return fameShield,reputationShield
+	end
+	local missing={}
+	if fameShield==nil then missing[#missing+1]="Fame ("..tostring(player.fameGUID or "no GUID")..")" end
+	if reputationShield==nil then missing[#missing+1]="Reputation ("..tostring(player.reputationGUID or "no GUID")..")" end
+	local details="Fame/Reputation reward not committed for "..tostring(player.mage)..
+		" [turnOrder "..tostring(playerIndex)..", seat "..tostring(player.seatPos).."]: missing "..table.concat(missing,", ").." shield."
+	if fameRepMissingMarkerNotices[playerIndex]~=details then
+		fameRepMissingMarkerNotices[playerIndex]=details
+		log(details)
+		broadcastToAll(details.." Restore the marker before claiming rewards.",{1,0.72,0.35})
+	end
+	return nil,nil
+end
+
+-- Suppression is runtime-only. Never leave it enabled after a failed callback,
+-- including an End Turn or a co-op reward transition.
+local function fameRepWithSyncSuppressed(callback)
+	local previous=fameRepSyncSuppressed
+	fameRepSyncSuppressed=true
+	local result=table.pack(pcall(callback))
+	fameRepSyncSuppressed=previous
+	if result[1]~=true then error(result[2],0) end
+	return table.unpack(result,2,result.n)
+end
+
+
 --Reputation is a cache of the physical Reputation shield. Normally setup/load keeps both in sync,
 --but a missing cache must not make reward cleanup explode. Rebuild it from the table before doing
 --any arithmetic; only virtual players, which have no Reputation marker, legitimately fall back to 0.
@@ -166,7 +209,38 @@ local function hiddenValleyNormalizeSiteLoss()
 end
 
 local function syncPlayerFameFromMarker(playerIndex)
-	if refreshPlayerFameFromShield~=nil then refreshPlayerFameFromShield(playerIndex) end
+	if refreshPlayerFameFromShield~=nil and refreshPlayerFameFromShield(playerIndex)~=true then
+		error("Fame/Reputation could not read the moved Fame shield for "..tostring(turnOrder[playerIndex] and turnOrder[playerIndex].mage or playerIndex)..".",2)
+	end
+end
+
+-- A failed physical update must not leave logical Fame/Reputation changed or
+-- one marker at a new position while the other remains at the old position.
+local function fameRepCommitPhysical(playerIndex,fameShield,reputationShield)
+	local player=turnOrder[playerIndex]
+	local oldFame,oldReputation,oldLoop=player.fame,player.reputation,player.scoreLoop
+	local oldFamePos,oldRepPos=fameShield.getPosition(),reputationShield.getPosition()
+	local ok,err=pcall(function()
+		fameRepWithSyncSuppressed(function()
+			if combatApplyPlayerFameReputationBase(playerIndex,fameShield,reputationShield)~=true then
+				error("Fame/Reputation commit refused for "..tostring(player.mage),2)
+			end
+			syncPlayerFameFromMarker(playerIndex)
+		end)
+	end)
+	if ok then return true end
+	player.fame,player.reputation,player.scoreLoop=oldFame,oldReputation,oldLoop
+	-- TTS can fail after the first setPosition. Restore whichever shields still
+	-- exist, without allowing a rollback failure to hide the original error.
+	pcall(function()
+		local live=getObjectFromGUID(player.fameGUID)
+		if live~=nil and live.isDestroyed()~=true then live.setPosition(oldFamePos) end
+	end)
+	pcall(function()
+		local live=getObjectFromGUID(player.reputationGUID)
+		if live~=nil and live.isDestroyed()~=true then live.setPosition(oldRepPos) end
+	end)
+	error(err,0)
 end
 
 --Apply only rewards added after the normal pre-end-turn commit. The cumulative fameGain/repGain
@@ -176,46 +250,48 @@ local function syncPostCommitAdjustments(playerIndex)
 	local player=turnOrder[playerIndex]
 	local committed=gStates.fameRepCommitted~=nil and gStates.fameRepCommitted[playerIndex] or nil
 	if player==nil or committed==nil then return end
-	local fameTotal=player.fameGain or 0
-	local repTotal=player.repGain or 0
+	local fameTotal,repTotal=player.fameGain or 0,player.repGain or 0
 	local fameDelta=fameTotal-(committed.fame or 0)
 	local repDelta=repTotal-(committed.rep or 0)
 	if fameDelta==0 and repDelta==0 then return end
+	local fameShield,reputationShield=fameRepResolveCommitMarkers(playerIndex)
+	if fameShield==nil then return false end
 
-	local reputation=fameRepCurrentReputation(playerIndex)
-	repDelta=fameRepClamp(repDelta,-7-reputation,7-reputation)
-	player.repGain=(committed.rep or 0)+repDelta
-	repTotal=player.repGain
-
-	local displayFame=fameTotal
-	local displayRep=repTotal
-	player.fameGain=fameDelta
-	player.repGain=repDelta
-	fameRepSyncSuppressed=true
-	combatApplyPlayerFameReputationBase(playerIndex)
-	syncPlayerFameFromMarker(playerIndex)
-	fameRepSyncSuppressed=false
-	player.fameGain=displayFame
-	player.repGain=displayRep
-	committed.fame=displayFame
+	local displayRep
+	local ok,err=pcall(function()
+		local reputation=fameRepCurrentReputation(playerIndex)
+		repDelta=fameRepClamp(repDelta,-7-reputation,7-reputation)
+		displayRep=(committed.rep or 0)+repDelta
+		player.fameGain=fameDelta
+		player.repGain=repDelta
+		fameRepCommitPhysical(playerIndex,fameShield,reputationShield)
+	end)
+	-- The reward display is cumulative; only the temporary delta goes to the
+	-- physical marker. Restore it even when a TTS operation throws.
+	player.fameGain=fameTotal
+	player.repGain=ok and displayRep or repTotal
+	if not ok then error(err,0) end
+	committed.fame=fameTotal
 	committed.rep=displayRep
+	return true
 end
 
 function fameReputationApplyPlayerFameReputation(playerIndex)
 	local player=turnOrder[playerIndex]
-	if player==nil then return end
-	normalizePendingReputation(playerIndex)
-	fameRepSyncSuppressed=true
-	combatApplyPlayerFameReputationBase(playerIndex)
-	--The original Fame placement already includes Blitz line-crossing bonuses. Read that authoritative
-	--marker back so player.fame records the same value instead of only the pre-Blitz delta.
-	syncPlayerFameFromMarker(playerIndex)
-	fameRepSyncSuppressed=false
+	if player==nil then return false end
+	local fameShield,reputationShield=fameRepResolveCommitMarkers(playerIndex)
+	if fameShield==nil then return false end
+	local oldRepGain=player.repGain
+	local ok,err=pcall(function()
+		normalizePendingReputation(playerIndex)
+		fameRepCommitPhysical(playerIndex,fameShield,reputationShield)
+	end)
+	if not ok then player.repGain=oldRepGain error(err,0) end
 	local committed=fameRepCommitTable()
 	committed[playerIndex]={fame=player.fameGain or 0,rep=player.repGain or 0}
-	--A Hidden Valley assault loss is now committed and must not be refunded when combat cleanup removes
-	--the two defenders from gainList.
+	-- A Hidden Valley assault loss is committed only after both markers moved.
 	gStates.hiddenValleyRepLossActive=nil
+	return true
 end
 
 local function possessedManualAward(perks)
@@ -354,20 +430,23 @@ end
 function fameReputationAdvanceCoopRewardPhase()
 	local entry=gStates.coopRewardQueue~=nil and gStates.coopRewardQueue[gStates.coopRewardIndex] or nil
 	if entry~=nil then syncPostCommitAdjustments(entry.player) end
-	fameRepSyncSuppressed=true
-	if entry~=nil and gStates.fameRepCommitted~=nil then gStates.fameRepCommitted[entry.player]=nil end
-	local result=combatAdvanceCoopRewardPhaseBase()
-	fameRepSyncSuppressed=false
-	return result
+	return fameRepWithSyncSuppressed(function()
+		local result=combatAdvanceCoopRewardPhaseBase()
+		if entry~=nil and gStates.fameRepCommitted~=nil then gStates.fameRepCommitted[entry.player]=nil end
+		return result
+	end)
 end
 
 function fameReputationEndTurnRaw(player,mouseButton,id,rewindReady)
 	local playerIndex=gStates.turnNumber
 	local coopRewards=gStates.coopAssaultPhase=="rewards"
 	if coopRewards~=true then syncPostCommitAdjustments(playerIndex) end
-	if coopRewards~=true then fameRepSyncSuppressed=true end
-	local result=turnEndTurnRawBase(player,mouseButton,id,rewindReady)
-	if coopRewards~=true then fameRepSyncSuppressed=false end
+	local result
+	if coopRewards~=true then
+		result=fameRepWithSyncSuppressed(function() return turnEndTurnRawBase(player,mouseButton,id,rewindReady) end)
+	else
+		result=turnEndTurnRawBase(player,mouseButton,id,rewindReady)
+	end
 	--Only clear the persisted commit marker when the turn actually advanced past Rewards Claimed.
 	if gStates.preEndTurn~=true and gStates.fameRepCommitted~=nil then gStates.fameRepCommitted[playerIndex]=nil end
 	return result

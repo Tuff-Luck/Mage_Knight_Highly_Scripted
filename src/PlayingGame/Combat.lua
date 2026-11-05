@@ -272,8 +272,11 @@ resolveCoopAssaultLocations=function()
 	end
 end
 
-function combatApplyPlayerFameReputationBase(playerIndex)
+-- Markers are resolved by FameReputation before the first movement. This prevents
+-- a missing Reputation shield from leaving Fame committed only halfway.
+function combatApplyPlayerFameReputationBase(playerIndex,fameShield,reputationShield)
 	local player=turnOrder[playerIndex]
+	if player==nil or fameShield==nil or reputationShield==nil then return false end
 	local startingFameToLevel=math.floor(math.sqrt((player.fame-(gStates.scoreIfLooped*player.scoreLoop))+1))
 	local newFame=player.fame+player.fameGain-(gStates.scoreIfLooped*player.scoreLoop)
 	local scoreLooped=false
@@ -288,14 +291,16 @@ function combatApplyPlayerFameReputationBase(playerIndex)
 	local yOffset=(heightOfFameBoard/gStates.rowsOnBoard)/2
 	local horizontalValue=leftOfFameBoard+(startPosition/levelRowFameQuantity*levelRowLength)-xOffset
 	local verticalValue=(topOfFameBoard-((fameToLevel/gStates.rowsOnBoard)*heightOfFameBoard))+yOffset-0.35
-	getObjectFromGUID(player.fameGUID).setPosition({horizontalValue, 1.5, verticalValue+((player.seatPos-2.5)/5)})
+	-- Compute both destinations before moving either marker. The service owns
+	-- rollback if an unexpected TTS operation fails during this commit.
+	local repGain=math.max(-7-player.reputation,math.min(7-player.reputation,player.repGain))
+	local repPos=reputationTable[player.reputation+repGain].reputationPos
+	fameShield.setPosition({horizontalValue, 1.5, verticalValue+((player.seatPos-2.5)/5)})
+	reputationShield.setPosition({repPos[1],repPos[2],repPos[3]})
 	recordPlayerFameChange(playerIndex, player.fameGain)
-
-	if player.repGain<(-7-player.reputation) then player.repGain=(-7-player.reputation) end
-	if player.repGain>(7-player.reputation) then player.repGain=(7-player.reputation) end
-	local repPos=reputationTable[player.reputation+player.repGain].reputationPos
-	getObjectFromGUID(player.reputationGUID).setPosition({repPos[1], repPos[2], repPos[3]})
-	player.reputation=player.reputation+player.repGain
+	player.repGain=repGain
+	player.reputation=player.reputation+repGain
+	return true
 end
 
 factionRewardPileGUID=function(faction)
