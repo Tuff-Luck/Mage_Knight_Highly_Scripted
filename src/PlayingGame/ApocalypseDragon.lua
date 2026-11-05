@@ -391,7 +391,7 @@ function apocalypseDragonCompetitiveScoreSummary()
 	for _,obj in ipairs(getAllObjects()) do
 		if isShieldObject(obj) then
 			local mage=shieldOwner(obj)
-			if mageToPlayer[mage]~=nil then
+			if mage~=nil and mageToPlayer[mage]~=nil then
 				local pos=obj.getPosition()
 				local nearest=nil
 				local best=0.72
