@@ -198,10 +198,12 @@ function coopLeaderScenarioEndAchieved()
 			if scriptObjectId(obj)=="GraveYard" then graveYardTileCount=graveYardTileCount+1 end
 			if isShieldObject(obj) and volkarePursuitShieldRegistered(obj)~=true then
 				local shieldPos=obj.getPosition()
-				for _, graveYard in pairs(objectsInPlay) do
-					if scriptObjectId(graveYard)=="GraveYard" then
-						local gravePos=graveYard.getPosition()
-						if math.sqrt(((shieldPos[1]-gravePos[1])^2)+((shieldPos[3]-gravePos[3])^2))<1 then graveYardCount=graveYardCount+1 break end
+				if shieldPos~=nil then
+					for _, graveYard in pairs(objectsInPlay) do
+						if scriptObjectId(graveYard)=="GraveYard" then
+							local gravePos=graveYard.getPosition()
+							if gravePos~=nil and math.sqrt(((shieldPos[1]-gravePos[1])^2)+((shieldPos[3]-gravePos[3])^2))<1 then graveYardCount=graveYardCount+1 break end
+						end
 					end
 				end
 			end
@@ -238,20 +240,22 @@ function scenarioCombatCleanupCheck(cleanupPlayer)
 		table.sort(objectsInPlay,function(k1,k2) return k1.getPosition()[2]>k2.getPosition()[2] end)
 		for _, playAreaObject in pairs(objectsInPlay) do
 			if isShieldObject(playAreaObject) and volkarePursuitShieldRegistered(playAreaObject)~=true then
-				local found=false
 				local shieldPos=playAreaObject.getPosition()
-				local locatedTerrain,_,_,locatedFeature=terrainHexAtPosition(shieldPos,objectsInPlay)
-				for _, terTile in pairs(objectsInPlay) do
-					local tilePos=terTile.getPosition()
-					local shieldToTileDist=math.sqrt(((shieldPos[1]-tilePos[1])^2)+((shieldPos[3]-tilePos[3])^2))
-					if terTile==locatedTerrain then
-						found=true
-						if locatedFeature=="dungeon" or locatedFeature=="tomb" then dungeonCount=dungeonCount+1 end
-						if locatedFeature=="mine" then mineCount=mineCount+1 end
-						if locatedFeature~=nil and (locatedFeature:sub(1,4)=="city" or locatedFeature=="Volkare's Camp") and gStates.gameScenario=="The Lost Relic Blitz" then relicCount=relicCount+1 end
+				if shieldPos~=nil then
+					local found=false
+					local locatedTerrain,_,_,locatedFeature=terrainHexAtPosition(shieldPos,objectsInPlay)
+					for _, terTile in pairs(objectsInPlay) do
+						local tilePos=terTile.getPosition()
+						local shieldToTileDist=tilePos~=nil and math.sqrt(((shieldPos[1]-tilePos[1])^2)+((shieldPos[3]-tilePos[3])^2)) or math.huge
+						if terTile==locatedTerrain then
+							found=true
+							if locatedFeature=="dungeon" or locatedFeature=="tomb" then dungeonCount=dungeonCount+1 end
+							if locatedFeature=="mine" then mineCount=mineCount+1 end
+							if locatedFeature~=nil and (locatedFeature:sub(1,4)=="city" or locatedFeature=="Volkare's Camp") and gStates.gameScenario=="The Lost Relic Blitz" then relicCount=relicCount+1 end
+						end
+						if shieldToTileDist<1 and scriptObjectId(terTile)=="GraveYard" then graveYardCount=graveYardCount+1 found=true end
+						if found==true then break end
 					end
-					if shieldToTileDist<1 and scriptObjectId(terTile)=="GraveYard" then graveYardCount=graveYardCount+1 found=true end
-					if found==true then break end
 				end
 			end
 			if terrainTiles[playAreaObject.guid]~=nil and combatCleanupMineTiles[playAreaObject.guid]==true then mineTileCount=mineTileCount+1 end
@@ -346,7 +350,7 @@ mineLiberatedForClaim=function(playerIndex, terrainGUID, hexPos)
 		for _, obj in pairs(map.getObjects()) do
 			if isShieldObject(obj) and volkarePursuitShieldRegistered(obj)~=true then
 				local p=obj.getPosition()
-				if ((p[1]-hexPos[1])^2)+((p[3]-hexPos[3])^2)<1 then return true end
+				if p~=nil and hexPos~=nil and ((p[1]-hexPos[1])^2)+((p[3]-hexPos[3])^2)<1 then return true end
 			end
 		end
 	end
@@ -396,7 +400,7 @@ function mineInventoryPosition(playerIndex, color)
 			local occupied=false
 			for _, obj in pairs(objects) do
 				local op=obj.getPosition()
-				if ((op[1]-p[1])^2)+((op[3]-p[3])^2)<0.56 then occupied=true break end
+				if op~=nil and ((op[1]-p[1])^2)+((op[3]-p[3])^2)<0.56 then occupied=true break end
 			end
 			if occupied==false then
 				local nearest=999999
@@ -416,7 +420,10 @@ function mineInventoryPosition(playerIndex, color)
 		local p={zonePos[1]-((zoneScale[1]/2)-0.6)+(math.random()*math.max(0.1,zoneScale[1]-1.2)), 2.0,
 			zonePos[3]-((zoneScale[3]/2)-0.6)+(math.random()*math.max(0.1,zoneScale[3]-1.2))}
 		local clearance=999999
-		for _, obj in pairs(objects) do local op=obj.getPosition() clearance=math.min(clearance, ((op[1]-p[1])^2)+((op[3]-p[3])^2)) end
+		for _, obj in pairs(objects) do
+			local op=obj.getPosition()
+			if op~=nil then clearance=math.min(clearance, ((op[1]-p[1])^2)+((op[3]-p[3])^2)) end
+		end
 		if clearance>best.clearance then best={position=p, clearance=clearance} end
 	end
 	return best.position
