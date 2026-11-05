@@ -452,6 +452,10 @@ end
 function fameReputationEndTurnRaw(player,mouseButton,id,rewindReady)
 	local playerIndex=gStates.turnNumber
 	local coopRewards=gStates.coopAssaultPhase=="rewards"
+	-- Combat's own cleanup gate must run before any attempt to retry a missed
+	-- initial reward commit; otherwise a premature click could award Fame before
+	-- all defeated monsters have returned and their rewards have settled.
+	if gStates.preEndTurn==true and gStates.combatPreEndTurnRecovery~=nil then return end
 	if coopRewards~=true then
 		if gStates.preEndTurn==true then
 			if fameRepEnsureRewardCommitted(playerIndex)~=true then return false end

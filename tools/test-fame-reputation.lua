@@ -119,6 +119,11 @@ end
 gStates.preEndTurn=true
 turnOrder[1].fameGain=9
 objects.fame01=nil
+gStates.combatPreEndTurnRecovery={}
+check("Rewards Claimed cannot commit before combat cleanup is ready",
+	fameReputationEndTurnRaw({}, "-1", "PreEndTurn")==nil and turnAdvances==0
+	and gStates.fameRepCommitted[1].fame==7)
+gStates.combatPreEndTurnRecovery=nil
 check("Rewards Claimed is blocked until missing Fame is restored",
 	fameReputationEndTurnRaw({}, "-1", "PreEndTurn")==false
 	and turnAdvances==0 and gStates.fameRepCommitted[1].fame==7)
