@@ -214,11 +214,11 @@ local function vectorLineSignature(lines)
 	return table.concat(parts,";")
 end
 
-local function syncTargetButtons()
+local function syncTargetButtons(monsters)
 	local shouldShow=next(targetingByPlayer)~=nil
 	local live={}
 	if shouldShow then
-        local candidates=resourceCardsCombatTargetObjects~=nil and resourceCardsCombatTargetObjects() or {}
+        local candidates=resourceCardsCombatTargetObjects~=nil and resourceCardsCombatTargetObjects(monsters) or {}
         for guid,obj in pairs(candidates) do
             if obj~=nil and not obj.isDestroyed() then
                 live[guid]=obj
@@ -252,6 +252,11 @@ local function syncTargetButtons()
 	end
 end
 
+-- Called by the event-driven combat scan; polling is reserved for pointer lines.
+function attackAssignmentsRefreshTargetButtons(monsters)
+    if next(targetingByPlayer)~=nil then syncTargetButtons(monsters) end
+end
+
 local function refreshRenderedLines(force)
 	local signature=vectorLineSignature(activeVisualLines())
 	if not force and signature==renderedSignature then return end
@@ -270,7 +275,6 @@ local function scheduleRefresh()
 	refreshScheduled=true
 	safeWaitTime("PlayingGame.AttackAssignments",function()
 		refreshScheduled=false
-		syncTargetButtons()
 		refreshRenderedLines()
 		if hasRuntimeWork() then scheduleRefresh() end
 	end,0.2)

@@ -66,6 +66,28 @@ reduce(attacks,{attackReductions={{amount=3,source="a",id="a"},
     {amount=3,source="b",id="b"}}},nil,{a=1,b=2})
 check("independent reduction sources choose different attack slots",
     attacks[1].value==3 and attacks[2].value==1)
+local blockResult=assert(findFunction(root,"combatBlockResult"),"Block result not reachable")
+gStates={attackedMonsters={},monsterPerks={}}
+local enemy={guid="cacheenemy",data={attack={P={4}}},perks={}}
+local source={key="blockSource",guid="blockSource",block=4,move=0,resources={block=4}}
+local lines1,_,damageCount1=blockResult(enemy,{source})
+local lines2,_,damageCount2=blockResult(enemy,{source})
+check("unchanged Block result reuses exact solver outcome",
+    lines1==lines2 and damageCount1==damageCount2)
+source.block=3
+source.resources.block=3
+local lines3,_,damageCount3=blockResult(enemy,{source})
+check("changed Block input invalidates Block cache",
+    lines3~=lines2 and damageCount3==1)
+enemy.data.attack.P={3}
+local lines4,_,damageCount4=blockResult(enemy,{source})
+check("changed attack strength invalidates Block cache",
+    lines4~=lines3 and damageCount4==0)
+enemy.data.attack.P={4}
+enemy.data.poison=true
+local _,_,_,_,_,_,unblocked=blockResult(enemy,{source})
+check("Poison ability survives cached Block pipeline",
+    unblocked[1]~=nil and unblocked[1].attack.poison==true)
 local defend=assert(findFunction(root,"combatApplyDefend"),"Defender resolver not reachable")
 local function defenderEntries()
     return {{guid="defender",data={defend=1},perks={},baseArmour=4,elusiveArmour=4},
@@ -78,10 +100,44 @@ check("Psychic Influence Block does not trigger Defender",
 allocated[2].details[1].detail.family="attack"
 check("a genuine Attack activates Defender",
     defend(defenderEntries(),groups,allocated)[2]==1)
+local groupEntry=assert(findFunction(root,"combatGroupEntry"),"Group resolver not reachable")
+local grouped,groupArmour=groupEntry({
+    {guid="a",data={fResist=true,elusive=true},perks={},baseArmour=3,elusiveArmour=6},
+    {guid="b",data={iResist=true,fortified=true},perks={},baseArmour=4,elusiveArmour=4}},
+    {a=false,b=true})
+check("group inherits elemental resistance and fortification",
+    grouped.data.fResist and grouped.data.iResist and grouped.data.fortified
+    and grouped.baseArmour==7 and groupArmour==10)
+check("separate Fire and Ice resistances do not give Cold Fire resistance",
+    not grouped.data.coldFireResist)
 local unit={guid="unit",name="Tester",armour=6,level=2,resist={},wounded=false}
 local resolved=damage({{key="enemy:1",type="M",damage=4}}, {unit=unit},2,function() return {"unit"} end)
 check("Psychic damage uses Unit level instead of printed Armor",
     resolved["enemy:1"].units[1].wounded and resolved["enemy:1"].heroWounds==1)
+local resistant={guid="resist",name="Fireguard",armour=3,level=2,
+    resist={F=true},wounded=false}
+resolved=damage({{key="fire",type="F",damage=3,poison=true}},
+    {resist=resistant},2,function() return {"resist"} end)
+check("full Unit resistance absorbs Fire with no Poison wound",
+    not resolved.fire.units[1].wounded and resolved.fire.heroWounds==0)
+resolved=damage({{key="fire",type="F",damage=8,poison=true}},
+    {resist=resistant},2,function() return {"resist"} end)
+check("partial Unit resistance still gives two Poison Wounds",
+    resolved.fire.units[1].wounds==2 and resolved.fire.heroWounds==1
+    and resolved.fire.discard==1)
+resolved=damage({{key="assassin",type="P",damage=4,assassination=true}},
+    {resist=resistant},2,function() return {"resist"} end)
+check("Assassination excludes Unit allocations",
+    #resolved.assassin.units==0 and resolved.assassin.heroWounds==2)
+local forced={guid="forced",name="Guard",armour=3,level=1,resist={},wounded=false}
+resolved=damage({
+    {key="ordinary",type="P",damage=4},
+    {key="shock",type="P",damage=3,firstDamageUnit="forced",paralyse=true}},
+    {forced=forced},2,function() return {"forced"} end)
+check("forced Shocktroops recipient reserved and Paralyse destroys it",
+    #resolved.ordinary.units==0 and resolved.ordinary.heroWounds==2
+    and resolved.shock.units[1].unit.guid=="forced"
+    and resolved.shock.units[1].destroyed)
 turnOrder={{seatPos=1}}
 gStates={turnNumber=1,attackedMonsters={summoned={nil,nil,"summoned","owner"}},
     summonStates={summoned="summoned"}}

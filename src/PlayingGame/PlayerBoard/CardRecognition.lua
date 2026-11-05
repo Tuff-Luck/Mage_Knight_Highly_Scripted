@@ -533,8 +533,8 @@ end
 
 -- Temporary target buttons cover only face-up enemies in the active combat.
 -- A summoned token may act as a proxy only if its summoner is also present.
-function resourceCardsCombatTargetObjects()
-    local monsters=combatPlayMonsters()
+function resourceCardsCombatTargetObjects(monsters)
+    monsters=monsters or combatPlayMonsters()
     local targets={}
     for guid,obj in pairs(monsters) do
         if obj.is_face_down~=true and not obj.isDestroyed() then
@@ -701,6 +701,15 @@ local function combatSolveBlocks(attacks,items,movePool)
     local efficientByAttack={}
     for index,attack in ipairs(attacks) do efficientByAttack[index]=COMBAT_EFFICIENT_BLOCKS[attack.key] or {} end
     for _,item in ipairs(items) do
+        -- Type efficiency and Swiftness are constant for this item, not per DP state.
+        local options={}
+        for index,attack in ipairs(attacks) do
+            if targets[index]>0 and combatBlockLegal(attack,item) then
+                local amount=item.value*(attack.swift and item.swiftDouble and 2 or 1)
+                local contribution=amount*(efficientByAttack[index][item.key]==true and 2 or 1)
+                if contribution>0 then options[#options+1]={index=index,points=contribution} end
+            end
+        end
         local nextStates={}
         local function retain(points,spent,route)
             local key=table.concat(points,",")
@@ -711,13 +720,12 @@ local function combatSolveBlocks(attacks,items,movePool)
         end
         for _,state in pairs(states) do
             retain(state.points,state.spent,state.route..string.char(64))
-            for index,attack in ipairs(attacks) do
-                if combatBlockLegal(attack,item) and state.points[index]<targets[index] then
-                    local amount=item.value*(attack.swift and item.swiftDouble and 2 or 1)
-                    local contributed=amount*(efficientByAttack[index][item.key]==true and 2 or 1)
+            for _,option in ipairs(options) do
+                local index=option.index
+                if state.points[index]<targets[index] then
                     local points={}
                     for j=1,#attacks do points[j]=state.points[j] end
-                    points[index]=math.min(targets[index],points[index]+contributed)
+                    points[index]=math.min(targets[index],points[index]+option.points)
                     retain(points,state.spent+1,state.route..string.char(64+index))
                 end
             end
@@ -732,37 +740,52 @@ local function combatSolveBlocks(attacks,items,movePool)
         if attack.cumbersome then usefulMove=usefulMove+attack.value end
     end
     local cap=math.min(math.max(0,movePool),usefulMove)
+    local noReductions={}
     for _,state in pairs(states) do
-        local memo,chosen={},{}
-        local function scoreMoves(index,remaining)
-            if index>#attacks then return 0 end
-            local key=index..":"..remaining
-            if memo[key]~=nil then return memo[key] end
-            local attack=attacks[index]
-            local maxReduction=attack.cumbersome and math.min(remaining,attack.value) or 0
-            local best,bestReduction=math.huge,0
-            for reduction=0,maxReduction do
-                local leftover=attack.value-reduction
-                local threshold=2*leftover*(attack.swift and 2 or 1)
-                local blocked=leftover<=0 or state.points[index]>=threshold
-                local damage=blocked and 0 or leftover*(attack.brutal and 2 or 1)
-                local score=damage*1000000+reduction+scoreMoves(index+1,remaining-reduction)
-                if score<best then best,bestReduction=score,reduction end
+        local score,reductions
+        if cap==0 then
+            -- No Move allocated: score Block totals directly without a per-state knapsack.
+            local damage=0
+            for index,attack in ipairs(attacks) do
+                if state.points[index]<targets[index] then
+                    damage=damage+attack.value*(attack.brutal and 2 or 1)
+                end
             end
-            memo[key]=best
-            chosen[key]=bestReduction
-            return best
-        end
-        local score=scoreMoves(1,cap)+state.spent*100
-        if bestScore==nil or score<bestScore then
-            bestScore,bestState=score,state
-            local reductions,remaining={},cap
+            score=damage*1000000
+            reductions=noReductions
+        else
+            local memo,chosen={},{}
+            local function scoreMoves(index,remaining)
+                if index>#attacks then return 0 end
+                local key=index..":"..remaining
+                if memo[key]~=nil then return memo[key] end
+                local attack=attacks[index]
+                local maxReduction=attack.cumbersome and math.min(remaining,attack.value) or 0
+                local best,bestReduction=math.huge,0
+                for reduction=0,maxReduction do
+                    local leftover=attack.value-reduction
+                    local threshold=2*leftover*(attack.swift and 2 or 1)
+                    local blocked=leftover<=0 or state.points[index]>=threshold
+                    local damage=blocked and 0 or leftover*(attack.brutal and 2 or 1)
+                    local optionScore=damage*1000000+reduction+scoreMoves(index+1,remaining-reduction)
+                    if optionScore<best then best,bestReduction=optionScore,reduction end
+                end
+                memo[key]=best
+                chosen[key]=bestReduction
+                return best
+            end
+            score=scoreMoves(1,cap)
+            reductions={}
+            local remaining=cap
             for index=1,#attacks do
                 local reduction=chosen[index..":"..remaining] or 0
                 reductions[index]=reduction
                 remaining=remaining-reduction
             end
-            bestReductions=reductions
+        end
+        score=score+state.spent*100
+        if bestScore==nil or score<bestScore then
+            bestScore,bestState,bestReductions=score,state,reductions
         end
     end
     local plan,used={},{}
@@ -800,6 +823,9 @@ end
 -- Move resources the player aimed at a Cumbersome attack reduce that attack by 1 each.
 -- Returns result lines, total damage, damaging attack count, whether every attack was blocked,
 -- and the Move reduction applied to each attack.
+-- Cache one complete result per enemy. Physical sources and attack effects
+-- are fingerprinted every scan; an unchanged layout never reruns the Block DP.
+local combatBlockResultCache={}
 local function combatBlockResult(entry,sources)
     local items={}
     local movePool=0
@@ -828,6 +854,23 @@ local function combatBlockResult(entry,sources)
         end
     end
     local attacks=combatEnemyAttacks(entry)
+    local parts={tostring(movePool),tostring(#attacks),tostring(#items)}
+    for _,attack in ipairs(attacks) do
+        parts[#parts+1]=table.concat({
+            tostring(attack.key),tostring(attack.value),tostring(attack.owner),
+            tostring(attack.slot),tostring(attack.pending),tostring(attack.swift),
+            tostring(attack.brutal),tostring(attack.cumbersome),tostring(attack.poison),
+            tostring(attack.paralyse),tostring(attack.assassination),
+            tostring(attack.firstDamageUnit)},":")
+    end
+    for _,item in ipairs(items) do
+        parts[#parts+1]=table.concat({
+            tostring(item.source.key),tostring(item.key),tostring(item.value),
+            tostring(item.swiftDouble),tostring(item.part)},":")
+    end
+    local key=table.concat(parts,";")
+    local cached=entry.guid~=nil and combatBlockResultCache[entry.guid] or nil
+    if cached~=nil and cached.key==key then return table.unpack(cached.result,1,7) end
     local plan,solved,leftover=combatSolveBlocks(attacks,items,movePool)
     -- Resources that could not complete any block are shown against the heaviest unblocked attack, once each.
     -- When every attack is blocked, spare Block is shown as over-blocking the heaviest attack.
@@ -882,6 +925,10 @@ local function combatBlockResult(entry,sources)
             unblocked[index]={prefix=prefix,damage=damage,attack=attack}
             lines[index]=prefix..combatRich(tostring(damage).." Damage",COMBAT_RED)
         end
+    end
+    if entry.guid~=nil then
+        combatBlockResultCache[entry.guid]={key=key,result={
+            lines,totalDamage,damageCount,allBlocked,reductions,wrongBlock,unblocked}}
     end
     return lines,totalDamage,damageCount,allBlocked,reductions,wrongBlock,unblocked
 end
@@ -1846,6 +1893,7 @@ local function combatCalcShutdown()
     combatAssignmentState={seat=nil,selected=nil,targets={},explicit={}}
     combatAssignmentJoined={}
     combatEnemyPage=1
+    combatBlockResultCache={}
     combatReductionAttackChoice={}
     combatReductionActiveSource={}
     combatAttackChoiceByRow={}
@@ -1964,6 +2012,9 @@ local function refreshCombatEnemyPanel(monsters)
         combatAssignmentState.selected=nil
     end
     local rowHeight=combatAssignmentRefreshRows(entries,sources)
+    if attackAssignmentsRefreshTargetButtons~=nil then
+        attackAssignmentsRefreshTargetButtons(monsters)
+    end
     combatPanelSetAttribute("CombatEnemyPanel","height",
         tostring(COMBAT_ASSIGNMENT_PANEL_BASE_HEIGHT+rowHeight))
 end

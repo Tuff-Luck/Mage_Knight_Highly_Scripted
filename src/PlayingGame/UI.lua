@@ -2356,16 +2356,26 @@ local RESOURCE_TRACKER_ZERO_TEXT_COLOR="#555555" -- Adjust this shade to tune em
 
 function refreshResourceTrackerText()
     if gStates.resourceTracker==nil or gStates.moveCost==nil then return end
+    -- Reuse transformed values within this display pass; no persistent cache.
+    local effective={}
+    local function valueOf(category,field)
+        local categoryValues=effective[category]
+        if categoryValues==nil then categoryValues={} effective[category]=categoryValues end
+        if categoryValues[field]==nil then
+            categoryValues[field]=resourceCardsEffectiveValue(category,field)
+        end
+        return categoryValues[field]
+    end
     local resourceTotal={siege=0, ranged=0, block=0, attack=0, influence=0}
     for resourceType in pairs(resourceTotal) do
         for field in pairs(gStates.resourceTracker[resourceType]) do
-            resourceTotal[resourceType]=resourceTotal[resourceType]+resourceCardsEffectiveValue(resourceType,field)
+            resourceTotal[resourceType]=resourceTotal[resourceType]+valueOf(resourceType,field)
         end
     end
     for fieldId,spec in pairs(RESOURCE_TRACKER_FIELDS) do
         local totalType=RESOURCE_TRACKER_TOTAL_FIELDS[fieldId]
         local value=totalType~=nil and math.max(0,resourceTotal[totalType])
-            or math.max(0,resourceCardsEffectiveValue(spec[1],spec[2]))
+            or math.max(0,valueOf(spec[1],spec[2]))
         UI.setAttribute(fieldId.."Text","text",joinLang({spec[3],value}))
         -- Dim empty resource rows, including the Move, Healing and expanded
         -- breakdown fields; restore normal contrast when a total is nonzero.
