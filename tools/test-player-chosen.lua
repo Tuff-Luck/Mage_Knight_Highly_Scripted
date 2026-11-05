@@ -40,7 +40,7 @@ for _,name in ipairs({"scenarioInfoUpdate","ToolTipUpdate"}) do
 	end
 	check("test hook "..name,found)
 end
-local blue={color="Blue"},red={color="Red"}
+local blue,red={color="Blue"},{color="Red"}
 local function open(player,slot)
 	callbacks.toggleDropDown(player,"-1",slot)
 end
