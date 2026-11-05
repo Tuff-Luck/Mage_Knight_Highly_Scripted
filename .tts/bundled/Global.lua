@@ -28623,6 +28623,7 @@ function unitOffer()
 		if offerCards.type=="Deck" then
 			for j=1, offerCards.getQuantity(), 1 do
 				local pos=offerCards.getPosition()
+				if pos==nil then break end
 				local params={position={pos.x-j*0.85+1, pos.y+0.15, pos.z}}
 				offerCards.takeObject(params)
 			end
@@ -28744,7 +28745,7 @@ monasteryOfferFirstEmptySlot=function()
 		for _,obj in pairs(zone.getObjects()) do
 			if obj.type=="Card" or obj.type=="Deck" then
 				local pos=obj.getPosition()
-				if math.abs(pos[3]+10.2)<=1 then
+				if pos~=nil and math.abs(pos[3]+10.2)<=1 then
 					local slot=math.floor(((40.8-pos[1])/4.8)+0.5)
 					if slot>=1 and slot<=6 then occupied[slot]=true end
 				end
@@ -50576,7 +50577,7 @@ function combatEffectNearestEnemy(cardArea,monsters,enemyAreaOf,overlapOf)
             local area=overlapOf(cardArea,enemyArea)
             local distance=(cardArea.x-enemyArea.x)^2+(cardArea.z-enemyArea.z)^2
             if area>bestArea or (area==bestArea and (distance<bestDistance
-                or (distance==bestDistance and guid<best.guid))) then
+                or (distance==bestDistance and best~=nil and guid<best.guid))) then
                 best,bestArea,bestDistance=enemy,area,distance
             end
         end
