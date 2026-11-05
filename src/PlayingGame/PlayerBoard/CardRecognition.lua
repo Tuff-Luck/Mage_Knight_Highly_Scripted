@@ -4789,6 +4789,69 @@ local function renderSeat(seatPos)
             end
         end
     end
+    -- Deadly Precision's stronger conversion works only on one physically
+    -- overlapping, played Action with a single active melee Attack value.
+    -- Do not invent a target or a mana payment when links are ambiguous.
+    for _,source in ipairs(cards) do
+        local data=gameCards[source.guid]
+        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+        local sourceRecord=records[source.guid]
+        if rule~=nil and rule.poweredLinkConversion==true
+            and sourceRecord~=nil and sourceRecord.powered==true
+            and sourceRecord.resources~=nil and cardPosture(source)=="upright"
+            and discarded[source.guid]==nil
+            and choiceCategory(chosenEffect(source.guid,true,rule.poweredChoices))=="convert" then
+            local candidates={}
+            for _,target in ipairs(cards) do
+                local targetData=gameCards[target.guid]
+                local targetRecord=records[target.guid]
+                if target.guid~=source.guid and targetData~=nil
+                    and (targetData.cardType=="Starting" or targetData.cardType=="Advanced Action")
+                    and targetRecord~=nil and targetRecord.resources~=nil
+                    and cardPosture(target)=="upright" and target.is_face_down~=true
+                    and discarded[target.guid]==nil then
+                    local attackKey=nil
+                    local ambiguous=false
+                    for _,key in ipairs({"attack","attackFire","attackIce",
+                        "attackColdFire","attackPsychic"}) do
+                        if (tonumber(targetRecord.resources[key]) or 0)>0 then
+                            if attackKey~=nil then ambiguous=true break end
+                            attackKey=key
+                        end
+                    end
+                    local area=overlapArea(footprints[source.guid],footprints[target.guid])
+                    if attackKey~=nil and not ambiguous and area>0 then
+                        candidates[#candidates+1]={card=target,record=targetRecord,
+                            key=attackKey,area=area}
+                    end
+                end
+            end
+            table.sort(candidates,function(a,b)
+                if a.area~=b.area then return a.area>b.area end
+                return a.card.guid<b.card.guid
+            end)
+            local best=candidates[1]
+            if best~=nil and (candidates[2]==nil or best.area>candidates[2].area) then
+                local to="ranged"..best.key:sub(7)
+                local amount=best.record.resources[best.key]
+                local updated={}
+                for key,value in pairs(best.record.resources) do updated[key]=value end
+                updated[best.key]=nil
+                updated[to]=(updated[to] or 0)+amount
+                best.record.resources=updated
+                totals[best.key]=(totals[best.key] or 0)-amount
+                totals[to]=(totals[to] or 0)+amount
+                sourceRecord.links[#sourceRecord.links+1]=best.card.guid
+                best.record.links[#best.record.links+1]=source.guid
+                sourceRecord.complete=true
+                sourceRecord.contributes=true
+                sourceRecord.status="purple"
+                best.record.status="purple"
+                setHighlight(source,"purple",true)
+                setHighlight(best.card,"purple",best.record.powered)
+            end
+        end
+    end
     -- Ambush boosts the physically linked Action's first Attack or Block,
     -- rather than generating a separate untyped Attack resource.
     local combatCategories={"attack","attackFire","attackIce","attackColdFire",
