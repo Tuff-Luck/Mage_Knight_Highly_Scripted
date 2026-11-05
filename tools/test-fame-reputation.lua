@@ -34,7 +34,7 @@ end
 local fameShield,repShield=shield("fame01"),shield("rep01")
 objects.fame01=fameShield
 objects.rep01=repShield
-gStates={firstStarted=true,scoreIfLooped=100,blitz=0,rowLengthGainPerLevel=2,
+gStates={firstStarted=true,turnNumber=1,scoreIfLooped=100,blitz=0,rowLengthGainPerLevel=2,
 	normalRowLength=4,rowsOnBoard=10,normalRowFameQuantity=2,
 	positionMageKnight={[5]="Dummy"},fameRepCommitted={}}
 turnOrder={{
