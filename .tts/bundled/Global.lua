@@ -25855,7 +25855,8 @@ publishPublicUICallbacks({
 	zigguratPyramidInteract=zigguratPyramidInteract,
 	attachEnemy=attachEnemy,
 	attackLocation=attackLocation,
-	summonMonster=summonMonster
+	summonMonster=summonMonster,
+	combatDefeatMarkerNoop=combatDefeatMarkerNoop
 })
 
 end)
@@ -49923,13 +49924,9 @@ local function renderSeat(seatPos)
             local token=reward.kind=="factionReward" and reward.modifier==mode
                 and objects[rewardGUID] or nil
             if token~=nil then
-                ---@class CardRecognitionRecord
-                ---@field resources table<string, number>|nil
-                ---@field links string[]
-                ---@field status string
-                ---@field powered boolean
                 local winner,selected,bestArea=nil,nil,0
-                ---@type CardRecognitionRecord|nil
+                -- Inline record type avoids a duplicate global class declaration in the generated TTS bundle.
+                ---@type {resources: table<string, number>?, links: string[], status: string, powered: boolean}|nil
                 local sourceRecord=nil
                 local tokenArea=footprint(token)
                 for sourceGUID,candidate in pairs(objects) do
@@ -57619,10 +57616,10 @@ scenarioDiscGrid={
 	spacingX=9.0,
 	spacingZ=9.0,
 	controlSide="left", -- "left" or "right"; leaders use the opposite outer column
-	armyOffsetZ=5.0,
-	armyTokenSpacingX=1.65,
-	armyRowSpacingZ=2.25,
-	armyTokensPerRow=5
+	armyOffsetZ=5.3,
+	armyTokenSpacingX=1.2,
+	armyRowSpacingZ=1.2,
+	armyTokensPerRow=6
 }
 
 GUID={	deck={	artifact="ac75c4", 

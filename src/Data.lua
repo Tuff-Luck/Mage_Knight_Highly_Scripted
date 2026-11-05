@@ -38,10 +38,10 @@ scenarioDiscGrid={
 	spacingX=9.0,
 	spacingZ=9.0,
 	controlSide="left", -- "left" or "right"; leaders use the opposite outer column
-	armyOffsetZ=5.0,
-	armyTokenSpacingX=1.65,
-	armyRowSpacingZ=2.25,
-	armyTokensPerRow=5
+	armyOffsetZ=5.3,
+	armyTokenSpacingX=1.2,
+	armyRowSpacingZ=2.0,
+	armyTokensPerRow=6
 }
 
 GUID={	deck={	artifact="ac75c4", 
