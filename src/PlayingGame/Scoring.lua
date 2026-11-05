@@ -444,7 +444,8 @@ function displayScore(player, mouseButton, id)
 						end
 						for e, terTile in pairs(objectsInPlay) do
 							local tilePos=terTile.getPosition()
-							local shieldToTileDist=math.sqrt(((shieldPos[1]-tilePos[1])^2)+((shieldPos[3]-tilePos[3])^2))
+							-- Missing terrain positions cannot be considered adjacent to this Shield.
+							local shieldToTileDist=tilePos~=nil and math.sqrt(((shieldPos[1]-tilePos[1])^2)+((shieldPos[3]-tilePos[3])^2)) or math.huge
 							if terTile==locatedTerrain then
 								found=true
 								if hexFeature=="keep" then turnOrder[a].score.Keep=turnOrder[a].score.Keep+1 end
