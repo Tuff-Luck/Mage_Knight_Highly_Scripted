@@ -36,7 +36,7 @@ Player={Red={getPointerPosition=function() return {5,1,0} end},
     Blue={getPointerPosition=function() return {6,1,0} end}}
 safeCallback=function(_,fn) return fn() end
 safeWaitTime=function() end -- execute no async callback in a pure Lua test
-broadcastToColor=function() end
+broadcastToColor=function(col1, col2, col3, col4) end
 monsterPugs={enemy={name="Enemy"},remote={name="Remote"}}
 gStates={attackAssignments={}}
 local redCard=makeObject("redcard",0)

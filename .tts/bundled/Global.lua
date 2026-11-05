@@ -1705,6 +1705,8 @@ function __onObjectDestroy_raw(destroyedObj)
 	-- Avoid reading its .type: use the slower, guarded marker classification.
 	local destroyMetadata={destroying=true}
 	if mapTokenNeedsArrangement~=nil and mapTokenNeedsArrangement(destroyedObj,destroyMetadata)==true then
+		-- MapTokens.lua declares (obj, metadata); the second argument enables safe access during destruction.
+		---@diagnostic disable-next-line: redundant-parameter
 		mapTokenReleaseObject(destroyedObj,destroyMetadata)
 	end
 	local questScorePlayer=apocalypseQuestScoreMarkerPlayerIndex(destroyedGuid)
@@ -2623,12 +2625,12 @@ function __onObjectLeaveContainer_raw(bag, obj)
 	end
 
 	--randomizes Volker's Reminder Token
-	if bag.guid==GUID.bag.volkareReminder then
+	if bag~=nil and bag.guid==GUID.bag.volkareReminder then
 		volkareTokenRandomize(obj)
 	end
 
 	--randomizes Pyramid and Ziggurat Trap Tokens
-	if bag.guid==monsterPiles.pyramidTrap or bag.guid==monsterPiles.zigguratTrap then
+	if bag~=nil and (bag.guid==monsterPiles.pyramidTrap or bag.guid==monsterPiles.zigguratTrap) then
 		local trapGUID=obj.guid
 		local trapBagGUID=bag.guid
 		local trapImage={[monsterPiles.pyramidTrap]={"https://steamusercontent-a.akamaihd.net/ugc/9508097467808968985/1AD863210453EFF576A15527777E7C5E31F9EC93/",--Gold Trap Pyramid
@@ -2667,7 +2669,7 @@ function __onObjectLeaveContainer_raw(bag, obj)
 	end
 
 	--Give warning when drawing Terain tiles from the reserve.
-	if (bag.guid==GUID.bag.terrain.leftCountry or bag.guid==GUID.bag.terrain.leftCore) and gStates.firstStarted==true then
+	if bag~=nil and (bag.guid==GUID.bag.terrain.leftCountry or bag.guid==GUID.bag.terrain.leftCore) and gStates.firstStarted==true then
 		obj.setName("excess")
 		if getObjectFromGUID(GUID.bag.terrain.stack).getQuantity()>0 then
 			broadcastToAll("{en}The Rules say you should only access these when the main pile is empty.{it}Le regole consentono di accedere a questi solo quando la pila principale è vuota.{ru}Правила гласят, что к ним можно обращаться только тогда, когда основная стопка пуста.{zh-tw}规则说只有当菜单是空的时才能访问这些{zh-cn}规则说只有当菜单是空的时才能访问这些{ko}메인 더미가 비어있을 때만 접근 가능합니다{es}Las Reglas dicen que solo debes acceder a ellas cuando la pila principal esté vacía.{fr}Les règles disent que vous ne devez y accéder que lorsque la pile principale est vide.{pt-br}As Regras dizem que você deveria apenas acessar estas quando a pilha principal está vazia.{de}Die Regeln besagen, dass man auf diese nur zugreifen darf, wenn der Hauptstapel leer ist.", positionToColor(gStates.turnNumber))
@@ -3574,7 +3576,9 @@ function separateCombinedUnitsInArea(seatPos)
 	for _, unitObj in pairs(unitArea.getObjects()) do
 		if unitObj.type=="Deck" and unitObj.getQuantity()==2 then
 			local pos=unitObj.getPosition()
-			unitObj.takeObject({position={pos[1]+0.8, pos[2]+0.1, pos[3]+0.8}})
+			if pos~=nil then
+				unitObj.takeObject({position={pos[1]+0.8, pos[2]+0.1, pos[3]+0.8}})
+			end
 		end
 	end
 end
@@ -6419,10 +6423,12 @@ function conquerHoldPersonalMageTowers(playerIndex)
     for _,obj in ipairs(getObjectFromGUID(mapArea).getObjects()) do
         if isShieldObject(obj) and shieldOwner(obj)==details.mage and volkarePursuitShieldRegistered(obj)~=true then
             local p=obj.getPosition()
-            local _,_,_,feature=terrainHexAtPosition(p)
-            if feature=="mage tower" then
-                count=count+1
-                if magePosition~=nil and (p[1]-magePosition[1])^2+(p[3]-magePosition[3])^2<8.5 then nearOwn=true end
+            if p~=nil then
+                local _,_,_,feature=terrainHexAtPosition(p)
+                if feature=="mage tower" then
+                    count=count+1
+                    if magePosition~=nil and (p[1]-magePosition[1])^2+(p[3]-magePosition[3])^2<8.5 then nearOwn=true end
+                end
             end
         end
     end
@@ -11564,7 +11570,8 @@ function displayScore(player, mouseButton, id)
 						end
 						for e, terTile in pairs(objectsInPlay) do
 							local tilePos=terTile.getPosition()
-							local shieldToTileDist=math.sqrt(((shieldPos[1]-tilePos[1])^2)+((shieldPos[3]-tilePos[3])^2))
+							-- Missing terrain positions cannot be considered adjacent to this Shield.
+							local shieldToTileDist=tilePos~=nil and math.sqrt(((shieldPos[1]-tilePos[1])^2)+((shieldPos[3]-tilePos[3])^2)) or math.huge
 							if terTile==locatedTerrain then
 								found=true
 								if hexFeature=="keep" then turnOrder[a].score.Keep=turnOrder[a].score.Keep+1 end
@@ -13628,7 +13635,7 @@ function apocalypseDragonCompetitiveScoreSummary()
 	for _,obj in ipairs(getAllObjects()) do
 		if isShieldObject(obj) then
 			local mage=shieldOwner(obj)
-			if mageToPlayer[mage]~=nil then
+			if mage~=nil and mageToPlayer[mage]~=nil then
 				local pos=obj.getPosition()
 				local nearest=nil
 				local best=0.72
@@ -18628,7 +18635,7 @@ function realmDeadEnemiesAtPosition(position)
 		local data=monsterPugs[obj.guid]
 		if data~=nil and data.pugType~="possessed" then
 			local pos=obj.getPosition()
-			if ((pos[1]-position[1])^2)+((pos[3]-position[3])^2)<1 then return true end
+			if pos~=nil and ((pos[1]-position[1])^2)+((pos[3]-position[3])^2)<1 then return true end
 		end
 	end
 	return false
@@ -19127,10 +19134,12 @@ function coopLeaderScenarioEndAchieved()
 			if scriptObjectId(obj)=="GraveYard" then graveYardTileCount=graveYardTileCount+1 end
 			if isShieldObject(obj) and volkarePursuitShieldRegistered(obj)~=true then
 				local shieldPos=obj.getPosition()
-				for _, graveYard in pairs(objectsInPlay) do
-					if scriptObjectId(graveYard)=="GraveYard" then
-						local gravePos=graveYard.getPosition()
-						if math.sqrt(((shieldPos[1]-gravePos[1])^2)+((shieldPos[3]-gravePos[3])^2))<1 then graveYardCount=graveYardCount+1 break end
+				if shieldPos~=nil then
+					for _, graveYard in pairs(objectsInPlay) do
+						if scriptObjectId(graveYard)=="GraveYard" then
+							local gravePos=graveYard.getPosition()
+							if gravePos~=nil and math.sqrt(((shieldPos[1]-gravePos[1])^2)+((shieldPos[3]-gravePos[3])^2))<1 then graveYardCount=graveYardCount+1 break end
+						end
 					end
 				end
 			end
@@ -19167,20 +19176,22 @@ function scenarioCombatCleanupCheck(cleanupPlayer)
 		table.sort(objectsInPlay,function(k1,k2) return k1.getPosition()[2]>k2.getPosition()[2] end)
 		for _, playAreaObject in pairs(objectsInPlay) do
 			if isShieldObject(playAreaObject) and volkarePursuitShieldRegistered(playAreaObject)~=true then
-				local found=false
 				local shieldPos=playAreaObject.getPosition()
-				local locatedTerrain,_,_,locatedFeature=terrainHexAtPosition(shieldPos,objectsInPlay)
-				for _, terTile in pairs(objectsInPlay) do
-					local tilePos=terTile.getPosition()
-					local shieldToTileDist=math.sqrt(((shieldPos[1]-tilePos[1])^2)+((shieldPos[3]-tilePos[3])^2))
-					if terTile==locatedTerrain then
-						found=true
-						if locatedFeature=="dungeon" or locatedFeature=="tomb" then dungeonCount=dungeonCount+1 end
-						if locatedFeature=="mine" then mineCount=mineCount+1 end
-						if locatedFeature~=nil and (locatedFeature:sub(1,4)=="city" or locatedFeature=="Volkare's Camp") and gStates.gameScenario=="The Lost Relic Blitz" then relicCount=relicCount+1 end
+				if shieldPos~=nil then
+					local found=false
+					local locatedTerrain,_,_,locatedFeature=terrainHexAtPosition(shieldPos,objectsInPlay)
+					for _, terTile in pairs(objectsInPlay) do
+						local tilePos=terTile.getPosition()
+						local shieldToTileDist=tilePos~=nil and math.sqrt(((shieldPos[1]-tilePos[1])^2)+((shieldPos[3]-tilePos[3])^2)) or math.huge
+						if terTile==locatedTerrain then
+							found=true
+							if locatedFeature=="dungeon" or locatedFeature=="tomb" then dungeonCount=dungeonCount+1 end
+							if locatedFeature=="mine" then mineCount=mineCount+1 end
+							if locatedFeature~=nil and (locatedFeature:sub(1,4)=="city" or locatedFeature=="Volkare's Camp") and gStates.gameScenario=="The Lost Relic Blitz" then relicCount=relicCount+1 end
+						end
+						if shieldToTileDist<1 and scriptObjectId(terTile)=="GraveYard" then graveYardCount=graveYardCount+1 found=true end
+						if found==true then break end
 					end
-					if shieldToTileDist<1 and scriptObjectId(terTile)=="GraveYard" then graveYardCount=graveYardCount+1 found=true end
-					if found==true then break end
 				end
 			end
 			if terrainTiles[playAreaObject.guid]~=nil and combatCleanupMineTiles[playAreaObject.guid]==true then mineTileCount=mineTileCount+1 end
@@ -19275,7 +19286,7 @@ mineLiberatedForClaim=function(playerIndex, terrainGUID, hexPos)
 		for _, obj in pairs(map.getObjects()) do
 			if isShieldObject(obj) and volkarePursuitShieldRegistered(obj)~=true then
 				local p=obj.getPosition()
-				if ((p[1]-hexPos[1])^2)+((p[3]-hexPos[3])^2)<1 then return true end
+				if p~=nil and hexPos~=nil and ((p[1]-hexPos[1])^2)+((p[3]-hexPos[3])^2)<1 then return true end
 			end
 		end
 	end
@@ -19325,7 +19336,7 @@ function mineInventoryPosition(playerIndex, color)
 			local occupied=false
 			for _, obj in pairs(objects) do
 				local op=obj.getPosition()
-				if ((op[1]-p[1])^2)+((op[3]-p[3])^2)<0.56 then occupied=true break end
+				if op~=nil and ((op[1]-p[1])^2)+((op[3]-p[3])^2)<0.56 then occupied=true break end
 			end
 			if occupied==false then
 				local nearest=999999
@@ -19345,7 +19356,10 @@ function mineInventoryPosition(playerIndex, color)
 		local p={zonePos[1]-((zoneScale[1]/2)-0.6)+(math.random()*math.max(0.1,zoneScale[1]-1.2)), 2.0,
 			zonePos[3]-((zoneScale[3]/2)-0.6)+(math.random()*math.max(0.1,zoneScale[3]-1.2))}
 		local clearance=999999
-		for _, obj in pairs(objects) do local op=obj.getPosition() clearance=math.min(clearance, ((op[1]-p[1])^2)+((op[3]-p[3])^2)) end
+		for _, obj in pairs(objects) do
+			local op=obj.getPosition()
+			if op~=nil then clearance=math.min(clearance, ((op[1]-p[1])^2)+((op[3]-p[3])^2)) end
+		end
 		if clearance>best.clearance then best={position=p, clearance=clearance} end
 	end
 	return best.position
@@ -27081,10 +27095,11 @@ local function manaSuppressionTokensAtReminder(record, seatPos)
 	local playArea=playerPlayAreas[seatPos]~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
 	if reminder==nil or playArea==nil then return tokens, reminder end
 	local reminderPos=reminder.getPosition()
+	if reminderPos==nil then return tokens, reminder end
 	for _, token in pairs(playArea.getObjects()) do
 		if basicManaToken[token.getName()] == true then
 			local tokenPos=token.getPosition()
-			if math.abs(tokenPos[1]-reminderPos[1])<=1 and math.abs(tokenPos[3]-reminderPos[3])<=0.65 then tokens[#tokens+1]=token end
+			if tokenPos~=nil and math.abs(tokenPos[1]-reminderPos[1])<=1 and math.abs(tokenPos[3]-reminderPos[3])<=0.65 then tokens[#tokens+1]=token end
 		end
 	end
 	return tokens, reminder
@@ -32886,7 +32901,7 @@ megapolisRemoveGraveyardMarker=function(terrainObj,hexLocation)
 	for _,obj in pairs(map.getObjects()) do
 		if obj.guid~=terrainObj.guid and monsterPugs[obj.guid]==nil and terrainTiles[obj.guid]==nil then
 			local pos=obj.getPosition()
-			if ((pos[1]-center[1])^2)+((pos[3]-center[2])^2)<0.35 and (obj.type=="Custom_Tile" or obj.tag=="Custom_Tile") then obj.destruct() break end
+			if pos~=nil and ((pos[1]-center[1])^2)+((pos[3]-center[2])^2)<0.35 and (obj.type=="Custom_Tile" or obj.tag=="Custom_Tile") then obj.destruct() break end
 		end
 	end
 end
@@ -33436,11 +33451,13 @@ moveCityCardExploreGroup=function(group, desiredLocation, movedCityZones, mapObj
 			if movedCityZones~=nil then movedCityZones[zoneGUID]=true end
 			for _, cityCardObj in pairs(zoneObj.getObjects()) do
 				if movedObjects[cityCardObj.guid]~=true and cityCardObj.guid~='3d4319' and cityCardObj.guid~='519f96' and cityCardExploreGroupObject(cityCardObj)==true then
-					movedObjects[cityCardObj.guid]=true
 					local originalPos=cityCardObj.getPosition()
-					local relocation={originalPos[1]+deltaX, originalPos[2], originalPos[3]+deltaZ}
-					cityCardObj.setPositionSmooth(relocation)
-					if gStates.monsterPlayLocation[cityCardObj.guid]~=nil then gStates.monsterPlayLocation[cityCardObj.guid]=relocation end
+					if originalPos~=nil then
+						movedObjects[cityCardObj.guid]=true
+						local relocation={originalPos[1]+deltaX, originalPos[2], originalPos[3]+deltaZ}
+						cityCardObj.setPositionSmooth(relocation)
+						if gStates.monsterPlayLocation[cityCardObj.guid]~=nil then gStates.monsterPlayLocation[cityCardObj.guid]=relocation end
+					end
 				end
 			end
 			local zonePos=zoneObj.getPosition()
@@ -33490,7 +33507,7 @@ function relocateCityCardForExplore(pos, movedCityZones)
 		local cityZone=cityCardTest[mightBeCityCard.guid]
 		if cityZone~=nil and (movedCityZones==nil or movedCityZones[cityZone]~=true) then
 			local cardPos=mightBeCityCard.getPosition()
-			if math.sqrt(((posX-cardPos[1])^2)+((posZ-cardPos[3])^2))<3 then return positionCityCardForExplore(cityZone, pos, movedCityZones) end
+			if cardPos~=nil and math.sqrt(((posX-cardPos[1])^2)+((posZ-cardPos[3])^2))<3 then return positionCityCardForExplore(cityZone, pos, movedCityZones) end
 		end
 	end
 	return false
@@ -34153,7 +34170,9 @@ local function apocalypseQuestObjectsOnCard(card)
 				seen[obj.guid]=true
 			elseif explicitOwner==nil then
 				local pos=obj.getPosition()
-				local normalFootprint=math.abs(pos[1]-source[1])<1.7 and math.abs(pos[3]-source[3])<2.5 and pos[2]>source[2]-1.5 and pos[2]<source[2]+3.0
+				local normalFootprint=pos~=nil and source~=nil
+					and math.abs(pos[1]-source[1])<1.7 and math.abs(pos[3]-source[3])<2.5
+					and pos[2]>source[2]-1.5 and pos[2]<source[2]+3.0
 				--Independent rows can reach into a neighbouring Quest's normal footprint. Give row Shields/mana
 				--tokens to the Quest whose row slot they are actually nearest, rather than letting both cards claim them.
 				local rowOwner=QuestPrivate.apocalypseQuestIndependentShieldRowOwnerGUID~=nil and QuestPrivate.apocalypseQuestIndependentShieldRowOwnerGUID(obj,offerCards) or nil
@@ -34217,7 +34236,7 @@ QuestPrivate.apocalypseQuestTuckedQueues=QuestPrivate.apocalypseQuestTuckedQueue
 QuestPrivate.apocalypseQuestTuckedActive=QuestPrivate.apocalypseQuestTuckedActive or {}
 local function apocalypseQuestReturnTuckedCard(card, questName)
 	local destinationGUID, destinationName=apocalypseQuestTuckedCardDestination(card)
-	if destinationGUID==nil then
+	if destinationGUID==nil or destinationName==nil then
 		broadcastToAll(joinLang({"{en}Quest cleanup: Could not identify where \"{it}Pulizia Missioni: impossibile individuare la destinazione di \"{ru}Очистка задания: не удалось определить, куда вернуть \"{zh-tw}任務清理：無法判斷 \"{zh-cn}任务清理：无法判断 \"{ko}퀘스트 정리: \"{es}Limpieza de Misión: no se pudo determinar dónde va \"{fr}Nettoyage de Quête : impossible de déterminer où doit aller \"{pt-br}Limpeza da Missão: não foi possível determinar onde \"{de}Quest-Bereinigung: Es konnte nicht ermittelt werden, wohin \"",apocalypseQuestCardTitle(card),"{en}\" from \"{it}\" da \"{ru}\" из задания \"{zh-tw}\"（來自 \"{zh-cn}\"（来自 \"{ko}\" 카드가 \"{es}\" de \"{fr}\" provenant de \"{pt-br}\" de \"{de}\" aus \"",questName,"{en}\" belongs. It has been left on the table.{it}\". È stato lasciato sul tavolo.{ru}\". Карта оставлена на столе.{zh-tw}\"）應歸還到哪裡。它已留在桌上。{zh-cn}\"）应归还到哪里。它已留在桌上。{ko}\"에서 어디로 돌아가야 하는지 확인하지 못했습니다. 테이블에 남겨 두었습니다.{es}\". Se ha dejado sobre la mesa.{fr}\". La carte a été laissée sur la table.{pt-br}\" deve ir. Ela foi deixada na mesa.{de}\" gehört. Die Karte wurde auf dem Tisch liegen gelassen."}), {1,0.55,0.2})
 		return false
 	end
@@ -36845,6 +36864,7 @@ function apocalypseQuestEndRoundCleanup(onComplete)
 		local guid=card.guid
 		local expected=deck.getQuantity()+1
 		local pos=deck.getPosition()
+		if pos==nil then callback(false) return end
 		card.setRotation(deck.getRotation())
 		card.setPosition({pos[1]+3,pos[2]-0.6,pos[3]})
 		safeWaitFrames("Quests",function()
@@ -37805,13 +37825,16 @@ function QuestPrivate.apocalypseQuestVeryPersonalUnit(card)
 	local token=getObjectFromGUID("7e4e4c")
 	if token==nil then return nil end
 	local pos=token.getPosition()
+	if pos==nil then return nil end
 	local best=nil
 	local bestDistance=9
 	for _, obj in pairs(QuestPrivate.apocalypseQuestAreaObjects()) do
 		if obj.type=="Card" and (gameCardType(obj)=="Regular Unit" or gameCardType(obj)=="Elite Unit") then
 			local p=obj.getPosition()
-			local d=((p[1]-pos[1])^2)+((p[3]-pos[3])^2)
-			if d<bestDistance then best=obj bestDistance=d end
+			if p~=nil then
+				local d=((p[1]-pos[1])^2)+((p[3]-pos[3])^2)
+				if d<bestDistance then best=obj bestDistance=d end
+			end
 		end
 	end
 	return bestDistance<2.5 and best or nil
@@ -38318,7 +38341,9 @@ function apocalypseQuestRefreshOfferButtons()
 				local pos=obj.getPosition()
 				for _, questCard in ipairs(offerCards) do
 					local source=cardPositions[questCard.guid]
-					if math.abs(pos[1]-source[1])<1.7 and math.abs(pos[3]-source[3])<2.5 and pos[2]>source[2]-1.5 and pos[2]<source[2]+3.0 then
+					if pos~=nil and source~=nil
+						and math.abs(pos[1]-source[1])<1.7 and math.abs(pos[3]-source[3])<2.5
+						and pos[2]>source[2]-1.5 and pos[2]<source[2]+3.0 then
 						objectCache[questCard.guid][#objectCache[questCard.guid]+1]=obj
 						break
 					end
@@ -39567,7 +39592,9 @@ local function apocalypseQuestRemoveShields(card)
 	for _, obj in pairs(areaObjects) do
 		if obj.guid~=card.guid and isShieldObject(obj) then
 			local pos=obj.getPosition()
-			local normalFootprint=math.abs(pos[1]-source[1])<1.7 and math.abs(pos[3]-source[3])<2.5 and pos[2]>source[2]-0.25 and pos[2]<source[2]+3.0
+			local normalFootprint=pos~=nil and source~=nil
+				and math.abs(pos[1]-source[1])<1.7 and math.abs(pos[3]-source[3])<2.5
+				and pos[2]>source[2]-0.25 and pos[2]<source[2]+3.0
 			local rowOwner=QuestPrivate.apocalypseQuestIndependentShieldRowOwnerGUID(obj,offerCards)
 			if rowOwner==card.guid or (rowOwner==nil and normalFootprint) then shields[#shields+1]=obj end
 		end
@@ -40560,7 +40587,7 @@ function QuestPrivate.apocalypseQuestLiveDeck()
 	for _,obj in pairs(QuestPrivate.apocalypseQuestAreaObjects()) do
 		if obj.type=="Deck" then
 			local pos=obj.getPosition()
-			if math.abs(pos[1]-deckX)<2.0 and math.abs(pos[3]-deckZ)<2.0 then
+			if pos~=nil and math.abs(pos[1]-deckX)<2.0 and math.abs(pos[3]-deckZ)<2.0 then
 				local ok,contents=pcall(function() return obj.getObjects() end)
 				if ok==true then
 					for _,data in pairs(contents or {}) do
@@ -40570,7 +40597,7 @@ function QuestPrivate.apocalypseQuestLiveDeck()
 			end
 		elseif obj.type=="Card" and known[obj.guid]==true then
 			local pos=obj.getPosition()
-			if math.abs(pos[1]-deckX)<2.0 and math.abs(pos[3]-deckZ)<2.0 then GUID.deck.apocalypseQuest=obj.guid return obj end
+			if pos~=nil and math.abs(pos[1]-deckX)<2.0 and math.abs(pos[3]-deckZ)<2.0 then GUID.deck.apocalypseQuest=obj.guid return obj end
 		end
 	end
 	return nil
@@ -43641,6 +43668,10 @@ local function playerSetupDeployUniqueComponents(orderIndex,position,offsetPosit
 						obj.lock()
 						--GM Notes are intentionally stable English-only script metadata.
 						local b=manaTokenColor(obj)
+						-- Validate the result type before using it as an inventory table key.
+						if type(b)~="string" then
+							error("Dummy setup found an invalid crystal color on "..tostring(obj.guid)..": "..tostring(b),2)
+						end
 						if b~="Red" and b~="Blue" and b~="Green" and b~="White" then
 							error("Dummy setup found an unrecognized crystal color on "..tostring(obj.guid)..": "..tostring(b),2)
 						end
@@ -44458,11 +44489,12 @@ local function combatAssignmentSources(seat)
             local function ensureSource(family)
                 local part=record.splitTargets~=nil and family or nil
                 local slot=part or ""
-                if parts[slot]==nil then
+                local source=parts[slot]
+                if source==nil then
                     local cardData=gameCards[guid]
                     local sourceName=cardData~=nil and cardData.name or nil
                     if type(sourceName)=="table" then sourceName=sourceName[1] end
-                    parts[slot]={guid=guid,key=part~=nil and (guid.."#"..part) or guid,part=part,
+                    source={guid=guid,key=part~=nil and (guid.."#"..part) or guid,part=part,
                         name=tostring(sourceName or record.kind or "Resource"),
                         ranged=0,siege=0,block=0,attack=0,move=0,
                         psychicInfluence=0,psychicInfluenceCounts=false,details={},
@@ -44470,15 +44502,15 @@ local function combatAssignmentSources(seat)
                         swiftDouble=record.swiftDouble==true,defeatFameRep=record.defeatFameRep,
                         heroPsychicBlock=scan~=nil and scan.heroPsychicBlock==true and record.kind~="unit",
                         repeatBlocks=record.repeatBlocks}
-                    sources[#sources+1]=parts[slot]
+                    parts[slot]=source
+                    sources[#sources+1]=source
                 end
-                source=parts[slot]
                 return source
             end
             for _,field in ipairs(COMBAT_SOURCE_FIELDS) do
                 local amount=tonumber(effective[field.key]) or 0
                 if amount>0 then
-                    ensureSource(field.family=="block" and "block" or "attack")
+                    local source=ensureSource(field.family=="block" and "block" or "attack")
                     local resourceFamily=field.family
                     source[resourceFamily]=source[resourceFamily]+amount
                     if record.splitTargets~=nil then source.resources[field.key]=amount end
@@ -44493,14 +44525,14 @@ local function combatAssignmentSources(seat)
             end
             local moveAmount=tonumber(record.resources.move) or 0
             if moveAmount>0 then
-                ensureSource("block")
+                local source=ensureSource("block")
                 source.move=moveAmount
                 source.details[#source.details+1]={text="Move "..tostring(moveAmount),
                     amount=moveAmount,icon="MKChoiceMove",key="move",family="move"}
             end
             local psychicInfluence=tonumber(effective.influence) or 0
             if combatPsychicActive and psychicInfluence>0 then
-                ensureSource("block")
+                local source=ensureSource("block")
                 source.psychicInfluence=psychicInfluence
                 source.details[#source.details+1]={text="Influence "..tostring(psychicInfluence).." → Psychic Block",
                     amount=psychicInfluence,icon="MKChoiceBlock",key="influence",family="influence"}
@@ -45030,15 +45062,19 @@ local function combatSolveBlocks(attacks,items,movePool)
             bestScore,bestState,bestReductions=score,state,reductions
         end
     end
+    -- Every DP state keeps an unused-item transition, so a winner should always
+    -- exist. If none survives, conservatively report no Block/Move allocation.
+    local planState=bestState or {points=initial,route=string.rep("@",#items)}
+    local planReductions=bestReductions or {}
     local plan,used={},{}
     for index,attack in ipairs(attacks) do
-        local reduction=bestReductions[index] or 0
+        local reduction=planReductions[index] or 0
         local required=2*(attack.value-reduction)*(attack.swift and 2 or 1)
         plan[index]={used={},reduction=reduction,
-            blocked=attack.value-reduction<=0 or bestState.points[index]>=required}
+            blocked=attack.value-reduction<=0 or planState.points[index]>=required}
     end
     for index=1,#items do
-        local attackIndex=string.byte(bestState.route,index)-64
+        local attackIndex=string.byte(planState.route,index)-64
         if attackIndex>0 then
             plan[attackIndex].used[index]=true
             used[index]=true
@@ -46331,11 +46367,11 @@ function resourceCardsCombatAssignmentClick(id)
     local targetGUID=index~=nil and combatAssignmentRowTargets[index] or nil
     if targetGUID==nil then return end
     local sourceGUID=combatAssignmentSlotSources[id]
-    if combatAssignmentState.selected~=nil then
-        if sourceGUID==combatAssignmentState.selected then
+    local moved=combatAssignmentState.selected
+    if moved~=nil then
+        if sourceGUID==moved then
             combatAssignmentState.selected=nil
         else
-            local moved=combatAssignmentState.selected
             local movedSource=nil
             for _,candidate in ipairs(combatAssignmentSources(combatAssignmentState.seat)) do
                 if candidate.key==moved then movedSource=candidate break end
@@ -49396,7 +49432,7 @@ local function renderSeat(seatPos)
             if family=="twiceAttack" then family="attack"
             elseif family=="twiceBlock" then family="block" end
             local unitBoost=rule.unitBoost
-            if family~=nil and unitBoost~=nil and unitBoost[family]~=nil then
+            if choice~=nil and family~=nil and unitBoost~=nil and unitBoost[family]~=nil then
                 local eligible={}
                 for unitGUID,activation in pairs(activations) do
                     local unit=objects[unitGUID]
@@ -49456,8 +49492,8 @@ local function renderSeat(seatPos)
                     end
                 end
             end
-            if best~=nil and best.field~=nil then
-                local sourceField=best.field
+            local sourceField=best~=nil and best.field or nil
+            if best~=nil and sourceField~=nil then
                 local sourceFamily=sourceField=="move" and "move"
                     or (sourceField:sub(1,6)=="attack" and "attack" or "block")
                 local suffix=sourceField:sub(#sourceFamily+1)
@@ -49572,7 +49608,7 @@ local function renderSeat(seatPos)
             local choice=rule.choices~=nil and chosenEffect(skill.guid,false,rule.choices) or nil
             local spec=combatEffectSpec(rule,false,choice~=nil and choiceCategory(choice) or nil)
             local target=spec~=nil and combatEffectChosenEnemy(skill.guid,footprints[skill.guid],monsters) or nil
-            if target~=nil then
+            if spec~=nil and target~=nil then
                 combatEffectAdd(enemyEffects,target.guid,skill.guid,spec)
                 record.enemyGUID=target.guid
                 record.links[#record.links+1]=target.guid
@@ -51586,10 +51622,10 @@ function unitLayoutResourceState(seatPos)
             -- matching Armor increase. Banner/Bonds provide slots but not Armor.
             if obj.getGMNotes()=="Command Token" then nativeCommandCount=nativeCommandCount+1 end
             local p=obj.getPosition()
-            commandTokens[#commandTokens+1]={x=p.x or p[1],z=p.z or p[3]}
+            if p~=nil then commandTokens[#commandTokens+1]={x=p.x or p[1],z=p.z or p[3]} end
         elseif unitLayoutIsWound(obj) then
             local p=obj.getPosition()
-            woundTokens[#woundTokens+1]={x=p.x or p[1],z=p.z or p[3]}
+            if p~=nil then woundTokens[#woundTokens+1]={x=p.x or p[1],z=p.z or p[3]} end
         end
     end
     local units={}
@@ -51716,17 +51752,19 @@ refreshUnitLayout=function(seatPos)
 	for _, obj in pairs(layout.objects) do
 		if unitLayoutIsCompanion(obj) then
 			local pos=obj.getPosition()
-			local bestMove=nil
-			local bestDistance=nil
-			for _, move in ipairs(unitMoves) do
-				local distance=math.abs(pos[1]-move.oldX)
-				if bestDistance==nil or distance<bestDistance then bestDistance=distance bestMove=move end
-			end
-			if bestMove~=nil and bestDistance<=unitLayoutConfig.associationRadius and (obj.held_by_color==nil or obj.held_by_color=="") then
-				--Preserve the object's offset from its Unit (notably the three left/centre/right Wound snaps)
-				--while moving the whole Unit column to its compressed position.
-				local targetX=bestMove.targetX+(pos[1]-bestMove.oldX)
-				if math.abs(pos[1]-targetX)>0.02 then obj.setPositionSmooth({targetX,pos[2],pos[3]}) end
+			if pos~=nil then
+				local bestMove=nil
+				local bestDistance=nil
+				for _, move in ipairs(unitMoves) do
+					local distance=math.abs(pos[1]-move.oldX)
+					if bestDistance==nil or distance<bestDistance then bestDistance=distance bestMove=move end
+				end
+				if bestMove~=nil and bestDistance<=unitLayoutConfig.associationRadius and (obj.held_by_color==nil or obj.held_by_color=="") then
+					--Preserve the object's offset from its Unit (notably the three left/centre/right Wound snaps)
+					--while moving the whole Unit column to its compressed position.
+					local targetX=bestMove.targetX+(pos[1]-bestMove.oldX)
+					if math.abs(pos[1]-targetX)>0.02 then obj.setPositionSmooth({targetX,pos[2],pos[3]}) end
+				end
 			end
 		end
 	end
@@ -52941,10 +52979,13 @@ local function meditationInsertDeedCard(playerIndex, card, destination, callback
 	local pile=nil
 	for _, obj in pairs(zone.getObjects()) do if obj.guid~=card.guid then if obj.type=="Deck" then pile=obj break elseif obj.type=="Card" then pile=obj end end end
 	if pile==nil then
-		local pos=zone.getPosition() card.setRotation({0,180,180}) card.setPosition({pos[1],1.50,pos[3]})
+		local pos=zone.getPosition()
+		if pos==nil then if callback~=nil then callback(false) end return end
+		card.setRotation({0,180,180}) card.setPosition({pos[1],1.50,pos[3]})
 		safeWaitFrames("PlayerBoard.CardFlow",function() if callback~=nil then callback(true) end end, 2) return
 	end
 	local pos=pile.getPosition()
+	if pos==nil then if callback~=nil then callback(false) end return end
 	if pile.type=="Deck" then
 		card.setScale({1.5,1,1.5}) card.setRotation(pile.getRotation()) card.setPosition({pos[1]+3,pos[2]+(destination=="top" and 0.5 or -0.5),pos[3]})
 		safeWaitFrames("PlayerBoard.CardFlow",function() if pile~=nil and not pile.isDestroyed() and card~=nil and not card.isDestroyed() then pile.putObject(card) end safeWaitFrames("PlayerBoard.CardFlow",function() if callback~=nil then callback(true) end end, 1) end, 1)
@@ -53117,11 +53158,14 @@ local function steadyTempoMoveToDiscard(playerIndex, card)
 	if zone==nil or card==nil then return false end
 	local pile=nil
 	for _, obj in pairs(zone.getObjects()) do if obj.type=="Deck" then pile=obj break elseif obj.type=="Card" then pile=obj end end
+	local pos
+	if pile==nil then pos=zone.getPosition() else pos=pile.getPosition() end
+	if pos==nil then return false end
 	card.setScale({1.5,1,1.5}) card.setRotation({0,180,0})
 	if pile==nil then
-		local pos=zone.getPosition() card.setPosition({pos[1],1.50,pos[3]})
+		card.setPosition({pos[1],1.50,pos[3]})
 	else
-		local pos=pile.getPosition() card.setPosition({pos[1]+3,pos[2]+0.5,pos[3]})
+		card.setPosition({pos[1]+3,pos[2]+0.5,pos[3]})
 		safeWaitFrames("PlayerBoard.CardFlow",function() if pile~=nil and not pile.isDestroyed() and card~=nil and not card.isDestroyed() then pile.putObject(card) end end, 1)
 	end
 	safeWaitFrames("PlayerBoard.CardFlow",function() scheduleDeedPileDescriptionRefresh(details.seatPos, "discard") end, 6)
@@ -53176,6 +53220,7 @@ function coralSetAsideQuickWitted()
 					for _, cardData in pairs(obj.getObjects()) do
 						if cardData.guid==cardGUID then
 							local deckPos=obj.getPosition()
+							if deckPos==nil then return end
 							safeTakeObject("PlayerBoard.CardFlow",obj,{guid=cardGUID, position={deckPos[1]+3, deckPos[2], deckPos[3]}, rotation={0, 180, 180}, smooth=false, callback_function=function(card)
 								safeWaitFrames("PlayerBoard.CardFlow",function()
 									local currentDeck=nil
@@ -53245,11 +53290,13 @@ local function compactAndRefillDeedOfferRaw(suppressAdjustUIRefresh,sourceOverri
 	for _,obj in pairs(offerZone.getObjects()) do
 		if obj.type=="Card" then
 			local cardSpot=obj.getPosition()
-			local row=math.floor(((-cardSpot[3]-10.2)/6)+0.5)
-			local column=math.floor(((cardSpot[1]-21.6)/4.8)+0.5)
-			--The broad scripting zone can contain a manually dropped card near an edge. Only cards
-			--that resolve to one of the two deed-offer rows and a real offer column belong in this grid.
-			if row>=1 and row<=2 and column>=1 and column<=offerSize then offerList[row][column]=obj.guid end
+			if cardSpot~=nil then
+				local row=math.floor(((-cardSpot[3]-10.2)/6)+0.5)
+				local column=math.floor(((cardSpot[1]-21.6)/4.8)+0.5)
+				--The broad scripting zone can contain a manually dropped card near an edge. Only cards
+				--that resolve to one of the two deed-offer rows and a real offer column belong in this grid.
+				if row>=1 and row<=2 and column>=1 and column<=offerSize then offerList[row][column]=obj.guid end
+			end
 		end
 	end
 

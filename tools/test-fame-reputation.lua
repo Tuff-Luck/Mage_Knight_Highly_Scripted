@@ -7,7 +7,7 @@ end
 publishPublicUICallbacks=function(_) end
 local errors,notices={},{}
 log=function(message) errors[#errors+1]=message end
-broadcastToAll=function(message) notices[#notices+1]=message end
+broadcastToAll=function(message, tint) notices[#notices+1]=message end
 local function keys(prefix)
 	return setmetatable({},{__index=function(t,key)
 		local value=prefix..tostring(key)
