@@ -75,6 +75,10 @@ local p2=scenarioDiscGridArmyPosition("DarkCrusader",2)
 local p5=scenarioDiscGridArmyPosition("DarkCrusader",5)
 local p6=scenarioDiscGridArmyPosition("DarkCrusader",6)
 local low=scenarioDiscGridArmyPosition("Elementalist",1)
+-- These positions are required by the test: fail clearly before indexing a missing result.
+if top==nil or bottom==nil or p1==nil or p2==nil or p5==nil or p6==nil or low==nil then
+    error("Scenario disc grid did not return every required army/disc position")
+end
 assert(p1[1]==top[1] and p1[3]==top[3]+5,"top-row army must be above disc")
 assert(low[1]==bottom[1] and low[3]==bottom[3]-5,"bottom-row army must be below disc")
 assert(math.abs((p2[1]-p1[1])-1.65)<0.001,"tokens must spread horizontally")
