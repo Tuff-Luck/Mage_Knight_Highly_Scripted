@@ -129,7 +129,7 @@ local byType={
     AltemGuardians={
         value(1,"attack",5,"Attack 5"),
         value(2,"block",8,"Block 8; counts twice against Swiftness",{countsTwiceVsSwift=true}),
-        special(3,"Pay green mana: all your Units gain all resistances this turn",{manaCost="Green"})},
+        special(3,"Pay green mana: all your Units gain all resistances this turn",{manaCost="Green",grantUnitResistances=true})},
     HeroesWhite={
         value(1,"attack",5,"Attack 5"),value(1,"block",5,"Block 5"),
         value(2,"ranged",7,"Ranged Attack 7",{manaCost="White"}),
