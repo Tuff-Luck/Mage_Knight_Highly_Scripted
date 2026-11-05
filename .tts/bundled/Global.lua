@@ -152,6 +152,16 @@ function onLoad(saved_data)
 	end)
 end
 
+-- TTS player Delete/Cut actions can be vetoed before any object is destroyed.
+-- Keep the existing tryObjectRotate flip safeguard independent of this callback.
+function onPlayerAction(player, action, targets)
+	local allowed=true
+	safeCallback("onPlayerAction",function()
+		allowed=__onPlayerAction_raw(player,action,targets)~=false
+	end)
+	return allowed
+end
+
 function onObjectPickUp(player_color, picked_up_object)
 	return safeCallback("onObjectPickUp", function() __onObjectPickUp_raw(player_color, picked_up_object) end)
 end
@@ -331,6 +341,49 @@ local function fameRepClamp(value,minimum,maximum)
 	return value
 end
 
+-- The setup Dummy/Proxy has no Fame/Reputation shields. Only real Mage Knights
+-- can commit physical rewards; missing markers on a real player are not a
+-- valid reason to apply the reward to the saved numbers alone.
+local fameRepMissingMarkerNotices={}
+local function fameRepResolveCommitMarkers(playerIndex)
+	local player=turnOrder[playerIndex]
+	if player==nil then return nil,nil end
+	if player.fameGUID==nil and player.reputationGUID==nil and player.mage==gStates.positionMageKnight[5] then
+		return nil,nil -- Virtual Dummy/Proxy; never create a physical Fame commit.
+	end
+	local fameShield=player.fameGUID~=nil and getObjectFromGUID(player.fameGUID) or nil
+	local reputationShield=player.reputationGUID~=nil and getObjectFromGUID(player.reputationGUID) or nil
+	if fameShield~=nil and fameShield.isDestroyed()==true then fameShield=nil end
+	if reputationShield~=nil and reputationShield.isDestroyed()==true then reputationShield=nil end
+	if fameShield~=nil and reputationShield~=nil then
+		fameRepMissingMarkerNotices[playerIndex]=nil
+		return fameShield,reputationShield
+	end
+	local missing={}
+	if fameShield==nil then missing[#missing+1]="Fame ("..tostring(player.fameGUID or "no GUID")..")" end
+	if reputationShield==nil then missing[#missing+1]="Reputation ("..tostring(player.reputationGUID or "no GUID")..")" end
+	local details="Fame/Reputation reward not committed for "..tostring(player.mage)..
+		" [turnOrder "..tostring(playerIndex)..", seat "..tostring(player.seatPos).."]: missing "..table.concat(missing,", ").." shield."
+	if fameRepMissingMarkerNotices[playerIndex]~=details then
+		fameRepMissingMarkerNotices[playerIndex]=details
+		log(details)
+		broadcastToAll(details.." Restore the marker before claiming rewards.",{1,0.72,0.35})
+	end
+	return nil,nil
+end
+
+-- Suppression is runtime-only. Never leave it enabled after a failed callback,
+-- including an End Turn or a co-op reward transition.
+local function fameRepWithSyncSuppressed(callback)
+	local previous=fameRepSyncSuppressed
+	fameRepSyncSuppressed=true
+	local result=table.pack(pcall(callback))
+	fameRepSyncSuppressed=previous
+	if result[1]~=true then error(result[2],0) end
+	return table.unpack(result,2,result.n)
+end
+
+
 --Reputation is a cache of the physical Reputation shield. Normally setup/load keeps both in sync,
 --but a missing cache must not make reward cleanup explode. Rebuild it from the table before doing
 --any arithmetic; only virtual players, which have no Reputation marker, legitimately fall back to 0.
@@ -478,7 +531,38 @@ local function hiddenValleyNormalizeSiteLoss()
 end
 
 local function syncPlayerFameFromMarker(playerIndex)
-	if refreshPlayerFameFromShield~=nil then refreshPlayerFameFromShield(playerIndex) end
+	if refreshPlayerFameFromShield~=nil and refreshPlayerFameFromShield(playerIndex)~=true then
+		error("Fame/Reputation could not read the moved Fame shield for "..tostring(turnOrder[playerIndex] and turnOrder[playerIndex].mage or playerIndex)..".",2)
+	end
+end
+
+-- A failed physical update must not leave logical Fame/Reputation changed or
+-- one marker at a new position while the other remains at the old position.
+local function fameRepCommitPhysical(playerIndex,fameShield,reputationShield)
+	local player=turnOrder[playerIndex]
+	local oldFame,oldReputation,oldLoop=player.fame,player.reputation,player.scoreLoop
+	local oldFamePos,oldRepPos=fameShield.getPosition(),reputationShield.getPosition()
+	local ok,err=pcall(function()
+		fameRepWithSyncSuppressed(function()
+			if combatApplyPlayerFameReputationBase(playerIndex,fameShield,reputationShield)~=true then
+				error("Fame/Reputation commit refused for "..tostring(player.mage),2)
+			end
+			syncPlayerFameFromMarker(playerIndex)
+		end)
+	end)
+	if ok then return true end
+	player.fame,player.reputation,player.scoreLoop=oldFame,oldReputation,oldLoop
+	-- TTS can fail after the first setPosition. Restore whichever shields still
+	-- exist, without allowing a rollback failure to hide the original error.
+	pcall(function()
+		local live=getObjectFromGUID(player.fameGUID)
+		if live~=nil and live.isDestroyed()~=true then live.setPosition(oldFamePos) end
+	end)
+	pcall(function()
+		local live=getObjectFromGUID(player.reputationGUID)
+		if live~=nil and live.isDestroyed()~=true then live.setPosition(oldRepPos) end
+	end)
+	error(err,0)
 end
 
 --Apply only rewards added after the normal pre-end-turn commit. The cumulative fameGain/repGain
@@ -488,46 +572,48 @@ local function syncPostCommitAdjustments(playerIndex)
 	local player=turnOrder[playerIndex]
 	local committed=gStates.fameRepCommitted~=nil and gStates.fameRepCommitted[playerIndex] or nil
 	if player==nil or committed==nil then return end
-	local fameTotal=player.fameGain or 0
-	local repTotal=player.repGain or 0
+	local fameTotal,repTotal=player.fameGain or 0,player.repGain or 0
 	local fameDelta=fameTotal-(committed.fame or 0)
 	local repDelta=repTotal-(committed.rep or 0)
 	if fameDelta==0 and repDelta==0 then return end
+	local fameShield,reputationShield=fameRepResolveCommitMarkers(playerIndex)
+	if fameShield==nil then return false end
 
-	local reputation=fameRepCurrentReputation(playerIndex)
-	repDelta=fameRepClamp(repDelta,-7-reputation,7-reputation)
-	player.repGain=(committed.rep or 0)+repDelta
-	repTotal=player.repGain
-
-	local displayFame=fameTotal
-	local displayRep=repTotal
-	player.fameGain=fameDelta
-	player.repGain=repDelta
-	fameRepSyncSuppressed=true
-	combatApplyPlayerFameReputationBase(playerIndex)
-	syncPlayerFameFromMarker(playerIndex)
-	fameRepSyncSuppressed=false
-	player.fameGain=displayFame
-	player.repGain=displayRep
-	committed.fame=displayFame
+	local displayRep
+	local ok,err=pcall(function()
+		local reputation=fameRepCurrentReputation(playerIndex)
+		repDelta=fameRepClamp(repDelta,-7-reputation,7-reputation)
+		displayRep=(committed.rep or 0)+repDelta
+		player.fameGain=fameDelta
+		player.repGain=repDelta
+		fameRepCommitPhysical(playerIndex,fameShield,reputationShield)
+	end)
+	-- The reward display is cumulative; only the temporary delta goes to the
+	-- physical marker. Restore it even when a TTS operation throws.
+	player.fameGain=fameTotal
+	player.repGain=ok and displayRep or repTotal
+	if not ok then error(err,0) end
+	committed.fame=fameTotal
 	committed.rep=displayRep
+	return true
 end
 
 function fameReputationApplyPlayerFameReputation(playerIndex)
 	local player=turnOrder[playerIndex]
-	if player==nil then return end
-	normalizePendingReputation(playerIndex)
-	fameRepSyncSuppressed=true
-	combatApplyPlayerFameReputationBase(playerIndex)
-	--The original Fame placement already includes Blitz line-crossing bonuses. Read that authoritative
-	--marker back so player.fame records the same value instead of only the pre-Blitz delta.
-	syncPlayerFameFromMarker(playerIndex)
-	fameRepSyncSuppressed=false
+	if player==nil then return false end
+	local fameShield,reputationShield=fameRepResolveCommitMarkers(playerIndex)
+	if fameShield==nil then return false end
+	local oldRepGain=player.repGain
+	local ok,err=pcall(function()
+		normalizePendingReputation(playerIndex)
+		fameRepCommitPhysical(playerIndex,fameShield,reputationShield)
+	end)
+	if not ok then player.repGain=oldRepGain error(err,0) end
 	local committed=fameRepCommitTable()
 	committed[playerIndex]={fame=player.fameGain or 0,rep=player.repGain or 0}
-	--A Hidden Valley assault loss is now committed and must not be refunded when combat cleanup removes
-	--the two defenders from gainList.
+	-- A Hidden Valley assault loss is committed only after both markers moved.
 	gStates.hiddenValleyRepLossActive=nil
+	return true
 end
 
 local function possessedManualAward(perks)
@@ -663,23 +749,48 @@ function fameReputationPlunderVillage(player,mouseButton,id)
 	end
 end
 
+-- The player can correct a missing shield and retry Rewards Claimed. Do not
+-- advance the turn and zero the pending reward while its physical commit failed.
+local function fameRepEnsureRewardCommitted(playerIndex)
+	local player=turnOrder[playerIndex]
+	if player==nil or player.mage==gStates.positionMageKnight[5] then return true end
+	local committed=gStates.fameRepCommitted~=nil and gStates.fameRepCommitted[playerIndex] or nil
+	if committed==nil and ((player.fameGain or 0)~=0 or (player.repGain or 0)~=0) then
+		if fameReputationApplyPlayerFameReputation(playerIndex)~=true then return false end
+	end
+	return syncPostCommitAdjustments(playerIndex)~=false
+end
+
 function fameReputationAdvanceCoopRewardPhase()
 	local entry=gStates.coopRewardQueue~=nil and gStates.coopRewardQueue[gStates.coopRewardIndex] or nil
-	if entry~=nil then syncPostCommitAdjustments(entry.player) end
-	fameRepSyncSuppressed=true
-	if entry~=nil and gStates.fameRepCommitted~=nil then gStates.fameRepCommitted[entry.player]=nil end
-	local result=combatAdvanceCoopRewardPhaseBase()
-	fameRepSyncSuppressed=false
-	return result
+	if entry~=nil and fameRepEnsureRewardCommitted(entry.player)~=true then return false end
+	return fameRepWithSyncSuppressed(function()
+		local result=combatAdvanceCoopRewardPhaseBase()
+		if entry~=nil and gStates.fameRepCommitted~=nil then gStates.fameRepCommitted[entry.player]=nil end
+		return result
+	end)
 end
 
 function fameReputationEndTurnRaw(player,mouseButton,id,rewindReady)
 	local playerIndex=gStates.turnNumber
 	local coopRewards=gStates.coopAssaultPhase=="rewards"
-	if coopRewards~=true then syncPostCommitAdjustments(playerIndex) end
-	if coopRewards~=true then fameRepSyncSuppressed=true end
-	local result=turnEndTurnRawBase(player,mouseButton,id,rewindReady)
-	if coopRewards~=true then fameRepSyncSuppressed=false end
+	-- Combat's own cleanup gate must run before any attempt to retry a missed
+	-- initial reward commit; otherwise a premature click could award Fame before
+	-- all defeated monsters have returned and their rewards have settled.
+	if gStates.preEndTurn==true and gStates.combatPreEndTurnRecovery~=nil then return end
+	if coopRewards~=true then
+		if gStates.preEndTurn==true then
+			if fameRepEnsureRewardCommitted(playerIndex)~=true then return false end
+		elseif syncPostCommitAdjustments(playerIndex)==false then
+			return false
+		end
+	end
+	local result
+	if coopRewards~=true then
+		result=fameRepWithSyncSuppressed(function() return turnEndTurnRawBase(player,mouseButton,id,rewindReady) end)
+	else
+		result=turnEndTurnRawBase(player,mouseButton,id,rewindReady)
+	end
 	--Only clear the persisted commit marker when the turn actually advanced past Rewards Claimed.
 	if gStates.preEndTurn~=true and gStates.fameRepCommitted~=nil then gStates.fameRepCommitted[playerIndex]=nil end
 	return result
@@ -708,7 +819,115 @@ __bundle_register("PlayingGame.Events", function(require, _LOADED, __bundle_regi
 local saveZigguratPyramidUI, restoreZigguratPyramidUI, refreshCardEffectAfterRotation, normalizePlayerLiftHeight, __maintenanceTick_raw, startMaintenanceTick
 -- TTS persistence, raw event handling, maintenance and runtime event dispatch.
 
+-- Essential table pieces are player-delete/cut protected. Keep the registry derived from
+-- existing GUID data and live turnOrder so it also works after saving/reloading.
+-- Script destruction is only diagnosed; expected lifecycle removals are marked explicitly.
+local protectedFixedObjectKind={
+	[mapArea]="Map scripting zone",
+	[turnOrderArea]="Turn-order scripting zone",
+	[GUID.bag.spareDice]="Mana dice supply bag",
+	[dummyBoard]="Dummy board",
+	["3d4319"]="Table extension",
+	["519f96"]="Table surface"
+}
+local function protectGUIDGroup(guids,label)
+	for _,guid in pairs(guids or {}) do
+		if type(guid)=="string" and guid~="" then protectedFixedObjectKind[guid]=label end
+	end
+end
+protectGUIDGroup(GUID.zone,"Game scripting zone")
+protectGUIDGroup(tacticCard,"Tactic card")
+protectGUIDGroup(tacticZones,"Tactic scripting zone")
+protectGUIDGroup(playerBoard,"Player board")
+protectGUIDGroup(colorBand,"Player colour bar")
+protectGUIDGroup(playerPlayAreas,"Player play-area zone")
+protectGUIDGroup(playerUnitAreas,"Player unit zone")
+protectGUIDGroup(playerCrystalAreas,"Player crystal zone")
+protectGUIDGroup(deedDeckZones,"Player deed zone")
+protectGUIDGroup(deedDeckDiscardZones,"Player discard zone")
+protectGUIDGroup(handZones,"Player hand zone")
+protectGUIDGroup(monsterPiles,"Monster supply bag")
+-- Registry lookup returns whether an unexpected script destruction should be reported.
+-- Mana dice are intentionally consumed/replaced by the Mana Source and are player-protected only.
+local function protectedObjectKind(guid)
+	if type(guid)~="string" then return nil,false end
+	local fixed=protectedFixedObjectKind[guid]
+	if fixed~=nil then return fixed,true end
+	if type(turnOrder)=="table" then
+		for _,details in pairs(turnOrder) do
+			if type(details)=="table" then
+				if details.turnOrderTokenGUID==guid then return "Round Order token",true end
+				if details.fameGUID==guid then return "Fame shield",true end
+				if details.reputationGUID==guid then return "Reputation shield",true end
+			end
+		end
+	end
+	if type(gStates)=="table" then
+		if gStates.volkareModel==guid and type(gStates.positionMageKnight)=="table" and gStates.positionMageKnight[5]=="Volkare" then
+			return "Volkare model",true
+		end
+		if type(gStates.manaMirror)=="table" and gStates.manaMirror[guid]~=nil then return "Mana mirror die",false end
+		if type(gStates.manaSource)=="table" then
+			for _,entry in pairs(gStates.manaSource) do
+				if type(entry)=="table" and entry.manaDie==guid then return "Mana Source die",false end
+			end
+		end
+	end
+	return nil,false
+end
+
+local protectedExpectedScriptRemovals={}
+local protectedUnexpectedDestroyReported={}
+-- The game intentionally moves certain protected pieces into Trash: tactics at round end,
+-- and Volkare when his scenario ends. The permit is scoped to that destination and expires.
+function protectedObjectAllowScriptRemoval(guid,containerGUID,reason)
+	if protectedObjectKind(guid)==nil then return end
+	local permit={destination=containerGUID,reason=reason or "scripted cleanup"}
+	protectedExpectedScriptRemovals[guid]=permit
+	safeWaitFrames("ProtectedObjects",function()
+		if protectedExpectedScriptRemovals[guid]==permit then protectedExpectedScriptRemovals[guid]=nil end
+	end,30)
+end
+
+local function protectedObjectCanEnterContainer(container,obj)
+	if container==nil or obj==nil or type(gStates)~="table" or gStates.firstStarted~=true then return true end
+	local kind=protectedObjectKind(obj.guid)
+	if kind==nil then return true end
+	local permit=protectedExpectedScriptRemovals[obj.guid]
+	return permit~=nil and permit.destination==container.guid
+end
+
+function __onPlayerAction_raw(player,action,targets)
+	if action~=Player.Action.Delete and action~=Player.Action.Cut then return true end
+	for _,obj in ipairs(targets or {}) do
+		local kind=obj~=nil and protectedObjectKind(obj.guid) or nil
+		if kind~=nil then
+			if player~=nil and player.color~=nil then
+				broadcastToColor(kind.." is protected against player deletion.",player.color,{1,0.72,0.35})
+			end
+			return false -- Cancel the whole multi-object action, not just one selected piece.
+		end
+	end
+	return true
+end
+
+local function protectedObjectDestroyAudit(guid)
+	if type(gStates)~="table" or gStates.firstStarted~=true then return end
+	local kind,diagnose=protectedObjectKind(guid)
+	if kind==nil or diagnose~=true or protectedExpectedScriptRemovals[guid]~=nil or protectedUnexpectedDestroyReported[guid]==true then return end
+	-- Wait for actual disappearance, not an object temporarily reloading/changing state.
+	safeWaitFrames("ProtectedObjects",function()
+		if getObjectFromGUID(guid)~=nil or protectedExpectedScriptRemovals[guid]~=nil then return end
+		if protectedUnexpectedDestroyReported[guid]==true then return end
+		protectedUnexpectedDestroyReported[guid]=true
+		log("PROTECTED OBJECT MISSING: "..kind.." ["..guid.."] in scenario "..tostring(gStates.gameScenario)
+			..", round "..tostring(gStates.currentRound)..", turn "..tostring(gStates.turnNumber)
+			..". Check unexpected script destruction/container cleanup.")
+	end,2)
+end
+
 function __tryObjectEnterContainer_raw(container, object)
+	if protectedObjectCanEnterContainer(container,object)==false then return false end
     if gStates.preEndTurn==false and container.type=="Card" and object.type=="Card" then
 		for _, turnDetails in pairs(turnOrder) do
 			if turnDetails.seatPos~=nil then
@@ -1098,9 +1317,12 @@ end
 
 --city pickup warning.
 local function eventsLiveObject(object)
-	if object==nil then return nil end
+	-- TTS can dispatch a hover/zone event with a reference to a Deck it just
+	-- collapsed. Such userdata is not nil, but its properties are invalid.
+	if object==nil or object.isDestroyed()==true then return nil end
 	local guid=object.guid
-	return guid~=nil and getObjectFromGUID(guid) or nil
+	local live=guid~=nil and getObjectFromGUID(guid) or nil
+	return live~=nil and live.isDestroyed()~=true and live or nil
 end
 
 function __onObjectPickUp_raw(player_color, picked_up_object)
@@ -1409,12 +1631,19 @@ function __onObjectSpawn_raw(spawn_object)
 	--code stops objects getting a GUID of a registered object.
 	if spawn_object.getGMNotes()=="Wound" or spawn_object.type=="Figurine" or spawn_object.type=="Deck" then
 		if gameCards[spawn_object.guid]~=nil or terrainTiles[spawn_object.guid]~=nil or monsterPugs[spawn_object.guid]~=nil or skillTokens[spawn_object.guid]~=nil then
+			local spawnGUID=spawn_object.guid
 			safeWaitFrames("Events",function()
-				if getObjectFromGUID(spawn_object.guid)~=nil then
-					spawn_object.clone({position={spawn_object.getPosition()[1], spawn_object.getPosition()[2]+1, spawn_object.getPosition()[3]}})
-					safeWaitFrames("Events",function() spawn_object.destruct() end, 2)
-				end
-			end, 50)
+				-- Do not capture a spawn userdata across 50 frames: a card or
+				-- Deck can be replaced before this GUID-conflict repair fires.
+				local liveSpawn=getObjectFromGUID(spawnGUID)
+				if liveSpawn==nil or liveSpawn.isDestroyed()==true then return end
+				local pos=liveSpawn.getPosition()
+				liveSpawn.clone({position={pos[1],pos[2]+1,pos[3]}})
+				safeWaitFrames("Events",function()
+					local original=getObjectFromGUID(spawnGUID)
+					if original~=nil and original.isDestroyed()~=true then original.destruct() end
+				end,2)
+			end,50)
 		end
 	end
 
@@ -1468,10 +1697,16 @@ function __onObjectDestroy_raw(destroyedObj)
 	if destroyedObj==nil then return end
 	attackAssignmentsClearForObject(destroyedObj)
 	local destroyedGuid=destroyedObj.guid
+	protectedObjectDestroyAudit(destroyedGuid)
 	if runtimeMapContainsGUID(destroyedGuid)==true then
 		if terrainTiles[destroyedGuid]~=nil then runtimeMapInvalidateTerrain() else runtimeMapInvalidateObjects() end
 	end
-	if mapTokenNeedsArrangement~=nil and mapTokenNeedsArrangement(destroyedObj)==true then mapTokenReleaseObject(destroyedObj) end
+	-- This callback can receive an object already flagged for destruction.
+	-- Avoid reading its .type: use the slower, guarded marker classification.
+	local destroyMetadata={destroying=true}
+	if mapTokenNeedsArrangement~=nil and mapTokenNeedsArrangement(destroyedObj,destroyMetadata)==true then
+		mapTokenReleaseObject(destroyedObj,destroyMetadata)
+	end
 	local questScorePlayer=apocalypseQuestScoreMarkerPlayerIndex(destroyedGuid)
 	if questScorePlayer~=nil then
 		if apocalypseQuestScoresRequired()==true then
@@ -2698,6 +2933,7 @@ end
 
 --stop crystal entering command token bag
 function __filterObjectEnterContainer_raw(container, enter_object)
+	if protectedObjectCanEnterContainer(container,enter_object)==false then return false end
 	if container.getGMNotes()=="Command Tokens" and enter_object.getGMNotes()~="Command Token" then return false end
 	if container.getGMNotes()=="Skills" and skillTokens[enter_object.guid]==nil then return false end
 	return true -- Allows object to enter.
@@ -5124,7 +5360,18 @@ local MOVE_COST_FIELDS={	["Plain"]={"plains", "{en}Plains : {it}Pianure : {ru}Р
 				["Mount"]={"mountain", "{en}Mountains : {it}Montagne : {ru}Горы: {zh-tw}山脈：{zh-cn}山脉：{ko}산 : {es}Montañas : {fr}Montagnes : {pt-br}Montanhas : {de}Berge : "}}
 
 function resourceTracker(player, mouseButton, id)
+    local cycleRow=type(id)=="string" and id:match("^CombatEnemyAttackCycle(%d+)$") or nil
+    if cycleRow~=nil and (mouseButton=="-1" or mouseButton=="-2") then
+        resourceCardsCombatCycleAttack(tonumber(cycleRow),mouseButton=="-2")
+        return
+    end
 	if mouseButton=="-1" then--and legalPlayerCheck(player.color, turnOrder[gStates.turnNumber].seatPos)==true then
+        -- Help is independent of the combat display, so it never triggers a rescan.
+        if id=="DisplayCombatCalculatorHelp" or id=="CloseCombatCalculatorHelp" then
+            local visible=UI.getAttribute("CombatCalculatorHelp","active")=="true"
+            UI.setAttribute("CombatCalculatorHelp","active",visible and "false" or "true")
+            return
+        end
 		--expand Resource Tracker
 		if id=="DisplayResourceTrackerDetails" then
 			local temp="245"
@@ -5132,6 +5379,7 @@ function resourceTracker(player, mouseButton, id)
 			if tonumber(UI.getAttribute("ResourceTracker", "height"))>200 then temp="35" temp2="false" end
 			UI.setAttribute("ResourceTracker", "height", temp)
 			UI.setAttribute("ResourceTrackerDetail", "active", temp2)
+            if temp2=="false" then UI.setAttribute("CombatCalculatorHelp","active","false") end
             resourceCardsPanelChanged(temp2=="true")
 			UI.setAttribute("ResourceTrackerDetail", "height", "210")
 			UI.setAttribute("MoveCosts", "active", "false")
@@ -5162,11 +5410,7 @@ function resourceTracker(player, mouseButton, id)
             resourceCardsCombatPage(id=="CombatEnemyPagePrev" and -1 or 1)
             return
         end
-        local attackCycleRow=id:match("^CombatEnemyAttackCycle(%d+)$")
-        if attackCycleRow~=nil then
-            resourceCardsCombatCycleAttack(tonumber(attackCycleRow))
-            return
-        end
+
 		--expander buttons
 		local IDConvert=RESOURCE_TRACKER_EXPANDERS
 		if IDConvert[id]~=nil then
@@ -5215,16 +5459,26 @@ local RESOURCE_TRACKER_ZERO_TEXT_COLOR="#555555" -- Adjust this shade to tune em
 
 function refreshResourceTrackerText()
     if gStates.resourceTracker==nil or gStates.moveCost==nil then return end
+    -- Reuse transformed values within this display pass; no persistent cache.
+    local effective={}
+    local function valueOf(category,field)
+        local categoryValues=effective[category]
+        if categoryValues==nil then categoryValues={} effective[category]=categoryValues end
+        if categoryValues[field]==nil then
+            categoryValues[field]=resourceCardsEffectiveValue(category,field)
+        end
+        return categoryValues[field]
+    end
     local resourceTotal={siege=0, ranged=0, block=0, attack=0, influence=0}
     for resourceType in pairs(resourceTotal) do
         for field in pairs(gStates.resourceTracker[resourceType]) do
-            resourceTotal[resourceType]=resourceTotal[resourceType]+resourceCardsEffectiveValue(resourceType,field)
+            resourceTotal[resourceType]=resourceTotal[resourceType]+valueOf(resourceType,field)
         end
     end
     for fieldId,spec in pairs(RESOURCE_TRACKER_FIELDS) do
         local totalType=RESOURCE_TRACKER_TOTAL_FIELDS[fieldId]
         local value=totalType~=nil and math.max(0,resourceTotal[totalType])
-            or math.max(0,resourceCardsEffectiveValue(spec[1],spec[2]))
+            or math.max(0,valueOf(spec[1],spec[2]))
         UI.setAttribute(fieldId.."Text","text",joinLang({spec[3],value}))
         -- Dim empty resource rows, including the Move, Healing and expanded
         -- breakdown fields; restore normal contrast when a total is nonzero.
@@ -7880,6 +8134,7 @@ function volkareTurn(player, mouseButton, id)
 										if gStates.defeatedCities.amount==0 then
 											gStates.blurb="{en}Volkare has been welcomed in by the City, making him unbeatable.<size=6>\n\n</size>You have Lost.{it}La Città ha accolto Volkare, rendendolo invincibile.<size=6>\n\n</size>Avete perso.{ru}Волкара радушно приняли в Городе, и теперь его невозможно победить.<size=6>\n\n</size>Вы проиграли.{zh-tw}\n沃卡里受到城市的熱烈歡迎，\n他已經無人能敵。你輸了。{zh-cn}\n沃卡里受到城市的热烈欢迎，\n他已经无人能敌。你输了。{ko}볼케어는 무수한 환영을 받으며 도시에 도착했다. 이제 그를 막을 자는 없다.<size=6>\n\n</size>게임 패배.{es}Volkare ha sido recibido por la ciudad, haciéndolo invencible.<size=6>\n\n</size>Has perdido.{fr}Volkare a été accueilli par la Cité, ce qui le rend imbattable.<size=6>\n\n</size>Vous avez perdu.{pt-br}Volkare foi recebido com louvores na Cidade, fazendo-o imbatível.<size=6>\n\n</size>Você perdeu.{de}Volkare wurde von der Stadt aufgenommen, was ihn unschlagbar macht.<size=6>\n\n</size>Du hast verloren."
 											gStates.volkareWon=true; volkareReleaseRewindWhenStable()
+											protectedObjectAllowScriptRemoval(gStates.volkareModel,trashCan,"Volkare scenario defeat")
 											getObjectFromGUID(trashCan).putObject(getObjectFromGUID(gStates.volkareModel))
 										else
 											--check if player is there defending or end game
@@ -7947,7 +8202,8 @@ function volkareTurn(player, mouseButton, id)
 													--check if this is Volkare's second attack or end game
 													if gStates.volkareRaisedCity==true then
 														gStates.blurb="{en}Volkare has conquered the city.<size=6>\n\n</size>You have Lost.{it}Volkare ha conquistato la città.<size=6>\n\n</size>Avete perso.{ru}Волкар захватил город.<size=6>\n\n</size>Вы проиграли.{zh-tw}\n沃卡里已經征服了這座城市。<size=6>\n\n</size>你輸了。{zh-cn}\n沃卡里已经征服了这座城市。<size=6>\n\n</size>你输了。{ko}볼케어가 도시를 정복했습니다.<size=6>\n\n</size>게임 패배{es}Volkare ha conquistado la ciudad.<size=6>\n\n</size>Has perdido.{fr}Volkare a conquis la ville.<size=6>\n\n</size>Vous avez perdu.{pt-br}Volkare conquistou a Cidade<size=6>\n\n</size>Você Perdeu.{de}Volkare hat die Stadt erobert.<size=6>\n\n</size>Du hast verloren."
-														getObjectFromGUID(trashCan).putObject(getObjectFromGUID(gStates.volkareModel))
+														protectedObjectAllowScriptRemoval(gStates.volkareModel,trashCan,"Volkare scenario defeat")
+											getObjectFromGUID(trashCan).putObject(getObjectFromGUID(gStates.volkareModel))
 														gStates.volkareWon=true; volkareReleaseRewindWhenStable()
 													else
 														if (movementSteps==2 and pass==2) or movementSteps==1 then gStates.blurb=joinLang({"{en}Volkare has raised the city\n(it provides no Interaction or Hand Size bonus from now on){it}Volkare ha raso al suolo la città\n(non fornisce più Interazione né bonus al limite di mano){ru}Волкар поднял город\n(с этого момента он не дает бонусов за взаимодействие или для предела руки){zh-tw}\n沃卡里劫掠了城市四周\n（從現在起此城市不能交涉，\n並且不會增加手牌上限）{zh-cn}\n沃卡里劫掠了城市四周\n（从现在起此城市不能交涉，\n并且不会增加手牌上限）{ko}볼케어가 도시를 파괴했습니다.\n(이제 도시에서 교류를 할 수 없고 카드 보유 제한 혜택이 사라집니다.){es}Volkare ha elevado la ciudad\n(a partir de ahora no proporciona ninguna bonificación por interacción o tamaño de la mano){fr}Volkare a élevé la ville\n(il ne fournit plus de bonus d'interaction ou de taille de main à partir de maintenant){pt-br}Volkare ergueu a Cidade\n(Ela não fornece Interação ou Bonus de Tamanho de mão por hora){de}Volkare hat die Stadt erhöht\n(sie bietet von nun an keinen Interaktions- oder Handgrößenbonus mehr)", gStates.blurb}) end
@@ -8241,7 +8497,10 @@ function volkareRetreat(player, mouseButton, id)
 					if returnScenario and gStates.volkareRaisedCity==true then
 						gStates.blurb="{en}Volkare has conquered the city.<size=6>\n\n</size>You have Lost.{it}Volkare ha conquistato la città.<size=6>\n\n</size>Avete perso.{ru}Волкар захватил город.<size=6>\n\n</size>Вы проиграли.{zh-tw}\n沃卡里已經征服了這座城市。<size=6>\n\n</size>你輸了。{zh-cn}\n沃卡里已经征服了这座城市。<size=6>\n\n</size>你输了。{ko}볼케어가 도시를 정복했습니다.<size=6>\n\n</size>게임 패배{es}Volkare ha conquistado la ciudad.<size=6>\n\n</size>Has perdido.{fr}Volkare a conquis la ville.<size=6>\n\n</size>Vous avez perdu.{pt-br}Volkare conquistou a Cidade<size=6>\n\n</size>Você Perdeu.{de}Volkare hat die Stadt erobert.<size=6>\n\n</size>Du hast verloren."
 						local volkareObj=gStates.volkareModel~=nil and getObjectFromGUID(gStates.volkareModel) or nil
-						if volkareObj~=nil then getObjectFromGUID(trashCan).putObject(volkareObj) end
+						if volkareObj~=nil then
+							protectedObjectAllowScriptRemoval(volkareObj.guid,trashCan,"Volkare scenario defeat")
+							getObjectFromGUID(trashCan).putObject(volkareObj)
+						end
 						gStates.volkareWon=true
 						volkareReleaseRewindWhenStable()
 						UI.setAttribute("VolkareRetreatText", "text", "{en}Volkare Processed{it}Volkare Completato{ru}Волкар сходил{zh-tw}沃卡里行動結束{zh-cn}沃卡里行动结束{ko}진행 완료{es}Volkare Procesado{fr}Volkare Traité{pt-br}Volkare Processado{de}Volkare Verarbeitet")
@@ -13071,7 +13330,12 @@ function apocalypseDragonStartingLevel()
 end
 
 function apocalypseDragonHeadData(headName)
-	for _,headData in ipairs(apocalypseDragon.heads) do if headData.name==headName then return headData end end
+	for _,headData in ipairs(apocalypseDragon.heads) do
+		if headData.name==headName then
+			headData.position=scenarioDiscGridPosition(headName) or headData.position
+			return headData
+		end
+	end
 	return nil
 end
 
@@ -13773,6 +14037,7 @@ function setupApocalypseDragonHeads()
 		if roundToken~=nil then roundToken.lock() end
 	end
 	for _,headData in ipairs(apocalypseDragon.heads) do
+		headData.position=scenarioDiscGridPosition(headData.name) or headData.position
 		local head=getObjectFromGUID(headData.guid)
 		if head==nil and bag~=nil then
 			head=bag.takeObject({guid=headData.guid,position=headData.position,rotation={0,180,0},smooth=false})
@@ -14830,6 +15095,7 @@ function positionApocalypseDragonHeads()
 	if apocalypseDragonComponentsNeeded()~=true then return false end
 	local moved=false
 	for _,headData in ipairs(apocalypseDragon.heads) do
+		headData.position=scenarioDiscGridPosition(headData.name) or headData.position
 		local head=getObjectFromGUID(headData.guid)
 		if head~=nil then
 			local pos=head.getPosition()
@@ -15733,10 +15999,13 @@ function apocalypseIsHereSetup()
 	for i,name in ipairs(names) do
 		local data=horsemanData[name]
 		local x=-61.00-((i-1)*3)
+		local gridPos=scenarioDiscGridArmyPosition(name,1)
+		local cardPos=gridPos~=nil and {gridPos[1],0.98,gridPos[3]} or {x,0.98,0.40}
+		local tokenPos={cardPos[1],1.12,cardPos[3]}
 		gStates.horsemen[name]={level=level,tokenGUID=data.tokenGUID,revealed=false,defeated=false,retired=false,sitesDestroyed=0,mapSlot=i,revealIndex=i}
 		if componentBag~=nil then
-			componentBag.takeObject({guid=data.cardGUID,position={x,0.98,0.40},rotation={0,180,180},smooth=false})
-			local token=componentBag.takeObject({guid=data.tokenGUID,position={x,1.12,0.40},rotation={0,180,180},smooth=false})
+			componentBag.takeObject({guid=data.cardGUID,position=cardPos,rotation={0,180,180},smooth=false})
+			local token=componentBag.takeObject({guid=data.tokenGUID,position=tokenPos,rotation={0,180,180},smooth=false})
 			if token~=nil then token.setName("") token.unlock() end
 		end
 	end
@@ -20965,6 +21234,7 @@ function removeTactic(player, mouseButton, id)
 			for b=1, 6, 1 do
 				for _, obj in pairs(getObjectFromGUID(tacticZones[b]).getObjects()) do
 					if isTacticCard(obj) then
+						protectedObjectAllowScriptRemoval(obj.guid,trashCan,"End-of-round tactic removal")
 						getObjectFromGUID(trashCan).putObject(obj)
 						testTactic=obj.guid
 						break
@@ -20972,7 +21242,11 @@ function removeTactic(player, mouseButton, id)
 				end
 			end
 		else
-			getObjectFromGUID(trashCan).putObject(getObjectFromGUID(testTactic))
+			local selected=getObjectFromGUID(testTactic)
+			if selected~=nil then
+				protectedObjectAllowScriptRemoval(testTactic,trashCan,"End-of-round tactic removal")
+				getObjectFromGUID(trashCan).putObject(selected)
+			end
 		end
 		gStates.tacticRemove=false
 		safeWaitCondition("Turn",function() tacticToggle() end, function() return getObjectFromGUID(testTactic)==nil end)
@@ -21667,29 +21941,29 @@ local function vectorLineSignature(lines)
 	return table.concat(parts,";")
 end
 
-local function syncTargetButtons()
+local function syncTargetButtons(monsters)
 	local shouldShow=next(targetingByPlayer)~=nil
 	local live={}
 	if shouldShow then
-		for _,obj in ipairs(getObjects()) do
-			if obj~=nil and obj.guid~=nil and monsterPugs[obj.guid]~=nil and not obj.isDestroyed() then
-				live[obj.guid]=obj
-				if targetButtonObjects[obj.guid]==nil then
-					local bounds=obj.getBounds()
-					local diameter=bounds~=nil and bounds.size~=nil and bounds.size[1] or 1.5
-					local scale=obj.getScale()
-					local size=diameter/((scale~=nil and scale.x) or 1)*500
-					obj.createButton({
-						click_function="attackAssignmentTargetClicked",function_owner=Global,
-						label="",position={0,0.25,0},rotation={0,0,0},
-						width=size,height=size,
-						color={0,0,0,0},
-					})
-					targetButtonObjects[obj.guid]=obj
-				end
-			end
-		end
-	end
+        local candidates=resourceCardsCombatTargetObjects~=nil and resourceCardsCombatTargetObjects(monsters) or {}
+        for guid,obj in pairs(candidates) do
+            if obj~=nil and not obj.isDestroyed() then
+                live[guid]=obj
+                if targetButtonObjects[guid]==nil then
+                    local bounds=obj.getBounds()
+                    local diameter=bounds~=nil and bounds.size~=nil and bounds.size[1] or 1.5
+                    local scale=obj.getScale()
+                    local size=diameter/((scale~=nil and scale.x) or 1)*500
+                    obj.createButton({
+                        click_function="attackAssignmentTargetClicked",function_owner=Global,
+                        label="",position={0,0.25,0},rotation={0,0,0},
+                        width=size,height=size,color={0,0,0,0},
+                    })
+                    targetButtonObjects[guid]=obj
+                end
+            end
+        end
+    end
 	for guid,obj in pairs(targetButtonObjects) do
 		if live[guid]==nil then
 			local liveObject=getObjectFromGUID(guid)
@@ -21703,6 +21977,11 @@ local function syncTargetButtons()
 			targetButtonObjects[guid]=nil
 		end
 	end
+end
+
+-- Called by the event-driven combat scan; polling is reserved for pointer lines.
+function attackAssignmentsRefreshTargetButtons(monsters)
+    if next(targetingByPlayer)~=nil then syncTargetButtons(monsters) end
 end
 
 local function refreshRenderedLines(force)
@@ -21723,7 +22002,6 @@ local function scheduleRefresh()
 	refreshScheduled=true
 	safeWaitTime("PlayingGame.AttackAssignments",function()
 		refreshScheduled=false
-		syncTargetButtons()
 		refreshRenderedLines()
 		if hasRuntimeWork() then scheduleRefresh() end
 	end,0.2)
@@ -22064,14 +22342,16 @@ end
 function attackAssignmentTargetClicked(target,playerColor)
 	return safeCallback("attackAssignmentTargetClicked",function()
 		local pending=type(playerColor)=="string" and targetingByPlayer[playerColor] or nil
-		-- A summoned token stands in for the enemy that summoned it.
-		local summoned=target~=nil and target.guid~=nil and gStates.attackedMonsters~=nil
-			and gStates.attackedMonsters[target.guid] or nil
-		if summoned~=nil and summoned[3]=="summoned" and summoned[4]~=nil then
-			target=getObjectFromGUID(summoned[4]) or target
-		end
-		if pending==nil or target==nil or target.guid==nil or monsterPugs[target.guid]==nil
-			or target.isDestroyed() or pending.source==nil or pending.source.isDestroyed() 			then return end
+        local eligible=resourceCardsCombatTargetObjects~=nil and resourceCardsCombatTargetObjects() or {}
+        if pending==nil or target==nil or target.guid==nil or eligible[target.guid]==nil then return end
+        -- Summoned tokens redirect to their face-up owner in the same combat.
+        local summoned=gStates~=nil and gStates.attackedMonsters~=nil
+            and gStates.attackedMonsters[target.guid] or nil
+        if summoned~=nil and summoned[3]=="summoned" and summoned[4]~=nil then
+            target=eligible[summoned[4]]
+            if target==nil then return end
+        end
+        if target.isDestroyed() or pending.source==nil or pending.source.isDestroyed() then return end
 		if tostring(pending.resource):find("move$")~=nil and resourceCardsCombatTargetAcceptsMove~=nil
 			and not resourceCardsCombatTargetAcceptsMove(target.guid) then
 			broadcastToColor("Move can only be assigned to a Cumbersome enemy.",playerColor,{1,0.6,0.2})
@@ -22173,6 +22453,23 @@ function attackAssignmentsPruneInactive(activeKeys,activeObjects,keepsLock)
 		persistAssignments()
 		refreshRenderedLines()
 	end
+end
+
+-- Preserve held/moving targets but prune arrows left on enemies outside combat.
+function attackAssignmentsPruneTargets(eligible)
+    local changed=false
+    for id,entry in pairs(assignmentRegistry) do
+        if eligible[entry.targetGUID]~=true then
+            local target=getObjectFromGUID(entry.targetGUID)
+            local inTransit=target~=nil
+                and ((target.held_by_color~=nil and target.held_by_color~="") or target.isSmoothMoving())
+            if not inTransit then assignmentRegistry[id]=nil changed=true end
+        end
+    end
+    if changed then
+        persistAssignments()
+        refreshRenderedLines()
+    end
 end
 
 function attackAssignmentsIsTargeting(sourceGUID)
@@ -22575,8 +22872,11 @@ resolveCoopAssaultLocations=function()
 	end
 end
 
-function combatApplyPlayerFameReputationBase(playerIndex)
+-- Markers are resolved by FameReputation before the first movement. This prevents
+-- a missing Reputation shield from leaving Fame committed only halfway.
+function combatApplyPlayerFameReputationBase(playerIndex,fameShield,reputationShield)
 	local player=turnOrder[playerIndex]
+	if player==nil or fameShield==nil or reputationShield==nil then return false end
 	local startingFameToLevel=math.floor(math.sqrt((player.fame-(gStates.scoreIfLooped*player.scoreLoop))+1))
 	local newFame=player.fame+player.fameGain-(gStates.scoreIfLooped*player.scoreLoop)
 	local scoreLooped=false
@@ -22591,14 +22891,16 @@ function combatApplyPlayerFameReputationBase(playerIndex)
 	local yOffset=(heightOfFameBoard/gStates.rowsOnBoard)/2
 	local horizontalValue=leftOfFameBoard+(startPosition/levelRowFameQuantity*levelRowLength)-xOffset
 	local verticalValue=(topOfFameBoard-((fameToLevel/gStates.rowsOnBoard)*heightOfFameBoard))+yOffset-0.35
-	getObjectFromGUID(player.fameGUID).setPosition({horizontalValue, 1.5, verticalValue+((player.seatPos-2.5)/5)})
+	-- Compute both destinations before moving either marker. The service owns
+	-- rollback if an unexpected TTS operation fails during this commit.
+	local repGain=math.max(-7-player.reputation,math.min(7-player.reputation,player.repGain))
+	local repPos=reputationTable[player.reputation+repGain].reputationPos
+	fameShield.setPosition({horizontalValue, 1.5, verticalValue+((player.seatPos-2.5)/5)})
+	reputationShield.setPosition({repPos[1],repPos[2],repPos[3]})
 	recordPlayerFameChange(playerIndex, player.fameGain)
-
-	if player.repGain<(-7-player.reputation) then player.repGain=(-7-player.reputation) end
-	if player.repGain>(7-player.reputation) then player.repGain=(7-player.reputation) end
-	local repPos=reputationTable[player.reputation+player.repGain].reputationPos
-	getObjectFromGUID(player.reputationGUID).setPosition({repPos[1], repPos[2], repPos[3]})
-	player.reputation=player.reputation+player.repGain
+	player.repGain=repGain
+	player.reputation=player.reputation+repGain
+	return true
 end
 
 factionRewardPileGUID=function(faction)
@@ -29126,19 +29428,43 @@ function mapTokenNeedsArrangement(obj,metadata)
 	--TTS object boundary for Name/GM Notes. Terrain/cards/decks/dice are also known non-participants.
 	if mapTokenIsSpreadEnemy(obj)==true or mapTokenIsQuestMarker(obj)==true then return true end
 	if terrainTiles~=nil and terrainTiles[obj.guid]~=nil then return false end
-	local objType=obj.type
-	if objType=="Card" or objType=="Deck" or objType=="Dice" or objType=="Bag" or objType=="Infinite_Bag" then return false end
+
+	-- onObjectDestroy can receive an already-expired LuaGameObjectScript. Its
+	-- .type field is unsafe, but marker cleanup still needs to run whenever
+	-- Name/GM Notes can be obtained. Normal map-zone calls keep their fast path.
+	local destroying=metadata~=nil and metadata.destroying==true
+	if destroying~=true then
+		if obj.isDestroyed()==true then return false end
+		local objType=obj.type
+		if objType=="Card" or objType=="Deck" or objType=="Dice" or objType=="Bag" or objType=="Infinite_Bag" then return false end
+	end
 
 	local objectName=metadata~=nil and metadata.objName or nil
 	if objectName==nil then
-		objectName=scriptObjectId(obj)
+		if destroying==true then
+			local ok,name=pcall(scriptObjectId,obj)
+			if ok then objectName=name end
+		else
+			objectName=scriptObjectId(obj)
+		end
 		if metadata~=nil then metadata.objName=objectName end
 	end
-	if objectName=="GraveYard" or isShieldObject(obj) then return true end
+	if objectName=="GraveYard" then return true end
+	if destroying==true then
+		local ok,shield=pcall(isShieldObject,obj)
+		if ok and shield==true then return true end
+	elseif isShieldObject(obj) then
+		return true
+	end
 
 	local objectNotes=metadata~=nil and metadata.objNotes or nil
 	if objectNotes==nil then
-		objectNotes=obj.getGMNotes()
+		if destroying==true then
+			local ok,notes=pcall(function() return obj.getGMNotes() end)
+			if ok then objectNotes=notes end
+		else
+			objectNotes=obj.getGMNotes()
+		end
 		if metadata~=nil then metadata.objNotes=objectNotes end
 	end
 	return objectNotes=="Destroyed"
@@ -29497,9 +29823,17 @@ end
 
 --Re-arrange the hex an object is leaving while deliberately ignoring that object. This recentres a
 --remaining lone enemy and keeps a Destroyed Site marker fixed underneath anything still on the hex.
-function mapTokenReleaseObject(obj)
-	if obj==nil or mapTokenNeedsArrangement(obj)~=true then return false end
-	local position=obj.getPosition()
+function mapTokenReleaseObject(obj,metadata)
+	if obj==nil or mapTokenNeedsArrangement(obj,metadata)~=true then return false end
+	local position
+	if metadata~=nil and metadata.destroying==true then
+		local ok,result=pcall(function() return obj.getPosition() end)
+		if not ok then return false end
+		position=result
+	else
+		position=obj.getPosition()
+	end
+	if position==nil then return false end
 	local ignoreGUID=obj.guid
 	--Invalidate delayed arrival/manual-drop work for the object now being carried away.
 	mapTokenArrivalPending[ignoreGUID]=nil
@@ -31590,11 +31924,11 @@ function factionLeaderDeploy(cityGUID,ultimateCitiesPlayed,obj)
 	if leader==elementalist then
 		runtimeMapSetHexFeature(obj.guid,"center","hidden valley")
 		gStates.hexOverideSave[obj.guid].center="hidden valley"
-		gStates.monsterPlayLocation[elementalist.token]={-55.3,1.5,15.3}
+		gStates.monsterPlayLocation[elementalist.token]=scenarioDiscGridArmyPosition("Elementalist",1) or {-55.3,1.5,15.3}
 	else
 		runtimeMapSetHexFeature(obj.guid,"center","necropolis")
 		gStates.hexOverideSave[obj.guid].center="necropolis"
-		gStates.monsterPlayLocation[darkCrusader.token]={-55.3,1.5,6.7}
+		gStates.monsterPlayLocation[darkCrusader.token]=scenarioDiscGridArmyPosition("DarkCrusader",1) or {-55.3,1.5,6.7}
 	end
 	return leaderLevel
 end
@@ -31935,13 +32269,30 @@ function refreshCityScriptZones()
 			local cityPos=cityCardObj.getPosition()
 			zoneObj.setScale(zoneScale)
 			zoneObj.setPosition({cityPos[1], 1.4, cityPos[3]})
-			local count=0
-			for monsterGUID, _ in pairs(cityMonsters) do
+			local owner=zoneGUID==darkCrusader.discZone and "DarkCrusader" or
+				(zoneGUID==elementalist.discZone and "Elementalist" or
+				(zoneGUID==volkare.discZone and "Volkare" or nil))
+			local tokens={}
+			for monsterGUID,_ in pairs(cityMonsters) do
 				if monsterGUID~="shieldNeeded" and gStates.monsterPlayLocation[monsterGUID]~=nil and getObjectFromGUID(monsterGUID)~=nil then
+					tokens[#tokens+1]=monsterGUID
+				end
+			end
+			table.sort(tokens)
+			local leader=owner=="DarkCrusader" and darkCrusader or (owner=="Elementalist" and elementalist or nil)
+			if leader~=nil then
+				for i,guid in ipairs(tokens) do
+					if guid==leader.token then table.remove(tokens,i) table.insert(tokens,1,guid) break end
+				end
+			end
+			for index,monsterGUID in ipairs(tokens) do
+				local gridPos=owner~=nil and scenarioDiscGridArmyPosition(owner,index,1.5) or nil
+				if gridPos~=nil then
+					gStates.monsterPlayLocation[monsterGUID]=gridPos
+				else
 					gStates.monsterPlayLocation[monsterGUID][1]=cityPos[1]+monsterOffset[1]
-					gStates.monsterPlayLocation[monsterGUID][2]=1+(0.6*count)
-					gStates.monsterPlayLocation[monsterGUID][3]=cityPos[3]+monsterOffset[2]+(0.4*count)
-					count=count+1
+					gStates.monsterPlayLocation[monsterGUID][2]=1+(0.6*(index-1))
+					gStates.monsterPlayLocation[monsterGUID][3]=cityPos[3]+monsterOffset[2]+(0.4*(index-1))
 				end
 			end
 		end
@@ -32063,7 +32414,15 @@ cityControlLockedByReveal=function(cityGUID, terrainGUID)
 		local leader=cityGUID==elementalist.terrainHex and elementalist or darkCrusader
 		local token=getObjectFromGUID(leader.token)
 		local disc=getObjectFromGUID(leader.disc)
-		if token~=nil and disc~=nil then revealed=math.floor(token.getPosition()[1]-disc.getPosition()[1])~=-4 end
+		if token~=nil and disc~=nil then
+			local home=gStates.monsterPlayLocation~=nil and gStates.monsterPlayLocation[leader.token] or nil
+			if home~=nil then
+				local pos=token.getPosition()
+				revealed=((pos[1]-home[1])^2+(pos[3]-home[3])^2)>0.64
+			else
+				revealed=math.floor(token.getPosition()[1]-disc.getPosition()[1])~=-4
+			end
+		end
 	elseif type(data)=="table" then
 		for monsterGUID, state in pairs(data) do
 			if monsterGUID~="extra" then
@@ -32302,10 +32661,19 @@ cityGarrisonBasePosition=function(cityGUID, ownerGUID, megapolis)
 	local currentLeader=factionLeaderForCity(cityGUID)
 	if cityGUID==volkare.terrainHex then
 		local disc=getObjectFromGUID(volkare.disc)
-		if disc~=nil then local pos=disc.getPosition() return {pos[1]+5.5, 1.0, pos[3]-1.3}, {0,180,180} end
+		if disc~=nil then
+			local target=scenarioDiscGridArmyPosition("Volkare",1,1.5)
+			if target~=nil then return target,{0,180,180} end
+			local pos=disc.getPosition() return {pos[1]+5.5,1.0,pos[3]-1.3},{0,180,180}
+		end
 	elseif currentLeader~=nil then
 		local disc=getObjectFromGUID(currentLeader.disc)
-		if disc~=nil then local pos=disc.getPosition() return {pos[1]-5.5, 1.0, pos[3]-1.3}, {0,180,0} end
+		if disc~=nil then
+			local key=currentLeader==darkCrusader and "DarkCrusader" or "Elementalist"
+			local target=scenarioDiscGridArmyPosition(key,2,1.5)
+			if target~=nil then return target,{0,180,0} end
+			local pos=disc.getPosition() return {pos[1]-5.5,1.0,pos[3]-1.3},{0,180,0}
+		end
 	end
 	local cardGUID=gStates.cityCard[ownerGUID or cityGUID]
 	local card=cardGUID~=nil and getObjectFromGUID(cardGUID) or nil
@@ -32342,7 +32710,12 @@ cityArmyPlace=function(cityGUID, cityLevel, basePosition, rotation, startDelay, 
 			local tokenStack=stack
 			safeWaitFrames("City",function() tokenRefill() end, math.max(1, tokenDelay-4))
 			safeWaitFrames("City",function()
-				local pos={basePosition[1], basePosition[2]+(0.2*tokenStack), basePosition[3]+(0.4*tokenStack)}
+				local pos={basePosition[1],basePosition[2]+(0.2*tokenStack),basePosition[3]+(0.4*tokenStack)}
+				local key=cityGUID==darkCrusader.terrainHex and "DarkCrusader" or
+					(cityGUID==elementalist.terrainHex and "Elementalist" or
+					(cityGUID==volkare.terrainHex and "Volkare" or nil))
+				local gridPos=key~=nil and scenarioDiscGridArmyPosition(key,tokenStack+(key=="Volkare" and 0 or 1),1.5) or nil
+				if gridPos~=nil then pos=gridPos end
 				local token=takeCityDefender(cityGUID, tokenType, pos, rotation)
 				if token~=nil and gStates.cityMonsterQty[ownerGUID]~=nil then gStates.cityMonsterQty[ownerGUID][token.guid]="alive" end
 			end, tokenDelay)
@@ -40589,9 +40962,7 @@ end
 --Volkare's Camp terrain now lives permanently in the City tile bag. Keep one authoritative
 --eligibility check so terrain filtering and the visible support setup cannot disagree.
 local function setupUsesVolkareCampCity()
-	return gStates~=nil and gStates.volkareCampAsCity==true and gStates.removeLostLegionExpansion~=true and
-		gStates.gameScenario~="The War of Four" and gStates.gameScenario~="Volkare's Return" and
-		gStates.gameScenario~="Volkare's Return Blitz" and gStates.gameScenario~="Volkare's Quest"
+	return scenarioDiscGridVolkareEnabled()
 end
 
 --Rise of the Forgemaster remains additive. Track its actual outstanding card-pack merges so fast
@@ -41062,7 +41433,7 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 		--Deploy Volkare City support pieces whenever the Camp is eligible. These stay visible even if the hidden terrain draw does not select the Camp tile.
 		if setupUsesVolkareCampCity() then
 			gStates.volkareCampSupportReady=false
-			getObjectFromGUID(GUID.bag.volkare).takeObject({rotation={0.0, 180.0, 0.0}, position={-57.75, 0.98, -2.95}, smooth=false, guid=volkare.disc})--Volkares Mat
+			getObjectFromGUID(GUID.bag.volkare).takeObject({rotation={0.0, 180.0, 0.0}, position=scenarioDiscGridPosition("Volkare"), smooth=false, guid=volkare.disc})--Volkare staging disc
 			getObjectFromGUID(GUID.bag.volkare).takeObject({rotation={0.0, 180.0, 0.0}, position={-62.2, 0.98, 0.5}, smooth=false, guid=volkare.terrainHex})--Volkare's Camp Hex
 			local campCityCardGUID=cityScriptZones[volkare.discZone].cityCard
 			safeWaitCondition("SetupGame",function()
@@ -41071,6 +41442,8 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 				local bag=getObjectFromGUID(GUID.bag.volkare)
 				campHex.lock()
 				local p=cityCard.getPosition()
+				local zone=getObjectFromGUID(volkare.discZone)
+				if zone~=nil then zone.setPosition({p[1],1.4,p[3]}) end
 				local reminder=safeTakeObject("SetupGame",bag,{rotation={0.0,180.0,0.0},position={p[1]+2.2,1.5,p[3]+2.2},smooth=false,guid=GUID.bag.volkareReminder})
 				if reminder==nil then error("SetupGame could not deploy the Volkare Camp reminder.",2) end
 				gStates.volkareCampSupportReady=true
@@ -43552,6 +43925,7 @@ function volkareArmy()
 							{2,2,4,4},{2,2,4,5},{2,2,4,6},{2,2,4,8},{2,2,4,10},{3,1,4,10},{4,0,4,10},{4,0,4,11},{4,0,4,12},{4,0,4,13},{4,0,4,14},{4,0,5,13},{4,0,6,12},{4,1,6,12},{4,2,6,12}}
 		--{no. White Units, No. Gray Units, No. Red Units, No. Green Units}(Level 4 to 15 shown, other levels made by adding levels togeather)
 		local PugDraw={monsterPiles.white,monsterPiles.gray,monsterPiles.red,monsterPiles.green}
+		local armyIndex=0
 		--{White Unit Bag, Gray Unit Bag, Red Unit Bag, Green Unit Bag}
 		if (gStates.volkareLevel<=20 and gStates.removeShadesOfTezlaMonsters==true and gStates.removeLostLegionExpansion==true) or (gStates.volkareLevel<=30 and (gStates.removeShadesOfTezlaMonsters~=true or gStates.removeLostLegionExpansion==false)) or (gStates.removeShadesOfTezlaMonsters~=true and gStates.removeLostLegionExpansion==false) then
 			for i=1, 4, 1 do
@@ -43562,10 +43936,12 @@ function volkareArmy()
 				for x=1, LoopsNeeded, 1 do
 					if x==LoopsNeeded then levelConverted=leftover end
 					for a=1, VolkareArmy[levelConverted][i], 1 do
-						local params={position={0, 0, 0}, rotation={0, 180, 180}}
-						params.position[1]=getObjectFromGUID(dummyBoard).getPosition()[1]+(0.2*a)+(2.2*x)+2.5
-						params.position[2]=getObjectFromGUID(dummyBoard).getPosition()[2]+(0.2*a)+1
-						params.position[3]=getObjectFromGUID(dummyBoard).getPosition()[3]+(0.2*a)+(2.2*i)-2.9
+						armyIndex=armyIndex+1
+						local params={position=scenarioDiscGridArmyPosition("Volkare",armyIndex,1.5),rotation={0,180,180}}
+						if params.position==nil then
+							local boardPos=getObjectFromGUID(dummyBoard).getPosition()
+							params.position={boardPos[1]+(0.2*a)+(2.2*x)+2.5,boardPos[2]+(0.2*a)+1,boardPos[3]+(0.2*a)+(2.2*i)-2.9}
+						end
 						local obj2=getObjectFromGUID(PugDraw[i]).takeObject(params)
 						gStates.cityMonsterQty[volkare.model][obj2.guid]="alive"
 						gStates.monsterPlayLocation[obj2.guid]={params.position[1], params.position[2], params.position[3]}
@@ -43723,16 +44099,16 @@ function monsterSetup()
 		monsterPiles.rewardElem,GUID.bag.discard.elementalistReward
 	},tezlaRewardsNeeded,"Shades of Tezla reward")
 	local darkComponents={
-		{guid=darkCrusader.disc,position={-52.00,0.97,6.50}},
-		{guid=darkCrusader.token,position={-55.30,0.97,10.20}},
+		{guid=darkCrusader.disc,position=scenarioDiscGridPosition("DarkCrusader") or {-52.00,0.97,6.50}},
+		{guid=darkCrusader.token,position=scenarioDiscGridArmyPosition("DarkCrusader",1) or {-55.30,0.97,10.20}},
 		{guid=darkCrusader.terrainHex,position={-34.70,0.98,-27.00}},
 		{guid="f8c83e",position={-65.16,0.98,-5.50}},
 		{guid=GUID.bag.cemetery,position={-36.09,0.97,-24.87},flip=180},
 		{guid="2ca34f",position={-53.50,0.98,15.50},always=true,rewardReference=true}
 	}
 	local elemComponents={
-		{guid=elementalist.disc,position={-63.50,0.97,6.50}},
-		{guid=elementalist.token,position={-67.00,0.97,10.20}},
+		{guid=elementalist.disc,position=scenarioDiscGridPosition("Elementalist") or {-63.50,0.97,6.50}},
+		{guid=elementalist.token,position=scenarioDiscGridArmyPosition("Elementalist",1) or {-67.00,0.97,10.20}},
 		{guid=elementalist.terrainHex,position={-37.49,0.98,-27.00}},
 		{guid="7121c7",position={-70.16,0.98,-5.50}},
 		{guid="8fe07e",position={-49.50,0.98,15.50},always=true,rewardReference=true}
@@ -43789,6 +44165,14 @@ function monsterSetup()
 	end
 
 	local function finishLeaderSetup()
+		for _,leader in ipairs({darkCrusader,elementalist}) do
+			local disc=getObjectFromGUID(leader.disc)
+			local zone=getObjectFromGUID(leader.discZone)
+			if disc~=nil and zone~=nil then
+				local p=disc.getPosition()
+				zone.setPosition({p[1],1.4,p[3]})
+			end
+		end
 		local darkToken=getObjectFromGUID(darkCrusader.token)
 		if darkToken~=nil then
 			darkToken.addDecal({name="NightRules",position={0.85,0.15,-0.85},rotation={90,180,0},scale={0.6,0.6,1},url=nightRulesDecal})
@@ -43810,7 +44194,7 @@ function monsterSetup()
 				monsterPugs[elementalist.token]=leaderData[elementalist.terrainHex][leaderLevel].abilities
 				gStates.elementalistLevel=leaderLevel
 				gStates.cityMonsterQty[elementalist.terrainHex]={[elementalist.token]="alive",extra={}}
-				gStates.monsterPlayLocation[elementalist.token]={-55.3,3.0,15.3}
+				gStates.monsterPlayLocation[elementalist.token]=scenarioDiscGridArmyPosition("Elementalist",1) or {-55.3,3.0,15.3}
 			end
 			local darkDisc=getObjectFromGUID(darkCrusader.disc)
 			local darkToken=getObjectFromGUID(darkCrusader.token)
@@ -43823,7 +44207,7 @@ function monsterSetup()
 				monsterPugs[darkCrusader.token]=leaderData[darkCrusader.terrainHex][leaderLevel].abilities
 				gStates.darkCrusaderLevel=leaderLevel
 				gStates.cityMonsterQty[darkCrusader.terrainHex]={[darkCrusader.token]="alive",extra={}}
-				gStates.monsterPlayLocation[darkCrusader.token]={-55.3,3.0,6.7}
+				gStates.monsterPlayLocation[darkCrusader.token]=scenarioDiscGridArmyPosition("DarkCrusader",1) or {-55.3,3.0,6.7}
 			end
 		end
 		if expectDark or expectElem then
@@ -43970,6 +44354,7 @@ local combatAssignmentSlotSources={}
 local combatAssignmentRowTargets={}
 local combatEnemyPage=1
 local combatReductionAttackChoice={}
+local combatReductionActiveSource={}
 local combatAttackChoiceByRow={}
 local COMBAT_ASSIGNMENT_ROW_COUNT=8
 local COMBAT_ASSIGNMENT_SLOT_COUNT=6
@@ -44083,6 +44468,7 @@ local function combatAssignmentSources(seat)
                         psychicInfluence=0,psychicInfluenceCounts=false,details={},
                         resources=record.splitTargets~=nil and {} or effective,
                         swiftDouble=record.swiftDouble==true,defeatFameRep=record.defeatFameRep,
+                        heroPsychicBlock=scan~=nil and scan.heroPsychicBlock==true and record.kind~="unit",
                         repeatBlocks=record.repeatBlocks}
                     sources[#sources+1]=parts[slot]
                 end
@@ -44229,21 +44615,28 @@ end
 -- An Attack reduction modifies one printed Attack, not every Attack on a multi-attack enemy.
 -- When several Attacks exist, use the currently strongest one, with stable order on ties.
 -- All reductions are rebuilt from the original printed values on every scan (never cumulative).
-local function combatApplyAttackReductions(attacks,effect,ownerGUID,chosenAttack)
-    local reductions=effect~=nil and effect.attackReductions or nil
-    if reductions==nil or #reductions==0 then return end
+local function combatOrderedReductions(effect)
     local ordered={}
-    for _,reduction in ipairs(reductions) do ordered[#ordered+1]=reduction end
+    for _,reduction in ipairs(effect~=nil and effect.attackReductions or {}) do
+        ordered[#ordered+1]=reduction
+    end
     table.sort(ordered,function(a,b)
         if a.amount~=b.amount then return a.amount>b.amount end
         return tostring(a.source)<tostring(b.source)
     end)
-    for _,reduction in ipairs(ordered) do
-        local target=chosenAttack~=nil and attacks[chosenAttack] or nil
+    return ordered
+end
+
+local function combatApplyAttackReductions(attacks,effect,ownerGUID,chosenAttacks)
+    for _,reduction in ipairs(combatOrderedReductions(effect)) do
+        local sourceKey=reduction.id or tostring(reduction.source)
+        local choice=chosenAttacks~=nil and chosenAttacks[sourceKey] or nil
+        local target=choice~=nil and attacks[choice] or nil
         if target~=nil and (target.pending or (ownerGUID~=nil and target.owner~=ownerGUID)) then
             target=nil
         end
-        if chosenAttack==nil then
+        -- Stale selections fall back to the strongest currently legal attack.
+        if target==nil then
             for _,attack in ipairs(attacks) do
                 if not attack.pending and (ownerGUID==nil or attack.owner==ownerGUID)
                     and attack.value>0 and (target==nil or attack.value>target.value) then
@@ -44375,6 +44768,28 @@ local function combatPlayMonsters()
         end
     end
     return monsters
+end
+
+-- Temporary target buttons cover only face-up enemies in the active combat.
+-- A summoned token may act as a proxy only if its summoner is also present.
+function resourceCardsCombatTargetObjects(monsters)
+    monsters=monsters or combatPlayMonsters()
+    local targets={}
+    for guid,obj in pairs(monsters) do
+        if obj.is_face_down~=true and not obj.isDestroyed() then
+            local summoned=gStates~=nil and gStates.attackedMonsters~=nil
+                and gStates.attackedMonsters[guid] or nil
+            if summoned~=nil and summoned[3]=="summoned" then
+                local owner=monsters[summoned[4]]
+                if owner~=nil and owner.is_face_down~=true and not owner.isDestroyed() then
+                    targets[guid]=obj
+                end
+            elseif not combatIsSummonedToken(guid) then
+                targets[guid]=obj
+            end
+        end
+    end
+    return targets
 end
 
 function resourceCardsCombatCalculatorOn()
@@ -44525,6 +44940,18 @@ local function combatSolveBlocks(attacks,items,movePool)
     local efficientByAttack={}
     for index,attack in ipairs(attacks) do efficientByAttack[index]=COMBAT_EFFICIENT_BLOCKS[attack.key] or {} end
     for _,item in ipairs(items) do
+        -- Type efficiency and Swiftness are constant for this item, not per DP state.
+        local options={}
+        for index,attack in ipairs(attacks) do
+            if targets[index]>0 and combatBlockLegal(attack,item) then
+                local amount=item.value*(attack.swift and item.swiftDouble and 2 or 1)
+                local efficient=efficientByAttack[index][item.key]==true
+                    or (attack.key=="M" and item.source.heroPsychicBlock==true
+                        and item.key~="blockPsychic")
+                local contribution=amount*(efficient and 2 or 1)
+                if contribution>0 then options[#options+1]={index=index,points=contribution} end
+            end
+        end
         local nextStates={}
         local function retain(points,spent,route)
             local key=table.concat(points,",")
@@ -44535,13 +44962,12 @@ local function combatSolveBlocks(attacks,items,movePool)
         end
         for _,state in pairs(states) do
             retain(state.points,state.spent,state.route..string.char(64))
-            for index,attack in ipairs(attacks) do
-                if combatBlockLegal(attack,item) and state.points[index]<targets[index] then
-                    local amount=item.value*(attack.swift and item.swiftDouble and 2 or 1)
-                    local contributed=amount*(efficientByAttack[index][item.key]==true and 2 or 1)
+            for _,option in ipairs(options) do
+                local index=option.index
+                if state.points[index]<targets[index] then
                     local points={}
                     for j=1,#attacks do points[j]=state.points[j] end
-                    points[index]=math.min(targets[index],points[index]+contributed)
+                    points[index]=math.min(targets[index],points[index]+option.points)
                     retain(points,state.spent+1,state.route..string.char(64+index))
                 end
             end
@@ -44556,37 +44982,52 @@ local function combatSolveBlocks(attacks,items,movePool)
         if attack.cumbersome then usefulMove=usefulMove+attack.value end
     end
     local cap=math.min(math.max(0,movePool),usefulMove)
+    local noReductions={}
     for _,state in pairs(states) do
-        local memo,chosen={},{}
-        local function scoreMoves(index,remaining)
-            if index>#attacks then return 0 end
-            local key=index..":"..remaining
-            if memo[key]~=nil then return memo[key] end
-            local attack=attacks[index]
-            local maxReduction=attack.cumbersome and math.min(remaining,attack.value) or 0
-            local best,bestReduction=math.huge,0
-            for reduction=0,maxReduction do
-                local leftover=attack.value-reduction
-                local threshold=2*leftover*(attack.swift and 2 or 1)
-                local blocked=leftover<=0 or state.points[index]>=threshold
-                local damage=blocked and 0 or leftover*(attack.brutal and 2 or 1)
-                local score=damage*1000000+reduction+scoreMoves(index+1,remaining-reduction)
-                if score<best then best,bestReduction=score,reduction end
+        local score,reductions
+        if cap==0 then
+            -- No Move allocated: score Block totals directly without a per-state knapsack.
+            local damage=0
+            for index,attack in ipairs(attacks) do
+                if state.points[index]<targets[index] then
+                    damage=damage+attack.value*(attack.brutal and 2 or 1)
+                end
             end
-            memo[key]=best
-            chosen[key]=bestReduction
-            return best
-        end
-        local score=scoreMoves(1,cap)+state.spent*100
-        if bestScore==nil or score<bestScore then
-            bestScore,bestState=score,state
-            local reductions,remaining={},cap
+            score=damage*1000000
+            reductions=noReductions
+        else
+            local memo,chosen={},{}
+            local function scoreMoves(index,remaining)
+                if index>#attacks then return 0 end
+                local key=index..":"..remaining
+                if memo[key]~=nil then return memo[key] end
+                local attack=attacks[index]
+                local maxReduction=attack.cumbersome and math.min(remaining,attack.value) or 0
+                local best,bestReduction=math.huge,0
+                for reduction=0,maxReduction do
+                    local leftover=attack.value-reduction
+                    local threshold=2*leftover*(attack.swift and 2 or 1)
+                    local blocked=leftover<=0 or state.points[index]>=threshold
+                    local damage=blocked and 0 or leftover*(attack.brutal and 2 or 1)
+                    local optionScore=damage*1000000+reduction+scoreMoves(index+1,remaining-reduction)
+                    if optionScore<best then best,bestReduction=optionScore,reduction end
+                end
+                memo[key]=best
+                chosen[key]=bestReduction
+                return best
+            end
+            score=scoreMoves(1,cap)
+            reductions={}
+            local remaining=cap
             for index=1,#attacks do
                 local reduction=chosen[index..":"..remaining] or 0
                 reductions[index]=reduction
                 remaining=remaining-reduction
             end
-            bestReductions=reductions
+        end
+        score=score+state.spent*100
+        if bestScore==nil or score<bestScore then
+            bestScore,bestState,bestReductions=score,state,reductions
         end
     end
     local plan,used={},{}
@@ -44624,6 +45065,9 @@ end
 -- Move resources the player aimed at a Cumbersome attack reduce that attack by 1 each.
 -- Returns result lines, total damage, damaging attack count, whether every attack was blocked,
 -- and the Move reduction applied to each attack.
+-- Cache one complete result per enemy. Physical sources and attack effects
+-- are fingerprinted every scan; an unchanged layout never reruns the Block DP.
+local combatBlockResultCache={}
 local function combatBlockResult(entry,sources)
     local items={}
     local movePool=0
@@ -44652,6 +45096,23 @@ local function combatBlockResult(entry,sources)
         end
     end
     local attacks=combatEnemyAttacks(entry)
+    local parts={tostring(movePool),tostring(#attacks),tostring(#items)}
+    for _,attack in ipairs(attacks) do
+        parts[#parts+1]=table.concat({
+            tostring(attack.key),tostring(attack.value),tostring(attack.owner),
+            tostring(attack.slot),tostring(attack.pending),tostring(attack.swift),
+            tostring(attack.brutal),tostring(attack.cumbersome),tostring(attack.poison),
+            tostring(attack.paralyse),tostring(attack.assassination),
+            tostring(attack.firstDamageUnit)},":")
+    end
+    for _,item in ipairs(items) do
+        parts[#parts+1]=table.concat({
+            tostring(item.source.key),tostring(item.key),tostring(item.value),
+            tostring(item.swiftDouble),tostring(item.part)},":")
+    end
+    local key=table.concat(parts,";")
+    local cached=entry.guid~=nil and combatBlockResultCache[entry.guid] or nil
+    if cached~=nil and cached.key==key then return table.unpack(cached.result,1,7) end
     local plan,solved,leftover=combatSolveBlocks(attacks,items,movePool)
     -- Resources that could not complete any block are shown against the heaviest unblocked attack, once each.
     -- When every attack is blocked, spare Block is shown as over-blocking the heaviest attack.
@@ -44707,6 +45168,10 @@ local function combatBlockResult(entry,sources)
             lines[index]=prefix..combatRich(tostring(damage).." Damage",COMBAT_RED)
         end
     end
+    if entry.guid~=nil then
+        combatBlockResultCache[entry.guid]={key=key,result={
+            lines,totalDamage,damageCount,allBlocked,reductions,wrongBlock,unblocked}}
+    end
     return lines,totalDamage,damageCount,allBlocked,reductions,wrongBlock,unblocked
 end
 
@@ -44731,11 +45196,18 @@ local function combatDamageUnits(seat)
     local state=scan~=nil and scan.unitState
         or (seat~=nil and unitLayoutResourceState(seat) or nil)
     local units={}
+    -- Into the Heat forbids assigning damage to Units, even if they are ready.
+    if scan~=nil and scan.preventUnitDamage==true then
+        return units,state~=nil and state.nativeCommandCount or 0
+    end
     for _,unitState in ipairs(state~=nil and state.units or {}) do
         local data=gameCards[unitState.guid]
         if data~=nil and tonumber(data.armour)~=nil then
             local resist={}
             for _,name in ipairs(data.resistance or {}) do resist[COMBAT_UNIT_RESIST_KEYS[name] or name]=true end
+            if scan~=nil and scan.allUnitResistances==true then
+                resist.P,resist.F,resist.I=true,true,true
+            end
             units[unitState.guid]={guid=unitState.guid,name=type(data.name)=="table" and tostring(data.name[1]) or tostring(data.name),
                 armour=tonumber(data.armour),level=math.max(1,tonumber(data.level) or 1),
                 resist=resist,wounded=not unitState.unwounded}
@@ -44927,7 +45399,8 @@ local function combatApplyDefend(entries,groups,allocated)
     for index,entry in ipairs(entries) do
         for _,item in ipairs(allocated[index]~=nil and allocated[index].details or {}) do
             local family=item.detail.family
-            if family~="block" and family~="move" and not entry.destroyed then
+            if (family=="attack" or family=="ranged" or family=="siege")
+                and not entry.destroyed then
                 targets[#targets+1]=index
                 break
             end
@@ -45053,13 +45526,31 @@ local function combatAssignmentRefreshRows(entries,sources)
             combatPanelSetAttribute("CombatEnemyRow"..row.."Traits","color","rgb(0.88,0.84,0.73)")
             local attacks=combatEnemyAttacks(entry)
             local options={}
-            if entry.effect~=nil and #(entry.effect.attackReductions or {})>0 then
-                for index,attack in ipairs(attacks) do
-                    if not attack.pending then options[#options+1]=index end
+            if #entry.attackReductions>0 then
+                for attackIndex,attack in ipairs(attacks) do
+                    if not attack.pending then options[#options+1]=attackIndex end
                 end
             end
-            combatAttackChoiceByRow[row]=#options>1 and options or nil
-            combatPanelSetAttribute("CombatEnemyAttackCycle"..row,"active",#options>1 and "true" or "false")
+            local selectable=#options>1
+            combatAttackChoiceByRow[row]=selectable
+                and {options=options,reductions=entry.attackReductions} or nil
+            combatPanelSetAttribute("CombatEnemyAttackCycle"..row,"active",selectable and "true" or "false")
+            if selectable then
+                local active=combatReductionActiveSource[entry.guid]
+                local rank=1
+                for i,reduction in ipairs(entry.attackReductions) do
+                    if (reduction.id or tostring(reduction.source))==active then rank=i break end
+                end
+                local selected=entry.attackReductions[rank]
+                combatReductionActiveSource[entry.guid]=selected.id or tostring(selected.source)
+                local sourceData=gameCards[selected.source]
+                local sourceName=sourceData~=nil and sourceData.name or selected.source
+                if type(sourceName)=="table" then sourceName=sourceName[1] end
+                combatPanelSetAttribute("CombatEnemyAttackCycle"..row,"tooltip",
+                    "Reduction "..tostring(rank).."/"..tostring(#entry.attackReductions)
+                    ..": "..tostring(sourceName).." (-"..tostring(selected.amount)
+                    .."). Left-click: cycle target (including Auto). Right-click: next reduction source.")
+            end
             for _,column in ipairs({"Attacks","Offence","Traits"}) do
                 local id="CombatEnemyRow"..row..column
                 combatPanelSetAttribute(id,"font","Fonts/MKCardText")
@@ -45481,8 +45972,14 @@ local function combatAssignmentRefreshRows(entries,sources)
             local attackLines={}
             for attackIndex,attack in ipairs(combatEnemyAttacks(entry)) do
                 local reduction=rowBlock[index].reductions[attackIndex] or 0
-                local chosen=combatReductionAttackChoice[entry.guid]==attackIndex
-                attackLines[#attackLines+1]=(chosen and "▶ " or "")
+                local markers={}
+                local selections=combatReductionAttackChoice[entry.guid] or {}
+                for rank,effect in ipairs(entry.attackReductions) do
+                    if selections[effect.id or tostring(effect.source)]==attackIndex then
+                        markers[#markers+1]=tostring(rank)
+                    end
+                end
+                attackLines[#attackLines+1]=(#markers>0 and ("▶"..table.concat(markers,",").." ") or "")
                     ..combatTypeRich(attack.label.." "..tostring(attack.value-reduction),
                         attack.key,reduction>0)
             end
@@ -45645,7 +46142,9 @@ local function combatCalcShutdown()
     combatAssignmentState={seat=nil,selected=nil,targets={},explicit={}}
     combatAssignmentJoined={}
     combatEnemyPage=1
+    combatBlockResultCache={}
     combatReductionAttackChoice={}
+    combatReductionActiveSource={}
     combatAttackChoiceByRow={}
     attackAssignmentsDamageClear()
     if attackAssignmentsHasAny() then attackAssignmentsClearAll() end
@@ -45661,7 +46160,8 @@ local function refreshCombatEnemyPanel(monsters)
     local entries={}
     for guid in pairs(monsters or {}) do
         local data=monsterPugs[guid]
-        if data~=nil and not combatIsSummonedToken(guid) then
+        if data~=nil and monsters[guid]~=nil and monsters[guid].is_face_down~=true
+            and not combatIsSummonedToken(guid) then
             local perks=gStates~=nil and gStates.monsterPerks~=nil and gStates.monsterPerks[guid] or nil
             local baseArmour=tonumber(data.armour) or 0
             local armourBonus=perks~=nil and (tonumber(perks.armour) or 0) or 0
@@ -45681,6 +46181,7 @@ local function refreshCombatEnemyPanel(monsters)
         -- Card effects on one enemy (Armour reduction never goes below 1).
         local effect=enemyEffects~=nil and enemyEffects[entry.guid] or nil
         entry.effect=effect
+        entry.attackReductions=combatOrderedReductions(effect)
         if effect~=nil then
             local reduction=combatEnemyFortificationCount(entry.data,entry.perks)>0
                 and effect.armourReduceFortified or effect.armourReduce
@@ -45736,6 +46237,11 @@ local function refreshCombatEnemyPanel(monsters)
         end
     end
     attackAssignmentsPruneInactive(activeSources,activeObjects,combatSourceKeepsLock)
+    local validTargets={}
+    for guid,obj in pairs(monsters or {}) do
+        if obj.is_face_down~=true then validTargets[guid]=true end
+    end
+    attackAssignmentsPruneTargets(validTargets)
     -- Reconcile effect-only Unit arrows on *every* calculator refresh, not only
     -- when an assignment is clicked. The damage overlay may come and go as
     -- attacks are blocked; its removal must not remove the originating arrow.
@@ -45755,6 +46261,9 @@ local function refreshCombatEnemyPanel(monsters)
         combatAssignmentState.selected=nil
     end
     local rowHeight=combatAssignmentRefreshRows(entries,sources)
+    if attackAssignmentsRefreshTargetButtons~=nil then
+        attackAssignmentsRefreshTargetButtons(monsters)
+    end
     combatPanelSetAttribute("CombatEnemyPanel","height",
         tostring(COMBAT_ASSIGNMENT_PANEL_BASE_HEIGHT+rowHeight))
 end
@@ -45776,17 +46285,30 @@ function resourceCardsCombatPage(delta)
     resourceCardsRefreshCombatEnemies()
 end
 
-function resourceCardsCombatCycleAttack(row)
+function resourceCardsCombatCycleAttack(row,nextSource)
     local guid=combatAssignmentRowTargets[row]
-    local options=combatAttackChoiceByRow[row]
-    if guid==nil or options==nil or #options<2 then return end
-    local chosen=combatReductionAttackChoice[guid]
-    local nextIndex=nil
-    for i,index in ipairs(options) do
-        if chosen==nil then nextIndex=options[1] break end
-        if chosen==index then nextIndex=options[i+1] break end
+    local selector=combatAttackChoiceByRow[row]
+    if guid==nil or selector==nil or #selector.options<2 then return end
+    local reductions=selector.reductions
+    local active=combatReductionActiveSource[guid] or (reductions[1].id or tostring(reductions[1].source))
+    if nextSource then
+        for i,reduction in ipairs(reductions) do
+            if (reduction.id or tostring(reduction.source))==active then
+                local following=reductions[i%#reductions+1]
+                combatReductionActiveSource[guid]=following.id or tostring(following.source)
+                break
+            end
+        end
+    else
+        local selected=combatReductionAttackChoice[guid] or {}
+        local previous=selected[active]
+        local nextIndex=selector.options[1]
+        for i,index in ipairs(selector.options) do
+            if previous==index then nextIndex=selector.options[i+1] break end
+        end
+        selected[active]=nextIndex
+        combatReductionAttackChoice[guid]=next(selected)~=nil and selected or nil
     end
-    combatReductionAttackChoice[guid]=nextIndex
     resourceCardsRefreshCombatEnemies()
 end
 
@@ -47929,6 +48451,8 @@ local function renderSeat(seatPos)
 
     local cards,wounds,skills,manaObjects,footprints={}, {}, {}, {}, {}
     local enemyEffects={}
+    local unitCombatBoost,preventUnitDamage,allUnitResistances=0,false,false
+    local heroPsychicBlock=false
     local hasUnits=false
     for guid,obj in pairs(objects) do
         local kind=objectKinds[guid]
@@ -48461,6 +48985,20 @@ local function renderSeat(seatPos)
                 if effect.ignoreRampagers==true then movementEffects.ignoreRampagers=true end
             end
         end
+        -- Conditional combat effects apply only on a paid, upright, actually
+        -- played side, never when the card is merely in the zone for display.
+        if rule~=nil and result.complete and result.resources~=nil
+            and cardPosture(card)=="upright" and card.is_face_down~=true then
+            if rule.unitCombatBoost~=nil then
+                local bonus=result.powered and rule.unitCombatBoost.powered
+                    or rule.unitCombatBoost.normal
+                unitCombatBoost=unitCombatBoost+(bonus or 0)*(result.repeatCount or 1)
+                if rule.preventUnitDamage==true then preventUnitDamage=true end
+            end
+            if rule.poweredUnitResistances==true and result.powered then
+                allUnitResistances=true
+            end
+        end
         -- Fixed components of partially understood cards may be counted; an
         -- unresolved choice never contributes an invented amount.
         addResourceAmounts(result,totals)
@@ -48486,6 +49024,69 @@ local function renderSeat(seatPos)
                 enemyRecord.links[#enemyRecord.links+1]=record.guid
                 current[enemy.guid]=true
                 setHighlight(enemy,"purple",true)
+            end
+        end
+    end
+    -- Deadly Precision's stronger conversion works only on one physically
+    -- overlapping, played Action with a single active melee Attack value.
+    -- Do not invent a target or a mana payment when links are ambiguous.
+    for _,source in ipairs(cards) do
+        local data=gameCards[source.guid]
+        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+        local sourceRecord=records[source.guid]
+        if rule~=nil and rule.poweredLinkConversion==true
+            and sourceRecord~=nil and sourceRecord.powered==true
+            and sourceRecord.resources~=nil and cardPosture(source)=="upright"
+            and discarded[source.guid]==nil
+            and choiceCategory(chosenEffect(source.guid,true,rule.poweredChoices))=="convert" then
+            local candidates={}
+            for _,target in ipairs(cards) do
+                local targetData=gameCards[target.guid]
+                local targetRecord=records[target.guid]
+                if target.guid~=source.guid and targetData~=nil
+                    and (targetData.cardType=="Starting" or targetData.cardType=="Advanced Action")
+                    and targetRecord~=nil and targetRecord.resources~=nil
+                    and cardPosture(target)=="upright" and target.is_face_down~=true
+                    and discarded[target.guid]==nil then
+                    local attackKey=nil
+                    local ambiguous=false
+                    for _,key in ipairs({"attack","attackFire","attackIce",
+                        "attackColdFire","attackPsychic"}) do
+                        if (tonumber(targetRecord.resources[key]) or 0)>0 then
+                            if attackKey~=nil then ambiguous=true break end
+                            attackKey=key
+                        end
+                    end
+                    local area=overlapArea(footprints[source.guid],footprints[target.guid])
+                    if attackKey~=nil and not ambiguous and area>0 then
+                        candidates[#candidates+1]={card=target,record=targetRecord,
+                            key=attackKey,area=area}
+                    end
+                end
+            end
+            table.sort(candidates,function(a,b)
+                if a.area~=b.area then return a.area>b.area end
+                return a.card.guid<b.card.guid
+            end)
+            local best=candidates[1]
+            if best~=nil and (candidates[2]==nil or best.area>candidates[2].area) then
+                local to="ranged"..best.key:sub(7)
+                local amount=best.record.resources[best.key]
+                local updated={}
+                for key,value in pairs(best.record.resources) do updated[key]=value end
+                updated[best.key]=nil
+                updated[to]=(updated[to] or 0)+amount
+                best.record.resources=updated
+                totals[best.key]=(totals[best.key] or 0)-amount
+                totals[to]=(totals[to] or 0)+amount
+                sourceRecord.links[#sourceRecord.links+1]=best.card.guid
+                best.record.links[#best.record.links+1]=source.guid
+                sourceRecord.complete=true
+                sourceRecord.contributes=true
+                sourceRecord.status="purple"
+                best.record.status="purple"
+                setHighlight(source,"purple",true)
+                setHighlight(best.card,"purple",best.record.powered)
             end
         end
     end
@@ -48592,6 +49193,12 @@ local function renderSeat(seatPos)
                     if (counts.Red or 0)>0 then bonus=bonus+2 end
                     if (counts.Blue or 0)>0 then bonus=bonus+2 end
                 end
+                if unitCombatBoost>0 and (category:sub(1,6)=="attack"
+                    or category:sub(1,6)=="ranged"
+                    or category:sub(1,5)=="siege"
+                    or category:sub(1,5)=="block") then
+                    bonus=bonus+unitCombatBoost
+                end
                 resources[category]=value+bonus
             end
         end
@@ -48638,6 +49245,9 @@ local function renderSeat(seatPos)
                     end
                     if selected~=nil and selected.boostOtherUnits and result.complete then
                         shocktroopsBoosts=shocktroopsBoosts+1
+                    end
+                    if selected~=nil and selected.grantUnitResistances and result.complete then
+                        allUnitResistances=true
                     end
                     if selected~=nil and selected.attackTransform~=nil and result.complete then
                         attackTransforms[selected.attackTransform]=true
@@ -49199,6 +49809,19 @@ local function renderSeat(seatPos)
                 and rule.movement.ignoreRampagers then
                 movementEffects.ignoreRampagers=true
             end
+            if not flipped and rule~=nil and rule.heroPsychicBlock==true then
+                heroPsychicBlock=true
+            end
+            if not flipped and rule~=nil and rule.enemyEffect~=nil then
+                local target=combatEffectChosenEnemy(guid,footprint(token),monsters)
+                if target~=nil then
+                    combatEffectAdd(enemyEffects,target.guid,guid,rule.enemyEffect)
+                    result.enemyEffectTargetKeys={guid}
+                    result.enemyEffectTargetGUIDs={[guid]=target.guid}
+                    result.links[#result.links+1]=target.guid
+                    result.status="purple"
+                end
+            end
             showChoiceButtons(token,choices,flipped)
             addResourceAmounts(result,totals)
             records[guid]=result
@@ -49419,7 +50042,8 @@ local function renderSeat(seatPos)
         attackTransforms=attackTransforms,
         terrainModifiers=terrainModifiers,movementEffects=movementEffects,
         enemyEffects=enemyEffects,fameRepBase=fameRepBase,
-        unitState=unitState,
+        unitState=unitState,preventUnitDamage=preventUnitDamage,
+        allUnitResistances=allUnitResistances,heroPsychicBlock=heroPsychicBlock,
         usesCurrentHexBlock=usesCurrentHexBlock,
         usesCurrentHexHealing=usesCurrentHexHealing,
         usesSkillLocation=usesSkillLocation}
@@ -49970,8 +50594,14 @@ function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec)
     end
     local attackReduce=math.max(0,tonumber(spec.attackReduce) or 0)
     if attackReduce>0 then
+        local ordinal=1
+        for _,previous in ipairs(entry.attackReductions) do
+            if previous.source==sourceGUID then ordinal=ordinal+1 end
+        end
+        local id=tostring(sourceGUID)..(ordinal>1 and ("#"..tostring(ordinal)) or "")
         entry.attackReductions[#entry.attackReductions+1]={amount=attackReduce,
-            source=sourceGUID,firstDamageUnit=spec.firstDamageUnit==true and sourceGUID or nil}
+            source=sourceGUID,id=id,
+            firstDamageUnit=spec.firstDamageUnit==true and sourceGUID or nil}
     end
     entry.destroy=entry.destroy or spec.destroy==true
     entry.destroyIfBlocked=entry.destroyIfBlocked or spec.destroyIfBlocked==true
@@ -50655,7 +51285,7 @@ local byType={
     AltemGuardians={
         value(1,"attack",5,"Attack 5"),
         value(2,"block",8,"Block 8; counts twice against Swiftness",{countsTwiceVsSwift=true}),
-        special(3,"Pay green mana: all your Units gain all resistances this turn",{manaCost="Green"})},
+        special(3,"Pay green mana: all your Units gain all resistances this turn",{manaCost="Green",grantUnitResistances=true})},
     HeroesWhite={
         value(1,"attack",5,"Attack 5"),value(1,"block",5,"Block 5"),
         value(2,"ranged",7,"Ranged Attack 7",{manaCost="White"}),
@@ -51146,7 +51776,9 @@ function setDeedDeckImmediateNumberTyping(seatPos)
 	local zoneGUID=deedDeckZones[seatPos]
 	local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
 	if zone==nil then return end
-	for _, obj in pairs(zone.getObjects()) do if obj.type=="Deck" then obj.max_typed_number=1 end end
+	for _,obj in pairs(zone.getObjects()) do
+		if obj~=nil and obj.isDestroyed()~=true and obj.type=="Deck" then obj.max_typed_number=1 end
+	end
 end
 
 local function refreshDeedPileDescription(seatPos, zoneType)
@@ -51157,7 +51789,7 @@ local function refreshDeedPileDescription(seatPos, zoneType)
 	local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
 	if zone==nil then return end
 	for _, deck in pairs(zone.getObjects()) do
-		if deck.type=="Deck" or deck.type=="Card" then
+		if deck~=nil and deck.isDestroyed()~=true and (deck.type=="Deck" or deck.type=="Card") then
 			if playerStats.mage~=gStates.positionMageKnight[5] then
 				for color, playerZone in pairs(gStates.handColors) do if playerZone==seatPos then deck.setGMNotes(color) break end end
 			end
@@ -51222,7 +51854,9 @@ end
 
 function containerInsideDeckZone(container, zone)
 	if container==nil or zone==nil then return false end
-	for _, zoneObj in pairs(zone.getObjects()) do if zoneObj.guid==container.guid then return true end end
+	for _,zoneObj in pairs(zone.getObjects()) do
+		if zoneObj~=nil and zoneObj.isDestroyed()~=true and zoneObj.guid==container.guid then return true end
+	end
 	--Zone membership can lag a deck merge by a frame, so use the zone bounds as a fallback.
 	local pos=container.getPosition()
 	local zonePos=zone.getPosition()
@@ -51271,8 +51905,8 @@ end
 function deedTransferPile(zone,ignoreGUID)
 	if zone==nil then return nil end
 	local single=nil
-	for _, obj in pairs(zone.getObjects()) do
-		if obj.guid~=ignoreGUID then
+	for _,obj in pairs(zone.getObjects()) do
+		if obj~=nil and obj.isDestroyed()~=true and obj.guid~=ignoreGUID then
 			if obj.type=="Deck" then return obj end
 			if obj.type=="Card" then single=obj end
 		end
@@ -53942,19 +54576,52 @@ function MoreRampageSelection(player,value,id,deferRefresh)
 end
 
 dropDownIdLink="none"
+-- A Mage selection belongs to one opening, seat, and player. TTS XML buttons can pass an
+-- explicit string to their callback; embedding the seat and opening number prevents stale
+-- clicks from being applied to whichever dropdown happens to be open later.
+local mageChoiceOpening=0
+local mageChoiceToken=nil
+local mageChoiceOwner=nil
+
+local function clearMageChoiceOpening()
+	mageChoiceToken=nil
+	mageChoiceOwner=nil
+end
+
 function toggleDropDown(player, mouseButton, id)
 	if mouseButton~="-1" then return end
 	local control=SETUP_DROPDOWN_CONTROL_BY_ID[id]
 	if control==nil then return end
+	local color=player~=nil and player.color or nil
+	-- Scenario/reset paths can close this popup without calling toggleDropDown.
+	if mageChoiceToken~=nil and MAGE_KNIGHT_CONTROL_POSITION[dropDownIdLink]==nil then clearMageChoiceOpening() end
+	-- The Global UI popup is shared by all clients. Do not let another player
+	-- retarget it while its Mage Knight selector is in use.
+	if mageChoiceOwner~=nil and color~=nil and mageChoiceOwner~=color then
+		broadcastToColor("Another player is choosing a Mage Knight.",color,{1,0.72,0.35})
+		return
+	end
 	UI.setAttribute(dropDownIdLink.."Image", "image", "Sliced Button/Button New Active")
 	if dropDownIdLink==id then
 		dropDownIdLink="none"
+		clearMageChoiceOpening()
 		UI.setAttribute("DropDown", "active", "false")
 		UI.setAttribute(id.."Image", "image", "Sliced Button/Button New Active")
 		return
 	end
 
 	dropDownIdLink=id
+	clearMageChoiceOpening()
+	if control[2]=="MageDropDown" and color~=nil then
+		mageChoiceOpening=mageChoiceOpening+1
+		mageChoiceOwner=color
+		mageChoiceToken="mk"..control[1].."x"..mageChoiceOpening
+		-- Keep the choice button's ID (the selected Mage) but bind its click
+		-- value to this exact popup opening, rather than a mutable global seat.
+		for choiceId in pairs(MAGE_KNIGHT_SELECTION_BY_ID) do
+			UI.setAttribute(choiceId,"onClick","PlayerChosen("..mageChoiceToken..")")
+		end
+	end
 	local count=0
 	for uiId,data in pairs(SETUP_DROPDOWN_ROWS) do
 		UI.setAttribute(data[2], "image", "Sliced Button/Button New Active")
@@ -53983,41 +54650,44 @@ function toggleDropDown(player, mouseButton, id)
 	UI.setAttribute("DropDown", "active", "true")
 end
 
-function PlayerChosen(player, mouseButton, id)
-	if mouseButton=="-1" then
-		UI.setAttribute(dropDownIdLink.."Text", "text", translateWord[MAGE_KNIGHT_SELECTION_BY_ID[id]])
-		UI.setAttribute(dropDownIdLink.."Image", "image", "Sliced Button/Button New Active")
-		UI.setAttribute("DropDown", "active", "false")
-		--adjust number of players
-		local MKDropDownUI=MAGE_KNIGHT_CONTROL_POSITION
-		if dropDownIdLink~="dummyMKSelection" then
-			if MAGE_KNIGHT_SELECTION_BY_ID[id]=="nobody" then
-				if gStates.playerCount>0 then gStates.playerCount=gStates.playerCount-1 end
-			else
-				if gStates.positionMageKnight[MKDropDownUI[dropDownIdLink]]=="nobody" then gStates.playerCount=gStates.playerCount+1 end
-			end
-		end
-		if dropDownIdLink=="dummyMKSelection" and gStates.positionMageKnight[MKDropDownUI[dropDownIdLink]]=="Volkare" then
-			gStates.volkareSkills=MAGE_KNIGHT_SELECTION_BY_ID[id]
-			gStates.setupDummyMageChoice=MAGE_KNIGHT_SELECTION_BY_ID[id]
-		else
-			gStates.positionMageKnight[MKDropDownUI[dropDownIdLink]]=MAGE_KNIGHT_SELECTION_BY_ID[id]
-			if dropDownIdLink=="dummyMKSelection" then gStates.setupDummyMageChoice=MAGE_KNIGHT_SELECTION_BY_ID[id] end
-		end
+function PlayerChosen(player, clickToken, id)
+	-- Validate everything before touching the UI or player count. Old clicks can
+	-- arrive after a second click, scenario change, or another client action.
+	local chosen=MAGE_KNIGHT_SELECTION_BY_ID[id]
+	local position=MAGE_KNIGHT_CONTROL_POSITION[dropDownIdLink]
+	local tokenPosition,tokenOpening
+	if type(clickToken)=="string" then tokenPosition,tokenOpening=clickToken:match("^mk(%d+)x(%d+)$") end
+	local color=player~=nil and player.color or nil
+	if chosen==nil or position==nil or mageChoiceToken==nil or
+		clickToken~=mageChoiceToken or tonumber(tokenPosition)~=position or
+		tonumber(tokenOpening)~=mageChoiceOpening or color==nil or color~=mageChoiceOwner then return end
 
-		if MAGE_KNIGHT_SELECTION_BY_ID[id]=="Jormund" then
-			UI.setAttribute("ROTFSelectionText","text",ROTF_TEXT_BY_LEVEL[3])
-			gStates.riseOfTheForgemasters=3
-		end
-		refreshProxySetupLabel()
-		ToolTipUpdate(MAGE_KNIGHT_SELECTION_BY_ID[id])
-		--Set Coop flag
-		gStates.coop=gStates.positionMageKnight[5]=="nobody" and 0 or 1
-		--reset megapolis
-		gStates.megapolis=0
-		scenarioInfoUpdate()
-		dropDownIdLink="none"
+	local selectionId=dropDownIdLink
+	-- Consume the opening before any UI refresh can trigger another callback.
+	dropDownIdLink="none"
+	clearMageChoiceOpening()
+	UI.setAttribute(selectionId.."Text", "text", translateWord[chosen])
+	UI.setAttribute(selectionId.."Image", "image", "Sliced Button/Button New Active")
+	UI.setAttribute("DropDown", "active", "false")
+	if position==5 and gStates.positionMageKnight[5]=="Volkare" then
+		gStates.volkareSkills=chosen
+		gStates.setupDummyMageChoice=chosen
+	else
+		gStates.positionMageKnight[position]=chosen
+		if position==5 then gStates.setupDummyMageChoice=chosen end
 	end
+	-- Count real assignments, not click deltas: repeated Nobody/Random selections
+	-- and any setup reconciliation must never leave the count out of sync.
+	recountSetupMageKnights()
+
+	if chosen=="Jormund" then
+		UI.setAttribute("ROTFSelectionText","text",ROTF_TEXT_BY_LEVEL[3])
+		gStates.riseOfTheForgemasters=3
+	end
+	refreshProxySetupLabel()
+	ToolTipUpdate(chosen)
+	gStates.megapolis=0
+	scenarioInfoUpdate()
 end
 
 function VolkareLevelSelection(player, mouseButton, id)
@@ -55017,13 +55687,20 @@ function standardDeckCycleObject(deckName)
 		local liveDeck=nil
 		local looseCard=nil
 		for _,obj in pairs(zone.getObjects()) do
-			if obj.type=="Deck" then
-				if liveDeck==nil or obj.getQuantity()>liveDeck.getQuantity() then liveDeck=obj end
-			elseif obj.type=="Card" and looseCard==nil then
-				looseCard=obj
+			-- A zone snapshot can still contain a Deck wrapper after TTS has
+			-- collapsed it into its last Card. Do not inspect dead userdata.
+			if obj~=nil and obj.isDestroyed()~=true then
+				if obj.type=="Deck" then
+					if liveDeck==nil or liveDeck.isDestroyed()==true or obj.getQuantity()>liveDeck.getQuantity() then liveDeck=obj end
+				elseif obj.type=="Card" and looseCard==nil then
+					looseCard=obj
+				end
 			end
 		end
-		return liveDeck or looseCard
+		local selected=liveDeck~=nil and liveDeck.isDestroyed()~=true and liveDeck or looseCard
+		-- Resolve by GUID at the end: callers should not inherit an object from
+		-- a stale getObjects() snapshot when a deck merged during this pass.
+		return selected~=nil and selected.isDestroyed()~=true and getObjectFromGUID(selected.guid) or nil
 	end
 	return nil
 end
@@ -55046,8 +55723,9 @@ end
 function standardDeckCycleShuffleIfReached(deckName,deck,candidateGUID)
 	local firstReturned=standardDeckCycleMarker(deckName)
 	if firstReturned==nil then return false end
+	if deck~=nil and deck.isDestroyed()==true then deck=nil end
 	deck=deck or standardDeckCycleObject(deckName)
-	if deck==nil or (deck.type~="Deck" and deck.type~="Card") then return false end
+	if deck==nil or deck.isDestroyed()==true or (deck.type~="Deck" and deck.type~="Card") then return false end
 	local reachedGUID=candidateGUID
 	if reachedGUID==nil then
 		if deck.type=="Deck" then
@@ -55064,7 +55742,7 @@ function standardDeckCycleShuffleIfReached(deckName,deck,candidateGUID)
 end
 
 function standardDeckCycleClearIfDeckShuffled(deck)
-	if deck==nil or deck.type~="Deck" or gStates==nil or gStates.standardDeckFirstReturnedGUID==nil then return false end
+	if deck==nil or deck.isDestroyed()==true or deck.type~="Deck" or gStates==nil or gStates.standardDeckFirstReturnedGUID==nil then return false end
 	for _,deckName in ipairs({"Artifact","Regular Unit","Elite Unit","Advanced Action","Spell"}) do
 		local current=standardDeckCycleObject(deckName)
 		if current~=nil and current.guid==deck.guid then
@@ -55090,6 +55768,77 @@ local rewindTransactionForceRelease
 turnOrder={}
 gStates={}
 warningColor={1,0.8,0.2}
+
+-- Shared setup-only staging grid. Recalculate from setup choices and the static grid
+-- config, never from saved positions of enemies temporarily moved to player combat areas.
+function scenarioDiscGridVolkareEnabled()
+	return gStates~=nil and gStates.volkareCampAsCity==true and gStates.removeLostLegionExpansion~=true and
+		gStates.gameScenario~="The War of Four" and gStates.gameScenario~="Volkare's Return" and
+		gStates.gameScenario~="Volkare's Return Blitz" and gStates.gameScenario~="Volkare's Quest"
+end
+
+function scenarioDiscGridLeaderPresence()
+	if gStates==nil or gStates.removeShadesOfTezlaMonsters==true then return false,false end
+	local scenario=gStates.gameScenario
+	local both=scenario=="Life and Death" or scenario=="The War of Four" or scenario=="Ultimate Conquest"
+	return both or scenario=="The Realm of the Dead Blitz",
+		both or scenario=="The Hidden Valley Blitz"
+end
+
+function scenarioDiscGridPosition(owner)
+	if scenarioDiscGrid==nil or gStates==nil then return nil end
+	local dark,elem=scenarioDiscGridLeaderPresence()
+	local leaders=dark or elem
+	local dragon=apocalypseDragonComponentsNeeded()==true
+	local volkareNeeded=scenarioDiscGridVolkareEnabled()
+	local cells={}
+	local controlLeft=scenarioDiscGrid.controlSide~="right"
+	if dragon then
+		local core=leaders and 2 or (controlLeft and 3 or 1)
+		cells.Death={core,1}
+		cells.Pestilence={core+1,1}
+		cells.Famine={core,2}
+		cells.War={core+1,2}
+		local outer=leaders and (controlLeft and 1 or 4) or (controlLeft and 2 or 3)
+		cells.Control={outer,1}
+		if volkareNeeded then cells.Volkare={outer,2} end
+		if leaders then
+			local col=controlLeft and 4 or 1
+			if dark then cells.DarkCrusader={col,1} end
+			if elem then cells.Elementalist={col,2} end
+		end
+	elseif leaders then
+		if volkareNeeded then
+			if dark then cells.DarkCrusader={4,1} end
+			if elem then cells.Elementalist={4,2} end
+			cells.Volkare={3,2}
+		else
+			-- A leader-only pair is horizontal; combined layouts stack them vertically.
+			if dark then cells.DarkCrusader={elem and 3 or 4,1} end
+			if elem then cells.Elementalist={4,1} end
+		end
+	elseif volkareNeeded then
+		cells.Volkare={4,2}
+	end
+	local cell=cells[owner]
+	if cell==nil then return nil end
+	local o=scenarioDiscGrid.topRight
+	return {o[1]-(4-cell[1])*scenarioDiscGrid.spacingX,o[2],o[3]-(cell[2]-1)*scenarioDiscGrid.spacingZ}
+end
+
+function scenarioDiscGridArmyPosition(owner,index,height)
+	local disc=scenarioDiscGridPosition(owner)
+	if disc==nil then return nil end
+	local config=scenarioDiscGrid
+	index=math.max(1,math.floor(tonumber(index) or 1))-1
+	local perRow=config.armyTokensPerRow
+	local row=math.floor(index/perRow)
+	local slot=index%perRow
+	local horizontal=slot==0 and 0 or (slot%2==1 and 1 or -1)*math.ceil(slot/2)
+	local outward=disc[3]==config.topRight[3] and 1 or -1
+	return {disc[1]+horizontal*config.armyTokenSpacingX,height or 1.5,
+		disc[3]+outward*(config.armyOffsetZ+row*config.armyRowSpacingZ)}
+end
 
 ---@overload fun(scope: "SetupGame", container: any, params: table): any
 function safeTakeObject(scope, container, params)
@@ -55241,7 +55990,7 @@ end
 --string means "visible to everyone".
 local GLOBAL_UI_PUBLIC_VISIBILITY_IDS={
 	"MainGame","NoticeBoard","topButtons","Mage1LevelBoard","Mage2LevelBoard","Mage3LevelBoard","Mage4LevelBoard",
-	"LevelUpRules","PlayerSeating","ObjectRotating","ResourceTracker","Setup","GameReminder","EndReminder","welcome",
+	"LevelUpRules","PlayerSeating","ObjectRotating","ResourceTracker","CombatCalculatorHelp","Setup","GameReminder","EndReminder","welcome",
 	"CoopAssault","cameraControl","zigguratPyramidInteract",
 }
 local GLOBAL_UI_RUNTIME_VISIBILITY_IDS={
@@ -56816,6 +57565,18 @@ apocalypseDragon={	model="105141",
 apocalypseDragonColoredHeads={"Famine","Death","Pestilence","War"}
 apocalypseDragonAirborneHeads={"War","Death","Famine","Pestilence"}
 
+-- Tweak these values after measuring the physical table. Anchor: column 4, row 1.
+scenarioDiscGrid={
+	topRight={-51.93,0.97,16.00},
+	spacingX=9.0,
+	spacingZ=9.0,
+	controlSide="left", -- "left" or "right"; leaders use the opposite outer column
+	armyOffsetZ=5.0,
+	armyTokenSpacingX=1.65,
+	armyRowSpacingZ=2.25,
+	armyTokensPerRow=5
+}
+
 GUID={	deck={	artifact="ac75c4", 
 				spell="e4372a", 
 				action="e926ba", 
@@ -57859,8 +58620,10 @@ cardResourceDefinitions={
             {key="fireBlock",blockFire=3},{ranged=3},{siege=2}}},
     instinct={normalChoices={{move=2},{influence=2},{attack=2},{block=2}},
         poweredChoices={{move=4},{influence=4},{attack=4},{block=4}},partial=true},
-    swiftReflexes={normalChoices={{move=2},{ranged=1}},
-        poweredChoices={{move=4},{ranged=3}},partial=true}, -- Also reduce-enemy-Attack alternatives
+    swiftReflexes={normalChoices={{move=2},{ranged=1},{key="reduce",icon="other"}},
+        poweredChoices={{move=4},{ranged=3},{key="reduce",icon="other"}},
+        enemyEffect={normal={choice="reduce",attackReduce=1},
+            powered={choice="reduce",attackReduce=2}}},
     tirelessness={normal={move=2},powered={move=4},partial=true}, -- Boosts other Move cards
     druidicPaths={normal={move=2},powered={move=4}}, -- Player manages the one-space/one-terrain-type discount
     savageHarvesting={normal={move=2},powered={move=4}}, -- Optional crystal gains do not affect Move calculation
@@ -58006,6 +58769,7 @@ cardResourceDefinitions={
         crystalPairAttack={siegeFire={"Green","Red"},siegeIce={"Green","Blue"},
             rangedFire={"White","Red"},rangedIce={"White","Blue"}}},
     spellMistForm={normal={move=4},poweredChoices={{key="other"}},
+        poweredUnitResistances=true,
         terrainEffects={normal={
             {mode="set",terrains={plains=true,forest=true,wasteland=true,
                 desert=true,swamp=true,lake=true},cost=2},
@@ -58081,6 +58845,37 @@ cardResourceDefinitions={
         linkedColorEffects={normal={Green={healing=3},
             Red={other=1},Blue={other=1},White={other=1}}}},
 
+    -- Wound-taking bonuses require the player to select how many Wounds were
+    -- actually received during this combat; do not confuse them with Wounds
+    -- already present in hand at the start of the combat.
+    battleRage={
+        normalChoices={{key="base",attack=2,icon="attack"},
+            {key="one",attack=3,icon="attack",iconOverlay="+1"}},
+        poweredChoices={{key="base",attack=4,icon="attack"},
+            {key="one",attack=5,icon="attack",iconOverlay="+1"},
+            {key="two",attack=6,icon="attack",iconOverlay="+2"},
+            {key="three",attack=7,icon="attack",iconOverlay="+3"},
+            {key="four",attack=8,icon="attack",iconOverlay="+4"}}},
+    spearGlare={normalChoices={{attack=2},{block=2}},
+        powered={block=3},partial=true}, -- Removing ONE enemy attack modifier/colour remains manual.
+    deadlyPrecision={normalChoices={{attack=2},{block=2}},
+        poweredChoices={{attack=4},{ranged=2},{key="convert",icon="ranged"}},
+        poweredLinkConversion=true,partial=true}, -- Requires one overlapping played Action with Attack.
+    -- The conditional Attack is optional; it is only available if no Wounds
+    -- were added to the Hero's hand during earlier combat phases. The player
+    -- declares eligibility with the second option. Two -2 reductions on the
+    -- powered side still require manual resolution (one -4 is calculated).
+    dodgeAndWeave={
+        normalChoices={{key="safe",attack=0,icon="attack"},
+            {key="eligible",attack=1,icon="attack",iconOverlay="+1"}},
+        poweredChoices={{key="safe",attack=0,icon="attack"},
+            {key="eligible",attack=2,icon="attack",iconOverlay="+2"}},
+        enemyEffect={normal={attackReduce=2},powered={attackReduce=4}},
+        },
+    -- Buffs any activated Unit's printed combat resource (not its Influence,
+    -- Move, Heal or resource-independent effects); no Units may receive damage.
+    intoTheHeat={normal={other=1},powered={other=1},
+        unitCombatBoost={normal=2,powered=3},preventUnitDamage=true},
     chivalry={
         normalChoices={{key="attack",attack=3},{key="reputation",attack=2}},
         poweredChoices={{key="attack",attack=6},{key="reputation",attack=4}},
@@ -58300,7 +59095,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["450593"]={cardType="Starting", resourceKey="improvisation", name={"Improvisation"}, color={"Red"}, action={"Influence"}},
 			["450592"]={cardType="Starting", resourceKey="threaten", name={"Threaten"}, color={"Red"}, action={"Influence", "Heal"}},
 			["52ef11"]={cardType="Starting", resourceKey="rage", name={"Rage"}, color={"Red"}, action={"Combat"}},
-			["49f6ed"]={cardType="Starting", name={"Battle Rage"}, color={"Red"}, action={"Combat"}},
+			["49f6ed"]={cardType="Starting", resourceKey="battleRage", name={"Battle Rage"}, color={"Red"}, action={"Combat"}},
 			--Mevok Starting Cards
 			["3cfeb6"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
 			["98441e"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
@@ -58372,7 +59167,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			--Zirtae Starting Cards
 			["33779c"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
 			["d9d900"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
-			["a2a7ad"]={cardType="Starting", name={"Spear Glare"}, color={"Blue"}, action={"Combat"}},
+			["a2a7ad"]={cardType="Starting", resourceKey="spearGlare", name={"Spear Glare"}, color={"Blue"}, action={"Combat"}},
 			["f674fa"]={cardType="Starting", resourceTracked=false, name={"Crystallize"}, color={"Blue"}, action={"Special"}},
 			["316f4f"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
 			["74b3c0"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
@@ -58385,7 +59180,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["d9ed5d"]={cardType="Starting", resourceKey="improvisation", name={"Improvisation"}, color={"Red"}, action={"Influence"}},
 			["35cd32"]={cardType="Starting", resourceKey="threaten", name={"Threaten"}, color={"Red"}, action={"Influence", "Heal"}},
 			["de8c0f"]={cardType="Starting", resourceKey="rage", name={"Rage"}, color={"Red"}, action={"Combat"}},
-			["b1e132"]={cardType="Starting", name={"Deadly Precision"}, color={"Red"}, action={"Combat"}},
+			["b1e132"]={cardType="Starting", resourceKey="deadlyPrecision", name={"Deadly Precision"}, color={"Red"}, action={"Combat"}},
 			--Rise of the Forgemasters replacement starter cards
 			["d339f6"]={cardType="Starting", resourceKey="concentration", name={"Concentration"}, color={"Green"}, action={"Special"}},
 			["0b071b"]={cardType="Starting", resourceKey="concentration", name={"Concentration"}, color={"Green"}, action={"Special"}},
@@ -58440,7 +59235,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["878d82"]={cardType="Advanced Action", resourceKey="swiftBolt", name={"Swift Bolt"}, 		color={"White"}, 		action={"Combat", "Special"}},
 			["878d90"]={cardType="Advanced Action", resourceKey="heroicTale", name={"Heroic Tale"}, 		color={"White"}, 		action={"Influence"}},
 			["8122c2"]={cardType="Advanced Action", resourceKey="peacefulMoment", name={"Peaceful Moment"},	color={"White"}, 		action={"Action", "Influence"}},
-			["9de475"]={cardType="Advanced Action", name={"Dodge and Weave"},	color={"White"}, 		action={"Combat"}},
+			["9de475"]={cardType="Advanced Action", resourceKey="dodgeAndWeave", name={"Dodge and Weave"},	color={"White"}, 		action={"Combat"}},
 			["42eb53"]={cardType="Advanced Action", resourceKey="chivalry", name={"Chivalry"},	 		color={"White"}, 		action={"Combat"}},
 			["35aee6"]={cardType="Advanced Action", resourceKey="learning", name={"Learning"},			color={"White"}, 		action={"Special", "Influence"}},
 			["e2b570"]={cardType="Advanced Action", resourceTracked=false, name={"Mana Storm"},		color={"White"}, 		action={"Special"}},
@@ -58453,7 +59248,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["93b7d4"]={cardType="Advanced Action", resourceTracked=false, name={"Blood of Ancients"},	color={"Red"}, 			action={"Special"}},
 			["65a1d5"]={cardType="Advanced Action", resourceKey="counterattack", name={"Counterattack"}, 	color={"Red"}, 			action={"Combat"}},
 			["8fac50"]={cardType="Advanced Action", resourceKey="maximalEffect", name={"Maximal Effect"}, 	color={"Red"}, 			action={"Special"}},
-			["bb05a9"]={cardType="Advanced Action", name={"Into the Heat"},		color={"Red"}, 			action={"Combat"}},
+			["bb05a9"]={cardType="Advanced Action", resourceKey="intoTheHeat", name={"Into the Heat"},		color={"Red"}, 			action={"Combat"}},
 			["d74999"]={cardType="Advanced Action", resourceTracked=false, name={"Decompose"}, 		color={"Red"}, 			action={"Special"}},
 			["1a1c02"]={cardType="Advanced Action", resourceKey="explosiveBolt", name={"Explosive Bolt"}, 	color={"White","Red"}, 	action={"Combat"}},
 			["409fe8"]={cardType="Advanced Action", resourceKey="chillingStare", name={"Chilling Stare"}, 	color={"Blue","White"},	action={"Combat", "Influence"}},
@@ -58483,7 +59278,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["364845"]={cardType="Advanced Action", name={"Pernicious Bolt"}, 	color={"Green"}, 		action={"Special", "Combat"}},
 			["f8b18a"]={cardType="Advanced Action", name={"Deligence"}, 		color={"Green"}, 		action={"Special", "Influence"}},
 			["b8fb4b"]={cardType="Advanced Action", name={"Earth Forge"}, 		color={"Green"}, 		action={"Special"}},
-			["3c0531"]={cardType="Advanced Action", name={"Dodge and Weave"},	color={"White"}, 		action={"Combat"}},
+			["3c0531"]={cardType="Advanced Action", resourceKey="dodgeAndWeave", name={"Dodge and Weave"},	color={"White"}, 		action={"Combat"}},
 			["d64923"]={cardType="Advanced Action", name={"Righteous Path"},	color={"White"}, 		action={"Combat", "Move"}},
 			["fbbad8"]={cardType="Advanced Action", resourceKey="learning", name={"Learning"}, 			color={"White"}, 		action={"Special", "Influence"}},
 			["32b95a"]={cardType="Advanced Action", resourceKey="heroicTale", name={"Heroic Tale"},		color={"White"}, 		action={"Influence"}},
@@ -59515,9 +60310,9 @@ factionRewardResourceDefinitions={
     ["FireGem"]={name="Fire Gem",notes="Elementalist Reward",imageHash="3BA57B65C60A918FCAB2D8832FFB909336AA1D8B",guids={"4433df","90b0b3"},modifier="addFire"},
     ["GhostlyElixir"]={name="Ghostly Elixir",notes="Dark Crusader Reward",imageHash="7ADC741EDDB8B27915DB5BB14C88DBEE0CFF911E",guids={"2411db","cc1f91"},modifier="makeRanged"},
     ["HealingHerbs"]={name="Healing Herbs",notes="Elementalist Reward",imageHash="9052FB0DB4018C8349D61790A6827BFCAE52165A",guids={"daeaea","f26d0b"},choices={{healing=1},{key="wound",icon="healing",iconOverlay="W"}}},
-    ["HelmofMindShielding"]={name="Helm of Mind Shielding",notes="Council of the Void Reward",imageHash="78C53A8FE2DD172E286F8483D1FCE900CCA8B42F",guids={"48c4cd","75399a"},resources={blockPsychic=2},partial=true},
+    ["HelmofMindShielding"]={name="Helm of Mind Shielding",notes="Council of the Void Reward",imageHash="78C53A8FE2DD172E286F8483D1FCE900CCA8B42F",guids={"48c4cd","75399a"},resources={blockPsychic=2},heroPsychicBlock=true},
     ["IceShard"]={name="Ice Shard",notes="Elementalist Reward",imageHash="9C13774698F48F1C38D29283CCF9BE559FF4030D",guids={"8c8d3b","72e29e"},modifier="addIce"},
-    ["MaskofFear"]={name="Mask of Fear",notes="Apocalypse Cult Reward",imageHash="E57F577671D51002FB6B0EBFFAFEDFA958A4B980",guids={"f7bbaa","504178"}},
+    ["MaskofFear"]={name="Mask of Fear",notes="Apocalypse Cult Reward",imageHash="E57F577671D51002FB6B0EBFFAFEDFA958A4B980",guids={"f7bbaa","504178"},enemyEffect={attackReduce=2},partial=true},
     ["MaskofImpersonation"]={name="Mask of Impersonation",notes="Council of the Void Reward",imageHash="2C62D7E68A4CEF90E287823D42F829A54B21C9E1",guids={"a85444","00bcec"}},
     ["MysticalMap"]={name="Mystical Map",notes="Elementalist Reward",imageHash="D2602B7028FEA1A4CC4B6A6837571A0D872C6D8F",guids={"d0f7d2","cc1f9f"}},
     ["OrbofTwilight"]={name="Orb of Twilight",notes="Dark Crusader Reward",imageHash="01DA59604306918F9B7878C5042044F294A604B5",guids={"6a4733","2df3e8"}},
