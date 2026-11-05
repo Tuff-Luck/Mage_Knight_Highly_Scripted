@@ -93,7 +93,12 @@ function apocalypseDragonStartingLevel()
 end
 
 function apocalypseDragonHeadData(headName)
-	for _,headData in ipairs(apocalypseDragon.heads) do if headData.name==headName then return headData end end
+	for _,headData in ipairs(apocalypseDragon.heads) do
+		if headData.name==headName then
+			headData.position=scenarioDiscGridPosition(headName) or headData.position
+			return headData
+		end
+	end
 	return nil
 end
 
@@ -795,6 +800,7 @@ function setupApocalypseDragonHeads()
 		if roundToken~=nil then roundToken.lock() end
 	end
 	for _,headData in ipairs(apocalypseDragon.heads) do
+		headData.position=scenarioDiscGridPosition(headData.name) or headData.position
 		local head=getObjectFromGUID(headData.guid)
 		if head==nil and bag~=nil then
 			head=bag.takeObject({guid=headData.guid,position=headData.position,rotation={0,180,0},smooth=false})
@@ -1852,6 +1858,7 @@ function positionApocalypseDragonHeads()
 	if apocalypseDragonComponentsNeeded()~=true then return false end
 	local moved=false
 	for _,headData in ipairs(apocalypseDragon.heads) do
+		headData.position=scenarioDiscGridPosition(headData.name) or headData.position
 		local head=getObjectFromGUID(headData.guid)
 		if head~=nil then
 			local pos=head.getPosition()

@@ -124,16 +124,16 @@ function monsterSetup()
 		monsterPiles.rewardElem,GUID.bag.discard.elementalistReward
 	},tezlaRewardsNeeded,"Shades of Tezla reward")
 	local darkComponents={
-		{guid=darkCrusader.disc,position={-52.00,0.97,6.50}},
-		{guid=darkCrusader.token,position={-55.30,0.97,10.20}},
+		{guid=darkCrusader.disc,position=scenarioDiscGridPosition("DarkCrusader") or {-52.00,0.97,6.50}},
+		{guid=darkCrusader.token,position=scenarioDiscGridArmyPosition("DarkCrusader",1) or {-55.30,0.97,10.20}},
 		{guid=darkCrusader.terrainHex,position={-34.70,0.98,-27.00}},
 		{guid="f8c83e",position={-65.16,0.98,-5.50}},
 		{guid=GUID.bag.cemetery,position={-36.09,0.97,-24.87},flip=180},
 		{guid="2ca34f",position={-53.50,0.98,15.50},always=true,rewardReference=true}
 	}
 	local elemComponents={
-		{guid=elementalist.disc,position={-63.50,0.97,6.50}},
-		{guid=elementalist.token,position={-67.00,0.97,10.20}},
+		{guid=elementalist.disc,position=scenarioDiscGridPosition("Elementalist") or {-63.50,0.97,6.50}},
+		{guid=elementalist.token,position=scenarioDiscGridArmyPosition("Elementalist",1) or {-67.00,0.97,10.20}},
 		{guid=elementalist.terrainHex,position={-37.49,0.98,-27.00}},
 		{guid="7121c7",position={-70.16,0.98,-5.50}},
 		{guid="8fe07e",position={-49.50,0.98,15.50},always=true,rewardReference=true}
@@ -190,6 +190,14 @@ function monsterSetup()
 	end
 
 	local function finishLeaderSetup()
+		for _,leader in ipairs({darkCrusader,elementalist}) do
+			local disc=getObjectFromGUID(leader.disc)
+			local zone=getObjectFromGUID(leader.discZone)
+			if disc~=nil and zone~=nil then
+				local p=disc.getPosition()
+				zone.setPosition({p[1],1.4,p[3]})
+			end
+		end
 		local darkToken=getObjectFromGUID(darkCrusader.token)
 		if darkToken~=nil then
 			darkToken.addDecal({name="NightRules",position={0.85,0.15,-0.85},rotation={90,180,0},scale={0.6,0.6,1},url=nightRulesDecal})
@@ -211,7 +219,7 @@ function monsterSetup()
 				monsterPugs[elementalist.token]=leaderData[elementalist.terrainHex][leaderLevel].abilities
 				gStates.elementalistLevel=leaderLevel
 				gStates.cityMonsterQty[elementalist.terrainHex]={[elementalist.token]="alive",extra={}}
-				gStates.monsterPlayLocation[elementalist.token]={-55.3,3.0,15.3}
+				gStates.monsterPlayLocation[elementalist.token]=scenarioDiscGridArmyPosition("Elementalist",1) or {-55.3,3.0,15.3}
 			end
 			local darkDisc=getObjectFromGUID(darkCrusader.disc)
 			local darkToken=getObjectFromGUID(darkCrusader.token)
@@ -224,7 +232,7 @@ function monsterSetup()
 				monsterPugs[darkCrusader.token]=leaderData[darkCrusader.terrainHex][leaderLevel].abilities
 				gStates.darkCrusaderLevel=leaderLevel
 				gStates.cityMonsterQty[darkCrusader.terrainHex]={[darkCrusader.token]="alive",extra={}}
-				gStates.monsterPlayLocation[darkCrusader.token]={-55.3,3.0,6.7}
+				gStates.monsterPlayLocation[darkCrusader.token]=scenarioDiscGridArmyPosition("DarkCrusader",1) or {-55.3,3.0,6.7}
 			end
 		end
 		if expectDark or expectElem then

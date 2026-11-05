@@ -82,11 +82,11 @@ function factionLeaderDeploy(cityGUID,ultimateCitiesPlayed,obj)
 	if leader==elementalist then
 		runtimeMapSetHexFeature(obj.guid,"center","hidden valley")
 		gStates.hexOverideSave[obj.guid].center="hidden valley"
-		gStates.monsterPlayLocation[elementalist.token]={-55.3,1.5,15.3}
+		gStates.monsterPlayLocation[elementalist.token]=scenarioDiscGridArmyPosition("Elementalist",1) or {-55.3,1.5,15.3}
 	else
 		runtimeMapSetHexFeature(obj.guid,"center","necropolis")
 		gStates.hexOverideSave[obj.guid].center="necropolis"
-		gStates.monsterPlayLocation[darkCrusader.token]={-55.3,1.5,6.7}
+		gStates.monsterPlayLocation[darkCrusader.token]=scenarioDiscGridArmyPosition("DarkCrusader",1) or {-55.3,1.5,6.7}
 	end
 	return leaderLevel
 end

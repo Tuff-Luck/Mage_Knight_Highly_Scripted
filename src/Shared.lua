@@ -12,6 +12,77 @@ turnOrder={}
 gStates={}
 warningColor={1,0.8,0.2}
 
+-- Shared setup-only staging grid. Recalculate from setup choices and the static grid
+-- config, never from saved positions of enemies temporarily moved to player combat areas.
+function scenarioDiscGridVolkareEnabled()
+	return gStates~=nil and gStates.volkareCampAsCity==true and gStates.removeLostLegionExpansion~=true and
+		gStates.gameScenario~="The War of Four" and gStates.gameScenario~="Volkare's Return" and
+		gStates.gameScenario~="Volkare's Return Blitz" and gStates.gameScenario~="Volkare's Quest"
+end
+
+function scenarioDiscGridLeaderPresence()
+	if gStates==nil or gStates.removeShadesOfTezlaMonsters==true then return false,false end
+	local scenario=gStates.gameScenario
+	local both=scenario=="Life and Death" or scenario=="The War of Four" or scenario=="Ultimate Conquest"
+	return both or scenario=="The Realm of the Dead Blitz",
+		both or scenario=="The Hidden Valley Blitz"
+end
+
+function scenarioDiscGridPosition(owner)
+	if scenarioDiscGrid==nil or gStates==nil then return nil end
+	local dark,elem=scenarioDiscGridLeaderPresence()
+	local leaders=dark or elem
+	local dragon=apocalypseDragonComponentsNeeded()==true
+	local volkareNeeded=scenarioDiscGridVolkareEnabled()
+	local cells={}
+	local controlLeft=scenarioDiscGrid.controlSide~="right"
+	if dragon then
+		local core=leaders and 2 or (controlLeft and 3 or 1)
+		cells.Death={core,1}
+		cells.Pestilence={core+1,1}
+		cells.Famine={core,2}
+		cells.War={core+1,2}
+		local outer=leaders and (controlLeft and 1 or 4) or (controlLeft and 2 or 3)
+		cells.Control={outer,1}
+		if volkareNeeded then cells.Volkare={outer,2} end
+		if leaders then
+			local col=controlLeft and 4 or 1
+			if dark then cells.DarkCrusader={col,1} end
+			if elem then cells.Elementalist={col,2} end
+		end
+	elseif leaders then
+		if volkareNeeded then
+			if dark then cells.DarkCrusader={4,1} end
+			if elem then cells.Elementalist={4,2} end
+			cells.Volkare={3,2}
+		else
+			-- A leader-only pair is horizontal; combined layouts stack them vertically.
+			if dark then cells.DarkCrusader={elem and 3 or 4,1} end
+			if elem then cells.Elementalist={4,1} end
+		end
+	elseif volkareNeeded then
+		cells.Volkare={4,2}
+	end
+	local cell=cells[owner]
+	if cell==nil then return nil end
+	local o=scenarioDiscGrid.topRight
+	return {o[1]-(4-cell[1])*scenarioDiscGrid.spacingX,o[2],o[3]-(cell[2]-1)*scenarioDiscGrid.spacingZ}
+end
+
+function scenarioDiscGridArmyPosition(owner,index,height)
+	local disc=scenarioDiscGridPosition(owner)
+	if disc==nil then return nil end
+	local config=scenarioDiscGrid
+	index=math.max(1,math.floor(tonumber(index) or 1))-1
+	local perRow=config.armyTokensPerRow
+	local row=math.floor(index/perRow)
+	local slot=index%perRow
+	local horizontal=slot==0 and 0 or (slot%2==1 and 1 or -1)*math.ceil(slot/2)
+	local outward=disc[3]==config.topRight[3] and 1 or -1
+	return {disc[1]+horizontal*config.armyTokenSpacingX,height or 1.5,
+		disc[3]+outward*(config.armyOffsetZ+row*config.armyRowSpacingZ)}
+end
+
 ---@overload fun(scope: "SetupGame", container: any, params: table): any
 function safeTakeObject(scope, container, params)
 	local ref=type(params)=="table" and (params.guid or params.index) or "unknown"

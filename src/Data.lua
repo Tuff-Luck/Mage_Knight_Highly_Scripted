@@ -32,6 +32,18 @@ apocalypseDragon={	model="105141",
 apocalypseDragonColoredHeads={"Famine","Death","Pestilence","War"}
 apocalypseDragonAirborneHeads={"War","Death","Famine","Pestilence"}
 
+-- Tweak these values after measuring the physical table. Anchor: column 4, row 1.
+scenarioDiscGrid={
+	topRight={-51.93,0.97,16.00},
+	spacingX=9.0,
+	spacingZ=9.0,
+	controlSide="left", -- "left" or "right"; leaders use the opposite outer column
+	armyOffsetZ=5.0,
+	armyTokenSpacingX=1.65,
+	armyRowSpacingZ=2.25,
+	armyTokensPerRow=5
+}
+
 GUID={	deck={	artifact="ac75c4", 
 				spell="e4372a", 
 				action="e926ba", 

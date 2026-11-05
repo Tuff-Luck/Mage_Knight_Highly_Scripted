@@ -685,10 +685,13 @@ function apocalypseIsHereSetup()
 	for i,name in ipairs(names) do
 		local data=horsemanData[name]
 		local x=-61.00-((i-1)*3)
+		local gridPos=scenarioDiscGridArmyPosition(name,1)
+		local cardPos=gridPos~=nil and {gridPos[1],0.98,gridPos[3]} or {x,0.98,0.40}
+		local tokenPos={cardPos[1],1.12,cardPos[3]}
 		gStates.horsemen[name]={level=level,tokenGUID=data.tokenGUID,revealed=false,defeated=false,retired=false,sitesDestroyed=0,mapSlot=i,revealIndex=i}
 		if componentBag~=nil then
-			componentBag.takeObject({guid=data.cardGUID,position={x,0.98,0.40},rotation={0,180,180},smooth=false})
-			local token=componentBag.takeObject({guid=data.tokenGUID,position={x,1.12,0.40},rotation={0,180,180},smooth=false})
+			componentBag.takeObject({guid=data.cardGUID,position=cardPos,rotation={0,180,180},smooth=false})
+			local token=componentBag.takeObject({guid=data.tokenGUID,position=tokenPos,rotation={0,180,180},smooth=false})
 			if token~=nil then token.setName("") token.unlock() end
 		end
 	end

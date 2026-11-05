@@ -613,6 +613,7 @@ function volkareArmy()
 							{2,2,4,4},{2,2,4,5},{2,2,4,6},{2,2,4,8},{2,2,4,10},{3,1,4,10},{4,0,4,10},{4,0,4,11},{4,0,4,12},{4,0,4,13},{4,0,4,14},{4,0,5,13},{4,0,6,12},{4,1,6,12},{4,2,6,12}}
 		--{no. White Units, No. Gray Units, No. Red Units, No. Green Units}(Level 4 to 15 shown, other levels made by adding levels togeather)
 		local PugDraw={monsterPiles.white,monsterPiles.gray,monsterPiles.red,monsterPiles.green}
+		local armyIndex=0
 		--{White Unit Bag, Gray Unit Bag, Red Unit Bag, Green Unit Bag}
 		if (gStates.volkareLevel<=20 and gStates.removeShadesOfTezlaMonsters==true and gStates.removeLostLegionExpansion==true) or (gStates.volkareLevel<=30 and (gStates.removeShadesOfTezlaMonsters~=true or gStates.removeLostLegionExpansion==false)) or (gStates.removeShadesOfTezlaMonsters~=true and gStates.removeLostLegionExpansion==false) then
 			for i=1, 4, 1 do
@@ -623,10 +624,12 @@ function volkareArmy()
 				for x=1, LoopsNeeded, 1 do
 					if x==LoopsNeeded then levelConverted=leftover end
 					for a=1, VolkareArmy[levelConverted][i], 1 do
-						local params={position={0, 0, 0}, rotation={0, 180, 180}}
-						params.position[1]=getObjectFromGUID(dummyBoard).getPosition()[1]+(0.2*a)+(2.2*x)+2.5
-						params.position[2]=getObjectFromGUID(dummyBoard).getPosition()[2]+(0.2*a)+1
-						params.position[3]=getObjectFromGUID(dummyBoard).getPosition()[3]+(0.2*a)+(2.2*i)-2.9
+						armyIndex=armyIndex+1
+						local params={position=scenarioDiscGridArmyPosition("Volkare",armyIndex,1.5),rotation={0,180,180}}
+						if params.position==nil then
+							local boardPos=getObjectFromGUID(dummyBoard).getPosition()
+							params.position={boardPos[1]+(0.2*a)+(2.2*x)+2.5,boardPos[2]+(0.2*a)+1,boardPos[3]+(0.2*a)+(2.2*i)-2.9}
+						end
 						local obj2=getObjectFromGUID(PugDraw[i]).takeObject(params)
 						gStates.cityMonsterQty[volkare.model][obj2.guid]="alive"
 						gStates.monsterPlayLocation[obj2.guid]={params.position[1], params.position[2], params.position[3]}

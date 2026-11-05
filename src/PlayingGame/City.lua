@@ -30,13 +30,30 @@ function refreshCityScriptZones()
 			local cityPos=cityCardObj.getPosition()
 			zoneObj.setScale(zoneScale)
 			zoneObj.setPosition({cityPos[1], 1.4, cityPos[3]})
-			local count=0
-			for monsterGUID, _ in pairs(cityMonsters) do
+			local owner=zoneGUID==darkCrusader.discZone and "DarkCrusader" or
+				(zoneGUID==elementalist.discZone and "Elementalist" or
+				(zoneGUID==volkare.discZone and "Volkare" or nil))
+			local tokens={}
+			for monsterGUID,_ in pairs(cityMonsters) do
 				if monsterGUID~="shieldNeeded" and gStates.monsterPlayLocation[monsterGUID]~=nil and getObjectFromGUID(monsterGUID)~=nil then
+					tokens[#tokens+1]=monsterGUID
+				end
+			end
+			table.sort(tokens)
+			local leader=owner=="DarkCrusader" and darkCrusader or (owner=="Elementalist" and elementalist or nil)
+			if leader~=nil then
+				for i,guid in ipairs(tokens) do
+					if guid==leader.token then table.remove(tokens,i) table.insert(tokens,1,guid) break end
+				end
+			end
+			for index,monsterGUID in ipairs(tokens) do
+				local gridPos=owner~=nil and scenarioDiscGridArmyPosition(owner,index,1.5) or nil
+				if gridPos~=nil then
+					gStates.monsterPlayLocation[monsterGUID]=gridPos
+				else
 					gStates.monsterPlayLocation[monsterGUID][1]=cityPos[1]+monsterOffset[1]
-					gStates.monsterPlayLocation[monsterGUID][2]=1+(0.6*count)
-					gStates.monsterPlayLocation[monsterGUID][3]=cityPos[3]+monsterOffset[2]+(0.4*count)
-					count=count+1
+					gStates.monsterPlayLocation[monsterGUID][2]=1+(0.6*(index-1))
+					gStates.monsterPlayLocation[monsterGUID][3]=cityPos[3]+monsterOffset[2]+(0.4*(index-1))
 				end
 			end
 		end
@@ -158,7 +175,15 @@ cityControlLockedByReveal=function(cityGUID, terrainGUID)
 		local leader=cityGUID==elementalist.terrainHex and elementalist or darkCrusader
 		local token=getObjectFromGUID(leader.token)
 		local disc=getObjectFromGUID(leader.disc)
-		if token~=nil and disc~=nil then revealed=math.floor(token.getPosition()[1]-disc.getPosition()[1])~=-4 end
+		if token~=nil and disc~=nil then
+			local home=gStates.monsterPlayLocation~=nil and gStates.monsterPlayLocation[leader.token] or nil
+			if home~=nil then
+				local pos=token.getPosition()
+				revealed=((pos[1]-home[1])^2+(pos[3]-home[3])^2)>0.64
+			else
+				revealed=math.floor(token.getPosition()[1]-disc.getPosition()[1])~=-4
+			end
+		end
 	elseif type(data)=="table" then
 		for monsterGUID, state in pairs(data) do
 			if monsterGUID~="extra" then
@@ -397,10 +422,19 @@ cityGarrisonBasePosition=function(cityGUID, ownerGUID, megapolis)
 	local currentLeader=factionLeaderForCity(cityGUID)
 	if cityGUID==volkare.terrainHex then
 		local disc=getObjectFromGUID(volkare.disc)
-		if disc~=nil then local pos=disc.getPosition() return {pos[1]+5.5, 1.0, pos[3]-1.3}, {0,180,180} end
+		if disc~=nil then
+			local target=scenarioDiscGridArmyPosition("Volkare",1,1.5)
+			if target~=nil then return target,{0,180,180} end
+			local pos=disc.getPosition() return {pos[1]+5.5,1.0,pos[3]-1.3},{0,180,180}
+		end
 	elseif currentLeader~=nil then
 		local disc=getObjectFromGUID(currentLeader.disc)
-		if disc~=nil then local pos=disc.getPosition() return {pos[1]-5.5, 1.0, pos[3]-1.3}, {0,180,0} end
+		if disc~=nil then
+			local key=currentLeader==darkCrusader and "DarkCrusader" or "Elementalist"
+			local target=scenarioDiscGridArmyPosition(key,2,1.5)
+			if target~=nil then return target,{0,180,0} end
+			local pos=disc.getPosition() return {pos[1]-5.5,1.0,pos[3]-1.3},{0,180,0}
+		end
 	end
 	local cardGUID=gStates.cityCard[ownerGUID or cityGUID]
 	local card=cardGUID~=nil and getObjectFromGUID(cardGUID) or nil
@@ -437,7 +471,12 @@ cityArmyPlace=function(cityGUID, cityLevel, basePosition, rotation, startDelay, 
 			local tokenStack=stack
 			safeWaitFrames("City",function() tokenRefill() end, math.max(1, tokenDelay-4))
 			safeWaitFrames("City",function()
-				local pos={basePosition[1], basePosition[2]+(0.2*tokenStack), basePosition[3]+(0.4*tokenStack)}
+				local pos={basePosition[1],basePosition[2]+(0.2*tokenStack),basePosition[3]+(0.4*tokenStack)}
+				local key=cityGUID==darkCrusader.terrainHex and "DarkCrusader" or
+					(cityGUID==elementalist.terrainHex and "Elementalist" or
+					(cityGUID==volkare.terrainHex and "Volkare" or nil))
+				local gridPos=key~=nil and scenarioDiscGridArmyPosition(key,tokenStack+(key=="Volkare" and 0 or 1),1.5) or nil
+				if gridPos~=nil then pos=gridPos end
 				local token=takeCityDefender(cityGUID, tokenType, pos, rotation)
 				if token~=nil and gStates.cityMonsterQty[ownerGUID]~=nil then gStates.cityMonsterQty[ownerGUID][token.guid]="alive" end
 			end, tokenDelay)

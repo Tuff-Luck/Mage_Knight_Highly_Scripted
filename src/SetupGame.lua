@@ -35,9 +35,7 @@ end
 --Volkare's Camp terrain now lives permanently in the City tile bag. Keep one authoritative
 --eligibility check so terrain filtering and the visible support setup cannot disagree.
 local function setupUsesVolkareCampCity()
-	return gStates~=nil and gStates.volkareCampAsCity==true and gStates.removeLostLegionExpansion~=true and
-		gStates.gameScenario~="The War of Four" and gStates.gameScenario~="Volkare's Return" and
-		gStates.gameScenario~="Volkare's Return Blitz" and gStates.gameScenario~="Volkare's Quest"
+	return scenarioDiscGridVolkareEnabled()
 end
 
 --Rise of the Forgemaster remains additive. Track its actual outstanding card-pack merges so fast
@@ -508,7 +506,7 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 		--Deploy Volkare City support pieces whenever the Camp is eligible. These stay visible even if the hidden terrain draw does not select the Camp tile.
 		if setupUsesVolkareCampCity() then
 			gStates.volkareCampSupportReady=false
-			getObjectFromGUID(GUID.bag.volkare).takeObject({rotation={0.0, 180.0, 0.0}, position={-57.75, 0.98, -2.95}, smooth=false, guid=volkare.disc})--Volkares Mat
+			getObjectFromGUID(GUID.bag.volkare).takeObject({rotation={0.0, 180.0, 0.0}, position=scenarioDiscGridPosition("Volkare"), smooth=false, guid=volkare.disc})--Volkare staging disc
 			getObjectFromGUID(GUID.bag.volkare).takeObject({rotation={0.0, 180.0, 0.0}, position={-62.2, 0.98, 0.5}, smooth=false, guid=volkare.terrainHex})--Volkare's Camp Hex
 			local campCityCardGUID=cityScriptZones[volkare.discZone].cityCard
 			safeWaitCondition("SetupGame",function()
@@ -517,6 +515,8 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 				local bag=getObjectFromGUID(GUID.bag.volkare)
 				campHex.lock()
 				local p=cityCard.getPosition()
+				local zone=getObjectFromGUID(volkare.discZone)
+				if zone~=nil then zone.setPosition({p[1],1.4,p[3]}) end
 				local reminder=safeTakeObject("SetupGame",bag,{rotation={0.0,180.0,0.0},position={p[1]+2.2,1.5,p[3]+2.2},smooth=false,guid=GUID.bag.volkareReminder})
 				if reminder==nil then error("SetupGame could not deploy the Volkare Camp reminder.",2) end
 				gStates.volkareCampSupportReady=true
