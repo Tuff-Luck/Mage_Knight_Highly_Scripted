@@ -647,7 +647,7 @@ megapolisRemoveGraveyardMarker=function(terrainObj,hexLocation)
 	for _,obj in pairs(map.getObjects()) do
 		if obj.guid~=terrainObj.guid and monsterPugs[obj.guid]==nil and terrainTiles[obj.guid]==nil then
 			local pos=obj.getPosition()
-			if ((pos[1]-center[1])^2)+((pos[3]-center[2])^2)<0.35 and (obj.type=="Custom_Tile" or obj.tag=="Custom_Tile") then obj.destruct() break end
+			if pos~=nil and ((pos[1]-center[1])^2)+((pos[3]-center[2])^2)<0.35 and (obj.type=="Custom_Tile" or obj.tag=="Custom_Tile") then obj.destruct() break end
 		end
 	end
 end
@@ -1197,11 +1197,13 @@ moveCityCardExploreGroup=function(group, desiredLocation, movedCityZones, mapObj
 			if movedCityZones~=nil then movedCityZones[zoneGUID]=true end
 			for _, cityCardObj in pairs(zoneObj.getObjects()) do
 				if movedObjects[cityCardObj.guid]~=true and cityCardObj.guid~='3d4319' and cityCardObj.guid~='519f96' and cityCardExploreGroupObject(cityCardObj)==true then
-					movedObjects[cityCardObj.guid]=true
 					local originalPos=cityCardObj.getPosition()
-					local relocation={originalPos[1]+deltaX, originalPos[2], originalPos[3]+deltaZ}
-					cityCardObj.setPositionSmooth(relocation)
-					if gStates.monsterPlayLocation[cityCardObj.guid]~=nil then gStates.monsterPlayLocation[cityCardObj.guid]=relocation end
+					if originalPos~=nil then
+						movedObjects[cityCardObj.guid]=true
+						local relocation={originalPos[1]+deltaX, originalPos[2], originalPos[3]+deltaZ}
+						cityCardObj.setPositionSmooth(relocation)
+						if gStates.monsterPlayLocation[cityCardObj.guid]~=nil then gStates.monsterPlayLocation[cityCardObj.guid]=relocation end
+					end
 				end
 			end
 			local zonePos=zoneObj.getPosition()
@@ -1251,7 +1253,7 @@ function relocateCityCardForExplore(pos, movedCityZones)
 		local cityZone=cityCardTest[mightBeCityCard.guid]
 		if cityZone~=nil and (movedCityZones==nil or movedCityZones[cityZone]~=true) then
 			local cardPos=mightBeCityCard.getPosition()
-			if math.sqrt(((posX-cardPos[1])^2)+((posZ-cardPos[3])^2))<3 then return positionCityCardForExplore(cityZone, pos, movedCityZones) end
+			if cardPos~=nil and math.sqrt(((posX-cardPos[1])^2)+((posZ-cardPos[3])^2))<3 then return positionCityCardForExplore(cityZone, pos, movedCityZones) end
 		end
 	end
 	return false
