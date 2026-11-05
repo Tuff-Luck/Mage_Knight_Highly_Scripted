@@ -13,6 +13,7 @@
 <Include src="UI/ObjectRotating.xml" />
 <Include src="UI/ResourceTracker.xml" />
 <Include src="UI/CombatEnemyPanel.xml" />
+<Include src="UI/CombatCalculatorHelp.xml" />
 <Include src="UI/Setup.xml" />
 <Include src="UI/GameReminder.xml" />
 <Include src="UI/EndReminder.xml" />
