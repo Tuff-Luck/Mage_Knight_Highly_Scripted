@@ -31,6 +31,7 @@ terrainTiles={}
 skillTokens={}
 function scriptObjectId(obj) return obj.getName and obj.getName() end
 function isShieldObject(_) return false end
+publishPublicUICallbacks=function(_) end
 dofile("src/PlayingGame/DeckCycle.lua")
 dofile("src/PlayingGame/PlayerBoard/CardFlow.lua")
 dofile("src/PlayingGame/MapTokens.lua")
