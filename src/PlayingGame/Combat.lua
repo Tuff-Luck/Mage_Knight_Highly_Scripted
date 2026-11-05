@@ -3241,5 +3241,6 @@ publishPublicUICallbacks({
 	zigguratPyramidInteract=zigguratPyramidInteract,
 	attachEnemy=attachEnemy,
 	attackLocation=attackLocation,
-	summonMonster=summonMonster
+	summonMonster=summonMonster,
+	combatDefeatMarkerNoop=combatDefeatMarkerNoop
 })
