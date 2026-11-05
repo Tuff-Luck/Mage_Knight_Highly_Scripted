@@ -2270,6 +2270,12 @@ function resourceTracker(player, mouseButton, id)
         return
     end
 	if mouseButton=="-1" then--and legalPlayerCheck(player.color, turnOrder[gStates.turnNumber].seatPos)==true then
+        -- Help is independent of the combat display, so it never triggers a rescan.
+        if id=="DisplayCombatCalculatorHelp" or id=="CloseCombatCalculatorHelp" then
+            local visible=UI.getAttribute("CombatCalculatorHelp","active")=="true"
+            UI.setAttribute("CombatCalculatorHelp","active",visible and "false" or "true")
+            return
+        end
 		--expand Resource Tracker
 		if id=="DisplayResourceTrackerDetails" then
 			local temp="245"
@@ -2277,6 +2283,7 @@ function resourceTracker(player, mouseButton, id)
 			if tonumber(UI.getAttribute("ResourceTracker", "height"))>200 then temp="35" temp2="false" end
 			UI.setAttribute("ResourceTracker", "height", temp)
 			UI.setAttribute("ResourceTrackerDetail", "active", temp2)
+            if temp2=="false" then UI.setAttribute("CombatCalculatorHelp","active","false") end
             resourceCardsPanelChanged(temp2=="true")
 			UI.setAttribute("ResourceTrackerDetail", "height", "210")
 			UI.setAttribute("MoveCosts", "active", "false")
