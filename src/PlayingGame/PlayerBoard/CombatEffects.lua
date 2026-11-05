@@ -13,7 +13,7 @@ function combatEffectNearestEnemy(cardArea,monsters,enemyAreaOf,overlapOf)
             local area=overlapOf(cardArea,enemyArea)
             local distance=(cardArea.x-enemyArea.x)^2+(cardArea.z-enemyArea.z)^2
             if area>bestArea or (area==bestArea and (distance<bestDistance
-                or (distance==bestDistance and guid<best.guid))) then
+                or (distance==bestDistance and best~=nil and guid<best.guid))) then
                 best,bestArea,bestDistance=enemy,area,distance
             end
         end
