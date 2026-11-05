@@ -1408,6 +1408,7 @@ function coralSetAsideQuickWitted()
 					for _, cardData in pairs(obj.getObjects()) do
 						if cardData.guid==cardGUID then
 							local deckPos=obj.getPosition()
+							if deckPos==nil then return end
 							safeTakeObject("PlayerBoard.CardFlow",obj,{guid=cardGUID, position={deckPos[1]+3, deckPos[2], deckPos[3]}, rotation={0, 180, 180}, smooth=false, callback_function=function(card)
 								safeWaitFrames("PlayerBoard.CardFlow",function()
 									local currentDeck=nil
