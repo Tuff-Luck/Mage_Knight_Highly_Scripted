@@ -478,7 +478,9 @@ function separateCombinedUnitsInArea(seatPos)
 	for _, unitObj in pairs(unitArea.getObjects()) do
 		if unitObj.type=="Deck" and unitObj.getQuantity()==2 then
 			local pos=unitObj.getPosition()
-			unitObj.takeObject({position={pos[1]+0.8, pos[2]+0.1, pos[3]+0.8}})
+			if pos~=nil then
+				unitObj.takeObject({position={pos[1]+0.8, pos[2]+0.1, pos[3]+0.8}})
+			end
 		end
 	end
 end
