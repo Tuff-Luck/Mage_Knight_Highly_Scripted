@@ -586,8 +586,8 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 		end
 		if apocalypseRewardSupportNeeded==true then
 			local apocalypseBag=getObjectFromGUID(GUID.bag.apocalypseDragon)
-			setupDeployLockedReferenceCard(apocalypseBag,"c584ff",{-53.50,0.98,21.50},"Apocalypse Cult Reward Card")
-			setupDeployLockedReferenceCard(apocalypseBag,"071cc6",{-49.50,0.98,21.50},"Council of the Void Reward Card")
+			setupDeployLockedReferenceCard(apocalypseBag,"c584ff",{-55.20, 0.98, 36.70},"Apocalypse Cult Reward Card")
+			setupDeployLockedReferenceCard(apocalypseBag,"071cc6",{-58.80, 0.98, 36.70},"Council of the Void Reward Card")
 		end
 
 		--The Apocalypse systems share the same infinite Neutral Shield bag.

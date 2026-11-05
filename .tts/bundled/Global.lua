@@ -32270,40 +32270,45 @@ local cityCardExploreSpaceFree, findCityCardPosition, moveCityCardExploreGroup, 
 --Keep City scripting zones and stored defender return positions aligned with their City cards.
 --City cards only move during City/map bookkeeping, so this should not run on ordinary UI refreshes.
 function refreshCityScriptZones()
-	for _, cityDetails in pairs(cityScriptZones) do
+	for _,cityDetails in pairs(cityScriptZones) do
 		if gStates.cityCard[cityDetails.cityGUID]~=nil then cityDetails.cityCard=gStates.cityCard[cityDetails.cityGUID] end
 	end
-	for zoneGUID, cityDetails in pairs(cityScriptZones) do
+	for zoneGUID,cityDetails in pairs(cityScriptZones) do
 		local zoneObj=getObjectFromGUID(zoneGUID)
 		local cityCardObj=getObjectFromGUID(cityDetails.cityCard)
 		local cityMonsters=gStates.cityMonsterQty[cityDetails.cityGUID]
-		if zoneObj~=nil and cityCardObj~=nil and cityMonsters~=nil and (cityMonsters.extra.megapolisPair==nil or cityMonsters.extra.megapolisPair~=cityDetails.cityGUID) then
-			local zoneScale={x=4.6, y=1, z=3.3}
-			local monsterOffset={1.15, -0.7}
-			if zoneGUID==volkare.discZone then zoneScale={x=7.5, y=1, z=7.5} monsterOffset={5.5, -1}
-			elseif zoneGUID==darkCrusader.discZone or zoneGUID==elementalist.discZone then zoneScale={x=7.5, y=1, z=7.5} monsterOffset={-5.5, -1} end
-			if cityCardObj.getScale()[1]==1.5 then zoneScale={x=4.6, y=1, z=4.6} end
+		if zoneObj~=nil and cityCardObj~=nil and cityMonsters~=nil and
+			(cityMonsters.extra.megapolisPair==nil or cityMonsters.extra.megapolisPair~=cityDetails.cityGUID) then
+			local zoneScale={x=4.6,y=1,z=3.3}
+			local monsterOffset={1.15,-0.7}
+			if zoneGUID==volkare.discZone then zoneScale={x=7.5,y=1,z=7.5} monsterOffset={5.5,-1}
+			elseif zoneGUID==darkCrusader.discZone or zoneGUID==elementalist.discZone then
+				zoneScale={x=7.5,y=1,z=7.5} monsterOffset={-5.5,-1}
+			end
+			if cityCardObj.getScale()[1]==1.5 then zoneScale={x=4.6,y=1,z=4.6} end
 			local cityPos=cityCardObj.getPosition()
-			zoneObj.setScale(zoneScale)
-			zoneObj.setPosition({cityPos[1], 1.4, cityPos[3]})
 			local owner=zoneGUID==darkCrusader.discZone and "DarkCrusader" or
 				(zoneGUID==elementalist.discZone and "Elementalist" or
 				(zoneGUID==volkare.discZone and "Volkare" or nil))
+			local zonePosition,gridScale=nil,nil
+			if owner~=nil then zonePosition,gridScale=scenarioDiscGridZoneTransform(owner) end
+			if gridScale~=nil then zoneScale=gridScale end
+			zoneObj.setScale(zoneScale)
+			zoneObj.setPosition(zonePosition or {cityPos[1],1.4,cityPos[3]})
 			local tokens={}
 			for monsterGUID,_ in pairs(cityMonsters) do
-				if monsterGUID~="shieldNeeded" and gStates.monsterPlayLocation[monsterGUID]~=nil and getObjectFromGUID(monsterGUID)~=nil then
-					tokens[#tokens+1]=monsterGUID
-				end
+				if monsterGUID~="shieldNeeded" and gStates.monsterPlayLocation[monsterGUID]~=nil and
+					getObjectFromGUID(monsterGUID)~=nil then tokens[#tokens+1]=monsterGUID end
 			end
-			table.sort(tokens)
 			local leader=owner=="DarkCrusader" and darkCrusader or (owner=="Elementalist" and elementalist or nil)
-			if leader~=nil then
-				for i,guid in ipairs(tokens) do
-					if guid==leader.token then table.remove(tokens,i) table.insert(tokens,1,guid) break end
-				end
-			end
+			local orders=gStates.scenarioDiscArmyOrder or {}
+			table.sort(tokens,function(a,b)
+				local rankA=leader~=nil and a==leader.token and 0 or (orders[a] or math.huge)
+				local rankB=leader~=nil and b==leader.token and 0 or (orders[b] or math.huge)
+				return rankA==rankB and tostring(a)<tostring(b) or rankA<rankB
+			end)
 			for index,monsterGUID in ipairs(tokens) do
-				local gridPos=owner~=nil and scenarioDiscGridArmyPosition(owner,index,1.5) or nil
+				local gridPos=owner~=nil and scenarioDiscGridArmyPosition(owner,index,1.5,#tokens) or nil
 				if gridPos~=nil then
 					gStates.monsterPlayLocation[monsterGUID]=gridPos
 				else
@@ -32687,7 +32692,7 @@ cityGarrisonBasePosition=function(cityGUID, ownerGUID, megapolis)
 		local disc=getObjectFromGUID(currentLeader.disc)
 		if disc~=nil then
 			local key=currentLeader==darkCrusader and "DarkCrusader" or "Elementalist"
-			local target=scenarioDiscGridArmyPosition(key,2,1.5)
+			local target=scenarioDiscGridArmyPosition(key,2,1.5,2)
 			if target~=nil then return target,{0,180,0} end
 			local pos=disc.getPosition() return {pos[1]-5.5,1.0,pos[3]-1.3},{0,180,0}
 		end
@@ -32717,6 +32722,15 @@ cityArmyPlace=function(cityGUID, cityLevel, basePosition, rotation, startDelay, 
 	end
 	local delay=startDelay or 0
 	local stack=stackIndex or 0
+	local key=cityGUID==darkCrusader.terrainHex and "DarkCrusader" or
+		(cityGUID==elementalist.terrainHex and "Elementalist" or
+		(cityGUID==volkare.terrainHex and "Volkare" or nil))
+	local total=key=="Volkare" and 0 or (key~=nil and 1 or 0)
+	if key~=nil then
+		for typeIndex=1,6 do total=total+(army[typeIndex] or 0) end
+		if gStates.gameScenario=="The Chaos Rift" then total=total+1 end
+		gStates.scenarioDiscArmyOrder=gStates.scenarioDiscArmyOrder or {}
+	end
 	for tokenType=1, 6 do
 		local quantity=army[tokenType] or 0
 		if tokenType==3 and gStates.gameScenario=="The Chaos Rift" then quantity=quantity+1 end
@@ -32731,10 +32745,14 @@ cityArmyPlace=function(cityGUID, cityLevel, basePosition, rotation, startDelay, 
 				local key=cityGUID==darkCrusader.terrainHex and "DarkCrusader" or
 					(cityGUID==elementalist.terrainHex and "Elementalist" or
 					(cityGUID==volkare.terrainHex and "Volkare" or nil))
-				local gridPos=key~=nil and scenarioDiscGridArmyPosition(key,tokenStack+(key=="Volkare" and 0 or 1),1.5) or nil
+				local slot=tokenStack+(key=="Volkare" and 0 or 1)
+				local gridPos=key~=nil and scenarioDiscGridArmyPosition(key,slot,1.5,total) or nil
 				if gridPos~=nil then pos=gridPos end
-				local token=takeCityDefender(cityGUID, tokenType, pos, rotation)
-				if token~=nil and gStates.cityMonsterQty[ownerGUID]~=nil then gStates.cityMonsterQty[ownerGUID][token.guid]="alive" end
+				local token=takeCityDefender(cityGUID,tokenType,pos,rotation)
+				if token~=nil then
+					if key~=nil then gStates.scenarioDiscArmyOrder[token.guid]=slot end
+					if gStates.cityMonsterQty[ownerGUID]~=nil then gStates.cityMonsterQty[ownerGUID][token.guid]="alive" end
+				end
 			end, tokenDelay)
 		end
 	end
@@ -41459,28 +41477,55 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 			onObjectRandomize({type="Dice"})
 		end
 
-		--Deploy Volkare City support pieces whenever the Camp is eligible. These stay visible even if the hidden terrain draw does not select the Camp tile.
+		--Deploy Volkare's Camp support stack on the Volkare disc, bottom to top:
+		--Camp Hex, Reminder bag, then die. Do not mark readiness until all three exist.
 		if setupUsesVolkareCampCity() then
 			gStates.volkareCampSupportReady=false
-			getObjectFromGUID(GUID.bag.volkare).takeObject({rotation={0.0, 180.0, 0.0}, position=scenarioDiscGridPosition("Volkare"), smooth=false, guid=volkare.disc})--Volkare staging disc
-			getObjectFromGUID(GUID.bag.volkare).takeObject({rotation={0.0, 180.0, 0.0}, position={-62.2, 0.98, 0.5}, smooth=false, guid=volkare.terrainHex})--Volkare's Camp Hex
-			local campCityCardGUID=cityScriptZones[volkare.discZone].cityCard
+			local volkareBag=getObjectFromGUID(GUID.bag.volkare)
+			local discPosition=scenarioDiscGridPosition("Volkare")
+			local stack=scenarioDiscGrid.volkareCampStackY
+			if volkareBag==nil or discPosition==nil then error("SetupGame missing Volkare Camp staging objects.",2) end
+			local disc=safeTakeObject("SetupGame",volkareBag,{
+				guid=volkare.disc,position=discPosition,rotation={0,180,0},smooth=false})
+			if disc==nil then error("SetupGame could not deploy Volkare's Camp disc.",2) end
+			local campHex=safeTakeObject("SetupGame",volkareBag,{
+				guid=volkare.terrainHex,
+				position={discPosition[1],discPosition[2]+stack.hex,discPosition[3]},
+				rotation={0,180,0},smooth=false})
+			if campHex==nil then error("SetupGame could not deploy Volkare's Camp hex.",2) end
 			safeWaitCondition("SetupGame",function()
-				local campHex=getObjectFromGUID(volkare.terrainHex)
-				local cityCard=getObjectFromGUID(campCityCardGUID)
+				local currentDisc=getObjectFromGUID(volkare.disc)
+				local currentHex=getObjectFromGUID(volkare.terrainHex)
 				local bag=getObjectFromGUID(GUID.bag.volkare)
-				campHex.lock()
-				local p=cityCard.getPosition()
+				if currentDisc==nil or currentHex==nil or bag==nil then error("SetupGame lost Volkare Camp support during setup.",2) end
+				local p=currentDisc.getPosition()
+				currentHex.setPosition({p[1],p[2]+stack.hex,p[3]})
+				currentHex.lock()
 				local zone=getObjectFromGUID(volkare.discZone)
-				if zone~=nil then zone.setPosition({p[1],1.4,p[3]}) end
-				local reminder=safeTakeObject("SetupGame",bag,{rotation={0.0,180.0,0.0},position={p[1]+2.2,1.5,p[3]+2.2},smooth=false,guid=GUID.bag.volkareReminder})
-				if reminder==nil then error("SetupGame could not deploy the Volkare Camp reminder.",2) end
+				if zone~=nil then
+					local pos,scale=scenarioDiscGridZoneTransform("Volkare")
+					zone.setPosition(pos or {p[1],1.4,p[3]})
+					if scale~=nil then zone.setScale(scale) end
+				end
+				local reminder=safeTakeObject("SetupGame",bag,{
+					guid=GUID.bag.volkareReminder,rotation={0,180,0},
+					position={p[1],p[2]+stack.reminder,p[3]},smooth=false})
+				if reminder==nil then error("SetupGame could not deploy Volkare's reminder bag.",2) end
+				reminder.lock()
+				local die=safeTakeObject("SetupGame",bag,{
+					guid=GUID.object.volkareDie,rotation={0,45,0},
+					position={p[1],p[2]+stack.die,p[3]},smooth=false})
+				if die==nil then error("SetupGame could not deploy Volkare's die.",2) end
+				die.unlock()
 				gStates.volkareCampSupportReady=true
 			end,function()
-				return getObjectFromGUID(volkare.terrainHex)~=nil and getObjectFromGUID(campCityCardGUID)~=nil and getObjectFromGUID(GUID.bag.volkare)~=nil
+				return getObjectFromGUID(volkare.disc)~=nil and
+					getObjectFromGUID(volkare.terrainHex)~=nil and getObjectFromGUID(GUID.bag.volkare)~=nil
 			end,10,function() error("SetupGame timed out waiting for Volkare Camp support objects.",2) end)
-			safeTakeObject("SetupGame",getObjectFromGUID(GUID.bag.volkare),{rotation={0.0, 180.0, 0.0}, position={39.16, 0.97, 35.00}, callback_function=function(spawnedObject) spawnedObject.setScale({7.05, 1.00, 6.51}) end, smooth=false, guid="b2ec85"})--Volkare Level Chart
-			getObjectFromGUID(GUID.bag.volkare).takeObject({rotation={0.0,  45.0, 0.0}, position={-57.60, 1.57, -2.45}, smooth=false, guid=GUID.object.volkareDie})--Volker Dice
+			safeTakeObject("SetupGame",getObjectFromGUID(GUID.bag.volkare),{
+				rotation={0,180,0},position={39.16,0.97,35.00},
+				callback_function=function(spawnedObject) spawnedObject.setScale({7.05,1.00,6.51}) end,
+				smooth=false,guid="b2ec85"})--Volkare Level Chart
 		end
 
 		--display the help button
@@ -41515,8 +41560,8 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 		end
 		if apocalypseRewardSupportNeeded==true then
 			local apocalypseBag=getObjectFromGUID(GUID.bag.apocalypseDragon)
-			setupDeployLockedReferenceCard(apocalypseBag,"c584ff",{-53.50,0.98,21.50},"Apocalypse Cult Reward Card")
-			setupDeployLockedReferenceCard(apocalypseBag,"071cc6",{-49.50,0.98,21.50},"Council of the Void Reward Card")
+			setupDeployLockedReferenceCard(apocalypseBag,"c584ff",{-55.20, 0.98, 36.70},"Apocalypse Cult Reward Card")
+			setupDeployLockedReferenceCard(apocalypseBag,"071cc6",{-58.80, 0.98, 36.70},"Council of the Void Reward Card")
 		end
 
 		--The Apocalypse systems share the same infinite Neutral Shield bag.
@@ -43958,28 +44003,37 @@ function volkareArmy()
 							{2,2,4,4},{2,2,4,5},{2,2,4,6},{2,2,4,8},{2,2,4,10},{3,1,4,10},{4,0,4,10},{4,0,4,11},{4,0,4,12},{4,0,4,13},{4,0,4,14},{4,0,5,13},{4,0,6,12},{4,1,6,12},{4,2,6,12}}
 		--{no. White Units, No. Gray Units, No. Red Units, No. Green Units}(Level 4 to 15 shown, other levels made by adding levels togeather)
 		local PugDraw={monsterPiles.white,monsterPiles.gray,monsterPiles.red,monsterPiles.green}
-		local armyIndex=0
-		--{White Unit Bag, Gray Unit Bag, Red Unit Bag, Green Unit Bag}
+		-- Compute the full roster before spawning, so the first and last tokens always
+		-- occupy the two ends of the same five-unit army row.
 		if (gStates.volkareLevel<=20 and gStates.removeShadesOfTezlaMonsters==true and gStates.removeLostLegionExpansion==true) or (gStates.volkareLevel<=30 and (gStates.removeShadesOfTezlaMonsters~=true or gStates.removeLostLegionExpansion==false)) or (gStates.removeShadesOfTezlaMonsters~=true and gStates.removeLostLegionExpansion==false) then
-			for i=1, 4, 1 do
-				local LoopsNeeded=math.ceil(gStates.volkareLevel/30)
-				local levelConverted=math.floor(gStates.volkareLevel/LoopsNeeded)
-				local leftover=gStates.volkareLevel-(LoopsNeeded*levelConverted)+levelConverted
-				getObjectFromGUID(PugDraw[i]).shuffle()
-				for x=1, LoopsNeeded, 1 do
-					if x==LoopsNeeded then levelConverted=leftover end
-					for a=1, VolkareArmy[levelConverted][i], 1 do
-						armyIndex=armyIndex+1
-						local params={position=scenarioDiscGridArmyPosition("Volkare",armyIndex,1.5),rotation={0,180,180}}
-						if params.position==nil then
-							local boardPos=getObjectFromGUID(dummyBoard).getPosition()
-							params.position={boardPos[1]+(0.2*a)+(2.2*x)+2.5,boardPos[2]+(0.2*a)+1,boardPos[3]+(0.2*a)+(2.2*i)-2.9}
-						end
-						local obj2=getObjectFromGUID(PugDraw[i]).takeObject(params)
-						gStates.cityMonsterQty[volkare.model][obj2.guid]="alive"
-						gStates.monsterPlayLocation[obj2.guid]={params.position[1], params.position[2], params.position[3]}
+			local plan={}
+			local loopsNeeded=math.ceil(gStates.volkareLevel/30)
+			local levelConverted=math.floor(gStates.volkareLevel/loopsNeeded)
+			local leftover=gStates.volkareLevel-(loopsNeeded*levelConverted)+levelConverted
+			for pileIndex=1,4 do
+				for batch=1,loopsNeeded do
+					local level=batch==loopsNeeded and leftover or levelConverted
+					for number=1,VolkareArmy[level][pileIndex] do
+						plan[#plan+1]={pile=pileIndex,batch=batch,number=number}
 					end
 				end
+			end
+			gStates.scenarioDiscArmyOrder=gStates.scenarioDiscArmyOrder or {}
+			local shuffledPile=nil
+			for index,entry in ipairs(plan) do
+				local pile=getObjectFromGUID(PugDraw[entry.pile])
+				if shuffledPile~=entry.pile then pile.shuffle() shuffledPile=entry.pile end
+				local position=scenarioDiscGridArmyPosition("Volkare",index,1.5,#plan)
+				if position==nil then
+					local boardPos=getObjectFromGUID(dummyBoard).getPosition()
+					position={boardPos[1]+(0.2*entry.number)+(2.2*entry.batch)+2.5,
+						boardPos[2]+(0.2*entry.number)+1,
+						boardPos[3]+(0.2*entry.number)+(2.2*entry.pile)-2.9}
+				end
+				local obj=pile.takeObject({position=position,rotation={0,180,180}})
+				gStates.cityMonsterQty[volkare.model][obj.guid]="alive"
+				gStates.monsterPlayLocation[obj.guid]={position[1],position[2],position[3]}
+				gStates.scenarioDiscArmyOrder[obj.guid]=index
 			end
 		else
 			broadcastToAll("{en}Volkare's Army is too large with your setup. You will need to create it when you fight him for the first time{it}L'esercito di Volkare è troppo grande per questa preparazione. Dovrai crearlo al primo combattimento contro di lui.{ru}Армия Волкара слишком велика с вашей настройкой. Вам нужно будет создать ее, когда вы сразитесь с ним в первый раз{zh-tw}现在不用设置沃里卡的军队, 你将在首次和他交锋时设置这些{zh-cn}现在不用设置沃里卡的军队, 你将在首次和他交锋时设置这些{ko}볼케어의 군대 규모가 너무 큽니다. 플레이어가 직접 첫 전투 세팅을 준비해주세요.{es}El ejército de Volkare es demasiado grande con tu configuración. Necesitarás crearlo cuando luches contra él por primera vez.{fr}L'armée de Volkare est trop grande avec votre configuration. Vous devrez le créer lorsque vous le combattrez pour la première fois{pt-br}O exército de Volkare é muito grande com a sua configuração. Você precisará criá-lo quando você for lutar com ele pela primeira vez{de}Volkare's Armee ist mit deiner Aufstellung zu groß. Du musst sie erstellen, wenn du zum ersten Mal gegen ihn kämpfst.", warningColor)
@@ -44105,7 +44159,12 @@ local function deployTezlaComponents(entries,includeScenarioComponents)
 				rotation={0,180,entry.flip or 0},
 				smooth=false})
 			if obj==nil then error("SetupGame could not deploy Shades of Tezla component "..tostring(entry.guid),2) end
-			obj.lock()
+			-- Leader tokens are enemies in the outward army row, not locked board components.
+			if entry.guid==darkCrusader.token or entry.guid==elementalist.token then
+				obj.unlock()
+			else
+				obj.lock()
+			end
 		end
 	end
 end
@@ -44137,14 +44196,14 @@ function monsterSetup()
 		{guid=darkCrusader.terrainHex,position={-34.70,0.98,-27.00}},
 		{guid="f8c83e",position={-65.16,0.98,-5.50}},
 		{guid=GUID.bag.cemetery,position={-36.09,0.97,-24.87},flip=180},
-		{guid="2ca34f",position={-53.50,0.98,15.50},always=true,rewardReference=true}
+		{guid="2ca34f",position={-58.80, 0.98, 31.88},always=true,rewardReference=true}
 	}
 	local elemComponents={
 		{guid=elementalist.disc,position=scenarioDiscGridPosition("Elementalist") or {-63.50,0.97,6.50}},
 		{guid=elementalist.token,position=scenarioDiscGridArmyPosition("Elementalist",1) or {-67.00,0.97,10.20}},
 		{guid=elementalist.terrainHex,position={-37.49,0.98,-27.00}},
 		{guid="7121c7",position={-70.16,0.98,-5.50}},
-		{guid="8fe07e",position={-49.50,0.98,15.50},always=true,rewardReference=true}
+		{guid="8fe07e",position={-55.20, 0.98, 31.88},always=true,rewardReference=true}
 	}
 
 	if gStates.removeShadesOfTezlaMonsters~=true then
@@ -44202,15 +44261,21 @@ function monsterSetup()
 			local disc=getObjectFromGUID(leader.disc)
 			local zone=getObjectFromGUID(leader.discZone)
 			if disc~=nil and zone~=nil then
+				local owner=leader==darkCrusader and "DarkCrusader" or "Elementalist"
+				local position,scale=scenarioDiscGridZoneTransform(owner)
 				local p=disc.getPosition()
-				zone.setPosition({p[1],1.4,p[3]})
+				zone.setPosition(position or {p[1],1.4,p[3]})
+				if scale~=nil then zone.setScale(scale) end
 			end
 		end
 		local darkToken=getObjectFromGUID(darkCrusader.token)
 		if darkToken~=nil then
+			darkToken.unlock() -- reload() must not leave a leader token frozen above the table
 			darkToken.addDecal({name="NightRules",position={0.85,0.15,-0.85},rotation={90,180,0},scale={0.6,0.6,1},url=nightRulesDecal})
 			if gStates.monsterPerks[darkCrusader.token]==nil then gStates.monsterPerks[darkCrusader.token]={nightRules=true} else gStates.monsterPerks[darkCrusader.token].nightRules=true end
 		end
+		local elemToken=getObjectFromGUID(elementalist.token)
+		if elemToken~=nil then elemToken.unlock() end
 		monsterSetupLeadersReady=true
 	end
 
@@ -55871,18 +55936,31 @@ function scenarioDiscGridPosition(owner)
 	return {o[1]-(4-cell[1])*scenarioDiscGrid.spacingX,o[2],o[3]-(cell[2]-1)*scenarioDiscGrid.spacingZ}
 end
 
-function scenarioDiscGridArmyPosition(owner,index,height)
+-- Army positions are one centred horizontal row outside the owning disc.
+-- Keep the first slot at -2.5 even before the remainder of a leader's army is known.
+-- Once total is known, distribute ALL pieces (including the leader) across the 5-unit span.
+function scenarioDiscGridArmyPosition(owner,index,height,total)
 	local disc=scenarioDiscGridPosition(owner)
 	if disc==nil then return nil end
 	local config=scenarioDiscGrid
-	index=math.max(1,math.floor(tonumber(index) or 1))-1
-	local perRow=config.armyTokensPerRow
-	local row=math.floor(index/perRow)
-	local slot=index%perRow
-	local horizontal=slot==0 and 0 or (slot%2==1 and 1 or -1)*math.ceil(slot/2)
+	index=math.max(1,math.floor(tonumber(index) or 1))
+	total=math.max(index,math.floor(tonumber(total) or index))
+	local offsetX=-(config.armySpanX/2)
+	if total>1 then offsetX=offsetX+((index-1)*config.armySpanX/(total-1)) end
 	local outward=disc[3]==config.topRight[3] and 1 or -1
-	return {disc[1]+horizontal*config.armyTokenSpacingX,height or 1.5,
-		disc[3]+outward*(config.armyOffsetZ+row*config.armyRowSpacingZ)}
+	return {disc[1]+offsetX,(height or 1.5)+((index-1)*config.armyRiseY),
+		disc[3]+outward*config.armyOffsetZ}
+end
+
+-- A City scripting zone must cover both the disc and its outward army row.
+-- Ordinary City zones retain their original transforms.
+function scenarioDiscGridZoneTransform(owner)
+	local disc=scenarioDiscGridPosition(owner)
+	if disc==nil then return nil,nil end
+	local config=scenarioDiscGrid
+	local outward=disc[3]==config.topRight[3] and 1 or -1
+	return {disc[1],1.4,disc[3]+outward*(config.armyOffsetZ/2)},
+		{x=math.max(7.5,config.armySpanX+2.0),y=1,z=config.armyOffsetZ+6.7}
 end
 
 ---@overload fun(scope: "SetupGame", container: any, params: table): any
@@ -57617,9 +57695,9 @@ scenarioDiscGrid={
 	spacingZ=9.0,
 	controlSide="left", -- "left" or "right"; leaders use the opposite outer column
 	armyOffsetZ=5.3,
-	armyTokenSpacingX=1.2,
-	armyRowSpacingZ=1.2,
-	armyTokensPerRow=6
+	armySpanX=5.0, -- first token at -2.5, final token at +2.5
+	armyRiseY=0.15, -- successive tokens fall into a tidy overlapping row
+	volkareCampStackY={hex=0.12,reminder=0.85,die=1.75}
 }
 
 GUID={	deck={	artifact="ac75c4", 

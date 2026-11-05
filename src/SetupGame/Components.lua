@@ -134,14 +134,14 @@ function monsterSetup()
 		{guid=darkCrusader.terrainHex,position={-34.70,0.98,-27.00}},
 		{guid="f8c83e",position={-65.16,0.98,-5.50}},
 		{guid=GUID.bag.cemetery,position={-36.09,0.97,-24.87},flip=180},
-		{guid="2ca34f",position={-53.50,0.98,15.50},always=true,rewardReference=true}
+		{guid="2ca34f",position={-58.80, 0.98, 31.88},always=true,rewardReference=true}
 	}
 	local elemComponents={
 		{guid=elementalist.disc,position=scenarioDiscGridPosition("Elementalist") or {-63.50,0.97,6.50}},
 		{guid=elementalist.token,position=scenarioDiscGridArmyPosition("Elementalist",1) or {-67.00,0.97,10.20}},
 		{guid=elementalist.terrainHex,position={-37.49,0.98,-27.00}},
 		{guid="7121c7",position={-70.16,0.98,-5.50}},
-		{guid="8fe07e",position={-49.50,0.98,15.50},always=true,rewardReference=true}
+		{guid="8fe07e",position={-55.20, 0.98, 31.88},always=true,rewardReference=true}
 	}
 
 	if gStates.removeShadesOfTezlaMonsters~=true then
