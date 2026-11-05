@@ -500,9 +500,12 @@ end
 
 --city pickup warning.
 local function eventsLiveObject(object)
-	if object==nil then return nil end
+	-- TTS can dispatch a hover/zone event with a reference to a Deck it just
+	-- collapsed. Such userdata is not nil, but its properties are invalid.
+	if object==nil or object.isDestroyed()==true then return nil end
 	local guid=object.guid
-	return guid~=nil and getObjectFromGUID(guid) or nil
+	local live=guid~=nil and getObjectFromGUID(guid) or nil
+	return live~=nil and live.isDestroyed()~=true and live or nil
 end
 
 function __onObjectPickUp_raw(player_color, picked_up_object)
@@ -811,12 +814,19 @@ function __onObjectSpawn_raw(spawn_object)
 	--code stops objects getting a GUID of a registered object.
 	if spawn_object.getGMNotes()=="Wound" or spawn_object.type=="Figurine" or spawn_object.type=="Deck" then
 		if gameCards[spawn_object.guid]~=nil or terrainTiles[spawn_object.guid]~=nil or monsterPugs[spawn_object.guid]~=nil or skillTokens[spawn_object.guid]~=nil then
+			local spawnGUID=spawn_object.guid
 			safeWaitFrames("Events",function()
-				if getObjectFromGUID(spawn_object.guid)~=nil then
-					spawn_object.clone({position={spawn_object.getPosition()[1], spawn_object.getPosition()[2]+1, spawn_object.getPosition()[3]}})
-					safeWaitFrames("Events",function() spawn_object.destruct() end, 2)
-				end
-			end, 50)
+				-- Do not capture a spawn userdata across 50 frames: a card or
+				-- Deck can be replaced before this GUID-conflict repair fires.
+				local liveSpawn=getObjectFromGUID(spawnGUID)
+				if liveSpawn==nil or liveSpawn.isDestroyed()==true then return end
+				local pos=liveSpawn.getPosition()
+				liveSpawn.clone({position={pos[1],pos[2]+1,pos[3]}})
+				safeWaitFrames("Events",function()
+					local original=getObjectFromGUID(spawnGUID)
+					if original~=nil and original.isDestroyed()~=true then original.destruct() end
+				end,2)
+			end,50)
 		end
 	end
 
@@ -874,7 +884,12 @@ function __onObjectDestroy_raw(destroyedObj)
 	if runtimeMapContainsGUID(destroyedGuid)==true then
 		if terrainTiles[destroyedGuid]~=nil then runtimeMapInvalidateTerrain() else runtimeMapInvalidateObjects() end
 	end
-	if mapTokenNeedsArrangement~=nil and mapTokenNeedsArrangement(destroyedObj)==true then mapTokenReleaseObject(destroyedObj) end
+	-- This callback can receive an object already flagged for destruction.
+	-- Avoid reading its .type: use the slower, guarded marker classification.
+	local destroyMetadata={destroying=true}
+	if mapTokenNeedsArrangement~=nil and mapTokenNeedsArrangement(destroyedObj,destroyMetadata)==true then
+		mapTokenReleaseObject(destroyedObj,destroyMetadata)
+	end
 	local questScorePlayer=apocalypseQuestScoreMarkerPlayerIndex(destroyedGuid)
 	if questScorePlayer~=nil then
 		if apocalypseQuestScoresRequired()==true then

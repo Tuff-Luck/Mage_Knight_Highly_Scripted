@@ -18,13 +18,20 @@ function standardDeckCycleObject(deckName)
 		local liveDeck=nil
 		local looseCard=nil
 		for _,obj in pairs(zone.getObjects()) do
-			if obj.type=="Deck" then
-				if liveDeck==nil or obj.getQuantity()>liveDeck.getQuantity() then liveDeck=obj end
-			elseif obj.type=="Card" and looseCard==nil then
-				looseCard=obj
+			-- A zone snapshot can still contain a Deck wrapper after TTS has
+			-- collapsed it into its last Card. Do not inspect dead userdata.
+			if obj~=nil and obj.isDestroyed()~=true then
+				if obj.type=="Deck" then
+					if liveDeck==nil or liveDeck.isDestroyed()==true or obj.getQuantity()>liveDeck.getQuantity() then liveDeck=obj end
+				elseif obj.type=="Card" and looseCard==nil then
+					looseCard=obj
+				end
 			end
 		end
-		return liveDeck or looseCard
+		local selected=liveDeck~=nil and liveDeck.isDestroyed()~=true and liveDeck or looseCard
+		-- Resolve by GUID at the end: callers should not inherit an object from
+		-- a stale getObjects() snapshot when a deck merged during this pass.
+		return selected~=nil and selected.isDestroyed()~=true and getObjectFromGUID(selected.guid) or nil
 	end
 	return nil
 end
@@ -47,8 +54,9 @@ end
 function standardDeckCycleShuffleIfReached(deckName,deck,candidateGUID)
 	local firstReturned=standardDeckCycleMarker(deckName)
 	if firstReturned==nil then return false end
+	if deck~=nil and deck.isDestroyed()==true then deck=nil end
 	deck=deck or standardDeckCycleObject(deckName)
-	if deck==nil or (deck.type~="Deck" and deck.type~="Card") then return false end
+	if deck==nil or deck.isDestroyed()==true or (deck.type~="Deck" and deck.type~="Card") then return false end
 	local reachedGUID=candidateGUID
 	if reachedGUID==nil then
 		if deck.type=="Deck" then
@@ -65,7 +73,7 @@ function standardDeckCycleShuffleIfReached(deckName,deck,candidateGUID)
 end
 
 function standardDeckCycleClearIfDeckShuffled(deck)
-	if deck==nil or deck.type~="Deck" or gStates==nil or gStates.standardDeckFirstReturnedGUID==nil then return false end
+	if deck==nil or deck.isDestroyed()==true or deck.type~="Deck" or gStates==nil or gStates.standardDeckFirstReturnedGUID==nil then return false end
 	for _,deckName in ipairs({"Artifact","Regular Unit","Elite Unit","Advanced Action","Spell"}) do
 		local current=standardDeckCycleObject(deckName)
 		if current~=nil and current.guid==deck.guid then

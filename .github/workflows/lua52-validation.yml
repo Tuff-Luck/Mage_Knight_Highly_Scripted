@@ -22,6 +22,8 @@ jobs:
         run: lua5.2 tools/test-combat-calculator.lua
       - name: Mage Knight selection regression tests
         run: lua5.2 tools/test-player-chosen.lua
+      - name: TTS object lifetime regression tests
+        run: lua5.2 tools/test-object-lifetime.lua
       - name: Check commit whitespace
         run: git diff --check HEAD^
 

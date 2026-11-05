@@ -107,19 +107,43 @@ function mapTokenNeedsArrangement(obj,metadata)
 	--TTS object boundary for Name/GM Notes. Terrain/cards/decks/dice are also known non-participants.
 	if mapTokenIsSpreadEnemy(obj)==true or mapTokenIsQuestMarker(obj)==true then return true end
 	if terrainTiles~=nil and terrainTiles[obj.guid]~=nil then return false end
-	local objType=obj.type
-	if objType=="Card" or objType=="Deck" or objType=="Dice" or objType=="Bag" or objType=="Infinite_Bag" then return false end
+
+	-- onObjectDestroy can receive an already-expired LuaGameObjectScript. Its
+	-- .type field is unsafe, but marker cleanup still needs to run whenever
+	-- Name/GM Notes can be obtained. Normal map-zone calls keep their fast path.
+	local destroying=metadata~=nil and metadata.destroying==true
+	if destroying~=true then
+		if obj.isDestroyed()==true then return false end
+		local objType=obj.type
+		if objType=="Card" or objType=="Deck" or objType=="Dice" or objType=="Bag" or objType=="Infinite_Bag" then return false end
+	end
 
 	local objectName=metadata~=nil and metadata.objName or nil
 	if objectName==nil then
-		objectName=scriptObjectId(obj)
+		if destroying==true then
+			local ok,name=pcall(scriptObjectId,obj)
+			if ok then objectName=name end
+		else
+			objectName=scriptObjectId(obj)
+		end
 		if metadata~=nil then metadata.objName=objectName end
 	end
-	if objectName=="GraveYard" or isShieldObject(obj) then return true end
+	if objectName=="GraveYard" then return true end
+	if destroying==true then
+		local ok,shield=pcall(isShieldObject,obj)
+		if ok and shield==true then return true end
+	elseif isShieldObject(obj) then
+		return true
+	end
 
 	local objectNotes=metadata~=nil and metadata.objNotes or nil
 	if objectNotes==nil then
-		objectNotes=obj.getGMNotes()
+		if destroying==true then
+			local ok,notes=pcall(function() return obj.getGMNotes() end)
+			if ok then objectNotes=notes end
+		else
+			objectNotes=obj.getGMNotes()
+		end
 		if metadata~=nil then metadata.objNotes=objectNotes end
 	end
 	return objectNotes=="Destroyed"
@@ -478,9 +502,17 @@ end
 
 --Re-arrange the hex an object is leaving while deliberately ignoring that object. This recentres a
 --remaining lone enemy and keeps a Destroyed Site marker fixed underneath anything still on the hex.
-function mapTokenReleaseObject(obj)
-	if obj==nil or mapTokenNeedsArrangement(obj)~=true then return false end
-	local position=obj.getPosition()
+function mapTokenReleaseObject(obj,metadata)
+	if obj==nil or mapTokenNeedsArrangement(obj,metadata)~=true then return false end
+	local position
+	if metadata~=nil and metadata.destroying==true then
+		local ok,result=pcall(function() return obj.getPosition() end)
+		if not ok then return false end
+		position=result
+	else
+		position=obj.getPosition()
+	end
+	if position==nil then return false end
 	local ignoreGUID=obj.guid
 	--Invalidate delayed arrival/manual-drop work for the object now being carried away.
 	mapTokenArrivalPending[ignoreGUID]=nil

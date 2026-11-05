@@ -8,7 +8,9 @@ function setDeedDeckImmediateNumberTyping(seatPos)
 	local zoneGUID=deedDeckZones[seatPos]
 	local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
 	if zone==nil then return end
-	for _, obj in pairs(zone.getObjects()) do if obj.type=="Deck" then obj.max_typed_number=1 end end
+	for _,obj in pairs(zone.getObjects()) do
+		if obj~=nil and obj.isDestroyed()~=true and obj.type=="Deck" then obj.max_typed_number=1 end
+	end
 end
 
 local function refreshDeedPileDescription(seatPos, zoneType)
@@ -19,7 +21,7 @@ local function refreshDeedPileDescription(seatPos, zoneType)
 	local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
 	if zone==nil then return end
 	for _, deck in pairs(zone.getObjects()) do
-		if deck.type=="Deck" or deck.type=="Card" then
+		if deck~=nil and deck.isDestroyed()~=true and (deck.type=="Deck" or deck.type=="Card") then
 			if playerStats.mage~=gStates.positionMageKnight[5] then
 				for color, playerZone in pairs(gStates.handColors) do if playerZone==seatPos then deck.setGMNotes(color) break end end
 			end
@@ -84,7 +86,9 @@ end
 
 function containerInsideDeckZone(container, zone)
 	if container==nil or zone==nil then return false end
-	for _, zoneObj in pairs(zone.getObjects()) do if zoneObj.guid==container.guid then return true end end
+	for _,zoneObj in pairs(zone.getObjects()) do
+		if zoneObj~=nil and zoneObj.isDestroyed()~=true and zoneObj.guid==container.guid then return true end
+	end
 	--Zone membership can lag a deck merge by a frame, so use the zone bounds as a fallback.
 	local pos=container.getPosition()
 	local zonePos=zone.getPosition()
@@ -133,8 +137,8 @@ end
 function deedTransferPile(zone,ignoreGUID)
 	if zone==nil then return nil end
 	local single=nil
-	for _, obj in pairs(zone.getObjects()) do
-		if obj.guid~=ignoreGUID then
+	for _,obj in pairs(zone.getObjects()) do
+		if obj~=nil and obj.isDestroyed()~=true and obj.guid~=ignoreGUID then
 			if obj.type=="Deck" then return obj end
 			if obj.type=="Card" then single=obj end
 		end
