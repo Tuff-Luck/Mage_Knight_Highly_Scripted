@@ -1173,10 +1173,13 @@ local function meditationInsertDeedCard(playerIndex, card, destination, callback
 	local pile=nil
 	for _, obj in pairs(zone.getObjects()) do if obj.guid~=card.guid then if obj.type=="Deck" then pile=obj break elseif obj.type=="Card" then pile=obj end end end
 	if pile==nil then
-		local pos=zone.getPosition() card.setRotation({0,180,180}) card.setPosition({pos[1],1.50,pos[3]})
+		local pos=zone.getPosition()
+		if pos==nil then if callback~=nil then callback(false) end return end
+		card.setRotation({0,180,180}) card.setPosition({pos[1],1.50,pos[3]})
 		safeWaitFrames("PlayerBoard.CardFlow",function() if callback~=nil then callback(true) end end, 2) return
 	end
 	local pos=pile.getPosition()
+	if pos==nil then if callback~=nil then callback(false) end return end
 	if pile.type=="Deck" then
 		card.setScale({1.5,1,1.5}) card.setRotation(pile.getRotation()) card.setPosition({pos[1]+3,pos[2]+(destination=="top" and 0.5 or -0.5),pos[3]})
 		safeWaitFrames("PlayerBoard.CardFlow",function() if pile~=nil and not pile.isDestroyed() and card~=nil and not card.isDestroyed() then pile.putObject(card) end safeWaitFrames("PlayerBoard.CardFlow",function() if callback~=nil then callback(true) end end, 1) end, 1)
@@ -1349,11 +1352,14 @@ local function steadyTempoMoveToDiscard(playerIndex, card)
 	if zone==nil or card==nil then return false end
 	local pile=nil
 	for _, obj in pairs(zone.getObjects()) do if obj.type=="Deck" then pile=obj break elseif obj.type=="Card" then pile=obj end end
+	local pos
+	if pile==nil then pos=zone.getPosition() else pos=pile.getPosition() end
+	if pos==nil then return false end
 	card.setScale({1.5,1,1.5}) card.setRotation({0,180,0})
 	if pile==nil then
-		local pos=zone.getPosition() card.setPosition({pos[1],1.50,pos[3]})
+		card.setPosition({pos[1],1.50,pos[3]})
 	else
-		local pos=pile.getPosition() card.setPosition({pos[1]+3,pos[2]+0.5,pos[3]})
+		card.setPosition({pos[1]+3,pos[2]+0.5,pos[3]})
 		safeWaitFrames("PlayerBoard.CardFlow",function() if pile~=nil and not pile.isDestroyed() and card~=nil and not card.isDestroyed() then pile.putObject(card) end end, 1)
 	end
 	safeWaitFrames("PlayerBoard.CardFlow",function() scheduleDeedPileDescriptionRefresh(details.seatPos, "discard") end, 6)
@@ -1478,11 +1484,13 @@ local function compactAndRefillDeedOfferRaw(suppressAdjustUIRefresh,sourceOverri
 	for _,obj in pairs(offerZone.getObjects()) do
 		if obj.type=="Card" then
 			local cardSpot=obj.getPosition()
-			local row=math.floor(((-cardSpot[3]-10.2)/6)+0.5)
-			local column=math.floor(((cardSpot[1]-21.6)/4.8)+0.5)
-			--The broad scripting zone can contain a manually dropped card near an edge. Only cards
-			--that resolve to one of the two deed-offer rows and a real offer column belong in this grid.
-			if row>=1 and row<=2 and column>=1 and column<=offerSize then offerList[row][column]=obj.guid end
+			if cardSpot~=nil then
+				local row=math.floor(((-cardSpot[3]-10.2)/6)+0.5)
+				local column=math.floor(((cardSpot[1]-21.6)/4.8)+0.5)
+				--The broad scripting zone can contain a manually dropped card near an edge. Only cards
+				--that resolve to one of the two deed-offer rows and a real offer column belong in this grid.
+				if row>=1 and row<=2 and column>=1 and column<=offerSize then offerList[row][column]=obj.guid end
+			end
 		end
 	end
 
