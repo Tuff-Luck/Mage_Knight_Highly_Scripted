@@ -32264,6 +32264,7 @@ local megapolisDeployWarOfFourGlade, megapolisRestoreTerrainHex, chooseMegapolis
 local removeCityMegapolis, cityShouldCreateMegapolis, cityRegisterDeployOrder, deployFriendlyCityShields, resolveCityForTerrain
 local revealCityInfoCard, cityLevelReadoutOnly, adjustCityLevel, cityCardMapSnapshot, cityCardExploreGroup, cityCardPositionForbidden
 local cityCardExploreSpaceFree, findCityCardPosition, moveCityCardExploreGroup, positionCityCardForExplore, cityControlTerrainGUID, refreshLockedCityControl
+local cityCardReserveDestination, cityCardPendingDestination
 
 -- City, Megapolis, garrison, City-card placement and ownership runtime.
 
@@ -33153,7 +33154,13 @@ function cityInitialCardPosition(cityGUID, terrainObj)
 	local movingGUIDs={[cityGUID]=true,[cardGUID]=true}
 	local preferred=gStates.gameScenario=="The Gauntlet" and 3 or nil
 	local desired=findCityCardPosition(cityPos, mapObjects, movingGUIDs, nil, nil, preferred)
-	if desired~=nil then card.setPositionSmooth(desired) return desired end
+	if desired~=nil then
+		-- Reserve this target immediately: a second City may deploy/compact before the
+		-- first smooth move reaches it and before mapArea.getObjects() sees the card.
+		cityCardReserveDestination(cardGUID,desired)
+		card.setPositionSmooth(desired)
+		return desired
+	end
 	return card.getPosition()
 end
 
@@ -33367,21 +33374,43 @@ function addCityButtons()
 	end
 end
 
+-- Keep destinations reserved for the duration of smooth movement. The map zone does not
+-- necessarily contain City cards while they are in transit, so live snapshots alone
+-- cannot protect a new City from another City's concurrent compaction.
+local cityCardPendingMoves={}
+cityCardReserveDestination=function(guid,destination)
+	if guid==nil or destination==nil then return end
+	cityCardPendingMoves[guid]={position={destination[1],destination[2],destination[3]},started=os.time()}
+end
+
+cityCardPendingDestination=function(guid)
+	local pending=cityCardPendingMoves[guid]
+	if pending==nil then return nil end
+	local card=getObjectFromGUID(guid)
+	if card==nil or os.time()-pending.started>30 then cityCardPendingMoves[guid]=nil return nil end
+	local pos=card.getPosition()
+	local target=pending.position
+	if pos~=nil and ((pos[1]-target[1])^2+(pos[3]-target[3])^2)<0.16 and
+		(card.isSmoothMoving==nil or card.isSmoothMoving()~=true) then
+		cityCardPendingMoves[guid]=nil
+		return nil
+	end
+	return target
+end
+
 cityCardMapSnapshot=function()
 	local mapObj=getObjectFromGUID(mapArea)
 	if mapObj==nil then return {} end
 	local mapObjects={}
-	for _, playObj in pairs(mapObj.getObjects()) do mapObjects[#mapObjects+1]={guid=playObj.guid, position=playObj.getPosition()} end
+	for _,playObj in pairs(mapObj.getObjects()) do
+		mapObjects[#mapObjects+1]={guid=playObj.guid,position=playObj.getPosition()}
+	end
 	return mapObjects
 end
 
-local function cityCardExploreGroupObject(obj)
-	if obj==nil or obj.guid==nil then return false end
-	--Scripting zones report collider overlap, so a terrain tile can appear in a City zone when only
-	--its corner clips the zone. Terrain is anchored to the map and must never travel with the City card.
-	return terrainTiles[obj.guid]==nil
-end
-
+-- A zone is a collider query, NOT an ownership record: it can include neighbouring
+-- Cities, reference tiles, and other unrelated objects (including locked ones).
+-- Use the City's actual roster and the existing pre-combat manual-army recognition.
 cityCardExploreGroup=function(cityZone)
 	local details=cityScriptZones[cityZone]
 	local cityGUID=details~=nil and details.cityGUID or nil
@@ -33389,67 +33418,110 @@ cityCardExploreGroup=function(cityZone)
 	local cardGUID=cityGUID~=nil and gStates.cityCard[cityGUID] or nil
 	local card=cardGUID~=nil and getObjectFromGUID(cardGUID) or nil
 	local cityModelObj=cityGUID~=nil and getObjectFromGUID(cityGUID) or nil
-	if cityData==nil or cityData.extra==nil or cityData.extra.megapolisPending==true or card==nil or cityModelObj==nil then return nil end
-	--A Megapolis shares one physical card. The City whose pair points outward owns the card movement.
+	if cityData==nil or cityData.extra==nil or cityData.extra.megapolisPending==true or
+		card==nil or cityModelObj==nil then return nil end
 	if cityData.extra.megapolisPair~=nil and cityData.extra.megapolisPair==cityGUID then return nil end
+
 	local zonesToMove={[cityZone]=true}
 	if cityData.extra.megapolisPair~=nil then
-		local cityModelToZone={[cityModel.blue]=GUID.zone.blueCity, [cityModel.red]=GUID.zone.redCity, [cityModel.green]=GUID.zone.greenCity, [cityModel.white]=GUID.zone.whiteCity}
+		local cityModelToZone={[cityModel.blue]=GUID.zone.blueCity,[cityModel.red]=GUID.zone.redCity,
+			[cityModel.green]=GUID.zone.greenCity,[cityModel.white]=GUID.zone.whiteCity}
 		local pairZone=cityModelToZone[cityData.extra.megapolisPair]
 		if pairZone~=nil then zonesToMove[pairZone]=true end
 	end
+
 	local movingGUIDs={[card.guid]=true}
-	for zoneGUID, _ in pairs(zonesToMove) do
-		local zoneObj=getObjectFromGUID(zoneGUID)
-		if zoneObj~=nil then
-			for _, obj in pairs(zoneObj.getObjects()) do
-				if cityCardExploreGroupObject(obj)==true then movingGUIDs[obj.guid]=true end
+	local ownerGUID=standardCityGarrisonOwner(cityGUID)
+	local owners=cityGarrisonCardOwners()
+	local avatarGUIDs={}
+	for _,mage in pairs(mageKnights or {}) do
+		if mage.model~=nil then avatarGUIDs[mage.model]=true end
+		if mage.standee~=nil then avatarGUIDs[mage.standee]=true end
+		if mage.token~=nil then avatarGUIDs[mage.token]=true end
+	end
+	for _,obj in pairs(getAllObjects()) do
+		if obj~=nil and obj.guid~=nil and obj.guid~=card.guid and terrainTiles[obj.guid]==nil then
+			local pos=obj.getPosition()
+			if pos~=nil and pos[2]>=CITY_GARRISON_MIN_Y and pos[2]<=CITY_GARRISON_MAX_Y then
+				local nearest,distSq=cityGarrisonNearestOwner(pos,owners)
+				if nearest==ownerGUID and distSq~=nil then
+					local registered=cityData[obj.guid]=="alive"
+					local pug=monsterPugs[obj.guid]
+					local eligibleEnemy=pug~=nil and CITY_GARRISON_PUG_TYPES[pug.pugType]==true and
+						cityGarrisonRegisteredElsewhere(obj.guid,cityData)~=true
+					local radius=registered and CITY_GARRISON_KNOWN_RADIUS or CITY_GARRISON_MANUAL_RADIUS
+					if eligibleEnemy and distSq<=radius*radius and
+						(registered or cityData.extra.combatRosterLocked~=true) then
+						movingGUIDs[obj.guid]=true
+					elseif distSq<=10.24 and
+						((isShieldObject~=nil and isShieldObject(obj)==true) or avatarGUIDs[obj.guid]==true) then
+						-- Only genuinely parked shields/avatars move with the City card.
+						movingGUIDs[obj.guid]=true
+					end
+				end
 			end
 		end
 	end
-	return {cityGUID=cityGUID, card=card, city=cityModelObj, zones=zonesToMove, movingGUIDs=movingGUIDs}
+	return {cityGUID=cityGUID,card=card,city=cityModelObj,zones=zonesToMove,movingGUIDs=movingGUIDs}
 end
 
 cityCardPositionForbidden=function(desiredLocation)
 	local x=desiredLocation[1]
 	local z=desiredLocation[3]
-	return (x>-18.5 and x<-18.0 and z>-18.5 and z<-18.0) or (x>-13.5 and x<-13.0 and z>-14.5 and z<-13.5)
+	return (x>-18.5 and x<-18.0 and z>-18.5 and z<-18.0) or
+		(x>-13.5 and x<-13.0 and z>-14.5 and z<-13.5)
 end
 
-cityCardExploreSpaceFree=function(mapObjects, desiredLocation, movingGUIDs, extraBlockedPos, reservedPositions)
+cityCardExploreSpaceFree=function(mapObjects,desiredLocation,movingGUIDs,extraBlockedPos,reservedPositions)
 	if cityCardPositionForbidden(desiredLocation)==true then return false end
 	if extraBlockedPos~=nil then
 		local blockZ=extraBlockedPos[3] or extraBlockedPos[2]
 		if ((desiredLocation[1]-extraBlockedPos[1])^2)+((desiredLocation[3]-blockZ)^2)<9.61 then return false end
 	end
-	for _, reservedPos in ipairs(reservedPositions or {}) do
+	for _,reservedPos in ipairs(reservedPositions or {}) do
 		if ((desiredLocation[1]-reservedPos[1])^2)+((desiredLocation[3]-reservedPos[3])^2)<9.61 then return false end
 	end
-	for _, button in pairs(terrainExploreOptions()) do
+	for _,button in pairs(terrainExploreOptions()) do
 		if button.attributes~=nil and button.attributes.tilePosX~=nil and button.attributes.tilePosZ~=nil and
-			((desiredLocation[1]-tonumber(button.attributes.tilePosX))^2)+((desiredLocation[3]-tonumber(button.attributes.tilePosZ))^2)<9.61 then return false end
+			((desiredLocation[1]-tonumber(button.attributes.tilePosX))^2)+
+			((desiredLocation[3]-tonumber(button.attributes.tilePosZ))^2)<9.61 then return false end
 	end
 	movingGUIDs=movingGUIDs or {}
-	for _, playObj in pairs(mapObjects or {}) do
-		if movingGUIDs[playObj.guid]~=true and ((desiredLocation[1]-playObj.position[1])^2)+((desiredLocation[3]-playObj.position[3])^2)<9.61 then return false end
+	for _,playObj in pairs(mapObjects or {}) do
+		if movingGUIDs[playObj.guid]~=true and
+			((desiredLocation[1]-playObj.position[1])^2)+((desiredLocation[3]-playObj.position[3])^2)<9.61 then return false end
+	end
+	-- The map-zone snapshot misses City cards parked outside it and smooth-moving cards.
+	-- Explicitly block both their live positions and reserved targets, even if another
+	-- City's scripting zone mistakenly reported them as occupants.
+	local checked={}
+	for _,cardGUID in pairs(gStates.cityCard or {}) do
+		if cardGUID~=nil and checked[cardGUID]~=true then
+			checked[cardGUID]=true
+			local target=cityCardPendingDestination(cardGUID)
+			if movingGUIDs[cardGUID]~=true then
+				local card=getObjectFromGUID(cardGUID)
+				local live=card~=nil and card.getPosition() or nil
+				for _,pos in ipairs({live,target}) do
+					if ((desiredLocation[1]-pos[1])^2)+((desiredLocation[3]-pos[3])^2)<9.61 then return false end
+				end
+			end
+		end
 	end
 	return true
 end
 
---Shared placement engine used both when a City first deploys and whenever EXPLORE positions later force
---City-card groups to move. preferredOffset is used by The Gauntlet's fixed City-card side when it is legal.
-findCityCardPosition=function(cityPos, mapObjects, movingGUIDs, extraBlockedPos, reservedPositions, preferredOffset)
+-- Shared placement engine for initial deployment and later EXPLORE compaction.
+findCityCardPosition=function(cityPos,mapObjects,movingGUIDs,extraBlockedPos,reservedPositions,preferredOffset)
 	if preferredOffset~=nil and cityCardExploreOffsets[preferredOffset]~=nil then
 		local offset=cityCardExploreOffsets[preferredOffset]
 		local preferred={cityPos[1]+offset[1],1.09,cityPos[3]+offset[3]}
 		if cityCardExploreSpaceFree(mapObjects,preferred,movingGUIDs,extraBlockedPos,reservedPositions)==true then
-			local distance=math.sqrt((offset[1]^2)+(offset[3]^2))
-			return preferred,distance
+			return preferred,math.sqrt((offset[1]^2)+(offset[3]^2))
 		end
 	end
-	local best=nil
-	local bestDistance=nil
-	for _, offset in ipairs(cityCardExploreOffsets) do
+	local best,bestDistance=nil,nil
+	for _,offset in ipairs(cityCardExploreOffsets) do
 		local desired={cityPos[1]+offset[1],1.09,cityPos[3]+offset[3]}
 		if cityCardExploreSpaceFree(mapObjects,desired,movingGUIDs,extraBlockedPos,reservedPositions)==true then
 			local distance=math.sqrt((offset[1]^2)+(offset[3]^2))
@@ -33459,46 +33531,54 @@ findCityCardPosition=function(cityPos, mapObjects, movingGUIDs, extraBlockedPos,
 	return best,bestDistance
 end
 
-moveCityCardExploreGroup=function(group, desiredLocation, movedCityZones, mapObjects)
+moveCityCardExploreGroup=function(group,desiredLocation,movedCityZones,mapObjects)
 	local cardPos=group.card.getPosition()
 	local deltaX=desiredLocation[1]-cardPos[1]
 	local deltaZ=desiredLocation[3]-cardPos[3]
 	if math.sqrt((deltaX^2)+(deltaZ^2))<0.25 then return false end
-	local movedObjects={}
-	for zoneGUID, _ in pairs(group.zones) do
-		local zoneObj=getObjectFromGUID(zoneGUID)
-		if zoneObj~=nil then
-			if movedCityZones~=nil then movedCityZones[zoneGUID]=true end
-			for _, cityCardObj in pairs(zoneObj.getObjects()) do
-				if movedObjects[cityCardObj.guid]~=true and cityCardObj.guid~='3d4319' and cityCardObj.guid~='519f96' and cityCardExploreGroupObject(cityCardObj)==true then
-					local originalPos=cityCardObj.getPosition()
-					if originalPos~=nil then
-						movedObjects[cityCardObj.guid]=true
-						local relocation={originalPos[1]+deltaX, originalPos[2], originalPos[3]+deltaZ}
-						cityCardObj.setPositionSmooth(relocation)
-						if gStates.monsterPlayLocation[cityCardObj.guid]~=nil then gStates.monsterPlayLocation[cityCardObj.guid]=relocation end
+	cityCardReserveDestination(group.card.guid,desiredLocation)
+	-- Only move objects that passed the explicit ownership checks. Moving every object
+	-- returned by zone.getObjects() used to abduct distant locked reference tiles.
+	for guid,_ in pairs(group.movingGUIDs) do
+		if guid~=group.card.guid then
+			local obj=getObjectFromGUID(guid)
+			if obj~=nil then
+				local pos=obj.getPosition()
+				if pos~=nil then
+					local relocation={pos[1]+deltaX,pos[2],pos[3]+deltaZ}
+					obj.setPositionSmooth(relocation)
+					if gStates.monsterPlayLocation[guid]~=nil then
+						gStates.monsterPlayLocation[guid]=relocation
 					end
 				end
 			end
-			local zonePos=zoneObj.getPosition()
-			zoneObj.setPosition({zonePos[1]+deltaX, zonePos[2], zonePos[3]+deltaZ})
 		end
 	end
-	if movedObjects[group.card.guid]~=true then group.card.setPositionSmooth(desiredLocation) end
+	group.card.setPositionSmooth(desiredLocation)
+	for zoneGUID,_ in pairs(group.zones) do
+		local zoneObj=getObjectFromGUID(zoneGUID)
+		if zoneObj~=nil then
+			if movedCityZones~=nil then movedCityZones[zoneGUID]=true end
+			local zonePos=zoneObj.getPosition()
+			zoneObj.setPosition({zonePos[1]+deltaX,zonePos[2],zonePos[3]+deltaZ})
+		end
+	end
 	if mapObjects~=nil then
-		for _, playObj in pairs(mapObjects) do
-			if group.movingGUIDs[playObj.guid]==true then playObj.position={playObj.position[1]+deltaX, playObj.position[2], playObj.position[3]+deltaZ} end
+		for _,playObj in pairs(mapObjects) do
+			if group.movingGUIDs[playObj.guid]==true then
+				playObj.position={playObj.position[1]+deltaX,playObj.position[2],playObj.position[3]+deltaZ}
+			end
 		end
 	end
 	return true
 end
 
---Place one City-card group at the closest currently legal ring position. If its present position is already
---equally close and legal, leave it alone. If the present position is blocked by EXPLORE, moving outward is allowed.
-positionCityCardForExplore=function(cityZone, extraBlockedPos, movedCityZones, reservedPositions, mapObjects)
+-- Place one City group at its closest legal location. Never redirect a card that
+-- is already travelling to a reserved destination; another City can compact meanwhile.
+positionCityCardForExplore=function(cityZone,extraBlockedPos,movedCityZones,reservedPositions,mapObjects)
 	if movedCityZones~=nil and movedCityZones[cityZone]==true then return false end
 	local group=cityCardExploreGroup(cityZone)
-	if group==nil then return false end
+	if group==nil or cityCardPendingDestination(group.card.guid)~=nil then return false end
 	if mapObjects==nil then mapObjects=cityCardMapSnapshot() end
 	local cityPos=group.city.getPosition()
 	local cardPos=group.card.getPosition()
