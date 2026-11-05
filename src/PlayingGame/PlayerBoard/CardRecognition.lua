@@ -5653,13 +5653,9 @@ local function renderSeat(seatPos)
             local token=reward.kind=="factionReward" and reward.modifier==mode
                 and objects[rewardGUID] or nil
             if token~=nil then
-                ---@class CardRecognitionRecord
-                ---@field resources table<string, number>|nil
-                ---@field links string[]
-                ---@field status string
-                ---@field powered boolean
                 local winner,selected,bestArea=nil,nil,0
-                ---@type CardRecognitionRecord|nil
+                -- Inline record type avoids a duplicate global class declaration in the generated TTS bundle.
+                ---@type {resources: table<string, number>?, links: string[], status: string, powered: boolean}|nil
                 local sourceRecord=nil
                 local tokenArea=footprint(token)
                 for sourceGUID,candidate in pairs(objects) do
