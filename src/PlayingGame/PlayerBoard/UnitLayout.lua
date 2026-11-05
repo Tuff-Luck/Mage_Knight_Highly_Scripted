@@ -221,10 +221,10 @@ function unitLayoutResourceState(seatPos)
             -- matching Armor increase. Banner/Bonds provide slots but not Armor.
             if obj.getGMNotes()=="Command Token" then nativeCommandCount=nativeCommandCount+1 end
             local p=obj.getPosition()
-            commandTokens[#commandTokens+1]={x=p.x or p[1],z=p.z or p[3]}
+            if p~=nil then commandTokens[#commandTokens+1]={x=p.x or p[1],z=p.z or p[3]} end
         elseif unitLayoutIsWound(obj) then
             local p=obj.getPosition()
-            woundTokens[#woundTokens+1]={x=p.x or p[1],z=p.z or p[3]}
+            if p~=nil then woundTokens[#woundTokens+1]={x=p.x or p[1],z=p.z or p[3]} end
         end
     end
     local units={}
@@ -351,17 +351,19 @@ refreshUnitLayout=function(seatPos)
 	for _, obj in pairs(layout.objects) do
 		if unitLayoutIsCompanion(obj) then
 			local pos=obj.getPosition()
-			local bestMove=nil
-			local bestDistance=nil
-			for _, move in ipairs(unitMoves) do
-				local distance=math.abs(pos[1]-move.oldX)
-				if bestDistance==nil or distance<bestDistance then bestDistance=distance bestMove=move end
-			end
-			if bestMove~=nil and bestDistance<=unitLayoutConfig.associationRadius and (obj.held_by_color==nil or obj.held_by_color=="") then
-				--Preserve the object's offset from its Unit (notably the three left/centre/right Wound snaps)
-				--while moving the whole Unit column to its compressed position.
-				local targetX=bestMove.targetX+(pos[1]-bestMove.oldX)
-				if math.abs(pos[1]-targetX)>0.02 then obj.setPositionSmooth({targetX,pos[2],pos[3]}) end
+			if pos~=nil then
+				local bestMove=nil
+				local bestDistance=nil
+				for _, move in ipairs(unitMoves) do
+					local distance=math.abs(pos[1]-move.oldX)
+					if bestDistance==nil or distance<bestDistance then bestDistance=distance bestMove=move end
+				end
+				if bestMove~=nil and bestDistance<=unitLayoutConfig.associationRadius and (obj.held_by_color==nil or obj.held_by_color=="") then
+					--Preserve the object's offset from its Unit (notably the three left/centre/right Wound snaps)
+					--while moving the whole Unit column to its compressed position.
+					local targetX=bestMove.targetX+(pos[1]-bestMove.oldX)
+					if math.abs(pos[1]-targetX)>0.02 then obj.setPositionSmooth({targetX,pos[2],pos[3]}) end
+				end
 			end
 		end
 	end
