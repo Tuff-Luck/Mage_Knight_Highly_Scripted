@@ -329,6 +329,10 @@ local function playerSetupDeployUniqueComponents(orderIndex,position,offsetPosit
 						obj.lock()
 						--GM Notes are intentionally stable English-only script metadata.
 						local b=manaTokenColor(obj)
+						-- Validate the result type before using it as an inventory table key.
+						if type(b)~="string" then
+							error("Dummy setup found an invalid crystal color on "..tostring(obj.guid)..": "..tostring(b),2)
+						end
 						if b~="Red" and b~="Blue" and b~="Green" and b~="White" then
 							error("Dummy setup found an unrecognized crystal color on "..tostring(obj.guid)..": "..tostring(b),2)
 						end
