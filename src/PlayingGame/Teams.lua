@@ -116,10 +116,12 @@ function conquerHoldPersonalMageTowers(playerIndex)
     for _,obj in ipairs(getObjectFromGUID(mapArea).getObjects()) do
         if isShieldObject(obj) and shieldOwner(obj)==details.mage and volkarePursuitShieldRegistered(obj)~=true then
             local p=obj.getPosition()
-            local _,_,_,feature=terrainHexAtPosition(p)
-            if feature=="mage tower" then
-                count=count+1
-                if magePosition~=nil and (p[1]-magePosition[1])^2+(p[3]-magePosition[3])^2<8.5 then nearOwn=true end
+            if p~=nil then
+                local _,_,_,feature=terrainHexAtPosition(p)
+                if feature=="mage tower" then
+                    count=count+1
+                    if magePosition~=nil and (p[1]-magePosition[1])^2+(p[3]-magePosition[3])^2<8.5 then nearOwn=true end
+                end
             end
         end
     end
