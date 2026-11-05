@@ -220,11 +220,12 @@ local function combatAssignmentSources(seat)
             local function ensureSource(family)
                 local part=record.splitTargets~=nil and family or nil
                 local slot=part or ""
-                if parts[slot]==nil then
+                local source=parts[slot]
+                if source==nil then
                     local cardData=gameCards[guid]
                     local sourceName=cardData~=nil and cardData.name or nil
                     if type(sourceName)=="table" then sourceName=sourceName[1] end
-                    parts[slot]={guid=guid,key=part~=nil and (guid.."#"..part) or guid,part=part,
+                    source={guid=guid,key=part~=nil and (guid.."#"..part) or guid,part=part,
                         name=tostring(sourceName or record.kind or "Resource"),
                         ranged=0,siege=0,block=0,attack=0,move=0,
                         psychicInfluence=0,psychicInfluenceCounts=false,details={},
@@ -232,15 +233,15 @@ local function combatAssignmentSources(seat)
                         swiftDouble=record.swiftDouble==true,defeatFameRep=record.defeatFameRep,
                         heroPsychicBlock=scan~=nil and scan.heroPsychicBlock==true and record.kind~="unit",
                         repeatBlocks=record.repeatBlocks}
-                    sources[#sources+1]=parts[slot]
+                    parts[slot]=source
+                    sources[#sources+1]=source
                 end
-                source=parts[slot]
                 return source
             end
             for _,field in ipairs(COMBAT_SOURCE_FIELDS) do
                 local amount=tonumber(effective[field.key]) or 0
                 if amount>0 then
-                    ensureSource(field.family=="block" and "block" or "attack")
+                    local source=ensureSource(field.family=="block" and "block" or "attack")
                     local resourceFamily=field.family
                     source[resourceFamily]=source[resourceFamily]+amount
                     if record.splitTargets~=nil then source.resources[field.key]=amount end
@@ -255,14 +256,14 @@ local function combatAssignmentSources(seat)
             end
             local moveAmount=tonumber(record.resources.move) or 0
             if moveAmount>0 then
-                ensureSource("block")
+                local source=ensureSource("block")
                 source.move=moveAmount
                 source.details[#source.details+1]={text="Move "..tostring(moveAmount),
                     amount=moveAmount,icon="MKChoiceMove",key="move",family="move"}
             end
             local psychicInfluence=tonumber(effective.influence) or 0
             if combatPsychicActive and psychicInfluence>0 then
-                ensureSource("block")
+                local source=ensureSource("block")
                 source.psychicInfluence=psychicInfluence
                 source.details[#source.details+1]={text="Influence "..tostring(psychicInfluence).." → Psychic Block",
                     amount=psychicInfluence,icon="MKChoiceBlock",key="influence",family="influence"}
@@ -792,15 +793,19 @@ local function combatSolveBlocks(attacks,items,movePool)
             bestScore,bestState,bestReductions=score,state,reductions
         end
     end
+    -- Every DP state keeps an unused-item transition, so a winner should always
+    -- exist. If none survives, conservatively report no Block/Move allocation.
+    local planState=bestState or {points=initial,route=string.rep("@",#items)}
+    local planReductions=bestReductions or {}
     local plan,used={},{}
     for index,attack in ipairs(attacks) do
-        local reduction=bestReductions[index] or 0
+        local reduction=planReductions[index] or 0
         local required=2*(attack.value-reduction)*(attack.swift and 2 or 1)
         plan[index]={used={},reduction=reduction,
-            blocked=attack.value-reduction<=0 or bestState.points[index]>=required}
+            blocked=attack.value-reduction<=0 or planState.points[index]>=required}
     end
     for index=1,#items do
-        local attackIndex=string.byte(bestState.route,index)-64
+        local attackIndex=string.byte(planState.route,index)-64
         if attackIndex>0 then
             plan[attackIndex].used[index]=true
             used[index]=true
@@ -2093,11 +2098,11 @@ function resourceCardsCombatAssignmentClick(id)
     local targetGUID=index~=nil and combatAssignmentRowTargets[index] or nil
     if targetGUID==nil then return end
     local sourceGUID=combatAssignmentSlotSources[id]
-    if combatAssignmentState.selected~=nil then
-        if sourceGUID==combatAssignmentState.selected then
+    local moved=combatAssignmentState.selected
+    if moved~=nil then
+        if sourceGUID==moved then
             combatAssignmentState.selected=nil
         else
-            local moved=combatAssignmentState.selected
             local movedSource=nil
             for _,candidate in ipairs(combatAssignmentSources(combatAssignmentState.seat)) do
                 if candidate.key==moved then movedSource=candidate break end
@@ -5158,7 +5163,7 @@ local function renderSeat(seatPos)
             if family=="twiceAttack" then family="attack"
             elseif family=="twiceBlock" then family="block" end
             local unitBoost=rule.unitBoost
-            if family~=nil and unitBoost~=nil and unitBoost[family]~=nil then
+            if choice~=nil and family~=nil and unitBoost~=nil and unitBoost[family]~=nil then
                 local eligible={}
                 for unitGUID,activation in pairs(activations) do
                     local unit=objects[unitGUID]
@@ -5218,8 +5223,8 @@ local function renderSeat(seatPos)
                     end
                 end
             end
-            if best~=nil and best.field~=nil then
-                local sourceField=best.field
+            local sourceField=best~=nil and best.field or nil
+            if best~=nil and sourceField~=nil then
                 local sourceFamily=sourceField=="move" and "move"
                     or (sourceField:sub(1,6)=="attack" and "attack" or "block")
                 local suffix=sourceField:sub(#sourceFamily+1)
@@ -5334,7 +5339,7 @@ local function renderSeat(seatPos)
             local choice=rule.choices~=nil and chosenEffect(skill.guid,false,rule.choices) or nil
             local spec=combatEffectSpec(rule,false,choice~=nil and choiceCategory(choice) or nil)
             local target=spec~=nil and combatEffectChosenEnemy(skill.guid,footprints[skill.guid],monsters) or nil
-            if target~=nil then
+            if spec~=nil and target~=nil then
                 combatEffectAdd(enemyEffects,target.guid,skill.guid,spec)
                 record.enemyGUID=target.guid
                 record.links[#record.links+1]=target.guid
