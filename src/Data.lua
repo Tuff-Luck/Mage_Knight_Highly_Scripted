@@ -1315,7 +1315,7 @@ cardResourceDefinitions={
         powered={block=3},partial=true}, -- Removing ONE enemy attack modifier/colour remains manual.
     deadlyPrecision={normalChoices={{attack=2},{block=2}},
         poweredChoices={{attack=4},{ranged=2},{key="convert",icon="ranged"}},
-        partial=true}, -- The stronger linked Attack conversion still needs physical matching.
+        poweredLinkConversion=true,partial=true}, -- Requires one overlapping played Action with Attack.
     -- The conditional Attack is optional; it is only available if no Wounds
     -- were added to the Hero's hand during earlier combat phases. The player
     -- declares eligibility with the second option. Two -2 reductions on the
@@ -1326,7 +1326,7 @@ cardResourceDefinitions={
         poweredChoices={{key="safe",attack=0,icon="attack"},
             {key="eligible",attack=2,icon="attack",iconOverlay="+2"}},
         enemyEffect={normal={attackReduce=2},powered={attackReduce=4}},
-        partial=true},
+        },
     -- Buffs any activated Unit's printed combat resource (not its Influence,
     -- Move, Heal or resource-independent effects); no Units may receive damage.
     intoTheHeat={normal={other=1},powered={other=1},
