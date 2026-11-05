@@ -30,6 +30,8 @@ jobs:
         run: lua5.2 tools/test-fame-reputation.lua
       - name: Scenario disc grid regression tests
         run: lua5.2 tools/test-scenario-disc-grid.lua
+      - name: City card relocation regression tests
+        run: lua5.2 tools/test-city-card-relocation.lua
       - name: Check commit whitespace
         run: git diff --check HEAD^
 
