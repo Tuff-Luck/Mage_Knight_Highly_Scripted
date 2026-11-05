@@ -233,7 +233,7 @@ end
 --string means "visible to everyone".
 local GLOBAL_UI_PUBLIC_VISIBILITY_IDS={
 	"MainGame","NoticeBoard","topButtons","Mage1LevelBoard","Mage2LevelBoard","Mage3LevelBoard","Mage4LevelBoard",
-	"LevelUpRules","PlayerSeating","ObjectRotating","ResourceTracker","Setup","GameReminder","EndReminder","welcome",
+	"LevelUpRules","PlayerSeating","ObjectRotating","ResourceTracker","CombatCalculatorHelp","Setup","GameReminder","EndReminder","welcome",
 	"CoopAssault","cameraControl","zigguratPyramidInteract",
 }
 local GLOBAL_UI_RUNTIME_VISIBILITY_IDS={
