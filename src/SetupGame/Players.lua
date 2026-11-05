@@ -632,7 +632,6 @@ function volkareArmy()
 					end
 				end
 			end
-			end
 			gStates.scenarioDiscArmyOrder=gStates.scenarioDiscArmyOrder or {}
 			local shuffledPile=nil
 			for index,entry in ipairs(plan) do
