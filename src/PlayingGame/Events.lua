@@ -888,6 +888,8 @@ function __onObjectDestroy_raw(destroyedObj)
 	-- Avoid reading its .type: use the slower, guarded marker classification.
 	local destroyMetadata={destroying=true}
 	if mapTokenNeedsArrangement~=nil and mapTokenNeedsArrangement(destroyedObj,destroyMetadata)==true then
+		-- MapTokens.lua declares (obj, metadata); the second argument enables safe access during destruction.
+		---@diagnostic disable-next-line: redundant-parameter
 		mapTokenReleaseObject(destroyedObj,destroyMetadata)
 	end
 	local questScorePlayer=apocalypseQuestScoreMarkerPlayerIndex(destroyedGuid)
@@ -1806,12 +1808,12 @@ function __onObjectLeaveContainer_raw(bag, obj)
 	end
 
 	--randomizes Volker's Reminder Token
-	if bag.guid==GUID.bag.volkareReminder then
+	if bag~=nil and bag.guid==GUID.bag.volkareReminder then
 		volkareTokenRandomize(obj)
 	end
 
 	--randomizes Pyramid and Ziggurat Trap Tokens
-	if bag.guid==monsterPiles.pyramidTrap or bag.guid==monsterPiles.zigguratTrap then
+	if bag~=nil and (bag.guid==monsterPiles.pyramidTrap or bag.guid==monsterPiles.zigguratTrap) then
 		local trapGUID=obj.guid
 		local trapBagGUID=bag.guid
 		local trapImage={[monsterPiles.pyramidTrap]={"https://steamusercontent-a.akamaihd.net/ugc/9508097467808968985/1AD863210453EFF576A15527777E7C5E31F9EC93/",--Gold Trap Pyramid
@@ -1850,7 +1852,7 @@ function __onObjectLeaveContainer_raw(bag, obj)
 	end
 
 	--Give warning when drawing Terain tiles from the reserve.
-	if (bag.guid==GUID.bag.terrain.leftCountry or bag.guid==GUID.bag.terrain.leftCore) and gStates.firstStarted==true then
+	if bag~=nil and (bag.guid==GUID.bag.terrain.leftCountry or bag.guid==GUID.bag.terrain.leftCore) and gStates.firstStarted==true then
 		obj.setName("excess")
 		if getObjectFromGUID(GUID.bag.terrain.stack).getQuantity()>0 then
 			broadcastToAll("{en}The Rules say you should only access these when the main pile is empty.{it}Le regole consentono di accedere a questi solo quando la pila principale è vuota.{ru}Правила гласят, что к ним можно обращаться только тогда, когда основная стопка пуста.{zh-tw}规则说只有当菜单是空的时才能访问这些{zh-cn}规则说只有当菜单是空的时才能访问这些{ko}메인 더미가 비어있을 때만 접근 가능합니다{es}Las Reglas dicen que solo debes acceder a ellas cuando la pila principal esté vacía.{fr}Les règles disent que vous ne devez y accéder que lorsque la pile principale est vide.{pt-br}As Regras dizem que você deveria apenas acessar estas quando a pilha principal está vazia.{de}Die Regeln besagen, dass man auf diese nur zugreifen darf, wenn der Hauptstapel leer ist.", positionToColor(gStates.turnNumber))
