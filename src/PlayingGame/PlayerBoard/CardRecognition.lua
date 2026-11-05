@@ -116,6 +116,7 @@ local combatAssignmentSlotSources={}
 local combatAssignmentRowTargets={}
 local combatEnemyPage=1
 local combatReductionAttackChoice={}
+local combatReductionActiveSource={}
 local combatAttackChoiceByRow={}
 local COMBAT_ASSIGNMENT_ROW_COUNT=8
 local COMBAT_ASSIGNMENT_SLOT_COUNT=6
@@ -375,21 +376,28 @@ end
 -- An Attack reduction modifies one printed Attack, not every Attack on a multi-attack enemy.
 -- When several Attacks exist, use the currently strongest one, with stable order on ties.
 -- All reductions are rebuilt from the original printed values on every scan (never cumulative).
-local function combatApplyAttackReductions(attacks,effect,ownerGUID,chosenAttack)
-    local reductions=effect~=nil and effect.attackReductions or nil
-    if reductions==nil or #reductions==0 then return end
+local function combatOrderedReductions(effect)
     local ordered={}
-    for _,reduction in ipairs(reductions) do ordered[#ordered+1]=reduction end
+    for _,reduction in ipairs(effect~=nil and effect.attackReductions or {}) do
+        ordered[#ordered+1]=reduction
+    end
     table.sort(ordered,function(a,b)
         if a.amount~=b.amount then return a.amount>b.amount end
         return tostring(a.source)<tostring(b.source)
     end)
-    for _,reduction in ipairs(ordered) do
-        local target=chosenAttack~=nil and attacks[chosenAttack] or nil
+    return ordered
+end
+
+local function combatApplyAttackReductions(attacks,effect,ownerGUID,chosenAttacks)
+    for _,reduction in ipairs(combatOrderedReductions(effect)) do
+        local sourceKey=reduction.id or tostring(reduction.source)
+        local choice=chosenAttacks~=nil and chosenAttacks[sourceKey] or nil
+        local target=choice~=nil and attacks[choice] or nil
         if target~=nil and (target.pending or (ownerGUID~=nil and target.owner~=ownerGUID)) then
             target=nil
         end
-        if chosenAttack==nil then
+        -- Stale selections fall back to the strongest currently legal attack.
+        if target==nil then
             for _,attack in ipairs(attacks) do
                 if not attack.pending and (ownerGUID==nil or attack.owner==ownerGUID)
                     and attack.value>0 and (target==nil or attack.value>target.value) then
@@ -521,6 +529,28 @@ local function combatPlayMonsters()
         end
     end
     return monsters
+end
+
+-- Temporary target buttons cover only face-up enemies in the active combat.
+-- A summoned token may act as a proxy only if its summoner is also present.
+function resourceCardsCombatTargetObjects()
+    local monsters=combatPlayMonsters()
+    local targets={}
+    for guid,obj in pairs(monsters) do
+        if obj.is_face_down~=true and not obj.isDestroyed() then
+            local summoned=gStates~=nil and gStates.attackedMonsters~=nil
+                and gStates.attackedMonsters[guid] or nil
+            if summoned~=nil and summoned[3]=="summoned" then
+                local owner=monsters[summoned[4]]
+                if owner~=nil and owner.is_face_down~=true and not owner.isDestroyed() then
+                    targets[guid]=obj
+                end
+            elseif not combatIsSummonedToken(guid) then
+                targets[guid]=obj
+            end
+        end
+    end
+    return targets
 end
 
 function resourceCardsCombatCalculatorOn()
@@ -1073,7 +1103,8 @@ local function combatApplyDefend(entries,groups,allocated)
     for index,entry in ipairs(entries) do
         for _,item in ipairs(allocated[index]~=nil and allocated[index].details or {}) do
             local family=item.detail.family
-            if family~="block" and family~="move" and not entry.destroyed then
+            if (family=="attack" or family=="ranged" or family=="siege")
+                and not entry.destroyed then
                 targets[#targets+1]=index
                 break
             end
@@ -1199,13 +1230,31 @@ local function combatAssignmentRefreshRows(entries,sources)
             combatPanelSetAttribute("CombatEnemyRow"..row.."Traits","color","rgb(0.88,0.84,0.73)")
             local attacks=combatEnemyAttacks(entry)
             local options={}
-            if entry.effect~=nil and #(entry.effect.attackReductions or {})>0 then
-                for index,attack in ipairs(attacks) do
-                    if not attack.pending then options[#options+1]=index end
+            if #entry.attackReductions>0 then
+                for attackIndex,attack in ipairs(attacks) do
+                    if not attack.pending then options[#options+1]=attackIndex end
                 end
             end
-            combatAttackChoiceByRow[row]=#options>1 and options or nil
-            combatPanelSetAttribute("CombatEnemyAttackCycle"..row,"active",#options>1 and "true" or "false")
+            local selectable=#options>1
+            combatAttackChoiceByRow[row]=selectable
+                and {options=options,reductions=entry.attackReductions} or nil
+            combatPanelSetAttribute("CombatEnemyAttackCycle"..row,"active",selectable and "true" or "false")
+            if selectable then
+                local active=combatReductionActiveSource[entry.guid]
+                local rank=1
+                for i,reduction in ipairs(entry.attackReductions) do
+                    if (reduction.id or tostring(reduction.source))==active then rank=i break end
+                end
+                local selected=entry.attackReductions[rank]
+                combatReductionActiveSource[entry.guid]=selected.id or tostring(selected.source)
+                local sourceData=gameCards[selected.source]
+                local sourceName=sourceData~=nil and sourceData.name or selected.source
+                if type(sourceName)=="table" then sourceName=sourceName[1] end
+                combatPanelSetAttribute("CombatEnemyAttackCycle"..row,"tooltip",
+                    "Reduction "..tostring(rank).."/"..tostring(#entry.attackReductions)
+                    ..": "..tostring(sourceName).." (-"..tostring(selected.amount)
+                    .."). Left-click: cycle target (including Auto). Right-click: next reduction source.")
+            end
             for _,column in ipairs({"Attacks","Offence","Traits"}) do
                 local id="CombatEnemyRow"..row..column
                 combatPanelSetAttribute(id,"font","Fonts/MKCardText")
@@ -1627,8 +1676,14 @@ local function combatAssignmentRefreshRows(entries,sources)
             local attackLines={}
             for attackIndex,attack in ipairs(combatEnemyAttacks(entry)) do
                 local reduction=rowBlock[index].reductions[attackIndex] or 0
-                local chosen=combatReductionAttackChoice[entry.guid]==attackIndex
-                attackLines[#attackLines+1]=(chosen and "▶ " or "")
+                local markers={}
+                local selections=combatReductionAttackChoice[entry.guid] or {}
+                for rank,effect in ipairs(entry.attackReductions) do
+                    if selections[effect.id or tostring(effect.source)]==attackIndex then
+                        markers[#markers+1]=tostring(rank)
+                    end
+                end
+                attackLines[#attackLines+1]=(#markers>0 and ("▶"..table.concat(markers,",").." ") or "")
                     ..combatTypeRich(attack.label.." "..tostring(attack.value-reduction),
                         attack.key,reduction>0)
             end
@@ -1792,6 +1847,7 @@ local function combatCalcShutdown()
     combatAssignmentJoined={}
     combatEnemyPage=1
     combatReductionAttackChoice={}
+    combatReductionActiveSource={}
     combatAttackChoiceByRow={}
     attackAssignmentsDamageClear()
     if attackAssignmentsHasAny() then attackAssignmentsClearAll() end
@@ -1807,7 +1863,8 @@ local function refreshCombatEnemyPanel(monsters)
     local entries={}
     for guid in pairs(monsters or {}) do
         local data=monsterPugs[guid]
-        if data~=nil and not combatIsSummonedToken(guid) then
+        if data~=nil and monsters[guid]~=nil and monsters[guid].is_face_down~=true
+            and not combatIsSummonedToken(guid) then
             local perks=gStates~=nil and gStates.monsterPerks~=nil and gStates.monsterPerks[guid] or nil
             local baseArmour=tonumber(data.armour) or 0
             local armourBonus=perks~=nil and (tonumber(perks.armour) or 0) or 0
@@ -1827,6 +1884,7 @@ local function refreshCombatEnemyPanel(monsters)
         -- Card effects on one enemy (Armour reduction never goes below 1).
         local effect=enemyEffects~=nil and enemyEffects[entry.guid] or nil
         entry.effect=effect
+        entry.attackReductions=combatOrderedReductions(effect)
         if effect~=nil then
             local reduction=combatEnemyFortificationCount(entry.data,entry.perks)>0
                 and effect.armourReduceFortified or effect.armourReduce
@@ -1882,6 +1940,11 @@ local function refreshCombatEnemyPanel(monsters)
         end
     end
     attackAssignmentsPruneInactive(activeSources,activeObjects,combatSourceKeepsLock)
+    local validTargets={}
+    for guid,obj in pairs(monsters or {}) do
+        if obj.is_face_down~=true then validTargets[guid]=true end
+    end
+    attackAssignmentsPruneTargets(validTargets)
     -- Reconcile effect-only Unit arrows on *every* calculator refresh, not only
     -- when an assignment is clicked. The damage overlay may come and go as
     -- attacks are blocked; its removal must not remove the originating arrow.
@@ -1922,17 +1985,30 @@ function resourceCardsCombatPage(delta)
     resourceCardsRefreshCombatEnemies()
 end
 
-function resourceCardsCombatCycleAttack(row)
+function resourceCardsCombatCycleAttack(row,nextSource)
     local guid=combatAssignmentRowTargets[row]
-    local options=combatAttackChoiceByRow[row]
-    if guid==nil or options==nil or #options<2 then return end
-    local chosen=combatReductionAttackChoice[guid]
-    local nextIndex=nil
-    for i,index in ipairs(options) do
-        if chosen==nil then nextIndex=options[1] break end
-        if chosen==index then nextIndex=options[i+1] break end
+    local selector=combatAttackChoiceByRow[row]
+    if guid==nil or selector==nil or #selector.options<2 then return end
+    local reductions=selector.reductions
+    local active=combatReductionActiveSource[guid] or (reductions[1].id or tostring(reductions[1].source))
+    if nextSource then
+        for i,reduction in ipairs(reductions) do
+            if (reduction.id or tostring(reduction.source))==active then
+                local following=reductions[i%#reductions+1]
+                combatReductionActiveSource[guid]=following.id or tostring(following.source)
+                break
+            end
+        end
+    else
+        local selected=combatReductionAttackChoice[guid] or {}
+        local previous=selected[active]
+        local nextIndex=selector.options[1]
+        for i,index in ipairs(selector.options) do
+            if previous==index then nextIndex=selector.options[i+1] break end
+        end
+        selected[active]=nextIndex
+        combatReductionAttackChoice[guid]=next(selected)~=nil and selected or nil
     end
-    combatReductionAttackChoice[guid]=nextIndex
     resourceCardsRefreshCombatEnemies()
 end
 

@@ -56,13 +56,54 @@ check("one Influence source splits five points across Psychic attacks",plan[1].b
 plan=solve({attack("P",6,{cumbersome=true})},{item("block","block",4)},2)
 check("Cumbersome Move works together with Block",plan[1].blocked and plan[1].reduction==2)
 local attacks={attack("P",6),attack("F",4)}
-reduce(attacks,{attackReductions={{amount=3,source="u"}}},nil,2)
+reduce(attacks,{attackReductions={{amount=3,source="u"}}},nil,{u=2})
 check("player can select the second Attack for reduction",attacks[1].value==6 and attacks[2].value==1)
 attacks={attack("P",6),attack("F",4)}
 reduce(attacks,{attackReductions={{amount=3,source="u"}}},nil,nil)
 check("automatic reduction still chooses strongest Attack",attacks[1].value==3 and attacks[2].value==4)
+attacks={attack("P",6),attack("F",4)}
+reduce(attacks,{attackReductions={{amount=3,source="a",id="a"},
+    {amount=3,source="b",id="b"}}},nil,{a=1,b=2})
+check("independent reduction sources choose different attack slots",
+    attacks[1].value==3 and attacks[2].value==1)
+local defend=assert(findFunction(root,"combatApplyDefend"),"Defender resolver not reachable")
+local function defenderEntries()
+    return {{guid="defender",data={defend=1},perks={},baseArmour=4,elusiveArmour=4},
+        {guid="target",data={},perks={},baseArmour=4,elusiveArmour=4}}
+end
+local groups={{members={1}},{members={2}}}
+local allocated={[2]={sources={},details={{detail={family="influence"}}}}}
+check("Psychic Influence Block does not trigger Defender",
+    next(defend(defenderEntries(),groups,allocated))==nil)
+allocated[2].details[1].detail.family="attack"
+check("a genuine Attack activates Defender",
+    defend(defenderEntries(),groups,allocated)[2]==1)
 local unit={guid="unit",name="Tester",armour=6,level=2,resist={},wounded=false}
 local resolved=damage({{key="enemy:1",type="M",damage=4}}, {unit=unit},2,function() return {"unit"} end)
 check("Psychic damage uses Unit level instead of printed Armor",
     resolved["enemy:1"].units[1].wounded and resolved["enemy:1"].heroWounds==1)
+turnOrder={{seatPos=1}}
+gStates={turnNumber=1,attackedMonsters={summoned={nil,nil,"summoned","owner"}},
+    summonStates={summoned="summoned"}}
+playerPlayAreas={[1]="play"}
+playerUnitAreas={[1]="units"}
+monsterPugs={owner={name="Owner"},summoned={name="Summoned"},
+    hidden={name="Hidden"},remote={name="Remote"}}
+local function monster(guid,faceDown)
+    return {guid=guid,is_face_down=faceDown,isDestroyed=function() return false end}
+end
+local owner=monster("owner",false)
+local summoned=monster("summoned",false)
+local hidden=monster("hidden",true)
+local remote=monster("remote",false)
+local world={play={getObjects=function() return {owner,hidden,summoned} end},
+    units={getObjects=function() return {} end},remote=remote}
+getObjectFromGUID=function(guid) return world[guid] end
+local targets=resourceCardsCombatTargetObjects()
+check("target buttons include only face-up enemies in active combat",
+    targets.owner==owner and targets.summoned==summoned
+    and targets.hidden==nil and targets.remote==nil)
+world.play.getObjects=function() return {hidden,summoned} end
+targets=resourceCardsCombatTargetObjects()
+check("summoned token is not targetable without its summoner",targets.summoned==nil)
 print("Combat calculator regression tests passed.")

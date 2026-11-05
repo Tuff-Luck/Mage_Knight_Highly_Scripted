@@ -67,8 +67,14 @@ function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec)
     end
     local attackReduce=math.max(0,tonumber(spec.attackReduce) or 0)
     if attackReduce>0 then
+        local ordinal=1
+        for _,previous in ipairs(entry.attackReductions) do
+            if previous.source==sourceGUID then ordinal=ordinal+1 end
+        end
+        local id=tostring(sourceGUID)..(ordinal>1 and ("#"..tostring(ordinal)) or "")
         entry.attackReductions[#entry.attackReductions+1]={amount=attackReduce,
-            source=sourceGUID,firstDamageUnit=spec.firstDamageUnit==true and sourceGUID or nil}
+            source=sourceGUID,id=id,
+            firstDamageUnit=spec.firstDamageUnit==true and sourceGUID or nil}
     end
     entry.destroy=entry.destroy or spec.destroy==true
     entry.destroyIfBlocked=entry.destroyIfBlocked or spec.destroyIfBlocked==true

@@ -2264,6 +2264,11 @@ local MOVE_COST_FIELDS={	["Plain"]={"plains", "{en}Plains : {it}Pianure : {ru}Р
 				["Mount"]={"mountain", "{en}Mountains : {it}Montagne : {ru}Горы: {zh-tw}山脈：{zh-cn}山脉：{ko}산 : {es}Montañas : {fr}Montagnes : {pt-br}Montanhas : {de}Berge : "}}
 
 function resourceTracker(player, mouseButton, id)
+    local cycleRow=type(id)=="string" and id:match("^CombatEnemyAttackCycle(%d+)$") or nil
+    if cycleRow~=nil and (mouseButton=="-1" or mouseButton=="-2") then
+        resourceCardsCombatCycleAttack(tonumber(cycleRow),mouseButton=="-2")
+        return
+    end
 	if mouseButton=="-1" then--and legalPlayerCheck(player.color, turnOrder[gStates.turnNumber].seatPos)==true then
 		--expand Resource Tracker
 		if id=="DisplayResourceTrackerDetails" then
@@ -2302,11 +2307,7 @@ function resourceTracker(player, mouseButton, id)
             resourceCardsCombatPage(id=="CombatEnemyPagePrev" and -1 or 1)
             return
         end
-        local attackCycleRow=id:match("^CombatEnemyAttackCycle(%d+)$")
-        if attackCycleRow~=nil then
-            resourceCardsCombatCycleAttack(tonumber(attackCycleRow))
-            return
-        end
+
 		--expander buttons
 		local IDConvert=RESOURCE_TRACKER_EXPANDERS
 		if IDConvert[id]~=nil then

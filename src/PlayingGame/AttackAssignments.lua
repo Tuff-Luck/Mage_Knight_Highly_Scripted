@@ -218,25 +218,25 @@ local function syncTargetButtons()
 	local shouldShow=next(targetingByPlayer)~=nil
 	local live={}
 	if shouldShow then
-		for _,obj in ipairs(getObjects()) do
-			if obj~=nil and obj.guid~=nil and monsterPugs[obj.guid]~=nil and not obj.isDestroyed() then
-				live[obj.guid]=obj
-				if targetButtonObjects[obj.guid]==nil then
-					local bounds=obj.getBounds()
-					local diameter=bounds~=nil and bounds.size~=nil and bounds.size[1] or 1.5
-					local scale=obj.getScale()
-					local size=diameter/((scale~=nil and scale.x) or 1)*500
-					obj.createButton({
-						click_function="attackAssignmentTargetClicked",function_owner=Global,
-						label="",position={0,0.25,0},rotation={0,0,0},
-						width=size,height=size,
-						color={0,0,0,0},
-					})
-					targetButtonObjects[obj.guid]=obj
-				end
-			end
-		end
-	end
+        local candidates=resourceCardsCombatTargetObjects~=nil and resourceCardsCombatTargetObjects() or {}
+        for guid,obj in pairs(candidates) do
+            if obj~=nil and not obj.isDestroyed() then
+                live[guid]=obj
+                if targetButtonObjects[guid]==nil then
+                    local bounds=obj.getBounds()
+                    local diameter=bounds~=nil and bounds.size~=nil and bounds.size[1] or 1.5
+                    local scale=obj.getScale()
+                    local size=diameter/((scale~=nil and scale.x) or 1)*500
+                    obj.createButton({
+                        click_function="attackAssignmentTargetClicked",function_owner=Global,
+                        label="",position={0,0.25,0},rotation={0,0,0},
+                        width=size,height=size,color={0,0,0,0},
+                    })
+                    targetButtonObjects[guid]=obj
+                end
+            end
+        end
+    end
 	for guid,obj in pairs(targetButtonObjects) do
 		if live[guid]==nil then
 			local liveObject=getObjectFromGUID(guid)
@@ -611,14 +611,16 @@ end
 function attackAssignmentTargetClicked(target,playerColor)
 	return safeCallback("attackAssignmentTargetClicked",function()
 		local pending=type(playerColor)=="string" and targetingByPlayer[playerColor] or nil
-		-- A summoned token stands in for the enemy that summoned it.
-		local summoned=target~=nil and target.guid~=nil and gStates.attackedMonsters~=nil
-			and gStates.attackedMonsters[target.guid] or nil
-		if summoned~=nil and summoned[3]=="summoned" and summoned[4]~=nil then
-			target=getObjectFromGUID(summoned[4]) or target
-		end
-		if pending==nil or target==nil or target.guid==nil or monsterPugs[target.guid]==nil
-			or target.isDestroyed() or pending.source==nil or pending.source.isDestroyed() 			then return end
+        local eligible=resourceCardsCombatTargetObjects~=nil and resourceCardsCombatTargetObjects() or {}
+        if pending==nil or target==nil or target.guid==nil or eligible[target.guid]==nil then return end
+        -- Summoned tokens redirect to their face-up owner in the same combat.
+        local summoned=gStates~=nil and gStates.attackedMonsters~=nil
+            and gStates.attackedMonsters[target.guid] or nil
+        if summoned~=nil and summoned[3]=="summoned" and summoned[4]~=nil then
+            target=eligible[summoned[4]]
+            if target==nil then return end
+        end
+        if target.isDestroyed() or pending.source==nil or pending.source.isDestroyed() then return end
 		if tostring(pending.resource):find("move$")~=nil and resourceCardsCombatTargetAcceptsMove~=nil
 			and not resourceCardsCombatTargetAcceptsMove(target.guid) then
 			broadcastToColor("Move can only be assigned to a Cumbersome enemy.",playerColor,{1,0.6,0.2})
@@ -720,6 +722,23 @@ function attackAssignmentsPruneInactive(activeKeys,activeObjects,keepsLock)
 		persistAssignments()
 		refreshRenderedLines()
 	end
+end
+
+-- Preserve held/moving targets but prune arrows left on enemies outside combat.
+function attackAssignmentsPruneTargets(eligible)
+    local changed=false
+    for id,entry in pairs(assignmentRegistry) do
+        if eligible[entry.targetGUID]~=true then
+            local target=getObjectFromGUID(entry.targetGUID)
+            local inTransit=target~=nil
+                and ((target.held_by_color~=nil and target.held_by_color~="") or target.isSmoothMoving())
+            if not inTransit then assignmentRegistry[id]=nil changed=true end
+        end
+    end
+    if changed then
+        persistAssignments()
+        refreshRenderedLines()
+    end
 end
 
 function attackAssignmentsIsTargeting(sourceGUID)
