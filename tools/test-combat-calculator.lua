@@ -96,6 +96,17 @@ enemy.data.poison=true
 local _,_,_,_,_,_,unblocked=blockResult(enemy,{source})
 check("Poison ability survives cached Block pipeline",
     unblocked[1]~=nil and unblocked[1].attack.poison==true)
+-- A Helm toggle changes Block efficiency without changing printed resources;
+-- both the cached result and the displayed amount must update.
+local helmEnemy={guid="helmEnemy",data={attack={M={3}}},perks={}}
+local helmSource={key="helmSource",guid="helmSource",block=3,move=0,resources={block=3}}
+local _,_,unblockedBefore=blockResult(helmEnemy,{helmSource})
+helmSource.heroPsychicBlock=true
+local helmLines,_,unblockedAfter=blockResult(helmEnemy,{helmSource})
+check("Helm activation invalidates Block cache",
+    unblockedBefore==1 and unblockedAfter==0)
+check("Helm-efficient ordinary Block displays the full value",
+    helmLines[1]~=nil and helmLines[1]:find("3/3 Blocked",1,true)~=nil)
 local defend=assert(findFunction(root,"combatApplyDefend"),"Defender resolver not reachable")
 local function defenderEntries()
     return {{guid="defender",data={defend=1},perks={},baseArmour=4,elusiveArmour=4},
@@ -108,6 +119,40 @@ check("Psychic Influence Block does not trigger Defender",
 allocated[2].details[1].detail.family="attack"
 check("a genuine Attack activates Defender",
     defend(defenderEntries(),groups,allocated)[2]==1)
+-- Fortified enemies cannot be attacked by Ranged effects until melee.
+-- Defender must protect an actual Ranged target first.
+local phaseEntries={
+    {guid="defender",data={defend=2},perks={},baseArmour=4,elusiveArmour=4},
+    {guid="fortified",data={fortified=true},perks={},baseArmour=4,elusiveArmour=4},
+    {guid="ranged",data={},perks={},baseArmour=4,elusiveArmour=4}
+}
+local phaseGroups={{members={1}},{members={2}},{members={3}}}
+local phaseAlloc={
+    [2]={sources={},details={{detail={family="ranged"}}}},
+    [3]={sources={},details={{detail={family="ranged"}}}}
+}
+local phaseApplied=defend(phaseEntries,phaseGroups,phaseAlloc)
+check("Defender prioritizes legal Ranged targets before melee-only targets",
+    phaseApplied[3]==2 and phaseApplied[2]==nil)
+local mixedEntries={
+    {guid="defenderA",data={defend=2},perks={},baseArmour=4,elusiveArmour=4},
+    {guid="defenderB",data={defend=1},perks={},baseArmour=4,elusiveArmour=4},
+    {guid="rangedTarget",data={},perks={},baseArmour=4,elusiveArmour=4},
+    {guid="meleeTarget",data={},perks={},baseArmour=4,elusiveArmour=4}
+}
+local mixedGroups={{members={1}},{members={2}},{members={3}},{members={4}}}
+local mixedAlloc={
+    [3]={sources={},details={{detail={family="ranged"}}}},
+    [4]={sources={},details={{detail={family="attack"}}}}
+}
+local mixedApplied=defend(mixedEntries,mixedGroups,mixedAlloc)
+check("Defender remaining after Ranged phase can assist melee",
+    mixedApplied[3]==2 and mixedApplied[4]==1
+    and mixedEntries[4].defendMeleeBonus==1)
+local rangedGroup=assert(findFunction(root,"combatRangeGroupEntry"),"Ranged group resolver not reachable")
+local phaseGroup=rangedGroup({mixedEntries[4]})
+check("Attack-phase Defender does not retroactively change Ranged armour",
+    phaseGroup.baseArmour==4 and mixedEntries[4].baseArmour==5)
 local groupEntry=assert(findFunction(root,"combatGroupEntry"),"Group resolver not reachable")
 local grouped,groupArmour=groupEntry({
     {guid="a",data={fResist=true,elusive=true},perks={},baseArmour=3,elusiveArmour=6},
