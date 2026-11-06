@@ -758,6 +758,40 @@ function assaultOriginFromPosition(approachPosition)
 	return origin
 end
 
+-- Optional, session-local map profiler for crowded-map stress tests. It adds only
+-- one boolean check while disabled, and measures Lua execution (not TTS rendering).
+local mapPerformanceEnabled=false
+local mapPerformanceStats={}
+function mapPerformanceEnable(enabled)
+	mapPerformanceEnabled=enabled==true
+	mapPerformanceStats={}
+	print("Map Lua profiling "..(mapPerformanceEnabled and "enabled" or "disabled"))
+end
+function mapPerformanceStart()
+	if mapPerformanceEnabled~=true then return nil end
+	return os.clock()
+end
+function mapPerformanceRecord(label,started)
+	if started==nil then return end
+	local elapsed=math.max(0,(os.clock()-started)*1000)
+	local row=mapPerformanceStats[label]
+	if row==nil then row={count=0,total=0,max=0} mapPerformanceStats[label]=row end
+	row.count=row.count+1
+	row.total=row.total+elapsed
+	row.max=math.max(row.max,elapsed)
+end
+function mapPerformanceReport()
+	local keys={}
+	for key in pairs(mapPerformanceStats) do keys[#keys+1]=key end
+	table.sort(keys)
+	for _,key in ipairs(keys) do
+		local row=mapPerformanceStats[key]
+		print(string.format("[Map perf] %s: %d calls, %.2f ms total, %.2f ms avg, %.2f ms max",
+			key,row.count,row.total,row.total/row.count,row.max))
+	end
+	return mapPerformanceStats
+end
+
 -- Shared runtime map snapshots. The physical TTS table is authoritative; these are only derived
 -- in-memory indexes and must never be persisted in gStates. Ordinary map membership changes invalidate
 -- only the cheap object list. Terrain membership/transform/face changes also invalidate the expensive
@@ -981,6 +1015,7 @@ end
 
 local function runtimeMapTerrainSnapshot()
 	if runtimeMapTerrainCache~=nil then return runtimeMapTerrainCache end
+	local perfStart=mapPerformanceStart()
 	local objectSnapshot=runtimeMapObjectSnapshot()
 	local terrainObjects={}
 	local terrainPositions={}
@@ -1079,6 +1114,7 @@ local function runtimeMapTerrainSnapshot()
 		terrainEntries=terrainEntries,hexes=hexes,hexByKey=hexByKey,neighbors=neighbors,neighborSet=neighborSet,
 		terrainSignature=table.concat(signatureParts,"|")
 	}
+	mapPerformanceRecord("terrain topology",perfStart)
 	return runtimeMapTerrainCache
 end
 
