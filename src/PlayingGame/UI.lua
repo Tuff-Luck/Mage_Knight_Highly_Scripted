@@ -2312,6 +2312,10 @@ function resourceTracker(player, mouseButton, id)
 			resourceCardsCombatToggleGroup(tonumber(id:match("%d+")))
 			return
 		end
+        if id:match("^CombatEnemyResultToggle%d+$")~=nil then
+            resourceCardsCombatToggleResult(tonumber(id:match("%d+$")))
+            return
+        end
         if id=="CombatEnemyPagePrev" or id=="CombatEnemyPageNext" then
             resourceCardsCombatPage(id=="CombatEnemyPagePrev" and -1 or 1)
             return
@@ -2453,7 +2457,8 @@ function buttonClicked(player, mouseButton, ButtonPressed)
 	if mouseButton~="-1" then return end
 	-- Combat panel slots draw their own icon; the standard button image must not replace it.
 	if ButtonPressed:match("^CombatSourceSlot") or ButtonPressed:match("^CombatEnemyRow")
-		or ButtonPressed:match("^CombatEnemyJoin") then return end
+		or ButtonPressed:match("^CombatEnemyJoin")
+		or ButtonPressed:match("^CombatEnemyResultToggle") then return end
 
 	local ui=obj and obj.UI or UI
 	local active, deactive
