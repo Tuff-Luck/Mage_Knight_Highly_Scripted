@@ -1,4 +1,8 @@
 <Defaults>
+	<!-- Shared tooltip styling for every Global XML UI element with a tooltip.
+	     An opaque background keeps text readable over the board and floating panels. -->
+	<Tooltip tooltipBackgroundColor="#24211DF2" tooltipBorderColor="#9E8665"
+			tooltipTextColor="#F5E6CA" tooltipFontSize="15" tooltipOffset="12"/>
 	<Panel	color="rgb(0.7, 0.7, 0.7)" rectAlignment="MiddleCenter" active="true"
 			allowDragging="false" returnToOriginalPositionWhenReleased="true" raycastTarget="true"
 			hideAnimation="None" showAnimation="None" animationDuration="0.5"
@@ -32,7 +36,7 @@
 
 	<Button	fontSize="18" font="Fonts/MKCardText" fontStyle="Normal" textColor="rgb(0, 0, 0)"
 			onMouseDown="buttonClicked" onMouseUp="buttonClicked"
-			tooltipPosition="Left" tooltipBackgroundColor="clear" tooltipOffset="20"
+			tooltipPosition="Left"
 			shadow="rgb(0, 0, 0)" shadowDistance="0 -0"/>
 	<Button class="ScenarioTweak" width="25" height="25" color="#7F7F7F" textColor="#FFFFFF" onClick="baseValueTweak"/>
 	<Button class="ShortButton" preferredWidth="45" onMouseDown="buttonClicked" onMouseUp="buttonClicked"/>
