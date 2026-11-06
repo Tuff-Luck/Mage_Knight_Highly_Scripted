@@ -1348,7 +1348,16 @@ end
 
 
 --Rebuild EXPLORE buttons from the shared runtime map. This path has no terrain-entry side effects.
+local terrainExploreRefreshWait=nil
+local lastTerrainExploreButtonsSignature=nil
+
 function refreshTerrainExploreOptions(compactCities)
+	-- An explicit refresh (especially before City deployment) supersedes a queued
+	-- presentation refresh. Keep City placement synchronous when it is required.
+	if terrainExploreRefreshWait~=nil then
+		Wait.stop(terrainExploreRefreshWait)
+		terrainExploreRefreshWait=nil
+	end
 	if gStates==nil then return end
 	local mapSnapshot=runtimeMapSnapshot()
 	local playAreaObjects=mapSnapshot.objects or {}
@@ -1416,10 +1425,30 @@ function refreshTerrainExploreOptions(compactCities)
 			end
 			for _, teleportDecal in pairs(fracturedLandsTeleportDecals()) do terrainDecals[#terrainDecals+1]=teleportDecal end
 			Global.setDecals(terrainDecals)
-			getObjectFromGUID(GUID.ui.mapExplore).UI.setXmlTable(terrainExploreButtons)
+			-- Do not send unchanged XML through the TTS UI boundary after each
+			-- intermediate terrain/drop callback. Position is encoded in the id.
+			local uiParts={}
+			for _,button in ipairs(terrainExploreButtons) do
+				if button.attributes~=nil then uiParts[#uiParts+1]=tostring(button.attributes.id) end
+			end
+			local uiSignature=table.concat(uiParts,"|")
+			if uiSignature~=lastTerrainExploreButtonsSignature then
+				getObjectFromGUID(GUID.ui.mapExplore).UI.setXmlTable(terrainExploreButtons)
+				lastTerrainExploreButtonsSignature=uiSignature
+			end
 			--Now that the complete legal EXPLORE set is known, place each City card once at its closest legal position.
 			if compactCities~=false then compactCityCardsAfterExplore(mapObjectPositions) end
 	end
+end
+
+-- Combine ordinary terrain-entry, settled-drop and population-finish requests.
+-- City placement deliberately bypasses this queue for its synchronous frontier update.
+function requestTerrainExploreOptionsRefresh()
+	if terrainExploreRefreshWait~=nil then return end
+	terrainExploreRefreshWait=safeWaitFrames("Map",function()
+		terrainExploreRefreshWait=nil
+		refreshTerrainExploreOptions()
+	end,2)
 end
 
 local function applyPredefinedTerrainTint(playAreaObjects,faceUpTerrain,northBearing,mapSnapshot)
@@ -1533,7 +1562,7 @@ function mapHandleTerrainZoneEnter(ctx)
 			end
 
 			if startingMapSetup~=true and obj.resting==true and obj.held_by_color==nil and obj.isSmoothMoving()==false then
-				refreshTerrainExploreOptions()
+				requestTerrainExploreOptionsRefresh()
 			end
 
 			--Against the Apocalypse destroyed terrain
@@ -1802,7 +1831,7 @@ function mapHandleTerrainZoneEnter(ctx)
 				workingOnTerrain[objGUID]=false
 				--A City reveal already refreshed immediately before its initial card placement.
 				--Do not compact it a second time while that smooth move is still in progress.
-				if startingMapSetup~=true and exploreRefreshedBeforeCity~=true then refreshTerrainExploreOptions() end
+				if startingMapSetup~=true and exploreRefreshedBeforeCity~=true then requestTerrainExploreOptionsRefresh() end
 				--Terrain deployment changes the movement graph directly. Refresh it here instead of relying on
 				--the later fake avatar drop to eventually trigger a full UI update.
 				if initialSetupTerrain~=true and gStates.firstStarted==true then
