@@ -769,6 +769,14 @@ local function combatBlockLegal(attack,item)
     return item.key~="blockPsychic" or attack.key=="M"
 end
 
+-- Share one efficiency rule between the optimiser, displayed Block totals,
+-- and the colour assigned to an inefficient Block icon.
+local function combatBlockEfficient(attack,item)
+    return (COMBAT_EFFICIENT_BLOCKS[attack.key] or {})[item.key]==true
+        or (attack.key=="M" and item.source.heroPsychicBlock==true
+            and item.key~="blockPsychic")
+end
+
 local function combatSolveBlocks(attacks,items,movePool)
     table.sort(items,function(a,b)
         if a.value~=b.value then return a.value>b.value end
@@ -783,17 +791,13 @@ local function combatSolveBlocks(attacks,items,movePool)
         initial[index]=0
     end
     local states={["0"]={points=initial,spent=0,route=""}}
-    local efficientByAttack={}
-    for index,attack in ipairs(attacks) do efficientByAttack[index]=COMBAT_EFFICIENT_BLOCKS[attack.key] or {} end
     for _,item in ipairs(items) do
         -- Type efficiency and Swiftness are constant for this item, not per DP state.
         local options={}
         for index,attack in ipairs(attacks) do
             if targets[index]>0 and combatBlockLegal(attack,item) then
                 local amount=item.value*(attack.swift and item.swiftDouble and 2 or 1)
-                local efficient=efficientByAttack[index][item.key]==true
-                    or (attack.key=="M" and item.source.heroPsychicBlock==true
-                        and item.key~="blockPsychic")
+                local efficient=combatBlockEfficient(attack,item)
                 local contribution=amount*(efficient and 2 or 1)
                 if contribution>0 then options[#options+1]={index=index,points=contribution} end
             end
@@ -900,12 +904,11 @@ local function combatSolveBlocks(attacks,items,movePool)
 end
 
 local function combatBlockSpent(attack,items,used)
-    local efficient=COMBAT_EFFICIENT_BLOCKS[attack.key] or {}
     local full,wrong=0,0
     for index,item in ipairs(items) do
         if used[index] and combatBlockLegal(attack,item) then
             local amount=item.value*(attack.swift and item.swiftDouble and 2 or 1)
-            if efficient[item.key]==true then full=full+amount else wrong=wrong+amount end
+            if combatBlockEfficient(attack,item) then full=full+amount else wrong=wrong+amount end
         end
     end
     return full+math.floor(wrong/2)
@@ -958,7 +961,8 @@ local function combatBlockResult(entry,sources)
     for _,item in ipairs(items) do
         parts[#parts+1]=table.concat({
             tostring(item.source.key),tostring(item.key),tostring(item.value),
-            tostring(item.swiftDouble),tostring(item.part)},":")
+            tostring(item.swiftDouble),tostring(item.part),
+            tostring(item.source.heroPsychicBlock)},":")
     end
     local key=table.concat(parts,";")
     local cached=entry.guid~=nil and combatBlockResultCache[entry.guid] or nil
@@ -992,9 +996,8 @@ local function combatBlockResult(entry,sources)
     -- Block items applied at the wrong element (halved) against their attack, keyed source.key..field.key.
     local wrongBlock={}
     for index,attack in ipairs(attacks) do
-        local efficient=COMBAT_EFFICIENT_BLOCKS[attack.key] or {}
         for j,item in ipairs(solved) do
-            if plan[index].used[j] and efficient[item.key]~=true then
+            if plan[index].used[j] and not combatBlockEfficient(attack,item) then
                 wrongBlock[item.source.key..item.key]=true
             end
         end
@@ -1239,13 +1242,27 @@ local function combatGroupEntry(members,blockedAll)
     return {data=data,perks=perks,baseArmour=armour,elusiveArmour=elusiveArmour},attackArmour
 end
 
+-- Bonuses first assigned in the regular Attack phase must not retrospectively
+-- make an earlier Ranged/Siege attack fail.
+local function combatRangeGroupEntry(members)
+    local result=combatGroupEntry(members,{})
+    local lateBonus=0
+    for _,member in ipairs(members) do lateBonus=lateBonus+(member.defendMeleeBonus or 0) end
+    if lateBonus>0 then
+        result.baseArmour=result.baseArmour-lateBonus
+        result.elusiveArmour=result.elusiveArmour-lateBonus
+    end
+    return result
+end
+
 -- Defence text of one member of a multi-enemy group: fortification and resistances are shared by the whole group.
 local function combatGroupTraitsText(entry,groupEntry)
     local data={elusive=entry.data.elusive,arcaneImmunity=entry.data.arcaneImmunity,defend=entry.data.defend,
-        fortified=groupEntry.data.fortified}
+        fortified=groupEntry.data.fortified,unfortified=entry.data.unfortified}
     local perks={defend=entry.perks~=nil and entry.perks.defend or nil,
         elusive=entry.perks~=nil and entry.perks.elusive or nil,
         arcaneImmunity=entry.perks~=nil and entry.perks.arcaneImmunity or nil,
+        unfortified=entry.perks~=nil and entry.perks.unfortified or nil,
         wallFortified=groupEntry.perks.wallFortified}
     for _,key in ipairs({"pResist","fResist","iResist","mResist"}) do data[key]=groupEntry.data[key] end
     return combatEnemyTraitsText(data,perks,COMBAT_ENEMY_DEFENCE_TRAITS)
@@ -1293,90 +1310,109 @@ local function combatSyncDefenderMark(marks)
     combatDefenderMarks=wanted
 end
 
--- Defender: each Defend bonus goes to a different attacked enemy, highest bonus to the leftmost. A Defender that is destroyed, or defeated in the Ranged phase without being a defended enemy,
--- loses its contribution. Returns {enemyIndex=bonus} and adds the bonuses to those enemies' armour.
+-- Each Defend symbol may protect one attacked enemy, including a member of an
+-- attacked group. Ranged/Siege attacks are resolved first; a defender defeated
+-- in that phase cannot protect a newly attacked enemy in the Attack phase.
+-- Default ordering is left-to-right within each phase (the physical table order).
 local function combatApplyDefend(entries,groups,allocated)
-    local defenders,indexByGUID={},{}
+    local defenders={}
     for index,entry in ipairs(entries) do
-        indexByGUID[entry.guid]=index
-        local bonus=(tonumber(entry.data.defend) or 0)+(entry.perks~=nil and tonumber(entry.perks.defend) or 0)
-        if bonus>0 and not entry.destroyed then defenders[#defenders+1]={index=index,bonus=bonus} end
-    end
-    if #defenders==0 then return {} end
-    -- Attacked enemies, left to right; the highest bonus goes to the leftmost, the next highest to the next.
-    local targets={}
-    for index,entry in ipairs(entries) do
-        for _,item in ipairs(allocated[index]~=nil and allocated[index].details or {}) do
-            local family=item.detail.family
-            if (family=="attack" or family=="ranged" or family=="siege")
-                and not entry.destroyed then
-                targets[#targets+1]=index
-                break
-            end
+        entry.defendMeleeBonus=nil
+        local bonus=(tonumber(entry.data.defend) or 0)+(entry.perks~=nil and (tonumber(entry.perks.defend) or 0) or 0)
+        if bonus>0 and not entry.destroyed then
+            defenders[#defenders+1]={index=index,bonus=bonus}
         end
     end
+    if #defenders==0 then return {} end
     table.sort(defenders,function(a,b)
         if a.bonus~=b.bonus then return a.bonus>b.bonus end
         return a.index<b.index
     end)
-    if #targets==0 then return {} end
-    local groupSources={}
+
+    local groupOf,groupSources={},{}
+    local rangedTargets,meleeTargets={},{}
     for _,group in ipairs(groups) do
-        groupSources[group]={}
+        local members,sources={},{}
         for _,index in ipairs(group.members) do
+            local entry=entries[index]
+            groupOf[index]=group
+            members[#members+1]=entry
             for _,source in ipairs((allocated[index] or {sources={}}).sources) do
-                groupSources[group][#groupSources[group]+1]=source
+                sources[#sources+1]=source
             end
         end
-    end
-    local groupIndexOf={}
-    for groupIndex,group in ipairs(groups) do
-        for _,index in ipairs(group.members) do groupIndexOf[index]=groupIndex end
-    end
-    local lost,applied={},{}
-    for _=1,#defenders+1 do
-        applied={}
-        local slot=0
-        local defenderTarget={}
-        for _,defender in ipairs(defenders) do
-            if not lost[defender.index] then
-                slot=slot+1
-                local target=targets[slot]
-                defenderTarget[defender.index]=target
-                if target~=nil then applied[target]=(applied[target] or 0)+defender.bonus end
-            end
-        end
-        local nextLost,changed={},false
-        for groupIndex,group in ipairs(groups) do
-            local members={}
-            for _,index in ipairs(group.members) do
-                local entry=entries[index]
-                members[#members+1]={guid=entry.guid,data=entry.data,perks=entry.perks,
-                    baseArmour=entry.baseArmour+(applied[index] or 0),
-                    elusiveArmour=entry.elusiveArmour+(applied[index] or 0),
-                    stripFortify=entry.stripFortify,stripResist=entry.stripResist,
-                    stripFireResist=entry.stripFireResist}
-            end
-            local _,_,rangeDefeated=combatRangeResult((combatGroupEntry(members,{})),groupSources[group])
-            if rangeDefeated then
-                -- Defeated before its ability could reach an enemy in a later (or its own) group: bonus kept.
-                for _,defender in ipairs(defenders) do
-                    local target=defenderTarget[defender.index]
-                    if groupIndexOf[defender.index]==groupIndex and target~=nil
-                        and groupIndexOf[target]>groupIndex then
-                        nextLost[defender.index]=true
+        groupSources[group]=sources
+        local grouped=combatGroupEntry(members,{})
+        local fortification=combatEnemyFortificationCount(grouped.data,grouped.perks)
+        local hasRanged,hasAnyAttack=false,false
+        for _,index in ipairs(group.members) do
+            for _,item in ipairs((allocated[index] or {details={}}).details) do
+                local family=item.detail.family
+                if family=="attack" or family=="ranged" or family=="siege" then
+                    hasAnyAttack=true
+                    if (family=="ranged" and fortification==0)
+                        or (family=="siege" and fortification<2) then
+                        hasRanged=true
                     end
                 end
             end
         end
-        for index in pairs(nextLost) do if not lost[index] then changed=true end end
-        for index in pairs(lost) do if not nextLost[index] then changed=true end end
-        lost=nextLost
-        if not changed then break end
+        for _,index in ipairs(group.members) do
+            local entry=entries[index]
+            if not entry.destroyed and not entry.attackOnly then
+                if hasRanged then rangedTargets[#rangedTargets+1]=index end
+                if hasAnyAttack then meleeTargets[#meleeTargets+1]=index end
+            end
+        end
     end
-    for index,amount in pairs(applied) do
-        entries[index].baseArmour=entries[index].baseArmour+amount
-        entries[index].elusiveArmour=entries[index].elusiveArmour+amount
+    -- The Ranged phase can spend any available Defender, even one whose own
+    -- token will later be defeated by that Ranged attack.
+    local applied,rangedBonuses,spentDefenders={},{},{}
+    local slot=1
+    for _,target in ipairs(rangedTargets) do
+        local defender=defenders[slot]
+        if defender==nil then break end
+        applied[target]=defender.bonus
+        rangedBonuses[target]=defender.bonus
+        spentDefenders[defender.index]=true
+        slot=slot+1
+    end
+
+    -- Evaluate survival with Ranged-only Defender bonuses. Do not use late
+    -- Attack-phase bonuses when deciding whether a Defender survives.
+    local rangedDefeated={}
+    for _,group in ipairs(groups) do
+        local members={}
+        for _,index in ipairs(group.members) do
+            local entry=entries[index]
+            local bonus=rangedBonuses[index] or 0
+            members[#members+1]={guid=entry.guid,data=entry.data,perks=entry.perks,
+                baseArmour=entry.baseArmour+bonus,elusiveArmour=entry.elusiveArmour+bonus,
+                stripFortify=entry.stripFortify,stripResist=entry.stripResist,
+                stripFireResist=entry.stripFireResist}
+        end
+        local grouped=combatGroupEntry(members,{})
+        local _,_,defeated=combatRangeResult(grouped,groupSources[group])
+        rangedDefeated[group]=defeated and not members[1].data.attackOnly
+    end
+
+    -- Remaining Defenders may help in the regular Attack phase only if they
+    -- survived Ranged/Siege, and no enemy receives more than one Defend bonus.
+    for _,target in ipairs(meleeTargets) do
+        if applied[target]==nil and not rangedDefeated[groupOf[target]] then
+            for _,defender in ipairs(defenders) do
+                if not spentDefenders[defender.index] and not rangedDefeated[groupOf[defender.index]] then
+                    applied[target]=defender.bonus
+                    entries[target].defendMeleeBonus=defender.bonus
+                    spentDefenders[defender.index]=true
+                    break
+                end
+            end
+        end
+    end
+    for index,bonus in pairs(applied) do
+        entries[index].baseArmour=entries[index].baseArmour+bonus
+        entries[index].elusiveArmour=entries[index].elusiveArmour+bonus
     end
     return applied
 end
@@ -1672,7 +1708,7 @@ local function combatAssignmentRefreshRows(entries,sources)
                     sources[#sources+1]=source
                 end
             end
-            local _,_,ranged=combatRangeResult(combatGroupEntry(members,{}),sources)
+            local _,_,ranged=combatRangeResult(combatRangeGroupEntry(members),sources)
             if ranged and not members[1].attackOnly then
                 for _,index in ipairs(group.members) do rangedBeforeBlock[index]=true end
             end
@@ -1745,7 +1781,7 @@ local function combatAssignmentRefreshRows(entries,sources)
         end
         group.entry,group.attackArmour=combatGroupEntry(members,blockedAll)
         group.rangeTotal,group.rangeArmour,group.rangeDefeated,group.fortification=
-            combatRangeResult(group.entry,group.sources)
+            combatRangeResult(combatRangeGroupEntry(members),group.sources)
         if members[1].attackOnly then group.rangeDefeated=false end
         if rangedBeforeBlock~=nil then
             -- A later Block-phase destruction cannot retrospectively win the
@@ -1921,12 +1957,12 @@ local function combatAssignmentRefreshRows(entries,sources)
             end
             combatPanelSetAttribute("CombatEnemyRow"..row.."Armour","text",
                 (entry.destroyed or entry.attackOnly) and "-" or tostring(armourValue))
-            if #group.members>1 then
-                local sharedText=combatGroupTraitsText(entry,group.entry)
-                shownTraits[row]=sharedText
-                combatPanelSetAttribute("CombatEnemyRow"..row.."Traits","text",sharedText)
-                entry.attackCount=math.max(entry.attackCount or 1,select(2,sharedText:gsub("\n",""))+1)
-            end
+            -- Use actual modified defenses even on a single enemy (Sorcerers,
+            -- stripped fortification, and other effects may change them).
+            local sharedText=combatGroupTraitsText(entry,group.entry)
+            shownTraits[row]=sharedText
+            combatPanelSetAttribute("CombatEnemyRow"..row.."Traits","text",sharedText)
+            entry.attackCount=math.max(entry.attackCount or 1,select(2,sharedText:gsub("\n",""))+1)
             local attackLines={}
             for attackIndex,attack in ipairs(combatEnemyAttacks(entry)) do
                 local reduction=rowBlock[index].reductions[attackIndex] or 0
