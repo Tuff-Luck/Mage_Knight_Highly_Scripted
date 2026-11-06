@@ -1037,23 +1037,40 @@ local function runtimeMapTerrainSnapshot()
 			neighborSet[key]={}
 		end
 	end
-	for a=1,#hexes do
-		local first=hexes[a]
-		local firstKey=runtimeMapHexKey(first)
-		if firstKey~=nil then
-			for b=a+1,#hexes do
-				local second=hexes[b]
-				if runtimeMapHexesAdjacent(first,second)==true then
-					local secondKey=runtimeMapHexKey(second)
-					if secondKey~=nil then
-						neighbors[firstKey][#neighbors[firstKey]+1]=second
-						neighbors[secondKey][#neighbors[secondKey]+1]=first
-						neighborSet[firstKey][secondKey]=true
-						neighborSet[secondKey][firstKey]=true
+	-- Compare only hexes in nearby spatial cells. Hex adjacency is strictly less than
+	-- sqrt(7.4) world units, so 3-unit cells and their eight neighbours are exhaustive.
+	-- The exact distance predicate remains authoritative (including irregular scenario maps).
+	local neighborCellSize=3
+	local neighborBuckets={}
+	local hexOrder={}
+	for index,hex in ipairs(hexes) do hexOrder[hex]=index end
+	for _,second in ipairs(hexes) do
+		local secondKey=runtimeMapHexKey(second)
+		if secondKey~=nil then
+			local secondX=math.floor(second.position[1]/neighborCellSize)
+			local secondZ=math.floor(second.position[3]/neighborCellSize)
+			for x=secondX-1,secondX+1 do
+				for z=secondZ-1,secondZ+1 do
+					local bucket=neighborBuckets[x..":"..z]
+					for _,first in ipairs(bucket or {}) do
+						if runtimeMapHexesAdjacent(first,second)==true then
+							local firstKey=runtimeMapHexKey(first)
+							neighbors[firstKey][#neighbors[firstKey]+1]=second
+							neighbors[secondKey][#neighbors[secondKey]+1]=first
+							neighborSet[firstKey][secondKey]=true
+							neighborSet[secondKey][firstKey]=true
+						end
 					end
 				end
 			end
+			local bucketKey=secondX..":"..secondZ
+			if neighborBuckets[bucketKey]==nil then neighborBuckets[bucketKey]={} end
+			neighborBuckets[bucketKey][#neighborBuckets[bucketKey]+1]=second
 		end
+	end
+	-- Preserve the original map-entry ordering for equal-length movement/AI paths.
+	for _,nearby in pairs(neighbors) do
+		table.sort(nearby,function(a,b) return hexOrder[a]<hexOrder[b] end)
 	end
 
 	table.sort(signatureParts)
