@@ -59,17 +59,20 @@ local function resourceCardsDetailsOpen()
         and UI.getAttribute("ResourceTrackerDetail","active")=="true"
 end
 
-local COMBAT_ENEMY_DEFENCE_TRAITS={
+-- Keep combat constants in one private table: luabundle adds four parameters
+-- to each module, which also count toward Lua 5.2's 200 active-local limit.
+local combatConfig={}
+combatConfig.enemyDefenceTraits={
     {"fortified","Fortified"},{"unfortified","Unfortified"},{"elusive","Elusive"},
     {"arcaneImmunity","Arcane Immunity"},{"pResist","Physical Resist"},
     {"fResist","Fire Resist"},{"iResist","Ice Resist"},{"mResist","Psychic Resist"}
 }
-local COMBAT_ENEMY_OFFENCE_TRAITS={
+combatConfig.enemyOffenceTraits={
     {"swiftness","Swiftness"},{"brutal","Brutal"},{"poison","Poison"},
     {"paralyse","Paralyse"},{"assassination","Assassination"},
     {"cumbersome","Cumbersome"},{"vampiric","Vampiric"}
 }
-local COMBAT_SOURCE_FIELDS={
+combatConfig.sourceFields={
     {key="ranged",family="ranged",type="Physical Range",icon="MKChoiceRanged"},
     {key="rangedFire",family="ranged",type="Fire Range",icon="MKChoiceRanged"},
     {key="rangedIce",family="ranged",type="Ice Range",icon="MKChoiceRanged"},
@@ -120,20 +123,20 @@ local combatExpandedResults={}
 local combatReductionAttackChoice={}
 local combatReductionActiveSource={}
 local combatAttackChoiceByRow={}
-local COMBAT_ASSIGNMENT_ROW_COUNT=8 -- XML has eight reusable row controls.
-local COMBAT_ASSIGNMENT_CROWDED_PAGE_SIZE=6
-local COMBAT_ASSIGNMENT_SLOT_COUNT=6
-local COMBAT_ASSIGNMENT_ROW_HEIGHT=32
-local COMBAT_ASSIGNMENT_PANEL_BASE_HEIGHT=48
-local COMBAT_ASSIGNMENT_COLUMNS={Name=130,Armour=55,Traits=150,Attacks=110,Offence=130,Result=270}
+combatConfig.rowCount=8 -- XML has eight reusable row controls.
+combatConfig.crowdedPageSize=6
+combatConfig.slotCount=6
+combatConfig.rowHeight=32
+combatConfig.panelBaseHeight=48
+combatConfig.columns={Name=130,Armour=55,Traits=150,Attacks=110,Offence=130,Result=270}
 -- Damage/resistance colours: normal, then the darker shade used once a value has been reduced.
-local COMBAT_TYPE_COLORS={P={"#FFFFFF","#9A9A9A"},F={"#FF5555","#992E2E"},I={"#5AA0FF","#2F5F9A"},
+combatConfig.typeColors={P={"#FFFFFF","#9A9A9A"},F={"#FF5555","#992E2E"},I={"#5AA0FF","#2F5F9A"},
     IF={"#C070FF","#74429A"},M={"#FFE055","#9A8A33"}}
-local COMBAT_RESIST_TYPES={pResist="P",fResist="F",iResist="I",mResist="M"}
+combatConfig.resistTypes={pResist="P",fResist="F",iResist="I",mResist="M"}
 
 -- These tokens carry attacks, but cannot themselves be attacked or defeated.
 -- Volkare and trap rolls already put the current attack in gStates.monsterPerks.
-local COMBAT_ATTACK_ONLY_REMINDERS={
+combatConfig.attackOnlyReminders={
     ["Volkare Reminder Token"]={name="Volkare's Attack",armour=0,attackOnly=true},
     ["Trap Reminder Token"]={name="Trap",armour=0,attackOnly=true}
 }
@@ -154,12 +157,12 @@ local function combatEnemyData(guid,obj)
     if perks==nil or type(perks.attack)~="table" then return nil end
     obj=obj or getObjectFromGUID(guid)
     if obj==nil then return nil end
-    local reminder=COMBAT_ATTACK_ONLY_REMINDERS[obj.getGMNotes()]
+    local reminder=combatConfig.attackOnlyReminders[obj.getGMNotes()]
     return reminder,reminder~=nil and "attackOnly" or nil
 end
 
 local function combatTypeRich(text,typeKey,reduced)
-    local colors=COMBAT_TYPE_COLORS[typeKey]
+    local colors=combatConfig.typeColors[typeKey]
     if colors==nil then return text end
     return "<color="..colors[reduced and 2 or 1]..">"..text.."</color>"
 end
@@ -176,12 +179,12 @@ local function combatEnemyTraitsText(data,perks,traitDefinitions)
             traits[#traits+1]=trait[2]
         elseif trait[1]~="fortified" and trait[1]~="unfortified"
             and (data[trait[1]]==true or (perks~=nil and perks[trait[1]]==true)) then
-            traits[#traits+1]=COMBAT_RESIST_TYPES[trait[1]]~=nil
-                and combatTypeRich(trait[2],COMBAT_RESIST_TYPES[trait[1]]) or trait[2]
+            traits[#traits+1]=combatConfig.resistTypes[trait[1]]~=nil
+                and combatTypeRich(trait[2],combatConfig.resistTypes[trait[1]]) or trait[2]
         end
     end
     local defender=(tonumber(data.defend) or 0)+(perks~=nil and (tonumber(perks.defend) or 0) or 0)
-    if traitDefinitions==COMBAT_ENEMY_DEFENCE_TRAITS then
+    if traitDefinitions==combatConfig.enemyDefenceTraits then
         if defender>0 then traits[#traits+1]="Defender +"..tostring(defender) end
         local fortificationCount=(data.fortified==true and 1 or 0)
             +(perks~=nil and perks.fortified==true and 1 or 0)
@@ -210,21 +213,21 @@ local function combatEffectOf(guid)
     return scan~=nil and scan.enemyEffects~=nil and scan.enemyEffects[guid] or nil
 end
 
-local COMBAT_TRANSFORM_FAMILIES={attack=true,ranged=true,siege=true}
-local COMBAT_ELEMENT_SUFFIXES={"ColdFire","Fire","Ice","Psychic"}
+combatConfig.transformFamilies={attack=true,ranged=true,siege=true}
+combatConfig.elementSuffixes={"ColdFire","Fire","Ice","Psychic"}
 
 -- The single place that maps a resource key through active attack transformations (Altem Mages).
 -- Cold Fire replaces the element; Siege replaces the family and keeps the element. Block is never changed.
 function resourceCardsTransformedKey(key,transform)
     if transform==nil or (not transform.coldFire and not transform.siege) then return key end
     local family,suffix=key,""
-    for _,candidate in ipairs(COMBAT_ELEMENT_SUFFIXES) do
+    for _,candidate in ipairs(combatConfig.elementSuffixes) do
         if key:sub(-#candidate)==candidate and #key>#candidate then
             family,suffix=key:sub(1,#key-#candidate),candidate
             break
         end
     end
-    if COMBAT_TRANSFORM_FAMILIES[family]~=true then return key end
+    if combatConfig.transformFamilies[family]~=true then return key end
     if transform.siege then family="siege" end
     if transform.coldFire then suffix="ColdFire" end
     return family..suffix
@@ -268,7 +271,7 @@ local function combatAssignmentSources(seat)
                 end
                 return source
             end
-            for _,field in ipairs(COMBAT_SOURCE_FIELDS) do
+            for _,field in ipairs(combatConfig.sourceFields) do
                 local amount=tonumber(effective[field.key]) or 0
                 if amount>0 then
                     local source=ensureSource(field.family=="block" and "block" or "attack")
@@ -328,7 +331,7 @@ local function combatNearestEnemyGUID(source,entries)
     return nearestGUID
 end
 
-local COMBAT_ATTACK_TYPES={
+combatConfig.attackTypes={
     {key="P",label="Physical",attack="attack",ranged="ranged",siege="siege",block="block"},
     {key="F",label="Fire",attack="attackFire",ranged="rangedFire",siege="siegeFire",block="blockFire"},
     {key="I",label="Ice",attack="attackIce",ranged="rangedIce",siege="siegeIce",block="blockIce"},
@@ -361,7 +364,7 @@ local function combatEnemyPrintedAttacks(data,perks,stripAbilities,ownerGUID)
     local poison=not stripAbilities and combatEnemyHasTrait(data,perks,"poison")
     local paralyse=not stripAbilities and combatEnemyHasTrait(data,perks,"paralyse")
     local assassination=not stripAbilities and combatEnemyHasTrait(data,perks,"assassination")
-    for _,attackType in ipairs(COMBAT_ATTACK_TYPES) do
+    for _,attackType in ipairs(combatConfig.attackTypes) do
         local values=override[attackType.key] or base[attackType.key]
         for _,printedValue in ipairs(type(values)=="table" and values or {}) do
             local bonus=elemental and (attackType.key=="IF" and 1 or 2) or 0
@@ -469,17 +472,17 @@ end
 local function combatEnemyOffenceTraits(entry)
     if entry.removeAbilities and entry.data.monsters==nil then return "None" end
     if entry.data.monsters==nil then
-        return combatEnemyTraitsText(entry.data,entry.perks,COMBAT_ENEMY_OFFENCE_TRAITS)
+        return combatEnemyTraitsText(entry.data,entry.perks,combatConfig.enemyOffenceTraits)
     end
     local merged={}
     for _,summoned in ipairs(entry.summoned or {}) do
         if not (summoned.effect~=nil and summoned.effect.removeAbilities==true) then
-            for _,trait in ipairs(COMBAT_ENEMY_OFFENCE_TRAITS) do
+            for _,trait in ipairs(combatConfig.enemyOffenceTraits) do
                 if combatEnemyHasTrait(summoned.data,summoned.perks,trait[1]) then merged[trait[1]]=true end
             end
         end
     end
-    return combatEnemyTraitsText(merged,nil,COMBAT_ENEMY_OFFENCE_TRAITS)
+    return combatEnemyTraitsText(merged,nil,combatConfig.enemyOffenceTraits)
 end
 
 local function combatEntryHasCumbersome(guid,data,perks)
@@ -663,7 +666,7 @@ local function combatAttackTotal(groups,data,perks)
     local normal,resisted=0,0
     for _,group in ipairs(groups) do
         for _,source in ipairs(group.sources) do
-            for _,attackType in ipairs(COMBAT_ATTACK_TYPES) do
+            for _,attackType in ipairs(combatConfig.attackTypes) do
                 local value=tonumber(source.resources[attackType[group.category]]) or 0
                 if value>0 then
                     if combatEnemyResists(data,perks,attackType.key) then
@@ -934,7 +937,7 @@ local function combatBlockResult(entry,sources)
             end
         end
         if source.block>0 then
-            for _,field in ipairs(COMBAT_SOURCE_FIELDS) do
+            for _,field in ipairs(combatConfig.sourceFields) do
                 local value=tonumber(source.resources[field.key]) or 0
                 if field.family=="block" and value>0 then
                     -- Repeated Block icons (Shield of the Fallen Kings) are separate, equal effects.
@@ -1265,7 +1268,7 @@ local function combatGroupTraitsText(entry,groupEntry)
         unfortified=entry.perks~=nil and entry.perks.unfortified or nil,
         wallFortified=groupEntry.perks.wallFortified}
     for _,key in ipairs({"pResist","fResist","iResist","mResist"}) do data[key]=groupEntry.data[key] end
-    return combatEnemyTraitsText(data,perks,COMBAT_ENEMY_DEFENCE_TRAITS)
+    return combatEnemyTraitsText(data,perks,combatConfig.enemyDefenceTraits)
 end
 
 local function combatGroupAttackLine(group,sources,attackArmour)
@@ -1423,8 +1426,8 @@ local function combatAssignmentRefreshRows(entries,sources)
     local grandDamage,damageSources=0,0
     combatAssignmentRowTargets={}
     combatAssignmentRowIndices={}
-    local pageSize=#entries>COMBAT_ASSIGNMENT_CROWDED_PAGE_SIZE
-        and COMBAT_ASSIGNMENT_CROWDED_PAGE_SIZE or COMBAT_ASSIGNMENT_ROW_COUNT
+    local pageSize=#entries>combatConfig.crowdedPageSize
+        and combatConfig.crowdedPageSize or combatConfig.rowCount
     -- Keep joined groups together on a page whenever they fit. Combat math always
     -- covers every enemy; paging only controls which rows are displayed.
     local pageStarts,pageEnds={},{}
@@ -1453,7 +1456,7 @@ local function combatAssignmentRefreshRows(entries,sources)
     local pageEnd=pageEnds[combatEnemyPage] or 0
     local visibleRows=pageEnd-pageOffset
     for index,entry in ipairs(entries) do rowByGUID[entry.guid]=index end
-    for row=1,COMBAT_ASSIGNMENT_ROW_COUNT do
+    for row=1,combatConfig.rowCount do
         local entry=row<=visibleRows and entries[pageOffset+row] or nil
         if entry~=nil then
             combatAssignmentRowTargets[row]=entry.guid
@@ -1481,7 +1484,7 @@ local function combatAssignmentRefreshRows(entries,sources)
         group.leader=group.members[1]
         groupOf[index]=group
     end
-    for row=1,COMBAT_ASSIGNMENT_ROW_COUNT do
+    for row=1,combatConfig.rowCount do
         local index=pageOffset+row
         local entry=row<=visibleRows and entries[index] or nil
         local group=entry~=nil and groupOf[index] or nil
@@ -1492,7 +1495,7 @@ local function combatAssignmentRefreshRows(entries,sources)
         if entry~=nil and group~=nil then
             combatPanelSetAttribute("CombatEnemyRow"..row.."Name","text",
                 (group.leader~=index and "+ " or "")..entry.name)
-            local ownTraits=combatEnemyTraitsText(entry.data,entry.perks,COMBAT_ENEMY_DEFENCE_TRAITS)
+            local ownTraits=combatEnemyTraitsText(entry.data,entry.perks,combatConfig.enemyDefenceTraits)
             shownTraits[row]=ownTraits
             combatPanelSetAttribute("CombatEnemyRow"..row.."Traits","text",ownTraits)
             combatPanelSetAttribute("CombatEnemyRow"..row.."Armour","font","Fonts/MKCardText")
@@ -1537,8 +1540,8 @@ local function combatAssignmentRefreshRows(entries,sources)
             shownOffence[row]=offenceText
             combatPanelSetAttribute("CombatEnemyRow"..row.."Offence","text",offenceText)
             local traitLines=math.max(select(2,offenceText:gsub("\n",""))+1,
-                select(2,combatEnemyTraitsText(entry.data,entry.perks,COMBAT_ENEMY_DEFENCE_TRAITS):gsub("\n",""))+1)
-            for column,width in pairs(COMBAT_ASSIGNMENT_COLUMNS) do
+                select(2,combatEnemyTraitsText(entry.data,entry.perks,combatConfig.enemyDefenceTraits):gsub("\n",""))+1)
+            for column,width in pairs(combatConfig.columns) do
                 combatPanelSetAttribute("CombatEnemyRow"..row..column,"preferredWidth",tostring(width))
             end
             entry.attackCount=math.max(#attacks,traitLines)
@@ -1895,7 +1898,7 @@ local function combatAssignmentRefreshRows(entries,sources)
         end
     end
     combatSetDefeatMarks(trackedGuids,defeatedGuids)
-    for row=1,COMBAT_ASSIGNMENT_ROW_COUNT do
+    for row=1,combatConfig.rowCount do
         local index=pageOffset+row
         local entry=row<=visibleRows and entries[index] or nil
         local group=entry~=nil and groupOf[index] or nil
@@ -1927,8 +1930,8 @@ local function combatAssignmentRefreshRows(entries,sources)
         for _,family in ipairs({"range","block","attack"}) do
             local items=lists[family]
             if #items>0 then colUsed[family]=true end
-            overflow=overflow+math.max(0,#items-COMBAT_ASSIGNMENT_SLOT_COUNT)
-            for slot=1,COMBAT_ASSIGNMENT_SLOT_COUNT do
+            overflow=overflow+math.max(0,#items-combatConfig.slotCount)
+            for slot=1,combatConfig.slotCount do
                 local id="CombatSourceSlot"..row..family..slot
                 local item=items[slot]
                 if item~=nil then
@@ -1936,7 +1939,7 @@ local function combatAssignmentRefreshRows(entries,sources)
                     combatAssignmentIconButton(id,true,item.amount,item.icon,
                         item.source.name..": "..item.text,
                         combatAssignmentState.selected==item.source.key,
-                        item.typeKey~=nil and COMBAT_TYPE_COLORS[item.typeKey][item.reduced and 2 or 1] or nil)
+                        item.typeKey~=nil and combatConfig.typeColors[item.typeKey][item.reduced and 2 or 1] or nil)
                 else
                     combatAssignmentIconButton(id,false,0,"","",false)
                 end
@@ -1947,7 +1950,7 @@ local function combatAssignmentRefreshRows(entries,sources)
             combatPanelSetAttribute("CombatSourceCell"..row..family,"color",
                 merged and "rgba(1,1,1,0.10)" or "rgba(0,0,0,0)")
         end
-        local rowHeight=COMBAT_ASSIGNMENT_ROW_HEIGHT
+        local rowHeight=combatConfig.rowHeight
         if entry~=nil and group~=nil then
             -- Final armour for the current layout: Elusive doubles unless every attack is blocked.
             local armourValue=entry.baseArmour
@@ -2039,7 +2042,7 @@ local function combatAssignmentRefreshRows(entries,sources)
     -- Hide a column when every visible enemy leaves it blank or "None".
     local function textBlank(text) return text==nil or text=="" or text=="None" or text=="-" end
     local colShown={range=colUsed.range,block=colUsed.block,attack=colUsed.attack,traits=false,offence=false}
-    for row=1,COMBAT_ASSIGNMENT_ROW_COUNT do
+    for row=1,combatConfig.rowCount do
         if not textBlank(shownTraits[row]) then colShown.traits=true end
         if not textBlank(shownOffence[row]) then colShown.offence=true end
     end
@@ -2051,7 +2054,7 @@ local function combatAssignmentRefreshRows(entries,sources)
         local active=shown and "true" or "false"
         if not shown then hiddenWidth=hiddenWidth+columnWidths[column] end
         combatPanelSetAttribute(headerIDs[column],"active",active)
-        for index=1,COMBAT_ASSIGNMENT_ROW_COUNT do
+        for index=1,combatConfig.rowCount do
             local cell=(column=="traits" and "CombatEnemyRow"..index.."Traits")
                 or (column=="offence" and "CombatEnemyRow"..index.."Offence")
                 or "CombatSourceCell"..index..column
@@ -2275,7 +2278,7 @@ local function refreshCombatEnemyPanel(monsters)
         attackAssignmentsRefreshTargetButtons(monsters)
     end
     combatPanelSetAttribute("CombatEnemyPanel","height",
-        tostring(COMBAT_ASSIGNMENT_PANEL_BASE_HEIGHT+rowHeight))
+        tostring(combatConfig.panelBaseHeight+rowHeight))
 end
 
 function resourceCardsRefreshCombatEnemies()
@@ -2658,7 +2661,7 @@ end
 -- Units have a separate ability UI from cards, but share the same combat target-arrow handler.
 local function unitAbilityTargetCategory(ability)
     if not combatCalcOn or ability==nil then return nil end
-    for _,field in ipairs(COMBAT_SOURCE_FIELDS) do
+    for _,field in ipairs(combatConfig.sourceFields) do
         if (tonumber(ability[field.key]) or 0)>0 then return field.key end
     end
     if combatPsychicActive and (tonumber(ability.influence) or 0)>0 then return "influence" end
@@ -2880,7 +2883,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         or skillResourceDefinitions[card.guid]
     local function targetResourceFor(choice,category)
         if not combatCalcOn then return nil end
-        for _,field in ipairs(COMBAT_SOURCE_FIELDS) do
+        for _,field in ipairs(combatConfig.sourceFields) do
             if (tonumber(choice[field.key]) or 0)>0 then return field.key end
         end
         if combatPsychicActive and (tonumber(choice.influence) or 0)>0 then return "influence" end

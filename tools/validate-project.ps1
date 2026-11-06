@@ -148,6 +148,25 @@ try {
                 throw "Lua 5.2 parse failed: $($file.FullName)"
             }
         }
+
+        # luabundle wraps each source module in a function with four parameters.
+        # A module can compile by itself but exceed Lua's 200-local limit in the bundle.
+        Write-Host "Checking Lua 5.2 bundled-module local limits..."
+        $bundleCheckFile = [System.IO.Path]::GetTempFileName()
+        try {
+            foreach ($file in $sourceLuaFiles) {
+                $source = [System.IO.File]::ReadAllText($file.FullName)
+                $wrapped = "return function(require, _LOADED, __bundle_register, __bundle_modules)`n" + $source + "`nend`n"
+                [System.IO.File]::WriteAllText($bundleCheckFile, $wrapped, [System.Text.UTF8Encoding]::new($false))
+                & $compiler.Source -p $bundleCheckFile
+                if ($LASTEXITCODE -ne 0) {
+                    throw "Lua 5.2 bundled-module parse/local-limit failed: $($file.FullName)"
+                }
+            }
+        }
+        finally {
+            Remove-Item -LiteralPath $bundleCheckFile -Force -ErrorAction SilentlyContinue
+        }
     }
 
     Write-Host "Checking working-tree whitespace..."
