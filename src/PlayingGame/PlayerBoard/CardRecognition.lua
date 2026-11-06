@@ -115,13 +115,16 @@ local combatAssignmentJoined={}
 local combatAssignmentSlotSources={}
 local combatAssignmentRowTargets={}
 local combatEnemyPage=1
+local combatAssignmentRowIndices={}
+local combatExpandedResults={}
 local combatReductionAttackChoice={}
 local combatReductionActiveSource={}
 local combatAttackChoiceByRow={}
-local COMBAT_ASSIGNMENT_ROW_COUNT=8
+local COMBAT_ASSIGNMENT_ROW_COUNT=8 -- XML has eight reusable row controls.
+local COMBAT_ASSIGNMENT_CROWDED_PAGE_SIZE=6
 local COMBAT_ASSIGNMENT_SLOT_COUNT=6
-local COMBAT_ASSIGNMENT_ROW_HEIGHT=40
-local COMBAT_ASSIGNMENT_PANEL_BASE_HEIGHT=52
+local COMBAT_ASSIGNMENT_ROW_HEIGHT=32
+local COMBAT_ASSIGNMENT_PANEL_BASE_HEIGHT=48
 local COMBAT_ASSIGNMENT_COLUMNS={Name=130,Armour=55,Traits=150,Attacks=110,Offence=130,Result=270}
 -- Damage/resistance colours: normal, then the darker shade used once a value has been reduced.
 local COMBAT_TYPE_COLORS={P={"#FFFFFF","#9A9A9A"},F={"#FF5555","#992E2E"},I={"#5AA0FF","#2F5F9A"},
@@ -658,23 +661,23 @@ local function combatAssignmentIconButton(id,active,amount,icon,tooltip,selected
         combatPanelSetAttribute(id.."Image","image",icon)
         combatPanelSetAttribute(id.."Image","rectAlignment","MiddleCenter")
         combatPanelSetAttribute(id.."Image","offsetXY","0 0")
-        combatPanelSetAttribute(id.."Image","width","28")
-        combatPanelSetAttribute(id.."Image","height","28")
+        combatPanelSetAttribute(id.."Image","width","24")
+        combatPanelSetAttribute(id.."Image","height","24")
         combatPanelSetAttribute(id.."Image","preserveAspect","true")
         combatPanelSetAttribute(id.."Amount","text",tostring(amount))
         combatPanelSetAttribute(id.."Amount","rectAlignment","MiddleCenter")
         combatPanelSetAttribute(id.."Amount","offsetXY","0 0")
-        combatPanelSetAttribute(id.."Amount","width","28")
-        combatPanelSetAttribute(id.."Amount","height","28")
-        combatPanelSetAttribute(id.."Amount","preferredHeight","28")
+        combatPanelSetAttribute(id.."Amount","width","24")
+        combatPanelSetAttribute(id.."Amount","height","24")
+        combatPanelSetAttribute(id.."Amount","preferredHeight","24")
         combatPanelSetAttribute(id.."Amount","alignment","MiddleCenter")
-        combatPanelSetAttribute(id.."Amount","fontSize","20")
+        combatPanelSetAttribute(id.."Amount","fontSize","18")
         combatPanelSetAttribute(id.."Amount","fontStyle","Bold")
         combatPanelSetAttribute(id.."Amount","color",textColor or "White")
         combatPanelSetAttribute(id.."Amount","outline","rgb(0,0,0)")
         combatPanelSetAttribute(id.."Amount","outlineSize","1 -1")
-        combatPanelSetAttribute(id,"preferredWidth","28")
-        combatPanelSetAttribute(id,"preferredHeight","34")
+        combatPanelSetAttribute(id,"preferredWidth","24")
+        combatPanelSetAttribute(id,"preferredHeight","26")
         combatPanelSetAttribute(id,"color",
             selected and "rgb(1,0.75,0.2)" or "rgb(0.85,0.82,0.72)")
         combatPanelSetAttribute(id,"tooltip",tooltip)
@@ -1281,17 +1284,46 @@ local function combatAssignmentRefreshRows(entries,sources)
     local totalRowHeight=0
     local grandDamage,damageSources=0,0
     combatAssignmentRowTargets={}
-    local pages=math.max(1,math.ceil(#entries/COMBAT_ASSIGNMENT_ROW_COUNT))
-    combatEnemyPage=math.min(combatEnemyPage,pages)
-    local pageOffset=(combatEnemyPage-1)*COMBAT_ASSIGNMENT_ROW_COUNT
+    combatAssignmentRowIndices={}
+    local pageSize=#entries>COMBAT_ASSIGNMENT_CROWDED_PAGE_SIZE
+        and COMBAT_ASSIGNMENT_CROWDED_PAGE_SIZE or COMBAT_ASSIGNMENT_ROW_COUNT
+    -- Keep joined groups together on a page whenever they fit. Combat math always
+    -- covers every enemy; paging only controls which rows are displayed.
+    local pageStarts,pageEnds={},{}
+    local nextStart=1
+    while nextStart<=#entries do
+        local finish=math.min(#entries,nextStart+pageSize-1)
+        if finish<#entries then
+            local boundary=finish
+            while boundary>nextStart do
+                local nextEnemy=entries[boundary+1]
+                if combatAssignmentJoined[nextEnemy.guid]~=true
+                    or entries[boundary].destroyed or nextEnemy.destroyed then break end
+                boundary=boundary-1
+            end
+            -- Oversized groups can span pages; never leave a page empty.
+            if boundary>nextStart then finish=boundary end
+        end
+        pageStarts[#pageStarts+1]=nextStart
+        pageEnds[#pageEnds+1]=finish
+        nextStart=finish+1
+    end
+    local pages=math.max(1,#pageStarts)
+    combatEnemyPage=math.max(1,math.min(combatEnemyPage,pages))
+    local pageOffset=(pageStarts[combatEnemyPage] or 1)-1
+    local pageEnd=pageEnds[combatEnemyPage] or 0
+    local visibleRows=pageEnd-pageOffset
     for index,entry in ipairs(entries) do rowByGUID[entry.guid]=index end
     for row=1,COMBAT_ASSIGNMENT_ROW_COUNT do
-        local entry=entries[pageOffset+row]
-        if entry~=nil then combatAssignmentRowTargets[row]=entry.guid end
+        local entry=row<=visibleRows and entries[pageOffset+row] or nil
+        if entry~=nil then
+            combatAssignmentRowTargets[row]=entry.guid
+            combatAssignmentRowIndices[row]=pageOffset+row
+        end
     end
     combatPanelSetAttribute("CombatEnemyPageControls","active",pages>1 and "true" or "false")
     combatPanelSetAttribute("CombatEnemyPageLabel","text",
-        tostring(pageOffset+1).."-"..tostring(math.min(#entries,pageOffset+COMBAT_ASSIGNMENT_ROW_COUNT))
+        tostring(visibleRows>0 and pageOffset+1 or 0).."-"..tostring(pageEnd)
             .." / "..tostring(#entries))
     local overflow=0
     -- Text shown in the ability columns and the columns that hold anything, so empty columns can be hidden.
@@ -1311,8 +1343,8 @@ local function combatAssignmentRefreshRows(entries,sources)
     end
     for row=1,COMBAT_ASSIGNMENT_ROW_COUNT do
         local index=pageOffset+row
-        local entry=entries[index]
-        local group=groupOf[index]
+        local entry=row<=visibleRows and entries[index] or nil
+        local group=entry~=nil and groupOf[index] or nil
         combatPanelSetAttribute("CombatEnemyRow"..row,"active",entry~=nil and "true" or "false")
         combatPanelSetAttribute("CombatEnemyRow"..row,"color",
             (group~=nil and #group.members>1) and "rgb(0.27,0.31,0.38)"
@@ -1571,7 +1603,7 @@ local function combatAssignmentRefreshRows(entries,sources)
         for index=1,#entries do
             local group=groupOf[index]
             local row=index-pageOffset
-            if row>=1 and row<=COMBAT_ASSIGNMENT_ROW_COUNT then
+            if row>=1 and row<=visibleRows then
                 combatPanelSetAttribute("CombatEnemyRow"..row,"color",
                     #group.members>1 and "rgb(0.27,0.31,0.38)"
                     or (row%2==0 and "rgb(0.34,0.29,0.22)" or "rgb(0.29,0.25,0.19)"))
@@ -1707,8 +1739,8 @@ local function combatAssignmentRefreshRows(entries,sources)
     combatSetDefeatMarks(trackedGuids,defeatedGuids)
     for row=1,COMBAT_ASSIGNMENT_ROW_COUNT do
         local index=pageOffset+row
-        local entry=entries[index]
-        local group=groupOf[index]
+        local entry=row<=visibleRows and entries[index] or nil
+        local group=entry~=nil and groupOf[index] or nil
         local isLeader=group~=nil and group.leader==index
         local lists={range={},block={},attack={}}
         if entry~=nil then
@@ -1873,7 +1905,7 @@ local function combatAssignmentRefreshRows(entries,sources)
         combatPanelSetAttribute("CombatTotalDamage","text",
             "Total damage - "..combatRich(tostring(totalHeroDamage).." ("..woundsText..")",COMBAT_RED))
         combatPanelSetAttribute("CombatTotalDamage","font","Fonts/MKCardText")
-        totalRowHeight=totalRowHeight+20
+        totalRowHeight=totalRowHeight+18
     end
 
     local selectionText
@@ -1931,7 +1963,7 @@ local function combatAssignmentRefreshRows(entries,sources)
             combatPanelSetAttribute(id,"alignment","MiddleCenter")
         end
     end
-    return totalRowHeight+(pages>1 and 25 or 0)
+    return totalRowHeight+(pages>1 and 22 or 0)
 end
 
 local function combatCalcShutdown()
