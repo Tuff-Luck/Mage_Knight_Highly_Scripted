@@ -42,6 +42,10 @@ runtimeMapHexesAdjacent=function(a,b)
     local d=dx*dx+dz*dz
     return d>4.2 and d<7.4
 end
+-- The production terrain snapshot also records optional profiling samples.
+-- Stub that instrumentation before invoking the extracted builder.
+mapPerformanceStart=function() return nil end
+mapPerformanceRecord=function() end
 local builder=extract("src/Shared.lua",
     "local function runtimeMapTerrainSnapshot()",
     "\nfunction runtimeMapSnapshot()",
@@ -85,8 +89,6 @@ mapTokenPhysicalHexForPosition=function(_,pos)
     if math.abs(pos[1]-100)<3 then return oldHex end
 end
 runtimeMapHexesAndObjects=function() return {newHex,oldHex},tokens end
-mapPerformanceStart=function() return nil end
-mapPerformanceRecord=function() end
 local arrangements={}
 mapTokenArrangeHex=function(hex,_,_,_,candidates)
     arrangements[#arrangements+1]={hex=hex,candidates=candidates}
