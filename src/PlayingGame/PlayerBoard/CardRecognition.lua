@@ -1489,7 +1489,7 @@ local function combatAssignmentRefreshRows(entries,sources)
         combatPanelSetAttribute("CombatEnemyRow"..row,"color",
             (group~=nil and #group.members>1) and "rgb(0.27,0.31,0.38)"
             or (index%2==0 and "rgb(0.34,0.29,0.22)" or "rgb(0.29,0.25,0.19)"))
-        if entry~=nil then
+        if entry~=nil and group~=nil then
             combatPanelSetAttribute("CombatEnemyRow"..row.."Name","text",
                 (group.leader~=index and "+ " or "")..entry.name)
             local ownTraits=combatEnemyTraitsText(entry.data,entry.perks,COMBAT_ENEMY_DEFENCE_TRAITS)
@@ -1899,7 +1899,6 @@ local function combatAssignmentRefreshRows(entries,sources)
         local index=pageOffset+row
         local entry=row<=visibleRows and entries[index] or nil
         local group=entry~=nil and groupOf[index] or nil
-        local isLeader=group~=nil and group.leader==index
         local lists={range={},block={},attack={}}
         if entry~=nil then
             for _,item in ipairs((allocated[index] or emptyTarget).details) do
@@ -1911,7 +1910,7 @@ local function combatAssignmentRefreshRows(entries,sources)
                 end
             end
             -- Range, Siege and Attack resources of a group share the leader's merged cells.
-            if isLeader then
+            if group~=nil and group.leader==index then
                 for _,member in ipairs(group.members) do
                     for _,item in ipairs((allocated[member] or emptyTarget).details) do
                         if item.detail.family~="block" and item.detail.family~="move" then
@@ -1949,7 +1948,7 @@ local function combatAssignmentRefreshRows(entries,sources)
                 merged and "rgba(1,1,1,0.10)" or "rgba(0,0,0,0)")
         end
         local rowHeight=COMBAT_ASSIGNMENT_ROW_HEIGHT
-        if entry~=nil then
+        if entry~=nil and group~=nil then
             -- Final armour for the current layout: Elusive doubles unless every attack is blocked.
             local armourValue=entry.baseArmour
             if combatEnemyHasTrait(entry.data,entry.perks,"elusive") and not rowBlock[index].allBlocked then

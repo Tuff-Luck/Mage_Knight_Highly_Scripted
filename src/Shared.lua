@@ -1091,10 +1091,12 @@ local function runtimeMapTerrainSnapshot()
 					for _,first in ipairs(bucket or {}) do
 						if runtimeMapHexesAdjacent(first,second)==true then
 							local firstKey=runtimeMapHexKey(first)
-							neighbors[firstKey][#neighbors[firstKey]+1]=second
-							neighbors[secondKey][#neighbors[secondKey]+1]=first
-							neighborSet[firstKey][secondKey]=true
-							neighborSet[secondKey][firstKey]=true
+							if firstKey~=nil then
+								neighbors[firstKey][#neighbors[firstKey]+1]=second
+								neighbors[secondKey][#neighbors[secondKey]+1]=first
+								neighborSet[firstKey][secondKey]=true
+								neighborSet[secondKey][firstKey]=true
+							end
 						end
 					end
 				end
