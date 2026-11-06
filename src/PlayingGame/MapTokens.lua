@@ -528,38 +528,69 @@ end
 local mapTokenTerrainReconcilePending={}
 local mapTokenTerrainReconcileCallbacks={}
 
-local function mapTokenTerrainReadyForReconcile(terrainGUID)
-	local hexes,mapObjects=runtimeMapHexesAndObjects()
+-- Only pieces near a newly revealed terrain need settle/rearrangement checks.
+-- Use a conservative envelope around its physical hex centres, then resolve the
+-- exact hex using the original rules. Keep full-map fallback for face-down
+-- and special scenario terrain that has no revealed hexes.
+local function mapTokenTerrainReconcileBounds(terrainGUID,hexes)
+	if terrainGUID==nil then return nil end
+	local minX,maxX,minZ,maxZ=nil,nil,nil,nil
+	for _,hex in ipairs(hexes or {}) do
+		if hex.terrainGUID==terrainGUID then
+			local pos=hex.position
+			minX=math.min(minX or pos[1],pos[1])
+			maxX=math.max(maxX or pos[1],pos[1])
+			minZ=math.min(minZ or pos[3],pos[3])
+			maxZ=math.max(maxZ or pos[3],pos[3])
+		end
+	end
+	if minX==nil then return nil end
+	-- Slack for spread tokens and pieces that are temporarily off centre.
+	return {minX-3,maxX+3,minZ-3,maxZ+3}
+end
+
+local function mapTokenForEachTerrainOccupant(terrainGUID,hexes,mapObjects,callback)
+	local bounds=mapTokenTerrainReconcileBounds(terrainGUID,hexes)
 	for _,obj in pairs(mapObjects or {}) do
-		if mapTokenNeedsArrangement(obj)==true then
-			local hex=mapTokenPhysicalHexForPosition(hexes,obj.getPosition(),mapObjects)
-			if hex~=nil and (terrainGUID==nil or hex.terrainGUID==terrainGUID) then
-				if mapTokenArrivalPending[obj.guid]~=nil or obj.isSmoothMoving()==true or obj.resting~=true then return false end
+		if obj~=nil and obj.guid~=nil and terrainTiles[obj.guid]==nil then
+			local pos=obj.getPosition()
+			if pos~=nil and (bounds==nil or
+				(pos[1]>=bounds[1] and pos[1]<=bounds[2] and
+				 pos[3]>=bounds[3] and pos[3]<=bounds[4])) and
+				mapTokenNeedsArrangement(obj)==true then
+				local hex=mapTokenPhysicalHexForPosition(hexes,pos,mapObjects)
+				if hex~=nil and (terrainGUID==nil or hex.terrainGUID==terrainGUID) then
+					if callback(obj,hex)==false then return false end
+				end
 			end
 		end
 	end
 	return true
 end
 
+local function mapTokenTerrainReadyForReconcile(terrainGUID)
+	local hexes,mapObjects=runtimeMapHexesAndObjects()
+	return mapTokenForEachTerrainOccupant(terrainGUID,hexes,mapObjects,function(obj)
+		if mapTokenArrivalPending[obj.guid]~=nil or obj.isSmoothMoving()==true or obj.resting~=true then return false end
+	end)
+end
+
 local function mapTokenArrangeAllOccupiedHexesNow(terrainGUID)
 	local hexes,mapObjects=runtimeMapHexesAndObjects()
 	local groups={}
-	for _,obj in pairs(mapObjects or {}) do
-		if mapTokenNeedsArrangement(obj)==true then
-			local hex=mapTokenPhysicalHexForPosition(hexes,obj.getPosition(),mapObjects)
-			local key=hex~=nil and runtimeMapHexKey(hex) or nil
-			if hex~=nil and key~=nil and (terrainGUID==nil or hex.terrainGUID==terrainGUID) then
-				local group=groups[key]
-				if group==nil then
-					group={hex=hex,objects={}}
-					groups[key]=group
-				end
-				group.objects[#group.objects+1]=obj
+	mapTokenForEachTerrainOccupant(terrainGUID,hexes,mapObjects,function(obj,hex)
+		local key=runtimeMapHexKey(hex)
+		if key~=nil then
+			local group=groups[key]
+			if group==nil then
+				group={hex=hex,objects={}}
+				groups[key]=group
 			end
+			group.objects[#group.objects+1]=obj
 		end
-	end
+	end)
 	for _,group in pairs(groups) do
-		--A lone token has nothing to separate. Leaving it alone avoids the old Keep/Mage Tower shimmer.
+		-- A lone token has nothing to separate (prevents Keep/Mage Tower shimmer).
 		if #group.objects>1 then mapTokenArrangeHex(group.hex,mapObjects,nil,nil,group.objects) end
 	end
 	return true
