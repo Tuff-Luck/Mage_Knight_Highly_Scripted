@@ -41,6 +41,11 @@ local many={}
 for i=1,13 do many[i]=item("block"..i,"block",1) end
 local plan=solve({attack("P",13)},many,0)
 check("13 Block contributions are not silently truncated",plan[1].blocked)
+local stress={}
+for i=1,15 do stress[#stress+1]=item("stress"..i,i%2==0 and "blockIce" or "block",2) end
+local mixedPlan=solve({attack("P",4),attack("F",3),attack("I",2)},stress,0)
+check("mixed multi-attack Block solver handles fifteen separate contributions",
+    #mixedPlan==3 and mixedPlan[1].blocked and mixedPlan[2].blocked and mixedPlan[3].blocked)
 plan=solve({attack("M",3)},{item("physical","block",5)},0)
 check("wrong-type Block halves once against Psychic",not plan[1].blocked)
 plan=solve({attack("M",3)},{item("physical","block",5),item("mind","blockPsychic",1)},0)
@@ -153,6 +158,19 @@ local rangedGroup=assert(findFunction(root,"combatRangeGroupEntry"),"Ranged grou
 local phaseGroup=rangedGroup({mixedEntries[4]})
 check("Attack-phase Defender does not retroactively change Ranged armour",
     phaseGroup.baseArmour==4 and mixedEntries[4].baseArmour==5)
+local groupedDefenders={
+    {guid="guardianA",data={defend=2},perks={},baseArmour=3,elusiveArmour=3},
+    {guid="guardianB",data={defend=1},perks={},baseArmour=3,elusiveArmour=3},
+    {guid="groupA",data={},perks={},baseArmour=3,elusiveArmour=3},
+    {guid="groupB",data={},perks={},baseArmour=3,elusiveArmour=3}
+}
+local groupedTargets={{members={1}},{members={2}},{members={3,4}}}
+local groupedAllocated={
+    [4]={sources={},details={{detail={family="attack"}}}}
+}
+local groupedBonus=defend(groupedDefenders,groupedTargets,groupedAllocated)
+check("attacking a joined group makes both members eligible for distinct Defend bonuses",
+    groupedBonus[3]==2 and groupedBonus[4]==1)
 local groupEntry=assert(findFunction(root,"combatGroupEntry"),"Group resolver not reachable")
 local grouped,groupArmour=groupEntry({
     {guid="a",data={fResist=true,elusive=true},perks={},baseArmour=3,elusiveArmour=6},
@@ -163,6 +181,14 @@ check("group inherits elemental resistance and fortification",
     and grouped.baseArmour==7 and groupArmour==10)
 check("separate Fire and Ice resistances do not give Cold Fire resistance",
     not grouped.data.coldFireResist)
+local traitText=assert(findFunction(root,"combatGroupTraitsText"),"Effective trait formatter not reachable")
+local stripped={guid="stripped",data={fResist=true,fortified=true,elusive=true},
+    perks={},baseArmour=4,elusiveArmour=8,stripFortify=true,stripFireResist=true}
+local displayed=traitText(stripped,groupEntry({stripped},{}))
+check("effective defenses hide removed fortification and resistance",
+    displayed:find("Fortified",1,true)==nil
+    and displayed:find("Fire Resist",1,true)==nil
+    and displayed:find("Elusive",1,true)~=nil)
 local readUnits=assert(findFunction(root,"combatDamageUnits"),"Damage Unit scanner not reachable")
 resourceCardScanBySeat[1]={unitState={units={{guid="unit",unwounded=true}},
     nativeCommandCount=2},preventUnitDamage=true}
