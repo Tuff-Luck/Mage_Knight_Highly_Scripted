@@ -86,8 +86,14 @@ assert(groupA.movingGUIDs.troopA,"Registered, fanned-out defender must move")
 assert(groupA.movingGUIDs.manualA,"Manually rearranged unregistered defender must move")
 assert(not groupA.movingGUIDs.troopB,"Other City's defender must stay")
 assert(not groupA.movingGUIDs.lockedRef and not groupA.movingGUIDs.farLocked,"Locked reference tiles must stay")
-local ok=moveCityCardExploreGroup(groupA,{-54,1.09,0},{},cityCardMapSnapshot())
+-- A dense map should be indexed once per City-position search. Changing an
+-- owner's position must invalidate that index before the next City is placed.
+local cachedMap=cityCardMapSnapshot()
+assert(cityCardExploreSpaceFree(cachedMap,{100,1.09,0},{},nil,nil),"Empty distant spot is free")
+assert(cachedMap._cityExploreBlockers~=nil,"City blockers are spatially indexed")
+local ok=moveCityCardExploreGroup(groupA,{-54,1.09,0},{},cachedMap)
 assert(ok,"Move group A")
+assert(cachedMap._cityExploreBlockers==nil,"Moving a City invalidates blocker buckets")
 assert(cityA.target[1]==-54 and defenderA.target[1]==-49 and manualA.target[1]==-51,
     "City card and loose army retain their relative positions")
 assert(not defenderB.target and not reference.target and not distantRef.target,
@@ -109,4 +115,13 @@ assert(not cityCardExploreSpaceFree({}, {-14,1.09,0},{cardA=true},nil,nil),
 local groupB=assert(cityCardExploreGroup("zoneB"))
 assert(not positionCityCardForExplore("zoneB",nil,{},nil,{}),
     "Compaction must not redirect the in-flight newly deployed card")
+local obstacles={{guid="near",position={101.5,1.09,0}},
+                 {guid="far",position={350,1.09,0}}}
+assert(not cityCardExploreSpaceFree(obstacles,{100,1.09,0},{},nil,nil),
+    "Nearby enemy blocks an EXPLORE City offset even on a crowded board")
+assert(cityCardExploreSpaceFree(obstacles,{100,1.09,0},{near=true},nil,nil),
+    "Owner's moving enemy is not an obstacle")
+local crossCell={{guid="boundary",position={-4.1,1.09,0}}}
+assert(not cityCardExploreSpaceFree(crossCell,{-1.1,1.09,0},{},nil,nil),
+    "Negative spatial cell boundary does not hide nearby blockers")
 print("PASS City relocation ownership and concurrent destination reservations")
