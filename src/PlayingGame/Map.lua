@@ -1359,6 +1359,7 @@ function refreshTerrainExploreOptions(compactCities)
 		terrainExploreRefreshWait=nil
 	end
 	if gStates==nil then return end
+	local perfStart=mapPerformanceStart()
 	local mapSnapshot=runtimeMapSnapshot()
 	local playAreaObjects=mapSnapshot.objects or {}
 	local faceUpTerrain={}
@@ -1439,6 +1440,7 @@ function refreshTerrainExploreOptions(compactCities)
 			--Now that the complete legal EXPLORE set is known, place each City card once at its closest legal position.
 			if compactCities~=false then compactCityCardsAfterExplore(mapObjectPositions) end
 	end
+	mapPerformanceRecord("EXPLORE refresh",perfStart)
 end
 
 -- Combine ordinary terrain-entry, settled-drop and population-finish requests.
