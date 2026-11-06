@@ -553,6 +553,13 @@ local function mapTokenForEachTerrainOccupant(terrainGUID,hexes,mapObjects,callb
 	local bounds=mapTokenTerrainReconcileBounds(terrainGUID,hexes)
 	for _,obj in pairs(mapObjects or {}) do
 		if obj~=nil and obj.guid~=nil and terrainTiles[obj.guid]==nil then
+			-- Preserve the expired-userdata guard formerly performed by
+			-- mapTokenNeedsArrangement before getPosition. Registered enemy/Quest
+			-- GUIDs retain their original fast lookup path.
+			local knownEnemy=monsterPugs~=nil and monsterPugs[obj.guid]~=nil
+			local knownQuest=gStates~=nil and gStates.apocalypseQuestTokenGUIDs~=nil and
+				gStates.apocalypseQuestTokenGUIDs[obj.guid]==true
+			if knownEnemy or knownQuest or obj.isDestroyed==nil or obj.isDestroyed()~=true then
 			local pos=obj.getPosition()
 			if pos~=nil and (bounds==nil or
 				(pos[1]>=bounds[1] and pos[1]<=bounds[2] and
@@ -562,6 +569,7 @@ local function mapTokenForEachTerrainOccupant(terrainGUID,hexes,mapObjects,callb
 				if hex~=nil and (terrainGUID==nil or hex.terrainGUID==terrainGUID) then
 					if callback(obj,hex)==false then return false end
 				end
+			end
 			end
 		end
 	end
