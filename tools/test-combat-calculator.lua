@@ -167,14 +167,16 @@ playerUnitAreas={[1]="units"}
 monsterPugs={owner={name="Owner"},summoned={name="Summoned"},
     hidden={name="Hidden"},remote={name="Remote"}}
 local function monster(guid,faceDown)
-    return {guid=guid,is_face_down=faceDown,isDestroyed=function() return false end}
+    return {guid=guid,is_face_down=faceDown,isDestroyed=function() return false end,
+        isSmoothMoving=function() return false end}
 end
 local owner=monster("owner",false)
 local summoned=monster("summoned",false)
 local hidden=monster("hidden",true)
 local remote=monster("remote",false)
 local world={play={getObjects=function() return {owner,hidden,summoned} end},
-    units={getObjects=function() return {} end},remote=remote}
+    units={getObjects=function() return {} end},
+    owner=owner,summoned=summoned,hidden=hidden,remote=remote}
 getObjectFromGUID=function(guid) return world[guid] end
 local targets=resourceCardsCombatTargetObjects()
 check("target buttons include only face-up enemies in active combat",
