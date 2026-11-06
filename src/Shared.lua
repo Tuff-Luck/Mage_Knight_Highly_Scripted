@@ -763,7 +763,8 @@ end
 local mapPerformanceEnabled=false
 local mapPerformanceStats={}
 function mapPerformanceEnable(enabled)
-	mapPerformanceEnabled=enabled==true
+	-- Accept a plain bool in the Lua console or {enabled=true} through Global.call.
+	mapPerformanceEnabled=enabled==true or (type(enabled)=="table" and enabled.enabled==true)
 	mapPerformanceStats={}
 	print("Map Lua profiling "..(mapPerformanceEnabled and "enabled" or "disabled"))
 end
