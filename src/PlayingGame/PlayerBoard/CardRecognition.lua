@@ -131,6 +131,33 @@ local COMBAT_TYPE_COLORS={P={"#FFFFFF","#9A9A9A"},F={"#FF5555","#992E2E"},I={"#5
     IF={"#C070FF","#74429A"},M={"#FFE055","#9A8A33"}}
 local COMBAT_RESIST_TYPES={pResist="P",fResist="F",iResist="I",mResist="M"}
 
+-- These tokens carry attacks, but cannot themselves be attacked or defeated.
+-- Volkare and trap rolls already put the current attack in gStates.monsterPerks.
+local COMBAT_ATTACK_ONLY_REMINDERS={
+    ["Volkare Reminder Token"]={name="Volkare's Attack",armour=0,attackOnly=true},
+    ["Trap Reminder Token"]={name="Trap",armour=0,attackOnly=true}
+}
+-- Co-op Leader planning copies have no monsterPugs entry. Read the current
+-- real Leader's data without registering a clone as an actual enemy.
+local function combatEnemyData(guid,obj)
+    local data=monsterPugs[guid]
+    if data~=nil then return data end
+    if gStates~=nil and gStates.coopAssaultType=="leader" then
+        for _,cloneGUID in pairs(gStates.coopLeaderPreviewClones or {}) do
+            if cloneGUID==guid then
+                local leader=factionLeaderForCity~=nil and factionLeaderForCity(gStates.coopAssaultCityGUID) or nil
+                return leader~=nil and monsterPugs[leader.token] or nil,"preview"
+            end
+        end
+    end
+    local perks=gStates~=nil and gStates.monsterPerks~=nil and gStates.monsterPerks[guid] or nil
+    if perks==nil or type(perks.attack)~="table" then return nil end
+    obj=obj or getObjectFromGUID(guid)
+    if obj==nil then return nil end
+    local reminder=COMBAT_ATTACK_ONLY_REMINDERS[obj.getGMNotes()]
+    return reminder,reminder~=nil and "attackOnly" or nil
+end
+
 local function combatTypeRich(text,typeKey,reduced)
     local colors=COMBAT_TYPE_COLORS[typeKey]
     if colors==nil then return text end
@@ -280,14 +307,15 @@ local function combatAssignmentSources(seat)
     return sources
 end
 
-local function combatNearestEnemyGUID(sourceGUID,entries)
-    local source=getObjectFromGUID(sourceGUID)
-    if source==nil then return nil end
-    local sourcePosition=source.getPosition()
+local function combatNearestEnemyGUID(source,entries)
+    local sourceObject=getObjectFromGUID(source.guid)
+    if sourceObject==nil then return nil end
+    local sourcePosition=sourceObject.getPosition()
     local nearestGUID,nearestDistance=nil,nil
     for _,entry in ipairs(entries) do
         local enemy=getObjectFromGUID(entry.guid)
-        if enemy~=nil then
+        if enemy~=nil and (not entry.attackOnly
+            or source.ranged+source.siege+source.attack==0) then
             local position=enemy.getPosition()
             local dx,dz=position[1]-sourcePosition[1],position[3]-sourcePosition[3]
             local distance=dx*dx+dz*dz
@@ -467,7 +495,7 @@ local function combatEntryHasCumbersome(guid,data,perks)
 end
 
 local function combatGUIDHasCumbersome(guid)
-    local data=monsterPugs[guid]
+    local data=combatEnemyData(guid)
     if data==nil then return false end
     local perks=gStates~=nil and gStates.monsterPerks~=nil and gStates.monsterPerks[guid] or nil
     return combatEntryHasCumbersome(guid,data,perks)
@@ -475,6 +503,20 @@ end
 
 function resourceCardsCombatTargetAcceptsMove(guid)
     return combatGUIDHasCumbersome(guid)
+end
+
+-- Reminders accept only Block/Move and enemy-attack effects, not attacks
+-- against Armour. Unknown source keys represent effect-only targeting links.
+function resourceCardsCombatTargetAcceptsSource(sourceKey,targetGUID)
+    local data=combatEnemyData(targetGUID)
+    if data==nil then return false end
+    if data.attackOnly~=true then return true end
+    for _,source in ipairs(combatAssignmentSources(combatAssignmentActiveSeat())) do
+        if source.key==sourceKey then
+            return source.ranged+source.siege+source.attack==0
+        end
+    end
+    return true
 end
 
 -- A lifted card keeps its target while its arrow still exists.
@@ -499,7 +541,7 @@ local function combatCalcUpdate(monsters)
     local cumbersome,psychic=false,false
     if resourceCardsDetailsOpen() then
         for guid,obj in pairs(monsters or {}) do
-            local data=monsterPugs[guid]
+            local data=combatEnemyData(guid,obj)
             if data~=nil and obj.is_face_down~=true then
                 local perks=gStates~=nil and gStates.monsterPerks~=nil and gStates.monsterPerks[guid] or nil
                 -- Summoned enemies count for their Psychic Attack, even though
@@ -561,7 +603,8 @@ local function combatPlayMonsters()
             local zone=zoneInfo[1]~=nil and getObjectFromGUID(zoneInfo[1]) or nil
             if zone~=nil then
                 for _,obj in ipairs(zone.getObjects()) do
-                    if monsterPugs[obj.guid]~=nil and monsterPugs[obj.guid].name~="Ruin" then
+                    local data=combatEnemyData(obj.guid,obj)
+                    if data~=nil and data.name~="Ruin" then
                         monsters[obj.guid]=obj
                         if zoneInfo[2] then playMonsters[obj.guid]=obj end
                     end
@@ -1357,7 +1400,8 @@ local function combatAssignmentRefreshRows(entries,sources)
             while boundary>nextStart do
                 local nextEnemy=entries[boundary+1]
                 if combatAssignmentJoined[nextEnemy.guid]~=true
-                    or entries[boundary].destroyed or nextEnemy.destroyed then break end
+                    or entries[boundary].destroyed or nextEnemy.destroyed
+                    or entries[boundary].attackOnly or nextEnemy.attackOnly then break end
                 boundary=boundary-1
             end
             -- Oversized groups can span pages; never leave a page empty.
@@ -1392,7 +1436,8 @@ local function combatAssignmentRefreshRows(entries,sources)
     for index=1,#entries do
         local group=groups[#groups]
         if index==1 or combatAssignmentJoined[entries[index].guid]~=true
-            or entries[index].destroyed or entries[index-1].destroyed then
+            or entries[index].destroyed or entries[index-1].destroyed
+            or entries[index].attackOnly or entries[index-1].attackOnly then
             group={members={},sources={}}
             groups[#groups+1]=group
         end
@@ -1487,6 +1532,13 @@ local function combatAssignmentRefreshRows(entries,sources)
             end
         end
         local targetIndex=targetGUID~=nil and rowByGUID[targetGUID] or nil
+        if targetIndex~=nil and entries[targetIndex].attackOnly
+            and source.ranged+source.siege+source.attack>0 then
+            combatAssignmentState.targets[source.key]=nil
+            combatAssignmentState.explicit[source.key]=nil
+            attackAssignmentsClearForObject(source.key)
+            targetGUID,targetIndex=nil,nil
+        end
         if moveOnly and targetGUID~=nil and not combatGUIDHasCumbersome(targetGUID) then
             -- Move can only be aimed at a Cumbersome enemy.
             combatAssignmentState.targets[source.key]=nil
@@ -1495,7 +1547,7 @@ local function combatAssignmentRefreshRows(entries,sources)
             targetGUID,targetIndex=nil,nil
         end
         if targetIndex==nil and not moveOnly and not influenceOnly then
-            targetGUID=combatNearestEnemyGUID(source.guid,entries)
+            targetGUID=combatNearestEnemyGUID(source,entries)
             combatAssignmentState.targets[source.key]=targetGUID
             combatAssignmentState.explicit[source.key]=nil
             targetIndex=targetGUID~=nil and rowByGUID[targetGUID] or nil
@@ -1621,7 +1673,7 @@ local function combatAssignmentRefreshRows(entries,sources)
                 end
             end
             local _,_,ranged=combatRangeResult(combatGroupEntry(members,{}),sources)
-            if ranged then
+            if ranged and not members[1].attackOnly then
                 for _,index in ipairs(group.members) do rangedBeforeBlock[index]=true end
             end
         end
@@ -1651,7 +1703,8 @@ local function combatAssignmentRefreshRows(entries,sources)
         for index=1,#entries do
             local group=groups[#groups]
             if index==1 or combatAssignmentJoined[entries[index].guid]~=true
-                or entries[index].destroyed or entries[index-1].destroyed then
+                or entries[index].destroyed or entries[index-1].destroyed
+            or entries[index].attackOnly or entries[index-1].attackOnly then
                 group={members={},sources={}}
                 groups[#groups+1]=group
             end
@@ -1693,6 +1746,7 @@ local function combatAssignmentRefreshRows(entries,sources)
         group.entry,group.attackArmour=combatGroupEntry(members,blockedAll)
         group.rangeTotal,group.rangeArmour,group.rangeDefeated,group.fortification=
             combatRangeResult(group.entry,group.sources)
+        if members[1].attackOnly then group.rangeDefeated=false end
         if rangedBeforeBlock~=nil then
             -- A later Block-phase destruction cannot retrospectively win the
             -- Ranged phase or create extra Ranged-only rewards.
@@ -1705,17 +1759,20 @@ local function combatAssignmentRefreshRows(entries,sources)
             {sources=group.sources,category="attack"},
             {sources=group.sources,category="ranged"},
             {sources=group.sources,category="siege"}},group.entry.data,group.entry.perks)
-        group.defeated=group.rangeDefeated or (meleeTotal>0 and meleeTotal>=group.attackArmour)
+        group.defeated=not members[1].attackOnly
+            and (group.rangeDefeated or (meleeTotal>0 and meleeTotal>=group.attackArmour))
         -- A destroyed enemy is defeated without any attack; it stays out of "defeated by this attack" rewards.
-        group.destroyed=#group.members==1 and entries[group.members[1]].destroyed==true
+        group.destroyed=not members[1].attackOnly and #group.members==1
+            and entries[group.members[1]].destroyed==true
         if group.destroyed then group.defeated,group.rangeDefeated=true,false end
         if group.defeated and not group.destroyed then
-            local count=#group.members
+            local count=0
+            for _,member in ipairs(members) do if not member.preview then count=count+1 end end
             local counted={}
             for _,source in ipairs(group.sources) do
                 local spec=source.defeatFameRep
                 -- A source defeats nothing in melee once the Ranged phase already did, so melee-only sources do not count.
-                if spec~=nil and spec.scope==nil and not counted[source.guid] and (not group.rangeDefeated
+                if count>0 and spec~=nil and spec.scope==nil and not counted[source.guid] and (not group.rangeDefeated
                     or source.ranged>0 or source.siege>0) then
                     counted[source.guid]=true
                     local times=spec.once and 1 or count
@@ -1779,8 +1836,12 @@ local function combatAssignmentRefreshRows(entries,sources)
             seenScope[source.guid]=true
             for _,group in ipairs(groups) do
                 if group.defeated and (spec.scope=="all" or group.rangeDefeated) then
-                    defeatFame=defeatFame+(spec.fame or 0)*#group.members
-                    defeatRep=defeatRep+(spec.rep or 0)*#group.members
+                    local count=0
+                    for _,index in ipairs(group.members) do
+                        if not entries[index].preview then count=count+1 end
+                    end
+                    defeatFame=defeatFame+(spec.fame or 0)*count
+                    defeatRep=defeatRep+(spec.rep or 0)*count
                 end
             end
         end
@@ -1791,8 +1852,10 @@ local function combatAssignmentRefreshRows(entries,sources)
     for _,group in ipairs(groups) do
         for _,index in ipairs(group.members) do
             local guid=entries[index].guid
-            trackedGuids[guid]=true
-            if group.defeated then defeatedGuids[guid]=true end
+            if not entries[index].attackOnly and not entries[index].preview then
+                trackedGuids[guid]=true
+                if group.defeated then defeatedGuids[guid]=true end
+            end
         end
     end
     combatSetDefeatMarks(trackedGuids,defeatedGuids)
@@ -1857,7 +1920,7 @@ local function combatAssignmentRefreshRows(entries,sources)
                 armourValue=entry.elusiveArmour
             end
             combatPanelSetAttribute("CombatEnemyRow"..row.."Armour","text",
-                entry.destroyed and "-" or tostring(armourValue))
+                (entry.destroyed or entry.attackOnly) and "-" or tostring(armourValue))
             if #group.members>1 then
                 local sharedText=combatGroupTraitsText(entry,group.entry)
                 shownTraits[row]=sharedText
@@ -1907,7 +1970,7 @@ local function combatAssignmentRefreshRows(entries,sources)
                 end
                 grandDamage=grandDamage+rowBlock[index].damage
                 damageSources=damageSources+rowBlock[index].count
-                if isLast then
+                if isLast and not entry.attackOnly then
                     local line=combatGroupAttackLine(group.entry,group.sources,group.attackArmour)
                     if line~=nil then lines[#lines+1]=line end
                 end
@@ -2069,7 +2132,7 @@ local function refreshCombatEnemyPanel(monsters)
     combatPanelSetAttribute("CombatEnemyPanel","active","true")
     local entries={}
     for guid in pairs(monsters or {}) do
-        local data=monsterPugs[guid]
+        local data,mode=combatEnemyData(guid,monsters[guid])
         if data~=nil and monsters[guid]~=nil and monsters[guid].is_face_down~=true
             and not combatIsSummonedToken(guid) then
             local perks=gStates~=nil and gStates.monsterPerks~=nil and gStates.monsterPerks[guid] or nil
@@ -2077,6 +2140,7 @@ local function refreshCombatEnemyPanel(monsters)
             local armourBonus=perks~=nil and (tonumber(perks.armour) or 0) or 0
             local armour=baseArmour+armourBonus
             entries[#entries+1]={guid=guid,name=tostring(data.name or "Enemy"),
+                attackOnly=mode=="attackOnly",preview=mode=="preview",
                 armour=tostring(armour),baseArmour=baseArmour+armourBonus,
                 elusiveArmour=baseArmour*2+armourBonus,data=data,perks=perks,
                 summoned=data.monsters~=nil and combatSummonedFor(guid) or nil}
@@ -2110,10 +2174,10 @@ local function refreshCombatEnemyPanel(monsters)
             entry.stripResist=effect.removeResist
             entry.stripFireResist=effect.removeFireResist
         end
-        entry.noAttack=effect~=nil and (effect.noAttack==true or (effect.noAttackUnfortified==true
+        entry.noAttack=not entry.attackOnly and effect~=nil and (effect.noAttack==true or (effect.noAttackUnfortified==true
             and combatEnemyFortificationCount(entry.data,entry.perks)==0))
-        entry.destroyed=effect~=nil and effect.destroy==true
-        entry.destroyIfBlocked=effect~=nil and effect.destroyIfBlocked==true
+        entry.destroyed=not entry.attackOnly and effect~=nil and effect.destroy==true
+        entry.destroyIfBlocked=not entry.attackOnly and effect~=nil and effect.destroyIfBlocked==true
         entry.removeAbilities=effect~=nil and effect.removeAbilities==true
     end
     -- Board order, left to right, so enemies placed side by side group the way the player laid them out.
@@ -2184,6 +2248,7 @@ function resourceCardsRefreshCombatEnemies()
 end
 
 function resourceCardsCombatAssignSource(sourceGUID,enemyGUID)
+    if not resourceCardsCombatTargetAcceptsSource(sourceGUID,enemyGUID) then return end
     combatAssignmentState.targets[sourceGUID]=enemyGUID
     combatAssignmentState.explicit[sourceGUID]=true
     resourceCardsRefreshCombatEnemies()
@@ -2228,6 +2293,8 @@ function resourceCardsCombatToggleGroup(row)
     local guid=combatAssignmentRowTargets[row]
     local index=combatAssignmentRowIndices[row]
     if guid==nil or index==nil or index<2 then return end
+    local data=combatEnemyData(guid)
+    if data~=nil and data.attackOnly then return end
     combatAssignmentJoined[guid]=combatAssignmentJoined[guid]~=true or nil
     resourceCardsRefreshCombatEnemies()
 end
@@ -2262,6 +2329,11 @@ function resourceCardsCombatAssignmentClick(id)
             end
             if movedSource~=nil and movedSource.ranged+movedSource.siege+movedSource.block+movedSource.attack==0
                 and not combatGUIDHasCumbersome(targetGUID) then
+                combatAssignmentState.selected=nil
+                resourceCardsRefreshCombatEnemies()
+                return
+            end
+            if not resourceCardsCombatTargetAcceptsSource(moved,targetGUID) then
                 combatAssignmentState.selected=nil
                 resourceCardsRefreshCombatEnemies()
                 return
@@ -4309,6 +4381,12 @@ local function combatEffectChosenEnemy(sourceGUID,area,monsters)
     local chosen=nil
     for guid in pairs(attackAssignmentsTargetGUIDs(sourceGUID)) do
         local target=monsters[guid]
+        if target==nil then
+            -- Attack-reducing effects can explicitly link to reminder attacks.
+            local special=combatPlayMonsters()[guid]
+            local data=special~=nil and combatEnemyData(guid,special) or nil
+            if data~=nil and data.attackOnly then target=special end
+        end
         if target~=nil and target.is_face_down~=true
             and (chosen==nil or guid<chosen.guid) then chosen=target end
     end
@@ -4354,7 +4432,9 @@ local function renderSeat(seatPos)
     -- Keep a lifted enemy in the full Resource Tracker scan as well as the
     -- quick combat-panel refresh, including play-only enemy-count bonuses.
     combatKeepHeldEnemies(seatPos,monsters,playMonsters)
-    combatCalcUpdate(monsters)
+    -- These attacks belong to the calculator, not monster-count card bonuses.
+    local combatMonsters=combatPlayMonsters()
+    combatCalcUpdate(combatMonsters)
     local enemyEntries={}
     for guid,enemy in pairs(monsters) do
         if enemy.is_face_down~=true then enemyEntries[#enemyEntries+1]={guid=guid} end
@@ -5966,7 +6046,7 @@ local function renderSeat(seatPos)
         usesCurrentHexBlock=usesCurrentHexBlock,
         usesCurrentHexHealing=usesCurrentHexHealing,
         usesSkillLocation=usesSkillLocation}
-    refreshCombatEnemyPanel(monsters)
+    refreshCombatEnemyPanel(combatMonsters)
     resourceCardsApplyFameRep(seatPos)
     -- Redraw movement when ability flags change, even if total Move stays equal.
     if totalsChanged or terrainChanged or transformChanged then refreshResourceTrackerText() end
@@ -6353,11 +6433,11 @@ local function resourceCardsRelevantZone(ctx)
     if active==nil or active.seatPos~=ctx.zoneInfo.seatPos then return nil end
     local kind=ctx.zoneInfo.kind
     local objectKind=resourceObjectKind(ctx.obj)
-    if kind=="play" and (objectKind~=nil or monsterPugs[ctx.objGUID]~=nil) then
+    if kind=="play" and (objectKind~=nil or combatEnemyData(ctx.objGUID,ctx.obj)~=nil) then
         return ctx.zoneInfo.seatPos
     end
     if kind=="unit" and (objectKind=="unit" or objectKind=="mana" or objectKind=="puppet"
-        or monsterPugs[ctx.objGUID]~=nil
+        or combatEnemyData(ctx.objGUID,ctx.obj)~=nil
         or unitLayoutIsCommand(ctx.obj) or unitLayoutIsWound(ctx.obj)) then
         return ctx.zoneInfo.seatPos
     end
@@ -6410,7 +6490,7 @@ function resourceCardsObjectMoved(obj)
     if player==nil then return end
     local seat=player.seatPos
     local isUnitStateToken=unitLayoutIsCommand(obj) or unitLayoutIsWound(obj)
-    local isMonster=monsterPugs[obj.guid]~=nil
+    local isMonster=combatEnemyData(obj.guid,obj)~=nil
     if resourceObjectKind(obj)==nil and not isUnitStateToken and not isMonster then
         -- A played powered One with the Land may change Block value when the
         -- Mage Knight moves to different terrain. Only watch avatar drops

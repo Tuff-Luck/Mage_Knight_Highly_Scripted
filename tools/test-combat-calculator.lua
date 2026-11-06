@@ -210,4 +210,57 @@ check("settled owner outside combat is removed, including summoned proxy",
 remote.held_by_color="Red"
 targets=resourceCardsCombatTargetObjects()
 check("unrelated held enemy is never added to combat",targets.remote==nil)
+-- Reminder attacks are active combat targets even without monsterPugs entries.
+gStates.firstStarted=true
+gStates.monsterPerks={
+    volkareReminder={arcaneImmunity=true,brutal=true,assassination=true,attack={F={3}}},
+    trapReminder={cumbersome=true,brutal=true,attack={P={5}}}}
+local volkareReminder=monster("volkareReminder",false)
+volkareReminder.getGMNotes=function() return "Volkare Reminder Token" end
+local trapReminder=monster("trapReminder",false)
+trapReminder.getGMNotes=function() return "Trap Reminder Token" end
+world.volkareReminder=volkareReminder
+world.trapReminder=trapReminder
+world.play.getObjects=function() return {owner,volkareReminder,trapReminder} end
+local updated=resourceCardsCombatTargetObjects()
+check("Volkare and trap reminders become face-up combat targets",
+    updated.volkareReminder==volkareReminder and updated.trapReminder==trapReminder)
+local specialData=assert(findFunction(root,"combatEnemyData"),"Combat-only data resolver not reachable")
+local volkareData,volkareMode=specialData("volkareReminder",volkareReminder)
+local trapData,trapMode=specialData("trapReminder",trapReminder)
+check("reminders have attack-only data, not armour",
+    volkareMode=="attackOnly" and trapMode=="attackOnly"
+    and volkareData.armour==0 and trapData.armour==0)
+local enemyAttacks=assert(findFunction(root,"combatEnemyAttacks"),"Attack reader not reachable")
+local rolled=enemyAttacks({guid="volkareReminder",data=volkareData,perks=gStates.monsterPerks.volkareReminder})
+check("Volkare reminder contributes rolled Fire Attack and Assassination",
+    #rolled==1 and rolled[1].key=="F" and rolled[1].value==3 and rolled[1].assassination)
+local trapAttack=enemyAttacks({guid="trapReminder",data=trapData,perks=gStates.monsterPerks.trapReminder})
+check("trap contributes rolled Cumbersome attack",
+    #trapAttack==1 and trapAttack[1].value==5 and trapAttack[1].cumbersome)
+resourceCardScanBySeat[1]={cards={cardBlock={resources={block=5}},
+    cardAttack={resources={attack=5}}}}
+local accepts=resourceCardsCombatTargetAcceptsSource
+check("Block sources target reminders; Attack sources cannot",
+    accepts("cardBlock","trapReminder") and not accepts("cardAttack","trapReminder"))
+check("special reminder attacks can receive direct reduction links",
+    accepts("effectOnly","trapReminder"))
+trapReminder.is_face_down=true
+check("face-down traps leave calculator targets",
+    resourceCardsCombatTargetObjects().trapReminder==nil)
+trapReminder.is_face_down=false
+-- Leader planning copies borrow real leader combat data, but are not real kills.
+monsterPugs.realLeader={name="Dark Crusader",armour=7,attack={P={6}},pugType="leader"}
+gStates.coopAssaultType="leader"
+gStates.coopLeaderPreviewClones={[1]="previewLeader"}
+gStates.coopAssaultCityGUID="leaderCity"
+factionLeaderForCity=function() return {token="realLeader"} end
+local preview=monster("previewLeader",false)
+world.previewLeader=preview
+world.play.getObjects=function() return {owner,preview} end
+local previewData,previewMode=specialData("previewLeader",preview)
+check("leader co-op planning copy inherits live leader stats",
+    previewMode=="preview" and previewData==monsterPugs.realLeader)
+check("leader planning copy becomes an assignable combat target",
+    resourceCardsCombatTargetObjects().previewLeader==preview)
 print("Combat calculator regression tests passed.")

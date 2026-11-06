@@ -625,6 +625,12 @@ function attackAssignmentTargetClicked(target,playerColor)
             if target==nil then return end
         end
         if target.isDestroyed() or pending.source==nil or pending.source.isDestroyed() then return end
+        if resourceCardsCombatTargetAcceptsSource~=nil
+            and not resourceCardsCombatTargetAcceptsSource(pending.sourceGUID,target.guid) then
+            broadcastToColor("Only Block/Move or attack reductions can target a reminder.",
+                playerColor,{1,0.6,0.2})
+            return
+        end
 		if tostring(pending.resource):find("move$")~=nil and resourceCardsCombatTargetAcceptsMove~=nil
 			and not resourceCardsCombatTargetAcceptsMove(target.guid) then
 			broadcastToColor("Move can only be assigned to a Cumbersome enemy.",playerColor,{1,0.6,0.2})
@@ -683,7 +689,12 @@ end
 -- Called by the Attack Assignment panel so both interfaces show the same single target.
 function attackAssignmentsSetSourceTarget(sourceGUID,targetGUID,kind)
 	local source,target=getObjectFromGUID(assignmentBaseGUID(sourceGUID)),getObjectFromGUID(targetGUID)
-	if source==nil or target==nil or monsterPugs[targetGUID]==nil then return end
+	if source==nil or target==nil then return end
+    if monsterPugs[targetGUID]==nil
+        and (resourceCardsCombatTargetObjects==nil
+            or resourceCardsCombatTargetObjects()[targetGUID]==nil) then return end
+    if resourceCardsCombatTargetAcceptsSource~=nil
+        and not resourceCardsCombatTargetAcceptsSource(sourceGUID,targetGUID) then return end
 	for entryId,entry in pairs(assignmentRegistry) do
 		if entry.sourceGUID==sourceGUID then assignmentRegistry[entryId]=nil end
 	end
