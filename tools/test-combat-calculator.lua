@@ -180,7 +180,28 @@ local targets=resourceCardsCombatTargetObjects()
 check("target buttons include only face-up enemies in active combat",
     targets.owner==owner and targets.summoned==summoned
     and targets.hidden==nil and targets.remote==nil)
+-- Raising the only owner out of a short zone must not tear down its
+-- combat row, its summoned proxy, or the resource target it was assigned.
+owner.held_by_color="Red"
 world.play.getObjects=function() return {hidden,summoned} end
 targets=resourceCardsCombatTargetObjects()
-check("summoned token is not targetable without its summoner",targets.summoned==nil)
+check("held owner remains in combat while above the zone",
+    targets.owner==owner and targets.summoned==summoned)
+owner.held_by_color=nil
+world.play.getObjects=function() return {owner,hidden,summoned} end
+targets=resourceCardsCombatTargetObjects()
+check("dropping owner back in the zone keeps its target",targets.owner==owner)
+owner.held_by_color="Red"
+world.play.getObjects=function() return {hidden,summoned} end
+targets=resourceCardsCombatTargetObjects()
+check("second lift still retains the same combat owner",targets.owner==owner)
+owner.held_by_color=nil
+targets=resourceCardsCombatTargetObjects()
+check("settled owner outside combat is removed, including summoned proxy",
+    targets.owner==nil and targets.summoned==nil)
+-- An enemy not previously in combat must never be admitted simply
+-- because it is held over the board.
+remote.held_by_color="Red"
+targets=resourceCardsCombatTargetObjects()
+check("unrelated held enemy is never added to combat",targets.remote==nil)
 print("Combat calculator regression tests passed.")

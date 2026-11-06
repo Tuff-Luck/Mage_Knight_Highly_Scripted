@@ -517,18 +517,55 @@ local function combatCalcUpdate(monsters)
     return on
 end
 
+-- A token lifted above a short scripting zone is still part of the current combat.
+-- Remember only enemies already seen on the active board; never pull in arbitrary
+-- held enemies from elsewhere on the table. This is runtime-only and seat-scoped.
+local combatTrackedSeat=nil
+local combatTrackedEnemies={}
+local function combatKeepHeldEnemies(seatPos,monsters,playMonsters)
+    if combatTrackedSeat~=seatPos then
+        combatTrackedSeat=seatPos
+        combatTrackedEnemies={}
+    end
+    for guid,obj in pairs(monsters) do
+        if obj~=nil and not obj.isDestroyed() then
+            combatTrackedEnemies[guid]=playMonsters[guid]~=nil
+        end
+    end
+    for guid,wasInPlay in pairs(combatTrackedEnemies) do
+        if monsters[guid]==nil then
+            local obj=getObjectFromGUID(guid)
+            if obj~=nil and not obj.isDestroyed()
+                and ((obj.held_by_color~=nil and obj.held_by_color~="")
+                    or obj.isSmoothMoving()) then
+                monsters[guid]=obj
+                if wasInPlay then playMonsters[guid]=obj end
+            else
+                -- On a settled drop outside the combat zones, stop retaining it.
+                combatTrackedEnemies[guid]=nil
+            end
+        end
+    end
+    return monsters
+end
+
 local function combatPlayMonsters()
     local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
-    local monsters={}
+    local monsters,playMonsters={},{}
     if active~=nil and active.seatPos~=nil then
-        for _,zoneGUID in ipairs({playerPlayAreas[active.seatPos],playerUnitAreas[active.seatPos]}) do
-            local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
+        for _,zoneInfo in ipairs({{playerUnitAreas[active.seatPos],false},
+            {playerPlayAreas[active.seatPos],true}}) do
+            local zone=zoneInfo[1]~=nil and getObjectFromGUID(zoneInfo[1]) or nil
             if zone~=nil then
                 for _,obj in ipairs(zone.getObjects()) do
-                    if monsterPugs[obj.guid]~=nil and monsterPugs[obj.guid].name~="Ruin" then monsters[obj.guid]=obj end
+                    if monsterPugs[obj.guid]~=nil and monsterPugs[obj.guid].name~="Ruin" then
+                        monsters[obj.guid]=obj
+                        if zoneInfo[2] then playMonsters[obj.guid]=obj end
+                    end
                 end
             end
         end
+        return combatKeepHeldEnemies(active.seatPos,monsters,playMonsters)
     end
     return monsters
 end
@@ -1898,6 +1935,8 @@ local function combatAssignmentRefreshRows(entries,sources)
 end
 
 local function combatCalcShutdown()
+    combatTrackedSeat=nil
+    combatTrackedEnemies={}
     combatCalcOn=false
     combatCumbersomeActive=false
     combatSyncDefenderMark(nil)
@@ -4198,6 +4237,9 @@ local function renderSeat(seatPos)
     inspectZone(playerCrystalAreas[seatPos],"crystal")
     inspectZone(playerUnitAreas[seatPos],"unit")
     inspectZone(playerPlayAreas[seatPos],"play")
+    -- Keep a lifted enemy in the full Resource Tracker scan as well as the
+    -- quick combat-panel refresh, including play-only enemy-count bonuses.
+    combatKeepHeldEnemies(seatPos,monsters,playMonsters)
     combatCalcUpdate(monsters)
     local enemyEntries={}
     for guid,enemy in pairs(monsters) do
@@ -6281,11 +6323,13 @@ function resourceCardsObjectMoved(obj)
             end
         end
     end
-    if isUnitStateToken or (isMonster and bySeat[seat]~=nil
+    if (isMonster and combatTrackedSeat==seat and combatTrackedEnemies[obj.guid]~=nil)
+        or isUnitStateToken or (isMonster and bySeat[seat]~=nil
         and bySeat[seat][obj.guid]==true) then
-        -- Zone exit usually handles this already, but a token can be dragged
-        -- straight out and dropped before its membership event settles.
-        queueSeat(seat,nil)
+        -- On a drop outside the zones, wait for the token to settle before
+        -- checking membership. Otherwise smooth movement can retain a ghost
+        -- indefinitely if no further zone event fires.
+        queueSeat(seat,isMonster and obj.guid or nil)
     elseif bySeat[seat]~=nil and bySeat[seat][obj.guid]==true then
         scheduleChoiceResetAfterPlay(obj.guid,seat)
         queueSeat(seat,nil)
