@@ -71,8 +71,12 @@ enemy.held_by_color="Red"
 attackAssignmentsPruneTargets({})
 check("picked-up target retains its arrow",#gStates.attackAssignments==1)
 enemy.held_by_color=nil
+enemy.resting=false
 attackAssignmentsPruneTargets({})
-check("dropped target outside combat loses its arrow",#gStates.attackAssignments==0)
+check("falling target retains its arrow after release",#gStates.attackAssignments==1)
+enemy.resting=true
+attackAssignmentsPruneTargets({})
+check("settled target outside combat loses its arrow",#gStates.attackAssignments==0)
 attackAssignmentsClearAll()
 
 local unit=makeObject("unit",3)

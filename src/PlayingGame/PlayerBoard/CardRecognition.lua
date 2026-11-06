@@ -537,7 +537,7 @@ local function combatKeepHeldEnemies(seatPos,monsters,playMonsters)
             local obj=getObjectFromGUID(guid)
             if obj~=nil and not obj.isDestroyed()
                 and ((obj.held_by_color~=nil and obj.held_by_color~="")
-                    or obj.isSmoothMoving()) then
+                    or obj.isSmoothMoving() or obj.resting==false) then
                 monsters[guid]=obj
                 if wasInPlay then playMonsters[guid]=obj end
             else

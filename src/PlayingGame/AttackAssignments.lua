@@ -735,7 +735,8 @@ function attackAssignmentsPruneTargets(eligible)
         if eligible[entry.targetGUID]~=true then
             local target=getObjectFromGUID(entry.targetGUID)
             local inTransit=target~=nil
-                and ((target.held_by_color~=nil and target.held_by_color~="") or target.isSmoothMoving())
+                and ((target.held_by_color~=nil and target.held_by_color~="")
+                    or target.isSmoothMoving() or target.resting==false)
             if not inTransit then assignmentRegistry[id]=nil changed=true end
         end
     end

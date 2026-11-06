@@ -168,7 +168,7 @@ monsterPugs={owner={name="Owner"},summoned={name="Summoned"},
     hidden={name="Hidden"},remote={name="Remote"}}
 local function monster(guid,faceDown)
     return {guid=guid,is_face_down=faceDown,isDestroyed=function() return false end,
-        isSmoothMoving=function() return false end}
+        isSmoothMoving=function() return false end,resting=true}
 end
 local owner=monster("owner",false)
 local summoned=monster("summoned",false)
@@ -198,6 +198,10 @@ world.play.getObjects=function() return {hidden,summoned} end
 targets=resourceCardsCombatTargetObjects()
 check("second lift still retains the same combat owner",targets.owner==owner)
 owner.held_by_color=nil
+owner.resting=false
+targets=resourceCardsCombatTargetObjects()
+check("released but falling owner stays targeted until it settles",targets.owner==owner)
+owner.resting=true
 targets=resourceCardsCombatTargetObjects()
 check("settled owner outside combat is removed, including summoned proxy",
     targets.owner==nil and targets.summoned==nil)
