@@ -560,16 +560,16 @@ local function mapTokenForEachTerrainOccupant(terrainGUID,hexes,mapObjects,callb
 			local knownQuest=gStates~=nil and gStates.apocalypseQuestTokenGUIDs~=nil and
 				gStates.apocalypseQuestTokenGUIDs[obj.guid]==true
 			if knownEnemy or knownQuest or obj.isDestroyed==nil or obj.isDestroyed()~=true then
-			local pos=obj.getPosition()
-			if pos~=nil and (bounds==nil or
-				(pos[1]>=bounds[1] and pos[1]<=bounds[2] and
-				 pos[3]>=bounds[3] and pos[3]<=bounds[4])) and
-				mapTokenNeedsArrangement(obj)==true then
-				local hex=mapTokenPhysicalHexForPosition(hexes,pos,mapObjects)
-				if hex~=nil and (terrainGUID==nil or hex.terrainGUID==terrainGUID) then
-					if callback(obj,hex)==false then return false end
+				local pos=obj.getPosition()
+				if pos~=nil and (bounds==nil or
+					(pos[1]>=bounds[1] and pos[1]<=bounds[2] and
+					 pos[3]>=bounds[3] and pos[3]<=bounds[4])) and
+					mapTokenNeedsArrangement(obj)==true then
+					local hex=mapTokenPhysicalHexForPosition(hexes,pos,mapObjects)
+					if hex~=nil and (terrainGUID==nil or hex.terrainGUID==terrainGUID) then
+						if callback(obj,hex)==false then return false end
+					end
 				end
-			end
 			end
 		end
 	end
