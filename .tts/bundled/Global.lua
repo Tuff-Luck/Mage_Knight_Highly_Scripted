@@ -183,7 +183,12 @@ function onObjectDestroy(destroyedObj)
 end
 
 function onObjectEnterZone(zone, obj)
-	return safeZoneCallback("onObjectEnterZone", __onObjectEnterZone_raw, zone, obj)
+	local perfStart=mapPerformanceStart()
+	local result=safeZoneCallback("onObjectEnterZone", __onObjectEnterZone_raw, zone, obj)
+	if perfStart~=nil then
+		mapPerformanceRecord(zone~=nil and zone.guid==mapArea and "map zone enter" or "other zone enter",perfStart)
+	end
+	return result
 end
 
 function onObjectLeaveZone(zone, obj)
@@ -1439,10 +1444,10 @@ function __onObjectDrop_raw(player_color, dropped_object)
 		runtimeMapInvalidateTerrain()
 		--EXPLORE legality is derived from the settled physical map. onObjectEnterZone can fire while a
 		--dragged tile is still crossing the map zone, so rebuild only after the final drop has settled.
-		safeWaitCondition("Events.terrainDrop",function() refreshTerrainExploreOptions() end,function()
+		safeWaitCondition("Events.terrainDrop",function() requestTerrainExploreOptionsRefresh() end,function()
 			local tile=getObjectFromGUID(droppedGUID)
 			return tile==nil or (tile.held_by_color==nil and tile.resting==true and tile.isSmoothMoving()==false)
-		end,5,function() refreshTerrainExploreOptions() end)
+		end,5,function() requestTerrainExploreOptionsRefresh() end)
 	end
 	local droppedHorseman=horsemanTokenToName~=nil and horsemanTokenToName[droppedGUID] or nil
 	if gStates.gameScenario=="Against the Horsemen Blitz" and (terrainTiles[droppedGUID]~=nil or droppedHorseman~=nil) then
@@ -2110,6 +2115,11 @@ local function handleMapVisualZoneEnter(ctx)
 		handleMapVisualZoneEnterNow(ctx)
 		return
 	end
+	-- Temporary combat decals, Rampager overlays and city bonuses are all
+	-- enemy-owned. Ordinary tiles, reference objects and other map entrants
+	-- need no delayed UI/decal inspection at all.
+	local guid=ctx.objGUID
+	if monsterPugs[guid]==nil and gStates.monsterPlayLocation[guid]==nil and gStates.monsterPerks[guid]==nil then return end
 	--Object UI/decal inspection crosses the TTS engine boundary and was visible as a hitch on the exact
 	--map-zone entry frame. It is presentation-only, so defer it one frame and verify the object stayed in the map.
 	local objGUID=ctx.objGUID
@@ -5410,6 +5420,10 @@ function resourceTracker(player, mouseButton, id)
 			resourceCardsCombatToggleGroup(tonumber(id:match("%d+")))
 			return
 		end
+        if id:match("^CombatEnemyResultToggle%d+$")~=nil then
+            resourceCardsCombatToggleResult(tonumber(id:match("%d+$")))
+            return
+        end
         if id=="CombatEnemyPagePrev" or id=="CombatEnemyPageNext" then
             resourceCardsCombatPage(id=="CombatEnemyPagePrev" and -1 or 1)
             return
@@ -5551,7 +5565,8 @@ function buttonClicked(player, mouseButton, ButtonPressed)
 	if mouseButton~="-1" then return end
 	-- Combat panel slots draw their own icon; the standard button image must not replace it.
 	if ButtonPressed:match("^CombatSourceSlot") or ButtonPressed:match("^CombatEnemyRow")
-		or ButtonPressed:match("^CombatEnemyJoin") then return end
+		or ButtonPressed:match("^CombatEnemyJoin")
+		or ButtonPressed:match("^CombatEnemyResultToggle") then return end
 
 	local ui=obj and obj.UI or UI
 	local active, deactive
@@ -5746,7 +5761,9 @@ function monsterReplenishObjectOnLoad()
 	local xml=[=[
 <Button id="d7a165replenishMonsterPiles" interactable="true"
     onClick="global/refillMonsterTokenPiles"
-    tooltipPosition="Left" tooltipBackgroundColor="clear" tooltipOffset="20"
+    tooltipPosition="Left" tooltipOffset="12"
+    tooltipBackgroundColor="#24211DF2" tooltipBorderColor="#9E8665"
+    tooltipTextColor="#F5E6CA" tooltipFontSize="15"
     width="900" height="200" color="#7F7F7F" textColor="#FFFFFF"
     position="200 270 -100" rotation="0 0 0" scale="0.48 0.48"
     shadow="rgb(0, 0, 0)" shadowDistance="0 -0">
@@ -22232,6 +22249,8 @@ local function damageAttackClicked(obj,playerColor,index,altClick)
 	local list=obj~=nil and damageSpec.byOwner[obj.guid] or nil
 	local attack=list~=nil and list[index] or nil
 	if attack==nil then return end
+	-- Another player must not steal an in-progress Unit assignment.
+	if damagePending~=nil and damagePending.color~=playerColor then return end
 	if altClick then
 		-- Right click returns the whole attack to the Hero.
 		damageTargets[attack.key]=nil
@@ -22253,7 +22272,7 @@ end
 -- Clicking a free Unit adds it to the attack in order; clicking one already on the attack returns its share to the Hero.
 function attackAssignmentDamageUnitClicked(unit,playerColor)
 	return safeCallback("attackAssignmentDamageUnitClicked",function()
-		if damagePending==nil or unit==nil then return end
+		if damagePending==nil or unit==nil or damagePending.color~=playerColor then return end
 		local key=damagePending.key
 		local list=damageTargets[key] or {}
 		for position,guid in ipairs(list) do
@@ -22366,6 +22385,12 @@ function attackAssignmentTargetClicked(target,playerColor)
             if target==nil then return end
         end
         if target.isDestroyed() or pending.source==nil or pending.source.isDestroyed() then return end
+        if resourceCardsCombatTargetAcceptsSource~=nil
+            and not resourceCardsCombatTargetAcceptsSource(pending.sourceGUID,target.guid) then
+            broadcastToColor("Only Block/Move or attack reductions can target a reminder.",
+                playerColor,{1,0.6,0.2})
+            return
+        end
 		if tostring(pending.resource):find("move$")~=nil and resourceCardsCombatTargetAcceptsMove~=nil
 			and not resourceCardsCombatTargetAcceptsMove(target.guid) then
 			broadcastToColor("Move can only be assigned to a Cumbersome enemy.",playerColor,{1,0.6,0.2})
@@ -22424,7 +22449,12 @@ end
 -- Called by the Attack Assignment panel so both interfaces show the same single target.
 function attackAssignmentsSetSourceTarget(sourceGUID,targetGUID,kind)
 	local source,target=getObjectFromGUID(assignmentBaseGUID(sourceGUID)),getObjectFromGUID(targetGUID)
-	if source==nil or target==nil or monsterPugs[targetGUID]==nil then return end
+	if source==nil or target==nil then return end
+    if monsterPugs[targetGUID]==nil
+        and (resourceCardsCombatTargetObjects==nil
+            or resourceCardsCombatTargetObjects()[targetGUID]==nil) then return end
+    if resourceCardsCombatTargetAcceptsSource~=nil
+        and not resourceCardsCombatTargetAcceptsSource(sourceGUID,targetGUID) then return end
 	for entryId,entry in pairs(assignmentRegistry) do
 		if entry.sourceGUID==sourceGUID then assignmentRegistry[entryId]=nil end
 	end
@@ -22476,7 +22506,8 @@ function attackAssignmentsPruneTargets(eligible)
         if eligible[entry.targetGUID]~=true then
             local target=getObjectFromGUID(entry.targetGUID)
             local inTransit=target~=nil
-                and ((target.held_by_color~=nil and target.held_by_color~="") or target.isSmoothMoving())
+                and ((target.held_by_color~=nil and target.held_by_color~="")
+                    or target.isSmoothMoving() or target.resting==false)
             if not inTransit then assignmentRegistry[id]=nil changed=true end
         end
     end
@@ -22569,6 +22600,18 @@ function attackAssignmentsObjectMoved(object)
 			if relevant then break end
 		end
 	end
+	if not relevant then
+		-- Forced recipients (e.g. Shocktroops) have red arrows without a
+		-- manual damageTargets entry, so they need movement refreshes too.
+		for _,attack in ipairs(damageSpec.attacks) do
+			local forced=attack.firstDamageUnit
+			if forced~=nil and damageSpec.units[forced]==true and not attack.assassination
+				and (attack.owner==guid or forced==guid) then
+				relevant=true
+				break
+			end
+		end
+	end
 	if relevant then
 		refreshRenderedLines()
 		scheduleRefresh()
@@ -22588,10 +22631,18 @@ end
 function attackAssignmentsRestore()
 	assignmentRegistry={}
 	assignmentCounter=0
+	-- Attack-only reminders and co-op Leader previews are valid combat targets
+	-- even though they are not registered in monsterPugs.
+	local eligible={}
+	if resourceCardsCombatTargetObjects~=nil and gStates~=nil and turnOrder~=nil
+		and playerUnitAreas~=nil and playerPlayAreas~=nil then
+		eligible=resourceCardsCombatTargetObjects()
+	end
 	for _,saved in ipairs(gStates~=nil and gStates.attackAssignments or {}) do
 		local source=getObjectFromGUID(assignmentBaseGUID(saved.sourceGUID))
 		local target=getObjectFromGUID(saved.targetGUID)
-		if source~=nil and target~=nil and monsterPugs[target.guid]~=nil
+		if source~=nil and target~=nil
+			and (monsterPugs[target.guid]~=nil or eligible[target.guid]~=nil)
 			and type(saved.resource)=="string" then
 			local id=tostring(saved.id or "")
 			if id=="" then
@@ -29866,40 +29917,84 @@ end
 local mapTokenTerrainReconcilePending={}
 local mapTokenTerrainReconcileCallbacks={}
 
-local function mapTokenTerrainReadyForReconcile(terrainGUID)
-	local hexes,mapObjects=runtimeMapHexesAndObjects()
+-- Only pieces near a newly revealed terrain need settle/rearrangement checks.
+-- Use a conservative envelope around its physical hex centres, then resolve the
+-- exact hex using the original rules. Keep full-map fallback for face-down
+-- and special scenario terrain that has no revealed hexes.
+local function mapTokenTerrainReconcileBounds(terrainGUID,hexes)
+	if terrainGUID==nil then return nil end
+	local minX,maxX,minZ,maxZ=nil,nil,nil,nil
+	for _,hex in ipairs(hexes or {}) do
+		if hex.terrainGUID==terrainGUID then
+			local pos=hex.position
+			minX=math.min(minX or pos[1],pos[1])
+			maxX=math.max(maxX or pos[1],pos[1])
+			minZ=math.min(minZ or pos[3],pos[3])
+			maxZ=math.max(maxZ or pos[3],pos[3])
+		end
+	end
+	if minX==nil then return nil end
+	-- Slack for spread tokens and pieces that are temporarily off centre.
+	return {minX-3,maxX+3,minZ-3,maxZ+3}
+end
+
+local function mapTokenForEachTerrainOccupant(terrainGUID,hexes,mapObjects,callback)
+	local bounds=mapTokenTerrainReconcileBounds(terrainGUID,hexes)
 	for _,obj in pairs(mapObjects or {}) do
-		if mapTokenNeedsArrangement(obj)==true then
-			local hex=mapTokenPhysicalHexForPosition(hexes,obj.getPosition(),mapObjects)
-			if hex~=nil and (terrainGUID==nil or hex.terrainGUID==terrainGUID) then
-				if mapTokenArrivalPending[obj.guid]~=nil or obj.isSmoothMoving()==true or obj.resting~=true then return false end
+		if obj~=nil and obj.guid~=nil and terrainTiles[obj.guid]==nil then
+			-- Preserve the expired-userdata guard formerly performed by
+			-- mapTokenNeedsArrangement before getPosition. Registered enemy/Quest
+			-- GUIDs retain their original fast lookup path.
+			local knownEnemy=monsterPugs~=nil and monsterPugs[obj.guid]~=nil
+			local knownQuest=gStates~=nil and gStates.apocalypseQuestTokenGUIDs~=nil and
+				gStates.apocalypseQuestTokenGUIDs[obj.guid]==true
+			if knownEnemy or knownQuest or obj.isDestroyed==nil or obj.isDestroyed()~=true then
+				local pos=obj.getPosition()
+				if pos~=nil and (bounds==nil or
+					(pos[1]>=bounds[1] and pos[1]<=bounds[2] and
+					 pos[3]>=bounds[3] and pos[3]<=bounds[4])) and
+					mapTokenNeedsArrangement(obj)==true then
+					local hex=mapTokenPhysicalHexForPosition(hexes,pos,mapObjects)
+					if hex~=nil and (terrainGUID==nil or hex.terrainGUID==terrainGUID) then
+						if callback(obj,hex)==false then return false end
+					end
+				end
 			end
 		end
 	end
 	return true
 end
 
+local function mapTokenTerrainReadyForReconcile(terrainGUID)
+	local perfStart=mapPerformanceStart()
+	local hexes,mapObjects=runtimeMapHexesAndObjects()
+	local ready=mapTokenForEachTerrainOccupant(terrainGUID,hexes,mapObjects,function(obj)
+		if mapTokenArrivalPending[obj.guid]~=nil or obj.isSmoothMoving()==true or obj.resting~=true then return false end
+	end)
+	mapPerformanceRecord("Token settle probe",perfStart)
+	return ready
+end
+
 local function mapTokenArrangeAllOccupiedHexesNow(terrainGUID)
+	local perfStart=mapPerformanceStart()
 	local hexes,mapObjects=runtimeMapHexesAndObjects()
 	local groups={}
-	for _,obj in pairs(mapObjects or {}) do
-		if mapTokenNeedsArrangement(obj)==true then
-			local hex=mapTokenPhysicalHexForPosition(hexes,obj.getPosition(),mapObjects)
-			local key=hex~=nil and runtimeMapHexKey(hex) or nil
-			if hex~=nil and key~=nil and (terrainGUID==nil or hex.terrainGUID==terrainGUID) then
-				local group=groups[key]
-				if group==nil then
-					group={hex=hex,objects={}}
-					groups[key]=group
-				end
-				group.objects[#group.objects+1]=obj
+	mapTokenForEachTerrainOccupant(terrainGUID,hexes,mapObjects,function(obj,hex)
+		local key=runtimeMapHexKey(hex)
+		if key~=nil then
+			local group=groups[key]
+			if group==nil then
+				group={hex=hex,objects={}}
+				groups[key]=group
 			end
+			group.objects[#group.objects+1]=obj
 		end
-	end
+	end)
 	for _,group in pairs(groups) do
-		--A lone token has nothing to separate. Leaving it alone avoids the old Keep/Mage Tower shimmer.
+		-- A lone token has nothing to separate (prevents Keep/Mage Tower shimmer).
 		if #group.objects>1 then mapTokenArrangeHex(group.hex,mapObjects,nil,nil,group.objects) end
 	end
+	mapPerformanceRecord("Token terrain arrange",perfStart)
 	return true
 end
 
@@ -31312,8 +31407,18 @@ end
 
 
 --Rebuild EXPLORE buttons from the shared runtime map. This path has no terrain-entry side effects.
+local terrainExploreRefreshWait=nil
+local lastTerrainExploreButtonsSignature=nil
+
 function refreshTerrainExploreOptions(compactCities)
+	-- An explicit refresh (especially before City deployment) supersedes a queued
+	-- presentation refresh. Keep City placement synchronous when it is required.
+	if terrainExploreRefreshWait~=nil then
+		Wait.stop(terrainExploreRefreshWait)
+		terrainExploreRefreshWait=nil
+	end
 	if gStates==nil then return end
+	local perfStart=mapPerformanceStart()
 	local mapSnapshot=runtimeMapSnapshot()
 	local playAreaObjects=mapSnapshot.objects or {}
 	local faceUpTerrain={}
@@ -31380,10 +31485,31 @@ function refreshTerrainExploreOptions(compactCities)
 			end
 			for _, teleportDecal in pairs(fracturedLandsTeleportDecals()) do terrainDecals[#terrainDecals+1]=teleportDecal end
 			Global.setDecals(terrainDecals)
-			getObjectFromGUID(GUID.ui.mapExplore).UI.setXmlTable(terrainExploreButtons)
+			-- Do not send unchanged XML through the TTS UI boundary after each
+			-- intermediate terrain/drop callback. Position is encoded in the id.
+			local uiParts={}
+			for _,button in ipairs(terrainExploreButtons) do
+				if button.attributes~=nil then uiParts[#uiParts+1]=tostring(button.attributes.id) end
+			end
+			local uiSignature=table.concat(uiParts,"|")
+			if uiSignature~=lastTerrainExploreButtonsSignature then
+				getObjectFromGUID(GUID.ui.mapExplore).UI.setXmlTable(terrainExploreButtons)
+				lastTerrainExploreButtonsSignature=uiSignature
+			end
 			--Now that the complete legal EXPLORE set is known, place each City card once at its closest legal position.
 			if compactCities~=false then compactCityCardsAfterExplore(mapObjectPositions) end
 	end
+	mapPerformanceRecord("EXPLORE refresh",perfStart)
+end
+
+-- Combine ordinary terrain-entry, settled-drop and population-finish requests.
+-- City placement deliberately bypasses this queue for its synchronous frontier update.
+function requestTerrainExploreOptionsRefresh()
+	if terrainExploreRefreshWait~=nil then return end
+	terrainExploreRefreshWait=safeWaitFrames("Map",function()
+		terrainExploreRefreshWait=nil
+		refreshTerrainExploreOptions()
+	end,2)
 end
 
 local function applyPredefinedTerrainTint(playAreaObjects,faceUpTerrain,northBearing,mapSnapshot)
@@ -31497,7 +31623,7 @@ function mapHandleTerrainZoneEnter(ctx)
 			end
 
 			if startingMapSetup~=true and obj.resting==true and obj.held_by_color==nil and obj.isSmoothMoving()==false then
-				refreshTerrainExploreOptions()
+				requestTerrainExploreOptionsRefresh()
 			end
 
 			--Against the Apocalypse destroyed terrain
@@ -31766,7 +31892,7 @@ function mapHandleTerrainZoneEnter(ctx)
 				workingOnTerrain[objGUID]=false
 				--A City reveal already refreshed immediately before its initial card placement.
 				--Do not compact it a second time while that smooth move is still in progress.
-				if startingMapSetup~=true and exploreRefreshedBeforeCity~=true then refreshTerrainExploreOptions() end
+				if startingMapSetup~=true and exploreRefreshedBeforeCity~=true then requestTerrainExploreOptionsRefresh() end
 				--Terrain deployment changes the movement graph directly. Refresh it here instead of relying on
 				--the later fake avatar drop to eventually trigger a full UI update.
 				if initialSetupTerrain~=true and gStates.firstStarted==true then
@@ -33472,6 +33598,26 @@ cityCardPositionForbidden=function(desiredLocation)
 		(x>-13.5 and x<-13.0 and z>-14.5 and z<-13.5)
 end
 
+-- City position searches test many offsets against the same physical map. Index the
+-- candidate blockers once per search, rather than scanning every enemy for every offset.
+-- The exact 9.61 distance test below still decides whether an offset is occupied.
+local cityExploreBlockerCellSize=4
+local function cityCardExploreBlockerBuckets(mapObjects)
+	if mapObjects==nil then return {} end
+	if mapObjects._cityExploreBlockers~=nil then return mapObjects._cityExploreBlockers end
+	local buckets={}
+	for _,obj in pairs(mapObjects) do
+		local pos=obj~=nil and obj.position or nil
+		if pos~=nil then
+			local key=math.floor(pos[1]/cityExploreBlockerCellSize)..":"..math.floor(pos[3]/cityExploreBlockerCellSize)
+			if buckets[key]==nil then buckets[key]={} end
+			buckets[key][#buckets[key]+1]=obj
+		end
+	end
+	mapObjects._cityExploreBlockers=buckets
+	return buckets
+end
+
 cityCardExploreSpaceFree=function(mapObjects,desiredLocation,movingGUIDs,extraBlockedPos,reservedPositions)
 	if cityCardPositionForbidden(desiredLocation)==true then return false end
 	if extraBlockedPos~=nil then
@@ -33487,9 +33633,18 @@ cityCardExploreSpaceFree=function(mapObjects,desiredLocation,movingGUIDs,extraBl
 			((desiredLocation[3]-tonumber(button.attributes.tilePosZ))^2)<9.61 then return false end
 	end
 	movingGUIDs=movingGUIDs or {}
-	for _,playObj in pairs(mapObjects or {}) do
-		if movingGUIDs[playObj.guid]~=true and
-			((desiredLocation[1]-playObj.position[1])^2)+((desiredLocation[3]-playObj.position[3])^2)<9.61 then return false end
+	local nearby=cityCardExploreBlockerBuckets(mapObjects)
+	local cellX=math.floor(desiredLocation[1]/cityExploreBlockerCellSize)
+	local cellZ=math.floor(desiredLocation[3]/cityExploreBlockerCellSize)
+	-- A blocked position is < sqrt(9.61) units away, so checking 3x3
+	-- four-unit cells includes every possible overlapping map object.
+	for x=cellX-1,cellX+1 do
+		for z=cellZ-1,cellZ+1 do
+			for _,playObj in ipairs(nearby[x..":"..z] or {}) do
+				if movingGUIDs[playObj.guid]~=true and
+					((desiredLocation[1]-playObj.position[1])^2)+((desiredLocation[3]-playObj.position[3])^2)<9.61 then return false end
+			end
+		end
 	end
 	-- The map-zone snapshot misses City cards parked outside it and smooth-moving cards.
 	-- Explicitly block both their live positions and reserved targets, even if another
@@ -33569,6 +33724,8 @@ moveCityCardExploreGroup=function(group,desiredLocation,movedCityZones,mapObject
 				playObj.position={playObj.position[1]+deltaX,playObj.position[2],playObj.position[3]+deltaZ}
 			end
 		end
+		-- Later City groups must see the new positions, not the previous bucket index.
+		mapObjects._cityExploreBlockers=nil
 	end
 	return true
 end
@@ -33616,10 +33773,12 @@ end
 --After the complete EXPLORE set is rebuilt, every City card gets one placement decision from the finished state.
 --This both pushes blocked cards outward and brings displaced cards back inward without racing two smooth moves.
 function compactCityCardsAfterExplore(mapObjects)
+	local perfStart=mapPerformanceStart()
 	local movedCityZones={}
 	local reservedPositions={}
 	for _, cityZone in ipairs({GUID.zone.blueCity, GUID.zone.redCity, GUID.zone.greenCity, GUID.zone.whiteCity}) do positionCityCardForExplore(cityZone, nil, movedCityZones, reservedPositions, mapObjects) end
 	positionApocalypseDragonHeads()
+	mapPerformanceRecord("City compaction",perfStart)
 end
 
 function cityBonusDecals(obj1, obj2)--obj2 is the rare case of a summoned monster. otherwise will be a duplicate of obj1
@@ -44531,18 +44690,48 @@ local combatAssignmentJoined={}
 local combatAssignmentSlotSources={}
 local combatAssignmentRowTargets={}
 local combatEnemyPage=1
+local combatAssignmentRowIndices={}
+local combatExpandedResults={}
 local combatReductionAttackChoice={}
 local combatReductionActiveSource={}
 local combatAttackChoiceByRow={}
-local COMBAT_ASSIGNMENT_ROW_COUNT=8
+local COMBAT_ASSIGNMENT_ROW_COUNT=8 -- XML has eight reusable row controls.
+local COMBAT_ASSIGNMENT_CROWDED_PAGE_SIZE=6
 local COMBAT_ASSIGNMENT_SLOT_COUNT=6
-local COMBAT_ASSIGNMENT_ROW_HEIGHT=40
-local COMBAT_ASSIGNMENT_PANEL_BASE_HEIGHT=52
+local COMBAT_ASSIGNMENT_ROW_HEIGHT=32
+local COMBAT_ASSIGNMENT_PANEL_BASE_HEIGHT=48
 local COMBAT_ASSIGNMENT_COLUMNS={Name=130,Armour=55,Traits=150,Attacks=110,Offence=130,Result=270}
 -- Damage/resistance colours: normal, then the darker shade used once a value has been reduced.
 local COMBAT_TYPE_COLORS={P={"#FFFFFF","#9A9A9A"},F={"#FF5555","#992E2E"},I={"#5AA0FF","#2F5F9A"},
     IF={"#C070FF","#74429A"},M={"#FFE055","#9A8A33"}}
 local COMBAT_RESIST_TYPES={pResist="P",fResist="F",iResist="I",mResist="M"}
+
+-- These tokens carry attacks, but cannot themselves be attacked or defeated.
+-- Volkare and trap rolls already put the current attack in gStates.monsterPerks.
+local COMBAT_ATTACK_ONLY_REMINDERS={
+    ["Volkare Reminder Token"]={name="Volkare's Attack",armour=0,attackOnly=true},
+    ["Trap Reminder Token"]={name="Trap",armour=0,attackOnly=true}
+}
+-- Co-op Leader planning copies have no monsterPugs entry. Read the current
+-- real Leader's data without registering a clone as an actual enemy.
+local function combatEnemyData(guid,obj)
+    local data=monsterPugs[guid]
+    if data~=nil then return data end
+    if gStates~=nil and gStates.coopAssaultType=="leader" then
+        for _,cloneGUID in pairs(gStates.coopLeaderPreviewClones or {}) do
+            if cloneGUID==guid then
+                local leader=factionLeaderForCity~=nil and factionLeaderForCity(gStates.coopAssaultCityGUID) or nil
+                return leader~=nil and monsterPugs[leader.token] or nil,"preview"
+            end
+        end
+    end
+    local perks=gStates~=nil and gStates.monsterPerks~=nil and gStates.monsterPerks[guid] or nil
+    if perks==nil or type(perks.attack)~="table" then return nil end
+    obj=obj or getObjectFromGUID(guid)
+    if obj==nil then return nil end
+    local reminder=COMBAT_ATTACK_ONLY_REMINDERS[obj.getGMNotes()]
+    return reminder,reminder~=nil and "attackOnly" or nil
+end
 
 local function combatTypeRich(text,typeKey,reduced)
     local colors=COMBAT_TYPE_COLORS[typeKey]
@@ -44693,14 +44882,15 @@ local function combatAssignmentSources(seat)
     return sources
 end
 
-local function combatNearestEnemyGUID(sourceGUID,entries)
-    local source=getObjectFromGUID(sourceGUID)
-    if source==nil then return nil end
-    local sourcePosition=source.getPosition()
+local function combatNearestEnemyGUID(source,entries)
+    local sourceObject=getObjectFromGUID(source.guid)
+    if sourceObject==nil then return nil end
+    local sourcePosition=sourceObject.getPosition()
     local nearestGUID,nearestDistance=nil,nil
     for _,entry in ipairs(entries) do
         local enemy=getObjectFromGUID(entry.guid)
-        if enemy~=nil then
+        if enemy~=nil and (not entry.attackOnly
+            or source.ranged+source.siege+source.attack==0) then
             local position=enemy.getPosition()
             local dx,dz=position[1]-sourcePosition[1],position[3]-sourcePosition[3]
             local distance=dx*dx+dz*dz
@@ -44880,7 +45070,7 @@ local function combatEntryHasCumbersome(guid,data,perks)
 end
 
 local function combatGUIDHasCumbersome(guid)
-    local data=monsterPugs[guid]
+    local data=combatEnemyData(guid)
     if data==nil then return false end
     local perks=gStates~=nil and gStates.monsterPerks~=nil and gStates.monsterPerks[guid] or nil
     return combatEntryHasCumbersome(guid,data,perks)
@@ -44888,6 +45078,20 @@ end
 
 function resourceCardsCombatTargetAcceptsMove(guid)
     return combatGUIDHasCumbersome(guid)
+end
+
+-- Reminders accept only Block/Move and enemy-attack effects, not attacks
+-- against Armour. Unknown source keys represent effect-only targeting links.
+function resourceCardsCombatTargetAcceptsSource(sourceKey,targetGUID)
+    local data=combatEnemyData(targetGUID)
+    if data==nil then return false end
+    if data.attackOnly~=true then return true end
+    for _,source in ipairs(combatAssignmentSources(combatAssignmentActiveSeat())) do
+        if source.key==sourceKey then
+            return source.ranged+source.siege+source.attack==0
+        end
+    end
+    return true
 end
 
 -- A lifted card keeps its target while its arrow still exists.
@@ -44912,7 +45116,7 @@ local function combatCalcUpdate(monsters)
     local cumbersome,psychic=false,false
     if resourceCardsDetailsOpen() then
         for guid,obj in pairs(monsters or {}) do
-            local data=monsterPugs[guid]
+            local data=combatEnemyData(guid,obj)
             if data~=nil and obj.is_face_down~=true then
                 local perks=gStates~=nil and gStates.monsterPerks~=nil and gStates.monsterPerks[guid] or nil
                 -- Summoned enemies count for their Psychic Attack, even though
@@ -44933,18 +45137,56 @@ local function combatCalcUpdate(monsters)
     return on
 end
 
+-- A token lifted above a short scripting zone is still part of the current combat.
+-- Remember only enemies already seen on the active board; never pull in arbitrary
+-- held enemies from elsewhere on the table. This is runtime-only and seat-scoped.
+local combatTrackedSeat=nil
+local combatTrackedEnemies={}
+local function combatKeepHeldEnemies(seatPos,monsters,playMonsters)
+    if combatTrackedSeat~=seatPos then
+        combatTrackedSeat=seatPos
+        combatTrackedEnemies={}
+    end
+    for guid,obj in pairs(monsters) do
+        if obj~=nil and not obj.isDestroyed() then
+            combatTrackedEnemies[guid]=playMonsters[guid]~=nil
+        end
+    end
+    for guid,wasInPlay in pairs(combatTrackedEnemies) do
+        if monsters[guid]==nil then
+            local obj=getObjectFromGUID(guid)
+            if obj~=nil and not obj.isDestroyed()
+                and ((obj.held_by_color~=nil and obj.held_by_color~="")
+                    or obj.isSmoothMoving() or obj.resting==false) then
+                monsters[guid]=obj
+                if wasInPlay then playMonsters[guid]=obj end
+            else
+                -- On a settled drop outside the combat zones, stop retaining it.
+                combatTrackedEnemies[guid]=nil
+            end
+        end
+    end
+    return monsters
+end
+
 local function combatPlayMonsters()
     local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
-    local monsters={}
+    local monsters,playMonsters={},{}
     if active~=nil and active.seatPos~=nil then
-        for _,zoneGUID in ipairs({playerPlayAreas[active.seatPos],playerUnitAreas[active.seatPos]}) do
-            local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
+        for _,zoneInfo in ipairs({{playerUnitAreas[active.seatPos],false},
+            {playerPlayAreas[active.seatPos],true}}) do
+            local zone=zoneInfo[1]~=nil and getObjectFromGUID(zoneInfo[1]) or nil
             if zone~=nil then
                 for _,obj in ipairs(zone.getObjects()) do
-                    if monsterPugs[obj.guid]~=nil and monsterPugs[obj.guid].name~="Ruin" then monsters[obj.guid]=obj end
+                    local data=combatEnemyData(obj.guid,obj)
+                    if data~=nil and data.name~="Ruin" then
+                        monsters[obj.guid]=obj
+                        if zoneInfo[2] then playMonsters[obj.guid]=obj end
+                    end
                 end
             end
         end
+        return combatKeepHeldEnemies(active.seatPos,monsters,playMonsters)
     end
     return monsters
 end
@@ -45037,23 +45279,23 @@ local function combatAssignmentIconButton(id,active,amount,icon,tooltip,selected
         combatPanelSetAttribute(id.."Image","image",icon)
         combatPanelSetAttribute(id.."Image","rectAlignment","MiddleCenter")
         combatPanelSetAttribute(id.."Image","offsetXY","0 0")
-        combatPanelSetAttribute(id.."Image","width","28")
-        combatPanelSetAttribute(id.."Image","height","28")
+        combatPanelSetAttribute(id.."Image","width","24")
+        combatPanelSetAttribute(id.."Image","height","24")
         combatPanelSetAttribute(id.."Image","preserveAspect","true")
         combatPanelSetAttribute(id.."Amount","text",tostring(amount))
         combatPanelSetAttribute(id.."Amount","rectAlignment","MiddleCenter")
         combatPanelSetAttribute(id.."Amount","offsetXY","0 0")
-        combatPanelSetAttribute(id.."Amount","width","28")
-        combatPanelSetAttribute(id.."Amount","height","28")
-        combatPanelSetAttribute(id.."Amount","preferredHeight","28")
+        combatPanelSetAttribute(id.."Amount","width","24")
+        combatPanelSetAttribute(id.."Amount","height","24")
+        combatPanelSetAttribute(id.."Amount","preferredHeight","24")
         combatPanelSetAttribute(id.."Amount","alignment","MiddleCenter")
-        combatPanelSetAttribute(id.."Amount","fontSize","20")
+        combatPanelSetAttribute(id.."Amount","fontSize","18")
         combatPanelSetAttribute(id.."Amount","fontStyle","Bold")
         combatPanelSetAttribute(id.."Amount","color",textColor or "White")
         combatPanelSetAttribute(id.."Amount","outline","rgb(0,0,0)")
         combatPanelSetAttribute(id.."Amount","outlineSize","1 -1")
-        combatPanelSetAttribute(id,"preferredWidth","28")
-        combatPanelSetAttribute(id,"preferredHeight","34")
+        combatPanelSetAttribute(id,"preferredWidth","24")
+        combatPanelSetAttribute(id,"preferredHeight","26")
         combatPanelSetAttribute(id,"color",
             selected and "rgb(1,0.75,0.2)" or "rgb(0.85,0.82,0.72)")
         combatPanelSetAttribute(id,"tooltip",tooltip)
@@ -45102,6 +45344,14 @@ local function combatBlockLegal(attack,item)
     return item.key~="blockPsychic" or attack.key=="M"
 end
 
+-- Share one efficiency rule between the optimiser, displayed Block totals,
+-- and the colour assigned to an inefficient Block icon.
+local function combatBlockEfficient(attack,item)
+    return (COMBAT_EFFICIENT_BLOCKS[attack.key] or {})[item.key]==true
+        or (attack.key=="M" and item.source.heroPsychicBlock==true
+            and item.key~="blockPsychic")
+end
+
 local function combatSolveBlocks(attacks,items,movePool)
     table.sort(items,function(a,b)
         if a.value~=b.value then return a.value>b.value end
@@ -45116,17 +45366,13 @@ local function combatSolveBlocks(attacks,items,movePool)
         initial[index]=0
     end
     local states={["0"]={points=initial,spent=0,route=""}}
-    local efficientByAttack={}
-    for index,attack in ipairs(attacks) do efficientByAttack[index]=COMBAT_EFFICIENT_BLOCKS[attack.key] or {} end
     for _,item in ipairs(items) do
         -- Type efficiency and Swiftness are constant for this item, not per DP state.
         local options={}
         for index,attack in ipairs(attacks) do
             if targets[index]>0 and combatBlockLegal(attack,item) then
                 local amount=item.value*(attack.swift and item.swiftDouble and 2 or 1)
-                local efficient=efficientByAttack[index][item.key]==true
-                    or (attack.key=="M" and item.source.heroPsychicBlock==true
-                        and item.key~="blockPsychic")
+                local efficient=combatBlockEfficient(attack,item)
                 local contribution=amount*(efficient and 2 or 1)
                 if contribution>0 then options[#options+1]={index=index,points=contribution} end
             end
@@ -45233,12 +45479,11 @@ local function combatSolveBlocks(attacks,items,movePool)
 end
 
 local function combatBlockSpent(attack,items,used)
-    local efficient=COMBAT_EFFICIENT_BLOCKS[attack.key] or {}
     local full,wrong=0,0
     for index,item in ipairs(items) do
         if used[index] and combatBlockLegal(attack,item) then
             local amount=item.value*(attack.swift and item.swiftDouble and 2 or 1)
-            if efficient[item.key]==true then full=full+amount else wrong=wrong+amount end
+            if combatBlockEfficient(attack,item) then full=full+amount else wrong=wrong+amount end
         end
     end
     return full+math.floor(wrong/2)
@@ -45291,7 +45536,8 @@ local function combatBlockResult(entry,sources)
     for _,item in ipairs(items) do
         parts[#parts+1]=table.concat({
             tostring(item.source.key),tostring(item.key),tostring(item.value),
-            tostring(item.swiftDouble),tostring(item.part)},":")
+            tostring(item.swiftDouble),tostring(item.part),
+            tostring(item.source.heroPsychicBlock)},":")
     end
     local key=table.concat(parts,";")
     local cached=entry.guid~=nil and combatBlockResultCache[entry.guid] or nil
@@ -45325,9 +45571,8 @@ local function combatBlockResult(entry,sources)
     -- Block items applied at the wrong element (halved) against their attack, keyed source.key..field.key.
     local wrongBlock={}
     for index,attack in ipairs(attacks) do
-        local efficient=COMBAT_EFFICIENT_BLOCKS[attack.key] or {}
         for j,item in ipairs(solved) do
-            if plan[index].used[j] and efficient[item.key]~=true then
+            if plan[index].used[j] and not combatBlockEfficient(attack,item) then
                 wrongBlock[item.source.key..item.key]=true
             end
         end
@@ -45480,6 +45725,65 @@ local function combatDamageNotes(item,result)
     return notes
 end
 
+-- Condense the Result column without losing the detailed wound assignment.
+-- Click any result marked [+] to expand it; the tooltip always shows the full text.
+local function combatCompactResultLines(fullLines,damageItems,damageResults)
+    local compact={}
+    for _,line in ipairs(fullLines) do
+        -- Detailed Unit/Hero lines are replaced with a short wound summary.
+        if line:sub(1,2)~="> " then
+            compact[#compact+1]=line:gsub("(%d+)%/(%d+) Blocked","Blk %1/%2")
+                :gsub("Not blocked, ","Unblocked: ")
+                :gsub(" Block, "," blk, ")
+                :gsub(" Damage"," dmg")
+                :gsub("^Attack ","Atk ")
+                :gsub("^Ranged ","Rng ")
+        end
+    end
+    local heroWounds,discardWounds,unitWounds,unitDestroyed,unitResisted=0,0,0,0,0
+    local paralyse,assassination=false,false
+    for _,item in pairs(damageItems or {}) do
+        local result=damageResults[item.key]
+        if item.assassination then assassination=true end
+        if result~=nil then
+            heroWounds=heroWounds+(result.heroWounds or 0)
+            discardWounds=discardWounds+(result.discard or 0)
+            if result.paralyse then paralyse=true end
+            for _,unit in ipairs(result.units or {}) do
+                if unit.destroyed then unitDestroyed=unitDestroyed+1
+                elseif unit.wounded then unitWounds=unitWounds+math.max(1,unit.wounds or 1)
+                elseif unit.resisted then unitResisted=unitResisted+1 end
+            end
+        end
+    end
+    local notes={}
+    if heroWounds>0 then notes[#notes+1]="Hero "..tostring(heroWounds).."W" end
+    if unitWounds>0 then notes[#notes+1]="Unit "..tostring(unitWounds).."W" end
+    if unitDestroyed>0 then notes[#notes+1]=tostring(unitDestroyed).." unit destroyed" end
+    if unitResisted>0 then notes[#notes+1]=tostring(unitResisted).." unit resisted" end
+    if discardWounds>0 then notes[#notes+1]="Discard "..tostring(discardWounds) end
+    if paralyse then notes[#notes+1]="Paralyse: discard hand" end
+    if assassination then notes[#notes+1]="Assassination" end
+    if #notes>0 then
+        -- 38 characters fits comfortably in the Result column at 12 pt.
+        -- Show wounds before the final group Attack summary if present.
+        local insertAt=#compact+1
+        if #compact>0 and compact[#compact]:find("^Atk ") then insertAt=#compact end
+        local line=""
+        for _,note in ipairs(notes) do
+            if line~="" and #line+#note+2>38 then
+                table.insert(compact,insertAt,line)
+                insertAt=insertAt+1
+                line=note
+            else
+                line=line=="" and note or (line..", "..note)
+            end
+        end
+        if line~="" then table.insert(compact,insertAt,line) end
+    end
+    return compact
+end
+
 -- A group is attacked as one: fortification and resistance of any member apply to all of
 -- them and the armours add together. Elusive members only use their higher armour in the
 -- Attack phase while one of their attacks is unblocked.
@@ -45513,13 +45817,27 @@ local function combatGroupEntry(members,blockedAll)
     return {data=data,perks=perks,baseArmour=armour,elusiveArmour=elusiveArmour},attackArmour
 end
 
+-- Bonuses first assigned in the regular Attack phase must not retrospectively
+-- make an earlier Ranged/Siege attack fail.
+local function combatRangeGroupEntry(members)
+    local result=combatGroupEntry(members,{})
+    local lateBonus=0
+    for _,member in ipairs(members) do lateBonus=lateBonus+(member.defendMeleeBonus or 0) end
+    if lateBonus>0 then
+        result.baseArmour=result.baseArmour-lateBonus
+        result.elusiveArmour=result.elusiveArmour-lateBonus
+    end
+    return result
+end
+
 -- Defence text of one member of a multi-enemy group: fortification and resistances are shared by the whole group.
 local function combatGroupTraitsText(entry,groupEntry)
     local data={elusive=entry.data.elusive,arcaneImmunity=entry.data.arcaneImmunity,defend=entry.data.defend,
-        fortified=groupEntry.data.fortified}
+        fortified=groupEntry.data.fortified,unfortified=entry.data.unfortified}
     local perks={defend=entry.perks~=nil and entry.perks.defend or nil,
         elusive=entry.perks~=nil and entry.perks.elusive or nil,
         arcaneImmunity=entry.perks~=nil and entry.perks.arcaneImmunity or nil,
+        unfortified=entry.perks~=nil and entry.perks.unfortified or nil,
         wallFortified=groupEntry.perks.wallFortified}
     for _,key in ipairs({"pResist","fResist","iResist","mResist"}) do data[key]=groupEntry.data[key] end
     return combatEnemyTraitsText(data,perks,COMBAT_ENEMY_DEFENCE_TRAITS)
@@ -45567,90 +45885,109 @@ local function combatSyncDefenderMark(marks)
     combatDefenderMarks=wanted
 end
 
--- Defender: each Defend bonus goes to a different attacked enemy, highest bonus to the leftmost. A Defender that is destroyed, or defeated in the Ranged phase without being a defended enemy,
--- loses its contribution. Returns {enemyIndex=bonus} and adds the bonuses to those enemies' armour.
+-- Each Defend symbol may protect one attacked enemy, including a member of an
+-- attacked group. Ranged/Siege attacks are resolved first; a defender defeated
+-- in that phase cannot protect a newly attacked enemy in the Attack phase.
+-- Default ordering is left-to-right within each phase (the physical table order).
 local function combatApplyDefend(entries,groups,allocated)
-    local defenders,indexByGUID={},{}
+    local defenders={}
     for index,entry in ipairs(entries) do
-        indexByGUID[entry.guid]=index
-        local bonus=(tonumber(entry.data.defend) or 0)+(entry.perks~=nil and tonumber(entry.perks.defend) or 0)
-        if bonus>0 and not entry.destroyed then defenders[#defenders+1]={index=index,bonus=bonus} end
-    end
-    if #defenders==0 then return {} end
-    -- Attacked enemies, left to right; the highest bonus goes to the leftmost, the next highest to the next.
-    local targets={}
-    for index,entry in ipairs(entries) do
-        for _,item in ipairs(allocated[index]~=nil and allocated[index].details or {}) do
-            local family=item.detail.family
-            if (family=="attack" or family=="ranged" or family=="siege")
-                and not entry.destroyed then
-                targets[#targets+1]=index
-                break
-            end
+        entry.defendMeleeBonus=nil
+        local bonus=(tonumber(entry.data.defend) or 0)+(entry.perks~=nil and (tonumber(entry.perks.defend) or 0) or 0)
+        if bonus>0 and not entry.destroyed then
+            defenders[#defenders+1]={index=index,bonus=bonus}
         end
     end
+    if #defenders==0 then return {} end
     table.sort(defenders,function(a,b)
         if a.bonus~=b.bonus then return a.bonus>b.bonus end
         return a.index<b.index
     end)
-    if #targets==0 then return {} end
-    local groupSources={}
+
+    local groupOf,groupSources={},{}
+    local rangedTargets,meleeTargets={},{}
     for _,group in ipairs(groups) do
-        groupSources[group]={}
+        local members,sources={},{}
         for _,index in ipairs(group.members) do
+            local entry=entries[index]
+            groupOf[index]=group
+            members[#members+1]=entry
             for _,source in ipairs((allocated[index] or {sources={}}).sources) do
-                groupSources[group][#groupSources[group]+1]=source
+                sources[#sources+1]=source
             end
         end
-    end
-    local groupIndexOf={}
-    for groupIndex,group in ipairs(groups) do
-        for _,index in ipairs(group.members) do groupIndexOf[index]=groupIndex end
-    end
-    local lost,applied={},{}
-    for _=1,#defenders+1 do
-        applied={}
-        local slot=0
-        local defenderTarget={}
-        for _,defender in ipairs(defenders) do
-            if not lost[defender.index] then
-                slot=slot+1
-                local target=targets[slot]
-                defenderTarget[defender.index]=target
-                if target~=nil then applied[target]=(applied[target] or 0)+defender.bonus end
-            end
-        end
-        local nextLost,changed={},false
-        for groupIndex,group in ipairs(groups) do
-            local members={}
-            for _,index in ipairs(group.members) do
-                local entry=entries[index]
-                members[#members+1]={guid=entry.guid,data=entry.data,perks=entry.perks,
-                    baseArmour=entry.baseArmour+(applied[index] or 0),
-                    elusiveArmour=entry.elusiveArmour+(applied[index] or 0),
-                    stripFortify=entry.stripFortify,stripResist=entry.stripResist,
-                    stripFireResist=entry.stripFireResist}
-            end
-            local _,_,rangeDefeated=combatRangeResult((combatGroupEntry(members,{})),groupSources[group])
-            if rangeDefeated then
-                -- Defeated before its ability could reach an enemy in a later (or its own) group: bonus kept.
-                for _,defender in ipairs(defenders) do
-                    local target=defenderTarget[defender.index]
-                    if groupIndexOf[defender.index]==groupIndex and target~=nil
-                        and groupIndexOf[target]>groupIndex then
-                        nextLost[defender.index]=true
+        groupSources[group]=sources
+        local grouped=combatGroupEntry(members,{})
+        local fortification=combatEnemyFortificationCount(grouped.data,grouped.perks)
+        local hasRanged,hasAnyAttack=false,false
+        for _,index in ipairs(group.members) do
+            for _,item in ipairs((allocated[index] or {details={}}).details) do
+                local family=item.detail.family
+                if family=="attack" or family=="ranged" or family=="siege" then
+                    hasAnyAttack=true
+                    if (family=="ranged" and fortification==0)
+                        or (family=="siege" and fortification<2) then
+                        hasRanged=true
                     end
                 end
             end
         end
-        for index in pairs(nextLost) do if not lost[index] then changed=true end end
-        for index in pairs(lost) do if not nextLost[index] then changed=true end end
-        lost=nextLost
-        if not changed then break end
+        for _,index in ipairs(group.members) do
+            local entry=entries[index]
+            if not entry.destroyed and not entry.attackOnly then
+                if hasRanged then rangedTargets[#rangedTargets+1]=index end
+                if hasAnyAttack then meleeTargets[#meleeTargets+1]=index end
+            end
+        end
     end
-    for index,amount in pairs(applied) do
-        entries[index].baseArmour=entries[index].baseArmour+amount
-        entries[index].elusiveArmour=entries[index].elusiveArmour+amount
+    -- The Ranged phase can spend any available Defender, even one whose own
+    -- token will later be defeated by that Ranged attack.
+    local applied,rangedBonuses,spentDefenders={},{},{}
+    local slot=1
+    for _,target in ipairs(rangedTargets) do
+        local defender=defenders[slot]
+        if defender==nil then break end
+        applied[target]=defender.bonus
+        rangedBonuses[target]=defender.bonus
+        spentDefenders[defender.index]=true
+        slot=slot+1
+    end
+
+    -- Evaluate survival with Ranged-only Defender bonuses. Do not use late
+    -- Attack-phase bonuses when deciding whether a Defender survives.
+    local rangedDefeated={}
+    for _,group in ipairs(groups) do
+        local members={}
+        for _,index in ipairs(group.members) do
+            local entry=entries[index]
+            local bonus=rangedBonuses[index] or 0
+            members[#members+1]={guid=entry.guid,data=entry.data,perks=entry.perks,
+                baseArmour=entry.baseArmour+bonus,elusiveArmour=entry.elusiveArmour+bonus,
+                stripFortify=entry.stripFortify,stripResist=entry.stripResist,
+                stripFireResist=entry.stripFireResist}
+        end
+        local grouped=combatGroupEntry(members,{})
+        local _,_,defeated=combatRangeResult(grouped,groupSources[group])
+        rangedDefeated[group]=defeated and not members[1].data.attackOnly
+    end
+
+    -- Remaining Defenders may help in the regular Attack phase only if they
+    -- survived Ranged/Siege, and no enemy receives more than one Defend bonus.
+    for _,target in ipairs(meleeTargets) do
+        if applied[target]==nil and not rangedDefeated[groupOf[target]] then
+            for _,defender in ipairs(defenders) do
+                if not spentDefenders[defender.index] and not rangedDefeated[groupOf[defender.index]] then
+                    applied[target]=defender.bonus
+                    entries[target].defendMeleeBonus=defender.bonus
+                    spentDefenders[defender.index]=true
+                    break
+                end
+            end
+        end
+    end
+    for index,bonus in pairs(applied) do
+        entries[index].baseArmour=entries[index].baseArmour+bonus
+        entries[index].elusiveArmour=entries[index].elusiveArmour+bonus
     end
     return applied
 end
@@ -45660,17 +45997,47 @@ local function combatAssignmentRefreshRows(entries,sources)
     local totalRowHeight=0
     local grandDamage,damageSources=0,0
     combatAssignmentRowTargets={}
-    local pages=math.max(1,math.ceil(#entries/COMBAT_ASSIGNMENT_ROW_COUNT))
-    combatEnemyPage=math.min(combatEnemyPage,pages)
-    local pageOffset=(combatEnemyPage-1)*COMBAT_ASSIGNMENT_ROW_COUNT
+    combatAssignmentRowIndices={}
+    local pageSize=#entries>COMBAT_ASSIGNMENT_CROWDED_PAGE_SIZE
+        and COMBAT_ASSIGNMENT_CROWDED_PAGE_SIZE or COMBAT_ASSIGNMENT_ROW_COUNT
+    -- Keep joined groups together on a page whenever they fit. Combat math always
+    -- covers every enemy; paging only controls which rows are displayed.
+    local pageStarts,pageEnds={},{}
+    local nextStart=1
+    while nextStart<=#entries do
+        local finish=math.min(#entries,nextStart+pageSize-1)
+        if finish<#entries then
+            local boundary=finish
+            while boundary>nextStart do
+                local nextEnemy=entries[boundary+1]
+                if combatAssignmentJoined[nextEnemy.guid]~=true
+                    or entries[boundary].destroyed or nextEnemy.destroyed
+                    or entries[boundary].attackOnly or nextEnemy.attackOnly then break end
+                boundary=boundary-1
+            end
+            -- Oversized groups can span pages; never leave a page empty.
+            if boundary>nextStart then finish=boundary end
+        end
+        pageStarts[#pageStarts+1]=nextStart
+        pageEnds[#pageEnds+1]=finish
+        nextStart=finish+1
+    end
+    local pages=math.max(1,#pageStarts)
+    combatEnemyPage=math.max(1,math.min(combatEnemyPage,pages))
+    local pageOffset=(pageStarts[combatEnemyPage] or 1)-1
+    local pageEnd=pageEnds[combatEnemyPage] or 0
+    local visibleRows=pageEnd-pageOffset
     for index,entry in ipairs(entries) do rowByGUID[entry.guid]=index end
     for row=1,COMBAT_ASSIGNMENT_ROW_COUNT do
-        local entry=entries[pageOffset+row]
-        if entry~=nil then combatAssignmentRowTargets[row]=entry.guid end
+        local entry=row<=visibleRows and entries[pageOffset+row] or nil
+        if entry~=nil then
+            combatAssignmentRowTargets[row]=entry.guid
+            combatAssignmentRowIndices[row]=pageOffset+row
+        end
     end
     combatPanelSetAttribute("CombatEnemyPageControls","active",pages>1 and "true" or "false")
     combatPanelSetAttribute("CombatEnemyPageLabel","text",
-        tostring(pageOffset+1).."-"..tostring(math.min(#entries,pageOffset+COMBAT_ASSIGNMENT_ROW_COUNT))
+        tostring(visibleRows>0 and pageOffset+1 or 0).."-"..tostring(pageEnd)
             .." / "..tostring(#entries))
     local overflow=0
     -- Text shown in the ability columns and the columns that hold anything, so empty columns can be hidden.
@@ -45680,7 +46047,8 @@ local function combatAssignmentRefreshRows(entries,sources)
     for index=1,#entries do
         local group=groups[#groups]
         if index==1 or combatAssignmentJoined[entries[index].guid]~=true
-            or entries[index].destroyed or entries[index-1].destroyed then
+            or entries[index].destroyed or entries[index-1].destroyed
+            or entries[index].attackOnly or entries[index-1].attackOnly then
             group={members={},sources={}}
             groups[#groups+1]=group
         end
@@ -45690,13 +46058,13 @@ local function combatAssignmentRefreshRows(entries,sources)
     end
     for row=1,COMBAT_ASSIGNMENT_ROW_COUNT do
         local index=pageOffset+row
-        local entry=entries[index]
-        local group=groupOf[index]
+        local entry=row<=visibleRows and entries[index] or nil
+        local group=entry~=nil and groupOf[index] or nil
         combatPanelSetAttribute("CombatEnemyRow"..row,"active",entry~=nil and "true" or "false")
         combatPanelSetAttribute("CombatEnemyRow"..row,"color",
             (group~=nil and #group.members>1) and "rgb(0.27,0.31,0.38)"
             or (index%2==0 and "rgb(0.34,0.29,0.22)" or "rgb(0.29,0.25,0.19)"))
-        if entry~=nil then
+        if entry~=nil and group~=nil then
             combatPanelSetAttribute("CombatEnemyRow"..row.."Name","text",
                 (group.leader~=index and "+ " or "")..entry.name)
             local ownTraits=combatEnemyTraitsText(entry.data,entry.perks,COMBAT_ENEMY_DEFENCE_TRAITS)
@@ -45775,6 +46143,13 @@ local function combatAssignmentRefreshRows(entries,sources)
             end
         end
         local targetIndex=targetGUID~=nil and rowByGUID[targetGUID] or nil
+        if targetIndex~=nil and entries[targetIndex].attackOnly
+            and source.ranged+source.siege+source.attack>0 then
+            combatAssignmentState.targets[source.key]=nil
+            combatAssignmentState.explicit[source.key]=nil
+            attackAssignmentsClearForObject(source.key)
+            targetGUID,targetIndex=nil,nil
+        end
         if moveOnly and targetGUID~=nil and not combatGUIDHasCumbersome(targetGUID) then
             -- Move can only be aimed at a Cumbersome enemy.
             combatAssignmentState.targets[source.key]=nil
@@ -45783,7 +46158,7 @@ local function combatAssignmentRefreshRows(entries,sources)
             targetGUID,targetIndex=nil,nil
         end
         if targetIndex==nil and not moveOnly and not influenceOnly then
-            targetGUID=combatNearestEnemyGUID(source.guid,entries)
+            targetGUID=combatNearestEnemyGUID(source,entries)
             combatAssignmentState.targets[source.key]=targetGUID
             combatAssignmentState.explicit[source.key]=nil
             targetIndex=targetGUID~=nil and rowByGUID[targetGUID] or nil
@@ -45908,8 +46283,8 @@ local function combatAssignmentRefreshRows(entries,sources)
                     sources[#sources+1]=source
                 end
             end
-            local _,_,ranged=combatRangeResult(combatGroupEntry(members,{}),sources)
-            if ranged then
+            local _,_,ranged=combatRangeResult(combatRangeGroupEntry(members),sources)
+            if ranged and not members[1].attackOnly then
                 for _,index in ipairs(group.members) do rangedBeforeBlock[index]=true end
             end
         end
@@ -45939,7 +46314,8 @@ local function combatAssignmentRefreshRows(entries,sources)
         for index=1,#entries do
             local group=groups[#groups]
             if index==1 or combatAssignmentJoined[entries[index].guid]~=true
-                or entries[index].destroyed or entries[index-1].destroyed then
+                or entries[index].destroyed or entries[index-1].destroyed
+            or entries[index].attackOnly or entries[index-1].attackOnly then
                 group={members={},sources={}}
                 groups[#groups+1]=group
             end
@@ -45950,7 +46326,7 @@ local function combatAssignmentRefreshRows(entries,sources)
         for index=1,#entries do
             local group=groupOf[index]
             local row=index-pageOffset
-            if row>=1 and row<=COMBAT_ASSIGNMENT_ROW_COUNT then
+            if row>=1 and row<=visibleRows then
                 combatPanelSetAttribute("CombatEnemyRow"..row,"color",
                     #group.members>1 and "rgb(0.27,0.31,0.38)"
                     or (row%2==0 and "rgb(0.34,0.29,0.22)" or "rgb(0.29,0.25,0.19)"))
@@ -45980,7 +46356,8 @@ local function combatAssignmentRefreshRows(entries,sources)
         end
         group.entry,group.attackArmour=combatGroupEntry(members,blockedAll)
         group.rangeTotal,group.rangeArmour,group.rangeDefeated,group.fortification=
-            combatRangeResult(group.entry,group.sources)
+            combatRangeResult(combatRangeGroupEntry(members),group.sources)
+        if members[1].attackOnly then group.rangeDefeated=false end
         if rangedBeforeBlock~=nil then
             -- A later Block-phase destruction cannot retrospectively win the
             -- Ranged phase or create extra Ranged-only rewards.
@@ -45993,17 +46370,20 @@ local function combatAssignmentRefreshRows(entries,sources)
             {sources=group.sources,category="attack"},
             {sources=group.sources,category="ranged"},
             {sources=group.sources,category="siege"}},group.entry.data,group.entry.perks)
-        group.defeated=group.rangeDefeated or (meleeTotal>0 and meleeTotal>=group.attackArmour)
+        group.defeated=not members[1].attackOnly
+            and (group.rangeDefeated or (meleeTotal>0 and meleeTotal>=group.attackArmour))
         -- A destroyed enemy is defeated without any attack; it stays out of "defeated by this attack" rewards.
-        group.destroyed=#group.members==1 and entries[group.members[1]].destroyed==true
+        group.destroyed=not members[1].attackOnly and #group.members==1
+            and entries[group.members[1]].destroyed==true
         if group.destroyed then group.defeated,group.rangeDefeated=true,false end
         if group.defeated and not group.destroyed then
-            local count=#group.members
+            local count=0
+            for _,member in ipairs(members) do if not member.preview then count=count+1 end end
             local counted={}
             for _,source in ipairs(group.sources) do
                 local spec=source.defeatFameRep
                 -- A source defeats nothing in melee once the Ranged phase already did, so melee-only sources do not count.
-                if spec~=nil and spec.scope==nil and not counted[source.guid] and (not group.rangeDefeated
+                if count>0 and spec~=nil and spec.scope==nil and not counted[source.guid] and (not group.rangeDefeated
                     or source.ranged>0 or source.siege>0) then
                     counted[source.guid]=true
                     local times=spec.once and 1 or count
@@ -46067,8 +46447,12 @@ local function combatAssignmentRefreshRows(entries,sources)
             seenScope[source.guid]=true
             for _,group in ipairs(groups) do
                 if group.defeated and (spec.scope=="all" or group.rangeDefeated) then
-                    defeatFame=defeatFame+(spec.fame or 0)*#group.members
-                    defeatRep=defeatRep+(spec.rep or 0)*#group.members
+                    local count=0
+                    for _,index in ipairs(group.members) do
+                        if not entries[index].preview then count=count+1 end
+                    end
+                    defeatFame=defeatFame+(spec.fame or 0)*count
+                    defeatRep=defeatRep+(spec.rep or 0)*count
                 end
             end
         end
@@ -46079,16 +46463,17 @@ local function combatAssignmentRefreshRows(entries,sources)
     for _,group in ipairs(groups) do
         for _,index in ipairs(group.members) do
             local guid=entries[index].guid
-            trackedGuids[guid]=true
-            if group.defeated then defeatedGuids[guid]=true end
+            if not entries[index].attackOnly and not entries[index].preview then
+                trackedGuids[guid]=true
+                if group.defeated then defeatedGuids[guid]=true end
+            end
         end
     end
     combatSetDefeatMarks(trackedGuids,defeatedGuids)
     for row=1,COMBAT_ASSIGNMENT_ROW_COUNT do
         local index=pageOffset+row
-        local entry=entries[index]
-        local group=groupOf[index]
-        local isLeader=group~=nil and group.leader==index
+        local entry=row<=visibleRows and entries[index] or nil
+        local group=entry~=nil and groupOf[index] or nil
         local lists={range={},block={},attack={}}
         if entry~=nil then
             for _,item in ipairs((allocated[index] or emptyTarget).details) do
@@ -46100,7 +46485,7 @@ local function combatAssignmentRefreshRows(entries,sources)
                 end
             end
             -- Range, Siege and Attack resources of a group share the leader's merged cells.
-            if isLeader then
+            if group~=nil and group.leader==index then
                 for _,member in ipairs(group.members) do
                     for _,item in ipairs((allocated[member] or emptyTarget).details) do
                         if item.detail.family~="block" and item.detail.family~="move" then
@@ -46138,20 +46523,20 @@ local function combatAssignmentRefreshRows(entries,sources)
                 merged and "rgba(1,1,1,0.10)" or "rgba(0,0,0,0)")
         end
         local rowHeight=COMBAT_ASSIGNMENT_ROW_HEIGHT
-        if entry~=nil then
+        if entry~=nil and group~=nil then
             -- Final armour for the current layout: Elusive doubles unless every attack is blocked.
             local armourValue=entry.baseArmour
             if combatEnemyHasTrait(entry.data,entry.perks,"elusive") and not rowBlock[index].allBlocked then
                 armourValue=entry.elusiveArmour
             end
             combatPanelSetAttribute("CombatEnemyRow"..row.."Armour","text",
-                entry.destroyed and "-" or tostring(armourValue))
-            if #group.members>1 then
-                local sharedText=combatGroupTraitsText(entry,group.entry)
-                shownTraits[row]=sharedText
-                combatPanelSetAttribute("CombatEnemyRow"..row.."Traits","text",sharedText)
-                entry.attackCount=math.max(entry.attackCount or 1,select(2,sharedText:gsub("\n",""))+1)
-            end
+                (entry.destroyed or entry.attackOnly) and "-" or tostring(armourValue))
+            -- Use actual modified defenses even on a single enemy (Sorcerers,
+            -- stripped fortification, and other effects may change them).
+            local sharedText=combatGroupTraitsText(entry,group.entry)
+            shownTraits[row]=sharedText
+            combatPanelSetAttribute("CombatEnemyRow"..row.."Traits","text",sharedText)
+            entry.attackCount=math.max(entry.attackCount or 1,select(2,sharedText:gsub("\n",""))+1)
             local attackLines={}
             for attackIndex,attack in ipairs(combatEnemyAttacks(entry)) do
                 local reduction=rowBlock[index].reductions[attackIndex] or 0
@@ -46195,15 +46580,26 @@ local function combatAssignmentRefreshRows(entries,sources)
                 end
                 grandDamage=grandDamage+rowBlock[index].damage
                 damageSources=damageSources+rowBlock[index].count
-                if isLast then
+                if isLast and not entry.attackOnly then
                     local line=combatGroupAttackLine(group.entry,group.sources,group.attackArmour)
                     if line~=nil then lines[#lines+1]=line end
                 end
             end
-            rowHeight=math.max(rowHeight,math.max(#lines,entry.attackCount or 1)*17+8)
+            local compactLines=combatCompactResultLines(lines,rowBlock[index].damageItems,damageResults)
+            local detailText=table.concat(lines,"\n")
+            local compactText=table.concat(compactLines,"\n")
+            local hasDetails=detailText~=compactText
+            local expanded=hasDetails and combatExpandedResults[entry.guid]==true
+            local displayText=expanded and detailText or compactText
+            if hasDetails then displayText=displayText..(expanded and " [-]" or " [+]") end
+            local displayLines=expanded and #lines or #compactLines
+            rowHeight=math.max(rowHeight,math.max(displayLines,entry.attackCount or 1)*15+4)
             local resultID="CombatEnemyRow"..row.."Result"
-            combatPanelSetAttribute(resultID,"text",table.concat(lines,"\n"))
-            combatPanelSetAttribute(resultID,"fontSize","13")
+            combatPanelSetAttribute(resultID,"text",displayText)
+            combatPanelSetAttribute("CombatEnemyResultToggle"..row,"tooltip",
+                (hasDetails and (expanded and "Click to collapse details" or "Click for full breakdown")
+                    or "Combat result").."\n"..detailText:gsub("<[^>]*>",""))
+            combatPanelSetAttribute(resultID,"fontSize","12")
             combatPanelSetAttribute(resultID,"font","Fonts/MKCardText")
             combatPanelSetAttribute(resultID,"color","White")
             totalRowHeight=totalRowHeight+rowHeight
@@ -46252,7 +46648,7 @@ local function combatAssignmentRefreshRows(entries,sources)
         combatPanelSetAttribute("CombatTotalDamage","text",
             "Total damage - "..combatRich(tostring(totalHeroDamage).." ("..woundsText..")",COMBAT_RED))
         combatPanelSetAttribute("CombatTotalDamage","font","Fonts/MKCardText")
-        totalRowHeight=totalRowHeight+20
+        totalRowHeight=totalRowHeight+18
     end
 
     local selectionText
@@ -46310,10 +46706,12 @@ local function combatAssignmentRefreshRows(entries,sources)
             combatPanelSetAttribute(id,"alignment","MiddleCenter")
         end
     end
-    return totalRowHeight+(pages>1 and 25 or 0)
+    return totalRowHeight+(pages>1 and 22 or 0)
 end
 
 local function combatCalcShutdown()
+    combatTrackedSeat=nil
+    combatTrackedEnemies={}
     combatCalcOn=false
     combatCumbersomeActive=false
     combatSyncDefenderMark(nil)
@@ -46325,6 +46723,8 @@ local function combatCalcShutdown()
     combatAssignmentState={seat=nil,selected=nil,targets={},explicit={}}
     combatAssignmentJoined={}
     combatEnemyPage=1
+    combatAssignmentRowIndices={}
+    combatExpandedResults={}
     combatBlockResultCache={}
     combatReductionAttackChoice={}
     combatReductionActiveSource={}
@@ -46342,7 +46742,7 @@ local function refreshCombatEnemyPanel(monsters)
     combatPanelSetAttribute("CombatEnemyPanel","active","true")
     local entries={}
     for guid in pairs(monsters or {}) do
-        local data=monsterPugs[guid]
+        local data,mode=combatEnemyData(guid,monsters[guid])
         if data~=nil and monsters[guid]~=nil and monsters[guid].is_face_down~=true
             and not combatIsSummonedToken(guid) then
             local perks=gStates~=nil and gStates.monsterPerks~=nil and gStates.monsterPerks[guid] or nil
@@ -46350,6 +46750,7 @@ local function refreshCombatEnemyPanel(monsters)
             local armourBonus=perks~=nil and (tonumber(perks.armour) or 0) or 0
             local armour=baseArmour+armourBonus
             entries[#entries+1]={guid=guid,name=tostring(data.name or "Enemy"),
+                attackOnly=mode=="attackOnly",preview=mode=="preview",
                 armour=tostring(armour),baseArmour=baseArmour+armourBonus,
                 elusiveArmour=baseArmour*2+armourBonus,data=data,perks=perks,
                 summoned=data.monsters~=nil and combatSummonedFor(guid) or nil}
@@ -46383,10 +46784,10 @@ local function refreshCombatEnemyPanel(monsters)
             entry.stripResist=effect.removeResist
             entry.stripFireResist=effect.removeFireResist
         end
-        entry.noAttack=effect~=nil and (effect.noAttack==true or (effect.noAttackUnfortified==true
+        entry.noAttack=not entry.attackOnly and effect~=nil and (effect.noAttack==true or (effect.noAttackUnfortified==true
             and combatEnemyFortificationCount(entry.data,entry.perks)==0))
-        entry.destroyed=effect~=nil and effect.destroy==true
-        entry.destroyIfBlocked=effect~=nil and effect.destroyIfBlocked==true
+        entry.destroyed=not entry.attackOnly and effect~=nil and effect.destroy==true
+        entry.destroyIfBlocked=not entry.attackOnly and effect~=nil and effect.destroyIfBlocked==true
         entry.removeAbilities=effect~=nil and effect.removeAbilities==true
     end
     -- Board order, left to right, so enemies placed side by side group the way the player laid them out.
@@ -46396,6 +46797,7 @@ local function refreshCombatEnemyPanel(monsters)
     end)
     if currentSeat~=combatAssignmentState.seat then
         combatAssignmentState={seat=currentSeat,selected=nil,targets={},explicit={}}
+        combatExpandedResults={}
     end
     local sources=combatAssignmentSources(currentSeat)
     local activeSources,activeObjects={},{}
@@ -46456,13 +46858,14 @@ function resourceCardsRefreshCombatEnemies()
 end
 
 function resourceCardsCombatAssignSource(sourceGUID,enemyGUID)
+    if not resourceCardsCombatTargetAcceptsSource(sourceGUID,enemyGUID) then return end
     combatAssignmentState.targets[sourceGUID]=enemyGUID
     combatAssignmentState.explicit[sourceGUID]=true
     resourceCardsRefreshCombatEnemies()
     resourceCardsSourceChanged()
 end
 
--- Click an enemy name to join it with the row above, or click again to split it off.
+-- Paging changes visible rows, not the underlying combat calculations.
 function resourceCardsCombatPage(delta)
     combatEnemyPage=math.max(1,combatEnemyPage+delta)
     resourceCardsRefreshCombatEnemies()
@@ -46495,10 +46898,21 @@ function resourceCardsCombatCycleAttack(row,nextSource)
     resourceCardsRefreshCombatEnemies()
 end
 
+-- The first visible row can still join the preceding enemy on another page.
 function resourceCardsCombatToggleGroup(row)
     local guid=combatAssignmentRowTargets[row]
-    if guid==nil or row<2 then return end
+    local index=combatAssignmentRowIndices[row]
+    if guid==nil or index==nil or index<2 then return end
+    local data=combatEnemyData(guid)
+    if data~=nil and data.attackOnly then return end
     combatAssignmentJoined[guid]=combatAssignmentJoined[guid]~=true or nil
+    resourceCardsRefreshCombatEnemies()
+end
+
+function resourceCardsCombatToggleResult(row)
+    local guid=combatAssignmentRowTargets[row]
+    if guid==nil then return end
+    combatExpandedResults[guid]=not combatExpandedResults[guid]
     resourceCardsRefreshCombatEnemies()
 end
 
@@ -46525,6 +46939,11 @@ function resourceCardsCombatAssignmentClick(id)
             end
             if movedSource~=nil and movedSource.ranged+movedSource.siege+movedSource.block+movedSource.attack==0
                 and not combatGUIDHasCumbersome(targetGUID) then
+                combatAssignmentState.selected=nil
+                resourceCardsRefreshCombatEnemies()
+                return
+            end
+            if not resourceCardsCombatTargetAcceptsSource(moved,targetGUID) then
                 combatAssignmentState.selected=nil
                 resourceCardsRefreshCombatEnemies()
                 return
@@ -48572,6 +48991,12 @@ local function combatEffectChosenEnemy(sourceGUID,area,monsters)
     local chosen=nil
     for guid in pairs(attackAssignmentsTargetGUIDs(sourceGUID)) do
         local target=monsters[guid]
+        if target==nil then
+            -- Attack-reducing effects can explicitly link to reminder attacks.
+            local special=combatPlayMonsters()[guid]
+            local data=special~=nil and combatEnemyData(guid,special) or nil
+            if data~=nil and data.attackOnly then target=special end
+        end
         if target~=nil and target.is_face_down~=true
             and (chosen==nil or guid<chosen.guid) then chosen=target end
     end
@@ -48614,7 +49039,12 @@ local function renderSeat(seatPos)
     inspectZone(playerCrystalAreas[seatPos],"crystal")
     inspectZone(playerUnitAreas[seatPos],"unit")
     inspectZone(playerPlayAreas[seatPos],"play")
-    combatCalcUpdate(monsters)
+    -- Keep a lifted enemy in the full Resource Tracker scan as well as the
+    -- quick combat-panel refresh, including play-only enemy-count bonuses.
+    combatKeepHeldEnemies(seatPos,monsters,playMonsters)
+    -- These attacks belong to the calculator, not monster-count card bonuses.
+    local combatMonsters=combatPlayMonsters()
+    combatCalcUpdate(combatMonsters)
     local enemyEntries={}
     for guid,enemy in pairs(monsters) do
         if enemy.is_face_down~=true then enemyEntries[#enemyEntries+1]={guid=guid} end
@@ -50226,7 +50656,7 @@ local function renderSeat(seatPos)
         usesCurrentHexBlock=usesCurrentHexBlock,
         usesCurrentHexHealing=usesCurrentHexHealing,
         usesSkillLocation=usesSkillLocation}
-    refreshCombatEnemyPanel(monsters)
+    refreshCombatEnemyPanel(combatMonsters)
     resourceCardsApplyFameRep(seatPos)
     -- Redraw movement when ability flags change, even if total Move stays equal.
     if totalsChanged or terrainChanged or transformChanged then refreshResourceTrackerText() end
@@ -50613,11 +51043,11 @@ local function resourceCardsRelevantZone(ctx)
     if active==nil or active.seatPos~=ctx.zoneInfo.seatPos then return nil end
     local kind=ctx.zoneInfo.kind
     local objectKind=resourceObjectKind(ctx.obj)
-    if kind=="play" and (objectKind~=nil or monsterPugs[ctx.objGUID]~=nil) then
+    if kind=="play" and (objectKind~=nil or combatEnemyData(ctx.objGUID,ctx.obj)~=nil) then
         return ctx.zoneInfo.seatPos
     end
     if kind=="unit" and (objectKind=="unit" or objectKind=="mana" or objectKind=="puppet"
-        or monsterPugs[ctx.objGUID]~=nil
+        or combatEnemyData(ctx.objGUID,ctx.obj)~=nil
         or unitLayoutIsCommand(ctx.obj) or unitLayoutIsWound(ctx.obj)) then
         return ctx.zoneInfo.seatPos
     end
@@ -50627,6 +51057,9 @@ local function resourceCardsRelevantZone(ctx)
 end
 
 function resourceCardsZoneEntered(ctx)
+    -- Map/offer/turn-order zones cannot change a player's resource board.
+    -- Skip costly object identity checks for each spawned map enemy or terrain tile.
+    if ctx==nil or ctx.zoneInfo==nil then return end
     if ctx~=nil and ctx.obj~=nil and (unitLayoutIsWound(ctx.obj)
         or manaColor(ctx.obj)~=nil) then
         resourceUnitsRefreshButtons()
@@ -50636,6 +51069,9 @@ function resourceCardsZoneEntered(ctx)
 end
 
 function resourceCardsZoneLeft(ctx)
+    -- Map/offer/turn-order zones cannot change a player's resource board.
+    -- Skip costly object identity checks for each spawned map enemy or terrain tile.
+    if ctx==nil or ctx.zoneInfo==nil then return end
     if ctx~=nil and ctx.obj~=nil and (unitLayoutIsWound(ctx.obj)
         or manaColor(ctx.obj)~=nil) then
         resourceUnitsRefreshButtons()
@@ -50664,7 +51100,7 @@ function resourceCardsObjectMoved(obj)
     if player==nil then return end
     local seat=player.seatPos
     local isUnitStateToken=unitLayoutIsCommand(obj) or unitLayoutIsWound(obj)
-    local isMonster=monsterPugs[obj.guid]~=nil
+    local isMonster=combatEnemyData(obj.guid,obj)~=nil
     if resourceObjectKind(obj)==nil and not isUnitStateToken and not isMonster then
         -- A played powered One with the Land may change Block value when the
         -- Mage Knight moves to different terrain. Only watch avatar drops
@@ -50691,11 +51127,13 @@ function resourceCardsObjectMoved(obj)
             end
         end
     end
-    if isUnitStateToken or (isMonster and bySeat[seat]~=nil
+    if (isMonster and combatTrackedSeat==seat and combatTrackedEnemies[obj.guid]~=nil)
+        or isUnitStateToken or (isMonster and bySeat[seat]~=nil
         and bySeat[seat][obj.guid]==true) then
-        -- Zone exit usually handles this already, but a token can be dragged
-        -- straight out and dropped before its membership event settles.
-        queueSeat(seat,nil)
+        -- On a drop outside the zones, wait for the token to settle before
+        -- checking membership. Otherwise smooth movement can retain a ghost
+        -- indefinitely if no further zone event fires.
+        queueSeat(seat,isMonster and obj.guid or nil)
     elseif bySeat[seat]~=nil and bySeat[seat][obj.guid]==true then
         scheduleChoiceResetAfterPlay(obj.guid,seat)
         queueSeat(seat,nil)
@@ -56705,6 +57143,41 @@ function assaultOriginFromPosition(approachPosition)
 	return origin
 end
 
+-- Optional, session-local map profiler for crowded-map stress tests. It adds only
+-- one boolean check while disabled, and measures Lua execution (not TTS rendering).
+local mapPerformanceEnabled=false
+local mapPerformanceStats={}
+function mapPerformanceEnable(enabled)
+	-- Accept a plain bool in the Lua console or {enabled=true} through Global.call.
+	mapPerformanceEnabled=enabled==true or (type(enabled)=="table" and enabled.enabled==true)
+	mapPerformanceStats={}
+	print("Map Lua profiling "..(mapPerformanceEnabled and "enabled" or "disabled"))
+end
+function mapPerformanceStart()
+	if mapPerformanceEnabled~=true then return nil end
+	return os.clock()
+end
+function mapPerformanceRecord(label,started)
+	if started==nil then return end
+	local elapsed=math.max(0,(os.clock()-started)*1000)
+	local row=mapPerformanceStats[label]
+	if row==nil then row={count=0,total=0,max=0} mapPerformanceStats[label]=row end
+	row.count=row.count+1
+	row.total=row.total+elapsed
+	row.max=math.max(row.max,elapsed)
+end
+function mapPerformanceReport()
+	local keys={}
+	for key in pairs(mapPerformanceStats) do keys[#keys+1]=key end
+	table.sort(keys)
+	for _,key in ipairs(keys) do
+		local row=mapPerformanceStats[key]
+		print(string.format("[Map perf] %s: %d calls, %.2f ms total, %.2f ms avg, %.2f ms max",
+			key,row.count,row.total,row.total/row.count,row.max))
+	end
+	return mapPerformanceStats
+end
+
 -- Shared runtime map snapshots. The physical TTS table is authoritative; these are only derived
 -- in-memory indexes and must never be persisted in gStates. Ordinary map membership changes invalidate
 -- only the cheap object list. Terrain membership/transform/face changes also invalidate the expensive
@@ -56928,6 +57401,7 @@ end
 
 local function runtimeMapTerrainSnapshot()
 	if runtimeMapTerrainCache~=nil then return runtimeMapTerrainCache end
+	local perfStart=mapPerformanceStart()
 	local objectSnapshot=runtimeMapObjectSnapshot()
 	local terrainObjects={}
 	local terrainPositions={}
@@ -56984,23 +57458,42 @@ local function runtimeMapTerrainSnapshot()
 			neighborSet[key]={}
 		end
 	end
-	for a=1,#hexes do
-		local first=hexes[a]
-		local firstKey=runtimeMapHexKey(first)
-		if firstKey~=nil then
-			for b=a+1,#hexes do
-				local second=hexes[b]
-				if runtimeMapHexesAdjacent(first,second)==true then
-					local secondKey=runtimeMapHexKey(second)
-					if secondKey~=nil then
-						neighbors[firstKey][#neighbors[firstKey]+1]=second
-						neighbors[secondKey][#neighbors[secondKey]+1]=first
-						neighborSet[firstKey][secondKey]=true
-						neighborSet[secondKey][firstKey]=true
+	-- Compare only hexes in nearby spatial cells. Hex adjacency is strictly less than
+	-- sqrt(7.4) world units, so 3-unit cells and their eight neighbours are exhaustive.
+	-- The exact distance predicate remains authoritative (including irregular scenario maps).
+	local neighborCellSize=3
+	local neighborBuckets={}
+	local hexOrder={}
+	for index,hex in ipairs(hexes) do hexOrder[hex]=index end
+	for _,second in ipairs(hexes) do
+		local secondKey=runtimeMapHexKey(second)
+		if secondKey~=nil then
+			local secondX=math.floor(second.position[1]/neighborCellSize)
+			local secondZ=math.floor(second.position[3]/neighborCellSize)
+			for x=secondX-1,secondX+1 do
+				for z=secondZ-1,secondZ+1 do
+					local bucket=neighborBuckets[x..":"..z]
+					for _,first in ipairs(bucket or {}) do
+						if runtimeMapHexesAdjacent(first,second)==true then
+							local firstKey=runtimeMapHexKey(first)
+							if firstKey~=nil then
+								neighbors[firstKey][#neighbors[firstKey]+1]=second
+								neighbors[secondKey][#neighbors[secondKey]+1]=first
+								neighborSet[firstKey][secondKey]=true
+								neighborSet[secondKey][firstKey]=true
+							end
+						end
 					end
 				end
 			end
+			local bucketKey=secondX..":"..secondZ
+			if neighborBuckets[bucketKey]==nil then neighborBuckets[bucketKey]={} end
+			neighborBuckets[bucketKey][#neighborBuckets[bucketKey]+1]=second
 		end
+	end
+	-- Preserve the original map-entry ordering for equal-length movement/AI paths.
+	for _,nearby in pairs(neighbors) do
+		table.sort(nearby,function(a,b) return hexOrder[a]<hexOrder[b] end)
 	end
 
 	table.sort(signatureParts)
@@ -57009,6 +57502,7 @@ local function runtimeMapTerrainSnapshot()
 		terrainEntries=terrainEntries,hexes=hexes,hexByKey=hexByKey,neighbors=neighbors,neighborSet=neighborSet,
 		terrainSignature=table.concat(signatureParts,"|")
 	}
+	mapPerformanceRecord("terrain topology",perfStart)
 	return runtimeMapTerrainCache
 end
 
