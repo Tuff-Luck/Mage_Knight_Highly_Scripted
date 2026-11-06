@@ -4749,20 +4749,49 @@ local function renderSeat(seatPos)
         if rule~=nil and rule.effectManaChoice~=nil then
             linkedChoices=paidManaChoices(card.guid,rule,isStrong,boostBy[card.guid])
         end
-        -- Enemy-targeted effects count the printed icons of the token actually
-        -- placed over the card. A missing target still gives the fixed base Block.
+        -- Cold Toughness uses the enemy being blocked in the Combat Calculator,
+        -- not an enemy physically placed on the Action card. Read the active lock
+        -- first (including a just-clicked retarget), then a restored arrow.
+        -- Outside the calculator, the existing physical overlap remains usable.
         local enemyTarget,enemyBonus=nil,nil
         if rule~=nil and rule.enemyIconBlock==true and isStrong
             and cardPosture(card)=="upright" then
-            local bestArea=0
-            for guid,monster in pairs(monsters) do
-                if monster.is_face_down~=true then
-                    local area=overlapArea(footprints[card.guid],footprint(monster))
-                    if area>bestArea or (area==bestArea and area>0 and enemyTarget~=nil
-                        and guid<enemyTarget.guid) then
-                        enemyTarget,bestArea=monster,area
+            local targetGUID=nil
+            if combatCalcOn then
+                if combatAssignmentState.seat==seatPos then
+                    targetGUID=combatAssignmentState.targets[card.guid]
+                end
+                if targetGUID==nil or monsters[targetGUID]==nil
+                    or monsters[targetGUID].is_face_down==true then
+                    targetGUID=nil
+                    for guid in pairs(attackAssignmentsTargetGUIDs(card.guid)) do
+                        local enemy=monsters[guid]
+                        if enemy~=nil and enemy.is_face_down~=true
+                            and (targetGUID==nil or guid<targetGUID) then
+                            targetGUID=guid
+                        end
                     end
                 end
+            end
+            if targetGUID~=nil then enemyTarget=monsters[targetGUID] end
+            if enemyTarget==nil then
+                local bestArea=0
+                for guid,monster in pairs(monsters) do
+                    if monster.is_face_down~=true then
+                        local area=overlapArea(footprints[card.guid],footprint(monster))
+                        if area>bestArea or (area==bestArea and area>0 and enemyTarget~=nil
+                            and guid<enemyTarget.guid) then
+                            enemyTarget,bestArea=monster,area
+                        end
+                    end
+                end
+            end
+            -- Match the calculator's initial nearest-enemy assignment before
+            -- its first panel refresh has populated the source lock.
+            if enemyTarget==nil and combatCalcOn then
+                local nearest=combatNearestEnemyGUID(
+                    {guid=card.guid,ranged=0,siege=0,attack=0},enemyEntries)
+                if nearest~=nil then enemyTarget=monsters[nearest] end
             end
             if enemyTarget~=nil then
                 enemyBonus=enemyPrintedIconBonus(monsterPugs[enemyTarget.guid])
