@@ -2653,7 +2653,9 @@ function monsterReplenishObjectOnLoad()
 	local xml=[=[
 <Button id="d7a165replenishMonsterPiles" interactable="true"
     onClick="global/refillMonsterTokenPiles"
-    tooltipPosition="Left" tooltipBackgroundColor="clear" tooltipOffset="20"
+    tooltipPosition="Left" tooltipOffset="12"
+    tooltipBackgroundColor="#24211DF2" tooltipBorderColor="#9E8665"
+    tooltipTextColor="#F5E6CA" tooltipFontSize="15"
     width="900" height="200" color="#7F7F7F" textColor="#FFFFFF"
     position="200 270 -100" rotation="0 0 0" scale="0.48 0.48"
     shadow="rgb(0, 0, 0)" shadowDistance="0 -0">
