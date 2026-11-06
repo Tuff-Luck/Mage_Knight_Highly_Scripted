@@ -6211,6 +6211,9 @@ local function resourceCardsRelevantZone(ctx)
 end
 
 function resourceCardsZoneEntered(ctx)
+    -- Map/offer/turn-order zones cannot change a player's resource board.
+    -- Skip costly object identity checks for each spawned map enemy or terrain tile.
+    if ctx==nil or ctx.zoneInfo==nil then return end
     if ctx~=nil and ctx.obj~=nil and (unitLayoutIsWound(ctx.obj)
         or manaColor(ctx.obj)~=nil) then
         resourceUnitsRefreshButtons()
@@ -6220,6 +6223,9 @@ function resourceCardsZoneEntered(ctx)
 end
 
 function resourceCardsZoneLeft(ctx)
+    -- Map/offer/turn-order zones cannot change a player's resource board.
+    -- Skip costly object identity checks for each spawned map enemy or terrain tile.
+    if ctx==nil or ctx.zoneInfo==nil then return end
     if ctx~=nil and ctx.obj~=nil and (unitLayoutIsWound(ctx.obj)
         or manaColor(ctx.obj)~=nil) then
         resourceUnitsRefreshButtons()
