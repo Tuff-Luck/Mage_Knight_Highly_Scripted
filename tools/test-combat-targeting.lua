@@ -9,9 +9,11 @@ local lines={}
 local function makeObject(guid,x)
     local buttons,decals={},{}
     local o={guid=guid}
+    local currentX=x or 0
     function o.isDestroyed() return false end
     function o.isSmoothMoving() return false end
-    function o.getPosition() return {x or 0,1,0} end
+    function o.getPosition() return {currentX,1,0} end
+    function o.setTestPosition(nextX) currentX=nextX end
     function o.getBounds() return {size={1.5,0.2,2.5}} end
     function o.getScale() return {x=1,y=1,z=1} end
     function o.getButtons() return buttons end
@@ -64,6 +66,17 @@ check("clearing arrows resets saved entries",#gStates.attackAssignments==0)
 gStates.attackAssignments=saved
 attackAssignmentsRestore()
 check("arrows are restored from persisted state",#gStates.attackAssignments==2)
+local reminder=makeObject("reminder",7)
+eligible.reminder=reminder
+turnOrder={{seatPos=1}}
+playerUnitAreas={}
+playerPlayAreas={}
+gStates.attackAssignments={{id="1",sourceGUID="redcard",targetGUID="reminder",
+    resource="block",kind="attack"}}
+attackAssignmentsRestore()
+check("attack-only reminder target survives saved-arrow restoration",
+    attackAssignmentsTargetGUIDs("redcard").reminder==true)
+eligible.reminder=nil
 attackAssignmentsPruneTargets({})
 check("stale target arrows are pruned",#gStates.attackAssignments==0)
 attackAssignmentsSetSourceTarget("redcard","enemy","armour")
@@ -88,8 +101,13 @@ for _,button in ipairs(enemy.getButtons()) do
 end
 check("unblocked attack supplies damage-targeting button",found)
 attackAssignmentDamageClick1(enemy,"Red",false)
+attackAssignmentDamageUnitClicked(unit,"Blue")
+check("other player cannot complete pending damage targeting",
+    #attackAssignmentsDamageTargetsOf("enemy:1")==0)
+attackAssignmentDamageClick1(enemy,"Blue",true)
 attackAssignmentDamageUnitClicked(unit,"Red")
-check("Unit accepts assigned damage",attackAssignmentsDamageTargetsOf("enemy:1")[1]=="unit")
+check("Unit accepts damage from the player who started targeting",
+    attackAssignmentsDamageTargetsOf("enemy:1")[1]=="unit")
 attackAssignmentsDamageSync({attacks={},units={unit=true}})
 check("blocking removes damage allocation",#attackAssignmentsDamageTargetsOf("enemy:1")==0)
 attackAssignmentsDamageSync({attacks={{key="enemy:1",owner="enemy",damage=2}},
@@ -99,6 +117,20 @@ attackAssignmentDamageClick1(enemy,"Red",false)
 attackAssignmentDamageUnitClicked(unit,"Red")
 attackAssignmentDamageClick1(enemy,"Red",true)
 check("right-click returns damage to Hero",#attackAssignmentsDamageTargetsOf("enemy:1")==0)
+-- Forced first recipients produce arrows even without manual damageTargets.
+attackAssignmentsDamageSync({attacks={{key="enemy:1",owner="enemy",damage=3,
+    firstDamageUnit="unit"}},units={unit=true}})
+local function forcedArrowEndX()
+    for _,line in ipairs(lines) do
+        if line.color and line.color[1]==1 and line.color[2]==0.1 then
+            return line.points[2][1]
+        end
+    end
+end
+check("forced damage assignment draws a red arrow",forcedArrowEndX()==3)
+unit.setTestPosition(8)
+attackAssignmentsObjectMoved(unit)
+check("forced damage arrow follows Unit movement",forcedArrowEndX()==8)
 attackAssignmentsDamageClear()
 check("closing damage phase clears overlays",
     #enemy.getButtons()==0 and #enemy.getDecals()==0)
