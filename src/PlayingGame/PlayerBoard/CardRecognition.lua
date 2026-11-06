@@ -1104,6 +1104,65 @@ local function combatDamageNotes(item,result)
     return notes
 end
 
+-- Condense the Result column without losing the detailed wound assignment.
+-- Click any result marked [+] to expand it; the tooltip always shows the full text.
+local function combatCompactResultLines(fullLines,damageItems,damageResults)
+    local compact={}
+    for _,line in ipairs(fullLines) do
+        -- Detailed Unit/Hero lines are replaced with a short wound summary.
+        if line:sub(1,2)~="> " then
+            compact[#compact+1]=line:gsub("(%d+)%/(%d+) Blocked","Blk %1/%2")
+                :gsub("Not blocked, ","Unblocked: ")
+                :gsub(" Block, "," blk, ")
+                :gsub(" Damage"," dmg")
+                :gsub("^Attack ","Atk ")
+                :gsub("^Ranged ","Rng ")
+        end
+    end
+    local heroWounds,discardWounds,unitWounds,unitDestroyed,unitResisted=0,0,0,0,0
+    local paralyse,assassination=false,false
+    for _,item in pairs(damageItems or {}) do
+        local result=damageResults[item.key]
+        if item.assassination then assassination=true end
+        if result~=nil then
+            heroWounds=heroWounds+(result.heroWounds or 0)
+            discardWounds=discardWounds+(result.discard or 0)
+            if result.paralyse then paralyse=true end
+            for _,unit in ipairs(result.units or {}) do
+                if unit.destroyed then unitDestroyed=unitDestroyed+1
+                elseif unit.wounded then unitWounds=unitWounds+math.max(1,unit.wounds or 1)
+                elseif unit.resisted then unitResisted=unitResisted+1 end
+            end
+        end
+    end
+    local notes={}
+    if heroWounds>0 then notes[#notes+1]="Hero "..tostring(heroWounds).."W" end
+    if unitWounds>0 then notes[#notes+1]="Unit "..tostring(unitWounds).."W" end
+    if unitDestroyed>0 then notes[#notes+1]=tostring(unitDestroyed).." unit destroyed" end
+    if unitResisted>0 then notes[#notes+1]=tostring(unitResisted).." unit resisted" end
+    if discardWounds>0 then notes[#notes+1]="Discard "..tostring(discardWounds) end
+    if paralyse then notes[#notes+1]="Paralyse: discard hand" end
+    if assassination then notes[#notes+1]="Assassination" end
+    if #notes>0 then
+        -- 38 characters fits comfortably in the Result column at 12 pt.
+        -- Show wounds before the final group Attack summary if present.
+        local insertAt=#compact+1
+        if #compact>0 and compact[#compact]:find("^Atk ") then insertAt=#compact end
+        local line=""
+        for _,note in ipairs(notes) do
+            if line~="" and #line+#note+2>38 then
+                table.insert(compact,insertAt,line)
+                insertAt=insertAt+1
+                line=note
+            else
+                line=line=="" and note or (line..", "..note)
+            end
+        end
+        if line~="" then table.insert(compact,insertAt,line) end
+    end
+    return compact
+end
+
 -- A group is attacked as one: fortification and resistance of any member apply to all of
 -- them and the armours add together. Elusive members only use their higher armour in the
 -- Attack phase while one of their attacks is unblocked.
@@ -1853,10 +1912,21 @@ local function combatAssignmentRefreshRows(entries,sources)
                     if line~=nil then lines[#lines+1]=line end
                 end
             end
-            rowHeight=math.max(rowHeight,math.max(#lines,entry.attackCount or 1)*17+8)
+            local compactLines=combatCompactResultLines(lines,rowBlock[index].damageItems,damageResults)
+            local detailText=table.concat(lines,"\n")
+            local compactText=table.concat(compactLines,"\n")
+            local hasDetails=detailText~=compactText
+            local expanded=hasDetails and combatExpandedResults[entry.guid]==true
+            local displayText=expanded and detailText or compactText
+            if hasDetails then displayText=displayText..(expanded and " [-]" or " [+]") end
+            local displayLines=expanded and #lines or #compactLines
+            rowHeight=math.max(rowHeight,math.max(displayLines,entry.attackCount or 1)*15+4)
             local resultID="CombatEnemyRow"..row.."Result"
-            combatPanelSetAttribute(resultID,"text",table.concat(lines,"\n"))
-            combatPanelSetAttribute(resultID,"fontSize","13")
+            combatPanelSetAttribute(resultID,"text",displayText)
+            combatPanelSetAttribute("CombatEnemyResultToggle"..row,"tooltip",
+                (hasDetails and (expanded and "Click to collapse details" or "Click for full breakdown")
+                    or "Combat result").."\n"..detailText:gsub("<[^>]*>",""))
+            combatPanelSetAttribute(resultID,"fontSize","12")
             combatPanelSetAttribute(resultID,"font","Fonts/MKCardText")
             combatPanelSetAttribute(resultID,"color","White")
             totalRowHeight=totalRowHeight+rowHeight
