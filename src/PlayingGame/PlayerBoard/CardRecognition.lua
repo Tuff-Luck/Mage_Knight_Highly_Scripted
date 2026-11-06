@@ -2050,6 +2050,8 @@ local function combatCalcShutdown()
     combatAssignmentState={seat=nil,selected=nil,targets={},explicit={}}
     combatAssignmentJoined={}
     combatEnemyPage=1
+    combatAssignmentRowIndices={}
+    combatExpandedResults={}
     combatBlockResultCache={}
     combatReductionAttackChoice={}
     combatReductionActiveSource={}
@@ -2121,6 +2123,7 @@ local function refreshCombatEnemyPanel(monsters)
     end)
     if currentSeat~=combatAssignmentState.seat then
         combatAssignmentState={seat=currentSeat,selected=nil,targets={},explicit={}}
+        combatExpandedResults={}
     end
     local sources=combatAssignmentSources(currentSeat)
     local activeSources,activeObjects={},{}
@@ -2187,7 +2190,7 @@ function resourceCardsCombatAssignSource(sourceGUID,enemyGUID)
     resourceCardsSourceChanged()
 end
 
--- Click an enemy name to join it with the row above, or click again to split it off.
+-- Paging changes visible rows, not the underlying combat calculations.
 function resourceCardsCombatPage(delta)
     combatEnemyPage=math.max(1,combatEnemyPage+delta)
     resourceCardsRefreshCombatEnemies()
@@ -2220,10 +2223,19 @@ function resourceCardsCombatCycleAttack(row,nextSource)
     resourceCardsRefreshCombatEnemies()
 end
 
+-- The first visible row can still join the preceding enemy on another page.
 function resourceCardsCombatToggleGroup(row)
     local guid=combatAssignmentRowTargets[row]
-    if guid==nil or row<2 then return end
+    local index=combatAssignmentRowIndices[row]
+    if guid==nil or index==nil or index<2 then return end
     combatAssignmentJoined[guid]=combatAssignmentJoined[guid]~=true or nil
+    resourceCardsRefreshCombatEnemies()
+end
+
+function resourceCardsCombatToggleResult(row)
+    local guid=combatAssignmentRowTargets[row]
+    if guid==nil then return end
+    combatExpandedResults[guid]=not combatExpandedResults[guid]
     resourceCardsRefreshCombatEnemies()
 end
 
