@@ -1391,10 +1391,12 @@ end
 --After the complete EXPLORE set is rebuilt, every City card gets one placement decision from the finished state.
 --This both pushes blocked cards outward and brings displaced cards back inward without racing two smooth moves.
 function compactCityCardsAfterExplore(mapObjects)
+	local perfStart=mapPerformanceStart()
 	local movedCityZones={}
 	local reservedPositions={}
 	for _, cityZone in ipairs({GUID.zone.blueCity, GUID.zone.redCity, GUID.zone.greenCity, GUID.zone.whiteCity}) do positionCityCardForExplore(cityZone, nil, movedCityZones, reservedPositions, mapObjects) end
 	positionApocalypseDragonHeads()
+	mapPerformanceRecord("City compaction",perfStart)
 end
 
 function cityBonusDecals(obj1, obj2)--obj2 is the rare case of a summoned monster. otherwise will be a duplicate of obj1
