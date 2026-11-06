@@ -622,10 +622,10 @@ function __onObjectDrop_raw(player_color, dropped_object)
 		runtimeMapInvalidateTerrain()
 		--EXPLORE legality is derived from the settled physical map. onObjectEnterZone can fire while a
 		--dragged tile is still crossing the map zone, so rebuild only after the final drop has settled.
-		safeWaitCondition("Events.terrainDrop",function() refreshTerrainExploreOptions() end,function()
+		safeWaitCondition("Events.terrainDrop",function() requestTerrainExploreOptionsRefresh() end,function()
 			local tile=getObjectFromGUID(droppedGUID)
 			return tile==nil or (tile.held_by_color==nil and tile.resting==true and tile.isSmoothMoving()==false)
-		end,5,function() refreshTerrainExploreOptions() end)
+		end,5,function() requestTerrainExploreOptionsRefresh() end)
 	end
 	local droppedHorseman=horsemanTokenToName~=nil and horsemanTokenToName[droppedGUID] or nil
 	if gStates.gameScenario=="Against the Horsemen Blitz" and (terrainTiles[droppedGUID]~=nil or droppedHorseman~=nil) then
@@ -1293,6 +1293,11 @@ local function handleMapVisualZoneEnter(ctx)
 		handleMapVisualZoneEnterNow(ctx)
 		return
 	end
+	-- Temporary combat decals, Rampager overlays and city bonuses are all
+	-- enemy-owned. Ordinary tiles, reference objects and other map entrants
+	-- need no delayed UI/decal inspection at all.
+	local guid=ctx.objGUID
+	if monsterPugs[guid]==nil and gStates.monsterPlayLocation[guid]==nil and gStates.monsterPerks[guid]==nil then return end
 	--Object UI/decal inspection crosses the TTS engine boundary and was visible as a hitch on the exact
 	--map-zone entry frame. It is presentation-only, so defer it one frame and verify the object stayed in the map.
 	local objGUID=ctx.objGUID
