@@ -491,6 +491,8 @@ local function damageAttackClicked(obj,playerColor,index,altClick)
 	local list=obj~=nil and damageSpec.byOwner[obj.guid] or nil
 	local attack=list~=nil and list[index] or nil
 	if attack==nil then return end
+	-- Another player must not steal an in-progress Unit assignment.
+	if damagePending~=nil and damagePending.color~=playerColor then return end
 	if altClick then
 		-- Right click returns the whole attack to the Hero.
 		damageTargets[attack.key]=nil
@@ -512,7 +514,7 @@ end
 -- Clicking a free Unit adds it to the attack in order; clicking one already on the attack returns its share to the Hero.
 function attackAssignmentDamageUnitClicked(unit,playerColor)
 	return safeCallback("attackAssignmentDamageUnitClicked",function()
-		if damagePending==nil or unit==nil then return end
+		if damagePending==nil or unit==nil or damagePending.color~=playerColor then return end
 		local key=damagePending.key
 		local list=damageTargets[key] or {}
 		for position,guid in ipairs(list) do
@@ -840,6 +842,18 @@ function attackAssignmentsObjectMoved(object)
 			if relevant then break end
 		end
 	end
+	if not relevant then
+		-- Forced recipients (e.g. Shocktroops) have red arrows without a
+		-- manual damageTargets entry, so they need movement refreshes too.
+		for _,attack in ipairs(damageSpec.attacks) do
+			local forced=attack.firstDamageUnit
+			if forced~=nil and damageSpec.units[forced]==true and not attack.assassination
+				and (attack.owner==guid or forced==guid) then
+				relevant=true
+				break
+			end
+		end
+	end
 	if relevant then
 		refreshRenderedLines()
 		scheduleRefresh()
@@ -859,10 +873,18 @@ end
 function attackAssignmentsRestore()
 	assignmentRegistry={}
 	assignmentCounter=0
+	-- Attack-only reminders and co-op Leader previews are valid combat targets
+	-- even though they are not registered in monsterPugs.
+	local eligible={}
+	if resourceCardsCombatTargetObjects~=nil and gStates~=nil and turnOrder~=nil
+		and playerUnitAreas~=nil and playerPlayAreas~=nil then
+		eligible=resourceCardsCombatTargetObjects()
+	end
 	for _,saved in ipairs(gStates~=nil and gStates.attackAssignments or {}) do
 		local source=getObjectFromGUID(assignmentBaseGUID(saved.sourceGUID))
 		local target=getObjectFromGUID(saved.targetGUID)
-		if source~=nil and target~=nil and monsterPugs[target.guid]~=nil
+		if source~=nil and target~=nil
+			and (monsterPugs[target.guid]~=nil or eligible[target.guid]~=nil)
 			and type(saved.resource)=="string" then
 			local id=tostring(saved.id or "")
 			if id=="" then
