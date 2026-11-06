@@ -4774,6 +4774,13 @@ local function renderSeat(seatPos)
                 end
             end
             if targetGUID~=nil then enemyTarget=monsters[targetGUID] end
+            -- Match the calculator's initial nearest-enemy assignment before
+            -- its first panel refresh has populated the source lock.
+            if enemyTarget==nil and combatCalcOn then
+                local nearest=combatNearestEnemyGUID(
+                    {guid=card.guid,ranged=0,siege=0,attack=0},enemyEntries)
+                if nearest~=nil then enemyTarget=monsters[nearest] end
+            end
             if enemyTarget==nil then
                 local bestArea=0
                 for guid,monster in pairs(monsters) do
@@ -4785,13 +4792,6 @@ local function renderSeat(seatPos)
                         end
                     end
                 end
-            end
-            -- Match the calculator's initial nearest-enemy assignment before
-            -- its first panel refresh has populated the source lock.
-            if enemyTarget==nil and combatCalcOn then
-                local nearest=combatNearestEnemyGUID(
-                    {guid=card.guid,ranged=0,siege=0,attack=0},enemyEntries)
-                if nearest~=nil then enemyTarget=monsters[nearest] end
             end
             if enemyTarget~=nil then
                 enemyBonus=enemyPrintedIconBonus(monsterPugs[enemyTarget.guid])
