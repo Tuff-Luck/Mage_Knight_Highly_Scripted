@@ -1,0 +1,111 @@
+-- Deterministic spatial-index and local reconciliation tests against production Lua.
+-- Run from repository root: lua5.2 tools/test-map-performance.lua
+local function source(path)
+    local f=assert(io.open(path,"r"))
+    local s=f:read("*a") f:close()
+    return s
+end
+local function extract(path,startMarker,endMarker,prefix,suffix)
+    local s=source(path)
+    local a=assert(s:find(startMarker,1,true),"Missing "..startMarker)
+    local b=assert(s:find(endMarker,a,true),"Missing "..endMarker)
+    return assert(load((prefix or "")..s:sub(a,b-1)..(suffix or "")))
+end
+
+-- The production terrain builder must preserve exactly the original
+-- distance-based neighbour graph without comparing every hex pair.
+local mapObjects={}
+terrainTiles={}
+for i=1,50 do
+    local guid="tile"..i
+    local x=-50.4+(i-1)*2.4
+    local obj={guid=guid,is_face_down=false}
+    obj.getPosition=function() return {x,1.3,0} end
+    obj.getRotation=function() return {0,180,0} end
+    mapObjects[#mapObjects+1]=obj
+    terrainTiles[guid]={tileType="country",hexType={center="plains"},hexFeature={center=""}}
+end
+runtimeMapObjectSnapshot=function() return {objects=mapObjects} end
+angleToXY=function(_,bearing,position)
+    assert(bearing=="center")
+    return {position[1],position[3]}
+end
+runtimeMapHexKey=function(a,b)
+    if type(a)=="table" then return a.terrainGUID.."|"..a.bearing end
+    return a.."|"..b
+end
+local comparisons=0
+runtimeMapHexesAdjacent=function(a,b)
+    comparisons=comparisons+1
+    local dx=a.position[1]-b.position[1]
+    local dz=a.position[3]-b.position[3]
+    local d=dx*dx+dz*dz
+    return d>4.2 and d<7.4
+end
+local builder=extract("src/Shared.lua",
+    "local function runtimeMapTerrainSnapshot()",
+    "\nfunction runtimeMapSnapshot()",
+    "local runtimeMapTerrainCache=nil\n",
+    "\nreturn runtimeMapTerrainSnapshot\n")()
+local topology=builder()
+assert(#topology.hexes==50,"All revealed hexes are indexed")
+for i=1,50 do
+    local key="tile"..i.."|center"
+    local adjacent=assert(topology.neighbors[key],"Missing neighbours for "..key)
+    assert(#adjacent==((i==1 or i==50) and 1 or 2),"Incorrect neighbour count for "..key)
+    if i>1 then assert(adjacent[1].terrainGUID=="tile"..(i-1),"Adjacency order changed") end
+    if i<50 then assert(adjacent[#adjacent].terrainGUID=="tile"..(i+1),"Missing next hex") end
+end
+assert(comparisons<250,"Spatial graph made too many pair comparisons: "..comparisons)
+print("PASS terrain spatial adjacency and original neighbour order")
+
+-- The production reconciler must ignore distant map enemies while honouring
+-- moving tokens on the new tile. The physical-hex lookup is stubbed, but the
+-- envelope filtering and readiness/grouping code are loaded from MapTokens.lua.
+local newHex={terrainGUID="new",bearing="center",position={0,1.3,0}}
+local oldHex={terrainGUID="old",bearing="center",position={100,1.3,0}}
+local tokens={}
+local function enemy(guid,x,moving)
+    local o={guid=guid,pos={x,1.1,0},moving=moving,resting=not moving,kind="enemy"}
+    o.getPosition=function() return o.pos end
+    o.isSmoothMoving=function() return o.moving end
+    tokens[#tokens+1]=o
+    return o
+end
+enemy("nearA",0,false)
+local pending=enemy("nearB",0.3,true)
+for i=1,200 do enemy("distant"..i,100,false) end
+local checks=0
+mapTokenNeedsArrangement=function(obj)
+    checks=checks+1
+    return obj.kind=="enemy"
+end
+mapTokenPhysicalHexForPosition=function(_,pos)
+    if math.abs(pos[1])<3 then return newHex end
+    if math.abs(pos[1]-100)<3 then return oldHex end
+end
+runtimeMapHexesAndObjects=function() return {newHex,oldHex},tokens end
+mapPerformanceStart=function() return nil end
+mapPerformanceRecord=function() end
+local arrangements={}
+mapTokenArrangeHex=function(hex,_,_,_,candidates)
+    arrangements[#arrangements+1]={hex=hex,candidates=candidates}
+    return true
+end
+local reconciler=extract("src/PlayingGame/MapTokens.lua",
+    "local function mapTokenTerrainReconcileBounds(",
+    "local function mapTokenQueueTerrainReconcileCallback(",
+    "local mapTokenArrivalPending={}\n",
+    "\nreturn {ready=mapTokenTerrainReadyForReconcile,arrange=mapTokenArrangeAllOccupiedHexesNow}\n")()
+assert(reconciler.ready("new")==false,"Moving local token must defer reconciliation")
+assert(checks<=2,"Unrelated distant enemies were inspected")
+checks=0
+pending.moving=false pending.resting=true
+assert(reconciler.ready("new")==true,"Local resting tokens must be ready")
+assert(checks==2,"Both local enemies must be checked")
+checks=0
+assert(reconciler.arrange("new")==true,"Local arrangement should complete")
+assert(checks==2,"Only local enemies should be considered for layout")
+assert(#arrangements==1 and arrangements[1].hex==newHex and
+    #arrangements[1].candidates==2,"Only the new hex should be rearranged")
+print("PASS local token reconciliation with 200 distant enemies")
