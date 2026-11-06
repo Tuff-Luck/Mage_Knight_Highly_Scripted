@@ -1216,6 +1216,26 @@ cityCardPositionForbidden=function(desiredLocation)
 		(x>-13.5 and x<-13.0 and z>-14.5 and z<-13.5)
 end
 
+-- City position searches test many offsets against the same physical map. Index the
+-- candidate blockers once per search, rather than scanning every enemy for every offset.
+-- The exact 9.61 distance test below still decides whether an offset is occupied.
+local cityExploreBlockerCellSize=4
+local function cityCardExploreBlockerBuckets(mapObjects)
+	if mapObjects==nil then return {} end
+	if mapObjects._cityExploreBlockers~=nil then return mapObjects._cityExploreBlockers end
+	local buckets={}
+	for _,obj in pairs(mapObjects) do
+		local pos=obj~=nil and obj.position or nil
+		if pos~=nil then
+			local key=math.floor(pos[1]/cityExploreBlockerCellSize)..":"..math.floor(pos[3]/cityExploreBlockerCellSize)
+			if buckets[key]==nil then buckets[key]={} end
+			buckets[key][#buckets[key]+1]=obj
+		end
+	end
+	mapObjects._cityExploreBlockers=buckets
+	return buckets
+end
+
 cityCardExploreSpaceFree=function(mapObjects,desiredLocation,movingGUIDs,extraBlockedPos,reservedPositions)
 	if cityCardPositionForbidden(desiredLocation)==true then return false end
 	if extraBlockedPos~=nil then
@@ -1231,9 +1251,18 @@ cityCardExploreSpaceFree=function(mapObjects,desiredLocation,movingGUIDs,extraBl
 			((desiredLocation[3]-tonumber(button.attributes.tilePosZ))^2)<9.61 then return false end
 	end
 	movingGUIDs=movingGUIDs or {}
-	for _,playObj in pairs(mapObjects or {}) do
-		if movingGUIDs[playObj.guid]~=true and
-			((desiredLocation[1]-playObj.position[1])^2)+((desiredLocation[3]-playObj.position[3])^2)<9.61 then return false end
+	local nearby=cityCardExploreBlockerBuckets(mapObjects)
+	local cellX=math.floor(desiredLocation[1]/cityExploreBlockerCellSize)
+	local cellZ=math.floor(desiredLocation[3]/cityExploreBlockerCellSize)
+	-- A blocked position is < sqrt(9.61) units away, so checking 3x3
+	-- four-unit cells includes every possible overlapping map object.
+	for x=cellX-1,cellX+1 do
+		for z=cellZ-1,cellZ+1 do
+			for _,playObj in ipairs(nearby[x..":"..z] or {}) do
+				if movingGUIDs[playObj.guid]~=true and
+					((desiredLocation[1]-playObj.position[1])^2)+((desiredLocation[3]-playObj.position[3])^2)<9.61 then return false end
+			end
+		end
 	end
 	-- The map-zone snapshot misses City cards parked outside it and smooth-moving cards.
 	-- Explicitly block both their live positions and reserved targets, even if another
@@ -1313,6 +1342,8 @@ moveCityCardExploreGroup=function(group,desiredLocation,movedCityZones,mapObject
 				playObj.position={playObj.position[1]+deltaX,playObj.position[2],playObj.position[3]+deltaZ}
 			end
 		end
+		-- Later City groups must see the new positions, not the previous bucket index.
+		mapObjects._cityExploreBlockers=nil
 	end
 	return true
 end
