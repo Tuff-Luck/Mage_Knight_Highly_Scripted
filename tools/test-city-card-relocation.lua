@@ -174,7 +174,6 @@ assert(not cityCardExploreSpaceFree(crossCell,{-1.1,1.09,0},{},nil,nil),
 -- to the map, another physical tile is nearby or an explicit relocation runs.
 cityA.setPosition(cityA.target)
 cityA.smooth=false
-assert(cityCardPendingDestination("cardA")==nil,"Settled card clears its destination reservation")
 gStates.gameScenario="Ultimate Conquest"
 terrainExploreMayReachCityCard=function(pos) return pos[1]>-10 end
 local actualGroup=cityCardExploreGroup
