@@ -804,7 +804,7 @@ function mapPerformanceReport(detail)
 		end
 	end
 	if #lines==0 then return "No map performance samples yet" end
-	return table.concat(lines,"\\n")
+	return table.concat(lines,"\n")
 end
 
 -- Shared runtime map snapshots. The physical TTS table is authoritative; these are only derived
