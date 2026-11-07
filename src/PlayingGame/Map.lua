@@ -39,6 +39,19 @@ function terrainExploreOptions()
 	return terrainExploreButtons
 end
 
+-- Ultimate Conquest City cards parked beyond every possible EXPLORE tile
+-- centre need no more auto-compaction. Use a generous footprint margin:
+-- the terrain tile's outer hexes extend past its centre.
+function terrainExploreMayReachCityCard(position)
+	if position==nil then return true end
+	for _,spot in ipairs(terrainExploreSpots) do
+		local dx=spot[1]-position[1]
+		local dz=spot[3]-position[3]
+		if dx*dx+dz*dz<42.25 then return true end
+	end
+	return false
+end
+
 function clearTerrainExploreOptions()
 	terrainExploreButtons={{}}
 	local exploreUI=getObjectFromGUID(GUID.ui.mapExplore)
