@@ -211,4 +211,42 @@ terrainTiles.tileManual=nil
 cityCardExploreGroup=actualGroup
 gStates.gameScenario=nil
 gStates.mapShapeKey=nil
+-- Local physics broadphase must find fanned registered/manual defenders without
+-- asking TTS for every object on a crowded table. It must also ignore nearby
+-- map occupants and unsettled arrivals, as the full-table path already does.
+local outlyingDefender=obj("outlyingDefender",-51.3,1.5,0)
+monsterPugs.outlyingDefender={pugType="red"}
+gStates.cityMonsterQty.modelA.outlyingDefender="alive"
+cityA.setPosition({-60,1.09,0})
+cityA.smooth=false
+cityB.setPosition({-40,1.09,0})
+local physicsCalls=0
+local originalAll=getAllObjects
+Physics={cast=function(params)
+    physicsCalls=physicsCalls+1
+    assert(params.type==3 and params.max_distance==0 and params.size[1]>=20,
+        "Broadphase should cover all known City garrison offsets")
+    local hits={}
+    for _,candidate in ipairs(originalAll()) do
+        local p=candidate.getPosition()
+        if math.abs(p[1]-params.origin[1])<=10 and
+            math.abs(p[3]-params.origin[3])<=10 then
+            hits[#hits+1]={hit_object=candidate}
+        end
+    end
+    hits[#hits+1]={hit_object=outlyingDefender}
+    return hits
+end}
+getAllObjects=function() error("Local broadphase must not scan the entire table") end
+local physicsGroup=assert(cityCardExploreGroup("zoneA",
+    {positions={},activeOwners={modelA=true}}))
+assert(physicsGroup.movingGUIDs.outlyingDefender,
+    "Registered defender at radius 8.7 must be found outside the City scripting zone")
+assert(physicsGroup.movingGUIDs.manualA,"Manual defender outside the City zone must be found")
+assert(not physicsGroup.movingGUIDs.transit and not physicsGroup.movingGUIDs.pending and
+    not physicsGroup.movingGUIDs.mapEnemy,
+    "Physics broadphase must preserve travelling/pending/terrain exclusions")
+assert(physicsCalls==1,"Only the active City's vicinity should be queried")
+Physics=nil
+getAllObjects=originalAll
 print("PASS City relocation ownership and concurrent destination reservations")
