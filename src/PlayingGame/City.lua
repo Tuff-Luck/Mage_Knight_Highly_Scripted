@@ -1416,10 +1416,39 @@ moveCityCardExploreGroup=function(group,desiredLocation,movedCityZones,mapObject
 	return true
 end
 
+-- A City card parked beyond the Ultimate Conquest map's entire possible
+-- EXPLORE footprint cannot be overlapped by a later tile. Avoid scanning every
+-- table object again merely to decide to leave it where it is. Re-check its
+-- actual position each refresh, so manual moves back toward the map reactivate
+-- compaction. Explicit relocation during an EXPLORE action bypasses this guard.
+local function cityCardParkedBeyondExplore(cityZone,mapObjects)
+	if gStates.gameScenario~="Ultimate Conquest" or mapObjects==nil then return false end
+	local details=cityScriptZones[cityZone]
+	local cityGUID=details~=nil and details.cityGUID or nil
+	local cardGUID=cityGUID~=nil and gStates.cityCard[cityGUID] or nil
+	local card=cardGUID~=nil and getObjectFromGUID(cardGUID) or nil
+	if card==nil or card.held_by_color~=nil or
+		(card.isSmoothMoving~=nil and card.isSmoothMoving()==true) or
+		cityCardPendingDestination(cardGUID)~=nil then return false end
+	local pos=card.getPosition()
+	if pos==nil or terrainExploreMayReachCityCard(pos)~=false then return false end
+	-- Manual maps may contain terrain outside the standard future-EXPLORE grid.
+	-- Never opt a City out while it is still near any actual terrain tile.
+	for _,obj in ipairs(mapObjects) do
+		if terrainTiles[obj.guid]~=nil and obj.position~=nil then
+			local dx=obj.position[1]-pos[1]
+			local dz=obj.position[3]-pos[3]
+			if dx*dx+dz*dz<42.25 then return false end
+		end
+	end
+	return true
+end
+
 -- Place one City group at its closest legal location. Never redirect a card that
 -- is already travelling to a reserved destination; another City can compact meanwhile.
 positionCityCardForExplore=function(cityZone,extraBlockedPos,movedCityZones,reservedPositions,mapObjects,scanContext)
 	if movedCityZones~=nil and movedCityZones[cityZone]==true then return false end
+	if extraBlockedPos==nil and cityCardParkedBeyondExplore(cityZone,mapObjects)==true then return false end
 	local scanStart=mapPerformanceStart()
 	local group=cityCardExploreGroup(cityZone,scanContext)
 	mapPerformanceRecord("City group scan",scanStart)
