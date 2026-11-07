@@ -1292,7 +1292,7 @@ cityCardExploreGroup=function(cityZone,scanContext)
 
 	local movingGUIDs={[card.guid]=true}
 	local ownerGUID=standardCityGarrisonOwner(cityGUID)
-	local context=scanContext or {}
+	local context=scanContext or {activeOwners={[ownerGUID]=true}}
 	local candidates=cityCardCompactionCandidates(context)[ownerGUID] or {}
 	for _,entry in ipairs(candidates) do
 		local guid=entry.guid
