@@ -1416,13 +1416,13 @@ moveCityCardExploreGroup=function(group,desiredLocation,movedCityZones,mapObject
 	return true
 end
 
--- A City card parked beyond the Ultimate Conquest map's entire possible
--- EXPLORE footprint cannot be overlapped by a later tile. Avoid scanning every
--- table object again merely to decide to leave it where it is. Re-check its
--- actual position each refresh, so manual moves back toward the map reactivate
--- compaction. Explicit relocation during an EXPLORE action bypasses this guard.
+-- When a City card is safely outside the current map and its immediate
+-- expansion frontier, skip expensive garrison scans. This is independent of
+-- scenario and map layout: the active terrain positions decide the boundary.
+-- Every refresh rechecks the card and terrain, so moving either one back toward
+-- the other reactivates compaction. Explicit placement relocation bypasses it.
 local function cityCardParkedBeyondExplore(cityZone,mapObjects)
-	if gStates.gameScenario~="Ultimate Conquest" or mapObjects==nil then return false end
+	if mapObjects==nil then return false end
 	local details=cityScriptZones[cityZone]
 	local cityGUID=details~=nil and details.cityGUID or nil
 	local cardGUID=cityGUID~=nil and gStates.cityCard[cityGUID] or nil
@@ -1430,18 +1430,7 @@ local function cityCardParkedBeyondExplore(cityZone,mapObjects)
 	if card==nil or card.held_by_color~=nil or
 		(card.isSmoothMoving~=nil and card.isSmoothMoving()==true) or
 		cityCardPendingDestination(cardGUID)~=nil then return false end
-	local pos=card.getPosition()
-	if pos==nil or terrainExploreMayReachCityCard(pos)~=false then return false end
-	-- Manual maps may contain terrain outside the standard future-EXPLORE grid.
-	-- Never opt a City out while it is still near any actual terrain tile.
-	for _,obj in ipairs(mapObjects) do
-		if terrainTiles[obj.guid]~=nil and obj.position~=nil then
-			local dx=obj.position[1]-pos[1]
-			local dz=obj.position[3]-pos[3]
-			if dx*dx+dz*dz<42.25 then return false end
-		end
-	end
-	return true
+	return terrainExploreMayReachCityCard(card.getPosition(),mapObjects)==false
 end
 
 -- Place one City group at its closest legal location. Never redirect a card that
