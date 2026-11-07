@@ -182,7 +182,7 @@ terrainExploreMayReachCityCard=function(pos,mapObjects)
 end
 local actualGroup=cityCardExploreGroup
 local groupChecks=0
-cityCardExploreGroup=function()
+cityCardExploreGroup=function(_cityZone,_scanContext)
     groupChecks=groupChecks+1
     return nil
 end
