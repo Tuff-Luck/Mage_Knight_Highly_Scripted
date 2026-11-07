@@ -1095,7 +1095,7 @@ local function runtimeMapTerrainSnapshot()
 	mapPerformanceRecord("terrain hex construction",tileStart)
 	local neighborStart=mapPerformanceStart()
 	local hexByKey,hexOrderByKey={},{}
-	local changed,affected,changedHexes={},{},{}
+	local changed,geometryChanged,affected,changedHexes={},{},{},{}
 	local changedCount,removedCount=0,0
 	local oldOrder=previous~=nil and previous.hexOrderByKey or nil
 	local lastOldIndex,orderChanged=0,false
@@ -1104,6 +1104,10 @@ local function runtimeMapTerrainSnapshot()
 		hexByKey[key]=hex
 		hexOrderByKey[key]=index
 		if previous==nil or previous.hexByKey[key]~=hex then
+			local old=previous~=nil and previous.hexByKey[key] or nil
+			if old==nil or old.position[1]~=hex.position[1] or old.position[3]~=hex.position[3] then
+				geometryChanged[key]=true
+			end
 			changed[key]=true
 			affected[key]=true
 			changedHexes[#changedHexes+1]=hex
@@ -1149,17 +1153,30 @@ local function runtimeMapTerrainSnapshot()
 			-- Find only new edges, then copy-on-write just the lists they
 			-- affect; stable graph arrays remain untouched and reusable.
 			for _,hex in ipairs(changedHexes) do
-				local x,z=math.floor(hex.position[1]/cellSize),math.floor(hex.position[3]/cellSize)
-				for bx=x-1,x+1 do
-					local row=buckets[bx]
-					if row~=nil then
-						for bz=z-1,z+1 do
-							for _,other in ipairs(row[bz] or {}) do
-								if other~=hex and
-									(changed[other.key]~=true or hexOrderByKey[other.key]<hexOrderByKey[hex.key]) and
-									runtimeMapHexesAdjacent(other,hex)==true then
-									newEdges[#newEdges+1]={other,hex}
-									affected[other.key]=true
+				if geometryChanged[hex.key]~=true then
+					-- A printed feature/type changed, but the hex stayed put.
+					-- Carry over the exact former edges without any distance tests.
+					for _,oldNeighbor in ipairs(previous.neighbors[hex.key] or {}) do
+						local other=hexByKey[oldNeighbor.key]
+						if other~=nil and geometryChanged[other.key]~=true and
+							(changed[other.key]~=true or hexOrderByKey[other.key]<hexOrderByKey[hex.key]) then
+							newEdges[#newEdges+1]={other,hex}
+							affected[other.key]=true
+						end
+					end
+				else
+					local x,z=math.floor(hex.position[1]/cellSize),math.floor(hex.position[3]/cellSize)
+					for bx=x-1,x+1 do
+						local row=buckets[bx]
+						if row~=nil then
+							for bz=z-1,z+1 do
+								for _,other in ipairs(row[bz] or {}) do
+									if other~=hex and
+										(changed[other.key]~=true or hexOrderByKey[other.key]<hexOrderByKey[hex.key]) and
+										runtimeMapHexesAdjacent(other,hex)==true then
+										newEdges[#newEdges+1]={other,hex}
+										affected[other.key]=true
+									end
 								end
 							end
 						end
