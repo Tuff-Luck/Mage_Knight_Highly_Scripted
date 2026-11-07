@@ -1726,15 +1726,15 @@ Einheiten</Text></Cell>
 <Panel id="CombatEnemyPanel" active="false" class="Floating" rectAlignment="UpperLeft" offsetXY="360 -80" width="1100" height="125" color="rgb(0.2, 0.2, 0.2)" outlineSize="1 -1">
 	<VerticalLayout rectAlignment="UpperCenter" offsetXY="0 0" padding="6 6 3 3" childForceExpandHeight="false">
 		<HorizontalLayout padding="5 0 0 0" preferredHeight="20" childForceExpandWidth="false">
-			<Text id="CombatMonsterHeader" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft">{en}Enemy{it}Nemico{ru}Враг{zh-tw}敵人{zh-cn}敌人{ko}적{es}Enemigo{fr}Ennemi{pt-br}Inimigo{de}Feind</Text>
-			<Text id="CombatArmourHeader" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter">{en}Armour{it}Armatura{ru}Броня{zh-tw}護甲{zh-cn}护甲{ko}방어구{es}Armadura{fr}Armure{pt-br}Armadura{de}Rüstung</Text>
-			<Text id="CombatDefenceTraitsHeader" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft">{en}Defence Abilities{it}Abilità difensive{ru}Защитные способности{zh-tw}防禦能力{zh-cn}防御能力{ko}방어 능력{es}Habilidades defensivas{fr}Capacités défensives{pt-br}Habilidades defensivas{de}Verteidigungsfähigkeiten</Text>
-			<Text id="CombatRangeSiegeHeader" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="170" alignment="MiddleLeft">{en}Range / Siege Phase{it}Fase a distanza / assedio{ru}Фаза дальних / осадных атак{zh-tw}遠程／攻城階段{zh-cn}远程／攻城阶段{ko}원거리 / 공성 단계{es}Fase de rango / asedio{fr}Phase à distance / siège{pt-br}Fase de alcance / cerco{de}Fernkampf- / Belagerungsphase</Text>
-			<Text id="CombatEnemyAttackHeader" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="110" alignment="MiddleCenter">{en}Enemy Attack{it}Attacco nemico{ru}Атака врага{zh-tw}敵人攻擊{zh-cn}敌人攻击{ko}적 공격{es}Ataque enemigo{fr}Attaque ennemie{pt-br}Ataque inimigo{de}Feindangriff</Text>
-			<Text id="CombatOffenceHeader" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="130" alignment="MiddleLeft">{en}Offence Abilities{it}Abilità offensive{ru}Атакующие способности{zh-tw}攻擊能力{zh-cn}攻击能力{ko}공격 능력{es}Habilidades ofensivas{fr}Capacités offensives{pt-br}Habilidades ofensivas{de}Angriffsfähigkeiten</Text>
-			<Text id="CombatBlockHeader" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="170" alignment="MiddleLeft">{en}Block Phase{it}Fase di blocco{ru}Фаза блока{zh-tw}格擋階段{zh-cn}格挡阶段{ko}방어 단계{es}Fase de bloqueo{fr}Phase de blocage{pt-br}Fase de bloqueio{de}Blockphase</Text>
-			<Text id="CombatAssignedAttackHeader" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="170" alignment="MiddleLeft">{en}Attack Phase{it}Fase di attacco{ru}Фаза атаки{zh-tw}攻擊階段{zh-cn}攻击阶段{ko}공격 단계{es}Fase de ataque{fr}Phase d'attaque{pt-br}Fase de ataque{de}Angriffsphase</Text>
-			<Text id="CombatResultHeader" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="230" alignment="MiddleLeft">{en}Result{it}Risultato{ru}Результат{zh-tw}結果{zh-cn}结果{ko}결과{es}Resultado{fr}Résultat{pt-br}Resultado{de}Ergebnis</Text>
+			<Text id="CombatMonsterHeader" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="White" preferredWidth="120" alignment="MiddleLeft">{en}Enemy{it}Nemico{ru}Враг{zh-tw}敵人{zh-cn}敌人{ko}적{es}Enemigo{fr}Ennemi{pt-br}Inimigo{de}Feind</Text>
+			<Text id="CombatArmourHeader" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter">{en}Armour{it}Armatura{ru}Броня{zh-tw}護甲{zh-cn}护甲{ko}방어구{es}Armadura{fr}Armure{pt-br}Armadura{de}Rüstung</Text>
+			<Text id="CombatDefenceTraitsHeader" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft">{en}Defence Abilities{it}Abilità difensive{ru}Защитные способности{zh-tw}防禦能力{zh-cn}防御能力{ko}방어 능력{es}Habilidades defensivas{fr}Capacités défensives{pt-br}Habilidades defensivas{de}Verteidigungsfähigkeiten</Text>
+			<Text id="CombatRangeSiegeHeader" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="White" preferredWidth="170" alignment="MiddleLeft">{en}Range / Siege Phase{it}Fase a distanza / assedio{ru}Фаза дальних / осадных атак{zh-tw}遠程／攻城階段{zh-cn}远程／攻城阶段{ko}원거리 / 공성 단계{es}Fase de rango / asedio{fr}Phase à distance / siège{pt-br}Fase de alcance / cerco{de}Fernkampf- / Belagerungsphase</Text>
+			<Text id="CombatEnemyAttackHeader" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="White" preferredWidth="105" alignment="MiddleCenter">{en}Enemy Attack{it}Attacco nemico{ru}Атака врага{zh-tw}敵人攻擊{zh-cn}敌人攻击{ko}적 공격{es}Ataque enemigo{fr}Attaque ennemie{pt-br}Ataque inimigo{de}Feindangriff</Text>
+			<Text id="CombatOffenceHeader" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="White" preferredWidth="130" alignment="MiddleLeft">{en}Offence Abilities{it}Abilità offensive{ru}Атакующие способности{zh-tw}攻擊能力{zh-cn}攻击能力{ko}공격 능력{es}Habilidades ofensivas{fr}Capacités offensives{pt-br}Habilidades ofensivas{de}Angriffsfähigkeiten</Text>
+			<Text id="CombatBlockHeader" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="White" preferredWidth="170" alignment="MiddleLeft">{en}Block Phase{it}Fase di blocco{ru}Фаза блока{zh-tw}格擋階段{zh-cn}格挡阶段{ko}방어 단계{es}Fase de bloqueo{fr}Phase de blocage{pt-br}Fase de bloqueio{de}Blockphase</Text>
+			<Text id="CombatAssignedAttackHeader" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="White" preferredWidth="170" alignment="MiddleLeft">{en}Attack Phase{it}Fase di attacco{ru}Фаза атаки{zh-tw}攻擊階段{zh-cn}攻击阶段{ko}공격 단계{es}Fase de ataque{fr}Phase d'attaque{pt-br}Fase de ataque{de}Angriffsphase</Text>
+			<Text id="CombatResultHeader" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="White" preferredWidth="255" alignment="MiddleLeft">{en}Result{it}Risultato{ru}Результат{zh-tw}結果{zh-cn}结果{ko}결과{es}Resultado{fr}Résultat{pt-br}Resultado{de}Ergebnis</Text>
 		</HorizontalLayout>
         <HorizontalLayout id="CombatEnemyPageControls" active="false" preferredHeight="22" childForceExpandWidth="false" childAlignment="MiddleCenter">
             <Button id="CombatEnemyPagePrev" onClick="resourceTracker" text="◀" preferredWidth="45" preferredHeight="20" class="ShortButton" />
@@ -1743,11 +1743,11 @@ Einheiten</Text></Cell>
         </HorizontalLayout>
 		<Panel id="CombatEnemyRow1" active="false" preferredHeight="32" outlineSize="0 0">
 			<HorizontalLayout padding="5 0 0 0" childForceExpandWidth="false">
-				<Panel preferredWidth="130" color="rgba(0,0,0,0)" outlineSize="0 0">
+				<Panel preferredWidth="120" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatEnemyJoin1" onClick="resourceTracker" color="rgba(0,0,0,0)"/><Text id="CombatEnemyRow1Name" class="Text14" fontSize="13" resizeTextMaxSize="13" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
 				</Panel>
 				<Text id="CombatEnemyRow1Armour" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter"/>
-				<Text id="CombatEnemyRow1Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="190" alignment="MiddleLeft"/>
+				<Text id="CombatEnemyRow1Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
 				<Panel id="CombatSourceCell1range" preferredWidth="170" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot1rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
 					<HorizontalLayout childForceExpandWidth="false" childForceExpandHeight="false" childAlignment="MiddleLeft">
@@ -1777,7 +1777,7 @@ Einheiten</Text></Cell>
 						</Button>
 					</HorizontalLayout>
 				</Panel>
-				<Panel preferredWidth="110" color="rgba(0,0,0,0)" outlineSize="0 0">
+				<Panel preferredWidth="105" color="rgba(0,0,0,0)" outlineSize="0 0">
 
 				    <Button id="CombatEnemyAttackCycle1" active="false" onClick="resourceTracker" color="rgba(0,0,0,0)" />
 
@@ -1825,19 +1825,19 @@ Einheiten</Text></Cell>
 						</Button>
 					</HorizontalLayout>
 				</Panel>
-				<Button id="CombatEnemyResultToggle1" onClick="resourceTracker" preferredWidth="270" color="rgba(0,0,0,0)" tooltip="Click to expand combat details">
+				<Button id="CombatEnemyResultToggle1" onClick="resourceTracker" preferredWidth="255" color="rgba(0,0,0,0)" tooltip="Click to expand combat details">
 					<Text id="CombatEnemyRow1Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false"/>
 				</Button>
 			</HorizontalLayout>
 		</Panel>
 		<Panel id="CombatEnemyRow2" active="false" preferredHeight="32" outlineSize="0 0">
 			<HorizontalLayout padding="5 0 0 0" childForceExpandWidth="false">
-				<Panel preferredWidth="130" color="rgba(0,0,0,0)" outlineSize="0 0">
+				<Panel preferredWidth="120" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatEnemyJoin2" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
 					<Text id="CombatEnemyRow2Name" class="Text14" fontSize="13" resizeTextMaxSize="13" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
 				</Panel>
 				<Text id="CombatEnemyRow2Armour" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter"/>
-				<Text id="CombatEnemyRow2Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="190" alignment="MiddleLeft"/>
+				<Text id="CombatEnemyRow2Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
 				<Panel id="CombatSourceCell2range" preferredWidth="170" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot2rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
 					<HorizontalLayout childForceExpandWidth="false" childForceExpandHeight="false" childAlignment="MiddleLeft">
@@ -1867,7 +1867,7 @@ Einheiten</Text></Cell>
 						</Button>
 					</HorizontalLayout>
 				</Panel>
-				<Panel preferredWidth="110" color="rgba(0,0,0,0)" outlineSize="0 0">
+				<Panel preferredWidth="105" color="rgba(0,0,0,0)" outlineSize="0 0">
 
 				    <Button id="CombatEnemyAttackCycle2" active="false" onClick="resourceTracker" color="rgba(0,0,0,0)" />
 
@@ -1915,19 +1915,19 @@ Einheiten</Text></Cell>
 						</Button>
 					</HorizontalLayout>
 				</Panel>
-				<Button id="CombatEnemyResultToggle2" onClick="resourceTracker" preferredWidth="270" color="rgba(0,0,0,0)" tooltip="Click to expand combat details">
+				<Button id="CombatEnemyResultToggle2" onClick="resourceTracker" preferredWidth="255" color="rgba(0,0,0,0)" tooltip="Click to expand combat details">
 					<Text id="CombatEnemyRow2Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false"/>
 				</Button>
 			</HorizontalLayout>
 		</Panel>
 		<Panel id="CombatEnemyRow3" active="false" preferredHeight="32" outlineSize="0 0">
 			<HorizontalLayout padding="5 0 0 0" childForceExpandWidth="false">
-				<Panel preferredWidth="130" color="rgba(0,0,0,0)" outlineSize="0 0">
+				<Panel preferredWidth="120" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatEnemyJoin3" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
 					<Text id="CombatEnemyRow3Name" class="Text14" fontSize="13" resizeTextMaxSize="13" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
 				</Panel>
 				<Text id="CombatEnemyRow3Armour" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter"/>
-				<Text id="CombatEnemyRow3Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="190" alignment="MiddleLeft"/>
+				<Text id="CombatEnemyRow3Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
 				<Panel id="CombatSourceCell3range" preferredWidth="170" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot3rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
 					<HorizontalLayout childForceExpandWidth="false" childForceExpandHeight="false" childAlignment="MiddleLeft">
@@ -1957,7 +1957,7 @@ Einheiten</Text></Cell>
 						</Button>
 					</HorizontalLayout>
 				</Panel>
-				<Panel preferredWidth="110" color="rgba(0,0,0,0)" outlineSize="0 0">
+				<Panel preferredWidth="105" color="rgba(0,0,0,0)" outlineSize="0 0">
 
 				    <Button id="CombatEnemyAttackCycle3" active="false" onClick="resourceTracker" color="rgba(0,0,0,0)" />
 
@@ -2005,19 +2005,19 @@ Einheiten</Text></Cell>
 						</Button>
 					</HorizontalLayout>
 				</Panel>
-				<Button id="CombatEnemyResultToggle3" onClick="resourceTracker" preferredWidth="270" color="rgba(0,0,0,0)" tooltip="Click to expand combat details">
+				<Button id="CombatEnemyResultToggle3" onClick="resourceTracker" preferredWidth="255" color="rgba(0,0,0,0)" tooltip="Click to expand combat details">
 					<Text id="CombatEnemyRow3Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false"/>
 				</Button>
 			</HorizontalLayout>
 		</Panel>
 		<Panel id="CombatEnemyRow4" active="false" preferredHeight="32" outlineSize="0 0">
 			<HorizontalLayout padding="5 0 0 0" childForceExpandWidth="false">
-				<Panel preferredWidth="130" color="rgba(0,0,0,0)" outlineSize="0 0">
+				<Panel preferredWidth="120" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatEnemyJoin4" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
 					<Text id="CombatEnemyRow4Name" class="Text14" fontSize="13" resizeTextMaxSize="13" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
 				</Panel>
 				<Text id="CombatEnemyRow4Armour" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter"/>
-				<Text id="CombatEnemyRow4Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="190" alignment="MiddleLeft"/>
+				<Text id="CombatEnemyRow4Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
 				<Panel id="CombatSourceCell4range" preferredWidth="170" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot4rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
 					<HorizontalLayout childForceExpandWidth="false" childForceExpandHeight="false" childAlignment="MiddleLeft">
@@ -2047,7 +2047,7 @@ Einheiten</Text></Cell>
 						</Button>
 					</HorizontalLayout>
 				</Panel>
-				<Panel preferredWidth="110" color="rgba(0,0,0,0)" outlineSize="0 0">
+				<Panel preferredWidth="105" color="rgba(0,0,0,0)" outlineSize="0 0">
 
 				    <Button id="CombatEnemyAttackCycle4" active="false" onClick="resourceTracker" color="rgba(0,0,0,0)" />
 
@@ -2095,19 +2095,19 @@ Einheiten</Text></Cell>
 						</Button>
 					</HorizontalLayout>
 				</Panel>
-				<Button id="CombatEnemyResultToggle4" onClick="resourceTracker" preferredWidth="270" color="rgba(0,0,0,0)" tooltip="Click to expand combat details">
+				<Button id="CombatEnemyResultToggle4" onClick="resourceTracker" preferredWidth="255" color="rgba(0,0,0,0)" tooltip="Click to expand combat details">
 					<Text id="CombatEnemyRow4Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false"/>
 				</Button>
 			</HorizontalLayout>
 		</Panel>
 		<Panel id="CombatEnemyRow5" active="false" preferredHeight="32" outlineSize="0 0">
 			<HorizontalLayout padding="5 0 0 0" childForceExpandWidth="false">
-				<Panel preferredWidth="130" color="rgba(0,0,0,0)" outlineSize="0 0">
+				<Panel preferredWidth="120" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatEnemyJoin5" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
 					<Text id="CombatEnemyRow5Name" class="Text14" fontSize="13" resizeTextMaxSize="13" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
 				</Panel>
 				<Text id="CombatEnemyRow5Armour" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter"/>
-				<Text id="CombatEnemyRow5Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="190" alignment="MiddleLeft"/>
+				<Text id="CombatEnemyRow5Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
 				<Panel id="CombatSourceCell5range" preferredWidth="170" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot5rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
 					<HorizontalLayout childForceExpandWidth="false" childForceExpandHeight="false" childAlignment="MiddleLeft">
@@ -2137,7 +2137,7 @@ Einheiten</Text></Cell>
 						</Button>
 					</HorizontalLayout>
 				</Panel>
-				<Panel preferredWidth="110" color="rgba(0,0,0,0)" outlineSize="0 0">
+				<Panel preferredWidth="105" color="rgba(0,0,0,0)" outlineSize="0 0">
 
 				    <Button id="CombatEnemyAttackCycle5" active="false" onClick="resourceTracker" color="rgba(0,0,0,0)" />
 
@@ -2185,19 +2185,19 @@ Einheiten</Text></Cell>
 						</Button>
 					</HorizontalLayout>
 				</Panel>
-				<Button id="CombatEnemyResultToggle5" onClick="resourceTracker" preferredWidth="270" color="rgba(0,0,0,0)" tooltip="Click to expand combat details">
+				<Button id="CombatEnemyResultToggle5" onClick="resourceTracker" preferredWidth="255" color="rgba(0,0,0,0)" tooltip="Click to expand combat details">
 					<Text id="CombatEnemyRow5Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false"/>
 				</Button>
 			</HorizontalLayout>
 		</Panel>
 		<Panel id="CombatEnemyRow6" active="false" preferredHeight="32" outlineSize="0 0">
 			<HorizontalLayout padding="5 0 0 0" childForceExpandWidth="false">
-				<Panel preferredWidth="130" color="rgba(0,0,0,0)" outlineSize="0 0">
+				<Panel preferredWidth="120" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatEnemyJoin6" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
 					<Text id="CombatEnemyRow6Name" class="Text14" fontSize="13" resizeTextMaxSize="13" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
 				</Panel>
 				<Text id="CombatEnemyRow6Armour" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter"/>
-				<Text id="CombatEnemyRow6Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="190" alignment="MiddleLeft"/>
+				<Text id="CombatEnemyRow6Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
 				<Panel id="CombatSourceCell6range" preferredWidth="170" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot6rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
 					<HorizontalLayout childForceExpandWidth="false" childForceExpandHeight="false" childAlignment="MiddleLeft">
@@ -2227,7 +2227,7 @@ Einheiten</Text></Cell>
 						</Button>
 					</HorizontalLayout>
 				</Panel>
-				<Panel preferredWidth="110" color="rgba(0,0,0,0)" outlineSize="0 0">
+				<Panel preferredWidth="105" color="rgba(0,0,0,0)" outlineSize="0 0">
 
 				    <Button id="CombatEnemyAttackCycle6" active="false" onClick="resourceTracker" color="rgba(0,0,0,0)" />
 
@@ -2275,18 +2275,18 @@ Einheiten</Text></Cell>
 						</Button>
 					</HorizontalLayout>
 				</Panel>
-				<Button id="CombatEnemyResultToggle6" onClick="resourceTracker" preferredWidth="270" color="rgba(0,0,0,0)" tooltip="Click to expand combat details">
+				<Button id="CombatEnemyResultToggle6" onClick="resourceTracker" preferredWidth="255" color="rgba(0,0,0,0)" tooltip="Click to expand combat details">
 					<Text id="CombatEnemyRow6Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false"/>
 				</Button>
 			</HorizontalLayout>
 		</Panel>
 		<Panel id="CombatEnemyRow7" active="false" preferredHeight="32" outlineSize="0 0">
 			<HorizontalLayout padding="5 0 0 0" childForceExpandWidth="false">
-				<Panel preferredWidth="130" color="rgba(0,0,0,0)" outlineSize="0 0">
+				<Panel preferredWidth="120" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatEnemyJoin7" onClick="resourceTracker" color="rgba(0,0,0,0)"/><Text id="CombatEnemyRow7Name" class="Text14" fontSize="13" resizeTextMaxSize="13" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
 				</Panel>
 				<Text id="CombatEnemyRow7Armour" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter"/>
-				<Text id="CombatEnemyRow7Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="190" alignment="MiddleLeft"/>
+				<Text id="CombatEnemyRow7Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
 				<Panel id="CombatSourceCell7range" preferredWidth="170" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot7rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
 					<HorizontalLayout childForceExpandWidth="false" childForceExpandHeight="false" childAlignment="MiddleLeft">
@@ -2316,7 +2316,7 @@ Einheiten</Text></Cell>
 						</Button>
 					</HorizontalLayout>
 				</Panel>
-				<Panel preferredWidth="110" color="rgba(0,0,0,0)" outlineSize="0 0">
+				<Panel preferredWidth="105" color="rgba(0,0,0,0)" outlineSize="0 0">
 
 				    <Button id="CombatEnemyAttackCycle7" active="false" onClick="resourceTracker" color="rgba(0,0,0,0)" />
 
@@ -2364,19 +2364,19 @@ Einheiten</Text></Cell>
 						</Button>
 					</HorizontalLayout>
 				</Panel>
-				<Button id="CombatEnemyResultToggle7" onClick="resourceTracker" preferredWidth="270" color="rgba(0,0,0,0)" tooltip="Click to expand combat details">
+				<Button id="CombatEnemyResultToggle7" onClick="resourceTracker" preferredWidth="255" color="rgba(0,0,0,0)" tooltip="Click to expand combat details">
 					<Text id="CombatEnemyRow7Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false"/>
 				</Button>
 			</HorizontalLayout>
 		</Panel>
 		<Panel id="CombatEnemyRow8" active="false" preferredHeight="32" outlineSize="0 0">
 			<HorizontalLayout padding="5 0 0 0" childForceExpandWidth="false">
-				<Panel preferredWidth="130" color="rgba(0,0,0,0)" outlineSize="0 0">
+				<Panel preferredWidth="120" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatEnemyJoin8" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
 					<Text id="CombatEnemyRow8Name" class="Text14" fontSize="13" resizeTextMaxSize="13" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
 				</Panel>
 				<Text id="CombatEnemyRow8Armour" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter"/>
-				<Text id="CombatEnemyRow8Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="190" alignment="MiddleLeft"/>
+				<Text id="CombatEnemyRow8Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
 				<Panel id="CombatSourceCell8range" preferredWidth="170" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot8rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
 					<HorizontalLayout childForceExpandWidth="false" childForceExpandHeight="false" childAlignment="MiddleLeft">
@@ -2406,7 +2406,7 @@ Einheiten</Text></Cell>
 						</Button>
 					</HorizontalLayout>
 				</Panel>
-				<Panel preferredWidth="110" color="rgba(0,0,0,0)" outlineSize="0 0">
+				<Panel preferredWidth="105" color="rgba(0,0,0,0)" outlineSize="0 0">
 
 				    <Button id="CombatEnemyAttackCycle8" active="false" onClick="resourceTracker" color="rgba(0,0,0,0)" />
 
@@ -2454,19 +2454,19 @@ Einheiten</Text></Cell>
 						</Button>
 					</HorizontalLayout>
 				</Panel>
-				<Button id="CombatEnemyResultToggle8" onClick="resourceTracker" preferredWidth="270" color="rgba(0,0,0,0)" tooltip="Click to expand combat details">
+				<Button id="CombatEnemyResultToggle8" onClick="resourceTracker" preferredWidth="255" color="rgba(0,0,0,0)" tooltip="Click to expand combat details">
 					<Text id="CombatEnemyRow8Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false"/>
 				</Button>
 			</HorizontalLayout>
 		</Panel>
 		<HorizontalLayout id="CombatTotalRow" active="false" padding="5 0 0 0" preferredHeight="18" childForceExpandWidth="false">
 			<Panel id="CombatTotalSpacer" preferredWidth="1000" color="rgba(0,0,0,0)" outlineSize="0 0"/>
-			<Text id="CombatTotalDamage" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="180" alignment="MiddleLeft"/>
+			<VerticalLayout preferredWidth="345" childForceExpandHeight="false">
+				<Text id="CombatTotalDamage" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="345" preferredHeight="18" alignment="MiddleLeft"/>
+				<Text id="CombatKnockoutWarning" active="false" class="Text12" fontSize="12" color="#FF5555" preferredWidth="345" preferredHeight="30" alignment="MiddleLeft"/>
+			</VerticalLayout>
 		</HorizontalLayout>
-		<HorizontalLayout childForceExpandWidth="false">
-			<Text id="CombatAssignmentNote" class="Text12" color="White" preferredWidth="850" alignment="MiddleLeft">{en}Prototype estimate: assigned strength is compared with printed armour. Traits and special rules are reminders only.{it}Stima prototipo: la forza assegnata viene confrontata con l'armatura stampata. Tratti e regole speciali sono solo promemoria.{ru}Оценка прототипа: назначенная сила сравнивается с указанной бронёй. Свойства и особые правила приведены только для напоминания.{zh-tw}原型估算：以分配的攻擊力對照印刷護甲。特性與特殊規則僅供提醒。{zh-cn}原型估算：以分配的攻击力对照印刷护甲。特性与特殊规则仅供提醒。{ko}시험용 예상치: 할당된 공격력을 표시 방어구와 비교합니다. 특성과 특수 규칙은 참고용입니다.{es}Estimación de prueba: la fuerza asignada se compara con la armadura impresa. Los rasgos y reglas especiales son solo recordatorios.{fr}Estimation de test : la force attribuée est comparée à l'armure imprimée. Les traits et règles spéciales sont des rappels uniquement.{pt-br}Estimativa de teste: a força atribuída é comparada à armadura impressa. Traços e regras especiais são apenas lembretes.{de}Prototyp-Schätzung: Zugewiesene Stärke wird mit der gedruckten Rüstung verglichen. Merkmale und Sonderregeln dienen nur als Erinnerung.</Text>
-		</HorizontalLayout>
-	</VerticalLayout>
+		</VerticalLayout>
 </Panel>
 
 <!-- include UI/CombatEnemyPanel.xml -->

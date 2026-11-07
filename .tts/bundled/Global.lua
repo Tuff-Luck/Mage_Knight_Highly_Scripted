@@ -2309,7 +2309,12 @@ function __onObjectEnterZone_raw(zone, obj)
 	if gStates.firstStarted==true then
 		handleStartedZoneEnterPrelude(ctx)
 		handleTurnOrderZoneEnter(ctx)
-		if mapHandleTerrainZoneEnter(ctx)==true then return end
+		if ctx.isMap and terrainTiles[ctx.objGUID]~=nil then
+			local terrainStart=mapPerformanceStart()
+			local terrainHandled=mapHandleTerrainZoneEnter(ctx)
+			mapPerformanceRecord("terrain entry dispatch",terrainStart)
+			if terrainHandled==true then return end
+		elseif mapHandleTerrainZoneEnter(ctx)==true then return end
 		handleMapLocationZoneEnter(ctx)
 		handleMapVisualZoneEnter(ctx)
 		handleHandZoneEnter(ctx)
@@ -30098,6 +30103,39 @@ function terrainExploreOptions()
 	return terrainExploreButtons
 end
 
+-- This is deliberately scenario/map-shape agnostic. A newly explored tile
+-- normally adjoins a revealed tile (roughly 6 world units between tile centres).
+-- Keep a 6.5-unit clearance beyond that single-tile expansion, so a City card
+-- never becomes dormant just before the map can reach it. The test runs again
+-- on every EXPLORE refresh, allowing unlimited/custom maps to grow toward it.
+function terrainExploreMayReachCityCard(position,mapObjects)
+	if position==nil or mapObjects==nil then return true end
+	local nearbyRadiusSq=156.25 -- (6 + 6.5) squared
+	local foundTerrain=false
+	for _,obj in ipairs(mapObjects) do
+		if terrainTiles[obj.guid]~=nil and obj.position~=nil then
+			foundTerrain=true
+			local dx=obj.position[1]-position[1]
+			local dz=obj.position[3]-position[3]
+			if dx*dx+dz*dz<nearbyRadiusSq then return true end
+		end
+	end
+	-- Also respect any nonstandard legal placements already exposed by the UI.
+	-- They may be farther away than a normal adjacent-terrain expansion.
+	for _,button in pairs(terrainExploreOptions()) do
+		local attrs=button.attributes
+		local x=attrs~=nil and tonumber(attrs.tilePosX) or nil
+		local z=attrs~=nil and tonumber(attrs.tilePosZ) or nil
+		if x~=nil and z~=nil then
+			local dx=x-position[1]
+			local dz=z-position[3]
+			if dx*dx+dz*dz<42.25 then return true end
+		end
+	end
+	-- No map geometry yet? Keep ordinary City placement enabled.
+	return not foundTerrain
+end
+
 function clearTerrainExploreOptions()
 	terrainExploreButtons={{}}
 	local exploreUI=getObjectFromGUID(GUID.ui.mapExplore)
@@ -31419,6 +31457,7 @@ function refreshTerrainExploreOptions(compactCities)
 	end
 	if gStates==nil then return end
 	local perfStart=mapPerformanceStart()
+	local scanStart=mapPerformanceStart()
 	local mapSnapshot=runtimeMapSnapshot()
 	local playAreaObjects=mapSnapshot.objects or {}
 	local faceUpTerrain={}
@@ -31439,6 +31478,7 @@ function refreshTerrainExploreOptions(compactCities)
 	local startTileObject=getObjectFromGUID(startTileGUID)
 	if startTileObject==nil then return end
 	local startTilePosition=startTileObject.getPosition()
+	mapPerformanceRecord("EXPLORE map scan",scanStart)
 	--Highlight legal tile plays
 	if gStates.gameScenario~="Volkare's Quest" and gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="The War of Four" and gStates.gameScenario~="Against the Horsemen Blitz" and gStates.gameScenario~="Fury of the Apocalypse Dragon" and not (gStates.gameScenario=="Custom" and gStates.mapShapeKey=="predefined") then
 		local gridType=mapShapeGridURL[gStates.mapShapeKey] or ""
@@ -31467,6 +31507,7 @@ function refreshTerrainExploreOptions(compactCities)
 		local leftCountryQuantity=leftCountry~=nil and (tonumber(leftCountry.getQuantity()) or 0) or 0
 		local leftCoreQuantity=leftCore~=nil and (tonumber(leftCore.getQuantity()) or 0) or 0
 		if terrainStackQuantity>0 or leftCountryQuantity>0 or leftCoreQuantity>0 then
+			local optionsStart=mapPerformanceStart()
 			for _, terTile in pairs(terrainExploreSpots) do
 				local found=false
 				for _, mightBeMap in pairs(faceUpTerrain) do
@@ -31483,8 +31524,11 @@ function refreshTerrainExploreOptions(compactCities)
 				end
 				end
 			end
+			mapPerformanceRecord("EXPLORE legal slots",optionsStart)
 			for _, teleportDecal in pairs(fracturedLandsTeleportDecals()) do terrainDecals[#terrainDecals+1]=teleportDecal end
+			local decalStart=mapPerformanceStart()
 			Global.setDecals(terrainDecals)
+			mapPerformanceRecord("EXPLORE decal update",decalStart)
 			-- Do not send unchanged XML through the TTS UI boundary after each
 			-- intermediate terrain/drop callback. Position is encoded in the id.
 			local uiParts={}
@@ -31493,7 +31537,9 @@ function refreshTerrainExploreOptions(compactCities)
 			end
 			local uiSignature=table.concat(uiParts,"|")
 			if uiSignature~=lastTerrainExploreButtonsSignature then
+				local xmlStart=mapPerformanceStart()
 				getObjectFromGUID(GUID.ui.mapExplore).UI.setXmlTable(terrainExploreButtons)
+				mapPerformanceRecord("EXPLORE XML update",xmlStart)
 				lastTerrainExploreButtonsSignature=uiSignature
 			end
 			--Now that the complete legal EXPLORE set is known, place each City card once at its closest legal position.
@@ -33387,7 +33433,10 @@ function playCity(obj, hexFeature, dropped)
 	local cityObj=getObjectFromGUID(cityGUID)
 	if cityObj~=nil and gStates.gameScenario~="The Lost Relic Blitz" then
 		local terrainPos=obj.getPosition()
-		cityObj.setPositionSmooth({terrainPos[1],1.09,terrainPos[3]})
+		local cityPosition={terrainPos[1],1.09,terrainPos[3]}
+		-- Volkare's Camp hex (a7d898) deploys instantly; other Cities retain their smooth placement.
+		if cityGUID==volkare.terrainHex then cityObj.setPosition(cityPosition)
+		else cityObj.setPositionSmooth(cityPosition) end
 		if gStates.cityCard[cityGUID]~=nil and dropped==true then cityInitialCardPosition(cityGUID,obj) end
 		table.insert(gStates.citiesPlayed,cityGUID)
 		if gStates.ultimateLeaders==nil then gStates.ultimateLeaders=0 end
@@ -33537,7 +33586,120 @@ end
 -- A zone is a collider query, NOT an ownership record: it can include neighbouring
 -- Cities, reference tiles, and other unrelated objects (including locked ones).
 -- Use the City's actual roster and the existing pre-combat manual-army recognition.
-cityCardExploreGroup=function(cityZone)
+-- Resolve physical City-garrison candidates once per compaction pass. City
+-- armies can be manually fanned outside scripting zones, so use a local
+-- physics broadphase around active City cards instead of scanning the entire
+-- table. This remains runtime-only: the physical table still owns positions.
+
+local function cityCardCompactionCandidates(scanContext)
+	if scanContext.candidates~=nil then return scanContext.candidates end
+	scanContext.positions=scanContext.positions or {}
+	-- Query only the space around City cards which may actually compact. A City
+	-- army can be fanned well outside its scripting zone, so zone.getObjects() is
+	-- not a safe substitute. A stationary TTS box cast covers the complete known
+	-- garrison radius (9 world units), including manual tokens and Shields.
+	-- Keep the full-table path for non-TTS tests / unavailable physics services.
+	local function cityCardCompactionNearbyObjects(owners,scanContext)
+		if Physics==nil or type(Physics.cast)~="function" then return getAllObjects() end
+		local nearby,seen={},{}
+		for _,owner in ipairs(owners) do
+			if scanContext.activeOwners==nil or scanContext.activeOwners[owner.guid]==true then
+				local pos=owner.position
+				local castStart=mapPerformanceStart()
+				local hits=Physics.cast({
+					type=3,origin={pos[1],1.8,pos[3]},direction={0,1,0},
+					size={22,8,22},max_distance=0,debug=false
+				})
+				mapPerformanceRecord("City vicinity cast",castStart)
+				if type(hits)~="table" then return getAllObjects() end
+				for _,hit in ipairs(hits) do
+					local obj=hit.hit_object
+					local guid=obj~=nil and obj.guid or nil
+					if guid~=nil and seen[guid]~=true then
+						seen[guid]=true
+						nearby[#nearby+1]=obj
+					end
+				end
+				-- A registered defender may be underneath a City card or another
+				-- token, so don't make its ownership depend on the collider cast.
+				-- This is only a handful of direct lookups, not a table scan.
+				local roster=gStates.cityMonsterQty~=nil and gStates.cityMonsterQty[owner.guid] or nil
+				for guid,state in pairs(roster or {}) do
+					if state=="alive" and seen[guid]~=true and monsterPugs[guid]~=nil then
+						local obj=getObjectFromGUID(guid)
+						if obj~=nil then
+							seen[guid]=true
+							nearby[#nearby+1]=obj
+						end
+					end
+				end
+			end
+		end
+		return nearby
+	end
+	local perfStart=mapPerformanceStart()
+	local owners=cityGarrisonCardOwners()
+	local byOwner={}
+	for _,owner in ipairs(owners) do byOwner[owner.guid]={} end
+	local avatarGUIDs={}
+	for _,mage in pairs(mageKnights or {}) do
+		if mage.model~=nil then avatarGUIDs[mage.model]=true end
+		if mage.standee~=nil then avatarGUIDs[mage.standee]=true end
+		if mage.token~=nil then avatarGUIDs[mage.token]=true end
+	end
+	local physicalMap=nil
+	for _,obj in pairs(cityCardCompactionNearbyObjects(owners,scanContext)) do
+		local guid=obj~=nil and obj.guid or nil
+		if guid~=nil and terrainTiles[guid]==nil then
+			local pug=monsterPugs[guid]
+			local objectType=obj.type
+			-- Cards, decks, bags and dice cannot be City garrisons or Shields.
+			-- Avoid a TTS position read for each such unrelated object.
+			local possible=pug~=nil or avatarGUIDs[guid]==true or (objectType~="Card" and objectType~="Deck"
+				and objectType~="Bag" and objectType~="Infinite_Bag" and objectType~="Dice")
+			if possible then
+				local pos=scanContext.positions[guid]
+				if pos==nil then
+					pos=obj.getPosition()
+					scanContext.positions[guid]=pos
+				end
+				if pos~=nil and pos[2]>=CITY_GARRISON_MIN_Y and pos[2]<=CITY_GARRISON_MAX_Y then
+					local ownerGUID,distSq=cityGarrisonNearestOwner(pos,owners)
+					if ownerGUID~=nil and distSq~=nil then
+					local isAvatar=avatarGUIDs[guid]==true
+					local eligibleEnemy=pug~=nil and CITY_GARRISON_PUG_TYPES[pug.pugType]==true
+					local shield=distSq<=10.24 and isShieldObject~=nil and isShieldObject(obj)==true
+					if (eligibleEnemy and distSq<=CITY_GARRISON_KNOWN_RADIUS*CITY_GARRISON_KNOWN_RADIUS)
+					or (distSq<=10.24 and (shield or isAvatar)) then
+						-- Only inspect movement state for realistic City pieces; ordinary
+						-- table clutter needs no additional engine-bound calls.
+						local settled=obj.held_by_color==nil and obj.resting~=false and
+							(obj.isSmoothMoving==nil or obj.isSmoothMoving()~=true) and
+							(mapTokenHasPendingArrival==nil or mapTokenHasPendingArrival(guid)~=true)
+						if settled then
+							-- Map occupants, even when near a City card, are never part of
+							-- its manual garrison or moving entourage.
+							if physicalMap==nil then physicalMap=runtimeMapSnapshot() end
+							local _,_,onTerrain=runtimeMapHexAtPosition(pos,physicalMap)
+							if onTerrain==nil then
+								local group=byOwner[ownerGUID]
+								if group~=nil then
+									group[#group+1]={guid=guid,distSq=distSq,pug=pug,shield=shield,avatar=isAvatar}
+								end
+							end
+						end
+					end
+				end
+				end
+			end
+		end
+	end
+	scanContext.candidates=byOwner
+	mapPerformanceRecord("City candidate indexing",perfStart)
+	return byOwner
+end
+
+cityCardExploreGroup=function(cityZone,scanContext)
 	local details=cityScriptZones[cityZone]
 	local cityGUID=details~=nil and details.cityGUID or nil
 	local cityData=cityGUID~=nil and gStates.cityMonsterQty[cityGUID] or nil
@@ -33558,33 +33720,20 @@ cityCardExploreGroup=function(cityZone)
 
 	local movingGUIDs={[card.guid]=true}
 	local ownerGUID=standardCityGarrisonOwner(cityGUID)
-	local owners=cityGarrisonCardOwners()
-	local avatarGUIDs={}
-	for _,mage in pairs(mageKnights or {}) do
-		if mage.model~=nil then avatarGUIDs[mage.model]=true end
-		if mage.standee~=nil then avatarGUIDs[mage.standee]=true end
-		if mage.token~=nil then avatarGUIDs[mage.token]=true end
-	end
-	for _,obj in pairs(getAllObjects()) do
-		if obj~=nil and obj.guid~=nil and obj.guid~=card.guid and terrainTiles[obj.guid]==nil then
-			local pos=obj.getPosition()
-			if pos~=nil and pos[2]>=CITY_GARRISON_MIN_Y and pos[2]<=CITY_GARRISON_MAX_Y then
-				local nearest,distSq=cityGarrisonNearestOwner(pos,owners)
-				if nearest==ownerGUID and distSq~=nil then
-					local registered=cityData[obj.guid]=="alive"
-					local pug=monsterPugs[obj.guid]
-					local eligibleEnemy=pug~=nil and CITY_GARRISON_PUG_TYPES[pug.pugType]==true and
-						cityGarrisonRegisteredElsewhere(obj.guid,cityData)~=true
-					local radius=registered and CITY_GARRISON_KNOWN_RADIUS or CITY_GARRISON_MANUAL_RADIUS
-					if eligibleEnemy and distSq<=radius*radius and
-						(registered or cityData.extra.combatRosterLocked~=true) then
-						movingGUIDs[obj.guid]=true
-					elseif distSq<=10.24 and
-						((isShieldObject~=nil and isShieldObject(obj)==true) or avatarGUIDs[obj.guid]==true) then
-						-- Only genuinely parked shields/avatars move with the City card.
-						movingGUIDs[obj.guid]=true
-					end
-				end
+	local context=scanContext or {activeOwners={[ownerGUID]=true}}
+	local candidates=cityCardCompactionCandidates(context)[ownerGUID] or {}
+	for _,entry in ipairs(candidates) do
+		local guid=entry.guid
+		if context.movedGUIDs==nil or context.movedGUIDs[guid]~=true then
+			local registered=cityData[guid]=="alive"
+			local eligibleEnemy=entry.pug~=nil and CITY_GARRISON_PUG_TYPES[entry.pug.pugType]==true and
+				cityGarrisonRegisteredElsewhere(guid,cityData)~=true
+			local radius=registered and CITY_GARRISON_KNOWN_RADIUS or CITY_GARRISON_MANUAL_RADIUS
+			if eligibleEnemy and entry.distSq<=radius*radius and
+				(registered or cityData.extra.combatRosterLocked~=true) then
+				movingGUIDs[guid]=true
+			elseif entry.distSq<=10.24 and (entry.shield or entry.avatar) then
+				movingGUIDs[guid]=true
 			end
 		end
 	end
@@ -33618,8 +33767,25 @@ local function cityCardExploreBlockerBuckets(mapObjects)
 	return buckets
 end
 
-cityCardExploreSpaceFree=function(mapObjects,desiredLocation,movingGUIDs,extraBlockedPos,reservedPositions)
+-- Sample the current EXPLORE slots and in-flight City reservations once per
+-- placement decision, not once for each of its 24 candidate offsets.
+local function cityCardExplorePositionChecks()
+	local cards={}
+	local seen={}
+	for _,cardGUID in pairs(gStates.cityCard or {}) do
+		if cardGUID~=nil and seen[cardGUID]~=true then
+			seen[cardGUID]=true
+			local target=cityCardPendingDestination(cardGUID)
+			local card=getObjectFromGUID(cardGUID)
+			cards[#cards+1]={guid=cardGUID,live=card~=nil and card.getPosition() or nil,target=target}
+		end
+	end
+	return {options=terrainExploreOptions(),cards=cards}
+end
+
+cityCardExploreSpaceFree=function(mapObjects,desiredLocation,movingGUIDs,extraBlockedPos,reservedPositions,checks)
 	if cityCardPositionForbidden(desiredLocation)==true then return false end
+	checks=checks or cityCardExplorePositionChecks()
 	if extraBlockedPos~=nil then
 		local blockZ=extraBlockedPos[3] or extraBlockedPos[2]
 		if ((desiredLocation[1]-extraBlockedPos[1])^2)+((desiredLocation[3]-blockZ)^2)<9.61 then return false end
@@ -33627,7 +33793,7 @@ cityCardExploreSpaceFree=function(mapObjects,desiredLocation,movingGUIDs,extraBl
 	for _,reservedPos in ipairs(reservedPositions or {}) do
 		if ((desiredLocation[1]-reservedPos[1])^2)+((desiredLocation[3]-reservedPos[3])^2)<9.61 then return false end
 	end
-	for _,button in pairs(terrainExploreOptions()) do
+	for _,button in pairs(checks.options) do
 		if button.attributes~=nil and button.attributes.tilePosX~=nil and button.attributes.tilePosZ~=nil and
 			((desiredLocation[1]-tonumber(button.attributes.tilePosX))^2)+
 			((desiredLocation[3]-tonumber(button.attributes.tilePosZ))^2)<9.61 then return false end
@@ -33649,36 +33815,30 @@ cityCardExploreSpaceFree=function(mapObjects,desiredLocation,movingGUIDs,extraBl
 	-- The map-zone snapshot misses City cards parked outside it and smooth-moving cards.
 	-- Explicitly block both their live positions and reserved targets, even if another
 	-- City's scripting zone mistakenly reported them as occupants.
-	local checked={}
-	for _,cardGUID in pairs(gStates.cityCard or {}) do
-		if cardGUID~=nil and checked[cardGUID]~=true then
-			checked[cardGUID]=true
-			local target=cityCardPendingDestination(cardGUID)
-			if movingGUIDs[cardGUID]~=true then
-				local card=getObjectFromGUID(cardGUID)
-				local live=card~=nil and card.getPosition() or nil
-				for _,pos in ipairs({live,target}) do
-					if ((desiredLocation[1]-pos[1])^2)+((desiredLocation[3]-pos[3])^2)<9.61 then return false end
-				end
-			end
+	for _,card in ipairs(checks.cards) do
+		if movingGUIDs[card.guid]~=true then
+			local live,target=card.live,card.target
+			if live~=nil and ((desiredLocation[1]-live[1])^2)+((desiredLocation[3]-live[3])^2)<9.61 then return false end
+			if target~=nil and ((desiredLocation[1]-target[1])^2)+((desiredLocation[3]-target[3])^2)<9.61 then return false end
 		end
 	end
 	return true
 end
 
 -- Shared placement engine for initial deployment and later EXPLORE compaction.
-findCityCardPosition=function(cityPos,mapObjects,movingGUIDs,extraBlockedPos,reservedPositions,preferredOffset)
+findCityCardPosition=function(cityPos,mapObjects,movingGUIDs,extraBlockedPos,reservedPositions,preferredOffset,checks)
+	checks=checks or cityCardExplorePositionChecks()
 	if preferredOffset~=nil and cityCardExploreOffsets[preferredOffset]~=nil then
 		local offset=cityCardExploreOffsets[preferredOffset]
 		local preferred={cityPos[1]+offset[1],1.09,cityPos[3]+offset[3]}
-		if cityCardExploreSpaceFree(mapObjects,preferred,movingGUIDs,extraBlockedPos,reservedPositions)==true then
+		if cityCardExploreSpaceFree(mapObjects,preferred,movingGUIDs,extraBlockedPos,reservedPositions,checks)==true then
 			return preferred,math.sqrt((offset[1]^2)+(offset[3]^2))
 		end
 	end
 	local best,bestDistance=nil,nil
 	for _,offset in ipairs(cityCardExploreOffsets) do
 		local desired={cityPos[1]+offset[1],1.09,cityPos[3]+offset[3]}
-		if cityCardExploreSpaceFree(mapObjects,desired,movingGUIDs,extraBlockedPos,reservedPositions)==true then
+		if cityCardExploreSpaceFree(mapObjects,desired,movingGUIDs,extraBlockedPos,reservedPositions,checks)==true then
 			local distance=math.sqrt((offset[1]^2)+(offset[3]^2))
 			if bestDistance==nil or distance<bestDistance-0.05 then best=desired bestDistance=distance end
 		end
@@ -33686,7 +33846,7 @@ findCityCardPosition=function(cityPos,mapObjects,movingGUIDs,extraBlockedPos,res
 	return best,bestDistance
 end
 
-moveCityCardExploreGroup=function(group,desiredLocation,movedCityZones,mapObjects)
+moveCityCardExploreGroup=function(group,desiredLocation,movedCityZones,mapObjects,scanContext)
 	local cardPos=group.card.getPosition()
 	local deltaX=desiredLocation[1]-cardPos[1]
 	local deltaZ=desiredLocation[3]-cardPos[3]
@@ -33695,6 +33855,12 @@ moveCityCardExploreGroup=function(group,desiredLocation,movedCityZones,mapObject
 	-- Only move objects that passed the explicit ownership checks. Moving every object
 	-- returned by zone.getObjects() used to abduct distant locked reference tiles.
 	for guid,_ in pairs(group.movingGUIDs) do
+		-- No second City may claim a piece moved by the current City pass.
+		if scanContext~=nil then
+			scanContext.positions[guid]=nil
+			scanContext.movedGUIDs=scanContext.movedGUIDs or {}
+			scanContext.movedGUIDs[guid]=true
+		end
 		if guid~=group.card.guid then
 			local obj=getObjectFromGUID(guid)
 			if obj~=nil then
@@ -33730,22 +33896,64 @@ moveCityCardExploreGroup=function(group,desiredLocation,movedCityZones,mapObject
 	return true
 end
 
+-- When a City card is safely outside the current map and its immediate
+-- expansion frontier, skip expensive garrison scans. This is independent of
+-- scenario and map layout: the active terrain positions decide the boundary.
+-- Every refresh rechecks the card and terrain, so moving either one back toward
+-- the other reactivates compaction. Explicit placement relocation bypasses it.
+local function cityCardParkedBeyondExplore(cityZone,mapObjects)
+	if mapObjects==nil then return false end
+	local details=cityScriptZones[cityZone]
+	local cityGUID=details~=nil and details.cityGUID or nil
+	local cardGUID=cityGUID~=nil and gStates.cityCard[cityGUID] or nil
+	local card=cardGUID~=nil and getObjectFromGUID(cardGUID) or nil
+	if card==nil or card.held_by_color~=nil or
+		(card.isSmoothMoving~=nil and card.isSmoothMoving()==true) or
+		cityCardPendingDestination(cardGUID)~=nil then return false end
+	local pos=card.getPosition()
+	if terrainExploreMayReachCityCard(pos,mapObjects)~=false then return false end
+	-- A remote City can still overlap another City. Keep normal compaction active
+	-- if their current or reserved destinations collide.
+	for _,otherGUID in pairs(gStates.cityCard or {}) do
+		if otherGUID~=cardGUID then
+			local other=getObjectFromGUID(otherGUID)
+			local live=other~=nil and other.getPosition() or nil
+			local pending=cityCardPendingDestination(otherGUID)
+			if live~=nil and (pos[1]-live[1])^2+(pos[3]-live[3])^2<9.61 then return false end
+			if pending~=nil and (pos[1]-pending[1])^2+(pos[3]-pending[3])^2<9.61 then return false end
+		end
+	end
+	return true
+end
+
 -- Place one City group at its closest legal location. Never redirect a card that
 -- is already travelling to a reserved destination; another City can compact meanwhile.
-positionCityCardForExplore=function(cityZone,extraBlockedPos,movedCityZones,reservedPositions,mapObjects)
+positionCityCardForExplore=function(cityZone,extraBlockedPos,movedCityZones,reservedPositions,mapObjects,scanContext)
 	if movedCityZones~=nil and movedCityZones[cityZone]==true then return false end
-	local group=cityCardExploreGroup(cityZone)
+	if extraBlockedPos==nil and cityCardParkedBeyondExplore(cityZone,mapObjects)==true then return false end
+	-- A City in smooth movement cannot be repositioned. Check before the
+	-- expensive garrison broadphase rather than after building its group.
+	local info=cityScriptZones[cityZone]
+	local cityGUID=info~=nil and info.cityGUID or nil
+	local cardGUID=cityGUID~=nil and gStates.cityCard[cityGUID] or nil
+	if cardGUID~=nil and cityCardPendingDestination(cardGUID)~=nil then return false end
+	local scanStart=mapPerformanceStart()
+	local group=cityCardExploreGroup(cityZone,scanContext)
+	mapPerformanceRecord("City group scan",scanStart)
 	if group==nil or cityCardPendingDestination(group.card.guid)~=nil then return false end
 	if mapObjects==nil then mapObjects=cityCardMapSnapshot() end
 	local cityPos=group.city.getPosition()
 	local cardPos=group.card.getPosition()
 	local currentDistance=math.sqrt(((cardPos[1]-cityPos[1])^2)+((cardPos[3]-cityPos[3])^2))
-	local currentFree=cityCardExploreSpaceFree(mapObjects,cardPos,group.movingGUIDs,extraBlockedPos,reservedPositions)
-	local best,bestDistance=findCityCardPosition(cityPos,mapObjects,group.movingGUIDs,extraBlockedPos,reservedPositions)
+	local searchStart=mapPerformanceStart()
+	local checks=cityCardExplorePositionChecks()
+	local currentFree=cityCardExploreSpaceFree(mapObjects,cardPos,group.movingGUIDs,extraBlockedPos,reservedPositions,checks)
+	local best,bestDistance=findCityCardPosition(cityPos,mapObjects,group.movingGUIDs,extraBlockedPos,reservedPositions,nil,checks)
+	mapPerformanceRecord("City position search",searchStart)
 	if best==nil then return false end
 	if currentFree==true and currentDistance<=bestDistance+0.25 then return false end
 	if reservedPositions~=nil then reservedPositions[#reservedPositions+1]=best end
-	return moveCityCardExploreGroup(group,best,movedCityZones,mapObjects)
+	return moveCityCardExploreGroup(group,best,movedCityZones,mapObjects,scanContext)
 end
 
 --Used immediately before a chosen EXPLORE tile is placed. Normally the refresh pass has already moved cards,
@@ -33776,8 +33984,27 @@ function compactCityCardsAfterExplore(mapObjects)
 	local perfStart=mapPerformanceStart()
 	local movedCityZones={}
 	local reservedPositions={}
-	for _, cityZone in ipairs({GUID.zone.blueCity, GUID.zone.redCity, GUID.zone.greenCity, GUID.zone.whiteCity}) do positionCityCardForExplore(cityZone, nil, movedCityZones, reservedPositions, mapObjects) end
+	local cityZones={GUID.zone.blueCity,GUID.zone.redCity,GUID.zone.greenCity,GUID.zone.whiteCity}
+	local scanContext={positions={},activeOwners={}}
+	-- The broadphase must not cast around remote parked Cities, or Cities
+	-- whose card is still travelling. All owners still participate in the
+	-- nearest-owner check, preventing another City's defenders being taken.
+	for _,cityZone in ipairs(cityZones) do
+		if cityCardParkedBeyondExplore(cityZone,mapObjects)~=true then
+			local details=cityScriptZones[cityZone]
+			local cityGUID=details~=nil and details.cityGUID or nil
+			local cardGUID=cityGUID~=nil and gStates.cityCard[cityGUID] or nil
+			if cityGUID~=nil and (cardGUID==nil or cityCardPendingDestination(cardGUID)==nil) then
+				scanContext.activeOwners[standardCityGarrisonOwner(cityGUID)]=true
+			end
+		end
+	end
+	for _,cityZone in ipairs(cityZones) do
+		positionCityCardForExplore(cityZone,nil,movedCityZones,reservedPositions,mapObjects,scanContext)
+	end
+	local headStart=mapPerformanceStart()
 	positionApocalypseDragonHeads()
+	mapPerformanceRecord("Dragon head positioning",headStart)
 	mapPerformanceRecord("City compaction",perfStart)
 end
 
@@ -44634,17 +44861,20 @@ local function resourceCardsDetailsOpen()
         and UI.getAttribute("ResourceTrackerDetail","active")=="true"
 end
 
-local COMBAT_ENEMY_DEFENCE_TRAITS={
+-- Keep combat constants in one private table: luabundle adds four parameters
+-- to each module, which also count toward Lua 5.2's 200 active-local limit.
+local combatConfig={}
+combatConfig.enemyDefenceTraits={
     {"fortified","Fortified"},{"unfortified","Unfortified"},{"elusive","Elusive"},
     {"arcaneImmunity","Arcane Immunity"},{"pResist","Physical Resist"},
     {"fResist","Fire Resist"},{"iResist","Ice Resist"},{"mResist","Psychic Resist"}
 }
-local COMBAT_ENEMY_OFFENCE_TRAITS={
+combatConfig.enemyOffenceTraits={
     {"swiftness","Swiftness"},{"brutal","Brutal"},{"poison","Poison"},
     {"paralyse","Paralyse"},{"assassination","Assassination"},
     {"cumbersome","Cumbersome"},{"vampiric","Vampiric"}
 }
-local COMBAT_SOURCE_FIELDS={
+combatConfig.sourceFields={
     {key="ranged",family="ranged",type="Physical Range",icon="MKChoiceRanged"},
     {key="rangedFire",family="ranged",type="Fire Range",icon="MKChoiceRanged"},
     {key="rangedIce",family="ranged",type="Ice Range",icon="MKChoiceRanged"},
@@ -44695,20 +44925,20 @@ local combatExpandedResults={}
 local combatReductionAttackChoice={}
 local combatReductionActiveSource={}
 local combatAttackChoiceByRow={}
-local COMBAT_ASSIGNMENT_ROW_COUNT=8 -- XML has eight reusable row controls.
-local COMBAT_ASSIGNMENT_CROWDED_PAGE_SIZE=6
-local COMBAT_ASSIGNMENT_SLOT_COUNT=6
-local COMBAT_ASSIGNMENT_ROW_HEIGHT=32
-local COMBAT_ASSIGNMENT_PANEL_BASE_HEIGHT=48
-local COMBAT_ASSIGNMENT_COLUMNS={Name=130,Armour=55,Traits=150,Attacks=110,Offence=130,Result=270}
+combatConfig.rowCount=8 -- XML has eight reusable row controls.
+combatConfig.crowdedPageSize=6
+combatConfig.slotCount=6
+combatConfig.rowHeight=32
+combatConfig.panelBaseHeight=30
+combatConfig.columns={Name=120,Armour=55,Traits=150,Attacks=105,Offence=130,Result=255}
 -- Damage/resistance colours: normal, then the darker shade used once a value has been reduced.
-local COMBAT_TYPE_COLORS={P={"#FFFFFF","#9A9A9A"},F={"#FF5555","#992E2E"},I={"#5AA0FF","#2F5F9A"},
+combatConfig.typeColors={P={"#FFFFFF","#9A9A9A"},F={"#FF5555","#992E2E"},I={"#5AA0FF","#2F5F9A"},
     IF={"#C070FF","#74429A"},M={"#FFE055","#9A8A33"}}
-local COMBAT_RESIST_TYPES={pResist="P",fResist="F",iResist="I",mResist="M"}
+combatConfig.resistTypes={pResist="P",fResist="F",iResist="I",mResist="M"}
 
 -- These tokens carry attacks, but cannot themselves be attacked or defeated.
 -- Volkare and trap rolls already put the current attack in gStates.monsterPerks.
-local COMBAT_ATTACK_ONLY_REMINDERS={
+combatConfig.attackOnlyReminders={
     ["Volkare Reminder Token"]={name="Volkare's Attack",armour=0,attackOnly=true},
     ["Trap Reminder Token"]={name="Trap",armour=0,attackOnly=true}
 }
@@ -44729,12 +44959,12 @@ local function combatEnemyData(guid,obj)
     if perks==nil or type(perks.attack)~="table" then return nil end
     obj=obj or getObjectFromGUID(guid)
     if obj==nil then return nil end
-    local reminder=COMBAT_ATTACK_ONLY_REMINDERS[obj.getGMNotes()]
+    local reminder=combatConfig.attackOnlyReminders[obj.getGMNotes()]
     return reminder,reminder~=nil and "attackOnly" or nil
 end
 
 local function combatTypeRich(text,typeKey,reduced)
-    local colors=COMBAT_TYPE_COLORS[typeKey]
+    local colors=combatConfig.typeColors[typeKey]
     if colors==nil then return text end
     return "<color="..colors[reduced and 2 or 1]..">"..text.."</color>"
 end
@@ -44751,12 +44981,12 @@ local function combatEnemyTraitsText(data,perks,traitDefinitions)
             traits[#traits+1]=trait[2]
         elseif trait[1]~="fortified" and trait[1]~="unfortified"
             and (data[trait[1]]==true or (perks~=nil and perks[trait[1]]==true)) then
-            traits[#traits+1]=COMBAT_RESIST_TYPES[trait[1]]~=nil
-                and combatTypeRich(trait[2],COMBAT_RESIST_TYPES[trait[1]]) or trait[2]
+            traits[#traits+1]=combatConfig.resistTypes[trait[1]]~=nil
+                and combatTypeRich(trait[2],combatConfig.resistTypes[trait[1]]) or trait[2]
         end
     end
     local defender=(tonumber(data.defend) or 0)+(perks~=nil and (tonumber(perks.defend) or 0) or 0)
-    if traitDefinitions==COMBAT_ENEMY_DEFENCE_TRAITS then
+    if traitDefinitions==combatConfig.enemyDefenceTraits then
         if defender>0 then traits[#traits+1]="Defender +"..tostring(defender) end
         local fortificationCount=(data.fortified==true and 1 or 0)
             +(perks~=nil and perks.fortified==true and 1 or 0)
@@ -44785,21 +45015,21 @@ local function combatEffectOf(guid)
     return scan~=nil and scan.enemyEffects~=nil and scan.enemyEffects[guid] or nil
 end
 
-local COMBAT_TRANSFORM_FAMILIES={attack=true,ranged=true,siege=true}
-local COMBAT_ELEMENT_SUFFIXES={"ColdFire","Fire","Ice","Psychic"}
+combatConfig.transformFamilies={attack=true,ranged=true,siege=true}
+combatConfig.elementSuffixes={"ColdFire","Fire","Ice","Psychic"}
 
 -- The single place that maps a resource key through active attack transformations (Altem Mages).
 -- Cold Fire replaces the element; Siege replaces the family and keeps the element. Block is never changed.
 function resourceCardsTransformedKey(key,transform)
     if transform==nil or (not transform.coldFire and not transform.siege) then return key end
     local family,suffix=key,""
-    for _,candidate in ipairs(COMBAT_ELEMENT_SUFFIXES) do
+    for _,candidate in ipairs(combatConfig.elementSuffixes) do
         if key:sub(-#candidate)==candidate and #key>#candidate then
             family,suffix=key:sub(1,#key-#candidate),candidate
             break
         end
     end
-    if COMBAT_TRANSFORM_FAMILIES[family]~=true then return key end
+    if combatConfig.transformFamilies[family]~=true then return key end
     if transform.siege then family="siege" end
     if transform.coldFire then suffix="ColdFire" end
     return family..suffix
@@ -44843,7 +45073,7 @@ local function combatAssignmentSources(seat)
                 end
                 return source
             end
-            for _,field in ipairs(COMBAT_SOURCE_FIELDS) do
+            for _,field in ipairs(combatConfig.sourceFields) do
                 local amount=tonumber(effective[field.key]) or 0
                 if amount>0 then
                     local source=ensureSource(field.family=="block" and "block" or "attack")
@@ -44903,7 +45133,7 @@ local function combatNearestEnemyGUID(source,entries)
     return nearestGUID
 end
 
-local COMBAT_ATTACK_TYPES={
+combatConfig.attackTypes={
     {key="P",label="Physical",attack="attack",ranged="ranged",siege="siege",block="block"},
     {key="F",label="Fire",attack="attackFire",ranged="rangedFire",siege="siegeFire",block="blockFire"},
     {key="I",label="Ice",attack="attackIce",ranged="rangedIce",siege="siegeIce",block="blockIce"},
@@ -44936,7 +45166,7 @@ local function combatEnemyPrintedAttacks(data,perks,stripAbilities,ownerGUID)
     local poison=not stripAbilities and combatEnemyHasTrait(data,perks,"poison")
     local paralyse=not stripAbilities and combatEnemyHasTrait(data,perks,"paralyse")
     local assassination=not stripAbilities and combatEnemyHasTrait(data,perks,"assassination")
-    for _,attackType in ipairs(COMBAT_ATTACK_TYPES) do
+    for _,attackType in ipairs(combatConfig.attackTypes) do
         local values=override[attackType.key] or base[attackType.key]
         for _,printedValue in ipairs(type(values)=="table" and values or {}) do
             local bonus=elemental and (attackType.key=="IF" and 1 or 2) or 0
@@ -45044,17 +45274,17 @@ end
 local function combatEnemyOffenceTraits(entry)
     if entry.removeAbilities and entry.data.monsters==nil then return "None" end
     if entry.data.monsters==nil then
-        return combatEnemyTraitsText(entry.data,entry.perks,COMBAT_ENEMY_OFFENCE_TRAITS)
+        return combatEnemyTraitsText(entry.data,entry.perks,combatConfig.enemyOffenceTraits)
     end
     local merged={}
     for _,summoned in ipairs(entry.summoned or {}) do
         if not (summoned.effect~=nil and summoned.effect.removeAbilities==true) then
-            for _,trait in ipairs(COMBAT_ENEMY_OFFENCE_TRAITS) do
+            for _,trait in ipairs(combatConfig.enemyOffenceTraits) do
                 if combatEnemyHasTrait(summoned.data,summoned.perks,trait[1]) then merged[trait[1]]=true end
             end
         end
     end
-    return combatEnemyTraitsText(merged,nil,COMBAT_ENEMY_OFFENCE_TRAITS)
+    return combatEnemyTraitsText(merged,nil,combatConfig.enemyOffenceTraits)
 end
 
 local function combatEntryHasCumbersome(guid,data,perks)
@@ -45238,7 +45468,7 @@ local function combatAttackTotal(groups,data,perks)
     local normal,resisted=0,0
     for _,group in ipairs(groups) do
         for _,source in ipairs(group.sources) do
-            for _,attackType in ipairs(COMBAT_ATTACK_TYPES) do
+            for _,attackType in ipairs(combatConfig.attackTypes) do
                 local value=tonumber(source.resources[attackType[group.category]]) or 0
                 if value>0 then
                     if combatEnemyResists(data,perks,attackType.key) then
@@ -45509,7 +45739,7 @@ local function combatBlockResult(entry,sources)
             end
         end
         if source.block>0 then
-            for _,field in ipairs(COMBAT_SOURCE_FIELDS) do
+            for _,field in ipairs(combatConfig.sourceFields) do
                 local value=tonumber(source.resources[field.key]) or 0
                 if field.family=="block" and value>0 then
                     -- Repeated Block icons (Shield of the Fallen Kings) are separate, equal effects.
@@ -45840,7 +46070,7 @@ local function combatGroupTraitsText(entry,groupEntry)
         unfortified=entry.perks~=nil and entry.perks.unfortified or nil,
         wallFortified=groupEntry.perks.wallFortified}
     for _,key in ipairs({"pResist","fResist","iResist","mResist"}) do data[key]=groupEntry.data[key] end
-    return combatEnemyTraitsText(data,perks,COMBAT_ENEMY_DEFENCE_TRAITS)
+    return combatEnemyTraitsText(data,perks,combatConfig.enemyDefenceTraits)
 end
 
 local function combatGroupAttackLine(group,sources,attackArmour)
@@ -45998,8 +46228,8 @@ local function combatAssignmentRefreshRows(entries,sources)
     local grandDamage,damageSources=0,0
     combatAssignmentRowTargets={}
     combatAssignmentRowIndices={}
-    local pageSize=#entries>COMBAT_ASSIGNMENT_CROWDED_PAGE_SIZE
-        and COMBAT_ASSIGNMENT_CROWDED_PAGE_SIZE or COMBAT_ASSIGNMENT_ROW_COUNT
+    local pageSize=#entries>combatConfig.crowdedPageSize
+        and combatConfig.crowdedPageSize or combatConfig.rowCount
     -- Keep joined groups together on a page whenever they fit. Combat math always
     -- covers every enemy; paging only controls which rows are displayed.
     local pageStarts,pageEnds={},{}
@@ -46028,7 +46258,7 @@ local function combatAssignmentRefreshRows(entries,sources)
     local pageEnd=pageEnds[combatEnemyPage] or 0
     local visibleRows=pageEnd-pageOffset
     for index,entry in ipairs(entries) do rowByGUID[entry.guid]=index end
-    for row=1,COMBAT_ASSIGNMENT_ROW_COUNT do
+    for row=1,combatConfig.rowCount do
         local entry=row<=visibleRows and entries[pageOffset+row] or nil
         if entry~=nil then
             combatAssignmentRowTargets[row]=entry.guid
@@ -46056,7 +46286,7 @@ local function combatAssignmentRefreshRows(entries,sources)
         group.leader=group.members[1]
         groupOf[index]=group
     end
-    for row=1,COMBAT_ASSIGNMENT_ROW_COUNT do
+    for row=1,combatConfig.rowCount do
         local index=pageOffset+row
         local entry=row<=visibleRows and entries[index] or nil
         local group=entry~=nil and groupOf[index] or nil
@@ -46067,7 +46297,7 @@ local function combatAssignmentRefreshRows(entries,sources)
         if entry~=nil and group~=nil then
             combatPanelSetAttribute("CombatEnemyRow"..row.."Name","text",
                 (group.leader~=index and "+ " or "")..entry.name)
-            local ownTraits=combatEnemyTraitsText(entry.data,entry.perks,COMBAT_ENEMY_DEFENCE_TRAITS)
+            local ownTraits=combatEnemyTraitsText(entry.data,entry.perks,combatConfig.enemyDefenceTraits)
             shownTraits[row]=ownTraits
             combatPanelSetAttribute("CombatEnemyRow"..row.."Traits","text",ownTraits)
             combatPanelSetAttribute("CombatEnemyRow"..row.."Armour","font","Fonts/MKCardText")
@@ -46112,8 +46342,8 @@ local function combatAssignmentRefreshRows(entries,sources)
             shownOffence[row]=offenceText
             combatPanelSetAttribute("CombatEnemyRow"..row.."Offence","text",offenceText)
             local traitLines=math.max(select(2,offenceText:gsub("\n",""))+1,
-                select(2,combatEnemyTraitsText(entry.data,entry.perks,COMBAT_ENEMY_DEFENCE_TRAITS):gsub("\n",""))+1)
-            for column,width in pairs(COMBAT_ASSIGNMENT_COLUMNS) do
+                select(2,combatEnemyTraitsText(entry.data,entry.perks,combatConfig.enemyDefenceTraits):gsub("\n",""))+1)
+            for column,width in pairs(combatConfig.columns) do
                 combatPanelSetAttribute("CombatEnemyRow"..row..column,"preferredWidth",tostring(width))
             end
             entry.attackCount=math.max(#attacks,traitLines)
@@ -46425,10 +46655,9 @@ local function combatAssignmentRefreshRows(entries,sources)
     end
     attackAssignmentsDamageSync(damageSpec)
     local damageResults=combatDamageResolve(damageItems,damageUnits,combatHeroArmour(nativeCommandCount),attackAssignmentsDamageTargetsOf)
-    local totalHeroWounds,totalHeroDamage,totalDiscardWounds=0,0,0
+    local totalHeroWounds,totalDiscardWounds=0,0
     for _,result in pairs(damageResults) do
         totalHeroWounds=totalHeroWounds+result.heroWounds
-        totalHeroDamage=totalHeroDamage+result.heroDamage
         totalDiscardWounds=totalDiscardWounds+result.discard
     end
 
@@ -46470,7 +46699,7 @@ local function combatAssignmentRefreshRows(entries,sources)
         end
     end
     combatSetDefeatMarks(trackedGuids,defeatedGuids)
-    for row=1,COMBAT_ASSIGNMENT_ROW_COUNT do
+    for row=1,combatConfig.rowCount do
         local index=pageOffset+row
         local entry=row<=visibleRows and entries[index] or nil
         local group=entry~=nil and groupOf[index] or nil
@@ -46502,8 +46731,8 @@ local function combatAssignmentRefreshRows(entries,sources)
         for _,family in ipairs({"range","block","attack"}) do
             local items=lists[family]
             if #items>0 then colUsed[family]=true end
-            overflow=overflow+math.max(0,#items-COMBAT_ASSIGNMENT_SLOT_COUNT)
-            for slot=1,COMBAT_ASSIGNMENT_SLOT_COUNT do
+            overflow=overflow+math.max(0,#items-combatConfig.slotCount)
+            for slot=1,combatConfig.slotCount do
                 local id="CombatSourceSlot"..row..family..slot
                 local item=items[slot]
                 if item~=nil then
@@ -46511,7 +46740,7 @@ local function combatAssignmentRefreshRows(entries,sources)
                     combatAssignmentIconButton(id,true,item.amount,item.icon,
                         item.source.name..": "..item.text,
                         combatAssignmentState.selected==item.source.key,
-                        item.typeKey~=nil and COMBAT_TYPE_COLORS[item.typeKey][item.reduced and 2 or 1] or nil)
+                        item.typeKey~=nil and combatConfig.typeColors[item.typeKey][item.reduced and 2 or 1] or nil)
                 else
                     combatAssignmentIconButton(id,false,0,"","",false)
                 end
@@ -46522,7 +46751,7 @@ local function combatAssignmentRefreshRows(entries,sources)
             combatPanelSetAttribute("CombatSourceCell"..row..family,"color",
                 merged and "rgba(1,1,1,0.10)" or "rgba(0,0,0,0)")
         end
-        local rowHeight=COMBAT_ASSIGNMENT_ROW_HEIGHT
+        local rowHeight=combatConfig.rowHeight
         if entry~=nil and group~=nil then
             -- Final armour for the current layout: Elusive doubles unless every attack is blocked.
             local armourValue=entry.baseArmour
@@ -46614,7 +46843,7 @@ local function combatAssignmentRefreshRows(entries,sources)
     -- Hide a column when every visible enemy leaves it blank or "None".
     local function textBlank(text) return text==nil or text=="" or text=="None" or text=="-" end
     local colShown={range=colUsed.range,block=colUsed.block,attack=colUsed.attack,traits=false,offence=false}
-    for row=1,COMBAT_ASSIGNMENT_ROW_COUNT do
+    for row=1,combatConfig.rowCount do
         if not textBlank(shownTraits[row]) then colShown.traits=true end
         if not textBlank(shownOffence[row]) then colShown.offence=true end
     end
@@ -46626,7 +46855,7 @@ local function combatAssignmentRefreshRows(entries,sources)
         local active=shown and "true" or "false"
         if not shown then hiddenWidth=hiddenWidth+columnWidths[column] end
         combatPanelSetAttribute(headerIDs[column],"active",active)
-        for index=1,COMBAT_ASSIGNMENT_ROW_COUNT do
+        for index=1,combatConfig.rowCount do
             local cell=(column=="traits" and "CombatEnemyRow"..index.."Traits")
                 or (column=="offence" and "CombatEnemyRow"..index.."Offence")
                 or "CombatSourceCell"..index..column
@@ -46634,21 +46863,27 @@ local function combatAssignmentRefreshRows(entries,sources)
         end
     end
 
-    local showTotal=totalHeroDamage>0
+    local showTotal=totalHeroWounds>0
     combatPanelSetAttribute("CombatTotalRow","active",showTotal and "true" or "false")
     if showTotal then
-        -- The spacer pushes the total under the Result column.
-        local spacer=-hiddenWidth
-        for _,width in ipairs({130,55,150,170,110,130,170,170}) do spacer=spacer+width end
+        -- Align with Result; allow the separate knockout warning to extend slightly
+        -- into the preceding column rather than clipping in a 180-unit text field.
+        local spacer=-hiddenWidth-50
+        for _,width in ipairs({120,55,150,170,105,130,170,170}) do spacer=spacer+width end
         combatPanelSetAttribute("CombatTotalSpacer","preferredWidth",tostring(spacer))
-        -- Only damage that reaches the Hero counts; Wounds to hand and to the discard pile are in brackets.
-        local woundsText=combatWoundsText(totalHeroWounds).." to hand"
-        if totalDiscardWounds>0 then woundsText=woundsText..", "..combatWoundsText(totalDiscardWounds).." to discard" end
-        if knockout then woundsText=woundsText.." — KNOCKED OUT (discard non-Wound hand cards)" end
+        local poisonText=totalDiscardWounds>0 and " ("..tostring(totalDiscardWounds).." Poison)" or ""
         combatPanelSetAttribute("CombatTotalDamage","text",
-            "Total damage - "..combatRich(tostring(totalHeroDamage).." ("..woundsText..")",COMBAT_RED))
+            "Total Wounds: "..combatRich(tostring(totalHeroWounds)..poisonText,COMBAT_RED))
         combatPanelSetAttribute("CombatTotalDamage","font","Fonts/MKCardText")
-        totalRowHeight=totalRowHeight+18
+        combatPanelSetAttribute("CombatKnockoutWarning","active",knockout and "true" or "false")
+        if knockout then
+            combatPanelSetAttribute("CombatKnockoutWarning","text",
+                "KNOCKED OUT\nDiscard all non-Wound cards from hand")
+            combatPanelSetAttribute("CombatKnockoutWarning","font","Fonts/MKCardText")
+        end
+        local summaryHeight=knockout and 48 or 18
+        combatPanelSetAttribute("CombatTotalRow","preferredHeight",tostring(summaryHeight))
+        totalRowHeight=totalRowHeight+summaryHeight
     end
 
     local selectionText
@@ -46693,10 +46928,10 @@ local function combatAssignmentRefreshRows(entries,sources)
             "{de}\nWarnung: "..tostring(overflow).." Feinde/Ressourcen überschreiten die sichtbaren Plätze."
         })
     end
-    combatPanelSetAttribute("CombatEnemyPanel","width",tostring(1410-hiddenWidth))
+    combatPanelSetAttribute("CombatEnemyPanel","width",tostring(1380-hiddenWidth))
     combatPanelSetAttribute("CombatEnemyPanel","color","rgb(0.24,0.2,0.15)")
-    local headerWidths={Monster=130,Armour=55,DefenceTraits=150,RangeSiege=170,EnemyAttack=110,
-        Offence=130,Block=170,AssignedAttack=170,Result=270}
+    local headerWidths={Monster=120,Armour=55,DefenceTraits=150,RangeSiege=170,EnemyAttack=105,
+        Offence=130,Block=170,AssignedAttack=170,Result=255}
     for name,width in pairs(headerWidths) do
         local id="Combat"..name.."Header"
         combatPanelSetAttribute(id,"font","Fonts/MKCardTittle")
@@ -46850,7 +47085,7 @@ local function refreshCombatEnemyPanel(monsters)
         attackAssignmentsRefreshTargetButtons(monsters)
     end
     combatPanelSetAttribute("CombatEnemyPanel","height",
-        tostring(COMBAT_ASSIGNMENT_PANEL_BASE_HEIGHT+rowHeight))
+        tostring(combatConfig.panelBaseHeight+rowHeight))
 end
 
 function resourceCardsRefreshCombatEnemies()
@@ -47165,7 +47400,7 @@ local choiceLetters={attackP1="A",attackP2="A2",attackP3="A3",
     blockP1="B",blockF1="BF",blockI1="BI",blockIF1="BC",
     twiceAttack="A2",twiceBlock="B2",move="M",influence="I",attack="A",block="B",
     ranged="R",siege="S",healing="H",draw="D",other="O",
-    siegeFire="SF",siegeIce="SI",rangedFire="RF",rangedIce="RI",
+    siegeFire="SF",siegeIce="SI",rangedFire="RF",rangedIce="RI",blockIce="BI",
     fire="F",ice="I",coldFire="C",boost="H+",split="I/F",negative="N",
     heal="H",combat="C",wound="W",fame="F",reputation="R",gain="G",ready="R",
     base="2",sourceUnused="3",red="R",blue="B",white="W",green="G",
@@ -47233,7 +47468,7 @@ end
 -- Units have a separate ability UI from cards, but share the same combat target-arrow handler.
 local function unitAbilityTargetCategory(ability)
     if not combatCalcOn or ability==nil then return nil end
-    for _,field in ipairs(COMBAT_SOURCE_FIELDS) do
+    for _,field in ipairs(combatConfig.sourceFields) do
         if (tonumber(ability[field.key]) or 0)>0 then return field.key end
     end
     if combatPsychicActive and (tonumber(ability.influence) or 0)>0 then return "influence" end
@@ -47455,7 +47690,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         or skillResourceDefinitions[card.guid]
     local function targetResourceFor(choice,category)
         if not combatCalcOn then return nil end
-        for _,field in ipairs(COMBAT_SOURCE_FIELDS) do
+        for _,field in ipairs(combatConfig.sourceFields) do
             if (tonumber(choice[field.key]) or 0)>0 then return field.key end
         end
         if combatPsychicActive and (tonumber(choice.influence) or 0)>0 then return "influence" end
@@ -47793,7 +48028,7 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decisi
     local selected=decision.index
     -- Paid choices explicitly marked expandable start as a single button.
     -- Opening that button must not activate an undecided mana-powered effect.
-    local expanded=(decision.ambiguous and not abilities.paidChoiceExpandable)
+    local expanded=(decision.ambiguous and decision.index==nil and not abilities.paidChoiceExpandable)
         or (choiceExpandedByGUID[unit.guid]==true and #available>1)
     local selectedKeys={}
     for i in pairs(decision.selected or {}) do selectedKeys[#selectedKeys+1]=tostring(i) end
@@ -48589,17 +48824,48 @@ unitManaDecision=function(unit,abilities,activation,counts)
         return result
     end
     if #paid==1 then
-        -- One payable ability means no option button is needed.
+        -- An unambiguous paid ability stays active if another mana token later
+        -- makes additional paid choices available.
         result.index=paid[1]
+        activation.lastPaidIndex=result.index
+        -- A previously selected paid effect no longer takes priority after
+        -- another payment has made a different effect the only legal one.
+        if activation.manaChoice~=nil and activation.manaChoice~=result.index then
+            activation.manaChoice=nil
+        end
     elseif #paid>1 then
-        -- E.g. Altem Mages' two Black options or Catapults paid by Gold.
+        -- Adding mana must not discard an already valid paid choice or the
+        -- corresponding Unit's existing enemy target. Prefer a manually chosen
+        -- paid ability, then a previously active automatic one.
         result.ambiguous=true
         result.display=paid
-        if activation.manaSignature==signature then
+        for _,index in ipairs(paid) do
+            if activation.manaChoice==index then result.index=index break end
+        end
+        if result.index==nil then
             for _,index in ipairs(paid) do
-                if activation.manaChoice==index then result.index=index break end
+                if activation.lastPaidIndex==index then result.index=index break end
             end
         end
+        if result.index==nil then
+            -- Red Cape/Northern Monks: Attack 3 -> elemental Attack 4,
+            -- Block 3 -> elemental Block 4. Only carry the choice forward
+            -- when exactly ONE payable ability matches that family.
+            local base=abilities[activation.choice]
+            local family=base~=nil and base.key or nil
+            if family~=nil and family~="other" and family~="gain"
+                and family~="ready" then
+                local matched,duplicates=nil,false
+                for _,index in ipairs(paid) do
+                    if abilities[index].key==family then
+                        if matched~=nil then duplicates=true break end
+                        matched=index
+                    end
+                end
+                if not duplicates then result.index=matched end
+            end
+        end
+        if result.index~=nil then activation.lastPaidIndex=result.index end
     else
         -- Unpaid abilities stay hidden until matching mana is actually there.
         result.display=free
@@ -49321,18 +49587,47 @@ local function renderSeat(seatPos)
         if rule~=nil and rule.effectManaChoice~=nil then
             linkedChoices=paidManaChoices(card.guid,rule,isStrong,boostBy[card.guid])
         end
-        -- Enemy-targeted effects count the printed icons of the token actually
-        -- placed over the card. A missing target still gives the fixed base Block.
+        -- Cold Toughness uses the enemy being blocked in the Combat Calculator,
+        -- not an enemy physically placed on the Action card. Read the active lock
+        -- first (including a just-clicked retarget), then a restored arrow.
+        -- Outside the calculator, the existing physical overlap remains usable.
         local enemyTarget,enemyBonus=nil,nil
         if rule~=nil and rule.enemyIconBlock==true and isStrong
             and cardPosture(card)=="upright" then
-            local bestArea=0
-            for guid,monster in pairs(monsters) do
-                if monster.is_face_down~=true then
-                    local area=overlapArea(footprints[card.guid],footprint(monster))
-                    if area>bestArea or (area==bestArea and area>0 and enemyTarget~=nil
-                        and guid<enemyTarget.guid) then
-                        enemyTarget,bestArea=monster,area
+            local targetGUID=nil
+            if combatCalcOn then
+                if combatAssignmentState.seat==seatPos then
+                    targetGUID=combatAssignmentState.targets[card.guid]
+                end
+                if targetGUID==nil or monsters[targetGUID]==nil
+                    or monsters[targetGUID].is_face_down==true then
+                    targetGUID=nil
+                    for guid in pairs(attackAssignmentsTargetGUIDs(card.guid)) do
+                        local enemy=monsters[guid]
+                        if enemy~=nil and enemy.is_face_down~=true
+                            and (targetGUID==nil or guid<targetGUID) then
+                            targetGUID=guid
+                        end
+                    end
+                end
+            end
+            if targetGUID~=nil then enemyTarget=monsters[targetGUID] end
+            -- Match the calculator's initial nearest-enemy assignment before
+            -- its first panel refresh has populated the source lock.
+            if enemyTarget==nil and combatCalcOn then
+                local nearest=combatNearestEnemyGUID(
+                    {guid=card.guid,ranged=0,siege=0,attack=0},enemyEntries)
+                if nearest~=nil then enemyTarget=monsters[nearest] end
+            end
+            if enemyTarget==nil then
+                local bestArea=0
+                for guid,monster in pairs(monsters) do
+                    if monster.is_face_down~=true then
+                        local area=overlapArea(footprints[card.guid],footprint(monster))
+                        if area>bestArea or (area==bestArea and area>0 and enemyTarget~=nil
+                            and guid<enemyTarget.guid) then
+                            enemyTarget,bestArea=monster,area
+                        end
                     end
                 end
             end
@@ -50910,7 +51205,7 @@ function resourceUnitsChoiceClicked(player,value,id)
         if candidate==index then available=true break end
     end
     if not available then return end
-    if (not decision.ambiguous or abilities.paidChoiceExpandable)
+    if (not decision.ambiguous or abilities.paidChoiceExpandable or decision.index~=nil)
         and choiceExpandedByGUID[unitGUID]~=true and #decision.display>1 then
         -- Expanding ordinary choices does not change what was played.
         choiceExpandedByGUID[unitGUID]=true
@@ -50944,11 +51239,14 @@ function resourceUnitsChoiceClicked(player,value,id)
     elseif decision.ambiguous then
         activation.manaChoice=index
         activation.manaSignature=decision.signature
-        if abilities.paidChoiceExpandable then choiceExpandedByGUID[unitGUID]=nil end
+        -- Once a payable alternative is selected, collapse to its icon and
+        -- restore the target button, regardless of the Unit's display style.
+        choiceExpandedByGUID[unitGUID]=nil
     else
         activation.choice=index
         activation.manaChoice=nil
         activation.manaSignature=nil
+        activation.lastPaidIndex=nil
         choiceExpandedByGUID[unitGUID]=nil
     end
     showUnitAbilityButtons(unit,abilities,activation,true)
@@ -51338,6 +51636,7 @@ local originalGlobalImages={
     {name="Volkare Pursuit Button",url="https://steamusercontent-a.akamaihd.net/ugc/13293042467654760772/E72DCC400EC451ABB80DC722F3657A631FC30C70/"},
     {name="Pursuit Stunned",url="https://steamusercontent-a.akamaihd.net/ugc/9820771160644960489/29318B61F2A30E0E941F355C3664303B0C95BC60/"},
     {name="Incantation Button",url="https://steamusercontent-a.akamaihd.net/ugc/2252424264022049991/BE0E6510D1DC7D3CD43FF6986F8373AE88DE7D8C/"},
+    {name="NightRules",url="https://steamusercontent-a.akamaihd.net/ugc/2050879843782641775/C4EE6141FF7BB91C8F7C463A752B5BEA719E7B45/"},
     {name="Defender Decal 1",url="https://steamusercontent-a.akamaihd.net/ugc/10632112705667530745/ABBA1BEC1D6355C0F4E08DA79140A8CB24A03A7A/"},
     {name="Defender Decal 2",url="https://steamusercontent-a.akamaihd.net/ugc/10268219428207943773/49479D6AF430568A0B487F79709FD20C77E3BA6C/"},
 }
@@ -57166,16 +57465,30 @@ function mapPerformanceRecord(label,started)
 	row.total=row.total+elapsed
 	row.max=math.max(row.max,elapsed)
 end
-function mapPerformanceReport()
+-- Default report shows only the costs that are currently worth monitoring.
+-- "all" retains the diagnostic breakdown; "raw" returns the underlying table.
+-- Return formatted text instead of the entire stats table so the TTS console
+-- does not expand every low-cost counter after printing the report.
+function mapPerformanceReport(detail)
+	if detail=="raw" then return mapPerformanceStats end
 	local keys={}
-	for key in pairs(mapPerformanceStats) do keys[#keys+1]=key end
-	table.sort(keys)
+	if detail=="all" or detail==true then
+		for key in pairs(mapPerformanceStats) do keys[#keys+1]=key end
+		table.sort(keys)
+	else
+		keys={"EXPLORE refresh","City compaction","City candidate indexing",
+			"terrain topology","terrain neighbour indexing","terrain entry dispatch"}
+	end
+	local lines={}
 	for _,key in ipairs(keys) do
 		local row=mapPerformanceStats[key]
-		print(string.format("[Map perf] %s: %d calls, %.2f ms total, %.2f ms avg, %.2f ms max",
-			key,row.count,row.total,row.total/row.count,row.max))
+		if row~=nil and row.count>0 then
+			lines[#lines+1]=string.format("%s: %d calls, %.1f ms avg, %.1f ms max",
+				key,row.count,row.total/row.count,row.max)
+		end
 	end
-	return mapPerformanceStats
+	if #lines==0 then return "No map performance samples yet" end
+	return table.concat(lines,"\n")
 end
 
 -- Shared runtime map snapshots. The physical TTS table is authoritative; these are only derived
@@ -57184,6 +57497,7 @@ end
 -- terrain hex topology.
 local runtimeMapObjectCache=nil
 local runtimeMapTerrainCache=nil
+local runtimeMapPreviousTerrainCache=nil
 local runtimeMapSnapshotCache=nil
 
 function runtimeMapInvalidateObjects()
@@ -57192,6 +57506,9 @@ function runtimeMapInvalidateObjects()
 end
 
 function runtimeMapInvalidateTerrain()
+	-- Retain the last geometry only until the next rebuild. Incoming terrain or
+	-- face/transform changes can then reconnect just the affected hexes.
+	if runtimeMapTerrainCache~=nil then runtimeMapPreviousTerrainCache=runtimeMapTerrainCache end
 	runtimeMapObjectCache=nil
 	runtimeMapTerrainCache=nil
 	runtimeMapSnapshotCache=nil
@@ -57380,9 +57697,11 @@ end
 
 local function runtimeMapObjectSnapshot()
 	if runtimeMapObjectCache~=nil then return runtimeMapObjectCache end
+	local perfStart=mapPerformanceStart()
 	local map=getObjectFromGUID(mapArea)
 	if map==nil then
 		runtimeMapObjectCache={objects={},objectGUIDs={}}
+		mapPerformanceRecord("Map object snapshot",perfStart)
 		return runtimeMapObjectCache
 	end
 	local objects=map.getObjects()
@@ -57396,6 +57715,7 @@ local function runtimeMapObjectSnapshot()
 		end
 	end
 	runtimeMapObjectCache={objects=validObjects,objectGUIDs=objectGUIDs}
+	mapPerformanceRecord("Map object snapshot",perfStart)
 	return runtimeMapObjectCache
 end
 
@@ -57409,8 +57729,9 @@ local function runtimeMapTerrainSnapshot()
 	local terrainEntries={}
 	local hexes={}
 	local signatureParts={}
+	local previous=runtimeMapPreviousTerrainCache
 	local bearings={"center","0","60","120","180","240","300"}
-
+	local tileStart=mapPerformanceStart()
 	for _,obj in pairs(objectSnapshot.objects or {}) do
 		local details=terrainTiles[obj.guid]
 		if details~=nil then
@@ -57436,72 +57757,183 @@ local function runtimeMapTerrainSnapshot()
 						local hexType=details.hexType[bearing]
 						if hexType~=nil and hexType~="" and hexType~="ocean" then
 							local xy=angleToXY(obj,bearing,position,rotation)
-							hexes[#hexes+1]={
-								terrain=obj,terrainGUID=obj.guid,bearing=bearing,
-								position={xy[1],1.30,xy[2]},hexType=hexType,
-								feature=details.hexFeature[bearing] or ""
-							}
-						end
-					end
-				end
-			end
-		end
-	end
-	local hexByKey={}
-	local neighbors={}
-	local neighborSet={}
-	for _,hex in ipairs(hexes) do
-		local key=runtimeMapHexKey(hex)
-		if key~=nil then
-			hexByKey[key]=hex
-			neighbors[key]={}
-			neighborSet[key]={}
-		end
-	end
-	-- Compare only hexes in nearby spatial cells. Hex adjacency is strictly less than
-	-- sqrt(7.4) world units, so 3-unit cells and their eight neighbours are exhaustive.
-	-- The exact distance predicate remains authoritative (including irregular scenario maps).
-	local neighborCellSize=3
-	local neighborBuckets={}
-	local hexOrder={}
-	for index,hex in ipairs(hexes) do hexOrder[hex]=index end
-	for _,second in ipairs(hexes) do
-		local secondKey=runtimeMapHexKey(second)
-		if secondKey~=nil then
-			local secondX=math.floor(second.position[1]/neighborCellSize)
-			local secondZ=math.floor(second.position[3]/neighborCellSize)
-			for x=secondX-1,secondX+1 do
-				for z=secondZ-1,secondZ+1 do
-					local bucket=neighborBuckets[x..":"..z]
-					for _,first in ipairs(bucket or {}) do
-						if runtimeMapHexesAdjacent(first,second)==true then
-							local firstKey=runtimeMapHexKey(first)
-							if firstKey~=nil then
-								neighbors[firstKey][#neighbors[firstKey]+1]=second
-								neighbors[secondKey][#neighbors[secondKey]+1]=first
-								neighborSet[firstKey][secondKey]=true
-								neighborSet[secondKey][firstKey]=true
+							local key=obj.guid.."|"..bearing
+							local feature=details.hexFeature[bearing] or ""
+							local old=previous~=nil and previous.hexByKey[key] or nil
+							if old~=nil and old.terrain==obj and old.hexType==hexType and
+								old.feature==feature and old.position[1]==xy[1] and old.position[3]==xy[2] then
+								-- Keep stable hex identities: unchanged graph lists can be shared.
+								hexes[#hexes+1]=old
+							else
+								hexes[#hexes+1]={
+									key=key,terrain=obj,terrainGUID=obj.guid,bearing=bearing,
+									position={xy[1],1.30,xy[2]},hexType=hexType,feature=feature
+								}
 							end
 						end
 					end
 				end
 			end
-			local bucketKey=secondX..":"..secondZ
-			if neighborBuckets[bucketKey]==nil then neighborBuckets[bucketKey]={} end
-			neighborBuckets[bucketKey][#neighborBuckets[bucketKey]+1]=second
 		end
 	end
-	-- Preserve the original map-entry ordering for equal-length movement/AI paths.
-	for _,nearby in pairs(neighbors) do
-		table.sort(nearby,function(a,b) return hexOrder[a]<hexOrder[b] end)
+	mapPerformanceRecord("terrain hex construction",tileStart)
+	local neighborStart=mapPerformanceStart()
+	local hexByKey,hexOrderByKey={},{}
+	local changed,geometryChanged,affected,changedHexes={},{},{},{}
+	local changedCount,removedCount=0,0
+	local oldOrder=previous~=nil and previous.hexOrderByKey or nil
+	local lastOldIndex,orderChanged=0,false
+	for index,hex in ipairs(hexes) do
+		local key=hex.key
+		hexByKey[key]=hex
+		hexOrderByKey[key]=index
+		if previous==nil or previous.hexByKey[key]~=hex then
+			local old=previous~=nil and previous.hexByKey[key] or nil
+			if old==nil or old.position[1]~=hex.position[1] or old.position[3]~=hex.position[3] then
+				geometryChanged[key]=true
+			end
+			changed[key]=true
+			affected[key]=true
+			changedHexes[#changedHexes+1]=hex
+			changedCount=changedCount+1
+		elseif oldOrder~=nil then
+			local oldIndex=oldOrder[key]
+			if oldIndex==nil or oldIndex<=lastOldIndex then orderChanged=true end
+			lastOldIndex=oldIndex or lastOldIndex
+		end
 	end
+	if previous~=nil then
+		for key in pairs(previous.hexByKey) do
+			if hexByKey[key]==nil then removedCount=removedCount+1 end
+			if changed[key] or hexByKey[key]==nil then
+				for _,oldNeighbor in ipairs(previous.neighbors[key] or {}) do
+					if hexByKey[oldNeighbor.key]~=nil then affected[oldNeighbor.key]=true end
+				end
+			end
+		end
+	end
+	-- If map.getObjects() reordered the old terrain, rebuild to retain the
+	-- same deterministic neighbour order for movement/pathfinding tie breaks.
+	local incremental=previous~=nil and oldOrder~=nil and not orderChanged and
+		(changedCount+removedCount)*3<#hexes
+	local neighbors,neighborSet={},{}
+	if incremental and changedCount==0 and removedCount==0 then
+		-- Terrain callbacks occasionally invalidate without changing geometry.
+		neighbors=previous.neighbors
+		neighborSet=previous.neighborSet
+	else
+		local cellSize=3
+		local buckets={}
+		for _,hex in ipairs(hexes) do
+			local x,z=math.floor(hex.position[1]/cellSize),math.floor(hex.position[3]/cellSize)
+			local row=buckets[x]
+			if row==nil then row={} buckets[x]=row end
+			local cell=row[z]
+			if cell==nil then cell={} row[z]=cell end
+			cell[#cell+1]=hex
+		end
+		local newEdges={}
+		if incremental then
+			-- Find only new edges, then copy-on-write just the lists they
+			-- affect; stable graph arrays remain untouched and reusable.
+			for _,hex in ipairs(changedHexes) do
+				if geometryChanged[hex.key]~=true then
+					-- A printed feature/type changed, but the hex stayed put.
+					-- Carry over the exact former edges without any distance tests.
+					for _,oldNeighbor in ipairs(previous.neighbors[hex.key] or {}) do
+						local other=hexByKey[oldNeighbor.key]
+						if other~=nil and geometryChanged[other.key]~=true and
+							(changed[other.key]~=true or hexOrderByKey[other.key]<hexOrderByKey[hex.key]) then
+							newEdges[#newEdges+1]={other,hex}
+							affected[other.key]=true
+						end
+					end
+				else
+					local x,z=math.floor(hex.position[1]/cellSize),math.floor(hex.position[3]/cellSize)
+					for bx=x-1,x+1 do
+						local row=buckets[bx]
+						if row~=nil then
+							for bz=z-1,z+1 do
+								for _,other in ipairs(row[bz] or {}) do
+									if other~=hex and
+										(geometryChanged[other.key]~=true or hexOrderByKey[other.key]<hexOrderByKey[hex.key]) and
+										runtimeMapHexesAdjacent(other,hex)==true then
+										newEdges[#newEdges+1]={other,hex}
+										affected[other.key]=true
+									end
+								end
+							end
+						end
+					end
+				end
+			end
+		end
+		for _,hex in ipairs(hexes) do
+			local key=hex.key
+			if incremental and not affected[key] then
+				neighbors[key]=previous.neighbors[key]
+				neighborSet[key]=previous.neighborSet[key]
+			else
+				local list,set={},{}
+				if incremental and previous.hexByKey[key]==hex then
+					for _,neighbor in ipairs(previous.neighbors[key] or {}) do
+						if hexByKey[neighbor.key]==neighbor then
+							list[#list+1]=neighbor
+							set[neighbor.key]=true
+						end
+					end
+				end
+				neighbors[key]=list
+				neighborSet[key]=set
+			end
+		end
+		local function link(a,b)
+			local ak,bk=a.key,b.key
+			if neighborSet[ak][bk]==true then return end
+			neighbors[ak][#neighbors[ak]+1]=b
+			neighbors[bk][#neighbors[bk]+1]=a
+			neighborSet[ak][bk]=true
+			neighborSet[bk][ak]=true
+		end
+		if incremental then
+			for _,edge in ipairs(newEdges) do link(edge[1],edge[2]) end
+		else
+			for _,hex in ipairs(hexes) do
+				local x,z=math.floor(hex.position[1]/cellSize),math.floor(hex.position[3]/cellSize)
+				for bx=x-1,x+1 do
+					local row=buckets[bx]
+					if row~=nil then
+						for bz=z-1,z+1 do
+							for _,other in ipairs(row[bz] or {}) do
+								if hexOrderByKey[other.key]<hexOrderByKey[hex.key] and
+									runtimeMapHexesAdjacent(other,hex)==true then link(other,hex) end
+							end
+						end
+					end
+				end
+			end
+		end
+		for _,hex in ipairs(hexes) do
+			local key=hex.key
+			if not incremental or affected[key] then
+				table.sort(neighbors[key],function(a,b) return hexOrderByKey[a.key]<hexOrderByKey[b.key] end)
+			end
+		end
+	end
+	if incremental then
+		mapPerformanceRecord(changedCount==0 and removedCount==0 and "terrain unchanged reuse" or "terrain incremental rebuild",neighborStart)
+	else
+		mapPerformanceRecord("terrain full rebuild",neighborStart)
+	end
+	mapPerformanceRecord("terrain neighbour indexing",neighborStart)
 
 	table.sort(signatureParts)
 	runtimeMapTerrainCache={
 		terrainObjects=terrainObjects,terrainPositions=terrainPositions,terrainRotations=terrainRotations,
-		terrainEntries=terrainEntries,hexes=hexes,hexByKey=hexByKey,neighbors=neighbors,neighborSet=neighborSet,
+		terrainEntries=terrainEntries,hexes=hexes,hexByKey=hexByKey,hexOrderByKey=hexOrderByKey,neighbors=neighbors,neighborSet=neighborSet,
 		terrainSignature=table.concat(signatureParts,"|")
 	}
+	runtimeMapPreviousTerrainCache=nil
 	mapPerformanceRecord("terrain topology",perfStart)
 	return runtimeMapTerrainCache
 end
