@@ -1146,8 +1146,8 @@ local function combatDamageNotes(item,result)
     end
     if item.assassination then notes[#notes+1]="> Assassination: Hero only" end
     if result.heroWounds>0 or result.discard>0 or result.paralyse then
-        local hero="> Hero: "..combatWoundsText(result.heroWounds)
-        if result.discard>0 then hero=hero.." +"..tostring(result.discard).." to discard" end
+        local hero=">Hero: "..combatWoundsText(result.heroWounds)
+        if result.discard>0 then hero=hero.." ("..tostring(result.discard).." Poison)" end
         if result.paralyse then hero=hero..", discard hand" end
         notes[#notes+1]=hero
     end
@@ -1186,11 +1186,16 @@ local function combatCompactResultLines(fullLines,damageItems,damageResults)
         end
     end
     local notes={}
-    if heroWounds>0 then notes[#notes+1]="Hero "..tostring(heroWounds).."W" end
+    if heroWounds>0 then
+        notes[#notes+1]=">Hero: "..combatWoundsText(heroWounds)
+            ..(discardWounds>0 and " ("..tostring(discardWounds).." Poison)" or "")
+    end
     if unitWounds>0 then notes[#notes+1]="Unit "..tostring(unitWounds).."W" end
     if unitDestroyed>0 then notes[#notes+1]=tostring(unitDestroyed).." unit destroyed" end
     if unitResisted>0 then notes[#notes+1]=tostring(unitResisted).." unit resisted" end
-    if discardWounds>0 then notes[#notes+1]="Discard "..tostring(discardWounds) end
+    if discardWounds>0 and heroWounds==0 then
+        notes[#notes+1]=tostring(discardWounds).." Poison"
+    end
     if paralyse then notes[#notes+1]="Paralyse: discard hand" end
     if assassination then notes[#notes+1]="Assassination" end
     if #notes>0 then
@@ -1977,9 +1982,13 @@ local function combatAssignmentRefreshRows(entries,sources)
                 maxResourceCounts[family]=math.max(maxResourceCounts[family],#items)
                 resourceLines=math.max(resourceLines,math.ceil(#items/combatConfig.lineSlotCount))
             end
+            -- Collapse the second icon line completely when unused. The Grid is
+            -- anchored to the cell's centre, so tall text rows don't strand
+            -- their one-line icons against the top of the enemy row.
             local gridID="CombatSourceGrid"..row..family
-            combatPanelSetAttribute(gridID,"preferredHeight",
-                tostring(math.max(1,math.ceil(#items/combatConfig.lineSlotCount))*26))
+            local gridHeight=math.ceil(#items/combatConfig.lineSlotCount)*26
+            combatPanelSetAttribute(gridID,"height",tostring(gridHeight))
+            combatPanelSetAttribute(gridID,"preferredHeight",tostring(gridHeight))
             for slot=1,combatConfig.slotCount do
                 local id="CombatSourceSlot"..row..family..slot
                 local item=items[slot]
@@ -2106,6 +2115,8 @@ local function combatAssignmentRefreshRows(entries,sources)
             combatPanelSetAttribute("CombatSourceCell"..row..family,"preferredWidth",
                 tostring(columnWidths[family]))
             combatPanelSetAttribute("CombatSourceGrid"..row..family,"constraintCount",tostring(columns))
+            combatPanelSetAttribute("CombatSourceGrid"..row..family,"width",
+                tostring(columnWidths[family]))
         end
     end
     local headerIDs={traits="CombatDefenceTraitsHeader",range="CombatRangeSiegeHeader",offence="CombatOffenceHeader",
@@ -2135,15 +2146,15 @@ local function combatAssignmentRefreshRows(entries,sources)
         combatPanelSetAttribute("CombatTotalSpacer","preferredWidth",tostring(spacer))
         local poisonText=totalDiscardWounds>0 and " ("..tostring(totalDiscardWounds).." Poison)" or ""
         combatPanelSetAttribute("CombatTotalDamage","text",
-            "Total Wounds: "..combatRich(tostring(totalHeroWounds)..poisonText,COMBAT_RED))
+            "Total: "..combatRich(combatWoundsText(totalHeroWounds)..poisonText,COMBAT_RED))
         combatPanelSetAttribute("CombatTotalDamage","font","Fonts/MKCardText")
         combatPanelSetAttribute("CombatKnockoutWarning","active",knockout and "true" or "false")
         if knockout then
             combatPanelSetAttribute("CombatKnockoutWarning","text",
-                "KNOCKED OUT\nDiscard all non-Wound cards from hand")
+                "KNOCKED OUT")
             combatPanelSetAttribute("CombatKnockoutWarning","font","Fonts/MKCardText")
         end
-        local summaryHeight=knockout and 48 or 18
+        local summaryHeight=knockout and 36 or 18
         combatPanelSetAttribute("CombatTotalRow","preferredHeight",tostring(summaryHeight))
         totalRowHeight=totalRowHeight+summaryHeight
     end
