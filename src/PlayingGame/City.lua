@@ -1488,6 +1488,12 @@ end
 positionCityCardForExplore=function(cityZone,extraBlockedPos,movedCityZones,reservedPositions,mapObjects,scanContext)
 	if movedCityZones~=nil and movedCityZones[cityZone]==true then return false end
 	if extraBlockedPos==nil and cityCardParkedBeyondExplore(cityZone,mapObjects)==true then return false end
+	-- A City in smooth movement cannot be repositioned. Check before the
+	-- expensive garrison broadphase rather than after building its group.
+	local info=cityScriptZones[cityZone]
+	local cityGUID=info~=nil and info.cityGUID or nil
+	local cardGUID=cityGUID~=nil and gStates.cityCard[cityGUID] or nil
+	if cardGUID~=nil and cityCardPendingDestination(cardGUID)~=nil then return false end
 	local scanStart=mapPerformanceStart()
 	local group=cityCardExploreGroup(cityZone,scanContext)
 	mapPerformanceRecord("City group scan",scanStart)
@@ -1535,8 +1541,22 @@ function compactCityCardsAfterExplore(mapObjects)
 	local perfStart=mapPerformanceStart()
 	local movedCityZones={}
 	local reservedPositions={}
-	local scanContext={positions={}}
-	for _,cityZone in ipairs({GUID.zone.blueCity,GUID.zone.redCity,GUID.zone.greenCity,GUID.zone.whiteCity}) do
+	local cityZones={GUID.zone.blueCity,GUID.zone.redCity,GUID.zone.greenCity,GUID.zone.whiteCity}
+	local scanContext={positions={},activeOwners={}}
+	-- The broadphase must not cast around remote parked Cities, or Cities
+	-- whose card is still travelling. All owners still participate in the
+	-- nearest-owner check, preventing another City's defenders being taken.
+	for _,cityZone in ipairs(cityZones) do
+		if cityCardParkedBeyondExplore(cityZone,mapObjects)~=true then
+			local details=cityScriptZones[cityZone]
+			local cityGUID=details~=nil and details.cityGUID or nil
+			local cardGUID=cityGUID~=nil and gStates.cityCard[cityGUID] or nil
+			if cityGUID~=nil and (cardGUID==nil or cityCardPendingDestination(cardGUID)==nil) then
+				scanContext.activeOwners[standardCityGarrisonOwner(cityGUID)]=true
+			end
+		end
+	end
+	for _,cityZone in ipairs(cityZones) do
 		positionCityCardForExplore(cityZone,nil,movedCityZones,reservedPositions,mapObjects,scanContext)
 	end
 	local headStart=mapPerformanceStart()
