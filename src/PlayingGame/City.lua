@@ -1186,6 +1186,19 @@ local function cityCardCompactionNearbyObjects(owners,scanContext)
 					nearby[#nearby+1]=obj
 				end
 			end
+			-- A registered defender may be underneath a City card or another
+			-- token, so don't make its ownership depend on the collider cast.
+			-- This is only a handful of direct lookups, not a table scan.
+			local roster=gStates.cityMonsterQty~=nil and gStates.cityMonsterQty[owner.guid] or nil
+			for guid,state in pairs(roster or {}) do
+				if state=="alive" and seen[guid]~=true and monsterPugs[guid]~=nil then
+					local obj=getObjectFromGUID(guid)
+					if obj~=nil then
+						seen[guid]=true
+						nearby[#nearby+1]=obj
+					end
+				end
+			end
 		end
 	end
 	return nearby
