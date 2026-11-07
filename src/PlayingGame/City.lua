@@ -1430,7 +1430,21 @@ local function cityCardParkedBeyondExplore(cityZone,mapObjects)
 	if card==nil or card.held_by_color~=nil or
 		(card.isSmoothMoving~=nil and card.isSmoothMoving()==true) or
 		cityCardPendingDestination(cardGUID)~=nil then return false end
-	return terrainExploreMayReachCityCard(card.getPosition(),mapObjects)==false
+	local pos=card.getPosition()
+	if terrainExploreMayReachCityCard(pos,mapObjects)~=false then return false end
+	-- A remote City can still overlap another City. Keep normal compaction active
+	-- if their current or reserved destinations collide.
+	for _,otherGUID in pairs(gStates.cityCard or {}) do
+		if otherGUID~=cardGUID then
+			local other=getObjectFromGUID(otherGUID)
+			local live=other~=nil and other.getPosition() or nil
+			local pending=cityCardPendingDestination(otherGUID)
+			for _,otherPos in ipairs({live,pending}) do
+				if (pos[1]-otherPos[1])^2+(pos[3]-otherPos[3])^2<9.61 then return false end
+			end
+		end
+	end
+	return true
 end
 
 -- Place one City group at its closest legal location. Never redirect a card that
