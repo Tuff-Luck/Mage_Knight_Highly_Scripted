@@ -60,9 +60,11 @@ function terrainExploreMayReachCityCard(position,mapObjects)
 	-- They may be farther away than a normal adjacent-terrain expansion.
 	for _,button in pairs(terrainExploreOptions()) do
 		local attrs=button.attributes
-		if attrs~=nil and attrs.tilePosX~=nil and attrs.tilePosZ~=nil then
-			local dx=tonumber(attrs.tilePosX)-position[1]
-			local dz=tonumber(attrs.tilePosZ)-position[3]
+		local x=attrs~=nil and tonumber(attrs.tilePosX) or nil
+		local z=attrs~=nil and tonumber(attrs.tilePosZ) or nil
+		if x~=nil and z~=nil then
+			local dx=x-position[1]
+			local dz=z-position[3]
 			if dx*dx+dz*dz<42.25 then return true end
 		end
 	end
