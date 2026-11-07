@@ -995,9 +995,11 @@ end
 
 local function runtimeMapObjectSnapshot()
 	if runtimeMapObjectCache~=nil then return runtimeMapObjectCache end
+	local perfStart=mapPerformanceStart()
 	local map=getObjectFromGUID(mapArea)
 	if map==nil then
 		runtimeMapObjectCache={objects={},objectGUIDs={}}
+		mapPerformanceRecord("Map object snapshot",perfStart)
 		return runtimeMapObjectCache
 	end
 	local objects=map.getObjects()
@@ -1011,6 +1013,7 @@ local function runtimeMapObjectSnapshot()
 		end
 	end
 	runtimeMapObjectCache={objects=validObjects,objectGUIDs=objectGUIDs}
+	mapPerformanceRecord("Map object snapshot",perfStart)
 	return runtimeMapObjectCache
 end
 
@@ -1025,7 +1028,7 @@ local function runtimeMapTerrainSnapshot()
 	local hexes={}
 	local signatureParts={}
 	local bearings={"center","0","60","120","180","240","300"}
-
+	local tileStart=mapPerformanceStart()
 	for _,obj in pairs(objectSnapshot.objects or {}) do
 		local details=terrainTiles[obj.guid]
 		if details~=nil then
@@ -1062,6 +1065,8 @@ local function runtimeMapTerrainSnapshot()
 			end
 		end
 	end
+	mapPerformanceRecord("terrain hex construction",tileStart)
+	local neighborStart=mapPerformanceStart()
 	local hexByKey={}
 	local neighbors={}
 	local neighborSet={}
@@ -1110,6 +1115,7 @@ local function runtimeMapTerrainSnapshot()
 	for _,nearby in pairs(neighbors) do
 		table.sort(nearby,function(a,b) return hexOrder[a]<hexOrder[b] end)
 	end
+	mapPerformanceRecord("terrain neighbour indexing",neighborStart)
 
 	table.sort(signatureParts)
 	runtimeMapTerrainCache={
