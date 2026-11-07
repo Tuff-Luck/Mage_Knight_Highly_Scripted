@@ -125,7 +125,8 @@ local combatReductionActiveSource={}
 local combatAttackChoiceByRow={}
 combatConfig.rowCount=8 -- XML has eight reusable row controls.
 combatConfig.crowdedPageSize=6
-combatConfig.slotCount=7
+combatConfig.slotCount=12
+combatConfig.lineSlotCount=6 -- Wrap each resource cell after six visible icons.
 combatConfig.rowHeight=32
 combatConfig.panelBaseHeight=30
 combatConfig.columns={Name=120,Armour=55,Traits=150,Attacks=105,Offence=130,Result=255}
@@ -1505,6 +1506,7 @@ local function combatAssignmentRefreshRows(entries,sources)
         tostring(visibleRows>0 and pageOffset+1 or 0).."-"..tostring(pageEnd)
             .." / "..tostring(#entries))
     local overflow=0
+    local maxResourceCounts={range=0,block=0,attack=0}
     -- Text shown in the ability columns and the columns that hold anything, so empty columns can be hidden.
     local shownTraits,shownOffence,colUsed={},{},{range=false,block=false,attack=false}
     -- Joined enemies form a group (the leader is its first row) that is attacked as one.
@@ -1935,7 +1937,7 @@ local function combatAssignmentRefreshRows(entries,sources)
     end
     combatSetDefeatMarks(trackedGuids,defeatedGuids)
     -- Build all grouped rows before paging or rendering them. A group can
-    -- span pages, and each following member offers seven more visual slots.
+    -- span pages, and each following member offers two six-icon display lines.
     -- Only the button placement changes; allocated sources stay on their targets.
     local displayByIndex={}
     for _,group in ipairs(groups) do
@@ -1967,9 +1969,17 @@ local function combatAssignmentRefreshRows(entries,sources)
         local entry=row<=visibleRows and entries[index] or nil
         local group=entry~=nil and groupOf[index] or nil
         local lists=displayByIndex[index] or {range={},block={},attack={}}
+        local resourceLines=1
         for _,family in ipairs({"range","block","attack"}) do
             local items=lists[family]
-            if #items>0 then colUsed[family]=true end
+            if entry~=nil and #items>0 then
+                colUsed[family]=true
+                maxResourceCounts[family]=math.max(maxResourceCounts[family],#items)
+                resourceLines=math.max(resourceLines,math.ceil(#items/combatConfig.lineSlotCount))
+            end
+            local gridID="CombatSourceGrid"..row..family
+            combatPanelSetAttribute(gridID,"preferredHeight",
+                tostring(math.max(1,math.ceil(#items/combatConfig.lineSlotCount))*26))
             for slot=1,combatConfig.slotCount do
                 local id="CombatSourceSlot"..row..family..slot
                 local item=items[slot]
@@ -1989,7 +1999,7 @@ local function combatAssignmentRefreshRows(entries,sources)
             combatPanelSetAttribute("CombatSourceCell"..row..family,"color",
                 merged and "rgba(1,1,1,0.10)" or "rgba(0,0,0,0)")
         end
-        local rowHeight=combatConfig.rowHeight
+        local rowHeight=math.max(combatConfig.rowHeight,resourceLines*26+4)
         if entry~=nil and group~=nil then
             -- Final armour for the current layout: Elusive doubles unless every attack is blocked.
             local armourValue=entry.baseArmour
@@ -2085,7 +2095,19 @@ local function combatAssignmentRefreshRows(entries,sources)
         if not textBlank(shownTraits[row]) then colShown.traits=true end
         if not textBlank(shownOffence[row]) then colShown.offence=true end
     end
-    local columnWidths={traits=150,range=170,offence=130,block=170,attack=170}
+    -- Keep columns aligned across visible enemy rows, but size each
+    -- resource phase to its fullest row (three to six icons wide).
+    -- GridLayout wraps additional icons below the first line.
+    local columnWidths={traits=150,offence=130}
+    for _,family in ipairs({"range","block","attack"}) do
+        local columns=math.max(3,math.min(combatConfig.lineSlotCount,maxResourceCounts[family]))
+        columnWidths[family]=columns*24
+        for row=1,combatConfig.rowCount do
+            combatPanelSetAttribute("CombatSourceCell"..row..family,"preferredWidth",
+                tostring(columnWidths[family]))
+            combatPanelSetAttribute("CombatSourceGrid"..row..family,"constraintCount",tostring(columns))
+        end
+    end
     local headerIDs={traits="CombatDefenceTraitsHeader",range="CombatRangeSiegeHeader",offence="CombatOffenceHeader",
         block="CombatBlockHeader",attack="CombatAssignedAttackHeader"}
     local hiddenWidth=0
@@ -2107,7 +2129,9 @@ local function combatAssignmentRefreshRows(entries,sources)
         -- Align with Result; allow the separate knockout warning to extend slightly
         -- into the preceding column rather than clipping in a 180-unit text field.
         local spacer=-hiddenWidth-50
-        for _,width in ipairs({120,55,150,170,105,130,170,170}) do spacer=spacer+width end
+        for _,width in ipairs({120,55,150,columnWidths.range,105,130,columnWidths.block,columnWidths.attack}) do
+            spacer=spacer+width
+        end
         combatPanelSetAttribute("CombatTotalSpacer","preferredWidth",tostring(spacer))
         local poisonText=totalDiscardWounds>0 and " ("..tostring(totalDiscardWounds).." Poison)" or ""
         combatPanelSetAttribute("CombatTotalDamage","text",
@@ -2166,10 +2190,11 @@ local function combatAssignmentRefreshRows(entries,sources)
             "{de}\nWarnung: "..tostring(overflow).." Feinde/Ressourcen überschreiten die sichtbaren Plätze."
         })
     end
-    combatPanelSetAttribute("CombatEnemyPanel","width",tostring(1380-hiddenWidth))
+    local widthReduction=(170-columnWidths.range)+(170-columnWidths.block)+(170-columnWidths.attack)
+    combatPanelSetAttribute("CombatEnemyPanel","width",tostring(1380-hiddenWidth-widthReduction))
     combatPanelSetAttribute("CombatEnemyPanel","color","rgb(0.24,0.2,0.15)")
-    local headerWidths={Monster=120,Armour=55,DefenceTraits=150,RangeSiege=170,EnemyAttack=105,
-        Offence=130,Block=170,AssignedAttack=170,Result=255}
+    local headerWidths={Monster=120,Armour=55,DefenceTraits=150,RangeSiege=columnWidths.range,EnemyAttack=105,
+        Offence=130,Block=columnWidths.block,AssignedAttack=columnWidths.attack,Result=255}
     for name,width in pairs(headerWidths) do
         local id="Combat"..name.."Header"
         combatPanelSetAttribute(id,"font","Fonts/MKCardTittle")
