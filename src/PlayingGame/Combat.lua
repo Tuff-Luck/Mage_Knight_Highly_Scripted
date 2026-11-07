@@ -398,6 +398,8 @@ local function combatReleaseSummonedEnemy(token)
 end
 
 local function combatReleaseAllSummonedEnemies()
+	-- End-turn and site-abandonment cleanup must also release any temporarily raised neighbours.
+	if combatSummonReleaseOccupants~=nil then combatSummonReleaseOccupants() end
 	for guid in pairs(gStates.summonedEnemyScales or {}) do
 		local token=getObjectFromGUID(guid)
 		if token~=nil then combatReleaseSummonedEnemy(token) end
@@ -2780,6 +2782,47 @@ function takeFactionMonster(standardGUID, faction, params)
 	return token, pileGUID
 end
 
+-- Temporarily hold enemy tokens above an occupied summon slot until the arriving summon
+-- has become part of its summoner's Fixed-joint group. Release them afterwards and let
+-- TTS physics settle the overlap. Track each waiting summon independently to avoid a second
+-- summon dropping a shared neighbour too early.
+function combatSummonLiftOccupants(summonGUID, summonerGUID, target, seatPos)
+	gStates.summonLiftedTokens=gStates.summonLiftedTokens or {}
+	for _,other in ipairs(playerCombatObjects(seatPos)) do
+		local guid=other~=nil and other.guid or nil
+		if guid~=nil and guid~=summonGUID and guid~=summonerGUID
+			and monsterPugs[guid]~=nil and monsterPugs[guid].pugType~="possessed"
+			and (gStates.summonedEnemyScales==nil or gStates.summonedEnemyScales[guid]==nil) then
+			local p=other.getPosition()
+			local distance2=(p[1]-target[1])^2+(p[3]-target[3])^2
+			if distance2<1.25^2 then
+				local raised=gStates.summonLiftedTokens[guid]
+				if raised~=nil then
+					raised.waiting[summonGUID]=true
+				elseif p[2]<target[2]+0.8 and other.getLock()==false then
+					gStates.summonLiftedTokens[guid]={waiting={[summonGUID]=true}}
+					other.setLock(true)
+					other.setPosition({p[1],target[2]+2.1,p[3]})
+				end
+			end
+		end
+	end
+end
+
+function combatSummonReleaseOccupants(summonGUID)
+	local raisedTokens=gStates.summonLiftedTokens
+	if raisedTokens==nil then return end
+	for guid,raised in pairs(raisedTokens) do
+		if summonGUID==nil then raised.waiting={}
+		else raised.waiting[summonGUID]=nil end
+		if next(raised.waiting)==nil then
+			local obj=getObjectFromGUID(guid)
+			if obj~=nil then obj.setLock(false) end
+			raisedTokens[guid]=nil
+		end
+	end
+end
+
 --summon monsters to the left of a summoner.
 summonMonster=function(player, mouseButton, id)
 	if mouseButton~="-1" then return end
@@ -2798,9 +2841,9 @@ summonMonster=function(player, mouseButton, id)
 			withTokenPoolReady(preferredPile,function()
 				-- An abandoned fight must not produce a late summon after its cleanup has started.
 				if gStates.preEndTurn==true or gStates.summonStates[id]~="SummonDone" then return end
-				-- The player's mat is at Y=1.08 even if the summoner is temporarily lifted.
-				-- Smooth movement ignores collisions; physics resolves any occupied space after arrival.
-				local summonTarget={location[1]-(1.6*order),1.08,location[3]}
+				-- First summon 1.6 left; each subsequent summon adds another 1.5.
+				-- Aim at mat height so the joint forms with the token sitting flat.
+				local summonTarget={location[1]-1.6-(1.5*(order-1)),1.08,location[3]}
 				local actualPileGUID=factionMonsterPileGUID(monsterColor,summonerFaction)
 				local actualPile=getObjectFromGUID(actualPileGUID)
 				local drawPos=actualPile~=nil and actualPile.getPosition() or location
@@ -2815,6 +2858,9 @@ summonMonster=function(player, mouseButton, id)
 				local oldScale=summonedMonster.getScale()
 				gStates.summonedEnemyScales[summonedMonster.guid]={oldScale[1],oldScale[2],oldScale[3]}
 				summonedMonster.setScale({0.70,1.00,0.70})
+				-- Hold any existing enemy occupying this slot above the mat during the flight.
+				local seat=turnOrder[gStates.turnNumber]~=nil and turnOrder[gStates.turnNumber].seatPos or nil
+				if seat~=nil then combatSummonLiftOccupants(summonedMonster.guid,id,summonTarget,seat) end
 				summonedMonster.setPositionSmooth(summonTarget,false,false)
 				local summonPile=getObjectFromGUID(summonPileGUID)
 				local summonPilePos=summonPile~=nil and summonPile.getPosition() or drawPos
@@ -2830,20 +2876,27 @@ summonMonster=function(player, mouseButton, id)
 				-- A joint created during smooth movement freezes the token mid-flight. Wait for it to finish,
 				-- and re-resolve GUIDs in case the fight was cleaned up in the meantime.
 				safeWaitFrames("Combat",function()
-					safeWaitCondition("Combat",function()
+					local function settleSummon()
 						local child=getObjectFromGUID(summonedGUID)
 						local owner=getObjectFromGUID(id)
-						if child==nil or owner==nil or gStates.preEndTurn==true or
-							gStates.summonedEnemyScales==nil or gStates.summonedEnemyScales[summonedGUID]==nil then return end
-						child.jointTo(owner,{type="Fixed",collision=false,break_force=100000,break_torgue=100000})
-						-- Dragon Control uses a separate Possessed attachment placed after the summon has landed.
-						if dragonControl==true and gStates.apocalypseDragonGroundCombat~=nil then
-							apocalypseDragonPossessSummonedEnemy(summonedGUID,summonTarget)
+						if child~=nil and owner~=nil and not child.isSmoothMoving()
+							and gStates.preEndTurn~=true and gStates.summonedEnemyScales~=nil
+							and gStates.summonedEnemyScales[summonedGUID]~=nil then
+							-- Keep the new token flat before locking the joint, not after the collision.
+							child.setRotation({0,180,0})
+							child.jointTo(owner,{type="Fixed",collision=false,break_force=100000,break_torgue=100000})
+							-- Dragon Control uses a separate Possessed attachment placed after the summon has landed.
+							if dragonControl==true and gStates.apocalypseDragonGroundCombat~=nil then
+								apocalypseDragonPossessSummonedEnemy(summonedGUID,summonTarget)
+							end
 						end
-					end,function()
+						-- Give the joint one frame to establish before dropping the displaced tokens.
+						safeWaitFrames("Combat",function() combatSummonReleaseOccupants(summonedGUID) end,1)
+					end
+					safeWaitCondition("Combat",settleSummon,function()
 						local child=getObjectFromGUID(summonedGUID)
 						return child==nil or not child.isSmoothMoving()
-					end,5)
+					end,5,settleSummon)
 				end,2)
 				if gStates.monsterPerks[summonedMonster.guid]==nil then gStates.monsterPerks[summonedMonster.guid]={nightRules=true}
 				else gStates.monsterPerks[summonedMonster.guid].nightRules=true end
