@@ -172,7 +172,47 @@ local reordered=builder.build()
 assert(reordered.neighbors["tile10|center"][1].terrainGUID=="tile11" and
     reordered.neighbors["tile10|center"][2].terrainGUID=="tile9",
     "Neighbour lists retain physical source order after re-enumeration")
-print("PASS incremental topology, copy-on-write, metadata edits and reorder")
+-- A physically moved hex and a metadata-only neighbour can be changed in
+-- the same invalidation. Their edge must not disappear based on scan order.
+for _,obj in ipairs(mapObjects) do
+    if obj.guid=="tile11" then
+        obj.getPosition=function() return {-26.3,1.3,0} end
+        break
+    end
+end
+terrainTiles.tile10.hexFeature.center="ruins"
+builder.reset(reordered)
+local mixed=builder.build()
+assert(mixed.neighborSet["tile11|center"]["tile10|center"]==true,
+    "Moving a hex beside a feature-only changed hex keeps their edge")
+-- Check every incremental result against the exact all-pairs definition,
+-- including neighbour order and undirected set symmetry.
+local function assertGraphMatchesPositions(snapshot)
+    for _,hex in ipairs(snapshot.hexes) do
+        local expected={}
+        for _,other in ipairs(snapshot.hexes) do
+            if other~=hex then
+                local dx=hex.position[1]-other.position[1]
+                local dz=hex.position[3]-other.position[3]
+                local d=dx*dx+dz*dz
+                if d>4.2 and d<7.4 then expected[#expected+1]=other end
+            end
+        end
+        local actual=snapshot.neighbors[hex.key]
+        assert(#actual==#expected,"Incorrect link count at "..hex.key)
+        for index,other in ipairs(expected) do
+            assert(actual[index]==other,"Incorrect link/order at "..hex.key)
+            assert(snapshot.neighborSet[hex.key][other.key]==true,
+                "Missing neighbour-set entry at "..hex.key)
+            assert(snapshot.neighborSet[other.key][hex.key]==true,
+                "Asymmetric neighbour edge at "..hex.key)
+        end
+    end
+end
+for _,snapshot in ipairs({topology,expanded,identical,reduced,moved,altered,reordered,mixed}) do
+    assertGraphMatchesPositions(snapshot)
+end
+print("PASS incremental topology, snapshot immutability, mixed changes and reorder")
 
 -- The production reconciler must ignore distant map enemies while honouring
 -- moving tokens on the new tile. The physical-hex lookup is stubbed, but the
