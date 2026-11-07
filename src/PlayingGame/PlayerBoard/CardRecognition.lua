@@ -125,7 +125,7 @@ local combatReductionActiveSource={}
 local combatAttackChoiceByRow={}
 combatConfig.rowCount=8 -- XML has eight reusable row controls.
 combatConfig.crowdedPageSize=6
-combatConfig.slotCount=6
+combatConfig.slotCount=7
 combatConfig.rowHeight=32
 combatConfig.panelBaseHeight=30
 combatConfig.columns={Name=120,Armour=55,Traits=150,Attacks=105,Offence=130,Result=255}
@@ -1420,6 +1420,43 @@ local function combatApplyDefend(entries,groups,allocated)
     return applied
 end
 
+-- Distribute a joined group's display icons without changing resource assignments.
+-- Attack/Ranged resources are shared by the group; Block stays on its owning
+-- enemy row first, with excess icons continuing into free slots below it.
+-- An ungrouped enemy has just one member and cannot spill into another enemy.
+local function combatGroupResourceRows(members,perMember,limit)
+    local rows,overflow={},0
+    for _,index in ipairs(members) do rows[index]={range={},block={},attack={}} end
+    for _,family in ipairs({"range","attack"}) do
+        local count=0
+        for _,index in ipairs(members) do
+            for _,item in ipairs(perMember[index][family]) do
+                count=count+1
+                local targetIndex=members[math.floor((count-1)/limit)+1]
+                if targetIndex~=nil then
+                    local display=rows[targetIndex][family]
+                    display[#display+1]=item
+                else
+                    overflow=overflow+1
+                end
+            end
+        end
+    end
+    local pending,head={},1
+    for _,index in ipairs(members) do
+        local display=rows[index].block
+        for i,item in ipairs(perMember[index].block) do
+            if i<=limit then display[#display+1]=item
+            else pending[#pending+1]=item end
+        end
+        while #display<limit and pending[head]~=nil do
+            display[#display+1]=pending[head]
+            head=head+1
+        end
+    end
+    return rows,overflow+(#pending-head+1)
+end
+
 local function combatAssignmentRefreshRows(entries,sources)
     local rowByGUID={}
     local totalRowHeight=0
@@ -1897,12 +1934,14 @@ local function combatAssignmentRefreshRows(entries,sources)
         end
     end
     combatSetDefeatMarks(trackedGuids,defeatedGuids)
-    for row=1,combatConfig.rowCount do
-        local index=pageOffset+row
-        local entry=row<=visibleRows and entries[index] or nil
-        local group=entry~=nil and groupOf[index] or nil
-        local lists={range={},block={},attack={}}
-        if entry~=nil then
+    -- Build all grouped rows before paging or rendering them. A group can
+    -- span pages, and each following member offers seven more visual slots.
+    -- Only the button placement changes; allocated sources stay on their targets.
+    local displayByIndex={}
+    for _,group in ipairs(groups) do
+        local perMember={}
+        for _,index in ipairs(group.members) do
+            local lists={range={},block={},attack={}}
             for _,item in ipairs((allocated[index] or emptyTarget).details) do
                 if item.detail.family=="block" or item.detail.family=="move"
                     or item.detail.family=="influence" then
@@ -1910,26 +1949,27 @@ local function combatAssignmentRefreshRows(entries,sources)
                         icon=item.detail.icon,text=item.detail.text,typeKey=item.detail.typeKey,
                         reduced=rowBlock[index].wrongBlock[item.source.key..tostring(item.detail.key)]==true}
                 end
-            end
-            -- Range, Siege and Attack resources of a group share the leader's merged cells.
-            if group~=nil and group.leader==index then
-                for _,member in ipairs(group.members) do
-                    for _,item in ipairs((allocated[member] or emptyTarget).details) do
-                        if item.detail.family~="block" and item.detail.family~="move" then
-                            local phase=combatDetailPhase(item.detail,group.rangeDefeated,group.fortification)
-                            local list=lists[phase]
-                            list[#list+1]={source=item.source,amount=item.detail.amount,
-                                icon=item.detail.icon,text=item.detail.text,typeKey=item.detail.typeKey,
-                                reduced=combatEnemyResists(group.entry.data,group.entry.perks,item.detail.typeKey)}
-                        end
-                    end
+                if item.detail.family~="block" and item.detail.family~="move" then
+                    local phase=combatDetailPhase(item.detail,group.rangeDefeated,group.fortification)
+                    lists[phase][#lists[phase]+1]={source=item.source,amount=item.detail.amount,
+                        icon=item.detail.icon,text=item.detail.text,typeKey=item.detail.typeKey,
+                        reduced=combatEnemyResists(group.entry.data,group.entry.perks,item.detail.typeKey)}
                 end
             end
+            perMember[index]=lists
         end
+        local distributed,hidden=combatGroupResourceRows(group.members,perMember,combatConfig.slotCount)
+        for index,lists in pairs(distributed) do displayByIndex[index]=lists end
+        overflow=overflow+hidden
+    end
+    for row=1,combatConfig.rowCount do
+        local index=pageOffset+row
+        local entry=row<=visibleRows and entries[index] or nil
+        local group=entry~=nil and groupOf[index] or nil
+        local lists=displayByIndex[index] or {range={},block={},attack={}}
         for _,family in ipairs({"range","block","attack"}) do
             local items=lists[family]
             if #items>0 then colUsed[family]=true end
-            overflow=overflow+math.max(0,#items-combatConfig.slotCount)
             for slot=1,combatConfig.slotCount do
                 local id="CombatSourceSlot"..row..family..slot
                 local item=items[slot]
