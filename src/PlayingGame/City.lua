@@ -1175,24 +1175,24 @@ local function cityCardCompactionCandidates(scanContext)
 	for _,obj in pairs(getAllObjects()) do
 		local guid=obj~=nil and obj.guid or nil
 		if guid~=nil and terrainTiles[guid]==nil then
-			local pug=monsterPugs[guid]
-			-- An enemy crossing a City while travelling to its own hex is not a
-			-- manually parked garrison. The same rule protects held/falling pieces.
-			local settled=obj.held_by_color==nil and obj.resting~=false and
-				(obj.isSmoothMoving==nil or obj.isSmoothMoving()~=true) and
-				(mapTokenHasPendingArrival==nil or mapTokenHasPendingArrival(guid)~=true)
-			if settled then
-				local pos=obj.getPosition()
-				if pos~=nil and pos[2]>=CITY_GARRISON_MIN_Y and pos[2]<=CITY_GARRISON_MAX_Y then
-					local ownerGUID,distSq=cityGarrisonNearestOwner(pos,owners)
-					if ownerGUID~=nil and distSq~=nil then
-						local isAvatar=avatarGUIDs[guid]==true
-						local eligibleEnemy=pug~=nil and CITY_GARRISON_PUG_TYPES[pug.pugType]==true
-						local shield=distSq<=10.24 and isShieldObject~=nil and isShieldObject(obj)==true
-						if (eligibleEnemy and distSq<=CITY_GARRISON_KNOWN_RADIUS*CITY_GARRISON_KNOWN_RADIUS)
-							or (distSq<=10.24 and (shield or isAvatar)) then
-							-- An enemy already on a revealed terrain hex belongs to the map,
-							-- not the City card, even if the City is temporarily parked nearby.
+			local pos=obj.getPosition()
+			if pos~=nil and pos[2]>=CITY_GARRISON_MIN_Y and pos[2]<=CITY_GARRISON_MAX_Y then
+				local ownerGUID,distSq=cityGarrisonNearestOwner(pos,owners)
+				if ownerGUID~=nil and distSq~=nil then
+					local pug=monsterPugs[guid]
+					local isAvatar=avatarGUIDs[guid]==true
+					local eligibleEnemy=pug~=nil and CITY_GARRISON_PUG_TYPES[pug.pugType]==true
+					local shield=distSq<=10.24 and isShieldObject~=nil and isShieldObject(obj)==true
+					if (eligibleEnemy and distSq<=CITY_GARRISON_KNOWN_RADIUS*CITY_GARRISON_KNOWN_RADIUS)
+					or (distSq<=10.24 and (shield or isAvatar)) then
+						-- Only inspect movement state for realistic City pieces; ordinary
+						-- table clutter needs no additional engine-bound calls.
+						local settled=obj.held_by_color==nil and obj.resting~=false and
+							(obj.isSmoothMoving==nil or obj.isSmoothMoving()~=true) and
+							(mapTokenHasPendingArrival==nil or mapTokenHasPendingArrival(guid)~=true)
+						if settled then
+							-- Map occupants, even when near a City card, are never part of
+							-- its manual garrison or moving entourage.
 							if physicalMap==nil then physicalMap=runtimeMapSnapshot() end
 							local _,_,onTerrain=runtimeMapHexAtPosition(pos,physicalMap)
 							if onTerrain==nil then
