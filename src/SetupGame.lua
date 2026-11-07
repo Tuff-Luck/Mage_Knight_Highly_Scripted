@@ -815,7 +815,9 @@ local function finalizeSetup()
 	UI.setAttribute("ResourceTrackerDetail", "height", "210")
 	UI.setAttribute("ResourceTrackerDetail", "active", "true")
 	UI.setAttribute("ResourceTracker", "active", "true")
-	resourceCardsPanelChanged(true)
+    -- The panel is shown immediately, but TTS applies its attributes asynchronously.
+    -- Start the first scan only after the expanded UI really exists.
+	resourceCardsOnLoad()
 	UI.setAttribute("cameraControl", "active", "true")
 	if gStates.gameScenario=="One to Return" then UI.hide("ScoreButton") end
 

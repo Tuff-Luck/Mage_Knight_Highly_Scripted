@@ -28,7 +28,12 @@ resourceFameRepApply=function() end
 refreshResourceTrackerReputation=function() repRefreshed=repRefreshed+1 end
 refreshResourceTrackerText=function() textRefreshed=textRefreshed+1 end
 updateMoveDisplay=function() moveCalculated=moveCalculated+1 end
-safeWaitCondition=function() scanQueued=scanQueued+1 end
+local pendingWaits={}
+safeWaitCondition=function(_,callback,condition,timeout,onTimeout)
+    scanQueued=scanQueued+1
+    pendingWaits[#pendingWaits+1]={callback=callback,condition=condition,
+        onTimeout=onTimeout}
+end
 
 unitResourceDefinitions={unit1={{key="move"}}}
 unitLayoutSnapshot=function()
@@ -101,3 +106,57 @@ check("restart rebuilds used Units from current physical Command tokens",
     and gStates.unitResourceActivations.unit1.choice==1)
 check("restart schedules a new play-area scan",scanQueued==1)
 print("Resource tracker OFF/restart regression tests passed.")
+
+-- Reproduce the actual startup sequence: the XML still says collapsed when
+-- SetupGame sets the panel open. This must NOT invoke the OFF reset.
+attributes.ResourceTracker.height="35"
+attributes.ResourceTrackerDetail.active="false"
+local clearedBeforeStartup=arrowsCleared
+local queuedBeforeStartup=scanQueued
+dofile("src/PlayingGame/PlayerBoard/CardRecognition.lua")
+resourceCardsOnLoad()
+check("startup schedules an actual UI-readiness check",
+    scanQueued==queuedBeforeStartup+1 and not resourceCardsPanelReady())
+check("temporary collapsed XML does not shut down a starting tracker",
+    arrowsCleared==clearedBeforeStartup)
+local startupWait=pendingWaits[#pendingWaits]
+check("startup waits while the UI is still collapsed",
+    startupWait.condition()==false)
+attributes.ResourceTracker.height="245"
+attributes.ResourceTrackerDetail.active="true"
+check("startup detects the expanded UI",
+    startupWait.condition()==true and resourceCardsPanelReady())
+startupWait.callback()
+check("startup enables tracking without a manual close/reopen",
+    resourceCardsPanelOpen())
+check("startup schedules the initial physical-table scan",
+    scanQueued==queuedBeforeStartup+2)
+
+-- A manual OFF action must defeat any old, pending startup callback.
+resourceCardsPanelChanged(false)
+attributes.ResourceTracker.height="35"
+attributes.ResourceTrackerDetail.active="false"
+resourceCardsOnLoad()
+local staleWait=pendingWaits[#pendingWaits]
+local clearedBeforeCancel=arrowsCleared
+resourceCardsPanelChanged(false)
+attributes.ResourceTracker.height="245"
+attributes.ResourceTrackerDetail.active="true"
+check("manual minimize invalidates a pending startup request",
+    staleWait.condition()==true)
+staleWait.callback()
+check("stale startup cannot reactivate manually disabled tracking",
+    not resourceCardsPanelOpen() and arrowsCleared==clearedBeforeCancel+1)
+
+-- Saved games whose tracker really was collapsed remain manual on load.
+attributes.ResourceTracker.height="35"
+attributes.ResourceTrackerDetail.active="false"
+dofile("src/PlayingGame/PlayerBoard/CardRecognition.lua")
+resourceCardsOnLoad()
+local savedClosedWait=pendingWaits[#pendingWaits]
+check("collapsed saved game does not meet the startup condition",
+    savedClosedWait.condition()==false)
+savedClosedWait.onTimeout()
+check("a genuinely collapsed saved panel remains OFF",
+    not resourceCardsPanelOpen() and gStates.resourceTracker.move.move==0)
+print("Resource tracker startup/readiness regression tests passed.")

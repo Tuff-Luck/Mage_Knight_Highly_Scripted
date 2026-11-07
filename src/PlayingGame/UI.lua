@@ -2290,13 +2290,8 @@ function resourceTracker(player, mouseButton, id)
                 UI.setAttribute("CombatCalculatorHelp","active","false")
                 resourceCardsPanelChanged(false)
             else
-                -- Apply the complete fresh-start scan only after the expanded UI is live.
-                safeWaitFrames("UI",function()
-                    if resourceCardsPanelReady() then
-                        resourceCardsPanelChanged(true)
-                        updateMoveDisplay("DisplayResourceTrackerDetails")
-                    end
-                end,2)
+                -- The OFF latch clears only when the expanded panel is actually ready.
+                resourceCardsOnLoad()
             end
 			UI.setAttribute("ResourceTrackerDetail", "height", "210")
 			UI.setAttribute("MoveCosts", "active", "false")

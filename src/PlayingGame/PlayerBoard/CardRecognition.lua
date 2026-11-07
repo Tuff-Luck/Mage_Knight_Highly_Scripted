@@ -51,6 +51,7 @@ local forestersTerrainModifier={mode="reduce",
 -- Reopening starts a new tracking session using the physical table.
 local trackerWasDisabled=false
 local trackerSession=0
+local trackerStartupRequest=0
 -- The UI may update a frame after the click. Keep its visible state separate
 -- from the immediate OFF latch so delayed events cannot restart scanning.
 function resourceCardsPanelReady()
@@ -6607,7 +6608,11 @@ local function resourceUnitsRebuildFromTable()
 end
 
 function resourceCardsPanelChanged(open)
-    if open~=true or not resourceCardsPanelReady() then
+    -- A newly shown panel may need a frame before TTS reports its attributes.
+    -- That temporary state is not a player-requested OFF transition.
+    if open==true and not resourceCardsPanelReady() then return end
+    trackerStartupRequest=trackerStartupRequest+1
+    if open~=true then
         trackerWasDisabled=true
         trackerSession=trackerSession+1
         -- Turn the tracker completely off: stop callbacks and remove its visuals.
@@ -6661,8 +6666,26 @@ function resourceCardsPanelChanged(open)
     end,1)
 end
 
+-- Shared by saved-game load, first-game setup and re-expanding the panel.
+-- Wait for the actual UI state rather than treating startup's collapsed XML
+-- defaults as a player pressing OFF. Explicit minimization cancels this wait.
 function resourceCardsOnLoad()
-    resourceCardsPanelChanged(resourceCardsPanelOpen())
+    if gStates==nil or gStates.firstStarted~=true then return end
+    trackerStartupRequest=trackerStartupRequest+1
+    local request=trackerStartupRequest
+    safeWaitCondition("PlayerBoard.CardRecognition",function()
+        if trackerStartupRequest==request and resourceCardsPanelReady() then
+            resourceCardsPanelChanged(true)
+        end
+    end,function()
+        return trackerStartupRequest~=request or resourceCardsPanelReady()
+    end,5,function()
+        -- A genuinely collapsed saved panel stays OFF; it must never
+        -- trigger a new scan until the player explicitly expands it.
+        if trackerStartupRequest==request and not resourceCardsPanelReady() then
+            resourceCardsPanelChanged(false)
+        end
+    end)
 end
 
 local function resourceCardsRelevantZone(ctx)
