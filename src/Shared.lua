@@ -1045,6 +1045,7 @@ local function runtimeMapTerrainSnapshot()
 	local terrainEntries={}
 	local hexes={}
 	local signatureParts={}
+	local previous=runtimeMapPreviousTerrainCache
 	local bearings={"center","0","60","120","180","240","300"}
 	local tileStart=mapPerformanceStart()
 	for _,obj in pairs(objectSnapshot.objects or {}) do
@@ -1072,11 +1073,19 @@ local function runtimeMapTerrainSnapshot()
 						local hexType=details.hexType[bearing]
 						if hexType~=nil and hexType~="" and hexType~="ocean" then
 							local xy=angleToXY(obj,bearing,position,rotation)
-							hexes[#hexes+1]={
-								terrain=obj,terrainGUID=obj.guid,bearing=bearing,
-								position={xy[1],1.30,xy[2]},hexType=hexType,
-								feature=details.hexFeature[bearing] or ""
-							}
+							local key=obj.guid.."|"..bearing
+							local feature=details.hexFeature[bearing] or ""
+							local old=previous~=nil and previous.hexByKey[key] or nil
+							if old~=nil and old.terrain==obj and old.hexType==hexType and
+								old.feature==feature and old.position[1]==xy[1] and old.position[3]==xy[2] then
+								-- Keep stable hex identities: unchanged graph lists can be shared.
+								hexes[#hexes+1]=old
+							else
+								hexes[#hexes+1]={
+									key=key,terrain=obj,terrainGUID=obj.guid,bearing=bearing,
+									position={xy[1],1.30,xy[2]},hexType=hexType,feature=feature
+								}
+							end
 						end
 					end
 				end
