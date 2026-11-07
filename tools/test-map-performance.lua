@@ -19,11 +19,11 @@ local spotsStart=assert(mapCode:find("local terrainExploreSpots=",1,true))
 local spotsEnd=assert(mapCode:find("local terrainInfoCardGUIDs=",spotsStart,true))
 local helperStart=assert(mapCode:find("function terrainExploreMayReachCityCard(",spotsEnd,true))
 local helperEnd=assert(mapCode:find("function clearTerrainExploreOptions(",helperStart,true))
-local mayReach=assert(load(mapCode:sub(spotsStart,spotsEnd-1).."\\n"..
-    mapCode:sub(helperStart,helperEnd-1).."\\nreturn terrainExploreMayReachCityCard"))()
+local mayReach=assert(load(mapCode:sub(spotsStart,spotsEnd-1).."\n"..
+    mapCode:sub(helperStart,helperEnd-1).."\nreturn terrainExploreMayReachCityCard"))()
 assert(mayReach({-24.0301,1,-16.0837})==true,"Possible terrain centre stays active")
 assert(mayReach({-18,1,-16.0837})==true,"Outer terrain footprint margin stays active")
-assert(mayReach({50,1,50})==false,"Remote City can skip future EXPlORE checks")
+assert(mayReach({50,1,50})==false,"Remote City can skip future EXPLORE checks")
 print("PASS parked-City future terrain footprint margin")
 
 -- The production terrain builder must preserve exactly the original
