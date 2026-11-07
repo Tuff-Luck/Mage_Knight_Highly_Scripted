@@ -398,12 +398,12 @@ local function combatReleaseSummonedEnemy(token)
 end
 
 local function combatReleaseAllSummonedEnemies()
-	-- End-turn and site-abandonment cleanup must also release any temporarily raised neighbours.
-	if combatSummonReleaseOccupants~=nil then combatSummonReleaseOccupants() end
 	for guid in pairs(gStates.summonedEnemyScales or {}) do
 		local token=getObjectFromGUID(guid)
 		if token~=nil then combatReleaseSummonedEnemy(token) end
 	end
+	-- End-turn and site-abandonment cleanup must release any suspended neighbours too.
+	if combatSummonReleaseOccupants~=nil then combatSummonReleaseOccupants() end
 end
 
 local function combatDiscardMonster(playAreaObj, giveRewards, context)
