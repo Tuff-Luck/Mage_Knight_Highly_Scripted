@@ -25,7 +25,7 @@
 				<Text id="CombatEnemyRow1Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
 				<Panel id="CombatSourceCell1range" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot1rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid1range" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="UpperLeft" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid1range" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot1range1" class="CombatSlot"><Image id="CombatSourceSlot1range1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot1range1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot1range2" class="CombatSlot"><Image id="CombatSourceSlot1range2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot1range2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot1range3" class="CombatSlot"><Image id="CombatSourceSlot1range3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot1range3Amount" class="CombatSlotAmount"/></Button>
@@ -50,7 +50,7 @@
 				<Text id="CombatEnemyRow1Offence" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="130" alignment="MiddleLeft"/>
 				<Panel id="CombatSourceCell1block" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot1blockCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid1block" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="UpperLeft" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid1block" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot1block1" class="CombatSlot"><Image id="CombatSourceSlot1block1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot1block1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot1block2" class="CombatSlot"><Image id="CombatSourceSlot1block2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot1block2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot1block3" class="CombatSlot"><Image id="CombatSourceSlot1block3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot1block3Amount" class="CombatSlotAmount"/></Button>
@@ -67,7 +67,7 @@
 				</Panel>
 				<Panel id="CombatSourceCell1attack" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot1attackCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid1attack" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="UpperLeft" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid1attack" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot1attack1" class="CombatSlot"><Image id="CombatSourceSlot1attack1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot1attack1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot1attack2" class="CombatSlot"><Image id="CombatSourceSlot1attack2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot1attack2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot1attack3" class="CombatSlot"><Image id="CombatSourceSlot1attack3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot1attack3Amount" class="CombatSlotAmount"/></Button>
@@ -97,7 +97,7 @@
 				<Text id="CombatEnemyRow2Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
 				<Panel id="CombatSourceCell2range" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot2rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid2range" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="UpperLeft" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid2range" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot2range1" class="CombatSlot"><Image id="CombatSourceSlot2range1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot2range1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot2range2" class="CombatSlot"><Image id="CombatSourceSlot2range2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot2range2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot2range3" class="CombatSlot"><Image id="CombatSourceSlot2range3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot2range3Amount" class="CombatSlotAmount"/></Button>
@@ -122,7 +122,7 @@
 				<Text id="CombatEnemyRow2Offence" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="130" alignment="MiddleLeft"/>
 				<Panel id="CombatSourceCell2block" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot2blockCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid2block" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="UpperLeft" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid2block" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot2block1" class="CombatSlot"><Image id="CombatSourceSlot2block1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot2block1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot2block2" class="CombatSlot"><Image id="CombatSourceSlot2block2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot2block2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot2block3" class="CombatSlot"><Image id="CombatSourceSlot2block3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot2block3Amount" class="CombatSlotAmount"/></Button>
@@ -139,7 +139,7 @@
 				</Panel>
 				<Panel id="CombatSourceCell2attack" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot2attackCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid2attack" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="UpperLeft" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid2attack" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot2attack1" class="CombatSlot"><Image id="CombatSourceSlot2attack1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot2attack1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot2attack2" class="CombatSlot"><Image id="CombatSourceSlot2attack2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot2attack2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot2attack3" class="CombatSlot"><Image id="CombatSourceSlot2attack3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot2attack3Amount" class="CombatSlotAmount"/></Button>
@@ -169,7 +169,7 @@
 				<Text id="CombatEnemyRow3Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
 				<Panel id="CombatSourceCell3range" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot3rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid3range" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="UpperLeft" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid3range" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot3range1" class="CombatSlot"><Image id="CombatSourceSlot3range1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot3range1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot3range2" class="CombatSlot"><Image id="CombatSourceSlot3range2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot3range2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot3range3" class="CombatSlot"><Image id="CombatSourceSlot3range3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot3range3Amount" class="CombatSlotAmount"/></Button>
@@ -194,7 +194,7 @@
 				<Text id="CombatEnemyRow3Offence" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="130" alignment="MiddleLeft"/>
 				<Panel id="CombatSourceCell3block" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot3blockCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid3block" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="UpperLeft" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid3block" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot3block1" class="CombatSlot"><Image id="CombatSourceSlot3block1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot3block1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot3block2" class="CombatSlot"><Image id="CombatSourceSlot3block2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot3block2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot3block3" class="CombatSlot"><Image id="CombatSourceSlot3block3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot3block3Amount" class="CombatSlotAmount"/></Button>
@@ -211,7 +211,7 @@
 				</Panel>
 				<Panel id="CombatSourceCell3attack" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot3attackCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid3attack" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="UpperLeft" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid3attack" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot3attack1" class="CombatSlot"><Image id="CombatSourceSlot3attack1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot3attack1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot3attack2" class="CombatSlot"><Image id="CombatSourceSlot3attack2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot3attack2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot3attack3" class="CombatSlot"><Image id="CombatSourceSlot3attack3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot3attack3Amount" class="CombatSlotAmount"/></Button>
@@ -241,7 +241,7 @@
 				<Text id="CombatEnemyRow4Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
 				<Panel id="CombatSourceCell4range" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot4rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid4range" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="UpperLeft" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid4range" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot4range1" class="CombatSlot"><Image id="CombatSourceSlot4range1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot4range1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot4range2" class="CombatSlot"><Image id="CombatSourceSlot4range2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot4range2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot4range3" class="CombatSlot"><Image id="CombatSourceSlot4range3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot4range3Amount" class="CombatSlotAmount"/></Button>
@@ -266,7 +266,7 @@
 				<Text id="CombatEnemyRow4Offence" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="130" alignment="MiddleLeft"/>
 				<Panel id="CombatSourceCell4block" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot4blockCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid4block" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="UpperLeft" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid4block" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot4block1" class="CombatSlot"><Image id="CombatSourceSlot4block1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot4block1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot4block2" class="CombatSlot"><Image id="CombatSourceSlot4block2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot4block2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot4block3" class="CombatSlot"><Image id="CombatSourceSlot4block3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot4block3Amount" class="CombatSlotAmount"/></Button>
@@ -283,7 +283,7 @@
 				</Panel>
 				<Panel id="CombatSourceCell4attack" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot4attackCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid4attack" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="UpperLeft" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid4attack" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot4attack1" class="CombatSlot"><Image id="CombatSourceSlot4attack1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot4attack1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot4attack2" class="CombatSlot"><Image id="CombatSourceSlot4attack2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot4attack2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot4attack3" class="CombatSlot"><Image id="CombatSourceSlot4attack3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot4attack3Amount" class="CombatSlotAmount"/></Button>
@@ -313,7 +313,7 @@
 				<Text id="CombatEnemyRow5Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
 				<Panel id="CombatSourceCell5range" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot5rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid5range" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="UpperLeft" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid5range" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot5range1" class="CombatSlot"><Image id="CombatSourceSlot5range1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot5range1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot5range2" class="CombatSlot"><Image id="CombatSourceSlot5range2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot5range2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot5range3" class="CombatSlot"><Image id="CombatSourceSlot5range3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot5range3Amount" class="CombatSlotAmount"/></Button>
@@ -338,7 +338,7 @@
 				<Text id="CombatEnemyRow5Offence" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="130" alignment="MiddleLeft"/>
 				<Panel id="CombatSourceCell5block" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot5blockCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid5block" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="UpperLeft" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid5block" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot5block1" class="CombatSlot"><Image id="CombatSourceSlot5block1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot5block1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot5block2" class="CombatSlot"><Image id="CombatSourceSlot5block2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot5block2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot5block3" class="CombatSlot"><Image id="CombatSourceSlot5block3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot5block3Amount" class="CombatSlotAmount"/></Button>
@@ -355,7 +355,7 @@
 				</Panel>
 				<Panel id="CombatSourceCell5attack" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot5attackCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid5attack" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="UpperLeft" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid5attack" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot5attack1" class="CombatSlot"><Image id="CombatSourceSlot5attack1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot5attack1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot5attack2" class="CombatSlot"><Image id="CombatSourceSlot5attack2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot5attack2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot5attack3" class="CombatSlot"><Image id="CombatSourceSlot5attack3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot5attack3Amount" class="CombatSlotAmount"/></Button>
@@ -385,7 +385,7 @@
 				<Text id="CombatEnemyRow6Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
 				<Panel id="CombatSourceCell6range" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot6rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid6range" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="UpperLeft" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid6range" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot6range1" class="CombatSlot"><Image id="CombatSourceSlot6range1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot6range1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot6range2" class="CombatSlot"><Image id="CombatSourceSlot6range2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot6range2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot6range3" class="CombatSlot"><Image id="CombatSourceSlot6range3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot6range3Amount" class="CombatSlotAmount"/></Button>
@@ -410,7 +410,7 @@
 				<Text id="CombatEnemyRow6Offence" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="130" alignment="MiddleLeft"/>
 				<Panel id="CombatSourceCell6block" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot6blockCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid6block" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="UpperLeft" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid6block" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot6block1" class="CombatSlot"><Image id="CombatSourceSlot6block1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot6block1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot6block2" class="CombatSlot"><Image id="CombatSourceSlot6block2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot6block2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot6block3" class="CombatSlot"><Image id="CombatSourceSlot6block3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot6block3Amount" class="CombatSlotAmount"/></Button>
@@ -427,7 +427,7 @@
 				</Panel>
 				<Panel id="CombatSourceCell6attack" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot6attackCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid6attack" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="UpperLeft" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid6attack" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot6attack1" class="CombatSlot"><Image id="CombatSourceSlot6attack1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot6attack1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot6attack2" class="CombatSlot"><Image id="CombatSourceSlot6attack2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot6attack2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot6attack3" class="CombatSlot"><Image id="CombatSourceSlot6attack3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot6attack3Amount" class="CombatSlotAmount"/></Button>
@@ -456,7 +456,7 @@
 				<Text id="CombatEnemyRow7Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
 				<Panel id="CombatSourceCell7range" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot7rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid7range" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="UpperLeft" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid7range" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot7range1" class="CombatSlot"><Image id="CombatSourceSlot7range1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot7range1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot7range2" class="CombatSlot"><Image id="CombatSourceSlot7range2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot7range2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot7range3" class="CombatSlot"><Image id="CombatSourceSlot7range3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot7range3Amount" class="CombatSlotAmount"/></Button>
@@ -481,7 +481,7 @@
 				<Text id="CombatEnemyRow7Offence" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="130" alignment="MiddleLeft"/>
 				<Panel id="CombatSourceCell7block" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot7blockCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid7block" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="UpperLeft" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid7block" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot7block1" class="CombatSlot"><Image id="CombatSourceSlot7block1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot7block1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot7block2" class="CombatSlot"><Image id="CombatSourceSlot7block2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot7block2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot7block3" class="CombatSlot"><Image id="CombatSourceSlot7block3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot7block3Amount" class="CombatSlotAmount"/></Button>
@@ -498,7 +498,7 @@
 				</Panel>
 				<Panel id="CombatSourceCell7attack" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot7attackCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid7attack" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="UpperLeft" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid7attack" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot7attack1" class="CombatSlot"><Image id="CombatSourceSlot7attack1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot7attack1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot7attack2" class="CombatSlot"><Image id="CombatSourceSlot7attack2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot7attack2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot7attack3" class="CombatSlot"><Image id="CombatSourceSlot7attack3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot7attack3Amount" class="CombatSlotAmount"/></Button>
@@ -528,7 +528,7 @@
 				<Text id="CombatEnemyRow8Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
 				<Panel id="CombatSourceCell8range" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot8rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid8range" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="UpperLeft" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid8range" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot8range1" class="CombatSlot"><Image id="CombatSourceSlot8range1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot8range1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot8range2" class="CombatSlot"><Image id="CombatSourceSlot8range2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot8range2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot8range3" class="CombatSlot"><Image id="CombatSourceSlot8range3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot8range3Amount" class="CombatSlotAmount"/></Button>
@@ -553,7 +553,7 @@
 				<Text id="CombatEnemyRow8Offence" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="130" alignment="MiddleLeft"/>
 				<Panel id="CombatSourceCell8block" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot8blockCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid8block" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="UpperLeft" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid8block" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot8block1" class="CombatSlot"><Image id="CombatSourceSlot8block1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot8block1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot8block2" class="CombatSlot"><Image id="CombatSourceSlot8block2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot8block2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot8block3" class="CombatSlot"><Image id="CombatSourceSlot8block3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot8block3Amount" class="CombatSlotAmount"/></Button>
@@ -570,7 +570,7 @@
 				</Panel>
 				<Panel id="CombatSourceCell8attack" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot8attackCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid8attack" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="UpperLeft" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid8attack" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot8attack1" class="CombatSlot"><Image id="CombatSourceSlot8attack1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot8attack1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot8attack2" class="CombatSlot"><Image id="CombatSourceSlot8attack2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot8attack2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot8attack3" class="CombatSlot"><Image id="CombatSourceSlot8attack3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot8attack3Amount" class="CombatSlotAmount"/></Button>
@@ -594,7 +594,7 @@
 			<Panel id="CombatTotalSpacer" preferredWidth="1000" color="rgba(0,0,0,0)" outlineSize="0 0"/>
 			<VerticalLayout preferredWidth="345" childForceExpandHeight="false">
 				<Text id="CombatTotalDamage" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="345" preferredHeight="18" alignment="MiddleLeft"/>
-				<Text id="CombatKnockoutWarning" active="false" class="Text12" fontSize="12" color="#FF5555" preferredWidth="345" preferredHeight="30" alignment="MiddleLeft"/>
+				<Text id="CombatKnockoutWarning" active="false" class="Text12" fontSize="12" color="#FF5555" preferredWidth="345" preferredHeight="18" alignment="MiddleLeft"/>
 			</VerticalLayout>
 		</HorizontalLayout>
         <Text id="CombatResourceOverflow" active="false" class="Text12" color="#FFCC66" preferredHeight="18" alignment="MiddleLeft"/>
