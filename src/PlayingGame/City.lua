@@ -1175,11 +1175,17 @@ local function cityCardCompactionCandidates(scanContext)
 	for _,obj in pairs(getAllObjects()) do
 		local guid=obj~=nil and obj.guid or nil
 		if guid~=nil and terrainTiles[guid]==nil then
+			local pug=monsterPugs[guid]
+			local objectType=obj.type
+			-- Cards, decks, bags and dice cannot be City garrisons or Shields.
+			-- Avoid a TTS position read for each such unrelated object.
+			local possible=pug~=nil or (objectType~="Card" and objectType~="Deck"
+				and objectType~="Bag" and objectType~="Infinite_Bag" and objectType~="Dice")
+			if possible then
 			local pos=obj.getPosition()
 			if pos~=nil and pos[2]>=CITY_GARRISON_MIN_Y and pos[2]<=CITY_GARRISON_MAX_Y then
 				local ownerGUID,distSq=cityGarrisonNearestOwner(pos,owners)
 				if ownerGUID~=nil and distSq~=nil then
-					local pug=monsterPugs[guid]
 					local isAvatar=avatarGUIDs[guid]==true
 					local eligibleEnemy=pug~=nil and CITY_GARRISON_PUG_TYPES[pug.pugType]==true
 					local shield=distSq<=10.24 and isShieldObject~=nil and isShieldObject(obj)==true
@@ -1204,6 +1210,7 @@ local function cityCardCompactionCandidates(scanContext)
 						end
 					end
 				end
+			end
 			end
 		end
 	end
