@@ -498,6 +498,9 @@ local function damageAttackClicked(obj,playerColor,index,altClick)
 		damageTargets[attack.key]=nil
 		damagePending=nil
 	elseif damagePending~=nil and damagePending.key==attack.key then
+		-- Clicking the same damage target button twice returns all of this
+		-- attack's manually assigned Unit wounds to the Hero.
+		damageTargets[attack.key]=nil
 		damagePending=nil
 	else
 		damagePending={key=attack.key,color=playerColor}
