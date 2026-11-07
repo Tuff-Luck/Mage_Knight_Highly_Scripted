@@ -412,9 +412,6 @@ local function combatDiscardMonster(playAreaObj, giveRewards, context)
 	local monsterGUID=playAreaObj.guid
 	local monsterData=monsterPugs[monsterGUID]
 	if monsterData==nil then return false end
-	-- Detach every summoned child before a summoner is returned to a container.
-	combatReleaseAllSummonedEnemies()
-
 	if gStates.apocalypseQuestGoblinEnemies~=nil and gStates.apocalypseQuestGoblinEnemies[monsterGUID]~=nil then
 		--Goblin Warrens enemies come from an Infinite Bag and are not members of a normal discard cycle.
 		apocalypseQuestGoblinRecordCleanup(monsterGUID,playAreaObj.is_face_down==false)
