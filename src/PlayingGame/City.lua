@@ -1162,8 +1162,38 @@ end
 -- can be outside the map scripting zone, so this deliberately reads all table objects,
 -- but only once, and associates each eligible piece with its nearest deployed City.
 -- This remains runtime-only: manual garrison layouts still come from the table.
+-- Query only the space around City cards which may actually compact. A City
+-- army can be fanned well outside its scripting zone, so zone.getObjects() is
+-- not a safe substitute. A stationary TTS box cast covers the complete known
+-- garrison radius (9 world units), including manual tokens and Shields.
+-- Keep the full-table path for non-TTS tests / unavailable physics services.
+local function cityCardCompactionNearbyObjects(owners,scanContext)
+	if Physics==nil or type(Physics.cast)~="function" then return getAllObjects() end
+	local nearby,seen={},{}
+	for _,owner in ipairs(owners) do
+		if scanContext.activeOwners==nil or scanContext.activeOwners[owner.guid]==true then
+			local pos=owner.position
+			local hits=Physics.cast({
+				type=3,origin={pos[1],1.8,pos[3]},direction={0,1,0},
+				size={22,8,22},max_distance=0,debug=false
+			})
+			if type(hits)~="table" then return getAllObjects() end
+			for _,hit in ipairs(hits) do
+				local obj=hit.hit_object
+				local guid=obj~=nil and obj.guid or nil
+				if guid~=nil and seen[guid]~=true then
+					seen[guid]=true
+					nearby[#nearby+1]=obj
+				end
+			end
+		end
+	end
+	return nearby
+end
+
 local function cityCardCompactionCandidates(scanContext)
 	if scanContext.candidates~=nil then return scanContext.candidates end
+	scanContext.positions=scanContext.positions or {}
 	local perfStart=mapPerformanceStart()
 	local owners=cityGarrisonCardOwners()
 	local byOwner={}
@@ -1175,7 +1205,7 @@ local function cityCardCompactionCandidates(scanContext)
 		if mage.token~=nil then avatarGUIDs[mage.token]=true end
 	end
 	local physicalMap=nil
-	for _,obj in pairs(getAllObjects()) do
+	for _,obj in pairs(cityCardCompactionNearbyObjects(owners,scanContext)) do
 		local guid=obj~=nil and obj.guid or nil
 		if guid~=nil and terrainTiles[guid]==nil then
 			local pug=monsterPugs[guid]
@@ -1185,7 +1215,11 @@ local function cityCardCompactionCandidates(scanContext)
 			local possible=pug~=nil or avatarGUIDs[guid]==true or (objectType~="Card" and objectType~="Deck"
 				and objectType~="Bag" and objectType~="Infinite_Bag" and objectType~="Dice")
 			if possible then
-				local pos=obj.getPosition()
+				local pos=scanContext.positions[guid]
+				if pos==nil then
+					pos=obj.getPosition()
+					scanContext.positions[guid]=pos
+				end
 				if pos~=nil and pos[2]>=CITY_GARRISON_MIN_Y and pos[2]<=CITY_GARRISON_MAX_Y then
 					local ownerGUID,distSq=cityGarrisonNearestOwner(pos,owners)
 					if ownerGUID~=nil and distSq~=nil then
