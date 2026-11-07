@@ -2148,47 +2148,22 @@ local function combatAssignmentRefreshRows(entries,sources)
         totalRowHeight=totalRowHeight+summaryHeight
     end
 
-    local selectionText
-    if combatAssignmentState.selected~=nil then
-        selectionText=joinLang({
-            "{en}Source selected: click another enemy's row to move it there.",
-            "{it}Fonte selezionata: clicca la cella Distanza/Assedio o Attacco per spostare tutte le risorse su quel nemico.",
-            "{ru}Источник выбран: нажмите на ячейку Дальняя/Осадная или Атака, чтобы переместить все ресурсы к этому врагу.",
-            "{zh-tw}已選擇來源：點擊該敵人的遠程／攻城或攻擊欄位，即可移動所有資源。",
-            "{zh-cn}已选择来源：点击该敌人的远程／攻城或攻击栏位，即可移动所有资源。",
-            "{ko}자원이 선택됨: 적의 원거리/공성 또는 공격 칸을 클릭해 모든 자원을 이동하세요.",
-            "{es}Fuente seleccionada: haz clic en la celda de Rango/Asedio o Ataque para mover todos los recursos a ese enemigo.",
-            "{fr}Source sélectionnée : cliquez sur la cellule Distance/Siège ou Attaque de l'ennemi pour y déplacer toutes les ressources.",
-            "{pt-br}Fonte selecionada: clique na célula Distância/Cerco ou Ataque para mover todos os recursos para esse inimigo.",
-            "{de}Quelle ausgewählt: Klicke auf das Fernkampf-/Belagerungs- oder Angriffsfeld des Feindes, um alle Ressourcen dorthin zu verschieben."
-        })
-    else
-        selectionText=joinLang({
-            "{en}Sources lock to the nearest enemy and the phase is chosen for you. Click an icon, then another enemy's row to retarget it. Click an enemy name to group it with the row above.",
-            "{it}Le fonti iniziano sul nemico più vicino. Clicca un'icona, poi la cella della fase del nemico per riassegnarla.",
-            "{ru}Источники изначально назначены ближайшему врагу. Нажмите на значок, затем на ячейку фазы нужного врага.",
-            "{zh-tw}資源預設分配給最近的敵人。點擊圖示，再點擊另一敵人的階段欄位即可重新指定。",
-            "{zh-cn}资源默认分配给最近的敌人。点击图标，再点击另一敌人的阶段栏位即可重新指定。",
-            "{ko}자원은 가장 가까운 적에게 배정됩니다. 아이콘을 클릭한 다음 다른 적의 단계 칸을 클릭해 다시 지정하세요.",
-            "{es}Las fuentes empiezan en el enemigo más cercano. Haz clic en un icono y luego en la fase de otro enemigo para reasignarla.",
-            "{fr}Les sources commencent sur l'ennemi le plus proche. Cliquez sur une icône, puis sur la phase d'un autre ennemi pour la réattribuer.",
-            "{pt-br}As fontes começam no inimigo mais próximo. Clique em um ícone e depois na fase de outro inimigo para reatribuí-la.",
-            "{de}Quellen beginnen beim nächsten Feind. Klicke auf ein Symbol und dann auf die Phasenzelle eines anderen Feindes, um es neu zuzuweisen."
-        })
-    end
+    -- A solo enemy can show twelve icons per phase; larger grouped stacks
+    -- continue onto the next member row. Do not silently hide any remainder.
+    combatPanelSetAttribute("CombatResourceOverflow","active",overflow>0 and "true" or "false")
     if overflow>0 then
-        selectionText=selectionText..joinLang({
-            "{en}\nWarning: "..tostring(overflow).." enemies/resources exceed the visible assignment slots.",
-            "{it}\nAvviso: "..tostring(overflow).." nemici/risorse superano gli spazi visibili.",
-            "{ru}\nПредупреждение: врагов/ресурсов вне видимых ячеек: "..tostring(overflow)..".",
-            "{zh-tw}\n警告：有 "..tostring(overflow).." 個敵人／資源超出可見欄位。",
-            "{zh-cn}\n警告：有 "..tostring(overflow).." 个敌人／资源超出可见栏位。",
-            "{ko}\n경고: 표시 슬롯을 초과한 적/자원 "..tostring(overflow).."개.",
-            "{es}\nAviso: "..tostring(overflow).." enemigos/recursos exceden los espacios visibles.",
-            "{fr}\nAttention : "..tostring(overflow).." ennemis/ressources dépassent les emplacements visibles.",
-            "{pt-br}\nAviso: "..tostring(overflow).." inimigos/recursos excedem os espaços visíveis.",
-            "{de}\nWarnung: "..tostring(overflow).." Feinde/Ressourcen überschreiten die sichtbaren Plätze."
-        })
+        combatPanelSetAttribute("CombatResourceOverflow","text",joinLang({
+            "{en}"..overflow.." resource icons exceed the available rows.",
+            "{it}"..overflow.." icone delle risorse oltre le righe disponibili.",
+            "{ru}"..overflow.." значков ресурсов не помещается в строках.",
+            "{zh-tw}有 "..overflow.." 個資源圖示超出可用列數。",
+            "{zh-cn}有 "..overflow.." 个资源图标超出可用行数。",
+            "{ko}"..overflow.."개 자원 아이콘이 표시 행을 초과했습니다.",
+            "{es}"..overflow.." iconos de recursos superan las filas disponibles.",
+            "{fr}"..overflow.." icônes de ressources dépassent les lignes disponibles.",
+            "{pt-br}"..overflow.." ícones de recursos excedem as linhas disponíveis.",
+            "{de}"..overflow.." Ressourcensymbole passen nicht in die verfügbaren Zeilen."
+        }))
     end
     local widthReduction=(170-columnWidths.range)+(170-columnWidths.block)+(170-columnWidths.attack)
     combatPanelSetAttribute("CombatEnemyPanel","width",tostring(1380-hiddenWidth-widthReduction))
@@ -2204,7 +2179,7 @@ local function combatAssignmentRefreshRows(entries,sources)
             combatPanelSetAttribute(id,"alignment","MiddleCenter")
         end
     end
-    return totalRowHeight+(pages>1 and 22 or 0)
+    return totalRowHeight+(pages>1 and 22 or 0)+(overflow>0 and 18 or 0)
 end
 
 local function combatCalcShutdown()
