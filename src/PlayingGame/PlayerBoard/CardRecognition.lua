@@ -6416,7 +6416,7 @@ function resourceUnitsCommandPickedUp(playerColor,obj)
 end
 
 function resourceUnitsCommandDropped(playerColor,obj)
-    if obj==nil or not unitLayoutIsCommand(obj) then return end
+    if not resourceCardsPanelOpen() or obj==nil or not unitLayoutIsCommand(obj) then return end
     local pickup=commandPickupForUnits[obj.guid]
     commandPickupForUnits[obj.guid]=nil
     if pickup==nil or not resourceCardsPanelOpen() then return end
