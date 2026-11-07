@@ -1439,9 +1439,8 @@ local function cityCardParkedBeyondExplore(cityZone,mapObjects)
 			local other=getObjectFromGUID(otherGUID)
 			local live=other~=nil and other.getPosition() or nil
 			local pending=cityCardPendingDestination(otherGUID)
-			for _,otherPos in ipairs({live,pending}) do
-				if (pos[1]-otherPos[1])^2+(pos[3]-otherPos[3])^2<9.61 then return false end
-			end
+			if live~=nil and (pos[1]-live[1])^2+(pos[3]-live[3])^2<9.61 then return false end
+			if pending~=nil and (pos[1]-pending[1])^2+(pos[3]-pending[3])^2<9.61 then return false end
 		end
 	end
 	return true
