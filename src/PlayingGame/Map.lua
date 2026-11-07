@@ -39,17 +39,35 @@ function terrainExploreOptions()
 	return terrainExploreButtons
 end
 
--- Ultimate Conquest City cards parked beyond every possible EXPLORE tile
--- centre need no more auto-compaction. Use a generous footprint margin:
--- the terrain tile's outer hexes extend past its centre.
-function terrainExploreMayReachCityCard(position)
-	if position==nil then return true end
-	for _,spot in ipairs(terrainExploreSpots) do
-		local dx=spot[1]-position[1]
-		local dz=spot[3]-position[3]
-		if dx*dx+dz*dz<42.25 then return true end
+-- This is deliberately scenario/map-shape agnostic. A newly explored tile
+-- normally adjoins a revealed tile (roughly 6 world units between tile centres).
+-- Keep a 6.5-unit clearance beyond that single-tile expansion, so a City card
+-- never becomes dormant just before the map can reach it. The test runs again
+-- on every EXPLORE refresh, allowing unlimited/custom maps to grow toward it.
+function terrainExploreMayReachCityCard(position,mapObjects)
+	if position==nil or mapObjects==nil then return true end
+	local nearbyRadiusSq=156.25 -- (6 + 6.5) squared
+	local foundTerrain=false
+	for _,obj in ipairs(mapObjects) do
+		if terrainTiles[obj.guid]~=nil and obj.position~=nil then
+			foundTerrain=true
+			local dx=obj.position[1]-position[1]
+			local dz=obj.position[3]-position[3]
+			if dx*dx+dz*dz<nearbyRadiusSq then return true end
+		end
 	end
-	return false
+	-- Also respect any nonstandard legal placements already exposed by the UI.
+	-- They may be farther away than a normal adjacent-terrain expansion.
+	for _,button in pairs(terrainExploreOptions()) do
+		local attrs=button.attributes
+		if attrs~=nil and attrs.tilePosX~=nil and attrs.tilePosZ~=nil then
+			local dx=tonumber(attrs.tilePosX)-position[1]
+			local dz=tonumber(attrs.tilePosZ)-position[3]
+			if dx*dx+dz*dz<42.25 then return true end
+		end
+	end
+	-- No map geometry yet? Keep ordinary City placement enabled.
+	return not foundTerrain
 end
 
 function clearTerrainExploreOptions()
