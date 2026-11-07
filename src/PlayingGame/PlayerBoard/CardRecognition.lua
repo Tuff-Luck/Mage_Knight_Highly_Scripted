@@ -51,11 +51,17 @@ local forestersTerrainModifier={mode="reduce",
 -- Reopening starts a new tracking session using the physical table.
 local trackerWasDisabled=false
 local trackerSession=0
-function resourceCardsPanelOpen()
+-- The UI may update a frame after the click. Keep its visible state separate
+-- from the immediate OFF latch so delayed events cannot restart scanning.
+function resourceCardsPanelReady()
     return gStates~=nil and gStates.firstStarted==true
         and UI.getAttribute("ResourceTracker","active")=="true"
         and UI.getAttribute("ResourceTrackerDetail","active")=="true"
         and (tonumber(UI.getAttribute("ResourceTracker","height")) or 0)>200
+end
+
+function resourceCardsPanelOpen()
+    return not trackerWasDisabled and resourceCardsPanelReady()
 end
 
 local function resourceCardsDetailsOpen()
@@ -6601,7 +6607,7 @@ local function resourceUnitsRebuildFromTable()
 end
 
 function resourceCardsPanelChanged(open)
-    if open~=true or not resourceCardsPanelOpen() then
+    if open~=true or not resourceCardsPanelReady() then
         trackerWasDisabled=true
         trackerSession=trackerSession+1
         -- Turn the tracker completely off: stop callbacks and remove its visuals.
@@ -6633,6 +6639,7 @@ function resourceCardsPanelChanged(open)
     -- Expanding after an OFF period rebuilds from scratch, not cached choices.
     local restart=trackerWasDisabled
     trackerWasDisabled=false
+    if restart then refreshResourceTrackerReputation() end
     clearAll()
     if restart then resourceUnitsRebuildFromTable() end
     resourceUnitsRefreshButtons()

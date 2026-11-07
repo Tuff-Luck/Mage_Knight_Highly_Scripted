@@ -2292,7 +2292,7 @@ function resourceTracker(player, mouseButton, id)
             else
                 -- Apply the complete fresh-start scan only after the expanded UI is live.
                 safeWaitFrames("UI",function()
-                    if resourceCardsPanelOpen() then
+                    if resourceCardsPanelReady() then
                         resourceCardsPanelChanged(true)
                         updateMoveDisplay("DisplayResourceTrackerDetails")
                     end
@@ -2426,15 +2426,21 @@ function resetResourceTrackerState()
 		if gStates.dayRound==true then gStates.moveCost={["plains"]=2, ["hills"]=3, ["forest"]=3, ["wasteland"]=4, ["desert"]=5, ["swamp"]=5, ["lake"]=999, ["mountain"]=999, ["city"]=2, ["explore"]=2} end
 end
 
+function refreshResourceTrackerReputation()
+    if not resourceCardsPanelOpen() then return end
+    gStates.resourceTracker.influence.reputation=-99
+    if reputationTable[turnOrder[gStates.turnNumber].reputation].repDisplay~="No Interaction" then
+        gStates.resourceTracker.influence.reputation=tonumber(reputationTable[turnOrder[gStates.turnNumber].reputation].repDisplay)
+    end
+end
+
 function refreshResourceTracker()
-    if resourceCardsPanelOpen() then updateMoveDisplay() end
-	gStates.resourceTracker.influence.reputation=-99
-	if reputationTable[turnOrder[gStates.turnNumber].reputation].repDisplay~="No Interaction" then
-		gStates.resourceTracker.influence.reputation=tonumber(reputationTable[turnOrder[gStates.turnNumber].reputation].repDisplay)
-	end
-    if resourceCardsPanelOpen() then refreshResourceTrackerText() end
-    -- After the turn changes, recalculate for the newly active Mage Knight.
-    if resourceCardsPanelOpen() then resourceCardsPanelChanged(true) end
+    if not resourceCardsPanelOpen() then return end
+    updateMoveDisplay()
+    refreshResourceTrackerReputation()
+    refreshResourceTrackerText()
+    -- Recalculate for the newly active Mage Knight only when automation is enabled.
+    resourceCardsPanelChanged(true)
 end
 legacyObjectButtonImage=function(id,image)
 	if id==nil then return false end
