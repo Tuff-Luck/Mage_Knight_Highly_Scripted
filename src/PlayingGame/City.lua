@@ -1179,7 +1179,7 @@ local function cityCardCompactionCandidates(scanContext)
 			local objectType=obj.type
 			-- Cards, decks, bags and dice cannot be City garrisons or Shields.
 			-- Avoid a TTS position read for each such unrelated object.
-			local possible=pug~=nil or (objectType~="Card" and objectType~="Deck"
+			local possible=pug~=nil or avatarGUIDs[guid]==true or (objectType~="Card" and objectType~="Deck"
 				and objectType~="Bag" and objectType~="Infinite_Bag" and objectType~="Dice")
 			if possible then
 				local pos=obj.getPosition()
