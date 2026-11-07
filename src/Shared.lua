@@ -1133,7 +1133,7 @@ local function runtimeMapTerrainSnapshot()
 	local incremental=previous~=nil and oldOrder~=nil and not orderChanged and
 		(changedCount+removedCount)*3<#hexes
 	local neighbors,neighborSet={},{}
-	if incremental and changedCount==0 and removedCount==0 then
+	if previous~=nil and incremental and changedCount==0 and removedCount==0 then
 		-- Terrain callbacks occasionally invalidate without changing geometry.
 		neighbors=previous.neighbors
 		neighborSet=previous.neighborSet
@@ -1149,7 +1149,7 @@ local function runtimeMapTerrainSnapshot()
 			cell[#cell+1]=hex
 		end
 		local newEdges={}
-		if incremental then
+		if previous~=nil and incremental then
 			-- Find only new edges, then copy-on-write just the lists they
 			-- affect; stable graph arrays remain untouched and reusable.
 			for _,hex in ipairs(changedHexes) do
@@ -1186,12 +1186,12 @@ local function runtimeMapTerrainSnapshot()
 		end
 		for _,hex in ipairs(hexes) do
 			local key=hex.key
-			if incremental and not affected[key] then
+			if previous~=nil and incremental and not affected[key] then
 				neighbors[key]=previous.neighbors[key]
 				neighborSet[key]=previous.neighborSet[key]
 			else
 				local list,set={},{}
-				if incremental and previous.hexByKey[key]==hex then
+				if previous~=nil and incremental and previous.hexByKey[key]==hex then
 					for _,neighbor in ipairs(previous.neighbors[key] or {}) do
 						if hexByKey[neighbor.key]==neighbor then
 							list[#list+1]=neighbor
