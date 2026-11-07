@@ -127,8 +127,8 @@ combatConfig.rowCount=8 -- XML has eight reusable row controls.
 combatConfig.crowdedPageSize=6
 combatConfig.slotCount=6
 combatConfig.rowHeight=32
-combatConfig.panelBaseHeight=48
-combatConfig.columns={Name=130,Armour=55,Traits=150,Attacks=110,Offence=130,Result=270}
+combatConfig.panelBaseHeight=30
+combatConfig.columns={Name=120,Armour=55,Traits=150,Attacks=105,Offence=130,Result=255}
 -- Damage/resistance colours: normal, then the darker shade used once a value has been reduced.
 combatConfig.typeColors={P={"#FFFFFF","#9A9A9A"},F={"#FF5555","#992E2E"},I={"#5AA0FF","#2F5F9A"},
     IF={"#C070FF","#74429A"},M={"#FFE055","#9A8A33"}}
@@ -2064,17 +2064,24 @@ local function combatAssignmentRefreshRows(entries,sources)
     local showTotal=totalHeroWounds>0
     combatPanelSetAttribute("CombatTotalRow","active",showTotal and "true" or "false")
     if showTotal then
-        -- The spacer pushes the total under the Result column.
-        local spacer=-hiddenWidth
-        for _,width in ipairs({130,55,150,170,110,130,170,170}) do spacer=spacer+width end
+        -- Align with Result; allow the separate knockout warning to extend slightly
+        -- into the preceding column rather than clipping in a 180-unit text field.
+        local spacer=-hiddenWidth-50
+        for _,width in ipairs({120,55,150,170,105,130,170,170}) do spacer=spacer+width end
         combatPanelSetAttribute("CombatTotalSpacer","preferredWidth",tostring(spacer))
-        -- Show Hero Wound cards, with extra Poison Wounds to the discard pile in brackets.
         local poisonText=totalDiscardWounds>0 and " ("..tostring(totalDiscardWounds).." Poison)" or ""
-        local knockoutText=knockout and " — KNOCKED OUT (discard non-Wound hand cards)" or ""
         combatPanelSetAttribute("CombatTotalDamage","text",
-            "Total Wounds: "..combatRich(tostring(totalHeroWounds)..poisonText..knockoutText,COMBAT_RED))
+            "Total Wounds: "..combatRich(tostring(totalHeroWounds)..poisonText,COMBAT_RED))
         combatPanelSetAttribute("CombatTotalDamage","font","Fonts/MKCardText")
-        totalRowHeight=totalRowHeight+18
+        combatPanelSetAttribute("CombatKnockoutWarning","active",knockout and "true" or "false")
+        if knockout then
+            combatPanelSetAttribute("CombatKnockoutWarning","text",
+                "KNOCKED OUT\\nDiscard all non-Wound cards from hand")
+            combatPanelSetAttribute("CombatKnockoutWarning","font","Fonts/MKCardText")
+        end
+        local summaryHeight=knockout and 48 or 18
+        combatPanelSetAttribute("CombatTotalRow","preferredHeight",tostring(summaryHeight))
+        totalRowHeight=totalRowHeight+summaryHeight
     end
 
     local selectionText
@@ -2119,10 +2126,10 @@ local function combatAssignmentRefreshRows(entries,sources)
             "{de}\nWarnung: "..tostring(overflow).." Feinde/Ressourcen überschreiten die sichtbaren Plätze."
         })
     end
-    combatPanelSetAttribute("CombatEnemyPanel","width",tostring(1410-hiddenWidth))
+    combatPanelSetAttribute("CombatEnemyPanel","width",tostring(1380-hiddenWidth))
     combatPanelSetAttribute("CombatEnemyPanel","color","rgb(0.24,0.2,0.15)")
-    local headerWidths={Monster=130,Armour=55,DefenceTraits=150,RangeSiege=170,EnemyAttack=110,
-        Offence=130,Block=170,AssignedAttack=170,Result=270}
+    local headerWidths={Monster=120,Armour=55,DefenceTraits=150,RangeSiege=170,EnemyAttack=105,
+        Offence=130,Block=170,AssignedAttack=170,Result=255}
     for name,width in pairs(headerWidths) do
         local id="Combat"..name.."Header"
         combatPanelSetAttribute(id,"font","Fonts/MKCardTittle")
