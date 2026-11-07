@@ -1158,55 +1158,57 @@ end
 -- A zone is a collider query, NOT an ownership record: it can include neighbouring
 -- Cities, reference tiles, and other unrelated objects (including locked ones).
 -- Use the City's actual roster and the existing pre-combat manual-army recognition.
--- Resolve physical City-garrison candidates once for a compaction pass. A City card
--- can be outside the map scripting zone, so this deliberately reads all table objects,
--- but only once, and associates each eligible piece with its nearest deployed City.
--- This remains runtime-only: manual garrison layouts still come from the table.
--- Query only the space around City cards which may actually compact. A City
--- army can be fanned well outside its scripting zone, so zone.getObjects() is
--- not a safe substitute. A stationary TTS box cast covers the complete known
--- garrison radius (9 world units), including manual tokens and Shields.
--- Keep the full-table path for non-TTS tests / unavailable physics services.
-local function cityCardCompactionNearbyObjects(owners,scanContext)
-	if Physics==nil or type(Physics.cast)~="function" then return getAllObjects() end
-	local nearby,seen={},{}
-	for _,owner in ipairs(owners) do
-		if scanContext.activeOwners==nil or scanContext.activeOwners[owner.guid]==true then
-			local pos=owner.position
-			local hits=Physics.cast({
-				type=3,origin={pos[1],1.8,pos[3]},direction={0,1,0},
-				size={22,8,22},max_distance=0,debug=false
-			})
-			if type(hits)~="table" then return getAllObjects() end
-			for _,hit in ipairs(hits) do
-				local obj=hit.hit_object
-				local guid=obj~=nil and obj.guid or nil
-				if guid~=nil and seen[guid]~=true then
-					seen[guid]=true
-					nearby[#nearby+1]=obj
-				end
-			end
-			-- A registered defender may be underneath a City card or another
-			-- token, so don't make its ownership depend on the collider cast.
-			-- This is only a handful of direct lookups, not a table scan.
-			local roster=gStates.cityMonsterQty~=nil and gStates.cityMonsterQty[owner.guid] or nil
-			for guid,state in pairs(roster or {}) do
-				if state=="alive" and seen[guid]~=true and monsterPugs[guid]~=nil then
-					local obj=getObjectFromGUID(guid)
-					if obj~=nil then
-						seen[guid]=true
-						nearby[#nearby+1]=obj
-					end
-				end
-			end
-		end
-	end
-	return nearby
-end
+-- Resolve physical City-garrison candidates once per compaction pass. City
+-- armies can be manually fanned outside scripting zones, so use a local
+-- physics broadphase around active City cards instead of scanning the entire
+-- table. This remains runtime-only: the physical table still owns positions.
 
 local function cityCardCompactionCandidates(scanContext)
 	if scanContext.candidates~=nil then return scanContext.candidates end
 	scanContext.positions=scanContext.positions or {}
+	-- Query only the space around City cards which may actually compact. A City
+	-- army can be fanned well outside its scripting zone, so zone.getObjects() is
+	-- not a safe substitute. A stationary TTS box cast covers the complete known
+	-- garrison radius (9 world units), including manual tokens and Shields.
+	-- Keep the full-table path for non-TTS tests / unavailable physics services.
+	local function cityCardCompactionNearbyObjects(owners,scanContext)
+		if Physics==nil or type(Physics.cast)~="function" then return getAllObjects() end
+		local nearby,seen={},{}
+		for _,owner in ipairs(owners) do
+			if scanContext.activeOwners==nil or scanContext.activeOwners[owner.guid]==true then
+				local pos=owner.position
+				local castStart=mapPerformanceStart()
+				local hits=Physics.cast({
+					type=3,origin={pos[1],1.8,pos[3]},direction={0,1,0},
+					size={22,8,22},max_distance=0,debug=false
+				})
+				mapPerformanceRecord("City vicinity cast",castStart)
+				if type(hits)~="table" then return getAllObjects() end
+				for _,hit in ipairs(hits) do
+					local obj=hit.hit_object
+					local guid=obj~=nil and obj.guid or nil
+					if guid~=nil and seen[guid]~=true then
+						seen[guid]=true
+						nearby[#nearby+1]=obj
+					end
+				end
+				-- A registered defender may be underneath a City card or another
+				-- token, so don't make its ownership depend on the collider cast.
+				-- This is only a handful of direct lookups, not a table scan.
+				local roster=gStates.cityMonsterQty~=nil and gStates.cityMonsterQty[owner.guid] or nil
+				for guid,state in pairs(roster or {}) do
+					if state=="alive" and seen[guid]~=true and monsterPugs[guid]~=nil then
+						local obj=getObjectFromGUID(guid)
+						if obj~=nil then
+							seen[guid]=true
+							nearby[#nearby+1]=obj
+						end
+					end
+				end
+			end
+		end
+		return nearby
+	end
 	local perfStart=mapPerformanceStart()
 	local owners=cityGarrisonCardOwners()
 	local byOwner={}
