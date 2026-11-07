@@ -1155,7 +1155,7 @@ end
 -- A zone is a collider query, NOT an ownership record: it can include neighbouring
 -- Cities, reference tiles, and other unrelated objects (including locked ones).
 -- Use the City's actual roster and the existing pre-combat manual-army recognition.
-cityCardExploreGroup=function(cityZone)
+cityCardExploreGroup=function(cityZone,scanContext)
 	local details=cityScriptZones[cityZone]
 	local cityGUID=details~=nil and details.cityGUID or nil
 	local cityData=cityGUID~=nil and gStates.cityMonsterQty[cityGUID] or nil
@@ -1183,9 +1183,20 @@ cityCardExploreGroup=function(cityZone)
 		if mage.standee~=nil then avatarGUIDs[mage.standee]=true end
 		if mage.token~=nil then avatarGUIDs[mage.token]=true end
 	end
-	for _,obj in pairs(getAllObjects()) do
+	-- A compaction refresh can inspect several City groups. Share one physical-object
+	-- list and lazily sample each position once; do not persist this outside the pass.
+	local objects=scanContext~=nil and scanContext.objects or nil
+	if objects==nil then
+		objects=getAllObjects()
+		if scanContext~=nil then scanContext.objects=objects end
+	end
+	for _,obj in pairs(objects) do
 		if obj~=nil and obj.guid~=nil and obj.guid~=card.guid and terrainTiles[obj.guid]==nil then
-			local pos=obj.getPosition()
+			local pos=scanContext~=nil and scanContext.positions[obj.guid] or nil
+			if pos==nil then
+				pos=obj.getPosition()
+				if scanContext~=nil then scanContext.positions[obj.guid]=pos end
+			end
 			if pos~=nil and pos[2]>=CITY_GARRISON_MIN_Y and pos[2]<=CITY_GARRISON_MAX_Y then
 				local nearest,distSq=cityGarrisonNearestOwner(pos,owners)
 				if nearest==ownerGUID and distSq~=nil then
@@ -1236,8 +1247,25 @@ local function cityCardExploreBlockerBuckets(mapObjects)
 	return buckets
 end
 
-cityCardExploreSpaceFree=function(mapObjects,desiredLocation,movingGUIDs,extraBlockedPos,reservedPositions)
+-- Sample the current EXPLORE slots and in-flight City reservations once per
+-- placement decision, not once for each of its 24 candidate offsets.
+local function cityCardExplorePositionChecks()
+	local cards={}
+	local seen={}
+	for _,cardGUID in pairs(gStates.cityCard or {}) do
+		if cardGUID~=nil and seen[cardGUID]~=true then
+			seen[cardGUID]=true
+			local target=cityCardPendingDestination(cardGUID)
+			local card=getObjectFromGUID(cardGUID)
+			cards[#cards+1]={guid=cardGUID,live=card~=nil and card.getPosition() or nil,target=target}
+		end
+	end
+	return {options=terrainExploreOptions(),cards=cards}
+end
+
+cityCardExploreSpaceFree=function(mapObjects,desiredLocation,movingGUIDs,extraBlockedPos,reservedPositions,checks)
 	if cityCardPositionForbidden(desiredLocation)==true then return false end
+	checks=checks or cityCardExplorePositionChecks()
 	if extraBlockedPos~=nil then
 		local blockZ=extraBlockedPos[3] or extraBlockedPos[2]
 		if ((desiredLocation[1]-extraBlockedPos[1])^2)+((desiredLocation[3]-blockZ)^2)<9.61 then return false end
@@ -1245,7 +1273,7 @@ cityCardExploreSpaceFree=function(mapObjects,desiredLocation,movingGUIDs,extraBl
 	for _,reservedPos in ipairs(reservedPositions or {}) do
 		if ((desiredLocation[1]-reservedPos[1])^2)+((desiredLocation[3]-reservedPos[3])^2)<9.61 then return false end
 	end
-	for _,button in pairs(terrainExploreOptions()) do
+	for _,button in pairs(checks.options) do
 		if button.attributes~=nil and button.attributes.tilePosX~=nil and button.attributes.tilePosZ~=nil and
 			((desiredLocation[1]-tonumber(button.attributes.tilePosX))^2)+
 			((desiredLocation[3]-tonumber(button.attributes.tilePosZ))^2)<9.61 then return false end
@@ -1267,36 +1295,30 @@ cityCardExploreSpaceFree=function(mapObjects,desiredLocation,movingGUIDs,extraBl
 	-- The map-zone snapshot misses City cards parked outside it and smooth-moving cards.
 	-- Explicitly block both their live positions and reserved targets, even if another
 	-- City's scripting zone mistakenly reported them as occupants.
-	local checked={}
-	for _,cardGUID in pairs(gStates.cityCard or {}) do
-		if cardGUID~=nil and checked[cardGUID]~=true then
-			checked[cardGUID]=true
-			local target=cityCardPendingDestination(cardGUID)
-			if movingGUIDs[cardGUID]~=true then
-				local card=getObjectFromGUID(cardGUID)
-				local live=card~=nil and card.getPosition() or nil
-				for _,pos in ipairs({live,target}) do
-					if ((desiredLocation[1]-pos[1])^2)+((desiredLocation[3]-pos[3])^2)<9.61 then return false end
-				end
-			end
+	for _,card in ipairs(checks.cards) do
+		if movingGUIDs[card.guid]~=true then
+			local live,target=card.live,card.target
+			if live~=nil and ((desiredLocation[1]-live[1])^2)+((desiredLocation[3]-live[3])^2)<9.61 then return false end
+			if target~=nil and ((desiredLocation[1]-target[1])^2)+((desiredLocation[3]-target[3])^2)<9.61 then return false end
 		end
 	end
 	return true
 end
 
 -- Shared placement engine for initial deployment and later EXPLORE compaction.
-findCityCardPosition=function(cityPos,mapObjects,movingGUIDs,extraBlockedPos,reservedPositions,preferredOffset)
+findCityCardPosition=function(cityPos,mapObjects,movingGUIDs,extraBlockedPos,reservedPositions,preferredOffset,checks)
+	checks=checks or cityCardExplorePositionChecks()
 	if preferredOffset~=nil and cityCardExploreOffsets[preferredOffset]~=nil then
 		local offset=cityCardExploreOffsets[preferredOffset]
 		local preferred={cityPos[1]+offset[1],1.09,cityPos[3]+offset[3]}
-		if cityCardExploreSpaceFree(mapObjects,preferred,movingGUIDs,extraBlockedPos,reservedPositions)==true then
+		if cityCardExploreSpaceFree(mapObjects,preferred,movingGUIDs,extraBlockedPos,reservedPositions,checks)==true then
 			return preferred,math.sqrt((offset[1]^2)+(offset[3]^2))
 		end
 	end
 	local best,bestDistance=nil,nil
 	for _,offset in ipairs(cityCardExploreOffsets) do
 		local desired={cityPos[1]+offset[1],1.09,cityPos[3]+offset[3]}
-		if cityCardExploreSpaceFree(mapObjects,desired,movingGUIDs,extraBlockedPos,reservedPositions)==true then
+		if cityCardExploreSpaceFree(mapObjects,desired,movingGUIDs,extraBlockedPos,reservedPositions,checks)==true then
 			local distance=math.sqrt((offset[1]^2)+(offset[3]^2))
 			if bestDistance==nil or distance<bestDistance-0.05 then best=desired bestDistance=distance end
 		end
@@ -1304,7 +1326,7 @@ findCityCardPosition=function(cityPos,mapObjects,movingGUIDs,extraBlockedPos,res
 	return best,bestDistance
 end
 
-moveCityCardExploreGroup=function(group,desiredLocation,movedCityZones,mapObjects)
+moveCityCardExploreGroup=function(group,desiredLocation,movedCityZones,mapObjects,scanContext)
 	local cardPos=group.card.getPosition()
 	local deltaX=desiredLocation[1]-cardPos[1]
 	local deltaZ=desiredLocation[3]-cardPos[3]
@@ -1313,6 +1335,9 @@ moveCityCardExploreGroup=function(group,desiredLocation,movedCityZones,mapObject
 	-- Only move objects that passed the explicit ownership checks. Moving every object
 	-- returned by zone.getObjects() used to abduct distant locked reference tiles.
 	for guid,_ in pairs(group.movingGUIDs) do
+		-- The next City group must read the live transform of any moving
+		-- piece; cached pre-move positions cannot own another City.
+		if scanContext~=nil then scanContext.positions[guid]=nil end
 		if guid~=group.card.guid then
 			local obj=getObjectFromGUID(guid)
 			if obj~=nil then
@@ -1350,20 +1375,25 @@ end
 
 -- Place one City group at its closest legal location. Never redirect a card that
 -- is already travelling to a reserved destination; another City can compact meanwhile.
-positionCityCardForExplore=function(cityZone,extraBlockedPos,movedCityZones,reservedPositions,mapObjects)
+positionCityCardForExplore=function(cityZone,extraBlockedPos,movedCityZones,reservedPositions,mapObjects,scanContext)
 	if movedCityZones~=nil and movedCityZones[cityZone]==true then return false end
-	local group=cityCardExploreGroup(cityZone)
+	local scanStart=mapPerformanceStart()
+	local group=cityCardExploreGroup(cityZone,scanContext)
+	mapPerformanceRecord("City group scan",scanStart)
 	if group==nil or cityCardPendingDestination(group.card.guid)~=nil then return false end
 	if mapObjects==nil then mapObjects=cityCardMapSnapshot() end
 	local cityPos=group.city.getPosition()
 	local cardPos=group.card.getPosition()
 	local currentDistance=math.sqrt(((cardPos[1]-cityPos[1])^2)+((cardPos[3]-cityPos[3])^2))
-	local currentFree=cityCardExploreSpaceFree(mapObjects,cardPos,group.movingGUIDs,extraBlockedPos,reservedPositions)
-	local best,bestDistance=findCityCardPosition(cityPos,mapObjects,group.movingGUIDs,extraBlockedPos,reservedPositions)
+	local searchStart=mapPerformanceStart()
+	local checks=cityCardExplorePositionChecks()
+	local currentFree=cityCardExploreSpaceFree(mapObjects,cardPos,group.movingGUIDs,extraBlockedPos,reservedPositions,checks)
+	local best,bestDistance=findCityCardPosition(cityPos,mapObjects,group.movingGUIDs,extraBlockedPos,reservedPositions,nil,checks)
+	mapPerformanceRecord("City position search",searchStart)
 	if best==nil then return false end
 	if currentFree==true and currentDistance<=bestDistance+0.25 then return false end
 	if reservedPositions~=nil then reservedPositions[#reservedPositions+1]=best end
-	return moveCityCardExploreGroup(group,best,movedCityZones,mapObjects)
+	return moveCityCardExploreGroup(group,best,movedCityZones,mapObjects,scanContext)
 end
 
 --Used immediately before a chosen EXPLORE tile is placed. Normally the refresh pass has already moved cards,
@@ -1394,8 +1424,13 @@ function compactCityCardsAfterExplore(mapObjects)
 	local perfStart=mapPerformanceStart()
 	local movedCityZones={}
 	local reservedPositions={}
-	for _, cityZone in ipairs({GUID.zone.blueCity, GUID.zone.redCity, GUID.zone.greenCity, GUID.zone.whiteCity}) do positionCityCardForExplore(cityZone, nil, movedCityZones, reservedPositions, mapObjects) end
+	local scanContext={positions={}}
+	for _,cityZone in ipairs({GUID.zone.blueCity,GUID.zone.redCity,GUID.zone.greenCity,GUID.zone.whiteCity}) do
+		positionCityCardForExplore(cityZone,nil,movedCityZones,reservedPositions,mapObjects,scanContext)
+	end
+	local headStart=mapPerformanceStart()
 	positionApocalypseDragonHeads()
+	mapPerformanceRecord("Dragon head positioning",headStart)
 	mapPerformanceRecord("City compaction",perfStart)
 end
 
