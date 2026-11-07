@@ -385,6 +385,25 @@ local function combatMonsterDiscardDestination(playAreaObj)
 	return discardGUID~=nil and getObjectFromGUID(discardGUID) or nil,route
 end
 
+-- A Fixed joint keeps each summon a distinct TTS Object (and tooltip), unlike an attachment.
+-- Only the summoned child creates its joint: never clear joints on the summoner, which may own
+-- multiple summons or unrelated joints. Retain original scales until the tokens are returned.
+local function combatReleaseSummonedEnemy(token)
+	if token==nil or token.guid==nil then return false end
+	local original=gStates.summonedEnemyScales~=nil and gStates.summonedEnemyScales[token.guid] or nil
+	if original==nil then return false end
+	token.jointTo()
+	token.setScale({original[1],original[2],original[3]})
+	return true
+end
+
+local function combatReleaseAllSummonedEnemies()
+	for guid in pairs(gStates.summonedEnemyScales or {}) do
+		local token=getObjectFromGUID(guid)
+		if token~=nil then combatReleaseSummonedEnemy(token) end
+	end
+end
+
 local function combatDiscardMonster(playAreaObj, giveRewards, context)
 	if playAreaObj==nil then return false end
 	context=context or {}
@@ -393,6 +412,8 @@ local function combatDiscardMonster(playAreaObj, giveRewards, context)
 	local monsterGUID=playAreaObj.guid
 	local monsterData=monsterPugs[monsterGUID]
 	if monsterData==nil then return false end
+	-- Detach every summoned child before a summoner is returned to a container.
+	combatReleaseAllSummonedEnemies()
 
 	if gStates.apocalypseQuestGoblinEnemies~=nil and gStates.apocalypseQuestGoblinEnemies[monsterGUID]~=nil then
 		--Goblin Warrens enemies come from an Infinite Bag and are not members of a normal discard cycle.
@@ -402,6 +423,7 @@ local function combatDiscardMonster(playAreaObj, giveRewards, context)
 		if gStates.attackedMonsters~=nil then gStates.attackedMonsters[monsterGUID]=nil end
 		if gStates.monsterPlayLocation~=nil then gStates.monsterPlayLocation[monsterGUID]=nil end
 		if gStates.summonStates~=nil then gStates.summonStates[monsterGUID]=nil end
+		if gStates.summonedEnemyScales~=nil then gStates.summonedEnemyScales[monsterGUID]=nil end
 		monsterPugs[monsterGUID]=nil
 		playAreaObj.destruct()
 		return true
@@ -535,6 +557,8 @@ local function combatDiscardMonster(playAreaObj, giveRewards, context)
 		end
 	end
 	clearReturnedMonsterRuntimeState(monsterGUID)
+	if gStates.summonedEnemyScales~=nil then gStates.summonedEnemyScales[monsterGUID]=nil end
+	if gStates.summonStates~=nil then gStates.summonStates[monsterGUID]=nil end
 	discardBag.putObject(playAreaObj)
 	return true
 end
@@ -791,6 +815,8 @@ local function combatPreEndTurnPreparePlayArea(cleanupPlayer,recovery)
 		if deckSearch.type=="Card" or deckSearch.type=="Deck" then cardDestination=deckSearch break end
 	end
 
+	--Release summons before either a summoner or its children can be moved or discarded.
+	combatReleaseAllSummonedEnemies()
 	--separate any decks and possessed tokens found. Unit Area monsters use the same combat cleanup path.
 	local combatObjects=playerCombatObjects(turnOrder[cleanupPlayer].seatPos)
 	if recovery~=nil and recovery.playAreaPrepared==true then return cardDestination,#combatObjects>0 and 40 or 0 end
@@ -2768,16 +2794,24 @@ summonMonster=function(player, mouseButton, id)
 	local summonerFaction=monsterEffectiveFaction(id)
 	local tokenWait=0
 	local cameraFocused=false
-	for order, monsterColor in pairs(monsterData.monsters) do
+	for order, monsterColor in ipairs(monsterData.monsters) do
+		local summonDelay=tokenWait
 		local preferredPile=factionMonsterPreferredPileGUID(monsterColor,summonerFaction)
 		safeWaitFrames("Combat",function()
 			withTokenPoolReady(preferredPile,function()
-				local summonTarget={location[1]-(2.5*order),2.5,location[3]}
-				local summonedMonster,summonPileGUID=takeFactionMonster(monsterColor,summonerFaction,{position=summonTarget,rotation={0.00,180.00,0.00}})
+				local summonTarget={location[1]-(1.6*order),2.5,location[3]}
+				-- Draw without bag smoothing, shrink immediately, then begin the final smooth move.
+				local spawnPos={summonTarget[1],summonTarget[2]+1.2,summonTarget[3]}
+				local summonedMonster,summonPileGUID=takeFactionMonster(monsterColor,summonerFaction,{position=spawnPos,rotation={0.00,180.00,0.00},smooth=false})
 				if summonedMonster==nil then
 					broadcastToAll("{en}Sorry, there are no tokens left to deploy{it}Non ci sono più segnalini da posizionare{ru}Извините, жетонов для размещения больше не осталось.{zh-tw}抱歉，沒有可部署的標記了。{zh-cn}抱歉，没有token可供部署{ko}여분의 토큰이 없습니다{es}Lo sentimos, no quedan tokens para implementar{fr}Désolé, il n'y a plus de jetons à déployer{pt-br}Desculpe, Não tem Fichas sobrando para distribuir{de}Entschuldigung, es sind keine Marker mehr zum Platzieren übrig.",warningColor)
 					return
 				end
+				gStates.summonedEnemyScales=gStates.summonedEnemyScales or {}
+				local oldScale=summonedMonster.getScale()
+				gStates.summonedEnemyScales[summonedMonster.guid]={oldScale[1],oldScale[2],oldScale[3]}
+				summonedMonster.setScale({0.70,1.00,0.70})
+				summonedMonster.setPositionSmooth(summonTarget,false,false)
 				local summonPile=getObjectFromGUID(summonPileGUID)
 				local summonPilePos=summonPile~=nil and summonPile.getPosition() or location
 				local returnPos={summonPilePos[1],2,summonPilePos[3]}
@@ -2788,12 +2822,30 @@ summonMonster=function(player, mouseButton, id)
 				end
 				gStates.summonStates[summonedMonster.guid]="summoned"
 				local dragonControl=apocalypseDragonGroundControlToken~=nil and select(1,apocalypseDragonGroundControlToken(id))==true
-				if dragonControl==true and gStates.apocalypseDragonGroundCombat~=nil then apocalypseDragonPossessSummonedEnemy(summonedMonster.guid,summonTarget) end
+				local summonedGUID=summonedMonster.guid
+				-- A joint created during smooth movement freezes the token mid-flight. Wait for it to finish,
+				-- and re-resolve GUIDs in case the fight was cleaned up in the meantime.
+				safeWaitFrames("Combat",function()
+					safeWaitCondition("Combat",function()
+						local child=getObjectFromGUID(summonedGUID)
+						local owner=getObjectFromGUID(id)
+						if child==nil or owner==nil or gStates.preEndTurn==true or
+							gStates.summonedEnemyScales==nil or gStates.summonedEnemyScales[summonedGUID]==nil then return end
+						child.jointTo(owner,{type="Fixed",collision=false,break_force=100000,break_torgue=100000})
+						-- Dragon Control uses a separate Possessed attachment placed after the summon has landed.
+						if dragonControl==true and gStates.apocalypseDragonGroundCombat~=nil then
+							apocalypseDragonPossessSummonedEnemy(summonedGUID,summonTarget)
+						end
+					end,function()
+						local child=getObjectFromGUID(summonedGUID)
+						return child==nil or not child.isSmoothMoving()
+					end,5)
+				end,2)
 				if gStates.monsterPerks[summonedMonster.guid]==nil then gStates.monsterPerks[summonedMonster.guid]={nightRules=true}
 				else gStates.monsterPerks[summonedMonster.guid].nightRules=true end
 				cityBonusDecals(summoner,summonedMonster)
 				local attachments=summoner.getAttachments()
-				if attachments[1]~=nil and tokenWait==5 then
+				if attachments[1]~=nil and summonDelay==5 then
 					local possessedToken=attachments[1].guid
 					if monsterPugs[possessedToken]~=nil then
 						if monsterPugs[possessedToken].attack~=nil then
@@ -3063,6 +3115,8 @@ end
 
 -- Leaving site combat cleanup
 function leaveAvatarSite(player)
+	-- Site abandonment can bypass end-turn cleanup; unlink and restore every summon first.
+	combatReleaseAllSummonedEnemies()
 	local playArea=getObjectFromGUID(playerPlayAreas[player.seatPos])
 	if playArea~=nil then
 		--Undo Possessed before returning the enemy so the attachment becomes a real token again.
@@ -3090,6 +3144,7 @@ function leaveAvatarSite(player)
 	for guid, details in pairs(gStates.attackedMonsters) do
 		if details[3]=="summoned" then
 			gStates.summonStates[guid]=nil
+			if gStates.summonedEnemyScales~=nil then gStates.summonedEnemyScales[guid]=nil end
 			if details[4]~=nil then gStates.summonStates[details[4]]=nil end
 		end
 		local attackedObj=getObjectFromGUID(guid)
