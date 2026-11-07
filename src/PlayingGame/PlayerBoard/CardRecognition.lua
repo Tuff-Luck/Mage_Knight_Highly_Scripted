@@ -1160,7 +1160,7 @@ local function combatCompactResultLines(fullLines,damageItems,damageResults)
     local compact={}
     for _,line in ipairs(fullLines) do
         -- Detailed Unit/Hero lines are replaced with a short wound summary.
-        if line:sub(1,2)~="> " then
+        if line:sub(1,2)~="> " and line:sub(1,6)~=">Hero:" then
             compact[#compact+1]=line:gsub("(%d+)%/(%d+) Blocked","Blk %1/%2")
                 :gsub("Not blocked, ","Unblocked: ")
                 :gsub(" Block, "," blk, ")
