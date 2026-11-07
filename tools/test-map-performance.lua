@@ -49,9 +49,10 @@ mapPerformanceRecord=function() end
 local builder=extract("src/Shared.lua",
     "local function runtimeMapTerrainSnapshot()",
     "\nfunction runtimeMapSnapshot()",
-    "local runtimeMapTerrainCache=nil\n",
-    "\nreturn runtimeMapTerrainSnapshot\n")()
-local topology=builder()
+    "local runtimeMapTerrainCache=nil\nlocal runtimeMapPreviousTerrainCache=nil\n",
+    "\nreturn {build=runtimeMapTerrainSnapshot,reset=function(previous)\n"..
+    "runtimeMapTerrainCache=nil runtimeMapPreviousTerrainCache=previous end}\n")()
+local topology=builder.build()
 assert(#topology.hexes==50,"All revealed hexes are indexed")
 for i=1,50 do
     local key="tile"..i.."|center"
@@ -62,6 +63,53 @@ for i=1,50 do
 end
 assert(comparisons<250,"Spatial graph made too many pair comparisons: "..comparisons)
 print("PASS terrain spatial adjacency and original neighbour order")
+
+-- Add one tile, remove an interior tile, move one tile and change a printed
+-- feature. Each incremental rebuild must match the original physical geometry
+-- without retesting all unchanged neighbouring pairs.
+local newest={guid="tile51",is_face_down=false}
+newest.getPosition=function() return {69.6,1.3,0} end
+newest.getRotation=function() return {0,180,0} end
+mapObjects[#mapObjects+1]=newest
+terrainTiles.tile51={tileType="country",hexType={center="plains"},hexFeature={center=""}}
+builder.reset(topology)
+comparisons=0
+local expanded=builder.build()
+assert(#expanded.hexes==51,"Appended terrain has a hex")
+assert(#expanded.neighbors["tile50|center"]==2 and #expanded.neighbors["tile51|center"]==1,
+    "Appended terrain connects to its old neighbours")
+assert(comparisons<30,"Appending terrain unexpectedly rebuilt the full graph: "..comparisons)
+
+table.remove(mapObjects,25)
+builder.reset(expanded)
+comparisons=0
+local reduced=builder.build()
+assert(#reduced.hexes==50,"Removed terrain is absent")
+assert(#reduced.neighbors["tile24|center"]==1 and #reduced.neighbors["tile26|center"]==1,
+    "Removing terrain clears the edges to the missing tile")
+assert(comparisons<30,"Removing terrain unexpectedly rebuilt the full graph: "..comparisons)
+
+for _,obj in ipairs(mapObjects) do
+    if obj.guid=="tile26" then
+        obj.getPosition=function() return {300,1.3,0} end
+        break
+    end
+end
+builder.reset(reduced)
+comparisons=0
+local moved=builder.build()
+assert(#moved.neighbors["tile26|center"]==0 and #moved.neighbors["tile27|center"]==1,
+    "Moving a terrain tile updates both old and new neighbour relationships")
+assert(comparisons<40,"Moving terrain unexpectedly rebuilt the full graph: "..comparisons)
+
+terrainTiles.tile24.hexFeature.center="keep"
+builder.reset(moved)
+comparisons=0
+local altered=builder.build()
+assert(altered.hexByKey["tile24|center"].feature=="keep",
+    "Printed feature mutation must reach the new hex snapshot")
+assert(comparisons==0,"Feature-only changes must reuse unchanged neighbour geometry")
+print("PASS incremental terrain reveal, removal, movement, and feature changes")
 
 -- The production reconciler must ignore distant map enemies while honouring
 -- moving tokens on the new tile. The physical-hex lookup is stubbed, but the
