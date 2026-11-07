@@ -93,8 +93,9 @@ check("settled target outside combat loses its arrow",#gStates.attackAssignments
 attackAssignmentsClearAll()
 
 local unit=makeObject("unit",3)
+local otherUnit=makeObject("secondunit",4)
 attackAssignmentsDamageSync({attacks={{key="enemy:1",owner="enemy",damage=4}},
-    units={unit=true}})
+    units={unit=true,secondunit=true}})
 local found=false
 for _,button in ipairs(enemy.getButtons()) do
     if button.click_function=="attackAssignmentDamageClick1" then found=true end
@@ -109,10 +110,14 @@ attackAssignmentDamageUnitClicked(unit,"Red")
 check("Unit accepts damage from the player who started targeting",
     attackAssignmentsDamageTargetsOf("enemy:1")[1]=="unit")
 attackAssignmentDamageClick1(enemy,"Red",false)
-check("first click enters targeting without losing the existing assignment",
-    attackAssignmentsDamageTargetsOf("enemy:1")[1]=="unit")
+attackAssignmentDamageUnitClicked(otherUnit,"Red")
+check("one attack can target multiple Units",
+    #attackAssignmentsDamageTargetsOf("enemy:1")==2)
 attackAssignmentDamageClick1(enemy,"Red",false)
-check("second click on the same enemy damage button clears its Unit targets",
+check("first click enters targeting without losing the existing assignments",
+    #attackAssignmentsDamageTargetsOf("enemy:1")==2)
+attackAssignmentDamageClick1(enemy,"Red",false)
+check("second click on the same enemy damage button clears all its Unit targets",
     #attackAssignmentsDamageTargetsOf("enemy:1")==0)
 attackAssignmentDamageClick1(enemy,"Red",false)
 attackAssignmentDamageUnitClicked(unit,"Red")
