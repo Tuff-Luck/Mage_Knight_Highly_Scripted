@@ -4019,6 +4019,11 @@ unitManaDecision=function(unit,abilities,activation,counts)
         -- makes additional paid choices available.
         result.index=paid[1]
         activation.lastPaidIndex=result.index
+        -- A previously selected paid effect no longer takes priority after
+        -- another payment has made a different effect the only legal one.
+        if activation.manaChoice~=nil and activation.manaChoice~=result.index then
+            activation.manaChoice=nil
+        end
     elseif #paid>1 then
         -- Adding mana must not discard an already valid paid choice or the
         -- corresponding Unit's existing enemy target. Prefer a manually chosen
