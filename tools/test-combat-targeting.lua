@@ -108,6 +108,16 @@ attackAssignmentDamageClick1(enemy,"Blue",true)
 attackAssignmentDamageUnitClicked(unit,"Red")
 check("Unit accepts damage from the player who started targeting",
     attackAssignmentsDamageTargetsOf("enemy:1")[1]=="unit")
+attackAssignmentDamageClick1(enemy,"Red",false)
+check("first click enters targeting without losing the existing assignment",
+    attackAssignmentsDamageTargetsOf("enemy:1")[1]=="unit")
+attackAssignmentDamageClick1(enemy,"Red",false)
+check("second click on the same enemy damage button clears its Unit targets",
+    #attackAssignmentsDamageTargetsOf("enemy:1")==0)
+attackAssignmentDamageClick1(enemy,"Red",false)
+attackAssignmentDamageUnitClicked(unit,"Red")
+check("damage can be assigned again after a double-click reset",
+    attackAssignmentsDamageTargetsOf("enemy:1")[1]=="unit")
 attackAssignmentsDamageSync({attacks={},units={unit=true}})
 check("blocking removes damage allocation",#attackAssignmentsDamageTargetsOf("enemy:1")==0)
 attackAssignmentsDamageSync({attacks={{key="enemy:1",owner="enemy",damage=2}},
