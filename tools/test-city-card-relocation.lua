@@ -169,4 +169,33 @@ assert(cityCardExploreSpaceFree(obstacles,{100,1.09,0},{near=true},nil,nil),
 local crossCell={{guid="boundary",position={-4.1,1.09,0}}}
 assert(not cityCardExploreSpaceFree(crossCell,{-1.1,1.09,0},{},nil,nil),
     "Negative spatial cell boundary does not hide nearby blockers")
+-- Ultimate Conquest: cards parked beyond all future terrain placements should
+-- avoid even building a City group, but resume checks if a player returns them
+-- to the map, another physical tile is nearby or an explicit relocation runs.
+cityA.setPosition(cityA.target)
+cityA.smooth=false
+assert(cityCardPendingDestination("cardA")==nil,"Settled card clears its destination reservation")
+gStates.gameScenario="Ultimate Conquest"
+terrainExploreMayReachCityCard=function(pos) return pos[1]>-10 end
+local actualGroup=cityCardExploreGroup
+local groupChecks=0
+cityCardExploreGroup=function()
+    groupChecks=groupChecks+1
+    return nil
+end
+assert(not positionCityCardForExplore("zoneA",nil,{},nil,{}))
+assert(groupChecks==0,"Far parked City skips scanning its garrison")
+cityA.setPosition({0,1.09,0})
+assert(not positionCityCardForExplore("zoneA",nil,{},nil,{}))
+assert(groupChecks==1,"Moving the City back to the EXPLORE frontier reenables compaction")
+cityA.setPosition({-54,1.09,0})
+terrainTiles.tileManual={}
+assert(not positionCityCardForExplore("zoneA",nil,{},nil,
+    {{guid="tileManual",position={-53,1.09,0}}}))
+assert(groupChecks==2,"A manually placed terrain tile near the parked City reenables compaction")
+assert(not positionCityCardForExplore("zoneA",{-54,1.09,0},{},nil,{}))
+assert(groupChecks==3,"Explicit relocation bypasses the parked-City shortcut")
+terrainTiles.tileManual=nil
+cityCardExploreGroup=actualGroup
+gStates.gameScenario=nil
 print("PASS City relocation ownership and concurrent destination reservations")
