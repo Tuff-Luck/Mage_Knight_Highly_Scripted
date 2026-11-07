@@ -33,6 +33,10 @@ local manualA=obj("manualA",-57,1.5,2) -- player manually added this defender
 local defenderB=obj("troopB",-39,1.5,0)
 local reference=obj("lockedRef",-56,1,1,{locked=true,kind="Custom_Tile"})
 local distantRef=obj("farLocked",-50,1,1,{locked=true,kind="Custom_Tile"})
+local transit=obj("transit",-59,1.5,1)
+transit.smooth=true -- new map enemy physically crossing the City before settling
+local pending=obj("pending",-58.5,1.5,2) -- arrival bookkeeping still owns the move
+local mapEnemy=obj("mapEnemy",-58,1.5,-1) -- resting on an actual terrain hex
 local zoneA=obj("zoneA",-60,1.4,0)
 local zoneB=obj("zoneB",-40,1.4,0)
 zoneA.getObjects=function() return {cityA,defenderA,defenderB,reference,distantRef} end
@@ -40,10 +44,11 @@ zoneB.getObjects=function() return {cityB,defenderA,reference} end
 local map=obj("map",-10,1,0)
 map.getObjects=function() return {} end -- e.g. the City cards are off-map/in transit
 getObjectFromGUID=function(guid) return objects[guid] end
-getAllObjects=function() return {cityA,cityB,modelA,modelB,defenderA,manualA,defenderB,reference,distantRef,zoneA,zoneB} end
+getAllObjects=function() return {cityA,cityB,modelA,modelB,defenderA,manualA,defenderB,reference,distantRef,transit,pending,mapEnemy,zoneA,zoneB} end
 mapArea="map"
 terrainTiles={}
-monsterPugs={troopA={pugType="red"},manualA={pugType="tan"},troopB={pugType="purple"}}
+monsterPugs={troopA={pugType="red"},manualA={pugType="tan"},troopB={pugType="purple"},
+    transit={pugType="red"},pending={pugType="red"},mapEnemy={pugType="red"}}
 CITY_GARRISON_PUG_TYPES={red=true,tan=true,purple=true}
 CITY_GARRISON_MANUAL_RADIUS=6
 CITY_GARRISON_KNOWN_RADIUS=9
@@ -78,6 +83,12 @@ isShieldObject=function() return false end
 terrainExploreOptions=function() return {} end
 mapPerformanceStart=function() return nil end
 mapPerformanceRecord=function() end
+mapTokenHasPendingArrival=function(guid) return guid=="pending" end
+runtimeMapSnapshot=function() return {} end
+runtimeMapHexAtPosition=function(pos)
+    if pos[1]==-58 and pos[3]==-1 then return nil,nil,{guid="physicalTerrain"} end
+    return nil,nil,nil
+end
 cityCardExploreOffsets={{6,1.09,0},{0,1.09,6},{-6,1.09,0}}
 local loader,err=load(code)
 assert(loader,err)
@@ -115,6 +126,8 @@ assert(groupA.movingGUIDs.troopA,"Registered, fanned-out defender must move")
 assert(groupA.movingGUIDs.manualA,"Manually rearranged unregistered defender must move")
 assert(not groupA.movingGUIDs.troopB,"Other City's defender must stay")
 assert(not groupA.movingGUIDs.lockedRef and not groupA.movingGUIDs.farLocked,"Locked reference tiles must stay")
+assert(not groupA.movingGUIDs.transit and not groupA.movingGUIDs.pending and
+    not groupA.movingGUIDs.mapEnemy,"Travelling/pending/terrain enemies must not be abducted into a City")
 -- A dense map should be indexed once per City-position search. Changing an
 -- owner's position must invalidate that index before the next City is placed.
 local cachedMap=cityCardMapSnapshot()
@@ -127,8 +140,9 @@ assert(sharedScan.positions.troopA==nil and sharedScan.positions.manualA==nil,
     "Moving a City invalidates its previously sampled garrison positions")
 assert(cityA.target[1]==-54 and defenderA.target[1]==-49 and manualA.target[1]==-51,
     "City card and loose army retain their relative positions")
-assert(not defenderB.target and not reference.target and not distantRef.target,
-    "Unrelated armies and reference tiles must never move")
+assert(not defenderB.target and not reference.target and not distantRef.target and
+    not transit.target and not pending.target and not mapEnemy.target,
+    "Unrelated armies, travelling enemies and reference tiles must never move")
 assert(gStates.monsterPlayLocation.troopA[1]==-49 and
     gStates.monsterPlayLocation.troopB[1]==-39,
     "Only the owner's saved garrison return location changes")
