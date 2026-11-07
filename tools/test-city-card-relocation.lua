@@ -247,6 +247,8 @@ assert(not physicsGroup.movingGUIDs.transit and not physicsGroup.movingGUIDs.pen
     not physicsGroup.movingGUIDs.mapEnemy,
     "Physics broadphase must preserve travelling/pending/terrain exclusions")
 assert(physicsCalls==1,"Only the active City's vicinity should be queried")
+assert(cityCardExploreGroup("zoneA")~=nil,"Standalone City relocation keeps its own garrison")
+assert(physicsCalls==2,"Standalone relocation should cast only around the selected City")
 -- If TTS fails to report a collider underneath the City card, registered
 -- defenders are still resolved by GUID without returning to getAllObjects().
 Physics.cast=function()
@@ -257,7 +259,7 @@ local hiddenGroup=assert(cityCardExploreGroup("zoneA",
     {positions={},activeOwners={modelA=true}}))
 assert(hiddenGroup.movingGUIDs.troopA and hiddenGroup.movingGUIDs.outlyingDefender,
     "Registered defenders must not depend on Physics.cast returning their colliders")
-assert(physicsCalls==2,"Registered defender fallback should not require extra physics queries")
+assert(physicsCalls==3,"Registered defender fallback should not require extra physics queries")
 Physics=nil
 getAllObjects=originalAll
 print("PASS City relocation ownership and concurrent destination reservations")
