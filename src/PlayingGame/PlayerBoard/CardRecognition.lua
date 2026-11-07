@@ -3513,7 +3513,7 @@ local function matchesCardMana(card,color)
     if data==nil then return color=="Red" or color=="Blue" or color=="Green" or color=="White" end
     if data.cardType=="Artifact" then return false end
     if color=="Gold" then return gStates.dayRound==true end
-    if color=="Black" then return data.cardType=="Spell" end
+    if color=="Black" then return gStates.dayRound~=true and data.cardType=="Spell" end
     local colors=data.color
     if type(colors)=="string" then return colors==color end
     if type(colors)=="table" then
@@ -3553,6 +3553,9 @@ end
 -- Other cards can reuse this by declaring effectManaChoice.castColor.
 local function effectManaPossibilities(spec,payments,needPower,daytime)
     local possible,anyColor={},false
+    -- Black mana cannot pay for any role during a Day round, including
+    -- the otherwise separate strong-side payment on Mana Bolt/Thunderbolt.
+    if daytime and needPower and spec.powerColor=="Black" then return possible,anyColor end
     local function hasDistinctPower(effectGUID,castGUID)
         if not needPower then return true end
         for _,payment in ipairs(payments) do
@@ -4018,6 +4021,7 @@ end
 local function unitAbilityPaid(ability,counts)
     local color=ability.manaCost
     if color==nil then return true end
+    if color=="Black" and gStates.dayRound==true then return false end
     if (counts[color] or 0)>0 then return true end
     -- Daytime Gold can pay any basic colour, but not Black.
     return color~="Black" and gStates.dayRound==true and (counts.Gold or 0)>0
@@ -4237,7 +4241,7 @@ local function convertedManaMatchesCard(card,color)
     if data==nil or card.is_face_down==true or cardPosture(card)~="upright" then return false end
     if data.cardType~="Starting" and data.cardType~="Advanced Action"
         and data.cardType~="Spell" and data.cardType~="Artifact" then return false end
-    -- Gold follows the day rule; Black Spell strength is not legality-checked.
+    -- Shared card-mana validation also checks Black-at-night and Gold-by-day.
     if color=="Gold" and gStates.dayRound~=true then return false end
     if color=="Black" and data.cardType~="Spell" then return false end
     return matchesCardMana(card,color)
@@ -4676,6 +4680,9 @@ local function renderSeat(seatPos)
         end
     end
     local function spendMana(card,color,manaGUID)
+        -- Never record an illegal Daytime Black payment through the separate
+        -- spell-effect or mana-conversion paths.
+        if color=="Black" and gStates.dayRound==true then return end
         local data=gameCards[card.guid]
         if data~=nil and data.cardType=="Spell" and color~="Black"
             and matchesCardMana(card,color) then
@@ -5664,11 +5671,26 @@ local function renderSeat(seatPos)
                 local candidates={}
                 for _,source in ipairs(cards) do
                     local data=gameCards[source.guid]
+                    -- Card colours are stored as separate tables; compare their
+                    -- entries rather than table identity, including dual colours.
+                    local sameColour=false
+                    if sidewaysData~=nil then
+                        local colours=sidewaysData.color
+                        if type(colours)=="string" then
+                            sameColour=matchingSidewaysMana(source,colours)
+                        elseif type(colours)=="table" then
+                            for _,colour in ipairs(colours) do
+                                if matchingSidewaysMana(source,colour) then
+                                    sameColour=true
+                                    break
+                                end
+                            end
+                        end
+                    end
                     if source.guid~=sideways.guid and data~=nil
                         and (data.cardType=="Starting" or data.cardType=="Advanced Action")
                         and cardPosture(source)=="upright" and source.is_face_down~=true
-                        and (sideIsArtifact or (sidewaysData~=nil
-                            and sidewaysData.color~=nil and data.color==sidewaysData.color)) then
+                        and (sideIsArtifact or sameColour) then
                         local definition=cardResourceDefinitions[data.resourceKey]
                         if definition~=nil and definition.requiredLink==nil
                             and definition.woundBonus==nil and definition.partial~=true then
