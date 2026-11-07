@@ -3219,7 +3219,7 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decisi
     local selected=decision.index
     -- Paid choices explicitly marked expandable start as a single button.
     -- Opening that button must not activate an undecided mana-powered effect.
-    local expanded=(decision.ambiguous and not abilities.paidChoiceExpandable)
+    local expanded=(decision.ambiguous and decision.index==nil and not abilities.paidChoiceExpandable)
         or (choiceExpandedByGUID[unit.guid]==true and #available>1)
     local selectedKeys={}
     for i in pairs(decision.selected or {}) do selectedKeys[#selectedKeys+1]=tostring(i) end
@@ -4015,17 +4015,43 @@ unitManaDecision=function(unit,abilities,activation,counts)
         return result
     end
     if #paid==1 then
-        -- One payable ability means no option button is needed.
+        -- An unambiguous paid ability stays active if another mana token later
+        -- makes additional paid choices available.
         result.index=paid[1]
+        activation.lastPaidIndex=result.index
     elseif #paid>1 then
-        -- E.g. Altem Mages' two Black options or Catapults paid by Gold.
+        -- Adding mana must not discard an already valid paid choice or the
+        -- corresponding Unit's existing enemy target. Prefer a manually chosen
+        -- paid ability, then a previously active automatic one.
         result.ambiguous=true
         result.display=paid
-        if activation.manaSignature==signature then
+        for _,index in ipairs(paid) do
+            if activation.manaChoice==index then result.index=index break end
+        end
+        if result.index==nil then
             for _,index in ipairs(paid) do
-                if activation.manaChoice==index then result.index=index break end
+                if activation.lastPaidIndex==index then result.index=index break end
             end
         end
+        if result.index==nil then
+            -- Red Cape/Northern Monks: Attack 3 -> elemental Attack 4,
+            -- Block 3 -> elemental Block 4. Only carry the choice forward
+            -- when exactly ONE payable ability matches that family.
+            local base=abilities[activation.choice]
+            local family=base~=nil and base.key or nil
+            if family~=nil and family~="other" and family~="gain"
+                and family~="ready" then
+                local matched,duplicates=nil,false
+                for _,index in ipairs(paid) do
+                    if abilities[index].key==family then
+                        if matched~=nil then duplicates=true break end
+                        matched=index
+                    end
+                end
+                if not duplicates then result.index=matched end
+            end
+        end
+        if result.index~=nil then activation.lastPaidIndex=result.index end
     else
         -- Unpaid abilities stay hidden until matching mana is actually there.
         result.display=free
@@ -6365,7 +6391,7 @@ function resourceUnitsChoiceClicked(player,value,id)
         if candidate==index then available=true break end
     end
     if not available then return end
-    if (not decision.ambiguous or abilities.paidChoiceExpandable)
+    if (not decision.ambiguous or abilities.paidChoiceExpandable or decision.index~=nil)
         and choiceExpandedByGUID[unitGUID]~=true and #decision.display>1 then
         -- Expanding ordinary choices does not change what was played.
         choiceExpandedByGUID[unitGUID]=true
@@ -6399,11 +6425,14 @@ function resourceUnitsChoiceClicked(player,value,id)
     elseif decision.ambiguous then
         activation.manaChoice=index
         activation.manaSignature=decision.signature
-        if abilities.paidChoiceExpandable then choiceExpandedByGUID[unitGUID]=nil end
+        -- Once a payable alternative is selected, collapse to its icon and
+        -- restore the target button, regardless of the Unit's display style.
+        choiceExpandedByGUID[unitGUID]=nil
     else
         activation.choice=index
         activation.manaChoice=nil
         activation.manaSignature=nil
+        activation.lastPaidIndex=nil
         choiceExpandedByGUID[unitGUID]=nil
     end
     showUnitAbilityButtons(unit,abilities,activation,true)
