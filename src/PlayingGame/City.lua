@@ -1182,10 +1182,10 @@ local function cityCardCompactionCandidates(scanContext)
 			local possible=pug~=nil or (objectType~="Card" and objectType~="Deck"
 				and objectType~="Bag" and objectType~="Infinite_Bag" and objectType~="Dice")
 			if possible then
-			local pos=obj.getPosition()
-			if pos~=nil and pos[2]>=CITY_GARRISON_MIN_Y and pos[2]<=CITY_GARRISON_MAX_Y then
-				local ownerGUID,distSq=cityGarrisonNearestOwner(pos,owners)
-				if ownerGUID~=nil and distSq~=nil then
+				local pos=obj.getPosition()
+				if pos~=nil and pos[2]>=CITY_GARRISON_MIN_Y and pos[2]<=CITY_GARRISON_MAX_Y then
+					local ownerGUID,distSq=cityGarrisonNearestOwner(pos,owners)
+					if ownerGUID~=nil and distSq~=nil then
 					local isAvatar=avatarGUIDs[guid]==true
 					local eligibleEnemy=pug~=nil and CITY_GARRISON_PUG_TYPES[pug.pugType]==true
 					local shield=distSq<=10.24 and isShieldObject~=nil and isShieldObject(obj)==true
@@ -1210,7 +1210,7 @@ local function cityCardCompactionCandidates(scanContext)
 						end
 					end
 				end
-			end
+				end
 			end
 		end
 	end
