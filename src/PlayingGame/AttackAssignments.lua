@@ -403,6 +403,7 @@ end
 -- damage. Drops targets that no longer apply. An attack keeps its button only while it still has legal Units to pick
 -- or an assignment to undo.
 function attackAssignmentsDamageSync(spec)
+    if resourceCardsPanelOpen~=nil and not resourceCardsPanelOpen() then return end
 	damageSpec={attacks=spec.attacks,units=spec.units or {},byOwner={},byKey={},reserved={}}
 	for _,attack in ipairs(spec.attacks) do
 		damageSpec.byKey[attack.key]=attack
@@ -567,6 +568,7 @@ local function removeAssignment(id)
 end
 
 function attackAssignmentsBegin(source,resource,playerColor,additional,sourceKey,part)
+    if resourceCardsPanelOpen~=nil and not resourceCardsPanelOpen() then return false end
 	if source==nil or source.guid==nil or source.isDestroyed()
 		or type(resource)~="string" or resource=="" or type(playerColor)~="string"
 		or Player[playerColor]==nil then return false end
@@ -586,6 +588,7 @@ end
 
 function attackAssignmentSourceClicked(player,value,id)
 	return safeCallback("attackAssignmentSourceClicked",function()
+        if resourceCardsPanelOpen~=nil and not resourceCardsPanelOpen() then return end
 		if type(id)~="string" then return end
 		local guid,rowIndex,category=id:match("^AttackAssignmentSource_([0-9a-f]+)_(%d+)_(.+)$")
 		if guid==nil then return end
@@ -619,6 +622,7 @@ end
 
 function attackAssignmentTargetClicked(target,playerColor)
 	return safeCallback("attackAssignmentTargetClicked",function()
+        if resourceCardsPanelOpen~=nil and not resourceCardsPanelOpen() then return end
 		local pending=type(playerColor)=="string" and targetingByPlayer[playerColor] or nil
         local eligible=resourceCardsCombatTargetObjects~=nil and resourceCardsCombatTargetObjects() or {}
         if pending==nil or target==nil or target.guid==nil or eligible[target.guid]==nil then return end
@@ -693,6 +697,7 @@ end
 
 -- Called by the Attack Assignment panel so both interfaces show the same single target.
 function attackAssignmentsSetSourceTarget(sourceGUID,targetGUID,kind)
+    if resourceCardsPanelOpen~=nil and not resourceCardsPanelOpen() then return end
 	local source,target=getObjectFromGUID(assignmentBaseGUID(sourceGUID)),getObjectFromGUID(targetGUID)
 	if source==nil or target==nil then return end
     if monsterPugs[targetGUID]==nil
@@ -824,6 +829,7 @@ function attackAssignmentsClearForObject(objectOrGUID)
 end
 
 function attackAssignmentsObjectMoved(object)
+    if resourceCardsPanelOpen~=nil and not resourceCardsPanelOpen() then return end
 	if object==nil or object.guid==nil then return end
 	local guid=object.guid
 	local relevant=false
@@ -874,6 +880,10 @@ function attackAssignmentsClearAll()
 end
 
 function attackAssignmentsRestore()
+    if resourceCardsPanelOpen~=nil and not resourceCardsPanelOpen() then
+        attackAssignmentsClearAll()
+        return
+    end
 	assignmentRegistry={}
 	assignmentCounter=0
 	-- Attack-only reminders and co-op Leader previews are valid combat targets

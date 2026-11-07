@@ -357,8 +357,7 @@ function clearMoveDisplayVisuals()
 end
 
 local function moveDisplayTrackerExpanded()
-	return UI.getAttribute("ResourceTracker","active")~="false"
-		and UI.getAttribute("ResourceTrackerDetail","active")=="true"
+    return resourceCardsPanelOpen()
 end
 
 function updateMoveDisplay(id)

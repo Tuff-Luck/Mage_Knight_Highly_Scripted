@@ -47,16 +47,19 @@ local unitHighlightBlocked={}
 local forestersTerrainModifier={mode="reduce",
     terrains={forest=true,hills=true,swamp=true},amount=1,minimum=0}
 
--- Game effects must continue working while the Resource Tracker is collapsed
--- or hidden. Detail visibility controls only the over-card choice buttons.
+-- Minimizing is OFF: no play-area scanning, Unit automation or tracker overlays.
+-- Reopening starts a new tracking session using the physical table.
+local trackerWasDisabled=false
+local trackerSession=0
 function resourceCardsPanelOpen()
     return gStates~=nil and gStates.firstStarted==true
+        and UI.getAttribute("ResourceTracker","active")=="true"
+        and UI.getAttribute("ResourceTrackerDetail","active")=="true"
+        and (tonumber(UI.getAttribute("ResourceTracker","height")) or 0)>200
 end
 
 local function resourceCardsDetailsOpen()
     return resourceCardsPanelOpen()
-        and UI.getAttribute("ResourceTracker","active")~="false"
-        and UI.getAttribute("ResourceTrackerDetail","active")=="true"
 end
 
 -- Keep combat constants in one private table: luabundle adds four parameters
@@ -2213,8 +2216,8 @@ local function combatCalcShutdown()
     combatReductionAttackChoice={}
     combatReductionActiveSource={}
     combatAttackChoiceByRow={}
-    attackAssignmentsDamageClear()
-    if attackAssignmentsHasAny() then attackAssignmentsClearAll() end
+    -- Includes pending target buttons, previews, damage allocations and arrows.
+    attackAssignmentsClearAll()
 end
 
 local function refreshCombatEnemyPanel(monsters)
@@ -2338,6 +2341,7 @@ local function refreshCombatEnemyPanel(monsters)
 end
 
 function resourceCardsRefreshCombatEnemies()
+    if not resourceCardsPanelOpen() then return end
     refreshCombatEnemyPanel(combatPlayMonsters())
 end
 
@@ -2479,6 +2483,7 @@ local function resourceCardsRawValue(tracker,totals,category,field)
 end
 
 function resourceCardsEffectiveValue(category,field)
+    if not resourceCardsPanelOpen() then return 0 end
     local tracker=gStates~=nil and gStates.resourceTracker or nil
     local totals=resourceCardsCurrentTotals()
     local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
@@ -2548,6 +2553,7 @@ end
 function resourceCardsEffectiveTerrainCost(terrain)
     local base=gStates~=nil and gStates.moveCost~=nil and gStates.moveCost[terrain] or nil
     if base==nil then base=999 end
+    if not resourceCardsPanelOpen() then return base end
     local player=turnOrder~=nil and gStates~=nil
         and turnOrder[gStates.turnNumber] or nil
     local scan=player~=nil and resourceCardScanBySeat[player.seatPos] or nil
@@ -6279,8 +6285,8 @@ local function clearAll()
     if turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber]~=nil then
         resourceFameRepApply(gStates.turnNumber,0,0)
     end
-    -- Manual Resource Tracker adjustments are never changed by clearing estimates.
-    if gStates~=nil and gStates.resourceTracker~=nil then
+    -- Closing must not invoke tracker calculations or redraw its overlays.
+    if resourceCardsPanelOpen() and gStates~=nil and gStates.resourceTracker~=nil then
         refreshResourceTrackerText()
         updateMoveDisplay()
     end
@@ -6289,7 +6295,7 @@ end
 -- Player clicks always replace the one-time guess; opening the choice menu
 -- alone leaves that selection and the Resource Tracker totals unchanged.
 function resourceCardsChoiceClicked(player,value,id)
-    if type(id)~="string" then return end
+    if not resourceCardsPanelOpen() or type(id)~="string" then return end
     local guid,setIndex,category=id:match(
         "^ResourceCardChoice_([0-9a-f]+)_set(%d+)_([%w]+)$")
     if guid==nil then
@@ -6395,8 +6401,7 @@ end
 -- The picked-up origin is transient; only completed activations belong in
 -- saved state. A token placed back on its original Unit isn't a new play.
 function resourceUnitsCommandPickedUp(playerColor,obj)
-    if obj==nil or not unitLayoutIsCommand(obj)
-        or gStates==nil or gStates.firstStarted~=true then return end
+    if not resourceCardsPanelOpen() or obj==nil or not unitLayoutIsCommand(obj) then return end
     local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if current==nil or legalPlayerCheck(playerColor,current.seatPos)~=true then return end
     local origin=unitLayoutCommandTarget(obj,current.seatPos)
@@ -6408,9 +6413,11 @@ function resourceUnitsCommandDropped(playerColor,obj)
     if obj==nil or not unitLayoutIsCommand(obj) then return end
     local pickup=commandPickupForUnits[obj.guid]
     commandPickupForUnits[obj.guid]=nil
-    if pickup==nil then return end
+    if pickup==nil or not resourceCardsPanelOpen() then return end
     local guid=obj.guid
+    local serial=trackerSession
     safeWaitCondition("PlayerBoard.CardRecognition",function()
+        if not resourceCardsPanelOpen() or trackerSession~=serial then return end
         local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
         if current==nil or current.seatPos~=pickup.seatPos
             or gStates.turnNumber~=pickup.turnNumber then return end
@@ -6446,6 +6453,7 @@ function resourceUnitsCommandDropped(playerColor,obj)
         showUnitAbilityButtons(unit,abilities,gStates.unitResourceActivations[unit.guid],true)
         queueSeat(pickup.seatPos,nil)
     end,function()
+        if not resourceCardsPanelOpen() or trackerSession~=serial then return true end
         local token=getObjectFromGUID(guid)
         return token==nil or (token.held_by_color==nil and token.resting==true
             and token.isSmoothMoving()==false)
@@ -6453,7 +6461,7 @@ function resourceUnitsCommandDropped(playerColor,obj)
 end
 
 function resourceUnitsChoiceClicked(player,value,id)
-    if type(id)~="string" then return end
+    if not resourceCardsPanelOpen() or type(id)~="string" then return end
     local unitGUID,index=id:match("^ResourceCardChoice_([0-9a-f]+)_unit(%d+)$")
     index=tonumber(index)
     local activation=unitGUID~=nil and gStates.unitResourceActivations
@@ -6537,10 +6545,9 @@ function resourceUnitsResetTurn()
     commandPickupForUnits={}
 end
 
--- Unit buttons depend on this turn's activation record, not on whether
--- the Resource Tracker details panel is currently expanded.
+-- Unit buttons are part of the tracker and must remain absent while it is off.
 function resourceUnitsRefreshButtons()
-    if gStates==nil or next(gStates.unitResourceActivations or {})==nil then return end
+    if not resourceCardsPanelOpen() or next(gStates.unitResourceActivations or {})==nil then return end
     local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if current==nil then return end
     local state=unitLayoutResourceState(current.seatPos)
@@ -6560,21 +6567,74 @@ function resourceUnitsRefreshButtons()
     end
 end
 
+-- Reconstruct used Units from Command tokens physically sitting on their cards.
+-- Command tokens in ready slots do not count as activations.
+local function resourceUnitsRebuildFromTable()
+    if not resourceCardsPanelOpen() or gStates==nil then return end
+    local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    if current==nil then return end
+    local seat=current.seatPos
+    local layout=unitLayoutSnapshot(seat)
+    local state=unitLayoutResourceState(seat)
+    local unwounded={}
+    for _,entry in ipairs(state~=nil and state.units or {}) do
+        unwounded[entry.guid]=entry.unwounded
+    end
+    local activations={}
+    for _,token in ipairs(layout.commands) do
+        local unit=unitLayoutCommandTarget(token,seat)
+        local abilities=unit~=nil and unitResourceDefinitions[unit.guid] or nil
+        if unit~=nil and abilities~=nil and unwounded[unit.guid] and activations[unit.guid]==nil then
+            local scores=trackerChoiceScores(unit.guid,seat)
+            local choice,bestScore=1,-math.huge
+            for i,ability in ipairs(abilities) do
+                if ability.manaCost==nil then
+                    local score=scores[ability.key] or 0
+                    if score>bestScore then choice,bestScore=i,score end
+                end
+            end
+            activations[unit.guid]={seatPos=seat,tokenGUID=token.guid,choice=choice,
+                selected=abilities.multi==true and {} or nil}
+        end
+    end
+    gStates.unitResourceActivations=activations
+end
+
 function resourceCardsPanelChanged(open)
-    if open~=true then
-        -- Collapsing hides choice controls, not live resources or movement
-        -- effects. Unit activation controls remain independently available.
-        clearChoiceButtons()
+    if open~=true or not resourceCardsPanelOpen() then
+        trackerWasDisabled=true
+        trackerSession=trackerSession+1
+        -- Turn the tracker completely off: stop callbacks and remove its visuals.
         combatCalcShutdown()
-        choiceExpandedByGUID={}
-        resourceUnitsRefreshButtons()
-        local active=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
-        if active~=nil then queueSeat(active.seatPos,nil) end
+        clearAll()
+        resourceUnitsResetTurn()
+        selectedResourceByGUID={}
+        for guid in pairs(choiceResetGenerationByGUID) do
+            choiceResetGenerationByGUID[guid]=choiceResetGenerationByGUID[guid]+1
+        end
+        crystalHighlightCleared={}
+        unitHighlightBlocked={}
+        -- Fresh starts never inherit manual resource offsets or an old avatar position.
+        -- Keep moveCost: those are real day/night and manually adjusted terrain rules.
+        local tracker=gStates~=nil and gStates.resourceTracker or nil
+        if tracker~=nil then
+            for _,category in ipairs({"move","influence","healing"}) do
+                for field,value in pairs(tracker[category] or {}) do
+                    if type(value)=="number" and not (category=="influence" and field=="reputation") then
+                        tracker[category][field]=0
+                    end
+                end
+            end
+            tracker.playerPos=nil
+        end
+        clearMoveDisplayVisuals()
         return
     end
-    -- A newly opened detail panel (also invoked on turn change) drops the
-    -- previous player's outlines before scanning the current Mage Knight.
+    -- Expanding after an OFF period rebuilds from scratch, not cached choices.
+    local restart=trackerWasDisabled
+    trackerWasDisabled=false
     clearAll()
+    if restart then resourceUnitsRebuildFromTable() end
     resourceUnitsRefreshButtons()
     local player=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if player==nil then return end
@@ -6595,14 +6655,7 @@ function resourceCardsPanelChanged(open)
 end
 
 function resourceCardsOnLoad()
-    if resourceCardsPanelOpen() then
-        resourceCardsPanelChanged(resourceCardsDetailsOpen())
-    else
-        clearAll()
-        -- The Unit's activation buttons exist independently of the expanded
-        -- Resource Tracker panel and must survive a mid-turn save/reload.
-        resourceUnitsRefreshButtons()
-    end
+    resourceCardsPanelChanged(resourceCardsPanelOpen())
 end
 
 local function resourceCardsRelevantZone(ctx)
@@ -6626,6 +6679,7 @@ local function resourceCardsRelevantZone(ctx)
 end
 
 function resourceCardsZoneEntered(ctx)
+    if not resourceCardsPanelOpen() then return end
     -- Map/offer/turn-order zones cannot change a player's resource board.
     -- Skip costly object identity checks for each spawned map enemy or terrain tile.
     if ctx==nil or ctx.zoneInfo==nil then return end
@@ -6638,6 +6692,7 @@ function resourceCardsZoneEntered(ctx)
 end
 
 function resourceCardsZoneLeft(ctx)
+    if not resourceCardsPanelOpen() then return end
     -- Map/offer/turn-order zones cannot change a player's resource board.
     -- Skip costly object identity checks for each spawned map enemy or terrain tile.
     if ctx==nil or ctx.zoneInfo==nil then return end
@@ -6653,6 +6708,7 @@ function resourceCardsZoneLeft(ctx)
 end
 
 function resourceCardsObjectMoved(obj)
+    if not resourceCardsPanelOpen() then return end
     if obj~=nil and (unitLayoutIsWound(obj) or manaColor(obj)~=nil)
         and gStates~=nil and next(gStates.unitResourceActivations or {})~=nil then
         local woundGUID=obj.guid

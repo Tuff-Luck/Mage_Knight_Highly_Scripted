@@ -2274,6 +2274,7 @@ function resourceTracker(player, mouseButton, id)
 	if mouseButton=="-1" then--and legalPlayerCheck(player.color, turnOrder[gStates.turnNumber].seatPos)==true then
         -- Help is independent of the combat display, so it never triggers a rescan.
         if id=="DisplayCombatCalculatorHelp" or id=="CloseCombatCalculatorHelp" then
+            if id=="DisplayCombatCalculatorHelp" and not resourceCardsPanelOpen() then return end
             local visible=UI.getAttribute("CombatCalculatorHelp","active")=="true"
             UI.setAttribute("CombatCalculatorHelp","active",visible and "false" or "true")
             return
@@ -2287,14 +2288,12 @@ function resourceTracker(player, mouseButton, id)
 			UI.setAttribute("ResourceTrackerDetail", "active", temp2)
             if temp2=="false" then
                 UI.setAttribute("CombatCalculatorHelp","active","false")
-                clearMoveDisplayVisuals()
-            end
-            resourceCardsPanelChanged(temp2=="true")
-            if temp2=="true" then
-                -- Wait for TTS to apply the expanded UI before restoring its map overlays.
+                resourceCardsPanelChanged(false)
+            else
+                -- Apply the complete fresh-start scan only after the expanded UI is live.
                 safeWaitFrames("UI",function()
-                    if UI.getAttribute("ResourceTracker","active")~="false"
-                        and UI.getAttribute("ResourceTrackerDetail","active")=="true" then
+                    if resourceCardsPanelOpen() then
+                        resourceCardsPanelChanged(true)
                         updateMoveDisplay("DisplayResourceTrackerDetails")
                     end
                 end,2)
@@ -2316,6 +2315,8 @@ function resourceTracker(player, mouseButton, id)
             end
             return
 		end
+        -- Stale hidden XML controls cannot revive calculations while OFF.
+        if not resourceCardsPanelOpen() then return end
 		if id:match("^CombatSourceSlot")~=nil then
 			resourceCardsCombatAssignmentClick(id)
 			return
@@ -2380,7 +2381,7 @@ end
 local RESOURCE_TRACKER_ZERO_TEXT_COLOR="#555555" -- Adjust this shade to tune empty-resource contrast.
 
 function refreshResourceTrackerText()
-    if gStates.resourceTracker==nil or gStates.moveCost==nil then return end
+    if not resourceCardsPanelOpen() or gStates.resourceTracker==nil or gStates.moveCost==nil then return end
     -- Reuse transformed values within this display pass; no persistent cache.
     local effective={}
     local function valueOf(category,field)
@@ -2426,12 +2427,12 @@ function resetResourceTrackerState()
 end
 
 function refreshResourceTracker()
-	updateMoveDisplay()
+    if resourceCardsPanelOpen() then updateMoveDisplay() end
 	gStates.resourceTracker.influence.reputation=-99
 	if reputationTable[turnOrder[gStates.turnNumber].reputation].repDisplay~="No Interaction" then
 		gStates.resourceTracker.influence.reputation=tonumber(reputationTable[turnOrder[gStates.turnNumber].reputation].repDisplay)
 	end
-	refreshResourceTrackerText()
+    if resourceCardsPanelOpen() then refreshResourceTrackerText() end
     -- After the turn changes, recalculate for the newly active Mage Knight.
     if resourceCardsPanelOpen() then resourceCardsPanelChanged(true) end
 end
