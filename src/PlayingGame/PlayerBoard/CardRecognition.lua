@@ -2076,7 +2076,7 @@ local function combatAssignmentRefreshRows(entries,sources)
         combatPanelSetAttribute("CombatKnockoutWarning","active",knockout and "true" or "false")
         if knockout then
             combatPanelSetAttribute("CombatKnockoutWarning","text",
-                "KNOCKED OUT\\nDiscard all non-Wound cards from hand")
+                "KNOCKED OUT\nDiscard all non-Wound cards from hand")
             combatPanelSetAttribute("CombatKnockoutWarning","font","Fonts/MKCardText")
         end
         local summaryHeight=knockout and 48 or 18
