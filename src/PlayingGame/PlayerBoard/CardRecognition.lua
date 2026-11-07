@@ -1853,10 +1853,9 @@ local function combatAssignmentRefreshRows(entries,sources)
     end
     attackAssignmentsDamageSync(damageSpec)
     local damageResults=combatDamageResolve(damageItems,damageUnits,combatHeroArmour(nativeCommandCount),attackAssignmentsDamageTargetsOf)
-    local totalHeroWounds,totalHeroDamage,totalDiscardWounds=0,0,0
+    local totalHeroWounds,totalDiscardWounds=0,0
     for _,result in pairs(damageResults) do
         totalHeroWounds=totalHeroWounds+result.heroWounds
-        totalHeroDamage=totalHeroDamage+result.heroDamage
         totalDiscardWounds=totalDiscardWounds+result.discard
     end
 
@@ -2062,19 +2061,18 @@ local function combatAssignmentRefreshRows(entries,sources)
         end
     end
 
-    local showTotal=totalHeroDamage>0
+    local showTotal=totalHeroWounds>0
     combatPanelSetAttribute("CombatTotalRow","active",showTotal and "true" or "false")
     if showTotal then
         -- The spacer pushes the total under the Result column.
         local spacer=-hiddenWidth
         for _,width in ipairs({130,55,150,170,110,130,170,170}) do spacer=spacer+width end
         combatPanelSetAttribute("CombatTotalSpacer","preferredWidth",tostring(spacer))
-        -- Only damage that reaches the Hero counts; Wounds to hand and to the discard pile are in brackets.
-        local woundsText=combatWoundsText(totalHeroWounds).." to hand"
-        if totalDiscardWounds>0 then woundsText=woundsText..", "..combatWoundsText(totalDiscardWounds).." to discard" end
-        if knockout then woundsText=woundsText.." — KNOCKED OUT (discard non-Wound hand cards)" end
+        -- Show Hero Wound cards, with extra Poison Wounds to the discard pile in brackets.
+        local poisonText=totalDiscardWounds>0 and " ("..tostring(totalDiscardWounds).." Poison)" or ""
+        local knockoutText=knockout and " — KNOCKED OUT (discard non-Wound hand cards)" or ""
         combatPanelSetAttribute("CombatTotalDamage","text",
-            "Total damage - "..combatRich(tostring(totalHeroDamage).." ("..woundsText..")",COMBAT_RED))
+            "Total Wounds: "..combatRich(tostring(totalHeroWounds)..poisonText..knockoutText,COMBAT_RED))
         combatPanelSetAttribute("CombatTotalDamage","font","Fonts/MKCardText")
         totalRowHeight=totalRowHeight+18
     end
