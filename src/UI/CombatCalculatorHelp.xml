@@ -2,7 +2,7 @@
 <Panel id="CombatCalculatorHelp" active="false" class="Floating" rectAlignment="UpperLeft" offsetXY="135 -120" width="680" height="720" color="rgb(0.24,0.20,0.15)" outlineSize="1 -1">
 	<VerticalLayout padding="14 14 10 10" spacing="6" childForceExpandHeight="false">
 		<HorizontalLayout preferredHeight="40" childForceExpandWidth="false" spacing="5">
-			<Text id="CombatCalculatorHelpTitle" preferredWidth="606" class="Title20" color="#F0D9AA" alignment="MiddleLeft">Resource Tracker &amp; Combat Calculator (Beta)</Text>
+			<Text id="CombatCalculatorHelpTitle" preferredWidth="606" class="Title20" color="#F0D9AA" alignment="MiddleLeft">{en}Resource Tracker &amp; Combat Calculator (Beta){it}Tracker risorse e calcolatore di combattimento (Beta){ru}Трекер ресурсов и калькулятор боя (бета){zh-tw}資源追蹤器與戰鬥計算器（測試版）{zh-cn}资源追踪器与战斗计算器（测试版）{ko}자원 추적기 및 전투 계산기 (베타){es}Rastreador de recursos y calculador de combate (Beta){fr}Suivi des ressources et calculateur de combat (bêta){pt-br}Rastreador de recursos e calculadora de combate (Beta){de}Ressourcen-Tracker und Kampfrechner (Beta)</Text>
 			<Button id="CloseCombatCalculatorHelp" preferredWidth="30" onClick="resourceTracker" class="ShortButton" tooltip="Close help">
 				<Image image="Sliced Button/Button New Active" type="Sliced"/>
 				<Text class="Text24" alignment="MiddleCenter">X</Text>
