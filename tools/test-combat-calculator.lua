@@ -38,6 +38,29 @@ local function check(label,condition)
     print("PASS "..label)
 end
 
+-- Poisonous attacks create Wounds for the Hero and extra Poison Wounds to discard.
+-- The detailed and collapsed rows use the same wording; collapsing must not
+-- display the detailed Hero line a second time.
+local damageNotes=assert(findFunction(root,"combatDamageNotes"),"Damage note formatter not reachable")
+local compactResult=assert(findFunction(root,"combatCompactResultLines"),"Compact result formatter not reachable")
+local poisonResult={units={},heroWounds=3,discard=3,paralyse=false}
+local poisonItem={key="poison-example",poison=true}
+local poisonNotes=damageNotes(poisonItem,poisonResult)
+check("detailed Poison wound text is clear",
+    #poisonNotes==1 and poisonNotes[1]==">Hero: 3 Wounds (3 Poison)")
+local compactPoison=compactResult({"Not blocked, 5 Damage",poisonNotes[1]},
+    {poisonItem},{["poison-example"]=poisonResult})
+local compactHeroCount=0
+for _,line in ipairs(compactPoison) do
+    if line:find(">Hero:",1,true) then compactHeroCount=compactHeroCount+1 end
+end
+check("collapsed result has one Hero wound summary, with no duplicate discard",
+    compactHeroCount==1
+        and compactPoison[2]==">Hero: 3 Wounds (3 Poison)")
+local plainNotes=damageNotes({key="plain"},{units={},heroWounds=1,discard=0,paralyse=false})
+check("non-Poison Hero summary still uses singular Wound",
+    plainNotes[1]==">Hero: 1 Wound")
+
 -- Group visual distribution must not change combat maths or target ownership.
 local distributeIcons=assert(findFunction(root,"combatGroupResourceRows"),
     "Grouped combat resource display helper not reachable")
