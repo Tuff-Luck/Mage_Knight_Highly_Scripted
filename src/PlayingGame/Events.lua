@@ -1487,7 +1487,12 @@ function __onObjectEnterZone_raw(zone, obj)
 	if gStates.firstStarted==true then
 		handleStartedZoneEnterPrelude(ctx)
 		handleTurnOrderZoneEnter(ctx)
-		if mapHandleTerrainZoneEnter(ctx)==true then return end
+		if ctx.isMap and terrainTiles[ctx.objGUID]~=nil then
+			local terrainStart=mapPerformanceStart()
+			local terrainHandled=mapHandleTerrainZoneEnter(ctx)
+			mapPerformanceRecord("terrain entry dispatch",terrainStart)
+			if terrainHandled==true then return end
+		elseif mapHandleTerrainZoneEnter(ctx)==true then return end
 		handleMapLocationZoneEnter(ctx)
 		handleMapVisualZoneEnter(ctx)
 		handleHandZoneEnter(ctx)
