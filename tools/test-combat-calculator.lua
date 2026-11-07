@@ -37,6 +37,34 @@ local function check(label,condition)
     assert(condition,label)
     print("PASS "..label)
 end
+
+-- Group visual distribution must not change combat maths or target ownership.
+local distributeIcons=assert(findFunction(root,"combatGroupResourceRows"),
+    "Grouped combat resource display helper not reachable")
+local function sampleIcons(prefix,count)
+    local icons={}
+    for i=1,count do icons[#icons+1]={source={key=prefix..i}} end
+    return icons
+end
+local singleIcons,singleHidden=distributeIcons({1},
+    {[1]={range=sampleIcons("range",8),block={},attack={}}},12)
+check("eight Ranged icons fit in two six-icon lines for one enemy",
+    #singleIcons[1].range==8 and singleHidden==0
+        and singleIcons[1].range[8].source.key=="range8")
+local joinedIcons,joinedHidden=distributeIcons({1,2},
+    {[1]={range={},block=sampleIcons("block",14),attack=sampleIcons("attack",17)},
+     [2]={range={},block=sampleIcons("second",3),attack={}}},12)
+check("joined Attack excess continues on the next group member",
+    #joinedIcons[1].attack==12 and #joinedIcons[2].attack==5
+        and joinedIcons[2].attack[1].source.key=="attack13")
+check("joined Block overflow follows each member's own Block resources",
+    #joinedIcons[1].block==12 and #joinedIcons[2].block==5
+        and joinedIcons[2].block[1].source.key=="second1"
+        and joinedIcons[2].block[4].source.key=="block13" and joinedHidden==0)
+local fullIcons,fullHidden=distributeIcons({1},
+    {[1]={range={},block={},attack=sampleIcons("over",15)}},12)
+check("unshown resources are counted rather than silently discarded",
+    #fullIcons[1].attack==12 and fullHidden==3)
 local many={}
 for i=1,13 do many[i]=item("block"..i,"block",1) end
 local plan=solve({attack("P",13)},many,0)
