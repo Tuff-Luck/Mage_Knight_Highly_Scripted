@@ -2799,9 +2799,14 @@ summonMonster=function(player, mouseButton, id)
 		local preferredPile=factionMonsterPreferredPileGUID(monsterColor,summonerFaction)
 		safeWaitFrames("Combat",function()
 			withTokenPoolReady(preferredPile,function()
+				-- An abandoned fight must not produce a late summon after its cleanup has started.
+				if gStates.preEndTurn==true or gStates.summonStates[id]~="SummonDone" then return end
 				local summonTarget={location[1]-(1.6*order),2.5,location[3]}
-				-- Draw without bag smoothing, shrink immediately, then begin the final smooth move.
-				local spawnPos={summonTarget[1],summonTarget[2]+1.2,summonTarget[3]}
+				local actualPileGUID=factionMonsterPileGUID(monsterColor,summonerFaction)
+				local actualPile=getObjectFromGUID(actualPileGUID)
+				local drawPos=actualPile~=nil and actualPile.getPosition() or location
+				-- Preserve the original flight from the monster pile, but scale before the smooth move begins.
+				local spawnPos={drawPos[1],drawPos[2]+1.2,drawPos[3]}
 				local summonedMonster,summonPileGUID=takeFactionMonster(monsterColor,summonerFaction,{position=spawnPos,rotation={0.00,180.00,0.00},smooth=false})
 				if summonedMonster==nil then
 					broadcastToAll("{en}Sorry, there are no tokens left to deploy{it}Non ci sono più segnalini da posizionare{ru}Извините, жетонов для размещения больше не осталось.{zh-tw}抱歉，沒有可部署的標記了。{zh-cn}抱歉，没有token可供部署{ko}여분의 토큰이 없습니다{es}Lo sentimos, no quedan tokens para implementar{fr}Désolé, il n'y a plus de jetons à déployer{pt-br}Desculpe, Não tem Fichas sobrando para distribuir{de}Entschuldigung, es sind keine Marker mehr zum Platzieren übrig.",warningColor)
@@ -2813,7 +2818,7 @@ summonMonster=function(player, mouseButton, id)
 				summonedMonster.setScale({0.70,1.00,0.70})
 				summonedMonster.setPositionSmooth(summonTarget,false,false)
 				local summonPile=getObjectFromGUID(summonPileGUID)
-				local summonPilePos=summonPile~=nil and summonPile.getPosition() or location
+				local summonPilePos=summonPile~=nil and summonPile.getPosition() or drawPos
 				local returnPos={summonPilePos[1],2,summonPilePos[3]}
 				if cameraFocused==false then combatCameraFocus(turnOrder[gStates.turnNumber]) cameraFocused=true end
 				gStates.attackedMonsters[summonedMonster.guid]={returnPos,{0.00,0.00,0.00},"summoned",id}
