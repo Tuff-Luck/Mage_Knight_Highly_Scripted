@@ -193,16 +193,20 @@ for _,scenario in ipairs({"Ultimate Conquest","Conquest","The War of Four",
     assert(groupChecks==0,"Parked City should skip scanning in "..scenario)
 end
 gStates.mapShapeKey="wedgeUnlimited"
+cityB.setPosition({-53.5,1.09,0})
+assert(not positionCityCardForExplore("zoneA",nil,{},nil,{}))
+assert(groupChecks==1,"Overlapping parked City cards must still be reconciled")
+cityB.setPosition({-40,1,0})
 cityA.setPosition({0,1.09,0})
 assert(not positionCityCardForExplore("zoneA",nil,{},nil,{}))
-assert(groupChecks==1,"Moving the City back to the map reenables compaction")
+assert(groupChecks==2,"Moving the City back to the map reenables compaction")
 cityA.setPosition({-54,1.09,0})
 terrainTiles.tileManual={}
 assert(not positionCityCardForExplore("zoneA",nil,{},nil,
     {{guid="tileManual",position={-53,1.09,0}}}))
-assert(groupChecks==2,"An off-grid terrain tile near the City reenables compaction")
+assert(groupChecks==3,"An off-grid terrain tile near the City reenables compaction")
 assert(not positionCityCardForExplore("zoneA",{-54,1.09,0},{},nil,{}))
-assert(groupChecks==3,"Explicit relocation always bypasses parked-City shortcut")
+assert(groupChecks==4,"Explicit relocation always bypasses parked-City shortcut")
 terrainTiles.tileManual=nil
 cityCardExploreGroup=actualGroup
 gStates.gameScenario=nil
