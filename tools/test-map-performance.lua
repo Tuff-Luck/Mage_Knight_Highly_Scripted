@@ -12,19 +12,31 @@ local function extract(path,startMarker,endMarker,prefix,suffix)
     return assert(load((prefix or "")..s:sub(a,b-1)..(suffix or "")))
 end
 
--- The City off-map shortcut must use the full future terrain footprint,
--- including a safety margin around outer hexes, not just currently legal slots.
+-- Parked-City checks follow actual terrain positions, not a fixed scenario
+-- grid. A new tile or a legal nonstandard spot must reactivate an outside City.
 local mapCode=source("src/PlayingGame/Map.lua")
-local spotsStart=assert(mapCode:find("local terrainExploreSpots=",1,true))
-local spotsEnd=assert(mapCode:find("local terrainInfoCardGUIDs=",spotsStart,true))
-local helperStart=assert(mapCode:find("function terrainExploreMayReachCityCard(",spotsEnd,true))
+local helperStart=assert(mapCode:find("function terrainExploreMayReachCityCard(",1,true))
 local helperEnd=assert(mapCode:find("function clearTerrainExploreOptions(",helperStart,true))
-local mayReach=assert(load(mapCode:sub(spotsStart,spotsEnd-1).."\n"..
-    mapCode:sub(helperStart,helperEnd-1).."\nreturn terrainExploreMayReachCityCard"))()
-assert(mayReach({-24.0301,1,-16.0837})==true,"Possible terrain centre stays active")
-assert(mayReach({-18,1,-16.0837})==true,"Outer terrain footprint margin stays active")
-assert(mayReach({50,1,50})==false,"Remote City can skip future EXPLORE checks")
-print("PASS parked-City future terrain footprint margin")
+local mayReach=assert(load(mapCode:sub(helperStart,helperEnd-1)..
+    "\nreturn terrainExploreMayReachCityCard"))()
+terrainTiles={tileA={},tileB={}}
+terrainExploreOptions=function() return {} end
+local currentMap={{guid="tileA",position={0,1.09,0}},
+    {guid="tileB",position={6,1.09,0}}}
+assert(mayReach({6,1.09,0},currentMap),"Existing terrain activates City compaction")
+assert(mayReach({17,1.09,0},currentMap),"One-tile expansion margin activates City compaction")
+assert(not mayReach({35,1.09,0},currentMap),"Distant City can skip compaction regardless of map shape")
+assert(mayReach({35,1.09,0},{}),"No terrain cannot justify skipping City placement")
+currentMap[#currentMap+1]={guid="tileC",position={30,1.09,0}}
+terrainTiles.tileC={}
+assert(mayReach({35,1.09,0},currentMap),"Expanding the physical map reactivates parked City")
+table.remove(currentMap)
+terrainExploreOptions=function()
+    return {{attributes={tilePosX="35",tilePosZ="0"}}}
+end
+assert(mayReach({35,1.09,0},currentMap),"Nonstandard EXPLORE slot reactivates parked City")
+terrainExploreOptions=function() return {} end
+print("PASS scenario-independent parked-City frontier and reactivation")
 
 -- The production terrain builder must preserve exactly the original
 -- distance-based neighbour graph without comparing every hex pair.
