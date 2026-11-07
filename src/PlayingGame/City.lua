@@ -1155,6 +1155,63 @@ end
 -- A zone is a collider query, NOT an ownership record: it can include neighbouring
 -- Cities, reference tiles, and other unrelated objects (including locked ones).
 -- Use the City's actual roster and the existing pre-combat manual-army recognition.
+-- Resolve physical City-garrison candidates once for a compaction pass. A City card
+-- can be outside the map scripting zone, so this deliberately reads all table objects,
+-- but only once, and associates each eligible piece with its nearest deployed City.
+-- This remains runtime-only: manual garrison layouts still come from the table.
+local function cityCardCompactionCandidates(scanContext)
+	if scanContext.candidates~=nil then return scanContext.candidates end
+	local perfStart=mapPerformanceStart()
+	local owners=cityGarrisonCardOwners()
+	local byOwner={}
+	for _,owner in ipairs(owners) do byOwner[owner.guid]={} end
+	local avatarGUIDs={}
+	for _,mage in pairs(mageKnights or {}) do
+		if mage.model~=nil then avatarGUIDs[mage.model]=true end
+		if mage.standee~=nil then avatarGUIDs[mage.standee]=true end
+		if mage.token~=nil then avatarGUIDs[mage.token]=true end
+	end
+	local physicalMap=nil
+	for _,obj in pairs(getAllObjects()) do
+		local guid=obj~=nil and obj.guid or nil
+		if guid~=nil and terrainTiles[guid]==nil then
+			local pug=monsterPugs[guid]
+			-- An enemy crossing a City while travelling to its own hex is not a
+			-- manually parked garrison. The same rule protects held/falling pieces.
+			local settled=obj.held_by_color==nil and obj.resting~=false and
+				(obj.isSmoothMoving==nil or obj.isSmoothMoving()~=true) and
+				(mapTokenHasPendingArrival==nil or mapTokenHasPendingArrival(guid)~=true)
+			if settled then
+				local pos=obj.getPosition()
+				if pos~=nil and pos[2]>=CITY_GARRISON_MIN_Y and pos[2]<=CITY_GARRISON_MAX_Y then
+					local ownerGUID,distSq=cityGarrisonNearestOwner(pos,owners)
+					if ownerGUID~=nil and distSq~=nil then
+						local isAvatar=avatarGUIDs[guid]==true
+						local eligibleEnemy=pug~=nil and CITY_GARRISON_PUG_TYPES[pug.pugType]==true
+						local shield=distSq<=10.24 and isShieldObject~=nil and isShieldObject(obj)==true
+						if (eligibleEnemy and distSq<=CITY_GARRISON_KNOWN_RADIUS*CITY_GARRISON_KNOWN_RADIUS)
+							or (distSq<=10.24 and (shield or isAvatar)) then
+							-- An enemy already on a revealed terrain hex belongs to the map,
+							-- not the City card, even if the City is temporarily parked nearby.
+							if physicalMap==nil then physicalMap=runtimeMapSnapshot() end
+							local _,_,onTerrain=runtimeMapHexAtPosition(pos,physicalMap)
+							if onTerrain==nil then
+								local group=byOwner[ownerGUID]
+								if group~=nil then
+									group[#group+1]={guid=guid,distSq=distSq,pug=pug,shield=shield,avatar=isAvatar}
+								end
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+	scanContext.candidates=byOwner
+	mapPerformanceRecord("City candidate indexing",perfStart)
+	return byOwner
+end
+
 cityCardExploreGroup=function(cityZone,scanContext)
 	local details=cityScriptZones[cityZone]
 	local cityGUID=details~=nil and details.cityGUID or nil
@@ -1176,44 +1233,20 @@ cityCardExploreGroup=function(cityZone,scanContext)
 
 	local movingGUIDs={[card.guid]=true}
 	local ownerGUID=standardCityGarrisonOwner(cityGUID)
-	local owners=cityGarrisonCardOwners()
-	local avatarGUIDs={}
-	for _,mage in pairs(mageKnights or {}) do
-		if mage.model~=nil then avatarGUIDs[mage.model]=true end
-		if mage.standee~=nil then avatarGUIDs[mage.standee]=true end
-		if mage.token~=nil then avatarGUIDs[mage.token]=true end
-	end
-	-- A compaction refresh can inspect several City groups. Share one physical-object
-	-- list and lazily sample each position once; do not persist this outside the pass.
-	local objects=scanContext~=nil and scanContext.objects or nil
-	if objects==nil then
-		objects=getAllObjects()
-		if scanContext~=nil then scanContext.objects=objects end
-	end
-	for _,obj in pairs(objects) do
-		if obj~=nil and obj.guid~=nil and obj.guid~=card.guid and terrainTiles[obj.guid]==nil then
-			local pos=scanContext~=nil and scanContext.positions[obj.guid] or nil
-			if pos==nil then
-				pos=obj.getPosition()
-				if scanContext~=nil then scanContext.positions[obj.guid]=pos end
-			end
-			if pos~=nil and pos[2]>=CITY_GARRISON_MIN_Y and pos[2]<=CITY_GARRISON_MAX_Y then
-				local nearest,distSq=cityGarrisonNearestOwner(pos,owners)
-				if nearest==ownerGUID and distSq~=nil then
-					local registered=cityData[obj.guid]=="alive"
-					local pug=monsterPugs[obj.guid]
-					local eligibleEnemy=pug~=nil and CITY_GARRISON_PUG_TYPES[pug.pugType]==true and
-						cityGarrisonRegisteredElsewhere(obj.guid,cityData)~=true
-					local radius=registered and CITY_GARRISON_KNOWN_RADIUS or CITY_GARRISON_MANUAL_RADIUS
-					if eligibleEnemy and distSq<=radius*radius and
-						(registered or cityData.extra.combatRosterLocked~=true) then
-						movingGUIDs[obj.guid]=true
-					elseif distSq<=10.24 and
-						((isShieldObject~=nil and isShieldObject(obj)==true) or avatarGUIDs[obj.guid]==true) then
-						-- Only genuinely parked shields/avatars move with the City card.
-						movingGUIDs[obj.guid]=true
-					end
-				end
+	local context=scanContext or {}
+	local candidates=cityCardCompactionCandidates(context)[ownerGUID] or {}
+	for _,entry in ipairs(candidates) do
+		local guid=entry.guid
+		if context.movedGUIDs==nil or context.movedGUIDs[guid]~=true then
+			local registered=cityData[guid]=="alive"
+			local eligibleEnemy=entry.pug~=nil and CITY_GARRISON_PUG_TYPES[entry.pug.pugType]==true and
+				cityGarrisonRegisteredElsewhere(guid,cityData)~=true
+			local radius=registered and CITY_GARRISON_KNOWN_RADIUS or CITY_GARRISON_MANUAL_RADIUS
+			if eligibleEnemy and entry.distSq<=radius*radius and
+				(registered or cityData.extra.combatRosterLocked~=true) then
+				movingGUIDs[guid]=true
+			elseif entry.distSq<=10.24 and (entry.shield or entry.avatar) then
+				movingGUIDs[guid]=true
 			end
 		end
 	end
@@ -1335,9 +1368,12 @@ moveCityCardExploreGroup=function(group,desiredLocation,movedCityZones,mapObject
 	-- Only move objects that passed the explicit ownership checks. Moving every object
 	-- returned by zone.getObjects() used to abduct distant locked reference tiles.
 	for guid,_ in pairs(group.movingGUIDs) do
-		-- The next City group must read the live transform of any moving
-		-- piece; cached pre-move positions cannot own another City.
-		if scanContext~=nil then scanContext.positions[guid]=nil end
+		-- No second City may claim a piece moved by the current City pass.
+		if scanContext~=nil then
+			scanContext.positions[guid]=nil
+			scanContext.movedGUIDs=scanContext.movedGUIDs or {}
+			scanContext.movedGUIDs[guid]=true
+		end
 		if guid~=group.card.guid then
 			local obj=getObjectFromGUID(guid)
 			if obj~=nil then
