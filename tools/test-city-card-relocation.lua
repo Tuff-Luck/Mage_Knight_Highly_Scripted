@@ -120,9 +120,11 @@ assert(not groupA.movingGUIDs.lockedRef and not groupA.movingGUIDs.farLocked,"Lo
 local cachedMap=cityCardMapSnapshot()
 assert(cityCardExploreSpaceFree(cachedMap,{100,1.09,0},{},nil,nil),"Empty distant spot is free")
 assert(cachedMap._cityExploreBlockers~=nil,"City blockers are spatially indexed")
-local ok=moveCityCardExploreGroup(groupA,{-54,1.09,0},{},cachedMap)
+local ok=moveCityCardExploreGroup(groupA,{-54,1.09,0},{},cachedMap,sharedScan)
 assert(ok,"Move group A")
 assert(cachedMap._cityExploreBlockers==nil,"Moving a City invalidates blocker buckets")
+assert(sharedScan.positions.troopA==nil and sharedScan.positions.manualA==nil,
+    "Moving a City invalidates its previously sampled garrison positions")
 assert(cityA.target[1]==-54 and defenderA.target[1]==-49 and manualA.target[1]==-51,
     "City card and loose army retain their relative positions")
 assert(not defenderB.target and not reference.target and not distantRef.target,
