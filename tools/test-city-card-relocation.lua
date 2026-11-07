@@ -76,10 +76,39 @@ end
 standardCityGarrisonOwner=function(guid) return guid end
 isShieldObject=function() return false end
 terrainExploreOptions=function() return {} end
+mapPerformanceStart=function() return nil end
+mapPerformanceRecord=function() end
 cityCardExploreOffsets={{6,1.09,0},{0,1.09,6},{-6,1.09,0}}
 local loader,err=load(code)
 assert(loader,err)
 loader()
+-- A single EXPLORE compaction must share one full-table list and sample
+-- unchanged loose-piece positions once, even when several Cities are active.
+local rawAll=getAllObjects
+local allCalls=0
+getAllObjects=function()
+    allCalls=allCalls+1
+    return rawAll()
+end
+local refPosition=reference.getPosition
+local refReads=0
+reference.getPosition=function()
+    refReads=refReads+1
+    return refPosition()
+end
+local sharedScan={positions={}}
+assert(cityCardExploreGroup("zoneA",sharedScan))
+assert(cityCardExploreGroup("zoneB",sharedScan))
+assert(allCalls==1,"Compaction should fetch all table objects once")
+assert(refReads==1,"Unmoved reference objects should have their position sampled once")
+getAllObjects=rawAll
+reference.getPosition=refPosition
+local optionCalls=0
+local rawOptions=terrainExploreOptions
+terrainExploreOptions=function() optionCalls=optionCalls+1 return {} end
+assert(findCityCardPosition({100,1.09,0},{},{},nil,nil)~=nil)
+assert(optionCalls==1,"EXPLORE button positions should be sampled once per City placement search")
+terrainExploreOptions=rawOptions
 local groupA=assert(cityCardExploreGroup("zoneA"))
 assert(groupA.movingGUIDs.cardA,"Own City card must move")
 assert(groupA.movingGUIDs.troopA,"Registered, fanned-out defender must move")
