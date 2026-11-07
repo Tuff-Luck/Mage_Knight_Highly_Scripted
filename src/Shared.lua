@@ -799,6 +799,7 @@ end
 -- terrain hex topology.
 local runtimeMapObjectCache=nil
 local runtimeMapTerrainCache=nil
+local runtimeMapPreviousTerrainCache=nil
 local runtimeMapSnapshotCache=nil
 
 function runtimeMapInvalidateObjects()
@@ -807,6 +808,9 @@ function runtimeMapInvalidateObjects()
 end
 
 function runtimeMapInvalidateTerrain()
+	-- Retain the last geometry only until the next rebuild. Incoming terrain or
+	-- face/transform changes can then reconnect just the affected hexes.
+	if runtimeMapTerrainCache~=nil then runtimeMapPreviousTerrainCache=runtimeMapTerrainCache end
 	runtimeMapObjectCache=nil
 	runtimeMapTerrainCache=nil
 	runtimeMapSnapshotCache=nil
@@ -1078,43 +1082,93 @@ local function runtimeMapTerrainSnapshot()
 			neighborSet[key]={}
 		end
 	end
-	-- Compare only hexes in nearby spatial cells. Hex adjacency is strictly less than
-	-- sqrt(7.4) world units, so 3-unit cells and their eight neighbours are exhaustive.
-	-- The exact distance predicate remains authoritative (including irregular scenario maps).
-	local neighborCellSize=3
-	local neighborBuckets={}
+	-- Each terrain reveal changes only a handful of hex centres. Keep the old
+	-- unchanged edges and test the new/moved hexes against nearby buckets. The
+	-- exact distance predicate stays authoritative on rotated/irregular maps.
+	local previous=runtimeMapPreviousTerrainCache
+	local changed={}
+	local changedCount,removedCount=0,0
+	if previous~=nil then
+		for _,hex in ipairs(hexes) do
+			local key=runtimeMapHexKey(hex)
+			local old=previous.hexByKey[key]
+			if old==nil or old.position[1]~=hex.position[1] or old.position[3]~=hex.position[3] then
+				changed[key]=true
+				changedCount=changedCount+1
+			end
+		end
+		for key in pairs(previous.hexByKey) do
+			if hexByKey[key]==nil then removedCount=removedCount+1 end
+		end
+	end
+	-- Large setup/map moves are faster to build afresh than to preserve edges.
+	local incremental=previous~=nil and (changedCount+removedCount)*3<#hexes
+	local cellSize=3
+	local buckets={}
 	local hexOrder={}
-	for index,hex in ipairs(hexes) do hexOrder[hex]=index end
-	for _,second in ipairs(hexes) do
-		local secondKey=runtimeMapHexKey(second)
-		if secondKey~=nil then
-			local secondX=math.floor(second.position[1]/neighborCellSize)
-			local secondZ=math.floor(second.position[3]/neighborCellSize)
-			for x=secondX-1,secondX+1 do
-				for z=secondZ-1,secondZ+1 do
-					local bucket=neighborBuckets[x..":"..z]
-					for _,first in ipairs(bucket or {}) do
-						if runtimeMapHexesAdjacent(first,second)==true then
-							local firstKey=runtimeMapHexKey(first)
-							if firstKey~=nil then
-								neighbors[firstKey][#neighbors[firstKey]+1]=second
-								neighbors[secondKey][#neighbors[secondKey]+1]=first
-								neighborSet[firstKey][secondKey]=true
-								neighborSet[secondKey][firstKey]=true
+	for index,hex in ipairs(hexes) do
+		hexOrder[hex]=index
+		local x=math.floor(hex.position[1]/cellSize)
+		local z=math.floor(hex.position[3]/cellSize)
+		local row=buckets[x]
+		if row==nil then row={} buckets[x]=row end
+		local cell=row[z]
+		if cell==nil then cell={} row[z]=cell end
+		cell[#cell+1]=hex
+	end
+	local function linkHexes(first,second)
+		local a=runtimeMapHexKey(first)
+		local b=runtimeMapHexKey(second)
+		neighbors[a][#neighbors[a]+1]=second
+		neighbors[b][#neighbors[b]+1]=first
+		neighborSet[a][b]=true
+		neighborSet[b][a]=true
+	end
+	if incremental then
+		-- Carry forward only edges where both endpoints are unchanged; removed
+		-- or moved endpoints are deliberately excluded from the reused graph.
+		for _,hex in ipairs(hexes) do
+			local key=runtimeMapHexKey(hex)
+			if changed[key]~=true then
+				for _,oldNeighbor in ipairs(previous.neighbors[key] or {}) do
+					local neighborKey=runtimeMapHexKey(oldNeighbor)
+					local neighbour=hexByKey[neighborKey]
+					if neighbour~=nil and changed[neighborKey]~=true and hexOrder[hex]<hexOrder[neighbour] then
+						linkHexes(hex,neighbour)
+					end
+				end
+			end
+		end
+	end
+	for _,hex in ipairs(hexes) do
+		local key=runtimeMapHexKey(hex)
+		if incremental~=true or changed[key]==true then
+			local baseX=math.floor(hex.position[1]/cellSize)
+			local baseZ=math.floor(hex.position[3]/cellSize)
+			for x=baseX-1,baseX+1 do
+				local row=buckets[x]
+				if row~=nil then
+					for z=baseZ-1,baseZ+1 do
+						for _,other in ipairs(row[z] or {}) do
+							local otherKey=runtimeMapHexKey(other)
+							-- Compare a changed/unchanged pair once, and two changed
+							-- endpoints once in their original encounter order.
+							if other~=hex and (hexOrder[other]<hexOrder[hex] or
+								(incremental and changed[otherKey]~=true)) and
+								runtimeMapHexesAdjacent(other,hex)==true then
+								linkHexes(other,hex)
 							end
 						end
 					end
 				end
 			end
-			local bucketKey=secondX..":"..secondZ
-			if neighborBuckets[bucketKey]==nil then neighborBuckets[bucketKey]={} end
-			neighborBuckets[bucketKey][#neighborBuckets[bucketKey]+1]=second
 		end
 	end
-	-- Preserve the original map-entry ordering for equal-length movement/AI paths.
 	for _,nearby in pairs(neighbors) do
 		table.sort(nearby,function(a,b) return hexOrder[a]<hexOrder[b] end)
 	end
+	if incremental then mapPerformanceRecord("terrain incremental rebuild",neighborStart)
+	else mapPerformanceRecord("terrain full rebuild",neighborStart) end
 	mapPerformanceRecord("terrain neighbour indexing",neighborStart)
 
 	table.sort(signatureParts)
@@ -1123,6 +1177,7 @@ local function runtimeMapTerrainSnapshot()
 		terrainEntries=terrainEntries,hexes=hexes,hexByKey=hexByKey,neighbors=neighbors,neighborSet=neighborSet,
 		terrainSignature=table.concat(signatureParts,"|")
 	}
+	runtimeMapPreviousTerrainCache=nil
 	mapPerformanceRecord("terrain topology",perfStart)
 	return runtimeMapTerrainCache
 end
