@@ -781,16 +781,30 @@ function mapPerformanceRecord(label,started)
 	row.total=row.total+elapsed
 	row.max=math.max(row.max,elapsed)
 end
-function mapPerformanceReport()
+-- Default report shows only the costs that are currently worth monitoring.
+-- "all" retains the diagnostic breakdown; "raw" returns the underlying table.
+-- Return formatted text instead of the entire stats table so the TTS console
+-- does not expand every low-cost counter after printing the report.
+function mapPerformanceReport(detail)
+	if detail=="raw" then return mapPerformanceStats end
 	local keys={}
-	for key in pairs(mapPerformanceStats) do keys[#keys+1]=key end
-	table.sort(keys)
+	if detail=="all" or detail==true then
+		for key in pairs(mapPerformanceStats) do keys[#keys+1]=key end
+		table.sort(keys)
+	else
+		keys={"EXPLORE refresh","City compaction","City candidate indexing",
+			"terrain topology","terrain neighbour indexing","terrain entry dispatch"}
+	end
+	local lines={}
 	for _,key in ipairs(keys) do
 		local row=mapPerformanceStats[key]
-		print(string.format("[Map perf] %s: %d calls, %.2f ms total, %.2f ms avg, %.2f ms max",
-			key,row.count,row.total,row.total/row.count,row.max))
+		if row~=nil and row.count>0 then
+			lines[#lines+1]=string.format("%s: %d calls, %.1f ms avg, %.1f ms max",
+				key,row.count,row.total/row.count,row.max)
+		end
 	end
-	return mapPerformanceStats
+	if #lines==0 then return "No map performance samples yet" end
+	return table.concat(lines,"\\n")
 end
 
 -- Shared runtime map snapshots. The physical TTS table is authoritative; these are only derived
