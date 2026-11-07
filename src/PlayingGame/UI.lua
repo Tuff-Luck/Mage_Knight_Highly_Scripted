@@ -2285,8 +2285,20 @@ function resourceTracker(player, mouseButton, id)
 			if tonumber(UI.getAttribute("ResourceTracker", "height"))>200 then temp="35" temp2="false" end
 			UI.setAttribute("ResourceTracker", "height", temp)
 			UI.setAttribute("ResourceTrackerDetail", "active", temp2)
-            if temp2=="false" then UI.setAttribute("CombatCalculatorHelp","active","false") end
+            if temp2=="false" then
+                UI.setAttribute("CombatCalculatorHelp","active","false")
+                clearMoveDisplayVisuals()
+            end
             resourceCardsPanelChanged(temp2=="true")
+            if temp2=="true" then
+                -- Wait for TTS to apply the expanded UI before restoring its map overlays.
+                safeWaitFrames("UI",function()
+                    if UI.getAttribute("ResourceTracker","active")~="false"
+                        and UI.getAttribute("ResourceTrackerDetail","active")=="true" then
+                        updateMoveDisplay("DisplayResourceTrackerDetails")
+                    end
+                end,2)
+            end
 			UI.setAttribute("ResourceTrackerDetail", "height", "210")
 			UI.setAttribute("MoveCosts", "active", "false")
 			UI.setAttribute("SiegeAmountDetails", "active", "false")

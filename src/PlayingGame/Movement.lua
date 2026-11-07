@@ -356,7 +356,18 @@ function clearMoveDisplayVisuals()
 	end
 end
 
+local function moveDisplayTrackerExpanded()
+	return UI.getAttribute("ResourceTracker","active")~="false"
+		and UI.getAttribute("ResourceTrackerDetail","active")=="true"
+end
+
 function updateMoveDisplay(id)
+	--Keep the movement calculation live while minimized, but never redraw its map overlays.
+	if not moveDisplayTrackerExpanded() then
+		if moveDisplayBaseVectorLines~=nil or (gStates.moveDisplayTextActiveCount or 0)>0
+			or moveDisplayAutoPause~=nil then clearMoveDisplayVisuals() end
+		return
+	end
 	--With zero Move and no active markers there is nothing for the movement display to do.
 	local moveValue=gStates.resourceTracker~=nil and gStates.resourceTracker.move~=nil and resourceCardsEffectiveMove() or 0
 	local hasMoveMarkers=(gStates.moveDisplayTextActiveCount or 0)>0
@@ -377,6 +388,8 @@ function updateMoveDisplay(id)
 end
 
 function renderMoveDisplay(id)
+	--A pending background redraw must not restore routes after the tracker was minimized.
+	if not moveDisplayTrackerExpanded() then clearMoveDisplayVisuals() return end
 	--Preserve Global vector lines that existed before the movement display started.
 	local moveValue=gStates.resourceTracker~=nil and gStates.resourceTracker.move~=nil and resourceCardsEffectiveMove() or 0
 	if moveValue>0 and moveDisplayBaseVectorLines==nil then moveDisplayBaseVectorLines=attackAssignmentsWithoutVectorLines(Global.getVectorLines() or {}) end
