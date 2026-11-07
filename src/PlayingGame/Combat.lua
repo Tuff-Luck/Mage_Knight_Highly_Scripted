@@ -2798,7 +2798,9 @@ summonMonster=function(player, mouseButton, id)
 			withTokenPoolReady(preferredPile,function()
 				-- An abandoned fight must not produce a late summon after its cleanup has started.
 				if gStates.preEndTurn==true or gStates.summonStates[id]~="SummonDone" then return end
-				local summonTarget={location[1]-(1.6*order),2.5,location[3]}
+				-- The player's mat is at Y=1.08 even if the summoner is temporarily lifted.
+				-- Smooth movement ignores collisions; physics resolves any occupied space after arrival.
+				local summonTarget={location[1]-(1.6*order),1.08,location[3]}
 				local actualPileGUID=factionMonsterPileGUID(monsterColor,summonerFaction)
 				local actualPile=getObjectFromGUID(actualPileGUID)
 				local drawPos=actualPile~=nil and actualPile.getPosition() or location
