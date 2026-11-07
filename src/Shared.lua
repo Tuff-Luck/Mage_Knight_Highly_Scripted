@@ -1172,7 +1172,7 @@ local function runtimeMapTerrainSnapshot()
 							for bz=z-1,z+1 do
 								for _,other in ipairs(row[bz] or {}) do
 									if other~=hex and
-										(changed[other.key]~=true or hexOrderByKey[other.key]<hexOrderByKey[hex.key]) and
+										(geometryChanged[other.key]~=true or hexOrderByKey[other.key]<hexOrderByKey[hex.key]) and
 										runtimeMapHexesAdjacent(other,hex)==true then
 										newEdges[#newEdges+1]={other,hex}
 										affected[other.key]=true
