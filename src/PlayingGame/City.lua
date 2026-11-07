@@ -1005,7 +1005,10 @@ function playCity(obj, hexFeature, dropped)
 	local cityObj=getObjectFromGUID(cityGUID)
 	if cityObj~=nil and gStates.gameScenario~="The Lost Relic Blitz" then
 		local terrainPos=obj.getPosition()
-		cityObj.setPositionSmooth({terrainPos[1],1.09,terrainPos[3]})
+		local cityPosition={terrainPos[1],1.09,terrainPos[3]}
+		-- Volkare's Camp hex (a7d898) deploys instantly; other Cities retain their smooth placement.
+		if cityGUID==volkare.terrainHex then cityObj.setPosition(cityPosition)
+		else cityObj.setPositionSmooth(cityPosition) end
 		if gStates.cityCard[cityGUID]~=nil and dropped==true then cityInitialCardPosition(cityGUID,obj) end
 		table.insert(gStates.citiesPlayed,cityGUID)
 		if gStates.ultimateLeaders==nil then gStates.ultimateLeaders=0 end
