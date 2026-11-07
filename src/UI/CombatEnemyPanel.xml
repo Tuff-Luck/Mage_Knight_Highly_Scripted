@@ -597,5 +597,6 @@
 				<Text id="CombatKnockoutWarning" active="false" class="Text12" fontSize="12" color="#FF5555" preferredWidth="345" preferredHeight="30" alignment="MiddleLeft"/>
 			</VerticalLayout>
 		</HorizontalLayout>
+        <Text id="CombatResourceOverflow" active="false" class="Text12" color="#FFCC66" preferredHeight="18" alignment="MiddleLeft"/>
 		</VerticalLayout>
 </Panel>
