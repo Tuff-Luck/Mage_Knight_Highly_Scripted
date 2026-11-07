@@ -102,12 +102,28 @@ builder.reset(topology)
 comparisons=0
 local expanded=builder.build()
 assert(#expanded.hexes==51,"Appended terrain has a hex")
+assert(expanded.hexByKey["tile10|center"]==topology.hexByKey["tile10|center"],
+    "Unchanged hexes keep immutable identity")
+assert(expanded.neighbors["tile10|center"]==topology.neighbors["tile10|center"],
+    "Unaffected neighbour arrays are shared, not rebuilt")
+assert(expanded.neighbors["tile50|center"]~=topology.neighbors["tile50|center"],
+    "New neighbour connections copy affected lists before changing them")
+assert(#topology.neighbors["tile50|center"]==1,"Previous terrain graph remains immutable")
 assert(#expanded.neighbors["tile50|center"]==2 and #expanded.neighbors["tile51|center"]==1,
     "Appended terrain connects to its old neighbours")
 assert(comparisons<30,"Appending terrain unexpectedly rebuilt the full graph: "..comparisons)
 
-table.remove(mapObjects,25)
+-- Duplicate zone/drop invalidation with no physical change must keep the
+-- entire previous graph and avoid even a single neighbour distance test.
 builder.reset(expanded)
+comparisons=0
+local identical=builder.build()
+assert(identical.neighbors==expanded.neighbors and identical.neighborSet==expanded.neighborSet,
+    "Unchanged map invalidation should reuse the complete topology")
+assert(comparisons==0,"Unchanged map must not retest adjacency")
+
+table.remove(mapObjects,25)
+builder.reset(identical)
 comparisons=0
 local reduced=builder.build()
 assert(#reduced.hexes==50,"Removed terrain is absent")
@@ -135,7 +151,28 @@ local altered=builder.build()
 assert(altered.hexByKey["tile24|center"].feature=="keep",
     "Printed feature mutation must reach the new hex snapshot")
 assert(comparisons==0,"Feature-only changes must reuse unchanged neighbour geometry")
-print("PASS incremental terrain reveal, removal, movement, and feature changes")
+assert(altered.hexByKey["tile24|center"]~=moved.hexByKey["tile24|center"],
+    "Feature changes produce fresh immutable hex metadata")
+assert(moved.hexByKey["tile24|center"].feature=="",
+    "Earlier snapshots keep their previous printed feature")
+assert(altered.neighbors["tile10|center"]==moved.neighbors["tile10|center"],
+    "Distant neighbour lists remain shared after metadata edits")
+local near=altered.neighbors["tile23|center"][2]
+assert(near~=nil and near==altered.hexByKey["tile24|center"],
+    "Neighbour lists point to the new hex after a metadata-only update")
+
+-- TTS does not promise a permanent enumeration order from zone.getObjects().
+-- A reorder must fall back to a deterministic full rebuild.
+for i=1,math.floor(#mapObjects/2) do
+    local j=#mapObjects-i+1
+    mapObjects[i],mapObjects[j]=mapObjects[j],mapObjects[i]
+end
+builder.reset(altered)
+local reordered=builder.build()
+assert(reordered.neighbors["tile10|center"][1].terrainGUID=="tile11" and
+    reordered.neighbors["tile10|center"][2].terrainGUID=="tile9",
+    "Neighbour lists retain physical source order after re-enumeration")
+print("PASS incremental topology, copy-on-write, metadata edits and reorder")
 
 -- The production reconciler must ignore distant map enemies while honouring
 -- moving tokens on the new tile. The physical-hex lookup is stubbed, but the
