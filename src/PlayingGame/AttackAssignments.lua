@@ -287,6 +287,7 @@ end
 
 local DAMAGE_DECAL_URL="https://steamusercontent-a.akamaihd.net/ugc/10727875827929703324/92E5145A412AFBE2EB1716DF8B6CF965359A0372/"
 local damageButtonX={}
+local damageBaseX={} -- Stable physical footprint, captured before target overlays are added.
 
 local function removeDamageButtons(obj)
 	local buttons=obj.getButtons() or {}
@@ -329,15 +330,21 @@ end
 -- Blue City's Elemental (+Attack) and AllAttack+ are here; the right-side
 -- Poison/Brutal icons and high Fortified icon should not shift the marker.
 local function damageTargetButtonX(obj)
-    -- getBounds() is a WORLD-axis-aligned box. Lifting/rotating a token can
-    -- enlarge its X extent even though the token and its local decals are
-    -- unchanged. Placement must use the rotation-independent local footprint.
-    local bounds=obj.getBoundsNormalized()
-    local scale=obj.getScale()
-    local size=bounds~=nil and bounds.size or nil
-    local radius=(size~=nil and (size.x or size[1]) or 1.5)
-        /((scale~=nil and (scale.x or scale[1])) or 1)/2
-    local x=-(radius+0.35)
+    -- Avoid a feedback loop from our own buttons/decals (or transient
+    -- colliders during movement): cache the token's original footprint
+    -- before drawing the first target. Only actual other decals can
+    -- subsequently add clearance.
+    local x=damageBaseX[obj.guid]
+    if x==nil then
+        local bounds=obj.getBoundsNormalized()
+        local scale=obj.getScale()
+        local size=bounds~=nil and bounds.size or nil
+        local radius=(size~=nil and (size.x or size[1]) or 1.5)
+            /((scale~=nil and (scale.x or scale[1])) or 1)/2
+        x=-(radius+0.35)
+        damageBaseX[obj.guid]=math.floor(x*1000+0.5)/1000
+        x=damageBaseX[obj.guid]
+    end
     for _,decal in ipairs(obj.getDecals() or {}) do
         local p=decal.position
         if (type(p)=="table" or type(p)=="userdata")
@@ -395,6 +402,7 @@ local function rebuildDamageButtons()
             if obj~=nil then removeDamageButtons(obj) end
             damageOwnerSignatures[owner]=nil
             damageButtonX[owner]=nil
+            damageBaseX[owner]=nil
             damageButtonObjects[owner]=nil
         end
     end
@@ -787,6 +795,7 @@ function attackAssignmentsDamageClear()
     damageOwnerSignatures={}
     damageTargetUnits={}
 	damageButtonX={}
+	damageBaseX={}
 	refreshRenderedLines()
 end
 
