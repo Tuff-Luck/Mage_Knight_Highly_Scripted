@@ -22079,6 +22079,7 @@ end
 
 local DAMAGE_DECAL_URL="https://steamusercontent-a.akamaihd.net/ugc/10727875827929703324/92E5145A412AFBE2EB1716DF8B6CF965359A0372/"
 local damageButtonX={}
+local damageBaseX={} -- Stable physical footprint, captured before target overlays are added.
 
 local function removeDamageButtons(obj)
 	local buttons=obj.getButtons() or {}
@@ -22121,15 +22122,21 @@ end
 -- Blue City's Elemental (+Attack) and AllAttack+ are here; the right-side
 -- Poison/Brutal icons and high Fortified icon should not shift the marker.
 local function damageTargetButtonX(obj)
-    -- getBounds() is a WORLD-axis-aligned box. Lifting/rotating a token can
-    -- enlarge its X extent even though the token and its local decals are
-    -- unchanged. Placement must use the rotation-independent local footprint.
-    local bounds=obj.getBoundsNormalized()
-    local scale=obj.getScale()
-    local size=bounds~=nil and bounds.size or nil
-    local radius=(size~=nil and (size.x or size[1]) or 1.5)
-        /((scale~=nil and (scale.x or scale[1])) or 1)/2
-    local x=-(radius+0.35)
+    -- Avoid a feedback loop from our own buttons/decals (or transient
+    -- colliders during movement): cache the token's original footprint
+    -- before drawing the first target. Only actual other decals can
+    -- subsequently add clearance.
+    local x=damageBaseX[obj.guid]
+    if x==nil then
+        local bounds=obj.getBoundsNormalized()
+        local scale=obj.getScale()
+        local size=bounds~=nil and bounds.size or nil
+        local radius=(size~=nil and (size.x or size[1]) or 1.5)
+            /((scale~=nil and (scale.x or scale[1])) or 1)/2
+        x=-(radius+0.35)
+        damageBaseX[obj.guid]=math.floor(x*1000+0.5)/1000
+        x=damageBaseX[obj.guid]
+    end
     for _,decal in ipairs(obj.getDecals() or {}) do
         local p=decal.position
         if (type(p)=="table" or type(p)=="userdata")
@@ -22187,6 +22194,7 @@ local function rebuildDamageButtons()
             if obj~=nil then removeDamageButtons(obj) end
             damageOwnerSignatures[owner]=nil
             damageButtonX[owner]=nil
+            damageBaseX[owner]=nil
             damageButtonObjects[owner]=nil
         end
     end
@@ -22579,6 +22587,7 @@ function attackAssignmentsDamageClear()
     damageOwnerSignatures={}
     damageTargetUnits={}
 	damageButtonX={}
+	damageBaseX={}
 	refreshRenderedLines()
 end
 
@@ -22668,6 +22677,11 @@ end
 
 function attackAssignmentsBegin(source,resource,playerColor,additional,sourceKey,part)
     if resourceCardsPanelOpen~=nil and not resourceCardsPanelOpen() then return false end
+    -- Illusionists affect exactly one enemy. A right click retargets rather
+    -- than adding a second effect, even if that enemy is also unfortified.
+    if resourceCardsUnitTargetRequiresUnfortified~=nil
+        and resourceCardsUnitTargetRequiresUnfortified(sourceKey or (source~=nil and source.guid))
+        then additional=false end
 	if source==nil or source.guid==nil or source.isDestroyed()
 		or type(resource)~="string" or resource=="" or type(playerColor)~="string"
 		or Player[playerColor]==nil then return false end
@@ -22735,8 +22749,10 @@ function attackAssignmentTargetClicked(target,playerColor)
         if target.isDestroyed() or pending.source==nil or pending.source.isDestroyed() then return end
         if resourceCardsCombatTargetAcceptsSource~=nil
             and not resourceCardsCombatTargetAcceptsSource(pending.sourceGUID,target.guid) then
-            broadcastToColor("Only Block/Move or attack reductions can target a reminder.",
-                playerColor,{1,0.6,0.2})
+            local message=resourceCardsCombatTargetRejectMessage~=nil
+                and resourceCardsCombatTargetRejectMessage(pending.sourceGUID,target.guid)
+                or "Only Block/Move or attack reductions can target a reminder."
+            safeBroadcastToColor(message,playerColor,{1,0.6,0.2})
             return
         end
 		if tostring(pending.resource):find("move$")~=nil and resourceCardsCombatTargetAcceptsMove~=nil
@@ -22846,6 +22862,24 @@ function attackAssignmentsPruneInactive(activeKeys,activeObjects,keepsLock)
 		persistAssignments()
 		refreshRenderedLines()
 	end
+end
+
+-- Keep a restricted effect's persistent arrows in sync with its live legal
+-- targets. Removing an obsolete arrow here is intentionally silent and does
+-- not rescan: CardRecognition is already resolving this combat scan.
+function attackAssignmentsPruneSourceTargets(sourceGUID,eligible)
+    local changed=false
+    for id,entry in pairs(assignmentRegistry) do
+        if entry.sourceGUID==sourceGUID and eligible[entry.targetGUID]~=true then
+            assignmentRegistry[id]=nil
+            changed=true
+        end
+    end
+    if changed then
+        persistAssignments()
+        refreshRenderedLines()
+    end
+    return changed
 end
 
 -- When a Unit changes its chosen ability, retire only the target keys that
@@ -45713,7 +45747,8 @@ end
 local function combatSummonedAttackPrevented(summoned)
     local effect=summoned.effect
     return effect~=nil and (effect.noAttack==true or effect.destroy==true or (effect.noAttackUnfortified==true
-        and combatEnemyFortificationCount(summoned.data,summoned.perks)==0))
+        and (combatEnemyFortificationCount(summoned.data,summoned.perks)==0
+            or effect.removeFortify==true)))
 end
 
 -- An Attack reduction modifies one printed Attack, not every Attack on a multi-attack enemy.
@@ -45815,11 +45850,49 @@ function resourceCardsCombatTargetAcceptsMove(guid)
     return combatGUIDHasCumbersome(guid)
 end
 
+-- "Unfortified" Unit abilities (Illusionists) only target enemies whose
+-- effective Fortification is zero. A separate active Remove Fortification
+-- effect qualifies; the printed Fortified and Wall Fortified traits do not.
+-- Keep the rule source-key based so the target button and auto scan agree.
+function resourceCardsUnitTargetRequiresUnfortified(sourceKey)
+    if type(sourceKey)~="string" then return false end
+    local guid,index=sourceKey:match("^([^#]+)#effect(%d+)$")
+    local abilities=guid~=nil and unitResourceDefinitions~=nil
+        and unitResourceDefinitions[guid] or nil
+    local ability=abilities~=nil and abilities[tonumber(index)] or nil
+    return ability~=nil and ability.enemyEffect~=nil
+        and ability.enemyEffect.noAttackUnfortified==true
+end
+
+function resourceCardsEnemyEffectivelyUnfortified(guid,effects)
+    local data,mode=combatEnemyData(guid)
+    if data==nil or mode=="attackOnly" or data.attackOnly==true then return false end
+    local perks=gStates~=nil and gStates.monsterPerks~=nil
+        and gStates.monsterPerks[guid] or nil
+    if combatEnemyFortificationCount(data,perks)==0 then return true end
+    local effect=effects~=nil and effects[guid] or nil
+    return effect~=nil and effect.removeFortify==true
+end
+
+function resourceCardsCombatTargetRejectMessage(sourceKey,targetGUID)
+    if resourceCardsUnitTargetRequiresUnfortified(sourceKey) then
+        return "Illusionists can only target an unfortified enemy."
+    end
+    return "Only Block/Move or attack reductions can target a reminder."
+end
+
 -- Reminders accept only Block/Move and enemy-attack effects, not attacks
 -- against Armour. Unknown source keys represent effect-only targeting links.
 function resourceCardsCombatTargetAcceptsSource(sourceKey,targetGUID)
     local data=combatEnemyData(targetGUID)
     if data==nil then return false end
+    if resourceCardsUnitTargetRequiresUnfortified(sourceKey) then
+        local seat=combatAssignmentActiveSeat()
+        local scan=seat~=nil and resourceCardScanBySeat~=nil
+            and resourceCardScanBySeat[seat] or nil
+        return resourceCardsEnemyEffectivelyUnfortified(targetGUID,
+            scan~=nil and scan.enemyEffects or nil)
+    end
     if data.attackOnly~=true then return true end
     for _,source in ipairs(combatAssignmentSources(combatAssignmentActiveSeat())) do
         if source.key==sourceKey then
@@ -47668,7 +47741,8 @@ local function refreshCombatEnemyPanel(monsters)
             entry.stripFireResist=effect.removeFireResist
         end
         entry.noAttack=not entry.attackOnly and effect~=nil and (effect.noAttack==true or (effect.noAttackUnfortified==true
-            and combatEnemyFortificationCount(entry.data,entry.perks)==0))
+            and (combatEnemyFortificationCount(entry.data,entry.perks)==0
+                or effect.removeFortify==true)))
         entry.destroyed=not entry.attackOnly and effect~=nil and effect.destroy==true
         entry.destroyIfBlocked=not entry.attackOnly and effect~=nil and effect.destroyIfBlocked==true
         entry.removeAbilities=effect~=nil and effect.removeAbilities==true
@@ -49908,7 +49982,7 @@ end
 -- Scan the play area for used abilities, the Unit area for Units, and crystal
 -- inventory for unused mana. Only a played, supported effect enters the totals.
 -- Explicit arrows always win; proximity is only an initial default.
-local function combatEffectChosenEnemy(sourceGUID,area,monsters)
+local function combatEffectChosenEnemy(sourceGUID,area,monsters,eligible)
     local chosen=nil
     for guid in pairs(attackAssignmentsTargetGUIDs(sourceGUID)) do
         local target=monsters[guid]
@@ -49919,9 +49993,10 @@ local function combatEffectChosenEnemy(sourceGUID,area,monsters)
             if data~=nil and data.attackOnly then target=special end
         end
         if target~=nil and target.is_face_down~=true
+            and (eligible==nil or eligible(target,guid))
             and (chosen==nil or guid<chosen.guid) then chosen=target end
     end
-    return chosen or combatEffectNearestEnemy(area,monsters,footprint,overlapArea)
+    return chosen or combatEffectNearestEnemy(area,monsters,footprint,overlapArea,eligible)
 end
 
 local function renderSeat(seatPos,quietUnitChoice)
@@ -49985,6 +50060,9 @@ local function renderSeat(seatPos,quietUnitChoice)
 
     local cards,wounds,skills,manaObjects,footprints={}, {}, {}, {}, {}
     local enemyEffects={}
+    -- Resolve conditional Unit targets after other cards, Units, Skills and
+    -- rewards have had a chance to remove Fortification in this same scan.
+    local deferredUnfortifiedUnitEffects={}
     local unitCombatBoost,preventUnitDamage,allUnitResistances=0,false,false
     local heroPsychicBlock=false
     local hasUnits=false
@@ -50843,15 +50921,22 @@ local function renderSeat(seatPos,quietUnitChoice)
                                 -- An explicit retarget wins over the nearest default.
                                 -- Keep effect-only arrows separate from the Unit's
                                 -- numeric Attack/Block source to prevent stale locks.
-                                local target=combatEffectChosenEnemy(sourceKey,footprint(unit),monsters)
-                                if target~=nil then
-                                    if ability.enemyEffect~=nil then
-                                        combatEffectAdd(enemyEffects,target.guid,unitGUID,ability.enemyEffect)
-                                        result.links[#result.links+1]=target.guid
-                                    end
-                                    if sourceKey~=unitGUID then
-                                        result.enemyEffectTargetGUIDs=result.enemyEffectTargetGUIDs or {}
-                                        result.enemyEffectTargetGUIDs[sourceKey]=target.guid
+                                if ability.enemyEffect~=nil
+                                    and ability.enemyEffect.noAttackUnfortified==true then
+                                    deferredUnfortifiedUnitEffects[#deferredUnfortifiedUnitEffects+1]={
+                                        sourceKey=sourceKey,unit=unit,unitGUID=unitGUID,
+                                        result=result,spec=ability.enemyEffect}
+                                else
+                                    local target=combatEffectChosenEnemy(sourceKey,footprint(unit),monsters)
+                                    if target~=nil then
+                                        if ability.enemyEffect~=nil then
+                                            combatEffectAdd(enemyEffects,target.guid,unitGUID,ability.enemyEffect)
+                                            result.links[#result.links+1]=target.guid
+                                        end
+                                        if sourceKey~=unitGUID then
+                                            result.enemyEffectTargetGUIDs=result.enemyEffectTargetGUIDs or {}
+                                            result.enemyEffectTargetGUIDs[sourceKey]=target.guid
+                                        end
                                     end
                                 end
                             end
@@ -51401,6 +51486,34 @@ local function renderSeat(seatPos,quietUnitChoice)
             records[guid]=result
             current[guid]=true
             setHighlight(token,result.status,result.powered)
+        end
+    end
+
+    -- Illusionists: now that every independent enemy effect has been read,
+    -- evaluate *effective* Fortification rather than the printed token alone.
+    -- Reevaluate legal locks each scan so an expired Remove Fortification
+    -- effect cannot leave an invalid target or a misleading attack arrow.
+    for _,pending in ipairs(deferredUnfortifiedUnitEffects) do
+        local eligible={}
+        for guid,enemy in pairs(monsters) do
+            if enemy.is_face_down~=true
+                and resourceCardsEnemyEffectivelyUnfortified(guid,enemyEffects) then
+                eligible[guid]=true
+            end
+        end
+        attackAssignmentsPruneSourceTargets(pending.sourceKey,eligible)
+        local locked=combatAssignmentState.targets[pending.sourceKey]
+        if locked~=nil and eligible[locked]~=true then
+            combatAssignmentState.targets[pending.sourceKey]=nil
+            combatAssignmentState.explicit[pending.sourceKey]=nil
+        end
+        local target=combatEffectChosenEnemy(pending.sourceKey,footprint(pending.unit),
+            monsters,function(_,guid) return eligible[guid]==true end)
+        if target~=nil then
+            combatEffectAdd(enemyEffects,target.guid,pending.unitGUID,pending.spec)
+            pending.result.links[#pending.result.links+1]=target.guid
+            pending.result.enemyEffectTargetGUIDs=pending.result.enemyEffectTargetGUIDs or {}
+            pending.result.enemyEffectTargetGUIDs[pending.sourceKey]=target.guid
         end
     end
 
@@ -52222,10 +52335,10 @@ __bundle_register("PlayingGame.PlayerBoard.CombatEffects", function(require, _LO
 local lastReport={}
 
 -- The enemy physically under the card wins; otherwise the nearest face-up one.
-function combatEffectNearestEnemy(cardArea,monsters,enemyAreaOf,overlapOf)
+function combatEffectNearestEnemy(cardArea,monsters,enemyAreaOf,overlapOf,eligible)
     local best,bestArea,bestDistance=nil,-1,math.huge
     for guid,enemy in pairs(monsters) do
-        if enemy.is_face_down~=true then
+        if enemy.is_face_down~=true and (eligible==nil or eligible(enemy,guid)) then
             local enemyArea=enemyAreaOf(enemy)
             local area=overlapOf(cardArea,enemyArea)
             local distance=(cardArea.x-enemyArea.x)^2+(cardArea.z-enemyArea.z)^2
