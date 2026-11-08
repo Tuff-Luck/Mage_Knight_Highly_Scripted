@@ -5,10 +5,10 @@
 local lastReport={}
 
 -- The enemy physically under the card wins; otherwise the nearest face-up one.
-function combatEffectNearestEnemy(cardArea,monsters,enemyAreaOf,overlapOf)
+function combatEffectNearestEnemy(cardArea,monsters,enemyAreaOf,overlapOf,eligible)
     local best,bestArea,bestDistance=nil,-1,math.huge
     for guid,enemy in pairs(monsters) do
-        if enemy.is_face_down~=true then
+        if enemy.is_face_down~=true and (eligible==nil or eligible(enemy,guid)) then
             local enemyArea=enemyAreaOf(enemy)
             local area=overlapOf(cardArea,enemyArea)
             local distance=(cardArea.x-enemyArea.x)^2+(cardArea.z-enemyArea.z)^2
