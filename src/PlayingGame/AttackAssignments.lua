@@ -478,7 +478,6 @@ local previewWoundsByUnit={}
 local previewUnitBags={}
 local previewBagWarnings={}
 local previewOrphansScanned=false
-local previewCommittedSeat=nil
 local previewParalysisClick="attackAssignmentParalysisMarkerNoop"
 
 function attackAssignmentParalysisMarkerNoop() end
@@ -634,10 +633,8 @@ end
 -- Paralysis is a destroyed Unit: show a red X rather than drawing Wounds.
 function attackAssignmentsUnitPreviewSync(seat,results)
     if seat==nil or (resourceCardsPanelOpen~=nil and not resourceCardsPanelOpen())
-        or (gStates~=nil and gStates.preEndTurn==true)
-        or previewCommittedSeat==seat then return end
+        or (gStates~=nil and gStates.preEndTurn==true) then return end
     previewSweepOrphans()
-    if previewCommittedSeat~=seat then previewCommittedSeat=nil end
     local wanted={}
     for _,result in pairs(results or {}) do
         for _,entry in ipairs(result.units or {}) do
@@ -689,7 +686,6 @@ end
 -- removes all pending ghosts without committing any of them.
 function attackAssignmentsUnitPreviewCommit(seat)
     if seat==nil then return end
-    previewCommittedSeat=seat
     for guid,entry in pairs(previewWoundsByUnit) do
         if entry.seat==seat then
             entry.committed=true
