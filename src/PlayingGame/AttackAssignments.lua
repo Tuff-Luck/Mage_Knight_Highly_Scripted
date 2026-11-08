@@ -337,7 +337,8 @@ local function damageTargetButtonX(obj)
     local x=-(radius+0.35)
     for _,decal in ipairs(obj.getDecals() or {}) do
         local p=decal.position
-        if type(p)=="table" and not tostring(decal.name or ""):find("^DamageTarget") then
+        if (type(p)=="table" or type(p)=="userdata")
+            and not tostring(decal.name or ""):find("^DamageTarget") then
             local px,pz=p.x or p[1],p.z or p[3]
             if type(px)=="number" and type(pz)=="number"
                 and px>0.8 and math.abs(pz)<0.55 then
