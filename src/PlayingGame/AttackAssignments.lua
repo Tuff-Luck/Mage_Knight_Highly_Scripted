@@ -1019,6 +1019,34 @@ function attackAssignmentsPruneInactive(activeKeys,activeObjects,keepsLock)
 	end
 end
 
+-- When a Unit changes its chosen ability, retire only the target keys that
+-- no longer belong to a selected ability. Preserve other paid Unit effects
+-- (Delphana Masters can have several) and explicit retargets for unchanged keys.
+-- The caller schedules the Resource Tracker scan after changing the choice.
+function attackAssignmentsPruneUnitChoiceSources(unitGUID,activeKeys)
+    if type(unitGUID)~="string" then return end
+    activeKeys=activeKeys or {}
+    local changed=false
+    for id,entry in pairs(assignmentRegistry) do
+        if assignmentBaseGUID(entry.sourceGUID)==unitGUID
+            and activeKeys[entry.sourceGUID]~=true then
+            assignmentRegistry[id]=nil
+            changed=true
+        end
+    end
+    local cancelled=false
+    for color,pending in pairs(targetingByPlayer) do
+        if assignmentBaseGUID(pending.sourceGUID)==unitGUID
+            and activeKeys[pending.sourceGUID]~=true then
+            targetingByPlayer[color]=nil
+            cancelled=true
+        end
+    end
+    if changed then persistAssignments() end
+    if cancelled then syncTargetButtons() end
+    if changed or cancelled then refreshRenderedLines() end
+end
+
 -- Preserve held/moving targets but prune arrows left on enemies outside combat.
 function attackAssignmentsPruneTargets(eligible)
     local changed=false
