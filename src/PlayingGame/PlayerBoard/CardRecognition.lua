@@ -6557,7 +6557,7 @@ end
 -- Ranged 1 -> Armour -1). Retire obsolete arrow keys and calculator locks
 -- immediately, keeping explicitly targeted effects whose keys stay active.
 -- The next scan then auto-targets newly selected effects just like attacks.
-local function resourceUnitsReconcileChoiceTargets(unit,abilities,activation)
+function resourceUnitsReconcileChoiceTargets(unit,abilities,activation)
     local allowed={}
     local decision=unitManaDecision(unit,abilities,activation)
     local function allow(index)
