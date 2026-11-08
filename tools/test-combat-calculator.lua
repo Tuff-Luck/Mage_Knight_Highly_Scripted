@@ -57,6 +57,25 @@ local function check(label,condition)
     print("PASS "..label)
 end
 
+-- The Combat Calculator uses semantic IDs for dynamic updates, so every
+-- enemy row and the translated header must preserve the requested order.
+do
+    local file=assert(io.open("src/UI/CombatEnemyPanel.xml","r"))
+    local xml=file:read("*a")
+    file:close()
+    local header=assert(xml:find('id="CombatDefenceTraitsHeader"',1,true))
+    local armor=assert(xml:find('id="CombatArmourHeader"',1,true))
+    check("Defensive Abilities header precedes Armor",header<armor)
+    check("English Armor header uses US spelling",
+        xml:find("{en}Armor{it}",1,true)~=nil
+        and xml:find("{en}Armour{it}",1,true)==nil)
+    for row=1,8 do
+        local traits=assert(xml:find('id="CombatEnemyRow'..row..'Traits"',1,true))
+        local armour=assert(xml:find('id="CombatEnemyRow'..row..'Armour"',1,true))
+        check("Combat row "..row.." displays Defensive Abilities before Armor",traits<armour)
+    end
+end
+
 -- Poisonous attacks create Wounds for the Hero and extra Poison Wounds to discard.
 -- The detailed and collapsed rows use the same wording; collapsing must not
 -- display the detailed Hero line a second time.
