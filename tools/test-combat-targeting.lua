@@ -10,11 +10,14 @@ local function makeObject(guid,x)
     local buttons,decals={},{}
     local o={guid=guid}
     local currentX=x or 0
+    local worldWidth=1.5
     function o.isDestroyed() return false end
     function o.isSmoothMoving() return false end
     function o.getPosition() return {currentX,1,0} end
     function o.setTestPosition(nextX) currentX=nextX end
-    function o.getBounds() return {size={1.5,0.2,2.5}} end
+    function o.getBounds() return {size={worldWidth,0.2,2.5}} end
+    function o.getBoundsNormalized() return {size={1.5,0.2,2.5}} end
+    function o.setTestWorldWidth(width) worldWidth=width end
     function o.getScale() return {x=1,y=1,z=1} end
     function o.getButtons() return buttons end
     function o.getDecals() return decals end
@@ -22,6 +25,9 @@ local function makeObject(guid,x)
     function o.createButton(button)
         button.index=#buttons
         buttons[#buttons+1]=button
+        if tostring(button.click_function):find("^attackAssignmentDamageClick") then
+            o.damageButtonCreationCount=(o.damageButtonCreationCount or 0)+1
+        end
     end
     function o.removeButton(index)
         for i=#buttons,1,-1 do
@@ -207,6 +213,19 @@ attackAssignmentsDamageSync(damageLayout)
 local defaultDamageX=enemyDamageButtonX()
 check("Fortified above and Poison on the other edge do not displace target icon",
     defaultDamageX~=nil and math.abs(defaultDamageX+1.1)<0.001)
+-- getBounds() is world-aligned: tilting a token changes its width even when
+-- the token's true dimensions and all attached decals remain unchanged.
+local creationsBeforeMoving=enemy.damageButtonCreationCount
+enemy.setTestWorldWidth(3.3)
+attackAssignmentsDamageSync(damageLayout)
+check("moving/tilting a token does not move its damage target icons",
+    enemyDamageButtonX()==defaultDamageX)
+check("movement without decal changes does not recreate the target icons",
+    enemy.damageButtonCreationCount==creationsBeforeMoving)
+enemy.setTestWorldWidth(1.5)
+attackAssignmentsDamageSync(damageLayout)
+check("settling a moved token retains stable target spacing",
+    enemyDamageButtonX()==defaultDamageX)
 local decals=enemy.getDecals()
 decals[#decals+1]={name="Elemental",position={1.2,0.15,0},
     scale={0.72,0.72,1}}
