@@ -150,3 +150,119 @@ attackAssignmentsDamageClear()
 check("closing damage phase clears overlays",
     #enemy.getButtons()==0 and #enemy.getDecals()==0)
 print("Combat targeting and lifecycle regression tests passed.")
+
+-- Preview Unit wounds are locked, translucent and non-gameplay until End Turn.
+-- These mocks exercise the physical TTS lifecycle without requiring a running table.
+local board=makeObject("unit-board",8)
+function board.getSnapPoints()
+    return {{position={x=7.43,y=0,z=0},tags={"Wound"}},
+        {position={x=8,y=0,z=0},tags={"Wound"}},
+        {position={x=8.57,y=0,z=0},tags={"Wound"}}}
+end
+function board.positionToWorld(p) return p end
+playerBoard={[1]=board.guid}
+function unit.getBoundsNormalized() return {size={x=2,y=0.2,z=3}} end
+function otherUnit.getBoundsNormalized() return {size={x=2,y=0.2,z=3}} end
+
+local panelOpen=true
+resourceCardsPanelOpen=function() return panelOpen end
+gStates.preEndTurn=false
+local bag={guid="unit-wound-bag"}
+function bag.getName() return "Unit Wounds" end
+function bag.getPosition() return {x=8,y=1,z=-28} end
+function bag.hasTag() return false end
+function bag.getGMNotes() return "" end
+objects[bag.guid]=bag
+local allPreviewTokens={}
+local nextWoundID=0
+function bag.takeObject(args)
+    nextWoundID=nextWoundID+1
+    local token={guid="ghost"..tostring(nextWoundID),type="Custom_Model",locked=false}
+    local tags={Wound=true}
+    local notes="Unit Wound"
+    local p={x=args.position[1],y=args.position[2],z=args.position[3]}
+    function token.getGMNotes() return notes end
+    function token.setGMNotes(value) notes=value end
+    function token.hasTag(tag) return tags[tag]==true end
+    function token.addTag(tag) tags[tag]=true end
+    function token.removeTag(tag) tags[tag]=nil end
+    function token.getPosition() return p end
+    function token.setPosition(nextPos) p={x=nextPos[1],y=nextPos[2],z=nextPos[3]} end
+    function token.setColorTint(color) token.tint=color end
+    function token.lock() token.locked=true end
+    function token.destruct() objects[token.guid]=nil token.destroyed=true end
+    objects[token.guid]=token
+    allPreviewTokens[#allPreviewTokens+1]=token
+    args.callback_function(token)
+    return token
+end
+getObjects=function() return {bag} end
+dofile("src/PlayingGame/PlayerBoard/UnitLayout.lua")
+local function ghosts()
+    local found={}
+    for _,token in ipairs(allPreviewTokens) do
+        if objects[token.guid]~=nil and token.hasTag("CombatPreviewWound") then
+            found[#found+1]=token
+        end
+    end
+    return found
+end
+local function resolveUnit(target,amount,destroyed)
+    return {enemy={units={{wounded=true,unit={guid=target},wounds=amount,destroyed=destroyed}}}}
+end
+
+attackAssignmentsUnitPreviewSync(1,resolveUnit("unit",1,false))
+local preview=ghosts()
+check("normal damage draws one locked translucent centre wound",#preview==1
+    and preview[1].locked and preview[1].tint.a==150/255
+    and preview[1].getPosition().x==8 and preview[1].getPosition().y==1.16)
+check("ghost is not treated as a wounded Unit",not unitLayoutIsWound(preview[1]))
+attackAssignmentsUnitPreviewSync(1,resolveUnit("unit",1,false))
+check("recalculation does not duplicate a ghost",#ghosts()==1)
+
+attackAssignmentsUnitPreviewSync(1,resolveUnit("unit",2,false))
+local poison=ghosts()
+table.sort(poison,function(a,b) return a.getPosition().x<b.getPosition().x end)
+check("Poison has two green locked wounds on outer snaps",#poison==2
+    and poison[1].getPosition().x==7.43 and poison[2].getPosition().x==8.57
+    and poison[1].tint.g==1 and poison[1].tint.r<1
+    and poison[1].locked and poison[2].locked)
+attackAssignmentsUnitPreviewSync(1,{enemy={units={{wounded=false,unit={guid="unit"}}}}})
+check("full resistance removes all ghost Wounds",#ghosts()==0)
+
+attackAssignmentsUnitPreviewSync(1,resolveUnit("unit",1,true))
+local marked=false
+for _,button in ipairs(unit.getButtons()) do
+    if button.click_function=="attackAssignmentParalysisMarkerNoop" and button.label=="X" then marked=true end
+end
+check("Paralysis renders a red X without a Wound",marked and #ghosts()==0)
+attackAssignmentsUnitPreviewSync(1,{})
+local markedAfter=false
+for _,button in ipairs(unit.getButtons()) do
+    if button.click_function=="attackAssignmentParalysisMarkerNoop" then markedAfter=true end
+end
+check("undoing Paralysis removes the unit X",not markedAfter)
+
+attackAssignmentsUnitPreviewSync(1,resolveUnit("unit",1,false))
+panelOpen=false
+attackAssignmentsUnitPreviewClear()
+check("turning the tracker off removes physical ghosts",#ghosts()==0)
+panelOpen=true
+attackAssignmentsUnitPreviewSync(1,resolveUnit("unit",1,false))
+preview=ghosts()
+attackAssignmentsUnitPreviewCommit(1)
+check("End Turn promotes a ghost to a permanent locked Wound",#ghosts()==0
+    and preview[1].getGMNotes()=="Unit Wound" and preview[1].locked
+    and preview[1].tint.a==1 and unitLayoutIsWound(preview[1]))
+attackAssignmentsUnitPreviewClear()
+check("tracker cleanup preserves committed Wounds",
+    objects[preview[1].guid]~=nil)
+
+trashCan="trash"
+objects.trash={putObject=function(target) objects[target.guid]=nil end}
+protectedObjectAllowScriptRemoval=function() end
+attackAssignmentsUnitPreviewSync(1,resolveUnit("secondunit",1,true))
+attackAssignmentsUnitPreviewCommit(1)
+check("Paralysis removes the destroyed Unit at End Turn, not a Wound",
+    objects.secondunit==nil and #ghosts()==0)
+print("Combat Unit wound preview lifecycle regression tests passed.")
