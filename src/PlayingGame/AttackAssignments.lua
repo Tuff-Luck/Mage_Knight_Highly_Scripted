@@ -15,6 +15,7 @@ local damageOwnerSignatures={}
 local damageTargetUnits={}
 local damageSignature=""
 local assignmentThickness=0.08
+local damageThickness=0.045 -- Thinner red enemy-to-Unit damage links; other arrows unchanged.
 local previewThickness=0.047
 local assignmentHeight=1.1
 local previewHeight=1.3
@@ -74,7 +75,9 @@ end
 local function isAssignmentLine(line)
 	return type(line)=="table" and assignmentColorMatches(line.color)
 		and type(line.thickness)=="number"
-		and (math.abs(line.thickness-assignmentThickness)<0.001 or math.abs(line.thickness-previewThickness)<0.001)
+		and (math.abs(line.thickness-assignmentThickness)<0.001
+            or math.abs(line.thickness-damageThickness)<0.001
+            or math.abs(line.thickness-previewThickness)<0.001)
 end
 
 local function vectorComponents(vector)
@@ -126,7 +129,9 @@ local function assignmentLines(source,target,color,noHead)
 	local dx,dz=to[1]-from[1],to[3]-from[3]
 	local distance=math.sqrt(dx*dx+dz*dz)
 	if distance<0.01 then return nil end
-	if noHead then return {{points={from,to},color=color,thickness=assignmentThickness,rotation={0,0,0}}} end
+	if noHead then return {{points={from,to},color=color,
+        thickness=color==assignmentColors.damage and damageThickness or assignmentThickness,
+        rotation={0,0,0}}} end
 	local dirX,dirZ=dx/distance,dz/distance
 	local pullBack=math.min(arrowHeadLength*3,distance*0.5)
 	to={to[1]-dirX*pullBack,assignmentHeight,to[3]-dirZ*pullBack}
@@ -601,7 +606,9 @@ local function previewMakePermanent(token)
     token.setGMNotes("Unit Wound")
     if token.hasTag(PREVIEW_WOUND_TAG) then token.removeTag(PREVIEW_WOUND_TAG) end
     token.setColorTint({r=1,g=1,b=1,a=1})
-    token.lock()
+    -- Preview wounds remain locked while planning; official wounds are movable
+    -- for normal play/healing as soon as End Turn makes them permanent.
+    token.unlock()
 end
 
 local function previewSpawnWound(entry,slot,position)
