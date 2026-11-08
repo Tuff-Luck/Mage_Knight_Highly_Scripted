@@ -4727,6 +4727,9 @@ local function renderSeat(seatPos,quietUnitChoice)
 
     local cards,wounds,skills,manaObjects,footprints={}, {}, {}, {}, {}
     local enemyEffects={}
+    -- Resolve conditional Unit targets after other cards, Units, Skills and
+    -- rewards have had a chance to remove Fortification in this same scan.
+    local deferredUnfortifiedUnitEffects={}
     local unitCombatBoost,preventUnitDamage,allUnitResistances=0,false,false
     local heroPsychicBlock=false
     local hasUnits=false
@@ -5585,15 +5588,22 @@ local function renderSeat(seatPos,quietUnitChoice)
                                 -- An explicit retarget wins over the nearest default.
                                 -- Keep effect-only arrows separate from the Unit's
                                 -- numeric Attack/Block source to prevent stale locks.
-                                local target=combatEffectChosenEnemy(sourceKey,footprint(unit),monsters)
-                                if target~=nil then
-                                    if ability.enemyEffect~=nil then
-                                        combatEffectAdd(enemyEffects,target.guid,unitGUID,ability.enemyEffect)
-                                        result.links[#result.links+1]=target.guid
-                                    end
-                                    if sourceKey~=unitGUID then
-                                        result.enemyEffectTargetGUIDs=result.enemyEffectTargetGUIDs or {}
-                                        result.enemyEffectTargetGUIDs[sourceKey]=target.guid
+                                if ability.enemyEffect~=nil
+                                    and ability.enemyEffect.noAttackUnfortified==true then
+                                    deferredUnfortifiedUnitEffects[#deferredUnfortifiedUnitEffects+1]={
+                                        sourceKey=sourceKey,unit=unit,unitGUID=unitGUID,
+                                        result=result,spec=ability.enemyEffect}
+                                else
+                                    local target=combatEffectChosenEnemy(sourceKey,footprint(unit),monsters)
+                                    if target~=nil then
+                                        if ability.enemyEffect~=nil then
+                                            combatEffectAdd(enemyEffects,target.guid,unitGUID,ability.enemyEffect)
+                                            result.links[#result.links+1]=target.guid
+                                        end
+                                        if sourceKey~=unitGUID then
+                                            result.enemyEffectTargetGUIDs=result.enemyEffectTargetGUIDs or {}
+                                            result.enemyEffectTargetGUIDs[sourceKey]=target.guid
+                                        end
                                     end
                                 end
                             end
@@ -6143,6 +6153,34 @@ local function renderSeat(seatPos,quietUnitChoice)
             records[guid]=result
             current[guid]=true
             setHighlight(token,result.status,result.powered)
+        end
+    end
+
+    -- Illusionists: now that every independent enemy effect has been read,
+    -- evaluate *effective* Fortification rather than the printed token alone.
+    -- Reevaluate legal locks each scan so an expired Remove Fortification
+    -- effect cannot leave an invalid target or a misleading attack arrow.
+    for _,pending in ipairs(deferredUnfortifiedUnitEffects) do
+        local eligible={}
+        for guid,enemy in pairs(monsters) do
+            if enemy.is_face_down~=true
+                and resourceCardsEnemyEffectivelyUnfortified(guid,enemyEffects) then
+                eligible[guid]=true
+            end
+        end
+        attackAssignmentsPruneSourceTargets(pending.sourceKey,eligible)
+        local locked=combatAssignmentState.targets[pending.sourceKey]
+        if locked~=nil and eligible[locked]~=true then
+            combatAssignmentState.targets[pending.sourceKey]=nil
+            combatAssignmentState.explicit[pending.sourceKey]=nil
+        end
+        local target=combatEffectChosenEnemy(pending.sourceKey,footprint(pending.unit),
+            monsters,function(_,guid) return eligible[guid]==true end)
+        if target~=nil then
+            combatEffectAdd(enemyEffects,target.guid,pending.unitGUID,pending.spec)
+            pending.result.links[#pending.result.links+1]=target.guid
+            pending.result.enemyEffectTargetGUIDs=pending.result.enemyEffectTargetGUIDs or {}
+            pending.result.enemyEffectTargetGUIDs[pending.sourceKey]=target.guid
         end
     end
 
