@@ -1216,6 +1216,9 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 	end
 
 	local cleanupPlayer=gStates.turnNumber
+	-- Promote only this turn\u0027s ghost Unit wounds before play-area cleanup.
+	-- Paralysis destroys the marked Unit instead of making a permanent Wound.
+	attackAssignmentsUnitPreviewCommit(turnOrder[cleanupPlayer].seatPos)
 	combatDefeatSnapshotForCleanup()
 	local coopCombatReward,recovery=combatPreEndTurnOpenRewardBoundary(cleanupPlayer)
 	turnPreparePreEndTurn(cleanupPlayer,player.color,id)
