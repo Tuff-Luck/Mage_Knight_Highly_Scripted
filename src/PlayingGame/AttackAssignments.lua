@@ -571,7 +571,8 @@ end
 -- Existing previews from a saved table may have no Lua registry. Sweep only marked
 -- temporary objects; ordinary, permanent Unit Wounds must never be touched.
 local function previewSweepOrphans()
-    if previewOrphansScanned then return end
+    -- The production API always supplies getObjects; pure Lua targeting tests may not.
+    if previewOrphansScanned or getObjects==nil then return end
     previewOrphansScanned=true
     for _,obj in ipairs(getObjects()) do
         if obj.hasTag(PREVIEW_WOUND_TAG) or obj.getGMNotes()=="Combat Preview Wound" then
@@ -606,7 +607,8 @@ local function previewSpawnWound(entry,slot,position)
         entry.pending[slot]=nil
         if entry.committed then
             previewMakePermanent(token)
-            token.setPosition(position)
+            local unit=getObjectFromGUID(entry.unitGUID)
+            token.setPosition(unit~=nil and previewWoundPosition(unit,entry.seat,slot) or position)
             return
         end
         if previewWoundsByUnit[entry.unitGUID]~=entry or
@@ -620,11 +622,14 @@ local function previewSpawnWound(entry,slot,position)
         token.setColorTint(entry.kind=="poison"
             and {r=0.32,g=1,b=0.38,a=PREVIEW_WOUND_ALPHA}
             or {r=1,g=1,b=1,a=PREVIEW_WOUND_ALPHA})
-        token.setPosition(position)
+        local unit=getObjectFromGUID(entry.unitGUID)
+        token.setPosition(unit~=nil and previewWoundPosition(unit,entry.seat,slot) or position)
         token.lock()
         entry.guids[slot]=token.guid
     end
-    local token=bag.takeObject({position=position,smooth=false,callback_function=finish})
+    -- Spawn beside the source bag and classify immediately, before moving into the Unit zone.
+    local bagPos=bag.getPosition()
+    local token=bag.takeObject({position={bagPos.x,bagPos.y+2,bagPos.z},smooth=false,callback_function=finish})
     -- Mark it immediately as well as in the callback, before zone-entry scans.
     if token~=nil then finish(token) end
 end
