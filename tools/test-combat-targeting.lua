@@ -143,6 +143,25 @@ local function forcedArrowEndX()
     end
 end
 check("forced damage assignment draws a red arrow",forcedArrowEndX()==3)
+local damageThickness,ordinaryThickness
+for _,line in ipairs(lines) do
+    if line.color and line.color[1]==1 and line.color[2]==0.1 then
+        damageThickness=line.thickness
+    elseif line.color and line.color[1]==1 and line.color[2]==0.55 then
+        ordinaryThickness=line.thickness
+    end
+end
+check("enemy damage links are thinner than normal resource arrows",
+    damageThickness==0.045)
+attackAssignmentsSetSourceTarget("redcard","enemy","armour")
+for _,line in ipairs(lines) do
+    if line.color and line.color[1]==1 and line.color[2]==0.55 then
+        ordinaryThickness=line.thickness
+        break
+    end
+end
+check("regular resource arrow thickness remains unchanged",ordinaryThickness==0.08)
+attackAssignmentsClearForObject("redcard")
 unit.setTestPosition(8)
 attackAssignmentsObjectMoved(unit)
 check("forced damage arrow follows Unit movement",forcedArrowEndX()==8)
@@ -190,6 +209,7 @@ function bag.takeObject(args)
     function token.setPosition(nextPos) p={x=nextPos[1],y=nextPos[2],z=nextPos[3]} end
     function token.setColorTint(color) token.tint=color end
     function token.lock() token.locked=true end
+    function token.unlock() token.locked=false end
     function token.destruct() objects[token.guid]=nil token.destroyed=true end
     objects[token.guid]=token
     allPreviewTokens[#allPreviewTokens+1]=token
@@ -258,8 +278,8 @@ panelOpen=true
 attackAssignmentsUnitPreviewSync(1,resolveUnit("unit",1,false))
 preview=ghosts()
 attackAssignmentsUnitPreviewCommit(1)
-check("End Turn promotes a ghost to a permanent locked Wound",#ghosts()==0
-    and preview[1].getGMNotes()=="Unit Wound" and preview[1].locked
+check("End Turn promotes a ghost to a permanent unlocked Wound",#ghosts()==0
+    and preview[1].getGMNotes()=="Unit Wound" and not preview[1].locked
     and preview[1].tint.a==1 and unitLayoutIsWound(preview[1]))
 attackAssignmentsUnitPreviewClear()
 check("tracker cleanup preserves committed Wounds",
