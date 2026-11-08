@@ -536,7 +536,7 @@ end
 
 function resourceCardsEnemyEffectivelyUnfortified(guid,effects)
     local data,mode=combatEnemyData(guid)
-    if data==nil or mode=="attackOnly" then return false end
+    if data==nil or mode=="attackOnly" or data.attackOnly==true then return false end
     local perks=gStates~=nil and gStates.monsterPerks~=nil
         and gStates.monsterPerks[guid] or nil
     if combatEnemyFortificationCount(data,perks)==0 then return true end
