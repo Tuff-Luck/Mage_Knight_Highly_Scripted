@@ -243,6 +243,13 @@ for _,button in ipairs(unit.getButtons()) do
 end
 check("undoing Paralysis removes the unit X",not markedAfter)
 
+attackAssignmentsUnitPreviewSync(1,{}, {unit=true})
+check("a self-wounding Unit ability creates one provisional wound",#ghosts()==1)
+attackAssignmentsUnitPreviewSync(1,resolveUnit("unit",1,false),{unit=true})
+check("self-wound and enemy damage never make duplicate tokens",#ghosts()==1)
+attackAssignmentsUnitPreviewSync(1,{})
+check("undoing a self-wounding ability clears its preview",#ghosts()==0)
+
 attackAssignmentsUnitPreviewSync(1,resolveUnit("unit",1,false))
 panelOpen=false
 attackAssignmentsUnitPreviewClear()
