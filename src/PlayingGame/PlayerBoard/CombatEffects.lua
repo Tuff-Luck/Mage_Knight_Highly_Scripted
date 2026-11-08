@@ -1,4 +1,4 @@
--- Enemy-targeted effects of Combat Actions (e.g. Ice Shield's Armour reduction).
+-- Enemy-targeted effects of Combat Actions (e.g. Ice Shield's Armor reduction).
 -- Runtime only: targets are recomputed from the physical table on every
 -- Resource Tracker scan, so re-choosing a card's option re-links it at once.
 
@@ -98,7 +98,7 @@ function combatEffectReport(seatPos,enemyEffects)
         local name=pug~=nil and pug.name~=nil and tostring(pug.name) or guid
         local text=name..":"
         if entry.armourReduce>0 or entry.armourReduceByResist>0 then
-            text=text.." Armour -"..entry.armourReduce
+            text=text.." Armor -"..entry.armourReduce
             if entry.armourReduceFortified~=entry.armourReduce then
                 text=text.." (-"..entry.armourReduceFortified.." if fortified)"
             end
