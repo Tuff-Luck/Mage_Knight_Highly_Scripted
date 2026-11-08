@@ -476,9 +476,22 @@ function attackAssignmentsDamageSync(spec)
 	table.sort(unitGUIDs)
 	parts[#parts+1]=table.concat(unitGUIDs,",")
 	local signature=table.concat(parts,";")
-	if signature~=damageSignature then
-		damageSignature=signature
-		rebuildDamageButtons()
+    -- Bonus decals may appear/disappear after the attack buttons are created.
+    -- Recheck their lateral clearance while retaining the cheap signature path.
+    local clearanceChanged=false
+    if signature==damageSignature then
+        for owner in pairs(damageSpec.byOwner) do
+            local obj=getObjectFromGUID(owner)
+            if obj~=nil and not obj.isDestroyed()
+                and damageButtonX[owner]~=damageTargetButtonX(obj) then
+                clearanceChanged=true
+                break
+            end
+        end
+    end
+    if signature~=damageSignature or clearanceChanged then
+        damageSignature=signature
+        rebuildDamageButtons()
 		-- Red damage lines coexist with Unit source-target lines. On block/unblock
 		-- transitions, force reconciliation even if another system redrew vectors.
 		refreshRenderedLines(true)
