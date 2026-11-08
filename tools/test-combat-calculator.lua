@@ -21,6 +21,25 @@ local function findFunction(root,wanted,seen)
         end
     end
 end
+local function findUpvalueTable(root,wanted,seen)
+    if type(root)~="function" then return nil end
+    seen=seen or {}
+    if seen[root] then return nil end
+    seen[root]=true
+    for index=1,200 do
+        local name,value=debug.getupvalue(root,index)
+        if name==nil then break end
+        if name==wanted and type(value)=="table" then return value end
+    end
+    for index=1,200 do
+        local name,value=debug.getupvalue(root,index)
+        if name==nil then break end
+        if type(value)=="function" then
+            local found=findUpvalueTable(value,wanted,seen)
+            if found~=nil then return found end
+        end
+    end
+end
 local root=resourceCardsRefreshCombatEnemies
 local solve=assert(findFunction(root,"combatSolveBlocks"),"Block solver not reachable")
 local reduce=assert(findFunction(root,"combatApplyAttackReductions"),"Attack reduction not reachable")
@@ -281,6 +300,36 @@ check("forced Shocktroops recipient reserved and Paralyse destroys it",
     #resolved.ordinary.units==0 and resolved.ordinary.heroWounds==2
     and resolved.shock.units[1].unit.guid=="forced"
     and resolved.shock.units[1].destroyed)
+
+-- Ranged/Siege and Block are already resolved by the time a Unit receives
+-- damage. Only remaining Attack-phase resources can be cancelled.
+local phaseConfig=assert(findUpvalueTable(root,"combatConfig"),"Combat phase config not reachable")
+local attackTotal=assert(findFunction(root,"combatAttackTotal"),"Combat attack total not reachable")
+local woundedUnit={guid="rangedUnit",resources={ranged=3,block=4}}
+local survivingCard={guid="attackCard",resources={attack=2}}
+local sources={woundedUnit,survivingCard}
+local woundedPhase=phaseConfig.unitsWoundedByDamage({
+    first={units={{unit={guid="rangedUnit"},wounded=true,wounds=1}}}})
+local survivingSources=phaseConfig.attackPhaseSources(sources,woundedPhase)
+check("an enemy wound disables the Unit's Attack phase but not its earlier Ranged/Block",
+    woundedPhase.rangedUnit==true
+    and #survivingSources==1 and survivingSources[1]==survivingCard
+    and attackTotal({{sources=sources,category="ranged"}},{},{})==3
+    and woundedUnit.resources.block==4)
+local fullMelee=attackTotal({{sources=sources,category="ranged"},
+    {sources=sources,category="attack"}},{},{})
+local reducedMelee=attackTotal({{sources=survivingSources,category="ranged"},
+    {sources=survivingSources,category="attack"}},{},{})
+check("Ranged 3 insufficient in first phase cannot rescue melee after Unit is wounded",
+    fullMelee==5 and reducedMelee==2)
+local resistedPhase=phaseConfig.unitsWoundedByDamage({
+    first={units={{unit={guid="rangedUnit"},wounded=false,resisted=true}}}})
+check("fully resisted Unit damage leaves its Attack-phase resource active",
+    #phaseConfig.attackPhaseSources(sources,resistedPhase)==2)
+local destroyedPhase=phaseConfig.unitsWoundedByDamage({
+    first={units={{unit={guid="rangedUnit"},wounded=true,destroyed=true}}}})
+check("Paralysis cancels remaining Unit attacks",
+    #phaseConfig.attackPhaseSources(sources,destroyedPhase)==1)
 turnOrder={{seatPos=1}}
 gStates={turnNumber=1,attackedMonsters={summoned={nil,nil,"summoned","owner"}},
     summonStates={summoned="summoned"}}
