@@ -189,6 +189,60 @@ attackAssignmentsPruneUnitChoiceSources("unit",{unit=true})
 check("switching back to a numeric resource retires the old effect-only arrow",
     next(attackAssignmentsTargetGUIDs("unit#effect2"))==nil)
 attackAssignmentsClearForObject("unit")
+-- Damage target decals are mirrored across X from their click buttons.
+-- Only bonuses on that edge and near the button's Z row require extra room.
+local function enemyDamageButtonX()
+    for _,button in ipairs(enemy.getButtons()) do
+        if button.click_function=="attackAssignmentDamageClick1" then
+            return button.position[1]
+        end
+    end
+end
+local damageLayout={attacks={{key="enemy:1",owner="enemy",damage=3}},units={unit=true}}
+enemy.setDecals({
+    {name="Fortified",position={0.8,0.15,-0.8},scale={0.72,0.72,1}},
+    {name="Poison",position={-1.1,0.15,0.25},scale={0.72,0.72,1}}
+})
+attackAssignmentsDamageSync(damageLayout)
+local defaultDamageX=enemyDamageButtonX()
+check("Fortified above and Poison on the other edge do not displace target icon",
+    defaultDamageX~=nil and math.abs(defaultDamageX+1.1)<0.001)
+local decals=enemy.getDecals()
+decals[#decals+1]={name="Elemental",position={1.2,0.15,0},
+    scale={0.72,0.72,1}}
+enemy.setDecals(decals)
+attackAssignmentsDamageSync(damageLayout)
+local elementalX=enemyDamageButtonX()
+check("Blue City Elemental decal pushes damage target icon clear",
+    elementalX~=nil and elementalX<-1.85)
+local targetDecalCount=0
+for _,decal in ipairs(enemy.getDecals()) do
+    if decal.name=="DamageTarget1" then
+        targetDecalCount=targetDecalCount+1
+        check("target image stays aligned with its click button",
+            math.abs(decal.position[1]+elementalX)<0.001)
+    end
+end
+check("reflow creates only one damage target icon",targetDecalCount==1)
+local withoutElemental={}
+for _,decal in ipairs(enemy.getDecals()) do
+    if decal.name~="Elemental" then
+        withoutElemental[#withoutElemental+1]=decal
+    end
+end
+enemy.setDecals(withoutElemental)
+attackAssignmentsDamageSync(damageLayout)
+check("removing Blue City bonus returns target icon to normal spacing",
+    math.abs(enemyDamageButtonX()-defaultDamageX)<0.001)
+local withAttackBonus=enemy.getDecals()
+withAttackBonus[#withAttackBonus+1]={name="AllAttack+2",position={x=1.1,y=0.15,z=0.25},
+    scale={0.72,0.72,1}}
+enemy.setDecals(withAttackBonus)
+attackAssignmentsDamageSync(damageLayout)
+check("another left-side Attack bonus also receives clearance",
+    enemyDamageButtonX()<-1.75)
+attackAssignmentsDamageClear()
+enemy.setDecals({})
 print("Combat targeting and lifecycle regression tests passed.")
 
 -- Preview Unit wounds are locked, translucent and non-gameplay until End Turn.
