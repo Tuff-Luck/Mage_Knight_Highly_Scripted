@@ -1473,6 +1473,30 @@ local function combatGroupResourceRows(members,perMember,limit)
     return rows,overflow+(#pending-head+1)
 end
 
+-- Attack-phase eligibility comes from the preceding damage phase, never the
+-- eventual melee result. This breaks the apparent ranged/damage/melee feedback
+-- loop: ranged kills and Block are frozen before Unit wounds are evaluated.
+combatConfig.unitsWoundedByDamage=function(results)
+    local wounded={}
+    for _,result in pairs(results or {}) do
+        for _,entry in ipairs(result.units or {}) do
+            if entry.wounded==true and entry.unit~=nil then wounded[entry.unit.guid]=true end
+        end
+    end
+    return wounded
+end
+
+-- Unit resources already spent in the Ranged/Block phases stand. Unused
+-- Ranged/Siege effects fall back to normal Attack only if their Unit survived
+-- damage unwounded; a wound cannot retroactively undo an earlier phase.
+combatConfig.attackPhaseSources=function(sources,wounded)
+    local active={}
+    for _,source in ipairs(sources or {}) do
+        if wounded[source.guid]~=true then active[#active+1]=source end
+    end
+    return active
+end
+
 local function combatAssignmentRefreshRows(entries,sources)
     local rowByGUID={}
     local totalRowHeight=0
@@ -1848,32 +1872,11 @@ local function combatAssignmentRefreshRows(entries,sources)
                 if rangedBeforeBlock[index]~=true then group.rangeDefeated=false break end
             end
         end
-        local meleeTotal=combatAttackTotal({
-            {sources=group.sources,category="attack"},
-            {sources=group.sources,category="ranged"},
-            {sources=group.sources,category="siege"}},group.entry.data,group.entry.perks)
-        group.defeated=not members[1].attackOnly
-            and (group.rangeDefeated or (meleeTotal>0 and meleeTotal>=group.attackArmour))
-        -- A destroyed enemy is defeated without any attack; it stays out of "defeated by this attack" rewards.
+        -- A destroyed enemy has already been removed by a pre-Damage effect.
+        -- Its final defeat state and any melee rewards are resolved only after
+        -- the damage assignments establish which Units survive into Attack.
         group.destroyed=not members[1].attackOnly and #group.members==1
             and entries[group.members[1]].destroyed==true
-        if group.destroyed then group.defeated,group.rangeDefeated=true,false end
-        if group.defeated and not group.destroyed then
-            local count=0
-            for _,member in ipairs(members) do if not member.preview then count=count+1 end end
-            local counted={}
-            for _,source in ipairs(group.sources) do
-                local spec=source.defeatFameRep
-                -- A source defeats nothing in melee once the Ranged phase already did, so melee-only sources do not count.
-                if count>0 and spec~=nil and spec.scope==nil and not counted[source.guid] and (not group.rangeDefeated
-                    or source.ranged>0 or source.siege>0) then
-                    counted[source.guid]=true
-                    local times=spec.once and 1 or count
-                    defeatFame=defeatFame+(spec.fame or 0)*times
-                    defeatRep=defeatRep+(spec.rep or 0)*times
-                end
-            end
-        end
     end
     -- Damage phase: each unblocked attack of an enemy that is not already defeated starts on the Hero.
     local damageSeat=combatAssignmentActiveSeat()
@@ -1908,6 +1911,40 @@ local function combatAssignmentRefreshRows(entries,sources)
     attackAssignmentsDamageSync(damageSpec)
     local damageResults=combatDamageResolve(damageItems,damageUnits,combatHeroArmour(nativeCommandCount),attackAssignmentsDamageTargetsOf)
     attackAssignmentsUnitPreviewSync(damageSeat,damageResults)
+
+    -- Damage is earlier than Attack. Do not invalidate Ranged/Siege kills or
+    -- Blocks: only suppress remaining Unit attacks after *actual* wounds.
+    -- Resisted assignments that cause no Wound leave the Unit eligible.
+    local woundedBeforeAttack=combatConfig.unitsWoundedByDamage(damageResults)
+    for _,group in ipairs(groups) do
+        local meleeSources=combatConfig.attackPhaseSources(group.sources,woundedBeforeAttack)
+        local meleeTotal=combatAttackTotal({
+            {sources=meleeSources,category="attack"},
+            {sources=meleeSources,category="ranged"},
+            {sources=meleeSources,category="siege"}},group.entry.data,group.entry.perks)
+        group.defeated=not entries[group.members[1]].attackOnly
+            and (group.rangeDefeated or (meleeTotal>0 and meleeTotal>=group.attackArmour))
+        if group.destroyed then group.defeated,group.rangeDefeated=true,false end
+        if group.defeated and not group.destroyed then
+            local count=0
+            for _,index in ipairs(group.members) do
+                if not entries[index].preview then count=count+1 end
+            end
+            local counted={}
+            for _,source in ipairs(group.sources) do
+                local spec=source.defeatFameRep
+                local availableInFinalPhase=woundedBeforeAttack[source.guid]~=true
+                if count>0 and spec~=nil and spec.scope==nil
+                    and not counted[source.guid] and (not group.rangeDefeated
+                        and availableInFinalPhase or source.ranged>0 or source.siege>0) then
+                    counted[source.guid]=true
+                    local times=spec.once and 1 or count
+                    defeatFame=defeatFame+(spec.fame or 0)*times
+                    defeatRep=defeatRep+(spec.rep or 0)*times
+                end
+            end
+        end
+    end
     local totalHeroWounds,totalDiscardWounds=0,0
     for _,result in pairs(damageResults) do
         totalHeroWounds=totalHeroWounds+result.heroWounds
@@ -1969,9 +2006,13 @@ local function combatAssignmentRefreshRows(entries,sources)
                 end
                 if item.detail.family~="block" and item.detail.family~="move" then
                     local phase=combatDetailPhase(item.detail,group.rangeDefeated,group.fortification)
+                    -- Keep early Ranged/Block icons, but hide any Unit
+                    -- resource that cannot legally be used in the Attack phase.
+                    if phase~="attack" or woundedBeforeAttack[item.source.guid]~=true then
                     lists[phase][#lists[phase]+1]={source=item.source,amount=item.detail.amount,
                         icon=item.detail.icon,text=item.detail.text,typeKey=item.detail.typeKey,
                         reduced=combatEnemyResists(group.entry.data,group.entry.perks,item.detail.typeKey)}
+                    end
                 end
             end
             perMember[index]=lists
