@@ -180,6 +180,8 @@ end
 -- Apocalypse quest Command token uses the "Command" tag.
 function unitLayoutIsWound(obj)
     if obj==nil then return false end
+    -- Physical combat previews are not actual wounds until End Turn commits them.
+    if obj.hasTag("CombatPreviewWound") or obj.getGMNotes()=="Combat Preview Wound" then return false end
     return obj.getGMNotes()=="Unit Wound"
         or (obj.type=="Custom_Model" and obj.hasTag("Wound"))
 end
