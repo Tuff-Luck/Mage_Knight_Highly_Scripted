@@ -646,7 +646,7 @@ end
 
 -- Called after damage is calculated, so full resistance creates no wound.
 -- Paralysis is a destroyed Unit: show a red X rather than drawing Wounds.
-function attackAssignmentsUnitPreviewSync(seat,results)
+function attackAssignmentsUnitPreviewSync(seat,results,selfWounds)
     if seat==nil or (resourceCardsPanelOpen~=nil and not resourceCardsPanelOpen())
         or (gStates~=nil and gStates.preEndTurn==true) then return end
     previewSweepOrphans()
@@ -659,6 +659,11 @@ function attackAssignmentsUnitPreviewSync(seat,results)
                     ((entry.wounds or 1)>1 and "poison" or "normal"),seat=seat}
             end
         end
+    end
+    -- Some Units wound themselves when their selected ability is used.
+    -- Enemy damage takes precedence: one Unit never receives duplicate ghosts.
+    for guid in pairs(selfWounds or {}) do
+        if wanted[guid]==nil then wanted[guid]={kind="normal",seat=seat} end
     end
     for guid,entry in pairs(previewWoundsByUnit) do
         local desired=wanted[guid]
