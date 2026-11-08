@@ -519,11 +519,47 @@ function resourceCardsCombatTargetAcceptsMove(guid)
     return combatGUIDHasCumbersome(guid)
 end
 
+-- "Unfortified" Unit abilities (Illusionists) only target enemies whose
+-- effective Fortification is zero. A separate active Remove Fortification
+-- effect qualifies; the printed Fortified and Wall Fortified traits do not.
+-- Keep the rule source-key based so the target button and auto scan agree.
+function resourceCardsUnitTargetRequiresUnfortified(sourceKey)
+    if type(sourceKey)~="string" then return false end
+    local guid,index=sourceKey:match("^([^#]+)#effect(%d+)$")
+    local abilities=guid~=nil and unitResourceDefinitions[guid] or nil
+    local ability=abilities~=nil and abilities[tonumber(index)] or nil
+    return ability~=nil and ability.enemyEffect~=nil
+        and ability.enemyEffect.noAttackUnfortified==true
+end
+
+function resourceCardsEnemyEffectivelyUnfortified(guid,effects)
+    local data,mode=combatEnemyData(guid)
+    if data==nil or mode=="attackOnly" then return false end
+    local perks=gStates~=nil and gStates.monsterPerks~=nil
+        and gStates.monsterPerks[guid] or nil
+    if combatEnemyFortificationCount(data,perks)==0 then return true end
+    local effect=effects~=nil and effects[guid] or nil
+    return effect~=nil and effect.removeFortify==true
+end
+
+function resourceCardsCombatTargetRejectMessage(sourceKey,targetGUID)
+    if resourceCardsUnitTargetRequiresUnfortified(sourceKey) then
+        return "Illusionists can only target an unfortified enemy."
+    end
+    return "Only Block/Move or attack reductions can target a reminder."
+end
+
 -- Reminders accept only Block/Move and enemy-attack effects, not attacks
 -- against Armour. Unknown source keys represent effect-only targeting links.
 function resourceCardsCombatTargetAcceptsSource(sourceKey,targetGUID)
     local data=combatEnemyData(targetGUID)
     if data==nil then return false end
+    if resourceCardsUnitTargetRequiresUnfortified(sourceKey) then
+        local seat=combatAssignmentActiveSeat()
+        local scan=seat~=nil and resourceCardScanBySeat[seat] or nil
+        return resourceCardsEnemyEffectivelyUnfortified(targetGUID,
+            scan~=nil and scan.enemyEffects or nil)
+    end
     if data.attackOnly~=true then return true end
     for _,source in ipairs(combatAssignmentSources(combatAssignmentActiveSeat())) do
         if source.key==sourceKey then
@@ -2372,7 +2408,8 @@ local function refreshCombatEnemyPanel(monsters)
             entry.stripFireResist=effect.removeFireResist
         end
         entry.noAttack=not entry.attackOnly and effect~=nil and (effect.noAttack==true or (effect.noAttackUnfortified==true
-            and combatEnemyFortificationCount(entry.data,entry.perks)==0))
+            and (combatEnemyFortificationCount(entry.data,entry.perks)==0
+                or effect.removeFortify==true)))
         entry.destroyed=not entry.attackOnly and effect~=nil and effect.destroy==true
         entry.destroyIfBlocked=not entry.attackOnly and effect~=nil and effect.destroyIfBlocked==true
         entry.removeAbilities=effect~=nil and effect.removeAbilities==true
@@ -4612,7 +4649,7 @@ end
 -- Scan the play area for used abilities, the Unit area for Units, and crystal
 -- inventory for unused mana. Only a played, supported effect enters the totals.
 -- Explicit arrows always win; proximity is only an initial default.
-local function combatEffectChosenEnemy(sourceGUID,area,monsters)
+local function combatEffectChosenEnemy(sourceGUID,area,monsters,eligible)
     local chosen=nil
     for guid in pairs(attackAssignmentsTargetGUIDs(sourceGUID)) do
         local target=monsters[guid]
@@ -4623,9 +4660,10 @@ local function combatEffectChosenEnemy(sourceGUID,area,monsters)
             if data~=nil and data.attackOnly then target=special end
         end
         if target~=nil and target.is_face_down~=true
+            and (eligible==nil or eligible(target,guid))
             and (chosen==nil or guid<chosen.guid) then chosen=target end
     end
-    return chosen or combatEffectNearestEnemy(area,monsters,footprint,overlapArea)
+    return chosen or combatEffectNearestEnemy(area,monsters,footprint,overlapArea,eligible)
 end
 
 local function renderSeat(seatPos,quietUnitChoice)
