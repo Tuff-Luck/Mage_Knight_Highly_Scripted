@@ -417,7 +417,8 @@ end
 local function combatSummonedAttackPrevented(summoned)
     local effect=summoned.effect
     return effect~=nil and (effect.noAttack==true or effect.destroy==true or (effect.noAttackUnfortified==true
-        and combatEnemyFortificationCount(summoned.data,summoned.perks)==0))
+        and (combatEnemyFortificationCount(summoned.data,summoned.perks)==0
+            or effect.removeFortify==true)))
 end
 
 -- An Attack reduction modifies one printed Attack, not every Attack on a multi-attack enemy.
