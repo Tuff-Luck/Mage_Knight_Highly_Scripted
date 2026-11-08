@@ -527,7 +527,8 @@ end
 function resourceCardsUnitTargetRequiresUnfortified(sourceKey)
     if type(sourceKey)~="string" then return false end
     local guid,index=sourceKey:match("^([^#]+)#effect(%d+)$")
-    local abilities=guid~=nil and unitResourceDefinitions[guid] or nil
+    local abilities=guid~=nil and unitResourceDefinitions~=nil
+        and unitResourceDefinitions[guid] or nil
     local ability=abilities~=nil and abilities[tonumber(index)] or nil
     return ability~=nil and ability.enemyEffect~=nil
         and ability.enemyEffect.noAttackUnfortified==true
@@ -557,7 +558,8 @@ function resourceCardsCombatTargetAcceptsSource(sourceKey,targetGUID)
     if data==nil then return false end
     if resourceCardsUnitTargetRequiresUnfortified(sourceKey) then
         local seat=combatAssignmentActiveSeat()
-        local scan=seat~=nil and resourceCardScanBySeat[seat] or nil
+        local scan=seat~=nil and resourceCardScanBySeat~=nil
+            and resourceCardScanBySeat[seat] or nil
         return resourceCardsEnemyEffectivelyUnfortified(targetGUID,
             scan~=nil and scan.enemyEffects or nil)
     end
