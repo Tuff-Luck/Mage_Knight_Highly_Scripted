@@ -491,11 +491,17 @@ do
     end
     local effects={}
     combatEffectAdd(effects,"target","shocktroops",{armourReduce=1,attackReduce=1})
-    local ok,err=pcall(combatEffectReport,1,effects)
-    check("Shocktroops option reports safely when White is not seated",
-        ok and #notices==1 and notices[1].color=="White"
-        and notices[1].text:find("Armor -1",1,true)~=nil
-        and notices[1].text:find("Attack reduction 1",1,true)~=nil)
+    local ok,err=pcall(combatEffectReport,1,effects,true)
+    check("Shocktroops option changes do not broadcast effects",ok and #notices==0)
     if not ok then error(err) end
+    combatEffectReport(1,effects)
+    check("a follow-up scan does not broadcast a previously silenced Unit choice",
+        #notices==0)
+    combatEffectAdd(effects,"target","playedCard",{armourReduce=1})
+    combatEffectReport(1,effects)
+    check("separate card changes still broadcast safely when White is not seated",
+        #notices==1 and notices[1].color=="White"
+        and notices[1].text:find("Armor -2",1,true)~=nil
+        and notices[1].text:find("Attack reduction 1",1,true)~=nil)
 end
 print("Combat calculator regression tests passed.")
