@@ -1497,6 +1497,38 @@ combatConfig.attackPhaseSources=function(sources,wounded)
     return active
 end
 
+-- Timing of self-wounding Unit abilities: a Block wounds its Unit before
+-- enemies may assign damage; an Attack wounds its Unit in the final Attack
+-- phase, after enemy damage. Only Units with an activated, targeted ability
+-- receive a preview. Other modifiers used earlier retain their effects.
+combatConfig.selfWoundingUnitChoices=function(seat,groups)
+    local early,late={},{}
+    local active={}
+    for _,group in ipairs(groups or {}) do
+        if not group.rangeDefeated and not group.destroyed then
+            for _,source in ipairs(group.sources or {}) do active[source.guid]=true end
+        end
+    end
+    local scan=seat~=nil and resourceCardScanBySeat[seat] or nil
+    local records=scan~=nil and scan.cards or {}
+    local activations=gStates~=nil and gStates.unitResourceActivations or {}
+    for guid,activation in pairs(activations) do
+        local abilities=unitResourceDefinitions~=nil and unitResourceDefinitions[guid] or nil
+        local ability=abilities~=nil and abilities[activation.choice or 1] or nil
+        local record=records[guid]
+        if activation.seatPos==seat and active[guid] and record~=nil
+            and record.complete==true and ability~=nil and ability.woundsSelf==true then
+            local blocks=false
+            for field,value in pairs(ability) do
+                if type(value)=="number" and type(field)=="string"
+                    and field:sub(1,5)=="block" then blocks=true break end
+            end
+            if blocks then early[guid]=true else late[guid]=true end
+        end
+    end
+    return early,late
+end
+
 local function combatAssignmentRefreshRows(entries,sources)
     local rowByGUID={}
     local totalRowHeight=0
@@ -1880,7 +1912,13 @@ local function combatAssignmentRefreshRows(entries,sources)
     end
     -- Damage phase: each unblocked attack of an enemy that is not already defeated starts on the Hero.
     local damageSeat=combatAssignmentActiveSeat()
+    local selfWoundsEarly,selfWoundsLate=combatConfig.selfWoundingUnitChoices(damageSeat,groups)
     local damageUnits,nativeCommandCount=combatDamageUnits(damageSeat)
+    -- Block 6 (Utem Swordsmen) causes a Wound during Block, before any enemy
+    -- damage assignment; do not allow that Unit to absorb an enemy attack.
+    for guid in pairs(selfWoundsEarly) do
+        if damageUnits[guid]~=nil then damageUnits[guid].wounded=true end
+    end
     local damageSpec={attacks={},units={}}
     local damageItems={}
     for guid,unit in pairs(damageUnits) do
@@ -1910,12 +1948,19 @@ local function combatAssignmentRefreshRows(entries,sources)
     end
     attackAssignmentsDamageSync(damageSpec)
     local damageResults=combatDamageResolve(damageItems,damageUnits,combatHeroArmour(nativeCommandCount),attackAssignmentsDamageTargetsOf)
-    attackAssignmentsUnitPreviewSync(damageSeat,damageResults)
 
     -- Damage is earlier than Attack. Do not invalidate Ranged/Siege kills or
     -- Blocks: only suppress remaining Unit attacks after *actual* wounds.
     -- Resisted assignments that cause no Wound leave the Unit eligible.
     local woundedBeforeAttack=combatConfig.unitsWoundedByDamage(damageResults)
+    -- Self-wounding Attack 6 happens only if the Unit survived damage and
+    -- still has an enemy to attack. It does not cancel its own Attack 6.
+    local selfWounds={}
+    for guid in pairs(selfWoundsEarly) do selfWounds[guid]=true end
+    for guid in pairs(selfWoundsLate) do
+        if woundedBeforeAttack[guid]~=true then selfWounds[guid]=true end
+    end
+    attackAssignmentsUnitPreviewSync(damageSeat,damageResults,selfWounds)
     for _,group in ipairs(groups) do
         local meleeSources=combatConfig.attackPhaseSources(group.sources,woundedBeforeAttack)
         local meleeTotal=combatAttackTotal({
