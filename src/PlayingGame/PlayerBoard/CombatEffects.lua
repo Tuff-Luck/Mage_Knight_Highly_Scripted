@@ -128,7 +128,10 @@ function combatEffectReport(seatPos,enemyEffects)
     if lastReport[seatPos]==signature then return end
     lastReport[seatPos]=signature
     if signature~="" then
-        broadcastToColor("Card effects on enemies (apply manually if needed):\n"..signature,
+        -- The Mage Knight's hand color may not be occupied (hotseat/dummy/GM).
+        -- Use the shared safe broadcaster so changing an effect never crashes
+        -- the combat scan while the target color has no seated Player.
+        safeBroadcastToColor("Card effects on enemies (apply manually if needed):\n"..signature,
             positionToColor(gStates.turnNumber),{1,0.6,0.1})
     end
 end
