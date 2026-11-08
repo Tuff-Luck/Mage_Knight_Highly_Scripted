@@ -608,6 +608,9 @@ local function previewSpawnWound(entry,slot,position)
     entry.pending[slot]=true
     local function finish(token)
         if token==nil then return end
+        -- TTS may invoke the callback after a previous recalculation has deleted it.
+        token=getObjectFromGUID(token.guid)
+        if token==nil then return end
         entry.pending[slot]=nil
         if entry.committed then
             previewMakePermanent(token)
