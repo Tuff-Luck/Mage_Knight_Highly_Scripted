@@ -728,7 +728,9 @@ function fameReputationMotivation(...)
 	local result=skillsMotivationBase(...)
 	--Motivation has its own physical Fame movement and includes Blitz bonuses there. Keep every logical
 	--Fame value synchronized with its marker after that independent award path.
-	for playerIndex,_ in pairs(turnOrder) do syncPlayerFameFromMarker(playerIndex) end
+	for playerIndex,entry in ipairs(turnOrder) do
+		if entry.mage~=gStates.positionMageKnight[5] then syncPlayerFameFromMarker(playerIndex) end
+	end
 	return result
 end
 
@@ -2535,7 +2537,7 @@ local soloDescription={
 							["725de9"]="{en}Once a Round:\n\nWhen you spend a mana of a basic color, gain a Crystal of that color. (Put this skill token in your Play Area to activated it, and place another crystal of the same color on it)\n\nNext turn only:\n\nYou may gain the mana token on this skill.{it}Una volta per round:\n\nQuando spendi mana di un colore base, ottieni un Cristallo di quel colore. Metti il segnalino Abilità nell'Area di Gioco e un altro cristallo dello stesso colore su di esso.\n\nSolo nel prossimo turno:\n\nPuoi ottenere il segnalino mana su questa abilità.{ru}Один раз в раунд:\n\nПотратив ману основного цвета, возьмите кристалл того же цвета. (Положите навык в вашу игровую зону для активации эффекта, и положите на него жетон маны того же цвета из резерва)\n\nТолько в следующий ход:\n\nМожете использовать ману, лежащую на этом навыке.{zh-tw}每轮一次：\n\n当你花费一个基本颜色的魔力时，获得一个该颜色的魔晶（将此技能标记放置在桌子中央以激活它，并在其上放置另一个相同颜色的水晶）\n\n仅下一回合：\n\n您可以获得此技能上的魔力标记。{zh-cn}每轮一次：\n\n当你花费一个基本颜色的魔力时，获得一个该颜色的魔晶（将此技能标记放置在桌子中央以激活它，并在其上放置另一个相同颜色的水晶）\n\n仅下一回合：\n\n您可以获得此技能上的魔力标记。{ko}라운드에 한번:\n\n기본 색상 마나 1개를 지불할 때,  이 스킬을 사용하여 해당 색상 수정 1개를 얻는다.(같은 색의 마나 토큰으로 스킬 위에 표시하고 플레이 영역에 놓아 활성화)\n\n다음 차례에:\n\n이 마나 토큰을 얻을 수 있다.{es}Una vez por Ronda:\n\nCuando gastas un maná de un color básico, obtienes un cristal de ese color. (Pon esta ficha de habilidad en tu Área de juego para activarla y coloca otro cristal del mismo color sobre ella)\n\nSolo en el próximo turno:\n\nPuedes obtener la ficha de maná en esta habilidad.{fr}Une fois par Rounde:\n\nLorsque vous dépensez un mana d'une couleur de base, gagnez un cristal de cette couleur. (Mettez ce jeton de compétence dans votre zone de jeu pour l'activer et placez-y un autre cristal de la même couleur)\n\nTour suivant uniquement:\n\nVous pouvez gagner le jeton mana de cette compétence.{pt-br}Uma vez por Rodada:\n\nQuando você gastar uma mana de cor básica, ganhe um cristal daquela cor. (coloque essa habilidade na sua área de jogo para ativá-la e coloque outro cristal da mesma cor nela)\n\nPróximo Turno apenas:\n\nVocê pode ganhar o marcador de mana desta habilidade.{de}Einmal pro Runde:\n\nWenn du ein Mana einer Grundfarbe ausgibst, erhältst du einen Kristall dieser Farbe (lege dieses Fertigkeitsplättchen in deinen Spielbereich, um es zu aktivieren, und lege einen weiteren Kristall derselben Farbe darauf).\n\nNur im nächsten Zug:\n\nDu darfst das Mana-Token für diese Fähigkeit erhalten.",
 							["55e5e5"]="{en}Once a Round:\n\nReduce the Move cost of all terrains by 2 (to a minimum of 1). (Put this skill token in your Play Area to activated it)\n\nNext turn only:\n\nYou may reduce the move cost of all terrains by 1 (to a minimum of 1).{it}Una volta per round:\n\nRiduci di 2 il costo di Movimento di tutti i terreni (minimo 1). Metti il segnalino Abilità nell'Area di Gioco per attivarlo.\n\nSolo nel prossimo turno:\n\nPuoi ridurre di 1 il costo di Movimento di tutti i terreni (minimo 1).{ru}Один раз в раунд:\n\nВаш герой двигается по любой местности, тратя на 2 очка Движения меньше (но не меньше 1) в этот ход. (Положите навык в вашу игровую зону для активации эффекта)\n\nТолько в следующий ход:\n\nВаш герой двигается по любой местности, тратя на 1 очко Движения меньше (но не меньше 1) в этот ход.{zh-tw}每轮一次: \n\n将本技能标记放在桌子中央以激活效果. \n将所有地形移动消耗减少2 (最少至1)\n\n仅下回合: \n将所有地形移动消耗减少1 (最低至1){zh-cn}每轮一次: \n\n将本技能标记放在桌子中央以激活效果. \n将所有地形移动消耗减少2 (最少至1)\n\n仅下回合: \n将所有地形移动消耗减少1 (最低至1){ko}라운드에 한번:\n\n이번 차례에 당신에게 모든 지형의 이동 비용은 2(최하 1) 감소한다.(스킬을 플레이 영역에 놓아 활성화)\n\n다음 차례에 한번만:\n\n이번 차례에 모든 지형의 이동 비용이 1 감소한다.{es}Una vez por Ronda:\n\nReduce el coste de movimiento de todos los terrenos en 2 (hasta un mínimo de 1). (Pon esta ficha de habilidad en tu Área de juego para activarla)\n\nSolo en el próximo turno:\n\nPuedes reducir el costo de movimiento de todos los terrenos en 1 (hasta un mínimo de 1).{fr}Une fois par Rounde:\n\nRéduisez le coût de déplacement de tous les terrains de 2 (jusqu'à un minimum de 1). (Mettez ce jeton de compétence dans votre zone de jeu pour l'activer)\n\nTour suivant uniquement :\n\nVous pouvez réduire le coût de déplacement de tous les terrains de 1 (jusqu'à un minimum de 1).{pt-br}Uma vez por Rodada:\n\nReduz o custo de movimento de todos os terrenos em 2 (a um mínimo de 1). (Coloque esta Habilidade na sua área de jogo para ativá-la).\n\nPróximo Turno apenas:\n\nVocê pode reduzir o custo de movimento de todos os terrenos em 1 (a um mínimo de 1).{de}Einmal pro Runde:\n\nVerringere die Bewegungskosten aller Terrains um 2 (auf ein Minimum von 1). (Lege dieses Fertigkeitsplättchen in deinen Spielbereich, um es zu aktivieren)\n\nNur in der nächsten Runde:\n\nDu darfst die Bewegungskosten aller Geländefelder um 1 reduzieren (auf ein Minimum von 1).",
 							["818aea"]="{en}Once a Round:\n\nGain a mana token of any color except Gold. (Put this skill token in your Play Area to activated it, and place another crystal of the same color on it)\n\nNext turn only:\n\nIf you use a Mana of this same Color to power a Deed Card that gives Move, Influence, or any type of Attack or Block, it gets +4 from that card.{it}Una volta per round:\n\nOttieni un segnalino mana di qualsiasi colore tranne Oro. Metti il segnalino Abilità nell'Area di Gioco e un altro cristallo dello stesso colore su di esso.\n\nSolo nel prossimo turno:\n\nSe usi mana dello stesso colore per potenziare una carta Gesta che fornisce Movimento, Influenza, Attacco o Blocco di qualsiasi tipo, quell'effetto ottiene +4.{ru}Один раз в раунд:\n\nВозьмите жетон маны любого цвета, кроме золотого. (Положите навык в вашу игровую зону для активации эффекта, и положите на него жетон маны того же цвета из резерва)\n\nТолько в следующий ход:\n\nЕсли вы используете ману этого цвета для усиления карты с очками Движения, Влияния, любой Атаки или Блока, вы получаете +4 к значению этого эффекта.{zh-tw}每回合一次：\n\n获得一个任意颜色的法力令牌，金色除外。（将此技能令牌放入你的游戏区域以激活它，并在其上放置另一个相同颜色的水晶）。\n\n仅限下一回合：\n\n如果你使用一张同色的法力牌为一张可提供移动、影响或任何类型的攻击或格挡的契约牌提供能量，它将从该牌中获得 +4。{zh-cn}每回合一次：\n\n获得一个任意颜色的法力令牌，金色除外。（将此技能令牌放入你的游戏区域以激活它，并在其上放置另一个相同颜色的水晶）。\n\n仅限下一回合：\n\n如果你使用一张同色的法力牌为一张可提供移动、影响或任何类型的攻击或格挡的契约牌提供能量，它将从该牌中获得 +4。{ko}라운드에 한 번:\n\n금색이 아닌 색상 마나 토큰 1개를 선택해 받는다.(같은 색의 마나 토큰으로 스킬 위에 표시하고 플레이 영역에 놓아 활성화)\n\n다음 차례에 한번:\n\n이동, 영향력, 또는 아무 종류의 공격이나 방어를 제공하는 카드 하나를, 표시돤 색상과 동일한 색의 마나로 강화 사용한다면 해당 수치에 +4를 추가로 얻는다.{es}Una vez por ronda:\n\nGana una ficha de maná de cualquier color excepto oro. (Pon esta ficha de habilidad en tu Área de juego para activarla y coloca otro cristal del mismo color sobre ella)\n\nSolo en el próximo turno:\n\nSi usas un Mana de este mismo Color para potenciar una Carta de Escritura que otorga Movimiento, Influencia o cualquier tipo de Ataque o Bloqueo, obtiene +4 de esa carta.{fr}Une fois par Rounde:\n\nGagnez un jeton de mana de n'importe quelle couleur à l'exception de l'or. (Mettez ce jeton de compétence dans votre zone de jeu pour l'activer et placez-y un autre cristal de la même couleur)\n\nTour suivant uniquement:\n\nSi vous utilisez un mana de cette même couleur pour alimenter une carte d'action qui donne un mouvement, une influence ou tout type d'attaque ou de blocage, elle obtient +4 de cette carte.{pt-br}Uma vez por rodada:\n\nGanhe uma ficha de mana de qualquer cor, exceto ouro. (Coloque esta ficha de habilidade em sua área de jogo para ativá-la e coloque outro cristal da mesma cor sobre ela)\n\nPróxima curva apenas:\n\nSe você usar um Mana desta mesma Cor para energizar uma Carta de Ação que conceda Movimento, Influência ou qualquer tipo de Ataque ou Bloqueio, ela recebe +4 daquela carta.{de}Einmal pro Runde:\n\nErhalte ein Mana-Token einer beliebigen Farbe außer Gold. (Lege dieses Fertigkeitsplättchen in deinen Spielbereich, um es zu aktivieren, und lege einen weiteren Kristall derselben Farbe darauf)\n\nNur in der nächsten Zug:\n\nWenn du Mana dieser Farbe nutzt, um eine Handlungs­karte mit Bewegung, Einfluss, Angriff oder Block zu aktivieren, erhält +4 von dieser Karte.",
-							["564392"]="{en}Once a Round (Except during Interactions): (Put this skill token in your Play Area to activated it)\n\nOne card played sideways is worth +4. For each command token without a Unit gain an extra +1.\n\nNext turn only:\n\nYou may reduce the Armour of an enemy by 1, and one attack of the same or another enemy by 1{it}Una volta per round (fuori dalle Interazioni): metti il segnalino Abilità nell'Area di Gioco per attivarlo.\n\nUna carta giocata di lato vale +4. Ottieni un ulteriore +1 per ogni segnalino Comando senza Unità.\n\nSolo nel prossimo turno:\n\nPuoi ridurre di 1 l'Armatura di un nemico e di 1 un attacco dello stesso nemico o di un altro.{ru}Один раз в раунд (не при взаимодействии): (Положите навык в вашу игровую зону для активации эффекта)\n\nОдна карта, сыгранная боком, дает бонус +4 вместо +1. Каждый свободной жетон командования увеличивает бонус еще на +1.\n\nТолько в следующий ход:\n\nВы можете уменьшить Броню одного врага на 1 и значение одной Атаки на 1 (этого или другого врага).{zh-tw}每轮一次，交涉中除外：\n\n一张横置打出的卡牌效果+4而非+1。你没有一个未分配给部队的指挥标记额外+1。将本技能放在桌子中间。\n仅下回合： 你的一个敌人护甲-1，同时同一个或另一个敌人的攻击-1{zh-cn}每轮一次，交涉中除外：\n\n一张横置打出的卡牌效果+4而非+1。你没有一个未分配给部队的指挥标记额外+1。将本技能放在桌子中间。\n仅下回合： 你的一个敌人护甲-1，同时同一个或另一个敌人的攻击-1{ko}라운드에 한번, 교류에서 제외:\n\n가로로 사용한 카드 1장은 +1 대신 +4를 준다. 이 수치는 유닛이 배정되지 않은 지휘 토큰 하나당 +1씩 증가한다. (스킬을 플레이 영역에 놓아 활성화)\n\n다음 차례에 한 번:\n\n선택한 적 하나의 방어구를 1 감소시키고, 같은 적이나 다른 적 공격 하나도 1 감소시킨다.{es}Una vez por Ronda (excepto durante las interacciones): (Pon esta ficha de habilidad en tu Área de juego para activarla)\n\nUna carta jugada de lado vale +4. Por cada ficha de Mando sin una Unidad, obtienes un +1 extra.\n\nSolo en el próximo turno:\n\nPuedes reducir la armadura de un enemigo en 1 y un ataque del mismo u otro enemigo en 1{fr}Une fois par Rounde (sauf pendant les interactions): (Mettez ce jeton de compétence dans votre zone de jeu pour l'activer)\n\nUne carte jouée de côté vaut +4. Pour chaque jeton de commandement sans Unité, gagnez un +1 supplémentaire.\n\nTour suivant uniquement:\n\nVous pouvez réduire l'armure d'un ennemi de 1 et une attaque du même ennemi ou d'un autre de 1{pt-br}Uma vez por Rodada (Exceto durante interações): (Coloque esta habilidade na sua área de jogo para ativá-la)\n\nUma carta jogada de lado vale +4. Para cada Ficha de Comando sem uma unidade ganhe +1 extra.\n\nNo Próximo Turno apenas:\n\nVocê pode reduzir a armadura de um inimigo em 1 e um ataque do mesmo inimigo em 1.{de}Einmal pro Runde (außer bei Interaktionen): (Lege dieses Fertigkeitsplättchen in deinen Spielbereich, um es zu aktivieren)\n\nEine seitwärts gespielte Karte ist +4 wert. Für jedes Befehlsplättchen ohne Einheit erhältst du zusätzlich +1.\n\nNur in der nächsten Zug:\n\nDu kannst die Rüstung eines Gegners um 1 und einen Angriff desselben oder eines anderen Gegners um 1 reduzieren.",
+							["564392"]="{en}Once a Round (Except during Interactions): (Put this skill token in your Play Area to activated it)\n\nOne card played sideways is worth +4. For each command token without a Unit gain an extra +1.\n\nNext turn only:\n\nYou may reduce the Armor of an enemy by 1, and one attack of the same or another enemy by 1{it}Una volta per round (fuori dalle Interazioni): metti il segnalino Abilità nell'Area di Gioco per attivarlo.\n\nUna carta giocata di lato vale +4. Ottieni un ulteriore +1 per ogni segnalino Comando senza Unità.\n\nSolo nel prossimo turno:\n\nPuoi ridurre di 1 l'Armatura di un nemico e di 1 un attacco dello stesso nemico o di un altro.{ru}Один раз в раунд (не при взаимодействии): (Положите навык в вашу игровую зону для активации эффекта)\n\nОдна карта, сыгранная боком, дает бонус +4 вместо +1. Каждый свободной жетон командования увеличивает бонус еще на +1.\n\nТолько в следующий ход:\n\nВы можете уменьшить Броню одного врага на 1 и значение одной Атаки на 1 (этого или другого врага).{zh-tw}每轮一次，交涉中除外：\n\n一张横置打出的卡牌效果+4而非+1。你没有一个未分配给部队的指挥标记额外+1。将本技能放在桌子中间。\n仅下回合： 你的一个敌人护甲-1，同时同一个或另一个敌人的攻击-1{zh-cn}每轮一次，交涉中除外：\n\n一张横置打出的卡牌效果+4而非+1。你没有一个未分配给部队的指挥标记额外+1。将本技能放在桌子中间。\n仅下回合： 你的一个敌人护甲-1，同时同一个或另一个敌人的攻击-1{ko}라운드에 한번, 교류에서 제외:\n\n가로로 사용한 카드 1장은 +1 대신 +4를 준다. 이 수치는 유닛이 배정되지 않은 지휘 토큰 하나당 +1씩 증가한다. (스킬을 플레이 영역에 놓아 활성화)\n\n다음 차례에 한 번:\n\n선택한 적 하나의 방어구를 1 감소시키고, 같은 적이나 다른 적 공격 하나도 1 감소시킨다.{es}Una vez por Ronda (excepto durante las interacciones): (Pon esta ficha de habilidad en tu Área de juego para activarla)\n\nUna carta jugada de lado vale +4. Por cada ficha de Mando sin una Unidad, obtienes un +1 extra.\n\nSolo en el próximo turno:\n\nPuedes reducir la armadura de un enemigo en 1 y un ataque del mismo u otro enemigo en 1{fr}Une fois par Rounde (sauf pendant les interactions): (Mettez ce jeton de compétence dans votre zone de jeu pour l'activer)\n\nUne carte jouée de côté vaut +4. Pour chaque jeton de commandement sans Unité, gagnez un +1 supplémentaire.\n\nTour suivant uniquement:\n\nVous pouvez réduire l'armure d'un ennemi de 1 et une attaque du même ennemi ou d'un autre de 1{pt-br}Uma vez por Rodada (Exceto durante interações): (Coloque esta habilidade na sua área de jogo para ativá-la)\n\nUma carta jogada de lado vale +4. Para cada Ficha de Comando sem uma unidade ganhe +1 extra.\n\nNo Próximo Turno apenas:\n\nVocê pode reduzir a armadura de um inimigo em 1 e um ataque do mesmo inimigo em 1.{de}Einmal pro Runde (außer bei Interaktionen): (Lege dieses Fertigkeitsplättchen in deinen Spielbereich, um es zu aktivieren)\n\nEine seitwärts gespielte Karte ist +4 wert. Für jedes Befehlsplättchen ohne Einheit erhältst du zusätzlich +1.\n\nNur in der nächsten Zug:\n\nDu kannst die Rüstung eines Gegners um 1 und einen Angriff desselben oder eines anderen Gegners um 1 reduzieren.",
 							["ebbbfc"]="{en}Once a Round:\n\nChoose one card from your discard pile and place it on top  of your deed deck.\n\nIf the dummy hasn't called end of round, place the top card from the Advanced Action Deck in his deck.{it}Una volta per round:\n\nScegli una carta dagli scarti e mettila in cima al mazzo Gesta.\n\nSe il Fittizio non ha dichiarato Fine Round, metti la prima carta del mazzo Azioni Avanzate nel suo mazzo.{ru}Один раз за раунд:\n\nВыберите одну карту из своей стопки сброса и положите её на верх колоды действий.\n\nЕсли виртуальный игрок не объявил конец раунда, положите верхнюю карту колоды Продвинутых действий в его колоду.{zh-tw}每轮一次：\n\n你和其他所有玩家从弃牌堆中选择一张牌，将这张牌放到功能牌库顶。单人游戏时，再将高级行动牌堆顶部的1张牌放到虚拟玩家的功能牌库顶，即使虚拟玩家的 功能牌库没有牌也可以这样做。\n如果虚拟玩家已经声明本轮结束，则忽略此效果。{zh-cn}每轮一次：\n\n你和其他所有玩家从弃牌堆中选择一张牌，将这张牌放到功能牌库顶。单人游戏时，再将高级行动牌堆顶部的1张牌放到虚拟玩家的功能牌库顶，即使虚拟玩家的 功能牌库没有牌也可以这样做。\n如果虚拟玩家已经声明本轮结束，则忽略此效果。{ko}라운드에 한번:\n\n이 토큰을 뒤집어 버린 더미에서 카드 한장을 선택해 더미 위에 올려둔다.\n\n가상 플레이어가 라운드 종료를 선언Cards하지 않았다면, 가장 아래 위치한 상급 액션을 그의 더미에 추가한다.{es}Una vez por Ronda:\n\nElige una carta de tu pila de descarte y colócala encima de tu mazo de escrituras.\n\nSi el muerto no ha dicho fin de ronda, coloca la carta superior del Mazo de Acción Avanzada en su mazo.{fr}Une fois par Rounde:\n\nChoisissez une carte de votre défausse et placez-la au-dessus de votre deck d'actes.\n\nSi le mannequin n'a pas appelé à la fin du tour, placez la première carte du paquet d'action avancée dans son paquet.{pt-br}Uma vez por Rodada:\n\nEscolha uma carta de sua pilha de descarte e coloque-a no topo de seu baralho de ações.\n\nSe o morto não tiver chamado o final da rodada, coloque a carta do topo do Baralho de Ação Avançada em seu baralho.{de}Einmal pro Runde:\n\nWähle eine Karte aus deinem Ablagestapel und lege sie oben auf dein Aktionsdeck.\n\nFalls der Dummy das Rundenende noch nicht ausgerufen hat, lege die oberste Karte des Decks der Fortgeschrittenen Aktionen in sein Deck.",
 							["a598f6"]="{en}Once a round (Except during combat):\\n\\nGain a Potion. (Put this skill token in your Play Area to activate it).\\n\\nNext turn only:\\n\\nYou may add +3 to any Move, Influence, or any type of Attack or Block provided by your next card or Unit ability that requires no mana.{it}Una volta per round (fuori dal combattimento):\n\nOttieni una Pozione. Metti il segnalino Abilità nell'Area di Gioco per attivarlo.\n\nSolo nel prossimo turno:\n\nPuoi aggiungere +3 a Movimento, Influenza, Attacco o Blocco di qualsiasi tipo fornito dalla prossima carta o abilità di Unità che non richieda mana.{ru}Один раз за раунд (кроме боя):\\n\\nПолучите Зелье. (Положите этот жетон навыка в свою игровую зону, чтобы активировать его.)\\n\\nТолько в следующий ход:\\n\\nВы можете добавить +3 к Движению, Влиянию или любому типу Атаки или Блока от следующей карты или способности Отряда, не требующей маны.{zh-tw}每輪一次（戰鬥期間除外）：\\n\\n獲得一瓶藥劑。（將此技能標記放入你的遊戲區以啟動它。）\\n\\n僅限下一回合：\\n\\n你的下一張牌或不需要魔力的部隊能力所提供的移動、影響力或任何類型的攻擊／格擋可獲得 +3。{zh-cn}每轮一次（战斗期间除外）：\\n\\n获得一瓶药剂。（将此技能标记放入你的游戏区以启动它。）\\n\\n仅限下一回合：\\n\\n你的下一张牌或不需要魔力的部队能力所提供的移动、影响力或任何类型的攻击／格挡可获得 +3。{ko}라운드당 한 번(전투 중 제외):\\n\\n물약 1개를 얻습니다. (이 스킬 토큰을 자신의 플레이 영역에 놓아 활성화합니다.)\\n\\n다음 턴에만:\\n\\n마나가 필요하지 않은 다음 카드 또는 유닛 능력이 제공하는 이동, 영향력, 모든 종류의 공격 또는 방어 중 하나에 +3을 더할 수 있습니다.{es}Una vez por ronda (excepto durante el combate):\\n\\nGana una Poción. (Pon esta ficha de habilidad en tu Área de Juego para activarla).\\n\\nSolo durante tu próximo turno:\\n\\nPuedes añadir +3 a cualquier Movimiento, Influencia o tipo de Ataque o Bloque proporcionado por tu próxima carta o habilidad de Unidad que no requiera maná.{fr}Une fois par manche (sauf pendant un combat) :\\n\\nGagnez une Potion. (Placez ce jeton de compétence dans votre Zone de Jeu pour l’activer.)\\n\\nAu prochain tour uniquement :\\n\\nVous pouvez ajouter +3 à un Mouvement, une Influence ou tout type d’Attaque ou de Bloc fourni par votre prochaine carte ou capacité d’Unité ne nécessitant aucun mana.{pt-br}Uma vez por rodada (exceto durante combate):\\n\\nGanhe uma Poção. (Coloque esta ficha de habilidade na sua Área de Jogo para ativá-la.)\\n\\nApenas no próximo turno:\\n\\nVocê pode adicionar +3 a qualquer Movimento, Influência ou tipo de Ataque ou Bloqueio fornecido pela sua próxima carta ou habilidade de Unidade que não exija mana.{de}Einmal pro Runde (außer während eines Kampfes):\\n\\nErhalte einen Trank. (Lege diesen Fähigkeitsmarker in deinen Spielbereich, um ihn zu aktivieren.)\\n\\nNur im nächsten Zug:\\n\\nDu darfst +3 zu Bewegung, Einfluss oder einer beliebigen Angriffs- oder Blockart deiner nächsten Karte oder Einheitenfähigkeit addieren, sofern dafür kein Mana benötigt wird.",
 							["3d8336"]="{en}Once a Round:\n\nFlip this to draw two cards, and gain a Red mana token.\n\nYou cannot use another Motivation Skill until the end of your next turn.{it}Una volta per round:\n\nGira questo segnalino per pescare due carte e ottenere un mana Rosso.\n\nNon puoi usare altre Abilità Motivazione fino alla fine del prossimo turno.{ru}Один раз в раунд:\n\nПереверните навык и возьмите 2 карты и жетон красной маны.\n\nНельзя использовать другие навыки Мотивации до конца вашего следующего хода.{zh-tw}每轮一次：\n\n使用此技能抽两张牌，并获得一个红色魔力标记。\n\n在下一回合结束之前，您不能使用其他激励技能。{zh-cn}每轮一次：\n\n使用此技能抽两张牌，并获得一个红色魔力标记。\n\n在下一回合结束之前，您不能使用其他激励技能。{ko}라운드에 한번:\n\n이 토큰을 뒤집어 카드 2장을 뽑는다. 그리고 적색 마나 토큰을 얻는다.\n\n다음 차례를 마칠 때 까지 다른 동기 부여를 사용할 수 없다.{es}Una vez por Ronda:\n\nDale la vuelta para robar dos cartas y ganar una ficha de maná roja.\n\nNo puedes usar otra habilidad de motivación hasta el final de tu próximo turno.{fr}Une fois par Rounde :\n\nRetournez-le pour piocher deux cartes et gagner un jeton de mana rouge.\n\nVous ne pouvez pas utiliser une autre compétence de motivation jusqu'à la fin de votre prochain tour.{pt-br}Uma vez por Rodada:\n\nVire esta para comprar duas cartas e ganhar um marcador de mana Vermelha.\n\nVocê não pode usar habilidades Motivacionais até o fim do seu próximo turno.{de}Einmal pro Runde:\n\nDrehe dies um, um zwei Karten zu ziehen und einen roten Mana-Token zu erhalten.\n\nDu kannst bis zum Ende deines nächsten Zuges keine weitere Motivationsfähigkeit nutzen.",
@@ -2548,7 +2550,7 @@ local soloDescription={
 							["68f864"]="{en}Once a Round:\\n\\nFlip this token to ignore all Attack effects of one enemy token (Put this skill token in your Play Area to activate it).\\n\\nNext turn only:\\n\\nYou may use this skill to ignore one Attack effect of one enemy token.{it}Una volta per round:\n\nGira questo segnalino per ignorare tutti gli effetti di Attacco di un nemico. Mettilo nell'Area di Gioco per attivarlo.\n\nSolo nel prossimo turno:\n\nPuoi usare questa abilità per ignorare un effetto di Attacco di un nemico.{ru}Один раз за раунд:\\n\\nПереверните этот жетон, чтобы игнорировать все эффекты Атаки одного жетона врага. (Положите этот жетон навыка в свою игровую зону, чтобы активировать его.)\\n\\nТолько в следующий ход:\\n\\nВы можете использовать этот навык, чтобы игнорировать один эффект Атаки одного жетона врага.{zh-tw}每輪一次：\\n\\n翻轉此標記以忽略一個敵人標記的所有攻擊效果。（將此技能標記放入你的遊戲區以啟動它。）\\n\\n僅限下一回合：\\n\\n你可以使用此技能忽略一個敵人標記的一項攻擊效果。{zh-cn}每轮一次：\\n\\n翻转此标记以忽略一个敌人标记的所有攻击效果。（将此技能标记放入你的游戏区以启动它。）\\n\\n仅限下一回合：\\n\\n你可以使用此技能忽略一个敌人标记的一项攻击效果。{ko}라운드당 한 번:\\n\\n이 토큰을 뒤집어 적 토큰 하나의 모든 공격 효과를 무시합니다. (이 스킬 토큰을 자신의 플레이 영역에 놓아 활성화합니다.)\\n\\n다음 턴에만:\\n\\n이 스킬을 사용해 적 토큰 하나의 공격 효과 하나를 무시할 수 있습니다.{es}Una vez por ronda:\\n\\nVoltea esta ficha para ignorar todos los efectos de Ataque de una ficha enemiga. (Pon esta ficha de habilidad en tu Área de Juego para activarla.)\\n\\nSolo durante tu próximo turno:\\n\\nPuedes usar esta habilidad para ignorar un efecto de Ataque de una ficha enemiga.{fr}Une fois par manche :\\n\\nRetournez ce jeton pour ignorer tous les effets d’Attaque d’un jeton ennemi. (Placez ce jeton de compétence dans votre Zone de Jeu pour l’activer.)\\n\\nAu prochain tour uniquement :\\n\\nVous pouvez utiliser cette compétence pour ignorer un effet d’Attaque d’un jeton ennemi.{pt-br}Uma vez por rodada:\\n\\nVire esta ficha para ignorar todos os efeitos de Ataque de uma ficha inimiga. (Coloque esta ficha de habilidade na sua Área de Jogo para ativá-la.)\\n\\nApenas no próximo turno:\\n\\nVocê pode usar esta habilidade para ignorar um efeito de Ataque de uma ficha inimiga.{de}Einmal pro Runde:\\n\\nDrehe diesen Marker um, um alle Angriffseffekte eines gegnerischen Markers zu ignorieren. (Lege diesen Fähigkeitsmarker in deinen Spielbereich, um ihn zu aktivieren.)\\n\\nNur im nächsten Zug:\\n\\nDu darfst mit dieser Fähigkeit einen Angriffseffekt eines gegnerischen Markers ignorieren.",
 							["784a07"]="{en}Once a round:\n\nFlip this Token to draw a card.\n\nYou may also discard a card and draw a card.\n\nNext turn only:\n\nYou may use this skill to draw a card.{it}Una volta per round:\n\nGira questo segnalino per pescare una carta.\n\nPuoi anche scartare una carta e pescarne una.\n\nSolo nel prossimo turno:\n\nPuoi usare questa abilità per pescare una carta.{ru}Один раз за раунд:\n\nПереверните этот жетон, чтобы взять карту.\n\nВы также можете сбросить карту и взять карту.\n\nТолько в следующем ходу:\n\nВы можете использовать этот навык, чтобы взять карту.{zh-tw}每輪一次：\n\n將此技能翻面來抽一張卡牌。\n\n你可以再棄一張牌來抽一張卡牌。\n\n僅下回合：\n\n你可以使用此技能來抽一張卡牌。{zh-cn}每轮一次：\n\n将此技能翻面来抽一张卡牌。\n\n你可以再弃一张牌来抽一张卡牌。\n\n仅下回合：\n\n你可以使用此技能来抽一张卡牌。{ko}매 턴마다 한 번:\n\n이 토큰을 뒤집어 카드를 한 장 뽑을 수 있습니다.\n\n카드를 버리고 한 장 뽑을 수도 있습니다.\n\n다음 턴에만:\n\n이 능력을 사용하여 카드를 한 장 뽑을 수 있습니다.{es}Una vez por ronda:\n\nVoltea esta ficha para robar una carta.\n\nTambién puedes descartar una carta y robar una carta.\n\nSolo en el siguiente turno:\n\nPuedes usar esta habilidad para robar una carta.{fr}Une fois par tour :\n\nRetournez ce jeton pour piocher une carte.\n\nVous pouvez également défausser une carte et en piocher une.\n\nAu prochain tour uniquement :\n\nVous pouvez utiliser cette capacité pour piocher une carte.{pt-br}Uma vez por rodada:\n\nVire este marcador para comprar uma carta.\n\nVocê também pode descartar uma carta e comprar uma carta.\n\nSomente no próximo turno:\n\nVocê pode usar esta habilidade para comprar uma carta.{de}Einmal pro Runde:\n\nDrehe diesen Spielstein um, um eine Karte zu ziehen.\n\nDu kannst auch eine Karte ablegen und eine Karte ziehen.\n\nNur im nächsten Zug:\n\nDu kannst diese Fähigkeit nutzen, um eine Karte zu ziehen.",
 							["b66704"]="{en}Once a Round:\\n\\nYou may play a Wound as a sideways card for +3.\\n\\nIf your reputation is negative, add half your reputation score rounded up (x=7).\\n\\nNext turn only:\\n\\nGain +1 on the Reputation Track.{it}Una volta per round:\n\nPuoi giocare una Ferita di lato per +3.\n\nSe la tua Reputazione è negativa, aggiungi metà del suo valore arrotondato per eccesso (x=7).\n\nSolo nel prossimo turno:\n\nOttieni +1 sul tracciato Reputazione.{ru}Один раз за раунд:\\n\\nВы можете сыграть Рану боком как карту со значением +3.\\n\\nЕсли ваша репутация отрицательная, добавьте половину значения репутации, округляя вверх (x=7).\\n\\nТолько в следующий ход:\\n\\nПолучите +1 на шкале Репутации.{zh-tw}每輪一次：\\n\\n你可以將一張創傷牌橫置打出，視為 +3。\\n\\n若你的聲望為負數，加入你聲望值的一半並向上取整（x=7）。\\n\\n僅限下一回合：\\n\\n聲望軌提升 +1。{zh-cn}每轮一次：\\n\\n你可以将一张创伤牌横置打出，视为 +3。\\n\\n若你的声望为负数，加入你声望值的一半并向上取整（x=7）。\\n\\n仅限下一回合：\\n\\n声望轨提升 +1。{ko}라운드당 한 번:\\n\\n부상 카드 한 장을 옆으로 내어 +3으로 사용할 수 있습니다.\\n\\n평판이 음수라면 평판 수치의 절반을 올림하여 더합니다(x=7).\\n\\n다음 턴에만:\\n\\n평판 트랙에서 +1을 얻습니다.{es}Una vez por ronda:\\n\\nPuedes jugar una Herida de lado como una carta de +3.\\n\\nSi tu reputación es negativa, añade la mitad de tu puntuación de reputación redondeando hacia arriba (x=7).\\n\\nSolo durante tu próximo turno:\\n\\nGana +1 en la Pista de Reputación.{fr}Une fois par manche :\\n\\nVous pouvez jouer une Blessure de côté comme une carte valant +3.\\n\\nSi votre réputation est négative, ajoutez la moitié de votre valeur de réputation, arrondie au supérieur (x=7).\\n\\nAu prochain tour uniquement :\\n\\nGagnez +1 sur la Piste de Réputation.{pt-br}Uma vez por rodada:\\n\\nVocê pode jogar um Ferimento de lado como uma carta de +3.\\n\\nSe sua reputação for negativa, adicione metade do valor de reputação, arredondado para cima (x=7).\\n\\nApenas no próximo turno:\\n\\nGanhe +1 na Trilha de Reputação.{de}Einmal pro Runde:\\n\\nDu darfst eine Wunde seitlich als Karte mit +3 spielen.\\n\\nIst dein Ruf negativ, addiere die Hälfte deines Rufwerts, aufgerundet (x=7).\\n\\nNur im nächsten Zug:\\n\\nErhalte +1 auf der Rufleiste.",
-							["9d866a"]="{en}Double your Armour when assigning damage. Gain 1 extra Wound per damage source to your hand and 2 to the discard pile. Knock Out requires 1 extra Wound. After combat, throw out Wounds equal to defeated enemies. Place this skill into the Source. A friendly Knight gains 1 Block or Block equal to your unsigned Reputation. Return face down at the start of next turn.{it}Raddoppia l'Armatura nell'assegnazione dei danni. Per ogni fonte di danno, ricevi 1 Ferita extra in mano e 2 negli scarti. Per lo Svenimento serve 1 Ferita extra. Dopo il combattimento, elimina tante Ferite quanti nemici hai sconfitto. Metti l'abilità nella Fonte. Un Cavaliere amico ottiene Blocco 1 o Blocco pari al valore assoluto della tua Reputazione. Restituiscila coperta all'inizio del prossimo turno.{ru}Удвойте свою Броню при распределении урона. За каждый источник урона получите дополнительно 1 Рану в руку и 2 в сброс. Для нокаута требуется на 1 Рану больше. После боя удалите столько Ран, сколько врагов было побеждено. Поместите этот навык в Источник. Дружественный Рыцарь-маг получает 1 Блок или Блок, равный абсолютному значению вашей Репутации. В начале следующего хода верните навык лицом вниз.{zh-tw}分配傷害時，你的護甲加倍。每個傷害來源額外獲得 1 張創傷到手牌、2 張創傷到棄牌堆。被擊倒需要多 1 張創傷。戰鬥後，移除等同於被擊敗敵人數量的創傷。將此技能放入魔力源。友方魔法騎士獲得 1 點格擋，或等同於你聲望絕對值的格擋。下一回合開始時將此技能面朝下歸還。{zh-cn}分配伤害时，你的护甲加倍。每个伤害来源额外获得 1 张创伤到手牌、2 张创伤到弃牌堆。被击倒需要多 1 张创伤。战斗后，移除等同于被击败敌人数量的创伤。将此技能放入魔力源。友方魔法骑士获得 1 点格挡，或等同于你声望绝对值的格挡。下一回合开始时将此技能面朝下归还。{ko}피해를 배정할 때 방어력을 두 배로 계산합니다. 피해 원천마다 손에 부상 1장을 추가로 받고 버린 카드 더미에 2장을 받습니다. 쓰러지려면 부상 1장이 더 필요합니다. 전투 후 처치한 적 수만큼 부상을 제거합니다. 이 스킬을 마나 원천에 놓습니다. 아군 마법기사는 방어 1 또는 당신의 평판 절댓값만큼 방어를 얻습니다. 다음 차례 시작에 뒷면으로 되돌립니다.{es}Duplica tu Armadura al asignar daño. Recibe 1 Herida adicional en tu mano y 2 en el descarte por cada fuente de daño. Quedar Inconsciente requiere 1 Herida adicional. Después del combate, elimina tantas Heridas como enemigos derrotados. Coloca esta habilidad en la Fuente. Un Caballero aliado obtiene 1 Bloqueo o Bloqueo igual al valor absoluto de tu Reputación. Devuélvela boca abajo al comienzo del siguiente turno.{fr}Doublez votre Armure lors de l’attribution des dégâts. Pour chaque source de dégâts, gagnez 1 Blessure supplémentaire en main et 2 dans la défausse. Être Assommé nécessite 1 Blessure supplémentaire. Après le combat, retirez autant de Blessures que d’ennemis vaincus. Placez cette compétence dans la Source. Un Chevalier allié gagne 1 Blocage ou un Blocage égal à la valeur absolue de votre Réputation. Remettez-la face cachée au début du prochain tour.{pt-br}Dobre sua Armadura ao atribuir dano. Para cada fonte de dano, receba 1 Ferimento extra na mão e 2 na pilha de descarte. Ser Nocauteado exige 1 Ferimento extra. Após o combate, remova Ferimentos em quantidade igual aos inimigos derrotados. Coloque esta habilidade na Fonte. Um Cavaleiro aliado ganha 1 Bloqueio ou Bloqueio igual ao valor absoluto da sua Reputação. Devolva-a virada para baixo no início do próximo turno.{de}Verdopple deine Rüstung beim Zuweisen von Schaden. Erhalte pro Schadensquelle 1 zusätzliche Wunde auf die Hand und 2 in den Ablagestapel. Für das K.-o.-Gehen ist 1 zusätzliche Wunde nötig. Entferne nach dem Kampf so viele Wunden, wie Gegner besiegt wurden. Lege diese Fertigkeit in die Quelle. Ein verbündeter Ritter erhält 1 Block oder Block in Höhe des Absolutwerts deines Rufs. Lege sie zu Beginn des nächsten Zuges verdeckt zurück.",
+							["9d866a"]="{en}Double your Armor when assigning damage. Gain 1 extra Wound per damage source to your hand and 2 to the discard pile. Knock Out requires 1 extra Wound. After combat, throw out Wounds equal to defeated enemies. Place this skill into the Source. A friendly Knight gains 1 Block or Block equal to your unsigned Reputation. Return face down at the start of next turn.{it}Raddoppia l'Armatura nell'assegnazione dei danni. Per ogni fonte di danno, ricevi 1 Ferita extra in mano e 2 negli scarti. Per lo Svenimento serve 1 Ferita extra. Dopo il combattimento, elimina tante Ferite quanti nemici hai sconfitto. Metti l'abilità nella Fonte. Un Cavaliere amico ottiene Blocco 1 o Blocco pari al valore assoluto della tua Reputazione. Restituiscila coperta all'inizio del prossimo turno.{ru}Удвойте свою Броню при распределении урона. За каждый источник урона получите дополнительно 1 Рану в руку и 2 в сброс. Для нокаута требуется на 1 Рану больше. После боя удалите столько Ран, сколько врагов было побеждено. Поместите этот навык в Источник. Дружественный Рыцарь-маг получает 1 Блок или Блок, равный абсолютному значению вашей Репутации. В начале следующего хода верните навык лицом вниз.{zh-tw}分配傷害時，你的護甲加倍。每個傷害來源額外獲得 1 張創傷到手牌、2 張創傷到棄牌堆。被擊倒需要多 1 張創傷。戰鬥後，移除等同於被擊敗敵人數量的創傷。將此技能放入魔力源。友方魔法騎士獲得 1 點格擋，或等同於你聲望絕對值的格擋。下一回合開始時將此技能面朝下歸還。{zh-cn}分配伤害时，你的护甲加倍。每个伤害来源额外获得 1 张创伤到手牌、2 张创伤到弃牌堆。被击倒需要多 1 张创伤。战斗后，移除等同于被击败敌人数量的创伤。将此技能放入魔力源。友方魔法骑士获得 1 点格挡，或等同于你声望绝对值的格挡。下一回合开始时将此技能面朝下归还。{ko}피해를 배정할 때 방어력을 두 배로 계산합니다. 피해 원천마다 손에 부상 1장을 추가로 받고 버린 카드 더미에 2장을 받습니다. 쓰러지려면 부상 1장이 더 필요합니다. 전투 후 처치한 적 수만큼 부상을 제거합니다. 이 스킬을 마나 원천에 놓습니다. 아군 마법기사는 방어 1 또는 당신의 평판 절댓값만큼 방어를 얻습니다. 다음 차례 시작에 뒷면으로 되돌립니다.{es}Duplica tu Armadura al asignar daño. Recibe 1 Herida adicional en tu mano y 2 en el descarte por cada fuente de daño. Quedar Inconsciente requiere 1 Herida adicional. Después del combate, elimina tantas Heridas como enemigos derrotados. Coloca esta habilidad en la Fuente. Un Caballero aliado obtiene 1 Bloqueo o Bloqueo igual al valor absoluto de tu Reputación. Devuélvela boca abajo al comienzo del siguiente turno.{fr}Doublez votre Armure lors de l’attribution des dégâts. Pour chaque source de dégâts, gagnez 1 Blessure supplémentaire en main et 2 dans la défausse. Être Assommé nécessite 1 Blessure supplémentaire. Après le combat, retirez autant de Blessures que d’ennemis vaincus. Placez cette compétence dans la Source. Un Chevalier allié gagne 1 Blocage ou un Blocage égal à la valeur absolue de votre Réputation. Remettez-la face cachée au début du prochain tour.{pt-br}Dobre sua Armadura ao atribuir dano. Para cada fonte de dano, receba 1 Ferimento extra na mão e 2 na pilha de descarte. Ser Nocauteado exige 1 Ferimento extra. Após o combate, remova Ferimentos em quantidade igual aos inimigos derrotados. Coloque esta habilidade na Fonte. Um Cavaleiro aliado ganha 1 Bloqueio ou Bloqueio igual ao valor absoluto da sua Reputação. Devolva-a virada para baixo no início do próximo turno.{de}Verdopple deine Rüstung beim Zuweisen von Schaden. Erhalte pro Schadensquelle 1 zusätzliche Wunde auf die Hand und 2 in den Ablagestapel. Für das K.-o.-Gehen ist 1 zusätzliche Wunde nötig. Entferne nach dem Kampf so viele Wunden, wie Gegner besiegt wurden. Lege diese Fertigkeit in die Quelle. Ein verbündeter Ritter erhält 1 Block oder Block in Höhe des Absolutwerts deines Rufs. Lege sie zu Beginn des nächsten Zuges verdeckt zurück.",
 							["adf8ab"]="{en}Once a turn:\n\nPay a mana of any color and throw away a Wound from your hand. Also draw a card.{it}Una volta per turno:\n\nPaga un mana di qualsiasi colore ed elimina una Ferita dalla mano. Pesca anche una carta.{ru}Один раз в ход:\n\nПотратьте ману любого цвета и удалите карту раны с руки. Возьмите одну карту.{zh-tw}每回合一次：\n\n支付一点任意颜色的魔力，从手牌中去除一张创伤卡，抽一张卡牌。{zh-cn}每回合一次：\n\n支付一点任意颜色的魔力，从手牌中去除一张创伤卡，抽一张卡牌。{ko}차례에 한번:\n\n아무 색상 마나를 지불하고 손에 든 부상 하나를 제거한다. 추가로 카드 1장을 뽑는다.{es}Una vez por Turno:\n\nPaga un maná de cualquier color y tira una herida de tu mano. También roba una carta.{fr}Une fois par Tour:\n\nPayez un mana de n'importe quelle couleur et jetez une Blessure de votre main. Piochez également une carte.{pt-br}Uma vez por Turno:\n\nPague uma mana de qualquer cor e jogue fora um Ferimento da sua mão. Também compre uma carta.{de}Einmal pro Zug:\n\nBezahle ein Mana beliebiger Farbe und wirf eine Wundenkarte aus deiner Hand ab. Ziehe außerdem eine Karte."}
 
 local competitiveSkillStateTargetByGUID={
@@ -6153,10 +6155,10 @@ function refreshMonsterHoverDescription(hover_object)
 				end
 				--Leader Blurb
 				if guid==darkCrusader.token or guid==elementalist.token then
-					monsterDescription="{en}Faction Leaders are attacked and blocked in the same way as other enemies.\n\nDealing damage to beat the Leaders armour value will reduce his level by 1.\n\nYou may attack with enough damage to do multiple of the Leaders armour value and reduce his level more.\n\nThe leader will reduce level for the next fight if not reduced to zero level\n\n{it}I Capi Fazione si attaccano e si bloccano come gli altri nemici.\n\nInfliggere danni sufficienti a superarne l'armatura riduce il livello di 1.\n\nPuoi infliggere multipli dell'armatura per ridurre il livello di più punti.\n\nSe non arriva a zero, il capo avrà il livello ridotto nel prossimo combattimento.\n\n{ru}Лидеры фракций атакуются и блокируются так же, как и другие враги.\n\nНанесение урона, превышающего значение брони лидера, снизит его уровень на 1.\n\nВы можете нанести урон, превышающий значение брони лидера, и снизить его уровень еще больше.\n\nЛидер снизит уровень для следующего боя, если он не будет снижен до нуля.{zh-tw}派系首领的攻击与防御机制与其他敌人相同。\n\n造成超过首领护甲值的伤害可使其等级降低1级。\n\n若单次攻击伤害值达到首领护甲值的倍数，可使其等级多次递减。\n\n若首领未被降至零级，其等级将在下次战斗中继续递减。{zh-cn}派系首领的攻击与防御机制与其他敌人相同。\n\n造成超过首领护甲值的伤害可使其等级降低1级。\n\n若单次攻击伤害值达到首领护甲值的倍数，可使其等级多次递减。\n\n若首领未被降至零级，其等级将在下次战斗中继续递减。{ko}파벌 지도자는 다른 적과 동일한 방식으로 공격 및 차단됩니다.\n\n지도자의 방어력 수치를 초과하는 피해를 입히면 그의 레벨이 1 감소합니다.\n\n지도자의 방어력 수치보다 큰 피해를 입혀 레벨을 더 많이 감소시킬 수 있습니다.\n\n지도자의 레벨이 0이 되지 않은 경우, 다음 전투에서 레벨이 감소합니다.{es}Los líderes de facción son atacados y bloqueados de la misma manera que otros enemigos.\n\nInfligir daño que supere el valor de armadura del líder reducirá su nivel en 1.\n\nPuedes atacar con suficiente daño como para superar varias veces el valor de armadura del líder y reducir aún más su nivel.\n\nEl líder reducirá su nivel para la siguiente lucha si no se reduce a cero.{fr}Les chefs de faction sont attaqués et bloqués de la même manière que les autres ennemis.\n\nInfliger des dégâts supérieurs à la valeur d'armure du chef réduira son niveau de 1.\n\nVous pouvez attaquer en infligeant des dégâts supérieurs à la valeur d'armure du chef et réduire davantage son niveau.\n\nLe chef réduira son niveau pour le prochain combat s'il n'est pas réduit à zéro.{pt-br}Os líderes das facções são atacados e bloqueados da mesma forma que outros inimigos.\n\nCausar danos que superem o valor da armadura do líder reduzirá o seu nível em 1.\n\nPode atacar com danos suficientes para causar múltiplos do valor da armadura do líder e reduzir ainda mais o seu nível.\n\nO líder reduzirá o nível para a próxima luta se não for reduzido ao nível zero.{de}Fraktionsanführer werden genauso angegriffen und geblockt wie andere Gegner. \n\nWenn du Schaden verursachst, der den Rüstungswert des Anführers übersteigt, sinkt sein Level um 1. \n\nDu kannst mit ausreichend Schaden angreifen, um den Rüstungswert des Anführers mehrfach zu übertreffen und sein Level weiter zu senken. \n\nDer Anführer senkt sein Level für den nächsten Kampf, wenn es nicht auf Null gesunken ist. \n\n"
+					monsterDescription="{en}Faction Leaders are attacked and blocked in the same way as other enemies.\n\nDealing damage to beat the Leaders armor value will reduce his level by 1.\n\nYou may attack with enough damage to do multiple of the Leaders armor value and reduce his level more.\n\nThe leader will reduce level for the next fight if not reduced to zero level\n\n{it}I Capi Fazione si attaccano e si bloccano come gli altri nemici.\n\nInfliggere danni sufficienti a superarne l'armatura riduce il livello di 1.\n\nPuoi infliggere multipli dell'armatura per ridurre il livello di più punti.\n\nSe non arriva a zero, il capo avrà il livello ridotto nel prossimo combattimento.\n\n{ru}Лидеры фракций атакуются и блокируются так же, как и другие враги.\n\nНанесение урона, превышающего значение брони лидера, снизит его уровень на 1.\n\nВы можете нанести урон, превышающий значение брони лидера, и снизить его уровень еще больше.\n\nЛидер снизит уровень для следующего боя, если он не будет снижен до нуля.{zh-tw}派系首领的攻击与防御机制与其他敌人相同。\n\n造成超过首领护甲值的伤害可使其等级降低1级。\n\n若单次攻击伤害值达到首领护甲值的倍数，可使其等级多次递减。\n\n若首领未被降至零级，其等级将在下次战斗中继续递减。{zh-cn}派系首领的攻击与防御机制与其他敌人相同。\n\n造成超过首领护甲值的伤害可使其等级降低1级。\n\n若单次攻击伤害值达到首领护甲值的倍数，可使其等级多次递减。\n\n若首领未被降至零级，其等级将在下次战斗中继续递减。{ko}파벌 지도자는 다른 적과 동일한 방식으로 공격 및 차단됩니다.\n\n지도자의 방어력 수치를 초과하는 피해를 입히면 그의 레벨이 1 감소합니다.\n\n지도자의 방어력 수치보다 큰 피해를 입혀 레벨을 더 많이 감소시킬 수 있습니다.\n\n지도자의 레벨이 0이 되지 않은 경우, 다음 전투에서 레벨이 감소합니다.{es}Los líderes de facción son atacados y bloqueados de la misma manera que otros enemigos.\n\nInfligir daño que supere el valor de armadura del líder reducirá su nivel en 1.\n\nPuedes atacar con suficiente daño como para superar varias veces el valor de armadura del líder y reducir aún más su nivel.\n\nEl líder reducirá su nivel para la siguiente lucha si no se reduce a cero.{fr}Les chefs de faction sont attaqués et bloqués de la même manière que les autres ennemis.\n\nInfliger des dégâts supérieurs à la valeur d'armure du chef réduira son niveau de 1.\n\nVous pouvez attaquer en infligeant des dégâts supérieurs à la valeur d'armure du chef et réduire davantage son niveau.\n\nLe chef réduira son niveau pour le prochain combat s'il n'est pas réduit à zéro.{pt-br}Os líderes das facções são atacados e bloqueados da mesma forma que outros inimigos.\n\nCausar danos que superem o valor da armadura do líder reduzirá o seu nível em 1.\n\nPode atacar com danos suficientes para causar múltiplos do valor da armadura do líder e reduzir ainda mais o seu nível.\n\nO líder reduzirá o nível para a próxima luta se não for reduzido ao nível zero.{de}Fraktionsanführer werden genauso angegriffen und geblockt wie andere Gegner. \n\nWenn du Schaden verursachst, der den Rüstungswert des Anführers übersteigt, sinkt sein Level um 1. \n\nDu kannst mit ausreichend Schaden angreifen, um den Rüstungswert des Anführers mehrfach zu übertreffen und sein Level weiter zu senken. \n\nDer Anführer senkt sein Level für den nächsten Kampf, wenn es nicht auf Null gesunken ist. \n\n"
 				end
 				--Airborne Dragon attacks reuse the normal attack/ability renderer, but the heads are attackers only:
-				--no Armour/resistance data is registered and the displayed Fame is the single Round reward.
+				--no Armor/resistance data is registered and the displayed Fame is the single Round reward.
 				local airbornePerks=gStates.monsterPerks~=nil and perkData or nil
 				if airbornePerks~=nil and airbornePerks.dragonAirborne==true then
 					local airborneRound=tonumber(airbornePerks.dragonAirborneRound) or tonumber(gStates.currentRound) or 1
@@ -6235,7 +6237,7 @@ function refreshMonsterHoverDescription(hover_object)
 				--brutal
 				if (monsterData~=nil and monsterData.brutal~=nil) or (perkData~=nil and perkData.brutal~=nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]BRUTAL[-][i] - This enemy's attack is doubled if not blocked.[/i]\n\n{it}[00ff00]BRUTALE[-][i] - L'attacco di questo nemico raddoppia se non viene bloccato.[/i]\n\n{ru}[00ff00]ЖЕСТОКАЯ АТАКА[-][i] - Если враг не заблокирован, он наносит вдвое больше урона, чем его значение Атаки.[/i]\n\n{zh-tw}[00ff00]残暴[-][i] - 如果没有被阻挡，这个敌人的攻击会加倍。[/i]\n\n{zh-cn}[00ff00]残暴[-][i] - 如果没有被阻挡，这个敌人的攻击会加倍。[/i]\n\n{ko}[00ff00]난폭[-][i] - 방어하지 못하면, 공격력의 두 배만큼의 대미지를 받음.[/i]\n\n{es}[00ff00]BRUTAL[-][i] - El ataque de este enemigo se duplica si no es bloqueado.[/i]\n\n{fr}[00ff00]BRUTAL[-][i] - L'attaque de cet ennemi est doublée si elle n'est pas bloquée.[/i]\n\n{pt-br}[00ff00]BRUTAL[-][i] - O ataque desse inimigo é dobrado se não for bloqueado.[/i]\n\n{de}[00ff00]BRUTAL[-][i] - Der Angriff dieses Feindes wird verdoppelt, wenn er nicht geblockt wird.[/i]\n\n"}) end
 				--vampiric
-				if monsterData~=nil and monsterData.vampiric~=nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]VAMPIRIC[-][i] - Increase the armour of this enemy by the amount of wounds this enemy has dealt to the player and units.[/i]\n\n{it}[00ff00]VAMPIRICO[-][i] - Aumenta l'armatura di questo nemico del numero di Ferite che ha inflitto al giocatore e alle Unità.[/i]\n\n{ru}[00ff00]ВАМПИРИЗМ[-][i] - Броня врага с вампиризмом увеличивается на 1 до конца битвы каждый раз, когда в результате его атаки отряд получает рану или игрок берёт карту раны в руку.[/i]\n\n{zh-tw}[00ff00]吸血[-][i] - 增加该敌人的护甲，数值为该敌人对玩家和单位造成的伤害值。[/i]\n\n{zh-cn}[00ff00]吸血[-][i] - 增加该敌人的护甲，数值为该敌人对玩家和单位造成的伤害值。[/i]\n\n{ko}[00ff00]흡혈[-][i] - 이 적의 방어구가, 플레이어와 유닛에게 준 부상의 개수만큼 증가합니다.[/i]\n\n{es}[00ff00]VAMPÍRICO[-][i] - Aumenta la armadura de este enemigo por la cantidad de heridas que este enemigo haya infligido al jugador y a las unidades.[/i]\n\n{fr}[00ff00]VAMPIRIC[-][i] - Augmente l'armure de cet ennemi du nombre de blessures qu'il a infligées au joueur et à ses unités.[/i]\n\n{pt-br}[00ff00]VAMPÍRICO[-][i] - Aumenta a armadura desse inimigo pela quantidade de ferimentos que esse inimigo causou ao jogador e às unidades.[/i]\n\n{de}[00ff00]VAMPIRISCH[-][i] - Erhöht die Rüstung dieses Feindes um die Anzahl der Wunden, die dieser Feind dem Spieler und seinen Einheiten zugefügt hat.[/i]\n\n"}) end
+				if monsterData~=nil and monsterData.vampiric~=nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]VAMPIRIC[-][i] - Increase the armor of this enemy by the amount of wounds this enemy has dealt to the player and units.[/i]\n\n{it}[00ff00]VAMPIRICO[-][i] - Aumenta l'armatura di questo nemico del numero di Ferite che ha inflitto al giocatore e alle Unità.[/i]\n\n{ru}[00ff00]ВАМПИРИЗМ[-][i] - Броня врага с вампиризмом увеличивается на 1 до конца битвы каждый раз, когда в результате его атаки отряд получает рану или игрок берёт карту раны в руку.[/i]\n\n{zh-tw}[00ff00]吸血[-][i] - 增加该敌人的护甲，数值为该敌人对玩家和单位造成的伤害值。[/i]\n\n{zh-cn}[00ff00]吸血[-][i] - 增加该敌人的护甲，数值为该敌人对玩家和单位造成的伤害值。[/i]\n\n{ko}[00ff00]흡혈[-][i] - 이 적의 방어구가, 플레이어와 유닛에게 준 부상의 개수만큼 증가합니다.[/i]\n\n{es}[00ff00]VAMPÍRICO[-][i] - Aumenta la armadura de este enemigo por la cantidad de heridas que este enemigo haya infligido al jugador y a las unidades.[/i]\n\n{fr}[00ff00]VAMPIRIC[-][i] - Augmente l'armure de cet ennemi du nombre de blessures qu'il a infligées au joueur et à ses unités.[/i]\n\n{pt-br}[00ff00]VAMPÍRICO[-][i] - Aumenta a armadura desse inimigo pela quantidade de ferimentos que esse inimigo causou ao jogador e às unidades.[/i]\n\n{de}[00ff00]VAMPIRISCH[-][i] - Erhöht die Rüstung dieses Feindes um die Anzahl der Wunden, die dieser Feind dem Spieler und seinen Einheiten zugefügt hat.[/i]\n\n"}) end
 				--Paralyse
 				if (monsterData~=nil and monsterData.paralyse~=nil) or (perkData~=nil and perkData.paralyse~=nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]PARALYZE[-][i] - Player discards all non-wound cards when taking a wound from this enemy. Units are destroyed if taking a wound.[/i]\n\n{it}[00ff00]PARALISI[-][i] - Se subisci una Ferita da questo nemico, scarta tutte le carte non Ferita. Le Unità ferite vengono distrutte.[/i]\n\n{ru}[00ff00]ПАРАЛИЗУЮЩАЯ АТАКА[-][i] - Отряд, получивший рану от такой атаки, немедленно уничтожается. Если герой получает раны от такой атаки, управляющий им игрок немедленно сбрасывает с руки все карты, кроме карт ран.[/i]\n\n{zh-tw}[00ff00]瘫痪[-][i] - 玩家在受到该敌人的伤害时会丢弃所有非受伤的牌。如果受伤，单位将被摧毁。[/i]\n\n{zh-cn}[00ff00]瘫痪[-][i] - 玩家在受到该敌人的伤害时会丢弃所有非受伤的牌。如果受伤，单位将被摧毁。[/i]\n\n{ko}[00ff00]마비[-][i] - 플레이어가 이 공격으로 한 장 이상의 부상을 받으면, 즉시 손에서 부상을 제외한 모든 카드를 버림. 부상을 받은 유닛은 게임에서 제거됨.[/i]\n\n{es}[00ff00]PARALYSE[-][i] - El jugador descarta todas las cartas no heridas al recibir una herida de este enemigo. Las unidades son destruidas si reciben una herida.[/i]\n\n{fr}[00ff00]PARALYSE[-][i] - Le joueur défausse toutes les cartes non blessées lorsqu'il est blessé par cet ennemi. Les unités sont détruites si elles subissent une blessure.[/i]\n\n{pt-br}[00ff00]PARALISIA[-][i] - O jogador descarta todas as cartas não feridas ao receber um ferimento desse inimigo. As unidades são destruídas se receberem um ferimento.[/i]\n\n{de}[00ff00]PARALYSE[-][i] - Der Spieler wirft alle Karten ab, die nicht verwundet sind, wenn er eine Verwundung durch diesen Feind erleidet. Einheiten werden zerstört, wenn sie eine Verwundung erleiden.[/i]\n\n"}) end
 				--assassination
@@ -6244,12 +6246,12 @@ function refreshMonsterHoverDescription(hover_object)
 					--armour
 					local bonus=0
 					if perkData~=nil and perkData.armour~=nil then bonus=perkData.armour end
-					if monsterData~=nil and monsterData.armour~=nil and monsterData.elusive==nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ARMOUR: [-]{it}[00ff00]ARMATURA: [-]{ru}[00ff00]БРОНЯ: [-]{zh-tw}[00ff00]护甲：[-]{zh-cn}[00ff00]护甲：[-]{ko}[00ff00]방어구: [-]{es}[00ff00]ARMADURA: [-]{fr}[00ff00]ARMURE : [-]{pt-br}[00ff00] ARMADURA: [-]{de}[00ff00]RÜSTUNG: [-]", tostring(monsterData.armour+bonus), "\n\n"}) end
-					if monsterData~=nil and monsterData.armour~=nil and monsterData.elusive~=nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ARMOUR: [-]{it}[00ff00]ARMATURA: [-]{ru}[00ff00]БРОНЯ: [-]{zh-tw}[00ff00]护甲：[-]{zh-cn}[00ff00]护甲：[-]{ko}[00ff00]방어구: [-]{es}[00ff00]ARMADURA: [-]{fr}[00ff00]ARMURE : [-]{pt-br}[00ff00] ARMADURA: [-]{de}[00ff00]RÜSTUNG: [-]", tostring(monsterData.armour+bonus), "[7b7b7b]/", tostring((monsterData.armour*2)+bonus), "[-]\n\n"}) end
+					if monsterData~=nil and monsterData.armour~=nil and monsterData.elusive==nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ARMOR: [-]{it}[00ff00]ARMATURA: [-]{ru}[00ff00]БРОНЯ: [-]{zh-tw}[00ff00]护甲：[-]{zh-cn}[00ff00]护甲：[-]{ko}[00ff00]방어구: [-]{es}[00ff00]ARMADURA: [-]{fr}[00ff00]ARMURE : [-]{pt-br}[00ff00] ARMADURA: [-]{de}[00ff00]RÜSTUNG: [-]", tostring(monsterData.armour+bonus), "\n\n"}) end
+					if monsterData~=nil and monsterData.armour~=nil and monsterData.elusive~=nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ARMOR: [-]{it}[00ff00]ARMATURA: [-]{ru}[00ff00]БРОНЯ: [-]{zh-tw}[00ff00]护甲：[-]{zh-cn}[00ff00]护甲：[-]{ko}[00ff00]방어구: [-]{es}[00ff00]ARMADURA: [-]{fr}[00ff00]ARMURE : [-]{pt-br}[00ff00] ARMADURA: [-]{de}[00ff00]RÜSTUNG: [-]", tostring(monsterData.armour+bonus), "[7b7b7b]/", tostring((monsterData.armour*2)+bonus), "[-]\n\n"}) end
 					--Elusive
-					if monsterData~=nil and monsterData.elusive~=nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ELUSIVE[-][i] - This enemy's higher Armour value is used until successfully Blocked.[/i]\n\n{it}[00ff00]ELUSIVO[-][i] - Usa il valore di Armatura più alto di questo nemico finché non viene Bloccato con successo.[/i]\n\n{ru}[00ff00]НЕУЛОВИМЫЙ[-][i] - Меньшее значение брони используется только в фазе ближнего боя и только если все атаки этого врага были успешно заблокированы.[/i]\n\n{zh-tw}[00ff00]盾逸 [-][i]-该敌人的较高护甲值会被使用，直到成功阻挡。[/i]\n\n{zh-cn}[00ff00]盾逸 [-][i]-该敌人的较高护甲值会被使用，直到成功阻挡。[/i]\n\n{ko}[00ff00]은밀함[-][i] - 이 공격을 성공적으로 방어하기 전 까지, 더 높은 방어구 수치를 적용.[/i]\n\n{es}[00ff00]ELUSIVO[-][i] - El valor de Armadura más alto de este enemigo se utiliza hasta que es Bloqueado con éxito.[/i]\n\n{fr}[00ff00]ELUSIVE[-][i] - La valeur d'armure la plus élevée de cet ennemi est utilisée jusqu'à ce qu'il soit bloqué avec succès.[/i]\n\n{pt-br}[00ff00]ELUSIVO[-][i] - O valor mais alto de Armadura desse inimigo é usado até que ele seja bloqueado com sucesso[/i]\n\n{de}[00ff00]ELUSIV[-][i] - Der höhere Rüstungswert dieses Gegners wird verwendet, bis er erfolgreich geblockt wird[/i]\n\n"}) end
+					if monsterData~=nil and monsterData.elusive~=nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ELUSIVE[-][i] - This enemy's higher Armor value is used until successfully Blocked.[/i]\n\n{it}[00ff00]ELUSIVO[-][i] - Usa il valore di Armatura più alto di questo nemico finché non viene Bloccato con successo.[/i]\n\n{ru}[00ff00]НЕУЛОВИМЫЙ[-][i] - Меньшее значение брони используется только в фазе ближнего боя и только если все атаки этого врага были успешно заблокированы.[/i]\n\n{zh-tw}[00ff00]盾逸 [-][i]-该敌人的较高护甲值会被使用，直到成功阻挡。[/i]\n\n{zh-cn}[00ff00]盾逸 [-][i]-该敌人的较高护甲值会被使用，直到成功阻挡。[/i]\n\n{ko}[00ff00]은밀함[-][i] - 이 공격을 성공적으로 방어하기 전 까지, 더 높은 방어구 수치를 적용.[/i]\n\n{es}[00ff00]ELUSIVO[-][i] - El valor de Armadura más alto de este enemigo se utiliza hasta que es Bloqueado con éxito.[/i]\n\n{fr}[00ff00]ELUSIVE[-][i] - La valeur d'armure la plus élevée de cet ennemi est utilisée jusqu'à ce qu'il soit bloqué avec succès.[/i]\n\n{pt-br}[00ff00]ELUSIVO[-][i] - O valor mais alto de Armadura desse inimigo é usado até que ele seja bloqueado com sucesso[/i]\n\n{de}[00ff00]ELUSIV[-][i] - Der höhere Rüstungswert dieses Gegners wird verwendet, bis er erfolgreich geblockt wird[/i]\n\n"}) end
 					--defender
-					if monsterData~=nil and monsterData.defend~=nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]DEFENDER[-][i] - The first enemy attacked by the player gets {it}[00ff00]DIFENSORE[-][i] - Il primo nemico attaccato dal giocatore ottiene {ru}[00ff00]ПРИКРЫТИЕ[-][i] - Первый враг, атакованный игроком, получает {zh-tw}[00ff00]守护[-][i] - 第一个被玩家攻击的敌人会被增加护甲。{zh-cn}[00ff00]守护[-][i] - 第一个被玩家攻击的敌人会被增加护甲。{ko}[00ff00]수비[-][i] - 플레이어가 처음 공격하는 적에게{es}[00ff00]DEFENSOR[-][i] - El primer enemigo atacado por el jugador obtiene {fr}[00ff00]DEFENDER[-][i] - Le premier ennemi attaqué par le joueur voit son armure augmentée {pt-br}[00ff00]DEFENSOR[-][i] - O primeiro inimigo atacado pelo jogador recebe {de}[00ff00]VERTEIDIGER[-][i] - Der erste vom Spieler angegriffene Feind erhält ", monsterData.defend, "{en} added to its armour.[/i]\n\n{it} Armatura aggiuntiva.[/i]\n\n{ru} к его броне.[/i]\n\n{zh-tw}增加其护甲。[/i]\n\n{zh-cn}增加其护甲。[/i]\n\n{ko}방어구를 추가.[/i]\n\n{es} se añade a su armadura.[/i]\n\n{fr}ajouté à son armure.[/i]\n\n{pt-br} adicionado à sua armadura.[/i]\n\n{de} zu seiner Rüstung hinzugefügt.[/i]\n\n"}) end
+					if monsterData~=nil and monsterData.defend~=nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]DEFENDER[-][i] - The first enemy attacked by the player gets {it}[00ff00]DIFENSORE[-][i] - Il primo nemico attaccato dal giocatore ottiene {ru}[00ff00]ПРИКРЫТИЕ[-][i] - Первый враг, атакованный игроком, получает {zh-tw}[00ff00]守护[-][i] - 第一个被玩家攻击的敌人会被增加护甲。{zh-cn}[00ff00]守护[-][i] - 第一个被玩家攻击的敌人会被增加护甲。{ko}[00ff00]수비[-][i] - 플레이어가 처음 공격하는 적에게{es}[00ff00]DEFENSOR[-][i] - El primer enemigo atacado por el jugador obtiene {fr}[00ff00]DEFENDER[-][i] - Le premier ennemi attaqué par le joueur voit son armure augmentée {pt-br}[00ff00]DEFENSOR[-][i] - O primeiro inimigo atacado pelo jogador recebe {de}[00ff00]VERTEIDIGER[-][i] - Der erste vom Spieler angegriffene Feind erhält ", monsterData.defend, "{en} added to its armor.[/i]\n\n{it} Armatura aggiuntiva.[/i]\n\n{ru} к его броне.[/i]\n\n{zh-tw}增加其护甲。[/i]\n\n{zh-cn}增加其护甲。[/i]\n\n{ko}방어구를 추가.[/i]\n\n{es} se añade a su armadura.[/i]\n\n{fr}ajouté à son armure.[/i]\n\n{pt-br} adicionado à sua armadura.[/i]\n\n{de} zu seiner Rüstung hinzugefügt.[/i]\n\n"}) end
 					--Printed, site/city and wall fortifications are separate sources; display only their combined effect.
 					local printedFortified=monsterData~=nil and monsterData.fortified~=nil
 					local grantedFortified=perkData~=nil and perkData.fortified~=nil
@@ -21805,6 +21807,7 @@ local damageOwnerSignatures={}
 local damageTargetUnits={}
 local damageSignature=""
 local assignmentThickness=0.08
+local damageThickness=0.045 -- Thinner red enemy-to-Unit damage links; other arrows unchanged.
 local previewThickness=0.047
 local assignmentHeight=1.1
 local previewHeight=1.3
@@ -21864,7 +21867,9 @@ end
 local function isAssignmentLine(line)
 	return type(line)=="table" and assignmentColorMatches(line.color)
 		and type(line.thickness)=="number"
-		and (math.abs(line.thickness-assignmentThickness)<0.001 or math.abs(line.thickness-previewThickness)<0.001)
+		and (math.abs(line.thickness-assignmentThickness)<0.001
+            or math.abs(line.thickness-damageThickness)<0.001
+            or math.abs(line.thickness-previewThickness)<0.001)
 end
 
 local function vectorComponents(vector)
@@ -21916,7 +21921,9 @@ local function assignmentLines(source,target,color,noHead)
 	local dx,dz=to[1]-from[1],to[3]-from[3]
 	local distance=math.sqrt(dx*dx+dz*dz)
 	if distance<0.01 then return nil end
-	if noHead then return {{points={from,to},color=color,thickness=assignmentThickness,rotation={0,0,0}}} end
+	if noHead then return {{points={from,to},color=color,
+        thickness=color==assignmentColors.damage and damageThickness or assignmentThickness,
+        rotation={0,0,0}}} end
 	local dirX,dirZ=dx/distance,dz/distance
 	local pullBack=math.min(arrowHeadLength*3,distance*0.5)
 	to={to[1]-dirX*pullBack,assignmentHeight,to[3]-dirZ*pullBack}
@@ -22108,6 +22115,39 @@ local function addDamageTargetButton(obj,clickFunction)
 	damageButtonObjects[obj.guid]=obj
 end
 
+-- Decals are mirrored across local X from native click buttons (the
+-- DamageTarget decal sits at -buttonX). Only decals on that visual LEFT
+-- edge and near the target marker's centre row need horizontal clearance.
+-- Blue City's Elemental (+Attack) and AllAttack+ are here; the right-side
+-- Poison/Brutal icons and high Fortified icon should not shift the marker.
+local function damageTargetButtonX(obj)
+    -- getBounds() is a WORLD-axis-aligned box. Lifting/rotating a token can
+    -- enlarge its X extent even though the token and its local decals are
+    -- unchanged. Placement must use the rotation-independent local footprint.
+    local bounds=obj.getBoundsNormalized()
+    local scale=obj.getScale()
+    local size=bounds~=nil and bounds.size or nil
+    local radius=(size~=nil and (size.x or size[1]) or 1.5)
+        /((scale~=nil and (scale.x or scale[1])) or 1)/2
+    local x=-(radius+0.35)
+    for _,decal in ipairs(obj.getDecals() or {}) do
+        local p=decal.position
+        if (type(p)=="table" or type(p)=="userdata")
+            and not tostring(decal.name or ""):find("^DamageTarget") then
+            local px,pz=p.x or p[1],p.z or p[3]
+            if type(px)=="number" and type(pz)=="number"
+                and px>0.8 and math.abs(pz)<0.55 then
+                -- Keep the same clearance as the original design, but on
+                -- the correct mirrored side of the object.
+                x=math.min(x,-px-0.61)
+            end
+        end
+    end
+    -- Avoid re-creating decals/buttons for insignificant float drift when
+    -- the same token is handled, moved or rotated.
+    return math.floor(x*1000+0.5)/1000
+end
+
 local function rebuildDamageButtons()
     -- Change only owners whose attack buttons have changed. A Block adjustment
     -- often changes damage values but not the physical buttons/decals.
@@ -22119,22 +22159,13 @@ local function rebuildDamageButtons()
             for _,attack in ipairs(list) do keys[#keys+1]=attack.key end
             local signature=table.concat(keys,"|")
             desiredOwners[owner]=signature
-            if damageOwnerSignatures[owner]~=signature then
+            local x=damageTargetButtonX(obj)
+            -- A City bonus can be added or removed after the damage button
+            -- already exists. Reposition only when its actual clearance
+            -- changes, without redrawing it on every calculator refresh.
+            if damageOwnerSignatures[owner]~=signature or damageButtonX[owner]~=x then
                 if damageOwnerSignatures[owner]~=nil then removeDamageButtons(obj) end
-                if damageButtonX[owner]==nil then
-                    local bounds=obj.getBounds()
-                    local scale=obj.getScale()
-                    local radius=(bounds~=nil and bounds.size~=nil and bounds.size[1] or 1.5)
-                        /((scale~=nil and scale.x) or 1)/2
-                    local x=-(radius+0.35)
-                    for _,decal in ipairs(obj.getDecals() or {}) do
-                        local p=decal.position
-                        local px=type(p)=="table" and (p[1] or p.x) or nil
-                        if px~=nil and px<-0.8 then x=math.min(x,px-0.71) end
-                    end
-                    damageButtonX[owner]=x
-                end
-                local x=damageButtonX[owner]
+                damageButtonX[owner]=x
                 local decals=obj.getDecals() or {}
                 for index in ipairs(list) do
                     local z=(index-(#list+1)/2)*0.65
@@ -22243,9 +22274,22 @@ function attackAssignmentsDamageSync(spec)
 	table.sort(unitGUIDs)
 	parts[#parts+1]=table.concat(unitGUIDs,",")
 	local signature=table.concat(parts,";")
-	if signature~=damageSignature then
-		damageSignature=signature
-		rebuildDamageButtons()
+    -- Bonus decals may appear/disappear after the attack buttons are created.
+    -- Recheck their lateral clearance while retaining the cheap signature path.
+    local clearanceChanged=false
+    if signature==damageSignature then
+        for owner in pairs(damageSpec.byOwner) do
+            local obj=getObjectFromGUID(owner)
+            if obj~=nil and not obj.isDestroyed()
+                and damageButtonX[owner]~=damageTargetButtonX(obj) then
+                clearanceChanged=true
+                break
+            end
+        end
+    end
+    if signature~=damageSignature or clearanceChanged then
+        damageSignature=signature
+        rebuildDamageButtons()
 		-- Red damage lines coexist with Unit source-target lines. On block/unblock
 		-- transitions, force reconciliation even if another system redrew vectors.
 		refreshRenderedLines(true)
@@ -22257,7 +22301,272 @@ function attackAssignmentsDamageTargetsOf(key)
 	return damageTargets[key] or {}
 end
 
+
+-- Provisional Unit damage is a physical overlay, never a real Unit Wound until End Turn.
+-- The tag/GM Notes deliberately prevent Resource Tracker scans and scoring from treating
+-- these tokens as wounds. Keeping the live token GUIDs also makes recalculation idempotent.
+local PREVIEW_WOUND_TAG="CombatPreviewWound"
+local PREVIEW_WOUND_HEIGHT=1.16
+local PREVIEW_WOUND_ALPHA=150/255
+local previewWoundsByUnit={}
+local previewUnitBags={}
+local previewBagWarnings={}
+local previewOrphansScanned=false
+local previewParalysisClick="attackAssignmentParalysisMarkerNoop"
+
+function attackAssignmentParalysisMarkerNoop() end
+
+local function previewUnitMarker(unit,show)
+    if unit==nil then return end
+    local found={}
+    for _,button in ipairs(unit.getButtons() or {}) do
+        if button.click_function==previewParalysisClick then found[#found+1]=button.index end
+    end
+    if #found>0 then
+        for i=#found,1,-1 do unit.removeButton(found[i]) end
+    end
+    if show~=true then return end
+    -- Same free-floating red X convention as defeated enemy tokens.
+    local bounds=unit.getBoundsNormalized()
+    local scale=unit.getScale()
+    local height=bounds~=nil and bounds.size~=nil and (bounds.size.y or bounds.size[2]) or 0
+    local scaleY=scale~=nil and (scale.y or scale[2]) or 1
+    unit.createButton({click_function=previewParalysisClick,function_owner=Global,label="X",
+        position={0,math.max(0.12,height/(2*math.max(0.01,scaleY))+0.08),0},
+        rotation={0,0,0},width=0,height=0,font_size=640,
+        font_color={1,0.04,0.04},tooltip="Combat Calculator: Unit destroyed by Paralysis"})
+end
+
+local function previewWoundPosition(unit,seat,slot)
+    local board=playerBoard~=nil and getObjectFromGUID(playerBoard[seat]) or nil
+    local candidates={}
+    local pos=unit.getPosition()
+    local unitX,unitZ=pos.x or pos[1],pos.z or pos[3]
+    if board~=nil then
+        for _,point in ipairs(board.getSnapPoints() or {}) do
+            local wound=false
+            for _,tag in ipairs(point.tags or {}) do
+                if tag=="Wound" then wound=true break end
+            end
+            if wound then
+                local world=board.positionToWorld(point.position)
+                local x,z=world.x or world[1],world.z or world[3]
+                local dx=math.abs(x-unitX)
+                local dz=math.abs(z-unitZ)
+                if dx<1.6 and dz<2.5 then
+                    candidates[#candidates+1]={x=x,z=z,distance=dx+dz*0.1}
+                end
+            end
+        end
+    end
+    -- The three nearest Wound snaps belong to the Unit even after layout compression.
+    if #candidates>=3 then
+        table.sort(candidates,function(a,b) return a.distance<b.distance end)
+        local three={candidates[1],candidates[2],candidates[3]}
+        table.sort(three,function(a,b) return a.x<b.x end)
+        local selected=three[slot]
+        return {selected.x,PREVIEW_WOUND_HEIGHT,selected.z}
+    end
+    -- If a custom mat has no recognized snaps, keep the token at the standard wound row.
+    return {unitX+(slot-2)*0.57,PREVIEW_WOUND_HEIGHT,-33.29}
+end
+
+local function previewWoundBag(seat)
+    local guid=previewUnitBags[seat]
+    local cached=guid~=nil and getObjectFromGUID(guid) or nil
+    if cached~=nil then return cached end
+    local board=playerBoard~=nil and getObjectFromGUID(playerBoard[seat]) or nil
+    if board==nil then return nil end
+    local boardPosition=board.getPosition()
+    local centerX=boardPosition.x or boardPosition[1]
+    local best,bestDistance=nil,math.huge
+    for _,obj in ipairs(getObjects()) do
+        if obj.getGMNotes()=="Unit Wounds" then
+            local candidatePos=obj.getPosition()
+            local distance=math.abs((candidatePos.x or candidatePos[1])-centerX)
+            if distance<bestDistance then best,bestDistance=obj,distance end
+        end
+    end
+    if best~=nil and bestDistance<20 then
+        previewUnitBags[seat]=best.guid
+        return best
+    end
+    if previewBagWarnings[seat]~=true then
+        previewBagWarnings[seat]=true
+        print("COMBAT PREVIEW: Missing Unit Wounds infinite bag for player mat "..tostring(seat))
+    end
+    return nil
+end
+
+local function previewDiscardWounds(entry)
+    for _,guid in pairs(entry.guids or {}) do
+        local obj=getObjectFromGUID(guid)
+        if obj~=nil and obj.hasTag(PREVIEW_WOUND_TAG) then obj.destruct() end
+    end
+    if entry.kind=="destroyed" then previewUnitMarker(getObjectFromGUID(entry.unitGUID),false) end
+end
+
+-- Existing previews from a saved table may have no Lua registry. Sweep only marked
+-- temporary objects; ordinary, permanent Unit Wounds must never be touched.
+local function previewSweepOrphans()
+    -- The production API always supplies getObjects; pure Lua targeting tests may not.
+    if previewOrphansScanned or getObjects==nil then return end
+    previewOrphansScanned=true
+    for _,obj in ipairs(getObjects()) do
+        if obj.hasTag(PREVIEW_WOUND_TAG) or obj.getGMNotes()=="Combat Preview Wound" then
+            obj.destruct()
+        elseif obj.type=="Card" and unitLayoutIsUnit~=nil and unitLayoutIsUnit(obj) then
+            -- A saved Paralysis X can outlive the unsaved runtime registry.
+            previewUnitMarker(obj,false)
+        end
+    end
+end
+
+function attackAssignmentsUnitPreviewClear()
+    for guid,entry in pairs(previewWoundsByUnit) do
+        if not entry.committed then previewDiscardWounds(entry) end
+        previewWoundsByUnit[guid]=nil
+    end
+    previewSweepOrphans()
+end
+
+local function previewMakePermanent(token)
+    if token==nil then return end
+    token.setGMNotes("Unit Wound")
+    if token.hasTag(PREVIEW_WOUND_TAG) then token.removeTag(PREVIEW_WOUND_TAG) end
+    token.setColorTint({r=1,g=1,b=1,a=1})
+    -- Preview wounds remain locked while planning; official wounds are movable
+    -- for normal play/healing as soon as End Turn makes them permanent.
+    token.unlock()
+end
+
+local function previewSpawnWound(entry,slot,position)
+    if entry.guids[slot]~=nil or entry.pending[slot] then return end
+    local bag=previewWoundBag(entry.seat)
+    if bag==nil then return end
+    entry.pending[slot]=true
+    local function finish(token)
+        if token==nil then return end
+        -- TTS may invoke the callback after a previous recalculation has deleted it.
+        token=getObjectFromGUID(token.guid)
+        if token==nil then return end
+        entry.pending[slot]=nil
+        if entry.committed then
+            previewMakePermanent(token)
+            local unit=getObjectFromGUID(entry.unitGUID)
+            token.setPosition(unit~=nil and previewWoundPosition(unit,entry.seat,slot) or position)
+            return
+        end
+        if previewWoundsByUnit[entry.unitGUID]~=entry or
+            (resourceCardsPanelOpen~=nil and not resourceCardsPanelOpen()) then
+            token.destruct()
+            return
+        end
+        -- This is a ghost, not a gameplay Wound until the End Turn boundary.
+        token.setGMNotes("Combat Preview Wound")
+        if not token.hasTag(PREVIEW_WOUND_TAG) then token.addTag(PREVIEW_WOUND_TAG) end
+        token.setColorTint(entry.kind=="poison"
+            and {r=0.32,g=1,b=0.38,a=PREVIEW_WOUND_ALPHA}
+            or {r=1,g=1,b=1,a=PREVIEW_WOUND_ALPHA})
+        local unit=getObjectFromGUID(entry.unitGUID)
+        token.setPosition(unit~=nil and previewWoundPosition(unit,entry.seat,slot) or position)
+        token.lock()
+        entry.guids[slot]=token.guid
+    end
+    -- Spawn beside the source bag and classify immediately, before moving into the Unit zone.
+    local bagPos=bag.getPosition()
+    local token=bag.takeObject({position={bagPos.x or bagPos[1],(bagPos.y or bagPos[2])+2,bagPos.z or bagPos[3]},smooth=false,callback_function=finish})
+    -- Mark it immediately as well as in the callback, before zone-entry scans.
+    if token~=nil then finish(token) end
+end
+
+-- Called after damage is calculated, so full resistance creates no wound.
+-- Paralysis is a destroyed Unit: show a red X rather than drawing Wounds.
+function attackAssignmentsUnitPreviewSync(seat,results,selfWounds)
+    if seat==nil or (resourceCardsPanelOpen~=nil and not resourceCardsPanelOpen())
+        or (gStates~=nil and gStates.preEndTurn==true) then return end
+    previewSweepOrphans()
+    local wanted={}
+    for _,result in pairs(results or {}) do
+        for _,entry in ipairs(result.units or {}) do
+            if entry.wounded==true and entry.unit~=nil then
+                local guid=entry.unit.guid
+                wanted[guid]={kind=entry.destroyed and "destroyed" or
+                    ((entry.wounds or 1)>1 and "poison" or "normal"),seat=seat}
+            end
+        end
+    end
+    -- Some Units wound themselves when their selected ability is used.
+    -- Enemy damage takes precedence: one Unit never receives duplicate ghosts.
+    for guid in pairs(selfWounds or {}) do
+        if wanted[guid]==nil then wanted[guid]={kind="normal",seat=seat} end
+    end
+    for guid,entry in pairs(previewWoundsByUnit) do
+        local desired=wanted[guid]
+        if desired==nil or desired.kind~=entry.kind or desired.seat~=entry.seat then
+            previewDiscardWounds(entry)
+            previewWoundsByUnit[guid]=nil
+        end
+    end
+    for guid,desired in pairs(wanted) do
+        local unit=getObjectFromGUID(guid)
+        if unit~=nil then
+            local entry=previewWoundsByUnit[guid]
+            if entry==nil then
+                entry={unitGUID=guid,seat=seat,kind=desired.kind,guids={},pending={}}
+                previewWoundsByUnit[guid]=entry
+                if desired.kind=="destroyed" then previewUnitMarker(unit,true) end
+            end
+            if desired.kind~="destroyed" then
+                local slots=desired.kind=="poison" and {1,3} or {2}
+                for _,slot in ipairs(slots) do
+                    local position=previewWoundPosition(unit,seat,slot)
+                    local tokenGUID=entry.guids[slot]
+                    local token=tokenGUID~=nil and getObjectFromGUID(tokenGUID) or nil
+                    if token~=nil then
+                        local old=token.getPosition()
+                        if math.abs(old.x-position[1])>0.025 or math.abs(old.z-position[3])>0.025
+                            or math.abs(old.y-PREVIEW_WOUND_HEIGHT)>0.025 then token.setPosition(position) end
+                    else
+                        entry.guids[slot]=nil
+                        previewSpawnWound(entry,slot,position)
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- This is the *end of turn*, not the end of round. Make Wounds official
+-- before ordinary player-area cleanup runs. Closing the tracker instead
+-- removes all pending ghosts without committing any of them.
+function attackAssignmentsUnitPreviewCommit(seat)
+    if seat==nil then return end
+    for guid,entry in pairs(previewWoundsByUnit) do
+        if entry.seat==seat then
+            entry.committed=true
+            if entry.kind=="destroyed" then
+                previewUnitMarker(getObjectFromGUID(guid),false)
+                local unit=getObjectFromGUID(guid)
+                -- A Paralyzed Unit is destroyed rather than Wounded.
+                local trash=getObjectFromGUID(trashCan)
+                if unit~=nil and trash~=nil then
+                    protectedObjectAllowScriptRemoval(unit.guid,trashCan,"Paralysis destroyed Unit")
+                    trash.putObject(unit)
+                end
+            else
+                for _,tokenGUID in pairs(entry.guids) do
+                    local token=getObjectFromGUID(tokenGUID)
+                    if token~=nil then previewMakePermanent(token) end
+                end
+            end
+            previewWoundsByUnit[guid]=nil
+        end
+    end
+end
+
 function attackAssignmentsDamageClear()
+	attackAssignmentsUnitPreviewClear()
 	damageTargets={}
 	damagePending=nil
 	damageSpec={attacks={},units={},byOwner={},byKey={},reserved={}}
@@ -22537,6 +22846,34 @@ function attackAssignmentsPruneInactive(activeKeys,activeObjects,keepsLock)
 		persistAssignments()
 		refreshRenderedLines()
 	end
+end
+
+-- When a Unit changes its chosen ability, retire only the target keys that
+-- no longer belong to a selected ability. Preserve other paid Unit effects
+-- (Delphana Masters can have several) and explicit retargets for unchanged keys.
+-- The caller schedules the Resource Tracker scan after changing the choice.
+function attackAssignmentsPruneUnitChoiceSources(unitGUID,activeKeys)
+    if type(unitGUID)~="string" then return end
+    activeKeys=activeKeys or {}
+    local changed=false
+    for id,entry in pairs(assignmentRegistry) do
+        if assignmentBaseGUID(entry.sourceGUID)==unitGUID
+            and activeKeys[entry.sourceGUID]~=true then
+            assignmentRegistry[id]=nil
+            changed=true
+        end
+    end
+    local cancelled=false
+    for color,pending in pairs(targetingByPlayer) do
+        if assignmentBaseGUID(pending.sourceGUID)==unitGUID
+            and activeKeys[pending.sourceGUID]~=true then
+            targetingByPlayer[color]=nil
+            cancelled=true
+        end
+    end
+    if changed then persistAssignments() end
+    if cancelled then syncTargetButtons() end
+    if changed or cancelled then refreshRenderedLines() end
 end
 
 -- Preserve held/moving targets but prune arrows left on enemies outside combat.
@@ -23926,6 +24263,9 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 	end
 
 	local cleanupPlayer=gStates.turnNumber
+	-- Promote only this turn\u0027s ghost Unit wounds before play-area cleanup.
+	-- Paralysis destroys the marked Unit instead of making a permanent Wound.
+	attackAssignmentsUnitPreviewCommit(turnOrder[cleanupPlayer].seatPos)
 	combatDefeatSnapshotForCleanup()
 	local coopCombatReward,recovery=combatPreEndTurnOpenRewardBoundary(cleanupPlayer)
 	turnPreparePreEndTurn(cleanupPlayer,player.color,id)
@@ -45668,7 +46008,7 @@ local function combatPanelSetAttribute(id,attribute,value)
 end
 
 -- Empty slots are hidden; a filled slot is the resource icon with its value over the top.
-local function combatAssignmentIconButton(id,active,amount,icon,tooltip,selected,textColor)
+local function combatAssignmentIconButton(id,active,amount,icon,tooltip,selected,textColor,wounded)
     combatPanelSetAttribute(id,"active",active and "true" or "false")
     if active then
         combatPanelSetAttribute(id.."Image","image",icon)
@@ -45692,7 +46032,8 @@ local function combatAssignmentIconButton(id,active,amount,icon,tooltip,selected
         combatPanelSetAttribute(id,"preferredWidth","24")
         combatPanelSetAttribute(id,"preferredHeight","26")
         combatPanelSetAttribute(id,"color",
-            selected and "rgb(1,0.75,0.2)" or "rgb(0.85,0.82,0.72)")
+            wounded and "rgb(0.90,0.37,0.35)"
+            or (selected and "rgb(1,0.75,0.2)" or "rgb(0.85,0.82,0.72)"))
         combatPanelSetAttribute(id,"tooltip",tooltip)
     end
 end
@@ -46429,6 +46770,62 @@ local function combatGroupResourceRows(members,perMember,limit)
     return rows,overflow+(#pending-head+1)
 end
 
+-- Attack-phase eligibility comes from the preceding damage phase, never the
+-- eventual melee result. This breaks the apparent ranged/damage/melee feedback
+-- loop: ranged kills and Block are frozen before Unit wounds are evaluated.
+combatConfig.unitsWoundedByDamage=function(results)
+    local wounded={}
+    for _,result in pairs(results or {}) do
+        for _,entry in ipairs(result.units or {}) do
+            if entry.wounded==true and entry.unit~=nil then wounded[entry.unit.guid]=true end
+        end
+    end
+    return wounded
+end
+
+-- Unit resources already spent in the Ranged/Block phases stand. Unused
+-- Ranged/Siege effects fall back to normal Attack only if their Unit survived
+-- damage unwounded; a wound cannot retroactively undo an earlier phase.
+combatConfig.attackPhaseSources=function(sources,wounded)
+    local active={}
+    for _,source in ipairs(sources or {}) do
+        if wounded[source.guid]~=true then active[#active+1]=source end
+    end
+    return active
+end
+
+-- Timing of self-wounding Unit abilities: a Block wounds its Unit before
+-- enemies may assign damage; an Attack wounds its Unit in the final Attack
+-- phase, after enemy damage. Only Units with an activated, targeted ability
+-- receive a preview. Other modifiers used earlier retain their effects.
+combatConfig.selfWoundingUnitChoices=function(seat,groups)
+    local early,late={},{}
+    local active={}
+    for _,group in ipairs(groups or {}) do
+        if not group.rangeDefeated and not group.destroyed then
+            for _,source in ipairs(group.sources or {}) do active[source.guid]=true end
+        end
+    end
+    local scan=seat~=nil and resourceCardScanBySeat[seat] or nil
+    local records=scan~=nil and scan.cards or {}
+    local activations=gStates~=nil and gStates.unitResourceActivations or {}
+    for guid,activation in pairs(activations) do
+        local abilities=unitResourceDefinitions~=nil and unitResourceDefinitions[guid] or nil
+        local ability=abilities~=nil and abilities[activation.choice or 1] or nil
+        local record=records[guid]
+        if activation.seatPos==seat and active[guid] and record~=nil
+            and record.complete==true and ability~=nil and ability.woundsSelf==true then
+            local blocks=false
+            for field,value in pairs(ability) do
+                if type(value)=="number" and type(field)=="string"
+                    and field:sub(1,5)=="block" then blocks=true break end
+            end
+            if blocks then early[guid]=true else late[guid]=true end
+        end
+    end
+    return early,late
+end
+
 local function combatAssignmentRefreshRows(entries,sources)
     local rowByGUID={}
     local totalRowHeight=0
@@ -46804,36 +47201,21 @@ local function combatAssignmentRefreshRows(entries,sources)
                 if rangedBeforeBlock[index]~=true then group.rangeDefeated=false break end
             end
         end
-        local meleeTotal=combatAttackTotal({
-            {sources=group.sources,category="attack"},
-            {sources=group.sources,category="ranged"},
-            {sources=group.sources,category="siege"}},group.entry.data,group.entry.perks)
-        group.defeated=not members[1].attackOnly
-            and (group.rangeDefeated or (meleeTotal>0 and meleeTotal>=group.attackArmour))
-        -- A destroyed enemy is defeated without any attack; it stays out of "defeated by this attack" rewards.
+        -- A destroyed enemy has already been removed by a pre-Damage effect.
+        -- Its final defeat state and any melee rewards are resolved only after
+        -- the damage assignments establish which Units survive into Attack.
         group.destroyed=not members[1].attackOnly and #group.members==1
             and entries[group.members[1]].destroyed==true
-        if group.destroyed then group.defeated,group.rangeDefeated=true,false end
-        if group.defeated and not group.destroyed then
-            local count=0
-            for _,member in ipairs(members) do if not member.preview then count=count+1 end end
-            local counted={}
-            for _,source in ipairs(group.sources) do
-                local spec=source.defeatFameRep
-                -- A source defeats nothing in melee once the Ranged phase already did, so melee-only sources do not count.
-                if count>0 and spec~=nil and spec.scope==nil and not counted[source.guid] and (not group.rangeDefeated
-                    or source.ranged>0 or source.siege>0) then
-                    counted[source.guid]=true
-                    local times=spec.once and 1 or count
-                    defeatFame=defeatFame+(spec.fame or 0)*times
-                    defeatRep=defeatRep+(spec.rep or 0)*times
-                end
-            end
-        end
     end
     -- Damage phase: each unblocked attack of an enemy that is not already defeated starts on the Hero.
     local damageSeat=combatAssignmentActiveSeat()
+    local selfWoundsEarly,selfWoundsLate=combatConfig.selfWoundingUnitChoices(damageSeat,groups)
     local damageUnits,nativeCommandCount=combatDamageUnits(damageSeat)
+    -- Block 6 (Utem Swordsmen) causes a Wound during Block, before any enemy
+    -- damage assignment; do not allow that Unit to absorb an enemy attack.
+    for guid in pairs(selfWoundsEarly) do
+        if damageUnits[guid]~=nil then damageUnits[guid].wounded=true end
+    end
     local damageSpec={attacks={},units={}}
     local damageItems={}
     for guid,unit in pairs(damageUnits) do
@@ -46863,6 +47245,49 @@ local function combatAssignmentRefreshRows(entries,sources)
     end
     attackAssignmentsDamageSync(damageSpec)
     local damageResults=combatDamageResolve(damageItems,damageUnits,combatHeroArmour(nativeCommandCount),attackAssignmentsDamageTargetsOf)
+
+    -- Damage is earlier than Attack. Do not invalidate Ranged/Siege kills or
+    -- Blocks: only suppress remaining Unit attacks after *actual* wounds.
+    -- Resisted assignments that cause no Wound leave the Unit eligible.
+    local woundedBeforeAttack=combatConfig.unitsWoundedByDamage(damageResults)
+    -- Self-wounding Attack 6 happens only if the Unit survived damage and
+    -- still has an enemy to attack. It does not cancel its own Attack 6.
+    local selfWounds={}
+    for guid in pairs(selfWoundsEarly) do selfWounds[guid]=true end
+    for guid in pairs(selfWoundsLate) do
+        if woundedBeforeAttack[guid]~=true then selfWounds[guid]=true end
+    end
+    attackAssignmentsUnitPreviewSync(damageSeat,damageResults,selfWounds)
+    for _,group in ipairs(groups) do
+        local meleeSources=combatConfig.attackPhaseSources(group.sources,woundedBeforeAttack)
+        local meleeTotal=combatAttackTotal({
+            {sources=meleeSources,category="attack"},
+            {sources=meleeSources,category="ranged"},
+            {sources=meleeSources,category="siege"}},group.entry.data,group.entry.perks)
+        group.defeated=not entries[group.members[1]].attackOnly
+            and (group.rangeDefeated or (meleeTotal>0 and meleeTotal>=group.attackArmour))
+        if group.destroyed then group.defeated,group.rangeDefeated=true,false end
+        if group.defeated and not group.destroyed then
+            local count=0
+            for _,index in ipairs(group.members) do
+                if not entries[index].preview then count=count+1 end
+            end
+            local counted={}
+            for _,source in ipairs(group.sources) do
+                local spec=source.defeatFameRep
+                local availableInFinalPhase=woundedBeforeAttack[source.guid]~=true
+                if count>0 and spec~=nil and spec.scope==nil
+                    and not counted[source.guid] and (
+                        (group.rangeDefeated and (source.ranged>0 or source.siege>0))
+                        or (not group.rangeDefeated and availableInFinalPhase)) then
+                    counted[source.guid]=true
+                    local times=spec.once and 1 or count
+                    defeatFame=defeatFame+(spec.fame or 0)*times
+                    defeatRep=defeatRep+(spec.rep or 0)*times
+                end
+            end
+        end
+    end
     local totalHeroWounds,totalDiscardWounds=0,0
     for _,result in pairs(damageResults) do
         totalHeroWounds=totalHeroWounds+result.heroWounds
@@ -46924,9 +47349,14 @@ local function combatAssignmentRefreshRows(entries,sources)
                 end
                 if item.detail.family~="block" and item.detail.family~="move" then
                     local phase=combatDetailPhase(item.detail,group.rangeDefeated,group.fortification)
+                    -- Keep invalidated Attack-phase Unit icons visible so players
+                    -- can see what was assigned, but make the unavailable value grey
+                    -- and explain why it does not count. Earlier Ranged/Block stands.
+                    local wounded=phase=="attack" and woundedBeforeAttack[item.source.guid]==true
                     lists[phase][#lists[phase]+1]={source=item.source,amount=item.detail.amount,
                         icon=item.detail.icon,text=item.detail.text,typeKey=item.detail.typeKey,
-                        reduced=combatEnemyResists(group.entry.data,group.entry.perks,item.detail.typeKey)}
+                        reduced=combatEnemyResists(group.entry.data,group.entry.perks,item.detail.typeKey),
+                        wounded=wounded}
                 end
             end
             perMember[index]=lists
@@ -46960,10 +47390,13 @@ local function combatAssignmentRefreshRows(entries,sources)
                 local item=items[slot]
                 if item~=nil then
                     combatAssignmentSlotSources[id]=item.source.key
+                    local tooltip=item.source.name..": "..item.text
+                        ..(item.wounded and " can't apply 'Wounded'" or "")
                     combatAssignmentIconButton(id,true,item.amount,item.icon,
-                        item.source.name..": "..item.text,
-                        combatAssignmentState.selected==item.source.key,
-                        item.typeKey~=nil and combatConfig.typeColors[item.typeKey][item.reduced and 2 or 1] or nil)
+                        tooltip,combatAssignmentState.selected==item.source.key,
+                        item.wounded and "#292323" or (item.typeKey~=nil
+                            and combatConfig.typeColors[item.typeKey][item.reduced and 2 or 1] or nil),
+                        item.wounded)
                 else
                     combatAssignmentIconButton(id,false,0,"","",false)
                 end
@@ -49491,7 +49924,7 @@ local function combatEffectChosenEnemy(sourceGUID,area,monsters)
     return chosen or combatEffectNearestEnemy(area,monsters,footprint,overlapArea)
 end
 
-local function renderSeat(seatPos)
+local function renderSeat(seatPos,quietUnitChoice)
     if not resourceCardsPanelOpen() then return end
     local active=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if active==nil or active.seatPos~=seatPos then return end
@@ -50405,27 +50838,20 @@ local function renderSeat(seatPos)
                                     result.enemyEffectTargetKeys=result.enemyEffectTargetKeys or {}
                                     result.enemyEffectTargetKeys[#result.enemyEffectTargetKeys+1]=sourceKey
                                 end
-                                -- Only implemented effects change enemy stats. Other printed target
-                                -- abilities can still have an arrow for the player's manual resolution.
-                                if ability.enemyEffect~=nil then
-                                    local explicitTargetGUID=nil
-                                    for guid in pairs(attackAssignmentsTargetGUIDs(sourceKey)) do
-                                        if monsters[guid]~=nil and monsters[guid].is_face_down~=true
-                                            and (explicitTargetGUID==nil or guid<explicitTargetGUID) then
-                                            explicitTargetGUID=guid
-                                        end
-                                    end
-                                    local target=explicitTargetGUID~=nil and monsters[explicitTargetGUID]
-                                        or combatEffectNearestEnemy(footprint(unit),monsters,footprint,overlapArea)
-                                    if target~=nil then
+                                -- Every enemy-targeting Unit ability starts on a nearby
+                                -- enemy, even if it is a non-resource/manual effect.
+                                -- An explicit retarget wins over the nearest default.
+                                -- Keep effect-only arrows separate from the Unit's
+                                -- numeric Attack/Block source to prevent stale locks.
+                                local target=combatEffectChosenEnemy(sourceKey,footprint(unit),monsters)
+                                if target~=nil then
+                                    if ability.enemyEffect~=nil then
                                         combatEffectAdd(enemyEffects,target.guid,unitGUID,ability.enemyEffect)
                                         result.links[#result.links+1]=target.guid
-                                        -- Keep the Unit->enemy line independent of the enemy->Unit
-                                        -- damage arrow. It must remain after the attack gets blocked.
-                                        if sourceKey~=unitGUID then
-                                            result.enemyEffectTargetGUIDs=result.enemyEffectTargetGUIDs or {}
-                                            result.enemyEffectTargetGUIDs[sourceKey]=target.guid
-                                        end
+                                    end
+                                    if sourceKey~=unitGUID then
+                                        result.enemyEffectTargetGUIDs=result.enemyEffectTargetGUIDs or {}
+                                        result.enemyEffectTargetGUIDs[sourceKey]=target.guid
                                     end
                                 end
                             end
@@ -51171,7 +51597,7 @@ local function renderSeat(seatPos)
     local transformChanged=previousTransform==nil
         or (previousTransform.coldFire==true)~=(attackTransforms.coldFire==true)
         or (previousTransform.siege==true)~=(attackTransforms.siege==true)
-    combatEffectReport(seatPos,enemyEffects)
+    combatEffectReport(seatPos,enemyEffects,quietUnitChoice)
     local fameTotal,repTotal=0,0
     for _,record in pairs(records) do
         if record.fameRep~=nil then
@@ -51423,6 +51849,39 @@ function resourceUnitsCommandDropped(playerColor,obj)
     end,8)
 end
 
+-- A Unit's choice can switch its targeting key (e.g. Shocktroops
+-- Ranged 1 -> Armour -1). Retire obsolete arrow keys and calculator locks
+-- immediately, keeping explicitly targeted effects whose keys stay active.
+-- The next scan then auto-targets newly selected effects just like attacks.
+function resourceUnitsReconcileChoiceTargets(unit,abilities,activation)
+    local allowed={}
+    local decision=unitManaDecision(unit,abilities,activation)
+    local function allow(index)
+        local ability=abilities[index]
+        if ability~=nil and (unitAbilityTargetCategory(ability)~=nil
+            or ability.enemyEffect~=nil or ability.targetableEnemy==true) then
+            allowed[unitAbilityTargetKey(unit.guid,index,ability)]=true
+        end
+    end
+    if abilities.multi==true then
+        for index in pairs(decision.selected or {}) do allow(index) end
+    elseif decision.index~=nil then
+        allow(decision.index)
+    end
+    local prefix=unit.guid.."#"
+    for key in pairs(combatAssignmentState.targets) do
+        if (key==unit.guid or key:sub(1,#prefix)==prefix)
+            and allowed[key]~=true then
+            combatAssignmentState.targets[key]=nil
+            combatAssignmentState.explicit[key]=nil
+            if combatAssignmentState.selected==key then
+                combatAssignmentState.selected=nil
+            end
+        end
+    end
+    attackAssignmentsPruneUnitChoiceSources(unit.guid,allowed)
+end
+
 function resourceUnitsChoiceClicked(player,value,id)
     if not resourceCardsPanelOpen() or type(id)~="string" then return end
     local unitGUID,index=id:match("^ResourceCardChoice_([0-9a-f]+)_unit(%d+)$")
@@ -51491,8 +51950,11 @@ function resourceUnitsChoiceClicked(player,value,id)
         activation.lastPaidIndex=nil
         choiceExpandedByGUID[unitGUID]=nil
     end
+    resourceUnitsReconcileChoiceTargets(unit,abilities,activation)
     showUnitAbilityButtons(unit,abilities,activation,true)
-    queueSeat(current.seatPos,nil)
+    -- A Unit choice still recalculates immediately, but its enemy-effect
+    -- notification is silent. Other card/skill updates retain their notices.
+    renderSeat(current.seatPos,true)
 end
 
 -- Clear any remaining activations at turn end without moving Command tokens.
@@ -51753,7 +52215,7 @@ end
 
 end)
 __bundle_register("PlayingGame.PlayerBoard.CombatEffects", function(require, _LOADED, __bundle_register, __bundle_modules)
--- Enemy-targeted effects of Combat Actions (e.g. Ice Shield's Armour reduction).
+-- Enemy-targeted effects of Combat Actions (e.g. Ice Shield's Armor reduction).
 -- Runtime only: targets are recomputed from the physical table on every
 -- Resource Tracker scan, so re-choosing a card's option re-links it at once.
 
@@ -51846,14 +52308,14 @@ function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec)
 end
 
 -- Remind the active player when the set of applied effects changes.
-function combatEffectReport(seatPos,enemyEffects)
+function combatEffectReport(seatPos,enemyEffects,quiet)
     local parts={}
     for guid,entry in pairs(enemyEffects) do
         local pug=monsterPugs[guid]
         local name=pug~=nil and pug.name~=nil and tostring(pug.name) or guid
         local text=name..":"
         if entry.armourReduce>0 or entry.armourReduceByResist>0 then
-            text=text.." Armour -"..entry.armourReduce
+            text=text.." Armor -"..entry.armourReduce
             if entry.armourReduceFortified~=entry.armourReduce then
                 text=text.." (-"..entry.armourReduceFortified.." if fortified)"
             end
@@ -51882,8 +52344,11 @@ function combatEffectReport(seatPos,enemyEffects)
     local signature=table.concat(parts,"\n")
     if lastReport[seatPos]==signature then return end
     lastReport[seatPos]=signature
-    if signature~="" then
-        broadcastToColor("Card effects on enemies (apply manually if needed):\n"..signature,
+    if signature~="" and quiet~=true then
+        -- The Mage Knight's hand color may not be occupied (hotseat/dummy/GM).
+        -- Use the shared safe broadcaster so changing an effect never crashes
+        -- the combat scan while the target color has no seated Player.
+        safeBroadcastToColor("Card effects on enemies (apply manually if needed):\n"..signature,
             positionToColor(gStates.turnNumber),{1,0.6,0.1})
     end
 end
@@ -52442,8 +52907,8 @@ local byType={
         value(2,"block",4,"Block 4; counts twice against Swiftness",{countsTwiceVsSwift=true})},
     UtemSwordsmen={
         value(1,"attack",3,"Attack 3"),value(1,"block",3,"Block 3"),
-        value(2,"attack",6,"Attack 6; wound this Unit after resolving",{woundsSelf=true,iconOverlay="W",iconOverlayColor="#FFFFFF"}),
-        value(2,"block",6,"Block 6; wound this Unit after resolving",{woundsSelf=true,iconOverlay="W",iconOverlayColor="#FFFFFF"})},
+        value(2,"attack",6,"Attack 6; this Unit becomes Wounded when activated in the Attack phase",{woundsSelf=true,iconOverlay="W",iconOverlayColor="#FFFFFF"}),
+        value(2,"block",6,"Block 6; this Unit becomes Wounded when activated in the Block phase",{woundsSelf=true,iconOverlay="W",iconOverlayColor="#FFFFFF"})},
     GuardianGolems={
         value(1,"attack",2,"Attack 2"),value(1,"block",2,"Block 2"),
         value(2,"blockFire",4,"Fire Block 4",{manaCost="Red"}),
@@ -52774,6 +53239,8 @@ end
 -- Apocalypse quest Command token uses the "Command" tag.
 function unitLayoutIsWound(obj)
     if obj==nil then return false end
+    -- Physical combat previews are not actual wounds until End Turn commits them.
+    if obj.hasTag("CombatPreviewWound") or obj.getGMNotes()=="Combat Preview Wound" then return false end
     return obj.getGMNotes()=="Unit Wound"
         or (obj.type=="Custom_Model" and obj.hasTag("Wound"))
 end
@@ -58538,7 +59005,7 @@ local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
 local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="452"
+local automaticLuaErrorReporterVersion="453"
 
 -- Automatic Lua error reporting, protected callback helpers and diagnostic context builders.
 local automaticLuaZoneContext

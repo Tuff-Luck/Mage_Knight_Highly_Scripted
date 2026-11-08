@@ -1727,13 +1727,13 @@ Einheiten</Text></Cell>
 	<VerticalLayout rectAlignment="UpperCenter" offsetXY="0 0" padding="6 6 3 3" childForceExpandHeight="false">
 		<HorizontalLayout padding="5 0 0 0" preferredHeight="20" childForceExpandWidth="false">
 			<Text id="CombatMonsterHeader" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="White" preferredWidth="120" alignment="MiddleLeft">{en}Enemy{it}Nemico{ru}Враг{zh-tw}敵人{zh-cn}敌人{ko}적{es}Enemigo{fr}Ennemi{pt-br}Inimigo{de}Feind</Text>
-			<Text id="CombatArmourHeader" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter">{en}Armour{it}Armatura{ru}Броня{zh-tw}護甲{zh-cn}护甲{ko}방어구{es}Armadura{fr}Armure{pt-br}Armadura{de}Rüstung</Text>
-			<Text id="CombatDefenceTraitsHeader" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft">{en}Defence Abilities{it}Abilità difensive{ru}Защитные способности{zh-tw}防禦能力{zh-cn}防御能力{ko}방어 능력{es}Habilidades defensivas{fr}Capacités défensives{pt-br}Habilidades defensivas{de}Verteidigungsfähigkeiten</Text>
-			<Text id="CombatRangeSiegeHeader" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="White" preferredWidth="170" alignment="MiddleLeft">{en}Rng/Siege{it}Dist./Ass.{ru}Дальн./Осад.{zh-tw}遠程/攻城{zh-cn}远程/攻城{ko}원거리/공성{es}Dist./Ased.{fr}Dist./Siège{pt-br}Dist./Cerco{de}Fern/Bel.</Text>
+			<Text id="CombatDefenceTraitsHeader" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleCenter">{en}Defensive Abilities{it}Abilità difensive{ru}Защитные способности{zh-tw}防禦能力{zh-cn}防御能力{ko}방어 능력{es}Habilidades defensivas{fr}Capacités défensives{pt-br}Habilidades defensivas{de}Verteidigungsfähigkeiten</Text>
+			<Text id="CombatArmourHeader" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter">{en}Armor{it}Armatura{ru}Броня{zh-tw}護甲{zh-cn}护甲{ko}방어구{es}Armadura{fr}Armure{pt-br}Armadura{de}Rüstung</Text>
+			<Text id="CombatRangeSiegeHeader" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="White" preferredWidth="170" alignment="MiddleCenter">{en}Rng/Siege{it}Dist./Ass.{ru}Дальн./Осад.{zh-tw}遠程/攻城{zh-cn}远程/攻城{ko}원거리/공성{es}Dist./Ased.{fr}Dist./Siège{pt-br}Dist./Cerco{de}Fern/Bel.</Text>
 			<Text id="CombatEnemyAttackHeader" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="White" preferredWidth="105" alignment="MiddleCenter">{en}Enemy Attack{it}Attacco nemico{ru}Атака врага{zh-tw}敵人攻擊{zh-cn}敌人攻击{ko}적 공격{es}Ataque enemigo{fr}Attaque ennemie{pt-br}Ataque inimigo{de}Feindangriff</Text>
-			<Text id="CombatOffenceHeader" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="White" preferredWidth="130" alignment="MiddleLeft">{en}Offence Abilities{it}Abilità offensive{ru}Атакующие способности{zh-tw}攻擊能力{zh-cn}攻击能力{ko}공격 능력{es}Habilidades ofensivas{fr}Capacités offensives{pt-br}Habilidades ofensivas{de}Angriffsfähigkeiten</Text>
-			<Text id="CombatBlockHeader" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="White" preferredWidth="170" alignment="MiddleLeft">{en}Block{it}Blocco{ru}Блок{zh-tw}格擋{zh-cn}格挡{ko}방어{es}Bloqueo{fr}Blocage{pt-br}Bloqueio{de}Block</Text>
-			<Text id="CombatAssignedAttackHeader" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="White" preferredWidth="170" alignment="MiddleLeft">{en}Attack{it}Attacco{ru}Атака{zh-tw}攻擊{zh-cn}攻击{ko}공격{es}Ataque{fr}Attaque{pt-br}Ataque{de}Angriff</Text>
+			<Text id="CombatOffenceHeader" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="White" preferredWidth="130" alignment="MiddleCenter">{en}Offence Abilities{it}Abilità offensive{ru}Атакующие способности{zh-tw}攻擊能力{zh-cn}攻击能力{ko}공격 능력{es}Habilidades ofensivas{fr}Capacités offensives{pt-br}Habilidades ofensivas{de}Angriffsfähigkeiten</Text>
+			<Text id="CombatBlockHeader" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="White" preferredWidth="170" alignment="MiddleCenter">{en}Block{it}Blocco{ru}Блок{zh-tw}格擋{zh-cn}格挡{ko}방어{es}Bloqueo{fr}Blocage{pt-br}Bloqueio{de}Block</Text>
+			<Text id="CombatAssignedAttackHeader" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="White" preferredWidth="170" alignment="MiddleCenter">{en}Attack{it}Attacco{ru}Атака{zh-tw}攻擊{zh-cn}攻击{ko}공격{es}Ataque{fr}Attaque{pt-br}Ataque{de}Angriff</Text>
 			<Text id="CombatResultHeader" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="White" preferredWidth="255" alignment="MiddleLeft">{en}Result{it}Risultato{ru}Результат{zh-tw}結果{zh-cn}结果{ko}결과{es}Resultado{fr}Résultat{pt-br}Resultado{de}Ergebnis</Text>
 		</HorizontalLayout>
         <HorizontalLayout id="CombatEnemyPageControls" active="false" preferredHeight="22" childForceExpandWidth="false" childAlignment="MiddleCenter">
@@ -1746,8 +1746,8 @@ Einheiten</Text></Cell>
 				<Panel preferredWidth="120" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatEnemyJoin1" onClick="resourceTracker" color="rgba(0,0,0,0)"/><Text id="CombatEnemyRow1Name" class="Text14" fontSize="13" resizeTextMaxSize="13" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
 				</Panel>
-				<Text id="CombatEnemyRow1Armour" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter"/>
 				<Text id="CombatEnemyRow1Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
+				<Text id="CombatEnemyRow1Armour" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter"/>
 				<Panel id="CombatSourceCell1range" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot1rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
 					<GridLayout id="CombatSourceGrid1range" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
@@ -1818,8 +1818,8 @@ Einheiten</Text></Cell>
 					<Button id="CombatEnemyJoin2" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
 					<Text id="CombatEnemyRow2Name" class="Text14" fontSize="13" resizeTextMaxSize="13" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
 				</Panel>
-				<Text id="CombatEnemyRow2Armour" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter"/>
 				<Text id="CombatEnemyRow2Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
+				<Text id="CombatEnemyRow2Armour" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter"/>
 				<Panel id="CombatSourceCell2range" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot2rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
 					<GridLayout id="CombatSourceGrid2range" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
@@ -1890,8 +1890,8 @@ Einheiten</Text></Cell>
 					<Button id="CombatEnemyJoin3" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
 					<Text id="CombatEnemyRow3Name" class="Text14" fontSize="13" resizeTextMaxSize="13" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
 				</Panel>
-				<Text id="CombatEnemyRow3Armour" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter"/>
 				<Text id="CombatEnemyRow3Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
+				<Text id="CombatEnemyRow3Armour" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter"/>
 				<Panel id="CombatSourceCell3range" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot3rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
 					<GridLayout id="CombatSourceGrid3range" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
@@ -1962,8 +1962,8 @@ Einheiten</Text></Cell>
 					<Button id="CombatEnemyJoin4" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
 					<Text id="CombatEnemyRow4Name" class="Text14" fontSize="13" resizeTextMaxSize="13" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
 				</Panel>
-				<Text id="CombatEnemyRow4Armour" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter"/>
 				<Text id="CombatEnemyRow4Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
+				<Text id="CombatEnemyRow4Armour" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter"/>
 				<Panel id="CombatSourceCell4range" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot4rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
 					<GridLayout id="CombatSourceGrid4range" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
@@ -2034,8 +2034,8 @@ Einheiten</Text></Cell>
 					<Button id="CombatEnemyJoin5" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
 					<Text id="CombatEnemyRow5Name" class="Text14" fontSize="13" resizeTextMaxSize="13" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
 				</Panel>
-				<Text id="CombatEnemyRow5Armour" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter"/>
 				<Text id="CombatEnemyRow5Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
+				<Text id="CombatEnemyRow5Armour" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter"/>
 				<Panel id="CombatSourceCell5range" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot5rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
 					<GridLayout id="CombatSourceGrid5range" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
@@ -2106,8 +2106,8 @@ Einheiten</Text></Cell>
 					<Button id="CombatEnemyJoin6" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
 					<Text id="CombatEnemyRow6Name" class="Text14" fontSize="13" resizeTextMaxSize="13" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
 				</Panel>
-				<Text id="CombatEnemyRow6Armour" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter"/>
 				<Text id="CombatEnemyRow6Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
+				<Text id="CombatEnemyRow6Armour" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter"/>
 				<Panel id="CombatSourceCell6range" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot6rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
 					<GridLayout id="CombatSourceGrid6range" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
@@ -2177,8 +2177,8 @@ Einheiten</Text></Cell>
 				<Panel preferredWidth="120" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatEnemyJoin7" onClick="resourceTracker" color="rgba(0,0,0,0)"/><Text id="CombatEnemyRow7Name" class="Text14" fontSize="13" resizeTextMaxSize="13" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
 				</Panel>
-				<Text id="CombatEnemyRow7Armour" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter"/>
 				<Text id="CombatEnemyRow7Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
+				<Text id="CombatEnemyRow7Armour" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter"/>
 				<Panel id="CombatSourceCell7range" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot7rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
 					<GridLayout id="CombatSourceGrid7range" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
@@ -2249,8 +2249,8 @@ Einheiten</Text></Cell>
 					<Button id="CombatEnemyJoin8" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
 					<Text id="CombatEnemyRow8Name" class="Text14" fontSize="13" resizeTextMaxSize="13" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
 				</Panel>
-				<Text id="CombatEnemyRow8Armour" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter"/>
 				<Text id="CombatEnemyRow8Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
+				<Text id="CombatEnemyRow8Armour" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter"/>
 				<Panel id="CombatSourceCell8range" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot8rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
 					<GridLayout id="CombatSourceGrid8range" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
