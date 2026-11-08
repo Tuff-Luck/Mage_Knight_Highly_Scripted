@@ -5542,27 +5542,20 @@ local function renderSeat(seatPos)
                                     result.enemyEffectTargetKeys=result.enemyEffectTargetKeys or {}
                                     result.enemyEffectTargetKeys[#result.enemyEffectTargetKeys+1]=sourceKey
                                 end
-                                -- Only implemented effects change enemy stats. Other printed target
-                                -- abilities can still have an arrow for the player's manual resolution.
-                                if ability.enemyEffect~=nil then
-                                    local explicitTargetGUID=nil
-                                    for guid in pairs(attackAssignmentsTargetGUIDs(sourceKey)) do
-                                        if monsters[guid]~=nil and monsters[guid].is_face_down~=true
-                                            and (explicitTargetGUID==nil or guid<explicitTargetGUID) then
-                                            explicitTargetGUID=guid
-                                        end
-                                    end
-                                    local target=explicitTargetGUID~=nil and monsters[explicitTargetGUID]
-                                        or combatEffectNearestEnemy(footprint(unit),monsters,footprint,overlapArea)
-                                    if target~=nil then
+                                -- Every enemy-targeting Unit ability starts on a nearby
+                                -- enemy, even if it is a non-resource/manual effect.
+                                -- An explicit retarget wins over the nearest default.
+                                -- Keep effect-only arrows separate from the Unit's
+                                -- numeric Attack/Block source to prevent stale locks.
+                                local target=combatEffectChosenEnemy(sourceKey,footprint(unit),monsters)
+                                if target~=nil then
+                                    if ability.enemyEffect~=nil then
                                         combatEffectAdd(enemyEffects,target.guid,unitGUID,ability.enemyEffect)
                                         result.links[#result.links+1]=target.guid
-                                        -- Keep the Unit->enemy line independent of the enemy->Unit
-                                        -- damage arrow. It must remain after the attack gets blocked.
-                                        if sourceKey~=unitGUID then
-                                            result.enemyEffectTargetGUIDs=result.enemyEffectTargetGUIDs or {}
-                                            result.enemyEffectTargetGUIDs[sourceKey]=target.guid
-                                        end
+                                    end
+                                    if sourceKey~=unitGUID then
+                                        result.enemyEffectTargetGUIDs=result.enemyEffectTargetGUIDs or {}
+                                        result.enemyEffectTargetGUIDs[sourceKey]=target.guid
                                     end
                                 end
                             end
@@ -6560,6 +6553,39 @@ function resourceUnitsCommandDropped(playerColor,obj)
     end,8)
 end
 
+-- A Unit's choice can switch its targeting key (e.g. Shocktroops
+-- Ranged 1 -> Armour -1). Retire obsolete arrow keys and calculator locks
+-- immediately, keeping explicitly targeted effects whose keys stay active.
+-- The next scan then auto-targets newly selected effects just like attacks.
+local function resourceUnitsReconcileChoiceTargets(unit,abilities,activation)
+    local allowed={}
+    local decision=unitManaDecision(unit,abilities,activation)
+    local function allow(index)
+        local ability=abilities[index]
+        if ability~=nil and (unitAbilityTargetCategory(ability)~=nil
+            or ability.enemyEffect~=nil or ability.targetableEnemy==true) then
+            allowed[unitAbilityTargetKey(unit.guid,index,ability)]=true
+        end
+    end
+    if abilities.multi==true then
+        for index in pairs(decision.selected or {}) do allow(index) end
+    elseif decision.index~=nil then
+        allow(decision.index)
+    end
+    local prefix=unit.guid.."#"
+    for key in pairs(combatAssignmentState.targets) do
+        if (key==unit.guid or key:sub(1,#prefix)==prefix)
+            and allowed[key]~=true then
+            combatAssignmentState.targets[key]=nil
+            combatAssignmentState.explicit[key]=nil
+            if combatAssignmentState.selected==key then
+                combatAssignmentState.selected=nil
+            end
+        end
+    end
+    attackAssignmentsPruneUnitChoiceSources(unit.guid,allowed)
+end
+
 function resourceUnitsChoiceClicked(player,value,id)
     if not resourceCardsPanelOpen() or type(id)~="string" then return end
     local unitGUID,index=id:match("^ResourceCardChoice_([0-9a-f]+)_unit(%d+)$")
@@ -6628,6 +6654,7 @@ function resourceUnitsChoiceClicked(player,value,id)
         activation.lastPaidIndex=nil
         choiceExpandedByGUID[unitGUID]=nil
     end
+    resourceUnitsReconcileChoiceTargets(unit,abilities,activation)
     showUnitAbilityButtons(unit,abilities,activation,true)
     queueSeat(current.seatPos,nil)
 end
