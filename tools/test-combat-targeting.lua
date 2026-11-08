@@ -276,6 +276,40 @@ check("another left-side Attack bonus also receives clearance",
     enemyDamageButtonX()<-1.75)
 attackAssignmentsDamageClear()
 enemy.setDecals({})
+-- Effect-only Unit targets must obey their own restrictions. Right clicking
+-- the target icon for Illusionists is a retarget, not a second application.
+local illusionist=makeObject("illusionist",1)
+local illusionKey="illusionist#effect2"
+local warnings={}
+safeBroadcastToColor=function(message,color)
+    warnings[#warnings+1]={message=message,color=color}
+end
+resourceCardsUnitTargetRequiresUnfortified=function(key)
+    return key==illusionKey
+end
+resourceCardsCombatTargetRejectMessage=function() return "Unfortified only" end
+resourceCardsCombatTargetAcceptsSource=function(key,guid)
+    return key~=illusionKey or guid=="enemy"
+end
+eligible.remote=remote
+check("Illusionists enters target selection",
+    attackAssignmentsBegin(illusionist,"effect","Red",false,illusionKey))
+attackAssignmentTargetClicked(remote,"Red")
+check("manual Illusionists target rejects a fortified enemy",
+    next(attackAssignmentsTargetGUIDs(illusionKey))==nil
+    and #warnings==1 and warnings[1].message=="Unfortified only")
+attackAssignmentTargetClicked(enemy,"Red")
+check("manual Illusionists accepts an unfortified enemy",
+    attackAssignmentsTargetGUIDs(illusionKey).enemy==true)
+attackAssignmentsBegin(illusionist,"effect","Red",true,illusionKey)
+attackAssignmentTargetClicked(enemy,"Red")
+check("right-clicked Illusionists cannot stack multiple targets",
+    #gStates.attackAssignments==1)
+attackAssignmentsPruneSourceTargets(illusionKey,{remote=true})
+check("target restriction removes obsolete assigned arrows",
+    next(attackAssignmentsTargetGUIDs(illusionKey))==nil)
+attackAssignmentsClearForObject("illusionist")
+eligible.remote=nil
 print("Combat targeting and lifecycle regression tests passed.")
 
 -- Preview Unit wounds are locked, translucent and non-gameplay until End Turn.
