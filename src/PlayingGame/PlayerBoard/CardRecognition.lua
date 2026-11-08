@@ -1935,8 +1935,9 @@ local function combatAssignmentRefreshRows(entries,sources)
                 local spec=source.defeatFameRep
                 local availableInFinalPhase=woundedBeforeAttack[source.guid]~=true
                 if count>0 and spec~=nil and spec.scope==nil
-                    and not counted[source.guid] and (not group.rangeDefeated
-                        and availableInFinalPhase or source.ranged>0 or source.siege>0) then
+                    and not counted[source.guid] and (
+                        (group.rangeDefeated and (source.ranged>0 or source.siege>0))
+                        or (not group.rangeDefeated and availableInFinalPhase)) then
                     counted[source.guid]=true
                     local times=spec.once and 1 or count
                     defeatFame=defeatFame+(spec.fame or 0)*times
