@@ -461,6 +461,64 @@ trapReminder.is_face_down=true
 check("face-down traps leave calculator targets",
     resourceCardsCombatTargetObjects().trapReminder==nil)
 trapReminder.is_face_down=false
+-- Illusionists' White-powered ability may only target an effectively
+-- unfortified enemy, including a Fortified target whose fortification has
+-- already been removed by another active effect during this same combat.
+unitResourceDefinitions={illusionist={
+    {row=1,influence=4},
+    {row=2,key="other",manaCost="White",
+        enemyEffect={noAttackUnfortified=true}},
+    {row=3,key="gain"}}}
+monsterPugs.fort={name="Fortified",fortified=true,armour=4}
+monsterPugs.plain={name="Plain",armour=4}
+monsterPugs.wall={name="Walled",armour=4}
+monsterPugs.override={name="Printed Unfortified",fortified=true,unfortified=true}
+gStates.monsterPerks.wall={wallFortified=true}
+world.fort=monster("fort",false)
+world.plain=monster("plain",false)
+world.wall=monster("wall",false)
+world.override=monster("override",false)
+resourceCardScanBySeat[1].enemyEffects={}
+local illusionKey="illusionist#effect2"
+check("Illusionists special effect has unfortified-only eligibility",
+    resourceCardsUnitTargetRequiresUnfortified(illusionKey)
+    and not resourceCardsUnitTargetRequiresUnfortified("illusionist")
+    and not resourceCardsUnitTargetRequiresUnfortified("illusionist#effect1"))
+check("Illusionists cannot target fortified or wall-fortified enemies",
+    not accepts(illusionKey,"fort") and not accepts(illusionKey,"wall")
+    and accepts(illusionKey,"plain") and accepts(illusionKey,"override"))
+resourceCardScanBySeat[1].enemyEffects.fort={removeFortify=true}
+check("a separate Remove Fortification effect makes the Fortified enemy legal",
+    accepts(illusionKey,"fort"))
+resourceCardScanBySeat[1].enemyEffects.fort=nil
+check("when Remove Fortification ends the target becomes illegal again",
+    not accepts(illusionKey,"fort"))
+check("the source restriction does not prevent other abilities targeting fortified enemies",
+    accepts("otherUnit#effect2","fort"))
+-- The nearest helper must filter before considering distance or overlap,
+-- not select a Fortified target and then discard it without trying another.
+dofile("src/PlayingGame/PlayerBoard/CombatEffects.lua")
+local candidateMonsters={fort=world.fort,plain=world.plain,wall=world.wall}
+local candidateAreas={fort={x=0.1,z=0},plain={x=2,z=0},
+    wall={x=0.2,z=0}}
+local function testArea(enemy) return candidateAreas[enemy.guid] end
+local function testOverlap() return 0 end
+local function testIllusionEligibility(enemy,guid)
+    return resourceCardsEnemyEffectivelyUnfortified(guid,
+        resourceCardScanBySeat[1].enemyEffects)
+end
+local closest=combatEffectNearestEnemy({x=0,z=0},candidateMonsters,
+    testArea,testOverlap,testIllusionEligibility)
+check("Illusionists' initial target skips a nearer Fortified enemy",
+    closest==world.plain)
+resourceCardScanBySeat[1].enemyEffects.fort={removeFortify=true}
+closest=combatEffectNearestEnemy({x=0,z=0},candidateMonsters,
+    testArea,testOverlap,testIllusionEligibility)
+check("Illusionists prefers the nearer enemy after fortification is removed",
+    closest==world.fort)
+resourceCardScanBySeat[1].enemyEffects.fort=nil
+unitResourceDefinitions=nil
+
 -- Leader planning copies borrow real leader combat data, but are not real kills.
 monsterPugs.realLeader={name="Dark Crusader",armour=7,attack={P={6}},pugType="leader"}
 gStates.coopAssaultType="leader"
