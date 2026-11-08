@@ -507,6 +507,7 @@ local function previewWoundPosition(unit,seat,slot)
     local board=playerBoard~=nil and getObjectFromGUID(playerBoard[seat]) or nil
     local candidates={}
     local pos=unit.getPosition()
+    local unitX,unitZ=pos.x or pos[1],pos.z or pos[3]
     if board~=nil then
         for _,point in ipairs(board.getSnapPoints() or {}) do
             local wound=false
@@ -515,10 +516,11 @@ local function previewWoundPosition(unit,seat,slot)
             end
             if wound then
                 local world=board.positionToWorld(point.position)
-                local dx=math.abs(world.x-pos.x)
-                local dz=math.abs(world.z-pos.z)
+                local x,z=world.x or world[1],world.z or world[3]
+                local dx=math.abs(x-unitX)
+                local dz=math.abs(z-unitZ)
                 if dx<1.6 and dz<2.5 then
-                    candidates[#candidates+1]={x=world.x,z=world.z,distance=dx+dz*0.1}
+                    candidates[#candidates+1]={x=x,z=z,distance=dx+dz*0.1}
                 end
             end
         end
@@ -532,7 +534,7 @@ local function previewWoundPosition(unit,seat,slot)
         return {selected.x,PREVIEW_WOUND_HEIGHT,selected.z}
     end
     -- If a custom mat has no recognized snaps, keep the token at the standard wound row.
-    return {pos.x+(slot-2)*0.57,PREVIEW_WOUND_HEIGHT,-33.29}
+    return {unitX+(slot-2)*0.57,PREVIEW_WOUND_HEIGHT,-33.29}
 end
 
 local function previewWoundBag(seat)
@@ -541,11 +543,13 @@ local function previewWoundBag(seat)
     if cached~=nil then return cached end
     local board=playerBoard~=nil and getObjectFromGUID(playerBoard[seat]) or nil
     if board==nil then return nil end
-    local centerX=board.getPosition().x
+    local boardPosition=board.getPosition()
+    local centerX=boardPosition.x or boardPosition[1]
     local best,bestDistance=nil,math.huge
     for _,obj in ipairs(getObjects()) do
         if obj.getName()=="Unit Wounds" then
-            local distance=math.abs(obj.getPosition().x-centerX)
+            local candidatePos=obj.getPosition()
+            local distance=math.abs((candidatePos.x or candidatePos[1])-centerX)
             if distance<bestDistance then best,bestDistance=obj,distance end
         end
     end
@@ -629,7 +633,7 @@ local function previewSpawnWound(entry,slot,position)
     end
     -- Spawn beside the source bag and classify immediately, before moving into the Unit zone.
     local bagPos=bag.getPosition()
-    local token=bag.takeObject({position={bagPos.x,bagPos.y+2,bagPos.z},smooth=false,callback_function=finish})
+    local token=bag.takeObject({position={bagPos.x or bagPos[1],(bagPos.y or bagPos[2])+2,bagPos.z or bagPos[3]},smooth=false,callback_function=finish})
     -- Mark it immediately as well as in the callback, before zone-entry scans.
     if token~=nil then finish(token) end
 end
