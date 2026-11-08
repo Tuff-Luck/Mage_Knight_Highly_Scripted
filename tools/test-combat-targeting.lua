@@ -11,13 +11,15 @@ local function makeObject(guid,x)
     local o={guid=guid}
     local currentX=x or 0
     local worldWidth=1.5
+    local localWidth=1.5
     function o.isDestroyed() return false end
     function o.isSmoothMoving() return false end
     function o.getPosition() return {currentX,1,0} end
     function o.setTestPosition(nextX) currentX=nextX end
     function o.getBounds() return {size={worldWidth,0.2,2.5}} end
-    function o.getBoundsNormalized() return {size={1.5,0.2,2.5}} end
+    function o.getBoundsNormalized() return {size={localWidth,0.2,2.5}} end
     function o.setTestWorldWidth(width) worldWidth=width end
+    function o.setTestLocalWidth(width) localWidth=width end
     function o.getScale() return {x=1,y=1,z=1} end
     function o.getButtons() return buttons end
     function o.getDecals() return decals end
@@ -226,6 +228,18 @@ enemy.setTestWorldWidth(1.5)
 attackAssignmentsDamageSync(damageLayout)
 check("settling a moved token retains stable target spacing",
     enemyDamageButtonX()==defaultDamageX)
+-- The real failure can happen even with getBoundsNormalized(): the bounds
+-- returned after attaching native target buttons are no longer the original
+-- token footprint. The target must NEVER try to avoid its own overlay.
+local initialButtonCreations=enemy.damageButtonCreationCount
+enemy.setTestLocalWidth(2.8)
+for i=1,5 do
+    attackAssignmentsDamageSync(damageLayout)
+    check("damage target ignores changing normalized bounds after deployment "..i,
+        enemyDamageButtonX()==defaultDamageX
+        and enemy.damageButtonCreationCount==initialButtonCreations)
+end
+enemy.setTestLocalWidth(1.5)
 local decals=enemy.getDecals()
 decals[#decals+1]={name="Elemental",position={1.2,0.15,0},
     scale={0.72,0.72,1}}
