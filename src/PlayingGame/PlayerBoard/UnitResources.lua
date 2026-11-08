@@ -57,8 +57,8 @@ local byType={
         value(2,"block",4,"Block 4; counts twice against Swiftness",{countsTwiceVsSwift=true})},
     UtemSwordsmen={
         value(1,"attack",3,"Attack 3"),value(1,"block",3,"Block 3"),
-        value(2,"attack",6,"Attack 6; wound this Unit after resolving",{woundsSelf=true,iconOverlay="W",iconOverlayColor="#FFFFFF"}),
-        value(2,"block",6,"Block 6; wound this Unit after resolving",{woundsSelf=true,iconOverlay="W",iconOverlayColor="#FFFFFF"})},
+        value(2,"attack",6,"Attack 6; this Unit becomes Wounded when activated in the Attack phase",{woundsSelf=true,iconOverlay="W",iconOverlayColor="#FFFFFF"}),
+        value(2,"block",6,"Block 6; this Unit becomes Wounded when activated in the Block phase",{woundsSelf=true,iconOverlay="W",iconOverlayColor="#FFFFFF"})},
     GuardianGolems={
         value(1,"attack",2,"Attack 2"),value(1,"block",2,"Block 2"),
         value(2,"blockFire",4,"Fire Block 4",{manaCost="Red"}),
