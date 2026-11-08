@@ -329,7 +329,10 @@ end
 -- Blue City's Elemental (+Attack) and AllAttack+ are here; the right-side
 -- Poison/Brutal icons and high Fortified icon should not shift the marker.
 local function damageTargetButtonX(obj)
-    local bounds=obj.getBounds()
+    -- getBounds() is a WORLD-axis-aligned box. Lifting/rotating a token can
+    -- enlarge its X extent even though the token and its local decals are
+    -- unchanged. Placement must use the rotation-independent local footprint.
+    local bounds=obj.getBoundsNormalized()
     local scale=obj.getScale()
     local size=bounds~=nil and bounds.size or nil
     local radius=(size~=nil and (size.x or size[1]) or 1.5)
@@ -348,7 +351,9 @@ local function damageTargetButtonX(obj)
             end
         end
     end
-    return x
+    -- Avoid re-creating decals/buttons for insignificant float drift when
+    -- the same token is handled, moved or rotated.
+    return math.floor(x*1000+0.5)/1000
 end
 
 local function rebuildDamageButtons()
