@@ -168,6 +168,27 @@ check("forced damage arrow follows Unit movement",forcedArrowEndX()==8)
 attackAssignmentsDamageClear()
 check("closing damage phase clears overlays",
     #enemy.getButtons()==0 and #enemy.getDecals()==0)
+-- Changing a Unit's ability must remove its old numeric target arrow
+-- without touching other still-selected effect arrows on that Unit.
+attackAssignmentsSetSourceTarget("unit","enemy","armour")
+attackAssignmentsSetSourceTarget("unit#effect2","enemy","attack")
+attackAssignmentsSetSourceTarget("unit#effect3","enemy","attack")
+check("numeric and special Unit abilities can own independent targeting keys",
+    next(attackAssignmentsTargetGUIDs("unit"))~=nil
+    and next(attackAssignmentsTargetGUIDs("unit#effect2"))~=nil
+    and next(attackAssignmentsTargetGUIDs("unit#effect3"))~=nil)
+attackAssignmentsPruneUnitChoiceSources("unit",{["unit#effect2"]=true})
+check("switching to a Unit's special effect drops stale Ranged and other effect arrows",
+    next(attackAssignmentsTargetGUIDs("unit"))==nil
+    and next(attackAssignmentsTargetGUIDs("unit#effect3"))==nil
+    and attackAssignmentsTargetGUIDs("unit#effect2").enemy==true)
+attackAssignmentsPruneUnitChoiceSources("unit",{["unit#effect2"]=true})
+check("reconciling the same Unit choice preserves an existing manual target",
+    attackAssignmentsTargetGUIDs("unit#effect2").enemy==true)
+attackAssignmentsPruneUnitChoiceSources("unit",{unit=true})
+check("switching back to a numeric resource retires the old effect-only arrow",
+    next(attackAssignmentsTargetGUIDs("unit#effect2"))==nil)
+attackAssignmentsClearForObject("unit")
 print("Combat targeting and lifecycle regression tests passed.")
 
 -- Preview Unit wounds are locked, translucent and non-gameplay until End Turn.
