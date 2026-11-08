@@ -467,7 +467,254 @@ function attackAssignmentsDamageTargetsOf(key)
 	return damageTargets[key] or {}
 end
 
+
+-- Provisional Unit damage is a physical overlay, never a real Unit Wound until End Turn.
+-- The tag/GM Notes deliberately prevent Resource Tracker scans and scoring from treating
+-- these tokens as wounds. Keeping the live token GUIDs also makes recalculation idempotent.
+local PREVIEW_WOUND_TAG="CombatPreviewWound"
+local PREVIEW_WOUND_HEIGHT=1.16
+local PREVIEW_WOUND_ALPHA=150/255
+local previewWoundsByUnit={}
+local previewUnitBags={}
+local previewBagWarnings={}
+local previewOrphansScanned=false
+local previewCommittedSeat=nil
+local previewParalysisClick="attackAssignmentParalysisMarkerNoop"
+
+function attackAssignmentParalysisMarkerNoop() end
+
+local function previewUnitMarker(unit,show)
+    if unit==nil then return end
+    local found={}
+    for _,button in ipairs(unit.getButtons() or {}) do
+        if button.click_function==previewParalysisClick then found[#found+1]=button.index end
+    end
+    if #found>0 then
+        for i=#found,1,-1 do unit.removeButton(found[i]) end
+    end
+    if show~=true then return end
+    -- Same free-floating red X convention as defeated enemy tokens.
+    local bounds=unit.getBoundsNormalized()
+    local scale=unit.getScale()
+    local height=bounds~=nil and bounds.size~=nil and (bounds.size.y or bounds.size[2]) or 0
+    local scaleY=scale~=nil and (scale.y or scale[2]) or 1
+    unit.createButton({click_function=previewParalysisClick,function_owner=Global,label="X",
+        position={0,math.max(0.12,height/(2*math.max(0.01,scaleY))+0.08),0},
+        rotation={0,0,0},width=0,height=0,font_size=640,
+        font_color={1,0.04,0.04},tooltip="Combat Calculator: Unit destroyed by Paralysis"})
+end
+
+local function previewWoundPosition(unit,seat,slot)
+    local board=playerBoard~=nil and getObjectFromGUID(playerBoard[seat]) or nil
+    local candidates={}
+    local pos=unit.getPosition()
+    if board~=nil then
+        for _,point in ipairs(board.getSnapPoints() or {}) do
+            local wound=false
+            for _,tag in ipairs(point.tags or {}) do
+                if tag=="Wound" then wound=true break end
+            end
+            if wound then
+                local world=board.positionToWorld(point.position)
+                local dx=math.abs(world.x-pos.x)
+                local dz=math.abs(world.z-pos.z)
+                if dx<1.6 and dz<2.5 then
+                    candidates[#candidates+1]={x=world.x,z=world.z,distance=dx+dz*0.1}
+                end
+            end
+        end
+    end
+    -- The three nearest Wound snaps belong to the Unit even after layout compression.
+    if #candidates>=3 then
+        table.sort(candidates,function(a,b) return a.distance<b.distance end)
+        local three={candidates[1],candidates[2],candidates[3]}
+        table.sort(three,function(a,b) return a.x<b.x end)
+        local selected=three[slot]
+        return {selected.x,PREVIEW_WOUND_HEIGHT,selected.z}
+    end
+    -- If a custom mat has no recognized snaps, keep the token at the standard wound row.
+    return {pos.x+(slot-2)*0.57,PREVIEW_WOUND_HEIGHT,-33.29}
+end
+
+local function previewWoundBag(seat)
+    local guid=previewUnitBags[seat]
+    local cached=guid~=nil and getObjectFromGUID(guid) or nil
+    if cached~=nil then return cached end
+    local board=playerBoard~=nil and getObjectFromGUID(playerBoard[seat]) or nil
+    if board==nil then return nil end
+    local centerX=board.getPosition().x
+    local best,bestDistance=nil,math.huge
+    for _,obj in ipairs(getObjects()) do
+        if obj.getName()=="Unit Wounds" then
+            local distance=math.abs(obj.getPosition().x-centerX)
+            if distance<bestDistance then best,bestDistance=obj,distance end
+        end
+    end
+    if best~=nil and bestDistance<20 then
+        previewUnitBags[seat]=best.guid
+        return best
+    end
+    if previewBagWarnings[seat]~=true then
+        previewBagWarnings[seat]=true
+        print("COMBAT PREVIEW: Missing Unit Wounds infinite bag for player mat "..tostring(seat))
+    end
+    return nil
+end
+
+local function previewDiscardWounds(entry)
+    for _,guid in pairs(entry.guids or {}) do
+        local obj=getObjectFromGUID(guid)
+        if obj~=nil and obj.hasTag(PREVIEW_WOUND_TAG) then obj.destruct() end
+    end
+    if entry.kind=="destroyed" then previewUnitMarker(getObjectFromGUID(entry.unitGUID),false) end
+end
+
+-- Existing previews from a saved table may have no Lua registry. Sweep only marked
+-- temporary objects; ordinary, permanent Unit Wounds must never be touched.
+local function previewSweepOrphans()
+    if previewOrphansScanned then return end
+    previewOrphansScanned=true
+    for _,obj in ipairs(getObjects()) do
+        if obj.hasTag(PREVIEW_WOUND_TAG) or obj.getGMNotes()=="Combat Preview Wound" then
+            obj.destruct()
+        end
+    end
+end
+
+function attackAssignmentsUnitPreviewClear()
+    for guid,entry in pairs(previewWoundsByUnit) do
+        if not entry.committed then previewDiscardWounds(entry) end
+        previewWoundsByUnit[guid]=nil
+    end
+    previewSweepOrphans()
+end
+
+local function previewMakePermanent(token)
+    if token==nil then return end
+    token.setGMNotes("Unit Wound")
+    if token.hasTag(PREVIEW_WOUND_TAG) then token.removeTag(PREVIEW_WOUND_TAG) end
+    token.setColorTint({r=1,g=1,b=1,a=1})
+    token.lock()
+end
+
+local function previewSpawnWound(entry,slot,position)
+    if entry.guids[slot]~=nil or entry.pending[slot] then return end
+    local bag=previewWoundBag(entry.seat)
+    if bag==nil then return end
+    entry.pending[slot]=true
+    local function finish(token)
+        if token==nil then return end
+        entry.pending[slot]=nil
+        if entry.committed then
+            previewMakePermanent(token)
+            token.setPosition(position)
+            return
+        end
+        if previewWoundsByUnit[entry.unitGUID]~=entry or
+            (resourceCardsPanelOpen~=nil and not resourceCardsPanelOpen()) then
+            token.destruct()
+            return
+        end
+        -- This is a ghost, not a gameplay Wound until the End Turn boundary.
+        token.setGMNotes("Combat Preview Wound")
+        if not token.hasTag(PREVIEW_WOUND_TAG) then token.addTag(PREVIEW_WOUND_TAG) end
+        token.setColorTint(entry.kind=="poison"
+            and {r=0.32,g=1,b=0.38,a=PREVIEW_WOUND_ALPHA}
+            or {r=1,g=1,b=1,a=PREVIEW_WOUND_ALPHA})
+        token.setPosition(position)
+        token.lock()
+        entry.guids[slot]=token.guid
+    end
+    local token=bag.takeObject({position=position,smooth=false,callback_function=finish})
+    -- Mark it immediately as well as in the callback, before zone-entry scans.
+    if token~=nil then finish(token) end
+end
+
+-- Called after damage is calculated, so full resistance creates no wound.
+-- Paralysis is a destroyed Unit: show a red X rather than drawing Wounds.
+function attackAssignmentsUnitPreviewSync(seat,results)
+    if seat==nil or (resourceCardsPanelOpen~=nil and not resourceCardsPanelOpen())
+        or (gStates~=nil and gStates.preEndTurn==true)
+        or previewCommittedSeat==seat then return end
+    previewSweepOrphans()
+    if previewCommittedSeat~=seat then previewCommittedSeat=nil end
+    local wanted={}
+    for _,result in pairs(results or {}) do
+        for _,entry in ipairs(result.units or {}) do
+            if entry.wounded==true and entry.unit~=nil then
+                local guid=entry.unit.guid
+                wanted[guid]={kind=entry.destroyed and "destroyed" or
+                    ((entry.wounds or 1)>1 and "poison" or "normal"),seat=seat}
+            end
+        end
+    end
+    for guid,entry in pairs(previewWoundsByUnit) do
+        local desired=wanted[guid]
+        if desired==nil or desired.kind~=entry.kind or desired.seat~=entry.seat then
+            previewDiscardWounds(entry)
+            previewWoundsByUnit[guid]=nil
+        end
+    end
+    for guid,desired in pairs(wanted) do
+        local unit=getObjectFromGUID(guid)
+        if unit~=nil then
+            local entry=previewWoundsByUnit[guid]
+            if entry==nil then
+                entry={unitGUID=guid,seat=seat,kind=desired.kind,guids={},pending={}}
+                previewWoundsByUnit[guid]=entry
+                if desired.kind=="destroyed" then previewUnitMarker(unit,true) end
+            end
+            if desired.kind~="destroyed" then
+                local slots=desired.kind=="poison" and {1,3} or {2}
+                for _,slot in ipairs(slots) do
+                    local position=previewWoundPosition(unit,seat,slot)
+                    local tokenGUID=entry.guids[slot]
+                    local token=tokenGUID~=nil and getObjectFromGUID(tokenGUID) or nil
+                    if token~=nil then
+                        local old=token.getPosition()
+                        if math.abs(old.x-position[1])>0.025 or math.abs(old.z-position[3])>0.025
+                            or math.abs(old.y-PREVIEW_WOUND_HEIGHT)>0.025 then token.setPosition(position) end
+                    else
+                        entry.guids[slot]=nil
+                        previewSpawnWound(entry,slot,position)
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- This is the *end of turn*, not the end of round. Make Wounds official
+-- before ordinary player-area cleanup runs. Closing the tracker instead
+-- removes all pending ghosts without committing any of them.
+function attackAssignmentsUnitPreviewCommit(seat)
+    if seat==nil then return end
+    previewCommittedSeat=seat
+    for guid,entry in pairs(previewWoundsByUnit) do
+        if entry.seat==seat then
+            entry.committed=true
+            if entry.kind=="destroyed" then
+                previewUnitMarker(getObjectFromGUID(guid),false)
+                local unit=getObjectFromGUID(guid)
+                -- A Paralyzed Unit is destroyed rather than Wounded.
+                local trash=getObjectFromGUID(trashCan)
+                if unit~=nil and trash~=nil then
+                    protectedObjectAllowScriptRemoval(unit.guid,trashCan,"Paralysis destroyed Unit")
+                    trash.putObject(unit)
+                end
+            else
+                for _,tokenGUID in pairs(entry.guids) do
+                    local token=getObjectFromGUID(tokenGUID)
+                    if token~=nil then previewMakePermanent(token) end
+                end
+            end
+            previewWoundsByUnit[guid]=nil
+        end
+    end
+end
+
 function attackAssignmentsDamageClear()
+	attackAssignmentsUnitPreviewClear()
 	damageTargets={}
 	damagePending=nil
 	damageSpec={attacks={},units={},byOwner={},byKey={},reserved={}}
