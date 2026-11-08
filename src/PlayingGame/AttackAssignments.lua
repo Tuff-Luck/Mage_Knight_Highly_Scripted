@@ -581,7 +581,7 @@ local function previewSweepOrphans()
     for _,obj in ipairs(getObjects()) do
         if obj.hasTag(PREVIEW_WOUND_TAG) or obj.getGMNotes()=="Combat Preview Wound" then
             obj.destruct()
-        elseif unitLayoutIsUnit~=nil and unitLayoutIsUnit(obj) then
+        elseif obj.type=="Card" and unitLayoutIsUnit~=nil and unitLayoutIsUnit(obj) then
             -- A saved Paralysis X can outlive the unsaved runtime registry.
             previewUnitMarker(obj,false)
         end
