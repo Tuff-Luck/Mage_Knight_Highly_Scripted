@@ -547,7 +547,7 @@ local function previewWoundBag(seat)
     local centerX=boardPosition.x or boardPosition[1]
     local best,bestDistance=nil,math.huge
     for _,obj in ipairs(getObjects()) do
-        if obj.getName()=="Unit Wounds" then
+        if obj.getGMNotes()=="Unit Wounds" then
             local candidatePos=obj.getPosition()
             local distance=math.abs((candidatePos.x or candidatePos[1])-centerX)
             if distance<bestDistance then best,bestDistance=obj,distance end
