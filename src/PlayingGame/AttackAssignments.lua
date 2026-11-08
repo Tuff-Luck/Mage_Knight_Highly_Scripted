@@ -885,6 +885,11 @@ end
 
 function attackAssignmentsBegin(source,resource,playerColor,additional,sourceKey,part)
     if resourceCardsPanelOpen~=nil and not resourceCardsPanelOpen() then return false end
+    -- Illusionists affect exactly one enemy. A right click retargets rather
+    -- than adding a second effect, even if that enemy is also unfortified.
+    if resourceCardsUnitTargetRequiresUnfortified~=nil
+        and resourceCardsUnitTargetRequiresUnfortified(sourceKey or (source~=nil and source.guid))
+        then additional=false end
 	if source==nil or source.guid==nil or source.isDestroyed()
 		or type(resource)~="string" or resource=="" or type(playerColor)~="string"
 		or Player[playerColor]==nil then return false end
@@ -952,8 +957,10 @@ function attackAssignmentTargetClicked(target,playerColor)
         if target.isDestroyed() or pending.source==nil or pending.source.isDestroyed() then return end
         if resourceCardsCombatTargetAcceptsSource~=nil
             and not resourceCardsCombatTargetAcceptsSource(pending.sourceGUID,target.guid) then
-            broadcastToColor("Only Block/Move or attack reductions can target a reminder.",
-                playerColor,{1,0.6,0.2})
+            local message=resourceCardsCombatTargetRejectMessage~=nil
+                and resourceCardsCombatTargetRejectMessage(pending.sourceGUID,target.guid)
+                or "Only Block/Move or attack reductions can target a reminder."
+            safeBroadcastToColor(message,playerColor,{1,0.6,0.2})
             return
         end
 		if tostring(pending.resource):find("move$")~=nil and resourceCardsCombatTargetAcceptsMove~=nil
@@ -1063,6 +1070,24 @@ function attackAssignmentsPruneInactive(activeKeys,activeObjects,keepsLock)
 		persistAssignments()
 		refreshRenderedLines()
 	end
+end
+
+-- Keep a restricted effect's persistent arrows in sync with its live legal
+-- targets. Removing an obsolete arrow here is intentionally silent and does
+-- not rescan: CardRecognition is already resolving this combat scan.
+function attackAssignmentsPruneSourceTargets(sourceGUID,eligible)
+    local changed=false
+    for id,entry in pairs(assignmentRegistry) do
+        if entry.sourceGUID==sourceGUID and eligible[entry.targetGUID]~=true then
+            assignmentRegistry[id]=nil
+            changed=true
+        end
+    end
+    if changed then
+        persistAssignments()
+        refreshRenderedLines()
+    end
+    return changed
 end
 
 -- When a Unit changes its chosen ability, retire only the target keys that
