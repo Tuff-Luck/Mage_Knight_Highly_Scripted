@@ -266,3 +266,25 @@ attackAssignmentsUnitPreviewCommit(1)
 check("Paralysis removes the destroyed Unit at End Turn, not a Wound",
     objects.secondunit==nil and #ghosts()==0)
 print("Combat Unit wound preview lifecycle regression tests passed.")
+
+-- Reloading an old saved table must remove orphan physical ghosts and orphan X buttons.
+unit.type="Card"
+function unit.getGMNotes() return "" end
+function unit.hasTag() return false end
+gameCardType=function(obj)
+    return obj.guid=="unit" and "Regular Unit" or nil
+end
+unit.createButton({click_function="attackAssignmentParalysisMarkerNoop",label="X"})
+local orphan=bag.takeObject({position={8,3,-28},callback_function=function() end})
+orphan.addTag("CombatPreviewWound")
+orphan.setGMNotes("Combat Preview Wound")
+getObjects=function() return {bag,unit,orphan} end
+-- Simulate the Global Lua reload: private state no longer remembers the ghost or X.
+dofile("src/PlayingGame/AttackAssignments.lua")
+attackAssignmentsUnitPreviewClear()
+local orphanX=false
+for _,button in ipairs(unit.getButtons()) do
+    if button.click_function=="attackAssignmentParalysisMarkerNoop" then orphanX=true end
+end
+check("saved orphan ghost and Paralysis X are cleared on load",
+    objects[orphan.guid]==nil and not orphanX)
