@@ -330,6 +330,28 @@ local destroyedPhase=phaseConfig.unitsWoundedByDamage({
     first={units={{unit={guid="rangedUnit"},wounded=true,destroyed=true}}}})
 check("Paralysis cancels remaining Unit attacks",
     #phaseConfig.attackPhaseSources(sources,destroyedPhase)==1)
+-- Utem Swordsmen wounds itself at the time of its selected ability, not
+-- retroactively after the combat. Block 6 is already Wounded during Damage;
+-- Attack 6 can be used only after surviving Damage unwounded.
+unitResourceDefinitions={swords={
+    {attack=3},{block=3},{attack=6,woundsSelf=true},{block=6,woundsSelf=true}}}
+gStates={unitResourceActivations={swords={seatPos=1,choice=4}}}
+resourceCardScanBySeat[1]={cards={swords={complete=true}}}
+local activeSelfWoundGroup={{rangeDefeated=false,destroyed=false,
+    sources={{guid="swords",resources={block=6,attack=0,ranged=0}}}}}
+local selfEarly,selfLate=phaseConfig.selfWoundingUnitChoices(1,activeSelfWoundGroup)
+check("self-wounding Block 6 makes Utem Swordsmen ineligible before damage",
+    selfEarly.swords and not selfLate.swords)
+gStates.unitResourceActivations.swords.choice=3
+selfEarly,selfLate=phaseConfig.selfWoundingUnitChoices(1,activeSelfWoundGroup)
+check("self-wounding Attack 6 happens only after damage assignment",
+    selfLate.swords and not selfEarly.swords)
+activeSelfWoundGroup[1].rangeDefeated=true
+selfEarly,selfLate=phaseConfig.selfWoundingUnitChoices(1,activeSelfWoundGroup)
+check("a Ranged phase defeat prevents unused Attack 6 from wounding the Unit",
+    next(selfEarly)==nil and next(selfLate)==nil)
+unitResourceDefinitions=nil
+resourceCardScanBySeat[1]=nil
 turnOrder={{seatPos=1}}
 gStates={turnNumber=1,attackedMonsters={summoned={nil,nil,"summoned","owner"}},
     summonStates={summoned="summoned"}}
