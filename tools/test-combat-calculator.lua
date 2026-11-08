@@ -475,4 +475,27 @@ check("leader co-op planning copy inherits live leader stats",
     previewMode=="preview" and previewData==monsterPugs.realLeader)
 check("leader planning copy becomes an assignable combat target",
     resourceCardsCombatTargetObjects().previewLeader==preview)
+-- Shocktroops' Armor -1 / Attack -1 effect produces a combat report.
+-- White may be the logical Mage Knight hand even if nobody occupies that
+-- physical TTS player color; the report must not call broadcastToColor
+-- directly and interrupt the calculator's Unit option-change scan.
+do
+    dofile("src/PlayingGame/PlayerBoard/CombatEffects.lua")
+    local notices={}
+    monsterPugs={target={name="Dummy Enemy",armour=4}}
+    gStates={turnNumber=1,monsterPerks={}}
+    positionToColor=function() return "White" end
+    broadcastToColor=function() error("Cannot broadcast to unseated White") end
+    safeBroadcastToColor=function(message,color)
+        notices[#notices+1]={text=message,color=color}
+    end
+    local effects={}
+    combatEffectAdd(effects,"target","shocktroops",{armourReduce=1,attackReduce=1})
+    local ok,err=pcall(combatEffectReport,1,effects)
+    check("Shocktroops option reports safely when White is not seated",
+        ok and #notices==1 and notices[1].color=="White"
+        and notices[1].text:find("Armor -1",1,true)~=nil
+        and notices[1].text:find("Attack reduction 1",1,true)~=nil)
+    if not ok then error(err) end
+end
 print("Combat calculator regression tests passed.")
