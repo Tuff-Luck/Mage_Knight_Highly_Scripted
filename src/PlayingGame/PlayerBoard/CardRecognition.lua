@@ -712,7 +712,7 @@ local function combatPanelSetAttribute(id,attribute,value)
 end
 
 -- Empty slots are hidden; a filled slot is the resource icon with its value over the top.
-local function combatAssignmentIconButton(id,active,amount,icon,tooltip,selected,textColor)
+local function combatAssignmentIconButton(id,active,amount,icon,tooltip,selected,textColor,wounded)
     combatPanelSetAttribute(id,"active",active and "true" or "false")
     if active then
         combatPanelSetAttribute(id.."Image","image",icon)
@@ -736,7 +736,8 @@ local function combatAssignmentIconButton(id,active,amount,icon,tooltip,selected
         combatPanelSetAttribute(id,"preferredWidth","24")
         combatPanelSetAttribute(id,"preferredHeight","26")
         combatPanelSetAttribute(id,"color",
-            selected and "rgb(1,0.75,0.2)" or "rgb(0.85,0.82,0.72)")
+            wounded and "rgb(0.90,0.37,0.35)"
+            or (selected and "rgb(1,0.75,0.2)" or "rgb(0.85,0.82,0.72)"))
         combatPanelSetAttribute(id,"tooltip",tooltip)
     end
 end
@@ -2097,8 +2098,9 @@ local function combatAssignmentRefreshRows(entries,sources)
                         ..(item.wounded and " can't apply 'Wounded'" or "")
                     combatAssignmentIconButton(id,true,item.amount,item.icon,
                         tooltip,combatAssignmentState.selected==item.source.key,
-                        item.wounded and "#777777" or (item.typeKey~=nil
-                            and combatConfig.typeColors[item.typeKey][item.reduced and 2 or 1] or nil))
+                        item.wounded and "#292323" or (item.typeKey~=nil
+                            and combatConfig.typeColors[item.typeKey][item.reduced and 2 or 1] or nil),
+                        item.wounded)
                 else
                     combatAssignmentIconButton(id,false,0,"","",false)
                 end
