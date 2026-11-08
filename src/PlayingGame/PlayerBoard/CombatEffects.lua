@@ -91,7 +91,7 @@ function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec)
 end
 
 -- Remind the active player when the set of applied effects changes.
-function combatEffectReport(seatPos,enemyEffects)
+function combatEffectReport(seatPos,enemyEffects,quiet)
     local parts={}
     for guid,entry in pairs(enemyEffects) do
         local pug=monsterPugs[guid]
@@ -127,7 +127,7 @@ function combatEffectReport(seatPos,enemyEffects)
     local signature=table.concat(parts,"\n")
     if lastReport[seatPos]==signature then return end
     lastReport[seatPos]=signature
-    if signature~="" then
+    if signature~="" and quiet~=true then
         -- The Mage Knight's hand color may not be occupied (hotseat/dummy/GM).
         -- Use the shared safe broadcaster so changing an effect never crashes
         -- the combat scan while the target color has no seated Player.
