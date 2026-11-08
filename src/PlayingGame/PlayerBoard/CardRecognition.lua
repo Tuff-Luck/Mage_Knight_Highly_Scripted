@@ -4628,7 +4628,7 @@ local function combatEffectChosenEnemy(sourceGUID,area,monsters)
     return chosen or combatEffectNearestEnemy(area,monsters,footprint,overlapArea)
 end
 
-local function renderSeat(seatPos)
+local function renderSeat(seatPos,quietUnitChoice)
     if not resourceCardsPanelOpen() then return end
     local active=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if active==nil or active.seatPos~=seatPos then return end
@@ -6301,7 +6301,7 @@ local function renderSeat(seatPos)
     local transformChanged=previousTransform==nil
         or (previousTransform.coldFire==true)~=(attackTransforms.coldFire==true)
         or (previousTransform.siege==true)~=(attackTransforms.siege==true)
-    combatEffectReport(seatPos,enemyEffects)
+    combatEffectReport(seatPos,enemyEffects,quietUnitChoice)
     local fameTotal,repTotal=0,0
     for _,record in pairs(records) do
         if record.fameRep~=nil then
@@ -6656,10 +6656,9 @@ function resourceUnitsChoiceClicked(player,value,id)
     end
     resourceUnitsReconcileChoiceTargets(unit,abilities,activation)
     showUnitAbilityButtons(unit,abilities,activation,true)
-    -- A Unit ability button changes no physical object positions. Rebuild its
-    -- scan immediately instead of waiting for a zone event or another target
-    -- click; old resources, new enemy effects and arrows update together.
-    renderSeat(current.seatPos)
+    -- A Unit choice still recalculates immediately, but its enemy-effect
+    -- notification is silent. Other card/skill updates retain their notices.
+    renderSeat(current.seatPos,true)
 end
 
 -- Clear any remaining activations at turn end without moving Command tokens.
