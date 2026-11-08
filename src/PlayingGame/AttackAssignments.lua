@@ -323,6 +323,33 @@ local function addDamageTargetButton(obj,clickFunction)
 	damageButtonObjects[obj.guid]=obj
 end
 
+-- Decals are mirrored across local X from native click buttons (the
+-- DamageTarget decal sits at -buttonX). Only decals on that visual LEFT
+-- edge and near the target marker's centre row need horizontal clearance.
+-- Blue City's Elemental (+Attack) and AllAttack+ are here; the right-side
+-- Poison/Brutal icons and high Fortified icon should not shift the marker.
+local function damageTargetButtonX(obj)
+    local bounds=obj.getBounds()
+    local scale=obj.getScale()
+    local size=bounds~=nil and bounds.size or nil
+    local radius=(size~=nil and (size.x or size[1]) or 1.5)
+        /((scale~=nil and (scale.x or scale[1])) or 1)/2
+    local x=-(radius+0.35)
+    for _,decal in ipairs(obj.getDecals() or {}) do
+        local p=decal.position
+        if type(p)=="table" and not tostring(decal.name or ""):find("^DamageTarget") then
+            local px,pz=p.x or p[1],p.z or p[3]
+            if type(px)=="number" and type(pz)=="number"
+                and px>0.8 and math.abs(pz)<0.55 then
+                -- Keep the same clearance as the original design, but on
+                -- the correct mirrored side of the object.
+                x=math.min(x,-px-0.71)
+            end
+        end
+    end
+    return x
+end
+
 local function rebuildDamageButtons()
     -- Change only owners whose attack buttons have changed. A Block adjustment
     -- often changes damage values but not the physical buttons/decals.
@@ -334,22 +361,13 @@ local function rebuildDamageButtons()
             for _,attack in ipairs(list) do keys[#keys+1]=attack.key end
             local signature=table.concat(keys,"|")
             desiredOwners[owner]=signature
-            if damageOwnerSignatures[owner]~=signature then
+            local x=damageTargetButtonX(obj)
+            -- A City bonus can be added or removed after the damage button
+            -- already exists. Reposition only when its actual clearance
+            -- changes, without redrawing it on every calculator refresh.
+            if damageOwnerSignatures[owner]~=signature or damageButtonX[owner]~=x then
                 if damageOwnerSignatures[owner]~=nil then removeDamageButtons(obj) end
-                if damageButtonX[owner]==nil then
-                    local bounds=obj.getBounds()
-                    local scale=obj.getScale()
-                    local radius=(bounds~=nil and bounds.size~=nil and bounds.size[1] or 1.5)
-                        /((scale~=nil and scale.x) or 1)/2
-                    local x=-(radius+0.35)
-                    for _,decal in ipairs(obj.getDecals() or {}) do
-                        local p=decal.position
-                        local px=type(p)=="table" and (p[1] or p.x) or nil
-                        if px~=nil and px<-0.8 then x=math.min(x,px-0.71) end
-                    end
-                    damageButtonX[owner]=x
-                end
-                local x=damageButtonX[owner]
+                damageButtonX[owner]=x
                 local decals=obj.getDecals() or {}
                 for index in ipairs(list) do
                     local z=(index-(#list+1)/2)*0.65
