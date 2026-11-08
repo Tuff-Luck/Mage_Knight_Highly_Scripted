@@ -165,4 +165,15 @@ check("initial failure leaves no committed marker and no logical gain",
 failInitial=false
 check("initial failure remains retriable",fameReputationApplyPlayerFameReputation(3)==true
 	and turnOrder[3].fame==3 and gStates.fameRepCommitted[3].fame==3)
+-- Motivation must skip Dummy (which has no physical Fame marker) while still syncing real players.
+local motivationSyncCalls={}
+refreshPlayerFameFromShield=function(playerIndex)
+	motivationSyncCalls[playerIndex]=(motivationSyncCalls[playerIndex] or 0)+1
+	return turnOrder[playerIndex].mage~=gStates.positionMageKnight[5]
+end
+skillsMotivationBase=function() return "awarded" end
+local motivationOk,motivationResult=pcall(fameReputationMotivation)
+check("Motivation skips Dummy while refreshing real Fame markers",
+	motivationOk and motivationResult=="awarded"
+	and motivationSyncCalls[1]==1 and motivationSyncCalls[2]==nil and motivationSyncCalls[3]==1)
 print("Fame and Reputation commit regression tests passed.")

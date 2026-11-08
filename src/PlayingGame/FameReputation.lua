@@ -401,7 +401,9 @@ function fameReputationMotivation(...)
 	local result=skillsMotivationBase(...)
 	--Motivation has its own physical Fame movement and includes Blitz bonuses there. Keep every logical
 	--Fame value synchronized with its marker after that independent award path.
-	for playerIndex,_ in pairs(turnOrder) do syncPlayerFameFromMarker(playerIndex) end
+	for playerIndex,entry in ipairs(turnOrder) do
+		if entry.mage~=gStates.positionMageKnight[5] then syncPlayerFameFromMarker(playerIndex) end
+	end
 	return result
 end
 
