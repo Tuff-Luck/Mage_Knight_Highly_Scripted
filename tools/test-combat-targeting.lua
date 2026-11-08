@@ -168,7 +168,7 @@ local panelOpen=true
 resourceCardsPanelOpen=function() return panelOpen end
 gStates.preEndTurn=false
 local bag={guid="unit-wound-bag"}
-function bag.getName() return "Unit Wounds" end
+function bag.getName() return "{en}Unit Wounds{it}Ferite delle Unità{ru}Раны для отрядов" end
 function bag.getPosition() return {x=8,y=1,z=-28} end
 function bag.hasTag() return false end
 function bag.getGMNotes() return "Unit Wounds" end
