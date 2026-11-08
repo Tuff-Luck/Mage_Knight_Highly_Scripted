@@ -2052,13 +2052,14 @@ local function combatAssignmentRefreshRows(entries,sources)
                 end
                 if item.detail.family~="block" and item.detail.family~="move" then
                     local phase=combatDetailPhase(item.detail,group.rangeDefeated,group.fortification)
-                    -- Keep early Ranged/Block icons, but hide any Unit
-                    -- resource that cannot legally be used in the Attack phase.
-                    if phase~="attack" or woundedBeforeAttack[item.source.guid]~=true then
+                    -- Keep invalidated Attack-phase Unit icons visible so players
+                    -- can see what was assigned, but make the unavailable value grey
+                    -- and explain why it does not count. Earlier Ranged/Block stands.
+                    local wounded=phase=="attack" and woundedBeforeAttack[item.source.guid]==true
                     lists[phase][#lists[phase]+1]={source=item.source,amount=item.detail.amount,
                         icon=item.detail.icon,text=item.detail.text,typeKey=item.detail.typeKey,
-                        reduced=combatEnemyResists(group.entry.data,group.entry.perks,item.detail.typeKey)}
-                    end
+                        reduced=combatEnemyResists(group.entry.data,group.entry.perks,item.detail.typeKey),
+                        wounded=wounded}
                 end
             end
             perMember[index]=lists
@@ -2092,10 +2093,12 @@ local function combatAssignmentRefreshRows(entries,sources)
                 local item=items[slot]
                 if item~=nil then
                     combatAssignmentSlotSources[id]=item.source.key
+                    local tooltip=item.source.name..": "..item.text
+                        ..(item.wounded and " can't apply 'Wounded'" or "")
                     combatAssignmentIconButton(id,true,item.amount,item.icon,
-                        item.source.name..": "..item.text,
-                        combatAssignmentState.selected==item.source.key,
-                        item.typeKey~=nil and combatConfig.typeColors[item.typeKey][item.reduced and 2 or 1] or nil)
+                        tooltip,combatAssignmentState.selected==item.source.key,
+                        item.wounded and "#777777" or (item.typeKey~=nil
+                            and combatConfig.typeColors[item.typeKey][item.reduced and 2 or 1] or nil))
                 else
                     combatAssignmentIconButton(id,false,0,"","",false)
                 end
