@@ -171,7 +171,7 @@ local bag={guid="unit-wound-bag"}
 function bag.getName() return "Unit Wounds" end
 function bag.getPosition() return {x=8,y=1,z=-28} end
 function bag.hasTag() return false end
-function bag.getGMNotes() return "" end
+function bag.getGMNotes() return "Unit Wounds" end
 objects[bag.guid]=bag
 local allPreviewTokens={}
 local nextWoundID=0
