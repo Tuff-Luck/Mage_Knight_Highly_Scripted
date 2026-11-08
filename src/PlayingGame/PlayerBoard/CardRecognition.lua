@@ -6656,7 +6656,10 @@ function resourceUnitsChoiceClicked(player,value,id)
     end
     resourceUnitsReconcileChoiceTargets(unit,abilities,activation)
     showUnitAbilityButtons(unit,abilities,activation,true)
-    queueSeat(current.seatPos,nil)
+    -- A Unit ability button changes no physical object positions. Rebuild its
+    -- scan immediately instead of waiting for a zone event or another target
+    -- click; old resources, new enemy effects and arrows update together.
+    renderSeat(current.seatPos)
 end
 
 -- Clear any remaining activations at turn end without moving Command tokens.
