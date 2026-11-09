@@ -44,6 +44,7 @@ end
 -- Spec fields: noAttackUnfortified, armourReduce, armourReduceFortified (replaces it against a fortified enemy),
 -- armourReduceByResist (per resistance), noAttack, removeAbilities, removeFortify,
 -- removeResist, removeFireResist, destroy, destroyIfBlocked, attackReduce, firstDamageUnit,
+-- armourReduceRangedUnfortifiedOnly (does not reduce Armour in Ranged/Siege on a fortified enemy),
 -- all (every face-up enemy instead of one).
 -- Arcane Immunity ignores non-attack effects; directly changing an Attack remains legal.
 local function combatEffectImmune(enemyGUID)
@@ -55,7 +56,8 @@ end
 function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec)
     local entry=enemyEffects[enemyGUID]
     if entry==nil then
-        entry={armourReduce=0,armourReduceFortified=0,armourReduceByResist=0,noAttack=false,destroy=false,
+        entry={armourReduce=0,armourReduceFortified=0,armourReduceByResist=0,
+            armourReduceRangedUnfortifiedOnly=0,noAttack=false,destroy=false,
             destroyIfBlocked=false,attackReductions={},
             removeAbilities=false,removeFortify=false,removeResist=false,removeFireResist=false,sources={}}
         enemyEffects[enemyGUID]=entry
@@ -81,6 +83,8 @@ function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec)
     entry.armourReduce=entry.armourReduce+(spec.armourReduce or 0)
     entry.armourReduceFortified=entry.armourReduceFortified+(spec.armourReduceFortified or spec.armourReduce or 0)
     entry.armourReduceByResist=entry.armourReduceByResist+(spec.armourReduceByResist or 0)
+    entry.armourReduceRangedUnfortifiedOnly=entry.armourReduceRangedUnfortifiedOnly
+        +(spec.armourReduceRangedUnfortifiedOnly or 0)
     entry.noAttack=entry.noAttack or spec.noAttack==true
     entry.noAttackUnfortified=entry.noAttackUnfortified or spec.noAttackUnfortified==true
     entry.removeAbilities=entry.removeAbilities or spec.removeAbilities==true
@@ -103,6 +107,9 @@ function combatEffectReport(seatPos,enemyEffects,quiet)
                 text=text.." (-"..entry.armourReduceFortified.." if fortified)"
             end
             if entry.armourReduceByResist>0 then text=text.." (-"..entry.armourReduceByResist.." per resistance)" end
+        end
+        if entry.armourReduceRangedUnfortifiedOnly>0 then
+            text=text.." (Armour reduction applies in Ranged/Siege only if unfortified)"
         end
         if entry.removeFortify then text=text.." loses fortification" end
         if entry.removeResist then text=text.." loses resistances" end
