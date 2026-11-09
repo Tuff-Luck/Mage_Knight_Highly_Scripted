@@ -566,7 +566,14 @@ end
 showCoopReward=function()
 	local entry=gStates.coopRewardQueue[gStates.coopRewardIndex]
 	if entry==nil then return end
+    local outgoing=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    local incoming=turnOrder~=nil and turnOrder[entry.player] or nil
+    local outgoingSeat=outgoing~=nil and outgoing.seatPos or nil
+    if resourceCardsBeforeTurnHandoff~=nil then
+        resourceCardsBeforeTurnHandoff(incoming~=nil and incoming.seatPos or nil)
+    end
 	gStates.turnNumber=entry.player
+    if resourceCardsAfterTurnHandoff~=nil then resourceCardsAfterTurnHandoff(outgoingSeat) end
 	refreshTactic4HandBonus(false)
 	gStates.preEndTurn=true
 	rewardClaimSoftLockStart()
