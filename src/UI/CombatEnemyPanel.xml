@@ -9,7 +9,7 @@
 			<Text id="CombatOffenceHeader" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="White" preferredWidth="130" alignment="MiddleCenter">{en}Offence Abilities{it}Abilità offensive{ru}Атакующие способности{zh-tw}攻擊能力{zh-cn}攻击能力{ko}공격 능력{es}Habilidades ofensivas{fr}Capacités offensives{pt-br}Habilidades ofensivas{de}Angriffsfähigkeiten</Text>
 			<Text id="CombatBlockHeader" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="White" preferredWidth="170" alignment="MiddleCenter">{en}Block{it}Blocco{ru}Блок{zh-tw}格擋{zh-cn}格挡{ko}방어{es}Bloqueo{fr}Blocage{pt-br}Bloqueio{de}Block</Text>
 			<Text id="CombatAssignedAttackHeader" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="White" preferredWidth="170" alignment="MiddleCenter">{en}Attack{it}Attacco{ru}Атака{zh-tw}攻擊{zh-cn}攻击{ko}공격{es}Ataque{fr}Attaque{pt-br}Ataque{de}Angriff</Text>
-			<Text id="CombatResultHeader" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="White" preferredWidth="255" alignment="MiddleLeft">{en}Result{it}Risultato{ru}Результат{zh-tw}結果{zh-cn}结果{ko}결과{es}Resultado{fr}Résultat{pt-br}Resultado{de}Ergebnis</Text>
+			<Text id="CombatResultHeader" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="White" preferredWidth="170" alignment="MiddleLeft">{en}Result{it}Risultato{ru}Результат{zh-tw}結果{zh-cn}结果{ko}결과{es}Resultado{fr}Résultat{pt-br}Resultado{de}Ergebnis</Text>
 		</HorizontalLayout>
         <HorizontalLayout id="CombatEnemyPageControls" active="false" preferredHeight="22" childForceExpandWidth="false" childAlignment="MiddleCenter">
             <Button id="CombatEnemyPagePrev" onClick="resourceTracker" text="◀" preferredWidth="45" preferredHeight="20" class="ShortButton" />
@@ -82,8 +82,8 @@
 						<Button id="CombatSourceSlot1attack12" class="CombatSlot"><Image id="CombatSourceSlot1attack12Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot1attack12Amount" class="CombatSlotAmount"/></Button>
 					</GridLayout>
 				</Panel>
-				<Button id="CombatEnemyResultToggle1" onClick="resourceTracker" preferredWidth="255" color="rgba(0,0,0,0)">
-					<Text id="CombatEnemyRow1Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false"/>
+				<Button id="CombatEnemyResultToggle1" onClick="resourceTracker" preferredWidth="170" color="rgba(0,0,0,0)">
+					<Text id="CombatEnemyRow1Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false" horizontalOverflow="Wrap"/>
 				</Button>
 			</HorizontalLayout>
 		</Panel>
@@ -154,8 +154,8 @@
 						<Button id="CombatSourceSlot2attack12" class="CombatSlot"><Image id="CombatSourceSlot2attack12Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot2attack12Amount" class="CombatSlotAmount"/></Button>
 					</GridLayout>
 				</Panel>
-				<Button id="CombatEnemyResultToggle2" onClick="resourceTracker" preferredWidth="255" color="rgba(0,0,0,0)">
-					<Text id="CombatEnemyRow2Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false"/>
+				<Button id="CombatEnemyResultToggle2" onClick="resourceTracker" preferredWidth="170" color="rgba(0,0,0,0)">
+					<Text id="CombatEnemyRow2Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false" horizontalOverflow="Wrap"/>
 				</Button>
 			</HorizontalLayout>
 		</Panel>
@@ -226,8 +226,8 @@
 						<Button id="CombatSourceSlot3attack12" class="CombatSlot"><Image id="CombatSourceSlot3attack12Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot3attack12Amount" class="CombatSlotAmount"/></Button>
 					</GridLayout>
 				</Panel>
-				<Button id="CombatEnemyResultToggle3" onClick="resourceTracker" preferredWidth="255" color="rgba(0,0,0,0)">
-					<Text id="CombatEnemyRow3Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false"/>
+				<Button id="CombatEnemyResultToggle3" onClick="resourceTracker" preferredWidth="170" color="rgba(0,0,0,0)">
+					<Text id="CombatEnemyRow3Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false" horizontalOverflow="Wrap"/>
 				</Button>
 			</HorizontalLayout>
 		</Panel>
@@ -298,8 +298,8 @@
 						<Button id="CombatSourceSlot4attack12" class="CombatSlot"><Image id="CombatSourceSlot4attack12Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot4attack12Amount" class="CombatSlotAmount"/></Button>
 					</GridLayout>
 				</Panel>
-				<Button id="CombatEnemyResultToggle4" onClick="resourceTracker" preferredWidth="255" color="rgba(0,0,0,0)">
-					<Text id="CombatEnemyRow4Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false"/>
+				<Button id="CombatEnemyResultToggle4" onClick="resourceTracker" preferredWidth="170" color="rgba(0,0,0,0)">
+					<Text id="CombatEnemyRow4Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false" horizontalOverflow="Wrap"/>
 				</Button>
 			</HorizontalLayout>
 		</Panel>
@@ -370,8 +370,8 @@
 						<Button id="CombatSourceSlot5attack12" class="CombatSlot"><Image id="CombatSourceSlot5attack12Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot5attack12Amount" class="CombatSlotAmount"/></Button>
 					</GridLayout>
 				</Panel>
-				<Button id="CombatEnemyResultToggle5" onClick="resourceTracker" preferredWidth="255" color="rgba(0,0,0,0)">
-					<Text id="CombatEnemyRow5Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false"/>
+				<Button id="CombatEnemyResultToggle5" onClick="resourceTracker" preferredWidth="170" color="rgba(0,0,0,0)">
+					<Text id="CombatEnemyRow5Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false" horizontalOverflow="Wrap"/>
 				</Button>
 			</HorizontalLayout>
 		</Panel>
@@ -442,8 +442,8 @@
 						<Button id="CombatSourceSlot6attack12" class="CombatSlot"><Image id="CombatSourceSlot6attack12Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot6attack12Amount" class="CombatSlotAmount"/></Button>
 					</GridLayout>
 				</Panel>
-				<Button id="CombatEnemyResultToggle6" onClick="resourceTracker" preferredWidth="255" color="rgba(0,0,0,0)">
-					<Text id="CombatEnemyRow6Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false"/>
+				<Button id="CombatEnemyResultToggle6" onClick="resourceTracker" preferredWidth="170" color="rgba(0,0,0,0)">
+					<Text id="CombatEnemyRow6Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false" horizontalOverflow="Wrap"/>
 				</Button>
 			</HorizontalLayout>
 		</Panel>
@@ -513,8 +513,8 @@
 						<Button id="CombatSourceSlot7attack12" class="CombatSlot"><Image id="CombatSourceSlot7attack12Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot7attack12Amount" class="CombatSlotAmount"/></Button>
 					</GridLayout>
 				</Panel>
-				<Button id="CombatEnemyResultToggle7" onClick="resourceTracker" preferredWidth="255" color="rgba(0,0,0,0)">
-					<Text id="CombatEnemyRow7Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false"/>
+				<Button id="CombatEnemyResultToggle7" onClick="resourceTracker" preferredWidth="170" color="rgba(0,0,0,0)">
+					<Text id="CombatEnemyRow7Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false" horizontalOverflow="Wrap"/>
 				</Button>
 			</HorizontalLayout>
 		</Panel>
@@ -585,16 +585,16 @@
 						<Button id="CombatSourceSlot8attack12" class="CombatSlot"><Image id="CombatSourceSlot8attack12Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot8attack12Amount" class="CombatSlotAmount"/></Button>
 					</GridLayout>
 				</Panel>
-				<Button id="CombatEnemyResultToggle8" onClick="resourceTracker" preferredWidth="255" color="rgba(0,0,0,0)">
-					<Text id="CombatEnemyRow8Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false"/>
+				<Button id="CombatEnemyResultToggle8" onClick="resourceTracker" preferredWidth="170" color="rgba(0,0,0,0)">
+					<Text id="CombatEnemyRow8Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false" horizontalOverflow="Wrap"/>
 				</Button>
 			</HorizontalLayout>
 		</Panel>
 		<HorizontalLayout id="CombatTotalRow" active="false" padding="5 0 0 0" preferredHeight="18" childForceExpandWidth="false">
 			<Panel id="CombatTotalSpacer" preferredWidth="1000" color="rgba(0,0,0,0)" outlineSize="0 0"/>
-			<VerticalLayout preferredWidth="345" childForceExpandHeight="false">
-				<Text id="CombatTotalDamage" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="345" preferredHeight="18" alignment="MiddleLeft"/>
-				<Text id="CombatKnockoutWarning" active="false" class="Text12" fontSize="12" color="#FF5555" preferredWidth="345" preferredHeight="18" alignment="MiddleLeft"/>
+			<VerticalLayout preferredWidth="260" childForceExpandHeight="false">
+				<Text id="CombatTotalDamage" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="260" preferredHeight="18" alignment="MiddleLeft"/>
+				<Text id="CombatKnockoutWarning" active="false" class="Text12" fontSize="12" color="#FF5555" preferredWidth="260" preferredHeight="18" alignment="MiddleLeft"/>
 			</VerticalLayout>
 		</HorizontalLayout>
         <Text id="CombatResourceOverflow" active="false" class="Text12" color="#FFCC66" preferredHeight="18" alignment="MiddleLeft"/>
