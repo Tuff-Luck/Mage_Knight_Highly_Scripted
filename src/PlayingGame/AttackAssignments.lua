@@ -295,7 +295,8 @@ end
 -- Static arrows are refreshed by object/assignment events. Only live pointer previews
 -- need the repeating refresh loop.
 local function hasRuntimeWork()
-	return next(targetingByPlayer)~=nil or damagePending~=nil
+    return next(targetingByPlayer)~=nil or next(blockLinkPending)~=nil
+        or damagePending~=nil
 end
 
 local function scheduleRefresh()
