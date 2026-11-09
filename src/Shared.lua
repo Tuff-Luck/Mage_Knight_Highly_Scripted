@@ -758,55 +758,6 @@ function assaultOriginFromPosition(approachPosition)
 	return origin
 end
 
--- Optional, session-local map profiler for crowded-map stress tests. It adds only
--- one boolean check while disabled, and measures Lua execution (not TTS rendering).
-local mapPerformanceEnabled=false
-local mapPerformanceStats={}
-function mapPerformanceEnable(enabled)
-	-- Accept a plain bool in the Lua console or {enabled=true} through Global.call.
-	mapPerformanceEnabled=enabled==true or (type(enabled)=="table" and enabled.enabled==true)
-	mapPerformanceStats={}
-	print("Map Lua profiling "..(mapPerformanceEnabled and "enabled" or "disabled"))
-end
-function mapPerformanceStart()
-	if mapPerformanceEnabled~=true then return nil end
-	return os.clock()
-end
-function mapPerformanceRecord(label,started)
-	if started==nil then return end
-	local elapsed=math.max(0,(os.clock()-started)*1000)
-	local row=mapPerformanceStats[label]
-	if row==nil then row={count=0,total=0,max=0} mapPerformanceStats[label]=row end
-	row.count=row.count+1
-	row.total=row.total+elapsed
-	row.max=math.max(row.max,elapsed)
-end
--- Default report shows only the costs that are currently worth monitoring.
--- "all" retains the diagnostic breakdown; "raw" returns the underlying table.
--- Return formatted text instead of the entire stats table so the TTS console
--- does not expand every low-cost counter after printing the report.
-function mapPerformanceReport(detail)
-	if detail=="raw" then return mapPerformanceStats end
-	local keys={}
-	if detail=="all" or detail==true then
-		for key in pairs(mapPerformanceStats) do keys[#keys+1]=key end
-		table.sort(keys)
-	else
-		keys={"EXPLORE refresh","City compaction","City candidate indexing",
-			"terrain topology","terrain neighbour indexing","terrain entry dispatch"}
-	end
-	local lines={}
-	for _,key in ipairs(keys) do
-		local row=mapPerformanceStats[key]
-		if row~=nil and row.count>0 then
-			lines[#lines+1]=string.format("%s: %d calls, %.1f ms avg, %.1f ms max",
-				key,row.count,row.total/row.count,row.max)
-		end
-	end
-	if #lines==0 then return "No map performance samples yet" end
-	return table.concat(lines,"\n")
-end
-
 -- Shared runtime map snapshots. The physical TTS table is authoritative; these are only derived
 -- in-memory indexes and must never be persisted in gStates. Ordinary map membership changes invalidate
 -- only the cheap object list. Terrain membership/transform/face changes also invalidate the expensive
@@ -1013,11 +964,9 @@ end
 
 local function runtimeMapObjectSnapshot()
 	if runtimeMapObjectCache~=nil then return runtimeMapObjectCache end
-	local perfStart=mapPerformanceStart()
 	local map=getObjectFromGUID(mapArea)
 	if map==nil then
 		runtimeMapObjectCache={objects={},objectGUIDs={}}
-		mapPerformanceRecord("Map object snapshot",perfStart)
 		return runtimeMapObjectCache
 	end
 	local objects=map.getObjects()
@@ -1031,13 +980,11 @@ local function runtimeMapObjectSnapshot()
 		end
 	end
 	runtimeMapObjectCache={objects=validObjects,objectGUIDs=objectGUIDs}
-	mapPerformanceRecord("Map object snapshot",perfStart)
 	return runtimeMapObjectCache
 end
 
 local function runtimeMapTerrainSnapshot()
 	if runtimeMapTerrainCache~=nil then return runtimeMapTerrainCache end
-	local perfStart=mapPerformanceStart()
 	local objectSnapshot=runtimeMapObjectSnapshot()
 	local terrainObjects={}
 	local terrainPositions={}
@@ -1047,7 +994,6 @@ local function runtimeMapTerrainSnapshot()
 	local signatureParts={}
 	local previous=runtimeMapPreviousTerrainCache
 	local bearings={"center","0","60","120","180","240","300"}
-	local tileStart=mapPerformanceStart()
 	for _,obj in pairs(objectSnapshot.objects or {}) do
 		local details=terrainTiles[obj.guid]
 		if details~=nil then
@@ -1092,8 +1038,6 @@ local function runtimeMapTerrainSnapshot()
 			end
 		end
 	end
-	mapPerformanceRecord("terrain hex construction",tileStart)
-	local neighborStart=mapPerformanceStart()
 	local hexByKey,hexOrderByKey={},{}
 	local changed,geometryChanged,affected,changedHexes={},{},{},{}
 	local changedCount,removedCount=0,0
@@ -1237,11 +1181,8 @@ local function runtimeMapTerrainSnapshot()
 		end
 	end
 	if incremental then
-		mapPerformanceRecord(changedCount==0 and removedCount==0 and "terrain unchanged reuse" or "terrain incremental rebuild",neighborStart)
 	else
-		mapPerformanceRecord("terrain full rebuild",neighborStart)
 	end
-	mapPerformanceRecord("terrain neighbour indexing",neighborStart)
 
 	table.sort(signatureParts)
 	runtimeMapTerrainCache={
@@ -1250,7 +1191,6 @@ local function runtimeMapTerrainSnapshot()
 		terrainSignature=table.concat(signatureParts,"|")
 	}
 	runtimeMapPreviousTerrainCache=nil
-	mapPerformanceRecord("terrain topology",perfStart)
 	return runtimeMapTerrainCache
 end
 

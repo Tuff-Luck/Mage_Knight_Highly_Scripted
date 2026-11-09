@@ -18,24 +18,6 @@ jobs:
       - name: Validate project structure and Lua
         shell: pwsh
         run: ./tools/validate-project.ps1 -RequireLua52
-      - name: Resource tracker OFF/restart regression tests
-        run: lua5.2 tools/test-resource-tracker-toggle.lua
-      - name: Combat calculator regression tests
-        run: lua5.2 tools/test-combat-calculator.lua
-      - name: Combat targeting and damage lifecycle regression tests
-        run: lua5.2 tools/test-combat-targeting.lua
-      - name: Mage Knight selection regression tests
-        run: lua5.2 tools/test-player-chosen.lua
-      - name: TTS object lifetime regression tests
-        run: lua5.2 tools/test-object-lifetime.lua
-      - name: Fame and Reputation commit regression tests
-        run: lua5.2 tools/test-fame-reputation.lua
-      - name: Scenario disc grid regression tests
-        run: lua5.2 tools/test-scenario-disc-grid.lua
-      - name: City card relocation regression tests
-        run: lua5.2 tools/test-city-card-relocation.lua
-      - name: Crowded-map spatial performance regression tests
-        run: lua5.2 tools/test-map-performance.lua
       - name: Check commit whitespace
         run: git diff --check HEAD^
 

@@ -1170,19 +1170,17 @@ local function cityCardCompactionCandidates(scanContext)
 	-- army can be fanned well outside its scripting zone, so zone.getObjects() is
 	-- not a safe substitute. A stationary TTS box cast covers the complete known
 	-- garrison radius (9 world units), including manual tokens and Shields.
-	-- Keep the full-table path for non-TTS tests / unavailable physics services.
+	-- Keep the full-table fallback when physics services are unavailable.
 	local function cityCardCompactionNearbyObjects(owners,scanContext)
 		if Physics==nil or type(Physics.cast)~="function" then return getAllObjects() end
 		local nearby,seen={},{}
 		for _,owner in ipairs(owners) do
 			if scanContext.activeOwners==nil or scanContext.activeOwners[owner.guid]==true then
 				local pos=owner.position
-				local castStart=mapPerformanceStart()
 				local hits=Physics.cast({
 					type=3,origin={pos[1],1.8,pos[3]},direction={0,1,0},
 					size={22,8,22},max_distance=0,debug=false
 				})
-				mapPerformanceRecord("City vicinity cast",castStart)
 				if type(hits)~="table" then return getAllObjects() end
 				for _,hit in ipairs(hits) do
 					local obj=hit.hit_object
@@ -1209,7 +1207,6 @@ local function cityCardCompactionCandidates(scanContext)
 		end
 		return nearby
 	end
-	local perfStart=mapPerformanceStart()
 	local owners=cityGarrisonCardOwners()
 	local byOwner={}
 	for _,owner in ipairs(owners) do byOwner[owner.guid]={} end
@@ -1267,7 +1264,6 @@ local function cityCardCompactionCandidates(scanContext)
 		end
 	end
 	scanContext.candidates=byOwner
-	mapPerformanceRecord("City candidate indexing",perfStart)
 	return byOwner
 end
 
@@ -1509,19 +1505,15 @@ positionCityCardForExplore=function(cityZone,extraBlockedPos,movedCityZones,rese
 	local cityGUID=info~=nil and info.cityGUID or nil
 	local cardGUID=cityGUID~=nil and gStates.cityCard[cityGUID] or nil
 	if cardGUID~=nil and cityCardPendingDestination(cardGUID)~=nil then return false end
-	local scanStart=mapPerformanceStart()
 	local group=cityCardExploreGroup(cityZone,scanContext)
-	mapPerformanceRecord("City group scan",scanStart)
 	if group==nil or cityCardPendingDestination(group.card.guid)~=nil then return false end
 	if mapObjects==nil then mapObjects=cityCardMapSnapshot() end
 	local cityPos=group.city.getPosition()
 	local cardPos=group.card.getPosition()
 	local currentDistance=math.sqrt(((cardPos[1]-cityPos[1])^2)+((cardPos[3]-cityPos[3])^2))
-	local searchStart=mapPerformanceStart()
 	local checks=cityCardExplorePositionChecks()
 	local currentFree=cityCardExploreSpaceFree(mapObjects,cardPos,group.movingGUIDs,extraBlockedPos,reservedPositions,checks)
 	local best,bestDistance=findCityCardPosition(cityPos,mapObjects,group.movingGUIDs,extraBlockedPos,reservedPositions,nil,checks)
-	mapPerformanceRecord("City position search",searchStart)
 	if best==nil then return false end
 	if currentFree==true and currentDistance<=bestDistance+0.25 then return false end
 	if reservedPositions~=nil then reservedPositions[#reservedPositions+1]=best end
@@ -1553,7 +1545,6 @@ end
 --After the complete EXPLORE set is rebuilt, every City card gets one placement decision from the finished state.
 --This both pushes blocked cards outward and brings displaced cards back inward without racing two smooth moves.
 function compactCityCardsAfterExplore(mapObjects)
-	local perfStart=mapPerformanceStart()
 	local movedCityZones={}
 	local reservedPositions={}
 	local cityZones={GUID.zone.blueCity,GUID.zone.redCity,GUID.zone.greenCity,GUID.zone.whiteCity}
@@ -1574,10 +1565,7 @@ function compactCityCardsAfterExplore(mapObjects)
 	for _,cityZone in ipairs(cityZones) do
 		positionCityCardForExplore(cityZone,nil,movedCityZones,reservedPositions,mapObjects,scanContext)
 	end
-	local headStart=mapPerformanceStart()
 	positionApocalypseDragonHeads()
-	mapPerformanceRecord("Dragon head positioning",headStart)
-	mapPerformanceRecord("City compaction",perfStart)
 end
 
 function cityBonusDecals(obj1, obj2)--obj2 is the rare case of a summoned monster. otherwise will be a duplicate of obj1

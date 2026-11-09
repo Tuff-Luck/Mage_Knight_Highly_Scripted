@@ -577,17 +577,14 @@ local function mapTokenForEachTerrainOccupant(terrainGUID,hexes,mapObjects,callb
 end
 
 local function mapTokenTerrainReadyForReconcile(terrainGUID)
-	local perfStart=mapPerformanceStart()
 	local hexes,mapObjects=runtimeMapHexesAndObjects()
 	local ready=mapTokenForEachTerrainOccupant(terrainGUID,hexes,mapObjects,function(obj)
 		if mapTokenArrivalPending[obj.guid]~=nil or obj.isSmoothMoving()==true or obj.resting~=true then return false end
 	end)
-	mapPerformanceRecord("Token settle probe",perfStart)
 	return ready
 end
 
 local function mapTokenArrangeAllOccupiedHexesNow(terrainGUID)
-	local perfStart=mapPerformanceStart()
 	local hexes,mapObjects=runtimeMapHexesAndObjects()
 	local groups={}
 	mapTokenForEachTerrainOccupant(terrainGUID,hexes,mapObjects,function(obj,hex)
@@ -605,7 +602,6 @@ local function mapTokenArrangeAllOccupiedHexesNow(terrainGUID)
 		-- A lone token has nothing to separate (prevents Keep/Mage Tower shimmer).
 		if #group.objects>1 then mapTokenArrangeHex(group.hex,mapObjects,nil,nil,group.objects) end
 	end
-	mapPerformanceRecord("Token terrain arrange",perfStart)
 	return true
 end
 

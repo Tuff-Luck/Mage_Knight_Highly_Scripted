@@ -1392,8 +1392,6 @@ function refreshTerrainExploreOptions(compactCities)
 		terrainExploreRefreshWait=nil
 	end
 	if gStates==nil then return end
-	local perfStart=mapPerformanceStart()
-	local scanStart=mapPerformanceStart()
 	local mapSnapshot=runtimeMapSnapshot()
 	local playAreaObjects=mapSnapshot.objects or {}
 	local faceUpTerrain={}
@@ -1414,7 +1412,6 @@ function refreshTerrainExploreOptions(compactCities)
 	local startTileObject=getObjectFromGUID(startTileGUID)
 	if startTileObject==nil then return end
 	local startTilePosition=startTileObject.getPosition()
-	mapPerformanceRecord("EXPLORE map scan",scanStart)
 	--Highlight legal tile plays
 	if gStates.gameScenario~="Volkare's Quest" and gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="The War of Four" and gStates.gameScenario~="Against the Horsemen Blitz" and gStates.gameScenario~="Fury of the Apocalypse Dragon" and not (gStates.gameScenario=="Custom" and gStates.mapShapeKey=="predefined") then
 		local gridType=mapShapeGridURL[gStates.mapShapeKey] or ""
@@ -1443,7 +1440,6 @@ function refreshTerrainExploreOptions(compactCities)
 		local leftCountryQuantity=leftCountry~=nil and (tonumber(leftCountry.getQuantity()) or 0) or 0
 		local leftCoreQuantity=leftCore~=nil and (tonumber(leftCore.getQuantity()) or 0) or 0
 		if terrainStackQuantity>0 or leftCountryQuantity>0 or leftCoreQuantity>0 then
-			local optionsStart=mapPerformanceStart()
 			for _, terTile in pairs(terrainExploreSpots) do
 				local found=false
 				for _, mightBeMap in pairs(faceUpTerrain) do
@@ -1460,11 +1456,8 @@ function refreshTerrainExploreOptions(compactCities)
 				end
 				end
 			end
-			mapPerformanceRecord("EXPLORE legal slots",optionsStart)
 			for _, teleportDecal in pairs(fracturedLandsTeleportDecals()) do terrainDecals[#terrainDecals+1]=teleportDecal end
-			local decalStart=mapPerformanceStart()
 			Global.setDecals(terrainDecals)
-			mapPerformanceRecord("EXPLORE decal update",decalStart)
 			-- Do not send unchanged XML through the TTS UI boundary after each
 			-- intermediate terrain/drop callback. Position is encoded in the id.
 			local uiParts={}
@@ -1473,15 +1466,12 @@ function refreshTerrainExploreOptions(compactCities)
 			end
 			local uiSignature=table.concat(uiParts,"|")
 			if uiSignature~=lastTerrainExploreButtonsSignature then
-				local xmlStart=mapPerformanceStart()
 				getObjectFromGUID(GUID.ui.mapExplore).UI.setXmlTable(terrainExploreButtons)
-				mapPerformanceRecord("EXPLORE XML update",xmlStart)
 				lastTerrainExploreButtonsSignature=uiSignature
 			end
 			--Now that the complete legal EXPLORE set is known, place each City card once at its closest legal position.
 			if compactCities~=false then compactCityCardsAfterExplore(mapObjectPositions) end
 	end
-	mapPerformanceRecord("EXPLORE refresh",perfStart)
 end
 
 -- Combine ordinary terrain-entry, settled-drop and population-finish requests.

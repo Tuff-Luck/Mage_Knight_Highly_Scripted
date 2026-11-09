@@ -81,12 +81,7 @@ function onObjectDestroy(destroyedObj)
 end
 
 function onObjectEnterZone(zone, obj)
-	local perfStart=mapPerformanceStart()
-	local result=safeZoneCallback("onObjectEnterZone", __onObjectEnterZone_raw, zone, obj)
-	if perfStart~=nil then
-		mapPerformanceRecord(zone~=nil and zone.guid==mapArea and "map zone enter" or "other zone enter",perfStart)
-	end
-	return result
+	return safeZoneCallback("onObjectEnterZone", __onObjectEnterZone_raw, zone, obj)
 end
 
 function onObjectLeaveZone(zone, obj)
