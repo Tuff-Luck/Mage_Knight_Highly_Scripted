@@ -354,7 +354,7 @@ local function damageTargetButtonX(obj)
                 and px>0.8 and math.abs(pz)<0.55 then
                 -- Keep the same clearance as the original design, but on
                 -- the correct mirrored side of the object.
-                x=math.min(x,-px-0.61)
+                x=math.min(x,-px-0.66)
             end
         end
     end
