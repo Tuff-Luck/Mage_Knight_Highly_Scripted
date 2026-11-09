@@ -52,6 +52,32 @@ local forestersTerrainModifier={mode="reduce",
 local trackerWasDisabled=false
 local trackerSession=0
 local trackerStartupRequest=0
+-- Preferences are saved per seat; older saves default to automation enabled.
+function resourceCardsSeatEnabled(seat)
+    local settings=gStates~=nil and gStates.resourceTrackerEnabledBySeat or nil
+    return seat~=nil and (settings==nil or settings[seat]~=false)
+end
+
+function resourceCardsSetSeatEnabled(enabled)
+    local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    if current==nil or current.seatPos==nil then return end
+    if type(gStates.resourceTrackerEnabledBySeat)~="table" then
+        gStates.resourceTrackerEnabledBySeat={true,true,true,true}
+    end
+    gStates.resourceTrackerEnabledBySeat[current.seatPos]=enabled==true
+end
+
+-- Observers cannot change resources, target arrows, damage allocations or layout.
+-- Black may act as GM only when actually seated.
+function resourceCardsPlayerCanEdit(color)
+    if type(color)~="string" or color=="Grey" then return false end
+    local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    if current==nil or current.seatPos==nil then return false end
+    local player=Player[color]
+    if player==nil or player.seated~=true then return false end
+    if color=="Black" then return true end
+    return legalPlayerCheck(color,current.seatPos,"NoDummyException")==true
+end
 -- The UI may update a frame after the click. Keep its visible state separate
 -- from the immediate OFF latch so delayed events cannot restart scanning.
 function resourceCardsPanelReady()
@@ -62,7 +88,9 @@ function resourceCardsPanelReady()
 end
 
 function resourceCardsPanelOpen()
+    local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
     return not trackerWasDisabled and resourceCardsPanelReady()
+        and current~=nil and resourceCardsSeatEnabled(current.seatPos)
 end
 
 local function resourceCardsDetailsOpen()
@@ -6535,7 +6563,8 @@ end
 -- Player clicks always replace the one-time guess; opening the choice menu
 -- alone leaves that selection and the Resource Tracker totals unchanged.
 function resourceCardsChoiceClicked(player,value,id)
-    if not resourceCardsPanelOpen() or type(id)~="string" then return end
+    if not resourceCardsPanelOpen() or type(id)~="string"
+        or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil) then return end
     local guid,setIndex,category=id:match(
         "^ResourceCardChoice_([0-9a-f]+)_set(%d+)_([%w]+)$")
     if guid==nil then
@@ -6734,7 +6763,8 @@ function resourceUnitsReconcileChoiceTargets(unit,abilities,activation)
 end
 
 function resourceUnitsChoiceClicked(player,value,id)
-    if not resourceCardsPanelOpen() or type(id)~="string" then return end
+    if not resourceCardsPanelOpen() or type(id)~="string"
+        or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil) then return end
     local unitGUID,index=id:match("^ResourceCardChoice_([0-9a-f]+)_unit(%d+)$")
     index=tonumber(index)
     local activation=unitGUID~=nil and gStates.unitResourceActivations
@@ -6742,8 +6772,7 @@ function resourceUnitsChoiceClicked(player,value,id)
     local abilities=unitGUID~=nil and unitResourceDefinitions[unitGUID] or nil
     local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if activation==nil or abilities==nil or current==nil or index==nil
-        or abilities[index]==nil or activation.seatPos~=current.seatPos
-        or legalPlayerCheck(player.color,current.seatPos)~=true then return end
+        or abilities[index]==nil or activation.seatPos~=current.seatPos then return end
     local unit=getObjectFromGUID(unitGUID)
     if unit==nil then return end
     local state=unitLayoutResourceState(current.seatPos)
@@ -6877,6 +6906,8 @@ local function resourceUnitsRebuildFromTable()
 end
 
 function resourceCardsPanelChanged(open)
+    local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    if open==true and (current==nil or not resourceCardsSeatEnabled(current.seatPos)) then return end
     -- A newly shown panel may need a frame before TTS reports its attributes.
     -- That temporary state is not a player-requested OFF transition.
     if open==true and not resourceCardsPanelReady() then return end
@@ -6936,11 +6967,40 @@ function resourceCardsPanelChanged(open)
     end,1)
 end
 
+-- Clear the outgoing seat before changing turnNumber so rewards, overlays,
+-- damage previews and locks cannot leak into the next player's combat.
+function resourceCardsBeforeTurnHandoff(nextSeat)
+    if gStates==nil or gStates.firstStarted~=true then return end
+    local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    if current==nil or current.seatPos==nextSeat then return end
+    resourceCardsPanelChanged(false)
+end
+
+-- The Global UI is shared, but its expanded/collapsed preference belongs to a seat.
+function resourceCardsAfterTurnHandoff(previousSeat)
+    if gStates==nil or gStates.firstStarted~=true then return end
+    local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    if current==nil or current.seatPos==previousSeat then return end
+    local enabled=resourceCardsSeatEnabled(current.seatPos)
+    UI.setAttribute("CombatCalculatorHelp","active","false")
+    UI.setAttribute("ResourceTracker","height",enabled and "245" or "35")
+    UI.setAttribute("ResourceTrackerDetail","height","210")
+    UI.setAttribute("ResourceTrackerDetail","active",enabled and "true" or "false")
+    if enabled then resourceCardsOnLoad() end
+end
+
 -- Shared by saved-game load, first-game setup and re-expanding the panel.
 -- Wait for the actual UI state rather than treating startup's collapsed XML
 -- defaults as a player pressing OFF. Explicit minimization cancels this wait.
 function resourceCardsOnLoad()
     if gStates==nil or gStates.firstStarted~=true then return end
+    local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    if current~=nil and not resourceCardsSeatEnabled(current.seatPos) then
+        UI.setAttribute("ResourceTracker","height","35")
+        UI.setAttribute("ResourceTrackerDetail","active","false")
+        resourceCardsPanelChanged(false)
+        return
+    end
     trackerStartupRequest=trackerStartupRequest+1
     local request=trackerStartupRequest
     safeWaitCondition("PlayerBoard.CardRecognition",function()
