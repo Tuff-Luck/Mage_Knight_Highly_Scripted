@@ -2863,7 +2863,7 @@ summonMonster=function(player, mouseButton, id)
 				gStates.summonedEnemyScales[summonedMonster.guid]={oldScale[1],oldScale[2],oldScale[3]}
 				summonedMonster.setScale({0.70,1.00,0.70})
 				local summonSeat=turnOrder[gStates.turnNumber]~=nil and turnOrder[gStates.turnNumber].seatPos or nil
-				if summonSeat~=nil then playAreaScaleApplyObject(summonSeat,summonedMonster) end
+				if summonSeat~=nil then playAreaScaleApplyObject(summonSeat,summonedMonster,true) end
 				-- Hold any existing enemy occupying this slot above the mat during the flight.
 				local seat=turnOrder[gStates.turnNumber]~=nil and turnOrder[gStates.turnNumber].seatPos or nil
 				if seat~=nil then combatSummonLiftOccupants(summonedMonster.guid,id,summonTarget,seat) end

@@ -27,10 +27,11 @@ local function playAreaScaleEligible(seat,obj,scope)
     if obj==nil or obj.guid==nil then return false end
     -- The board and its zones are fixtures, not played components.
     if obj.type=="ScriptingTrigger" or obj.type=="HandTrigger" or obj.type=="Board"
-        or obj.type=="Custom_Tile" or obj.type=="Bag" or obj.type=="Infinite" then return false end
+        or obj.type=="Bag" or obj.type=="Infinite" then return false end
     for _,guid in ipairs(playerBoard) do if obj.guid==guid then return false end end
     for _,guid in ipairs(colorBand) do if obj.guid==guid then return false end end
-    if unitLayoutIsUnit(obj) or unitLayoutIsWound(obj) then return false end
+    if unitLayoutIsUnit(obj) or unitLayoutIsWound(obj)
+        or obj.hasTag("CombatPreviewWound") or obj.getGMNotes()=="Combat Preview Wound" then return false end
     -- A loose Wound in the Unit Area may be about to become a Unit Wound.
     if obj.getGMNotes()=="Wound" and playAreaScaleInZone(obj.guid,playerUnitAreas[seat]) then return false end
     return scope=="All" or obj.type=="Card" or obj.type=="Deck"
@@ -61,7 +62,7 @@ function playAreaScaleForgetObject(obj)
     if obj~=nil and obj.guid~=nil then playAreaScaleRecord()[obj.guid]=nil end
 end
 
-function playAreaScaleApplyObject(seat,obj)
+function playAreaScaleApplyObject(seat,obj,pending)
     if gStates==nil or seat==nil or obj==nil or obj.guid==nil then return end
     local setting=playAreaScaleSettings(seat)
     local records=playAreaScaleRecord()
@@ -74,7 +75,7 @@ function playAreaScaleApplyObject(seat,obj)
     if entry==nil and factor==1 then return end
     local current=playAreaScaleComponents(obj.getScale())
     if entry==nil then
-        entry={base=current,seat=seat,factor=1}
+        entry={base=current,seat=seat,factor=1,pending=pending==true}
         records[obj.guid]=entry
     else
         local prev=entry.factor or 1
@@ -84,6 +85,7 @@ function playAreaScaleApplyObject(seat,obj)
             entry.base={current[1]/prev,current[2]/prev,current[3]/prev}
         end
         entry.seat=seat
+        entry.pending=pending==true
     end
     local target={entry.base[1]*factor,entry.base[2]*factor,entry.base[3]*factor}
     if math.abs(current[1]-target[1])>0.005 or math.abs(current[2]-target[2])>0.005
@@ -110,7 +112,8 @@ function refreshPlayAreaScale(seat)
     for guid,entry in pairs(records) do
         if entry.seat==seat and seen[guid]~=true then
             local obj=getObjectFromGUID(guid)
-            if obj~=nil then playAreaScaleRestore(obj) else records[guid]=nil end
+            if obj==nil then records[guid]=nil
+            elseif not (entry.pending==true and obj.isSmoothMoving()) then playAreaScaleRestore(obj) end
         end
     end
 end
