@@ -7,3 +7,9 @@
 ---@param guid string
 ---@return any
 function getObjectFromGUID(guid) end
+
+---Write a value to Tabletop Simulator's system console.
+---@param value any
+---@param label? string
+---@param tags? string[]
+function log(value, label, tags) end
