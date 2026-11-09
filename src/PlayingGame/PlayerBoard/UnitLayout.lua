@@ -65,6 +65,10 @@ refreshUnitLayoutSnapPoints=function(seatPos,commandCount)
 		kept[#kept+1]={position={centerX,0,-0.830},tags={"Command"}}
 	end
 	board.setSnapPoints(kept)
+    -- Combat previews must see new Wound snaps after a compressed Unit layout.
+    if attackAssignmentsPreviewSnapInvalidate~=nil then
+        attackAssignmentsPreviewSnapInvalidate(seatPos)
+    end
 end
 
 function unitLayoutIsUnit(obj)

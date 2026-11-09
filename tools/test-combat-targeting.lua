@@ -315,11 +315,14 @@ print("Combat targeting and lifecycle regression tests passed.")
 -- Preview Unit wounds are locked, translucent and non-gameplay until End Turn.
 -- These mocks exercise the physical TTS lifecycle without requiring a running table.
 local board=makeObject("unit-board",8)
-function board.getSnapPoints()
+local snapReads=0
+local function woundSnaps()
+    snapReads=snapReads+1
     return {{position={x=7.43,y=0,z=0},tags={"Wound"}},
         {position={x=8,y=0,z=0},tags={"Wound"}},
         {position={x=8.57,y=0,z=0},tags={"Wound"}}}
 end
+board.getSnapPoints=woundSnaps
 function board.positionToWorld(p) return p end
 playerBoard={[1]=board.guid}
 function unit.getBoundsNormalized() return {size={x=2,y=0.2,z=3}} end
@@ -381,6 +384,26 @@ check("normal damage draws one locked translucent centre wound",#preview==1
 check("ghost is not treated as a wounded Unit",not unitLayoutIsWound(preview[1]))
 attackAssignmentsUnitPreviewSync(1,resolveUnit("unit",1,false))
 check("recalculation does not duplicate a ghost",#ghosts()==1)
+check("unchanged combat preview reuses cached board Wound snaps",snapReads==1)
+attackAssignmentsPreviewSnapInvalidate(1)
+attackAssignmentsUnitPreviewSync(1,resolveUnit("unit",1,false))
+check("Unit layout snap changes invalidate the Wound cache",snapReads==2)
+board.setTestPosition(9)
+attackAssignmentsUnitPreviewSync(1,resolveUnit("unit",1,false))
+check("moving the board invalidates cached Wound coordinates",snapReads==3)
+board.setTestPosition(8)
+attackAssignmentsUnitPreviewSync(1,resolveUnit("unit",1,false))
+
+-- Custom player mats without Wound snaps use a relative row, never a hardcoded world Z.
+board.getSnapPoints=function() snapReads=snapReads+1 return {} end
+attackAssignmentsPreviewSnapInvalidate(1)
+attackAssignmentsUnitPreviewSync(1,resolveUnit("unit",1,false))
+local fallback=ghosts()[1].getPosition()
+check("missing Wound snaps use mat-relative preview placement",
+    math.abs(fallback.z-(unit.getPosition().z-0.176))<0.001)
+board.getSnapPoints=woundSnaps
+attackAssignmentsPreviewSnapInvalidate(1)
+attackAssignmentsUnitPreviewSync(1,resolveUnit("unit",1,false))
 
 attackAssignmentsUnitPreviewSync(1,resolveUnit("unit",2,false))
 local poison=ghosts()

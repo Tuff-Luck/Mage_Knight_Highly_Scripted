@@ -525,6 +525,7 @@ local PREVIEW_WOUND_TAG="CombatPreviewWound"
 local PREVIEW_WOUND_HEIGHT=1.16
 local PREVIEW_WOUND_ALPHA=150/255
 local previewWoundsByUnit={}
+local previewSnapCache={}
 local previewUnitBags={}
 local previewBagWarnings={}
 local previewOrphansScanned=false
@@ -553,25 +554,50 @@ local function previewUnitMarker(unit,show)
         font_color={1,0.04,0.04},tooltip="Combat Calculator: Unit destroyed by Paralysis"})
 end
 
+-- The Unit layout changes snap points when extra Command slots compress the board.
+-- Rebuild the cached world coordinates only then, or when the physical mat moves.
+function attackAssignmentsPreviewSnapInvalidate(seat)
+    if seat~=nil then previewSnapCache[seat]=nil else previewSnapCache={} end
+end
+
 local function previewWoundPosition(unit,seat,slot)
     local board=playerBoard~=nil and getObjectFromGUID(playerBoard[seat]) or nil
     local candidates={}
     local pos=unit.getPosition()
     local unitX,unitZ=pos.x or pos[1],pos.z or pos[3]
     if board~=nil then
-        for _,point in ipairs(board.getSnapPoints() or {}) do
-            local wound=false
-            for _,tag in ipairs(point.tags or {}) do
-                if tag=="Wound" then wound=true break end
-            end
-            if wound then
-                local world=board.positionToWorld(point.position)
-                local x,z=world.x or world[1],world.z or world[3]
-                local dx=math.abs(x-unitX)
-                local dz=math.abs(z-unitZ)
-                if dx<1.6 and dz<2.5 then
-                    candidates[#candidates+1]={x=x,z=z,distance=dx+dz*0.1}
+        local origin=board.getPosition()
+        local rotation=board.getRotation~=nil and board.getRotation() or nil
+        local scale=board.getScale~=nil and board.getScale() or nil
+        local key=table.concat({tostring(origin.x or origin[1]),
+            tostring(origin.y or origin[2]),tostring(origin.z or origin[3]),
+            tostring(rotation~=nil and (rotation.x or rotation[1]) or 0),
+            tostring(rotation~=nil and (rotation.y or rotation[2]) or 0),
+            tostring(rotation~=nil and (rotation.z or rotation[3]) or 0),
+            tostring(scale~=nil and (scale.x or scale[1]) or 1),
+            tostring(scale~=nil and (scale.y or scale[2]) or 1),
+            tostring(scale~=nil and (scale.z or scale[3]) or 1)},":")
+        local cached=previewSnapCache[seat]
+        if cached==nil or cached.board~=board or cached.key~=key then
+            local points={}
+            for _,point in ipairs(board.getSnapPoints() or {}) do
+                local wound=false
+                for _,tag in ipairs(point.tags or {}) do
+                    if tag=="Wound" then wound=true break end
                 end
+                if wound then
+                    local world=board.positionToWorld(point.position)
+                    points[#points+1]={x=world.x or world[1],z=world.z or world[3]}
+                end
+            end
+            cached={board=board,key=key,points=points}
+            previewSnapCache[seat]=cached
+        end
+        for _,point in ipairs(cached.points) do
+            local dx=math.abs(point.x-unitX)
+            local dz=math.abs(point.z-unitZ)
+            if dx<1.6 and dz<2.5 then
+                candidates[#candidates+1]={x=point.x,z=point.z,distance=dx+dz*0.1}
             end
         end
     end
@@ -583,8 +609,15 @@ local function previewWoundPosition(unit,seat,slot)
         local selected=three[slot]
         return {selected.x,PREVIEW_WOUND_HEIGHT,selected.z}
     end
-    -- If a custom mat has no recognized snaps, keep the token at the standard wound row.
-    return {unitX+(slot-2)*0.57,PREVIEW_WOUND_HEIGHT,-33.29}
+    -- For a custom mat without snaps, derive the Wound row from the Unit.
+    -- The local Unit Command/Wound offsets are -0.398/-0.574 on standard mats.
+    local zOffset=1.45
+    if board~=nil then
+        local command=board.positionToWorld({0,0,-0.398})
+        local wound=board.positionToWorld({0,0,-0.574})
+        zOffset=(wound.z or wound[3])-(command.z or command[3])
+    end
+    return {unitX+(slot-2)*0.57,PREVIEW_WOUND_HEIGHT,unitZ+zOffset}
 end
 
 local function previewWoundBag(seat)
@@ -783,6 +816,7 @@ end
 
 function attackAssignmentsDamageClear()
 	attackAssignmentsUnitPreviewClear()
+    attackAssignmentsPreviewSnapInvalidate(nil)
 	damageTargets={}
 	damagePending=nil
 	damageSpec={attacks={},units={},byOwner={},byKey={},reserved={}}

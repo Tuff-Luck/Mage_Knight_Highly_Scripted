@@ -562,4 +562,45 @@ do
         and notices[1].text:find("Armor -2",1,true)~=nil
         and notices[1].text:find("Attack reduction 1",1,true)~=nil)
 end
+
+-- Expanding a Result only changes cached UI; it must not repeat combat math
+-- or touch the physical Wound preview.
+do
+    local config=assert(findUpvalueTable(resourceCardsCombatToggleResult,"combatConfig"),
+        "Combat display config not reachable")
+    local rowTargets=assert(findUpvalueTable(resourceCardsCombatToggleResult,"combatAssignmentRowTargets"),
+        "Combat row targets not reachable")
+    local expanded=assert(findUpvalueTable(resourceCardsCombatToggleResult,"combatExpandedResults"),
+        "Combat expanded-state table not reachable")
+    local writes={}
+    UI={setAttribute=function(id,attribute,value)
+        writes[id.."."..attribute]=value
+    end}
+    config.panelHeight=80
+    config.resultRowCache={[1]={guid="cachedEnemy",detailText="First\nSecond",
+        compactText="First",hasDetails=true,detailLines=2,compactLines=1,
+        minHeight=32,rowHeight=32,attackCount=1}}
+    rowTargets[1]="cachedEnemy"
+    expanded.cachedEnemy=nil
+    resourceCardsCombatToggleResult(1)
+    check("expanding a result uses cached maths and updates height",
+        expanded.cachedEnemy==true and config.panelHeight==82
+        and writes["CombatEnemyRow1Result.text"]=="First\nSecond [-]"
+        and writes["CombatEnemyPanel.height"]=="82")
+    resourceCardsCombatToggleResult(1)
+    check("collapsing a result restores height without recomputing",
+        expanded.cachedEnemy==false and config.panelHeight==80
+        and writes["CombatEnemyRow1Result.text"]=="First [+]")
+    local selection=assert(findUpvalueTable(resourceCardsCombatAssignmentClick,"combatAssignmentState"),
+        "Combat source selection not reachable")
+    config.slotSelection={CombatSourceSlot1attack1={key="card1",wounded=false}}
+    selection.selected="card1"
+    config.refreshSelectedSlots()
+    check("selection tint updates without a combat rescan",
+        writes["CombatSourceSlot1attack1.color"]=="rgb(1,0.75,0.2)")
+    selection.selected=nil
+    config.refreshSelectedSlots()
+    check("selection tint resets without a combat rescan",
+        writes["CombatSourceSlot1attack1.color"]=="rgb(0.85,0.82,0.72)")
+end
 print("Combat calculator regression tests passed.")

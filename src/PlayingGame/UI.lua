@@ -2374,6 +2374,16 @@ function resourceTracker(player, mouseButton, id)
 end
 
 local RESOURCE_TRACKER_ZERO_TEXT_COLOR="#555555" -- Adjust this shade to tune empty-resource contrast.
+local resourceTrackerDisplayCache={}
+function invalidateResourceTrackerDisplayCache()
+    resourceTrackerDisplayCache={}
+end
+local function setResourceTrackerDisplayAttribute(id,attribute,value)
+    local key=id.."\0"..attribute
+    if resourceTrackerDisplayCache[key]==value then return end
+    resourceTrackerDisplayCache[key]=value
+    UI.setAttribute(id,attribute,value)
+end
 
 function refreshResourceTrackerText()
     if not resourceCardsPanelOpen() or gStates.resourceTracker==nil or gStates.moveCost==nil then return end
@@ -2395,21 +2405,25 @@ function refreshResourceTrackerText()
     end
     for fieldId,spec in pairs(RESOURCE_TRACKER_FIELDS) do
         local totalType=RESOURCE_TRACKER_TOTAL_FIELDS[fieldId]
-        local value=totalType~=nil and math.max(0,resourceTotal[totalType])
-            or math.max(0,valueOf(spec[1],spec[2]))
-        UI.setAttribute(fieldId.."Text","text",joinLang({spec[3],value}))
-        -- Dim empty resource rows, including the Move, Healing and expanded
-        -- breakdown fields; restore normal contrast when a total is nonzero.
-        UI.setAttribute(fieldId.."Text","color",value==0 and RESOURCE_TRACKER_ZERO_TEXT_COLOR or "Black")
+        local raw=totalType~=nil and resourceTotal[totalType] or valueOf(spec[1],spec[2])
+        -- Reputation can legitimately be negative. Only the overall Influence
+        -- total stays clamped; -99 is the existing "No Interaction" sentinel.
+        local reputation=spec[1]=="influence" and spec[2]=="reputation"
+        local value=reputation and (raw==-99 and 0 or raw) or math.max(0,raw)
+        setResourceTrackerDisplayAttribute(fieldId.."Text","text",joinLang({spec[3],value}))
+        -- Negative reputation must remain readable, not appear as an empty row.
+        setResourceTrackerDisplayAttribute(fieldId.."Text","color",
+            value==0 and RESOURCE_TRACKER_ZERO_TEXT_COLOR or "Black")
     end
     for fieldId, spec in pairs(MOVE_COST_FIELDS) do
 		local value=resourceCardsEffectiveTerrainCost(spec[1])
 		local display=value>900 and "X" or tostring(value)
-		UI.setAttribute("MoveCost"..fieldId.."Text","text",joinLang({spec[2],display}))
+		setResourceTrackerDisplayAttribute("MoveCost"..fieldId.."Text","text",joinLang({spec[2],display}))
 	end
 end
 
 function resetResourceTrackerState()
+        invalidateResourceTrackerDisplayCache()
 		gStates.resourceTracker={move=		{move=0},
 								siege=		{physical=0, fire=0, ice=0, iceFire=0, psychic=0},
 								ranged=		{physical=0, fire=0, ice=0, iceFire=0, psychic=0},

@@ -133,6 +133,10 @@ local combatExpandedResults={}
 local combatReductionAttackChoice={}
 local combatReductionActiveSource={}
 local combatAttackChoiceByRow={}
+combatConfig.resultRowCache={}
+combatConfig.slotSelection={}
+combatConfig.panelHeight=0
+combatConfig.shutdownClean=false
 combatConfig.rowCount=8 -- XML has eight reusable row controls.
 combatConfig.crowdedPageSize=6
 combatConfig.slotCount=12
@@ -748,6 +752,15 @@ local function combatPanelSetAttribute(id,attribute,value)
     if combatPanelAttributes[key]==value then return end
     combatPanelAttributes[key]=value
     UI.setAttribute(id,attribute,value)
+end
+
+-- Selection changes affect icon tint only; they cannot change combat outcomes.
+combatConfig.refreshSelectedSlots=function()
+    for id,spec in pairs(combatConfig.slotSelection) do
+        combatPanelSetAttribute(id,"color",spec.wounded and "rgb(0.90,0.37,0.35)"
+            or (combatAssignmentState.selected==spec.key and "rgb(1,0.75,0.2)"
+                or "rgb(0.85,0.82,0.72)"))
+    end
 end
 
 -- Empty slots are hidden; a filled slot is the resource icon with its value over the top.
@@ -1570,6 +1583,8 @@ combatConfig.selfWoundingUnitChoices=function(seat,groups)
 end
 
 local function combatAssignmentRefreshRows(entries,sources)
+    combatConfig.resultRowCache={}
+    combatConfig.slotSelection={}
     local rowByGUID={}
     local totalRowHeight=0
     local grandDamage,damageSources=0,0
@@ -2133,6 +2148,7 @@ local function combatAssignmentRefreshRows(entries,sources)
                 local item=items[slot]
                 if item~=nil then
                     combatAssignmentSlotSources[id]=item.source.key
+                    combatConfig.slotSelection[id]={key=item.source.key,wounded=item.wounded}
                     local tooltip=item.source.name..": "..item.text
                         ..(item.wounded and " can't apply 'Wounded'" or "")
                     combatAssignmentIconButton(id,true,item.amount,item.icon,
@@ -2221,7 +2237,13 @@ local function combatAssignmentRefreshRows(entries,sources)
             local displayText=expanded and detailText or compactText
             if hasDetails then displayText=displayText..(expanded and " [-]" or " [+]") end
             local displayLines=expanded and #lines or #compactLines
+            local minHeight=rowHeight
             rowHeight=math.max(rowHeight,math.max(displayLines,entry.attackCount or 1)*15+4)
+            -- Only the Result text and its row/panel heights change when expanded.
+            combatConfig.resultRowCache[row]={guid=entry.guid,detailText=detailText,
+                compactText=compactText,hasDetails=hasDetails,detailLines=#lines,
+                compactLines=#compactLines,minHeight=minHeight,rowHeight=rowHeight,
+                attackCount=entry.attackCount or 1}
             local resultID="CombatEnemyRow"..row.."Result"
             combatPanelSetAttribute(resultID,"text",displayText)
             combatPanelSetAttribute("CombatEnemyResultToggle"..row,"tooltip",
@@ -2336,6 +2358,10 @@ local function combatAssignmentRefreshRows(entries,sources)
 end
 
 local function combatCalcShutdown()
+    combatConfig.shutdownClean=true
+    combatConfig.resultRowCache={}
+    combatConfig.slotSelection={}
+    combatConfig.panelHeight=0
     combatTrackedSeat=nil
     combatTrackedEnemies={}
     combatCalcOn=false
@@ -2359,12 +2385,16 @@ local function combatCalcShutdown()
     attackAssignmentsClearAll()
 end
 
-local function refreshCombatEnemyPanel(monsters)
-    if not combatCalcUpdate(monsters) then
-        -- Calculator off: no panel, no arrows, no calculations. The player plays manually.
-        combatCalcShutdown()
+local function refreshCombatEnemyPanel(monsters,calculated)
+    local active
+    if calculated==true then active=combatCalcOn
+    else active=combatCalcUpdate(monsters) end
+    if not active then
+        -- A closed calculator is already clean; don't repeatedly delete/rebuild overlays.
+        if not combatConfig.shutdownClean then combatCalcShutdown() end
         return
     end
+    combatConfig.shutdownClean=false
     combatPanelSetAttribute("CombatEnemyPanel","active","true")
     local entries={}
     for guid in pairs(monsters or {}) do
@@ -2476,8 +2506,29 @@ local function refreshCombatEnemyPanel(monsters)
     if attackAssignmentsRefreshTargetButtons~=nil then
         attackAssignmentsRefreshTargetButtons(monsters)
     end
-    combatPanelSetAttribute("CombatEnemyPanel","height",
-        tostring(combatConfig.panelBaseHeight+rowHeight))
+    combatConfig.panelHeight=combatConfig.panelBaseHeight+rowHeight
+    combatPanelSetAttribute("CombatEnemyPanel","height",tostring(combatConfig.panelHeight))
+end
+
+-- Result expansion is presentation only. Reuse the existing combat solution,
+-- retaining all targeting, Defender, Damage and Wound preview state.
+combatConfig.refreshResultRowOnly=function(row)
+    local cache=combatConfig.resultRowCache[row]
+    if cache==nil or not cache.hasDetails then return false end
+    local expanded=combatExpandedResults[cache.guid]==true
+    local display=expanded and cache.detailText or cache.compactText
+    local rows=expanded and cache.detailLines or cache.compactLines
+    local height=math.max(cache.minHeight,math.max(rows,cache.attackCount)*15+4)
+    combatConfig.panelHeight=combatConfig.panelHeight+height-cache.rowHeight
+    cache.rowHeight=height
+    combatPanelSetAttribute("CombatEnemyRow"..row.."Result","text",
+        display..(expanded and " [-]" or " [+]"))
+    combatPanelSetAttribute("CombatEnemyResultToggle"..row,"tooltip",
+        (expanded and "Click to collapse details" or "Click for full breakdown")
+        .."\n"..cache.detailText:gsub("<[^>]*>",""))
+    combatPanelSetAttribute("CombatEnemyRow"..row,"preferredHeight",tostring(height))
+    combatPanelSetAttribute("CombatEnemyPanel","height",tostring(combatConfig.panelHeight))
+    return true
 end
 
 function resourceCardsRefreshCombatEnemies()
@@ -2540,8 +2591,15 @@ end
 function resourceCardsCombatToggleResult(row)
     local guid=combatAssignmentRowTargets[row]
     if guid==nil then return end
+    local cache=combatConfig.resultRowCache[row]
+    if cache==nil or cache.guid~=guid then
+        combatExpandedResults[guid]=not combatExpandedResults[guid]
+        resourceCardsRefreshCombatEnemies()
+        return
+    end
+    if not cache.hasDetails then return end
     combatExpandedResults[guid]=not combatExpandedResults[guid]
-    resourceCardsRefreshCombatEnemies()
+    combatConfig.refreshResultRowOnly(row)
 end
 
 -- Called when a targeting arrow is removed; the source re-locks to the nearest enemy on refresh.
@@ -2560,6 +2618,8 @@ function resourceCardsCombatAssignmentClick(id)
     if moved~=nil then
         if sourceGUID==moved then
             combatAssignmentState.selected=nil
+            combatConfig.refreshSelectedSlots()
+            return
         else
             local movedSource=nil
             for _,candidate in ipairs(combatAssignmentSources(combatAssignmentState.seat)) do
@@ -2568,12 +2628,12 @@ function resourceCardsCombatAssignmentClick(id)
             if movedSource~=nil and movedSource.ranged+movedSource.siege+movedSource.block+movedSource.attack==0
                 and not combatGUIDHasCumbersome(targetGUID) then
                 combatAssignmentState.selected=nil
-                resourceCardsRefreshCombatEnemies()
+                combatConfig.refreshSelectedSlots()
                 return
             end
             if not resourceCardsCombatTargetAcceptsSource(moved,targetGUID) then
                 combatAssignmentState.selected=nil
-                resourceCardsRefreshCombatEnemies()
+                combatConfig.refreshSelectedSlots()
                 return
             end
             combatAssignmentState.targets[moved]=targetGUID
@@ -2586,7 +2646,7 @@ function resourceCardsCombatAssignmentClick(id)
         return
     end
     if sourceGUID~=nil then combatAssignmentState.selected=sourceGUID end
-    resourceCardsRefreshCombatEnemies()
+    combatConfig.refreshSelectedSlots()
 end
 
 -- The tracker belongs to the active Mage Knight, not everyone whose cards are on the table.
@@ -4675,15 +4735,18 @@ local function renderSeat(seatPos,quietUnitChoice)
     if active==nil or active.seatPos~=seatPos then return end
 
     local objects,placements,monsters,playMonsters={},{},{},{}
+    local combatMonsters,combatPlayMonsters={},{}
     local objectKinds={}
     local function inspectZone(guid,zoneKind)
         local zone=guid~=nil and getObjectFromGUID(guid) or nil
         if zone==nil then return end
         for _,obj in ipairs(zone.getObjects()) do
-            if (zoneKind=="play" or zoneKind=="unit")
-                and monsterPugs[obj.guid]~=nil and monsterPugs[obj.guid].name~="Ruin" then
-                monsters[obj.guid]=obj
-                if zoneKind=="play" then playMonsters[obj.guid]=obj end
+            if zoneKind=="play" or zoneKind=="unit" then
+                local data=combatEnemyData(obj.guid,obj)
+                if data~=nil and data.name~="Ruin" then
+                    combatMonsters[obj.guid]=obj
+                    if zoneKind=="play" then combatPlayMonsters[obj.guid]=obj end
+                end
             end
             local kind=objectKinds[obj.guid]
             if kind==nil then
@@ -4705,11 +4768,16 @@ local function renderSeat(seatPos,quietUnitChoice)
     inspectZone(playerCrystalAreas[seatPos],"crystal")
     inspectZone(playerUnitAreas[seatPos],"unit")
     inspectZone(playerPlayAreas[seatPos],"play")
-    -- Keep a lifted enemy in the full Resource Tracker scan as well as the
-    -- quick combat-panel refresh, including play-only enemy-count bonuses.
-    combatKeepHeldEnemies(seatPos,monsters,playMonsters)
-    -- These attacks belong to the calculator, not monster-count card bonuses.
-    local combatMonsters=combatPlayMonsters()
+    -- One observation and one held-enemy reconciliation serve both systems.
+    -- Reminders/Leader previews belong to combat, but never to card enemy-count bonuses.
+    combatKeepHeldEnemies(seatPos,combatMonsters,combatPlayMonsters)
+    for guid,enemy in pairs(combatMonsters) do
+        local pug=monsterPugs[guid]
+        if pug~=nil and pug.name~="Ruin" then
+            monsters[guid]=enemy
+            if combatPlayMonsters[guid]~=nil then playMonsters[guid]=enemy end
+        end
+    end
     combatCalcUpdate(combatMonsters)
     local enemyEntries={}
     for guid,enemy in pairs(monsters) do
@@ -4779,7 +4847,7 @@ local function renderSeat(seatPos,quietUnitChoice)
         local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
         if rule~=nil and rule.woundBonus~=nil then countWounds=true break end
     end
-    if countWounds then unitState=unitLayoutResourceState(seatPos) end
+    if countWounds and unitState==nil then unitState=unitLayoutResourceState(seatPos) end
     for _,skill in ipairs(skills) do
         local rule=skillResourceDefinitions[skill.guid]
         local sideways=rule~=nil and rule.linkedCard~=nil and rule.linkedCard.sideways or nil
@@ -6400,7 +6468,7 @@ local function renderSeat(seatPos,quietUnitChoice)
         usesCurrentHexBlock=usesCurrentHexBlock,
         usesCurrentHexHealing=usesCurrentHexHealing,
         usesSkillLocation=usesSkillLocation}
-    refreshCombatEnemyPanel(combatMonsters)
+    refreshCombatEnemyPanel(combatMonsters,true)
     resourceCardsApplyFameRep(seatPos)
     -- Redraw movement when ability flags change, even if total Move stays equal.
     if totalsChanged or terrainChanged or transformChanged then refreshResourceTrackerText() end
@@ -6847,6 +6915,7 @@ function resourceCardsPanelChanged(open)
     trackerWasDisabled=false
     if restart then refreshResourceTrackerReputation() end
     clearAll()
+    if invalidateResourceTrackerDisplayCache~=nil then invalidateResourceTrackerDisplayCache() end
     if restart then resourceUnitsRebuildFromTable() end
     resourceUnitsRefreshButtons()
     local player=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
@@ -6910,32 +6979,31 @@ local function resourceCardsRelevantZone(ctx)
 end
 
 function resourceCardsZoneEntered(ctx)
-    if not resourceCardsPanelOpen() then return end
-    -- Map/offer/turn-order zones cannot change a player's resource board.
-    -- Skip costly object identity checks for each spawned map enemy or terrain tile.
-    if ctx==nil or ctx.zoneInfo==nil then return end
-    if ctx~=nil and ctx.obj~=nil and (unitLayoutIsWound(ctx.obj)
-        or manaColor(ctx.obj)~=nil) then
+    if not resourceCardsPanelOpen() or ctx==nil or ctx.zoneInfo==nil then return end
+    -- Filter irrelevant zones and other players before touching the Unit layout.
+    local seat=resourceCardsRelevantZone(ctx)
+    if seat==nil then return end
+    if ctx.obj~=nil and (ctx.zoneInfo.kind=="unit" or ctx.zoneInfo.kind=="play"
+        or ctx.zoneInfo.kind=="crystal")
+        and (unitLayoutIsWound(ctx.obj) or manaColor(ctx.obj)~=nil) then
         resourceUnitsRefreshButtons()
     end
-    local seat=resourceCardsRelevantZone(ctx)
-    if seat~=nil then queueSeat(seat,ctx.objGUID) end
+    queueSeat(seat,ctx.objGUID)
 end
 
 function resourceCardsZoneLeft(ctx)
-    if not resourceCardsPanelOpen() then return end
-    -- Map/offer/turn-order zones cannot change a player's resource board.
-    -- Skip costly object identity checks for each spawned map enemy or terrain tile.
-    if ctx==nil or ctx.zoneInfo==nil then return end
-    if ctx~=nil and ctx.obj~=nil and (unitLayoutIsWound(ctx.obj)
-        or manaColor(ctx.obj)~=nil) then
-        resourceUnitsRefreshButtons()
-    end
+    if not resourceCardsPanelOpen() or ctx==nil or ctx.zoneInfo==nil then return end
     local seat=resourceCardsRelevantZone(ctx)
-    if ctx~=nil and ctx.zoneInfo~=nil and ctx.zoneInfo.kind=="play" then
+    if ctx.zoneInfo.kind=="play" then
         scheduleChoiceResetAfterPlay(ctx.objGUID,ctx.zoneInfo.seatPos)
     end
-    if seat~=nil then queueSeat(seat,nil) end
+    if seat==nil then return end
+    if ctx.obj~=nil and (ctx.zoneInfo.kind=="unit" or ctx.zoneInfo.kind=="play"
+        or ctx.zoneInfo.kind=="crystal")
+        and (unitLayoutIsWound(ctx.obj) or manaColor(ctx.obj)~=nil) then
+        resourceUnitsRefreshButtons()
+    end
+    queueSeat(seat,nil)
 end
 
 function resourceCardsObjectMoved(obj)
