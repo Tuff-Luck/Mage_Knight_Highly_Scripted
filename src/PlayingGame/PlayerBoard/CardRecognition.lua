@@ -2249,9 +2249,7 @@ local function combatAssignmentRefreshRows(entries,sources)
                 attackCount=entry.attackCount or 1}
             local resultID="CombatEnemyRow"..row.."Result"
             combatPanelSetAttribute(resultID,"text",displayText)
-            combatPanelSetAttribute("CombatEnemyResultToggle"..row,"tooltip",
-                (hasDetails and (expanded and "Click to collapse details" or "Click for full breakdown")
-                    or "Combat result").."\n"..detailText:gsub("<[^>]*>",""))
+            combatPanelSetAttribute("CombatEnemyResultToggle"..row,"tooltip","")
             combatPanelSetAttribute(resultID,"fontSize","12")
             combatPanelSetAttribute(resultID,"font","Fonts/MKCardText")
             combatPanelSetAttribute(resultID,"color","White")
@@ -2540,9 +2538,7 @@ combatConfig.refreshResultRowOnly=function(row)
     cache.rowHeight=height
     combatPanelSetAttribute("CombatEnemyRow"..row.."Result","text",
         display..(expanded and " [-]" or " [+]"))
-    combatPanelSetAttribute("CombatEnemyResultToggle"..row,"tooltip",
-        (expanded and "Click to collapse details" or "Click for full breakdown")
-        .."\n"..cache.detailText:gsub("<[^>]*>",""))
+    combatPanelSetAttribute("CombatEnemyResultToggle"..row,"tooltip","")
     combatPanelSetAttribute("CombatEnemyRow"..row,"preferredHeight",tostring(height))
     combatPanelSetAttribute("CombatEnemyPanel","height",tostring(combatConfig.panelHeight))
     return true
