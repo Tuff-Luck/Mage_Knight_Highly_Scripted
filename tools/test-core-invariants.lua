@@ -107,4 +107,20 @@ pending.fail()
 equal(called,1,"Stationary map token was not released by timeout")
 pending.success()
 equal(called,1,"Map completion callback ran twice")
+-- Vampiric Armor is added only after Damage; Unit Poison Wounds count once,
+-- Hero Poison discard Wounds do not count, and Arcane traits are respected.
+dofile("src/PlayingGame/PlayerBoard/CombatEffects.lua")
+equal(combatVampiricArmourGain(nil),0,"Vampiric no-damage state")
+equal(combatVampiricArmourGain({
+    heroWounds=2,discard=2,units={
+        {wounded=true,wounds=2,unit={}},
+        {wounded=false,unit={}},
+        {wounded=true,unit={arcaneImmunity=true}},
+        {wounded=false,unit={arcaneVulnerability=true}}
+    }
+}),4,"Vampiric counts hero hand Wounds and affected Units once")
+equal(combatVampiricArmourGain({
+    heroWounds=0,units={{wounded=true,unit={}}}
+}),1,"Vampiric Unit wound")
+
 print("Core runtime invariants passed")
