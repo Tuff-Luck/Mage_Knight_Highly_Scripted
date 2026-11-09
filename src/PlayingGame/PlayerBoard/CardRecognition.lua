@@ -2154,8 +2154,9 @@ local function combatAssignmentRefreshRows(entries,sources)
             shownTraits[row]=sharedText
             combatPanelSetAttribute("CombatEnemyRow"..row.."Traits","text",sharedText)
             entry.attackCount=math.max(entry.attackCount or 1,select(2,sharedText:gsub("\n",""))+1)
+            local attacks=combatEnemyAttacks(entry)
             local attackLines={}
-            for attackIndex,attack in ipairs(combatEnemyAttacks(entry)) do
+            for attackIndex,attack in ipairs(attacks) do
                 local reduction=rowBlock[index].reductions[attackIndex] or 0
                 local markers={}
                 local selections=combatReductionAttackChoice[entry.guid] or {}
@@ -2184,6 +2185,11 @@ local function combatAssignmentRefreshRows(entries,sources)
                 -- Show the Block status first and the wound distribution directly below.
                 for lineIndex,line in ipairs(rowBlock[index].lines) do
                     local item=rowBlock[index].damageItems[lineIndex]
+                    local attack=attacks[lineIndex]
+                    if attack~=nil and not attack.pending then
+                        local value=math.max(0,attack.value-(rowBlock[index].reductions[lineIndex] or 0))
+                        line=attack.label.." "..tostring(value)..": "..line
+                    end
                     lines[#lines+1]=line
                     if item~=nil then
                         for _,note in ipairs(combatDamageNotes(item,damageResults[item.key])) do
