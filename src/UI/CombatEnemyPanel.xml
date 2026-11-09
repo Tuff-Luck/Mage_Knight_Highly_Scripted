@@ -83,7 +83,7 @@
 					</GridLayout>
 				</Panel>
 				<Button id="CombatEnemyResultToggle1" onClick="resourceTracker" preferredWidth="170" color="rgba(0,0,0,0)">
-					<Text id="CombatEnemyRow1Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false" horizontalOverflow="Wrap"/>
+					<Text id="CombatEnemyRow1Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false" horizontalOverflow="Overflow"/>
 				</Button>
 			</HorizontalLayout>
 		</Panel>
@@ -155,7 +155,7 @@
 					</GridLayout>
 				</Panel>
 				<Button id="CombatEnemyResultToggle2" onClick="resourceTracker" preferredWidth="170" color="rgba(0,0,0,0)">
-					<Text id="CombatEnemyRow2Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false" horizontalOverflow="Wrap"/>
+					<Text id="CombatEnemyRow2Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false" horizontalOverflow="Overflow"/>
 				</Button>
 			</HorizontalLayout>
 		</Panel>
@@ -227,7 +227,7 @@
 					</GridLayout>
 				</Panel>
 				<Button id="CombatEnemyResultToggle3" onClick="resourceTracker" preferredWidth="170" color="rgba(0,0,0,0)">
-					<Text id="CombatEnemyRow3Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false" horizontalOverflow="Wrap"/>
+					<Text id="CombatEnemyRow3Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false" horizontalOverflow="Overflow"/>
 				</Button>
 			</HorizontalLayout>
 		</Panel>
@@ -299,7 +299,7 @@
 					</GridLayout>
 				</Panel>
 				<Button id="CombatEnemyResultToggle4" onClick="resourceTracker" preferredWidth="170" color="rgba(0,0,0,0)">
-					<Text id="CombatEnemyRow4Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false" horizontalOverflow="Wrap"/>
+					<Text id="CombatEnemyRow4Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false" horizontalOverflow="Overflow"/>
 				</Button>
 			</HorizontalLayout>
 		</Panel>
@@ -371,7 +371,7 @@
 					</GridLayout>
 				</Panel>
 				<Button id="CombatEnemyResultToggle5" onClick="resourceTracker" preferredWidth="170" color="rgba(0,0,0,0)">
-					<Text id="CombatEnemyRow5Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false" horizontalOverflow="Wrap"/>
+					<Text id="CombatEnemyRow5Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false" horizontalOverflow="Overflow"/>
 				</Button>
 			</HorizontalLayout>
 		</Panel>
@@ -443,7 +443,7 @@
 					</GridLayout>
 				</Panel>
 				<Button id="CombatEnemyResultToggle6" onClick="resourceTracker" preferredWidth="170" color="rgba(0,0,0,0)">
-					<Text id="CombatEnemyRow6Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false" horizontalOverflow="Wrap"/>
+					<Text id="CombatEnemyRow6Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false" horizontalOverflow="Overflow"/>
 				</Button>
 			</HorizontalLayout>
 		</Panel>
@@ -514,7 +514,7 @@
 					</GridLayout>
 				</Panel>
 				<Button id="CombatEnemyResultToggle7" onClick="resourceTracker" preferredWidth="170" color="rgba(0,0,0,0)">
-					<Text id="CombatEnemyRow7Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false" horizontalOverflow="Wrap"/>
+					<Text id="CombatEnemyRow7Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false" horizontalOverflow="Overflow"/>
 				</Button>
 			</HorizontalLayout>
 		</Panel>
@@ -586,7 +586,7 @@
 					</GridLayout>
 				</Panel>
 				<Button id="CombatEnemyResultToggle8" onClick="resourceTracker" preferredWidth="170" color="rgba(0,0,0,0)">
-					<Text id="CombatEnemyRow8Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false" horizontalOverflow="Wrap"/>
+					<Text id="CombatEnemyRow8Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false" horizontalOverflow="Overflow"/>
 				</Button>
 			</HorizontalLayout>
 		</Panel>
