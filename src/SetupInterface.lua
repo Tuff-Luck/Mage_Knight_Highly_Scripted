@@ -773,9 +773,10 @@ function optionsUpdate(player, value, id, deferRefresh)
 		if deferRefresh~=true then scenarioInfoUpdate() end
 		return
 	end
+	--Toggle ids are dynamic boolean keys in the mixed-type gStates table.
 	if value=="True" then
 		UI.setAttribute(id, "isOn", "true")
-		gStates[id]=true
+		rawset(gStates,id,true)
 		--The two Quest systems cannot be used together.
 		if id=="questMod" then UI.setAttribute("apocalypseQuestCards", "interactable", "false") elseif id=="apocalypseQuestCards" then UI.setAttribute("questMod", "interactable", "false") end
 		if id=="startAtNight" then UI.setAttribute("darknessComing", "text", SETUP_TEXT.daylightComing) end
@@ -787,7 +788,7 @@ function optionsUpdate(player, value, id, deferRefresh)
 		end
 	else
 		UI.setAttribute(id, "isOn", "false")
-		gStates[id]=false
+		rawset(gStates,id,false)
 		if id=="questMod" then UI.setAttribute("apocalypseQuestCards", "interactable", "true") elseif id=="apocalypseQuestCards" then UI.setAttribute("questMod", "interactable", "true") end
 		if id=="startAtNight" then UI.setAttribute("darknessComing", "text", SETUP_TEXT.darknessComing) end
 		if id=="removeLostLegionExpansion" then --and gStates.removeBonusCards==false) or (id=="removeBonusCards" and gStates.removeLostLegionExpansion==false)
@@ -1283,7 +1284,7 @@ local function reconcileScenarioHardLocks()
 	local overrides=SCENARIO_OPTION_OVERRIDES[gStates.gameScenario]
 	if overrides==nil then return end
 	for id,details in pairs(overrides) do
-		if details[2]==false then gStates[id]=details[1] end
+		if details[2]==false then rawset(gStates,id,details[1]) end
 	end
 end
 
