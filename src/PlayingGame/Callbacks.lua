@@ -37,6 +37,11 @@ function onLoad(saved_data)
 		siteDescriptionObjectOnLoad()
 		rollerOnLoad(rollerSavedState(loadedData))
 		local result=__onLoad_raw(saved_data,loadedData)
+		-- Rebuild any Quick Witted choice after Global XML/UI restoration has settled.
+		-- Restore only the prompt: do not auto-resolve the saved draw or change its count.
+		safeWaitFrames("Callbacks",function()
+			coralDrawChoiceRestoreState(loadedData~=nil and loadedData.coralDrawPending or nil)
+		end,5)
 		safeWaitFrames("Callbacks",function() attackAssignmentsRestore() end,4)
 		safeWaitFrames("Callbacks",function()
 			monsterReplenishTranslationRefresh()
