@@ -15,5 +15,8 @@
     "files.watcherExclude": {
         "**/.tts/bundled/**": true
     },
-    "ttsEditor.includePath": "src"
+    "ttsEditor.includePath": "src",
+    "Lua.workspace.library": [
+        "${workspaceFolder}/types"
+    ]
 }
