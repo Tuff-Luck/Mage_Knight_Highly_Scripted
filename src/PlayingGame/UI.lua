@@ -2234,6 +2234,7 @@ local MOVE_COST_FIELDS={	["Plain"]={"plains", "{en}Plains : {it}Pianure : {ru}Р
 				["Mount"]={"mountain", "{en}Mountains : {it}Montagne : {ru}Горы: {zh-tw}山脈：{zh-cn}山脉：{ko}산 : {es}Montañas : {fr}Montagnes : {pt-br}Montanhas : {de}Berge : "}}
 
 function resourceTracker(player, mouseButton, id)
+    if not resourceCardsPlayerCanEdit(player~=nil and player.color or nil) then return end
     local cycleRow=type(id)=="string" and id:match("^CombatEnemyAttackCycle(%d+)$") or nil
     if cycleRow~=nil and (mouseButton=="-1" or mouseButton=="-2") then
         resourceCardsCombatCycleAttack(tonumber(cycleRow),mouseButton=="-2")
@@ -2254,6 +2255,7 @@ function resourceTracker(player, mouseButton, id)
 			if tonumber(UI.getAttribute("ResourceTracker", "height"))>200 then temp="35" temp2="false" end
 			UI.setAttribute("ResourceTracker", "height", temp)
 			UI.setAttribute("ResourceTrackerDetail", "active", temp2)
+            resourceCardsSetSeatEnabled(temp2=="true")
             if temp2=="false" then
                 UI.setAttribute("CombatCalculatorHelp","active","false")
                 resourceCardsPanelChanged(false)
