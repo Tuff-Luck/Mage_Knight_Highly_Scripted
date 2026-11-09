@@ -1344,6 +1344,9 @@ local function turnEndRoundResetPlayerDecks()
 end
 
 local function turnEndRoundPrepareTurnOrder()
+    -- The round reorder is another real ownership handoff (not mergedTurnCommit).
+    -- Clear the old seat before sorting changes the meaning of turnNumber.
+    if resourceCardsBeforeTurnHandoff~=nil then resourceCardsBeforeTurnHandoff(nil) end
 	--Work out new tactics picking order. Lower Fame chooses first; ties use the later
 	--previous-round turn order (higher tactic number) first.
 	table.sort(turnOrder, function(k1, k2)
@@ -1353,6 +1356,7 @@ local function turnEndRoundPrepareTurnOrder()
 	gStates.turnNumber=1
 	for a=1, #turnOrder, 1 do if playerDropoutInactive(a)==false then gStates.turnNumber=a break end end
 	gStates.realTurn=gStates.turnNumber
+    if resourceCardsAfterTurnHandoff~=nil then resourceCardsAfterTurnHandoff(nil) end
 	applyColorBarButtons()
 	broadcastToAll(joinLang({"{en}It is now {it}Ora è {ru}Ходит {zh-tw}现在是{zh-cn}现在是{ko}{es}Ahora es el turno de {fr}C'est maintenant au tour de {pt-br}é agora turno de {de}Jetzt ist ", translateWord[turnOrder[gStates.turnNumber].mage], "{en}'s turn.{it}.{ru} {zh-tw}的回合{zh-cn}的回合{ko}의 차례입니다.{es}.{fr}.{pt-br}.{de} an der Reihe."}), positionToColor(gStates.turnNumber))
 	gStates.tacticTwoState="notUsed"
