@@ -1186,7 +1186,9 @@ local function combatDamageUnits(seat)
             end
             units[unitState.guid]={guid=unitState.guid,name=type(data.name)=="table" and tostring(data.name[1]) or tostring(data.name),
                 armour=tonumber(data.armour),level=math.max(1,tonumber(data.level) or 1),
-                resist=resist,wounded=not unitState.unwounded}
+                resist=resist,wounded=not unitState.unwounded,
+                arcaneImmunity=data.arcaneImmunity==true,
+                arcaneVulnerability=data.arcaneVulnerability==true}
         end
     end
     return units,state~=nil and state.nativeCommandCount or 0
@@ -2075,6 +2077,39 @@ local function combatAssignmentRefreshRows(entries,sources)
     end
     local damageResults=combatDamageResolve(damageItems,damageUnits,
         combatHeroArmour(nativeCommandCount),attackAssignmentsDamageTargetsOf,mitigation)
+
+    -- Vampiric gains Armor for Wounds added to the Hero's hand and for each
+    -- Unit its own non-Psychic attacks wound. Poison's extra discard/Unit
+    -- Wounds do not double this bonus. Rebuild Attack-phase Armor only:
+    -- Ranged/Siege kills and Block were settled before damage.
+    local vampiricByOwner={}
+    for _,item in ipairs(damageItems) do
+        if item.type~="M" then
+            local bonus=combatVampiricArmourGain(damageResults[item.key])
+            if bonus>0 then
+                vampiricByOwner[item.owner]=(vampiricByOwner[item.owner] or 0)+bonus
+            end
+        end
+    end
+    for _,group in ipairs(groups) do
+        local changed=false
+        local members,blockedAll={},{}
+        for _,index in ipairs(group.members) do
+            local entry=entries[index]
+            local bonus=vampiricByOwner[entry.guid] or 0
+            if bonus>0 and not entry.removeAbilities
+                and combatEnemyHasTrait(entry.data,entry.perks,"vampiric") then
+                entry.baseArmour=entry.baseArmour+bonus
+                entry.elusiveArmour=entry.elusiveArmour+bonus
+                changed=true
+            end
+            members[#members+1]=entry
+            blockedAll[entry.guid]=rowBlock[index].allBlocked
+        end
+        if changed then
+            group.entry,group.attackArmour=combatGroupEntry(members,blockedAll)
+        end
+    end
 
     -- Damage is earlier than Attack. Do not invalidate Ranged/Siege kills or
     -- Blocks: only suppress remaining Unit attacks after *actual* wounds.
