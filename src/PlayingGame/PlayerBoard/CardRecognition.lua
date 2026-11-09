@@ -6656,7 +6656,9 @@ local function renderSeat(seatPos,quietUnitChoice)
             boosted.links[#boosted.links+1]=guideGUID
             guide.status="purple"
             guide.complete=true
-            boosted.status="purple"
+            -- Activated Units keep their normal resource-state highlight;
+            -- the Spirit Guides arrow itself still shows the purple link.
+            if boosted.kind~="unit" then boosted.status="purple" end
             setHighlight(objects[guideGUID],guide.status,guide.powered)
             setHighlight(objects[linkedGUID],boosted.status,boosted.powered)
         end
