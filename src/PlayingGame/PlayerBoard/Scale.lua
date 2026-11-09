@@ -228,7 +228,7 @@ local function playAreaScaleChange(player,mouseButton,id,delta,scopeToggle)
     -- Keep the XML and its anchor untouched. Rebuilding it with getBounds()
     -- on every click caused the previous controls to drift diagonally.
     local board=getObjectFromGUID(playerBoard[seat])
-    if board~=nil then playAreaScaleUpdateLabels(board,seat) end
+    if board~=nil and board.isDestroyed()~=true then playAreaScaleUpdateLabels(board,seat) end
 end
 
 function playAreaScaleDown(player,mouseButton,id)
@@ -244,20 +244,25 @@ end
 function playAreaScaleLabel() end
 
 local function playAreaScaleBoardButtons(board,seat)
+    if board==nil or board.isDestroyed()==true or turnOrderIndexAtSeat(seat)==nil then return end
+
+    -- Missing UI ids can cause a TTS NullReferenceException from getAttribute.
+    -- Inspect the existing XML tree instead, before any scale control exists.
+    local prefix=playAreaScaleControlPrefix(seat)
+    local xml=board.UI.getXmlTable() or {}
+    for _,node in ipairs(xml) do
+        if node.attributes~=nil and node.attributes.id==prefix.."PercentPanel" then
+            playAreaScaleUpdateLabels(board,seat)
+            return
+        end
+    end
+
     -- Remove legacy classic buttons left in an existing TTS save. They are no
     -- longer recreated; the new image buttons are part of the board's object XML.
     local old=board.getButtons() or {}
     for index=#old,1,-1 do
         if SCALE_BUTTONS[old[index].click_function]==true then board.removeButton(old[index].index) end
     end
-
-    local prefix=playAreaScaleControlPrefix(seat)
-    local existing=board.UI.getAttribute(prefix.."PercentText","text")
-    if existing~=nil then
-        playAreaScaleUpdateLabels(board,seat)
-        return
-    end
-    if turnOrderIndexAtSeat(seat)==nil then return end
 
     local bounds=board.getBounds()
     local pos=board.getPosition()
@@ -301,7 +306,6 @@ local function playAreaScaleBoardButtons(board,seat)
     }}
 
     -- Keep any other board-owned UI intact.
-    local xml=board.UI.getXmlTable() or {}
     for _,node in ipairs(items) do xml[#xml+1]=node end
     board.UI.setXmlTable(xml)
 end
@@ -310,6 +314,6 @@ function refreshPlayAreaScaleControls()
     if gStates==nil or turnOrder==nil then return end
     for seat,boardGUID in ipairs(playerBoard) do
         local board=getObjectFromGUID(boardGUID)
-        if board~=nil then playAreaScaleBoardButtons(board,seat) end
+        if board~=nil and board.isDestroyed()~=true then playAreaScaleBoardButtons(board,seat) end
     end
 end
