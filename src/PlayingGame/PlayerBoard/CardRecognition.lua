@@ -2041,6 +2041,7 @@ local function combatAssignmentRefreshRows(entries,sources)
         end
     end
     attackAssignmentsDamageSync(damageSpec)
+    local seatScan=damageSeat~=nil and resourceCardScanBySeat[damageSeat] or nil
     local hardeningRecord=seatScan~=nil and seatScan.cards["0688d8"] or nil
     local hardenedTarget=hardeningRecord~=nil and hardeningRecord.enemyGUID or nil
     local mitigation=nil
@@ -3411,6 +3412,14 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         buttonRotation=card.getRotation()[2]%360<180 and 90 or 270
     end
     local uiRotation=card.is_face_down==true and "0 180 180" or ("0 0 "..buttonRotation)
+    local hardenedTarget=rule~=nil and rule.damageMitigation~=nil
+        and combatAssignmentState.targets[card.guid] or nil
+    local hardenedOptions=hardenedTarget~=nil and combatHardenedAttackOptions(hardenedTarget) or {}
+    local hardenedKey=gStates~=nil and gStates.battleHardenedAttackKey or nil
+    local hardenedIndex=1
+    for i,option in ipairs(hardenedOptions) do
+        if option.key==hardenedKey then hardenedIndex=i break end
+    end
     -- Keep Skill icons just clear of the token surface to prevent
     -- z-fighting/flicker when the camera moves. Other object UI depths stay put.
     local buttonDepth=isSkill and (card.is_face_down==true and "12" or "-12")
@@ -3418,6 +3427,9 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     local signature=(posture=="sideways" and "S" or (powered and "P" or "N"))
         ..":"..table.concat(signatureParts,";")..":"..uiRotation..":"..buttonDepth
         ..(combatCalcOn and (combatCumbersomeActive and ":CC" or ":C") or "")
+        ..(rule~=nil and rule.damageMitigation~=nil
+            and (":H:"..tostring(hardenedTarget)..":"..tostring(#hardenedOptions)
+                ..":"..tostring(hardenedIndex)) or "")
     if choiceButtonShown[card.guid]==signature then return end
     local xml=card.UI.getXmlTable() or {}
     for i=#xml,1,-1 do
@@ -3554,6 +3566,23 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                 end
             end
         end
+    end
+    -- A multi-attack target needs an explicit choice of which single Attack
+    -- Battle Hardened will mitigate. The cycling button is on the Skill, not
+    -- the enemy, and never changes the existing calculator columns.
+    if rule~=nil and rule.damageMitigation~=nil and #hardenedOptions>1 then
+        local tooltip="Choose the specific enemy Attack for Battle Hardened"
+        for i,option in ipairs(hardenedOptions) do
+            tooltip=tooltip.."\n"..tostring(i)..": "..option.label
+        end
+        xml[#xml+1]={tag="Button",attributes={
+            id="ResourceCardChoice_"..card.guid.."_hardenedCycle",
+            onClick="global/resourceCardsBattleHardenedAttackClicked",
+            position="-105 0 "..buttonDepth,rotation=uiRotation,
+            width=110,height=90,scale="0.42 0.42",fontSize=55,
+            tooltip=tooltip,colors="#454D5D|#69798E|#444C63|#454D5D",
+            textColor="#FFFFFF",textAlignment="MiddleCenter"},
+            value=tostring(hardenedIndex).."/"..tostring(#hardenedOptions)}
     end
     if assets~=nil then card.UI.setXmlTable(xml,assets)
     else card.UI.setXmlTable(xml) end
@@ -6750,6 +6779,21 @@ local function clearAll()
         refreshResourceTrackerText()
         updateMoveDisplay()
     end
+end
+
+-- The small Battle Hardened counter cycles individual printed Attacks on the
+-- already targeted enemy (including multiple Attacks from summoners).
+function resourceCardsBattleHardenedAttackClicked(player,value,id)
+    if not resourceCardsPanelOpen() or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil)
+        or id~="ResourceCardChoice_0688d8_hardenedCycle" then return end
+    local target=combatAssignmentState.targets["0688d8"]
+    local options=combatHardenedAttackOptions(target)
+    if #options<2 then return end
+    local current=gStates~=nil and gStates.battleHardenedAttackKey or nil
+    local index=1
+    for i,option in ipairs(options) do if option.key==current then index=i break end end
+    gStates.battleHardenedAttackKey=options[index%#options+1].key
+    resourceCardsSourceChanged()
 end
 
 -- Player clicks always replace the one-time guess; opening the choice menu
