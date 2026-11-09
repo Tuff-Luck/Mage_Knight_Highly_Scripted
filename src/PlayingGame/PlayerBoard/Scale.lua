@@ -70,12 +70,20 @@ end
 
 local function playAreaScaleEligible(seat,obj,scope)
     if obj==nil or obj.guid==nil then return false end
+    -- Permanent table/scenery objects are deliberately non-interactable and
+    -- cannot be inspected by right-click. Never shrink them in "All" mode.
+    -- Do not use getLock() here: legitimately played tokens can be locked.
+    if obj.interactable==false or obj.type=="Table" then return false end
+    -- Fixed table surfaces are also excluded if their interactable flag changes.
+    if obj.guid=="3d4319" or obj.guid=="519f96" or obj.guid=="a02b0f" then return false end
     -- The board and its zones are fixtures, not played components.
     if obj.type=="ScriptingTrigger" or obj.type=="HandTrigger" or obj.type=="Board"
         or obj.type=="Bag" or obj.type=="Infinite" then return false end
     for _,guid in ipairs(playerBoard) do if obj.guid==guid then return false end end
     for _,guid in ipairs(colorBand) do if obj.guid==guid then return false end end
-    if unitLayoutIsUnit(obj) or unitLayoutIsWound(obj)
+    -- Keep Unit cards, Command tokens (including Bonds of Loyalty and Banner
+    -- of Command), and Wound tokens at their natural scale in either mode.
+    if unitLayoutIsUnit(obj) or unitLayoutIsCommand(obj) or unitLayoutIsWound(obj)
         or obj.hasTag("CombatPreviewWound") or obj.getGMNotes()=="Combat Preview Wound" then return false end
     -- A loose Wound in the Unit Area may be about to become a Unit Wound.
     if obj.getGMNotes()=="Wound" and playAreaScaleInZone(obj.guid,playerUnitAreas[seat]) then return false end
