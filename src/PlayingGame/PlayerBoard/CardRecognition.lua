@@ -2557,6 +2557,39 @@ function resourceCardsCombatAssignSource(sourceGUID,enemyGUID)
     resourceCardsSourceChanged()
 end
 
+
+-- A remote Spirit Guides link can target any active, Block-producing card,
+-- Skill or Unit in this player's areas; it is not an enemy assignment.
+-- This is also the candidate set for temporary clickable target buttons.
+local spiritGuideBlockFields={"block","blockFire","blockIce","blockColdFire","blockPsychic"}
+function resourceCardsBlockLinkSkillActive(guid)
+    local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    local scan=active~=nil and resourceCardScanBySeat[active.seatPos] or nil
+    local record=scan~=nil and scan.cards[guid] or nil
+    local rule=skillResourceDefinitions[guid]
+    return record~=nil and record.kind=="skill" and rule~=nil
+        and rule.blockSourceBoost~=nil and resourceCardsPanelOpen()
+end
+
+function resourceCardsBlockLinkTargets()
+    local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    local scan=active~=nil and resourceCardScanBySeat[active.seatPos] or nil
+    local targets={}
+    for guid,record in pairs(scan~=nil and scan.cards or {}) do
+        if record.resources~=nil and record.contributes==true
+            and record.kind~="mana" and record.kind~="wound" then
+            for _,field in ipairs(spiritGuideBlockFields) do
+                if (tonumber(record.resources[field]) or 0)>0 then
+                    local obj=getObjectFromGUID(guid)
+                    if obj~=nil and not obj.isDestroyed() then targets[guid]=obj end
+                    break
+                end
+            end
+        end
+    end
+    return targets
+end
+
 -- Paging changes visible rows, not the underlying combat calculations.
 function resourceCardsCombatPage(delta)
     combatEnemyPage=math.max(1,combatEnemyPage+delta)
@@ -2868,6 +2901,7 @@ local choiceLetters={attackP1="A",attackP2="A2",attackP3="A3",
     blockP1="B",blockF1="BF",blockI1="BI",blockIF1="BC",
     twiceAttack="A2",twiceBlock="B2",move="M",influence="I",attack="A",block="B",
     ranged="R",siege="S",healing="H",draw="D",other="O",armour="Arm",
+    guide="M",hardened="H",
     siegeFire="SF",siegeIce="SI",rangedFire="RF",rangedIce="RI",blockIce="BI",
     fire="F",ice="I",coldFire="C",boost="H+",split="I/F",negative="N",
     heal="H",combat="C",wound="W",fame="F",reputation="R",gain="G",ready="R",
@@ -3157,7 +3191,9 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     local rule=cardData~=nil and cardResourceDefinitions[cardData.resourceKey]
         or skillResourceDefinitions[card.guid]
     local function targetResourceFor(choice,category)
+        if rule~=nil and rule.blockSourceBoost~=nil then return "blockSource" end
         if not combatCalcOn then return nil end
+        if rule~=nil and rule.damageMitigation~=nil then return "effect" end
         for _,field in ipairs(combatConfig.sourceFields) do
             if (tonumber(choice[field.key]) or 0)>0 then return field.key end
         end
@@ -3166,6 +3202,13 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         local spec=combatEffectSpec(rule,powered,category)
         if spec~=nil and not spec.all then return "effect" end
         return choiceHasTargetableCombatResource(category) and category or nil
+    end
+    -- Give non-resource Skill effects the same dedicated targeting icon used
+    -- by the combat calculator, without pretending the bonus is a free Block.
+    if rule~=nil and rule.blockSourceBoost~=nil then
+        choices={{key="guide",icon="move"}}
+    elseif rule~=nil and rule.damageMitigation~=nil then
+        choices={{key="hardened",icon="other"}}
     end
     -- A fixed effect (no alternatives) still needs a Target button for its combat resource.
     if (choices==nil or #choices==0) and type(resources)=="table" then
@@ -3434,7 +3477,9 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                     xml[#xml+1]={tag="Button",attributes={
                         id="AttackAssignmentSource_"..card.guid.."_"..tostring(row.index).."_"..entry.targetResource
                             ..(part and ("@"..part) or ""),
-                        onClick="global/attackAssignmentSourceClicked",
+                        onClick=entry.targetResource=="blockSource"
+                            and "global/resourceCardsBlockSourceLinkClicked"
+                            or "global/attackAssignmentSourceClicked",
                         position=tostring(partX).." "..tostring(buttonY).." "..buttonDepth,
                         rotation=uiRotation,width=90,height=90,scale=buttonScale,
                         colors="#454D5D|#69798E|#444C63|#454D5D",textColor="#FFFFFF",textAlignment="MiddleCenter"
@@ -6454,6 +6499,38 @@ local function renderSeat(seatPos,quietUnitChoice)
         end
     end
 
+
+    -- Spirit Guides adds its Block point to ONE existing Block source,
+    -- regardless of physical distance. Preserve the source's element, and
+    -- never add the bonus before the target actually generates Block.
+    local guideGUID="f36762"
+    local guide=records[guideGUID]
+    local linkedGUID=guide~=nil and gStates.blockSourceLinks~=nil
+        and gStates.blockSourceLinks[guideGUID] or nil
+    local boosted=linkedGUID~=nil and records[linkedGUID] or nil
+    if boosted~=nil and boosted.contributes==true and boosted.resources~=nil then
+        local bestKey,bestValue=nil,0
+        for _,field in ipairs(spiritGuideBlockFields) do
+            local value=tonumber(boosted.resources[field]) or 0
+            if value>bestValue then bestKey,bestValue=field,value end
+        end
+        if bestKey~=nil then
+            local replacement={}
+            for key,value in pairs(boosted.resources) do replacement[key]=value end
+            replacement[bestKey]=replacement[bestKey]+1
+            boosted.resources=replacement
+            totals[bestKey]=(totals[bestKey] or 0)+1
+            guide.links[#guide.links+1]=linkedGUID
+            boosted.links=boosted.links or {}
+            boosted.links[#boosted.links+1]=guideGUID
+            guide.status="purple"
+            guide.complete=true
+            boosted.status="purple"
+            setHighlight(objects[guideGUID],guide.status,guide.powered)
+            setHighlight(objects[linkedGUID],boosted.status,boosted.powered)
+        end
+    end
+
     local previous=bySeat[seatPos] or {}
     local previousScan=resourceCardScanBySeat[seatPos]
     local previousMove=previousScan~=nil and (previousScan.totals.move or 0) or 0
@@ -6521,6 +6598,17 @@ local function renderSeat(seatPos,quietUnitChoice)
             -- Keep the chosen resource, even if the object briefly leaves the
             -- zone while being dragged. The collapsed UI is rebuilt on return.
             choiceExpandedByGUID[guid]=nil
+            -- A used Skill leaves play at end of turn; do not allow the
+            -- previous turn's Block link to be silently reused next turn.
+            local rule=skillResourceDefinitions[guid]
+            if rule~=nil and rule.blockSourceBoost~=nil
+                and attackAssignmentsForgetBlockLink~=nil then
+                local obj=getObjectFromGUID(guid)
+                if obj==nil or (obj.held_by_color==nil
+                    and not obj.isSmoothMoving()) then
+                    attackAssignmentsForgetBlockLink(guid)
+                end
+            end
         end
     end
 end
