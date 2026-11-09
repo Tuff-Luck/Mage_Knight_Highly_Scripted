@@ -1312,17 +1312,6 @@ local function combatCompactResultLines(fullLines,damageItems,damageResults)
     return fullLines
 end
 
--- Estimate wrapped Result lines at 170 units so long wound distributions do not
--- overlap the following enemy row. Rich-text color tags have no visual width.
-local function combatResultVisibleLines(text)
-    local count=0
-    for line in (text.."\n"):gmatch("(.-)\n") do
-        local plain=line:gsub("<[^>]*>","")
-        count=count+math.max(1,math.ceil(#plain/26))
-    end
-    return count
-end
-
 -- A group is attacked as one: fortification and resistance of any member apply to all of
 -- them and the armours add together. Elusive members only use their higher armour in the
 -- Attack phase while one of their attacks is unblocked.
@@ -2323,7 +2312,8 @@ local function combatAssignmentRefreshRows(entries,sources)
             local expanded=hasDetails and combatExpandedResults[entry.guid]==true
             local displayText=expanded and detailText or compactText
             if hasDetails then displayText=displayText..(expanded and " [-]" or " [+]") end
-            local displayLines=combatResultVisibleLines(displayText)
+            -- Only explicit newlines take vertical space; Result text may overflow horizontally.
+            local displayLines=expanded and #lines or #compactLines
             local minHeight=rowHeight
             rowHeight=math.max(rowHeight,math.max(displayLines,entry.attackCount or 1)*15+4)
             -- Only the Result text and its row/panel heights change when expanded.
