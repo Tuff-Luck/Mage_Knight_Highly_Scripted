@@ -21837,6 +21837,7 @@ local arrowHeadLength=0.34
 local arrowHeadAngle=0.55
 local assignmentRegistry={}
 local targetingByPlayer={}
+local blockLinkPending={} -- Player colour -> Spirit Guides Skill GUID while selecting a Block source.
 local targetButtonObjects={}
 local assignmentCounter=0
 local refreshScheduled=false
@@ -21966,6 +21967,12 @@ local function activeVisualLines()
 		local assignment=assignmentLines(entry.source,entry.target,assignmentColorFor(entry.kind))
 		for _,line in ipairs(assignment or {}) do lines[#lines+1]=line end
 	end
+    -- Spirit Guides may link to a Block source anywhere in the play area.
+    -- Its purple arrow is separate from enemy Attack/Block assignments.
+    for skillGUID,targetGUID in pairs(gStates~=nil and gStates.blockSourceLinks or {}) do
+        local arrow=assignmentLines(getObjectFromGUID(skillGUID),getObjectFromGUID(targetGUID),assignmentColors.other)
+        for _,line in ipairs(arrow or {}) do lines[#lines+1]=line end
+    end
 	for key,guids in pairs(damageTargets) do
 		local attack=damageSpec.byKey[key]
 		local owner=attack~=nil and getObjectFromGUID(attack.owner) or nil
@@ -22000,6 +22007,16 @@ local function activeVisualLines()
 				color=assignmentColors.damage,thickness=previewThickness,rotation={0,0,0}}
 		end
 	end
+    for color,skillGUID in pairs(blockLinkPending) do
+        local player=Player[color]
+        local source=getObjectFromGUID(skillGUID)
+        local pointer=player~=nil and player.getPointerPosition() or nil
+        if source~=nil and pointer~=nil then
+            lines[#lines+1]={points={positionAtHeight(source.getPosition(),previewHeight),
+                positionAtHeight(pointer,previewHeight)},color=assignmentColors.other,
+                thickness=previewThickness,rotation={0,0,0}}
+        end
+    end
 	for color,pending in pairs(targetingByPlayer) do
 		local player=Player[color]
 		local pointer=player~=nil and player.getPointerPosition() or nil
@@ -22034,10 +22051,16 @@ local function vectorLineSignature(lines)
 end
 
 local function syncTargetButtons(monsters)
-	local shouldShow=next(targetingByPlayer)~=nil
+	local shouldShow=next(targetingByPlayer)~=nil or next(blockLinkPending)~=nil
 	local live={}
 	if shouldShow then
-        local candidates=resourceCardsCombatTargetObjects~=nil and resourceCardsCombatTargetObjects(monsters) or {}
+        local candidates={}
+        if next(targetingByPlayer)~=nil and resourceCardsCombatTargetObjects~=nil then
+            for guid,obj in pairs(resourceCardsCombatTargetObjects(monsters)) do candidates[guid]=obj end
+        end
+        if next(blockLinkPending)~=nil and resourceCardsBlockLinkTargets~=nil then
+            for guid,obj in pairs(resourceCardsBlockLinkTargets()) do candidates[guid]=obj end
+        end
         for guid,obj in pairs(candidates) do
             if obj~=nil and not obj.isDestroyed() then
                 live[guid]=obj
@@ -22073,7 +22096,7 @@ end
 
 -- Called by the event-driven combat scan; polling is reserved for pointer lines.
 function attackAssignmentsRefreshTargetButtons(monsters)
-    if next(targetingByPlayer)~=nil then syncTargetButtons(monsters) end
+    if next(targetingByPlayer)~=nil or next(blockLinkPending)~=nil then syncTargetButtons(monsters) end
 end
 
 local function refreshRenderedLines(force)
@@ -22086,7 +22109,8 @@ end
 -- Static arrows are refreshed by object/assignment events. Only live pointer previews
 -- need the repeating refresh loop.
 local function hasRuntimeWork()
-	return next(targetingByPlayer)~=nil or damagePending~=nil
+    return next(targetingByPlayer)~=nil or next(blockLinkPending)~=nil
+        or damagePending~=nil
 end
 
 local function scheduleRefresh()
@@ -22797,6 +22821,18 @@ function attackAssignmentTargetClicked(target,playerColor)
 	return safeCallback("attackAssignmentTargetClicked",function()
         if not resourceCardsPlayerCanEdit(playerColor) then return end
         if resourceCardsPanelOpen~=nil and not resourceCardsPanelOpen() then return end
+		local skillGUID=type(playerColor)=="string" and blockLinkPending[playerColor] or nil
+        if skillGUID~=nil then
+            local eligible=resourceCardsBlockLinkTargets~=nil and resourceCardsBlockLinkTargets() or {}
+            if target==nil or eligible[target.guid]==nil then return end
+            gStates.blockSourceLinks=gStates.blockSourceLinks or {}
+            gStates.blockSourceLinks[skillGUID]=target.guid
+            blockLinkPending[playerColor]=nil
+            syncTargetButtons()
+            refreshRenderedLines()
+            resourceCardsSourceChanged()
+            return
+        end
 		local pending=type(playerColor)=="string" and targetingByPlayer[playerColor] or nil
         local eligible=resourceCardsCombatTargetObjects~=nil and resourceCardsCombatTargetObjects() or {}
         if pending==nil or target==nil or target.guid==nil or eligible[target.guid]==nil then return end
@@ -22869,6 +22905,43 @@ function attackAssignmentTargetClicked(target,playerColor)
 			resourceCardsSourceChanged()
 		end
 	end)
+end
+
+-- Explicitly link Spirit Guides to a Block-generating object, with no overlap requirement.
+-- The target buttons are shared with enemy targeting, but this link never
+-- enters the combat enemy-assignment registry.
+function resourceCardsBlockSourceLinkClicked(player,value,id)
+    return safeCallback("resourceCardsBlockSourceLinkClicked",function()
+        local color=player~=nil and player.color or nil
+        if not resourceCardsPlayerCanEdit(color) or not resourceCardsPanelOpen() then return end
+        local guid=type(id)=="string" and id:match("^AttackAssignmentSource_([0-9a-f]+)_0_blockSource$") or nil
+        if guid==nil or resourceCardsBlockLinkSkillActive==nil
+            or not resourceCardsBlockLinkSkillActive(guid) then return end
+        if blockLinkPending[color]==guid then
+            blockLinkPending[color]=nil
+        else
+            blockLinkPending[color]=guid
+            if gStates~=nil and gStates.blockSourceLinks~=nil then
+                gStates.blockSourceLinks[guid]=nil
+            end
+        end
+        syncTargetButtons()
+        refreshRenderedLines()
+        scheduleRefresh()
+        resourceCardsSourceChanged()
+    end)
+end
+
+function attackAssignmentsForgetBlockLink(skillGUID)
+    if gStates~=nil and gStates.blockSourceLinks~=nil
+        and gStates.blockSourceLinks[skillGUID]~=nil then
+        gStates.blockSourceLinks[skillGUID]=nil
+        refreshRenderedLines()
+    end
+    for color,pendingGUID in pairs(blockLinkPending) do
+        if pendingGUID==skillGUID then blockLinkPending[color]=nil end
+    end
+    syncTargetButtons()
 end
 
 -- Called by the Attack Assignment panel so both interfaces show the same single target.
@@ -23063,6 +23136,11 @@ function attackAssignmentsObjectMoved(object)
 			if assignmentBaseGUID(pending.sourceGUID)==guid then relevant=true break end
 		end
 	end
+    if not relevant then
+        for skillGUID,targetGUID in pairs(gStates~=nil and gStates.blockSourceLinks or {}) do
+            if skillGUID==guid or targetGUID==guid then relevant=true break end
+        end
+    end
 	if not relevant then
 		for key,guids in pairs(damageTargets) do
 			local attack=damageSpec.byKey[key]
@@ -23095,6 +23173,8 @@ function attackAssignmentsClearAll()
 	attackAssignmentsDamageClear()
 	assignmentRegistry={}
 	targetingByPlayer={}
+    blockLinkPending={}
+    if gStates~=nil then gStates.blockSourceLinks={} end
 	assignmentCounter=0
 	persistAssignments()
 	syncTargetButtons()
@@ -45580,7 +45660,7 @@ combatConfig.slotCount=12
 combatConfig.lineSlotCount=6 -- Wrap each resource cell after six visible icons.
 combatConfig.rowHeight=32
 combatConfig.panelBaseHeight=30
-combatConfig.columns={Name=120,Armour=55,Traits=150,Attacks=105,Offence=130,Result=255}
+combatConfig.columns={Name=120,Armour=55,Traits=150,Attacks=105,Offence=130,Result=170}
 -- Damage/resistance colours: normal, then the darker shade used once a value has been reduced.
 combatConfig.typeColors={P={"#FFFFFF","#9A9A9A"},F={"#FF5555","#992E2E"},I={"#5AA0FF","#2F5F9A"},
     IF={"#C070FF","#74429A"},M={"#FFE055","#9A8A33"}}
@@ -45921,6 +46001,25 @@ local function combatEnemyAttacks(entry)
     return attacks
 end
 
+-- Used by Battle Hardened's per-Attack selector. A summoner's separately
+-- drawn enemy attacks retain their own owner/slot keys.
+local function combatHardenedAttackOptions(targetGUID)
+    local data=targetGUID~=nil and combatEnemyData(targetGUID) or nil
+    if data==nil then return {} end
+    local perks=gStates~=nil and gStates.monsterPerks~=nil
+        and gStates.monsterPerks[targetGUID] or nil
+    local entry={guid=targetGUID,data=data,perks=perks,
+        summoned=data.monsters~=nil and combatSummonedFor(targetGUID) or nil}
+    local options={}
+    for _,attack in ipairs(combatEnemyAttacks(entry)) do
+        if attack.owner~=nil and not attack.pending then
+            options[#options+1]={key=attack.owner..":"..tostring(attack.slot),
+                label=attack.label.." "..tostring(attack.value)}
+        end
+    end
+    return options
+end
+
 -- Offence abilities shown for a summoner are the ones carried by its summoned tokens.
 local function combatEnemyOffenceTraits(entry)
     if entry.removeAbilities and entry.data.monsters==nil then return "None" end
@@ -45989,6 +46088,9 @@ function resourceCardsCombatTargetRejectMessage(sourceKey,targetGUID)
     if resourceCardsUnitTargetRequiresUnfortified(sourceKey) then
         return "Illusionists can only target an unfortified enemy."
     end
+    if sourceKey=="6a33c1" then
+        return "Curse's Armour reduction cannot target an attack-only reminder."
+    end
     return "Only Block/Move or attack reductions can target a reminder."
 end
 
@@ -46005,6 +46107,12 @@ function resourceCardsCombatTargetAcceptsSource(sourceKey,targetGUID)
             scan~=nil and scan.enemyEffects or nil)
     end
     if data.attackOnly~=true then return true end
+    -- An Attack-only reminder has no Armour to reduce. Curse's Attack option
+    -- can still target its attack, but its Armour option cannot.
+    if sourceKey=="6a33c1" then
+        local saved=selectedResourceByGUID[sourceKey]
+        if saved~=nil and saved.effect=="armour" then return false end
+    end
     for _,source in ipairs(combatAssignmentSources(combatAssignmentActiveSeat())) do
         if source.key==sourceKey then
             return source.ranged+source.siege+source.attack==0
@@ -46580,7 +46688,7 @@ local function combatUnitResists(unit,attackKey)
 end
 
 -- items: {key,type,damage,poison,paralyse,assassination} in resolution order; targetsOf(key) lists the Unit GUIDs the player chose.
-local function combatDamageResolve(items,units,heroArmour,targetsOf)
+local function combatDamageResolve(items,units,heroArmour,targetsOf,mitigation)
     local used,results={},{}
     -- Reserve a Unit required to receive its own protected enemy's damage first.
     -- An earlier, unrelated enemy must not consume that Unit before its forced assignment.
@@ -46615,6 +46723,24 @@ local function combatDamageResolve(items,units,heroArmour,targetsOf)
         if not item.assassination and item.firstDamageUnit~=nil then assign(item.firstDamageUnit,true) end
         for _,guid in ipairs(item.assassination and {} or targetsOf(item.key)) do
             if guid~=item.firstDamageUnit then assign(guid,false) end
+        end
+        if remaining>0 then
+            -- Battle Hardened prevents damage to the Hero, not attack points
+            -- or Unit damage. Brutal has already doubled item.damage.
+            -- One use applies to one printed Attack, even on a multi-attack enemy.
+            local sameEnemy=mitigation~=nil and (item.owner==mitigation.owner
+                or (gStates~=nil and gStates.attackedMonsters~=nil
+                    and gStates.attackedMonsters[item.owner]~=nil
+                    and gStates.attackedMonsters[item.owner][3]=="summoned"
+                    and gStates.attackedMonsters[item.owner][4]==mitigation.owner))
+            if sameEnemy and not mitigation.used
+                and (mitigation.attackKey==nil or mitigation.attackKey==item.key) then
+                local ignored=item.type=="P" and mitigation.physical or mitigation.nonphysical
+                result.prevented=math.min(remaining,ignored)
+                remaining=remaining-result.prevented
+                mitigation.used=true
+                mitigation.appliedKey=item.key
+            end
         end
         if remaining>0 then
             result.heroDamage=remaining
@@ -46655,6 +46781,9 @@ local function combatDamageNotes(item,result)
         distribution=distribution.." Poison ("..tostring(result.discard)..")"
     end
     local notes={distribution}
+    if (result.prevented or 0)>0 then
+        notes[#notes+1]="Battle Hardened: -"..tostring(result.prevented).." Hero damage"
+    end
     if #resisted>0 then notes[#notes+1]="Resisted (no Wound): "..table.concat(resisted,", ") end
     if #destroyed>0 then notes[#notes+1]="Destroyed (Paralyse): "..table.concat(destroyed,", ") end
     if #forced>0 then notes[#notes+1]="Must take damage first: "..table.concat(forced,", ") end
@@ -46672,10 +46801,21 @@ local function combatCompactResultLines(fullLines,damageItems,damageResults)
     return fullLines
 end
 
+-- Estimate wrapped Result lines at 170 units so long wound distributions do not
+-- overlap the following enemy row. Rich-text color tags have no visual width.
+local function combatResultVisibleLines(text)
+    local count=0
+    for line in (text.."\n"):gmatch("(.-)\n") do
+        local plain=line:gsub("<[^>]*>","")
+        count=count+math.max(1,math.ceil(#plain/26))
+    end
+    return count
+end
+
 -- A group is attacked as one: fortification and resistance of any member apply to all of
 -- them and the armours add together. Elusive members only use their higher armour in the
 -- Attack phase while one of their attacks is unblocked.
-local function combatGroupEntry(members,blockedAll)
+local function combatGroupEntry(members,blockedAll,rangePhase)
     local data={fortified=false,elusive=true,coldFireResist=false}
     local perks={}
     local fortification=0
@@ -46695,10 +46835,12 @@ local function combatGroupEntry(members,blockedAll)
             data.coldFireResist=true
         end
         local elusive=combatEnemyHasTrait(member.data,member.perks,"elusive")
-        local rangeArmour=elusive and member.elusiveArmour or member.baseArmour
-        armour=armour+member.baseArmour
+        local baseArmour=(rangePhase and member.rangeBaseArmour) or member.baseArmour
+        local elusiveValue=(rangePhase and member.rangeElusiveArmour) or member.elusiveArmour
+        local rangeArmour=elusive and elusiveValue or baseArmour
+        armour=armour+baseArmour
         elusiveArmour=elusiveArmour+rangeArmour
-        attackArmour=attackArmour+((elusive and not blockedAll[member.guid]) and member.elusiveArmour or member.baseArmour)
+        attackArmour=attackArmour+((elusive and not blockedAll[member.guid]) and elusiveValue or baseArmour)
     end
     data.fortified=fortification>=1
     perks.wallFortified=fortification>=2
@@ -46708,7 +46850,7 @@ end
 -- Bonuses first assigned in the regular Attack phase must not retrospectively
 -- make an earlier Ranged/Siege attack fail.
 local function combatRangeGroupEntry(members)
-    local result=combatGroupEntry(members,{})
+    local result=combatGroupEntry(members,{},true)
     local lateBonus=0
     for _,member in ipairs(members) do lateBonus=lateBonus+(member.defendMeleeBonus or 0) end
     if lateBonus>0 then
@@ -46851,10 +46993,12 @@ local function combatApplyDefend(entries,groups,allocated)
             local bonus=rangedBonuses[index] or 0
             members[#members+1]={guid=entry.guid,data=entry.data,perks=entry.perks,
                 baseArmour=entry.baseArmour+bonus,elusiveArmour=entry.elusiveArmour+bonus,
+                rangeBaseArmour=entry.rangeBaseArmour~=nil and entry.rangeBaseArmour+bonus or nil,
+                rangeElusiveArmour=entry.rangeElusiveArmour~=nil and entry.rangeElusiveArmour+bonus or nil,
                 stripFortify=entry.stripFortify,stripResist=entry.stripResist,
                 stripFireResist=entry.stripFireResist}
         end
-        local grouped=combatGroupEntry(members,{})
+        local grouped=combatRangeGroupEntry(members)
         local _,_,defeated=combatRangeResult(grouped,groupSources[group])
         rangedDefeated[group]=defeated and not members[1].data.attackOnly
     end
@@ -46876,6 +47020,10 @@ local function combatApplyDefend(entries,groups,allocated)
     for index,bonus in pairs(applied) do
         entries[index].baseArmour=entries[index].baseArmour+bonus
         entries[index].elusiveArmour=entries[index].elusiveArmour+bonus
+        if entries[index].rangeBaseArmour~=nil then
+            entries[index].rangeBaseArmour=entries[index].rangeBaseArmour+bonus
+            entries[index].rangeElusiveArmour=entries[index].rangeElusiveArmour+bonus
+        end
     end
     return applied
 end
@@ -47230,12 +47378,19 @@ local function combatAssignmentRefreshRows(entries,sources)
             end
         end
     end
+    local effectOnly={}
+    local seat=combatAssignmentActiveSeat()
+    local currentScan=seat~=nil and resourceCardScanBySeat[seat] or nil
+    for _,record in pairs(currentScan~=nil and currentScan.cards or {}) do
+        for _,key in ipairs(record.enemyEffectTargetKeys or {}) do effectOnly[key]=true end
+    end
     for key in pairs(combatAssignmentState.targets) do
-        local active=false
+        local active=effectOnly[key]==true
         for _,source in ipairs(sources) do
             if source.key==key then active=true break end
         end
-        -- A card lifted to rearrange the play area keeps its lock while its arrow remains.
+        -- Enemy-effect Skills and Units are also real target sources even
+        -- when they generate no numeric Attack or Block.
         if not active and not combatSourceKeepsLock(key) then
             combatAssignmentState.targets[key]=nil
             combatAssignmentState.explicit[key]=nil
@@ -47393,7 +47548,33 @@ local function combatAssignmentRefreshRows(entries,sources)
         end
     end
     attackAssignmentsDamageSync(damageSpec)
-    local damageResults=combatDamageResolve(damageItems,damageUnits,combatHeroArmour(nativeCommandCount),attackAssignmentsDamageTargetsOf)
+    local seatScan=damageSeat~=nil and resourceCardScanBySeat[damageSeat] or nil
+    local hardeningRecord=seatScan~=nil and seatScan.cards["0688d8"] or nil
+    local hardenedTarget=hardeningRecord~=nil and hardeningRecord.enemyGUID or nil
+    local mitigation=nil
+    if hardenedTarget~=nil then
+        local selected=gStates~=nil and gStates.battleHardenedAttackKey or nil
+        local available={}
+        for _,item in ipairs(damageItems) do
+            if item.owner==hardenedTarget
+                or (gStates~=nil and gStates.attackedMonsters~=nil
+                    and gStates.attackedMonsters[item.owner]~=nil
+                    and gStates.attackedMonsters[item.owner][3]=="summoned"
+                    and gStates.attackedMonsters[item.owner][4]==hardenedTarget) then
+                available[item.key]=true
+            end
+        end
+        -- An attack that was fully Blocked cannot consume Battle Hardened.
+        if selected~=nil and not available[selected] then selected=nil end
+        local rule=skillResourceDefinitions["0688d8"]
+        local spec=rule~=nil and rule.damageMitigation or nil
+        if spec~=nil then
+            mitigation={owner=hardenedTarget,attackKey=selected,
+                physical=spec.physical or 2,nonphysical=spec.nonphysical or 1}
+        end
+    end
+    local damageResults=combatDamageResolve(damageItems,damageUnits,
+        combatHeroArmour(nativeCommandCount),attackAssignmentsDamageTargetsOf,mitigation)
 
     -- Damage is earlier than Attack. Do not invalidate Ranged/Siege kills or
     -- Blocks: only suppress remaining Unit attacks after *actual* wounds.
@@ -47631,7 +47812,7 @@ local function combatAssignmentRefreshRows(entries,sources)
             local expanded=hasDetails and combatExpandedResults[entry.guid]==true
             local displayText=expanded and detailText or compactText
             if hasDetails then displayText=displayText..(expanded and " [-]" or " [+]") end
-            local displayLines=expanded and #lines or #compactLines
+            local displayLines=combatResultVisibleLines(displayText)
             local minHeight=rowHeight
             rowHeight=math.max(rowHeight,math.max(displayLines,entry.attackCount or 1)*15+4)
             -- Only the Result text and its row/panel heights change when expanded.
@@ -47641,9 +47822,7 @@ local function combatAssignmentRefreshRows(entries,sources)
                 attackCount=entry.attackCount or 1}
             local resultID="CombatEnemyRow"..row.."Result"
             combatPanelSetAttribute(resultID,"text",displayText)
-            combatPanelSetAttribute("CombatEnemyResultToggle"..row,"tooltip",
-                (hasDetails and (expanded and "Click to collapse details" or "Click for full breakdown")
-                    or "Combat result").."\n"..detailText:gsub("<[^>]*>",""))
+            combatPanelSetAttribute("CombatEnemyResultToggle"..row,"tooltip","")
             combatPanelSetAttribute(resultID,"fontSize","12")
             combatPanelSetAttribute(resultID,"font","Fonts/MKCardText")
             combatPanelSetAttribute(resultID,"color","White")
@@ -47736,10 +47915,11 @@ local function combatAssignmentRefreshRows(entries,sources)
         }))
     end
     local widthReduction=(170-columnWidths.range)+(170-columnWidths.block)+(170-columnWidths.attack)
-    combatPanelSetAttribute("CombatEnemyPanel","width",tostring(1380-hiddenWidth-widthReduction))
+    combatPanelSetAttribute("CombatEnemyPanel","width",
+        tostring(1380-(255-combatConfig.columns.Result)-hiddenWidth-widthReduction))
     combatPanelSetAttribute("CombatEnemyPanel","color","rgb(0.24,0.2,0.15)")
     local headerWidths={Monster=120,Armour=55,DefenceTraits=150,RangeSiege=columnWidths.range,EnemyAttack=105,
-        Offence=130,Block=columnWidths.block,AssignedAttack=columnWidths.attack,Result=255}
+        Offence=130,Block=columnWidths.block,AssignedAttack=columnWidths.attack,Result=combatConfig.columns.Result}
     for name,width in pairs(headerWidths) do
         local id="Combat"..name.."Header"
         combatPanelSetAttribute(id,"font","Fonts/MKCardTittle")
@@ -47828,6 +48008,20 @@ local function refreshCombatEnemyPanel(monsters,calculated)
                 reduction=reduction+effect.armourReduceByResist*resistances
             end
             if reduction>0 then
+                -- Curse applies to fortified enemies only in the later Attack
+                -- phase. Preserve independent Ranged/Siege Armour, including
+                -- reductions from other sources and the minimum of 1.
+                local fortified=combatEnemyFortificationCount(entry.data,entry.perks)>0
+                    and effect.removeFortify~=true
+                local rangedReduction=reduction
+                if fortified then
+                    rangedReduction=math.max(0,reduction
+                        -(effect.armourReduceRangedUnfortifiedOnly or 0))
+                end
+                if rangedReduction~=reduction then
+                    entry.rangeBaseArmour=math.max(1,entry.baseArmour-rangedReduction)
+                    entry.rangeElusiveArmour=math.max(1,entry.elusiveArmour-rangedReduction)
+                end
                 entry.baseArmour=math.max(1,entry.baseArmour-reduction)
                 entry.elusiveArmour=math.max(1,entry.elusiveArmour-reduction)
             end
@@ -47918,9 +48112,7 @@ combatConfig.refreshResultRowOnly=function(row)
     cache.rowHeight=height
     combatPanelSetAttribute("CombatEnemyRow"..row.."Result","text",
         display..(expanded and " [-]" or " [+]"))
-    combatPanelSetAttribute("CombatEnemyResultToggle"..row,"tooltip",
-        (expanded and "Click to collapse details" or "Click for full breakdown")
-        .."\n"..cache.detailText:gsub("<[^>]*>",""))
+    combatPanelSetAttribute("CombatEnemyResultToggle"..row,"tooltip","")
     combatPanelSetAttribute("CombatEnemyRow"..row,"preferredHeight",tostring(height))
     combatPanelSetAttribute("CombatEnemyPanel","height",tostring(combatConfig.panelHeight))
     return true
@@ -47933,10 +48125,45 @@ end
 
 function resourceCardsCombatAssignSource(sourceGUID,enemyGUID)
     if not resourceCardsCombatTargetAcceptsSource(sourceGUID,enemyGUID) then return end
+    if sourceGUID=="0688d8" and combatAssignmentState.targets[sourceGUID]~=enemyGUID
+        and gStates~=nil then gStates.battleHardenedAttackKey=nil end
     combatAssignmentState.targets[sourceGUID]=enemyGUID
     combatAssignmentState.explicit[sourceGUID]=true
     resourceCardsRefreshCombatEnemies()
     resourceCardsSourceChanged()
+end
+
+
+-- A remote Spirit Guides link can target any active, Block-producing card,
+-- Skill or Unit in this player's areas; it is not an enemy assignment.
+-- This is also the candidate set for temporary clickable target buttons.
+local spiritGuideBlockFields={"block","blockFire","blockIce","blockColdFire","blockPsychic"}
+function resourceCardsBlockLinkSkillActive(guid)
+    local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    local scan=active~=nil and resourceCardScanBySeat[active.seatPos] or nil
+    local record=scan~=nil and scan.cards[guid] or nil
+    local rule=skillResourceDefinitions[guid]
+    return record~=nil and record.kind=="skill" and rule~=nil
+        and rule.blockSourceBoost~=nil and resourceCardsPanelOpen()
+end
+
+function resourceCardsBlockLinkTargets()
+    local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    local scan=active~=nil and resourceCardScanBySeat[active.seatPos] or nil
+    local targets={}
+    for guid,record in pairs(scan~=nil and scan.cards or {}) do
+        if record.resources~=nil and record.contributes==true
+            and record.kind~="mana" and record.kind~="wound" then
+            for _,field in ipairs(spiritGuideBlockFields) do
+                if (tonumber(record.resources[field]) or 0)>0 then
+                    local obj=getObjectFromGUID(guid)
+                    if obj~=nil and not obj.isDestroyed() then targets[guid]=obj end
+                    break
+                end
+            end
+        end
+    end
+    return targets
 end
 
 -- Paging changes visible rows, not the underlying combat calculations.
@@ -48249,7 +48476,8 @@ local choiceLetters={attackP1="A",attackP2="A2",attackP3="A3",
     block2Attack1="B2/A1",block1Attack2="B1/A2",
     blockP1="B",blockF1="BF",blockI1="BI",blockIF1="BC",
     twiceAttack="A2",twiceBlock="B2",move="M",influence="I",attack="A",block="B",
-    ranged="R",siege="S",healing="H",draw="D",other="O",
+    ranged="R",siege="S",healing="H",draw="D",other="O",armour="Arm",
+    guide="M",hardened="H",
     siegeFire="SF",siegeIce="SI",rangedFire="RF",rangedIce="RI",blockIce="BI",
     fire="F",ice="I",coldFire="C",boost="H+",split="I/F",negative="N",
     heal="H",combat="C",wound="W",fame="F",reputation="R",gain="G",ready="R",
@@ -48539,7 +48767,9 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     local rule=cardData~=nil and cardResourceDefinitions[cardData.resourceKey]
         or skillResourceDefinitions[card.guid]
     local function targetResourceFor(choice,category)
+        if rule~=nil and rule.blockSourceBoost~=nil then return "blockSource" end
         if not combatCalcOn then return nil end
+        if rule~=nil and rule.damageMitigation~=nil then return "effect" end
         for _,field in ipairs(combatConfig.sourceFields) do
             if (tonumber(choice[field.key]) or 0)>0 then return field.key end
         end
@@ -48548,6 +48778,13 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         local spec=combatEffectSpec(rule,powered,category)
         if spec~=nil and not spec.all then return "effect" end
         return choiceHasTargetableCombatResource(category) and category or nil
+    end
+    -- Give non-resource Skill effects the same dedicated targeting icon used
+    -- by the combat calculator, without pretending the bonus is a free Block.
+    if rule~=nil and rule.blockSourceBoost~=nil then
+        choices={{key="guide",icon="move"}}
+    elseif rule~=nil and rule.damageMitigation~=nil then
+        choices={{key="hardened",icon="other"}}
     end
     -- A fixed effect (no alternatives) still needs a Target button for its combat resource.
     if (choices==nil or #choices==0) and type(resources)=="table" then
@@ -48683,6 +48920,14 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         buttonRotation=card.getRotation()[2]%360<180 and 90 or 270
     end
     local uiRotation=card.is_face_down==true and "0 180 180" or ("0 0 "..buttonRotation)
+    local hardenedTarget=rule~=nil and rule.damageMitigation~=nil
+        and combatAssignmentState.targets[card.guid] or nil
+    local hardenedOptions=hardenedTarget~=nil and combatHardenedAttackOptions(hardenedTarget) or {}
+    local hardenedKey=gStates~=nil and gStates.battleHardenedAttackKey or nil
+    local hardenedIndex=1
+    for i,option in ipairs(hardenedOptions) do
+        if option.key==hardenedKey then hardenedIndex=i break end
+    end
     -- Keep Skill icons just clear of the token surface to prevent
     -- z-fighting/flicker when the camera moves. Other object UI depths stay put.
     local buttonDepth=isSkill and (card.is_face_down==true and "12" or "-12")
@@ -48690,6 +48935,9 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     local signature=(posture=="sideways" and "S" or (powered and "P" or "N"))
         ..":"..table.concat(signatureParts,";")..":"..uiRotation..":"..buttonDepth
         ..(combatCalcOn and (combatCumbersomeActive and ":CC" or ":C") or "")
+        ..(rule~=nil and rule.damageMitigation~=nil
+            and (":H:"..tostring(hardenedTarget)..":"..tostring(#hardenedOptions)
+                ..":"..tostring(hardenedIndex)) or "")
     if choiceButtonShown[card.guid]==signature then return end
     local xml=card.UI.getXmlTable() or {}
     for i=#xml,1,-1 do
@@ -48816,7 +49064,9 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                     xml[#xml+1]={tag="Button",attributes={
                         id="AttackAssignmentSource_"..card.guid.."_"..tostring(row.index).."_"..entry.targetResource
                             ..(part and ("@"..part) or ""),
-                        onClick="global/attackAssignmentSourceClicked",
+                        onClick=entry.targetResource=="blockSource"
+                            and "global/resourceCardsBlockSourceLinkClicked"
+                            or "global/attackAssignmentSourceClicked",
                         position=tostring(partX).." "..tostring(buttonY).." "..buttonDepth,
                         rotation=uiRotation,width=90,height=90,scale=buttonScale,
                         colors="#454D5D|#69798E|#444C63|#454D5D",textColor="#FFFFFF",textAlignment="MiddleCenter"
@@ -48824,6 +49074,23 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                 end
             end
         end
+    end
+    -- A multi-attack target needs an explicit choice of which single Attack
+    -- Battle Hardened will mitigate. The cycling button is on the Skill, not
+    -- the enemy, and never changes the existing calculator columns.
+    if rule~=nil and rule.damageMitigation~=nil and #hardenedOptions>1 then
+        local tooltip="Choose the specific enemy Attack for Battle Hardened"
+        for i,option in ipairs(hardenedOptions) do
+            tooltip=tooltip.."\n"..tostring(i)..": "..option.label
+        end
+        xml[#xml+1]={tag="Button",attributes={
+            id="ResourceCardChoice_"..card.guid.."_hardenedCycle",
+            onClick="global/resourceCardsBattleHardenedAttackClicked",
+            position="-105 0 "..buttonDepth,rotation=uiRotation,
+            width=110,height=90,scale="0.42 0.42",fontSize=55,
+            tooltip=tooltip,colors="#454D5D|#69798E|#444C63|#454D5D",
+            textColor="#FFFFFF",textAlignment="MiddleCenter"},
+            value=tostring(hardenedIndex).."/"..tostring(#hardenedOptions)}
     end
     if assets~=nil then card.UI.setXmlTable(xml,assets)
     else card.UI.setXmlTable(xml) end
@@ -50011,6 +50278,8 @@ local function calculateSkill(skill,linkedTarget,unitState,inventoryCrystalCount
     end
 
     local tracked=effectHasTrackedResource(effects)
+    -- A targeted Skill is recognized even when it supplies no numeric resource.
+    local targeted=rule.enemyEffect~=nil and chosen~=nil
     local function hasCrystals(colors)
         for _,color in ipairs(colors) do
             if (inventoryCrystalCounts[color] or 0)<=0 then return false end
@@ -50030,12 +50299,13 @@ local function calculateSkill(skill,linkedTarget,unitState,inventoryCrystalCount
         or (unitResolved or inventoryResolved) and "green"
         or rule.linkedCard~=nil and linkedTarget==nil and "yellow"
         or tracked and (rule.partial and "yellow" or "green")
+        or targeted and "green"
         or effects~=nil and "blue" or "yellow"
     local links={}
     if linkedTarget~=nil then links[#links+1]=linkedTarget end
     for _,guid in ipairs(unitSources) do links[#links+1]=guid end
     return {guid=skill.guid,kind="skill",known=true,
-        complete=unitResolved or inventoryResolved or (tracked and not rule.partial) or linkedTarget~=nil,
+        complete=unitResolved or inventoryResolved or (tracked and not rule.partial) or targeted or linkedTarget~=nil,
         powered=skill.is_face_down==true or linkedTarget~=nil or unitLinked,
         status=status,links=links,unitSources=unitSources,swiftDouble=swiftDouble,
         resources=effects,choices=choices}
@@ -51357,12 +51627,31 @@ local function renderSeat(seatPos,quietUnitChoice)
         end
     end
     -- Skills that act on one enemy use the same nearest-enemy targeting as cards.
+    -- This pass precedes the final object pass. Register enemy-effect Skills
+    -- now so their chosen effects, targets and arrows survive the next scan.
     for _,skill in ipairs(skills) do
         local rule=skillResourceDefinitions[skill.guid]
-        local record=records[skill.guid]
-        if rule~=nil and rule.enemyEffect~=nil and record~=nil then
+        if rule~=nil and rule.enemyEffect~=nil then
+            local record=ensureSkillRecord(skill)
             local choice=rule.choices~=nil and chosenEffect(skill.guid,false,rule.choices) or nil
             local spec=combatEffectSpec(rule,false,choice~=nil and choiceCategory(choice) or nil)
+            if skill.guid=="6a33c1" and spec~=nil and spec.armourReduce~=nil then
+                -- Switching from Attack -1 to Armour -1 invalidates a saved
+                -- reminder target. Keep legitimate enemy locks untouched.
+                local eligible={}
+                for guid,enemy in pairs(monsters) do
+                    local data=combatEnemyData(guid,enemy)
+                    if enemy.is_face_down~=true and data~=nil and data.attackOnly~=true then
+                        eligible[guid]=true
+                    end
+                end
+                attackAssignmentsPruneSourceTargets(skill.guid,eligible)
+                local locked=combatAssignmentState.targets[skill.guid]
+                if locked~=nil and eligible[locked]~=true then
+                    combatAssignmentState.targets[skill.guid]=nil
+                    combatAssignmentState.explicit[skill.guid]=nil
+                end
+            end
             local target=spec~=nil and combatEffectChosenEnemy(skill.guid,footprints[skill.guid],monsters) or nil
             if spec~=nil and target~=nil then
                 combatEffectAdd(enemyEffects,target.guid,skill.guid,spec)
@@ -51373,6 +51662,34 @@ local function renderSeat(seatPos,quietUnitChoice)
                     record.enemyEffectTargetKeys={skill.guid}
                     record.enemyEffectTargetGUIDs={[skill.guid]=target.guid}
                 end
+            end
+        end
+    end
+    -- Battle Hardened protects the Hero from one selected enemy attack,
+    -- rather than reducing the enemy's printed Attack or Block requirement.
+    -- Unlike Curse it only activates after the player targets an enemy.
+    for _,skill in ipairs(skills) do
+        local rule=skillResourceDefinitions[skill.guid]
+        if rule~=nil and rule.damageMitigation~=nil then
+            local record=ensureSkillRecord(skill)
+            -- Advertise the effect-only source even before the first target
+            -- click. Otherwise an immediate calculator refresh prunes its new
+            -- arrow before the pending Skill scan can apply the mitigation.
+            record.enemyEffectTargetKeys={skill.guid}
+            local targetGUID=combatAssignmentState.targets[skill.guid]
+            if targetGUID==nil then
+                for guid in pairs(attackAssignmentsTargetGUIDs(skill.guid)) do
+                    if combatMonsters[guid]~=nil then targetGUID=guid break end
+                end
+            end
+            local target=targetGUID~=nil and combatMonsters[targetGUID] or nil
+            if target~=nil and target.is_face_down~=true then
+                record.enemyGUID=targetGUID
+                record.links[#record.links+1]=targetGUID
+                record.status="purple"
+                record.complete=true
+                record.enemyEffectTargetKeys={skill.guid}
+                record.enemyEffectTargetGUIDs={[skill.guid]=targetGUID}
             end
         end
     end
@@ -51814,6 +52131,40 @@ local function renderSeat(seatPos,quietUnitChoice)
         end
     end
 
+
+    -- Spirit Guides adds its Block point to ONE existing Block source,
+    -- regardless of physical distance. Preserve the source's element, and
+    -- never add the bonus before the target actually generates Block.
+    local guideGUID="f36762"
+    local guide=records[guideGUID]
+    local linkedGUID=guide~=nil and gStates.blockSourceLinks~=nil
+        and gStates.blockSourceLinks[guideGUID] or nil
+    local boosted=linkedGUID~=nil and records[linkedGUID] or nil
+    if boosted~=nil and boosted.contributes==true and boosted.resources~=nil then
+        local bestKey,bestValue=nil,0
+        for _,field in ipairs(spiritGuideBlockFields) do
+            local value=tonumber(boosted.resources[field]) or 0
+            if value>bestValue then bestKey,bestValue=field,value end
+        end
+        if bestKey~=nil then
+            local replacement={}
+            for key,value in pairs(boosted.resources) do replacement[key]=value end
+            replacement[bestKey]=replacement[bestKey]+1
+            boosted.resources=replacement
+            totals[bestKey]=(totals[bestKey] or 0)+1
+            guide.links[#guide.links+1]=linkedGUID
+            boosted.links=boosted.links or {}
+            boosted.links[#boosted.links+1]=guideGUID
+            guide.status="purple"
+            guide.complete=true
+            -- Activated Units keep their normal resource-state highlight;
+            -- the Spirit Guides arrow itself still shows the purple link.
+            if boosted.kind~="unit" then boosted.status="purple" end
+            setHighlight(objects[guideGUID],guide.status,guide.powered)
+            setHighlight(objects[linkedGUID],boosted.status,boosted.powered)
+        end
+    end
+
     local previous=bySeat[seatPos] or {}
     local previousScan=resourceCardScanBySeat[seatPos]
     local previousMove=previousScan~=nil and (previousScan.totals.move or 0) or 0
@@ -51881,6 +52232,23 @@ local function renderSeat(seatPos,quietUnitChoice)
             -- Keep the chosen resource, even if the object briefly leaves the
             -- zone while being dragged. The collapsed UI is rebuilt on return.
             choiceExpandedByGUID[guid]=nil
+            -- A used Skill leaves play at end of turn; do not allow the
+            -- previous turn's Block link to be silently reused next turn.
+            local rule=skillResourceDefinitions[guid]
+            if rule~=nil and rule.damageMitigation~=nil and gStates~=nil then
+                local obj=getObjectFromGUID(guid)
+                if obj==nil or (obj.held_by_color==nil and not obj.isSmoothMoving()) then
+                    gStates.battleHardenedAttackKey=nil
+                end
+            end
+            if rule~=nil and rule.blockSourceBoost~=nil
+                and attackAssignmentsForgetBlockLink~=nil then
+                local obj=getObjectFromGUID(guid)
+                if obj==nil or (obj.held_by_color==nil
+                    and not obj.isSmoothMoving()) then
+                    attackAssignmentsForgetBlockLink(guid)
+                end
+            end
         end
     end
 end
@@ -51925,6 +52293,21 @@ local function clearAll()
         refreshResourceTrackerText()
         updateMoveDisplay()
     end
+end
+
+-- The small Battle Hardened counter cycles individual printed Attacks on the
+-- already targeted enemy (including multiple Attacks from summoners).
+function resourceCardsBattleHardenedAttackClicked(player,value,id)
+    if not resourceCardsPanelOpen() or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil)
+        or id~="ResourceCardChoice_0688d8_hardenedCycle" then return end
+    local target=combatAssignmentState.targets["0688d8"]
+    local options=combatHardenedAttackOptions(target)
+    if #options<2 then return end
+    local current=gStates~=nil and gStates.battleHardenedAttackKey or nil
+    local index=1
+    for i,option in ipairs(options) do if option.key==current then index=i break end end
+    gStates.battleHardenedAttackKey=options[index%#options+1].key
+    resourceCardsSourceChanged()
 end
 
 -- Player clicks always replace the one-time guess; opening the choice menu
@@ -52539,6 +52922,7 @@ end
 -- Spec fields: noAttackUnfortified, armourReduce, armourReduceFortified (replaces it against a fortified enemy),
 -- armourReduceByResist (per resistance), noAttack, removeAbilities, removeFortify,
 -- removeResist, removeFireResist, destroy, destroyIfBlocked, attackReduce, firstDamageUnit,
+-- armourReduceRangedUnfortifiedOnly (does not reduce Armour in Ranged/Siege on a fortified enemy),
 -- all (every face-up enemy instead of one).
 -- Arcane Immunity ignores non-attack effects; directly changing an Attack remains legal.
 local function combatEffectImmune(enemyGUID)
@@ -52550,7 +52934,8 @@ end
 function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec)
     local entry=enemyEffects[enemyGUID]
     if entry==nil then
-        entry={armourReduce=0,armourReduceFortified=0,armourReduceByResist=0,noAttack=false,destroy=false,
+        entry={armourReduce=0,armourReduceFortified=0,armourReduceByResist=0,
+            armourReduceRangedUnfortifiedOnly=0,noAttack=false,destroy=false,
             destroyIfBlocked=false,attackReductions={},
             removeAbilities=false,removeFortify=false,removeResist=false,removeFireResist=false,sources={}}
         enemyEffects[enemyGUID]=entry
@@ -52576,6 +52961,8 @@ function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec)
     entry.armourReduce=entry.armourReduce+(spec.armourReduce or 0)
     entry.armourReduceFortified=entry.armourReduceFortified+(spec.armourReduceFortified or spec.armourReduce or 0)
     entry.armourReduceByResist=entry.armourReduceByResist+(spec.armourReduceByResist or 0)
+    entry.armourReduceRangedUnfortifiedOnly=entry.armourReduceRangedUnfortifiedOnly
+        +(spec.armourReduceRangedUnfortifiedOnly or 0)
     entry.noAttack=entry.noAttack or spec.noAttack==true
     entry.noAttackUnfortified=entry.noAttackUnfortified or spec.noAttackUnfortified==true
     entry.removeAbilities=entry.removeAbilities or spec.removeAbilities==true
@@ -52598,6 +52985,9 @@ function combatEffectReport(seatPos,enemyEffects,quiet)
                 text=text.." (-"..entry.armourReduceFortified.." if fortified)"
             end
             if entry.armourReduceByResist>0 then text=text.." (-"..entry.armourReduceByResist.." per resistance)" end
+        end
+        if entry.armourReduceRangedUnfortifiedOnly>0 then
+            text=text.." (Armour reduction applies in Ranged/Siege only if unfortified)"
         end
         if entry.removeFortify then text=text.." loses fortification" end
         if entry.removeResist then text=text.." loses resistances" end
@@ -53340,6 +53730,7 @@ __bundle_register("PlayingGame.PlayerBoard.Scale", function(require, _LOADED, __
 -- EDIT THESE VALUES to tune the control row on each player mat.
 -- Positions are in world/table units relative to the mat's bottom-right edge:
 --   offsetX: + moves right, - moves left
+--   offsetY: + raises controls, - lowers them toward the board
 --   offsetZ: + moves toward the far side of the table, - toward the player
 --   rightInset / bottomInset: distance inward from that mat edge
 -- Sizes use object-UI scale: 0.15 is the size of the percentage box.
@@ -53347,7 +53738,8 @@ local SCALE_CONTROL_UI={
     rightInset=0.55,
     bottomInset=0.85,
     offsetX=0.8,
-    offsetZ=-1.2,
+    offsetY=-0.30,          -- lower the floating UI; adjust in 0.05 steps
+    offsetZ=-1.35,
     arrowSpacing=0.90,       -- Down <-> percentage <-> Up (centre spacing)
     scopeSpacing=1.20,       -- Up <-> Cards/All centre spacing
     arrowScale=0.08,
@@ -53643,7 +54035,10 @@ local function playAreaScaleBoardButtons(board,seat)
     local surfaceY=bounds.center.y+bounds.size.y/2+0.06
     local function uiPosition(offset)
         local point=board.positionToLocal({edgeX+offset,surfaceY,bottomZ})
-        return string.format("%.2f %.2f -40",point.x*100,point.z*100)
+        -- Object-UI's third position coordinate is depth (the visible height
+        -- above the board), not its second coordinate. Negative depth lifts UI.
+        local depth=-40-ui.offsetY*100
+        return string.format("%.2f %.2f %.2f",point.x*100,point.z*100,depth)
     end
     local function uiScale(value)
         return string.format("%.3f %.3f",value,value)
@@ -59593,7 +59988,7 @@ local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
 local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="453"
+local automaticLuaErrorReporterVersion="454"
 
 -- Automatic Lua error reporting, protected callback helpers and diagnostic context builders.
 local automaticLuaZoneContext
@@ -62643,7 +63038,7 @@ skillResourceDefinitions={
     ["04319a"]={untracked=true},
     ["046187"]={day={ranged=2},night={ranged=1}},
     ["062555"]={partial=true},
-    ["0688d8"]={untracked=true},
+    ["0688d8"]={normal={},damageMitigation={physical=2,nonphysical=1}}, -- Battle Hardened: protect the Hero from one attack.
     ["0951b9"]={untracked=true},
     ["0d59f4"]={partial=true},
     ["0db37a"]={untracked=true},
@@ -62701,7 +63096,8 @@ skillResourceDefinitions={
     ["68568b"]={untracked=true},
     ["68f864"]={untracked=true},
     ["6a33c1"]={choices={{key="attack",icon="other",iconOverlay="Atk"},{key="armour",icon="other",iconOverlay="Arm"}},
-        enemyEffect={normal={choice="armour",armourReduce=1}}}, -- Curse; the attack reduction is not computed
+        enemyEffect={normal={{choice="attack",attackReduce=1},
+            {choice="armour",armourReduce=1,armourReduceRangedUnfortifiedOnly=1}}}}, -- Curse: one enemy Attack or Armour -1.
     ["6d7027"]={partial=true},
     ["70c30f"]={normal={block=2},partial=true,coldFireCrystals={"Red","Blue"},swiftDoubleCrystals={"Green","White"}},
     ["725de9"]={untracked=true},
@@ -62780,7 +63176,7 @@ skillResourceDefinitions={
     ["ebbbfc"]={untracked=true},
     ["eeb395"]={attackCardBoost=true,partial=true}, -- Deadly Aim; player links a specific Attack card.
     ["eec431"]={normal={healing=2}},
-    ["f36762"]={normal={move=1},partial=true},
+    ["f36762"]={normal={move=1},blockSourceBoost=1}, -- Spirit Guides: +1 to an explicitly linked Block source.
     ["f50f77"]={untracked=true},
     ["f8292e"]={normal={healing=1}},
     ["f8ba0b"]={partial=true},
