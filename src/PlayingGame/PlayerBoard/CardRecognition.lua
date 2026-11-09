@@ -5982,10 +5982,12 @@ local function renderSeat(seatPos,quietUnitChoice)
         end
     end
     -- Skills that act on one enemy use the same nearest-enemy targeting as cards.
+    -- This pass precedes the final object pass. Register enemy-effect Skills
+    -- now so their chosen effects, targets and arrows survive the next scan.
     for _,skill in ipairs(skills) do
         local rule=skillResourceDefinitions[skill.guid]
-        local record=records[skill.guid]
-        if rule~=nil and rule.enemyEffect~=nil and record~=nil then
+        if rule~=nil and rule.enemyEffect~=nil then
+            local record=ensureSkillRecord(skill)
             local choice=rule.choices~=nil and chosenEffect(skill.guid,false,rule.choices) or nil
             local spec=combatEffectSpec(rule,false,choice~=nil and choiceCategory(choice) or nil)
             if skill.guid=="6a33c1" and spec~=nil and spec.armourReduce~=nil then
