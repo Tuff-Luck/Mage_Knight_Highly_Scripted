@@ -580,6 +580,9 @@ function resourceCardsCombatTargetRejectMessage(sourceKey,targetGUID)
     if resourceCardsUnitTargetRequiresUnfortified(sourceKey) then
         return "Illusionists can only target an unfortified enemy."
     end
+    if sourceKey=="6a33c1" then
+        return "Curse's Armour reduction cannot target an attack-only reminder."
+    end
     return "Only Block/Move or attack reductions can target a reminder."
 end
 
@@ -596,6 +599,12 @@ function resourceCardsCombatTargetAcceptsSource(sourceKey,targetGUID)
             scan~=nil and scan.enemyEffects or nil)
     end
     if data.attackOnly~=true then return true end
+    -- An Attack-only reminder has no Armour to reduce. Curse's Attack option
+    -- can still target its attack, but its Armour option cannot.
+    if sourceKey=="6a33c1" then
+        local saved=selectedResourceByGUID[sourceKey]
+        if saved~=nil and saved.effect=="armour" then return false end
+    end
     for _,source in ipairs(combatAssignmentSources(combatAssignmentActiveSeat())) do
         if source.key==sourceKey then
             return source.ranged+source.siege+source.attack==0
@@ -1266,7 +1275,7 @@ end
 -- A group is attacked as one: fortification and resistance of any member apply to all of
 -- them and the armours add together. Elusive members only use their higher armour in the
 -- Attack phase while one of their attacks is unblocked.
-local function combatGroupEntry(members,blockedAll)
+local function combatGroupEntry(members,blockedAll,rangePhase)
     local data={fortified=false,elusive=true,coldFireResist=false}
     local perks={}
     local fortification=0
@@ -1286,10 +1295,12 @@ local function combatGroupEntry(members,blockedAll)
             data.coldFireResist=true
         end
         local elusive=combatEnemyHasTrait(member.data,member.perks,"elusive")
-        local rangeArmour=elusive and member.elusiveArmour or member.baseArmour
-        armour=armour+member.baseArmour
+        local baseArmour=(rangePhase and member.rangeBaseArmour) or member.baseArmour
+        local elusiveValue=(rangePhase and member.rangeElusiveArmour) or member.elusiveArmour
+        local rangeArmour=elusive and elusiveValue or baseArmour
+        armour=armour+baseArmour
         elusiveArmour=elusiveArmour+rangeArmour
-        attackArmour=attackArmour+((elusive and not blockedAll[member.guid]) and member.elusiveArmour or member.baseArmour)
+        attackArmour=attackArmour+((elusive and not blockedAll[member.guid]) and elusiveValue or baseArmour)
     end
     data.fortified=fortification>=1
     perks.wallFortified=fortification>=2
@@ -1299,7 +1310,7 @@ end
 -- Bonuses first assigned in the regular Attack phase must not retrospectively
 -- make an earlier Ranged/Siege attack fail.
 local function combatRangeGroupEntry(members)
-    local result=combatGroupEntry(members,{})
+    local result=combatGroupEntry(members,{},true)
     local lateBonus=0
     for _,member in ipairs(members) do lateBonus=lateBonus+(member.defendMeleeBonus or 0) end
     if lateBonus>0 then
@@ -1442,10 +1453,12 @@ local function combatApplyDefend(entries,groups,allocated)
             local bonus=rangedBonuses[index] or 0
             members[#members+1]={guid=entry.guid,data=entry.data,perks=entry.perks,
                 baseArmour=entry.baseArmour+bonus,elusiveArmour=entry.elusiveArmour+bonus,
+                rangeBaseArmour=entry.rangeBaseArmour~=nil and entry.rangeBaseArmour+bonus or nil,
+                rangeElusiveArmour=entry.rangeElusiveArmour~=nil and entry.rangeElusiveArmour+bonus or nil,
                 stripFortify=entry.stripFortify,stripResist=entry.stripResist,
                 stripFireResist=entry.stripFireResist}
         end
-        local grouped=combatGroupEntry(members,{})
+        local grouped=combatRangeGroupEntry(members)
         local _,_,defeated=combatRangeResult(grouped,groupSources[group])
         rangedDefeated[group]=defeated and not members[1].data.attackOnly
     end
@@ -1467,6 +1480,10 @@ local function combatApplyDefend(entries,groups,allocated)
     for index,bonus in pairs(applied) do
         entries[index].baseArmour=entries[index].baseArmour+bonus
         entries[index].elusiveArmour=entries[index].elusiveArmour+bonus
+        if entries[index].rangeBaseArmour~=nil then
+            entries[index].rangeBaseArmour=entries[index].rangeBaseArmour+bonus
+            entries[index].rangeElusiveArmour=entries[index].rangeElusiveArmour+bonus
+        end
     end
     return applied
 end
@@ -2419,6 +2436,20 @@ local function refreshCombatEnemyPanel(monsters,calculated)
                 reduction=reduction+effect.armourReduceByResist*resistances
             end
             if reduction>0 then
+                -- Curse applies to fortified enemies only in the later Attack
+                -- phase. Preserve independent Ranged/Siege Armour, including
+                -- reductions from other sources and the minimum of 1.
+                local fortified=combatEnemyFortificationCount(entry.data,entry.perks)>0
+                    and effect.removeFortify~=true
+                local rangedReduction=reduction
+                if fortified then
+                    rangedReduction=math.max(0,reduction
+                        -(effect.armourReduceRangedUnfortifiedOnly or 0))
+                end
+                if rangedReduction~=reduction then
+                    entry.rangeBaseArmour=math.max(1,entry.baseArmour-rangedReduction)
+                    entry.rangeElusiveArmour=math.max(1,entry.elusiveArmour-rangedReduction)
+                end
                 entry.baseArmour=math.max(1,entry.baseArmour-reduction)
                 entry.elusiveArmour=math.max(1,entry.elusiveArmour-reduction)
             end
@@ -2840,7 +2871,7 @@ local choiceLetters={attackP1="A",attackP2="A2",attackP3="A3",
     block2Attack1="B2/A1",block1Attack2="B1/A2",
     blockP1="B",blockF1="BF",blockI1="BI",blockIF1="BC",
     twiceAttack="A2",twiceBlock="B2",move="M",influence="I",attack="A",block="B",
-    ranged="R",siege="S",healing="H",draw="D",other="O",
+    ranged="R",siege="S",healing="H",draw="D",other="O",armour="Arm",
     siegeFire="SF",siegeIce="SI",rangedFire="RF",rangedIce="RI",blockIce="BI",
     fire="F",ice="I",coldFire="C",boost="H+",split="I/F",negative="N",
     heal="H",combat="C",wound="W",fame="F",reputation="R",gain="G",ready="R",
@@ -4602,6 +4633,8 @@ local function calculateSkill(skill,linkedTarget,unitState,inventoryCrystalCount
     end
 
     local tracked=effectHasTrackedResource(effects)
+    -- A targeted Skill is recognized even when it supplies no numeric resource.
+    local targeted=rule.enemyEffect~=nil and chosen~=nil
     local function hasCrystals(colors)
         for _,color in ipairs(colors) do
             if (inventoryCrystalCounts[color] or 0)<=0 then return false end
@@ -4621,12 +4654,13 @@ local function calculateSkill(skill,linkedTarget,unitState,inventoryCrystalCount
         or (unitResolved or inventoryResolved) and "green"
         or rule.linkedCard~=nil and linkedTarget==nil and "yellow"
         or tracked and (rule.partial and "yellow" or "green")
+        or targeted and "green"
         or effects~=nil and "blue" or "yellow"
     local links={}
     if linkedTarget~=nil then links[#links+1]=linkedTarget end
     for _,guid in ipairs(unitSources) do links[#links+1]=guid end
     return {guid=skill.guid,kind="skill",known=true,
-        complete=unitResolved or inventoryResolved or (tracked and not rule.partial) or linkedTarget~=nil,
+        complete=unitResolved or inventoryResolved or (tracked and not rule.partial) or targeted or linkedTarget~=nil,
         powered=skill.is_face_down==true or linkedTarget~=nil or unitLinked,
         status=status,links=links,unitSources=unitSources,swiftDouble=swiftDouble,
         resources=effects,choices=choices}
@@ -5954,6 +5988,23 @@ local function renderSeat(seatPos,quietUnitChoice)
         if rule~=nil and rule.enemyEffect~=nil and record~=nil then
             local choice=rule.choices~=nil and chosenEffect(skill.guid,false,rule.choices) or nil
             local spec=combatEffectSpec(rule,false,choice~=nil and choiceCategory(choice) or nil)
+            if skill.guid=="6a33c1" and spec~=nil and spec.armourReduce~=nil then
+                -- Switching from Attack -1 to Armour -1 invalidates a saved
+                -- reminder target. Keep legitimate enemy locks untouched.
+                local eligible={}
+                for guid,enemy in pairs(monsters) do
+                    local data=combatEnemyData(guid,enemy)
+                    if enemy.is_face_down~=true and data~=nil and data.attackOnly~=true then
+                        eligible[guid]=true
+                    end
+                end
+                attackAssignmentsPruneSourceTargets(skill.guid,eligible)
+                local locked=combatAssignmentState.targets[skill.guid]
+                if locked~=nil and eligible[locked]~=true then
+                    combatAssignmentState.targets[skill.guid]=nil
+                    combatAssignmentState.explicit[skill.guid]=nil
+                end
+            end
             local target=spec~=nil and combatEffectChosenEnemy(skill.guid,footprints[skill.guid],monsters) or nil
             if spec~=nil and target~=nil then
                 combatEffectAdd(enemyEffects,target.guid,skill.guid,spec)
