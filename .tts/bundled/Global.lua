@@ -140,6 +140,11 @@ function onLoad(saved_data)
 		siteDescriptionObjectOnLoad()
 		rollerOnLoad(rollerSavedState(loadedData))
 		local result=__onLoad_raw(saved_data,loadedData)
+		-- Rebuild any Quick Witted choice after Global XML/UI restoration has settled.
+		-- Restore only the prompt: do not auto-resolve the saved draw or change its count.
+		safeWaitFrames("Callbacks",function()
+			coralDrawChoiceRestoreState(loadedData~=nil and loadedData.coralDrawPending or nil)
+		end,5)
 		safeWaitFrames("Callbacks",function() attackAssignmentsRestore() end,4)
 		safeWaitFrames("Callbacks",function()
 			monsterReplenishTranslationRefresh()
@@ -1277,7 +1282,8 @@ function onSave()
 		local data_to_save={
 			turnOrder=turnOrder,
 			gStates=gStates,
-			rollerDice=rollerOnSave()}
+			rollerDice=rollerOnSave(),
+			coralDrawPending=coralDrawChoiceSaveState()}
 		saved_data=JSON.encode(data_to_save)
 		return saved_data
 	end)
@@ -22913,7 +22919,7 @@ end
 function resourceCardsBlockSourceLinkClicked(player,value,id)
     return safeCallback("resourceCardsBlockSourceLinkClicked",function()
         local color=player~=nil and player.color or nil
-        if not resourceCardsPlayerCanEdit(color) or not resourceCardsPanelOpen() then return end
+        if type(color)~="string" or not resourceCardsPlayerCanEdit(color) or not resourceCardsPanelOpen() then return end
         local guid=type(id)=="string" and id:match("^AttackAssignmentSource_([0-9a-f]+)_0_blockSource$") or nil
         if guid==nil or resourceCardsBlockLinkSkillActive==nil
             or not resourceCardsBlockLinkSkillActive(guid) then return end
@@ -46675,7 +46681,9 @@ local function combatDamageUnits(seat)
             end
             units[unitState.guid]={guid=unitState.guid,name=type(data.name)=="table" and tostring(data.name[1]) or tostring(data.name),
                 armour=tonumber(data.armour),level=math.max(1,tonumber(data.level) or 1),
-                resist=resist,wounded=not unitState.unwounded}
+                resist=resist,wounded=not unitState.unwounded,
+                arcaneImmunity=data.arcaneImmunity==true,
+                arcaneVulnerability=data.arcaneVulnerability==true}
         end
     end
     return units,state~=nil and state.nativeCommandCount or 0
@@ -46799,17 +46807,6 @@ local function combatCompactResultLines(fullLines,damageItems,damageResults)
     -- The concise per-source breakdown is already the full display; do not
     -- abbreviate it or append expandable [+]/[-] indicators.
     return fullLines
-end
-
--- Estimate wrapped Result lines at 170 units so long wound distributions do not
--- overlap the following enemy row. Rich-text color tags have no visual width.
-local function combatResultVisibleLines(text)
-    local count=0
-    for line in (text.."\n"):gmatch("(.-)\n") do
-        local plain=line:gsub("<[^>]*>","")
-        count=count+math.max(1,math.ceil(#plain/26))
-    end
-    return count
 end
 
 -- A group is attacked as one: fortification and resistance of any member apply to all of
@@ -47576,6 +47573,39 @@ local function combatAssignmentRefreshRows(entries,sources)
     local damageResults=combatDamageResolve(damageItems,damageUnits,
         combatHeroArmour(nativeCommandCount),attackAssignmentsDamageTargetsOf,mitigation)
 
+    -- Vampiric gains Armor for Wounds added to the Hero's hand and for each
+    -- Unit its own non-Psychic attacks wound. Poison's extra discard/Unit
+    -- Wounds do not double this bonus. Rebuild Attack-phase Armor only:
+    -- Ranged/Siege kills and Block were settled before damage.
+    local vampiricByOwner={}
+    for _,item in ipairs(damageItems) do
+        if item.type~="M" then
+            local bonus=combatVampiricArmourGain(damageResults[item.key])
+            if bonus>0 then
+                vampiricByOwner[item.owner]=(vampiricByOwner[item.owner] or 0)+bonus
+            end
+        end
+    end
+    for _,group in ipairs(groups) do
+        local changed=false
+        local members,blockedAll={},{}
+        for _,index in ipairs(group.members) do
+            local entry=entries[index]
+            local bonus=vampiricByOwner[entry.guid] or 0
+            if bonus>0 and not entry.removeAbilities
+                and combatEnemyHasTrait(entry.data,entry.perks,"vampiric") then
+                entry.baseArmour=entry.baseArmour+bonus
+                entry.elusiveArmour=entry.elusiveArmour+bonus
+                changed=true
+            end
+            members[#members+1]=entry
+            blockedAll[entry.guid]=rowBlock[index].allBlocked
+        end
+        if changed then
+            group.entry,group.attackArmour=combatGroupEntry(members,blockedAll)
+        end
+    end
+
     -- Damage is earlier than Attack. Do not invalidate Ranged/Siege kills or
     -- Blocks: only suppress remaining Unit attacks after *actual* wounds.
     -- Resisted assignments that cause no Wound leave the Unit eligible.
@@ -47812,7 +47842,8 @@ local function combatAssignmentRefreshRows(entries,sources)
             local expanded=hasDetails and combatExpandedResults[entry.guid]==true
             local displayText=expanded and detailText or compactText
             if hasDetails then displayText=displayText..(expanded and " [-]" or " [+]") end
-            local displayLines=combatResultVisibleLines(displayText)
+            -- Only explicit newlines take vertical space; Result text may overflow horizontally.
+            local displayLines=expanded and #lines or #compactLines
             local minHeight=rowHeight
             rowHeight=math.max(rowHeight,math.max(displayLines,entry.attackCount or 1)*15+4)
             -- Only the Result text and its row/panel heights change when expanded.
@@ -52882,6 +52913,23 @@ __bundle_register("PlayingGame.PlayerBoard.CombatEffects", function(require, _LO
 
 local lastReport={}
 
+-- Vampiric gains one Armor for each Wound added to the Hero's hand, plus
+-- one for each Unit wounded (not each Unit Wound card). Poison's extra discard
+-- Wounds do not contribute. Arcane Immunity prevents the additional effect;
+-- Arcane Vulnerability permits it even if resistance avoided the Wound.
+function combatVampiricArmourGain(result)
+    if result==nil then return 0 end
+    local bonus=result.heroWounds or 0
+    for _,hit in ipairs(result.units or {}) do
+        local unit=hit.unit
+        if unit~=nil and unit.arcaneImmunity~=true
+            and (hit.wounded==true or unit.arcaneVulnerability==true) then
+            bonus=bonus+1
+        end
+    end
+    return bonus
+end
+
 -- The enemy physically under the card wins; otherwise the nearest face-up one.
 function combatEffectNearestEnemy(cardArea,monsters,enemyAreaOf,overlapOf,eligible)
     local best,bestArea,bestDistance=nil,-1,math.huge
@@ -53993,13 +54041,13 @@ local function playAreaScaleChange(player,mouseButton,id,delta,scopeToggle)
 end
 
 function playAreaScaleDown(player,mouseButton,id)
-    return safeCallback("playAreaScaleDown",function() playAreaScaleChange(player,mouseButton,id,-1,false) end)
+    return playAreaScaleChange(player,mouseButton,id,-1,false)
 end
 function playAreaScaleUp(player,mouseButton,id)
-    return safeCallback("playAreaScaleUp",function() playAreaScaleChange(player,mouseButton,id,1,false) end)
+    return playAreaScaleChange(player,mouseButton,id,1,false)
 end
 function playAreaScaleScope(player,mouseButton,id)
-    return safeCallback("playAreaScaleScope",function() playAreaScaleChange(player,mouseButton,id,0,true) end)
+    return playAreaScaleChange(player,mouseButton,id,0,true)
 end
 -- Kept only as a harmless compatibility callback for classic buttons from an old save.
 function playAreaScaleLabel() end
@@ -54093,6 +54141,14 @@ function refreshPlayAreaScaleControls()
         if board~=nil and board.isDestroyed()~=true then playAreaScaleBoardButtons(board,seat) end
     end
 end
+
+-- Register the Object UI entry points with the automatic error-reporting guard.
+-- The startup callback audit requires this registration, not just a safeCallback inside each function.
+publishPublicUICallbacks({
+    playAreaScaleDown=playAreaScaleDown,
+    playAreaScaleUp=playAreaScaleUp,
+    playAreaScaleScope=playAreaScaleScope
+})
 
 end)
 __bundle_register("PlayingGame.PlayerBoard.UnitLayout", function(require, _LOADED, __bundle_register, __bundle_modules)
@@ -54982,6 +55038,27 @@ end
 function clearCoralDrawChoice()
 	coralDrawPending=nil
 	UI.hide("CoralDrawChoice")
+end
+
+-- UI visibility alone does not persist the unfinished draw. Save the actual decision
+-- separately so a reload cannot silently discard Coral's outstanding Quick Witted choice.
+function coralDrawChoiceSaveState()
+	local pending=coralDrawPending
+	if pending==nil then return nil end
+	return {seatPos=pending.seatPos, remaining=pending.remaining, sourceId=pending.sourceId}
+end
+
+function coralDrawChoiceRestoreState(savedPending)
+	if type(savedPending)~="table" then return false end
+	local seatPos=tonumber(savedPending.seatPos)
+	local remaining=tonumber(savedPending.remaining)
+	if seatPos==nil or seatPos<1 or seatPos>4 or remaining==nil or remaining<1 then return false end
+	local playerIndex=coralDrawPlayerIndex(seatPos)
+	-- Physical card state is authoritative. A stale prompt must never generate a second draw.
+	if playerIndex==nil or coralQuickWittedSetAside(playerIndex)==nil then return false end
+	coralDrawPending=nil
+	showCoralDrawChoice(playerIndex, math.floor(remaining), type(savedPending.sourceId)=="string" and savedPending.sourceId or "DrawHand")
+	return true
 end
 
 --A Coral draw can turn a Deck into a lone Card or rebuild it after a manual draw is intercepted.
@@ -57210,9 +57287,10 @@ function optionsUpdate(player, value, id, deferRefresh)
 		if deferRefresh~=true then scenarioInfoUpdate() end
 		return
 	end
+	--Toggle ids are dynamic boolean keys in the mixed-type gStates table.
 	if value=="True" then
 		UI.setAttribute(id, "isOn", "true")
-		gStates[id]=true
+		rawset(gStates,id,true)
 		--The two Quest systems cannot be used together.
 		if id=="questMod" then UI.setAttribute("apocalypseQuestCards", "interactable", "false") elseif id=="apocalypseQuestCards" then UI.setAttribute("questMod", "interactable", "false") end
 		if id=="startAtNight" then UI.setAttribute("darknessComing", "text", SETUP_TEXT.daylightComing) end
@@ -57224,7 +57302,7 @@ function optionsUpdate(player, value, id, deferRefresh)
 		end
 	else
 		UI.setAttribute(id, "isOn", "false")
-		gStates[id]=false
+		rawset(gStates,id,false)
 		if id=="questMod" then UI.setAttribute("apocalypseQuestCards", "interactable", "true") elseif id=="apocalypseQuestCards" then UI.setAttribute("questMod", "interactable", "true") end
 		if id=="startAtNight" then UI.setAttribute("darknessComing", "text", SETUP_TEXT.darknessComing) end
 		if id=="removeLostLegionExpansion" then --and gStates.removeBonusCards==false) or (id=="removeBonusCards" and gStates.removeLostLegionExpansion==false)
@@ -57720,7 +57798,7 @@ local function reconcileScenarioHardLocks()
 	local overrides=SCENARIO_OPTION_OVERRIDES[gStates.gameScenario]
 	if overrides==nil then return end
 	for id,details in pairs(overrides) do
-		if details[2]==false then gStates[id]=details[1] end
+		if details[2]==false then rawset(gStates,id,details[1]) end
 	end
 end
 
