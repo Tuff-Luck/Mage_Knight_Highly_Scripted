@@ -54,6 +54,7 @@ require("SetupInterface")
 require("PlayingGame.Help")
 require("PlayingGame.PlayerBoard.CardFlow")
 require("PlayingGame.PlayerBoard.UnitLayout")
+require("PlayingGame.PlayerBoard.Scale")
 require("PlayingGame.PlayerBoard.UnitResources")
 require("PlayingGame.PlayerBoard.Events")
 require("PlayingGame.UIAssets")
@@ -183,12 +184,7 @@ function onObjectDestroy(destroyedObj)
 end
 
 function onObjectEnterZone(zone, obj)
-	local perfStart=mapPerformanceStart()
-	local result=safeZoneCallback("onObjectEnterZone", __onObjectEnterZone_raw, zone, obj)
-	if perfStart~=nil then
-		mapPerformanceRecord(zone~=nil and zone.guid==mapArea and "map zone enter" or "other zone enter",perfStart)
-	end
-	return result
+	return safeZoneCallback("onObjectEnterZone", __onObjectEnterZone_raw, zone, obj)
 end
 
 function onObjectLeaveZone(zone, obj)
@@ -287,7 +283,7 @@ local expectedProtectedUICallbacks={
 	"apocalypseDragonGroundReductionAdjust","apocalypseDragonProcessUI","apocalypseIsHereHorsemanTargetSelect",
 	"apocalypseIsHereProcessHorsemenUI","apocalypseQuestCardAction","apocalypseQuestEnemyAttack","artifactAdjust",
 	"attachEnemy","attackLocation","ButtonClickDown","ButtonClickDownOverkill","ButtonClickUp","ButtonClickUpOverkill",
-	"changeMatImage","changePositionColor","dayTactic2Discarded","druidNightsRitualAction","exploreMap",
+	"changeMatImage","changePositionColor","playAreaScaleDown","playAreaScaleUp","playAreaScaleScope","dayTactic2Discarded","druidNightsRitualAction","exploreMap",
 	"fracturedLandsOrientationDone","fracturedLandsRotateLeft","fracturedLandsRotateRight","gladeDiscardHealUI",
 	"higherLevelSkill","horsemanAttackAction","layoutClaimedCards","nightTint","offerAdjust","offerArtifacts",
 	"processCardClaim","proxyDestinationChoiceSelect","proxyEnemyChoiceSelect","proxyInteractionChoiceSelect",
@@ -1246,6 +1242,7 @@ function eventsOnLoadRawBase(saved_data, loaded_data)
 		addAvatarButtons()
 		addCityButtons()
 		applyColorBarButtons()
+		for seat=1,4 do schedulePlayAreaScale(seat) end
 		syncMageKnightSeatTeams()
 		refreshPlayerSeatColors()
 		for _, mirrorGUID in pairs(gStates.mirrorSource or {}) do
@@ -1440,6 +1437,7 @@ function __onObjectDrop_raw(player_color, dropped_object)
 	attackAssignmentsObjectMoved(dropped_object)
 	if dropped_object==nil or dropped_object.guid==nil then return end
 	local droppedGUID=dropped_object.guid
+	playAreaScaleObjectDropped(dropped_object)
     resourceUnitsCommandDropped(player_color,dropped_object)
     resourceCardsObjectMoved(dropped_object)
 	if terrainTiles[droppedGUID]~=nil then
@@ -1745,10 +1743,27 @@ function __onObjectDestroy_raw(destroyedObj)
 	end
 
 	--Check if a shield has been removed
-	local destroyedPursuit=volkarePursuitShieldRegistered(destroyedObj)
-	if destroyedPursuit==true and destroyedGuid~=nil and gStates.volkarePursuitShields~=nil then gStates.volkarePursuitShields[destroyedGuid]=nil end
-	if destroyedObj.getName()~=nil and (isShieldObject(destroyedObj) or destroyedObj.getGMNotes()=="Burned Monastery" or scriptObjectId(destroyedObj)=="Secret Dungeon" or scriptObjectId(destroyedObj)=="Secret Tomb") then
-		shieldLocation(destroyedObj, {guid=mapArea}, "remove")
+	-- Pursuit identification reads GM Notes, which may already be inaccessible.
+	-- The saved GUID registry can still be cleared without invoking object methods.
+	local pursuitRecord=destroyedGuid~=nil and gStates.volkarePursuitShields~=nil
+		and gStates.volkarePursuitShields[destroyedGuid] or nil
+	local pursuitOK,destroyedPursuit=pcall(volkarePursuitShieldRegistered,destroyedObj)
+	if destroyedGuid~=nil and gStates.volkarePursuitShields~=nil
+		and (pursuitRecord~=nil or (pursuitOK and destroyedPursuit==true)) then
+		gStates.volkarePursuitShields[destroyedGuid]=nil
+	end
+	-- TTS may deliver an already-expired object. The GUID above remains usable, but
+	-- method calls on the destroyed object may fail even when it is non-nil.
+	local metadataOK,needsShieldCleanup=pcall(function()
+		local objectID=scriptObjectId(destroyedObj)
+		return isShieldObject(destroyedObj) or destroyedObj.getGMNotes()=="Burned Monastery"
+			or objectID=="Secret Dungeon" or objectID=="Secret Tomb"
+	end)
+	if metadataOK and needsShieldCleanup==true then
+		local cleanupOK,reason=pcall(shieldLocation,destroyedObj,{guid=mapArea},"remove")
+		if not cleanupOK then
+			log("Destroyed shield/site cleanup skipped ["..tostring(destroyedGuid).."]: "..tostring(reason))
+		end
 	end
 end
 
@@ -1819,6 +1834,7 @@ local function zoneObjectCanBeMapMarker(ctx)
 end
 
 local settledZoneEntrySerial={}
+local settledZoneNextSerial=0
 --Track only live map-zone boundary membership so deferred presentation work can validate an entry/exit
 --without asking the scripting zone for its entire object list again.
 local mapZoneMembership={}
@@ -1840,9 +1856,10 @@ local function scheduleSettledZoneEntry(ctx,callback,channel)
 	local objGUID=ctx.objGUID
 	if zoneGUID==nil or objGUID==nil then return end
 	local key=tostring(channel or "default").."|"..zoneGUID.."|"..objGUID
-	local serial=(settledZoneEntrySerial[key] or 0)+1
+	settledZoneNextSerial=settledZoneNextSerial+1
+	local serial=settledZoneNextSerial
 	settledZoneEntrySerial[key]=serial
-	safeWaitCondition("Events.zoneSettle."..tostring(channel or "default"),function()
+	local function dispatchSettled()
 		if settledZoneEntrySerial[key]~=serial then return end
 		settledZoneEntrySerial[key]=nil
 		local liveZone=getObjectFromGUID(zoneGUID)
@@ -1850,10 +1867,21 @@ local function scheduleSettledZoneEntry(ctx,callback,channel)
 		if liveZone==nil or liveObj==nil or settledZoneContainsGUID(liveZone,objGUID)~=true then return end
 		local liveCtx=zoneEventContext(liveZone,liveObj)
 		if liveCtx~=nil then callback(liveCtx) end
-	end,function()
+	end
+	safeWaitCondition("Events.zoneSettle."..tostring(channel or "default"),dispatchSettled,function()
 		if settledZoneEntrySerial[key]~=serial then return true end
 		local liveObj=getObjectFromGUID(objGUID)
 		return liveObj==nil or (liveObj.resting==true and liveObj.isSmoothMoving()==false)
+	end,10,function()
+		if settledZoneEntrySerial[key]~=serial then return end
+		local liveObj=getObjectFromGUID(objGUID)
+		-- Allow a harmless physics jitter, but never resolve a held or travelling token early.
+		if liveObj==nil or (liveObj.held_by_color==nil and liveObj.isSmoothMoving()==false) then
+			dispatchSettled()
+		else
+			settledZoneEntrySerial[key]=nil
+			log("Zone entry did not settle ["..tostring(objGUID).."]")
+		end
 	end)
 end
 
@@ -1862,9 +1890,9 @@ end
 local function cancelSettledZoneEntries(zoneGUID,objGUID)
 	if zoneGUID==nil or objGUID==nil then return end
 	local suffix="|"..zoneGUID.."|"..objGUID
-	for key,serial in pairs(settledZoneEntrySerial) do
+	for key in pairs(settledZoneEntrySerial) do
 		if type(key)=="string" and key:sub(-#suffix)==suffix then
-			settledZoneEntrySerial[key]=(settledZoneEntrySerial[key] or 0)+1
+			settledZoneEntrySerial[key]=nil
 		end
 	end
 end
@@ -2244,7 +2272,11 @@ local function handlePlayerBoardZoneEnter(ctx)
 	if ctx.settledPlayerZoneEntry~=true and zoneInfo~=nil and (zoneInfo.kind=="play" or zoneInfo.kind=="unit" or zoneInfo.kind=="crystal") then
 		--Play-area UI only depends on zone membership, not the object's final transform. Update it as
 		--soon as TTS reports entry; keep position-sensitive player-board effects on the settled path.
-		if zoneInfo.kind=="play" then playerBoardPlayAreaZoneEnterImmediate(ctx) end
+		if zoneInfo.kind=="play" then playerBoardPlayAreaZoneEnterImmediate(ctx)
+		elseif zoneInfo.kind=="unit" then
+			playAreaScaleApplyObject(zoneInfo.seatPos,ctx.obj)
+			schedulePlayAreaScale(zoneInfo.seatPos)
+		end
 		scheduleSettledZoneEntry(ctx,function(liveCtx)
 			liveCtx.settledPlayerZoneEntry=true
 			playerBoardZoneEnterSettled(liveCtx)
@@ -2311,12 +2343,7 @@ function __onObjectEnterZone_raw(zone, obj)
 	if gStates.firstStarted==true then
 		handleStartedZoneEnterPrelude(ctx)
 		handleTurnOrderZoneEnter(ctx)
-		if ctx.isMap and terrainTiles[ctx.objGUID]~=nil then
-			local terrainStart=mapPerformanceStart()
-			local terrainHandled=mapHandleTerrainZoneEnter(ctx)
-			mapPerformanceRecord("terrain entry dispatch",terrainStart)
-			if terrainHandled==true then return end
-		elseif mapHandleTerrainZoneEnter(ctx)==true then return end
+		if mapHandleTerrainZoneEnter(ctx)==true then return end
 		handleMapLocationZoneEnter(ctx)
 		handleMapVisualZoneEnter(ctx)
 		handleHandZoneEnter(ctx)
@@ -3436,39 +3463,6 @@ function refreshOutOfTurnActions(playerAreaCardCount, playerAreaSkillCount, forc
 			UI.setAttribute("OutOfTurnActions", "offsetXY", "0 "..tostring(55+(count*30)))
 		end
 	return true
-end
-
---Play-area card scaling is driven directly by the play-area zones rather than mainUIUpdate.
---Cards cannot merge into Decks in the play area during normal play, so use the same loose-object counts as the original UI logic.
-local playAreaScaleWait={}
-refreshPlayAreaCardScale=function(seatPos)
-	local zone=seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
-	if zone==nil then return end
-	local objects=zone.getObjects()
-	local playerAreaCards=0
-	local playerAreaObjects=0
-	for _, obj in pairs(objects) do
-		local inUnitArea=unitLayoutObjectInAnyUnitArea(obj.guid)
-		local unitInUnitArea=unitLayoutIsUnit(obj) and inUnitArea
-		if inUnitArea==false then playerAreaObjects=playerAreaObjects+1 end
-		if unitInUnitArea==false and ((gameCards[obj.guid]~=nil and gameCards[obj.guid].full==nil) or (gameCards[obj.guid]~=nil and gStates.bannercard[obj.guid]==nil) or obj.getGMNotes()=="Wound") then playerAreaCards=playerAreaCards+1 end
-	end
-	local targetScale=(playerAreaCards>7 or playerAreaObjects>10) and 1.2 or 1.5
-	for _, obj in pairs(objects) do
-		local unitInUnitArea=unitLayoutIsUnit(obj) and unitLayoutObjectInAnyUnitArea(obj.guid)
-		if unitInUnitArea==false and ((gameCards[obj.guid]~=nil and gameCards[obj.guid].full==nil) or obj.getGMNotes()=="Wound") then
-			local scale=obj.getScale()
-			if math.abs(scale.x-targetScale)>0.01 or math.abs(scale.z-targetScale)>0.01 then obj.setScale({targetScale, 1, targetScale}) end
-		end
-	end
-end
-function schedulePlayAreaCardScale(seatPos)
-	if seatPos==nil then return end
-	if playAreaScaleWait[seatPos]~=nil then Wait.stop(playAreaScaleWait[seatPos]) end
-	playAreaScaleWait[seatPos]=safeWaitTime("UI",function()
-		playAreaScaleWait[seatPos]=nil
-		refreshPlayAreaCardScale(seatPos)
-	end, 0.2)
 end
 
 --Fame and reputation are cached in turnOrder and resynchronised only when their physical shields actually move.
@@ -5096,6 +5090,7 @@ function applyColorBarButtons()
             end
 		end
 	end
+	refreshPlayAreaScaleControls()
 end
 
 
@@ -5381,6 +5376,7 @@ local MOVE_COST_FIELDS={	["Plain"]={"plains", "{en}Plains : {it}Pianure : {ru}Р
 				["Mount"]={"mountain", "{en}Mountains : {it}Montagne : {ru}Горы: {zh-tw}山脈：{zh-cn}山脉：{ko}산 : {es}Montañas : {fr}Montagnes : {pt-br}Montanhas : {de}Berge : "}}
 
 function resourceTracker(player, mouseButton, id)
+    if not resourceCardsPlayerCanEdit(player~=nil and player.color or nil) then return end
     local cycleRow=type(id)=="string" and id:match("^CombatEnemyAttackCycle(%d+)$") or nil
     if cycleRow~=nil and (mouseButton=="-1" or mouseButton=="-2") then
         resourceCardsCombatCycleAttack(tonumber(cycleRow),mouseButton=="-2")
@@ -5401,6 +5397,7 @@ function resourceTracker(player, mouseButton, id)
 			if tonumber(UI.getAttribute("ResourceTracker", "height"))>200 then temp="35" temp2="false" end
 			UI.setAttribute("ResourceTracker", "height", temp)
 			UI.setAttribute("ResourceTrackerDetail", "active", temp2)
+            resourceCardsSetSeatEnabled(temp2=="true")
             if temp2=="false" then
                 UI.setAttribute("CombatCalculatorHelp","active","false")
                 resourceCardsPanelChanged(false)
@@ -5489,6 +5486,16 @@ function resourceTracker(player, mouseButton, id)
 end
 
 local RESOURCE_TRACKER_ZERO_TEXT_COLOR="#555555" -- Adjust this shade to tune empty-resource contrast.
+local resourceTrackerDisplayCache={}
+function invalidateResourceTrackerDisplayCache()
+    resourceTrackerDisplayCache={}
+end
+local function setResourceTrackerDisplayAttribute(id,attribute,value)
+    local key=id.."\0"..attribute
+    if resourceTrackerDisplayCache[key]==value then return end
+    resourceTrackerDisplayCache[key]=value
+    UI.setAttribute(id,attribute,value)
+end
 
 function refreshResourceTrackerText()
     if not resourceCardsPanelOpen() or gStates.resourceTracker==nil or gStates.moveCost==nil then return end
@@ -5510,21 +5517,25 @@ function refreshResourceTrackerText()
     end
     for fieldId,spec in pairs(RESOURCE_TRACKER_FIELDS) do
         local totalType=RESOURCE_TRACKER_TOTAL_FIELDS[fieldId]
-        local value=totalType~=nil and math.max(0,resourceTotal[totalType])
-            or math.max(0,valueOf(spec[1],spec[2]))
-        UI.setAttribute(fieldId.."Text","text",joinLang({spec[3],value}))
-        -- Dim empty resource rows, including the Move, Healing and expanded
-        -- breakdown fields; restore normal contrast when a total is nonzero.
-        UI.setAttribute(fieldId.."Text","color",value==0 and RESOURCE_TRACKER_ZERO_TEXT_COLOR or "Black")
+        local raw=totalType~=nil and resourceTotal[totalType] or valueOf(spec[1],spec[2])
+        -- Reputation can legitimately be negative. Only the overall Influence
+        -- total stays clamped; -99 is the existing "No Interaction" sentinel.
+        local reputation=spec[1]=="influence" and spec[2]=="reputation"
+        local value=reputation and (raw==-99 and 0 or raw) or math.max(0,raw)
+        setResourceTrackerDisplayAttribute(fieldId.."Text","text",joinLang({spec[3],value}))
+        -- Negative reputation must remain readable, not appear as an empty row.
+        setResourceTrackerDisplayAttribute(fieldId.."Text","color",
+            value==0 and RESOURCE_TRACKER_ZERO_TEXT_COLOR or "Black")
     end
     for fieldId, spec in pairs(MOVE_COST_FIELDS) do
 		local value=resourceCardsEffectiveTerrainCost(spec[1])
 		local display=value>900 and "X" or tostring(value)
-		UI.setAttribute("MoveCost"..fieldId.."Text","text",joinLang({spec[2],display}))
+		setResourceTrackerDisplayAttribute("MoveCost"..fieldId.."Text","text",joinLang({spec[2],display}))
 	end
 end
 
 function resetResourceTrackerState()
+        invalidateResourceTrackerDisplayCache()
 		gStates.resourceTracker={move=		{move=0},
 								siege=		{physical=0, fire=0, ice=0, iceFire=0, psychic=0},
 								ranged=		{physical=0, fire=0, ice=0, iceFire=0, psychic=0},
@@ -6024,7 +6035,7 @@ function changeMatImage(player, mouseButton, id)
 		local boardGUID=convert[id:sub(1, 6)]
 		safeWaitTime("UI",function()
 			local currentBoard=getObjectFromGUID(boardGUID)
-			if currentBoard~=nil then currentBoard.interactable=false end
+			if currentBoard~=nil then currentBoard.interactable=false refreshPlayAreaScaleControls() end
 		end, 0.2)
 	end
 end
@@ -20505,7 +20516,14 @@ end
 
 --Commit a Mage Knight/Dummy/Volkare turn after any interstitial scenario turn has finished.
 function mergedTurnCommit(nextTurnNumber,newOutOfTurn,sameTurn)
+    local outgoing=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    local incoming=turnOrder~=nil and turnOrder[nextTurnNumber] or nil
+    local outgoingSeat=outgoing~=nil and outgoing.seatPos or nil
+    if resourceCardsBeforeTurnHandoff~=nil then
+        resourceCardsBeforeTurnHandoff(incoming~=nil and incoming.seatPos or nil)
+    end
 	gStates.turnNumber=nextTurnNumber
+    if resourceCardsAfterTurnHandoff~=nil then resourceCardsAfterTurnHandoff(outgoingSeat) end
 	if newOutOfTurn==false then gStates.realTurn=gStates.turnNumber end
 	if sameTurn==false and gStates.finalTurnReason=="victory" and gStates.finalTurnOwnerGetsTurn==true and
 		finalTurnBoundaryActive()==true and finalTurnOwnerIs(gStates.turnNumber) then gStates.finalTurnOwnerTurnStarted=true end
@@ -21102,6 +21120,9 @@ local function turnEndRoundResetPlayerDecks()
 end
 
 local function turnEndRoundPrepareTurnOrder()
+    -- The round reorder is another real ownership handoff (not mergedTurnCommit).
+    -- Clear the old seat before sorting changes the meaning of turnNumber.
+    if resourceCardsBeforeTurnHandoff~=nil then resourceCardsBeforeTurnHandoff(nil) end
 	--Work out new tactics picking order. Lower Fame chooses first; ties use the later
 	--previous-round turn order (higher tactic number) first.
 	table.sort(turnOrder, function(k1, k2)
@@ -21111,6 +21132,7 @@ local function turnEndRoundPrepareTurnOrder()
 	gStates.turnNumber=1
 	for a=1, #turnOrder, 1 do if playerDropoutInactive(a)==false then gStates.turnNumber=a break end end
 	gStates.realTurn=gStates.turnNumber
+    if resourceCardsAfterTurnHandoff~=nil then resourceCardsAfterTurnHandoff(nil) end
 	applyColorBarButtons()
 	broadcastToAll(joinLang({"{en}It is now {it}Ora è {ru}Ходит {zh-tw}现在是{zh-cn}现在是{ko}{es}Ahora es el turno de {fr}C'est maintenant au tour de {pt-br}é agora turno de {de}Jetzt ist ", translateWord[turnOrder[gStates.turnNumber].mage], "{en}'s turn.{it}.{ru} {zh-tw}的回合{zh-cn}的回合{ko}의 차례입니다.{es}.{fr}.{pt-br}.{de} an der Reihe."}), positionToColor(gStates.turnNumber))
 	gStates.tacticTwoState="notUsed"
@@ -22146,7 +22168,7 @@ local function damageTargetButtonX(obj)
                 and px>0.8 and math.abs(pz)<0.55 then
                 -- Keep the same clearance as the original design, but on
                 -- the correct mirrored side of the object.
-                x=math.min(x,-px-0.61)
+                x=math.min(x,-px-0.66)
             end
         end
     end
@@ -22317,6 +22339,7 @@ local PREVIEW_WOUND_TAG="CombatPreviewWound"
 local PREVIEW_WOUND_HEIGHT=1.16
 local PREVIEW_WOUND_ALPHA=150/255
 local previewWoundsByUnit={}
+local previewSnapCache={}
 local previewUnitBags={}
 local previewBagWarnings={}
 local previewOrphansScanned=false
@@ -22345,25 +22368,50 @@ local function previewUnitMarker(unit,show)
         font_color={1,0.04,0.04},tooltip="Combat Calculator: Unit destroyed by Paralysis"})
 end
 
+-- The Unit layout changes snap points when extra Command slots compress the board.
+-- Rebuild the cached world coordinates only then, or when the physical mat moves.
+function attackAssignmentsPreviewSnapInvalidate(seat)
+    if seat~=nil then previewSnapCache[seat]=nil else previewSnapCache={} end
+end
+
 local function previewWoundPosition(unit,seat,slot)
     local board=playerBoard~=nil and getObjectFromGUID(playerBoard[seat]) or nil
     local candidates={}
     local pos=unit.getPosition()
     local unitX,unitZ=pos.x or pos[1],pos.z or pos[3]
     if board~=nil then
-        for _,point in ipairs(board.getSnapPoints() or {}) do
-            local wound=false
-            for _,tag in ipairs(point.tags or {}) do
-                if tag=="Wound" then wound=true break end
-            end
-            if wound then
-                local world=board.positionToWorld(point.position)
-                local x,z=world.x or world[1],world.z or world[3]
-                local dx=math.abs(x-unitX)
-                local dz=math.abs(z-unitZ)
-                if dx<1.6 and dz<2.5 then
-                    candidates[#candidates+1]={x=x,z=z,distance=dx+dz*0.1}
+        local origin=board.getPosition()
+        local rotation=board.getRotation~=nil and board.getRotation() or nil
+        local scale=board.getScale~=nil and board.getScale() or nil
+        local key=table.concat({tostring(origin.x or origin[1]),
+            tostring(origin.y or origin[2]),tostring(origin.z or origin[3]),
+            tostring(rotation~=nil and (rotation.x or rotation[1]) or 0),
+            tostring(rotation~=nil and (rotation.y or rotation[2]) or 0),
+            tostring(rotation~=nil and (rotation.z or rotation[3]) or 0),
+            tostring(scale~=nil and (scale.x or scale[1]) or 1),
+            tostring(scale~=nil and (scale.y or scale[2]) or 1),
+            tostring(scale~=nil and (scale.z or scale[3]) or 1)},":")
+        local cached=previewSnapCache[seat]
+        if cached==nil or cached.board~=board or cached.key~=key then
+            local points={}
+            for _,point in ipairs(board.getSnapPoints() or {}) do
+                local wound=false
+                for _,tag in ipairs(point.tags or {}) do
+                    if tag=="Wound" then wound=true break end
                 end
+                if wound then
+                    local world=board.positionToWorld(point.position)
+                    points[#points+1]={x=world.x or world[1],z=world.z or world[3]}
+                end
+            end
+            cached={board=board,key=key,points=points}
+            previewSnapCache[seat]=cached
+        end
+        for _,point in ipairs(cached.points) do
+            local dx=math.abs(point.x-unitX)
+            local dz=math.abs(point.z-unitZ)
+            if dx<1.6 and dz<2.5 then
+                candidates[#candidates+1]={x=point.x,z=point.z,distance=dx+dz*0.1}
             end
         end
     end
@@ -22375,8 +22423,15 @@ local function previewWoundPosition(unit,seat,slot)
         local selected=three[slot]
         return {selected.x,PREVIEW_WOUND_HEIGHT,selected.z}
     end
-    -- If a custom mat has no recognized snaps, keep the token at the standard wound row.
-    return {unitX+(slot-2)*0.57,PREVIEW_WOUND_HEIGHT,-33.29}
+    -- For a custom mat without snaps, derive the Wound row from the Unit.
+    -- The local Unit Command/Wound offsets are -0.398/-0.574 on standard mats.
+    local zOffset=1.45
+    if board~=nil then
+        local command=board.positionToWorld({0,0,-0.398})
+        local wound=board.positionToWorld({0,0,-0.574})
+        zOffset=(wound.z or wound[3])-(command.z or command[3])
+    end
+    return {unitX+(slot-2)*0.57,PREVIEW_WOUND_HEIGHT,unitZ+zOffset}
 end
 
 local function previewWoundBag(seat)
@@ -22575,6 +22630,7 @@ end
 
 function attackAssignmentsDamageClear()
 	attackAssignmentsUnitPreviewClear()
+    attackAssignmentsPreviewSnapInvalidate(nil)
 	damageTargets={}
 	damagePending=nil
 	damageSpec={attacks={},units={},byOwner={},byKey={},reserved={}}
@@ -22597,6 +22653,7 @@ local function damageChanged()
 end
 
 local function damageAttackClicked(obj,playerColor,index,altClick)
+    if not resourceCardsPlayerCanEdit(playerColor) then return end
 	local list=obj~=nil and damageSpec.byOwner[obj.guid] or nil
 	local attack=list~=nil and list[index] or nil
 	if attack==nil then return end
@@ -22626,6 +22683,7 @@ end
 -- Clicking a free Unit adds it to the attack in order; clicking one already on the attack returns its share to the Hero.
 function attackAssignmentDamageUnitClicked(unit,playerColor)
 	return safeCallback("attackAssignmentDamageUnitClicked",function()
+        if not resourceCardsPlayerCanEdit(playerColor) then return end
 		if damagePending==nil or unit==nil or damagePending.color~=playerColor then return end
 		local key=damagePending.key
 		local list=damageTargets[key] or {}
@@ -22676,6 +22734,7 @@ local function removeAssignment(id)
 end
 
 function attackAssignmentsBegin(source,resource,playerColor,additional,sourceKey,part)
+    if not resourceCardsPlayerCanEdit(playerColor) then return false end
     if resourceCardsPanelOpen~=nil and not resourceCardsPanelOpen() then return false end
     -- Illusionists affect exactly one enemy. A right click retargets rather
     -- than adding a second effect, even if that enemy is also unfortified.
@@ -22701,6 +22760,7 @@ end
 
 function attackAssignmentSourceClicked(player,value,id)
 	return safeCallback("attackAssignmentSourceClicked",function()
+        if not resourceCardsPlayerCanEdit(player~=nil and player.color or nil) then return end
         if resourceCardsPanelOpen~=nil and not resourceCardsPanelOpen() then return end
 		if type(id)~="string" then return end
 		local guid,rowIndex,category=id:match("^AttackAssignmentSource_([0-9a-f]+)_(%d+)_(.+)$")
@@ -22735,6 +22795,7 @@ end
 
 function attackAssignmentTargetClicked(target,playerColor)
 	return safeCallback("attackAssignmentTargetClicked",function()
+        if not resourceCardsPlayerCanEdit(playerColor) then return end
         if resourceCardsPanelOpen~=nil and not resourceCardsPanelOpen() then return end
 		local pending=type(playerColor)=="string" and targetingByPlayer[playerColor] or nil
         local eligible=resourceCardsCombatTargetObjects~=nil and resourceCardsCombatTargetObjects() or {}
@@ -23474,6 +23535,7 @@ local function combatReleaseSummonedEnemy(token)
 	local original=gStates.summonedEnemyScales~=nil and gStates.summonedEnemyScales[token.guid] or nil
 	if original==nil then return false end
 	token.jointTo()
+	playAreaScaleForgetObject(token)
 	token.setScale({original[1],original[2],original[3]})
 	return true
 end
@@ -23646,7 +23708,14 @@ end
 showCoopReward=function()
 	local entry=gStates.coopRewardQueue[gStates.coopRewardIndex]
 	if entry==nil then return end
+    local outgoing=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    local incoming=turnOrder~=nil and turnOrder[entry.player] or nil
+    local outgoingSeat=outgoing~=nil and outgoing.seatPos or nil
+    if resourceCardsBeforeTurnHandoff~=nil then
+        resourceCardsBeforeTurnHandoff(incoming~=nil and incoming.seatPos or nil)
+    end
 	gStates.turnNumber=entry.player
+    if resourceCardsAfterTurnHandoff~=nil then resourceCardsAfterTurnHandoff(outgoingSeat) end
 	refreshTactic4HandBonus(false)
 	gStates.preEndTurn=true
 	rewardClaimSoftLockStart()
@@ -25908,11 +25977,27 @@ function combatSummonReleaseOccupants(summonGUID)
 end
 
 --summon monsters to the left of a summoner.
-summonMonster=function(player, mouseButton, id)
+summonMonster=function(player, mouseButton, id, rewindReady)
 	if mouseButton~="-1" then return end
 	local summoner=getObjectFromGUID(id)
 	local monsterData=monsterPugs[id]
 	if summoner==nil or monsterData==nil or monsterData.monsters==nil then return end
+	local rewindOwner="Summon "..tostring(id)
+	if rewindReady~=true then
+		if rewindTransactionOwnerActive(rewindOwner)==true then return end
+		-- Store a safe rewind point before drawing, resizing, moving or lifting any token.
+		rewindTransactionStart(function() summonMonster(player,mouseButton,id,true) end,rewindOwner)
+		return
+	end
+	local remaining=#monsterData.monsters
+	if remaining==0 then rewindTransactionFinish(rewindOwner) return end
+	local completed={}
+	local function finishSummon(order)
+		if completed[order]==true then return end
+		completed[order]=true
+		remaining=remaining-1
+		if remaining==0 then rewindTransactionFinish(rewindOwner) end
+	end
 	broadcastToAll("{en}Monster Summoned some support{it}Il Mostro ha evocato rinforzi{ru}Враг призвал подмогу{zh-tw}怪物召喚了支援{zh-cn}怪物叫了些同谋{ko}몬스터가 소환되었습니다{es}Monster convocó algo de apoyo{fr}Monstre a invoqué du soutien{pt-br}Monstro Invocou algum suporte.{de}Monster beschwört etwas Unterstützung",positionToColor(gStates.turnNumber))
 	local location=summoner.getPosition()
 	local summonerFaction=monsterEffectiveFaction(id)
@@ -25924,7 +26009,7 @@ summonMonster=function(player, mouseButton, id)
 		safeWaitFrames("Combat",function()
 			withTokenPoolReady(preferredPile,function()
 				-- An abandoned fight must not produce a late summon after its cleanup has started.
-				if gStates.preEndTurn==true or gStates.summonStates[id]~="SummonDone" then return end
+				if gStates.preEndTurn==true or gStates.summonStates[id]~="SummonDone" then finishSummon(order) return end
 				-- First summon 1.6 left; each subsequent summon adds another 1.5.
 				-- Aim at mat height so the joint forms with the token sitting flat.
 				local summonTarget={location[1]-1.6-(1.5*(order-1)),1.08,location[3]}
@@ -25935,6 +26020,7 @@ summonMonster=function(player, mouseButton, id)
 				local spawnPos={drawPos[1],drawPos[2]+1.2,drawPos[3]}
 				local summonedMonster,summonPileGUID=takeFactionMonster(monsterColor,summonerFaction,{position=spawnPos,rotation={0.00,180.00,0.00},smooth=false})
 				if summonedMonster==nil then
+					finishSummon(order)
 					broadcastToAll("{en}Sorry, there are no tokens left to deploy{it}Non ci sono più segnalini da posizionare{ru}Извините, жетонов для размещения больше не осталось.{zh-tw}抱歉，沒有可部署的標記了。{zh-cn}抱歉，没有token可供部署{ko}여분의 토큰이 없습니다{es}Lo sentimos, no quedan tokens para implementar{fr}Désolé, il n'y a plus de jetons à déployer{pt-br}Desculpe, Não tem Fichas sobrando para distribuir{de}Entschuldigung, es sind keine Marker mehr zum Platzieren übrig.",warningColor)
 					return
 				end
@@ -25942,6 +26028,8 @@ summonMonster=function(player, mouseButton, id)
 				local oldScale=summonedMonster.getScale()
 				gStates.summonedEnemyScales[summonedMonster.guid]={oldScale[1],oldScale[2],oldScale[3]}
 				summonedMonster.setScale({0.70,1.00,0.70})
+				local summonSeat=turnOrder[gStates.turnNumber]~=nil and turnOrder[gStates.turnNumber].seatPos or nil
+				if summonSeat~=nil then playAreaScaleApplyObject(summonSeat,summonedMonster,true) end
 				-- Hold any existing enemy occupying this slot above the mat during the flight.
 				local seat=turnOrder[gStates.turnNumber]~=nil and turnOrder[gStates.turnNumber].seatPos or nil
 				if seat~=nil then combatSummonLiftOccupants(summonedMonster.guid,id,summonTarget,seat) end
@@ -25975,7 +26063,10 @@ summonMonster=function(player, mouseButton, id)
 							end
 						end
 						-- Give the joint one frame to establish before dropping the displaced tokens.
-						safeWaitFrames("Combat",function() combatSummonReleaseOccupants(summonedGUID) end,1)
+						safeWaitFrames("Combat",function()
+							combatSummonReleaseOccupants(summonedGUID)
+							finishSummon(order)
+						end,1)
 					end
 					safeWaitCondition("Combat",settleSummon,function()
 						local child=getObjectFromGUID(summonedGUID)
@@ -30412,11 +30503,25 @@ end
 --inside mapTokenSettleArrival while its generation is still pending.
 function mapTokenAfterArrivalComplete(guid,callback)
 	if guid==nil or callback==nil then return end
+	local completed=false
+	local function finish(obj)
+		if completed then return end
+		completed=true
+		callback(obj)
+	end
 	safeWaitCondition("MapTokens.mapTokenArrivalComplete",function()
-		callback(getObjectFromGUID(guid))
+		finish(getObjectFromGUID(guid))
 	end,function()
 		local obj=getObjectFromGUID(guid)
 		return obj==nil or (mapTokenArrivalPending[guid]==nil and obj.isSmoothMoving()==false and obj.resting==true)
+	end,15,function()
+		local obj=getObjectFromGUID(guid)
+		if obj==nil or (mapTokenArrivalPending[guid]==nil and obj.isSmoothMoving()==false) then
+			-- An otherwise completed arrival can remain non-resting due to small physics jitter.
+			finish(obj)
+		else
+			log("Map token post-arrival callback skipped: token still travelling ["..tostring(guid).."]")
+		end
 	end)
 end
 
@@ -30497,17 +30602,14 @@ local function mapTokenForEachTerrainOccupant(terrainGUID,hexes,mapObjects,callb
 end
 
 local function mapTokenTerrainReadyForReconcile(terrainGUID)
-	local perfStart=mapPerformanceStart()
 	local hexes,mapObjects=runtimeMapHexesAndObjects()
 	local ready=mapTokenForEachTerrainOccupant(terrainGUID,hexes,mapObjects,function(obj)
 		if mapTokenArrivalPending[obj.guid]~=nil or obj.isSmoothMoving()==true or obj.resting~=true then return false end
 	end)
-	mapPerformanceRecord("Token settle probe",perfStart)
 	return ready
 end
 
 local function mapTokenArrangeAllOccupiedHexesNow(terrainGUID)
-	local perfStart=mapPerformanceStart()
 	local hexes,mapObjects=runtimeMapHexesAndObjects()
 	local groups={}
 	mapTokenForEachTerrainOccupant(terrainGUID,hexes,mapObjects,function(obj,hex)
@@ -30525,7 +30627,6 @@ local function mapTokenArrangeAllOccupiedHexesNow(terrainGUID)
 		-- A lone token has nothing to separate (prevents Keep/Mage Tower shimmer).
 		if #group.objects>1 then mapTokenArrangeHex(group.hex,mapObjects,nil,nil,group.objects) end
 	end
-	mapPerformanceRecord("Token terrain arrange",perfStart)
 	return true
 end
 
@@ -31982,8 +32083,6 @@ function refreshTerrainExploreOptions(compactCities)
 		terrainExploreRefreshWait=nil
 	end
 	if gStates==nil then return end
-	local perfStart=mapPerformanceStart()
-	local scanStart=mapPerformanceStart()
 	local mapSnapshot=runtimeMapSnapshot()
 	local playAreaObjects=mapSnapshot.objects or {}
 	local faceUpTerrain={}
@@ -32004,7 +32103,6 @@ function refreshTerrainExploreOptions(compactCities)
 	local startTileObject=getObjectFromGUID(startTileGUID)
 	if startTileObject==nil then return end
 	local startTilePosition=startTileObject.getPosition()
-	mapPerformanceRecord("EXPLORE map scan",scanStart)
 	--Highlight legal tile plays
 	if gStates.gameScenario~="Volkare's Quest" and gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="The War of Four" and gStates.gameScenario~="Against the Horsemen Blitz" and gStates.gameScenario~="Fury of the Apocalypse Dragon" and not (gStates.gameScenario=="Custom" and gStates.mapShapeKey=="predefined") then
 		local gridType=mapShapeGridURL[gStates.mapShapeKey] or ""
@@ -32033,7 +32131,6 @@ function refreshTerrainExploreOptions(compactCities)
 		local leftCountryQuantity=leftCountry~=nil and (tonumber(leftCountry.getQuantity()) or 0) or 0
 		local leftCoreQuantity=leftCore~=nil and (tonumber(leftCore.getQuantity()) or 0) or 0
 		if terrainStackQuantity>0 or leftCountryQuantity>0 or leftCoreQuantity>0 then
-			local optionsStart=mapPerformanceStart()
 			for _, terTile in pairs(terrainExploreSpots) do
 				local found=false
 				for _, mightBeMap in pairs(faceUpTerrain) do
@@ -32050,11 +32147,8 @@ function refreshTerrainExploreOptions(compactCities)
 				end
 				end
 			end
-			mapPerformanceRecord("EXPLORE legal slots",optionsStart)
 			for _, teleportDecal in pairs(fracturedLandsTeleportDecals()) do terrainDecals[#terrainDecals+1]=teleportDecal end
-			local decalStart=mapPerformanceStart()
 			Global.setDecals(terrainDecals)
-			mapPerformanceRecord("EXPLORE decal update",decalStart)
 			-- Do not send unchanged XML through the TTS UI boundary after each
 			-- intermediate terrain/drop callback. Position is encoded in the id.
 			local uiParts={}
@@ -32063,15 +32157,12 @@ function refreshTerrainExploreOptions(compactCities)
 			end
 			local uiSignature=table.concat(uiParts,"|")
 			if uiSignature~=lastTerrainExploreButtonsSignature then
-				local xmlStart=mapPerformanceStart()
 				getObjectFromGUID(GUID.ui.mapExplore).UI.setXmlTable(terrainExploreButtons)
-				mapPerformanceRecord("EXPLORE XML update",xmlStart)
 				lastTerrainExploreButtonsSignature=uiSignature
 			end
 			--Now that the complete legal EXPLORE set is known, place each City card once at its closest legal position.
 			if compactCities~=false then compactCityCardsAfterExplore(mapObjectPositions) end
 	end
-	mapPerformanceRecord("EXPLORE refresh",perfStart)
 end
 
 -- Combine ordinary terrain-entry, settled-drop and population-finish requests.
@@ -34124,19 +34215,17 @@ local function cityCardCompactionCandidates(scanContext)
 	-- army can be fanned well outside its scripting zone, so zone.getObjects() is
 	-- not a safe substitute. A stationary TTS box cast covers the complete known
 	-- garrison radius (9 world units), including manual tokens and Shields.
-	-- Keep the full-table path for non-TTS tests / unavailable physics services.
+	-- Keep the full-table fallback when physics services are unavailable.
 	local function cityCardCompactionNearbyObjects(owners,scanContext)
 		if Physics==nil or type(Physics.cast)~="function" then return getAllObjects() end
 		local nearby,seen={},{}
 		for _,owner in ipairs(owners) do
 			if scanContext.activeOwners==nil or scanContext.activeOwners[owner.guid]==true then
 				local pos=owner.position
-				local castStart=mapPerformanceStart()
 				local hits=Physics.cast({
 					type=3,origin={pos[1],1.8,pos[3]},direction={0,1,0},
 					size={22,8,22},max_distance=0,debug=false
 				})
-				mapPerformanceRecord("City vicinity cast",castStart)
 				if type(hits)~="table" then return getAllObjects() end
 				for _,hit in ipairs(hits) do
 					local obj=hit.hit_object
@@ -34163,7 +34252,6 @@ local function cityCardCompactionCandidates(scanContext)
 		end
 		return nearby
 	end
-	local perfStart=mapPerformanceStart()
 	local owners=cityGarrisonCardOwners()
 	local byOwner={}
 	for _,owner in ipairs(owners) do byOwner[owner.guid]={} end
@@ -34221,7 +34309,6 @@ local function cityCardCompactionCandidates(scanContext)
 		end
 	end
 	scanContext.candidates=byOwner
-	mapPerformanceRecord("City candidate indexing",perfStart)
 	return byOwner
 end
 
@@ -34463,19 +34550,15 @@ positionCityCardForExplore=function(cityZone,extraBlockedPos,movedCityZones,rese
 	local cityGUID=info~=nil and info.cityGUID or nil
 	local cardGUID=cityGUID~=nil and gStates.cityCard[cityGUID] or nil
 	if cardGUID~=nil and cityCardPendingDestination(cardGUID)~=nil then return false end
-	local scanStart=mapPerformanceStart()
 	local group=cityCardExploreGroup(cityZone,scanContext)
-	mapPerformanceRecord("City group scan",scanStart)
 	if group==nil or cityCardPendingDestination(group.card.guid)~=nil then return false end
 	if mapObjects==nil then mapObjects=cityCardMapSnapshot() end
 	local cityPos=group.city.getPosition()
 	local cardPos=group.card.getPosition()
 	local currentDistance=math.sqrt(((cardPos[1]-cityPos[1])^2)+((cardPos[3]-cityPos[3])^2))
-	local searchStart=mapPerformanceStart()
 	local checks=cityCardExplorePositionChecks()
 	local currentFree=cityCardExploreSpaceFree(mapObjects,cardPos,group.movingGUIDs,extraBlockedPos,reservedPositions,checks)
 	local best,bestDistance=findCityCardPosition(cityPos,mapObjects,group.movingGUIDs,extraBlockedPos,reservedPositions,nil,checks)
-	mapPerformanceRecord("City position search",searchStart)
 	if best==nil then return false end
 	if currentFree==true and currentDistance<=bestDistance+0.25 then return false end
 	if reservedPositions~=nil then reservedPositions[#reservedPositions+1]=best end
@@ -34507,7 +34590,6 @@ end
 --After the complete EXPLORE set is rebuilt, every City card gets one placement decision from the finished state.
 --This both pushes blocked cards outward and brings displaced cards back inward without racing two smooth moves.
 function compactCityCardsAfterExplore(mapObjects)
-	local perfStart=mapPerformanceStart()
 	local movedCityZones={}
 	local reservedPositions={}
 	local cityZones={GUID.zone.blueCity,GUID.zone.redCity,GUID.zone.greenCity,GUID.zone.whiteCity}
@@ -34528,10 +34610,7 @@ function compactCityCardsAfterExplore(mapObjects)
 	for _,cityZone in ipairs(cityZones) do
 		positionCityCardForExplore(cityZone,nil,movedCityZones,reservedPositions,mapObjects,scanContext)
 	end
-	local headStart=mapPerformanceStart()
 	positionApocalypseDragonHeads()
-	mapPerformanceRecord("Dragon head positioning",headStart)
-	mapPerformanceRecord("City compaction",perfStart)
 end
 
 function cityBonusDecals(obj1, obj2)--obj2 is the rare case of a summoned monster. otherwise will be a duplicate of obj1
@@ -34709,7 +34788,7 @@ function refreshCityDefeatState()
 				local deployIndex=gStates.cityDeployOrder~=nil and gStates.cityDeployOrder[cityGUID] or nil
 				local cityLevel=deployIndex~=nil and gStates.cityLevels~=nil and gStates.cityLevels[deployIndex] or nil
 				local friendly=gStates.friendlyCity~=nil and gStates.friendlyCity[cityGUID]==true
-				if cityLevel~=0 and friendly==false then
+				if type(cityLevel)=="number" and cityLevel>0 and friendly==false then
 					gStates.defeatedCities.amount=gStates.defeatedCities.amount+1
 					---@diagnostic disable-next-line: assign-type-mismatch --mixed table: amount is integer, city GUID entries are booleans
 					gStates.defeatedCities[cityGUID]=true
@@ -45382,6 +45461,32 @@ local forestersTerrainModifier={mode="reduce",
 local trackerWasDisabled=false
 local trackerSession=0
 local trackerStartupRequest=0
+-- Preferences are saved per seat; older saves default to automation enabled.
+function resourceCardsSeatEnabled(seat)
+    local settings=gStates~=nil and gStates.resourceTrackerEnabledBySeat or nil
+    return seat~=nil and (settings==nil or settings[seat]~=false)
+end
+
+function resourceCardsSetSeatEnabled(enabled)
+    local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    if current==nil or current.seatPos==nil then return end
+    if type(gStates.resourceTrackerEnabledBySeat)~="table" then
+        gStates.resourceTrackerEnabledBySeat={true,true,true,true}
+    end
+    gStates.resourceTrackerEnabledBySeat[current.seatPos]=enabled==true
+end
+
+-- Observers cannot change resources, target arrows, damage allocations or layout.
+-- Black may act as GM only when actually seated.
+function resourceCardsPlayerCanEdit(color)
+    if type(color)~="string" or color=="Grey" then return false end
+    local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    if current==nil or current.seatPos==nil then return false end
+    local player=Player[color]
+    if player==nil or player.seated~=true then return false end
+    if color=="Black" then return true end
+    return legalPlayerCheck(color,current.seatPos,"NoDummyException")==true
+end
 -- The UI may update a frame after the click. Keep its visible state separate
 -- from the immediate OFF latch so delayed events cannot restart scanning.
 function resourceCardsPanelReady()
@@ -45392,7 +45497,9 @@ function resourceCardsPanelReady()
 end
 
 function resourceCardsPanelOpen()
+    local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
     return not trackerWasDisabled and resourceCardsPanelReady()
+        and current~=nil and resourceCardsSeatEnabled(current.seatPos)
 end
 
 local function resourceCardsDetailsOpen()
@@ -45463,6 +45570,10 @@ local combatExpandedResults={}
 local combatReductionAttackChoice={}
 local combatReductionActiveSource={}
 local combatAttackChoiceByRow={}
+combatConfig.resultRowCache={}
+combatConfig.slotSelection={}
+combatConfig.panelHeight=0
+combatConfig.shutdownClean=false
 combatConfig.rowCount=8 -- XML has eight reusable row controls.
 combatConfig.crowdedPageSize=6
 combatConfig.slotCount=12
@@ -46080,6 +46191,15 @@ local function combatPanelSetAttribute(id,attribute,value)
     UI.setAttribute(id,attribute,value)
 end
 
+-- Selection changes affect icon tint only; they cannot change combat outcomes.
+combatConfig.refreshSelectedSlots=function()
+    for id,spec in pairs(combatConfig.slotSelection) do
+        combatPanelSetAttribute(id,"color",spec.wounded and "rgb(0.90,0.37,0.35)"
+            or (combatAssignmentState.selected==spec.key and "rgb(1,0.75,0.2)"
+                or "rgb(0.85,0.82,0.72)"))
+    end
+end
+
 -- Empty slots are hidden; a filled slot is the resource icon with its value over the top.
 local function combatAssignmentIconButton(id,active,amount,icon,tooltip,selected,textColor,wounded)
     combatPanelSetAttribute(id,"active",active and "true" or "false")
@@ -46515,87 +46635,41 @@ end
 
 -- Short notes under an attack's line: what each chosen Unit took and what is left for the Hero.
 local function combatDamageNotes(item,result)
-    local notes={}
+    local wounds,resisted,destroyed,forced={},{},{},{}
     for _,entry in ipairs(result.units) do
-        local text
-        if entry.destroyed then text="Destroyed (Paralyse)"
-        elseif not entry.wounded then text="resisted, no Wound"
-        elseif entry.wounds>1 then text="Wounded x"..tostring(entry.wounds)
-        else text="Wounded"..(entry.resisted and " (resisted)" or "") end
-        notes[#notes+1]="> "..entry.unit.name..(entry.forced and " (must take damage first)" or "")..": "..text
+        local name=entry.unit.name
+        if entry.wounded then
+            wounds[#wounds+1]=name..((entry.wounds or 1)>1 and
+                (" ("..tostring(entry.wounds)..")") or "")
+        else
+            resisted[#resisted+1]=name
+        end
+        if entry.destroyed then destroyed[#destroyed+1]=name end
+        if entry.forced then forced[#forced+1]=name end
     end
-    if item.assassination then notes[#notes+1]="> Assassination: Hero only" end
-    if result.heroWounds>0 or result.discard>0 or result.paralyse then
-        local hero=">Hero: "..combatWoundsText(result.heroWounds)
-        if result.discard>0 then hero=hero.." ("..tostring(result.discard).." Poison)" end
-        if result.paralyse then hero=hero..", discard hand" end
-        notes[#notes+1]=hero
+    if result.heroWounds>0 then
+        wounds[#wounds+1]="Hero ("..tostring(result.heroWounds)..")"
     end
+    local distribution="Wounds: "..(#wounds>0 and table.concat(wounds,", ") or "None")
+    if result.discard>0 then
+        distribution=distribution.." Poison ("..tostring(result.discard)..")"
+    end
+    local notes={distribution}
+    if #resisted>0 then notes[#notes+1]="Resisted (no Wound): "..table.concat(resisted,", ") end
+    if #destroyed>0 then notes[#notes+1]="Destroyed (Paralyse): "..table.concat(destroyed,", ") end
+    if #forced>0 then notes[#notes+1]="Must take damage first: "..table.concat(forced,", ") end
+    if item.assassination then notes[#notes+1]="Assassination" end
+    if result.paralyse then notes[#notes+1]="Paralyse: discard hand" end
     return notes
 end
 
--- Condense the Result column without losing the detailed wound assignment.
--- Click any result marked [+] to expand it; the tooltip always shows the full text.
+-- Preserve the original Result button and expansion wiring for stable layout.
+-- Full per-source results are now the default display, without abbreviated text.
 local function combatCompactResultLines(fullLines,damageItems,damageResults)
-    local compact={}
-    for _,line in ipairs(fullLines) do
-        -- Detailed Unit/Hero lines are replaced with a short wound summary.
-        if line:sub(1,2)~="> " and line:sub(1,6)~=">Hero:" then
-            compact[#compact+1]=line:gsub("(%d+)%/(%d+) Blocked","Blk %1/%2")
-                :gsub("Not blocked, ","Unblocked: ")
-                :gsub(" Block, "," blk, ")
-                :gsub(" Damage"," dmg")
-                :gsub("^Attack ","Atk ")
-                :gsub("^Ranged ","Rng ")
-        end
-    end
-    local heroWounds,discardWounds,unitWounds,unitDestroyed,unitResisted=0,0,0,0,0
-    local paralyse,assassination=false,false
-    for _,item in pairs(damageItems or {}) do
-        local result=damageResults[item.key]
-        if item.assassination then assassination=true end
-        if result~=nil then
-            heroWounds=heroWounds+(result.heroWounds or 0)
-            discardWounds=discardWounds+(result.discard or 0)
-            if result.paralyse then paralyse=true end
-            for _,unit in ipairs(result.units or {}) do
-                if unit.destroyed then unitDestroyed=unitDestroyed+1
-                elseif unit.wounded then unitWounds=unitWounds+math.max(1,unit.wounds or 1)
-                elseif unit.resisted then unitResisted=unitResisted+1 end
-            end
-        end
-    end
-    local notes={}
-    if heroWounds>0 then
-        notes[#notes+1]=">Hero: "..combatWoundsText(heroWounds)
-            ..(discardWounds>0 and " ("..tostring(discardWounds).." Poison)" or "")
-    end
-    if unitWounds>0 then notes[#notes+1]="Unit "..tostring(unitWounds).."W" end
-    if unitDestroyed>0 then notes[#notes+1]=tostring(unitDestroyed).." unit destroyed" end
-    if unitResisted>0 then notes[#notes+1]=tostring(unitResisted).." unit resisted" end
-    if discardWounds>0 and heroWounds==0 then
-        notes[#notes+1]=tostring(discardWounds).." Poison"
-    end
-    if paralyse then notes[#notes+1]="Paralyse: discard hand" end
-    if assassination then notes[#notes+1]="Assassination" end
-    if #notes>0 then
-        -- 38 characters fits comfortably in the Result column at 12 pt.
-        -- Show wounds before the final group Attack summary if present.
-        local insertAt=#compact+1
-        if #compact>0 and compact[#compact]:find("^Atk ") then insertAt=#compact end
-        local line=""
-        for _,note in ipairs(notes) do
-            if line~="" and #line+#note+2>38 then
-                table.insert(compact,insertAt,line)
-                insertAt=insertAt+1
-                line=note
-            else
-                line=line=="" and note or (line..", "..note)
-            end
-        end
-        if line~="" then table.insert(compact,insertAt,line) end
-    end
-    return compact
+    -- Keep the original Result button, layout, and expansion plumbing intact.
+    -- The concise per-source breakdown is already the full display; do not
+    -- abbreviate it or append expandable [+]/[-] indicators.
+    return fullLines
 end
 
 -- A group is attacked as one: fortification and resistance of any member apply to all of
@@ -46900,6 +46974,8 @@ combatConfig.selfWoundingUnitChoices=function(seat,groups)
 end
 
 local function combatAssignmentRefreshRows(entries,sources)
+    combatConfig.resultRowCache={}
+    combatConfig.slotSelection={}
     local rowByGUID={}
     local totalRowHeight=0
     local grandDamage,damageSources=0,0
@@ -47463,6 +47539,7 @@ local function combatAssignmentRefreshRows(entries,sources)
                 local item=items[slot]
                 if item~=nil then
                     combatAssignmentSlotSources[id]=item.source.key
+                    combatConfig.slotSelection[id]={key=item.source.key,wounded=item.wounded}
                     local tooltip=item.source.name..": "..item.text
                         ..(item.wounded and " can't apply 'Wounded'" or "")
                     combatAssignmentIconButton(id,true,item.amount,item.icon,
@@ -47495,8 +47572,9 @@ local function combatAssignmentRefreshRows(entries,sources)
             shownTraits[row]=sharedText
             combatPanelSetAttribute("CombatEnemyRow"..row.."Traits","text",sharedText)
             entry.attackCount=math.max(entry.attackCount or 1,select(2,sharedText:gsub("\n",""))+1)
+            local attacks=combatEnemyAttacks(entry)
             local attackLines={}
-            for attackIndex,attack in ipairs(combatEnemyAttacks(entry)) do
+            for attackIndex,attack in ipairs(attacks) do
                 local reduction=rowBlock[index].reductions[attackIndex] or 0
                 local markers={}
                 local selections=combatReductionAttackChoice[entry.guid] or {}
@@ -47522,18 +47600,21 @@ local function combatAssignmentRefreshRows(entries,sources)
                         .." Defeated",COMBAT_GREEN)
                 end
             else
+                -- Keep each source's Block status and wound distribution together.
                 for lineIndex,line in ipairs(rowBlock[index].lines) do
                     local item=rowBlock[index].damageItems[lineIndex]
-                    if item~=nil then
-                        local result=damageResults[item.key]
-                        line=rowBlock[index].unblocked[lineIndex].prefix..combatRich(tostring(item.damage).." Damage",COMBAT_RED)
+                    local attack=attacks[lineIndex]
+                    if attack~=nil and not attack.pending then
+                        local value=math.max(0,attack.value-(rowBlock[index].reductions[lineIndex] or 0))
+                        line=attack.label.." "..tostring(value)..": "..line
                     end
                     lines[#lines+1]=line
-                end
-                for lineIndex in ipairs(rowBlock[index].lines) do
-                    local item=rowBlock[index].damageItems[lineIndex]
                     if item~=nil then
-                        for _,note in ipairs(combatDamageNotes(item,damageResults[item.key])) do lines[#lines+1]=note end
+                        for _,note in ipairs(combatDamageNotes(item,damageResults[item.key])) do
+                            lines[#lines+1]=note
+                        end
+                    elseif rowBlock[index].lines[lineIndex]:find("Blocked",1,true) then
+                        lines[#lines+1]="Wounds: None"
                     end
                 end
                 grandDamage=grandDamage+rowBlock[index].damage
@@ -47551,7 +47632,13 @@ local function combatAssignmentRefreshRows(entries,sources)
             local displayText=expanded and detailText or compactText
             if hasDetails then displayText=displayText..(expanded and " [-]" or " [+]") end
             local displayLines=expanded and #lines or #compactLines
+            local minHeight=rowHeight
             rowHeight=math.max(rowHeight,math.max(displayLines,entry.attackCount or 1)*15+4)
+            -- Only the Result text and its row/panel heights change when expanded.
+            combatConfig.resultRowCache[row]={guid=entry.guid,detailText=detailText,
+                compactText=compactText,hasDetails=hasDetails,detailLines=#lines,
+                compactLines=#compactLines,minHeight=minHeight,rowHeight=rowHeight,
+                attackCount=entry.attackCount or 1}
             local resultID="CombatEnemyRow"..row.."Result"
             combatPanelSetAttribute(resultID,"text",displayText)
             combatPanelSetAttribute("CombatEnemyResultToggle"..row,"tooltip",
@@ -47666,6 +47753,10 @@ local function combatAssignmentRefreshRows(entries,sources)
 end
 
 local function combatCalcShutdown()
+    combatConfig.shutdownClean=true
+    combatConfig.resultRowCache={}
+    combatConfig.slotSelection={}
+    combatConfig.panelHeight=0
     combatTrackedSeat=nil
     combatTrackedEnemies={}
     combatCalcOn=false
@@ -47689,12 +47780,16 @@ local function combatCalcShutdown()
     attackAssignmentsClearAll()
 end
 
-local function refreshCombatEnemyPanel(monsters)
-    if not combatCalcUpdate(monsters) then
-        -- Calculator off: no panel, no arrows, no calculations. The player plays manually.
-        combatCalcShutdown()
+local function refreshCombatEnemyPanel(monsters,calculated)
+    local active
+    if calculated==true then active=combatCalcOn
+    else active=combatCalcUpdate(monsters) end
+    if not active then
+        -- A closed calculator is already clean; don't repeatedly delete/rebuild overlays.
+        if not combatConfig.shutdownClean then combatCalcShutdown() end
         return
     end
+    combatConfig.shutdownClean=false
     combatPanelSetAttribute("CombatEnemyPanel","active","true")
     local entries={}
     for guid in pairs(monsters or {}) do
@@ -47806,8 +47901,29 @@ local function refreshCombatEnemyPanel(monsters)
     if attackAssignmentsRefreshTargetButtons~=nil then
         attackAssignmentsRefreshTargetButtons(monsters)
     end
-    combatPanelSetAttribute("CombatEnemyPanel","height",
-        tostring(combatConfig.panelBaseHeight+rowHeight))
+    combatConfig.panelHeight=combatConfig.panelBaseHeight+rowHeight
+    combatPanelSetAttribute("CombatEnemyPanel","height",tostring(combatConfig.panelHeight))
+end
+
+-- Result expansion is presentation only. Reuse the existing combat solution,
+-- retaining all targeting, Defender, Damage and Wound preview state.
+combatConfig.refreshResultRowOnly=function(row)
+    local cache=combatConfig.resultRowCache[row]
+    if cache==nil or not cache.hasDetails then return false end
+    local expanded=combatExpandedResults[cache.guid]==true
+    local display=expanded and cache.detailText or cache.compactText
+    local rows=expanded and cache.detailLines or cache.compactLines
+    local height=math.max(cache.minHeight,math.max(rows,cache.attackCount)*15+4)
+    combatConfig.panelHeight=combatConfig.panelHeight+height-cache.rowHeight
+    cache.rowHeight=height
+    combatPanelSetAttribute("CombatEnemyRow"..row.."Result","text",
+        display..(expanded and " [-]" or " [+]"))
+    combatPanelSetAttribute("CombatEnemyResultToggle"..row,"tooltip",
+        (expanded and "Click to collapse details" or "Click for full breakdown")
+        .."\n"..cache.detailText:gsub("<[^>]*>",""))
+    combatPanelSetAttribute("CombatEnemyRow"..row,"preferredHeight",tostring(height))
+    combatPanelSetAttribute("CombatEnemyPanel","height",tostring(combatConfig.panelHeight))
+    return true
 end
 
 function resourceCardsRefreshCombatEnemies()
@@ -47870,8 +47986,15 @@ end
 function resourceCardsCombatToggleResult(row)
     local guid=combatAssignmentRowTargets[row]
     if guid==nil then return end
+    local cache=combatConfig.resultRowCache[row]
+    if cache==nil or cache.guid~=guid then
+        combatExpandedResults[guid]=not combatExpandedResults[guid]
+        resourceCardsRefreshCombatEnemies()
+        return
+    end
+    if not cache.hasDetails then return end
     combatExpandedResults[guid]=not combatExpandedResults[guid]
-    resourceCardsRefreshCombatEnemies()
+    combatConfig.refreshResultRowOnly(row)
 end
 
 -- Called when a targeting arrow is removed; the source re-locks to the nearest enemy on refresh.
@@ -47890,6 +48013,8 @@ function resourceCardsCombatAssignmentClick(id)
     if moved~=nil then
         if sourceGUID==moved then
             combatAssignmentState.selected=nil
+            combatConfig.refreshSelectedSlots()
+            return
         else
             local movedSource=nil
             for _,candidate in ipairs(combatAssignmentSources(combatAssignmentState.seat)) do
@@ -47898,12 +48023,12 @@ function resourceCardsCombatAssignmentClick(id)
             if movedSource~=nil and movedSource.ranged+movedSource.siege+movedSource.block+movedSource.attack==0
                 and not combatGUIDHasCumbersome(targetGUID) then
                 combatAssignmentState.selected=nil
-                resourceCardsRefreshCombatEnemies()
+                combatConfig.refreshSelectedSlots()
                 return
             end
             if not resourceCardsCombatTargetAcceptsSource(moved,targetGUID) then
                 combatAssignmentState.selected=nil
-                resourceCardsRefreshCombatEnemies()
+                combatConfig.refreshSelectedSlots()
                 return
             end
             combatAssignmentState.targets[moved]=targetGUID
@@ -47916,7 +48041,7 @@ function resourceCardsCombatAssignmentClick(id)
         return
     end
     if sourceGUID~=nil then combatAssignmentState.selected=sourceGUID end
-    resourceCardsRefreshCombatEnemies()
+    combatConfig.refreshSelectedSlots()
 end
 
 -- The tracker belongs to the active Mage Knight, not everyone whose cards are on the table.
@@ -50005,15 +50130,18 @@ local function renderSeat(seatPos,quietUnitChoice)
     if active==nil or active.seatPos~=seatPos then return end
 
     local objects,placements,monsters,playMonsters={},{},{},{}
+    local combatMonsters,combatPlayMonsters={},{}
     local objectKinds={}
     local function inspectZone(guid,zoneKind)
         local zone=guid~=nil and getObjectFromGUID(guid) or nil
         if zone==nil then return end
         for _,obj in ipairs(zone.getObjects()) do
-            if (zoneKind=="play" or zoneKind=="unit")
-                and monsterPugs[obj.guid]~=nil and monsterPugs[obj.guid].name~="Ruin" then
-                monsters[obj.guid]=obj
-                if zoneKind=="play" then playMonsters[obj.guid]=obj end
+            if zoneKind=="play" or zoneKind=="unit" then
+                local data=combatEnemyData(obj.guid,obj)
+                if data~=nil and data.name~="Ruin" then
+                    combatMonsters[obj.guid]=obj
+                    if zoneKind=="play" then combatPlayMonsters[obj.guid]=obj end
+                end
             end
             local kind=objectKinds[obj.guid]
             if kind==nil then
@@ -50035,11 +50163,16 @@ local function renderSeat(seatPos,quietUnitChoice)
     inspectZone(playerCrystalAreas[seatPos],"crystal")
     inspectZone(playerUnitAreas[seatPos],"unit")
     inspectZone(playerPlayAreas[seatPos],"play")
-    -- Keep a lifted enemy in the full Resource Tracker scan as well as the
-    -- quick combat-panel refresh, including play-only enemy-count bonuses.
-    combatKeepHeldEnemies(seatPos,monsters,playMonsters)
-    -- These attacks belong to the calculator, not monster-count card bonuses.
-    local combatMonsters=combatPlayMonsters()
+    -- One observation and one held-enemy reconciliation serve both systems.
+    -- Reminders/Leader previews belong to combat, but never to card enemy-count bonuses.
+    combatKeepHeldEnemies(seatPos,combatMonsters,combatPlayMonsters)
+    for guid,enemy in pairs(combatMonsters) do
+        local pug=monsterPugs[guid]
+        if pug~=nil and pug.name~="Ruin" then
+            monsters[guid]=enemy
+            if combatPlayMonsters[guid]~=nil then playMonsters[guid]=enemy end
+        end
+    end
     combatCalcUpdate(combatMonsters)
     local enemyEntries={}
     for guid,enemy in pairs(monsters) do
@@ -50109,7 +50242,7 @@ local function renderSeat(seatPos,quietUnitChoice)
         local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
         if rule~=nil and rule.woundBonus~=nil then countWounds=true break end
     end
-    if countWounds then unitState=unitLayoutResourceState(seatPos) end
+    if countWounds and unitState==nil then unitState=unitLayoutResourceState(seatPos) end
     for _,skill in ipairs(skills) do
         local rule=skillResourceDefinitions[skill.guid]
         local sideways=rule~=nil and rule.linkedCard~=nil and rule.linkedCard.sideways or nil
@@ -51730,7 +51863,7 @@ local function renderSeat(seatPos,quietUnitChoice)
         usesCurrentHexBlock=usesCurrentHexBlock,
         usesCurrentHexHealing=usesCurrentHexHealing,
         usesSkillLocation=usesSkillLocation}
-    refreshCombatEnemyPanel(combatMonsters)
+    refreshCombatEnemyPanel(combatMonsters,true)
     resourceCardsApplyFameRep(seatPos)
     -- Redraw movement when ability flags change, even if total Move stays equal.
     if totalsChanged or terrainChanged or transformChanged then refreshResourceTrackerText() end
@@ -51797,7 +51930,8 @@ end
 -- Player clicks always replace the one-time guess; opening the choice menu
 -- alone leaves that selection and the Resource Tracker totals unchanged.
 function resourceCardsChoiceClicked(player,value,id)
-    if not resourceCardsPanelOpen() or type(id)~="string" then return end
+    if not resourceCardsPanelOpen() or type(id)~="string"
+        or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil) then return end
     local guid,setIndex,category=id:match(
         "^ResourceCardChoice_([0-9a-f]+)_set(%d+)_([%w]+)$")
     if guid==nil then
@@ -51996,7 +52130,8 @@ function resourceUnitsReconcileChoiceTargets(unit,abilities,activation)
 end
 
 function resourceUnitsChoiceClicked(player,value,id)
-    if not resourceCardsPanelOpen() or type(id)~="string" then return end
+    if not resourceCardsPanelOpen() or type(id)~="string"
+        or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil) then return end
     local unitGUID,index=id:match("^ResourceCardChoice_([0-9a-f]+)_unit(%d+)$")
     index=tonumber(index)
     local activation=unitGUID~=nil and gStates.unitResourceActivations
@@ -52004,8 +52139,7 @@ function resourceUnitsChoiceClicked(player,value,id)
     local abilities=unitGUID~=nil and unitResourceDefinitions[unitGUID] or nil
     local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if activation==nil or abilities==nil or current==nil or index==nil
-        or abilities[index]==nil or activation.seatPos~=current.seatPos
-        or legalPlayerCheck(player.color,current.seatPos)~=true then return end
+        or abilities[index]==nil or activation.seatPos~=current.seatPos then return end
     local unit=getObjectFromGUID(unitGUID)
     if unit==nil then return end
     local state=unitLayoutResourceState(current.seatPos)
@@ -52139,6 +52273,8 @@ local function resourceUnitsRebuildFromTable()
 end
 
 function resourceCardsPanelChanged(open)
+    local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    if open==true and (current==nil or not resourceCardsSeatEnabled(current.seatPos)) then return end
     -- A newly shown panel may need a frame before TTS reports its attributes.
     -- That temporary state is not a player-requested OFF transition.
     if open==true and not resourceCardsPanelReady() then return end
@@ -52177,6 +52313,7 @@ function resourceCardsPanelChanged(open)
     trackerWasDisabled=false
     if restart then refreshResourceTrackerReputation() end
     clearAll()
+    if invalidateResourceTrackerDisplayCache~=nil then invalidateResourceTrackerDisplayCache() end
     if restart then resourceUnitsRebuildFromTable() end
     resourceUnitsRefreshButtons()
     local player=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
@@ -52197,11 +52334,40 @@ function resourceCardsPanelChanged(open)
     end,1)
 end
 
+-- Clear the outgoing seat before changing turnNumber so rewards, overlays,
+-- damage previews and locks cannot leak into the next player's combat.
+function resourceCardsBeforeTurnHandoff(nextSeat)
+    if gStates==nil or gStates.firstStarted~=true then return end
+    local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    if current==nil or current.seatPos==nextSeat then return end
+    resourceCardsPanelChanged(false)
+end
+
+-- The Global UI is shared, but its expanded/collapsed preference belongs to a seat.
+function resourceCardsAfterTurnHandoff(previousSeat)
+    if gStates==nil or gStates.firstStarted~=true then return end
+    local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    if current==nil or current.seatPos==previousSeat then return end
+    local enabled=resourceCardsSeatEnabled(current.seatPos)
+    UI.setAttribute("CombatCalculatorHelp","active","false")
+    UI.setAttribute("ResourceTracker","height",enabled and "245" or "35")
+    UI.setAttribute("ResourceTrackerDetail","height","210")
+    UI.setAttribute("ResourceTrackerDetail","active",enabled and "true" or "false")
+    if enabled then resourceCardsOnLoad() end
+end
+
 -- Shared by saved-game load, first-game setup and re-expanding the panel.
 -- Wait for the actual UI state rather than treating startup's collapsed XML
 -- defaults as a player pressing OFF. Explicit minimization cancels this wait.
 function resourceCardsOnLoad()
     if gStates==nil or gStates.firstStarted~=true then return end
+    local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    if current~=nil and not resourceCardsSeatEnabled(current.seatPos) then
+        UI.setAttribute("ResourceTracker","height","35")
+        UI.setAttribute("ResourceTrackerDetail","active","false")
+        resourceCardsPanelChanged(false)
+        return
+    end
     trackerStartupRequest=trackerStartupRequest+1
     local request=trackerStartupRequest
     safeWaitCondition("PlayerBoard.CardRecognition",function()
@@ -52240,32 +52406,31 @@ local function resourceCardsRelevantZone(ctx)
 end
 
 function resourceCardsZoneEntered(ctx)
-    if not resourceCardsPanelOpen() then return end
-    -- Map/offer/turn-order zones cannot change a player's resource board.
-    -- Skip costly object identity checks for each spawned map enemy or terrain tile.
-    if ctx==nil or ctx.zoneInfo==nil then return end
-    if ctx~=nil and ctx.obj~=nil and (unitLayoutIsWound(ctx.obj)
-        or manaColor(ctx.obj)~=nil) then
+    if not resourceCardsPanelOpen() or ctx==nil or ctx.zoneInfo==nil then return end
+    -- Filter irrelevant zones and other players before touching the Unit layout.
+    local seat=resourceCardsRelevantZone(ctx)
+    if seat==nil then return end
+    if ctx.obj~=nil and (ctx.zoneInfo.kind=="unit" or ctx.zoneInfo.kind=="play"
+        or ctx.zoneInfo.kind=="crystal")
+        and (unitLayoutIsWound(ctx.obj) or manaColor(ctx.obj)~=nil) then
         resourceUnitsRefreshButtons()
     end
-    local seat=resourceCardsRelevantZone(ctx)
-    if seat~=nil then queueSeat(seat,ctx.objGUID) end
+    queueSeat(seat,ctx.objGUID)
 end
 
 function resourceCardsZoneLeft(ctx)
-    if not resourceCardsPanelOpen() then return end
-    -- Map/offer/turn-order zones cannot change a player's resource board.
-    -- Skip costly object identity checks for each spawned map enemy or terrain tile.
-    if ctx==nil or ctx.zoneInfo==nil then return end
-    if ctx~=nil and ctx.obj~=nil and (unitLayoutIsWound(ctx.obj)
-        or manaColor(ctx.obj)~=nil) then
-        resourceUnitsRefreshButtons()
-    end
+    if not resourceCardsPanelOpen() or ctx==nil or ctx.zoneInfo==nil then return end
     local seat=resourceCardsRelevantZone(ctx)
-    if ctx~=nil and ctx.zoneInfo~=nil and ctx.zoneInfo.kind=="play" then
+    if ctx.zoneInfo.kind=="play" then
         scheduleChoiceResetAfterPlay(ctx.objGUID,ctx.zoneInfo.seatPos)
     end
-    if seat~=nil then queueSeat(seat,nil) end
+    if seat==nil then return end
+    if ctx.obj~=nil and (ctx.zoneInfo.kind=="unit" or ctx.zoneInfo.kind=="play"
+        or ctx.zoneInfo.kind=="crystal")
+        and (unitLayoutIsWound(ctx.obj) or manaColor(ctx.obj)~=nil) then
+        resourceUnitsRefreshButtons()
+    end
+    queueSeat(seat,nil)
 end
 
 function resourceCardsObjectMoved(obj)
@@ -52657,11 +52822,12 @@ function playerBoardPlayAreaZoneEnterImmediate(ctx)
 	if obj==nil then return end
 	local seatPos=zoneInfo.seatPos
 	updatePlayAreaObjectState(seatPos,obj,true)
+	playAreaScaleApplyObject(seatPos,obj)
 	--The face-down remove image depends only on play-area membership and face state, not final position.
 	--Apply it on zone entry so it appears while the card is still falling/sliding into place.
 	if obj.type=="Card" and (gameCards[obj.guid]==nil or gameCards[obj.guid].full==nil) then refreshCardRemoveDecal(obj,true) end
 	dayTactic2ExpireIfCardPlayed(seatPos)
-	schedulePlayAreaCardScale(seatPos)
+	schedulePlayAreaScale(seatPos)
 	mainUIUpdate("Object entered into play area")
 end
 
@@ -52876,9 +53042,7 @@ function playerBoardZoneLeave(ctx)
 			safeWaitFrames("PlayerBoard.Events",function() local card=getObjectFromGUID(cardGUID) if card~=nil and cardInPlayerPlayArea(cardGUID)==false then removeCardRemoveDecal(card) end end, 2)
 		end
 
-		--restore card size, except Unit cards still owned by the overlapping Unit Area layout.
-		if ((gameCards[obj.guid]~=nil and gameCards[obj.guid].full==nil) or obj.getGMNotes()=="Wound")
-			and not (unitLayoutIsUnit(obj) and unitLayoutObjectInAnyUnitArea(obj.guid)) then obj.setScale({1.5,1,1.5}) end
+		-- Manual play-area scaling restores the object's own natural size on departure.
 
 		safeWaitTime("PlayerBoard.Events",function()
 			local live=getObjectFromGUID(objGUID)
@@ -52924,7 +53088,7 @@ function playerBoardZoneLeave(ctx)
 			local seatPos=turnOrder[a].seatPos
 			if zone.guid==playerPlayAreas[seatPos] then
 				updatePlayAreaObjectState(seatPos, obj, false)
-				schedulePlayAreaCardScale(seatPos)
+				schedulePlayAreaScale(seatPos)
 				if unitLayoutIsCommand(obj) then scheduleUnitLayoutRefreshAfterCommandRelease(seatPos,obj.guid) end
 				mainUIUpdate("Object removed from zone")
 				break
@@ -52940,6 +53104,7 @@ function playerBoardZoneLeave(ctx)
 	local leftUnitSeat=nil
 	for seatPos=1,4 do if zone.guid==playerUnitAreas[seatPos] then leftUnitArea=true leftUnitSeat=seatPos break end end
 	if leftUnitArea==true then
+		schedulePlayAreaScale(leftUnitSeat)
 		if unitLayoutIsCommand(obj) then scheduleUnitLayoutRefreshAfterCommandRelease(leftUnitSeat,obj.guid) else scheduleUnitLayoutRefresh(leftUnitSeat) end
 		if unitLayoutIsUnit(obj) then
 			local unitGUID=obj.guid
@@ -53169,6 +53334,372 @@ for unitType,guids in pairs(guidGroups) do
 end
 
 end)
+__bundle_register("PlayingGame.PlayerBoard.Scale", function(require, _LOADED, __bundle_register, __bundle_modules)
+-- Manual per-seat presentation scale for the Play and Unit Areas.
+-- The scale never changes the logical resource/combat values of an object.
+-- EDIT THESE VALUES to tune the control row on each player mat.
+-- Positions are in world/table units relative to the mat's bottom-right edge:
+--   offsetX: + moves right, - moves left
+--   offsetZ: + moves toward the far side of the table, - toward the player
+--   rightInset / bottomInset: distance inward from that mat edge
+-- Sizes use object-UI scale: 0.15 is the size of the percentage box.
+local SCALE_CONTROL_UI={
+    rightInset=0.55,
+    bottomInset=0.85,
+    offsetX=0.8,
+    offsetZ=-1.2,
+    arrowSpacing=0.90,       -- Down <-> percentage <-> Up (centre spacing)
+    scopeSpacing=1.20,       -- Up <-> Cards/All centre spacing
+    arrowScale=0.08,
+    percentScale=0.08,
+    scopeScale=0.08,
+    arrowWidth=90,
+    arrowHeight=90,
+    boxWidth=130,
+    boxHeight=90,
+    percentFontSize=36,
+    scopeFontSize=36,
+}
+
+local playAreaScaleWait={}
+local SCALE_BUTTONS={playAreaScaleDown=true,playAreaScaleLabel=true,playAreaScaleUp=true,playAreaScaleScope=true}
+local playAreaScaleSettling={} -- runtime-only; one pending settle check per object
+
+local function playAreaScaleSettings(seat)
+    gStates.playAreaScaleSettings=gStates.playAreaScaleSettings or {}
+    local value=gStates.playAreaScaleSettings[seat]
+    if value==nil then value={step=20,scope="Cards"} gStates.playAreaScaleSettings[seat]=value end
+    value.step=math.max(12,math.min(20,math.floor(tonumber(value.step) or 20)))
+    if value.scope~="All" then value.scope="Cards" end
+    return value
+end
+
+local function playAreaScaleRecord()
+    gStates.playAreaScaledObjects=gStates.playAreaScaledObjects or {}
+    return gStates.playAreaScaledObjects
+end
+
+local function playAreaScaleInZone(guid,zoneGUID)
+    local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
+    if zone~=nil then for _,obj in ipairs(zone.getObjects()) do if obj.guid==guid then return true end end end
+    return false
+end
+
+local function playAreaScaleSeatContaining(guid)
+    for seat=1,4 do
+        if playAreaScaleInZone(guid,playerPlayAreas[seat])
+            or playAreaScaleInZone(guid,playerUnitAreas[seat]) then return seat end
+    end
+    return nil
+end
+
+local function playAreaScaleObjectHeld(obj)
+    if obj.held_by_color~=nil then return true end
+    -- A Fixed-jointed summon may leave its zone while its summoner is held,
+    -- even though TTS does not report the child as held itself.
+    local attacked=gStates~=nil and gStates.attackedMonsters~=nil and gStates.attackedMonsters[obj.guid] or nil
+    if attacked~=nil and attacked[3]=="summoned" and attacked[4]~=nil then
+        local summoner=getObjectFromGUID(attacked[4])
+        if summoner~=nil and summoner.held_by_color~=nil then return true end
+    end
+    return false
+end
+
+local function playAreaScaleEligible(seat,obj,scope)
+    if obj==nil or obj.guid==nil then return false end
+    -- Permanent table/scenery objects are deliberately non-interactable and
+    -- cannot be inspected by right-click. Never shrink them in "All" mode.
+    -- Do not use getLock() here: legitimately played tokens can be locked.
+    if obj.interactable==false or obj.type=="Table" then return false end
+    -- Fixed table surfaces are also excluded if their interactable flag changes.
+    if obj.guid=="3d4319" or obj.guid=="519f96" or obj.guid=="a02b0f" then return false end
+    -- The board and its zones are fixtures, not played components.
+    if obj.type=="ScriptingTrigger" or obj.type=="HandTrigger" or obj.type=="Board"
+        or obj.type=="Bag" or obj.type=="Infinite" then return false end
+    for _,guid in ipairs(playerBoard) do if obj.guid==guid then return false end end
+    for _,guid in ipairs(colorBand) do if obj.guid==guid then return false end end
+    -- Keep Unit cards, Command tokens (including Bonds of Loyalty and Banner
+    -- of Command), and Wound tokens at their natural scale in either mode.
+    if unitLayoutIsUnit(obj) or unitLayoutIsCommand(obj) or unitLayoutIsWound(obj)
+        or obj.hasTag("CombatPreviewWound") or obj.getGMNotes()=="Combat Preview Wound" then return false end
+    -- A loose Wound in the Unit Area may be about to become a Unit Wound.
+    if obj.getGMNotes()=="Wound" and playAreaScaleInZone(obj.guid,playerUnitAreas[seat]) then return false end
+    return scope=="All" or obj.type=="Card" or obj.type=="Deck"
+end
+
+local function playAreaScaleComponents(scale)
+    return {scale.x or scale[1],scale.y or scale[2],scale.z or scale[3]}
+end
+
+local function playAreaScaleRestore(obj)
+    local records=playAreaScaleRecord()
+    local entry=obj~=nil and records[obj.guid] or nil
+    if entry==nil then return end
+    -- An external effect or manual resize while scaled becomes the new natural size.
+    local current=playAreaScaleComponents(obj.getScale())
+    local previous=entry.factor or 1
+    if math.abs(current[1]-entry.base[1]*previous)>0.015
+        or math.abs(current[2]-entry.base[2]*previous)>0.015
+        or math.abs(current[3]-entry.base[3]*previous)>0.015 then
+        entry.base={current[1]/previous,current[2]/previous,current[3]/previous}
+    end
+    obj.setScale(entry.base)
+    records[obj.guid]=nil
+end
+
+-- Combat cleanup restores the pre-summon size itself; forget only the play-area multiplier.
+function playAreaScaleForgetObject(obj)
+    if obj~=nil and obj.guid~=nil then playAreaScaleRecord()[obj.guid]=nil end
+end
+
+function playAreaScaleApplyObject(seat,obj,pending)
+    if gStates==nil or seat==nil or obj==nil or obj.guid==nil then return end
+    local setting=playAreaScaleSettings(seat)
+    local records=playAreaScaleRecord()
+    local entry=records[obj.guid]
+    if not playAreaScaleEligible(seat,obj,setting.scope) then
+        if entry~=nil and entry.seat==seat then playAreaScaleRestore(obj) end
+        return
+    end
+    local factor=setting.step/20
+    if entry==nil and factor==1 then return end
+    local current=playAreaScaleComponents(obj.getScale())
+    if entry==nil then
+        entry={base=current,seat=seat,factor=1,pending=pending==true}
+        records[obj.guid]=entry
+    else
+        local prev=entry.factor or 1
+        if math.abs(current[1]-entry.base[1]*prev)>0.015
+            or math.abs(current[2]-entry.base[2]*prev)>0.015
+            or math.abs(current[3]-entry.base[3]*prev)>0.015 then
+            entry.base={current[1]/prev,current[2]/prev,current[3]/prev}
+        end
+        entry.seat=seat
+        entry.pending=pending==true
+    end
+    local target={entry.base[1]*factor,entry.base[2]*factor,entry.base[3]*factor}
+    if math.abs(current[1]-target[1])>0.005 or math.abs(current[2]-target[2])>0.005
+        or math.abs(current[3]-target[3])>0.005 then obj.setScale(target) end
+    if factor==1 then records[obj.guid]=nil else entry.factor=factor end
+end
+
+-- A transient exit during a drag is not a real removal. Recheck the
+-- object's destination after it is dropped and the physics have settled.
+local function playAreaScaleRecheckObject(guid)
+    local records=gStates~=nil and gStates.playAreaScaledObjects or nil
+    if records==nil or records[guid]==nil then return end
+    local obj=getObjectFromGUID(guid)
+    if obj==nil then records[guid]=nil return end
+    if playAreaScaleObjectHeld(obj) or obj.isSmoothMoving()==true then return end
+    local seat=playAreaScaleSeatContaining(guid)
+    if seat~=nil then playAreaScaleApplyObject(seat,obj)
+    else playAreaScaleRestore(obj) end
+end
+
+local function playAreaScaleWaitForSettle(guid)
+    if playAreaScaleSettling[guid]==true then return end
+    playAreaScaleSettling[guid]=true
+    local function finish()
+        playAreaScaleSettling[guid]=nil
+        playAreaScaleRecheckObject(guid)
+    end
+    safeWaitCondition("PlayerBoard.Scale",finish,function()
+        local obj=getObjectFromGUID(guid)
+        return obj==nil or (not playAreaScaleObjectHeld(obj)
+            and obj.resting==true and obj.isSmoothMoving()==false)
+    end,5,finish)
+end
+
+-- Only objects already managed by the scaling system need a post-drop check.
+function playAreaScaleObjectDropped(obj)
+    if obj~=nil and obj.guid~=nil and gStates~=nil
+        and gStates.playAreaScaledObjects~=nil
+        and gStates.playAreaScaledObjects[obj.guid]~=nil then
+        playAreaScaleWaitForSettle(obj.guid)
+    end
+end
+
+function refreshPlayAreaScale(seat)
+    if gStates==nil or seat==nil then return end
+    local seen={}
+    for _,zoneGUID in ipairs({playerPlayAreas[seat],playerUnitAreas[seat]}) do
+        local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
+        if zone~=nil then
+            for _,obj in ipairs(zone.getObjects()) do
+                if seen[obj.guid]~=true then
+                    seen[obj.guid]=true
+                    playAreaScaleApplyObject(seat,obj)
+                end
+            end
+        end
+    end
+    -- Only objects that genuinely left both zones return to their natural size.
+    local records=playAreaScaleRecord()
+    for guid,entry in pairs(records) do
+        if entry.seat==seat and seen[guid]~=true then
+            local obj=getObjectFromGUID(guid)
+            if obj==nil then records[guid]=nil
+            elseif playAreaScaleObjectHeld(obj) then
+                -- Lifting/rearranging does not undo scaling; the drop checks its destination.
+            elseif obj.isSmoothMoving()==true then
+                -- Scripted moves keep the same size until they reach their destination.
+                playAreaScaleWaitForSettle(guid)
+            else
+                playAreaScaleRestore(obj)
+            end
+        end
+    end
+end
+
+function schedulePlayAreaScale(seat)
+    if seat==nil then return end
+    if playAreaScaleWait[seat]~=nil then Wait.stop(playAreaScaleWait[seat]) end
+    playAreaScaleWait[seat]=safeWaitFrames("PlayerBoard.Scale",function()
+        playAreaScaleWait[seat]=nil
+        refreshPlayAreaScale(seat)
+    end,3)
+end
+
+-- Object-attached XML UI, matching the colour-bar image-button convention.
+-- Board placement is calculated only on installation, never on a player click.
+local function playAreaScaleControlPrefix(seat)
+    return "PlayAreaScale"..tostring(seat)
+end
+
+local function playAreaScaleCanEdit(seat,playerColor)
+    if seat==nil or gStates==nil or turnOrder==nil then return false end
+    if turnOrderIndexAtSeat(seat)==nil then return false end
+    local hand=Hands.getHands()[seat]
+    if hand==nil then return false end
+    return legalPlayerCheck(playerColor,gStates.handColors[hand.getValue()],"NoDummyException")==true
+end
+
+local function playAreaScaleUpdateLabels(board,seat)
+    local setting=playAreaScaleSettings(seat)
+    local prefix=playAreaScaleControlPrefix(seat)
+    board.UI.setAttribute(prefix.."PercentText","text",tostring(setting.step*5).."%")
+    board.UI.setAttribute(prefix.."ScopeText","text",setting.scope)
+end
+
+local function playAreaScaleChange(player,mouseButton,id,delta,scopeToggle)
+    if mouseButton~="-1" then return end
+    local seat=tonumber(tostring(id):match("^PlayAreaScale(%d+)"))
+    if not playAreaScaleCanEdit(seat,player.color) then return end
+    local setting=playAreaScaleSettings(seat)
+    if scopeToggle==true then
+        setting.scope=setting.scope=="Cards" and "All" or "Cards"
+    else
+        local step=math.max(12,math.min(20,setting.step+delta))
+        if step==setting.step then return end
+        setting.step=step
+    end
+    refreshPlayAreaScale(seat)
+    -- Keep the XML and its anchor untouched. Rebuilding it with getBounds()
+    -- on every click caused the previous controls to drift diagonally.
+    local board=getObjectFromGUID(playerBoard[seat])
+    if board~=nil and board.isDestroyed()~=true then playAreaScaleUpdateLabels(board,seat) end
+end
+
+function playAreaScaleDown(player,mouseButton,id)
+    return safeCallback("playAreaScaleDown",function() playAreaScaleChange(player,mouseButton,id,-1,false) end)
+end
+function playAreaScaleUp(player,mouseButton,id)
+    return safeCallback("playAreaScaleUp",function() playAreaScaleChange(player,mouseButton,id,1,false) end)
+end
+function playAreaScaleScope(player,mouseButton,id)
+    return safeCallback("playAreaScaleScope",function() playAreaScaleChange(player,mouseButton,id,0,true) end)
+end
+-- Kept only as a harmless compatibility callback for classic buttons from an old save.
+function playAreaScaleLabel() end
+
+local function playAreaScaleBoardButtons(board,seat)
+    if board==nil or board.isDestroyed()==true or turnOrderIndexAtSeat(seat)==nil then return end
+    local prefix=playAreaScaleControlPrefix(seat)
+    local xml=board.UI.getXmlTable() or {}
+
+    -- Replace just our own controls, so edits to SCALE_CONTROL_UI take effect
+    -- on a compiled/reloaded save as well as on a new table.
+    -- No XML rebuild happens on scale-button clicks: only the labels change.
+    for i=#xml,1,-1 do
+        local attrs=xml[i].attributes
+        if attrs~=nil and type(attrs.id)=="string" and attrs.id:sub(1,#prefix)==prefix then
+            table.remove(xml,i)
+        end
+    end
+
+    -- Clear the old-style buttons from an earlier save, if present.
+    local old=board.getButtons() or {}
+    for i=#old,1,-1 do
+        if SCALE_BUTTONS[old[i].click_function]==true then board.removeButton(old[i].index) end
+    end
+
+    local ui=SCALE_CONTROL_UI
+    local bounds=board.getBounds()
+    local pos=board.getPosition()
+    -- Use the positive-X edge for the actual bottom-right of the mat.
+    -- Offsets stay in world coordinates so all four seats share one layout.
+    local edgeX=pos.x+bounds.size.x/2-ui.rightInset+ui.offsetX
+    local bottomZ=pos.z-bounds.size.z/2+ui.bottomInset+ui.offsetZ
+    local surfaceY=bounds.center.y+bounds.size.y/2+0.06
+    local function uiPosition(offset)
+        local point=board.positionToLocal({edgeX+offset,surfaceY,bottomZ})
+        return string.format("%.2f %.2f -40",point.x*100,point.z*100)
+    end
+    local function uiScale(value)
+        return string.format("%.3f %.3f",value,value)
+    end
+    local function imageButton(id,callback,image,offset,width,height,scale)
+        return {tag="Button",attributes={
+            id=id,onClick="global/"..callback,
+            onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",
+            height=height,width=width,position=uiPosition(offset),
+            rotation="0 0 180",scale=uiScale(scale),
+            color="rgba(0,0,0,0.0)"
+        },children={{tag="Image",attributes={id=id.."Image",image=image}}}}
+    end
+
+    -- Left to right:  <  [100%]  >  [Cards/All]
+    local scopeX=-1.10
+    local upX=scopeX-ui.scopeSpacing
+    local percentX=upX-ui.arrowSpacing
+    local downX=percentX-ui.arrowSpacing
+    local setting=playAreaScaleSettings(seat)
+    local items={
+        imageButton(prefix.."OverkillDown","playAreaScaleDown","Overkill Down",
+            downX,ui.arrowWidth,ui.arrowHeight,ui.arrowScale),
+        {tag="Image",attributes={id=prefix.."PercentPanel",image="Overkill Text",
+            height=ui.boxHeight,width=ui.boxWidth,position=uiPosition(percentX),
+            rotation="0 0 180",scale=uiScale(ui.percentScale)},
+            children={{tag="Text",attributes={id=prefix.."PercentText",
+                text=tostring(setting.step*5).."%",font="Fonts/MKCardText",
+                fontSize=ui.percentFontSize,fontStyle="Bold",
+                color="rgb(0,0,0)",alignment="MiddleCenter"}}}},
+        imageButton(prefix.."OverkillUp","playAreaScaleUp","Overkill Up",
+            upX,ui.arrowWidth,ui.arrowHeight,ui.arrowScale),
+        imageButton(prefix.."Scope","playAreaScaleScope","Overkill Text",
+            scopeX,ui.boxWidth,ui.boxHeight,ui.scopeScale)
+    }
+    items[4].children[#items[4].children+1]={tag="Text",attributes={
+        id=prefix.."ScopeText",text=setting.scope,font="Fonts/MKCardText",
+        fontSize=ui.scopeFontSize,fontStyle="Normal",
+        color="rgb(0,0,0)",alignment="MiddleCenter",
+        resizeTextForBestFit="true",resizeTextMinSize=26,
+        resizeTextMaxSize=ui.scopeFontSize
+    }}
+
+    -- Preserve unrelated mat UI.
+    for _,node in ipairs(items) do xml[#xml+1]=node end
+    board.UI.setXmlTable(xml)
+end
+function refreshPlayAreaScaleControls()
+    if gStates==nil or turnOrder==nil then return end
+    for seat,boardGUID in ipairs(playerBoard) do
+        local board=getObjectFromGUID(boardGUID)
+        if board~=nil and board.isDestroyed()~=true then playAreaScaleBoardButtons(board,seat) end
+    end
+end
+
+end)
 __bundle_register("PlayingGame.PlayerBoard.UnitLayout", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Module-private helpers. Predeclared so forward references keep resolving locally.
 local unitLayoutSnapType, refreshUnitLayoutSnapPoints, unitLayoutCommandPriority, unitLayoutObjects
@@ -53237,6 +53768,10 @@ refreshUnitLayoutSnapPoints=function(seatPos,commandCount)
 		kept[#kept+1]={position={centerX,0,-0.830},tags={"Command"}}
 	end
 	board.setSnapPoints(kept)
+    -- Combat previews must see new Wound snaps after a compressed Unit layout.
+    if attackAssignmentsPreviewSnapInvalidate~=nil then
+        attackAssignmentsPreviewSnapInvalidate(seatPos)
+    end
 end
 
 function unitLayoutIsUnit(obj)
@@ -58335,55 +58870,6 @@ function assaultOriginFromPosition(approachPosition)
 	return origin
 end
 
--- Optional, session-local map profiler for crowded-map stress tests. It adds only
--- one boolean check while disabled, and measures Lua execution (not TTS rendering).
-local mapPerformanceEnabled=false
-local mapPerformanceStats={}
-function mapPerformanceEnable(enabled)
-	-- Accept a plain bool in the Lua console or {enabled=true} through Global.call.
-	mapPerformanceEnabled=enabled==true or (type(enabled)=="table" and enabled.enabled==true)
-	mapPerformanceStats={}
-	print("Map Lua profiling "..(mapPerformanceEnabled and "enabled" or "disabled"))
-end
-function mapPerformanceStart()
-	if mapPerformanceEnabled~=true then return nil end
-	return os.clock()
-end
-function mapPerformanceRecord(label,started)
-	if started==nil then return end
-	local elapsed=math.max(0,(os.clock()-started)*1000)
-	local row=mapPerformanceStats[label]
-	if row==nil then row={count=0,total=0,max=0} mapPerformanceStats[label]=row end
-	row.count=row.count+1
-	row.total=row.total+elapsed
-	row.max=math.max(row.max,elapsed)
-end
--- Default report shows only the costs that are currently worth monitoring.
--- "all" retains the diagnostic breakdown; "raw" returns the underlying table.
--- Return formatted text instead of the entire stats table so the TTS console
--- does not expand every low-cost counter after printing the report.
-function mapPerformanceReport(detail)
-	if detail=="raw" then return mapPerformanceStats end
-	local keys={}
-	if detail=="all" or detail==true then
-		for key in pairs(mapPerformanceStats) do keys[#keys+1]=key end
-		table.sort(keys)
-	else
-		keys={"EXPLORE refresh","City compaction","City candidate indexing",
-			"terrain topology","terrain neighbour indexing","terrain entry dispatch"}
-	end
-	local lines={}
-	for _,key in ipairs(keys) do
-		local row=mapPerformanceStats[key]
-		if row~=nil and row.count>0 then
-			lines[#lines+1]=string.format("%s: %d calls, %.1f ms avg, %.1f ms max",
-				key,row.count,row.total/row.count,row.max)
-		end
-	end
-	if #lines==0 then return "No map performance samples yet" end
-	return table.concat(lines,"\n")
-end
-
 -- Shared runtime map snapshots. The physical TTS table is authoritative; these are only derived
 -- in-memory indexes and must never be persisted in gStates. Ordinary map membership changes invalidate
 -- only the cheap object list. Terrain membership/transform/face changes also invalidate the expensive
@@ -58590,11 +59076,9 @@ end
 
 local function runtimeMapObjectSnapshot()
 	if runtimeMapObjectCache~=nil then return runtimeMapObjectCache end
-	local perfStart=mapPerformanceStart()
 	local map=getObjectFromGUID(mapArea)
 	if map==nil then
 		runtimeMapObjectCache={objects={},objectGUIDs={}}
-		mapPerformanceRecord("Map object snapshot",perfStart)
 		return runtimeMapObjectCache
 	end
 	local objects=map.getObjects()
@@ -58608,13 +59092,11 @@ local function runtimeMapObjectSnapshot()
 		end
 	end
 	runtimeMapObjectCache={objects=validObjects,objectGUIDs=objectGUIDs}
-	mapPerformanceRecord("Map object snapshot",perfStart)
 	return runtimeMapObjectCache
 end
 
 local function runtimeMapTerrainSnapshot()
 	if runtimeMapTerrainCache~=nil then return runtimeMapTerrainCache end
-	local perfStart=mapPerformanceStart()
 	local objectSnapshot=runtimeMapObjectSnapshot()
 	local terrainObjects={}
 	local terrainPositions={}
@@ -58624,7 +59106,6 @@ local function runtimeMapTerrainSnapshot()
 	local signatureParts={}
 	local previous=runtimeMapPreviousTerrainCache
 	local bearings={"center","0","60","120","180","240","300"}
-	local tileStart=mapPerformanceStart()
 	for _,obj in pairs(objectSnapshot.objects or {}) do
 		local details=terrainTiles[obj.guid]
 		if details~=nil then
@@ -58669,8 +59150,6 @@ local function runtimeMapTerrainSnapshot()
 			end
 		end
 	end
-	mapPerformanceRecord("terrain hex construction",tileStart)
-	local neighborStart=mapPerformanceStart()
 	local hexByKey,hexOrderByKey={},{}
 	local changed,geometryChanged,affected,changedHexes={},{},{},{}
 	local changedCount,removedCount=0,0
@@ -58814,11 +59293,8 @@ local function runtimeMapTerrainSnapshot()
 		end
 	end
 	if incremental then
-		mapPerformanceRecord(changedCount==0 and removedCount==0 and "terrain unchanged reuse" or "terrain incremental rebuild",neighborStart)
 	else
-		mapPerformanceRecord("terrain full rebuild",neighborStart)
 	end
-	mapPerformanceRecord("terrain neighbour indexing",neighborStart)
 
 	table.sort(signatureParts)
 	runtimeMapTerrainCache={
@@ -58827,7 +59303,6 @@ local function runtimeMapTerrainSnapshot()
 		terrainSignature=table.concat(signatureParts,"|")
 	}
 	runtimeMapPreviousTerrainCache=nil
-	mapPerformanceRecord("terrain topology",perfStart)
 	return runtimeMapTerrainCache
 end
 

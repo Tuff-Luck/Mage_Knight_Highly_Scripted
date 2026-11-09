@@ -9,18 +9,18 @@
 local SCALE_CONTROL_UI={
     rightInset=0.55,
     bottomInset=0.85,
-    offsetX=0.0,
-    offsetZ=0.0,
-    arrowSpacing=1.45,       -- Down <-> percentage <-> Up (centre spacing)
-    scopeSpacing=1.70,       -- Up <-> Cards/All centre spacing
-    arrowScale=0.15,
-    percentScale=0.15,
-    scopeScale=0.15,
+    offsetX=0.8,
+    offsetZ=-1.2,
+    arrowSpacing=0.90,       -- Down <-> percentage <-> Up (centre spacing)
+    scopeSpacing=1.20,       -- Up <-> Cards/All centre spacing
+    arrowScale=0.08,
+    percentScale=0.08,
+    scopeScale=0.08,
     arrowWidth=90,
-    arrowHeight=100,
-    boxWidth=115,
+    arrowHeight=90,
+    boxWidth=130,
     boxHeight=90,
-    percentFontSize=55,
+    percentFontSize=36,
     scopeFontSize=36,
 }
 
