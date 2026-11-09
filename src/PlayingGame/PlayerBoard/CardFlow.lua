@@ -475,6 +475,27 @@ function clearCoralDrawChoice()
 	UI.hide("CoralDrawChoice")
 end
 
+-- UI visibility alone does not persist the unfinished draw. Save the actual decision
+-- separately so a reload cannot silently discard Coral's outstanding Quick Witted choice.
+function coralDrawChoiceSaveState()
+	local pending=coralDrawPending
+	if pending==nil then return nil end
+	return {seatPos=pending.seatPos, remaining=pending.remaining, sourceId=pending.sourceId}
+end
+
+function coralDrawChoiceRestoreState(savedPending)
+	if type(savedPending)~="table" then return false end
+	local seatPos=tonumber(savedPending.seatPos)
+	local remaining=tonumber(savedPending.remaining)
+	if seatPos==nil or seatPos<1 or seatPos>4 or remaining==nil or remaining<1 then return false end
+	local playerIndex=coralDrawPlayerIndex(seatPos)
+	-- Physical card state is authoritative. A stale prompt must never generate a second draw.
+	if playerIndex==nil or coralQuickWittedSetAside(playerIndex)==nil then return false end
+	coralDrawPending=nil
+	showCoralDrawChoice(playerIndex, math.floor(remaining), type(savedPending.sourceId)=="string" and savedPending.sourceId or "DrawHand")
+	return true
+end
+
 --A Coral draw can turn a Deck into a lone Card or rebuild it after a manual draw is intercepted.
 --Refresh from the scripting zone after TTS has settled so hover text/counts describe the final physical pile.
 local function coralScheduleDeedRefresh(seatPos, delayFrames)
