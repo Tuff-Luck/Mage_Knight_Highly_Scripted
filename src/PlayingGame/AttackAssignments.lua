@@ -839,6 +839,7 @@ local function damageChanged()
 end
 
 local function damageAttackClicked(obj,playerColor,index,altClick)
+    if not resourceCardsPlayerCanEdit(playerColor) then return end
 	local list=obj~=nil and damageSpec.byOwner[obj.guid] or nil
 	local attack=list~=nil and list[index] or nil
 	if attack==nil then return end
@@ -868,6 +869,7 @@ end
 -- Clicking a free Unit adds it to the attack in order; clicking one already on the attack returns its share to the Hero.
 function attackAssignmentDamageUnitClicked(unit,playerColor)
 	return safeCallback("attackAssignmentDamageUnitClicked",function()
+        if not resourceCardsPlayerCanEdit(playerColor) then return end
 		if damagePending==nil or unit==nil or damagePending.color~=playerColor then return end
 		local key=damagePending.key
 		local list=damageTargets[key] or {}
@@ -918,6 +920,7 @@ local function removeAssignment(id)
 end
 
 function attackAssignmentsBegin(source,resource,playerColor,additional,sourceKey,part)
+    if not resourceCardsPlayerCanEdit(playerColor) then return false end
     if resourceCardsPanelOpen~=nil and not resourceCardsPanelOpen() then return false end
     -- Illusionists affect exactly one enemy. A right click retargets rather
     -- than adding a second effect, even if that enemy is also unfortified.
@@ -943,6 +946,7 @@ end
 
 function attackAssignmentSourceClicked(player,value,id)
 	return safeCallback("attackAssignmentSourceClicked",function()
+        if not resourceCardsPlayerCanEdit(player~=nil and player.color or nil) then return end
         if resourceCardsPanelOpen~=nil and not resourceCardsPanelOpen() then return end
 		if type(id)~="string" then return end
 		local guid,rowIndex,category=id:match("^AttackAssignmentSource_([0-9a-f]+)_(%d+)_(.+)$")
@@ -977,6 +981,7 @@ end
 
 function attackAssignmentTargetClicked(target,playerColor)
 	return safeCallback("attackAssignmentTargetClicked",function()
+        if not resourceCardsPlayerCanEdit(playerColor) then return end
         if resourceCardsPanelOpen~=nil and not resourceCardsPanelOpen() then return end
 		local pending=type(playerColor)=="string" and targetingByPlayer[playerColor] or nil
         local eligible=resourceCardsCombatTargetObjects~=nil and resourceCardsCombatTargetObjects() or {}
