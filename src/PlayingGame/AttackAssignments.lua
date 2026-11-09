@@ -1099,7 +1099,7 @@ end
 function resourceCardsBlockSourceLinkClicked(player,value,id)
     return safeCallback("resourceCardsBlockSourceLinkClicked",function()
         local color=player~=nil and player.color or nil
-        if not resourceCardsPlayerCanEdit(color) or not resourceCardsPanelOpen() then return end
+        if type(color)~="string" or not resourceCardsPlayerCanEdit(color) or not resourceCardsPanelOpen() then return end
         local guid=type(id)=="string" and id:match("^AttackAssignmentSource_([0-9a-f]+)_0_blockSource$") or nil
         if guid==nil or resourceCardsBlockLinkSkillActive==nil
             or not resourceCardsBlockLinkSkillActive(guid) then return end
