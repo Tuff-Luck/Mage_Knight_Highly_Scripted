@@ -740,7 +740,14 @@ end
 
 --Commit a Mage Knight/Dummy/Volkare turn after any interstitial scenario turn has finished.
 function mergedTurnCommit(nextTurnNumber,newOutOfTurn,sameTurn)
+    local outgoing=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    local incoming=turnOrder~=nil and turnOrder[nextTurnNumber] or nil
+    local outgoingSeat=outgoing~=nil and outgoing.seatPos or nil
+    if resourceCardsBeforeTurnHandoff~=nil then
+        resourceCardsBeforeTurnHandoff(incoming~=nil and incoming.seatPos or nil)
+    end
 	gStates.turnNumber=nextTurnNumber
+    if resourceCardsAfterTurnHandoff~=nil then resourceCardsAfterTurnHandoff(outgoingSeat) end
 	if newOutOfTurn==false then gStates.realTurn=gStates.turnNumber end
 	if sameTurn==false and gStates.finalTurnReason=="victory" and gStates.finalTurnOwnerGetsTurn==true and
 		finalTurnBoundaryActive()==true and finalTurnOwnerIs(gStates.turnNumber) then gStates.finalTurnOwnerTurnStarted=true end
