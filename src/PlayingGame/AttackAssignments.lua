@@ -23,6 +23,7 @@ local arrowHeadLength=0.34
 local arrowHeadAngle=0.55
 local assignmentRegistry={}
 local targetingByPlayer={}
+local blockLinkPending={} -- Player colour -> Spirit Guides Skill GUID while selecting a Block source.
 local targetButtonObjects={}
 local assignmentCounter=0
 local refreshScheduled=false
@@ -152,6 +153,12 @@ local function activeVisualLines()
 		local assignment=assignmentLines(entry.source,entry.target,assignmentColorFor(entry.kind))
 		for _,line in ipairs(assignment or {}) do lines[#lines+1]=line end
 	end
+    -- Spirit Guides may link to a Block source anywhere in the play area.
+    -- Its purple arrow is separate from enemy Attack/Block assignments.
+    for skillGUID,targetGUID in pairs(gStates~=nil and gStates.blockSourceLinks or {}) do
+        local arrow=assignmentLines(getObjectFromGUID(skillGUID),getObjectFromGUID(targetGUID),assignmentColors.other)
+        for _,line in ipairs(arrow or {}) do lines[#lines+1]=line end
+    end
 	for key,guids in pairs(damageTargets) do
 		local attack=damageSpec.byKey[key]
 		local owner=attack~=nil and getObjectFromGUID(attack.owner) or nil
@@ -186,6 +193,16 @@ local function activeVisualLines()
 				color=assignmentColors.damage,thickness=previewThickness,rotation={0,0,0}}
 		end
 	end
+    for color,skillGUID in pairs(blockLinkPending) do
+        local player=Player[color]
+        local source=getObjectFromGUID(skillGUID)
+        local pointer=player~=nil and player.getPointerPosition() or nil
+        if source~=nil and pointer~=nil then
+            lines[#lines+1]={points={positionAtHeight(source.getPosition(),previewHeight),
+                positionAtHeight(pointer,previewHeight)},color=assignmentColors.other,
+                thickness=previewThickness,rotation={0,0,0}}
+        end
+    end
 	for color,pending in pairs(targetingByPlayer) do
 		local player=Player[color]
 		local pointer=player~=nil and player.getPointerPosition() or nil
@@ -220,10 +237,16 @@ local function vectorLineSignature(lines)
 end
 
 local function syncTargetButtons(monsters)
-	local shouldShow=next(targetingByPlayer)~=nil
+	local shouldShow=next(targetingByPlayer)~=nil or next(blockLinkPending)~=nil
 	local live={}
 	if shouldShow then
-        local candidates=resourceCardsCombatTargetObjects~=nil and resourceCardsCombatTargetObjects(monsters) or {}
+        local candidates={}
+        if next(targetingByPlayer)~=nil and resourceCardsCombatTargetObjects~=nil then
+            for guid,obj in pairs(resourceCardsCombatTargetObjects(monsters)) do candidates[guid]=obj end
+        end
+        if next(blockLinkPending)~=nil and resourceCardsBlockLinkTargets~=nil then
+            for guid,obj in pairs(resourceCardsBlockLinkTargets()) do candidates[guid]=obj end
+        end
         for guid,obj in pairs(candidates) do
             if obj~=nil and not obj.isDestroyed() then
                 live[guid]=obj
@@ -259,7 +282,7 @@ end
 
 -- Called by the event-driven combat scan; polling is reserved for pointer lines.
 function attackAssignmentsRefreshTargetButtons(monsters)
-    if next(targetingByPlayer)~=nil then syncTargetButtons(monsters) end
+    if next(targetingByPlayer)~=nil or next(blockLinkPending)~=nil then syncTargetButtons(monsters) end
 end
 
 local function refreshRenderedLines(force)
@@ -983,6 +1006,18 @@ function attackAssignmentTargetClicked(target,playerColor)
 	return safeCallback("attackAssignmentTargetClicked",function()
         if not resourceCardsPlayerCanEdit(playerColor) then return end
         if resourceCardsPanelOpen~=nil and not resourceCardsPanelOpen() then return end
+		local skillGUID=type(playerColor)=="string" and blockLinkPending[playerColor] or nil
+        if skillGUID~=nil then
+            local eligible=resourceCardsBlockLinkTargets~=nil and resourceCardsBlockLinkTargets() or {}
+            if target==nil or eligible[target.guid]==nil then return end
+            gStates.blockSourceLinks=gStates.blockSourceLinks or {}
+            gStates.blockSourceLinks[skillGUID]=target.guid
+            blockLinkPending[playerColor]=nil
+            syncTargetButtons()
+            refreshRenderedLines()
+            resourceCardsSourceChanged()
+            return
+        end
 		local pending=type(playerColor)=="string" and targetingByPlayer[playerColor] or nil
         local eligible=resourceCardsCombatTargetObjects~=nil and resourceCardsCombatTargetObjects() or {}
         if pending==nil or target==nil or target.guid==nil or eligible[target.guid]==nil then return end
@@ -1055,6 +1090,43 @@ function attackAssignmentTargetClicked(target,playerColor)
 			resourceCardsSourceChanged()
 		end
 	end)
+end
+
+-- Explicitly link Spirit Guides to a Block-generating object, with no overlap requirement.
+-- The target buttons are shared with enemy targeting, but this link never
+-- enters the combat enemy-assignment registry.
+function resourceCardsBlockSourceLinkClicked(player,value,id)
+    return safeCallback("resourceCardsBlockSourceLinkClicked",function()
+        local color=player~=nil and player.color or nil
+        if not resourceCardsPlayerCanEdit(color) or not resourceCardsPanelOpen() then return end
+        local guid=type(id)=="string" and id:match("^AttackAssignmentSource_([0-9a-f]+)_0_blockSource$") or nil
+        if guid==nil or resourceCardsBlockLinkSkillActive==nil
+            or not resourceCardsBlockLinkSkillActive(guid) then return end
+        if blockLinkPending[color]==guid then
+            blockLinkPending[color]=nil
+        else
+            blockLinkPending[color]=guid
+            if gStates~=nil and gStates.blockSourceLinks~=nil then
+                gStates.blockSourceLinks[guid]=nil
+            end
+        end
+        syncTargetButtons()
+        refreshRenderedLines()
+        scheduleRefresh()
+        resourceCardsSourceChanged()
+    end)
+end
+
+function attackAssignmentsForgetBlockLink(skillGUID)
+    if gStates~=nil and gStates.blockSourceLinks~=nil
+        and gStates.blockSourceLinks[skillGUID]~=nil then
+        gStates.blockSourceLinks[skillGUID]=nil
+        refreshRenderedLines()
+    end
+    for color,pendingGUID in pairs(blockLinkPending) do
+        if pendingGUID==skillGUID then blockLinkPending[color]=nil end
+    end
+    syncTargetButtons()
 end
 
 -- Called by the Attack Assignment panel so both interfaces show the same single target.
@@ -1249,6 +1321,11 @@ function attackAssignmentsObjectMoved(object)
 			if assignmentBaseGUID(pending.sourceGUID)==guid then relevant=true break end
 		end
 	end
+    if not relevant then
+        for skillGUID,targetGUID in pairs(gStates~=nil and gStates.blockSourceLinks or {}) do
+            if skillGUID==guid or targetGUID==guid then relevant=true break end
+        end
+    end
 	if not relevant then
 		for key,guids in pairs(damageTargets) do
 			local attack=damageSpec.byKey[key]
@@ -1281,6 +1358,8 @@ function attackAssignmentsClearAll()
 	attackAssignmentsDamageClear()
 	assignmentRegistry={}
 	targetingByPlayer={}
+    blockLinkPending={}
+    if gStates~=nil then gStates.blockSourceLinks={} end
 	assignmentCounter=0
 	persistAssignments()
 	syncTargetButtons()
