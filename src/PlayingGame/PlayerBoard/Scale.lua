@@ -3,6 +3,7 @@
 -- EDIT THESE VALUES to tune the control row on each player mat.
 -- Positions are in world/table units relative to the mat's bottom-right edge:
 --   offsetX: + moves right, - moves left
+--   offsetY: + raises controls, - lowers them toward the board
 --   offsetZ: + moves toward the far side of the table, - toward the player
 --   rightInset / bottomInset: distance inward from that mat edge
 -- Sizes use object-UI scale: 0.15 is the size of the percentage box.
@@ -10,6 +11,7 @@ local SCALE_CONTROL_UI={
     rightInset=0.55,
     bottomInset=0.85,
     offsetX=0.8,
+    offsetY=-0.30,          -- lower the floating UI; adjust in 0.05 steps
     offsetZ=-1.2,
     arrowSpacing=0.90,       -- Down <-> percentage <-> Up (centre spacing)
     scopeSpacing=1.20,       -- Up <-> Cards/All centre spacing
@@ -306,7 +308,10 @@ local function playAreaScaleBoardButtons(board,seat)
     local surfaceY=bounds.center.y+bounds.size.y/2+0.06
     local function uiPosition(offset)
         local point=board.positionToLocal({edgeX+offset,surfaceY,bottomZ})
-        return string.format("%.2f %.2f -40",point.x*100,point.z*100)
+        -- Object-UI's third position coordinate is depth (the visible height
+        -- above the board), not its second coordinate. Negative depth lifts UI.
+        local depth=-40-ui.offsetY*100
+        return string.format("%.2f %.2f %.2f",point.x*100,point.z*100,depth)
     end
     local function uiScale(value)
         return string.format("%.3f %.3f",value,value)
