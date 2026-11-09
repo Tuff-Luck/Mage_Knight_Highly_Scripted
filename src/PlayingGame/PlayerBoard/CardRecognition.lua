@@ -171,7 +171,7 @@ combatConfig.slotCount=12
 combatConfig.lineSlotCount=6 -- Wrap each resource cell after six visible icons.
 combatConfig.rowHeight=32
 combatConfig.panelBaseHeight=30
-combatConfig.columns={Name=120,Armour=55,Traits=150,Attacks=105,Offence=130,Result=255}
+combatConfig.columns={Name=120,Armour=55,Traits=150,Attacks=105,Offence=130,Result=170}
 -- Damage/resistance colours: normal, then the darker shade used once a value has been reduced.
 combatConfig.typeColors={P={"#FFFFFF","#9A9A9A"},F={"#FF5555","#992E2E"},I={"#5AA0FF","#2F5F9A"},
     IF={"#C070FF","#74429A"},M={"#FFE055","#9A8A33"}}
@@ -1312,6 +1312,17 @@ local function combatCompactResultLines(fullLines,damageItems,damageResults)
     return fullLines
 end
 
+-- Estimate wrapped Result lines at 170 units so long wound distributions do not
+-- overlap the following enemy row. Rich-text color tags have no visual width.
+local function combatResultVisibleLines(text)
+    local count=0
+    for line in (text.."\n"):gmatch("(.-)\n") do
+        local plain=line:gsub("<[^>]*>","")
+        count=count+math.max(1,math.ceil(#plain/26))
+    end
+    return count
+end
+
 -- A group is attacked as one: fortification and resistance of any member apply to all of
 -- them and the armours add together. Elusive members only use their higher armour in the
 -- Attack phase while one of their attacks is unblocked.
@@ -2312,7 +2323,7 @@ local function combatAssignmentRefreshRows(entries,sources)
             local expanded=hasDetails and combatExpandedResults[entry.guid]==true
             local displayText=expanded and detailText or compactText
             if hasDetails then displayText=displayText..(expanded and " [-]" or " [+]") end
-            local displayLines=expanded and #lines or #compactLines
+            local displayLines=combatResultVisibleLines(displayText)
             local minHeight=rowHeight
             rowHeight=math.max(rowHeight,math.max(displayLines,entry.attackCount or 1)*15+4)
             -- Only the Result text and its row/panel heights change when expanded.
@@ -2415,10 +2426,11 @@ local function combatAssignmentRefreshRows(entries,sources)
         }))
     end
     local widthReduction=(170-columnWidths.range)+(170-columnWidths.block)+(170-columnWidths.attack)
-    combatPanelSetAttribute("CombatEnemyPanel","width",tostring(1380-hiddenWidth-widthReduction))
+    combatPanelSetAttribute("CombatEnemyPanel","width",
+        tostring(1380-(255-combatConfig.columns.Result)-hiddenWidth-widthReduction))
     combatPanelSetAttribute("CombatEnemyPanel","color","rgb(0.24,0.2,0.15)")
     local headerWidths={Monster=120,Armour=55,DefenceTraits=150,RangeSiege=columnWidths.range,EnemyAttack=105,
-        Offence=130,Block=columnWidths.block,AssignedAttack=columnWidths.attack,Result=255}
+        Offence=130,Block=columnWidths.block,AssignedAttack=columnWidths.attack,Result=combatConfig.columns.Result}
     for name,width in pairs(headerWidths) do
         local id="Combat"..name.."Header"
         combatPanelSetAttribute(id,"font","Fonts/MKCardTittle")
