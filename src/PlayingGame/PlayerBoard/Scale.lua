@@ -186,15 +186,17 @@ local function playAreaScaleBoardButtons(board,seat)
     local rotation={0,(360-yaw)%360,0}
     local sx=math.max(0.01,scale.x or scale[1])
     local sz=math.max(0.01,scale.z or scale[3])
-    local font=math.max(7,math.floor(95/sx+0.5))
-    local height=math.max(5,math.floor(90/sz+0.5))
+    -- TTS clamps classic button dimensions below 60 (except zero). Counter-scale the
+    -- button instead of shrinking width/height below that minimum on an 8.2-scale mat.
+    local buttonScale=1/math.max(sx,sz)
     local function add(label,callback,offset,width,background)
         local localPos=board.positionToLocal({edgeX+offset,topY,rowZ})
         board.createButton({
             click_function=callback,function_owner=Global,label=label,
             position={localPos.x,localPos.y,localPos.z},rotation=rotation,
-            width=math.floor(width*100/sx+0.5),height=height,
-            font_size=font,font_color={0.98,0.94,0.84},
+            scale={buttonScale,buttonScale,buttonScale},
+            width=background and math.floor(width*100+0.5) or 0,height=background and 85 or 0,
+            font_size=70,font_color={0.98,0.94,0.84},
             color=background and {0.10,0.10,0.10,0.80} or {0,0,0,0},
             hover_color={0.22,0.22,0.22,0.85},press_color={0.3,0.3,0.3,0.8}
         })
