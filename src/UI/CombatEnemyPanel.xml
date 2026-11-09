@@ -82,9 +82,9 @@
 						<Button id="CombatSourceSlot1attack12" class="CombatSlot"><Image id="CombatSourceSlot1attack12Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot1attack12Amount" class="CombatSlotAmount"/></Button>
 					</GridLayout>
 				</Panel>
-				<Panel preferredWidth="255" color="rgba(0,0,0,0)">
-					<Text id="CombatEnemyRow1Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="UpperLeft" raycastTarget="false" horizontalOverflow="Wrap" verticalOverflow="Overflow"/>
-				</Panel>
+				<Button id="CombatEnemyResultToggle1" onClick="resourceTracker" preferredWidth="255" color="rgba(0,0,0,0)" tooltip="Click to expand combat details">
+					<Text id="CombatEnemyRow1Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false"/>
+				</Button>
 			</HorizontalLayout>
 		</Panel>
 		<Panel id="CombatEnemyRow2" active="false" preferredHeight="32" outlineSize="0 0">
@@ -154,9 +154,9 @@
 						<Button id="CombatSourceSlot2attack12" class="CombatSlot"><Image id="CombatSourceSlot2attack12Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot2attack12Amount" class="CombatSlotAmount"/></Button>
 					</GridLayout>
 				</Panel>
-				<Panel preferredWidth="255" color="rgba(0,0,0,0)">
-					<Text id="CombatEnemyRow2Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="UpperLeft" raycastTarget="false" horizontalOverflow="Wrap" verticalOverflow="Overflow"/>
-				</Panel>
+				<Button id="CombatEnemyResultToggle2" onClick="resourceTracker" preferredWidth="255" color="rgba(0,0,0,0)" tooltip="Click to expand combat details">
+					<Text id="CombatEnemyRow2Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false"/>
+				</Button>
 			</HorizontalLayout>
 		</Panel>
 		<Panel id="CombatEnemyRow3" active="false" preferredHeight="32" outlineSize="0 0">
@@ -226,9 +226,9 @@
 						<Button id="CombatSourceSlot3attack12" class="CombatSlot"><Image id="CombatSourceSlot3attack12Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot3attack12Amount" class="CombatSlotAmount"/></Button>
 					</GridLayout>
 				</Panel>
-				<Panel preferredWidth="255" color="rgba(0,0,0,0)">
-					<Text id="CombatEnemyRow3Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="UpperLeft" raycastTarget="false" horizontalOverflow="Wrap" verticalOverflow="Overflow"/>
-				</Panel>
+				<Button id="CombatEnemyResultToggle3" onClick="resourceTracker" preferredWidth="255" color="rgba(0,0,0,0)" tooltip="Click to expand combat details">
+					<Text id="CombatEnemyRow3Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false"/>
+				</Button>
 			</HorizontalLayout>
 		</Panel>
 		<Panel id="CombatEnemyRow4" active="false" preferredHeight="32" outlineSize="0 0">
@@ -298,9 +298,9 @@
 						<Button id="CombatSourceSlot4attack12" class="CombatSlot"><Image id="CombatSourceSlot4attack12Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot4attack12Amount" class="CombatSlotAmount"/></Button>
 					</GridLayout>
 				</Panel>
-				<Panel preferredWidth="255" color="rgba(0,0,0,0)">
-					<Text id="CombatEnemyRow4Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="UpperLeft" raycastTarget="false" horizontalOverflow="Wrap" verticalOverflow="Overflow"/>
-				</Panel>
+				<Button id="CombatEnemyResultToggle4" onClick="resourceTracker" preferredWidth="255" color="rgba(0,0,0,0)" tooltip="Click to expand combat details">
+					<Text id="CombatEnemyRow4Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false"/>
+				</Button>
 			</HorizontalLayout>
 		</Panel>
 		<Panel id="CombatEnemyRow5" active="false" preferredHeight="32" outlineSize="0 0">
@@ -370,9 +370,9 @@
 						<Button id="CombatSourceSlot5attack12" class="CombatSlot"><Image id="CombatSourceSlot5attack12Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot5attack12Amount" class="CombatSlotAmount"/></Button>
 					</GridLayout>
 				</Panel>
-				<Panel preferredWidth="255" color="rgba(0,0,0,0)">
-					<Text id="CombatEnemyRow5Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="UpperLeft" raycastTarget="false" horizontalOverflow="Wrap" verticalOverflow="Overflow"/>
-				</Panel>
+				<Button id="CombatEnemyResultToggle5" onClick="resourceTracker" preferredWidth="255" color="rgba(0,0,0,0)" tooltip="Click to expand combat details">
+					<Text id="CombatEnemyRow5Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false"/>
+				</Button>
 			</HorizontalLayout>
 		</Panel>
 		<Panel id="CombatEnemyRow6" active="false" preferredHeight="32" outlineSize="0 0">
@@ -442,9 +442,9 @@
 						<Button id="CombatSourceSlot6attack12" class="CombatSlot"><Image id="CombatSourceSlot6attack12Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot6attack12Amount" class="CombatSlotAmount"/></Button>
 					</GridLayout>
 				</Panel>
-				<Panel preferredWidth="255" color="rgba(0,0,0,0)">
-					<Text id="CombatEnemyRow6Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="UpperLeft" raycastTarget="false" horizontalOverflow="Wrap" verticalOverflow="Overflow"/>
-				</Panel>
+				<Button id="CombatEnemyResultToggle6" onClick="resourceTracker" preferredWidth="255" color="rgba(0,0,0,0)" tooltip="Click to expand combat details">
+					<Text id="CombatEnemyRow6Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false"/>
+				</Button>
 			</HorizontalLayout>
 		</Panel>
 		<Panel id="CombatEnemyRow7" active="false" preferredHeight="32" outlineSize="0 0">
@@ -513,9 +513,9 @@
 						<Button id="CombatSourceSlot7attack12" class="CombatSlot"><Image id="CombatSourceSlot7attack12Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot7attack12Amount" class="CombatSlotAmount"/></Button>
 					</GridLayout>
 				</Panel>
-				<Panel preferredWidth="255" color="rgba(0,0,0,0)">
-					<Text id="CombatEnemyRow7Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="UpperLeft" raycastTarget="false" horizontalOverflow="Wrap" verticalOverflow="Overflow"/>
-				</Panel>
+				<Button id="CombatEnemyResultToggle7" onClick="resourceTracker" preferredWidth="255" color="rgba(0,0,0,0)" tooltip="Click to expand combat details">
+					<Text id="CombatEnemyRow7Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false"/>
+				</Button>
 			</HorizontalLayout>
 		</Panel>
 		<Panel id="CombatEnemyRow8" active="false" preferredHeight="32" outlineSize="0 0">
@@ -585,9 +585,9 @@
 						<Button id="CombatSourceSlot8attack12" class="CombatSlot"><Image id="CombatSourceSlot8attack12Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot8attack12Amount" class="CombatSlotAmount"/></Button>
 					</GridLayout>
 				</Panel>
-				<Panel preferredWidth="255" color="rgba(0,0,0,0)">
-					<Text id="CombatEnemyRow8Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="UpperLeft" raycastTarget="false" horizontalOverflow="Wrap" verticalOverflow="Overflow"/>
-				</Panel>
+				<Button id="CombatEnemyResultToggle8" onClick="resourceTracker" preferredWidth="255" color="rgba(0,0,0,0)" tooltip="Click to expand combat details">
+					<Text id="CombatEnemyRow8Result" class="Text14" fontSize="12" resizeTextMaxSize="12" color="White" alignment="MiddleLeft" raycastTarget="false"/>
+				</Button>
 			</HorizontalLayout>
 		</Panel>
 		<HorizontalLayout id="CombatTotalRow" active="false" padding="5 0 0 0" preferredHeight="18" childForceExpandWidth="false">
