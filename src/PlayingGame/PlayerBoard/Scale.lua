@@ -1,5 +1,29 @@
 -- Manual per-seat presentation scale for the Play and Unit Areas.
 -- The scale never changes the logical resource/combat values of an object.
+-- EDIT THESE VALUES to tune the control row on each player mat.
+-- Positions are in world/table units relative to the mat's bottom-right edge:
+--   offsetX: + moves right, - moves left
+--   offsetZ: + moves toward the far side of the table, - toward the player
+--   rightInset / bottomInset: distance inward from that mat edge
+-- Sizes use object-UI scale: 0.15 is the size of the percentage box.
+local SCALE_CONTROL_UI={
+    rightInset=0.55,
+    bottomInset=0.85,
+    offsetX=0.0,
+    offsetZ=0.0,
+    arrowSpacing=1.45,       -- Down <-> percentage <-> Up (centre spacing)
+    scopeSpacing=1.70,       -- Up <-> Cards/All centre spacing
+    arrowScale=0.15,
+    percentScale=0.15,
+    scopeScale=0.15,
+    arrowWidth=90,
+    arrowHeight=100,
+    boxWidth=115,
+    boxHeight=90,
+    percentFontSize=55,
+    scopeFontSize=36,
+}
+
 local playAreaScaleWait={}
 local SCALE_BUTTONS={playAreaScaleDown=true,playAreaScaleLabel=true,playAreaScaleUp=true,playAreaScaleScope=true}
 local playAreaScaleSettling={} -- runtime-only; one pending settle check per object
@@ -245,71 +269,83 @@ function playAreaScaleLabel() end
 
 local function playAreaScaleBoardButtons(board,seat)
     if board==nil or board.isDestroyed()==true or turnOrderIndexAtSeat(seat)==nil then return end
-
-    -- Missing UI ids can cause a TTS NullReferenceException from getAttribute.
-    -- Inspect the existing XML tree instead, before any scale control exists.
     local prefix=playAreaScaleControlPrefix(seat)
     local xml=board.UI.getXmlTable() or {}
-    for _,node in ipairs(xml) do
-        if node.attributes~=nil and node.attributes.id==prefix.."PercentPanel" then
-            playAreaScaleUpdateLabels(board,seat)
-            return
+
+    -- Replace just our own controls, so edits to SCALE_CONTROL_UI take effect
+    -- on a compiled/reloaded save as well as on a new table.
+    -- No XML rebuild happens on scale-button clicks: only the labels change.
+    for i=#xml,1,-1 do
+        local attrs=xml[i].attributes
+        if attrs~=nil and type(attrs.id)=="string" and attrs.id:sub(1,#prefix)==prefix then
+            table.remove(xml,i)
         end
     end
 
-    -- Remove legacy classic buttons left in an existing TTS save. They are no
-    -- longer recreated; the new image buttons are part of the board's object XML.
+    -- Clear the old-style buttons from an earlier save, if present.
     local old=board.getButtons() or {}
-    for index=#old,1,-1 do
-        if SCALE_BUTTONS[old[index].click_function]==true then board.removeButton(old[index].index) end
+    for i=#old,1,-1 do
+        if SCALE_BUTTONS[old[i].click_function]==true then board.removeButton(old[i].index) end
     end
 
+    local ui=SCALE_CONTROL_UI
     local bounds=board.getBounds()
     local pos=board.getPosition()
-    -- The mats face the players at yaw 180: negative world X is their right.
-    -- This mirrors the old left-hand placement to the bottom-RIGHT, without
-    -- changing the 1.45-world-unit centre spacing between controls.
-    local rightEdge=pos.x-bounds.size.x/2+0.55
-    local bottom=pos.z-bounds.size.z/2+0.85
-    local surface=bounds.center.y+bounds.size.y/2+0.06
-    local function uiPosition(worldOffset)
-        local point=board.positionToLocal({rightEdge+worldOffset,surface,bottom})
-        -- XML uses 100 units per board-local unit. -40 raises it above the mat.
+    -- Use the positive-X edge for the actual bottom-right of the mat.
+    -- Offsets stay in world coordinates so all four seats share one layout.
+    local edgeX=pos.x+bounds.size.x/2-ui.rightInset+ui.offsetX
+    local bottomZ=pos.z-bounds.size.z/2+ui.bottomInset+ui.offsetZ
+    local surfaceY=bounds.center.y+bounds.size.y/2+0.06
+    local function uiPosition(offset)
+        local point=board.positionToLocal({edgeX+offset,surfaceY,bottomZ})
         return string.format("%.2f %.2f -40",point.x*100,point.z*100)
     end
-    local function imageButton(id,callback,image,worldOffset,width)
+    local function uiScale(value)
+        return string.format("%.3f %.3f",value,value)
+    end
+    local function imageButton(id,callback,image,offset,width,height,scale)
         return {tag="Button",attributes={
             id=id,onClick="global/"..callback,
             onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",
-            height=100,width=width,position=uiPosition(worldOffset),
-            rotation="0 0 180",scale="0.15 0.15",
+            height=height,width=width,position=uiPosition(offset),
+            rotation="0 0 180",scale=uiScale(scale),
             color="rgba(0,0,0,0.0)"
-        },children={{tag="Image",attributes={id=id.."Image",image=image,
-            type=image=="Sliced Button/Button Object Active" and "Sliced" or "Simple"}}}}
+        },children={{tag="Image",attributes={id=id.."Image",image=image}}}}
     end
+
+    -- Left to right:  <  [100%]  >  [Cards/All]
+    local scopeX=-1.10
+    local upX=scopeX-ui.scopeSpacing
+    local percentX=upX-ui.arrowSpacing
+    local downX=percentX-ui.arrowSpacing
     local setting=playAreaScaleSettings(seat)
     local items={
-        imageButton(prefix.."OverkillDown","playAreaScaleDown","Overkill Down",5.7,90),
+        imageButton(prefix.."OverkillDown","playAreaScaleDown","Overkill Down",
+            downX,ui.arrowWidth,ui.arrowHeight,ui.arrowScale),
         {tag="Image",attributes={id=prefix.."PercentPanel",image="Overkill Text",
-            height=90,width=115,position=uiPosition(4.25),
-            rotation="0 0 180",scale="0.15 0.15"},
+            height=ui.boxHeight,width=ui.boxWidth,position=uiPosition(percentX),
+            rotation="0 0 180",scale=uiScale(ui.percentScale)},
             children={{tag="Text",attributes={id=prefix.."PercentText",
                 text=tostring(setting.step*5).."%",font="Fonts/MKCardText",
-                fontSize=55,fontStyle="Bold",color="rgb(0,0,0)",alignment="MiddleCenter"}}}},
-        imageButton(prefix.."OverkillUp","playAreaScaleUp","Overkill Up",2.8,90),
-        imageButton(prefix.."Scope","playAreaScaleScope",
-            "Sliced Button/Button Object Active",1.1,145)
+                fontSize=ui.percentFontSize,fontStyle="Bold",
+                color="rgb(0,0,0)",alignment="MiddleCenter"}}}},
+        imageButton(prefix.."OverkillUp","playAreaScaleUp","Overkill Up",
+            upX,ui.arrowWidth,ui.arrowHeight,ui.arrowScale),
+        imageButton(prefix.."Scope","playAreaScaleScope","Overkill Text",
+            scopeX,ui.boxWidth,ui.boxHeight,ui.scopeScale)
     }
     items[4].children[#items[4].children+1]={tag="Text",attributes={
         id=prefix.."ScopeText",text=setting.scope,font="Fonts/MKCardText",
-        fontSize=50,fontStyle="Normal",color="rgb(0,0,0)",alignment="MiddleCenter"
+        fontSize=ui.scopeFontSize,fontStyle="Normal",
+        color="rgb(0,0,0)",alignment="MiddleCenter",
+        resizeTextForBestFit="true",resizeTextMinSize=26,
+        resizeTextMaxSize=ui.scopeFontSize
     }}
 
-    -- Keep any other board-owned UI intact.
+    -- Preserve unrelated mat UI.
     for _,node in ipairs(items) do xml[#xml+1]=node end
     board.UI.setXmlTable(xml)
 end
-
 function refreshPlayAreaScaleControls()
     if gStates==nil or turnOrder==nil then return end
     for seat,boardGUID in ipairs(playerBoard) do
