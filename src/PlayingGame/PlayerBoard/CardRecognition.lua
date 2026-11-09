@@ -512,6 +512,25 @@ local function combatEnemyAttacks(entry)
     return attacks
 end
 
+-- Used by Battle Hardened's per-Attack selector. A summoner's separately
+-- drawn enemy attacks retain their own owner/slot keys.
+local function combatHardenedAttackOptions(targetGUID)
+    local data=targetGUID~=nil and combatEnemyData(targetGUID) or nil
+    if data==nil then return {} end
+    local perks=gStates~=nil and gStates.monsterPerks~=nil
+        and gStates.monsterPerks[targetGUID] or nil
+    local entry={guid=targetGUID,data=data,perks=perks,
+        summoned=data.monsters~=nil and combatSummonedFor(targetGUID) or nil}
+    local options={}
+    for _,attack in ipairs(combatEnemyAttacks(entry)) do
+        if attack.owner~=nil and not attack.pending then
+            options[#options+1]={key=attack.owner..":"..tostring(attack.slot),
+                label=attack.label.." "..tostring(attack.value)}
+        end
+    end
+    return options
+end
+
 -- Offence abilities shown for a summoner are the ones carried by its summoned tokens.
 local function combatEnemyOffenceTraits(entry)
     if entry.removeAbilities and entry.data.monsters==nil then return "None" end
@@ -1180,7 +1199,7 @@ local function combatUnitResists(unit,attackKey)
 end
 
 -- items: {key,type,damage,poison,paralyse,assassination} in resolution order; targetsOf(key) lists the Unit GUIDs the player chose.
-local function combatDamageResolve(items,units,heroArmour,targetsOf)
+local function combatDamageResolve(items,units,heroArmour,targetsOf,mitigation)
     local used,results={},{}
     -- Reserve a Unit required to receive its own protected enemy's damage first.
     -- An earlier, unrelated enemy must not consume that Unit before its forced assignment.
@@ -1215,6 +1234,24 @@ local function combatDamageResolve(items,units,heroArmour,targetsOf)
         if not item.assassination and item.firstDamageUnit~=nil then assign(item.firstDamageUnit,true) end
         for _,guid in ipairs(item.assassination and {} or targetsOf(item.key)) do
             if guid~=item.firstDamageUnit then assign(guid,false) end
+        end
+        if remaining>0 then
+            -- Battle Hardened prevents damage to the Hero, not attack points
+            -- or Unit damage. Brutal has already doubled item.damage.
+            -- One use applies to one printed Attack, even on a multi-attack enemy.
+            local sameEnemy=mitigation~=nil and (item.owner==mitigation.owner
+                or (gStates~=nil and gStates.attackedMonsters~=nil
+                    and gStates.attackedMonsters[item.owner]~=nil
+                    and gStates.attackedMonsters[item.owner][3]=="summoned"
+                    and gStates.attackedMonsters[item.owner][4]==mitigation.owner))
+            if sameEnemy and not mitigation.used
+                and (mitigation.attackKey==nil or mitigation.attackKey==item.key) then
+                local ignored=item.type=="P" and mitigation.physical or mitigation.nonphysical
+                result.prevented=math.min(remaining,ignored)
+                remaining=remaining-result.prevented
+                mitigation.used=true
+                mitigation.appliedKey=item.key
+            end
         end
         if remaining>0 then
             result.heroDamage=remaining
@@ -1255,6 +1292,9 @@ local function combatDamageNotes(item,result)
         distribution=distribution.." Poison ("..tostring(result.discard)..")"
     end
     local notes={distribution}
+    if (result.prevented or 0)>0 then
+        notes[#notes+1]="Battle Hardened: -"..tostring(result.prevented).." Hero damage"
+    end
     if #resisted>0 then notes[#notes+1]="Resisted (no Wound): "..table.concat(resisted,", ") end
     if #destroyed>0 then notes[#notes+1]="Destroyed (Paralyse): "..table.concat(destroyed,", ") end
     if #forced>0 then notes[#notes+1]="Must take damage first: "..table.concat(forced,", ") end
@@ -2001,7 +2041,32 @@ local function combatAssignmentRefreshRows(entries,sources)
         end
     end
     attackAssignmentsDamageSync(damageSpec)
-    local damageResults=combatDamageResolve(damageItems,damageUnits,combatHeroArmour(nativeCommandCount),attackAssignmentsDamageTargetsOf)
+    local hardeningRecord=seatScan~=nil and seatScan.cards["0688d8"] or nil
+    local hardenedTarget=hardeningRecord~=nil and hardeningRecord.enemyGUID or nil
+    local mitigation=nil
+    if hardenedTarget~=nil then
+        local selected=gStates~=nil and gStates.battleHardenedAttackKey or nil
+        local available={}
+        for _,item in ipairs(damageItems) do
+            if item.owner==hardenedTarget
+                or (gStates~=nil and gStates.attackedMonsters~=nil
+                    and gStates.attackedMonsters[item.owner]~=nil
+                    and gStates.attackedMonsters[item.owner][3]=="summoned"
+                    and gStates.attackedMonsters[item.owner][4]==hardenedTarget) then
+                available[item.key]=true
+            end
+        end
+        -- An attack that was fully Blocked cannot consume Battle Hardened.
+        if selected~=nil and not available[selected] then selected=nil end
+        local rule=skillResourceDefinitions["0688d8"]
+        local spec=rule~=nil and rule.damageMitigation or nil
+        if spec~=nil then
+            mitigation={owner=hardenedTarget,attackKey=selected,
+                physical=spec.physical or 2,nonphysical=spec.nonphysical or 1}
+        end
+    end
+    local damageResults=combatDamageResolve(damageItems,damageUnits,
+        combatHeroArmour(nativeCommandCount),attackAssignmentsDamageTargetsOf,mitigation)
 
     -- Damage is earlier than Attack. Do not invalidate Ranged/Siege kills or
     -- Blocks: only suppress remaining Unit attacks after *actual* wounds.
@@ -2551,6 +2616,8 @@ end
 
 function resourceCardsCombatAssignSource(sourceGUID,enemyGUID)
     if not resourceCardsCombatTargetAcceptsSource(sourceGUID,enemyGUID) then return end
+    if sourceGUID=="0688d8" and combatAssignmentState.targets[sourceGUID]~=enemyGUID
+        and gStates~=nil then gStates.battleHardenedAttackKey=nil end
     combatAssignmentState.targets[sourceGUID]=enemyGUID
     combatAssignmentState.explicit[sourceGUID]=true
     resourceCardsRefreshCombatEnemies()
@@ -6061,6 +6128,30 @@ local function renderSeat(seatPos,quietUnitChoice)
             end
         end
     end
+    -- Battle Hardened protects the Hero from one selected enemy attack,
+    -- rather than reducing the enemy's printed Attack or Block requirement.
+    -- Unlike Curse it only activates after the player targets an enemy.
+    for _,skill in ipairs(skills) do
+        local rule=skillResourceDefinitions[skill.guid]
+        if rule~=nil and rule.damageMitigation~=nil then
+            local record=ensureSkillRecord(skill)
+            local targetGUID=combatAssignmentState.targets[skill.guid]
+            if targetGUID==nil then
+                for guid in pairs(attackAssignmentsTargetGUIDs(skill.guid)) do
+                    if combatMonsters[guid]~=nil then targetGUID=guid break end
+                end
+            end
+            local target=targetGUID~=nil and combatMonsters[targetGUID] or nil
+            if target~=nil and target.is_face_down~=true then
+                record.enemyGUID=targetGUID
+                record.links[#record.links+1]=targetGUID
+                record.status="purple"
+                record.complete=true
+                record.enemyEffectTargetKeys={skill.guid}
+                record.enemyEffectTargetGUIDs={[skill.guid]=targetGUID}
+            end
+        end
+    end
     -- Deadly Aim adds to one physically linked card's actual Attack element,
     -- never to Units or a guessed attack phase.
     for _,skill in ipairs(skills) do
@@ -6601,6 +6692,12 @@ local function renderSeat(seatPos,quietUnitChoice)
             -- A used Skill leaves play at end of turn; do not allow the
             -- previous turn's Block link to be silently reused next turn.
             local rule=skillResourceDefinitions[guid]
+            if rule~=nil and rule.damageMitigation~=nil and gStates~=nil then
+                local obj=getObjectFromGUID(guid)
+                if obj==nil or (obj.held_by_color==nil and not obj.isSmoothMoving()) then
+                    gStates.battleHardenedAttackKey=nil
+                end
+            end
             if rule~=nil and rule.blockSourceBoost~=nil
                 and attackAssignmentsForgetBlockLink~=nil then
                 local obj=getObjectFromGUID(guid)
