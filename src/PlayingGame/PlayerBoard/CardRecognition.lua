@@ -1878,12 +1878,19 @@ local function combatAssignmentRefreshRows(entries,sources)
             end
         end
     end
+    local effectOnly={}
+    local seat=combatAssignmentActiveSeat()
+    local currentScan=seat~=nil and resourceCardScanBySeat[seat] or nil
+    for _,record in pairs(currentScan~=nil and currentScan.cards or {}) do
+        for _,key in ipairs(record.enemyEffectTargetKeys or {}) do effectOnly[key]=true end
+    end
     for key in pairs(combatAssignmentState.targets) do
-        local active=false
+        local active=effectOnly[key]==true
         for _,source in ipairs(sources) do
             if source.key==key then active=true break end
         end
-        -- A card lifted to rearrange the play area keeps its lock while its arrow remains.
+        -- Enemy-effect Skills and Units are also real target sources even
+        -- when they generate no numeric Attack or Block.
         if not active and not combatSourceKeepsLock(key) then
             combatAssignmentState.targets[key]=nil
             combatAssignmentState.explicit[key]=nil
@@ -6164,6 +6171,10 @@ local function renderSeat(seatPos,quietUnitChoice)
         local rule=skillResourceDefinitions[skill.guid]
         if rule~=nil and rule.damageMitigation~=nil then
             local record=ensureSkillRecord(skill)
+            -- Advertise the effect-only source even before the first target
+            -- click. Otherwise an immediate calculator refresh prunes its new
+            -- arrow before the pending Skill scan can apply the mitigation.
+            record.enemyEffectTargetKeys={skill.guid}
             local targetGUID=combatAssignmentState.targets[skill.guid]
             if targetGUID==nil then
                 for guid in pairs(attackAssignmentsTargetGUIDs(skill.guid)) do
