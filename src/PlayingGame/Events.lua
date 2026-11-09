@@ -457,7 +457,8 @@ function onSave()
 		local data_to_save={
 			turnOrder=turnOrder,
 			gStates=gStates,
-			rollerDice=rollerOnSave()}
+			rollerDice=rollerOnSave(),
+			coralDrawPending=coralDrawChoiceSaveState()}
 		saved_data=JSON.encode(data_to_save)
 		return saved_data
 	end)
