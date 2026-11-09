@@ -157,11 +157,9 @@ local combatAssignmentSlotSources={}
 local combatAssignmentRowTargets={}
 local combatEnemyPage=1
 local combatAssignmentRowIndices={}
-local combatExpandedResults={}
 local combatReductionAttackChoice={}
 local combatReductionActiveSource={}
 local combatAttackChoiceByRow={}
-combatConfig.resultRowCache={}
 combatConfig.slotSelection={}
 combatConfig.panelHeight=0
 combatConfig.shutdownClean=false
@@ -1220,93 +1218,41 @@ local function combatDamageResolve(items,units,heroArmour,targetsOf)
     return results
 end
 
-local function combatWoundsText(count)
-    return tostring(count)..(count==1 and " Wound" or " Wounds")
-end
-
--- Short notes under an attack's line: what each chosen Unit took and what is left for the Hero.
+-- Report each source's wound allocation immediately beneath its Block/Damage line.
 local function combatDamageNotes(item,result)
-    local notes={}
-    for _,entry in ipairs(result.units) do
-        local text
-        if entry.destroyed then text="Destroyed (Paralyse)"
-        elseif not entry.wounded then text="resisted, no Wound"
-        elseif entry.wounds>1 then text="Wounded x"..tostring(entry.wounds)
-        else text="Wounded"..(entry.resisted and " (resisted)" or "") end
-        notes[#notes+1]="> "..entry.unit.name..(entry.forced and " (must take damage first)" or "")..": "..text
+    local wounds,resisted,destroyed,first={},{},{},{}
+    for _,entry in ipairs(result.units or {}) do
+        local name=entry.unit.name
+        if entry.wounded then
+            local label=name..((entry.wounds or 1)>1 and (" ("..tostring(entry.wounds)..")") or "")
+            if entry.resisted then label=label.." (resisted)" end
+            wounds[#wounds+1]=label
+        else
+            resisted[#resisted+1]=name
+        end
+        if entry.destroyed then destroyed[#destroyed+1]=name end
+        if entry.forced then first[#first+1]=name end
     end
-    if item.assassination then notes[#notes+1]="> Assassination: Hero only" end
-    if result.heroWounds>0 or result.discard>0 or result.paralyse then
-        local hero=">Hero: "..combatWoundsText(result.heroWounds)
-        if result.discard>0 then hero=hero.." ("..tostring(result.discard).." Poison)" end
-        if result.paralyse then hero=hero..", discard hand" end
-        notes[#notes+1]=hero
-    end
+    if result.heroWounds>0 then wounds[#wounds+1]="Hero ("..tostring(result.heroWounds)..")" end
+    local distribution="Wounds: "..(#wounds>0 and table.concat(wounds,", ") or "None")
+    if result.discard>0 then distribution=distribution.." Poison ("..tostring(result.discard)..")" end
+    local notes={distribution}
+    if #resisted>0 then notes[#notes+1]="Resisted (no Wound): "..table.concat(resisted,", ") end
+    if #destroyed>0 then notes[#notes+1]="Destroyed (Paralyse): "..table.concat(destroyed,", ") end
+    if #first>0 then notes[#notes+1]="Must take damage first: "..table.concat(first,", ") end
+    if item.assassination then notes[#notes+1]="Assassination: Hero only" end
+    if result.paralyse then notes[#notes+1]="Paralyse: discard hand" end
     return notes
 end
 
--- Condense the Result column without losing the detailed wound assignment.
--- Click any result marked [+] to expand it; the tooltip always shows the full text.
-local function combatCompactResultLines(fullLines,damageItems,damageResults)
-    local compact={}
-    for _,line in ipairs(fullLines) do
-        -- Detailed Unit/Hero lines are replaced with a short wound summary.
-        if line:sub(1,2)~="> " and line:sub(1,6)~=">Hero:" then
-            compact[#compact+1]=line:gsub("(%d+)%/(%d+) Blocked","Blk %1/%2")
-                :gsub("Not blocked, ","Unblocked: ")
-                :gsub(" Block, "," blk, ")
-                :gsub(" Damage"," dmg")
-                :gsub("^Attack ","Atk ")
-                :gsub("^Ranged ","Rng ")
-        end
+-- Allow for long wound distributions wrapping in the fixed-width Result column.
+local function combatResultVisibleLineCount(lines)
+    local count=0
+    for _,line in ipairs(lines) do
+        local plain=line:gsub("<[^>]*>","")
+        count=count+math.max(1,math.ceil(#plain/38))
     end
-    local heroWounds,discardWounds,unitWounds,unitDestroyed,unitResisted=0,0,0,0,0
-    local paralyse,assassination=false,false
-    for _,item in pairs(damageItems or {}) do
-        local result=damageResults[item.key]
-        if item.assassination then assassination=true end
-        if result~=nil then
-            heroWounds=heroWounds+(result.heroWounds or 0)
-            discardWounds=discardWounds+(result.discard or 0)
-            if result.paralyse then paralyse=true end
-            for _,unit in ipairs(result.units or {}) do
-                if unit.destroyed then unitDestroyed=unitDestroyed+1
-                elseif unit.wounded then unitWounds=unitWounds+math.max(1,unit.wounds or 1)
-                elseif unit.resisted then unitResisted=unitResisted+1 end
-            end
-        end
-    end
-    local notes={}
-    if heroWounds>0 then
-        notes[#notes+1]=">Hero: "..combatWoundsText(heroWounds)
-            ..(discardWounds>0 and " ("..tostring(discardWounds).." Poison)" or "")
-    end
-    if unitWounds>0 then notes[#notes+1]="Unit "..tostring(unitWounds).."W" end
-    if unitDestroyed>0 then notes[#notes+1]=tostring(unitDestroyed).." unit destroyed" end
-    if unitResisted>0 then notes[#notes+1]=tostring(unitResisted).." unit resisted" end
-    if discardWounds>0 and heroWounds==0 then
-        notes[#notes+1]=tostring(discardWounds).." Poison"
-    end
-    if paralyse then notes[#notes+1]="Paralyse: discard hand" end
-    if assassination then notes[#notes+1]="Assassination" end
-    if #notes>0 then
-        -- 38 characters fits comfortably in the Result column at 12 pt.
-        -- Show wounds before the final group Attack summary if present.
-        local insertAt=#compact+1
-        if #compact>0 and compact[#compact]:find("^Atk ") then insertAt=#compact end
-        local line=""
-        for _,note in ipairs(notes) do
-            if line~="" and #line+#note+2>38 then
-                table.insert(compact,insertAt,line)
-                insertAt=insertAt+1
-                line=note
-            else
-                line=line=="" and note or (line..", "..note)
-            end
-        end
-        if line~="" then table.insert(compact,insertAt,line) end
-    end
-    return compact
+    return count
 end
 
 -- A group is attacked as one: fortification and resistance of any member apply to all of
@@ -1611,7 +1557,6 @@ combatConfig.selfWoundingUnitChoices=function(seat,groups)
 end
 
 local function combatAssignmentRefreshRows(entries,sources)
-    combatConfig.resultRowCache={}
     combatConfig.slotSelection={}
     local rowByGUID={}
     local totalRowHeight=0
@@ -2236,18 +2181,16 @@ local function combatAssignmentRefreshRows(entries,sources)
                         .." Defeated",COMBAT_GREEN)
                 end
             else
+                -- Show the Block status first and the wound distribution directly below.
                 for lineIndex,line in ipairs(rowBlock[index].lines) do
                     local item=rowBlock[index].damageItems[lineIndex]
-                    if item~=nil then
-                        local result=damageResults[item.key]
-                        line=rowBlock[index].unblocked[lineIndex].prefix..combatRich(tostring(item.damage).." Damage",COMBAT_RED)
-                    end
                     lines[#lines+1]=line
-                end
-                for lineIndex in ipairs(rowBlock[index].lines) do
-                    local item=rowBlock[index].damageItems[lineIndex]
                     if item~=nil then
-                        for _,note in ipairs(combatDamageNotes(item,damageResults[item.key])) do lines[#lines+1]=note end
+                        for _,note in ipairs(combatDamageNotes(item,damageResults[item.key])) do
+                            lines[#lines+1]=note
+                        end
+                    elseif line:find("Blocked",1,true) then
+                        lines[#lines+1]="Wounds: None"
                     end
                 end
                 grandDamage=grandDamage+rowBlock[index].damage
@@ -2257,26 +2200,10 @@ local function combatAssignmentRefreshRows(entries,sources)
                     if line~=nil then lines[#lines+1]=line end
                 end
             end
-            local compactLines=combatCompactResultLines(lines,rowBlock[index].damageItems,damageResults)
-            local detailText=table.concat(lines,"\n")
-            local compactText=table.concat(compactLines,"\n")
-            local hasDetails=detailText~=compactText
-            local expanded=hasDetails and combatExpandedResults[entry.guid]==true
-            local displayText=expanded and detailText or compactText
-            if hasDetails then displayText=displayText..(expanded and " [-]" or " [+]") end
-            local displayLines=expanded and #lines or #compactLines
-            local minHeight=rowHeight
-            rowHeight=math.max(rowHeight,math.max(displayLines,entry.attackCount or 1)*15+4)
-            -- Only the Result text and its row/panel heights change when expanded.
-            combatConfig.resultRowCache[row]={guid=entry.guid,detailText=detailText,
-                compactText=compactText,hasDetails=hasDetails,detailLines=#lines,
-                compactLines=#compactLines,minHeight=minHeight,rowHeight=rowHeight,
-                attackCount=entry.attackCount or 1}
+            rowHeight=math.max(rowHeight,
+                math.max(combatResultVisibleLineCount(lines),entry.attackCount or 1)*15+4)
             local resultID="CombatEnemyRow"..row.."Result"
-            combatPanelSetAttribute(resultID,"text",displayText)
-            combatPanelSetAttribute("CombatEnemyResultToggle"..row,"tooltip",
-                (hasDetails and (expanded and "Click to collapse details" or "Click for full breakdown")
-                    or "Combat result").."\n"..detailText:gsub("<[^>]*>",""))
+            combatPanelSetAttribute(resultID,"text",table.concat(lines,"\n"))
             combatPanelSetAttribute(resultID,"fontSize","12")
             combatPanelSetAttribute(resultID,"font","Fonts/MKCardText")
             combatPanelSetAttribute(resultID,"color","White")
@@ -2387,7 +2314,6 @@ end
 
 local function combatCalcShutdown()
     combatConfig.shutdownClean=true
-    combatConfig.resultRowCache={}
     combatConfig.slotSelection={}
     combatConfig.panelHeight=0
     combatTrackedSeat=nil
@@ -2404,7 +2330,6 @@ local function combatCalcShutdown()
     combatAssignmentJoined={}
     combatEnemyPage=1
     combatAssignmentRowIndices={}
-    combatExpandedResults={}
     combatBlockResultCache={}
     combatReductionAttackChoice={}
     combatReductionActiveSource={}
@@ -2482,7 +2407,6 @@ local function refreshCombatEnemyPanel(monsters,calculated)
     end)
     if currentSeat~=combatAssignmentState.seat then
         combatAssignmentState={seat=currentSeat,selected=nil,targets={},explicit={}}
-        combatExpandedResults={}
     end
     local sources=combatAssignmentSources(currentSeat)
     local activeSources,activeObjects={},{}
@@ -2536,27 +2460,6 @@ local function refreshCombatEnemyPanel(monsters,calculated)
     end
     combatConfig.panelHeight=combatConfig.panelBaseHeight+rowHeight
     combatPanelSetAttribute("CombatEnemyPanel","height",tostring(combatConfig.panelHeight))
-end
-
--- Result expansion is presentation only. Reuse the existing combat solution,
--- retaining all targeting, Defender, Damage and Wound preview state.
-combatConfig.refreshResultRowOnly=function(row)
-    local cache=combatConfig.resultRowCache[row]
-    if cache==nil or not cache.hasDetails then return false end
-    local expanded=combatExpandedResults[cache.guid]==true
-    local display=expanded and cache.detailText or cache.compactText
-    local rows=expanded and cache.detailLines or cache.compactLines
-    local height=math.max(cache.minHeight,math.max(rows,cache.attackCount)*15+4)
-    combatConfig.panelHeight=combatConfig.panelHeight+height-cache.rowHeight
-    cache.rowHeight=height
-    combatPanelSetAttribute("CombatEnemyRow"..row.."Result","text",
-        display..(expanded and " [-]" or " [+]"))
-    combatPanelSetAttribute("CombatEnemyResultToggle"..row,"tooltip",
-        (expanded and "Click to collapse details" or "Click for full breakdown")
-        .."\n"..cache.detailText:gsub("<[^>]*>",""))
-    combatPanelSetAttribute("CombatEnemyRow"..row,"preferredHeight",tostring(height))
-    combatPanelSetAttribute("CombatEnemyPanel","height",tostring(combatConfig.panelHeight))
-    return true
 end
 
 function resourceCardsRefreshCombatEnemies()
@@ -2614,20 +2517,6 @@ function resourceCardsCombatToggleGroup(row)
     if data~=nil and data.attackOnly then return end
     combatAssignmentJoined[guid]=combatAssignmentJoined[guid]~=true or nil
     resourceCardsRefreshCombatEnemies()
-end
-
-function resourceCardsCombatToggleResult(row)
-    local guid=combatAssignmentRowTargets[row]
-    if guid==nil then return end
-    local cache=combatConfig.resultRowCache[row]
-    if cache==nil or cache.guid~=guid then
-        combatExpandedResults[guid]=not combatExpandedResults[guid]
-        resourceCardsRefreshCombatEnemies()
-        return
-    end
-    if not cache.hasDetails then return end
-    combatExpandedResults[guid]=not combatExpandedResults[guid]
-    combatConfig.refreshResultRowOnly(row)
 end
 
 -- Called when a targeting arrow is removed; the source re-locks to the nearest enemy on refresh.
