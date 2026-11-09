@@ -2671,7 +2671,8 @@ skillResourceDefinitions={
     ["68568b"]={untracked=true},
     ["68f864"]={untracked=true},
     ["6a33c1"]={choices={{key="attack",icon="other",iconOverlay="Atk"},{key="armour",icon="other",iconOverlay="Arm"}},
-        enemyEffect={normal={choice="armour",armourReduce=1}}}, -- Curse; the attack reduction is not computed
+        enemyEffect={normal={{choice="attack",attackReduce=1},
+            {choice="armour",armourReduce=1,armourReduceRangedUnfortifiedOnly=1}}}}, -- Curse: one enemy Attack or Armour -1.
     ["6d7027"]={partial=true},
     ["70c30f"]={normal={block=2},partial=true,coldFireCrystals={"Red","Blue"},swiftDoubleCrystals={"Green","White"}},
     ["725de9"]={untracked=true},
