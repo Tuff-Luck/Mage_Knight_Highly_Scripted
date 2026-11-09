@@ -38,11 +38,12 @@ function playerBoardPlayAreaZoneEnterImmediate(ctx)
 	if obj==nil then return end
 	local seatPos=zoneInfo.seatPos
 	updatePlayAreaObjectState(seatPos,obj,true)
+	playAreaScaleApplyObject(seatPos,obj)
 	--The face-down remove image depends only on play-area membership and face state, not final position.
 	--Apply it on zone entry so it appears while the card is still falling/sliding into place.
 	if obj.type=="Card" and (gameCards[obj.guid]==nil or gameCards[obj.guid].full==nil) then refreshCardRemoveDecal(obj,true) end
 	dayTactic2ExpireIfCardPlayed(seatPos)
-	schedulePlayAreaCardScale(seatPos)
+	schedulePlayAreaScale(seatPos)
 	mainUIUpdate("Object entered into play area")
 end
 
@@ -257,9 +258,7 @@ function playerBoardZoneLeave(ctx)
 			safeWaitFrames("PlayerBoard.Events",function() local card=getObjectFromGUID(cardGUID) if card~=nil and cardInPlayerPlayArea(cardGUID)==false then removeCardRemoveDecal(card) end end, 2)
 		end
 
-		--restore card size, except Unit cards still owned by the overlapping Unit Area layout.
-		if ((gameCards[obj.guid]~=nil and gameCards[obj.guid].full==nil) or obj.getGMNotes()=="Wound")
-			and not (unitLayoutIsUnit(obj) and unitLayoutObjectInAnyUnitArea(obj.guid)) then obj.setScale({1.5,1,1.5}) end
+		-- Manual play-area scaling restores the object's own natural size on departure.
 
 		safeWaitTime("PlayerBoard.Events",function()
 			local live=getObjectFromGUID(objGUID)
@@ -305,7 +304,7 @@ function playerBoardZoneLeave(ctx)
 			local seatPos=turnOrder[a].seatPos
 			if zone.guid==playerPlayAreas[seatPos] then
 				updatePlayAreaObjectState(seatPos, obj, false)
-				schedulePlayAreaCardScale(seatPos)
+				schedulePlayAreaScale(seatPos)
 				if unitLayoutIsCommand(obj) then scheduleUnitLayoutRefreshAfterCommandRelease(seatPos,obj.guid) end
 				mainUIUpdate("Object removed from zone")
 				break
@@ -321,6 +320,7 @@ function playerBoardZoneLeave(ctx)
 	local leftUnitSeat=nil
 	for seatPos=1,4 do if zone.guid==playerUnitAreas[seatPos] then leftUnitArea=true leftUnitSeat=seatPos break end end
 	if leftUnitArea==true then
+		schedulePlayAreaScale(leftUnitSeat)
 		if unitLayoutIsCommand(obj) then scheduleUnitLayoutRefreshAfterCommandRelease(leftUnitSeat,obj.guid) else scheduleUnitLayoutRefresh(leftUnitSeat) end
 		if unitLayoutIsUnit(obj) then
 			local unitGUID=obj.guid

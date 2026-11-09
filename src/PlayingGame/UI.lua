@@ -323,39 +323,6 @@ function refreshOutOfTurnActions(playerAreaCardCount, playerAreaSkillCount, forc
 	return true
 end
 
---Play-area card scaling is driven directly by the play-area zones rather than mainUIUpdate.
---Cards cannot merge into Decks in the play area during normal play, so use the same loose-object counts as the original UI logic.
-local playAreaScaleWait={}
-refreshPlayAreaCardScale=function(seatPos)
-	local zone=seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
-	if zone==nil then return end
-	local objects=zone.getObjects()
-	local playerAreaCards=0
-	local playerAreaObjects=0
-	for _, obj in pairs(objects) do
-		local inUnitArea=unitLayoutObjectInAnyUnitArea(obj.guid)
-		local unitInUnitArea=unitLayoutIsUnit(obj) and inUnitArea
-		if inUnitArea==false then playerAreaObjects=playerAreaObjects+1 end
-		if unitInUnitArea==false and ((gameCards[obj.guid]~=nil and gameCards[obj.guid].full==nil) or (gameCards[obj.guid]~=nil and gStates.bannercard[obj.guid]==nil) or obj.getGMNotes()=="Wound") then playerAreaCards=playerAreaCards+1 end
-	end
-	local targetScale=(playerAreaCards>7 or playerAreaObjects>10) and 1.2 or 1.5
-	for _, obj in pairs(objects) do
-		local unitInUnitArea=unitLayoutIsUnit(obj) and unitLayoutObjectInAnyUnitArea(obj.guid)
-		if unitInUnitArea==false and ((gameCards[obj.guid]~=nil and gameCards[obj.guid].full==nil) or obj.getGMNotes()=="Wound") then
-			local scale=obj.getScale()
-			if math.abs(scale.x-targetScale)>0.01 or math.abs(scale.z-targetScale)>0.01 then obj.setScale({targetScale, 1, targetScale}) end
-		end
-	end
-end
-function schedulePlayAreaCardScale(seatPos)
-	if seatPos==nil then return end
-	if playAreaScaleWait[seatPos]~=nil then Wait.stop(playAreaScaleWait[seatPos]) end
-	playAreaScaleWait[seatPos]=safeWaitTime("UI",function()
-		playAreaScaleWait[seatPos]=nil
-		refreshPlayAreaCardScale(seatPos)
-	end, 0.2)
-end
-
 --Fame and reputation are cached in turnOrder and resynchronised only when their physical shields actually move.
 function refreshPlayerFameFromShield(playerIndex)
 	local player=turnOrder[playerIndex]
@@ -1981,6 +1948,7 @@ function applyColorBarButtons()
             end
 		end
 	end
+	refreshPlayAreaScaleControls()
 end
 
 
@@ -2923,7 +2891,7 @@ function changeMatImage(player, mouseButton, id)
 		local boardGUID=convert[id:sub(1, 6)]
 		safeWaitTime("UI",function()
 			local currentBoard=getObjectFromGUID(boardGUID)
-			if currentBoard~=nil then currentBoard.interactable=false end
+			if currentBoard~=nil then currentBoard.interactable=false refreshPlayAreaScaleControls() end
 		end, 0.2)
 	end
 end

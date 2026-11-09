@@ -422,6 +422,7 @@ function eventsOnLoadRawBase(saved_data, loaded_data)
 		addAvatarButtons()
 		addCityButtons()
 		applyColorBarButtons()
+		for seat=1,4 do schedulePlayAreaScale(seat) end
 		syncMageKnightSeatTeams()
 		refreshPlayerSeatColors()
 		for _, mirrorGUID in pairs(gStates.mirrorSource or {}) do
@@ -1420,7 +1421,11 @@ local function handlePlayerBoardZoneEnter(ctx)
 	if ctx.settledPlayerZoneEntry~=true and zoneInfo~=nil and (zoneInfo.kind=="play" or zoneInfo.kind=="unit" or zoneInfo.kind=="crystal") then
 		--Play-area UI only depends on zone membership, not the object's final transform. Update it as
 		--soon as TTS reports entry; keep position-sensitive player-board effects on the settled path.
-		if zoneInfo.kind=="play" then playerBoardPlayAreaZoneEnterImmediate(ctx) end
+		if zoneInfo.kind=="play" then playerBoardPlayAreaZoneEnterImmediate(ctx)
+		elseif zoneInfo.kind=="unit" then
+			playAreaScaleApplyObject(zoneInfo.seatPos,ctx.obj)
+			schedulePlayAreaScale(zoneInfo.seatPos)
+		end
 		scheduleSettledZoneEntry(ctx,function(liveCtx)
 			liveCtx.settledPlayerZoneEntry=true
 			playerBoardZoneEnterSettled(liveCtx)

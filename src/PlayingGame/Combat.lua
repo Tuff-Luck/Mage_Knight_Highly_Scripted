@@ -393,6 +393,7 @@ local function combatReleaseSummonedEnemy(token)
 	local original=gStates.summonedEnemyScales~=nil and gStates.summonedEnemyScales[token.guid] or nil
 	if original==nil then return false end
 	token.jointTo()
+	playAreaScaleForgetObject(token)
 	token.setScale({original[1],original[2],original[3]})
 	return true
 end
@@ -2861,6 +2862,8 @@ summonMonster=function(player, mouseButton, id)
 				local oldScale=summonedMonster.getScale()
 				gStates.summonedEnemyScales[summonedMonster.guid]={oldScale[1],oldScale[2],oldScale[3]}
 				summonedMonster.setScale({0.70,1.00,0.70})
+				local summonSeat=turnOrder[gStates.turnNumber]~=nil and turnOrder[gStates.turnNumber].seatPos or nil
+				if summonSeat~=nil then playAreaScaleApplyObject(summonSeat,summonedMonster) end
 				-- Hold any existing enemy occupying this slot above the mat during the flight.
 				local seat=turnOrder[gStates.turnNumber]~=nil and turnOrder[gStates.turnNumber].seatPos or nil
 				if seat~=nil then combatSummonLiftOccupants(summonedMonster.guid,id,summonTarget,seat) end
