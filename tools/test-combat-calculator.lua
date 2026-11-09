@@ -1,6 +1,9 @@
 -- Pure calculator regression tests. Run with: lua5.2 tools/test-combat-calculator.lua
 -- The real CardRecognition.lua is loaded; local helpers are discovered through
 -- Lua 5.2's debug upvalues so production math is tested without a TTS runtime.
+-- CardRecognition captures the catalog at load time, just like the bundled mod.
+-- Mutate this table in later tests instead of replacing the captured reference.
+unitResourceDefinitions={}
 dofile("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local function findFunction(root,wanted,seen)
     if type(root)~="function" then return nil end
@@ -352,8 +355,8 @@ check("Paralysis cancels remaining Unit attacks",
 -- Utem Swordsmen wounds itself at the time of its selected ability, not
 -- retroactively after the combat. Block 6 is already Wounded during Damage;
 -- Attack 6 can be used only after surviving Damage unwounded.
-unitResourceDefinitions={swords={
-    {attack=3},{block=3},{attack=6,woundsSelf=true},{block=6,woundsSelf=true}}}
+unitResourceDefinitions.swords={
+    {attack=3},{block=3},{attack=6,woundsSelf=true},{block=6,woundsSelf=true}}
 gStates={unitResourceActivations={swords={seatPos=1,choice=4}}}
 resourceCardScanBySeat[1]={cards={swords={complete=true}}}
 local activeSelfWoundGroup={{rangeDefeated=false,destroyed=false,
@@ -369,7 +372,7 @@ activeSelfWoundGroup[1].rangeDefeated=true
 selfEarly,selfLate=phaseConfig.selfWoundingUnitChoices(1,activeSelfWoundGroup)
 check("a Ranged phase defeat prevents unused Attack 6 from wounding the Unit",
     next(selfEarly)==nil and next(selfLate)==nil)
-unitResourceDefinitions=nil
+unitResourceDefinitions.swords=nil
 resourceCardScanBySeat[1]=nil
 turnOrder={{seatPos=1}}
 gStates={turnNumber=1,attackedMonsters={summoned={nil,nil,"summoned","owner"}},
@@ -464,11 +467,11 @@ trapReminder.is_face_down=false
 -- Illusionists' White-powered ability may only target an effectively
 -- unfortified enemy, including a Fortified target whose fortification has
 -- already been removed by another active effect during this same combat.
-unitResourceDefinitions={illusionist={
+unitResourceDefinitions.illusionist={
     {row=1,influence=4},
     {row=2,key="other",manaCost="White",
         enemyEffect={noAttackUnfortified=true}},
-    {row=3,key="gain"}}}
+    {row=3,key="gain"}}
 monsterPugs.fort={name="Fortified",fortified=true,armour=4}
 monsterPugs.plain={name="Plain",armour=4}
 monsterPugs.wall={name="Walled",armour=4}
@@ -517,7 +520,7 @@ closest=combatEffectNearestEnemy({x=0,z=0},candidateMonsters,
 check("Illusionists prefers the nearer enemy after fortification is removed",
     closest==world.fort)
 resourceCardScanBySeat[1].enemyEffects.fort=nil
-unitResourceDefinitions=nil
+unitResourceDefinitions.illusionist=nil
 
 -- Leader planning copies borrow real leader combat data, but are not real kills.
 monsterPugs.realLeader={name="Dark Crusader",armour=7,attack={P={6}},pugType="leader"}
