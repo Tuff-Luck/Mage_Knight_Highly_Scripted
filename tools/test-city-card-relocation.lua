@@ -214,6 +214,11 @@ gStates.mapShapeKey=nil
 -- Local physics broadphase must find fanned registered/manual defenders without
 -- asking TTS for every object on a crowded table. It must also ignore nearby
 -- map occupants and unsettled arrivals, as the full-table path already does.
+-- The previous movement test deliberately left TTS smooth-moves pending.
+-- Settle those pieces before starting a fresh physics-broadphase scenario.
+-- A moving token must not be mistaken for a stationary manual defender.
+defenderA.smooth=false
+manualA.smooth=false
 local outlyingDefender=obj("outlyingDefender",-51.3,1.5,0)
 monsterPugs.outlyingDefender={pugType="red"}
 gStates.cityMonsterQty.modelA.outlyingDefender="alive"
