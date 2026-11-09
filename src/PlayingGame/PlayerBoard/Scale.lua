@@ -266,13 +266,13 @@ local function playAreaScaleChange(player,mouseButton,id,delta,scopeToggle)
 end
 
 function playAreaScaleDown(player,mouseButton,id)
-    return safeCallback("playAreaScaleDown",function() playAreaScaleChange(player,mouseButton,id,-1,false) end)
+    return playAreaScaleChange(player,mouseButton,id,-1,false)
 end
 function playAreaScaleUp(player,mouseButton,id)
-    return safeCallback("playAreaScaleUp",function() playAreaScaleChange(player,mouseButton,id,1,false) end)
+    return playAreaScaleChange(player,mouseButton,id,1,false)
 end
 function playAreaScaleScope(player,mouseButton,id)
-    return safeCallback("playAreaScaleScope",function() playAreaScaleChange(player,mouseButton,id,0,true) end)
+    return playAreaScaleChange(player,mouseButton,id,0,true)
 end
 -- Kept only as a harmless compatibility callback for classic buttons from an old save.
 function playAreaScaleLabel() end
@@ -366,3 +366,11 @@ function refreshPlayAreaScaleControls()
         if board~=nil and board.isDestroyed()~=true then playAreaScaleBoardButtons(board,seat) end
     end
 end
+
+-- Register the Object UI entry points with the automatic error-reporting guard.
+-- The startup callback audit requires this registration, not just a safeCallback inside each function.
+publishPublicUICallbacks({
+    playAreaScaleDown=playAreaScaleDown,
+    playAreaScaleUp=playAreaScaleUp,
+    playAreaScaleScope=playAreaScaleScope
+})
