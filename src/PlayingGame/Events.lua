@@ -922,8 +922,15 @@ function __onObjectDestroy_raw(destroyedObj)
 	end
 
 	--Check if a shield has been removed
-	local destroyedPursuit=volkarePursuitShieldRegistered(destroyedObj)
-	if destroyedPursuit==true and destroyedGuid~=nil and gStates.volkarePursuitShields~=nil then gStates.volkarePursuitShields[destroyedGuid]=nil end
+	-- Pursuit identification reads GM Notes, which may already be inaccessible.
+	-- The saved GUID registry can still be cleared without invoking object methods.
+	local pursuitRecord=destroyedGuid~=nil and gStates.volkarePursuitShields~=nil
+		and gStates.volkarePursuitShields[destroyedGuid] or nil
+	local pursuitOK,destroyedPursuit=pcall(volkarePursuitShieldRegistered,destroyedObj)
+	if destroyedGuid~=nil and gStates.volkarePursuitShields~=nil
+		and (pursuitRecord~=nil or (pursuitOK and destroyedPursuit==true)) then
+		gStates.volkarePursuitShields[destroyedGuid]=nil
+	end
 	-- TTS may deliver an already-expired object. The GUID above remains usable, but
 	-- method calls on the destroyed object may fail even when it is non-nil.
 	local metadataOK,needsShieldCleanup=pcall(function()

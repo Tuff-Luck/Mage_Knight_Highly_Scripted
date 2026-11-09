@@ -67,7 +67,9 @@ attackAssignmentsClearForObject=function() end
 runtimeMapContainsGUID=function() return false end
 mapTokenNeedsArrangement=function() return false end
 apocalypseQuestScoreMarkerPlayerIndex=function() return nil end
-volkarePursuitShieldRegistered=function() return false end
+volkarePursuitShieldRegistered=function(obj)
+    return obj.getGMNotes()=="Volkare Pursuit"
+end
 puppetMasterPickup={}
 puppetMasterUndoFreshClaim=function() return true end
 avatarButtonXmlState={}
@@ -82,7 +84,9 @@ local expired={
     getName=function() error("destroyed TTS userdata") end,
     getGMNotes=function() error("destroyed TTS userdata") end
 }
+gStates.volkarePursuitShields[expired.guid]=true
 assert(pcall(__onObjectDestroy_raw,expired),"Destroyed-object cleanup accessed expired methods")
+equal(gStates.volkarePursuitShields[expired.guid],nil,"Expired Pursuit shield registration was not cleared")
 
 -- Event loops waiting for physics must terminate or take their bounded fallback.
 local pending
