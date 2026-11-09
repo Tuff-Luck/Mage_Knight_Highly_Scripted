@@ -3,7 +3,7 @@ name: Convert rule PDFs to AI-readable text
 on:
   push:
     branches:
-      - Play-Area-Smarts-WIP
+      - Main-WIP
     paths:
       - '.github/workflows/convert-rule-pdfs.yml'
       - 'tools/convert-rule-pdfs.py'

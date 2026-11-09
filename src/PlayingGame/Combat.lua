@@ -2828,11 +2828,27 @@ function combatSummonReleaseOccupants(summonGUID)
 end
 
 --summon monsters to the left of a summoner.
-summonMonster=function(player, mouseButton, id)
+summonMonster=function(player, mouseButton, id, rewindReady)
 	if mouseButton~="-1" then return end
 	local summoner=getObjectFromGUID(id)
 	local monsterData=monsterPugs[id]
 	if summoner==nil or monsterData==nil or monsterData.monsters==nil then return end
+	local rewindOwner="Summon "..tostring(id)
+	if rewindReady~=true then
+		if rewindTransactionOwnerActive(rewindOwner)==true then return end
+		-- Store a safe rewind point before drawing, resizing, moving or lifting any token.
+		rewindTransactionStart(function() summonMonster(player,mouseButton,id,true) end,rewindOwner)
+		return
+	end
+	local remaining=#monsterData.monsters
+	if remaining==0 then rewindTransactionFinish(rewindOwner) return end
+	local completed={}
+	local function finishSummon(order)
+		if completed[order]==true then return end
+		completed[order]=true
+		remaining=remaining-1
+		if remaining==0 then rewindTransactionFinish(rewindOwner) end
+	end
 	broadcastToAll("{en}Monster Summoned some support{it}Il Mostro ha evocato rinforzi{ru}Враг призвал подмогу{zh-tw}怪物召喚了支援{zh-cn}怪物叫了些同谋{ko}몬스터가 소환되었습니다{es}Monster convocó algo de apoyo{fr}Monstre a invoqué du soutien{pt-br}Monstro Invocou algum suporte.{de}Monster beschwört etwas Unterstützung",positionToColor(gStates.turnNumber))
 	local location=summoner.getPosition()
 	local summonerFaction=monsterEffectiveFaction(id)
@@ -2844,7 +2860,7 @@ summonMonster=function(player, mouseButton, id)
 		safeWaitFrames("Combat",function()
 			withTokenPoolReady(preferredPile,function()
 				-- An abandoned fight must not produce a late summon after its cleanup has started.
-				if gStates.preEndTurn==true or gStates.summonStates[id]~="SummonDone" then return end
+				if gStates.preEndTurn==true or gStates.summonStates[id]~="SummonDone" then finishSummon(order) return end
 				-- First summon 1.6 left; each subsequent summon adds another 1.5.
 				-- Aim at mat height so the joint forms with the token sitting flat.
 				local summonTarget={location[1]-1.6-(1.5*(order-1)),1.08,location[3]}
@@ -2855,6 +2871,7 @@ summonMonster=function(player, mouseButton, id)
 				local spawnPos={drawPos[1],drawPos[2]+1.2,drawPos[3]}
 				local summonedMonster,summonPileGUID=takeFactionMonster(monsterColor,summonerFaction,{position=spawnPos,rotation={0.00,180.00,0.00},smooth=false})
 				if summonedMonster==nil then
+					finishSummon(order)
 					broadcastToAll("{en}Sorry, there are no tokens left to deploy{it}Non ci sono più segnalini da posizionare{ru}Извините, жетонов для размещения больше не осталось.{zh-tw}抱歉，沒有可部署的標記了。{zh-cn}抱歉，没有token可供部署{ko}여분의 토큰이 없습니다{es}Lo sentimos, no quedan tokens para implementar{fr}Désolé, il n'y a plus de jetons à déployer{pt-br}Desculpe, Não tem Fichas sobrando para distribuir{de}Entschuldigung, es sind keine Marker mehr zum Platzieren übrig.",warningColor)
 					return
 				end
@@ -2897,7 +2914,10 @@ summonMonster=function(player, mouseButton, id)
 							end
 						end
 						-- Give the joint one frame to establish before dropping the displaced tokens.
-						safeWaitFrames("Combat",function() combatSummonReleaseOccupants(summonedGUID) end,1)
+						safeWaitFrames("Combat",function()
+							combatSummonReleaseOccupants(summonedGUID)
+							finishSummon(order)
+						end,1)
 					end
 					safeWaitCondition("Combat",settleSummon,function()
 						local child=getObjectFromGUID(summonedGUID)

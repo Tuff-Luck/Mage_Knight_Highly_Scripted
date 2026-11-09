@@ -492,11 +492,25 @@ end
 --inside mapTokenSettleArrival while its generation is still pending.
 function mapTokenAfterArrivalComplete(guid,callback)
 	if guid==nil or callback==nil then return end
+	local completed=false
+	local function finish(obj)
+		if completed then return end
+		completed=true
+		callback(obj)
+	end
 	safeWaitCondition("MapTokens.mapTokenArrivalComplete",function()
-		callback(getObjectFromGUID(guid))
+		finish(getObjectFromGUID(guid))
 	end,function()
 		local obj=getObjectFromGUID(guid)
 		return obj==nil or (mapTokenArrivalPending[guid]==nil and obj.isSmoothMoving()==false and obj.resting==true)
+	end,15,function()
+		local obj=getObjectFromGUID(guid)
+		if obj==nil or (mapTokenArrivalPending[guid]==nil and obj.isSmoothMoving()==false) then
+			-- An otherwise completed arrival can remain non-resting due to small physics jitter.
+			finish(obj)
+		else
+			log("Map token post-arrival callback skipped: token still travelling ["..tostring(guid).."]")
+		end
 	end)
 end
 

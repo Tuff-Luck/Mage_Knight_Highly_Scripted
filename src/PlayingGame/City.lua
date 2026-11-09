@@ -1743,7 +1743,7 @@ function refreshCityDefeatState()
 				local deployIndex=gStates.cityDeployOrder~=nil and gStates.cityDeployOrder[cityGUID] or nil
 				local cityLevel=deployIndex~=nil and gStates.cityLevels~=nil and gStates.cityLevels[deployIndex] or nil
 				local friendly=gStates.friendlyCity~=nil and gStates.friendlyCity[cityGUID]==true
-				if cityLevel~=0 and friendly==false then
+				if type(cityLevel)=="number" and cityLevel>0 and friendly==false then
 					gStates.defeatedCities.amount=gStates.defeatedCities.amount+1
 					---@diagnostic disable-next-line: assign-type-mismatch --mixed table: amount is integer, city GUID entries are booleans
 					gStates.defeatedCities[cityGUID]=true

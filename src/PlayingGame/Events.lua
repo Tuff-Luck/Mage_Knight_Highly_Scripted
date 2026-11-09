@@ -924,8 +924,18 @@ function __onObjectDestroy_raw(destroyedObj)
 	--Check if a shield has been removed
 	local destroyedPursuit=volkarePursuitShieldRegistered(destroyedObj)
 	if destroyedPursuit==true and destroyedGuid~=nil and gStates.volkarePursuitShields~=nil then gStates.volkarePursuitShields[destroyedGuid]=nil end
-	if destroyedObj.getName()~=nil and (isShieldObject(destroyedObj) or destroyedObj.getGMNotes()=="Burned Monastery" or scriptObjectId(destroyedObj)=="Secret Dungeon" or scriptObjectId(destroyedObj)=="Secret Tomb") then
-		shieldLocation(destroyedObj, {guid=mapArea}, "remove")
+	-- TTS may deliver an already-expired object. The GUID above remains usable, but
+	-- method calls on the destroyed object may fail even when it is non-nil.
+	local metadataOK,needsShieldCleanup=pcall(function()
+		local objectID=scriptObjectId(destroyedObj)
+		return isShieldObject(destroyedObj) or destroyedObj.getGMNotes()=="Burned Monastery"
+			or objectID=="Secret Dungeon" or objectID=="Secret Tomb"
+	end)
+	if metadataOK and needsShieldCleanup==true then
+		local cleanupOK,reason=pcall(shieldLocation,destroyedObj,{guid=mapArea},"remove")
+		if not cleanupOK then
+			log("Destroyed shield/site cleanup skipped ["..tostring(destroyedGuid).."]: "..tostring(reason))
+		end
 	end
 end
 
@@ -996,6 +1006,7 @@ local function zoneObjectCanBeMapMarker(ctx)
 end
 
 local settledZoneEntrySerial={}
+local settledZoneNextSerial=0
 --Track only live map-zone boundary membership so deferred presentation work can validate an entry/exit
 --without asking the scripting zone for its entire object list again.
 local mapZoneMembership={}
@@ -1017,9 +1028,10 @@ local function scheduleSettledZoneEntry(ctx,callback,channel)
 	local objGUID=ctx.objGUID
 	if zoneGUID==nil or objGUID==nil then return end
 	local key=tostring(channel or "default").."|"..zoneGUID.."|"..objGUID
-	local serial=(settledZoneEntrySerial[key] or 0)+1
+	settledZoneNextSerial=settledZoneNextSerial+1
+	local serial=settledZoneNextSerial
 	settledZoneEntrySerial[key]=serial
-	safeWaitCondition("Events.zoneSettle."..tostring(channel or "default"),function()
+	local function dispatchSettled()
 		if settledZoneEntrySerial[key]~=serial then return end
 		settledZoneEntrySerial[key]=nil
 		local liveZone=getObjectFromGUID(zoneGUID)
@@ -1027,10 +1039,21 @@ local function scheduleSettledZoneEntry(ctx,callback,channel)
 		if liveZone==nil or liveObj==nil or settledZoneContainsGUID(liveZone,objGUID)~=true then return end
 		local liveCtx=zoneEventContext(liveZone,liveObj)
 		if liveCtx~=nil then callback(liveCtx) end
-	end,function()
+	end
+	safeWaitCondition("Events.zoneSettle."..tostring(channel or "default"),dispatchSettled,function()
 		if settledZoneEntrySerial[key]~=serial then return true end
 		local liveObj=getObjectFromGUID(objGUID)
 		return liveObj==nil or (liveObj.resting==true and liveObj.isSmoothMoving()==false)
+	end,10,function()
+		if settledZoneEntrySerial[key]~=serial then return end
+		local liveObj=getObjectFromGUID(objGUID)
+		-- Allow a harmless physics jitter, but never resolve a held or travelling token early.
+		if liveObj==nil or (liveObj.held_by_color==nil and liveObj.isSmoothMoving()==false) then
+			dispatchSettled()
+		else
+			settledZoneEntrySerial[key]=nil
+			log("Zone entry did not settle ["..tostring(objGUID).."]")
+		end
 	end)
 end
 
@@ -1039,9 +1062,9 @@ end
 local function cancelSettledZoneEntries(zoneGUID,objGUID)
 	if zoneGUID==nil or objGUID==nil then return end
 	local suffix="|"..zoneGUID.."|"..objGUID
-	for key,serial in pairs(settledZoneEntrySerial) do
+	for key in pairs(settledZoneEntrySerial) do
 		if type(key)=="string" and key:sub(-#suffix)==suffix then
-			settledZoneEntrySerial[key]=(settledZoneEntrySerial[key] or 0)+1
+			settledZoneEntrySerial[key]=nil
 		end
 	end
 end
