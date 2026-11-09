@@ -1254,8 +1254,8 @@ local function combatDamageNotes(item,result)
     return notes
 end
 
--- Condense the Result column without losing the detailed wound assignment.
--- Click any result marked [+] to expand it; the tooltip always shows the full text.
+-- Preserve the original Result button and expansion wiring for stable layout.
+-- Full per-source results are now the default display, without abbreviated text.
 local function combatCompactResultLines(fullLines,damageItems,damageResults)
     -- Keep the original Result button, layout, and expansion plumbing intact.
     -- The concise per-source breakdown is already the full display; do not
