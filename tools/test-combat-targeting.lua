@@ -400,7 +400,7 @@ attackAssignmentsPreviewSnapInvalidate(1)
 attackAssignmentsUnitPreviewSync(1,resolveUnit("unit",1,false))
 local fallback=ghosts()[1].getPosition()
 check("missing Wound snaps use mat-relative preview placement",
-    math.abs(fallback.z-(unit.getPosition().z-0.176))<0.001)
+    math.abs(fallback.z-((unit.getPosition().z or unit.getPosition()[3])-0.176))<0.001)
 board.getSnapPoints=woundSnaps
 attackAssignmentsPreviewSnapInvalidate(1)
 attackAssignmentsUnitPreviewSync(1,resolveUnit("unit",1,false))
