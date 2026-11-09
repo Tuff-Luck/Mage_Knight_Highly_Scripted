@@ -2613,7 +2613,7 @@ skillResourceDefinitions={
     ["04319a"]={untracked=true},
     ["046187"]={day={ranged=2},night={ranged=1}},
     ["062555"]={partial=true},
-    ["0688d8"]={untracked=true},
+    ["0688d8"]={normal={},damageMitigation={physical=2,nonphysical=1}}, -- Battle Hardened: protect the Hero from one attack.
     ["0951b9"]={untracked=true},
     ["0d59f4"]={partial=true},
     ["0db37a"]={untracked=true},
@@ -2751,7 +2751,7 @@ skillResourceDefinitions={
     ["ebbbfc"]={untracked=true},
     ["eeb395"]={attackCardBoost=true,partial=true}, -- Deadly Aim; player links a specific Attack card.
     ["eec431"]={normal={healing=2}},
-    ["f36762"]={normal={move=1},partial=true},
+    ["f36762"]={normal={move=1},blockSourceBoost=1}, -- Spirit Guides: +1 to an explicitly linked Block source.
     ["f50f77"]={untracked=true},
     ["f8292e"]={normal={healing=1}},
     ["f8ba0b"]={partial=true},
