@@ -2,6 +2,7 @@
 -- The scale never changes the logical resource/combat values of an object.
 local playAreaScaleWait={}
 local SCALE_BUTTONS={playAreaScaleDown=true,playAreaScaleLabel=true,playAreaScaleUp=true,playAreaScaleScope=true}
+local playAreaScaleSettling={} -- runtime-only; one pending settle check per object
 
 local function playAreaScaleSettings(seat)
     gStates.playAreaScaleSettings=gStates.playAreaScaleSettings or {}
@@ -20,6 +21,26 @@ end
 local function playAreaScaleInZone(guid,zoneGUID)
     local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
     if zone~=nil then for _,obj in ipairs(zone.getObjects()) do if obj.guid==guid then return true end end end
+    return false
+end
+
+local function playAreaScaleSeatContaining(guid)
+    for seat=1,4 do
+        if playAreaScaleInZone(guid,playerPlayAreas[seat])
+            or playAreaScaleInZone(guid,playerUnitAreas[seat]) then return seat end
+    end
+    return nil
+end
+
+local function playAreaScaleObjectHeld(obj)
+    if obj.held_by_color~=nil then return true end
+    -- A Fixed-jointed summon may leave its zone while its summoner is held,
+    -- even though TTS does not report the child as held itself.
+    local attacked=gStates~=nil and gStates.attackedMonsters~=nil and gStates.attackedMonsters[obj.guid] or nil
+    if attacked~=nil and attacked[3]=="summoned" and attacked[4]~=nil then
+        local summoner=getObjectFromGUID(attacked[4])
+        if summoner~=nil and summoner.held_by_color~=nil then return true end
+    end
     return false
 end
 
@@ -93,6 +114,42 @@ function playAreaScaleApplyObject(seat,obj,pending)
     if factor==1 then records[obj.guid]=nil else entry.factor=factor end
 end
 
+-- A transient exit during a drag is not a real removal. Recheck the
+-- object's destination after it is dropped and the physics have settled.
+local function playAreaScaleRecheckObject(guid)
+    local records=gStates~=nil and gStates.playAreaScaledObjects or nil
+    if records==nil or records[guid]==nil then return end
+    local obj=getObjectFromGUID(guid)
+    if obj==nil then records[guid]=nil return end
+    if playAreaScaleObjectHeld(obj) or obj.isSmoothMoving()==true then return end
+    local seat=playAreaScaleSeatContaining(guid)
+    if seat~=nil then playAreaScaleApplyObject(seat,obj)
+    else playAreaScaleRestore(obj) end
+end
+
+local function playAreaScaleWaitForSettle(guid)
+    if playAreaScaleSettling[guid]==true then return end
+    playAreaScaleSettling[guid]=true
+    local function finish()
+        playAreaScaleSettling[guid]=nil
+        playAreaScaleRecheckObject(guid)
+    end
+    safeWaitCondition("PlayerBoard.Scale",finish,function()
+        local obj=getObjectFromGUID(guid)
+        return obj==nil or (not playAreaScaleObjectHeld(obj)
+            and obj.resting==true and obj.isSmoothMoving()==false)
+    end,5,finish)
+end
+
+-- Only objects already managed by the scaling system need a post-drop check.
+function playAreaScaleObjectDropped(obj)
+    if obj~=nil and obj.guid~=nil and gStates~=nil
+        and gStates.playAreaScaledObjects~=nil
+        and gStates.playAreaScaledObjects[obj.guid]~=nil then
+        playAreaScaleWaitForSettle(obj.guid)
+    end
+end
+
 function refreshPlayAreaScale(seat)
     if gStates==nil or seat==nil then return end
     local seen={}
@@ -113,7 +170,14 @@ function refreshPlayAreaScale(seat)
         if entry.seat==seat and seen[guid]~=true then
             local obj=getObjectFromGUID(guid)
             if obj==nil then records[guid]=nil
-            elseif not (entry.pending==true and obj.isSmoothMoving()) then playAreaScaleRestore(obj) end
+            elseif playAreaScaleObjectHeld(obj) then
+                -- Lifting/rearranging does not undo scaling; the drop checks its destination.
+            elseif obj.isSmoothMoving()==true then
+                -- Scripted moves keep the same size until they reach their destination.
+                playAreaScaleWaitForSettle(guid)
+            else
+                playAreaScaleRestore(obj)
+            end
         end
     end
 end

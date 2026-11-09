@@ -617,6 +617,7 @@ function __onObjectDrop_raw(player_color, dropped_object)
 	attackAssignmentsObjectMoved(dropped_object)
 	if dropped_object==nil or dropped_object.guid==nil then return end
 	local droppedGUID=dropped_object.guid
+	playAreaScaleObjectDropped(dropped_object)
     resourceUnitsCommandDropped(player_color,dropped_object)
     resourceCardsObjectMoved(dropped_object)
 	if terrainTiles[droppedGUID]~=nil then
