@@ -191,10 +191,10 @@ function schedulePlayAreaScale(seat)
     end,3)
 end
 
-local function playAreaScaleSeat(board)
-    if board==nil or board.guid==nil then return nil end
-    for seat,guid in ipairs(playerBoard) do if guid==board.guid then return seat end end
-    return nil
+-- Object-attached XML UI, matching the colour-bar image-button convention.
+-- Board placement is calculated only on installation, never on a player click.
+local function playAreaScaleControlPrefix(seat)
+    return "PlayAreaScale"..tostring(seat)
 end
 
 local function playAreaScaleCanEdit(seat,playerColor)
@@ -205,9 +205,17 @@ local function playAreaScaleCanEdit(seat,playerColor)
     return legalPlayerCheck(playerColor,gStates.handColors[hand.getValue()],"NoDummyException")==true
 end
 
-local function playAreaScaleChange(board,playerColor,delta,scopeToggle)
-    local seat=playAreaScaleSeat(board)
-    if not playAreaScaleCanEdit(seat,playerColor) then return end
+local function playAreaScaleUpdateLabels(board,seat)
+    local setting=playAreaScaleSettings(seat)
+    local prefix=playAreaScaleControlPrefix(seat)
+    board.UI.setAttribute(prefix.."PercentText","text",tostring(setting.step*5).."%")
+    board.UI.setAttribute(prefix.."ScopeText","text",setting.scope)
+end
+
+local function playAreaScaleChange(player,mouseButton,id,delta,scopeToggle)
+    if mouseButton~="-1" then return end
+    local seat=tonumber(tostring(id):match("^PlayAreaScale(%d+)"))
+    if not playAreaScaleCanEdit(seat,player.color) then return end
     local setting=playAreaScaleSettings(seat)
     if scopeToggle==true then
         setting.scope=setting.scope=="Cards" and "All" or "Cards"
@@ -217,58 +225,85 @@ local function playAreaScaleChange(board,playerColor,delta,scopeToggle)
         setting.step=step
     end
     refreshPlayAreaScale(seat)
-    refreshPlayAreaScaleControls()
+    -- Keep the XML and its anchor untouched. Rebuilding it with getBounds()
+    -- on every click caused the previous controls to drift diagonally.
+    local board=getObjectFromGUID(playerBoard[seat])
+    if board~=nil then playAreaScaleUpdateLabels(board,seat) end
 end
 
-function playAreaScaleDown(board,playerColor,altClick)
-    return safeCallback("playAreaScaleDown",function() playAreaScaleChange(board,playerColor,-1,false) end)
+function playAreaScaleDown(player,mouseButton,id)
+    return safeCallback("playAreaScaleDown",function() playAreaScaleChange(player,mouseButton,id,-1,false) end)
 end
-function playAreaScaleUp(board,playerColor,altClick)
-    return safeCallback("playAreaScaleUp",function() playAreaScaleChange(board,playerColor,1,false) end)
+function playAreaScaleUp(player,mouseButton,id)
+    return safeCallback("playAreaScaleUp",function() playAreaScaleChange(player,mouseButton,id,1,false) end)
 end
-function playAreaScaleScope(board,playerColor,altClick)
-    return safeCallback("playAreaScaleScope",function() playAreaScaleChange(board,playerColor,0,true) end)
+function playAreaScaleScope(player,mouseButton,id)
+    return safeCallback("playAreaScaleScope",function() playAreaScaleChange(player,mouseButton,id,0,true) end)
 end
-function playAreaScaleLabel(board,playerColor,altClick) end
+-- Kept only as a harmless compatibility callback for classic buttons from an old save.
+function playAreaScaleLabel() end
 
 local function playAreaScaleBoardButtons(board,seat)
-    local existing=board.getButtons() or {}
-    for i=#existing,1,-1 do
-        if SCALE_BUTTONS[existing[i].click_function]==true then board.removeButton(existing[i].index) end
+    -- Remove legacy classic buttons left in an existing TTS save. They are no
+    -- longer recreated; the new image buttons are part of the board's object XML.
+    local old=board.getButtons() or {}
+    for index=#old,1,-1 do
+        if SCALE_BUTTONS[old[index].click_function]==true then board.removeButton(old[index].index) end
+    end
+
+    local prefix=playAreaScaleControlPrefix(seat)
+    local existing=board.UI.getAttribute(prefix.."PercentText","text")
+    if existing~=nil then
+        playAreaScaleUpdateLabels(board,seat)
+        return
     end
     if turnOrderIndexAtSeat(seat)==nil then return end
-    local setting=playAreaScaleSettings(seat)
+
     local bounds=board.getBounds()
     local pos=board.getPosition()
-    local scale=board.getScale()
-    -- Place a single small row at the bottom-right WORLD edge. positionToLocal
-    -- accounts for the stock mats' 180-degree rotation and their large object scale.
-    local edgeX=pos.x+bounds.size.x/2-0.55
-    local rowZ=pos.z-bounds.size.z/2+0.85
-    local topY=bounds.center.y+bounds.size.y/2+0.07
-    local yaw=board.getRotation().y or 0
-    local rotation={0,(360-yaw)%360,0}
-    local sx=math.max(0.01,scale.x or scale[1])
-    local sz=math.max(0.01,scale.z or scale[3])
-    -- TTS clamps classic button dimensions below 60 (except zero). Counter-scale the
-    -- button instead of shrinking width/height below that minimum on an 8.2-scale mat.
-    local buttonScale=1/math.max(sx,sz)
-    local function add(label,callback,offset,width,background)
-        local localPos=board.positionToLocal({edgeX+offset,topY,rowZ})
-        board.createButton({
-            click_function=callback,function_owner=Global,label=label,
-            position={localPos.x,localPos.y,localPos.z},rotation=rotation,
-            scale={buttonScale,buttonScale,buttonScale},
-            width=background and math.floor(width*100+0.5) or 0,height=background and 85 or 0,
-            font_size=70,font_color={0.98,0.94,0.84},
-            color=background and {0.10,0.10,0.10,0.80} or {0,0,0,0},
-            hover_color={0.22,0.22,0.22,0.85},press_color={0.3,0.3,0.3,0.8}
-        })
+    -- The mats face the players at yaw 180: negative world X is their right.
+    -- This mirrors the old left-hand placement to the bottom-RIGHT, without
+    -- changing the 1.45-world-unit centre spacing between controls.
+    local rightEdge=pos.x-bounds.size.x/2+0.55
+    local bottom=pos.z-bounds.size.z/2+0.85
+    local surface=bounds.center.y+bounds.size.y/2+0.06
+    local function uiPosition(worldOffset)
+        local point=board.positionToLocal({rightEdge+worldOffset,surface,bottom})
+        -- XML uses 100 units per board-local unit. -40 raises it above the mat.
+        return string.format("%.2f %.2f -40",point.x*100,point.z*100)
     end
-    add("<","playAreaScaleDown",-5.7,0.8,true)
-    add(tostring(setting.step*5).."%","playAreaScaleLabel",-4.25,2.2,false)
-    add(">","playAreaScaleUp",-2.8,0.8,true)
-    add(setting.scope,"playAreaScaleScope",-1.1,2.1,true)
+    local function imageButton(id,callback,image,worldOffset,width)
+        return {tag="Button",attributes={
+            id=id,onClick="global/"..callback,
+            onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",
+            height=100,width=width,position=uiPosition(worldOffset),
+            rotation="0 0 180",scale="0.15 0.15",
+            color="rgba(0,0,0,0.0)"
+        },children={{tag="Image",attributes={id=id.."Image",image=image,
+            type=image=="Sliced Button/Button Object Active" and "Sliced" or "Simple"}}}}
+    end
+    local setting=playAreaScaleSettings(seat)
+    local items={
+        imageButton(prefix.."OverkillDown","playAreaScaleDown","Overkill Down",5.7,90),
+        {tag="Image",attributes={id=prefix.."PercentPanel",image="Overkill Text",
+            height=90,width=115,position=uiPosition(4.25),
+            rotation="0 0 180",scale="0.15 0.15"},
+            children={{tag="Text",attributes={id=prefix.."PercentText",
+                text=tostring(setting.step*5).."%",font="Fonts/MKCardText",
+                fontSize=55,fontStyle="Bold",color="rgb(0,0,0)",alignment="MiddleCenter"}}}},
+        imageButton(prefix.."OverkillUp","playAreaScaleUp","Overkill Up",2.8,90),
+        imageButton(prefix.."Scope","playAreaScaleScope",
+            "Sliced Button/Button Object Active",1.1,145)
+    }
+    items[4].children[#items[4].children+1]={tag="Text",attributes={
+        id=prefix.."ScopeText",text=setting.scope,font="Fonts/MKCardText",
+        fontSize=50,fontStyle="Normal",color="rgb(0,0,0)",alignment="MiddleCenter"
+    }}
+
+    -- Keep any other board-owned UI intact.
+    local xml=board.UI.getXmlTable() or {}
+    for _,node in ipairs(items) do xml[#xml+1]=node end
+    board.UI.setXmlTable(xml)
 end
 
 function refreshPlayAreaScaleControls()
