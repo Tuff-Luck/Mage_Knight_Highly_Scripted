@@ -4,6 +4,23 @@
 
 local lastReport={}
 
+-- Vampiric gains one Armor for each Wound added to the Hero's hand, plus
+-- one for each Unit wounded (not each Unit Wound card). Poison's extra discard
+-- Wounds do not contribute. Arcane Immunity prevents the additional effect;
+-- Arcane Vulnerability permits it even if resistance avoided the Wound.
+function combatVampiricArmourGain(result)
+    if result==nil then return 0 end
+    local bonus=result.heroWounds or 0
+    for _,hit in ipairs(result.units or {}) do
+        local unit=hit.unit
+        if unit~=nil and unit.arcaneImmunity~=true
+            and (hit.wounded==true or unit.arcaneVulnerability==true) then
+            bonus=bonus+1
+        end
+    end
+    return bonus
+end
+
 -- The enemy physically under the card wins; otherwise the nearest face-up one.
 function combatEffectNearestEnemy(cardArea,monsters,enemyAreaOf,overlapOf,eligible)
     local best,bestArea,bestDistance=nil,-1,math.huge
