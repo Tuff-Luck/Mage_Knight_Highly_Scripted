@@ -2377,6 +2377,31 @@ local function combatAssignmentRefreshRows(entries,sources)
                         wounded=wounded}
                 end
             end
+            -- Generic enemy-effect buttons use the exact same table slots as
+            -- resources, but never enter the numerical Attack/Block totals.
+            local targetEntry=entries[index]
+            for _,applied in ipairs(targetEntry.effect~=nil and targetEntry.effect.applied or {}) do
+                local item=combatConfig.effectButtonInfo(targetEntry,applied)
+                if item~=nil then
+                    lists[item.family][#lists[item.family]+1]=item
+                    combatConfig.effectSources[item.source.key]={arrow=item.arrow}
+                end
+            end
+            -- Hero-damage mitigation follows enemy Attack timing, not the
+            -- amount of Block available. Allow any skill/card that declares
+            -- damageMitigation to use this shared slot presentation.
+            for guid,record in pairs(seatScan~=nil and seatScan.cards or {}) do
+                local rule=skillResourceDefinitions[guid]
+                if rule~=nil and rule.damageMitigation~=nil
+                    and record.enemyGUID==targetEntry.guid then
+                    local item=combatConfig.mitigationButtonInfo(guid,record,
+                        targetEntry,group,damageResults,mitigation)
+                    if item~=nil then
+                        lists.block[#lists.block+1]=item
+                        combatConfig.effectSources[item.source.key]={arrow=item.arrow}
+                    end
+                end
+            end
             perMember[index]=lists
         end
         local distributed,hidden=combatGroupResourceRows(group.members,perMember,combatConfig.slotCount)
@@ -2408,14 +2433,15 @@ local function combatAssignmentRefreshRows(entries,sources)
                 local item=items[slot]
                 if item~=nil then
                     combatAssignmentSlotSources[id]=item.source.key
-                    combatConfig.slotSelection[id]={key=item.source.key,wounded=item.wounded}
-                    local tooltip=item.source.name..": "..item.text
-                        ..(item.wounded and " can't apply 'Wounded'" or "")
+                    combatConfig.slotSelection[id]={key=item.source.key,
+                        wounded=item.wounded,ineffective=item.ineffective}
+                    local tooltip=item.tooltip or (item.source.name..": "..item.text
+                        ..(item.wounded and " can't apply 'Wounded'" or ""))
                     combatAssignmentIconButton(id,true,item.amount,item.icon,
                         tooltip,combatAssignmentState.selected==item.source.key,
-                        item.wounded and "#292323" or (item.typeKey~=nil
+                        (item.wounded or item.ineffective) and "#292323" or (item.typeKey~=nil
                             and combatConfig.typeColors[item.typeKey][item.reduced and 2 or 1] or nil),
-                        item.wounded)
+                        item.wounded,item.ineffective)
                 else
                     combatAssignmentIconButton(id,false,0,"","",false)
                 end
