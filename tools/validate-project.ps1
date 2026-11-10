@@ -62,8 +62,8 @@ try {
         # Lua treats "local" followed by line breaks and "function" as a local-function declaration.
         # Normalize that form before scanning so it is not mistaken for a global.
         $scanContent = [regex]::Replace($content, '(?m)^[ \t]*local[ \t]*(?:\r?\n[ \t]*)+function[ \t]+', 'local function ')
-        $matches = [regex]::Matches($scanContent, '(?m)^[ \t]*(local[ \t]+)?function[ \t]+([A-Za-z_][A-Za-z0-9_]*)[ \t]*\(')
-        foreach ($match in $matches) {
+        $functionMatches = [regex]::Matches($scanContent, '(?m)^[ \t]*(local[ \t]+)?function[ \t]+([A-Za-z_][A-Za-z0-9_]*)[ \t]*\(')
+        foreach ($match in $functionMatches) {
             if ($match.Groups[1].Success) { continue }
             $name = $match.Groups[2].Value
             $relative = $file.FullName.Substring($root.Length + 1)
