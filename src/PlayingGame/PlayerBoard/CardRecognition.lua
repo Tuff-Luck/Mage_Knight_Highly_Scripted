@@ -6277,8 +6277,22 @@ local function renderSeat(seatPos,quietUnitChoice)
                     if activation.seatPos==seatPos and unit~=nil and record~=nil
                         and record.complete==true then
                         local field=resourceFieldForFamily(record.resources,family)
+                        local replacement=nil
+                        -- Leadership can convert an activated Unit's printed
+                        -- Ranged/Siege Attack to ordinary Attack in the regular
+                        -- Attack phase. The alternative is +2 Attack, not +1
+                        -- Ranged, and the original phase cannot also keep it.
+                        if field==nil and family=="attack" and rule.attackPhaseFallback then
+                            local ranged=resourceFieldForFamily(record.resources,"ranged")
+                            local siege=resourceFieldForFamily(record.resources,"siege")
+                            if (ranged~=nil)~=(siege~=nil) then
+                                field=ranged or siege
+                                replacement="attack"..field:sub(ranged~=nil and 7 or 6)
+                            end
+                        end
                         if field~=nil then
                             eligible[#eligible+1]={unit=unit,field=field,
+                                replaceField=replacement,
                                 overlap=overlapArea(footprint(skill),footprint(unit))}
                         end
                     end
@@ -6292,8 +6306,13 @@ local function renderSeat(seatPos,quietUnitChoice)
                 if #eligible==1 or (#eligible>1 and eligible[1].overlap>0
                     and eligible[1].overlap>eligible[2].overlap) then
                     local chosenUnit=eligible[1]
+                    local bonus=choice[family] or unitBoost[family]
+                    if chosenUnit.replaceField~=nil then
+                        local resources=records[chosenUnit.unit.guid].resources
+                        bonus=(resources[chosenUnit.field] or 0)+bonus
+                    end
                     skillTargetLinked(skill,chosenUnit.unit,chosenUnit.field,
-                        (choice[family] or unitBoost[family]))
+                        bonus,chosenUnit.replaceField)
                 end
             end
         end
