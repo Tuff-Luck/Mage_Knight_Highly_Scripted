@@ -18,8 +18,8 @@ end
 local data=source("src/Data.lua")
 local calc=source("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local skills=source("src/PlayingGame/PlayerBoard/Skills.lua")
-contains(data,'["7d1c32"]={normal={block=1,attack=1},dueling=true}',
-    "Dueling uses one Block/Attack target")
+contains(data,'["7d1c32"]={choices={{key="duel",icon="block",block=1,attack=1',
+    "Dueling presents a same-enemy combined Block/Attack target")
 contains(data,'["b73b21"]={choices=',"Taunt options registered")
 contains(data,'attackIncrease=2,armourReduce=2,armourReduceAttackOnly=2',
     "Taunt provocation delayed until the Attack phase")
