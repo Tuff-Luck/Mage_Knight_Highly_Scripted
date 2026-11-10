@@ -1136,6 +1136,10 @@ end
 local krangFlipBackSkillGUIDs={["0fbcfe"]=true,["91c8a0"]=true,["d8824d"]=true}
 
 function prepareEndTurnSkillRotation(cleanupPlayer, nextPlayer)
+	-- The special effect lasts through this turn's cleanup, not next turn.
+	if turnOrder~=nil and turnOrder[cleanupPlayer]~=nil then
+		turnOrder[cleanupPlayer].krangArcaneDisguiseIgnoreReputation=nil
+	end
 	local count=0
 	local keepSafe={}
 	for skillGUID, zoneGUID in pairs(sharedSkillAboveZone) do
