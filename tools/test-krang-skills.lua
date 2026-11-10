@@ -12,6 +12,8 @@ turnOrder={{mage="Krang",seatPos=1,krangArcaneDisguiseIgnoreReputation=nil}}
 playerPlayAreas={[1]="play"}
 local objects={}
 getObjectFromGUID=function(guid) return objects[guid] end
+-- Public callback registration is provided by the Global loader in TTS.
+publishPublicUICallbacks=function() end
 local skill={guid="91c8a0",is_face_down=false}
 local playObjects={skill}
 objects["91c8a0"]=skill
