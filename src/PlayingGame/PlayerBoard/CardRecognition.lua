@@ -2460,7 +2460,15 @@ local function combatAssignmentRefreshRows(entries,sources)
     local rangedBeforeBlock=nil
     local hasConditional=false
     for _,entry in ipairs(entries) do
-        if entry.destroyIfBlocked and not entry.destroyed then hasConditional=true break end
+        if not entry.destroyed then
+            for _,applied in ipairs(entry.effect~=nil and entry.effect.applied or {}) do
+                if applied.spec~=nil and applied.spec.destroyIfBlocked==true then
+                    entry.explodePending=true
+                    hasConditional=true
+                    break
+                end
+            end
+        end
     end
     if hasConditional then
         local preview={}
@@ -2490,7 +2498,7 @@ local function combatAssignmentRefreshRows(entries,sources)
     local conditionalDestroyed=false
     for index=1,#entries do
         local entry=entries[index]
-        if entry.destroyIfBlocked and not entry.destroyed
+        if entry.explodePending and not entry.destroyed
             and (rangedBeforeBlock==nil or rangedBeforeBlock[index]~=true) then
             local hasAttack=false
             for _,attack in ipairs(combatEnemyAttacks(entry)) do
@@ -2502,10 +2510,19 @@ local function combatAssignmentRefreshRows(entries,sources)
                     combatBlockResult(entry,target~=nil and target.sources or {})
                 local explodedEnemy=false
                 for _,applied in ipairs(entry.effect~=nil and entry.effect.applied or {}) do
-                    if applied.effective~=nil and applied.effective.destroyIfBlocked==true
+                    if applied.spec~=nil and applied.spec.destroyIfBlocked==true
                         and successfulSources[applied.source]==true then
                         for owner in pairs(successfulOwners[applied.source] or {}) do
-                            if owner==entry.guid then
+                            local token=owner==entry.guid and entry.data or monsterPugs[owner]
+                            local perks=owner==entry.guid and entry.perks
+                                or (gStates~=nil and gStates.monsterPerks~=nil
+                                    and gStates.monsterPerks[owner] or nil)
+                            -- Immunity belongs to the actual blocked token,
+                            -- not to its summoner (which may have different traits).
+                            local immune=token==nil
+                                or combatEnemyHasTrait(token,perks,"arcaneImmunity")
+                                or combatEnemyHasTrait(token,perks,"fResist")
+                            if not immune and owner==entry.guid then
                                 -- One successful Attack Block suffices even if
                                 -- the token has other, unblocked attacks.
                                 explodedEnemy=true
@@ -2513,7 +2530,7 @@ local function combatAssignmentRefreshRows(entries,sources)
                                 -- A blocked summoned monster is destroyed, NOT
                                 -- its summoner, and never earns Fame by itself.
                                 for _,summoned in ipairs(entry.summoned or {}) do
-                                    if summoned.guid==owner then
+                                    if not immune and summoned.guid==owner then
                                         entry.summonedDestroyed=entry.summonedDestroyed or {}
                                         entry.summonedDestroyed[owner]=true
                                         break
