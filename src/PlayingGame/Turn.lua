@@ -1308,7 +1308,7 @@ local function turnEndRoundResetPlayerDecks()
 			for _, obj in pairs(getObjectFromGUID(deedDeckDiscardZones[playerDetails.seatPos]).getObjects()) do
 				if obj.type=="Deck" then
 					newDeck=obj
-					newDeck.setRotationSmooth({0.0, 180.0, 180.0},false,false)
+					newDeck.setRotationSmooth({0.0, 180.0, 180.0})
 					newDeck.setPosition({getObjectFromGUID(deedDeckZones[playerDetails.seatPos]).getPosition()[1], 1.2, getObjectFromGUID(deedDeckZones[playerDetails.seatPos]).getPosition()[3]})
 					test=1
 					break
@@ -1923,7 +1923,7 @@ function nightTactic6(player, mouseButton, id)
 						if deedZoneObj.type=="Card" then
 							--Quick Witted is set aside, so skip it and keep looking for a normal Deed card.
 							if not (turnOrder[playerIndex].mage=="Coral" and deedZoneObj.guid==GUID.card.quickWitted) then
-								deedZoneObj.setPositionSmooth({tactic.getPosition()[1], 1.2, tactic.getPosition()[3]},false,false)
+								deedZoneObj.setPositionSmooth({tactic.getPosition()[1], 1.2, tactic.getPosition()[3]})
 								deedZoneObj.setRotation({0, 180, 180})
 								drawn=deedZoneObj
 								break
