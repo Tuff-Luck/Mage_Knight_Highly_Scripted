@@ -385,7 +385,9 @@ function extraTurnOptions(playerIndex)
 	local playArea=getObjectFromGUID(playerPlayAreas[details.seatPos])
 	if playArea~=nil then
 		for _, obj in pairs(playArea.getObjects()) do
-			if obj.guid==GUID.card.timeBending and obj.is_face_down==false and cardEffectIsVertical(obj)==true then
+			if obj.guid==GUID.card.timeBending and obj.is_face_down==false
+                and cardEffectIsVertical(obj)==true
+                and resourceCardsTimeBendingPaid(details.seatPos,obj)==true then
 				timeBendingAvailable=true
 				break
 			end
@@ -446,8 +448,10 @@ end
 function turnPreparePreEndTurn(cleanupPlayer,playerColor,id)
 	if id=="ExtraTurnTacticButton" or id=="ExtraTurnChoiceTactic6" or id=="ExtraTurnChoiceTimeBending" then
 		local tacticSixAvailable,timeBendingAvailable=extraTurnOptions(cleanupPlayer)
-		local useTactic=id=="ExtraTurnChoiceTactic6" or (id=="ExtraTurnTacticButton" and tacticSixAvailable and timeBendingAvailable==false)
-		local useTimeBending=id=="ExtraTurnChoiceTimeBending" or (id=="ExtraTurnTacticButton" and timeBendingAvailable and tacticSixAvailable==false)
+		local useTactic=(id=="ExtraTurnChoiceTactic6" and tacticSixAvailable)
+            or (id=="ExtraTurnTacticButton" and tacticSixAvailable and timeBendingAvailable==false)
+        local useTimeBending=(id=="ExtraTurnChoiceTimeBending" and timeBendingAvailable)
+            or (id=="ExtraTurnTacticButton" and timeBendingAvailable and tacticSixAvailable==false)
 		local cleanupTurnToken=getObjectFromGUID(turnOrder[cleanupPlayer].turnOrderTokenGUID)
 		if useTactic then
 			gStates.tacticSixState="Started"
