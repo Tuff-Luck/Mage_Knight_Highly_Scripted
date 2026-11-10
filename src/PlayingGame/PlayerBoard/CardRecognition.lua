@@ -1897,7 +1897,8 @@ combatConfig.mitigationButtonInfo=function(guid,record,entry,group,damageResults
     if spec==nil then return nil end
     local resolved=mitigation~=nil and mitigation.appliedKey~=nil
         and damageResults~=nil and damageResults[mitigation.appliedKey] or nil
-    local prevented=resolved~=nil and (tonumber(resolved.prevented) or 0) or 0
+    local elemental=spec.fire~=nil or spec.ice~=nil
+    local prevented=resolved~=nil and (tonumber(elemental and resolved.elementPrevented or resolved.prevented) or 0) or 0
     local reason=nil
     if prevented==0 then
         if group.rangeDefeated or group.destroyed then
@@ -1907,14 +1908,16 @@ combatConfig.mitigationButtonInfo=function(guid,record,entry,group,damageResults
     local source=getObjectFromGUID(guid)
     local name=source~=nil and source.getName~=nil and source.getName() or tostring(guid)
     name=joinLangEnglish~=nil and joinLangEnglish(tostring(name)) or tostring(name)
-    local tooltip=name..": Prevent "..tostring(spec.physical or 2)
-        .." Physical or "..tostring(spec.nonphysical or 1)
-        .." non-Physical damage reaching the Hero from one attack."
+    local tooltip=elemental
+        and (name..": Prevent 2 Fire/Ice or 1 Cold Fire/Physical/Psychic Hero damage from one attack.")
+        or (name..": Prevent "..tostring(spec.physical or 2)
+            .." Physical or "..tostring(spec.nonphysical or 1)
+            .." non-Physical damage reaching the Hero from one attack.")
         .."\nCurrently prevents "..tostring(prevented).." Hero damage."
         ..(reason~=nil and ("\nNo benefit: "..reason) or "")
         .."\nSelect the button then click an enemy row to retarget."
     return {source={guid=guid,key=guid,name=name},family="block",arrow="attack",
-        amount=tostring(prevented>0 and prevented or (spec.physical or 2)),
+        amount=tostring(prevented>0 and prevented or (elemental and 2 or (spec.physical or 2))),
         icon="MKChoiceBlock",text="Hero damage prevention",tooltip=tooltip,
         ineffective=reason~=nil}
 end
@@ -4020,7 +4023,9 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     local hardenedTarget=rule~=nil and rule.damageMitigation~=nil
         and combatAssignmentState.targets[card.guid] or nil
     local hardenedOptions=hardenedTarget~=nil and combatHardenedAttackOptions(hardenedTarget) or {}
-    local hardenedKey=gStates~=nil and gStates.battleHardenedAttackKey or nil
+    local mitigationStateKey=card.guid=="ae8673" and "elementalResistanceAttackKey"
+        or "battleHardenedAttackKey"
+    local hardenedKey=gStates~=nil and gStates[mitigationStateKey] or nil
     local hardenedIndex=1
     for i,option in ipairs(hardenedOptions) do
         if option.key==hardenedKey then hardenedIndex=i break end
@@ -4177,7 +4182,8 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     -- Battle Hardened will mitigate. The cycling button is on the Skill, not
     -- the enemy, and never changes the existing calculator columns.
     if rule~=nil and rule.damageMitigation~=nil and #hardenedOptions>1 then
-        local tooltip="Choose the specific enemy Attack for Battle Hardened"
+        local tooltip="Choose the specific enemy Attack for "
+            ..(card.guid=="ae8673" and "Elemental Resistance" or "Battle Hardened")
         for i,option in ipairs(hardenedOptions) do
             tooltip=tooltip.."\n"..tostring(i)..": "..option.label
         end
@@ -7704,7 +7710,8 @@ local function renderSeat(seatPos,quietUnitChoice)
             if rule~=nil and rule.damageMitigation~=nil and gStates~=nil then
                 local obj=getObjectFromGUID(guid)
                 if obj==nil or (obj.held_by_color==nil and not obj.isSmoothMoving()) then
-                    gStates.battleHardenedAttackKey=nil
+                    if guid=="ae8673" then gStates.elementalResistanceAttackKey=nil
+                    else gStates.battleHardenedAttackKey=nil end
                 end
             end
             if rule~=nil and rule.blockSourceBoost~=nil
@@ -7764,15 +7771,17 @@ end
 -- The small Battle Hardened counter cycles individual printed Attacks on the
 -- already targeted enemy (including multiple Attacks from summoners).
 function resourceCardsBattleHardenedAttackClicked(player,value,id)
-    if not resourceCardsPanelOpen() or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil)
-        or id~="ResourceCardChoice_0688d8_hardenedCycle" then return end
-    local target=combatAssignmentState.targets["0688d8"]
+    if not resourceCardsPanelOpen() or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil) then return end
+    local guid=type(id)=="string" and id:match("^ResourceCardChoice_([0-9a-f]+)_hardenedCycle$") or nil
+    if guid~="0688d8" and guid~="ae8673" then return end
+    local stateKey=guid=="ae8673" and "elementalResistanceAttackKey" or "battleHardenedAttackKey"
+    local target=combatAssignmentState.targets[guid]
     local options=combatHardenedAttackOptions(target)
     if #options<2 then return end
-    local current=gStates~=nil and gStates.battleHardenedAttackKey or nil
+    local current=gStates~=nil and gStates[stateKey] or nil
     local index=1
     for i,option in ipairs(options) do if option.key==current then index=i break end end
-    gStates.battleHardenedAttackKey=options[index%#options+1].key
+    gStates[stateKey]=options[index%#options+1].key
     resourceCardsSourceChanged()
 end
 
