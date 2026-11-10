@@ -841,6 +841,7 @@ end
 function attackAssignmentsDamageClear()
 	attackAssignmentsUnitPreviewClear()
     attackAssignmentsPreviewSnapInvalidate(nil)
+    if resourceCardsCombatClearOneUnit~=nil then resourceCardsCombatClearOneUnit() end
 	damageTargets={}
 	damagePending=nil
 	damageSpec={attacks={},units={},byOwner={},byKey={},reserved={}}
@@ -913,6 +914,11 @@ function attackAssignmentDamageUnitClicked(unit,playerColor)
 		elseif damageUsedBy(unit.guid,key)~=nil then
 			broadcastToColor("That Unit already takes damage from another attack this combat.",playerColor,{1,0.6,0.2})
 		else
+            -- Maze/Labyrinth may use only one Unit for the entire site
+            -- action. A damage-target click is an explicit companion choice.
+            if resourceCardsCombatSelectOneUnit~=nil then
+                resourceCardsCombatSelectOneUnit(unit.guid)
+            end
 			list[#list+1]=unit.guid
 			damageTargets[key]=list
 			damagePending=nil
