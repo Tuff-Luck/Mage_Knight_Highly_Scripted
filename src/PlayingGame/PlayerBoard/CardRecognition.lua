@@ -4288,7 +4288,9 @@ local function effectManaPossibilities(spec,payments,needPower,daytime)
         if not needPower then return true end
         for _,payment in ipairs(payments) do
             if payment.guid~=effectGUID and payment.guid~=castGUID
-                and payment.color==spec.powerColor then return true end
+                and (payment.color==spec.powerColor
+                    or (daytime and spec.powerColor~="Black"
+                        and payment.color=="Gold")) then return true end
         end
         return false
     end
@@ -4329,15 +4331,18 @@ local function effectManaPowerColors(spec,payments,daytime,selectedCategory)
         if spec.colors[effect.color]==selectedCategory
             or (daytime and effect.color=="Gold") then
             for _,power in ipairs(payments or {}) do
-                if power.guid~=effect.guid and power.color==spec.powerColor then
+                if power.guid~=effect.guid
+                    and (power.color==spec.powerColor
+                        or (daytime and spec.powerColor~="Black"
+                            and power.color=="Gold")) then
                     if spec.castColor==nil then
-                        eligible[power.color]=true
+                        eligible[spec.powerColor]=true
                     else
                         for _,casting in ipairs(payments or {}) do
                             if casting.guid~=effect.guid and casting.guid~=power.guid
                                 and (casting.color==spec.castColor
                                     or (daytime and casting.color=="Gold")) then
-                                eligible[power.color]=true
+                                eligible[spec.powerColor]=true
                                 break
                             end
                         end
@@ -6774,7 +6779,12 @@ local function renderSeat(seatPos,quietUnitChoice)
                         end
                         local matching=false
                         for color in pairs(colors) do
-                            if powerColors[color]==true then matching=true break end
+                            if powerColors[color]==true
+                                or (powerColors.Gold==true and resourceCardsUsesDayMana()
+                                    and matchesCardMana(card,color)) then
+                                matching=true
+                                break
+                            end
                         end
                         if matching then
                             local fields={}
