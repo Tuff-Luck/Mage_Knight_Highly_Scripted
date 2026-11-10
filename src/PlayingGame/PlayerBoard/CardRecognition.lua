@@ -5690,7 +5690,9 @@ local function renderSeat(seatPos,quietUnitChoice)
                             if spec.othersArmourReduce~=nil then
                                 for guid,monster in pairs(monsters) do
                                     if guid~=target.guid and monster.is_face_down~=true then
-                                        combatEffectAdd(enemyEffects,guid,card.guid,{armourReduce=spec.othersArmourReduce})
+                                        -- Secondary all-other-enemies effects have no independent target button.
+                                        combatEffectAdd(enemyEffects,guid,card.guid,
+                                            {armourReduce=spec.othersArmourReduce,all=true})
                                     end
                                 end
                             end
