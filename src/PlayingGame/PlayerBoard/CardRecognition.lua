@@ -620,6 +620,8 @@ function resourceCardsCombatTargetAcceptsSource(sourceKey,targetGUID)
             scan~=nil and scan.enemyEffects or nil)
     end
     if data.attackOnly~=true then return true end
+    local effectSource=combatConfig.effectSources[sourceKey]
+    if effectSource~=nil then return effectSource.arrow~="armour" end
     -- An Attack-only reminder has no Armour to reduce. Curse's Attack option
     -- can still target its attack, but its Armour option cannot.
     if sourceKey=="6a33c1" then
@@ -5102,6 +5104,21 @@ end
 -- Scan the play area for used abilities, the Unit area for Units, and crystal
 -- inventory for unused mana. Only a played, supported effect enters the totals.
 -- Explicit arrows always win; proximity is only an initial default.
+-- Attack-only reminders have no Armour, Fortification, or defensive traits.
+-- Enforce this for every enemy-targeted card, Skill and Unit effect, not only Curse.
+local function combatEffectTargetEligible(spec)
+    local defenceEffect=type(spec)=="table" and (
+        (tonumber(spec.armourReduce) or 0)>0
+        or (tonumber(spec.armourReduceFortified) or 0)>0
+        or (tonumber(spec.armourReduceByResist) or 0)>0
+        or spec.removeFortify==true or spec.removeResist==true
+        or spec.removeFireResist==true or spec.destroy==true)
+    return function(enemy,guid)
+        local data=combatEnemyData(guid,enemy)
+        return data~=nil and (data.attackOnly~=true or not defenceEffect)
+    end
+end
+
 local function combatEffectChosenEnemy(sourceGUID,area,monsters,eligible)
     local chosen=nil
     for guid in pairs(attackAssignmentsTargetGUIDs(sourceGUID)) do
@@ -5676,7 +5693,8 @@ local function renderSeat(seatPos,quietUnitChoice)
             local _,chosenCategory=currentChoice(card.guid,result.powered,choices)
             local spec=combatEffectSpec(rule,result.powered,chosenCategory)
             if spec~=nil then
-                local target=combatEffectChosenEnemy(card.guid,footprints[card.guid],monsters)
+                local target=combatEffectChosenEnemy(card.guid,footprints[card.guid],
+                    monsters,combatEffectTargetEligible(spec))
                 if target~=nil then
                     for _=1,(result.repeatCount or 1) do
                         if spec.all then
@@ -6057,7 +6075,8 @@ local function renderSeat(seatPos,quietUnitChoice)
                                         sourceKey=sourceKey,unit=unit,unitGUID=unitGUID,
                                         result=result,spec=ability.enemyEffect}
                                 else
-                                    local target=combatEffectChosenEnemy(sourceKey,footprint(unit),monsters)
+                                    local target=combatEffectChosenEnemy(sourceKey,footprint(unit),
+                                        monsters,combatEffectTargetEligible(ability.enemyEffect))
                                     if target~=nil then
                                         if ability.enemyEffect~=nil then
                                             combatEffectAdd(enemyEffects,target.guid,unitGUID,ability.enemyEffect,sourceKey)
@@ -6393,7 +6412,8 @@ local function renderSeat(seatPos,quietUnitChoice)
                 end
             end
             local target=spec~=nil and combatEffectChosenEnemy(
-                skill.guid,footprints[skill.guid],monsters,eligible) or nil
+                skill.guid,footprints[skill.guid],monsters,
+                eligible or combatEffectTargetEligible(spec)) or nil
             if spec~=nil and target~=nil then
                 combatEffectAdd(enemyEffects,target.guid,skill.guid,spec)
                 record.enemyGUID=target.guid
@@ -6663,7 +6683,8 @@ local function renderSeat(seatPos,quietUnitChoice)
                 heroPsychicBlock=true
             end
             if not flipped and rule~=nil and rule.enemyEffect~=nil then
-                local target=combatEffectChosenEnemy(guid,footprint(token),monsters)
+                local target=combatEffectChosenEnemy(guid,footprint(token),monsters,
+                    combatEffectTargetEligible(rule.enemyEffect))
                 if target~=nil then
                     combatEffectAdd(enemyEffects,target.guid,guid,rule.enemyEffect)
                     result.enemyEffectTargetKeys={guid}
