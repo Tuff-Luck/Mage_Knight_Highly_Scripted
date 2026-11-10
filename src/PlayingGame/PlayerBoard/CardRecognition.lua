@@ -1160,6 +1160,66 @@ end
 -- unless a resistance absorbs all of it.
 local COMBAT_UNIT_RESIST_KEYS={Physical="P",Fire="F",Ice="I"}
 
+-- Site rules are keyed by the *active fight*, not merely the player's map
+-- location. A Dungeon/Tomb or burning Monastery normally forbids all Units,
+-- except the Unit occupying Bonds of Loyalty's own Command slot. Maze and
+-- Labyrinth allow one Unit TOTAL; Bonds adds no second companion.
+local combatUnitSiteModeByLocation={
+    dungeon="bonds",tomb="bonds",monastery="bonds",
+    maze="one",labyrinth="one",ziggurat="none",pyramid="none"
+}
+local combatOneUnitBySeat={}
+local function combatUnitSiteRestriction(seatPos)
+    local player=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    if player==nil or player.seatPos~=seatPos then return nil end
+    local site=player.avatarLocation
+    local mode=combatUnitSiteModeByLocation[site]
+    if mode==nil then return nil end
+    local perkKey=mode=="one" and "oneUnit" or "noUnits"
+    for guid,enemy in pairs(combatPlayMonsters()) do
+        local perks=gStates.monsterPerks~=nil and gStates.monsterPerks[guid] or nil
+        if enemy~=nil and enemy.is_face_down~=true
+            and perks~=nil and perks[perkKey]==true then
+            return mode,site
+        end
+    end
+    return nil
+end
+
+local function combatOneUnitChosen(seatPos,site)
+    local state=combatOneUnitBySeat[seatPos]
+    if state~=nil and state.site==site and state.round==gStates.currentRound
+        and state.turn==gStates.turnNumber then return state.guid end
+    return nil
+end
+
+local function combatOneUnitSelect(seatPos,site,guid)
+    combatOneUnitBySeat[seatPos]={site=site,round=gStates.currentRound,
+        turn=gStates.turnNumber,guid=guid}
+end
+
+function resourceCardsCombatSelectOneUnit(guid)
+    local player=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    if player==nil or guid==nil then return false end
+    local mode,site=combatUnitSiteRestriction(player.seatPos)
+    if mode~="one" then return false end
+    combatOneUnitSelect(player.seatPos,site,guid)
+    return true
+end
+
+function resourceCardsCombatClearOneUnit(seatPos)
+    if seatPos~=nil then combatOneUnitBySeat[seatPos]=nil
+    else combatOneUnitBySeat={} end
+end
+
+local function combatUnitSitePermits(mode,bondsGUID,chosenGUID,unitGUID,damageChoice)
+    if mode=="none" then return false end
+    if mode=="bonds" then return unitGUID~=nil and unitGUID==bondsGUID end
+    if mode=="one" then return unitGUID==chosenGUID
+        or (chosenGUID==nil and damageChoice==true) end
+    return true
+end
+
 -- The physical native Command tokens can lead the recorded level during testing.
 -- Command slots imply Armor 2, 3, 3, 4, 4, 5, 5, 6, 6... for 1, 2, 3, 4...
 -- Banner of Command and Bonds of Loyalty add slots, but not Hero Armor.
@@ -1180,9 +1240,12 @@ local function combatDamageUnits(seat)
     if scan~=nil and scan.preventUnitDamage==true then
         return units,state~=nil and state.nativeCommandCount or 0
     end
+    local siteMode,site=combatUnitSiteRestriction(seat)
+    local selected=siteMode=="one" and combatOneUnitChosen(seat,site) or nil
     for _,unitState in ipairs(state~=nil and state.units or {}) do
         local data=gameCards[unitState.guid]
-        if data~=nil and tonumber(data.armour)~=nil then
+        if data~=nil and tonumber(data.armour)~=nil
+            and combatUnitSitePermits(siteMode,state.bondsUnitGUID,selected,unitState.guid,true) then
             local resist={}
             for _,name in ipairs(data.resistance or {}) do resist[COMBAT_UNIT_RESIST_KEYS[name] or name]=true end
             if scan~=nil and scan.allUnitResistances==true then
@@ -5316,13 +5379,34 @@ local function renderSeat(seatPos,quietUnitChoice)
     -- spent; a Unit activated by a Command move THIS turn is still active.
     local unitState=hasUnits and unitLayoutResourceState(seatPos) or nil
     local activations=gStates.unitResourceActivations or {}
+    local unitSiteMode,unitSite=combatUnitSiteRestriction(seatPos)
+    if unitSiteMode==nil then resourceCardsCombatClearOneUnit(seatPos) end
+    local chosenSiteUnit=unitSiteMode=="one" and combatOneUnitChosen(seatPos,unitSite) or nil
+    if unitSiteMode=="one" and chosenSiteUnit==nil and unitState~=nil then
+        -- With just one used Unit, its Command token is an unambiguous choice.
+        -- If several are active, do not infer that all may participate.
+        local only,count=nil,0
+        for _,entry in ipairs(unitState.units) do
+            local activation=activations[entry.guid]
+            if entry.unwounded and activation~=nil
+                and activation.seatPos==seatPos then
+                only,count=entry.guid,count+1
+            end
+        end
+        if count==1 then
+            chosenSiteUnit=only
+            combatOneUnitSelect(seatPos,unitSite,only)
+        end
+    end
     unitHighlightBlocked={}
     if unitState~=nil then
         for _,entry in ipairs(unitState.units) do
             local activation=activations[entry.guid]
             local activeThisTurn=activation~=nil and activation.seatPos==seatPos
                 and unitResourceDefinitions[entry.guid]~=nil
-            if not entry.unwounded or (not entry.ready and not activeThisTurn) then
+            if not entry.unwounded or (not entry.ready and not activeThisTurn)
+                or not combatUnitSitePermits(unitSiteMode,
+                    unitState.bondsUnitGUID,chosenSiteUnit,entry.guid,false) then
                 unitHighlightBlocked[entry.guid]=true
                 clearHighlight(entry.guid)
             end
@@ -6095,7 +6179,8 @@ local function renderSeat(seatPos,quietUnitChoice)
                 local decision=unitManaDecision(unit,abilities,activation,counts)
                 showUnitAbilityButtons(unit,abilities,activation,unwounded,decision)
                 local selected=decision.index~=nil and abilities[decision.index] or nil
-                if unwounded then
+                if unwounded and combatUnitSitePermits(unitSiteMode,
+                    unitState.bondsUnitGUID,chosenSiteUnit,unitGUID,false) then
                     local crystalCounts=selected~=nil and selected.bonusColor~=nil
                         and unitManaCounts(unit,seatPos,manaObjects,true) or nil
                     local resources=selected~=nil
@@ -7339,6 +7424,7 @@ function resourceUnitsCommandDropped(playerColor,obj)
         gStates.unitResourceActivations[unit.guid]={
             seatPos=pickup.seatPos,tokenGUID=guid,choice=choice,
             selected=abilities.multi==true and {} or nil}
+        resourceCardsCombatSelectOneUnit(unit.guid)
         choiceExpandedByGUID[unit.guid]=nil
         showUnitAbilityButtons(unit,abilities,gStates.unitResourceActivations[unit.guid],true)
         queueSeat(pickup.seatPos,nil)
@@ -7396,6 +7482,7 @@ function resourceUnitsChoiceClicked(player,value,id)
         or abilities[index]==nil or activation.seatPos~=current.seatPos then return end
     local unit=getObjectFromGUID(unitGUID)
     if unit==nil then return end
+    resourceCardsCombatSelectOneUnit(unitGUID)
     local state=unitLayoutResourceState(current.seatPos)
     if state==nil then return end
     for _,entry in ipairs(state.units) do
