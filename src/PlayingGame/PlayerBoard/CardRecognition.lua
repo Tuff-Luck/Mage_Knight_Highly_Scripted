@@ -1678,8 +1678,8 @@ combatConfig.effectButtonInfo=function(entry,applied)
     local source=getObjectFromGUID(applied.source)
     local sourceName=source~=nil and source.getName~=nil and source.getName() or tostring(applied.source)
     local name=joinLangEnglish~=nil and joinLangEnglish(tostring(sourceName)) or tostring(sourceName)
-    local tooltip=name..": "..description..(reason~=nil and ("\\nNo benefit: "..reason) or "")
-        .."\\nClick to select, then click a cell in the enemy row to retarget."
+    local tooltip=name..": "..description..(reason~=nil and ("\nNo benefit: "..reason) or "")
+        .."\nClick to select, then click a cell in the enemy row to retarget."
     return {source={guid=applied.source,key=applied.key,name=name},
         family=family,arrow=arrow,amount=amount,icon=icon,
         text=description,tooltip=tooltip,ineffective=reason~=nil}
@@ -1710,9 +1710,9 @@ combatConfig.mitigationButtonInfo=function(guid,record,entry,group,damageResults
     local tooltip=name..": Prevent "..tostring(spec.physical or 2)
         .." Physical or "..tostring(spec.nonphysical or 1)
         .." non-Physical damage reaching the Hero from one attack."
-        .."\\nCurrently prevents "..tostring(prevented).." Hero damage."
-        ..(reason~=nil and ("\\nNo benefit: "..reason) or "")
-        .."\\nSelect the button then click an enemy row to retarget."
+        .."\nCurrently prevents "..tostring(prevented).." Hero damage."
+        ..(reason~=nil and ("\nNo benefit: "..reason) or "")
+        .."\nSelect the button then click an enemy row to retarget."
     return {source={guid=guid,key=guid,name=name},family="block",arrow="attack",
         amount=tostring(prevented>0 and prevented or (spec.physical or 2)),
         icon="MKChoiceBlock",text="Hero damage prevention",tooltip=tooltip,
@@ -2377,36 +2377,40 @@ local function combatAssignmentRefreshRows(entries,sources)
                         wounded=wounded}
                 end
             end
-            -- Generic enemy-effect buttons use the exact same table slots as
-            -- resources, but never enter the numerical Attack/Block totals.
-            local targetEntry=entries[index]
-            for _,applied in ipairs(targetEntry.effect~=nil and targetEntry.effect.applied or {}) do
-                local item=combatConfig.effectButtonInfo(targetEntry,applied)
-                if item~=nil then
-                    lists[item.family][#lists[item.family]+1]=item
-                    combatConfig.effectSources[item.source.key]={arrow=item.arrow}
-                end
-            end
-            -- Hero-damage mitigation follows enemy Attack timing, not the
-            -- amount of Block available. Allow any skill/card that declares
-            -- damageMitigation to use this shared slot presentation.
-            for guid,record in pairs(seatScan~=nil and seatScan.cards or {}) do
-                local rule=skillResourceDefinitions[guid]
-                if rule~=nil and rule.damageMitigation~=nil
-                    and record.enemyGUID==targetEntry.guid then
-                    local item=combatConfig.mitigationButtonInfo(guid,record,
-                        targetEntry,group,damageResults,mitigation)
-                    if item~=nil then
-                        lists.block[#lists.block+1]=item
-                        combatConfig.effectSources[item.source.key]={arrow=item.arrow}
-                    end
-                end
-            end
             perMember[index]=lists
         end
         local distributed,hidden=combatGroupResourceRows(group.members,perMember,combatConfig.slotCount)
         for index,lists in pairs(distributed) do displayByIndex[index]=lists end
         overflow=overflow+hidden
+        -- Numeric Ranged/Attack sources may flow through joined enemies, but
+        -- enemy effects always stay on the row of the enemy they actually target.
+        -- Put them first so the control stays visible even when a row is crowded.
+        for _,index in ipairs(group.members) do
+            local targetEntry=entries[index]
+            local lists=displayByIndex[index]
+            local function insertEffect(item)
+                if item==nil then return end
+                local buttons=lists[item.family]
+                table.insert(buttons,1,item)
+                if #buttons>combatConfig.slotCount then
+                    table.remove(buttons)
+                    overflow=overflow+1
+                end
+                combatConfig.effectSources[item.source.key]={arrow=item.arrow}
+            end
+            for _,applied in ipairs(targetEntry.effect~=nil and targetEntry.effect.applied or {}) do
+                insertEffect(combatConfig.effectButtonInfo(targetEntry,applied))
+            end
+            -- Damage mitigation is a Block-column control, but not Block points.
+            for guid,record in pairs(seatScan~=nil and seatScan.cards or {}) do
+                local rule=skillResourceDefinitions[guid]
+                if rule~=nil and rule.damageMitigation~=nil
+                    and record.enemyGUID==targetEntry.guid then
+                    insertEffect(combatConfig.mitigationButtonInfo(guid,record,
+                        targetEntry,group,damageResults,mitigation))
+                end
+            end
+        end
     end
     for row=1,combatConfig.rowCount do
         local index=pageOffset+row
