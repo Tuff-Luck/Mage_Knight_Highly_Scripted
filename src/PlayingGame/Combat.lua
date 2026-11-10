@@ -1456,6 +1456,17 @@ function combatEnemyTokenDefeated(obj)
 	return obj.is_face_down==false
 end
 
+-- Puppet Master must not treat every face-up enemy as defeated while the
+-- calculator deliberately leaves defeated and surviving tokens face up.
+-- Keep the manual (calculator-off) face-up convention unchanged.
+function combatEnemyEligibleAsDefeatedPuppet(obj)
+	if obj==nil or obj.is_face_down==true then return false end
+	if combatDefeatMarksActive==true then
+		return combatDefeatTracked[obj.guid]==true and combatDefeatDefeated[obj.guid]==true
+	end
+	return true
+end
+
 local function combatDefeatRefreshTokens(guids)
 	for guid in pairs(guids) do
 		local obj=getObjectFromGUID(guid)
