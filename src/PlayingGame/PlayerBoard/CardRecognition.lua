@@ -9,6 +9,8 @@ local crystalHighlightCleared={}
 local bySeat={}
 -- Initial guesses and explicit player choices are transient, never saved in gStates or JSON.
 local selectedResourceByGUID={}
+-- Retain the chosen crystal-pair Attack after Sacrifice converts the pairs to mana.
+local sacrificeCastPairs={}
 -- A choice lasts for one play; delayed departure checks must not race a return.
 local choiceResetGenerationByGUID={}
 -- Display state is separate from player selections. Picks/drops may clear the
@@ -311,6 +313,7 @@ local function combatAssignmentSources(seat)
                         swiftDouble=record.swiftDouble==true,defeatFameRep=record.defeatFameRep,
                         heroPsychicBlock=scan~=nil and scan.heroPsychicBlock==true and record.kind~="unit",
                         repeatBlocks=record.repeatBlocks,kind=record.kind,
+                        conditionalFireAttack=record.conditionalFireAttack,
                         possessExclude=record.possessEnemyGUID,
                         dueling=guid=="7d1c32"}
                     parts[slot]=source
@@ -1257,8 +1260,20 @@ local function combatBlockResult(entry,sources)
     end
     local key=table.concat(parts,";")
     local cached=entry.guid~=nil and combatBlockResultCache[entry.guid] or nil
-    if cached~=nil and cached.key==key then return table.unpack(cached.result,1,7) end
+    if cached~=nil and cached.key==key then return table.unpack(cached.result,1,8) end
     local plan,solved,leftover=combatSolveBlocks(attacks,items,movePool)
+    -- Capture the genuinely spent Block sources before spare Block display
+    -- items are appended to the plan, or a free counterattack can result.
+    local successfulSources={}
+    for index,attack in ipairs(attacks) do
+        if plan[index]~=nil and plan[index].blocked and not attack.pending then
+            for j,item in ipairs(solved) do
+                if plan[index].used[j] and item.key:sub(1,5)=="block" then
+                    successfulSources[item.source.guid]=true
+                end
+            end
+        end
+    end
     -- Resources that could not complete any block are shown against the heaviest unblocked attack, once each.
     -- When every attack is blocked, spare Block is shown as over-blocking the heaviest attack.
     local attempted=nil
@@ -1314,9 +1329,11 @@ local function combatBlockResult(entry,sources)
     end
     if entry.guid~=nil then
         combatBlockResultCache[entry.guid]={key=key,result={
-            lines,totalDamage,damageCount,allBlocked,reductions,wrongBlock,unblocked}}
+            lines,totalDamage,damageCount,allBlocked,reductions,wrongBlock,unblocked,
+            successfulSources}}
     end
-    return lines,totalDamage,damageCount,allBlocked,reductions,wrongBlock,unblocked
+    return lines,totalDamage,damageCount,allBlocked,reductions,wrongBlock,unblocked,
+        successfulSources
 end
 
 -- Damage phase. Every unblocked attack starts wholly on the Hero; the player may route it through free Units first
@@ -1898,7 +1915,8 @@ combatConfig.effectButtonInfo=function(entry,applied)
         amount="-"..tostring(math.max(printed,appliedReduction))
         description="Armour reduction "..amount
         if appliedReduction==0 then
-            reason=applied.immune and "Arcane Immunity ignores this Armour effect."
+            reason=applied.fireResistant and "Fire Resistance ignores this red Spell effect."
+                or (applied.immune and "Arcane Immunity ignores this Armour effect.")
                 or "This Armour reduction is not applicable to the target."
         elseif before<=after then reason="Armour is already at its minimum of 1 (or other effects have reached it)."
         elseif fortified and (tonumber(spec.armourReduceRangedUnfortifiedOnly) or 0)>0 then
@@ -1960,8 +1978,12 @@ combatConfig.effectButtonInfo=function(entry,applied)
         elseif #combatEnemyPrintedAttacks(entry.data,entry.perks,entry.removeAbilities,entry.guid)==0 then
             reason="The enemy has no attack to prevent." end
     elseif spec.destroyIfBlocked==true then
-        description="Destroy if Blocked"
-        if entry.destroyed~=true then reason="The attack is not fully blocked, so the enemy is not destroyed." end
+        description="Destroy if this Spell successfully Blocks an attack"
+        if applied.fireResistant then reason="Fire Resistance prevents this destruction."
+        elseif applied.immune then reason="Arcane Immunity prevents this destruction."
+        elseif entry.destroyed~=true then
+            reason="This Fire Block has not been used in a successful Block."
+        end
     elseif spec.removeAbilities==true then
         description="Remove Attack Abilities"
         if actual.removeAbilities~=true then reason="Arcane Immunity ignores this effect." end
@@ -1971,7 +1993,8 @@ combatConfig.effectButtonInfo=function(entry,applied)
     elseif spec.destroyDuringAttack==true then
         description="Destroy enemy during Attack phase"
         if actual.destroyDuringAttack~=true then
-            reason="Arcane Immunity prevents this destruction."
+            reason=applied.fireResistant and "Fire Resistance prevents this destruction."
+                or "Arcane Immunity prevents this destruction."
         end
     end
     local source=getObjectFromGUID(applied.source)
@@ -2413,8 +2436,19 @@ local function combatAssignmentRefreshRows(entries,sources)
             end
             if hasAttack then
                 local target=allocated[index]
-                local _,_,_,allBlocked=combatBlockResult(entry,target~=nil and target.sources or {})
-                if allBlocked then entry.destroyed=true conditionalDestroyed=true end
+                local _,_,_,allBlocked,_,_,_,successfulSources=
+                    combatBlockResult(entry,target~=nil and target.sources or {})
+                local shieldContributed=false
+                for _,applied in ipairs(entry.effect~=nil and entry.effect.applied or {}) do
+                    if applied.effective~=nil and applied.effective.destroyIfBlocked==true
+                        and successfulSources[applied.source]==true then
+                        shieldContributed=true
+                        break
+                    end
+                end
+                if allBlocked and shieldContributed then
+                    entry.destroyed=true conditionalDestroyed=true
+                end
             end
         end
     end
@@ -2458,12 +2492,26 @@ local function combatAssignmentRefreshRows(entries,sources)
         for _,index in ipairs(group.members) do
             local entry=entries[index]
             local target=allocated[index] or emptyTarget
-            local lines,damage,count,allBlocked,reductions,wrongBlock,unblocked=combatBlockResult(entry,target.sources)
+            local lines,damage,count,allBlocked,reductions,wrongBlock,unblocked,successfulSources=
+                combatBlockResult(entry,target.sources)
             rowBlock[index]={lines=lines,damage=damage,count=count,allBlocked=allBlocked,reductions=reductions,
                 wrongBlock=wrongBlock,unblocked=unblocked,damageItems={}}
             blockedAll[entry.guid]=allBlocked
             members[#members+1]=entry
-            for _,source in ipairs(target.sources) do group.sources[#group.sources+1]=source end
+            for _,source in ipairs(target.sources) do
+                if source.conditionalFireAttack~=nil
+                    and successfulSources[source.guid]==true then
+                    local amount=source.conditionalFireAttack
+                    source.resources.attackFire=(source.resources.attackFire or 0)+amount
+                    source.attack=source.attack+amount
+                    local detail={text="Fire Attack "..tostring(amount).." (successful Block)",
+                        amount=amount,icon="MKChoiceAttack",key="attackFire",
+                        family="attack",typeKey="F"}
+                    source.details[#source.details+1]=detail
+                    target.details[#target.details+1]={source=source,detail=detail}
+                end
+                group.sources[#group.sources+1]=source
+            end
         end
         group.entry,group.attackArmour=combatGroupEntry(members,blockedAll)
         group.rangeTotal,group.rangeArmour,group.rangeDefeated,group.fortification=
@@ -3126,6 +3174,19 @@ local function refreshCombatEnemyPanel(monsters,calculated)
     local currentSeat=combatAssignmentActiveSeat()
     local seatScan=currentSeat~=nil and resourceCardScanBySeat[currentSeat] or nil
     local enemyEffects=seatScan~=nil and seatScan.enemyEffects or nil
+    -- Ignore site/wall Fortified, but preserve the monster's printed Fortified.
+    if seatScan~=nil and seatScan.ignoreSiteFortifications==true then
+        for _,entry in ipairs(entries) do
+            local perks=entry.perks
+            if perks~=nil and (perks.fortified==true or perks.wallFortified==true) then
+                local adjusted={}
+                for key,value in pairs(perks) do adjusted[key]=value end
+                adjusted.fortified=false
+                adjusted.wallFortified=false
+                entry.perks=adjusted
+            end
+        end
+    end
     for _,entry in ipairs(entries) do
         local obj=getObjectFromGUID(entry.guid)
         entry.x=obj~=nil and obj.getPosition()[1] or 0
@@ -3734,6 +3795,7 @@ local choiceLetters={attackP1="A",attackP2="A2",attackP3="A3",
     heal="H",combat="C",wound="W",fame="F",reputation="R",gain="G",ready="R",
     base="2",sourceUnused="3",red="R",blue="B",white="W",green="G",
     fireAttack="F",fireBlock="F",fireSiege="F",iceSiege="I",fireBlockOnly="B",fireBlockCounter="B+",
+    woundPending="W?",woundTaken="W✓",
     splitBlock="B2",zero="0",one="1",two="2",three="3",four="4",five="5"}
 -- The choice UI and initial-guess tie-breaks follow the Resource Tracker order.
 local resourceChoiceOrder={
@@ -5012,6 +5074,8 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
     if defeatSide~=nil and defeatSide.choice~=nil
         and (chosen==nil or choiceCategory(chosen)~=defeatSide.choice) then defeatSide=nil end
     return {guid=card.guid,known=known,complete=complete,powered=powered,fameRep=fameRepSide,
+        conditionalFireAttack=complete and not powered and chosen~=nil
+            and chosen.conditionalFireAttack or nil,
         defeatFameRep=defeatSide,splitTargets=chosen~=nil and chosen.splitTargets or nil,
         repeatBlocks=chosen~=nil and chosen.repeatBlocks or nil,
         links=linked,status=status,resources=effects,
@@ -5766,7 +5830,8 @@ local function combatEffectTargetEligible(spec)
         or (tonumber(spec.armourReduceFortified) or 0)>0
         or (tonumber(spec.armourReduceByResist) or 0)>0
         or spec.removeFortify==true or spec.removeResist==true
-        or spec.removeFireResist==true or spec.destroy==true)
+        or spec.removeFireResist==true or spec.destroy==true
+        or spec.destroyDuringAttack==true)
     return function(enemy,guid)
         local data=combatEnemyData(guid,enemy)
         return data~=nil and (data.attackOnly~=true or not defenceEffect)
@@ -6086,6 +6151,7 @@ local function renderSeat(seatPos,quietUnitChoice)
     local current,records,totals={}, {}, {}
     local usesCurrentHexBlock=false
     local usesCurrentHexHealing=false
+    local ignoreSiteFortifications=false
     local terrainModifiers=resourceCardsWeatherTerrainEffects(seatPos)
     local movementEffects={jumpTwoSpaces=false,ignoreRampagers=false}
     local usesSkillLocation=false
@@ -6299,24 +6365,44 @@ local function renderSeat(seatPos,quietUnitChoice)
             end
         end
 
-        -- Sacrifice's four variants count physically stored crystal pairs.
-        if rule~=nil and rule.crystalPairAttack~=nil and result.powered
-            and result.resources~=nil and cardPosture(card)=="upright" then
-            local chosen,category=currentChoice(card.guid,true,rule.poweredChoices)
-            local colors=rule.crystalPairAttack[category]
-            if colors~=nil and chosen~=nil then
-                local pairCount=math.min(inventoryCrystalCounts[colors[1]] or 0,
-                    inventoryCrystalCounts[colors[2]] or 0)
-                result.resources={[category]=(chosen[category] or 0)*pairCount}
-                result.complete=pairCount>0
-                result.status=pairCount>0 and "green" or "blue"
+        -- Sacrifice's pairs become mana, so preserve their Attack after conversion.
+        if rule~=nil and rule.crystalPairAttack~=nil then
+            if result.powered and result.resources~=nil
+                and cardPosture(card)=="upright" and card.is_face_down~=true then
+                local chosen,category=currentChoice(card.guid,true,rule.poweredChoices)
+                local colors=rule.crystalPairAttack[category]
+                if colors~=nil and chosen~=nil then
+                    local available=math.min(inventoryCrystalCounts[colors[1]] or 0,
+                        inventoryCrystalCounts[colors[2]] or 0)
+                    local snapshot=sacrificeCastPairs[card.guid]
+                    if snapshot~=nil and (snapshot.seat~=seatPos or snapshot.category~=category) then
+                        snapshot=nil
+                    end
+                    if snapshot==nil and available>0 then
+                        snapshot={seat=seatPos,category=category,pairs=available}
+                        sacrificeCastPairs[card.guid]=snapshot
+                    end
+                    local pairCount=snapshot~=nil and snapshot.pairs or 0
+                    result.resources={[category]=(chosen[category] or 0)*pairCount}
+                    result.complete=pairCount>0
+                    result.status=pairCount>0 and "green" or "blue"
+                    result.sacrificePairs=pairCount
+                end
+            else
+                sacrificeCastPairs[card.guid]=nil
             end
         end
         if rule~=nil and rule.poweredEnemyBonus~=nil and result.powered
             and result.resources~=nil and cardPosture(card)=="upright" then
             local enemyCount=0
-            for _,enemy in pairs(playMonsters) do
-                if enemy.is_face_down~=true then enemyCount=enemyCount+1 end
+            for guid,enemy in pairs(playMonsters) do
+                local data,mode=combatEnemyData(guid,enemy)
+                -- Summons and attack-only reminders are not extra enemy tokens.
+                if enemy.is_face_down~=true and data~=nil
+                    and data.attackOnly~=true and mode~="attackOnly"
+                    and not combatIsSummonedToken(guid) then
+                    enemyCount=enemyCount+1
+                end
             end
             local updated={}
             for category,value in pairs(result.resources) do
@@ -6424,7 +6510,7 @@ local function renderSeat(seatPos,quietUnitChoice)
                                     for guid,monster in pairs(monsters) do
                                         if guid~=target.guid and monster.is_face_down~=true then
                                             combatEffectAdd(enemyEffects,guid,card.guid,
-                                                {armourReduce=spec.othersArmourReduce,all=true})
+                                                {armourReduce=spec.othersArmourReduce,all=true,fireSpell=spec.fireSpell})
                                         end
                                     end
                                 end
@@ -6491,6 +6577,12 @@ local function renderSeat(seatPos,quietUnitChoice)
                 if effect.jumpTwoSpaces==true then movementEffects.jumpTwoSpaces=true end
                 if effect.ignoreRampagers==true then movementEffects.ignoreRampagers=true end
             end
+        end
+        -- Demolish removes site fortification independent of enemy Fire Resistance.
+        if rule~=nil and rule.ignoreSiteFortification==true
+            and result.complete and not result.powered and result.resources~=nil
+            and cardPosture(card)=="upright" and card.is_face_down~=true then
+            ignoreSiteFortifications=true
         end
         -- Conditional combat effects apply only on a paid, upright, actually
         -- played side, never when the card is merely in the zone for display.
@@ -8007,6 +8099,7 @@ local function renderSeat(seatPos,quietUnitChoice)
         attackTransforms=attackTransforms,
         terrainModifiers=terrainModifiers,movementEffects=movementEffects,
         enemyEffects=enemyEffects,fameRepBase=fameRepBase,
+        ignoreSiteFortifications=ignoreSiteFortifications,
         unitState=unitState,preventUnitDamage=preventUnitDamage,
         allUnitResistances=allUnitResistances,heroPsychicBlock=heroPsychicBlock,
         usesCurrentHexBlock=usesCurrentHexBlock,
@@ -8031,6 +8124,7 @@ local function renderSeat(seatPos,quietUnitChoice)
     end
     for guid in pairs(previous) do
         if current[guid]~=true then
+            sacrificeCastPairs[guid]=nil
             clearHighlight(guid)
             if choiceButtonShown[guid]~=nil and choiceButtonShown[guid]~="hidden" then
                 removeChoiceButtons(getObjectFromGUID(guid))
