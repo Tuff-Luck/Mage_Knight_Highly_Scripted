@@ -1977,7 +1977,11 @@ combatConfig.effectButtonInfo=function(entry,applied)
             or {"fResist"}) do
             if combatEnemyHasTrait(entry.data,entry.perks,trait) then relevant=true end
         end
-        if (spec.removeResist and actual.removeResist~=true)
+        if applied.iceResistant then
+            reason="Ice Resistance ignores this blue Spell effect."
+        elseif applied.fireResistant then
+            reason="Fire Resistance ignores this red Spell effect."
+        elseif (spec.removeResist and actual.removeResist~=true)
             or (spec.removeFireResist and actual.removeFireResist~=true) then
             reason="Arcane Immunity ignores this resistance effect."
         elseif not relevant then reason="The enemy has no applicable Resistance." end
