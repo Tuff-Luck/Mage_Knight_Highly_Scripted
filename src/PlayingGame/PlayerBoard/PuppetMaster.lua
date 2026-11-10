@@ -306,7 +306,11 @@ function puppetMasterClaimReason(enemy,pickup,destinationPlayer)
 	if playerData==nil or destinationPlayer~=pickup.player then return puppetMasterText.ownerInventory end
 	if pickup.fromCombat~=true then return puppetMasterText.fromCombat end
 	if puppetMasterEnemyEligible(enemy)~=true then return puppetMasterText.eligible end
-	if pickup.faceUp~=true or enemy.is_face_down==true then return puppetMasterText.defeatedFaceUp end
+	if pickup.faceUp~=true or enemy.is_face_down==true
+		or (combatEnemyEligibleAsDefeatedPuppet~=nil
+			and combatEnemyEligibleAsDefeatedPuppet(enemy)~=true) then
+		return puppetMasterText.defeatedFaceUp
+	end
 	if enemy.guid==darkCrusader.token or enemy.guid==elementalist.token then
 		local leaderLevel=enemy.guid==darkCrusader.token and gStates.darkCrusaderLevel or gStates.elementalistLevel
 		if leaderLevel~=nil and ((gStates.leaderReduction or 0)+(gStates.leaderOverkill or 0))<leaderLevel then return puppetMasterText.leaderDefeated end
