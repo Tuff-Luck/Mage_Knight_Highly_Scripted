@@ -88,11 +88,14 @@ function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec,sourceKey)
         and gStates.monsterPerks[enemyGUID] or nil
     local fireResistant=requested.fireSpell==true
         and ((pug~=nil and pug.fResist==true) or (perks~=nil and perks.fResist==true))
+    local iceResistant=requested.iceSpell==true
+        and ((pug~=nil and pug.iResist==true) or (perks~=nil and perks.iResist==true))
     if spec.insufficientMove==true then
         spec={} -- Keep a red Wings target button, but apply no suppression.
-    elseif fireResistant then
-        -- Resistance blocks red Spell effects, but not their Attack/Block points.
-        entry.fireResistIgnored=true
+    elseif fireResistant or iceResistant then
+        -- Elemental Resistance blocks the non-Attack/Block effects of a matching Spell.
+        if fireResistant then entry.fireResistIgnored=true end
+        if iceResistant then entry.iceResistIgnored=true end
         spec={}
     elseif immune then
         entry.immuneIgnored=true
@@ -103,7 +106,8 @@ function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec,sourceKey)
     if requested.all~=true then
         entry.applied=entry.applied or {}
         entry.applied[#entry.applied+1]={source=sourceGUID,key=sourceKey or sourceGUID,
-            spec=requested,effective=spec,immune=immune,fireResistant=fireResistant}
+            spec=requested,effective=spec,immune=immune,fireResistant=fireResistant,
+            iceResistant=iceResistant}
     end
     local attackAdjust=(tonumber(spec.attackReduce) or 0)-(tonumber(spec.attackIncrease) or 0)
     if attackAdjust~=0 then
@@ -181,6 +185,7 @@ function combatEffectReport(seatPos,enemyEffects,quiet)
         if entry.destroyIfBlocked then text=text.." destroyed if all attacks blocked" end
         if entry.immuneIgnored then text=text.." (Arcane Immunity ignores non-attack effects)" end
         if entry.fireResistIgnored then text=text.." (Fire Resistance ignores red Spell effects)" end
+        if entry.iceResistIgnored then text=text.." (Ice Resistance ignores blue Spell effects)" end
         parts[#parts+1]=text
     end
     table.sort(parts)
