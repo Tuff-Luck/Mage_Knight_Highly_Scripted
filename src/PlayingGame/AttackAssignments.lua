@@ -995,6 +995,8 @@ function attackAssignmentSourceClicked(player,value,id)
 		-- Left click moves the whole source to a single new target; right click keeps the
 		-- existing arrow so one source can feed a second enemy.
 		local additional=tostring(value)=="-2"
+        -- Each Forked Lightning bolt has exactly one enemy target.
+        if sourceKey:match("^d01b70#fork%d+$") then additional=false end
 		if not additional and pending==nil then
 			local removed=false
 			for entryId,entry in pairs(assignmentRegistry) do
@@ -1031,7 +1033,8 @@ function attackAssignmentTargetClicked(target,playerColor)
         -- Summoned tokens redirect to their face-up owner in the same combat.
         local summoned=gStates~=nil and gStates.attackedMonsters~=nil
             and gStates.attackedMonsters[target.guid] or nil
-        if summoned~=nil and summoned[3]=="summoned" and summoned[4]~=nil then
+        if summoned~=nil and summoned[3]=="summoned" and summoned[4]~=nil
+            and pending.sourceGUID~="4ac9f6" and pending.sourceGUID~="19daf9" then
             target=eligible[summoned[4]]
             if target==nil then return end
         end
