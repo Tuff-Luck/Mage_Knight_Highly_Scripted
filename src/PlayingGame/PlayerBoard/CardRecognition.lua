@@ -5503,8 +5503,8 @@ end
 -- Puppet Master tokens already have authoritative half-strength Attack/Block
 -- perk data. Keep each printed Attack separate: a Puppet cannot combine all
 -- of its enemy's different attacks into one automatic total.
-local puppetTypes={P="",F="Fire",I="Ice",IF="ColdFire"}
-local puppetTypeOrder={"P","F","I","IF"}
+combatConfig.puppetTypes={P="",F="Fire",I="Ice",IF="ColdFire"}
+combatConfig.puppetTypeOrder={"P","F","I","IF"}
 local function puppetResourceOptions(guid)
     local record=gStates.puppetMasterPuppets~=nil and gStates.puppetMasterPuppets[guid] or nil
     if record==nil then return nil end
@@ -5517,7 +5517,7 @@ local function puppetResourceOptions(guid)
     if perks==nil then return nil end
     local choices={}
     for _,family in ipairs({"attack","block"}) do
-        for _,attackType in ipairs(puppetTypeOrder) do
+        for _,attackType in ipairs(combatConfig.puppetTypeOrder) do
             local entries=perks[family]~=nil and perks[family][attackType] or nil
             if type(entries)=="table" then
                 for i,value in ipairs(entries) do
@@ -5525,7 +5525,7 @@ local function puppetResourceOptions(guid)
                         ---@type table<string, string|number>
                         local choice={key=family..attackType..i,icon=family}
                         if attackType~="P" then choice.iconOverlay=attackType=="IF" and "C" or attackType end
-                        choice[family..puppetTypes[attackType]]=value
+                        choice[family..combatConfig.puppetTypes[attackType]]=value
                         choices[#choices+1]=choice
                     end
                 end
@@ -5642,9 +5642,9 @@ local function calculateSkill(skill,linkedTarget,unitState,inventoryCrystalCount
         resources=effects,choices=choices}
 end
 
-local terrainEffectOrder={set=0,cap=1,reduce=2}
+combatConfig.terrainEffectOrder={set=0,cap=1,reduce=2}
 local function terrainModifierPrecedes(a,b)
-    local first,second=terrainEffectOrder[a.mode] or 9,terrainEffectOrder[b.mode] or 9
+    local first,second=combatConfig.terrainEffectOrder[a.mode] or 9,combatConfig.terrainEffectOrder[b.mode] or 9
     if first~=second then return first<second end
     if a.mode=="reduce" then return (a.minimum or 0)>(b.minimum or 0) end
     return false
@@ -5652,7 +5652,7 @@ end
 
 -- Count only printed enemy-token icons, not site-given traits.
 -- A Coldfire attack represents both Fire and Ice attack-colour icons.
-local enemyPrintedAbilityKeys={
+combatConfig.enemyPrintedAbilityKeys={
     "swiftness","cumbersome","brutal","poison","paralyse",
     "assassination","vampiric","elusive","fortified","unfortified",
     "defend","pResist","fResist","iResist"
@@ -5661,7 +5661,7 @@ local function enemyPrintedIconBonus(enemy)
     if enemy==nil then return nil end
     if enemy.arcaneImmunity==true then return 0 end
     local count=0
-    for _,key in ipairs(enemyPrintedAbilityKeys) do
+    for _,key in ipairs(combatConfig.enemyPrintedAbilityKeys) do
         local value=enemy[key]
         if value==true or (type(value)=="number" and value>0) then
             count=count+1
@@ -5675,7 +5675,7 @@ end
 
 -- Possess borrows actual enemy attacks, including live bonuses and drawn
 -- summons, without their special abilities; they form one Attack source.
-local possessedAttackKeys={P="attack",F="attackFire",I="attackIce",
+combatConfig.possessedAttackKeys={P="attack",F="attackFire",I="attackIce",
     IF="attackColdFire",M="attackPsychic"}
 local function enemyPrintedPossessAttack(enemy,guid)
     if enemy==nil or enemy.arcaneImmunity==true then return nil end
@@ -5692,7 +5692,7 @@ local function enemyPrintedPossessAttack(enemy,guid)
     end
     local resources={}
     for _,attack in ipairs(attacks) do
-        local field=possessedAttackKeys[attack.key]
+        local field=combatConfig.possessedAttackKeys[attack.key]
         if field~=nil and (tonumber(attack.value) or 0)>0 then
             resources[field]=(resources[field] or 0)+attack.value
         end
