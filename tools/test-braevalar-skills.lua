@@ -128,7 +128,8 @@ eq(defeated,false,"Melee-phase bolts wait until regular Attack phase")
 
 -- Competing Nature's Vengeance modifies the Block target, but the base
 -- damage value remains unchanged when that Block fails.
-COMBAT_EFFICIENT_BLOCKS={P={block=true}}
+combatConfig=combatConfig or {}
+combatConfig.COMBAT_EFFICIENT_BLOCKS={P={block=true}}
 local blockSolver=isolated(recognition,
     "local function combatBlockLegal(attack,item)",
     "local function combatBlockSpent(", "combatSolveBlocks")
