@@ -276,32 +276,17 @@ function refreshOutOfTurnActions(playerAreaCardCount, playerAreaSkillCount, forc
 
 			--Motivation Skills
 			for skillGUID, stats in pairs(gStates.motivationSkill) do
-				if playerDropoutInactive(a)==false and stats.pos==turnOrder[a].seatPos and stats.state=="active" then
-					--check if another motivation skill has been used
-					local test=false
-					for _, stats2 in pairs(gStates.motivationSkill) do
-						if stats2.pos==turnOrder[a].seatPos and stats2.state=="used" then test=true end
-					end
-					if test==false then
+				if playerDropoutInactive(a)==false and motivationSkillCanActivate(skillGUID,turnOrder[a].seatPos) then
 						UI.setAttribute(skillGUID.."-Motivation"..tostring(turnOrder[a].seatPos), "active", "true")
 						UI.setAttribute(skillGUID.."-Motivation"..tostring(turnOrder[a].seatPos).."Text", "text", joinLang({"{en}Use {it}Usa {ru}{zh-tw}使用{zh-cn}使用{ko}{es}Usa la Habilidad Motivación de {fr}Utilisez la compétence de motivation de {pt-br}Habilidade Motivacional de {de}Verwenden ", translateWord[skillTokens[skillGUID].mage], "{en}'s Motivation Skill{it}: Abilità Motivazione{ru} использует навык Мотивация{zh-tw}的激勵技能{zh-cn}的激励技能{ko}의 동기부여 스킬 사용{es}.{fr}.{pt-br}.{de}'s Motivations Fähigkeit"}))
 						UI.setAttribute(skillGUID.."-Motivation"..tostring(turnOrder[a].seatPos), "tooltip", "Draw two cards")
-						local lowestFame=1
-						--Work out lowest fame
-						for b=2, #turnOrder, 1 do
-							if turnOrder[b].mage~=gStates.positionMageKnight[5] then
-								if turnOrder[b].fame<turnOrder[lowestFame].fame or turnOrder[lowestFame].mage==gStates.positionMageKnight[5] then lowestFame=b end
-							end
-						end
-						for b=1, #turnOrder, 1 do if turnOrder[b].fame==turnOrder[lowestFame].fame and b~=lowestFame then lowestFame=0 break end end--find tied lowest fame
-						if a==lowestFame then
+						if a==motivationUniqueLowestFamePlayerIndex() then
 							UI.setAttribute(skillGUID.."-Motivation"..tostring(turnOrder[a].seatPos).."Text", "text", joinLang({"{en}Use {it}Usa {ru}{zh-tw}使用{zh-cn}使用{ko}{es}Usa la Habilidad Motivación de {fr}Utilisez la compétence de motivation de {pt-br}Habilidade Motivacional de {de}Verwenden ", translateWord[skillTokens[skillGUID].mage], "{en}'s Motivation Skill (+){it}: Abilità Motivazione (+){ru} использует навык Мотивация (+){zh-tw}的激勵技能（+）{zh-cn}的激励技能（+）{ko}의 동기부여 스킬 사용 (+){es}. (+){fr}. (+){pt-br}. (+){de}'s Motivations Fähigkeit (+)"}))
 							local motivationBonus=joinLangEnglish(stats.bonus)
 							UI.setAttribute(skillGUID.."-Motivation"..tostring(turnOrder[a].seatPos), "tooltip", "Draw 2 Cards"..motivationBonus)
 						end
 						UI.setAttribute(skillGUID.."-Motivation"..tostring(turnOrder[a].seatPos).."Image", "color", positionToColor(a))
 						count=count+1
-					end
 				end
 			end
 
