@@ -306,9 +306,17 @@ function puppetMasterClaimReason(enemy,pickup,destinationPlayer)
 	if playerData==nil or destinationPlayer~=pickup.player then return puppetMasterText.ownerInventory end
 	if pickup.fromCombat~=true then return puppetMasterText.fromCombat end
 	if puppetMasterEnemyEligible(enemy)~=true then return puppetMasterText.eligible end
+	-- The calculator can untrack an Enemy as soon as it leaves the Combat
+	-- Area. Use the defeat mark recorded on pickup, BEFORE the drag starts;
+	-- a live lookup after the Inventory drop would reject a valid claim.
+	local confirmedDefeated=pickup.calculatorActive==true
+		and pickup.calculatorDefeated==true
+	if pickup.calculatorActive~=true then
+		confirmedDefeated=combatEnemyEligibleAsDefeatedPuppet==nil
+			or combatEnemyEligibleAsDefeatedPuppet(enemy)==true
+	end
 	if pickup.faceUp~=true or enemy.is_face_down==true
-		or (combatEnemyEligibleAsDefeatedPuppet~=nil
-			and combatEnemyEligibleAsDefeatedPuppet(enemy)~=true) then
+		or confirmedDefeated~=true then
 		return puppetMasterText.defeatedFaceUp
 	end
 	if enemy.guid==darkCrusader.token or enemy.guid==elementalist.token then
@@ -419,7 +427,16 @@ function puppetMasterTrackPickup(playerColor,obj)
 	if puppetMasterEnemyEligible(obj)~=true then return end
 	local combatPlayer=puppetMasterCombatAreaPlayer(obj.guid)
 	if combatPlayer==nil or puppetMasterColorCanMovePlayer(playerColor,combatPlayer)~=true then return end
-	puppetMasterPickup[obj.guid]={kind="enemy",player=combatPlayer,color=playerColor,fromCombat=true,faceUp=obj.is_face_down==false,position={obj.getPosition()[1],obj.getPosition()[2],obj.getPosition()[3]},rotation={obj.getRotation()[1],obj.getRotation()[2],obj.getRotation()[3]}}
+	-- Snapshot the calculator's red-X defeat state while the source Enemy
+	-- is still tracked. It may be untracked before the player's drop resolves.
+	local calculatorActive=combatDefeatMarksActive==true
+	local confirmed=not calculatorActive or (combatEnemyEligibleAsDefeatedPuppet~=nil
+		and combatEnemyEligibleAsDefeatedPuppet(obj)==true)
+	puppetMasterPickup[obj.guid]={kind="enemy",player=combatPlayer,color=playerColor,
+		fromCombat=true,faceUp=obj.is_face_down==false,
+		calculatorActive=calculatorActive,calculatorDefeated=confirmed,
+		position={obj.getPosition()[1],obj.getPosition()[2],obj.getPosition()[3]},
+		rotation={obj.getRotation()[1],obj.getRotation()[2],obj.getRotation()[3]}}
 end
 
 function puppetMasterDropped(obj)
