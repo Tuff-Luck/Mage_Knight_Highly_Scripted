@@ -1513,7 +1513,8 @@ end
 
 -- Motivation skill runtime
 function skillsMotivationBase(player, mouseButton, id)
-	local skillGUID,seatText=type(id)=="string" and id:match("^([0-9a-f]+)%-Motivation(%d+)$")
+	local skillGUID,seatText=nil,nil
+	if type(id)=="string" then skillGUID,seatText=id:match("^([0-9a-f]+)%-Motivation(%d+)$") end
 	local seatPos=tonumber(seatText)
 	if mouseButton=="-1" and skillGUID~=nil and seatPos~=nil
 		and motivationSkillCanActivate(skillGUID,seatPos)
