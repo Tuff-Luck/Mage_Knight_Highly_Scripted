@@ -1578,7 +1578,6 @@ function skillsMotivationBase(player, mouseButton, id)
 					gStates.motivationSkill[skillGUID].state="used"
 					mainUIUpdate("Motivation Skill activated")
 					break
-				end
 			end
 		end
 	end
