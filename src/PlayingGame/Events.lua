@@ -1618,6 +1618,10 @@ local function handleManaZoneLeave(ctx)
 	local obj=ctx.obj
 	--updata Mirrored source
 	if zone.guid==GUID.zone.mana and obj.type=="Dice" then
+		-- Direct use of the real Source bypasses the mirrored-die handler.
+		if manaSourceMarkDieUsedForCurrentTurn~=nil then
+			manaSourceMarkDieUsedForCurrentTurn(obj.guid)
+		end
 		if dieRollEnterPause~=nil then Wait.stop(dieRollEnterPause) end
 		dieRollEnterPause=safeWaitTime("Events",function()
 			mirrorSourceUpdate("object left zone")
