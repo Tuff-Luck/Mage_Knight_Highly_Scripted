@@ -62,6 +62,15 @@ combatEnemyEligibleAsDefeatedPuppet=function() return false end
 eq(type(puppetMasterClaimReason(enemy,pickup,1)),"string","Undefeated face-up enemy must be rejected")
 combatEnemyEligibleAsDefeatedPuppet=function() return true end
 eq(puppetMasterClaimReason(enemy,pickup,1),nil,"Defeated enemy may be kept")
+-- The defeated mark may disappear when the enemy leaves the Combat Area.
+pickup.calculatorActive=true
+pickup.calculatorDefeated=true
+combatEnemyEligibleAsDefeatedPuppet=function() return false end
+eq(puppetMasterClaimReason(enemy,pickup,1),nil,"Defeat snapshot survives dragging to Inventory")
+pickup.calculatorDefeated=false
+eq(type(puppetMasterClaimReason(enemy,pickup,1)),"string","Undeafeated snapshot rejected")
+pickup.calculatorActive=nil
+pickup.calculatorDefeated=nil
 pickup.faceUp=false
 eq(type(puppetMasterClaimReason(enemy,pickup,1)),"string","Previously face-down enemy rejected")
 
