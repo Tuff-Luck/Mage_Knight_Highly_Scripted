@@ -591,7 +591,11 @@ end
 
 local function combatEntryHasCumbersome(guid,data,perks)
     local effect=combatEffectOf(guid)
-    if combatEnemyHasTrait(data,perks,"cumbersome") and not (effect~=nil and effect.removeAbilities) then return true end
+    local printedIgnored=effect~=nil and effect.removedPrinted~=nil
+        and effect.removedPrinted.cumbersome==true
+    local hasCumbersome=(data.cumbersome==true and not printedIgnored)
+        or (perks~=nil and perks.cumbersome==true)
+    if hasCumbersome and not (effect~=nil and effect.removeAbilities) then return true end
     if data.monsters~=nil then
         for _,summoned in ipairs(combatSummonedFor(guid)) do
             if combatEnemyHasTrait(summoned.data,summoned.perks,"cumbersome")
@@ -631,9 +635,14 @@ function resourceCardsEnemyEffectivelyUnfortified(guid,effects)
     if data==nil or mode=="attackOnly" or data.attackOnly==true then return false end
     local perks=gStates~=nil and gStates.monsterPerks~=nil
         and gStates.monsterPerks[guid] or nil
-    if combatEnemyFortificationCount(data,perks)==0 then return true end
-    local effect=effects~=nil and effects[guid] or nil
-    return effect~=nil and effect.removeFortify==true
+    local effect=effects~=nil and effects[guid] or combatEffectOf(guid)
+    local fortified=combatEnemyFortificationCount(data,perks)
+    if effect~=nil and effect.removedPrinted~=nil
+        and effect.removedPrinted.fortified==true and data.fortified==true
+        and not combatEnemyHasTrait(data,perks,"unfortified") then
+        fortified=math.max(0,fortified-1)
+    end
+    return fortified==0 or (effect~=nil and effect.removeFortify==true)
 end
 
 function resourceCardsCombatTargetRejectMessage(sourceKey,targetGUID)
