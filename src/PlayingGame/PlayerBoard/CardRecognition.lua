@@ -314,6 +314,7 @@ local function combatAssignmentSources(seat)
                         heroPsychicBlock=scan~=nil and scan.heroPsychicBlock==true and record.kind~="unit",
                         repeatBlocks=record.repeatBlocks,kind=record.kind,
                         conditionalFireAttack=record.conditionalFireAttack,
+                        flameWave=record.flameWave,
                         possessExclude=record.possessEnemyGUID,
                         dueling=guid=="7d1c32"}
                     parts[slot]=source
@@ -2389,6 +2390,62 @@ local function combatAssignmentRefreshRows(entries,sources)
         if not active and not combatSourceKeepsLock(key) then
             combatAssignmentState.targets[key]=nil
             combatAssignmentState.explicit[key]=nil
+        end
+    end
+
+    -- Flame Wave counts only enemies still faced in the Block/Attack phase.
+    -- Resolve the Ranged/Siege preview (including Defender) first: summoned
+    -- tokens and attack-only reminders are already excluded from entries.
+    local flameWaveActive=false
+    for _,source in ipairs(sources) do
+        if source.flameWave then flameWaveActive=true break end
+    end
+    if flameWaveActive then
+        local preview={}
+        for i,entry in ipairs(entries) do
+            local copy={}
+            for key,value in pairs(entry) do copy[key]=value end
+            preview[i]=copy
+        end
+        combatApplyDefend(preview,groups,allocated)
+        local remaining=0
+        for _,group in ipairs(groups) do
+            local members,rangeSources={},{}
+            for _,index in ipairs(group.members) do
+                members[#members+1]=preview[index]
+                for _,source in ipairs((allocated[index] or {sources={}}).sources) do
+                    rangeSources[#rangeSources+1]=source
+                end
+            end
+            local _,_,rangeDefeated=combatRangeResult(combatRangeGroupEntry(members),rangeSources)
+            if not rangeDefeated then
+                for _,member in ipairs(members) do
+                    if not member.attackOnly and not member.destroyed then
+                        remaining=remaining+1
+                    end
+                end
+            end
+        end
+        for _,source in ipairs(sources) do
+            if source.flameWave then
+                local key=source.resources.attackFire~=nil and "attackFire"
+                    or (source.resources.blockFire~=nil and "blockFire" or nil)
+                if key~=nil then
+                    local base=key=="attackFire" and 5 or 7
+                    local amount=base+2*remaining
+                    local previous=source.resources[key] or 0
+                    local family=key=="attackFire" and "attack" or "block"
+                    source.resources[key]=amount
+                    source[family]=source[family]-previous+amount
+                    for _,detail in ipairs(source.details) do
+                        if detail.key==key then
+                            detail.amount=amount
+                            detail.text=(family=="attack" and "Fire Attack " or "Fire Block ")
+                                ..tostring(amount)
+                        end
+                    end
+                end
+            end
         end
     end
 
@@ -5076,6 +5133,7 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
     return {guid=card.guid,known=known,complete=complete,powered=powered,fameRep=fameRepSide,
         conditionalFireAttack=complete and not powered and chosen~=nil
             and chosen.conditionalFireAttack or nil,
+        flameWave=complete and powered and rule~=nil and rule.poweredEnemyBonus~=nil,
         defeatFameRep=defeatSide,splitTargets=chosen~=nil and chosen.splitTargets or nil,
         repeatBlocks=chosen~=nil and chosen.repeatBlocks or nil,
         links=linked,status=status,resources=effects,
