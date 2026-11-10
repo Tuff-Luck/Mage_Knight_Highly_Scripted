@@ -1196,7 +1196,7 @@ cardResourceDefinitions={
         movementEffects={normal={jumpTwoSpaces=true,ignoreRampagers=true}}},
     -- Firestorm's Wound is an inherent casting cost. The strong-side option
     -- stays uncounted until the player explicitly confirms taking it.
-    spellFireball={normal={rangedFire=5},poweredChoices={
+    spellFireball={normal={rangedFire=5},woundConfirmation=true,poweredChoices={
         {key="woundPending",icon="other",tooltip="Firestorm: take 1 Wound before using Siege Fire Attack 8."},
         {key="woundTaken",siegeFire=8,icon="siege",
             tooltip="Wound taken: Siege Fire Attack 8 is available."}}},
