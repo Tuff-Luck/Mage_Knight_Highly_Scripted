@@ -650,6 +650,7 @@ local function combatEntryHasCumbersome(guid,data,perks)
     if hasCumbersome and not (effect~=nil and effect.removeAbilities) then return true end
     if data.monsters~=nil then
         for _,summoned in ipairs(combatSummonedFor(guid)) do
+            if summoned.effect~=nil and summoned.effect.grantCumbersome==true then return true end
             if combatEnemyHasTrait(summoned.data,summoned.perks,"cumbersome")
                 and not (summoned.effect~=nil and summoned.effect.removeAbilities) then return true end
         end
