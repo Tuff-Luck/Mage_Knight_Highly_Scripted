@@ -233,6 +233,14 @@ function unitLayoutResourceState(seatPos)
             if p~=nil then woundTokens[#woundTokens+1]={x=p.x or p[1],z=p.z or p[3]} end
         end
     end
+    local bondsUnitGUID=nil
+    for slot,command in ipairs(layout.commands) do
+        if command.guid==GUID.skill.bondsOfLoyalty then
+            local bonded=layout.unitBySlot[slot]
+            bondsUnitGUID=bonded~=nil and bonded.guid or nil
+            break
+        end
+    end
     local units={}
     for _,unit in ipairs(layout.units) do
         local bounds=unit.getBounds()
@@ -259,6 +267,7 @@ function unitLayoutResourceState(seatPos)
     local woundCount=0
     for _,state in ipairs(units) do woundCount=woundCount+state.woundCount end
     return {units=units,woundCount=woundCount,nativeCommandCount=nativeCommandCount,
+        bondsUnitGUID=bondsUnitGUID,
         emptyCommandSlots=math.max(0,#layout.commands-#layout.units)}
 end
 
