@@ -610,8 +610,10 @@ local function turnCleanupCompletedTurnBoard()
 		gStates.tacticSixState="notClaimed"
 	end
 
-	--Update Motivation Skill status
-	for a, stats in pairs(gStates.motivationSkill) do
+	--A Motivation lock expires only after its OWNER has completed their next
+	-- turn. The skill's once-per-round spent state remains a separate concern.
+	motivationOwnerTurnCompleted(turnOrder[gStates.turnNumber].seatPos)
+	for _,stats in pairs(gStates.motivationSkill) do
 		if stats.state=="used" then stats.state="deactive" end
 	end
 end
