@@ -1243,7 +1243,7 @@ cardResourceDefinitions={
         crystalPairAttack={siegeFire={"Green","Red"},siegeIce={"Green","Blue"},
             rangedFire={"White","Red"},rangedIce={"White","Blue"}}},
     spellMistForm={normal={move=4},poweredChoices={{key="other"}},
-        poweredUnitResistances=true,
+        poweredUnitResistances=true,poweredHeroFirstWound=true,
         terrainEffects={normal={
             {mode="set",terrains={plains=true,forest=true,wasteland=true,
                 desert=true,swamp=true,lake=true},cost=2},
@@ -1258,8 +1258,8 @@ cardResourceDefinitions={
     spellWhirlwind={normalChoices={{key="other"}},poweredChoices={{key="other"}},
         enemyEffect={normal={choice="other",noAttack=true},powered={choice="other",destroyDuringAttack=true}}},
     spellChill={normalChoices={{key="other"}},poweredChoices={{key="other"}},
-        enemyEffect={normal={choice="other",noAttack=true,removeFireResist=true},
-            powered={choice="other",noAttack=true,armourReduce=4}}},
+        enemyEffect={normal={choice="other",noAttack=true,removeFireResist=true,iceSpell=true},
+            powered={choice="other",noAttack=true,armourReduce=4,iceSpell=true}}},
     spellTremor={
         normalChoices={{key="single",icon="other",iconOverlay="1"},{key="all",icon="other",iconOverlay="All"}},
         poweredChoices={{key="single",icon="other",iconOverlay="1"},{key="all",icon="other",iconOverlay="All"}},
