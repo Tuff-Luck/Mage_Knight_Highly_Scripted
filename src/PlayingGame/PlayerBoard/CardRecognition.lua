@@ -4103,13 +4103,21 @@ local function resourceObjectKind(obj)
     return nil
 end
 
+-- Dungeon and Tomb mana is Night even in an otherwise Day round.
+local function resourceCardsUsesDayMana()
+    if gStates.dayRound~=true then return false end
+    local player=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    local site=player~=nil and player.avatarLocation or nil
+    return site~="dungeon" and site~="tomb"
+end
+
 local function matchesCardMana(card,color)
     if color==nil then return false end
     local data=gameCards[card.guid]
     if data==nil then return color=="Red" or color=="Blue" or color=="Green" or color=="White" end
     if data.cardType=="Artifact" then return false end
-    if color=="Gold" then return gStates.dayRound==true end
-    if color=="Black" then return gStates.dayRound~=true and data.cardType=="Spell" end
+    if color=="Gold" then return resourceCardsUsesDayMana() end
+    if color=="Black" then return not resourceCardsUsesDayMana() and data.cardType=="Spell" end
     local colors=data.color
     if type(colors)=="string" then return colors==color end
     if type(colors)=="table" then
@@ -4617,14 +4625,14 @@ end
 local function unitAbilityPaid(ability,counts)
     local color=ability.manaCost
     if color==nil then return true end
-    if color=="Black" and gStates.dayRound==true then return false end
+    if color=="Black" and resourceCardsUsesDayMana() then return false end
     if (counts[color] or 0)>0 then return true end
     -- Daytime Gold can pay any basic colour, but not Black.
-    return color~="Black" and gStates.dayRound==true and (counts.Gold or 0)>0
+    return color~="Black" and resourceCardsUsesDayMana() and (counts.Gold or 0)>0
 end
 
 local function unitManaSignature(counts)
-    local parts={tostring(gStates.dayRound==true)}
+    local parts={tostring(resourceCardsUsesDayMana())}
     for _,color in ipairs({"Red","Blue","Green","White","Black","Gold"}) do
         parts[#parts+1]=tostring(counts[color] or 0)
     end
@@ -4652,7 +4660,7 @@ unitManaDecision=function(unit,abilities,activation,counts)
     if abilities.multi==true then
         local chosen={}
         for _,index in ipairs(direct) do chosen[index]=true end
-        local goldCount=gStates.dayRound==true and (counts.Gold or 0) or 0
+        local goldCount=resourceCardsUsesDayMana() and (counts.Gold or 0) or 0
         if #goldOnly<=goldCount then
             for _,index in ipairs(goldOnly) do chosen[index]=true end
         elseif goldCount>0 then
@@ -4727,8 +4735,8 @@ unitManaDecision=function(unit,abilities,activation,counts)
 end
 
 local function sidewaysManaAvailable(color)
-    return color~=nil and (color~="Gold" or gStates.dayRound==true)
-        and (color~="Black" or gStates.dayRound~=true)
+    return color~=nil and (color~="Gold" or resourceCardsUsesDayMana())
+        and (color~="Black" or not resourceCardsUsesDayMana())
 end
 
 local function matchingSidewaysMana(card,color)
@@ -4771,7 +4779,9 @@ local function resolveSkillCardLinks(skills,targets,footprints,manaObjects,place
     for _,skill in ipairs(skills) do
         local rule=skillResourceDefinitions[skill.guid]
         local spec=rule~=nil and rule.linkedCard or nil
-        if spec~=nil and spec.sideways~=nil then
+        if spec~=nil and spec.sideways~=nil
+            and (spec.requiresCirculation~=true
+                or (gStates.doingTheRounds or {})[skill.guid]~=nil) then
             for _,target in ipairs(targets) do
                 if target.is_face_down~=true
                     and resourceObjectKind(target)==spec.targetKind
@@ -4838,7 +4848,7 @@ local function convertedManaMatchesCard(card,color)
     if data.cardType~="Starting" and data.cardType~="Advanced Action"
         and data.cardType~="Spell" and data.cardType~="Artifact" then return false end
     -- Shared card-mana validation also checks Black-at-night and Gold-by-day.
-    if color=="Gold" and gStates.dayRound~=true then return false end
+    if color=="Gold" and not resourceCardsUsesDayMana() then return false end
     if color=="Black" and data.cardType~="Spell" then return false end
     return matchesCardMana(card,color)
 end
@@ -4892,10 +4902,7 @@ end
 -- Skills outside the active player's Play Area are not counted.
 -- A combat inside a Dungeon/Tomb is always Night for day/night Skill bonuses.
 local function skillUsesDayStrength()
-    if gStates.dayRound~=true then return false end
-    local player=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
-    local site=player~=nil and player.avatarLocation or nil
-    return site~="dungeon" and site~="tomb"
+    return resourceCardsUsesDayMana()
 end
 
 -- Puppet Master tokens already have authoritative half-strength Attack/Block
@@ -5308,7 +5315,7 @@ local function renderSeat(seatPos,quietUnitChoice)
     local function spendMana(card,color,manaGUID)
         -- Never record an illegal Daytime Black payment through the separate
         -- spell-effect or mana-conversion paths.
-        if color=="Black" and gStates.dayRound==true then return end
+        if color=="Black" and resourceCardsUsesDayMana() then return end
         local data=gameCards[card.guid]
         if data~=nil and data.cardType=="Spell" and color~="Black"
             and matchesCardMana(card,color) then
@@ -5343,7 +5350,7 @@ local function renderSeat(seatPos,quietUnitChoice)
                         and (matchesCardMana(card,color)
                             or (specialPaymentByCard[card.guid]~=nil
                                 and (specialPaymentByCard[card.guid].colors[color]~=nil
-                                    or (color=="Gold" and gStates.dayRound==true)))) then
+                                    or (color=="Gold" and resourceCardsUsesDayMana())))) then
                         local distance=dx*dx+dz*dz
                         if bestDistance==nil or distance<bestDistance then best,bestDistance=card,distance end
                     end
@@ -5364,7 +5371,7 @@ local function renderSeat(seatPos,quietUnitChoice)
     for guid,candidates in pairs(effectManaByCard) do
         local spec=specialPaymentByCard[guid]
         local options,wildcard=effectManaPossibilities(spec,candidates,true,
-            gStates.dayRound==true)
+            resourceCardsUsesDayMana())
         if wildcard or next(options)~=nil then powered[guid]=true end
     end
     local links,boostBy,boostSource,discarded,hasDiscard,linkedCardBySource,
@@ -5446,7 +5453,7 @@ local function renderSeat(seatPos,quietUnitChoice)
     local function paidManaChoices(guid,rule,strong,boost)
         local needPower=powered[guid]==true and boost==nil
         local possible,anyColor=effectManaPossibilities(rule.effectManaChoice,
-            effectManaByCard[guid] or {},needPower,gStates.dayRound==true)
+            effectManaByCard[guid] or {},needPower,resourceCardsUsesDayMana())
         local choices={}
         for _,choice in ipairs(sideChoices(rule,strong) or {}) do
             if anyColor or possible[choiceCategory(choice)] then
