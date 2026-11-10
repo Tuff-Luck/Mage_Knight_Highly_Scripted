@@ -15,16 +15,17 @@ local function fakeCard(guid,x,z)
         getXmlTable=function() return xml end,
         getCustomAssets=function() return assets end,
         getWrites=function() return writes end,
+        setXml=function(value)
+            assert(value=="","empty UI must be cleared with setXml('')")
+            writes=writes+1
+            xml={}
+        end,
         setXmlTable=function(nextXml,newAssets)
             assert(type(nextXml)=="table" and #nextXml>0,
                 "TTS UI.setXmlTable rejects an empty/null XML table")
-            -- TTS accepts {{}} by itself for clearing, but cannot combine
-            -- that empty placeholder with real Button/Text nodes.
             for _,node in ipairs(nextXml) do
-                assert(type(node)=="table"
-                    and (type(node.tag)=="string"
-                        or (#nextXml==1 and next(node)==nil)),
-                    "invalid/mixed empty object XML node")
+                assert(type(node)=="table" and type(node.tag)=="string",
+                    "empty UI nodes are not valid XML")
             end
             writes=writes+1
             xml=nextXml
@@ -205,12 +206,12 @@ eq(second.position[1],31.2,"second Unit restored on reverse")
 eq(gStates.callOfferPreview.unitGUID,first.guid,"previous card selected")
 eq(first.position[1],-53,"browsing back preserves selected display position")
 -- Loading an active game restores object-attached arrows without moving cards.
-first.UI.setXmlTable({{}})
+first.UI.setXml("")
 callOfferRestoreOnLoad()
 eq(hasArrow(first,"next"),true,"saved offer browser controls restored")
 -- Simulate the first paid Call to Arms scan (and the next powered scan):
--- Unit ability buttons must be appended to real nodes, never to {{}}.
-first.UI.setXmlTable({{}})
+-- Unit ability buttons must be appended to real nodes, never to an empty placeholder.
+first.UI.setXml("")
 local poweredXml=resourceObjectUiXmlTable(first.UI)
 eq(#poweredXml,0,"empty XML placeholder is removed before payment UI")
 poweredXml[#poweredXml+1]={tag="Button",attributes={

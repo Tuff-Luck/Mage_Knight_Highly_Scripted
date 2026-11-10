@@ -36,9 +36,7 @@ local function cleanButtons(unit,removeResources)
             changed=true
         end
     end
-    -- Passing {} to TTS UI.setXmlTable raises "table was null".
-    -- Match the existing Unit-choice cleanup convention for empty Object UI.
-    if changed then unit.UI.setXmlTable(#xml>0 and xml or {{}}) end
+    if changed then resourceObjectUiSetTable(unit.UI,xml) end
 end
 
 local function restoreUnit(state,immediate)
@@ -127,8 +125,7 @@ local function showControls(state,guid,serial)
     -- Object-attached UI has its own image registry. Passing these existing
     -- assets prevents an unregistered-image white square on moved Unit cards.
     local assets=resourceCardsExistingImageAssetsFor(unit.UI,images)
-    if assets~=nil then unit.UI.setXmlTable(xml,assets)
-    else unit.UI.setXmlTable(xml) end
+    resourceObjectUiSetTable(unit.UI,xml,assets)
 end
 
 -- Other UI owners (notably the Resource Tracker's zone-exit refresh) may
@@ -184,12 +181,22 @@ local function borrow(state,index)
     -- Moving the Spell later does not drag the Unit or reset its layout.
     unit.setPositionSmooth(display.position,false,false)
     unit.setRotationSmooth(display.rotation,false,false)
-    safeWaitCondition("Offers.CallOffer",function()
-        showControls(state,guid,serial)
-    end,function()
+    -- Show navigation immediately. A card placed over another card can take
+    -- several seconds to settle; waiting to create ALL controls left the next
+    -- Unit without buttons if physics never reported resting in that window.
+    showControls(state,guid,serial)
+    local function refreshSettled()
+        if previewState()~=state or state.unitGUID~=guid
+            or transferSerial~=serial then return end
+        callOfferEnsureControls(state.seatPos)
+        -- Recalculate after arrival as well as at selection time. Otherwise a
+        -- scan during movement can cache missing ability/target buttons.
+        if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
+    end
+    safeWaitCondition("Offers.CallOffer",refreshSettled,function()
         local live=getObjectFromGUID(guid)
         return live==nil or (live.resting and live.isSmoothMoving()==false)
-    end,8)
+    end,8,refreshSettled)
     if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
     return true
 end

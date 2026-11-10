@@ -4119,7 +4119,7 @@ local function removeChoiceButtons(card)
             changed=true
         end
     end
-    if changed then card.UI.setXmlTable(#xml>0 and xml or {{}}) end
+    if changed then resourceObjectUiSetTable(card.UI,xml) end
     choiceButtonShown[card.guid]=nil
 end
 
@@ -4641,9 +4641,29 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decisi
     local signature="Unit:"..tostring(selected)..":"..tostring(expanded)
         ..":"..table.concat(available,",")..":"..table.concat(selectedKeys,",")
         ..":targets="..table.concat(targetLabels,",")
-    if choiceButtonShown[unit.guid]==signature then return end
-
     local xml=resourceObjectUiXmlTable(unit.UI)
+    if choiceButtonShown[unit.guid]==signature then
+        -- TTS object UI is applied asynchronously. After a Call Offer switch,
+        -- the scan may have cached this signature before the buttons really
+        -- appeared on the moving Unit. Recreate only missing controls.
+        local needed={}
+        if hasChoices then
+            for _,index in ipairs(expanded and available or {selected or available[1]}) do
+                needed["ResourceCardChoice_"..unit.guid.."_unit"..index]=true
+            end
+        end
+        if #targetLabels>0 then
+            for _,spec in ipairs(targetSpecs) do
+                needed["AttackAssignmentSource_"..unit.guid.."_0_"..spec.idCategory]=true
+            end
+        end
+        for _,node in ipairs(xml) do
+            local id=node.attributes~=nil and node.attributes.id or nil
+            if id~=nil then needed[id]=nil end
+        end
+        if next(needed)==nil then return end
+    end
+
     for i=#xml,1,-1 do
         local attr=xml[i].attributes
         if attr~=nil and type(attr.id)=="string"
@@ -4744,8 +4764,7 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decisi
             },value="",children=children}
         end
     end
-    if assets~=nil then unit.UI.setXmlTable(xml,assets)
-    else unit.UI.setXmlTable(xml) end
+    resourceObjectUiSetTable(unit.UI,xml,assets)
     choiceButtonShown[unit.guid]=signature
 end
 

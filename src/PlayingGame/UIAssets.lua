@@ -147,12 +147,21 @@ function resourceCardsChoiceAssetsFor(ui,categories)
     return mergeCustomImages(ui,needed)
 end
 
+-- Object UI clearing must use setXml(""), not setXmlTable({}) or
+-- setXmlTable({{}}): TTS rejects an empty table and the placeholder is not
+-- valid XML. All real elements still use the structured setXmlTable API.
+function resourceObjectUiSetTable(ui,xml,assets)
+    if #xml==0 then
+        ui.setXml("")
+    elseif assets~=nil then
+        ui.setXmlTable(xml,assets)
+    else
+        ui.setXmlTable(xml)
+    end
+end
+
 -- Legacy shared artwork also needs registration on object-attached UIs.
 -- Call Offer reuses the exact Up/Down images already used by Scale.lua.
--- UI.setXmlTable({{}}) is used to clear object UI without triggering TTS's
--- "table was null" error. That placeholder must not accompany real XML nodes:
--- when a Spell payment adds Unit ability buttons, the mixed table can make
--- TTS throw a native "Object reference not set" error.
 function resourceObjectUiXmlTable(ui)
     local valid={}
     for _,node in ipairs(ui.getXmlTable() or {}) do
