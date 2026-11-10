@@ -6764,7 +6764,11 @@ local function renderSeat(seatPos,quietUnitChoice)
                             -- The chosen strong-side effect needs its own
                             -- physical selection payment, and (for Spells)
                             -- an independent casting payment as well.
-                            local _,selected=currentChoice(card.guid,true,target.choices)
+                            -- calculateCard returns resources but deliberately does
+                            -- not persist the UI choices in its record. Rebuild
+                            -- the same paid strong-side choices used above.
+                            local available=paidManaChoices(card.guid,definition,true,nil)
+                            local _,selected=currentChoice(card.guid,true,available)
                             powerColors=effectManaPowerColors(definition.effectManaChoice,
                                 effectManaByCard[card.guid],resourceCardsUsesDayMana(),selected)
                         end
