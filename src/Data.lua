@@ -2660,7 +2660,7 @@ skillResourceDefinitions={
     ["5049e5"]={day={move=2},night={move=1}},
     ["527b47"]={untracked=true},
     ["55e5e5"]={untracked=true,weatherTerrain={owner=-2,recipient=-1}}, -- Calming the Weather: minimum terrain cost 1.
-    ["564392"]={linkedCard={targetKind="card",posture="sideways",sideways={value=4,perEmptyCommandSlot=1}},partial=true}, -- Howl of the Pack; follow-on combat is not tracked
+    ["564392"]={linkedCard={targetKind="card",posture="sideways",sideways={value=4,perEmptyCommandSlot=1}},partial=true}, -- Howl of the Pack: recipient may target an enemy when claiming the shared Skill.
     ["590a46"]={choices={{influence=1},{key="boost",influence=3,icon="influence",iconOverlay="3"}}}, -- On Her Own: player decides whether they recruit.
     ["5b42dc"]={partial=true},
     ["5f61d5"]={choices={{key="other"},{healing=3}},partial=true},
@@ -2714,7 +2714,7 @@ skillResourceDefinitions={
     ["a3abbe"]={untracked=true},
     ["a598f6"]={partial=true},
     ["a883af"]={untracked=true},
-    ["a92d73"]={linkedCard={targetKind="card",posture="sideways",sideways={value=4,perEmptyCommandSlot=1}},wolfHowlPenalty=true,partial=true}, -- Penalty is applied to other players\' activated Units. -- Wolf's Howl; other players' penalties are not tracked
+    ["a92d73"]={linkedCard={targetKind="card",posture="sideways",sideways={value=4,perEmptyCommandSlot=1}},wolfHowlPenalty=true,partial=true}, -- Wolf's Howl: penalize the other players' Unit attacks and blocks.
     ["adf8ab"]={untracked=true},
     ["ae8673"]={untracked=true},
     ["b13d5f"]={untracked=true},
