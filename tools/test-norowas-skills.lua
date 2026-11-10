@@ -128,7 +128,8 @@ resourceCardScanBySeat={[1]={unitState={
 combatPlayMonsters=function()
     return {enemy={guid="enemy",is_face_down=false}}
 end
-local damageUnits=section(recognition,"local COMBAT_UNIT_RESIST_KEYS=",
+combatConfig={}
+local damageUnits=section(recognition,"combatConfig.COMBAT_UNIT_RESIST_KEYS=",
     "-- Cold Fire only counts as resisted","combatDamageUnits")
 local function available()
     local units,native=damageUnits(1)
