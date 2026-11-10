@@ -219,6 +219,9 @@ publishPublicUICallbacks({
 -- Only a genuine, played Spell creates a temporary offer display.
 function callOfferSpellEntered(spellGUID,seatPos)
     if spellGUID~=SPELL_GUID or seatPos==nil or gStates==nil then return end
+    -- Moving the already-used Spell must never grant a second Call to Glory.
+    -- This saved flag is independent of the preview (which ends on recruitment).
+    if gStates.callOfferGloryClaimed==true then return end
     local spell=getObjectFromGUID(SPELL_GUID)
     if spell==nil or not inZone(SPELL_GUID,playerPlayAreas[seatPos]) then return end
     if spell.is_face_down==true then
@@ -247,7 +250,13 @@ function callOfferSpellChanged()
     local spell=getObjectFromGUID(SPELL_GUID)
     if spell~=nil and (spell.held_by_color~=nil or spell.resting~=true
         or spell.isSmoothMoving()==true) then return end
-    if spell==nil or spell.is_face_down==true then
+    if spell==nil then
+        callOfferClose(false)
+        gStates.callOfferGloryClaimed=nil
+        return
+    end
+    if spell.is_face_down==true then
+        -- A face-down Spell is inert, but flipping it does not undo recruitment.
         callOfferClose(false)
         return
     end
@@ -259,7 +268,9 @@ function callOfferSpellChanged()
             return
         end
     end
+    -- Clear the one-use latch only once the Spell truly leaves the play area.
     callOfferClose(false)
+    gStates.callOfferGloryClaimed=nil
 end
 
 -- A held card may briefly leave/re-enter a Scripting Zone. Wait for a real
@@ -287,8 +298,12 @@ function callOfferScheduleSpellCheck()
 end
 
 function callOfferSpellLeft(spellGUID,seatPos)
+    if spellGUID~=SPELL_GUID then return end
     local state=previewState()
-    if spellGUID~=SPELL_GUID or state==nil or state.seatPos~=seatPos then return end
+    -- Recruitment removes the preview, not the Spell's one-use history.
+    -- A later genuine exit must still release the completion latch.
+    if (state==nil or state.seatPos~=seatPos)
+        and (gStates==nil or gStates.callOfferGloryClaimed~=true) then return end
     callOfferScheduleSpellCheck()
 end
 
@@ -317,6 +332,9 @@ function callOfferObjectDropped(obj)
             return
         end
         transferSerial=transferSerial+1
+        -- The player has recruited this physical Unit with Call to Glory.
+        -- Keep the Spell consumed even though its transient browser is gone.
+        gStates.callOfferGloryClaimed=true
         current.unitGUID=nil
         if resourceUnitsBorrowedUnitEnded~=nil then resourceUnitsBorrowedUnitEnded(guid) end
         cleanButtons(getObjectFromGUID(guid),true)
@@ -330,6 +348,8 @@ end
 
 function callOfferRestoreOnLoad()
     local state=previewState()
+    -- This is saved separately from the preview. Do not spawn a replacement
+    -- after loading a game in which the Unit was already recruited.
     if state==nil then return end
     local unit=state.unitGUID~=nil and getObjectFromGUID(state.unitGUID) or nil
     local spell=getObjectFromGUID(SPELL_GUID)

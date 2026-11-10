@@ -213,11 +213,43 @@ callOfferSpellEntered(spell.guid,1)
 first.setPosition({-60,1,-34.74})
 callOfferObjectDropped(first)
 eq(gStates.callOfferPreview,nil,"recruited Unit stops being loaned")
+eq(gStates.callOfferGloryClaimed,true,"Call to Glory completion is saved")
 eq(first.position[3],-34.74,"recruited Unit remains in army")
 eq(hasArrow(first,"next"),false,"recruited Unit loses browser arrows")
--- Forced offer cleanup restores a borrowing card synchronously.
+-- Repositioning the Spell must not produce a second Unit.
+spell.held_by_color="Red"
+spell.resting=false
+spellInPlay=false
+callOfferSpellPickedUp()
+callOfferSpellLeft(spell.guid,1)
+eq(gStates.callOfferGloryClaimed,true,"temporary Spell exit retains use")
+spell.setPosition({-55,1,-41})
+spellInPlay=true
+spell.held_by_color=nil
+spell.resting=true
+callOfferScheduleSpellCheck()
+settlePending()
 callOfferSpellEntered(spell.guid,1)
-eq(gStates.callOfferPreview.unitGUID,second.guid,"already recruited Unit excluded")
+eq(gStates.callOfferPreview,nil,"repositioned Spell does not borrow another Unit")
+eq(second.position[1],31.2,"second offered Unit stays in the offer")
+-- Refreshing the offer and saving/loading also must not reset the one-use flag.
+callOfferClose(true)
+callOfferRestoreOnLoad()
+eq(gStates.callOfferGloryClaimed,true,"offer maintenance and save restore keep recruitment")
+spell.is_face_down=true
+callOfferSpellChanged()
+eq(gStates.callOfferGloryClaimed,true,"face-down flip does not refund recruitment")
+spell.is_face_down=false
+callOfferSpellChanged()
+eq(gStates.callOfferPreview,nil,"flipping back up does not recruit twice")
+-- A genuine settled Spell exit ends this play and allows a future play.
+spellInPlay=false
+callOfferSpellLeft(spell.guid,1)
+settlePending()
+eq(gStates.callOfferGloryClaimed,nil,"leaving play clears recruitment latch")
+spellInPlay=true
+callOfferSpellEntered(spell.guid,1)
+eq(gStates.callOfferPreview.unitGUID,second.guid,"a genuinely new play opens the offer browser")
 callOfferClose(true)
 eq(second.position[1],31.2,"forced offer maintenance restores original slot")
 eq(second.locked,true,"forced restore relocks Unit")
