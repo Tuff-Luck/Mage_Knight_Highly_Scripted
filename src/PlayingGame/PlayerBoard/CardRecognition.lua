@@ -6171,6 +6171,12 @@ local function renderSeat(seatPos,quietUnitChoice)
             local record=ensureSkillRecord(skill)
             local choice=rule.choices~=nil and chosenEffect(skill.guid,false,rule.choices) or nil
             local spec=combatEffectSpec(rule,false,choice~=nil and choiceCategory(choice) or nil)
+            -- Curse must remain an active effect-only target source while the
+            -- player is choosing a new enemy; otherwise a rescan can erase
+            -- the purple preview arrow before the target click is applied.
+            if spec~=nil and not spec.all then
+                record.enemyEffectTargetKeys={skill.guid}
+            end
             if skill.guid=="6a33c1" and spec~=nil and spec.armourReduce~=nil then
                 -- Switching from Attack -1 to Armour -1 invalidates a saved
                 -- reminder target. Keep legitimate enemy locks untouched.
@@ -6188,7 +6194,15 @@ local function renderSeat(seatPos,quietUnitChoice)
                     combatAssignmentState.explicit[skill.guid]=nil
                 end
             end
-            local target=spec~=nil and combatEffectChosenEnemy(skill.guid,footprints[skill.guid],monsters) or nil
+            local eligible=nil
+            if skill.guid=="6a33c1" and spec~=nil and spec.armourReduce~=nil then
+                eligible=function(enemy,guid)
+                    local data=combatEnemyData(guid,enemy)
+                    return data~=nil and data.attackOnly~=true
+                end
+            end
+            local target=spec~=nil and combatEffectChosenEnemy(
+                skill.guid,footprints[skill.guid],monsters,eligible) or nil
             if spec~=nil and target~=nil then
                 combatEffectAdd(enemyEffects,target.guid,skill.guid,spec)
                 record.enemyGUID=target.guid
