@@ -1194,7 +1194,12 @@ cardResourceDefinitions={
     -- Its active ability is independent of numeric Resource Tracker totals.
     spellSpaceBending={normalChoices={{key="other"}},poweredChoices={{key="other"}},
         movementEffects={normal={jumpTwoSpaces=true,ignoreRampagers=true}}},
-    spellFireball={normal={rangedFire=5},powered={siegeFire=8}},
+    -- Firestorm's Wound is an inherent casting cost. The strong-side option
+    -- stays uncounted until the player explicitly confirms taking it.
+    spellFireball={normal={rangedFire=5},poweredChoices={
+        {key="woundPending",icon="other",tooltip="Firestorm: take 1 Wound before using Siege Fire Attack 8."},
+        {key="woundTaken",siegeFire=8,icon="siege",
+            tooltip="Wound taken: Siege Fire Attack 8 is available."}}},
     spellSnowstorm={normal={rangedIce=5},powered={siegeIce=8}},
     spellExpose={normal={ranged=2},separateEffectTarget=true,
         poweredChoices={{key="fortify",icon="ranged",iconOverlay="Fort",ranged=3},
@@ -1218,10 +1223,12 @@ cardResourceDefinitions={
             colors={Blue="blue",Red="red",White="white",Green="green"}}},
     spellBurningShield={
         normalChoices={{key="fireBlockOnly",blockFire=4,icon="block"},
-            {key="fireBlockCounter",blockFire=4,attackFire=4,icon="block",
+            {key="fireBlockCounter",blockFire=4,conditionalFireAttack=4,icon="block",
                 iconOverlay="✓",iconOverlayColor="#9EEA85",
-                iconOverlayAlignment="UpperRight",iconOverlaySize="54"}},
-        powered={blockFire=4}},
+                iconOverlayAlignment="UpperRight",iconOverlaySize="54",
+                tooltip="Fire Attack 4 only after this Fire Block helps successfully block an attack."}},
+        powered={blockFire=4},
+        enemyEffect={powered={destroyIfBlocked=true,fireSpell=true}}},
     spellOffering={
         normalChoices={{key="other"}},
         poweredChoices={
@@ -1261,8 +1268,10 @@ cardResourceDefinitions={
             powered={{choice="single",armourReduce=3,armourReduceFortified=6},
                 {choice="all",armourReduce=2,armourReduceFortified=4,all=true}}}},
     spellDemolish={normalChoices={{key="other"}},poweredChoices={{key="other"}},
-        enemyEffect={normal={choice="other",armourReduce=1,all=true},
-            powered={choice="other",destroy=true,othersArmourReduce=1}}},
+        ignoreSiteFortification=true,
+        enemyEffect={normal={choice="other",armourReduce=1,all=true,fireSpell=true},
+            powered={choice="other",destroyDuringAttack=true,othersArmourReduce=1,
+                fireSpell=true}}},
     -- Artifact sides are physical: face-up plays the basic effect and
     -- face-down plays the break effect, without a separate mode control.
     artifactUtility={normalTrackerNeutral=true,artifactMode=true,
