@@ -6728,10 +6728,10 @@ local function renderSeat(seatPos,quietUnitChoice)
             end
         end
     end
-    -- Tovak's Mana Overload: the unused marker mana on the Skill declares
-    -- its colour. A *different* mana of that colour must actually power the
-    -- target Deed card. An explicit overlapping target wins; if exactly one
-    -- suitable powered card exists, the choice is unambiguous.
+    -- Tovak's Mana Overload: marker mana on the Skill identifies the color,
+    -- but only a DIFFERENT mana which actually powers a Deed card's strong
+    -- side may trigger +4. Casting/option-selection payments do not qualify.
+    -- Cards granting multiple resources provide separate Skill options.
     for _,skill in ipairs(skills) do
         local rule=skillResourceDefinitions[skill.guid]
         if rule~=nil and rule.manaOverload then
@@ -6752,22 +6752,41 @@ local function renderSeat(seatPos,quietUnitChoice)
                     if data~=nil and (data.cardType=="Starting"
                             or data.cardType=="Advanced Action"
                             or data.cardType=="Spell" or data.cardType=="Artifact")
+                        and powered[card.guid]==true
+                        and card.is_face_down~=true and cardPosture(card)=="upright"
                         and target~=nil and target.resources~=nil then
-                        local familyField=nil
-                        for _,family in ipairs({"move","influence","ranged","siege","attack","block"}) do
-                            local field=resourceFieldForFamily(target.resources,family)
-                            if field~=nil then
-                                if familyField~=nil then familyField=nil break end
-                                familyField=field
-                            end
+                        local powerColors=powerManaColorsByCard[card.guid] or {}
+                        local definition=cardResourceDefinitions[data.resourceKey]
+                        if definition~=nil and definition.effectManaChoice~=nil then
+                            -- The chosen strong-side effect needs its own
+                            -- physical selection payment, and (for Spells)
+                            -- an independent casting payment as well.
+                            local _,selected=currentChoice(card.guid,true,target.choices)
+                            powerColors=effectManaPowerColors(definition.effectManaChoice,
+                                effectManaByCard[card.guid],resourceCardsUsesDayMana(),selected)
                         end
-                        if familyField~=nil then
-                            for _,mana in ipairs(manaObjects) do
-                                if usedMana[mana.guid]==card.guid and colors[manaColor(mana)]==true then
-                                    candidates[#candidates+1]={card=card,field=familyField,
-                                        overlap=overlapArea(skillArea,footprints[card.guid])}
-                                    break
+                        local matching=false
+                        for color in pairs(colors) do
+                            if powerColors[color]==true then matching=true break end
+                        end
+                        if matching then
+                            local fields={}
+                            for _,family in ipairs({"move","siege","ranged","block","attack","influence"}) do
+                                local byFamily={}
+                                for field,amount in pairs(target.resources) do
+                                    if type(amount)=="number" and amount>0
+                                        and (field==family or field:sub(1,#family)==family) then
+                                        byFamily[#byFamily+1]=field
+                                    end
                                 end
+                                table.sort(byFamily)
+                                for _,field in ipairs(byFamily) do
+                                    fields[#fields+1]={field=field,family=family}
+                                end
+                            end
+                            if #fields>0 then
+                                candidates[#candidates+1]={card=card,fields=fields,
+                                    overlap=overlapArea(skillArea,footprints[card.guid])}
                             end
                         end
                     end
@@ -6780,7 +6799,25 @@ local function renderSeat(seatPos,quietUnitChoice)
             if #candidates==1 or (#candidates>1 and candidates[1].overlap>0
                 and candidates[1].overlap>candidates[2].overlap) then
                 local chosen=candidates[1]
-                skillTargetLinked(skill,chosen.card,chosen.field,4)
+                local options,fieldByKey={},{}
+                for _,fieldInfo in ipairs(chosen.fields) do
+                    local field,family=fieldInfo.field,fieldInfo.family
+                    local key="overload_"..field
+                    local element=field:sub(#family+1)
+                    local choice={key=key,icon=family,[field]=0}
+                    if element=="Fire" then choice.iconOverlay="F"
+                    elseif element=="Ice" then choice.iconOverlay="I"
+                    elseif element=="ColdFire" then choice.iconOverlay="C"
+                    elseif element=="Psychic" then choice.iconOverlay="P" end
+                    choiceLetters[key]=choiceLetters[family] or "O"
+                    options[#options+1]=choice
+                    fieldByKey[key]=field
+                end
+                local skillRecord=ensureSkillRecord(skill)
+                skillRecord.choices=options
+                local _,selected=currentChoice(skill.guid,false,options)
+                local field=fieldByKey[selected]
+                if field~=nil then skillTargetLinked(skill,chosen.card,field,4) end
             end
         end
     end
