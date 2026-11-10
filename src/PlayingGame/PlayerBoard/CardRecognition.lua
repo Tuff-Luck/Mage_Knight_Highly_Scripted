@@ -6677,6 +6677,37 @@ local function renderSeat(seatPos,quietUnitChoice)
         end
         return resources
     end
+    -- Call to Arms uses the original Unit card temporarily positioned by
+    -- the offer browser. It gains a normal Unit activation without a Command
+    -- slot only when the basic white Spell was actually paid and played.
+    local offeredUnit=callOfferBorrowedUnitForSeat~=nil
+        and callOfferBorrowedUnitForSeat(seatPos) or nil
+    if offeredUnit~=nil then
+        local spellRecord=records["2eb8e8"]
+        local unitGUID=offeredUnit.guid
+        local paid=spellRecord~=nil and spellRecord.complete==true
+            and spellRecord.powered~=true and spellRecord.resources~=nil
+        if paid and unitResourceDefinitions[unitGUID]~=nil then
+            objects[unitGUID]=offeredUnit
+            local activation=activations[unitGUID]
+            if activation==nil or activation.callOffer~=true then
+                local abilities=unitResourceDefinitions[unitGUID]
+                local scores=trackerChoiceScores(unitGUID,seatPos)
+                local chosen,best=1,-math.huge
+                for i,ability in ipairs(abilities) do
+                    if ability.manaCost==nil then
+                        local score=scores[ability.key] or 0
+                        if score>best then chosen,best=i,score end
+                    end
+                end
+                activations[unitGUID]={seatPos=seatPos,callOffer=true,
+                    choice=chosen,selected=abilities.multi==true and {} or nil}
+            end
+        elseif activations[unitGUID]~=nil and activations[unitGUID].callOffer then
+            removeChoiceButtons(offeredUnit)
+            activations[unitGUID]=nil
+        end
+    end
     local selectedUnitAttacks={}
     local shocktroopsBoosts=0
     local attackTransforms={}
@@ -6694,6 +6725,11 @@ local function renderSeat(seatPos,quietUnitChoice)
                 end
                 local counts=unitManaCounts(unit,seatPos,manaObjects)
                 local decision=unitManaDecision(unit,abilities,activation,counts)
+                if activation.callOffer and unitSiteMode=="one"
+                    and chosenSiteUnit==nil then
+                    chosenSiteUnit=unitGUID
+                    combatOneUnitSelect(seatPos,unitSite,unitGUID)
+                end
                 local sitePermits=combatUnitSitePermits(unitSiteMode,
                     unitState.bondsUnitGUID,chosenSiteUnit,unitGUID,false)
                 if sitePermits then
@@ -8324,6 +8360,23 @@ function resourceUnitsChoiceClicked(player,value,id)
     -- A Unit choice still recalculates immediately, but its enemy-effect
     -- notification is silent. Other card/skill updates retain their notices.
     renderSeat(current.seatPos,true)
+end
+
+-- Release a temporary offered Unit without touching Command activations.
+function resourceUnitsBorrowedUnitEnded(guid)
+    local activation=gStates~=nil and gStates.unitResourceActivations
+        and gStates.unitResourceActivations[guid] or nil
+    if activation~=nil and activation.callOffer==true then
+        gStates.unitResourceActivations[guid]=nil
+    end
+    removeChoiceButtons(getObjectFromGUID(guid))
+    choiceButtonShown[guid]=nil
+    choiceExpandedByGUID[guid]=nil
+    if attackAssignmentsClearForObject~=nil then attackAssignmentsClearForObject(guid) end
+    if attackAssignmentsPruneUnitChoiceSources~=nil then
+        attackAssignmentsPruneUnitChoiceSources(guid,{})
+    end
+    if resourceCardsPanelOpen() then resourceCardsSourceChanged() end
 end
 
 -- Clear any remaining activations at turn end without moving Command tokens.

@@ -185,7 +185,7 @@ local expectedProtectedUICallbacks={
 	"apocalypseDragonGroundReductionAdjust","apocalypseDragonProcessUI","apocalypseIsHereHorsemanTargetSelect",
 	"apocalypseIsHereProcessHorsemenUI","apocalypseQuestCardAction","apocalypseQuestEnemyAttack","artifactAdjust",
 	"attachEnemy","attackLocation","ButtonClickDown","ButtonClickDownOverkill","ButtonClickUp","ButtonClickUpOverkill",
-	"changeMatImage","changePositionColor","playAreaScaleDown","playAreaScaleUp","playAreaScaleScope","dayTactic2Discarded","druidNightsRitualAction","exploreMap",
+	"callOfferCycleClicked","changeMatImage","changePositionColor","playAreaScaleDown","playAreaScaleUp","playAreaScaleScope","dayTactic2Discarded","druidNightsRitualAction","exploreMap",
 	"fracturedLandsOrientationDone","fracturedLandsRotateLeft","fracturedLandsRotateRight","gladeDiscardHealUI",
 	"higherLevelSkill","horsemanAttackAction","layoutClaimedCards","nightTint","offerAdjust","offerArtifacts",
 	"processCardClaim","proxyDestinationChoiceSelect","proxyEnemyChoiceSelect","proxyInteractionChoiceSelect",

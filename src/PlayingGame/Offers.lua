@@ -247,6 +247,11 @@ unitOfferCards=function()
 	return cards
 end
 
+-- The Spell browser uses the same authoritative spatial order as offer layout.
+function callOfferAvailableUnits()
+    return unitOfferCards()
+end
+
 --Resolve a physical Unit-offer slot without collapsing gaps left by claimed or removed cards.
 --This also follows the compressed spacing used when more than eight Units are displayed.
 function unitOfferCardAtSlot(slot,count)
@@ -292,6 +297,7 @@ local function moveUnitOfferCard(obj,slot,count)
 end
 
 reflowUnitOffer=function(targetCount)
+    if callOfferClose~=nil then callOfferClose(true) end
 	local cards=unitOfferCards()
 	local displayCount=math.max(targetCount or #cards,#cards)
 	refreshUnitOfferSnapPoints(displayCount)
@@ -301,6 +307,7 @@ reflowUnitOffer=function(targetCount)
 end
 
 function addRegularUnitsToOffer(amount)
+    if callOfferClose~=nil then callOfferClose(true) end
 	amount=math.max(0,math.floor(amount or 0))
 	if amount==0 then return 0 end
 	local cards=unitOfferCards()
@@ -352,6 +359,7 @@ local function monasteryAdvancedActionDeckEmptyWarning()
 end
 
 function unitOffer()
+    if callOfferClose~=nil then callOfferClose(true) end
 	refreshUnitOfferSnapPoints(gStates.totalUnitCount)
 	local monasteryPlace=	{{36.0, 0.98, -10.2}, {31.2, 0.98, -10.2}, {26.4, 0.98, -10.2}, {21.6, 0.98, -10.2}, {16.8, 0.98, -10.2}, {12.0, 0.98, -10.2}}
 	local drawDecks=		{["Regular Unit"]=GUID.zone.regularUnit, ["Elite Unit"]=GUID.zone.eliteUnit, ["Advanced Action"]=GUID.zone.actionDeck}--Zone covering Regular units draw deck, Elite Units Draw Deck, Advanced Actions Draw Deck

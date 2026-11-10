@@ -273,6 +273,7 @@ function eventsOnLoadRawBase(saved_data, loaded_data)
 	-----------
 	refreshResourceTrackerText()--Refresh the tracker from saved values so TTS resolves its language tags on load.
     safeWaitFrames("Events",function() resourceCardsOnLoad() end,4)
+    safeWaitFrames("Events",function() callOfferRestoreOnLoad() end,4)
 	UI.setAttribute("CoopAssaultMainTableText3", "active", "false")
 	--The wall assault interface is only shown when the assault entry side cannot be determined automatically.
 	UI.hide("WallAssaultChoice")
@@ -621,6 +622,7 @@ function __onObjectDrop_raw(player_color, dropped_object)
 	playAreaScaleObjectDropped(dropped_object)
     resourceUnitsCommandDropped(player_color,dropped_object)
     resourceCardsObjectMoved(dropped_object)
+    callOfferObjectDropped(dropped_object)
 	if terrainTiles[droppedGUID]~=nil then
 		runtimeMapInvalidateTerrain()
 		--EXPLORE legality is derived from the settled physical map. onObjectEnterZone can fire while a
@@ -1520,6 +1522,17 @@ function __onObjectEnterZone_raw(zone, obj)
 	local ctx=zoneEventContext(zone,obj)
 	if ctx==nil then return end
 	if handleZoneEnterPrelude(ctx)==true then return end
+    if ctx.objGUID=="2eb8e8" and ctx.playerZoneKind=="play" then
+        local seat=ctx.zoneInfo~=nil and ctx.zoneInfo.seatPos or nil
+        if seat~=nil then
+            safeWaitCondition("Events.CallOffer",function()
+                callOfferSpellEntered(ctx.objGUID,seat)
+            end,function()
+                local spell=getObjectFromGUID("2eb8e8")
+                return spell==nil or (spell.resting and spell.isSmoothMoving()==false)
+            end,8)
+        end
+    end
     if gStates.firstStarted==true then resourceCardsZoneEntered(ctx) end
 	if gStates.firstStarted==true then
 		handleStartedZoneEnterPrelude(ctx)
@@ -1644,6 +1657,9 @@ function __onObjectLeaveZone_raw(zone, obj)
 	end
 	local ctx=zoneEventContext(zone,obj)
 	if ctx==nil then return end
+    if ctx.objGUID=="2eb8e8" and ctx.playerZoneKind=="play" then
+        callOfferSpellLeft(ctx.objGUID,ctx.zoneInfo~=nil and ctx.zoneInfo.seatPos or nil)
+    end
 	cancelSettledZoneEntries(ctx.zoneGUID,ctx.objGUID)
 	if handleZoneLeavePrelude(ctx)==true then return end
     if gStates.firstStarted==true then resourceCardsZoneLeft(ctx) end

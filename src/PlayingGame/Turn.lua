@@ -649,6 +649,7 @@ local function turnAdvanceCompletedTurnLifecycle()
 end
 
 local function turnFinishCompletedTurnUI()
+    callOfferClose(false)
 	resourceUnitsResetTurn()
 	resetResourceTrackerState()
 	refreshResourceTracker()
