@@ -1664,7 +1664,7 @@ combatConfig.effectButtonInfo=function(entry,applied)
             or (tonumber(actual.armourReduce) or 0)
         if (tonumber(actual.armourReduceByResist) or 0)>0 then
             local count=0
-            for _,trait in ipairs({"pResist","fResist","iResist","mResist"}) do
+            for _,trait in ipairs({"pResist","fResist","iResist"}) do
                 if combatEnemyHasTrait(entry.data,entry.perks,trait) then count=count+1 end
             end
             appliedReduction=appliedReduction+count*actual.armourReduceByResist
@@ -2788,7 +2788,7 @@ local function refreshCombatEnemyPanel(monsters,calculated)
                 and effect.armourReduceFortified or effect.armourReduce
             if effect.armourReduceByResist>0 then
                 local resistances=0
-                for _,key in ipairs({"pResist","fResist","iResist","mResist"}) do
+                for _,key in ipairs({"pResist","fResist","iResist"}) do
                     if combatEnemyHasTrait(entry.data,entry.perks,key) then resistances=resistances+1 end
                 end
                 reduction=reduction+effect.armourReduceByResist*resistances
@@ -4316,6 +4316,36 @@ local function effectManaPossibilities(spec,payments,needPower,daytime)
     return possible,anyColor
 end
 
+-- Only the separate stronger-effect payment qualifies for Mana Overload.
+-- A card's casting mana or a Pure Magic / Mana Bolt option payment does not.
+local function effectManaPowerColors(spec,payments,daytime,selectedCategory)
+    local eligible={}
+    if spec==nil or selectedCategory==nil
+        or (daytime and spec.powerColor=="Black") then return eligible end
+    for _,effect in ipairs(payments or {}) do
+        if spec.colors[effect.color]==selectedCategory
+            or (daytime and effect.color=="Gold") then
+            for _,power in ipairs(payments or {}) do
+                if power.guid~=effect.guid and power.color==spec.powerColor then
+                    if spec.castColor==nil then
+                        eligible[power.color]=true
+                    else
+                        for _,casting in ipairs(payments or {}) do
+                            if casting.guid~=effect.guid and casting.guid~=power.guid
+                                and (casting.color==spec.castColor
+                                    or (daytime and casting.color=="Gold")) then
+                                eligible[power.color]=true
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return eligible
+end
+
 -- Colour-triggered Actions use stable target-card data, not translated text.
 -- Dual-colour Actions offer an explicit choice, using the existing card buttons.
 local basicActionColors={"Red","Blue","White","Green"}
@@ -4886,6 +4916,18 @@ local function matchingSidewaysPaymentMana(card,color)
     return matchingSidewaysMana(card,color)
 end
 
+-- A Source die used earlier this turn disallows Who Needs Magic?'s +3.
+-- Keep +2 available, even when the player previously selected +3.
+local function skillChoicesForCurrentTurn(rule)
+    if rule~=nil and rule.noSourceDieBonus==true then
+        local player=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+        if player~=nil and player.whoNeedsMagicSourceDieUsed==true then
+            return {rule.choices[1]}
+        end
+    end
+    return rule~=nil and rule.choices or nil
+end
+
 local function sidewaysModifierValue(skill,target,descriptor,mana,unitState)
     local value=skill.is_face_down==true and descriptor.faceDownValue
         or descriptor.value or 1
@@ -4895,7 +4937,7 @@ local function sidewaysModifierValue(skill,target,descriptor,mana,unitState)
     end
     if descriptor.choiceValues~=nil then
         local rule=skillResourceDefinitions[skill.guid]
-        local _,choice=currentChoice(skill.guid,false,rule.choices)
+        local _,choice=currentChoice(skill.guid,false,skillChoicesForCurrentTurn(rule))
         value=descriptor.choiceValues[choice] or value
     end
     if mana~=nil and descriptor.matchingManaValue~=nil
@@ -5081,7 +5123,7 @@ local function calculateSkill(skill,linkedTarget,unitState,inventoryCrystalCount
         return {guid=skill.guid,kind="skill",known=true,complete=false,
             status="yellow",powered=false,resources=nil}
     end
-    local choices=rule.choices
+    local choices=skillChoicesForCurrentTurn(rule)
     local chosen=choices~=nil and chosenEffect(skill.guid,false,choices) or nil
     local effects=chosen
         or (skill.is_face_down==true and rule.flipped or nil)
@@ -5456,7 +5498,7 @@ local function renderSeat(seatPos,quietUnitChoice)
         resolveManaSkillLinks(skills,manaObjects,cards,footprints,placements)
     local skillLinksByTarget,skillLinksBySkill,sidewaysSkillMana=
         resolveSkillCardLinks(skills,skillTargets,footprints,manaObjects,placements,manaByObject,unitState)
-    local powered,usedMana,spellCastingPaid={}, {}, {}
+    local powered,usedMana,spellCastingPaid,powerManaColorsByCard={}, {}, {}, {}
     -- Some cards require a separate coloured mana payment to choose their
     -- effect. Record those candidates before deciding which mana powers the
     -- strong side; one token can never fill both roles.
@@ -5482,11 +5524,17 @@ local function renderSeat(seatPos,quietUnitChoice)
             candidates[#candidates+1]={guid=manaGUID,color=color}
             effectManaByCard[card.guid]=candidates
         elseif data~=nil and data.cardType=="Spell" then
-            -- Black alone selects the stronger Spell for this estimate.
-            -- Other mana payments and legal casting are left to the player.
-            if color=="Black" then powered[card.guid]=true end
+            -- Casting mana selects the normal Spell; only Black powers
+            -- the stronger effect and may activate Mana Overload.
+            if color=="Black" then
+                powered[card.guid]=true
+                powerManaColorsByCard[card.guid]=powerManaColorsByCard[card.guid] or {}
+                powerManaColorsByCard[card.guid][color]=true
+            end
         else
             powered[card.guid]=true
+            powerManaColorsByCard[card.guid]=powerManaColorsByCard[card.guid] or {}
+            powerManaColorsByCard[card.guid][color]=true
         end
         usedMana[manaGUID]=card.guid
     end
