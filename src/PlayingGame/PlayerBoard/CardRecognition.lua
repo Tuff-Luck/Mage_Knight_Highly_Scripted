@@ -3617,6 +3617,9 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         or skillResourceDefinitions[card.guid]
     local function targetResourceFor(choice,category)
         if rule~=nil and rule.blockSourceBoost~=nil then return "blockSource" end
+        -- Mana Overload's choices select which linked CARD resource is boosted;
+        -- the Skill itself is not an independently targetable Attack/Block.
+        if rule~=nil and rule.manaOverload==true then return nil end
         if not combatCalcOn then return nil end
         if rule~=nil and rule.damageMitigation~=nil then return "effect" end
         for _,field in ipairs(combatConfig.sourceFields) do
