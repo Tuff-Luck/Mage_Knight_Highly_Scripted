@@ -1569,6 +1569,156 @@ local function combatGroupResourceRows(members,perMember,limit)
     return rows,overflow+(#pending-head+1)
 end
 
+-- The same two colours as existing resource slots: normal grey, or the
+-- existing red used for a Wounded/unavailable assignment. Effect metadata
+-- comes from CombatEffects rather than skill-specific table-button branches.
+combatConfig.effectButtonInfo=function(entry,applied)
+    local spec,actual=applied.spec or {},applied.effective or {}
+    if spec.all==true then return nil end
+    local fortified=combatEnemyFortificationCount(entry.data,entry.perks)>0
+        and (entry.effect==nil or entry.effect.removeFortify~=true)
+    local armour=tonumber(spec.armourReduce) or 0
+    local armourFortified=tonumber(spec.armourReduceFortified) or armour
+    local resistArmour=tonumber(spec.armourReduceByResist) or 0
+    local attack=tonumber(spec.attackReduce) or 0
+    local isArmour=armour>0 or armourFortified>0 or resistArmour>0
+        or spec.removeFortify==true or spec.removeResist==true
+        or spec.removeFireResist==true or spec.destroy==true
+    local isBlock=attack>0 or spec.noAttack==true or spec.noAttackUnfortified==true
+        or spec.removeAbilities==true or spec.destroyIfBlocked==true
+    if not isArmour and not isBlock then return nil end
+    local family=isArmour and (fortified and "attack" or "range") or "block"
+    local arrow=isArmour and "armour" or "attack"
+    local icon=isArmour and "MKChoiceAttack" or "MKChoiceBlock"
+    local amount,description,reason="!", "Combat effect",nil
+    local raw=entry.unmodifiedArmour or entry.baseArmour or 1
+    if isArmour and (armour>0 or armourFortified>0 or resistArmour>0) then
+        local appliedReduction=fortified and
+            (tonumber(actual.armourReduceFortified) or tonumber(actual.armourReduce) or 0)
+            or (tonumber(actual.armourReduce) or 0)
+        if (tonumber(actual.armourReduceByResist) or 0)>0 then
+            local count=0
+            for _,trait in ipairs({"pResist","fResist","iResist","mResist"}) do
+                if combatEnemyHasTrait(entry.data,entry.perks,trait) then count=count+1 end
+            end
+            appliedReduction=appliedReduction+count*actual.armourReduceByResist
+        end
+        local total=entry.effectArmourReduction or 0
+        local before=math.max(1,raw-math.max(0,total-appliedReduction))
+        local after=math.max(1,raw-total)
+        local printed=fortified and armourFortified or armour
+        amount="-"..tostring(math.max(printed,appliedReduction))
+        description="Armour reduction "..amount
+        if appliedReduction==0 then
+            reason=applied.immune and "Arcane Immunity ignores this Armour effect."
+                or "This Armour reduction is not applicable to the target."
+        elseif before<=after then reason="Armour is already at its minimum of 1 (or other effects have reached it)."
+        elseif fortified and (tonumber(spec.armourReduceRangedUnfortifiedOnly) or 0)>0 then
+            description=description.." (Attack phase only while Fortified)"
+        end
+    elseif attack>0 then
+        amount="-"..tostring(attack)
+        description="Enemy Attack reduction "..amount
+        -- Compare attacks with and without this source's reduction. Zero printed
+        -- attacks, already-cancelled attacks, and duplicate reductions turn red.
+        local with=combatEnemyAttacks(entry)
+        local original=entry.effect
+        local without={}
+        for key,value in pairs(original or {}) do without[key]=value end
+        without.attackReductions={}
+        for _,reduction in ipairs(original~=nil and original.attackReductions or {}) do
+            if reduction.source~=applied.source then
+                without.attackReductions[#without.attackReductions+1]=reduction
+            end
+        end
+        entry.effect=without
+        local before=combatEnemyAttacks(entry)
+        entry.effect=original
+        local reduced=false
+        for i,attackEntry in ipairs(with) do
+            if before[i]~=nil and (tonumber(before[i].value) or 0)>
+                (tonumber(attackEntry.value) or 0) then reduced=true break end
+        end
+        if not reduced then reason="No attack value is reduced: the target has no applicable attack or is already at 0."
+        end
+    elseif spec.removeFortify==true then
+        description="Remove Fortification"
+        if actual.removeFortify~=true then reason="Arcane Immunity ignores Remove Fortification."
+        elseif combatEnemyFortificationCount(entry.data,entry.perks)==0 then
+            reason="This enemy has no Fortification to remove." end
+    elseif spec.removeResist==true or spec.removeFireResist==true then
+        description=spec.removeResist and "Remove Resistances" or "Remove Fire Resistance"
+        local relevant=false
+        for _,trait in ipairs(spec.removeResist and {"pResist","fResist","iResist","mResist"}
+            or {"fResist"}) do
+            if combatEnemyHasTrait(entry.data,entry.perks,trait) then relevant=true end
+        end
+        if (spec.removeResist and actual.removeResist~=true)
+            or (spec.removeFireResist and actual.removeFireResist~=true) then
+            reason="Arcane Immunity ignores this resistance effect."
+        elseif not relevant then reason="The enemy has no applicable Resistance." end
+    elseif spec.noAttack==true or spec.noAttackUnfortified==true then
+        description="Prevent enemy Attack"
+        if not actual.noAttack and not actual.noAttackUnfortified then
+            reason="Arcane Immunity ignores this prevention effect."
+        elseif spec.noAttackUnfortified and fortified then
+            reason="The target is still Fortified."
+        elseif #combatEnemyPrintedAttacks(entry.data,entry.perks,entry.removeAbilities,entry.guid)==0 then
+            reason="The enemy has no attack to prevent." end
+    elseif spec.destroyIfBlocked==true then
+        description="Destroy if Blocked"
+        if entry.destroyed~=true then reason="The attack is not fully blocked, so the enemy is not destroyed." end
+    elseif spec.removeAbilities==true then
+        description="Remove Attack Abilities"
+        if actual.removeAbilities~=true then reason="Arcane Immunity ignores this effect." end
+    elseif spec.destroy==true then
+        description="Destroy enemy"
+        if entry.destroyed~=true then reason="This effect is not destroying the enemy." end
+    end
+    local source=getObjectFromGUID(applied.source)
+    local sourceName=source~=nil and source.getName~=nil and source.getName() or tostring(applied.source)
+    local name=joinLangEnglish~=nil and joinLangEnglish(tostring(sourceName)) or tostring(sourceName)
+    local tooltip=name..": "..description..(reason~=nil and ("\\nNo benefit: "..reason) or "")
+        .."\\nClick to select, then click a cell in the enemy row to retarget."
+    return {source={guid=applied.source,key=applied.key,name=name},
+        family=family,arrow=arrow,amount=amount,icon=icon,
+        text=description,tooltip=tooltip,ineffective=reason~=nil}
+end
+
+combatConfig.mitigationButtonInfo=function(guid,record,entry,group,damageResults,mitigation)
+    if record.enemyGUID~=entry.guid then return nil end
+    local rule=skillResourceDefinitions[guid]
+    local spec=rule~=nil and rule.damageMitigation or nil
+    if spec==nil then return nil end
+    local prevented=0
+    for _,result in pairs(damageResults or {}) do
+        if result~=nil and mitigation~=nil and mitigation.appliedKey~=nil
+            and damageResults[mitigation.appliedKey]==result then
+            prevented=tonumber(result.prevented) or 0
+            break
+        end
+    end
+    local reason=nil
+    if prevented==0 then
+        if group.rangeDefeated or group.destroyed then
+            reason="The enemy was already defeated before the Damage phase."
+        else reason="No Hero damage was prevented. The chosen attack may be blocked or its damage assigned to Units." end
+    end
+    local source=getObjectFromGUID(guid)
+    local name=source~=nil and source.getName~=nil and source.getName() or tostring(guid)
+    name=joinLangEnglish~=nil and joinLangEnglish(tostring(name)) or tostring(name)
+    local tooltip=name..": Prevent "..tostring(spec.physical or 2)
+        .." Physical or "..tostring(spec.nonphysical or 1)
+        .." non-Physical damage reaching the Hero from one attack."
+        .."\\nCurrently prevents "..tostring(prevented).." Hero damage."
+        ..(reason~=nil and ("\\nNo benefit: "..reason) or "")
+        .."\\nSelect the button then click an enemy row to retarget."
+    return {source={guid=guid,key=guid,name=name},family="block",arrow="attack",
+        amount=tostring(prevented>0 and prevented or (spec.physical or 2)),
+        icon="MKChoiceBlock",text="Hero damage prevention",tooltip=tooltip,
+        ineffective=reason~=nil}
+end
+
 -- Attack-phase eligibility comes from the preceding damage phase, never the
 -- eventual melee result. This breaks the apparent ranged/damage/melee feedback
 -- loop: ranged kills and Block are frozen before Unit wounds are evaluated.
