@@ -28,6 +28,8 @@ jobs:
         run: lua5.2 tools/test-combat-effect-buttons.lua
       - name: Norowas skill regression tests
         run: lua5.2 tools/test-norowas-skills.lua
+      - name: Braevalar skill regression tests
+        run: lua5.2 tools/test-braevalar-skills.lua
       - name: Check commit whitespace
         run: git diff --check HEAD^
 
