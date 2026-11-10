@@ -619,13 +619,20 @@ end
 local function combatEnemyOffenceTraits(entry)
     if entry.removeAbilities and entry.data.monsters==nil then return "None" end
     if entry.data.monsters==nil then
-        return combatEnemyTraitsText(entry.data,entry.perks,combatConfig.enemyOffenceTraits)
+        local text=combatEnemyTraitsText(entry.data,entry.perks,combatConfig.enemyOffenceTraits)
+        if entry.effect~=nil and entry.effect.grantCumbersome==true
+            and not text:find("Cumbersome",1,true) then
+            text=text=="None" and "Cumbersome" or (text.."\nCumbersome")
+        end
+        return text
     end
     local merged={}
     for _,summoned in ipairs(entry.summoned or {}) do
         if not (summoned.effect~=nil and summoned.effect.removeAbilities==true) then
             for _,trait in ipairs(combatConfig.enemyOffenceTraits) do
-                if combatEnemyHasTrait(summoned.data,summoned.perks,trait[1]) then merged[trait[1]]=true end
+                if combatEnemyHasTrait(summoned.data,summoned.perks,trait[1])
+                    or (trait[1]=="cumbersome" and summoned.effect~=nil
+                        and summoned.effect.grantCumbersome==true) then merged[trait[1]]=true end
             end
         end
     end
@@ -1879,6 +1886,7 @@ combatConfig.effectButtonInfo=function(entry,applied)
     elseif attack>0 then
         amount="-"..tostring(attack)
         description="Enemy Attack reduction "..amount
+            ..(spec.grantCumbersome==true and "; gains Cumbersome" or "")
         -- Compare attacks with and without this source's reduction. Zero printed
         -- attacks, already-cancelled attacks, and duplicate reductions turn red.
         local with=combatEnemyAttacks(entry)
@@ -2833,7 +2841,8 @@ local function combatAssignmentRefreshRows(entries,sources)
                     end
                 end
                 attackLines[#attackLines+1]=(#markers>0 and ("▶"..table.concat(markers,",").." ") or "")
-                    ..combatTypeRich(attack.label.." "..tostring(attack.value-reduction),
+                    ..combatTypeRich(attack.label.." "..tostring(attack.value-reduction)
+                        ..(combatNatureVengeanceBlockBonus()>0 and " (Block +1)" or ""),
                         attack.key,reduction>0)
             end
             combatPanelSetAttribute("CombatEnemyRow"..row.."Attacks","text",
