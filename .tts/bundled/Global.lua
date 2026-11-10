@@ -1449,6 +1449,9 @@ function __onObjectDrop_raw(player_color, dropped_object)
     resourceUnitsCommandDropped(player_color,dropped_object)
     resourceCardsObjectMoved(dropped_object)
     callOfferObjectDropped(dropped_object)
+    if droppedGUID=="2eb8e8" then
+        safeWaitFrames("Events.CallOffer",callOfferSpellChanged,2)
+    end
 	if terrainTiles[droppedGUID]~=nil then
 		runtimeMapInvalidateTerrain()
 		--EXPLORE legality is derived from the settled physical map. onObjectEnterZone can fire while a
@@ -2918,6 +2921,10 @@ function __onObjectRotate_raw(object, spin, flip, player_color, old_spin, old_fl
 	end
 	if object.type~="Card" then return end
 	local cardGUID=object.guid
+    if cardGUID=="2eb8e8" then
+        -- The new face may not yet be applied when onObjectRotate fires.
+        safeWaitFrames("Events.CallOffer",callOfferSpellChanged,2)
+    end
 	if cardGUID==meditationTranceCardGUID or isSteadyTempoGUID(cardGUID)==true
 		or cardGUID==tacticCard[2] or cardGUID==GUID.card.bannerOfCommandToken then
 		refreshCardEffectAfterRotation(cardGUID)
@@ -29230,6 +29237,7 @@ end
 local function cleanButtons(unit,removeResources)
     if unit==nil then return end
     local xml=unit.UI.getXmlTable() or {}
+    local changed=false
     for i=#xml,1,-1 do
         local attrs=xml[i].attributes
         local id=attrs~=nil and attrs.id or nil
@@ -29237,26 +29245,37 @@ local function cleanButtons(unit,removeResources)
             or (removeResources and (id:sub(1,19)=="ResourceCardChoice_"
                 or id:sub(1,23)=="AttackAssignmentSource_"))) then
             table.remove(xml,i)
+            changed=true
         end
     end
-    unit.UI.setXmlTable(xml)
+    -- Passing {} to TTS UI.setXmlTable raises "table was null".
+    -- Match the existing Unit-choice cleanup convention for empty Object UI.
+    if changed then unit.UI.setXmlTable(#xml>0 and xml or {{}}) end
 end
 
 local function restoreUnit(state,immediate)
     if state==nil or state.unitGUID==nil then return end
     local guid=state.unitGUID
+    local home=state.home
+    -- Retire the source before combat recalculation or physical movement.
+    -- Otherwise a queued scan can reactivate the card and recreate its arrow.
+    state.unitGUID=nil
+    state.home=nil
     local unit=getObjectFromGUID(guid)
     if resourceUnitsBorrowedUnitEnded~=nil then resourceUnitsBorrowedUnitEnded(guid) end
     cleanButtons(unit,true)
-    if unit~=nil and state.home~=nil then
+    if unit~=nil and home~=nil then
+        -- The offer is outside the Play Area: discard its temporary scale
+        -- factor before restoring its original offer size.
+        if playAreaScaleForgetObject~=nil then playAreaScaleForgetObject(unit) end
         unit.unlock()
-        unit.setScale(state.home.scale)
+        unit.setScale(home.scale)
         if immediate then
-            unit.setRotation(state.home.rotation)
-            unit.setPosition(state.home.position)
+            unit.setRotation(home.rotation)
+            unit.setPosition(home.position)
         else
-            unit.setRotationSmooth(state.home.rotation,false,false)
-            unit.setPositionSmooth(state.home.position,false,false)
+            unit.setRotationSmooth(home.rotation,false,false)
+            unit.setPositionSmooth(home.position,false,false)
         end
         safeWaitCondition("Offers.CallOffer",function()
             local live=getObjectFromGUID(guid)
@@ -29266,8 +29285,6 @@ local function restoreUnit(state,immediate)
             return live==nil or (live.resting and live.isSmoothMoving()==false)
         end,8)
     end
-    state.unitGUID=nil
-    state.home=nil
 end
 
 -- A temporarily displayed Unit must not disappear when the offer is
@@ -29293,20 +29310,29 @@ local function showControls(state,guid,serial)
         or transferSerial~=serial then return end
     cleanButtons(unit,false)
     local xml=unit.UI.getXmlTable() or {}
+    -- Rotate the parent Button, not its child Image: TTS object UI ignores
+    -- child Image rotation in this layout. Up/Down become left/right at 90 degrees.
+    local images={"Overkill Down","Overkill Up"}
     for _,entry in ipairs({
-        {direction="previous",label="<",x="-145"},
-        {direction="next",label=">",x="145"}
+        {direction="previous",image=images[1],x="-135"},
+        {direction="next",image=images[2],x="135"}
     }) do
+        local id="CallOfferControl_"..guid.."_"..entry.direction
         xml[#xml+1]={tag="Button",attributes={
-            id="CallOfferControl_"..guid.."_"..entry.direction,
-            onClick="global/callOfferCycleClicked",
-            position=entry.x.." 0 -35",rotation="0 0 180",
-            width=95,height=110,scale="0.40 0.40",fontSize=82,
-            colors="#454D5D|#69798E|#444C63|#454D5D",
-            textColor="#FFFFFF",textAlignment="MiddleCenter"},
-            value=entry.label}
+            id=id,onClick="global/callOfferCycleClicked",
+            position=entry.x.." 0 -35",rotation="0 0 0",
+            width=95,height=110,scale="0.40 0.40",
+            color="rgba(0,0,0,0.0)"},
+            children={{tag="Image",attributes={
+                id=id.."Image",image=entry.image,
+                preserveAspect="true",raycastTarget="false"
+            }}}}
     end
-    unit.UI.setXmlTable(xml)
+    -- Object-attached UI has its own image registry. Passing these existing
+    -- assets prevents an unregistered-image white square on moved Unit cards.
+    local assets=resourceCardsExistingImageAssetsFor(unit.UI,images)
+    if assets~=nil then unit.UI.setXmlTable(xml,assets)
+    else unit.UI.setXmlTable(xml) end
 end
 
 local function borrow(state,index)
@@ -29369,7 +29395,12 @@ publishPublicUICallbacks({
 -- Only a genuine, played Spell creates a temporary offer display.
 function callOfferSpellEntered(spellGUID,seatPos)
     if spellGUID~=SPELL_GUID or seatPos==nil or gStates==nil then return end
-    if not inZone(SPELL_GUID,playerPlayAreas[seatPos]) then return end
+    local spell=getObjectFromGUID(SPELL_GUID)
+    if spell==nil or not inZone(SPELL_GUID,playerPlayAreas[seatPos]) then return end
+    if spell.is_face_down==true then
+        callOfferClose(false)
+        return
+    end
     local state=previewState()
     if state~=nil then
         if state.spellGUID==spellGUID and state.seatPos==seatPos then return end
@@ -29383,6 +29414,25 @@ function callOfferSpellEntered(spellGUID,seatPos)
     state={spellGUID=SPELL_GUID,seatPos=seatPos,order=order,index=1}
     gStates.callOfferPreview=state
     if not borrow(state,1) then gStates.callOfferPreview=nil end
+end
+
+-- Explicitly reevaluate after flips/drops; a face-down spell is always inert.
+function callOfferSpellChanged()
+    if gStates==nil then return end
+    local spell=getObjectFromGUID(SPELL_GUID)
+    if spell==nil or spell.is_face_down==true then
+        callOfferClose(false)
+        return
+    end
+    for seatPos=1,4 do
+        if inZone(SPELL_GUID,playerPlayAreas[seatPos]) then
+            if spell.held_by_color==nil and spell.resting==true then
+                callOfferSpellEntered(SPELL_GUID,seatPos)
+            end
+            return
+        end
+    end
+    callOfferClose(false)
 end
 
 function callOfferSpellLeft(spellGUID,seatPos)
@@ -29402,6 +29452,8 @@ function callOfferBorrowedUnitForSeat(seatPos)
     local state=previewState()
     if state==nil or state.seatPos~=seatPos then return nil end
     if not inZone(SPELL_GUID,playerPlayAreas[seatPos]) then return nil end
+    local spell=getObjectFromGUID(SPELL_GUID)
+    if spell==nil or spell.is_face_down==true then return nil end
     return state.unitGUID~=nil and getObjectFromGUID(state.unitGUID) or nil
 end
 
@@ -29415,6 +29467,7 @@ function callOfferObjectDropped(obj)
         if current==nil or current.unitGUID~=guid then return end
         if not inZone(guid,playerUnitAreas[current.seatPos]) then return end
         transferSerial=transferSerial+1
+        current.unitGUID=nil
         if resourceUnitsBorrowedUnitEnded~=nil then resourceUnitsBorrowedUnitEnded(guid) end
         cleanButtons(getObjectFromGUID(guid),true)
         gStates.callOfferPreview=nil
@@ -29429,7 +29482,9 @@ function callOfferRestoreOnLoad()
     local state=previewState()
     if state==nil then return end
     local unit=state.unitGUID~=nil and getObjectFromGUID(state.unitGUID) or nil
-    if unit==nil or not inZone(SPELL_GUID,playerPlayAreas[state.seatPos]) then
+    local spell=getObjectFromGUID(SPELL_GUID)
+    if unit==nil or spell==nil or spell.is_face_down==true
+        or not inZone(SPELL_GUID,playerPlayAreas[state.seatPos]) then
         callOfferClose(true)
         return
     end
@@ -31386,8 +31441,9 @@ function portalSwap(state, playerIndex)
 					moveAvatar(otherIndex,portalParking(otherIndex))
 				end
 			end
-			avatarDestination=againstHorsemenCentralGladePosition(1.5)
-			if avatarDestination==nil then return end
+			local gladeDestination=againstHorsemenCentralGladePosition(1.5)
+			if gladeDestination==nil then return end
+			avatarDestination=gladeDestination
 			player.horsemenGladeParked=false
 		else
 			local cityObj=getObjectFromGUID(cityConvert[player.avatarLocation:sub(6, 8)])
@@ -49343,6 +49399,24 @@ function resourceCardsCombatForgetSource(sourceGUID)
     combatAssignmentState.explicit[sourceGUID]=nil
 end
 
+-- Both numeric and effect-only Unit sources must lose their Combat Calculator
+-- locks when a temporary offer Unit is returned; otherwise the next scan can
+-- regenerate its arrow from a stale target.
+local function combatForgetBorrowedUnitTargets(unitGUID)
+    local prefix=unitGUID.."#"
+    for key in pairs(combatAssignmentState.targets) do
+        if key==unitGUID or key:sub(1,#prefix)==prefix then
+            combatAssignmentState.targets[key]=nil
+            combatAssignmentState.explicit[key]=nil
+        end
+    end
+    local selected=combatAssignmentState.selected
+    if type(selected)=="string"
+        and (selected==unitGUID or selected:sub(1,#prefix)==prefix) then
+        combatAssignmentState.selected=nil
+    end
+end
+
 function resourceCardsCombatAssignmentClick(id)
     local row=id:match("^CombatSourceSlot(%d+)")
     local index=row~=nil and tonumber(row) or nil
@@ -54345,6 +54419,7 @@ function resourceUnitsBorrowedUnitEnded(guid)
     removeChoiceButtons(getObjectFromGUID(guid))
     choiceButtonShown[guid]=nil
     choiceExpandedByGUID[guid]=nil
+    combatForgetBorrowedUnitTargets(guid)
     if attackAssignmentsClearForObject~=nil then attackAssignmentsClearForObject(guid) end
     if attackAssignmentsPruneUnitChoiceSources~=nil then
         attackAssignmentsPruneUnitChoiceSources(guid,{})
@@ -54976,6 +55051,18 @@ function resourceCardsChoiceAssetsFor(ui,categories)
     for _,category in ipairs(categories) do
         local asset=resourceChoiceImages[category]
         if asset~=nil then needed[#needed+1]=asset end
+    end
+    return mergeCustomImages(ui,needed)
+end
+
+-- Legacy shared artwork also needs registration on object-attached UIs.
+-- Call Offer reuses the exact Up/Down images already used by Scale.lua.
+function resourceCardsExistingImageAssetsFor(ui,names)
+    local needed={}
+    for _,name in ipairs(names) do
+        for _,entry in ipairs(originalGlobalImages) do
+            if entry.name==name then needed[#needed+1]=entry break end
+        end
     end
     return mergeCustomImages(ui,needed)
 end
@@ -55620,9 +55707,12 @@ local function playAreaScaleEligible(seat,obj,scope)
         or obj.type=="Bag" or obj.type=="Infinite" then return false end
     for _,guid in ipairs(playerBoard) do if obj.guid==guid then return false end end
     for _,guid in ipairs(colorBand) do if obj.guid==guid then return false end end
-    -- Keep Unit cards, Command tokens (including Bonds of Loyalty and Banner
-    -- of Command), and Wound tokens at their natural scale in either mode.
-    if unitLayoutIsUnit(obj) or unitLayoutIsCommand(obj) or unitLayoutIsWound(obj)
+    -- Keep the army's Units at natural scale, but allow Unit cards physically
+    -- in the Play Area (including Call to Arms's borrowed offer card) to
+    -- follow the board's selected Cards/All percentage like other cards.
+    -- Command and Wound tokens stay at natural scale everywhere.
+    if (unitLayoutIsUnit(obj) and playAreaScaleInZone(obj.guid,playerUnitAreas[seat]))
+        or unitLayoutIsCommand(obj) or unitLayoutIsWound(obj)
         or obj.hasTag("CombatPreviewWound") or obj.getGMNotes()=="Combat Preview Wound" then return false end
     -- A loose Wound in the Unit Area may be about to become a Unit Wound.
     if obj.getGMNotes()=="Wound" and playAreaScaleInZone(obj.guid,playerUnitAreas[seat]) then return false end

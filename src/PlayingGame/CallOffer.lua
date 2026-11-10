@@ -101,13 +101,13 @@ local function showControls(state,guid,serial)
     -- child Image rotation in this layout. Up/Down become left/right at 90 degrees.
     local images={"Overkill Down","Overkill Up"}
     for _,entry in ipairs({
-        {direction="previous",image=images[1],x="-145"},
-        {direction="next",image=images[2],x="145"}
+        {direction="previous",image=images[1],x="-135"},
+        {direction="next",image=images[2],x="135"}
     }) do
         local id="CallOfferControl_"..guid.."_"..entry.direction
         xml[#xml+1]={tag="Button",attributes={
             id=id,onClick="global/callOfferCycleClicked",
-            position=entry.x.." 0 -35",rotation="0 0 90",
+            position=entry.x.." 0 -35",rotation="0 0 0",
             width=95,height=110,scale="0.40 0.40",
             color="rgba(0,0,0,0.0)"},
             children={{tag="Image",attributes={
