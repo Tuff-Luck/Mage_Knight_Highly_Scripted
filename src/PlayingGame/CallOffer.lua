@@ -88,8 +88,8 @@ local function showControls(state,guid,serial)
     cleanButtons(unit,false)
     local xml=unit.UI.getXmlTable() or {}
     for _,entry in ipairs({
-        {direction="previous",label="<",x="-145"},
-        {direction="next",label=">",x="145"}
+        {direction="previous",label="◀",x="-145"},
+        {direction="next",label="▶",x="145"}
     }) do
         xml[#xml+1]={tag="Button",attributes={
             id="CallOfferControl_"..guid.."_"..entry.direction,

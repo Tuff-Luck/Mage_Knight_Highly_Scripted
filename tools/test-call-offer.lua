@@ -87,6 +87,13 @@ eq(first.position[3],spell.position[3],"borrowed Unit alongside Spell")
 eq(first.scale[1],1.5,"full-sized Unit")
 eq(hasArrow(first,"previous"),true,"left arrow present")
 eq(hasArrow(first,"next"),true,"right arrow present")
+-- The runtime Object UI serializer must never receive raw XML delimiters.
+for _,node in ipairs(first.UI.getXmlTable()) do
+    if node.attributes and node.attributes.id and
+        node.attributes.id:find("CallOfferControl_",1,true) then
+        assert(node.value~="<" and node.value~=">","Unsafe XML arrow character")
+    end
+end
 eq(callOfferBorrowedUnitForSeat(1),first,"one temporary selected Unit")
 callOfferCycleClicked({color="Red"},nil,"CallOfferControl_111111_next")
 eq(first.position[1],36,"first Unit returned to its original slot")
