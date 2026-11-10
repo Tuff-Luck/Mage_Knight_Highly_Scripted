@@ -60,14 +60,14 @@ dofile("src/PlayingGame/PlayerBoard/PuppetMaster.lua")
 puppetMasterUseReason=function() return nil end
 local enemy={guid="enemy",is_face_down=false}
 local pickup={player=1,fromCombat=true,faceUp=true}
-combatEnemyEligibleAsDefeatedPuppet=function() return false end
+combatEnemyEligibleAsDefeatedPuppet=function(_obj) return false end
 eq(type(puppetMasterClaimReason(enemy,pickup,1)),"string","Undefeated face-up enemy must be rejected")
-combatEnemyEligibleAsDefeatedPuppet=function() return true end
+combatEnemyEligibleAsDefeatedPuppet=function(_obj) return true end
 eq(puppetMasterClaimReason(enemy,pickup,1),nil,"Defeated enemy may be kept")
 -- The defeated mark may disappear when the enemy leaves the Combat Area.
 pickup.calculatorActive=true
 pickup.calculatorDefeated=true
-combatEnemyEligibleAsDefeatedPuppet=function() return false end
+combatEnemyEligibleAsDefeatedPuppet=function(_obj) return false end
 eq(puppetMasterClaimReason(enemy,pickup,1),nil,"Defeat snapshot survives dragging to Inventory")
 pickup.calculatorDefeated=false
 eq(type(puppetMasterClaimReason(enemy,pickup,1)),"string","Undeafeated snapshot rejected")
