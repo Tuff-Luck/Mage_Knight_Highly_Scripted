@@ -14,6 +14,8 @@ local function fakeCard(guid,x,z)
         getXmlTable=function() return xml end,
         getCustomAssets=function() return assets end,
         setXmlTable=function(nextXml,newAssets)
+            assert(type(nextXml)=="table" and #nextXml>0,
+                "TTS UI.setXmlTable rejects an empty/null XML table")
             xml=nextXml
             if newAssets~=nil then assets=newAssets end
         end
@@ -102,7 +104,7 @@ for _,node in ipairs(first.UI.getXmlTable()) do
         eq(node.value,nil,"no text or XML delimiters on arrow")
         eq(node.children[1].tag,"Image","arrow is a real image")
         eq(node.children[1].attributes.image,arrowImages[direction],"correct scale artwork")
-        eq(node.children[1].attributes.rotation,"0 0 -90","horizontal arrow")
+        eq(node.children[1].attributes.rotation,"0 0 90","horizontal arrow")
     end
 end
 local registered={}
@@ -121,7 +123,7 @@ callOfferCycleClicked({color="Red"},nil,"CallOfferControl_222222_previous")
 eq(second.position[1],31.2,"second Unit restored on reverse")
 eq(gStates.callOfferPreview.unitGUID,first.guid,"previous card selected")
 -- Loading an active game restores object-attached arrows without moving cards.
-first.UI.setXmlTable({})
+first.UI.setXmlTable({{}})
 callOfferRestoreOnLoad()
 eq(hasArrow(first,"next"),true,"saved offer browser controls restored")
 -- A spell removed from play returns the actual Unit.

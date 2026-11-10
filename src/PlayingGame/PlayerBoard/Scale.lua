@@ -83,9 +83,12 @@ local function playAreaScaleEligible(seat,obj,scope)
         or obj.type=="Bag" or obj.type=="Infinite" then return false end
     for _,guid in ipairs(playerBoard) do if obj.guid==guid then return false end end
     for _,guid in ipairs(colorBand) do if obj.guid==guid then return false end end
-    -- Keep Unit cards, Command tokens (including Bonds of Loyalty and Banner
-    -- of Command), and Wound tokens at their natural scale in either mode.
-    if unitLayoutIsUnit(obj) or unitLayoutIsCommand(obj) or unitLayoutIsWound(obj)
+    -- Keep the army's Units at natural scale, but allow Unit cards physically
+    -- in the Play Area (including Call to Arms's borrowed offer card) to
+    -- follow the board's selected Cards/All percentage like other cards.
+    -- Command and Wound tokens stay at natural scale everywhere.
+    if (unitLayoutIsUnit(obj) and playAreaScaleInZone(obj.guid,playerUnitAreas[seat]))
+        or unitLayoutIsCommand(obj) or unitLayoutIsWound(obj)
         or obj.hasTag("CombatPreviewWound") or obj.getGMNotes()=="Combat Preview Wound" then return false end
     -- A loose Wound in the Unit Area may be about to become a Unit Wound.
     if obj.getGMNotes()=="Wound" and playAreaScaleInZone(obj.guid,playerUnitAreas[seat]) then return false end

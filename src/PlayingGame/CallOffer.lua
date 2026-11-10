@@ -24,6 +24,7 @@ end
 local function cleanButtons(unit,removeResources)
     if unit==nil then return end
     local xml=unit.UI.getXmlTable() or {}
+    local changed=false
     for i=#xml,1,-1 do
         local attrs=xml[i].attributes
         local id=attrs~=nil and attrs.id or nil
@@ -31,9 +32,12 @@ local function cleanButtons(unit,removeResources)
             or (removeResources and (id:sub(1,19)=="ResourceCardChoice_"
                 or id:sub(1,23)=="AttackAssignmentSource_"))) then
             table.remove(xml,i)
+            changed=true
         end
     end
-    unit.UI.setXmlTable(xml)
+    -- Passing {} to TTS UI.setXmlTable raises "table was null".
+    -- Match the existing Unit-choice cleanup convention for empty Object UI.
+    if changed then unit.UI.setXmlTable(#xml>0 and xml or {{}}) end
 end
 
 local function restoreUnit(state,immediate)
@@ -43,6 +47,9 @@ local function restoreUnit(state,immediate)
     if resourceUnitsBorrowedUnitEnded~=nil then resourceUnitsBorrowedUnitEnded(guid) end
     cleanButtons(unit,true)
     if unit~=nil and state.home~=nil then
+        -- The offer is outside the Play Area: discard its temporary scale
+        -- factor before restoring its original offer size.
+        if playAreaScaleForgetObject~=nil then playAreaScaleForgetObject(unit) end
         unit.unlock()
         unit.setScale(state.home.scale)
         if immediate then
@@ -102,7 +109,7 @@ local function showControls(state,guid,serial)
             color="rgba(0,0,0,0.0)"},
             children={{tag="Image",attributes={
                 id=id.."Image",image=entry.image,
-                rotation="0 0 -90",preserveAspect="true",raycastTarget="false"
+                rotation="0 0 90",preserveAspect="true",raycastTarget="false"
             }}}}
     end
     -- Object-attached UI has its own image registry. Passing these existing
