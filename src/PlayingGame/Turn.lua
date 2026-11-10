@@ -1086,6 +1086,8 @@ local function turnEndRoundCheckpointAndInterrupts(rewindReady)
 end
 
 local function turnEndRoundAdvanceWorld()
+	-- Claimed Mana Source dice belong to the previous round only.
+	manaClaimReturnHeldDice()
 	--Update round count and check for end of game. Quest expiry has already completed at the
 	--checkpoint barrier, so no old-round Quest object can overlap new-round offer/tactic/deck work.
 	broadcastToAll("-------------------",{1,1,0.5})
