@@ -514,6 +514,7 @@ end
 function __onObjectPickUp_raw(player_color, picked_up_object)
 	picked_up_object=eventsLiveObject(picked_up_object)
 	if picked_up_object==nil then return end
+    if picked_up_object.guid=="2eb8e8" then callOfferSpellPickedUp() end
 	attackAssignmentsObjectMoved(picked_up_object)
 	if picked_up_object~=nil and mapTokenNeedsArrangement~=nil and mapTokenNeedsArrangement(picked_up_object)==true then
 		mapTokenReleaseObject(picked_up_object)
@@ -624,7 +625,7 @@ function __onObjectDrop_raw(player_color, dropped_object)
     resourceCardsObjectMoved(dropped_object)
     callOfferObjectDropped(dropped_object)
     if droppedGUID=="2eb8e8" then
-        safeWaitFrames("Events.CallOffer",callOfferSpellChanged,2)
+        callOfferScheduleSpellCheck()
     end
 	if terrainTiles[droppedGUID]~=nil then
 		runtimeMapInvalidateTerrain()
@@ -2097,7 +2098,7 @@ function __onObjectRotate_raw(object, spin, flip, player_color, old_spin, old_fl
 	local cardGUID=object.guid
     if cardGUID=="2eb8e8" then
         -- The new face may not yet be applied when onObjectRotate fires.
-        safeWaitFrames("Events.CallOffer",callOfferSpellChanged,2)
+        callOfferScheduleSpellCheck()
     end
 	if cardGUID==meditationTranceCardGUID or isSteadyTempoGUID(cardGUID)==true
 		or cardGUID==tacticCard[2] or cardGUID==GUID.card.bannerOfCommandToken then

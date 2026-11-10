@@ -69,8 +69,19 @@ callOfferAvailableUnits=function()
     table.sort(units,function(a,b) return a.position[1]>b.position[1] end)
     return units
 end
+local pendingChecks={}
+safeWaitFrames=function(_,callback) callback() end
 safeWaitCondition=function(_,callback,condition)
-    if condition() then callback() else error("Unsettled test object",2) end
+    if condition() then callback()
+    else pendingChecks[#pendingChecks+1]={callback=callback,condition=condition} end
+end
+local function settlePending()
+    local pending=pendingChecks
+    pendingChecks={}
+    for _,check in ipairs(pending) do
+        if check.condition() then check.callback()
+        else pendingChecks[#pendingChecks+1]=check end
+    end
 end
 legalPlayerCheck=function() return true end
 local stopped=0
@@ -121,21 +132,49 @@ for _,name in pairs(arrowImages) do
         "Unit UI is missing image asset "..name)
 end
 eq(callOfferBorrowedUnitForSeat(1),first,"one temporary selected Unit")
+-- Moving the Spell out of the zone while held is just rearrangement.
+local selected=gStates.callOfferPreview
+spell.held_by_color="Red"
+spell.resting=false
+spellInPlay=false
+callOfferSpellPickedUp()
+callOfferSpellLeft(spell.guid,1)
+eq(gStates.callOfferPreview,selected,"dragged Spell keeps borrowed Unit")
+callOfferSpellChanged()
+eq(gStates.callOfferPreview,selected,"in-flight Spell is not discarded")
+spell.setPosition({-57,1,-42})
+spellInPlay=true
+spell.held_by_color=nil
+spell.resting=true
+callOfferScheduleSpellCheck()
+settlePending()
+eq(gStates.callOfferPreview,selected,"repositioned Spell keeps preview")
+eq(first.position[1],-56.1,"repositioned Spell does not drag Unit")
+-- Repositioning the actual Unit is also safe and defines the next browse slot.
+first.setPosition({-53,1,-40})
+first.setRotation({0,165,0})
+callOfferObjectDropped(first)
+eq(gStates.callOfferPreview,selected,"repositioned Unit stays borrowed")
+eq(first.position[1],-53,"manually placed Unit stays put")
 callOfferCycleClicked({color="Red"},nil,"CallOfferControl_111111_next")
 eq(first.position[1],36,"first Unit returned to its original slot")
 eq(first.locked,true,"returned Unit locked")
 eq(hasArrow(first,"next"),false,"returned Unit has no arrows")
 eq(gStates.callOfferPreview.unitGUID,second.guid,"next original card selected")
+eq(second.position[1],-53,"next Unit occupies manually chosen position")
+eq(second.rotation[2],165,"next Unit uses chosen orientation")
 callOfferCycleClicked({color="Red"},nil,"CallOfferControl_222222_previous")
 eq(second.position[1],31.2,"second Unit restored on reverse")
 eq(gStates.callOfferPreview.unitGUID,first.guid,"previous card selected")
+eq(first.position[1],-53,"browsing back preserves selected display position")
 -- Loading an active game restores object-attached arrows without moving cards.
 first.UI.setXmlTable({{}})
 callOfferRestoreOnLoad()
 eq(hasArrow(first,"next"),true,"saved offer browser controls restored")
--- A spell removed from play returns the actual Unit.
+-- A Spell genuinely dropped outside the play area still returns the Unit.
 spellInPlay=false
-callOfferSpellLeft(spell.guid,1)
+callOfferScheduleSpellCheck()
+settlePending()
 eq(gStates.callOfferPreview,nil,"spell exit closes the browser")
 eq(first.position[1],36,"spell exit restored offer position")
 eq(inOffer(first),true,"spell exit returns offer membership")

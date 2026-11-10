@@ -3,6 +3,7 @@
 local SPELL_GUID="2eb8e8"
 local excluded={["0a2e0b"]=true,["d8e49b"]=true,["9c5c38"]=true,["5c2da0"]=true}
 local transferSerial=0
+local spellMoveSerial=0 -- Invalidate stale leave-zone checks during drag/rearrangement.
 
 local function previewState()
     return gStates~=nil and gStates.callOfferPreview or nil
@@ -122,6 +123,15 @@ local function showControls(state,guid,serial)
     else unit.UI.setXmlTable(xml) end
 end
 
+-- The preview card's placement is independent of the Spell after the first borrow.
+-- Keep the latest user-chosen spot when the player browses other Units.
+local function rememberDisplayedUnit(state)
+    local unit=state~=nil and state.unitGUID~=nil and getObjectFromGUID(state.unitGUID) or nil
+    if unit~=nil then
+        state.display={position=vector(unit.getPosition()),rotation=vector(unit.getRotation())}
+    end
+end
+
 local function borrow(state,index)
     local guid=state.order[index]
     local unit=guid~=nil and getObjectFromGUID(guid) or nil
@@ -129,6 +139,9 @@ local function borrow(state,index)
     if unit==nil or spell==nil then return false end
     if not inZone(guid,GUID.zone.unitOffer) then return false end
     local pos=vector(spell.getPosition())
+    local display=state.display or {
+        position={pos[1]+3.9,math.max(1.8,pos[2]+0.35),pos[3]},
+        rotation={0,180,0}}
     state.index=index
     state.unitGUID=guid
     state.home={position=vector(unit.getPosition()),
@@ -137,9 +150,10 @@ local function borrow(state,index)
     local serial=transferSerial
     unit.unlock()
     unit.setScale({1.5,1,1.5})
-    -- Stay alongside the actual played Spell, in its owner's play area.
-    unit.setPositionSmooth({pos[1]+3.9,math.max(1.8,pos[2]+0.35),pos[3]},false,false)
-    unit.setRotationSmooth({0,180,0},false,false)
+    -- A new selection occupies the last manually chosen display location.
+    -- Moving the Spell later does not drag the Unit or reset its layout.
+    unit.setPositionSmooth(display.position,false,false)
+    unit.setRotationSmooth(display.rotation,false,false)
     safeWaitCondition("Offers.CallOffer",function()
         showControls(state,guid,serial)
     end,function()
@@ -160,6 +174,7 @@ local function selectRelative(state,delta)
         local guid=state.order[index]
         if present[guid]==true and excluded[guid]~=true
             and guid~=state.unitGUID then
+            rememberDisplayedUnit(state)
             restoreUnit(state,false)
             borrow(state,index)
             return
@@ -203,10 +218,13 @@ function callOfferSpellEntered(spellGUID,seatPos)
     if not borrow(state,1) then gStates.callOfferPreview=nil end
 end
 
--- Explicitly reevaluate after flips/drops; a face-down spell is always inert.
+-- Explicitly reevaluate only after the Spell has finished moving. A zone
+-- exit during drag is not evidence that the Spell has been discarded.
 function callOfferSpellChanged()
     if gStates==nil then return end
     local spell=getObjectFromGUID(SPELL_GUID)
+    if spell~=nil and (spell.held_by_color~=nil or spell.resting~=true
+        or spell.isSmoothMoving()==true) then return end
     if spell==nil or spell.is_face_down==true then
         callOfferClose(false)
         return
@@ -222,17 +240,34 @@ function callOfferSpellChanged()
     callOfferClose(false)
 end
 
+-- A held card may briefly leave/re-enter a Scripting Zone. Wait for a real
+-- settled destination and let newer pickup/drop/flip events cancel stale checks.
+function callOfferSpellPickedUp()
+    spellMoveSerial=spellMoveSerial+1
+end
+
+function callOfferScheduleSpellCheck()
+    spellMoveSerial=spellMoveSerial+1
+    local serial=spellMoveSerial
+    safeWaitFrames("Offers.CallOffer",function()
+        if serial~=spellMoveSerial then return end
+        safeWaitCondition("Offers.CallOffer",function()
+            safeWaitFrames("Offers.CallOffer",function()
+                if serial==spellMoveSerial then callOfferSpellChanged() end
+            end,3)
+        end,function()
+            if serial~=spellMoveSerial then return true end
+            local spell=getObjectFromGUID(SPELL_GUID)
+            return spell==nil or (spell.held_by_color==nil
+                and spell.resting==true and spell.isSmoothMoving()==false)
+        end,8)
+    end,2)
+end
+
 function callOfferSpellLeft(spellGUID,seatPos)
     local state=previewState()
     if spellGUID~=SPELL_GUID or state==nil or state.seatPos~=seatPos then return end
-    -- Picking up and re-arranging the Spell must not destroy the browser.
-    safeWaitCondition("Offers.CallOffer",function()
-        if not inZone(SPELL_GUID,playerPlayAreas[seatPos]) then callOfferClose(false) end
-    end,function()
-        local spell=getObjectFromGUID(SPELL_GUID)
-        return spell==nil or (spell.held_by_color==nil
-            and spell.resting and spell.isSmoothMoving()==false)
-    end,8)
+    callOfferScheduleSpellCheck()
 end
 
 function callOfferBorrowedUnitForSeat(seatPos)
@@ -252,7 +287,12 @@ function callOfferObjectDropped(obj)
     safeWaitCondition("Offers.CallOffer",function()
         local current=previewState()
         if current==nil or current.unitGUID~=guid then return end
-        if not inZone(guid,playerUnitAreas[current.seatPos]) then return end
+        if not inZone(guid,playerUnitAreas[current.seatPos]) then
+            -- Repositioning the borrowed Unit is NOT recruitment. Keep its
+            -- controls, combat links and new browsing position intact.
+            rememberDisplayedUnit(current)
+            return
+        end
         transferSerial=transferSerial+1
         current.unitGUID=nil
         if resourceUnitsBorrowedUnitEnded~=nil then resourceUnitsBorrowedUnitEnded(guid) end
