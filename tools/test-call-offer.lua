@@ -9,10 +9,14 @@ local function copy(v) return {v[1],v[2],v[3]} end
 local function fakeCard(guid,x,z)
     local card={guid=guid,position={x,1,z},rotation={0,180,0},scale={1.5,1,1.5},
         resting=true,held_by_color=nil,locked=true}
-    local xml={}
+    local xml,assets={},{}
     card.UI={
         getXmlTable=function() return xml end,
-        setXmlTable=function(nextXml) xml=nextXml end
+        getCustomAssets=function() return assets end,
+        setXmlTable=function(nextXml,newAssets)
+            xml=nextXml
+            if newAssets~=nil then assets=newAssets end
+        end
     }
     card.getPosition=function() return copy(card.position) end
     card.getRotation=function() return copy(card.rotation) end
@@ -73,6 +77,7 @@ resourceCardsSourceChanged=function() end
 publishPublicUICallbacks=function(callbacks)
     for name,callback in pairs(callbacks) do _G[name]=callback end
 end
+dofile("src/PlayingGame/UIAssets.lua")
 dofile("src/PlayingGame/CallOffer.lua")
 local function hasArrow(card,direction)
     for _,node in ipairs(card.UI.getXmlTable()) do
@@ -87,12 +92,24 @@ eq(first.position[3],spell.position[3],"borrowed Unit alongside Spell")
 eq(first.scale[1],1.5,"full-sized Unit")
 eq(hasArrow(first,"previous"),true,"left arrow present")
 eq(hasArrow(first,"next"),true,"right arrow present")
--- The runtime Object UI serializer must never receive raw XML delimiters.
+-- Each button has a reusable registered image, rather than XML-unsafe text.
+local arrowImages={previous="Overkill Down",next="Overkill Up"}
 for _,node in ipairs(first.UI.getXmlTable()) do
-    if node.attributes and node.attributes.id and
-        node.attributes.id:find("CallOfferControl_",1,true) then
-        assert(node.value~="<" and node.value~=">","Unsafe XML arrow character")
+    local id=node.attributes and node.attributes.id or ""
+    local direction=id:match("^CallOfferControl_111111_(previous)$")
+        or id:match("^CallOfferControl_111111_(next)$")
+    if direction~=nil then
+        eq(node.value,nil,"no text or XML delimiters on arrow")
+        eq(node.children[1].tag,"Image","arrow is a real image")
+        eq(node.children[1].attributes.image,arrowImages[direction],"correct scale artwork")
+        eq(node.children[1].attributes.rotation,"0 0 -90","horizontal arrow")
     end
+end
+local registered={}
+for _,asset in ipairs(first.UI.getCustomAssets()) do registered[asset.name]=asset.url end
+for _,name in pairs(arrowImages) do
+    assert(type(registered[name])=="string" and registered[name]:find("steamusercontent",1,true),
+        "Unit UI is missing image asset "..name)
 end
 eq(callOfferBorrowedUnitForSeat(1),first,"one temporary selected Unit")
 callOfferCycleClicked({color="Red"},nil,"CallOfferControl_111111_next")

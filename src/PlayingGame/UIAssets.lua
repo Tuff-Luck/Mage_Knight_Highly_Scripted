@@ -146,3 +146,15 @@ function resourceCardsChoiceAssetsFor(ui,categories)
     end
     return mergeCustomImages(ui,needed)
 end
+
+-- Legacy shared artwork also needs registration on object-attached UIs.
+-- Call Offer reuses the exact Up/Down images already used by Scale.lua.
+function resourceCardsExistingImageAssetsFor(ui,names)
+    local needed={}
+    for _,name in ipairs(names) do
+        for _,entry in ipairs(originalGlobalImages) do
+            if entry.name==name then needed[#needed+1]=entry break end
+        end
+    end
+    return mergeCustomImages(ui,needed)
+end

@@ -87,20 +87,29 @@ local function showControls(state,guid,serial)
         or transferSerial~=serial then return end
     cleanButtons(unit,false)
     local xml=unit.UI.getXmlTable() or {}
+    -- Reuse the player-board scale arrows, turned 90 degrees to browse left/right.
+    -- The transparent parent Button handles clicks; its image is presentation only.
+    local images={"Overkill Down","Overkill Up"}
     for _,entry in ipairs({
-        {direction="previous",label="◀",x="-145"},
-        {direction="next",label="▶",x="145"}
+        {direction="previous",image=images[1],x="-145"},
+        {direction="next",image=images[2],x="145"}
     }) do
+        local id="CallOfferControl_"..guid.."_"..entry.direction
         xml[#xml+1]={tag="Button",attributes={
-            id="CallOfferControl_"..guid.."_"..entry.direction,
-            onClick="global/callOfferCycleClicked",
+            id=id,onClick="global/callOfferCycleClicked",
             position=entry.x.." 0 -35",rotation="0 0 180",
-            width=95,height=110,scale="0.40 0.40",fontSize=82,
-            colors="#454D5D|#69798E|#444C63|#454D5D",
-            textColor="#FFFFFF",textAlignment="MiddleCenter"},
-            value=entry.label}
+            width=95,height=110,scale="0.40 0.40",
+            color="rgba(0,0,0,0.0)"},
+            children={{tag="Image",attributes={
+                id=id.."Image",image=entry.image,
+                rotation="0 0 -90",preserveAspect="true",raycastTarget="false"
+            }}}}
     end
-    unit.UI.setXmlTable(xml)
+    -- Object-attached UI has its own image registry. Passing these existing
+    -- assets prevents an unregistered-image white square on moved Unit cards.
+    local assets=resourceCardsExistingImageAssetsFor(unit.UI,images)
+    if assets~=nil then unit.UI.setXmlTable(xml,assets)
+    else unit.UI.setXmlTable(xml) end
 end
 
 local function borrow(state,index)
