@@ -82,4 +82,76 @@ local recognition=source("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 assert(recognition:find("record.enemyEffectTargetKeys={skill.guid}",1,true),
     "Curse targeting source must remain registered during selection")
 
+-- Execute the small, side-effect-free calculator helpers with mock data.
+-- This tests the actual runtime implementation without loading TTS object APIs.
+local function sliceBetween(full,first,last)
+    local a=assert(full:find(first,1,true),first.." not found")
+    local b=assert(full:find(last,a+#first, true),last.." not found")
+    return full:sub(a,b-1)
+end
+local gate=sliceBetween(combat,
+    "function combatEnemyEligibleAsDefeatedPuppet(obj)",
+    "local function combatDefeatRefreshTokens")
+assert(load(gate))()
+local token={guid="enemy",is_face_down=false}
+combatDefeatMarksActive=true
+combatDefeatTracked={enemy=true}
+combatDefeatDefeated={enemy=false}
+eq(combatEnemyEligibleAsDefeatedPuppet(token),false,"Undeafeated marked enemy rejected")
+combatDefeatDefeated.enemy=true
+eq(combatEnemyEligibleAsDefeatedPuppet(token),true,"Red-X defeated enemy accepted")
+combatDefeatTracked.enemy=nil
+eq(combatEnemyEligibleAsDefeatedPuppet(token),false,"Untracked enemy rejected while calculator is active")
+combatDefeatMarksActive=false
+eq(combatEnemyEligibleAsDefeatedPuppet(token),true,"Manual face-up fallback when calculator is closed")
+
+local damageChunk=sliceBetween(recognition,
+    "local function combatDamageResolve(items,units,heroArmour,targetsOf,mitigation)",
+    "local function combatWoundsText")
+local damageResolve=assert(load(damageChunk.."\nreturn combatDamageResolve"))()
+local noUnits=function() return {} end
+local attacks={
+    {owner="enemy",key="enemy:1",damage=5,type="P"},
+    {owner="enemy",key="enemy:2",damage=3,type="F"}
+}
+local mitigate={owner="enemy",attackKey="enemy:2",physical=2,nonphysical=1}
+local results=damageResolve(attacks,{},2,noUnits,mitigate)
+eq(results["enemy:1"].heroWounds,3,"Battle Hardened does not protect another attack")
+eq(results["enemy:2"].heroDamage,2,"Battle Hardened prevents one elemental damage")
+eq(results["enemy:2"].prevented,1,"Battle Hardened nonphysical prevention")
+eq(mitigate.appliedKey,"enemy:2","Battle Hardened correct attack key")
+local physical=damageResolve({
+    {owner="enemy",key="enemy:1",damage=5,type="P"}
+},{},2,noUnits,{owner="enemy",physical=2,nonphysical=1})
+eq(physical["enemy:1"].heroDamage,3,"Battle Hardened physical prevention")
+combatUnitResists=function() return false end
+local unit={guid="unit",wounded=false,armour=3,level=1}
+local assigned=damageResolve({
+    {owner="enemy",key="enemy:1",damage=5,type="P"}
+},{unit=unit},2,function() return {"unit"} end,
+    {owner="enemy",physical=2,nonphysical=1})
+eq(assigned["enemy:1"].unitWounds,1,"Battle Hardened does not reduce Unit damage")
+eq(assigned["enemy:1"].heroWounds,0,"Hero prevention follows Unit assignment")
+
+-- Verify the Reputation tracker applies Arcane Disguise even at -7.
+local ui=source("src/PlayingGame/UI.lua")
+local reputationChunk=sliceBetween(ui,
+    "function refreshResourceTrackerReputation()",
+    "function refreshResourceTracker()")
+assert(load(reputationChunk))()
+resourceCardsPanelOpen=function() return true end
+reputationTable={[-7]={repDisplay="No Interaction"},[-2]={repDisplay="-2"}}
+gStates.turnNumber=1
+gStates.resourceTracker={influence={reputation=0}}
+turnOrder[1].reputation=-7
+krangArcaneDisguiseReputationActive=function() return true end
+refreshResourceTrackerReputation()
+eq(gStates.resourceTracker.influence.reputation,0,"Arcane Disguise at -7")
+krangArcaneDisguiseReputationActive=function() return false end
+refreshResourceTrackerReputation()
+eq(gStates.resourceTracker.influence.reputation,-99,"Normal no-interaction restored")
+turnOrder[1].reputation=-2
+refreshResourceTrackerReputation()
+eq(gStates.resourceTracker.influence.reputation,-2,"Ordinary negative Reputation preserved")
+
 print("Krang skill regression checks passed")
