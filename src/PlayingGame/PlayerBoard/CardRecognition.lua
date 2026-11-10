@@ -923,7 +923,7 @@ end
 
 -- Blocks of the wrong element are halved against Fire, Ice and Cold Fire attacks. Every Block type is
 -- fully efficient against Physical attacks (P), so that entry lists all of them.
-local COMBAT_EFFICIENT_BLOCKS={
+combatConfig.COMBAT_EFFICIENT_BLOCKS={
     P={block=true,blockFire=true,blockIce=true,blockColdFire=true},
     F={blockIce=true,blockColdFire=true},
     I={blockFire=true,blockColdFire=true},
@@ -980,8 +980,8 @@ local function combatAssignmentIconButton(id,active,amount,icon,tooltip,selected
     end
 end
 
-local COMBAT_RED="#FF5555"
-local COMBAT_GREEN="#8CFF8C"
+combatConfig.COMBAT_RED="#FF5555"
+combatConfig.COMBAT_GREEN="#8CFF8C"
 
 -- TTS Text uses Unity rich text tags.
 local function combatRich(text,color)
@@ -1038,7 +1038,7 @@ end
 -- Share one efficiency rule between the optimiser, displayed Block totals,
 -- and the colour assigned to an inefficient Block icon.
 local function combatBlockEfficient(attack,item)
-    return (COMBAT_EFFICIENT_BLOCKS[attack.key] or {})[item.key]==true
+    return (combatConfig.COMBAT_EFFICIENT_BLOCKS[attack.key] or {})[item.key]==true
         or (attack.key=="M" and item.source.heroPsychicBlock==true
             and item.key~="blockPsychic")
 end
@@ -1309,7 +1309,7 @@ local function combatBlockResult(entry,sources)
             if damage>0 then damageCount=damageCount+1 end
             local prefix=spent>0 and (tostring(spent).."/"..tostring(required).." Block, ") or "Not blocked, "
             unblocked[index]={prefix=prefix,damage=damage,attack=attack}
-            lines[index]=prefix..combatRich(tostring(damage).." Damage",COMBAT_RED)
+            lines[index]=prefix..combatRich(tostring(damage).." Damage",combatConfig.COMBAT_RED)
         end
     end
     if entry.guid~=nil then
@@ -1322,7 +1322,7 @@ end
 -- Damage phase. Every unblocked attack starts wholly on the Hero; the player may route it through free Units first
 -- with the damage buttons. A Unit takes damage from one attack per combat and is Wounded whenever it is assigned damage,
 -- unless a resistance absorbs all of it.
-local COMBAT_UNIT_RESIST_KEYS={Physical="P",Fire="F",Ice="I"}
+combatConfig.COMBAT_UNIT_RESIST_KEYS={Physical="P",Fire="F",Ice="I"}
 
 -- Site rules are keyed by the *active fight*, not merely the player's map
 -- location. A Dungeon/Tomb or burning Monastery normally forbids all Units,
@@ -1411,7 +1411,7 @@ local function combatDamageUnits(seat)
         if data~=nil and tonumber(data.armour)~=nil
             and combatUnitSitePermits(siteMode,state.bondsUnitGUID,selected,unitState.guid,true) then
             local resist={}
-            for _,name in ipairs(data.resistance or {}) do resist[COMBAT_UNIT_RESIST_KEYS[name] or name]=true end
+            for _,name in ipairs(data.resistance or {}) do resist[combatConfig.COMBAT_UNIT_RESIST_KEYS[name] or name]=true end
             if scan~=nil and scan.allUnitResistances==true then
                 resist.P,resist.F,resist.I=true,true,true
             end
@@ -1634,11 +1634,11 @@ local function combatGroupAttackLine(group,sources,attackArmour)
         {sources=sources,category="siege"}},group.data,group.perks)
     if meleeTotal<=0 then return nil end
     local line="Attack "..tostring(meleeTotal).."/"..tostring(attackArmour)
-    return meleeTotal>=attackArmour and (line.." "..combatRich("Defeated",COMBAT_GREEN)) or line
+    return meleeTotal>=attackArmour and (line.." "..combatRich("Defeated",combatConfig.COMBAT_GREEN)) or line
 end
 
 local combatDefenderMarks={}
-local COMBAT_DEFENDER_DECAL_URLS={
+combatConfig.COMBAT_DEFENDER_DECAL_URLS={
     [1]="https://steamusercontent-a.akamaihd.net/ugc/10632112705667530745/ABBA1BEC1D6355C0F4E08DA79140A8CB24A03A7A/",
     [2]="https://steamusercontent-a.akamaihd.net/ugc/10268219428207943773/49479D6AF430568A0B487F79709FD20C77E3BA6C/"}
 
@@ -1650,7 +1650,7 @@ local function combatSetDefenderDecal(guid,amount)
         if decal.name~="DefenderArmour" then decals[#decals+1]=decal end
     end
     if amount~=nil then
-        decals[#decals+1]={name="DefenderArmour",url=COMBAT_DEFENDER_DECAL_URLS[amount>=2 and 2 or 1],
+        decals[#decals+1]={name="DefenderArmour",url=combatConfig.COMBAT_DEFENDER_DECAL_URLS[amount>=2 and 2 or 1],
             position={0.0,0.15,-1.2},rotation={90,180,0},scale={0.72,0.72,1}}
     end
     obj.setDecals(decals)
@@ -2899,12 +2899,12 @@ local function combatAssignmentRefreshRows(entries,sources)
             local lines={}
             local isLast=group.members[#group.members]==index
             if group.destroyed then
-                lines[1]=combatRich("Destroyed",COMBAT_GREEN)
+                lines[1]=combatRich("Destroyed",combatConfig.COMBAT_GREEN)
             elseif group.rangeDefeated then
                 -- Group results sit under the last enemy of the group.
                 if isLast then
                     lines[1]=combatRich("Ranged "..tostring(group.rangeTotal).."/"..tostring(group.rangeArmour)
-                        .." Defeated",COMBAT_GREEN)
+                        .." Defeated",combatConfig.COMBAT_GREEN)
                 end
             else
                 -- Keep each source's Block status and wound distribution together.
@@ -3011,7 +3011,7 @@ local function combatAssignmentRefreshRows(entries,sources)
         combatPanelSetAttribute("CombatTotalSpacer","preferredWidth",tostring(spacer))
         local poisonText=totalDiscardWounds>0 and " ("..tostring(totalDiscardWounds).." Poison)" or ""
         combatPanelSetAttribute("CombatTotalDamage","text",
-            "Total: "..combatRich(combatWoundsText(totalHeroWounds)..poisonText,COMBAT_RED))
+            "Total: "..combatRich(combatWoundsText(totalHeroWounds)..poisonText,combatConfig.COMBAT_RED))
         combatPanelSetAttribute("CombatTotalDamage","font","Fonts/MKCardText")
         combatPanelSetAttribute("CombatKnockoutWarning","active",knockout and "true" or "false")
         if knockout then
@@ -3299,7 +3299,7 @@ end
 -- A remote Spirit Guides link can target any active, Block-producing card,
 -- Skill or Unit in this player's areas; it is not an enemy assignment.
 -- This is also the candidate set for temporary clickable target buttons.
-local spiritGuideBlockFields={"block","blockFire","blockIce","blockColdFire","blockPsychic"}
+combatConfig.spiritGuideBlockFields={"block","blockFire","blockIce","blockColdFire","blockPsychic"}
 function resourceCardsBlockLinkSkillActive(guid)
     local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
     local scan=active~=nil and resourceCardScanBySeat[active.seatPos] or nil
@@ -3316,7 +3316,7 @@ function resourceCardsBlockLinkTargets()
     for guid,record in pairs(scan~=nil and scan.cards or {}) do
         if record.resources~=nil and record.contributes==true
             and record.kind~="mana" and record.kind~="wound" then
-            for _,field in ipairs(spiritGuideBlockFields) do
+            for _,field in ipairs(combatConfig.spiritGuideBlockFields) do
                 if (tonumber(record.resources[field]) or 0)>0 then
                     local obj=getObjectFromGUID(guid)
                     if obj~=nil and not obj.isDestroyed() then targets[guid]=obj end
@@ -7808,7 +7808,7 @@ local function renderSeat(seatPos,quietUnitChoice)
     local boosted=linkedGUID~=nil and records[linkedGUID] or nil
     if boosted~=nil and boosted.contributes==true and boosted.resources~=nil then
         local bestKey,bestValue=nil,0
-        for _,field in ipairs(spiritGuideBlockFields) do
+        for _,field in ipairs(combatConfig.spiritGuideBlockFields) do
             local value=tonumber(boosted.resources[field]) or 0
             if value>bestValue then bestKey,bestValue=field,value end
         end
