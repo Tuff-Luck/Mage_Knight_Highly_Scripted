@@ -1689,8 +1689,10 @@ local function combatApplyDefend(entries,groups,allocated)
                 local family=item.detail.family
                 if family=="attack" or family=="ranged" or family=="siege" then
                     hasAnyAttack=true
-                    if (family=="ranged" and fortification==0)
-                        or (family=="siege" and fortification<2) then
+                    local forkMelee=item.source.forkedLightning
+                        and (gStates==nil or gStates.forkedLightningPhase~="range")
+                    if not forkMelee and ((family=="ranged" and fortification==0)
+                        or (family=="siege" and fortification<2)) then
                         hasRanged=true
                     end
                 end
@@ -4108,6 +4110,8 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         ..(rule~=nil and rule.damageMitigation~=nil
             and (":H:"..tostring(hardenedTarget)..":"..tostring(#hardenedOptions)
                 ..":"..tostring(hardenedIndex)) or "")
+        ..(rule~=nil and rule.forkedLightning
+            and (":FL:"..tostring(gStates~=nil and gStates.forkedLightningPhase or "attack")) or "")
     if choiceButtonShown[card.guid]==signature then return end
     local xml=card.UI.getXmlTable() or {}
     for i=#xml,1,-1 do
@@ -4277,6 +4281,18 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             tooltip=tooltip,colors="#454D5D|#69798E|#444C63|#454D5D",
             textColor="#FFFFFF",textAlignment="MiddleCenter"},
             value=tostring(hardenedIndex).."/"..tostring(#hardenedOptions)}
+    end
+    if rule~=nil and rule.forkedLightning then
+        local phase=gStates~=nil and gStates.forkedLightningPhase or "attack"
+        xml[#xml+1]={tag="Button",attributes={
+            id="ResourceCardChoice_"..card.guid.."_forkPhase",
+            onClick="global/resourceCardsForkedLightningPhaseClicked",
+            position="160 0 "..buttonDepth,rotation=uiRotation,
+            width=140,height=90,scale="0.38 0.38",fontSize=47,
+            tooltip="Forked Lightning: all bolts must resolve in the same phase. Click to toggle Ranged or Attack.",
+            colors="#454D5D|#69798E|#444C63|#454D5D",
+            textColor="#FFFFFF",textAlignment="MiddleCenter"},
+            value=phase=="range" and "RNG" or "ATK"}
     end
     if assets~=nil then card.UI.setXmlTable(xml,assets)
     else card.UI.setXmlTable(xml) end
@@ -7849,6 +7865,16 @@ local function clearAll()
         refreshResourceTrackerText()
         updateMoveDisplay()
     end
+end
+
+-- Forked Lightning commits every bolt to one combat phase, rather than
+-- allowing a Ranged kill with one and a later melee hit with another.
+function resourceCardsForkedLightningPhaseClicked(player,value,id)
+    if id~="ResourceCardChoice_d01b70_forkPhase"
+        or not resourceCardsPanelOpen()
+        or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil) then return end
+    gStates.forkedLightningPhase=gStates.forkedLightningPhase=="range" and "attack" or "range"
+    resourceCardsSourceChanged()
 end
 
 -- The small Battle Hardened counter cycles individual printed Attacks on the
