@@ -28,6 +28,8 @@ jobs:
         run: lua5.2 tools/test-combat-effect-buttons.lua
       - name: Red Spell regression tests
         run: lua5.2 tools/test-red-spells.lua
+      - name: Blue Spell regression tests
+        run: lua5.2 tools/test-blue-spells.lua
       - name: Call Offer browser regression tests
         run: lua5.2 tools/test-call-offer.lua
       - name: Play Area Unit scale regression tests
