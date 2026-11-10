@@ -1033,7 +1033,7 @@ local function combatSolveBlocks(attacks,items,movePool)
             local damage=0
             for index,attack in ipairs(attacks) do
                 if state.points[index]<targets[index] then
-                    damage=damage+attack.value*(attack.brutal and 2 or 1)
+                    damage=damage+(attack.damageValue or attack.value)*(attack.brutal and 2 or 1)
                 end
             end
             score=damage*1000000
@@ -1051,7 +1051,7 @@ local function combatSolveBlocks(attacks,items,movePool)
                     local leftover=attack.value-reduction
                     local threshold=2*leftover*(attack.swift and 2 or 1)
                     local blocked=leftover<=0 or state.points[index]>=threshold
-                    local damage=blocked and 0 or leftover*(attack.brutal and 2 or 1)
+                    local damage=blocked and 0 or math.max(0,(attack.damageValue or attack.value)-reduction)*(attack.brutal and 2 or 1)
                     local optionScore=damage*1000000+reduction+scoreMoves(index+1,remaining-reduction)
                     if optionScore<best then best,bestReduction=optionScore,reduction end
                 end
@@ -1113,6 +1113,22 @@ end
 -- and the Move reduction applied to each attack.
 -- Cache one complete result per enemy. Physical sources and attack effects
 -- are fingerprinted every scan; an unchanged layout never reruns the Block DP.
+-- Competitive Nature's Vengeance penalises opponents only while their own
+-- reminder exists. The extra point changes Block thresholds, never the
+-- damage assigned after Block, and never applies to the Skill owner.
+local function combatNatureVengeanceBlockBonus()
+    local state=gStates or {}
+    local records=state.competitiveSkillReminders or {}
+    local reminder=records["19daf9"]
+    if reminder==nil or reminder.owner==state.turnNumber then return 0 end
+    local seat=combatAssignmentActiveSeat()
+    if seat==nil then return 0 end
+    for guid,recipientSeat in pairs(reminder.reminders or {}) do
+        if recipientSeat==seat and getObjectFromGUID(guid)~=nil then return 1 end
+    end
+    return 0
+end
+
 local combatBlockResultCache={}
 local function combatBlockResult(entry,sources)
     local items={}
@@ -1142,6 +1158,15 @@ local function combatBlockResult(entry,sources)
         end
     end
     local attacks=combatEnemyAttacks(entry)
+    local blockBonus=combatNatureVengeanceBlockBonus()
+    if blockBonus>0 then
+        for _,attack in ipairs(attacks) do
+            if not attack.pending then
+                attack.damageValue=attack.value
+                attack.value=attack.value+blockBonus
+            end
+        end
+    end
     local parts={tostring(movePool),tostring(#attacks),tostring(#items)}
     for _,attack in ipairs(attacks) do
         parts[#parts+1]=table.concat({
@@ -1166,7 +1191,7 @@ local function combatBlockResult(entry,sources)
     local attempted=nil
     for index,attack in ipairs(attacks) do
         if not plan[index].blocked then
-            local damage=(attack.value-plan[index].reduction)*(attack.brutal and 2 or 1)
+            local damage=math.max(0,(attack.damageValue or attack.value)-plan[index].reduction)*(attack.brutal and 2 or 1)
             if attempted==nil or damage>attempted.damage then attempted={index=index,damage=damage} end
         end
     end
@@ -1206,9 +1231,9 @@ local function combatBlockResult(entry,sources)
                 or (tostring(math.max(spent,required)).."/"..tostring(required).." Blocked"))
         else
             allBlocked=false
-            local damage=remaining*(attack.brutal and 2 or 1)
+            local damage=math.max(0,(attack.damageValue or attack.value)-step.reduction)*(attack.brutal and 2 or 1)
             totalDamage=totalDamage+damage
-            damageCount=damageCount+1
+            if damage>0 then damageCount=damageCount+1 end
             local prefix=spent>0 and (tostring(spent).."/"..tostring(required).." Block, ") or "Not blocked, "
             unblocked[index]={prefix=prefix,damage=damage,attack=attack}
             lines[index]=prefix..combatRich(tostring(damage).." Damage",COMBAT_RED)
