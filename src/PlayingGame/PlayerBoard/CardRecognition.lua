@@ -983,7 +983,7 @@ local function combatRangeResult(entry,sources)
     local eligible={}
     for _,source in ipairs(sources) do
         if not source.forkedLightning
-            or (gStates~=nil and gStates.forkedLightningPhase=="range") then
+            or (gStates==nil or gStates.forkedLightningPhase~="attack") then
             eligible[#eligible+1]=source
         end
     end
@@ -1002,7 +1002,7 @@ end
 -- defeat the enemy, and everything else is generic Attack.
 local function combatDetailPhase(detail,rangeDefeated,fortification,source)
     if source~=nil and source.forkedLightning then
-        return gStates~=nil and gStates.forkedLightningPhase=="range" and "range" or "attack"
+        return (gStates==nil or gStates.forkedLightningPhase~="attack") and "range" or "attack"
     end
     if detail.family=="block" or detail.family=="move" then return "block" end
     if rangeDefeated and ((detail.family=="ranged" and fortification==0)
@@ -1697,7 +1697,7 @@ local function combatApplyDefend(entries,groups,allocated)
                 if family=="attack" or family=="ranged" or family=="siege" then
                     hasAnyAttack=true
                     local forkMelee=item.source.forkedLightning
-                        and (gStates==nil or gStates.forkedLightningPhase~="range")
+                        and gStates~=nil and gStates.forkedLightningPhase=="attack"
                     if not forkMelee and ((family=="ranged" and fortification==0)
                         or (family=="siege" and fortification<2)) then
                         hasRanged=true
@@ -2585,7 +2585,7 @@ local function combatAssignmentRefreshRows(entries,sources)
         local meleeSources={}
         for _,source in ipairs(available) do
             if not source.forkedLightning
-                or gStates==nil or gStates.forkedLightningPhase~="range" then
+                or (gStates~=nil and gStates.forkedLightningPhase=="attack") then
                 meleeSources[#meleeSources+1]=source
             end
         end
@@ -4120,7 +4120,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             and (":H:"..tostring(hardenedTarget)..":"..tostring(#hardenedOptions)
                 ..":"..tostring(hardenedIndex)) or "")
         ..(rule~=nil and rule.forkedLightning
-            and (":FL:"..tostring(gStates~=nil and gStates.forkedLightningPhase or "attack")) or "")
+            and (":FL:"..tostring(gStates~=nil and gStates.forkedLightningPhase or "range")) or "")
     if choiceButtonShown[card.guid]==signature then return end
     local xml=card.UI.getXmlTable() or {}
     for i=#xml,1,-1 do
@@ -4292,7 +4292,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             value=tostring(hardenedIndex).."/"..tostring(#hardenedOptions)}
     end
     if rule~=nil and rule.forkedLightning then
-        local phase=gStates~=nil and gStates.forkedLightningPhase or "attack"
+        local phase=gStates~=nil and gStates.forkedLightningPhase or "range"
         xml[#xml+1]={tag="Button",attributes={
             id="ResourceCardChoice_"..card.guid.."_forkPhase",
             onClick="global/resourceCardsForkedLightningPhaseClicked",
@@ -7882,7 +7882,7 @@ function resourceCardsForkedLightningPhaseClicked(player,value,id)
     if id~="ResourceCardChoice_d01b70_forkPhase"
         or not resourceCardsPanelOpen()
         or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil) then return end
-    gStates.forkedLightningPhase=gStates.forkedLightningPhase=="range" and "attack" or "range"
+    gStates.forkedLightningPhase=gStates.forkedLightningPhase=="attack" and "range" or "attack"
     resourceCardsSourceChanged()
 end
 
