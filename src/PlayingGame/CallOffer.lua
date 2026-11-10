@@ -117,6 +117,7 @@ local function borrow(state,index)
     transferSerial=transferSerial+1
     local serial=transferSerial
     unit.unlock()
+    unit.setScale({1.5,1,1.5})
     -- Stay alongside the actual played Spell, in its owner's play area.
     unit.setPositionSmooth({pos[1]+3.9,math.max(1.8,pos[2]+0.35),pos[3]},false,false)
     unit.setRotationSmooth({0,180,0},false,false)

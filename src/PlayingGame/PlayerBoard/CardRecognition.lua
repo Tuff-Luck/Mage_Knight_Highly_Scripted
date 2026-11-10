@@ -5846,7 +5846,8 @@ local function renderSeat(seatPos,quietUnitChoice)
     -- A Command token already resting on a Unit from a previous turn means
     -- spent; a Unit activated by a Command move THIS turn is still active.
     local unitState=hasUnits and unitLayoutResourceState(seatPos) or nil
-    local activations=gStates.unitResourceActivations or {}
+    gStates.unitResourceActivations=gStates.unitResourceActivations or {}
+    local activations=gStates.unitResourceActivations
     local unitSiteMode,unitSite=combatUnitSiteRestriction(seatPos,combatMonsters)
     if unitSiteMode==nil then resourceCardsCombatClearOneUnit(seatPos) end
     local chosenSiteUnit=unitSiteMode=="one" and combatOneUnitChosen(seatPos,unitSite) or nil
