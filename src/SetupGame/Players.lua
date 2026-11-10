@@ -279,7 +279,10 @@ local function playerSetupDeployUniqueComponents(orderIndex,position,offsetPosit
 						obj.unlock()
 						gStates.proxyAvatarOffMap=(onPortal~=true)
 						local proxyIndex=proxyPlayerIndex()
-						if proxyIndex~=nil and turnOrder[proxyIndex]~=nil then turnOrder[proxyIndex].avatarLocation=onPortal==true and "portal" or nil end
+						if proxyIndex~=nil and turnOrder[proxyIndex]~=nil then
+							-- Off-map Proxy has no logical avatar location; nil removes the key.
+							rawset(turnOrder[proxyIndex],"avatarLocation",onPortal==true and "portal" or nil)
+						end
 					end
 				else
 					local destr=safeTakeObject("SetupGame",playerBag,params) destr.destruct() skip=1
