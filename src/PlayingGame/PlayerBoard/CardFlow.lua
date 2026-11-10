@@ -757,8 +757,8 @@ function nightTacticTwoResolve(playerIndex, done)
 				for _, remainder in pairs(discardZone.getObjects()) do
 					if remainder.type=="Card" then
 						remainder.setScale({1.5,1,1.5})
-						remainder.setRotationSmooth({0,180,180},false,false)
-						remainder.setPositionSmooth({returnTarget[1],returnTarget[2]+(deckTakes*0.08),returnTarget[3]},false,false)
+						remainder.setRotationSmooth({0,180,180})
+						remainder.setPositionSmooth({returnTarget[1],returnTarget[2]+(deckTakes*0.08),returnTarget[3]})
 						returned=returned+1
 						break
 					end
