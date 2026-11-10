@@ -2944,7 +2944,11 @@ local function refreshCombatEnemyPanel(monsters,calculated)
                 for _,attack in ipairs(attacks) do
                     if not attack.pending then attacksNow=true break end
                 end
-                if effect.noAttack or not attacksNow then
+                local noAttack=effect.noAttack==true or effect.destroy==true
+                    or (effect.noAttackUnfortified==true
+                        and (combatEnemyFortificationCount(entry.data,entry.perks)==0
+                            or effect.removeFortify==true))
+                if noAttack or not attacksNow then
                     reduction=math.max(0,reduction-lateReduction)
                     lateReduction=0
                 end
