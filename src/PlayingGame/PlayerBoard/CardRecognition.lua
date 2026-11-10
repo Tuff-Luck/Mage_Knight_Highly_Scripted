@@ -1575,7 +1575,8 @@ end
 combatConfig.effectButtonInfo=function(entry,applied)
     local spec,actual=applied.spec or {},applied.effective or {}
     if spec.all==true then return nil end
-    local fortified=combatEnemyFortificationCount(entry.data,entry.perks)>0
+    local printedFortified=combatEnemyFortificationCount(entry.data,entry.perks)>0
+    local fortified=printedFortified
         and (entry.effect==nil or entry.effect.removeFortify~=true)
     local armour=tonumber(spec.armourReduce) or 0
     local armourFortified=tonumber(spec.armourReduceFortified) or armour
@@ -1593,7 +1594,7 @@ combatConfig.effectButtonInfo=function(entry,applied)
     local amount,description,reason="!", "Combat effect",nil
     local raw=entry.unmodifiedArmour or entry.baseArmour or 1
     if isArmour and (armour>0 or armourFortified>0 or resistArmour>0) then
-        local appliedReduction=fortified and
+        local appliedReduction=printedFortified and
             (tonumber(actual.armourReduceFortified) or tonumber(actual.armourReduce) or 0)
             or (tonumber(actual.armourReduce) or 0)
         if (tonumber(actual.armourReduceByResist) or 0)>0 then
@@ -1606,7 +1607,7 @@ combatConfig.effectButtonInfo=function(entry,applied)
         local total=entry.effectArmourReduction or 0
         local before=math.max(1,raw-math.max(0,total-appliedReduction))
         local after=math.max(1,raw-total)
-        local printed=fortified and armourFortified or armour
+        local printed=printedFortified and armourFortified or armour
         amount="-"..tostring(math.max(printed,appliedReduction))
         description="Armour reduction "..amount
         if appliedReduction==0 then
