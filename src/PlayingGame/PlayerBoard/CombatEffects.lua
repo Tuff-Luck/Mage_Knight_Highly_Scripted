@@ -83,8 +83,17 @@ function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec,sourceKey)
     -- button renderer. Numerical resource totals are unaffected by these.
     local requested=spec
     local immune=combatEffectImmune(enemyGUID)
+    local pug=monsterPugs[enemyGUID]
+    local perks=gStates~=nil and gStates.monsterPerks~=nil
+        and gStates.monsterPerks[enemyGUID] or nil
+    local fireResistant=requested.fireSpell==true
+        and ((pug~=nil and pug.fResist==true) or (perks~=nil and perks.fResist==true))
     if spec.insufficientMove==true then
         spec={} -- Keep a red Wings target button, but apply no suppression.
+    elseif fireResistant then
+        -- Resistance blocks red Spell effects, but not their Attack/Block points.
+        entry.fireResistIgnored=true
+        spec={}
     elseif immune then
         entry.immuneIgnored=true
         spec={removeAbilities=spec.removeAbilities,attackReduce=spec.attackReduce,
@@ -94,7 +103,7 @@ function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec,sourceKey)
     if requested.all~=true then
         entry.applied=entry.applied or {}
         entry.applied[#entry.applied+1]={source=sourceGUID,key=sourceKey or sourceGUID,
-            spec=requested,effective=spec,immune=immune}
+            spec=requested,effective=spec,immune=immune,fireResistant=fireResistant}
     end
     local attackAdjust=(tonumber(spec.attackReduce) or 0)-(tonumber(spec.attackIncrease) or 0)
     if attackAdjust~=0 then
@@ -171,6 +180,7 @@ function combatEffectReport(seatPos,enemyEffects,quiet)
         if entry.destroyDuringAttack then text=text.." destroyed during Attack" end
         if entry.destroyIfBlocked then text=text.." destroyed if all attacks blocked" end
         if entry.immuneIgnored then text=text.." (Arcane Immunity ignores non-attack effects)" end
+        if entry.fireResistIgnored then text=text.." (Fire Resistance ignores red Spell effects)" end
         parts[#parts+1]=text
     end
     table.sort(parts)
