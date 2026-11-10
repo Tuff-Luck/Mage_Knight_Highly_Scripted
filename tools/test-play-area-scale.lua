@@ -5,6 +5,11 @@ local function eq(actual,expected,label)
         error((label or "Mismatch")..": "..tostring(actual).." ~= "..tostring(expected),2)
     end
 end
+local function approx(actual,expected,label)
+    if type(actual)~="number" or math.abs(actual-expected)>0.000001 then
+        error((label or "Scale mismatch")..": "..tostring(actual).." ~= "..tostring(expected),2)
+    end
+end
 local function fakeCard(guid,kind,area)
     local obj={guid=guid,kind=kind,area=area,type="Card",interactable=true,
         resting=true,held_by_color=nil,scale={1.5,1,1.5}}
@@ -43,27 +48,27 @@ unitLayoutIsWound=function() return false end
 gStates={playAreaScaleSettings={[1]={step=16,scope="Cards"}}}
 dofile("src/PlayingGame/PlayerBoard/Scale.lua")
 refreshPlayAreaScale(1)
-eq(loan.scale[1],1.2,"loose Unit scales in Play Area")
-eq(deed.scale[1],1.2,"normal deed scales")
-eq(recruit.scale[1],1.5,"recruited Unit stays full sized")
-eq(command.scale[1],1.5,"Command token stays full sized")
+approx(loan.scale[1],1.2,"loose Unit scales in Play Area")
+approx(deed.scale[1],1.2,"normal deed scales")
+approx(recruit.scale[1],1.5,"recruited Unit stays full sized")
+approx(command.scale[1],1.5,"Command token stays full sized")
 loan.area="army"
 refreshPlayAreaScale(1)
-eq(loan.scale[1],1.5,"Unit restores natural size in Unit Area")
+approx(loan.scale[1],1.5,"Unit restores natural size in Unit Area")
 loan.area="play"
 refreshPlayAreaScale(1)
-eq(loan.scale[1],1.2,"Unit scales again on return to Play Area")
+approx(loan.scale[1],1.2,"Unit scales again on return to Play Area")
 gStates.playAreaScaleSettings[1].step=20
 refreshPlayAreaScale(1)
-eq(loan.scale[1],1.5,"100 percent restores Unit")
+approx(loan.scale[1],1.5,"100 percent restores Unit")
 gStates.playAreaScaleSettings[1].step=12
 refreshPlayAreaScale(1)
-eq(loan.scale[1],0.9,"60 percent scales Unit")
+approx(loan.scale[1],0.9,"60 percent scales Unit")
 -- Call Offer returns a card to the Offer via playAreaScaleForgetObject
 -- and sets the real offer card's original scale directly.
 playAreaScaleForgetObject(loan)
 loan.area="offer"
 loan.setScale({1.5,1,1.5})
 eq(gStates.playAreaScaledObjects[loan.guid],nil,"returned offer Unit has no stale scale factor")
-eq(loan.scale[1],1.5,"returned offer Unit original scale")
+approx(loan.scale[1],1.5,"returned offer Unit original scale")
 print("Play Area Unit scale regressions passed")
