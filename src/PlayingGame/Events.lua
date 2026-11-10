@@ -623,6 +623,9 @@ function __onObjectDrop_raw(player_color, dropped_object)
     resourceUnitsCommandDropped(player_color,dropped_object)
     resourceCardsObjectMoved(dropped_object)
     callOfferObjectDropped(dropped_object)
+    if droppedGUID=="2eb8e8" then
+        safeWaitFrames("Events.CallOffer",callOfferSpellChanged,2)
+    end
 	if terrainTiles[droppedGUID]~=nil then
 		runtimeMapInvalidateTerrain()
 		--EXPLORE legality is derived from the settled physical map. onObjectEnterZone can fire while a
@@ -2092,6 +2095,10 @@ function __onObjectRotate_raw(object, spin, flip, player_color, old_spin, old_fl
 	end
 	if object.type~="Card" then return end
 	local cardGUID=object.guid
+    if cardGUID=="2eb8e8" then
+        -- The new face may not yet be applied when onObjectRotate fires.
+        safeWaitFrames("Events.CallOffer",callOfferSpellChanged,2)
+    end
 	if cardGUID==meditationTranceCardGUID or isSteadyTempoGUID(cardGUID)==true
 		or cardGUID==tacticCard[2] or cardGUID==GUID.card.bannerOfCommandToken then
 		refreshCardEffectAfterRotation(cardGUID)

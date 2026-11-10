@@ -8,7 +8,7 @@ end
 local function copy(v) return {v[1],v[2],v[3]} end
 local function fakeCard(guid,x,z)
     local card={guid=guid,position={x,1,z},rotation={0,180,0},scale={1.5,1,1.5},
-        resting=true,held_by_color=nil,locked=true}
+        resting=true,held_by_color=nil,locked=true,is_face_down=false}
     local xml,assets={},{}
     card.UI={
         getXmlTable=function() return xml end,
@@ -74,7 +74,13 @@ safeWaitCondition=function(_,callback,condition)
 end
 legalPlayerCheck=function() return true end
 local stopped=0
-resourceUnitsBorrowedUnitEnded=function() stopped=stopped+1 end
+resourceUnitsBorrowedUnitEnded=function(guid)
+    -- The preview is no longer an eligible calculator source during cleanup.
+    assert(gStates.callOfferPreview==nil
+        or gStates.callOfferPreview.unitGUID~=guid,
+        "Combat targets cleared before the borrowed Unit was retired")
+    stopped=stopped+1
+end
 resourceCardsSourceChanged=function() end
 publishPublicUICallbacks=function(callbacks)
     for name,callback in pairs(callbacks) do _G[name]=callback end
@@ -104,7 +110,8 @@ for _,node in ipairs(first.UI.getXmlTable()) do
         eq(node.value,nil,"no text or XML delimiters on arrow")
         eq(node.children[1].tag,"Image","arrow is a real image")
         eq(node.children[1].attributes.image,arrowImages[direction],"correct scale artwork")
-        eq(node.children[1].attributes.rotation,"0 0 90","horizontal arrow")
+        eq(node.attributes.rotation,"0 0 90","horizontal clickable arrow")
+        eq(node.children[1].attributes.rotation,nil,"image needs no independent rotation")
     end
 end
 local registered={}
@@ -147,5 +154,18 @@ callOfferClose(true)
 eq(second.position[1],31.2,"forced offer maintenance restores original slot")
 eq(second.locked,true,"forced restore relocks Unit")
 eq(gStates.callOfferPreview,nil,"cleanup clears saved loan")
+-- A face-down spell does not borrow any Unit, including after a manual flip.
+spell.is_face_down=true
+callOfferSpellEntered(spell.guid,1)
+eq(gStates.callOfferPreview,nil,"face-down spell does nothing")
+eq(second.position[1],31.2,"face-down spell keeps offer intact")
+spell.is_face_down=false
+callOfferSpellChanged()
+eq(gStates.callOfferPreview.unitGUID,second.guid,"flipped face-up opens browser")
+spell.is_face_down=true
+eq(callOfferBorrowedUnitForSeat(1),nil,"face-down spell grants no Unit source")
+callOfferSpellChanged()
+eq(gStates.callOfferPreview,nil,"flipped face-down closes browser")
+eq(second.position[1],31.2,"face-down flip restores Unit to offer")
 assert(stopped>0,"borrowed Unit activation was released")
 print("Call Offer browser regressions passed")

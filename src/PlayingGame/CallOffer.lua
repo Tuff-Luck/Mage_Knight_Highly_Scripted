@@ -43,21 +43,26 @@ end
 local function restoreUnit(state,immediate)
     if state==nil or state.unitGUID==nil then return end
     local guid=state.unitGUID
+    local home=state.home
+    -- Retire the source before combat recalculation or physical movement.
+    -- Otherwise a queued scan can reactivate the card and recreate its arrow.
+    state.unitGUID=nil
+    state.home=nil
     local unit=getObjectFromGUID(guid)
     if resourceUnitsBorrowedUnitEnded~=nil then resourceUnitsBorrowedUnitEnded(guid) end
     cleanButtons(unit,true)
-    if unit~=nil and state.home~=nil then
+    if unit~=nil and home~=nil then
         -- The offer is outside the Play Area: discard its temporary scale
         -- factor before restoring its original offer size.
         if playAreaScaleForgetObject~=nil then playAreaScaleForgetObject(unit) end
         unit.unlock()
-        unit.setScale(state.home.scale)
+        unit.setScale(home.scale)
         if immediate then
-            unit.setRotation(state.home.rotation)
-            unit.setPosition(state.home.position)
+            unit.setRotation(home.rotation)
+            unit.setPosition(home.position)
         else
-            unit.setRotationSmooth(state.home.rotation,false,false)
-            unit.setPositionSmooth(state.home.position,false,false)
+            unit.setRotationSmooth(home.rotation,false,false)
+            unit.setPositionSmooth(home.position,false,false)
         end
         safeWaitCondition("Offers.CallOffer",function()
             local live=getObjectFromGUID(guid)
@@ -67,8 +72,6 @@ local function restoreUnit(state,immediate)
             return live==nil or (live.resting and live.isSmoothMoving()==false)
         end,8)
     end
-    state.unitGUID=nil
-    state.home=nil
 end
 
 -- A temporarily displayed Unit must not disappear when the offer is
@@ -94,8 +97,8 @@ local function showControls(state,guid,serial)
         or transferSerial~=serial then return end
     cleanButtons(unit,false)
     local xml=unit.UI.getXmlTable() or {}
-    -- Reuse the player-board scale arrows, turned 90 degrees to browse left/right.
-    -- The transparent parent Button handles clicks; its image is presentation only.
+    -- Rotate the parent Button, not its child Image: TTS object UI ignores
+    -- child Image rotation in this layout. Up/Down become left/right at 90 degrees.
     local images={"Overkill Down","Overkill Up"}
     for _,entry in ipairs({
         {direction="previous",image=images[1],x="-145"},
@@ -104,12 +107,12 @@ local function showControls(state,guid,serial)
         local id="CallOfferControl_"..guid.."_"..entry.direction
         xml[#xml+1]={tag="Button",attributes={
             id=id,onClick="global/callOfferCycleClicked",
-            position=entry.x.." 0 -35",rotation="0 0 180",
+            position=entry.x.." 0 -35",rotation="0 0 90",
             width=95,height=110,scale="0.40 0.40",
             color="rgba(0,0,0,0.0)"},
             children={{tag="Image",attributes={
                 id=id.."Image",image=entry.image,
-                rotation="0 0 90",preserveAspect="true",raycastTarget="false"
+                preserveAspect="true",raycastTarget="false"
             }}}}
     end
     -- Object-attached UI has its own image registry. Passing these existing
@@ -179,7 +182,12 @@ publishPublicUICallbacks({
 -- Only a genuine, played Spell creates a temporary offer display.
 function callOfferSpellEntered(spellGUID,seatPos)
     if spellGUID~=SPELL_GUID or seatPos==nil or gStates==nil then return end
-    if not inZone(SPELL_GUID,playerPlayAreas[seatPos]) then return end
+    local spell=getObjectFromGUID(SPELL_GUID)
+    if spell==nil or not inZone(SPELL_GUID,playerPlayAreas[seatPos]) then return end
+    if spell.is_face_down==true then
+        callOfferClose(false)
+        return
+    end
     local state=previewState()
     if state~=nil then
         if state.spellGUID==spellGUID and state.seatPos==seatPos then return end
@@ -193,6 +201,25 @@ function callOfferSpellEntered(spellGUID,seatPos)
     state={spellGUID=SPELL_GUID,seatPos=seatPos,order=order,index=1}
     gStates.callOfferPreview=state
     if not borrow(state,1) then gStates.callOfferPreview=nil end
+end
+
+-- Explicitly reevaluate after flips/drops; a face-down spell is always inert.
+function callOfferSpellChanged()
+    if gStates==nil then return end
+    local spell=getObjectFromGUID(SPELL_GUID)
+    if spell==nil or spell.is_face_down==true then
+        callOfferClose(false)
+        return
+    end
+    for seatPos=1,4 do
+        if inZone(SPELL_GUID,playerPlayAreas[seatPos]) then
+            if spell.held_by_color==nil and spell.resting==true then
+                callOfferSpellEntered(SPELL_GUID,seatPos)
+            end
+            return
+        end
+    end
+    callOfferClose(false)
 end
 
 function callOfferSpellLeft(spellGUID,seatPos)
@@ -212,6 +239,8 @@ function callOfferBorrowedUnitForSeat(seatPos)
     local state=previewState()
     if state==nil or state.seatPos~=seatPos then return nil end
     if not inZone(SPELL_GUID,playerPlayAreas[seatPos]) then return nil end
+    local spell=getObjectFromGUID(SPELL_GUID)
+    if spell==nil or spell.is_face_down==true then return nil end
     return state.unitGUID~=nil and getObjectFromGUID(state.unitGUID) or nil
 end
 
@@ -225,6 +254,7 @@ function callOfferObjectDropped(obj)
         if current==nil or current.unitGUID~=guid then return end
         if not inZone(guid,playerUnitAreas[current.seatPos]) then return end
         transferSerial=transferSerial+1
+        current.unitGUID=nil
         if resourceUnitsBorrowedUnitEnded~=nil then resourceUnitsBorrowedUnitEnded(guid) end
         cleanButtons(getObjectFromGUID(guid),true)
         gStates.callOfferPreview=nil
@@ -239,7 +269,9 @@ function callOfferRestoreOnLoad()
     local state=previewState()
     if state==nil then return end
     local unit=state.unitGUID~=nil and getObjectFromGUID(state.unitGUID) or nil
-    if unit==nil or not inZone(SPELL_GUID,playerPlayAreas[state.seatPos]) then
+    local spell=getObjectFromGUID(SPELL_GUID)
+    if unit==nil or spell==nil or spell.is_face_down==true
+        or not inZone(SPELL_GUID,playerPlayAreas[state.seatPos]) then
         callOfferClose(true)
         return
     end

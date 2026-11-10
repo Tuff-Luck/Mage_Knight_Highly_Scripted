@@ -3400,6 +3400,24 @@ function resourceCardsCombatForgetSource(sourceGUID)
     combatAssignmentState.explicit[sourceGUID]=nil
 end
 
+-- Both numeric and effect-only Unit sources must lose their Combat Calculator
+-- locks when a temporary offer Unit is returned; otherwise the next scan can
+-- regenerate its arrow from a stale target.
+local function combatForgetBorrowedUnitTargets(unitGUID)
+    local prefix=unitGUID.."#"
+    for key in pairs(combatAssignmentState.targets) do
+        if key==unitGUID or key:sub(1,#prefix)==prefix then
+            combatAssignmentState.targets[key]=nil
+            combatAssignmentState.explicit[key]=nil
+        end
+    end
+    local selected=combatAssignmentState.selected
+    if type(selected)=="string"
+        and (selected==unitGUID or selected:sub(1,#prefix)==prefix) then
+        combatAssignmentState.selected=nil
+    end
+end
+
 function resourceCardsCombatAssignmentClick(id)
     local row=id:match("^CombatSourceSlot(%d+)")
     local index=row~=nil and tonumber(row) or nil
@@ -8402,6 +8420,7 @@ function resourceUnitsBorrowedUnitEnded(guid)
     removeChoiceButtons(getObjectFromGUID(guid))
     choiceButtonShown[guid]=nil
     choiceExpandedByGUID[guid]=nil
+    combatForgetBorrowedUnitTargets(guid)
     if attackAssignmentsClearForObject~=nil then attackAssignmentsClearForObject(guid) end
     if attackAssignmentsPruneUnitChoiceSources~=nil then
         attackAssignmentsPruneUnitChoiceSources(guid,{})
