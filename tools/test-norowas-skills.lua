@@ -29,6 +29,44 @@ eq(data:find('attackPhaseFallback=true',1,true)~=nil,true,
 eq(recognition:find('replacement="attack"..field:sub',1,true)~=nil,true,
     "Leadership converts printed Siege/Ranged into ordinary Attack")
 
+-- Check Leadership's production phase-selection logic on elemental attacks.
+-- A Unit already supplying normal Attack keeps it; a Siege/Ranged-only
+-- Unit changes category only if the +2 regular-Attack choice was selected.
+local leadershipStart=assert(recognition:find(
+    "local field=resourceFieldForFamily(record.resources,family)\n                        local replacement=nil",
+    1,true))
+local leadershipEnd=assert(recognition:find(
+    "                        if field~=nil then",leadershipStart,true))
+resourceFieldForFamily=function(resources,family)
+    local found=nil
+    for key,value in pairs(resources) do
+        if type(value)=="number" and value>0
+            and (key==family or key:sub(1,#family)==family) then
+            if found~=nil then return nil end
+            found=key
+        end
+    end
+    return found
+end
+local leadershipChoice=assert(load("return function(record,family,rule)\n"..
+    recognition:sub(leadershipStart,leadershipEnd-1)..
+    "\nreturn field,replacement end"))()
+local field,replacement=leadershipChoice({resources={siegeFire=3}},
+    "attack",{attackPhaseFallback=true})
+eq(field,"siegeFire","Leadership accepts printed Siege Attack")
+eq(replacement,"attackFire","Leadership changes element-preserving Siege phase")
+field,replacement=leadershipChoice({resources={ranged=4}},
+    "attack",{attackPhaseFallback=true})
+eq(field,"ranged","Leadership accepts printed Ranged Attack")
+eq(replacement,"attack","Leadership converts to ordinary Attack")
+field,replacement=leadershipChoice({resources={attack=2}},
+    "attack",{attackPhaseFallback=true})
+eq(field,"attack","Leadership retains already ordinary Attack")
+eq(replacement,nil,"Ordinary Attack does not need replacement")
+field,replacement=leadershipChoice({resources={siege=3}},
+    "ranged",{attackPhaseFallback=true})
+eq(field,nil,"Ranged-phase choice does not convert Siege")
+
 -- Execute the production terrain-effect functions, not a reimplementation.
 skillResourceDefinitions={
     ["55e5e5"]={weatherTerrain={owner=-2,recipient=-1}},
