@@ -1457,8 +1457,9 @@ local function combatUnitResists(unit,attackKey)
 end
 
 -- items: {key,type,damage,poison,paralyse,assassination} in resolution order; targetsOf(key) lists the Unit GUIDs the player chose.
-local function combatDamageResolve(items,units,heroArmour,targetsOf,mitigation,elementMitigation)
+local function combatDamageResolve(items,units,heroArmour,targetsOf,mitigation,elementMitigation,ignoreFirstHeroWound)
     local used,results={},{}
+    local firstHeroWoundIgnored=false
     -- Reserve a Unit required to receive its own protected enemy's damage first.
     -- An earlier, unrelated enemy must not consume that Unit before its forced assignment.
     local reserved={}
@@ -1532,6 +1533,13 @@ local function combatDamageResolve(items,units,heroArmour,targetsOf,mitigation,e
         if remaining>0 then
             result.heroDamage=remaining
             result.heroWounds=math.ceil(remaining/math.max(1,heroArmour))
+            if ignoreFirstHeroWound==true and not firstHeroWoundIgnored and result.heroWounds>0 then
+                -- Veil of Mist ignores one hero Wound for the whole turn, not one per attack.
+                -- The ignored Wound also has no Poison/Paralyse side effects.
+                firstHeroWoundIgnored=true
+                result.heroWounds=result.heroWounds-1
+                result.veilWoundIgnored=true
+            end
             if item.poison then result.discard=result.heroWounds end
         end
         result.paralyse=item.paralyse==true and result.heroWounds>0
@@ -1567,6 +1575,7 @@ local function combatDamageNotes(item,result)
     if result.discard>0 then
         distribution=distribution.." Poison ("..tostring(result.discard)..")"
     end
+    if result.veilWoundIgnored then distribution=distribution.." (Veil of Mist: 1 Wound ignored)" end
     local notes={distribution}
     if (result.prevented or 0)>0 then
         notes[#notes+1]="Battle Hardened: -"..tostring(result.prevented).." Hero damage"
@@ -1923,6 +1932,7 @@ combatConfig.effectButtonInfo=function(entry,applied)
         description="Armour reduction "..amount
         if appliedReduction==0 then
             reason=applied.fireResistant and "Fire Resistance ignores this red Spell effect."
+                or (applied.iceResistant and "Ice Resistance ignores this blue Spell effect.")
                 or (applied.immune and "Arcane Immunity ignores this Armour effect.")
                 or "This Armour reduction is not applicable to the target."
         elseif before<=after then reason="Armour is already at its minimum of 1 (or other effects have reached it)."
@@ -1979,7 +1989,9 @@ combatConfig.effectButtonInfo=function(entry,applied)
         if spec.insufficientMove then
             reason="Not enough unspent Move points for this Wings of Night target."
         elseif not actual.noAttack and not actual.noAttackUnfortified then
-            reason="Arcane Immunity ignores this prevention effect."
+            reason=applied.iceResistant and "Ice Resistance ignores this blue Spell effect."
+                or (applied.fireResistant and "Fire Resistance ignores this red Spell effect.")
+                or "Arcane Immunity ignores this prevention effect."
         elseif spec.noAttackUnfortified and fortified then
             reason="The target is still Fortified."
         elseif #combatEnemyPrintedAttacks(entry.data,entry.perks,entry.removeAbilities,entry.guid)==0 then
@@ -2711,7 +2723,7 @@ local function combatAssignmentRefreshRows(entries,sources)
     end
     local damageResults=combatDamageResolve(damageItems,damageUnits,
         combatHeroArmour(nativeCommandCount),attackAssignmentsDamageTargetsOf,
-        mitigation,elementMitigation)
+        mitigation,elementMitigation,seatScan~=nil and seatScan.heroFirstWoundIgnored==true)
 
     -- Vampiric gains Armor for Wounds added to the Hero's hand and for each
     -- Unit its own non-Psychic attacks wound. Poison's extra discard/Unit
@@ -5370,6 +5382,26 @@ local function manaInsideFootprint(mana,area)
         and math.abs(p[3]-area.z)<area.halfZ
 end
 
+-- Time Bending's extra turn must be usable without opening the Resource Tracker.
+-- Read the physical Blue casting payment and a separate Black strong-side payment;
+-- the mere presence of the Spell in the play area does not establish either.
+function resourceCardsTimeBendingPaid(seatPos,card)
+    if card==nil or card.guid~=GUID.card.timeBending
+        or card.is_face_down==true or cardPosture(card)~="upright"
+        or resourceCardsUsesDayMana() then return false end
+    local zone=seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
+    if zone==nil then return false end
+    local area=footprint(card)
+    local blue,black=false,false
+    for _,mana in ipairs(zone.getObjects()) do
+        if mana.guid~=card.guid and manaInsideFootprint(mana,area) then
+            local color=manaColor(mana)
+            if color=="Blue" then blue=true elseif color=="Black" then black=true end
+        end
+    end
+    return blue and black
+end
+
 -- Physical mana is authoritative for a paid Unit ability. It is read from
 -- either overlapping board zone, even with the Resource Tracker collapsed.
 local function unitManaCounts(unit,seatPos,source,crystalsOnly)
@@ -6030,6 +6062,7 @@ local function renderSeat(seatPos,quietUnitChoice)
     -- rewards have had a chance to remove Fortification in this same scan.
     local deferredUnfortifiedUnitEffects={}
     local unitCombatBoost,preventUnitDamage,allUnitResistances=0,false,false
+    local heroFirstWoundIgnored=false
     local heroPsychicBlock=false
     local hasUnits=false
     for guid,obj in pairs(objects) do
@@ -6698,6 +6731,9 @@ local function renderSeat(seatPos,quietUnitChoice)
             end
             if rule.poweredUnitResistances==true and result.powered then
                 allUnitResistances=true
+            end
+            if rule.poweredHeroFirstWound==true and result.powered then
+                heroFirstWoundIgnored=true
             end
         end
         -- Fixed components of partially understood cards may be counted; an
@@ -8203,7 +8239,8 @@ local function renderSeat(seatPos,quietUnitChoice)
         enemyEffects=enemyEffects,fameRepBase=fameRepBase,
         ignoreSiteFortifications=ignoreSiteFortifications,
         unitState=unitState,preventUnitDamage=preventUnitDamage,
-        allUnitResistances=allUnitResistances,heroPsychicBlock=heroPsychicBlock,
+        allUnitResistances=allUnitResistances,heroFirstWoundIgnored=heroFirstWoundIgnored,
+        heroPsychicBlock=heroPsychicBlock,
         usesCurrentHexBlock=usesCurrentHexBlock,
         usesCurrentHexHealing=usesCurrentHexHealing,
         usesSkillLocation=usesSkillLocation}
