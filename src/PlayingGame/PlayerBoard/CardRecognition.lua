@@ -10,7 +10,7 @@ local bySeat={}
 -- Initial guesses and explicit player choices are transient, never saved in gStates or JSON.
 local selectedResourceByGUID={}
 -- Retain the chosen crystal-pair Attack after Sacrifice converts the pairs to mana.
-local sacrificeCastPairs={}
+-- Uses combatConfig.sacrificeCastPairs to avoid Lua 5.2's 200-local module limit.
 -- A choice lasts for one play; delayed departure checks must not race a return.
 local choiceResetGenerationByGUID={}
 -- Display state is separate from player selections. Picks/drops may clear the
@@ -102,6 +102,7 @@ end
 -- Keep combat constants in one private table: luabundle adds four parameters
 -- to each module, which also count toward Lua 5.2's 200 active-local limit.
 local combatConfig={}
+combatConfig.sacrificeCastPairs={}
 combatConfig.enemyDefenceTraits={
     {"fortified","Fortified"},{"unfortified","Unfortified"},{"elusive","Elusive"},
     {"arcaneImmunity","Arcane Immunity"},{"pResist","Physical Resist"},
@@ -6474,14 +6475,14 @@ local function renderSeat(seatPos,quietUnitChoice)
                 if colors~=nil and chosen~=nil then
                     local available=math.min(inventoryCrystalCounts[colors[1]] or 0,
                         inventoryCrystalCounts[colors[2]] or 0)
-                    local snapshot=sacrificeCastPairs[card.guid]
+                    local snapshot=combatConfig.sacrificeCastPairs[card.guid]
                     if snapshot~=nil and (snapshot.seat~=seatPos or snapshot.category~=category) then
                         snapshot=nil
-                        sacrificeCastPairs[card.guid]=nil
+                        combatConfig.sacrificeCastPairs[card.guid]=nil
                     end
                     if snapshot==nil and available>0 then
                         snapshot={seat=seatPos,category=category,pairs=available}
-                        sacrificeCastPairs[card.guid]=snapshot
+                        combatConfig.sacrificeCastPairs[card.guid]=snapshot
                     end
                     local pairCount=snapshot~=nil and snapshot.pairs or 0
                     result.resources={[category]=(chosen[category] or 0)*pairCount}
@@ -6490,7 +6491,7 @@ local function renderSeat(seatPos,quietUnitChoice)
                     result.sacrificePairs=pairCount
                 end
             else
-                sacrificeCastPairs[card.guid]=nil
+                combatConfig.sacrificeCastPairs[card.guid]=nil
             end
         end
         if rule~=nil and rule.poweredEnemyBonus~=nil and result.powered
@@ -8225,7 +8226,7 @@ local function renderSeat(seatPos,quietUnitChoice)
     end
     for guid in pairs(previous) do
         if current[guid]~=true then
-            sacrificeCastPairs[guid]=nil
+            combatConfig.sacrificeCastPairs[guid]=nil
             clearHighlight(guid)
             if choiceButtonShown[guid]~=nil and choiceButtonShown[guid]~="hidden" then
                 removeChoiceButtons(getObjectFromGUID(guid))
