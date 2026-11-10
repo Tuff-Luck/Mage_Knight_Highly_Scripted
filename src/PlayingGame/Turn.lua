@@ -1227,6 +1227,11 @@ local function turnEndRoundRefreshOffers()
 end
 
 local function turnEndRoundRefreshSkillsAndUnits()
+	-- A saved/interrupted turn must never carry this temporary Reputation
+	-- immunity into the next round, even if regular cleanup was skipped.
+	for _,player in pairs(turnOrder or {}) do
+		player.krangArcaneDisguiseIgnoreReputation=nil
+	end
 	--Flip all skills
 	broadcastToAll("{en}All Mage Knight Skills Reset{it}Tutte le Abilità dei Mage Knight Ripristinate{ru}Жетоны навыков снова готовы к использованию{zh-tw}所有魔法骑士的技能重置{zh-cn}所有魔法骑士的技能重置{ko}모든 스킬이 리셋 되었습니다{es}Restablecimiento de Todas las Habilidades de Mage Knight{fr}Réinitialisation de Toutes les Compétences de Mage Knight{pt-br}Todas as Hab. de MK Redefinidas{de}Alle Magier-Ritter-Fähigkeiten zurückgesetzt", {1,1,0.5})
 	for skillGUID, skillDetails in pairs(skillTokens) do
