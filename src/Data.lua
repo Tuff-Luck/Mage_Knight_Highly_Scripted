@@ -2665,7 +2665,7 @@ skillResourceDefinitions={
     ["5b42dc"]={partial=true},
     ["5f61d5"]={choices={{key="other"},{healing=3}},partial=true},
     ["6133e1"]={partial=true},
-    ["6413a1"]={choices={{key="base"},{key="sourceUnused"}},linkedCard={targetKind="card",posture="sideways",sideways={value=2,choiceValues={sourceUnused=3}}}}, -- Who Needs Magic? The +3 is player-declared.
+    ["6413a1"]={noSourceDieBonus=true,choices={{key="base"},{key="sourceUnused"}},linkedCard={targetKind="card",posture="sideways",sideways={value=2,choiceValues={sourceUnused=3}}}}, -- Who Needs Magic? The +3 is player-declared.
     ["676855"]={untracked=true},
     ["676856"]={untracked=true,weatherTerrain={owner=-2,others=1}}, -- Prayer of the Weather: owner min 1, opponents max 5.
     ["68568b"]={untracked=true},
@@ -2708,7 +2708,7 @@ skillResourceDefinitions={
         attackPhaseFallback=true,partial=true}, -- Leadership: +2 on printed Ranged/Siege during the regular Attack phase.
     ["9d866a"]={untracked=true},
     ["9eb4c5"]={untracked=true},
-    ["9efc9b"]={choices={{key="other"}},enemyEffect={normal={armourReduceByResist=1}}}, -- Resistance Break
+    ["9efc9b"]={choices={{key="other"}},enemyEffect={normal={armourReduceByResist=1}}}, -- Resistance Break: Physical, Fire and Ice only.
     ["9f5dc0"]={partial=true},
     ["a21a1a"]={untracked=true},
     ["a3abbe"]={untracked=true},
