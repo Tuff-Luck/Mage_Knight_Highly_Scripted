@@ -6368,6 +6368,11 @@ local function renderSeat(seatPos,quietUnitChoice)
                         and record.complete==true then
                         local field=resourceFieldForFamily(record.resources,family)
                         local replacement=nil
+                        -- Leadership's +1 Ranged/Siege option boosts the
+                        -- chosen printed Siege attack if it has no Ranged attack.
+                        if field==nil and family=="ranged" and rule.attackPhaseFallback then
+                            field=resourceFieldForFamily(record.resources,"siege")
+                        end
                         -- Leadership can convert an activated Unit's printed
                         -- Ranged/Siege Attack to ordinary Attack in the regular
                         -- Attack phase. The alternative is +2 Attack, not +1
