@@ -46,6 +46,9 @@ unitLayoutIsUnit=function(obj) return obj.kind=="unit" end
 unitLayoutIsCommand=function(obj) return obj.kind=="command" end
 unitLayoutIsWound=function() return false end
 gStates={playAreaScaleSettings={[1]={step=16,scope="Cards"}}}
+publishPublicUICallbacks=function(callbacks)
+    for name,fn in pairs(callbacks) do _G[name]=fn end
+end
 dofile("src/PlayingGame/PlayerBoard/Scale.lua")
 refreshPlayAreaScale(1)
 approx(loan.scale[1],1.2,"loose Unit scales in Play Area")
