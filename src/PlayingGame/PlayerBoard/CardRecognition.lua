@@ -6752,8 +6752,18 @@ local function renderSeat(seatPos,quietUnitChoice)
         usesSkillLocation=usesSkillLocation}
     refreshCombatEnemyPanel(combatMonsters,true)
     resourceCardsApplyFameRep(seatPos)
+    -- Refresh Reputation on every settled Skill scan so flipping Arcane
+    -- Disguise updates Influence without requiring a panel toggle.
+    local reputationBefore=gStates.resourceTracker~=nil
+        and gStates.resourceTracker.influence~=nil
+        and gStates.resourceTracker.influence.reputation or nil
+    refreshResourceTrackerReputation()
+    local reputationAfter=gStates.resourceTracker~=nil
+        and gStates.resourceTracker.influence~=nil
+        and gStates.resourceTracker.influence.reputation or nil
     -- Redraw movement when ability flags change, even if total Move stays equal.
-    if totalsChanged or terrainChanged or transformChanged then refreshResourceTrackerText() end
+    if totalsChanged or terrainChanged or transformChanged
+        or reputationBefore~=reputationAfter then refreshResourceTrackerText() end
     if previousMove~=(totals.move or 0) or terrainChanged or movementChanged then
         updateMoveDisplay()
     end
