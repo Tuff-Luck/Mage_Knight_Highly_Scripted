@@ -25,6 +25,21 @@ local mirrorManualRandomize={}
 local mirrorRepositionIgnore={}
 local spentSourceDice={}
 
+-- A Source die spent this turn disallows Tovak's Who Needs Magic? +3.
+-- Keep this on the player's saved turn state even if the die is returned.
+function manaSourceMarkDieUsedForCurrentTurn(dieGUID)
+    if gStates==nil or gStates.firstStarted~=true or dieGUID==nil then return end
+    if manaSourceDieGUID(dieGUID)~=true
+        and (gStates.manaMirror or {})[dieGUID]==nil then return end
+    local player=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    if player==nil or player.seatPos==nil
+        or player.seatPos<1 or player.seatPos>4 then return end
+    if player.whoNeedsMagicSourceDieUsed~=true then
+        player.whoNeedsMagicSourceDieUsed=true
+        if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
+    end
+end
+
 --Temporarily raise the Source fences while mana dice are being randomized so rolling dice stay contained.
 local sourceRandomizeFences={{"7e09c6",7.40},{"0a7c95",3.60},{"ec49dd",7.40},{"c17ca2",3.60}}
 local sourceRandomizePause=nil
@@ -375,6 +390,7 @@ function diceResting(dice, state)
 		if mappedSource~=sourceGUID then return end
 		--Removed a die from a mirrored Source: spend the one shared real Source die.
 		if state=="exit" then
+			manaSourceMarkDieUsedForCurrentTurn(diceGUID)
 			local source=getObjectFromGUID(sourceGUID)
 			if source~=nil then source.destruct() end
 			spentSourceDice[diceGUID]=true
