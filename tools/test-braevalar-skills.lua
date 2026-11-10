@@ -168,7 +168,7 @@ combatUnitResists=function(unit,typeKey)
     return unit.resist~=nil and unit.resist[typeKey]==true
 end
 local resolve=isolated(recognition,
-    "local function combatDamageResolve(items,units,heroArmour,targetsOf,mitigation,elementMitigation)",
+    "local function combatDamageResolve(items,units,heroArmour,targetsOf,mitigation,elementMitigation,ignoreFirstHeroWound)",
     "local function combatWoundsText(", "combatDamageResolve")
 local none=function() return {} end
 local function hit(typeKey,damage,mitigation,element)
