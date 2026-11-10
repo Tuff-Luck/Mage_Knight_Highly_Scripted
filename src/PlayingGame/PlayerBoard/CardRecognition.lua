@@ -4751,6 +4751,20 @@ local function matchingSidewaysMana(card,color)
     return false
 end
 
+-- Gold acts as a matching basic colour when paying for Universal Power in
+-- Day conditions. Keep this separate from matchingSidewaysMana: that helper
+-- also compares actual printed card colours for If It's Not Broken.
+local function matchingSidewaysPaymentMana(card,color)
+    if color=="Gold" then
+        if not resourceCardsUsesDayMana() then return false end
+        for _,basicColor in ipairs({"Red","Blue","Green","White"}) do
+            if matchingSidewaysMana(card,basicColor) then return true end
+        end
+        return false
+    end
+    return matchingSidewaysMana(card,color)
+end
+
 local function sidewaysModifierValue(skill,target,descriptor,mana,unitState)
     local value=skill.is_face_down==true and descriptor.faceDownValue
         or descriptor.value or 1
@@ -4764,7 +4778,7 @@ local function sidewaysModifierValue(skill,target,descriptor,mana,unitState)
         value=descriptor.choiceValues[choice] or value
     end
     if mana~=nil and descriptor.matchingManaValue~=nil
-        and matchingSidewaysMana(target,manaColor(mana)) then
+        and matchingSidewaysPaymentMana(target,manaColor(mana)) then
         value=descriptor.matchingManaValue
     end
     if descriptor.perEmptyCommandSlot~=nil and unitState~=nil then
