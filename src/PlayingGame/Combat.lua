@@ -798,6 +798,66 @@ local function combatPreEndTurnRaiseAvatar(cleanupPlayer)
 	return tokenRaised,avatarPos,avatarModel
 end
 
+-- Mana Claim's chosen Source die is history until the end of the round.
+-- The Spell card itself is discarded at the end of the turn.
+function manaClaimDieHeld(guid)
+    local claim=gStates~=nil and gStates.manaClaimHeldDice~=nil
+        and gStates.manaClaimHeldDice[guid] or nil
+    return claim~=nil and claim.round==gStates.currentRound
+end
+
+function manaClaimRegisterForTurn(playerIndex)
+    local player=turnOrder~=nil and turnOrder[playerIndex] or nil
+    local area=player~=nil and player.seatPos~=nil
+        and getObjectFromGUID(playerPlayAreas[player.seatPos]) or nil
+    if area==nil or gStates==nil then return end
+    local spell=nil
+    local objects=area.getObjects()
+    for _,obj in ipairs(objects) do
+        if obj.guid=="2eb8f4" and obj.is_face_down~=true
+            and cardEffectIsVertical(obj)==true then spell=obj break end
+    end
+    if spell==nil then return end
+    gStates.manaClaimHeldDice=gStates.manaClaimHeldDice or {}
+    for _,claim in pairs(gStates.manaClaimHeldDice) do
+        if claim.seatPos==player.seatPos and claim.round==gStates.currentRound then return end
+    end
+    local center=spell.getPosition()
+    local bounds=spell.getBounds()
+    local size=bounds~=nil and bounds.size or nil
+    local halfX=math.max(0.4,(size~=nil and size[1] or 2)*0.5)
+    local halfZ=math.max(0.5,(size~=nil and size[3] or 3)*0.5)
+    local outside,inside={},{}
+    for _,die in ipairs(objects) do
+        if die.type=="Dice" and scriptObjectId(die)=="Mana Dice" then
+            local face=die.getRotationValue()
+            local color=type(face)=="string" and face:match("^([%a]+) Mana$") or nil
+            if color=="Red" or color=="Blue" or color=="Green" or color=="White" then
+                local pos=die.getPosition()
+                local dx,dz=pos[1]-center[1],pos[3]-center[3]
+                local candidate={guid=die.guid,distance=dx*dx+dz*dz}
+                if math.abs(dx)<halfX and math.abs(dz)<halfZ then
+                    inside[#inside+1]=candidate
+                else outside[#outside+1]=candidate end
+            end
+        end
+    end
+    -- Prefer the claimed die placed away from the mana spent on the Spell.
+    local candidates=#outside>0 and outside or inside
+    table.sort(candidates,function(a,b)
+        if a.distance==b.distance then return a.guid<b.guid end
+        return a.distance<b.distance
+    end)
+    if #candidates>0 then
+        gStates.manaClaimHeldDice[candidates[1].guid]={
+            seatPos=player.seatPos,round=gStates.currentRound}
+        if #candidates>1 then
+            safeBroadcastToColor("Mana Claim: retained the nearest basic-colour Source die. Move the claimed die nearest the Spell to select a different one next time.",
+                positionToColor(playerIndex),{1,0.6,0.1})
+        end
+    end
+end
+
 local function combatReturnPreEndTurnDie(cleanupPlayer,diceGUID)
 	gStates.coopAssaultDice=gStates.coopAssaultDice or {}
 	gStates.coopAssaultDice[#gStates.coopAssaultDice+1]=diceGUID
@@ -815,6 +875,17 @@ local function combatReturnPreEndTurnDie(cleanupPlayer,diceGUID)
 	gStates.coopAssaultDice={}
 end
 
+-- Return all claimed Source dice before the new round's Source reroll.
+function manaClaimReturnHeldDice()
+    if gStates==nil or gStates.manaClaimHeldDice==nil then return end
+    local held=gStates.manaClaimHeldDice
+    gStates.manaClaimHeldDice=nil
+    for guid in pairs(held) do
+        local die=getObjectFromGUID(guid)
+        if die~=nil and die.type=="Dice" then combatReturnPreEndTurnDie(nil,guid) end
+    end
+end
+
 local function combatPreEndTurnPreparePlayArea(cleanupPlayer,recovery)
 	--locate discard deck
 	local cardDestination=nil
@@ -826,6 +897,7 @@ local function combatPreEndTurnPreparePlayArea(cleanupPlayer,recovery)
 	combatReleaseAllSummonedEnemies()
 	--separate any decks and possessed tokens found. Unit Area monsters use the same combat cleanup path.
 	local combatObjects=playerCombatObjects(turnOrder[cleanupPlayer].seatPos)
+	manaClaimRegisterForTurn(cleanupPlayer)
 	if recovery~=nil and recovery.playAreaPrepared==true then return cardDestination,#combatObjects>0 and 40 or 0 end
 	local tokenWait=0
 	for _, playAreaObj in pairs(combatObjects) do
@@ -995,7 +1067,7 @@ local function combatCleanupPreEndTurnUnitArea(cleanupPlayer,recovery)
 	local unitAreaObjects=getObjectFromGUID(playerUnitAreas[turnOrder[cleanupPlayer].seatPos]).getObjects()
 	for _, unitAreaObj in pairs(unitAreaObjects) do
 		--Return any Mana dice
-		if unitAreaObj.type=="Dice" then
+		if unitAreaObj.type=="Dice" and not manaClaimDieHeld(unitAreaObj.guid) then
 			combatReturnPreEndTurnDie(cleanupPlayer,unitAreaObj.guid)
 		end
 		cleanupUnitAreaSkillAtEndTurn(unitAreaObj,cleanupPlayer)
@@ -1059,7 +1131,7 @@ local function combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatRe
 				if playAreaObj==nil then return end
 
 				--Return any Mana dice
-				if playAreaObj.type=="Dice" then
+				if playAreaObj.type=="Dice" and not manaClaimDieHeld(playAreaObj.guid) then
 					combatReturnPreEndTurnDie(cleanupPlayer,playAreaObj.guid)
 				end
 
