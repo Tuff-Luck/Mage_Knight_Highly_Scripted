@@ -117,7 +117,7 @@ combatDefeatMarksActive=false
 eq(combatEnemyEligibleAsDefeatedPuppet(token),true,"Manual face-up fallback when calculator is closed")
 
 local damageChunk=sliceBetween(recognition,
-    "local function combatDamageResolve(items,units,heroArmour,targetsOf,mitigation)",
+    "local function combatDamageResolve(items,units,heroArmour,targetsOf,mitigation,elementMitigation)",
     "local function combatWoundsText")
 local damageResolve=assert(load(damageChunk.."\nreturn combatDamageResolve"))()
 local noUnits=function() return {} end
