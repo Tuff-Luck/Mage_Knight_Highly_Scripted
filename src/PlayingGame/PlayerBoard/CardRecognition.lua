@@ -454,7 +454,16 @@ local function combatSummonedFor(summonerGUID)
         if type(details)=="table" and details[3]=="summoned" and details[4]==summonerGUID
             and data~=nil and getObjectFromGUID(guid)~=nil then
             local perks=gStates.monsterPerks~=nil and gStates.monsterPerks[guid] or nil
-            summoned[#summoned+1]={guid=guid,data=data,perks=perks,effect=combatEffectOf(guid)}
+            local effect=combatEffectOf(guid)
+            if effect~=nil and next(effect.removedPrinted or {})~=nil then
+                local reduced={}
+                for trait,value in pairs(data) do reduced[trait]=value end
+                for trait in pairs(effect.removedPrinted) do
+                    reduced[trait]=trait=="defend" and 0 or false
+                end
+                data=reduced
+            end
+            summoned[#summoned+1]={guid=guid,data=data,perks=perks,effect=effect}
         end
     end
     table.sort(summoned,function(a,b) return a.guid<b.guid end)
@@ -531,7 +540,15 @@ local function combatEnemyAttacks(entry)
             attacks[#attacks+1]={key="P",label="Summon",value=0,block="block",pending=true}
         end
     end
-    combatConfig.convertPreyAttacks(attacks,entry.effect)
+    -- Apply the summoner's changes only to its own printed attacks. Changes
+    -- aimed at a summoned monster were already applied to that token above.
+    if entry.effect~=nil and #attacks>0 then
+        local ownAttacks={}
+        for _,attack in ipairs(attacks) do
+            if attack.owner==entry.guid then ownAttacks[#ownAttacks+1]=attack end
+        end
+        combatConfig.convertPreyAttacks(ownAttacks,entry.effect)
+    end
     combatApplyAttackReductions(attacks,entry.effect,nil,combatReductionAttackChoice[entry.guid])
     return attacks
 end
@@ -802,18 +819,19 @@ local function combatAttackTotal(groups,data,perks)
     local normal,resisted=0,0
     for _,group in ipairs(groups) do
         for _,source in ipairs(group.sources) do
-            if not (source.dueling and source.duelingEligible==false) then
-            for _,attackType in ipairs(combatConfig.attackTypes) do
-                local value=tonumber(source.resources[attackType[group.category]]) or 0
-                if value>0 then
-                    if combatEnemyResists(data,perks,attackType.key) then
-                        resisted=resisted+value
-                    else
-                        normal=normal+value
+            if not (source.dueling and source.duelingEligible==false
+                and group.category~="block") then
+                for _,attackType in ipairs(combatConfig.attackTypes) do
+                    local value=tonumber(source.resources[attackType[group.category]]) or 0
+                    if value>0 then
+                        if combatEnemyResists(data,perks,attackType.key) then
+                            resisted=resisted+value
+                        else
+                            normal=normal+value
+                        end
                     end
                 end
             end
-            end -- Dueling cannot provide Attack without an eligible Block-phase enemy.
         end
     end
     return normal+math.floor(resisted/2)
