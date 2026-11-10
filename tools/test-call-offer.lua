@@ -121,7 +121,7 @@ for _,node in ipairs(first.UI.getXmlTable()) do
         eq(node.value,nil,"no text or XML delimiters on arrow")
         eq(node.children[1].tag,"Image","arrow is a real image")
         eq(node.children[1].attributes.image,arrowImages[direction],"correct scale artwork")
-        eq(node.attributes.rotation,"0 0 90","horizontal clickable arrow")
+        eq(node.attributes.rotation,"0 0 0","current Offer arrow orientation")
         eq(node.children[1].attributes.rotation,nil,"image needs no independent rotation")
     end
 end
