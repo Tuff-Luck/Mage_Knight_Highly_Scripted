@@ -2626,7 +2626,8 @@ skillResourceDefinitions={
         passiveNightTerrain={{mode="reduce",terrains={explore=true},amount=1,minimum=0}}}, -- Hawk Eyes.
     ["171244"]={untracked=true},
     ["1906f4"]={choices={{attack=2},{key="fireAttack",attackFire=2,icon="attack",iconOverlay="F"}}},
-    ["19daf9"]={untracked=true},
+    ["19daf9"]={untracked=true,competitiveBlockBonus=1,
+        enemyEffect={normal={attackReduce=1,grantCumbersome=true}}}, -- Nature's Vengeance (competitive).
     ["1a78b3"]={day={ranged=1},night={ranged=2}},
     ["1c413b"]={untracked=true},
     ["1f6e26"]={choices={{ranged=2},{key="fire",rangedFire=2},{key="ice",rangedIce=2}}},
@@ -2652,7 +2653,8 @@ skillResourceDefinitions={
     ["407c99"]={locationInfluence={default=3,fortified=2,glade=4}}, -- Beguile.
     ["45fe78"]={untracked=true},
     ["48fd35"]={untracked=true},
-    ["4ac9f6"]={untracked=true},
+    ["4ac9f6"]={untracked=true,
+        enemyEffect={normal={attackReduce=1,grantCumbersome=true}}}, -- Nature's Vengeance (cooperative).
     ["4b997c"]={day={move=1},night={move=2}},
     ["4c6c1a"]={partial=true},
     ["4c9273"]={choices={{attack=2},{key="ice",attackIce=2}}},
@@ -2716,7 +2718,7 @@ skillResourceDefinitions={
     ["a883af"]={untracked=true},
     ["a92d73"]={linkedCard={targetKind="card",posture="sideways",sideways={value=4,perEmptyCommandSlot=1}},wolfHowlPenalty=true,partial=true}, -- Wolf's Howl: penalize the other players' Unit attacks and blocks.
     ["adf8ab"]={untracked=true},
-    ["ae8673"]={untracked=true},
+    ["ae8673"]={damageMitigation={fire=2,ice=2,other=1}}, -- Elemental Resistance: prevent Hero damage from one selected Attack.
     ["b13d5f"]={untracked=true},
     ["b1a698"]={untracked=true},
     ["b2dfce"]={untracked=true},
@@ -2734,13 +2736,14 @@ skillResourceDefinitions={
     ["c2e5a3"]={partial=true},
     ["c3b95f"]={untracked=true},
     ["c4546c"]={untracked=true},
-    ["c73c8c"]={choices={{attack=1},{key="other"}},
+    ["c73c8c"]={choices={{attack=1},{key="other",icon="other",iconOverlay="-1",tooltip="Reduce one enemy Attack by 1"}},
+        enemyEffect={normal={{choice="other",attackReduce=1}}},
         passiveTerrain={{mode="reduce",terrains={explore=true},amount=1,minimum=0}}}, -- Feral Allies.
     ["c82406"]={untracked=true},
     ["c93979"]={untracked=true},
     ["cae27e"]={untracked=true},
     ["d013af"]={untracked=true},
-    ["d01b70"]={choices={{key="one",rangedColdFire=1,icon="ranged",iconOverlay="1"},
+    ["d01b70"]={forkedLightning=true,choices={{key="one",rangedColdFire=1,icon="ranged",iconOverlay="1"},
         {key="two",rangedColdFire=2,icon="ranged",iconOverlay="2"},
         {key="three",rangedColdFire=3,icon="ranged",iconOverlay="3"}},partial=true},
     ["d8824d"]={untracked=true},
