@@ -26,7 +26,8 @@ eq(data:find('["e45fdf"]={untracked=true}',1,true)~=nil,true,
     "Whisper in the Treetops has explicit blue/untracked tracker definition")
 eq(data:find('attackPhaseFallback=true',1,true)~=nil,true,
     "Leadership has an Attack phase conversion option")
-eq(recognition:find('replacement="attack"..field:sub',1,true)~=nil,true,
+eq(recognition:find('replacement="attack"..siege:sub',1,true)~=nil
+    and recognition:find('replacement="attack"..ranged:sub',1,true)~=nil,true,
     "Leadership converts printed Siege/Ranged into ordinary Attack")
 
 -- Check Leadership's production phase-selection logic on elemental attacks.
