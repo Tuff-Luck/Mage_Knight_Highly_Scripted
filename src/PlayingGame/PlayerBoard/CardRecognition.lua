@@ -347,6 +347,28 @@ local function combatAssignmentSources(seat)
                 source.details[#source.details+1]={text="Influence "..tostring(psychicInfluence).." → Psychic Block",
                     amount=psychicInfluence,icon="MKChoiceBlock",key="influence",family="influence"}
             end
+            -- Forked Lightning is three independent Cold Fire Ranged Attack 1
+            -- effects, never a single Ranged Attack 3 against one enemy.
+            if record.forkedLightning then
+                local count=math.min(3,math.max(0,math.floor(tonumber(effective.rangedColdFire) or 0)))
+                for i=#sources,1,-1 do
+                    if sources[i].guid==guid then table.remove(sources,i) end
+                end
+                local forkField=nil
+                for _,field in ipairs(combatConfig.sourceFields) do
+                    if field.key=="rangedColdFire" then forkField=field break end
+                end
+                for point=1,count do
+                    sources[#sources+1]={guid=guid,key=guid.."#fork"..point,
+                        part="fork"..point,name="Forked Lightning "..point,
+                        ranged=1,siege=0,block=0,attack=0,move=0,
+                        resources={rangedColdFire=1},psychicInfluence=0,
+                        psychicInfluenceCounts=false,kind="skill",forkedLightning=true,
+                        details={{text="Cold Fire Ranged Attack 1",amount=1,
+                            icon=forkField~=nil and forkField.icon or "MKChoiceRanged",
+                            key="rangedColdFire",family="ranged",typeKey="IF"}}}
+                end
+            end
         end
     end
     table.sort(sources,function(a,b)
@@ -363,7 +385,14 @@ local function combatNearestEnemyGUID(source,entries)
     local nearestGUID,nearestDistance=nil,nil
     for _,entry in ipairs(entries) do
         local enemy=getObjectFromGUID(entry.guid)
-        if enemy~=nil and (not entry.attackOnly
+        local forkDuplicate=false
+        if source.forkedLightning then
+            for key,target in pairs(combatAssignmentState.targets or {}) do
+                if key~=source.key and key:match("^d01b70#fork%d+$")
+                    and target==entry.guid then forkDuplicate=true break end
+            end
+        end
+        if enemy~=nil and not forkDuplicate and (not entry.attackOnly
             or source.ranged+source.siege+source.attack==0) then
             local position=enemy.getPosition()
             local dx,dz=position[1]-sourcePosition[1],position[3]-sourcePosition[3]
@@ -678,6 +707,13 @@ function resourceCardsCombatTargetAcceptsSource(sourceKey,targetGUID)
             and resourceCardScanBySeat[seat] or nil
         return resourceCardsEnemyEffectivelyUnfortified(targetGUID,
             scan~=nil and scan.enemyEffects or nil)
+    end
+    if type(sourceKey)=="string" and sourceKey:match("^d01b70#fork%d+$") then
+        if data.attackOnly==true then return false end
+        for key,target in pairs(combatAssignmentState.targets or {}) do
+            if key~=sourceKey and key:match("^d01b70#fork%d+$")
+                and target==targetGUID then return false end
+        end
     end
     if (sourceKey=="4ac9f6" or sourceKey=="19daf9") and data.monsters~=nil then
         return false -- Nature's Vengeance targets a summoned monster, never its Summoner.
@@ -2133,6 +2169,13 @@ local function combatAssignmentRefreshRows(entries,sources)
             end
         end
         local targetIndex=targetGUID~=nil and rowByGUID[targetGUID] or nil
+        if source.forkedLightning and targetIndex~=nil
+            and not resourceCardsCombatTargetAcceptsSource(source.key,targetGUID) then
+            combatAssignmentState.targets[source.key]=nil
+            combatAssignmentState.explicit[source.key]=nil
+            attackAssignmentsClearForObject(source.key)
+            targetGUID,targetIndex=nil,nil
+        end
         if targetIndex~=nil and entries[targetIndex].attackOnly
             and source.ranged+source.siege+source.attack>0 then
             combatAssignmentState.targets[source.key]=nil
@@ -5479,6 +5522,7 @@ local function calculateSkill(skill,linkedTarget,unitState,inventoryCrystalCount
     return {guid=skill.guid,kind="skill",known=true,
         complete=unitResolved or inventoryResolved or (tracked and not rule.partial) or targeted or linkedTarget~=nil,
         powered=skill.is_face_down==true or linkedTarget~=nil or unitLinked,
+        forkedLightning=rule.forkedLightning==true,
         status=status,links=links,unitSources=unitSources,swiftDouble=swiftDouble,
         resources=effects,choices=choices}
 end
