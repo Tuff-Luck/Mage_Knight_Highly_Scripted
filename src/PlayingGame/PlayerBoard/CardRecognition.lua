@@ -2440,8 +2440,27 @@ local function combatAssignmentRefreshRows(entries,sources)
                 physical=spec.physical or 2,nonphysical=spec.nonphysical or 1}
         end
     end
+    local elementRecord=seatScan~=nil and seatScan.cards["ae8673"] or nil
+    local elementTarget=elementRecord~=nil and elementRecord.enemyGUID or nil
+    local elementMitigation=nil
+    if elementTarget~=nil then
+        local selected=gStates~=nil and gStates.elementalResistanceAttackKey or nil
+        local available={}
+        for _,item in ipairs(damageItems) do
+            if item.owner==elementTarget
+                or (gStates~=nil and gStates.attackedMonsters~=nil
+                    and gStates.attackedMonsters[item.owner]~=nil
+                    and gStates.attackedMonsters[item.owner][3]=="summoned"
+                    and gStates.attackedMonsters[item.owner][4]==elementTarget) then
+                available[item.key]=true
+            end
+        end
+        if selected~=nil and not available[selected] then selected=nil end
+        elementMitigation={owner=elementTarget,attackKey=selected}
+    end
     local damageResults=combatDamageResolve(damageItems,damageUnits,
-        combatHeroArmour(nativeCommandCount),attackAssignmentsDamageTargetsOf,mitigation)
+        combatHeroArmour(nativeCommandCount),attackAssignmentsDamageTargetsOf,
+        mitigation,elementMitigation)
 
     -- Vampiric gains Armor for Wounds added to the Hero's hand and for each
     -- Unit its own non-Psychic attacks wound. Poison's extra discard/Unit
@@ -2665,7 +2684,8 @@ local function combatAssignmentRefreshRows(entries,sources)
             for _,mitigationSource in ipairs(mitigationRecords) do
                 if mitigationSource.record.enemyGUID==targetEntry.guid then
                     insertEffect(combatConfig.mitigationButtonInfo(mitigationSource.guid,
-                        mitigationSource.record,targetEntry,group,damageResults,mitigation))
+                        mitigationSource.record,targetEntry,group,damageResults,
+                        mitigationSource.guid=="ae8673" and elementMitigation or mitigation))
                 end
             end
         end
