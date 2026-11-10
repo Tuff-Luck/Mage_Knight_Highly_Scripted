@@ -18,6 +18,14 @@ local function fakeCard(guid,x,z)
         setXmlTable=function(nextXml,newAssets)
             assert(type(nextXml)=="table" and #nextXml>0,
                 "TTS UI.setXmlTable rejects an empty/null XML table")
+            -- TTS accepts {{}} by itself for clearing, but cannot combine
+            -- that empty placeholder with real Button/Text nodes.
+            for _,node in ipairs(nextXml) do
+                assert(type(node)=="table"
+                    and (type(node.tag)=="string"
+                        or (#nextXml==1 and next(node)==nil)),
+                    "invalid/mixed empty object XML node")
+            end
             writes=writes+1
             xml=nextXml
             if newAssets~=nil then assets=newAssets end
@@ -200,6 +208,27 @@ eq(first.position[1],-53,"browsing back preserves selected display position")
 first.UI.setXmlTable({{}})
 callOfferRestoreOnLoad()
 eq(hasArrow(first,"next"),true,"saved offer browser controls restored")
+-- Simulate the first paid Call to Arms scan (and the next powered scan):
+-- Unit ability buttons must be appended to real nodes, never to {{}}.
+first.UI.setXmlTable({{}})
+local poweredXml=resourceObjectUiXmlTable(first.UI)
+eq(#poweredXml,0,"empty XML placeholder is removed before payment UI")
+poweredXml[#poweredXml+1]={tag="Button",attributes={
+    id="ResourceCardChoice_111111_unit1"}}
+first.UI.setXmlTable(poweredXml)
+callOfferEnsureControls(1)
+eq(hasArrow(first,"next"),true,"browser survives paid spell button render")
+local paidChoicePresent=false
+for _,node in ipairs(first.UI.getXmlTable()) do
+    if node.attributes~=nil
+        and node.attributes.id=="ResourceCardChoice_111111_unit1" then
+        paidChoicePresent=true
+    end
+end
+eq(paidChoicePresent,true,"paid Unit choice survives restored offer arrows")
+for _,node in ipairs(first.UI.getXmlTable()) do
+    assert(type(node.tag)=="string","no empty placeholder mixed with paid Unit controls")
+end
 -- A Spell genuinely dropped outside the play area still returns the Unit.
 spellInPlay=false
 callOfferScheduleSpellCheck()

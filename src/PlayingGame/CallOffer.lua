@@ -24,7 +24,7 @@ end
 
 local function cleanButtons(unit,removeResources)
     if unit==nil then return end
-    local xml=unit.UI.getXmlTable() or {}
+    local xml=resourceObjectUiXmlTable(unit.UI)
     local changed=false
     for i=#xml,1,-1 do
         local attrs=xml[i].attributes
@@ -96,8 +96,16 @@ local function showControls(state,guid,serial)
     local unit=getObjectFromGUID(guid)
     if unit==nil or previewState()~=state or state.unitGUID~=guid
         or transferSerial~=serial then return end
-    cleanButtons(unit,false)
-    local xml=unit.UI.getXmlTable() or {}
+    local xml=resourceObjectUiXmlTable(unit.UI)
+    -- Replace the browser's own arrows in one XML update. Clearing to {{}}
+    -- and then immediately appending nodes can leave an invalid placeholder.
+    for i=#xml,1,-1 do
+        local attrs=xml[i].attributes
+        if attrs~=nil and type(attrs.id)=="string"
+            and attrs.id:sub(1,17)=="CallOfferControl_" then
+            table.remove(xml,i)
+        end
+    end
     -- Rotate the parent Button, not its child Image: TTS object UI ignores
     -- child Image rotation in this layout. Up/Down become left/right at 90 degrees.
     local images={"Overkill Down","Overkill Up"}

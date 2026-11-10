@@ -149,6 +149,20 @@ end
 
 -- Legacy shared artwork also needs registration on object-attached UIs.
 -- Call Offer reuses the exact Up/Down images already used by Scale.lua.
+-- UI.setXmlTable({{}}) is used to clear object UI without triggering TTS's
+-- "table was null" error. That placeholder must not accompany real XML nodes:
+-- when a Spell payment adds Unit ability buttons, the mixed table can make
+-- TTS throw a native "Object reference not set" error.
+function resourceObjectUiXmlTable(ui)
+    local valid={}
+    for _,node in ipairs(ui.getXmlTable() or {}) do
+        if type(node)=="table" and type(node.tag)=="string" then
+            valid[#valid+1]=node
+        end
+    end
+    return valid
+end
+
 function resourceCardsExistingImageAssetsFor(ui,names)
     local needed={}
     for _,name in ipairs(names) do

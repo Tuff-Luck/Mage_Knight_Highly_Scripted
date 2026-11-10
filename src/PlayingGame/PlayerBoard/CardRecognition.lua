@@ -4108,7 +4108,7 @@ end
 -- Meditation buttons beside the card. Preserve other object UI elements.
 local function removeChoiceButtons(card)
     if card==nil or card.UI==nil then return end
-    local xml=card.UI.getXmlTable() or {}
+    local xml=resourceObjectUiXmlTable(card.UI)
     local changed=false
     for i=#xml,1,-1 do
         local attr=xml[i].attributes
@@ -4394,7 +4394,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         ..(rule~=nil and rule.forkedLightning
             and (":FL:"..tostring(gStates~=nil and gStates.forkedLightningPhase or "range")) or "")
     if choiceButtonShown[card.guid]==signature then return end
-    local xml=card.UI.getXmlTable() or {}
+    local xml=resourceObjectUiXmlTable(card.UI)
     for i=#xml,1,-1 do
         local attr=xml[i].attributes
         if attr~=nil and type(attr.id)=="string"
@@ -4643,7 +4643,7 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decisi
         ..":targets="..table.concat(targetLabels,",")
     if choiceButtonShown[unit.guid]==signature then return end
 
-    local xml=unit.UI.getXmlTable() or {}
+    local xml=resourceObjectUiXmlTable(unit.UI)
     for i=#xml,1,-1 do
         local attr=xml[i].attributes
         if attr~=nil and type(attr.id)=="string"
