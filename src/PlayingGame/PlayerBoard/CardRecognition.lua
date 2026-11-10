@@ -4004,6 +4004,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                     skillFamily=isSkill and skillChoiceFamily(category,choice) or nil,
                     icon=choice.icon or category,iconOverlay=choice.iconOverlay,
                     stackedIcons=choice.stackedIcons,splitTargets=choice.splitTargets,
+                    forkedCount=rule~=nil and rule.forkedLightning and choice.rangedColdFire or nil,
                     targetResource=targetResourceFor(choice,category),
                     iconOverlayColor=choice.iconOverlayColor,
                     iconOverlayAlignment=choice.iconOverlayAlignment,
@@ -4193,10 +4194,18 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                 local targetAsset=resourceCardsChoiceIcon("target")
                 -- A split choice gets one target button per resource, each marked with its icon.
                 local parts=entry.splitTargets or {false}
+                if rule~=nil and rule.forkedLightning then
+                    parts={}
+                    for point=1,math.min(3,math.max(1,entry.forkedCount or 1)) do
+                        parts[#parts+1]="fork"..point
+                    end
+                end
                 for partIndex,part in ipairs(parts) do
-                    local partX=targetX+(partIndex-1)*buttonSpacing*(targetX>=0 and 1 or -1)
+                    local partX=rule~=nil and rule.forkedLightning
+                        and targetX+(partIndex-(#parts+1)/2)*buttonSpacing*1.85
+                        or targetX+(partIndex-1)*buttonSpacing*(targetX>=0 and 1 or -1)
                     local children={}
-                    if part then
+                    if part and not (rule~=nil and rule.forkedLightning) then
                         local partAsset=resourceCardsChoiceIcon(part)
                         if partAsset~=nil and not blocked[partAsset.name] then
                             children[#children+1]={tag="Image",attributes={
@@ -4207,6 +4216,12 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                     children[#children+1]={tag="Image",attributes={
                         image=targetAsset.name,width=82,height=82,
                         preserveAspect="true",raycastTarget="false",color="#FFFFFF"}}
+                    if rule~=nil and rule.forkedLightning then
+                        children[#children+1]={tag="Text",attributes={
+                            text=tostring(partIndex),width=58,height=58,fontSize=48,
+                            alignment="LowerRight",color="#FFFFFF",
+                            outline="#141820",outlineSize="2 -2",raycastTarget="false"}}
+                    end
                     xml[#xml+1]={tag="Button",attributes={
                         id="AttackAssignmentSource_"..card.guid.."_"..tostring(row.index).."_"..entry.targetResource
                             ..(part and ("@"..part) or ""),
