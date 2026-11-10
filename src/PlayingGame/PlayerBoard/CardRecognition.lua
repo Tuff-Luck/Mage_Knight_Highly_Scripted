@@ -533,6 +533,11 @@ local function combatEnemyAttacks(entry)
                 local summonedAttacks=combatEnemyPrintedAttacks(summoned.data,summoned.perks,strip,summoned.guid)
                 combatConfig.convertPreyAttacks(summonedAttacks,summoned.effect)
                 combatApplyAttackReductions(summonedAttacks,summoned.effect,summoned.guid)
+                if summoned.effect~=nil and summoned.effect.grantCumbersome==true then
+                    for _,attack in ipairs(summonedAttacks) do
+                        if attack.key~="M" then attack.cumbersome=true end
+                    end
+                end
                 for _,attack in ipairs(summonedAttacks) do attacks[#attacks+1]=attack end
             end
         end
@@ -550,6 +555,11 @@ local function combatEnemyAttacks(entry)
         combatConfig.convertPreyAttacks(ownAttacks,entry.effect)
     end
     combatApplyAttackReductions(attacks,entry.effect,nil,combatReductionAttackChoice[entry.guid])
+    if entry.effect~=nil and entry.effect.grantCumbersome==true then
+        for _,attack in ipairs(attacks) do
+            if attack.owner==entry.guid and attack.key~="M" then attack.cumbersome=true end
+        end
+    end
     return attacks
 end
 
@@ -595,6 +605,8 @@ local function combatEntryHasCumbersome(guid,data,perks)
         and effect.removedPrinted.cumbersome==true
     local hasCumbersome=(data.cumbersome==true and not printedIgnored)
         or (perks~=nil and perks.cumbersome==true)
+        or (effect~=nil and effect.grantCumbersome==true)
+    if effect~=nil and effect.grantCumbersome==true then return true end
     if hasCumbersome and not (effect~=nil and effect.removeAbilities) then return true end
     if data.monsters~=nil then
         for _,summoned in ipairs(combatSummonedFor(guid)) do
