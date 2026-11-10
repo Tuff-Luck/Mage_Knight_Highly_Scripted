@@ -1853,6 +1853,13 @@ combatConfig.effectButtonInfo=function(entry,applied)
     end
     local arrow=isArmour and "armour" or "attack"
     local icon=isArmour and "MKChoiceAttack" or "MKChoiceBlock"
+    -- Use specific artwork for numeric reductions, preserving the usual icons
+    -- for removal, prevention, conversion and other non-reduction effects.
+    if armour>0 or armourFortified>0 or resistArmour>0 then
+        icon="MKChoiceArmourReduction"
+    elseif attack>0 then
+        icon="MKChoiceAttackReduction"
+    end
     local amount,description,reason="!", "Combat effect",nil
     local raw=entry.unmodifiedArmour or entry.baseArmour or 1
     if spec.removeTrait~=nil then
@@ -3985,6 +3992,22 @@ local function skillChoicePositions(entries)
     return positions
 end
 
+-- Replace the generic "other" artwork only when that option specifically
+-- reduces an enemy stat. Explicit resource icons still take priority.
+local function combatReductionChoiceIcon(rule,powered,choice,category)
+    local icon=choice.icon or category
+    if icon~="other" then return icon end
+    local spec=combatEffectSpec(rule,powered,category)
+    if spec==nil then return icon end
+    if (tonumber(spec.armourReduce) or 0)>0
+        or (tonumber(spec.armourReduceFortified) or 0)>0
+        or (tonumber(spec.armourReduceByResist) or 0)>0 then
+        return "armourReduction"
+    end
+    if (tonumber(spec.attackReduce) or 0)>0 then return "attackReduction" end
+    return icon
+end
+
 -- A single selected icon is centred on the object. Click to expand all
 -- choices; selecting one immediately collapses back to its icon.
 local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySets,resources)
@@ -4089,7 +4112,8 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                 row.entries[#row.entries+1]={category=category,
                     rank=resourceChoiceRank(category,choice),originalIndex=j,
                     skillFamily=isSkill and skillChoiceFamily(category,choice) or nil,
-                    icon=choice.icon or category,iconOverlay=choice.iconOverlay,
+                    icon=combatReductionChoiceIcon(rule,powered,choice,category),
+                    iconOverlay=choice.iconOverlay,
                     stackedIcons=choice.stackedIcons,splitTargets=choice.splitTargets,
                     forkedCount=rule~=nil and rule.forkedLightning and choice.rangedColdFire or nil,
                     targetResource=targetResourceFor(choice,category),

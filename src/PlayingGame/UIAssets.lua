@@ -71,6 +71,8 @@ local resourceChoiceImages={
     influence={name="MKChoiceInfluence",url="https://steamusercontent-a.akamaihd.net/ugc/11982150083081031635/75C1352D375B05271C34514F3C578728423768AA/"},
     healing={name="MKChoiceHealing",url="https://steamusercontent-a.akamaihd.net/ugc/18027929342726570953/67A059840F886E825064D757DD9EEA63AAC7D2B9/"},
     block={name="MKChoiceBlock",url="https://steamusercontent-a.akamaihd.net/ugc/10652687051429766943/75A1D745D425D4D57D65971DB6F5E1BA1A80C6E6/"},
+    armourReduction={name="MKChoiceArmourReduction",url="https://steamusercontent-a.akamaihd.net/ugc/14319292823673343628/32AC37D1D57F6898513266A4F0CB912714EFCD33/"},
+    attackReduction={name="MKChoiceAttackReduction",url="https://steamusercontent-a.akamaihd.net/ugc/14966294588523820114/C18397ED9E268154A43C1604FF3D9D98AC616674/"},
     attack={name="MKChoiceAttack",url="https://steamusercontent-a.akamaihd.net/ugc/12125700784244572260/5257BAD169E970724105406C69CC5918293111EE/"},
 }
 -- Fire choices use the existing artwork. Their "F" overlay is drawn by
@@ -82,7 +84,7 @@ local allGlobalImages={}
 for _,entry in ipairs(originalGlobalImages) do
     allGlobalImages[#allGlobalImages+1]=entry
 end
-for _,category in ipairs({"target","siege","ranged","move","influence","healing","block","attack"}) do
+for _,category in ipairs({"target","siege","ranged","move","influence","healing","block","attack","armourReduction","attackReduction"}) do
     allGlobalImages[#allGlobalImages+1]=resourceChoiceImages[category]
 end
 

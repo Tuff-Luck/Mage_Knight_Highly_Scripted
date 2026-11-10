@@ -2674,7 +2674,7 @@ skillResourceDefinitions={
     ["676856"]={untracked=true,weatherTerrain={owner=-2,others=1}}, -- Prayer of the Weather: owner min 1, opponents max 5.
     ["68568b"]={untracked=true},
     ["68f864"]={untracked=true},
-    ["6a33c1"]={choices={{key="attack",icon="other",iconOverlay="Atk"},{key="armour",icon="other",iconOverlay="Arm"}},
+    ["6a33c1"]={choices={{key="attack",icon="attackReduction"},{key="armour",icon="armourReduction"}},
         enemyEffect={normal={{choice="attack",attackReduce=1},
             {choice="armour",armourReduce=1,armourReduceRangedUnfortifiedOnly=1}}}}, -- Curse: one enemy Attack or Armour -1.
     ["6d7027"]={partial=true},

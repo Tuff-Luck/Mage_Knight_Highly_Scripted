@@ -59,6 +59,7 @@ local enemy={guid="enemy",data={attackValue=3},unmodifiedArmour=3,
     effectArmourReduction=1,effect={armourReduce=1,attackReductions={}}}
 local icon=combatConfig.effectButtonInfo(enemy,normal)
 eq(icon.family,"range","Armour effect in unfortified Ranged/Siege")
+eq(icon.icon,"MKChoiceArmourReduction","Armour reduction icon")
 eq(icon.ineffective,false,"Armour reduction has benefit")
 eq(icon.amount,"-1","Armour badge value")
 enemy.data.fortified=true
@@ -78,6 +79,7 @@ local attackApplication={source="6a33c1",key="6a33c1",spec=attackEffect,effectiv
 enemy.effect={attackReductions={{amount=1,source="6a33c1"}}}
 icon=combatConfig.effectButtonInfo(enemy,attackApplication)
 eq(icon.family,"block","Enemy Attack reduction in Block column")
+eq(icon.icon,"MKChoiceAttackReduction","Attack reduction icon")
 eq(icon.ineffective,false,"Actual enemy Attack reduced")
 enemy.data.attackValue=0
 icon=combatConfig.effectButtonInfo(enemy,attackApplication)
@@ -109,6 +111,31 @@ assert(icon.tooltip:find("No Hero damage",1,true),"Mitigation tooltip")
 record.enemyGUID="other"
 eq(combatConfig.mitigationButtonInfo("0688d8",record,enemy,
     {},results,mitigation),nil,"No icon on unassigned enemy")
+
+-- Choice icons use the same registry and preserve explicitly chosen resource icons.
+local uiAssets=source("src/PlayingGame/UIAssets.lua")
+assert(uiAssets:find("MKChoiceArmourReduction",1,true),"Armour icon registered")
+assert(uiAssets:find("MKChoiceAttackReduction",1,true),"Attack icon registered")
+assert(uiAssets:find("armourReduction\",\"attackReduction",1,true),"Reduction assets available to Global UI")
+local choiceSource=slice(cardRecognition,
+    "local function combatReductionChoiceIcon(rule,powered,choice,category)",
+    "-- A single selected icon is centred on the object.")
+local optionIcon=assert(load(choiceSource.."return combatReductionChoiceIcon"))()
+local reductionRule={enemyEffect={normal={{choice="armour",armourReduce=1},
+    {choice="attack",attackReduce=1},{choice="neutral",removeFortify=true}}}}
+eq(optionIcon(reductionRule,false,{icon="other"},"armour"),"armourReduction",
+    "Armour choice receives reduction artwork")
+eq(optionIcon(reductionRule,false,{icon="other"},"attack"),"attackReduction",
+    "Attack choice receives reduction artwork")
+eq(optionIcon(reductionRule,false,{icon="other"},"neutral"),"other",
+    "Other effects retain generic artwork")
+eq(optionIcon(reductionRule,false,{icon="attack"},"armour"),"attack",
+    "Explicit source resource icon takes priority")
+local krang=source("src/Data.lua")
+assert(krang:find('key="attack",icon="attackReduction"',1,true),
+    "Curse Attack option uses new icon")
+assert(krang:find('key="armour",icon="armourReduction"',1,true),
+    "Curse Armour option uses new icon")
 
 -- Never change the CombatEnemyPanel XML or column widths for effect buttons.
 assert(cardRecognition:find("combatConfig.effectSources[item.source.key]",1,true),
