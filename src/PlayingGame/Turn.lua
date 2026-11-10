@@ -162,7 +162,10 @@ function startOfTurn()
 	gStates.tokenRefillEnabled=true
 	if apocalypseQuestsUsed()==true then gStates.apocalypseQuestScoringChoiceLocked=true end
 	local currentPlayer=turnOrder[gStates.turnNumber]
-	if currentPlayer~=nil then currentPlayer.puppetMasterUsed=false end
+	if currentPlayer~=nil then
+        currentPlayer.puppetMasterUsed=false
+        currentPlayer.whoNeedsMagicSourceDieUsed=false
+    end
 	gStates.volkarePursuitEnemies={}
 	gStates.volkarePursuitCombat=nil
 	gStates.volkarePursuitChoicePlayer=nil
