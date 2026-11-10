@@ -4008,6 +4008,8 @@ local function trackerChoiceScores(guid,seatPos)
 end
 
 local function guessInitialCardChoice(card,choices,seatPos,rule,sideways)
+    -- A Wound-paid spell must be confirmed by the player, never guessed.
+    if rule~=nil and rule.woundConfirmation==true and not sideways then return end
     if selectedResourceByGUID[card.guid]~=nil or choices==nil or #choices<2
         or card.is_face_down==true then return end
     local scores=trackerChoiceScores(card.guid,seatPos)
