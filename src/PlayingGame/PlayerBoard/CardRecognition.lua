@@ -1169,14 +1169,14 @@ local combatUnitSiteModeByLocation={
     maze="one",labyrinth="one",ziggurat="none",pyramid="none"
 }
 local combatOneUnitBySeat={}
-local function combatUnitSiteRestriction(seatPos)
+local function combatUnitSiteRestriction(seatPos,combatEnemies)
     local player=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
     if player==nil or player.seatPos~=seatPos then return nil end
     local site=player.avatarLocation
     local mode=combatUnitSiteModeByLocation[site]
     if mode==nil then return nil end
     local perkKey=mode=="one" and "oneUnit" or "noUnits"
-    for guid,enemy in pairs(combatPlayMonsters()) do
+    for guid,enemy in pairs(combatEnemies or combatPlayMonsters()) do
         local perks=gStates.monsterPerks~=nil and gStates.monsterPerks[guid] or nil
         if enemy~=nil and enemy.is_face_down~=true
             and perks~=nil and perks[perkKey]==true then
@@ -5379,7 +5379,7 @@ local function renderSeat(seatPos,quietUnitChoice)
     -- spent; a Unit activated by a Command move THIS turn is still active.
     local unitState=hasUnits and unitLayoutResourceState(seatPos) or nil
     local activations=gStates.unitResourceActivations or {}
-    local unitSiteMode,unitSite=combatUnitSiteRestriction(seatPos)
+    local unitSiteMode,unitSite=combatUnitSiteRestriction(seatPos,combatMonsters)
     if unitSiteMode==nil then resourceCardsCombatClearOneUnit(seatPos) end
     local chosenSiteUnit=unitSiteMode=="one" and combatOneUnitChosen(seatPos,unitSite) or nil
     if unitSiteMode=="one" and chosenSiteUnit==nil and unitState~=nil then
@@ -6177,10 +6177,15 @@ local function renderSeat(seatPos,quietUnitChoice)
                 end
                 local counts=unitManaCounts(unit,seatPos,manaObjects)
                 local decision=unitManaDecision(unit,abilities,activation,counts)
-                showUnitAbilityButtons(unit,abilities,activation,unwounded,decision)
+                local sitePermits=combatUnitSitePermits(unitSiteMode,
+                    unitState.bondsUnitGUID,chosenSiteUnit,unitGUID,false)
+                if sitePermits then
+                    showUnitAbilityButtons(unit,abilities,activation,unwounded,decision)
+                else
+                    removeChoiceButtons(unit)
+                end
                 local selected=decision.index~=nil and abilities[decision.index] or nil
-                if unwounded and combatUnitSitePermits(unitSiteMode,
-                    unitState.bondsUnitGUID,chosenSiteUnit,unitGUID,false) then
+                if unwounded and sitePermits then
                     local crystalCounts=selected~=nil and selected.bonusColor~=nil
                         and unitManaCounts(unit,seatPos,manaObjects,true) or nil
                     local resources=selected~=nil
