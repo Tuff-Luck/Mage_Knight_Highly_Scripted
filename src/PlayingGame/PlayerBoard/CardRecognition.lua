@@ -1691,14 +1691,9 @@ combatConfig.mitigationButtonInfo=function(guid,record,entry,group,damageResults
     local rule=skillResourceDefinitions[guid]
     local spec=rule~=nil and rule.damageMitigation or nil
     if spec==nil then return nil end
-    local prevented=0
-    for _,result in pairs(damageResults or {}) do
-        if result~=nil and mitigation~=nil and mitigation.appliedKey~=nil
-            and damageResults[mitigation.appliedKey]==result then
-            prevented=tonumber(result.prevented) or 0
-            break
-        end
-    end
+    local resolved=mitigation~=nil and mitigation.appliedKey~=nil
+        and damageResults~=nil and damageResults[mitigation.appliedKey] or nil
+    local prevented=resolved~=nil and (tonumber(resolved.prevented) or 0) or 0
     local reason=nil
     if prevented==0 then
         if group.rangeDefeated or group.destroyed then
@@ -2354,6 +2349,13 @@ local function combatAssignmentRefreshRows(entries,sources)
     -- Build all grouped rows before paging or rendering them. A group can
     -- span pages, and each following member offers two six-icon display lines.
     -- Only the button placement changes; allocated sources stay on their targets.
+    local mitigationRecords={}
+    for guid,record in pairs(seatScan~=nil and seatScan.cards or {}) do
+        local rule=skillResourceDefinitions[guid]
+        if rule~=nil and rule.damageMitigation~=nil and record.enemyGUID~=nil then
+            mitigationRecords[#mitigationRecords+1]={guid=guid,record=record}
+        end
+    end
     local displayByIndex={}
     for _,group in ipairs(groups) do
         local perMember={}
@@ -2403,12 +2405,10 @@ local function combatAssignmentRefreshRows(entries,sources)
                 insertEffect(combatConfig.effectButtonInfo(targetEntry,applied))
             end
             -- Damage mitigation is a Block-column control, but not Block points.
-            for guid,record in pairs(seatScan~=nil and seatScan.cards or {}) do
-                local rule=skillResourceDefinitions[guid]
-                if rule~=nil and rule.damageMitigation~=nil
-                    and record.enemyGUID==targetEntry.guid then
-                    insertEffect(combatConfig.mitigationButtonInfo(guid,record,
-                        targetEntry,group,damageResults,mitigation))
+            for _,mitigationSource in ipairs(mitigationRecords) do
+                if mitigationSource.record.enemyGUID==targetEntry.guid then
+                    insertEffect(combatConfig.mitigationButtonInfo(mitigationSource.guid,
+                        mitigationSource.record,targetEntry,group,damageResults,mitigation))
                 end
             end
         end
