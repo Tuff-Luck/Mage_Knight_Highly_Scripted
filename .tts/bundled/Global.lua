@@ -1340,6 +1340,7 @@ end
 function __onObjectPickUp_raw(player_color, picked_up_object)
 	picked_up_object=eventsLiveObject(picked_up_object)
 	if picked_up_object==nil then return end
+    if picked_up_object.guid=="2eb8e8" then callOfferSpellPickedUp() end
 	attackAssignmentsObjectMoved(picked_up_object)
 	if picked_up_object~=nil and mapTokenNeedsArrangement~=nil and mapTokenNeedsArrangement(picked_up_object)==true then
 		mapTokenReleaseObject(picked_up_object)
@@ -1450,7 +1451,7 @@ function __onObjectDrop_raw(player_color, dropped_object)
     resourceCardsObjectMoved(dropped_object)
     callOfferObjectDropped(dropped_object)
     if droppedGUID=="2eb8e8" then
-        safeWaitFrames("Events.CallOffer",callOfferSpellChanged,2)
+        callOfferScheduleSpellCheck()
     end
 	if terrainTiles[droppedGUID]~=nil then
 		runtimeMapInvalidateTerrain()
@@ -2923,7 +2924,7 @@ function __onObjectRotate_raw(object, spin, flip, player_color, old_spin, old_fl
 	local cardGUID=object.guid
     if cardGUID=="2eb8e8" then
         -- The new face may not yet be applied when onObjectRotate fires.
-        safeWaitFrames("Events.CallOffer",callOfferSpellChanged,2)
+        callOfferScheduleSpellCheck()
     end
 	if cardGUID==meditationTranceCardGUID or isSteadyTempoGUID(cardGUID)==true
 		or cardGUID==tacticCard[2] or cardGUID==GUID.card.bannerOfCommandToken then
@@ -20189,7 +20190,9 @@ function extraTurnOptions(playerIndex)
 	local playArea=getObjectFromGUID(playerPlayAreas[details.seatPos])
 	if playArea~=nil then
 		for _, obj in pairs(playArea.getObjects()) do
-			if obj.guid==GUID.card.timeBending and obj.is_face_down==false and cardEffectIsVertical(obj)==true then
+			if obj.guid==GUID.card.timeBending and obj.is_face_down==false
+                and cardEffectIsVertical(obj)==true
+                and resourceCardsTimeBendingPaid(details.seatPos,obj)==true then
 				timeBendingAvailable=true
 				break
 			end
@@ -20250,8 +20253,10 @@ end
 function turnPreparePreEndTurn(cleanupPlayer,playerColor,id)
 	if id=="ExtraTurnTacticButton" or id=="ExtraTurnChoiceTactic6" or id=="ExtraTurnChoiceTimeBending" then
 		local tacticSixAvailable,timeBendingAvailable=extraTurnOptions(cleanupPlayer)
-		local useTactic=id=="ExtraTurnChoiceTactic6" or (id=="ExtraTurnTacticButton" and tacticSixAvailable and timeBendingAvailable==false)
-		local useTimeBending=id=="ExtraTurnChoiceTimeBending" or (id=="ExtraTurnTacticButton" and timeBendingAvailable and tacticSixAvailable==false)
+		local useTactic=(id=="ExtraTurnChoiceTactic6" and tacticSixAvailable)
+            or (id=="ExtraTurnTacticButton" and tacticSixAvailable and timeBendingAvailable==false)
+        local useTimeBending=(id=="ExtraTurnChoiceTimeBending" and timeBendingAvailable)
+            or (id=="ExtraTurnTacticButton" and timeBendingAvailable and tacticSixAvailable==false)
 		local cleanupTurnToken=getObjectFromGUID(turnOrder[cleanupPlayer].turnOrderTokenGUID)
 		if useTactic then
 			gStates.tacticSixState="Started"
@@ -20886,6 +20891,8 @@ local function turnEndRoundCheckpointAndInterrupts(rewindReady)
 end
 
 local function turnEndRoundAdvanceWorld()
+	-- Claimed Mana Source dice belong to the previous round only.
+	manaClaimReturnHeldDice()
 	--Update round count and check for end of game. Quest expiry has already completed at the
 	--checkpoint barrier, so no old-round Quest object can overlap new-round offer/tactic/deck work.
 	broadcastToAll("-------------------",{1,1,0.5})
@@ -24068,6 +24075,66 @@ local function combatPreEndTurnRaiseAvatar(cleanupPlayer)
 	return tokenRaised,avatarPos,avatarModel
 end
 
+-- Mana Claim's chosen Source die is history until the end of the round.
+-- The Spell card itself is discarded at the end of the turn.
+function manaClaimDieHeld(guid)
+    local claim=gStates~=nil and gStates.manaClaimHeldDice~=nil
+        and gStates.manaClaimHeldDice[guid] or nil
+    return claim~=nil and claim.round==gStates.currentRound
+end
+
+function manaClaimRegisterForTurn(playerIndex)
+    local player=turnOrder~=nil and turnOrder[playerIndex] or nil
+    local area=player~=nil and player.seatPos~=nil
+        and getObjectFromGUID(playerPlayAreas[player.seatPos]) or nil
+    if area==nil or gStates==nil then return end
+    local spell=nil
+    local objects=area.getObjects()
+    for _,obj in ipairs(objects) do
+        if obj.guid=="2eb8f4" and obj.is_face_down~=true
+            and cardEffectIsVertical(obj)==true then spell=obj break end
+    end
+    if spell==nil then return end
+    gStates.manaClaimHeldDice=gStates.manaClaimHeldDice or {}
+    for _,claim in pairs(gStates.manaClaimHeldDice) do
+        if claim.seatPos==player.seatPos and claim.round==gStates.currentRound then return end
+    end
+    local center=spell.getPosition()
+    local bounds=spell.getBounds()
+    local size=bounds~=nil and bounds.size or nil
+    local halfX=math.max(0.4,(size~=nil and size[1] or 2)*0.5)
+    local halfZ=math.max(0.5,(size~=nil and size[3] or 3)*0.5)
+    local outside,inside={},{}
+    for _,die in ipairs(objects) do
+        if die.type=="Dice" and scriptObjectId(die)=="Mana Dice" then
+            local face=die.getRotationValue()
+            local color=type(face)=="string" and face:match("^([%a]+) Mana$") or nil
+            if color=="Red" or color=="Blue" or color=="Green" or color=="White" then
+                local pos=die.getPosition()
+                local dx,dz=pos[1]-center[1],pos[3]-center[3]
+                local candidate={guid=die.guid,distance=dx*dx+dz*dz}
+                if math.abs(dx)<halfX and math.abs(dz)<halfZ then
+                    inside[#inside+1]=candidate
+                else outside[#outside+1]=candidate end
+            end
+        end
+    end
+    -- Prefer the claimed die placed away from the mana spent on the Spell.
+    local candidates=#outside>0 and outside or inside
+    table.sort(candidates,function(a,b)
+        if a.distance==b.distance then return a.guid<b.guid end
+        return a.distance<b.distance
+    end)
+    if #candidates>0 then
+        gStates.manaClaimHeldDice[candidates[1].guid]={
+            seatPos=player.seatPos,round=gStates.currentRound}
+        if #candidates>1 then
+            safeBroadcastToColor("Mana Claim: retained the nearest basic-colour Source die. Move the claimed die nearest the Spell to select a different one next time.",
+                positionToColor(playerIndex),{1,0.6,0.1})
+        end
+    end
+end
+
 local function combatReturnPreEndTurnDie(cleanupPlayer,diceGUID)
 	gStates.coopAssaultDice=gStates.coopAssaultDice or {}
 	gStates.coopAssaultDice[#gStates.coopAssaultDice+1]=diceGUID
@@ -24085,6 +24152,17 @@ local function combatReturnPreEndTurnDie(cleanupPlayer,diceGUID)
 	gStates.coopAssaultDice={}
 end
 
+-- Return all claimed Source dice before the new round's Source reroll.
+function manaClaimReturnHeldDice()
+    if gStates==nil or gStates.manaClaimHeldDice==nil then return end
+    local held=gStates.manaClaimHeldDice
+    gStates.manaClaimHeldDice=nil
+    for guid in pairs(held) do
+        local die=getObjectFromGUID(guid)
+        if die~=nil and die.type=="Dice" then combatReturnPreEndTurnDie(nil,guid) end
+    end
+end
+
 local function combatPreEndTurnPreparePlayArea(cleanupPlayer,recovery)
 	--locate discard deck
 	local cardDestination=nil
@@ -24096,6 +24174,7 @@ local function combatPreEndTurnPreparePlayArea(cleanupPlayer,recovery)
 	combatReleaseAllSummonedEnemies()
 	--separate any decks and possessed tokens found. Unit Area monsters use the same combat cleanup path.
 	local combatObjects=playerCombatObjects(turnOrder[cleanupPlayer].seatPos)
+	manaClaimRegisterForTurn(cleanupPlayer)
 	if recovery~=nil and recovery.playAreaPrepared==true then return cardDestination,#combatObjects>0 and 40 or 0 end
 	local tokenWait=0
 	for _, playAreaObj in pairs(combatObjects) do
@@ -24265,7 +24344,7 @@ local function combatCleanupPreEndTurnUnitArea(cleanupPlayer,recovery)
 	local unitAreaObjects=getObjectFromGUID(playerUnitAreas[turnOrder[cleanupPlayer].seatPos]).getObjects()
 	for _, unitAreaObj in pairs(unitAreaObjects) do
 		--Return any Mana dice
-		if unitAreaObj.type=="Dice" then
+		if unitAreaObj.type=="Dice" and not manaClaimDieHeld(unitAreaObj.guid) then
 			combatReturnPreEndTurnDie(cleanupPlayer,unitAreaObj.guid)
 		end
 		cleanupUnitAreaSkillAtEndTurn(unitAreaObj,cleanupPlayer)
@@ -24329,7 +24408,7 @@ local function combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatRe
 				if playAreaObj==nil then return end
 
 				--Return any Mana dice
-				if playAreaObj.type=="Dice" then
+				if playAreaObj.type=="Dice" and not manaClaimDieHeld(playAreaObj.guid) then
 					combatReturnPreEndTurnDie(cleanupPlayer,playAreaObj.guid)
 				end
 
@@ -29216,6 +29295,7 @@ __bundle_register("PlayingGame.CallOffer", function(require, _LOADED, __bundle_r
 local SPELL_GUID="2eb8e8"
 local excluded={["0a2e0b"]=true,["d8e49b"]=true,["9c5c38"]=true,["5c2da0"]=true}
 local transferSerial=0
+local spellMoveSerial=0 -- Invalidate stale leave-zone checks during drag/rearrangement.
 
 local function previewState()
     return gStates~=nil and gStates.callOfferPreview or nil
@@ -29236,7 +29316,7 @@ end
 
 local function cleanButtons(unit,removeResources)
     if unit==nil then return end
-    local xml=unit.UI.getXmlTable() or {}
+    local xml=resourceObjectUiXmlTable(unit.UI)
     local changed=false
     for i=#xml,1,-1 do
         local attrs=xml[i].attributes
@@ -29248,9 +29328,7 @@ local function cleanButtons(unit,removeResources)
             changed=true
         end
     end
-    -- Passing {} to TTS UI.setXmlTable raises "table was null".
-    -- Match the existing Unit-choice cleanup convention for empty Object UI.
-    if changed then unit.UI.setXmlTable(#xml>0 and xml or {{}}) end
+    if changed then resourceObjectUiSetTable(unit.UI,xml) end
 end
 
 local function restoreUnit(state,immediate)
@@ -29308,8 +29386,16 @@ local function showControls(state,guid,serial)
     local unit=getObjectFromGUID(guid)
     if unit==nil or previewState()~=state or state.unitGUID~=guid
         or transferSerial~=serial then return end
-    cleanButtons(unit,false)
-    local xml=unit.UI.getXmlTable() or {}
+    local xml=resourceObjectUiXmlTable(unit.UI)
+    -- Replace the browser's own arrows in one XML update. Clearing to {{}}
+    -- and then immediately appending nodes can leave an invalid placeholder.
+    for i=#xml,1,-1 do
+        local attrs=xml[i].attributes
+        if attrs~=nil and type(attrs.id)=="string"
+            and attrs.id:sub(1,17)=="CallOfferControl_" then
+            table.remove(xml,i)
+        end
+    end
     -- Rotate the parent Button, not its child Image: TTS object UI ignores
     -- child Image rotation in this layout. Up/Down become left/right at 90 degrees.
     local images={"Overkill Down","Overkill Up"}
@@ -29331,8 +29417,38 @@ local function showControls(state,guid,serial)
     -- Object-attached UI has its own image registry. Passing these existing
     -- assets prevents an unregistered-image white square on moved Unit cards.
     local assets=resourceCardsExistingImageAssetsFor(unit.UI,images)
-    if assets~=nil then unit.UI.setXmlTable(xml,assets)
-    else unit.UI.setXmlTable(xml) end
+    resourceObjectUiSetTable(unit.UI,xml,assets)
+end
+
+-- Other UI owners (notably the Resource Tracker's zone-exit refresh) may
+-- replace a Unit's XML while it is being moved. Reinstate the browser controls
+-- only if missing, leaving existing Unit choices and target buttons untouched.
+function callOfferEnsureControls(seatPos)
+    local state=previewState()
+    if state==nil or state.unitGUID==nil
+        or (seatPos~=nil and state.seatPos~=seatPos) then return end
+    local spell=getObjectFromGUID(state.spellGUID)
+    local unit=getObjectFromGUID(state.unitGUID)
+    if spell==nil or spell.is_face_down==true or unit==nil
+        or inZone(unit.guid,playerUnitAreas[state.seatPos]) then return end
+    local previous,nextButton=false,false
+    for _,node in ipairs(unit.UI.getXmlTable() or {}) do
+        local id=node.attributes~=nil and node.attributes.id or nil
+        if id=="CallOfferControl_"..unit.guid.."_previous" then previous=true
+        elseif id=="CallOfferControl_"..unit.guid.."_next" then nextButton=true end
+    end
+    if not previous or not nextButton then
+        showControls(state,unit.guid,transferSerial)
+    end
+end
+
+-- The preview card's placement is independent of the Spell after the first borrow.
+-- Keep the latest user-chosen spot when the player browses other Units.
+local function rememberDisplayedUnit(state)
+    local unit=state~=nil and state.unitGUID~=nil and getObjectFromGUID(state.unitGUID) or nil
+    if unit~=nil then
+        state.display={position=vector(unit.getPosition()),rotation=vector(unit.getRotation())}
+    end
 end
 
 local function borrow(state,index)
@@ -29342,6 +29458,9 @@ local function borrow(state,index)
     if unit==nil or spell==nil then return false end
     if not inZone(guid,GUID.zone.unitOffer) then return false end
     local pos=vector(spell.getPosition())
+    local display=state.display or {
+        position={pos[1]+3.9,math.max(1.8,pos[2]+0.35),pos[3]},
+        rotation={0,180,0}}
     state.index=index
     state.unitGUID=guid
     state.home={position=vector(unit.getPosition()),
@@ -29350,15 +29469,26 @@ local function borrow(state,index)
     local serial=transferSerial
     unit.unlock()
     unit.setScale({1.5,1,1.5})
-    -- Stay alongside the actual played Spell, in its owner's play area.
-    unit.setPositionSmooth({pos[1]+3.9,math.max(1.8,pos[2]+0.35),pos[3]},false,false)
-    unit.setRotationSmooth({0,180,0},false,false)
-    safeWaitCondition("Offers.CallOffer",function()
-        showControls(state,guid,serial)
-    end,function()
+    -- A new selection occupies the last manually chosen display location.
+    -- Moving the Spell later does not drag the Unit or reset its layout.
+    unit.setPositionSmooth(display.position,false,false)
+    unit.setRotationSmooth(display.rotation,false,false)
+    -- Show navigation immediately. A card placed over another card can take
+    -- several seconds to settle; waiting to create ALL controls left the next
+    -- Unit without buttons if physics never reported resting in that window.
+    showControls(state,guid,serial)
+    local function refreshSettled()
+        if previewState()~=state or state.unitGUID~=guid
+            or transferSerial~=serial then return end
+        callOfferEnsureControls(state.seatPos)
+        -- Recalculate after arrival as well as at selection time. Otherwise a
+        -- scan during movement can cache missing ability/target buttons.
+        if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
+    end
+    safeWaitCondition("Offers.CallOffer",refreshSettled,function()
         local live=getObjectFromGUID(guid)
         return live==nil or (live.resting and live.isSmoothMoving()==false)
-    end,8)
+    end,8,refreshSettled)
     if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
     return true
 end
@@ -29373,6 +29503,7 @@ local function selectRelative(state,delta)
         local guid=state.order[index]
         if present[guid]==true and excluded[guid]~=true
             and guid~=state.unitGUID then
+            rememberDisplayedUnit(state)
             restoreUnit(state,false)
             borrow(state,index)
             return
@@ -29395,6 +29526,9 @@ publishPublicUICallbacks({
 -- Only a genuine, played Spell creates a temporary offer display.
 function callOfferSpellEntered(spellGUID,seatPos)
     if spellGUID~=SPELL_GUID or seatPos==nil or gStates==nil then return end
+    -- Moving the already-used Spell must never grant a second Call to Glory.
+    -- This saved flag is independent of the preview (which ends on recruitment).
+    if gStates.callOfferGloryClaimed==true then return end
     local spell=getObjectFromGUID(SPELL_GUID)
     if spell==nil or not inZone(SPELL_GUID,playerPlayAreas[seatPos]) then return end
     if spell.is_face_down==true then
@@ -29416,11 +29550,20 @@ function callOfferSpellEntered(spellGUID,seatPos)
     if not borrow(state,1) then gStates.callOfferPreview=nil end
 end
 
--- Explicitly reevaluate after flips/drops; a face-down spell is always inert.
+-- Explicitly reevaluate only after the Spell has finished moving. A zone
+-- exit during drag is not evidence that the Spell has been discarded.
 function callOfferSpellChanged()
     if gStates==nil then return end
     local spell=getObjectFromGUID(SPELL_GUID)
-    if spell==nil or spell.is_face_down==true then
+    if spell~=nil and (spell.held_by_color~=nil or spell.resting~=true
+        or spell.isSmoothMoving()==true) then return end
+    if spell==nil then
+        callOfferClose(false)
+        gStates.callOfferGloryClaimed=nil
+        return
+    end
+    if spell.is_face_down==true then
+        -- A face-down Spell is inert, but flipping it does not undo recruitment.
         callOfferClose(false)
         return
     end
@@ -29432,20 +29575,43 @@ function callOfferSpellChanged()
             return
         end
     end
+    -- Clear the one-use latch only once the Spell truly leaves the play area.
     callOfferClose(false)
+    gStates.callOfferGloryClaimed=nil
+end
+
+-- A held card may briefly leave/re-enter a Scripting Zone. Wait for a real
+-- settled destination and let newer pickup/drop/flip events cancel stale checks.
+function callOfferSpellPickedUp()
+    spellMoveSerial=spellMoveSerial+1
+end
+
+function callOfferScheduleSpellCheck()
+    spellMoveSerial=spellMoveSerial+1
+    local serial=spellMoveSerial
+    safeWaitFrames("Offers.CallOffer",function()
+        if serial~=spellMoveSerial then return end
+        safeWaitCondition("Offers.CallOffer",function()
+            safeWaitFrames("Offers.CallOffer",function()
+                if serial==spellMoveSerial then callOfferSpellChanged() end
+            end,3)
+        end,function()
+            if serial~=spellMoveSerial then return true end
+            local spell=getObjectFromGUID(SPELL_GUID)
+            return spell==nil or (spell.held_by_color==nil
+                and spell.resting==true and spell.isSmoothMoving()==false)
+        end,8)
+    end,2)
 end
 
 function callOfferSpellLeft(spellGUID,seatPos)
+    if spellGUID~=SPELL_GUID then return end
     local state=previewState()
-    if spellGUID~=SPELL_GUID or state==nil or state.seatPos~=seatPos then return end
-    -- Picking up and re-arranging the Spell must not destroy the browser.
-    safeWaitCondition("Offers.CallOffer",function()
-        if not inZone(SPELL_GUID,playerPlayAreas[seatPos]) then callOfferClose(false) end
-    end,function()
-        local spell=getObjectFromGUID(SPELL_GUID)
-        return spell==nil or (spell.held_by_color==nil
-            and spell.resting and spell.isSmoothMoving()==false)
-    end,8)
+    -- Recruitment removes the preview, not the Spell's one-use history.
+    -- A later genuine exit must still release the completion latch.
+    if (state==nil or state.seatPos~=seatPos)
+        and (gStates==nil or gStates.callOfferGloryClaimed~=true) then return end
+    callOfferScheduleSpellCheck()
 end
 
 function callOfferBorrowedUnitForSeat(seatPos)
@@ -29465,8 +29631,17 @@ function callOfferObjectDropped(obj)
     safeWaitCondition("Offers.CallOffer",function()
         local current=previewState()
         if current==nil or current.unitGUID~=guid then return end
-        if not inZone(guid,playerUnitAreas[current.seatPos]) then return end
+        if not inZone(guid,playerUnitAreas[current.seatPos]) then
+            -- Repositioning the borrowed Unit is NOT recruitment. Keep its
+            -- controls, combat links and new browsing position intact.
+            rememberDisplayedUnit(current)
+            callOfferEnsureControls(current.seatPos)
+            return
+        end
         transferSerial=transferSerial+1
+        -- The player has recruited this physical Unit with Call to Glory.
+        -- Keep the Spell consumed even though its transient browser is gone.
+        gStates.callOfferGloryClaimed=true
         current.unitGUID=nil
         if resourceUnitsBorrowedUnitEnded~=nil then resourceUnitsBorrowedUnitEnded(guid) end
         cleanButtons(getObjectFromGUID(guid),true)
@@ -29480,6 +29655,8 @@ end
 
 function callOfferRestoreOnLoad()
     local state=previewState()
+    -- This is saved separately from the preview. Do not spawn a replacement
+    -- after loading a game in which the Unit was already recruited.
     if state==nil then return end
     local unit=state.unitGUID~=nil and getObjectFromGUID(state.unitGUID) or nil
     local spell=getObjectFromGUID(SPELL_GUID)
@@ -46008,6 +46185,8 @@ local crystalHighlightCleared={}
 local bySeat={}
 -- Initial guesses and explicit player choices are transient, never saved in gStates or JSON.
 local selectedResourceByGUID={}
+-- Retain the chosen crystal-pair Attack after Sacrifice converts the pairs to mana.
+-- Uses combatConfig.sacrificeCastPairs to avoid Lua 5.2's 200-local module limit.
 -- A choice lasts for one play; delayed departure checks must not race a return.
 local choiceResetGenerationByGUID={}
 -- Display state is separate from player selections. Picks/drops may clear the
@@ -46099,6 +46278,7 @@ end
 -- Keep combat constants in one private table: luabundle adds four parameters
 -- to each module, which also count toward Lua 5.2's 200 active-local limit.
 local combatConfig={}
+combatConfig.sacrificeCastPairs={}
 combatConfig.enemyDefenceTraits={
     {"fortified","Fortified"},{"unfortified","Unfortified"},{"elusive","Elusive"},
     {"arcaneImmunity","Arcane Immunity"},{"pResist","Physical Resist"},
@@ -46310,6 +46490,8 @@ local function combatAssignmentSources(seat)
                         swiftDouble=record.swiftDouble==true,defeatFameRep=record.defeatFameRep,
                         heroPsychicBlock=scan~=nil and scan.heroPsychicBlock==true and record.kind~="unit",
                         repeatBlocks=record.repeatBlocks,kind=record.kind,
+                        conditionalFireAttack=record.conditionalFireAttack,
+                        flameWave=record.flameWave,
                         possessExclude=record.possessEnemyGUID,
                         dueling=guid=="7d1c32"}
                     parts[slot]=source
@@ -46562,7 +46744,9 @@ local function combatEnemyAttacks(entry)
     local attacks=combatEnemyPrintedAttacks(entry.data,entry.perks,entry.removeAbilities,entry.guid)
     if entry.data.monsters~=nil then
         for _,summoned in ipairs(entry.summoned or {}) do
-            if not combatSummonedAttackPrevented(summoned) then
+            if not combatSummonedAttackPrevented(summoned)
+                and not (entry.summonedDestroyed~=nil
+                    and entry.summonedDestroyed[summoned.guid]==true) then
                 local strip=summoned.effect~=nil and summoned.effect.removeAbilities==true
                 local summonedAttacks=combatEnemyPrintedAttacks(summoned.data,summoned.perks,strip,summoned.guid)
                 combatConfig.convertPreyAttacks(summonedAttacks,summoned.effect)
@@ -47256,8 +47440,23 @@ local function combatBlockResult(entry,sources)
     end
     local key=table.concat(parts,";")
     local cached=entry.guid~=nil and combatBlockResultCache[entry.guid] or nil
-    if cached~=nil and cached.key==key then return table.unpack(cached.result,1,7) end
+    if cached~=nil and cached.key==key then return table.unpack(cached.result,1,9) end
     local plan,solved,leftover=combatSolveBlocks(attacks,items,movePool)
+    -- Capture the genuinely spent Block sources before spare Block display
+    -- items are appended to the plan, or a free counterattack can result.
+    local successfulSources,successfulOwners={},{}
+    for index,attack in ipairs(attacks) do
+        if plan[index]~=nil and plan[index].blocked and not attack.pending then
+            for j,item in ipairs(solved) do
+                if plan[index].used[j] and item.key:sub(1,5)=="block" then
+                    successfulSources[item.source.guid]=true
+                    local owners=successfulOwners[item.source.guid] or {}
+                    owners[attack.owner or entry.guid]=true
+                    successfulOwners[item.source.guid]=owners
+                end
+            end
+        end
+    end
     -- Resources that could not complete any block are shown against the heaviest unblocked attack, once each.
     -- When every attack is blocked, spare Block is shown as over-blocking the heaviest attack.
     local attempted=nil
@@ -47313,9 +47512,11 @@ local function combatBlockResult(entry,sources)
     end
     if entry.guid~=nil then
         combatBlockResultCache[entry.guid]={key=key,result={
-            lines,totalDamage,damageCount,allBlocked,reductions,wrongBlock,unblocked}}
+            lines,totalDamage,damageCount,allBlocked,reductions,wrongBlock,unblocked,
+            successfulSources,successfulOwners}}
     end
-    return lines,totalDamage,damageCount,allBlocked,reductions,wrongBlock,unblocked
+    return lines,totalDamage,damageCount,allBlocked,reductions,wrongBlock,unblocked,
+        successfulSources,successfulOwners
 end
 
 -- Damage phase. Every unblocked attack starts wholly on the Hero; the player may route it through free Units first
@@ -47432,8 +47633,9 @@ local function combatUnitResists(unit,attackKey)
 end
 
 -- items: {key,type,damage,poison,paralyse,assassination} in resolution order; targetsOf(key) lists the Unit GUIDs the player chose.
-local function combatDamageResolve(items,units,heroArmour,targetsOf,mitigation,elementMitigation)
+local function combatDamageResolve(items,units,heroArmour,targetsOf,mitigation,elementMitigation,ignoreFirstHeroWound)
     local used,results={},{}
+    local firstHeroWoundIgnored=false
     -- Reserve a Unit required to receive its own protected enemy's damage first.
     -- An earlier, unrelated enemy must not consume that Unit before its forced assignment.
     local reserved={}
@@ -47507,6 +47709,13 @@ local function combatDamageResolve(items,units,heroArmour,targetsOf,mitigation,e
         if remaining>0 then
             result.heroDamage=remaining
             result.heroWounds=math.ceil(remaining/math.max(1,heroArmour))
+            if ignoreFirstHeroWound==true and not firstHeroWoundIgnored and result.heroWounds>0 then
+                -- Veil of Mist ignores one hero Wound for the whole turn, not one per attack.
+                -- The ignored Wound also has no Poison/Paralyse side effects.
+                firstHeroWoundIgnored=true
+                result.heroWounds=result.heroWounds-1
+                result.veilWoundIgnored=true
+            end
             if item.poison then result.discard=result.heroWounds end
         end
         result.paralyse=item.paralyse==true and result.heroWounds>0
@@ -47542,6 +47751,7 @@ local function combatDamageNotes(item,result)
     if result.discard>0 then
         distribution=distribution.." Poison ("..tostring(result.discard)..")"
     end
+    if result.veilWoundIgnored then distribution=distribution.." (Veil of Mist: 1 Wound ignored)" end
     local notes={distribution}
     if (result.prevented or 0)>0 then
         notes[#notes+1]="Battle Hardened: -"..tostring(result.prevented).." Hero damage"
@@ -47897,7 +48107,9 @@ combatConfig.effectButtonInfo=function(entry,applied)
         amount="-"..tostring(math.max(printed,appliedReduction))
         description="Armour reduction "..amount
         if appliedReduction==0 then
-            reason=applied.immune and "Arcane Immunity ignores this Armour effect."
+            reason=applied.fireResistant and "Fire Resistance ignores this red Spell effect."
+                or (applied.iceResistant and "Ice Resistance ignores this blue Spell effect.")
+                or (applied.immune and "Arcane Immunity ignores this Armour effect.")
                 or "This Armour reduction is not applicable to the target."
         elseif before<=after then reason="Armour is already at its minimum of 1 (or other effects have reached it)."
         elseif fortified and (tonumber(spec.armourReduceRangedUnfortifiedOnly) or 0)>0 then
@@ -47941,7 +48153,11 @@ combatConfig.effectButtonInfo=function(entry,applied)
             or {"fResist"}) do
             if combatEnemyHasTrait(entry.data,entry.perks,trait) then relevant=true end
         end
-        if (spec.removeResist and actual.removeResist~=true)
+        if applied.iceResistant then
+            reason="Ice Resistance ignores this blue Spell effect."
+        elseif applied.fireResistant then
+            reason="Fire Resistance ignores this red Spell effect."
+        elseif (spec.removeResist and actual.removeResist~=true)
             or (spec.removeFireResist and actual.removeFireResist~=true) then
             reason="Arcane Immunity ignores this resistance effect."
         elseif not relevant then reason="The enemy has no applicable Resistance." end
@@ -47953,14 +48169,20 @@ combatConfig.effectButtonInfo=function(entry,applied)
         if spec.insufficientMove then
             reason="Not enough unspent Move points for this Wings of Night target."
         elseif not actual.noAttack and not actual.noAttackUnfortified then
-            reason="Arcane Immunity ignores this prevention effect."
+            reason=applied.iceResistant and "Ice Resistance ignores this blue Spell effect."
+                or (applied.fireResistant and "Fire Resistance ignores this red Spell effect.")
+                or "Arcane Immunity ignores this prevention effect."
         elseif spec.noAttackUnfortified and fortified then
             reason="The target is still Fortified."
         elseif #combatEnemyPrintedAttacks(entry.data,entry.perks,entry.removeAbilities,entry.guid)==0 then
             reason="The enemy has no attack to prevent." end
     elseif spec.destroyIfBlocked==true then
-        description="Destroy if Blocked"
-        if entry.destroyed~=true then reason="The attack is not fully blocked, so the enemy is not destroyed." end
+        description="Destroy if this Spell successfully Blocks an attack"
+        if applied.fireResistant then reason="Fire Resistance prevents this destruction."
+        elseif applied.immune then reason="Arcane Immunity prevents this destruction."
+        elseif entry.destroyed~=true then
+            reason="This Fire Block has not been used in a successful Block."
+        end
     elseif spec.removeAbilities==true then
         description="Remove Attack Abilities"
         if actual.removeAbilities~=true then reason="Arcane Immunity ignores this effect." end
@@ -47970,7 +48192,8 @@ combatConfig.effectButtonInfo=function(entry,applied)
     elseif spec.destroyDuringAttack==true then
         description="Destroy enemy during Attack phase"
         if actual.destroyDuringAttack~=true then
-            reason="Arcane Immunity prevents this destruction."
+            reason=applied.fireResistant and "Fire Resistance prevents this destruction."
+                or "Arcane Immunity prevents this destruction."
         end
     end
     local source=getObjectFromGUID(applied.source)
@@ -48368,13 +48591,77 @@ local function combatAssignmentRefreshRows(entries,sources)
         end
     end
 
+    -- Flame Wave counts only enemies still faced in the Block/Attack phase.
+    -- Resolve the Ranged/Siege preview (including Defender) first: summoned
+    -- tokens and attack-only reminders are already excluded from entries.
+    local flameWaveActive=false
+    for _,source in ipairs(sources) do
+        if source.flameWave then flameWaveActive=true break end
+    end
+    if flameWaveActive then
+        local preview={}
+        for i,entry in ipairs(entries) do
+            local copy={}
+            for key,value in pairs(entry) do copy[key]=value end
+            preview[i]=copy
+        end
+        combatApplyDefend(preview,groups,allocated)
+        local remaining=0
+        for _,group in ipairs(groups) do
+            local members,rangeSources={},{}
+            for _,index in ipairs(group.members) do
+                members[#members+1]=preview[index]
+                for _,source in ipairs((allocated[index] or {sources={}}).sources) do
+                    rangeSources[#rangeSources+1]=source
+                end
+            end
+            local _,_,rangeDefeated=combatRangeResult(combatRangeGroupEntry(members),rangeSources)
+            if not rangeDefeated then
+                for _,member in ipairs(members) do
+                    if not member.attackOnly and not member.destroyed then
+                        remaining=remaining+1
+                    end
+                end
+            end
+        end
+        for _,source in ipairs(sources) do
+            if source.flameWave then
+                local key=source.resources.attackFire~=nil and "attackFire"
+                    or (source.resources.blockFire~=nil and "blockFire" or nil)
+                if key~=nil then
+                    local base=key=="attackFire" and 5 or 7
+                    local amount=base+2*remaining
+                    local previous=source.resources[key] or 0
+                    local family=key=="attackFire" and "attack" or "block"
+                    source.resources[key]=amount
+                    source[family]=source[family]-previous+amount
+                    for _,detail in ipairs(source.details) do
+                        if detail.key==key then
+                            detail.amount=amount
+                            detail.text=(family=="attack" and "Fire Attack " or "Fire Block ")
+                                ..tostring(amount)
+                        end
+                    end
+                end
+            end
+        end
+    end
+
     -- Complete the Ranged/Siege phase BEFORE resolving any "destroyed if
     -- blocked" effect. A preview uses shallow copies so Defender bonuses
     -- cannot be applied twice to the actual combat entries.
     local rangedBeforeBlock=nil
     local hasConditional=false
     for _,entry in ipairs(entries) do
-        if entry.destroyIfBlocked and not entry.destroyed then hasConditional=true break end
+        if not entry.destroyed then
+            for _,applied in ipairs(entry.effect~=nil and entry.effect.applied or {}) do
+                if applied.spec~=nil and applied.spec.destroyIfBlocked==true then
+                    entry.explodePending=true
+                    hasConditional=true
+                    break
+                end
+            end
+        end
     end
     if hasConditional then
         local preview={}
@@ -48404,7 +48691,7 @@ local function combatAssignmentRefreshRows(entries,sources)
     local conditionalDestroyed=false
     for index=1,#entries do
         local entry=entries[index]
-        if entry.destroyIfBlocked and not entry.destroyed
+        if entry.explodePending and not entry.destroyed
             and (rangedBeforeBlock==nil or rangedBeforeBlock[index]~=true) then
             local hasAttack=false
             for _,attack in ipairs(combatEnemyAttacks(entry)) do
@@ -48412,8 +48699,41 @@ local function combatAssignmentRefreshRows(entries,sources)
             end
             if hasAttack then
                 local target=allocated[index]
-                local _,_,_,allBlocked=combatBlockResult(entry,target~=nil and target.sources or {})
-                if allBlocked then entry.destroyed=true conditionalDestroyed=true end
+                local _,_,_,_,_,_,_,successfulSources,successfulOwners=
+                    combatBlockResult(entry,target~=nil and target.sources or {})
+                local explodedEnemy=false
+                for _,applied in ipairs(entry.effect~=nil and entry.effect.applied or {}) do
+                    if applied.spec~=nil and applied.spec.destroyIfBlocked==true
+                        and successfulSources[applied.source]==true then
+                        for owner in pairs(successfulOwners[applied.source] or {}) do
+                            local token=owner==entry.guid and entry.data or monsterPugs[owner]
+                            local perks=owner==entry.guid and entry.perks
+                                or (gStates~=nil and gStates.monsterPerks~=nil
+                                    and gStates.monsterPerks[owner] or nil)
+                            -- Immunity belongs to the actual blocked token,
+                            -- not to its summoner (which may have different traits).
+                            local immune=token==nil
+                                or combatEnemyHasTrait(token,perks,"arcaneImmunity")
+                                or combatEnemyHasTrait(token,perks,"fResist")
+                            if not immune and owner==entry.guid then
+                                -- One successful Attack Block suffices even if
+                                -- the token has other, unblocked attacks.
+                                explodedEnemy=true
+                            else
+                                -- A blocked summoned monster is destroyed, NOT
+                                -- its summoner, and never earns Fame by itself.
+                                for _,summoned in ipairs(entry.summoned or {}) do
+                                    if not immune and summoned.guid==owner then
+                                        entry.summonedDestroyed=entry.summonedDestroyed or {}
+                                        entry.summonedDestroyed[owner]=true
+                                        break
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+                if explodedEnemy then entry.destroyed=true conditionalDestroyed=true end
             end
         end
     end
@@ -48457,12 +48777,26 @@ local function combatAssignmentRefreshRows(entries,sources)
         for _,index in ipairs(group.members) do
             local entry=entries[index]
             local target=allocated[index] or emptyTarget
-            local lines,damage,count,allBlocked,reductions,wrongBlock,unblocked=combatBlockResult(entry,target.sources)
+            local lines,damage,count,allBlocked,reductions,wrongBlock,unblocked,successfulSources=
+                combatBlockResult(entry,target.sources)
             rowBlock[index]={lines=lines,damage=damage,count=count,allBlocked=allBlocked,reductions=reductions,
                 wrongBlock=wrongBlock,unblocked=unblocked,damageItems={}}
             blockedAll[entry.guid]=allBlocked
             members[#members+1]=entry
-            for _,source in ipairs(target.sources) do group.sources[#group.sources+1]=source end
+            for _,source in ipairs(target.sources) do
+                if source.conditionalFireAttack~=nil
+                    and successfulSources[source.guid]==true then
+                    local amount=source.conditionalFireAttack
+                    source.resources.attackFire=(source.resources.attackFire or 0)+amount
+                    source.attack=source.attack+amount
+                    local detail={text="Fire Attack "..tostring(amount).." (successful Block)",
+                        amount=amount,icon="MKChoiceAttack",key="attackFire",
+                        family="attack",typeKey="F"}
+                    source.details[#source.details+1]=detail
+                    target.details[#target.details+1]={source=source,detail=detail}
+                end
+                group.sources[#group.sources+1]=source
+            end
         end
         group.entry,group.attackArmour=combatGroupEntry(members,blockedAll)
         group.rangeTotal,group.rangeArmour,group.rangeDefeated,group.fortification=
@@ -48569,7 +48903,7 @@ local function combatAssignmentRefreshRows(entries,sources)
     end
     local damageResults=combatDamageResolve(damageItems,damageUnits,
         combatHeroArmour(nativeCommandCount),attackAssignmentsDamageTargetsOf,
-        mitigation,elementMitigation)
+        mitigation,elementMitigation,seatScan~=nil and seatScan.heroFirstWoundIgnored==true)
 
     -- Vampiric gains Armor for Wounds added to the Hero's hand and for each
     -- Unit its own non-Psychic attacks wound. Poison's extra discard/Unit
@@ -48749,11 +49083,16 @@ local function combatAssignmentRefreshRows(entries,sources)
     local trackedGuids,defeatedGuids={},{}
     for _,group in ipairs(groups) do
         for _,index in ipairs(group.members) do
-            local guid=entries[index].guid
-            if not entries[index].attackOnly and not entries[index].preview then
+            local entry=entries[index]
+            local guid=entry.guid
+            if not entry.attackOnly and not entry.preview then
                 trackedGuids[guid]=true
                 if group.defeated or (not group.rangeDefeated
-                    and entries[index].attackPhaseDestroyed) then defeatedGuids[guid]=true end
+                    and entry.attackPhaseDestroyed) then defeatedGuids[guid]=true end
+                for summonedGUID in pairs(entry.summonedDestroyed or {}) do
+                    trackedGuids[summonedGUID]=true
+                    defeatedGuids[summonedGUID]=true
+                end
             end
         end
     end
@@ -49125,6 +49464,19 @@ local function refreshCombatEnemyPanel(monsters,calculated)
     local currentSeat=combatAssignmentActiveSeat()
     local seatScan=currentSeat~=nil and resourceCardScanBySeat[currentSeat] or nil
     local enemyEffects=seatScan~=nil and seatScan.enemyEffects or nil
+    -- Ignore site/wall Fortified, but preserve the monster's printed Fortified.
+    if seatScan~=nil and seatScan.ignoreSiteFortifications==true then
+        for _,entry in ipairs(entries) do
+            local perks=entry.perks
+            if perks~=nil and (perks.fortified==true or perks.wallFortified==true) then
+                local adjusted={}
+                for key,value in pairs(perks) do adjusted[key]=value end
+                adjusted.fortified=false
+                adjusted.wallFortified=false
+                entry.perks=adjusted
+            end
+        end
+    end
     for _,entry in ipairs(entries) do
         local obj=getObjectFromGUID(entry.guid)
         entry.x=obj~=nil and obj.getPosition()[1] or 0
@@ -49733,6 +50085,7 @@ local choiceLetters={attackP1="A",attackP2="A2",attackP3="A3",
     heal="H",combat="C",wound="W",fame="F",reputation="R",gain="G",ready="R",
     base="2",sourceUnused="3",red="R",blue="B",white="W",green="G",
     fireAttack="F",fireBlock="F",fireSiege="F",iceSiege="I",fireBlockOnly="B",fireBlockCounter="B+",
+    woundPending="W?",woundTaken="W✓",
     splitBlock="B2",zero="0",one="1",two="2",three="3",four="4",five="5"}
 -- The choice UI and initial-guess tie-breaks follow the Resource Tracker order.
 local resourceChoiceOrder={
@@ -49888,6 +50241,8 @@ local function trackerChoiceScores(guid,seatPos)
 end
 
 local function guessInitialCardChoice(card,choices,seatPos,rule,sideways)
+    -- A Wound-paid spell must be confirmed by the player, never guessed.
+    if rule~=nil and rule.woundConfirmation==true and not sideways then return end
     if selectedResourceByGUID[card.guid]~=nil or choices==nil or #choices<2
         or card.is_face_down==true then return end
     local scores=trackerChoiceScores(card.guid,seatPos)
@@ -49929,7 +50284,7 @@ end
 -- Meditation buttons beside the card. Preserve other object UI elements.
 local function removeChoiceButtons(card)
     if card==nil or card.UI==nil then return end
-    local xml=card.UI.getXmlTable() or {}
+    local xml=resourceObjectUiXmlTable(card.UI)
     local changed=false
     for i=#xml,1,-1 do
         local attr=xml[i].attributes
@@ -49940,7 +50295,7 @@ local function removeChoiceButtons(card)
             changed=true
         end
     end
-    if changed then card.UI.setXmlTable(#xml>0 and xml or {{}}) end
+    if changed then resourceObjectUiSetTable(card.UI,xml) end
     choiceButtonShown[card.guid]=nil
 end
 
@@ -50215,7 +50570,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         ..(rule~=nil and rule.forkedLightning
             and (":FL:"..tostring(gStates~=nil and gStates.forkedLightningPhase or "range")) or "")
     if choiceButtonShown[card.guid]==signature then return end
-    local xml=card.UI.getXmlTable() or {}
+    local xml=resourceObjectUiXmlTable(card.UI)
     for i=#xml,1,-1 do
         local attr=xml[i].attributes
         if attr~=nil and type(attr.id)=="string"
@@ -50462,9 +50817,29 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decisi
     local signature="Unit:"..tostring(selected)..":"..tostring(expanded)
         ..":"..table.concat(available,",")..":"..table.concat(selectedKeys,",")
         ..":targets="..table.concat(targetLabels,",")
-    if choiceButtonShown[unit.guid]==signature then return end
+    local xml=resourceObjectUiXmlTable(unit.UI)
+    if choiceButtonShown[unit.guid]==signature then
+        -- TTS object UI is applied asynchronously. After a Call Offer switch,
+        -- the scan may have cached this signature before the buttons really
+        -- appeared on the moving Unit. Recreate only missing controls.
+        local needed={}
+        if hasChoices then
+            for _,index in ipairs(expanded and available or {selected or available[1]}) do
+                needed["ResourceCardChoice_"..unit.guid.."_unit"..index]=true
+            end
+        end
+        if #targetLabels>0 then
+            for _,spec in ipairs(targetSpecs) do
+                needed["AttackAssignmentSource_"..unit.guid.."_0_"..spec.idCategory]=true
+            end
+        end
+        for _,node in ipairs(xml) do
+            local id=node.attributes~=nil and node.attributes.id or nil
+            if id~=nil then needed[id]=nil end
+        end
+        if next(needed)==nil then return end
+    end
 
-    local xml=unit.UI.getXmlTable() or {}
     for i=#xml,1,-1 do
         local attr=xml[i].attributes
         if attr~=nil and type(attr.id)=="string"
@@ -50565,8 +50940,7 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decisi
             },value="",children=children}
         end
     end
-    if assets~=nil then unit.UI.setXmlTable(xml,assets)
-    else unit.UI.setXmlTable(xml) end
+    resourceObjectUiSetTable(unit.UI,xml,assets)
     choiceButtonShown[unit.guid]=signature
 end
 
@@ -51011,6 +51385,9 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
     if defeatSide~=nil and defeatSide.choice~=nil
         and (chosen==nil or choiceCategory(chosen)~=defeatSide.choice) then defeatSide=nil end
     return {guid=card.guid,known=known,complete=complete,powered=powered,fameRep=fameRepSide,
+        conditionalFireAttack=complete and not powered and chosen~=nil
+            and chosen.conditionalFireAttack or nil,
+        flameWave=complete and powered and rule~=nil and rule.poweredEnemyBonus~=nil,
         defeatFameRep=defeatSide,splitTargets=chosen~=nil and chosen.splitTargets or nil,
         repeatBlocks=chosen~=nil and chosen.repeatBlocks or nil,
         links=linked,status=status,resources=effects,
@@ -51202,6 +51579,27 @@ local function manaInsideFootprint(mana,area)
     local p=mana.getPosition()
     return math.abs(p[1]-area.x)<area.halfX
         and math.abs(p[3]-area.z)<area.halfZ
+end
+
+-- Time Bending's extra turn must be usable without opening the Resource Tracker.
+-- Read the physical Blue casting payment and a separate Black strong-side payment;
+-- the mere presence of the Spell in the play area does not establish either.
+function resourceCardsTimeBendingPaid(seatPos,card)
+    if card==nil or card.guid~=GUID.card.timeBending
+        or card.is_face_down==true or cardPosture(card)~="upright"
+        or resourceCardsUsesDayMana() then return false end
+    local zone=seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
+    if zone==nil then return false end
+    local area=footprint(card)
+    local blue,black=false,false
+    for _,mana in ipairs(zone.getObjects()) do
+        if mana.guid~=card.guid and manaInsideFootprint(mana,area)
+            and (manaClaimDieHeld==nil or not manaClaimDieHeld(mana.guid)) then
+            local color=manaColor(mana)
+            if color=="Blue" then blue=true elseif color=="Black" then black=true end
+        end
+    end
+    return blue and black
 end
 
 -- Physical mana is authoritative for a paid Unit ability. It is read from
@@ -51765,7 +52163,8 @@ local function combatEffectTargetEligible(spec)
         or (tonumber(spec.armourReduceFortified) or 0)>0
         or (tonumber(spec.armourReduceByResist) or 0)>0
         or spec.removeFortify==true or spec.removeResist==true
-        or spec.removeFireResist==true or spec.destroy==true)
+        or spec.removeFireResist==true or spec.destroy==true
+        or spec.destroyDuringAttack==true)
     return function(enemy,guid)
         local data=combatEnemyData(guid,enemy)
         return data~=nil and (data.attackOnly~=true or not defenceEffect)
@@ -51863,6 +52262,7 @@ local function renderSeat(seatPos,quietUnitChoice)
     -- rewards have had a chance to remove Fortification in this same scan.
     local deferredUnfortifiedUnitEffects={}
     local unitCombatBoost,preventUnitDamage,allUnitResistances=0,false,false
+    local heroFirstWoundIgnored=false
     local heroPsychicBlock=false
     local hasUnits=false
     for guid,obj in pairs(objects) do
@@ -51877,7 +52277,9 @@ local function renderSeat(seatPos,quietUnitChoice)
             skills[#skills+1]=obj
             footprints[guid]=footprint(obj)
         elseif kind=="mana" then
-            manaObjects[#manaObjects+1]=obj
+            if manaClaimDieHeld==nil or not manaClaimDieHeld(obj.guid) then
+                manaObjects[#manaObjects+1]=obj
+            end
         elseif kind=="unit" then
             -- Unit and Play Areas overlap; placement may be "play" here.
             -- The physical Unit-area snapshot still owns its wound/spent state.
@@ -52085,6 +52487,7 @@ local function renderSeat(seatPos,quietUnitChoice)
     local current,records,totals={}, {}, {}
     local usesCurrentHexBlock=false
     local usesCurrentHexHealing=false
+    local ignoreSiteFortifications=false
     local terrainModifiers=resourceCardsWeatherTerrainEffects(seatPos)
     local movementEffects={jumpTwoSpaces=false,ignoreRampagers=false}
     local usesSkillLocation=false
@@ -52298,24 +52701,45 @@ local function renderSeat(seatPos,quietUnitChoice)
             end
         end
 
-        -- Sacrifice's four variants count physically stored crystal pairs.
-        if rule~=nil and rule.crystalPairAttack~=nil and result.powered
-            and result.resources~=nil and cardPosture(card)=="upright" then
-            local chosen,category=currentChoice(card.guid,true,rule.poweredChoices)
-            local colors=rule.crystalPairAttack[category]
-            if colors~=nil and chosen~=nil then
-                local pairCount=math.min(inventoryCrystalCounts[colors[1]] or 0,
-                    inventoryCrystalCounts[colors[2]] or 0)
-                result.resources={[category]=(chosen[category] or 0)*pairCount}
-                result.complete=pairCount>0
-                result.status=pairCount>0 and "green" or "blue"
+        -- Sacrifice's pairs become mana, so preserve their Attack after conversion.
+        if rule~=nil and rule.crystalPairAttack~=nil then
+            if result.powered and result.resources~=nil
+                and cardPosture(card)=="upright" and card.is_face_down~=true then
+                local chosen,category=currentChoice(card.guid,true,rule.poweredChoices)
+                local colors=rule.crystalPairAttack[category]
+                if colors~=nil and chosen~=nil then
+                    local available=math.min(inventoryCrystalCounts[colors[1]] or 0,
+                        inventoryCrystalCounts[colors[2]] or 0)
+                    local snapshot=combatConfig.sacrificeCastPairs[card.guid]
+                    if snapshot~=nil and (snapshot.seat~=seatPos or snapshot.category~=category) then
+                        snapshot=nil
+                        combatConfig.sacrificeCastPairs[card.guid]=nil
+                    end
+                    if snapshot==nil and available>0 then
+                        snapshot={seat=seatPos,category=category,pairs=available}
+                        combatConfig.sacrificeCastPairs[card.guid]=snapshot
+                    end
+                    local pairCount=snapshot~=nil and snapshot.pairs or 0
+                    result.resources={[category]=(chosen[category] or 0)*pairCount}
+                    result.complete=pairCount>0
+                    result.status=pairCount>0 and "green" or "blue"
+                    result.sacrificePairs=pairCount
+                end
+            else
+                combatConfig.sacrificeCastPairs[card.guid]=nil
             end
         end
         if rule~=nil and rule.poweredEnemyBonus~=nil and result.powered
             and result.resources~=nil and cardPosture(card)=="upright" then
             local enemyCount=0
-            for _,enemy in pairs(playMonsters) do
-                if enemy.is_face_down~=true then enemyCount=enemyCount+1 end
+            for guid,enemy in pairs(playMonsters) do
+                local data,mode=combatEnemyData(guid,enemy)
+                -- Summons and attack-only reminders are not extra enemy tokens.
+                if enemy.is_face_down~=true and data~=nil
+                    and data.attackOnly~=true and mode~="attackOnly"
+                    and not combatIsSummonedToken(guid) then
+                    enemyCount=enemyCount+1
+                end
             end
             local updated={}
             for category,value in pairs(result.resources) do
@@ -52423,7 +52847,7 @@ local function renderSeat(seatPos,quietUnitChoice)
                                     for guid,monster in pairs(monsters) do
                                         if guid~=target.guid and monster.is_face_down~=true then
                                             combatEffectAdd(enemyEffects,guid,card.guid,
-                                                {armourReduce=spec.othersArmourReduce,all=true})
+                                                {armourReduce=spec.othersArmourReduce,all=true,fireSpell=spec.fireSpell})
                                         end
                                     end
                                 end
@@ -52491,6 +52915,12 @@ local function renderSeat(seatPos,quietUnitChoice)
                 if effect.ignoreRampagers==true then movementEffects.ignoreRampagers=true end
             end
         end
+        -- Demolish removes site fortification independent of enemy Fire Resistance.
+        if rule~=nil and rule.ignoreSiteFortification==true
+            and result.complete and not result.powered and result.resources~=nil
+            and cardPosture(card)=="upright" and card.is_face_down~=true then
+            ignoreSiteFortifications=true
+        end
         -- Conditional combat effects apply only on a paid, upright, actually
         -- played side, never when the card is merely in the zone for display.
         if rule~=nil and result.complete and result.resources~=nil
@@ -52503,6 +52933,9 @@ local function renderSeat(seatPos,quietUnitChoice)
             end
             if rule.poweredUnitResistances==true and result.powered then
                 allUnitResistances=true
+            end
+            if rule.poweredHeroFirstWound==true and result.powered then
+                heroFirstWoundIgnored=true
             end
         end
         -- Fixed components of partially understood cards may be counted; an
@@ -54006,8 +54439,10 @@ local function renderSeat(seatPos,quietUnitChoice)
         attackTransforms=attackTransforms,
         terrainModifiers=terrainModifiers,movementEffects=movementEffects,
         enemyEffects=enemyEffects,fameRepBase=fameRepBase,
+        ignoreSiteFortifications=ignoreSiteFortifications,
         unitState=unitState,preventUnitDamage=preventUnitDamage,
-        allUnitResistances=allUnitResistances,heroPsychicBlock=heroPsychicBlock,
+        allUnitResistances=allUnitResistances,heroFirstWoundIgnored=heroFirstWoundIgnored,
+        heroPsychicBlock=heroPsychicBlock,
         usesCurrentHexBlock=usesCurrentHexBlock,
         usesCurrentHexHealing=usesCurrentHexHealing,
         usesSkillLocation=usesSkillLocation}
@@ -54030,6 +54465,7 @@ local function renderSeat(seatPos,quietUnitChoice)
     end
     for guid in pairs(previous) do
         if current[guid]~=true then
+            combatConfig.sacrificeCastPairs[guid]=nil
             clearHighlight(guid)
             if choiceButtonShown[guid]~=nil and choiceButtonShown[guid]~="hidden" then
                 removeChoiceButtons(getObjectFromGUID(guid))
@@ -54059,6 +54495,10 @@ local function renderSeat(seatPos,quietUnitChoice)
             end
         end
     end
+    -- A borrowed offer Unit is not a normal Unit-zone object. Zone-exit
+    -- tracker refreshes can drop its independent cycling UI during dragging.
+    -- Restore it after all tracker-owned UI writes, without touching resources.
+    if callOfferEnsureControls~=nil then callOfferEnsureControls(seatPos) end
 end
 
 local function queueSeat(seatPos,triggerGUID)
@@ -54416,14 +54856,16 @@ function resourceUnitsBorrowedUnitEnded(guid)
     if activation~=nil and activation.callOffer==true then
         gStates.unitResourceActivations[guid]=nil
     end
-    removeChoiceButtons(getObjectFromGUID(guid))
-    choiceButtonShown[guid]=nil
-    choiceExpandedByGUID[guid]=nil
+    -- Retire the old Unit's combat source first. A failed Object UI update
+    -- must never leave its target arrow behind when Call to Arms cycles.
     combatForgetBorrowedUnitTargets(guid)
     if attackAssignmentsClearForObject~=nil then attackAssignmentsClearForObject(guid) end
     if attackAssignmentsPruneUnitChoiceSources~=nil then
         attackAssignmentsPruneUnitChoiceSources(guid,{})
     end
+    removeChoiceButtons(getObjectFromGUID(guid))
+    choiceButtonShown[guid]=nil
+    choiceExpandedByGUID[guid]=nil
     if resourceCardsPanelOpen() then resourceCardsSourceChanged() end
 end
 
@@ -54801,8 +55243,20 @@ function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec,sourceKey)
     -- button renderer. Numerical resource totals are unaffected by these.
     local requested=spec
     local immune=combatEffectImmune(enemyGUID)
+    local pug=monsterPugs[enemyGUID]
+    local perks=gStates~=nil and gStates.monsterPerks~=nil
+        and gStates.monsterPerks[enemyGUID] or nil
+    local fireResistant=requested.fireSpell==true
+        and ((pug~=nil and pug.fResist==true) or (perks~=nil and perks.fResist==true))
+    local iceResistant=requested.iceSpell==true
+        and ((pug~=nil and pug.iResist==true) or (perks~=nil and perks.iResist==true))
     if spec.insufficientMove==true then
         spec={} -- Keep a red Wings target button, but apply no suppression.
+    elseif fireResistant or iceResistant then
+        -- Elemental Resistance blocks the non-Attack/Block effects of a matching Spell.
+        if fireResistant then entry.fireResistIgnored=true end
+        if iceResistant then entry.iceResistIgnored=true end
+        spec={}
     elseif immune then
         entry.immuneIgnored=true
         spec={removeAbilities=spec.removeAbilities,attackReduce=spec.attackReduce,
@@ -54812,7 +55266,8 @@ function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec,sourceKey)
     if requested.all~=true then
         entry.applied=entry.applied or {}
         entry.applied[#entry.applied+1]={source=sourceGUID,key=sourceKey or sourceGUID,
-            spec=requested,effective=spec,immune=immune}
+            spec=requested,effective=spec,immune=immune,fireResistant=fireResistant,
+            iceResistant=iceResistant}
     end
     local attackAdjust=(tonumber(spec.attackReduce) or 0)-(tonumber(spec.attackIncrease) or 0)
     if attackAdjust~=0 then
@@ -54889,6 +55344,8 @@ function combatEffectReport(seatPos,enemyEffects,quiet)
         if entry.destroyDuringAttack then text=text.." destroyed during Attack" end
         if entry.destroyIfBlocked then text=text.." destroyed if all attacks blocked" end
         if entry.immuneIgnored then text=text.." (Arcane Immunity ignores non-attack effects)" end
+        if entry.fireResistIgnored then text=text.." (Fire Resistance ignores red Spell effects)" end
+        if entry.iceResistIgnored then text=text.." (Ice Resistance ignores blue Spell effects)" end
         parts[#parts+1]=text
     end
     table.sort(parts)
@@ -55055,8 +55512,31 @@ function resourceCardsChoiceAssetsFor(ui,categories)
     return mergeCustomImages(ui,needed)
 end
 
+-- Object UI clearing must use setXml(""), not setXmlTable({}) or
+-- setXmlTable({{}}): TTS rejects an empty table and the placeholder is not
+-- valid XML. All real elements still use the structured setXmlTable API.
+function resourceObjectUiSetTable(ui,xml,assets)
+    if #xml==0 then
+        ui.setXml("")
+    elseif assets~=nil then
+        ui.setXmlTable(xml,assets)
+    else
+        ui.setXmlTable(xml)
+    end
+end
+
 -- Legacy shared artwork also needs registration on object-attached UIs.
 -- Call Offer reuses the exact Up/Down images already used by Scale.lua.
+function resourceObjectUiXmlTable(ui)
+    local valid={}
+    for _,node in ipairs(ui.getXmlTable() or {}) do
+        if type(node)=="table" and type(node.tag)=="string" then
+            valid[#valid+1]=node
+        end
+    end
+    return valid
+end
+
 function resourceCardsExistingImageAssetsFor(ui,names)
     local needed={}
     for _,name in ipairs(names) do
@@ -61927,7 +62407,7 @@ local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
 local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="454"
+local automaticLuaErrorReporterVersion="455"
 
 -- Automatic Lua error reporting, protected callback helpers and diagnostic context builders.
 local automaticLuaZoneContext
@@ -63558,7 +64038,12 @@ cardResourceDefinitions={
     -- Its active ability is independent of numeric Resource Tracker totals.
     spellSpaceBending={normalChoices={{key="other"}},poweredChoices={{key="other"}},
         movementEffects={normal={jumpTwoSpaces=true,ignoreRampagers=true}}},
-    spellFireball={normal={rangedFire=5},powered={siegeFire=8}},
+    -- Firestorm's Wound is an inherent casting cost. The strong-side option
+    -- stays uncounted until the player explicitly confirms taking it.
+    spellFireball={normal={rangedFire=5},woundConfirmation=true,poweredChoices={
+        {key="woundPending",icon="other",tooltip="Firestorm: take 1 Wound before using Siege Fire Attack 8."},
+        {key="woundTaken",siegeFire=8,icon="siege",
+            tooltip="Wound taken: Siege Fire Attack 8 is available."}}},
     spellSnowstorm={normal={rangedIce=5},powered={siegeIce=8}},
     spellExpose={normal={ranged=2},separateEffectTarget=true,
         poweredChoices={{key="fortify",icon="ranged",iconOverlay="Fort",ranged=3},
@@ -63582,10 +64067,12 @@ cardResourceDefinitions={
             colors={Blue="blue",Red="red",White="white",Green="green"}}},
     spellBurningShield={
         normalChoices={{key="fireBlockOnly",blockFire=4,icon="block"},
-            {key="fireBlockCounter",blockFire=4,attackFire=4,icon="block",
+            {key="fireBlockCounter",blockFire=4,conditionalFireAttack=4,icon="block",
                 iconOverlay="✓",iconOverlayColor="#9EEA85",
-                iconOverlayAlignment="UpperRight",iconOverlaySize="54"}},
-        powered={blockFire=4}},
+                iconOverlayAlignment="UpperRight",iconOverlaySize="54",
+                tooltip="Fire Attack 4 only after this Fire Block helps successfully block an attack."}},
+        powered={blockFire=4},
+        enemyEffect={powered={destroyIfBlocked=true,fireSpell=true}}},
     spellOffering={
         normalChoices={{key="other"}},
         poweredChoices={
@@ -63600,7 +64087,7 @@ cardResourceDefinitions={
         crystalPairAttack={siegeFire={"Green","Red"},siegeIce={"Green","Blue"},
             rangedFire={"White","Red"},rangedIce={"White","Blue"}}},
     spellMistForm={normal={move=4},poweredChoices={{key="other"}},
-        poweredUnitResistances=true,
+        poweredUnitResistances=true,poweredHeroFirstWound=true,
         terrainEffects={normal={
             {mode="set",terrains={plains=true,forest=true,wasteland=true,
                 desert=true,swamp=true,lake=true},cost=2},
@@ -63615,8 +64102,8 @@ cardResourceDefinitions={
     spellWhirlwind={normalChoices={{key="other"}},poweredChoices={{key="other"}},
         enemyEffect={normal={choice="other",noAttack=true},powered={choice="other",destroyDuringAttack=true}}},
     spellChill={normalChoices={{key="other"}},poweredChoices={{key="other"}},
-        enemyEffect={normal={choice="other",noAttack=true,removeFireResist=true},
-            powered={choice="other",noAttack=true,armourReduce=4}}},
+        enemyEffect={normal={choice="other",noAttack=true,removeFireResist=true,iceSpell=true},
+            powered={choice="other",noAttack=true,armourReduce=4,iceSpell=true}}},
     spellTremor={
         normalChoices={{key="single",icon="other",iconOverlay="1"},{key="all",icon="other",iconOverlay="All"}},
         poweredChoices={{key="single",icon="other",iconOverlay="1"},{key="all",icon="other",iconOverlay="All"}},
@@ -63625,8 +64112,10 @@ cardResourceDefinitions={
             powered={{choice="single",armourReduce=3,armourReduceFortified=6},
                 {choice="all",armourReduce=2,armourReduceFortified=4,all=true}}}},
     spellDemolish={normalChoices={{key="other"}},poweredChoices={{key="other"}},
-        enemyEffect={normal={choice="other",armourReduce=1,all=true},
-            powered={choice="other",destroy=true,othersArmourReduce=1}}},
+        ignoreSiteFortification=true,
+        enemyEffect={normal={choice="other",armourReduce=1,all=true,fireSpell=true},
+            powered={choice="other",destroyDuringAttack=true,othersArmourReduce=1,
+                fireSpell=true}}},
     -- Artifact sides are physical: face-up plays the basic effect and
     -- face-down plays the break effect, without a separate mode control.
     artifactUtility={normalTrackerNeutral=true,artifactMode=true,
