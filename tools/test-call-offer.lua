@@ -104,7 +104,8 @@ resourceUnitsBorrowedUnitEnded=function(guid)
         "Combat targets cleared before the borrowed Unit was retired")
     stopped=stopped+1
 end
-resourceCardsSourceChanged=function() end
+local scanRequests=0
+resourceCardsSourceChanged=function() scanRequests=scanRequests+1 end
 publishPublicUICallbacks=function(callbacks)
     for name,callback in pairs(callbacks) do _G[name]=callback end
 end
@@ -194,7 +195,20 @@ first.UI.setXmlTable(xml)
 callOfferEnsureControls(1)
 eq(hasArrow(first,"previous"),true,"late tracker UI refresh repairs missing arrow")
 eq(hasArrow(first,"next"),true,"existing arrow remains available")
+-- The next Unit may still be smooth-moving while the first Unit's target
+-- and UI are retired. Navigation must appear before it settles, and another
+-- calculator scan must follow its arrival so abilities/targets get rebuilt.
+second.resting=false
+second.isSmoothMoving=function() return not second.resting end
+local beforeCycleScans=scanRequests
 callOfferCycleClicked({color="Red"},nil,"CallOfferControl_111111_next")
+eq(hasArrow(second,"previous"),true,"next Unit has arrows while moving")
+eq(hasArrow(second,"next"),true,"next Unit can immediately cycle again")
+eq(scanRequests,beforeCycleScans+1,"initial calculator refresh queued for new Unit")
+second.resting=true
+settlePending()
+eq(scanRequests,beforeCycleScans+2,"settled Unit triggers ability/target refresh")
+eq(hasArrow(second,"next"),true,"arrows persist after Unit settles")
 eq(first.position[1],36,"first Unit returned to its original slot")
 eq(first.locked,true,"returned Unit locked")
 eq(hasArrow(first,"next"),false,"returned Unit has no arrows")

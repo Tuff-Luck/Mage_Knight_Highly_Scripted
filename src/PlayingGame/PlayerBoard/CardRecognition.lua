@@ -8680,14 +8680,16 @@ function resourceUnitsBorrowedUnitEnded(guid)
     if activation~=nil and activation.callOffer==true then
         gStates.unitResourceActivations[guid]=nil
     end
-    removeChoiceButtons(getObjectFromGUID(guid))
-    choiceButtonShown[guid]=nil
-    choiceExpandedByGUID[guid]=nil
+    -- Retire the old Unit's combat source first. A failed Object UI update
+    -- must never leave its target arrow behind when Call to Arms cycles.
     combatForgetBorrowedUnitTargets(guid)
     if attackAssignmentsClearForObject~=nil then attackAssignmentsClearForObject(guid) end
     if attackAssignmentsPruneUnitChoiceSources~=nil then
         attackAssignmentsPruneUnitChoiceSources(guid,{})
     end
+    removeChoiceButtons(getObjectFromGUID(guid))
+    choiceButtonShown[guid]=nil
+    choiceExpandedByGUID[guid]=nil
     if resourceCardsPanelOpen() then resourceCardsSourceChanged() end
 end
 
