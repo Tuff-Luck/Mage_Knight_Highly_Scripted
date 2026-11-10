@@ -164,8 +164,9 @@ function portalSwap(state, playerIndex)
 					moveAvatar(otherIndex,portalParking(otherIndex))
 				end
 			end
-			avatarDestination=againstHorsemenCentralGladePosition(1.5)
-			if avatarDestination==nil then return end
+			local gladeDestination=againstHorsemenCentralGladePosition(1.5)
+			if gladeDestination==nil then return end
+			avatarDestination=gladeDestination
 			player.horsemenGladeParked=false
 		else
 			local cityObj=getObjectFromGUID(cityConvert[player.avatarLocation:sub(6, 8)])
