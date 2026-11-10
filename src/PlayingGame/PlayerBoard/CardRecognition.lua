@@ -679,6 +679,9 @@ function resourceCardsCombatTargetAcceptsSource(sourceKey,targetGUID)
         return resourceCardsEnemyEffectivelyUnfortified(targetGUID,
             scan~=nil and scan.enemyEffects or nil)
     end
+    if (sourceKey=="4ac9f6" or sourceKey=="19daf9") and data.monsters~=nil then
+        return false -- Nature's Vengeance targets a summoned monster, never its Summoner.
+    end
     if data.attackOnly~=true then return true end
     local effectSource=combatConfig.effectSources[sourceKey]
     if effectSource~=nil then return effectSource.arrow~="armour" end
@@ -6902,6 +6905,12 @@ local function renderSeat(seatPos,quietUnitChoice)
                 end
             end
             local eligible=nil
+            if skill.guid=="4ac9f6" or skill.guid=="19daf9" then
+                eligible=function(enemy,guid)
+                    local data=combatEnemyData(guid,enemy)
+                    return data~=nil and data.monsters==nil
+                end
+            end
             if skill.guid=="6a33c1" and spec~=nil and spec.armourReduce~=nil then
                 eligible=function(enemy,guid)
                     local data=combatEnemyData(guid,enemy)
@@ -6943,6 +6952,40 @@ local function renderSeat(seatPos,quietUnitChoice)
         if area~=nil then
             local target=combatEffectChosenEnemy(key,area,monsters,
                 combatEffectTargetEligible(spec))
+            if target~=nil then
+                combatEffectAdd(enemyEffects,target.guid,key,spec)
+                record.enemyGUID=target.guid
+                record.links[#record.links+1]=target.guid
+                record.status="purple"
+                record.complete=true
+                record.enemyEffectTargetGUIDs={[key]=target.guid}
+            end
+        end
+    end
+    -- A claimed cooperative Nature's Vengeance remains playable after the
+    -- recipient hands the physical Skill back to its owner. Keep its target
+    -- source and one enemy reduction through the recipient's turn only.
+    local vengeance=gStates~=nil and gStates.braevalarVengeanceUse or nil
+    if vengeance~=nil and vengeance.recipient==gStates.turnNumber
+        and vengeance.round==gStates.currentRound then
+        local key="4ac9f6"
+        local spec={attackReduce=1,grantCumbersome=true}
+        local anchor=getObjectFromGUID(key)
+        local fallback=nil
+        for _,enemy in pairs(monsters) do fallback=enemy break end
+        local area=anchor~=nil and footprint(anchor)
+            or fallback~=nil and footprint(fallback) or nil
+        local record=records[key] or {guid=key,kind="skill",known=true,
+            resources=nil,status="yellow",powered=false,complete=false,links={}}
+        record.enemyEffectTargetKeys={key}
+        records[key]=record
+        current[key]=true
+        if area~=nil then
+            local target=combatEffectChosenEnemy(key,area,monsters,
+                function(enemy,guid)
+                    local data=combatEnemyData(guid,enemy)
+                    return data~=nil and data.monsters==nil
+                end)
             if target~=nil then
                 combatEffectAdd(enemyEffects,target.guid,key,spec)
                 record.enemyGUID=target.guid
