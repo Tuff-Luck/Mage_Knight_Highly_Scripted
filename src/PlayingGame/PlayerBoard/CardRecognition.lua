@@ -350,23 +350,27 @@ local function combatAssignmentSources(seat)
             -- Forked Lightning is three independent Cold Fire Ranged Attack 1
             -- effects, never a single Ranged Attack 3 against one enemy.
             if record.forkedLightning then
-                local count=math.min(3,math.max(0,math.floor(tonumber(effective.rangedColdFire) or 0)))
+                local forkKey=resourceCardsTransformedKey("rangedColdFire",transform)
+                local forkFamily=forkKey:sub(1,5)=="siege" and "siege" or "ranged"
+                local count=math.min(3,math.max(0,math.floor(tonumber(effective[forkKey]) or 0)))
                 for i=#sources,1,-1 do
                     if sources[i].guid==guid then table.remove(sources,i) end
                 end
                 local forkField=nil
                 for _,field in ipairs(combatConfig.sourceFields) do
-                    if field.key=="rangedColdFire" then forkField=field break end
+                    if field.key==forkKey then forkField=field break end
                 end
                 for point=1,count do
                     sources[#sources+1]={guid=guid,key=guid.."#fork"..point,
                         part="fork"..point,name="Forked Lightning "..point,
-                        ranged=1,siege=0,block=0,attack=0,move=0,
-                        resources={rangedColdFire=1},psychicInfluence=0,
+                        ranged=forkFamily=="ranged" and 1 or 0,
+                        siege=forkFamily=="siege" and 1 or 0,
+                        block=0,attack=0,move=0,
+                        resources={[forkKey]=1},psychicInfluence=0,
                         psychicInfluenceCounts=false,kind="skill",forkedLightning=true,
-                        details={{text="Cold Fire Ranged Attack 1",amount=1,
+                        details={{text="Cold Fire "..forkFamily.." Attack 1",amount=1,
                             icon=forkField~=nil and forkField.icon or "MKChoiceRanged",
-                            key="rangedColdFire",family="ranged",typeKey="IF"}}}
+                            key=forkKey,family=forkFamily,typeKey="IF"}}}
                 end
             end
         end
