@@ -1406,10 +1406,11 @@ local function combatDamageUnits(seat)
     end
     local siteMode,site=combatUnitSiteRestriction(seat)
     local selected=siteMode=="one" and combatOneUnitChosen(seat,site) or nil
+    local bondsUnitGUID=state~=nil and state.bondsUnitGUID or nil
     for _,unitState in ipairs(state~=nil and state.units or {}) do
         local data=gameCards[unitState.guid]
         if data~=nil and tonumber(data.armour)~=nil
-            and combatUnitSitePermits(siteMode,state.bondsUnitGUID,selected,unitState.guid,true) then
+            and combatUnitSitePermits(siteMode,bondsUnitGUID,selected,unitState.guid,true) then
             local resist={}
             for _,name in ipairs(data.resistance or {}) do resist[combatConfig.COMBAT_UNIT_RESIST_KEYS[name] or name]=true end
             if scan~=nil and scan.allUnitResistances==true then
@@ -4281,6 +4282,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                 end
                 local targetAsset=resourceCardsChoiceIcon("target")
                 -- A split choice gets one target button per resource, each marked with its icon.
+                ---@type (string|boolean)[]
                 local parts=entry.splitTargets or {false}
                 if rule~=nil and rule.forkedLightning then
                     parts={}
@@ -6934,9 +6936,12 @@ local function renderSeat(seatPos,quietUnitChoice)
                         if field==nil and family=="attack" and rule.attackPhaseFallback then
                             local ranged=resourceFieldForFamily(record.resources,"ranged")
                             local siege=resourceFieldForFamily(record.resources,"siege")
-                            if (ranged~=nil)~=(siege~=nil) then
-                                field=ranged or siege
-                                replacement="attack"..field:sub(ranged~=nil and 7 or 6)
+                            if ranged~=nil and siege==nil then
+                                field=ranged
+                                replacement="attack"..ranged:sub(7)
+                            elseif siege~=nil and ranged==nil then
+                                field=siege
+                                replacement="attack"..siege:sub(6)
                             end
                         end
                         if field~=nil then
