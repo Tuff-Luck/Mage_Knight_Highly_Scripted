@@ -10,12 +10,15 @@ local function fakeCard(guid,x,z)
     local card={guid=guid,position={x,1,z},rotation={0,180,0},scale={1.5,1,1.5},
         resting=true,held_by_color=nil,locked=true,is_face_down=false}
     local xml,assets={},{}
+    local writes=0
     card.UI={
         getXmlTable=function() return xml end,
         getCustomAssets=function() return assets end,
+        getWrites=function() return writes end,
         setXmlTable=function(nextXml,newAssets)
             assert(type(nextXml)=="table" and #nextXml>0,
                 "TTS UI.setXmlTable rejects an empty/null XML table")
+            writes=writes+1
             xml=nextXml
             if newAssets~=nil then assets=newAssets end
         end
@@ -153,9 +156,35 @@ eq(first.position[1],-56.1,"repositioned Spell does not drag Unit")
 -- Repositioning the actual Unit is also safe and defines the next browse slot.
 first.setPosition({-53,1,-40})
 first.setRotation({0,165,0})
+-- Simulate another zone/UI handler replacing the Unit's object UI in flight.
+local trackerChoice={tag="Button",attributes={id="ResourceCardChoice_111111_unit1"}}
+first.UI.setXmlTable({trackerChoice})
+eq(hasArrow(first,"next"),false,"zone refresh removed browser controls")
 callOfferObjectDropped(first)
 eq(gStates.callOfferPreview,selected,"repositioned Unit stays borrowed")
 eq(first.position[1],-53,"manually placed Unit stays put")
+eq(hasArrow(first,"previous"),true,"left browser arrow restored after drop")
+eq(hasArrow(first,"next"),true,"right browser arrow restored after drop")
+local preserved=false
+for _,node in ipairs(first.UI.getXmlTable()) do
+    if node.attributes~=nil and node.attributes.id=="ResourceCardChoice_111111_unit1" then
+        preserved=true
+    end
+end
+eq(preserved,true,"resource buttons are preserved while restoring arrows")
+local writes=first.UI.getWrites()
+callOfferEnsureControls(1)
+eq(first.UI.getWrites(),writes,"healthy browser UI is not rebuilt on every tracker scan")
+-- Simulate an asynchronous tracker refresh that removes just one arrow.
+local xml=first.UI.getXmlTable()
+for i=#xml,1,-1 do
+    local id=xml[i].attributes~=nil and xml[i].attributes.id or nil
+    if id=="CallOfferControl_111111_previous" then table.remove(xml,i) end
+end
+first.UI.setXmlTable(xml)
+callOfferEnsureControls(1)
+eq(hasArrow(first,"previous"),true,"late tracker UI refresh repairs missing arrow")
+eq(hasArrow(first,"next"),true,"existing arrow remains available")
 callOfferCycleClicked({color="Red"},nil,"CallOfferControl_111111_next")
 eq(first.position[1],36,"first Unit returned to its original slot")
 eq(first.locked,true,"returned Unit locked")

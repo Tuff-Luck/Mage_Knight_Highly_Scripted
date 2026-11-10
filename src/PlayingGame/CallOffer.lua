@@ -123,6 +123,28 @@ local function showControls(state,guid,serial)
     else unit.UI.setXmlTable(xml) end
 end
 
+-- Other UI owners (notably the Resource Tracker's zone-exit refresh) may
+-- replace a Unit's XML while it is being moved. Reinstate the browser controls
+-- only if missing, leaving existing Unit choices and target buttons untouched.
+function callOfferEnsureControls(seatPos)
+    local state=previewState()
+    if state==nil or state.unitGUID==nil
+        or (seatPos~=nil and state.seatPos~=seatPos) then return end
+    local spell=getObjectFromGUID(state.spellGUID)
+    local unit=getObjectFromGUID(state.unitGUID)
+    if spell==nil or spell.is_face_down==true or unit==nil
+        or inZone(unit.guid,playerUnitAreas[state.seatPos]) then return end
+    local previous,nextButton=false,false
+    for _,node in ipairs(unit.UI.getXmlTable() or {}) do
+        local id=node.attributes~=nil and node.attributes.id or nil
+        if id=="CallOfferControl_"..unit.guid.."_previous" then previous=true
+        elseif id=="CallOfferControl_"..unit.guid.."_next" then nextButton=true end
+    end
+    if not previous or not nextButton then
+        showControls(state,unit.guid,transferSerial)
+    end
+end
+
 -- The preview card's placement is independent of the Spell after the first borrow.
 -- Keep the latest user-chosen spot when the player browses other Units.
 local function rememberDisplayedUnit(state)
@@ -291,6 +313,7 @@ function callOfferObjectDropped(obj)
             -- Repositioning the borrowed Unit is NOT recruitment. Keep its
             -- controls, combat links and new browsing position intact.
             rememberDisplayedUnit(current)
+            callOfferEnsureControls(current.seatPos)
             return
         end
         transferSerial=transferSerial+1

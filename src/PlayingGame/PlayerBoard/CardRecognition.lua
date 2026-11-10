@@ -8060,6 +8060,10 @@ local function renderSeat(seatPos,quietUnitChoice)
             end
         end
     end
+    -- A borrowed offer Unit is not a normal Unit-zone object. Zone-exit
+    -- tracker refreshes can drop its independent cycling UI during dragging.
+    -- Restore it after all tracker-owned UI writes, without touching resources.
+    if callOfferEnsureControls~=nil then callOfferEnsureControls(seatPos) end
 end
 
 local function queueSeat(seatPos,triggerGUID)
