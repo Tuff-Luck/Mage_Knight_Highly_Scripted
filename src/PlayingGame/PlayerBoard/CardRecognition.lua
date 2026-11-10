@@ -2971,7 +2971,9 @@ function resourceCardsCombatAssignmentClick(id)
             for _,candidate in ipairs(combatAssignmentSources(combatAssignmentState.seat)) do
                 if candidate.key==moved then movedSource=candidate break end
             end
-            if movedSource~=nil and movedSource.ranged+movedSource.siege+movedSource.block+movedSource.attack==0
+            local effectSource=combatConfig.effectSources[moved]
+            if effectSource==nil and movedSource~=nil
+                and movedSource.ranged+movedSource.siege+movedSource.block+movedSource.attack==0
                 and not combatGUIDHasCumbersome(targetGUID) then
                 combatAssignmentState.selected=nil
                 combatConfig.refreshSelectedSlots()
@@ -2985,10 +2987,9 @@ function resourceCardsCombatAssignmentClick(id)
             combatAssignmentState.targets[moved]=targetGUID
             combatAssignmentState.explicit[moved]=true
             combatAssignmentState.selected=nil
-            local effectSource=combatConfig.effectSources[moved]
             attackAssignmentsSetSourceTarget(moved,targetGUID,
-                movedSource~=nil and combatSourceArrowKind(movedSource)
-                or effectSource~=nil and effectSource.arrow or nil)
+                effectSource~=nil and effectSource.arrow
+                or movedSource~=nil and combatSourceArrowKind(movedSource) or nil)
             resourceCardsSourceChanged()
         end
         resourceCardsRefreshCombatEnemies()
