@@ -7351,6 +7351,12 @@ local function renderSeat(seatPos,quietUnitChoice)
             end
         end
     end
+    -- This scan has just granted Cumbersome to a target: show Move-target
+    -- buttons immediately, without requiring the player to close/reopen the tracker.
+    for _,effect in pairs(enemyEffects) do
+        if effect.grantCumbersome==true then combatCumbersomeActive=true break end
+    end
+
     -- The linking card itself contributes the target's upgraded effect. Mark it
     -- as a contributor so its powering mana token receives a green outline.
     for targetGUID,sourceGUID in pairs(boostSource) do
