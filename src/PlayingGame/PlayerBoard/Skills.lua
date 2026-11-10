@@ -1110,6 +1110,10 @@ end
 
 --Refresh all played Skills at the end-turn circulation boundary and return the reminder GUIDs
 --that must survive generic Play Area figurine cleanup.
+-- These Krang Skills have a Flip Back ability. They remain spent between
+-- turns unless their own flip-back condition is met; End Round resets all Skills.
+local krangFlipBackSkillGUIDs={["0fbcfe"]=true,["91c8a0"]=true,["d8824d"]=true}
+
 function prepareEndTurnSkillRotation(cleanupPlayer, nextPlayer)
 	local count=0
 	local keepSafe={}
