@@ -655,6 +655,7 @@ function coopCompSkillDropped(skillGUID, position)
             if resourceCardsPanelOpen~=nil and resourceCardsPanelOpen() then
                 resourceCardsSourceChanged()
             end
+        end
         -- A recipient claiming Calming the Weather keeps the -1 Move-cost
 		-- benefit through the end of this turn even though the token returns home.
 		if skillGUID=="55e5e5" and gStates.doingTheRounds[skillGUID]~=nil
