@@ -70,19 +70,28 @@ local function combatEffectImmune(enemyGUID)
     return (pug~=nil and pug.arcaneImmunity==true) or (perks~=nil and perks.arcaneImmunity==true)
 end
 
-function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec)
+function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec,sourceKey)
     local entry=enemyEffects[enemyGUID]
     if entry==nil then
         entry={armourReduce=0,armourReduceFortified=0,armourReduceByResist=0,
             armourReduceRangedUnfortifiedOnly=0,noAttack=false,destroy=false,
             destroyIfBlocked=false,attackReductions={},
-            removeAbilities=false,removeFortify=false,removeResist=false,removeFireResist=false,sources={}}
+            removeAbilities=false,removeFortify=false,removeResist=false,removeFireResist=false,sources={},applied={}}
         enemyEffects[enemyGUID]=entry
     end
-    if combatEffectImmune(enemyGUID) then
+    -- Keep each original, targeted effect for the shared Combat Calculator
+    -- button renderer. Numerical resource totals are unaffected by these.
+    local requested=spec
+    local immune=combatEffectImmune(enemyGUID)
+    if immune then
         entry.immuneIgnored=true
         spec={removeAbilities=spec.removeAbilities,attackReduce=spec.attackReduce,
             firstDamageUnit=spec.firstDamageUnit}
+    end
+    if requested.all~=true then
+        entry.applied=entry.applied or {}
+        entry.applied[#entry.applied+1]={source=sourceGUID,key=sourceKey or sourceGUID,
+            spec=requested,effective=spec,immune=immune}
     end
     local attackReduce=math.max(0,tonumber(spec.attackReduce) or 0)
     if attackReduce>0 then
