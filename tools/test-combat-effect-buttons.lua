@@ -113,6 +113,10 @@ eq(combatConfig.mitigationButtonInfo("0688d8",record,enemy,
 -- Never change the CombatEnemyPanel XML or column widths for effect buttons.
 assert(cardRecognition:find("combatConfig.effectSources[item.source.key]",1,true),
     "Effect sources must use the existing assignment maps")
+assert(cardRecognition:find("local function combatEffectTargetEligible(spec)",1,true),
+    "Effect-only targeting should use the global reminder eligibility rule")
+assert(cardRecognition:find('effectSource.arrow~="armour"',1,true),
+    "An Armour effect cannot target an attack-only reminder from the table")
 assert(cardRecognition:find("combatAssignmentSlotSources[id]=item.source.key",1,true),
     "Effect buttons must use the ordinary clickable resource slots")
 assert(cardRecognition:find('(wounded or ineffective) and "rgb(0.90,0.37,0.35)"',1,true),
