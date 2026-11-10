@@ -1129,7 +1129,8 @@ function prepareEndTurnSkillRotation(cleanupPlayer, nextPlayer)
 	for skillGUID, skillDetails in pairs(skillTokens) do
 		local skill=getObjectFromGUID(skillGUID)
 		if skill~=nil then
-			if skillDetails.skillType=="Turn" and skill.is_face_down==true then skill.flip() end
+			if skillDetails.skillType=="Turn" and skill.is_face_down==true
+				and krangFlipBackSkillGUIDs[skillGUID]~=true then skill.flip() end
 			if gStates.doingTheRounds[skillGUID]~=nil then
 				local data=doingTheRounds(skillGUID,nextPlayer,count)
 				count=data[2]
