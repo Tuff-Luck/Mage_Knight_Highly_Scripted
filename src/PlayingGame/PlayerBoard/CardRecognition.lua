@@ -6326,7 +6326,7 @@ local function renderSeat(seatPos,quietUnitChoice)
     local howlOwner=gStates~=nil and gStates.doingTheRounds
         and gStates.doingTheRounds["a92d73"] or nil
     local howlPenalty=howlOwner~=nil and howlOwner~=gStates.turnNumber
-        and gStates.soloCoop["a92d73"]~=true
+        and (gStates.soloCoop==nil or gStates.soloCoop["a92d73"]~=true)
     local function unitAbilityResources(ability,counts,crystalCounts)
         if ability==nil or (not unitAbilityPaid(ability,counts)
             and not ability.baseWithoutPayment) then return nil end
@@ -6886,7 +6886,7 @@ local function renderSeat(seatPos,quietUnitChoice)
     if pack~=nil and pack.recipient==gStates.turnNumber
         and pack.round==gStates.currentRound then
         local key="564392"
-        local spec={attackReduce=1,armourReduce=1,armourReduceAttackOnly=1}
+        local spec={attackReduce=1,armourReduce=1}
         local anchor=getObjectFromGUID(key)
         local fallback=nil
         for _,enemy in pairs(monsters) do fallback=enemy break end
