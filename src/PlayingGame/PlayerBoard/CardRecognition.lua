@@ -311,6 +311,7 @@ local function combatAssignmentSources(seat)
                         swiftDouble=record.swiftDouble==true,defeatFameRep=record.defeatFameRep,
                         heroPsychicBlock=scan~=nil and scan.heroPsychicBlock==true and record.kind~="unit",
                         repeatBlocks=record.repeatBlocks,kind=record.kind,
+                        possessExclude=record.possessEnemyGUID,
                         dueling=guid=="7d1c32"}
                     parts[slot]=source
                     sources[#sources+1]=source
@@ -396,7 +397,8 @@ local function combatNearestEnemyGUID(source,entries)
                     and target==entry.guid then forkDuplicate=true break end
             end
         end
-        if enemy~=nil and not forkDuplicate and (not entry.attackOnly
+        if enemy~=nil and not forkDuplicate and entry.guid~=source.possessExclude
+            and (not entry.attackOnly
             or source.ranged+source.siege+source.attack==0) then
             local position=enemy.getPosition()
             local dx,dz=position[1]-sourcePosition[1],position[3]-sourcePosition[3]
@@ -699,6 +701,12 @@ function resourceCardsEnemyEffectivelyUnfortified(guid,effects)
 end
 
 function resourceCardsCombatTargetRejectMessage(sourceKey,targetGUID)
+    local seat=combatAssignmentActiveSeat()
+    local scan=seat~=nil and resourceCardScanBySeat[seat] or nil
+    local record=scan~=nil and scan.cards[sourceKey] or nil
+    if record~=nil and record.possessEnemyGUID==targetGUID then
+        return "Possess cannot use an enemy's own Attack against itself."
+    end
     if resourceCardsUnitTargetRequiresUnfortified(sourceKey) then
         return "Illusionists can only target an unfortified enemy."
     end
@@ -713,6 +721,10 @@ end
 function resourceCardsCombatTargetAcceptsSource(sourceKey,targetGUID)
     local data=combatEnemyData(targetGUID)
     if data==nil then return false end
+    local seat=combatAssignmentActiveSeat()
+    local scan=seat~=nil and resourceCardScanBySeat[seat] or nil
+    local record=scan~=nil and scan.cards[sourceKey] or nil
+    if record~=nil and record.possessEnemyGUID==targetGUID then return false end
     if resourceCardsUnitTargetRequiresUnfortified(sourceKey) then
         local seat=combatAssignmentActiveSeat()
         local scan=seat~=nil and resourceCardScanBySeat~=nil
@@ -1824,14 +1836,14 @@ combatConfig.effectButtonInfo=function(entry,applied)
     local attack=tonumber(spec.attackReduce) or 0
     local isArmour=armour>0 or armourFortified>0 or resistArmour>0
         or spec.removeFortify==true or spec.removeResist==true
-        or spec.removeFireResist==true or spec.destroy==true
+        or spec.removeFireResist==true or spec.destroy==true or spec.destroyDuringAttack==true
     local isBlock=attack>0 or spec.noAttack==true or spec.noAttackUnfortified==true
         or spec.removeAbilities==true or spec.destroyIfBlocked==true
     local attackIncrease=tonumber(spec.attackIncrease) or 0
     local special=spec.removeTrait~=nil or spec.convertAttack~=nil or attackIncrease>0
     if not isArmour and not isBlock and not special then return nil end
     local family=isArmour and (fortified and "attack" or "range") or "block"
-    if (tonumber(spec.armourReduceAttackOnly) or 0)>0 then family="attack" end
+    if (tonumber(spec.armourReduceAttackOnly) or 0)>0 or spec.destroyDuringAttack then family="attack" end
     if spec.removeTrait~=nil then
         family=(spec.removeTrait=="fortified" or spec.removeTrait=="elusive"
             or spec.removeTrait=="pResist" or spec.removeTrait=="fResist"
@@ -1928,7 +1940,12 @@ combatConfig.effectButtonInfo=function(entry,applied)
         elseif not relevant then reason="The enemy has no applicable Resistance." end
     elseif spec.noAttack==true or spec.noAttackUnfortified==true then
         description="Prevent enemy Attack"
-        if not actual.noAttack and not actual.noAttackUnfortified then
+        if spec.moveCost~=nil then
+            description=description.." (Wings of Night: "..tostring(spec.moveCost).." Move)"
+        end
+        if spec.insufficientMove then
+            reason="Not enough unspent Move points for this Wings of Night target."
+        elseif not actual.noAttack and not actual.noAttackUnfortified then
             reason="Arcane Immunity ignores this prevention effect."
         elseif spec.noAttackUnfortified and fortified then
             reason="The target is still Fortified."
@@ -1943,6 +1960,11 @@ combatConfig.effectButtonInfo=function(entry,applied)
     elseif spec.destroy==true then
         description="Destroy enemy"
         if entry.destroyed~=true then reason="This effect is not destroying the enemy." end
+    elseif spec.destroyDuringAttack==true then
+        description="Destroy enemy during Attack phase"
+        if actual.destroyDuringAttack~=true then
+            reason="Arcane Immunity prevents this destruction."
+        end
     end
     local source=getObjectFromGUID(applied.source)
     local sourceName=source~=nil and source.getName~=nil and source.getName() or tostring(applied.source)
@@ -2197,6 +2219,12 @@ local function combatAssignmentRefreshRows(entries,sources)
             end
         end
         local targetIndex=targetGUID~=nil and rowByGUID[targetGUID] or nil
+        if targetIndex~=nil and source.possessExclude==targetGUID then
+            combatAssignmentState.targets[source.key]=nil
+            combatAssignmentState.explicit[source.key]=nil
+            attackAssignmentsClearForObject(source.key)
+            targetGUID,targetIndex=nil,nil
+        end
         if source.forkedLightning and targetIndex~=nil
             and not resourceCardsCombatTargetAcceptsSource(source.key,targetGUID) then
             combatAssignmentState.targets[source.key]=nil
@@ -2581,6 +2609,25 @@ local function combatAssignmentRefreshRows(entries,sources)
         if woundedBeforeAttack[guid]~=true then selfWounds[guid]=true end
     end
     attackAssignmentsUnitPreviewSync(damageSeat,damageResults,selfWounds)
+    -- Tornado resolves after enemy Damage. A grouped target is removed from
+    -- only the later Attack calculation; surviving group members keep Armour.
+    for _,group in ipairs(groups) do
+        if not group.rangeDefeated and not group.destroyed then
+            local surviving,blockedAll={},{}
+            for _,index in ipairs(group.members) do
+                local entry=entries[index]
+                if not entry.attackPhaseDestroyed then
+                    surviving[#surviving+1]=entry
+                    blockedAll[entry.guid]=rowBlock[index].allBlocked
+                end
+            end
+            if #surviving==0 then
+                group.destroyed=true
+            elseif #surviving<#group.members then
+                group.entry,group.attackArmour=combatGroupEntry(surviving,blockedAll)
+            end
+        end
+    end
     for _,group in ipairs(groups) do
         local available=combatConfig.attackPhaseSources(group.sources,woundedBeforeAttack)
         local meleeSources={}
@@ -2698,7 +2745,8 @@ local function combatAssignmentRefreshRows(entries,sources)
             local guid=entries[index].guid
             if not entries[index].attackOnly and not entries[index].preview then
                 trackedGuids[guid]=true
-                if group.defeated then defeatedGuids[guid]=true end
+                if group.defeated or (not group.rangeDefeated
+                    and entries[index].attackPhaseDestroyed) then defeatedGuids[guid]=true end
             end
         end
     end
@@ -3143,6 +3191,8 @@ local function refreshCombatEnemyPanel(monsters,calculated)
             and (combatEnemyFortificationCount(entry.data,entry.perks)==0
                 or effect.removeFortify==true)))
         entry.destroyed=not entry.attackOnly and effect~=nil and effect.destroy==true
+        entry.attackPhaseDestroyed=not entry.attackOnly and effect~=nil
+            and effect.destroyDuringAttack==true
         entry.destroyIfBlocked=not entry.attackOnly and effect~=nil and effect.destroyIfBlocked==true
         entry.removeAbilities=effect~=nil and effect.removeAbilities==true
     end
@@ -5623,25 +5673,31 @@ local function enemyPrintedIconBonus(enemy)
     return count
 end
 
--- The stronger Possess Spell borrows the target enemy's printed melee Attacks.
--- Every printed attack counts, with its element, but none of its abilities
--- (Swift, Brutal, etc.) change the borrowed value.
-local possessedAttackKeys={P="attack",F="attackFire",I="attackIce",IF="attackColdFire"}
-local function enemyPrintedPossessAttack(enemy)
-    if enemy==nil or enemy.arcaneImmunity==true
-        or type(enemy.attack)~="table" then return nil end
-    local resources={}
-    for element,category in pairs(possessedAttackKeys) do
-        local attacks=enemy.attack[element]
-        if type(attacks)=="table" then
-            for _,value in ipairs(attacks) do
-                if type(value)=="number" and value>0 then
-                    resources[category]=(resources[category] or 0)+value
-                end
+-- Possess borrows actual enemy attacks, including live bonuses and drawn
+-- summons, without their special abilities; they form one Attack source.
+local possessedAttackKeys={P="attack",F="attackFire",I="attackIce",
+    IF="attackColdFire",M="attackPsychic"}
+local function enemyPrintedPossessAttack(enemy,guid)
+    if enemy==nil or enemy.arcaneImmunity==true then return nil end
+    local perks=gStates~=nil and gStates.monsterPerks~=nil and gStates.monsterPerks[guid] or nil
+    if perks~=nil and perks.arcaneImmunity==true then return nil end
+    local attacks=combatEnemyPrintedAttacks(enemy,perks,false,guid)
+    if enemy.monsters~=nil then
+        for _,summoned in ipairs(combatSummonedFor(guid)) do
+            for _,attack in ipairs(combatEnemyPrintedAttacks(
+                summoned.data,summoned.perks,false,summoned.guid)) do
+                attacks[#attacks+1]=attack
             end
         end
     end
-    return next(resources)~=nil and resources or nil
+    local resources={}
+    for _,attack in ipairs(attacks) do
+        local field=possessedAttackKeys[attack.key]
+        if field~=nil and (tonumber(attack.value) or 0)>0 then
+            resources[field]=(resources[field] or 0)+attack.value
+        end
+    end
+    return resources
 end
 
 local function addResourceAmounts(result,totals)
@@ -5759,6 +5815,7 @@ local function renderSeat(seatPos,quietUnitChoice)
 
     local cards,wounds,skills,manaObjects,footprints={}, {}, {}, {}, {}
     local enemyEffects={}
+    local pendingWingsNight={}
     -- Resolve conditional Unit targets after other cards, Units, Skills and
     -- rewards have had a chance to remove Fortification in this same scan.
     local deferredUnfortifiedUnitEffects={}
@@ -6176,7 +6233,7 @@ local function renderSeat(seatPos,quietUnitChoice)
             local best,bestResources,bestArea=nil,nil,0
             for guid,enemy in pairs(monsters) do
                 if enemy.is_face_down~=true and claimedPossessEnemies[guid]~=true then
-                    local resources=enemyPrintedPossessAttack(monsterPugs[guid])
+                    local resources=enemyPrintedPossessAttack(monsterPugs[guid],guid)
                     if resources~=nil then
                         local area=overlapArea(footprints[card.guid],footprint(enemy))
                         if area>bestArea or (area==bestArea and area>0
@@ -6190,8 +6247,10 @@ local function renderSeat(seatPos,quietUnitChoice)
                 claimedPossessEnemies[best.guid]=true
                 result.resources=bestResources
                 result.enemyGUID=best.guid
+                result.possessEnemyGUID=best.guid
                 result.links[#result.links+1]=best.guid
                 result.status="purple"
+                combatEffectAdd(enemyEffects,best.guid,card.guid,{noAttack=true,all=true})
             end
         end
 
@@ -6266,43 +6325,73 @@ local function renderSeat(seatPos,quietUnitChoice)
             result.links[#result.links+1]=enemyTarget.guid
             result.status="purple"
         end
-        -- Enemy effects follow the card's *selected* option, so changing the
-        -- option re-links (or unlinks) the nearest enemy on the next scan.
+        -- Enemy debuffs can have a separate lock from printed Attack resources.
         if rule~=nil and rule.enemyEffect~=nil and result.resources~=nil
             and result.powered~=nil and cardPosture(card)=="upright"
             and result.status~="yellow" and result.enemyGUID==nil then
-            local _,chosenCategory=currentChoice(card.guid,result.powered,choices)
-            local spec=combatEffectSpec(rule,result.powered,chosenCategory)
+            local _,category=currentChoice(card.guid,result.powered,choices)
+            local spec=combatEffectSpec(rule,result.powered,category)
             if spec~=nil then
-                local target=combatEffectChosenEnemy(card.guid,footprints[card.guid],
-                    monsters,combatEffectTargetEligible(spec))
-                if target~=nil then
-                    for _=1,(result.repeatCount or 1) do
-                        if spec.all then
-                            for guid,monster in pairs(monsters) do
-                                if monster.is_face_down~=true then
-                                    combatEffectAdd(enemyEffects,guid,card.guid,spec)
-                                end
-                            end
-                        else
-                            combatEffectAdd(enemyEffects,target.guid,card.guid,spec)
-                            if spec.othersArmourReduce~=nil then
+                local key=rule.separateEffectTarget and not result.powered
+                    and (card.guid.."#effect") or card.guid
+                if spec.multiTargetMove then
+                    -- Right-click target to add further enemies; cost is settled
+                    -- after all Move-producing cards/Units/Skills have been read.
+                    result.enemyEffectTargetKeys={key}
+                    local targets=attackAssignmentsTargetGUIDs(key)
+                    local primary=combatEffectChosenEnemy(key,footprints[card.guid],
+                        monsters,combatEffectTargetEligible(spec))
+                    if next(targets)==nil and primary~=nil then targets[primary.guid]=true end
+                    local ordered={}
+                    for guid in pairs(targets) do
+                        if monsters[guid]~=nil and monsters[guid].is_face_down~=true then
+                            ordered[#ordered+1]=guid
+                        end
+                    end
+                    local first=combatAssignmentState.targets[key]
+                        or (primary~=nil and primary.guid or nil)
+                    table.sort(ordered,function(a,b)
+                        if a==first then return true end
+                        if b==first then return false end
+                        return a<b
+                    end)
+                    if #ordered>0 then
+                        pendingWingsNight[#pendingWingsNight+1]={source=card.guid,targets=ordered}
+                        result.enemyEffectTargetGUIDs={[key]=ordered[1]}
+                        result.enemyGUID=ordered[1]
+                        for _,guid in ipairs(ordered) do result.links[#result.links+1]=guid end
+                        result.status="purple"
+                    end
+                else
+                    local target=combatEffectChosenEnemy(key,footprints[card.guid],
+                        monsters,combatEffectTargetEligible(spec))
+                    if target~=nil then
+                        for _=1,(result.repeatCount or 1) do
+                            if spec.all then
                                 for guid,monster in pairs(monsters) do
-                                    if guid~=target.guid and monster.is_face_down~=true then
-                                        -- Secondary all-other-enemies effects have no independent target button.
-                                        combatEffectAdd(enemyEffects,guid,card.guid,
-                                            {armourReduce=spec.othersArmourReduce,all=true})
+                                    if monster.is_face_down~=true then
+                                        combatEffectAdd(enemyEffects,guid,card.guid,spec,key)
+                                    end
+                                end
+                            else
+                                combatEffectAdd(enemyEffects,target.guid,card.guid,spec,key)
+                                if spec.othersArmourReduce~=nil then
+                                    for guid,monster in pairs(monsters) do
+                                        if guid~=target.guid and monster.is_face_down~=true then
+                                            combatEffectAdd(enemyEffects,guid,card.guid,
+                                                {armourReduce=spec.othersArmourReduce,all=true})
+                                        end
                                     end
                                 end
                             end
                         end
-                    end
-                    result.enemyGUID=target.guid
-                    result.links[#result.links+1]=target.guid
-                    result.status="purple"
-                    if not spec.all then
-                        result.enemyEffectTargetKeys={card.guid}
-                        result.enemyEffectTargetGUIDs={[card.guid]=target.guid}
+                        result.enemyGUID=target.guid
+                        result.links[#result.links+1]=target.guid
+                        result.status="purple"
+                        if not spec.all then
+                            result.enemyEffectTargetKeys={key}
+                            result.enemyEffectTargetGUIDs={[key]=target.guid}
+                        end
                     end
                 end
             end
@@ -7739,6 +7828,54 @@ local function renderSeat(seatPos,quietUnitChoice)
             if boosted.kind~="unit" then boosted.status="purple" end
             setHighlight(objects[guideGUID],guide.status,guide.powered)
             setHighlight(objects[linkedGUID],boosted.status,boosted.powered)
+        end
+    end
+
+    -- Wings of Night costs 0 for the first affected enemy, then 1, 2,
+    -- etc. Red buttons remain for immune/unaffordable selected targets.
+    -- Remove paid Move from original sources too, to avoid counting it
+    -- again against Cumbersome or in the Movement display.
+    for _,pending in ipairs(pendingWingsNight) do
+        local spent,count=0,0
+        for _,guid in ipairs(pending.targets) do
+            local enemy=monsters[guid]
+            if enemy~=nil and enemy.is_face_down~=true then
+                local data=monsterPugs[guid]
+                local perks=gStates~=nil and gStates.monsterPerks~=nil
+                    and gStates.monsterPerks[guid] or nil
+                local immune=(data~=nil and data.arcaneImmunity==true)
+                    or (perks~=nil and perks.arcaneImmunity==true)
+                local cost=count
+                local affordable=cost<=(tonumber(totals.move) or 0)-spent
+                combatEffectAdd(enemyEffects,guid,pending.source,
+                    {noAttack=true,moveCost=cost,insufficientMove=not affordable},
+                    pending.source)
+                if not immune and affordable then count=count+1 spent=spent+cost end
+            end
+        end
+        if spent>0 then
+            local remaining=spent
+            local moveSources={}
+            for guid,record in pairs(records) do
+                if record.resources~=nil and (tonumber(record.resources.move) or 0)>0 then
+                    moveSources[#moveSources+1]=guid
+                end
+            end
+            table.sort(moveSources)
+            for _,guid in ipairs(moveSources) do
+                if remaining<=0 then break end
+                local record=records[guid]
+                local original=tonumber(record.resources.move) or 0
+                local used=math.min(original,remaining)
+                if used>0 then
+                    local adjusted={}
+                    for key,value in pairs(record.resources) do adjusted[key]=value end
+                    adjusted.move=original-used
+                    record.resources=adjusted
+                    remaining=remaining-used
+                end
+            end
+            totals.move=math.max(0,(tonumber(totals.move) or 0)-spent)
         end
     end
 

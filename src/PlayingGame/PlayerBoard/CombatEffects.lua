@@ -60,7 +60,7 @@ end
 
 -- Spec fields: noAttackUnfortified, armourReduce, armourReduceFortified (replaces it against a fortified enemy),
 -- armourReduceByResist (per resistance), noAttack, removeAbilities, removeFortify,
--- removeResist, removeFireResist, destroy, destroyIfBlocked, attackReduce, firstDamageUnit,
+-- removeResist, removeFireResist, destroy, destroyDuringAttack, destroyIfBlocked, attackReduce, firstDamageUnit,
 -- armourReduceRangedUnfortifiedOnly (does not reduce Armour in Ranged/Siege on a fortified enemy),
 -- all (every face-up enemy instead of one).
 -- Arcane Immunity ignores non-attack effects; directly changing an Attack remains legal.
@@ -75,7 +75,7 @@ function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec,sourceKey)
     if entry==nil then
         entry={armourReduce=0,armourReduceFortified=0,armourReduceByResist=0,
             armourReduceRangedUnfortifiedOnly=0,armourReduceAttackOnly=0,noAttack=false,destroy=false,
-            destroyIfBlocked=false,grantCumbersome=false,attackReductions={},
+            destroyDuringAttack=false,destroyIfBlocked=false,grantCumbersome=false,attackReductions={},
             removeAbilities=false,removeFortify=false,removeResist=false,removeFireResist=false,removedPrinted={},attackConversions={},sources={},applied={}}
         enemyEffects[enemyGUID]=entry
     end
@@ -83,7 +83,9 @@ function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec,sourceKey)
     -- button renderer. Numerical resource totals are unaffected by these.
     local requested=spec
     local immune=combatEffectImmune(enemyGUID)
-    if immune then
+    if spec.insufficientMove==true then
+        spec={} -- Keep a red Wings target button, but apply no suppression.
+    elseif immune then
         entry.immuneIgnored=true
         spec={removeAbilities=spec.removeAbilities,attackReduce=spec.attackReduce,
             attackIncrease=spec.attackIncrease,grantCumbersome=spec.grantCumbersome,
@@ -106,6 +108,7 @@ function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec,sourceKey)
             firstDamageUnit=spec.firstDamageUnit==true and sourceGUID or nil}
     end
     entry.destroy=entry.destroy or spec.destroy==true
+    entry.destroyDuringAttack=entry.destroyDuringAttack or spec.destroyDuringAttack==true
     entry.destroyIfBlocked=entry.destroyIfBlocked or spec.destroyIfBlocked==true
     entry.armourReduce=entry.armourReduce+(spec.armourReduce or 0)
     entry.armourReduceFortified=entry.armourReduceFortified+(spec.armourReduceFortified or spec.armourReduce or 0)
@@ -165,6 +168,7 @@ function combatEffectReport(seatPos,enemyEffects,quiet)
         for _,conversion in ipairs(entry.attackConversions or {}) do text=text.." converts attack to "..tostring(conversion.to) end
         if forcedDamage then text=text.." (assign damage to reducing Unit first)" end
         if entry.destroy then text=text.." is destroyed" end
+        if entry.destroyDuringAttack then text=text.." destroyed during Attack" end
         if entry.destroyIfBlocked then text=text.." destroyed if all attacks blocked" end
         if entry.immuneIgnored then text=text.." (Arcane Immunity ignores non-attack effects)" end
         parts[#parts+1]=text

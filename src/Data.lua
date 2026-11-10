@@ -1196,7 +1196,7 @@ cardResourceDefinitions={
         movementEffects={normal={jumpTwoSpaces=true,ignoreRampagers=true}}},
     spellFireball={normal={rangedFire=5},powered={siegeFire=8}},
     spellSnowstorm={normal={rangedIce=5},powered={siegeIce=8}},
-    spellExpose={normal={ranged=2},
+    spellExpose={normal={ranged=2},separateEffectTarget=true,
         poweredChoices={{key="fortify",icon="ranged",iconOverlay="Fort",ranged=3},
             {key="resist",icon="ranged",iconOverlay="Res",ranged=3}},
         enemyEffect={normal={removeFortify=true,removeResist=true},
@@ -1243,11 +1243,13 @@ cardResourceDefinitions={
             {mode="set",terrains={hills=true,mountain=true},cost=999}}}},
     spellRestoration={normal={healing=3},powered={healing=3},forestHealing=5},
     spellCharm={normal={influence=4},poweredChoices={{key="other"}},
-        enemyAttackLink=true}, -- Possess: borrow a linked enemy's printed Attack
+        enemyAttackLink=true}, -- Possess: borrow an enemy's current Attack and suppress its attack
+    spellWingsNight={normalChoices={{key="other"}},poweredChoices={{key="other"}},
+        enemyEffect={powered={noAttack=true,multiTargetMove=true}}},
     spellCure={normal={healing=2},poweredChoices={{key="other"}}},
     -- Combat spells that act on enemies; see CombatEffects.lua for the effect fields.
     spellWhirlwind={normalChoices={{key="other"}},poweredChoices={{key="other"}},
-        enemyEffect={normal={choice="other",noAttack=true},powered={choice="other",destroy=true}}},
+        enemyEffect={normal={choice="other",noAttack=true},powered={choice="other",destroyDuringAttack=true}}},
     spellChill={normalChoices={{key="other"}},poweredChoices={{key="other"}},
         enemyEffect={normal={choice="other",noAttack=true,removeFireResist=true},
             powered={choice="other",noAttack=true,armourReduce=4}}},
@@ -1780,7 +1782,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			[GUID.card.timeBending]={cardType="Spell", resourceKey="spellSpaceBending", name={"Space Bending", "Time Bending"}, 		color={"Blue"}, action={"Move", "Special"}},
 			["2eb8f5"]={cardType="Spell", resourceKey="spellUtility", name={"Mind Read", "Mind Steal"}, 			color={"White"}, action={"Special"}},
 			["2eb8e6"]={cardType="Spell", resourceKey="spellCharm", name={"Charm", "Possess"}, 					color={"White"}, action={"Influence", "Combat"}},
-			["2eb8e9"]={cardType="Spell", resourceKey="spellUtility", name={"Wings of Wind", "Wings of Night"}, 	color={"White"}, action={"Move", "Combat"}},
+			["2eb8e9"]={cardType="Spell", resourceKey="spellWingsNight", name={"Wings of Wind", "Wings of Night"}, 	color={"White"}, action={"Move", "Combat"}},
 			["2eb8e5"]={cardType="Spell", resourceKey="spellExpose", name={"Expose", "Mass Expose"}, 				color={"White"}, action={"Combat"}},
 			["2eb8e8"]={cardType="Spell", resourceKey="spellUtility", name={"Call to Arms", "Call to Glory"}, 		color={"White"}, action={"Special"}},
 			["2eb8e7"]={cardType="Spell", resourceKey="spellWhirlwind", name={"Whirlwind", "Tornado"}, 				color={"White"}, action={"Combat"}},
