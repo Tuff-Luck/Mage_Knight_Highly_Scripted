@@ -646,6 +646,15 @@ function coopCompSkillDropped(skillGUID, position)
                 resourceCardsSourceChanged()
             end
         end
+        -- A recipient of cooperative Nature's Vengeance keeps the combat
+        -- effect through the turn even after returning the physical token.
+        if skillGUID=="4ac9f6" and gStates.doingTheRounds[skillGUID]~=nil
+            and record.player~=nil and gStates.turnNumber~=record.player then
+            gStates.braevalarVengeanceUse={recipient=gStates.turnNumber,
+                round=gStates.currentRound}
+            if resourceCardsPanelOpen~=nil and resourceCardsPanelOpen() then
+                resourceCardsSourceChanged()
+            end
         -- A recipient claiming Calming the Weather keeps the -1 Move-cost
 		-- benefit through the end of this turn even though the token returns home.
 		if skillGUID=="55e5e5" and gStates.doingTheRounds[skillGUID]~=nil
@@ -1159,6 +1168,14 @@ function prepareEndTurnSkillRotation(cleanupPlayer, nextPlayer)
         gStates.wolfhawkPackUse=nil
         if attackAssignmentsClearForObject~=nil then
             attackAssignmentsClearForObject("564392")
+        end
+    end
+	-- A claimed Nature's Vengeance combat effect ends with the recipient's turn.
+    if gStates.braevalarVengeanceUse~=nil
+        and gStates.braevalarVengeanceUse.recipient==cleanupPlayer then
+        gStates.braevalarVengeanceUse=nil
+        if attackAssignmentsClearForObject~=nil then
+            attackAssignmentsClearForObject("4ac9f6")
         end
     end
 	-- A claimed Calming the Weather benefit expires with the recipient's turn.
