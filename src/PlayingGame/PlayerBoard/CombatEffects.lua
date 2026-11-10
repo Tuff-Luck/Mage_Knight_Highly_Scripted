@@ -74,9 +74,9 @@ function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec,sourceKey)
     local entry=enemyEffects[enemyGUID]
     if entry==nil then
         entry={armourReduce=0,armourReduceFortified=0,armourReduceByResist=0,
-            armourReduceRangedUnfortifiedOnly=0,noAttack=false,destroy=false,
+            armourReduceRangedUnfortifiedOnly=0,armourReduceAttackOnly=0,noAttack=false,destroy=false,
             destroyIfBlocked=false,attackReductions={},
-            removeAbilities=false,removeFortify=false,removeResist=false,removeFireResist=false,sources={},applied={}}
+            removeAbilities=false,removeFortify=false,removeResist=false,removeFireResist=false,removedPrinted={},attackConversions={},sources={},applied={}}
         enemyEffects[enemyGUID]=entry
     end
     -- Keep each original, targeted effect for the shared Combat Calculator
@@ -86,21 +86,21 @@ function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec,sourceKey)
     if immune then
         entry.immuneIgnored=true
         spec={removeAbilities=spec.removeAbilities,attackReduce=spec.attackReduce,
-            firstDamageUnit=spec.firstDamageUnit}
+            attackIncrease=spec.attackIncrease,firstDamageUnit=spec.firstDamageUnit}
     end
     if requested.all~=true then
         entry.applied=entry.applied or {}
         entry.applied[#entry.applied+1]={source=sourceGUID,key=sourceKey or sourceGUID,
             spec=requested,effective=spec,immune=immune}
     end
-    local attackReduce=math.max(0,tonumber(spec.attackReduce) or 0)
-    if attackReduce>0 then
+    local attackAdjust=(tonumber(spec.attackReduce) or 0)-(tonumber(spec.attackIncrease) or 0)
+    if attackAdjust~=0 then
         local ordinal=1
         for _,previous in ipairs(entry.attackReductions) do
             if previous.source==sourceGUID then ordinal=ordinal+1 end
         end
         local id=tostring(sourceGUID)..(ordinal>1 and ("#"..tostring(ordinal)) or "")
-        entry.attackReductions[#entry.attackReductions+1]={amount=attackReduce,
+        entry.attackReductions[#entry.attackReductions+1]={amount=attackAdjust,
             source=sourceGUID,id=id,
             firstDamageUnit=spec.firstDamageUnit==true and sourceGUID or nil}
     end
@@ -111,6 +111,12 @@ function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec,sourceKey)
     entry.armourReduceByResist=entry.armourReduceByResist+(spec.armourReduceByResist or 0)
     entry.armourReduceRangedUnfortifiedOnly=entry.armourReduceRangedUnfortifiedOnly
         +(spec.armourReduceRangedUnfortifiedOnly or 0)
+    entry.armourReduceAttackOnly=entry.armourReduceAttackOnly
+        +(spec.armourReduceAttackOnly or 0)
+    if spec.removeTrait~=nil then entry.removedPrinted[spec.removeTrait]=true end
+    if spec.convertAttack~=nil then
+        entry.attackConversions[#entry.attackConversions+1]=spec.convertAttack
+    end
     entry.noAttack=entry.noAttack or spec.noAttack==true
     entry.noAttackUnfortified=entry.noAttackUnfortified or spec.noAttackUnfortified==true
     entry.removeAbilities=entry.removeAbilities or spec.removeAbilities==true
@@ -143,13 +149,17 @@ function combatEffectReport(seatPos,enemyEffects,quiet)
         if entry.noAttack then text=text.." does not attack" end
         if entry.noAttackUnfortified and not entry.noAttack then text=text.." does not attack if unfortified" end
         if entry.removeAbilities then text=text.." attack loses abilities (keeps colour)" end
-        local attackReduction=0
+        local attackReduction,attackIncrease=0,0
         local forcedDamage=false
         for _,reduction in ipairs(entry.attackReductions or {}) do
-            attackReduction=attackReduction+reduction.amount
+            if reduction.amount>0 then attackReduction=attackReduction+reduction.amount
+            else attackIncrease=attackIncrease-reduction.amount end
             if reduction.firstDamageUnit~=nil then forcedDamage=true end
         end
         if attackReduction>0 then text=text.." Attack reduction "..tostring(attackReduction) end
+        if attackIncrease>0 then text=text.." Attack increase "..tostring(attackIncrease) end
+        for trait in pairs(entry.removedPrinted or {}) do text=text.." removes "..trait end
+        for _,conversion in ipairs(entry.attackConversions or {}) do text=text.." converts attack to "..tostring(conversion.to) end
         if forcedDamage then text=text.." (assign damage to reducing Unit first)" end
         if entry.destroy then text=text.." is destroyed" end
         if entry.destroyIfBlocked then text=text.." destroyed if all attacks blocked" end
