@@ -635,7 +635,18 @@ function coopCompSkillDropped(skillGUID, position)
 		return
 	end
 	if coopCompSkillOwnedAreaPlayer(position)~=nil then
-		-- A recipient claiming Calming the Weather keeps the -1 Move-cost
+		-- The shared Howl of the Pack token returns to its owner when claimed,
+        -- but its one-enemy combat modifier belongs to the recipient until
+        -- that player's current turn ends. Persist the choice across saves.
+        if skillGUID=="564392" and gStates.doingTheRounds[skillGUID]~=nil
+            and record.player~=nil and gStates.turnNumber~=record.player then
+            gStates.wolfhawkPackUse={recipient=gStates.turnNumber,
+                round=gStates.currentRound}
+            if resourceCardsPanelOpen~=nil and resourceCardsPanelOpen() then
+                resourceCardsSourceChanged()
+            end
+        end
+        -- A recipient claiming Calming the Weather keeps the -1 Move-cost
 		-- benefit through the end of this turn even though the token returns home.
 		if skillGUID=="55e5e5" and gStates.doingTheRounds[skillGUID]~=nil
 			and record.player~=nil and gStates.turnNumber~=record.player then
@@ -1142,6 +1153,14 @@ end
 local krangFlipBackSkillGUIDs={["0fbcfe"]=true,["91c8a0"]=true,["d8824d"]=true}
 
 function prepareEndTurnSkillRotation(cleanupPlayer, nextPlayer)
+    -- The claimed pack effect cannot carry into the recipient's next turn.
+    local pack=gStates.wolfhawkPackUse
+    if pack~=nil and pack.recipient==cleanupPlayer then
+        gStates.wolfhawkPackUse=nil
+        if attackAssignmentsClearForObject~=nil then
+            attackAssignmentsClearForObject("564392")
+        end
+    end
 	-- A claimed Calming the Weather benefit expires with the recipient's turn.
 	if gStates.weatherBenefitThisTurn~=nil and gStates.weatherBenefitThisTurn.player==cleanupPlayer then
 		gStates.weatherBenefitThisTurn=nil
