@@ -1163,6 +1163,8 @@ end
 local krangFlipBackSkillGUIDs={["0fbcfe"]=true,["91c8a0"]=true,["d8824d"]=true}
 
 function prepareEndTurnSkillRotation(cleanupPlayer, nextPlayer)
+    -- Forked Lightning phase is a per-use choice, not a permanent player setting.
+    gStates.forkedLightningPhase=nil
     -- The claimed pack effect cannot carry into the recipient's next turn.
     local pack=gStates.wolfhawkPackUse
     if pack~=nil and pack.recipient==cleanupPlayer then
