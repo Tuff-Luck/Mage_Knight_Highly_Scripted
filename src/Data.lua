@@ -2635,7 +2635,7 @@ skillResourceDefinitions={
     ["24855b"]={day={influence=2},night={influence=3}},
     ["257c0c"]={unitCondition={resource="move",ready=true,unwounded=true,max=3}}, -- Forward March
     ["2a673e"]={untracked=true},
-    ["2c74ca"]={untracked=true},
+    ["2c74ca"]={prey=true,enemyEffect={normal={}}}, -- Know Your Prey: target-dependent options built by the calculator.
     ["2cbfd9"]={untracked=true},
     ["2f2ad9"]={choices={{siege=1},{key="fireSiege",siegeFire=1,icon="siege",iconOverlay="F"}}},
     ["31b225"]={choices={{move=1},{influence=1},{block=1},{attack=1}}},
@@ -2682,7 +2682,7 @@ skillResourceDefinitions={
     ["79503e"]={partial=true},
     ["7ad337"]={day={move=1},night={move=2},partial=true},
     ["7b905d"]={normal={attackColdFire=2}},
-    ["7d1c32"]={normal={block=1,attack=1}},
+    ["7d1c32"]={normal={block=1,attack=1},dueling=true}, -- Both points must target the same enemy; Fame is conditional.
     ["7d21e6"]={shapeshift=true,partial=true}, -- Shapeshift needs a Basic Action target.
     ["7d5670"]={normal={move=1},partial=true},
     ["80b843"]={choices={{block=2},{attack=2}},partial=true},
@@ -2714,7 +2714,7 @@ skillResourceDefinitions={
     ["a3abbe"]={untracked=true},
     ["a598f6"]={partial=true},
     ["a883af"]={untracked=true},
-    ["a92d73"]={linkedCard={targetKind="card",posture="sideways",sideways={value=4,perEmptyCommandSlot=1}},partial=true}, -- Wolf's Howl; other players' penalties are not tracked
+    ["a92d73"]={linkedCard={targetKind="card",posture="sideways",sideways={value=4,perEmptyCommandSlot=1}},wolfHowlPenalty=true,partial=true}, -- Penalty is applied to other players\' activated Units. -- Wolf's Howl; other players' penalties are not tracked
     ["adf8ab"]={untracked=true},
     ["ae8673"]={untracked=true},
     ["b13d5f"]={untracked=true},
@@ -2723,7 +2723,10 @@ skillResourceDefinitions={
     ["b64ba8"]={normal={move=2}},
     ["b66704"]={partial=true},
     ["b6b035"]={untracked=true},
-    ["b73b21"]={untracked=true},
+    ["b73b21"]={choices={{key="tauntReduce",icon="other",iconOverlay="-1"},
+        {key="tauntProvoke",icon="other",iconOverlay="+2"}},
+        enemyEffect={normal={{choice="tauntReduce",attackReduce=1},
+            {choice="tauntProvoke",attackIncrease=2,armourReduce=2,armourReduceAttackOnly=2}}}}, -- Taunt: Armor change applies in Attack phase only after an attack.
     ["ba4df5"]={untracked=true},
     ["babfbf"]={untracked=true},
     ["bfd0c5"]={normal={influence=2},partial=true},
