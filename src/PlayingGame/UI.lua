@@ -2407,9 +2407,18 @@ end
 
 function refreshResourceTrackerReputation()
     if not resourceCardsPanelOpen() then return end
-    gStates.resourceTracker.influence.reputation=-99
-    if reputationTable[turnOrder[gStates.turnNumber].reputation].repDisplay~="No Interaction" then
-        gStates.resourceTracker.influence.reputation=tonumber(reputationTable[turnOrder[gStates.turnNumber].reputation].repDisplay)
+    local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    local reputation=current~=nil and reputationTable[current.reputation] or nil
+    if reputation==nil then return end
+    -- Once flipped in the Play Area, Arcane Disguise cancels both negative
+    -- Influence and the 'No Interaction' restriction, until this turn ends.
+    if krangArcaneDisguiseReputationActive~=nil
+        and krangArcaneDisguiseReputationActive(gStates.turnNumber) then
+        gStates.resourceTracker.influence.reputation=0
+    elseif reputation.repDisplay=="No Interaction" then
+        gStates.resourceTracker.influence.reputation=-99
+    else
+        gStates.resourceTracker.influence.reputation=tonumber(reputation.repDisplay) or 0
     end
 end
 
