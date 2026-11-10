@@ -75,7 +75,7 @@ function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec,sourceKey)
     if entry==nil then
         entry={armourReduce=0,armourReduceFortified=0,armourReduceByResist=0,
             armourReduceRangedUnfortifiedOnly=0,armourReduceAttackOnly=0,noAttack=false,destroy=false,
-            destroyIfBlocked=false,attackReductions={},
+            destroyIfBlocked=false,grantCumbersome=false,attackReductions={},
             removeAbilities=false,removeFortify=false,removeResist=false,removeFireResist=false,removedPrinted={},attackConversions={},sources={},applied={}}
         enemyEffects[enemyGUID]=entry
     end
@@ -86,7 +86,8 @@ function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec,sourceKey)
     if immune then
         entry.immuneIgnored=true
         spec={removeAbilities=spec.removeAbilities,attackReduce=spec.attackReduce,
-            attackIncrease=spec.attackIncrease,firstDamageUnit=spec.firstDamageUnit}
+            attackIncrease=spec.attackIncrease,grantCumbersome=spec.grantCumbersome,
+            firstDamageUnit=spec.firstDamageUnit}
     end
     if requested.all~=true then
         entry.applied=entry.applied or {}
@@ -117,6 +118,7 @@ function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec,sourceKey)
     if spec.convertAttack~=nil then
         entry.attackConversions[#entry.attackConversions+1]=spec.convertAttack
     end
+    entry.grantCumbersome=entry.grantCumbersome or spec.grantCumbersome==true
     entry.noAttack=entry.noAttack or spec.noAttack==true
     entry.noAttackUnfortified=entry.noAttackUnfortified or spec.noAttackUnfortified==true
     entry.removeAbilities=entry.removeAbilities or spec.removeAbilities==true
@@ -147,6 +149,7 @@ function combatEffectReport(seatPos,enemyEffects,quiet)
         if entry.removeResist then text=text.." loses resistances" end
         if entry.removeFireResist then text=text.." loses Fire Resistance" end
         if entry.noAttack then text=text.." does not attack" end
+        if entry.grantCumbersome then text=text.." gains Cumbersome" end
         if entry.noAttackUnfortified and not entry.noAttack then text=text.." does not attack if unfortified" end
         if entry.removeAbilities then text=text.." attack loses abilities (keeps colour)" end
         local attackReduction,attackIncrease=0,0
