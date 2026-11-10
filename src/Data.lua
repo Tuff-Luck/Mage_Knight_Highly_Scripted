@@ -2682,7 +2682,7 @@ skillResourceDefinitions={
     ["79503e"]={partial=true},
     ["7ad337"]={day={move=1},night={move=2},partial=true},
     ["7b905d"]={normal={attackColdFire=2}},
-    ["7d1c32"]={normal={block=1,attack=1},dueling=true}, -- Both points must target the same enemy; Fame is conditional.
+    ["7d1c32"]={choices={{key="duel",icon="block",block=1,attack=1,tooltip="Dueling: Block 1 now and Attack 1 against the same enemy later. Fame +1 only if its conditions are satisfied."}},dueling=true}, -- One target for Block and later Attack.
     ["7d21e6"]={shapeshift=true,partial=true}, -- Shapeshift needs a Basic Action target.
     ["7d5670"]={normal={move=1},partial=true},
     ["80b843"]={choices={{block=2},{attack=2}},partial=true},
