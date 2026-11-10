@@ -154,6 +154,8 @@ local combatCumbersomeActive=false
 local combatPsychicActive=false
 local combatAssignmentJoined={}
 local combatAssignmentSlotSources={}
+-- Effect-only buttons share the resource slots, without adding any Block/Attack.
+combatConfig.effectSources={}
 local combatAssignmentRowTargets={}
 local combatEnemyPage=1
 local combatAssignmentRowIndices={}
@@ -813,14 +815,14 @@ end
 -- Selection changes affect icon tint only; they cannot change combat outcomes.
 combatConfig.refreshSelectedSlots=function()
     for id,spec in pairs(combatConfig.slotSelection) do
-        combatPanelSetAttribute(id,"color",spec.wounded and "rgb(0.90,0.37,0.35)"
+        combatPanelSetAttribute(id,"color",(spec.wounded or spec.ineffective) and "rgb(0.90,0.37,0.35)"
             or (combatAssignmentState.selected==spec.key and "rgb(1,0.75,0.2)"
                 or "rgb(0.85,0.82,0.72)"))
     end
 end
 
 -- Empty slots are hidden; a filled slot is the resource icon with its value over the top.
-local function combatAssignmentIconButton(id,active,amount,icon,tooltip,selected,textColor,wounded)
+local function combatAssignmentIconButton(id,active,amount,icon,tooltip,selected,textColor,wounded,ineffective)
     combatPanelSetAttribute(id,"active",active and "true" or "false")
     if active then
         combatPanelSetAttribute(id.."Image","image",icon)
@@ -844,7 +846,7 @@ local function combatAssignmentIconButton(id,active,amount,icon,tooltip,selected
         combatPanelSetAttribute(id,"preferredWidth","24")
         combatPanelSetAttribute(id,"preferredHeight","26")
         combatPanelSetAttribute(id,"color",
-            wounded and "rgb(0.90,0.37,0.35)"
+            (wounded or ineffective) and "rgb(0.90,0.37,0.35)"
             or (selected and "rgb(1,0.75,0.2)" or "rgb(0.85,0.82,0.72)"))
         combatPanelSetAttribute(id,"tooltip",tooltip)
     end
@@ -1626,6 +1628,7 @@ end
 local function combatAssignmentRefreshRows(entries,sources)
     combatConfig.resultRowCache={}
     combatConfig.slotSelection={}
+    combatConfig.effectSources={}
     local rowByGUID={}
     local totalRowHeight=0
     local grandDamage,damageSources=0,0
@@ -2472,6 +2475,7 @@ local function combatCalcShutdown()
     combatConfig.shutdownClean=true
     combatConfig.resultRowCache={}
     combatConfig.slotSelection={}
+    combatConfig.effectSources={}
     combatConfig.panelHeight=0
     combatTrackedSeat=nil
     combatTrackedEnemies={}
@@ -2518,7 +2522,7 @@ local function refreshCombatEnemyPanel(monsters,calculated)
             local armour=baseArmour+armourBonus
             entries[#entries+1]={guid=guid,name=tostring(data.name or "Enemy"),
                 attackOnly=mode=="attackOnly",preview=mode=="preview",
-                armour=tostring(armour),baseArmour=baseArmour+armourBonus,
+                armour=tostring(armour),unmodifiedArmour=armour,baseArmour=baseArmour+armourBonus,
                 elusiveArmour=baseArmour*2+armourBonus,data=data,perks=perks,
                 summoned=data.monsters~=nil and combatSummonedFor(guid) or nil}
         end
@@ -2543,6 +2547,7 @@ local function refreshCombatEnemyPanel(monsters,calculated)
                 end
                 reduction=reduction+effect.armourReduceByResist*resistances
             end
+            entry.effectArmourReduction=reduction
             if reduction>0 then
                 -- Curse applies to fortified enemies only in the later Attack
                 -- phase. Preserve independent Ranged/Siege Armour, including
@@ -2797,7 +2802,10 @@ function resourceCardsCombatAssignmentClick(id)
             combatAssignmentState.targets[moved]=targetGUID
             combatAssignmentState.explicit[moved]=true
             combatAssignmentState.selected=nil
-            attackAssignmentsSetSourceTarget(moved,targetGUID,movedSource~=nil and combatSourceArrowKind(movedSource) or nil)
+            local effectSource=combatConfig.effectSources[moved]
+            attackAssignmentsSetSourceTarget(moved,targetGUID,
+                movedSource~=nil and combatSourceArrowKind(movedSource)
+                or effectSource~=nil and effectSource.arrow or nil)
             resourceCardsSourceChanged()
         end
         resourceCardsRefreshCombatEnemies()
@@ -5869,7 +5877,7 @@ local function renderSeat(seatPos,quietUnitChoice)
                                     local target=combatEffectChosenEnemy(sourceKey,footprint(unit),monsters)
                                     if target~=nil then
                                         if ability.enemyEffect~=nil then
-                                            combatEffectAdd(enemyEffects,target.guid,unitGUID,ability.enemyEffect)
+                                            combatEffectAdd(enemyEffects,target.guid,unitGUID,ability.enemyEffect,sourceKey)
                                             result.links[#result.links+1]=target.guid
                                         end
                                         if sourceKey~=unitGUID then
@@ -6510,7 +6518,7 @@ local function renderSeat(seatPos,quietUnitChoice)
         local target=combatEffectChosenEnemy(pending.sourceKey,footprint(pending.unit),
             monsters,function(_,guid) return eligible[guid]==true end)
         if target~=nil then
-            combatEffectAdd(enemyEffects,target.guid,pending.unitGUID,pending.spec)
+            combatEffectAdd(enemyEffects,target.guid,pending.unitGUID,pending.spec,pending.sourceKey)
             pending.result.links[#pending.result.links+1]=target.guid
             pending.result.enemyEffectTargetGUIDs=pending.result.enemyEffectTargetGUIDs or {}
             pending.result.enemyEffectTargetGUIDs[pending.sourceKey]=target.guid
