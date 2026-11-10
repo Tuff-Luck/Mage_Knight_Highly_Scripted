@@ -16,7 +16,7 @@ local function fakeCard(guid,kind,area)
     obj.getScale=function() return {obj.scale[1],obj.scale[2],obj.scale[3]} end
     obj.setScale=function(v) obj.scale={v[1],v[2],v[3]} end
     obj.getGMNotes=function() return "" end
-    obj.hasTag=function() return false end
+    obj.hasTag=function(_tag) return false end
     obj.isSmoothMoving=function() return false end
     return obj
 end
