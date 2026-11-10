@@ -5394,7 +5394,8 @@ function resourceCardsTimeBendingPaid(seatPos,card)
     local area=footprint(card)
     local blue,black=false,false
     for _,mana in ipairs(zone.getObjects()) do
-        if mana.guid~=card.guid and manaInsideFootprint(mana,area) then
+        if mana.guid~=card.guid and manaInsideFootprint(mana,area)
+            and (manaClaimDieHeld==nil or not manaClaimDieHeld(mana.guid)) then
             local color=manaColor(mana)
             if color=="Blue" then blue=true elseif color=="Black" then black=true end
         end
@@ -6077,7 +6078,9 @@ local function renderSeat(seatPos,quietUnitChoice)
             skills[#skills+1]=obj
             footprints[guid]=footprint(obj)
         elseif kind=="mana" then
-            manaObjects[#manaObjects+1]=obj
+            if manaClaimDieHeld==nil or not manaClaimDieHeld(obj.guid) then
+                manaObjects[#manaObjects+1]=obj
+            end
         elseif kind=="unit" then
             -- Unit and Play Areas overlap; placement may be "play" here.
             -- The physical Unit-area snapshot still owns its wound/spent state.
