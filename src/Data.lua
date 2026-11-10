@@ -2659,7 +2659,7 @@ skillResourceDefinitions={
     ["4d5351"]={untracked=true},
     ["5049e5"]={day={move=2},night={move=1}},
     ["527b47"]={untracked=true},
-    ["55e5e5"]={partial=true},
+    ["55e5e5"]={untracked=true,weatherTerrain={owner=-2,recipient=-1}}, -- Calming the Weather: minimum terrain cost 1.
     ["564392"]={linkedCard={targetKind="card",posture="sideways",sideways={value=4,perEmptyCommandSlot=1}},partial=true}, -- Howl of the Pack; follow-on combat is not tracked
     ["590a46"]={choices={{influence=1},{key="boost",influence=3,icon="influence",iconOverlay="3"}}}, -- On Her Own: player decides whether they recruit.
     ["5b42dc"]={partial=true},
@@ -2667,7 +2667,7 @@ skillResourceDefinitions={
     ["6133e1"]={partial=true},
     ["6413a1"]={choices={{key="base"},{key="sourceUnused"}},linkedCard={targetKind="card",posture="sideways",sideways={value=2,choiceValues={sourceUnused=3}}}}, -- Who Needs Magic? The +3 is player-declared.
     ["676855"]={untracked=true},
-    ["676856"]={partial=true},
+    ["676856"]={untracked=true,weatherTerrain={owner=-2,others=1}}, -- Prayer of the Weather: owner min 1, opponents max 5.
     ["68568b"]={untracked=true},
     ["68f864"]={untracked=true},
     ["6a33c1"]={choices={{key="attack",icon="other",iconOverlay="Atk"},{key="armour",icon="other",iconOverlay="Arm"}},
@@ -2704,7 +2704,8 @@ skillResourceDefinitions={
     ["929d04"]={partial=true},
     ["932b6a"]={normal={move=1}},
     ["933090"]={untracked=true},
-    ["93c62e"]={unitBoost={block=3,attack=2,ranged=1},choices={{block=3},{attack=2},{ranged=1}},partial=true}, -- Leadership needs an activated matching Unit.
+    ["93c62e"]={unitBoost={block=3,attack=2,ranged=1},choices={{block=3},{attack=2},{ranged=1}},
+        attackPhaseFallback=true,partial=true}, -- Leadership: +2 on printed Ranged/Siege during the regular Attack phase.
     ["9d866a"]={untracked=true},
     ["9eb4c5"]={untracked=true},
     ["9efc9b"]={choices={{key="other"}},enemyEffect={normal={armourReduceByResist=1}}}, -- Resistance Break
@@ -2744,7 +2745,7 @@ skillResourceDefinitions={
     ["d9c83f"]={untracked=true},
     ["dfaee3"]={linkedCard={targetKind="card",posture="sideways",sideways={value=2,cardTypeValues={["Advanced Action"]=3,Spell=3,Artifact=3}}}}, -- I Don't Give a Damn
     ["e31735"]={untracked=true},
-    ["e45fdf"]={untracked=true},
+    ["e45fdf"]={untracked=true}, -- Whisper in the Treetops: gain a White crystal and Green mana manually.
     ["e68fed"]={untracked=true},
     ["e7abd5"]={normal={move=1},partial=true},
     ["e88483"]={choices={{key="split",rangedIce=1,rangedFire=1},{ranged=2}}},
