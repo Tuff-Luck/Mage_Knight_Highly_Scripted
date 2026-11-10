@@ -64,7 +64,7 @@ local isDay,matches=loadMana()
 gameCards={spell={cardType="Spell",color={"Red"}},action={cardType="Starting",color={"Red"}}}
 gStates.turnNumber=1
 gStates.dayRound=true
-local spell={guid="spell"},action={guid="action"}
+local spell,action={guid="spell"},{guid="action"}
 turnOrder[1].avatarLocation="plains"
 equal(isDay(),true,"Daytime plains")
 equal(matches(action,"Gold"),true,"Daytime Gold can power ordinary action")
