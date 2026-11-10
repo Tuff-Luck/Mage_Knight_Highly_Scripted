@@ -3072,7 +3072,7 @@ end
 
 -- Terrain abilities are an overlay, not changes to gStates.moveCost. This
 -- preserves day/night terrain settings, manual adjustments and other cards.
--- City/Explore are not terrain: their special movement costs remain intact.
+-- Explore is not terrain; Weather also changes the special movement cost of Cities.
 -- Claimed Skills keep their passive effects while their token remains at home.
 local function ownedSkillAtSeat(guid,seatPos)
     local home=gStates~=nil and gStates.mageSkills~=nil and gStates.mageSkills[guid] or nil
@@ -3084,6 +3084,56 @@ local passableTerrain={
     plains=true,hills=true,forest=true,wasteland=true,desert=true,swamp=true,
     lake=true,mountain=true
 }
+
+-- Static rule objects are reused by every scan. The movement panel compares
+-- terrain modifier identity to avoid expensive redraws on unchanged positions.
+local weatherTerrain={}
+for _,guid in ipairs({"55e5e5","676856"}) do
+    local rule=skillResourceDefinitions[guid] or {}
+    local roles={}
+    for role,amount in pairs(rule.weatherTerrain or {}) do
+        roles[role]={mode="weather",terrains="weather",amount=amount}
+    end
+    weatherTerrain[guid]=roles
+end
+
+-- Interactive Weather skills use the same persistent activation/circulation
+-- state as the physical token. The owner gets -2 on activation; the other
+-- player's Calming benefit lasts only on their eligible turn; Prayer affects
+-- opponents while its competitive circulation is still active.
+local function resourceCardsWeatherTerrainEffects(seatPos)
+    local effects={}
+    local states=gStates or {}
+    local current=states.turnNumber
+    local player=turnOrder~=nil and turnOrder[current] or nil
+    if player==nil or player.seatPos~=seatPos then return effects end
+    local active=states.coopCompSkillActivation or {}
+    for _,guid in ipairs({"55e5e5","676856"}) do
+        local record=active[guid]
+        local details=weatherTerrain[guid]
+        if record~=nil and record.round==states.currentRound then
+            if record.player==current and (states.doingTheRounds or {})[guid]==nil then
+                if details.owner~=nil then effects[#effects+1]=details.owner end
+            elseif record.player~=current and guid=="676856" then
+                if details.others~=nil then effects[#effects+1]=details.others end
+            elseif record.player~=current and guid=="55e5e5"
+                and coopCompSkillPlayAreaPlayer~=nil
+                and coopCompSkillPlayAreaPlayer(guid)==current then
+                if details.recipient~=nil then effects[#effects+1]=details.recipient end
+            end
+        end
+    end
+    local claimed=states.weatherBenefitThisTurn
+    if claimed~=nil and claimed.player==current and claimed.round==states.currentRound
+        and weatherTerrain["55e5e5"].recipient~=nil then
+        local already=false
+        for _,effect in ipairs(effects) do
+            if effect==weatherTerrain["55e5e5"].recipient then already=true break end
+        end
+        if not already then effects[#effects+1]=weatherTerrain["55e5e5"].recipient end
+    end
+    return effects
+end
 
 local function cardTerrainEffects(rule,powered)
     if rule==nil or rule.terrainEffects==nil then return nil end
@@ -3097,6 +3147,7 @@ end
 
 local function terrainEffectApplies(effect,terrain)
     return effect.terrains=="passable" and passableTerrain[terrain]==true
+        or effect.terrains=="weather" and (passableTerrain[terrain]==true or terrain=="city")
         or type(effect.terrains)=="table" and effect.terrains[terrain]==true
 end
 
@@ -3119,16 +3170,23 @@ function resourceCardsEffectiveTerrainCost(terrain)
             setCost=setCost==nil and effect.cost or math.min(setCost,effect.cost)
         end
     end
-    if setCost~=nil then return setCost end
-    if base>=900 then return base end
-    local cost=base
-    -- Cap effects are evaluated before reductions so Song of Wind and
-    -- Path Finding can stack, with higher-minimum reductions applied first.
+    if setCost==nil and base>=900 then return base end
+    local cost=setCost or base
+    -- A traversal-setting effect retains its precedence over ordinary card
+    -- discounts. Weather always applies last to the resulting legal cost.
+    if setCost==nil then
+        for _,effect in ipairs(effects) do
+            if effect.mode=="cap" and terrainEffectApplies(effect,terrain) then
+                cost=math.min(cost,effect.cost)
+            elseif effect.mode=="reduce" and terrainEffectApplies(effect,terrain) then
+                cost=math.max(effect.minimum or 0,cost-effect.amount)
+            end
+        end
+    end
     for _,effect in ipairs(effects) do
-        if effect.mode=="cap" and terrainEffectApplies(effect,terrain) then
-            cost=math.min(cost,effect.cost)
-        elseif effect.mode=="reduce" and terrainEffectApplies(effect,terrain) then
-            cost=math.max(effect.minimum or 0,cost-effect.amount)
+        if effect.mode=="weather" and terrainEffectApplies(effect,terrain) then
+            if effect.amount<0 then cost=math.max(1,cost+effect.amount)
+            else cost=math.min(5,cost+effect.amount) end
         end
     end
     return cost
@@ -5425,7 +5483,7 @@ local function renderSeat(seatPos,quietUnitChoice)
     local current,records,totals={}, {}, {}
     local usesCurrentHexBlock=false
     local usesCurrentHexHealing=false
-    local terrainModifiers={}
+    local terrainModifiers=resourceCardsWeatherTerrainEffects(seatPos)
     local movementEffects={jumpTwoSpaces=false,ignoreRampagers=false}
     local usesSkillLocation=false
     -- This is a reusable declarative overlay. All passives are owned-Skill
