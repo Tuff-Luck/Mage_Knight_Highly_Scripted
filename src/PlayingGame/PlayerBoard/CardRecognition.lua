@@ -1359,7 +1359,7 @@ local function combatUnitResists(unit,attackKey)
 end
 
 -- items: {key,type,damage,poison,paralyse,assassination} in resolution order; targetsOf(key) lists the Unit GUIDs the player chose.
-local function combatDamageResolve(items,units,heroArmour,targetsOf,mitigation)
+local function combatDamageResolve(items,units,heroArmour,targetsOf,mitigation,elementMitigation)
     local used,results={},{}
     -- Reserve a Unit required to receive its own protected enemy's damage first.
     -- An earlier, unrelated enemy must not consume that Unit before its forced assignment.
@@ -1413,6 +1413,24 @@ local function combatDamageResolve(items,units,heroArmour,targetsOf,mitigation)
                 mitigation.appliedKey=item.key
             end
         end
+        -- Elemental Resistance is a separate once-per-turn Hero safeguard.
+        -- Fire/Ice prevent 2; Cold Fire, Physical and Psychic prevent 1.
+        -- Apply after Brutal doubles damage and after Units absorb their share.
+        if remaining>0 and elementMitigation~=nil and not elementMitigation.used then
+            local sameEnemy=item.owner==elementMitigation.owner
+                or (gStates~=nil and gStates.attackedMonsters~=nil
+                    and gStates.attackedMonsters[item.owner]~=nil
+                    and gStates.attackedMonsters[item.owner][3]=="summoned"
+                    and gStates.attackedMonsters[item.owner][4]==elementMitigation.owner)
+            if sameEnemy and (elementMitigation.attackKey==nil
+                or elementMitigation.attackKey==item.key) then
+                local ignored=(item.type=="F" or item.type=="I") and 2 or 1
+                result.elementPrevented=math.min(remaining,ignored)
+                remaining=remaining-result.elementPrevented
+                elementMitigation.used=true
+                elementMitigation.appliedKey=item.key
+            end
+        end
         if remaining>0 then
             result.heroDamage=remaining
             result.heroWounds=math.ceil(remaining/math.max(1,heroArmour))
@@ -1454,6 +1472,9 @@ local function combatDamageNotes(item,result)
     local notes={distribution}
     if (result.prevented or 0)>0 then
         notes[#notes+1]="Battle Hardened: -"..tostring(result.prevented).." Hero damage"
+    end
+    if (result.elementPrevented or 0)>0 then
+        notes[#notes+1]="Elemental Resistance: -"..tostring(result.elementPrevented).." Hero damage"
     end
     if #resisted>0 then notes[#notes+1]="Resisted (no Wound): "..table.concat(resisted,", ") end
     if #destroyed>0 then notes[#notes+1]="Destroyed (Paralyse): "..table.concat(destroyed,", ") end
@@ -3112,8 +3133,10 @@ end
 
 function resourceCardsCombatAssignSource(sourceGUID,enemyGUID)
     if not resourceCardsCombatTargetAcceptsSource(sourceGUID,enemyGUID) then return end
-    if sourceGUID=="0688d8" and combatAssignmentState.targets[sourceGUID]~=enemyGUID
-        and gStates~=nil then gStates.battleHardenedAttackKey=nil end
+    if gStates~=nil and combatAssignmentState.targets[sourceGUID]~=enemyGUID then
+        if sourceGUID=="0688d8" then gStates.battleHardenedAttackKey=nil end
+        if sourceGUID=="ae8673" then gStates.elementalResistanceAttackKey=nil end
+    end
     combatAssignmentState.targets[sourceGUID]=enemyGUID
     combatAssignmentState.explicit[sourceGUID]=true
     resourceCardsRefreshCombatEnemies()
