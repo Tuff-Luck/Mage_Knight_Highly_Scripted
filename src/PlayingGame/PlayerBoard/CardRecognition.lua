@@ -971,6 +971,16 @@ end
 -- Ranged and Siege only count in the Ranged/Siege phase against enemies that are not
 -- (doubly) fortified; one phase total is resisted as a whole.
 local function combatRangeResult(entry,sources)
+    -- Forked Lightning must use every bolt in the SAME phase. When the
+    -- player selects melee, none of its bolts can score a Ranged-phase kill.
+    local eligible={}
+    for _,source in ipairs(sources) do
+        if not source.forkedLightning
+            or (gStates~=nil and gStates.forkedLightningPhase=="range") then
+            eligible[#eligible+1]=source
+        end
+    end
+    sources=eligible
     local data,perks=entry.data,entry.perks
     local fortification=combatEnemyFortificationCount(data,perks)
     local groups={}
@@ -983,7 +993,10 @@ end
 
 -- Block cells hold block, the Ranged/Siege cell holds range/siege only once it can legally
 -- defeat the enemy, and everything else is generic Attack.
-local function combatDetailPhase(detail,rangeDefeated,fortification)
+local function combatDetailPhase(detail,rangeDefeated,fortification,source)
+    if source~=nil and source.forkedLightning then
+        return gStates~=nil and gStates.forkedLightningPhase=="range" and "range" or "attack"
+    end
     if detail.family=="block" or detail.family=="move" then return "block" end
     if rangeDefeated and ((detail.family=="ranged" and fortification==0)
         or (detail.family=="siege" and fortification<2)) then return "range" end
@@ -2558,7 +2571,14 @@ local function combatAssignmentRefreshRows(entries,sources)
     end
     attackAssignmentsUnitPreviewSync(damageSeat,damageResults,selfWounds)
     for _,group in ipairs(groups) do
-        local meleeSources=combatConfig.attackPhaseSources(group.sources,woundedBeforeAttack)
+        local available=combatConfig.attackPhaseSources(group.sources,woundedBeforeAttack)
+        local meleeSources={}
+        for _,source in ipairs(available) do
+            if not source.forkedLightning
+                or gStates==nil or gStates.forkedLightningPhase~="range" then
+                meleeSources[#meleeSources+1]=source
+            end
+        end
         local meleeTotal=combatAttackTotal({
             {sources=meleeSources,category="attack"},
             {sources=meleeSources,category="ranged"},
@@ -2695,7 +2715,7 @@ local function combatAssignmentRefreshRows(entries,sources)
                         reduced=rowBlock[index].wrongBlock[item.source.key..tostring(item.detail.key)]==true}
                 end
                 if item.detail.family~="block" and item.detail.family~="move" then
-                    local phase=combatDetailPhase(item.detail,group.rangeDefeated,group.fortification)
+                    local phase=combatDetailPhase(item.detail,group.rangeDefeated,group.fortification,item.source)
                     -- Keep invalidated Attack-phase Unit icons visible so players
                     -- can see what was assigned, but make the unavailable value grey
                     -- and explain why it does not count. Earlier Ranged/Block stands.
