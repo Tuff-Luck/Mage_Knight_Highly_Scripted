@@ -287,7 +287,7 @@ function playerBoardZoneLeave(ctx)
 				local skill=getObjectFromGUID(GUID.skill.masterOfChaos)
 				if skill==nil then return end
 				for a=1, #turnOrder, 1 do
-					if turnOrder[a].masterOfChaos~=nil and turnOrder[a].masterOfChaos~="incrementented in turn" then turnOrder[a].masterOfChaos="available" break end
+					if turnOrder[a].masterOfChaos~=nil and turnOrder[a].masterOfChaos~="incremented in turn" and turnOrder[a].masterOfChaos~="used" then turnOrder[a].masterOfChaos="available" break end
 				end
 				skill.setCustomObject({image=masterOfChaosData[gStates.masterOfChaos].image})
 				skill.reload()
