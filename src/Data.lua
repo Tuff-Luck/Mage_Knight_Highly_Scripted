@@ -2648,7 +2648,7 @@ skillResourceDefinitions={
     ["3dc067"]={untracked=true},
     ["3f0f3b"]={day={influence=3},night={influence=2}},
     ["3fba07"]={partial=true,linkedCard={targetKind="wound",posture="sideways",
-        sideways={value=3}}}, -- Ritual of Pain: first activation stays manual
+        requiresCirculation=true,sideways={value=3}}}, -- Ritual of Pain: only the circulated return grants +3
     ["407c99"]={locationInfluence={default=3,fortified=2,glade=4}}, -- Beguile.
     ["45fe78"]={untracked=true},
     ["48fd35"]={untracked=true},
