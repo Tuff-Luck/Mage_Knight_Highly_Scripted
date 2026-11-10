@@ -1476,24 +1476,55 @@ end
 --Claim the Skill reserved by Hero Challenges. higherLevel=true mirrors the Start-at-Higher-Level
 --Bonds of Loyalty setup rather than adding cards to the live Unit Offer.
 
+-- All Motivation variants share the same eligibility and cooldown. The Dummy/Proxy
+-- is never an eligible lowest-Fame rival, including when resolving a tie.
+function motivationUniqueLowestFamePlayerIndex()
+	local lowest,fame,tied=nil,nil,false
+	for playerIndex,details in ipairs(turnOrder or {}) do
+		if details.seatPos~=nil and details.seatPos<=4
+			and details.mage~=gStates.positionMageKnight[5]
+			and (playerDropoutInactive==nil or playerDropoutInactive(playerIndex)==false) then
+			local amount=tonumber(details.fame) or 0
+			if fame==nil or amount<fame then
+				lowest,fame,tied=playerIndex,amount,false
+			elseif amount==fame then tied=true end
+		end
+	end
+	return not tied and lowest or nil
+end
+
+function motivationSkillCanActivate(skillGUID,seatPos)
+	local stats=gStates.motivationSkill~=nil and gStates.motivationSkill[skillGUID] or nil
+	if stats==nil or stats.pos~=seatPos or stats.state~="active"
+		or (gStates.motivationLockBySeat or {})[seatPos]~=nil then return false end
+	for _,other in pairs(gStates.motivationSkill) do
+		if other.pos==seatPos and other.state=="used" then return false end
+	end
+	return true
+end
+
+function motivationOwnerTurnCompleted(seatPos)
+	local locks=gStates.motivationLockBySeat
+	local lock=locks~=nil and locks[seatPos] or nil
+	if lock==nil then return end
+	if lock.currentTurnPending==true then lock.currentTurnPending=false
+	else locks[seatPos]=nil end
+end
+
 -- Motivation skill runtime
 function skillsMotivationBase(player, mouseButton, id)
-	if mouseButton=="-1" then
-		if legalPlayerCheck(player.color, tonumber(id:sub(18, 18)))==true then
-			for a=1, #turnOrder, 1 do
-				if turnOrder[a].seatPos==tonumber(id:sub(18, 18)) then
+	local skillGUID,seatText=type(id)=="string" and id:match("^([0-9a-f]+)%-Motivation(%d+)$")
+	local seatPos=tonumber(seatText)
+	if mouseButton=="-1" and skillGUID~=nil and seatPos~=nil
+		and motivationSkillCanActivate(skillGUID,seatPos)
+		and legalPlayerCheck(player.color,seatPos)==true then
+		for a=1,#turnOrder do
+			if turnOrder[a].seatPos==seatPos then
 					broadcastToAll(joinLang({translateWord[turnOrder[a].mage], "{en} used a Motivation skill.{it} ha usato un'abilità Motivazione.{ru} использует навык Мотивация.{zh-tw}使用了激励技能{zh-cn}使用了激励技能{ko}: 스킬 '동기 부여' 사용{es} usó una habilidad de Motivación.{fr} utilisé une compétence de Motivation.{pt-br} usou uma Habilidade de Motivação{de} eine Motivationsfertigkeit eingesetzt."}), positionToColor(a))
 					--One exact two-card request keeps the whole Motivation draw inside one Quick Witted choice flow.
 					drawExactDeedCards(a, 2, "DrawOne")
 					--Gain Fame or mana token
-					local lowestFame=1
-					for b=2, #turnOrder, 1 do
-						if turnOrder[b].mage~=gStates.positionMageKnight[5] then
-							if turnOrder[b].fame<turnOrder[lowestFame].fame or turnOrder[lowestFame].mage==gStates.positionMageKnight[5] then lowestFame=b end
-						end
-					end
-					for b=1, #turnOrder, 1 do if turnOrder[b].fame==turnOrder[lowestFame].fame and b~=lowestFame then lowestFame=0 break end end--find ties
-					if lowestFame~=0 and turnOrder[lowestFame].seatPos==tonumber(id:sub(18, 18)) then
+					if motivationUniqueLowestFamePlayerIndex()==a then
 						local params={position={(gStates.motivationSkill[id:sub(1, 6)].pos*40)-101, 1.65, -39}, rotation={0, 0, 0}, smooth=false}
 						if gStates.motivationSkill[id:sub(1, 6)].bonus:sub(11, 13)=="Red" then
 							takeManaCrystal(getObjectFromGUID(GUID.bag.mana.red),params)
@@ -1530,11 +1561,20 @@ function skillsMotivationBase(player, mouseButton, id)
 							broadcastToAll("{en}and gained a Fame also{it}e ottenuto anche 1 Fama{ru}и получает Славу{zh-tw}也增加了1名望{zh-cn}也增加了1名望{ko}명성 1 추가 획득.{es}y ganó Fama también{fr}et a également gagné une renommée{pt-br}e também ganhou uma Fama.{de}und auch einen Ruhmespunkt gewonnen", positionToColor(a))
 						end
 					end
-					--flip skill down.
-					getObjectFromGUID(id:sub(1, 6)).setRotationSmooth({0, 180, 180})
-					getObjectFromGUID(id:sub(1, 6)).setPositionSmooth({gStates.mageSkills[id:sub(1, 6)][1], 1.5, gStates.mageSkills[id:sub(1, 6)][3]})
-					--only allow once per round
-					gStates.motivationSkill[id:sub(1, 6)].state="used"
+					-- The restriction lasts through the end of the owner's NEXT turn,
+					-- not merely the current player's turn. Persist this history for saves.
+					gStates.motivationLockBySeat=gStates.motivationLockBySeat or {}
+					local active=turnOrder[gStates.turnNumber]
+					gStates.motivationLockBySeat[seatPos]={
+						currentTurnPending=active~=nil and active.seatPos==seatPos}
+					-- Flip the skill down; its once-per-round status is separate from the lock.
+					local skill=getObjectFromGUID(skillGUID)
+					if skill~=nil then
+						skill.setRotationSmooth({0, 180, 180})
+						local home=gStates.mageSkills[skillGUID]
+						if home~=nil then skill.setPositionSmooth({home[1],1.5,home[3]}) end
+					end
+					gStates.motivationSkill[skillGUID].state="used"
 					mainUIUpdate("Motivation Skill activated")
 					break
 				end
