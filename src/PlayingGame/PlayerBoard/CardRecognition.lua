@@ -567,7 +567,9 @@ local function combatEnemyAttacks(entry)
     local attacks=combatEnemyPrintedAttacks(entry.data,entry.perks,entry.removeAbilities,entry.guid)
     if entry.data.monsters~=nil then
         for _,summoned in ipairs(entry.summoned or {}) do
-            if not combatSummonedAttackPrevented(summoned) then
+            if not combatSummonedAttackPrevented(summoned)
+                and not (entry.summonedDestroyed~=nil
+                    and entry.summonedDestroyed[summoned.guid]==true) then
                 local strip=summoned.effect~=nil and summoned.effect.removeAbilities==true
                 local summonedAttacks=combatEnemyPrintedAttacks(summoned.data,summoned.perks,strip,summoned.guid)
                 combatConfig.convertPreyAttacks(summonedAttacks,summoned.effect)
@@ -1261,16 +1263,19 @@ local function combatBlockResult(entry,sources)
     end
     local key=table.concat(parts,";")
     local cached=entry.guid~=nil and combatBlockResultCache[entry.guid] or nil
-    if cached~=nil and cached.key==key then return table.unpack(cached.result,1,8) end
+    if cached~=nil and cached.key==key then return table.unpack(cached.result,1,9) end
     local plan,solved,leftover=combatSolveBlocks(attacks,items,movePool)
     -- Capture the genuinely spent Block sources before spare Block display
     -- items are appended to the plan, or a free counterattack can result.
-    local successfulSources={}
+    local successfulSources,successfulOwners={},{}
     for index,attack in ipairs(attacks) do
         if plan[index]~=nil and plan[index].blocked and not attack.pending then
             for j,item in ipairs(solved) do
                 if plan[index].used[j] and item.key:sub(1,5)=="block" then
                     successfulSources[item.source.guid]=true
+                    local owners=successfulOwners[item.source.guid] or {}
+                    owners[attack.owner or entry.guid]=true
+                    successfulOwners[item.source.guid]=owners
                 end
             end
         end
@@ -1331,10 +1336,10 @@ local function combatBlockResult(entry,sources)
     if entry.guid~=nil then
         combatBlockResultCache[entry.guid]={key=key,result={
             lines,totalDamage,damageCount,allBlocked,reductions,wrongBlock,unblocked,
-            successfulSources}}
+            successfulSources,successfulOwners}}
     end
     return lines,totalDamage,damageCount,allBlocked,reductions,wrongBlock,unblocked,
-        successfulSources
+        successfulSources,successfulOwners
 end
 
 -- Damage phase. Every unblocked attack starts wholly on the Hero; the player may route it through free Units first
@@ -2493,19 +2498,32 @@ local function combatAssignmentRefreshRows(entries,sources)
             end
             if hasAttack then
                 local target=allocated[index]
-                local _,_,_,allBlocked,_,_,_,successfulSources=
+                local _,_,_,_,_,_,_,successfulSources,successfulOwners=
                     combatBlockResult(entry,target~=nil and target.sources or {})
-                local shieldContributed=false
+                local explodedEnemy=false
                 for _,applied in ipairs(entry.effect~=nil and entry.effect.applied or {}) do
                     if applied.effective~=nil and applied.effective.destroyIfBlocked==true
                         and successfulSources[applied.source]==true then
-                        shieldContributed=true
-                        break
+                        for owner in pairs(successfulOwners[applied.source] or {}) do
+                            if owner==entry.guid then
+                                -- One successful Attack Block suffices even if
+                                -- the token has other, unblocked attacks.
+                                explodedEnemy=true
+                            else
+                                -- A blocked summoned monster is destroyed, NOT
+                                -- its summoner, and never earns Fame by itself.
+                                for _,summoned in ipairs(entry.summoned or {}) do
+                                    if summoned.guid==owner then
+                                        entry.summonedDestroyed=entry.summonedDestroyed or {}
+                                        entry.summonedDestroyed[owner]=true
+                                        break
+                                    end
+                                end
+                            end
+                        end
                     end
                 end
-                if allBlocked and shieldContributed then
-                    entry.destroyed=true conditionalDestroyed=true
-                end
+                if explodedEnemy then entry.destroyed=true conditionalDestroyed=true end
             end
         end
     end
@@ -2855,11 +2873,16 @@ local function combatAssignmentRefreshRows(entries,sources)
     local trackedGuids,defeatedGuids={},{}
     for _,group in ipairs(groups) do
         for _,index in ipairs(group.members) do
-            local guid=entries[index].guid
-            if not entries[index].attackOnly and not entries[index].preview then
+            local entry=entries[index]
+            local guid=entry.guid
+            if not entry.attackOnly and not entry.preview then
                 trackedGuids[guid]=true
                 if group.defeated or (not group.rangeDefeated
-                    and entries[index].attackPhaseDestroyed) then defeatedGuids[guid]=true end
+                    and entry.attackPhaseDestroyed) then defeatedGuids[guid]=true end
+                for summonedGUID in pairs(entry.summonedDestroyed or {}) do
+                    trackedGuids[summonedGUID]=true
+                    defeatedGuids[summonedGUID]=true
+                end
             end
         end
     end
