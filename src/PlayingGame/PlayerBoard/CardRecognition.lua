@@ -6437,6 +6437,7 @@ local function renderSeat(seatPos,quietUnitChoice)
                     local snapshot=sacrificeCastPairs[card.guid]
                     if snapshot~=nil and (snapshot.seat~=seatPos or snapshot.category~=category) then
                         snapshot=nil
+                        sacrificeCastPairs[card.guid]=nil
                     end
                     if snapshot==nil and available>0 then
                         snapshot={seat=seatPos,category=category,pairs=available}
