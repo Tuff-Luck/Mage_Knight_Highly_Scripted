@@ -635,6 +635,12 @@ function coopCompSkillDropped(skillGUID, position)
 		return
 	end
 	if coopCompSkillOwnedAreaPlayer(position)~=nil then
+		-- A recipient claiming Calming the Weather keeps the -1 Move-cost
+		-- benefit through the end of this turn even though the token returns home.
+		if skillGUID=="55e5e5" and gStates.doingTheRounds[skillGUID]~=nil
+			and record.player~=nil and gStates.turnNumber~=record.player then
+			gStates.weatherBenefitThisTurn={player=gStates.turnNumber,round=gStates.currentRound}
+		end
 		if gStates.doingTheRounds[skillGUID]~=nil and doingTheRounds~=nil then doingTheRounds(skillGUID, "", 0, true)
 		else deactivateCoopCompSkill(skillGUID, true) end
 	end
@@ -1136,6 +1142,10 @@ end
 local krangFlipBackSkillGUIDs={["0fbcfe"]=true,["91c8a0"]=true,["d8824d"]=true}
 
 function prepareEndTurnSkillRotation(cleanupPlayer, nextPlayer)
+	-- A claimed Calming the Weather benefit expires with the recipient's turn.
+	if gStates.weatherBenefitThisTurn~=nil and gStates.weatherBenefitThisTurn.player==cleanupPlayer then
+		gStates.weatherBenefitThisTurn=nil
+	end
 	-- The special effect lasts through this turn's cleanup, not next turn.
 	if turnOrder~=nil and turnOrder[cleanupPlayer]~=nil then
 		turnOrder[cleanupPlayer].krangArcaneDisguiseIgnoreReputation=nil
