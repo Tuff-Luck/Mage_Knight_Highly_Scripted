@@ -1110,6 +1110,27 @@ end
 
 --Refresh all played Skills at the end-turn circulation boundary and return the reminder GUIDs
 --that must survive generic Play Area figurine cleanup.
+-- Arcane Disguise's flipped side ignores Reputation for the CURRENT turn only.
+-- The skill remains physically face down between turns; that alone must not
+-- grant Reputation immunity again on later turns.
+function krangArcaneDisguiseReputationActive(playerIndex)
+	local player=turnOrder~=nil and turnOrder[playerIndex] or nil
+	if player==nil or player.mage~="Krang" then return false end
+	if player.krangArcaneDisguiseIgnoreReputation==true then return true end
+	local skill=getObjectFromGUID("91c8a0")
+	if skill==nil or skill.is_face_down~=true then return false end
+	local zoneGUID=playerPlayAreas~=nil and playerPlayAreas[player.seatPos] or nil
+	local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
+	if zone==nil then return false end
+	for _,obj in ipairs(zone.getObjects()) do
+		if obj.guid==skill.guid then
+			player.krangArcaneDisguiseIgnoreReputation=true
+			return true
+		end
+	end
+	return false
+end
+
 -- These Krang Skills have a Flip Back ability. They remain spent between
 -- turns unless their own flip-back condition is met; End Round resets all Skills.
 local krangFlipBackSkillGUIDs={["0fbcfe"]=true,["91c8a0"]=true,["d8824d"]=true}
