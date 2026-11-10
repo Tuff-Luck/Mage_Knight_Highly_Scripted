@@ -30,6 +30,8 @@ jobs:
         run: lua5.2 tools/test-norowas-skills.lua
       - name: Braevalar skill regression tests
         run: lua5.2 tools/test-braevalar-skills.lua
+      - name: Call Offer browser regression tests
+        run: lua5.2 tools/test-call-offer.lua
       - name: Check commit whitespace
         run: git diff --check HEAD^
 

@@ -1,0 +1,125 @@
+-- Physical Call to Arms / Call to Glory offer browser regression tests.
+-- Run from repository root: lua5.2 tools/test-call-offer.lua
+local function eq(actual,expected,label)
+    if actual~=expected then
+        error((label or "Mismatch")..": "..tostring(actual).." ~= "..tostring(expected),2)
+    end
+end
+local function copy(v) return {v[1],v[2],v[3]} end
+local function fakeCard(guid,x,z)
+    local card={guid=guid,position={x,1,z},rotation={0,180,0},scale={1.5,1,1.5},
+        resting=true,held_by_color=nil,locked=true}
+    local xml={}
+    card.UI={
+        getXmlTable=function() return xml end,
+        setXmlTable=function(nextXml) xml=nextXml end
+    }
+    card.getPosition=function() return copy(card.position) end
+    card.getRotation=function() return copy(card.rotation) end
+    card.getScale=function() return copy(card.scale) end
+    card.setPositionSmooth=function(v) card.position=copy(v) end
+    card.setRotationSmooth=function(v) card.rotation=copy(v) end
+    card.setPosition=function(v) card.position=copy(v) end
+    card.setRotation=function(v) card.rotation=copy(v) end
+    card.setScale=function(v) card.scale=copy(v) end
+    card.unlock=function() card.locked=false end
+    card.lock=function() card.locked=true end
+    card.isSmoothMoving=function() return false end
+    return card
+end
+local spell=fakeCard("2eb8e8",-60,-43)
+local first=fakeCard("111111",36,-4.2)
+local second=fakeCard("222222",31.2,-4.2)
+local third=fakeCard("333333",26.4,-4.2)
+local all={["2eb8e8"]=spell,["111111"]=first,["222222"]=second,["333333"]=third}
+local spellInPlay=true
+local function inOffer(card)
+    return math.abs(card.position[3]+4.2)<0.8
+end
+local zones={
+    offer={getObjects=function()
+        local cards={}
+        for _,unit in ipairs({first,second,third}) do
+            if inOffer(unit) then cards[#cards+1]=unit end
+        end
+        return cards
+    end},
+    play={getObjects=function() return spellInPlay and {spell} or {} end},
+    army={getObjects=function()
+        local cards={}
+        for _,unit in ipairs({first,second,third}) do
+            if math.abs(unit.position[3]+34.74)<0.8 then cards[#cards+1]=unit end
+        end
+        return cards
+    end}
+}
+GUID={zone={unitOffer="offer"}}
+playerPlayAreas={"play"}
+playerUnitAreas={"army"}
+gStates={}
+getObjectFromGUID=function(guid) return zones[guid] or all[guid] end
+callOfferAvailableUnits=function()
+    local units=zones.offer.getObjects()
+    table.sort(units,function(a,b) return a.position[1]>b.position[1] end)
+    return units
+end
+safeWaitCondition=function(_,callback,condition)
+    if condition() then callback() else error("Unsettled test object",2) end
+end
+legalPlayerCheck=function() return true end
+local stopped=0
+resourceUnitsBorrowedUnitEnded=function() stopped=stopped+1 end
+resourceCardsSourceChanged=function() end
+publishPublicUICallbacks=function(callbacks)
+    for name,callback in pairs(callbacks) do _G[name]=callback end
+end
+dofile("src/PlayingGame/CallOffer.lua")
+local function hasArrow(card,direction)
+    for _,node in ipairs(card.UI.getXmlTable()) do
+        local id=node.attributes and node.attributes.id
+        if id=="CallOfferControl_"..card.guid.."_"..direction then return true end
+    end
+    return false
+end
+callOfferSpellEntered(spell.guid,1)
+eq(gStates.callOfferPreview.unitGUID,first.guid,"initial offered Unit")
+eq(first.position[3],spell.position[3],"borrowed Unit alongside Spell")
+eq(first.scale[1],1.5,"full-sized Unit")
+eq(hasArrow(first,"previous"),true,"left arrow present")
+eq(hasArrow(first,"next"),true,"right arrow present")
+eq(callOfferBorrowedUnitForSeat(1),first,"one temporary selected Unit")
+callOfferCycleClicked({color="Red"},nil,"CallOfferControl_111111_next")
+eq(first.position[1],36,"first Unit returned to its original slot")
+eq(first.locked,true,"returned Unit locked")
+eq(hasArrow(first,"next"),false,"returned Unit has no arrows")
+eq(gStates.callOfferPreview.unitGUID,second.guid,"next original card selected")
+callOfferCycleClicked({color="Red"},nil,"CallOfferControl_222222_previous")
+eq(second.position[1],31.2,"second Unit restored on reverse")
+eq(gStates.callOfferPreview.unitGUID,first.guid,"previous card selected")
+-- Loading an active game restores object-attached arrows without moving cards.
+first.UI.setXmlTable({})
+callOfferRestoreOnLoad()
+eq(hasArrow(first,"next"),true,"saved offer browser controls restored")
+-- A spell removed from play returns the actual Unit.
+spellInPlay=false
+callOfferSpellLeft(spell.guid,1)
+eq(gStates.callOfferPreview,nil,"spell exit closes the browser")
+eq(first.position[1],36,"spell exit restored offer position")
+eq(inOffer(first),true,"spell exit returns offer membership")
+-- The player can manually recruit the same card with Call to Glory.
+spellInPlay=true
+callOfferSpellEntered(spell.guid,1)
+first.setPosition({-60,1,-34.74})
+callOfferObjectDropped(first)
+eq(gStates.callOfferPreview,nil,"recruited Unit stops being loaned")
+eq(first.position[3],-34.74,"recruited Unit remains in army")
+eq(hasArrow(first,"next"),false,"recruited Unit loses browser arrows")
+-- Forced offer cleanup restores a borrowing card synchronously.
+callOfferSpellEntered(spell.guid,1)
+eq(gStates.callOfferPreview.unitGUID,second.guid,"already recruited Unit excluded")
+callOfferClose(true)
+eq(second.position[1],31.2,"forced offer maintenance restores original slot")
+eq(second.locked,true,"forced restore relocks Unit")
+eq(gStates.callOfferPreview,nil,"cleanup clears saved loan")
+assert(stopped>0,"borrowed Unit activation was released")
+print("Call Offer browser regressions passed")
