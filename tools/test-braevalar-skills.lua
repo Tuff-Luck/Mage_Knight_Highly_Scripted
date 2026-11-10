@@ -98,6 +98,50 @@ eq(nearest({guid="d01b70",key="d01b70#fork4",forkedLightning=true,
     ranged=1,siege=0,attack=0},enemies),nil,
     "Extra bolt cannot target a used enemy")
 
+-- Every Forked Lightning bolt is confined to the selected phase.
+combatEnemyFortificationCount=function() return 0 end
+combatEnemyHasTrait=function() return false end
+combatAttackTotal=function(groups)
+    local total=0
+    for _,group in ipairs(groups) do
+        for _,src in ipairs(group.sources) do
+            if group.category=="ranged" then total=total+(src.ranged or 0) end
+            if group.category=="siege" then total=total+(src.siege or 0) end
+        end
+    end
+    return total
+end
+local rangeResult=isolated(recognition,
+    "local function combatRangeResult(entry,sources)",
+    "local function combatDetailPhase(", "combatRangeResult")
+local forkSources={{forkedLightning=true,ranged=1,siege=0},
+    {forkedLightning=true,ranged=1,siege=0}}
+local forkEnemy={data={},perks={},baseArmour=2,elusiveArmour=2}
+gStates.forkedLightningPhase="range"
+local amount,armour,defeated=rangeResult(forkEnemy,forkSources)
+eq(amount,2,"All selected bolts contribute to Ranged phase")
+eq(defeated,true,"Two bolts can defeat a joined group at range")
+gStates.forkedLightningPhase="attack"
+amount,armour,defeated=rangeResult(forkEnemy,forkSources)
+eq(amount,0,"Melee-phase Forked Lightning cannot defeat at range")
+eq(defeated,false,"Melee-phase bolts wait until regular Attack phase")
+
+-- Competing Nature's Vengeance modifies the Block target, but the base
+-- damage value remains unchanged when that Block fails.
+COMBAT_EFFICIENT_BLOCKS={P={block=true}}
+local blockSolver=isolated(recognition,
+    "local function combatBlockLegal(attack,item)",
+    "local function combatBlockSpent(", "combatSolveBlocks")
+local blockItem={source={key="test"},key="block",value=4,part=1}
+local plan=blockSolver({{key="P",value=4}}, {blockItem}, 0)
+eq(plan[1].blocked,true,"Four Block covers a normal Attack of four")
+plan=blockSolver({{key="P",value=5,damageValue=4}}, {blockItem}, 0)
+eq(plan[1].blocked,false,"Competitive +1 raises Block requirement to five")
+contains(recognition, 'attack.damageValue=attack.value',
+    "Block-only penalty preserves original attack damage")
+contains(recognition, '(attack.damageValue or attack.value)-step.reduction',
+    "Damage phase uses original Attack strength")
+
 -- Block-only competitive modifier belongs to active opponents, not the owner.
 combatAssignmentActiveSeat=function() return 2 end
 gStates.turnNumber=2
