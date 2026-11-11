@@ -808,9 +808,11 @@ end
 
 function manaClaimRegisterForTurn(playerIndex)
     local player=turnOrder~=nil and turnOrder[playerIndex] or nil
-    local area=player~=nil and player.seatPos~=nil
-        and getObjectFromGUID(playerPlayAreas[player.seatPos]) or nil
-    if area==nil or gStates==nil then return end
+    if player==nil or player.seatPos==nil or gStates==nil then return end
+    local areaGuid=playerPlayAreas~=nil and playerPlayAreas[player.seatPos] or nil
+    if areaGuid==nil then return end
+    local area=getObjectFromGUID(areaGuid)
+    if area==nil then return end
     local spell=nil
     local objects=area.getObjects()
     for _,obj in ipairs(objects) do
