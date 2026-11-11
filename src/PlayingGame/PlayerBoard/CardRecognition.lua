@@ -5618,6 +5618,10 @@ end
 
 local function scheduleChoiceResetAfterPlay(guid,seatPos)
     if guid==nil or seatPos==nil then return end
+    -- Avoid physics waits for mana, enemies and unrelated play-area objects.
+    if selectedResourceByGUID[guid]==nil and (gStates==nil
+        or gStates.resourceCardPlayOrder==nil
+        or gStates.resourceCardPlayOrder[guid]==nil) then return end
     choiceResetGenerationByGUID[guid]=(choiceResetGenerationByGUID[guid] or 0)+1
     local serial=choiceResetGenerationByGUID[guid]
     -- Allow the zone's membership to settle before checking whether this
