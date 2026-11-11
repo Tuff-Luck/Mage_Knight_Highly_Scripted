@@ -5553,7 +5553,8 @@ local function resolveActionLinks(cards,wounds,footprints,manaPowered,skillLinks
         local repeated=repeatByTarget[source.guid]
         if requirement~=nil and requirement.mode=="throwAway"
             and (discarded[source.guid]==nil or repeated~=nil)
-            and source.is_face_down~=true and cardPosture(source)=="upright" then
+            and (source.is_face_down~=true or repeated~=nil)
+            and cardPosture(source)=="upright" then
             local need=repeated~=nil and repeated.count or 1
             local paid=0
             if repeated~=nil then repeated.options={} end
@@ -5587,7 +5588,8 @@ local function resolveActionLinks(cards,wounds,footprints,manaPowered,skillLinks
         if (discarded[source.guid]==nil or repeated~=nil)
             and rule~=nil and rule.requiredLink~=nil
             and rule.requiredLink.mode=="discard"
-            and source.is_face_down~=true and cardPosture(source)=="upright"
+            and (source.is_face_down~=true or repeated~=nil)
+            and cardPosture(source)=="upright"
             and not (data~=nil and data.cardType=="Artifact"
                 and source.is_face_down==true) then
             local need=repeated~=nil and repeated.count or 1
