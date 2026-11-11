@@ -2675,7 +2675,7 @@ local function combatAssignmentRefreshRows(entries,sources)
             resourceCardsSourceChanged()
         end
     end
-    -- Explosive Bolt resolves AFTER the Ranged/Siege defeat check and BEFORE
+    -- Explosive Bolt resolves AFTER a Ranged/Siege defeat check and BEFORE
     -- the ordinary Attack phase. A kill creates one Armour -1 for a DIFFERENT
     -- surviving enemy; bonuses from multiple kills can stack on one enemy.
     -- They cannot retroactively improve the Ranged Attack that produced them.
@@ -2732,6 +2732,7 @@ local function combatAssignmentRefreshRows(entries,sources)
                 end
                 local earned=(explosiveKills[source.guid] or 0)*source.explosiveBolt
                 local resistant=combatEnemyHasTrait(target.data,target.perks,"fResist")
+                    or combatEnemyHasTrait(target.data,target.perks,"arcaneImmunity")
                 local valid=not target.attackOnly and not rangedVictims[target.guid]
                     and not resistant and not target.destroyed
                 local available=math.max(0,target.baseArmour-1)
@@ -2741,7 +2742,7 @@ local function combatAssignmentRefreshRows(entries,sources)
                     key=key,guid=source.guid,earned=earned,applied=applied,
                     reason=earned==0 and "No enemy defeated by this Ranged Attack."
                         or rangedVictims[target.guid] and "Target was defeated by a Ranged Attack."
-                        or resistant and "Fire Resistance prevents this Armour reduction."
+                        or resistant and "Fire Resistance or Arcane Immunity prevents this Armour reduction."
                         or not valid and "Not a valid surviving enemy."
                         or applied==0 and "Armour is already at its minimum of 1." or nil}
                 if applied>0 then
@@ -5445,8 +5446,7 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
         conditionalFireAttack=complete and not powered and chosen~=nil
             and chosen.conditionalFireAttack or nil,
         flameWave=complete and powered and rule~=nil and rule.poweredEnemyBonus~=nil,
-        explosiveBolt=complete and powered and rule~=nil and rule.defeatArmourReduce~=nil
-            and rule.defeatArmourReduce*(repeatLink~=nil and repeatLink.count or 1) or nil,
+        explosiveBolt=complete and powered and rule~=nil and rule.defeatArmourReduce or nil,
         defeatFameRep=defeatSide,splitTargets=chosen~=nil and chosen.splitTargets or nil,
         repeatBlocks=chosen~=nil and chosen.repeatBlocks or nil,
         links=linked,status=status,resources=effects,
