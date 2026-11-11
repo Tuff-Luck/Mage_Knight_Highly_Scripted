@@ -1095,7 +1095,7 @@ cardResourceDefinitions={
     druidicPaths={normal={move=2},powered={move=4}}, -- Player manages the one-space/one-terrain-type discount
     savageHarvesting={normal={move=2},powered={move=4}}, -- Optional crystal gains do not affect Move calculation
     ruthlessCoercion={normal={influence=2},powered={influence=6},fameRep={powered={rep=-1}}}, -- Basic's Reputation loss depends on recruiting a Unit
-    shieldBash={normal={block=3},powered={block=5}}, -- Fixed Block is fully tracked; other bonuses remain manual
+    shieldBash={normal={block=3},powered={block=5},swiftDouble=true,excessBlockArmour=true}, -- Swiftness doubles this Block; powered excess reduces Armour after Block
     frostBridge={normal={move=2},powered={move=4},
         terrainEffects={
             normal={{mode="set",terrains={swamp=true},cost=1}},
@@ -1166,8 +1166,8 @@ cardResourceDefinitions={
     chillingStare={
         normalChoices={{influence=3},{other=1}},
         poweredChoices={{influence=5},{other=1}},
-        enemyEffect={normal={choice="other",removeAbilities=true},
-            powered={choice="other",noAttack=true}}},
+        enemyEffect={normal={choice="other",removeAbilities=true,iceSpell=true},
+            powered={choice="other",noAttack=true,iceSpell=true}}},
     -- One main strong choice plus an independent choice per complete set
     -- of all four basic-colour crystals currently in the player's inventory.
     powerOfCrystals={normalTrackerNeutral=true,
@@ -1193,7 +1193,7 @@ cardResourceDefinitions={
     fireBolt={normalTrackerNeutral=true,powered={rangedFire=3}},
     iceBolt={normalTrackerNeutral=true,powered={rangedIce=3}},
     iceShield={normal={blockIce=3},powered={blockIce=3},
-        enemyEffect={powered={armourReduce=3}}}, -- Blocked enemy loses 3 Armour (applied to the linked enemy)
+        enemyEffect={powered={armourReduce=3,iceSpell=true}}}, -- Ice Resistance ignores the Armour reduction, not Ice Block
 
     -- Spell resources are independent of the legality of the mana used.
     -- Purely narrative/non-numeric effects are deliberately blue, not unknown.
@@ -1705,7 +1705,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["878d93"]={cardType="Advanced Action", resourceKey="shieldBash", name={"Shield Bash"}, 		color={"Blue"}, 		action={"Combat"}},
 			["1f362f"]={cardType="Advanced Action", resourceKey="steadyTempo", name={"Steady Tempo"}, 		color={"Blue"}, 		action={"Move"}},
 			["885b96"]={cardType="Advanced Action", resourceAlwaysNeutral=true, name={"Crystal Mastery"},	color={"Blue"}, 		action={"Special"}},
-			["3d832c"]={cardType="Advanced Action", name={"Magic Talent"}, 		color={"Blue"}, 		action={"Special"}},
+			["3d832c"]={cardType="Advanced Action", resourceAlwaysNeutral=true, name={"Magic Talent"}, 		color={"Blue"}, 		action={"Special"}},
 			["878d91"]={cardType="Advanced Action", resourceKey="regeneration", name={"Regeneration"}, 		color={"Green"}, 		action={"Heal"}},
 			["00c614"]={cardType="Advanced Action", resourceKey="pathFinding", name={"Path Finding"}, 		color={"Green"}, 		action={"Move"}},
 			["878d83"]={cardType="Advanced Action", resourceKey="crushingBolt", name={"Crushing Bolt"}, 	color={"Green"}, 		action={"Combat", "Special"}},
