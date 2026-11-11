@@ -9582,6 +9582,10 @@ function resourceCardsChoiceClicked(player,value,id)
         selected.sideways=category
     end
     selectedResourceByGUID[guid]=selected
+    if data~=nil and data.resourceKey=="rejuvenate" then
+        gStates.unitReadyCardChoices=gStates.unitReadyCardChoices or {}
+        gStates.unitReadyCardChoices[guid]=selected.effect=="ready" or nil
+    end
     choiceExpandedByGUID[guid]=nil
     showChoiceButtons(card,mainChoices,powered,inventorySpec,inventorySets,
         record~=nil and record.resources,record~=nil and record.repeatLink)
@@ -9624,7 +9628,9 @@ function resourceCardsReadySourceValid(sourceKey,seatPos)
         if not found then return false end
     end
     local choice=selectedResourceByGUID[guid]
-    return choice~=nil and choice.effect=="ready"
+    return (choice~=nil and choice.effect=="ready")
+        or (choice==nil and gStates.unitReadyCardChoices~=nil
+            and gStates.unitReadyCardChoices[guid]==true)
 end
 
 function attackAssignmentReadySourceClicked(player,value,id)
@@ -9904,6 +9910,7 @@ function resourceUnitsResetTurn()
             choiceExpandedByGUID[unitGUID]=nil
         end
         unitHistoryReset()
+        gStates.unitReadyCardChoices={}
         gStates.unitResourceActivations={}
     end
     commandPickupForUnits={}
@@ -10011,6 +10018,11 @@ function resourceCardsPanelChanged(open)
     clearAll()
     if invalidateResourceTrackerDisplayCache~=nil then invalidateResourceTrackerDisplayCache() end
     unitHistoryRestoreCurrent()
+    for guid,ready in pairs(gStates.unitReadyCardChoices or {}) do
+        if ready and selectedResourceByGUID[guid]==nil then
+            selectedResourceByGUID[guid]={effect="ready"}
+        end
+    end
     if restart and next(gStates.unitResourceActivations or {})==nil then
         resourceUnitsRebuildFromTable()
     end
