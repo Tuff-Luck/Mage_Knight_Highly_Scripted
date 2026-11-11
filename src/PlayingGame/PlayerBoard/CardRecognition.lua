@@ -161,6 +161,7 @@ local combatAssignmentSlotSources={}
 combatConfig.effectSources={}
 combatConfig.blockedEnemyCounts={}
 combatConfig.dodgeSplitMode={}
+combatConfig.conversionState={}
 local combatAssignmentRowTargets={}
 local combatEnemyPage=1
 local combatAssignmentRowIndices={}
@@ -281,6 +282,50 @@ function resourceCardsTransformedKey(key,transform)
     if transform.siege then family="siege" end
     if transform.coldFire then suffix="ColdFire" end
     return family..suffix
+end
+
+-- Player-set conversion amounts spend one shared resource pool; never
+-- treat every Move/Influence source as an extra, free combat resource.
+-- Existing explicit Cumbersome/Psychic assignments have first claim.
+combatConfig.conversionFor=function(seat,kind)
+    local scan=seat~=nil and resourceCardScanBySeat[seat] or nil
+    local guid=kind=="agility" and "878d92" or "8c3de6"
+    local active=scan~=nil and scan.cards[guid] or nil
+    local valid=active~=nil and active.combatConversion==kind
+        and active.resources~=nil
+    local state=combatConfig.conversionState[seat]
+    if state==nil then
+        state={}
+        combatConfig.conversionState[seat]=state
+    end
+    local choice=state[kind]
+    if choice==nil then
+        choice={attack=0,ranged=0,block=0,element="F"}
+        state[kind]=choice
+    end
+    local available=0
+    if valid then
+        for sourceGUID,record in pairs(scan.cards) do
+            local field=kind=="agility" and "move" or "influence"
+            local amount=math.max(0,tonumber(record.resources~=nil and record.resources[field]) or 0)
+            local targetKey=record.splitTargets~=nil and (sourceGUID.."#block") or sourceGUID
+            -- A source committed to Cumbersome/Psychic cannot simultaneously
+            -- supply its full amount to Agility or Diplomacy.
+            local committed=combatAssignmentState.explicit[targetKey]==true
+                and combatAssignmentState.targets[targetKey]~=nil
+            if not committed then available=available+amount end
+        end
+    end
+    choice.attack=math.max(0,math.floor(tonumber(choice.attack) or 0))
+    choice.ranged=math.max(0,math.floor(tonumber(choice.ranged) or 0))
+    choice.block=math.max(0,math.floor(tonumber(choice.block) or 0))
+    if kind=="agility" then
+        choice.attack=math.min(choice.attack,available)
+        choice.ranged=math.min(choice.ranged,math.floor((available-choice.attack)/2))
+    else
+        choice.block=math.min(choice.block,available)
+    end
+    return choice,available,valid,active
 end
 
 local function combatAssignmentSources(seat)
