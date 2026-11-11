@@ -24,6 +24,8 @@ function unitHistorySourceBase(key)
 end
 
 function unitHistoryEnsure(guid,activation)
+    -- Call to Arms borrows a Unit without a physical Command token.
+    if activation~=nil and activation.callOffer==true then return nil end
     local group=groupOf(guid,activation~=nil)
     if group~=nil and activation~=nil and #group.uses==0 then
         group.uses[1]=activation
@@ -82,7 +84,9 @@ end
 function unitHistoryRefreshToken(guid)
     local group=groupOf(guid)
     if group==nil or #group.uses==0 then return end
-    local token=getObjectFromGUID(group.tokenGUID or group.uses[#group.uses].tokenGUID)
+    local tokenGUID=group.tokenGUID or group.uses[#group.uses].tokenGUID
+    if tokenGUID==nil then return end
+    local token=getObjectFromGUID(tokenGUID)
     if token==nil then return end
     clearTokenControls(token)
     local function add(click,label,x,width,font)
@@ -164,6 +168,15 @@ local function unlinkSource(sourceKey)
         unitHistoryTrim(link.unitGUID,link.usedBy-1)
     elseif group~=nil and group.awaiting==sourceKey then
         group.awaiting=nil
+        -- The Ready source disappeared while the token was in its ready
+        -- slot. Put it back on the Unit: the earlier activation is still spent.
+        local token=group.tokenGUID~=nil and getObjectFromGUID(group.tokenGUID) or nil
+        local unit=getObjectFromGUID(link.unitGUID)
+        if token~=nil and unit~=nil and token.held_by_color==nil
+            and unitLayoutCommandTarget(token,link.seatPos)==nil then
+            local p=unit.getPosition()
+            token.setPositionSmooth({p.x,p.y+0.45,p.z},false,false)
+        end
     end
 end
 
@@ -197,11 +210,14 @@ function unitHistoryTrim(guid,keep)
     if keep==0 then
         gStates.unitResourceActivations[guid]=nil
         gStates.unitActivationHistory[guid]=nil
-        local token=getObjectFromGUID(group.tokenGUID)
+        local token=group.tokenGUID~=nil and getObjectFromGUID(group.tokenGUID) or nil
         clearTokenControls(token)
     else
         gStates.unitResourceActivations[guid]=group.uses[keep]
         unitHistoryRefreshToken(guid)
+    end
+    if resourceUnitsPruneHistoricalTargets~=nil then
+        resourceUnitsPruneHistoricalTargets(guid)
     end
 end
 
@@ -275,14 +291,14 @@ end
 
 function unitHistoryHideControls()
     for _,group in pairs(gStates~=nil and gStates.unitActivationHistory or {}) do
-        clearTokenControls(getObjectFromGUID(group.tokenGUID))
+        clearTokenControls(group.tokenGUID~=nil and getObjectFromGUID(group.tokenGUID) or nil)
     end
 end
 
 function unitHistoryReset()
     if gStates==nil then return end
     for _,group in pairs(gStates.unitActivationHistory or {}) do
-        clearTokenControls(getObjectFromGUID(group.tokenGUID))
+        clearTokenControls(group.tokenGUID~=nil and getObjectFromGUID(group.tokenGUID) or nil)
     end
     gStates.unitActivationHistory={}
     gStates.unitReadyLinks={}
