@@ -619,12 +619,12 @@ end
 function __onObjectDrop_raw(player_color, dropped_object)
 	dropped_object=eventsLiveObject(dropped_object)
 	if dropped_object==nil then return end
+	-- Start a carried crystal's burst before more expensive drop processing.
+	-- Position-sensitive tracker work still waits for physics to settle.
+	if dropped_object.guid~=nil then playerBoardCrystalDropped(dropped_object) end
 	attackAssignmentsObjectMoved(dropped_object)
 	if dropped_object==nil or dropped_object.guid==nil then return end
 	local droppedGUID=dropped_object.guid
-	-- A held crystal may have entered the shallow play zone before it was released.
-	-- Start its burst on drop; position-sensitive tracker work still waits to settle.
-	playerBoardCrystalDropped(dropped_object)
 	playAreaScaleObjectDropped(dropped_object)
     resourceUnitsCommandDropped(player_color,dropped_object)
     resourceCardsObjectMoved(dropped_object)
