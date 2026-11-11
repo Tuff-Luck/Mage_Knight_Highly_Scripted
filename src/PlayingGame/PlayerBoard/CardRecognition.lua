@@ -5617,7 +5617,7 @@ local function cardInSeatPlayArea(guid,seatPos)
 end
 
 local function scheduleChoiceResetAfterPlay(guid,seatPos)
-    if guid==nil or seatPos==nil or selectedResourceByGUID[guid]==nil then return end
+    if guid==nil or seatPos==nil then return end
     choiceResetGenerationByGUID[guid]=(choiceResetGenerationByGUID[guid] or 0)+1
     local serial=choiceResetGenerationByGUID[guid]
     -- Allow the zone's membership to settle before checking whether this
@@ -5627,6 +5627,11 @@ local function scheduleChoiceResetAfterPlay(guid,seatPos)
         safeWaitCondition("PlayerBoard.CardRecognition",function()
             if choiceResetGenerationByGUID[guid]~=serial then return end
             if not cardInSeatPlayArea(guid,seatPos) then
+                -- A genuine departure retires this play's time-order slot;
+                -- moving a card in/out again starts a fresh play sequence.
+                if gStates~=nil and gStates.resourceCardPlayOrder~=nil then
+                    gStates.resourceCardPlayOrder[guid]=nil
+                end
                 selectedResourceByGUID[guid]=nil
                 choiceExpandedByGUID[guid]=nil
                 if gStates~=nil and gStates.unitReadyCardChoices~=nil then
@@ -9533,6 +9538,16 @@ local function renderSeat(seatPos)
     local transformChanged=previousTransform==nil
         or (previousTransform.coldFire==true)~=(attackTransforms.coldFire==true)
         or (previousTransform.siege==true)~=(attackTransforms.siege==true)
+    -- The normal recruitment discount cannot coexist with the stronger
+    -- side of the same card. Remove its pending event if the side changes.
+    for guid,selected in pairs(gStates.startingCardSelections or {}) do
+        local data=gameCards[guid]
+        local record=records[guid]
+        if data~=nil and data.resourceKey=="ruthlessCoercion"
+            and record~=nil and record.powered==true then
+            selected.recruited=nil
+        end
+    end
     local fameTotal,repTotal=0,0
     for _,record in pairs(records) do
         if record.fameRep~=nil then
