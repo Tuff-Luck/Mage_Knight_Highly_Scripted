@@ -158,10 +158,12 @@ local function activeVisualLines()
 	end
     -- Readying links remain visible even after their Command token returns to
     -- the ready slot. They identify the specific effect that authorised reuse.
-    for sourceKey,link in pairs(gStates~=nil and gStates.unitReadyLinks or {}) do
-        local arrow=assignmentLines(getObjectFromGUID(unitHistorySourceBase(sourceKey)),
-            getObjectFromGUID(link.unitGUID),assignmentColors.other)
-        for _,line in ipairs(arrow or {}) do lines[#lines+1]=line end
+    if resourceCardsPanelOpen~=nil and resourceCardsPanelOpen() then
+        for sourceKey,link in pairs(gStates~=nil and gStates.unitReadyLinks or {}) do
+            local arrow=assignmentLines(getObjectFromGUID(unitHistorySourceBase(sourceKey)),
+                getObjectFromGUID(link.unitGUID),assignmentColors.other)
+            for _,line in ipairs(arrow or {}) do lines[#lines+1]=line end
+        end
     end
     for color,pending in pairs(readyUnitPending) do
         local source=getObjectFromGUID(pending.sourceGUID)
