@@ -516,6 +516,7 @@ function __onObjectPickUp_raw(player_color, picked_up_object)
 	picked_up_object=eventsLiveObject(picked_up_object)
 	if picked_up_object==nil then return end
     if picked_up_object.guid=="2eb8e8" then callOfferSpellPickedUp() end
+    trainingOfferCardPickedUp(player_color,picked_up_object)
 	attackAssignmentsObjectMoved(picked_up_object)
 	if picked_up_object~=nil and mapTokenNeedsArrangement~=nil and mapTokenNeedsArrangement(picked_up_object)==true then
 		mapTokenReleaseObject(picked_up_object)
@@ -1668,6 +1669,9 @@ function __onObjectLeaveZone_raw(zone, obj)
     end
     if ctx.objGUID=="6fdeb0" and ctx.playerZoneKind=="play" then
         trainingOfferScheduleCardCheck()
+    end
+    if ctx.objType=="Card" and ctx.zoneInfo~=nil and ctx.zoneInfo.kind=="hand" then
+        trainingOfferHandLeft(ctx.objGUID,ctx.zoneInfo.seatPos)
     end
 	cancelSettledZoneEntries(ctx.zoneGUID,ctx.objGUID)
 	if handleZoneLeavePrelude(ctx)==true then return end

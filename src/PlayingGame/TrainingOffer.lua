@@ -5,6 +5,9 @@
 local TRAINING_GUID="6fdeb0"
 local browseSerial=0
 local trainingMoveSerial=0
+-- Transient origin evidence: a Training cost must actually leave this
+-- player's hand, not be an already-played Action recycled from the table.
+local fromHand={}
 
 local function currentState()
     return gStates~=nil and gStates.trainingOfferPreview or nil
@@ -23,10 +26,23 @@ local function inZone(guid,zoneGUID)
     return false
 end
 
+function trainingOfferHandLeft(guid,seatPos)
+    if guid~=nil and seatPos~=nil then fromHand[guid]=seatPos end
+end
+
 local function currentSeat()
     local player=gStates~=nil and turnOrder~=nil
         and turnOrder[gStates.turnNumber] or nil
     return player~=nil and player.seatPos or nil
+end
+
+function trainingOfferCardPickedUp(playerColor,obj)
+    local seatPos=currentSeat()
+    if obj==nil or seatPos==nil or obj.type~="Card" then return end
+    if legalPlayerCheck(playerColor,seatPos,"NoDummyException")==true
+        and inZone(obj.guid,handZones[seatPos]) then
+        fromHand[obj.guid]=seatPos
+    end
 end
 
 local function cleanPreview(card)
@@ -116,6 +132,7 @@ function trainingOfferClose(immediate)
     end
     if immediate==true and gStates~=nil then
         gStates.trainingOfferClaims=nil
+        fromHand={}
     end
 end
 
@@ -209,6 +226,7 @@ local function startTraining(seatPos,source)
     if details==nil or (details.cardType~="Starting"
         and details.cardType~="Advanced Action")
         or source.guid==TRAINING_GUID
+        or fromHand[source.guid]~=seatPos
         or not inZone(source.guid,playerPlayAreas[seatPos]) then return end
     local training=getObjectFromGUID(TRAINING_GUID)
     local from=coords(source.getPosition())
@@ -228,6 +246,7 @@ local function startTraining(seatPos,source)
             positionToColor(gStates.turnNumber),warningColor)
         return
     end
+    fromHand[source.guid]=nil
     local state={seatPos=seatPos,sourceGUID=source.guid,
         order=order,index=1,trainingGUID=TRAINING_GUID}
     gStates.trainingOfferPreview=state
@@ -255,6 +274,21 @@ local function claim(state)
     claims[TRAINING_GUID]=(claims[TRAINING_GUID] or 0)+1
     gStates.trainingOfferClaims=claims
     cleanPreview(gained)
+    -- Replace the original hand card in the owning deed inventory. The new
+    -- Advanced Action belongs to this player even on the basic discard side.
+    for _,player in ipairs(turnOrder) do
+        if player.seatPos==state.seatPos then
+            local owned=player.deadDeckInventory or {}
+            for i=#owned,1,-1 do
+                if owned[i]==source.guid or owned[i]==gainedGUID then
+                    table.remove(owned,i)
+                end
+            end
+            owned[#owned+1]=gainedGUID
+            player.deadDeckInventory=owned
+            break
+        end
+    end
     source.destruct() -- Training's cost is thrown away, not discarded.
     gained.unlock()
     if playAreaScaleForgetObject~=nil then playAreaScaleForgetObject(gained) end
@@ -269,7 +303,14 @@ local function claim(state)
             scheduleDeedPileDescriptionRefresh(state.seatPos,"discard")
         end,5)
     end
-    compactAndRefillDeedOffer()
+    -- Offer compaction must happen *after* the claimed card has crossed
+    -- the offer boundary; otherwise it still occupies its old slot.
+    local function refill()
+        if not inZone(gainedGUID,GUID.zone.offer) then compactAndRefillDeedOffer() end
+    end
+    safeWaitCondition("Offers.Training",refill,function()
+        return not inZone(gainedGUID,GUID.zone.offer)
+    end,8,refill)
     if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
     mainUIUpdate("Training Advanced Action Claimed")
     if claims[TRAINING_GUID]<repeatCount then

@@ -5352,7 +5352,7 @@ function resourceCardsMountainLoreEndTurnBonus(seatPos)
             if terrain=="hills" then return 1 end
             local scan=resourceCardScanBySeat[seatPos]
             local record=scan~=nil and scan.cards[card.guid] or nil
-            if record~=nil and record.powered==true then return 2 end
+            if record~=nil and resourceCardsPanelOpen() and record.powered==true then return 2 end
             -- The tracker may be closed; a paid Green (or Day Gold) mana
             -- physically on the card still enables the mountain bonus.
             local area=footprint(card)
@@ -5374,7 +5374,9 @@ end
 function resourceCardsTrainingMode(seatPos)
     local scan=seatPos~=nil and resourceCardScanBySeat[seatPos] or nil
     local record=scan~=nil and scan.cards["6fdeb0"] or nil
-    if record~=nil then return record.powered==true,record.repeatCount or 1 end
+    if record~=nil and resourceCardsPanelOpen() then
+        return record.powered==true,record.repeatCount or 1
+    end
     local card=getObjectFromGUID("6fdeb0")
     local zone=seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
     if card==nil or zone==nil or card.is_face_down==true then return false,1 end
