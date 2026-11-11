@@ -4872,6 +4872,12 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     -- z-fighting/flicker when the camera moves. Other object UI depths stay put.
     local buttonDepth=isSkill and (card.is_face_down==true and "12" or "-12")
         or (card.is_face_down==true and "35" or "-35")
+    local conversion,conversionBudget,conversionValid=nil,0,false
+    if rule~=nil and rule.combatConversion~=nil and combatCalcOn
+        and posture=="upright" and resources~=nil then
+        conversion,conversionBudget,conversionValid=combatConfig.conversionFor(
+            combatAssignmentActiveSeat(),rule.combatConversion)
+    end
     local signature=(posture=="sideways" and "S" or (powered and "P" or "N"))
         ..":"..table.concat(signatureParts,";")..":"..uiRotation..":"..buttonDepth
         ..(combatCalcOn and (combatCumbersomeActive and ":CC" or ":C") or "")
@@ -4882,6 +4888,9 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             and (":FL:"..tostring(gStates~=nil and gStates.forkedLightningPhase or "range")) or "")
         ..(rule~=nil and rule.dodgeAttackSplit
             and (":DW:"..tostring(combatConfig.dodgeSplitMode[card.guid])) or "")
+        ..(conversionValid and (":CV:"..tostring(conversionBudget)..":"
+            ..tostring(conversion.attack)..":"..tostring(conversion.ranged)..":"
+            ..tostring(conversion.block)..":"..tostring(conversion.element)) or "")
     if choiceButtonShown[card.guid]==signature then return end
     local xml=resourceObjectUiXmlTable(card.UI)
     for i=#xml,1,-1 do
@@ -4890,6 +4899,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             and (attr.id:sub(1,19)=="ResourceCardChoice_"
                 or attr.id:find("^AttackAssignmentSource_")~=nil) then table.remove(xml,i) end
     end
+    if conversionValid then visibleAssets[#visibleAssets+1]="target" end
     if rule~=nil and rule.dodgeAttackSplit and combatCalcOn
         and posture=="upright" and resources~=nil then
         visibleAssets[#visibleAssets+1]="attackReduction"
@@ -5086,6 +5096,62 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                 textColor="#FFFFFF",textAlignment="MiddleCenter"},
                 value=split and "2+2" or "-4"}
         end
+    end
+    -- Two small pool-allocation counters on Agility (Attack/Ranged), or one
+    -- on Diplomacy (Block). Left click spends; right click returns points.
+    -- Converted points remain independently targetable from the printed Move
+    -- or Influence resource. No other printed card is duplicated.
+    if conversionValid then
+        local agility=rule.combatConversion=="agility"
+        local controls=agility and
+            {{part="Attack",value=conversion.attack,label="A",x=-145},
+             {part="Ranged",value=conversion.ranged,label="R",x=15}}
+            or {{part="Block",value=conversion.block,label="B",x=-80}}
+        for _,control in ipairs(controls) do
+            xml[#xml+1]={tag="Button",attributes={
+                id="ResourceCardChoice_"..card.guid.."_convert"..control.part,
+                onClick="global/resourceCardsConversionClicked",
+                position=tostring(control.x).." 135 "..buttonDepth,
+                rotation=uiRotation,width=125,height=90,scale="0.30 0.30",
+                fontSize=55,colors="#454D5D|#69798E|#444C63|#454D5D",
+                textColor="#FFFFFF",textAlignment="MiddleCenter"},
+                value=control.label..tostring(control.value)}
+            if control.value>0 then
+                local targetAsset=resourceCardsChoiceIcon("target")
+                local children={}
+                if targetAsset~=nil and not blocked[targetAsset.name] then
+                    children[#children+1]={tag="Image",attributes={
+                        image=targetAsset.name,width=78,height=78,
+                        preserveAspect="true",raycastTarget="false"}}
+                end
+                xml[#xml+1]={tag="Button",attributes={
+                    id="AttackAssignmentSource_"..card.guid.."_0_"
+                        ..string.lower(control.part).."@convert"..control.part,
+                    onClick="global/attackAssignmentSourceClicked",
+                    position=tostring(control.x+73).." 135 "..buttonDepth,
+                    rotation=uiRotation,width=90,height=90,
+                    scale="0.25 0.25",fontSize=60,
+                    colors="#454D5D|#69798E|#444C63|#454D5D",
+                    textColor="#FFFFFF",textAlignment="MiddleCenter"},
+                    value=#children==0 and "T" or "",children=children}
+            end
+        end
+        if not agility and powered then
+            xml[#xml+1]={tag="Button",attributes={
+                id="ResourceCardChoice_"..card.guid.."_convertElement",
+                onClick="global/resourceCardsConversionClicked",
+                position="100 135 "..buttonDepth,rotation=uiRotation,
+                width=105,height=90,scale="0.30 0.30",fontSize=55,
+                colors="#454D5D|#69798E|#444C63|#454D5D",
+                textColor="#FFFFFF",textAlignment="MiddleCenter"},
+                value=conversion.element}
+        end
+        xml[#xml+1]={tag="Text",attributes={
+            id="ResourceCardChoice_"..card.guid.."_convertHint",
+            position="0 190 "..buttonDepth,rotation=uiRotation,
+            width=300,height=50,scale="0.25 0.25",fontSize=45,
+            alignment="MiddleCenter",color="#E6E1D7",
+            raycastTarget="false",text="Left + / Right -"}}
     end
     -- A multi-attack target needs an explicit choice of which single Attack
     -- Battle Hardened will mitigate. The cycling button is on the Skill, not
@@ -9241,6 +9307,37 @@ function resourceCardsBattleHardenedAttackClicked(player,value,id)
     local index=1
     for i,option in ipairs(options) do if option.key==current then index=i break end end
     gStates[stateKey]=options[index%#options+1].key
+    resourceCardsSourceChanged()
+end
+
+function resourceCardsConversionClicked(player,value,id)
+    if not resourceCardsPanelOpen()
+        or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil) then return end
+    local guid,part=nil,nil
+    if type(id)=="string" then
+        guid,part=id:match("^ResourceCardChoice_([0-9a-f]+)_convert([%a]+)$")
+    end
+    -- The match above uses two captures; do not mistake a missing part for an action.
+    if guid~="878d92" and guid~="8c3de6" then return end
+    local seat=combatAssignmentActiveSeat()
+    local kind=guid=="878d92" and "agility" or "diplomacy"
+    local conversion,available,valid,record=combatConfig.conversionFor(seat,kind)
+    if not valid or record==nil then return end
+    if part=="Element" then
+        if kind~="diplomacy" or record.powered~=true then return end
+        conversion.element=conversion.element=="F" and "I" or "F"
+    else
+        local delta=tostring(value)=="-2" and -1 or 1
+        if kind=="agility" and part=="Attack" then
+            conversion.attack=math.max(0,math.min(available-2*conversion.ranged,
+                conversion.attack+delta))
+        elseif kind=="agility" and part=="Ranged" then
+            conversion.ranged=math.max(0,math.min(
+                math.floor((available-conversion.attack)/2),conversion.ranged+delta))
+        elseif kind=="diplomacy" and part=="Block" then
+            conversion.block=math.max(0,math.min(available,conversion.block+delta))
+        else return end
+    end
     resourceCardsSourceChanged()
 end
 
