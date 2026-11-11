@@ -1470,7 +1470,12 @@ local function handlePlayerBoardZoneEnter(ctx)
 	if ctx.settledPlayerZoneEntry~=true and zoneInfo~=nil and (zoneInfo.kind=="play" or zoneInfo.kind=="unit" or zoneInfo.kind=="crystal") then
 		--Play-area UI only depends on zone membership, not the object's final transform. Update it as
 		--soon as TTS reports entry; keep position-sensitive player-board effects on the settled path.
-		if zoneInfo.kind=="play" then playerBoardPlayAreaZoneEnterImmediate(ctx)
+		if zoneInfo.kind=="play" then
+			playerBoardPlayAreaZoneEnterImmediate(ctx)
+			-- Mana crystals have no settled player-board work after their visual
+			-- effect was moved to the immediate path. The Resource Tracker has its
+			-- own settle check when its open calculations need the final position.
+			if isManaTokenFigurine(ctx.obj) then return false end
 		elseif zoneInfo.kind=="unit" then
 			playAreaScaleApplyObject(zoneInfo.seatPos,ctx.obj)
 			schedulePlayAreaScale(zoneInfo.seatPos)
