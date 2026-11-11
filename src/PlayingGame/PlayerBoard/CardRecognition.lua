@@ -314,7 +314,8 @@ local function combatAssignmentSources(seat)
                         resources=record.splitTargets~=nil and {} or effective,
                         swiftDouble=record.swiftDouble==true,defeatFameRep=record.defeatFameRep,
                         heroPsychicBlock=scan~=nil and scan.heroPsychicBlock==true and record.kind~="unit",
-                        repeatBlocks=record.repeatBlocks,kind=record.kind,
+                        repeatBlocks=record.repeatBlocks,
+                        ambushFirstBlockBonus=record.ambushFirstBlockBonus,kind=record.kind,
                         conditionalFireAttack=record.conditionalFireAttack,
                         flameWave=record.flameWave,
                         explosiveBolt=record.explosiveBolt,
@@ -1234,9 +1235,14 @@ local function combatBlockResult(entry,sources)
                 if field.family=="block" and value>0 then
                     -- Repeated Block icons (Shield of the Fallen Kings) are separate, equal effects.
                     local repeats=tonumber(source.repeatBlocks) or 1
-                    if repeats<2 or value%repeats~=0 then repeats=1 end
+                    local firstBonus=tonumber(source.ambushFirstBlockBonus) or 0
+                    local unboosted=value-firstBonus
+                    if repeats<2 or unboosted%repeats~=0 then
+                        repeats,firstBonus,unboosted=1,0,value
+                    end
                     for part=1,repeats do
-                        items[#items+1]={source=source,key=field.key,value=value/repeats,
+                        items[#items+1]={source=source,key=field.key,
+                            value=unboosted/repeats+(part==1 and firstBonus or 0),
                             swiftDouble=source.swiftDouble,part=part}
                     end
                 end
@@ -4008,14 +4014,14 @@ function resourceCardsEffectiveTerrainCost(terrain)
     end
     if setCost==nil and base>=900 then return base end
     local cost=setCost or base
-    -- A traversal-setting effect retains its precedence over ordinary card
-    -- discounts. Weather always applies last to the resulting legal cost.
-    if setCost==nil then
-        for _,effect in ipairs(effects) do
-            if effect.mode=="cap" and terrainEffectApplies(effect,terrain) then
+    -- Set effects grant traversal first; Path Finding can then discount that
+    -- newly passable terrain. A minimum is a floor, not a price increase.
+    for _,effect in ipairs(effects) do
+        if terrainEffectApplies(effect,terrain) then
+            if effect.mode=="cap" then
                 cost=math.min(cost,effect.cost)
-            elseif effect.mode=="reduce" and terrainEffectApplies(effect,terrain) then
-                cost=math.max(effect.minimum or 0,cost-effect.amount)
+            elseif effect.mode=="reduce" then
+                cost=math.min(cost,math.max(effect.minimum or 0,cost-effect.amount))
             end
         end
     end
@@ -5332,6 +5338,37 @@ local function currentSpellTerrain()
     return terrain or (hex~=nil and hex.hexType or nil)
 end
 
+-- Mountain Lore changes the *next* hand draw, not current Move resources.
+-- Read the live play area before end-of-turn cleanup; keep the resulting
+-- one-shot bonus in Turn/CardFlow so it survives a round boundary.
+function resourceCardsMountainLoreEndTurnBonus(seatPos)
+    local terrain=currentSpellTerrain()
+    if terrain~="hills" and terrain~="mountain" then return 0 end
+    local zone=seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
+    if zone==nil then return 0 end
+    for _,card in ipairs(zone.getObjects()) do
+        if card.guid=="d3995b" and card.is_face_down~=true
+            and cardPosture(card)=="upright" then
+            if terrain=="hills" then return 1 end
+            local scan=resourceCardScanBySeat[seatPos]
+            local record=scan~=nil and scan.cards[card.guid] or nil
+            if record~=nil and record.powered==true then return 2 end
+            -- The tracker may be closed; a paid Green (or Day Gold) mana
+            -- physically on the card still enables the mountain bonus.
+            local area=footprint(card)
+            for _,mana in ipairs(zone.getObjects()) do
+                local color=manaColor(mana)
+                if color~=nil and matchesCardMana(card,color) then
+                    local pos=mana.getPosition()
+                    if math.abs(pos[1]-area.x)<area.halfX
+                        and math.abs(pos[3]-area.z)<area.halfZ then return 2 end
+                end
+            end
+        end
+    end
+    return 0
+end
+
 -- One sideways calculator for ordinary Actions and Skill-linked exceptions.
 -- A linked Skill changes the value, not the player's chosen resource.
 local function calculateSideways(card,known,skillLink)
@@ -5741,7 +5778,9 @@ local function resolveActionLinks(cards,wounds,footprints,manaPowered,skillLinks
                         or targetData.cardType=="Spell" or targetData.cardType=="Artifact"))
                 if target.guid~=source.guid and eligible
                     and (not spec.woundOnly or isWound)
-                    and (not isWound or woundPayments<(spec.maxWounds or 0))
+                    -- Maximal Effect repeats independent Stout Resolve payments.
+                    and (not isWound or woundPayments<(spec.maxWounds or 0)
+                        *(repeated~=nil and repeated.count or 1))
                     and discarded[target.guid]==nil and not boostClaimed[target.guid]
                     and #links[target.guid]==0 and skillLinksByTarget[target.guid]==nil
                     and not manaPowered[target.guid]
@@ -7278,6 +7317,12 @@ local function renderSeat(seatPos,quietUnitChoice)
                 end
                 adjusted[bestCategory]=targetAmount+bonus
                 targetRecord.resources=adjusted
+                -- Shield of the Fallen Kings keeps separate Block effects.
+                -- Ambush augments only the first one, not each equal split.
+                if bestType=="block" and (tonumber(targetRecord.repeatBlocks) or 1)>1 then
+                    targetRecord.ambushFirstBlockBonus=
+                        (targetRecord.ambushFirstBlockBonus or 0)+bonus
+                end
                 totals[bestCategory]=(totals[bestCategory] or 0)+bonus
                 if sourceRecord.links==nil or targetRecord.links==nil then
                     error("A linked combat record has no link list.",2)

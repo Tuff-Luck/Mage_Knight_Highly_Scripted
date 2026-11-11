@@ -693,6 +693,15 @@ function turnEndTurnRawBase(player, mouseButton, id, rewindReady)
 		return
 	end
 
+	-- Capture Mountain Lore while the played card and terrain are still visible.
+	-- Co-op and end-of-round draws may occur later; save the pending bonus.
+	local seat=turnOrder[gStates.turnNumber].seatPos
+	local lore=resourceCardsMountainLoreEndTurnBonus(seat)
+	if lore>0 then
+		gStates.mountainLoreDrawBonus=gStates.mountainLoreDrawBonus or {}
+		gStates.mountainLoreDrawBonus[seat]=math.max(
+			gStates.mountainLoreDrawBonus[seat] or 0,lore)
+	end
 	turnResetCompletedTurnState()
 	turnDrawCompletedTurnHand(player)
 	turnCleanupCompletedTurnBoard()

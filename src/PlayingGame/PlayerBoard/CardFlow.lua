@@ -857,7 +857,9 @@ function drawUpTo(player, mouseButton, id)
 			--Quick Witted is already physically in Coral's Deed Deck; when it is the final card it resolves as a normal single-card Deed Deck.
 			if deedDeck~=nil or (id=="DrawHand" and turnOrder[gStates.turnNumber].tactic==2 and gStates.dayRound==false and gStates.tacticTwoState~="Used" and turnOrder[gStates.turnNumber].mage~=gStates.positionMageKnight[5]) then
 				local cardsInHand=0
-				local handSize=turnOrder[gStates.turnNumber].hand+turnOrder[gStates.turnNumber].handBonus+gStates.tactic4HandBonus+meditationBonus
+				local loreBonus=id=="DrawHand" and gStates.mountainLoreDrawBonus
+					and (gStates.mountainLoreDrawBonus[playerPosition] or 0) or 0
+				local handSize=turnOrder[gStates.turnNumber].hand+turnOrder[gStates.turnNumber].handBonus+gStates.tactic4HandBonus+meditationBonus+loreBonus
 				if id=="DrawHand" then
 					for _, possibleCards in pairs(getObjectFromGUID(handZones[playerPosition]).getObjects()) do if possibleCards.type=="Card" then cardsInHand=cardsInHand+1 end end
 				else--Draw one
@@ -872,6 +874,12 @@ function drawUpTo(player, mouseButton, id)
 						return
 					end
 					local function drawCardstoHand()
+						-- Consume Mountain Lore only when actual cards are drawn.
+						-- In particular, Coral's pending choice must not consume it
+						-- before the resumed draw, and an empty deck preserves it.
+						if id=="DrawHand" and deedDeck~=nil and loreBonus>0 then
+							gStates.mountainLoreDrawBonus[playerPosition]=nil
+						end
 						local excess=drawNeeded
 						local deckPos={-74.19+(40*(turnOrder[turnAffected].seatPos-1)), 1.50, -43.16}
 						if deedDeck~=nil then
