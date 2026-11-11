@@ -1054,7 +1054,7 @@ cardResourceDefinitions={
         poweredLink={mode="stronger",bonus=3,
             bonusFor={move=true,influence=true,block=true,attack=true,ranged=true,siege=true}}},
     determination={normal={block=2},normalChoices={{attack=2},{block=2}},powered={block=5},normalPartial=true}, -- Block provisional until player chooses
-    threaten={normal={influence=2},powered={influence=5}}, -- Powered: -1 Reputation; fixed generated Influence is recognised
+    threaten={normal={influence=2},powered={influence=5},fameRep={powered={rep=-1}}}, -- Only the powered effect loses Reputation
     rage={normalChoices={{attack=2},{block=2}},powered={attack=4},normalPartial=true}, -- Unpowered choice unresolved, powered Attack 4 is fixed
     quickWitted={normalChoices={{move=2},{influence=2}},
         poweredChoices={{ranged=3},{influence=4}}},
