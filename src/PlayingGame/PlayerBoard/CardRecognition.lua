@@ -4816,7 +4816,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             children[#children+1]={tag="Image",attributes={
                 image=targetAsset.name,width=45,height=45,
                 preserveAspect="true",raycastTarget="false",color="#FFFFFF",
-                alignment="LowerRight"}}
+                rectAlignment="LowerRight"}}
         end
         xml[#xml+1]={tag="Button",attributes={
             id="AttackAssignmentSource_"..card.guid.."_0_attack@explosiveAttack",
