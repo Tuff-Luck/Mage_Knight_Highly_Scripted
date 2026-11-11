@@ -555,7 +555,7 @@ local function combatApplyAttackReductions(attacks,effect,ownerGUID,chosenAttack
         if target==nil then
             for _,attack in ipairs(attacks) do
                 if not attack.pending and (ownerGUID==nil or attack.owner==ownerGUID)
-                    and (attack.value>0 or reduction.amount<0)
+                    and (attack.value>0 or reduction.amount<0 or reduction.stripAbilities)
                     and (target==nil or attack.value>target.value) then
                     target=attack
                 end
@@ -563,6 +563,11 @@ local function combatApplyAttackReductions(attacks,effect,ownerGUID,chosenAttack
         end
         if target~=nil then
             target.value=math.max(0,target.value-reduction.amount)
+            if reduction.stripAbilities then
+                for _,trait in ipairs({"swift","brutal","cumbersome","poison",
+                    "paralyse","assassination"}) do target[trait]=false end
+                target.abilitiesStripped=true
+            end
             if reduction.firstDamageUnit~=nil then target.firstDamageUnit=reduction.firstDamageUnit end
         end
     end
@@ -582,7 +587,7 @@ local function combatEnemyAttacks(entry)
                 combatApplyAttackReductions(summonedAttacks,summoned.effect,summoned.guid)
                 if summoned.effect~=nil and summoned.effect.grantCumbersome==true then
                     for _,attack in ipairs(summonedAttacks) do
-                        if attack.key~="M" then attack.cumbersome=true end
+                        if attack.key~="M" and not attack.abilitiesStripped then attack.cumbersome=true end
                     end
                 end
                 for _,attack in ipairs(summonedAttacks) do attacks[#attacks+1]=attack end
@@ -604,7 +609,8 @@ local function combatEnemyAttacks(entry)
     combatApplyAttackReductions(attacks,entry.effect,nil,combatReductionAttackChoice[entry.guid])
     if entry.effect~=nil and entry.effect.grantCumbersome==true then
         for _,attack in ipairs(attacks) do
-            if attack.owner==entry.guid and attack.key~="M" then attack.cumbersome=true end
+            if attack.owner==entry.guid and attack.key~="M"
+                and not attack.abilitiesStripped then attack.cumbersome=true end
         end
     end
     return attacks
@@ -1912,7 +1918,8 @@ combatConfig.effectButtonInfo=function(entry,applied)
         or spec.removeFortify==true or spec.removeResist==true
         or spec.removeFireResist==true or spec.destroy==true or spec.destroyDuringAttack==true
     local isBlock=attack>0 or spec.noAttack==true or spec.noAttackUnfortified==true
-        or spec.removeAbilities==true or spec.destroyIfBlocked==true
+        or spec.removeAbilities==true or spec.removeOneAttackAbilities==true
+        or spec.destroyIfBlocked==true
     local attackIncrease=tonumber(spec.attackIncrease) or 0
     local special=spec.removeTrait~=nil or spec.convertAttack~=nil or attackIncrease>0
     if not isArmour and not isBlock and not special then return nil end
@@ -2046,6 +2053,13 @@ combatConfig.effectButtonInfo=function(entry,applied)
         elseif applied.immune then reason="Arcane Immunity prevents this destruction."
         elseif entry.destroyed~=true then
             reason="This Fire Block has not been used in a successful Block."
+        end
+    elseif spec.removeOneAttackAbilities==true then
+        amount="X"
+        description="Chosen attack loses abilities, but keeps its element. Select the attack in the enemy row."
+        if actual.removeOneAttackAbilities~=true then
+            reason=applied.iceResistant and "Ice Resistance prevents this effect."
+                or "This attack ability effect is unavailable."
         end
     elseif spec.removeAbilities==true then
         description="Remove Attack Abilities"
@@ -2421,8 +2435,9 @@ local function combatAssignmentRefreshRows(entries,sources)
                 if type(sourceName)=="table" then sourceName=sourceName[1] end
                 combatPanelSetAttribute("CombatEnemyAttackCycle"..row,"tooltip",
                     "Reduction "..tostring(rank).."/"..tostring(#entry.attackReductions)
-                    ..": "..tostring(sourceName).." (-"..tostring(selected.amount)
-                    .."). Left-click: cycle target (including Auto). Right-click: next reduction source.")
+                    ..": "..tostring(sourceName)
+                    ..(selected.stripAbilities and " (remove abilities)" or (" (-"..tostring(selected.amount)..")"))
+                    ..". Left-click: cycle target (including Auto). Right-click: next reduction source.")
             end
             for _,column in ipairs({"Attacks","Offence","Traits"}) do
                 local id="CombatEnemyRow"..row..column
