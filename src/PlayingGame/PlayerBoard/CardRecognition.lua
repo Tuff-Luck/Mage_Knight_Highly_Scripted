@@ -2287,7 +2287,7 @@ combatConfig.selfWoundingUnitChoices=function(seat,groups)
     for _,group in ipairs(groups or {}) do
         if not group.rangeDefeated and not group.destroyed then
             for _,source in ipairs(group.sources or {}) do
-                active[source.key]=true
+                if source.key~=nil then active[source.key]=true end
             end
         end
     end
