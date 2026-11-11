@@ -1261,7 +1261,10 @@ cardResourceDefinitions={
         enemyAttackLink=true}, -- Possess: borrow an enemy's current Attack and suppress its attack
     spellWingsNight={normalChoices={{key="other"}},poweredChoices={{key="other"}},
         enemyEffect={powered={noAttack=true,multiTargetMove=true}}},
-    spellCure={normal={healing=2},poweredChoices={{key="other"}}},
+    -- Cure's Heal is numeric; hand-Wound draws are player-confirmed.
+    -- Disease reduces Armour to 1 after all of an enemy's attacks were blocked.
+    spellCure={normal={healing=2},poweredChoices={{key="other"}},
+        enemyEffect={powered={choice="other",all=true,armourSetIfBlocked=1}}},
     -- Combat spells that act on enemies; see CombatEffects.lua for the effect fields.
     spellWhirlwind={normalChoices={{key="other"}},poweredChoices={{key="other"}},
         enemyEffect={normal={choice="other",noAttack=true},powered={choice="other",destroyDuringAttack=true}}},
@@ -1270,11 +1273,17 @@ cardResourceDefinitions={
             powered={choice="other",noAttack=true,armourReduce=4,iceSpell=true}}},
     spellTremor={
         normalChoices={{key="single",icon="other",iconOverlay="1"},{key="all",icon="other",iconOverlay="All"}},
-        poweredChoices={{key="single",icon="other",iconOverlay="1"},{key="all",icon="other",iconOverlay="All"}},
+        poweredChoices={{key="single",icon="other",iconOverlay="1"},{key="all",icon="other",iconOverlay="All"},
+            {key="singleBefore",icon="other",iconOverlay="1st"},
+            {key="allBefore",icon="other",iconOverlay="All 1st"}},
         enemyEffect={
             normal={{choice="single",armourReduce=3},{choice="all",armourReduce=2,all=true}},
             powered={{choice="single",armourReduce=3,armourReduceFortified=6},
-                {choice="all",armourReduce=2,armourReduceFortified=4,all=true}}}},
+                {choice="all",armourReduce=2,armourReduceFortified=4,all=true},
+                {choice="singleBefore",armourReduce=3,armourReduceFortified=6,
+                    armourBeforeFortificationRemoval=true},
+                {choice="allBefore",armourReduce=2,armourReduceFortified=4,
+                    armourBeforeFortificationRemoval=true,all=true}}}},
     spellDemolish={normalChoices={{key="other"}},poweredChoices={{key="other"}},
         ignoreSiteFortification=true,
         enemyEffect={normal={choice="other",armourReduce=1,all=true,fireSpell=true},

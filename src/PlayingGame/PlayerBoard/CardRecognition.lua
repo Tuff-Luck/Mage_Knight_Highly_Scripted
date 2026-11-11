@@ -95,6 +95,17 @@ function resourceCardsPanelOpen()
         and current~=nil and resourceCardsSeatEnabled(current.seatPos)
 end
 
+-- An outgoing hand Wound is not necessarily a Heal. Cure's additional
+-- draws are player-confirmed, including Wounds healed before the cast.
+function resourceCardsCureCanDraw(color)
+    if not resourceCardsPanelOpen() or not resourceCardsPlayerCanEdit(color) then return false end
+    local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    local scan=active~=nil and resourceCardScanBySeat[active.seatPos] or nil
+    local record=scan~=nil and scan.cards["47e71c"] or nil
+    return record~=nil and record.complete==true and record.powered~=true
+        and record.resources~=nil and (record.resources.healing or 0)>0
+end
+
 local function resourceCardsDetailsOpen()
     return resourceCardsPanelOpen()
 end
@@ -2028,6 +2039,8 @@ combatConfig.effectButtonInfo=function(entry,applied)
     local printedFortified=combatEnemyFortificationCount(entry.data,entry.perks)>0
     local fortified=printedFortified
         and (entry.effect==nil or entry.effect.removeFortify~=true)
+    local fortifiedWhenCast=fortified
+        or (spec.armourBeforeFortificationRemoval==true and (entry.originalFortification or 0)>0)
     local armour=tonumber(spec.armourReduce) or 0
     local armourFortified=tonumber(spec.armourReduceFortified) or armour
     local resistArmour=tonumber(spec.armourReduceByResist) or 0
@@ -2079,7 +2092,7 @@ combatConfig.effectButtonInfo=function(entry,applied)
             ..", Armour -"..tostring(armour).." in Attack phase if it attacks"
         if #combatEnemyAttacks(entry)==0 then reason="The enemy has no attack." end
     elseif isArmour and (armour>0 or armourFortified>0 or resistArmour>0) then
-        local appliedReduction=printedFortified and
+        local appliedReduction=fortifiedWhenCast and
             (tonumber(actual.armourReduceFortified) or tonumber(actual.armourReduce) or 0)
             or (tonumber(actual.armourReduce) or 0)
         if (tonumber(actual.armourReduceByResist) or 0)>0 then
@@ -2092,8 +2105,11 @@ combatConfig.effectButtonInfo=function(entry,applied)
         local total=entry.effectArmourReduction or 0
         local before=math.max(1,raw-math.max(0,total-appliedReduction))
         local after=math.max(1,raw-total)
-        local printed=printedFortified and armourFortified or armour
+        local printed=fortifiedWhenCast and armourFortified or armour
         amount="-"..tostring(math.max(printed,appliedReduction))
+        if spec.armourBeforeFortificationRemoval==true then
+            description=description.." (Earthquake before fortification removal)"
+        end
         description="Armour reduction "..amount
         if appliedReduction==0 then
             reason=applied.fireResistant and "Fire Resistance ignores this red Spell effect."
@@ -2998,6 +3014,28 @@ local function combatAssignmentRefreshRows(entries,sources)
         group.rangeTotal,group.rangeArmour,group.rangeDefeated,group.fortification=
             combatRangeResult(combatRangeGroupEntry(members),group.sources)
         if members[1].attackOnly then group.rangeDefeated=false end
+        -- Disease resolves after Block, not during Ranged/Siege. Every attack
+        -- of the actual enemy must be blocked; an immune enemy gets no effect.
+        if not group.rangeDefeated then
+            local diseaseChanged=false
+            for _,index in ipairs(group.members) do
+                local enemy=entries[index]
+                local limit=enemy.effect~=nil and enemy.effect.armourSetIfBlocked or nil
+                local blocked=rowBlock[index]
+                if limit~=nil and blocked~=nil and blocked.allBlocked
+                    and #combatEnemyAttacks(enemy)>0 and not enemy.attackOnly
+                    and not enemy.destroyed then
+                    enemy.rangeBaseArmour=enemy.rangeBaseArmour or enemy.baseArmour
+                    enemy.rangeElusiveArmour=enemy.rangeElusiveArmour or enemy.elusiveArmour
+                    enemy.baseArmour=math.min(enemy.baseArmour,limit)
+                    enemy.elusiveArmour=math.min(enemy.elusiveArmour,limit)
+                    diseaseChanged=true
+                end
+            end
+            if diseaseChanged then
+                group.entry,group.attackArmour=combatGroupEntry(members,blockedAll)
+            end
+        end
         -- Shield Bash lowers Armour only in the later Attack phase, and only
         -- after a successful Block against that enemy's own attack. A summoned
         -- monster's Block never lowers its summoner's Armour. Ice Resistance
@@ -3745,6 +3783,10 @@ local function refreshCombatEnemyPanel(monsters,calculated)
     local currentSeat=combatAssignmentActiveSeat()
     local seatScan=currentSeat~=nil and resourceCardScanBySeat[currentSeat] or nil
     local enemyEffects=seatScan~=nil and seatScan.enemyEffects or nil
+    -- Preserve the printed/site Fortification before Demolish/Expose strips it.
+    for _,entry in ipairs(entries) do
+        entry.originalFortification=combatEnemyFortificationCount(entry.data,entry.perks)
+    end
     -- Ignore site/wall Fortified, but preserve the monster's printed Fortified.
     if seatScan~=nil and seatScan.ignoreSiteFortifications==true then
         for _,entry in ipairs(entries) do
@@ -3777,8 +3819,13 @@ local function refreshCombatEnemyPanel(monsters,calculated)
                 end
                 entry.data=copy
             end
-            local reduction=combatEnemyFortificationCount(entry.data,entry.perks)>0
-                and effect.armourReduceFortified or effect.armourReduce
+            local currentlyFortified=combatEnemyFortificationCount(entry.data,entry.perks)>0
+                and effect.removeFortify~=true
+            local reduction=currentlyFortified and effect.armourReduceFortified
+                or effect.armourReduce
+            if not currentlyFortified and entry.originalFortification>0 then
+                reduction=reduction+(effect.armourBeforeFortificationRemoval or 0)
+            end
             if effect.armourReduceByResist>0 then
                 local resistances=0
                 for _,key in ipairs({"pResist","fResist","iResist"}) do
@@ -4363,6 +4410,7 @@ local choiceLetters={attackP1="A",attackP2="A2",attackP3="A3",
     guide="M",hardened="H",
     siegeFire="SF",siegeIce="SI",rangedFire="RF",rangedIce="RI",blockIce="BI",
     fire="F",ice="I",coldFire="C",boost="H+",split="I/F",negative="N",
+    single="1",all="All",singleBefore="1st",allBefore="All 1st",
     heal="H",combat="C",wound="W",fame="F",reputation="R",gain="G",ready="R",
     base="2",sourceUnused="3",red="R",blue="B",white="W",green="G",
     fireAttack="F",fireBlock="F",fireSiege="F",iceSiege="I",fireBlockOnly="B",fireBlockCounter="B+",
@@ -4600,6 +4648,30 @@ local function removeChoiceButtons(card)
     end
     if changed then resourceObjectUiSetTable(card.UI,xml) end
     choiceButtonShown[card.guid]=nil
+end
+
+-- Cure is simultaneous: Heal 2 remains in the totals while a separate
+-- Draw 1 button lets the player confirm each actually healed hand Wound.
+-- The button is removed with other tracker choices on minimisation.
+combatConfig.refreshCureDrawButton=function(card,allowed)
+    if card==nil or card.UI==nil then return end
+    local id="ResourceCardChoice_CureDraw"
+    local xml=resourceObjectUiXmlTable(card.UI)
+    local index=nil
+    for i,node in ipairs(xml) do
+        if node.attributes~=nil and node.attributes.id==id then index=i break end
+    end
+    if allowed and index==nil then
+        local button=createClaimButton(card.guid,"cureDraw")
+        button.attributes.id=id
+        xml[#xml+1]=button
+        resourceObjectUiSetTable(card.UI,xml)
+        safeBroadcastToColor("Cure: use Draw 1 for each Wound healed from your hand this turn, even before casting Cure. Ready every Unit healed this turn by returning its Command token to the ready slot.",
+            positionToColor(gStates.turnNumber),{0.7,1,0.7})
+    elseif not allowed and index~=nil then
+        table.remove(xml,index)
+        resourceObjectUiSetTable(card.UI,xml)
+    end
 end
 
 -- Skills use their own centred layout; Action/Spell/Artifact buttons keep their
@@ -7614,6 +7686,11 @@ local function renderSeat(seatPos,quietUnitChoice)
         result.choices=choices -- Also authoritative for payment-restricted click validation.
         showChoiceButtons(card,choices,result.powered,inventorySpec,inventorySets,result.resources,
             repeatByTarget[card.guid])
+        if cardData~=nil and cardData.resourceKey=="spellCure" then
+            combatConfig.refreshCureDrawButton(card,
+                result.complete==true and result.powered~=true
+                and resourceCardsDetailsOpen())
+        end
         -- Expose a separate Armour-reduction source. It is independent of the
         -- card's Ranged Attack target and becomes effective only after a kill.
         if result.explosiveBolt~=nil and combatCalcOn then

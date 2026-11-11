@@ -2749,7 +2749,15 @@ function createClaimButton(objGUID, source)
 		if source=="tranceTop" then position="155 35 -10" end
 		if source=="tranceBot" then position="155 105 -10" end
 	end
-	--Steady Tempo reuses the same small object-button style. These sit beside the
+	-- A small confirmed draw helper for Cure, distinct from generic Draw Hand.
+    if source=="cureDraw" then
+        width=320
+        height=145
+        position="155 -110 -10"
+        onClick="global/cureDrawOne"
+        text="Draw 1"
+    end
+    --Steady Tempo reuses the same small object-button style. These sit beside the
 	--upper, middle and lower sections of the card: Discard, Bottom, Top.
 	if source=="steadyTempoDiscard" or source=="steadyTempoBot" or source=="steadyTempoTop" then
 		width=250

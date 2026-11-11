@@ -1621,6 +1621,15 @@ function compactAndRefillDeedOffer(suppressAdjustUIRefresh,sourceOverrides)
 	return safeCallback("compactAndRefillDeedOffer",function() return compactAndRefillDeedOfferRaw(suppressAdjustUIRefresh,sourceOverrides) end)
 end
 
+-- Cure rewards only Wounds actually healed from hand. The explicit button
+-- lets the player claim those draws without guessing from card movements.
+function cureDrawOne(player,mouseButton,id)
+    if player==nil or mouseButton=="-3"
+        or resourceCardsCureCanDraw==nil
+        or not resourceCardsCureCanDraw(player.color) then return end
+    drawUpTo(player,"-1","CureDraw")
+end
+
 -- Glade discard healing
 local gladeDiscardHealButtonGUID=nil
 

@@ -76,7 +76,8 @@ function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec,sourceKey)
         entry={armourReduce=0,armourReduceFortified=0,armourReduceByResist=0,
             armourReduceRangedUnfortifiedOnly=0,armourReduceAttackOnly=0,noAttack=false,destroy=false,
             destroyDuringAttack=false,destroyIfBlocked=false,grantCumbersome=false,attackReductions={},
-            removeAbilities=false,removeFortify=false,removeResist=false,removeFireResist=false,removedPrinted={},attackConversions={},sources={},applied={}}
+            removeAbilities=false,removeFortify=false,removeResist=false,removeFireResist=false,removedPrinted={},attackConversions={},sources={},applied={},
+            armourBeforeFortificationRemoval=0}
         enemyEffects[enemyGUID]=entry
     end
     -- Keep each original, targeted effect for the shared Combat Calculator
@@ -132,6 +133,15 @@ function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec,sourceKey)
     entry.destroyIfBlocked=entry.destroyIfBlocked or spec.destroyIfBlocked==true
     entry.armourReduce=entry.armourReduce+(spec.armourReduce or 0)
     entry.armourReduceFortified=entry.armourReduceFortified+(spec.armourReduceFortified or spec.armourReduce or 0)
+    -- Only the player's explicit '1st' Earthquake mode preserves the extra
+    -- fortified reduction after another effect removes fortification.
+    if spec.armourBeforeFortificationRemoval==true then
+        entry.armourBeforeFortificationRemoval=entry.armourBeforeFortificationRemoval
+            +math.max(0,(spec.armourReduceFortified or 0)-(spec.armourReduce or 0))
+    end
+    if spec.armourSetIfBlocked~=nil then
+        entry.armourSetIfBlocked=math.min(entry.armourSetIfBlocked or math.huge,spec.armourSetIfBlocked)
+    end
     entry.armourReduceByResist=entry.armourReduceByResist+(spec.armourReduceByResist or 0)
     entry.armourReduceRangedUnfortifiedOnly=entry.armourReduceRangedUnfortifiedOnly
         +(spec.armourReduceRangedUnfortifiedOnly or 0)
