@@ -8028,11 +8028,16 @@ local function renderSeat(seatPos,quietUnitChoice)
         end
     end
     local selectedUnitAttacks={}
+    local activationByRecordKey={}
     local shocktroopsBoosts=0
     local attackTransforms={}
     local transformingUnits={}
-    for unitGUID,activation in pairs(activations) do
-        if activation.seatPos==seatPos then
+    unitHistoryValidSources(seatPos)
+    for unitGUID,currentActivation in pairs(activations) do
+      if currentActivation.seatPos==seatPos then
+       for useIndex,activation in ipairs(unitHistoryUses(unitGUID,currentActivation)) do
+        local recordKey=unitHistoryKey(unitGUID,useIndex)
+        activationByRecordKey[recordKey]=activation
             local unit=objects[unitGUID]
             local abilities=unitResourceDefinitions[unitGUID]
             if unit~=nil and abilities~=nil then
@@ -8042,7 +8047,11 @@ local function renderSeat(seatPos,quietUnitChoice)
                 for _,entry in ipairs(unitState.units) do
                     if entry.guid==unitGUID then unwounded=entry.unwounded break end
                 end
-                local counts=unitManaCounts(unit,seatPos,manaObjects)
+                local counts=activation.frozenCounts
+                    or unitManaCounts(unit,seatPos,manaObjects)
+                if activation.frozenCounts==nil then
+                    activation.lastCounts=unitHistoryCopyCounts(counts)
+                end
                 local decision=unitManaDecision(unit,abilities,activation,counts)
                 if activation.callOffer and unitSiteMode=="one"
                     and chosenSiteUnit==nil then
@@ -8051,18 +8060,21 @@ local function renderSeat(seatPos,quietUnitChoice)
                 end
                 local sitePermits=combatUnitSitePermits(unitSiteMode,
                     unitState.bondsUnitGUID,chosenSiteUnit,unitGUID,false)
-                if sitePermits then
-                    showUnitAbilityButtons(unit,abilities,activation,unwounded,decision)
-                else
-                    removeChoiceButtons(unit)
+                if unitHistorySelectedNumber(unitGUID)==useIndex then
+                    if sitePermits then
+                        showUnitAbilityButtons(unit,abilities,activation,true,decision,useIndex)
+                    else
+                        removeChoiceButtons(unit)
+                    end
                 end
                 local selected=decision.index~=nil and abilities[decision.index] or nil
-                if unwounded and sitePermits then
+                if (unwounded or activation.frozenCounts~=nil) and sitePermits then
                     local crystalCounts=selected~=nil and selected.bonusColor~=nil
                         and unitManaCounts(unit,seatPos,manaObjects,true) or nil
                     local resources=selected~=nil
                         and unitAbilityResources(selected,counts,crystalCounts) or nil
-                    local result={guid=unitGUID,kind="unit",known=true,
+                    local result={guid=recordKey,sourceObjectGUID=unitGUID,
+                        activationIndex=useIndex,kind="unit",known=true,
                         complete=selected~=nil and unitAbilityPaid(selected,counts)
                             or abilities.multi==true and next(decision.selected or {})~=nil,
                         resources=resources,powered=false,links={},
@@ -8071,7 +8083,7 @@ local function renderSeat(seatPos,quietUnitChoice)
                     result.fameRep=result.complete and result.fameRep or nil
                     addResourceAmounts(result,totals)
                     result.status=result.contributes and "green" or "blue"
-                    records[unitGUID]=result
+                    records[recordKey]=result
                     current[unitGUID]=true
                     setHighlight(unit,result.status,false)
                     if selected~=nil and selected.terrainReduce and result.complete then
@@ -8101,7 +8113,7 @@ local function renderSeat(seatPos,quietUnitChoice)
                         for _,pickedAbility in ipairs(picked) do
                             local index,ability=pickedAbility.index,pickedAbility.ability
                             if ability.enemyEffect~=nil or ability.targetableEnemy==true then
-                                local sourceKey=unitAbilityTargetKey(unitGUID,index,ability)
+                                local sourceKey=unitAbilityTargetKey(unitGUID,index,ability,useIndex)
                                 if sourceKey~=unitGUID then
                                     result.enemyEffectTargetKeys=result.enemyEffectTargetKeys or {}
                                     result.enemyEffectTargetKeys[#result.enemyEffectTargetKeys+1]=sourceKey
@@ -8134,19 +8146,22 @@ local function renderSeat(seatPos,quietUnitChoice)
                         end
                     end
                     if result.contributes then
-                        selectedUnitAttacks[#selectedUnitAttacks+1]=unitGUID
+                        selectedUnitAttacks[#selectedUnitAttacks+1]=recordKey
                     end
                 end
             end
-        end
+       end
+      end
     end
     -- Shocktroops' Ranged Attack 1 also boosts ALL other activated Units'
     -- Attacks, even if their ability was activated earlier this turn.
     if shocktroopsBoosts>0 then
         for _,unitGUID in ipairs(selectedUnitAttacks) do
             local record=records[unitGUID]
-            local selected=activations[unitGUID]~=nil
-                and unitResourceDefinitions[unitGUID][activations[unitGUID].choice or 1] or nil
+            local baseGUID=unitHistorySourceBase(unitGUID)
+            local use=activationByRecordKey[unitGUID]
+            local selected=use~=nil and unitResourceDefinitions[baseGUID]
+                and unitResourceDefinitions[baseGUID][use.choice or 1] or nil
             local ownBoost=selected~=nil and selected.boostOtherUnits and 1 or 0
             local bonus=shocktroopsBoosts-ownBoost
             if bonus>0 and record~=nil and record.resources~=nil then
