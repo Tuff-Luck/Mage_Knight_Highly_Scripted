@@ -58,6 +58,53 @@ function unitHistoryCopyCounts(counts)
     return copy
 end
 
+-- Readying permits more uses, but never a second combat activation of the
+-- same Unit during the turn. A printed multi-effect activation still counts
+-- as ONE use; noncombat choices in later uses remain available.
+function unitHistoryIsCombatAbility(ability)
+    if ability==nil then return false end
+    if ability.enemyEffect~=nil or ability.targetableEnemy==true
+        or ability.attackTransform~=nil or ability.boostOtherUnits==true
+        or ability.grantUnitResistances==true then return true end
+    for key,amount in pairs(ability) do
+        if type(key)=="string" and type(amount)=="number" and amount>0
+            and (key:sub(1,6)=="attack" or key:sub(1,6)=="ranged"
+                or key:sub(1,5)=="siege" or key:sub(1,5)=="block") then
+            return true
+        end
+    end
+    return false
+end
+
+function unitHistoryDecisionHasCombat(abilities,decision)
+    if abilities==nil or decision==nil then return false end
+    if abilities.multi==true then
+        for index,chosen in pairs(decision.selected or {}) do
+            if chosen==true and unitHistoryIsCombatAbility(abilities[index]) then
+                return true
+            end
+        end
+        return false
+    end
+    return unitHistoryIsCombatAbility(abilities[decision.index])
+end
+
+-- A choice change to an earlier use immediately changes eligibility; nothing
+-- here mutates the stored selections, paid mana snapshots, or target history.
+function unitHistoryCombatConflict(guid,useIndex,abilities,decisionFor)
+    if useIndex==nil or useIndex<=1 or type(decisionFor)~="function" then return false end
+    local group=groupOf(guid)
+    if group==nil then return false end
+    for index=1,useIndex-1 do
+        local earlier=group.uses[index]
+        if earlier~=nil
+            and unitHistoryDecisionHasCombat(abilities,decisionFor(earlier)) then
+            return true
+        end
+    end
+    return false
+end
+
 -- A saved history is authoritative. In particular, a token sitting on a Unit
 -- cannot tell us how many times that Unit was used earlier this turn.
 function unitHistoryRestoreCurrent()
