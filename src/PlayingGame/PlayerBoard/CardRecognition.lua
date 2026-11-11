@@ -159,6 +159,7 @@ local combatAssignmentJoined={}
 local combatAssignmentSlotSources={}
 -- Effect-only buttons share the resource slots, without adding any Block/Attack.
 combatConfig.effectSources={}
+combatConfig.blockedEnemyCounts={}
 local combatAssignmentRowTargets={}
 local combatEnemyPage=1
 local combatAssignmentRowIndices={}
@@ -316,6 +317,7 @@ local function combatAssignmentSources(seat)
                         repeatBlocks=record.repeatBlocks,kind=record.kind,
                         conditionalFireAttack=record.conditionalFireAttack,
                         flameWave=record.flameWave,
+                        explosiveBolt=record.explosiveBolt,
                         possessExclude=record.possessEnemyGUID,
                         dueling=guid=="7d1c32"}
                     parts[slot]=source
@@ -2645,6 +2647,30 @@ local function combatAssignmentRefreshRows(entries,sources)
         group.destroyed=not members[1].attackOnly and #group.members==1
             and entries[group.members[1]].destroyed==true
     end
+    -- Counterattack counts *enemies*, not individual attacks. Multi-attack
+    -- enemies (including summoners) count only when every attack was blocked.
+    -- Ranged-defeated and attack-only preview tokens never count.
+    local blockedEnemies=0
+    for _,group in ipairs(groups) do
+        if not group.rangeDefeated then
+            for _,index in ipairs(group.members) do
+                local enemy=entries[index]
+                if not enemy.attackOnly and not enemy.destroyed
+                    and rowBlock[index]~=nil and rowBlock[index].allBlocked
+                    and #combatEnemyAttacks(enemy)>0 then
+                    blockedEnemies=blockedEnemies+1
+                end
+            end
+        end
+    end
+    local blockSeat=combatAssignmentActiveSeat()
+    if blockSeat~=nil then
+        local previousBlocked=combatConfig.blockedEnemyCounts[blockSeat] or 0
+        combatConfig.blockedEnemyCounts[blockSeat]=blockedEnemies
+        if previousBlocked~=blockedEnemies and resourceCardsSourceChanged~=nil then
+            resourceCardsSourceChanged()
+        end
+    end
     -- Damage phase: each unblocked attack of an enemy that is not already defeated starts on the Hero.
     local damageSeat=combatAssignmentActiveSeat()
     local selfWoundsEarly,selfWoundsLate=combatConfig.selfWoundingUnitChoices(damageSeat,groups)
@@ -3234,6 +3260,7 @@ local function combatCalcShutdown()
     combatConfig.resultRowCache={}
     combatConfig.slotSelection={}
     combatConfig.effectSources={}
+    combatConfig.blockedEnemyCounts={}
     combatConfig.panelHeight=0
     combatTrackedSeat=nil
     combatTrackedEnemies={}
@@ -5135,6 +5162,16 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
     local statePartial=rule~=nil and ((powered and rule.poweredPartial==true)
         or (not powered and rule.normalPartial==true)) and chosen==nil
     local base=chosen or (rule~=nil and (powered and rule.powered or rule.normal) or nil)
+    if base~=nil and rule~=nil and rule.blockedEnemyAttackBonus~=nil then
+        local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+        local count=active~=nil and (combatConfig.blockedEnemyCounts[active.seatPos] or 0) or 0
+        local perEnemy=powered and rule.blockedEnemyAttackBonus.powered
+            or rule.blockedEnemyAttackBonus.normal
+        local adjusted={}
+        for key,value in pairs(base) do adjusted[key]=value end
+        adjusted.attack=(adjusted.attack or 0)+count*(perEnemy or 0)
+        base=adjusted
+    end
     if base~=nil and rule~=nil and rule.woundBonus~=nil and woundCount~=nil then
         local perWound=powered and rule.woundBonus.powered or rule.woundBonus.normal
         base={influence=(base.influence or 0)+woundCount*perWound}
@@ -5203,6 +5240,13 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
     if #linked>0 then status="purple" end
     local fameRepSide=rule~=nil and rule.fameRep~=nil and faceUp and costPaid and canApply
         and (powered and rule.fameRep.powered or not powered and rule.fameRep.normal) or nil
+    if fameRepSide~=nil and repeatLink~=nil then
+        local multiplied={}
+        for key,value in pairs(fameRepSide) do
+            multiplied[key]=type(value)=="number" and value*repeatLink.count or value
+        end
+        fameRepSide=multiplied
+    end
     -- Fame/Reputation earned only when the calculator shows this source's group defeated.
     local defeatSide=rule~=nil and rule.defeatFameRep~=nil and faceUp and costPaid and canApply
         and (powered and rule.defeatFameRep.powered or not powered and rule.defeatFameRep.normal) or nil
@@ -5212,6 +5256,8 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
         conditionalFireAttack=complete and not powered and chosen~=nil
             and chosen.conditionalFireAttack or nil,
         flameWave=complete and powered and rule~=nil and rule.poweredEnemyBonus~=nil,
+        explosiveBolt=complete and powered and rule~=nil and rule.defeatArmourReduce~=nil
+            and rule.defeatArmourReduce*(repeatLink~=nil and repeatLink.count or 1) or nil,
         defeatFameRep=defeatSide,splitTargets=chosen~=nil and chosen.splitTargets or nil,
         repeatBlocks=chosen~=nil and chosen.repeatBlocks or nil,
         links=linked,status=status,resources=effects,
