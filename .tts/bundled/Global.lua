@@ -7346,6 +7346,12 @@ end
 function renderMoveDisplay(id)
 	--A pending background redraw must not restore routes after the tracker was minimized.
 	if not moveDisplayTrackerExpanded() then clearMoveDisplayVisuals() return end
+    -- Druidic Paths' basic ability discounts only one space per route.
+    local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    local scan=active~=nil and resourceCardScanBySeat~=nil
+        and resourceCardScanBySeat[active.seatPos] or nil
+    local moveDiscount=scan~=nil and scan.movementEffects~=nil
+        and (scan.movementEffects.singleSpaceDiscount or 0) or 0
 	--Preserve Global vector lines that existed before the movement display started.
 	local moveValue=gStates.resourceTracker~=nil and gStates.resourceTracker.move~=nil and resourceCardsEffectiveMove() or 0
 	if moveValue>0 and moveDisplayBaseVectorLines==nil then moveDisplayBaseVectorLines=attackAssignmentsWithoutVectorLines(Global.getVectorLines() or {}) end
@@ -7592,7 +7598,7 @@ function renderMoveDisplay(id)
 
 		local playerHexGridAxial,playerHexGridHorizontal=runtimeMapWorldToAxial(playerPos,startTilePos)
 		local moveMap={[tostring(playerHexGridHorizontal)]={[tostring(playerHexGridAxial)]={safe=0}}}
-		local fringe={{coord={playerHexGridHorizontal, playerHexGridAxial}}}
+		local fringe={{coord={playerHexGridHorizontal, playerHexGridAxial},state="safe"}}
 		local tempFringe={}
 		local tempFringeSet={}
 		local searchLimit=10
@@ -7606,13 +7612,13 @@ function renderMoveDisplay(id)
 			return moveMap[horKey][vecKey]
 		end
 
-		local function queueMoveFringe(hor,vec)
-			local fringeKey=tostring(hor)..":"..tostring(vec)
-			if tempFringeSet[fringeKey]==true then return end
-			tempFringeSet[fringeKey]=true
-			tempFringe[#tempFringe+1]={coord={hor,vec}}
-			noMove=false
-		end
+		local function queueMoveFringe(hor,vec,state)
+            local key=tostring(hor)..":"..tostring(vec)..":"..state
+            if tempFringeSet[key] then return end
+            tempFringeSet[key]=true
+            tempFringe[#tempFringe+1]={coord={hor,vec},state=state}
+            noMove=false
+        end
 
 		local function recordMoveDestination(hor,vec,state,hexCost,predecessor,allowFringe)
 			if hexCost>=resourceCardsEffectiveMove()+searchLimit then return false end
@@ -7622,7 +7628,9 @@ function renderMoveDisplay(id)
 			if hexCost<recordedCost then
 				destinationMove[state]=hexCost
 				destinationMove[state.."Prev"]=predecessor
-				if state=="safe" and allowFringe==true then queueMoveFringe(hor,vec) end
+				if (state=="safe" or state=="safeDiscount") and allowFringe==true then
+                    queueMoveFringe(hor,vec,state)
+                end
 			end
 			return true
 		end
@@ -7634,7 +7642,8 @@ function renderMoveDisplay(id)
 			for _,hexDetail in pairs(fringe) do
 				local sourceRow=moveMap[tostring(hexDetail.coord[1])]
 				local sourceMove=sourceRow~=nil and sourceRow[tostring(hexDetail.coord[2])] or nil
-				local moveSpent=sourceMove~=nil and sourceMove.safe or 99
+				local sourceState=hexDetail.state or "safe"
+                local moveSpent=sourceMove~=nil and sourceMove[sourceState] or 99
 
 				--figure out the move cost to reach surrounding hexs
 				for currentVector, vector in pairs(MOVE_DISPLAY_VECTORS) do
@@ -7642,17 +7651,15 @@ function renderMoveDisplay(id)
 					local vec=hexDetail.coord[2]+vector[2]
 					local destinationHex=hexMap~=nil and hexMap[tostring(hor)]~=nil and hexMap[tostring(hor)][tostring(vec)] or nil
 					if destinationHex~=nil then
-						local hexCost=999
-						if destinationHex.hexType~=nil then
-                            -- A claimed Skill may make normally impassable Lakes
-                            -- and Mountains traversable without changing moveCost.
-                            local terrainCost=resourceCardsEffectiveTerrainCost(destinationHex.hexType)
+						local hexCost,terrainCost=999,999
+                        if destinationHex.hexType~=nil then
+                            terrainCost=resourceCardsEffectiveTerrainCost(destinationHex.hexType)
                             if terrainCost<900 then hexCost=terrainCost+moveSpent end
                         end
 						local wallhor=hexDetail.coord[1]+(vector[1]/2)
 						local wallvec=hexDetail.coord[2]+(vector[2]/2)
 						if hexMap[tostring(wallhor)]~=nil and hexMap[tostring(wallhor)][tostring(wallvec)]~=nil then hexCost=hexCost+1 end
-						if hexCost<=99 and hexCost<resourceCardsEffectiveMove()+searchLimit then
+						if hexCost<=99 and hexCost<resourceCardsEffectiveMove()+searchLimit+moveDiscount then
 							--Don't add hex to fringe if passing a rampager.
 							local rampageHor={tostring(hexDetail.coord[1]+MOVE_DISPLAY_RAMPAGE_ADJACENT[currentVector][1]), tostring(hexDetail.coord[1]+MOVE_DISPLAY_RAMPAGE_ADJACENT[currentVector+2][1])}
 							local rampageVec={tostring(hexDetail.coord[2]+MOVE_DISPLAY_RAMPAGE_ADJACENT[currentVector][2]), tostring(hexDetail.coord[2]+MOVE_DISPLAY_RAMPAGE_ADJACENT[currentVector+2][2])}
@@ -7664,13 +7671,19 @@ function renderMoveDisplay(id)
                                 (normalRampager or ambusherProvoked(hexDetail.coord[1],hexDetail.coord[2],hor,vec))
 							local fortifiedDestination=destinationHex.hexType~="explore" and destinationHex.fortified~=nil and destinationHex.fortified~="shield"
 							local combatDestination=rampageNeighbor or destinationHex.dragonLair==true or fortifiedDestination
-							local predecessor={hor=hexDetail.coord[1],vec=hexDetail.coord[2],state="safe",teleport=false}
-							if combatDestination==true then
-								recordMoveDestination(hor,vec,"combat",hexCost,predecessor,false)
-							else
-								local canContinue=destinationHex.hexType~="explore"
-								recordMoveDestination(hor,vec,"safe",hexCost,predecessor,canContinue)
-							end
+							local predecessor={hor=hexDetail.coord[1],vec=hexDetail.coord[2],
+                                state=sourceState,teleport=false}
+                            local canContinue=destinationHex.hexType~="explore"
+                            local kind=sourceState=="safeDiscount" and "safeDiscount" or "safe"
+                            recordMoveDestination(hor,vec,combatDestination
+                                and (kind=="safeDiscount" and "combatDiscount" or "combat")
+                                or kind,hexCost,predecessor,not combatDestination and canContinue)
+                            if moveDiscount>0 and sourceState=="safe" and terrainCost>2 then
+                                recordMoveDestination(hor,vec,
+                                    combatDestination and "combatDiscount" or "safeDiscount",
+                                    hexCost-math.min(moveDiscount,terrainCost-2),
+                                    predecessor,not combatDestination and canContinue)
+                            end
 						end
 					end
 				end
@@ -7686,16 +7699,21 @@ function renderMoveDisplay(id)
                         local target=row~=nil and row[tostring(vec)] or nil
                         if target~=nil and target.hexType~="explore" and target.hexType~=nil
                             and resourceCardsEffectiveTerrainCost(target.hexType)<900 then
-                            local hexCost=moveSpent+resourceCardsEffectiveTerrainCost(target.hexType)
-                            if hexCost<=99 and hexCost<moveValue+searchLimit then
+                            local terrainCost=resourceCardsEffectiveTerrainCost(target.hexType)
+                            local hexCost=moveSpent+terrainCost
+                            if hexCost<=99 and hexCost<moveValue+searchLimit+moveDiscount then
                                 local fortified=target.fortified~=nil and target.fortified~="shield"
                                 local combat=target.dragonLair==true or fortified
                                 local predecessor={hor=hexDetail.coord[1],vec=hexDetail.coord[2],
-                                    state="safe",teleport=false,leap=true}
-                                if combat then
-                                    recordMoveDestination(hor,vec,"combat",hexCost,predecessor,false)
-                                else
-                                    recordMoveDestination(hor,vec,"safe",hexCost,predecessor,true)
+                                    state=sourceState,teleport=false,leap=true}
+                                recordMoveDestination(hor,vec,combat
+                                    and (sourceState=="safeDiscount" and "combatDiscount" or "combat")
+                                    or sourceState,hexCost,predecessor,not combat)
+                                if moveDiscount>0 and sourceState=="safe" and terrainCost>2 then
+                                    recordMoveDestination(hor,vec,combat and "combatDiscount"
+                                        or "safeDiscount",
+                                        hexCost-math.min(moveDiscount,terrainCost-2),
+                                        predecessor,not combat)
                                 end
                             end
                         end
@@ -7709,8 +7727,8 @@ function renderMoveDisplay(id)
 					local hor=tunnel.hor
 					local vec=tunnel.vec
 					local hexCost=moveSpent+tunnel.cost
-					local predecessor={hor=hexDetail.coord[1],vec=hexDetail.coord[2],state="safe",teleport=false,tunnel=true,tunnelPath=tunnel.path}
-					recordMoveDestination(hor,vec,"safe",hexCost,predecessor,true)
+					local predecessor={hor=hexDetail.coord[1],vec=hexDetail.coord[2],state=sourceState,teleport=false,tunnel=true,tunnelPath=tunnel.path}
+					recordMoveDestination(hor,vec,sourceState,hexCost,predecessor,true)
 				end
 
 				--Fractured Lands teleport edges. A teleport is always a safe, non-combat route and can itself become
@@ -7724,8 +7742,8 @@ function renderMoveDisplay(id)
 						local vec=teleportHex.coord[2]
 						if hor~=hexDetail.coord[1] or vec~=hexDetail.coord[2] then
 							local hexCost=moveSpent+1
-							local predecessor={hor=hexDetail.coord[1],vec=hexDetail.coord[2],state="safe",teleport=true}
-							recordMoveDestination(hor,vec,"safe",hexCost,predecessor,true)
+							local predecessor={hor=hexDetail.coord[1],vec=hexDetail.coord[2],state=sourceState,teleport=true}
+							recordMoveDestination(hor,vec,sourceState,hexCost,predecessor,true)
 						end
 					end
 				end
@@ -7772,8 +7790,14 @@ function renderMoveDisplay(id)
 		for hor, rowOfHexes in pairs(moveMap) do
 			for vec, moveDetails in pairs(rowOfHexes) do
 				local routeCost=moveDetails.safe
-				local routeState="safe"
-				if moveDetails.combat~=nil and (routeCost==nil or moveDetails.combat<routeCost) then routeCost=moveDetails.combat routeState="combat" end
+                    local routeState="safe"
+                    for _,state in ipairs({"safeDiscount","combat","combatDiscount"}) do
+                        if moveDetails[state]~=nil
+                            and (routeCost==nil or moveDetails[state]<routeCost) then
+                            routeCost=moveDetails[state]
+                            routeState=state
+                        end
+                    end
 				if routeCost~=nil and routeCost<=99 and routeCost<moveValue+searchLimit then queueRouteState(tonumber(hor),tonumber(vec),routeState) end
 			end
 		end
@@ -7789,7 +7813,8 @@ function renderMoveDisplay(id)
 					--Only a safe state used by a retained onward route deserves an alternate slash value.
 					local sourceRow=moveMap[tostring(previous.hor)]
 					local sourceMove=sourceRow~=nil and sourceRow[tostring(previous.vec)] or nil
-					if sourceMove~=nil and previous.state=="safe" then sourceMove.safeUsedOnward=1 end
+					if sourceMove~=nil and (previous.state=="safe"
+                        or previous.state=="safeDiscount") then sourceMove.safeUsedOnward=1 end
 					queueRouteState(previous.hor,previous.vec,previous.state or "safe")
 				end
 			end
@@ -7800,7 +7825,15 @@ function renderMoveDisplay(id)
 		for hor,rowOfHexes in pairs(moveMap) do
 			for vec,hexCost in pairs(rowOfHexes) do
 				local safeCost=hexCost.safe
-				local combatCost=hexCost.combat
+                    if hexCost.safeDiscount~=nil then
+                        safeCost=safeCost==nil and hexCost.safeDiscount
+                            or math.min(safeCost,hexCost.safeDiscount)
+                    end
+                    local combatCost=hexCost.combat
+                    if hexCost.combatDiscount~=nil then
+                        combatCost=combatCost==nil and hexCost.combatDiscount
+                            or math.min(combatCost,hexCost.combatDiscount)
+                    end
 				local lowestHex=safeCost
 				local lowestCombat=false
 				if combatCost~=nil and (lowestHex==nil or combatCost<lowestHex) then lowestHex=combatCost lowestCombat=true end
@@ -19995,6 +20028,11 @@ function startOfTurn()
 	gStates.tokenRefillEnabled=true
 	if apocalypseQuestsUsed()==true then gStates.apocalypseQuestScoringChoiceLocked=true end
 	local currentPlayer=turnOrder[gStates.turnNumber]
+    -- A new turn starts a fresh, reversible play sequence for conditional
+    -- starting-card effects. These tables remain in saved games mid-turn.
+    gStates.startingCardSelections={}
+    gStates.resourceCardPlayOrder={}
+    gStates.resourceCardPlaySerial=0
 	if currentPlayer~=nil then
         currentPlayer.puppetMasterUsed=false
         currentPlayer.whoNeedsMagicSourceDieUsed=false
@@ -46960,6 +46998,29 @@ local combatAssignmentState={seat=nil,selected=nil,targets={},explicit={}}
 -- Fame/Reputation currently earned by defeating enemies in the calculator; the scan adds its own fixed part.
 local combatDefeatFameRep={fame=0,rep=0}
 
+-- Conditional effects are earned by the player's explicit choice, not merely
+-- by a card lying in the play area. Once earned, they survive repositioning
+-- that card or minimizing the tracker until the end-of-turn commit.
+combatConfig.startingCardConditionalFameRep=function()
+    local fame,rep=0,0
+    for guid,selected in pairs(gStates~=nil and gStates.startingCardSelections or {}) do
+        local data=gameCards~=nil and gameCards[guid] or nil
+        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+        if rule~=nil then
+            if selected.interaction==true and rule.interactionReward~=nil then
+                local reward=selected.interactionPowered==true
+                    and rule.interactionReward.powered or rule.interactionReward.normal
+                fame=fame+(reward.fame or 0)
+                rep=rep+(reward.rep or 0)
+            end
+            if selected.recruited==true and rule.recruitDiscount~=nil then
+                rep=rep-(rule.recruitRepPenalty or 0)
+            end
+        end
+    end
+    return fame,rep
+end
+
 -- One owner for the pending Fame/Reputation this seat's played sources provide (scan part + defeat part).
 local function resourceCardsApplyFameRep(seat)
     local scan=seat~=nil and resourceCardScanBySeat[seat] or nil
@@ -48648,11 +48709,9 @@ local function combatGroupTraitsText(entry,groupEntry)
     return combatEnemyTraitsText(data,perks,combatConfig.enemyDefenceTraits)
 end
 
-local function combatGroupAttackLine(group,sources,attackArmour)
-    local meleeTotal=combatAttackTotal({
-        {sources=sources,category="attack"},
-        {sources=sources,category="ranged"},
-        {sources=sources,category="siege"}},group.data,group.perks)
+local function combatGroupAttackLine(meleeTotal,attackArmour)
+    -- Render the same post-Damage total used by the defeat decision. Recounting
+    -- the original sources would re-include Wounded Units in the Result text.
     if meleeTotal<=0 then return nil end
     local line="Attack "..tostring(meleeTotal).."/"..tostring(attackArmour)
     return meleeTotal>=attackArmour and (line.." "..combatRich("Defeated",combatConfig.COMBAT_GREEN)) or line
@@ -50105,6 +50164,7 @@ local function combatAssignmentRefreshRows(entries,sources)
             {sources=meleeSources,category="attack"},
             {sources=meleeSources,category="ranged"},
             {sources=meleeSources,category="siege"}},group.entry.data,group.entry.perks)
+        group.attackTotal=meleeTotal
         group.defeated=not entries[group.members[1]].attackOnly
             and (group.rangeDefeated or (meleeTotal>0 and meleeTotal>=group.attackArmour))
         if group.destroyed then group.defeated,group.rangeDefeated=true,false end
@@ -50411,7 +50471,7 @@ local function combatAssignmentRefreshRows(entries,sources)
                 grandDamage=grandDamage+rowBlock[index].damage
                 damageSources=damageSources+rowBlock[index].count
                 if isLast and not entry.attackOnly then
-                    local line=combatGroupAttackLine(group.entry,group.sources,group.attackArmour)
+                    local line=combatGroupAttackLine(group.attackTotal,group.attackArmour)
                     if line~=nil then lines[#lines+1]=line end
                 end
             end
@@ -51612,6 +51672,15 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     elseif rule~=nil and rule.damageMitigation~=nil then
         choices={{key="hardened",icon="other"}}
     end
+    -- Official starting cards with a separate conditional/manual effect keep
+    -- their own controls even when their Move/Influence value is fixed.
+    if rule~=nil and (rule.interactionReward~=nil or rule.recruitDiscount~=nil
+        or rule.selectedTerrainDiscount~=nil or rule.manualSecondary~=nil)
+        and (choices==nil or #choices==0) and type(resources)=="table" then
+        if (tonumber(resources.move) or 0)>0 then choices={{move=resources.move}}
+        elseif (tonumber(resources.influence) or 0)>0 then
+            choices={{influence=resources.influence}} end
+    end
     -- A fixed effect (no alternatives) still needs a Target button for its combat resource.
     if (choices==nil or #choices==0) and type(resources)=="table" then
         local bestKey,bestRank
@@ -51784,6 +51853,16 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         -- is already a valid source and must receive its controls immediately.
         conversionValid=conversion~=nil
     end
+    local special=gStates~=nil and gStates.startingCardSelections~=nil
+        and gStates.startingCardSelections[card.guid] or nil
+    local readyCount=0
+    if rule~=nil and rule.readyWithInfluence~=nil then
+        for sourceKey in pairs(gStates~=nil and gStates.unitReadyLinks or {}) do
+            if sourceKey:match("^"..card.guid.."#ready%d+$") then
+                readyCount=readyCount+1
+            end
+        end
+    end
     local signature=(posture=="sideways" and "S" or (powered and "P" or "N"))
         ..":"..table.concat(signatureParts,";")..":"..uiRotation..":"..buttonDepth
         ..(combatCalcOn and (combatCumbersomeActive and ":CC" or ":C") or "")
@@ -51797,6 +51876,9 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         ..(conversionValid and conversion~=nil and (":CV:"..tostring(conversionBudget)..":"
             ..tostring(conversion.attack)..":"..tostring(conversion.ranged)..":"
             ..tostring(conversion.block)..":"..tostring(conversion.element)) or "")
+        ..(special~=nil and (":START:"..tostring(special.interaction)..":"
+            ..tostring(special.recruited)..":"..tostring(special.terrain)) or "")
+        ..":READY:"..tostring(readyCount)
     if choiceButtonShown[card.guid]==signature then return end
     local xml=resourceObjectUiXmlTable(card.UI)
     for i=#xml,1,-1 do
@@ -52117,6 +52199,40 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             textColor="#FFFFFF",textAlignment="MiddleCenter"},
             value=phase=="range" and "RNG" or "ATK"}
     end
+    if rule~=nil and posture=="upright" and card.is_face_down~=true then
+        local function startingControl(suffix,label,tooltip,active,x,y)
+            xml[#xml+1]={tag="Button",attributes={
+                id="ResourceCardChoice_"..card.guid.."_"..suffix,
+                onClick="global/resourceCardsStartingCardControlClicked",
+                position=tostring(x).." "..tostring(y).." "..buttonDepth,
+                rotation=uiRotation,width=160,height=90,scale="0.28 0.28",
+                fontSize=41,textColor="#FFFFFF",textAlignment="MiddleCenter",
+                tooltip=tooltip,
+                colors=active and "#387D30|#4CA940|#387D30|#387D30"
+                    or "#454D5D|#69798E|#444C63|#454D5D"},
+                value=label}
+        end
+        if rule.interactionReward~=nil then
+            startingControl("interaction","INT",
+                "Noble Manners: click only when used during Interaction. Grants end-of-turn Fame +1 (and Reputation +1 if powered). Click again to undo.",
+                special~=nil and special.interaction==true,135,-125)
+        elseif rule.recruitDiscount~=nil and not powered then
+            startingControl("recruit","-2 REC",
+                "Ruthless Coercion: use the optional -2 recruitment discount on ONE Unit. Click when you recruit it: the conditional Reputation -1 applies. Click again to undo.",
+                special~=nil and special.recruited==true,135,-125)
+        elseif rule.readyWithInfluence~=nil and powered then
+            startingControl("ruthlessReady","RDY "..tostring(readyCount),
+                "Ruthless Coercion: left click to target another Level I-II used, unwounded Unit. Each Ready spends 2 Influence per Unit level. Right click removes the latest Ready and its dependent activation.",
+                readyCount>0,145,-125)
+        elseif rule.selectedTerrainDiscount~=nil and powered then
+            startingControl("terrain",special~=nil and special.terrain~=nil
+                and special.terrain:sub(1,3):upper() or "TER",
+                "Druidic Paths: choose ONE terrain type to discount by 1 (minimum 2) for the turn. Click to cycle; right click clears.",
+                special~=nil and special.terrain~=nil,150,-125)
+        elseif rule.manualSecondary~=nil then
+            startingControl("manual","?",rule.manualSecondary,false,135,-125)
+        end
+    end
     if assets~=nil then card.UI.setXmlTable(xml,assets)
     else card.UI.setXmlTable(xml) end
     choiceButtonShown[card.guid]=signature
@@ -52347,7 +52463,11 @@ local function cardInSeatPlayArea(guid,seatPos)
 end
 
 local function scheduleChoiceResetAfterPlay(guid,seatPos)
-    if guid==nil or seatPos==nil or selectedResourceByGUID[guid]==nil then return end
+    if guid==nil or seatPos==nil then return end
+    -- Avoid physics waits for mana, enemies and unrelated play-area objects.
+    if selectedResourceByGUID[guid]==nil and (gStates==nil
+        or gStates.resourceCardPlayOrder==nil
+        or gStates.resourceCardPlayOrder[guid]==nil) then return end
     choiceResetGenerationByGUID[guid]=(choiceResetGenerationByGUID[guid] or 0)+1
     local serial=choiceResetGenerationByGUID[guid]
     -- Allow the zone's membership to settle before checking whether this
@@ -52357,6 +52477,11 @@ local function scheduleChoiceResetAfterPlay(guid,seatPos)
         safeWaitCondition("PlayerBoard.CardRecognition",function()
             if choiceResetGenerationByGUID[guid]~=serial then return end
             if not cardInSeatPlayArea(guid,seatPos) then
+                -- A genuine departure retires this play's time-order slot;
+                -- moving a card in/out again starts a fresh play sequence.
+                if gStates~=nil and gStates.resourceCardPlayOrder~=nil then
+                    gStates.resourceCardPlayOrder[guid]=nil
+                end
                 selectedResourceByGUID[guid]=nil
                 choiceExpandedByGUID[guid]=nil
                 if gStates~=nil and gStates.unitReadyCardChoices~=nil then
@@ -52886,6 +53011,11 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
     local status=(not known or not sideTracked or posture=="discard"
         or (choiceIsUntracked and costPaid and not scriptedMovement and not scriptedTerrain)) and "blue"
         or not complete and "yellow" or "green"
+    -- The printed crystal gain on Savage Harvesting is deliberately manual.
+    -- Move is still counted, but a green "fully understood" highlight would lie.
+    if rule~=nil and rule.manualSecondary~=nil and status=="green" then
+        status="yellow"
+    end
     -- Linking information is more valuable than the underlying certainty colour.
     if #linked>0 then status="purple" end
     local fameRepSide=rule~=nil and rule.fameRep~=nil and faceUp and costPaid and canApply
@@ -53717,6 +53847,13 @@ local function calculateSkill(skill,linkedTarget,unitState,inventoryCrystalCount
         resources=effects,choices=choices}
 end
 
+-- Stable modifier instances prevent false movement redraws on every scan.
+combatConfig.druidicTerrainEffects={}
+for _,terrain in ipairs({"plains","hills","forest","wasteland","desert",
+    "swamp","lake","mountain","city"}) do
+    combatConfig.druidicTerrainEffects[terrain]={
+        mode="reduce",terrains={[terrain]=true},amount=1,minimum=2}
+end
 combatConfig.terrainEffectOrder={set=0,cap=1,reduce=2}
 local function terrainModifierPrecedes(a,b)
     local first,second=combatConfig.terrainEffectOrder[a.mode] or 9,combatConfig.terrainEffectOrder[b.mode] or 9
@@ -53822,7 +53959,7 @@ local function combatEffectChosenEnemy(sourceGUID,area,monsters,eligible)
     return chosen or combatEffectNearestEnemy(area,monsters,footprint,overlapArea,eligible)
 end
 
-local function renderSeat(seatPos,quietUnitChoice)
+local function renderSeat(seatPos)
     if not resourceCardsPanelOpen() then return end
     local active=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if active==nil or active.seatPos~=seatPos then return end
@@ -54002,6 +54139,25 @@ local function renderSeat(seatPos,quietUnitChoice)
     -- First reserve conversion mana (Polarization), then sideways-skill mana,
     -- so one physical mana never powers two separate interactions.
     table.sort(cards,function(a,b) return a.guid<b.guid end)
+    -- Cards already present when opening a saved/minimized tracker have no
+    -- reliable order; give them one shared ordinal instead of inventing one.
+    -- Subsequent real zone entries are recorded immediately at entry time.
+    gStates.resourceCardPlayOrder=gStates.resourceCardPlayOrder or {}
+    gStates.resourceCardPlaySerial=gStates.resourceCardPlaySerial or 0
+    local missingOrder=false
+    for _,card in ipairs(cards) do
+        if gStates.resourceCardPlayOrder[card.guid]==nil then
+            missingOrder=true break
+        end
+    end
+    if missingOrder then
+        gStates.resourceCardPlaySerial=gStates.resourceCardPlaySerial+1
+        for _,card in ipairs(cards) do
+            if gStates.resourceCardPlayOrder[card.guid]==nil then
+                gStates.resourceCardPlayOrder[card.guid]=gStates.resourceCardPlaySerial
+            end
+        end
+    end
     local manaByObject,manaBySkill,manaByCard=
         resolveManaSkillLinks(skills,manaObjects,cards,footprints,placements)
     local skillLinksByTarget,skillLinksBySkill,sidewaysSkillMana=
@@ -54125,7 +54281,8 @@ local function renderSeat(seatPos,quietUnitChoice)
     local usesCurrentHexHealing=false
     local ignoreSiteFortifications=false
     local terrainModifiers=resourceCardsWeatherTerrainEffects(seatPos)
-    local movementEffects={jumpTwoSpaces=false,ignoreRampagers=false}
+    local movementEffects={jumpTwoSpaces=false,ignoreRampagers=false,
+        singleSpaceDiscount=0}
     local usesSkillLocation=false
     -- This is a reusable declarative overlay. All passives are owned-Skill
     -- effects, whether the physical token is resting at home or being played.
@@ -54591,6 +54748,28 @@ local function renderSeat(seatPos,quietUnitChoice)
                 if effect.ignoreRampagers==true then movementEffects.ignoreRampagers=true end
             end
         end
+        if rule~=nil and result.complete and result.resources~=nil
+            and cardPosture(card)=="upright" and card.is_face_down~=true then
+            if rule.oneSpaceDiscount~=nil and not result.powered then
+                -- Basic Druidic Paths discounts a single entered space per
+                -- route, never every space of one terrain type.
+                movementEffects.singleSpaceDiscount=math.max(
+                    movementEffects.singleSpaceDiscount,rule.oneSpaceDiscount.amount or 1)
+            elseif rule.selectedTerrainDiscount~=nil and result.powered then
+                local selection=gStates.startingCardSelections
+                    and gStates.startingCardSelections[card.guid] or nil
+                local modifier=selection~=nil
+                    and combatConfig.druidicTerrainEffects[selection.terrain] or nil
+                if modifier~=nil then
+                    for _=1,(result.repeatCount or 1) do
+                        terrainModifiers[#terrainModifiers+1]=modifier
+                    end
+                elseif result.status~="purple" then
+                    -- Move 4 is counted but the terrain choice is not guessed.
+                    result.status="yellow"
+                end
+            end
+        end
         -- Demolish removes site fortification independent of enemy Fire Resistance.
         if rule~=nil and rule.ignoreSiteFortification==true
             and result.complete and not result.powered and result.resources~=nil
@@ -54621,6 +54800,46 @@ local function renderSeat(seatPos,quietUnitChoice)
         current[card.guid]=true
         if result.usesTerrainBlock then usesCurrentHexBlock=true end
         setHighlight(card,result.status,result.powered)
+    end
+    -- Wolfhawk's Tirelessness affects only subsequently PLAYED cards, not
+    -- already-played cards or Units. Maximal Effect repeats the bonus but
+    -- each repeated target Action is still only one played card.
+    for _,source in ipairs(cards) do
+        local data=gameCards[source.guid]
+        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+        local modifier=rule~=nil and rule.followingMoveBonus or nil
+        local origin=records[source.guid]
+        if modifier~=nil and origin~=nil and origin.complete==true
+            and origin.resources~=nil and (tonumber(origin.resources.move) or 0)>0
+            and cardPosture(source)=="upright" and source.is_face_down~=true then
+            local order=gStates.resourceCardPlayOrder[source.guid]
+            local candidates={}
+            for _,target in ipairs(cards) do
+                local targetRecord=records[target.guid]
+                local targetOrder=gStates.resourceCardPlayOrder[target.guid]
+                if target.guid~=source.guid and targetOrder~=nil and order~=nil
+                    and targetOrder>order and targetRecord~=nil
+                    and targetRecord.complete==true and targetRecord.resources~=nil
+                    and (tonumber(targetRecord.resources.move) or 0)>0 then
+                    candidates[#candidates+1]=target
+                end
+            end
+            table.sort(candidates,function(a,b)
+                local aa=gStates.resourceCardPlayOrder[a.guid]
+                local bb=gStates.resourceCardPlayOrder[b.guid]
+                return aa==bb and a.guid<b.guid or aa<bb
+            end)
+            local spec=origin.powered and modifier.powered or modifier.normal
+            local count=spec.all and #candidates or math.min(#candidates,spec.count or 1)
+            local extra=(spec.amount or 1)*(origin.repeatCount or 1)
+            for i=1,count do
+                local target=candidates[i]
+                local record=records[target.guid]
+                record.resources.move=record.resources.move+extra
+                record.tirelessnessBonus=(record.tirelessnessBonus or 0)+extra
+                totals.move=(totals.move or 0)+extra
+            end
+        end
     end
     -- Outline an enemy that supplied a printed ability bonus or a Possess
     -- Attack; the enemy record itself does not add those values twice.
@@ -56096,6 +56315,49 @@ local function renderSeat(seatPos,quietUnitChoice)
         end
     end
 
+    -- Pay for Ready links from the available Influence pool in creation
+    -- order. If a resource source is later undone, retire unaffordable
+    -- links newest-first, along with their dependent Unit activations.
+    local ruthlessReadySpent=0
+    local ruthlessReadyBySource={}
+    local readyNeedsRescan=false
+    local readyPayments={}
+    for key,link in pairs(gStates.unitReadyLinks or {}) do
+        local owner=key:match("^([0-9a-f]+)#ready%d+$")
+        local record=owner~=nil and records[owner] or nil
+        local data=owner~=nil and gameCards[owner] or nil
+        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+        local unit=link~=nil and gameCards[link.unitGUID] or nil
+        if record~=nil and record.complete and record.powered and rule~=nil
+            and rule.readyWithInfluence~=nil and unit~=nil
+            and (tonumber(unit.level) or 99)<=rule.readyWithInfluence.maxLevel then
+            readyPayments[#readyPayments+1]={key=key,owner=owner,
+                cost=(tonumber(unit.level) or 0)*rule.readyWithInfluence.costPerLevel,
+                number=tonumber(key:match("#ready(%d+)$")) or 0}
+        end
+    end
+    table.sort(readyPayments,function(a,b)
+        if a.owner~=b.owner then return a.owner<b.owner end
+        return a.number<b.number
+    end)
+    local availableInfluence=totals.influence or 0
+    for _,payment in ipairs(readyPayments) do
+        if gStates.unitReadyLinks[payment.key]~=nil then
+            if ruthlessReadySpent+payment.cost<=availableInfluence then
+                ruthlessReadySpent=ruthlessReadySpent+payment.cost
+                ruthlessReadyBySource[payment.owner]=
+                    (ruthlessReadyBySource[payment.owner] or 0)+payment.cost
+            else
+                unitHistoryCancelReadySource(payment.key)
+                readyNeedsRescan=true
+            end
+        end
+    end
+    for owner,spent in pairs(ruthlessReadyBySource) do
+        if records[owner]~=nil then records[owner].readyInfluenceSpent=spent end
+    end
+    totals.influence=availableInfluence-ruthlessReadySpent
+
     local previous=bySeat[seatPos] or {}
     local previousScan=resourceCardScanBySeat[seatPos]
     local previousMove=previousScan~=nil and (previousScan.totals.move or 0) or 0
@@ -56121,11 +56383,21 @@ local function renderSeat(seatPos,quietUnitChoice)
     local movementChanged=priorMovement==nil
         or priorMovement.jumpTwoSpaces~=movementEffects.jumpTwoSpaces
         or priorMovement.ignoreRampagers~=movementEffects.ignoreRampagers
+        or (priorMovement.singleSpaceDiscount or 0)~=movementEffects.singleSpaceDiscount
     local previousTransform=previousScan~=nil and previousScan.attackTransforms or nil
     local transformChanged=previousTransform==nil
         or (previousTransform.coldFire==true)~=(attackTransforms.coldFire==true)
         or (previousTransform.siege==true)~=(attackTransforms.siege==true)
-    combatEffectReport(seatPos,enemyEffects,quietUnitChoice)
+    -- The normal recruitment discount cannot coexist with the stronger
+    -- side of the same card. Remove its pending event if the side changes.
+    for guid,selected in pairs(gStates.startingCardSelections or {}) do
+        local data=gameCards[guid]
+        local record=records[guid]
+        if data~=nil and data.resourceKey=="ruthlessCoercion"
+            and record~=nil and record.powered==true then
+            selected.recruited=nil
+        end
+    end
     local fameTotal,repTotal=0,0
     for _,record in pairs(records) do
         if record.fameRep~=nil then
@@ -56133,6 +56405,9 @@ local function renderSeat(seatPos,quietUnitChoice)
             repTotal=repTotal+(record.fameRep.rep or 0)
         end
     end
+    local earnedFame,earnedRep=combatConfig.startingCardConditionalFameRep()
+    fameTotal=fameTotal+earnedFame
+    repTotal=repTotal+earnedRep
     local scanPlayer=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     local fameRepBase={fame=fameTotal,rep=repTotal}
     bySeat[seatPos]=current
@@ -56140,6 +56415,7 @@ local function renderSeat(seatPos,quietUnitChoice)
         attackTransforms=attackTransforms,
         terrainModifiers=terrainModifiers,movementEffects=movementEffects,
         enemyEffects=enemyEffects,fameRepBase=fameRepBase,
+        ruthlessReadySpent=ruthlessReadySpent,
         ignoreSiteFortifications=ignoreSiteFortifications,
         unitState=unitState,preventUnitDamage=preventUnitDamage,
         allUnitResistances=allUnitResistances,heroFirstWoundIgnored=heroFirstWoundIgnored,
@@ -56147,6 +56423,13 @@ local function renderSeat(seatPos,quietUnitChoice)
         usesCurrentHexBlock=usesCurrentHexBlock,
         usesCurrentHexHealing=usesCurrentHexHealing,
         usesSkillLocation=usesSkillLocation}
+    -- This also retracts a saved Ready if its card loses power or the new
+    -- Rejuvenate side can no longer ready that Unit level.
+    if unitHistoryValidSources(seatPos) or readyNeedsRescan then
+        -- Links can undo earlier Unit resources; rebuild from the updated
+        -- history rather than showing those stale contributions for one scan.
+        resourceCardsSourceChanged()
+    end
     refreshCombatEnemyPanel(combatMonsters,true)
     resourceCardsApplyFameRep(seatPos)
     -- Refresh Reputation on every settled Skill scan so flipping Arcane
@@ -56236,9 +56519,11 @@ local function clearAll()
     for guid in pairs(shown) do clearHighlight(guid) end
     bySeat={}
     resourceCardScanBySeat={}
-    -- Closing the tracker removes its pending Fame/Reputation until the next scan restores it.
+    -- Ordinary resource sources disappear when tracking is OFF. Earned
+    -- conditional interaction rewards/penalties remain pending until turn end.
     if turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber]~=nil then
-        resourceFameRepApply(gStates.turnNumber,0,0)
+        local fame,rep=combatConfig.startingCardConditionalFameRep()
+        resourceFameRepApply(gStates.turnNumber,fame,rep)
     end
     -- Closing must not invoke tracker calculations or redraw its overlays.
     if resourceCardsPanelOpen() and gStates~=nil and gStates.resourceTracker~=nil then
@@ -56315,6 +56600,70 @@ function resourceCardsDodgeSplitClicked(player,value,id)
         and resourceCardScanBySeat[seat].cards[guid] or nil
     if record==nil or record.powered~=true or record.resources==nil then return end
     combatConfig.dodgeSplitMode[guid]=not combatConfig.dodgeSplitMode[guid]
+    resourceCardsSourceChanged()
+end
+
+-- Explicit decisions for official starting cards that have a secondary effect.
+-- These controls never silently add conditional Fame, Reputation or Move.
+function resourceCardsStartingCardControlClicked(player,value,id)
+    if not resourceCardsPanelOpen() or not resourceCardsDetailsOpen()
+        or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil)
+        or type(id)~="string" then return end
+    local guid,control=id:match("^ResourceCardChoice_([0-9a-f]+)_([%a]+)$")
+    if guid==nil then return end
+    local card=getObjectFromGUID(guid)
+    local data=gameCards[guid]
+    local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+    local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    if current==nil or card==nil or rule==nil or card.is_face_down
+        or cardPosture(card)~="upright"
+        or not cardInSeatPlayArea(guid,current.seatPos) then return end
+    local scan=resourceCardScanBySeat[current.seatPos]
+    local record=scan~=nil and scan.cards[guid] or nil
+    if record==nil or not record.complete or record.resources==nil then return end
+    gStates.startingCardSelections=gStates.startingCardSelections or {}
+    local selected=gStates.startingCardSelections[guid] or {}
+    local right=tostring(value)=="-2"
+    if control=="interaction" and rule.interactionReward~=nil then
+        selected.interaction=not selected.interaction
+        selected.interactionPowered=selected.interaction and record.powered or nil
+    elseif control=="recruit" and rule.recruitDiscount~=nil and not record.powered then
+        selected.recruited=not selected.recruited
+    elseif control=="terrain" and rule.selectedTerrainDiscount~=nil and record.powered then
+        if right then selected.terrain=nil
+        else
+            local terrains={"plains","hills","forest","wasteland","desert",
+                "swamp","lake","mountain","city"}
+            local index=0
+            for i,terrain in ipairs(terrains) do
+                if terrain==selected.terrain then index=i break end
+            end
+            selected.terrain=terrains[index%#terrains+1]
+        end
+    elseif control=="ruthlessReady" and rule.readyWithInfluence~=nil
+        and record.powered then
+        local links=gStates.unitReadyLinks or {}
+        if right then
+            local highest=0
+            for key in pairs(links) do
+                local index=tonumber(key:match("^"..guid.."#ready(%d+)$"))
+                if index~=nil and index>highest then highest=index end
+            end
+            if highest>0 then unitHistoryCancelReadySource(guid.."#ready"..highest) end
+        else
+            -- A new click chooses a fresh independent Ready source; old links
+            -- and their dependent activation history remain intact.
+            if (tonumber(scan.totals.influence) or 0)<2 then return end
+            local index=1
+            while links[guid.."#ready"..index]~=nil do index=index+1 end
+            attackAssignmentsBeginUnitReady(guid,guid.."#ready"..index,player.color,
+                rule.readyWithInfluence.maxLevel)
+        end
+    elseif control=="manual" and rule.manualSecondary~=nil then
+        broadcastToColor(rule.manualSecondary,player.color,{0.9,0.8,0.4})
+        return
+    else return end
+    gStates.startingCardSelections[guid]=selected
     resourceCardsSourceChanged()
 end
 
@@ -56450,21 +56799,65 @@ function resourceCardsReadySourceValid(sourceKey,seatPos)
         return choice~=nil and choice.key=="ready"
     end
     local data=gameCards[guid]
-    if data==nil or data.resourceKey~="rejuvenate" then return false end
+    if data==nil or (data.resourceKey~="rejuvenate"
+        and data.resourceKey~="ruthlessCoercion") then return false end
     local card=getObjectFromGUID(guid)
     if card==nil or card.is_face_down or cardPosture(card)~="upright" then return false end
-    if seatPos~=nil then
-        local zone=getObjectFromGUID(playerPlayAreas[seatPos])
-        local found=false
-        for _,obj in ipairs(zone~=nil and zone.getObjects() or {}) do
-            if obj.guid==guid then found=true break end
-        end
-        if not found then return false end
+    local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    seatPos=seatPos or (current~=nil and current.seatPos)
+    if seatPos==nil or not cardInSeatPlayArea(guid,seatPos) then return false end
+    local scan=resourceCardScanBySeat[seatPos]
+    local record=scan~=nil and scan.cards[guid] or nil
+    if record==nil or record.complete~=true then return false end
+    if data.resourceKey=="ruthlessCoercion" then
+        return record.powered==true
+            and sourceKey:match("^"..guid.."#ready%d+$")~=nil
     end
     local choice=selectedResourceByGUID[guid]
     return (choice~=nil and choice.effect=="ready")
         or (choice==nil and gStates.unitReadyCardChoices~=nil
             and gStates.unitReadyCardChoices[guid]==true)
+end
+
+-- Used both when a new Ready link is made and when changing card sides
+-- invalidates a previously valid target.
+function resourceCardsReadySourceLevelLimit(sourceKey,seatPos)
+    local guid=type(sourceKey)=="string" and unitHistorySourceBase(sourceKey) or nil
+    local data=guid~=nil and gameCards[guid] or nil
+    local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+    if rule==nil then return nil end
+    local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    seatPos=seatPos or (current~=nil and current.seatPos)
+    local scan=seatPos~=nil and resourceCardScanBySeat[seatPos] or nil
+    local record=scan~=nil and scan.cards[guid] or nil
+    if rule.unitReadyLevels~=nil then
+        return record~=nil and record.powered and rule.unitReadyLevels.powered
+            or rule.unitReadyLevels.normal
+    end
+    return rule.readyWithInfluence~=nil and rule.readyWithInfluence.maxLevel or nil
+end
+
+function resourceCardsReadyTargetEligible(sourceKey,unitGUID,seatPos)
+    local guid=type(sourceKey)=="string" and unitHistorySourceBase(sourceKey) or nil
+    local data=guid~=nil and gameCards[guid] or nil
+    local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+    if rule==nil or rule.readyWithInfluence==nil then return true end
+    if not resourceCardsReadySourceValid(sourceKey,seatPos) then return false end
+    local unitData=gameCards[unitGUID]
+    local level=unitData~=nil and tonumber(unitData.level) or nil
+    if level==nil or level<1 or level>rule.readyWithInfluence.maxLevel then return false end
+    local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    seatPos=seatPos or (current~=nil and current.seatPos)
+    local scan=seatPos~=nil and resourceCardScanBySeat[seatPos] or nil
+    if scan==nil then return false end
+    local cost=level*rule.readyWithInfluence.costPerLevel
+    -- The scan already subtracts every existing Ready payment. A retargeted
+    -- existing link can reuse its previous payment instead of paying twice.
+    local link=gStates.unitReadyLinks~=nil and gStates.unitReadyLinks[sourceKey] or nil
+    local old=link~=nil and gameCards[link.unitGUID] or nil
+    local credit=old~=nil and (tonumber(old.level) or 0)
+        *rule.readyWithInfluence.costPerLevel or 0
+    return (tonumber(scan.totals.influence) or 0)+credit>=cost
 end
 
 function attackAssignmentReadySourceClicked(player,value,id)
@@ -56476,7 +56869,8 @@ function attackAssignmentReadySourceClicked(player,value,id)
     if suffix~="" and useIndex==nil then return end
     local sourceKey=unitHistoryKey(guid,useIndex or 1)
     if not resourceCardsReadySourceValid(sourceKey) then return end
-    local limit=unitResourceDefinitions[guid]~=nil and 2 or nil
+    local limit=unitResourceDefinitions[guid]~=nil and 2
+        or resourceCardsReadySourceLevelLimit(sourceKey) 
     attackAssignmentsBeginUnitReady(guid,sourceKey,player.color,limit)
 end
 
@@ -56565,7 +56959,9 @@ function resourceUnitsCommandDropped(playerColor,obj)
             local permission=unitHistoryAwaiting(unit.guid)
                 or unitHistoryReadyPermission(unit.guid)
             if permission==nil or previous.tokenGUID~=guid then return end
-            useIndex=unitHistoryAppend(unit.guid,newActivation,permission)
+            local appendedIndex=unitHistoryAppend(unit.guid,newActivation,permission)
+            if appendedIndex==nil then return end
+            useIndex=appendedIndex
         else
             gStates.unitResourceActivations[unit.guid]=newActivation
             unitHistoryEnsure(unit.guid,newActivation)
@@ -56713,9 +57109,9 @@ function resourceUnitsChoiceClicked(player,value,id)
     unitHistoryValidSources(current.seatPos)
     showUnitAbilityButtons(unit,abilities,activation,true,nil,useIndex)
     if attackAssignmentsRefreshReadyUI~=nil then attackAssignmentsRefreshReadyUI() end
-    -- A Unit choice still recalculates immediately, but its enemy-effect
-    -- notification is silent. Other card/skill updates retain their notices.
-    renderSeat(current.seatPos,true)
+    -- Recalculate Unit choices immediately; enemy modifiers are shown directly
+    -- in the Combat Calculator rather than broadcast into chat.
+    renderSeat(current.seatPos)
 end
 
 -- Release a temporary offered Unit without touching Command activations.
@@ -56964,6 +57360,14 @@ function resourceCardsZoneEntered(ctx)
     -- Filter irrelevant zones and other players before touching the Unit layout.
     local seat=resourceCardsRelevantZone(ctx)
     if seat==nil then return end
+    if ctx.zoneInfo.kind=="play" and gameCards[ctx.objGUID]~=nil
+        and gStates~=nil then
+        gStates.resourceCardPlayOrder=gStates.resourceCardPlayOrder or {}
+        if gStates.resourceCardPlayOrder[ctx.objGUID]==nil then
+            gStates.resourceCardPlaySerial=(gStates.resourceCardPlaySerial or 0)+1
+            gStates.resourceCardPlayOrder[ctx.objGUID]=gStates.resourceCardPlaySerial
+        end
+    end
     if ctx.obj~=nil and (ctx.zoneInfo.kind=="unit" or ctx.zoneInfo.kind=="play"
         or ctx.zoneInfo.kind=="crystal")
         and (unitLayoutIsWound(ctx.obj) or manaColor(ctx.obj)~=nil) then
@@ -57050,8 +57454,6 @@ __bundle_register("PlayingGame.PlayerBoard.CombatEffects", function(require, _LO
 -- Enemy-targeted effects of Combat Actions (e.g. Ice Shield's Armor reduction).
 -- Runtime only: targets are recomputed from the physical table on every
 -- Resource Tracker scan, so re-choosing a card's option re-links it at once.
-
-local lastReport={}
 
 -- Vampiric gains one Armor for each Wound added to the Hero's hand, plus
 -- one for each Unit wounded (not each Unit Wound card). Poison's extra discard
@@ -57208,66 +57610,6 @@ function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec,sourceKey)
     entry.removeResist=entry.removeResist or spec.removeResist==true
     entry.removeFireResist=entry.removeFireResist or spec.removeFireResist==true
     entry.sources[#entry.sources+1]=sourceGUID
-end
-
--- Remind the active player when the set of applied effects changes.
-function combatEffectReport(seatPos,enemyEffects,quiet)
-    local parts={}
-    for guid,entry in pairs(enemyEffects) do
-        local pug=monsterPugs[guid]
-        local name=pug~=nil and pug.name~=nil and tostring(pug.name) or guid
-        local text=name..":"
-        if entry.armourReduce>0 or entry.armourReduceByResist>0 then
-            text=text.." Armor -"..entry.armourReduce
-            if entry.armourReduceFortified~=entry.armourReduce then
-                text=text.." (-"..entry.armourReduceFortified.." if fortified)"
-            end
-            if entry.armourReduceByResist>0 then text=text.." (-"..entry.armourReduceByResist.." per resistance)" end
-        end
-        if entry.armourReduceRangedUnfortifiedOnly>0 then
-            text=text.." (Armour reduction applies in Ranged/Siege only if unfortified)"
-        end
-        if entry.removeFortify then text=text.." loses fortification" end
-        if entry.removeResist then text=text.." loses resistances" end
-        if entry.removeFireResist then text=text.." loses Fire Resistance" end
-        if entry.noAttack then text=text.." does not attack" end
-        if entry.grantCumbersome then text=text.." gains Cumbersome" end
-        if entry.noAttackUnfortified and not entry.noAttack then text=text.." does not attack if unfortified" end
-        if entry.removeAbilities then text=text.." attack loses abilities (keeps colour)" end
-        for _,reduction in ipairs(entry.attackReductions or {}) do
-            if reduction.stripAbilities then text=text.." one chosen attack loses abilities (keeps colour)" end
-        end
-        local attackReduction,attackIncrease=0,0
-        local forcedDamage=false
-        for _,reduction in ipairs(entry.attackReductions or {}) do
-            if reduction.amount>0 then attackReduction=attackReduction+reduction.amount
-            else attackIncrease=attackIncrease-reduction.amount end
-            if reduction.firstDamageUnit~=nil then forcedDamage=true end
-        end
-        if attackReduction>0 then text=text.." Attack reduction "..tostring(attackReduction) end
-        if attackIncrease>0 then text=text.." Attack increase "..tostring(attackIncrease) end
-        for trait in pairs(entry.removedPrinted or {}) do text=text.." removes "..trait end
-        for _,conversion in ipairs(entry.attackConversions or {}) do text=text.." converts attack to "..tostring(conversion.to) end
-        if forcedDamage then text=text.." (assign damage to reducing Unit first)" end
-        if entry.destroy then text=text.." is destroyed" end
-        if entry.destroyDuringAttack then text=text.." destroyed during Attack" end
-        if entry.destroyIfBlocked then text=text.." destroyed if all attacks blocked" end
-        if entry.immuneIgnored then text=text.." (Arcane Immunity ignores non-attack effects)" end
-        if entry.fireResistIgnored then text=text.." (Fire Resistance ignores red Spell effects)" end
-        if entry.iceResistIgnored then text=text.." (Ice Resistance ignores blue Spell effects)" end
-        parts[#parts+1]=text
-    end
-    table.sort(parts)
-    local signature=table.concat(parts,"\n")
-    if lastReport[seatPos]==signature then return end
-    lastReport[seatPos]=signature
-    if signature~="" and quiet~=true then
-        -- The Mage Knight's hand color may not be occupied (hotseat/dummy/GM).
-        -- Use the shared safe broadcaster so changing an effect never crashes
-        -- the combat scan while the target color has no seated Player.
-        safeBroadcastToColor("Card effects on enemies (apply manually if needed):\n"..signature,
-            positionToColor(gStates.turnNumber),{1,0.6,0.1})
-    end
 end
 
 end)
@@ -58097,7 +58439,9 @@ function unitHistoryReadyLink(sourceKey,unitGUID,seat,levelLimit)
     local data=gameCards~=nil and gameCards[unitGUID] or nil
     if unit==nil or (levelLimit~=nil and (data==nil or data.level>levelLimit))
         or (resourceCardsReadySourceValid~=nil
-            and not resourceCardsReadySourceValid(sourceKey,seat)) then return false end
+            and not resourceCardsReadySourceValid(sourceKey,seat))
+        or (resourceCardsReadyTargetEligible~=nil
+            and not resourceCardsReadyTargetEligible(sourceKey,unitGUID,seat)) then return false end
     -- A ready effect can be retargeted before it is consumed. Undo its old
     -- dependent activations before linking it to a different Unit.
     unlinkSource(sourceKey)
@@ -58147,14 +58491,24 @@ function unitHistoryCancelReadySource(sourceKey)
 end
 
 function unitHistoryValidSources(seat)
+    local changed=false
     for key,link in pairs(gStates~=nil and gStates.unitReadyLinks or {}) do
-        if link.seatPos==seat and resourceCardsReadySourceValid~=nil
-            and not resourceCardsReadySourceValid(key,seat) then
+        local unitData=gameCards~=nil and gameCards[link.unitGUID] or nil
+        local currentLimit=resourceCardsReadySourceLevelLimit~=nil
+            and resourceCardsReadySourceLevelLimit(key,seat) or link.limit
+        local invalidLevel=currentLimit~=nil
+            and (unitData==nil or (tonumber(unitData.level) or 99)>currentLimit)
+        if link.seatPos==seat and ((resourceCardsReadySourceValid~=nil
+            and not resourceCardsReadySourceValid(key,seat)) or invalidLevel) then
             local obj=getObjectFromGUID(unitHistorySourceBase(key))
             if obj==nil or (obj.held_by_color==nil
-                and not obj.isSmoothMoving()) then unlinkSource(key) end
+                and not obj.isSmoothMoving()) then
+                unlinkSource(key)
+                changed=true
+            end
         end
     end
+    return changed
 end
 
 function unitHistoryHideControls()
@@ -66224,7 +66578,8 @@ cardResourceDefinitions={
     stamina={normal={move=2},powered={move=4}},
     march={normal={move=2},powered={move=4}},
     promise={normal={influence=2},powered={influence=4}},
-    nobleManners={normal={influence=2},powered={influence=4}}, -- Other ability does not alter Influence
+    nobleManners={normal={influence=2},powered={influence=4},
+        interactionReward={normal={fame=1},powered={fame=1,rep=1}}},
     coldToughness={
         normalChoices={{attack=2},{key="block",blockIce=3}},
         powered={blockIce=5},enemyIconBlock=true}, -- Lost Legion; enemy icon bonus from linked token
@@ -66280,10 +66635,16 @@ cardResourceDefinitions={
         poweredChoices={{move=4},{ranged=3},{key="reduce",icon="other"}},
         enemyEffect={normal={choice="reduce",attackReduce=1},
             powered={choice="reduce",attackReduce=2}}},
-    tirelessness={normal={move=2},powered={move=4},partial=true}, -- Boosts other Move cards
-    druidicPaths={normal={move=2},powered={move=4}}, -- Player manages the one-space/one-terrain-type discount
-    savageHarvesting={normal={move=2},powered={move=4}}, -- Optional crystal gains do not affect Move calculation
-    ruthlessCoercion={normal={influence=2},powered={influence=6},fameRep={powered={rep=-1}}}, -- Basic's Reputation loss depends on recruiting a Unit
+    tirelessness={normal={move=2},powered={move=4},
+        followingMoveBonus={normal={count=1,amount=1},powered={all=true,amount=1}}},
+    druidicPaths={normal={move=2},powered={move=4},
+        oneSpaceDiscount={amount=1,minimum=2},
+        selectedTerrainDiscount={amount=1,minimum=2}},
+    savageHarvesting={normal={move=2},powered={move=4},
+        manualSecondary="Discard a card when entering a space to gain a crystal of its colour. Once per turn on the basic side; each space on the stronger side. This part is manual."},
+    ruthlessCoercion={normal={influence=2},powered={influence=6},
+        fameRep={powered={rep=-1}},recruitDiscount=2,
+        recruitRepPenalty=-1,readyWithInfluence={maxLevel=2,costPerLevel=2}},
     shieldBash={normal={block=3},powered={block=5},swiftDouble=true,excessBlockArmour=true}, -- Swiftness doubles this Block; powered excess reduces Armour after Block
     frostBridge={normal={move=2},powered={move=4},
         terrainEffects={
@@ -66335,7 +66696,7 @@ cardResourceDefinitions={
     -- Verified against the Unofficial Mage Knight card wiki (base/expansion).
     -- 'other' means a deliberate card effect that adds no tracked resource.
     -- A crystal gained to inventory is not itself generated Move/Attack/etc.
-    rejuvenate={
+    rejuvenate={unitReadyLevels={normal=2,powered=3},
         -- H Heal, D Draw, G gain a mana token/crystal, R ready a Unit.
         -- Only healing adds to the Resource Tracker; other outcomes are
         -- deliberate player choices rather than incomplete card recognition.
