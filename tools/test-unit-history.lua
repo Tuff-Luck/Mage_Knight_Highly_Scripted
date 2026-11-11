@@ -14,6 +14,7 @@ local function object(guid)
     local o={guid=guid,buttons={},held_by_color=nil,
         position={x=1,y=1,z=1},moved=false}
     function o.isDestroyed() return false end
+    function o.getGMNotes() return guid=="cmd" and "Command Token" or "Bonds of Loyalty" end
     function o.getButtons() return o.buttons end
     function o.createButton(spec)
         spec.index=#o.buttons
@@ -57,6 +58,8 @@ eq(unitHistoryKey("u1",1),"u1","legacy first source")
 eq(unitHistoryKey("u1",2),"u1#use2","second source")
 eq(#token.buttons,1,"single activation number")
 eq(token.buttons[1].label,"1","first label")
+eq(token.buttons[1].position[2],-0.27,"native Command number faces upward")
+eq(token.buttons[1].rotation[3],180,"native Command number oriented correctly")
 eq(unitHistoryReadyLink("card","u1",1,nil),true,"target readying card")
 eq(unitHistoryReadyPermission("u1"),"card","source authorises readying")
 eq(unitHistoryMarkReady("u1","card"),true,"mark command returned")
@@ -67,6 +70,8 @@ eq(#unitHistoryUses("u1"),2,"two independent activations")
 eq(gStates.unitReadyLinks.card.usedBy,2,"record ready dependency")
 eq(unitHistorySelectedNumber("u1"),2,"select latest by default")
 eq(#token.buttons,3,"previous-number-next token controls")
+eq(token.buttons[2].position[1],0.31,"native Previous arrow on visual left")
+eq(token.buttons[3].position[1],-0.31,"native Next arrow on visual right")
 unitHistoryPrevious(token,"Red")
 eq(unitHistorySelectedNumber("u1"),1,"previous selects old use")
 eq(unitHistorySelected("u1"),first,"old choices editable")
