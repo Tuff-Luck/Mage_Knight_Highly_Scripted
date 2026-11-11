@@ -2695,7 +2695,8 @@ local function combatAssignmentRefreshRows(entries,sources)
                 local seen={}
                 for _,source in ipairs(group.sources) do
                     if source.explosiveBolt~=nil and not seen[source.guid]
-                        and source.ranged+source.siege>0 then
+                        and ((source.ranged>0 and group.fortification==0)
+                            or (source.siege>0 and group.fortification<2)) then
                         explosiveKills[source.guid]=(explosiveKills[source.guid] or 0)+count
                         seen[source.guid]=true
                     end
@@ -4157,7 +4158,7 @@ end
 
 -- Every Maximal Effect application may choose independently. The stored choice
 -- is per *use*, not per linked card, and never invents an optional Wound payment.
-local function repeatChoiceFor(guid,powered,choices,index)
+combatConfig.repeatChoiceFor=function(guid,powered,choices,index)
     if choices==nil or #choices==0 then return nil,nil end
     local stored=selectedResourceByGUID[guid]
     local key=stored~=nil and stored.repeatChoices~=nil
@@ -4166,6 +4167,13 @@ local function repeatChoiceFor(guid,powered,choices,index)
         for _,choice in ipairs(choices) do
             if choiceCategory(choice)==key then return choice,key end
         end
+    end
+    -- A single Wound confirmation on the original Action must not silently
+    -- confirm TWO/THREE new Wounds when that Action is repeated.
+    local data=gameCards[guid]
+    local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+    if rule~=nil and rule.woundConfirmation==true then
+        return choices[1],choiceCategory(choices[1])
     end
     return currentChoice(guid,powered,choices)
 end
@@ -4414,7 +4422,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     local data=gameCards[card.guid]
     local isArtifact=data~=nil and data.cardType=="Artifact"
     if choices==nil or #choices==0
-        or (card.is_face_down==true and not isSkill and not isArtifact)
+        or (card.is_face_down==true and not isSkill and not isArtifact and repeatLink==nil)
         or (not isSkill and posture=="discard")
         or (not isSkill and posture=="sideways" and not (cardCanPlaySideways(card)
             or card.getGMNotes()=="Wound")) then
@@ -4448,7 +4456,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     for _,row in ipairs(rows) do
         local _,selected
         if row.index<0 then
-            _,selected=repeatChoiceFor(card.guid,powered,row.choices,-row.index)
+            _,selected=combatConfig.repeatChoiceFor(card.guid,powered,row.choices,-row.index)
         elseif row.index==0 then
             _,selected=currentChoice(card.guid,powered,row.choices,
                 not isSkill and posture=="sideways")
@@ -5365,7 +5373,7 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
         if repeatLink.options~=nil or (choices~=nil and #choices>1) then
             for index=1,repeatLink.count do
                 local options=repeatLink.options~=nil and repeatLink.options[index] or choices
-                local single=repeatChoiceFor(card.guid,powered,options,index)
+                local single=combatConfig.repeatChoiceFor(card.guid,powered,options,index)
                 if single~=nil then
                     for category,value in pairs(single) do
                         if totalsKeys[category] and type(value)=="number" then
