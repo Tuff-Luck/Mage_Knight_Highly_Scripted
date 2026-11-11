@@ -4720,6 +4720,8 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                 ..":"..tostring(hardenedIndex)) or "")
         ..(rule~=nil and rule.forkedLightning
             and (":FL:"..tostring(gStates~=nil and gStates.forkedLightningPhase or "range")) or "")
+        ..(rule~=nil and rule.dodgeAttackSplit
+            and (":DW:"..tostring(combatConfig.dodgeSplitMode[card.guid])) or "")
     if choiceButtonShown[card.guid]==signature then return end
     local xml=resourceObjectUiXmlTable(card.UI)
     for i=#xml,1,-1 do
@@ -4727,6 +4729,11 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         if attr~=nil and type(attr.id)=="string"
             and (attr.id:sub(1,19)=="ResourceCardChoice_"
                 or attr.id:find("^AttackAssignmentSource_")~=nil) then table.remove(xml,i) end
+    end
+    if rule~=nil and rule.dodgeAttackSplit and combatCalcOn
+        and posture=="upright" and resources~=nil then
+        visibleAssets[#visibleAssets+1]="attackReduction"
+        visibleAssets[#visibleAssets+1]="target"
     end
     if rule~=nil and rule.defeatArmourReduce~=nil and powered and combatCalcOn
         and posture=="upright" then
@@ -4878,6 +4885,46 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                     },value="",children=children}
                 end
             end
+        end
+    end
+    -- Each Dodge and Weave reduction has its own retargetable effect button.
+    -- The card's ordinary optional Attack button remains independent.
+    if rule~=nil and rule.dodgeAttackSplit and combatCalcOn
+        and posture=="upright" and resources~=nil then
+        local split=powered and combatConfig.dodgeSplitMode[card.guid]==true
+        local count=split and 2 or 1
+        local targetAsset=resourceCardsChoiceIcon("target")
+        local reduceAsset=resourceCardsChoiceIcon("attackReduction")
+        for index=1,count do
+            local children={}
+            if reduceAsset~=nil and not blocked[reduceAsset.name] then
+                children[#children+1]={tag="Image",attributes={image=reduceAsset.name,
+                    width=76,height=76,preserveAspect="true",raycastTarget="false"}}
+            end
+            if targetAsset~=nil and not blocked[targetAsset.name] then
+                children[#children+1]={tag="Image",attributes={image=targetAsset.name,
+                    width=42,height=42,preserveAspect="true",raycastTarget="false",
+                    rectAlignment="LowerRight"}}
+            end
+            xml[#xml+1]={tag="Button",attributes={
+                id="AttackAssignmentSource_"..card.guid.."_0_effect@effect"..index,
+                onClick="global/attackAssignmentSourceClicked",
+                position=tostring(index==1 and -150 or -80).." 70 "..buttonDepth,
+                rotation=uiRotation,width=90,height=90,scale=buttonScale,
+                colors="#454D5D|#69798E|#444C63|#454D5D",
+                textColor="#FFFFFF",textAlignment="MiddleCenter"},
+                value=#children==0 and "-"..tostring(split and 2 or (powered and 4 or 2)) or "",
+                children=children}
+        end
+        if powered then
+            xml[#xml+1]={tag="Button",attributes={
+                id="ResourceCardChoice_"..card.guid.."_dodgeSplit",
+                onClick="global/resourceCardsDodgeSplitClicked",
+                position="150 70 "..buttonDepth,rotation=uiRotation,
+                width=125,height=90,scale="0.28 0.28",fontSize=42,
+                colors="#454D5D|#69798E|#444C63|#454D5D",
+                textColor="#FFFFFF",textAlignment="MiddleCenter"},
+                value=split and "2+2" or "-4"}
         end
     end
     -- A multi-attack target needs an explicit choice of which single Attack
@@ -9034,6 +9081,19 @@ function resourceCardsBattleHardenedAttackClicked(player,value,id)
     local index=1
     for i,option in ipairs(options) do if option.key==current then index=i break end end
     gStates[stateKey]=options[index%#options+1].key
+    resourceCardsSourceChanged()
+end
+
+function resourceCardsDodgeSplitClicked(player,value,id)
+    if not resourceCardsPanelOpen()
+        or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil) then return end
+    local guid=type(id)=="string" and id:match("^ResourceCardChoice_([0-9a-f]+)_dodgeSplit$") or nil
+    if guid~="9de475" then return end
+    local seat=combatAssignmentActiveSeat()
+    local record=seat~=nil and resourceCardScanBySeat[seat]~=nil
+        and resourceCardScanBySeat[seat].cards[guid] or nil
+    if record==nil or record.powered~=true or record.resources==nil then return end
+    combatConfig.dodgeSplitMode[guid]=not combatConfig.dodgeSplitMode[guid]
     resourceCardsSourceChanged()
 end
 
