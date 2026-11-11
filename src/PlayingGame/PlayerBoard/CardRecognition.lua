@@ -9755,7 +9755,9 @@ function resourceUnitsCommandDropped(playerColor,obj)
             local permission=unitHistoryAwaiting(unit.guid)
                 or unitHistoryReadyPermission(unit.guid)
             if permission==nil or previous.tokenGUID~=guid then return end
-            useIndex=unitHistoryAppend(unit.guid,newActivation,permission)
+            local appendedIndex=unitHistoryAppend(unit.guid,newActivation,permission)
+            if appendedIndex==nil then return end
+            useIndex=appendedIndex
         else
             gStates.unitResourceActivations[unit.guid]=newActivation
             unitHistoryEnsure(unit.guid,newActivation)
