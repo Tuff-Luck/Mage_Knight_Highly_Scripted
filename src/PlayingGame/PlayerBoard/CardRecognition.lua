@@ -5504,8 +5504,31 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
     -- Fame/Reputation earned only when the calculator shows this source's group defeated.
     local defeatSide=rule~=nil and rule.defeatFameRep~=nil and faceUp and costPaid and canApply
         and (powered and rule.defeatFameRep.powered or not powered and rule.defeatFameRep.normal) or nil
-    if defeatSide~=nil and defeatSide.choice~=nil
-        and (chosen==nil or choiceCategory(chosen)~=defeatSide.choice) then defeatSide=nil end
+    if defeatSide~=nil then
+        local repeats=repeatLink~=nil and repeatLink.count or 1
+        if defeatSide.choice~=nil then
+            if repeatLink~=nil then
+                repeats=0
+                for index=1,repeatLink.count do
+                    local options=repeatLink.options~=nil and repeatLink.options[index] or choices
+                    local selected=combatConfig.repeatChoiceFor(card.guid,powered,options,index)
+                    if selected~=nil and choiceCategory(selected)==defeatSide.choice then
+                        repeats=repeats+1
+                    end
+                end
+            elseif chosen==nil or choiceCategory(chosen)~=defeatSide.choice then
+                repeats=0
+            end
+        end
+        if repeats==0 then defeatSide=nil
+        elseif repeats>1 then
+            local scaled={}
+            for key,value in pairs(defeatSide) do
+                scaled[key]=type(value)=="number" and value*repeats or value
+            end
+            defeatSide=scaled
+        end
+    end
     return {guid=card.guid,known=known,complete=complete,powered=powered,fameRep=fameRepSide,
         conditionalFireAttack=complete and not powered and chosen~=nil
             and chosen.conditionalFireAttack or nil,
