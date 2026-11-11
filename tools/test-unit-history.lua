@@ -14,6 +14,7 @@ local function object(guid)
     local o={guid=guid,buttons={},held_by_color=nil,
         position={x=1,y=1,z=1},moved=false}
     function o.isDestroyed() return false end
+    function o.isSmoothMoving() return false end
     function o.getGMNotes() return guid=="cmd" and "Command Token" or "Bonds of Loyalty" end
     function o.getButtons() return o.buttons end
     function o.createButton(spec)
@@ -156,4 +157,35 @@ eq(next(gStates.unitActivationHistory),nil,"turn reset clears history")
 eq(next(gStates.unitReadyLinks),nil,"turn reset clears ready links")
 eq(unitHistoryAppend(nil,{tokenGUID="cmd"},"card"),nil,
     "missing Unit GUID does not dereference a nil history")
+-- Official starting cards enforce the level of the currently chosen side.
+-- Both an initial illegal target and an existing Ready invalidated by a
+-- power change must be rejected without keeping the dependent activation.
+object("u2")
+unitHistoryReset()
+unitHistoryEnsure("u2",{seatPos=1,tokenGUID="cmd",choice=1})
+eq(unitHistoryReadyLink("card","u2",1,2),false,
+    "basic Rejuvenate cannot ready a Level III Unit")
+eq(unitHistoryReadyLink("card","u2",1,3),true,
+    "powered Rejuvenate may ready a Level III Unit")
+resourceCardsReadySourceLevelLimit=function() return 2 end
+eq(unitHistoryValidSources(1),true,
+    "losing powered Rejuvenate invalidates its Level III Ready")
+eq(gStates.unitReadyLinks.card,nil,"ineligible Level III Ready link removed")
+resourceCardsReadySourceLevelLimit=nil
+
+-- Influence-paid Ready sources must fail before mutating history if the
+-- remaining Influence does not cover the chosen Unit.
+unitHistoryReset()
+unitHistoryEnsure("u1",{seatPos=1,tokenGUID="cmd",choice=1})
+resourceCardsReadyTargetEligible=function() return false end
+eq(unitHistoryReadyLink("card","u1",1,2),false,
+    "unpaid Ruthless Coercion Ready cannot create an activation")
+eq(gStates.unitReadyLinks.card,nil,"no unpaid Ready link created")
+resourceCardsReadyTargetEligible=function() return true end
+eq(unitHistoryReadyLink("card","u1",1,2),true,
+    "paid Ready can be linked")
+unitHistoryCancelReadySource("card")
+eq(gStates.unitReadyLinks.card,nil,"paid Ready can be undone")
+resourceCardsReadyTargetEligible=nil
+unitHistoryReset()
 print("Unit activation history tests passed.")
