@@ -5515,13 +5515,34 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
         end
         effects=repeated
     end
-    -- Stout Resolve's multiple physical payments already represent the *total*
-    -- bonus. Do not multiply those same discarded cards again by Maximal Effect.
-    if effects~=nil and discardBonus~=nil and discardBonus>0 then
+    -- Each Maximal Effect application chooses its own Stout Resolve resource
+    -- and pays its own discarded cards. A single pooled bonus applied to every
+    -- resource family would create points when uses select different resources.
+    if effects~=nil and discardBonus~=nil then
         local adjusted={}
-        for category,value in pairs(effects) do
-            adjusted[category]=(totalsKeys[category] and type(value)=="number")
-                and value+discardBonus or value
+        for category,value in pairs(effects) do adjusted[category]=value end
+        if type(discardBonus)=="table" and repeatLink~=nil then
+            for index=1,repeatLink.count do
+                local amount=discardBonus[index] or 0
+                if amount>0 then
+                    local options=repeatLink.options~=nil and repeatLink.options[index] or choices
+                    local selected=combatConfig.repeatChoiceFor(card.guid,powered,options,index)
+                    if selected~=nil then
+                        for category,value in pairs(selected) do
+                            if totalsKeys[category] and type(value)=="number" then
+                                adjusted[category]=(adjusted[category] or 0)+amount
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+        elseif type(discardBonus)=="number" and discardBonus>0 then
+            for category,value in pairs(effects) do
+                if totalsKeys[category] and type(value)=="number" then
+                    adjusted[category]=value+discardBonus
+                end
+            end
         end
         effects=adjusted
     end
@@ -5794,6 +5815,8 @@ local function resolveActionLinks(cards,wounds,footprints,manaPowered,skillLinks
                 return aa>bb
             end)
             local woundPayments,bonus=0,0
+            local perUse=repeated~=nil and {} or nil
+            local woundUse,cardUse={},1
             for _,target in ipairs(choices) do
                 local isWound=target.getGMNotes()=="Wound"
                 local targetData=gameCards[target.guid]
@@ -5810,13 +5833,40 @@ local function resolveActionLinks(cards,wounds,footprints,manaPowered,skillLinks
                     and not manaPowered[target.guid]
                     and target.is_face_down~=true and cardPosture(target)=="discard"
                     and overlapArea(footprints[source.guid],footprints[target.guid])>0 then
-                    discarded[target.guid]=source.guid
-                    connect(source,target)
-                    if isWound then woundPayments=woundPayments+1 end
-                    bonus=bonus+spec.perCard
+                    -- Physical costs are sorted by overlap. Assign Wounds to
+                    -- separate applications (at most one per application) and
+                    -- cycle other costs between applications. This deterministic
+                    -- assignment changes with card placement, never duplicates
+                    -- a payment, and follows each application's chosen effect.
+                    local useIndex=1
+                    if repeated~=nil then
+                        if isWound then
+                            useIndex=nil
+                            for index=1,repeated.count do
+                                if woundUse[index]~=true then useIndex=index break end
+                            end
+                        else
+                            useIndex=cardUse
+                            cardUse=cardUse%repeated.count+1
+                        end
+                    end
+                    if useIndex~=nil then
+                        discarded[target.guid]=source.guid
+                        connect(source,target)
+                        if isWound then
+                            woundPayments=woundPayments+1
+                            woundUse[useIndex]=true
+                        end
+                        bonus=bonus+spec.perCard
+                        if perUse~=nil then
+                            perUse[useIndex]=(perUse[useIndex] or 0)+spec.perCard
+                        end
+                    end
                 end
             end
-            if bonus>0 then discardBoostBySource[source.guid]=bonus end
+            if bonus>0 then
+                discardBoostBySource[source.guid]=perUse or bonus
+            end
             end
         end
     end
