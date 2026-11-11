@@ -152,6 +152,29 @@ local combatAssignmentState={seat=nil,selected=nil,targets={},explicit={}}
 -- Fame/Reputation currently earned by defeating enemies in the calculator; the scan adds its own fixed part.
 local combatDefeatFameRep={fame=0,rep=0}
 
+-- Conditional effects are earned by the player's explicit choice, not merely
+-- by a card lying in the play area. Once earned, they survive repositioning
+-- that card or minimizing the tracker until the end-of-turn commit.
+combatConfig.startingCardConditionalFameRep=function()
+    local fame,rep=0,0
+    for guid,selected in pairs(gStates~=nil and gStates.startingCardSelections or {}) do
+        local data=gameCards~=nil and gameCards[guid] or nil
+        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+        if rule~=nil then
+            if selected.interaction==true and rule.interactionReward~=nil then
+                local reward=selected.interactionPowered==true
+                    and rule.interactionReward.powered or rule.interactionReward.normal
+                fame=fame+(reward.fame or 0)
+                rep=rep+(reward.rep or 0)
+            end
+            if selected.recruited==true and rule.recruitDiscount~=nil then
+                rep=rep-(rule.recruitRepPenalty or 0)
+            end
+        end
+    end
+    return fame,rep
+end
+
 -- One owner for the pending Fame/Reputation this seat's played sources provide (scan part + defeat part).
 local function resourceCardsApplyFameRep(seat)
     local scan=seat~=nil and resourceCardScanBySeat[seat] or nil
@@ -6142,25 +6165,6 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
     if #linked>0 then status="purple" end
     local fameRepSide=rule~=nil and rule.fameRep~=nil and faceUp and costPaid and canApply
         and (powered and rule.fameRep.powered or not powered and rule.fameRep.normal) or nil
-    local extra=rule~=nil and gStates~=nil and gStates.startingCardSelections
-        and gStates.startingCardSelections[card.guid] or nil
-    if extra~=nil and faceUp and costPaid and canApply then
-        local conditional=nil
-        if rule.interactionReward~=nil and extra.interaction==true then
-            conditional=powered and rule.interactionReward.powered
-                or rule.interactionReward.normal
-        elseif rule.recruitDiscount~=nil and not powered and extra.recruited==true then
-            conditional={rep=-(rule.recruitRepPenalty or 0)}
-        end
-        if conditional~=nil then
-            local merged={}
-            for key,value in pairs(fameRepSide or {}) do merged[key]=value end
-            for key,value in pairs(conditional) do
-                merged[key]=(merged[key] or 0)+value
-            end
-            fameRepSide=merged
-        end
-    end
     if fameRepSide~=nil and repeatLink~=nil then
         local multiplied={}
         for key,value in pairs(fameRepSide) do
@@ -9536,6 +9540,9 @@ local function renderSeat(seatPos)
             repTotal=repTotal+(record.fameRep.rep or 0)
         end
     end
+    local earnedFame,earnedRep=combatConfig.startingCardConditionalFameRep()
+    fameTotal=fameTotal+earnedFame
+    repTotal=repTotal+earnedRep
     local scanPlayer=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     local fameRepBase={fame=fameTotal,rep=repTotal}
     bySeat[seatPos]=current
@@ -9647,9 +9654,11 @@ local function clearAll()
     for guid in pairs(shown) do clearHighlight(guid) end
     bySeat={}
     resourceCardScanBySeat={}
-    -- Closing the tracker removes its pending Fame/Reputation until the next scan restores it.
+    -- Ordinary resource sources disappear when tracking is OFF. Earned
+    -- conditional interaction rewards/penalties remain pending until turn end.
     if turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber]~=nil then
-        resourceFameRepApply(gStates.turnNumber,0,0)
+        local fame,rep=combatConfig.startingCardConditionalFameRep()
+        resourceFameRepApply(gStates.turnNumber,fame,rep)
     end
     -- Closing must not invoke tracker calculations or redraw its overlays.
     if resourceCardsPanelOpen() and gStates~=nil and gStates.resourceTracker~=nil then
@@ -9752,6 +9761,7 @@ function resourceCardsStartingCardControlClicked(player,value,id)
     local right=tostring(value)=="-2"
     if control=="interaction" and rule.interactionReward~=nil then
         selected.interaction=not selected.interaction
+        selected.interactionPowered=selected.interaction and record.powered or nil
     elseif control=="recruit" and rule.recruitDiscount~=nil and not record.powered then
         selected.recruited=not selected.recruited
     elseif control=="terrain" and rule.selectedTerrainDiscount~=nil and record.powered then
