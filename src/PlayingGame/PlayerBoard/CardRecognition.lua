@@ -8099,7 +8099,9 @@ local function renderSeat(seatPos,quietUnitChoice)
                     result.status=result.contributes and "green" or "blue"
                     records[recordKey]=result
                     current[unitGUID]=true
-                    setHighlight(unit,result.status,false)
+                    if unitHistorySelectedNumber(unitGUID)==useIndex then
+                        setHighlight(unit,result.status,false)
+                    end
                     if selected~=nil and selected.terrainReduce and result.complete then
                         terrainModifiers[#terrainModifiers+1]=forestersTerrainModifier
                     end
