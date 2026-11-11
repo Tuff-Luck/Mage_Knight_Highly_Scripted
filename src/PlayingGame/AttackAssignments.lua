@@ -29,6 +29,7 @@ local readyUnitTargetButtons={}
 local targetButtonObjects={}
 local assignmentCounter=0
 local refreshScheduled=false
+local scheduleRefresh
 local renderedSignature=nil
 local renderedAssignmentLineKeys={}
 
@@ -412,7 +413,7 @@ local function hasRuntimeWork()
         or damagePending~=nil
 end
 
-local function scheduleRefresh()
+scheduleRefresh=function()
 	if refreshScheduled or not hasRuntimeWork() then return end
 	refreshScheduled=true
 	safeWaitTime("PlayingGame.AttackAssignments",function()
@@ -1482,6 +1483,7 @@ function attackAssignmentsClearAll()
 	assignmentRegistry={}
 	targetingByPlayer={}
     blockLinkPending={}
+    readyUnitPending={}
     if gStates~=nil then gStates.blockSourceLinks={} end
 	assignmentCounter=0
 	persistAssignments()
