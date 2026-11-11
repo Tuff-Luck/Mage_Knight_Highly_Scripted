@@ -1840,11 +1840,9 @@ local function combatGroupTraitsText(entry,groupEntry)
     return combatEnemyTraitsText(data,perks,combatConfig.enemyDefenceTraits)
 end
 
-local function combatGroupAttackLine(group,sources,attackArmour)
-    local meleeTotal=combatAttackTotal({
-        {sources=sources,category="attack"},
-        {sources=sources,category="ranged"},
-        {sources=sources,category="siege"}},group.data,group.perks)
+local function combatGroupAttackLine(meleeTotal,attackArmour)
+    -- Render the same post-Damage total used by the defeat decision. Recounting
+    -- the original sources would re-include Wounded Units in the Result text.
     if meleeTotal<=0 then return nil end
     local line="Attack "..tostring(meleeTotal).."/"..tostring(attackArmour)
     return meleeTotal>=attackArmour and (line.." "..combatRich("Defeated",combatConfig.COMBAT_GREEN)) or line
@@ -3297,6 +3295,7 @@ local function combatAssignmentRefreshRows(entries,sources)
             {sources=meleeSources,category="attack"},
             {sources=meleeSources,category="ranged"},
             {sources=meleeSources,category="siege"}},group.entry.data,group.entry.perks)
+        group.attackTotal=meleeTotal
         group.defeated=not entries[group.members[1]].attackOnly
             and (group.rangeDefeated or (meleeTotal>0 and meleeTotal>=group.attackArmour))
         if group.destroyed then group.defeated,group.rangeDefeated=true,false end
@@ -3603,7 +3602,7 @@ local function combatAssignmentRefreshRows(entries,sources)
                 grandDamage=grandDamage+rowBlock[index].damage
                 damageSources=damageSources+rowBlock[index].count
                 if isLast and not entry.attackOnly then
-                    local line=combatGroupAttackLine(group.entry,group.sources,group.attackArmour)
+                    local line=combatGroupAttackLine(group.attackTotal,group.attackArmour)
                     if line~=nil then lines[#lines+1]=line end
                 end
             end
