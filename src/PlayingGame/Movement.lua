@@ -389,6 +389,12 @@ end
 function renderMoveDisplay(id)
 	--A pending background redraw must not restore routes after the tracker was minimized.
 	if not moveDisplayTrackerExpanded() then clearMoveDisplayVisuals() return end
+    -- Druidic Paths' basic ability discounts only one space per route.
+    local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    local scan=active~=nil and resourceCardScanBySeat~=nil
+        and resourceCardScanBySeat[active.seatPos] or nil
+    local moveDiscount=scan~=nil and scan.movementEffects~=nil
+        and (scan.movementEffects.singleSpaceDiscount or 0) or 0
 	--Preserve Global vector lines that existed before the movement display started.
 	local moveValue=gStates.resourceTracker~=nil and gStates.resourceTracker.move~=nil and resourceCardsEffectiveMove() or 0
 	if moveValue>0 and moveDisplayBaseVectorLines==nil then moveDisplayBaseVectorLines=attackAssignmentsWithoutVectorLines(Global.getVectorLines() or {}) end
@@ -635,7 +641,7 @@ function renderMoveDisplay(id)
 
 		local playerHexGridAxial,playerHexGridHorizontal=runtimeMapWorldToAxial(playerPos,startTilePos)
 		local moveMap={[tostring(playerHexGridHorizontal)]={[tostring(playerHexGridAxial)]={safe=0}}}
-		local fringe={{coord={playerHexGridHorizontal, playerHexGridAxial}}}
+		local fringe={{coord={playerHexGridHorizontal, playerHexGridAxial},state="safe"}}
 		local tempFringe={}
 		local tempFringeSet={}
 		local searchLimit=10
@@ -649,13 +655,13 @@ function renderMoveDisplay(id)
 			return moveMap[horKey][vecKey]
 		end
 
-		local function queueMoveFringe(hor,vec)
-			local fringeKey=tostring(hor)..":"..tostring(vec)
-			if tempFringeSet[fringeKey]==true then return end
-			tempFringeSet[fringeKey]=true
-			tempFringe[#tempFringe+1]={coord={hor,vec}}
-			noMove=false
-		end
+		local function queueMoveFringe(hor,vec,state)
+            local key=tostring(hor)..":"..tostring(vec)..":"..state
+            if tempFringeSet[key] then return end
+            tempFringeSet[key]=true
+            tempFringe[#tempFringe+1]={coord={hor,vec},state=state}
+            noMove=false
+        end
 
 		local function recordMoveDestination(hor,vec,state,hexCost,predecessor,allowFringe)
 			if hexCost>=resourceCardsEffectiveMove()+searchLimit then return false end
@@ -665,7 +671,9 @@ function renderMoveDisplay(id)
 			if hexCost<recordedCost then
 				destinationMove[state]=hexCost
 				destinationMove[state.."Prev"]=predecessor
-				if state=="safe" and allowFringe==true then queueMoveFringe(hor,vec) end
+				if (state=="safe" or state=="safeDiscount") and allowFringe==true then
+                    queueMoveFringe(hor,vec,state)
+                end
 			end
 			return true
 		end
@@ -677,7 +685,8 @@ function renderMoveDisplay(id)
 			for _,hexDetail in pairs(fringe) do
 				local sourceRow=moveMap[tostring(hexDetail.coord[1])]
 				local sourceMove=sourceRow~=nil and sourceRow[tostring(hexDetail.coord[2])] or nil
-				local moveSpent=sourceMove~=nil and sourceMove.safe or 99
+				local sourceState=hexDetail.state or "safe"
+                local moveSpent=sourceMove~=nil and sourceMove[sourceState] or 99
 
 				--figure out the move cost to reach surrounding hexs
 				for currentVector, vector in pairs(MOVE_DISPLAY_VECTORS) do
@@ -685,17 +694,15 @@ function renderMoveDisplay(id)
 					local vec=hexDetail.coord[2]+vector[2]
 					local destinationHex=hexMap~=nil and hexMap[tostring(hor)]~=nil and hexMap[tostring(hor)][tostring(vec)] or nil
 					if destinationHex~=nil then
-						local hexCost=999
-						if destinationHex.hexType~=nil then
-                            -- A claimed Skill may make normally impassable Lakes
-                            -- and Mountains traversable without changing moveCost.
-                            local terrainCost=resourceCardsEffectiveTerrainCost(destinationHex.hexType)
+						local hexCost,terrainCost=999,999
+                        if destinationHex.hexType~=nil then
+                            terrainCost=resourceCardsEffectiveTerrainCost(destinationHex.hexType)
                             if terrainCost<900 then hexCost=terrainCost+moveSpent end
                         end
 						local wallhor=hexDetail.coord[1]+(vector[1]/2)
 						local wallvec=hexDetail.coord[2]+(vector[2]/2)
 						if hexMap[tostring(wallhor)]~=nil and hexMap[tostring(wallhor)][tostring(wallvec)]~=nil then hexCost=hexCost+1 end
-						if hexCost<=99 and hexCost<resourceCardsEffectiveMove()+searchLimit then
+						if hexCost<=99 and hexCost<resourceCardsEffectiveMove()+searchLimit+moveDiscount then
 							--Don't add hex to fringe if passing a rampager.
 							local rampageHor={tostring(hexDetail.coord[1]+MOVE_DISPLAY_RAMPAGE_ADJACENT[currentVector][1]), tostring(hexDetail.coord[1]+MOVE_DISPLAY_RAMPAGE_ADJACENT[currentVector+2][1])}
 							local rampageVec={tostring(hexDetail.coord[2]+MOVE_DISPLAY_RAMPAGE_ADJACENT[currentVector][2]), tostring(hexDetail.coord[2]+MOVE_DISPLAY_RAMPAGE_ADJACENT[currentVector+2][2])}
@@ -707,13 +714,19 @@ function renderMoveDisplay(id)
                                 (normalRampager or ambusherProvoked(hexDetail.coord[1],hexDetail.coord[2],hor,vec))
 							local fortifiedDestination=destinationHex.hexType~="explore" and destinationHex.fortified~=nil and destinationHex.fortified~="shield"
 							local combatDestination=rampageNeighbor or destinationHex.dragonLair==true or fortifiedDestination
-							local predecessor={hor=hexDetail.coord[1],vec=hexDetail.coord[2],state="safe",teleport=false}
-							if combatDestination==true then
-								recordMoveDestination(hor,vec,"combat",hexCost,predecessor,false)
-							else
-								local canContinue=destinationHex.hexType~="explore"
-								recordMoveDestination(hor,vec,"safe",hexCost,predecessor,canContinue)
-							end
+							local predecessor={hor=hexDetail.coord[1],vec=hexDetail.coord[2],
+                                state=sourceState,teleport=false}
+                            local canContinue=destinationHex.hexType~="explore"
+                            local kind=sourceState=="safeDiscount" and "safeDiscount" or "safe"
+                            recordMoveDestination(hor,vec,combatDestination
+                                and (kind=="safeDiscount" and "combatDiscount" or "combat")
+                                or kind,hexCost,predecessor,not combatDestination and canContinue)
+                            if moveDiscount>0 and sourceState=="safe" and terrainCost>2 then
+                                recordMoveDestination(hor,vec,
+                                    combatDestination and "combatDiscount" or "safeDiscount",
+                                    hexCost-math.min(moveDiscount,terrainCost-2),
+                                    predecessor,not combatDestination and canContinue)
+                            end
 						end
 					end
 				end
@@ -729,16 +742,21 @@ function renderMoveDisplay(id)
                         local target=row~=nil and row[tostring(vec)] or nil
                         if target~=nil and target.hexType~="explore" and target.hexType~=nil
                             and resourceCardsEffectiveTerrainCost(target.hexType)<900 then
-                            local hexCost=moveSpent+resourceCardsEffectiveTerrainCost(target.hexType)
-                            if hexCost<=99 and hexCost<moveValue+searchLimit then
+                            local terrainCost=resourceCardsEffectiveTerrainCost(target.hexType)
+                            local hexCost=moveSpent+terrainCost
+                            if hexCost<=99 and hexCost<moveValue+searchLimit+moveDiscount then
                                 local fortified=target.fortified~=nil and target.fortified~="shield"
                                 local combat=target.dragonLair==true or fortified
                                 local predecessor={hor=hexDetail.coord[1],vec=hexDetail.coord[2],
-                                    state="safe",teleport=false,leap=true}
-                                if combat then
-                                    recordMoveDestination(hor,vec,"combat",hexCost,predecessor,false)
-                                else
-                                    recordMoveDestination(hor,vec,"safe",hexCost,predecessor,true)
+                                    state=sourceState,teleport=false,leap=true}
+                                recordMoveDestination(hor,vec,combat
+                                    and (sourceState=="safeDiscount" and "combatDiscount" or "combat")
+                                    or sourceState,hexCost,predecessor,not combat)
+                                if moveDiscount>0 and sourceState=="safe" and terrainCost>2 then
+                                    recordMoveDestination(hor,vec,combat and "combatDiscount"
+                                        or "safeDiscount",
+                                        hexCost-math.min(moveDiscount,terrainCost-2),
+                                        predecessor,not combat)
                                 end
                             end
                         end
@@ -752,8 +770,8 @@ function renderMoveDisplay(id)
 					local hor=tunnel.hor
 					local vec=tunnel.vec
 					local hexCost=moveSpent+tunnel.cost
-					local predecessor={hor=hexDetail.coord[1],vec=hexDetail.coord[2],state="safe",teleport=false,tunnel=true,tunnelPath=tunnel.path}
-					recordMoveDestination(hor,vec,"safe",hexCost,predecessor,true)
+					local predecessor={hor=hexDetail.coord[1],vec=hexDetail.coord[2],state=sourceState,teleport=false,tunnel=true,tunnelPath=tunnel.path}
+					recordMoveDestination(hor,vec,sourceState,hexCost,predecessor,true)
 				end
 
 				--Fractured Lands teleport edges. A teleport is always a safe, non-combat route and can itself become
@@ -767,8 +785,8 @@ function renderMoveDisplay(id)
 						local vec=teleportHex.coord[2]
 						if hor~=hexDetail.coord[1] or vec~=hexDetail.coord[2] then
 							local hexCost=moveSpent+1
-							local predecessor={hor=hexDetail.coord[1],vec=hexDetail.coord[2],state="safe",teleport=true}
-							recordMoveDestination(hor,vec,"safe",hexCost,predecessor,true)
+							local predecessor={hor=hexDetail.coord[1],vec=hexDetail.coord[2],state=sourceState,teleport=true}
+							recordMoveDestination(hor,vec,sourceState,hexCost,predecessor,true)
 						end
 					end
 				end
@@ -815,8 +833,14 @@ function renderMoveDisplay(id)
 		for hor, rowOfHexes in pairs(moveMap) do
 			for vec, moveDetails in pairs(rowOfHexes) do
 				local routeCost=moveDetails.safe
-				local routeState="safe"
-				if moveDetails.combat~=nil and (routeCost==nil or moveDetails.combat<routeCost) then routeCost=moveDetails.combat routeState="combat" end
+                    local routeState="safe"
+                    for _,state in ipairs({"safeDiscount","combat","combatDiscount"}) do
+                        if moveDetails[state]~=nil
+                            and (routeCost==nil or moveDetails[state]<routeCost) then
+                            routeCost=moveDetails[state]
+                            routeState=state
+                        end
+                    end
 				if routeCost~=nil and routeCost<=99 and routeCost<moveValue+searchLimit then queueRouteState(tonumber(hor),tonumber(vec),routeState) end
 			end
 		end
@@ -832,7 +856,8 @@ function renderMoveDisplay(id)
 					--Only a safe state used by a retained onward route deserves an alternate slash value.
 					local sourceRow=moveMap[tostring(previous.hor)]
 					local sourceMove=sourceRow~=nil and sourceRow[tostring(previous.vec)] or nil
-					if sourceMove~=nil and previous.state=="safe" then sourceMove.safeUsedOnward=1 end
+					if sourceMove~=nil and (previous.state=="safe"
+                        or previous.state=="safeDiscount") then sourceMove.safeUsedOnward=1 end
 					queueRouteState(previous.hor,previous.vec,previous.state or "safe")
 				end
 			end
@@ -843,7 +868,15 @@ function renderMoveDisplay(id)
 		for hor,rowOfHexes in pairs(moveMap) do
 			for vec,hexCost in pairs(rowOfHexes) do
 				local safeCost=hexCost.safe
-				local combatCost=hexCost.combat
+                    if hexCost.safeDiscount~=nil then
+                        safeCost=safeCost==nil and hexCost.safeDiscount
+                            or math.min(safeCost,hexCost.safeDiscount)
+                    end
+                    local combatCost=hexCost.combat
+                    if hexCost.combatDiscount~=nil then
+                        combatCost=combatCost==nil and hexCost.combatDiscount
+                            or math.min(combatCost,hexCost.combatDiscount)
+                    end
 				local lowestHex=safeCost
 				local lowestCombat=false
 				if combatCost~=nil and (lowestHex==nil or combatCost<lowestHex) then lowestHex=combatCost lowestCombat=true end
