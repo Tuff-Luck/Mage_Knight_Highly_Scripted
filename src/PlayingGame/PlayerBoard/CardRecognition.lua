@@ -312,7 +312,9 @@ local function combatAssignmentSources(seat)
                         ranged=0,siege=0,block=0,attack=0,move=0,
                         psychicInfluence=0,psychicInfluenceCounts=false,details={},
                         resources=record.splitTargets~=nil and {} or effective,
-                        swiftDouble=record.swiftDouble==true,defeatFameRep=record.defeatFameRep,
+                        swiftDouble=record.swiftDouble==true,
+                        excessBlockArmour=record.excessBlockArmour==true,
+                        defeatFameRep=record.defeatFameRep,
                         heroPsychicBlock=scan~=nil and scan.heroPsychicBlock==true and record.kind~="unit",
                         repeatBlocks=record.repeatBlocks,
                         ambushFirstBlockBonus=record.ambushFirstBlockBonus,kind=record.kind,
@@ -1272,11 +1274,12 @@ local function combatBlockResult(entry,sources)
         parts[#parts+1]=table.concat({
             tostring(item.source.key),tostring(item.key),tostring(item.value),
             tostring(item.swiftDouble),tostring(item.part),
-            tostring(item.source.heroPsychicBlock)},":")
+            tostring(item.source.heroPsychicBlock),
+            tostring(item.source.excessBlockArmour)},":")
     end
     local key=table.concat(parts,";")
     local cached=entry.guid~=nil and combatBlockResultCache[entry.guid] or nil
-    if cached~=nil and cached.key==key then return table.unpack(cached.result,1,9) end
+    if cached~=nil and cached.key==key then return table.unpack(cached.result,1,10) end
     local plan,solved,leftover=combatSolveBlocks(attacks,items,movePool)
     -- Capture the genuinely spent Block sources before spare Block display
     -- items are appended to the plan, or a free counterattack can result.
@@ -1316,6 +1319,31 @@ local function combatBlockResult(entry,sources)
             end
         end
     end
+    -- Shield Bash is one Block effect against one attack. Its powered Armour
+    -- reduction uses excess Block on THAT attack (including other cards),
+    -- not surplus Block from the enemy's other attacks. Calculate this after
+    -- spare resources have been assigned, without affecting Ranged/Siege.
+    local shieldBashExcess={}
+    for index,attack in ipairs(attacks) do
+        local step=plan[index]
+        if step~=nil and step.blocked and not attack.pending and attack.value>0 then
+            local bashCount=0
+            for itemIndex,item in ipairs(solved) do
+                if step.used[itemIndex] and item.source.excessBlockArmour then
+                    bashCount=bashCount+1
+                end
+            end
+            if bashCount>0 then
+                local needed=math.max(0,attack.value-step.reduction)
+                    *(attack.swift and 2 or 1)
+                local excess=math.max(0,combatBlockSpent(attack,solved,step.used)-needed)
+                local owner=attack.owner or entry.guid
+                if excess>0 then
+                    shieldBashExcess[owner]=(shieldBashExcess[owner] or 0)+excess*bashCount
+                end
+            end
+        end
+    end
     local lines,reductions,totalDamage,damageCount,allBlocked={},{},0,0,#attacks>0
     local unblocked={}
     -- Block items applied at the wrong element (halved) against their attack, keyed source.key..field.key.
@@ -1349,10 +1377,10 @@ local function combatBlockResult(entry,sources)
     if entry.guid~=nil then
         combatBlockResultCache[entry.guid]={key=key,result={
             lines,totalDamage,damageCount,allBlocked,reductions,wrongBlock,unblocked,
-            successfulSources,successfulOwners}}
+            successfulSources,successfulOwners,shieldBashExcess}}
     end
     return lines,totalDamage,damageCount,allBlocked,reductions,wrongBlock,unblocked,
-        successfulSources,successfulOwners
+        successfulSources,successfulOwners,shieldBashExcess
 end
 
 -- Damage phase. Every unblocked attack starts wholly on the Hero; the player may route it through free Units first
@@ -2767,10 +2795,10 @@ local function combatAssignmentRefreshRows(entries,sources)
         for _,index in ipairs(group.members) do
             local entry=entries[index]
             local target=allocated[index] or emptyTarget
-            local lines,damage,count,allBlocked,reductions,wrongBlock,unblocked,successfulSources=
+            local lines,damage,count,allBlocked,reductions,wrongBlock,unblocked,successfulSources,_,shieldBashExcess=
                 combatBlockResult(entry,target.sources)
             rowBlock[index]={lines=lines,damage=damage,count=count,allBlocked=allBlocked,reductions=reductions,
-                wrongBlock=wrongBlock,unblocked=unblocked,damageItems={}}
+                wrongBlock=wrongBlock,unblocked=unblocked,shieldBashExcess=shieldBashExcess,damageItems={}}
             blockedAll[entry.guid]=allBlocked
             members[#members+1]=entry
             for _,source in ipairs(target.sources) do
@@ -2792,6 +2820,35 @@ local function combatAssignmentRefreshRows(entries,sources)
         group.rangeTotal,group.rangeArmour,group.rangeDefeated,group.fortification=
             combatRangeResult(combatRangeGroupEntry(members),group.sources)
         if members[1].attackOnly then group.rangeDefeated=false end
+        -- Shield Bash lowers Armour only in the later Attack phase, and only
+        -- after a successful Block against that enemy's own attack. A summoned
+        -- monster's Block never lowers its summoner's Armour. Ice Resistance
+        -- and Arcane Immunity ignore this non-Block effect, not the Block.
+        if not group.rangeDefeated then
+            local bashChanged=false
+            for _,index in ipairs(group.members) do
+                local enemy=entries[index]
+                local excess=(rowBlock[index].shieldBashExcess or {})[enemy.guid] or 0
+                if excess>0 and not enemy.attackOnly and not enemy.destroyed
+                    and not combatEnemyHasTrait(enemy.data,enemy.perks,"iResist")
+                    and not combatEnemyHasTrait(enemy.data,enemy.perks,"arcaneImmunity") then
+                    local originalArmour=enemy.baseArmour
+                    local originalElusive=enemy.elusiveArmour
+                    local reducedArmour=math.max(1,originalArmour-excess)
+                    local reducedElusive=math.max(1,originalElusive-excess)
+                    if reducedArmour~=originalArmour or reducedElusive~=originalElusive then
+                        enemy.rangeBaseArmour=enemy.rangeBaseArmour or originalArmour
+                        enemy.rangeElusiveArmour=enemy.rangeElusiveArmour or originalElusive
+                        enemy.baseArmour=reducedArmour
+                        enemy.elusiveArmour=reducedElusive
+                        bashChanged=true
+                    end
+                end
+            end
+            if bashChanged then
+                group.entry,group.attackArmour=combatGroupEntry(members,blockedAll)
+            end
+        end
         if group.rangeDefeated then
             for _,source in ipairs(group.sources) do
                 if source.dueling then source.duelingEligible=false end
@@ -5427,7 +5484,7 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
     -- A non-resource Action is neutral upright, but still gives the standard
     -- selectable +1 when played sideways like any other non-Wound Action.
     if data~=nil and data.resourceAlwaysNeutral==true and posture~="sideways" then
-        return {guid=card.guid,known=true,complete=true,powered=false,
+        return {guid=card.guid,known=true,complete=true,powered=powered,
             links=linked,status=#linked>0 and "purple" or "blue",resources=nil}
     end
     -- Face-down Artifacts play their Break effect. Face-down Actions stay
@@ -5617,6 +5674,9 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
         explosiveBolt=complete and powered and rule~=nil and rule.defeatArmourReduce or nil,
         defeatFameRep=defeatSide,splitTargets=chosen~=nil and chosen.splitTargets or nil,
         repeatBlocks=chosen~=nil and chosen.repeatBlocks or nil,
+        swiftDouble=complete and rule~=nil and rule.swiftDouble==true,
+        excessBlockArmour=complete and powered and rule~=nil
+            and rule.excessBlockArmour==true,
         links=linked,status=status,resources=effects,
         usesTerrainBlock=usesTerrainBlock and faceUp and costPaid and canApply,
         repeatCount=repeatLink~=nil and repeatLink.count or nil,
