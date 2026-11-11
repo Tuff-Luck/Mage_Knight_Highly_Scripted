@@ -748,6 +748,10 @@ function resourceCardsCombatTargetAcceptsSource(sourceKey,targetGUID)
                 and target==targetGUID then return false end
         end
     end
+    -- Explosive Bolt's follow-up reduces Armour, never reminder Attack.
+    if type(sourceKey)=="string" and sourceKey:match("#explosiveAttack$") then
+        return data.attackOnly~=true
+    end
     if (sourceKey=="4ac9f6" or sourceKey=="19daf9") and data.monsters~=nil then
         return false -- Nature's Vengeance targets a summoned monster, never its Summoner.
     end
@@ -2671,6 +2675,94 @@ local function combatAssignmentRefreshRows(entries,sources)
             resourceCardsSourceChanged()
         end
     end
+    -- Explosive Bolt resolves AFTER the Ranged/Siege defeat check and BEFORE
+    -- the ordinary Attack phase. A kill creates one Armour -1 for a DIFFERENT
+    -- surviving enemy; bonuses from multiple kills can stack on one enemy.
+    -- They cannot retroactively improve the Ranged Attack that produced them.
+    local explosiveKills={}
+    local rangedVictims={}
+    for _,group in ipairs(groups) do
+        if group.rangeDefeated then
+            local count=0
+            for _,index in ipairs(group.members) do
+                local enemy=entries[index]
+                if not enemy.preview and not enemy.attackOnly then
+                    count=count+1
+                    rangedVictims[enemy.guid]=true
+                end
+            end
+            if count>0 then
+                local seen={}
+                for _,source in ipairs(group.sources) do
+                    if source.explosiveBolt~=nil and not seen[source.guid]
+                        and source.ranged+source.siege>0 then
+                        explosiveKills[source.guid]=(explosiveKills[source.guid] or 0)+count
+                        seen[source.guid]=true
+                    end
+                end
+            end
+        end
+    end
+    for _,source in ipairs(sources) do
+        if source.explosiveBolt~=nil then
+            local key=source.guid.."#explosiveAttack"
+            local targetGUID=combatAssignmentState.targets[key]
+            if targetGUID==nil then
+                for guid in pairs(attackAssignmentsTargetGUIDs(key)) do
+                    if targetGUID==nil or guid<targetGUID then targetGUID=guid end
+                end
+            end
+            local target=nil
+            for _,entry in ipairs(entries) do
+                if entry.guid==targetGUID then target=entry break end
+            end
+            if target==nil then
+                -- Stable left-to-right default, excluding the victims.
+                for _,entry in ipairs(entries) do
+                    if not entry.attackOnly and not rangedVictims[entry.guid] then
+                        target=entry
+                        break
+                    end
+                end
+            end
+            if target~=nil then
+                if targetGUID==nil then
+                    attackAssignmentsEnsureTarget(key,target.guid,"armour")
+                end
+                local earned=(explosiveKills[source.guid] or 0)*source.explosiveBolt
+                local resistant=combatEnemyHasTrait(target.data,target.perks,"fResist")
+                local valid=not target.attackOnly and not rangedVictims[target.guid]
+                    and not resistant and not target.destroyed
+                local available=math.max(0,target.baseArmour-1)
+                local applied=valid and math.min(earned,available) or 0
+                target.explosiveBoltEffects=target.explosiveBoltEffects or {}
+                target.explosiveBoltEffects[#target.explosiveBoltEffects+1]={
+                    key=key,guid=source.guid,earned=earned,applied=applied,
+                    reason=earned==0 and "No enemy defeated by this Ranged Attack."
+                        or rangedVictims[target.guid] and "Target was defeated by a Ranged Attack."
+                        or resistant and "Fire Resistance prevents this Armour reduction."
+                        or not valid and "Not a valid surviving enemy."
+                        or applied==0 and "Armour is already at its minimum of 1." or nil}
+                if applied>0 then
+                    target.rangeBaseArmour=target.rangeBaseArmour or target.baseArmour
+                    target.rangeElusiveArmour=target.rangeElusiveArmour or target.elusiveArmour
+                    target.baseArmour=math.max(1,target.baseArmour-applied)
+                    target.elusiveArmour=math.max(1,target.elusiveArmour-applied)
+                    target.effectArmourReduction=(target.effectArmourReduction or 0)+applied
+                end
+            end
+        end
+    end
+    -- Rebuild grouped Attack-phase Armour after the conditional reduction.
+    -- Do not rerun Ranged/Siege defeat calculation with the new Armour.
+    for _,group in ipairs(groups) do
+        local members,blockedAll={},{}
+        for _,index in ipairs(group.members) do
+            members[#members+1]=entries[index]
+            blockedAll[entries[index].guid]=rowBlock[index].allBlocked
+        end
+        group.entry,group.attackArmour=combatGroupEntry(members,blockedAll)
+    end
     -- Damage phase: each unblocked attack of an enemy that is not already defeated starts on the Hero.
     local damageSeat=combatAssignmentActiveSeat()
     local selfWoundsEarly,selfWoundsLate=combatConfig.selfWoundingUnitChoices(damageSeat,groups)
@@ -3004,6 +3096,18 @@ local function combatAssignmentRefreshRows(entries,sources)
             end
             for _,applied in ipairs(targetEntry.effect~=nil and targetEntry.effect.applied or {}) do
                 insertEffect(combatConfig.effectButtonInfo(targetEntry,applied))
+            end
+            -- The extra target from Explosive Bolt is an Armour effect, not
+            -- more Ranged Attack. Red/grey states explain unmet conditions.
+            for _,bolt in ipairs(targetEntry.explosiveBoltEffects or {}) do
+                insertEffect({source={guid=bolt.guid,key=bolt.key,name="Explosive Bolt"},
+                    family="attack",arrow="armour",amount="-"..tostring(bolt.earned),
+                    icon="MKChoiceArmourReduction",
+                    text="Armour -"..tostring(bolt.earned).." after Ranged defeat (min 1)",
+                    tooltip="Explosive Bolt: "..(bolt.reason or
+                        ("Applied Armour reduction: "..tostring(bolt.applied)))
+                        .."\nClick to retarget this effect separately from its Ranged Attack.",
+                    ineffective=bolt.reason~=nil})
             end
             -- Damage mitigation is a Block-column control, but not Block points.
             for _,mitigationSource in ipairs(mitigationRecords) do
@@ -4455,6 +4559,11 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             and (attr.id:sub(1,19)=="ResourceCardChoice_"
                 or attr.id:find("^AttackAssignmentSource_")~=nil) then table.remove(xml,i) end
     end
+    if rule~=nil and rule.defeatArmourReduce~=nil and powered and combatCalcOn
+        and posture=="upright" then
+        visibleAssets[#visibleAssets+1]="armourReduction"
+        visibleAssets[#visibleAssets+1]="target"
+    end
     local assets,blocked=resourceCardsChoiceAssetsFor(card.UI,visibleAssets)
     local multi=#rows>1
     for rowPosition,row in ipairs(rows) do
@@ -4619,6 +4728,32 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             tooltip=tooltip,colors="#454D5D|#69798E|#444C63|#454D5D",
             textColor="#FFFFFF",textAlignment="MiddleCenter"},
             value=tostring(hardenedIndex).."/"..tostring(#hardenedOptions)}
+    end
+    if rule~=nil and rule.defeatArmourReduce~=nil and powered and combatCalcOn
+        and posture=="upright" and resources~=nil then
+        local reductionAsset=resourceCardsChoiceIcon("armourReduction")
+        local targetAsset=resourceCardsChoiceIcon("target")
+        local children={}
+        if reductionAsset~=nil and not blocked[reductionAsset.name] then
+            children[#children+1]={tag="Image",attributes={
+                image=reductionAsset.name,width=75,height=75,
+                preserveAspect="true",raycastTarget="false",color="#FFFFFF"}}
+        end
+        if targetAsset~=nil and not blocked[targetAsset.name] then
+            children[#children+1]={tag="Image",attributes={
+                image=targetAsset.name,width=45,height=45,
+                preserveAspect="true",raycastTarget="false",color="#FFFFFF",
+                alignment="LowerRight"}}
+        end
+        xml[#xml+1]={tag="Button",attributes={
+            id="AttackAssignmentSource_"..card.guid.."_0_attack@explosiveAttack",
+            onClick="global/attackAssignmentSourceClicked",
+            position="140 0 "..buttonDepth,rotation=uiRotation,
+            width=90,height=90,scale=buttonScale,fontSize=46,
+            tooltip="Explosive Bolt: target ANOTHER enemy for Armour -1 per enemy this Ranged Attack defeats (min 1). Fire Resistance prevents this reduction.",
+            colors="#454D5D|#69798E|#444C63|#454D5D",
+            textColor="#FFFFFF",textAlignment="MiddleCenter"},
+            value=#children==0 and "Arm" or "",children=children}
     end
     if rule~=nil and rule.forkedLightning then
         local phase=gStates~=nil and gStates.forkedLightningPhase or "range"
@@ -6842,6 +6977,11 @@ local function renderSeat(seatPos,quietUnitChoice)
         result.choices=choices -- Also authoritative for payment-restricted click validation.
         showChoiceButtons(card,choices,result.powered,inventorySpec,inventorySets,result.resources,
             repeatByTarget[card.guid])
+        -- Expose a separate Armour-reduction source. It is independent of the
+        -- card's Ranged Attack target and becomes effective only after a kill.
+        if result.explosiveBolt~=nil and combatCalcOn then
+            result.enemyEffectTargetKeys={card.guid.."#explosiveAttack"}
+        end
         -- Ordinary Move cards and played Artifacts can both change terrain
         -- costs; amulets grant no numeric Move and work on their Break side.
         if rule~=nil and cardPosture(card)=="upright" and result.resources~=nil
