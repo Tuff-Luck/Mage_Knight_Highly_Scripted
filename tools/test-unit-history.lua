@@ -145,4 +145,6 @@ eq(unitHistoryDecisionHasCombat(multi,{selected={}}),false,
 unitHistoryReset()
 eq(next(gStates.unitActivationHistory),nil,"turn reset clears history")
 eq(next(gStates.unitReadyLinks),nil,"turn reset clears ready links")
+eq(unitHistoryAppend(nil,{tokenGUID="cmd"},"card"),nil,
+    "missing Unit GUID does not dereference a nil history")
 print("Unit activation history tests passed.")
