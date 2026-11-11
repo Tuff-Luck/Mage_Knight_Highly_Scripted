@@ -99,7 +99,9 @@ function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec,sourceKey)
         spec={}
     elseif immune then
         entry.immuneIgnored=true
-        spec={removeAbilities=spec.removeAbilities,attackReduce=spec.attackReduce,
+        spec={removeAbilities=spec.removeAbilities,
+            removeOneAttackAbilities=spec.removeOneAttackAbilities,
+            attackReduce=spec.attackReduce,
             attackIncrease=spec.attackIncrease,grantCumbersome=spec.grantCumbersome,
             firstDamageUnit=spec.firstDamageUnit}
     end
@@ -110,13 +112,14 @@ function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec,sourceKey)
             iceResistant=iceResistant}
     end
     local attackAdjust=(tonumber(spec.attackReduce) or 0)-(tonumber(spec.attackIncrease) or 0)
-    if attackAdjust~=0 then
+    if attackAdjust~=0 or spec.removeOneAttackAbilities==true then
         local ordinal=1
         for _,previous in ipairs(entry.attackReductions) do
             if previous.source==sourceGUID then ordinal=ordinal+1 end
         end
         local id=tostring(sourceGUID)..(ordinal>1 and ("#"..tostring(ordinal)) or "")
         entry.attackReductions[#entry.attackReductions+1]={amount=attackAdjust,
+            stripAbilities=spec.removeOneAttackAbilities==true,
             source=sourceGUID,id=id,
             firstDamageUnit=spec.firstDamageUnit==true and sourceGUID or nil}
     end
@@ -168,6 +171,9 @@ function combatEffectReport(seatPos,enemyEffects,quiet)
         if entry.grantCumbersome then text=text.." gains Cumbersome" end
         if entry.noAttackUnfortified and not entry.noAttack then text=text.." does not attack if unfortified" end
         if entry.removeAbilities then text=text.." attack loses abilities (keeps colour)" end
+        for _,reduction in ipairs(entry.attackReductions or {}) do
+            if reduction.stripAbilities then text=text.." one chosen attack loses abilities (keeps colour)" end
+        end
         local attackReduction,attackIncrease=0,0
         local forcedDamage=false
         for _,reduction in ipairs(entry.attackReductions or {}) do
