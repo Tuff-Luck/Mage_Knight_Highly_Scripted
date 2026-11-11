@@ -5329,11 +5329,13 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decisi
     local decision=decision or unitManaDecision(unit,abilities,activation,
         activation.frozenCounts)
     local available=decision.display
+    local combatBlocked=combatConfig.unitCombatBlocked~=nil
+        and combatConfig.unitCombatBlocked(unit,abilities,useIndex) or false
     local targetSpecs={}
     do
         local function addTarget(index)
             local ability=abilities[index]
-            if ability==nil then return end
+            if ability==nil or (combatBlocked and unitHistoryIsCombatAbility(ability)) then return end
             if ability.key=="ready" then
                 targetSpecs[#targetSpecs+1]={index=index,category="unitReady",
                     idCategory="unitReady"..(useIndex>1 and ("@use"..useIndex) or ""),
@@ -5456,6 +5458,8 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decisi
             local ability=abilities[index]
             local active=decision.selected~=nil and decision.selected[index]==true
                 or decision.selected==nil and index==selected
+            local invalidCombat=active and combatBlocked
+                and unitHistoryIsCombatAbility(ability)
             local icon=resourceCardsChoiceIcon(ability.icon or ability.key)
             if icon~=nil and blocked[icon.name] then icon=nil end
             local button={tag="Button",attributes={
@@ -5463,8 +5467,10 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decisi
                 onClick="global/resourceUnitsChoiceClicked",
                 position=tostring(baseX-(columnIndex-1)*columnSpacing).." "..tostring(y).." -35",
                 rotation="0 0 180",width=90,height=90,scale="0.22 0.22",
-                colors=active and "#387D30|#4CA940|#387D30|#387D30"
+                colors=invalidCombat and "#9C3737|#B34A4A|#9C3737|#9C3737"
+                    or active and "#387D30|#4CA940|#387D30|#387D30"
                     or "#454D5D|#69798E|#444C63|#454D5D",
+                tooltip=invalidCombat and "Only one combat activation per Unit per turn. Change an earlier combat choice to use this effect." or nil,
                 fontSize=77,textColor="#FFFFFF",textAlignment="MiddleCenter"
             },value=icon==nil and (ability.buttonLabel
                 or (ability.key=="other" and tostring(ability.row))
@@ -6550,6 +6556,16 @@ unitManaDecision=function(unit,abilities,activation,counts)
         if result.index==nil then result.index=free[1] end
     end
     return result
+end
+
+-- Earlier Command activations own the Unit's combat use for this turn.
+-- Check their actual paid/selected abilities rather than the currently
+-- displayed Command number; editing an earlier choice reopens a later use.
+combatConfig.unitCombatBlocked=function(unit,abilities,useIndex)
+    return unitHistoryCombatConflict(unit.guid,useIndex,abilities,function(activation)
+        return unitManaDecision(unit,abilities,activation,
+            activation.frozenCounts or activation.lastCounts)
+    end)
 end
 
 local function sidewaysManaAvailable(color)
@@ -8067,6 +8083,8 @@ local function renderSeat(seatPos,quietUnitChoice)
                     activation.lastCounts=unitHistoryCopyCounts(counts)
                 end
                 local decision=unitManaDecision(unit,abilities,activation,counts)
+                local deniedCombat=combatConfig.unitCombatBlocked(unit,abilities,useIndex)
+                    and unitHistoryDecisionHasCombat(abilities,decision)
                 if activation.callOffer and unitSiteMode=="one"
                     and chosenSiteUnit==nil then
                     chosenSiteUnit=unitGUID
@@ -8085,12 +8103,12 @@ local function renderSeat(seatPos,quietUnitChoice)
                 if (unwounded or activation.frozenCounts~=nil) and sitePermits then
                     local crystalCounts=selected~=nil and selected.bonusColor~=nil
                         and unitManaCounts(unit,seatPos,manaObjects,true) or nil
-                    local resources=selected~=nil
+                    local resources=not deniedCombat and selected~=nil
                         and unitAbilityResources(selected,counts,crystalCounts) or nil
                     local result={guid=recordKey,sourceObjectGUID=unitGUID,
                         activationIndex=useIndex,kind="unit",known=true,
-                        complete=selected~=nil and unitAbilityPaid(selected,counts)
-                            or abilities.multi==true and next(decision.selected or {})~=nil,
+                        complete=not deniedCombat and (selected~=nil and unitAbilityPaid(selected,counts)
+                            or abilities.multi==true and next(decision.selected or {})~=nil),
                         resources=resources,powered=false,links={},
                         swiftDouble=selected~=nil and selected.countsTwiceVsSwift==true or nil,
                         fameRep=selected~=nil and selected.fameRep or nil}
@@ -9768,9 +9786,11 @@ function resourceUnitsReconcileChoiceTargets(unit,abilities,activation)
     for useIndex,entry in ipairs(unitHistoryUses(unit.guid,current)) do
         local decision=unitManaDecision(unit,abilities,entry,
             entry.frozenCounts or entry.lastCounts)
+        local combatBlocked=combatConfig.unitCombatBlocked(unit,abilities,useIndex)
         local function allow(index)
             local ability=abilities[index]
-            if ability~=nil and (unitAbilityTargetCategory(ability)~=nil
+            if ability~=nil and not (combatBlocked and unitHistoryIsCombatAbility(ability))
+                and (unitAbilityTargetCategory(ability)~=nil
                 or ability.enemyEffect~=nil or ability.targetableEnemy==true) then
                 allowed[unitAbilityTargetKey(unit.guid,index,ability,useIndex)]=true
             end
