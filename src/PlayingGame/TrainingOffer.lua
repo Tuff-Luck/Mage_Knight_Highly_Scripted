@@ -8,6 +8,7 @@ local trainingMoveSerial=0
 -- Transient origin evidence: a Training cost must actually leave this
 -- player's hand, not be an already-played Action recycled from the table.
 local fromHand={}
+local returningPreview={}
 
 local function currentState()
     return gStates~=nil and gStates.trainingOfferPreview or nil
@@ -99,6 +100,7 @@ local function returnPreview(state,immediate)
     if state==nil or state.cardGUID==nil then return end
     local guid,home=state.cardGUID,state.home
     state.cardGUID,state.home=nil,nil
+    returningPreview[guid]=true
     local card=getObjectFromGUID(guid)
     cleanPreview(card)
     if card~=nil and home~=nil then
@@ -115,6 +117,7 @@ local function returnPreview(state,immediate)
         safeWaitCondition("Offers.Training",function()
             local live=getObjectFromGUID(guid)
             if live~=nil and inZone(guid,GUID.zone.offer) then live.lock() end
+            returningPreview[guid]=nil
         end,function()
             local live=getObjectFromGUID(guid)
             return live==nil or (live.resting and not live.isSmoothMoving())
@@ -133,13 +136,15 @@ function trainingOfferClose(immediate)
     if immediate==true and gStates~=nil then
         gStates.trainingOfferClaims=nil
         fromHand={}
+        returningPreview={}
     end
 end
 
 function trainingOfferReservedCard(guid,seatPos)
     local state=currentState()
-    return state~=nil and state.seatPos==seatPos
-        and (state.sourceGUID==guid or state.cardGUID==guid)
+    return returningPreview[guid]==true
+        or state~=nil and state.seatPos==seatPos
+            and (state.sourceGUID==guid or state.cardGUID==guid)
 end
 
 local function matchesSource(sourceData,offerData)

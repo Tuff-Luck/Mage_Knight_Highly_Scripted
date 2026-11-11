@@ -5774,7 +5774,8 @@ local function resolveActionLinks(cards,wounds,footprints,manaPowered,skillLinks
         local paid=rule~=nil and rule.discardBoost or nil
         local repeated=repeatByTarget[source.guid]
         if paid~=nil and (discarded[source.guid]==nil or repeated~=nil)
-            and source.is_face_down~=true and cardPosture(source)=="upright" then
+            and (source.is_face_down~=true or repeated~=nil)
+            and (cardPosture(source)=="upright" or repeated~=nil) then
             local chosen=selectedResourceByGUID[source.guid]
             local strong=manaPowered[source.guid]==true or boostBy[source.guid]~=nil
                 or (data~=nil and data.cardType=="Artifact"
