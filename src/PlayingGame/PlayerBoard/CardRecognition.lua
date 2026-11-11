@@ -3686,6 +3686,8 @@ local function combatCalcShutdown()
     combatConfig.slotSelection={}
     combatConfig.effectSources={}
     combatConfig.blockedEnemyCounts={}
+    combatConfig.conversionState={}
+    combatConfig.dodgeSplitMode={}
     combatConfig.panelHeight=0
     combatTrackedSeat=nil
     combatTrackedEnemies={}
@@ -4877,6 +4879,9 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         and posture=="upright" and resources~=nil then
         conversion,conversionBudget,conversionValid=combatConfig.conversionFor(
             combatAssignmentActiveSeat(),rule.combatConversion)
+        -- The first scan has not stored its new records yet; the card itself
+        -- is already a valid source and must receive its controls immediately.
+        conversionValid=true
     end
     local signature=(posture=="sideways" and "S" or (powered and "P" or "N"))
         ..":"..table.concat(signatureParts,";")..":"..uiRotation..":"..buttonDepth
