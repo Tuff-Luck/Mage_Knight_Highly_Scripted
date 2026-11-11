@@ -5544,6 +5544,10 @@ local function scheduleChoiceResetAfterPlay(guid,seatPos)
             if not cardInSeatPlayArea(guid,seatPos) then
                 selectedResourceByGUID[guid]=nil
                 choiceExpandedByGUID[guid]=nil
+                if gStates~=nil and gStates.unitReadyCardChoices~=nil then
+                    gStates.unitReadyCardChoices[guid]=nil
+                end
+                unitHistoryValidSources(seatPos)
             end
         end,function()
             if choiceResetGenerationByGUID[guid]~=serial then return true end
@@ -9846,7 +9850,8 @@ function resourceUnitsChoiceClicked(player,value,id)
         if decision.selected[index]==true then
             activation.selected[index]=nil
         else
-            local goldCount=(unitManaCounts(unit,current.seatPos).Gold or 0)
+            local goldCount=((activation.frozenCounts
+                or unitManaCounts(unit,current.seatPos)).Gold or 0)
             local prior={}
             for _,candidate in ipairs(decision.display) do
                 if candidate~=index and activation.selected[candidate]==true then
