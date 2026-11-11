@@ -273,6 +273,12 @@ function unitHistoryValidSources(seat)
     end
 end
 
+function unitHistoryHideControls()
+    for _,group in pairs(gStates~=nil and gStates.unitActivationHistory or {}) do
+        clearTokenControls(getObjectFromGUID(group.tokenGUID))
+    end
+end
+
 function unitHistoryReset()
     if gStates==nil then return end
     for _,group in pairs(gStates.unitActivationHistory or {}) do
