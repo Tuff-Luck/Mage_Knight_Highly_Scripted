@@ -5,7 +5,7 @@ local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
 local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="455"
+local automaticLuaErrorReporterVersion="456"
 
 -- Automatic Lua error reporting, protected callback helpers and diagnostic context builders.
 local automaticLuaZoneContext

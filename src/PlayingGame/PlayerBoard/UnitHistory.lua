@@ -6,7 +6,7 @@ unitHistory=unitHistory or {}
 -- Object-local Y height of the activation number and both arrows.
 -- Native Command tokens show their local underside: a negative Y is above that face.
 -- Move native closer to zero to lower the controls toward the token.
-unitHistory.tokenButtonY={native=-0.12,other=0.27}
+unitHistory.tokenButtonY={native=-0.02,other=0.27}
 
 local function groupOf(guid,create)
     if gStates==nil or guid==nil then return nil end
