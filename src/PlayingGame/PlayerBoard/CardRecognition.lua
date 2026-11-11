@@ -9904,8 +9904,8 @@ function resourceUnitsChoiceClicked(player,value,id)
     unitHistoryValidSources(current.seatPos)
     showUnitAbilityButtons(unit,abilities,activation,true,nil,useIndex)
     if attackAssignmentsRefreshReadyUI~=nil then attackAssignmentsRefreshReadyUI() end
-    -- A Unit choice still recalculates immediately, but its enemy-effect
-    -- notification is silent. Other card/skill updates retain their notices.
+    -- Recalculate Unit choices immediately; enemy modifiers are shown directly
+    -- in the Combat Calculator rather than broadcast into chat.
     renderSeat(current.seatPos)
 end
 
