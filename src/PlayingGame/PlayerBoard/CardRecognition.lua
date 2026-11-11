@@ -10062,6 +10062,7 @@ function resourceCardsBeforeTurnHandoff(nextSeat)
     if current==nil or current.seatPos==nextSeat then return end
     resourceCardsPanelChanged(false)
     resourceUnitsResetTurn()
+    selectedResourceByGUID={}
 end
 
 -- The Global UI is shared, but its expanded/collapsed preference belongs to a seat.
