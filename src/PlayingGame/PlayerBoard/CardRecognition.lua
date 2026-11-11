@@ -288,6 +288,7 @@ end
 -- treat every Move/Influence source as an extra, free combat resource.
 -- Existing explicit Cumbersome/Psychic assignments have first claim.
 combatConfig.conversionFor=function(seat,kind)
+    if seat==nil then return nil,0,false,nil end
     local scan=seat~=nil and resourceCardScanBySeat[seat] or nil
     local guid=kind=="agility" and "878d92" or "8c3de6"
     local active=scan~=nil and scan.cards[guid] or nil
@@ -3468,7 +3469,9 @@ local function combatAssignmentRefreshRows(entries,sources)
                     combatConfig.slotSelection[id]={key=item.source.key,
                         wounded=item.wounded,ineffective=item.ineffective}
                     local tooltip=item.tooltip or (item.source.name..": "..item.text
-                        ..(item.wounded and " can't apply 'Wounded'" or ""))
+                        ..(item.source.dodgeIneligible and
+                            " unavailable: the Hero took Wounds before the Attack phase"
+                            or (item.wounded and " can't apply 'Wounded'" or "")))
                     combatAssignmentIconButton(id,true,item.amount,item.icon,
                         tooltip,combatAssignmentState.selected==item.source.key,
                         (item.wounded or item.ineffective) and "#292323" or (item.typeKey~=nil
