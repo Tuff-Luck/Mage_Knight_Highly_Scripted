@@ -1035,7 +1035,8 @@ cardResourceDefinitions={
     stamina={normal={move=2},powered={move=4}},
     march={normal={move=2},powered={move=4}},
     promise={normal={influence=2},powered={influence=4}},
-    nobleManners={normal={influence=2},powered={influence=4}}, -- Other ability does not alter Influence
+    nobleManners={normal={influence=2},powered={influence=4},
+        interactionReward={normal={fame=1},powered={fame=1,rep=1}}},
     coldToughness={
         normalChoices={{attack=2},{key="block",blockIce=3}},
         powered={blockIce=5},enemyIconBlock=true}, -- Lost Legion; enemy icon bonus from linked token
@@ -1091,10 +1092,16 @@ cardResourceDefinitions={
         poweredChoices={{move=4},{ranged=3},{key="reduce",icon="other"}},
         enemyEffect={normal={choice="reduce",attackReduce=1},
             powered={choice="reduce",attackReduce=2}}},
-    tirelessness={normal={move=2},powered={move=4},partial=true}, -- Boosts other Move cards
-    druidicPaths={normal={move=2},powered={move=4}}, -- Player manages the one-space/one-terrain-type discount
-    savageHarvesting={normal={move=2},powered={move=4}}, -- Optional crystal gains do not affect Move calculation
-    ruthlessCoercion={normal={influence=2},powered={influence=6},fameRep={powered={rep=-1}}}, -- Basic's Reputation loss depends on recruiting a Unit
+    tirelessness={normal={move=2},powered={move=4},
+        followingMoveBonus={normal={count=1,amount=1},powered={all=true,amount=1}}},
+    druidicPaths={normal={move=2},powered={move=4},
+        oneSpaceDiscount={amount=1,minimum=2},
+        selectedTerrainDiscount={amount=1,minimum=2}},
+    savageHarvesting={normal={move=2},powered={move=4},
+        manualSecondary="Discard a card when entering a space to gain a crystal of its colour. Once per turn on the basic side; each space on the stronger side. This part is manual."},
+    ruthlessCoercion={normal={influence=2},powered={influence=6},
+        fameRep={powered={rep=-1}},recruitDiscount=2,
+        recruitRepPenalty=-1,readyWithInfluence={maxLevel=2,costPerLevel=2}},
     shieldBash={normal={block=3},powered={block=5},swiftDouble=true,excessBlockArmour=true}, -- Swiftness doubles this Block; powered excess reduces Armour after Block
     frostBridge={normal={move=2},powered={move=4},
         terrainEffects={
@@ -1146,7 +1153,7 @@ cardResourceDefinitions={
     -- Verified against the Unofficial Mage Knight card wiki (base/expansion).
     -- 'other' means a deliberate card effect that adds no tracked resource.
     -- A crystal gained to inventory is not itself generated Move/Attack/etc.
-    rejuvenate={
+    rejuvenate={unitReadyLevels={normal=2,powered=3},
         -- H Heal, D Draw, G gain a mana token/crystal, R ready a Unit.
         -- Only healing adds to the Resource Tracker; other outcomes are
         -- deliberate player choices rather than incomplete card recognition.
