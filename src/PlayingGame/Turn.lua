@@ -654,6 +654,7 @@ end
 
 local function turnFinishCompletedTurnUI()
     callOfferClose(false)
+    trainingOfferClose(true)
 	resourceUnitsResetTurn()
 	resetResourceTrackerState()
 	refreshResourceTracker()

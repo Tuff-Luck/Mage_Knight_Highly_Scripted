@@ -1158,6 +1158,9 @@ cardResourceDefinitions={
     explosiveBolt={normalTrackerNeutral=true,powered={ranged=3},
         defeatArmourReduce=1}, -- Each enemy defeated by this Ranged Attack reduces another enemy's Armour by 1 (min 1).
     regeneration={normal={healing=1},powered={healing=2}},
+    -- Training has no numeric resources, but its powered side and repeat count
+    -- must remain visible to the separate physical offer browser.
+    training={normalTrackerNeutral=true},
     forceOfNature={normalTrackerNeutral=true,
         poweredChoices={{siege=3},{block=6}}},
     chillingStare={
@@ -1710,7 +1713,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["474418"]={cardType="Advanced Action", resourceKey="forceOfNature", name={"Force of Nature"},	color={"Green"}, 		action={"Combat"}},
 			["54b5c4"]={cardType="Advanced Action", resourceKey="stoutResolve", name={"Stout Resolve"}, 	color={"Green"}, 		action={"Move", "Combat", "Influence"}},
 			["d3995b"]={cardType="Advanced Action", resourceKey="mountainLore", name={"Mountain Lore"}, 	color={"Green"}, 		action={"Move"}},
-			["6fdeb0"]={cardType="Advanced Action", resourceTracked=false, resourceAlwaysNeutral=true, name={"Training"},			color={"Green"}, 		action={"Special"}},
+			["6fdeb0"]={cardType="Advanced Action", resourceKey="training", resourceTracked=false, name={"Training"},			color={"Green"}, 		action={"Special"}},
 			["c3153e"]={cardType="Advanced Action", resourceKey="inNeed", name={"In Need"}, 			color={"Green"}, 		action={"Influence"}},
 			["20cb85"]={cardType="Advanced Action", resourceKey="ambush", name={"Ambush"}, 			color={"Green"}, 		action={"Move"}},--I want to add combat
 			["878d88"]={cardType="Advanced Action", resourceKey="songOfWind", name={"Song of Wind"}, 		color={"White"}, 		action={"Move"}},

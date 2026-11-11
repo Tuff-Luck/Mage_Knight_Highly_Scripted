@@ -5369,6 +5369,27 @@ function resourceCardsMountainLoreEndTurnBonus(seatPos)
     return 0
 end
 
+-- Training is resource-neutral, but its mode and Maximal Effect repetition
+-- still come from the same physical mana/Action-link resolver as other cards.
+function resourceCardsTrainingMode(seatPos)
+    local scan=seatPos~=nil and resourceCardScanBySeat[seatPos] or nil
+    local record=scan~=nil and scan.cards["6fdeb0"] or nil
+    if record~=nil then return record.powered==true,record.repeatCount or 1 end
+    local card=getObjectFromGUID("6fdeb0")
+    local zone=seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
+    if card==nil or zone==nil or card.is_face_down==true then return false,1 end
+    local area=footprint(card)
+    for _,obj in ipairs(zone.getObjects()) do
+        local color=manaColor(obj)
+        if color~=nil and matchesCardMana(card,color) then
+            local pos=obj.getPosition()
+            if math.abs(pos[1]-area.x)<area.halfX
+                and math.abs(pos[3]-area.z)<area.halfZ then return true,1 end
+        end
+    end
+    return false,1
+end
+
 -- One sideways calculator for ordinary Actions and Skill-linked exceptions.
 -- A linked Skill changes the value, not the player's chosen resource.
 local function calculateSideways(card,known,skillLink)
@@ -6495,7 +6516,9 @@ local function renderSeat(seatPos,quietUnitChoice)
     local hasUnits=false
     for guid,obj in pairs(objects) do
         local kind=objectKinds[guid]
-        if kind=="card" and placements[guid]=="play" then
+        if kind=="card" and placements[guid]=="play"
+            and (trainingOfferReservedCard==nil
+                or not trainingOfferReservedCard(guid,seatPos)) then
             cards[#cards+1]=obj
             footprints[guid]=footprint(obj)
         elseif kind=="wound" and placements[guid]=="play" then

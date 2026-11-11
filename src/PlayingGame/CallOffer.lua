@@ -9,6 +9,36 @@ local function previewState()
     return gStates~=nil and gStates.callOfferPreview or nil
 end
 
+-- Shared object-UI navigation builder, used by Training's Advanced Action
+-- offer preview without changing the existing Unit browser's lifecycle.
+function callOfferAppendBrowseControls(xml,guid,prefix,callback,includeClaim)
+    local images={"Overkill Down","Overkill Up"}
+    for _,entry in ipairs({
+        {direction="previous",image=images[1],x="-135"},
+        {direction="next",image=images[2],x="135"}
+    }) do
+        local id=prefix..guid.."_"..entry.direction
+        xml[#xml+1]={tag="Button",attributes={
+            id=id,onClick="global/"..callback,
+            position=entry.x.." 0 -35",rotation="0 0 0",
+            width=95,height=110,scale="0.40 0.40",
+            color="rgba(0,0,0,0.0)"},
+            children={{tag="Image",attributes={
+                id=id.."Image",image=entry.image,
+                preserveAspect="true",raycastTarget="false"
+            }}}}
+    end
+    if includeClaim then
+        xml[#xml+1]={tag="Button",attributes={
+            id=prefix..guid.."_claim",onClick="global/"..callback,
+            position="0 0 -35",rotation="0 0 0",
+            width=130,height=75,scale="0.40 0.40",
+            text="Take",fontSize=40,
+            color="rgba(0.12,0.32,0.16,0.92)",textColor="rgba(1,1,1,1)"}}
+    end
+    return images
+end
+
 local function vector(v)
     return {v.x or v[1],v.y or v[2],v.z or v[3]}
 end

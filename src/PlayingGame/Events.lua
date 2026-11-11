@@ -274,6 +274,7 @@ function eventsOnLoadRawBase(saved_data, loaded_data)
 	refreshResourceTrackerText()--Refresh the tracker from saved values so TTS resolves its language tags on load.
     safeWaitFrames("Events",function() resourceCardsOnLoad() end,4)
     safeWaitFrames("Events",function() callOfferRestoreOnLoad() end,4)
+    safeWaitFrames("Events",function() trainingOfferRestoreOnLoad() end,4)
 	UI.setAttribute("CoopAssaultMainTableText3", "active", "false")
 	--The wall assault interface is only shown when the assault entry side cannot be determined automatically.
 	UI.hide("WallAssaultChoice")
@@ -624,6 +625,7 @@ function __onObjectDrop_raw(player_color, dropped_object)
     resourceUnitsCommandDropped(player_color,dropped_object)
     resourceCardsObjectMoved(dropped_object)
     callOfferObjectDropped(dropped_object)
+    trainingOfferObjectDropped(player_color,dropped_object)
     if droppedGUID=="2eb8e8" then
         callOfferScheduleSpellCheck()
     end
@@ -1664,6 +1666,9 @@ function __onObjectLeaveZone_raw(zone, obj)
     if ctx.objGUID=="2eb8e8" and ctx.playerZoneKind=="play" then
         callOfferSpellLeft(ctx.objGUID,ctx.zoneInfo~=nil and ctx.zoneInfo.seatPos or nil)
     end
+    if ctx.objGUID=="6fdeb0" and ctx.playerZoneKind=="play" then
+        trainingOfferScheduleCardCheck()
+    end
 	cancelSettledZoneEntries(ctx.zoneGUID,ctx.objGUID)
 	if handleZoneLeavePrelude(ctx)==true then return end
     if gStates.firstStarted==true then resourceCardsZoneLeft(ctx) end
@@ -2100,6 +2105,7 @@ function __onObjectRotate_raw(object, spin, flip, player_color, old_spin, old_fl
         -- The new face may not yet be applied when onObjectRotate fires.
         callOfferScheduleSpellCheck()
     end
+    if cardGUID=="6fdeb0" then trainingOfferScheduleCardCheck() end
 	if cardGUID==meditationTranceCardGUID or isSteadyTempoGUID(cardGUID)==true
 		or cardGUID==tacticCard[2] or cardGUID==GUID.card.bannerOfCommandToken then
 		refreshCardEffectAfterRotation(cardGUID)
