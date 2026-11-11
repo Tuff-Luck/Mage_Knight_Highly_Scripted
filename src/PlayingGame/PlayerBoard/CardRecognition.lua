@@ -5449,6 +5449,29 @@ function resourceCardsTrainingMode(seatPos)
     return false,1
 end
 
+-- Used by Steady Tempo's end-turn placement controls, even when the tracker is
+-- closed. The live scan also recognises Concentration/Will Focus/Maximal Effect
+-- payment links that do not leave mana physically on Steady Tempo.
+function resourceCardsSteadyTempoPowered(seatPos,cardGUID)
+    local card=cardGUID~=nil and getObjectFromGUID(cardGUID) or nil
+    if card==nil or card.is_face_down==true or cardPosture(card)~="upright" then return false end
+    local scan=seatPos~=nil and resourceCardScanBySeat[seatPos] or nil
+    local record=scan~=nil and scan.cards[cardGUID] or nil
+    if record~=nil and resourceCardsPanelOpen() then return record.powered==true end
+    local zone=seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
+    if zone==nil then return false end
+    local area=footprint(card)
+    for _,mana in ipairs(zone.getObjects()) do
+        local color=manaColor(mana)
+        if color~=nil and matchesCardMana(card,color) then
+            local pos=mana.getPosition()
+            if math.abs(pos[1]-area.x)<area.halfX
+                and math.abs(pos[3]-area.z)<area.halfZ then return true end
+        end
+    end
+    return false
+end
+
 -- One sideways calculator for ordinary Actions and Skill-linked exceptions.
 -- A linked Skill changes the value, not the player's chosen resource.
 local function calculateSideways(card,known,skillLink)
@@ -8879,6 +8902,9 @@ local function renderSeat(seatPos,quietUnitChoice)
     -- tracker refreshes can drop its independent cycling UI during dragging.
     -- Restore it after all tracker-owned UI writes, without touching resources.
     if callOfferEnsureControls~=nil then callOfferEnsureControls(seatPos) end
+    if steadyTempoRefreshAll~=nil and next(gStates.steadyTempoPending or {})~=nil then
+        steadyTempoRefreshAll()
+    end
 end
 
 local function queueSeat(seatPos,triggerGUID)
