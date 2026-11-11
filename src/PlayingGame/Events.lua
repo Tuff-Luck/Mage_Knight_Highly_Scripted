@@ -674,6 +674,11 @@ function __onObjectDrop_raw(player_color, dropped_object)
 	if droppedGUID~=nil and isSteadyTempoGUID(droppedGUID)==true and gStates.steadyTempoPending~=nil and gStates.steadyTempoPending[droppedGUID]~=nil then
 		safeWaitFrames("Events",function() steadyTempoRefreshCard(droppedGUID) end, 2)
 	end
+	-- Other card/mana drops can change Steady Tempo\'s side before cleanup.
+	if gStates.steadyTempoPending~=nil and next(gStates.steadyTempoPending)~=nil
+		and gStates.preEndTurn~=true then
+		safeWaitFrames("Events",function() steadyTempoRefreshAll() end,2)
+	end
 	--Update skill Locations
 	if skillTokens[dropped_object.guid]~=nil then
 		--During Start at a Higher Level, dragging one of the two offered skills into that player's skill
