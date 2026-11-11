@@ -471,6 +471,9 @@ function turnPreparePreEndTurn(cleanupPlayer,playerColor,id)
 			end
 		end
 	end
+	if steadyTempoFreezePowerForSeat~=nil then
+		steadyTempoFreezePowerForSeat(turnOrder[cleanupPlayer].seatPos)
+	end
 	mainUIUpdate("Pre End Turn")
 	--Mine rewards are chosen alongside the normal Rewards Claimed stage and use its shared soft-lock window.
 	local mineTurnEligible=turnOrder[cleanupPlayer].mage~=gStates.positionMageKnight[5] and turnOrder[cleanupPlayer].endCalled~=true
