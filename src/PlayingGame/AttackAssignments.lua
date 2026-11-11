@@ -24,6 +24,8 @@ local arrowHeadAngle=0.55
 local assignmentRegistry={}
 local targetingByPlayer={}
 local blockLinkPending={} -- Player colour -> Spirit Guides Skill GUID while selecting a Block source.
+local readyUnitPending={} -- Player colour -> {sourceGUID,sourceKey,seat,limit}
+local readyUnitTargetButtons={}
 local targetButtonObjects={}
 local assignmentCounter=0
 local refreshScheduled=false
@@ -153,6 +155,25 @@ local function activeVisualLines()
 		local assignment=assignmentLines(entry.source,entry.target,assignmentColorFor(entry.kind))
 		for _,line in ipairs(assignment or {}) do lines[#lines+1]=line end
 	end
+    -- Readying links remain visible even after their Command token returns to
+    -- the ready slot. They identify the specific effect that authorised reuse.
+    for sourceKey,link in pairs(gStates~=nil and gStates.unitReadyLinks or {}) do
+        local arrow=assignmentLines(getObjectFromGUID(unitHistorySourceBase(sourceKey)),
+            getObjectFromGUID(link.unitGUID),assignmentColors.other)
+        for _,line in ipairs(arrow or {}) do lines[#lines+1]=line end
+    end
+    for color,pending in pairs(readyUnitPending) do
+        local source=getObjectFromGUID(pending.sourceGUID)
+        local player=Player[color]
+        local pointer=player~=nil and player.getPointerPosition() or nil
+        if source~=nil and pointer~=nil then
+            lines[#lines+1]={points={
+                positionAtHeight(source.getPosition(),previewHeight),
+                positionAtHeight(pointer,previewHeight)},
+                color=assignmentColors.other,thickness=previewThickness,
+                rotation={0,0,0}}
+        end
+    end
     -- Spirit Guides may link to a Block source anywhere in the play area.
     -- Its purple arrow is separate from enemy Attack/Block assignments.
     for skillGUID,targetGUID in pairs(gStates~=nil and gStates.blockSourceLinks or {}) do
@@ -236,7 +257,49 @@ local function vectorLineSignature(lines)
 	return table.concat(parts,";")
 end
 
+local function syncReadyUnitButtons()
+    local candidates={}
+    for color,pending in pairs(readyUnitPending) do
+        local state=unitLayoutResourceState(pending.seat)
+        for _,entry in ipairs(state~=nil and state.units or {}) do
+            local data=gameCards~=nil and gameCards[entry.guid] or nil
+            if not entry.ready and entry.unwounded
+                and (pending.limit==nil or (data~=nil and data.level<=pending.limit))
+                and unitHistoryUses(entry.guid)[1]~=nil then
+                candidates[entry.guid]=entry.unit
+            end
+        end
+    end
+    for guid,obj in pairs(candidates) do
+        if readyUnitTargetButtons[guid]==nil and obj~=nil and not obj.isDestroyed() then
+            local bounds=obj.getBounds()
+            local scale=obj.getScale()
+            local size=bounds~=nil and bounds.size~=nil and bounds.size[1] or 1.5
+            obj.createButton({click_function="attackAssignmentReadyUnitClicked",
+                function_owner=Global,label="",position={0,0.28,0},rotation={0,0,0},
+                width=size/((scale~=nil and scale.x) or 1)*450,
+                height=size/((scale~=nil and scale.z) or 1)*650,
+                color={0,0,0,0},tooltip="Select this exhausted Unit to ready"})
+            readyUnitTargetButtons[guid]=true
+        end
+    end
+    for guid in pairs(readyUnitTargetButtons) do
+        if candidates[guid]==nil then
+            local obj=getObjectFromGUID(guid)
+            if obj~=nil then
+                for _,button in ipairs(obj.getButtons() or {}) do
+                    if button.click_function=="attackAssignmentReadyUnitClicked" then
+                        obj.removeButton(button.index)
+                    end
+                end
+            end
+            readyUnitTargetButtons[guid]=nil
+        end
+    end
+end
+
 local function syncTargetButtons(monsters)
+    syncReadyUnitButtons()
 	local shouldShow=next(targetingByPlayer)~=nil or next(blockLinkPending)~=nil
 	local live={}
 	if shouldShow then
@@ -282,7 +345,8 @@ end
 
 -- Called by the event-driven combat scan; polling is reserved for pointer lines.
 function attackAssignmentsRefreshTargetButtons(monsters)
-    if next(targetingByPlayer)~=nil or next(blockLinkPending)~=nil then syncTargetButtons(monsters) end
+    if next(targetingByPlayer)~=nil or next(blockLinkPending)~=nil
+        or next(readyUnitPending)~=nil then syncTargetButtons(monsters) end
 end
 
 local function refreshRenderedLines(force)
@@ -292,10 +356,59 @@ local function refreshRenderedLines(force)
 	renderedSignature=signature
 end
 
+function attackAssignmentsRefreshReadyUI()
+    syncTargetButtons()
+    refreshRenderedLines()
+    scheduleRefresh()
+end
+
+-- An explicit targeting control on Rejuvenate/Herbalists selects the Unit to
+-- ready. This is separate from enemy-targeting and damage assignment.
+function attackAssignmentsBeginUnitReady(sourceGUID,sourceKey,playerColor,limit)
+    if not resourceCardsPlayerCanEdit(playerColor)
+        or (resourceCardsReadySourceValid~=nil
+            and not resourceCardsReadySourceValid(sourceKey)) then return false end
+    local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    if active==nil then return false end
+    local pending=readyUnitPending[playerColor]
+    if pending~=nil and pending.sourceKey==sourceKey then
+        readyUnitPending[playerColor]=nil
+    else
+        readyUnitPending[playerColor]={sourceGUID=sourceGUID,sourceKey=sourceKey,
+            seat=active.seatPos,limit=limit}
+    end
+    syncTargetButtons()
+    refreshRenderedLines()
+    scheduleRefresh()
+    return true
+end
+
+function attackAssignmentReadyUnitClicked(unit,playerColor)
+    return safeCallback("attackAssignmentReadyUnitClicked",function()
+        if not resourceCardsPlayerCanEdit(playerColor) then return end
+        local pending=readyUnitPending[playerColor]
+        if pending==nil or unit==nil then return end
+        local state=unitLayoutResourceState(pending.seat)
+        local eligible=false
+        for _,entry in ipairs(state~=nil and state.units or {}) do
+            if entry.guid==unit.guid and not entry.ready and entry.unwounded then
+                eligible=true break
+            end
+        end
+        if not eligible or not unitHistoryReadyLink(pending.sourceKey,
+            unit.guid,pending.seat,pending.limit) then return end
+        readyUnitPending[playerColor]=nil
+        syncTargetButtons()
+        refreshRenderedLines()
+        if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
+    end)
+end
+
 -- Static arrows are refreshed by object/assignment events. Only live pointer previews
 -- need the repeating refresh loop.
 local function hasRuntimeWork()
     return next(targetingByPlayer)~=nil or next(blockLinkPending)~=nil
+        or next(readyUnitPending)~=nil
         or damagePending~=nil
 end
 
