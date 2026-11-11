@@ -5324,13 +5324,14 @@ local function resolveActionLinks(cards,wounds,footprints,manaPowered,skillLinks
             end
         end
     end
-    -- The same Action-target pairing serves copying and throwing away.
-    -- Reserve targets before ordinary discard payments to avoid double use.
+    -- Maximal Effect owns its follow-on Action before any of that Action's
+    -- additional costs are resolved. Those costs must be paid separately for
+    -- *each* repeated use, not reused from the card Maximal Effect throws away.
     for _,source in ipairs(cards) do
         local data=gameCards[source.guid]
         local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
         local requirement=rule~=nil and rule.requiredLink or nil
-        if requirement~=nil and (requirement.mode=="repeat" or requirement.mode=="throwAway")
+        if requirement~=nil and requirement.mode=="repeat"
             and discarded[source.guid]==nil and source.is_face_down~=true
             and cardPosture(source)=="upright" then
             local target=nearestOverlap(source,function(candidate)
@@ -5345,44 +5346,83 @@ local function resolveActionLinks(cards,wounds,footprints,manaPowered,skillLinks
                 discarded[target.guid]=source.guid
                 hasDiscard[source.guid]=true
                 linkedCardBySource[source.guid]=target.guid
-                if requirement.mode=="repeat" then
-                    local strong=manaPowered[source.guid]==true or boostBy[source.guid]~=nil
-                    repeatByTarget[target.guid]={powered=strong,
-                        count=strong and requirement.poweredCount or requirement.normalCount}
-                end
+                local strong=manaPowered[source.guid]==true or boostBy[source.guid]~=nil
+                repeatByTarget[target.guid]={powered=strong,
+                    count=strong and requirement.poweredCount or requirement.normalCount}
                 connect(source,target)
             end
         end
     end
-    -- Resolve discard costs after stronger links: a link-boosted Improvisation
-    -- can still discard ANOTHER card, but never its own booster as payment.
+    -- Ritual Attack is another throwaway effect. Under Maximal Effect it needs
+    -- one NEW throwaway Action for each application, with independently chosen
+    -- colors (a two-color target can offer two choices for that application).
     for _,source in ipairs(cards) do
         local data=gameCards[source.guid]
         local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
-        if discarded[source.guid]==nil and rule~=nil and rule.requiredLink~=nil
+        local requirement=rule~=nil and rule.requiredLink or nil
+        local repeated=repeatByTarget[source.guid]
+        if requirement~=nil and requirement.mode=="throwAway"
+            and (discarded[source.guid]==nil or repeated~=nil)
+            and source.is_face_down~=true and cardPosture(source)=="upright" then
+            local need=repeated~=nil and repeated.count or 1
+            local paid=0
+            if repeated~=nil then repeated.options={} end
+            for index=1,need do
+                local target=nearestOverlap(source,function(candidate)
+                    local other=gameCards[candidate.guid]
+                    return other~=nil
+                        and (other.cardType=="Starting" or other.cardType=="Advanced Action")
+                        and discarded[candidate.guid]==nil and not boostClaimed[candidate.guid]
+                        and not manaPowered[candidate.guid] and #links[candidate.guid]==0
+                        and cardPosture(candidate)=="upright"
+                end,"faceDown")
+                if target==nil then break end
+                discarded[target.guid]=source.guid
+                if paid==0 then linkedCardBySource[source.guid]=target.guid end
+                paid=paid+1
+                if repeated~=nil then
+                    repeated.options[index]=linkedColorChoices(rule,target.guid,repeated.powered)
+                end
+                connect(source,target)
+            end
+            hasDiscard[source.guid]=paid==need
+        end
+    end
+    -- Improvisation (and other discard-cost cards) must pay once per repeated
+    -- use, even when Maximal Effect supplies their advanced side for free.
+    for _,source in ipairs(cards) do
+        local data=gameCards[source.guid]
+        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+        local repeated=repeatByTarget[source.guid]
+        if (discarded[source.guid]==nil or repeated~=nil)
+            and rule~=nil and rule.requiredLink~=nil
             and rule.requiredLink.mode=="discard"
             and source.is_face_down~=true and cardPosture(source)=="upright"
             and not (data~=nil and data.cardType=="Artifact"
                 and source.is_face_down==true) then
-            local target=nearestOverlap(source,function(candidate)
-                local targetData=gameCards[candidate.guid]
-                return not discarded[candidate.guid] and not boostClaimed[candidate.guid]
-                    and candidate.guid~=boostSource[source.guid]
-                    and not manaPowered[candidate.guid]
-                    and #links[candidate.guid]==0
-                    and targetData~=nil
-                    and (targetData.cardType=="Starting" or targetData.cardType=="Advanced Action"
-                        or targetData.cardType=="Spell" or targetData.cardType=="Artifact")
-                    and candidate.getGMNotes()~="Wound"
-                    and candidate.getGMNotes()~="Quest"
-                    and canPayDiscard(candidate)
-            end,"discard")
-            if target~=nil then
+            local need=repeated~=nil and repeated.count or 1
+            local paid=0
+            for _=1,need do
+                local target=nearestOverlap(source,function(candidate)
+                    local targetData=gameCards[candidate.guid]
+                    return not discarded[candidate.guid] and not boostClaimed[candidate.guid]
+                        and candidate.guid~=boostSource[source.guid]
+                        and not manaPowered[candidate.guid]
+                        and #links[candidate.guid]==0
+                        and targetData~=nil
+                        and (targetData.cardType=="Starting" or targetData.cardType=="Advanced Action"
+                            or targetData.cardType=="Spell" or targetData.cardType=="Artifact")
+                        and candidate.getGMNotes()~="Wound"
+                        and candidate.getGMNotes()~="Quest"
+                        and canPayDiscard(candidate)
+                end,"discard")
+                if target==nil then break end
                 discarded[target.guid]=source.guid
-                hasDiscard[source.guid]=true
-                linkedCardBySource[source.guid]=target.guid
+                if paid==0 then linkedCardBySource[source.guid]=target.guid end
+                paid=paid+1
                 connect(source,target)
             end
+            hasDiscard[source.guid]=paid==need
         end
     end
     -- Stout Resolve can take multiple discard payments. Only deliberately
@@ -6420,6 +6460,10 @@ local function renderSeat(seatPos,quietUnitChoice)
             isStrong=repeatByTarget[card.guid].powered
         end
         local linkedChoices=linkedColorChoices(rule,linkedCardBySource[card.guid],isStrong)
+        local repeatedColor=repeatByTarget[card.guid]
+        if repeatedColor~=nil and repeatedColor.options~=nil then
+            linkedChoices=repeatedColor.options[1]
+        end
         if rule~=nil and rule.effectManaChoice~=nil then
             linkedChoices=paidManaChoices(card.guid,rule,isStrong,boostBy[card.guid])
         end
