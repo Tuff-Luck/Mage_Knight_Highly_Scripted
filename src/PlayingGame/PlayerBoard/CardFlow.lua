@@ -1311,6 +1311,32 @@ function steadyTempoUpdateRewardGate(seatPos)
 end
 
 local STEADY_TEMPO_BUTTON_SUFFIXES={"steadyTempoDiscard","steadyTempoBot","steadyTempoTop"}
+
+local function steadyTempoPoweredForPlacement(card,seatPos)
+	local snapshot=gStates.steadyTempoCleanupPower
+	if snapshot~=nil and snapshot[card.guid]~=nil then return snapshot[card.guid] end
+	return resourceCardsSteadyTempoPowered~=nil
+		and resourceCardsSteadyTempoPowered(seatPos,card.guid)==true
+end
+
+-- Store the played side before end-turn cleanup removes spent mana. The
+-- unresolved choice remains authoritative through save/load at Rewards Claimed.
+function steadyTempoFreezePowerForSeat(seatPos)
+	if gStates.steadyTempoPending==nil or seatPos==nil then return end
+	gStates.steadyTempoCleanupPower=gStates.steadyTempoCleanupPower or {}
+	local changed=false
+	for guid,pendingSeat in pairs(gStates.steadyTempoPending) do
+		if pendingSeat==seatPos then
+			local card=getObjectFromGUID(guid)
+			if card~=nil then
+				gStates.steadyTempoCleanupPower[guid]=steadyTempoPoweredForPlacement(card,seatPos)
+				changed=true
+			end
+		end
+	end
+	if changed then steadyTempoRefreshAll() end
+end
+
 function steadyTempoRemoveButtons(card)
 	if card~=nil then objectUIRemoveSuffixes(card,STEADY_TEMPO_BUTTON_SUFFIXES) end
 end
@@ -1335,9 +1361,13 @@ local function steadyTempoAddButtons(card, playerIndex)
 	if cardEffectIsVertical(card)==false then steadyTempoRemoveButtons(card) return end
 	local xml=objectUIWithoutSuffixes(card,STEADY_TEMPO_BUTTON_SUFFIXES)
 	xml[#xml+1]=createClaimButton(card.guid, "steadyTempoDiscard")
-	--The printed basic effect only permits the bottom option while the Deed deck is not empty.
-	if steadyTempoHasDeedPile(playerIndex)==true then xml[#xml+1]=createClaimButton(card.guid, "steadyTempoBot") end
-	xml[#xml+1]=createClaimButton(card.guid, "steadyTempoTop")
+	local powered=steadyTempoPoweredForPlacement(card,turnOrder[playerIndex].seatPos)
+	-- Basic: bottom of a non-empty Deed deck. Strong: top of the Deed deck.
+	if powered then
+		xml[#xml+1]=createClaimButton(card.guid, "steadyTempoTop")
+	elseif steadyTempoHasDeedPile(playerIndex)==true then
+		xml[#xml+1]=createClaimButton(card.guid, "steadyTempoBot")
+	end
 	card.UI.setXmlTable(xml)
 end
 
@@ -1355,6 +1385,9 @@ end
 function steadyTempoClearPending(cardGUID)
 	local seatPos=gStates.steadyTempoPending~=nil and gStates.steadyTempoPending[cardGUID] or nil
 	if gStates.steadyTempoPending~=nil then gStates.steadyTempoPending[cardGUID]=nil end
+	if gStates.steadyTempoCleanupPower~=nil then
+		gStates.steadyTempoCleanupPower[cardGUID]=nil
+	end
 	local card=getObjectFromGUID(cardGUID)
 	if card~=nil then steadyTempoRemoveButtons(card) end
 	if seatPos~=nil then steadyTempoUpdateRewardGate(seatPos) end
@@ -1405,7 +1438,13 @@ function steadyTempoChoice(player, mouseButton, id)
 	if playerIndex==nil or card==nil or cardEffectIsVertical(card)==false
 		or legalPlayerCheck(player.color, seatPos)~=true then return end
 	local choice=id:sub(7)
-	if choice=="steadyTempoBot" and steadyTempoHasDeedPile(playerIndex)==false then steadyTempoAddButtons(card, playerIndex) return end
+	local powered=steadyTempoPoweredForPlacement(card,seatPos)
+	if (choice=="steadyTempoBot" and (powered or not steadyTempoHasDeedPile(playerIndex)))
+		or (choice=="steadyTempoTop" and not powered)
+		or (choice~="steadyTempoDiscard" and choice~="steadyTempoBot" and choice~="steadyTempoTop") then
+		steadyTempoAddButtons(card,playerIndex)
+		return
+	end
 	--Remove the controls immediately, but keep the pending flag until the card physically reaches its destination.
 	--Rewards Claimed therefore cannot race a Top insertion and draw the old top card first.
 	steadyTempoRemoveButtons(card)
