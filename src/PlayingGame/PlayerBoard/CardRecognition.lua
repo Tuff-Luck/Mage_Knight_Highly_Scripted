@@ -2107,10 +2107,10 @@ combatConfig.effectButtonInfo=function(entry,applied)
         local after=math.max(1,raw-total)
         local printed=fortifiedWhenCast and armourFortified or armour
         amount="-"..tostring(math.max(printed,appliedReduction))
+        description="Armour reduction "..amount
         if spec.armourBeforeFortificationRemoval==true then
             description=description.." (Earthquake before fortification removal)"
         end
-        description="Armour reduction "..amount
         if appliedReduction==0 then
             reason=applied.fireResistant and "Fire Resistance ignores this red Spell effect."
                 or (applied.iceResistant and "Ice Resistance ignores this blue Spell effect.")
