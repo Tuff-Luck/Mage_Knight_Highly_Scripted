@@ -9900,21 +9900,65 @@ function resourceCardsReadySourceValid(sourceKey,seatPos)
         return choice~=nil and choice.key=="ready"
     end
     local data=gameCards[guid]
-    if data==nil or data.resourceKey~="rejuvenate" then return false end
+    if data==nil or (data.resourceKey~="rejuvenate"
+        and data.resourceKey~="ruthlessCoercion") then return false end
     local card=getObjectFromGUID(guid)
     if card==nil or card.is_face_down or cardPosture(card)~="upright" then return false end
-    if seatPos~=nil then
-        local zone=getObjectFromGUID(playerPlayAreas[seatPos])
-        local found=false
-        for _,obj in ipairs(zone~=nil and zone.getObjects() or {}) do
-            if obj.guid==guid then found=true break end
-        end
-        if not found then return false end
+    local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    seatPos=seatPos or (current~=nil and current.seatPos)
+    if seatPos==nil or not cardInSeatPlayArea(guid,seatPos) then return false end
+    local scan=resourceCardScanBySeat[seatPos]
+    local record=scan~=nil and scan.cards[guid] or nil
+    if record==nil or record.complete~=true then return false end
+    if data.resourceKey=="ruthlessCoercion" then
+        return record.powered==true
+            and sourceKey:match("^"..guid.."#ready%d+$")~=nil
     end
     local choice=selectedResourceByGUID[guid]
     return (choice~=nil and choice.effect=="ready")
         or (choice==nil and gStates.unitReadyCardChoices~=nil
             and gStates.unitReadyCardChoices[guid]==true)
+end
+
+-- Used both when a new Ready link is made and when changing card sides
+-- invalidates a previously valid target.
+function resourceCardsReadySourceLevelLimit(sourceKey,seatPos)
+    local guid=type(sourceKey)=="string" and unitHistorySourceBase(sourceKey) or nil
+    local data=guid~=nil and gameCards[guid] or nil
+    local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+    if rule==nil then return nil end
+    local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    seatPos=seatPos or (current~=nil and current.seatPos)
+    local scan=seatPos~=nil and resourceCardScanBySeat[seatPos] or nil
+    local record=scan~=nil and scan.cards[guid] or nil
+    if rule.unitReadyLevels~=nil then
+        return record~=nil and record.powered and rule.unitReadyLevels.powered
+            or rule.unitReadyLevels.normal
+    end
+    return rule.readyWithInfluence~=nil and rule.readyWithInfluence.maxLevel or nil
+end
+
+function resourceCardsReadyTargetEligible(sourceKey,unitGUID,seatPos)
+    local guid=type(sourceKey)=="string" and unitHistorySourceBase(sourceKey) or nil
+    local data=guid~=nil and gameCards[guid] or nil
+    local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+    if rule==nil or rule.readyWithInfluence==nil then return true end
+    if not resourceCardsReadySourceValid(sourceKey,seatPos) then return false end
+    local unitData=gameCards[unitGUID]
+    local level=unitData~=nil and tonumber(unitData.level) or nil
+    if level==nil or level<1 or level>rule.readyWithInfluence.maxLevel then return false end
+    local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    seatPos=seatPos or (current~=nil and current.seatPos)
+    local scan=seatPos~=nil and resourceCardScanBySeat[seatPos] or nil
+    if scan==nil then return false end
+    local cost=level*rule.readyWithInfluence.costPerLevel
+    -- The scan already subtracts every existing Ready payment. A retargeted
+    -- existing link can reuse its previous payment instead of paying twice.
+    local link=gStates.unitReadyLinks~=nil and gStates.unitReadyLinks[sourceKey] or nil
+    local old=link~=nil and gameCards[link.unitGUID] or nil
+    local credit=old~=nil and (tonumber(old.level) or 0)
+        *rule.readyWithInfluence.costPerLevel or 0
+    return (tonumber(scan.totals.influence) or 0)+credit>=cost
 end
 
 function attackAssignmentReadySourceClicked(player,value,id)
@@ -9926,7 +9970,8 @@ function attackAssignmentReadySourceClicked(player,value,id)
     if suffix~="" and useIndex==nil then return end
     local sourceKey=unitHistoryKey(guid,useIndex or 1)
     if not resourceCardsReadySourceValid(sourceKey) then return end
-    local limit=unitResourceDefinitions[guid]~=nil and 2 or nil
+    local limit=unitResourceDefinitions[guid]~=nil and 2
+        or resourceCardsReadySourceLevelLimit(sourceKey) 
     attackAssignmentsBeginUnitReady(guid,sourceKey,player.color,limit)
 end
 
