@@ -91,6 +91,43 @@ unitHistoryMarkReady("u1","card")
 token.position.y=1
 unitHistoryCancelReadySource("card")
 eq(token.moved,true,"unconsumed Ready undo restores spent token physically")
+-- Moving/Healing uses don't spend a Unit's one combat activation per turn.
+-- The first selected combat use wins, and edits to an earlier use recalculate
+-- eligibility without discarding later choices.
+local abilities={
+    {key="move",move=2},{key="attack",attack=3},
+    {key="healing",healing=2},{key="other",enemyEffect={noAttack=true}},
+    {key="other",boostOtherUnits=true}
+}
+local firstChoice={seatPos=1,tokenGUID="cmd",choice=1}
+local secondChoice={seatPos=1,tokenGUID="cmd",choice=2}
+local function chosen(use) return {index=use.choice} end
+unitHistoryReset()
+unitHistoryEnsure("u1",firstChoice)
+unitHistoryAppend("u1",secondChoice,"card")
+eq(unitHistoryCombatConflict("u1",2,abilities,chosen),false,
+    "Move then combat is allowed")
+firstChoice.choice=2
+eq(unitHistoryCombatConflict("u1",2,abilities,chosen),true,
+    "second combat use blocked for the turn")
+firstChoice.choice=3
+eq(unitHistoryCombatConflict("u1",2,abilities,chosen),false,
+    "editing the first use to Heal permits later combat")
+firstChoice.choice=4
+eq(unitHistoryCombatConflict("u1",2,abilities,chosen),true,
+    "targeted combat effects also spend the combat use")
+firstChoice.choice=5
+eq(unitHistoryCombatConflict("u1",2,abilities,chosen),true,
+    "passive combat bonuses also spend the combat use")
+firstChoice.choice=1
+eq(unitHistoryIsCombatAbility(abilities[1]),false,"Move is noncombat")
+eq(unitHistoryIsCombatAbility(abilities[3]),false,"Heal is noncombat")
+eq(unitHistoryDecisionHasCombat(abilities,{index=2}),true,"Attack is combat")
+local multi={multi=true,abilities[2],abilities[4]}
+eq(unitHistoryDecisionHasCombat(multi,{selected={[1]=true,[2]=true}}),true,
+    "multiple effects from one activation count as combat")
+eq(unitHistoryDecisionHasCombat(multi,{selected={}}),false,
+    "undecided multi ability is not a combat use")
 unitHistoryReset()
 eq(next(gStates.unitActivationHistory),nil,"turn reset clears history")
 eq(next(gStates.unitReadyLinks),nil,"turn reset clears ready links")
