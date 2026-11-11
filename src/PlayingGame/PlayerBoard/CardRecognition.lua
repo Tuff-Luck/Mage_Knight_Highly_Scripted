@@ -362,11 +362,13 @@ local function combatAssignmentSources(seat)
                 local slot=part or ""
                 local source=parts[slot]
                 if source==nil then
-                    local cardData=gameCards[guid]
+                    local physicalGUID=record.sourceObjectGUID or guid
+                    local cardData=gameCards[physicalGUID]
                     local sourceName=cardData~=nil and cardData.name or nil
                     if type(sourceName)=="table" then sourceName=sourceName[1] end
-                    source={guid=guid,key=part~=nil and (guid.."#"..part) or guid,part=part,
-                        name=tostring(sourceName or record.kind or "Resource"),
+                    source={guid=physicalGUID,key=part~=nil and (guid.."#"..part) or guid,part=part,
+                        name=tostring(sourceName or record.kind or "Resource")
+                            ..(record.activationIndex~=nil and (" ("..record.activationIndex..")") or ""),
                         ranged=0,siege=0,block=0,attack=0,move=0,
                         psychicInfluence=0,psychicInfluenceCounts=false,details={},
                         resources=record.splitTargets~=nil and {} or effective,
@@ -825,6 +827,7 @@ end
 function resourceCardsUnitTargetRequiresUnfortified(sourceKey)
     if type(sourceKey)~="string" then return false end
     local guid,index=sourceKey:match("^([^#]+)#effect(%d+)$")
+    if guid==nil then guid,index=sourceKey:match("^([^#]+)#use%d+#effect(%d+)$") end
     local abilities=guid~=nil and unitResourceDefinitions~=nil
         and unitResourceDefinitions[guid] or nil
     local ability=abilities~=nil and abilities[tonumber(index)] or nil
@@ -4488,8 +4491,10 @@ end
 
 -- Effects without numeric combat resources need their own source keys (one per paid ability).
 -- Resource-producing abilities use the Unit GUID itself, matching the Combat Calculator.
-local function unitAbilityTargetKey(unitGUID,index,ability)
-    return unitAbilityTargetCategory(ability)~=nil and unitGUID or (unitGUID.."#effect"..index)
+local function unitAbilityTargetKey(unitGUID,index,ability,useIndex)
+    local key=unitHistoryKey(unitGUID,useIndex or 1)
+    return unitAbilityTargetCategory(ability)~=nil and key
+        or (key.."#effect"..index)
 end
 
 -- The printed normal and powered effects share one choice for each physical
@@ -4763,6 +4768,8 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     local rule=cardData~=nil and cardResourceDefinitions[cardData.resourceKey]
         or skillResourceDefinitions[card.guid]
     local function targetResourceFor(choice,category)
+        if category=="ready" and cardData~=nil
+            and cardData.resourceKey=="rejuvenate" then return "unitReady" end
         if rule~=nil and rule.blockSourceBoost~=nil then return "blockSource" end
         -- Mana Overload's choices select which linked CARD resource is boosted;
         -- the Skill itself is not an independently targetable Attack/Block.
@@ -5126,9 +5133,11 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                         id="AttackAssignmentSource_"..card.guid.."_0_"
                             ..(row.index<0 and ("rep"..(-row.index)..":") or "")..entry.targetResource
                             ..(part and ("@"..part) or ""),
-                        onClick=entry.targetResource=="blockSource"
-                            and "global/resourceCardsBlockSourceLinkClicked"
-                            or "global/attackAssignmentSourceClicked",
+                        onClick=entry.targetResource=="unitReady"
+                            and "global/attackAssignmentReadySourceClicked"
+                            or (entry.targetResource=="blockSource"
+                                and "global/resourceCardsBlockSourceLinkClicked"
+                                or "global/attackAssignmentSourceClicked"),
                         position=tostring(partX).." "..tostring(buttonY).." "..buttonDepth,
                         rotation=uiRotation,width=90,height=90,scale=buttonScale,
                         colors="#454D5D|#69798E|#444C63|#454D5D",textColor="#FFFFFF",textAlignment="MiddleCenter"
@@ -5299,27 +5308,36 @@ end
 -- its Command token. Expand vertically in printed ability order.
 -- Alternatives sharing a printed row occupy adjacent columns to the right.
 -- This is intentionally independent of translated text position.
-local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decision)
+local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decision,useIndex)
+    useIndex=useIndex or unitHistorySelectedNumber(unit.guid)
     if unit==nil then return end
     if not unwounded or activation==nil or abilities==nil or #abilities==0 then
         removeChoiceButtons(unit)
         choiceExpandedByGUID[unit.guid]=nil
         return
     end
-    local decision=decision or unitManaDecision(unit,abilities,activation)
+    local decision=decision or unitManaDecision(unit,abilities,activation,
+        activation.frozenCounts)
     local available=decision.display
     local targetSpecs={}
-    if combatCalcOn then
+    if combatCalcOn or true then
         local function addTarget(index)
             local ability=abilities[index]
             if ability==nil then return end
+            if ability.key=="ready" then
+                targetSpecs[#targetSpecs+1]={index=index,category="unitReady",
+                    idCategory="unitReady"..(useIndex>1 and ("@use"..useIndex) or ""),
+                    ready=true}
+                return
+            end
             local category=unitAbilityTargetCategory(ability)
             if category~=nil then
                 targetSpecs[#targetSpecs+1]={index=index,category=category,
-                    idCategory=category}
-            elseif ability.enemyEffect~=nil or ability.targetableEnemy==true then
+                    idCategory=category..(useIndex>1 and ("@use"..useIndex) or "")}
+            elseif combatCalcOn and (ability.enemyEffect~=nil or ability.targetableEnemy==true) then
                 targetSpecs[#targetSpecs+1]={index=index,category="effect",
-                    idCategory="effect@effect"..index}
+                    idCategory="effect@"..(useIndex>1 and ("use"..useIndex.."#") or "")
+                        .."effect"..index}
             end
         end
         if abilities.multi==true then
@@ -5353,6 +5371,7 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decisi
     end
     local signature="Unit:"..tostring(selected)..":"..tostring(expanded)
         ..":"..table.concat(available,",")..":"..table.concat(selectedKeys,",")
+        ..":use="..tostring(useIndex)
         ..":targets="..table.concat(targetLabels,",")
     local xml=resourceObjectUiXmlTable(unit.UI)
     if choiceButtonShown[unit.guid]==signature then
@@ -5469,7 +5488,8 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decisi
             end
             xml[#xml+1]={tag="Button",attributes={
                 id="AttackAssignmentSource_"..unit.guid.."_0_"..spec.idCategory,
-                onClick="global/attackAssignmentSourceClicked",
+                onClick=spec.ready and "global/attackAssignmentReadySourceClicked"
+                    or "global/attackAssignmentSourceClicked",
                 position=tostring(x).." "..tostring(y).." -35",
                 rotation="0 0 180",width=90,height=90,scale="0.22 0.22",
                 colors="#454D5D|#69798E|#444C63|#454D5D",textColor="#FFFFFF",
