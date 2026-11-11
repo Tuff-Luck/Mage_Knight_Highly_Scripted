@@ -6987,6 +6987,13 @@ local function calculateSkill(skill,linkedTarget,unitState,inventoryCrystalCount
         resources=effects,choices=choices}
 end
 
+-- Stable modifier instances prevent false movement redraws on every scan.
+combatConfig.druidicTerrainEffects={}
+for _,terrain in ipairs({"plains","hills","forest","wasteland","desert",
+    "swamp","lake","mountain","city"}) do
+    combatConfig.druidicTerrainEffects[terrain]={
+        mode="reduce",terrains={[terrain]=true},amount=1,minimum=2}
+end
 combatConfig.terrainEffectOrder={set=0,cap=1,reduce=2}
 local function terrainModifierPrecedes(a,b)
     local first,second=combatConfig.terrainEffectOrder[a.mode] or 9,combatConfig.terrainEffectOrder[b.mode] or 9
@@ -7272,6 +7279,25 @@ local function renderSeat(seatPos)
     -- First reserve conversion mana (Polarization), then sideways-skill mana,
     -- so one physical mana never powers two separate interactions.
     table.sort(cards,function(a,b) return a.guid<b.guid end)
+    -- Cards already present when opening a saved/minimized tracker have no
+    -- reliable order; give them one shared ordinal instead of inventing one.
+    -- Subsequent real zone entries are recorded immediately at entry time.
+    gStates.resourceCardPlayOrder=gStates.resourceCardPlayOrder or {}
+    gStates.resourceCardPlaySerial=gStates.resourceCardPlaySerial or 0
+    local missingOrder=false
+    for _,card in ipairs(cards) do
+        if gStates.resourceCardPlayOrder[card.guid]==nil then
+            missingOrder=true break
+        end
+    end
+    if missingOrder then
+        gStates.resourceCardPlaySerial=gStates.resourceCardPlaySerial+1
+        for _,card in ipairs(cards) do
+            if gStates.resourceCardPlayOrder[card.guid]==nil then
+                gStates.resourceCardPlayOrder[card.guid]=gStates.resourceCardPlaySerial
+            end
+        end
+    end
     local manaByObject,manaBySkill,manaByCard=
         resolveManaSkillLinks(skills,manaObjects,cards,footprints,placements)
     local skillLinksByTarget,skillLinksBySkill,sidewaysSkillMana=
@@ -7395,7 +7421,8 @@ local function renderSeat(seatPos)
     local usesCurrentHexHealing=false
     local ignoreSiteFortifications=false
     local terrainModifiers=resourceCardsWeatherTerrainEffects(seatPos)
-    local movementEffects={jumpTwoSpaces=false,ignoreRampagers=false}
+    local movementEffects={jumpTwoSpaces=false,ignoreRampagers=false,
+        singleSpaceDiscount=0}
     local usesSkillLocation=false
     -- This is a reusable declarative overlay. All passives are owned-Skill
     -- effects, whether the physical token is resting at home or being played.
@@ -7861,6 +7888,28 @@ local function renderSeat(seatPos)
                 if effect.ignoreRampagers==true then movementEffects.ignoreRampagers=true end
             end
         end
+        if rule~=nil and result.complete and result.resources~=nil
+            and cardPosture(card)=="upright" and card.is_face_down~=true then
+            if rule.oneSpaceDiscount~=nil and not result.powered then
+                -- Basic Druidic Paths discounts a single entered space per
+                -- route, never every space of one terrain type.
+                movementEffects.singleSpaceDiscount=math.max(
+                    movementEffects.singleSpaceDiscount,rule.oneSpaceDiscount.amount or 1)
+            elseif rule.selectedTerrainDiscount~=nil and result.powered then
+                local selection=gStates.startingCardSelections
+                    and gStates.startingCardSelections[card.guid] or nil
+                local modifier=selection~=nil
+                    and combatConfig.druidicTerrainEffects[selection.terrain] or nil
+                if modifier~=nil then
+                    for _=1,(result.repeatCount or 1) do
+                        terrainModifiers[#terrainModifiers+1]=modifier
+                    end
+                elseif result.status~="purple" then
+                    -- Move 4 is counted but the terrain choice is not guessed.
+                    result.status="yellow"
+                end
+            end
+        end
         -- Demolish removes site fortification independent of enemy Fire Resistance.
         if rule~=nil and rule.ignoreSiteFortification==true
             and result.complete and not result.powered and result.resources~=nil
@@ -7891,6 +7940,46 @@ local function renderSeat(seatPos)
         current[card.guid]=true
         if result.usesTerrainBlock then usesCurrentHexBlock=true end
         setHighlight(card,result.status,result.powered)
+    end
+    -- Wolfhawk's Tirelessness affects only subsequently PLAYED cards, not
+    -- already-played cards or Units. Maximal Effect repeats the bonus but
+    -- each repeated target Action is still only one played card.
+    for _,source in ipairs(cards) do
+        local data=gameCards[source.guid]
+        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+        local modifier=rule~=nil and rule.followingMoveBonus or nil
+        local origin=records[source.guid]
+        if modifier~=nil and origin~=nil and origin.complete==true
+            and origin.resources~=nil and (tonumber(origin.resources.move) or 0)>0
+            and cardPosture(source)=="upright" and source.is_face_down~=true then
+            local order=gStates.resourceCardPlayOrder[source.guid]
+            local candidates={}
+            for _,target in ipairs(cards) do
+                local targetRecord=records[target.guid]
+                local targetOrder=gStates.resourceCardPlayOrder[target.guid]
+                if target.guid~=source.guid and targetOrder~=nil and order~=nil
+                    and targetOrder>order and targetRecord~=nil
+                    and targetRecord.complete==true and targetRecord.resources~=nil
+                    and (tonumber(targetRecord.resources.move) or 0)>0 then
+                    candidates[#candidates+1]=target
+                end
+            end
+            table.sort(candidates,function(a,b)
+                local aa=gStates.resourceCardPlayOrder[a.guid]
+                local bb=gStates.resourceCardPlayOrder[b.guid]
+                return aa==bb and a.guid<b.guid or aa<bb
+            end)
+            local spec=origin.powered and modifier.powered or modifier.normal
+            local count=spec.all and #candidates or math.min(#candidates,spec.count or 1)
+            local extra=(spec.amount or 1)*(origin.repeatCount or 1)
+            for i=1,count do
+                local target=candidates[i]
+                local record=records[target.guid]
+                record.resources.move=record.resources.move+extra
+                record.tirelessnessBonus=(record.tirelessnessBonus or 0)+extra
+                totals.move=(totals.move or 0)+extra
+            end
+        end
     end
     -- Outline an enemy that supplied a printed ability bonus or a Possess
     -- Attack; the enemy record itself does not add those values twice.
@@ -9366,6 +9455,30 @@ local function renderSeat(seatPos)
         end
     end
 
+    -- Ruthless Coercion's stronger effect spends ordinary Influence points
+    -- across independent Ready links. The committed amount is subtracted once
+    -- from the available pool, not from the card's printed Influence 6.
+    local ruthlessReadySpent=0
+    local ruthlessReadyBySource={}
+    for key,link in pairs(gStates.unitReadyLinks or {}) do
+        local owner=key:match("^([0-9a-f]+)#ready%d+$")
+        local record=owner~=nil and records[owner] or nil
+        local data=owner~=nil and gameCards[owner] or nil
+        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+        local unit=link~=nil and gameCards[link.unitGUID] or nil
+        if record~=nil and record.complete and record.powered and rule~=nil
+            and rule.readyWithInfluence~=nil and unit~=nil
+            and (tonumber(unit.level) or 99)<=rule.readyWithInfluence.maxLevel then
+            local cost=(tonumber(unit.level) or 0)*rule.readyWithInfluence.costPerLevel
+            ruthlessReadySpent=ruthlessReadySpent+cost
+            ruthlessReadyBySource[owner]=(ruthlessReadyBySource[owner] or 0)+cost
+        end
+    end
+    for owner,spent in pairs(ruthlessReadyBySource) do
+        if records[owner]~=nil then records[owner].readyInfluenceSpent=spent end
+    end
+    totals.influence=(totals.influence or 0)-ruthlessReadySpent
+
     local previous=bySeat[seatPos] or {}
     local previousScan=resourceCardScanBySeat[seatPos]
     local previousMove=previousScan~=nil and (previousScan.totals.move or 0) or 0
@@ -9391,6 +9504,7 @@ local function renderSeat(seatPos)
     local movementChanged=priorMovement==nil
         or priorMovement.jumpTwoSpaces~=movementEffects.jumpTwoSpaces
         or priorMovement.ignoreRampagers~=movementEffects.ignoreRampagers
+        or (priorMovement.singleSpaceDiscount or 0)~=movementEffects.singleSpaceDiscount
     local previousTransform=previousScan~=nil and previousScan.attackTransforms or nil
     local transformChanged=previousTransform==nil
         or (previousTransform.coldFire==true)~=(attackTransforms.coldFire==true)
@@ -9409,6 +9523,7 @@ local function renderSeat(seatPos)
         attackTransforms=attackTransforms,
         terrainModifiers=terrainModifiers,movementEffects=movementEffects,
         enemyEffects=enemyEffects,fameRepBase=fameRepBase,
+        ruthlessReadySpent=ruthlessReadySpent,
         ignoreSiteFortifications=ignoreSiteFortifications,
         unitState=unitState,preventUnitDamage=preventUnitDamage,
         allUnitResistances=allUnitResistances,heroFirstWoundIgnored=heroFirstWoundIgnored,
@@ -9416,6 +9531,9 @@ local function renderSeat(seatPos)
         usesCurrentHexBlock=usesCurrentHexBlock,
         usesCurrentHexHealing=usesCurrentHexHealing,
         usesSkillLocation=usesSkillLocation}
+    -- This also retracts a saved Ready if its card loses power or the new
+    -- Rejuvenate side can no longer ready that Unit level.
+    unitHistoryValidSources(seatPos)
     refreshCombatEnemyPanel(combatMonsters,true)
     resourceCardsApplyFameRep(seatPos)
     -- Refresh Reputation on every settled Skill scan so flipping Arcane
@@ -10298,6 +10416,14 @@ function resourceCardsZoneEntered(ctx)
     -- Filter irrelevant zones and other players before touching the Unit layout.
     local seat=resourceCardsRelevantZone(ctx)
     if seat==nil then return end
+    if ctx.zoneInfo.kind=="play" and gameCards[ctx.objGUID]~=nil
+        and gStates~=nil then
+        gStates.resourceCardPlayOrder=gStates.resourceCardPlayOrder or {}
+        if gStates.resourceCardPlayOrder[ctx.objGUID]==nil then
+            gStates.resourceCardPlaySerial=(gStates.resourceCardPlaySerial or 0)+1
+            gStates.resourceCardPlayOrder[ctx.objGUID]=gStates.resourceCardPlaySerial
+        end
+    end
     if ctx.obj~=nil and (ctx.zoneInfo.kind=="unit" or ctx.zoneInfo.kind=="play"
         or ctx.zoneInfo.kind=="crystal")
         and (unitLayoutIsWound(ctx.obj) or manaColor(ctx.obj)~=nil) then
