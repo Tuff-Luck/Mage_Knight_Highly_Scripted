@@ -160,6 +160,7 @@ local combatAssignmentSlotSources={}
 -- Effect-only buttons share the resource slots, without adding any Block/Attack.
 combatConfig.effectSources={}
 combatConfig.blockedEnemyCounts={}
+combatConfig.dodgeSplitMode={}
 local combatAssignmentRowTargets={}
 local combatEnemyPage=1
 local combatAssignmentRowIndices={}
@@ -321,6 +322,7 @@ local function combatAssignmentSources(seat)
                         conditionalFireAttack=record.conditionalFireAttack,
                         flameWave=record.flameWave,
                         explosiveBolt=record.explosiveBolt,
+                        dodgeConditional=record.dodgeConditional==true,
                         possessExclude=record.possessEnemyGUID,
                         dueling=guid=="7d1c32"}
                     parts[slot]=source
@@ -3025,6 +3027,20 @@ local function combatAssignmentRefreshRows(entries,sources)
     end
 
     -- Damage is earlier than Attack. Do not invalidate Ranged/Siege kills or
+    -- The player still confirms Wounds received outside calculated Damage.
+    local dodgeWounded=false
+    for _,result in pairs(damageResults) do
+        if (tonumber(result.heroWounds) or 0)>0 then dodgeWounded=true break end
+    end
+    if dodgeWounded then
+        for _,source in ipairs(sources) do
+            if source.dodgeConditional then
+                source.attack=0
+                source.dodgeIneligible=true
+                if source.resources~=nil then source.resources.attack=0 end
+            end
+        end
+    end
     -- Blocks: only suppress remaining Unit attacks after *actual* wounds.
     -- Resisted assignments that cause no Wound leave the Unit eligible.
     local woundedBeforeAttack=combatConfig.unitsWoundedByDamage(damageResults)
@@ -3210,7 +3226,8 @@ local function combatAssignmentRefreshRows(entries,sources)
                     -- Keep invalidated Attack-phase Unit icons visible so players
                     -- can see what was assigned, but make the unavailable value grey
                     -- and explain why it does not count. Earlier Ranged/Block stands.
-                    local wounded=phase=="attack" and woundedBeforeAttack[item.source.guid]==true
+                    local wounded=phase=="attack" and (woundedBeforeAttack[item.source.guid]==true
+                        or item.source.dodgeIneligible==true)
                     lists[phase][#lists[phase]+1]={source=item.source,amount=item.detail.amount,
                         icon=item.detail.icon,text=item.detail.text,typeKey=item.detail.typeKey,
                         reduced=combatEnemyResists(group.entry.data,group.entry.perks,item.detail.typeKey),
@@ -4520,6 +4537,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         end
         if combatPsychicActive and (tonumber(choice.influence) or 0)>0 then return "influence" end
         if combatCumbersomeActive and (tonumber(choice.move) or 0)>0 then return "move" end
+        if rule~=nil and rule.dodgeAttackSplit==true then return nil end
         local spec=combatEffectSpec(rule,powered,category)
         if spec~=nil and not spec.all then return "effect" end
         return choiceHasTargetableCombatResource(category) and category or nil
@@ -5710,6 +5728,9 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
             and chosen.conditionalFireAttack or nil,
         flameWave=complete and powered and rule~=nil and rule.poweredEnemyBonus~=nil,
         explosiveBolt=complete and powered and rule~=nil and rule.defeatArmourReduce or nil,
+        dodgeConditional=complete and rule~=nil and rule.conditionalAttackNoWounds==true
+            and chosen~=nil and choiceCategory(chosen)=="eligible",
+        combatConversion=complete and rule~=nil and rule.combatConversion or nil,
         defeatFameRep=defeatSide,splitTargets=chosen~=nil and chosen.splitTargets or nil,
         repeatBlocks=chosen~=nil and chosen.repeatBlocks or nil,
         swiftDouble=complete and rule~=nil and rule.swiftDouble==true,
@@ -7206,6 +7227,30 @@ local function renderSeat(seatPos,quietUnitChoice)
             local _,category=currentChoice(card.guid,result.powered,choices)
             local spec=combatEffectSpec(rule,result.powered,category)
             if spec~=nil then
+                if rule.dodgeAttackSplit==true then
+                    -- Independent reduction arrows; the later optional Attack
+                    -- retains its normal, independently targetable card source.
+                    local count=result.powered and combatConfig.dodgeSplitMode[card.guid] and 2 or 1
+                    result.enemyEffectTargetKeys={}
+                    result.enemyEffectTargetGUIDs={}
+                    for index=1,count do
+                        local key=card.guid.."#effect"..index
+                        local reduction=result.powered and (count==2 and 2 or 4) or 2
+                        local target=combatEffectChosenEnemy(key,footprints[card.guid],
+                            monsters,combatEffectTargetEligible({attackReduce=reduction}))
+                        result.enemyEffectTargetKeys[#result.enemyEffectTargetKeys+1]=key
+                        if target~=nil then
+                            for _=1,(result.repeatCount or 1) do
+                                combatEffectAdd(enemyEffects,target.guid,card.guid,
+                                    {attackReduce=reduction},key)
+                            end
+                            result.enemyGUID=result.enemyGUID or target.guid
+                            result.enemyEffectTargetGUIDs[key]=target.guid
+                            result.links[#result.links+1]=target.guid
+                            result.status="purple"
+                        end
+                    end
+                else
                 local key=rule.separateEffectTarget and not result.powered
                     and (card.guid.."#effect") or card.guid
                 if spec.multiTargetMove then
@@ -7268,6 +7313,7 @@ local function renderSeat(seatPos,quietUnitChoice)
                         end
                     end
                 end
+                end -- Dodge and Weave separate effect targets
             end
         end
         if rule~=nil and rule.woundBonus~=nil and result.resources~=nil and unitState~=nil then
