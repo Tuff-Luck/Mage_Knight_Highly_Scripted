@@ -4884,7 +4884,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             combatAssignmentActiveSeat(),rule.combatConversion)
         -- The first scan has not stored its new records yet; the card itself
         -- is already a valid source and must receive its controls immediately.
-        conversionValid=true
+        conversionValid=conversion~=nil
     end
     local signature=(posture=="sideways" and "S" or (powered and "P" or "N"))
         ..":"..table.concat(signatureParts,";")..":"..uiRotation..":"..buttonDepth
