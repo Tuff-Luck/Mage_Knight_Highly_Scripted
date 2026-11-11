@@ -1350,7 +1350,7 @@ cardResourceDefinitions={
     -- The conditional Attack is optional; it is only available if no Wounds
     -- were added to the Hero's hand during earlier combat phases. The player
     -- declares eligibility with the second option. Two -2 reductions on the
-    -- powered side still require manual resolution (one -4 is calculated).
+    -- powered side can be targeted separately in the calculator.
     dodgeAndWeave={
         normalChoices={{key="safe",attack=0,icon="attack"},
             {key="eligible",attack=1,icon="attack",iconOverlay="+1"}},
