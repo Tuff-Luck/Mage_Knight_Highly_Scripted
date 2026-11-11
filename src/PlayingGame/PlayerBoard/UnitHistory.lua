@@ -345,8 +345,8 @@ function unitHistoryCancelReadySource(sourceKey)
 end
 
 function unitHistoryValidSources(seat)
+    local changed=false
     for key,link in pairs(gStates~=nil and gStates.unitReadyLinks or {}) do
-        local base=unitHistorySourceBase(key)
         local unitData=gameCards~=nil and gameCards[link.unitGUID] or nil
         local currentLimit=resourceCardsReadySourceLevelLimit~=nil
             and resourceCardsReadySourceLevelLimit(key,seat) or link.limit
@@ -356,9 +356,13 @@ function unitHistoryValidSources(seat)
             and not resourceCardsReadySourceValid(key,seat)) or invalidLevel) then
             local obj=getObjectFromGUID(unitHistorySourceBase(key))
             if obj==nil or (obj.held_by_color==nil
-                and not obj.isSmoothMoving()) then unlinkSource(key) end
+                and not obj.isSmoothMoving()) then
+                unlinkSource(key)
+                changed=true
+            end
         end
     end
+    return changed
 end
 
 function unitHistoryHideControls()
