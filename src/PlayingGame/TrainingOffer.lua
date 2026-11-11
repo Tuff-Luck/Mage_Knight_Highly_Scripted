@@ -228,7 +228,10 @@ local function trainingValid(seatPos)
     local card=getObjectFromGUID(TRAINING_GUID)
     if card==nil or seatPos==nil
         or not inZone(TRAINING_GUID,playerPlayAreas[seatPos]) then return false end
-    if card.is_face_down==true then
+    -- A sideways Training is only the generic +1 Action, not its printed
+    -- replacement effect. A face-down copy is valid only when Maximal Effect
+    -- is explicitly repeating that card.
+    if card.is_face_down==true or not cardEffectIsVertical(card) then
         local _,repeats=resourceCardsTrainingMode(seatPos)
         if repeats<2 then return false end
     end
