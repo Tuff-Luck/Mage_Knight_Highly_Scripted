@@ -98,7 +98,11 @@ function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec,sourceKey)
         if iceResistant then entry.iceResistIgnored=true end
         spec={}
     elseif immune then
-        entry.immuneIgnored=true
+        -- Attack manipulation (including one attack losing its abilities)
+        -- still works against Arcane Immunity; do not report it as ignored.
+        if spec.removeOneAttackAbilities~=true and spec.removeAbilities~=true then
+            entry.immuneIgnored=true
+        end
         spec={removeAbilities=spec.removeAbilities,
             removeOneAttackAbilities=spec.removeOneAttackAbilities,
             attackReduce=spec.attackReduce,
