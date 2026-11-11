@@ -2181,13 +2181,11 @@ combatConfig.applyExplosiveBoltRange=function(entries,groups,allocated,sources)
         return nil,key,false
     end
     for _=1,#groups+1 do
-        local newlyDefeated=0
         for _,group in ipairs(groups) do
             if not finished[group] then
                 local dead,fort,assigned=groupRange(group)
                 if dead then
                     finished[group]=true
-                    newlyDefeated=newlyDefeated+1
                     local count=0
                     for _,index in ipairs(group.members) do
                         local enemy=entries[index]
@@ -2228,11 +2226,13 @@ combatConfig.applyExplosiveBoltRange=function(entries,groups,allocated,sources)
                     math.max(0,target.baseArmour-1)) or 0
                 if delta>0 then
                     appliedBySource[source.guid]=already+delta
-                    local other=preview[({(function()
-                        for i,enemy in ipairs(entries) do
-                            if enemy.guid==target.guid then return i end
+                    local other=nil
+                    for i,enemy in ipairs(entries) do
+                        if enemy.guid==target.guid then
+                            other=preview[i]
+                            break
                         end
-                    end)()})[1]]
+                    end
                     -- Update both the real later-Attack Armour and the Ranged
                     -- preview. Defender's Ranged bonus lives on the preview.
                     for _,member in ipairs({target,other}) do
@@ -2250,7 +2250,7 @@ combatConfig.applyExplosiveBoltRange=function(entries,groups,allocated,sources)
                 end
             end
         end
-        if not changed or newlyDefeated==0 and not changed then break end
+        if not changed then break end
     end
     -- Report the earned amount, even if immunity or the Armour floor makes
     -- some of it ineffective. Effects retain a separate target/control.
@@ -2261,11 +2261,14 @@ combatConfig.applyExplosiveBoltRange=function(entries,groups,allocated,sources)
             local applied=appliedBySource[source.guid] or 0
             local immune=combatEnemyHasTrait(target.data,target.perks,"fResist")
                 or combatEnemyHasTrait(target.data,target.perks,"arcaneImmunity")
-            local reason=amount==0 and "No enemy defeated by this Ranged Attack."
-                or rangedVictims[target.guid] and "Target was defeated by a Ranged Attack."
-                or immune and "Fire Resistance or Arcane Immunity prevents this Armour reduction."
-                or target.attackOnly and "This enemy has no Armour."
-                or applied==0 and "Armour is already at its minimum of 1." or nil
+            local reason=nil
+            if applied==0 then
+                reason=amount==0 and "No enemy defeated by this Ranged Attack."
+                    or rangedVictims[target.guid] and "Target was defeated by a Ranged Attack."
+                    or immune and "Fire Resistance or Arcane Immunity prevents this Armour reduction."
+                    or target.attackOnly and "This enemy has no Armour."
+                    or "Armour is already at its minimum of 1."
+            end
             target.explosiveBoltEffects=target.explosiveBoltEffects or {}
             target.explosiveBoltEffects[#target.explosiveBoltEffects+1]={
                 key=key,guid=source.guid,earned=amount,applied=applied,reason=reason}
