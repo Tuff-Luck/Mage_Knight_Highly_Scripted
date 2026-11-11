@@ -7014,7 +7014,7 @@ local function combatEffectChosenEnemy(sourceGUID,area,monsters,eligible)
     return chosen or combatEffectNearestEnemy(area,monsters,footprint,overlapArea,eligible)
 end
 
-local function renderSeat(seatPos,quietUnitChoice)
+local function renderSeat(seatPos)
     if not resourceCardsPanelOpen() then return end
     local active=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if active==nil or active.seatPos~=seatPos then return end
@@ -9317,7 +9317,6 @@ local function renderSeat(seatPos,quietUnitChoice)
     local transformChanged=previousTransform==nil
         or (previousTransform.coldFire==true)~=(attackTransforms.coldFire==true)
         or (previousTransform.siege==true)~=(attackTransforms.siege==true)
-    combatEffectReport(seatPos,enemyEffects,quietUnitChoice)
     local fameTotal,repTotal=0,0
     for _,record in pairs(records) do
         if record.fameRep~=nil then
@@ -9907,7 +9906,7 @@ function resourceUnitsChoiceClicked(player,value,id)
     if attackAssignmentsRefreshReadyUI~=nil then attackAssignmentsRefreshReadyUI() end
     -- A Unit choice still recalculates immediately, but its enemy-effect
     -- notification is silent. Other card/skill updates retain their notices.
-    renderSeat(current.seatPos,true)
+    renderSeat(current.seatPos)
 end
 
 -- Release a temporary offered Unit without touching Command activations.
