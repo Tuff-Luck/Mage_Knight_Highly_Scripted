@@ -193,6 +193,7 @@ end
 -- existing skills and Unit links. Later combat resources use stable #useN keys.
 function unitHistoryAppend(guid,activation,sourceKey)
     local group=groupOf(guid,true)
+    if group==nil then return nil end
     local nextIndex=#group.uses+1
     activation.readiedBy=sourceKey
     activation.useIndex=nextIndex
