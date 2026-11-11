@@ -1005,37 +1005,45 @@ function PlayerChosen(player, clickToken, id)
 end
 
 function VolkareLevelSelection(player, mouseButton, id)
-	if mouseButton=="-1" then
-		UI.setAttribute("VolkareLevelSelectionText", "text", translateWord[VOLKARE_COMBAT_SELECTION_BY_ID[id][1]])
-		UI.setAttribute("VolkareLevelSelectionImage", "image", "Sliced Button/Button New Active")
-		UI.setAttribute("DropDown", "active", "false")
-		gStates.volkareCombatLevel=VOLKARE_COMBAT_SELECTION_BY_ID[id][2]
-		--adjust city levels of volkare scenarios
-		local cityAdjust=	{{["Volkare's Return"]={{4,5}, {6,10}, {8,15}, {10,20}}, ["Volkare's Return Blitz"]={{3,4}, {4,8}, {5,12}, {6,16}}, ["Volkare's Quest"]={{3,3,8}, {4,4,14}, {4,4,4,20}, {5,5,5,26}}, ["The War of Four"]={{2,2,4,4,16}, {4,4,6,6,32}, {6,6,8,8,46}, {8,8,10,10,58}}}, --daring
+	local choice=VOLKARE_COMBAT_SELECTION_BY_ID[id]
+	if mouseButton~="-1" or choice==nil or gStates==nil or dropDownIdLink~="VolkareLevelSelection" then return end
+	--Adjust city levels only when this is still a valid Volkare setup selection.
+	local cityAdjust=	{{["Volkare's Return"]={{4,5}, {6,10}, {8,15}, {10,20}}, ["Volkare's Return Blitz"]={{3,4}, {4,8}, {5,12}, {6,16}}, ["Volkare's Quest"]={{3,3,8}, {4,4,14}, {4,4,4,20}, {5,5,5,26}}, ["The War of Four"]={{2,2,4,4,16}, {4,4,6,6,32}, {6,6,8,8,46}, {8,8,10,10,58}}}, --daring
 							{["Volkare's Return"]={{6,8}, {9,16}, {12,24}, {16,32}}, ["Volkare's Return Blitz"]={{4,6}, {6,12}, {8,18}, {10,24}}, ["Volkare's Quest"]={{4,4,10}, {4,4,18}, {5,5,5,26}, {5,5,5,34}}, ["The War of Four"]={{3,3,6,6,18}, {5,5,9,9,36}, {8,8,12,12,52}, {10,10,15,15,66}}}, --Heroic
 							{["Volkare's Return"]={{10,12}, {14,24}, {18,36}, {22,48}}, ["Volkare's Return Blitz"]={{5,8}, {8,16}, {11,24}, {14,32}}, ["Volkare's Quest"]={{4,4,14}, {5,5,26}, {5,5,5,38}, {6,6,6,50}}, ["The War of Four"]={{4,4,8,8,22}, {6,6,12,12,44}, {10,10,16,16,64}, {12,12,20,20,72}}}}--Legendary
 							--Volkare's Return, 							Volkare's Return Blitz, 					Volkare's Quest.
-		for a=1, 4, 1 do
-			for b=1, #cityAdjust[gStates.volkareCombatLevel][gStates.gameScenario][a], 1 do
-				scenarioList[gStates.scenarioRef][a+4].cityLevels[b]=cityAdjust[gStates.volkareCombatLevel][gStates.gameScenario][a][b]
-			end
-		end
-		scenarioInfoUpdate()
-		ToolTipUpdate(dropDownIdLink)
-		dropDownIdLink="none"
+	local scenarioLevels=cityAdjust[choice[2]][gStates.gameScenario]
+	local scenarioRef=scenarioRefForName(gStates.gameScenario)
+	local scenario=scenarioRef~=nil and scenarioList[scenarioRef] or nil
+	if scenarioLevels==nil or scenario==nil then return end
+	--Validate all player-count presets before changing anything.
+	for a=1, 4 do
+		local setup=scenario[a+4]
+		if scenarioLevels[a]==nil or setup==nil or type(setup.cityLevels)~="table" then return end
 	end
+	gStates.volkareCombatLevel=choice[2]
+	for a,levels in ipairs(scenarioLevels) do
+		local cityLevels=scenario[a+4].cityLevels
+		for b,level in ipairs(levels) do cityLevels[b]=level end
+	end
+	UI.setAttribute("VolkareLevelSelectionText", "text", translateWord[choice[1]])
+	UI.setAttribute("VolkareLevelSelectionImage", "image", "Sliced Button/Button New Active")
+	UI.setAttribute("DropDown", "active", "false")
+	scenarioInfoUpdate()
+	ToolTipUpdate(dropDownIdLink)
+	dropDownIdLink="none"
 end
 
 function VolkareRaceSelection(player, mouseButton, id)
-	if mouseButton=="-1" then
-		UI.setAttribute("VolkareRaceSelectionText", "text", translateWord[VOLKARE_RACE_SELECTION_BY_ID[id][1]])
-		UI.setAttribute("VolkareRaceSelectionImage", "image", "Sliced Button/Button New Active")
-		UI.setAttribute("DropDown", "active", "false")
-		gStates.volkareRaceLevel=VOLKARE_RACE_SELECTION_BY_ID[id][2]
-		scenarioInfoUpdate()
-		ToolTipUpdate(dropDownIdLink)
-		dropDownIdLink="none"
-	end
+	local choice=VOLKARE_RACE_SELECTION_BY_ID[id]
+	if mouseButton~="-1" or choice==nil or gStates==nil or dropDownIdLink~="VolkareRaceSelection" then return end
+	UI.setAttribute("VolkareRaceSelectionText", "text", translateWord[choice[1]])
+	UI.setAttribute("VolkareRaceSelectionImage", "image", "Sliced Button/Button New Active")
+	UI.setAttribute("DropDown", "active", "false")
+	gStates.volkareRaceLevel=choice[2]
+	scenarioInfoUpdate()
+	ToolTipUpdate(dropDownIdLink)
+	dropDownIdLink="none"
 end
 
 function apocalypseDragonLevelSelection(player, mouseButton, id)
