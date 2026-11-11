@@ -2286,24 +2286,34 @@ combatConfig.selfWoundingUnitChoices=function(seat,groups)
     local active={}
     for _,group in ipairs(groups or {}) do
         if not group.rangeDefeated and not group.destroyed then
-            for _,source in ipairs(group.sources or {}) do active[source.guid]=true end
+            for _,source in ipairs(group.sources or {}) do
+                active[source.key]=true
+            end
         end
     end
     local scan=seat~=nil and resourceCardScanBySeat[seat] or nil
     local records=scan~=nil and scan.cards or {}
     local activations=gStates~=nil and gStates.unitResourceActivations or {}
-    for guid,activation in pairs(activations) do
+    for guid,currentActivation in pairs(activations) do
         local abilities=unitResourceDefinitions~=nil and unitResourceDefinitions[guid] or nil
-        local ability=abilities~=nil and abilities[activation.choice or 1] or nil
-        local record=records[guid]
-        if activation.seatPos==seat and active[guid] and record~=nil
-            and record.complete==true and ability~=nil and ability.woundsSelf==true then
-            local blocks=false
-            for field,value in pairs(ability) do
-                if type(value)=="number" and type(field)=="string"
-                    and field:sub(1,5)=="block" then blocks=true break end
+        if currentActivation.seatPos==seat and abilities~=nil then
+            for useIndex,activation in ipairs(unitHistoryUses(guid,currentActivation)) do
+                local key=unitHistoryKey(guid,useIndex)
+                local record=records[key]
+                local unit=getObjectFromGUID(guid)
+                local decision=unit~=nil and unitManaDecision(unit,abilities,activation,
+                    activation.frozenCounts or activation.lastCounts) or nil
+                local ability=decision~=nil and abilities[decision.index] or nil
+                if active[key] and record~=nil and record.complete==true
+                    and ability~=nil and ability.woundsSelf==true then
+                    local blocks=false
+                    for field,value in pairs(ability) do
+                        if type(value)=="number" and type(field)=="string"
+                            and field:sub(1,5)=="block" then blocks=true break end
+                    end
+                    if blocks then early[guid]=true else late[guid]=true end
+                end
             end
-            if blocks then early[guid]=true else late[guid]=true end
         end
     end
     return early,late
