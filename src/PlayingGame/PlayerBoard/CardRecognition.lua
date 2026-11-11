@@ -4051,6 +4051,21 @@ local function chosenEffect(guid,powered,choices,sideways)
     return currentChoice(guid,powered,choices,sideways)
 end
 
+-- Every Maximal Effect application may choose independently. The stored choice
+-- is per *use*, not per linked card, and never invents an optional Wound payment.
+local function repeatChoiceFor(guid,powered,choices,index)
+    if choices==nil or #choices==0 then return nil,nil end
+    local stored=selectedResourceByGUID[guid]
+    local key=stored~=nil and stored.repeatChoices~=nil
+        and stored.repeatChoices[index] or nil
+    if choiceAvailable(choices,key) then
+        for _,choice in ipairs(choices) do
+            if choiceCategory(choice)==key then return choice,key end
+        end
+    end
+    return currentChoice(guid,powered,choices)
+end
+
 -- Bonus choices are independent of the card's primary selection. Until the
 -- player chooses a bonus explicitly, it follows the main choice (or the
 -- printed first alternative if the main category is unavailable).
@@ -4233,7 +4248,7 @@ end
 
 -- A single selected icon is centred on the object. Click to expand all
 -- choices; selecting one immediately collapses back to its icon.
-local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySets,resources)
+local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySets,resources,repeatLink)
     if card==nil then return end
     local cardData=gameCards[card.guid]
     local rule=cardData~=nil and cardResourceDefinitions[cardData.resourceKey]
@@ -4310,6 +4325,15 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     -- Multiple-choice cards normally have one row. A declarative inventory
     -- set rule adds one more compact row for each complete set of crystals.
     local rows={{index=0,choices=choices}}
+    if repeatLink~=nil and repeatLink.count>1 and posture=="upright"
+        and (repeatLink.options~=nil or (choices~=nil and #choices>1)) then
+        rows={}
+        for i=1,repeatLink.count do
+            rows[#rows+1]={index=-i,
+                choices=repeatLink.options~=nil and (repeatLink.options[i] or {})
+                    or choices}
+        end
+    end
     if powered and posture=="upright" and inventorySpec~=nil then
         for i=1,(inventorySets or 0) do
             rows[#rows+1]={index=i,choices=inventorySpec.choices}
@@ -4319,7 +4343,9 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     local signatureParts,visibleAssets,assetSeen={}, {}, {}
     for _,row in ipairs(rows) do
         local _,selected
-        if row.index==0 then
+        if row.index<0 then
+            _,selected=repeatChoiceFor(card.guid,powered,row.choices,-row.index)
+        elseif row.index==0 then
             _,selected=currentChoice(card.guid,powered,row.choices,
                 not isSkill and posture=="sideways")
         else
@@ -4359,7 +4385,8 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             return
         end
         row.expanded=#row.entries>1 and ((row.index==0 and (expandedRow==true or expandedRow=="base"))
-            or expandedRow=="set"..tostring(row.index))
+            or (row.index>0 and expandedRow=="set"..tostring(row.index))
+            or (row.index<0 and expandedRow=="rep"..tostring(-row.index)))
         local selectedEntry
         for _,entry in ipairs(row.entries) do
             if entry.category==selected then selectedEntry=entry break end
@@ -4430,7 +4457,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     end
     local assets,blocked=resourceCardsChoiceAssetsFor(card.UI,visibleAssets)
     local multi=#rows>1
-    for _,row in ipairs(rows) do
+    for rowPosition,row in ipairs(rows) do
         local columns,columnByCategory={},{}
         for _,entry in ipairs(row.visible) do
             local column=resourceChoiceColumn(entry.category)
@@ -4439,7 +4466,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                 columnByCategory[column]=#columns
             end
         end
-        local y=isSkill and 0 or (-12-(#rows-1)*15+row.index*30)
+        local y=isSkill and 0 or (-12-(#rows-1)*15+(rowPosition-1)*30)
         -- 0 = printed stronger effect; 1, 2, ... = crystal set bonuses.
         if multi then
             xml[#xml+1]={tag="Text",attributes={
@@ -4447,7 +4474,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                 position="-80 "..tostring(y).." "..buttonDepth,rotation=uiRotation,
                 width=60,height=90,scale="0.25 0.25",fontSize=62,
                 color="#DAE1EA",alignment="MiddleCenter",
-                raycastTarget="false",text=tostring(row.index)}}
+                raycastTarget="false",text=tostring(math.abs(row.index))}}
         end
         local displayed={}
         for _,entry in ipairs(row.visible) do displayed[entry.category]=true end
@@ -4471,7 +4498,8 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             local icon=resourceCardsChoiceIcon(entry.icon)
             if icon~=nil and blocked[icon.name] then icon=nil end
             local buttonId="ResourceCardChoice_"..card.guid.."_"
-                ..(row.index>0 and ("set"..row.index.."_") or "")..category
+                ..(row.index>0 and ("set"..row.index.."_")
+                    or row.index<0 and ("rep"..(-row.index).."_") or "")..category
             if #row.entries>1 then
                 local button={tag="Button",attributes={
                     id=buttonId,onClick="global/resourceCardsChoiceClicked",
@@ -4560,7 +4588,8 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                             outline="#141820",outlineSize="2 -2",raycastTarget="false"}}
                     end
                     xml[#xml+1]={tag="Button",attributes={
-                        id="AttackAssignmentSource_"..card.guid.."_"..tostring(row.index).."_"..entry.targetResource
+                        id="AttackAssignmentSource_"..card.guid.."_0_"
+                            ..(row.index<0 and ("rep"..(-row.index)..":") or "")..entry.targetResource
                             ..(part and ("@"..part) or ""),
                         onClick=entry.targetResource=="blockSource"
                             and "global/resourceCardsBlockSourceLinkClicked"
@@ -5193,6 +5222,33 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
     local canApply=not discardTarget or repeatLink~=nil
     local effects=sideTracked and faceUp and costPaid and canApply
         and applyLinkedResourceBonus(base,linkedBoost) or nil
+    if effects~=nil and repeatLink~=nil then
+        -- Repeated choices are independent. A copied Ritual Attack can use
+        -- differently coloured discarded cards on its separate applications.
+        -- Numeric resources join the SAME composite effect / enemy target.
+        local repeated={}
+        if repeatLink.options~=nil or (choices~=nil and #choices>1) then
+            for index=1,repeatLink.count do
+                local options=repeatLink.options~=nil and repeatLink.options[index] or choices
+                local single=repeatChoiceFor(card.guid,powered,options,index)
+                if single~=nil then
+                    for category,value in pairs(single) do
+                        if totalsKeys[category] and type(value)=="number" then
+                            repeated[category]=(repeated[category] or 0)+value
+                        end
+                    end
+                end
+            end
+        else
+            for category,value in pairs(effects) do
+                repeated[category]=(totalsKeys[category] and type(value)=="number")
+                    and value*repeatLink.count or value
+            end
+        end
+        effects=repeated
+    end
+    -- Stout Resolve's multiple physical payments already represent the *total*
+    -- bonus. Do not multiply those same discarded cards again by Maximal Effect.
     if effects~=nil and discardBonus~=nil and discardBonus>0 then
         local adjusted={}
         for category,value in pairs(effects) do
@@ -5200,16 +5256,6 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
                 and value+discardBonus or value
         end
         effects=adjusted
-    end
-    if effects~=nil and repeatLink~=nil then
-        -- The base may be a cardResourceDefinitions entry. Never modify it:
-        -- each new placement/drop recalculates from the same printed values.
-        local repeated={}
-        for category,value in pairs(effects) do
-            repeated[category]=(totalsKeys[category] and type(value)=="number")
-                and value*repeatLink.count or value
-        end
-        effects=repeated
     end
     -- A card's other unimplemented options do not make its currently selected
     -- *known* resource effect uncertain. Keep the first option as the fast,
@@ -5262,7 +5308,8 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
         repeatBlocks=chosen~=nil and chosen.repeatBlocks or nil,
         links=linked,status=status,resources=effects,
         usesTerrainBlock=usesTerrainBlock and faceUp and costPaid and canApply,
-        repeatCount=repeatLink~=nil and repeatLink.count or nil}
+        repeatCount=repeatLink~=nil and repeatLink.count or nil,
+        repeatLink=repeatLink}
 end
 
 local function overlapArea(a,b)
@@ -6793,7 +6840,8 @@ local function renderSeat(seatPos,quietUnitChoice)
             result.convertedMana=manaLink.converted
         end
         result.choices=choices -- Also authoritative for payment-restricted click validation.
-        showChoiceButtons(card,choices,result.powered,inventorySpec,inventorySets,result.resources)
+        showChoiceButtons(card,choices,result.powered,inventorySpec,inventorySets,result.resources,
+            repeatByTarget[card.guid])
         -- Ordinary Move cards and played Artifacts can both change terrain
         -- costs; amulets grant no numeric Move and work on their Break side.
         if rule~=nil and cardPosture(card)=="upright" and result.resources~=nil
@@ -8489,13 +8537,19 @@ end
 function resourceCardsChoiceClicked(player,value,id)
     if not resourceCardsPanelOpen() or type(id)~="string"
         or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil) then return end
-    local guid,setIndex,category=id:match(
-        "^ResourceCardChoice_([0-9a-f]+)_set(%d+)_([%w]+)$")
+    local guid,repeatIndex,category=id:match(
+        "^ResourceCardChoice_([0-9a-f]+)_rep(%d+)_([%w]+)$")
+    local setIndex=nil
+    if guid==nil then
+        guid,setIndex,category=id:match(
+            "^ResourceCardChoice_([0-9a-f]+)_set(%d+)_([%w]+)$")
+    end
     if guid==nil then
         guid,category=id:match("^ResourceCardChoice_([0-9a-f]+)_([%w]+)$")
     end
     if guid==nil then return end
     setIndex=setIndex~=nil and tonumber(setIndex) or nil
+    repeatIndex=repeatIndex~=nil and tonumber(repeatIndex) or nil
     if not resourceCardsDetailsOpen() then return end
     local card=getObjectFromGUID(guid)
     local data=card~=nil and gameCards[guid] or nil
@@ -8534,6 +8588,11 @@ function resourceCardsChoiceClicked(player,value,id)
         mainChoices=record~=nil and record.choices or nil
     end
     local choices=mainChoices
+    if repeatIndex~=nil then
+        local repeated=record~=nil and record.repeatLink or nil
+        if repeated==nil or repeatIndex<1 or repeatIndex>repeated.count then return end
+        choices=repeated.options~=nil and repeated.options[repeatIndex] or mainChoices
+    end
     local inventorySpec=not sideways and powered and rule~=nil
         and rule.inventorySetChoices or nil
     local inventorySets=inventorySpec~=nil and record~=nil
@@ -8544,16 +8603,21 @@ function resourceCardsChoiceClicked(player,value,id)
     end
     local valid=choiceAvailable(choices,category)
     if not valid then return end
-    local rowId=setIndex~=nil and ("set"..setIndex) or "base"
+    local rowId=repeatIndex~=nil and ("rep"..repeatIndex)
+        or setIndex~=nil and ("set"..setIndex) or "base"
     local currentlyExpanded=choiceExpandedByGUID[guid]
     if currentlyExpanded~=rowId and not (rowId=="base" and currentlyExpanded==true) then
         -- Opening a row never changes the chosen resource.
         choiceExpandedByGUID[guid]=rowId
-        showChoiceButtons(card,mainChoices,powered,inventorySpec,inventorySets)
+        showChoiceButtons(card,mainChoices,powered,inventorySpec,inventorySets,
+            record~=nil and record.resources,record~=nil and record.repeatLink)
         return
     end
     local selected=selectedResourceByGUID[guid] or {}
-    if setIndex~=nil then
+    if repeatIndex~=nil then
+        selected.repeatChoices=selected.repeatChoices or {}
+        selected.repeatChoices[repeatIndex]=category
+    elseif setIndex~=nil then
         selected.inventorySets=selected.inventorySets or {}
         selected.inventorySets[setIndex]=category
     elseif not sideways then
@@ -8567,7 +8631,8 @@ function resourceCardsChoiceClicked(player,value,id)
     end
     selectedResourceByGUID[guid]=selected
     choiceExpandedByGUID[guid]=nil
-    showChoiceButtons(card,mainChoices,powered,inventorySpec,inventorySets)
+    showChoiceButtons(card,mainChoices,powered,inventorySpec,inventorySets,
+        record~=nil and record.resources,record~=nil and record.repeatLink)
     queueSeat(currentSeat.seatPos,nil)
 end
 
