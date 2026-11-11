@@ -1135,9 +1135,12 @@ cardResourceDefinitions={
     peacefulMoment={normal={influence=3},powered={influence=6}}, -- Healing/refresh remains manual
     learning={normal={influence=2},powered={influence=4}}, -- Optional Advanced Action purchase does not change Influence
     bloodRage={
-        normalChoices={{key="attack",attack=2},{key="wound",attack=5}},
-        poweredChoices={{key="attack",attack=4},{key="wound",attack=9}}},
-    -- Wound option is a player-asserted cost; no Wound is created automatically.
+        normalChoices={{key="attack",attack=2},{key="wound",attack=5,
+            tooltip="Take 1 Wound into your hand, then explicitly select W to confirm Attack 5."}},
+        poweredChoices={{key="attack",attack=4},{key="wound",attack=9,
+            tooltip="Take 1 Wound into your hand, then explicitly select W to confirm Attack 9."}},
+        woundConfirmation=true},
+    -- The default never assumes the Wound cost was paid; W explicitly confirms it.
     inNeed={normal={influence=3},powered={influence=5},
         woundBonus={normal=1,powered=2}}, -- Lost Legion: Wounds in hand and on Units
     -- Verified against the Unofficial Mage Knight card wiki (base/expansion).
@@ -1152,7 +1155,8 @@ cardResourceDefinitions={
         poweredChoices={{key="healing",healing=2},{key="draw",draw=2},
             {key="gain"},{key="ready"}}},
     swiftBolt={normalTrackerNeutral=true,powered={ranged=4}},
-    explosiveBolt={normalTrackerNeutral=true,powered={ranged=3}},
+    explosiveBolt={normalTrackerNeutral=true,powered={ranged=3},
+        defeatArmourReduce=1}, -- Each enemy defeated by this Ranged Attack reduces another enemy's Armour by 1 (min 1).
     regeneration={normal={healing=1},powered={healing=2}},
     forceOfNature={normalTrackerNeutral=true,
         poweredChoices={{siege=3},{block=6}}},
@@ -1181,7 +1185,8 @@ cardResourceDefinitions={
         fameRep={normal={rep=-1},powered={rep=-2}}},
     ambush={normal={move=2},powered={move=4},
         combatLink={normal={attack=1,block=2},powered={attack=2,block=4}}}, -- First linked Action Attack/Block
-    counterattack={normal={attack=2},powered={attack=4},partial=true}, -- Plus damage per enemy blocked
+    counterattack={normal={attack=2},powered={attack=4},
+        blockedEnemyAttackBonus={normal=2,powered=3}}, -- Only enemies whose EVERY attack was blocked count
     fireBolt={normalTrackerNeutral=true,powered={rangedFire=3}},
     iceBolt={normalTrackerNeutral=true,powered={rangedIce=3}},
     iceShield={normal={blockIce=3},powered={blockIce=3},
