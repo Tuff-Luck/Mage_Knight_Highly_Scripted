@@ -3,6 +3,10 @@
 -- paid mana snapshot and combat source. The number on the token selects which
 -- use the existing Unit-card buttons edit; it never changes the use count.
 unitHistory=unitHistory or {}
+-- Object-local Y height of the activation number and both arrows.
+-- Native Command tokens show their local underside: a negative Y is above that face.
+-- Move native closer to zero to lower the controls toward the token.
+unitHistory.tokenButtonY={native=-0.12,other=0.27}
 
 local function groupOf(guid,create)
     if gStates==nil or guid==nil then return nil end
@@ -141,7 +145,7 @@ function unitHistoryRefreshToken(guid)
     -- pushing it below the mat. Banner/Bonds bonus Command sources may have
     -- different face orientations, so preserve their previous button layout.
     local native=token.getGMNotes~=nil and token.getGMNotes()=="Command Token"
-    local buttonY=native and -0.27 or 0.27
+    local buttonY=native and unitHistory.tokenButtonY.native or unitHistory.tokenButtonY.other
     local buttonRotation=native and {0,0,180} or {0,0,0}
     local function add(click,label,x,width,font)
         token.createButton({click_function=click,function_owner=Global,
