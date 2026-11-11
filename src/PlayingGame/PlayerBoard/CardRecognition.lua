@@ -5356,7 +5356,8 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                 "Ruthless Coercion: left click to target another Level I-II used, unwounded Unit. Each Ready spends 2 Influence per Unit level. Right click removes the latest Ready and its dependent activation.",
                 readyCount>0,145,-125)
         elseif rule.selectedTerrainDiscount~=nil and powered then
-            startingControl("terrain",special~=nil and special.terrain or "TERRAIN",
+            startingControl("terrain",special~=nil and special.terrain~=nil
+                and special.terrain:sub(1,3):upper() or "TER",
                 "Druidic Paths: choose ONE terrain type to discount by 1 (minimum 2) for the turn. Click to cycle; right click clears.",
                 special~=nil and special.terrain~=nil,150,-125)
         elseif rule.manualSecondary~=nil then
@@ -9455,11 +9456,13 @@ local function renderSeat(seatPos)
         end
     end
 
-    -- Ruthless Coercion's stronger effect spends ordinary Influence points
-    -- across independent Ready links. The committed amount is subtracted once
-    -- from the available pool, not from the card's printed Influence 6.
+    -- Pay for Ready links from the available Influence pool in creation
+    -- order. If a resource source is later undone, retire unaffordable
+    -- links newest-first, along with their dependent Unit activations.
     local ruthlessReadySpent=0
     local ruthlessReadyBySource={}
+    local readyNeedsRescan=false
+    local readyPayments={}
     for key,link in pairs(gStates.unitReadyLinks or {}) do
         local owner=key:match("^([0-9a-f]+)#ready%d+$")
         local record=owner~=nil and records[owner] or nil
@@ -9469,15 +9472,32 @@ local function renderSeat(seatPos)
         if record~=nil and record.complete and record.powered and rule~=nil
             and rule.readyWithInfluence~=nil and unit~=nil
             and (tonumber(unit.level) or 99)<=rule.readyWithInfluence.maxLevel then
-            local cost=(tonumber(unit.level) or 0)*rule.readyWithInfluence.costPerLevel
-            ruthlessReadySpent=ruthlessReadySpent+cost
-            ruthlessReadyBySource[owner]=(ruthlessReadyBySource[owner] or 0)+cost
+            readyPayments[#readyPayments+1]={key=key,owner=owner,
+                cost=(tonumber(unit.level) or 0)*rule.readyWithInfluence.costPerLevel,
+                number=tonumber(key:match("#ready(%d+)$")) or 0}
+        end
+    end
+    table.sort(readyPayments,function(a,b)
+        if a.owner~=b.owner then return a.owner<b.owner end
+        return a.number<b.number
+    end)
+    local availableInfluence=totals.influence or 0
+    for _,payment in ipairs(readyPayments) do
+        if gStates.unitReadyLinks[payment.key]~=nil then
+            if ruthlessReadySpent+payment.cost<=availableInfluence then
+                ruthlessReadySpent=ruthlessReadySpent+payment.cost
+                ruthlessReadyBySource[payment.owner]=
+                    (ruthlessReadyBySource[payment.owner] or 0)+payment.cost
+            else
+                unitHistoryCancelReadySource(payment.key)
+                readyNeedsRescan=true
+            end
         end
     end
     for owner,spent in pairs(ruthlessReadyBySource) do
         if records[owner]~=nil then records[owner].readyInfluenceSpent=spent end
     end
-    totals.influence=(totals.influence or 0)-ruthlessReadySpent
+    totals.influence=availableInfluence-ruthlessReadySpent
 
     local previous=bySeat[seatPos] or {}
     local previousScan=resourceCardScanBySeat[seatPos]
@@ -9533,7 +9553,11 @@ local function renderSeat(seatPos)
         usesSkillLocation=usesSkillLocation}
     -- This also retracts a saved Ready if its card loses power or the new
     -- Rejuvenate side can no longer ready that Unit level.
-    unitHistoryValidSources(seatPos)
+    if unitHistoryValidSources(seatPos) or readyNeedsRescan then
+        -- Links can undo earlier Unit resources; rebuild from the updated
+        -- history rather than showing those stale contributions for one scan.
+        resourceCardsSourceChanged()
+    end
     refreshCombatEnemyPanel(combatMonsters,true)
     resourceCardsApplyFameRep(seatPos)
     -- Refresh Reputation on every settled Skill scan so flipping Arcane
