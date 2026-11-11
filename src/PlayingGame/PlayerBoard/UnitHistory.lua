@@ -293,7 +293,9 @@ function unitHistoryReadyLink(sourceKey,unitGUID,seat,levelLimit)
     local data=gameCards~=nil and gameCards[unitGUID] or nil
     if unit==nil or (levelLimit~=nil and (data==nil or data.level>levelLimit))
         or (resourceCardsReadySourceValid~=nil
-            and not resourceCardsReadySourceValid(sourceKey,seat)) then return false end
+            and not resourceCardsReadySourceValid(sourceKey,seat))
+        or (resourceCardsReadyTargetEligible~=nil
+            and not resourceCardsReadyTargetEligible(sourceKey,unitGUID,seat)) then return false end
     -- A ready effect can be retargeted before it is consumed. Undo its old
     -- dependent activations before linking it to a different Unit.
     unlinkSource(sourceKey)
@@ -344,8 +346,14 @@ end
 
 function unitHistoryValidSources(seat)
     for key,link in pairs(gStates~=nil and gStates.unitReadyLinks or {}) do
-        if link.seatPos==seat and resourceCardsReadySourceValid~=nil
-            and not resourceCardsReadySourceValid(key,seat) then
+        local base=unitHistorySourceBase(key)
+        local unitData=gameCards~=nil and gameCards[link.unitGUID] or nil
+        local currentLimit=resourceCardsReadySourceLevelLimit~=nil
+            and resourceCardsReadySourceLevelLimit(key,seat) or link.limit
+        local invalidLevel=currentLimit~=nil
+            and (unitData==nil or (tonumber(unitData.level) or 99)>currentLimit)
+        if link.seatPos==seat and ((resourceCardsReadySourceValid~=nil
+            and not resourceCardsReadySourceValid(key,seat)) or invalidLevel) then
             local obj=getObjectFromGUID(unitHistorySourceBase(key))
             if obj==nil or (obj.held_by_color==nil
                 and not obj.isSmoothMoving()) then unlinkSource(key) end
