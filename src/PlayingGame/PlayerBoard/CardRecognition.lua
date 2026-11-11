@@ -9575,7 +9575,59 @@ function resourceCardsChoiceClicked(player,value,id)
     choiceExpandedByGUID[guid]=nil
     showChoiceButtons(card,mainChoices,powered,inventorySpec,inventorySets,
         record~=nil and record.resources,record~=nil and record.repeatLink)
+    if data~=nil and data.resourceKey=="rejuvenate" then
+        unitHistoryValidSources(currentSeat.seatPos)
+        if attackAssignmentsRefreshReadyUI~=nil then attackAssignmentsRefreshReadyUI() end
+    end
     queueSeat(currentSeat.seatPos,nil)
+end
+
+-- Rejuvenate and Herbalists own their ready links. A source is valid only
+-- while the exact played choice remains Ready; physical Command movement
+-- alone cannot grant a second use.
+function resourceCardsReadySourceValid(sourceKey,seatPos)
+    if type(sourceKey)~="string" or gStates==nil then return false end
+    local guid=unitHistorySourceBase(sourceKey)
+    local abilities=unitResourceDefinitions[guid]
+    if abilities~=nil then
+        local useIndex=tonumber(sourceKey:match("#use(%d+)$")) or 1
+        local group=gStates.unitActivationHistory and gStates.unitActivationHistory[guid]
+        local activation=group~=nil and group.uses[useIndex] or nil
+        if activation==nil or (seatPos~=nil and activation.seatPos~=seatPos) then return false end
+        local unit=getObjectFromGUID(guid)
+        if unit==nil then return false end
+        local decision=unitManaDecision(unit,abilities,activation,
+            activation.frozenCounts or activation.lastCounts)
+        local choice=decision.index~=nil and abilities[decision.index] or nil
+        return choice~=nil and choice.key=="ready"
+    end
+    local data=gameCards[guid]
+    if data==nil or data.resourceKey~="rejuvenate" then return false end
+    local card=getObjectFromGUID(guid)
+    if card==nil or card.is_face_down or cardPosture(card)~="upright" then return false end
+    if seatPos~=nil then
+        local zone=getObjectFromGUID(playerPlayAreas[seatPos])
+        local found=false
+        for _,obj in ipairs(zone~=nil and zone.getObjects() or {}) do
+            if obj.guid==guid then found=true break end
+        end
+        if not found then return false end
+    end
+    local choice=selectedResourceByGUID[guid]
+    return choice~=nil and choice.effect=="ready"
+end
+
+function attackAssignmentReadySourceClicked(player,value,id)
+    if not resourceCardsPanelOpen() or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil)
+        or type(id)~="string" then return end
+    local guid,suffix=id:match("^AttackAssignmentSource_([0-9a-f]+)_0_unitReady(.*)$")
+    if guid==nil then return end
+    local useIndex=tonumber(suffix:match("^@use(%d+)$"))
+    if suffix~="" and useIndex==nil then return end
+    local sourceKey=unitHistoryKey(guid,useIndex or 1)
+    if not resourceCardsReadySourceValid(sourceKey) then return end
+    local limit=unitResourceDefinitions[guid]~=nil and 2 or nil
+    attackAssignmentsBeginUnitReady(guid,sourceKey,player.color,limit)
 end
 
 -- An activation belongs to the physical Command token that started it.
@@ -9666,19 +9718,26 @@ end
 -- immediately, keeping explicitly targeted effects whose keys stay active.
 -- The next scan then auto-targets newly selected effects just like attacks.
 function resourceUnitsReconcileChoiceTargets(unit,abilities,activation)
+    -- A changed historical choice may retire only THAT use's target. The
+    -- other activations of this same physical Unit keep their own arrows.
     local allowed={}
-    local decision=unitManaDecision(unit,abilities,activation)
-    local function allow(index)
-        local ability=abilities[index]
-        if ability~=nil and (unitAbilityTargetCategory(ability)~=nil
-            or ability.enemyEffect~=nil or ability.targetableEnemy==true) then
-            allowed[unitAbilityTargetKey(unit.guid,index,ability)]=true
+    local current=gStates~=nil and gStates.unitResourceActivations
+        and gStates.unitResourceActivations[unit.guid] or activation
+    for useIndex,entry in ipairs(unitHistoryUses(unit.guid,current)) do
+        local decision=unitManaDecision(unit,abilities,entry,
+            entry.frozenCounts or entry.lastCounts)
+        local function allow(index)
+            local ability=abilities[index]
+            if ability~=nil and (unitAbilityTargetCategory(ability)~=nil
+                or ability.enemyEffect~=nil or ability.targetableEnemy==true) then
+                allowed[unitAbilityTargetKey(unit.guid,index,ability,useIndex)]=true
+            end
         end
-    end
-    if abilities.multi==true then
-        for index in pairs(decision.selected or {}) do allow(index) end
-    elseif decision.index~=nil then
-        allow(decision.index)
+        if abilities.multi==true then
+            for index in pairs(decision.selected or {}) do allow(index) end
+        elseif decision.index~=nil then
+            allow(decision.index)
+        end
     end
     local prefix=unit.guid.."#"
     for key in pairs(combatAssignmentState.targets) do
@@ -9699,8 +9758,9 @@ function resourceUnitsChoiceClicked(player,value,id)
         or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil) then return end
     local unitGUID,index=id:match("^ResourceCardChoice_([0-9a-f]+)_unit(%d+)$")
     index=tonumber(index)
-    local activation=unitGUID~=nil and gStates.unitResourceActivations
+    local latest=unitGUID~=nil and gStates.unitResourceActivations
         and gStates.unitResourceActivations[unitGUID] or nil
+    local activation,useIndex=unitHistorySelected(unitGUID,latest)
     local abilities=unitGUID~=nil and unitResourceDefinitions[unitGUID] or nil
     local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if activation==nil or abilities==nil or current==nil or index==nil
@@ -9713,7 +9773,8 @@ function resourceUnitsChoiceClicked(player,value,id)
     for _,entry in ipairs(state.units) do
         if entry.guid==unitGUID and not entry.unwounded then return end
     end
-    local decision=unitManaDecision(unit,abilities,activation)
+    local decision=unitManaDecision(unit,abilities,activation,
+        activation.frozenCounts)
     local available=false
     for _,candidate in ipairs(decision.display) do
         if candidate==index then available=true break end
@@ -9764,7 +9825,9 @@ function resourceUnitsChoiceClicked(player,value,id)
         choiceExpandedByGUID[unitGUID]=nil
     end
     resourceUnitsReconcileChoiceTargets(unit,abilities,activation)
-    showUnitAbilityButtons(unit,abilities,activation,true)
+    unitHistoryValidSources(current.seatPos)
+    showUnitAbilityButtons(unit,abilities,activation,true,nil,useIndex)
+    if attackAssignmentsRefreshReadyUI~=nil then attackAssignmentsRefreshReadyUI() end
     -- A Unit choice still recalculates immediately, but its enemy-effect
     -- notification is silent. Other card/skill updates retain their notices.
     renderSeat(current.seatPos,true)
