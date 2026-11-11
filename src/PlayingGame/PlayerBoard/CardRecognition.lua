@@ -2661,6 +2661,51 @@ local function combatAssignmentRefreshRows(entries,sources)
                     if not attack.pending then source.duelingEligible=true break end
                 end
             end
+            if source.convertedResource~=nil then
+                -- A right-click adds an arrow to another enemy. Each extra
+                -- arrow spends ONE converted point, never a second full pool.
+                local counts=attackAssignmentsTargetCounts(source.key)
+                local other={}
+                for guid in pairs(counts) do
+                    if guid~=targetGUID and rowByGUID[guid]~=nil then other[#other+1]=guid end
+                end
+                table.sort(other)
+                local remaining=source.convertedAmount
+                for _,guid in ipairs(other) do
+                    local amount=math.min(remaining,counts[guid])
+                    if amount>0 then
+                        local family=source.convertedFamily
+                        local key=source.convertedResource
+                        local detail=source.details[1]
+                        local portion={guid=source.guid,key=source.key,name=source.name,
+                            ranged=family=="ranged" and amount or 0,
+                            siege=family=="siege" and amount or 0,
+                            attack=family=="attack" and amount or 0,
+                            block=family=="block" and amount or 0,move=0,
+                            psychicInfluence=0,resources={[key]=amount},
+                            details={{text=key.." "..amount,amount=amount,
+                                key=key,icon=detail~=nil and detail.icon or "MKChoiceAttack",
+                                family=family,typeKey=detail~=nil and detail.typeKey or "P"}}}
+                        local index=rowByGUID[guid]
+                        local extra=allocated[index]
+                        if extra==nil then
+                            extra={range={},block={},attack={},sources={},details={}}
+                            allocated[index]=extra
+                        end
+                        extra.sources[#extra.sources+1]=portion
+                        extra.details[#extra.details+1]={source=portion,detail=portion.details[1]}
+                        remaining=remaining-amount
+                    end
+                end
+                source[source.convertedFamily]=remaining
+                source.resources[source.convertedResource]=remaining
+                if remaining>0 and source.details[1]~=nil then
+                    source.details[1].amount=remaining
+                    source.details[1].text=source.convertedResource.." "..remaining
+                else
+                    source.details={}
+                end
+            end
             target.sources[#target.sources+1]=source
             for _,detail in ipairs(source.details) do
                 if (detail.family~="move" or explicit)
