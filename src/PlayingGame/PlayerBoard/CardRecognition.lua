@@ -301,8 +301,9 @@ end
 combatConfig.conversionFor=function(seat,kind)
     if seat==nil then return nil,0,false,nil end
     local scan=seat~=nil and resourceCardScanBySeat[seat] or nil
+    local cards=scan~=nil and scan.cards or nil
     local guid=kind=="agility" and "878d92" or "8c3de6"
-    local active=scan~=nil and scan.cards[guid] or nil
+    local active=cards~=nil and cards[guid] or nil
     local valid=active~=nil and active.combatConversion==kind
         and active.resources~=nil
     local state=combatConfig.conversionState[seat]
@@ -316,8 +317,8 @@ combatConfig.conversionFor=function(seat,kind)
         state[kind]=choice
     end
     local available=0
-    if valid then
-        for sourceGUID,record in pairs(scan.cards) do
+    if valid and cards~=nil then
+        for sourceGUID,record in pairs(cards) do
             local field=kind=="agility" and "move" or "influence"
             local amount=math.max(0,tonumber(record.resources~=nil and record.resources[field]) or 0)
             local targetKey=record.splitTargets~=nil and (sourceGUID.."#block") or sourceGUID
@@ -505,13 +506,13 @@ local function combatAssignmentSources(seat)
                     or key:find("Ice$") and "I" or "P"}}}
         sources[#sources+1]=source
     end
-    if agilityOn then
+    if agilityOn and agility~=nil then
         local used=agility.attack+2*agility.ranged
         consumeShared("move",used)
         converted("878d92","convertAttack","attack",agility.attack,agility.attack)
         converted("878d92","convertRanged","ranged",agility.ranged,agility.ranged*2)
     end
-    if diplomacyOn then
+    if diplomacyOn and diplomacy~=nil then
         consumeShared("influence",diplomacy.block)
         local key=not resourceCardScanBySeat[seat].cards["8c3de6"].powered and "block"
             or diplomacy.element=="I" and "blockIce" or "blockFire"
@@ -4985,7 +4986,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             and (":FL:"..tostring(gStates~=nil and gStates.forkedLightningPhase or "range")) or "")
         ..(rule~=nil and rule.dodgeAttackSplit
             and (":DW:"..tostring(combatConfig.dodgeSplitMode[card.guid])) or "")
-        ..(conversionValid and (":CV:"..tostring(conversionBudget)..":"
+        ..(conversionValid and conversion~=nil and (":CV:"..tostring(conversionBudget)..":"
             ..tostring(conversion.attack)..":"..tostring(conversion.ranged)..":"
             ..tostring(conversion.block)..":"..tostring(conversion.element)) or "")
     if choiceButtonShown[card.guid]==signature then return end
@@ -5200,7 +5201,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     -- on Diplomacy (Block). Left click spends; right click returns points.
     -- Converted points remain independently targetable from the printed Move
     -- or Influence resource. No other printed card is duplicated.
-    if conversionValid then
+    if conversionValid and conversion~=nil then
         local agility=rule.combatConversion=="agility"
         local controls=agility and
             {{part="Attack",value=conversion.attack,label="A",x=-145},
@@ -6350,6 +6351,7 @@ local function resolveActionLinks(cards,wounds,footprints,manaPowered,skillLinks
                     -- cycle other costs between applications. This deterministic
                     -- assignment changes with card placement, never duplicates
                     -- a payment, and follows each application's chosen effect.
+                    ---@type integer|nil
                     local useIndex=1
                     if repeated~=nil then
                         if isWound then
@@ -9476,7 +9478,7 @@ function resourceCardsConversionClicked(player,value,id)
     local seat=combatAssignmentActiveSeat()
     local kind=guid=="878d92" and "agility" or "diplomacy"
     local conversion,available,valid,record=combatConfig.conversionFor(seat,kind)
-    if not valid or record==nil then return end
+    if not valid or record==nil or conversion==nil then return end
     if part=="Element" then
         if kind~="diplomacy" or record.powered~=true then return end
         conversion.element=conversion.element=="F" and "I" or "F"
