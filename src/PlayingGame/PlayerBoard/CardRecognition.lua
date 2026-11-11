@@ -4803,6 +4803,15 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     elseif rule~=nil and rule.damageMitigation~=nil then
         choices={{key="hardened",icon="other"}}
     end
+    -- Official starting cards with a separate conditional/manual effect keep
+    -- their own controls even when their Move/Influence value is fixed.
+    if rule~=nil and (rule.interactionReward~=nil or rule.recruitDiscount~=nil
+        or rule.selectedTerrainDiscount~=nil or rule.manualSecondary~=nil)
+        and (choices==nil or #choices==0) and type(resources)=="table" then
+        if (tonumber(resources.move) or 0)>0 then choices={{move=resources.move}}
+        elseif (tonumber(resources.influence) or 0)>0 then
+            choices={{influence=resources.influence}} end
+    end
     -- A fixed effect (no alternatives) still needs a Target button for its combat resource.
     if (choices==nil or #choices==0) and type(resources)=="table" then
         local bestKey,bestRank
@@ -4975,6 +4984,16 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         -- is already a valid source and must receive its controls immediately.
         conversionValid=conversion~=nil
     end
+    local special=gStates~=nil and gStates.startingCardSelections~=nil
+        and gStates.startingCardSelections[card.guid] or nil
+    local readyCount=0
+    if rule~=nil and rule.readyWithInfluence~=nil then
+        for sourceKey in pairs(gStates~=nil and gStates.unitReadyLinks or {}) do
+            if sourceKey:match("^"..card.guid.."#ready%d+$") then
+                readyCount=readyCount+1
+            end
+        end
+    end
     local signature=(posture=="sideways" and "S" or (powered and "P" or "N"))
         ..":"..table.concat(signatureParts,";")..":"..uiRotation..":"..buttonDepth
         ..(combatCalcOn and (combatCumbersomeActive and ":CC" or ":C") or "")
@@ -4988,6 +5007,9 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         ..(conversionValid and conversion~=nil and (":CV:"..tostring(conversionBudget)..":"
             ..tostring(conversion.attack)..":"..tostring(conversion.ranged)..":"
             ..tostring(conversion.block)..":"..tostring(conversion.element)) or "")
+        ..(special~=nil and (":START:"..tostring(special.interaction)..":"
+            ..tostring(special.recruited)..":"..tostring(special.terrain)) or "")
+        ..":READY:"..tostring(readyCount)
     if choiceButtonShown[card.guid]==signature then return end
     local xml=resourceObjectUiXmlTable(card.UI)
     for i=#xml,1,-1 do
@@ -5307,6 +5329,39 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             colors="#454D5D|#69798E|#444C63|#454D5D",
             textColor="#FFFFFF",textAlignment="MiddleCenter"},
             value=phase=="range" and "RNG" or "ATK"}
+    end
+    if rule~=nil and posture=="upright" and card.is_face_down~=true then
+        local function startingControl(suffix,label,tooltip,active,x,y)
+            xml[#xml+1]={tag="Button",attributes={
+                id="ResourceCardChoice_"..card.guid.."_"..suffix,
+                onClick="global/resourceCardsStartingCardControlClicked",
+                position=tostring(x).." "..tostring(y).." "..buttonDepth,
+                rotation=uiRotation,width=160,height=90,scale="0.28 0.28",
+                fontSize=41,textColor="#FFFFFF",textAlignment="MiddleCenter",
+                tooltip=tooltip,
+                colors=active and "#387D30|#4CA940|#387D30|#387D30"
+                    or "#454D5D|#69798E|#444C63|#454D5D"},
+                value=label}
+        end
+        if rule.interactionReward~=nil then
+            startingControl("interaction","INT",
+                "Noble Manners: click only when used during Interaction. Grants end-of-turn Fame +1 (and Reputation +1 if powered). Click again to undo.",
+                special~=nil and special.interaction==true,135,-125)
+        elseif rule.recruitDiscount~=nil and not powered then
+            startingControl("recruit","-2 REC",
+                "Ruthless Coercion: use the optional -2 recruitment discount on ONE Unit. Click when you recruit it: the conditional Reputation -1 applies. Click again to undo.",
+                special~=nil and special.recruited==true,135,-125)
+        elseif rule.readyWithInfluence~=nil and powered then
+            startingControl("ruthlessReady","RDY "..tostring(readyCount),
+                "Ruthless Coercion: left click to target another Level I-II used, unwounded Unit. Each Ready spends 2 Influence per Unit level. Right click removes the latest Ready and its dependent activation.",
+                readyCount>0,145,-125)
+        elseif rule.selectedTerrainDiscount~=nil and powered then
+            startingControl("terrain",special~=nil and special.terrain or "TERRAIN",
+                "Druidic Paths: choose ONE terrain type to discount by 1 (minimum 2) for the turn. Click to cycle; right click clears.",
+                special~=nil and special.terrain~=nil,150,-125)
+        elseif rule.manualSecondary~=nil then
+            startingControl("manual","?",rule.manualSecondary,false,135,-125)
+        end
     end
     if assets~=nil then card.UI.setXmlTable(xml,assets)
     else card.UI.setXmlTable(xml) end
@@ -6077,10 +6132,34 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
     local status=(not known or not sideTracked or posture=="discard"
         or (choiceIsUntracked and costPaid and not scriptedMovement and not scriptedTerrain)) and "blue"
         or not complete and "yellow" or "green"
+    -- The printed crystal gain on Savage Harvesting is deliberately manual.
+    -- Move is still counted, but a green "fully understood" highlight would lie.
+    if rule~=nil and rule.manualSecondary~=nil and status=="green" then
+        status="yellow"
+    end
     -- Linking information is more valuable than the underlying certainty colour.
     if #linked>0 then status="purple" end
     local fameRepSide=rule~=nil and rule.fameRep~=nil and faceUp and costPaid and canApply
         and (powered and rule.fameRep.powered or not powered and rule.fameRep.normal) or nil
+    local extra=rule~=nil and gStates~=nil and gStates.startingCardSelections
+        and gStates.startingCardSelections[card.guid] or nil
+    if extra~=nil and faceUp and costPaid and canApply then
+        local conditional=nil
+        if rule.interactionReward~=nil and extra.interaction==true then
+            conditional=powered and rule.interactionReward.powered
+                or rule.interactionReward.normal
+        elseif rule.recruitDiscount~=nil and not powered and extra.recruited==true then
+            conditional={rep=-(rule.recruitRepPenalty or 0)}
+        end
+        if conditional~=nil then
+            local merged={}
+            for key,value in pairs(fameRepSide or {}) do merged[key]=value end
+            for key,value in pairs(conditional) do
+                merged[key]=(merged[key] or 0)+value
+            end
+            fameRepSide=merged
+        end
+    end
     if fameRepSide~=nil and repeatLink~=nil then
         local multiplied={}
         for key,value in pairs(fameRepSide) do
@@ -9505,6 +9584,69 @@ function resourceCardsDodgeSplitClicked(player,value,id)
         and resourceCardScanBySeat[seat].cards[guid] or nil
     if record==nil or record.powered~=true or record.resources==nil then return end
     combatConfig.dodgeSplitMode[guid]=not combatConfig.dodgeSplitMode[guid]
+    resourceCardsSourceChanged()
+end
+
+-- Explicit decisions for official starting cards that have a secondary effect.
+-- These controls never silently add conditional Fame, Reputation or Move.
+function resourceCardsStartingCardControlClicked(player,value,id)
+    if not resourceCardsPanelOpen() or not resourceCardsDetailsOpen()
+        or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil)
+        or type(id)~="string" then return end
+    local guid,control=id:match("^ResourceCardChoice_([0-9a-f]+)_([%a]+)$")
+    if guid==nil then return end
+    local card=getObjectFromGUID(guid)
+    local data=gameCards[guid]
+    local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+    local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    if current==nil or card==nil or rule==nil or card.is_face_down
+        or cardPosture(card)~="upright"
+        or not cardInSeatPlayArea(guid,current.seatPos) then return end
+    local scan=resourceCardScanBySeat[current.seatPos]
+    local record=scan~=nil and scan.cards[guid] or nil
+    if record==nil or not record.complete or record.resources==nil then return end
+    gStates.startingCardSelections=gStates.startingCardSelections or {}
+    local selected=gStates.startingCardSelections[guid] or {}
+    local right=tostring(value)=="-2"
+    if control=="interaction" and rule.interactionReward~=nil then
+        selected.interaction=not selected.interaction
+    elseif control=="recruit" and rule.recruitDiscount~=nil and not record.powered then
+        selected.recruited=not selected.recruited
+    elseif control=="terrain" and rule.selectedTerrainDiscount~=nil and record.powered then
+        if right then selected.terrain=nil
+        else
+            local terrains={"plains","hills","forest","wasteland","desert",
+                "swamp","lake","mountain","city"}
+            local index=0
+            for i,terrain in ipairs(terrains) do
+                if terrain==selected.terrain then index=i break end
+            end
+            selected.terrain=terrains[index%#terrains+1]
+        end
+    elseif control=="ruthlessReady" and rule.readyWithInfluence~=nil
+        and record.powered then
+        local links=gStates.unitReadyLinks or {}
+        if right then
+            local highest=0
+            for key in pairs(links) do
+                local index=tonumber(key:match("^"..guid.."#ready(%d+)$"))
+                if index~=nil and index>highest then highest=index end
+            end
+            if highest>0 then unitHistoryCancelReadySource(guid.."#ready"..highest) end
+        else
+            -- A new click chooses a fresh independent Ready source; old links
+            -- and their dependent activation history remain intact.
+            if (tonumber(scan.totals.influence) or 0)<2 then return end
+            local index=1
+            while links[guid.."#ready"..index]~=nil do index=index+1 end
+            attackAssignmentsBeginUnitReady(guid,guid.."#ready"..index,player.color,
+                rule.readyWithInfluence.maxLevel)
+        end
+    elseif control=="manual" and rule.manualSecondary~=nil then
+        broadcastToColor(rule.manualSecondary,player.color,{0.9,0.8,0.4})
+        return
+    else return end
+    gStates.startingCardSelections[guid]=selected
     resourceCardsSourceChanged()
 end
 
