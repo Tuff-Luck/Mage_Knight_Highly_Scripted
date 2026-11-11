@@ -5309,8 +5309,8 @@ end
 -- Alternatives sharing a printed row occupy adjacent columns to the right.
 -- This is intentionally independent of translated text position.
 local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decision,useIndex)
-    useIndex=useIndex or unitHistorySelectedNumber(unit.guid)
     if unit==nil then return end
+    useIndex=useIndex or unitHistorySelectedNumber(unit.guid)
     if not unwounded or activation==nil or abilities==nil or #abilities==0 then
         removeChoiceButtons(unit)
         choiceExpandedByGUID[unit.guid]=nil
@@ -5320,7 +5320,7 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decisi
         activation.frozenCounts)
     local available=decision.display
     local targetSpecs={}
-    if combatCalcOn or true then
+    do
         local function addTarget(index)
             local ability=abilities[index]
             if ability==nil then return end
@@ -9773,6 +9773,18 @@ function resourceUnitsReconcileChoiceTargets(unit,abilities,activation)
     attackAssignmentsPruneUnitChoiceSources(unit.guid,allowed)
 end
 
+function resourceUnitsPruneHistoricalTargets(unitGUID)
+    local activation=gStates~=nil and gStates.unitResourceActivations
+        and gStates.unitResourceActivations[unitGUID] or nil
+    local unit=getObjectFromGUID(unitGUID)
+    local abilities=unitResourceDefinitions[unitGUID]
+    if activation~=nil and unit~=nil and abilities~=nil then
+        resourceUnitsReconcileChoiceTargets(unit,abilities,activation)
+    elseif attackAssignmentsPruneUnitChoiceSources~=nil then
+        attackAssignmentsPruneUnitChoiceSources(unitGUID,{})
+    end
+end
+
 function resourceUnitsChoiceClicked(player,value,id)
     if not resourceCardsPanelOpen() or type(id)~="string"
         or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil) then return end
@@ -9905,8 +9917,8 @@ function resourceUnitsRefreshButtons()
             if unit~=nil then
                 local selected,useIndex=unitHistorySelected(unitGUID,activation)
                 showUnitAbilityButtons(unit,unitResourceDefinitions[unitGUID],
-                    selected,conditionByGUID[unitGUID]==true or selected.frozenCounts~=nil,
-                    nil,useIndex)
+                    selected,selected~=nil and (conditionByGUID[unitGUID]==true
+                        or selected.frozenCounts~=nil),nil,useIndex)
             end
         end
     end
