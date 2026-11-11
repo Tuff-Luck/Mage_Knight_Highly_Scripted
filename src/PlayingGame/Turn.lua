@@ -162,6 +162,11 @@ function startOfTurn()
 	gStates.tokenRefillEnabled=true
 	if apocalypseQuestsUsed()==true then gStates.apocalypseQuestScoringChoiceLocked=true end
 	local currentPlayer=turnOrder[gStates.turnNumber]
+    -- A new turn starts a fresh, reversible play sequence for conditional
+    -- starting-card effects. These tables remain in saved games mid-turn.
+    gStates.startingCardSelections={}
+    gStates.resourceCardPlayOrder={}
+    gStates.resourceCardPlaySerial=0
 	if currentPlayer~=nil then
         currentPlayer.puppetMasterUsed=false
         currentPlayer.whoNeedsMagicSourceDieUsed=false
