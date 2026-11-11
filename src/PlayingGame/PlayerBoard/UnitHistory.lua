@@ -136,22 +136,25 @@ function unitHistoryRefreshToken(guid)
     local token=getObjectFromGUID(tokenGUID)
     if token==nil then return end
     clearTokenControls(token)
-    -- Command tokens rest with their model's local underside facing upward.
-    -- Put the controls on that visible face instead of making players flip
-    -- the physical token (which can push it under the player mat).
+    -- Native Command tokens rest with their model's local underside facing
+    -- upward. Put their controls on that face, without flipping the token or
+    -- pushing it below the mat. Banner/Bonds bonus Command sources may have
+    -- different face orientations, so preserve their previous button layout.
+    local native=token.getGMNotes~=nil and token.getGMNotes()=="Command Token"
+    local buttonY=native and -0.27 or 0.27
+    local buttonRotation=native and {0,0,180} or {0,0,0}
     local function add(click,label,x,width,font)
         token.createButton({click_function=click,function_owner=Global,
-            label=label,position={x,-0.27,0},rotation={0,0,180},
+            label=label,position={x,buttonY,0},rotation=buttonRotation,
             width=width,height=190,font_size=font or 155,
             color={0.13,0.15,0.19,0.90},font_color={1,1,1,1},
             tooltip="Select a Unit activation to inspect or edit"})
     end
     add("unitHistoryDisplay",tostring(group.selected),0,190,180)
     if #group.uses>1 then
-        -- The face-up view reverses local X, so swap the local positions to
-        -- keep Previous on the left and Next on the right.
-        add("unitHistoryPrevious","<",0.31,115,140)
-        add("unitHistoryNext",">",-0.31,115,140)
+        -- On native tokens local X is reversed in the upright view.
+        add("unitHistoryPrevious","<",native and 0.31 or -0.31,115,140)
+        add("unitHistoryNext",">",native and -0.31 or 0.31,115,140)
     end
 end
 
