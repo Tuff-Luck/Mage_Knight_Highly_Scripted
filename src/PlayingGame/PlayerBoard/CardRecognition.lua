@@ -9641,9 +9641,18 @@ local function resourceUnitsCancelMovedCommand(tokenGUID,seatPos,targetGUID)
     for unitGUID,activation in pairs(activations) do
         if activation.tokenGUID==tokenGUID and activation.seatPos==seatPos
             and unitGUID~=targetGUID then
-            removeChoiceButtons(getObjectFromGUID(unitGUID))
-            choiceExpandedByGUID[unitGUID]=nil
-            activations[unitGUID]=nil
+            local sourceKey=targetGUID==nil and unitHistoryReadyPermission(unitGUID) or nil
+            if sourceKey~=nil then
+                -- This is a real Ready effect, not an undo. Preserve the
+                -- contribution and wait for the Command token to return.
+                unitHistoryMarkReady(unitGUID,sourceKey)
+            else
+                -- No linked Ready permission: lifting a Command token away
+                -- from its Unit undoes only its latest activation.
+                unitHistoryUndoLatest(unitGUID)
+                removeChoiceButtons(getObjectFromGUID(unitGUID))
+                choiceExpandedByGUID[unitGUID]=nil
+            end
             changed=true
         end
     end
@@ -9698,12 +9707,23 @@ function resourceUnitsCommandDropped(playerColor,obj)
             end
         end
         gStates.unitResourceActivations=gStates.unitResourceActivations or {}
-        gStates.unitResourceActivations[unit.guid]={
-            seatPos=pickup.seatPos,tokenGUID=guid,choice=choice,
-            selected=abilities.multi==true and {} or nil}
+        local previous=gStates.unitResourceActivations[unit.guid]
+        local newActivation={seatPos=pickup.seatPos,tokenGUID=guid,
+            choice=choice,selected=abilities.multi==true and {} or nil}
+        local useIndex=1
+        if previous~=nil then
+            local permission=unitHistoryAwaiting(unit.guid)
+                or unitHistoryReadyPermission(unit.guid)
+            if permission==nil or previous.tokenGUID~=guid then return end
+            useIndex=unitHistoryAppend(unit.guid,newActivation,permission)
+        else
+            gStates.unitResourceActivations[unit.guid]=newActivation
+            unitHistoryEnsure(unit.guid,newActivation)
+            unitHistoryRefreshToken(unit.guid)
+        end
         resourceCardsCombatSelectOneUnit(unit.guid)
         choiceExpandedByGUID[unit.guid]=nil
-        showUnitAbilityButtons(unit,abilities,gStates.unitResourceActivations[unit.guid],true)
+        showUnitAbilityButtons(unit,abilities,newActivation,true,nil,useIndex)
         queueSeat(pickup.seatPos,nil)
     end,function()
         if not resourceCardsPanelOpen() or trackerSession~=serial then return true end
@@ -9861,9 +9881,11 @@ function resourceUnitsResetTurn()
             removeChoiceButtons(getObjectFromGUID(unitGUID))
             choiceExpandedByGUID[unitGUID]=nil
         end
+        unitHistoryReset()
         gStates.unitResourceActivations={}
     end
     commandPickupForUnits={}
+    if attackAssignmentsRefreshReadyUI~=nil then attackAssignmentsRefreshReadyUI() end
 end
 
 -- Unit buttons are part of the tracker and must remain absent while it is off.
@@ -9881,8 +9903,10 @@ function resourceUnitsRefreshButtons()
         if activation.seatPos==current.seatPos then
             local unit=getObjectFromGUID(unitGUID)
             if unit~=nil then
+                local selected,useIndex=unitHistorySelected(unitGUID,activation)
                 showUnitAbilityButtons(unit,unitResourceDefinitions[unitGUID],
-                    activation,conditionByGUID[unitGUID]==true)
+                    selected,conditionByGUID[unitGUID]==true or selected.frozenCounts~=nil,
+                    nil,useIndex)
             end
         end
     end
@@ -9916,9 +9940,11 @@ local function resourceUnitsRebuildFromTable()
             end
             activations[unit.guid]={seatPos=seat,tokenGUID=token.guid,choice=choice,
                 selected=abilities.multi==true and {} or nil}
+            unitHistoryEnsure(unit.guid,activations[unit.guid])
         end
     end
     gStates.unitResourceActivations=activations
+    for guid in pairs(activations) do unitHistoryRefreshToken(guid) end
 end
 
 function resourceCardsPanelChanged(open)
@@ -9934,8 +9960,7 @@ function resourceCardsPanelChanged(open)
         -- Turn the tracker completely off: stop callbacks and remove its visuals.
         combatCalcShutdown()
         clearAll()
-        resourceUnitsResetTurn()
-        selectedResourceByGUID={}
+        unitHistoryHideControls()
         for guid in pairs(choiceResetGenerationByGUID) do
             choiceResetGenerationByGUID[guid]=choiceResetGenerationByGUID[guid]+1
         end
@@ -9963,7 +9988,14 @@ function resourceCardsPanelChanged(open)
     if restart then refreshResourceTrackerReputation() end
     clearAll()
     if invalidateResourceTrackerDisplayCache~=nil then invalidateResourceTrackerDisplayCache() end
-    if restart then resourceUnitsRebuildFromTable() end
+    unitHistoryRestoreCurrent()
+    if restart and next(gStates.unitResourceActivations or {})==nil then
+        resourceUnitsRebuildFromTable()
+    end
+    for guid in pairs(gStates.unitResourceActivations or {}) do
+        unitHistoryRefreshToken(guid)
+    end
+    if attackAssignmentsRefreshReadyUI~=nil then attackAssignmentsRefreshReadyUI() end
     resourceUnitsRefreshButtons()
     local player=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if player==nil then return end
@@ -9990,6 +10022,7 @@ function resourceCardsBeforeTurnHandoff(nextSeat)
     local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if current==nil or current.seatPos==nextSeat then return end
     resourceCardsPanelChanged(false)
+    resourceUnitsResetTurn()
 end
 
 -- The Global UI is shared, but its expanded/collapsed preference belongs to a seat.
