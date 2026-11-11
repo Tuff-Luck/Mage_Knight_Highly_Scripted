@@ -433,6 +433,76 @@ local function combatAssignmentSources(seat)
             end
         end
     end
+    local agility,_,agilityOn=combatConfig.conversionFor(seat,"agility")
+    local diplomacy,_,diplomacyOn=combatConfig.conversionFor(seat,"diplomacy")
+    -- Reserve points already committed to Cumbersome/Psychic; consume only
+    -- the otherwise available pool. Existing sources cannot count twice.
+    local function consumeShared(field,amount)
+        for _,source in ipairs(sources) do
+            if amount<=0 then break end
+            local value=field=="move" and source.move or source.psychicInfluence
+            local committed=combatAssignmentState.explicit[source.key]==true
+                and combatAssignmentState.targets[source.key]~=nil
+            if value~=nil and value>0 and not committed then
+                local consumed=math.min(value,amount)
+                local remaining=value-consumed
+                if field=="move" then source.move=remaining
+                else source.psychicInfluence=remaining end
+                if source.resources~=nil then source.resources[field== "move" and "move" or "influence"]=remaining end
+                for index=#source.details,1,-1 do
+                    local detail=source.details[index]
+                    if detail.key==field then
+                        if remaining==0 then table.remove(source.details,index)
+                        else
+                            detail.amount=remaining
+                            detail.text=(field=="move" and "Move " or "Influence ")..tostring(remaining)
+                                ..(field=="influence" and " → Psychic Block" or "")
+                        end
+                    end
+                end
+                amount=amount-consumed
+            end
+        end
+    end
+    local function converted(guid,part,original,points,resourceCost)
+        if points<=0 then return end
+        local key=resourceCardsTransformedKey(original,transform)
+        local family=key:match("^([a-z]+)") or "attack"
+        if key:sub(1,6)=="ranged" then family="ranged"
+        elseif key:sub(1,5)=="siege" then family="siege"
+        elseif key:sub(1,5)=="block" then family="block"
+        else family="attack" end
+        local label=(guid=="878d92" and "Agility" or "Diplomacy")
+            .." ("..tostring(resourceCost).." points spent)"
+        local icon=family=="ranged" and "MKChoiceRanged"
+            or family=="siege" and "MKChoiceSiege"
+            or family=="block" and "MKChoiceBlock" or "MKChoiceAttack"
+        local source={guid=guid,key=guid.."#"..part,part=part,name=label,
+            ranged=family=="ranged" and points or 0,
+            siege=family=="siege" and points or 0,
+            block=family=="block" and points or 0,
+            attack=family=="attack" and points or 0,
+            move=0,psychicInfluence=0,psychicInfluenceCounts=false,
+            convertedResource=key,convertedFamily=family,convertedAmount=points,
+            resources={[key]=points},
+            details={{text=key.." "..points,amount=points,
+                icon=icon,key=key,family=family,
+                typeKey=key:find("Fire$") and "F"
+                    or key:find("Ice$") and "I" or "P"}}}
+        sources[#sources+1]=source
+    end
+    if agilityOn then
+        local used=agility.attack+2*agility.ranged
+        consumeShared("move",used)
+        converted("878d92","convertAttack","attack",agility.attack,agility.attack)
+        converted("878d92","convertRanged","ranged",agility.ranged,agility.ranged*2)
+    end
+    if diplomacyOn then
+        consumeShared("influence",diplomacy.block)
+        local key=not resourceCardScanBySeat[seat].cards["8c3de6"].powered and "block"
+            or diplomacy.element=="I" and "blockIce" or "blockFire"
+        converted("8c3de6","convertBlock",key,diplomacy.block,diplomacy.block)
+    end
     table.sort(sources,function(a,b)
         if a.name==b.name then return a.key<b.key end
         return a.name<b.name
