@@ -1,6 +1,101 @@
 -- Module-private helpers. Predeclared so forward references keep resolving locally.
 local removeCardRemoveDecal
 
+-- Crystal visual effects belong to play-area membership, not to the physics-settled
+-- path used by positional card/Unit logic. A shallow zone is crossed again when
+-- objects are lifted, so invalidate old timers on every boundary transition.
+local playAreaCrystalAnimation={}
+
+local function playAreaCrystalCancelTimer(state,key)
+    if state[key]~=nil then Wait.stop(state[key]) state[key]=nil end
+end
+
+local function playAreaCrystalInZone(guid)
+    for _,zoneGUID in pairs(playerPlayAreas or {}) do
+        local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
+        if zone~=nil then
+            for _,candidate in ipairs(zone.getObjects()) do
+                if candidate.guid==guid then return true end
+            end
+        end
+    end
+    return false
+end
+
+local function playAreaCrystalBurst(obj,state)
+    if obj==nil or state==nil or state.inPlay~=true then return end
+    local guid=obj.guid
+    state.awaitingDrop=false
+    playAreaCrystalCancelTimer(state,"loopTimer")
+    if obj.AssetBundle~=nil then obj.AssetBundle.playTriggerEffect(0) end
+    local serial=state.serial
+    state.loopTimer=safeWaitTime("PlayerBoard.Events",function()
+        state.loopTimer=nil
+        if playAreaCrystalAnimation[guid]~=state or state.serial~=serial or state.inPlay~=true then return end
+        local live=getObjectFromGUID(guid)
+        if live~=nil and live.AssetBundle~=nil and playAreaCrystalInZone(guid) then
+            live.AssetBundle.playLoopingEffect(1)
+        end
+    end,1)
+end
+
+function playerBoardCrystalEnteredPlayArea(ctx)
+    local obj=ctx~=nil and ctx.obj or nil
+    if not isManaTokenFigurine(obj) then return end
+    local guid=obj.guid
+    local state=playAreaCrystalAnimation[guid]
+    if state==nil then state={serial=0} playAreaCrystalAnimation[guid]=state end
+    if state.inPlay==true then return end
+    state.serial=state.serial+1
+    state.inPlay=true
+    playAreaCrystalCancelTimer(state,"stopTimer")
+    -- Passing through the zone while held is not yet a placement. The
+    -- drop callback will play the burst without waiting for physics to rest.
+    if obj.held_by_color~=nil then state.awaitingDrop=true
+    else playAreaCrystalBurst(obj,state) end
+end
+
+function playerBoardCrystalLeftPlayArea(ctx)
+    local obj=ctx~=nil and ctx.obj or nil
+    if not isManaTokenFigurine(obj) then return end
+    local guid=obj.guid
+    local state=playAreaCrystalAnimation[guid]
+    if state==nil then state={serial=0} playAreaCrystalAnimation[guid]=state end
+    state.serial=state.serial+1
+    state.inPlay=false
+    state.awaitingDrop=false
+    playAreaCrystalCancelTimer(state,"loopTimer")
+    playAreaCrystalCancelTimer(state,"stopTimer")
+    local serial=state.serial
+    state.stopTimer=safeWaitTime("PlayerBoard.Events",function()
+        state.stopTimer=nil
+        if playAreaCrystalAnimation[guid]~=state or state.serial~=serial or state.inPlay==true then return end
+        local live=getObjectFromGUID(guid)
+        if live==nil then playAreaCrystalAnimation[guid]=nil return end
+        if playAreaCrystalInZone(guid) then return end
+        -- Picking up a token is temporary; stop the loop only after it has
+        -- actually been dropped outside the play area.
+        if live.held_by_color~=nil then return end
+        if live.AssetBundle~=nil then live.AssetBundle.playLoopingEffect(0) end
+        playAreaCrystalAnimation[guid]=nil
+    end,0.22)
+end
+
+function playerBoardCrystalDropped(obj)
+    if not isManaTokenFigurine(obj) then return end
+    local state=playAreaCrystalAnimation[obj.guid]
+    if state==nil then return end
+    if state.inPlay==true then
+        if state.awaitingDrop==true and playAreaCrystalInZone(obj.guid) then
+            playAreaCrystalBurst(obj,state)
+        end
+    elseif obj.held_by_color==nil and not playAreaCrystalInZone(obj.guid) then
+        playAreaCrystalCancelTimer(state,"stopTimer")
+        if obj.AssetBundle~=nil then obj.AssetBundle.playLoopingEffect(0) end
+        playAreaCrystalAnimation[obj.guid]=nil
+    end
+end
+
 -- Player-board scripting-zone reactions dispatched by PlayingGame.Events.
 
 --Face-down cards in a player play area get a physical decal instead of Object UI.
@@ -31,9 +126,12 @@ function refreshCardRemoveDecal(card, knownInPlayArea)
 end
 
 function playerBoardPlayAreaZoneEnterImmediate(ctx)
-	if ctx==nil or gStates.turnNumber<=0 then return end
+	if ctx==nil then return end
 	local zoneInfo=ctx.zoneInfo
-	if zoneInfo==nil or zoneInfo.kind~="play" or turnOrderIndexAtSeat(zoneInfo.seatPos)==nil then return end
+	if zoneInfo==nil or zoneInfo.kind~="play" then return end
+	-- Crystal bursts are visual feedback for placement, not a settled-position calculation.
+	playerBoardCrystalEnteredPlayArea(ctx)
+	if gStates.turnNumber<=0 or turnOrderIndexAtSeat(zoneInfo.seatPos)==nil then return end
 	local obj=ctx.obj
 	if obj==nil then return end
 	local seatPos=zoneInfo.seatPos
@@ -155,17 +253,6 @@ function playerBoardZoneEnterSettled(ctx)
 			scheduleUnitLayoutRefresh(zoneInfo.seatPos)
 		end
 
-		--if object is a crystal then alter it's animation.
-		if isManaTokenFigurine(obj) then
-			safeWaitTime("PlayerBoard.Events",function()
-				local live=getObjectFromGUID(objGUID)
-				if live~=nil and live.AssetBundle~=nil then live.AssetBundle.playTriggerEffect(0) end
-			end, 0.1)
-			safeWaitTime("PlayerBoard.Events",function()
-				local live=getObjectFromGUID(objGUID)
-				if live~=nil and live.AssetBundle~=nil then live.AssetBundle.playLoopingEffect(1) end
-			end, 1)
-		end
 	end
 
 	--Unit Area work is event-driven: split accidental two-card Unit decks only when this area changes.
@@ -242,6 +329,7 @@ function playerBoardZoneLeave(ctx)
 	local zoneGUID=ctx.zoneGUID
 	local objGUID=ctx.objGUID
 	local zoneInfo=ctx.zoneInfo
+	if zoneInfo~=nil and zoneInfo.kind=="play" then playerBoardCrystalLeftPlayArea(ctx) end
 	local objType=ctx.objType
 	if obj~=nil and skillTokens[obj.guid]~=nil and (skillTokens[obj.guid].skillType=="Coop" or skillTokens[obj.guid].skillType=="Comp") then
 		for playerIndex, details in pairs(turnOrder) do
@@ -273,10 +361,6 @@ function playerBoardZoneLeave(ctx)
 					end, 1)
 				end
 
-				--if object is a crystal then remove highlight.
-				if isManaTokenFigurine(live) and live.AssetBundle~=nil then
-					live.AssetBundle.playLoopingEffect(0)
-				end
 			end
 		end, 0.22)
 		--Decrement Master of chaos skill
