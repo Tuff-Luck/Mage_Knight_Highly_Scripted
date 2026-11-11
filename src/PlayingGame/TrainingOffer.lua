@@ -70,8 +70,11 @@ local function showControls(state)
     local xml=resourceObjectUiXmlTable(card.UI)
     for i=#xml,1,-1 do
         local attr=xml[i].attributes
-        if attr~=nil and type(attr.id)=="string"
-            and attr.id:sub(1,21)=="TrainingOfferControl_" then
+        -- A loan must not retain its ordinary Offer CLAIM button: it
+        -- bypasses Training's matching-colour cost and claim destination.
+        if attr~=nil and ((type(attr.id)=="string"
+            and attr.id:sub(1,21)=="TrainingOfferControl_")
+            or attr.onClick=="global/processCardClaim") then
             table.remove(xml,i)
         end
     end
@@ -116,7 +119,14 @@ local function returnPreview(state,immediate)
         end
         safeWaitCondition("Offers.Training",function()
             local live=getObjectFromGUID(guid)
-            if live~=nil and inZone(guid,GUID.zone.offer) then live.lock() end
+            if live~=nil and inZone(guid,GUID.zone.offer) then
+                live.lock()
+                -- Restore the ordinary Offer control after the temporary
+                -- Training browser controls have been removed.
+                if gStates.tacticShown==false and gStates.tacticRemove==false then
+                    live.UI.setXmlTable({createClaimButton(guid,"offer")})
+                end
+            end
             returningPreview[guid]=nil
         end,function()
             local live=getObjectFromGUID(guid)
@@ -279,6 +289,7 @@ local function claim(state)
     claims[TRAINING_GUID]=(claims[TRAINING_GUID] or 0)+1
     gStates.trainingOfferClaims=claims
     cleanPreview(gained)
+    gained.UI.setXmlTable({{}})
     -- Replace the original hand card in the owning deed inventory. The new
     -- Advanced Action belongs to this player even on the basic discard side.
     for _,player in ipairs(turnOrder) do
