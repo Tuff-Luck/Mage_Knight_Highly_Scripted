@@ -1122,7 +1122,7 @@ cardResourceDefinitions={
         -- Optional extra Blue mana on the powered card makes lakes cost 0.
         extraTerrainMana={color="Blue",poweredOnly=true,
             effect={mode="set",terrains={lake=true},cost=0}}},
-    agility={normal={move=2},powered={move=4}}, -- Attack conversion remains manual
+    agility={normal={move=2},powered={move=4},combatConversion="agility"},
     steadyTempo={normal={move=2},powered={move=4}}, -- Deed-deck placement does not change Move
     mountainLore={normal={move=3},powered={move=5},
         terrainEffects={powered={{mode="set",terrains={mountain=true},cost=5}}}}, -- Hand-limit bonus remains manual
@@ -1130,7 +1130,7 @@ cardResourceDefinitions={
         normalChoices={{key="heal",move=2,healing=1},{key="combat",move=2}},
         poweredChoices={{key="heal",move=4,healing=2},{key="combat",move=4}}},
     -- H = Move plus Healing, C = combat (Move without Healing).
-    diplomacy={normal={influence=2},powered={influence=4}}, -- Other effects remain manual
+    diplomacy={normal={influence=2},powered={influence=4},combatConversion="diplomacy"},
     heroicTale={normal={influence=3},powered={influence=6}}, -- Other effects remain manual
     peacefulMoment={normal={influence=3},powered={influence=6}}, -- Healing/refresh remains manual
     learning={normal={influence=2},powered={influence=4}}, -- Optional Advanced Action purchase does not change Influence
@@ -1166,7 +1166,7 @@ cardResourceDefinitions={
     chillingStare={
         normalChoices={{influence=3},{other=1}},
         poweredChoices={{influence=5},{other=1}},
-        enemyEffect={normal={choice="other",removeAbilities=true,iceSpell=true},
+        enemyEffect={normal={choice="other",removeOneAttackAbilities=true,iceSpell=true},
             powered={choice="other",noAttack=true,iceSpell=true}}},
     -- One main strong choice plus an independent choice per complete set
     -- of all four basic-colour crystals currently in the player's inventory.
@@ -1357,7 +1357,8 @@ cardResourceDefinitions={
         poweredChoices={{key="safe",attack=0,icon="attack"},
             {key="eligible",attack=2,icon="attack",iconOverlay="+2"}},
         enemyEffect={normal={attackReduce=2},powered={attackReduce=4}},
-        },
+        dodgeAttackSplit=true,conditionalAttackNoWounds=true,
+        separateEffectTargetAllSides=true},
     -- Buffs any activated Unit's printed combat resource (not its Influence,
     -- Move, Heal or resource-independent effects); no Units may receive damage.
     intoTheHeat={normal={other=1},powered={other=1},
