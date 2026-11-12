@@ -173,6 +173,16 @@ local function volkareStopMovement()
 	end
 end
 
+-- Die face labels include " Mana"; offer crystals use bare colour keys.
+-- Gold/Black are legal die faces even when no marked offer slot uses them.
+local function volkareDieColor(value)
+    if type(value)~="string" then return nil end
+    local color=value:match("^([%a]+) Mana$") or value
+    if color=="Red" or color=="Blue" or color=="Green" or color=="White"
+        or color=="Gold" or color=="Black" then return color end
+    return nil
+end
+
 local function volkareWaitForRest(callback,timeout,onTimeout,frames)
 	local function wait() safeWaitCondition("AI.Volkare",callback,volkareModelResting,timeout,onTimeout) end
 	if frames~=nil then safeWaitFrames("AI.Volkare",wait,frames) else wait() end
@@ -249,13 +259,36 @@ function volkareTurn(player, mouseButton, id)
 			--wound card will roll and remove unit
 			if volkareDrew.color=="Wound" then
 				gStates.blurb="{en}Volkare rests this turn{it}Volkare riposa in questo turno{ru}Волкар отдыхает в этот ход{zh-tw}沃卡里這回合休息。{zh-cn}沃卡里这回合休息。{ko}볼케어는 이번 차례에 휴식{es}Volkare descansa este turno{fr}Volkare se repose ce tour{pt-br}Volkare descansa esse turno{de}Volkare ruht diese Runde"
-				--roll volkares dice and read result
+				-- Read the actual die face before looking up the crystal: TTS
+				-- names it "Blue Mana", whereas setup records the key "Blue".
 				gStates.volkareState="Resting"
-				local volkareDice=getObjectFromGUID(GUID.object.volkareDie)
-				volkareDice.randomize()
-				safeWaitCondition("AI.Volkare",function()
-					local crystalData=gStates.volkareUnitCrystals~=nil and gStates.volkareUnitCrystals[volkareDice.getRotationValue()] or nil
-					local unitCard=crystalData~=nil and unitOfferCardAtSlot(crystalData.slot) or nil
+				local function completeRest(label)
+					if gStates.volkareState~="Resting" then return end
+					UI.setAttribute("DummyNotes","Text",gStates.blurb)
+					if gStates.volkareWon~=true then
+						gStates.volkareState="ReadyToEnd"
+						volkareReleaseRewindWhenStable()
+						mainUIUpdate(label)
+					end
+				end
+				local function manualRest(message,label)
+					if gStates.volkareState~="Resting" then return end
+					gStates.blurb=joinLang({gStates.blurb,message})
+					broadcastToAll(message,warningColor)
+					completeRest(label)
+				end
+				local function noMarkedSlot(color)
+					if gStates.gameScenario=="The War of Four" then
+						gStates.blurb=joinLang({gStates.blurb,"{en}.{it}.{ru}.{zh-tw}。{zh-cn}。{ko}.{es}.{fr}.{pt-br}.{de}."})
+					else
+						gStates.blurb=joinLang({gStates.blurb,"{en}, but no Unit Offer slot is marked with {it}, ma nessun posto dell'offerta Unità è segnato con {ru}, но нет ячейки предложения отрядов, отмеченной цветом {zh-tw}，但沒有部隊欄位標記為{zh-cn}，但没有部队栏位标记为{ko}, 하지만 해당 색상의 유닛 공급 칸이 없습니다: {es}, pero ninguna casilla de la oferta está marcada con {fr}, mais aucun emplacement de l'offre d'Unités n'est marqué en {pt-br}, mas nenhum espaço da oferta de Unidades está marcado com {de}, aber kein Platz der Einheiten-Auslage ist markiert mit ",
+							translateWord[color] or color,"{en}.{it}.{ru}.{zh-tw}。{zh-cn}。{ko}.{es}.{fr}.{pt-br}.{de}."})
+					end
+					completeRest("Volkare rest no matching crystal")
+				end
+				local function removeMarkedUnit(crystalData)
+					if gStates.volkareState~="Resting" then return end
+					local unitCard=unitOfferCardAtSlot(crystalData.slot)
 					if unitCard~=nil then
 						local unitData=gameCards[unitCard.guid]
 						local unitName=unitData~=nil and unitData.name~=nil and unitData.name[1] or joinLangEnglish(tostring(unitCard.getName() or ""))
@@ -275,20 +308,55 @@ function volkareTurn(player, mouseButton, id)
 							gStates.blurb=joinLang({gStates.blurb, "{en}, and intimidates the {it} e intimidisce {ru}, и запугивает {zh-tw}\n嚇跑了 {zh-cn}\n吓跑了 {ko}, 다음 유닛: {es}, e intimida el {fr}, et intimide le {pt-br}, e intimida a {de}, und schüchtert die ", unitName, "{en} to flee the area.{it} per farla fuggire dalla zona.{ru}, и те сбегают.{zh-tw}\n讓他逃離此地區。{zh-cn}\n让他逃离此地区。{ko} 제거됩니다.{es} para huir de la zona.{fr} de fuir la région.{pt-br}para fugir da área.{de} aus dem Gebiet zu fliehen."})
 						end
 					else
-						if gStates.gameScenario~="The War of Four" then
-							gStates.blurb=joinLang({gStates.blurb, "{en}, and has no effect on the Unit Offer.{it} e non influenza l'Offerta Unità.{ru} и не оказывает никакого влияния на Доступные отряды.{zh-tw}\n對部隊供應區沒有任何影響。{zh-cn}\n对部队供应区没有任何影响。{ko}, 유닛 영향 없음.{es}, y no tiene ningún efecto sobre la Oferta Unitaria.{fr}, et n'a aucun effet sur l'Offre des unités.{pt-br}, e não tem efeito sobre a Oferta de Unidades.{de}, und hat keine Auswirkungen auf das Anteilsangebot."})
-						else
-							gStates.blurb=joinLang({gStates.blurb, "{en}.{it}.{ru}.{zh-tw}。{zh-cn}。{ko}번째 턴을 준비하고 있습니다.{es}.{fr}.{pt-br}.{de} vor."})
-						end
+						gStates.blurb=joinLang({gStates.blurb,"{en}, but marked Unit Offer slot {it}, ma la posizione segnata {ru}, но отмеченная ячейка {zh-tw}，但標記欄位{zh-cn}，但标记栏位{ko}, 하지만 표시된 유닛 공급 칸 {es}, pero la casilla marcada {fr}, mais l'emplacement marqué {pt-br}, mas o espaço marcado {de}, aber der markierte Platz ",
+							crystalData.slot,"{en} is already empty.{it} è già vuota.{ru} уже пуста.{zh-tw}已經是空的。{zh-cn}已经是空的。{ko}은 이미 비어 있습니다.{es} ya está vacía.{fr} est déjà vide.{pt-br} já está vazio.{de} ist bereits leer."})
 					end
-					UI.setAttribute("DummyNotes", "Text", gStates.blurb)
-					if gStates.volkareWon~=true then gStates.volkareState="ReadyToEnd"; volkareReleaseRewindWhenStable(); mainUIUpdate("Volkare rest complete") end
-				end, function() return volkareDice==nil or volkareDice.resting end,8,function()
-					gStates.blurb=joinLang({gStates.blurb,"{en}. Volkare's die did not settle; finish any unit-offer effect manually.{it}. Il dado di Volkare non si è fermato; risolvi manualmente l'effetto sull'offerta Unità.{ru}. Кубик Волкара не остановился; при необходимости завершите эффект отрядов вручную.{zh-tw}。沃卡里的骰子未停止，請手動處理需要的部隊效果。{zh-cn}。沃卡里的骰子未停止，请手动处理需要的部队效果。{ko}. 볼케어 주사위가 멈추지 않았습니다. 필요한 유닛 효과는 수동으로 처리하세요.{es}. El dado de Volkare no se detuvo; resuelve manualmente cualquier efecto de Unidad.{fr}. Le dé de Volkare ne s'est pas arrêté ; résolvez manuellement tout effet d'Unité.{pt-br}. O dado de Volkare não parou; resolva manualmente qualquer efeito de Unidade.{de}. Volkares Würfel kam nicht zur Ruhe; führt nötige Einheiten-Effekte manuell aus."})
-					UI.setAttribute("DummyNotes","Text",gStates.blurb)
-					if gStates.volkareWon~=true then gStates.volkareState="ReadyToEnd"; volkareReleaseRewindWhenStable() end
-					mainUIUpdate("Volkare rest timeout")
-				end)
+					completeRest("Volkare rest unit offer resolved")
+				end
+				local volkareDice=getObjectFromGUID(GUID.object.volkareDie)
+				if volkareDice==nil then
+					manualRest("{en}. Volkare's die is missing; resolve the Unit Offer manually.{it}. Manca il dado di Volkare: risolvi manualmente l'offerta Unità.{ru}. Кубик Волкара отсутствует: разрешите эффект предложения отрядов вручную.{zh-tw}。沃卡里的骰子遺失，請手動處理部隊供應區。{zh-cn}。沃卡里的骰子丢失，请手动处理部队供应区。{ko}. 볼카레의 주사위가 없습니다. 유닛 공급 효과를 수동으로 해결하세요.{es}. Falta el dado de Volkare: resuelve manualmente la oferta de Unidades.{fr}. Le dé de Volkare est absent : résolvez l'offre d'Unités manuellement.{pt-br}. O dado de Volkare está ausente: resolva a oferta de Unidades manualmente.{de}. Volkares Würfel fehlt: Die Einheiten-Auslage muss manuell geprüft werden.","Volkare rest die missing")
+				else
+					volkareDice.randomize()
+					-- TTS may report the previous resting face immediately after
+					-- randomize(), so let the physical roll begin first.
+					safeWaitFrames("AI.Volkare",function()
+						safeWaitCondition("AI.Volkare",function()
+							if gStates.volkareState~="Resting" then return end
+							local die=getObjectFromGUID(GUID.object.volkareDie)
+							if die==nil then
+								manualRest("{en}. Volkare's die is missing; resolve the Unit Offer manually.{it}. Manca il dado di Volkare: risolvi manualmente l'offerta Unità.{ru}. Кубик Волкара отсутствует: разрешите эффект предложения отрядов вручную.{zh-tw}。沃卡里的骰子遺失，請手動處理部隊供應區。{zh-cn}。沃卡里的骰子丢失，请手动处理部队供应区。{ko}. 볼카레의 주사위가 없습니다. 유닛 공급 효과를 수동으로 해결하세요.{es}. Falta el dado de Volkare: resuelve manualmente la oferta de Unidades.{fr}. Le dé de Volkare est absent : résolvez l'offre d'Unités manuellement.{pt-br}. O dado de Volkare está ausente: resolva a oferta de Unidades manualmente.{de}. Volkares Würfel fehlt: Die Einheiten-Auslage muss manuell geprüft werden.","Volkare rest die missing")
+								return
+							end
+							local color=volkareDieColor(die.getRotationValue())
+							if color==nil then
+								manualRest("{en}. Volkare's die showed an unrecognized face; resolve the Unit Offer manually.{it}. Il dado di Volkare mostra una faccia sconosciuta: risolvi manualmente l'offerta Unità.{ru}. На кубике Волкара неизвестный результат: разрешите эффект вручную.{zh-tw}。沃卡里骰子的結果無法辨識，請手動處理。{zh-cn}。沃卡里骰子的结果无法辨认，请手动处理。{ko}. 볼카레 주사위 결과를 읽을 수 없습니다. 수동으로 처리하세요.{es}. El dado de Volkare muestra una cara desconocida: resuelve manualmente la oferta.{fr}. Le dé de Volkare affiche une face inconnue : résolvez l'offre manuellement.{pt-br}. O dado de Volkare mostrou uma face desconhecida: resolva a oferta manualmente.{de}. Volkares Würfel zeigt eine unbekannte Seite: Prüfe die Einheiten-Auslage manuell.","Volkare rest unknown die face")
+								return
+							end
+							local crystalData=gStates.volkareUnitCrystals
+								and gStates.volkareUnitCrystals[color] or nil
+							if crystalData==nil then
+								noMarkedSlot(color)
+								return
+							end
+							-- A mapped slot can be briefly empty while the
+							-- round's cards are entering or reflowing the offer.
+							safeWaitCondition("AI.Volkare",function()
+								removeMarkedUnit(crystalData)
+							end,function()
+								return gStates.volkareState~="Resting"
+									or unitOfferSettledForVolkare()
+							end,8,function()
+								manualRest("{en}. The Unit Offer is still moving; check the marked slot manually.{it}. L'offerta Unità è ancora in movimento: controlla manualmente la posizione segnata.{ru}. Предложение отрядов ещё перемещается: проверьте отмеченную ячейку вручную.{zh-tw}。部隊供應區仍在移動，請手動檢查標記欄位。{zh-cn}。部队供应区仍在移动，请手动检查标记位置。{ko}. 유닛 공급이 아직 이동 중입니다. 표시된 칸을 수동으로 확인하세요.{es}. La oferta de Unidades sigue moviéndose: revisa manualmente la casilla marcada.{fr}. L'offre d'Unités est encore en mouvement : vérifiez l'emplacement marqué.{pt-br}. A oferta de Unidades ainda está em movimento: verifique o espaço marcado manualmente.{de}. Die Einheiten-Auslage bewegt sich noch: Prüfe den markierten Platz manuell.","Volkare rest offer still moving")
+							end)
+						end,function()
+							local die=getObjectFromGUID(GUID.object.volkareDie)
+							return die==nil or (die.resting==true and not die.isSmoothMoving())
+						end,8,function()
+							manualRest("{en}. Volkare's die did not settle; resolve the Unit Offer manually.{it}. Il dado di Volkare non si è fermato: risolvi manualmente l'offerta Unità.{ru}. Кубик Волкара не остановился: разрешите эффект предложения отрядов вручную.{zh-tw}。沃卡里的骰子未停下，請手動處理部隊供應區。{zh-cn}。沃卡里的骰子未停下，请手动处理部队供应区。{ko}. 볼카레의 주사위가 멈추지 않았습니다. 유닛 공급 효과를 수동으로 해결하세요.{es}. El dado de Volkare no se detuvo: resuelve manualmente la oferta de Unidades.{fr}. Le dé de Volkare ne s'est pas arrêté : résolvez l'offre d'Unités manuellement.{pt-br}. O dado de Volkare não parou: resolva a oferta de Unidades manualmente.{de}. Volkares Würfel kam nicht zur Ruhe: Prüfe die Einheiten-Auslage manuell.","Volkare rest die timeout")
+						end)
+					end,2)
+				end
 			end
 			--Any other card
 			if volkareDrew.color~="Wound" then
@@ -623,6 +691,14 @@ function volkareTurn(player, mouseButton, id)
 					local volkarePOS={getObjectFromGUID(gStates.volkareModel).getPosition()[1], 1, getObjectFromGUID(gStates.volkareModel).getPosition()[3]}
 					local magesInRange={}
 					if volkareDrew.spell==1 then magesInRange=findNearbyMages(volkarePOS, 2.5) else magesInRange=findNearbyMages(volkarePOS, 5) end
+					-- Red Actions/Spells select highest Fame among ALL mages in
+					-- range; proximity only determines eligibility. Ties use
+					-- the earlier position in Round order, never distance.
+					table.sort(magesInRange,function(a,b)
+						local aFame,bFame=tonumber(a.fame) or 0,tonumber(b.fame) or 0
+						if aFame~=bFame then return aFame>bFame end
+						return (a.turn or math.huge)<(b.turn or math.huge)
+					end)
 					if #magesInRange>0 then
 						gStates.blurb=joinLang({"{en}Volkare attacked {it}Volkare ha attaccato {ru}Волкар атаковал {zh-tw}\n沃卡里攻擊了{zh-cn}\n沃卡里攻击了{ko}볼케어의 공격: {es}Volkare atacó {fr}Volkare a attaqué {pt-br}Volkare atacou {de}Volkare angegriffen ", translateWord[magesInRange[1].mage], gStates.blurb, "<size=6>\n\n</size>", translateWord[magesInRange[1].mage], "{en} may retreat taking {it} può ritirarsi subendo {ru} может отступить, взяв {zh-tw}可以躲避，拿取 {zh-cn}可以躲避，拿取 {ko} 플레이어는 {es} puede retirarse tomando {fr} peut battre en retraite en prenant {pt-br} pode fugir tomando {de} kann sich zurückziehen und ", tostring(math.ceil(gStates.currentRound/2)+1), "{en} wounds,\nor stand and fight{it} Ferite,\noppure restare e combattere{ru} раны,\n или остаться и сражаться{zh-tw} 張創傷卡\n或是不躲避直接戰鬥。{zh-cn} 张创伤卡\n或是不躲避直接战斗。{ko} 장의 부상을 받고 후퇴하거나,\n볼케어와 전투합니다.{es} heridas,\no estar de pie y pelear{fr} blessures,\ni se lever et se battre{pt-br} ferimentos,\nou ficar e lutar.{de} Wunden,\noder stehen und kämpfen"})
 						UI.setAttribute("VolkareAttacked", "active", "true")
