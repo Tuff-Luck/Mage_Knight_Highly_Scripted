@@ -183,6 +183,17 @@ local function volkareDieColor(value)
     return nil
 end
 
+-- Red card target priority is Fame, then Round order. The shared
+-- findNearbyMages() keeps its distance sorting for other callers.
+local function volkareSortRedTargets(mages)
+    table.sort(mages,function(a,b)
+        local aFame,bFame=tonumber(a.fame) or 0,tonumber(b.fame) or 0
+        if aFame~=bFame then return aFame>bFame end
+        return (a.turn or math.huge)<(b.turn or math.huge)
+    end)
+    return mages
+end
+
 local function volkareWaitForRest(callback,timeout,onTimeout,frames)
 	local function wait() safeWaitCondition("AI.Volkare",callback,volkareModelResting,timeout,onTimeout) end
 	if frames~=nil then safeWaitFrames("AI.Volkare",wait,frames) else wait() end
@@ -691,14 +702,9 @@ function volkareTurn(player, mouseButton, id)
 					local volkarePOS={getObjectFromGUID(gStates.volkareModel).getPosition()[1], 1, getObjectFromGUID(gStates.volkareModel).getPosition()[3]}
 					local magesInRange={}
 					if volkareDrew.spell==1 then magesInRange=findNearbyMages(volkarePOS, 2.5) else magesInRange=findNearbyMages(volkarePOS, 5) end
-					-- Red Actions/Spells select highest Fame among ALL mages in
-					-- range; proximity only determines eligibility. Ties use
-					-- the earlier position in Round order, never distance.
-					table.sort(magesInRange,function(a,b)
-						local aFame,bFame=tonumber(a.fame) or 0,tonumber(b.fame) or 0
-						if aFame~=bFame then return aFame>bFame end
-						return (a.turn or math.huge)<(b.turn or math.huge)
-					end)
+					-- Proximity establishes eligibility, but Fame determines
+					-- which eligible Mage Knight Volkare attacks.
+					volkareSortRedTargets(magesInRange)
 					if #magesInRange>0 then
 						gStates.blurb=joinLang({"{en}Volkare attacked {it}Volkare ha attaccato {ru}Волкар атаковал {zh-tw}\n沃卡里攻擊了{zh-cn}\n沃卡里攻击了{ko}볼케어의 공격: {es}Volkare atacó {fr}Volkare a attaqué {pt-br}Volkare atacou {de}Volkare angegriffen ", translateWord[magesInRange[1].mage], gStates.blurb, "<size=6>\n\n</size>", translateWord[magesInRange[1].mage], "{en} may retreat taking {it} può ritirarsi subendo {ru} может отступить, взяв {zh-tw}可以躲避，拿取 {zh-cn}可以躲避，拿取 {ko} 플레이어는 {es} puede retirarse tomando {fr} peut battre en retraite en prenant {pt-br} pode fugir tomando {de} kann sich zurückziehen und ", tostring(math.ceil(gStates.currentRound/2)+1), "{en} wounds,\nor stand and fight{it} Ferite,\noppure restare e combattere{ru} раны,\n или остаться и сражаться{zh-tw} 張創傷卡\n或是不躲避直接戰鬥。{zh-cn} 张创伤卡\n或是不躲避直接战斗。{ko} 장의 부상을 받고 후퇴하거나,\n볼케어와 전투합니다.{es} heridas,\no estar de pie y pelear{fr} blessures,\ni se lever et se battre{pt-br} ferimentos,\nou ficar e lutar.{de} Wunden,\noder stehen und kämpfen"})
 						UI.setAttribute("VolkareAttacked", "active", "true")
