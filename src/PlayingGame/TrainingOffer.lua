@@ -39,9 +39,10 @@ end
 
 function trainingOfferCardPickedUp(playerColor,obj)
     local seatPos=currentSeat()
-    if obj==nil or seatPos==nil or obj.type~="Card" then return end
-    if legalPlayerCheck(playerColor,seatPos,"NoDummyException")==true
-        and inZone(obj.guid,handZones[seatPos]) then
+    -- Track hand origin even before Training is played, but never warn on a pickup.
+    if obj==nil or seatPos==nil or obj.type~="Card"
+        or not inZone(obj.guid,handZones[seatPos]) then return end
+    if legalPlayerCheck(playerColor,seatPos,"NoDummyException",true)==true then
         fromHand[obj.guid]=seatPos
     end
 end
@@ -390,7 +391,10 @@ function trainingOfferObjectDropped(playerColor,obj)
     if active~=nil or gameCards[obj.guid]==nil then return end
     local cardData=gameCards[obj.guid]
     if cardData.cardType~="Starting" and cardData.cardType~="Advanced Action" then return end
-    if legalPlayerCheck(playerColor,seatPos,"NoDummyException")~=true then return end
+    -- Other players may plan cards during a Proxy/Dummy turn; no Training action
+    -- exists unless the card is actually in the current seat's play area.
+    if not inZone(TRAINING_GUID,playerPlayAreas[seatPos]) then return end
+    if legalPlayerCheck(playerColor,seatPos,"NoDummyException",true)~=true then return end
     local guid=obj.guid
     safeWaitCondition("Offers.Training",function()
         local live=getObjectFromGUID(guid)
