@@ -8138,7 +8138,33 @@ local function renderSeat(seatPos)
                 else
                 local key=rule.separateEffectTarget and not result.powered
                     and (card.guid.."#effect") or card.guid
-                if spec.multiTargetMove then
+                if (tonumber(spec.maxTargets) or 0)>1 then
+                    -- Banner of Fear (Lost Legion): at most three different
+                    -- enemies are unable to attack. Each target is its own
+                    -- persistent physical arrow; right-click adds another.
+                    local targets=attackAssignmentsTargetGUIDs(key)
+                    local primary=combatEffectChosenEnemy(key,footprints[card.guid],
+                        monsters,combatEffectTargetEligible(spec))
+                    if next(targets)==nil and primary~=nil then targets[primary.guid]=true end
+                    local ordered={}
+                    for guid in pairs(targets) do
+                        if monsters[guid]~=nil and monsters[guid].is_face_down~=true then
+                            ordered[#ordered+1]=guid
+                        end
+                    end
+                    table.sort(ordered)
+                    result.enemyEffectTargetKeys={key}
+                    for index=1,math.min(#ordered,spec.maxTargets) do
+                        local targetGUID=ordered[index]
+                        combatEffectAdd(enemyEffects,targetGUID,card.guid,spec,key)
+                        result.links[#result.links+1]=targetGUID
+                        if result.enemyGUID==nil then
+                            result.enemyGUID=targetGUID
+                            result.enemyEffectTargetGUIDs={[key]=targetGUID}
+                        end
+                        result.status="purple"
+                    end
+                elseif spec.multiTargetMove then
                     -- Right-click target to add further enemies; cost is settled
                     -- after all Move-producing cards/Units/Skills have been read.
                     result.enemyEffectTargetKeys={key}
