@@ -1349,13 +1349,11 @@ cardResourceDefinitions={
             {key="splitBlock",blockColdFire=12,icon="block",iconOverlay="x3",repeatBlocks=3}}},
     -- Reuse the physical tilted-card discard costs from Stout Resolve.
     artifactSwordOfJustice={artifactMode=true,normal={attack=0},
-        artifactGlobalCombat="sword",
-        defeatFameRep={normal={fame=1,scope="all"},powered={fame=1,scope="all"}},
+        artifactGlobalCombat="sword",artifactGlobalFame="all",
         discardBoost={normal={perCard=3,maxWounds=0}},
         poweredChoices={{key="other"}}},
     artifactBowOfStarsdawn={artifactMode=true,normal={ranged=0},
-        artifactGlobalCombat="bow",
-        defeatFameRep={normal={fame=1,scope="ranged"}},
+        artifactGlobalCombat="bow",artifactGlobalFame="range",
         discardBoost={normal={perCard=2,maxWounds=0}},
         poweredChoices={{key="other"}}},
     -- A tilted Green card on the Staff pays for Heal 3. The Break side
