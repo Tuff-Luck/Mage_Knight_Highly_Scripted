@@ -1168,6 +1168,29 @@ function attackAssignmentTargetClicked(target,playerColor)
 			broadcastToColor("Move can only be assigned to a Cumbersome enemy.",playerColor,{1,0.6,0.2})
 			return
 		end
+        -- Lost Legion Banner of Fear's broken effect can cancel at most three
+        -- distinct enemies. Do not add a fourth physical target arrow.
+        if pending.additional then
+            local data=gameCards~=nil and gameCards[pending.source.guid] or nil
+            local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+            local spec=rule~=nil and rule.enemyEffect~=nil and rule.enemyEffect.powered or nil
+            local maximum=spec~=nil and tonumber(spec.maxTargets) or nil
+            if maximum~=nil then
+                local distinct={}
+                for _,existing in pairs(assignmentRegistry) do
+                    if existing.sourceGUID==pending.sourceGUID then
+                        distinct[existing.targetGUID]=true
+                    end
+                end
+                local total=0
+                for _ in pairs(distinct) do total=total+1 end
+                if total>=maximum and not distinct[target.guid] then
+                    broadcastToColor("Banner of Fear can cancel at most "
+                        ..tostring(maximum).." enemies.",playerColor,{1,0.6,0.2})
+                    return
+                end
+            end
+        end
 		local duplicate=false
 		if not pending.additional then
 			for entryId,entry in pairs(assignmentRegistry) do
