@@ -11368,5 +11368,10 @@ function resourceCardsObjectMoved(obj)
     end
 end
 
--- Registered after gameplay definitions so the object UI has a protected callback.
-publishPublicUICallbacks({resourceCardsRegenerationReadyClicked=resourceCardsRegenerationReadyClicked})
+-- Register all Artifact and readying Object UI callbacks through the protected
+-- public boundary so the onLoad callback audit and error reporter can track them.
+publishPublicUICallbacks({
+    resourceCardsRegenerationReadyClicked=resourceCardsRegenerationReadyClicked,
+    resourceCardsArtifactNoteClicked=resourceCardsArtifactNoteClicked,
+    resourceCardsArtifactHealUnitsClicked=resourceCardsArtifactHealUnitsClicked
+})
