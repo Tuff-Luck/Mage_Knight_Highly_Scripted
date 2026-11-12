@@ -28,8 +28,14 @@ jobs:
         run: lua5.2 tools/test-arythea-skills.lua
       - name: Combat effect button regression tests
         run: lua5.2 tools/test-combat-effect-buttons.lua
+      - name: All official Spell roster and mana-payment regression tests
+        run: lua5.2 tools/test-spell-catalog.lua
       - name: Red Spell regression tests
         run: lua5.2 tools/test-red-spells.lua
+      - name: Green Spell regression tests
+        run: lua5.2 tools/test-green-spells.lua
+      - name: White Spell regression tests
+        run: lua5.2 tools/test-white-spells.lua
       - name: Volkare AI and offer regression tests
         run: lua5.2 tools/test-volkare.lua
       - name: Blue Spell regression tests
