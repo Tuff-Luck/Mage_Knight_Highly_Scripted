@@ -1320,7 +1320,7 @@ cardResourceDefinitions={
         poweredChoices={{key="other"}},fameRep={powered={fame=2}}},
     artifactBannerFear={artifactMode=true,normalTrackerNeutral=true,
         poweredChoices={{key="other"}},
-        enemyEffect={powered={choice="other",noAttack=true}},manualSecondary="Break: select up to three separate enemies whose attacks are cancelled. Basic: spend the assigned Unit to cancel one attack and earn Fame +1."},
+        enemyEffect={powered={choice="other",noAttack=true,maxTargets=3}},manualSecondary="Break: select up to three separate enemies whose attacks are cancelled. Basic: spend the assigned Unit to cancel one attack and earn Fame +1."},
     artifactBannerCourage={artifactMode=true,normalTrackerNeutral=true,
         poweredChoices={{key="other"}},manualSecondary="Attached: flip once per round outside combat to ready this Unit. Break outside combat: ready all Units."},
     artifactBannerGlory={artifactMode=true,normalTrackerNeutral=true,
