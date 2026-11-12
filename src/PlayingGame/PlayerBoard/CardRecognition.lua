@@ -10052,6 +10052,13 @@ function resourceUnitsCommandSpent(tokenGUID)
     return gStates~=nil and resourceUnitsSpentCommands()[tokenGUID]==true
 end
 
+-- A legitimate Ready lifts the Command's round-long exhaustion; undoing the
+-- Ready reinstates it. These are history facts, not guesses from token height.
+function resourceUnitsSetCommandSpent(tokenGUID,spent)
+    if gStates==nil or tokenGUID==nil then return end
+    resourceUnitsSpentCommands()[tokenGUID]=spent==true and true or nil
+end
+
 function resourceUnitsRecordSpentCommands(seatPos)
     if gStates==nil or seatPos==nil then return end
     local spent=resourceUnitsSpentCommands()
@@ -10145,9 +10152,9 @@ function resourceUnitsCommandDropped(playerColor,obj)
         local newActivation={seatPos=pickup.seatPos,tokenGUID=guid,
             choice=choice,selected=abilities.multi==true and {} or nil}
         local useIndex=1
-        if previous~=nil or resourceUnitsCommandSpent(guid) then
-            local permission=unitHistoryAwaiting(unit.guid)
-                or unitHistoryReadyPermission(unit.guid)
+        local permission=unitHistoryAwaiting(unit.guid)
+            or unitHistoryReadyPermission(unit.guid)
+        if previous~=nil or resourceUnitsCommandSpent(guid) or permission~=nil then
             if permission==nil or (previous~=nil and previous.tokenGUID~=guid) then return end
             local appendedIndex=unitHistoryAppend(unit.guid,newActivation,permission)
             if appendedIndex==nil then return end
@@ -10391,9 +10398,17 @@ local function resourceUnitsRebuildFromTable()
                     if score>bestScore then choice,bestScore=i,score end
                 end
             end
-            activations[unit.guid]={seatPos=seat,tokenGUID=token.guid,choice=choice,
+            local activation={seatPos=seat,tokenGUID=token.guid,choice=choice,
                 selected=abilities.multi==true and {} or nil}
-            unitHistoryEnsure(unit.guid,activations[unit.guid])
+            activations[unit.guid]=activation
+            -- A Ready completed while the panel was closed still belongs to
+            -- the current turn, never to the previous spent anchor.
+            local awaiting=unitHistoryAwaiting(unit.guid)
+            if awaiting~=nil then
+                unitHistoryAppend(unit.guid,activation,awaiting)
+            else
+                unitHistoryEnsure(unit.guid,activation)
+            end
         end
     end
     gStates.unitResourceActivations=activations

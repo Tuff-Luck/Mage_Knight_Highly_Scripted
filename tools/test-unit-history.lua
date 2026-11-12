@@ -192,7 +192,11 @@ unitHistoryReset()
 -- A Command spent on a PREVIOUS turn stays exhausted even though the
 -- current-turn activation table was cleared. Ready may create a second use
 -- without resurrecting the earlier turn's Attack or Block contribution.
-resourceUnitsCommandSpent=function(guid) return guid=="cmd" end
+local spentCommand=true
+resourceUnitsCommandSpent=function(guid) return guid=="cmd" and spentCommand end
+resourceUnitsSetCommandSpent=function(guid,spent)
+    if guid=="cmd" then spentCommand=spent end
+end
 unitLayoutSnapshot=function() return {commands={token}} end
 token.position.y=1.5
 gStates.unitResourceActivations={}
@@ -205,6 +209,7 @@ eq(gStates.unitResourceActivations.u1,nil,
     "reopening the tracker does not reanimate last turn's ability")
 eq(unitHistoryPriorTurnCommandMoved("cmd",1),true,
     "moving spent Command into ready slot records authorisation")
+eq(spentCommand,false,"readying frees Command for later turns")
 eq(unitHistoryAwaiting("u1"),"card","prior turn Ready is pending")
 local newTurnUse={seatPos=1,tokenGUID="cmd",choice=2}
 eq(unitHistoryAppend("u1",newTurnUse,"card"),2,
@@ -216,6 +221,18 @@ eq(gStates.unitResourceActivations.u1,newTurnUse,
 unitHistoryCancelReadySource("card")
 eq(gStates.unitResourceActivations.u1,nil,
     "undoing Ready restores exhausted state, not last turn's resources")
+eq(spentCommand,true,"undoing a consumed Ready restores round-long exhaustion")
 eq(#unitHistoryUses("u1"),1,"undo retains inert spent anchor")
+unitHistoryReset()
+
+-- Undoing an unconsumed Ready must likewise put the exhausted Command back.
+spentCommand=true
+token.position.y=1.5
+eq(unitHistoryReadyLink("card","u1",1,nil),true,"ready link for previously used Unit")
+eq(unitHistoryPriorTurnCommandMoved("cmd",1),true,"Ready enters its slot")
+eq(spentCommand,false,"unconsumed Ready clears exhaustion")
+token.position.y=1
+unitHistoryCancelReadySource("card")
+eq(spentCommand,true,"cancelled unconsumed Ready restores exhaustion")
 unitHistoryReset()
 print("Unit activation history tests passed.")

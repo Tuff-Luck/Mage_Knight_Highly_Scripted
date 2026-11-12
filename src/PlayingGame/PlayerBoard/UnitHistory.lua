@@ -234,6 +234,10 @@ local function unlinkSource(sourceKey)
         unitHistoryTrim(link.unitGUID,link.usedBy-1)
     elseif group~=nil and group.awaiting==sourceKey then
         group.awaiting=nil
+        if group.uses[1]~=nil and group.uses[1].priorTurnSpent==true
+            and resourceUnitsSetCommandSpent~=nil then
+            resourceUnitsSetCommandSpent(group.tokenGUID,true)
+        end
         -- The Ready source disappeared while the token was in its ready
         -- slot. Put it back on the Unit: the earlier activation is still spent.
         local token=group.tokenGUID~=nil and getObjectFromGUID(group.tokenGUID) or nil
@@ -283,6 +287,10 @@ function unitHistoryTrim(guid,keep)
         -- an active calculator source when its Ready effect is undone.
         gStates.unitResourceActivations[guid]=group.uses[keep].priorTurnSpent~=true
             and group.uses[keep] or nil
+        if group.uses[keep].priorTurnSpent==true
+            and resourceUnitsSetCommandSpent~=nil then
+            resourceUnitsSetCommandSpent(group.tokenGUID,true)
+        end
         unitHistoryRefreshToken(guid)
     end
     if resourceUnitsPruneHistoricalTargets~=nil then
@@ -357,6 +365,12 @@ function unitHistoryMarkReady(guid,sourceKey,counts)
     if group==nil or sourceKey==nil then return false end
     unitHistoryFreeze(guid,counts)
     group.awaiting=sourceKey
+    -- Once the real Command is readied, it remains available next turn even
+    -- if the player never spends that newly ready activation this turn.
+    if group.uses[1]~=nil and group.uses[1].priorTurnSpent==true
+        and resourceUnitsSetCommandSpent~=nil then
+        resourceUnitsSetCommandSpent(group.tokenGUID,false)
+    end
     unitHistoryRefreshToken(guid)
     return true
 end
