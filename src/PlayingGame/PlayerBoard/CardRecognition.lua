@@ -193,6 +193,8 @@ local combatCumbersomeActive=false
 local combatPsychicActive=false
 local combatAssignmentJoined={}
 local combatAssignmentSlotSources={}
+combatConfig.bowSourceModes={}
+combatConfig.slotBowFamilies={}
 -- Effect-only buttons share the resource slots, without adding any Block/Attack.
 combatConfig.effectSources={}
 combatConfig.blockedEnemyCounts={}
@@ -1156,6 +1158,22 @@ local function combatAttackTotal(groups,data,perks,phase)
                 and group.category~="block") then
                 for _,attackType in ipairs(combatConfig.attackTypes) do
                     local value=tonumber(source.resources[attackType[group.category]]) or 0
+                    if phase=="range" and combatConfig.artifactCombat.bow then
+                        local modeR=combatConfig.bowSourceModes[source.key.."#ranged"] or "double"
+                        local modeS=combatConfig.bowSourceModes[source.key.."#siege"] or "none"
+                        if group.category=="ranged" then
+                            if modeR=="siege" then value=0
+                            else value=value*2 end
+                            if modeS=="ranged" then
+                                value=value+2*(tonumber(source.resources[attackType.siege]) or 0)
+                            end
+                        elseif group.category=="siege" then
+                            if modeS=="ranged" then value=0 end
+                            if modeR=="siege" then
+                                value=value+(tonumber(source.resources[attackType.ranged]) or 0)
+                            end
+                        end
+                    end
                     if value>0 then
                         -- Sword doubles every physical contribution in the
                         -- Attack phase, including physical Unit and Skill effects.
@@ -1166,8 +1184,6 @@ local function combatAttackTotal(groups,data,perks,phase)
                         end
                         -- Bow's Ranged double only applies in the Ranged/Siege
                         -- phase. The later Attack phase is ordinary Attack.
-                        if phase=="range" and combatConfig.artifactCombat.bow
-                            and group.category=="ranged" then value=value*2 end
                         local resistant=combatEnemyResists(data,perks,attackType.key)
                         if resistant and phase=="attack" and attackType.key=="P"
                             and combatConfig.artifactCombat.sword
@@ -2741,6 +2757,7 @@ local function combatAssignmentRefreshRows(entries,sources)
     end
 
     combatAssignmentSlotSources={}
+    combatConfig.slotBowFamilies={}
     local allocated={}
     for _,source in ipairs(sources) do
         local moveOnly=source.ranged+source.siege+source.block+source.attack==0
@@ -3732,12 +3749,28 @@ local function combatAssignmentRefreshRows(entries,sources)
                 local item=items[slot]
                 if item~=nil then
                     combatAssignmentSlotSources[id]=item.source.key
+                    combatConfig.slotBowFamilies[id]=item.detail~=nil
+                        and (item.detail.family=="ranged" or item.detail.family=="siege")
+                        and item.detail.family or nil
                     combatConfig.slotSelection[id]={key=item.source.key,
                         wounded=item.wounded,ineffective=item.ineffective}
                     local tooltip=item.tooltip or (item.source.name..": "..item.text
                         ..(item.source.dodgeIneligible and
                             " unavailable: the Hero took Wounds before the Attack phase"
                             or (item.wounded and " can't apply 'Wounded'" or "")))
+                    local bowFamily=combatConfig.slotBowFamilies[id]
+                    if bowFamily~=nil and combatConfig.artifactCombat.bow then
+                        local bowMode=combatConfig.bowSourceModes[
+                            item.source.key.."#"..bowFamily]
+                            or (bowFamily=="ranged" and "double" or "none")
+                        local description=bowFamily=="ranged"
+                            and (bowMode=="siege" and "Convert to Siege (same value)"
+                                or "Double Ranged")
+                            or (bowMode=="ranged" and "Double and convert to Ranged"
+                                or "Keep original Siege")
+                        tooltip=tooltip.."\nBow of Starsdawn: "..description
+                            ..". Right-click this source icon to switch."
+                    end
                     combatAssignmentIconButton(id,true,item.amount,item.icon,
                         tooltip,combatAssignmentState.selected==item.source.key,
                         (item.wounded or item.ineffective) and "#292323" or (item.typeKey~=nil
@@ -4326,7 +4359,21 @@ local function combatForgetBorrowedUnitTargets(unitGUID)
     end
 end
 
-function resourceCardsCombatAssignmentClick(id)
+function resourceCardsCombatAssignmentClick(id,mouseButton)
+    if tostring(mouseButton)=="-2" and combatConfig.artifactCombat.bow then
+        local key=combatAssignmentSlotSources[id]
+        local family=combatConfig.slotBowFamilies[id]
+        if key~=nil and family~=nil then
+            local modeKey=key.."#"..family
+            local old=combatConfig.bowSourceModes[modeKey]
+                or (family=="ranged" and "double" or "none")
+            combatConfig.bowSourceModes[modeKey]=family=="ranged"
+                and (old=="double" and "siege" or "double")
+                or (old=="none" and "ranged" or "none")
+            resourceCardsSourceChanged()
+            return
+        end
+    end
     local row=id:match("^CombatSourceSlot(%d+)")
     local index=row~=nil and tonumber(row) or nil
     local targetGUID=index~=nil and combatAssignmentRowTargets[index] or nil
@@ -10165,6 +10212,8 @@ local function clearAll()
     for guid in pairs(shown) do clearHighlight(guid) end
     bySeat={}
     resourceCardScanBySeat={}
+    combatConfig.bowSourceModes={}
+    combatConfig.amuletMana={gold=false,black=false}
     -- Ordinary resource sources disappear when tracking is OFF. Earned
     -- conditional interaction rewards/penalties remain pending until turn end.
     if turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber]~=nil then
