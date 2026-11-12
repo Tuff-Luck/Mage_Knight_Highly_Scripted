@@ -10038,7 +10038,7 @@ end
 -- Command tokens remain spent for the entire round, even after the turn's
 -- resource history is cleared. A physical Command still on a Unit must not be
 -- treated as a new activation when its owner starts a later turn.
-local function resourceUnitsSpentCommands()
+function resourceUnitsSpentCommands()
     local round=tonumber(gStates.currentRound) or 0
     local state=gStates.unitSpentCommandTokens
     if type(state)~="table" or state.round~=round then
