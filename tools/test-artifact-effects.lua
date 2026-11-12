@@ -155,12 +155,13 @@ eq(calculator.sum({{sources={source},category="ranged"},
     {sources={source},category="siege"}},enemy,nil,"attack"),5,
     "Bow never multiplies in melee Attack phase")
 calculator.combat.artifactCombat.sword=true
+calculator.combat.artifactCombat.bow=false
 eq(calculator.sum({{sources={source},category="attack"}},enemy,nil,"attack"),8,
     "Sword doubles physical Attack in Attack phase")
 eq(calculator.sum({{sources={source},category="attack"}},
     {pResist=true},nil,"attack"),8,"Sword removes Physical Resist")
 eq(calculator.sum({{sources={source},category="ranged"}},
-    {pResist=true},nil,"range"),6,
+    {pResist=true},nil,"range"),3,
     "Sword removes Physical Resist also during Ranged phase")
 eq(calculator.sum({{sources={source},category="attack"}},
     {pResist=true,arcaneImmunity=true},nil,"attack"),4,
