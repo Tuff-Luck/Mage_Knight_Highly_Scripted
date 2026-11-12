@@ -5838,13 +5838,24 @@ local function resourceCardsUsesDayMana()
     return site~="dungeon" and site~="tomb"
 end
 
+-- These are separate permissions. Amulet of the Sun permits Gold at Night
+-- without disabling Black; Amulet of Darkness permits Black during Day
+-- without making the rest of the game's Day/Night rules change.
+combatConfig.amuletMana={gold=false,black=false}
+local function resourceCardsGoldAllowed()
+    return resourceCardsUsesDayMana() or combatConfig.amuletMana.gold==true
+end
+local function resourceCardsBlackAllowed()
+    return not resourceCardsUsesDayMana() or combatConfig.amuletMana.black==true
+end
+
 local function matchesCardMana(card,color)
     if color==nil then return false end
     local data=gameCards[card.guid]
     if data==nil then return color=="Red" or color=="Blue" or color=="Green" or color=="White" end
     if data.cardType=="Artifact" then return false end
-    if color=="Gold" then return resourceCardsUsesDayMana() end
-    if color=="Black" then return not resourceCardsUsesDayMana() and data.cardType=="Spell" end
+    if color=="Gold" then return resourceCardsGoldAllowed() end
+    if color=="Black" then return resourceCardsBlackAllowed() and data.cardType=="Spell" end
     local colors=data.color
     if type(colors)=="string" then return colors==color end
     if type(colors)=="table" then
@@ -5882,24 +5893,24 @@ end
 -- effect-selection payment must be different physical mana objects. Daytime
 -- Gold can fill either a casting or effect role; its effect stays ambiguous.
 -- Other cards can reuse this by declaring effectManaChoice.castColor.
-local function effectManaPossibilities(spec,payments,needPower,daytime)
+local function effectManaPossibilities(spec,payments,needPower,goldAllowed,blackAllowed)
     local possible,anyColor={},false
     -- Black mana cannot pay for any role during a Day round, including
     -- the otherwise separate strong-side payment on Mana Bolt/Thunderbolt.
-    if daytime and needPower and spec.powerColor=="Black" then return possible,anyColor end
+    if not blackAllowed and needPower and spec.powerColor=="Black" then return possible,anyColor end
     local function hasDistinctPower(effectGUID,castGUID)
         if not needPower then return true end
         for _,payment in ipairs(payments) do
             if payment.guid~=effectGUID and payment.guid~=castGUID
                 and (payment.color==spec.powerColor
-                    or (daytime and spec.powerColor~="Black"
+                    or (goldAllowed and spec.powerColor~="Black"
                         and payment.color=="Gold")) then return true end
         end
         return false
     end
     for _,effect in ipairs(payments) do
         local category=spec.colors[effect.color]
-        local wildcard=effect.color=="Gold" and daytime
+        local wildcard=effect.color=="Gold" and goldAllowed
         if category~=nil or wildcard then
             local valid=false
             if spec.castColor==nil then
@@ -5908,7 +5919,7 @@ local function effectManaPossibilities(spec,payments,needPower,daytime)
                 for _,casting in ipairs(payments) do
                     if casting.guid~=effect.guid
                         and (casting.color==spec.castColor
-                            or (casting.color=="Gold" and daytime))
+                            or (casting.color=="Gold" and goldAllowed))
                         and hasDistinctPower(effect.guid,casting.guid) then
                         valid=true
                         break
@@ -5926,17 +5937,17 @@ end
 
 -- Only the separate stronger-effect payment qualifies for Mana Overload.
 -- A card's casting mana or a Pure Magic / Mana Bolt option payment does not.
-local function effectManaPowerColors(spec,payments,daytime,selectedCategory)
+local function effectManaPowerColors(spec,payments,goldAllowed,blackAllowed,selectedCategory)
     local eligible={}
     if spec==nil or selectedCategory==nil
-        or (daytime and spec.powerColor=="Black") then return eligible end
+        or (not blackAllowed and spec.powerColor=="Black") then return eligible end
     for _,effect in ipairs(payments or {}) do
         if spec.colors[effect.color]==selectedCategory
-            or (daytime and effect.color=="Gold") then
+            or (goldAllowed and effect.color=="Gold") then
             for _,power in ipairs(payments or {}) do
                 if power.guid~=effect.guid
                     and (power.color==spec.powerColor
-                        or (daytime and spec.powerColor~="Black"
+                        or (goldAllowed and spec.powerColor~="Black"
                             and power.color=="Gold")) then
                     if spec.castColor==nil then
                         eligible[spec.powerColor]=true
@@ -5944,7 +5955,7 @@ local function effectManaPowerColors(spec,payments,daytime,selectedCategory)
                         for _,casting in ipairs(payments or {}) do
                             if casting.guid~=effect.guid and casting.guid~=power.guid
                                 and (casting.color==spec.castColor
-                                    or (daytime and casting.color=="Gold")) then
+                                    or (goldAllowed and casting.color=="Gold")) then
                                 eligible[spec.powerColor]=true
                                 break
                             end
@@ -6652,7 +6663,7 @@ end
 function resourceCardsTimeBendingPaid(seatPos,card)
     if card==nil or card.guid~=GUID.card.timeBending
         or card.is_face_down==true or cardPosture(card)~="upright"
-        or resourceCardsUsesDayMana() then return false end
+        or not resourceCardsBlackAllowed() then return false end
     local zone=seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
     if zone==nil then return false end
     local area=footprint(card)
@@ -6700,14 +6711,14 @@ end
 local function unitAbilityPaid(ability,counts)
     local color=ability.manaCost
     if color==nil then return true end
-    if color=="Black" and resourceCardsUsesDayMana() then return false end
+    if color=="Black" and not resourceCardsBlackAllowed() then return false end
     if (counts[color] or 0)>0 then return true end
     -- Daytime Gold can pay any basic colour, but not Black.
-    return color~="Black" and resourceCardsUsesDayMana() and (counts.Gold or 0)>0
+    return color~="Black" and resourceCardsGoldAllowed() and (counts.Gold or 0)>0
 end
 
 local function unitManaSignature(counts)
-    local parts={tostring(resourceCardsUsesDayMana())}
+    local parts={tostring(resourceCardsGoldAllowed()),tostring(resourceCardsBlackAllowed())}
     for _,color in ipairs({"Red","Blue","Green","White","Black","Gold"}) do
         parts[#parts+1]=tostring(counts[color] or 0)
     end
@@ -6740,7 +6751,7 @@ unitManaDecision=function(unit,abilities,activation,counts)
     if abilities.multi==true then
         local chosen={}
         for _,index in ipairs(direct) do chosen[index]=true end
-        local goldCount=resourceCardsUsesDayMana() and (counts.Gold or 0) or 0
+        local goldCount=resourceCardsGoldAllowed() and (counts.Gold or 0) or 0
         if #goldOnly<=goldCount then
             for _,index in ipairs(goldOnly) do chosen[index]=true end
         elseif goldCount>0 then
@@ -6825,8 +6836,8 @@ combatConfig.unitCombatBlocked=function(unit,abilities,useIndex)
 end
 
 local function sidewaysManaAvailable(color)
-    return color~=nil and (color~="Gold" or resourceCardsUsesDayMana())
-        and (color~="Black" or not resourceCardsUsesDayMana())
+    return color~=nil and (color~="Gold" or resourceCardsGoldAllowed())
+        and (color~="Black" or resourceCardsBlackAllowed())
 end
 
 local function matchingSidewaysMana(card,color)
@@ -6846,7 +6857,7 @@ end
 -- also compares actual printed card colours for If It's Not Broken.
 local function matchingSidewaysPaymentMana(card,color)
     if color=="Gold" then
-        if not resourceCardsUsesDayMana() then return false end
+        if not resourceCardsGoldAllowed() then return false end
         for _,basicColor in ipairs({"Red","Blue","Green","White"}) do
             if matchingSidewaysMana(card,basicColor) then return true end
         end
@@ -6964,8 +6975,8 @@ local function convertedManaMatchesCard(card,color)
     if data.cardType~="Starting" and data.cardType~="Advanced Action"
         and data.cardType~="Spell" and data.cardType~="Artifact" then return false end
     -- Shared card-mana validation also checks Black-at-night and Gold-by-day.
-    if color=="Gold" and not resourceCardsUsesDayMana() then return false end
-    if color=="Black" and data.cardType~="Spell" then return false end
+    if color=="Gold" and not resourceCardsGoldAllowed() then return false end
+    if color=="Black" and (data.cardType~="Spell" or not resourceCardsBlackAllowed()) then return false end
     return matchesCardMana(card,color)
 end
 
@@ -7376,6 +7387,19 @@ local function renderSeat(seatPos)
         end
     end
 
+    -- Scan active Amulet permissions before resolving ANY physical mana.
+    -- The card itself is a free artifact effect; no mana should be attached.
+    combatConfig.amuletMana.gold=false
+    combatConfig.amuletMana.black=false
+    for _,card in ipairs(cards) do
+        local data=gameCards[card.guid]
+        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+        if rule~=nil and rule.artifactMana~=nil
+            and cardPosture(card)=="upright" then
+            combatConfig.amuletMana[rule.artifactMana]=true
+        end
+    end
+
     -- Read the physical Unit state once per scan for highlights and Skills.
     -- A Command token already resting on a Unit from a previous turn means
     -- spent; a Unit activated by a Command move THIS turn is still active.
@@ -7493,7 +7517,7 @@ local function renderSeat(seatPos)
     local function spendMana(card,color,manaGUID)
         -- Never record an illegal Daytime Black payment through the separate
         -- spell-effect or mana-conversion paths.
-        if color=="Black" and resourceCardsUsesDayMana() then return end
+        if color=="Black" and not resourceCardsBlackAllowed() then return end
         local data=gameCards[card.guid]
         if data~=nil and data.cardType=="Spell" and color~="Black"
             and matchesCardMana(card,color) then
@@ -7534,7 +7558,7 @@ local function renderSeat(seatPos)
                         and (matchesCardMana(card,color)
                             or (specialPaymentByCard[card.guid]~=nil
                                 and (specialPaymentByCard[card.guid].colors[color]~=nil
-                                    or (color=="Gold" and resourceCardsUsesDayMana())))) then
+                                    or (color=="Gold" and resourceCardsGoldAllowed())))) then
                         local distance=dx*dx+dz*dz
                         if bestDistance==nil or distance<bestDistance then best,bestDistance=card,distance end
                     end
@@ -7555,7 +7579,7 @@ local function renderSeat(seatPos)
     for guid,candidates in pairs(effectManaByCard) do
         local spec=specialPaymentByCard[guid]
         local options,wildcard=effectManaPossibilities(spec,candidates,true,
-            resourceCardsUsesDayMana())
+            resourceCardsGoldAllowed(),resourceCardsBlackAllowed())
         if wildcard or next(options)~=nil then powered[guid]=true end
     end
     local links,boostBy,boostSource,discarded,hasDiscard,linkedCardBySource,
@@ -7639,7 +7663,8 @@ local function renderSeat(seatPos)
     local function paidManaChoices(guid,rule,strong,boost)
         local needPower=powered[guid]==true and boost==nil
         local possible,anyColor=effectManaPossibilities(rule.effectManaChoice,
-            effectManaByCard[guid] or {},needPower,resourceCardsUsesDayMana())
+            effectManaByCard[guid] or {},needPower,
+            resourceCardsGoldAllowed(),resourceCardsBlackAllowed())
         local choices={}
         for _,choice in ipairs(sideChoices(rule,strong) or {}) do
             if anyColor or possible[choiceCategory(choice)] then
@@ -9137,12 +9162,13 @@ local function renderSeat(seatPos)
                             local available=paidManaChoices(card.guid,definition,true,nil)
                             local _,selected=currentChoice(card.guid,true,available)
                             powerColors=effectManaPowerColors(definition.effectManaChoice,
-                                effectManaByCard[card.guid],resourceCardsUsesDayMana(),selected)
+                                effectManaByCard[card.guid],resourceCardsGoldAllowed(),
+                                resourceCardsBlackAllowed(),selected)
                         end
                         local matching=false
                         for color in pairs(colors) do
                             if powerColors[color]==true
-                                or (powerColors.Gold==true and resourceCardsUsesDayMana()
+                                or (powerColors.Gold==true and resourceCardsGoldAllowed()
                                     and matchesCardMana(card,color)) then
                                 matching=true
                                 break
