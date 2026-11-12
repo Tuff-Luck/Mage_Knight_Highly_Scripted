@@ -6053,6 +6053,20 @@ end
 -- without disabling Black; Amulet of Darkness permits Black during Day
 -- without making the rest of the game's Day/Night rules change.
 combatConfig.amuletMana={gold=false,black=false}
+-- Map auto-reveal may execute with the tracker minimized; inspect the real
+-- current play area rather than relying on a stale tracker snapshot.
+function resourceCardsAmuletSunRevealActive()
+    if gStates==nil or gStates.dayRound==true then return false end
+    local player=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    if player==nil or player.seatPos==nil then return false end
+    local zone=getObjectFromGUID(playerPlayAreas[player.seatPos])
+    if zone==nil then return false end
+    for _,obj in ipairs(zone.getObjects()) do
+        if obj.guid=="085e61" and cardPosture(obj)=="upright" then return true end
+    end
+    return false
+end
+
 local function resourceCardsGoldAllowed()
     return resourceCardsUsesDayMana() or (combatConfig~=nil
         and combatConfig.amuletMana~=nil and combatConfig.amuletMana.gold==true)
