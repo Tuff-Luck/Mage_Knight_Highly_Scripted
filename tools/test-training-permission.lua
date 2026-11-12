@@ -22,7 +22,8 @@ local checkPermission=legalPlayerCheck
 
 local broadcasts=0
 local lastMessage
-broadcastToAll=function(message)
+-- Match TTS broadcastToAll(message, tint) so Lua Diagnostics sees both arguments.
+broadcastToAll=function(message, _tint)
     broadcasts=broadcasts+1
     lastMessage=message
 end
