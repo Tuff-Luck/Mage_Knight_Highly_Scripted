@@ -1238,7 +1238,8 @@ cardResourceDefinitions={
             colors={Blue="blue",Red="red",White="white",Green="green"}}},
     spellBurningShield={
         normalChoices={{key="fireBlockOnly",blockFire=4,icon="block"},
-            {key="fireBlockCounter",blockFire=4,conditionalFireAttack=4,icon="block",
+            {key="fireBlockCounter",blockFire=4,conditionalFireAttack=4,
+            splitTargets={"block","attack"},icon="block",
                 iconOverlay="✓",iconOverlayColor="#9EEA85",
                 iconOverlayAlignment="UpperRight",iconOverlaySize="54",
                 tooltip="Fire Attack 4 only after this Fire Block helps successfully block an attack."}},
