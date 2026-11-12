@@ -191,7 +191,8 @@ local expectedProtectedUICallbacks={
 	"processCardClaim","proxyDestinationChoiceSelect","proxyEnemyChoiceSelect","proxyInteractionChoiceSelect",
 	"proxyTurn","refillMonsterTokenPiles","removeTactic","restoreDestroyedSiteAtCurrentPlayer","shieldDrop",
 	"steadyTempoChoice","summonMonster","togglePlayerDropoutRequest","volkarePursuitAction","volkareTurn",
-	"coopCompSkillWarningClick","combatDefeatMarkerNoop","nightTactic6StoredCountNoop"
+	"coopCompSkillWarningClick","combatDefeatMarkerNoop","nightTactic6StoredCountNoop",
+	"resourceCardsRegenerationReadyClicked"
 }
 
 validatePublicUICallbacks=function()

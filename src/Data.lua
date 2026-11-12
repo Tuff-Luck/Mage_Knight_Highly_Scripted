@@ -1164,7 +1164,9 @@ cardResourceDefinitions={
     swiftBolt={normalTrackerNeutral=true,powered={ranged=4}},
     explosiveBolt={normalTrackerNeutral=true,powered={ranged=3},
         defeatArmourReduce=1}, -- Each enemy defeated by this Ranged Attack reduces another enemy's Armour by 1 (min 1).
-    regeneration={normal={healing=1},powered={healing=2}},
+    -- Both effects apply together: Heal plus one Unit Ready per use.
+    regeneration={normal={healing=1},powered={healing=2},
+        simultaneousReady=true,unitReadyLevels={normal=2,powered=3}},
     -- Training has no numeric resources, but its powered side and repeat count
     -- must remain visible to the separate physical offer browser.
     training={normalTrackerNeutral=true},

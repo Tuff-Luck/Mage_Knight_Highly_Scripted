@@ -4887,6 +4887,12 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         elseif (tonumber(resources.influence) or 0)>0 then
             choices={{influence=resources.influence}} end
     end
+    -- Regeneration's Heal and Ready are simultaneous, not a choice.
+    if (choices==nil or #choices==0) and rule~=nil
+        and rule.simultaneousReady==true and type(resources)=="table"
+        and (tonumber(resources.healing) or 0)>0 then
+        choices={{healing=resources.healing}}
+    end
     -- A fixed effect (no alternatives) still needs a Target button for its combat resource.
     if (choices==nil or #choices==0) and type(resources)=="table" then
         local bestKey,bestRank
@@ -5061,14 +5067,16 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     end
     local special=gStates~=nil and gStates.startingCardSelections~=nil
         and gStates.startingCardSelections[card.guid] or nil
-    local readyCount=0
-    if rule~=nil and rule.readyWithInfluence~=nil then
+    local readyLinks={}
+    if rule~=nil and (rule.readyWithInfluence~=nil or rule.simultaneousReady==true) then
         for sourceKey in pairs(gStates~=nil and gStates.unitReadyLinks or {}) do
             if sourceKey:match("^"..card.guid.."#ready%d+$") then
-                readyCount=readyCount+1
+                readyLinks[#readyLinks+1]=sourceKey
             end
         end
+        table.sort(readyLinks)
     end
+    local readyCount=#readyLinks
     local signature=(posture=="sideways" and "S" or (powered and "P" or "N"))
         ..":"..table.concat(signatureParts,";")..":"..uiRotation..":"..buttonDepth
         ..(combatCalcOn and (combatCumbersomeActive and ":CC" or ":C") or "")
@@ -5084,7 +5092,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             ..tostring(conversion.block)..":"..tostring(conversion.element)) or "")
         ..(special~=nil and (":START:"..tostring(special.interaction)..":"
             ..tostring(special.recruited)..":"..tostring(special.terrain)) or "")
-        ..":READY:"..tostring(readyCount)
+        ..":READY:"..tostring(readyCount)..":"..table.concat(readyLinks,",")
     if choiceButtonShown[card.guid]==signature then return end
     local xml=resourceObjectUiXmlTable(card.UI)
     for i=#xml,1,-1 do
@@ -5437,6 +5445,24 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                 special~=nil and special.terrain~=nil,150,-125)
         elseif rule.manualSecondary~=nil then
             startingControl("manual","?",rule.manualSecondary,false,135,-125)
+        end
+    end
+    if rule~=nil and rule.simultaneousReady==true and posture=="upright"
+        and resources~=nil and (tonumber(resources.healing) or 0)>0
+        and (card.is_face_down~=true or repeatLink~=nil) then
+        for index=1,(repeatLink~=nil and repeatLink.count or 1) do
+            local sourceKey=card.guid.."#ready"..index
+            local linked=gStates~=nil and gStates.unitReadyLinks~=nil
+                and gStates.unitReadyLinks[sourceKey]~=nil
+            xml[#xml+1]={tag="Button",attributes={
+                id="ResourceCardChoice_"..card.guid.."_regenReady"..index,
+                onClick="global/resourceCardsRegenerationReadyClicked",
+                position="145 "..tostring(-125+(index-1)*62).." "..buttonDepth,
+                rotation=uiRotation,width=150,height=90,scale="0.28 0.28",
+                fontSize=44,textColor="#FFFFFF",textAlignment="MiddleCenter",
+                colors=linked and "#387D30|#4CA940|#387D30|#387D30"
+                    or "#454D5D|#69798E|#444C63|#454D5D"},
+                value="RDY"..(repeatLink~=nil and tostring(index) or "")}
         end
     end
     if assets~=nil then card.UI.setXmlTable(xml,assets)
@@ -5969,27 +5995,73 @@ function resourceCardsMountainLoreEndTurnBonus(seatPos)
     if terrain~="hills" and terrain~="mountain" then return 0 end
     local zone=seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
     if zone==nil then return 0 end
-    for _,card in ipairs(zone.getObjects()) do
-        if card.guid=="d3995b" and card.is_face_down~=true
-            and cardPosture(card)=="upright" then
-            if terrain=="hills" then return 1 end
-            local scan=resourceCardScanBySeat[seatPos]
-            local record=scan~=nil and scan.cards[card.guid] or nil
-            if record~=nil and resourceCardsPanelOpen() and record.powered==true then return 2 end
-            -- The tracker may be closed; a paid Green (or Day Gold) mana
-            -- physically on the card still enables the mountain bonus.
-            local area=footprint(card)
-            for _,mana in ipairs(zone.getObjects()) do
-                local color=manaColor(mana)
-                if color~=nil and matchesCardMana(card,color) then
-                    local pos=mana.getPosition()
-                    if math.abs(pos[1]-area.x)<area.halfX
-                        and math.abs(pos[3]-area.z)<area.halfZ then return 2 end
-                end
+    local objects=zone.getObjects()
+    local card=nil
+    for _,obj in ipairs(objects) do
+        if obj.guid=="d3995b" then card=obj break end
+    end
+    if card==nil or cardPosture(card)~="upright" then return 0 end
+
+    local function drawBonus(powered,copies)
+        copies=copies or 1
+        if terrain=="hills" then return copies end
+        return powered and 2*copies or 0
+    end
+    -- A copied Action can already be face down (thrown away). The live scan
+    -- has the authoritative number of Maximal Effect uses and strong-side
+    -- status, including Concentration/Will Focus.
+    if resourceCardsPanelOpen() then
+        local scan=resourceCardScanBySeat[seatPos]
+        local record=scan~=nil and scan.cards[card.guid] or nil
+        if record==nil or record.complete~=true or record.resources==nil then return 0 end
+        return drawBonus(record.powered==true,record.repeatCount)
+    end
+
+    -- When tracking is closed, recover unambiguous physical payments and
+    -- links rather than assuming the card was not played on its strong side.
+    local function paidManaOn(target)
+        local area=footprint(target)
+        for _,obj in ipairs(objects) do
+            local color=manaColor(obj)
+            if color~=nil and matchesCardMana(target,color) then
+                local pos=obj.getPosition()
+                if math.abs(pos[1]-area.x)<area.halfX
+                    and math.abs(pos[3]-area.z)<area.halfZ then return true end
+            end
+        end
+        return false
+    end
+    local function strongEffect(target)
+        if paidManaOn(target) then return true end
+        for _,source in ipairs(objects) do
+            local data=gameCards[source.guid]
+            local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+            if source.guid~=target.guid and rule~=nil and rule.poweredLink~=nil
+                and rule.poweredLink.mode=="stronger"
+                and source.is_face_down~=true and cardPosture(source)=="upright"
+                and overlapArea(footprint(source),footprint(target))>0
+                and paidManaOn(source) then return true end
+        end
+        return false
+    end
+    -- Maximal Effect throws Lore away, but its delayed effect survives.
+    -- A card directly paid with its own mana cannot be the repeated target.
+    if not paidManaOn(card) then
+        for _,source in ipairs(objects) do
+            local data=gameCards[source.guid]
+            local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+            if rule~=nil and rule.requiredLink~=nil
+                and rule.requiredLink.mode=="repeat"
+                and source.is_face_down~=true and cardPosture(source)=="upright"
+                and overlapArea(footprint(source),footprint(card))>0 then
+                local powered=strongEffect(source)
+                return drawBonus(powered,powered and rule.requiredLink.poweredCount
+                    or rule.requiredLink.normalCount)
             end
         end
     end
-    return 0
+    if card.is_face_down==true then return 0 end
+    return drawBonus(strongEffect(card),1)
 end
 
 -- Training is resource-neutral, but its mode and Maximal Effect repetition
@@ -9992,7 +10064,30 @@ function resourceCardsChoiceClicked(player,value,id)
     queueSeat(currentSeat.seatPos,nil)
 end
 
--- Rejuvenate and Herbalists own their ready links. A source is valid only
+-- Regeneration gives Heal and an independent Ready for each application.
+-- Right click cancels the link and its dependent Unit activation history.
+function resourceCardsRegenerationReadyClicked(player,value,id)
+    if not resourceCardsPanelOpen() or not resourceCardsDetailsOpen()
+        or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil)
+        or type(id)~="string" then return end
+    local guid,index=id:match("^ResourceCardChoice_([0-9a-f]+)_regenReady(%d+)$")
+    if guid~="878d91" then return end
+    local sourceKey=guid.."#ready"..index
+    if tostring(value)=="-2" then
+        if gStates.unitReadyLinks~=nil and gStates.unitReadyLinks[sourceKey]~=nil then
+            unitHistoryCancelReadySource(sourceKey)
+            resourceCardsSourceChanged()
+        end
+        return
+    end
+    if not resourceCardsReadySourceValid(sourceKey) then return end
+    local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    if active==nil then return end
+    attackAssignmentsBeginUnitReady(guid,sourceKey,player.color,
+        resourceCardsReadySourceLevelLimit(sourceKey,active.seatPos))
+end
+
+-- Ready sources need an active effect; a Command move alone cannot authorize reuse.
 -- while the exact played choice remains Ready; physical Command movement
 -- alone cannot grant a second use.
 function resourceCardsReadySourceValid(sourceKey,seatPos)
@@ -10013,6 +10108,7 @@ function resourceCardsReadySourceValid(sourceKey,seatPos)
     end
     local data=gameCards[guid]
     if data==nil or (data.resourceKey~="rejuvenate"
+        and data.resourceKey~="regeneration"
         and data.resourceKey~="ruthlessCoercion") then return false end
     local card=getObjectFromGUID(guid)
     if card==nil or card.is_face_down or cardPosture(card)~="upright" then return false end
@@ -10025,6 +10121,11 @@ function resourceCardsReadySourceValid(sourceKey,seatPos)
     if data.resourceKey=="ruthlessCoercion" then
         return record.powered==true
             and sourceKey:match("^"..guid.."#ready%d+$")~=nil
+    end
+    if data.resourceKey=="regeneration" then
+        local index=tonumber(sourceKey:match("^"..guid.."#ready(%d+)$"))
+        return index~=nil and index>=1 and index<=(record.repeatCount or 1)
+            and record.resources~=nil and (tonumber(record.resources.healing) or 0)>0
     end
     local choice=selectedResourceByGUID[guid]
     return (choice~=nil and choice.effect=="ready")
@@ -10706,3 +10807,6 @@ function resourceCardsObjectMoved(obj)
         queueSeat(seat,nil)
     end
 end
+
+-- Registered after gameplay definitions so the object UI has a protected callback.
+publishPublicUICallbacks({resourceCardsRegenerationReadyClicked=resourceCardsRegenerationReadyClicked})

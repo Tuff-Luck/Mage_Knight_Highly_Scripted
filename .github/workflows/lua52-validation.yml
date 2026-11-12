@@ -36,6 +36,8 @@ jobs:
         run: lua5.2 tools/test-blue-spells.lua
       - name: Call Offer browser regression tests
         run: lua5.2 tools/test-call-offer.lua
+      - name: Regeneration and Mountain Lore regression tests
+        run: lua5.2 tools/test-green-advanced-actions.lua
       - name: Play Area Unit scale regression tests
         run: lua5.2 tools/test-play-area-scale.lua
       - name: Play Area crystal animation regression tests
