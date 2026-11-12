@@ -24,6 +24,8 @@ jobs:
         run: lua5.2 tools/test-unit-history.lua
       - name: Level III Unit combat regression tests
         run: lua5.2 tools/test-level-three-units.lua
+      - name: Level IV Unit combat regression tests
+        run: lua5.2 tools/test-level-four-units.lua
       - name: Level II Unit combat regression tests
         run: lua5.2 tools/test-level-two-units.lua
       - name: Krang skill regression tests
