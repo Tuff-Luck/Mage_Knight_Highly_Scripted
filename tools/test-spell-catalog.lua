@@ -159,7 +159,7 @@ eq(wildcard,true,"Daytime Gold may select a basic elemental effect")
 
 assert(reader:find('spellCastingPaid[card.guid]==true',1,true),
     "Printed Spell resources need an actual casting payment")
-assert(reader:find('and (data==nil or data.cardType~="Spell" or spellCastPaid==true)',1,true),
+assert(reader:find('local costPaid=(data==nil or data.cardType~="Spell" or spellCastPaid==true)',1,true),
     "Unpaid Spell must not enter the calculator")
 
 print("Spell catalogue and shared mana regressions passed (24 pairs / 28 cards)")
