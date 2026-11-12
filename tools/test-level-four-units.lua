@@ -44,8 +44,7 @@ eq(delphana[4].enemyEffect.removeResist,true,"Delphana white resistances")
 
 -- Normal recruitment is City-only; camp is the Refugee Camp exception.
 for _,guid in ipairs({"bb1660","0fe22e"}) do
-    local line=assert(data:match('%["'..guid..'"%]=([^
-]+)'),
+    local line=assert(data:match('%["'..guid..'"%]=([^\n]+)'),
         "missing Altem Mages recruitment "..guid)
     assert(line:find('recruit={"city", "camp"}',1,true),
         "Altem Mages recruit only in City / Refugee Camp")
