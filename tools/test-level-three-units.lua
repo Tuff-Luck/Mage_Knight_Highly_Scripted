@@ -159,7 +159,8 @@ return {
         showUnitAbilityButtons(unit,abilities,{},true,decision,use or 1)
         return lastXml
     end,
-    expand=function(guid) choiceExpandedByGUID[guid]=true end
+    expand=function(guid) choiceExpandedByGUID[guid]=true end,
+    collapse=function(guid) choiceExpandedByGUID[guid]=nil end
 }
 ]]))()
 local sorcGUID="c3e3c5"
@@ -197,6 +198,7 @@ assert(hasButton(catUi,"ResourceCardChoice_1aa68c_unit2"),
 assert(hasButton(catUi,"ResourceCardChoice_1aa68c_unit3"),
     "Expanded menu offers Ice Siege")
 local selectedBlue=choice(catapults,blueSelected,{Red=1,Blue=1},true)
+ui.collapse(catUnit.guid) -- Choice click restores the ordinary target button.
 catUi=ui.render(catUnit,catapults,selectedBlue,1)
 assert(hasButton(catUi,"AttackAssignmentSource_1aa68c_0_siegeIce"),
     "Selected Catapults Siege has a single enemy target")
