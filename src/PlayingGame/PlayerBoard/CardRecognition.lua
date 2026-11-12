@@ -1,18 +1,19 @@
 -- The physical play area supplies estimated resources to the Resource Tracker.
 -- Runtime-only observations never overwrite the saved manual +/- adjustments.
 resourceCardScanBySeat={}
-local generation={}
+local trackerPrivate={}
+trackerPrivate.generation={}
 local shown={}
 -- Mana crystal figurines are still read for powering cards, but should never
 -- receive Resource Tracker highlights. Avoid repeated highlightOff calls.
-local crystalHighlightCleared={}
-local bySeat={}
+trackerPrivate.crystalHighlightCleared={}
+trackerPrivate.bySeat={}
 -- Initial guesses and explicit player choices are transient, never saved in gStates or JSON.
 local selectedResourceByGUID={}
 -- Retain the chosen crystal-pair Attack after Sacrifice converts the pairs to mana.
 -- Uses combatConfig.sacrificeCastPairs to avoid Lua 5.2's 200-local module limit.
 -- A choice lasts for one play; delayed departure checks must not race a return.
-local choiceResetGenerationByGUID={}
+trackerPrivate.choiceResetGenerationByGUID={}
 -- Display state is separate from player selections. Picks/drops may clear the
 -- buttons, but the chosen resource stays until the script reloads.
 local choiceExpandedByGUID={}
@@ -22,7 +23,7 @@ local factionRewardForObject
 -- Highlights show how confidently the tracker understands the selected effect.
 -- Blue is a deliberate neutral/not-calculated state, not an illegal-play warning.
 -- Purple takes precedence when objects are linked; brightness indicates power.
-local palette={
+trackerPrivate.palette={
     green={{0.10,0.55,0.14},{0.35,1.00,0.38}},
     yellow={{0.62,0.48,0.08},{1.00,0.94,0.19}},
     blue={{0.08,0.34,0.64},{0.26,0.66,1.00}},
@@ -30,7 +31,7 @@ local palette={
 }
 -- Distinguish elemental and physical damage. Otherwise a Ranged Fire Attack
 -- would be incorrectly added to the Physical Ranged field.
-local totalsKeys={move=true,ranged=true,siege=true,attack=true,block=true,influence=true,healing=true,
+trackerPrivate.totalsKeys={move=true,ranged=true,siege=true,attack=true,block=true,influence=true,healing=true,
     rangedFire=true,rangedIce=true,rangedColdFire=true,rangedPsychic=true,
     siegeFire=true,siegeIce=true,siegeColdFire=true,siegePsychic=true,
     attackFire=true,attackIce=true,attackColdFire=true,attackPsychic=true,
@@ -38,22 +39,22 @@ local totalsKeys={move=true,ranged=true,siege=true,attack=true,block=true,influe
 
 -- Catalog is defined once in UnitResources.lua and keyed by card GUID.
 local unitResourceDefinitions=unitResourceDefinitions
-local commandPickupForUnits={}
+trackerPrivate.commandPickupForUnits={}
 -- Rebuilt with the live Unit layout for each Resource Tracker scan.
 -- Existing Command tokens and Wounds suppress Unit highlights regardless of
 -- whether an activated ability contributes resources this turn.
-local unitHighlightBlocked={}
+trackerPrivate.unitHighlightBlocked={}
 -- Reuse a single immutable terrain modifier. Constructing a new table on
 -- every scan would make the terrain-effect comparison think the cost changed
 -- even when Foresters' chosen ability is unchanged.
-local forestersTerrainModifier={mode="reduce",
+trackerPrivate.forestersTerrainModifier={mode="reduce",
     terrains={forest=true,hills=true,swamp=true},amount=1,minimum=0}
 
 -- Minimizing is OFF: no play-area scanning, Unit automation or tracker overlays.
 -- Reopening starts a new tracking session using the physical table.
-local trackerWasDisabled=false
-local trackerSession=0
-local trackerStartupRequest=0
+trackerPrivate.trackerWasDisabled=false
+trackerPrivate.trackerSession=0
+trackerPrivate.trackerStartupRequest=0
 -- Preferences are saved per seat; older saves default to automation enabled.
 function resourceCardsSeatEnabled(seat)
     local settings=gStates~=nil and gStates.resourceTrackerEnabledBySeat or nil
@@ -91,7 +92,7 @@ end
 
 function resourceCardsPanelOpen()
     local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
-    return not trackerWasDisabled and resourceCardsPanelReady()
+    return not trackerPrivate.trackerWasDisabled and resourceCardsPanelReady()
         and current~=nil and resourceCardsSeatEnabled(current.seatPos)
 end
 
@@ -4636,7 +4637,7 @@ local function clearHighlight(guid)
 end
 
 local function setHighlight(obj,kind,powered)
-    if unitHighlightBlocked[obj.guid]==true then
+    if trackerPrivate.unitHighlightBlocked[obj.guid]==true then
         clearHighlight(obj.guid)
         return
     end
@@ -4646,16 +4647,16 @@ local function setHighlight(obj,kind,powered)
     if isManaTokenFigurine(obj) then
         if shown[obj.guid]~=nil then
             clearHighlight(obj.guid)
-        elseif crystalHighlightCleared[obj.guid]~=true then
+        elseif trackerPrivate.crystalHighlightCleared[obj.guid]~=true then
             obj.highlightOff()
         end
-        crystalHighlightCleared[obj.guid]=true
+        trackerPrivate.crystalHighlightCleared[obj.guid]=true
         return
     end
     local choice=kind..(powered and "Bright" or "Normal")
     if shown[obj.guid]==choice then return end
     -- Omit duration: TTS keeps this highlight until highlightOff() is called.
-    obj.highlightOn(palette[kind][powered and 2 or 1])
+    obj.highlightOn(trackerPrivate.palette[kind][powered and 2 or 1])
     shown[obj.guid]=choice
 end
 
@@ -4920,7 +4921,7 @@ end
 local function effectHasTrackedResource(effects)
     if effects==nil then return false end
     for category,value in pairs(effects) do
-        if totalsKeys[category] and type(value)=="number" and value~=0 then
+        if trackerPrivate.totalsKeys[category] and type(value)=="number" and value~=0 then
             return true
         end
     end
@@ -5942,14 +5943,14 @@ local function scheduleChoiceResetAfterPlay(guid,seatPos)
     if selectedResourceByGUID[guid]==nil and (gStates==nil
         or gStates.resourceCardPlayOrder==nil
         or gStates.resourceCardPlayOrder[guid]==nil) then return end
-    choiceResetGenerationByGUID[guid]=(choiceResetGenerationByGUID[guid] or 0)+1
-    local serial=choiceResetGenerationByGUID[guid]
+    trackerPrivate.choiceResetGenerationByGUID[guid]=(trackerPrivate.choiceResetGenerationByGUID[guid] or 0)+1
+    local serial=trackerPrivate.choiceResetGenerationByGUID[guid]
     -- Allow the zone's membership to settle before checking whether this
     -- is a real departure or just a temporary lift/rearrangement.
     safeWaitFrames("PlayerBoard.CardRecognition",function()
-        if choiceResetGenerationByGUID[guid]~=serial then return end
+        if trackerPrivate.choiceResetGenerationByGUID[guid]~=serial then return end
         safeWaitCondition("PlayerBoard.CardRecognition",function()
-            if choiceResetGenerationByGUID[guid]~=serial then return end
+            if trackerPrivate.choiceResetGenerationByGUID[guid]~=serial then return end
             if not cardInSeatPlayArea(guid,seatPos) then
                 -- A genuine departure retires this play's time-order slot;
                 -- moving a card in/out again starts a fresh play sequence.
@@ -5964,7 +5965,7 @@ local function scheduleChoiceResetAfterPlay(guid,seatPos)
                 unitHistoryValidSources(seatPos)
             end
         end,function()
-            if choiceResetGenerationByGUID[guid]~=serial then return true end
+            if trackerPrivate.choiceResetGenerationByGUID[guid]~=serial then return true end
             local obj=getObjectFromGUID(guid)
             return obj==nil or (obj.held_by_color==nil and obj.resting==true
                 and obj.isSmoothMoving()==false)
@@ -6494,7 +6495,7 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
                 local single=combatConfig.repeatChoiceFor(card.guid,powered,options,index)
                 if single~=nil then
                     for category,value in pairs(single) do
-                        if totalsKeys[category] and type(value)=="number" then
+                        if trackerPrivate.totalsKeys[category] and type(value)=="number" then
                             repeated[category]=(repeated[category] or 0)+value
                         end
                     end
@@ -6502,7 +6503,7 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
             end
         else
             for category,value in pairs(effects) do
-                repeated[category]=(totalsKeys[category] and type(value)=="number")
+                repeated[category]=(trackerPrivate.totalsKeys[category] and type(value)=="number")
                     and value*repeatLink.count or value
             end
         end
@@ -6522,7 +6523,7 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
                     local selected=combatConfig.repeatChoiceFor(card.guid,powered,options,index)
                     if selected~=nil then
                         for category,value in pairs(selected) do
-                            if totalsKeys[category] and type(value)=="number" then
+                            if trackerPrivate.totalsKeys[category] and type(value)=="number" then
                                 adjusted[category]=(adjusted[category] or 0)+amount
                                 break
                             end
@@ -6532,7 +6533,7 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
             end
         elseif type(discardBonus)=="number" and discardBonus>0 then
             for category,value in pairs(effects) do
-                if totalsKeys[category] and type(value)=="number" then
+                if trackerPrivate.totalsKeys[category] and type(value)=="number" then
                     adjusted[category]=value+discardBonus
                 end
             end
@@ -7474,7 +7475,7 @@ local function addResourceAmounts(result,totals)
     result.contributes=false
     if result.resources==nil then return end
     for category,value in pairs(result.resources) do
-        if totalsKeys[category] and type(value)=="number" then
+        if trackerPrivate.totalsKeys[category] and type(value)=="number" then
             totals[category]=(totals[category] or 0)+value
             if value~=0 then result.contributes=true end
         end
@@ -7675,7 +7676,7 @@ local function renderSeat(seatPos)
             combatOneUnitSelect(seatPos,unitSite,only)
         end
     end
-    unitHighlightBlocked={}
+    trackerPrivate.unitHighlightBlocked={}
     if unitState~=nil then
         for _,entry in ipairs(unitState.units) do
             local activation=activations[entry.guid]
@@ -7684,7 +7685,7 @@ local function renderSeat(seatPos)
             if not entry.unwounded or (not entry.ready and not activeThisTurn)
                 or not combatUnitSitePermits(unitSiteMode,
                     unitState.bondsUnitGUID,chosenSiteUnit,entry.guid,false) then
-                unitHighlightBlocked[entry.guid]=true
+                trackerPrivate.unitHighlightBlocked[entry.guid]=true
                 clearHighlight(entry.guid)
             end
         end
@@ -8131,7 +8132,7 @@ local function renderSeat(seatPos)
             end
             local updated={}
             for category,value in pairs(result.resources) do
-                updated[category]=(totalsKeys[category] and type(value)=="number")
+                updated[category]=(trackerPrivate.totalsKeys[category] and type(value)=="number")
                     and value+enemyCount*rule.poweredEnemyBonus or value
             end
             result.resources=updated
@@ -8166,7 +8167,7 @@ local function renderSeat(seatPos)
             local adjusted={}
             for key,value in pairs(result.resources or {}) do adjusted[key]=value end
             for key,value in pairs(second or {}) do
-                if totalsKeys[key] and type(value)=="number" then
+                if trackerPrivate.totalsKeys[key] and type(value)=="number" then
                     adjusted[key]=(adjusted[key] or 0)+value
                 end
             end
@@ -8695,7 +8696,7 @@ local function renderSeat(seatPos)
             and not ability.baseWithoutPayment) then return nil end
         local resources={}
         for category,value in pairs(ability) do
-            if totalsKeys[category] and type(value)=="number" then
+            if trackerPrivate.totalsKeys[category] and type(value)=="number" then
                 local bonus=0
                 if ability.bonusColor~=nil and (crystalCounts[ability.bonusColor] or 0)>0 then
                     bonus=ability.bonus or 0
@@ -8870,7 +8871,7 @@ local function renderSeat(seatPos)
                         setHighlight(unit,result.status,false)
                     end
                     if selected~=nil and selected.terrainReduce and result.complete then
-                        terrainModifiers[#terrainModifiers+1]=forestersTerrainModifier
+                        terrainModifiers[#terrainModifiers+1]=trackerPrivate.forestersTerrainModifier
                     end
                     if selected~=nil and selected.boostOtherUnits and result.complete then
                         shocktroopsBoosts=shocktroopsBoosts+1
@@ -9196,7 +9197,7 @@ local function renderSeat(seatPos)
                                 or definition.normal
                             local srcField,srcValue,count=nil,nil,0
                             for key,value in pairs(base or {}) do
-                                if totalsKeys[key] and type(value)=="number" and value>0 then
+                                if trackerPrivate.totalsKeys[key] and type(value)=="number" and value>0 then
                                     srcField,srcValue,count=key,value,count+1
                                 end
                             end
@@ -9217,7 +9218,7 @@ local function renderSeat(seatPos)
                     local original=records[sideways.guid]
                     local oldField,oldCount=nil,0
                     for key,value in pairs(original.resources) do
-                        if totalsKeys[key] and type(value)=="number" and value>0 then
+                        if trackerPrivate.totalsKeys[key] and type(value)=="number" and value>0 then
                             oldField,oldCount=key,oldCount+1
                         end
                     end
@@ -10086,7 +10087,7 @@ local function renderSeat(seatPos)
     end
     totals.influence=availableInfluence-ruthlessReadySpent
 
-    local previous=bySeat[seatPos] or {}
+    local previous=trackerPrivate.bySeat[seatPos] or {}
     local previousScan=resourceCardScanBySeat[seatPos]
     local previousMove=previousScan~=nil and (previousScan.totals.move or 0) or 0
     table.sort(terrainModifiers,terrainModifierPrecedes)
@@ -10100,7 +10101,7 @@ local function renderSeat(seatPos)
     end
     local totalsChanged=previousScan==nil
     if not totalsChanged then
-        for category in pairs(totalsKeys) do
+        for category in pairs(trackerPrivate.totalsKeys) do
             if (previousScan.totals[category] or 0)~=(totals[category] or 0) then
                 totalsChanged=true
                 break
@@ -10139,7 +10140,7 @@ local function renderSeat(seatPos)
     repTotal=repTotal+earnedRep
     local scanPlayer=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     local fameRepBase={fame=fameTotal,rep=repTotal}
-    bySeat[seatPos]=current
+    trackerPrivate.bySeat[seatPos]=current
     resourceCardScanBySeat[seatPos]={cards=records,totals=totals,
         attackTransforms=attackTransforms,
         terrainModifiers=terrainModifiers,movementEffects=movementEffects,
@@ -10228,15 +10229,15 @@ end
 
 local function queueSeat(seatPos,triggerGUID)
     if not resourceCardsPanelOpen() or seatPos==nil or seatPos<1 or seatPos>4 then return end
-    generation[seatPos]=(generation[seatPos] or 0)+1
-    local serial=generation[seatPos]
+    trackerPrivate.generation[seatPos]=(trackerPrivate.generation[seatPos] or 0)+1
+    local serial=trackerPrivate.generation[seatPos]
     -- Zone entry is the trigger, but never inspect a moving card/token's position.
     safeWaitFrames("PlayerBoard.CardRecognition",function()
-        if generation[seatPos]~=serial or not resourceCardsPanelOpen() then return end
+        if trackerPrivate.generation[seatPos]~=serial or not resourceCardsPanelOpen() then return end
         safeWaitCondition("PlayerBoard.CardRecognition",function()
-            if generation[seatPos]==serial and resourceCardsPanelOpen() then renderSeat(seatPos) end
+            if trackerPrivate.generation[seatPos]==serial and resourceCardsPanelOpen() then renderSeat(seatPos) end
         end,function()
-            if generation[seatPos]~=serial or not resourceCardsPanelOpen() then return true end
+            if trackerPrivate.generation[seatPos]~=serial or not resourceCardsPanelOpen() then return true end
             if triggerGUID==nil then return true end
             local obj=getObjectFromGUID(triggerGUID)
             return obj==nil or (obj.held_by_color==nil and obj.resting==true and obj.isSmoothMoving()==false)
@@ -10250,12 +10251,12 @@ function resourceCardsSourceChanged()
 end
 
 local function clearAll()
-    for seat=1,4 do generation[seat]=(generation[seat] or 0)+1 end
+    for seat=1,4 do trackerPrivate.generation[seat]=(trackerPrivate.generation[seat] or 0)+1 end
     clearChoiceButtons()
     choiceExpandedByGUID={}
     -- Do not discard choices when closing/reopening the Resource Tracker.
     for guid in pairs(shown) do clearHighlight(guid) end
-    bySeat={}
+    trackerPrivate.bySeat={}
     resourceCardScanBySeat={}
     combatConfig.bowSourceModes={}
     combatConfig.amuletMana={gold=false,black=false}
@@ -10812,19 +10813,19 @@ function resourceUnitsCommandPickedUp(playerColor,obj)
     local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if current==nil or legalPlayerCheck(playerColor,current.seatPos)~=true then return end
     local origin=unitLayoutCommandTarget(obj,current.seatPos)
-    commandPickupForUnits[obj.guid]={seatPos=current.seatPos,
+    trackerPrivate.commandPickupForUnits[obj.guid]={seatPos=current.seatPos,
         turnNumber=gStates.turnNumber,origin=origin~=nil and origin.guid or nil}
 end
 
 function resourceUnitsCommandDropped(playerColor,obj)
     if not resourceCardsPanelOpen() or obj==nil or not unitLayoutIsCommand(obj) then return end
-    local pickup=commandPickupForUnits[obj.guid]
-    commandPickupForUnits[obj.guid]=nil
+    local pickup=trackerPrivate.commandPickupForUnits[obj.guid]
+    trackerPrivate.commandPickupForUnits[obj.guid]=nil
     if pickup==nil or not resourceCardsPanelOpen() then return end
     local guid=obj.guid
-    local serial=trackerSession
+    local serial=trackerPrivate.trackerSession
     safeWaitCondition("PlayerBoard.CardRecognition",function()
-        if not resourceCardsPanelOpen() or trackerSession~=serial then return end
+        if not resourceCardsPanelOpen() or trackerPrivate.trackerSession~=serial then return end
         local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
         if current==nil or current.seatPos~=pickup.seatPos
             or gStates.turnNumber~=pickup.turnNumber then return end
@@ -10875,7 +10876,7 @@ function resourceUnitsCommandDropped(playerColor,obj)
         showUnitAbilityButtons(unit,abilities,newActivation,true,nil,useIndex)
         queueSeat(pickup.seatPos,nil)
     end,function()
-        if not resourceCardsPanelOpen() or trackerSession~=serial then return true end
+        if not resourceCardsPanelOpen() or trackerPrivate.trackerSession~=serial then return true end
         local token=getObjectFromGUID(guid)
         return token==nil or (token.held_by_color==nil and token.resting==true
             and token.isSmoothMoving()==false)
@@ -11054,7 +11055,7 @@ function resourceUnitsResetTurn()
         gStates.unitReadyCardChoices={}
         gStates.unitResourceActivations={}
     end
-    commandPickupForUnits={}
+    trackerPrivate.commandPickupForUnits={}
     if attackAssignmentsRefreshReadyUI~=nil then attackAssignmentsRefreshReadyUI() end
 end
 
@@ -11132,19 +11133,19 @@ function resourceCardsPanelChanged(open)
     -- A newly shown panel may need a frame before TTS reports its attributes.
     -- That temporary state is not a player-requested OFF transition.
     if open==true and not resourceCardsPanelReady() then return end
-    trackerStartupRequest=trackerStartupRequest+1
+    trackerPrivate.trackerStartupRequest=trackerPrivate.trackerStartupRequest+1
     if open~=true then
-        trackerWasDisabled=true
-        trackerSession=trackerSession+1
+        trackerPrivate.trackerWasDisabled=true
+        trackerPrivate.trackerSession=trackerPrivate.trackerSession+1
         -- Turn the tracker completely off: stop callbacks and remove its visuals.
         combatCalcShutdown()
         clearAll()
         unitHistoryHideControls()
-        for guid in pairs(choiceResetGenerationByGUID) do
-            choiceResetGenerationByGUID[guid]=choiceResetGenerationByGUID[guid]+1
+        for guid in pairs(trackerPrivate.choiceResetGenerationByGUID) do
+            trackerPrivate.choiceResetGenerationByGUID[guid]=trackerPrivate.choiceResetGenerationByGUID[guid]+1
         end
-        crystalHighlightCleared={}
-        unitHighlightBlocked={}
+        trackerPrivate.crystalHighlightCleared={}
+        trackerPrivate.unitHighlightBlocked={}
         -- Fresh starts never inherit manual resource offsets or an old avatar position.
         -- Keep moveCost: those are real day/night and manually adjusted terrain rules.
         local tracker=gStates~=nil and gStates.resourceTracker or nil
@@ -11162,8 +11163,8 @@ function resourceCardsPanelChanged(open)
         return
     end
     -- Expanding after an OFF period rebuilds from scratch, not cached choices.
-    local restart=trackerWasDisabled
-    trackerWasDisabled=false
+    local restart=trackerPrivate.trackerWasDisabled
+    trackerPrivate.trackerWasDisabled=false
     if restart then refreshResourceTrackerReputation() end
     clearAll()
     if invalidateResourceTrackerDisplayCache~=nil then invalidateResourceTrackerDisplayCache() end
@@ -11188,14 +11189,14 @@ function resourceCardsPanelChanged(open)
     -- until the next UI update. queueSeat rejects closed panels immediately,
     -- so invoking it in the same button callback could silently lose the scan.
     -- Wait only while opening, then read every physical object exactly once.
-    local serial=generation[seat]
+    local serial=trackerPrivate.generation[seat]
     safeWaitCondition("PlayerBoard.CardRecognition",function()
-        if generation[seat]==serial and resourceCardsPanelOpen() then
+        if trackerPrivate.generation[seat]==serial and resourceCardsPanelOpen() then
             renderSeat(seat)
         end
     end,function()
         -- Closing or reopening the panel invalidates this pending request.
-        return generation[seat]~=serial or resourceCardsPanelOpen()
+        return trackerPrivate.generation[seat]~=serial or resourceCardsPanelOpen()
     end,1)
 end
 
@@ -11235,18 +11236,18 @@ function resourceCardsOnLoad()
         resourceCardsPanelChanged(false)
         return
     end
-    trackerStartupRequest=trackerStartupRequest+1
-    local request=trackerStartupRequest
+    trackerPrivate.trackerStartupRequest=trackerPrivate.trackerStartupRequest+1
+    local request=trackerPrivate.trackerStartupRequest
     safeWaitCondition("PlayerBoard.CardRecognition",function()
-        if trackerStartupRequest==request and resourceCardsPanelReady() then
+        if trackerPrivate.trackerStartupRequest==request and resourceCardsPanelReady() then
             resourceCardsPanelChanged(true)
         end
     end,function()
-        return trackerStartupRequest~=request or resourceCardsPanelReady()
+        return trackerPrivate.trackerStartupRequest~=request or resourceCardsPanelReady()
     end,5,function()
         -- A genuinely collapsed saved panel stays OFF; it must never
         -- trigger a new scan until the player explicitly expands it.
-        if trackerStartupRequest==request and not resourceCardsPanelReady() then
+        if trackerPrivate.trackerStartupRequest==request and not resourceCardsPanelReady() then
             resourceCardsPanelChanged(false)
         end
     end)
@@ -11354,13 +11355,13 @@ function resourceCardsObjectMoved(obj)
         end
     end
     if (isMonster and combatTrackedSeat==seat and combatTrackedEnemies[obj.guid]~=nil)
-        or isUnitStateToken or (isMonster and bySeat[seat]~=nil
-        and bySeat[seat][obj.guid]==true) then
+        or isUnitStateToken or (isMonster and trackerPrivate.bySeat[seat]~=nil
+        and trackerPrivate.bySeat[seat][obj.guid]==true) then
         -- On a drop outside the zones, wait for the token to settle before
         -- checking membership. Otherwise smooth movement can retain a ghost
         -- indefinitely if no further zone event fires.
         queueSeat(seat,isMonster and obj.guid or nil)
-    elseif bySeat[seat]~=nil and bySeat[seat][obj.guid]==true then
+    elseif trackerPrivate.bySeat[seat]~=nil and trackerPrivate.bySeat[seat][obj.guid]==true then
         scheduleChoiceResetAfterPlay(obj.guid,seat)
         queueSeat(seat,nil)
     end
