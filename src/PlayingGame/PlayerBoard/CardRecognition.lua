@@ -10350,6 +10350,16 @@ function resourceCardsChoiceClicked(player,value,id)
     end
     local inventorySpec=not sideways and powered and rule~=nil
         and rule.inventorySetChoices or nil
+    if rule~=nil and rule.staffDualChoices==true and powered and not sideways then
+        local _,firstKey=currentChoice(guid,true,mainChoices)
+        local remaining={}
+        for _,option in ipairs(mainChoices or {}) do
+            if choiceCategory(option)~=firstKey then
+                remaining[#remaining+1]=option
+            end
+        end
+        inventorySpec={choices=remaining}
+    end
     local inventorySets=inventorySpec~=nil and record~=nil
         and record.inventorySetCount or 0
     if setIndex~=nil then
