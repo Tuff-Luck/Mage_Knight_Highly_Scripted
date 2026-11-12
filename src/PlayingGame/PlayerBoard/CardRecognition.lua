@@ -5648,6 +5648,18 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             colors="#454D5D|#69798E|#444C63|#454D5D",
             textColor="#FFFFFF",textAlignment="MiddleCenter"},value="?"}
     end
+    if rule~=nil and isArtifact
+        and cardData.resourceKey=="artifactBannerFortitude"
+        and card.is_face_down==true and posture=="upright" then
+        xml[#xml+1]={tag="Button",attributes={
+            id="ResourceCardChoice_"..card.guid.."_healAllUnits",
+            onClick="global/resourceCardsArtifactHealUnitsClicked",
+            position="145 -145 "..buttonDepth,rotation=uiRotation,
+            width=160,height=85,scale="0.28 0.28",fontSize=40,
+            tooltip="Banner of Fortitude (Break): fully Heal every Unit you control, outside combat. Click to remove all actual Unit Wound tokens. Does not remove combat preview tokens.",
+            colors="#454D5D|#69798E|#444C63|#454D5D",
+            textColor="#FFFFFF",textAlignment="MiddleCenter"},value="HEAL"}
+    end
     if rule~=nil and rule.staffDualChoices==true and posture=="upright" then
         local redReady=not powered and type(resources)=="table" and resources.other==1
         if powered then
@@ -10246,6 +10258,41 @@ local function clearAll()
         refreshResourceTrackerText()
         updateMoveDisplay()
     end
+end
+
+-- Explicitly resolve Banner of Fortitude's all-Unit Healing against physical
+-- Wound tokens. The button is shown only for the broken side, and player
+-- action is required; scanning must NEVER delete a Wound just because an
+-- artifact briefly changed posture.
+function resourceCardsArtifactHealUnitsClicked(player,value,id)
+    if not resourceCardsPanelOpen()
+        or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil)
+        or type(id)~="string" or combatCalcOn then return end
+    local guid=id:match("^ResourceCardChoice_([0-9a-f]+)_healAllUnits$")
+    local data=guid~=nil and gameCards[guid] or nil
+    if data==nil or data.resourceKey~="artifactBannerFortitude" then return end
+    local current=turnOrder~=nil and gStates~=nil
+        and turnOrder[gStates.turnNumber] or nil
+    local card=getObjectFromGUID(guid)
+    if current==nil or card==nil or card.is_face_down~=true
+        or cardPosture(card)~="upright"
+        or not cardInSeatPlayArea(guid,current.seatPos) then return end
+    local layout=unitLayoutSnapshot(current.seatPos)
+    local trash=getObjectFromGUID(trashCan)
+    if trash==nil then return end
+    local healed=0
+    for _,obj in ipairs(layout.objects or {}) do
+        if unitLayoutIsWound(obj) then
+            trash.putObject(obj)
+            healed=healed+1
+        end
+    end
+    if healed>0 then
+        scheduleUnitLayoutRefresh(current.seatPos)
+        resourceCardsSourceChanged()
+    end
+    broadcastToColor("Banner of Fortitude: healed "..tostring(healed)
+        .." Unit Wound(s).",player.color,{0.7,0.95,0.7})
 end
 
 -- Artifact effects with physical dice, crystals or other player-decided
