@@ -113,7 +113,8 @@ end
 -- Keep combat constants in one private table: luabundle adds four parameters
 -- to each module, which also count toward Lua 5.2's 200 active-local limit.
 local combatConfig={}
-combatConfig.artifactCombat={sword=false,bow=false,bowMode="double"}
+combatConfig.artifactCombat={sword=false,bow=false,bowMode="double",
+    swordFame=false,bowFame=false}
 combatConfig.sacrificeCastPairs={}
 combatConfig.enemyDefenceTraits={
     {"fortified","Fortified"},{"unfortified","Unfortified"},{"elusive","Elusive"},
@@ -3503,6 +3504,27 @@ local function combatAssignmentRefreshRows(entries,sources)
     local currentPlayer=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
     local handLimit=math.max(1,tonumber(currentPlayer~=nil and currentPlayer.baseHand) or 5)
     local knockout=totalHeroWounds>=handLimit
+
+    -- An active Sword gives +1 Fame for EACH real enemy defeated, even when
+    -- no cards were discarded for its basic Attack. Bow's basic side gives
+    -- +1 for each enemy defeated in the Ranged/Siege phase. This is not tied
+    -- to the artifact itself being allocated as an Attack source.
+    if combatConfig.artifactCombat.swordFame or combatConfig.artifactCombat.bowFame then
+        for _,group in ipairs(groups) do
+            if group.defeated then
+                local count=0
+                for _,index in ipairs(group.members) do
+                    if not entries[index].preview then count=count+1 end
+                end
+                if combatConfig.artifactCombat.swordFame then
+                    defeatFame=defeatFame+count
+                end
+                if group.rangeDefeated and combatConfig.artifactCombat.bowFame then
+                    defeatFame=defeatFame+count
+                end
+            end
+        end
+    end
 
     -- Banner of Glory awards Fame for participating Unit combat abilities, not
     -- merely for sitting in a play area. The attached banner counts each
@@ -7500,12 +7522,20 @@ local function renderSeat(seatPos)
 
     combatConfig.artifactCombat.sword=false
     combatConfig.artifactCombat.bow=false
+    combatConfig.artifactCombat.swordFame=false
+    combatConfig.artifactCombat.bowFame=false
     for _,card in ipairs(cards) do
         local data=gameCards[card.guid]
         local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
-        if rule~=nil and rule.artifactGlobalCombat~=nil
-            and cardPosture(card)=="upright" and card.is_face_down==true then
-            combatConfig.artifactCombat[rule.artifactGlobalCombat]=true
+        if rule~=nil and cardPosture(card)=="upright" then
+            if rule.artifactGlobalCombat~=nil and card.is_face_down==true then
+                combatConfig.artifactCombat[rule.artifactGlobalCombat]=true
+            end
+            if rule.artifactGlobalFame=="all" then
+                combatConfig.artifactCombat.swordFame=true
+            elseif rule.artifactGlobalFame=="range" and card.is_face_down~=true then
+                combatConfig.artifactCombat.bowFame=true
+            end
         end
     end
 
