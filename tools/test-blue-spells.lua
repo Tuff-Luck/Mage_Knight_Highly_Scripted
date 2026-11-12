@@ -78,6 +78,8 @@ GUID={card={timeBending="2eb8e2"}}
 playerPlayAreas={[1]="play"}
 local isDay=false
 resourceCardsUsesDayMana=function() return isDay end
+resourceCardsBlackAllowed=function() return not isDay end
+resourceCardsGoldAllowed=function() return isDay end
 cardPosture=function() return "upright" end
 footprint=function() return {x=0,z=0,halfX=1.5,halfZ=1.8} end
 manaInsideFootprint=function(obj,area)
