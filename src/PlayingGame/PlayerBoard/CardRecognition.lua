@@ -561,6 +561,47 @@ local function combatAssignmentSources(seat)
             or diplomacy.element=="I" and "blockIce" or "blockFire"
         converted("8c3de6","convertBlock",key,diplomacy.block,diplomacy.block)
     end
+    -- Shield of the Fallen Kings gives separate Block effects, not one
+    -- divisible pool. Each part has its own target key, arrow and assignment.
+    -- An Ambush bonus belongs to the FIRST printed Block effect only.
+    local splitBlocks={}
+    for _,source in ipairs(sources) do
+        local count=tonumber(source.repeatBlocks) or 1
+        if count>1 and source.block>0 then
+            local firstBonus=tonumber(source.ambushFirstBlockBonus) or 0
+            for index=1,count do
+                local part={}
+                for key,value in pairs(source) do part[key]=value end
+                part.key=source.key.."#block"..index
+                part.part="block"..index
+                part.name=source.name.." (Block "..index..")"
+                part.repeatBlocks=nil
+                part.ambushFirstBlockBonus=nil
+                part.resources={}
+                part.details={}
+                part.block=0
+                for _,detail in ipairs(source.details) do
+                    if detail.family=="block" then
+                        local amount=detail.amount-firstBonus
+                        if amount>=0 and amount%count==0 then
+                            amount=amount/count+(index==1 and firstBonus or 0)
+                            local copy={}
+                            for key,value in pairs(detail) do copy[key]=value end
+                            copy.amount=amount
+                            copy.text=detail.type.." Block "..tostring(amount)
+                            part.details[#part.details+1]=copy
+                            part.resources[detail.key]=amount
+                            part.block=part.block+amount
+                        end
+                    end
+                end
+                if part.block>0 then splitBlocks[#splitBlocks+1]=part end
+            end
+        else
+            splitBlocks[#splitBlocks+1]=source
+        end
+    end
+    sources=splitBlocks
     table.sort(sources,function(a,b)
         if a.name==b.name then return a.key<b.key end
         return a.name<b.name
