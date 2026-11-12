@@ -5589,6 +5589,26 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             startingControl("manual","?",rule.manualSecondary,false,135,-125)
         end
     end
+    if rule~=nil and rule.staffDualChoices==true and posture=="upright" then
+        local redReady=not powered and type(resources)=="table" and resources.other==1
+        if powered then
+            local _,first=currentChoice(card.guid,true,choices)
+            local selected=selectedResourceByGUID[card.guid]
+            local second=selected~=nil and selected.inventorySets~=nil
+                and selected.inventorySets[1] or nil
+            redReady=first=="red" or second=="red"
+        end
+        if redReady then
+            xml[#xml+1]={tag="Button",attributes={
+                id="AttackAssignmentSource_"..card.guid.."_0_unitReady",
+                onClick="global/attackAssignmentReadySourceClicked",
+                position="150 -145 "..buttonDepth,rotation=uiRotation,
+                width=150,height=85,scale="0.28 0.28",fontSize=46,
+                tooltip="Druidic Staff (Red): Ready one Level I-III Unit. Select the Unit with the target controls; its Command activation and undo remain under Unit History.",
+                colors="#454D5D|#69798E|#444C63|#454D5D",textColor="#FFFFFF",
+                textAlignment="MiddleCenter"},value="RDY"}
+        end
+    end
     if rule~=nil and rule.simultaneousReady==true and posture=="upright"
         and resources~=nil and (tonumber(resources.healing) or 0)>0
         and (card.is_face_down~=true or repeatLink~=nil) then
@@ -8241,6 +8261,12 @@ local function renderSeat(seatPos)
             result.links[#result.links+1]=manaLink.skillGUID
             result.convertedMana=manaLink.converted
         end
+        if rule~=nil and rule.staffDualChoices==true and result.powered~=true
+            and result.resources~=nil and result.resources.other==1 then
+            -- The Red card discarded onto the Staff grants a single Unit
+            -- Ready, even though no numeric resource is contributed.
+            choices={{key="red",icon="other"}}
+        end
         result.choices=choices -- Also authoritative for payment-restricted click validation.
         showChoiceButtons(card,choices,result.powered,inventorySpec,inventorySets,result.resources,
             repeatByTarget[card.guid])
@@ -10452,6 +10478,24 @@ function resourceCardsReadySourceValid(sourceKey,seatPos)
         return choice~=nil and choice.key=="ready"
     end
     local data=gameCards[guid]
+    if data~=nil and data.resourceKey=="artifactDruidicStaff" then
+        local card=getObjectFromGUID(guid)
+        local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+        seatPos=seatPos or (current~=nil and current.seatPos)
+        if card==nil or seatPos==nil or not cardInSeatPlayArea(guid,seatPos)
+            or cardPosture(card)~="upright" or sourceKey~=guid then return false end
+        local scan=resourceCardScanBySeat[seatPos]
+        local record=scan~=nil and scan.cards[guid] or nil
+        if record==nil or not record.complete then return false end
+        if record.powered~=true then
+            return record.resources~=nil and record.resources.other==1
+        end
+        local selected=selectedResourceByGUID[guid]
+        local choices=sideChoices(cardResourceDefinitions[data.resourceKey],true)
+        local _,first=currentChoice(guid,true,choices)
+        return first=="red" or (selected~=nil and selected.inventorySets~=nil
+            and selected.inventorySets[1]=="red")
+    end
     if data~=nil and data.resourceKey=="artifactBannerCourage" then
         local card=getObjectFromGUID(guid)
         local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
