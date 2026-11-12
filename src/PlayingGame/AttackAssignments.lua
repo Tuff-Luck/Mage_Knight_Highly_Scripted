@@ -282,7 +282,7 @@ local function syncReadyUnitButtons()
                 function_owner=Global,label="",position={0,0.28,0},rotation={0,0,0},
                 width=size/((scale~=nil and scale.x) or 1)*450,
                 height=size/((scale~=nil and scale.z) or 1)*650,
-                color={0,0,0,0},tooltip="Select this exhausted Unit to ready"})
+                color={0,0,0,0}})
             readyUnitTargetButtons[guid]=true
         end
     end
@@ -691,7 +691,7 @@ local function previewUnitMarker(unit,show)
     unit.createButton({click_function=previewParalysisClick,function_owner=Global,label="X",
         position={0,math.max(0.12,height/(2*math.max(0.01,scaleY))+0.08),0},
         rotation={0,0,0},width=0,height=0,font_size=640,
-        font_color={1,0.04,0.04},tooltip="Combat Calculator: Unit destroyed by Paralysis"})
+        font_color={1,0.04,0.04}})
 end
 
 -- The Unit layout changes snap points when extra Command slots compress the board.

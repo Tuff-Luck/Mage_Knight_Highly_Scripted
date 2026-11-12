@@ -1543,7 +1543,7 @@ local function combatDefeatUpdateMarker(obj, defeated)
 	local y=math.max(0.12,height/(2*math.max(0.01,scaleY))+0.08)
 	obj.createButton({click_function=combatDefeatMarkerClick,function_owner=Global,label="X",
 		position={0,y,0},rotation={0,0,0},width=0,height=0,font_size=640,
-		font_color={1,0.04,0.04},tooltip="Combat Calculator: defeated"})
+		font_color={1,0.04,0.04}})
 end
 
 local function combatDefeatFlipChanged(flip,oldFlip)

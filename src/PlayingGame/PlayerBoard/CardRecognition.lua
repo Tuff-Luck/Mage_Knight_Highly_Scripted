@@ -155,6 +155,22 @@ local combatAssignmentState={seat=nil,selected=nil,targets={},explicit={}}
 -- Fame/Reputation currently earned by defeating enemies in the calculator; the scan adds its own fixed part.
 local combatDefeatFameRep={fame=0,rep=0}
 
+-- Interaction is an explicit choice, but its powered bonus follows the live
+-- card scan. A temporarily absent card keeps its last earned reward; removing
+-- mana from a card still in play must retract only the powered part.
+local function resourceCardsSyncInteractionPower(records)
+    for guid,selected in pairs(gStates.startingCardSelections or {}) do
+        local data=gameCards[guid]
+        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+        local record=records[guid]
+        if selected.interaction==true and rule~=nil
+            and rule.interactionReward~=nil and record~=nil
+            and record.complete and record.resources~=nil then
+            selected.interactionPowered=record.powered==true or nil
+        end
+    end
+end
+
 -- Conditional effects are earned by the player's explicit choice, not merely
 -- by a card lying in the play area. Once earned, they survive repositioning
 -- that card or minimizing the tracker until the end-of-turn commit.
@@ -5175,8 +5191,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                     targetResource=targetResourceFor(choice,category),
                     iconOverlayColor=choice.iconOverlayColor,
                     iconOverlayAlignment=choice.iconOverlayAlignment,
-                    iconOverlaySize=choice.iconOverlaySize,
-                    tooltip=choice.tooltip}
+                    iconOverlaySize=choice.iconOverlaySize}
             end
         end
         table.sort(row.entries,function(a,b)
@@ -5355,8 +5370,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                     scale=buttonScale,
                     colors=active and "#387D30|#4CA940|#387D30|#387D30"
                         or "#454D5D|#69798E|#444C63|#454D5D",
-                    fontSize=77,textColor="#FFFFFF",textAlignment="MiddleCenter",
-                    tooltip=entry.tooltip
+                    fontSize=77,textColor="#FFFFFF",textAlignment="MiddleCenter"
                 },value=icon==nil and choiceLetters[category] or ""}
                 if icon~=nil then
                     if entry.stackedIcons~=nil then
@@ -5551,17 +5565,12 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     -- Battle Hardened will mitigate. The cycling button is on the Skill, not
     -- the enemy, and never changes the existing calculator columns.
     if rule~=nil and rule.damageMitigation~=nil and #hardenedOptions>1 then
-        local tooltip="Choose the specific enemy Attack for "
-            ..(card.guid=="ae8673" and "Elemental Resistance" or "Battle Hardened")
-        for i,option in ipairs(hardenedOptions) do
-            tooltip=tooltip.."\n"..tostring(i)..": "..option.label
-        end
         xml[#xml+1]={tag="Button",attributes={
             id="ResourceCardChoice_"..card.guid.."_hardenedCycle",
             onClick="global/resourceCardsBattleHardenedAttackClicked",
             position="-105 0 "..buttonDepth,rotation=uiRotation,
             width=110,height=90,scale="0.42 0.42",fontSize=55,
-            tooltip=tooltip,colors="#454D5D|#69798E|#444C63|#454D5D",
+            colors="#454D5D|#69798E|#444C63|#454D5D",
             textColor="#FFFFFF",textAlignment="MiddleCenter"},
             value=tostring(hardenedIndex).."/"..tostring(#hardenedOptions)}
     end
@@ -5586,7 +5595,6 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             onClick="global/attackAssignmentSourceClicked",
             position="140 0 "..buttonDepth,rotation=uiRotation,
             width=90,height=90,scale=buttonScale,fontSize=46,
-            tooltip="Explosive Bolt: target ANOTHER enemy for Armour -1 per enemy this Ranged Attack defeats (min 1). Fire Resistance prevents this reduction.",
             colors="#454D5D|#69798E|#444C63|#454D5D",
             textColor="#FFFFFF",textAlignment="MiddleCenter"},
             value=#children==0 and "Arm" or "",children=children}
@@ -5598,43 +5606,37 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             onClick="global/resourceCardsForkedLightningPhaseClicked",
             position="160 0 "..buttonDepth,rotation=uiRotation,
             width=140,height=90,scale="0.38 0.38",fontSize=47,
-            tooltip="Forked Lightning: all bolts must resolve in the same phase. Click to toggle Ranged or Attack.",
             colors="#454D5D|#69798E|#444C63|#454D5D",
             textColor="#FFFFFF",textAlignment="MiddleCenter"},
             value=phase=="range" and "RNG" or "ATK"}
     end
     if rule~=nil and posture=="upright" and card.is_face_down~=true then
-        local function startingControl(suffix,label,tooltip,active,x,y)
+        local function startingControl(suffix,label,active,x,y)
             xml[#xml+1]={tag="Button",attributes={
                 id="ResourceCardChoice_"..card.guid.."_"..suffix,
                 onClick="global/resourceCardsStartingCardControlClicked",
                 position=tostring(x).." "..tostring(y).." "..buttonDepth,
                 rotation=uiRotation,width=160,height=90,scale="0.28 0.28",
                 fontSize=41,textColor="#FFFFFF",textAlignment="MiddleCenter",
-                tooltip=tooltip,
                 colors=active and "#387D30|#4CA940|#387D30|#387D30"
                     or "#454D5D|#69798E|#444C63|#454D5D"},
                 value=label}
         end
         if rule.interactionReward~=nil then
             startingControl("interaction","INT",
-                "Noble Manners: click only when used during Interaction. Grants end-of-turn Fame +1 (and Reputation +1 if powered). Click again to undo.",
                 special~=nil and special.interaction==true,135,-125)
         elseif rule.recruitDiscount~=nil and not powered then
             startingControl("recruit","-2 REC",
-                "Ruthless Coercion: use the optional -2 recruitment discount on ONE Unit. Click when you recruit it: the conditional Reputation -1 applies. Click again to undo.",
                 special~=nil and special.recruited==true,135,-125)
         elseif rule.readyWithInfluence~=nil and powered then
             startingControl("ruthlessReady","RDY "..tostring(readyCount),
-                "Ruthless Coercion: left click to target another Level I-II used, unwounded Unit. Each Ready spends 2 Influence per Unit level. Right click removes the latest Ready and its dependent activation.",
                 readyCount>0,145,-125)
         elseif rule.selectedTerrainDiscount~=nil and powered then
             startingControl("terrain",special~=nil and special.terrain~=nil
                 and special.terrain:sub(1,3):upper() or "TER",
-                "Druidic Paths: choose ONE terrain type to discount by 1 (minimum 2) for the turn. Click to cycle; right click clears.",
                 special~=nil and special.terrain~=nil,150,-125)
         elseif rule.manualSecondary~=nil then
-            startingControl("manual","?",rule.manualSecondary,false,135,-125)
+            startingControl("manual","?",false,135,-125)
         end
     end
     if rule~=nil and isArtifact and rule.manualSecondary~=nil
@@ -5644,8 +5646,6 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             onClick="global/resourceCardsArtifactNoteClicked",
             position="145 -240 "..buttonDepth,rotation=uiRotation,
             width=140,height=82,scale="0.28 0.28",fontSize=43,
-            tooltip=rule.manualSecondary
-                .."\nResolve the physical effect manually; numerical combat effects are calculated separately.",
             colors="#454D5D|#69798E|#444C63|#454D5D",
             textColor="#FFFFFF",textAlignment="MiddleCenter"},value="?"}
     end
@@ -5657,7 +5657,6 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             onClick="global/resourceCardsArtifactHealUnitsClicked",
             position="145 -145 "..buttonDepth,rotation=uiRotation,
             width=160,height=85,scale="0.28 0.28",fontSize=40,
-            tooltip="Banner of Fortitude (Break): fully Heal every Unit you control, outside combat. Click to remove all actual Unit Wound tokens. Does not remove combat preview tokens.",
             colors="#454D5D|#69798E|#444C63|#454D5D",
             textColor="#FFFFFF",textAlignment="MiddleCenter"},value="HEAL"}
     end
@@ -5676,7 +5675,6 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                 onClick="global/attackAssignmentReadySourceClicked",
                 position="150 -145 "..buttonDepth,rotation=uiRotation,
                 width=150,height=85,scale="0.28 0.28",fontSize=46,
-                tooltip="Druidic Staff (Red): Ready one Level I-III Unit. Select the Unit with the target controls; its Command activation and undo remain under Unit History.",
                 colors="#454D5D|#69798E|#444C63|#454D5D",textColor="#FFFFFF",
                 textAlignment="MiddleCenter"},value="RDY"}
         end
@@ -5863,7 +5861,6 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decisi
                 colors=invalidCombat and "#9C3737|#B34A4A|#9C3737|#9C3737"
                     or active and "#387D30|#4CA940|#387D30|#387D30"
                     or "#454D5D|#69798E|#444C63|#454D5D",
-                tooltip=invalidCombat and "Only one combat activation per Unit per turn. Change an earlier combat choice to use this effect." or nil,
                 fontSize=77,textColor="#FFFFFF",textAlignment="MiddleCenter"
             },value=icon==nil and (ability.buttonLabel
                 or (ability.key=="other" and tostring(ability.row))
@@ -10136,6 +10133,7 @@ local function renderSeat(seatPos)
             repTotal=repTotal+(record.fameRep.rep or 0)
         end
     end
+    resourceCardsSyncInteractionPower(records)
     local earnedFame,earnedRep=combatConfig.startingCardConditionalFameRep()
     fameTotal=fameTotal+earnedFame
     repTotal=repTotal+earnedRep

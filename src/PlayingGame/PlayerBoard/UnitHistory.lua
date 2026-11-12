@@ -153,8 +153,7 @@ function unitHistoryRefreshToken(guid)
         token.createButton({click_function=click,function_owner=Global,
             label=label,position={x,buttonY,0},rotation=buttonRotation,
             width=width,height=width==0 and 0 or 190,font_size=font or 155,
-            color={0.13,0.15,0.19,0.90},font_color={1,1,1,1},
-            tooltip=width==0 and "" or "Select a Unit activation to inspect or edit"})
+            color={0.13,0.15,0.19,0.90},font_color={1,1,1,1}})
     end
     -- A zero-size TTS button draws only its text, without a clickable button
     -- surface. Activation 1 is the normal Unit state and needs no number.
