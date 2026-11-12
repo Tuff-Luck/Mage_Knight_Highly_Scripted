@@ -15,6 +15,10 @@ local start=assert(shared:find("function legalPlayerCheck(",1,true))
 local finish=assert(shared:find("-- Stable physical-object identity helpers.",start,true))
 local loadPermission=assert(load(shared:sub(start,finish-1),"legalPlayerCheck from Shared.lua"))
 loadPermission()
+-- The function is loaded dynamically above, so tell Lua Diagnostics about
+-- the optional quiet argument rather than relying on another file's inferred signature.
+---@type fun(color: string, seat: integer, rule: string?, quiet: boolean?): boolean
+local checkPermission=legalPlayerCheck
 
 local broadcasts=0
 local lastMessage
@@ -32,13 +36,13 @@ Player={
 turnOrder={{seatPos=2,mage="Norowas"}}
 gStates={firstStarted=true,turnNumber=1,positionMageKnight={[5]="Proxy"}}
 
-eq(legalPlayerCheck("Red",2,"NoDummyException",true),false,"quiet unauthorized check")
+eq(checkPermission("Red",2,"NoDummyException",true),false,"quiet unauthorized check")
 eq(broadcasts,0,"quiet check has no broadcast")
-eq(legalPlayerCheck("Blue",2,"NoDummyException",true),true,"owning seat still allowed")
-eq(legalPlayerCheck("Black",2,"NoDummyException",true),true,"GM still allowed")
-eq(legalPlayerCheck("Grey",2,"NoDummyException",true),false,"spectator still rejected")
+eq(checkPermission("Blue",2,"NoDummyException",true),true,"owning seat still allowed")
+eq(checkPermission("Black",2,"NoDummyException",true),true,"GM still allowed")
+eq(checkPermission("Grey",2,"NoDummyException",true),false,"spectator still rejected")
 eq(broadcasts,0,"allowed checks have no broadcast")
-eq(legalPlayerCheck("Red",2,"NoDummyException"),false,"original unauthorized check")
+eq(checkPermission("Red",2,"NoDummyException"),false,"original unauthorized check")
 eq(broadcasts,1,"ordinary button check still broadcasts")
 assert(lastMessage:find("Norowas",1,true),"warning should name the target seat")
 
