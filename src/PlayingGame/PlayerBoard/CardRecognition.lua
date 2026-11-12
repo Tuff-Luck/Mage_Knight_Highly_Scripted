@@ -8633,6 +8633,35 @@ local function renderSeat(seatPos)
             activations[unitGUID]=nil
         end
     end
+    -- A flipped attached Courage banner explicitly authorises the Unit to
+    -- ready once this round. The broken banner authorises every used Unit.
+    -- unitHistory owns the actual Command move, extra activation and undo;
+    -- simply flipping a card never creates free Attack or Block resources.
+    if not combatCalcOn and unitState~=nil then
+        gStates.unitReadyLinks=gStates.unitReadyLinks or {}
+        local byUnit=unitState.bannersByUnit or {}
+        for unitGUID,banners in pairs(byUnit) do
+            local courage=banners["Banner of Courage"]
+            if courage~=nil and courage.faceDown and
+                gStates.unitReadyLinks[courage.guid]==nil then
+                unitHistoryReadyLink(courage.guid,unitGUID,seatPos,nil)
+            end
+        end
+        for _,card in ipairs(cards) do
+            local data=gameCards[card.guid]
+            if data~=nil and data.resourceKey=="artifactBannerCourage"
+                and card.is_face_down and cardPosture(card)=="upright" then
+                for index,entry in ipairs(unitState.units) do
+                    if not entry.ready then
+                        local key=card.guid.."#ready"..index
+                        if gStates.unitReadyLinks[key]==nil then
+                            unitHistoryReadyLink(key,entry.guid,seatPos,nil)
+                        end
+                    end
+                end
+            end
+        end
+    end
     local selectedUnitAttacks={}
     local activationByRecordKey={}
     local shocktroopsBoosts=0
@@ -10413,6 +10442,23 @@ function resourceCardsReadySourceValid(sourceKey,seatPos)
         return choice~=nil and choice.key=="ready"
     end
     local data=gameCards[guid]
+    if data~=nil and data.resourceKey=="artifactBannerCourage" then
+        local card=getObjectFromGUID(guid)
+        local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+        seatPos=seatPos or (current~=nil and current.seatPos)
+        if card==nil or card.is_face_down~=true or seatPos==nil then return false end
+        if cardInSeatPlayArea(guid,seatPos)
+            and cardPosture(card)=="upright" then
+            return sourceKey:match("^"..guid.."#ready%d+$")~=nil
+        end
+        local state=unitLayoutResourceState(seatPos)
+        if sourceKey~=guid then return false end
+        for _,banners in pairs(state~=nil and state.bannersByUnit or {}) do
+            if banners["Banner of Courage"]~=nil
+                and banners["Banner of Courage"].guid==guid then return true end
+        end
+        return false
+    end
     if data==nil or (data.resourceKey~="rejuvenate"
         and data.resourceKey~="regeneration"
         and data.resourceKey~="ruthlessCoercion") then return false end
