@@ -115,7 +115,7 @@ local byType={
         value(2,"rangedFire",6,"Ranged Fire Attack 6",{manaCost="Red"})},
     AmotepFreezers={
         value(1,"attack",5,"Attack 5"),value(1,"block",5,"Block 5"),
-        special(2,"Chosen enemy does not attack and gets Armor -3 (minimum 1)",{manaCost="Blue",enemyEffect={noAttack=true,armourReduce=3}})},
+        special(2,"Chosen enemy does not attack and gets Armor -3 (minimum 1)",{manaCost="Blue",enemyEffect={noAttack=true,armourReduce=3,iceSpell=true}})},
     Catapults={
         value(1,"siege",3,"Siege Attack 3"),
         value(2,"siegeFire",5,"Pay red mana: Siege Fire Attack 5",{manaCost="Red"}),

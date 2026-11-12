@@ -2162,12 +2162,13 @@ combatConfig.effectButtonInfo=function(entry,applied)
         local printed=fortifiedWhenCast and armourFortified or armour
         amount="-"..tostring(math.max(printed,appliedReduction))
         description="Armour reduction "..amount
+        if spec.noAttack==true then description=description.."; prevent enemy Attack" end
         if spec.armourBeforeFortificationRemoval==true then
             description=description.." (Earthquake before fortification removal)"
         end
         if appliedReduction==0 then
-            reason=applied.fireResistant and "Fire Resistance ignores this red Spell effect."
-                or (applied.iceResistant and "Ice Resistance ignores this blue Spell effect.")
+            reason=applied.fireResistant and "Fire Resistance ignores this red effect."
+                or (applied.iceResistant and "Ice Resistance ignores this blue effect.")
                 or (applied.immune and "Arcane Immunity ignores this Armour effect.")
                 or "This Armour reduction is not applicable to the target."
         elseif before<=after then reason="Armour is already at its minimum of 1 (or other effects have reached it)."
@@ -2213,9 +2214,9 @@ combatConfig.effectButtonInfo=function(entry,applied)
             if combatEnemyHasTrait(entry.data,entry.perks,trait) then relevant=true end
         end
         if applied.iceResistant then
-            reason="Ice Resistance ignores this blue Spell effect."
+            reason="Ice Resistance ignores this blue effect."
         elseif applied.fireResistant then
-            reason="Fire Resistance ignores this red Spell effect."
+            reason="Fire Resistance ignores this red effect."
         elseif (spec.removeResist and actual.removeResist~=true)
             or (spec.removeFireResist and actual.removeFireResist~=true) then
             reason="Arcane Immunity ignores this resistance effect."
@@ -2228,8 +2229,8 @@ combatConfig.effectButtonInfo=function(entry,applied)
         if spec.insufficientMove then
             reason="Not enough unspent Move points for this Wings of Night target."
         elseif not actual.noAttack and not actual.noAttackUnfortified then
-            reason=applied.iceResistant and "Ice Resistance ignores this blue Spell effect."
-                or (applied.fireResistant and "Fire Resistance ignores this red Spell effect.")
+            reason=applied.iceResistant and "Ice Resistance ignores this blue effect."
+                or (applied.fireResistant and "Fire Resistance ignores this red effect.")
                 or "Arcane Immunity ignores this prevention effect."
         elseif spec.noAttackUnfortified and fortified then
             reason="The target is still Fortified."
@@ -4583,10 +4584,11 @@ local function unitAbilityTargetCategory(ability)
     return nil
 end
 
--- Effects without numeric combat resources need their own source keys (one per paid ability).
--- Resource-producing abilities use the Unit GUID itself, matching the Combat Calculator.
+-- Numeric resources keep their own target; accompanying non-Attack enemy
+-- effects use a separate key, so Sorcerers may affect a different enemy.
 local function unitAbilityTargetKey(unitGUID,index,ability,useIndex)
     local key=unitHistoryKey(unitGUID,useIndex or 1)
+    if ability~=nil and ability.enemyEffect~=nil then return key.."#effect"..index end
     return unitAbilityTargetCategory(ability)~=nil and key
         or (key.."#effect"..index)
 end
@@ -5512,7 +5514,9 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decisi
             if category~=nil then
                 targetSpecs[#targetSpecs+1]={index=index,category=category,
                     idCategory=category..(useIndex>1 and ("@use"..useIndex) or "")}
-            elseif combatCalcOn and (ability.enemyEffect~=nil or ability.targetableEnemy==true) then
+            end
+            if combatCalcOn and (ability.enemyEffect~=nil
+                or (category==nil and ability.targetableEnemy==true)) then
                 targetSpecs[#targetSpecs+1]={index=index,category="effect",
                     idCategory="effect@"..(useIndex>1 and ("use"..useIndex.."#") or "")
                         .."effect"..index}
@@ -5667,6 +5671,15 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decisi
             if targetAsset~=nil and not blocked[targetAsset.name] then
                 children={{tag="Image",attributes={image=targetAsset.name,
                     width=82,height=82,preserveAspect="true",raycastTarget="false",color="#FFFFFF"}}}
+            end
+            -- R (Ranged) and E (enemy effect) label independent targets
+            -- without relying on unsupported object-attached tooltips.
+            if count==2 and targetSpecs[1].index==targetSpecs[2].index then
+                children[#children+1]={tag="Text",attributes={
+                    text=spec.category=="effect" and "E" or "R",
+                    width=38,height=38,fontSize=35,alignment="LowerRight",
+                    color="#FFFFFF",outline="#141820",outlineSize="2 -2",
+                    raycastTarget="false"}}
             end
             xml[#xml+1]={tag="Button",attributes={
                 id="AttackAssignmentSource_"..unit.guid.."_0_"..spec.idCategory,
@@ -10359,6 +10372,11 @@ function resourceUnitsReconcileChoiceTargets(unit,abilities,activation)
                 and (unitAbilityTargetCategory(ability)~=nil
                 or ability.enemyEffect~=nil or ability.targetableEnemy==true) then
                 allowed[unitAbilityTargetKey(unit.guid,index,ability,useIndex)]=true
+                -- Preserve the numeric attack target beside its separate
+                -- enemy-effect target, including earlier Command uses.
+                if ability.enemyEffect~=nil and unitAbilityTargetCategory(ability)~=nil then
+                    allowed[unitHistoryKey(unit.guid,useIndex)]=true
+                end
             end
         end
         if abilities.multi==true then
