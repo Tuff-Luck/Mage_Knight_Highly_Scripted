@@ -41,7 +41,7 @@ end
 
 function playerBoardCrystalEnteredPlayArea(ctx)
     local obj=ctx~=nil and ctx.obj or nil
-    if not isManaTokenFigurine(obj) then return end
+    if obj==nil or not isManaTokenFigurine(obj) then return end
     local guid=obj.guid
     local state=playAreaCrystalAnimation[guid]
     if state==nil then state={serial=0} playAreaCrystalAnimation[guid]=state end
@@ -57,7 +57,7 @@ end
 
 function playerBoardCrystalLeftPlayArea(ctx)
     local obj=ctx~=nil and ctx.obj or nil
-    if not isManaTokenFigurine(obj) then return end
+    if obj==nil or not isManaTokenFigurine(obj) then return end
     local guid=obj.guid
     local state=playAreaCrystalAnimation[guid]
     if state==nil then state={serial=0} playAreaCrystalAnimation[guid]=state end
@@ -82,7 +82,7 @@ function playerBoardCrystalLeftPlayArea(ctx)
 end
 
 function playerBoardCrystalDropped(obj)
-    if not isManaTokenFigurine(obj) then return end
+    if obj==nil or not isManaTokenFigurine(obj) then return end
     local state=playAreaCrystalAnimation[obj.guid]
     if state==nil then return end
     if state.inPlay==true then
