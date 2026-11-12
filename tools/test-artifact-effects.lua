@@ -91,6 +91,33 @@ assert(recognition:find('inventorySpec={choices=remaining}',1,true),
 assert(recognition:find('resourceCardsArtifactNoteClicked',1,true),
     "Manual Horn and Soul effects must be visible on either artifact face")
 
+-- The startup audit requires the Artifact Object UI callbacks to be published,
+-- not merely defined as globals; exercise the exact production registration.
+local published={}
+local registration=assert(recognition:match("(publishPublicUICallbacks%(%b{}%))%s*$"),
+    "Missing CardRecognition public callback registration")
+local registrationTest=assert(load([[
+local function publishPublicUICallbacks(callbacks)
+    for name,callback in pairs(callbacks) do
+        assert(type(callback)=="function","Invalid published callback: "..name)
+        published[name]=true
+    end
+end
+local resourceCardsRegenerationReadyClicked=function() end
+local resourceCardsArtifactNoteClicked=function() end
+local resourceCardsArtifactHealUnitsClicked=function() end
+]]..registration..[[
+return published
+]],"Artifact protected callback registration","t",{published=published}))
+registrationTest()
+for _,name in ipairs({
+    "resourceCardsRegenerationReadyClicked",
+    "resourceCardsArtifactNoteClicked",
+    "resourceCardsArtifactHealUnitsClicked"
+}) do
+    assert(published[name]==true,"Unprotected Artifact UI callback: "..name)
+end
+
 -- Execute the live payment matcher in a minimal deterministic environment.
 local paymentSource=between(recognition,"local function resourceCardsUsesDayMana()",
     "-- A powered link grants a target Action card")
