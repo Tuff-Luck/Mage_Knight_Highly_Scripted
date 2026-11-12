@@ -588,7 +588,7 @@ local function combatAssignmentSources(seat)
                             local copy={}
                             for key,value in pairs(detail) do copy[key]=value end
                             copy.amount=amount
-                            copy.text=detail.type.." Block "..tostring(amount)
+                            copy.text=tostring(detail.text):gsub("%s+%d+$"," "..tostring(amount))
                             part.details[#part.details+1]=copy
                             part.resources[detail.key]=amount
                             part.block=part.block+amount
