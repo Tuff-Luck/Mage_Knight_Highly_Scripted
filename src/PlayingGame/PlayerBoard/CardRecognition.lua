@@ -2104,7 +2104,7 @@ combatConfig.effectButtonInfo=function(entry,applied)
         or spec.removeFireResist==true or spec.destroy==true or spec.destroyDuringAttack==true
     local isBlock=attack>0 or spec.noAttack==true or spec.noAttackUnfortified==true
         or spec.removeAbilities==true or spec.removeOneAttackAbilities==true
-        or spec.destroyIfBlocked==true
+        or spec.destroyIfBlocked==true or spec.destroyIfFullyBlocked==true
     local attackIncrease=tonumber(spec.attackIncrease) or 0
     local special=spec.removeTrait~=nil or spec.convertAttack~=nil or attackIncrease>0
     if not isArmour and not isBlock and not special then return nil end
@@ -2236,6 +2236,13 @@ combatConfig.effectButtonInfo=function(entry,applied)
             reason="The target is still Fortified."
         elseif #combatEnemyPrintedAttacks(entry.data,entry.perks,entry.removeAbilities,entry.guid)==0 then
             reason="The enemy has no attack to prevent." end
+    elseif spec.destroyIfFullyBlocked==true then
+        description="Destroy target if all its attacks are successfully Blocked"
+        if applied.immune or actual.destroyIfFullyBlocked~=true then
+            reason="Arcane Immunity prevents this destruction."
+        elseif entry.destroyed~=true then
+            reason="Not all attacks from this enemy were successfully Blocked."
+        end
     elseif spec.destroyIfBlocked==true then
         description="Destroy if this Spell successfully Blocks an attack"
         if applied.fireResistant then reason="Fire Resistance prevents this destruction."
@@ -2932,7 +2939,8 @@ local function combatAssignmentRefreshRows(entries,sources)
     for _,entry in ipairs(entries) do
         if not entry.destroyed then
             for _,applied in ipairs(entry.effect~=nil and entry.effect.applied or {}) do
-                if applied.spec~=nil and applied.spec.destroyIfBlocked==true then
+                if applied.effective~=nil and (applied.effective.destroyIfBlocked==true
+                    or applied.effective.destroyIfFullyBlocked==true) then
                     entry.explodePending=true
                     hasConditional=true
                     break
@@ -2976,11 +2984,13 @@ local function combatAssignmentRefreshRows(entries,sources)
             end
             if hasAttack then
                 local target=allocated[index]
-                local _,_,_,_,_,_,_,successfulSources,successfulOwners=
+                local _,_,_,allBlocked,_,_,_,successfulSources,successfulOwners=
                     combatBlockResult(entry,target~=nil and target.sources or {})
                 local explodedEnemy=false
                 for _,applied in ipairs(entry.effect~=nil and entry.effect.applied or {}) do
-                    if applied.spec~=nil and applied.spec.destroyIfBlocked==true
+                    if combatEffectDestroysFullyBlocked(applied,allBlocked,hasAttack) then
+                        explodedEnemy=true
+                    elseif applied.effective~=nil and applied.effective.destroyIfBlocked==true
                         and successfulSources[applied.source]==true then
                         for owner in pairs(successfulOwners[applied.source] or {}) do
                             local token=owner==entry.guid and entry.data or monsterPugs[owner]
@@ -3979,6 +3989,7 @@ local function refreshCombatEnemyPanel(monsters,calculated)
         entry.attackPhaseDestroyed=not entry.attackOnly and effect~=nil
             and effect.destroyDuringAttack==true
         entry.destroyIfBlocked=not entry.attackOnly and effect~=nil and effect.destroyIfBlocked==true
+        entry.destroyIfFullyBlocked=not entry.attackOnly and effect~=nil and effect.destroyIfFullyBlocked==true
         entry.removeAbilities=effect~=nil and effect.removeAbilities==true
     end
     -- Board order, left to right, so enemies placed side by side group the way the player laid them out.
@@ -7240,7 +7251,7 @@ local function combatEffectTargetEligible(spec)
         or (tonumber(spec.armourReduceByResist) or 0)>0
         or spec.removeFortify==true or spec.removeResist==true
         or spec.removeFireResist==true or spec.destroy==true
-        or spec.destroyDuringAttack==true)
+        or spec.destroyDuringAttack==true or spec.destroyIfFullyBlocked==true)
     return function(enemy,guid)
         local data=combatEnemyData(guid,enemy)
         return data~=nil and (data.attackOnly~=true or not defenceEffect)
@@ -8328,6 +8339,15 @@ local function renderSeat(seatPos)
         and gStates.doingTheRounds["a92d73"] or nil
     local howlPenalty=howlOwner~=nil and howlOwner~=gStates.turnNumber
         and (gStates.soloCoop==nil or gStates.soloCoop["a92d73"]~=true)
+    -- Printed Altem Mages' red/blue bonuses can each be bought once.
+    -- Daytime Gold substitutes for the missing basic colour, but never
+    -- buys more than the printed +4 total or counts twice as one token.
+    local function unitManaScaleBonus(counts)
+        local natural=(counts.Red or 0)>0 and 1 or 0
+        if (counts.Blue or 0)>0 then natural=natural+1 end
+        local gold=resourceCardsUsesDayMana() and (counts.Gold or 0) or 0
+        return math.min(2,natural+gold)*2
+    end
     local function unitAbilityResources(ability,counts,crystalCounts)
         if ability==nil or (not unitAbilityPaid(ability,counts)
             and not ability.baseWithoutPayment) then return nil end
@@ -8338,10 +8358,7 @@ local function renderSeat(seatPos)
                 if ability.bonusColor~=nil and (crystalCounts[ability.bonusColor] or 0)>0 then
                     bonus=ability.bonus or 0
                 end
-                if ability.manaScale then
-                    if (counts.Red or 0)>0 then bonus=bonus+2 end
-                    if (counts.Blue or 0)>0 then bonus=bonus+2 end
-                end
+                if ability.manaScale then bonus=bonus+unitManaScaleBonus(counts) end
                 if unitCombatBoost>0 and (category:sub(1,6)=="attack"
                     or category:sub(1,6)=="ranged"
                     or category:sub(1,5)=="siege"
@@ -8466,7 +8483,7 @@ local function renderSeat(seatPos)
                     end
                     if selected~=nil and selected.attackTransform~=nil and result.complete then
                         attackTransforms[selected.attackTransform]=true
-                        transformingUnits[unitGUID]=selected.attackTransform
+                        transformingUnits[recordKey]=selected.attackTransform
                     end
                     if result.complete then
                         local picked={}
@@ -9519,7 +9536,7 @@ local function renderSeat(seatPos)
     -- Global Altem effects contribute when they upgrade an Attack, including
     -- a value entered manually into the Resource Tracker.
     local tracker=gStates.resourceTracker or {}
-    for unitGUID,mode in pairs(transformingUnits) do
+    for sourceKey,mode in pairs(transformingUnits) do
         local affected=false
         for _,family in ipairs(attackTransformFamilies) do
             for _,field in ipairs(attackTransformFields) do
@@ -9533,11 +9550,16 @@ local function renderSeat(seatPos)
             end
             if affected then break end
         end
-        local record=records[unitGUID]
+        local record=records[sourceKey]
         if record~=nil then
             record.contributes=affected
             record.status=affected and "green" or "blue"
-            setHighlight(objects[unitGUID],record.status,false)
+            local unitGUID=unitHistorySourceBase(sourceKey)
+            -- Only the Command's displayed use owns the physical highlight;
+            -- earlier uses retain their own record for History and Undo.
+            if unitHistorySelectedNumber(unitGUID)==record.activationIndex then
+                setHighlight(objects[unitGUID],record.status,false)
+            end
         end
     end
 

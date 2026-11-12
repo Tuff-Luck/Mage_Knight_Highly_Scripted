@@ -58,7 +58,8 @@ end
 
 -- Spec fields: noAttackUnfortified, armourReduce, armourReduceFortified (replaces it against a fortified enemy),
 -- armourReduceByResist (per resistance), noAttack, removeAbilities, removeFortify,
--- removeResist, removeFireResist, destroy, destroyDuringAttack, destroyIfBlocked, attackReduce, firstDamageUnit,
+-- removeResist, removeFireResist, destroy, destroyDuringAttack, destroyIfBlocked (Spell Block),
+-- destroyIfFullyBlocked (Delphana Masters: all attacks of the target), attackReduce, firstDamageUnit,
 -- armourReduceRangedUnfortifiedOnly (does not reduce Armour in Ranged/Siege on a fortified enemy),
 -- all (every face-up enemy instead of one).
 -- Arcane Immunity ignores non-attack effects; directly changing an Attack remains legal.
@@ -68,12 +69,23 @@ local function combatEffectImmune(enemyGUID)
     return (pug~=nil and pug.arcaneImmunity==true) or (perks~=nil and perks.arcaneImmunity==true)
 end
 
+-- Unlike a Spell that destroys with its own successful Block, Delphana
+-- Masters' red ability destroys the enemy only if every one of its
+-- attacks was blocked (including multiple attacks). A prevented or
+-- non-existent attack never counts as a successful Block.
+function combatEffectDestroysFullyBlocked(applied,allBlocked,hasAttack)
+    return applied~=nil and applied.effective~=nil
+        and applied.effective.destroyIfFullyBlocked==true
+        and allBlocked==true and hasAttack==true
+end
+
 function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec,sourceKey)
     local entry=enemyEffects[enemyGUID]
     if entry==nil then
         entry={armourReduce=0,armourReduceFortified=0,armourReduceByResist=0,
             armourReduceRangedUnfortifiedOnly=0,armourReduceAttackOnly=0,noAttack=false,destroy=false,
-            destroyDuringAttack=false,destroyIfBlocked=false,grantCumbersome=false,attackReductions={},
+            destroyDuringAttack=false,destroyIfBlocked=false,destroyIfFullyBlocked=false,
+            grantCumbersome=false,attackReductions={},
             removeAbilities=false,removeFortify=false,removeResist=false,removeFireResist=false,removedPrinted={},attackConversions={},sources={},applied={},
             armourBeforeFortificationRemoval=0}
         enemyEffects[enemyGUID]=entry
@@ -129,6 +141,7 @@ function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec,sourceKey)
     entry.destroy=entry.destroy or spec.destroy==true
     entry.destroyDuringAttack=entry.destroyDuringAttack or spec.destroyDuringAttack==true
     entry.destroyIfBlocked=entry.destroyIfBlocked or spec.destroyIfBlocked==true
+    entry.destroyIfFullyBlocked=entry.destroyIfFullyBlocked or spec.destroyIfFullyBlocked==true
     entry.armourReduce=entry.armourReduce+(spec.armourReduce or 0)
     entry.armourReduceFortified=entry.armourReduceFortified+(spec.armourReduceFortified or spec.armourReduce or 0)
     -- Only the player's explicit '1st' Earthquake mode preserves the extra

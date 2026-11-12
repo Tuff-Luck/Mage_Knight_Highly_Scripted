@@ -152,7 +152,7 @@ local byType={
         value(3,"ranged",3,"Pay green mana: target loses all resistances; Ranged Attack 3",{manaCost="Green",baseWithoutPayment=true,enemyEffect={removeResist=true}})},
     DelphanaMasters={
         special(1,"Pay blue mana: target enemy does not attack",        {manaCost="Blue",buttonLabel="B",enemyEffect={noAttack=true}}),
-        special(2,"Pay red mana: target enemy is destroyed if blocked",{manaCost="Red",buttonLabel="R",enemyEffect={destroyIfBlocked=true}}),
+        special(2,"Pay red mana: destroy target only if all its attacks are blocked",{manaCost="Red",buttonLabel="R",enemyEffect={destroyIfFullyBlocked=true}}),
                 special(3,"Pay green mana: target enemy Armor -5 (minimum 1)",{manaCost="Green",buttonLabel="G",enemyEffect={armourReduce=5}}),
                 special(4,"Pay white mana: target enemy loses all fortifications and resistances",{manaCost="White",buttonLabel="W",enemyEffect={removeFortify=true,removeResist=true}})}
 }
