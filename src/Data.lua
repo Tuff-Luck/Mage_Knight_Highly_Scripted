@@ -1358,7 +1358,8 @@ cardResourceDefinitions={
         poweredChoices={{key="other"}}},
     -- A tilted Green card on the Staff pays for Heal 3. The Break side
     -- offers two independent effects, not yet represented by one number.
-    artifactDruidicStaff={artifactMode=true,staffDualChoices=true,requiredLink={mode="discard"},
+    artifactDruidicStaff={artifactMode=true,staffDualChoices=true,
+        unitReadyLevels={normal=3,powered=3},requiredLink={mode="discard"},
         strongNoDiscard=true,
         -- Two freely chosen, distinct options on the Break side. Resource-neutral
         -- options remain player-confirmed; their effects must not be invented.
