@@ -133,7 +133,8 @@ local ui=assert(load([[
 local combatCalcOn=true
 local combatPsychicActive=false
 local combatCumbersomeActive=false
-local combatConfig={sourceFields={{key="ranged"},{key="siege"}},
+local combatConfig={sourceFields={{key="ranged"},{key="siege"},
+    {key="siegeFire"},{key="siegeIce"}},
     unitCombatBlocked=function() return false end}
 local function unitHistoryKey(guid,index)
     return index==1 and guid or guid.."#use"..tostring(index)
@@ -197,7 +198,7 @@ assert(hasButton(catUi,"ResourceCardChoice_1aa68c_unit3"),
     "Expanded menu offers Ice Siege")
 local selectedBlue=choice(catapults,blueSelected,{Red=1,Blue=1},true)
 catUi=ui.render(catUnit,catapults,selectedBlue,1)
-assert(hasButton(catUi,"AttackAssignmentSource_1aa68c_0_siege"),
+assert(hasButton(catUi,"AttackAssignmentSource_1aa68c_0_siegeIce"),
     "Selected Catapults Siege has a single enemy target")
 assert(reader:find("allowed[unitHistoryKey(unit.guid,useIndex)]=true",1,true),
     "Switching Sorcerers' effects must preserve their numeric ranged target")
