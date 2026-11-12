@@ -121,7 +121,7 @@ eq(diseaseEffects.plain.noAttack,false,"Disease does not erase enemy attack")
 combatEffectAdd(diseaseEffects,"immune","47e71c",disease)
 eq(diseaseEffects.immune.armourSetIfBlocked,nil,"Arcane Immunity negates Disease")
 
--- Four non-numeric Green spells are intentional manual effects. Keep them
+-- Three non-numeric Green spells are intentional manual effects. Keep them
 -- deliberately neutral, with both sides selectable and no invented totals.
 for _,name in ipairs({"Energy Flow","Underground Travel","Meditation"}) do
     assert(data:find('name={"'..name..'",',1,true),
