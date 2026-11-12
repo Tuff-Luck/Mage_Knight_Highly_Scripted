@@ -2271,7 +2271,7 @@ function resourceTracker(player, mouseButton, id)
         -- Stale hidden XML controls cannot revive calculations while OFF.
         if not resourceCardsPanelOpen() then return end
 		if id:match("^CombatSourceSlot")~=nil then
-			resourceCardsCombatAssignmentClick(id)
+			resourceCardsCombatAssignmentClick(id,mouseButton)
 			return
 		end
 		if id:match("^CombatEnemyJoin%d+$")~=nil then
