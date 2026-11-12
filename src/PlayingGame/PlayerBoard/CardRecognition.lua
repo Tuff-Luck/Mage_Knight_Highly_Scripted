@@ -113,6 +113,7 @@ end
 -- Keep combat constants in one private table: luabundle adds four parameters
 -- to each module, which also count toward Lua 5.2's 200 active-local limit.
 local combatConfig={}
+combatConfig.artifactCombat={sword=false,bow=false,bowMode="double"}
 combatConfig.sacrificeCastPairs={}
 combatConfig.enemyDefenceTraits={
     {"fortified","Fortified"},{"unfortified","Unfortified"},{"elusive","Elusive"},
@@ -399,6 +400,7 @@ local function combatAssignmentSources(seat)
                         swiftDouble=record.swiftDouble==true,
                         excessBlockArmour=record.excessBlockArmour==true,
                         defeatFameRep=record.defeatFameRep,
+                        gloryFame=record.gloryFame,
                         heroPsychicBlock=scan~=nil and scan.heroPsychicBlock==true and record.kind~="unit",
                         repeatBlocks=record.repeatBlocks,
                         ambushFirstBlockBonus=record.ambushFirstBlockBonus,kind=record.kind,
@@ -1710,9 +1712,19 @@ local function combatDamageUnits(seat)
             if scan~=nil and scan.allUnitResistances==true then
                 resist.P,resist.F,resist.I=true,true,true
             end
+            local banner=state~=nil and state.bannersByUnit~=nil
+                and state.bannersByUnit[unitState.guid] or nil
+            local glory=(banner~=nil and banner["Banner of Glory"]~=nil)
+                or (scan~=nil and scan.gloryBroken==true)
+            local protection=banner~=nil and banner["Banner of Protection"]~=nil
+            if protection then resist.F,resist.I=true,true end
             units[unitState.guid]={guid=unitState.guid,name=type(data.name)=="table" and tostring(data.name[1]) or tostring(data.name),
-                armour=tonumber(data.armour),level=math.max(1,tonumber(data.level) or 1),
+                armour=tonumber(data.armour)+(glory and 1 or 0)
+                    +(protection and 1 or 0),
+                level=math.max(1,tonumber(data.level) or 1),
                 resist=resist,wounded=not unitState.unwounded,
+                fortitudeUsed=banner~=nil and banner["Banner of Fortitude"]~=nil
+                    and banner["Banner of Fortitude"].faceDown==true,
                 arcaneImmunity=data.arcaneImmunity==true,
                 arcaneVulnerability=data.arcaneVulnerability==true}
         end
@@ -1757,6 +1769,15 @@ local function combatDamageResolve(items,units,heroArmour,targetsOf,mitigation,e
                 remaining=math.max(0,remaining-armour)
                 entry.wounds=item.poison and 2 or 1
                 entry.destroyed=item.paralyse==true
+                if unit.fortitudeUsed then
+                    -- A flipped, attached Banner of Fortitude cancels this
+                    -- wound AND its Poison/Paralysis consequences. The Unit
+                    -- still absorbed damage and counts as assigned once.
+                    entry.wounded=false
+                    entry.wounds=nil
+                    entry.destroyed=nil
+                    entry.fortitudePrevented=true
+                end
             end
             result.units[#result.units+1]=entry
         end
@@ -7441,6 +7462,17 @@ local function renderSeat(seatPos)
         end
     end
 
+    combatConfig.artifactCombat.sword=false
+    combatConfig.artifactCombat.bow=false
+    for _,card in ipairs(cards) do
+        local data=gameCards[card.guid]
+        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+        if rule~=nil and rule.artifactGlobalCombat~=nil
+            and cardPosture(card)=="upright" and card.is_face_down==true then
+            combatConfig.artifactCombat[rule.artifactGlobalCombat]=true
+        end
+    end
+
     -- Read the physical Unit state once per scan for highlights and Skills.
     -- A Command token already resting on a Unit from a previous turn means
     -- spent; a Unit activated by a Command move THIS turn is still active.
@@ -8523,12 +8555,39 @@ local function renderSeat(seatPos)
                         and unitManaCounts(unit,seatPos,manaObjects,true) or nil
                     local resources=not deniedCombat and selected~=nil
                         and unitAbilityResources(selected,counts,crystalCounts) or nil
+                    local banners=unitState~=nil and unitState.bannersByUnit~=nil
+                        and unitState.bannersByUnit[unitGUID] or nil
+                    local gloryAttached=banners~=nil and banners["Banner of Glory"]~=nil
+                    local gloryGlobal=combatConfig.artifactCombat.sword==false
+                        and (function()
+                            for _,artifact in ipairs(cards) do
+                                local data=gameCards[artifact.guid]
+                                if data~=nil and data.resourceKey=="artifactBannerGlory"
+                                    and artifact.is_face_down==true
+                                    and cardPosture(artifact)=="upright" then return true end
+                            end
+                            return false
+                        end)()
+                    local hasGlory=gloryAttached or gloryGlobal
+                    local gloryCombat=false
+                    if resources~=nil and hasGlory then
+                        local boosted={}
+                        for key,value in pairs(resources) do
+                            local combatResource=type(key)=="string" and type(value)=="number"
+                                and (key:sub(1,6)=="attack" or key:sub(1,6)=="ranged"
+                                    or key:sub(1,5)=="siege" or key:sub(1,5)=="block")
+                            boosted[key]=combatResource and value+1 or value
+                            if combatResource and value>0 then gloryCombat=true end
+                        end
+                        resources=boosted
+                    end
                     local result={guid=recordKey,sourceObjectGUID=unitGUID,
                         activationIndex=useIndex,kind="unit",known=true,
                         complete=not deniedCombat and (selected~=nil and unitAbilityPaid(selected,counts)
                             or abilities.multi==true and next(decision.selected or {})~=nil),
                         resources=resources,powered=false,links={},
                         swiftDouble=selected~=nil and selected.countsTwiceVsSwift==true or nil,
+                        gloryFame=gloryCombat and (gloryGlobal and "global" or "attached") or nil,
                         fameRep=selected~=nil and selected.fameRep or nil}
                     result.fameRep=result.complete and result.fameRep or nil
                     addResourceAmounts(result,totals)
@@ -9814,7 +9873,16 @@ local function renderSeat(seatPos)
         enemyEffects=enemyEffects,fameRepBase=fameRepBase,
         ruthlessReadySpent=ruthlessReadySpent,
         ignoreSiteFortifications=ignoreSiteFortifications,
-        unitState=unitState,preventUnitDamage=preventUnitDamage,
+        unitState=unitState,gloryBroken=(function()
+            for _,card in ipairs(cards) do
+                local data=gameCards[card.guid]
+                if data~=nil and data.resourceKey=="artifactBannerGlory"
+                    and card.is_face_down==true and cardPosture(card)=="upright" then
+                    return true
+                end
+            end
+            return false
+        end)(),preventUnitDamage=preventUnitDamage,
         allUnitResistances=allUnitResistances,heroFirstWoundIgnored=heroFirstWoundIgnored,
         heroPsychicBlock=heroPsychicBlock,
         usesCurrentHexBlock=usesCurrentHexBlock,
