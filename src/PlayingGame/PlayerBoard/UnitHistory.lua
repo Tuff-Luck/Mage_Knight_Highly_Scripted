@@ -316,6 +316,7 @@ function unitHistoryReadyLink(sourceKey,unitGUID,seat,levelLimit)
             local under=unitLayoutCommandTarget(token,seat)
             if under~=nil and under.guid==unitGUID and resourceUnitsCommandSpent(token.guid) then
                 group=groupOf(unitGUID,true)
+                if group==nil then return false end
                 group.uses[1]={priorTurnSpent=true,seatPos=seat,tokenGUID=token.guid}
                 group.tokenGUID=token.guid
                 break
