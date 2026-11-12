@@ -90,6 +90,31 @@ end
 --snap points are rebuilt to the same centres, while one broad scripting zone handles every Unit card.
 unitOfferLayoutConfig={nativeSlots=8,firstX=36.0,lastX=2.4,y=0.98,z=-4.2,cardScale=1.5}
 
+-- A die roll must not mistake a Unit still being dealt/reflowed for an empty
+-- marked slot. This is runtime-only: physical cards remain the source of truth.
+local unitOfferInFlight={}
+local unitOfferUnknownDraws=0
+
+local function unitOfferLockAfterArrival(guid)
+    safeWaitCondition("Offers",function()
+        local card=getObjectFromGUID(guid)
+        if card~=nil then card.lock() end
+        unitOfferInFlight[guid]=nil
+    end,function()
+        local card=getObjectFromGUID(guid)
+        return card==nil or (card.resting==true and not card.isSmoothMoving())
+    end)
+end
+
+function unitOfferSettledForVolkare()
+    if unitOfferUnknownDraws>0 or next(unitOfferInFlight)~=nil then return false end
+    if getObjectFromGUID(GUID.zone.unitOffer)==nil then return false end
+    for _,card in ipairs(unitOfferCards()) do
+        if card.resting~=true or card.isSmoothMoving() then return false end
+    end
+    return true
+end
+
 -- Unit offer layout and refill
 unitOfferLayoutX=function(slot,count)
 	local displayCount=math.max(unitOfferLayoutConfig.nativeSlots,count or unitOfferLayoutConfig.nativeSlots)
@@ -284,16 +309,11 @@ local function moveUnitOfferCard(obj,slot,count)
 	local guid=obj.guid
 	local pos=obj.getPosition()
 	local scale=unitOfferCardScale(count)
+	unitOfferInFlight[guid]=true
 	obj.unlock()
 	obj.setScale({scale,1,scale})
-	obj.setPositionSmooth(unitOfferPosition(slot,count,pos[2]))
-	safeWaitCondition("Offers",function()
-		local card=getObjectFromGUID(guid)
-		if card~=nil then card.lock() end
-	end,function()
-		local card=getObjectFromGUID(guid)
-		return card==nil or card.resting
-	end)
+	obj.setPositionSmooth(unitOfferPosition(slot,count,pos[2]),false,false)
+	unitOfferLockAfterArrival(guid)
 end
 
 reflowUnitOffer=function(targetCount)
@@ -325,13 +345,18 @@ function addRegularUnitsToOffer(amount)
 		end
 		if deck~=nil then
 			local scale=unitOfferCardScale(finalCount)
+			unitOfferUnknownDraws=unitOfferUnknownDraws+1
 			safeTakeObject("Offers",deck,{
 				position=unitOfferPosition(slot,finalCount,1.25),
 				rotation={0,180,0},
 				smooth=true,
 				callback_function=function(drawnCard)
-					drawnCard.setScale({scale,1,scale})
-					safeWaitCondition("Offers",function() if drawnCard~=nil then drawnCard.lock() end end,function() return drawnCard==nil or drawnCard.resting end)
+					unitOfferUnknownDraws=math.max(0,unitOfferUnknownDraws-1)
+					if drawnCard~=nil then
+						unitOfferInFlight[drawnCard.guid]=true
+						drawnCard.setScale({scale,1,scale})
+						unitOfferLockAfterArrival(drawnCard.guid)
+					end
 				end
 			})
 			added=added+1
@@ -452,17 +477,21 @@ function unitOffer()
 		end
 		local unitDrawList=getUnitDrawList(drawDecks)
 		for a, draw in ipairs(unitDrawList) do
+			local expectedGUID=draw.guid
+			unitOfferInFlight[expectedGUID]=true
 			safeTakeObject("Offers",draw.deck,{
-				guid=draw.guid,
+				guid=expectedGUID,
 				position=unitOfferPosition(a,gStates.totalUnitCount),
 				rotation={0,180,0},
 				smooth=true,
 				callback_function=function(drawnCard)
-					local scale=unitOfferCardScale(gStates.totalUnitCount)
-					drawnCard.setScale({scale,1,scale})
-					safeWaitCondition("Offers",function()
-						drawnCard.lock()
-					end, function() return drawnCard.resting end)
+					if drawnCard~=nil then
+						if drawnCard.guid~=expectedGUID then unitOfferInFlight[expectedGUID]=nil end
+						unitOfferInFlight[drawnCard.guid]=true
+						local scale=unitOfferCardScale(gStates.totalUnitCount)
+						drawnCard.setScale({scale,1,scale})
+						unitOfferLockAfterArrival(drawnCard.guid)
+					end
 				end
 			})
 		end
