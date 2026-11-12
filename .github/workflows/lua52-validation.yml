@@ -36,6 +36,8 @@ jobs:
         run: lua5.2 tools/test-combat-effect-buttons.lua
       - name: All official Spell roster and mana-payment regression tests
         run: lua5.2 tools/test-spell-catalog.lua
+      - name: Official artifact roster and resource regression tests
+        run: lua5.2 tools/test-artifact-effects.lua
       - name: Red Spell regression tests
         run: lua5.2 tools/test-red-spells.lua
       - name: Green Spell regression tests
