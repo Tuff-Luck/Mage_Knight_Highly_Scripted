@@ -1174,7 +1174,10 @@ function mapAvatarLocationDetails(player_color, avatar, dropped_object)
 											end
 										end
 										--flip garrisons during the day
-										if gStates.autoFlip==true and gStates.dayRound==true and turnOrder[gStates.turnNumber].mage==avatar.mage and terrain.getRotationValues()[2]~=nil and (terrain.getRotationValues()[2].value=="Mage Tower Garrison" or terrain.getRotationValues()[2].value=="Keep Garrison" or terrain.getRotationValues()[2].value=="Marauding Elementalist") then--and gStates.preEndTurn==false
+										if gStates.autoFlip==true and (gStates.dayRound==true
+                                            or (resourceCardsAmuletSunRevealActive~=nil
+                                                and resourceCardsAmuletSunRevealActive()))
+                                            and turnOrder[gStates.turnNumber].mage==avatar.mage and terrain.getRotationValues()[2]~=nil and (terrain.getRotationValues()[2].value=="Mage Tower Garrison" or terrain.getRotationValues()[2].value=="Keep Garrison" or terrain.getRotationValues()[2].value=="Marauding Elementalist") then--and gStates.preEndTurn==false
 											if terrain.is_face_down==true then terrain.flip() broadcastToAll("{en}Site Garrison Revealed{it}Guarnigione del Sito Rivelata{ru}Гарнизон Укрепленного места раскрыт{zh-tw}守军揭示了{zh-cn}守军揭示了{ko}수비자가 공개되었습니다.{es}Guarnición del Sitio Revelada{fr}La Garnison du Site Révélée{pt-br}Lugar de Guarnição Revelada{de}Standort Garnison aufgedeckt", {1,1,0.5}) end
 										end
 										--flip ruins at night and Lost Relic dragons day or night
@@ -1831,7 +1834,10 @@ function mapHandleTerrainZoneEnter(ctx)
 								local token=ruinBag.takeObject({position={bagPos[1],bagPos[2]+2,bagPos[3]},rotation=faceDown,smooth=false})
 								gStates.monsterPlayLocation[token.guid]=target
 								mapTokenSettleArrival(token.guid,target,{force=true,rotation=faceDown})
-								if gStates.dayRound==true then revealRuinAfterArrival(token.guid) end
+								if gStates.dayRound==true or (resourceCardsAmuletSunRevealActive~=nil
+                                    and resourceCardsAmuletSunRevealActive()) then
+                                    revealRuinAfterArrival(token.guid)
+                                end
 							end
 
 							--City
