@@ -1305,19 +1305,31 @@ cardResourceDefinitions={
         poweredChoices={{key="other"}}},
     -- These amulets change terrain routing in their matching round, not Move
     -- points. The same ability is active on both sides of the artifact.
-    artifactAmuletDarkness={artifactMode=true,
+    artifactAmuletDarkness={artifactMode=true,artifactMana="black",
         normalChoices={{key="other"}},poweredChoices={{key="other"}},
         terrainEffects={normal={{mode="cap",terrains={desert=true},cost=3,dayRound=true}},
             powered={{mode="cap",terrains={desert=true},cost=3,dayRound=true}}}},
-    artifactAmuletSun={artifactMode=true,
+    artifactAmuletSun={artifactMode=true,artifactMana="gold",
         normalChoices={{key="other"}},poweredChoices={{key="other"}},
         terrainEffects={normal={{mode="cap",terrains={forest=true},cost=3,dayRound=false}},
             powered={{mode="cap",terrains={forest=true},cost=3,dayRound=false}}}},
     artifactGoldenGrail={artifactMode=true,normal={healing=2},powered={healing=6}},
-    artifactSoulHarvester={artifactMode=true,normal={attack=3},powered={attack=8}},
+    artifactSoulHarvester={artifactMode=true,normal={attack=3},powered={attack=8},
+        manualSecondary="Gain one crystal for a kill made by the basic Attack; when broken, one for each enemy killed this phase. Choose White or a resistance colour (Red/Blue/Green). Confirm gains manually."},
     artifactBannerOfCommand={artifactMode=true,normal={influence=4},
         poweredChoices={{key="other"}},fameRep={powered={fame=2}}},
-    artifactEndlessBagOfGold={artifactMode=true,normal={influence=4},
+    artifactBannerFear={artifactMode=true,normalTrackerNeutral=true,
+        poweredChoices={{key="other"}},
+        enemyEffect={powered={choice="other",noAttack=true}},manualSecondary="Break: select up to three separate enemies whose attacks are cancelled. Basic: spend the assigned Unit to cancel one attack and earn Fame +1."},
+    artifactBannerCourage={artifactMode=true,normalTrackerNeutral=true,
+        poweredChoices={{key="other"}},manualSecondary="Attached: flip once per round outside combat to ready this Unit. Break outside combat: ready all Units."},
+    artifactBannerGlory={artifactMode=true,normalTrackerNeutral=true,
+        poweredChoices={{key="other"}},manualSecondary="Attached Unit gains Armour +1, Attack/Block +1 and Fame +1 on use. Break: all Units gain those bonuses for the turn."},
+    artifactBannerProtection={artifactMode=true,normalTrackerNeutral=true,
+        poweredChoices={{key="other"}},manualSecondary="Attached: Armour +1 and Fire/Ice Resistance. Break: remove all Wounds received this turn at end of turn."},
+    artifactBannerFortitude={artifactMode=true,normalTrackerNeutral=true,
+        poweredChoices={{key="other"}},manualSecondary="Attached: flip once per round when Unit would be wounded to prevent it. Break outside combat: fully Heal all Units."},
+        artifactEndlessBagOfGold={artifactMode=true,normal={influence=4},
         powered={influence=9},fameRep={normal={fame=2},powered={fame=3}}},
     -- Elemental Rings: the basic side's Fame +1 is unconditional; the strong side's per-Spell Fame is not read.
     artifactRing={normalTrackerNeutral=true,artifactMode=true,
@@ -1325,6 +1337,7 @@ cardResourceDefinitions={
     -- The Lost Legion revision of Horn of Wrath uses Siege Attack 5.
     -- Its Break side allows adding 0 through 5, chosen by the player.
     artifactHornOfWrath={artifactMode=true,normal={siege=5},
+        manualSecondary="Roll one mana die normally, or one die per +1 on the Break side. Each Red/Black roll immediately gives a Wound (resolve manually).",
         poweredChoices={{key="zero",siege=5},{key="one",siege=6},
             {key="two",siege=7},{key="three",siege=8},
             {key="four",siege=9},{key="five",siege=10}}},
@@ -1336,19 +1349,26 @@ cardResourceDefinitions={
             {key="splitBlock",blockColdFire=12,icon="block",iconOverlay="x3",repeatBlocks=3}}},
     -- Reuse the physical tilted-card discard costs from Stout Resolve.
     artifactSwordOfJustice={artifactMode=true,normal={attack=0},
-        defeatFameRep={normal={fame=1,scope="all"}},
+        artifactGlobalCombat="sword",
+        defeatFameRep={normal={fame=1,scope="all"},powered={fame=1,scope="all"}},
         discardBoost={normal={perCard=3,maxWounds=0}},
         poweredChoices={{key="other"}}},
     artifactBowOfStarsdawn={artifactMode=true,normal={ranged=0},
+        artifactGlobalCombat="bow",
         defeatFameRep={normal={fame=1,scope="ranged"}},
         discardBoost={normal={perCard=2,maxWounds=0}},
         poweredChoices={{key="other"}}},
     -- A tilted Green card on the Staff pays for Heal 3. The Break side
     -- offers two independent effects, not yet represented by one number.
     artifactDruidicStaff={artifactMode=true,requiredLink={mode="discard"},
-        strongNoDiscard=true,poweredChoices={{key="other"}},
+        strongNoDiscard=true,
+        -- Two freely chosen, distinct options on the Break side. Resource-neutral
+        -- options remain player-confirmed; their effects must not be invented.
+        poweredChoices={{key="white",icon="other"},{key="blue",icon="other"},
+            {key="red",icon="other"},{key="green",healing=3}},
         linkedColorEffects={normal={Green={healing=3},
-            Red={other=1},Blue={other=1},White={other=1}}}},
+            Red={other=1},Blue={other=1},White={other=1}}},
+        manualSecondary="White: move up to two revealed spaces to a safe space. Blue: gain two crystals of one colour. Red: ready a Level I-III Unit. Break: choose TWO different options without paying cards."},
 
     -- Wound-taking bonuses require the player to select how many Wounds were
     -- actually received during this combat; do not confuse them with Wounds
@@ -1849,16 +1869,16 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["085e68"]={cardType="Artifact", resourceKey="artifactUtility", name={"Tome of All Spells"}, 			color={}, action={"Special"}},
 			["085e66"]={cardType="Artifact", resourceKey="artifactDruidicStaff", name={"Druidic Staff"},	 			color={}, action={"Special", "Move", "Heal"}},
 			["085e64"]={cardType="Artifact", resourceKey="artifactSoulHarvester", name={"Soul Harvester"}, 				color={}, action={"Combat"}},
-			["7b9ec1"]={cardType="Artifact", resourceKey="artifactUtility", name={"Banner of Fear"}, 				color={}, action={"Combat", "Banner"}, half="8e4b92"},
-			["8e4b92"]={cardType="Artifact", resourceKey="artifactUtility", name={"Banner of Fear"}, 				color={}, action={"Combat", "Banner"}, full="7b9ec1"},
-			["6b4654"]={cardType="Artifact", resourceKey="artifactUtility", name={"Banner of Courage"},	 		color={}, action={"Influence", "Banner"}, half="986216"},
-			["986216"]={cardType="Artifact", resourceKey="artifactUtility", name={"Banner of Courage"}, 			color={}, action={"Influence", "Banner"}, full="6b4654"},
-			["085e50"]={cardType="Artifact", resourceKey="artifactUtility", name={"Banner of Glory"}, 				color={}, action={"Combat", "Banner"}, half="0b5b32"},
-			["0b5b32"]={cardType="Artifact", resourceKey="artifactUtility", name={"Banner of Glory"}, 				color={}, action={"Combat", "Banner"}, full="085e50"},
-			["df2eae"]={cardType="Artifact", resourceKey="artifactUtility", name={"Banner of Protection"}, 		color={}, action={"Combat", "Banner"}, half="e48e44"},
-			["e48e44"]={cardType="Artifact", resourceKey="artifactUtility", name={"Banner of Protection"}, 		color={}, action={"Combat", "Banner"}, full="df2eae"},
-			["7d608f"]={cardType="Artifact", resourceKey="artifactUtility", name={"Banner of Fortitude"}, 			color={}, action={"Heal", "Banner"}, half="596cfa"},
-			["596cfa"]={cardType="Artifact", resourceKey="artifactUtility", name={"Banner of Fortitude"}, 			color={}, action={"Heal", "Banner"}, full="7d608f"},
+			["7b9ec1"]={cardType="Artifact", resourceKey="artifactBannerFear", name={"Banner of Fear"}, 				color={}, action={"Combat", "Banner"}, half="8e4b92"},
+			["8e4b92"]={cardType="Artifact", resourceKey="artifactBannerFear", name={"Banner of Fear"}, 				color={}, action={"Combat", "Banner"}, full="7b9ec1"},
+			["6b4654"]={cardType="Artifact", resourceKey="artifactBannerCourage", name={"Banner of Courage"},	 		color={}, action={"Influence", "Banner"}, half="986216"},
+			["986216"]={cardType="Artifact", resourceKey="artifactBannerCourage", name={"Banner of Courage"}, 			color={}, action={"Influence", "Banner"}, full="6b4654"},
+			["085e50"]={cardType="Artifact", resourceKey="artifactBannerGlory", name={"Banner of Glory"}, 				color={}, action={"Combat", "Banner"}, half="0b5b32"},
+			["0b5b32"]={cardType="Artifact", resourceKey="artifactBannerGlory", name={"Banner of Glory"}, 				color={}, action={"Combat", "Banner"}, full="085e50"},
+			["df2eae"]={cardType="Artifact", resourceKey="artifactBannerProtection", name={"Banner of Protection"}, 		color={}, action={"Combat", "Banner"}, half="e48e44"},
+			["e48e44"]={cardType="Artifact", resourceKey="artifactBannerProtection", name={"Banner of Protection"}, 		color={}, action={"Combat", "Banner"}, full="df2eae"},
+			["7d608f"]={cardType="Artifact", resourceKey="artifactBannerFortitude", name={"Banner of Fortitude"}, 			color={}, action={"Heal", "Banner"}, half="596cfa"},
+			["596cfa"]={cardType="Artifact", resourceKey="artifactBannerFortitude", name={"Banner of Fortitude"}, 			color={}, action={"Heal", "Banner"}, full="7d608f"},
 			["98681f"]={cardType="Artifact", resourceKey="artifactBannerOfCommand", name={"Banner of Command"}, 			color={}, action={"Influence", "Banner"}, half=GUID.card.bannerOfCommandToken},
 			[GUID.card.bannerOfCommandToken]={cardType="Artifact", resourceKey="artifactBannerOfCommand", name={"Banner of Command"}, 			color={}, action={"Influence", "Banner"}, full="98681f"},
 			["085e62"]={cardType="Artifact", resourceKey="artifactAmuletDarkness", name={"Amulet of Darkness"}, 			color={}, action={"Special"}},
@@ -1870,8 +1890,8 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["abe28e"]={cardType="Artifact", resourceKey="artifactShieldOfTheFallenKings", name={"Shield of the Fallen Kings"},	color={}, action={"Combat"}},
 			["393021"]={cardType="Artifact", resourceKey="artifactHornOfWrath", name={"Horn of Wrath"}, 				color={}, action={"Combat"}},
 			["00e5e2"]={cardType="Artifact", resourceKey="artifactGoldenGrail", name={"Golden Grail"}, 				color={}, action={"Heal"}},
-			["3d50e6"]={cardType="Artifact", resourceKey="artifactUtility", name={"Banner of Glory"}, 				color={}, action={"Combat", "Banner"}, half="75a627"},
-			["75a627"]={cardType="Artifact", resourceKey="artifactUtility", name={"Banner of Glory"}, 				color={}, action={"Combat", "Banner"}, full="3d50e6"}
+			["3d50e6"]={cardType="Artifact", resourceKey="artifactBannerGlory", name={"Banner of Glory"}, 				color={}, action={"Combat", "Banner"}, half="75a627"},
+			["75a627"]={cardType="Artifact", resourceKey="artifactBannerGlory", name={"Banner of Glory"}, 				color={}, action={"Combat", "Banner"}, full="3d50e6"}
 		}
 
 terrainTiles={	[startTerrain.wedge]={tileType="starting", tileNumber=0,
