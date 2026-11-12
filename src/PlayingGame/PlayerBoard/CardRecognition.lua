@@ -1147,7 +1147,7 @@ end
 
 -- Groups are {sources=,category=}. The resisted part of one phase's attack is
 -- totalled first and halved once, rounding down.
-local function combatAttackTotal(groups,data,perks)
+local function combatAttackTotal(groups,data,perks,phase)
     local normal,resisted=0,0
     for _,group in ipairs(groups) do
         for _,source in ipairs(group.sources) do
@@ -1156,11 +1156,25 @@ local function combatAttackTotal(groups,data,perks)
                 for _,attackType in ipairs(combatConfig.attackTypes) do
                     local value=tonumber(source.resources[attackType[group.category]]) or 0
                     if value>0 then
-                        if combatEnemyResists(data,perks,attackType.key) then
-                            resisted=resisted+value
-                        else
-                            normal=normal+value
+                        -- Sword doubles every physical contribution in the
+                        -- Attack phase, including physical Unit and Skill effects.
+                        -- An Arcane Immune enemy keeps its printed Resistance.
+                        if phase=="attack" and combatConfig.artifactCombat.sword
+                            and attackType.key=="P" then
+                            value=value*2
                         end
+                        -- Bow's Ranged double only applies in the Ranged/Siege
+                        -- phase. The later Attack phase is ordinary Attack.
+                        if phase=="range" and combatConfig.artifactCombat.bow
+                            and group.category=="ranged" then value=value*2 end
+                        local resistant=combatEnemyResists(data,perks,attackType.key)
+                        if resistant and phase=="attack" and attackType.key=="P"
+                            and combatConfig.artifactCombat.sword
+                            and not combatEnemyHasTrait(data,perks,"arcaneImmunity") then
+                            resistant=false
+                        end
+                        if resistant then resisted=resisted+value
+                        else normal=normal+value end
                     end
                 end
             end
@@ -1254,7 +1268,7 @@ local function combatRangeResult(entry,sources)
     local groups={}
     if fortification==0 then groups[#groups+1]={sources=sources,category="ranged"} end
     if fortification<2 then groups[#groups+1]={sources=sources,category="siege"} end
-    local total=combatAttackTotal(groups,data,perks)
+    local total=combatAttackTotal(groups,data,perks,"range")
     local armour=combatEnemyHasTrait(data,perks,"elusive") and entry.elusiveArmour or entry.baseArmour
     return total,armour,total>0 and total>=armour,fortification
 end
@@ -3451,7 +3465,7 @@ local function combatAssignmentRefreshRows(entries,sources)
         local meleeTotal=combatAttackTotal({
             {sources=meleeSources,category="attack"},
             {sources=meleeSources,category="ranged"},
-            {sources=meleeSources,category="siege"}},group.entry.data,group.entry.perks)
+            {sources=meleeSources,category="siege"}},group.entry.data,group.entry.perks,"attack")
         group.attackTotal=meleeTotal
         group.defeated=not entries[group.members[1]].attackOnly
             and (group.rangeDefeated or (meleeTotal>0 and meleeTotal>=group.attackArmour))
@@ -3489,6 +3503,28 @@ local function combatAssignmentRefreshRows(entries,sources)
     local currentPlayer=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
     local handLimit=math.max(1,tonumber(currentPlayer~=nil and currentPlayer.baseHand) or 5)
     local knockout=totalHeroWounds>=handLimit
+
+    -- Banner of Glory awards Fame for participating Unit combat abilities, not
+    -- merely for sitting in a play area. The attached banner counts each
+    -- activation; a broken banner counts each Unit only once this turn.
+    local gloryFameSeen={}
+    for _,group in ipairs(groups) do
+        if not group.destroyed then
+            for _,source in ipairs(group.sources or {}) do
+                if source.gloryFame~=nil and source.kind=="unit" then
+                    local key=source.gloryFame=="global" and source.guid or source.key
+                    local usedRange=source.ranged+source.siege>0
+                    local usedBlock=not group.rangeDefeated and source.block>0
+                    local usedAttack=not group.rangeDefeated and source.attack>0
+                        and woundedBeforeAttack[source.guid]~=true
+                    if (usedRange or usedBlock or usedAttack) and not gloryFameSeen[key] then
+                        gloryFameSeen[key]=true
+                        defeatFame=defeatFame+1
+                    end
+                end
+            end
+        end
+    end
 
     -- Sources that reward every defeated enemy, whichever attack defeated it.
     local seenScope={}
@@ -8558,8 +8594,7 @@ local function renderSeat(seatPos)
                     local banners=unitState~=nil and unitState.bannersByUnit~=nil
                         and unitState.bannersByUnit[unitGUID] or nil
                     local gloryAttached=banners~=nil and banners["Banner of Glory"]~=nil
-                    local gloryGlobal=combatConfig.artifactCombat.sword==false
-                        and (function()
+                    local gloryGlobal=(function()
                             for _,artifact in ipairs(cards) do
                                 local data=gameCards[artifact.guid]
                                 if data~=nil and data.resourceKey=="artifactBannerGlory"
