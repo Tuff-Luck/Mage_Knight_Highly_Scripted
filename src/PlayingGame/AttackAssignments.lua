@@ -195,7 +195,7 @@ local function activeVisualLines()
 	-- without making the player click an additional control.
 	for _,attack in ipairs(damageSpec.attacks) do
 		local guid=attack.firstDamageUnit
-		if guid~=nil and damageSpec.units[guid]==true and not attack.assassination then
+		if guid~=nil and damageSpec.units[guid]==true then
 			local manuallyLinked=false
 			for _,manual in ipairs(damageTargets[attack.key] or {}) do
 				if manual==guid then manuallyLinked=true break end
@@ -585,7 +585,7 @@ function attackAssignmentsDamageSync(spec)
 	for _,attack in ipairs(spec.attacks) do
 		damageSpec.byKey[attack.key]=attack
 		local guid=attack.firstDamageUnit
-		if guid~=nil and damageSpec.units[guid]==true and not attack.assassination then
+		if guid~=nil and damageSpec.units[guid]==true then
 			damageSpec.reserved[guid]=attack.key
 		end
 	end
@@ -1467,7 +1467,7 @@ function attackAssignmentsObjectMoved(object)
 		-- manual damageTargets entry, so they need movement refreshes too.
 		for _,attack in ipairs(damageSpec.attacks) do
 			local forced=attack.firstDamageUnit
-			if forced~=nil and damageSpec.units[forced]==true and not attack.assassination
+			if forced~=nil and damageSpec.units[forced]==true
 				and (attack.owner==guid or forced==guid) then
 				relevant=true
 				break

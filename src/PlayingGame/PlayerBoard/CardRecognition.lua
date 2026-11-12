@@ -879,13 +879,19 @@ function resourceCardsUnitTargetRequiresUnfortified(sourceKey)
         and ability.enemyEffect.noAttackUnfortified==true
 end
 
-function resourceCardsEnemyEffectivelyUnfortified(guid,effects)
+function resourceCardsEnemyEffectivelyUnfortified(guid,effects,ignoreSiteFortifications)
     local data,mode=combatEnemyData(guid)
     if data==nil or mode=="attackOnly" or data.attackOnly==true then return false end
     local perks=gStates~=nil and gStates.monsterPerks~=nil
         and gStates.monsterPerks[guid] or nil
     local effect=effects~=nil and effects[guid] or combatEffectOf(guid)
     local fortified=combatEnemyFortificationCount(data,perks)
+    -- Demolish removes site/wall Fortification, but not printed Fortified.
+    if ignoreSiteFortifications==true and fortified>0 and perks~=nil then
+        fortified=math.max(0,fortified
+            -(perks.fortified==true and 1 or 0)
+            -(perks.wallFortified==true and 1 or 0))
+    end
     if effect~=nil and effect.removedPrinted~=nil
         and effect.removedPrinted.fortified==true and data.fortified==true
         and not combatEnemyHasTrait(data,perks,"unfortified") then
@@ -924,7 +930,8 @@ function resourceCardsCombatTargetAcceptsSource(sourceKey,targetGUID)
         local scan=seat~=nil and resourceCardScanBySeat~=nil
             and resourceCardScanBySeat[seat] or nil
         return resourceCardsEnemyEffectivelyUnfortified(targetGUID,
-            scan~=nil and scan.enemyEffects or nil)
+            scan~=nil and scan.enemyEffects or nil,
+            scan~=nil and scan.ignoreSiteFortifications==true)
     end
     if type(sourceKey)=="string" and sourceKey:match("^d01b70#fork%d+$") then
         if data.attackOnly==true then return false end
@@ -1687,7 +1694,7 @@ local function combatDamageResolve(items,units,heroArmour,targetsOf,mitigation,e
     local reserved={}
     for _,item in ipairs(items) do
         local guid=item.firstDamageUnit
-        if guid~=nil and not item.assassination and units[guid]~=nil and not units[guid].wounded then
+        if guid~=nil and units[guid]~=nil and not units[guid].wounded then
             reserved[guid]=item.key
         end
     end
@@ -1712,7 +1719,9 @@ local function combatDamageResolve(items,units,heroArmour,targetsOf,mitigation,e
             end
             result.units[#result.units+1]=entry
         end
-        if not item.assassination and item.firstDamageUnit~=nil then assign(item.firstDamageUnit,true) end
+        -- Shocktroops must take damage first, even against Assassination.
+        -- Ordinary voluntary Unit assignments still cannot bypass it.
+        if item.firstDamageUnit~=nil then assign(item.firstDamageUnit,true) end
         for _,guid in ipairs(item.assassination and {} or targetsOf(item.key)) do
             if guid~=item.firstDamageUnit then assign(guid,false) end
         end
@@ -9334,7 +9343,8 @@ local function renderSeat(seatPos)
         local eligible={}
         for guid,enemy in pairs(monsters) do
             if enemy.is_face_down~=true
-                and resourceCardsEnemyEffectivelyUnfortified(guid,enemyEffects) then
+                and resourceCardsEnemyEffectivelyUnfortified(guid,enemyEffects,
+                    ignoreSiteFortifications) then
                 eligible[guid]=true
             end
         end
