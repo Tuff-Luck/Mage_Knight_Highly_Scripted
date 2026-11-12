@@ -8005,9 +8005,44 @@ local function renderSeat(seatPos)
                 result.resources=updated
             end
         end
-        local inventorySpec=rule~=nil and rule.inventorySetChoices or nil
-        local inventorySets=0
-        if inventorySpec~=nil and result.powered and result.resources~=nil
+        -- Druidic Staff's Break side selects TWO different options without
+        -- discards. The second menu uses the same independent choice-row UI
+        -- as crystal-set effects, but cannot select the first option again.
+        -- Each colour is resolved once; Green contributes Heal 3, while
+        -- movement/crystal/Unit-ready options require their physical actions.
+        local staffDual=rule~=nil and rule.staffDualChoices==true
+            and result.powered==true and cardPosture(card)=="upright"
+        local staffExtraChoices=nil
+        if staffDual then
+            local _,firstKey=currentChoice(card.guid,true,choices)
+            staffExtraChoices={}
+            for _,option in ipairs(choices or {}) do
+                if choiceCategory(option)~=firstKey then
+                    staffExtraChoices[#staffExtraChoices+1]=option
+                end
+            end
+            local second=inventorySetChoice(card.guid,1,staffExtraChoices,choices)
+            local adjusted={}
+            for key,value in pairs(result.resources or {}) do adjusted[key]=value end
+            for key,value in pairs(second or {}) do
+                if totalsKeys[key] and type(value)=="number" then
+                    adjusted[key]=(adjusted[key] or 0)+value
+                end
+            end
+            result.resources=adjusted
+            result.inventorySetCount=1
+            result.complete=true
+            -- The non-numeric options need the player to carry out the move,
+            -- crystal gain, or Unit ready. Do not show fully automated green.
+            if (firstKey~="green"
+                or choiceCategory(second)~="green") and result.status=="green" then
+                result.status="yellow"
+            end
+        end
+        local inventorySpec=staffDual and {choices=staffExtraChoices}
+            or (rule~=nil and rule.inventorySetChoices or nil)
+        local inventorySets=staffDual and 1 or 0
+        if not staffDual and inventorySpec~=nil and result.powered and result.resources~=nil
             and cardPosture(card)=="upright" then
             inventorySets=math.huge
             for _,color in ipairs(inventorySpec.colors) do
