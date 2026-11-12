@@ -5636,6 +5636,18 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             startingControl("manual","?",rule.manualSecondary,false,135,-125)
         end
     end
+    if rule~=nil and isArtifact and rule.manualSecondary~=nil
+        and posture=="upright" then
+        xml[#xml+1]={tag="Button",attributes={
+            id="ResourceCardChoice_"..card.guid.."_artifactNote",
+            onClick="global/resourceCardsArtifactNoteClicked",
+            position="145 -240 "..buttonDepth,rotation=uiRotation,
+            width=140,height=82,scale="0.28 0.28",fontSize=43,
+            tooltip=rule.manualSecondary
+                .."\nResolve the physical effect manually; numerical combat effects are calculated separately.",
+            colors="#454D5D|#69798E|#444C63|#454D5D",
+            textColor="#FFFFFF",textAlignment="MiddleCenter"},value="?"}
+    end
     if rule~=nil and rule.staffDualChoices==true and posture=="upright" then
         local redReady=not powered and type(resources)=="table" and resources.other==1
         if powered then
@@ -10234,6 +10246,24 @@ local function clearAll()
         refreshResourceTrackerText()
         updateMoveDisplay()
     end
+end
+
+-- Artifact effects with physical dice, crystals or other player-decided
+-- outcomes remain explicitly announced, not silently credited as resources.
+function resourceCardsArtifactNoteClicked(player,value,id)
+    if not resourceCardsPanelOpen()
+        or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil)
+        or type(id)~="string" then return end
+    local guid=id:match("^ResourceCardChoice_([0-9a-f]+)_artifactNote$")
+    local data=guid~=nil and gameCards[guid] or nil
+    local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+    local current=turnOrder~=nil and gStates~=nil
+        and turnOrder[gStates.turnNumber] or nil
+    local card=guid~=nil and getObjectFromGUID(guid) or nil
+    if rule==nil or rule.manualSecondary==nil or current==nil or card==nil
+        or cardPosture(card)~="upright"
+        or not cardInSeatPlayArea(guid,current.seatPos) then return end
+    broadcastToColor(rule.manualSecondary,player.color,{0.9,0.8,0.4})
 end
 
 -- Forked Lightning commits every bolt to one combat phase, rather than
