@@ -78,6 +78,8 @@ local decisionCode=slice(reader,"local function unitAbilityPaid(ability,counts)"
 local decide=assert(load([[
 local daytime=false
 local resourceCardsUsesDayMana=function() return daytime end
+local resourceCardsGoldAllowed=function() return daytime end
+local resourceCardsBlackAllowed=function() return not daytime end
 local unitManaCounts=function() error("Explicit test counts required") end
 local unitManaDecision
 ]]..decisionCode..[[
