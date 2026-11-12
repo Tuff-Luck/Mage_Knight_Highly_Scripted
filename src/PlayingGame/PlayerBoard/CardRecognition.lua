@@ -6030,10 +6030,12 @@ end
 -- without making the rest of the game's Day/Night rules change.
 combatConfig.amuletMana={gold=false,black=false}
 local function resourceCardsGoldAllowed()
-    return resourceCardsUsesDayMana() or combatConfig.amuletMana.gold==true
+    return resourceCardsUsesDayMana() or (combatConfig~=nil
+        and combatConfig.amuletMana~=nil and combatConfig.amuletMana.gold==true)
 end
 local function resourceCardsBlackAllowed()
-    return not resourceCardsUsesDayMana() or combatConfig.amuletMana.black==true
+    return not resourceCardsUsesDayMana() or (combatConfig~=nil
+        and combatConfig.amuletMana~=nil and combatConfig.amuletMana.black==true)
 end
 
 local function matchesCardMana(card,color)
@@ -6081,6 +6083,9 @@ end
 -- Gold can fill either a casting or effect role; its effect stays ambiguous.
 -- Other cards can reuse this by declaring effectManaChoice.castColor.
 local function effectManaPossibilities(spec,payments,needPower,goldAllowed,blackAllowed)
+    -- Single-boolean call sites/tests retain the ordinary Day/Night pairing.
+    -- The Amulets may independently enable both colors at runtime.
+    if blackAllowed==nil then blackAllowed=not goldAllowed end
     local possible,anyColor={},false
     -- Black mana cannot pay for any role during a Day round, including
     -- the otherwise separate strong-side payment on Mana Bolt/Thunderbolt.
@@ -6125,6 +6130,10 @@ end
 -- Only the separate stronger-effect payment qualifies for Mana Overload.
 -- A card's casting mana or a Pure Magic / Mana Bolt option payment does not.
 local function effectManaPowerColors(spec,payments,goldAllowed,blackAllowed,selectedCategory)
+    if selectedCategory==nil and type(blackAllowed)=="string" then
+        selectedCategory=blackAllowed
+        blackAllowed=not goldAllowed
+    end
     local eligible={}
     if spec==nil or selectedCategory==nil
         or (not blackAllowed and spec.powerColor=="Black") then return eligible end
