@@ -19,6 +19,7 @@ local data=read("src/Data.lua")
 local recognition=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local layout=read("src/PlayingGame/PlayerBoard/UnitLayout.lua")
 local assignments=read("src/PlayingGame/AttackAssignments.lua")
+local map=read("src/PlayingGame/Map.lua")
 local ui=read("src/PlayingGame/UI.lua")
 
 local expected={
@@ -71,6 +72,8 @@ eq(defs.artifactDruidicStaff.staffDualChoices,true,"Staff independent Break opti
 eq(defs.artifactDruidicStaff.unitReadyLevels.powered,3,"Staff ready level limit")
 eq(defs.artifactBannerFear.enemyEffect.powered.maxTargets,3,
     "Banner of Fear three-enemy maximum")
+assert(map:find("resourceCardsAmuletSunRevealActive()",1,true),
+    "Sun must reach real map reveal logic even at Night")
 assert(layout:find("bannersByUnit=unitLayoutBannersForUnits(layout)",1,true),
     "Attached banners must be observed in Unit layout")
 assert(recognition:find('source.key.."#block"..index',1,true),
@@ -156,6 +159,9 @@ eq(calculator.sum({{sources={source},category="attack"}},enemy,nil,"attack"),8,
     "Sword doubles physical Attack in Attack phase")
 eq(calculator.sum({{sources={source},category="attack"}},
     {pResist=true},nil,"attack"),8,"Sword removes Physical Resist")
+eq(calculator.sum({{sources={source},category="ranged"}},
+    {pResist=true},nil,"range"),6,
+    "Sword removes Physical Resist also during Ranged phase")
 eq(calculator.sum({{sources={source},category="attack"}},
     {pResist=true,arcaneImmunity=true},nil,"attack"),4,
     "Arcane immune enemies keep Physical Resist")
