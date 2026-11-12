@@ -54,6 +54,8 @@ end
 -- Gold counts as one missing basic colour per token only during Day.
 local day=true
 resourceCardsUsesDayMana=function() return day end
+resourceCardsGoldAllowed=function() return day end
+resourceCardsBlackAllowed=function() return not day end
 local scale=assert(load(slice(recognition,
     "    local function unitManaScaleBonus(counts)",
     "    local function unitAbilityResources(").."\nreturn unitManaScaleBonus"))()
