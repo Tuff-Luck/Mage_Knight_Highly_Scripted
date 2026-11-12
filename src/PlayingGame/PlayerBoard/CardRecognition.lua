@@ -429,6 +429,26 @@ local function combatAssignmentSources(seat)
                         amount=amount,icon=field.icon,key=field.key,family=field.family,typeKey=typeKey}
                 end
             end
+            -- Burning Shield's normal effect triggers a later Fire Attack only
+            -- if its Block helped block an attack. Keep that Attack as its own
+            -- independently targetable source, rather than attaching it to the
+            -- enemy whose attack was blocked.
+            if record.conditionalFireAttack~=nil and record.splitTargets~=nil then
+                local amount=math.max(0,tonumber(record.conditionalFireAttack) or 0)
+                if amount>0 then
+                    local counter=ensureSource("attack")
+                    counter.conditionalFireAttack=nil
+                    counter.conditionalCounterattack=amount
+                    -- The potential Attack must exist during target assignment;
+                    -- its value is checked against successful Blocks below.
+                    counter.attack=amount
+                    counter.resources.attackFire=amount
+                    counter.details[#counter.details+1]={
+                        text="Fire Attack "..tostring(amount).." (requires successful Block)",
+                        amount=amount,icon="MKChoiceAttack",key="attackFire",
+                        family="attack",typeKey="F"}
+                end
+            end
             local moveAmount=tonumber(record.resources.move) or 0
             if moveAmount>0 then
                 local source=ensureSource("block")
@@ -3018,30 +3038,62 @@ local function combatAssignmentRefreshRows(entries,sources)
     local defendMarks={}
     for index,amount in pairs(defended) do defendMarks[entries[index].guid]=amount end
     combatSyncDefenderMark(defendMarks)
+    -- Resolve Burning Shield's trigger across EVERY Block target before
+    -- resolving any Attack target. The earned Fire Attack may then be aimed
+    -- at a different enemy, even one that made no attack of its own.
+    local burningShieldTriggered={}
+    for index,entry in ipairs(entries) do
+        local target=allocated[index] or emptyTarget
+        local _,_,_,_,_,_,_,successfulSources=combatBlockResult(entry,target.sources)
+        for _,source in ipairs(target.sources) do
+            if source.conditionalFireAttack~=nil and source.block>0
+                and successfulSources[source.guid]==true then
+                burningShieldTriggered[source.guid]=true
+            end
+        end
+    end
+    for index in ipairs(entries) do
+        local target=allocated[index]
+        if target~=nil then
+            for _,source in ipairs(target.sources) do
+                if source.conditionalCounterattack~=nil then
+                    local amount=burningShieldTriggered[source.guid]
+                        and source.conditionalCounterattack or 0
+                    source.attack=amount
+                    source.resources.attackFire=amount
+                    if amount<=0 then
+                        -- Do not count or display a counterattack until the
+                        -- generating Fire Block has actually succeeded.
+                        for detailIndex=#target.details,1,-1 do
+                            if target.details[detailIndex].source==source then
+                                table.remove(target.details,detailIndex)
+                            end
+                        end
+                        source.details={}
+                    else
+                        for _,detail in ipairs(source.details) do
+                            if detail.key=="attackFire" then
+                                detail.text="Fire Attack "..tostring(amount).." (successful Block)"
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
     local defeatFame,defeatRep=0,0
     for _,group in ipairs(groups) do
         local members,blockedAll={},{}
         for _,index in ipairs(group.members) do
             local entry=entries[index]
             local target=allocated[index] or emptyTarget
-            local lines,damage,count,allBlocked,reductions,wrongBlock,unblocked,successfulSources,_,shieldBashExcess=
+            local lines,damage,count,allBlocked,reductions,wrongBlock,unblocked,_,_,shieldBashExcess=
                 combatBlockResult(entry,target.sources)
             rowBlock[index]={lines=lines,damage=damage,count=count,allBlocked=allBlocked,reductions=reductions,
                 wrongBlock=wrongBlock,unblocked=unblocked,shieldBashExcess=shieldBashExcess,damageItems={}}
             blockedAll[entry.guid]=allBlocked
             members[#members+1]=entry
             for _,source in ipairs(target.sources) do
-                if source.conditionalFireAttack~=nil
-                    and successfulSources[source.guid]==true then
-                    local amount=source.conditionalFireAttack
-                    source.resources.attackFire=(source.resources.attackFire or 0)+amount
-                    source.attack=source.attack+amount
-                    local detail={text="Fire Attack "..tostring(amount).." (successful Block)",
-                        amount=amount,icon="MKChoiceAttack",key="attackFire",
-                        family="attack",typeKey="F"}
-                    source.details[#source.details+1]=detail
-                    target.details[#target.details+1]={source=source,detail=detail}
-                end
                 group.sources[#group.sources+1]=source
             end
         end
