@@ -214,6 +214,37 @@ function unitLayoutCommandTarget(token,seatPos)
     return nil
 end
 
+-- Resolve an attached Banner from the actual Unit-zone card state, never from a
+-- remembered owner or from the banner's translated name. Banners are parked at
+-- the front edge of the Unit mat (different Z from the Unit card), so associate
+-- by closest column and reject cards outside the Unit's X footprint.
+local function unitLayoutBannersForUnits(layout)
+    local byUnit={}
+    for _,obj in ipairs(layout.objects) do
+        local data=gameCards~=nil and gameCards[obj.guid] or nil
+        if data~=nil and data.cardType=="Artifact" and (data.full~=nil or data.half~=nil)
+            and type(data.name)=="table" and data.name[1]~="Banner of Command" then
+            local x=obj.getPosition().x
+            local nearest,distance=nil,math.huge
+            for _,unit in ipairs(layout.units) do
+                local delta=math.abs(unit.getPosition().x-x)
+                if delta<distance then nearest,distance=unit,delta end
+            end
+            if nearest~=nil then
+                local bounds=nearest.getBounds()
+                local size=bounds~=nil and bounds.size or nil
+                local halfX=size~=nil and (size.x or size[1])*0.46 or 1.0
+                if distance<math.max(0.85,halfX) then
+                    byUnit[nearest.guid]=byUnit[nearest.guid] or {}
+                    byUnit[nearest.guid][data.name[1]]={
+                        guid=obj.guid,faceDown=obj.is_face_down==true}
+                end
+            end
+        end
+    end
+    return byUnit
+end
+
 -- Shared by Skills that count ready/unwounded Units or empty Command slots.
 -- One zone snapshot per tracker scan; no name/translation-based identification.
 function unitLayoutResourceState(seatPos)
@@ -267,6 +298,7 @@ function unitLayoutResourceState(seatPos)
     local woundCount=0
     for _,state in ipairs(units) do woundCount=woundCount+state.woundCount end
     return {units=units,woundCount=woundCount,nativeCommandCount=nativeCommandCount,
+        bannersByUnit=unitLayoutBannersForUnits(layout),
         bondsUnitGUID=bondsUnitGUID,
         emptyCommandSlots=math.max(0,#layout.commands-#layout.units)}
 end
