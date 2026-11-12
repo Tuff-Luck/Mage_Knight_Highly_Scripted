@@ -6067,11 +6067,11 @@ function resourceCardsAmuletSunRevealActive()
     return false
 end
 
-local function resourceCardsGoldAllowed()
+function resourceCardsGoldAllowed()
     return resourceCardsUsesDayMana() or (combatConfig~=nil
         and combatConfig.amuletMana~=nil and combatConfig.amuletMana.gold==true)
 end
-local function resourceCardsBlackAllowed()
+function resourceCardsBlackAllowed()
     return not resourceCardsUsesDayMana() or (combatConfig~=nil
         and combatConfig.amuletMana~=nil and combatConfig.amuletMana.black==true)
 end
