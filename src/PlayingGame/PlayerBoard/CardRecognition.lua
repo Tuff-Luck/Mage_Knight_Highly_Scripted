@@ -1185,7 +1185,7 @@ local function combatAttackTotal(groups,data,perks,phase)
                         -- Bow's Ranged double only applies in the Ranged/Siege
                         -- phase. The later Attack phase is ordinary Attack.
                         local resistant=combatEnemyResists(data,perks,attackType.key)
-                        if resistant and phase=="attack" and attackType.key=="P"
+                        if resistant and attackType.key=="P"
                             and combatConfig.artifactCombat.sword
                             and not combatEnemyHasTrait(data,perks,"arcaneImmunity") then
                             resistant=false
