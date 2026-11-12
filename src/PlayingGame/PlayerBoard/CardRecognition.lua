@@ -6558,6 +6558,11 @@ local function unitManaSignature(counts)
 end
 
 unitManaDecision=function(unit,abilities,activation,counts)
+    -- A Command exhausted on a previous turn can be readied now, but that
+    -- earlier use is not an ability in this turn's resource calculation.
+    if activation.priorTurnSpent==true then
+        return {index=nil,display={},ambiguous=false,selected={}}
+    end
     counts=counts or unitManaCounts(unit,activation.seatPos)
     local signature=unitManaSignature(counts)
     local free,paid,direct,goldOnly={},{},{},{}
@@ -8249,6 +8254,7 @@ local function renderSeat(seatPos)
     for unitGUID,currentActivation in pairs(activations) do
       if currentActivation.seatPos==seatPos then
        for useIndex,activation in ipairs(unitHistoryUses(unitGUID,currentActivation)) do
+        if activation.priorTurnSpent~=true then
         local recordKey=unitHistoryKey(unitGUID,useIndex)
         activationByRecordKey[recordKey]=activation
             local unit=objects[unitGUID]
@@ -8367,6 +8373,7 @@ local function renderSeat(seatPos)
                     end
                 end
             end
+        end -- Earlier-round spent Command: no active source this turn.
        end
       end
     end
@@ -10028,6 +10035,34 @@ function attackAssignmentReadySourceClicked(player,value,id)
     attackAssignmentsBeginUnitReady(guid,sourceKey,player.color,limit)
 end
 
+-- Command tokens remain spent for the entire round, even after the turn's
+-- resource history is cleared. A physical Command still on a Unit must not be
+-- treated as a new activation when its owner starts a later turn.
+local function resourceUnitsSpentCommands()
+    local round=tonumber(gStates.currentRound) or 0
+    local state=gStates.unitSpentCommandTokens
+    if type(state)~="table" or state.round~=round then
+        state={round=round,tokens={}}
+        gStates.unitSpentCommandTokens=state
+    end
+    return state.tokens
+end
+
+function resourceUnitsCommandSpent(tokenGUID)
+    return gStates~=nil and resourceUnitsSpentCommands()[tokenGUID]==true
+end
+
+function resourceUnitsRecordSpentCommands(seatPos)
+    if gStates==nil or seatPos==nil then return end
+    local spent=resourceUnitsSpentCommands()
+    local layout=unitLayoutSnapshot(seatPos)
+    for _,token in ipairs(layout.commands) do
+        if unitLayoutCommandTarget(token,seatPos)~=nil then
+            spent[token.guid]=true
+        end
+    end
+end
+
 -- An activation belongs to the physical Command token that started it.
 -- Dropping that token away from its Unit is an undo, not a spent ability:
 -- discard its saved choice and remove its buttons and tracked contribution.
@@ -10086,6 +10121,7 @@ function resourceUnitsCommandDropped(playerColor,obj)
         if resourceUnitsCancelMovedCommand(guid,pickup.seatPos,targetGUID) then
             queueSeat(pickup.seatPos,nil)
         end
+        if unit==nil then unitHistoryPriorTurnCommandMoved(guid,pickup.seatPos) end
         if unit==nil or unit.guid==pickup.origin
             or unitResourceDefinitions[unit.guid]==nil then return end
         local state=unitLayoutResourceState(pickup.seatPos)
@@ -10109,10 +10145,10 @@ function resourceUnitsCommandDropped(playerColor,obj)
         local newActivation={seatPos=pickup.seatPos,tokenGUID=guid,
             choice=choice,selected=abilities.multi==true and {} or nil}
         local useIndex=1
-        if previous~=nil then
+        if previous~=nil or resourceUnitsCommandSpent(guid) then
             local permission=unitHistoryAwaiting(unit.guid)
                 or unitHistoryReadyPermission(unit.guid)
-            if permission==nil or previous.tokenGUID~=guid then return end
+            if permission==nil or (previous~=nil and previous.tokenGUID~=guid) then return end
             local appendedIndex=unitHistoryAppend(unit.guid,newActivation,permission)
             if appendedIndex==nil then return end
             useIndex=appendedIndex
@@ -10345,7 +10381,8 @@ local function resourceUnitsRebuildFromTable()
     for _,token in ipairs(layout.commands) do
         local unit=unitLayoutCommandTarget(token,seat)
         local abilities=unit~=nil and unitResourceDefinitions[unit.guid] or nil
-        if unit~=nil and abilities~=nil and unwounded[unit.guid] and activations[unit.guid]==nil then
+        if unit~=nil and abilities~=nil and unwounded[unit.guid]
+            and activations[unit.guid]==nil and not resourceUnitsCommandSpent(token.guid) then
             local scores=trackerChoiceScores(unit.guid,seat)
             local choice,bestScore=1,-math.huge
             for i,ability in ipairs(abilities) do

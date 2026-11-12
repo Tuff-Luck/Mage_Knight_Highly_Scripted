@@ -6,6 +6,7 @@ local assaultOriginAdjacent, assaultTargetHasWall, resolveAssaultWallFortified, 
 local settleAssaultWallFortified, applyCurrentAssaultWallFortified, combatCameraPlayerIndex, combatNearbyRampagerChoice, combatAttackOptionCount
 local coopAssaultDividableCount, coopAssaultHasLeader, coopAssaultLeadMage, coopAssaultAssignmentSource, coopAssaultCityMinimumEnemyRule
 local coopAssaultReadyToBegin, factionMonsterPreferredPileGUID
+local combatRuinHasSurvivorForCleanup
 
 -- Combat, enemy staging, cooperative assault and combat reward runtime.
 
@@ -738,7 +739,21 @@ end
 
 local function combatPreEndTurnOpenRewardBoundary(cleanupPlayer)
 	local coopCombatCleanup=gStates.coopAssaultPhase=="combat"
-	local recovery={player=cleanupPlayer,coop=coopCombatCleanup==true,processedObjects={},rewardBoundaryDone=false,avatarDropDone=false,stateRefreshDone=false,skillCleanupDone=false,unitCleanupDone=false}
+	-- Capture every incomplete Ruin while the defender results and original map
+	-- positions still exist. Individual token cleanup is asynchronous and can
+	-- discard a defeated defender before it processes the Ruin itself.
+	local ruinReturns={}
+	for ruinGUID,origin in pairs(gStates.attackedMonsters or {}) do
+		local data=monsterPugs[ruinGUID]
+		if data~=nil and data.name=="Ruin" and data.monsters~=nil
+			and combatRuinHasSurvivorForCleanup(ruinGUID) then
+			local position=origin~=nil and origin[1] or nil
+			if position~=nil then
+				ruinReturns[ruinGUID]={position[1],position[2],position[3]}
+			end
+		end
+	end
+	local recovery={player=cleanupPlayer,coop=coopCombatCleanup==true,processedObjects={},rewardBoundaryDone=false,avatarDropDone=false,stateRefreshDone=false,skillCleanupDone=false,unitCleanupDone=false,ruinReturns=ruinReturns}
 	gStates.combatPreEndTurnRecovery=recovery
 	volkarePursuitResolveCombat(cleanupPlayer)
 	puppetMasterCleanupPlayedPuppets(cleanupPlayer)
@@ -1131,6 +1146,18 @@ local function combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatRe
 				end
 				playAreaObj=getObjectFromGUID(cleanupObjectGUID)
 				if playAreaObj==nil then return end
+
+				-- A multi-defender Ruin is conquered only after the FINAL defender.
+				-- Return its revealed token beside survivors; do not send it to the
+				-- Ruin discard or award a premature adventure-site Shield/reward.
+				local ruinPosition=recovery~=nil and recovery.ruinReturns
+					and recovery.ruinReturns[cleanupObjectGUID] or nil
+				if ruinPosition~=nil then
+					combatTrackReturningObject(state,playAreaObj)
+					playAreaObj.setRotation({0,180,0})
+					playAreaObj.setPositionSmooth(ruinPosition,false,false)
+					return
+				end
 
 				--Return any Mana dice
 				if playAreaObj.type=="Dice" and not manaClaimDieHeld(playAreaObj.guid) then
@@ -1589,6 +1616,29 @@ function combatDefeatSnapshotForCleanup()
 		if combatDefeatDefeated[guid]~=true then snapshot[guid]=true end
 	end
 	combatDefeatCleanupSnapshot=snapshot
+end
+
+-- A Ruin with printed defenders is NOT defeated by one successful kill.
+-- With the calculator open, only its own defeated marks count; without it,
+-- the normal cleanup convention is face up = defeated, face down = survivor.
+combatRuinHasSurvivorForCleanup=function(ruinGUID)
+	local linked=false
+	for enemyGUID,linkedRuinGUID in pairs(gStates.ruinMonsters or {}) do
+		if linkedRuinGUID==ruinGUID then
+			linked=true
+			local enemy=getObjectFromGUID(enemyGUID)
+			if enemy~=nil then
+				if combatDefeatMarksActive==true then
+					if combatDefeatTracked[enemyGUID]~=true or combatDefeatDefeated[enemyGUID]~=true then return true end
+				elseif enemy.is_face_down==true then
+					return true
+				end
+			end
+		end
+	end
+	-- No linked defenders means the site could not establish that all its
+	-- printed enemies were resolved. Never give an unearned completion Shield.
+	return not linked
 end
 
 function combatDefeatFlipUndefeated(obj)

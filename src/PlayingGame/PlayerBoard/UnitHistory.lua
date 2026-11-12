@@ -101,7 +101,7 @@ function unitHistoryCombatConflict(guid,useIndex,abilities,decisionFor)
     if group==nil then return false end
     for index=1,useIndex-1 do
         local earlier=group.uses[index]
-        if earlier~=nil
+        if earlier~=nil and earlier.priorTurnSpent~=true
             and unitHistoryDecisionHasCombat(abilities,decisionFor(earlier)) then
             return true
         end
@@ -117,7 +117,9 @@ function unitHistoryRestoreCurrent()
     for guid,group in pairs(gStates.unitActivationHistory or {}) do
         if type(group)=="table" and type(group.uses)=="table" and #group.uses>0 then
             group.selected=math.max(1,math.min(#group.uses,tonumber(group.selected) or #group.uses))
-            gStates.unitResourceActivations[guid]=group.uses[#group.uses]
+            if group.uses[#group.uses].priorTurnSpent~=true then
+                gStates.unitResourceActivations[guid]=group.uses[#group.uses]
+            end
         end
     end
 end
@@ -277,7 +279,10 @@ function unitHistoryTrim(guid,keep)
         local token=group.tokenGUID~=nil and getObjectFromGUID(group.tokenGUID) or nil
         clearTokenControls(token)
     else
-        gStates.unitResourceActivations[guid]=group.uses[keep]
+        -- A use from an earlier turn is only an exhausted-token anchor, never
+        -- an active calculator source when its Ready effect is undone.
+        gStates.unitResourceActivations[guid]=group.uses[keep].priorTurnSpent~=true
+            and group.uses[keep] or nil
         unitHistoryRefreshToken(guid)
     end
     if resourceUnitsPruneHistoricalTargets~=nil then
@@ -287,8 +292,6 @@ end
 
 function unitHistoryReadyLink(sourceKey,unitGUID,seat,levelLimit)
     if gStates==nil or sourceKey==nil or unitGUID==nil then return false end
-    local group=groupOf(unitGUID)
-    if group==nil or #group.uses==0 or group.awaiting~=nil then return false end
     local unit=getObjectFromGUID(unitGUID)
     local data=gameCards~=nil and gameCards[unitGUID] or nil
     if unit==nil or (levelLimit~=nil and (data==nil or data.level>levelLimit))
@@ -296,6 +299,22 @@ function unitHistoryReadyLink(sourceKey,unitGUID,seat,levelLimit)
             and not resourceCardsReadySourceValid(sourceKey,seat))
         or (resourceCardsReadyTargetEligible~=nil
             and not resourceCardsReadyTargetEligible(sourceKey,unitGUID,seat)) then return false end
+    local group=groupOf(unitGUID)
+    if (group==nil or #group.uses==0) and seat~=nil
+        and resourceUnitsCommandSpent~=nil then
+        -- A Unit exhausted on an earlier turn has no current-turn resource
+        -- history. Give it an inert anchor so a genuine Ready can activate it.
+        for _,token in ipairs(unitLayoutSnapshot(seat).commands) do
+            local under=unitLayoutCommandTarget(token,seat)
+            if under~=nil and under.guid==unitGUID and resourceUnitsCommandSpent(token.guid) then
+                group=groupOf(unitGUID,true)
+                group.uses[1]={priorTurnSpent=true,seatPos=seat,tokenGUID=token.guid}
+                group.tokenGUID=token.guid
+                break
+            end
+        end
+    end
+    if group==nil or #group.uses==0 or group.awaiting~=nil then return false end
     -- A ready effect can be retargeted before it is consumed. Undo its old
     -- dependent activations before linking it to a different Unit.
     unlinkSource(sourceKey)
@@ -303,6 +322,20 @@ function unitHistoryReadyLink(sourceKey,unitGUID,seat,levelLimit)
     gStates.unitReadyLinks[sourceKey]={unitGUID=unitGUID,seatPos=seat,
         afterUse=#group.uses,limit=levelLimit}
     return true
+end
+
+-- A spent token moved off its card into the Ready slot has not undone an
+-- earlier-turn use. Record the pending permission without inventing resources.
+function unitHistoryPriorTurnCommandMoved(tokenGUID,seat)
+    for guid,group in pairs(gStates~=nil and gStates.unitActivationHistory or {}) do
+        if group.tokenGUID==tokenGUID and group.uses[1]~=nil
+            and group.uses[1].priorTurnSpent==true
+            and group.uses[1].seatPos==seat then
+            local source=unitHistoryReadyPermission(guid)
+            if source~=nil then return unitHistoryMarkReady(guid,source) end
+        end
+    end
+    return false
 end
 
 function unitHistoryReadyPermission(guid)

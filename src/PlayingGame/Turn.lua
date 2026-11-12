@@ -711,6 +711,9 @@ function turnEndTurnRawBase(player, mouseButton, id, rewindReady)
 		gStates.mountainLoreDrawBonus[seat]=math.max(
 			gStates.mountainLoreDrawBonus[seat] or 0,lore)
 	end
+	-- An exhausted Command stays on its Unit across turns. Remember it before
+	-- the turn/round handoff so reopening the tracker cannot spend it again.
+	resourceUnitsRecordSpentCommands(seat)
 	turnResetCompletedTurnState()
 	turnDrawCompletedTurnHand(player)
 	turnCleanupCompletedTurnBoard()

@@ -219,6 +219,13 @@ end
 --Layout everything needed for the game
 local function setupGameRaw(player, mouseButton, id, rewindReady)
 	if mouseButton=="-1" then
+		-- Required supply bags are table components, not objects setup should silently recreate.
+		-- Check before beginning a rewind transaction or dismantling the setup menu.
+		if getObjectFromGUID(GUID.bag.spareDice)==nil then
+			broadcastToAll("SETUP STOPPED: The spare Mana Dice bag (GUID "..GUID.bag.spareDice..") is missing. Restore the table component or reload the mod before starting.",warningColor)
+			if rewindReady==true then rewindTransactionFinish("Game setup") end
+			return
+		end
 		if rewindReady~=true then
 			if setupRewindRequestPending==true then return end
 			setupRewindRequestPending=true
@@ -497,8 +504,11 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 		--Add mana dice
 		gStates.diceNeeded=gStates.playerCount+2+gStates.blitz
 		if gStates.positionMageKnight[5]=="Volkare" or proxyPlayerIsActive()==true or gStates.gameScenario=="The Chaos Rift" then gStates.diceNeeded=gStates.diceNeeded+1 end
+		local spareDiceBag=getObjectFromGUID(GUID.bag.spareDice)
+		if spareDiceBag==nil then error("Setup aborted: required spare Mana Dice bag "..GUID.bag.spareDice.." was removed after setup started.",2) end
 		for i=1, gStates.diceNeeded do
-			local obj=getObjectFromGUID(GUID.bag.spareDice).takeObject({position={-12+(math.random()*6), 2.7+(1.1*i), -25+(math.random()*4)}, smooth=false})--Mana Dice Container {-12+(math.random()*6), 2.7+(1.1*i), -25+(math.random()*4)}
+			local obj=spareDiceBag.takeObject({position={-12+(math.random()*6), 2.7+(1.1*i), -25+(math.random()*4)}, smooth=false})
+			if obj==nil then error("Setup aborted: spare Mana Dice bag could not provide die "..tostring(i).." of "..tostring(gStates.diceNeeded)..".",2) end
 			obj.randomize()
 			onObjectRandomize({type="Dice"})
 		end

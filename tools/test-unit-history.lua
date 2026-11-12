@@ -188,4 +188,34 @@ unitHistoryCancelReadySource("card")
 eq(gStates.unitReadyLinks.card,nil,"paid Ready can be undone")
 resourceCardsReadyTargetEligible=nil
 unitHistoryReset()
+
+-- A Command spent on a PREVIOUS turn stays exhausted even though the
+-- current-turn activation table was cleared. Ready may create a second use
+-- without resurrecting the earlier turn's Attack or Block contribution.
+resourceUnitsCommandSpent=function(guid) return guid=="cmd" end
+unitLayoutSnapshot=function() return {commands={token}} end
+token.position.y=1.5
+gStates.unitResourceActivations={}
+eq(unitHistoryReadyLink("card","u1",1,nil),true,
+    "Ready can target a Unit spent on a prior turn")
+local spent=unitHistoryUses("u1")[1]
+eq(spent.priorTurnSpent,true,"earlier turn is recorded as inert spent state")
+unitHistoryRestoreCurrent()
+eq(gStates.unitResourceActivations.u1,nil,
+    "reopening the tracker does not reanimate last turn's ability")
+eq(unitHistoryPriorTurnCommandMoved("cmd",1),true,
+    "moving spent Command into ready slot records authorisation")
+eq(unitHistoryAwaiting("u1"),"card","prior turn Ready is pending")
+local newTurnUse={seatPos=1,tokenGUID="cmd",choice=2}
+eq(unitHistoryAppend("u1",newTurnUse,"card"),2,
+    "readying a previously used Command makes a fresh activation")
+eq(unitHistoryCombatConflict("u1",2,abilities,chosen),false,
+    "a previous turn cannot consume this turn's combat activation")
+eq(gStates.unitResourceActivations.u1,newTurnUse,
+    "only the new turn's activation contributes resources")
+unitHistoryCancelReadySource("card")
+eq(gStates.unitResourceActivations.u1,nil,
+    "undoing Ready restores exhausted state, not last turn's resources")
+eq(#unitHistoryUses("u1"),1,"undo retains inert spent anchor")
+unitHistoryReset()
 print("Unit activation history tests passed.")

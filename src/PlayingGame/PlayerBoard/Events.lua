@@ -291,23 +291,29 @@ function playerBoardZoneEnterSettled(ctx)
 		end
 	end
 
-        --flip ruin down if one of its monsters is Down
-        if gStates.ruinMonsters~=nil and gStates.ruinMonsters[objGUID]~=nil then
-            local ruinObj=getObjectFromGUID(gStates.ruinMonsters[objGUID])
-            if ruinObj==nil then
-                --The monster token has been reused after its Ruin was removed; discard the stale link.
-                gStates.ruinMonsters[objGUID]=nil
-            elseif obj.is_face_down==true then
-                if ruinObj.is_face_down==false then ruinObj.flip() end
-            else
-                local flip=true
-                for monsterGUID, _ in pairs(gStates.ruinMonsters) do
-                    local monsterObj=getObjectFromGUID(monsterGUID)
-                    if monsterObj~=nil and monsterObj.is_face_down==true then flip=false break end
-                end
-                if flip==true and ruinObj.is_face_down==true then ruinObj.flip() end
-            end
-        end
+	-- Only defenders belonging to this Ruin can affect its face state.
+	local ruinGUID=gStates.ruinMonsters~=nil and gStates.ruinMonsters[objGUID] or nil
+	if ruinGUID~=nil then
+		local ruinObj=getObjectFromGUID(ruinGUID)
+		if ruinObj==nil then
+			-- A recycled enemy cannot keep a link to a removed Ruin.
+			gStates.ruinMonsters[objGUID]=nil
+		elseif obj.is_face_down==true then
+			if ruinObj.is_face_down==false then ruinObj.flip() end
+		else
+			local anyUndefeated=false
+			for monsterGUID,linkedRuinGUID in pairs(gStates.ruinMonsters) do
+				if linkedRuinGUID==ruinGUID then
+					local monsterObj=getObjectFromGUID(monsterGUID)
+					if monsterObj~=nil and monsterObj.is_face_down==true then
+						anyUndefeated=true
+						break
+					end
+				end
+			end
+			if not anyUndefeated and ruinObj.is_face_down==true then ruinObj.flip() end
+		end
+	end
 
 	--record potion return locationTest
 	if zoneInfo~=nil and zoneInfo.kind=="crystal" and scriptObjectId(obj):sub(-6)=="Potion" then

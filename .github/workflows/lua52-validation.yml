@@ -20,6 +20,8 @@ jobs:
         run: ./tools/validate-project.ps1 -RequireLua52
       - name: Core runtime regression tests
         run: lua5.2 tools/test-core-invariants.lua
+      - name: Unit activation history regression tests
+        run: lua5.2 tools/test-unit-history.lua
       - name: Krang skill regression tests
         run: lua5.2 tools/test-krang-skills.lua
       - name: Arythea and shared Motivation regression tests
