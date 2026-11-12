@@ -113,6 +113,7 @@ end
 -- Keep combat constants in one private table: luabundle adds four parameters
 -- to each module, which also count toward Lua 5.2's 200 active-local limit.
 local combatConfig={}
+combatConfig.amuletMana={gold=false,black=false}
 combatConfig.artifactCombat={sword=false,bow=false,bowMode="double",
     swordFame=false,bowFame=false}
 combatConfig.sacrificeCastPairs={}
@@ -6052,7 +6053,6 @@ end
 -- These are separate permissions. Amulet of the Sun permits Gold at Night
 -- without disabling Black; Amulet of Darkness permits Black during Day
 -- without making the rest of the game's Day/Night rules change.
-combatConfig.amuletMana={gold=false,black=false}
 -- Map auto-reveal may execute with the tracker minimized; inspect the real
 -- current play area rather than relying on a stale tracker snapshot.
 function resourceCardsAmuletSunRevealActive()
