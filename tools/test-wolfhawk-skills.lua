@@ -122,8 +122,8 @@ last=assert(calc:find('    local selectedUnitAttacks={}',first,true))
 local prefix=[[return function(ability,penalty)
   local howlPenalty=penalty
   local unitCombatBoost=0
-  local totalsKeys={attack=true,attackFire=true,block=true,
-    blockIce=true,ranged=true,siege=true,influence=true,healing=true}
+  local trackerPrivate={totalsKeys={attack=true,attackFire=true,block=true,
+    blockIce=true,ranged=true,siege=true,influence=true,healing=true}}
   local function unitAbilityPaid() return true end
 ]]
 local unitFunction=assert(load(prefix..calc:sub(first,last-1)..
