@@ -38,8 +38,8 @@ local env={
     Wait={stop=function(id) stopped[#stopped+1]=id end}
 }
 setmetatable(env,{__index=_G})
-local implementation=layout:sub(assert(layout:find(
-    "--Players routinely lift Command tokens",1,true)))
+local layoutStart=assert(layout:find("--Players routinely lift Command tokens",1,true))
+local implementation=layout:sub(layoutStart)
 assert(load(implementation,"Command release watcher","t",env))()
 local function runFrames()
     local ready=frames
