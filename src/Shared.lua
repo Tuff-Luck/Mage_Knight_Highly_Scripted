@@ -189,6 +189,20 @@ function clearReturnedMonsterRuntimeState(monsterGUID)
 	if gStates.ruinMonsters~=nil then gStates.ruinMonsters[monsterGUID]=nil end
 end
 
+-- Shared Offer navigation helpers. Preserve TTS Vector/array and zone membership semantics.
+function ttsVectorArray(value)
+    return {value.x or value[1],value.y or value[2],value.z or value[3]}
+end
+
+function objectGUIDInZone(guid,zoneGUID)
+    local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
+    if zone==nil then return false end
+    for _,obj in ipairs(zone.getObjects()) do
+        if obj.guid==guid then return true end
+    end
+    return false
+end
+
 local UI_BUTTON_ACTIVE_IMAGE="Sliced Button/Button New Active"
 local UI_BUTTON_DEACTIVE_IMAGE="Sliced Button/Button New Deactive"
 

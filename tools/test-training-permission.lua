@@ -66,6 +66,7 @@ safeWaitCondition=function() queued=queued+1 end
 publishPublicUICallbacks=function(callbacks)
     for name,callback in pairs(callbacks) do _G[name]=callback end
 end
+dofile("tools/load-offer-helpers.lua")
 dofile("src/PlayingGame/TrainingOffer.lua")
 
 local function originTable()

@@ -77,6 +77,31 @@ try {
         throw "Duplicate global function definitions found across source modules:`n$details"
     }
 
+    Write-Host "Checking repeated module forward declarations..."
+    $forwardDeclarationIssues = @()
+    foreach ($file in $sourceLuaFiles) {
+        $seen = @{}
+        $lines = @(Get-Content -LiteralPath $file.FullName)
+        for ($i = 0; $i -lt $lines.Count; $i++) {
+            # Only unindented, uninitialised module forwards (local a, b).
+            # Exclude function locals, initialisers, and nested local declarations.
+            $declaration = [regex]::Match($lines[$i], '^local[ \t]+(?<names>[A-Za-z_][A-Za-z0-9_]*(?:[ \t]*,[ \t]*[A-Za-z_][A-Za-z0-9_]*)*)[ \t]*(?:--.*)?$')
+            if (-not $declaration.Success) { continue }
+            foreach ($name in ($declaration.Groups['names'].Value -split '[ \t]*,[ \t]*')) {
+                if ($seen.ContainsKey($name)) {
+                    $relative = $file.FullName.Substring($root.Length + 1)
+                    $forwardDeclarationIssues += "${relative}:$($i + 1) repeats forward declaration '$name' from line $($seen[$name])."
+                }
+                else {
+                    $seen[$name] = $i + 1
+                }
+            }
+        }
+    }
+    if ($forwardDeclarationIssues.Count -gt 0) {
+        throw "Repeated module forward declarations found:`n$($forwardDeclarationIssues -join "`n")"
+    }
+
     Write-Host "Checking risky local state/context shadowing..."
     $shadowingIssues = @()
     foreach ($file in $sourceLuaFiles) {

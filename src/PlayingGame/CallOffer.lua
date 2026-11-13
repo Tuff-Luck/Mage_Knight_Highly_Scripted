@@ -39,34 +39,13 @@ function callOfferAppendBrowseControls(xml,guid,prefix,callback,includeClaim)
     return images
 end
 
-local function vector(v)
-    return {v.x or v[1],v.y or v[2],v.z or v[3]}
-end
-
-local function inZone(guid,zoneGUID)
-    local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
-    if zone==nil then return false end
-    for _,obj in ipairs(zone.getObjects()) do
-        if obj.guid==guid then return true end
-    end
-    return false
-end
-
+local CALL_OFFER_CONTROL_PREFIXES={"CallOfferControl_"}
+local CALL_OFFER_ALL_PREFIXES={"CallOfferControl_","ResourceCardChoice_","AttackAssignmentSource_"}
 local function cleanButtons(unit,removeResources)
-    if unit==nil then return end
-    local xml=resourceObjectUiXmlTable(unit.UI)
-    local changed=false
-    for i=#xml,1,-1 do
-        local attrs=xml[i].attributes
-        local id=attrs~=nil and attrs.id or nil
-        if type(id)=="string" and (id:sub(1,17)=="CallOfferControl_"
-            or (removeResources and (id:sub(1,19)=="ResourceCardChoice_"
-                or id:sub(1,23)=="AttackAssignmentSource_"))) then
-            table.remove(xml,i)
-            changed=true
-        end
+    if unit~=nil then
+        resourceObjectUiRemovePrefixes(unit,
+            removeResources and CALL_OFFER_ALL_PREFIXES or CALL_OFFER_CONTROL_PREFIXES)
     end
-    if changed then resourceObjectUiSetTable(unit.UI,xml) end
 end
 
 local function restoreUnit(state,immediate)
@@ -95,7 +74,7 @@ local function restoreUnit(state,immediate)
         end
         safeWaitCondition("Offers.CallOffer",function()
             local live=getObjectFromGUID(guid)
-            if live~=nil and inZone(guid,GUID.zone.unitOffer) then live.lock() end
+            if live~=nil and objectGUIDInZone(guid,GUID.zone.unitOffer) then live.lock() end
         end,function()
             local live=getObjectFromGUID(guid)
             return live==nil or (live.resting and live.isSmoothMoving()==false)
@@ -168,7 +147,7 @@ function callOfferEnsureControls(seatPos)
     local spell=getObjectFromGUID(state.spellGUID)
     local unit=getObjectFromGUID(state.unitGUID)
     if spell==nil or spell.is_face_down==true or unit==nil
-        or inZone(unit.guid,playerUnitAreas[state.seatPos]) then return end
+        or objectGUIDInZone(unit.guid,playerUnitAreas[state.seatPos]) then return end
     local previous,nextButton=false,false
     for _,node in ipairs(unit.UI.getXmlTable() or {}) do
         local id=node.attributes~=nil and node.attributes.id or nil
@@ -185,7 +164,7 @@ end
 local function rememberDisplayedUnit(state)
     local unit=state~=nil and state.unitGUID~=nil and getObjectFromGUID(state.unitGUID) or nil
     if unit~=nil then
-        state.display={position=vector(unit.getPosition()),rotation=vector(unit.getRotation())}
+        state.display={position=ttsVectorArray(unit.getPosition()),rotation=ttsVectorArray(unit.getRotation())}
     end
 end
 
@@ -194,15 +173,15 @@ local function borrow(state,index)
     local unit=guid~=nil and getObjectFromGUID(guid) or nil
     local spell=getObjectFromGUID(state.spellGUID)
     if unit==nil or spell==nil then return false end
-    if not inZone(guid,GUID.zone.unitOffer) then return false end
-    local pos=vector(spell.getPosition())
+    if not objectGUIDInZone(guid,GUID.zone.unitOffer) then return false end
+    local pos=ttsVectorArray(spell.getPosition())
     local display=state.display or {
         position={pos[1]+3.9,math.max(1.8,pos[2]+0.35),pos[3]},
         rotation={0,180,0}}
     state.index=index
     state.unitGUID=guid
-    state.home={position=vector(unit.getPosition()),
-        rotation=vector(unit.getRotation()),scale=vector(unit.getScale())}
+    state.home={position=ttsVectorArray(unit.getPosition()),
+        rotation=ttsVectorArray(unit.getRotation()),scale=ttsVectorArray(unit.getScale())}
     transferSerial=transferSerial+1
     local serial=transferSerial
     unit.unlock()
@@ -268,7 +247,7 @@ function callOfferSpellEntered(spellGUID,seatPos)
     -- This saved flag is independent of the preview (which ends on recruitment).
     if gStates.callOfferGloryClaimed==true then return end
     local spell=getObjectFromGUID(SPELL_GUID)
-    if spell==nil or not inZone(SPELL_GUID,playerPlayAreas[seatPos]) then return end
+    if spell==nil or not objectGUIDInZone(SPELL_GUID,playerPlayAreas[seatPos]) then return end
     if spell.is_face_down==true then
         callOfferClose(false)
         return
@@ -306,7 +285,7 @@ function callOfferSpellChanged()
         return
     end
     for seatPos=1,4 do
-        if inZone(SPELL_GUID,playerPlayAreas[seatPos]) then
+        if objectGUIDInZone(SPELL_GUID,playerPlayAreas[seatPos]) then
             if spell.held_by_color==nil and spell.resting==true then
                 callOfferSpellEntered(SPELL_GUID,seatPos)
             end
@@ -355,7 +334,7 @@ end
 function callOfferBorrowedUnitForSeat(seatPos)
     local state=previewState()
     if state==nil or state.seatPos~=seatPos then return nil end
-    if not inZone(SPELL_GUID,playerPlayAreas[seatPos]) then return nil end
+    if not objectGUIDInZone(SPELL_GUID,playerPlayAreas[seatPos]) then return nil end
     local spell=getObjectFromGUID(SPELL_GUID)
     if spell==nil or spell.is_face_down==true then return nil end
     return state.unitGUID~=nil and getObjectFromGUID(state.unitGUID) or nil
@@ -369,7 +348,7 @@ function callOfferObjectDropped(obj)
     safeWaitCondition("Offers.CallOffer",function()
         local current=previewState()
         if current==nil or current.unitGUID~=guid then return end
-        if not inZone(guid,playerUnitAreas[current.seatPos]) then
+        if not objectGUIDInZone(guid,playerUnitAreas[current.seatPos]) then
             -- Repositioning the borrowed Unit is NOT recruitment. Keep its
             -- controls, combat links and new browsing position intact.
             rememberDisplayedUnit(current)
@@ -399,7 +378,7 @@ function callOfferRestoreOnLoad()
     local unit=state.unitGUID~=nil and getObjectFromGUID(state.unitGUID) or nil
     local spell=getObjectFromGUID(SPELL_GUID)
     if unit==nil or spell==nil or spell.is_face_down==true
-        or not inZone(SPELL_GUID,playerPlayAreas[state.seatPos]) then
+        or not objectGUIDInZone(SPELL_GUID,playerPlayAreas[state.seatPos]) then
         callOfferClose(true)
         return
     end

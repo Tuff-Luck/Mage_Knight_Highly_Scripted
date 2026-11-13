@@ -172,6 +172,28 @@ function resourceObjectUiXmlTable(ui)
     return valid
 end
 
+-- Remove caller-owned Object UI buttons without writing unchanged XML.
+function resourceObjectUiRemovePrefixes(obj,prefixes)
+    if obj==nil or obj.UI==nil then return false end
+    local xml=resourceObjectUiXmlTable(obj.UI)
+    local changed=false
+    for i=#xml,1,-1 do
+        local attributes=xml[i].attributes
+        local id=attributes~=nil and attributes.id or nil
+        if type(id)=="string" then
+            for _,prefix in ipairs(prefixes or {}) do
+                if id:sub(1,#prefix)==prefix then
+                    table.remove(xml,i)
+                    changed=true
+                    break
+                end
+            end
+        end
+    end
+    if changed then resourceObjectUiSetTable(obj.UI,xml) end
+    return changed
+end
+
 function resourceCardsExistingImageAssetsFor(ui,names)
     local needed={}
     for _,name in ipairs(names) do

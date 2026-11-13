@@ -1,16 +1,6 @@
 -- UI directly depends on the authoritative seat-team helpers; keep the dependency in the module so incremental bundles cannot omit it.
 require("PlayingGame.Teams")
 
--- Module-private helpers. Predeclared so forward references keep resolving locally.
-local refreshPlayAreaCardScale, automatedAttackResponseButton, automatedPanelHasDeedCards, automatedPanelEndRoundText, automatedDummyPanelSpec
-local automatedVolkarePanelSpec, automatedCurrentPlayerPanelSpec, avatarButtonBucketKey, avatarButtonNearbyObjects, avatarButtonXmlSignature
-local legacyObjectButtonImage, buildMageKnightFastLookups, mageKnightAvatarObjectByName
-
--- UI-private helpers. Predeclared so forward references keep resolving locally.
-local refreshPlayAreaCardScale, automatedAttackResponseButton, automatedPanelHasDeedCards, automatedPanelEndRoundText, automatedDummyPanelSpec
-local automatedVolkarePanelSpec, automatedCurrentPlayerPanelSpec, avatarButtonBucketKey, avatarButtonNearbyObjects, avatarButtonXmlSignature
-local legacyObjectButtonImage, buildMageKnightFastLookups, mageKnightAvatarObjectByName
-
 -- Gameplay presentation, cached interface state and camera/object UI helpers.
 
 local volkarePursuitButtonImageAsset="Volkare Pursuit Button"
@@ -2418,7 +2408,7 @@ function refreshResourceTracker()
     -- Recalculate for the newly active Mage Knight only when automation is enabled.
     resourceCardsPanelChanged(true)
 end
-legacyObjectButtonImage=function(id,image)
+local function legacyObjectButtonImage(id,image)
 	if id==nil then return false end
 	local obj=getObjectFromGUID(tostring(id):sub(1,6))
 	if obj==nil then return false end

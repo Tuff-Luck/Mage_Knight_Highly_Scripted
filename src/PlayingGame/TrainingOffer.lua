@@ -14,19 +14,6 @@ local function currentState()
     return gStates~=nil and gStates.trainingOfferPreview or nil
 end
 
-local function coords(pos)
-    return {pos.x or pos[1],pos.y or pos[2],pos.z or pos[3]}
-end
-
-local function inZone(guid,zoneGUID)
-    local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
-    if zone==nil then return false end
-    for _,obj in ipairs(zone.getObjects()) do
-        if obj.guid==guid then return true end
-    end
-    return false
-end
-
 function trainingOfferHandLeft(guid,seatPos)
     if guid~=nil and seatPos~=nil then fromHand[guid]=seatPos end
 end
@@ -41,27 +28,15 @@ function trainingOfferCardPickedUp(playerColor,obj)
     local seatPos=currentSeat()
     -- Track hand origin even before Training is played, but never warn on a pickup.
     if obj==nil or seatPos==nil or obj.type~="Card"
-        or not inZone(obj.guid,handZones[seatPos]) then return end
+        or not objectGUIDInZone(obj.guid,handZones[seatPos]) then return end
     if legalPlayerCheck(playerColor,seatPos,"NoDummyException",true)==true then
         fromHand[obj.guid]=seatPos
     end
 end
 
+local TRAINING_OFFER_CONTROL_PREFIXES={"TrainingOfferControl_","ResourceCardChoice_","AttackAssignmentSource_"}
 local function cleanPreview(card)
-    if card==nil then return end
-    local xml=resourceObjectUiXmlTable(card.UI)
-    local changed=false
-    for i=#xml,1,-1 do
-        local attr=xml[i].attributes
-        local id=attr~=nil and attr.id or nil
-        if type(id)=="string" and (id:sub(1,21)=="TrainingOfferControl_"
-            or id:sub(1,19)=="ResourceCardChoice_"
-            or id:sub(1,23)=="AttackAssignmentSource_") then
-            table.remove(xml,i)
-            changed=true
-        end
-    end
-    if changed then resourceObjectUiSetTable(card.UI,xml) end
+    if card~=nil then resourceObjectUiRemovePrefixes(card,TRAINING_OFFER_CONTROL_PREFIXES) end
 end
 
 local function showControls(state)
@@ -120,7 +95,7 @@ local function returnPreview(state,immediate)
         end
         safeWaitCondition("Offers.Training",function()
             local live=getObjectFromGUID(guid)
-            if live~=nil and inZone(guid,GUID.zone.offer) then
+            if live~=nil and objectGUIDInZone(guid,GUID.zone.offer) then
                 live.lock()
                 -- Restore the ordinary Offer control after the temporary
                 -- Training browser controls have been removed.
@@ -173,14 +148,14 @@ local function borrow(state,index)
     local guid=state.order[index]
     local card=guid~=nil and getObjectFromGUID(guid) or nil
     local training=getObjectFromGUID(TRAINING_GUID)
-    if card==nil or training==nil or not inZone(guid,GUID.zone.offer) then return false end
+    if card==nil or training==nil or not objectGUIDInZone(guid,GUID.zone.offer) then return false end
     state.index=index
     state.cardGUID=guid
-    state.home={position=coords(card.getPosition()),
-        rotation=coords(card.getRotation()),scale=coords(card.getScale())}
+    state.home={position=ttsVectorArray(card.getPosition()),
+        rotation=ttsVectorArray(card.getRotation()),scale=ttsVectorArray(card.getScale())}
     local position=state.display
     if position==nil then
-        local p=coords(training.getPosition())
+        local p=ttsVectorArray(training.getPosition())
         position={p[1]+3.9,math.max(1.8,p[2]+0.35),p[3]}
     end
     browseSerial=browseSerial+1
@@ -215,8 +190,8 @@ local function cycle(state,delta)
         if present[guid] and guid~=state.cardGUID then
             local current=getObjectFromGUID(state.cardGUID)
             if current~=nil then
-                state.display=coords(current.getPosition())
-                state.rotation=coords(current.getRotation())
+                state.display=ttsVectorArray(current.getPosition())
+                state.rotation=ttsVectorArray(current.getRotation())
             end
             returnPreview(state,false)
             borrow(state,index)
@@ -228,7 +203,7 @@ end
 local function trainingValid(seatPos)
     local card=getObjectFromGUID(TRAINING_GUID)
     if card==nil or seatPos==nil
-        or not inZone(TRAINING_GUID,playerPlayAreas[seatPos]) then return false end
+        or not objectGUIDInZone(TRAINING_GUID,playerPlayAreas[seatPos]) then return false end
     -- A sideways Training is only the generic +1 Action, not its printed
     -- replacement effect. A face-down copy is valid only when Maximal Effect
     -- is explicitly repeating that card.
@@ -246,10 +221,10 @@ local function startTraining(seatPos,source)
         and details.cardType~="Advanced Action")
         or source.guid==TRAINING_GUID
         or fromHand[source.guid]~=seatPos
-        or not inZone(source.guid,playerPlayAreas[seatPos]) then return end
+        or not objectGUIDInZone(source.guid,playerPlayAreas[seatPos]) then return end
     local training=getObjectFromGUID(TRAINING_GUID)
-    local from=coords(source.getPosition())
-    local at=coords(training.getPosition())
+    local from=ttsVectorArray(source.getPosition())
+    local at=ttsVectorArray(training.getPosition())
     if math.abs(at[1]-from[1])>1.4 or math.abs(at[3]-from[3])>1.8 then return end
     local _,repeatCount=resourceCardsTrainingMode(seatPos)
     gStates.trainingOfferClaims=gStates.trainingOfferClaims or {}
@@ -276,7 +251,7 @@ local function claim(state)
     if currentState()~=state or not trainingValid(state.seatPos) then return end
     local gained=getObjectFromGUID(state.cardGUID)
     local source=getObjectFromGUID(state.sourceGUID)
-    if gained==nil or source==nil or not inZone(source.guid,playerPlayAreas[state.seatPos])
+    if gained==nil or source==nil or not objectGUIDInZone(source.guid,playerPlayAreas[state.seatPos])
         or not matchesSource(gameCards[source.guid],gameCards[gained.guid]) then return end
     local powered,repeatCount=resourceCardsTrainingMode(state.seatPos)
     local destination=getObjectFromGUID(powered
@@ -315,7 +290,7 @@ local function claim(state)
     if powered then
         animateDeedCardToHand(gained,state.seatPos,0)
     else
-        local p=coords(destination.getPosition())
+        local p=ttsVectorArray(destination.getPosition())
         gained.setScale({1.5,1,1.5})
         gained.setPositionSmooth({p[1],math.max(1.8,p[2]+0.5),p[3]},false,false)
         gained.setRotationSmooth({0,180,0},false,false)
@@ -326,10 +301,10 @@ local function claim(state)
     -- Offer compaction must happen *after* the claimed card has crossed
     -- the offer boundary; otherwise it still occupies its old slot.
     local function refill()
-        if not inZone(gainedGUID,GUID.zone.offer) then compactAndRefillDeedOffer() end
+        if not objectGUIDInZone(gainedGUID,GUID.zone.offer) then compactAndRefillDeedOffer() end
     end
     safeWaitCondition("Offers.Training",refill,function()
-        return not inZone(gainedGUID,GUID.zone.offer)
+        return not objectGUIDInZone(gainedGUID,GUID.zone.offer)
     end,8,refill)
     if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
     mainUIUpdate("Training Advanced Action Claimed")
@@ -369,10 +344,10 @@ function trainingOfferObjectDropped(playerColor,obj)
             if state==nil or state.cardGUID~=guid then return end
             local held=getObjectFromGUID(guid)
             if held==nil then return end
-            state.display=coords(held.getPosition())
-            state.rotation=coords(held.getRotation())
+            state.display=ttsVectorArray(held.getPosition())
+            state.rotation=ttsVectorArray(held.getRotation())
             local powered=resourceCardsTrainingMode(state.seatPos)
-            if inZone(guid,powered and handZones[state.seatPos]
+            if objectGUIDInZone(guid,powered and handZones[state.seatPos]
                 or deedDeckDiscardZones[state.seatPos]) then
                 claim(state)
             else trainingOfferEnsureControls() end
@@ -383,7 +358,7 @@ function trainingOfferObjectDropped(playerColor,obj)
         return
     end
     if active~=nil and obj.guid==active.sourceGUID then
-        if not inZone(obj.guid,playerPlayAreas[active.seatPos]) then
+        if not objectGUIDInZone(obj.guid,playerPlayAreas[active.seatPos]) then
             trainingOfferClose(false)
         end
         return
@@ -393,7 +368,7 @@ function trainingOfferObjectDropped(playerColor,obj)
     if cardData.cardType~="Starting" and cardData.cardType~="Advanced Action" then return end
     -- Other players may plan cards during a Proxy/Dummy turn; no Training action
     -- exists unless the card is actually in the current seat's play area.
-    if not inZone(TRAINING_GUID,playerPlayAreas[seatPos]) then return end
+    if not objectGUIDInZone(TRAINING_GUID,playerPlayAreas[seatPos]) then return end
     if legalPlayerCheck(playerColor,seatPos,"NoDummyException",true)~=true then return end
     local guid=obj.guid
     safeWaitCondition("Offers.Training",function()

@@ -110,6 +110,7 @@ publishPublicUICallbacks=function(callbacks)
     for name,callback in pairs(callbacks) do _G[name]=callback end
 end
 dofile("src/PlayingGame/UIAssets.lua")
+dofile("tools/load-offer-helpers.lua")
 dofile("src/PlayingGame/CallOffer.lua")
 local function hasArrow(card,direction)
     for _,node in ipairs(card.UI.getXmlTable()) do
