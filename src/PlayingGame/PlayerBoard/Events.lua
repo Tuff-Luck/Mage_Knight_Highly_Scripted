@@ -329,6 +329,19 @@ function playerBoardZoneEnterSettled(ctx)
 	return false
 end
 
+-- Avoid a costly Object UI replacement when the departing piece has no
+-- script XML. TTS and older saves can represent an empty UI as {} or {{}}.
+local function playerBoardClearObjectUIIfPresent(obj)
+    if obj==nil or obj.UI==nil then return false end
+    for _,node in ipairs(obj.UI.getXmlTable() or {}) do
+        if type(node)=="table" and node.tag~=nil then
+            obj.UI.setXmlTable({{}})
+            return true
+        end
+    end
+    return false
+end
+
 function playerBoardZoneLeave(ctx)
 	local zone=ctx.zone
 	local obj=ctx.obj
@@ -345,7 +358,7 @@ function playerBoardZoneLeave(ctx)
 	if gStates.turnNumber>0 and turnOrder[gStates.turnNumber]~=nil and zone.guid==handZones[turnOrder[gStates.turnNumber].seatPos] then scheduleTactic4HandBonusRefresh() end
 	if (zone.guid==playerPlayAreas[2] or zone.guid==playerPlayAreas[3] or zone.guid==playerPlayAreas[1] or zone.guid==playerPlayAreas[4]) and getObjectFromGUID(obj.guid)~=nil then
 		--remove icons from monsters
-		obj.UI.setXmlTable({{}})
+		playerBoardClearObjectUIIfPresent(obj)
 		--Only remove the face-down card decal once the card is confirmed outside all player play areas.
 		if obj.type=="Card" then
 			local cardGUID=obj.guid
