@@ -626,6 +626,7 @@ function __onObjectDrop_raw(player_color, dropped_object)
 	if dropped_object==nil or dropped_object.guid==nil then return end
 	local droppedGUID=dropped_object.guid
 	playAreaScaleObjectDropped(dropped_object)
+    unitLayoutCommandDropped(dropped_object)
     resourceUnitsCommandDropped(player_color,dropped_object)
     resourceCardsObjectMoved(dropped_object)
     callOfferObjectDropped(dropped_object)
@@ -1497,41 +1498,51 @@ local function handlePreGameZoneEnter(ctx)
 	end
 end
 
+local function manaSourceDiceResting()
+    local manaZone=getObjectFromGUID(GUID.zone.mana)
+    if manaZone==nil then return true end
+    for _,manaDie in pairs(manaZone.getObjects()) do
+        if manaDie.type=="Dice" and manaDie.resting==false then return false end
+    end
+    return true
+end
+
 local function handleManaZoneEnter(ctx)
-	local zoneGUID=ctx.zoneGUID
-	local objType=ctx.objType
-	--Mirror dice in source and Start of rounds should have half or more standard color Mana Dice
-	if zoneGUID==GUID.zone.mana and objType=="Dice" then
-		if dieRollEnterPause~=nil then Wait.stop(dieRollEnterPause) end
-		dieRollEnterPause=safeWaitCondition("Events.manaEnter",function()
-			--Start of rounds should have half or more standard color Mana Dice
-			local safe=true
-			if gStates.tacticRemove==true or gStates.tacticShown==true or gStates.firstStarted~=true then
-				local bad={}
-				local manaZone=getObjectFromGUID(GUID.zone.mana)
-				for _, manaDie in pairs(manaZone.getObjects()) do
-					if manaDie.type=="Dice" and (manaDie.getRotationValue()=="Black Mana" or manaDie.getRotationValue()=="Gold Mana") then bad[#bad+1]=manaDie end
-				end
-				local diceNeeded=tonumber(gStates.diceNeeded)
-				if (diceNeeded~=nil and #bad>diceNeeded/2) or (gStates.startAtNight==true and gStates.currentRound==1) then
-					for _, badManaDie in pairs(bad) do badManaDie.randomize() end
-					pulseSourceRandomizeFences()
-					if #bad>0 then safe=false end
-				end
-			end
-			--Mirror mana source dice
-			if gStates.firstStarted==true and safe==true then
-				mirrorSourceUpdate("dice entered zone")
-			end
-		end, function()
-			local allResting=true
-			local manaZone=getObjectFromGUID(GUID.zone.mana)
-			for _, manaDie in pairs(manaZone.getObjects()) do
-				if manaDie.type=="Dice" and manaDie.resting==false then allResting=false break end
-			end
-			return allResting
-		end)
-	end
+    -- Mirror dice in the Source, and correct the initial black/gold mix.
+    if ctx.zoneGUID~=GUID.zone.mana or ctx.objType~="Dice" then return end
+    if dieRollEnterPause~=nil then Wait.stop(dieRollEnterPause) end
+
+    local function finish()
+        dieRollEnterPause=nil
+        local safe=true
+        if gStates.tacticRemove==true or gStates.tacticShown==true or gStates.firstStarted~=true then
+            local bad={}
+            local manaZone=getObjectFromGUID(GUID.zone.mana)
+            for _,manaDie in pairs(manaZone~=nil and manaZone.getObjects() or {}) do
+                if manaDie.type=="Dice" and (manaDie.getRotationValue()=="Black Mana" or manaDie.getRotationValue()=="Gold Mana") then
+                    bad[#bad+1]=manaDie
+                end
+            end
+            local diceNeeded=tonumber(gStates.diceNeeded)
+            if (diceNeeded~=nil and #bad>diceNeeded/2) or (gStates.startAtNight==true and gStates.currentRound==1) then
+                for _,badManaDie in pairs(bad) do badManaDie.randomize() end
+                pulseSourceRandomizeFences()
+                if #bad>0 then safe=false end
+            end
+        end
+        if gStates.firstStarted==true and safe==true then
+            mirrorSourceUpdate("dice entered zone")
+        end
+    end
+
+    -- Condition predicates run every frame. Give a stubbornly unsettled die
+    -- a finite window, then stop polling. A later Source move/randomize will
+    -- perform the next authoritative refresh rather than reading a rolling face.
+    dieRollEnterPause=safeWaitCondition("Events.manaEnter",finish,manaSourceDiceResting,10,function()
+        dieRollEnterPause=nil
+        if manaSourceDiceResting() then finish()
+        else log("Mana Source settle timeout: postponed mirror refresh until the next dice event.") end
+    end)
 end
 
 function __onObjectEnterZone_raw(zone, obj)
