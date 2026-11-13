@@ -432,18 +432,62 @@ unitLayoutObjectInUnitArea=function(guid,seatPos)
 	return false
 end
 
---Players routinely lift Command tokens to place them on Units. Do not temporarily re-expand the whole
---Unit layout while a permanent Command source is in their hand; only resize if it is actually dropped away.
+--Players routinely lift Command tokens to place them on Units. Defer held tokens
+--until their drop event rather than polling a held object every frame.
+--Scripted moves still receive a bounded physics-settle check.
+local unitLayoutCommandReleaseWatch={}
+
 function scheduleUnitLayoutRefreshAfterCommandRelease(seatPos,commandGUID)
-	if seatPos==nil or commandGUID==nil then return end
-	safeWaitCondition("SetupGame",function()
-		safeWaitFrames("SetupGame",function()
-			if unitLayoutObjectInUnitArea(commandGUID,seatPos)==false then scheduleUnitLayoutRefresh(seatPos) end
-		end,2)
-	end,function()
-		local command=getObjectFromGUID(commandGUID)
-		if command==nil then return true end
-		local released=command.held_by_color==nil or command.held_by_color==""
-		return released and command.resting==true
-	end)
+    if seatPos==nil or commandGUID==nil then return end
+    local existing=unitLayoutCommandReleaseWatch[commandGUID]
+    if existing~=nil then
+        -- One in-flight check per Command token. A later zone event can still
+        -- replace the old seat's check if the token is moved between boards.
+        if existing.seat==seatPos then return end
+        if existing.wait~=nil then Wait.stop(existing.wait) end
+    end
+    local watch={seat=seatPos}
+    unitLayoutCommandReleaseWatch[commandGUID]=watch
+    local command=getObjectFromGUID(commandGUID)
+    if command~=nil and command.held_by_color~=nil and command.held_by_color~="" then
+        watch.awaitingDrop=true
+        return
+    end
+
+    local function finish()
+        if unitLayoutCommandReleaseWatch[commandGUID]~=watch then return end
+        watch.wait=nil
+        local current=getObjectFromGUID(commandGUID)
+        if current~=nil and current.held_by_color~=nil and current.held_by_color~="" then
+            -- Even on a timeout, never compress the remaining Units while
+            -- someone is still holding their Command token.
+            watch.awaitingDrop=true
+            return
+        end
+        unitLayoutCommandReleaseWatch[commandGUID]=nil
+        safeWaitFrames("SetupGame",function()
+            if unitLayoutObjectInUnitArea(commandGUID,seatPos)==false then
+                scheduleUnitLayoutRefresh(seatPos)
+            end
+        end,2)
+    end
+    watch.wait=safeWaitCondition("SetupGame",finish,function()
+        local current=getObjectFromGUID(commandGUID)
+        if current==nil then return true end
+        local released=current.held_by_color==nil or current.held_by_color==""
+        return released and current.resting==true and current.isSmoothMoving()==false
+    end,5,finish)
+end
+
+-- A player may keep a Command token in hand longer than any timeout. Resume
+-- the deferred check on the actual drop; leave existing active waits alone.
+function unitLayoutCommandDropped(obj)
+    if obj==nil or obj.guid==nil then return end
+    local watch=unitLayoutCommandReleaseWatch[obj.guid]
+    if watch==nil or watch.awaitingDrop~=true then return end
+    local guid,seatPos=obj.guid,watch.seat
+    unitLayoutCommandReleaseWatch[guid]=nil
+    safeWaitFrames("SetupGame",function()
+        scheduleUnitLayoutRefreshAfterCommandRelease(seatPos,guid)
+    end,1)
 end
