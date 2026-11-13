@@ -18,48 +18,21 @@ jobs:
       - name: Validate project structure and Lua
         shell: pwsh
         run: ./tools/validate-project.ps1 -RequireLua52
-      - name: Core runtime regression tests
-        run: lua5.2 tools/test-core-invariants.lua
-      - name: Unit activation history regression tests
-        run: lua5.2 tools/test-unit-history.lua
-      - name: Level III Unit combat regression tests
-        run: lua5.2 tools/test-level-three-units.lua
-      - name: Level IV Unit combat regression tests
-        run: lua5.2 tools/test-level-four-units.lua
-      - name: Level II Unit combat regression tests
-        run: lua5.2 tools/test-level-two-units.lua
-      - name: Krang skill regression tests
-        run: lua5.2 tools/test-krang-skills.lua
-      - name: Arythea and shared Motivation regression tests
-        run: lua5.2 tools/test-arythea-skills.lua
-      - name: Combat effect button regression tests
-        run: lua5.2 tools/test-combat-effect-buttons.lua
-      - name: All official Spell roster and mana-payment regression tests
-        run: lua5.2 tools/test-spell-catalog.lua
-      - name: Official artifact roster and resource regression tests
-        run: lua5.2 tools/test-artifact-effects.lua
-      - name: Red Spell regression tests
-        run: lua5.2 tools/test-red-spells.lua
-      - name: Green Spell regression tests
-        run: lua5.2 tools/test-green-spells.lua
-      - name: White Spell regression tests
-        run: lua5.2 tools/test-white-spells.lua
-      - name: Volkare AI and offer regression tests
-        run: lua5.2 tools/test-volkare.lua
-      - name: Blue Spell regression tests
-        run: lua5.2 tools/test-blue-spells.lua
-      - name: Call Offer browser regression tests
-        run: lua5.2 tools/test-call-offer.lua
-      - name: Regeneration and Mountain Lore regression tests
-        run: lua5.2 tools/test-green-advanced-actions.lua
-      - name: Play Area Unit scale regression tests
-        run: lua5.2 tools/test-play-area-scale.lua
-      - name: Play Area crystal animation regression tests
-        run: lua5.2 tools/test-play-area-crystal-animation.lua
-      - name: Norowas skill regression tests
-        run: lua5.2 tools/test-norowas-skills.lua
-      - name: Braevalar skill regression tests
-        run: lua5.2 tools/test-braevalar-skills.lua
+      - name: All Lua regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          tests=(tools/test-*.lua)
+          if (( ${#tests[@]} == 0 )); then
+            echo "No Lua regression tests found" >&2
+            exit 1
+          fi
+          for test in "${tests[@]}"; do
+            echo "::group::${test}"
+            lua5.2 "${test}"
+            echo "::endgroup::"
+          done
       - name: Check commit whitespace
         run: git diff --check HEAD^
 
