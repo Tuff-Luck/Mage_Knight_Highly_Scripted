@@ -108,7 +108,7 @@ local resourceCardsArtifactNoteClicked=function() end
 local resourceCardsArtifactHealUnitsClicked=function() end
 ]]..registration..[[
 return published
-]],"Artifact protected callback registration","t",{published=published}))
+]],"Artifact protected callback registration","t",setmetatable({published=published},{__index=_G})))
 registrationTest()
 for _,name in ipairs({
     "resourceCardsRegenerationReadyClicked",
