@@ -324,12 +324,16 @@ end
 --Removes all claim buttons and re-activates only buttons with cards
 function claimButtonRefresh()
 	--Remove buttons if dummy is choosing
-	getObjectFromGUID("483ed5").UI.setXmlTable({{}})
+	local dummyTactic=getObjectFromGUID("483ed5")
+	if dummyTactic~=nil then dummyTactic.UI.setXmlTable({{}}) end
 	if gStates.tacticShown==false or turnOrder[gStates.turnNumber].mage==gStates.positionMageKnight[5] then
 		for zoneGUID, cardSource in pairs(tacticClaimingZones) do
-			for _, obj in pairs(getObjectFromGUID(zoneGUID).getObjects()) do
-				if isTacticCard(obj) then
-					obj.UI.setXmlTable({{}})
+			local zone=getObjectFromGUID(zoneGUID)
+			if zone~=nil then
+				for _, obj in pairs(zone.getObjects() or {}) do
+					if isTacticCard(obj) then
+						obj.UI.setXmlTable({{}})
+					end
 				end
 			end
 		end
@@ -339,11 +343,13 @@ function claimButtonRefresh()
 		if gStates.tacticShown==true then
 			--Tactic card claim buttons
 			if turnOrder[gStates.turnNumber].mage==gStates.positionMageKnight[5] then
-				getObjectFromGUID("483ed5").UI.setXmlTable({createClaimButton("483ed5", "tactic7")})
+				local dummyTactic=getObjectFromGUID("483ed5")
+				if dummyTactic~=nil then dummyTactic.UI.setXmlTable({createClaimButton("483ed5", "tactic7")}) end
 			else
 				for zoneGUID, cardSource in pairs(tacticClaimingZones) do
-					if getObjectFromGUID(zoneGUID).getObjects()~=nil then
-						for _, obj in pairs(getObjectFromGUID(zoneGUID).getObjects()) do
+					local zone=getObjectFromGUID(zoneGUID)
+					if zone~=nil then
+						for _, obj in pairs(zone.getObjects() or {}) do
 							for a=1, 12, 1 do
 								if obj.guid==tacticCard[a] then
 									obj.UI.setXmlTable({createClaimButton(obj.guid, cardSource)})
@@ -358,12 +364,14 @@ function claimButtonRefresh()
 		if gStates.tacticRemove==true then
 			--Remove Tactic Claim Button
 			if gStates.discardTactics==2 then
-				getObjectFromGUID("483ed5").UI.setXmlTable({createClaimButton("483ed5", "removeTactic5")})
+				local dummyTactic=getObjectFromGUID("483ed5")
+				if dummyTactic~=nil then dummyTactic.UI.setXmlTable({createClaimButton("483ed5", "removeTactic5")}) end
 			else
 				for zoneGUID, cardSource in pairs(tacticClaimingZones) do
 					if cardSource:sub(1,6)=="tactic" then
 						local cardSourceRemove="removeTactic"..cardSource:sub(7,8)
-						local card=getObjectFromGUID(zoneGUID).getObjects()
+						local zone=getObjectFromGUID(zoneGUID)
+						local card=zone~=nil and zone.getObjects() or {}
 						if #card>=1 then
 							card[1].UI.setXmlTable({createClaimButton(card[1].guid, cardSourceRemove)})
 						end
