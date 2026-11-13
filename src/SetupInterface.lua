@@ -753,12 +753,6 @@ local function renderLostLegionExpansionOption()
 	end
 end
 
-local function refreshLostLegionExpansionOption()
-	if gStates==nil then return end
-	reconcileLostLegionExpansionState()
-	renderLostLegionExpansionOption()
-end
-
 function optionsUpdate(player, value, id, deferRefresh)
 	if id=="heroChallenges" and value=="True" and (gStates.gameScenario=="First Reconnaissance" or gStates.useCustomMageKnights==true or (gStates.riseOfTheForgemasters or 0)>0) then
 		UI.setAttribute("heroChallenges","isOn","false")
@@ -1396,11 +1390,6 @@ local function renderMageKnightSetupAvailability()
 	renderLostLegionExpansionOption()
 	renderScenarioHardLocks()
 	refreshHeroChallengeOptionLocks()
-end
-
-local function refreshMageKnightSetupAvailability()
-	reconcileSetupState()
-	renderMageKnightSetupAvailability()
 end
 
 function refreshSetupStartButton()

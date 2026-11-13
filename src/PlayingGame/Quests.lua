@@ -7015,7 +7015,6 @@ function apocalypseQuestDeckSetup(questDeck)
 				local card=getObjectFromGUID(drawnGUID)
 				if card==nil then error("Quest setup lost offer draw "..tostring(drawNumber).." while it was moving.",2) end
 				card.lock()
-				print("QUEST SETUP DRAW: draw "..tostring(drawNumber).." <- "..tostring(apocalypseQuestName(card)).." ["..tostring(card.guid).."].")
 				QuestPrivate.apocalypseQuestInterfaceAdd(card)
 				offerReady=offerReady+1
 				if offerReady>=2 then
