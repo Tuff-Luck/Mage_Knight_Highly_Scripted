@@ -149,6 +149,18 @@ try {
             }
         }
 
+        # Check the exact generated script TTS loads, not only individual source
+        # modules or approximations of their luabundle wrappers.
+        $generatedGlobal = Join-Path ".tts/bundled" "Global.lua"
+        if (-not (Test-Path -LiteralPath $generatedGlobal -PathType Leaf)) {
+            throw "Missing generated TTS script: $generatedGlobal"
+        }
+        Write-Host "Checking generated TTS Global.lua with Lua 5.2..."
+        & $compiler.Source -p $generatedGlobal
+        if ($LASTEXITCODE -ne 0) {
+            throw "Lua 5.2 generated bundle parse/local-limit failed: $generatedGlobal"
+        }
+
         # luabundle wraps each source module in a function with four parameters.
         # A module can compile by itself but exceed Lua's 200-local limit in the bundle.
         Write-Host "Checking Lua 5.2 bundled-module local limits..."
