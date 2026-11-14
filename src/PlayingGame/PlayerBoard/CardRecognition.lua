@@ -4804,6 +4804,9 @@ local function resourceCardsHideAutomaticEnemyTarget(sourceKey,resource,automati
     local sole=trackerPrivate~=nil and trackerPrivate.singleAutoEnemyGUID or nil
     if not combatCalcOn or sole==nil or type(sourceKey)~="string"
         or type(resource)~="string" then return false end
+    -- Spirit Guides' blockSource is a friendly link, not Block points.
+    if resource=="blockSource" or resource=="unitReady"
+        or resource=="move" or resource=="influence" then return false end
     local numeric=resource:match("^attack")~=nil
         or resource:match("^ranged")~=nil or resource:match("^siege")~=nil
         or resource:match("^block")~=nil
