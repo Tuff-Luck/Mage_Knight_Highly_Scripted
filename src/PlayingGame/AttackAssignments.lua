@@ -425,7 +425,9 @@ scheduleRefresh=function()
 	end,0.2)
 end
 
-local DAMAGE_DECAL_URL="https://steamusercontent-a.akamaihd.net/ugc/10727875827929703324/92E5145A412AFBE2EB1716DF8B6CF965359A0372/"
+-- Enemy attack -> Unit damage assignment marker (not the Unit -> Enemy resource target).
+-- Registered as MKDamageTargetIcon in UIAssets.lua for TTS preload.
+local DAMAGE_DECAL_URL="https://steamusercontent-a.akamaihd.net/ugc/16695628476303620030/8C3369792E242542F0F8F489F12A4CABFA278F98/"
 local damageButtonX={}
 local damageBaseX={} -- Stable physical footprint, captured before target overlays are added.
 
