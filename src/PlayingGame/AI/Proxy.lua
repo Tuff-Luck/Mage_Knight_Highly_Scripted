@@ -736,7 +736,7 @@ function proxyTurnReportText()
 	if (report.shieldMove or 0)>0 then movementParts[#movementParts+1]="Shield +"..tostring(report.shieldMove) end
 	if (report.sourceMove or 0)>0 then movementParts[#movementParts+1]="Source +1" end
 	local movementText=table.concat(movementParts,", ")
-	local summaryLine=joinLang({"{en}Objective: {it}Obiettivo: {ru}Цель: {zh-tw}目標：{zh-cn}目标：{ko}목표: {es}Objetivo: {fr}Objectif : {pt-br}Objetivo: {de}Ziel: ",objectiveLabel," (",shortReason,"{en}Movement: {it}Movimento: {ru}Движение: {zh-tw}移動：{zh-cn}移动：{ko}이동: {es}Movimiento: {fr}Déplacement : {pt-br}Movimento: {de}Bewegung: ",tostring(report.allowance or 0)," (",movementText,")."})
+	local summaryLine=joinLang({"{en}Objective: {it}Obiettivo: {ru}Цель: {zh-tw}目標：{zh-cn}目标：{ko}목표: {es}Objetivo: {fr}Objectif : {pt-br}Objetivo: {de}Ziel: ",objectiveLabel," (",shortReason,")\n","{en}Movement: {it}Movimento: {ru}Движение: {zh-tw}移動：{zh-cn}移动：{ko}이동: {es}Movimiento: {fr}Déplacement : {pt-br}Movimento: {de}Bewegung: ",tostring(report.allowance or 0)," (",movementText,")."})
 	return joinLang({first,choiceLine,interactionLine,"\n\n",summaryLine})
 end
 --Return the logical Portal hex used by Proxy rules. Against the Horsemen starts from Country Tile 1's
