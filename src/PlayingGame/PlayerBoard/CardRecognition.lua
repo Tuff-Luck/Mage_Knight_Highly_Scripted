@@ -1052,10 +1052,19 @@ end
 local function combatCalcUpdate(monsters)
     local on=false
     local cumbersome,psychic=false,false
+    local enemyCount,singleEnemyGUID=0,nil
     if resourceCardsDetailsOpen() then
         for guid,obj in pairs(monsters or {}) do
             local data=combatEnemyData(guid,obj)
             if data~=nil and obj.is_face_down~=true then
+                -- A lone ordinary enemy needs no manual choice for automatic
+                -- Attack/Block and enemy effects. Reminders and summoned enemies
+                -- still count: their separate targets/limitations matter.
+                if data.name~="Ruin" and (obj.isDestroyed==nil or not obj.isDestroyed()) then
+                    enemyCount=enemyCount+1
+                    if enemyCount==1 and data.attackOnly~=true
+                        and not combatIsSummonedToken(guid) then singleEnemyGUID=guid end
+                end
                 local perks=gStates~=nil and gStates.monsterPerks~=nil and gStates.monsterPerks[guid] or nil
                 -- Summoned enemies count for their Psychic Attack, even though
                 -- only the summoner gets a separate calculator row.
@@ -1072,6 +1081,9 @@ local function combatCalcUpdate(monsters)
     combatCalcOn=on
     combatCumbersomeActive=cumbersome
     combatPsychicActive=psychic
+    -- The current scan owns this transient UI hint. No targeting or combat
+    -- assignment is changed when the number of enemies changes.
+    trackerPrivate.singleAutoEnemyGUID=enemyCount==1 and singleEnemyGUID or nil
     return on
 end
 
@@ -4782,6 +4794,35 @@ local function unitAbilityTargetCategory(ability)
     if combatPsychicActive and (tonumber(ability.influence) or 0)>0 then return "influence" end
     if combatCumbersomeActive and (tonumber(ability.move) or 0)>0 then return "move" end
     return nil
+end
+
+-- Target buttons select an enemy, not whether to play the source. Only hide
+-- a redundant selection for a single normal enemy; keep manual allocations,
+-- friendly links, special effect-only buttons, and any pending retargeting.
+-- This is presentation only: the Combat Calculator still owns assignments.
+local function resourceCardsHideAutomaticEnemyTarget(sourceKey,resource,automaticEffect)
+    local sole=trackerPrivate~=nil and trackerPrivate.singleAutoEnemyGUID or nil
+    if not combatCalcOn or sole==nil or type(sourceKey)~="string"
+        or type(resource)~="string" then return false end
+    local numeric=resource:match("^attack")~=nil
+        or resource:match("^ranged")~=nil or resource:match("^siege")~=nil
+        or resource:match("^block")~=nil
+        or resource=="twiceAttack" or resource=="twiceBlock"
+    if not numeric and not (resource=="effect" and automaticEffect==true) then
+        return false
+    end
+    if attackAssignmentsIsTargeting~=nil
+        and attackAssignmentsIsTargeting(sourceKey) then return false end
+    if resourceCardsCombatTargetAcceptsSource~=nil
+        and not resourceCardsCombatTargetAcceptsSource(sourceKey,sole) then return false end
+    -- Preserve arrows that might already point elsewhere (e.g. an unusual
+    -- physical/explicit assignment), rather than concealing the retarget.
+    if attackAssignmentsTargetGUIDs~=nil then
+        for guid in pairs(attackAssignmentsTargetGUIDs(sourceKey)) do
+            if guid~=sole then return false end
+        end
+    end
+    return true
 end
 
 -- Numeric resources keep their own target; accompanying non-Attack enemy
