@@ -68,11 +68,13 @@ local reader=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local manaCode=extract(reader,"local function unitManaCounts(unit,seatPos,source,crystalsOnly)",
     "local function unitAbilityPaid")
 local blue={guid="blue",type="Figurine",color="Blue",resting=true,moving=false,
-    position={x=0,z=0},isSmoothMoving=function(self) return self.moving end,
-    getPosition=function(self) return self.position end}
+    position={x=0,z=0}}
+blue.isSmoothMoving=function() return blue.moving end
+blue.getPosition=function() return blue.position end
 local inventory={guid="inventory",type="Figurine",color="Blue",resting=true,moving=false,
-    position={x=30,z=0},isSmoothMoving=function(self) return self.moving end,
-    getPosition=function(self) return self.position end}
+    position={x=30,z=0}}
+inventory.isSmoothMoving=function() return inventory.moving end
+inventory.getPosition=function() return inventory.position end
 objects.blue=blue
 objects.inventory=inventory
 objects.playZone={getObjects=function() return {} end}
