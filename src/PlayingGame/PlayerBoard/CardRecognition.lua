@@ -4717,7 +4717,7 @@ local choiceLetters={attackP1="A",attackP2="A2",attackP3="A3",
     blockP1="B",blockF1="BF",blockI1="BI",blockIF1="BC",
     twiceAttack="A2",twiceBlock="B2",move="M",influence="I",attack="A",block="B",
     ranged="R",siege="S",healing="H",draw="D",other="O",armour="Arm",
-    guide="M",hardened="H",
+    guide="M",hardened="H",safe="0",eligible="A+",
     siegeFire="SF",siegeIce="SI",rangedFire="RF",rangedIce="RI",blockIce="BI",
     fire="F",ice="I",coldFire="C",boost="H+",split="I/F",negative="N",
     single="1",all="All",singleBefore="1st",allBefore="All 1st",
@@ -10499,7 +10499,7 @@ function resourceCardsDodgeSplitClicked(player,value,id)
     if not resourceCardsPanelOpen()
         or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil) then return end
     local guid=type(id)=="string" and id:match("^ResourceCardChoice_([0-9a-f]+)_dodgeSplit$") or nil
-    if guid~="9de475" then return end
+    if guid~="9de475" and guid~="3c0531" then return end
     local seat=combatAssignmentActiveSeat()
     local record=seat~=nil and resourceCardScanBySeat[seat]~=nil
         and resourceCardScanBySeat[seat].cards[guid] or nil
