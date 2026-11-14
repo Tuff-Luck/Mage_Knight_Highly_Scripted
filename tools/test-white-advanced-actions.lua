@@ -24,31 +24,42 @@ local reader=source("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local combat=source("src/PlayingGame/PlayerBoard/CombatEffects.lua")
 contains(data,'combatConversion="agility"',"Agility shared Move rule")
 contains(data,'combatConversion="diplomacy"',"Diplomacy shared Influence rule")
-contains(data,'dodgeAttackSplit=true',"Dodge powered split")
-contains(data,'{key="safe",attack=0,icon="attack",iconOverlay="0"',"Dodge safe choice zero marker")
-contains(data,'{key="eligible",attack=1',"Dodge basic conditional Attack")
-contains(data,'{key="eligible",attack=2',"Dodge powered conditional Attack")
+contains(data,'dodgeAttackSplit=true',"Dodge retains independent reduction targets")
+contains(data,'normal={attack=1},powered={attack=2}',"Dodge automatic Attack 1 / 2")
 contains(data,'conditionalAttackNoWounds=true',"Dodge Wound condition")
+assert(not data:find('key="safe"',1,true),"Dodge must not have a Safe option")
+assert(not data:find('key="eligible"',1,true),"Dodge must not have an Eligible option")
 contains(data,'removeOneAttackAbilities=true',"Chilling Stare one attack")
 contains(reader,'source.dodgeIneligible=true',"Dodge Attack suppression")
+contains(reader,'dodgeConditional=complete and rule~=nil and rule.conditionalAttackNoWounds==true,',
+    "Dodge conditional Attack without card options")
 contains(reader,'card.guid.."#effect"..index',"Dodge independent effect keys")
 contains(reader,'source.convertedResource',"Conversion resource source")
-contains(reader,'combatConfig.dodgeSplitMode[card.guid]',"Dodge split mode")
-contains(reader,'guid~="9de475" and guid~="3c0531"',"Both Dodge card copies can switch split mode")
--- Reduction targets should sit beside the choices on the card, not below
--- and beyond its right edge. Keep separation when the options are expanded.
-contains(reader,'local targetX=expanded and -66 or -44',"Dodge targeting next to option")
-contains(reader,'local targetY=-12',"Dodge target aligned vertically")
-contains(reader,'targetX-(index-1)*44',"Powered Dodge split targets spaced apart")
-contains(reader,'local splitX=expanded and 66 or 44',"Powered Dodge split toggle in card")
--- The option renderer filters out categories without a choiceLetters entry.
--- Previously both Dodge options disappeared, hiding even the reduction target.
-local choiceLabels=extract(reader,"local choiceLetters=",
-    "-- The choice UI and initial-guess tie-breaks")
-local labels=assert(load(choiceLabels.."\nreturn choiceLetters"))()
-eq(labels.safe,"0","Dodge safe choice visible")
-eq(labels.eligible,"A+","Dodge eligible choice visible")
-contains(reader,'choiceLetters[category]~=nil',"Choices filtered by button labels")
+contains(reader,'local count=powered and 2 or 1',"Powered Dodge has two target buttons")
+contains(reader,'local count=result.powered and 2 or 1',"Both reduction effects always processed")
+contains(reader,'local targetX=-44',"Dodge target buttons beside ordinary Attack source")
+contains(reader,'local targetY=-12',"Dodge target alignment")
+contains(reader,'targetX-(index-1)*44',"Powered Dodge targets spaced apart")
+contains(reader,'(result.enemyGUID==nil or rule.dodgeAttackSplit==true)',
+    "Dodge debuff works independently of an Attack assignment")
+contains(reader,'{attackReduce=reduction.amount}',"Stacked Dodge reduction is applied together")
+assert(not reader:find('resourceCardsDodgeSplitClicked',1,true),"Remove obsolete Dodge mode switch")
+assert(not reader:find('dodgeSplitMode',1,true),"Remove obsolete Dodge split state")
+
+-- Exercise the target grouping function used when applying the effects.
+-- Both arrows to one enemy must reduce ONE printed Attack by 4.
+local groupSource=extract(reader,"combatConfig.dodgeReductionAmounts=function",
+    "combatConfig.conversionState={}")
+local group=assert(load("local combatConfig={}\n"..groupSource..
+    "\nreturn combatConfig.dodgeReductionAmounts"))()
+local same=group({{guid="enemyA",key="dodge#effect1"},
+    {guid="enemyA",key="dodge#effect2"}})
+eq(same.enemyA.amount,4,"Dodge same-enemy reduction stacks to 4")
+eq(same.enemyA.key,"dodge#effect1","Dodge combined reduction retains first key")
+local split=group({{guid="enemyA",key="dodge#effect1"},
+    {guid="enemyB",key="dodge#effect2"}})
+eq(split.enemyA.amount,2,"Dodge split first enemy")
+eq(split.enemyB.amount,2,"Dodge split second enemy")
 contains(reader,'function resourceCardsConversionClicked',"Conversion UI callback")
 contains(combat,'stripAbilities=spec.removeOneAttackAbilities==true',"Chilling Stare marker")
 contains(combat,'removeOneAttackAbilities=spec.removeOneAttackAbilities',"Arcane Immunity exception")
