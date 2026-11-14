@@ -1390,9 +1390,9 @@ cardResourceDefinitions={
     -- declares eligibility with the second option. Two -2 reductions on the
     -- powered side can be targeted separately in the calculator.
     dodgeAndWeave={
-        normalChoices={{key="safe",attack=0,icon="attack"},
+        normalChoices={{key="safe",attack=0,icon="attack",iconOverlay="0",iconOverlayColor="#FFFFFF"},
             {key="eligible",attack=1,icon="attack",iconOverlay="+1"}},
-        poweredChoices={{key="safe",attack=0,icon="attack"},
+        poweredChoices={{key="safe",attack=0,icon="attack",iconOverlay="0",iconOverlayColor="#FFFFFF"},
             {key="eligible",attack=2,icon="attack",iconOverlay="+2"}},
         enemyEffect={normal={attackReduce=2},powered={attackReduce=4}},
         dodgeAttackSplit=true,conditionalAttackNoWounds=true,
