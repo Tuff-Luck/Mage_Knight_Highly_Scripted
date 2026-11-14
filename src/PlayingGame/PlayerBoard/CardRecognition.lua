@@ -5882,15 +5882,7 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decisi
         local name=ability.icon or ability.key
         if not seen[name] then visibleAssets[#visibleAssets+1]=name seen[name]=true end
     end
-    if #targetLabels>0 then
-        for _,spec in ipairs(targetSpecs) do
-            local image="target"
-            if not seen[image] then
-                visibleAssets[#visibleAssets+1]=image
-                seen[image]=true
-            end
-        end
-    end
+    if #targetLabels>0 then visibleAssets[#visibleAssets+1]="target" end
     local assets,blocked=resourceCardsChoiceAssetsFor(unit.UI,visibleAssets)
 
     -- Shared printed rows keep a stable vertical slot; all sub-options start
