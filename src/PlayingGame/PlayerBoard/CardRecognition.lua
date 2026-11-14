@@ -4817,6 +4817,10 @@ local function resourceCardsHideAutomaticEnemyTarget(sourceKey,resource,automati
         and not resourceCardsCombatTargetAcceptsSource(sourceKey,sole) then return false end
     -- Preserve arrows that might already point elsewhere (e.g. an unusual
     -- physical/explicit assignment), rather than concealing the retarget.
+    if combatAssignmentState~=nil and combatAssignmentState.targets~=nil then
+        local selected=combatAssignmentState.targets[sourceKey]
+        if selected~=nil and selected~=sole then return false end
+    end
     if attackAssignmentsTargetGUIDs~=nil then
         for guid in pairs(attackAssignmentsTargetGUIDs(sourceKey)) do
             if guid~=sole then return false end
@@ -5244,6 +5248,17 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             if a.rank~=b.rank then return a.rank<b.rank end
             return a.originalIndex<b.originalIndex
         end)
+        for _,entry in ipairs(row.entries) do
+            -- The Combat Calculator assigns ordinary Attack/Block to the lone
+            -- enemy automatically. Keep all special split, manual and friendly
+            -- target controls, even if they currently have only one candidate.
+            if entry.targetResource~=nil and entry.splitTargets==nil
+                and (rule==nil or rule.forkedLightning~=true)
+                and resourceCardsHideAutomaticEnemyTarget(card.guid,
+                    entry.targetResource,false) then
+                entry.targetResource=nil
+            end
+        end
         if #row.entries<1 or selected==nil then
             if choiceButtonShown[card.guid]~="hidden" then
                 removeChoiceButtons(card)
@@ -5344,6 +5359,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         ..(special~=nil and (":START:"..tostring(special.interaction)..":"
             ..tostring(special.recruited)..":"..tostring(special.terrain)) or "")
         ..":READY:"..tostring(readyCount)..":"..table.concat(readyLinks,",")
+        ..":TARGETS:"..tostring(trackerPrivate.singleAutoEnemyGUID)
     if choiceButtonShown[card.guid]==signature then return end
     local xml=resourceObjectUiXmlTable(card.UI)
     for i=#xml,1,-1 do
@@ -5778,12 +5794,17 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decisi
                 return
             end
             local category=unitAbilityTargetCategory(ability)
-            if category~=nil then
+            local numericKey=unitHistoryKey(unit.guid,useIndex)
+            if category~=nil and not resourceCardsHideAutomaticEnemyTarget(
+                numericKey,category,false) then
                 targetSpecs[#targetSpecs+1]={index=index,category=category,
                     idCategory=category..(useIndex>1 and ("@use"..useIndex) or "")}
             end
             if combatCalcOn and (ability.enemyEffect~=nil
-                or (category==nil and ability.targetableEnemy==true)) then
+                or (category==nil and ability.targetableEnemy==true))
+                and not resourceCardsHideAutomaticEnemyTarget(
+                    unitAbilityTargetKey(unit.guid,index,ability,useIndex),
+                    "effect",ability.enemyEffect~=nil and ability.targetableEnemy~=true) then
                 targetSpecs[#targetSpecs+1]={index=index,category="effect",
                     idCategory="effect@"..(useIndex>1 and ("use"..useIndex.."#") or "")
                         .."effect"..index}
@@ -5858,7 +5879,15 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decisi
         local name=ability.icon or ability.key
         if not seen[name] then visibleAssets[#visibleAssets+1]=name seen[name]=true end
     end
-    if #targetLabels>0 then visibleAssets[#visibleAssets+1]="target" end
+    if #targetLabels>0 then
+        for _,spec in ipairs(targetSpecs) do
+            local image=spec.ready and "target" or "unitTarget"
+            if not seen[image] then
+                visibleAssets[#visibleAssets+1]=image
+                seen[image]=true
+            end
+        end
+    end
     local assets,blocked=resourceCardsChoiceAssetsFor(unit.UI,visibleAssets)
 
     -- Shared printed rows keep a stable vertical slot; all sub-options start
@@ -5928,9 +5957,10 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decisi
         end
     end
     if #targetLabels>0 then
-        local targetAsset=resourceCardsChoiceIcon("target")
         local count=#targetSpecs
         for i,spec in ipairs(targetSpecs) do
+            local targetAsset=resourceCardsChoiceIcon(
+                spec.ready and "target" or "unitTarget")
             local x=hasChoices and baseX-columnSpacing or baseX
             local y=baseY+(i-(count+1)/2)*rowSpacing
             local children={}
