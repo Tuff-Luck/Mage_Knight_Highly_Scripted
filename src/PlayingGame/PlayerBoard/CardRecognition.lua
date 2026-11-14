@@ -220,7 +220,21 @@ combatConfig.slotBowFamilies={}
 -- Effect-only buttons share the resource slots, without adding any Block/Attack.
 combatConfig.effectSources={}
 combatConfig.blockedEnemyCounts={}
-combatConfig.dodgeSplitMode={}
+-- The powered -2 target buttons stack to -4 when they point at the
+-- same enemy. Apply one combined reduction to that enemy's one printed
+-- Attack; separate enemies each receive -2.
+combatConfig.dodgeReductionAmounts=function(targets)
+    local byEnemy={}
+    for _,target in ipairs(targets) do
+        local entry=byEnemy[target.guid]
+        if entry==nil then
+            entry={amount=0,key=target.key}
+            byEnemy[target.guid]=entry
+        end
+        entry.amount=entry.amount+2
+    end
+    return byEnemy
+end
 combatConfig.conversionState={}
 local combatAssignmentRowTargets={}
 local combatEnemyPage=1
@@ -4023,7 +4037,6 @@ local function combatCalcShutdown()
     combatConfig.effectSources={}
     combatConfig.blockedEnemyCounts={}
     combatConfig.conversionState={}
-    combatConfig.dodgeSplitMode={}
     combatConfig.panelHeight=0
     combatTrackedSeat=nil
     combatTrackedEnemies={}
@@ -4717,7 +4730,7 @@ local choiceLetters={attackP1="A",attackP2="A2",attackP3="A3",
     blockP1="B",blockF1="BF",blockI1="BI",blockIF1="BC",
     twiceAttack="A2",twiceBlock="B2",move="M",influence="I",attack="A",block="B",
     ranged="R",siege="S",healing="H",draw="D",other="O",armour="Arm",
-    guide="M",hardened="H",safe="0",eligible="A+",
+    guide="M",hardened="H",
     siegeFire="SF",siegeIce="SI",rangedFire="RF",rangedIce="RI",blockIce="BI",
     fire="F",ice="I",coldFire="C",boost="H+",split="I/F",negative="N",
     single="1",all="All",singleBefore="1st",allBefore="All 1st",
@@ -5354,8 +5367,6 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                 ..":"..tostring(hardenedIndex)) or "")
         ..(rule~=nil and rule.forkedLightning
             and (":FL:"..tostring(gStates~=nil and gStates.forkedLightningPhase or "range")) or "")
-        ..(rule~=nil and rule.dodgeAttackSplit
-            and (":DW:"..tostring(combatConfig.dodgeSplitMode[card.guid])) or "")
         ..(conversionValid and conversion~=nil and (":CV:"..tostring(conversionBudget)..":"
             ..tostring(conversion.attack)..":"..tostring(conversion.ranged)..":"
             ..tostring(conversion.block)..":"..tostring(conversion.element)) or "")
@@ -5530,22 +5541,17 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             end
         end
     end
-    -- Each Dodge and Weave reduction has its own retargetable effect button.
-    -- The card's ordinary optional Attack button remains independent.
+    -- Dodge and Weave has no option selector: its normal Attack target follows
+    -- other Attack cards, while these buttons independently reduce enemy Attacks.
     if rule~=nil and rule.dodgeAttackSplit and combatCalcOn
         and posture=="upright" and resources~=nil then
-        local split=powered and combatConfig.dodgeSplitMode[card.guid]==true
-        local count=split and 2 or 1
+        local count=powered and 2 or 1
         local targetAsset=resourceCardsChoiceIcon("target")
         local reduceAsset=resourceCardsChoiceIcon("attackReduction")
-        -- Object-UI X is reversed by the 180-degree card rotation:
-        -- negative X appears to the RIGHT of the Attack option.
-        -- The expanded Safe/Eligible menu spans both sides of centre, so
-        -- shift the targets further right while it is open.
-        local expanded=rows[1]~=nil and rows[1].expanded
-        local targetX=expanded and -66 or -44
-        local splitX=expanded and 66 or 44
-        local targetY=-12 -- Align with the Attack option rather than below the card.
+        -- Negative object-UI X appears to the right of the card centre
+        -- after its 180-degree rotation. Keep both powered targets on one row.
+        local targetX=-44
+        local targetY=-12
         for index=1,count do
             local children={}
             if reduceAsset~=nil and not blocked[reduceAsset.name] then
@@ -5564,18 +5570,8 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                 rotation=uiRotation,width=90,height=90,scale=buttonScale,
                 colors="#454D5D|#69798E|#444C63|#454D5D",
                 textColor="#FFFFFF",textAlignment="MiddleCenter"},
-                value=#children==0 and "-"..tostring(split and 2 or (powered and 4 or 2)) or "",
+                value=#children==0 and "-2" or "",
                 children=children}
-        end
-        if powered then
-            xml[#xml+1]={tag="Button",attributes={
-                id="ResourceCardChoice_"..card.guid.."_dodgeSplit",
-                onClick="global/resourceCardsDodgeSplitClicked",
-                position=tostring(splitX).." "..tostring(targetY).." "..buttonDepth,rotation=uiRotation,
-                width=125,height=90,scale="0.28 0.28",fontSize=42,
-                colors="#454D5D|#69798E|#444C63|#454D5D",
-                textColor="#FFFFFF",textAlignment="MiddleCenter"},
-                value=split and "2+2" or "-4"}
         end
     end
     -- Two small pool-allocation counters on Agility (Attack/Ranged), or one
@@ -6691,8 +6687,7 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
             and chosen.conditionalFireAttack or nil,
         flameWave=complete and powered and rule~=nil and rule.poweredEnemyBonus~=nil,
         explosiveBolt=complete and powered and rule~=nil and rule.defeatArmourReduce or nil,
-        dodgeConditional=complete and rule~=nil and rule.conditionalAttackNoWounds==true
-            and chosen~=nil and choiceCategory(chosen)=="eligible",
+        dodgeConditional=complete and rule~=nil and rule.conditionalAttackNoWounds==true,
         combatConversion=complete and rule~=nil and rule.combatConversion or nil,
         defeatFameRep=defeatSide,splitTargets=chosen~=nil and chosen.splitTargets or nil,
         repeatBlocks=chosen~=nil and chosen.repeatBlocks or nil,
@@ -8339,31 +8334,39 @@ local function renderSeat(seatPos)
         -- Enemy debuffs can have a separate lock from printed Attack resources.
         if rule~=nil and rule.enemyEffect~=nil and result.resources~=nil
             and result.powered~=nil and cardPosture(card)=="upright"
-            and result.status~="yellow" and result.enemyGUID==nil then
+            and result.status~="yellow"
+            and (result.enemyGUID==nil or rule.dodgeAttackSplit==true) then
             local _,category=currentChoice(card.guid,result.powered,choices)
             local spec=combatEffectSpec(rule,result.powered,category)
             if spec~=nil then
                 if rule.dodgeAttackSplit==true then
-                    -- Independent reduction arrows; the later optional Attack
-                    -- retains its normal, independently targetable card source.
-                    local count=result.powered and combatConfig.dodgeSplitMode[card.guid] and 2 or 1
+                    -- The optional Attack is automatic, with its own ordinary
+                    -- target assignment. Always expose two -2 targets when
+                    -- powered, even if both currently point to one enemy.
+                    local count=result.powered and 2 or 1
+                    local selectedTargets={}
                     result.enemyEffectTargetKeys={}
                     result.enemyEffectTargetGUIDs={}
                     for index=1,count do
                         local key=card.guid.."#effect"..index
-                        local reduction=result.powered and (count==2 and 2 or 4) or 2
                         local target=combatEffectChosenEnemy(key,footprints[card.guid],
-                            monsters,combatEffectTargetEligible({attackReduce=reduction}))
+                            monsters,combatEffectTargetEligible({attackReduce=2}))
                         result.enemyEffectTargetKeys[#result.enemyEffectTargetKeys+1]=key
                         if target~=nil then
-                            for _=1,(result.repeatCount or 1) do
-                                combatEffectAdd(enemyEffects,target.guid,card.guid,
-                                    {attackReduce=reduction},key)
-                            end
+                            selectedTargets[#selectedTargets+1]={guid=target.guid,key=key}
                             result.enemyGUID=result.enemyGUID or target.guid
                             result.enemyEffectTargetGUIDs[key]=target.guid
                             result.links[#result.links+1]=target.guid
                             result.status="purple"
+                        end
+                    end
+                    -- Combine two buttons aimed at the same enemy before
+                    -- choosing its printed Attack: otherwise the second -2
+                    -- could jump to another Attack on a multi-attack enemy.
+                    for guid,reduction in pairs(combatConfig.dodgeReductionAmounts(selectedTargets)) do
+                        for _=1,(result.repeatCount or 1) do
+                            combatEffectAdd(enemyEffects,guid,card.guid,
+                                {attackReduce=reduction.amount},reduction.key)
                         end
                     end
                 else
@@ -10500,19 +10503,6 @@ function resourceCardsConversionClicked(player,value,id)
             conversion.block=math.max(0,math.min(available,conversion.block+delta))
         else return end
     end
-    resourceCardsSourceChanged()
-end
-
-function resourceCardsDodgeSplitClicked(player,value,id)
-    if not resourceCardsPanelOpen()
-        or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil) then return end
-    local guid=type(id)=="string" and id:match("^ResourceCardChoice_([0-9a-f]+)_dodgeSplit$") or nil
-    if guid~="9de475" and guid~="3c0531" then return end
-    local seat=combatAssignmentActiveSeat()
-    local record=seat~=nil and resourceCardScanBySeat[seat]~=nil
-        and resourceCardScanBySeat[seat].cards[guid] or nil
-    if record==nil or record.powered~=true or record.resources==nil then return end
-    combatConfig.dodgeSplitMode[guid]=not combatConfig.dodgeSplitMode[guid]
     resourceCardsSourceChanged()
 end
 
