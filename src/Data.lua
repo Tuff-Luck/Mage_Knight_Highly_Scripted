@@ -1385,15 +1385,12 @@ cardResourceDefinitions={
     deadlyPrecision={normalChoices={{attack=2},{block=2}},
         poweredChoices={{attack=4},{ranged=2},{key="convert",icon="ranged"}},
         poweredLinkConversion=true,partial=true}, -- Requires one overlapping played Action with Attack.
-    -- The conditional Attack is optional; it is only available if no Wounds
-    -- were added to the Hero's hand during earlier combat phases. The player
-    -- declares eligibility with the second option. Two -2 reductions on the
-    -- powered side can be targeted separately in the calculator.
+    -- No card-side eligibility option: the calculator invalidates the Attack
+    -- bonus if its Damage phase gives the Hero Wounds. On the powered side,
+    -- two separate targeting buttons each contribute -2; two on the same enemy
+    -- combine into a single -4 reduction to one of its printed Attacks.
     dodgeAndWeave={
-        normalChoices={{key="safe",attack=0,icon="attack",iconOverlay="0",iconOverlayColor="#FFFFFF"},
-            {key="eligible",attack=1,icon="attack",iconOverlay="+1"}},
-        poweredChoices={{key="safe",attack=0,icon="attack",iconOverlay="0",iconOverlayColor="#FFFFFF"},
-            {key="eligible",attack=2,icon="attack",iconOverlay="+2"}},
+        normal={attack=1},powered={attack=2},
         enemyEffect={normal={attackReduce=2},powered={attackReduce=4}},
         dodgeAttackSplit=true,conditionalAttackNoWounds=true,
         separateEffectTargetAllSides=true},
