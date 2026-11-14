@@ -40,6 +40,10 @@ trackerPrivate.totalsKeys={move=true,ranged=true,siege=true,attack=true,block=tr
 -- Catalog is defined once in UnitResources.lua and keyed by card GUID.
 local unitResourceDefinitions=unitResourceDefinitions
 trackerPrivate.commandPickupForUnits={}
+-- Only mana objects actually moved by players are candidates for extra Unit
+-- payment checks. A stacked crystal can sit above the Unit scripting zone,
+-- but its settled physical position still pays that Unit's ability.
+trackerPrivate.unitManaCandidatesBySeat={}
 -- Rebuilt with the live Unit layout for each Resource Tracker scan.
 -- Existing Command tokens and Wounds suppress Unit highlights regardless of
 -- whether an activated ability contributes resources this turn.
@@ -6930,11 +6934,33 @@ local function unitManaCounts(unit,seatPos,source,crystalsOnly)
         end
     end
     local counts,area={},footprint(unit)
+    local seen={}
     for _,mana in ipairs(tokens) do
+        seen[mana.guid]=true
         local color=manaColor(mana)
         if color~=nil and (not crystalsOnly or isManaTokenFigurine(mana))
             and manaInsideFootprint(mana,area) then
             counts[color]=(counts[color] or 0)+1
+        end
+    end
+    -- Stacking raises a resting crystal beyond the zone's Y extent. Recover
+    -- only previously moved mana physically covering this Unit, once per GUID.
+    -- Inventory crystals elsewhere never pay a Unit, and a lifted/moving
+    -- crystal cannot retain its previous payment during settling.
+    local candidates=trackerPrivate.unitManaCandidatesBySeat[seatPos] or {}
+    for guid in pairs(candidates) do
+        if not seen[guid] then
+            local mana=getObjectFromGUID(guid)
+            if mana==nil then
+                candidates[guid]=nil
+            elseif (mana.held_by_color==nil or mana.held_by_color=="")
+                and mana.resting==true and not mana.isSmoothMoving() then
+                local color=manaColor(mana)
+                if color~=nil and (not crystalsOnly or isManaTokenFigurine(mana))
+                    and manaInsideFootprint(mana,area) then
+                    counts[color]=(counts[color] or 0)+1
+                end
+            end
         end
     end
     return counts
@@ -7557,6 +7583,26 @@ local function renderSeat(seatPos)
     inspectZone(playerCrystalAreas[seatPos],"crystal")
     inspectZone(playerUnitAreas[seatPos],"unit")
     inspectZone(playerPlayAreas[seatPos],"play")
+    -- A resting active Unit can be lifted above the thin Zone by its stacked
+    -- Command/crystal without actually leaving the Unit mat. Reuse the same
+    -- X/Z and held-object checks as the physical Unit layout rather than
+    -- interpreting a missing zone entry as an undone activation.
+    local missingActiveUnit=false
+    for guid,activation in pairs(gStates.unitResourceActivations or {}) do
+        if activation.seatPos==seatPos and objects[guid]==nil then
+            missingActiveUnit=true
+            break
+        end
+    end
+    if missingActiveUnit then
+        for _,unit in ipairs(unitLayoutSnapshot(seatPos).units) do
+            if objects[unit.guid]==nil and gStates.unitResourceActivations[unit.guid]~=nil then
+                objects[unit.guid]=unit
+                objectKinds[unit.guid]="unit"
+                placements[unit.guid]="unit"
+            end
+        end
+    end
     -- One observation and one held-enemy reconciliation serve both systems.
     -- Reminders/Leader previews belong to combat, but never to card enemy-count bonuses.
     combatKeepHeldEnemies(seatPos,combatMonsters,combatPlayMonsters)
@@ -10873,7 +10919,9 @@ function resourceUnitsCommandDropped(playerColor,obj)
         end
         resourceCardsCombatSelectOneUnit(unit.guid)
         choiceExpandedByGUID[unit.guid]=nil
-        showUnitAbilityButtons(unit,abilities,newActivation,true,nil,useIndex)
+        -- The final settled scan owns the choice and target buttons. Painting
+        -- them here used an older combatCalcOn state, which could show a
+        -- choice but omit its enemy target (or immediately erase both).
         queueSeat(pickup.seatPos,nil)
     end,function()
         if not resourceCardsPanelOpen() or trackerPrivate.trackerSession~=serial then return true end
@@ -11059,28 +11107,13 @@ function resourceUnitsResetTurn()
     if attackAssignmentsRefreshReadyUI~=nil then attackAssignmentsRefreshReadyUI() end
 end
 
--- Unit buttons are part of the tracker and must remain absent while it is off.
+-- There is one owner for Unit control rendering: the settled Resource Tracker
+-- scan, after combat presence, payment, wound and site restrictions are known.
+-- Token-history arrows and other callers request that scan, not an early paint.
 function resourceUnitsRefreshButtons()
-    if not resourceCardsPanelOpen() or next(gStates.unitResourceActivations or {})==nil then return end
-    local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
-    if current==nil then return end
-    local state=unitLayoutResourceState(current.seatPos)
-    if state==nil then return end
-    local conditionByGUID={}
-    for _,entry in ipairs(state.units) do
-        conditionByGUID[entry.guid]=entry.unwounded
-    end
-    for unitGUID,activation in pairs(gStates.unitResourceActivations) do
-        if activation.seatPos==current.seatPos then
-            local unit=getObjectFromGUID(unitGUID)
-            if unit~=nil then
-                local selected,useIndex=unitHistorySelected(unitGUID,activation)
-                showUnitAbilityButtons(unit,unitResourceDefinitions[unitGUID],
-                    selected,selected~=nil and (conditionByGUID[unitGUID]==true
-                        or selected.frozenCounts~=nil),nil,useIndex)
-            end
-        end
-    end
+    if not resourceCardsPanelOpen() or gStates==nil
+        or next(gStates.unitResourceActivations or {})==nil then return end
+    resourceCardsSourceChanged()
 end
 
 -- Reconstruct used Units from Command tokens physically sitting on their cards.
@@ -11286,10 +11319,9 @@ function resourceCardsZoneEntered(ctx)
             gStates.resourceCardPlayOrder[ctx.objGUID]=gStates.resourceCardPlaySerial
         end
     end
-    if ctx.obj~=nil and (ctx.zoneInfo.kind=="unit" or ctx.zoneInfo.kind=="play"
-        or ctx.zoneInfo.kind=="crystal")
-        and (unitLayoutIsWound(ctx.obj) or manaColor(ctx.obj)~=nil) then
-        resourceUnitsRefreshButtons()
+    if ctx.obj~=nil and manaColor(ctx.obj)~=nil then
+        trackerPrivate.unitManaCandidatesBySeat[seat]=trackerPrivate.unitManaCandidatesBySeat[seat] or {}
+        trackerPrivate.unitManaCandidatesBySeat[seat][ctx.objGUID]=true
     end
     queueSeat(seat,ctx.objGUID)
 end
@@ -11301,31 +11333,25 @@ function resourceCardsZoneLeft(ctx)
         scheduleChoiceResetAfterPlay(ctx.objGUID,ctx.zoneInfo.seatPos)
     end
     if seat==nil then return end
-    if ctx.obj~=nil and (ctx.zoneInfo.kind=="unit" or ctx.zoneInfo.kind=="play"
-        or ctx.zoneInfo.kind=="crystal")
-        and (unitLayoutIsWound(ctx.obj) or manaColor(ctx.obj)~=nil) then
-        resourceUnitsRefreshButtons()
-    end
-    queueSeat(seat,nil)
+    -- Do not redraw Unit buttons while a crystal is lifted from a thin zone.
+    -- A complete scan will reconcile its actual settled payment and targets.
+    queueSeat(seat,ctx.objGUID)
 end
 
 function resourceCardsObjectMoved(obj)
     if not resourceCardsPanelOpen() then return end
-    if obj~=nil and (unitLayoutIsWound(obj) or manaColor(obj)~=nil)
-        and gStates~=nil and next(gStates.unitResourceActivations or {})~=nil then
-        local woundGUID=obj.guid
-        safeWaitCondition("PlayerBoard.CardRecognition",function()
-            resourceUnitsRefreshButtons()
-        end,function()
-            local wound=getObjectFromGUID(woundGUID)
-            return wound==nil or (wound.held_by_color==nil and wound.resting==true
-                and wound.isSmoothMoving()==false)
-        end,8)
-    end
     if not resourceCardsPanelOpen() or obj==nil then return end
     local player=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if player==nil then return end
     local seat=player.seatPos
+    if manaColor(obj)~=nil then
+        -- Drop callbacks fire even if the final crystal sits above both thin
+        -- scripting zones. Remember its GUID and scan after it settles.
+        trackerPrivate.unitManaCandidatesBySeat[seat]=trackerPrivate.unitManaCandidatesBySeat[seat] or {}
+        trackerPrivate.unitManaCandidatesBySeat[seat][obj.guid]=true
+        queueSeat(seat,obj.guid)
+        return
+    end
     local isUnitStateToken=unitLayoutIsCommand(obj) or unitLayoutIsWound(obj)
     local isMonster=combatEnemyData(obj.guid,obj)~=nil
     if resourceObjectKind(obj)==nil and not isUnitStateToken and not isMonster then
