@@ -31,7 +31,8 @@ local unit={guid="f17813",type="Card",cardType="Regular Unit",resting=true,
     getBounds=function() return {center=position,size={x=2,z=2.8}} end,
     getScale=function() return {x=1.5,z=1.5} end,
     isSmoothMoving=function() return false end,
-    getGMNotes=function() return "" end}
+    getGMNotes=function() return "" end,
+    hasTag=function() return false end}
 local token={guid="cmd",type="Custom_Model",resting=true,
     getPosition=function() return commandPosition end,
     getGMNotes=function() return "Command Token" end,
