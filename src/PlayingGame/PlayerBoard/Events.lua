@@ -357,8 +357,15 @@ function playerBoardZoneLeave(ctx)
 	end
 	if gStates.turnNumber>0 and turnOrder[gStates.turnNumber]~=nil and zone.guid==handZones[turnOrder[gStates.turnNumber].seatPos] then scheduleTactic4HandBonusRefresh() end
 	if (zone.guid==playerPlayAreas[2] or zone.guid==playerPlayAreas[3] or zone.guid==playerPlayAreas[1] or zone.guid==playerPlayAreas[4]) and getObjectFromGUID(obj.guid)~=nil then
-		--remove icons from monsters
-		playerBoardClearObjectUIIfPresent(obj)
+		-- A Unit may cross the thin Play Area zone boundary without leaving
+		-- its Unit mat. Its ability/target UI belongs to the settled Unit scan,
+		-- not this unrelated zone-exit event. Genuine departures are reconciled
+		-- by the Unit Area exit and tracker scan.
+		local activation=gStates~=nil and gStates.unitResourceActivations
+			and gStates.unitResourceActivations[objGUID] or nil
+		local activeUnit=unitLayoutIsUnit(obj) and activation~=nil
+			and zoneInfo~=nil and activation.seatPos==zoneInfo.seatPos
+		if not activeUnit then playerBoardClearObjectUIIfPresent(obj) end
 		--Only remove the face-down card decal once the card is confirmed outside all player play areas.
 		if obj.type=="Card" then
 			local cardGUID=obj.guid
