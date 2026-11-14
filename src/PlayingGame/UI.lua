@@ -1506,6 +1506,26 @@ end
 combatAttackOptionCounts=combatAttackOptionCounts or {}
 combatAttackHorsemanOptionCounts=combatAttackHorsemanOptionCounts or {}
 
+--A remote map action may outlive its owner's turn (notably when the Proxy follows a Mage Knight).
+--Remove stale attack/restore controls without disturbing other object UI or doing empty writes.
+local function clearStaleMapActionButtons(obj)
+	local existing=obj.UI.getXmlTable() or {}
+	local kept={}
+	local removed=false
+	for _,node in ipairs(existing) do
+		local action=node.attributes~=nil and node.attributes.onClick or nil
+		if node.tag=="Button" and (action=="global/attackLocation" or action=="global/restoreDestroyedSiteAtCurrentPlayer") then
+			removed=true
+		else
+			kept[#kept+1]=node
+		end
+	end
+	if removed==true then
+		if #kept==0 then kept={{}} end
+		setTrackedMapObjectUI(obj,kept)
+	end
+end
+
 function addAvatarButtons()
 	if avatarButtonRefreshPending==true then
 		--Avatar pickup deliberately clears its old controls. Never discard a later location refresh just
@@ -1543,6 +1563,7 @@ function addAvatarButtons()
 			end
 		end
 
+		local mapActionButtonsRefreshed={}
 		--Only active turn-order Mage Knights can need avatar buttons. Resolve each physical avatar once.
 		for order, player in pairs(turnOrder) do
 			combatAttackOptionCounts[order]=0
@@ -1636,6 +1657,7 @@ function addAvatarButtons()
 							local mapObject=mapDetails.obj
 							local avatarToObjDistSquared=((mapDetails.position[1]-avPos[1])^2)+((mapDetails.position[3]-avPos[3])^2)
 							if gStates.rampagingMonsters[mapDetails.guid]==true then
+								mapActionButtonsRefreshed[mapDetails.guid]=true
 								local existingButtons=mapObject.UI.getXmlTable() or {}
 								local keptButtons={}
 								for _, xmlParent in pairs(existingButtons) do if xmlParent.tag~="Button" then keptButtons[#keptButtons+1]=xmlParent end end
@@ -1653,6 +1675,7 @@ function addAvatarButtons()
 								setTrackedMapObjectUI(mapObject,existingButtons)
 							end
 							if gStates.gameScenario=="Against the Apocalypse Blitz" and gStates.destroyedSites~=nil and gStates.destroyedSites[mapDetails.guid]~=nil then
+								mapActionButtonsRefreshed[mapDetails.guid]=true
 								local existingButtons=mapObject.UI.getXmlTable() or {}
 								local keptButtons={}
 								for _, xmlParent in pairs(existingButtons) do if xmlParent.tag~="Button" then keptButtons[#keptButtons+1]=xmlParent end end
@@ -1806,6 +1829,11 @@ function addAvatarButtons()
 					applyAvatarButtonXml(standeeObj, avatarButton, avatarXmlSignature)
 				end
 			end
+		end
+		--When the active turn is Proxy/Dummy/Volkare (or the human avatar cannot be refreshed),
+		--no real Mage Knight rewrites these remote buttons. Explicitly remove last turn's controls.
+		for _,mapDetails in ipairs(mapActionObjects) do
+			if mapActionButtonsRefreshed[mapDetails.guid]~=true then clearStaleMapActionButtons(mapDetails.obj) end
 		end
 	end, 5)
 end
