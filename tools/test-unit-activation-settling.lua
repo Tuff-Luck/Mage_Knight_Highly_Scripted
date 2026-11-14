@@ -24,8 +24,8 @@ end
 
 -- A settled Unit and Command are still on the mat when stacking makes their
 -- vertical positions disappear from the thin zone's reported object list.
-local position={x=0,y=1.6,z=0}
-local commandPosition={x=0,y=1.9,z=0}
+local position={[1]=0,[2]=1.6,[3]=0,x=0,y=1.6,z=0}
+local commandPosition={[1]=0,[2]=1.9,[3]=0,x=0,y=1.9,z=0}
 local unit={guid="f17813",type="Card",cardType="Regular Unit",resting=true,
     getPosition=function() return position end,
     getBounds=function() return {center=position,size={x=2,z=2.8}} end,
@@ -60,8 +60,10 @@ eq(unitLayoutActiveUnitOnMat(unit,1),false,"Lifted Unit is not falsely recovered
 eq(#unitLayoutSnapshot(1).units,0,"Lifted Unit is absent until returned")
 unit.held_by_color=nil
 position.x=20
+position[1]=20
 eq(#unitLayoutSnapshot(1).units,0,"Unit moved off mat is not recovered")
 position.x=0
+position[1]=0
 eq(#unitLayoutSnapshot(1).units,1,"Returned Unit is recovered")
 
 local reader=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
