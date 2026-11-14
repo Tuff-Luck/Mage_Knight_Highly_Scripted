@@ -5884,7 +5884,7 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decisi
     end
     if #targetLabels>0 then
         for _,spec in ipairs(targetSpecs) do
-            local image=spec.ready and "target" or "unitTarget"
+            local image="target"
             if not seen[image] then
                 visibleAssets[#visibleAssets+1]=image
                 seen[image]=true
@@ -5962,8 +5962,7 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decisi
     if #targetLabels>0 then
         local count=#targetSpecs
         for i,spec in ipairs(targetSpecs) do
-            local targetAsset=resourceCardsChoiceIcon(
-                spec.ready and "target" or "unitTarget")
+            local targetAsset=resourceCardsChoiceIcon("target")
             local x=hasChoices and baseX-columnSpacing or baseX
             local y=baseY+(i-(count+1)/2)*rowSpacing
             local children={}
