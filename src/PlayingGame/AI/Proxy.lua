@@ -540,8 +540,13 @@ end
 
 function proxyTurnReportBegin(objective,colors,baseMove,shieldMove,sourceMove)
 	local cardType=gameCardType(objective)
-	local baseReason=cardType=="Starting" and "Starter Card +1" or "Card +1"
-	if (baseMove or 1)==2 then baseReason=cardType=="Advanced Action" and "Advanced Action +2" or "Unique Basic Action +2" end
+	local baseAmount=baseMove or 1
+	-- The first number is the card's base movement, not a bonus.
+	-- Keep the labels short enough for the Proxy turn report panel.
+	local cardLabel=cardType=="Starting"
+		and (baseAmount==2 and "Unique Card" or "Start Card")
+		or "Offer Card"
+	local baseReason=cardLabel..": "..tostring(baseAmount)
 	gStates.proxyTurnReport={
 		objective=proxyCardDisplayName(objective),
 		colors=table.concat(colors or {},"/"),
@@ -732,7 +737,16 @@ function proxyTurnReportText()
 		interactionLine=joinLang({"{en}\n\nMultiple interaction choices: {it}\n\nScelte d'interazione multiple: {ru}\n\nНесколько вариантов взаимодействия: {zh-tw}\n\n多個互動選擇：{zh-cn}\n\n多个互动选择：{ko}\n\n여러 상호작용 선택: {es}\n\nMúltiples opciones de interacción: {fr}\n\nPlusieurs choix d’interaction : {pt-br}\n\nVárias escolhas de interação: {de}\n\nMehrere Interaktionsmöglichkeiten: ",choices})
 	end
 
-	local movementParts={report.baseReason or (report.baseMove==2 and "Card +2" or "Card +1")}
+	-- Old saved Proxy reports used '+1/+2' for the base card too. Normalize
+	-- them on display so loading a prior save adopts the clearer format.
+	local oldBaseLabels={
+		["Starter Card +1"]="Start Card: 1",
+		["Unique Basic Action +2"]="Unique Card: 2",
+		["Advanced Action +2"]="Offer Card: 2",
+		["Card +1"]="Offer Card: 1",
+		["Card +2"]="Offer Card: 2"}
+	local savedBase=report.baseReason or ("Offer Card: "..tostring(report.baseMove or 1))
+	local movementParts={oldBaseLabels[savedBase] or savedBase}
 	if (report.shieldMove or 0)>0 then movementParts[#movementParts+1]="Shield +"..tostring(report.shieldMove) end
 	if (report.sourceMove or 0)>0 then movementParts[#movementParts+1]="Source +1" end
 	local movementText=table.concat(movementParts,", ")
