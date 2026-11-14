@@ -22502,7 +22502,9 @@ scheduleRefresh=function()
 	end,0.2)
 end
 
-local DAMAGE_DECAL_URL="https://steamusercontent-a.akamaihd.net/ugc/10727875827929703324/92E5145A412AFBE2EB1716DF8B6CF965359A0372/"
+-- Enemy attack -> Unit damage assignment marker (not the Unit -> Enemy resource target).
+-- Registered as MKDamageTargetIcon in UIAssets.lua for TTS preload.
+local DAMAGE_DECAL_URL="https://steamusercontent-a.akamaihd.net/ugc/16695628476303620030/8C3369792E242542F0F8F489F12A4CABFA278F98/"
 local damageButtonX={}
 local damageBaseX={} -- Stable physical footprint, captured before target overlays are added.
 
@@ -47280,7 +47282,6 @@ combatConfig.slotBowFamilies={}
 -- Effect-only buttons share the resource slots, without adding any Block/Attack.
 combatConfig.effectSources={}
 combatConfig.blockedEnemyCounts={}
-combatConfig.dodgeSplitMode={}
 combatConfig.conversionState={}
 local combatAssignmentRowTargets={}
 local combatEnemyPage=1
@@ -47841,7 +47842,11 @@ local function combatOrderedReductions(effect)
     end
     table.sort(ordered,function(a,b)
         if a.amount~=b.amount then return a.amount>b.amount end
-        return tostring(a.source)<tostring(b.source)
+        -- A card can reduce two attacks on the same enemy. Keep its
+        -- separate -2 effects in a predictable order so each one can be
+        -- selected independently with the calculator's attack-cycle control.
+        if a.source~=b.source then return tostring(a.source)<tostring(b.source) end
+        return tostring(a.id or a.source)<tostring(b.id or b.source)
     end)
     return ordered
 end
@@ -51083,7 +51088,6 @@ local function combatCalcShutdown()
     combatConfig.effectSources={}
     combatConfig.blockedEnemyCounts={}
     combatConfig.conversionState={}
-    combatConfig.dodgeSplitMode={}
     combatConfig.panelHeight=0
     combatTrackedSeat=nil
     combatTrackedEnemies={}
@@ -52414,8 +52418,6 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                 ..":"..tostring(hardenedIndex)) or "")
         ..(rule~=nil and rule.forkedLightning
             and (":FL:"..tostring(gStates~=nil and gStates.forkedLightningPhase or "range")) or "")
-        ..(rule~=nil and rule.dodgeAttackSplit
-            and (":DW:"..tostring(combatConfig.dodgeSplitMode[card.guid])) or "")
         ..(conversionValid and conversion~=nil and (":CV:"..tostring(conversionBudget)..":"
             ..tostring(conversion.attack)..":"..tostring(conversion.ranged)..":"
             ..tostring(conversion.block)..":"..tostring(conversion.element)) or "")
@@ -52590,14 +52592,17 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             end
         end
     end
-    -- Each Dodge and Weave reduction has its own retargetable effect button.
-    -- The card's ordinary optional Attack button remains independent.
+    -- Dodge and Weave has no option selector: its normal Attack target follows
+    -- other Attack cards, while these buttons independently reduce enemy Attacks.
     if rule~=nil and rule.dodgeAttackSplit and combatCalcOn
         and posture=="upright" and resources~=nil then
-        local split=powered and combatConfig.dodgeSplitMode[card.guid]==true
-        local count=split and 2 or 1
+        local count=powered and 2 or 1
         local targetAsset=resourceCardsChoiceIcon("target")
         local reduceAsset=resourceCardsChoiceIcon("attackReduction")
+        -- Negative object-UI X appears to the right of the card centre
+        -- after its 180-degree rotation. Keep both powered targets on one row.
+        local targetX=-44
+        local targetY=-12
         for index=1,count do
             local children={}
             if reduceAsset~=nil and not blocked[reduceAsset.name] then
@@ -52612,22 +52617,12 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             xml[#xml+1]={tag="Button",attributes={
                 id="AttackAssignmentSource_"..card.guid.."_0_effect@effect"..index,
                 onClick="global/attackAssignmentSourceClicked",
-                position=tostring(index==1 and -150 or -80).." 70 "..buttonDepth,
+                position=tostring(targetX-(index-1)*44).." "..tostring(targetY).." "..buttonDepth,
                 rotation=uiRotation,width=90,height=90,scale=buttonScale,
                 colors="#454D5D|#69798E|#444C63|#454D5D",
                 textColor="#FFFFFF",textAlignment="MiddleCenter"},
-                value=#children==0 and "-"..tostring(split and 2 or (powered and 4 or 2)) or "",
+                value=#children==0 and "-2" or "",
                 children=children}
-        end
-        if powered then
-            xml[#xml+1]={tag="Button",attributes={
-                id="ResourceCardChoice_"..card.guid.."_dodgeSplit",
-                onClick="global/resourceCardsDodgeSplitClicked",
-                position="150 70 "..buttonDepth,rotation=uiRotation,
-                width=125,height=90,scale="0.28 0.28",fontSize=42,
-                colors="#454D5D|#69798E|#444C63|#454D5D",
-                textColor="#FFFFFF",textAlignment="MiddleCenter"},
-                value=split and "2+2" or "-4"}
         end
     end
     -- Two small pool-allocation counters on Agility (Attack/Ranged), or one
@@ -52942,15 +52937,7 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decisi
         local name=ability.icon or ability.key
         if not seen[name] then visibleAssets[#visibleAssets+1]=name seen[name]=true end
     end
-    if #targetLabels>0 then
-        for _,spec in ipairs(targetSpecs) do
-            local image=spec.ready and "target" or "unitTarget"
-            if not seen[image] then
-                visibleAssets[#visibleAssets+1]=image
-                seen[image]=true
-            end
-        end
-    end
+    if #targetLabels>0 then visibleAssets[#visibleAssets+1]="target" end
     local assets,blocked=resourceCardsChoiceAssetsFor(unit.UI,visibleAssets)
 
     -- Shared printed rows keep a stable vertical slot; all sub-options start
@@ -53022,8 +53009,7 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decisi
     if #targetLabels>0 then
         local count=#targetSpecs
         for i,spec in ipairs(targetSpecs) do
-            local targetAsset=resourceCardsChoiceIcon(
-                spec.ready and "target" or "unitTarget")
+            local targetAsset=resourceCardsChoiceIcon("target")
             local x=hasChoices and baseX-columnSpacing or baseX
             local y=baseY+(i-(count+1)/2)*rowSpacing
             local children={}
@@ -53752,8 +53738,7 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
             and chosen.conditionalFireAttack or nil,
         flameWave=complete and powered and rule~=nil and rule.poweredEnemyBonus~=nil,
         explosiveBolt=complete and powered and rule~=nil and rule.defeatArmourReduce or nil,
-        dodgeConditional=complete and rule~=nil and rule.conditionalAttackNoWounds==true
-            and chosen~=nil and choiceCategory(chosen)=="eligible",
+        dodgeConditional=complete and rule~=nil and rule.conditionalAttackNoWounds==true,
         combatConversion=complete and rule~=nil and rule.combatConversion or nil,
         defeatFameRep=defeatSide,splitTargets=chosen~=nil and chosen.splitTargets or nil,
         repeatBlocks=chosen~=nil and chosen.repeatBlocks or nil,
@@ -55400,26 +55385,31 @@ local function renderSeat(seatPos)
         -- Enemy debuffs can have a separate lock from printed Attack resources.
         if rule~=nil and rule.enemyEffect~=nil and result.resources~=nil
             and result.powered~=nil and cardPosture(card)=="upright"
-            and result.status~="yellow" and result.enemyGUID==nil then
+            and result.status~="yellow"
+            and (result.enemyGUID==nil or rule.dodgeAttackSplit==true) then
             local _,category=currentChoice(card.guid,result.powered,choices)
             local spec=combatEffectSpec(rule,result.powered,category)
             if spec~=nil then
                 if rule.dodgeAttackSplit==true then
-                    -- Independent reduction arrows; the later optional Attack
-                    -- retains its normal, independently targetable card source.
-                    local count=result.powered and combatConfig.dodgeSplitMode[card.guid] and 2 or 1
+                    -- The optional Attack is automatic, with its own ordinary
+                    -- target assignment. Always expose two -2 targets when
+                    -- powered, even if both currently point to one enemy.
+                    local count=result.powered and 2 or 1
                     result.enemyEffectTargetKeys={}
                     result.enemyEffectTargetGUIDs={}
                     for index=1,count do
                         local key=card.guid.."#effect"..index
-                        local reduction=result.powered and (count==2 and 2 or 4) or 2
                         local target=combatEffectChosenEnemy(key,footprints[card.guid],
-                            monsters,combatEffectTargetEligible({attackReduce=reduction}))
+                            monsters,combatEffectTargetEligible({attackReduce=2}))
                         result.enemyEffectTargetKeys[#result.enemyEffectTargetKeys+1]=key
                         if target~=nil then
+                            -- Do not merge the two reductions. When both aim
+                            -- at one multi-attack enemy, the calculator can
+                            -- select a different printed Attack for each.
+                            -- Two selections of the SAME Attack still total -4.
                             for _=1,(result.repeatCount or 1) do
                                 combatEffectAdd(enemyEffects,target.guid,card.guid,
-                                    {attackReduce=reduction},key)
+                                    {attackReduce=2},key)
                             end
                             result.enemyGUID=result.enemyGUID or target.guid
                             result.enemyEffectTargetGUIDs[key]=target.guid
@@ -57564,19 +57554,6 @@ function resourceCardsConversionClicked(player,value,id)
     resourceCardsSourceChanged()
 end
 
-function resourceCardsDodgeSplitClicked(player,value,id)
-    if not resourceCardsPanelOpen()
-        or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil) then return end
-    local guid=type(id)=="string" and id:match("^ResourceCardChoice_([0-9a-f]+)_dodgeSplit$") or nil
-    if guid~="9de475" then return end
-    local seat=combatAssignmentActiveSeat()
-    local record=seat~=nil and resourceCardScanBySeat[seat]~=nil
-        and resourceCardScanBySeat[seat].cards[guid] or nil
-    if record==nil or record.powered~=true or record.resources==nil then return end
-    combatConfig.dodgeSplitMode[guid]=not combatConfig.dodgeSplitMode[guid]
-    resourceCardsSourceChanged()
-end
-
 -- Explicit decisions for official starting cards that have a secondary effect.
 -- These controls never silently add conditional Fame, Reputation or Move.
 function resourceCardsStartingCardControlClicked(player,value,id)
@@ -58780,7 +58757,7 @@ local originalGlobalImages={
 -- New resource/Skill choice images use a dedicated prefix to avoid clashes.
 local resourceChoiceImages={
     target={name="MKTargetIcon",url="https://steamusercontent-a.akamaihd.net/ugc/10727875827929703324/92E5145A412AFBE2EB1716DF8B6CF965359A0372/"},
-    unitTarget={name="MKUnitEnemyTarget",url="https://steamusercontent-a.akamaihd.net/ugc/16695628476303620030/8C3369792E242542F0F8F489F12A4CABFA278F98/"},
+    damageTarget={name="MKDamageTargetIcon",url="https://steamusercontent-a.akamaihd.net/ugc/16695628476303620030/8C3369792E242542F0F8F489F12A4CABFA278F98/"},
     siege={name="MKChoiceSiege",url="https://steamusercontent-a.akamaihd.net/ugc/13001275488421638021/429A4C25B493880579B1EEE1BA38C5E8C2C7DD2B/"},
     ranged={name="MKChoiceRanged",url="https://steamusercontent-a.akamaihd.net/ugc/16825643705965136812/86750D2D0CE31C2AB2A08D518FDFA9606332DC69/"},
     move={name="MKChoiceMove",url="https://steamusercontent-a.akamaihd.net/ugc/15089597231616187129/97560F942A1D143CC2BD816D1F8E0B117A659AFA/"},
@@ -58800,7 +58777,7 @@ local allGlobalImages={}
 for _,entry in ipairs(originalGlobalImages) do
     allGlobalImages[#allGlobalImages+1]=entry
 end
-for _,category in ipairs({"target","unitTarget","siege","ranged","move","influence","healing","block","attack","armourReduction","attackReduction"}) do
+for _,category in ipairs({"target","damageTarget","siege","ranged","move","influence","healing","block","attack","armourReduction","attackReduction"}) do
     allGlobalImages[#allGlobalImages+1]=resourceChoiceImages[category]
 end
 
@@ -68336,15 +68313,12 @@ cardResourceDefinitions={
     deadlyPrecision={normalChoices={{attack=2},{block=2}},
         poweredChoices={{attack=4},{ranged=2},{key="convert",icon="ranged"}},
         poweredLinkConversion=true,partial=true}, -- Requires one overlapping played Action with Attack.
-    -- The conditional Attack is optional; it is only available if no Wounds
-    -- were added to the Hero's hand during earlier combat phases. The player
-    -- declares eligibility with the second option. Two -2 reductions on the
-    -- powered side can be targeted separately in the calculator.
+    -- No card-side eligibility option: the calculator invalidates the Attack
+    -- bonus if its Damage phase gives the Hero Wounds. On the powered side,
+    -- two separate targeting buttons each contribute -2; two on the same enemy
+    -- combine into a single -4 reduction to one of its printed Attacks.
     dodgeAndWeave={
-        normalChoices={{key="safe",attack=0,icon="attack"},
-            {key="eligible",attack=1,icon="attack",iconOverlay="+1"}},
-        poweredChoices={{key="safe",attack=0,icon="attack"},
-            {key="eligible",attack=2,icon="attack",iconOverlay="+2"}},
+        normal={attack=1},powered={attack=2},
         enemyEffect={normal={attackReduce=2},powered={attackReduce=4}},
         dodgeAttackSplit=true,conditionalAttackNoWounds=true,
         separateEffectTargetAllSides=true},
