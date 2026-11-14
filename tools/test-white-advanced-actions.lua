@@ -35,6 +35,12 @@ contains(reader,'card.guid.."#effect"..index',"Dodge independent effect keys")
 contains(reader,'source.convertedResource',"Conversion resource source")
 contains(reader,'combatConfig.dodgeSplitMode[card.guid]',"Dodge split mode")
 contains(reader,'guid~="9de475" and guid~="3c0531"',"Both Dodge card copies can switch split mode")
+-- Reduction targets should sit beside the choices on the card, not below
+-- and beyond its right edge. Keep separation when the options are expanded.
+contains(reader,'local targetX=expanded and -66 or -44',"Dodge targeting next to option")
+contains(reader,'local targetY=-12',"Dodge target aligned vertically")
+contains(reader,'targetX-(index-1)*44',"Powered Dodge split targets spaced apart")
+contains(reader,'local splitX=expanded and 66 or 44',"Powered Dodge split toggle in card")
 -- The option renderer filters out categories without a choiceLetters entry.
 -- Previously both Dodge options disappeared, hiding even the reduction target.
 local choiceLabels=extract(reader,"local choiceLetters=",
