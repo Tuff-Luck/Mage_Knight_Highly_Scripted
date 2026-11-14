@@ -24,10 +24,19 @@ end
 local source=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local assets=read("src/PlayingGame/UIAssets.lua")
 local newURL="https://steamusercontent-a.akamaihd.net/ugc/16695628476303620030/8C3369792E242542F0F8F489F12A4CABFA278F98/"
-assert(assets:find('unitTarget={name="MKUnitEnemyTarget",url="'..newURL..'"}',1,true),
-    "Dedicated Unit target icon must be registered with the exact URL")
-assert(assets:find('"target","unitTarget","siege"',1,true),
-    "New target image must be preloaded as a Custom UI Asset")
+assert(assets:find('damageTarget={name="MKDamageTargetIcon",url="'..newURL..'"}',1,true),
+    "Enemy-to-Unit damage decal must be registered with the supplied URL")
+assert(assets:find('"target","damageTarget","siege"',1,true),
+    "Damage decal image must be preloaded as a Custom UI Asset")
+local damage=read("src/PlayingGame/AttackAssignments.lua")
+assert(damage:find('local DAMAGE_DECAL_URL="'..newURL..'"',1,true),
+    "Enemy attack damage-assignment decal must use the new artwork")
+assert(damage:find('name="DamageTarget"..index,url=DAMAGE_DECAL_URL',1,true),
+    "Visible enemy damage target marker must use the registered decal URL")
+assert(damage:find('click_function="attackAssignmentDamageClick"..index',1,true),
+    "Enemy damage marker retains its damage allocation callback")
+assert(assets:find('target={name="MKTargetIcon",url=',1,true),
+    "Original Unit-to-Enemy targeting icon must remain registered")
 
 -- Exercise the actual combat enemy counter on face-up, face-down, summoned,
 -- reminder, and multiple enemy cases.
@@ -103,7 +112,8 @@ local choiceButtonShown,choiceExpandedByGUID={},{}
 local choiceLetters={}
 local function resourceObjectUiXmlTable(objUI) return objUI.nodes or {} end
 local function resourceCardsChoiceIcon(category)
-    return {name=category=="unitTarget" and "MKUnitEnemyTarget" or "MKTargetIcon"}
+    assert(category~="unitTarget","Unit-to-Enemy target must no longer use the damage artwork")
+    return {name="MKTargetIcon"}
 end
 local function resourceCardsChoiceAssetsFor() return nil,{} end
 local function resourceObjectUiSetTable(objUI,xml) objUI.nodes=xml end
@@ -128,8 +138,8 @@ local attackTarget="AttackAssignmentSource_f17813_0_attackIce"
 ui.single(nil)
 local xml=ui.render(monk,northern,blueAttack)
 local button=assert(hasButton(xml,attackTarget),"Two-enemy Ice Attack target button")
-eq(button.children[1].attributes.image,"MKUnitEnemyTarget",
-    "New image used by Unit enemy-target button")
+eq(button.children[1].attributes.image,"MKTargetIcon",
+    "Unit-to-Enemy target button restored to the original image")
 
 ui.single("enemy")
 xml=ui.render(monk,northern,blueAttack)
@@ -193,4 +203,4 @@ assert(source:find('..":TARGETS:"..tostring(trackerPrivate.singleAutoEnemyGUID)'
 assert(source:find("entry.splitTargets==nil",1,true),
     "Cards with special split targets must retain manual buttons")
 
-print("Single-enemy target visibility and Unit icon regressions passed")
+print("Single-enemy targets and Enemy-to-Unit damage icon regressions passed")
