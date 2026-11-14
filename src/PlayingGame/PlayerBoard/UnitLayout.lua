@@ -106,11 +106,60 @@ function unitLayoutCardScale(commandCount)
 	return unitLayoutConfig.cardScale*((unitLayoutConfig.nativeSlots-1)/(commandCount-1))
 end
 
---Only the Unit scripting zone defines Unit capacity; this preserves the Banner/Bonds behaviour the recruitment code already relied on.
+-- A stacked Command and mana crystal can raise the card above the thin Unit
+-- scripting zone. Its horizontal footprint is still authoritative once the
+-- physical card is released. Never recover held cards or objects off the mat.
+local function unitLayoutObjectOnMat(obj,zone)
+    if obj==nil or zone==nil or (obj.held_by_color~=nil and obj.held_by_color~="")
+        or obj.isSmoothMoving() then return false end
+    local bounds=zone.getBounds()
+    local center=bounds~=nil and bounds.center or nil
+    local size=bounds~=nil and bounds.size or nil
+    if center==nil or size==nil then return false end
+    local p=obj.getPosition()
+    local x,z=p.x or p[1],p.z or p[3]
+    local cx,cz=center.x or center[1],center.z or center[3]
+    local width,depth=size.x or size[1],size.z or size[3]
+    return x~=nil and z~=nil and width~=nil and depth~=nil
+        and math.abs(x-cx)<width*0.5 and math.abs(z-cz)<depth*0.5
+end
+
+function unitLayoutActiveUnitOnMat(unit,seatPos)
+    if not unitLayoutIsUnit(unit) or seatPos==nil then return false end
+    local zoneGUID=playerUnitAreas~=nil and playerUnitAreas[seatPos] or nil
+    return unitLayoutObjectOnMat(unit,zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil)
+end
+
+-- The scripting zone normally owns Unit capacity. Only a Unit activated this
+-- turn (and its Command) may be recovered when stacking makes zone membership
+-- temporarily inaccurate. A removed or held card is never recovered.
 unitLayoutObjects=function(seatPos)
-	local unitZone=getObjectFromGUID(playerUnitAreas[seatPos])
-	if unitZone==nil then return {} end
-	return unitZone.getObjects()
+    local zoneGUID=playerUnitAreas~=nil and playerUnitAreas[seatPos] or nil
+    local unitZone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
+    if unitZone==nil then return {} end
+    local objects,seen={},{}
+    for _,obj in ipairs(unitZone.getObjects() or {}) do
+        objects[#objects+1]=obj
+        seen[obj.guid]=true
+    end
+    for unitGUID,activation in pairs(gStates~=nil and gStates.unitResourceActivations or {}) do
+        if activation.seatPos==seatPos then
+            local unit=not seen[unitGUID] and getObjectFromGUID(unitGUID) or nil
+            if unit~=nil and unitLayoutActiveUnitOnMat(unit,seatPos) then
+                objects[#objects+1]=unit
+                seen[unitGUID]=true
+            end
+            local tokenGUID=activation.tokenGUID
+            local token=tokenGUID~=nil and not seen[tokenGUID]
+                and getObjectFromGUID(tokenGUID) or nil
+            if token~=nil and unitLayoutIsCommand(token)
+                and unitLayoutObjectOnMat(token,unitZone) then
+                objects[#objects+1]=token
+                seen[tokenGUID]=true
+            end
+        end
+    end
+    return objects
 end
 
 unitLayoutSnapshot=function(seatPos)
