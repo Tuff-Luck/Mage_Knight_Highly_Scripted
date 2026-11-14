@@ -42,24 +42,36 @@ contains(reader,'local targetY=-12',"Dodge target alignment")
 contains(reader,'targetX-(index-1)*44',"Powered Dodge targets spaced apart")
 contains(reader,'(result.enemyGUID==nil or rule.dodgeAttackSplit==true)',
     "Dodge debuff works independently of an Attack assignment")
-contains(reader,'{attackReduce=reduction.amount}',"Stacked Dodge reduction is applied together")
+contains(reader,'{attackReduce=2},key)',"Each Dodge button creates a separate -2 reduction")
+assert(not reader:find('dodgeReductionAmounts',1,true),"No combined Dodge reduction")
 assert(not reader:find('resourceCardsDodgeSplitClicked',1,true),"Remove obsolete Dodge mode switch")
 assert(not reader:find('dodgeSplitMode',1,true),"Remove obsolete Dodge split state")
 
--- Exercise the target grouping function used when applying the effects.
--- Both arrows to one enemy must reduce ONE printed Attack by 4.
-local groupSource=extract(reader,"combatConfig.dodgeReductionAmounts=function",
-    "combatConfig.conversionState={}")
-local group=assert(load("local combatConfig={}\n"..groupSource..
-    "\nreturn combatConfig.dodgeReductionAmounts"))()
-local same=group({{guid="enemyA",key="dodge#effect1"},
-    {guid="enemyA",key="dodge#effect2"}})
-eq(same.enemyA.amount,4,"Dodge same-enemy reduction stacks to 4")
-eq(same.enemyA.key,"dodge#effect1","Dodge combined reduction retains first key")
-local split=group({{guid="enemyA",key="dodge#effect1"},
-    {guid="enemyB",key="dodge#effect2"}})
-eq(split.enemyA.amount,2,"Dodge split first enemy")
-eq(split.enemyB.amount,2,"Dodge split second enemy")
+-- Exercise combatEffectAdd's actual registration of two reductions on one enemy.
+-- Both must have separate IDs; targeting either one at any printed attack
+-- must NOT affect the targeting of the other.
+local effectSource=combat:sub(assert(combat:find("function combatEffectAdd(",1,true)))
+local add=assert(load([=[
+monsterPugs={}
+combatEffectImmune=function() return false end
+]=]..effectSource.."\nreturn combatEffectAdd"))()
+local dodgeEffects={}
+add(dodgeEffects,"enemyA","dodge",{attackReduce=2},"dodge#effect1")
+add(dodgeEffects,"enemyA","dodge",{attackReduce=2},"dodge#effect2")
+eq(#dodgeEffects.enemyA.attackReductions,2,"Same enemy retains both -2 reductions")
+eq(dodgeEffects.enemyA.attackReductions[1].amount,2,"First reduction stays -2")
+eq(dodgeEffects.enemyA.attackReductions[2].amount,2,"Second reduction stays -2")
+eq(dodgeEffects.enemyA.attackReductions[1].id,"dodge","First source ID")
+eq(dodgeEffects.enemyA.attackReductions[2].id,"dodge#2","Second independent source ID")
+eq(dodgeEffects.enemyA.applied[1].key,"dodge#effect1","First target button")
+eq(dodgeEffects.enemyA.applied[2].key,"dodge#effect2","Second target button")
+local splitEffects={}
+add(splitEffects,"enemyA","dodge",{attackReduce=2},"dodge#effect1")
+add(splitEffects,"enemyB","dodge",{attackReduce=2},"dodge#effect2")
+eq(#splitEffects.enemyA.attackReductions,1,"Split first enemy has one reduction")
+eq(#splitEffects.enemyB.attackReductions,1,"Split second enemy has one reduction")
+eq(splitEffects.enemyA.attackReductions[1].amount,2,"Split first enemy -2")
+eq(splitEffects.enemyB.attackReductions[1].amount,2,"Split second enemy -2")
 contains(reader,'function resourceCardsConversionClicked',"Conversion UI callback")
 contains(combat,'stripAbilities=spec.removeOneAttackAbilities==true',"Chilling Stare marker")
 contains(combat,'removeOneAttackAbilities=spec.removeOneAttackAbilities',"Arcane Immunity exception")
@@ -127,4 +139,29 @@ strip(two,{attackReductions={
 }},"enemy",{dodge=1,["dodge#2"]=2})
 eq(two[1].value,3,"First split Dodge reduction")
 eq(two[2].value,2,"Second split Dodge reduction")
+
+-- Two reductions on the same enemy may be directed to the SAME printed
+-- attack (-4 total), or to DIFFERENT printed attacks (-2 to each).
+local original={{value=5,key="F",owner="enemyA"},
+    {value=4,key="I",owner="enemyA"}}
+local function cloneAttacks()
+    local copy={}
+    for i,entry in ipairs(original) do
+        copy[i]={value=entry.value,key=entry.key,owner=entry.owner}
+    end
+    return copy
+end
+local onSame=cloneAttacks()
+strip(onSame,dodgeEffects.enemyA,"enemyA",{dodge=1,["dodge#2"]=1})
+eq(onSame[1].value,1,"Two Dodge reductions on Fire Attack 5 become 1")
+eq(onSame[2].value,4,"Ice Attack 4 remains unchanged")
+local onDifferent=cloneAttacks()
+strip(onDifferent,dodgeEffects.enemyA,"enemyA",{dodge=1,["dodge#2"]=2})
+eq(onDifferent[1].value,3,"First Dodge reduction on Fire Attack 5")
+eq(onDifferent[2].value,2,"Second Dodge reduction on Ice Attack 4")
+
+-- Default auto-targeting still works without an attack-cycle selection.
+local auto=cloneAttacks()
+strip(auto,dodgeEffects.enemyA,"enemyA",nil)
+eq(auto[1].value+auto[2].value,5,"Two independent Dodge reductions total -4")
 print("White Advanced Actions: regression checks passed")
