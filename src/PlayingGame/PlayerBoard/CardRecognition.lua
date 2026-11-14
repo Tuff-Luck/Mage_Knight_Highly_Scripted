@@ -5543,8 +5543,8 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         -- The expanded Safe/Eligible menu spans both sides of centre, so
         -- shift the targets further right while it is open.
         local expanded=rows[1]~=nil and rows[1].expanded
-        local targetX=expanded and -48 or -22
-        local splitX=expanded and 55 or 32
+        local targetX=expanded and -66 or -44
+        local splitX=expanded and 66 or 44
         local targetY=-12 -- Align with the Attack option rather than below the card.
         for index=1,count do
             local children={}
@@ -5560,7 +5560,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             xml[#xml+1]={tag="Button",attributes={
                 id="AttackAssignmentSource_"..card.guid.."_0_effect@effect"..index,
                 onClick="global/attackAssignmentSourceClicked",
-                position=tostring(targetX-(index-1)*24).." "..tostring(targetY).." "..buttonDepth,
+                position=tostring(targetX-(index-1)*44).." "..tostring(targetY).." "..buttonDepth,
                 rotation=uiRotation,width=90,height=90,scale=buttonScale,
                 colors="#454D5D|#69798E|#444C63|#454D5D",
                 textColor="#FFFFFF",textAlignment="MiddleCenter"},
