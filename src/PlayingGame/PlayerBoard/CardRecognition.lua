@@ -5538,6 +5538,14 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         local count=split and 2 or 1
         local targetAsset=resourceCardsChoiceIcon("target")
         local reduceAsset=resourceCardsChoiceIcon("attackReduction")
+        -- Object-UI X is reversed by the 180-degree card rotation:
+        -- negative X appears to the RIGHT of the Attack option.
+        -- The expanded Safe/Eligible menu spans both sides of centre, so
+        -- shift the targets further right while it is open.
+        local expanded=rows[1]~=nil and rows[1].expanded
+        local targetX=expanded and -48 or -22
+        local splitX=expanded and 55 or 32
+        local targetY=-12 -- Align with the Attack option rather than below the card.
         for index=1,count do
             local children={}
             if reduceAsset~=nil and not blocked[reduceAsset.name] then
@@ -5552,7 +5560,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             xml[#xml+1]={tag="Button",attributes={
                 id="AttackAssignmentSource_"..card.guid.."_0_effect@effect"..index,
                 onClick="global/attackAssignmentSourceClicked",
-                position=tostring(index==1 and -150 or -80).." 70 "..buttonDepth,
+                position=tostring(targetX-(index-1)*24).." "..tostring(targetY).." "..buttonDepth,
                 rotation=uiRotation,width=90,height=90,scale=buttonScale,
                 colors="#454D5D|#69798E|#444C63|#454D5D",
                 textColor="#FFFFFF",textAlignment="MiddleCenter"},
@@ -5563,7 +5571,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             xml[#xml+1]={tag="Button",attributes={
                 id="ResourceCardChoice_"..card.guid.."_dodgeSplit",
                 onClick="global/resourceCardsDodgeSplitClicked",
-                position="150 70 "..buttonDepth,rotation=uiRotation,
+                position=tostring(splitX).." "..tostring(targetY).." "..buttonDepth,rotation=uiRotation,
                 width=125,height=90,scale="0.28 0.28",fontSize=42,
                 colors="#454D5D|#69798E|#444C63|#454D5D",
                 textColor="#FFFFFF",textAlignment="MiddleCenter"},
