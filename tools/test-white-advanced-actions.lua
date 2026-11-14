@@ -1,4 +1,4 @@
--- White Advanced Actions: base/Lost Legion rules only (no Forgemaster).
+-- White Advanced Actions: official card rules and shared Forgemaster card copies.
 -- Run from repo root: lua5.2 tools/test-white-advanced-actions.lua
 local function source(path)
     local f=assert(io.open(path,"r"))
@@ -25,12 +25,24 @@ local combat=source("src/PlayingGame/PlayerBoard/CombatEffects.lua")
 contains(data,'combatConversion="agility"',"Agility shared Move rule")
 contains(data,'combatConversion="diplomacy"',"Diplomacy shared Influence rule")
 contains(data,'dodgeAttackSplit=true',"Dodge powered split")
+contains(data,'{key="safe",attack=0,icon="attack",iconOverlay="0"',"Dodge safe choice zero marker")
+contains(data,'{key="eligible",attack=1',"Dodge basic conditional Attack")
+contains(data,'{key="eligible",attack=2',"Dodge powered conditional Attack")
 contains(data,'conditionalAttackNoWounds=true',"Dodge Wound condition")
 contains(data,'removeOneAttackAbilities=true',"Chilling Stare one attack")
 contains(reader,'source.dodgeIneligible=true',"Dodge Attack suppression")
 contains(reader,'card.guid.."#effect"..index',"Dodge independent effect keys")
 contains(reader,'source.convertedResource',"Conversion resource source")
 contains(reader,'combatConfig.dodgeSplitMode[card.guid]',"Dodge split mode")
+contains(reader,'guid~="9de475" and guid~="3c0531"',"Both Dodge card copies can switch split mode")
+-- The option renderer filters out categories without a choiceLetters entry.
+-- Previously both Dodge options disappeared, hiding even the reduction target.
+local choiceLabels=extract(reader,"local choiceLetters=",
+    "-- The choice UI and initial-guess tie-breaks")
+local labels=assert(load(choiceLabels.."\nreturn choiceLetters"))()
+eq(labels.safe,"0","Dodge safe choice visible")
+eq(labels.eligible,"A+","Dodge eligible choice visible")
+contains(reader,'choiceLetters[category]~=nil',"Choices filtered by button labels")
 contains(reader,'function resourceCardsConversionClicked',"Conversion UI callback")
 contains(combat,'stripAbilities=spec.removeOneAttackAbilities==true',"Chilling Stare marker")
 contains(combat,'removeOneAttackAbilities=spec.removeOneAttackAbilities',"Arcane Immunity exception")
