@@ -220,21 +220,6 @@ combatConfig.slotBowFamilies={}
 -- Effect-only buttons share the resource slots, without adding any Block/Attack.
 combatConfig.effectSources={}
 combatConfig.blockedEnemyCounts={}
--- The powered -2 target buttons stack to -4 when they point at the
--- same enemy. Apply one combined reduction to that enemy's one printed
--- Attack; separate enemies each receive -2.
-combatConfig.dodgeReductionAmounts=function(targets)
-    local byEnemy={}
-    for _,target in ipairs(targets) do
-        local entry=byEnemy[target.guid]
-        if entry==nil then
-            entry={amount=0,key=target.key}
-            byEnemy[target.guid]=entry
-        end
-        entry.amount=entry.amount+2
-    end
-    return byEnemy
-end
 combatConfig.conversionState={}
 local combatAssignmentRowTargets={}
 local combatEnemyPage=1
@@ -795,7 +780,11 @@ local function combatOrderedReductions(effect)
     end
     table.sort(ordered,function(a,b)
         if a.amount~=b.amount then return a.amount>b.amount end
-        return tostring(a.source)<tostring(b.source)
+        -- A card can reduce two attacks on the same enemy. Keep its
+        -- separate -2 effects in a predictable order so each one can be
+        -- selected independently with the calculator's attack-cycle control.
+        if a.source~=b.source then return tostring(a.source)<tostring(b.source) end
+        return tostring(a.id or a.source)<tostring(b.id or b.source)
     end)
     return ordered
 end
@@ -8344,7 +8333,6 @@ local function renderSeat(seatPos)
                     -- target assignment. Always expose two -2 targets when
                     -- powered, even if both currently point to one enemy.
                     local count=result.powered and 2 or 1
-                    local selectedTargets={}
                     result.enemyEffectTargetKeys={}
                     result.enemyEffectTargetGUIDs={}
                     for index=1,count do
@@ -8353,20 +8341,18 @@ local function renderSeat(seatPos)
                             monsters,combatEffectTargetEligible({attackReduce=2}))
                         result.enemyEffectTargetKeys[#result.enemyEffectTargetKeys+1]=key
                         if target~=nil then
-                            selectedTargets[#selectedTargets+1]={guid=target.guid,key=key}
+                            -- Do not merge the two reductions. When both aim
+                            -- at one multi-attack enemy, the calculator can
+                            -- select a different printed Attack for each.
+                            -- Two selections of the SAME Attack still total -4.
+                            for _=1,(result.repeatCount or 1) do
+                                combatEffectAdd(enemyEffects,target.guid,card.guid,
+                                    {attackReduce=2},key)
+                            end
                             result.enemyGUID=result.enemyGUID or target.guid
                             result.enemyEffectTargetGUIDs[key]=target.guid
                             result.links[#result.links+1]=target.guid
                             result.status="purple"
-                        end
-                    end
-                    -- Combine two buttons aimed at the same enemy before
-                    -- choosing its printed Attack: otherwise the second -2
-                    -- could jump to another Attack on a multi-attack enemy.
-                    for guid,reduction in pairs(combatConfig.dodgeReductionAmounts(selectedTargets)) do
-                        for _=1,(result.repeatCount or 1) do
-                            combatEffectAdd(enemyEffects,guid,card.guid,
-                                {attackReduce=reduction.amount},reduction.key)
                         end
                     end
                 else
