@@ -40,7 +40,10 @@ local function replacementRemoveUnitButton(unit)
             changed=true
         end
     end
-    if changed then resourceObjectUiSetTable(unit.UI,xml) end
+    if changed then
+        resourceObjectUiSetTable(unit.UI,xml,
+            resourceCardsExistingImageAssetsFor(unit.UI,{}))
+    end
 end
 
 local function replacementShowUnitButton(unit,selected)
@@ -62,7 +65,8 @@ local function replacementShowUnitButton(unit,selected)
         colors=selected and "#28672E|#36973F|#28672E|#28672E"
             or "#80451D|#A46627|#80451D|#80451D"},
         value=selected and "SELECTED" or "DISBAND"}
-    resourceObjectUiSetTable(unit.UI,xml)
+    resourceObjectUiSetTable(unit.UI,xml,
+        resourceCardsExistingImageAssetsFor(unit.UI,{}))
 end
 
 local function replacementClearVisuals(state)
@@ -235,7 +239,8 @@ local function replacementValid(state)
     local token=slot~=nil and layout.commands[slot] or nil
     local unitX=slot~=nil and layout.slotX[slot] or nil
     if claimed==nil or old==nil or token==nil or unitX==nil
-        or layout.unitBySlot[slot]~=old then return nil end
+        or layout.unitBySlot[slot]==nil
+        or layout.unitBySlot[slot].guid~=old.guid then return nil end
     return claimed,old,layout,unitX,token
 end
 
@@ -250,6 +255,7 @@ local function unitReplacementConfirm(player)
     end
     if cardFlowUnitClaimBusy~=nil and cardFlowUnitClaimBusy() then return end
     local owner="Replace Unit "..state.claimGUID
+    local expectedSelected=state.selectedGUID
     if rewindTransactionOwnerActive(owner) then return end
     rewindTransactionStart(function()
         -- A rewind snapshot may take several frames; do not apply a stale
@@ -257,7 +263,7 @@ local function unitReplacementConfirm(player)
         local pending=replacementState()
         local newUnit,oldUnit,currentLayout,x,command=replacementValid(pending)
         local trash=getObjectFromGUID(trashCan)
-        if newUnit==nil or trash==nil
+        if newUnit==nil or trash==nil or pending.selectedGUID~=expectedSelected
             or (cardFlowUnitClaimBusy~=nil and cardFlowUnitClaimBusy()) then
             rewindTransactionFinish(owner)
             if pending~=nil then replacementRender(pending) end
