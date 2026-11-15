@@ -33,6 +33,8 @@ local zoneCode=section(src,"local function resourceCardsRelevantZone(ctx)",
     "function resourceCardsZoneLeft(ctx)")
 local dropCode=section(src,"function resourceCardsObjectMoved(obj)",
     "-- Register all Artifact and readying Object UI callbacks")
+local recoverCode=section(src,"    -- A Source die resting ON a played Action",
+    "    -- A resting active Unit can be lifted above the thin Zone")
 
 local calls={}
 local die={
@@ -86,6 +88,42 @@ assert(#calls==2 and calls[2].guid==die.guid,
 die.resting=true
 die.getRotationValue=function() return "Green Mana" end
 assert(manaColor(die)=="Green","Settled mana die should report Green")
+
+-- The die can settle above the thin scripting zone, outside getObjects().
+-- It still powers Concentration if and only if it physically covers the card.
+local diePosition={0.1,2.0,0.1}
+local concentrationPosition={0,1.0,0}
+die.getPosition=function() return diePosition end
+env.getObjectFromGUID=function(guid) return guid==die.guid and die or nil end
+env.manaColor=manaColor
+env.footprint=function(card)
+    local pos=card.getPosition()
+    return {x=pos[1],z=pos[3],halfX=1,halfZ=1}
+end
+local recovered=assert(load("return function(seatPos,objects,placements,objectKinds)\n"
+    ..recoverCode.."\nend","Recover mana on Action card","t",env))()
+local function recover()
+    local objects={
+        ["af9def"]={guid="af9def",getPosition=function() return concentrationPosition end}
+    }
+    local placements={["af9def"]="play"}
+    local kinds={["af9def"]="card"}
+    recovered(2,objects,placements,kinds)
+    return objects,placements,kinds
+end
+local recoveredObjects,recoveredPlacement,recoveredKinds=recover()
+assert(recoveredObjects[die.guid]==die and recoveredPlacement[die.guid]=="play"
+    and recoveredKinds[die.guid]=="mana",
+    "Settled Source die physically on Concentration must be included in play scan")
+diePosition={10,2.0,10}
+local _,farPlacement=recover()
+assert(farPlacement[die.guid]==nil,
+    "Source die away from Action cards must not be counted as payment")
+diePosition={0.1,2.0,0.1}
+die.resting=false
+local _,movingPlacement=recover()
+assert(movingPlacement[die.guid]==nil,"Rolling die must not be treated as a paid Action")
+die.resting=true
 
 local concentration={guid="af9def",is_face_down=false}
 local swiftness={guid="acdcb2",is_face_down=false}
