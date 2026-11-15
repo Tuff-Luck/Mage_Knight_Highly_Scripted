@@ -132,8 +132,11 @@ function unitReplacementEnsureControls(seatPos)
     if state==nil or (seatPos~=nil and seatPos~=state.seatPos) then return end
     -- The Resource Tracker can rewrite card XML without affecting classic
     -- buttons. Reconcile invisible hit areas without stacking duplicates.
-    for _,unit in ipairs(unitLayoutSnapshot(state.seatPos).units) do
-        replacementShowUnitButton(unit)
+    local layout=unitLayoutSnapshot(state.seatPos)
+    for _,unit in ipairs(layout.units) do
+        if layout.unitSlotByGuid[unit.guid]~=nil then
+            replacementShowUnitButton(unit)
+        end
     end
 end
 
