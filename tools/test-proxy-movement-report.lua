@@ -15,8 +15,8 @@ local source=read("src/PlayingGame/AI/Proxy.lua")
 local beginCode=slice(source,"function proxyTurnReportBegin(objective,colors,baseMove,shieldMove,sourceMove)",
     "function proxyTurnReportSetTarget(target)")
 local actionCode=slice(source,"function proxyLocalizedAction(action)",
-    "function proxyTurnReportText()")
-local renderCode=slice(source,"function proxyTurnReportText()",
+    "function proxyTurnReportText(section)")
+local renderCode=slice(source,"function proxyTurnReportText(section)",
     "--Return the logical Portal hex")
 local sourceCode=slice(source,"function proxyRerollSourceManaGUID(guid,color)",
     "function proxyHexHasOtherHero(hex,proxyIndex)")
@@ -31,6 +31,12 @@ local function english(parts)
     end
     return table.concat(result)
 end
+local shared=read("src/Shared.lua")
+local langCode=slice(shared,"local JOIN_LANG_ORDER=",
+    "--Reapply translated static UI text once at load")
+local sharedEnv=setmetatable({},{__index=_G})
+assert(load(langCode,"Shared language helpers","t",sharedEnv))()
+
 local env={
     gStates={proxyState="ReadyToEnd"},
     translateWord={White="White",Gold="Gold"},
@@ -40,9 +46,7 @@ local env={
     proxyLocalizedReason=function() return "The nearest legal objective" end,
     proxyLocalizedColorList=function(colors) return colors end,
     joinLang=english,
-    -- The English-only test renderer has already resolved language tags.
-    -- Production joinLangParse returns a per-language table instead.
-    joinLangParse=function(value) return value end
+    joinLangAppendSentenceSuffix=sharedEnv.joinLangAppendSentenceSuffix
 }
 setmetatable(env,{__index=_G})
 local functions=assert(load(beginCode.."\n"..actionCode.."\n"..renderCode.."\nreturn proxyTurnReportBegin,proxyLocalizedAction,proxyTurnReportText",
@@ -144,9 +148,6 @@ assert(rollCount==2,"Automatic Source reroll should roll exactly once")
 -- Production localisation emits all language tags, unlike the English
 -- helper above. Verify that appending the Source die sentence preserves those
 -- tags and joins punctuation correctly for English and Chinese.
-local shared=read("src/Shared.lua")
-local langCode=slice(shared,"local JOIN_LANG_ORDER=",
-    "--Reapply translated static UI text once at load")
 local translatedEnv={
     gStates={proxyState="PickRoute"},
     translateWord={Gold="Gold"},
@@ -166,13 +167,18 @@ translatedEnv.proxyLocalizedAction=taggedAction
 taggedBegin({cardType="Starting"},{"Red"},1,0,true)
 translatedEnv.gStates.proxyTurnReport.target="Mage Tower"
 translatedEnv.gStates.proxyTurnReport.sourceRerollColor="Gold"
-local tagged=translatedEnv.joinLangParse(taggedRender("headline"))
-assert(tagged.en=="Proxy moved toward the Mage Tower, and rolled a Source die.",
+local tagged=taggedRender("headline")
+local function languageFragment(text,lang)
+    return text:match("{"..lang.."}(.-){") or text:match("{"..lang.."}(.*)$")
+end
+assert(languageFragment(tagged,"en")=="Proxy moved toward the Mage Tower, and rolled a Source die.",
     "Localised English headline has misplaced punctuation")
-assert(tagged["zh-cn"]:find("，并重掷了一颗魔力源骰。",1,true),
+assert(languageFragment(tagged,"zh-cn"):find("，并重掷了一颗魔力源骰。",1,true),
     "Chinese Source reroll suffix missing from translated sentence")
-assert(tagged.it:find("e ha ritirato un dado della Fonte.",1,true),
+assert(languageFragment(tagged,"it"):find("e ha ritirato un dado della Fonte.",1,true),
     "Italian Source reroll suffix missing from translated sentence")
+assert(not renderCode:find("joinLangParse(",1,true),
+    "Proxy report called module-private joinLangParse instead of its public helper")
 
 -- Smaller report details use their own Text16 element, not runtime XML tags.
 -- This avoids modifying the shared Volkare/Dummy font or writing unsafe markup
