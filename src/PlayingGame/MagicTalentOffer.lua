@@ -380,6 +380,14 @@ function magicTalentSync()
         end
         return
     end
+    if s.mode=="basic" then
+        if s.cardGUID==nil then
+            s.order=offerOrder(s.color)
+            s.index=1
+            if #s.order>0 then borrow(s,1) end
+        end
+        return
+    end
     if s.mode~="strong" then return end
     local paid=strongColor(seat)
     if paid==nil then
@@ -392,7 +400,18 @@ function magicTalentSync()
         s.order=offerOrder(paid)
         s.index=1
     end
-    if s.cardGUID==nil and #s.order>0 then borrow(s,1) end
+    if s.cardGUID==nil then
+        s.order=offerOrder(s.color)
+        s.index=1
+        if #s.order>0 then borrow(s,1) end
+    end
+end
+
+-- Return the real Spell before the offer's grid counts/moves its cards.
+-- The saved basic/strong entitlement survives this temporary reflow.
+function magicTalentOfferWillChange()
+    local s=state()
+    if s~=nil and s.cardGUID~=nil then returnPreview(s,true) end
 end
 
 function magicTalentScheduleCheck()
