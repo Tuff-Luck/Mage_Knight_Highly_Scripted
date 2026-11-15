@@ -295,6 +295,8 @@ end
 -- disband/replacement. A Command source is supplied explicitly so recruitment
 -- can retire the previous Unit's spent flag even when it is still this Round.
 local fillWait=false
+function cardFlowUnitClaimBusy() return fillWait end
+
 function cardFlowClaimUnitAtSlot(claimedCard,seatPos,unitX,layout,commandSource,onSettled)
     if fillWait or claimedCard==nil or seatPos==nil or unitX==nil or layout==nil then return false end
     local claimedGUID=claimedCard.guid
