@@ -320,8 +320,12 @@ function processCardClaim(player, mouseButton, id, rewindReady)
 					else
 						claimedCard.setPosition({claimedCard.getPosition()[1], claimedCard.getPosition()[2]+3, claimedCard.getPosition()[3]})
 					end
-					cardClaim=true
-					safeWaitTime("PlayerBoard.CardFlow",function() cardClaim=false end, 2)
+					--Tactics go to the player board, not the Deed deck. Do not delay Great Start's
+					--immediate draw behind the ordinary Deed-transfer claim pause.
+					if tacticSource~=true then
+						cardClaim=true
+						safeWaitTime("PlayerBoard.CardFlow",function() cardClaim=false end, 2)
+					end
 					--add decal to tactic if playing Ultimate Conquest
 					if gStates.gameScenario=="Ultimate Conquest" then
 						for _, mage2 in pairs(mageKnights) do
