@@ -902,6 +902,14 @@ function __onObjectDestroy_raw(destroyedObj)
 	if destroyedObj==nil then return end
 	attackAssignmentsClearForObject(destroyedObj)
 	local destroyedGuid=destroyedObj.guid
+    -- A deliberately destroyed Unit must not leave old activation and Ready
+    -- links behind. Do not erase its Command's spent state until a NEW Unit
+    -- is recruited into that capacity.
+    local destroyedData=destroyedGuid~=nil and gameCards[destroyedGuid] or nil
+    if destroyedData~=nil and (destroyedData.cardType=="Regular Unit"
+        or destroyedData.cardType=="Elite Unit") and resourceUnitsRetireUnit~=nil then
+        resourceUnitsRetireUnit(destroyedGuid)
+    end
 	protectedObjectDestroyAudit(destroyedGuid)
 	if runtimeMapContainsGUID(destroyedGuid)==true then
 		if terrainTiles[destroyedGuid]~=nil then runtimeMapInvalidateTerrain() else runtimeMapInvalidateObjects() end
