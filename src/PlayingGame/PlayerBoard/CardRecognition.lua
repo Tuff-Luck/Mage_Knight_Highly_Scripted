@@ -4377,10 +4377,10 @@ function resourceCardsCombatForgetSource(sourceGUID)
     combatAssignmentState.explicit[sourceGUID]=nil
 end
 
--- Both numeric and effect-only Unit sources must lose their Combat Calculator
--- locks when a temporary offer Unit is returned; otherwise the next scan can
--- regenerate its arrow from a stale target.
-local function combatForgetBorrowedUnitTargets(unitGUID)
+-- Clear every target key owned by a physical card or Unit (including split
+-- keys). Choice changes and borrowed Unit cleanup must not leave hidden locks
+-- that regenerate arrows during the next Combat Calculator scan.
+local function combatForgetPhysicalSourceTargets(unitGUID)
     local prefix=unitGUID.."#"
     for key in pairs(combatAssignmentState.targets) do
         if key==unitGUID or key:sub(1,#prefix)==prefix then
@@ -10675,6 +10675,32 @@ function resourceCardsChoiceClicked(player,value,id)
     end
     local valid=choiceAvailable(choices,category)
     if not valid then return end
+    -- Any card whose newly selected effect is Move-only must start without
+    -- an enemy assignment. Move can Block Cumbersome, but only when the
+    -- player explicitly targets it; never carry an old Attack/Block arrow.
+    local previousCategory=nil
+    if repeatIndex~=nil then
+        _,previousCategory=combatConfig.repeatChoiceFor(guid,powered,choices,repeatIndex)
+    elseif setIndex~=nil then
+        _,previousCategory=inventorySetChoice(guid,setIndex,choices,mainChoices)
+    else
+        _,previousCategory=currentChoice(guid,powered,choices,sideways)
+    end
+    local selectedMoveOnly=false
+    if previousCategory~=category then
+        for _,option in ipairs(choices or {}) do
+            if choiceCategory(option)==category and (tonumber(option.move) or 0)>0 then
+                selectedMoveOnly=true
+                for _,field in ipairs(combatConfig.sourceFields) do
+                    if (tonumber(option[field.key]) or 0)>0 then
+                        selectedMoveOnly=false
+                        break
+                    end
+                end
+                break
+            end
+        end
+    end
     local rowId=repeatIndex~=nil and ("rep"..repeatIndex)
         or setIndex~=nil and ("set"..setIndex) or "base"
     local currentlyExpanded=choiceExpandedByGUID[guid]
@@ -10702,6 +10728,13 @@ function resourceCardsChoiceClicked(player,value,id)
         selected.sideways=category
     end
     selectedResourceByGUID[guid]=selected
+    if selectedMoveOnly then
+        -- Clear both the saved arrow and the independent calculator lock
+        -- before the rescan. The newly selected Move stays available for
+        -- a deliberate new target, but does not auto-Block any enemy.
+        combatForgetPhysicalSourceTargets(guid)
+        if attackAssignmentsClearForObject~=nil then attackAssignmentsClearForObject(guid) end
+    end
     if data~=nil and data.resourceKey=="rejuvenate" then
         gStates.unitReadyCardChoices=gStates.unitReadyCardChoices or {}
         gStates.unitReadyCardChoices[guid]=selected.effect=="ready" or nil
@@ -11167,7 +11200,7 @@ function resourceUnitsBorrowedUnitEnded(guid)
     end
     -- Retire the old Unit's combat source first. A failed Object UI update
     -- must never leave its target arrow behind when Call to Arms cycles.
-    combatForgetBorrowedUnitTargets(guid)
+    combatForgetPhysicalSourceTargets(guid)
     if attackAssignmentsClearForObject~=nil then attackAssignmentsClearForObject(guid) end
     if attackAssignmentsPruneUnitChoiceSources~=nil then
         attackAssignmentsPruneUnitChoiceSources(guid,{})
