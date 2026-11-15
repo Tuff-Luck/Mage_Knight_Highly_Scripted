@@ -97,6 +97,11 @@ function unitReplacementClose()
     local state=replacementState()
     if state~=nil then replacementClearVisuals(state) end
     if gStates~=nil then gStates.unitReplacementPending=nil end
+    -- The temporary selection highlight replaces the Resource Tracker's
+    -- normal Unit highlights. Restore those after cancelling or completing.
+    if state~=nil and resourceCardsSourceChanged~=nil then
+        resourceCardsSourceChanged()
+    end
 end
 
 local function replacementRender(state)
