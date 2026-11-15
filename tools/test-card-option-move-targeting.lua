@@ -151,6 +151,13 @@ assert(registered[pure]==nil and targetState.targets[pure]==nil
 assert(#state.attackAssignments==0,
     "Removed Pure Magic target must also disappear from saved assignments")
 
+-- The same gold-powered Pure Magic must drop its old Block target too.
+prepare(pure,"pureMagic",rules.pureMagic.poweredChoices,true,"block")
+clickMove(pure)
+assert(registered[pure]==nil and targetState.targets[pure]==nil
+    and targetState.explicit[pure]==nil,
+    "Pure Magic Block arrow and calculator lock must disappear on selecting Move")
+
 -- Another card with a Move alternative must obey the same rule; dependent
 -- split keys must be cleared without deleting other cards' assignments.
 local other="c137e0"
