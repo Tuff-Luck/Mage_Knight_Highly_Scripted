@@ -661,6 +661,9 @@ local function turnAdvanceCompletedTurnLifecycle()
 end
 
 local function turnFinishCompletedTurnUI()
+    -- A pending full-board recruit is only a choice; no Unit was taken.
+    -- Do not leave stale selection buttons on the next player's board.
+    if unitReplacementClose~=nil then unitReplacementClose() end
     callOfferClose(false)
     trainingOfferClose(true)
 	resourceUnitsResetTurn()
