@@ -269,15 +269,42 @@ local function unitReplacementConfirm(player)
             if pending~=nil then replacementRender(pending) end
             return
         end
+        -- A spent token can physically cover the discarded card. Move it to
+        -- the actual READY snap before placing the new Unit; clearing its
+        -- history flag alone would leave the replacement visibly spent.
+        local tokenOnOld=unitLayoutCommandTarget(command,pending.seatPos)
+        local readyPosition=nil
+        if tokenOnOld~=nil and tokenOnOld.guid==oldUnit.guid then
+            readyPosition=unitLayoutReadyCommandPosition(pending.seatPos,
+                currentLayout.unitSlotByGuid[oldUnit.guid],currentLayout)
+            if readyPosition==nil then
+                rewindTransactionFinish(owner)
+                broadcastToColor("{en}Cannot find the Command Ready snap. Move the Command above the Unit and try again.{it}Posizione Comando pronto non trovata. Sposta il segnalino e riprova.{ru}Позиция готового жетона не найдена. Переместите жетон и повторите.",player.color,warningColor)
+                return
+            end
+        end
         replacementDetachAccessories(currentLayout,oldUnit,pending.seatPos)
         if resourceUnitsRetireUnit~=nil then resourceUnitsRetireUnit(oldUnit.guid) end
+        if readyPosition~=nil then command.setPositionSmooth(readyPosition,false,false) end
         trash.putObject(oldUnit)
-        -- Claiming and disbanding share ONE rewind point. This rest callback
-        -- releases the protection after the replacement reaches its slot.
+        -- Claiming and disbanding share ONE rewind point. Release it only
+        -- after both the replacement Unit and its reused Command have settled.
+        local commandGUID=command.guid
         local claimedOK=cardFlowClaimUnitAtSlot(newUnit,pending.seatPos,x,currentLayout,
             command,function()
-                rewindTransactionFinish(owner)
-                if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
+                local function completed()
+                    rewindTransactionFinish(owner)
+                    if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
+                end
+                if readyPosition==nil then
+                    completed()
+                else
+                    safeWaitCondition("PlayerBoard.UnitReplacement",completed,function()
+                        local token=getObjectFromGUID(commandGUID)
+                        return token==nil or (token.resting==true
+                            and token.isSmoothMoving()==false)
+                    end,8,completed)
+                end
             end)
         if claimedOK then
             unitReplacementClose()
