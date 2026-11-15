@@ -4316,10 +4316,10 @@ end
 -- Ambush can augment exactly one played card's first Attack or Block. This
 -- pool is shared by the target buttons and the calculation, rather than
 -- requiring the cards to physically touch.
-combatConfig.ambushCombatCategories={"attack","attackFire","attackIce","attackColdFire",
-    "ranged","rangedFire","rangedIce","rangedColdFire",
-    "siege","siegeFire","siegeIce","siegeColdFire",
-    "block","blockFire","blockIce","blockColdFire"}
+combatConfig.ambushCombatCategories={"attack","attackFire","attackIce","attackColdFire","attackPsychic",
+    "ranged","rangedFire","rangedIce","rangedColdFire","rangedPsychic",
+    "siege","siegeFire","siegeIce","siegeColdFire","siegePsychic",
+    "block","blockFire","blockIce","blockColdFire","blockPsychic"}
 combatConfig.ambushEligibleTarget=function(guid,record,sourceGUID)
     if guid==sourceGUID or record==nil or record.resources==nil then return false end
     local data=gameCards[guid]
