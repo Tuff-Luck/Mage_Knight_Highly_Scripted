@@ -5106,10 +5106,19 @@ local function combatReductionChoiceIcon(rule,powered,choice,category)
     return icon
 end
 
+-- Keep card-attached controls intact while a card is being rearranged.
+-- During a pickup TTS can momentarily report the card as tilted/discarded
+-- or outside the thin play scripting zone; only the settled scan may remove
+-- its controls for a genuinely changed posture or area.
+combatConfig.cardInTransit=function(card)
+    return card~=nil and ((card.held_by_color~=nil and card.held_by_color~="")
+        or card.isSmoothMoving())
+end
+
 -- A single selected icon is centred on the object. Click to expand all
 -- choices; selecting one immediately collapses back to its icon.
 local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySets,resources,repeatLink)
-    if card==nil then return end
+    if card==nil or combatConfig.cardInTransit(card) then return end
     local cardData=gameCards[card.guid]
     local rule=cardData~=nil and cardResourceDefinitions[cardData.resourceKey]
         or skillResourceDefinitions[card.guid]
@@ -5363,7 +5372,22 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             ..tostring(special.recruited)..":"..tostring(special.terrain)) or "")
         ..":READY:"..tostring(readyCount)..":"..table.concat(readyLinks,",")
         ..":TARGETS:"..tostring(trackerPrivate.singleAutoEnemyGUID)
-    if choiceButtonShown[card.guid]==signature then return end
+    if choiceButtonShown[card.guid]==signature then
+        -- The interaction toggle is not a choice icon, and other object UI
+        -- owners may have rewritten the XML while the card was being moved.
+        -- Reconcile this one persistent control even when the resource/choice
+        -- signature has not changed (Noble Manners keeps its Fame/Rep state).
+        if rule==nil or rule.interactionReward==nil then return end
+        local expected="ResourceCardChoice_"..card.guid.."_interaction"
+        local found=false
+        for _,element in ipairs(resourceObjectUiXmlTable(card.UI)) do
+            if element.attributes~=nil and element.attributes.id==expected then
+                found=true
+                break
+            end
+        end
+        if found then return end
+    end
     local xml=resourceObjectUiXmlTable(card.UI)
     for i=#xml,1,-1 do
         local attr=xml[i].attributes
@@ -10336,14 +10360,17 @@ local function renderSeat(seatPos)
         if current[guid]~=true then
             combatConfig.sacrificeCastPairs[guid]=nil
             clearHighlight(guid)
-            if choiceButtonShown[guid]~=nil and choiceButtonShown[guid]~="hidden" then
-                removeChoiceButtons(getObjectFromGUID(guid))
+            local previousObject=getObjectFromGUID(guid)
+            if not combatConfig.cardInTransit(previousObject) then
+                if choiceButtonShown[guid]~=nil and choiceButtonShown[guid]~="hidden" then
+                    removeChoiceButtons(previousObject)
+                end
+                -- A genuinely removed card must rebuild its controls on re-entry.
+                -- Preserve the existing object UI and its signature during
+                -- transient lifts; the settled drop scan owns their cleanup.
+                choiceButtonShown[guid]=nil
+                choiceExpandedByGUID[guid]=nil
             end
-            -- Drop cached hidden state so cards are inspected on re-entry.
-            choiceButtonShown[guid]=nil
-            -- Keep the chosen resource, even if the object briefly leaves the
-            -- zone while being dragged. The collapsed UI is rebuilt on return.
-            choiceExpandedByGUID[guid]=nil
             -- A used Skill leaves play at end of turn; do not allow the
             -- previous turn's Block link to be silently reused next turn.
             local rule=skillResourceDefinitions[guid]
