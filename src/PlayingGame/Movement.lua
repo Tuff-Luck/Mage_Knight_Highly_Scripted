@@ -97,6 +97,54 @@ end
 
 moveDisplayAutoPause=nil
 moveDisplayBaseVectorLines=nil
+
+-- TTS checkpoints retain Global vector lines, but moveDisplayBaseVectorLines is
+-- runtime-only. Discard saved route overlays before the tracker can capture them
+-- as 'other' lines on load. Use the specific route styles AND their fixed map
+-- height so ordinary player drawings and combat assignment arrows survive.
+local moveDisplaySavedRouteStyles={
+    {color={0.50,0.50,0.50},thickness=0.07}, -- normal movement
+    {color={0.20,0.70,1.00},thickness=0.12}, -- teleport
+    {color={0.28,0.86,0.57},thickness=0.11}, -- leap
+    {color={0.72,0.45,1.00},thickness=0.07}, -- tunnel
+}
+local function moveDisplayIsSavedRouteLine(line)
+    if type(line)~="table" or type(line.points)~="table"
+        or #line.points~=2 or type(line.thickness)~="number" then return false end
+    for _,point in ipairs(line.points) do
+        if type(point)~="table" then return false end
+        local height=point[2] or point.y
+        if type(height)~="number" or math.abs(height-1.22)>0.025 then return false end
+    end
+    local color=line.color
+    if type(color)~="table" then return false end
+    local red,green,blue=color[1] or color.r,color[2] or color.g,color[3] or color.b
+    if type(red)~="number" or type(green)~="number" or type(blue)~="number" then return false end
+    if red>1 or green>1 or blue>1 then red,green,blue=red/255,green/255,blue/255 end
+    for _,style in ipairs(moveDisplaySavedRouteStyles) do
+        if math.abs(line.thickness-style.thickness)<0.001
+            and math.abs(red-style.color[1])<0.02
+            and math.abs(green-style.color[2])<0.02
+            and math.abs(blue-style.color[3])<0.02 then return true end
+    end
+    return false
+end
+
+function moveDisplayDiscardSavedRouteLines()
+    local existing=Global.getVectorLines() or {}
+    local retained={}
+    local removed=false
+    for _,line in ipairs(existing) do
+        if moveDisplayIsSavedRouteLine(line) then
+            removed=true
+        else
+            retained[#retained+1]=line
+        end
+    end
+    if removed then Global.setVectorLines(retained) end
+    moveDisplayBaseVectorLines=nil
+end
+
 moveDisplayRefreshDelay=0.75
 moveDisplayTerrainCache={signature=nil, hexMap=nil}
 moveDisplayTextSlotRequests={}
