@@ -275,6 +275,7 @@ function eventsOnLoadRawBase(saved_data, loaded_data)
     safeWaitFrames("Events",function() resourceCardsOnLoad() end,4)
     safeWaitFrames("Events",function() callOfferRestoreOnLoad() end,4)
     safeWaitFrames("Events",function() trainingOfferRestoreOnLoad() end,4)
+    safeWaitFrames("Events",function() unitReplacementRestoreOnLoad() end,4)
 	UI.setAttribute("CoopAssaultMainTableText3", "active", "false")
 	--The wall assault interface is only shown when the assault entry side cannot be determined automatically.
 	UI.hide("WallAssaultChoice")
