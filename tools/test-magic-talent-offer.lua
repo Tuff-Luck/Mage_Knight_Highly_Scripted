@@ -92,13 +92,13 @@ gStates={firstStarted=true,turnNumber=1,tacticShown=false,tacticRemove=false}
 cardEffectIsVertical=function() return true end
 ttsVectorArray=copy
 local payments={}
-magicTalentManaPayments=function() return payments end
+magicTalentManaPayments=function(_seat) return payments end
 resourceCardsGoldAllowed=function() return true end
 resourceCardsTimeBendingPaid=function() return true end
 resourceCardScanBySeat={[1]={cards={}}}
 resourceCardsSourceChanged=function() end
 playAreaScaleForgetObject=function() end
-combatForgetPhysicalSourceTargets=function() end
+combatForgetPhysicalSourceTargets=function(_guid) end
 attackAssignmentsClearForObject=function() end
 scheduleDeedPileDescriptionRefresh=function() end
 warningColor={1,0.8,0.2}
