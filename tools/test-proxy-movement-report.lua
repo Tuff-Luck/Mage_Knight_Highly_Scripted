@@ -93,7 +93,9 @@ assert(offerResult:find("Proxy moved 2 spaces and\ntook Scouts from the offer.",
 assert(not offerResult:find("rolled a Source die.",1,true),
     "Source reroll was reported even though no die was rolled")
 
--- Only a successful Source reroll adds the extra detail, including the original die colour.
+-- Only a successful Source reroll amends the first sentence. The report
+-- still tracks the original die colour internally, even though no separate
+-- colour line is shown.
 local rollCount=0
 local die={randomize=function() rollCount=rollCount+1 end}
 env.GUID={zone={mana="source-zone"}}
@@ -139,4 +141,49 @@ local used,choices,rolledColor=useSource({"White"})
 assert(used==true and choices==nil and rolledColor=="White",
     "Automatic Source reroll colour was not returned for the new report")
 assert(rollCount==2,"Automatic Source reroll should roll exactly once")
+-- Production localisation emits all language tags, unlike the English
+-- helper above. Verify that appending the Source die sentence preserves those
+-- tags and joins punctuation correctly for English and Chinese.
+local shared=read("src/Shared.lua")
+local langCode=slice(shared,"local JOIN_LANG_ORDER=",
+    "--Reapply translated static UI text once at load")
+local translatedEnv={
+    gStates={proxyState="PickRoute"},
+    translateWord={Gold="Gold"},
+    gameCardType=env.gameCardType,
+    proxyCardDisplayName=env.proxyCardDisplayName,
+    proxyLocalizedTerm=env.proxyLocalizedTerm,
+    proxyLocalizedReason=env.proxyLocalizedReason,
+    proxyLocalizedColorList=env.proxyLocalizedColorList
+}
+setmetatable(translatedEnv,{__index=_G})
+local taggedFunctions=assert(load(langCode.."\n"..beginCode.."\n"
+    ..actionCode.."\n"..renderCode
+    .."\nreturn proxyTurnReportBegin,proxyLocalizedAction,proxyTurnReportText",
+    "Proxy multilingual report","t",translatedEnv))
+local taggedBegin,taggedAction,taggedRender=taggedFunctions()
+translatedEnv.proxyLocalizedAction=taggedAction
+taggedBegin({cardType="Starting"},{"Red"},1,0,true)
+translatedEnv.gStates.proxyTurnReport.target="Mage Tower"
+translatedEnv.gStates.proxyTurnReport.sourceRerollColor="Gold"
+local tagged=translatedEnv.joinLangParse(taggedRender("headline"))
+assert(tagged.en=="Proxy moved toward the Mage Tower, and rolled a Source die.",
+    "Localised English headline has misplaced punctuation")
+assert(tagged["zh-cn"]:find("，并重掷了一颗魔力源骰。",1,true),
+    "Chinese Source reroll suffix missing from translated sentence")
+assert(tagged.it:find("e ha ritirato un dado della Fonte.",1,true),
+    "Italian Source reroll suffix missing from translated sentence")
+
+-- Smaller report details use their own Text16 element, not runtime XML tags.
+-- This avoids modifying the shared Volkare/Dummy font or writing unsafe markup
+-- to a saved Global UI.
+local panel=read("src/PlayingGame/UI.lua")
+local panelXml=read("src/UI/MainGame.xml")
+assert(panelXml:find('id="DummyDetails" class="Text16"',1,true),
+    "Proxy detail font should use the smaller Text16 class")
+assert(panel:find('proxyTurnReportText("headline")',1,true)
+    and panel:find('proxyTurnReportText("details")',1,true)
+    and panel:find('UI.setAttribute("DummyDetails","active"',1,true),
+    "Proxy panel should independently render headline and detail text")
+
 print("Proxy movement, offer, and Source reroll summary regressions passed")
