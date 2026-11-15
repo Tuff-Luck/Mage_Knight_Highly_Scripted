@@ -134,7 +134,10 @@ local actionEnv=setmetatable({
     resourceCardsCombatTargetObjects=function() return {[enemyGUID]=enemy} end,
     resourceCardsCombatTargetAcceptsMove=function(guid) return guid==enemyGUID end,
     resourceCardsCombatTargetAcceptsSource=function() return true end,
-    resourceCardsCombatAssignSource=function(guid,target) combatLocks[guid]=target end,
+    resourceCardsCombatAssignSource=function(guid,target)
+        combatLocks[guid]=target
+        changeCount=changeCount+1 -- The real calculator also reschedules its scan.
+    end,
     attackAssignmentsKindFor=function() return "other" end,
     getObjectFromGUID=env.getObjectFromGUID,
     safeCallback=function(_,fn) return fn() end,
