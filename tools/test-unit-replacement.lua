@@ -90,6 +90,9 @@ local owner={
 local candidate={guid="def002",offered=true,resting=true,UI={nodes={}}}
 local wound={guid="aaa123",wound=true,x=0,z=-34.74}
 local banner={guid="bba123",moved=false}
+local mana={guid="cba123",staged=false}
+mana.getPosition=function() return {x=0,y=1.5,z=-34.74} end
+mana.setPositionSmooth=function(pos) mana.staged=pos end
 local command={guid="c0a001",resting=true,moved=false}
 command.isSmoothMoving=function() return false end
 command.setPositionSmooth=function(pos)
@@ -98,7 +101,7 @@ command.setPositionSmooth=function(pos)
 end
 local bonusCommand={guid="c0b002"}
 local woundReturned,oldTrashed,newClaimed=false,false,false
-for _,obj in ipairs({owner,candidate,wound,banner,command,bonusCommand}) do objects[obj.guid]=obj end
+for _,obj in ipairs({owner,candidate,wound,banner,mana,command,bonusCommand}) do objects[obj.guid]=obj end
 owner.getBounds=function() return owner.bounds end
 owner.getPosition=function() return {x=0,y=1,z=-34.74} end
 owner.highlightOn=function() end
@@ -122,7 +125,7 @@ local function layout()
     local result={
         commands={command,bonusCommand},
         units={},unitBySlot={},unitSlotByGuid={},
-        slotX={[1]=0,[2]=5},objects={wound,banner,command,bonusCommand}
+        slotX={[1]=0,[2]=5},objects={wound,banner,mana,command,bonusCommand}
     }
     if owner.inUnit then
         result.units[1]=owner
@@ -163,6 +166,9 @@ local env={
     unitLayoutResourceState=function() return {bannersByUnit={
         [owner.guid]={artifact={guid=banner.guid}}}} end,
     unitLayoutIsWound=function(obj) return obj.wound==true end,
+    unitLayoutIsUnit=function(obj) return obj==owner or obj==candidate end,
+    unitLayoutIsCommand=function(obj) return obj==command or obj==bonusCommand end,
+    unitLayoutX=function() return -6 end,
     legalPlayerCheck=function(color,seat) return color=="Red" and seat==1 end,
     objectGUIDInZone=function(guid,zone)
         return guid==candidate.guid and zone=="unitOffer" and candidate.offered
@@ -249,6 +255,8 @@ assert(savedSnapshot and finished and oldTrashed and newClaimed,
     "Confirmation must replace the old Unit inside the rewind transaction")
 assert(woundReturned,"The disbanded Unit's Wounds should return to the pool")
 assert(banner.moved,"An attached Banner should move to the discard area")
+assert(type(mana.staged)=="table" and mana.staged[3]==-40.3,
+    "Attached mana/reminders must be staged away from the replacement Unit")
 assert(objects[command.guid]~=nil and objects[bonusCommand.guid]~=nil,
     "Command tokens and Banner/Bonds capacity must survive replacement")
 assert(command.moved and command.position[3]==-39,
