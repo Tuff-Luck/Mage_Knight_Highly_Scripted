@@ -175,6 +175,17 @@ function magicTalentReservedCard(guid)
     return returning[guid]==true or (s~=nil and s.cardGUID==guid)
 end
 
+-- Time Bending borrowed through Magic Talent must set aside Magic Talent,
+-- not the Spell owned by the public offer. The normal extra-turn check still
+-- validates the real blue + black casting mana on the loaned Spell.
+function magicTalentBorrowedTimeBendingPaid(seat)
+    local s=state()
+    if s==nil or s.mode~="basic" or s.seatPos~=seat
+        or s.cardGUID~=GUID.card.timeBending then return false end
+    local spell=getObjectFromGUID(s.cardGUID)
+    return spell~=nil and resourceCardsTimeBendingPaid(seat,spell)==true
+end
+
 local function borrow(s,index)
     local guid=s.order[index]
     local card=guid~=nil and getObjectFromGUID(guid) or nil
@@ -256,7 +267,7 @@ local function claim(s)
     s.cardGUID,s.home=nil,nil
     s.mode="claimed"  -- A paid claim cannot restart on the next mana refresh.
     clean(gained)
-    gained.UI.setXmlTable({{}})
+    gained.UI.setXml("")
     for _,player in ipairs(turnOrder) do
         if player.seatPos==s.seatPos then
             local inventory=player.deadDeckInventory or {}
@@ -414,7 +425,7 @@ function magicTalentOfferWillChange()
     if s~=nil and s.cardGUID~=nil then returnPreview(s,true) end
 end
 
-function magicTalentScheduleCheck()
+function magicTalentScheduleCheck(movedGUID)
     settleSerial=settleSerial+1
     local serial=settleSerial
     safeWaitFrames("Offers.MagicTalent",function()
@@ -424,8 +435,11 @@ function magicTalentScheduleCheck()
         end,function()
             if serial~=settleSerial then return true end
             local card=getObjectFromGUID(MAGIC_TALENT_GUID)
-            return card==nil or (card.held_by_color==nil
+            local moved=movedGUID~=nil and getObjectFromGUID(movedGUID) or nil
+            local ready=card==nil or (card.held_by_color==nil
                 and card.resting and not card.isSmoothMoving())
+            return ready and (moved==nil or (moved.held_by_color==nil
+                and moved.resting and not moved.isSmoothMoving()))
         end,8)
     end,2)
 end
@@ -444,7 +458,7 @@ function magicTalentObjectDropped(playerColor,obj)
         end
     end
     -- Ignore unrelated table drops; the live Magic Talent/loan is all that matters.
-    if s~=nil or talentInPlay(currentSeat()) then magicTalentScheduleCheck() end
+    if s~=nil or talentInPlay(currentSeat()) then magicTalentScheduleCheck(obj.guid) end
 end
 
 function magicTalentRestoreOnLoad()
