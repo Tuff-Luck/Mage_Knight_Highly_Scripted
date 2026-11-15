@@ -165,7 +165,8 @@ function magicTalentClose(immediate)
     local s=state()
     if s~=nil then returnPreview(s,immediate==true) end
     if gStates~=nil then gStates.magicTalentPreview=nil end
-    if immediate==true then fromHand={} returning={} end
+    fromHand={}
+    if immediate==true then returning={} end
 end
 
 -- Do not allow the ordinary Offer claim path to consume a temporary preview.
@@ -219,7 +220,7 @@ local function paymentStillOnSpell(s)
     -- sole authority; this works for normal, powered and utility Spells.
     local scan=resourceCardScanBySeat~=nil and resourceCardScanBySeat[s.seatPos] or nil
     local record=scan~=nil and scan.cards~=nil and scan.cards[s.cardGUID] or nil
-    return record~=nil and record.resources~=nil and record.complete==true
+    return record~=nil and record.spellCastPaid==true
 end
 
 local function cycle(s,delta)
@@ -423,7 +424,8 @@ function magicTalentObjectDropped(playerColor,obj)
             end
         end
     end
-    if obj.type=="Card" or magicTalentManaPayments~=nil then magicTalentScheduleCheck() end
+    -- Ignore unrelated table drops; the live Magic Talent/loan is all that matters.
+    if s~=nil or talentInPlay(currentSeat()) then magicTalentScheduleCheck() end
 end
 
 function magicTalentRestoreOnLoad()
