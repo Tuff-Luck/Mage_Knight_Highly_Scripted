@@ -25,16 +25,26 @@ assert(arrows:find('getObjectFromGUID(targetGUID),assignmentColors.other)',1,tru
     "The separate card bonus must draw a purple arrow")
 assert(arrows:find('for sourceGUID,targetGUID in pairs(gStates~=nil and gStates.ambushCombatLinks or {})',1,true),
     "The saved bonus must survive independent enemy-target changes")
+assert(arrows:find('if resourceCardsPanelOpen~=nil and resourceCardsPanelOpen() then\n        for sourceGUID,targetGUID in pairs(gStates~=nil and gStates.ambushCombatLinks or {}) do',1,true),
+    "Ambush's purple arrow must use the exported tracker visibility API")
+local postureDeclaration=assert(reader:find('local function cardPosture(card)',1,true))
+local ambushDeclaration=assert(reader:find('combatConfig.ambushEligibleTarget=',1,true))
+assert(postureDeclaration<ambushDeclaration,
+    "Ambush must bind to the local posture helper declared before its callbacks")
 
 local sourceGUID,attackGUID,blockGUID,enemyGUID="20cb85","a1b2c3","d4e5f6","ee1200"
 local source={guid=sourceGUID,posture="upright",is_face_down=false,
-    isDestroyed=function() return false end}
+    isDestroyed=function() return false end,
+    getRotation=function() return {0,0,0} end}
 local attack={guid=attackGUID,posture="upright",is_face_down=false,
-    isDestroyed=function() return false end}
+    isDestroyed=function() return false end,
+    getRotation=function() return {0,0,0} end}
 local block={guid=blockGUID,posture="upright",is_face_down=false,
-    isDestroyed=function() return false end}
+    isDestroyed=function() return false end,
+    getRotation=function() return {0,0,0} end}
 local enemy={guid=enemyGUID,posture="upright",is_face_down=false,
-    isDestroyed=function() return false end}
+    isDestroyed=function() return false end,
+    getRotation=function() return {0,0,0} end}
 local objects={[sourceGUID]=source,[attackGUID]=attack,[blockGUID]=block,[enemyGUID]=enemy}
 local cards={[sourceGUID]={resourceKey="ambush",cardType="Advanced Action"},
     [attackGUID]={cardType="Starting"},[blockGUID]={cardType="Advanced Action"}}
@@ -49,15 +59,16 @@ local env={
     combatConfig={},gameCards=cards,cardResourceDefinitions=rule,gStates=gStates,
     turnOrder={{seatPos=1}},resourceCardScanBySeat={[1]={cards=records}},
     getObjectFromGUID=function(guid) return objects[guid] end,
-    cardPosture=function(card) return card.posture end,
     resourceCardsPanelOpen=function() return true end,
     resourceCardsDetailsOpen=function() return true end,
     setHighlight=function() end
 }
 setmetatable(env,{__index=_G})
-local helpers=section(reader,"combatConfig.ambushCombatCategories=",
+local helpers=section(reader,"-- Separate the three physical orientations.",
     "-- Paging changes visible rows")
 assert(load(helpers,"Ambush candidate eligibility","t",env))()
+assert(env.cardPosture==nil,
+    "Ambush must work through the local posture helper, not a global mock")
 local targetCards=env.resourceCardsAmbushLinkTargets(sourceGUID)
 assert(targetCards[attackGUID]==attack and targetCards[blockGUID]==block,
     "Remote Attack and Block cards must be selectable regardless of overlap")
@@ -82,7 +93,8 @@ local calcEnv=setmetatable({
     overlapArea=function(a,b)
         return a.id==sourceGUID and b.id==blockGUID and 10 or 0
     end,
-    cardPosture=env.cardPosture,getObjectFromGUID=env.getObjectFromGUID,
+    cardPosture=function(card) return card.posture end,
+    getObjectFromGUID=env.getObjectFromGUID,
     setHighlight=function() end
 },{__index=env})
 local function calculateWith(sourcePowered,targetGUID,targetFamily)
