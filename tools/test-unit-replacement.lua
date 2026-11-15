@@ -94,10 +94,11 @@ assert(not commandSpent(tokenGUID) and commandOwner(tokenGUID)==nil,
 local attrs,objects={},{}
 local owner={
     guid="abc001",inUnit=true,x=0,resting=true,
-    bounds={center={x=0,y=1,z=-34.74},size={x=2,y=0.1,z=3}},
+    bounds={center={x=0,y=1,z=-34.74},size={x=2,y=0.1,z=3,[1]=2,[2]=0.1,[3]=3}},
     UI={nodes={}},buttons={}
 }
 local candidate={guid="def002",offered=true,resting=true,UI={nodes={}}}
+candidate.getButtons=function() return {} end
 local wound={guid="aaa123",wound=true,x=0,z=-34.74}
 local banner={guid="bba123",moved=false}
 local mana={guid="cba123",staged=false}
@@ -171,6 +172,17 @@ local clearedHistory=false
 local closeCount=0
 local env={
     gStates=state,UI=ui,Global={name="Global"},
+    joinLang=function(parts)
+        local output={}
+        for _,part in ipairs(parts) do
+            if type(part)=="string" and part:find("{en}",1,true) then
+                output[#output+1]=assert(part:match("^{en}(.-){it}"))
+            else
+                output[#output+1]=tostring(part)
+            end
+        end
+        return table.concat(output)
+    end,
     gameCards={
         [owner.guid]={cardType="Regular Unit",name={"Old Unit"}},
         [candidate.guid]={cardType="Elite Unit",name={"New Unit"}}},
@@ -243,12 +255,13 @@ env.publishPublicUICallbacks=function(funcs)
     for name,fn in pairs(funcs) do env[name]=fn end
 end
 assert(load(replacement,"Full Unit replacement","t",env))()
+owner.UI.nodes={{tag="Button",attributes={id="UnitReplaceSelect_"..owner.guid}}}
 assert(env.unitReplacementBegin({color="Red"},candidate.guid,1),
     "Full board must open the replacement choice")
 assert(attrs["UnitReplacement:active"]=="true" and not oldTrashed
     and candidate.offered,"Choice may not claim or trash until Unit is clicked")
 local description=attrs["UnitReplacementDescription:text"]
-assert(description:find("No free Command Tokens.\\nClick a Unit you wish to disband and Replace with New Unit.",1,true),
+assert(description:find("No free Command Tokens.\nClick a Unit you wish to disband and Replace with New Unit.",1,true),
     "The panel must show the requested two-line instruction and replacement name")
 assert(#owner.UI.nodes==0,"No visible DISBAND button must be added to Unit XML")
 assert(#owner.buttons==1 and owner.buttons[1].label==""
