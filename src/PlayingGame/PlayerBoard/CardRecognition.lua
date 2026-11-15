@@ -10942,9 +10942,10 @@ function resourceUnitsSpentCommands()
     local round=tonumber(gStates.currentRound) or 0
     local state=gStates.unitSpentCommandTokens
     if type(state)~="table" or state.round~=round then
-        state={round=round,tokens={}}
+        state={round=round,tokens={},owners={}}
         gStates.unitSpentCommandTokens=state
     end
+    state.owners=state.owners or {}
     return state.tokens
 end
 
@@ -10959,15 +10960,81 @@ function resourceUnitsSetCommandSpent(tokenGUID,spent)
     resourceUnitsSpentCommands()[tokenGUID]=spent==true and true or nil
 end
 
+-- The token's GUID is its Command capacity; the owner GUID identifies the
+-- Unit whose turn/round exhaustion it represents. A replacement must not
+-- inherit its predecessor's spent flag, but moving the SAME Unit may not
+-- erase it. Keep ownership alongside the existing round-long spent map.
+function resourceUnitsCommandOwner(tokenGUID)
+    if gStates==nil then return nil end
+    resourceUnitsSpentCommands()
+    return gStates.unitSpentCommandTokens.owners[tokenGUID]
+end
+
 function resourceUnitsRecordSpentCommands(seatPos)
     if gStates==nil or seatPos==nil then return end
     local spent=resourceUnitsSpentCommands()
+    local owners=gStates.unitSpentCommandTokens.owners
     local layout=unitLayoutSnapshot(seatPos)
     for _,token in ipairs(layout.commands) do
-        if unitLayoutCommandTarget(token,seatPos)~=nil then
+        local unit=unitLayoutCommandTarget(token,seatPos)
+        if unit~=nil then
             spent[token.guid]=true
+            owners[token.guid]=unit.guid
         end
     end
+end
+
+-- Called once a NEW Unit owns a vacated Command position, not on token pickup.
+-- Ordinary board movement is not an excuse to ready an old Unit: without an
+-- approved recruit, the prior owner must truly have left every Unit Area.
+function resourceUnitsAdoptCommand(tokenGUID,unitGUID,seatPos,approvedRecruit)
+    if gStates==nil or tokenGUID==nil or unitGUID==nil then return false end
+    resourceUnitsSpentCommands()
+    local owners=gStates.unitSpentCommandTokens.owners
+    local previous=owners[tokenGUID]
+    if previous==unitGUID then return true end
+    if approvedRecruit~=true then
+        if previous==nil or unitLayoutObjectInAnyUnitArea(previous) then return false end
+    end
+    if previous~=nil and previous~=unitGUID
+        and unitLayoutObjectInAnyUnitArea(previous)==false then
+        if resourceUnitsRetireUnit~=nil then resourceUnitsRetireUnit(previous) end
+    end
+    resourceUnitsSetCommandSpent(tokenGUID,false)
+    owners[tokenGUID]=unitGUID
+    return true
+end
+
+-- The only generic disband cleanup: retire the Unit's choices/Ready links,
+-- attack arrows and token number. Do not touch the spent Command flag here;
+-- only an actual newly claimed Unit may ready that Command.
+function resourceUnitsRetireUnit(unitGUID)
+    if unitGUID==nil then return end
+    if unitHistoryReleaseUnit~=nil then unitHistoryReleaseUnit(unitGUID) end
+    removeChoiceButtons(getObjectFromGUID(unitGUID))
+    choiceButtonShown[unitGUID]=nil
+    choiceExpandedByGUID[unitGUID]=nil
+    if gStates~=nil and gStates.unitReadyCardChoices~=nil then
+        gStates.unitReadyCardChoices[unitGUID]=nil
+    end
+    if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
+end
+
+-- On a manually dragged replacement card, reconcile its settled physical
+-- Command column. No reset happens for the same Unit or while the previous
+-- owner is still on the Unit mat.
+function resourceUnitsReconcileNewUnit(unitGUID,seatPos)
+    if unitGUID==nil or seatPos==nil then return false end
+    local layout=unitLayoutSnapshot(seatPos)
+    local slot=layout.unitSlotByGuid[unitGUID]
+    local token=slot~=nil and layout.commands[slot] or nil
+    if token==nil then return false end
+    local changed=resourceUnitsCommandOwner(token.guid)~=unitGUID
+        and resourceUnitsAdoptCommand(token.guid,unitGUID,seatPos,false)
+    if changed==true and resourceCardsSourceChanged~=nil then
+        resourceCardsSourceChanged()
+    end
+    return changed==true
 end
 
 -- An activation belongs to the physical Command token that started it.
@@ -11048,6 +11115,9 @@ function resourceUnitsCommandDropped(playerColor,obj)
             end
         end
         gStates.unitResourceActivations=gStates.unitResourceActivations or {}
+        -- A new Unit claimed into this Command's slot is Ready even if the
+        -- former Unit used this token earlier in the same Round.
+        resourceUnitsAdoptCommand(guid,unit.guid,pickup.seatPos,false)
         local previous=gStates.unitResourceActivations[unit.guid]
         local newActivation={seatPos=pickup.seatPos,tokenGUID=guid,
             choice=choice,selected=abilities.multi==true and {} or nil}
@@ -11064,6 +11134,10 @@ function resourceUnitsCommandDropped(playerColor,obj)
             unitHistoryEnsure(unit.guid,newActivation)
             unitHistoryRefreshToken(unit.guid)
         end
+        -- A newly used Command must remember which physical Unit owns it,
+        -- independent of the current turn's activation-history snapshots.
+        resourceUnitsSpentCommands()
+        gStates.unitSpentCommandTokens.owners[guid]=unit.guid
         resourceCardsCombatSelectOneUnit(unit.guid)
         choiceExpandedByGUID[unit.guid]=nil
         -- The final settled scan owns the choice and target buttons. Painting
