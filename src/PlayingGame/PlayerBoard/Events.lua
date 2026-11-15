@@ -261,6 +261,23 @@ function playerBoardZoneEnterSettled(ctx)
 		local unitSeatPos=unitZoneInfo.seatPos
 		if objType=="Card" or objType=="Deck" then safeWaitFrames("PlayerBoard.Events",function() separateCombinedUnitsInArea(unitSeatPos) end, 2) end
 		scheduleUnitLayoutRefresh(unitSeatPos)
+        -- A manually added Unit may replace one that was trashed earlier.
+        -- Wait for a settled physical position before deciding that its
+        -- Command belongs to someone new; lifts never clear spent history.
+        if objType=="Card" and unitLayoutIsUnit(obj) then
+            local incomingGUID=objGUID
+            safeWaitCondition("PlayerBoard.Events",function()
+                local incoming=getObjectFromGUID(incomingGUID)
+                if incoming~=nil and unitLayoutObjectInAnyUnitArea(incomingGUID)
+                    and resourceUnitsReconcileNewUnit~=nil then
+                    resourceUnitsReconcileNewUnit(incomingGUID,unitSeatPos)
+                end
+            end,function()
+                local incoming=getObjectFromGUID(incomingGUID)
+                return incoming==nil or (incoming.resting==true
+                    and incoming.isSmoothMoving()==false)
+            end,8)
+        end
 		--Monster tokens may be dropped directly on Units. Give them the same combat controls and reward refresh as Play Area monsters.
 		if monsterPugs[objGUID]~=nil then
 			local monsterGUID=objGUID
