@@ -2205,6 +2205,31 @@ local RESOURCE_TRACKER_EXPANDERS={	["DisplayMoveCosts"]={"MoveCosts", 240},
 					["DisplayAttacDetails"]={"AttacAmountDetails", 150},
 					["DisplayInfluDetails"]={"InfluAmountDetails", 90}}
 
+-- Rebuild the panel height from the visible sections. Turn handoffs and saved UI can
+-- change the parent height without changing a nested section's active flag.
+function resourceTrackerSyncLayout(expanded, changedPanel, changedActive)
+    if expanded==nil then expanded=UI.getAttribute("ResourceTrackerDetail","active")=="true" end
+    local height=expanded and 245 or 35
+    local detailHeight=210
+    if expanded then
+        for _,spec in pairs(RESOURCE_TRACKER_EXPANDERS) do
+            local active
+            if spec[1]==changedPanel then
+                -- Use the clicked value: TTS can delay getAttribute after setAttribute.
+                active=changedActive==true
+            else
+                active=UI.getAttribute(spec[1],"active")=="true"
+            end
+            if active then
+                height=height+spec[2]
+                detailHeight=detailHeight+spec[2]
+            end
+        end
+    end
+    UI.setAttribute("ResourceTracker","height",tostring(height))
+    UI.setAttribute("ResourceTrackerDetail","height",tostring(detailHeight))
+end
+
 local RESOURCE_TRACKER_FIELDS={	["MovemAmountPlain"]={"move", "move", "{en}Move : {it}Movimento : {ru}Движение: {zh-tw}移動：{zh-cn}移动：{ko}이동 : {es}Mover : {fr}Se déplacer : {pt-br}Mover : {de}Bewegen : "},
 					["SiegeAmountPlain"]={"siege", "physical", "{en}Siege : {it}Assedio : {ru}Осадная: {zh-tw}攻城：{zh-cn}攻城：{ko}공성 : {es}Asedio : {fr}Siège : {pt-br}Cerco : {de}Belagerung : "},
 					["SiegeAmountPhysi"]={"siege", "physical", "{en}Physical : {it}Fisico : {ru}Физическая(ий): {zh-tw}物理：{zh-cn}物理：{ko}물리 : {es}Físico : {fr}Physique : {pt-br}Físico : {de}Physikalisch : "},
@@ -2269,26 +2294,21 @@ function resourceTracker(player, mouseButton, id)
         end
 		--expand Resource Tracker
 		if id=="DisplayResourceTrackerDetails" then
-			local temp="245"
-			local temp2="true"
-			if tonumber(UI.getAttribute("ResourceTracker", "height"))>200 then temp="35" temp2="false" end
-			UI.setAttribute("ResourceTracker", "height", temp)
-			UI.setAttribute("ResourceTrackerDetail", "active", temp2)
-            resourceCardsSetSeatEnabled(temp2=="true")
-            if temp2=="false" then
+            local opening=UI.getAttribute("ResourceTrackerDetail","active")~="true"
+            UI.setAttribute("ResourceTrackerDetail","active",opening and "true" or "false")
+            -- A fresh open never retains hidden submenus or their old heights.
+            for _,spec in pairs(RESOURCE_TRACKER_EXPANDERS) do
+                UI.setAttribute(spec[1],"active","false")
+            end
+            resourceTrackerSyncLayout(opening)
+            resourceCardsSetSeatEnabled(opening)
+            if not opening then
                 UI.setAttribute("CombatCalculatorHelp","active","false")
                 resourceCardsPanelChanged(false)
             else
                 -- The OFF latch clears only when the expanded panel is actually ready.
                 resourceCardsOnLoad()
             end
-			UI.setAttribute("ResourceTrackerDetail", "height", "210")
-			UI.setAttribute("MoveCosts", "active", "false")
-			UI.setAttribute("SiegeAmountDetails", "active", "false")
-			UI.setAttribute("RangeAmountDetails", "active", "false")
-			UI.setAttribute("BlockAmountDetails", "active", "false")
-			UI.setAttribute("AttacAmountDetails", "active", "false")
-            UI.setAttribute("InfluAmountDetails", "active", "false")
             -- Combat resources are read from the play area; only Move, Influence and Heal stay adjustable.
             for _,family in ipairs({"Siege","Range","Block","Attac"}) do
                 for _,element in ipairs({"Plain","Physi","Firex","Icexx","ColdF","Psych"}) do
@@ -2319,14 +2339,11 @@ function resourceTracker(player, mouseButton, id)
         end
 
 		--expander buttons
-		local IDConvert=RESOURCE_TRACKER_EXPANDERS
-		if IDConvert[id]~=nil then
-			local temp="false"
-			local temp2=-1
-			if UI.getAttribute(IDConvert[id][1], "active")=="false" then temp="true" temp2=1 end
-			UI.setAttribute(IDConvert[id][1], "active", temp)
-			UI.setAttribute("ResourceTracker", "height", tonumber(UI.getAttribute("ResourceTracker", "height"))+(IDConvert[id][2]*temp2))
-			UI.setAttribute("ResourceTrackerDetail", "height", tonumber(UI.getAttribute("ResourceTrackerDetail", "height"))+(IDConvert[id][2]*temp2))
+		local expander=RESOURCE_TRACKER_EXPANDERS[id]
+		if expander~=nil then
+            local expanded=UI.getAttribute(expander[1],"active")~="true"
+            UI.setAttribute(expander[1],"active",expanded and "true" or "false")
+            resourceTrackerSyncLayout(true,expander[1],expanded)
 			return
 		end
 		--Resource values shown to the player include detected cards plus saved manual offsets.
