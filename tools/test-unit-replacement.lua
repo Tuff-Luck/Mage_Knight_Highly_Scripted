@@ -114,6 +114,7 @@ local bonusCommand={guid="c0b002"}
 local woundReturned,oldTrashed,newClaimed=false,false,false
 for _,obj in ipairs({owner,candidate,wound,banner,mana,command,bonusCommand}) do objects[obj.guid]=obj end
 owner.getBounds=function() return owner.bounds end
+owner.isDestroyed=function() return false end
 owner.getScale=function() return {x=1,y=1,z=1} end
 owner.getButtons=function() return owner.buttons end
 owner.createButton=function(spec)
