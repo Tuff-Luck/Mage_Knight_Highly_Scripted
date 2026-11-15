@@ -39,7 +39,10 @@ local env={
     proxyLocalizedTerm=function(term) return term end,
     proxyLocalizedReason=function() return "The nearest legal objective" end,
     proxyLocalizedColorList=function(colors) return colors end,
-    joinLang=english
+    joinLang=english,
+    -- The English-only test renderer has already resolved language tags.
+    -- Production joinLangParse returns a per-language table instead.
+    joinLangParse=function(value) return value end
 }
 setmetatable(env,{__index=_G})
 local functions=assert(load(beginCode.."\n"..actionCode.."\n"..renderCode.."\nreturn proxyTurnReportBegin,proxyLocalizedAction,proxyTurnReportText",
@@ -47,16 +50,16 @@ local functions=assert(load(beginCode.."\n"..actionCode.."\n"..renderCode.."\nre
 local begin,localizedAction,render=functions()
 env.proxyLocalizedAction=localizedAction
 local examples={
-    {type="Starting",base=1,expected="Movement: 1 (Start Card: 1)."},
-    {type="Starting",base=2,expected="Movement: 2 (Unique Card: 2)."},
-    {type="Advanced Action",base=2,expected="Movement: 2 (Offer Card: 2)."},
-    {type="Spell",base=1,expected="Movement: 1 (Offer Card: 1)."},
+    {type="Starting",base=1,expected="Move: 1 (Start Card: 1)."},
+    {type="Starting",base=2,expected="Move: 2 (Unique Card: 2)."},
+    {type="Advanced Action",base=2,expected="Move: 2 (Offer Card: 2)."},
+    {type="Spell",base=1,expected="Move: 1 (Offer Card: 1)."},
     {type="Starting",base=1,shields=2,source=true,
-        expected="Movement: 4 (Start Card: 1, Shield +2, Source +1)."},
+        expected="Move: 4 (Start Card: 1, Shield +2, Source +1)."},
     {type="Starting",base=2,shields=1,source=true,
-        expected="Movement: 4 (Unique Card: 2, Shield +1, Source +1)."},
+        expected="Move: 4 (Unique Card: 2, Shield +1, Source +1)."},
     {type="Advanced Action",base=2,shields=3,source=true,
-        expected="Movement: 6 (Offer Card: 2, Shield +3, Source +1)."}
+        expected="Move: 6 (Offer Card: 2, Shield +3, Source +1)."}
 }
 for _,test in ipairs(examples) do
     begin({cardType=test.type},{},test.base,test.shields or 0,test.source==true)
@@ -77,7 +80,7 @@ for old,new in pairs(oldLabels) do
         objective="Saved Card",colors="",moved=0,allowance=2,
         baseReason=old,baseMove=2}
     local result=render()
-    assert(result:find("Movement: 2 ("..new..").",1,true),
+    assert(result:find("Move: 2 ("..new..").",1,true),
         "Old saved movement label not migrated: "..old)
 end
 -- Offer results should read naturally without the internal card type.
@@ -87,7 +90,7 @@ env.gStates.proxyTurnReport.action="took Scouts from the offer"
 local offerResult=render()
 assert(offerResult:find("Proxy moved 2 spaces and\ntook Scouts from the offer.",1,true),
     "Proxy offer text was not rendered correctly: "..offerResult)
-assert(not offerResult:find("Source die rerolled:",1,true),
+assert(not offerResult:find("rolled a Source die.",1,true),
     "Source reroll was reported even though no die was rolled")
 
 -- Only a successful Source reroll adds the extra detail, including the original die colour.
@@ -106,7 +109,29 @@ assert(env.gStates.proxyTurnReport.sourceRerollColor==nil,"Failed reroll was rep
 assert(reroll("die","White")==true,"Available Source die should reroll")
 assert(rollCount==1,"Source die should be rolled once")
 assert(env.gStates.proxyTurnReport.sourceRerollColor=="White","Rerolled die colour was not recorded")
-assert(render():find("Source die rerolled: White.",1,true),"Source reroll omitted from the summary")
+assert(render():find("and rolled a Source die.",1,true),
+    "Source reroll should be part of the first sentence")
+assert(not render():find("Source die rerolled:",1,true),
+    "Source reroll should no longer be a separate line")
+
+-- While a route is being chosen, the first sentence is past tense even
+-- before the destination is reached. The reroll is joined to that sentence.
+begin({cardType="Starting"},{"Red"},1,0,true)
+env.gStates.proxyState="PickRoute"
+env.gStates.proxyTurnReport.target="Mage Tower"
+env.gStates.proxyTurnReport.sourceRerollColor="Gold"
+local headline=render("headline")
+local details=render("details")
+assert(headline=="Proxy moved toward the Mage Tower, and rolled a Source die.",
+    "Proxy route/reroll first sentence was incorrect: "..headline)
+assert(headline:find("Objective:",1,true)==nil and headline:find("Move:",1,true)==nil,
+    "Headline should not include the smaller detail labels")
+assert(details:find("Objective: Red",1,true) and
+    details:find("Move: 2 (Start Card: 1, Source +1).",1,true),
+    "Objective and movement breakdown must be separate: "..details)
+assert(render():find(headline.."\n\n"..details,1,true),
+    "Default report must preserve the full combined text")
+env.gStates.proxyState="ReadyToEnd"
 
 -- An automatic reroll precedes report creation; the extra return value preserves the event.
 env.gStates.proxyTurnReport=nil
