@@ -5755,8 +5755,10 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                 value="RDY"..(repeatLink~=nil and tostring(index) or "")}
         end
     end
-    if assets~=nil then card.UI.setXmlTable(xml,assets)
-    else card.UI.setXmlTable(xml) end
+    -- A fixed Attack/Block against a sole enemy needs no manual target icon.
+    -- That can leave an otherwise empty object UI; TTS rejects setXmlTable({})
+    -- with an Object reference error. The shared writer uses setXml("") here.
+    resourceObjectUiSetTable(card.UI,xml,assets)
     choiceButtonShown[card.guid]=signature
 end
 
