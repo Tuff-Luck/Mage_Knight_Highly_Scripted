@@ -10678,7 +10678,7 @@ function resourceCardsChoiceClicked(player,value,id)
     -- Any card whose newly selected effect is Move-only must start without
     -- an enemy assignment. Move can Block Cumbersome, but only when the
     -- player explicitly targets it; never carry an old Attack/Block arrow.
-    local previousCategory=nil
+    local _,previousCategory
     if repeatIndex~=nil then
         _,previousCategory=combatConfig.repeatChoiceFor(guid,powered,choices,repeatIndex)
     elseif setIndex~=nil then
