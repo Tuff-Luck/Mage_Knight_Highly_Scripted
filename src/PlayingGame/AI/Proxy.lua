@@ -699,8 +699,9 @@ function proxyLocalizedAction(action)
 	return text
 end
 
-function proxyTurnReportText()
+function proxyTurnReportText(section)
 	local report=gStates.proxyTurnReport
+	if report==nil and section=="details" then return "" end
 	if report==nil then return "{en}Proxy processing is complete.{it}Elaborazione Proxy completata.{ru}Обработка Прокси завершена.{zh-tw}代理玩家處理完成。{zh-cn}代理玩家处理完成。{ko}프록시 처리가 완료되었습니다.{es}El procesamiento del Proxy ha terminado.{fr}Le traitement du Proxy est terminé.{pt-br}O processamento do Proxy foi concluído.{de}Die Proxy-Verarbeitung ist abgeschlossen." end
 	local moved=report.moved or 0
 	local action=report.action
@@ -709,7 +710,7 @@ function proxyTurnReportText()
 	local target=proxyLocalizedTerm(report.target)
 	if action==nil or action=="" then
 		if report.target~=nil then
-			if active==true then first=joinLang({"{en}Proxy is moving toward the {it}Il Proxy si muove verso {ru}Прокси движется к {zh-tw}代理玩家正朝 {zh-cn}代理玩家正朝 {ko}프록시가 다음 목표로 이동 중입니다: {es}El Proxy se mueve hacia {fr}Le Proxy se déplace vers {pt-br}O Proxy está se movendo em direção a {de}Der Proxy bewegt sich in Richtung ",target,"."})
+			if active==true then first=joinLang({"{en}Proxy moved toward the {it}Il Proxy si è mosso verso {ru}Прокси переместился к {zh-tw}代理玩家朝 {zh-cn}代理玩家朝 {ko}프록시가 다음 목표로 이동했습니다: {es}El Proxy se movió hacia {fr}Le Proxy s’est déplacé vers {pt-br}O Proxy moveu-se em direção a {de}Der Proxy bewegte sich in Richtung ",target,"."})
 			elseif moved<=0 then first=joinLang({"{en}Proxy did not move toward the {it}Il Proxy non si è mosso verso {ru}Прокси не двигался к {zh-tw}代理玩家沒有朝 {zh-cn}代理玩家没有朝 {ko}프록시는 다음 목표로 이동하지 않았습니다: {es}El Proxy no se movió hacia {fr}Le Proxy ne s’est pas déplacé vers {pt-br}O Proxy não se moveu em direção a {de}Der Proxy bewegte sich nicht in Richtung ",target,"."})
 			elseif moved==1 then first=joinLang({"{en}Proxy moved 1 space toward the {it}Il Proxy si è mosso di 1 spazio verso {ru}Прокси переместился на 1 клетку к {zh-tw}代理玩家朝 {zh-cn}代理玩家朝 {ko}프록시가 다음 목표로 1칸 이동했습니다: {es}El Proxy se movió 1 espacio hacia {fr}Le Proxy s’est déplacé d’une case vers {pt-br}O Proxy moveu-se 1 espaço em direção a {de}Der Proxy bewegte sich 1 Feld in Richtung ",target,"."})
 			else first=joinLang({"{en}Proxy moved {it}Il Proxy si è mosso di {ru}Прокси переместился на {zh-tw}代理玩家移動了 {zh-cn}代理玩家移动了 {ko}프록시가 {es}El Proxy se movió {fr}Le Proxy s’est déplacé de {pt-br}O Proxy moveu-se {de}Der Proxy bewegte sich ",tostring(moved),"{en} spaces toward the {it} spazi verso {ru} клетки к {zh-tw} 格，朝向 {zh-cn} 格，朝向 {ko}칸 이동했습니다: {es} espacios hacia {fr} cases vers {pt-br} espaços em direção a {de} Felder in Richtung ",target,"."}) end
@@ -724,6 +725,35 @@ function proxyTurnReportText()
 		if moved<=0 then first=joinLang({"{en}Proxy {it}Il Proxy {ru}Прокси {zh-tw}代理玩家{zh-cn}代理玩家{ko}프록시가 {es}El Proxy {fr}Le Proxy {pt-br}O Proxy {de}Der Proxy ",localizedAction,"."})
 		elseif moved==1 then first=joinLang({"{en}Proxy moved 1 space and\n{it}Il Proxy si è mosso di 1 spazio e\n{ru}Прокси переместился на 1 клетку и\n{zh-tw}代理玩家移動 1 格並\n{zh-cn}代理玩家移动 1 格并\n{ko}프록시가 1칸 이동하고\n{es}El Proxy se movió 1 espacio y\n{fr}Le Proxy s’est déplacé d’une case et\n{pt-br}O Proxy moveu-se 1 espaço e\n{de}Der Proxy bewegte sich 1 Feld und\n",localizedAction,"."})
 		else first=joinLang({"{en}Proxy moved {it}Il Proxy si è mosso di {ru}Прокси переместился на {zh-tw}代理玩家移動 {zh-cn}代理玩家移动 {ko}프록시가 {es}El Proxy se movió {fr}Le Proxy s’est déplacé de {pt-br}O Proxy moveu-se {de}Der Proxy bewegte sich ",tostring(moved),"{en} spaces and\n{it} spazi e\n{ru} клетки и\n{zh-tw} 格並\n{zh-cn} 格并\n{ko}칸 이동하고\n{es} espacios y\n{fr} cases et\n{pt-br} espaços e\n{de} Felder und\n",localizedAction,"."}) end
+	end
+
+	-- The Source reroll belongs to the movement sentence, not to the
+	-- smaller Objective/Move breakdown. Keep every language's punctuation
+	-- inside its own fragment when appending to the translated sentence.
+	if report.sourceRerollColor~=nil then
+		local endings={
+			en=", and rolled a Source die.",
+			it=", e ha ritirato un dado della Fonte.",
+			ru=", и перебросил кубик Источника.",
+			["zh-tw"]="，並重擲了一顆魔力源骰。",
+			["zh-cn"]="，并重掷了一颗魔力源骰。",
+			ko=", 원천 주사위를 다시 굴렸습니다.",
+			es=", y volvió a tirar un dado de la Fuente.",
+			fr=", et a relancé un dé de la Source.",
+			["pt-br"]=", e rolou novamente um dado da Fonte.",
+			de=", und würfelte einen Quellenwürfel neu."}
+		local parts=joinLangParse(first)
+		if type(parts)=="table" then
+			local rewritten={}
+			for _,lang in ipairs({"en","ru","zh-tw","zh-cn","ko","es","fr","pt-br","de","it"}) do
+				local sentence=tostring(parts[lang] or parts.en or "")
+					:gsub("%.$",""):gsub("。$","")
+				rewritten[#rewritten+1]="{"..lang.."}"..sentence..endings[lang]
+			end
+			first=table.concat(rewritten)
+		else
+			first=tostring(first):gsub("%.$","")..endings.en
+		end
 	end
 
 	local reason=proxyLocalizedReason(report.reason or "The closest legal objective was selected.",report.colors)
@@ -764,12 +794,10 @@ function proxyTurnReportText()
 	if (report.shieldMove or 0)>0 then movementParts[#movementParts+1]="Shield +"..tostring(report.shieldMove) end
 	if (report.sourceMove or 0)>0 then movementParts[#movementParts+1]="Source +1" end
 	local movementText=table.concat(movementParts,", ")
-	local summaryLine=joinLang({"{en}Objective: {it}Obiettivo: {ru}Цель: {zh-tw}目標：{zh-cn}目标：{ko}목표: {es}Objetivo: {fr}Objectif : {pt-br}Objetivo: {de}Ziel: ",objectiveLabel," (",shortReason,")\n","{en}Movement: {it}Movimento: {ru}Движение: {zh-tw}移動：{zh-cn}移动：{ko}이동: {es}Movimiento: {fr}Déplacement : {pt-br}Movimento: {de}Bewegung: ",tostring(report.allowance or 0)," (",movementText,")."})
-	local sourceRerollLine=""
-	if report.sourceRerollColor~=nil then
-		sourceRerollLine=joinLang({"{en}\nSource die rerolled: {it}\nDado Fonte ritirato: {ru}\nПереброшен кубик Источника: {zh-tw}\n已重擲魔力源骰：{zh-cn}\n已重掷魔力源骰：{ko}\n원천 주사위 다시 굴림: {es}\nDado de Fuente relanzado: {fr}\nDé de Source relancé : {pt-br}\nDado da Fonte rolado novamente: {de}\nQuellenwürfel neu gewürfelt: ",translateWord[report.sourceRerollColor] or report.sourceRerollColor,"."})
-	end
-	return joinLang({first,choiceLine,interactionLine,"\n\n",summaryLine,sourceRerollLine})
+	local summaryLine=joinLang({"{en}Objective: {it}Obiettivo: {ru}Цель: {zh-tw}目標：{zh-cn}目标：{ko}목표: {es}Objetivo: {fr}Objectif : {pt-br}Objetivo: {de}Ziel: ",objectiveLabel," (",shortReason,")\n","{en}Move: {it}Movimento: {ru}Движение: {zh-tw}移動：{zh-cn}移动：{ko}이동: {es}Movimiento: {fr}Déplacement : {pt-br}Movimento: {de}Bewegung: ",tostring(report.allowance or 0)," (",movementText,")."})
+	if section=="details" then return summaryLine end
+	if section=="headline" then return joinLang({first,choiceLine,interactionLine}) end
+	return joinLang({first,choiceLine,interactionLine,"\n\n",summaryLine})
 end
 --Return the logical Portal hex used by Proxy rules. Against the Horsemen starts from Country Tile 1's
 --central Magical Glade; even after the Round 3 ritual closes the actual Portal, Blue-objective distance
