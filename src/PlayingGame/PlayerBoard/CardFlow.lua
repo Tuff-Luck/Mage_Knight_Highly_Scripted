@@ -1658,7 +1658,14 @@ local function compactAndRefillDeedOfferRaw(suppressAdjustUIRefresh,sourceOverri
 end
 
 function compactAndRefillDeedOffer(suppressAdjustUIRefresh,sourceOverrides)
-	return safeCallback("compactAndRefillDeedOffer",function() return compactAndRefillDeedOfferRaw(suppressAdjustUIRefresh,sourceOverrides) end)
+    if magicTalentOfferWillChange~=nil then magicTalentOfferWillChange() end
+    local result=safeCallback("compactAndRefillDeedOffer",function()
+        return compactAndRefillDeedOfferRaw(suppressAdjustUIRefresh,sourceOverrides)
+    end)
+    if magicTalentScheduleCheck~=nil then
+        safeWaitFrames("PlayerBoard.CardFlow",magicTalentScheduleCheck,5)
+    end
+    return result
 end
 
 -- Cure rewards only Wounds actually healed from hand. The explicit button
