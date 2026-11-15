@@ -6097,18 +6097,26 @@ function magicTalentManaPayments(seatPos)
     local zone=seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
     if card==nil or zone==nil then return {} end
     local area=footprint(card)
-    local payments={}
-    for _,obj in ipairs(zone.getObjects()) do
-        if obj.guid~=card.guid and obj.resting==true then
+    local payments,seen={},{}
+    local function consider(obj)
+        if obj==nil or seen[obj.guid] or obj.guid==card.guid
+            or obj.resting~=true or obj.isSmoothMoving()==true then return end
+        seen[obj.guid]=true
+        local p=obj.getPosition()
+        if math.abs(p[1]-area.x)<area.halfX
+            and math.abs(p[3]-area.z)<area.halfZ then
             local color=manaColor(obj)
             if color~=nil then
-                local p=obj.getPosition()
-                if math.abs(p[1]-area.x)<area.halfX
-                    and math.abs(p[3]-area.z)<area.halfZ then
-                    payments[#payments+1]={guid=obj.guid,color=color}
-                end
+                payments[#payments+1]={guid=obj.guid,color=color}
             end
         end
+    end
+    for _,obj in ipairs(zone.getObjects()) do consider(obj) end
+    if #payments<2 then
+        -- The play zone is deliberately thin; a crystal stacked on a card can
+        -- be above its Y boundary. Only inspect objects physically covering
+        -- Magic Talent, and never read die faces while still moving.
+        for _,obj in ipairs(getAllObjects()) do consider(obj) end
     end
     table.sort(payments,function(a,b) return a.guid<b.guid end)
     return payments
