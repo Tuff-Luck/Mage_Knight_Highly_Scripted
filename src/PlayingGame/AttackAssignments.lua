@@ -153,7 +153,12 @@ end
 local function activeVisualLines()
 	local lines={}
 	for _,entry in pairs(assignmentRegistry) do
-		local assignment=assignmentLines(entry.source,entry.target,assignmentColorFor(entry.kind))
+		-- TTS may invalidate userdata for a replaced object without clearing
+		-- its earlier assignment. Resolve fresh objects from the saved GUIDs
+		-- rather than reading a stale cached source/target reference.
+		local source=getObjectFromGUID(assignmentBaseGUID(entry.sourceGUID))
+		local target=getObjectFromGUID(entry.targetGUID)
+		local assignment=assignmentLines(source,target,assignmentColorFor(entry.kind))
 		for _,line in ipairs(assignment or {}) do lines[#lines+1]=line end
 	end
     -- Readying links remain visible even after their Command token returns to
@@ -230,8 +235,9 @@ local function activeVisualLines()
 	for color,pending in pairs(targetingByPlayer) do
 		local player=Player[color]
 		local pointer=player~=nil and player.getPointerPosition() or nil
-		if pointer~=nil and pending.source~=nil and not pending.source.isDestroyed() then
-			local from=positionAtHeight(pending.source.getPosition(),previewHeight)
+		local source=getObjectFromGUID(assignmentBaseGUID(pending.sourceGUID))
+		if pointer~=nil and source~=nil and not source.isDestroyed() then
+			local from=positionAtHeight(source.getPosition(),previewHeight)
 			local to=positionAtHeight(pointer,previewHeight)
 			lines[#lines+1]={points={from,to},color=assignmentColorFor(pending.kind),thickness=previewThickness,rotation={0,0,0}}
 		end
@@ -1156,7 +1162,8 @@ function attackAssignmentTargetClicked(target,playerColor)
             target=eligible[summoned[4]]
             if target==nil then return end
         end
-        if target.isDestroyed() or pending.source==nil or pending.source.isDestroyed() then return end
+        local currentSource=getObjectFromGUID(assignmentBaseGUID(pending.sourceGUID))
+        if target.isDestroyed() or currentSource==nil or currentSource.isDestroyed() then return end
         if resourceCardsCombatTargetAcceptsSource~=nil
             and not resourceCardsCombatTargetAcceptsSource(pending.sourceGUID,target.guid) then
             local message=resourceCardsCombatTargetRejectMessage~=nil
@@ -1173,7 +1180,7 @@ function attackAssignmentTargetClicked(target,playerColor)
         -- Lost Legion Banner of Fear's broken effect can cancel at most three
         -- distinct enemies. Do not add a fourth physical target arrow.
         if pending.additional then
-            local data=gameCards~=nil and gameCards[pending.source.guid] or nil
+            local data=gameCards~=nil and gameCards[currentSource.guid] or nil
             local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
             local spec=rule~=nil and rule.enemyEffect~=nil and rule.enemyEffect.powered or nil
             local maximum=spec~=nil and tonumber(spec.maxTargets) or nil
@@ -1210,7 +1217,7 @@ function attackAssignmentTargetClicked(target,playerColor)
             local current=turnOrder~=nil and gStates~=nil
                 and turnOrder[gStates.turnNumber] or nil
             local scan=current~=nil and resourceCardScanBySeat[current.seatPos] or nil
-            local record=scan~=nil and scan.cards[pending.source.guid] or nil
+            local record=scan~=nil and scan.cards[currentSource.guid] or nil
             local maxPoints=record~=nil and record.resources~=nil
                 and tonumber(record.resources.influence) or nil
             local existing=0
@@ -1227,7 +1234,7 @@ function attackAssignmentTargetClicked(target,playerColor)
 		if not duplicate then
 			assignmentCounter=assignmentCounter+1
 			local id=tostring(assignmentCounter)
-			assignmentRegistry[id]={id=id,source=pending.source,target=target,
+			assignmentRegistry[id]={id=id,source=currentSource,target=target,
 				sourceGUID=pending.sourceGUID,targetGUID=target.guid,
 				resource=pending.resource,playerColor=playerColor,kind=pending.kind}
 			persistAssignments()
