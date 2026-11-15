@@ -742,18 +742,7 @@ function proxyTurnReportText(section)
 			fr=", et a relancé un dé de la Source.",
 			["pt-br"]=", e rolou novamente um dado da Fonte.",
 			de=", und würfelte einen Quellenwürfel neu."}
-		local parts=joinLangParse(first)
-		if type(parts)=="table" then
-			local rewritten={}
-			for _,lang in ipairs({"en","ru","zh-tw","zh-cn","ko","es","fr","pt-br","de","it"}) do
-				local sentence=tostring(parts[lang] or parts.en or "")
-					:gsub("%.$",""):gsub("。$","")
-				rewritten[#rewritten+1]="{"..lang.."}"..sentence..endings[lang]
-			end
-			first=table.concat(rewritten)
-		else
-			first=tostring(first):gsub("%.$","")..endings.en
-		end
+		first=joinLangAppendSentenceSuffix(first,endings)
 	end
 
 	local reason=proxyLocalizedReason(report.reason or "The closest legal objective was selected.",report.colors)
