@@ -1,6 +1,7 @@
 <!-- Mage Knight Highly Scripted Global UI entry point. The TTS editor bundles each Include from src/UI. -->
 <Include src="UI/Defaults.xml" />
 <Include src="UI/MainGame.xml" />
+<Include src="UI/UnitReplacement.xml" />
 <Include src="UI/NoticeBoard.xml" />
 <Include src="UI/TopButtons.xml" />
 <Include src="UI/ScoreBoard.xml" />
