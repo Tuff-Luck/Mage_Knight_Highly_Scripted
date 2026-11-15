@@ -22,7 +22,7 @@ local xmlWrites=0
 local cardUI={xml={}}
 local card={
     guid=guid,type="Card",is_face_down=false,held_by_color=nil,
-    moving=false,rotation={0,0,0},UI=cardUI,
+    moving=false,resting=true,rotation={0,0,0},UI=cardUI,
     getGMNotes=function() return "" end
 }
 -- Tabletop Simulator object methods are called with dot syntax.
@@ -114,6 +114,13 @@ refresh()
 assert(xmlWrites==writesAtRest and hasInteraction(),
     "Smooth movement must leave the card control attached")
 card.moving=false
+card.resting=false
+card.rotation={0,45,0}
+refresh()
+assert(xmlWrites==writesAtRest and hasInteraction(),
+    "A dropped but still-tumbling card must retain the Interaction button")
+card.resting=true
+card.rotation={0,0,0}
 refresh()
 assert(xmlWrites==writesAtRest and hasInteraction(),
     "Settling with an unchanged signature should not need a redraw")
