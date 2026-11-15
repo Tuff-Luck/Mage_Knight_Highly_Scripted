@@ -90,7 +90,12 @@ local owner={
 local candidate={guid="def002",offered=true,resting=true,UI={nodes={}}}
 local wound={guid="aaa123",wound=true,x=0,z=-34.74}
 local banner={guid="bba123",moved=false}
-local command={guid="c0a001"}
+local command={guid="c0a001",resting=true,moved=false}
+command.isSmoothMoving=function() return false end
+command.setPositionSmooth=function(pos)
+    command.moved=true
+    command.position=pos
+end
 local bonusCommand={guid="c0b002"}
 local woundReturned,oldTrashed,newClaimed=false,false,false
 for _,obj in ipairs({owner,candidate,wound,banner,command,bonusCommand}) do objects[obj.guid]=obj end
@@ -150,6 +155,10 @@ local env={
     trashCan="trash",deedDeckDiscardZones={[1]="discard"},
     warningColor={1,0,0},
     unitLayoutSnapshot=function() return layout() end,
+    unitLayoutCommandTarget=function()
+        return owner.inUnit and owner or nil
+    end,
+    unitLayoutReadyCommandPosition=function() return {0,1.5,-39} end,
     unitLayoutFirstFreeCommand=function() return nil end,
     unitLayoutResourceState=function() return {bannersByUnit={
         [owner.guid]={artifact={guid=banner.guid}}}} end,
@@ -177,10 +186,14 @@ local env={
         return true
     end,
     rewindTransactionFinish=function() finished=true end,
+    safeWaitCondition=function(_,done,ready)
+        assert(ready(),"The Command must be ready before releasing Undo")
+        done()
+    end,
     cardFlowClaimUnitAtSlot=function(obj,seat,x,lay,source,onSettled)
         assert(obj==candidate and seat==1 and x==0 and source==command)
-        assert(oldTrashed and clearedHistory and savedSnapshot,
-            "Old Unit and history must be retired after the safe rewind point")
+        assert(oldTrashed and clearedHistory and savedSnapshot and command.moved,
+            "Old Unit history and physical Command must be readied after the rewind point")
         newClaimed=true
         candidate.offered=false
         if onSettled then onSettled() end
@@ -231,6 +244,8 @@ assert(woundReturned,"The disbanded Unit's Wounds should return to the pool")
 assert(banner.moved,"An attached Banner should move to the discard area")
 assert(objects[command.guid]~=nil and objects[bonusCommand.guid]~=nil,
     "Command tokens and Banner/Bonds capacity must survive replacement")
+assert(command.moved and command.position[3]==-39,
+    "Spent Unit replacement must move the actual Command to its Ready snap")
 assert(state.unitReplacementPending==nil and attrs["UnitReplacement:active"]=="false")
 assert(not candidate.offered,"The new Unit must leave the offer only after confirmation")
 print("Full Unit Area replacement, cancellation and Command ownership regressions passed")
