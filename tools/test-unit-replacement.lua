@@ -166,6 +166,7 @@ local env={
     end,
     resourceObjectUiXmlTable=function(objUI) return objUI.nodes end,
     resourceObjectUiSetTable=function(objUI,nodes) objUI.nodes=nodes end,
+    resourceCardsExistingImageAssetsFor=function() return nil end,
     cardFlowUnitClaimBusy=function() return claimBusy end,
     rewindTransactionOwnerActive=function() return false end,
     rewindTransactionStart=function(callback)
