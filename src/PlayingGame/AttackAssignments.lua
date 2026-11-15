@@ -190,7 +190,7 @@ local function activeVisualLines()
     end
     -- Ambush's card buff is independent of its blue Cumbersome Move arrow.
     -- Only the tracker shows this purple, card-to-card targeting link.
-    if resourceCardsDetailsOpen~=nil and resourceCardsDetailsOpen() then
+    if resourceCardsPanelOpen~=nil and resourceCardsPanelOpen() then
         for sourceGUID,targetGUID in pairs(gStates~=nil and gStates.ambushCombatLinks or {}) do
             local arrow=assignmentLines(getObjectFromGUID(sourceGUID),
                 getObjectFromGUID(targetGUID),assignmentColors.other)
