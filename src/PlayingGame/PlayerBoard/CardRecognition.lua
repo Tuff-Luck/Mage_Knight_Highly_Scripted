@@ -5112,7 +5112,7 @@ end
 -- its controls for a genuinely changed posture or area.
 combatConfig.cardInTransit=function(card)
     return card~=nil and ((card.held_by_color~=nil and card.held_by_color~="")
-        or card.isSmoothMoving())
+        or card.resting==false or card.isSmoothMoving())
 end
 
 -- A single selected icon is centred on the object. Click to expand all
