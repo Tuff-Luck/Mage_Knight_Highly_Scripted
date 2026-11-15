@@ -14,8 +14,12 @@ end
 local source=read("src/PlayingGame/AI/Proxy.lua")
 local beginCode=slice(source,"function proxyTurnReportBegin(objective,colors,baseMove,shieldMove,sourceMove)",
     "function proxyTurnReportSetTarget(target)")
+local actionCode=slice(source,"function proxyLocalizedAction(action)",
+    "function proxyTurnReportText()")
 local renderCode=slice(source,"function proxyTurnReportText()",
     "--Return the logical Portal hex")
+local sourceCode=slice(source,"function proxyRerollSourceManaGUID(guid,color)",
+    "function proxyHexHasOtherHero(hex,proxyIndex)")
 
 -- The real project localises each fragment before combining it.
 local function english(parts)
@@ -29,6 +33,7 @@ local function english(parts)
 end
 local env={
     gStates={proxyState="ReadyToEnd"},
+    translateWord={White="White",Gold="Gold"},
     gameCardType=function(card) return card.cardType end,
     proxyCardDisplayName=function() return "Test Card" end,
     proxyLocalizedTerm=function(term) return term end,
@@ -37,9 +42,10 @@ local env={
     joinLang=english
 }
 setmetatable(env,{__index=_G})
-local functions=assert(load(beginCode.."\n"..renderCode.."\nreturn proxyTurnReportBegin,proxyTurnReportText",
+local functions=assert(load(beginCode.."\n"..actionCode.."\n"..renderCode.."\nreturn proxyTurnReportBegin,proxyLocalizedAction,proxyTurnReportText",
     "Proxy movement report","t",env))
-local begin,render=functions()
+local begin,localizedAction,render=functions()
+env.proxyLocalizedAction=localizedAction
 local examples={
     {type="Starting",base=1,expected="Movement: 1 (Start Card: 1)."},
     {type="Starting",base=2,expected="Movement: 2 (Unique Card: 2)."},
@@ -74,4 +80,38 @@ for old,new in pairs(oldLabels) do
     assert(result:find("Movement: 2 ("..new..").",1,true),
         "Old saved movement label not migrated: "..old)
 end
-print("Proxy movement breakdown label regressions passed")
+-- Offer results should read naturally without the internal card type.
+begin({cardType="Starting"},{"White"},1,1,false)
+env.gStates.proxyTurnReport.moved=2
+env.gStates.proxyTurnReport.action="took Scouts from the offer"
+local offerResult=render()
+assert(offerResult:find("Proxy moved 2 spaces and\ntook Scouts from the offer.",1,true),
+    "Proxy offer text was not rendered correctly: "..offerResult)
+assert(not offerResult:find("Source die rerolled:",1,true),
+    "Source reroll was reported even though no die was rolled")
+
+-- Only a successful Source reroll adds the extra detail, including the original die colour.
+local rollCount=0
+local die={randomize=function() rollCount=rollCount+1 end}
+env.GUID={zone={mana="source-zone"}}
+env.getObjectFromGUID=function(guid) if guid=="die" then return die end end
+env.apocalypseQuestManaDieColor=function() return "White" end
+env.onObjectRandomize=function() end
+env.proxySourceManaOptions=function() return {{guid="die",color="White"}},nil end
+local loadSource=assert(load(sourceCode.."\nreturn proxyRerollSourceManaGUID,proxyUseSourceMana",
+    "Proxy Source reroll","t",env))
+local reroll,useSource=loadSource()
+assert(reroll("not-a-die","White")==false,"Missing Source die should not be rerolled")
+assert(env.gStates.proxyTurnReport.sourceRerollColor==nil,"Failed reroll was reported")
+assert(reroll("die","White")==true,"Available Source die should reroll")
+assert(rollCount==1,"Source die should be rolled once")
+assert(env.gStates.proxyTurnReport.sourceRerollColor=="White","Rerolled die colour was not recorded")
+assert(render():find("Source die rerolled: White.",1,true),"Source reroll omitted from the summary")
+
+-- An automatic reroll precedes report creation; the extra return value preserves the event.
+env.gStates.proxyTurnReport=nil
+local used,choices,rolledColor=useSource({"White"})
+assert(used==true and choices==nil and rolledColor=="White",
+    "Automatic Source reroll colour was not returned for the new report")
+assert(rollCount==2,"Automatic Source reroll should roll exactly once")
+print("Proxy movement, offer, and Source reroll summary regressions passed")
