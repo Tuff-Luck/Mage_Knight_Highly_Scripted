@@ -275,6 +275,7 @@ function eventsOnLoadRawBase(saved_data, loaded_data)
     safeWaitFrames("Events",function() resourceCardsOnLoad() end,4)
     safeWaitFrames("Events",function() callOfferRestoreOnLoad() end,4)
     safeWaitFrames("Events",function() trainingOfferRestoreOnLoad() end,4)
+    safeWaitFrames("Events",function() magicTalentRestoreOnLoad() end,5)
     safeWaitFrames("Events",function() unitReplacementRestoreOnLoad() end,4)
 	UI.setAttribute("CoopAssaultMainTableText3", "active", "false")
 	--The wall assault interface is only shown when the assault entry side cannot be determined automatically.
@@ -518,6 +519,7 @@ function __onObjectPickUp_raw(player_color, picked_up_object)
 	if picked_up_object==nil then return end
     if picked_up_object.guid=="2eb8e8" then callOfferSpellPickedUp() end
     trainingOfferCardPickedUp(player_color,picked_up_object)
+    magicTalentCardPickedUp(player_color,picked_up_object)
 	attackAssignmentsObjectMoved(picked_up_object)
 	if picked_up_object~=nil and mapTokenNeedsArrangement~=nil and mapTokenNeedsArrangement(picked_up_object)==true then
 		mapTokenReleaseObject(picked_up_object)
@@ -632,6 +634,7 @@ function __onObjectDrop_raw(player_color, dropped_object)
     resourceCardsObjectMoved(dropped_object)
     callOfferObjectDropped(dropped_object)
     trainingOfferObjectDropped(player_color,dropped_object)
+    magicTalentObjectDropped(player_color,dropped_object)
     if droppedGUID=="2eb8e8" then
         callOfferScheduleSpellCheck()
     end
@@ -1562,6 +1565,9 @@ function __onObjectEnterZone_raw(zone, obj)
 	local ctx=zoneEventContext(zone,obj)
 	if ctx==nil then return end
 	if handleZoneEnterPrelude(ctx)==true then return end
+    if ctx.objGUID=="3d832c" and ctx.playerZoneKind=="play" then
+        magicTalentScheduleCheck()
+    end
     if ctx.objGUID=="2eb8e8" and ctx.playerZoneKind=="play" then
         local seat=ctx.zoneInfo~=nil and ctx.zoneInfo.seatPos or nil
         if seat~=nil then
@@ -1610,7 +1616,10 @@ local function handleClaimZoneLeave(ctx)
 	--Remove offer claim buttons from actual offer cards only. The resizable deed-offer zone can
 	--briefly sweep over the AA/Spell source Decks while its boundary moves; clearing a Deck here
 	--would erase the persistent resize controls/table labels hosted on the Spell source.
-	if obj.type=="Card" and offerClaimSource(zone.guid,obj)~=nil then obj.UI.setXmlTable({{}}) end
+	if obj.type=="Card" and offerClaimSource(zone.guid,obj)~=nil
+        and (magicTalentReservedCard==nil or not magicTalentReservedCard(obj.guid)) then
+        obj.UI.setXmlTable({{}})
+    end
 
 	--Remove tactic claim buttons
 	if tacticClaimingZones[zone.guid]~=nil then obj.UI.setXmlTable({{}}) end
@@ -1703,8 +1712,12 @@ function __onObjectLeaveZone_raw(zone, obj)
     if ctx.objGUID=="6fdeb0" and ctx.playerZoneKind=="play" then
         trainingOfferScheduleCardCheck()
     end
+    if ctx.objGUID=="3d832c" and ctx.playerZoneKind=="play" then
+        magicTalentScheduleCheck()
+    end
     if ctx.objType=="Card" and ctx.zoneInfo~=nil and ctx.zoneInfo.kind=="hand" then
         trainingOfferHandLeft(ctx.objGUID,ctx.zoneInfo.seatPos)
+        magicTalentHandLeft(ctx.objGUID,ctx.zoneInfo.seatPos)
     end
 	cancelSettledZoneEntries(ctx.zoneGUID,ctx.objGUID)
 	if handleZoneLeavePrelude(ctx)==true then return end
@@ -2153,6 +2166,7 @@ function __onObjectRotate_raw(object, spin, flip, player_color, old_spin, old_fl
         callOfferScheduleSpellCheck()
     end
     if cardGUID=="6fdeb0" then trainingOfferScheduleCardCheck() end
+    if cardGUID=="3d832c" then magicTalentScheduleCheck() end
 	if cardGUID==meditationTranceCardGUID or isSteadyTempoGUID(cardGUID)==true
 		or cardGUID==tacticCard[2] or cardGUID==GUID.card.bannerOfCommandToken then
 		refreshCardEffectAfterRotation(cardGUID)
