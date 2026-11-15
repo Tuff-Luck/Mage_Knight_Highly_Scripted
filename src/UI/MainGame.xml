@@ -54,8 +54,9 @@
 			</Button>
 		</VerticalLayout>
 		<Panel id="DummyTurn" class="MainGameSubPanel" active="false" color="rgb(0.2, 0.2, 0.2)" outlineSize="0 0" rectAlignment="LowerCenter" height="250">
-			<VerticalLayout padding="10 10 0 45">
-				<Text id="DummyNotes" class="Text20" color="gray" alignment="TopCenter">Script Modifies</Text>
+			<VerticalLayout padding="10 10 0 45" spacing="4" childForceExpandHeight="false">
+				<Text id="DummyNotes" class="Text20" color="gray" alignment="TopCenter" flexibleHeight="1">Script Modifies</Text>
+				<Text id="DummyDetails" class="Text16" color="gray" alignment="TopCenter" active="false" preferredHeight="90"></Text>
 			</VerticalLayout>
 			<Button id="DummyButton" height="40" rectAlignment="LowerCenter" interactable="false" onClick="dummyTurn">
 				<Image id="DummyButtonImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
