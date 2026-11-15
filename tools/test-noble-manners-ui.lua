@@ -17,6 +17,10 @@ local last=assert(source:find("-- One selected icon in the Unit",first,true))
 local uiSection=source:sub(first,last-1)
 assert(source:find("if not combatConfig.cardInTransit(previousObject) then",1,true),
     "Temporary play-zone exits must preserve card-attached controls")
+assert(source:find("and combatConfig.cardChoicesPresent(card) then return end",1,true),
+    "All card controls must be checked before reusing a cached UI signature")
+assert(source:find("queueSeat(seat,obj.guid)\n    end\nend\n\n-- Register all Artifact",1,true),
+    "Tracked cards dropped outside the thin zone must wait until settled")
 local guid="eaaaa5"
 local xmlWrites=0
 local cardUI={xml={}}
@@ -85,6 +89,24 @@ local env={
 setmetatable(env,{__index=_G})
 local render=assert(load(uiSection.."\nreturn showChoiceButtons",
     "Noble Manners interaction UI","t",env))()
+-- Check the shared recovery path for an ordinary Action's resource button and
+-- Ambush's separate target button, not just Noble Manners' interaction toggle.
+local ordinaryUI={xml={{
+    tag="Button",attributes={id="ResourceCardChoice_20cb85_attack"}},
+    {tag="Button",attributes={id="AttackAssignmentSource_20cb85_0_ambush"}},
+    {tag="Button",attributes={id="ResourceCardChoice_other_card"}}}}
+local expected=env.combatConfig.cardChoiceIds("20cb85",ordinaryUI.xml)
+assert(#expected==2, "Only this card's own resource and target controls should be tracked")
+env.combatConfig.cardButtonIds["20cb85"]=expected
+local ordinaryCard={guid="20cb85",UI=ordinaryUI}
+assert(env.combatConfig.cardChoicesPresent(ordinaryCard),
+    "An unchanged Action or Ambush target UI must be reused")
+table.remove(ordinaryUI.xml,2)
+assert(not env.combatConfig.cardChoicesPresent(ordinaryCard),
+    "A lost Ambush target button must invalidate the cached signature")
+table.remove(ordinaryUI.xml,1)
+assert(not env.combatConfig.cardChoicesPresent(ordinaryCard),
+    "A missing resource choice icon must invalidate the cached signature")
 local function hasInteraction()
     for _,element in ipairs(card.UI.xml) do
         if element.attributes~=nil
