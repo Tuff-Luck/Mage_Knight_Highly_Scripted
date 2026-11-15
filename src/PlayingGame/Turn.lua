@@ -346,9 +346,11 @@ function reclaimTimeBending(callback)
 	if gStates==nil or gStates.timeBendingRemovedSeat==nil then if callback~=nil then callback() end return false end
 	if timeBendingRecoveryPending==true then return true end
 	local seatPos=gStates.timeBendingRemovedSeat
-	local existing=getObjectFromGUID(timeBendingGUID)
+    local removedGUID=gStates.timeBendingRemovedGUID or timeBendingGUID
+	local existing=getObjectFromGUID(removedGUID)
 	if existing~=nil then
 		gStates.timeBendingRemovedSeat=nil
+        gStates.timeBendingRemovedGUID=nil
 		if callback~=nil then callback() end
 		return false
 	end
@@ -359,16 +361,18 @@ function reclaimTimeBending(callback)
 		return false
 	end
 	local inTrash=false
-	for _, obj in pairs(trash.getObjects()) do if obj.guid==timeBendingGUID then inTrash=true break end end
+	for _, obj in pairs(trash.getObjects()) do if obj.guid==removedGUID then inTrash=true break end end
 	if inTrash==false then
 		gStates.timeBendingRemovedSeat=nil
+        gStates.timeBendingRemovedGUID=nil
 		if callback~=nil then callback() end
 		return false
 	end
 	timeBendingRecoveryPending=true
 	local pos=discardZone.getPosition()
-	local recovered=safeTakeObject("Turn",trash,{guid=timeBendingGUID, position={pos[1], pos[2]+1.5, pos[3]}, rotation={0,180,0}, smooth=false, callback_function=function()
+	local recovered=safeTakeObject("Turn",trash,{guid=removedGUID, position={pos[1], pos[2]+1.5, pos[3]}, rotation={0,180,0}, smooth=false, callback_function=function()
 		gStates.timeBendingRemovedSeat=nil
+        gStates.timeBendingRemovedGUID=nil
 		timeBendingRecoveryPending=false
 		safeWaitFrames("Turn",function() if callback~=nil then callback() end end, 2)
 	end})
@@ -468,6 +472,11 @@ function turnPreparePreEndTurn(cleanupPlayer,playerColor,id)
 			end
 		end
 		if useTimeBending then
+            -- Magic Talent takes Time Bending's place in the set-aside area.
+            local seat=turnOrder[cleanupPlayer].seatPos
+            gStates.timeBendingRemovedGUID=(magicTalentBorrowedTimeBendingPaid~=nil
+                and magicTalentBorrowedTimeBendingPaid(seat)) and "3d832c"
+                or timeBendingGUID
 			gStates.timeBending="Started"
 			if cleanupTurnToken~=nil and cleanupTurnToken.is_face_down==true then
 				cleanupTurnToken.flip()
