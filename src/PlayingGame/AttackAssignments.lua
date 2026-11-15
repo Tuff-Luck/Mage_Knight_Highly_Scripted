@@ -1121,7 +1121,8 @@ function attackAssignmentSourceClicked(player,value,id)
 		local additional=tostring(value)=="-2"
         -- Each Forked Lightning bolt has exactly one enemy target.
         if sourceKey:match("^d01b70#fork%d+$") then additional=false end
-		if not additional and pending==nil then
+		local replacingTarget=not additional and pending==nil
+		if replacingTarget then
 			local removed=false
 			for entryId,entry in pairs(assignmentRegistry) do
 				if entry.sourceGUID==sourceKey then
@@ -1130,8 +1131,17 @@ function attackAssignmentSourceClicked(player,value,id)
 				end
 			end
 			if removed then persistAssignments() end
+			-- Removing an arrow must remove the calculator's independent target
+			-- lock too. Otherwise cancelling the pending retarget leaves Move
+			-- silently blocking a Cumbersome enemy with no visible arrow.
+			if resourceCardsCombatForgetSource~=nil then
+				resourceCardsCombatForgetSource(sourceKey)
+			end
 		end
 		attackAssignmentsBegin(source,resource,color,additional,sourceKey,part)
+		if replacingTarget and resourceCardsSourceChanged~=nil then
+			resourceCardsSourceChanged()
+		end
 	end)
 end
 
