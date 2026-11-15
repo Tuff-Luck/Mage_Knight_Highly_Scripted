@@ -1,0 +1,29 @@
+<!-- Full Command capacity: choose a Unit on the board, then confirm its
+     disband. This stays separate from MainGame so out-of-turn replacements
+     do not shift or overwrite the normal turn panel. -->
+<Panel id="UnitReplacement" active="false" rectAlignment="MiddleCenter"
+       offsetXY="0 170" width="430" height="210" color="#333333F5"
+       outline="#8D785A" outlineSize="2 -2" allowDragging="true">
+    <VerticalLayout padding="10 10 10 10" spacing="5" childForceExpandHeight="false">
+        <Text id="UnitReplacementTitle" class="Title22" color="#F8E6C9"
+              preferredHeight="34">{en}Replace a Unit{it}Sostituisci un'Unità{ru}Замена отряда{zh-tw}替換單位{zh-cn}替换单位{ko}유닛 교체{es}Reemplazar Unidad{fr}Remplacer une Unité{pt-br}Substituir Unidade{de}Einheit ersetzen</Text>
+        <Text id="UnitReplacementDescription" class="Text16" color="#F4E6D5"
+              preferredHeight="44">{en}No free Command tokens. Click DISBAND on a Unit in your Unit Area to make room for:{it}Nessun segnalino Comando libero. Seleziona DISBAND su un'Unità per fare posto a:{ru}Нет свободных жетонов. Выберите отряд для роспуска и найма:{zh-tw}沒有空閒指揮標記。選擇要解散的單位，以招募：{zh-cn}没有空闲指挥标记。选择要解散的单位，以招募：{ko}남은 명령 토큰이 없습니다. 교체할 유닛을 선택하세요:{es}Sin fichas de Mando libres. Elige una Unidad para sustituir por:{fr}Aucun jeton Commandement libre. Choisissez une Unité à remplacer par :{pt-br}Sem fichas de Comando livres. Escolha uma Unidade para substituir por:{de}Keine freien Befehlsmarker. Wähle eine Einheit, die du ersetzen möchtest durch:</Text>
+        <Text id="UnitReplacementClaimText" class="Text18" color="#FFFFFF"
+              preferredHeight="24">New Unit</Text>
+        <Text id="UnitReplacementSelectedText" class="Text16" color="#F6CD8B"
+              preferredHeight="30">{en}Select a Unit on your board.{it}Scegli un'Unità sulla plancia.{ru}Выберите отряд на планшете.{zh-tw}選擇一個現有單位。{zh-cn}选择一个现有单位。{ko}기존 유닛을 선택하세요.{es}Elige una Unidad del tablero.{fr}Choisissez une Unité sur votre plateau.{pt-br}Escolha uma Unidade no tabuleiro.{de}Wähle eine Einheit auf dem Spielertableau.</Text>
+        <HorizontalLayout spacing="8" childForceExpandWidth="true">
+            <Button id="UnitReplacementCancel" onClick="unitReplacementCancel"
+                    preferredHeight="36">
+                <Image image="Sliced Button/Button New Active" type="Sliced"/>
+                <Text id="UnitReplacementCancelText" class="Text18">{en}Cancel{it}Annulla{ru}Отмена{zh-tw}取消{zh-cn}取消{ko}취소{es}Cancelar{fr}Annuler{pt-br}Cancelar{de}Abbrechen</Text>
+            </Button>
+            <Button id="UnitReplacementConfirm" interactable="false" onClick="unitReplacementConfirm"
+                    preferredHeight="36">
+                <Image image="Sliced Button/Button New Active" type="Sliced"/>
+                <Text id="UnitReplacementConfirmText" class="Text18">{en}Confirm Replace{it}Conferma sostituzione{ru}Подтвердить замену{zh-tw}確認替換{zh-cn}确认替换{ko}교체 확인{es}Confirmar reemplazo{fr}Confirmer{pt-br}Confirmar substituição{de}Ersetzen bestätigen</Text>
+            </Button>
+        </HorizontalLayout>
+    </VerticalLayout>
+</Panel>
