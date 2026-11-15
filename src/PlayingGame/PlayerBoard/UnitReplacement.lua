@@ -177,7 +177,8 @@ end
 -- The click is also confirmation: no second panel action is required.
 local function unitReplacementSelectClicked(unit,playerColor)
     local state=replacementState()
-    if unit==nil or not replacementPlayerAllowed({color=playerColor},state)
+    if unit==nil or state==nil
+        or not replacementPlayerAllowed({color=playerColor},state)
         or state.committing==true then return end
     local layout=unitLayoutSnapshot(state.seatPos)
     if layout.unitSlotByGuid[unit.guid]==nil then return end
@@ -265,7 +266,7 @@ end
 
 unitReplacementConfirm=function(player)
     local state=replacementState()
-    if not replacementPlayerAllowed(player,state) then return end
+    if state==nil or not replacementPlayerAllowed(player,state) then return end
     local claimed,old,layout,unitX,token=replacementValid(state)
     if claimed==nil then
         state.committing=false
@@ -278,7 +279,8 @@ unitReplacementConfirm=function(player)
         state.committing=false
         return
     end
-    local owner="Replace Unit "..state.claimGUID
+    local expectedClaimGUID=state.claimGUID
+    local owner="Replace Unit "..expectedClaimGUID
     local expectedSelected=state.selectedGUID
     if rewindTransactionOwnerActive(owner) then return end
     rewindTransactionStart(function()
@@ -287,7 +289,10 @@ unitReplacementConfirm=function(player)
         local pending=replacementState()
         local newUnit,oldUnit,currentLayout,x,command=replacementValid(pending)
         local trash=getObjectFromGUID(trashCan)
-        if newUnit==nil or trash==nil or pending.selectedGUID~=expectedSelected
+        if pending==nil or pending~=state or newUnit==nil or oldUnit==nil
+            or currentLayout==nil or x==nil or command==nil or trash==nil
+            or pending.claimGUID~=expectedClaimGUID
+            or pending.selectedGUID~=expectedSelected
             or (cardFlowUnitClaimBusy~=nil and cardFlowUnitClaimBusy()) then
             rewindTransactionFinish(owner)
             if pending~=nil then
@@ -351,7 +356,7 @@ unitReplacementConfirm=function(player)
     end,owner,function()
         -- Snapshot failure must not leave the selection locked.
         local pending=replacementState()
-        if pending~=nil and pending.claimGUID==state.claimGUID then
+        if pending~=nil and pending.claimGUID==expectedClaimGUID then
             pending.committing=false
             pending.selectedGUID=nil
         end
