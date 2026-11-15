@@ -2,7 +2,9 @@
 -- The selected Unit is disbanded only AFTER a safe rewind snapshot is stored.
 -- Physical Command slots remain owned by UnitLayout; spent-history handoff is
 -- owned by CardRecognition / UnitHistory.
-local REPLACEMENT_PREFIX="UnitReplaceSelect_"
+local REPLACEMENT_PREFIX="UnitReplaceSelect_" -- only for removing old visible saved buttons
+local REPLACEMENT_CLICK="unitReplacementSelectClicked"
+local unitReplacementConfirm -- forward reference for the direct Unit click callback
 local function replacementState()
     return gStates~=nil and gStates.unitReplacementPending or nil
 end
@@ -28,13 +30,15 @@ local function replacementOfferUnit(guid)
     return unit
 end
 
-local function replacementRemoveUnitButton(unit)
+-- Old builds attached a visible DISBAND button in the Unit's XML.
+-- Strip it once, including in saves paused at an unfinished replacement.
+local function replacementRemoveLegacyButton(unit)
     if unit==nil or unit.UI==nil then return end
     local xml=resourceObjectUiXmlTable(unit.UI)
     local changed=false
     for i=#xml,1,-1 do
-        local attributes=xml[i].attributes
-        local id=attributes~=nil and attributes.id or nil
+        local attr=xml[i].attributes
+        local id=attr~=nil and attr.id or nil
         if type(id)=="string" and id:sub(1,#REPLACEMENT_PREFIX)==REPLACEMENT_PREFIX then
             table.remove(xml,i)
             changed=true
@@ -46,27 +50,22 @@ local function replacementRemoveUnitButton(unit)
     end
 end
 
-local function replacementShowUnitButton(unit,selected)
-    if unit==nil or unit.UI==nil then return end
-    local xml=resourceObjectUiXmlTable(unit.UI)
-    local expected=REPLACEMENT_PREFIX..unit.guid
-    for i=#xml,1,-1 do
-        local attributes=xml[i].attributes
-        local id=attributes~=nil and attributes.id or nil
-        if type(id)=="string" and id:sub(1,#REPLACEMENT_PREFIX)==REPLACEMENT_PREFIX then
-            table.remove(xml,i)
-        end
+local function replacementRemoveUnitButton(unit)
+    if unit==nil then return end
+    replacementRemoveLegacyButton(unit)
+    if attackAssignmentsRemoveInvisibleUnitTargetButton~=nil then
+        attackAssignmentsRemoveInvisibleUnitTargetButton(unit,REPLACEMENT_CLICK)
     end
-    xml[#xml+1]={tag="Button",attributes={
-        id=expected,onClick="global/unitReplacementSelectClicked",
-        position="0 -205 -38",rotation="0 0 180",
-        width=200,height=80,scale="0.25 0.25",fontSize=38,
-        textColor="#FFFFFF",textAlignment="MiddleCenter",
-        colors=selected and "#28672E|#36973F|#28672E|#28672E"
-            or "#80451D|#A46627|#80451D|#80451D"},
-        value=selected and "SELECTED" or "DISBAND"}
-    resourceObjectUiSetTable(unit.UI,xml,
-        resourceCardsExistingImageAssetsFor(unit.UI,{}))
+end
+
+local function replacementShowUnitButton(unit)
+    if unit==nil then return end
+    replacementRemoveLegacyButton(unit)
+    -- Exactly the same invisible full-card target used for assigning enemy
+    -- damage to a Unit; no visible object UI buttons or labels.
+    if attackAssignmentsAddInvisibleUnitTargetButton~=nil then
+        attackAssignmentsAddInvisibleUnitTargetButton(unit,REPLACEMENT_CLICK)
+    end
 end
 
 local function replacementClearVisuals(state)
@@ -111,49 +110,30 @@ local function replacementRender(state)
     for _,unit in ipairs(layout.units) do current[unit.guid]=unit end
     for _,guid in ipairs(state.candidates or {}) do
         if current[guid]==nil then
-            local removed=getObjectFromGUID(guid)
-            if removed~=nil then replacementRemoveUnitButton(removed) end
+            replacementRemoveUnitButton(getObjectFromGUID(guid))
         end
     end
     state.candidates={}
     for _,unit in ipairs(layout.units) do
         if layout.unitSlotByGuid[unit.guid]~=nil then
             state.candidates[#state.candidates+1]=unit.guid
-            replacementShowUnitButton(unit,unit.guid==state.selectedGUID)
-            if unit.highlightOn~=nil then
-                unit.highlightOn(unit.guid==state.selectedGUID
-                    and {0.25,0.95,0.30} or {1,0.60,0.12})
-            end
+            replacementShowUnitButton(unit)
+            if unit.highlightOn~=nil then unit.highlightOn({1,0.60,0.12}) end
         end
     end
-    if current[state.selectedGUID]==nil then state.selectedGUID=nil end
     UI.setAttribute("UnitReplacement","active","true")
-    UI.setAttribute("UnitReplacementClaimText","text",
-        replacementUnitName(state.claimGUID))
-    UI.setAttribute("UnitReplacementSelectedText","text",
-        state.selectedGUID~=nil and replacementUnitName(state.selectedGUID)
-            or "{en}Select a Unit on your board.{it}Scegli un'Unità sulla plancia.{ru}Выберите отряд на планшете.{zh-tw}選擇一個現有單位。{zh-cn}选择一个现有单位。{ko}기존 유닛을 선택하세요.{es}Elige una Unidad del tablero.{fr}Choisissez une Unité sur votre plateau.{pt-br}Escolha uma Unidade no tabuleiro.{de}Wähle eine Einheit auf dem Spielertableau.")
-    UI.setAttribute("UnitReplacementConfirm","interactable",
-        state.selectedGUID~=nil and "true" or "false")
+    UI.setAttribute("UnitReplacementDescription","text",joinLang({
+        "{en}No free Command Tokens.\\nClick a Unit you wish to disband and Replace with {it}Nessun segnalino Comando libero.\\nScegli un'Unità da congedare e sostituire con {ru}Нет свободных жетонов Командования.\\nВыберите отряд для роспуска и замены на {zh-tw}沒有空閒指揮標記。\\n點選要解散並替換的單位：{zh-cn}没有空闲指挥标记。\\n点击要解散并替换的单位：{ko}남은 명령 토큰이 없습니다.\\n해산하여 교체할 유닛을 클릭하세요: {es}No hay fichas de Mando libres.\\nHaz clic en la Unidad que quieres disolver y reemplazar por {fr}Aucun jeton Commandement libre.\\nCliquez sur l'Unité à dissoudre et remplacer par {pt-br}Sem fichas de Comando livres.\\nClique na Unidade que deseja dispensar e substituir por {de}Keine freien Befehlsmarker.\\nKlicke auf die Einheit, die du auflösen und ersetzen möchtest durch ",
+        replacementUnitName(state.claimGUID),"."}))
 end
 
 function unitReplacementEnsureControls(seatPos)
     local state=replacementState()
     if state==nil or (seatPos~=nil and seatPos~=state.seatPos) then return end
-    -- CardRecognition and UnitLayout may rewrite Unit object UI during a
-    -- scan. Repaint only controls that are genuinely missing; do not disrupt
-    -- normal activation/targeting buttons on every refresh.
-    local layout=unitLayoutSnapshot(state.seatPos)
-    for _,unit in ipairs(layout.units) do
-        local exists=false
-        for _,node in ipairs(resourceObjectUiXmlTable(unit.UI)) do
-            if node.attributes~=nil
-                and node.attributes.id==REPLACEMENT_PREFIX..unit.guid then
-                exists=true
-                break
-            end
-        end
-        if not exists then replacementShowUnitButton(unit,unit.guid==state.selectedGUID) end
+    -- The Resource Tracker can rewrite card XML without affecting classic
+    -- buttons. Reconcile invisible hit areas without stacking duplicates.
+    for _,unit in ipairs(unitLayoutSnapshot(state.seatPos).units) do
+        replacementShowUnitButton(unit)
     end
 end
 
@@ -184,14 +164,17 @@ function unitReplacementRestoreOnLoad()
     replacementRender(state)
 end
 
-local function unitReplacementSelectClicked(player,value,id)
+-- Unit card is clicked directly, just as with enemy damage targeting.
+-- The click is also confirmation: no second panel action is required.
+local function unitReplacementSelectClicked(unit,playerColor)
     local state=replacementState()
-    if not replacementPlayerAllowed(player,state) then return end
-    local guid=type(id)=="string" and id:match("^UnitReplaceSelect_([0-9a-f]+)$") or nil
+    if unit==nil or not replacementPlayerAllowed({color=playerColor},state)
+        or state.committing==true then return end
     local layout=unitLayoutSnapshot(state.seatPos)
-    if guid==nil or layout.unitSlotByGuid[guid]==nil then return end
-    state.selectedGUID=guid
-    replacementRender(state)
+    if layout.unitSlotByGuid[unit.guid]==nil then return end
+    state.selectedGUID=unit.guid
+    state.committing=true
+    unitReplacementConfirm({color=playerColor})
 end
 
 local function unitReplacementCancel(player)
@@ -271,16 +254,21 @@ local function replacementValid(state)
     return claimed,old,layout,unitX,token
 end
 
-local function unitReplacementConfirm(player)
+unitReplacementConfirm=function(player)
     local state=replacementState()
     if not replacementPlayerAllowed(player,state) then return end
     local claimed,old,layout,unitX,token=replacementValid(state)
     if claimed==nil then
+        state.committing=false
+        state.selectedGUID=nil
         replacementRender(state)
         broadcastToColor("{en}The Unit offer or board changed. Select the Unit to replace again.{it}L'offerta o la plancia sono cambiate. Seleziona di nuovo l'Unità.{ru}Предложение или планшет изменились. Выберите отряд снова.",player.color,warningColor)
         return
     end
-    if cardFlowUnitClaimBusy~=nil and cardFlowUnitClaimBusy() then return end
+    if cardFlowUnitClaimBusy~=nil and cardFlowUnitClaimBusy() then
+        state.committing=false
+        return
+    end
     local owner="Replace Unit "..state.claimGUID
     local expectedSelected=state.selectedGUID
     if rewindTransactionOwnerActive(owner) then return end
@@ -293,7 +281,11 @@ local function unitReplacementConfirm(player)
         if newUnit==nil or trash==nil or pending.selectedGUID~=expectedSelected
             or (cardFlowUnitClaimBusy~=nil and cardFlowUnitClaimBusy()) then
             rewindTransactionFinish(owner)
-            if pending~=nil then replacementRender(pending) end
+            if pending~=nil then
+                pending.committing=false
+                pending.selectedGUID=nil
+                replacementRender(pending)
+            end
             return
         end
         -- A spent token can physically cover the discarded card. Move it to
@@ -306,6 +298,8 @@ local function unitReplacementConfirm(player)
                 currentLayout.unitSlotByGuid[oldUnit.guid],currentLayout)
             if readyPosition==nil then
                 rewindTransactionFinish(owner)
+                pending.committing=false
+                pending.selectedGUID=nil
                 broadcastToColor("{en}Cannot find the Command Ready snap. Move the Command above the Unit and try again.{it}Posizione Comando pronto non trovata. Sposta il segnalino e riprova.{ru}Позиция готового жетона не найдена. Переместите жетон и повторите.",player.color,warningColor)
                 return
             end
@@ -341,11 +335,17 @@ local function unitReplacementConfirm(player)
             rewindTransactionFinish(owner)
             broadcastToColor("{en}The Unit did not settle into its slot. Use Undo to restore the old Unit.{it}La nuova Unità non è stata posizionata. Usa Annulla per ripristinare la precedente.{ru}Новый отряд не разместился. Используйте Отменить для восстановления.",player.color,warningColor)
         end
-    end,owner)
+    end,owner,function()
+        -- Snapshot failure must not leave the selection locked.
+        local pending=replacementState()
+        if pending~=nil and pending.claimGUID==state.claimGUID then
+            pending.committing=false
+            pending.selectedGUID=nil
+        end
+    end)
 end
 
 publishPublicUICallbacks({
     unitReplacementSelectClicked=unitReplacementSelectClicked,
-    unitReplacementCancel=unitReplacementCancel,
-    unitReplacementConfirm=unitReplacementConfirm
+    unitReplacementCancel=unitReplacementCancel
 })
