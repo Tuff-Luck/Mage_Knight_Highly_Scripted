@@ -7644,6 +7644,38 @@ local function renderSeat(seatPos)
     inspectZone(playerCrystalAreas[seatPos],"crystal")
     inspectZone(playerUnitAreas[seatPos],"unit")
     inspectZone(playerPlayAreas[seatPos],"play")
+    -- A Source die resting ON a played Action may sit above the thin play
+    -- scripting zone, even though its dropped GUID was seen. Recover only
+    -- settled, physically overlapping mana candidates; a die elsewhere on
+    -- the table must never pay for an Action merely because it was moved.
+    local manaCandidates=trackerPrivate.unitManaCandidatesBySeat[seatPos] or {}
+    for guid in pairs(manaCandidates) do
+        if placements[guid]~="play" then
+            local mana=objects[guid] or getObjectFromGUID(guid)
+            if mana==nil or (mana.isDestroyed~=nil and mana.isDestroyed()) then
+                manaCandidates[guid]=nil
+            elseif (mana.held_by_color==nil or mana.held_by_color=="")
+                and mana.resting==true and not mana.isSmoothMoving()
+                and manaColor(mana)~=nil then
+                local pos=mana.getPosition()
+                for cardGUID,card in pairs(objects) do
+                    if placements[cardGUID]=="play"
+                        and (objectKinds[cardGUID]=="card" or objectKinds[cardGUID]=="skill") then
+                        local area=footprint(card)
+                        local cardPos=card.getPosition()
+                        if pos[2]>=cardPos[2] and pos[2]-cardPos[2]<3
+                            and math.abs(pos[1]-area.x)<area.halfX
+                            and math.abs(pos[3]-area.z)<area.halfZ then
+                            objects[guid]=mana
+                            objectKinds[guid]="mana"
+                            placements[guid]="play"
+                            break
+                        end
+                    end
+                end
+            end
+        end
+    end
     -- A resting active Unit can be lifted above the thin Zone by its stacked
     -- Command/crystal without actually leaving the Unit mat. Reuse the same
     -- X/Z and held-object checks as the physical Unit layout rather than
