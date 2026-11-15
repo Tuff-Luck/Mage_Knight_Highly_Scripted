@@ -6230,7 +6230,9 @@ function magicTalentSpellCastingPaid(seatPos,guid)
         if mana==nil or seen[mana.guid] or mana.guid==guid
             or mana.resting~=true or mana.isSmoothMoving()==true then return false end
         seen[mana.guid]=true
-        if not manaInsideFootprint(mana,area) then return false end
+        local p=mana.getPosition()
+        if math.abs(p[1]-area.x)>=area.halfX
+            or math.abs(p[3]-area.z)>=area.halfZ then return false end
         local color=manaColor(mana)
         return color~=nil and color~="Black" and matchesCardMana(card,color)
     end
