@@ -1118,7 +1118,7 @@ function cleanupPlayedCardAtEndTurn(card, playerIndex, cardDestination)
 	for _, ownedGUID in ipairs(turnOrder[playerIndex].deadDeckInventory or {}) do
 		if card.guid==ownedGUID then
 			if gStates.timeBending=="Started" and playerIndex==gStates.realTurn then
-				if card.guid==timeBendingGUID then
+				if card.guid==(gStates.timeBendingRemovedGUID or timeBendingGUID) then
 					gStates.timeBendingRemovedSeat=turnOrder[playerIndex].seatPos
 					if trash~=nil then trash.putObject(card) end
 					broadcastToAll("{en}Time Bend Left Play{it}Distorsione Temporale ha Lasciato il Gioco{ru}«Изгиб времени» покинул игру{zh-tw}「時間彎曲」離開遊戲區{zh-cn}“时间弯曲”离开游戏区{ko}시간 왜곡이 플레이 영역을 떠났습니다{es}Curvatura Temporal salió del juego{fr}Courbure du Temps a quitté le jeu{pt-br}Dobra Temporal saiu de jogo{de}Zeitkrümmung hat das Spiel verlassen", positionToColor(playerIndex))
