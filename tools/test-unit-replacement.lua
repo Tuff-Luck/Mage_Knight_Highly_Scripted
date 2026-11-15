@@ -237,6 +237,13 @@ attrs["UnitReplacement:active"]="false"
 owner.UI.nodes={}
 env.unitReplacementRestoreOnLoad()
 assert(attrs["UnitReplacement:active"]=="true" and #owner.UI.nodes>0)
+-- If the offered card is removed while a disband is pending, confirmation
+-- must fail without touching the currently owned Unit.
+candidate.offered=false
+env.unitReplacementConfirm({color="Red"})
+assert(not savedSnapshot and not oldTrashed and not newClaimed,
+    "Invalidated offered Unit must not start the replacement transaction")
+candidate.offered=true
 env.unitReplacementConfirm({color="Red"})
 assert(savedSnapshot and finished and oldTrashed and newClaimed,
     "Confirmation must replace the old Unit inside the rewind transaction")
