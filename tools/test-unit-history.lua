@@ -235,4 +235,19 @@ token.position.y=1
 unitHistoryCancelReadySource("card")
 eq(spentCommand,true,"cancelled unconsumed Ready restores exhaustion")
 unitHistoryReset()
+
+-- Disbanding a Unit removes its own choices and incoming Ready links.
+-- It does NOT ready its spent Command: the newly recruited replacement owns
+-- the reset, so lifting or trashing an old card cannot replay an ability.
+spentCommand=true
+local disbandUse={seatPos=1,tokenGUID="cmd",choice=1}
+gStates.unitResourceActivations.u1=disbandUse
+unitHistoryEnsure("u1",disbandUse)
+gStates.unitReadyLinks.card={unitGUID="u1",seatPos=1,afterUse=1}
+unitHistoryReleaseUnit("u1")
+eq(gStates.unitActivationHistory.u1,nil,"disband retires old Unit history")
+eq(gStates.unitResourceActivations.u1,nil,"disband retires old Unit activation")
+eq(gStates.unitReadyLinks.card,nil,"disband cancels a Ready aimed at old Unit")
+eq(spentCommand,true,"disband alone cannot ready a spent Command")
+unitHistoryReset()
 print("Unit activation history tests passed.")
