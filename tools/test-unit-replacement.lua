@@ -14,12 +14,22 @@ local function section(source,a,b)
 end
 local cardRecognition=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local replacement=read("src/PlayingGame/PlayerBoard/UnitReplacement.lua")
+local assignments=read("src/PlayingGame/AttackAssignments.lua")
+local replacementPanel=read("src/UI/UnitReplacement.xml")
 local flow=read("src/PlayingGame/PlayerBoard/CardFlow.lua")
 local entry=read(".tts/objects/Global.lua")
 local callbacks=read("src/PlayingGame/Callbacks.lua")
 assert(entry:find('require("PlayingGame.PlayerBoard.UnitReplacement")',1,true))
 assert(flow:find('unitReplacementBegin(player,claimedCard.guid,seatPos)',1,true))
-assert(callbacks:find('"unitReplacementCancel","unitReplacementConfirm","unitReplacementSelectClicked"',1,true))
+assert(callbacks:find('"unitReplacementCancel","unitReplacementSelectClicked"',1,true))
+assert(not replacementPanel:find('id="UnitReplacementConfirm"',1,true),
+    "No Confirm button should remain in the replacement panel")
+assert(not replacementPanel:find('id="UnitReplacementClaimText"',1,true),
+    "The new Unit name belongs inside the instruction, not its own line")
+assert(not replacementPanel:find('id="UnitReplacementSelectedText"',1,true),
+    "Selection is now immediate; no second status line should remain")
+assert(replacementPanel:find('id="UnitReplacementCancel"',1,true),
+    "Cancel must remain available while picking a Unit")
 assert(cardRecognition:find('unitReplacementEnsureControls(seatPos)',1,true))
 assert(read("src/PlayingGame/Events.lua"):find('resourceUnitsRetireUnit(obj.guid)',1,true))
 assert(read("src/PlayingGame/PlayerBoard/Events.lua"):find(
@@ -84,8 +94,8 @@ assert(not commandSpent(tokenGUID) and commandOwner(tokenGUID)==nil,
 local attrs,objects={},{}
 local owner={
     guid="abc001",inUnit=true,x=0,resting=true,
-    bounds={center={x=0,y=1,z=-34.74},size={x=2,z=3}},
-    UI={nodes={}}
+    bounds={center={x=0,y=1,z=-34.74},size={x=2,y=0.1,z=3}},
+    UI={nodes={}},buttons={}
 }
 local candidate={guid="def002",offered=true,resting=true,UI={nodes={}}}
 local wound={guid="aaa123",wound=true,x=0,z=-34.74}
@@ -103,6 +113,16 @@ local bonusCommand={guid="c0b002"}
 local woundReturned,oldTrashed,newClaimed=false,false,false
 for _,obj in ipairs({owner,candidate,wound,banner,mana,command,bonusCommand}) do objects[obj.guid]=obj end
 owner.getBounds=function() return owner.bounds end
+owner.getScale=function() return {x=1,y=1,z=1} end
+owner.getButtons=function() return owner.buttons end
+owner.createButton=function(spec)
+    spec.index=#owner.buttons
+    owner.buttons[#owner.buttons+1]=spec
+end
+owner.removeButton=function(index)
+    table.remove(owner.buttons,index+1)
+    for i,button in ipairs(owner.buttons) do button.index=i-1 end
+end
 owner.getPosition=function() return {x=0,y=1,z=-34.74} end
 owner.highlightOn=function() end
 owner.highlightOff=function() end
@@ -150,7 +170,7 @@ local finished=false
 local clearedHistory=false
 local closeCount=0
 local env={
-    gStates=state,UI=ui,
+    gStates=state,UI=ui,Global={name="Global"},
     gameCards={
         [owner.guid]={cardType="Regular Unit",name={"Old Unit"}},
         [candidate.guid]={cardType="Elite Unit",name={"New Unit"}}},
@@ -214,6 +234,11 @@ local env={
     publishPublicUICallbacks=function() end
 }
 setmetatable(env,{__index=_G})
+-- Execute the same full-card transparent target helper used for damage.
+local targetCode=section(assignments,
+    "function attackAssignmentsAddInvisibleUnitTargetButton(obj,clickFunction)",
+    "local function addDamageTargetButton(obj,clickFunction)")
+assert(load(targetCode,"Shared invisible Unit hit-area","t",env))()
 env.publishPublicUICallbacks=function(funcs)
     for name,fn in pairs(funcs) do env[name]=fn end
 end
@@ -221,38 +246,45 @@ assert(load(replacement,"Full Unit replacement","t",env))()
 assert(env.unitReplacementBegin({color="Red"},candidate.guid,1),
     "Full board must open the replacement choice")
 assert(attrs["UnitReplacement:active"]=="true" and not oldTrashed
-    and candidate.offered,"Choice may not claim or trash until confirmation")
-local function selectOld()
-    env.unitReplacementSelectClicked({color="Red"},"-1","UnitReplaceSelect_"..owner.guid)
-end
-selectOld()
-assert(state.unitReplacementPending.selectedGUID==owner.guid)
-assert(attrs["UnitReplacementConfirm:interactable"]=="true")
-assert(#owner.UI.nodes>0,"The disband selection button should be on the Unit")
--- Cancel is non-destructive, leaving the Unit offer as it was.
+    and candidate.offered,"Choice may not claim or trash until Unit is clicked")
+local description=attrs["UnitReplacementDescription:text"]
+assert(description:find("No free Command Tokens.\\nClick a Unit you wish to disband and Replace with New Unit.",1,true),
+    "The panel must show the requested two-line instruction and replacement name")
+assert(#owner.UI.nodes==0,"No visible DISBAND button must be added to Unit XML")
+assert(#owner.buttons==1 and owner.buttons[1].label==""
+    and owner.buttons[1].click_function=="unitReplacementSelectClicked",
+    "The Unit itself needs a single invisible damage-style hit area")
+assert(owner.buttons[1].color[4]==0,
+    "Card-wide replacement click area should be fully transparent")
+env.unitReplacementEnsureControls(1)
+env.unitReplacementEnsureControls(1)
+assert(#owner.buttons==1,"Repeated refresh must not stack invisible buttons")
+-- Cancel is non-destructive, leaving the Unit offer and current Unit intact.
 env.unitReplacementCancel({color="Red"})
 assert(not oldTrashed and candidate.offered and state.unitReplacementPending==nil,
     "Cancelling replacement must leave all pieces in place")
 assert(attrs["UnitReplacement:active"]=="false","Cancel must close panel")
-assert(#owner.UI.nodes==0,"Cancel must remove its object button")
+assert(#owner.buttons==0,"Cancel must remove the invisible hit area")
 
--- Saving while choosing must restore the panel and selection after load.
+-- Saving while choosing must restore the panel and the invisible hit area.
 assert(env.unitReplacementBegin({color="Red"},candidate.guid,1))
-selectOld()
 attrs["UnitReplacement:active"]="false"
-owner.UI.nodes={}
+owner.buttons={}
 env.unitReplacementRestoreOnLoad()
-assert(attrs["UnitReplacement:active"]=="true" and #owner.UI.nodes>0)
--- If the offered card is removed while a disband is pending, confirmation
--- must fail without touching the currently owned Unit.
+assert(attrs["UnitReplacement:active"]=="true" and #owner.buttons==1)
+-- The offer can change before a Unit is clicked. In that case the script must
+-- leave the old Unit untouched, without locking the selection permanently.
 candidate.offered=false
-env.unitReplacementConfirm({color="Red"})
+env.unitReplacementSelectClicked(owner,"Red")
 assert(not savedSnapshot and not oldTrashed and not newClaimed,
     "Invalidated offered Unit must not start the replacement transaction")
+assert(state.unitReplacementPending~=nil and state.unitReplacementPending.committing==false,
+    "Failed selection must allow a fresh click")
 candidate.offered=true
-env.unitReplacementConfirm({color="Red"})
+-- Clicking a Unit is the confirmation. There is no separate Confirm button.
+env.unitReplacementSelectClicked(owner,"Red")
 assert(savedSnapshot and finished and oldTrashed and newClaimed,
-    "Confirmation must replace the old Unit inside the rewind transaction")
+    "Clicking a Unit must replace it inside the rewind transaction")
 assert(woundReturned,"The disbanded Unit's Wounds should return to the pool")
 assert(banner.moved,"An attached Banner should move to the discard area")
 assert(type(mana.staged)=="table" and mana.staged[3]==-40.3,
@@ -262,5 +294,6 @@ assert(objects[command.guid]~=nil and objects[bonusCommand.guid]~=nil,
 assert(command.moved and command.position[3]==-39,
     "Spent Unit replacement must move the actual Command to its Ready snap")
 assert(state.unitReplacementPending==nil and attrs["UnitReplacement:active"]=="false")
-assert(not candidate.offered,"The new Unit must leave the offer only after confirmation")
+assert(#owner.buttons==0,"Completed replacement must clear the hit area")
+assert(not candidate.offered,"The new Unit must leave the offer only after clicking a Unit")
 print("Full Unit Area replacement, cancellation and Command ownership regressions passed")
