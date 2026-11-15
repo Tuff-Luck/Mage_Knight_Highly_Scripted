@@ -30,6 +30,9 @@ function onLoad(saved_data)
 		resourceCardsRegisterIconAssets()
 		local loadedData=nil
 		if type(saved_data)=="string" and saved_data~="" then loadedData=JSON.decode(saved_data) end
+		-- Global lines survive TTS rewinds while the movement display's runtime
+		-- snapshot does not. Remove only old map route overlays before UI restores.
+		moveDisplayDiscardSavedRouteLines()
 		--These objects already exist when Global loads. Install their XML immediately, then use the
 		--proven load-time setAttribute pass once TTS has had two frames to build/localise the object UI.
 		monsterReplenishObjectOnLoad()
