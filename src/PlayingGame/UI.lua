@@ -477,18 +477,25 @@ function automatedProxyPanelSpec(stats,stateOverride)
 	if state=="Processing" then
 		spec.label="{en}Processing Proxy...{it}Proxy in elaborazione...{ru}Обработка прокси...{zh-tw}代理玩家行動處理中...{zh-cn}代理玩家行动处理中...{ko}프록시 처리 중...{es}Procesando Proxy...{fr}Traitement du Proxy...{pt-br}Processando Proxy...{de}Proxy wird verarbeitet..."
 		if stateOverride==nil then
-			spec.notes=gStates.proxyTurnReport~=nil and proxyTurnReportText() or "Proxy is preparing their movement."
+			if gStates.proxyTurnReport~=nil then
+				spec.notes=proxyTurnReportText("headline")
+				spec.details=proxyTurnReportText("details")
+			else
+				spec.notes="Proxy is preparing their movement."
+			end
 		end
 		spec.interactable=false
 	elseif state=="PickDestination" or state=="PickRoute" or state=="PickCard" or state=="PickEnemy" or state=="PickMana" then
 		local pending=gStates.proxyPendingChoice
 		spec.label=proxyChoiceWaitingText~=nil and proxyChoiceWaitingText(pending~=nil and pending.type or nil) or "{en}Make Proxy Choice{it}Scegli per il Proxy{ru}Сделать выбор за Прокси{zh-tw}進行代理玩家選擇{zh-cn}进行代理玩家选择{ko}프록시 선택하기{es}Elegir por el Proxy{fr}Faire le choix du Proxy{pt-br}Fazer escolha do Proxy{de}Proxy-Auswahl treffen"
-		spec.notes=proxyTurnReportText~=nil and proxyTurnReportText() or ""
+		spec.notes=proxyTurnReportText~=nil and proxyTurnReportText("headline") or ""
+		spec.details=proxyTurnReportText~=nil and proxyTurnReportText("details") or nil
 		spec.interactable=false
 		if pending~=nil and pending.type=="mana" then spec.proxyManaChoice=pending end
 	elseif state=="ReadyToEnd" then
 		spec.label="{en}Proxy Processed{it}Proxy Completato{ru}Прокси обработан{zh-tw}代理玩家行動結束{zh-cn}代理玩家行动结束{ko}프록시 처리 완료{es}Proxy Procesado{fr}Proxy traité{pt-br}Proxy Processado{de}Proxy verarbeitet"
-		spec.notes=proxyTurnReportText~=nil and proxyTurnReportText() or ""
+		spec.notes=proxyTurnReportText~=nil and proxyTurnReportText("headline") or ""
+		spec.details=proxyTurnReportText~=nil and proxyTurnReportText("details") or nil
 	else
 		if stats.dummyProcessedThisTurn==true then
 			spec.label="{en}Dummy Processed{it}Fittizio Completato{ru}Виртуальный игрок сходил{zh-tw}虛擬玩家行動結束{zh-cn}虚拟玩家行动结束{ko}진행 완료{es}Jugador Virtual Procesado{fr}Fantôme préparé{pt-br}Jog.Fictício Processado{de}Dummy verarbeitet"
@@ -585,6 +592,11 @@ function automatedMainPanelApply(spec)
 	UI.setAttribute("DummyTurn","active","true")
 	if spec.mainText~=nil then UI.setAttribute("MainGameNotes","text",spec.mainText) UI.setAttribute("MainGameNotes","color","white") end
 	if spec.notes~=nil then UI.setAttribute("DummyNotes","Text",spec.notes) end
+	-- Only Proxy reports split their objective and Move breakdown into a
+	-- smaller dedicated label. Dummy and Volkare notes keep their old layout.
+	local details=spec.actor=="proxy" and spec.details or nil
+	UI.setAttribute("DummyDetails","active",details~=nil and details~="" and "true" or "false")
+	if details~=nil and details~="" then UI.setAttribute("DummyDetails","Text",details) end
 	if spec.actor=="proxy" and proxyManaChoiceUI~=nil then proxyManaChoiceUI(nil) else UI.setAttribute("DummyChoiceButtons","active","false") end
 	UI.setAttribute("DummyButton","active",spec.buttonVisible==false and "false" or "true")
 	if spec.onClick~=nil then UI.setAttribute("DummyButton","onClick",spec.onClick) end
