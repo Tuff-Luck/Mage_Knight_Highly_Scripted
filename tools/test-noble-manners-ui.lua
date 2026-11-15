@@ -1,0 +1,135 @@
+-- Repositioning powered Noble Manners must not lose its Interaction toggle.
+-- Run from repository root: lua5.2 tools/test-noble-manners-ui.lua
+local function read(path)
+    local f=assert(io.open(path,"r"))
+    local text=f:read("*a")
+    f:close()
+    return text
+end
+local source=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
+local data=read("src/Data.lua")
+assert(data:find('["eaaaa5"]={cardType="Starting", resourceKey="nobleManners"',1,true),
+    "Noble Manners card mapping changed")
+assert(data:find('nobleManners={normal={influence=2},powered={influence=4}',1,true),
+    "Noble Manners powered resource changed")
+local first=assert(source:find("combatConfig.cardInTransit=function(card)",1,true))
+local last=assert(source:find("-- One selected icon in the Unit",first,true))
+local uiSection=source:sub(first,last-1)
+assert(source:find("if not combatConfig.cardInTransit(previousObject) then",1,true),
+    "Temporary play-zone exits must preserve card-attached controls")
+local guid="eaaaa5"
+local xmlWrites=0
+local cardUI={xml={}}
+local card={
+    guid=guid,type="Card",is_face_down=false,held_by_color=nil,
+    moving=false,rotation={0,0,0},UI=cardUI,
+    isSmoothMoving=function(self) return self.moving end,
+    getGMNotes=function() return "" end,
+    getRotation=function(self) return self.rotation end
+}
+local selection={interaction=true,interactionPowered=true}
+local choicesShown={}
+local rules={nobleManners={normal={influence=2},powered={influence=4},
+    interactionReward={normal={fame=1},powered={fame=1,rep=1}}}}
+local env={
+    gameCards={[guid]={cardType="Starting",resourceKey="nobleManners"}},
+    cardResourceDefinitions=rules,skillResourceDefinitions={},skillTokens={},
+    gStates={startingCardSelections={[guid]=selection}},
+    combatConfig={sourceFields={}},
+    combatAssignmentState={targets={}},
+    trackerPrivate={singleAutoEnemyGUID=nil},
+    selectedResourceByGUID={},choiceExpandedByGUID={},
+    choiceButtonShown=choicesShown,choiceLetters={influence="I"},
+    combatCalcOn=false,combatPsychicActive=false,combatCumbersomeActive=false,
+    resourceCardsDetailsOpen=function() return true end,
+    factionRewardForObject=function() return nil end,
+    cardPosture=function(obj)
+        local tilt=(obj.rotation[2] or 0)%180
+        if tilt<25 then return "upright" end
+        if tilt<=70 then return "discard" end
+        return "sideways"
+    end,
+    choiceCategory=function(choice)
+        if choice.key~=nil then return choice.key end
+        for key in pairs(choice) do return key end
+    end,
+    currentChoice=function(_,_,choices)
+        return choices[1],"influence"
+    end,
+    resourceChoiceRank=function() return 1 end,
+    combatReductionChoiceIcon=function(_,_,_,category) return category end,
+    resourceCardsHideAutomaticEnemyTarget=function() return false end,
+    resourceChoiceColumn=function(category) return category end,
+    resourceCardsChoiceIcon=function(category) return {name=category} end,
+    resourceCardsChoiceAssetsFor=function() return nil,{} end,
+    resourceObjectUiXmlTable=function(ui) return ui.xml end,
+    resourceObjectUiSetTable=function(ui,xml)
+        xmlWrites=xmlWrites+1
+        ui.xml=xml
+    end,
+    removeChoiceButtons=function(obj)
+        local filtered={}
+        for _,element in ipairs(obj.UI.xml) do
+            local id=element.attributes~=nil and element.attributes.id or ""
+            if not id:find("^ResourceCardChoice_") and
+                not id:find("^AttackAssignmentSource_") then
+                filtered[#filtered+1]=element
+            end
+        end
+        obj.UI.xml=filtered
+        choicesShown[obj.guid]=nil
+        xmlWrites=xmlWrites+1
+    end
+}
+setmetatable(env,{__index=_G})
+local render=assert(load(uiSection.."\nreturn showChoiceButtons",
+    "Noble Manners interaction UI","t",env))()
+local function hasInteraction()
+    for _,element in ipairs(card.UI.xml) do
+        if element.attributes~=nil
+            and element.attributes.id=="ResourceCardChoice_"..guid.."_interaction" then
+            return true,element
+        end
+    end
+    return false
+end
+local function refresh()
+    render(card,nil,true,nil,nil,{influence=4},nil)
+end
+refresh()
+assert(hasInteraction(),"Powered Noble Manners must display its Interaction button")
+local writesAtRest=xmlWrites
+card.held_by_color="Blue"
+card.rotation={0,45,0}
+refresh()
+assert(xmlWrites==writesAtRest and hasInteraction(),
+    "Picking up or temporarily tilting the card must not remove Interaction")
+-- A temporary play-zone exit must not tear down the button. The relevant
+-- scan cleanup is also checked above, without simulating a second whole scan.
+card.held_by_color=nil
+card.rotation={0,0,0}
+card.moving=true
+refresh()
+assert(xmlWrites==writesAtRest and hasInteraction(),
+    "Smooth movement must leave the card control attached")
+card.moving=false
+refresh()
+assert(xmlWrites==writesAtRest and hasInteraction(),
+    "Settling with an unchanged signature should not need a redraw")
+-- Another object-UI writer can remove buttons without changing the resource
+-- signature. Noble Manners must repair its missing Interaction control.
+cardUI.xml={}
+refresh()
+assert(hasInteraction() and xmlWrites==writesAtRest+1,
+    "Missing Interaction control must be rebuilt even if signature is unchanged")
+assert(selection.interaction==true and selection.interactionPowered==true,
+    "Rebuilding the UI must not toggle or unpower the Interaction reward")
+-- A genuinely discarded card (resting at 45 degrees) may lose the control.
+card.rotation={0,45,0}
+refresh()
+assert(not hasInteraction(),
+    "An actual discarded orientation must remove the old control")
+card.rotation={0,0,0}
+refresh()
+assert(hasInteraction(),"Returning the card upright must restore Interaction")
+print("Noble Manners interaction button movement regression passed")
