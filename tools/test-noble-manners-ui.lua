@@ -23,10 +23,11 @@ local cardUI={xml={}}
 local card={
     guid=guid,type="Card",is_face_down=false,held_by_color=nil,
     moving=false,rotation={0,0,0},UI=cardUI,
-    isSmoothMoving=function(self) return self.moving end,
-    getGMNotes=function() return "" end,
-    getRotation=function(self) return self.rotation end
+    getGMNotes=function() return "" end
 }
+-- Tabletop Simulator object methods are called with dot syntax.
+card.isSmoothMoving=function() return card.moving end
+card.getRotation=function() return card.rotation end
 local selection={interaction=true,interactionPowered=true}
 local choicesShown={}
 local rules={nobleManners={normal={influence=2},powered={influence=4},
