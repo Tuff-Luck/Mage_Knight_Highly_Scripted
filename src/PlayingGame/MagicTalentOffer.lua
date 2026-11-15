@@ -231,7 +231,9 @@ local function paymentStillOnSpell(s)
     -- sole authority; this works for normal, powered and utility Spells.
     local scan=resourceCardScanBySeat~=nil and resourceCardScanBySeat[s.seatPos] or nil
     local record=scan~=nil and scan.cards~=nil and scan.cards[s.cardGUID] or nil
-    return record~=nil and record.spellCastPaid==true
+    return (record~=nil and record.spellCastPaid==true)
+        or (magicTalentSpellCastingPaid~=nil
+            and magicTalentSpellCastingPaid(s.seatPos,s.cardGUID)==true)
 end
 
 local function cycle(s,delta)
