@@ -361,6 +361,31 @@ function unitLayoutFirstFreeCommand(seatPos)
 	return nil, nil, nil, layout
 end
 
+-- The board's Command-only snap is the Ready position, distinct from
+-- the Command/Unit snap on the Unit card. Use live transformed snap points
+-- so native and expanded player boards, including rotated boards, agree.
+function unitLayoutReadyCommandPosition(seatPos,slot,layout)
+    layout=layout or unitLayoutSnapshot(seatPos)
+    local board=playerBoard~=nil and getObjectFromGUID(playerBoard[seatPos]) or nil
+    local token=layout~=nil and layout.commands[slot] or nil
+    if board==nil or token==nil or board.positionToWorld==nil then return nil end
+    local targetX=layout.slotX[slot]
+    local nearest,distance=nil,nil
+    for _,snap in ipairs(board.getSnapPoints() or {}) do
+        if unitLayoutSnapType(snap)=="command" then
+            local pos=board.positionToWorld(snap.position)
+            local x=pos.x or pos[1]
+            local delta=math.abs(x-targetX)
+            if distance==nil or delta<distance then
+                nearest,distance=pos,delta
+            end
+        end
+    end
+    if nearest==nil or distance>unitLayoutConfig.associationRadius then return nil end
+    local tokenPos=token.getPosition()
+    return {targetX,tokenPos.y or tokenPos[2],nearest.z or nearest[3]}
+end
+
 --Before overflow, new Command sources fill an unused printed column. From the seventh onward they enter at the right edge and trigger a reflow.
 function unitLayoutNextCommandX(seatPos)
 	local layout=unitLayoutSnapshot(seatPos)
