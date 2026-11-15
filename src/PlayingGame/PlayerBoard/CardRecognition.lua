@@ -4313,6 +4313,21 @@ function resourceCardsBlockLinkTargets()
     return targets
 end
 
+-- Separate the three physical orientations. A tilted card is paid as a
+-- discard (typically 45 degrees); a fully sideways card gives any basic 1.
+-- Reducing modulo 180 handles the face-up cards' normal Y=180 orientation.
+local function cardRotationOffset(card)
+    local y=card.getRotation()[2]%180
+    return math.min(y,180-y)
+end
+
+local function cardPosture(card)
+    local tilt=cardRotationOffset(card)
+    if tilt<25 then return "upright" end
+    if tilt<=70 then return "discard" end
+    return "sideways"
+end
+
 -- Ambush can augment exactly one played card's first Attack or Block. This
 -- pool is shared by the target buttons and the calculation, rather than
 -- requiring the cards to physically touch.
@@ -4726,21 +4741,6 @@ local function setHighlight(obj,kind,powered)
     shown[obj.guid]=choice
 end
 
-
--- Separate the three physical orientations. A tilted card is paid as a
--- discard (typically 45 degrees); a fully sideways card gives any basic 1.
--- Reducing modulo 180 handles the face-up cards' normal Y=180 orientation.
-local function cardRotationOffset(card)
-    local y=card.getRotation()[2]%180
-    return math.min(y,180-y)
-end
-
-local function cardPosture(card)
-    local tilt=cardRotationOffset(card)
-    if tilt<25 then return "upright" end
-    if tilt<=70 then return "discard" end
-    return "sideways"
-end
 
 -- Only a deliberately tilted card can pay a discard cost, not an upright
 -- action or a fully sideways +1 play (notably Improvisation).
