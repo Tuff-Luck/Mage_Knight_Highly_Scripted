@@ -460,16 +460,40 @@ local function damageUsedBy(guid,exceptKey)
 	return nil
 end
 
--- Full-size invisible button over a free Unit card, used only while an attack is being targeted.
-local function addDamageTargetButton(obj,clickFunction)
-	if obj==nil or obj.isDestroyed() then return end
+-- A full-size transparent classic button turns a Unit card into the
+-- click target. Shared with Unit replacement so no visible DISBAND button is
+-- needed; both flows use the same card-sized hit area as damage assignment.
+function attackAssignmentsAddInvisibleUnitTargetButton(obj,clickFunction)
+	if obj==nil or obj.isDestroyed() then return false end
+	for _,button in ipairs(obj.getButtons() or {}) do
+		if button.click_function==clickFunction then return true end
+	end
 	local bounds=obj.getBounds()
 	local scale=obj.getScale() or {x=1,y=1,z=1}
-	if bounds==nil or bounds.size==nil then return end
+	if bounds==nil or bounds.size==nil then return false end
 	obj.createButton({click_function=clickFunction,function_owner=Global,label="",
 		position={0,bounds.size[2]/(scale.y or 1)/2+0.2,0},rotation={0,0,0},
 		width=bounds.size[1]/(scale.x or 1)*500,height=bounds.size[3]/(scale.z or 1)*500,color={0,0,0,0}})
-	damageButtonObjects[obj.guid]=obj
+	return true
+end
+
+function attackAssignmentsRemoveInvisibleUnitTargetButton(obj,clickFunction)
+	if obj==nil then return false end
+	local changed=false
+	local buttons=obj.getButtons() or {}
+	for i=#buttons,1,-1 do
+		if buttons[i].click_function==clickFunction then
+			obj.removeButton(buttons[i].index)
+			changed=true
+		end
+	end
+	return changed
+end
+
+local function addDamageTargetButton(obj,clickFunction)
+	if attackAssignmentsAddInvisibleUnitTargetButton(obj,clickFunction) then
+		damageButtonObjects[obj.guid]=obj
+	end
 end
 
 -- Decals are mirrored across local X from native click buttons (the
