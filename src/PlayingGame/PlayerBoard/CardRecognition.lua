@@ -10395,6 +10395,7 @@ local function renderSeat(seatPos)
     -- tracker refreshes can drop its independent cycling UI during dragging.
     -- Restore it after all tracker-owned UI writes, without touching resources.
     if callOfferEnsureControls~=nil then callOfferEnsureControls(seatPos) end
+    if unitReplacementEnsureControls~=nil then unitReplacementEnsureControls(seatPos) end
     if steadyTempoRefreshAll~=nil and next(gStates.steadyTempoPending or {})~=nil then
         steadyTempoRefreshAll()
     end
