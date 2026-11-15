@@ -176,7 +176,7 @@ local expectedProtectedUICallbacks={
 	"coralDrawChoice","createHigherLevelCardPool","drawUpTo","dummyTurn","extraTurnButton","extraTurnChoice",
 	"horsemanLevelSelection","horsemenHorsesSelection","lowerTable","masterOfChaos","mineClaimChoice","monsterImageSwap","motivation",
 	"nightTactic2","nightTactic4","nightTactic6","openBugReportPanel","optionsUpdate","plunderVillage",
-	"proxyManaChoiceSelect","pursuingRampagers","randomizedDragonHeadsSelection","randomSetup","resourceTracker","riseOfTheForgemasterOption",
+	"proxyManaChoiceSelect","pursuingRampagers","unitReplacementCancel","unitReplacementConfirm","unitReplacementSelectClicked","randomizedDragonHeadsSelection","randomSetup","resourceTracker","riseOfTheForgemasterOption",
 	"scenarioSelection","setBugReportComment","switchSetup","toggleDropDown","toggleScenarioEndAchieved","valueAdjust",
 	"volkarePartial","volkareRetreat","wallAssaultChoice","zigguratPyramidInteract","MKRollDieButton",
 	--Dynamic Object UI / scenario controls
