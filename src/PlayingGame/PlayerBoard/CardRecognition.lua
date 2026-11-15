@@ -11345,7 +11345,9 @@ local function resourceCardsRelevantZone(ctx)
     local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
     if active==nil or active.seatPos~=ctx.zoneInfo.seatPos then return nil end
     local kind=ctx.zoneInfo.kind
-    local objectKind=resourceObjectKind(ctx.obj)
+    -- A moving die is mana even though its face cannot yet be read safely.
+    local objectKind=(ctx.objType=="Dice" and scriptObjectId(ctx.obj)=="Mana Dice")
+        and "mana" or resourceObjectKind(ctx.obj)
     if kind=="play" and (objectKind~=nil or combatEnemyData(ctx.objGUID,ctx.obj)~=nil) then
         return ctx.zoneInfo.seatPos
     end
