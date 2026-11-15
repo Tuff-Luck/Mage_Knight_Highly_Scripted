@@ -77,6 +77,7 @@ require("PlayingGame.TokenPools")
 require("PlayingGame.Offers")
 require("PlayingGame.CallOffer")
 require("PlayingGame.TrainingOffer")
+require("PlayingGame.MagicTalentOffer")
 require("PlayingGame.ManaSource")
 require("PlayingGame.PlayerBoard.Skills")
 require("PlayingGame.PlayerBoard.PuppetMaster")
@@ -137,6 +138,9 @@ function onLoad(saved_data)
 		resourceCardsRegisterIconAssets()
 		local loadedData=nil
 		if type(saved_data)=="string" and saved_data~="" then loadedData=JSON.decode(saved_data) end
+		-- Global lines survive TTS rewinds while the movement display's runtime
+		-- snapshot does not. Remove only old map route overlays before UI restores.
+		moveDisplayDiscardSavedRouteLines()
 		--These objects already exist when Global loads. Install their XML immediately, then use the
 		--proven load-time setAttribute pass once TTS has had two frames to build/localise the object UI.
 		monsterReplenishObjectOnLoad()
@@ -292,7 +296,7 @@ local expectedProtectedUICallbacks={
 	"apocalypseDragonGroundReductionAdjust","apocalypseDragonProcessUI","apocalypseIsHereHorsemanTargetSelect",
 	"apocalypseIsHereProcessHorsemenUI","apocalypseQuestCardAction","apocalypseQuestEnemyAttack","artifactAdjust",
 	"attachEnemy","attackLocation","ButtonClickDown","ButtonClickDownOverkill","ButtonClickUp","ButtonClickUpOverkill",
-	"callOfferCycleClicked","changeMatImage","changePositionColor","playAreaScaleDown","playAreaScaleUp","playAreaScaleScope","dayTactic2Discarded","druidNightsRitualAction","exploreMap",
+	"callOfferCycleClicked","magicTalentClicked","changeMatImage","changePositionColor","playAreaScaleDown","playAreaScaleUp","playAreaScaleScope","dayTactic2Discarded","druidNightsRitualAction","exploreMap",
 	"fracturedLandsOrientationDone","fracturedLandsRotateLeft","fracturedLandsRotateRight","gladeDiscardHealUI",
 	"higherLevelSkill","horsemanAttackAction","layoutClaimedCards","nightTint","offerAdjust","offerArtifacts",
 	"processCardClaim","proxyDestinationChoiceSelect","proxyEnemyChoiceSelect","proxyInteractionChoiceSelect",
@@ -1106,6 +1110,7 @@ function eventsOnLoadRawBase(saved_data, loaded_data)
     safeWaitFrames("Events",function() resourceCardsOnLoad() end,4)
     safeWaitFrames("Events",function() callOfferRestoreOnLoad() end,4)
     safeWaitFrames("Events",function() trainingOfferRestoreOnLoad() end,4)
+    safeWaitFrames("Events",function() magicTalentRestoreOnLoad() end,5)
     safeWaitFrames("Events",function() unitReplacementRestoreOnLoad() end,4)
 	UI.setAttribute("CoopAssaultMainTableText3", "active", "false")
 	--The wall assault interface is only shown when the assault entry side cannot be determined automatically.
@@ -1349,6 +1354,7 @@ function __onObjectPickUp_raw(player_color, picked_up_object)
 	if picked_up_object==nil then return end
     if picked_up_object.guid=="2eb8e8" then callOfferSpellPickedUp() end
     trainingOfferCardPickedUp(player_color,picked_up_object)
+    magicTalentCardPickedUp(player_color,picked_up_object)
 	attackAssignmentsObjectMoved(picked_up_object)
 	if picked_up_object~=nil and mapTokenNeedsArrangement~=nil and mapTokenNeedsArrangement(picked_up_object)==true then
 		mapTokenReleaseObject(picked_up_object)
@@ -1463,6 +1469,7 @@ function __onObjectDrop_raw(player_color, dropped_object)
     resourceCardsObjectMoved(dropped_object)
     callOfferObjectDropped(dropped_object)
     trainingOfferObjectDropped(player_color,dropped_object)
+    magicTalentObjectDropped(player_color,dropped_object)
     if droppedGUID=="2eb8e8" then
         callOfferScheduleSpellCheck()
     end
@@ -2393,6 +2400,9 @@ function __onObjectEnterZone_raw(zone, obj)
 	local ctx=zoneEventContext(zone,obj)
 	if ctx==nil then return end
 	if handleZoneEnterPrelude(ctx)==true then return end
+    if ctx.objGUID=="3d832c" and ctx.playerZoneKind=="play" then
+        magicTalentScheduleCheck()
+    end
     if ctx.objGUID=="2eb8e8" and ctx.playerZoneKind=="play" then
         local seat=ctx.zoneInfo~=nil and ctx.zoneInfo.seatPos or nil
         if seat~=nil then
@@ -2441,7 +2451,10 @@ local function handleClaimZoneLeave(ctx)
 	--Remove offer claim buttons from actual offer cards only. The resizable deed-offer zone can
 	--briefly sweep over the AA/Spell source Decks while its boundary moves; clearing a Deck here
 	--would erase the persistent resize controls/table labels hosted on the Spell source.
-	if obj.type=="Card" and offerClaimSource(zone.guid,obj)~=nil then obj.UI.setXmlTable({{}}) end
+	if obj.type=="Card" and offerClaimSource(zone.guid,obj)~=nil
+        and (magicTalentReservedCard==nil or not magicTalentReservedCard(obj.guid)) then
+        obj.UI.setXmlTable({{}})
+    end
 
 	--Remove tactic claim buttons
 	if tacticClaimingZones[zone.guid]~=nil then obj.UI.setXmlTable({{}}) end
@@ -2534,8 +2547,12 @@ function __onObjectLeaveZone_raw(zone, obj)
     if ctx.objGUID=="6fdeb0" and ctx.playerZoneKind=="play" then
         trainingOfferScheduleCardCheck()
     end
+    if ctx.objGUID=="3d832c" and ctx.playerZoneKind=="play" then
+        magicTalentScheduleCheck()
+    end
     if ctx.objType=="Card" and ctx.zoneInfo~=nil and ctx.zoneInfo.kind=="hand" then
         trainingOfferHandLeft(ctx.objGUID,ctx.zoneInfo.seatPos)
+        magicTalentHandLeft(ctx.objGUID,ctx.zoneInfo.seatPos)
     end
 	cancelSettledZoneEntries(ctx.zoneGUID,ctx.objGUID)
 	if handleZoneLeavePrelude(ctx)==true then return end
@@ -2984,6 +3001,7 @@ function __onObjectRotate_raw(object, spin, flip, player_color, old_spin, old_fl
         callOfferScheduleSpellCheck()
     end
     if cardGUID=="6fdeb0" then trainingOfferScheduleCardCheck() end
+    if cardGUID=="3d832c" then magicTalentScheduleCheck() end
 	if cardGUID==meditationTranceCardGUID or isSteadyTempoGUID(cardGUID)==true
 		or cardGUID==tacticCard[2] or cardGUID==GUID.card.bannerOfCommandToken then
 		refreshCardEffectAfterRotation(cardGUID)
@@ -5440,6 +5458,31 @@ local RESOURCE_TRACKER_EXPANDERS={	["DisplayMoveCosts"]={"MoveCosts", 240},
 					["DisplayAttacDetails"]={"AttacAmountDetails", 150},
 					["DisplayInfluDetails"]={"InfluAmountDetails", 90}}
 
+-- Rebuild the panel height from the visible sections. Turn handoffs and saved UI can
+-- change the parent height without changing a nested section's active flag.
+function resourceTrackerSyncLayout(expanded, changedPanel, changedActive)
+    if expanded==nil then expanded=UI.getAttribute("ResourceTrackerDetail","active")=="true" end
+    local height=expanded and 245 or 35
+    local detailHeight=210
+    if expanded then
+        for _,spec in pairs(RESOURCE_TRACKER_EXPANDERS) do
+            local active
+            if spec[1]==changedPanel then
+                -- Use the clicked value: TTS can delay getAttribute after setAttribute.
+                active=changedActive==true
+            else
+                active=UI.getAttribute(spec[1],"active")=="true"
+            end
+            if active then
+                height=height+spec[2]
+                detailHeight=detailHeight+spec[2]
+            end
+        end
+    end
+    UI.setAttribute("ResourceTracker","height",tostring(height))
+    UI.setAttribute("ResourceTrackerDetail","height",tostring(detailHeight))
+end
+
 local RESOURCE_TRACKER_FIELDS={	["MovemAmountPlain"]={"move", "move", "{en}Move : {it}Movimento : {ru}Движение: {zh-tw}移動：{zh-cn}移动：{ko}이동 : {es}Mover : {fr}Se déplacer : {pt-br}Mover : {de}Bewegen : "},
 					["SiegeAmountPlain"]={"siege", "physical", "{en}Siege : {it}Assedio : {ru}Осадная: {zh-tw}攻城：{zh-cn}攻城：{ko}공성 : {es}Asedio : {fr}Siège : {pt-br}Cerco : {de}Belagerung : "},
 					["SiegeAmountPhysi"]={"siege", "physical", "{en}Physical : {it}Fisico : {ru}Физическая(ий): {zh-tw}物理：{zh-cn}物理：{ko}물리 : {es}Físico : {fr}Physique : {pt-br}Físico : {de}Physikalisch : "},
@@ -5504,26 +5547,21 @@ function resourceTracker(player, mouseButton, id)
         end
 		--expand Resource Tracker
 		if id=="DisplayResourceTrackerDetails" then
-			local temp="245"
-			local temp2="true"
-			if tonumber(UI.getAttribute("ResourceTracker", "height"))>200 then temp="35" temp2="false" end
-			UI.setAttribute("ResourceTracker", "height", temp)
-			UI.setAttribute("ResourceTrackerDetail", "active", temp2)
-            resourceCardsSetSeatEnabled(temp2=="true")
-            if temp2=="false" then
+            local opening=UI.getAttribute("ResourceTrackerDetail","active")~="true"
+            UI.setAttribute("ResourceTrackerDetail","active",opening and "true" or "false")
+            -- A fresh open never retains hidden submenus or their old heights.
+            for _,spec in pairs(RESOURCE_TRACKER_EXPANDERS) do
+                UI.setAttribute(spec[1],"active","false")
+            end
+            resourceTrackerSyncLayout(opening)
+            resourceCardsSetSeatEnabled(opening)
+            if not opening then
                 UI.setAttribute("CombatCalculatorHelp","active","false")
                 resourceCardsPanelChanged(false)
             else
                 -- The OFF latch clears only when the expanded panel is actually ready.
                 resourceCardsOnLoad()
             end
-			UI.setAttribute("ResourceTrackerDetail", "height", "210")
-			UI.setAttribute("MoveCosts", "active", "false")
-			UI.setAttribute("SiegeAmountDetails", "active", "false")
-			UI.setAttribute("RangeAmountDetails", "active", "false")
-			UI.setAttribute("BlockAmountDetails", "active", "false")
-			UI.setAttribute("AttacAmountDetails", "active", "false")
-            UI.setAttribute("InfluAmountDetails", "active", "false")
             -- Combat resources are read from the play area; only Move, Influence and Heal stay adjustable.
             for _,family in ipairs({"Siege","Range","Block","Attac"}) do
                 for _,element in ipairs({"Plain","Physi","Firex","Icexx","ColdF","Psych"}) do
@@ -5554,14 +5592,11 @@ function resourceTracker(player, mouseButton, id)
         end
 
 		--expander buttons
-		local IDConvert=RESOURCE_TRACKER_EXPANDERS
-		if IDConvert[id]~=nil then
-			local temp="false"
-			local temp2=-1
-			if UI.getAttribute(IDConvert[id][1], "active")=="false" then temp="true" temp2=1 end
-			UI.setAttribute(IDConvert[id][1], "active", temp)
-			UI.setAttribute("ResourceTracker", "height", tonumber(UI.getAttribute("ResourceTracker", "height"))+(IDConvert[id][2]*temp2))
-			UI.setAttribute("ResourceTrackerDetail", "height", tonumber(UI.getAttribute("ResourceTrackerDetail", "height"))+(IDConvert[id][2]*temp2))
+		local expander=RESOURCE_TRACKER_EXPANDERS[id]
+		if expander~=nil then
+            local expanded=UI.getAttribute(expander[1],"active")~="true"
+            UI.setAttribute(expander[1],"active",expanded and "true" or "false")
+            resourceTrackerSyncLayout(true,expander[1],expanded)
 			return
 		end
 		--Resource values shown to the player include detected cards plus saved manual offsets.
@@ -7126,6 +7161,54 @@ end
 
 moveDisplayAutoPause=nil
 moveDisplayBaseVectorLines=nil
+
+-- TTS checkpoints retain Global vector lines, but moveDisplayBaseVectorLines is
+-- runtime-only. Discard saved route overlays before the tracker can capture them
+-- as 'other' lines on load. Use the specific route styles AND their fixed map
+-- height so ordinary player drawings and combat assignment arrows survive.
+local moveDisplaySavedRouteStyles={
+    {color={0.50,0.50,0.50},thickness=0.07}, -- normal movement
+    {color={0.20,0.70,1.00},thickness=0.12}, -- teleport
+    {color={0.28,0.86,0.57},thickness=0.11}, -- leap
+    {color={0.72,0.45,1.00},thickness=0.07}, -- tunnel
+}
+local function moveDisplayIsSavedRouteLine(line)
+    if type(line)~="table" or type(line.points)~="table"
+        or #line.points~=2 or type(line.thickness)~="number" then return false end
+    for _,point in ipairs(line.points) do
+        if type(point)~="table" then return false end
+        local height=point[2] or point.y
+        if type(height)~="number" or math.abs(height-1.22)>0.025 then return false end
+    end
+    local color=line.color
+    if type(color)~="table" then return false end
+    local red,green,blue=color[1] or color.r,color[2] or color.g,color[3] or color.b
+    if type(red)~="number" or type(green)~="number" or type(blue)~="number" then return false end
+    if red>1 or green>1 or blue>1 then red,green,blue=red/255,green/255,blue/255 end
+    for _,style in ipairs(moveDisplaySavedRouteStyles) do
+        if math.abs(line.thickness-style.thickness)<0.001
+            and math.abs(red-style.color[1])<0.02
+            and math.abs(green-style.color[2])<0.02
+            and math.abs(blue-style.color[3])<0.02 then return true end
+    end
+    return false
+end
+
+function moveDisplayDiscardSavedRouteLines()
+    local existing=Global.getVectorLines() or {}
+    local retained={}
+    local removed=false
+    for _,line in ipairs(existing) do
+        if moveDisplayIsSavedRouteLine(line) then
+            removed=true
+        else
+            retained[#retained+1]=line
+        end
+    end
+    if removed then Global.setVectorLines(retained) end
+    moveDisplayBaseVectorLines=nil
+end
+
 moveDisplayRefreshDelay=0.75
 moveDisplayTerrainCache={signature=nil, hexMap=nil}
 moveDisplayTextSlotRequests={}
@@ -9725,18 +9808,7 @@ function proxyTurnReportText(section)
 			fr=", et a relancé un dé de la Source.",
 			["pt-br"]=", e rolou novamente um dado da Fonte.",
 			de=", und würfelte einen Quellenwürfel neu."}
-		local parts=joinLangParse(first)
-		if type(parts)=="table" then
-			local rewritten={}
-			for _,lang in ipairs({"en","ru","zh-tw","zh-cn","ko","es","fr","pt-br","de","it"}) do
-				local sentence=tostring(parts[lang] or parts.en or "")
-					:gsub("%.$",""):gsub("。$","")
-				rewritten[#rewritten+1]="{"..lang.."}"..sentence..endings[lang]
-			end
-			first=table.concat(rewritten)
-		else
-			first=tostring(first):gsub("%.$","")..endings.en
-		end
+		first=joinLangAppendSentenceSuffix(first,endings)
 	end
 
 	local reason=proxyLocalizedReason(report.reason or "The closest legal objective was selected.",report.colors)
@@ -20428,9 +20500,11 @@ function reclaimTimeBending(callback)
 	if gStates==nil or gStates.timeBendingRemovedSeat==nil then if callback~=nil then callback() end return false end
 	if timeBendingRecoveryPending==true then return true end
 	local seatPos=gStates.timeBendingRemovedSeat
-	local existing=getObjectFromGUID(timeBendingGUID)
+    local removedGUID=gStates.timeBendingRemovedGUID or timeBendingGUID
+	local existing=getObjectFromGUID(removedGUID)
 	if existing~=nil then
 		gStates.timeBendingRemovedSeat=nil
+        gStates.timeBendingRemovedGUID=nil
 		if callback~=nil then callback() end
 		return false
 	end
@@ -20441,16 +20515,18 @@ function reclaimTimeBending(callback)
 		return false
 	end
 	local inTrash=false
-	for _, obj in pairs(trash.getObjects()) do if obj.guid==timeBendingGUID then inTrash=true break end end
+	for _, obj in pairs(trash.getObjects()) do if obj.guid==removedGUID then inTrash=true break end end
 	if inTrash==false then
 		gStates.timeBendingRemovedSeat=nil
+        gStates.timeBendingRemovedGUID=nil
 		if callback~=nil then callback() end
 		return false
 	end
 	timeBendingRecoveryPending=true
 	local pos=discardZone.getPosition()
-	local recovered=safeTakeObject("Turn",trash,{guid=timeBendingGUID, position={pos[1], pos[2]+1.5, pos[3]}, rotation={0,180,0}, smooth=false, callback_function=function()
+	local recovered=safeTakeObject("Turn",trash,{guid=removedGUID, position={pos[1], pos[2]+1.5, pos[3]}, rotation={0,180,0}, smooth=false, callback_function=function()
 		gStates.timeBendingRemovedSeat=nil
+        gStates.timeBendingRemovedGUID=nil
 		timeBendingRecoveryPending=false
 		safeWaitFrames("Turn",function() if callback~=nil then callback() end end, 2)
 	end})
@@ -20550,6 +20626,11 @@ function turnPreparePreEndTurn(cleanupPlayer,playerColor,id)
 			end
 		end
 		if useTimeBending then
+            -- Magic Talent takes Time Bending's place in the set-aside area.
+            local seat=turnOrder[cleanupPlayer].seatPos
+            gStates.timeBendingRemovedGUID=(magicTalentBorrowedTimeBendingPaid~=nil
+                and magicTalentBorrowedTimeBendingPaid(seat)) and "3d832c"
+                or timeBendingGUID
 			gStates.timeBending="Started"
 			if cleanupTurnToken~=nil and cleanupTurnToken.is_face_down==true then
 				cleanupTurnToken.flip()
@@ -20747,6 +20828,7 @@ local function turnFinishCompletedTurnUI()
     -- Do not leave stale selection buttons on the next player's board.
     if unitReplacementClose~=nil then unitReplacementClose() end
     callOfferClose(false)
+    magicTalentClose(false)
     trainingOfferClose(true)
 	resourceUnitsResetTurn()
 	resetResourceTrackerState()
@@ -22349,6 +22431,15 @@ local function activeVisualLines()
         local arrow=assignmentLines(getObjectFromGUID(skillGUID),getObjectFromGUID(targetGUID),assignmentColors.other)
         for _,line in ipairs(arrow or {}) do lines[#lines+1]=line end
     end
+    -- Ambush's card buff is independent of its blue Cumbersome Move arrow.
+    -- Only the tracker shows this purple, card-to-card targeting link.
+    if resourceCardsPanelOpen~=nil and resourceCardsPanelOpen() then
+        for sourceGUID,targetGUID in pairs(gStates~=nil and gStates.ambushCombatLinks or {}) do
+            local arrow=assignmentLines(getObjectFromGUID(sourceGUID),
+                getObjectFromGUID(targetGUID),assignmentColors.other)
+            for _,line in ipairs(arrow or {}) do lines[#lines+1]=line end
+        end
+    end
 	for key,guids in pairs(damageTargets) do
 		local attack=damageSpec.byKey[key]
 		local owner=attack~=nil and getObjectFromGUID(attack.owner) or nil
@@ -22474,8 +22565,31 @@ local function syncTargetButtons(monsters)
 	local live={}
 	if shouldShow then
         local candidates={}
-        if next(targetingByPlayer)~=nil and resourceCardsCombatTargetObjects~=nil then
-            for guid,obj in pairs(resourceCardsCombatTargetObjects(monsters)) do candidates[guid]=obj end
+        if next(targetingByPlayer)~=nil then
+            for _,pending in pairs(targetingByPlayer) do
+                if pending.resource=="ambush" then
+                    -- One Ambush control can aim at either an Action card or a
+                    -- Cumbersome enemy. Both target classes use the same
+                    -- invisible object button, but retain independent links.
+                    if resourceCardsAmbushLinkTargets~=nil then
+                        for guid,obj in pairs(resourceCardsAmbushLinkTargets(pending.sourceGUID)) do
+                            candidates[guid]=obj
+                        end
+                    end
+                    if resourceCardsCombatTargetObjects~=nil then
+                        for guid,obj in pairs(resourceCardsCombatTargetObjects(monsters)) do
+                            if resourceCardsCombatTargetAcceptsMove~=nil
+                                and resourceCardsCombatTargetAcceptsMove(guid) then
+                                candidates[guid]=obj
+                            end
+                        end
+                    end
+                elseif resourceCardsCombatTargetObjects~=nil then
+                    for guid,obj in pairs(resourceCardsCombatTargetObjects(monsters)) do
+                        candidates[guid]=obj
+                    end
+                end
+            end
         end
         if next(blockLinkPending)~=nil and resourceCardsBlockLinkTargets~=nil then
             for guid,obj in pairs(resourceCardsBlockLinkTargets()) do candidates[guid]=obj end
@@ -22530,6 +22644,12 @@ function attackAssignmentsRefreshReadyUI()
     syncTargetButtons()
     refreshRenderedLines()
     scheduleRefresh()
+end
+
+-- A settled card scan may grant, invalidate or re-point an Ambush buff.
+-- The line renderer already caches its signature to avoid unnecessary writes.
+function attackAssignmentsRefreshAmbushLinks()
+    refreshRenderedLines()
 end
 
 -- An explicit targeting control on Rejuvenate/Herbalists selects the Unit to
@@ -23330,6 +23450,20 @@ function attackAssignmentSourceClicked(player,value,id)
 	end)
 end
 
+-- The Ambush button is reusable: targeting an Action changes only its
+-- combat bonus; targeting a Cumbersome enemy changes only its Move allocation.
+function attackAssignmentAmbushSourceClicked(player,value,id)
+    return safeCallback("attackAssignmentAmbushSourceClicked",function()
+        local color=player~=nil and player.color or nil
+        local guid=type(id)=="string"
+            and id:match("^AttackAssignmentSource_([0-9a-f]+)_0_ambush$") or nil
+        local source=guid~=nil and getObjectFromGUID(guid) or nil
+        if source==nil or resourceCardsAmbushSourceActive==nil
+            or not resourceCardsAmbushSourceActive(guid) then return end
+        attackAssignmentsBegin(source,"ambush",color,false,guid)
+    end)
+end
+
 function attackAssignmentTargetClicked(target,playerColor)
 	return safeCallback("attackAssignmentTargetClicked",function()
         if not resourceCardsPlayerCanEdit(playerColor) then return end
@@ -23347,6 +23481,26 @@ function attackAssignmentTargetClicked(target,playerColor)
             return
         end
 		local pending=type(playerColor)=="string" and targetingByPlayer[playerColor] or nil
+        if pending~=nil and pending.resource=="ambush" and target~=nil then
+            local cards=resourceCardsAmbushLinkTargets~=nil
+                and resourceCardsAmbushLinkTargets(pending.sourceGUID) or {}
+            if cards[target.guid]~=nil then
+                gStates.ambushCombatLinks=gStates.ambushCombatLinks or {}
+                -- Reassigning the buff never drops the separate Move arrow.
+                gStates.ambushCombatLinks[pending.sourceGUID]=target.guid
+                targetingByPlayer[playerColor]=nil
+                syncTargetButtons()
+                refreshRenderedLines()
+                if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
+                return
+            end
+            if resourceCardsCombatTargetAcceptsMove==nil
+                or not resourceCardsCombatTargetAcceptsMove(target.guid) then return end
+            -- The normal enemy assignment path owns Move points/blue arrows.
+            -- It must not touch the stored purple card-buff assignment.
+            pending.resource="move"
+            pending.kind="attack"
+        end
         local eligible=resourceCardsCombatTargetObjects~=nil and resourceCardsCombatTargetObjects() or {}
         if pending==nil or target==nil or target.guid==nil or eligible[target.guid]==nil then return end
         -- Summoned tokens redirect to their face-up owner in the same combat.
@@ -23677,6 +23831,11 @@ function attackAssignmentsObjectMoved(object)
     if not relevant then
         for skillGUID,targetGUID in pairs(gStates~=nil and gStates.blockSourceLinks or {}) do
             if skillGUID==guid or targetGUID==guid then relevant=true break end
+        end
+    end
+    if not relevant then
+        for sourceGUID,targetGUID in pairs(gStates~=nil and gStates.ambushCombatLinks or {}) do
+            if sourceGUID==guid or targetGUID==guid then relevant=true break end
         end
     end
 	if not relevant then
@@ -29826,6 +29985,486 @@ function diceResting(dice, state)
 end
 
 end)
+__bundle_register("PlayingGame.MagicTalentOffer", function(require, _LOADED, __bundle_register, __bundle_modules)
+-- Magic Talent (3d832c): borrow a physical Spell from the offer or gain it.
+-- Basic: overlap a coloured hand card with Magic Talent; the cost is discarded,
+-- then a matching offer Spell may be cast by paying its normal mana on that Spell.
+-- Strong: place the blue (or legal Day gold) power mana AND another coloured mana
+-- on Magic Talent. Only then does the matching claim browser appear.
+local MAGIC_TALENT_GUID="3d832c"
+local CONTROL_PREFIX="MagicTalentControl_"
+local CONTROL_PREFIXES={CONTROL_PREFIX,"ResourceCardChoice_","AttackAssignmentSource_"}
+local browseSerial=0
+local settleSerial=0
+local fromHand={}
+local returning={}
+
+local function state()
+    return gStates~=nil and gStates.magicTalentPreview or nil
+end
+
+local function currentSeat()
+    local player=gStates~=nil and turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    return player~=nil and player.seatPos or nil
+end
+
+local function talentInPlay(seat)
+    local card=getObjectFromGUID(MAGIC_TALENT_GUID)
+    return seat~=nil and card~=nil and card.is_face_down~=true
+        and cardEffectIsVertical(card)
+        and objectGUIDInZone(MAGIC_TALENT_GUID,playerPlayAreas[seat])
+end
+
+local function cardColor(guid)
+    local data=gameCards[guid]
+    if data==nil then return nil end
+    local color=data.color
+    if type(color)=="string" then return color end
+    if type(color)=="table" and #color==1 then return color[1] end
+    return nil
+end
+
+local function matching(guid,color)
+    local data=gameCards[guid]
+    if data==nil or data.cardType~="Spell" then return false end
+    return color=="Gold" or cardColor(guid)==color
+end
+
+local function offerOrder(color,previewGUID)
+    local order={}
+    for _,card in ipairs(mainOfferCardsByType("Spell")) do
+        if matching(card.guid,color) then order[#order+1]=card.guid end
+    end
+    if previewGUID~=nil and matching(previewGUID,color) then
+        local found=false
+        for _,guid in ipairs(order) do if guid==previewGUID then found=true break end end
+        if not found then order[#order+1]=previewGUID end
+    end
+    return order
+end
+
+-- Two different physical mana objects are required. Gold can power the
+-- blue Action only while legal and can select any Spell as the extra payment.
+local function strongColor(seat)
+    if magicTalentManaPayments==nil then return nil end
+    local payments=magicTalentManaPayments(seat)
+    local goldLegal=resourceCardsGoldAllowed~=nil and resourceCardsGoldAllowed()
+    local power=nil
+    for _,payment in ipairs(payments) do
+        if payment.color=="Blue" then power=payment break end
+    end
+    if power==nil and goldLegal then
+        for _,payment in ipairs(payments) do
+            if payment.color=="Gold" then power=payment break end
+        end
+    end
+    if power==nil then return nil end
+    for _,payment in ipairs(payments) do
+        if payment.guid~=power.guid and
+            (payment.color=="Red" or payment.color=="Blue"
+            or payment.color=="White" or payment.color=="Green"
+            or (payment.color=="Gold" and goldLegal)) then
+            return payment.color
+        end
+    end
+    return nil
+end
+
+local function clean(card)
+    if card~=nil then resourceObjectUiRemovePrefixes(card,CONTROL_PREFIXES) end
+end
+
+local function controls(s)
+    if state()~=s or s.cardGUID==nil then return end
+    local card=getObjectFromGUID(s.cardGUID)
+    if card==nil then return end
+    local xml=resourceObjectUiXmlTable(card.UI)
+    for i=#xml,1,-1 do
+        local attr=xml[i].attributes
+        if attr~=nil and ((type(attr.id)=="string"
+            and attr.id:sub(1,#CONTROL_PREFIX)==CONTROL_PREFIX)
+            or attr.onClick=="global/processCardClaim") then
+            table.remove(xml,i)
+        end
+    end
+    local images=callOfferAppendBrowseControls(xml,card.guid,CONTROL_PREFIX,
+        "magicTalentClicked",s.mode=="strong")
+    resourceObjectUiSetTable(card.UI,xml,
+        resourceCardsExistingImageAssetsFor(card.UI,images))
+end
+
+function magicTalentEnsureControls(seat)
+    local s=state()
+    if s==nil or s.cardGUID==nil or (seat~=nil and s.seatPos~=seat) then return end
+    local card=getObjectFromGUID(s.cardGUID)
+    if card==nil then return end
+    local previous,nextArrow,take=false,false,false
+    for _,node in ipairs(resourceObjectUiXmlTable(card.UI)) do
+        local id=node.attributes~=nil and node.attributes.id or nil
+        if id==CONTROL_PREFIX..card.guid.."_previous" then previous=true
+        elseif id==CONTROL_PREFIX..card.guid.."_next" then nextArrow=true
+        elseif id==CONTROL_PREFIX..card.guid.."_claim" then take=true end
+    end
+    if not previous or not nextArrow or (s.mode=="strong" and not take) then controls(s) end
+end
+
+-- The offer card keeps its GUID and is never cloned. Retire the calculator
+-- source BEFORE the card is returned; delayed scans must not recreate targets.
+local function returnPreview(s,immediate)
+    if s==nil or s.cardGUID==nil then return end
+    browseSerial=browseSerial+1
+    local guid,home=s.cardGUID,s.home
+    s.cardGUID,s.home=nil,nil
+    returning[guid]=true
+    if guid=="2eb8e8" and callOfferClose~=nil then callOfferClose(immediate) end
+    if combatForgetPhysicalSourceTargets~=nil then combatForgetPhysicalSourceTargets(guid) end
+    if attackAssignmentsClearForObject~=nil then attackAssignmentsClearForObject(guid) end
+    local card=getObjectFromGUID(guid)
+    clean(card)
+    if card==nil or home==nil then returning[guid]=nil return end
+    if playAreaScaleForgetObject~=nil then playAreaScaleForgetObject(card) end
+    card.unlock()
+    card.setScale(home.scale)
+    if immediate then
+        card.setRotation(home.rotation)
+        card.setPosition(home.position)
+    else
+        card.setRotationSmooth(home.rotation,false,false)
+        card.setPositionSmooth(home.position,false,false)
+    end
+    safeWaitCondition("Offers.MagicTalent",function()
+        local live=getObjectFromGUID(guid)
+        if live~=nil and objectGUIDInZone(guid,GUID.zone.offer) then
+            live.lock()
+            if gStates.tacticShown==false and gStates.tacticRemove==false then
+                live.UI.setXmlTable({createClaimButton(guid,"offer")})
+            end
+        end
+        returning[guid]=nil
+    end,function()
+        local live=getObjectFromGUID(guid)
+        return live==nil or (live.resting and not live.isSmoothMoving())
+    end,8,function() returning[guid]=nil end)
+    if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
+end
+
+function magicTalentClose(immediate)
+    settleSerial=settleSerial+1
+    local s=state()
+    if s~=nil then returnPreview(s,immediate==true) end
+    if gStates~=nil then gStates.magicTalentPreview=nil end
+    fromHand={}
+    if immediate==true then returning={} end
+end
+
+-- Do not allow the ordinary Offer claim path to consume a temporary preview.
+function magicTalentReservedCard(guid)
+    local s=state()
+    return returning[guid]==true or (s~=nil and s.cardGUID==guid)
+end
+
+-- Time Bending borrowed through Magic Talent must set aside Magic Talent,
+-- not the Spell owned by the public offer. The normal extra-turn check still
+-- validates the real blue + black casting mana on the loaned Spell.
+function magicTalentBorrowedTimeBendingPaid(seat)
+    local s=state()
+    if s==nil or s.mode~="basic" or s.seatPos~=seat
+        or s.cardGUID~=GUID.card.timeBending then return false end
+    local spell=getObjectFromGUID(s.cardGUID)
+    return spell~=nil and resourceCardsTimeBendingPaid(seat,spell)==true
+end
+
+local function borrow(s,index)
+    local guid=s.order[index]
+    local card=guid~=nil and getObjectFromGUID(guid) or nil
+    local talent=getObjectFromGUID(MAGIC_TALENT_GUID)
+    if card==nil or talent==nil or not objectGUIDInZone(guid,GUID.zone.offer) then return false end
+    s.index=index
+    s.cardGUID=guid
+    s.home={position=ttsVectorArray(card.getPosition()),
+        rotation=ttsVectorArray(card.getRotation()),scale=ttsVectorArray(card.getScale())}
+    local pos=ttsVectorArray(talent.getPosition())
+    local display=s.display or {position={pos[1]+3.0,math.max(1.8,pos[2]+0.35),pos[3]},
+        rotation={0,180,0}}
+    browseSerial=browseSerial+1
+    local serial=browseSerial
+    card.unlock()
+    card.setScale({1.5,1,1.5})
+    card.setPositionSmooth(display.position,false,false)
+    card.setRotationSmooth(display.rotation,false,false)
+    controls(s)
+    local function settled()
+        if state()~=s or s.cardGUID~=guid or serial~=browseSerial then return end
+        magicTalentEnsureControls(s.seatPos)
+        if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
+    end
+    safeWaitCondition("Offers.MagicTalent",settled,function()
+        local live=getObjectFromGUID(guid)
+        return live==nil or (live.resting and not live.isSmoothMoving())
+    end,8,settled)
+    if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
+    return true
+end
+
+local function remember(s)
+    local card=s.cardGUID~=nil and getObjectFromGUID(s.cardGUID) or nil
+    if card~=nil then
+        s.display={position=ttsVectorArray(card.getPosition()),
+            rotation=ttsVectorArray(card.getRotation())}
+    end
+end
+
+local function paymentStillOnSpell(s)
+    -- Browser selection is not casting. The usual paid Spell record is the
+    -- sole authority; this works for normal, powered and utility Spells.
+    local scan=resourceCardScanBySeat~=nil and resourceCardScanBySeat[s.seatPos] or nil
+    local record=scan~=nil and scan.cards~=nil and scan.cards[s.cardGUID] or nil
+    return (record~=nil and record.spellCastPaid==true)
+        or (magicTalentSpellCastingPaid~=nil
+            and magicTalentSpellCastingPaid(s.seatPos,s.cardGUID)==true)
+end
+
+local function cycle(s,delta)
+    if s.mode=="basic" and paymentStillOnSpell(s) then
+        safeBroadcastToColor("Magic Talent: remove the casting mana before changing Spells.",
+            positionToColor(gStates.turnNumber),warningColor)
+        return
+    end
+    local count=#s.order
+    for step=1,count do
+        local index=((s.index-1+step*delta)%count)+1
+        local guid=s.order[index]
+        if guid~=s.cardGUID and (objectGUIDInZone(guid,GUID.zone.offer)
+            or returning[guid]==true) then
+            -- A returning card must settle back in its offer slot first.
+            if returning[guid] then return end
+            remember(s)
+            returnPreview(s,false)
+            borrow(s,index)
+            return
+        end
+    end
+end
+
+local function claim(s)
+    if state()~=s or s.mode~="strong" or not talentInPlay(s.seatPos)
+        or strongColor(s.seatPos)~=s.color then return end
+    local gained=s.cardGUID~=nil and getObjectFromGUID(s.cardGUID) or nil
+    local destination=getObjectFromGUID(deedDeckDiscardZones[s.seatPos])
+    if gained==nil or destination==nil or not matching(gained.guid,s.color) then return end
+    browseSerial=browseSerial+1
+    local gainedGUID=gained.guid
+    s.cardGUID,s.home=nil,nil
+    s.mode="claimed"  -- A paid claim cannot restart on the next mana refresh.
+    clean(gained)
+    gained.UI.setXml("")
+    for _,player in ipairs(turnOrder) do
+        if player.seatPos==s.seatPos then
+            local inventory=player.deadDeckInventory or {}
+            for i=#inventory,1,-1 do
+                if inventory[i]==gainedGUID then table.remove(inventory,i) end
+            end
+            inventory[#inventory+1]=gainedGUID
+            player.deadDeckInventory=inventory
+            break
+        end
+    end
+    gained.unlock()
+    if playAreaScaleForgetObject~=nil then playAreaScaleForgetObject(gained) end
+    local p=ttsVectorArray(destination.getPosition())
+    gained.setScale({1.5,1,1.5})
+    gained.setPositionSmooth({p[1],math.max(1.8,p[2]+0.5),p[3]},false,false)
+    gained.setRotationSmooth({0,180,0},false,false)
+    safeWaitCondition("Offers.MagicTalent",function()
+        if not objectGUIDInZone(gainedGUID,GUID.zone.offer) then
+            compactAndRefillDeedOffer()
+            scheduleDeedPileDescriptionRefresh(s.seatPos,"discard")
+        end
+    end,function()
+        return not objectGUIDInZone(gainedGUID,GUID.zone.offer)
+    end,8)
+    if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
+end
+
+publishPublicUICallbacks({
+    magicTalentClicked=function(player,value,id)
+        local s=state()
+        if s==nil or s.cardGUID==nil or type(id)~="string"
+            or legalPlayerCheck(player.color,s.seatPos,"NoDummyException")~=true then return end
+        local guid,action=id:match("^MagicTalentControl_([0-9a-f]+)_(previous)$")
+        if guid==nil then guid,action=id:match("^MagicTalentControl_([0-9a-f]+)_(next)$") end
+        if guid==nil then guid,action=id:match("^MagicTalentControl_([0-9a-f]+)_(claim)$") end
+        if guid~=s.cardGUID then return end
+        if action=="claim" then claim(s)
+        else cycle(s,action=="previous" and -1 or 1) end
+    end
+})
+
+function magicTalentHandLeft(guid,seat)
+    if guid~=nil and seat~=nil then fromHand[guid]=seat end
+end
+
+function magicTalentCardPickedUp(playerColor,obj)
+    local seat=currentSeat()
+    if obj==nil or seat==nil or obj.type~="Card"
+        or not objectGUIDInZone(obj.guid,handZones[seat]) then return end
+    if legalPlayerCheck(playerColor,seat,"NoDummyException",true)==true then
+        fromHand[obj.guid]=seat
+    end
+end
+
+local function candidateCost(seat)
+    local talent=getObjectFromGUID(MAGIC_TALENT_GUID)
+    local zone=getObjectFromGUID(playerPlayAreas[seat])
+    if talent==nil or zone==nil then return nil,nil end
+    local t=ttsVectorArray(talent.getPosition())
+    for _,card in ipairs(zone.getObjects()) do
+        local color=cardColor(card.guid)
+        local data=gameCards[card.guid]
+        if card.type=="Card" and card.guid~=MAGIC_TALENT_GUID
+            and fromHand[card.guid]==seat and color~=nil
+            and data~=nil and data.cardType~="Artifact"
+            and data.cardType~="Wound" and card.resting==true then
+            local p=ttsVectorArray(card.getPosition())
+            if math.abs(t[1]-p[1])<1.4 and math.abs(t[3]-p[3])<1.8 then
+                return card,color
+            end
+        end
+    end
+    return nil,nil
+end
+
+local function discardCost(seat,card)
+    local zone=getObjectFromGUID(deedDeckDiscardZones[seat])
+    if zone==nil then return false end
+    fromHand[card.guid]=nil
+    card.unlock()
+    if playAreaScaleForgetObject~=nil then playAreaScaleForgetObject(card) end
+    local p=ttsVectorArray(zone.getPosition())
+    card.setPositionSmooth({p[1],math.max(1.8,p[2]+0.5),p[3]},false,false)
+    card.setRotationSmooth({0,180,0},false,false)
+    safeWaitFrames("Offers.MagicTalent",function()
+        scheduleDeedPileDescriptionRefresh(seat,"discard")
+    end,6)
+    return true
+end
+
+local function start(seat,mode,color,source)
+    local order=offerOrder(color)
+    local s={seatPos=seat,mode=mode,color=color,order=order,index=1,
+        sourceGUID=source~=nil and source.guid or nil}
+    if source~=nil and not discardCost(seat,source) then return end
+    gStates.magicTalentPreview=s
+    if #order>0 then borrow(s,1) end
+    if #order==0 then
+        safeBroadcastToColor("Magic Talent: no matching Spell is in the offer.",
+            positionToColor(gStates.turnNumber),warningColor)
+    end
+end
+
+function magicTalentSync()
+    if gStates==nil or gStates.firstStarted~=true then return end
+    local s=state()
+    local seat=currentSeat()
+    if seat==nil or not talentInPlay(seat) or (s~=nil and s.seatPos~=seat) then
+        if s~=nil then magicTalentClose(true) end
+        return
+    end
+    if s==nil then
+        local cost,color=candidateCost(seat)
+        -- A coloured hand card on Magic Talent selects the basic effect;
+        -- without it two distinct mana payments select the strong effect.
+        if cost~=nil then start(seat,"basic",color,cost)
+        else
+            local paid=strongColor(seat)
+            if paid~=nil then start(seat,"strong",paid,nil) end
+        end
+        return
+    end
+    if s.mode=="basic" then
+        if s.cardGUID==nil then
+            s.order=offerOrder(s.color)
+            s.index=1
+            if #s.order>0 then borrow(s,1) end
+        end
+        return
+    end
+    if s.mode~="strong" then return end
+    local paid=strongColor(seat)
+    if paid==nil then
+        if s.cardGUID~=nil then returnPreview(s,false) end
+        return
+    end
+    if paid~=s.color then
+        if s.cardGUID~=nil then returnPreview(s,false) end
+        s.color=paid
+        s.order=offerOrder(paid)
+        s.index=1
+    end
+    if s.cardGUID==nil then
+        s.order=offerOrder(s.color)
+        s.index=1
+        if #s.order>0 then borrow(s,1) end
+    end
+end
+
+-- Return the real Spell before the offer's grid counts/moves its cards.
+-- The saved basic/strong entitlement survives this temporary reflow.
+function magicTalentOfferWillChange()
+    local s=state()
+    if s~=nil and s.cardGUID~=nil then returnPreview(s,true) end
+end
+
+function magicTalentScheduleCheck(movedGUID)
+    settleSerial=settleSerial+1
+    local serial=settleSerial
+    safeWaitFrames("Offers.MagicTalent",function()
+        if serial~=settleSerial then return end
+        safeWaitCondition("Offers.MagicTalent",function()
+            if serial==settleSerial then magicTalentSync() end
+        end,function()
+            if serial~=settleSerial then return true end
+            local card=getObjectFromGUID(MAGIC_TALENT_GUID)
+            local moved=movedGUID~=nil and getObjectFromGUID(movedGUID) or nil
+            local ready=card==nil or (card.held_by_color==nil
+                and card.resting and not card.isSmoothMoving())
+            return ready and (moved==nil or (moved.held_by_color==nil
+                and moved.resting and not moved.isSmoothMoving()))
+        end,8)
+    end,2)
+end
+
+function magicTalentObjectDropped(playerColor,obj)
+    if obj==nil then return end
+    local s=state()
+    if s~=nil and obj.guid==s.cardGUID then
+        local card=getObjectFromGUID(obj.guid)
+        if card~=nil then
+            remember(s)
+            if s.mode=="strong" and objectGUIDInZone(obj.guid,deedDeckDiscardZones[s.seatPos]) then
+                claim(s)
+                return
+            end
+        end
+    end
+    -- Ignore unrelated table drops; the live Magic Talent/loan is all that matters.
+    if s~=nil or talentInPlay(currentSeat()) then magicTalentScheduleCheck(obj.guid) end
+end
+
+function magicTalentRestoreOnLoad()
+    local s=state()
+    if s==nil then return end
+    if not talentInPlay(s.seatPos) then magicTalentClose(true) return end
+    if s.cardGUID~=nil then
+        local card=getObjectFromGUID(s.cardGUID)
+        if card==nil then magicTalentClose(true) return end
+        browseSerial=browseSerial+1
+        controls(s)
+    end
+    magicTalentScheduleCheck()
+end
+
+end)
 __bundle_register("PlayingGame.TrainingOffer", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Training: physically browse matching Advanced Actions, borrowing each
 -- real Offer card and returning unchosen candidates to their original slot.
@@ -31434,6 +32073,10 @@ function offerAdjust(player, mouseButton, id)
 		return
 	end
 
+    -- Borrowed Spell stays in the old slot until we return it. Reflow the real
+    -- offer only after Magic Talent has restored its physical preview.
+    if magicTalentOfferWillChange~=nil then magicTalentOfferWillChange() end
+
 	--Capture both live sources before moving their zones. Growing can then draw from those exact objects
 	--while they move outward, recreating the original simultaneous deck-out/card-in animation.
 	local sourceObjects={
@@ -31489,6 +32132,7 @@ function offerAdjust(player, mouseButton, id)
 	safeWaitCondition("Offers",function()
 		OfferPause=false
 		refreshDeedOfferAdjustUI()
+        if magicTalentScheduleCheck~=nil then magicTalentScheduleCheck() end
 	end,function()
 		return deedOfferMovedSourcesSettled(sourceGUIDs)==true
 	end)
@@ -47364,7 +48008,8 @@ end
 -- The click is also confirmation: no second panel action is required.
 local function unitReplacementSelectClicked(unit,playerColor)
     local state=replacementState()
-    if unit==nil or not replacementPlayerAllowed({color=playerColor},state)
+    if unit==nil or state==nil
+        or not replacementPlayerAllowed({color=playerColor},state)
         or state.committing==true then return end
     local layout=unitLayoutSnapshot(state.seatPos)
     if layout.unitSlotByGuid[unit.guid]==nil then return end
@@ -47452,7 +48097,7 @@ end
 
 unitReplacementConfirm=function(player)
     local state=replacementState()
-    if not replacementPlayerAllowed(player,state) then return end
+    if state==nil or not replacementPlayerAllowed(player,state) then return end
     local claimed,old,layout,unitX,token=replacementValid(state)
     if claimed==nil then
         state.committing=false
@@ -47465,7 +48110,8 @@ unitReplacementConfirm=function(player)
         state.committing=false
         return
     end
-    local owner="Replace Unit "..state.claimGUID
+    local expectedClaimGUID=state.claimGUID
+    local owner="Replace Unit "..expectedClaimGUID
     local expectedSelected=state.selectedGUID
     if rewindTransactionOwnerActive(owner) then return end
     rewindTransactionStart(function()
@@ -47474,7 +48120,10 @@ unitReplacementConfirm=function(player)
         local pending=replacementState()
         local newUnit,oldUnit,currentLayout,x,command=replacementValid(pending)
         local trash=getObjectFromGUID(trashCan)
-        if newUnit==nil or trash==nil or pending.selectedGUID~=expectedSelected
+        if pending==nil or pending~=state or newUnit==nil or oldUnit==nil
+            or currentLayout==nil or x==nil or command==nil or trash==nil
+            or pending.claimGUID~=expectedClaimGUID
+            or pending.selectedGUID~=expectedSelected
             or (cardFlowUnitClaimBusy~=nil and cardFlowUnitClaimBusy()) then
             rewindTransactionFinish(owner)
             if pending~=nil then
@@ -47538,7 +48187,7 @@ unitReplacementConfirm=function(player)
     end,owner,function()
         -- Snapshot failure must not leave the selection locked.
         local pending=replacementState()
-        if pending~=nil and pending.claimGUID==state.claimGUID then
+        if pending~=nil and pending.claimGUID==expectedClaimGUID then
             pending.committing=false
             pending.selectedGUID=nil
         end
@@ -51867,6 +52516,69 @@ function resourceCardsBlockLinkTargets()
     return targets
 end
 
+-- Separate the three physical orientations. A tilted card is paid as a
+-- discard (typically 45 degrees); a fully sideways card gives any basic 1.
+-- Reducing modulo 180 handles the face-up cards' normal Y=180 orientation.
+local function cardRotationOffset(card)
+    local y=card.getRotation()[2]%180
+    return math.min(y,180-y)
+end
+
+local function cardPosture(card)
+    local tilt=cardRotationOffset(card)
+    if tilt<25 then return "upright" end
+    if tilt<=70 then return "discard" end
+    return "sideways"
+end
+
+-- Ambush can augment exactly one played card's first Attack or Block. This
+-- pool is shared by the target buttons and the calculation, rather than
+-- requiring the cards to physically touch.
+combatConfig.ambushCombatCategories={"attack","attackFire","attackIce","attackColdFire","attackPsychic",
+    "ranged","rangedFire","rangedIce","rangedColdFire","rangedPsychic",
+    "siege","siegeFire","siegeIce","siegeColdFire","siegePsychic",
+    "block","blockFire","blockIce","blockColdFire","blockPsychic"}
+combatConfig.ambushEligibleTarget=function(guid,record,sourceGUID)
+    if guid==sourceGUID or record==nil or record.resources==nil then return false end
+    local data=gameCards[guid]
+    if data==nil or (data.cardType~="Starting" and data.cardType~="Advanced Action"
+        and data.cardType~="Spell" and data.cardType~="Artifact") then return false end
+    local card=getObjectFromGUID(guid)
+    if card==nil or card.isDestroyed() or card.is_face_down==true
+        or cardPosture(card)=="discard" then return false end
+    for _,key in ipairs(combatConfig.ambushCombatCategories) do
+        if (tonumber(record.resources[key]) or 0)>0 then return true end
+    end
+    return false
+end
+
+function resourceCardsAmbushSourceActive(guid)
+    local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    local scan=active~=nil and resourceCardScanBySeat[active.seatPos] or nil
+    local record=scan~=nil and scan.cards[guid] or nil
+    local data=gameCards[guid]
+    local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+    local card=getObjectFromGUID(guid)
+    return resourceCardsPanelOpen() and resourceCardsDetailsOpen()
+        and rule~=nil and rule.combatLink~=nil
+        and record~=nil and record.complete==true and record.resources~=nil
+        and card~=nil and not card.isDestroyed() and card.is_face_down~=true
+        and cardPosture(card)=="upright"
+end
+
+function resourceCardsAmbushLinkTargets(sourceGUID)
+    local targets={}
+    if not resourceCardsAmbushSourceActive(sourceGUID) then return targets end
+    local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    local scan=active~=nil and resourceCardScanBySeat[active.seatPos] or nil
+    for guid,record in pairs(scan~=nil and scan.cards or {}) do
+        if combatConfig.ambushEligibleTarget(guid,record,sourceGUID) then
+            targets[guid]=getObjectFromGUID(guid)
+        end
+    end
+    return targets
+end
+
 -- Paging changes visible rows, not the underlying combat calculations.
 function resourceCardsCombatPage(delta)
     combatEnemyPage=math.max(1,combatEnemyPage+delta)
@@ -52233,21 +52945,6 @@ local function setHighlight(obj,kind,powered)
 end
 
 
--- Separate the three physical orientations. A tilted card is paid as a
--- discard (typically 45 degrees); a fully sideways card gives any basic 1.
--- Reducing modulo 180 handles the face-up cards' normal Y=180 orientation.
-local function cardRotationOffset(card)
-    local y=card.getRotation()[2]%180
-    return math.min(y,180-y)
-end
-
-local function cardPosture(card)
-    local tilt=cardRotationOffset(card)
-    if tilt<25 then return "upright" end
-    if tilt<=70 then return "discard" end
-    return "sideways"
-end
-
 -- Only a deliberately tilted card can pay a discard cost, not an upright
 -- action or a fully sideways +1 play (notably Improvisation).
 local function canPayDiscard(card)
@@ -52553,6 +53250,7 @@ local function removeChoiceButtons(card)
     end
     if changed then resourceObjectUiSetTable(card.UI,xml) end
     choiceButtonShown[card.guid]=nil
+    if combatConfig.cardButtonIds~=nil then combatConfig.cardButtonIds[card.guid]=nil end
 end
 
 -- Cure is simultaneous: Heal 2 remains in the totals while a separate
@@ -52669,6 +53367,37 @@ combatConfig.cardInTransit=function(card)
         or card.resting==false or card.isSmoothMoving())
 end
 
+-- TTS and other object-UI owners can replace the XML while a card is lifted.
+-- A cached resource signature does not prove its choice/target buttons survived.
+-- Store only this card's own button IDs so an unchanged settled scan can repair
+-- missing controls without resetting the player's selections or links.
+combatConfig.cardButtonIds=combatConfig.cardButtonIds or {}
+combatConfig.cardChoiceIds=function(guid,xml)
+    local choices="ResourceCardChoice_"..guid.."_"
+    local targets="AttackAssignmentSource_"..guid.."_"
+    local ids={}
+    for _,node in ipairs(xml or {}) do
+        local id=node.attributes~=nil and node.attributes.id or nil
+        if node.tag=="Button" and type(id)=="string"
+            and (id:sub(1,#choices)==choices or id:sub(1,#targets)==targets) then
+            ids[#ids+1]=id
+        end
+    end
+    return ids
+end
+combatConfig.cardChoicesPresent=function(card)
+    local expected=combatConfig.cardButtonIds[card.guid]
+    if expected==nil then return false end
+    if #expected==0 then return true end
+    local missing={}
+    for _,id in ipairs(expected) do missing[id]=true end
+    for _,node in ipairs(resourceObjectUiXmlTable(card.UI)) do
+        local id=node.attributes~=nil and node.attributes.id or nil
+        if id~=nil then missing[id]=nil end
+    end
+    return next(missing)==nil
+end
+
 -- A single selected icon is centred on the object. Click to expand all
 -- choices; selecting one immediately collapses back to its icon.
 local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySets,resources,repeatLink)
@@ -52680,6 +53409,10 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         if category=="ready" and cardData~=nil
             and cardData.resourceKey=="rejuvenate" then return "unitReady" end
         if rule~=nil and rule.blockSourceBoost~=nil then return "blockSource" end
+        -- Ambush has ONE reusable target button. An Action card receives the
+        -- combat bonus; a Cumbersome enemy receives the independent Move.
+        if rule~=nil and rule.combatLink~=nil and cardPosture(card)=="upright"
+            and card.is_face_down~=true then return "ambush" end
         -- Mana Overload's choices select which linked CARD resource is boosted;
         -- the Skill itself is not an independently targetable Attack/Block.
         if rule~=nil and rule.manaOverload==true then return nil end
@@ -52716,6 +53449,13 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         and rule.simultaneousReady==true and type(resources)=="table"
         and (tonumber(resources.healing) or 0)>0 then
         choices={{healing=resources.healing}}
+    end
+    -- Ambush has only printed Move, but its independent combat buff must be
+    -- targetable even before an enemy is in the play area.
+    if (choices==nil or #choices==0) and rule~=nil and rule.combatLink~=nil
+        and type(resources)=="table" and (tonumber(resources.move) or 0)>0
+        and cardPosture(card)=="upright" and card.is_face_down~=true then
+        choices={{move=resources.move}}
     end
     -- A fixed effect (no alternatives) still needs a Target button for its combat resource.
     if (choices==nil or #choices==0) and type(resources)=="table" then
@@ -52926,22 +53666,8 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             ..tostring(special.recruited)..":"..tostring(special.terrain)) or "")
         ..":READY:"..tostring(readyCount)..":"..table.concat(readyLinks,",")
         ..":TARGETS:"..tostring(trackerPrivate.singleAutoEnemyGUID)
-    if choiceButtonShown[card.guid]==signature then
-        -- The interaction toggle is not a choice icon, and other object UI
-        -- owners may have rewritten the XML while the card was being moved.
-        -- Reconcile this one persistent control even when the resource/choice
-        -- signature has not changed (Noble Manners keeps its Fame/Rep state).
-        if rule==nil or rule.interactionReward==nil then return end
-        local expected="ResourceCardChoice_"..card.guid.."_interaction"
-        local found=false
-        for _,element in ipairs(resourceObjectUiXmlTable(card.UI)) do
-            if element.attributes~=nil and element.attributes.id==expected then
-                found=true
-                break
-            end
-        end
-        if found then return end
-    end
+    if choiceButtonShown[card.guid]==signature
+        and combatConfig.cardChoicesPresent(card) then return end
     local xml=resourceObjectUiXmlTable(card.UI)
     for i=#xml,1,-1 do
         local attr=xml[i].attributes
@@ -53099,7 +53825,9 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                             and "global/attackAssignmentReadySourceClicked"
                             or (entry.targetResource=="blockSource"
                                 and "global/resourceCardsBlockSourceLinkClicked"
-                                or "global/attackAssignmentSourceClicked"),
+                                or (entry.targetResource=="ambush"
+                                    and "global/attackAssignmentAmbushSourceClicked"
+                                    or "global/attackAssignmentSourceClicked")),
                         position=tostring(partX).." "..tostring(buttonY).." "..buttonDepth,
                         rotation=uiRotation,width=90,height=90,scale=buttonScale,
                         colors="#454D5D|#69798E|#444C63|#454D5D",textColor="#FFFFFF",textAlignment="MiddleCenter"
@@ -53337,6 +54065,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     -- That can leave an otherwise empty object UI; TTS rejects setXmlTable({})
     -- with an Object reference error. The shared writer uses setXml("") here.
     resourceObjectUiSetTable(card.UI,xml,assets)
+    combatConfig.cardButtonIds[card.guid]=combatConfig.cardChoiceIds(card.guid,xml)
     choiceButtonShown[card.guid]=signature
 end
 
@@ -53565,6 +54294,7 @@ local function clearChoiceButtons()
         if signature~="hidden" then removeChoiceButtons(getObjectFromGUID(guid)) end
     end
     choiceButtonShown={}
+    combatConfig.cardButtonIds={}
 end
 
 -- Reset a player's explicit choice only after the card has actually finished
@@ -53641,6 +54371,39 @@ local function manaColor(obj)
         if type(face)=="string" then return face:match("^([%a]+) Mana$") end
     end
     return nil
+end
+
+-- Magic Talent's strong side consumes TWO distinct mana objects, not the
+-- single mana that normally powers an Advanced Action. Read the same settled
+-- die faces/crystals as the ordinary tracker, even when its panel is minimized.
+function magicTalentManaPayments(seatPos)
+    local card=getObjectFromGUID("3d832c")
+    local zone=seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
+    if card==nil or zone==nil then return {} end
+    local area=footprint(card)
+    local payments,seen={},{}
+    local function consider(obj)
+        if obj==nil or seen[obj.guid] or obj.guid==card.guid
+            or obj.resting~=true or obj.isSmoothMoving()==true then return end
+        seen[obj.guid]=true
+        local p=obj.getPosition()
+        if math.abs(p[1]-area.x)<area.halfX
+            and math.abs(p[3]-area.z)<area.halfZ then
+            local color=manaColor(obj)
+            if color~=nil then
+                payments[#payments+1]={guid=obj.guid,color=color}
+            end
+        end
+    end
+    for _,obj in ipairs(zone.getObjects()) do consider(obj) end
+    if #payments<2 then
+        -- The play zone is deliberately thin; a crystal stacked on a card can
+        -- be above its Y boundary. Only inspect objects physically covering
+        -- Magic Talent, and never read die faces while still moving.
+        for _,obj in ipairs(getAllObjects()) do consider(obj) end
+    end
+    table.sort(payments,function(a,b) return a.guid<b.guid end)
+    return payments
 end
 
 -- Reuse the same stable identifiers as Skills and Combat's faction reward cleanup.
@@ -53731,6 +54494,38 @@ local function matchesCardMana(card,color)
     if type(colors)=="string" then return colors==color end
     if type(colors)=="table" then
         for _,cardColor in ipairs(colors) do if cardColor==color then return true end end
+    end
+    return false
+end
+
+-- A borrowed Spell's casting payment must remain on its physical card.
+-- This check also works with the Resource Tracker minimized, when its cached
+-- records are deliberately cleared. A lone Black die never casts a Spell.
+function magicTalentSpellCastingPaid(seatPos,guid)
+    local card=guid~=nil and getObjectFromGUID(guid) or nil
+    local data=card~=nil and gameCards[guid] or nil
+    local zone=seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
+    if card==nil or data==nil or data.cardType~="Spell"
+        or zone==nil or card.is_face_down==true
+        or cardPosture(card)~="upright" then return false end
+    local area=footprint(card)
+    local seen={}
+    local function paidBy(mana)
+        if mana==nil or seen[mana.guid] or mana.guid==guid
+            or mana.resting~=true or mana.isSmoothMoving()==true then return false end
+        seen[mana.guid]=true
+        local p=mana.getPosition()
+        if math.abs(p[1]-area.x)>=area.halfX
+            or math.abs(p[3]-area.z)>=area.halfZ then return false end
+        local color=manaColor(mana)
+        return color~=nil and color~="Black" and matchesCardMana(card,color)
+    end
+    for _,mana in ipairs(zone.getObjects()) do
+        if paidBy(mana) then return true end
+    end
+    -- Stacked crystals can rest above the thin play scripting zone.
+    for _,mana in ipairs(getAllObjects()) do
+        if paidBy(mana) then return true end
     end
     return false
 end
@@ -55729,6 +56524,11 @@ local function renderSeat(seatPos)
             skillLinksByTarget[card.guid],linkedChoices,repeatByTarget[card.guid],
             discardBoostBySource[card.guid],woundCount,enemyBonus,
             spellCastingPaid[card.guid]==true)
+        -- This explicit flag distinguishes browsing Magic Talent's loaned
+        -- Spell from an actual paid cast, including non-numeric utility Spells.
+        if cardData~=nil and cardData.cardType=="Spell" then
+            result.spellCastPaid=spellCastingPaid[card.guid]==true
+        end
 
         if rule~=nil and rule.poweredTargetBonuses~=nil and result.powered==true
             and result.resources~=nil and cardPosture(card)=="upright" then
@@ -56307,12 +57107,9 @@ local function renderSeat(seatPos)
             end
         end
     end
-    -- Ambush boosts the physically linked Action's first Attack or Block,
-    -- rather than generating a separate untyped Attack resource.
-    local combatCategories={"attack","attackFire","attackIce","attackColdFire",
-        "ranged","rangedFire","rangedIce","rangedColdFire",
-        "siege","siegeFire","siegeIce","siegeColdFire",
-        "block","blockFire","blockIce","blockColdFire"}
+    -- Ambush's explicit card assignment takes priority over physical overlap.
+    -- The Move enemy target stays in the ordinary combat assignment registry.
+    local combatCategories=combatConfig.ambushCombatCategories
     for _,source in ipairs(cards) do
         local data=gameCards[source.guid]
         local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
@@ -56321,23 +57118,45 @@ local function renderSeat(seatPos)
             and sourceRecord.resources~=nil and cardPosture(source)=="upright"
             and (discarded[source.guid]==nil or repeatByTarget[source.guid]~=nil) then
             local best,bestCategory,bestType,bestOverlap=nil,nil,nil,0
-            for _,target in ipairs(cards) do
+            local function chooseCategory(target)
                 local record=records[target.guid]
-                local area=target.guid~=source.guid
-                    and overlapArea(footprints[source.guid],footprints[target.guid]) or 0
-                if area>0 and record~=nil and record.resources~=nil
-                    and discarded[target.guid]==nil then
-                    local category,kind=nil,nil
-                    for _,key in ipairs(combatCategories) do
-                        if type(record.resources[key])=="number" and record.resources[key]>0 then
-                            category=key
-                            kind=key:sub(1,5)=="block" and "block" or "attack"
-                            break
-                        end
+                if discarded[target.guid]~=nil
+                    or not combatConfig.ambushEligibleTarget(target.guid,record,source.guid) then
+                    return nil,nil
+                end
+                for _,key in ipairs(combatCategories) do
+                    if (tonumber(record.resources[key]) or 0)>0 then
+                        return key,key:sub(1,5)=="block" and "block" or "attack"
                     end
-                    if category~=nil and (area>bestOverlap
-                        or (area==bestOverlap and best~=nil and target.guid<best.guid)) then
-                        best,bestCategory,bestType,bestOverlap=target,category,kind,area
+                end
+                return nil,nil
+            end
+            local saved=gStates~=nil and gStates.ambushCombatLinks or nil
+            local savedGUID=saved~=nil and saved[source.guid] or nil
+            if savedGUID~=nil then
+                local target=getObjectFromGUID(savedGUID)
+                if target~=nil then
+                    local category,kind=chooseCategory(target)
+                    if category~=nil then
+                        best,bestCategory,bestType=target,category,kind
+                    end
+                end
+                -- A lifted target keeps its assignment until the settled scan.
+                if best==nil and (target==nil or not combatConfig.cardInTransit(target)) then
+                    saved[source.guid]=nil
+                    savedGUID=nil
+                end
+            end
+            if best==nil and savedGUID==nil then
+                for _,target in ipairs(cards) do
+                    local area=target.guid~=source.guid
+                        and overlapArea(footprints[source.guid],footprints[target.guid]) or 0
+                    if area>0 then
+                        local category,kind=chooseCategory(target)
+                        if category~=nil and (area>bestOverlap
+                            or (area==bestOverlap and best~=nil and target.guid<best.guid)) then
+                            best,bestCategory,bestType,bestOverlap=target,category,kind,area
+                        end
                     end
                 end
             end
@@ -56375,6 +57194,20 @@ local function renderSeat(seatPos)
                 setHighlight(source,sourceRecord.status,sourceRecord.powered)
                 setHighlight(best,targetRecord.status,targetRecord.powered)
             end
+        end
+    end
+    -- Retire stale manual links when Ambush itself is no longer a played
+    -- upright card. Transiently lifted cards keep their pending assignments.
+    for guid in pairs(gStates~=nil and gStates.ambushCombatLinks or {}) do
+        local record=records[guid]
+        local data=gameCards[guid]
+        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+        local obj=getObjectFromGUID(guid)
+        if (record==nil or record.complete~=true or record.resources==nil
+            or rule==nil or rule.combatLink==nil or obj==nil
+            or obj.is_face_down==true or cardPosture(obj)~="upright")
+            and not combatConfig.cardInTransit(obj) then
+            gStates.ambushCombatLinks[guid]=nil
         end
     end
     -- An unlinked Wound is inert. Only an attached Skill or a deliberate
@@ -57886,6 +58719,7 @@ local function renderSeat(seatPos)
         usesCurrentHexBlock=usesCurrentHexBlock,
         usesCurrentHexHealing=usesCurrentHexHealing,
         usesSkillLocation=usesSkillLocation}
+    if attackAssignmentsRefreshAmbushLinks~=nil then attackAssignmentsRefreshAmbushLinks() end
     -- This also retracts a saved Ready if its card loses power or the new
     -- Rejuvenate side can no longer ready that Unit level.
     if unitHistoryValidSources(seatPos) or readyNeedsRescan then
@@ -57949,6 +58783,7 @@ local function renderSeat(seatPos)
     -- tracker refreshes can drop its independent cycling UI during dragging.
     -- Restore it after all tracker-owned UI writes, without touching resources.
     if callOfferEnsureControls~=nil then callOfferEnsureControls(seatPos) end
+    if magicTalentEnsureControls~=nil then magicTalentEnsureControls(seatPos) end
     if unitReplacementEnsureControls~=nil then unitReplacementEnsureControls(seatPos) end
     if steadyTempoRefreshAll~=nil and next(gStates.steadyTempoPending or {})~=nil then
         steadyTempoRefreshAll()
@@ -59027,9 +59862,10 @@ function resourceCardsAfterTurnHandoff(previousSeat)
     if current==nil or current.seatPos==previousSeat then return end
     local enabled=resourceCardsSeatEnabled(current.seatPos)
     UI.setAttribute("CombatCalculatorHelp","active","false")
-    UI.setAttribute("ResourceTracker","height",enabled and "245" or "35")
-    UI.setAttribute("ResourceTrackerDetail","height","210")
     UI.setAttribute("ResourceTrackerDetail","active",enabled and "true" or "false")
+    -- The previous seat may have left terrain/combat submenus expanded.
+    -- Preserve their visibility without squeezing them into the default height.
+    resourceTrackerSyncLayout(enabled)
     if enabled then resourceCardsOnLoad() end
 end
 
@@ -59040,10 +59876,15 @@ function resourceCardsOnLoad()
     if gStates==nil or gStates.firstStarted~=true then return end
     local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if current~=nil and not resourceCardsSeatEnabled(current.seatPos) then
-        UI.setAttribute("ResourceTracker","height","35")
         UI.setAttribute("ResourceTrackerDetail","active","false")
+        resourceTrackerSyncLayout(false)
         resourceCardsPanelChanged(false)
         return
+    end
+    -- Repair a restored panel whose child expansion flags outlived its height.
+    -- Do not force open an intentionally collapsed saved UI.
+    if UI.getAttribute("ResourceTrackerDetail","active")=="true" then
+        resourceTrackerSyncLayout(true)
     end
     trackerPrivate.trackerStartupRequest=trackerPrivate.trackerStartupRequest+1
     local request=trackerPrivate.trackerStartupRequest
@@ -59169,7 +60010,9 @@ function resourceCardsObjectMoved(obj)
         queueSeat(seat,isMonster and obj.guid or nil)
     elseif trackerPrivate.bySeat[seat]~=nil and trackerPrivate.bySeat[seat][obj.guid]==true then
         scheduleChoiceResetAfterPlay(obj.guid,seat)
-        queueSeat(seat,nil)
+        -- Wait for this specific card to settle before reconciling its XML.
+        -- An immediate scan could run while TTS is still clearing its UI.
+        queueSeat(seat,obj.guid)
     end
 end
 
@@ -62772,7 +63615,7 @@ function cleanupPlayedCardAtEndTurn(card, playerIndex, cardDestination)
 	for _, ownedGUID in ipairs(turnOrder[playerIndex].deadDeckInventory or {}) do
 		if card.guid==ownedGUID then
 			if gStates.timeBending=="Started" and playerIndex==gStates.realTurn then
-				if card.guid==timeBendingGUID then
+				if card.guid==(gStates.timeBendingRemovedGUID or timeBendingGUID) then
 					gStates.timeBendingRemovedSeat=turnOrder[playerIndex].seatPos
 					if trash~=nil then trash.putObject(card) end
 					broadcastToAll("{en}Time Bend Left Play{it}Distorsione Temporale ha Lasciato il Gioco{ru}«Изгиб времени» покинул игру{zh-tw}「時間彎曲」離開遊戲區{zh-cn}“时间弯曲”离开游戏区{ko}시간 왜곡이 플레이 영역을 떠났습니다{es}Curvatura Temporal salió del juego{fr}Courbure du Temps a quitté le jeu{pt-br}Dobra Temporal saiu de jogo{de}Zeitkrümmung hat das Spiel verlassen", positionToColor(playerIndex))
@@ -63312,7 +64155,14 @@ local function compactAndRefillDeedOfferRaw(suppressAdjustUIRefresh,sourceOverri
 end
 
 function compactAndRefillDeedOffer(suppressAdjustUIRefresh,sourceOverrides)
-	return safeCallback("compactAndRefillDeedOffer",function() return compactAndRefillDeedOfferRaw(suppressAdjustUIRefresh,sourceOverrides) end)
+    if magicTalentOfferWillChange~=nil then magicTalentOfferWillChange() end
+    local result=safeCallback("compactAndRefillDeedOffer",function()
+        return compactAndRefillDeedOfferRaw(suppressAdjustUIRefresh,sourceOverrides)
+    end)
+    if magicTalentScheduleCheck~=nil then
+        safeWaitFrames("PlayerBoard.CardFlow",magicTalentScheduleCheck,5)
+    end
+    return result
 end
 
 -- Cure rewards only Wounds actually healed from hand. The explicit button
@@ -66095,6 +66945,25 @@ joinLangParse=function(text)
 	joinLangParseCache[text]=parsed
 	joinLangCacheCount=joinLangCacheCount+1
 	return parsed
+end
+
+-- Append a language-specific clause to a completed sentence. The parser stays
+-- module-private; callers must use this public helper instead of joinLangParse.
+function joinLangAppendSentenceSuffix(text, suffixes)
+	local parsed=joinLangParse(tostring(text or ""))
+	suffixes=type(suffixes)=="table" and suffixes or {}
+	local function withoutFullStop(sentence)
+		return tostring(sentence or ""):gsub("%.$",""):gsub("。$","")
+	end
+	if type(parsed)~="table" then
+		return withoutFullStop(parsed)..tostring(suffixes.en or "")
+	end
+	local output={}
+	for _,lang in ipairs(JOIN_LANG_ORDER) do
+		local sentence=withoutFullStop(parsed[lang] or parsed.en or "")
+		output[#output+1]="{"..lang.."}"..sentence..tostring(suffixes[lang] or suffixes.en or "")
+	end
+	return table.concat(output)
 end
 
 --Tooltips cannot resolve translation tags. Keep the parser private and expose only the
