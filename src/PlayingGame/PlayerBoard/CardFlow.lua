@@ -291,8 +291,41 @@ function queueCardToDeedDeck(playerIndex,card,rewindReady)
 	return true
 end
 
---Move's an offer or tactic card to a player's location
+-- One settled Unit-claim path shared by a free slot and a confirmed
+-- disband/replacement. A Command source is supplied explicitly so recruitment
+-- can retire the previous Unit's spent flag even when it is still this Round.
 local fillWait=false
+function cardFlowClaimUnitAtSlot(claimedCard,seatPos,unitX,layout,commandSource,onSettled)
+    if fillWait or claimedCard==nil or seatPos==nil or unitX==nil or layout==nil then return false end
+    local claimedGUID=claimedCard.guid
+    fillWait=true
+    if commandSource~=nil and resourceUnitsAdoptCommand~=nil then
+        resourceUnitsAdoptCommand(commandSource.guid,claimedGUID,seatPos,true)
+    end
+    claimedCard.unlock()
+    local scale=unitLayoutCardScale(#layout.commands)
+    claimedCard.setScale({scale,1,scale})
+    claimedCard.setPositionSmooth({unitX,2.0,-34.74},false,false)
+    safeWaitFrames("PlayerBoard.CardFlow",function()
+        safeWaitCondition("PlayerBoard.CardFlow",function()
+            fillWait=false
+            scheduleUnitLayoutRefresh(seatPos)
+            if type(onSettled)=="function" then onSettled() end
+        end,function()
+            local live=getObjectFromGUID(claimedGUID)
+            return live==nil or (live.resting and live.isSmoothMoving()==false)
+        end,8)
+    end,5)
+    local data=gameCards[claimedGUID]
+    if data~=nil then
+        broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage],
+            "{en} gained {it} ha ricevuto {ru} получает {zh-tw} 獲得 {zh-cn}增加了{ko}의 획득:  {es} ganó {fr} a subi {pt-br} ganhou {de} gewonnen ",
+            data.name[1],"."}),positionToColor(gStates.turnNumber))
+    end
+    return true
+end
+
+--Move's an offer or tactic card to a player's location
 function processCardClaim(player, mouseButton, id, rewindReady)
 	if mouseButton~="-3" then
 		if legalPlayerCheck(player.color, turnOrder[gStates.turnNumber].seatPos)==true and turnOrder[gStates.turnNumber].mage~=gStates.positionMageKnight[5] then
@@ -375,22 +408,23 @@ function processCardClaim(player, mouseButton, id, rewindReady)
 						broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage], "{en} gained {it} ha ricevuto {ru} получает {zh-tw} 獲得 {zh-cn}增加了{ko}의 획득:  {es} ganó {fr} a subi {pt-br} ganhou {de} gewonnen ", getObjectFromGUID(claimedCard.guid).getName(), "."}), positionToColor(gStates.turnNumber))
 					end
 				else
-					if fillWait==false then--Move the Unit card to an empty command-source column
+					if fillWait==false then
 						local seatPos=turnOrder[gStates.turnNumber].seatPos
-						local slot, unitX, commandSource, layout=unitLayoutFirstFreeCommand(seatPos)
-						local found=slot~=nil
-						if found==true then
-							claimedCard.unlock()
-							local scale=unitLayoutCardScale(#layout.commands)
-							claimedCard.setScale({scale,1,scale})
-							claimedCard.setPositionSmooth({unitX,2.0,-34.74},false,false)
-							fillWait=true
-							safeWaitFrames("PlayerBoard.CardFlow",function() safeWaitCondition("PlayerBoard.CardFlow",function() fillWait=false scheduleUnitLayoutRefresh(seatPos) end, function() return claimedCard.resting end) end,5)
-							if gameCards[claimedCard.guid]~=nil then
-								broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage], "{en} gained {it} ha ricevuto {ru} получает {zh-tw} 獲得 {zh-cn}增加了{ko}의 획득:  {es} ganó {fr} a subi {pt-br} ganhou {de} gewonnen ", gameCards[claimedCard.guid].name[1], "."}), positionToColor(gStates.turnNumber))
+						-- A pending disband is a human choice, not a second claim.
+						local pending=gStates.unitReplacementPending
+						if pending~=nil then
+							broadcastToColor("{en}Finish or cancel your Unit replacement before claiming another Unit.{it}Termina o annulla la sostituzione dell'Unità prima di reclutarne un'altra.{ru}Завершите или отмените замену отряда.",player.color,warningColor)
+						else
+							local slot, unitX, commandSource, layout=unitLayoutFirstFreeCommand(seatPos)
+							if slot~=nil then
+								cardFlowClaimUnitAtSlot(claimedCard,seatPos,unitX,layout,commandSource)
+							elseif unitReplacementBegin~=nil
+								and unitReplacementBegin(player,claimedCard.guid,seatPos)==true then
+								-- Offer Unit remains in place until the player confirms a disband.
+							else
+								broadcastToAll("{en}You have no free Command tokens to enlist another Unit.{it}Non hai segnalini Comando liberi per reclutare un'altra Unità.{ru}Нет свободных жетонов Командования для набора отряда.",warningColor)
 							end
 						end
-						if found==false then broadcastToAll("{en}You have no free command tokens to enlist another unit{it}Non hai segnalini Comando liberi per reclutare un'altra Unità{ru}У вас нет свободного жетона командования, чтобы нанять еще один отряд{zh-tw}你沒有空閒的指揮標記可招募另一個單位{zh-cn}你没有闲置的位置招募新部队{ko}유닛을 고용할 지휘 토큰이 부족합니다{es}No tienes fichas de mando gratuitas para alistar otra unidad{fr}Vous n'avez pas de jetons de commande gratuits pour enrôler une autre unité{pt-br}Você não tem Fichas de Comando livres para recrutar outra unidade{de}Du hast keine freien Befehlsmarken, um eine andere Einheit anzuwerben.", warningColor) end
 						--Warn only after the normal location rules plus conquered Camp-as-City proximity are checked.
 						if gameCards[claimedCard.guid]~=nil and unitRecruitableAtCurrentLocation(gStates.turnNumber,claimedCard)~=true then
 							broadcastToAll("{en}Claimed Unit normally isn't recruited from the location you're currently at.{it}Questa Unità normalmente non si recluta nel sito in cui ti trovi.{ru}Забранный Отряд обычно не нанимается из того места, где вы в данный момент находитесь.{zh-tw}你目前所在的位置通常不能招募這個單位{zh-cn}你所在的位置通常不能招募这个部队{ko}보통은, 그 유닛을 현재 장소에서 고용할 수 없습니다{es}La Unidad reclamada normalmente no se recluta en la ubicación en la que se encuentra actualmente.{fr}L'Unité réclamée n'est normalement pas recrutée à l'endroit où vous vous trouvez actuellement.{pt-br}Unidade Clamada normalmente não é recrutada da localização que você está agora.{de}Die beanspruchte Einheit wird normalerweise nicht von dem Ort rekrutiert, an dem Sie sich gerade befinden.", positionToColor(gStates.turnNumber))
