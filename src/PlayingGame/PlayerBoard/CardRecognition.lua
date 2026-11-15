@@ -6089,6 +6089,31 @@ local function manaColor(obj)
     return nil
 end
 
+-- Magic Talent's strong side consumes TWO distinct mana objects, not the
+-- single mana that normally powers an Advanced Action. Read the same settled
+-- die faces/crystals as the ordinary tracker, even when its panel is minimized.
+function magicTalentManaPayments(seatPos)
+    local card=getObjectFromGUID("3d832c")
+    local zone=seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
+    if card==nil or zone==nil then return {} end
+    local area=footprint(card)
+    local payments={}
+    for _,obj in ipairs(zone.getObjects()) do
+        if obj.guid~=card.guid and obj.resting==true then
+            local color=manaColor(obj)
+            if color~=nil then
+                local p=obj.getPosition()
+                if math.abs(p[1]-area.x)<area.halfX
+                    and math.abs(p[3]-area.z)<area.halfZ then
+                    payments[#payments+1]={guid=obj.guid,color=color}
+                end
+            end
+        end
+    end
+    table.sort(payments,function(a,b) return a.guid<b.guid end)
+    return payments
+end
+
 -- Reuse the same stable identifiers as Skills and Combat's faction reward cleanup.
 -- No name/description guessing for Skills, Units or Faction Rewards.
 local factionRewardNotes={
@@ -8175,6 +8200,11 @@ local function renderSeat(seatPos)
             skillLinksByTarget[card.guid],linkedChoices,repeatByTarget[card.guid],
             discardBoostBySource[card.guid],woundCount,enemyBonus,
             spellCastingPaid[card.guid]==true)
+        -- This explicit flag distinguishes browsing Magic Talent's loaned
+        -- Spell from an actual paid cast, including non-numeric utility Spells.
+        if cardData~=nil and cardData.cardType=="Spell" then
+            result.spellCastPaid=spellCastingPaid[card.guid]==true
+        end
 
         if rule~=nil and rule.poweredTargetBonuses~=nil and result.powered==true
             and result.resources~=nil and cardPosture(card)=="upright" then
@@ -10395,6 +10425,7 @@ local function renderSeat(seatPos)
     -- tracker refreshes can drop its independent cycling UI during dragging.
     -- Restore it after all tracker-owned UI writes, without touching resources.
     if callOfferEnsureControls~=nil then callOfferEnsureControls(seatPos) end
+    if magicTalentEnsureControls~=nil then magicTalentEnsureControls(seatPos) end
     if unitReplacementEnsureControls~=nil then unitReplacementEnsureControls(seatPos) end
     if steadyTempoRefreshAll~=nil and next(gStates.steadyTempoPending or {})~=nil then
         steadyTempoRefreshAll()
