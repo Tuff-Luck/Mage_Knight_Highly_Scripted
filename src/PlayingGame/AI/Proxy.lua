@@ -277,20 +277,34 @@ function proxyRerollSourceManaGUID(guid,color)
 		end
 	end
 	if die==nil then return false end
+	--Record the die's colour before rolling, since its face can change immediately.
+	local rerolledColor=color or apocalypseQuestManaDieColor(die)
 	die.randomize()
 	onObjectRandomize({type="Dice"})
+	if gStates.proxyTurnReport~=nil then gStates.proxyTurnReport.sourceRerollColor=rerolledColor end
 	return true
 end
 
 function proxyUseSourceMana(colors,selectedColor)
 	local exact,gold=proxySourceManaOptions(colors)
 	if selectedColor~=nil then
-		for _,option in ipairs(exact) do if option.color==selectedColor then return proxyRerollSourceManaGUID(option.guid,option.color),nil end end
+		for _,option in ipairs(exact) do
+			if option.color==selectedColor then
+				local rerolled=proxyRerollSourceManaGUID(option.guid,option.color)
+				return rerolled,nil,rerolled and option.color or nil
+			end
+		end
 		return false,nil
 	end
 	if #exact>1 then return nil,exact end
-	if #exact==1 then return proxyRerollSourceManaGUID(exact[1].guid,exact[1].color),nil end
-	if gold~=nil then return proxyRerollSourceManaGUID(gold,"Gold"),nil end
+	if #exact==1 then
+		local rerolled=proxyRerollSourceManaGUID(exact[1].guid,exact[1].color)
+		return rerolled,nil,rerolled and exact[1].color or nil
+	end
+	if gold~=nil then
+		local rerolled=proxyRerollSourceManaGUID(gold,"Gold")
+		return rerolled,nil,rerolled and "Gold" or nil
+	end
 	return false,nil
 end
 
@@ -678,8 +692,8 @@ function proxyLocalizedAction(action)
 	if name~=nil then return joinLang({"{en}resolved the {it}ha risolto {ru}разрешил {zh-tw}完成了 {zh-cn}完成了 {ko}을(를) 해결했습니다: {es}resolvió {fr}a résolu {pt-br}resolveu {de}hat abgeschlossen: ",proxyLocalizedTerm(name)}) end
 	name=text:match("^conquered the (.+)$")
 	if name~=nil then return joinLang({"{en}conquered the {it}ha conquistato {ru}покорил {zh-tw}征服了 {zh-cn}征服了 {ko}을(를) 정복했습니다: {es}conquistó {fr}a conquis {pt-br}conquistou {de}hat erobert: ",proxyLocalizedTerm(name)}) end
-	local card,kind=text:match("^took (.+) %((.+)%) from the offer$")
-	if card~=nil then return joinLang({"{en}took {it}ha preso {ru}взял {zh-tw}從供應中取得 {zh-cn}从供应中取得 {ko}제안에서 {es}tomó {fr}a pris {pt-br}pegou {de}nahm ",card," (",kind,"{en} from the offer{it} dall'offerta{ru} из предложения{zh-tw}{zh-cn}{ko}을(를) 가져갔습니다{es} de la oferta{fr} de l’offre{pt-br} da oferta{de} aus dem Angebot"}) end
+	local card=text:match("^took (.+) from the offer$")
+	if card~=nil then return joinLang({"{en}took {it}ha preso {ru}взял {zh-tw}從供應中取得 {zh-cn}从供应中取得 {ko}제안에서 {es}tomó {fr}a pris {pt-br}pegou {de}nahm ",card,"{en} from the offer{it} dall'offerta{ru} из предложения{zh-tw}{zh-cn}{ko}을(를) 가져갔습니다{es} de la oferta{fr} de l’offre{pt-br} da oferta{de} aus dem Angebot"}) end
 	local target=text:match("^moved toward the (.+)\nbut did not reach it$")
 	if target~=nil then return joinLang({"{en}moved toward the {it}si è mosso verso {ru}двигался к {zh-tw}朝 {zh-cn}朝 {ko} 방향으로 이동했지만 도달하지 못했습니다: {es}se movió hacia {fr}s’est déplacé vers {pt-br}moveu-se em direção a {de}bewegte sich in Richtung ",proxyLocalizedTerm(target),"{en}\nbut did not reach it{it}\nma non l'ha raggiunto{ru}, но не достиг цели{zh-tw} 移動，但未抵達{zh-cn} 移动，但未抵达{ko}{es}\npero no llegó{fr}\nmais ne l’a pas atteint{pt-br}\nmas não chegou{de}, erreichte das Ziel aber nicht"}) end
 	return text
@@ -751,7 +765,11 @@ function proxyTurnReportText()
 	if (report.sourceMove or 0)>0 then movementParts[#movementParts+1]="Source +1" end
 	local movementText=table.concat(movementParts,", ")
 	local summaryLine=joinLang({"{en}Objective: {it}Obiettivo: {ru}Цель: {zh-tw}目標：{zh-cn}目标：{ko}목표: {es}Objetivo: {fr}Objectif : {pt-br}Objetivo: {de}Ziel: ",objectiveLabel," (",shortReason,")\n","{en}Movement: {it}Movimento: {ru}Движение: {zh-tw}移動：{zh-cn}移动：{ko}이동: {es}Movimiento: {fr}Déplacement : {pt-br}Movimento: {de}Bewegung: ",tostring(report.allowance or 0)," (",movementText,")."})
-	return joinLang({first,choiceLine,interactionLine,"\n\n",summaryLine})
+	local sourceRerollLine=""
+	if report.sourceRerollColor~=nil then
+		sourceRerollLine=joinLang({"{en}\nSource die rerolled: {it}\nDado Fonte ritirato: {ru}\nПереброшен кубик Источника: {zh-tw}\n已重擲魔力源骰：{zh-cn}\n已重掷魔力源骰：{ko}\n원천 주사위 다시 굴림: {es}\nDado de Fuente relanzado: {fr}\nDé de Source relancé : {pt-br}\nDado da Fonte rolado novamente: {de}\nQuellenwürfel neu gewürfelt: ",translateWord[report.sourceRerollColor] or report.sourceRerollColor,"."})
+	end
+	return joinLang({first,choiceLine,interactionLine,"\n\n",summaryLine,sourceRerollLine})
 end
 --Return the logical Portal hex used by Proxy rules. Against the Horsemen starts from Country Tile 1's
 --central Magical Glade; even after the Round 3 ritual closes the actual Portal, Blue-objective distance
@@ -1954,8 +1972,7 @@ end
 function proxyTakeInteractionChoice(choice)
 	if choice==nil or choice.card==nil then return false end
 	local cardName=proxyCardDisplayName(choice.card)
-	local kind=choice.kind=="unit" and "Unit" or (choice.kind=="spell" and "Spell" or "Advanced Action")
-	proxyTurnReportSetAction("took "..cardName.." ("..kind..") from the offer")
+	proxyTurnReportSetAction("took "..cardName.." from the offer")
 	proxyReturnOfferCard(choice.card)
 	if choice.kind~="unit" then safeWaitFrames("AI.Proxy",function() compactAndRefillDeedOffer() end,2) end
 	proxyClearObjective(true)
@@ -2265,10 +2282,13 @@ function proxyProcessTurn(proxyIndex)
 		local colors=dummyCardColors(objectiveNow)
 		local baseMove=proxyObjectiveBaseMove(objectiveNow)
 		local shieldMove=#(gStates.proxyObjectiveShieldGUIDs or {})
-		local sourceUsed,manaOptions=proxyUseSourceMana(colors)
+		local sourceUsed,manaOptions,sourceRerollColor=proxyUseSourceMana(colors)
 		local willUseSource=sourceUsed==true or manaOptions~=nil
 		local move=baseMove+shieldMove+(willUseSource and 1 or 0)
 		proxyTurnReportBegin(objectiveNow,colors,baseMove,shieldMove,willUseSource)
+		--The automatic single-die reroll happens before this report exists. Carry
+		--its result forward; choice and fallback rerolls record directly as they occur.
+		if sourceRerollColor~=nil then gStates.proxyTurnReport.sourceRerollColor=sourceRerollColor end
 		broadcastToAll(joinLang({translateWord[stats.mage],"{en} Proxy may move {it} Il Proxy può muoversi di {ru} прокси может переместиться на {zh-tw} 代理可移動 {zh-cn} 代理可移动 {ko} 프록시는 {es} Proxy puede mover {fr} Proxy peut se déplacer de {pt-br} Proxy pode mover {de} Proxy darf sich ",tostring(move),"{en} spaces.{it} spazi.{ru} гексов.{zh-tw} 格。{zh-cn} 格。{ko}칸 이동할 수 있습니다.{es} espacios.{fr} cases.{pt-br} espaços.{de} Felder bewegen."}),{1,0.75,0.2})
 		if manaOptions~=nil and #manaOptions>1 then
 			if proxyBeginManaChoice(manaOptions,proxyIndex,move,crystals)==true then return end
