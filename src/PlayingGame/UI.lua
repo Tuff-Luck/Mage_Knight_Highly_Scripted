@@ -505,6 +505,7 @@ function automatedProxyPanelSpec(stats,stateOverride)
 		end
 	end
 	if gStates.tacticRemove==true or gStates.tacticShown==true then
+		spec.details=nil -- Tactic instructions replace the turn report entirely.
 		spec.notes="{en}Click the button in the Center to claim a random tactic.{it}Premi il pulsante al Centro per prendere una tattica casuale.{ru}Нажмите кнопку в центре, чтобы выбрать случайную Тактику.{zh-tw}點擊中間的按鈕來隨機選擇戰術卡。{zh-cn}点击中间的按钮来随机选择战术卡。{ko}중앙에 있는 버튼을 클릭하여 무작위 전략 카드를 고르세요.{es}Pulsar el Botón del Centro para Robar una Táctica al Azar.{fr}Cliquez sur le bouton dans le Centre pour réclamer une tactique aléatoire.{pt-br}Clique no botão no centro para pegar uma tática aleatória.{de}Klicken Sie auf die Schaltfläche in der Mitte, um eine zufällige Taktik zu fordern."
 		if gStates.tacticRemove==true then spec.interactable=false end
 	end
