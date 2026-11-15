@@ -6214,6 +6214,36 @@ local function matchesCardMana(card,color)
     return false
 end
 
+-- A borrowed Spell's casting payment must remain on its physical card.
+-- This check also works with the Resource Tracker minimized, when its cached
+-- records are deliberately cleared. A lone Black die never casts a Spell.
+function magicTalentSpellCastingPaid(seatPos,guid)
+    local card=guid~=nil and getObjectFromGUID(guid) or nil
+    local data=card~=nil and gameCards[guid] or nil
+    local zone=seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
+    if card==nil or data==nil or data.cardType~="Spell"
+        or zone==nil or card.is_face_down==true
+        or cardPosture(card)~="upright" then return false end
+    local area=footprint(card)
+    local seen={}
+    local function paidBy(mana)
+        if mana==nil or seen[mana.guid] or mana.guid==guid
+            or mana.resting~=true or mana.isSmoothMoving()==true then return false end
+        seen[mana.guid]=true
+        if not manaInsideFootprint(mana,area) then return false end
+        local color=manaColor(mana)
+        return color~=nil and color~="Black" and matchesCardMana(card,color)
+    end
+    for _,mana in ipairs(zone.getObjects()) do
+        if paidBy(mana) then return true end
+    end
+    -- Stacked crystals can rest above the thin play scripting zone.
+    for _,mana in ipairs(getAllObjects()) do
+        if paidBy(mana) then return true end
+    end
+    return false
+end
+
 -- A powered link grants a target Action card its strong side for free and can
 -- amend only the resource types specified in that link's data definition.
 local function applyLinkedResourceBonus(effects,link)
