@@ -11473,9 +11473,10 @@ function resourceCardsAfterTurnHandoff(previousSeat)
     if current==nil or current.seatPos==previousSeat then return end
     local enabled=resourceCardsSeatEnabled(current.seatPos)
     UI.setAttribute("CombatCalculatorHelp","active","false")
-    UI.setAttribute("ResourceTracker","height",enabled and "245" or "35")
-    UI.setAttribute("ResourceTrackerDetail","height","210")
     UI.setAttribute("ResourceTrackerDetail","active",enabled and "true" or "false")
+    -- The previous seat may have left terrain/combat submenus expanded.
+    -- Preserve their visibility without squeezing them into the default height.
+    resourceTrackerSyncLayout(enabled)
     if enabled then resourceCardsOnLoad() end
 end
 
@@ -11486,10 +11487,15 @@ function resourceCardsOnLoad()
     if gStates==nil or gStates.firstStarted~=true then return end
     local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if current~=nil and not resourceCardsSeatEnabled(current.seatPos) then
-        UI.setAttribute("ResourceTracker","height","35")
         UI.setAttribute("ResourceTrackerDetail","active","false")
+        resourceTrackerSyncLayout(false)
         resourceCardsPanelChanged(false)
         return
+    end
+    -- Repair a restored panel whose child expansion flags outlived its height.
+    -- Do not force open an intentionally collapsed saved UI.
+    if UI.getAttribute("ResourceTrackerDetail","active")=="true" then
+        resourceTrackerSyncLayout(true)
     end
     trackerPrivate.trackerStartupRequest=trackerPrivate.trackerStartupRequest+1
     local request=trackerPrivate.trackerStartupRequest
