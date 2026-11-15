@@ -5047,6 +5047,7 @@ local function removeChoiceButtons(card)
     end
     if changed then resourceObjectUiSetTable(card.UI,xml) end
     choiceButtonShown[card.guid]=nil
+    if combatConfig.cardButtonIds~=nil then combatConfig.cardButtonIds[card.guid]=nil end
 end
 
 -- Cure is simultaneous: Heal 2 remains in the totals while a separate
@@ -5161,6 +5162,37 @@ end
 combatConfig.cardInTransit=function(card)
     return card~=nil and ((card.held_by_color~=nil and card.held_by_color~="")
         or card.resting==false or card.isSmoothMoving())
+end
+
+-- TTS and other object-UI owners can replace the XML while a card is lifted.
+-- A cached resource signature does not prove its choice/target buttons survived.
+-- Store only this card's own button IDs so an unchanged settled scan can repair
+-- missing controls without resetting the player's selections or links.
+combatConfig.cardButtonIds=combatConfig.cardButtonIds or {}
+combatConfig.cardChoiceIds=function(guid,xml)
+    local choices="ResourceCardChoice_"..guid.."_"
+    local targets="AttackAssignmentSource_"..guid.."_"
+    local ids={}
+    for _,node in ipairs(xml or {}) do
+        local id=node.attributes~=nil and node.attributes.id or nil
+        if node.tag=="Button" and type(id)=="string"
+            and (id:sub(1,#choices)==choices or id:sub(1,#targets)==targets) then
+            ids[#ids+1]=id
+        end
+    end
+    return ids
+end
+combatConfig.cardChoicesPresent=function(card)
+    local expected=combatConfig.cardButtonIds[card.guid]
+    if expected==nil then return false end
+    if #expected==0 then return true end
+    local missing={}
+    for _,id in ipairs(expected) do missing[id]=true end
+    for _,node in ipairs(resourceObjectUiXmlTable(card.UI)) do
+        local id=node.attributes~=nil and node.attributes.id or nil
+        if id~=nil then missing[id]=nil end
+    end
+    return next(missing)==nil
 end
 
 -- A single selected icon is centred on the object. Click to expand all
@@ -5431,22 +5463,8 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             ..tostring(special.recruited)..":"..tostring(special.terrain)) or "")
         ..":READY:"..tostring(readyCount)..":"..table.concat(readyLinks,",")
         ..":TARGETS:"..tostring(trackerPrivate.singleAutoEnemyGUID)
-    if choiceButtonShown[card.guid]==signature then
-        -- The interaction toggle is not a choice icon, and other object UI
-        -- owners may have rewritten the XML while the card was being moved.
-        -- Reconcile this one persistent control even when the resource/choice
-        -- signature has not changed (Noble Manners keeps its Fame/Rep state).
-        if rule==nil or rule.interactionReward==nil then return end
-        local expected="ResourceCardChoice_"..card.guid.."_interaction"
-        local found=false
-        for _,element in ipairs(resourceObjectUiXmlTable(card.UI)) do
-            if element.attributes~=nil and element.attributes.id==expected then
-                found=true
-                break
-            end
-        end
-        if found then return end
-    end
+    if choiceButtonShown[card.guid]==signature
+        and combatConfig.cardChoicesPresent(card) then return end
     local xml=resourceObjectUiXmlTable(card.UI)
     for i=#xml,1,-1 do
         local attr=xml[i].attributes
@@ -5844,6 +5862,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     -- That can leave an otherwise empty object UI; TTS rejects setXmlTable({})
     -- with an Object reference error. The shared writer uses setXml("") here.
     resourceObjectUiSetTable(card.UI,xml,assets)
+    combatConfig.cardButtonIds[card.guid]=combatConfig.cardChoiceIds(card.guid,xml)
     choiceButtonShown[card.guid]=signature
 end
 
@@ -6072,6 +6091,7 @@ local function clearChoiceButtons()
         if signature~="hidden" then removeChoiceButtons(getObjectFromGUID(guid)) end
     end
     choiceButtonShown={}
+    combatConfig.cardButtonIds={}
 end
 
 -- Reset a player's explicit choice only after the card has actually finished
@@ -11787,7 +11807,9 @@ function resourceCardsObjectMoved(obj)
         queueSeat(seat,isMonster and obj.guid or nil)
     elseif trackerPrivate.bySeat[seat]~=nil and trackerPrivate.bySeat[seat][obj.guid]==true then
         scheduleChoiceResetAfterPlay(obj.guid,seat)
-        queueSeat(seat,nil)
+        -- Wait for this specific card to settle before reconciling its XML.
+        -- An immediate scan could run while TTS is still clearing its UI.
+        queueSeat(seat,obj.guid)
     end
 end
 
