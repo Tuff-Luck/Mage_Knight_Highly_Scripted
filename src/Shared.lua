@@ -330,6 +330,25 @@ joinLangParse=function(text)
 	return parsed
 end
 
+-- Append a language-specific clause to a completed sentence. The parser stays
+-- module-private; callers must use this public helper instead of joinLangParse.
+function joinLangAppendSentenceSuffix(text, suffixes)
+	local parsed=joinLangParse(tostring(text or ""))
+	suffixes=type(suffixes)=="table" and suffixes or {}
+	local function withoutFullStop(sentence)
+		return tostring(sentence or ""):gsub("%.$",""):gsub("。$","")
+	end
+	if type(parsed)~="table" then
+		return withoutFullStop(parsed)..tostring(suffixes.en or "")
+	end
+	local output={}
+	for _,lang in ipairs(JOIN_LANG_ORDER) do
+		local sentence=withoutFullStop(parsed[lang] or parsed.en or "")
+		output[#output+1]="{"..lang.."}"..sentence..tostring(suffixes[lang] or suffixes.en or "")
+	end
+	return table.concat(output)
+end
+
 --Tooltips cannot resolve translation tags. Keep the parser private and expose only the
 --plain-English fragment needed by other modules.
 function joinLangEnglish(text)
