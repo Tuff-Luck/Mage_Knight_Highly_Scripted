@@ -1755,6 +1755,16 @@ function __onObjectEnterContainer_raw(bag, obj)
 		if terrainTiles[obj.guid]~=nil then runtimeMapInvalidateTerrain() else runtimeMapInvalidateObjects() end
 	end
 	if obj~=nil and mapTokenNeedsArrangement~=nil and mapTokenNeedsArrangement(obj)==true then mapTokenReleaseObject(obj) end
+    -- Manual Unit disband is just as meaningful as the scripted full-board
+    -- replacement. Retire its activation/Ready history, but keep the Command
+    -- token spent until a different Unit actually claims its old slot.
+    if bag~=nil and obj~=nil and bag.guid==trashCan then
+        local data=gameCards~=nil and gameCards[obj.guid] or nil
+        if data~=nil and (data.cardType=="Regular Unit" or data.cardType=="Elite Unit")
+            and resourceUnitsRetireUnit~=nil then
+            resourceUnitsRetireUnit(obj.guid)
+        end
+    end
 	--Putting a just-created Puppet in the Trash chest is the physical undo gesture for Puppet Master.
 	if bag~=nil and obj~=nil and bag.guid==trashCan then
 		local puppetPickup=puppetMasterPickup[obj.guid]
