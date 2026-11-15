@@ -46,7 +46,8 @@ local ownerEnv={
     unitLayoutObjectInAnyUnitArea=function(guid) return guid==oldGUID and oldPresent end,
     unitLayoutSnapshot=function() return {commands={token}} end,
     unitLayoutCommandTarget=function() return oldUnit end,
-    resourceUnitsRetireUnit=function(guid) retired[#retired+1]=guid end,
+    unitHistoryReleaseUnit=function(guid) retired[#retired+1]=guid end,
+    getObjectFromGUID=function() return nil end,
     removeChoiceButtons=function() end,
     choiceButtonShown={},choiceExpandedByGUID={}
 }
