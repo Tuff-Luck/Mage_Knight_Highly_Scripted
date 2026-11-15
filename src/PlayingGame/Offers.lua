@@ -794,6 +794,10 @@ function offerAdjust(player, mouseButton, id)
 		return
 	end
 
+    -- Borrowed Spell stays in the old slot until we return it. Reflow the real
+    -- offer only after Magic Talent has restored its physical preview.
+    if magicTalentOfferWillChange~=nil then magicTalentOfferWillChange() end
+
 	--Capture both live sources before moving their zones. Growing can then draw from those exact objects
 	--while they move outward, recreating the original simultaneous deck-out/card-in animation.
 	local sourceObjects={
@@ -849,6 +853,7 @@ function offerAdjust(player, mouseButton, id)
 	safeWaitCondition("Offers",function()
 		OfferPause=false
 		refreshDeedOfferAdjustUI()
+        if magicTalentScheduleCheck~=nil then magicTalentScheduleCheck() end
 	end,function()
 		return deedOfferMovedSourcesSettled(sourceGUIDs)==true
 	end)
