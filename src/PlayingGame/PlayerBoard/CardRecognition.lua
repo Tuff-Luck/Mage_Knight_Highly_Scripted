@@ -6053,6 +6053,10 @@ end
 local function manaColor(obj)
     if isManaTokenFigurine(obj) then return manaTokenColor(obj) end
     if obj.type=="Dice" then
+        -- A dropped Source die can enter the thin play zone while still rolling.
+        -- TTS may not have a usable rotation value until its physics settles.
+        -- Its zone/drop callbacks queue a settled scan without reading the face.
+        if obj.resting~=true or obj.isSmoothMoving() then return nil end
         local face=obj.getRotationValue()
         if type(face)=="string" then return face:match("^([%a]+) Mana$") end
     end
@@ -11368,7 +11372,9 @@ function resourceCardsZoneEntered(ctx)
             gStates.resourceCardPlayOrder[ctx.objGUID]=gStates.resourceCardPlaySerial
         end
     end
-    if ctx.obj~=nil and manaColor(ctx.obj)~=nil then
+    if ctx.obj~=nil and ((ctx.objType=="Dice" and scriptObjectId(ctx.obj)=="Mana Dice")
+        or manaColor(ctx.obj)~=nil) then
+        -- Recognize the die before it rests; only read its face in the settled scan.
         trackerPrivate.unitManaCandidatesBySeat[seat]=trackerPrivate.unitManaCandidatesBySeat[seat] or {}
         trackerPrivate.unitManaCandidatesBySeat[seat][ctx.objGUID]=true
     end
@@ -11393,8 +11399,8 @@ function resourceCardsObjectMoved(obj)
     local player=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if player==nil then return end
     local seat=player.seatPos
-    if manaColor(obj)~=nil then
-        -- Drop callbacks fire even if the final crystal sits above both thin
+    if (obj.type=="Dice" and scriptObjectId(obj)=="Mana Dice") or manaColor(obj)~=nil then
+        -- Drop callbacks fire even if the final die/crystal sits above both thin
         -- scripting zones. Remember its GUID and scan after it settles.
         trackerPrivate.unitManaCandidatesBySeat[seat]=trackerPrivate.unitManaCandidatesBySeat[seat] or {}
         trackerPrivate.unitManaCandidatesBySeat[seat][obj.guid]=true
