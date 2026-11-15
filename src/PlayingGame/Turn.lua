@@ -665,6 +665,7 @@ local function turnFinishCompletedTurnUI()
     -- Do not leave stale selection buttons on the next player's board.
     if unitReplacementClose~=nil then unitReplacementClose() end
     callOfferClose(false)
+    magicTalentClose(false)
     trainingOfferClose(true)
 	resourceUnitsResetTurn()
 	resetResourceTrackerState()
