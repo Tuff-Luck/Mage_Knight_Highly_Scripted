@@ -222,14 +222,36 @@ local function replacementDetachAccessories(layout,unit,seatPos)
     local state=unitLayoutResourceState(seatPos)
     local banners=state~=nil and state.bannersByUnit[unit.guid] or nil
     local discardZone=getObjectFromGUID(deedDeckDiscardZones[seatPos])
-    if banners~=nil and discardZone~=nil then
-        local pos=discardZone.getPosition()
+    local bannerGUIDs={}
+    if banners~=nil then
+        local pos=discardZone~=nil and discardZone.getPosition() or nil
         for _,banner in pairs(banners) do
+            bannerGUIDs[banner.guid]=true
             local card=getObjectFromGUID(banner.guid)
-            if card~=nil then
+            if card~=nil and pos~=nil then
                 card.unlock()
                 card.setPositionSmooth({(pos.x or pos[1]),(pos.y or pos[2])+2,
                     (pos.z or pos[3])},false,false)
+            end
+        end
+    end
+    -- Preserve miscellaneous attached reminders and spent mana instead of
+    -- silently transferring them to the incoming Unit or destroying them.
+    -- Stage them outside the Unit Area so the calculator cannot mistake
+    -- their old physical overlap for payment on the replacement.
+    local extras=0
+    local stagingX=unitLayoutX(seatPos,1,#layout.commands)-3.2
+    for _,obj in ipairs(layout.objects) do
+        if obj.guid~=unit.guid and not unitLayoutIsUnit(obj)
+            and not unitLayoutIsCommand(obj) and not unitLayoutIsWound(obj)
+            and bannerGUIDs[obj.guid]~=true and obj.setPositionSmooth~=nil
+            and (obj.held_by_color==nil or obj.held_by_color=="") then
+            local p=obj.getPosition()
+            if math.abs((p.x or p[1])-cx)<halfX
+                and math.abs((p.z or p[3])-cz)<halfZ then
+                extras=extras+1
+                obj.setPositionSmooth({stagingX+(extras-1)*0.55,
+                    math.max(1.4,p.y or p[2]),-40.3},false,false)
             end
         end
     end
