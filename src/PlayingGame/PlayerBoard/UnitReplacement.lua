@@ -123,7 +123,7 @@ local function replacementRender(state)
     end
     UI.setAttribute("UnitReplacement","active","true")
     UI.setAttribute("UnitReplacementDescription","text",joinLang({
-        "{en}No free Command Tokens.\\nClick a Unit you wish to disband and Replace with {it}Nessun segnalino Comando libero.\\nScegli un'Unità da congedare e sostituire con {ru}Нет свободных жетонов Командования.\\nВыберите отряд для роспуска и замены на {zh-tw}沒有空閒指揮標記。\\n點選要解散並替換的單位：{zh-cn}没有空闲指挥标记。\\n点击要解散并替换的单位：{ko}남은 명령 토큰이 없습니다.\\n해산하여 교체할 유닛을 클릭하세요: {es}No hay fichas de Mando libres.\\nHaz clic en la Unidad que quieres disolver y reemplazar por {fr}Aucun jeton Commandement libre.\\nCliquez sur l'Unité à dissoudre et remplacer par {pt-br}Sem fichas de Comando livres.\\nClique na Unidade que deseja dispensar e substituir por {de}Keine freien Befehlsmarker.\\nKlicke auf die Einheit, die du auflösen und ersetzen möchtest durch ",
+        "{en}No free Command Tokens.\nClick a Unit you wish to disband and Replace with {it}Nessun segnalino Comando libero.\nScegli un'Unità da congedare e sostituire con {ru}Нет свободных жетонов Командования.\nВыберите отряд для роспуска и замены на {zh-tw}沒有空閒指揮標記。\n點選要解散並替換的單位：{zh-cn}没有空闲指挥标记。\n点击要解散并替换的单位：{ko}남은 명령 토큰이 없습니다.\n해산하여 교체할 유닛을 클릭하세요: {es}No hay fichas de Mando libres.\nHaz clic en la Unidad que quieres disolver y reemplazar por {fr}Aucun jeton Commandement libre.\nCliquez sur l'Unité à dissoudre et remplacer par {pt-br}Sem fichas de Comando livres.\nClique na Unidade que deseja dispensar e substituir por {de}Keine freien Befehlsmarker.\nKlicke auf die Einheit, die du auflösen und ersetzen möchtest durch ",
         replacementUnitName(state.claimGUID),"."}))
 end
 
