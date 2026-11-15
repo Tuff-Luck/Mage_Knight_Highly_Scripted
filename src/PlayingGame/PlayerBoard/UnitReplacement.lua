@@ -152,6 +152,12 @@ end
 
 function unitReplacementRestoreOnLoad()
     local state=replacementState()
+    if state~=nil then
+        -- A stored click may have been waiting for its rewind callback when
+        -- the game was saved. Resume as a fresh card selection on load.
+        state.committing=nil
+        state.selectedGUID=nil
+    end
     if state==nil then
         UI.setAttribute("UnitReplacement","active","false")
         return
@@ -307,6 +313,10 @@ unitReplacementConfirm=function(player)
         replacementDetachAccessories(currentLayout,oldUnit,pending.seatPos)
         if resourceUnitsRetireUnit~=nil then resourceUnitsRetireUnit(oldUnit.guid) end
         if readyPosition~=nil then command.setPositionSmooth(readyPosition,false,false) end
+        -- TTS bags retain classic object buttons on contained cards. Clear
+        -- the temporary invisible hit area BEFORE putting this Unit away.
+        replacementRemoveUnitButton(oldUnit)
+        if oldUnit.highlightOff~=nil then oldUnit.highlightOff() end
         trash.putObject(oldUnit)
         -- Claiming and disbanding share ONE rewind point. Release it only
         -- after both the replacement Unit and its reused Command have settled.
