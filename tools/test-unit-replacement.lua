@@ -100,6 +100,7 @@ local owner={
 local candidate={guid="def002",offered=true,resting=true,UI={nodes={}}}
 candidate.getButtons=function() return {} end
 local wound={guid="aaa123",wound=true,x=0,z=-34.74}
+wound.getPosition=function() return {x=0,y=1.5,z=-34.74} end
 local banner={guid="bba123",moved=false}
 local mana={guid="cba123",staged=false}
 mana.getPosition=function() return {x=0,y=1.5,z=-34.74} end
