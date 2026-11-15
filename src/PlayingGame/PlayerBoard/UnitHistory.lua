@@ -412,6 +412,27 @@ function unitHistoryValidSources(seat)
     return changed
 end
 
+-- A disband removes the old Unit's activations, but NEVER grants the
+-- Command token a Ready by itself. The recruitment/ownership handoff owns
+-- that transition. Retire links targeting this Unit and all its own sources.
+function unitHistoryReleaseUnit(guid)
+    if gStates==nil or guid==nil then return end
+    local group=groupOf(guid)
+    if group~=nil then unitHistoryTrim(guid,0) end
+    for key,link in pairs(gStates.unitReadyLinks or {}) do
+        if link.unitGUID==guid then
+            gStates.unitReadyLinks[key]=nil
+            if attackAssignmentsPruneSourceTargets~=nil then
+                attackAssignmentsPruneSourceTargets(key,{})
+            end
+        end
+    end
+    if gStates.unitResourceActivations~=nil then gStates.unitResourceActivations[guid]=nil end
+    if resourceCardsCombatForgetSource~=nil then resourceCardsCombatForgetSource(guid) end
+    if attackAssignmentsClearForObject~=nil then attackAssignmentsClearForObject(guid) end
+    if resourceUnitsPruneHistoricalTargets~=nil then resourceUnitsPruneHistoricalTargets(guid) end
+end
+
 function unitHistoryHideControls()
     for _,group in pairs(gStates~=nil and gStates.unitActivationHistory or {}) do
         clearTokenControls(group.tokenGUID~=nil and getObjectFromGUID(group.tokenGUID) or nil)
