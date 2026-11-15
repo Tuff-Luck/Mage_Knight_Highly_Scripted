@@ -122,7 +122,9 @@ local combatLocks={}
 local changeCount=0
 local actionEnv=setmetatable({
     assignmentRegistry=assignments,targetingByPlayer=pending,
-    blockLinkPending={},
+    blockLinkPending={},assignmentBaseGUID=function(key)
+        return type(key)=="string" and key:match("^[^#]+") or key
+    end,
     assignmentCounter=0,gStates=gStates,gameCards=cards,
     cardResourceDefinitions=rule,Player={Blue={}},
     resourceCardsPlayerCanEdit=function(color) return color=="Blue" end,
