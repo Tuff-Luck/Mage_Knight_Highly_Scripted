@@ -188,6 +188,15 @@ local function activeVisualLines()
         local arrow=assignmentLines(getObjectFromGUID(skillGUID),getObjectFromGUID(targetGUID),assignmentColors.other)
         for _,line in ipairs(arrow or {}) do lines[#lines+1]=line end
     end
+    -- Ambush's card buff is independent of its blue Cumbersome Move arrow.
+    -- Only the tracker shows this purple, card-to-card targeting link.
+    if resourceCardsDetailsOpen~=nil and resourceCardsDetailsOpen() then
+        for sourceGUID,targetGUID in pairs(gStates~=nil and gStates.ambushCombatLinks or {}) do
+            local arrow=assignmentLines(getObjectFromGUID(sourceGUID),
+                getObjectFromGUID(targetGUID),assignmentColors.other)
+            for _,line in ipairs(arrow or {}) do lines[#lines+1]=line end
+        end
+    end
 	for key,guids in pairs(damageTargets) do
 		local attack=damageSpec.byKey[key]
 		local owner=attack~=nil and getObjectFromGUID(attack.owner) or nil
@@ -313,8 +322,31 @@ local function syncTargetButtons(monsters)
 	local live={}
 	if shouldShow then
         local candidates={}
-        if next(targetingByPlayer)~=nil and resourceCardsCombatTargetObjects~=nil then
-            for guid,obj in pairs(resourceCardsCombatTargetObjects(monsters)) do candidates[guid]=obj end
+        if next(targetingByPlayer)~=nil then
+            for _,pending in pairs(targetingByPlayer) do
+                if pending.resource=="ambush" then
+                    -- One Ambush control can aim at either an Action card or a
+                    -- Cumbersome enemy. Both target classes use the same
+                    -- invisible object button, but retain independent links.
+                    if resourceCardsAmbushLinkTargets~=nil then
+                        for guid,obj in pairs(resourceCardsAmbushLinkTargets(pending.sourceGUID)) do
+                            candidates[guid]=obj
+                        end
+                    end
+                    if resourceCardsCombatTargetObjects~=nil then
+                        for guid,obj in pairs(resourceCardsCombatTargetObjects(monsters)) do
+                            if resourceCardsCombatTargetAcceptsMove~=nil
+                                and resourceCardsCombatTargetAcceptsMove(guid) then
+                                candidates[guid]=obj
+                            end
+                        end
+                    end
+                elseif resourceCardsCombatTargetObjects~=nil then
+                    for guid,obj in pairs(resourceCardsCombatTargetObjects(monsters)) do
+                        candidates[guid]=obj
+                    end
+                end
+            end
         end
         if next(blockLinkPending)~=nil and resourceCardsBlockLinkTargets~=nil then
             for guid,obj in pairs(resourceCardsBlockLinkTargets()) do candidates[guid]=obj end
@@ -369,6 +401,12 @@ function attackAssignmentsRefreshReadyUI()
     syncTargetButtons()
     refreshRenderedLines()
     scheduleRefresh()
+end
+
+-- A settled card scan may grant, invalidate or re-point an Ambush buff.
+-- The line renderer already caches its signature to avoid unnecessary writes.
+function attackAssignmentsRefreshAmbushLinks()
+    refreshRenderedLines()
 end
 
 -- An explicit targeting control on Rejuvenate/Herbalists selects the Unit to
@@ -1169,6 +1207,20 @@ function attackAssignmentSourceClicked(player,value,id)
 	end)
 end
 
+-- The Ambush button is reusable: targeting an Action changes only its
+-- combat bonus; targeting a Cumbersome enemy changes only its Move allocation.
+function attackAssignmentAmbushSourceClicked(player,value,id)
+    return safeCallback("attackAssignmentAmbushSourceClicked",function()
+        local color=player~=nil and player.color or nil
+        local guid=type(id)=="string"
+            and id:match("^AttackAssignmentSource_([0-9a-f]+)_0_ambush$") or nil
+        local source=guid~=nil and getObjectFromGUID(guid) or nil
+        if source==nil or resourceCardsAmbushSourceActive==nil
+            or not resourceCardsAmbushSourceActive(guid) then return end
+        attackAssignmentsBegin(source,"ambush",color,false,guid)
+    end)
+end
+
 function attackAssignmentTargetClicked(target,playerColor)
 	return safeCallback("attackAssignmentTargetClicked",function()
         if not resourceCardsPlayerCanEdit(playerColor) then return end
@@ -1186,6 +1238,26 @@ function attackAssignmentTargetClicked(target,playerColor)
             return
         end
 		local pending=type(playerColor)=="string" and targetingByPlayer[playerColor] or nil
+        if pending~=nil and pending.resource=="ambush" and target~=nil then
+            local cards=resourceCardsAmbushLinkTargets~=nil
+                and resourceCardsAmbushLinkTargets(pending.sourceGUID) or {}
+            if cards[target.guid]~=nil then
+                gStates.ambushCombatLinks=gStates.ambushCombatLinks or {}
+                -- Reassigning the buff never drops the separate Move arrow.
+                gStates.ambushCombatLinks[pending.sourceGUID]=target.guid
+                targetingByPlayer[playerColor]=nil
+                syncTargetButtons()
+                refreshRenderedLines()
+                if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
+                return
+            end
+            if resourceCardsCombatTargetAcceptsMove==nil
+                or not resourceCardsCombatTargetAcceptsMove(target.guid) then return end
+            -- The normal enemy assignment path owns Move points/blue arrows.
+            -- It must not touch the stored purple card-buff assignment.
+            pending.resource="move"
+            pending.kind="attack"
+        end
         local eligible=resourceCardsCombatTargetObjects~=nil and resourceCardsCombatTargetObjects() or {}
         if pending==nil or target==nil or target.guid==nil or eligible[target.guid]==nil then return end
         -- Summoned tokens redirect to their face-up owner in the same combat.
@@ -1516,6 +1588,11 @@ function attackAssignmentsObjectMoved(object)
     if not relevant then
         for skillGUID,targetGUID in pairs(gStates~=nil and gStates.blockSourceLinks or {}) do
             if skillGUID==guid or targetGUID==guid then relevant=true break end
+        end
+    end
+    if not relevant then
+        for sourceGUID,targetGUID in pairs(gStates~=nil and gStates.ambushCombatLinks or {}) do
+            if sourceGUID==guid or targetGUID==guid then relevant=true break end
         end
     end
 	if not relevant then
