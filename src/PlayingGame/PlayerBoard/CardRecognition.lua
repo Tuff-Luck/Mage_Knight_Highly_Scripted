@@ -4313,6 +4313,54 @@ function resourceCardsBlockLinkTargets()
     return targets
 end
 
+-- Ambush can augment exactly one played card's first Attack or Block. This
+-- pool is shared by the target buttons and the calculation, rather than
+-- requiring the cards to physically touch.
+combatConfig.ambushCombatCategories={"attack","attackFire","attackIce","attackColdFire",
+    "ranged","rangedFire","rangedIce","rangedColdFire",
+    "siege","siegeFire","siegeIce","siegeColdFire",
+    "block","blockFire","blockIce","blockColdFire"}
+combatConfig.ambushEligibleTarget=function(guid,record,sourceGUID)
+    if guid==sourceGUID or record==nil or record.resources==nil then return false end
+    local data=gameCards[guid]
+    if data==nil or (data.cardType~="Starting" and data.cardType~="Advanced Action"
+        and data.cardType~="Spell" and data.cardType~="Artifact") then return false end
+    local card=getObjectFromGUID(guid)
+    if card==nil or card.isDestroyed() or card.is_face_down==true
+        or cardPosture(card)=="discard" then return false end
+    for _,key in ipairs(combatConfig.ambushCombatCategories) do
+        if (tonumber(record.resources[key]) or 0)>0 then return true end
+    end
+    return false
+end
+
+function resourceCardsAmbushSourceActive(guid)
+    local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    local scan=active~=nil and resourceCardScanBySeat[active.seatPos] or nil
+    local record=scan~=nil and scan.cards[guid] or nil
+    local data=gameCards[guid]
+    local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+    local card=getObjectFromGUID(guid)
+    return resourceCardsPanelOpen() and resourceCardsDetailsOpen()
+        and rule~=nil and rule.combatLink~=nil
+        and record~=nil and record.complete==true and record.resources~=nil
+        and card~=nil and not card.isDestroyed() and card.is_face_down~=true
+        and cardPosture(card)=="upright"
+end
+
+function resourceCardsAmbushLinkTargets(sourceGUID)
+    local targets={}
+    if not resourceCardsAmbushSourceActive(sourceGUID) then return targets end
+    local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    local scan=active~=nil and resourceCardScanBySeat[active.seatPos] or nil
+    for guid,record in pairs(scan~=nil and scan.cards or {}) do
+        if combatConfig.ambushEligibleTarget(guid,record,sourceGUID) then
+            targets[guid]=getObjectFromGUID(guid)
+        end
+    end
+    return targets
+end
+
 -- Paging changes visible rows, not the underlying combat calculations.
 function resourceCardsCombatPage(delta)
     combatEnemyPage=math.max(1,combatEnemyPage+delta)
@@ -5126,6 +5174,10 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         if category=="ready" and cardData~=nil
             and cardData.resourceKey=="rejuvenate" then return "unitReady" end
         if rule~=nil and rule.blockSourceBoost~=nil then return "blockSource" end
+        -- Ambush has ONE reusable target button. An Action card receives the
+        -- combat bonus; a Cumbersome enemy receives the independent Move.
+        if rule~=nil and rule.combatLink~=nil and cardPosture(card)=="upright"
+            and card.is_face_down~=true then return "ambush" end
         -- Mana Overload's choices select which linked CARD resource is boosted;
         -- the Skill itself is not an independently targetable Attack/Block.
         if rule~=nil and rule.manaOverload==true then return nil end
@@ -5162,6 +5214,13 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         and rule.simultaneousReady==true and type(resources)=="table"
         and (tonumber(resources.healing) or 0)>0 then
         choices={{healing=resources.healing}}
+    end
+    -- Ambush has only printed Move, but its independent combat buff must be
+    -- targetable even before an enemy is in the play area.
+    if (choices==nil or #choices==0) and rule~=nil and rule.combatLink~=nil
+        and type(resources)=="table" and (tonumber(resources.move) or 0)>0
+        and cardPosture(card)=="upright" and card.is_face_down~=true then
+        choices={{move=resources.move}}
     end
     -- A fixed effect (no alternatives) still needs a Target button for its combat resource.
     if (choices==nil or #choices==0) and type(resources)=="table" then
@@ -5545,7 +5604,9 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                             and "global/attackAssignmentReadySourceClicked"
                             or (entry.targetResource=="blockSource"
                                 and "global/resourceCardsBlockSourceLinkClicked"
-                                or "global/attackAssignmentSourceClicked"),
+                                or (entry.targetResource=="ambush"
+                                    and "global/attackAssignmentAmbushSourceClicked"
+                                    or "global/attackAssignmentSourceClicked")),
                         position=tostring(partX).." "..tostring(buttonY).." "..buttonDepth,
                         rotation=uiRotation,width=90,height=90,scale=buttonScale,
                         colors="#454D5D|#69798E|#444C63|#454D5D",textColor="#FFFFFF",textAlignment="MiddleCenter"
@@ -8823,12 +8884,9 @@ local function renderSeat(seatPos)
             end
         end
     end
-    -- Ambush boosts the physically linked Action's first Attack or Block,
-    -- rather than generating a separate untyped Attack resource.
-    local combatCategories={"attack","attackFire","attackIce","attackColdFire",
-        "ranged","rangedFire","rangedIce","rangedColdFire",
-        "siege","siegeFire","siegeIce","siegeColdFire",
-        "block","blockFire","blockIce","blockColdFire"}
+    -- Ambush's explicit card assignment takes priority over physical overlap.
+    -- The Move enemy target stays in the ordinary combat assignment registry.
+    local combatCategories=combatConfig.ambushCombatCategories
     for _,source in ipairs(cards) do
         local data=gameCards[source.guid]
         local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
@@ -8837,23 +8895,45 @@ local function renderSeat(seatPos)
             and sourceRecord.resources~=nil and cardPosture(source)=="upright"
             and (discarded[source.guid]==nil or repeatByTarget[source.guid]~=nil) then
             local best,bestCategory,bestType,bestOverlap=nil,nil,nil,0
-            for _,target in ipairs(cards) do
+            local function chooseCategory(target)
                 local record=records[target.guid]
-                local area=target.guid~=source.guid
-                    and overlapArea(footprints[source.guid],footprints[target.guid]) or 0
-                if area>0 and record~=nil and record.resources~=nil
-                    and discarded[target.guid]==nil then
-                    local category,kind=nil,nil
-                    for _,key in ipairs(combatCategories) do
-                        if type(record.resources[key])=="number" and record.resources[key]>0 then
-                            category=key
-                            kind=key:sub(1,5)=="block" and "block" or "attack"
-                            break
-                        end
+                if discarded[target.guid]~=nil
+                    or not combatConfig.ambushEligibleTarget(target.guid,record,source.guid) then
+                    return nil,nil
+                end
+                for _,key in ipairs(combatCategories) do
+                    if (tonumber(record.resources[key]) or 0)>0 then
+                        return key,key:sub(1,5)=="block" and "block" or "attack"
                     end
-                    if category~=nil and (area>bestOverlap
-                        or (area==bestOverlap and best~=nil and target.guid<best.guid)) then
-                        best,bestCategory,bestType,bestOverlap=target,category,kind,area
+                end
+                return nil,nil
+            end
+            local saved=gStates~=nil and gStates.ambushCombatLinks or nil
+            local savedGUID=saved~=nil and saved[source.guid] or nil
+            if savedGUID~=nil then
+                local target=getObjectFromGUID(savedGUID)
+                if target~=nil then
+                    local category,kind=chooseCategory(target)
+                    if category~=nil then
+                        best,bestCategory,bestType=target,category,kind
+                    end
+                end
+                -- A lifted target keeps its assignment until the settled scan.
+                if best==nil and (target==nil or not combatConfig.cardInTransit(target)) then
+                    saved[source.guid]=nil
+                    savedGUID=nil
+                end
+            end
+            if best==nil and savedGUID==nil then
+                for _,target in ipairs(cards) do
+                    local area=target.guid~=source.guid
+                        and overlapArea(footprints[source.guid],footprints[target.guid]) or 0
+                    if area>0 then
+                        local category,kind=chooseCategory(target)
+                        if category~=nil and (area>bestOverlap
+                            or (area==bestOverlap and best~=nil and target.guid<best.guid)) then
+                            best,bestCategory,bestType,bestOverlap=target,category,kind,area
+                        end
                     end
                 end
             end
@@ -8891,6 +8971,20 @@ local function renderSeat(seatPos)
                 setHighlight(source,sourceRecord.status,sourceRecord.powered)
                 setHighlight(best,targetRecord.status,targetRecord.powered)
             end
+        end
+    end
+    -- Retire stale manual links when Ambush itself is no longer a played
+    -- upright card. Transiently lifted cards keep their pending assignments.
+    for guid in pairs(gStates~=nil and gStates.ambushCombatLinks or {}) do
+        local record=records[guid]
+        local data=gameCards[guid]
+        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+        local obj=getObjectFromGUID(guid)
+        if (record==nil or record.complete~=true or record.resources==nil
+            or rule==nil or rule.combatLink==nil or obj==nil
+            or obj.is_face_down==true or cardPosture(obj)~="upright")
+            and not combatConfig.cardInTransit(obj) then
+            gStates.ambushCombatLinks[guid]=nil
         end
     end
     -- An unlinked Wound is inert. Only an attached Skill or a deliberate
@@ -10402,6 +10496,7 @@ local function renderSeat(seatPos)
         usesCurrentHexBlock=usesCurrentHexBlock,
         usesCurrentHexHealing=usesCurrentHexHealing,
         usesSkillLocation=usesSkillLocation}
+    if attackAssignmentsRefreshAmbushLinks~=nil then attackAssignmentsRefreshAmbushLinks() end
     -- This also retracts a saved Ready if its card loses power or the new
     -- Rejuvenate side can no longer ready that Unit level.
     if unitHistoryValidSources(seatPos) or readyNeedsRescan then
