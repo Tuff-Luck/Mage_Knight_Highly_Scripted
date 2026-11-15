@@ -2,9 +2,9 @@
      replace it. The same transparent Unit hit area as damage assignment is
      installed only while this panel is open. -->
 <Panel id="UnitReplacement" active="false" rectAlignment="MiddleCenter"
-       offsetXY="0 170" width="430" height="165" color="#333333F5"
+       offsetXY="0 170" width="270" height="150" color="#333333F5"
        outline="#8D785A" outlineSize="2 -2" allowDragging="true">
-    <VerticalLayout padding="10 10 10 10" spacing="5" childForceExpandHeight="false">
+    <VerticalLayout padding="5 5 5 5" spacing="5" childForceExpandHeight="false">
         <Text id="UnitReplacementTitle" class="Title22" color="#F8E6C9"
               preferredHeight="34">{en}Replace a Unit{it}Sostituisci un'Unità{ru}Замена отряда{zh-tw}替換單位{zh-cn}替换单位{ko}유닛 교체{es}Reemplazar Unidad{fr}Remplacer une Unité{pt-br}Substituir Unidade{de}Einheit ersetzen</Text>
         <Text id="UnitReplacementDescription" class="Text16" color="#F4E6D5"
@@ -20,7 +20,7 @@ Cliquez sur l'Unité à remplacer.{pt-br}Sem fichas de Comando livres.
 Clique na Unidade que deseja substituir.{de}Keine freien Befehlsmarker.
 Klicke auf die Einheit, die du ersetzen möchtest.</Text>
         <Button id="UnitReplacementCancel" onClick="unitReplacementCancel"
-                preferredHeight="36">
+                preferredHeight="32">
             <Image image="Sliced Button/Button New Active" type="Sliced"/>
             <Text id="UnitReplacementCancelText" class="Text18">{en}Cancel{it}Annulla{ru}Отмена{zh-tw}取消{zh-cn}取消{ko}취소{es}Cancelar{fr}Annuler{pt-br}Cancelar{de}Abbrechen</Text>
         </Button>

@@ -61,6 +61,7 @@ require("PlayingGame.PlayerBoard.Events")
 require("PlayingGame.UIAssets")
 require("PlayingGame.PlayerBoard.CombatEffects")
 require("PlayingGame.PlayerBoard.CardRecognition")
+require("PlayingGame.PlayerBoard.UnitReplacement")
 require("SetupGame.Components")
 require("SetupGame.Players")
 require("SetupGame.Decks")
@@ -282,7 +283,7 @@ local expectedProtectedUICallbacks={
 	"coralDrawChoice","createHigherLevelCardPool","drawUpTo","dummyTurn","extraTurnButton","extraTurnChoice",
 	"horsemanLevelSelection","horsemenHorsesSelection","lowerTable","masterOfChaos","mineClaimChoice","monsterImageSwap","motivation",
 	"nightTactic2","nightTactic4","nightTactic6","openBugReportPanel","optionsUpdate","plunderVillage",
-	"proxyManaChoiceSelect","pursuingRampagers","randomizedDragonHeadsSelection","randomSetup","resourceTracker","riseOfTheForgemasterOption",
+	"proxyManaChoiceSelect","pursuingRampagers","unitReplacementCancel","unitReplacementSelectClicked","randomizedDragonHeadsSelection","randomSetup","resourceTracker","riseOfTheForgemasterOption",
 	"scenarioSelection","setBugReportComment","switchSetup","toggleDropDown","toggleScenarioEndAchieved","valueAdjust",
 	"volkarePartial","volkareRetreat","wallAssaultChoice","zigguratPyramidInteract","MKRollDieButton",
 	--Dynamic Object UI / scenario controls
@@ -1105,6 +1106,7 @@ function eventsOnLoadRawBase(saved_data, loaded_data)
     safeWaitFrames("Events",function() resourceCardsOnLoad() end,4)
     safeWaitFrames("Events",function() callOfferRestoreOnLoad() end,4)
     safeWaitFrames("Events",function() trainingOfferRestoreOnLoad() end,4)
+    safeWaitFrames("Events",function() unitReplacementRestoreOnLoad() end,4)
 	UI.setAttribute("CoopAssaultMainTableText3", "active", "false")
 	--The wall assault interface is only shown when the assault entry side cannot be determined automatically.
 	UI.hide("WallAssaultChoice")
@@ -1731,6 +1733,14 @@ function __onObjectDestroy_raw(destroyedObj)
 	if destroyedObj==nil then return end
 	attackAssignmentsClearForObject(destroyedObj)
 	local destroyedGuid=destroyedObj.guid
+    -- A deliberately destroyed Unit must not leave old activation and Ready
+    -- links behind. Do not erase its Command's spent state until a NEW Unit
+    -- is recruited into that capacity.
+    local destroyedData=destroyedGuid~=nil and gameCards[destroyedGuid] or nil
+    if destroyedData~=nil and (destroyedData.cardType=="Regular Unit"
+        or destroyedData.cardType=="Elite Unit") and resourceUnitsRetireUnit~=nil then
+        resourceUnitsRetireUnit(destroyedGuid)
+    end
 	protectedObjectDestroyAudit(destroyedGuid)
 	if runtimeMapContainsGUID(destroyedGuid)==true then
 		if terrainTiles[destroyedGuid]~=nil then runtimeMapInvalidateTerrain() else runtimeMapInvalidateObjects() end
@@ -2584,6 +2594,16 @@ function __onObjectEnterContainer_raw(bag, obj)
 		if terrainTiles[obj.guid]~=nil then runtimeMapInvalidateTerrain() else runtimeMapInvalidateObjects() end
 	end
 	if obj~=nil and mapTokenNeedsArrangement~=nil and mapTokenNeedsArrangement(obj)==true then mapTokenReleaseObject(obj) end
+    -- Manual Unit disband is just as meaningful as the scripted full-board
+    -- replacement. Retire its activation/Ready history, but keep the Command
+    -- token spent until a different Unit actually claims its old slot.
+    if bag~=nil and obj~=nil and bag.guid==trashCan then
+        local data=gameCards~=nil and gameCards[obj.guid] or nil
+        if data~=nil and (data.cardType=="Regular Unit" or data.cardType=="Elite Unit")
+            and resourceUnitsRetireUnit~=nil then
+            resourceUnitsRetireUnit(obj.guid)
+        end
+    end
 	--Putting a just-created Puppet in the Trash chest is the physical undo gesture for Puppet Master.
 	if bag~=nil and obj~=nil and bag.guid==trashCan then
 		local puppetPickup=puppetMasterPickup[obj.guid]
@@ -3692,18 +3712,25 @@ function automatedProxyPanelSpec(stats,stateOverride)
 	if state=="Processing" then
 		spec.label="{en}Processing Proxy...{it}Proxy in elaborazione...{ru}Обработка прокси...{zh-tw}代理玩家行動處理中...{zh-cn}代理玩家行动处理中...{ko}프록시 처리 중...{es}Procesando Proxy...{fr}Traitement du Proxy...{pt-br}Processando Proxy...{de}Proxy wird verarbeitet..."
 		if stateOverride==nil then
-			spec.notes=gStates.proxyTurnReport~=nil and proxyTurnReportText() or "Proxy is preparing their movement."
+			if gStates.proxyTurnReport~=nil then
+				spec.notes=proxyTurnReportText("headline")
+				spec.details=proxyTurnReportText("details")
+			else
+				spec.notes="Proxy is preparing their movement."
+			end
 		end
 		spec.interactable=false
 	elseif state=="PickDestination" or state=="PickRoute" or state=="PickCard" or state=="PickEnemy" or state=="PickMana" then
 		local pending=gStates.proxyPendingChoice
 		spec.label=proxyChoiceWaitingText~=nil and proxyChoiceWaitingText(pending~=nil and pending.type or nil) or "{en}Make Proxy Choice{it}Scegli per il Proxy{ru}Сделать выбор за Прокси{zh-tw}進行代理玩家選擇{zh-cn}进行代理玩家选择{ko}프록시 선택하기{es}Elegir por el Proxy{fr}Faire le choix du Proxy{pt-br}Fazer escolha do Proxy{de}Proxy-Auswahl treffen"
-		spec.notes=proxyTurnReportText~=nil and proxyTurnReportText() or ""
+		spec.notes=proxyTurnReportText~=nil and proxyTurnReportText("headline") or ""
+		spec.details=proxyTurnReportText~=nil and proxyTurnReportText("details") or nil
 		spec.interactable=false
 		if pending~=nil and pending.type=="mana" then spec.proxyManaChoice=pending end
 	elseif state=="ReadyToEnd" then
 		spec.label="{en}Proxy Processed{it}Proxy Completato{ru}Прокси обработан{zh-tw}代理玩家行動結束{zh-cn}代理玩家行动结束{ko}프록시 처리 완료{es}Proxy Procesado{fr}Proxy traité{pt-br}Proxy Processado{de}Proxy verarbeitet"
-		spec.notes=proxyTurnReportText~=nil and proxyTurnReportText() or ""
+		spec.notes=proxyTurnReportText~=nil and proxyTurnReportText("headline") or ""
+		spec.details=proxyTurnReportText~=nil and proxyTurnReportText("details") or nil
 	else
 		if stats.dummyProcessedThisTurn==true then
 			spec.label="{en}Dummy Processed{it}Fittizio Completato{ru}Виртуальный игрок сходил{zh-tw}虛擬玩家行動結束{zh-cn}虚拟玩家行动结束{ko}진행 완료{es}Jugador Virtual Procesado{fr}Fantôme préparé{pt-br}Jog.Fictício Processado{de}Dummy verarbeitet"
@@ -3713,6 +3740,7 @@ function automatedProxyPanelSpec(stats,stateOverride)
 		end
 	end
 	if gStates.tacticRemove==true or gStates.tacticShown==true then
+		spec.details=nil -- Tactic instructions replace the turn report entirely.
 		spec.notes="{en}Click the button in the Center to claim a random tactic.{it}Premi il pulsante al Centro per prendere una tattica casuale.{ru}Нажмите кнопку в центре, чтобы выбрать случайную Тактику.{zh-tw}點擊中間的按鈕來隨機選擇戰術卡。{zh-cn}点击中间的按钮来随机选择战术卡。{ko}중앙에 있는 버튼을 클릭하여 무작위 전략 카드를 고르세요.{es}Pulsar el Botón del Centro para Robar una Táctica al Azar.{fr}Cliquez sur le bouton dans le Centre pour réclamer une tactique aléatoire.{pt-br}Clique no botão no centro para pegar uma tática aleatória.{de}Klicken Sie auf die Schaltfläche in der Mitte, um eine zufällige Taktik zu fordern."
 		if gStates.tacticRemove==true then spec.interactable=false end
 	end
@@ -3800,6 +3828,11 @@ function automatedMainPanelApply(spec)
 	UI.setAttribute("DummyTurn","active","true")
 	if spec.mainText~=nil then UI.setAttribute("MainGameNotes","text",spec.mainText) UI.setAttribute("MainGameNotes","color","white") end
 	if spec.notes~=nil then UI.setAttribute("DummyNotes","Text",spec.notes) end
+	-- Only Proxy reports split their objective and Move breakdown into a
+	-- smaller dedicated label. Dummy and Volkare notes keep their old layout.
+	local details=spec.actor=="proxy" and spec.details or nil
+	UI.setAttribute("DummyDetails","active",details~=nil and details~="" and "true" or "false")
+	if details~=nil and details~="" then UI.setAttribute("DummyDetails","Text",details) end
 	if spec.actor=="proxy" and proxyManaChoiceUI~=nil then proxyManaChoiceUI(nil) else UI.setAttribute("DummyChoiceButtons","active","false") end
 	UI.setAttribute("DummyButton","active",spec.buttonVisible==false and "false" or "true")
 	if spec.onClick~=nil then UI.setAttribute("DummyButton","onClick",spec.onClick) end
@@ -9227,20 +9260,34 @@ function proxyRerollSourceManaGUID(guid,color)
 		end
 	end
 	if die==nil then return false end
+	--Record the die's colour before rolling, since its face can change immediately.
+	local rerolledColor=color or apocalypseQuestManaDieColor(die)
 	die.randomize()
 	onObjectRandomize({type="Dice"})
+	if gStates.proxyTurnReport~=nil then gStates.proxyTurnReport.sourceRerollColor=rerolledColor end
 	return true
 end
 
 function proxyUseSourceMana(colors,selectedColor)
 	local exact,gold=proxySourceManaOptions(colors)
 	if selectedColor~=nil then
-		for _,option in ipairs(exact) do if option.color==selectedColor then return proxyRerollSourceManaGUID(option.guid,option.color),nil end end
+		for _,option in ipairs(exact) do
+			if option.color==selectedColor then
+				local rerolled=proxyRerollSourceManaGUID(option.guid,option.color)
+				return rerolled,nil,rerolled and option.color or nil
+			end
+		end
 		return false,nil
 	end
 	if #exact>1 then return nil,exact end
-	if #exact==1 then return proxyRerollSourceManaGUID(exact[1].guid,exact[1].color),nil end
-	if gold~=nil then return proxyRerollSourceManaGUID(gold,"Gold"),nil end
+	if #exact==1 then
+		local rerolled=proxyRerollSourceManaGUID(exact[1].guid,exact[1].color)
+		return rerolled,nil,rerolled and exact[1].color or nil
+	end
+	if gold~=nil then
+		local rerolled=proxyRerollSourceManaGUID(gold,"Gold")
+		return rerolled,nil,rerolled and "Gold" or nil
+	end
 	return false,nil
 end
 
@@ -9628,15 +9675,16 @@ function proxyLocalizedAction(action)
 	if name~=nil then return joinLang({"{en}resolved the {it}ha risolto {ru}разрешил {zh-tw}完成了 {zh-cn}完成了 {ko}을(를) 해결했습니다: {es}resolvió {fr}a résolu {pt-br}resolveu {de}hat abgeschlossen: ",proxyLocalizedTerm(name)}) end
 	name=text:match("^conquered the (.+)$")
 	if name~=nil then return joinLang({"{en}conquered the {it}ha conquistato {ru}покорил {zh-tw}征服了 {zh-cn}征服了 {ko}을(를) 정복했습니다: {es}conquistó {fr}a conquis {pt-br}conquistou {de}hat erobert: ",proxyLocalizedTerm(name)}) end
-	local card,kind=text:match("^took (.+) %((.+)%) from the offer$")
-	if card~=nil then return joinLang({"{en}took {it}ha preso {ru}взял {zh-tw}從供應中取得 {zh-cn}从供应中取得 {ko}제안에서 {es}tomó {fr}a pris {pt-br}pegou {de}nahm ",card," (",kind,"{en} from the offer{it} dall'offerta{ru} из предложения{zh-tw}{zh-cn}{ko}을(를) 가져갔습니다{es} de la oferta{fr} de l’offre{pt-br} da oferta{de} aus dem Angebot"}) end
+	local card=text:match("^took (.+) from the offer$")
+	if card~=nil then return joinLang({"{en}took {it}ha preso {ru}взял {zh-tw}從供應中取得 {zh-cn}从供应中取得 {ko}제안에서 {es}tomó {fr}a pris {pt-br}pegou {de}nahm ",card,"{en} from the offer{it} dall'offerta{ru} из предложения{zh-tw}{zh-cn}{ko}을(를) 가져갔습니다{es} de la oferta{fr} de l’offre{pt-br} da oferta{de} aus dem Angebot"}) end
 	local target=text:match("^moved toward the (.+)\nbut did not reach it$")
 	if target~=nil then return joinLang({"{en}moved toward the {it}si è mosso verso {ru}двигался к {zh-tw}朝 {zh-cn}朝 {ko} 방향으로 이동했지만 도달하지 못했습니다: {es}se movió hacia {fr}s’est déplacé vers {pt-br}moveu-se em direção a {de}bewegte sich in Richtung ",proxyLocalizedTerm(target),"{en}\nbut did not reach it{it}\nma non l'ha raggiunto{ru}, но не достиг цели{zh-tw} 移動，但未抵達{zh-cn} 移动，但未抵达{ko}{es}\npero no llegó{fr}\nmais ne l’a pas atteint{pt-br}\nmas não chegou{de}, erreichte das Ziel aber nicht"}) end
 	return text
 end
 
-function proxyTurnReportText()
+function proxyTurnReportText(section)
 	local report=gStates.proxyTurnReport
+	if report==nil and section=="details" then return "" end
 	if report==nil then return "{en}Proxy processing is complete.{it}Elaborazione Proxy completata.{ru}Обработка Прокси завершена.{zh-tw}代理玩家處理完成。{zh-cn}代理玩家处理完成。{ko}프록시 처리가 완료되었습니다.{es}El procesamiento del Proxy ha terminado.{fr}Le traitement du Proxy est terminé.{pt-br}O processamento do Proxy foi concluído.{de}Die Proxy-Verarbeitung ist abgeschlossen." end
 	local moved=report.moved or 0
 	local action=report.action
@@ -9645,7 +9693,7 @@ function proxyTurnReportText()
 	local target=proxyLocalizedTerm(report.target)
 	if action==nil or action=="" then
 		if report.target~=nil then
-			if active==true then first=joinLang({"{en}Proxy is moving toward the {it}Il Proxy si muove verso {ru}Прокси движется к {zh-tw}代理玩家正朝 {zh-cn}代理玩家正朝 {ko}프록시가 다음 목표로 이동 중입니다: {es}El Proxy se mueve hacia {fr}Le Proxy se déplace vers {pt-br}O Proxy está se movendo em direção a {de}Der Proxy bewegt sich in Richtung ",target,"."})
+			if active==true then first=joinLang({"{en}Proxy moved toward the {it}Il Proxy si è mosso verso {ru}Прокси переместился к {zh-tw}代理玩家朝 {zh-cn}代理玩家朝 {ko}프록시가 다음 목표로 이동했습니다: {es}El Proxy se movió hacia {fr}Le Proxy s’est déplacé vers {pt-br}O Proxy moveu-se em direção a {de}Der Proxy bewegte sich in Richtung ",target,"."})
 			elseif moved<=0 then first=joinLang({"{en}Proxy did not move toward the {it}Il Proxy non si è mosso verso {ru}Прокси не двигался к {zh-tw}代理玩家沒有朝 {zh-cn}代理玩家没有朝 {ko}프록시는 다음 목표로 이동하지 않았습니다: {es}El Proxy no se movió hacia {fr}Le Proxy ne s’est pas déplacé vers {pt-br}O Proxy não se moveu em direção a {de}Der Proxy bewegte sich nicht in Richtung ",target,"."})
 			elseif moved==1 then first=joinLang({"{en}Proxy moved 1 space toward the {it}Il Proxy si è mosso di 1 spazio verso {ru}Прокси переместился на 1 клетку к {zh-tw}代理玩家朝 {zh-cn}代理玩家朝 {ko}프록시가 다음 목표로 1칸 이동했습니다: {es}El Proxy se movió 1 espacio hacia {fr}Le Proxy s’est déplacé d’une case vers {pt-br}O Proxy moveu-se 1 espaço em direção a {de}Der Proxy bewegte sich 1 Feld in Richtung ",target,"."})
 			else first=joinLang({"{en}Proxy moved {it}Il Proxy si è mosso di {ru}Прокси переместился на {zh-tw}代理玩家移動了 {zh-cn}代理玩家移动了 {ko}프록시가 {es}El Proxy se movió {fr}Le Proxy s’est déplacé de {pt-br}O Proxy moveu-se {de}Der Proxy bewegte sich ",tostring(moved),"{en} spaces toward the {it} spazi verso {ru} клетки к {zh-tw} 格，朝向 {zh-cn} 格，朝向 {ko}칸 이동했습니다: {es} espacios hacia {fr} cases vers {pt-br} espaços em direção a {de} Felder in Richtung ",target,"."}) end
@@ -9660,6 +9708,35 @@ function proxyTurnReportText()
 		if moved<=0 then first=joinLang({"{en}Proxy {it}Il Proxy {ru}Прокси {zh-tw}代理玩家{zh-cn}代理玩家{ko}프록시가 {es}El Proxy {fr}Le Proxy {pt-br}O Proxy {de}Der Proxy ",localizedAction,"."})
 		elseif moved==1 then first=joinLang({"{en}Proxy moved 1 space and\n{it}Il Proxy si è mosso di 1 spazio e\n{ru}Прокси переместился на 1 клетку и\n{zh-tw}代理玩家移動 1 格並\n{zh-cn}代理玩家移动 1 格并\n{ko}프록시가 1칸 이동하고\n{es}El Proxy se movió 1 espacio y\n{fr}Le Proxy s’est déplacé d’une case et\n{pt-br}O Proxy moveu-se 1 espaço e\n{de}Der Proxy bewegte sich 1 Feld und\n",localizedAction,"."})
 		else first=joinLang({"{en}Proxy moved {it}Il Proxy si è mosso di {ru}Прокси переместился на {zh-tw}代理玩家移動 {zh-cn}代理玩家移动 {ko}프록시가 {es}El Proxy se movió {fr}Le Proxy s’est déplacé de {pt-br}O Proxy moveu-se {de}Der Proxy bewegte sich ",tostring(moved),"{en} spaces and\n{it} spazi e\n{ru} клетки и\n{zh-tw} 格並\n{zh-cn} 格并\n{ko}칸 이동하고\n{es} espacios y\n{fr} cases et\n{pt-br} espaços e\n{de} Felder und\n",localizedAction,"."}) end
+	end
+
+	-- The Source reroll belongs to the movement sentence, not to the
+	-- smaller Objective/Move breakdown. Keep every language's punctuation
+	-- inside its own fragment when appending to the translated sentence.
+	if report.sourceRerollColor~=nil then
+		local endings={
+			en=", and rolled a Source die.",
+			it=", e ha ritirato un dado della Fonte.",
+			ru=", и перебросил кубик Источника.",
+			["zh-tw"]="，並重擲了一顆魔力源骰。",
+			["zh-cn"]="，并重掷了一颗魔力源骰。",
+			ko=", 원천 주사위를 다시 굴렸습니다.",
+			es=", y volvió a tirar un dado de la Fuente.",
+			fr=", et a relancé un dé de la Source.",
+			["pt-br"]=", e rolou novamente um dado da Fonte.",
+			de=", und würfelte einen Quellenwürfel neu."}
+		local parts=joinLangParse(first)
+		if type(parts)=="table" then
+			local rewritten={}
+			for _,lang in ipairs({"en","ru","zh-tw","zh-cn","ko","es","fr","pt-br","de","it"}) do
+				local sentence=tostring(parts[lang] or parts.en or "")
+					:gsub("%.$",""):gsub("。$","")
+				rewritten[#rewritten+1]="{"..lang.."}"..sentence..endings[lang]
+			end
+			first=table.concat(rewritten)
+		else
+			first=tostring(first):gsub("%.$","")..endings.en
+		end
 	end
 
 	local reason=proxyLocalizedReason(report.reason or "The closest legal objective was selected.",report.colors)
@@ -9700,7 +9777,9 @@ function proxyTurnReportText()
 	if (report.shieldMove or 0)>0 then movementParts[#movementParts+1]="Shield +"..tostring(report.shieldMove) end
 	if (report.sourceMove or 0)>0 then movementParts[#movementParts+1]="Source +1" end
 	local movementText=table.concat(movementParts,", ")
-	local summaryLine=joinLang({"{en}Objective: {it}Obiettivo: {ru}Цель: {zh-tw}目標：{zh-cn}目标：{ko}목표: {es}Objetivo: {fr}Objectif : {pt-br}Objetivo: {de}Ziel: ",objectiveLabel," (",shortReason,")\n","{en}Movement: {it}Movimento: {ru}Движение: {zh-tw}移動：{zh-cn}移动：{ko}이동: {es}Movimiento: {fr}Déplacement : {pt-br}Movimento: {de}Bewegung: ",tostring(report.allowance or 0)," (",movementText,")."})
+	local summaryLine=joinLang({"{en}Objective: {it}Obiettivo: {ru}Цель: {zh-tw}目標：{zh-cn}目标：{ko}목표: {es}Objetivo: {fr}Objectif : {pt-br}Objetivo: {de}Ziel: ",objectiveLabel," (",shortReason,")\n","{en}Move: {it}Movimento: {ru}Движение: {zh-tw}移動：{zh-cn}移动：{ko}이동: {es}Movimiento: {fr}Déplacement : {pt-br}Movimento: {de}Bewegung: ",tostring(report.allowance or 0)," (",movementText,")."})
+	if section=="details" then return summaryLine end
+	if section=="headline" then return joinLang({first,choiceLine,interactionLine}) end
 	return joinLang({first,choiceLine,interactionLine,"\n\n",summaryLine})
 end
 --Return the logical Portal hex used by Proxy rules. Against the Horsemen starts from Country Tile 1's
@@ -10904,8 +10983,7 @@ end
 function proxyTakeInteractionChoice(choice)
 	if choice==nil or choice.card==nil then return false end
 	local cardName=proxyCardDisplayName(choice.card)
-	local kind=choice.kind=="unit" and "Unit" or (choice.kind=="spell" and "Spell" or "Advanced Action")
-	proxyTurnReportSetAction("took "..cardName.." ("..kind..") from the offer")
+	proxyTurnReportSetAction("took "..cardName.." from the offer")
 	proxyReturnOfferCard(choice.card)
 	if choice.kind~="unit" then safeWaitFrames("AI.Proxy",function() compactAndRefillDeedOffer() end,2) end
 	proxyClearObjective(true)
@@ -11215,10 +11293,13 @@ function proxyProcessTurn(proxyIndex)
 		local colors=dummyCardColors(objectiveNow)
 		local baseMove=proxyObjectiveBaseMove(objectiveNow)
 		local shieldMove=#(gStates.proxyObjectiveShieldGUIDs or {})
-		local sourceUsed,manaOptions=proxyUseSourceMana(colors)
+		local sourceUsed,manaOptions,sourceRerollColor=proxyUseSourceMana(colors)
 		local willUseSource=sourceUsed==true or manaOptions~=nil
 		local move=baseMove+shieldMove+(willUseSource and 1 or 0)
 		proxyTurnReportBegin(objectiveNow,colors,baseMove,shieldMove,willUseSource)
+		--The automatic single-die reroll happens before this report exists. Carry
+		--its result forward; choice and fallback rerolls record directly as they occur.
+		if sourceRerollColor~=nil then gStates.proxyTurnReport.sourceRerollColor=sourceRerollColor end
 		broadcastToAll(joinLang({translateWord[stats.mage],"{en} Proxy may move {it} Il Proxy può muoversi di {ru} прокси может переместиться на {zh-tw} 代理可移動 {zh-cn} 代理可移动 {ko} 프록시는 {es} Proxy puede mover {fr} Proxy peut se déplacer de {pt-br} Proxy pode mover {de} Proxy darf sich ",tostring(move),"{en} spaces.{it} spazi.{ru} гексов.{zh-tw} 格。{zh-cn} 格。{ko}칸 이동할 수 있습니다.{es} espacios.{fr} cases.{pt-br} espaços.{de} Felder bewegen."}),{1,0.75,0.2})
 		if manaOptions~=nil and #manaOptions>1 then
 			if proxyBeginManaChoice(manaOptions,proxyIndex,move,crystals)==true then return end
@@ -20662,6 +20743,9 @@ local function turnAdvanceCompletedTurnLifecycle()
 end
 
 local function turnFinishCompletedTurnUI()
+    -- A pending full-board recruit is only a choice; no Unit was taken.
+    -- Do not leave stale selection buttons on the next player's board.
+    if unitReplacementClose~=nil then unitReplacementClose() end
     callOfferClose(false)
     trainingOfferClose(true)
 	resourceUnitsResetTurn()
@@ -22230,7 +22314,12 @@ end
 local function activeVisualLines()
 	local lines={}
 	for _,entry in pairs(assignmentRegistry) do
-		local assignment=assignmentLines(entry.source,entry.target,assignmentColorFor(entry.kind))
+		-- TTS may invalidate userdata for a replaced object without clearing
+		-- its earlier assignment. Resolve fresh objects from the saved GUIDs
+		-- rather than reading a stale cached source/target reference.
+		local source=getObjectFromGUID(assignmentBaseGUID(entry.sourceGUID))
+		local target=getObjectFromGUID(entry.targetGUID)
+		local assignment=assignmentLines(source,target,assignmentColorFor(entry.kind))
 		for _,line in ipairs(assignment or {}) do lines[#lines+1]=line end
 	end
     -- Readying links remain visible even after their Command token returns to
@@ -22307,8 +22396,9 @@ local function activeVisualLines()
 	for color,pending in pairs(targetingByPlayer) do
 		local player=Player[color]
 		local pointer=player~=nil and player.getPointerPosition() or nil
-		if pointer~=nil and pending.source~=nil and not pending.source.isDestroyed() then
-			local from=positionAtHeight(pending.source.getPosition(),previewHeight)
+		local source=getObjectFromGUID(assignmentBaseGUID(pending.sourceGUID))
+		if pointer~=nil and source~=nil and not source.isDestroyed() then
+			local from=positionAtHeight(source.getPosition(),previewHeight)
 			local to=positionAtHeight(pointer,previewHeight)
 			lines[#lines+1]={points={from,to},color=assignmentColorFor(pending.kind),thickness=previewThickness,rotation={0,0,0}}
 		end
@@ -22531,16 +22621,40 @@ local function damageUsedBy(guid,exceptKey)
 	return nil
 end
 
--- Full-size invisible button over a free Unit card, used only while an attack is being targeted.
-local function addDamageTargetButton(obj,clickFunction)
-	if obj==nil or obj.isDestroyed() then return end
+-- A full-size transparent classic button turns a Unit card into the
+-- click target. Shared with Unit replacement so no visible DISBAND button is
+-- needed; both flows use the same card-sized hit area as damage assignment.
+function attackAssignmentsAddInvisibleUnitTargetButton(obj,clickFunction)
+	if obj==nil or obj.isDestroyed() then return false end
+	for _,button in ipairs(obj.getButtons() or {}) do
+		if button.click_function==clickFunction then return true end
+	end
 	local bounds=obj.getBounds()
 	local scale=obj.getScale() or {x=1,y=1,z=1}
-	if bounds==nil or bounds.size==nil then return end
+	if bounds==nil or bounds.size==nil then return false end
 	obj.createButton({click_function=clickFunction,function_owner=Global,label="",
 		position={0,bounds.size[2]/(scale.y or 1)/2+0.2,0},rotation={0,0,0},
 		width=bounds.size[1]/(scale.x or 1)*500,height=bounds.size[3]/(scale.z or 1)*500,color={0,0,0,0}})
-	damageButtonObjects[obj.guid]=obj
+	return true
+end
+
+function attackAssignmentsRemoveInvisibleUnitTargetButton(obj,clickFunction)
+	if obj==nil then return false end
+	local changed=false
+	local buttons=obj.getButtons() or {}
+	for i=#buttons,1,-1 do
+		if buttons[i].click_function==clickFunction then
+			obj.removeButton(buttons[i].index)
+			changed=true
+		end
+	end
+	return changed
+end
+
+local function addDamageTargetButton(obj,clickFunction)
+	if attackAssignmentsAddInvisibleUnitTargetButton(obj,clickFunction) then
+		damageButtonObjects[obj.guid]=obj
+	end
 end
 
 -- Decals are mirrored across local X from native click buttons (the
@@ -23192,7 +23306,8 @@ function attackAssignmentSourceClicked(player,value,id)
 		local additional=tostring(value)=="-2"
         -- Each Forked Lightning bolt has exactly one enemy target.
         if sourceKey:match("^d01b70#fork%d+$") then additional=false end
-		if not additional and pending==nil then
+		local replacingTarget=not additional and pending==nil
+		if replacingTarget then
 			local removed=false
 			for entryId,entry in pairs(assignmentRegistry) do
 				if entry.sourceGUID==sourceKey then
@@ -23201,8 +23316,17 @@ function attackAssignmentSourceClicked(player,value,id)
 				end
 			end
 			if removed then persistAssignments() end
+			-- Removing an arrow must remove the calculator's independent target
+			-- lock too. Otherwise cancelling the pending retarget leaves Move
+			-- silently blocking a Cumbersome enemy with no visible arrow.
+			if resourceCardsCombatForgetSource~=nil then
+				resourceCardsCombatForgetSource(sourceKey)
+			end
 		end
 		attackAssignmentsBegin(source,resource,color,additional,sourceKey,part)
+		if replacingTarget and resourceCardsSourceChanged~=nil then
+			resourceCardsSourceChanged()
+		end
 	end)
 end
 
@@ -23233,7 +23357,8 @@ function attackAssignmentTargetClicked(target,playerColor)
             target=eligible[summoned[4]]
             if target==nil then return end
         end
-        if target.isDestroyed() or pending.source==nil or pending.source.isDestroyed() then return end
+        local currentSource=getObjectFromGUID(assignmentBaseGUID(pending.sourceGUID))
+        if target.isDestroyed() or currentSource==nil or currentSource.isDestroyed() then return end
         if resourceCardsCombatTargetAcceptsSource~=nil
             and not resourceCardsCombatTargetAcceptsSource(pending.sourceGUID,target.guid) then
             local message=resourceCardsCombatTargetRejectMessage~=nil
@@ -23250,7 +23375,7 @@ function attackAssignmentTargetClicked(target,playerColor)
         -- Lost Legion Banner of Fear's broken effect can cancel at most three
         -- distinct enemies. Do not add a fourth physical target arrow.
         if pending.additional then
-            local data=gameCards~=nil and gameCards[pending.source.guid] or nil
+            local data=gameCards~=nil and gameCards[currentSource.guid] or nil
             local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
             local spec=rule~=nil and rule.enemyEffect~=nil and rule.enemyEffect.powered or nil
             local maximum=spec~=nil and tonumber(spec.maxTargets) or nil
@@ -23287,7 +23412,7 @@ function attackAssignmentTargetClicked(target,playerColor)
             local current=turnOrder~=nil and gStates~=nil
                 and turnOrder[gStates.turnNumber] or nil
             local scan=current~=nil and resourceCardScanBySeat[current.seatPos] or nil
-            local record=scan~=nil and scan.cards[pending.source.guid] or nil
+            local record=scan~=nil and scan.cards[currentSource.guid] or nil
             local maxPoints=record~=nil and record.resources~=nil
                 and tonumber(record.resources.influence) or nil
             local existing=0
@@ -23304,7 +23429,7 @@ function attackAssignmentTargetClicked(target,playerColor)
 		if not duplicate then
 			assignmentCounter=assignmentCounter+1
 			local id=tostring(assignmentCounter)
-			assignmentRegistry[id]={id=id,source=pending.source,target=target,
+			assignmentRegistry[id]={id=id,source=currentSource,target=target,
 				sourceGUID=pending.sourceGUID,targetGUID=target.guid,
 				resource=pending.resource,playerColor=playerColor,kind=pending.kind}
 			persistAssignments()
@@ -47059,6 +47184,373 @@ function monsterSetup()
 end
 
 end)
+__bundle_register("PlayingGame.PlayerBoard.UnitReplacement", function(require, _LOADED, __bundle_register, __bundle_modules)
+-- Player-confirmed replacement when every Command slot is occupied.
+-- The selected Unit is disbanded only AFTER a safe rewind snapshot is stored.
+-- Physical Command slots remain owned by UnitLayout; spent-history handoff is
+-- owned by CardRecognition / UnitHistory.
+local REPLACEMENT_PREFIX="UnitReplaceSelect_" -- only for removing old visible saved buttons
+local REPLACEMENT_CLICK="unitReplacementSelectClicked"
+local unitReplacementConfirm -- forward reference for the direct Unit click callback
+local function replacementState()
+    return gStates~=nil and gStates.unitReplacementPending or nil
+end
+
+local function replacementUnitName(guid)
+    local data=gameCards~=nil and gameCards[guid] or nil
+    local name=data~=nil and data.name or nil
+    return type(name)=="table" and name[1] or tostring(guid)
+end
+
+local function replacementPlayerAllowed(player,state)
+    return player~=nil and state~=nil and player.color~=nil
+        and legalPlayerCheck(player.color,state.seatPos)==true
+        and gStates.turnNumber==state.turnNumber
+end
+
+local function replacementOfferUnit(guid)
+    local unit=guid~=nil and getObjectFromGUID(guid) or nil
+    local data=guid~=nil and gameCards[guid] or nil
+    if unit==nil or data==nil
+        or (data.cardType~="Regular Unit" and data.cardType~="Elite Unit")
+        or not objectGUIDInZone(guid,GUID.zone.unitOffer) then return nil end
+    return unit
+end
+
+-- Old builds attached a visible DISBAND button in the Unit's XML.
+-- Strip it once, including in saves paused at an unfinished replacement.
+local function replacementRemoveLegacyButton(unit)
+    if unit==nil or unit.UI==nil then return end
+    local xml=resourceObjectUiXmlTable(unit.UI)
+    local changed=false
+    for i=#xml,1,-1 do
+        local attr=xml[i].attributes
+        local id=attr~=nil and attr.id or nil
+        if type(id)=="string" and id:sub(1,#REPLACEMENT_PREFIX)==REPLACEMENT_PREFIX then
+            table.remove(xml,i)
+            changed=true
+        end
+    end
+    if changed then
+        resourceObjectUiSetTable(unit.UI,xml,
+            resourceCardsExistingImageAssetsFor(unit.UI,{}))
+    end
+end
+
+local function replacementRemoveUnitButton(unit)
+    if unit==nil then return end
+    replacementRemoveLegacyButton(unit)
+    if attackAssignmentsRemoveInvisibleUnitTargetButton~=nil then
+        attackAssignmentsRemoveInvisibleUnitTargetButton(unit,REPLACEMENT_CLICK)
+    end
+end
+
+local function replacementShowUnitButton(unit)
+    if unit==nil then return end
+    replacementRemoveLegacyButton(unit)
+    -- Exactly the same invisible full-card target used for assigning enemy
+    -- damage to a Unit; no visible object UI buttons or labels.
+    if attackAssignmentsAddInvisibleUnitTargetButton~=nil then
+        attackAssignmentsAddInvisibleUnitTargetButton(unit,REPLACEMENT_CLICK)
+    end
+end
+
+local function replacementClearVisuals(state)
+    if state~=nil then
+        -- Use both saved candidates and the current layout, since a card can
+        -- be lifted or manually removed while the selection is displayed.
+        local seen={}
+        for _,guid in ipairs(state.candidates or {}) do
+            local unit=getObjectFromGUID(guid)
+            if unit~=nil then
+                seen[guid]=true
+                replacementRemoveUnitButton(unit)
+                if unit.highlightOff~=nil then unit.highlightOff() end
+            end
+        end
+        local layout=unitLayoutSnapshot(state.seatPos)
+        for _,unit in ipairs(layout.units) do
+            if not seen[unit.guid] then
+                replacementRemoveUnitButton(unit)
+                if unit.highlightOff~=nil then unit.highlightOff() end
+            end
+        end
+    end
+    UI.setAttribute("UnitReplacement","active","false")
+end
+
+function unitReplacementClose()
+    local state=replacementState()
+    if state~=nil then replacementClearVisuals(state) end
+    if gStates~=nil then gStates.unitReplacementPending=nil end
+    -- The temporary selection highlight replaces the Resource Tracker's
+    -- normal Unit highlights. Restore those after cancelling or completing.
+    if state~=nil and resourceCardsSourceChanged~=nil then
+        resourceCardsSourceChanged()
+    end
+end
+
+local function replacementRender(state)
+    if state==nil then return end
+    local layout=unitLayoutSnapshot(state.seatPos)
+    local current={}
+    for _,unit in ipairs(layout.units) do current[unit.guid]=unit end
+    for _,guid in ipairs(state.candidates or {}) do
+        if current[guid]==nil then
+            replacementRemoveUnitButton(getObjectFromGUID(guid))
+        end
+    end
+    state.candidates={}
+    for _,unit in ipairs(layout.units) do
+        if layout.unitSlotByGuid[unit.guid]~=nil then
+            state.candidates[#state.candidates+1]=unit.guid
+            replacementShowUnitButton(unit)
+            if unit.highlightOn~=nil then unit.highlightOn({1,0.60,0.12}) end
+        end
+    end
+    UI.setAttribute("UnitReplacement","active","true")
+    UI.setAttribute("UnitReplacementDescription","text",joinLang({
+        "{en}No free Command Tokens.\nClick a Unit you wish to disband and Replace with {it}Nessun segnalino Comando libero.\nScegli un'Unità da congedare e sostituire con {ru}Нет свободных жетонов Командования.\nВыберите отряд для роспуска и замены на {zh-tw}沒有空閒指揮標記。\n點選要解散並替換的單位：{zh-cn}没有空闲指挥标记。\n点击要解散并替换的单位：{ko}남은 명령 토큰이 없습니다.\n해산하여 교체할 유닛을 클릭하세요: {es}No hay fichas de Mando libres.\nHaz clic en la Unidad que quieres disolver y reemplazar por {fr}Aucun jeton Commandement libre.\nCliquez sur l'Unité à dissoudre et remplacer par {pt-br}Sem fichas de Comando livres.\nClique na Unidade que deseja dispensar e substituir por {de}Keine freien Befehlsmarker.\nKlicke auf die Einheit, die du auflösen und ersetzen möchtest durch ",
+        replacementUnitName(state.claimGUID),"."}))
+end
+
+function unitReplacementEnsureControls(seatPos)
+    local state=replacementState()
+    if state==nil or (seatPos~=nil and seatPos~=state.seatPos) then return end
+    -- The Resource Tracker can rewrite card XML without affecting classic
+    -- buttons. Reconcile invisible hit areas without stacking duplicates.
+    local layout=unitLayoutSnapshot(state.seatPos)
+    for _,unit in ipairs(layout.units) do
+        if layout.unitSlotByGuid[unit.guid]~=nil then
+            replacementShowUnitButton(unit)
+        end
+    end
+end
+
+function unitReplacementBegin(player,claimGUID,seatPos)
+    if replacementState()~=nil or gStates==nil or player==nil
+        or legalPlayerCheck(player.color,seatPos)~=true then return false end
+    if replacementOfferUnit(claimGUID)==nil then return false end
+    local slot=unitLayoutFirstFreeCommand(seatPos)
+    if slot~=nil then return false end
+    local state={seatPos=seatPos,turnNumber=gStates.turnNumber,
+        claimGUID=claimGUID,candidates={},selectedGUID=nil}
+    gStates.unitReplacementPending=state
+    replacementRender(state)
+    return true
+end
+
+function unitReplacementRestoreOnLoad()
+    local state=replacementState()
+    if state~=nil then
+        -- A stored click may have been waiting for its rewind callback when
+        -- the game was saved. Resume as a fresh card selection on load.
+        state.committing=nil
+        state.selectedGUID=nil
+    end
+    if state==nil then
+        UI.setAttribute("UnitReplacement","active","false")
+        return
+    end
+    if state.turnNumber~=gStates.turnNumber
+        or replacementOfferUnit(state.claimGUID)==nil then
+        unitReplacementClose()
+        return
+    end
+    replacementRender(state)
+end
+
+-- Unit card is clicked directly, just as with enemy damage targeting.
+-- The click is also confirmation: no second panel action is required.
+local function unitReplacementSelectClicked(unit,playerColor)
+    local state=replacementState()
+    if unit==nil or not replacementPlayerAllowed({color=playerColor},state)
+        or state.committing==true then return end
+    local layout=unitLayoutSnapshot(state.seatPos)
+    if layout.unitSlotByGuid[unit.guid]==nil then return end
+    state.selectedGUID=unit.guid
+    state.committing=true
+    unitReplacementConfirm({color=playerColor})
+end
+
+local function unitReplacementCancel(player)
+    local state=replacementState()
+    if not replacementPlayerAllowed(player,state) then return end
+    unitReplacementClose()
+end
+
+-- The old Unit's Wound markers leave play; attached Banner Artifacts go to
+-- the player's DISCARD (base rules), not into the Trash or onto the new Unit.
+-- Command sources (including Banner of Command and Bonds) are never removed.
+local function replacementDetachAccessories(layout,unit,seatPos)
+    local bounds=unit.getBounds()
+    local size=bounds~=nil and bounds.size or nil
+    local centre=bounds~=nil and bounds.center or unit.getPosition()
+    local cx,cz=centre.x or centre[1],centre.z or centre[3]
+    local halfX=size~=nil and (size.x or size[1])*0.46 or 1
+    local halfZ=size~=nil and (size.z or size[3])*0.46 or 1.5
+    local woundBag=getObjectFromGUID("ab56f3") or getObjectFromGUID(trashCan)
+    for _,obj in ipairs(layout.objects) do
+        if unitLayoutIsWound(obj) then
+            local p=obj.getPosition()
+            if math.abs((p.x or p[1])-cx)<halfX
+                and math.abs((p.z or p[3])-cz)<halfZ
+                and woundBag~=nil then woundBag.putObject(obj) end
+        end
+    end
+    local state=unitLayoutResourceState(seatPos)
+    local banners=state~=nil and state.bannersByUnit[unit.guid] or nil
+    local discardZone=getObjectFromGUID(deedDeckDiscardZones[seatPos])
+    local bannerGUIDs={}
+    if banners~=nil then
+        local pos=discardZone~=nil and discardZone.getPosition() or nil
+        for _,banner in pairs(banners) do
+            bannerGUIDs[banner.guid]=true
+            local card=getObjectFromGUID(banner.guid)
+            if card~=nil and pos~=nil then
+                card.unlock()
+                card.setPositionSmooth({(pos.x or pos[1]),(pos.y or pos[2])+2,
+                    (pos.z or pos[3])},false,false)
+            end
+        end
+    end
+    -- Preserve miscellaneous attached reminders and spent mana instead of
+    -- silently transferring them to the incoming Unit or destroying them.
+    -- Stage them outside the Unit Area so the calculator cannot mistake
+    -- their old physical overlap for payment on the replacement.
+    local extras=0
+    local stagingX=unitLayoutX(seatPos,1,#layout.commands)-3.2
+    for _,obj in ipairs(layout.objects) do
+        if obj.guid~=unit.guid and not unitLayoutIsUnit(obj)
+            and not unitLayoutIsCommand(obj) and not unitLayoutIsWound(obj)
+            and bannerGUIDs[obj.guid]~=true and obj.setPositionSmooth~=nil
+            and (obj.held_by_color==nil or obj.held_by_color=="") then
+            local p=obj.getPosition()
+            if math.abs((p.x or p[1])-cx)<halfX
+                and math.abs((p.z or p[3])-cz)<halfZ then
+                extras=extras+1
+                obj.setPositionSmooth({stagingX+(extras-1)*0.55,
+                    math.max(1.4,p.y or p[2]),-40.3},false,false)
+            end
+        end
+    end
+end
+
+local function replacementValid(state)
+    if state==nil or state.turnNumber~=gStates.turnNumber then return nil end
+    local claimed=replacementOfferUnit(state.claimGUID)
+    local old=state.selectedGUID~=nil and getObjectFromGUID(state.selectedGUID) or nil
+    local layout=unitLayoutSnapshot(state.seatPos)
+    local slot=old~=nil and layout.unitSlotByGuid[old.guid] or nil
+    local token=slot~=nil and layout.commands[slot] or nil
+    local unitX=slot~=nil and layout.slotX[slot] or nil
+    if claimed==nil or old==nil or token==nil or unitX==nil
+        or layout.unitBySlot[slot]==nil
+        or layout.unitBySlot[slot].guid~=old.guid then return nil end
+    return claimed,old,layout,unitX,token
+end
+
+unitReplacementConfirm=function(player)
+    local state=replacementState()
+    if not replacementPlayerAllowed(player,state) then return end
+    local claimed,old,layout,unitX,token=replacementValid(state)
+    if claimed==nil then
+        state.committing=false
+        state.selectedGUID=nil
+        replacementRender(state)
+        broadcastToColor("{en}The Unit offer or board changed. Select the Unit to replace again.{it}L'offerta o la plancia sono cambiate. Seleziona di nuovo l'Unità.{ru}Предложение или планшет изменились. Выберите отряд снова.",player.color,warningColor)
+        return
+    end
+    if cardFlowUnitClaimBusy~=nil and cardFlowUnitClaimBusy() then
+        state.committing=false
+        return
+    end
+    local owner="Replace Unit "..state.claimGUID
+    local expectedSelected=state.selectedGUID
+    if rewindTransactionOwnerActive(owner) then return end
+    rewindTransactionStart(function()
+        -- A rewind snapshot may take several frames; do not apply a stale
+        -- selection or destroy the Unit if the table changed meanwhile.
+        local pending=replacementState()
+        local newUnit,oldUnit,currentLayout,x,command=replacementValid(pending)
+        local trash=getObjectFromGUID(trashCan)
+        if newUnit==nil or trash==nil or pending.selectedGUID~=expectedSelected
+            or (cardFlowUnitClaimBusy~=nil and cardFlowUnitClaimBusy()) then
+            rewindTransactionFinish(owner)
+            if pending~=nil then
+                pending.committing=false
+                pending.selectedGUID=nil
+                replacementRender(pending)
+            end
+            return
+        end
+        -- A spent token can physically cover the discarded card. Move it to
+        -- the actual READY snap before placing the new Unit; clearing its
+        -- history flag alone would leave the replacement visibly spent.
+        local tokenOnOld=unitLayoutCommandTarget(command,pending.seatPos)
+        local readyPosition=nil
+        if tokenOnOld~=nil and tokenOnOld.guid==oldUnit.guid then
+            readyPosition=unitLayoutReadyCommandPosition(pending.seatPos,
+                currentLayout.unitSlotByGuid[oldUnit.guid],currentLayout)
+            if readyPosition==nil then
+                rewindTransactionFinish(owner)
+                pending.committing=false
+                pending.selectedGUID=nil
+                broadcastToColor("{en}Cannot find the Command Ready snap. Move the Command above the Unit and try again.{it}Posizione Comando pronto non trovata. Sposta il segnalino e riprova.{ru}Позиция готового жетона не найдена. Переместите жетон и повторите.",player.color,warningColor)
+                return
+            end
+        end
+        replacementDetachAccessories(currentLayout,oldUnit,pending.seatPos)
+        if resourceUnitsRetireUnit~=nil then resourceUnitsRetireUnit(oldUnit.guid) end
+        if readyPosition~=nil then command.setPositionSmooth(readyPosition,false,false) end
+        -- TTS bags retain classic object buttons on contained cards. Clear
+        -- the temporary invisible hit area BEFORE putting this Unit away.
+        replacementRemoveUnitButton(oldUnit)
+        if oldUnit.highlightOff~=nil then oldUnit.highlightOff() end
+        trash.putObject(oldUnit)
+        -- Claiming and disbanding share ONE rewind point. Release it only
+        -- after both the replacement Unit and its reused Command have settled.
+        local commandGUID=command.guid
+        local claimedOK=cardFlowClaimUnitAtSlot(newUnit,pending.seatPos,x,currentLayout,
+            command,function()
+                local function completed()
+                    rewindTransactionFinish(owner)
+                    if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
+                end
+                if readyPosition==nil then
+                    completed()
+                else
+                    safeWaitCondition("PlayerBoard.UnitReplacement",completed,function()
+                        local token=getObjectFromGUID(commandGUID)
+                        return token==nil or (token.resting==true
+                            and token.isSmoothMoving()==false)
+                    end,8,completed)
+                end
+            end)
+        if claimedOK then
+            unitReplacementClose()
+        else
+            -- A failed physical claim should be extremely rare and can be
+            -- recovered with the saved rewind snapshot.
+            rewindTransactionFinish(owner)
+            broadcastToColor("{en}The Unit did not settle into its slot. Use Undo to restore the old Unit.{it}La nuova Unità non è stata posizionata. Usa Annulla per ripristinare la precedente.{ru}Новый отряд не разместился. Используйте Отменить для восстановления.",player.color,warningColor)
+        end
+    end,owner,function()
+        -- Snapshot failure must not leave the selection locked.
+        local pending=replacementState()
+        if pending~=nil and pending.claimGUID==state.claimGUID then
+            pending.committing=false
+            pending.selectedGUID=nil
+        end
+    end)
+end
+
+publishPublicUICallbacks({
+    unitReplacementSelectClicked=unitReplacementSelectClicked,
+    unitReplacementCancel=unitReplacementCancel
+})
+
+end)
 __bundle_register("PlayingGame.PlayerBoard.CardRecognition", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- The physical play area supplies estimated resources to the Resource Tracker.
 -- Runtime-only observations never overwrite the saved manual +/- adjustments.
@@ -51439,10 +51931,10 @@ function resourceCardsCombatForgetSource(sourceGUID)
     combatAssignmentState.explicit[sourceGUID]=nil
 end
 
--- Both numeric and effect-only Unit sources must lose their Combat Calculator
--- locks when a temporary offer Unit is returned; otherwise the next scan can
--- regenerate its arrow from a stale target.
-local function combatForgetBorrowedUnitTargets(unitGUID)
+-- Clear every target key owned by a physical card or Unit (including split
+-- keys). Choice changes and borrowed Unit cleanup must not leave hidden locks
+-- that regenerate arrows during the next Combat Calculator scan.
+local function combatForgetPhysicalSourceTargets(unitGUID)
     local prefix=unitGUID.."#"
     for key in pairs(combatAssignmentState.targets) do
         if key==unitGUID or key:sub(1,#prefix)==prefix then
@@ -52168,10 +52660,19 @@ local function combatReductionChoiceIcon(rule,powered,choice,category)
     return icon
 end
 
+-- Keep card-attached controls intact while a card is being rearranged.
+-- During a pickup TTS can momentarily report the card as tilted/discarded
+-- or outside the thin play scripting zone; only the settled scan may remove
+-- its controls for a genuinely changed posture or area.
+combatConfig.cardInTransit=function(card)
+    return card~=nil and ((card.held_by_color~=nil and card.held_by_color~="")
+        or card.resting==false or card.isSmoothMoving())
+end
+
 -- A single selected icon is centred on the object. Click to expand all
 -- choices; selecting one immediately collapses back to its icon.
 local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySets,resources,repeatLink)
-    if card==nil then return end
+    if card==nil or combatConfig.cardInTransit(card) then return end
     local cardData=gameCards[card.guid]
     local rule=cardData~=nil and cardResourceDefinitions[cardData.resourceKey]
         or skillResourceDefinitions[card.guid]
@@ -52425,7 +52926,22 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             ..tostring(special.recruited)..":"..tostring(special.terrain)) or "")
         ..":READY:"..tostring(readyCount)..":"..table.concat(readyLinks,",")
         ..":TARGETS:"..tostring(trackerPrivate.singleAutoEnemyGUID)
-    if choiceButtonShown[card.guid]==signature then return end
+    if choiceButtonShown[card.guid]==signature then
+        -- The interaction toggle is not a choice icon, and other object UI
+        -- owners may have rewritten the XML while the card was being moved.
+        -- Reconcile this one persistent control even when the resource/choice
+        -- signature has not changed (Noble Manners keeps its Fame/Rep state).
+        if rule==nil or rule.interactionReward==nil then return end
+        local expected="ResourceCardChoice_"..card.guid.."_interaction"
+        local found=false
+        for _,element in ipairs(resourceObjectUiXmlTable(card.UI)) do
+            if element.attributes~=nil and element.attributes.id==expected then
+                found=true
+                break
+            end
+        end
+        if found then return end
+    end
     local xml=resourceObjectUiXmlTable(card.UI)
     for i=#xml,1,-1 do
         local attr=xml[i].attributes
@@ -52817,8 +53333,10 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                 value="RDY"..(repeatLink~=nil and tostring(index) or "")}
         end
     end
-    if assets~=nil then card.UI.setXmlTable(xml,assets)
-    else card.UI.setXmlTable(xml) end
+    -- A fixed Attack/Block against a sole enemy needs no manual target icon.
+    -- That can leave an otherwise empty object UI; TTS rejects setXmlTable({})
+    -- with an Object reference error. The shared writer uses setXml("") here.
+    resourceObjectUiSetTable(card.UI,xml,assets)
     choiceButtonShown[card.guid]=signature
 end
 
@@ -53115,6 +53633,10 @@ end
 local function manaColor(obj)
     if isManaTokenFigurine(obj) then return manaTokenColor(obj) end
     if obj.type=="Dice" then
+        -- A dropped Source die can enter the thin play zone while still rolling.
+        -- TTS may not have a usable rotation value until its physics settles.
+        -- Its zone/drop callbacks queue a settled scan without reading the face.
+        if obj.resting~=true or obj.isSmoothMoving() then return nil end
         local face=obj.getRotationValue()
         if type(face)=="string" then return face:match("^([%a]+) Mana$") end
     end
@@ -54702,6 +55224,38 @@ local function renderSeat(seatPos)
     inspectZone(playerCrystalAreas[seatPos],"crystal")
     inspectZone(playerUnitAreas[seatPos],"unit")
     inspectZone(playerPlayAreas[seatPos],"play")
+    -- A Source die resting ON a played Action may sit above the thin play
+    -- scripting zone, even though its dropped GUID was seen. Recover only
+    -- settled, physically overlapping mana candidates; a die elsewhere on
+    -- the table must never pay for an Action merely because it was moved.
+    local manaCandidates=trackerPrivate.unitManaCandidatesBySeat[seatPos] or {}
+    for guid in pairs(manaCandidates) do
+        if placements[guid]~="play" then
+            local mana=objects[guid] or getObjectFromGUID(guid)
+            if mana==nil or (mana.isDestroyed~=nil and mana.isDestroyed()) then
+                manaCandidates[guid]=nil
+            elseif (mana.held_by_color==nil or mana.held_by_color=="")
+                and mana.resting==true and not mana.isSmoothMoving()
+                and manaColor(mana)~=nil then
+                local pos=mana.getPosition()
+                for cardGUID,card in pairs(objects) do
+                    if placements[cardGUID]=="play"
+                        and (objectKinds[cardGUID]=="card" or objectKinds[cardGUID]=="skill") then
+                        local area=footprint(card)
+                        local cardPos=card.getPosition()
+                        if pos[2]>=cardPos[2] and pos[2]-cardPos[2]<3
+                            and math.abs(pos[1]-area.x)<area.halfX
+                            and math.abs(pos[3]-area.z)<area.halfZ then
+                            objects[guid]=mana
+                            objectKinds[guid]="mana"
+                            placements[guid]="play"
+                            break
+                        end
+                    end
+                end
+            end
+        end
+    end
     -- A resting active Unit can be lifted above the thin Zone by its stacked
     -- Command/crystal without actually leaving the Unit mat. Reuse the same
     -- X/Z and held-object checks as the physical Unit layout rather than
@@ -57360,14 +57914,17 @@ local function renderSeat(seatPos)
         if current[guid]~=true then
             combatConfig.sacrificeCastPairs[guid]=nil
             clearHighlight(guid)
-            if choiceButtonShown[guid]~=nil and choiceButtonShown[guid]~="hidden" then
-                removeChoiceButtons(getObjectFromGUID(guid))
+            local previousObject=getObjectFromGUID(guid)
+            if not combatConfig.cardInTransit(previousObject) then
+                if choiceButtonShown[guid]~=nil and choiceButtonShown[guid]~="hidden" then
+                    removeChoiceButtons(previousObject)
+                end
+                -- A genuinely removed card must rebuild its controls on re-entry.
+                -- Preserve the existing object UI and its signature during
+                -- transient lifts; the settled drop scan owns their cleanup.
+                choiceButtonShown[guid]=nil
+                choiceExpandedByGUID[guid]=nil
             end
-            -- Drop cached hidden state so cards are inspected on re-entry.
-            choiceButtonShown[guid]=nil
-            -- Keep the chosen resource, even if the object briefly leaves the
-            -- zone while being dragged. The collapsed UI is rebuilt on return.
-            choiceExpandedByGUID[guid]=nil
             -- A used Skill leaves play at end of turn; do not allow the
             -- previous turn's Block link to be silently reused next turn.
             local rule=skillResourceDefinitions[guid]
@@ -57392,6 +57949,7 @@ local function renderSeat(seatPos)
     -- tracker refreshes can drop its independent cycling UI during dragging.
     -- Restore it after all tracker-owned UI writes, without touching resources.
     if callOfferEnsureControls~=nil then callOfferEnsureControls(seatPos) end
+    if unitReplacementEnsureControls~=nil then unitReplacementEnsureControls(seatPos) end
     if steadyTempoRefreshAll~=nil and next(gStates.steadyTempoPending or {})~=nil then
         steadyTempoRefreshAll()
     end
@@ -57699,6 +58257,32 @@ function resourceCardsChoiceClicked(player,value,id)
     end
     local valid=choiceAvailable(choices,category)
     if not valid then return end
+    -- Any card whose newly selected effect is Move-only must start without
+    -- an enemy assignment. Move can Block Cumbersome, but only when the
+    -- player explicitly targets it; never carry an old Attack/Block arrow.
+    local _,previousCategory
+    if repeatIndex~=nil then
+        _,previousCategory=combatConfig.repeatChoiceFor(guid,powered,choices,repeatIndex)
+    elseif setIndex~=nil then
+        _,previousCategory=inventorySetChoice(guid,setIndex,choices,mainChoices)
+    else
+        _,previousCategory=currentChoice(guid,powered,choices,sideways)
+    end
+    local selectedMoveOnly=false
+    if previousCategory~=category then
+        for _,option in ipairs(choices or {}) do
+            if choiceCategory(option)==category and (tonumber(option.move) or 0)>0 then
+                selectedMoveOnly=true
+                for _,field in ipairs(combatConfig.sourceFields) do
+                    if (tonumber(option[field.key]) or 0)>0 then
+                        selectedMoveOnly=false
+                        break
+                    end
+                end
+                break
+            end
+        end
+    end
     local rowId=repeatIndex~=nil and ("rep"..repeatIndex)
         or setIndex~=nil and ("set"..setIndex) or "base"
     local currentlyExpanded=choiceExpandedByGUID[guid]
@@ -57726,6 +58310,13 @@ function resourceCardsChoiceClicked(player,value,id)
         selected.sideways=category
     end
     selectedResourceByGUID[guid]=selected
+    if selectedMoveOnly then
+        -- Clear both the saved arrow and the independent calculator lock
+        -- before the rescan. The newly selected Move stays available for
+        -- a deliberate new target, but does not auto-Block any enemy.
+        combatForgetPhysicalSourceTargets(guid)
+        if attackAssignmentsClearForObject~=nil then attackAssignmentsClearForObject(guid) end
+    end
     if data~=nil and data.resourceKey=="rejuvenate" then
         gStates.unitReadyCardChoices=gStates.unitReadyCardChoices or {}
         gStates.unitReadyCardChoices[guid]=selected.effect=="ready" or nil
@@ -57906,9 +58497,10 @@ function resourceUnitsSpentCommands()
     local round=tonumber(gStates.currentRound) or 0
     local state=gStates.unitSpentCommandTokens
     if type(state)~="table" or state.round~=round then
-        state={round=round,tokens={}}
+        state={round=round,tokens={},owners={}}
         gStates.unitSpentCommandTokens=state
     end
+    state.owners=state.owners or {}
     return state.tokens
 end
 
@@ -57923,15 +58515,81 @@ function resourceUnitsSetCommandSpent(tokenGUID,spent)
     resourceUnitsSpentCommands()[tokenGUID]=spent==true and true or nil
 end
 
+-- The token's GUID is its Command capacity; the owner GUID identifies the
+-- Unit whose turn/round exhaustion it represents. A replacement must not
+-- inherit its predecessor's spent flag, but moving the SAME Unit may not
+-- erase it. Keep ownership alongside the existing round-long spent map.
+function resourceUnitsCommandOwner(tokenGUID)
+    if gStates==nil then return nil end
+    resourceUnitsSpentCommands()
+    return gStates.unitSpentCommandTokens.owners[tokenGUID]
+end
+
 function resourceUnitsRecordSpentCommands(seatPos)
     if gStates==nil or seatPos==nil then return end
     local spent=resourceUnitsSpentCommands()
+    local owners=gStates.unitSpentCommandTokens.owners
     local layout=unitLayoutSnapshot(seatPos)
     for _,token in ipairs(layout.commands) do
-        if unitLayoutCommandTarget(token,seatPos)~=nil then
+        local unit=unitLayoutCommandTarget(token,seatPos)
+        if unit~=nil then
             spent[token.guid]=true
+            owners[token.guid]=unit.guid
         end
     end
+end
+
+-- Called once a NEW Unit owns a vacated Command position, not on token pickup.
+-- Ordinary board movement is not an excuse to ready an old Unit: without an
+-- approved recruit, the prior owner must truly have left every Unit Area.
+function resourceUnitsAdoptCommand(tokenGUID,unitGUID,seatPos,approvedRecruit)
+    if gStates==nil or tokenGUID==nil or unitGUID==nil then return false end
+    resourceUnitsSpentCommands()
+    local owners=gStates.unitSpentCommandTokens.owners
+    local previous=owners[tokenGUID]
+    if previous==unitGUID then return true end
+    if approvedRecruit~=true then
+        if previous==nil or unitLayoutObjectInAnyUnitArea(previous) then return false end
+    end
+    if previous~=nil and previous~=unitGUID
+        and unitLayoutObjectInAnyUnitArea(previous)==false then
+        if resourceUnitsRetireUnit~=nil then resourceUnitsRetireUnit(previous) end
+    end
+    resourceUnitsSetCommandSpent(tokenGUID,false)
+    owners[tokenGUID]=unitGUID
+    return true
+end
+
+-- The only generic disband cleanup: retire the Unit's choices/Ready links,
+-- attack arrows and token number. Do not touch the spent Command flag here;
+-- only an actual newly claimed Unit may ready that Command.
+function resourceUnitsRetireUnit(unitGUID)
+    if unitGUID==nil then return end
+    if unitHistoryReleaseUnit~=nil then unitHistoryReleaseUnit(unitGUID) end
+    removeChoiceButtons(getObjectFromGUID(unitGUID))
+    choiceButtonShown[unitGUID]=nil
+    choiceExpandedByGUID[unitGUID]=nil
+    if gStates~=nil and gStates.unitReadyCardChoices~=nil then
+        gStates.unitReadyCardChoices[unitGUID]=nil
+    end
+    if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
+end
+
+-- On a manually dragged replacement card, reconcile its settled physical
+-- Command column. No reset happens for the same Unit or while the previous
+-- owner is still on the Unit mat.
+function resourceUnitsReconcileNewUnit(unitGUID,seatPos)
+    if unitGUID==nil or seatPos==nil then return false end
+    local layout=unitLayoutSnapshot(seatPos)
+    local slot=layout.unitSlotByGuid[unitGUID]
+    local token=slot~=nil and layout.commands[slot] or nil
+    if token==nil then return false end
+    local changed=resourceUnitsCommandOwner(token.guid)~=unitGUID
+        and resourceUnitsAdoptCommand(token.guid,unitGUID,seatPos,false)
+    if changed==true and resourceCardsSourceChanged~=nil then
+        resourceCardsSourceChanged()
+    end
+    return changed==true
 end
 
 -- An activation belongs to the physical Command token that started it.
@@ -58012,6 +58670,9 @@ function resourceUnitsCommandDropped(playerColor,obj)
             end
         end
         gStates.unitResourceActivations=gStates.unitResourceActivations or {}
+        -- A new Unit claimed into this Command's slot is Ready even if the
+        -- former Unit used this token earlier in the same Round.
+        resourceUnitsAdoptCommand(guid,unit.guid,pickup.seatPos,false)
         local previous=gStates.unitResourceActivations[unit.guid]
         local newActivation={seatPos=pickup.seatPos,tokenGUID=guid,
             choice=choice,selected=abilities.multi==true and {} or nil}
@@ -58028,6 +58689,10 @@ function resourceUnitsCommandDropped(playerColor,obj)
             unitHistoryEnsure(unit.guid,newActivation)
             unitHistoryRefreshToken(unit.guid)
         end
+        -- A newly used Command must remember which physical Unit owns it,
+        -- independent of the current turn's activation-history snapshots.
+        resourceUnitsSpentCommands()
+        gStates.unitSpentCommandTokens.owners[guid]=unit.guid
         resourceCardsCombatSelectOneUnit(unit.guid)
         choiceExpandedByGUID[unit.guid]=nil
         -- The final settled scan owns the choice and target buttons. Painting
@@ -58191,7 +58856,7 @@ function resourceUnitsBorrowedUnitEnded(guid)
     end
     -- Retire the old Unit's combat source first. A failed Object UI update
     -- must never leave its target arrow behind when Call to Arms cycles.
-    combatForgetBorrowedUnitTargets(guid)
+    combatForgetPhysicalSourceTargets(guid)
     if attackAssignmentsClearForObject~=nil then attackAssignmentsClearForObject(guid) end
     if attackAssignmentsPruneUnitChoiceSources~=nil then
         attackAssignmentsPruneUnitChoiceSources(guid,{})
@@ -58403,7 +59068,9 @@ local function resourceCardsRelevantZone(ctx)
     local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
     if active==nil or active.seatPos~=ctx.zoneInfo.seatPos then return nil end
     local kind=ctx.zoneInfo.kind
-    local objectKind=resourceObjectKind(ctx.obj)
+    -- A moving die is mana even though its face cannot yet be read safely.
+    local objectKind=(ctx.objType=="Dice" and scriptObjectId(ctx.obj)=="Mana Dice")
+        and "mana" or resourceObjectKind(ctx.obj)
     if kind=="play" and (objectKind~=nil or combatEnemyData(ctx.objGUID,ctx.obj)~=nil) then
         return ctx.zoneInfo.seatPos
     end
@@ -58430,7 +59097,9 @@ function resourceCardsZoneEntered(ctx)
             gStates.resourceCardPlayOrder[ctx.objGUID]=gStates.resourceCardPlaySerial
         end
     end
-    if ctx.obj~=nil and manaColor(ctx.obj)~=nil then
+    if ctx.obj~=nil and ((ctx.objType=="Dice" and scriptObjectId(ctx.obj)=="Mana Dice")
+        or manaColor(ctx.obj)~=nil) then
+        -- Recognize the die before it rests; only read its face in the settled scan.
         trackerPrivate.unitManaCandidatesBySeat[seat]=trackerPrivate.unitManaCandidatesBySeat[seat] or {}
         trackerPrivate.unitManaCandidatesBySeat[seat][ctx.objGUID]=true
     end
@@ -58455,8 +59124,8 @@ function resourceCardsObjectMoved(obj)
     local player=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if player==nil then return end
     local seat=player.seatPos
-    if manaColor(obj)~=nil then
-        -- Drop callbacks fire even if the final crystal sits above both thin
+    if (obj.type=="Dice" and scriptObjectId(obj)=="Mana Dice") or manaColor(obj)~=nil then
+        -- Drop callbacks fire even if the final die/crystal sits above both thin
         -- scripting zones. Remember its GUID and scan after it settles.
         trackerPrivate.unitManaCandidatesBySeat[seat]=trackerPrivate.unitManaCandidatesBySeat[seat] or {}
         trackerPrivate.unitManaCandidatesBySeat[seat][obj.guid]=true
@@ -59162,6 +59831,23 @@ function playerBoardZoneEnterSettled(ctx)
 		local unitSeatPos=unitZoneInfo.seatPos
 		if objType=="Card" or objType=="Deck" then safeWaitFrames("PlayerBoard.Events",function() separateCombinedUnitsInArea(unitSeatPos) end, 2) end
 		scheduleUnitLayoutRefresh(unitSeatPos)
+        -- A manually added Unit may replace one that was trashed earlier.
+        -- Wait for a settled physical position before deciding that its
+        -- Command belongs to someone new; lifts never clear spent history.
+        if objType=="Card" and unitLayoutIsUnit(obj) then
+            local incomingGUID=objGUID
+            safeWaitCondition("PlayerBoard.Events",function()
+                local incoming=getObjectFromGUID(incomingGUID)
+                if incoming~=nil and unitLayoutObjectInAnyUnitArea(incomingGUID)
+                    and resourceUnitsReconcileNewUnit~=nil then
+                    resourceUnitsReconcileNewUnit(incomingGUID,unitSeatPos)
+                end
+            end,function()
+                local incoming=getObjectFromGUID(incomingGUID)
+                return incoming==nil or (incoming.resting==true
+                    and incoming.isSmoothMoving()==false)
+            end,8)
+        end
 		--Monster tokens may be dropped directly on Units. Give them the same combat controls and reward refresh as Play Area monsters.
 		if monsterPugs[objGUID]~=nil then
 			local monsterGUID=objGUID
@@ -59765,6 +60451,27 @@ function unitHistoryValidSources(seat)
         end
     end
     return changed
+end
+
+-- A disband removes the old Unit's activations, but NEVER grants the
+-- Command token a Ready by itself. The recruitment/ownership handoff owns
+-- that transition. Retire links targeting this Unit and all its own sources.
+function unitHistoryReleaseUnit(guid)
+    if gStates==nil or guid==nil then return end
+    local group=groupOf(guid)
+    if group~=nil then unitHistoryTrim(guid,0) end
+    for key,link in pairs(gStates.unitReadyLinks or {}) do
+        if link.unitGUID==guid then
+            gStates.unitReadyLinks[key]=nil
+            if attackAssignmentsPruneSourceTargets~=nil then
+                attackAssignmentsPruneSourceTargets(key,{})
+            end
+        end
+    end
+    if gStates.unitResourceActivations~=nil then gStates.unitResourceActivations[guid]=nil end
+    if resourceCardsCombatForgetSource~=nil then resourceCardsCombatForgetSource(guid) end
+    if attackAssignmentsClearForObject~=nil then attackAssignmentsClearForObject(guid) end
+    if resourceUnitsPruneHistoricalTargets~=nil then resourceUnitsPruneHistoricalTargets(guid) end
 end
 
 function unitHistoryHideControls()
@@ -60738,6 +61445,31 @@ function unitLayoutFirstFreeCommand(seatPos)
 	return nil, nil, nil, layout
 end
 
+-- The board's Command-only snap is the Ready position, distinct from
+-- the Command/Unit snap on the Unit card. Use live transformed snap points
+-- so native and expanded player boards, including rotated boards, agree.
+function unitLayoutReadyCommandPosition(seatPos,slot,layout)
+    layout=layout or unitLayoutSnapshot(seatPos)
+    local board=playerBoard~=nil and getObjectFromGUID(playerBoard[seatPos]) or nil
+    local token=layout~=nil and layout.commands[slot] or nil
+    if board==nil or token==nil or board.positionToWorld==nil then return nil end
+    local targetX=layout.slotX[slot]
+    local nearest,distance=nil,nil
+    for _,snap in ipairs(board.getSnapPoints() or {}) do
+        if unitLayoutSnapType(snap)=="command" then
+            local pos=board.positionToWorld(snap.position)
+            local x=pos.x or pos[1]
+            local delta=math.abs(x-targetX)
+            if distance==nil or delta<distance then
+                nearest,distance=pos,delta
+            end
+        end
+    end
+    if nearest==nil or distance>unitLayoutConfig.associationRadius then return nil end
+    local tokenPos=token.getPosition()
+    return {targetX,tokenPos.y or tokenPos[2],nearest.z or nearest[3]}
+end
+
 --Before overflow, new Command sources fill an unused printed column. From the seventh onward they enter at the right edge and trigger a reflow.
 function unitLayoutNextCommandX(seatPos)
 	local layout=unitLayoutSnapshot(seatPos)
@@ -61213,8 +61945,43 @@ function queueCardToDeedDeck(playerIndex,card,rewindReady)
 	return true
 end
 
---Move's an offer or tactic card to a player's location
+-- One settled Unit-claim path shared by a free slot and a confirmed
+-- disband/replacement. A Command source is supplied explicitly so recruitment
+-- can retire the previous Unit's spent flag even when it is still this Round.
 local fillWait=false
+function cardFlowUnitClaimBusy() return fillWait end
+
+function cardFlowClaimUnitAtSlot(claimedCard,seatPos,unitX,layout,commandSource,onSettled)
+    if fillWait or claimedCard==nil or seatPos==nil or unitX==nil or layout==nil then return false end
+    local claimedGUID=claimedCard.guid
+    fillWait=true
+    if commandSource~=nil and resourceUnitsAdoptCommand~=nil then
+        resourceUnitsAdoptCommand(commandSource.guid,claimedGUID,seatPos,true)
+    end
+    claimedCard.unlock()
+    local scale=unitLayoutCardScale(#layout.commands)
+    claimedCard.setScale({scale,1,scale})
+    claimedCard.setPositionSmooth({unitX,2.0,-34.74},false,false)
+    safeWaitFrames("PlayerBoard.CardFlow",function()
+        safeWaitCondition("PlayerBoard.CardFlow",function()
+            fillWait=false
+            scheduleUnitLayoutRefresh(seatPos)
+            if type(onSettled)=="function" then onSettled() end
+        end,function()
+            local live=getObjectFromGUID(claimedGUID)
+            return live==nil or (live.resting and live.isSmoothMoving()==false)
+        end,8)
+    end,5)
+    local data=gameCards[claimedGUID]
+    if data~=nil then
+        broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage],
+            "{en} gained {it} ha ricevuto {ru} получает {zh-tw} 獲得 {zh-cn}增加了{ko}의 획득:  {es} ganó {fr} a subi {pt-br} ganhou {de} gewonnen ",
+            data.name[1],"."}),positionToColor(gStates.turnNumber))
+    end
+    return true
+end
+
+--Move's an offer or tactic card to a player's location
 function processCardClaim(player, mouseButton, id, rewindReady)
 	if mouseButton~="-3" then
 		if legalPlayerCheck(player.color, turnOrder[gStates.turnNumber].seatPos)==true and turnOrder[gStates.turnNumber].mage~=gStates.positionMageKnight[5] then
@@ -61242,8 +62009,12 @@ function processCardClaim(player, mouseButton, id, rewindReady)
 					else
 						claimedCard.setPosition({claimedCard.getPosition()[1], claimedCard.getPosition()[2]+3, claimedCard.getPosition()[3]})
 					end
-					cardClaim=true
-					safeWaitTime("PlayerBoard.CardFlow",function() cardClaim=false end, 2)
+					--Tactics go to the player board, not the Deed deck. Do not delay Great Start's
+					--immediate draw behind the ordinary Deed-transfer claim pause.
+					if tacticSource~=true then
+						cardClaim=true
+						safeWaitTime("PlayerBoard.CardFlow",function() cardClaim=false end, 2)
+					end
 					--add decal to tactic if playing Ultimate Conquest
 					if gStates.gameScenario=="Ultimate Conquest" then
 						for _, mage2 in pairs(mageKnights) do
@@ -61293,22 +62064,23 @@ function processCardClaim(player, mouseButton, id, rewindReady)
 						broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage], "{en} gained {it} ha ricevuto {ru} получает {zh-tw} 獲得 {zh-cn}增加了{ko}의 획득:  {es} ganó {fr} a subi {pt-br} ganhou {de} gewonnen ", getObjectFromGUID(claimedCard.guid).getName(), "."}), positionToColor(gStates.turnNumber))
 					end
 				else
-					if fillWait==false then--Move the Unit card to an empty command-source column
+					if fillWait==false then
 						local seatPos=turnOrder[gStates.turnNumber].seatPos
-						local slot, unitX, commandSource, layout=unitLayoutFirstFreeCommand(seatPos)
-						local found=slot~=nil
-						if found==true then
-							claimedCard.unlock()
-							local scale=unitLayoutCardScale(#layout.commands)
-							claimedCard.setScale({scale,1,scale})
-							claimedCard.setPositionSmooth({unitX,2.0,-34.74},false,false)
-							fillWait=true
-							safeWaitFrames("PlayerBoard.CardFlow",function() safeWaitCondition("PlayerBoard.CardFlow",function() fillWait=false scheduleUnitLayoutRefresh(seatPos) end, function() return claimedCard.resting end) end,5)
-							if gameCards[claimedCard.guid]~=nil then
-								broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage], "{en} gained {it} ha ricevuto {ru} получает {zh-tw} 獲得 {zh-cn}增加了{ko}의 획득:  {es} ganó {fr} a subi {pt-br} ganhou {de} gewonnen ", gameCards[claimedCard.guid].name[1], "."}), positionToColor(gStates.turnNumber))
+						-- A pending disband is a human choice, not a second claim.
+						local pending=gStates.unitReplacementPending
+						if pending~=nil then
+							broadcastToColor("{en}Finish or cancel your Unit replacement before claiming another Unit.{it}Termina o annulla la sostituzione dell'Unità prima di reclutarne un'altra.{ru}Завершите или отмените замену отряда.",player.color,warningColor)
+						else
+							local slot, unitX, commandSource, layout=unitLayoutFirstFreeCommand(seatPos)
+							if slot~=nil then
+								cardFlowClaimUnitAtSlot(claimedCard,seatPos,unitX,layout,commandSource)
+							elseif unitReplacementBegin~=nil
+								and unitReplacementBegin(player,claimedCard.guid,seatPos)==true then
+								-- Offer Unit remains in place until the player confirms a disband.
+							else
+								broadcastToAll("{en}You have no free Command tokens to enlist another Unit.{it}Non hai segnalini Comando liberi per reclutare un'altra Unità.{ru}Нет свободных жетонов Командования для набора отряда.",warningColor)
 							end
 						end
-						if found==false then broadcastToAll("{en}You have no free command tokens to enlist another unit{it}Non hai segnalini Comando liberi per reclutare un'altra Unità{ru}У вас нет свободного жетона командования, чтобы нанять еще один отряд{zh-tw}你沒有空閒的指揮標記可招募另一個單位{zh-cn}你没有闲置的位置招募新部队{ko}유닛을 고용할 지휘 토큰이 부족합니다{es}No tienes fichas de mando gratuitas para alistar otra unidad{fr}Vous n'avez pas de jetons de commande gratuits pour enrôler une autre unité{pt-br}Você não tem Fichas de Comando livres para recrutar outra unidade{de}Du hast keine freien Befehlsmarken, um eine andere Einheit anzuwerben.", warningColor) end
 						--Warn only after the normal location rules plus conquered Camp-as-City proximity are checked.
 						if gameCards[claimedCard.guid]~=nil and unitRecruitableAtCurrentLocation(gStates.turnNumber,claimedCard)~=true then
 							broadcastToAll("{en}Claimed Unit normally isn't recruited from the location you're currently at.{it}Questa Unità normalmente non si recluta nel sito in cui ti trovi.{ru}Забранный Отряд обычно не нанимается из того места, где вы в данный момент находитесь.{zh-tw}你目前所在的位置通常不能招募這個單位{zh-cn}你所在的位置通常不能招募这个部队{ko}보통은, 그 유닛을 현재 장소에서 고용할 수 없습니다{es}La Unidad reclamada normalmente no se recluta en la ubicación en la que se encuentra actualmente.{fr}L'Unité réclamée n'est normalement pas recrutée à l'endroit où vous vous trouvez actuellement.{pt-br}Unidade Clamada normalmente não é recrutada da localização que você está agora.{de}Die beanspruchte Einheit wird normalerweise nicht von dem Ort rekrutiert, an dem Sie sich gerade befinden.", positionToColor(gStates.turnNumber))
@@ -66491,7 +67263,7 @@ local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
 local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="459"
+local automaticLuaErrorReporterVersion="460"
 
 -- Automatic Lua error reporting, protected callback helpers and diagnostic context builders.
 local automaticLuaZoneContext

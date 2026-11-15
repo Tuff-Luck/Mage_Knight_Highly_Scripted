@@ -108,8 +108,9 @@
 			</Button>
 		</VerticalLayout>
 		<Panel id="DummyTurn" class="MainGameSubPanel" active="false" color="rgb(0.2, 0.2, 0.2)" outlineSize="0 0" rectAlignment="LowerCenter" height="250">
-			<VerticalLayout padding="10 10 0 45">
-				<Text id="DummyNotes" class="Text20" color="gray" alignment="TopCenter">Script Modifies</Text>
+			<VerticalLayout padding="10 10 0 45" spacing="4" childForceExpandHeight="false">
+				<Text id="DummyNotes" class="Text20" color="gray" alignment="TopCenter" flexibleHeight="1">Script Modifies</Text>
+				<Text id="DummyDetails" class="Text16" color="gray" alignment="TopCenter" active="false" preferredHeight="90"></Text>
 			</VerticalLayout>
 			<Button id="DummyButton" height="40" rectAlignment="LowerCenter" interactable="false" onClick="dummyTurn">
 				<Image id="DummyButtonImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
@@ -388,6 +389,37 @@
 </Panel>
 
 <!-- include UI/MainGame.xml -->
+<!-- include UI/UnitReplacement.xml -->
+<!-- Full Command capacity: click the Unit card itself to disband and
+     replace it. The same transparent Unit hit area as damage assignment is
+     installed only while this panel is open. -->
+<Panel id="UnitReplacement" active="false" rectAlignment="MiddleCenter"
+       offsetXY="0 170" width="270" height="150" color="#333333F5"
+       outline="#8D785A" outlineSize="2 -2" allowDragging="true">
+    <VerticalLayout padding="5 5 5 5" spacing="5" childForceExpandHeight="false">
+        <Text id="UnitReplacementTitle" class="Title22" color="#F8E6C9"
+              preferredHeight="34">{en}Replace a Unit{it}Sostituisci un'Unità{ru}Замена отряда{zh-tw}替換單位{zh-cn}替换单位{ko}유닛 교체{es}Reemplazar Unidad{fr}Remplacer une Unité{pt-br}Substituir Unidade{de}Einheit ersetzen</Text>
+        <Text id="UnitReplacementDescription" class="Text16" color="#F4E6D5"
+              preferredHeight="67">{en}No free Command Tokens.
+Click a Unit you wish to disband and Replace with a new Unit.{it}Nessun segnalino Comando libero.
+Scegli un'Unità da congedare e sostituire.{ru}Нет свободных жетонов Командования.
+Выберите отряд для роспуска и замены.{zh-tw}沒有空閒指揮標記。
+點選要解散並替換的單位。{zh-cn}没有空闲指挥标记。
+点击要解散并替换的单位。{ko}남은 명령 토큰이 없습니다.
+해산하여 교체할 유닛을 클릭하세요.{es}No hay fichas de Mando libres.
+Elige la Unidad que deseas reemplazar.{fr}Aucun jeton Commandement libre.
+Cliquez sur l'Unité à remplacer.{pt-br}Sem fichas de Comando livres.
+Clique na Unidade que deseja substituir.{de}Keine freien Befehlsmarker.
+Klicke auf die Einheit, die du ersetzen möchtest.</Text>
+        <Button id="UnitReplacementCancel" onClick="unitReplacementCancel"
+                preferredHeight="32">
+            <Image image="Sliced Button/Button New Active" type="Sliced"/>
+            <Text id="UnitReplacementCancelText" class="Text18">{en}Cancel{it}Annulla{ru}Отмена{zh-tw}取消{zh-cn}取消{ko}취소{es}Cancelar{fr}Annuler{pt-br}Cancelar{de}Abbrechen</Text>
+        </Button>
+    </VerticalLayout>
+</Panel>
+
+<!-- include UI/UnitReplacement.xml -->
 <!-- include UI/NoticeBoard.xml -->
 <Panel id="NoticeBoard" active="false" hideAnimation="Shrink" showAnimation="Grow" rectAlignment="UpperCenter" offsetXY="0 -200" width="500" height="50">
 	<Image image="Sliced Button/Button New Active" type="Sliced"/>
