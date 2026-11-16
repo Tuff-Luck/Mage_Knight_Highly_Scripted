@@ -128,10 +128,17 @@ local nonCombatUpdates=isolated(ui,"local mainUINonCombatAccountingSources={",
 eq(nonCombatUpdates["Combat Wounds applied"],true,
     "drawing physical Wounds must preserve pending enemy Fame")
 local enemyPanel=fileText("src/UI/CombatEnemyPanel.xml")
-assert(enemyPanel:find('id="CombatTotalRow" active="false" padding="5 0 3 0"',1,true),
-    "Draw Wounds row should sit lower without excess bottom padding")
-assert(enemyPanel:find('id="CombatApplyWounds" onClick="resourceTracker" preferredWidth="255"',1,true),
-    "Draw Wounds button should fit beneath Result")
+assert(enemyPanel:find('id="CombatTotalRow" active="false" padding="5 0 3 0" preferredHeight="22" childAlignment="UpperRight"',1,true),
+    "Draw Wounds must align to Result's right edge")
+assert(not enemyPanel:find('CombatTotalSpacer',1,true),
+    "Wound summary must not use a separate spacer calculation")
+assert(enemyPanel:find('id="CombatWoundSummary" preferredWidth="220"',1,true)
+    and enemyPanel:find('id="CombatApplyWounds" onClick="resourceTracker" preferredWidth="220"',1,true),
+    "Draw Wounds should no longer use the unrelated 255-unit width")
+assert(recognition:find('local summaryWidth=panelWidth-beforeResult-5',1,true),
+    "Result and Draw Wounds should share the dynamically calculated width")
+assert(recognition:find('combatPanelSetAttribute(id,"preferredWidth",tostring(summaryWidth))',1,true),
+    "Draw Wounds and KO warning must use the actual Result space")
 assert(recognition:find('"Draw: "..combatRich',1,true),
     "wound button should be labelled Draw")
 print("Combat Wound application regressions passed")
