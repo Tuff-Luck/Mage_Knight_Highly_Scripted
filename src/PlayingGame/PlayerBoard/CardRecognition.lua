@@ -71,11 +71,10 @@ trackerPrivate.bannerCardForm=function(guid)
     if data.half~=nil then return "full" end
     return nil
 end
--- The manual-effect question mark is useful on playable Artifacts, but a
--- face-down Banner has already spent its basic (half) or strong (full) effect.
+-- Banner effects are handled through their card state and Unit interactions;
+-- the manual '?' note control is never needed on either physical Banner form.
 trackerPrivate.artifactManualNoteVisible=function(card)
-    return card~=nil and (card.is_face_down~=true
-        or trackerPrivate.bannerCardForm(card.guid)==nil)
+    return card~=nil and trackerPrivate.bannerCardForm(card.guid)==nil
 end
 trackerPrivate.bannerStrongActive=function(card)
     return card~=nil and trackerPrivate.bannerCardForm(card.guid)=="full"
@@ -6033,7 +6032,8 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             startingControl("terrain",special~=nil and special.terrain~=nil
                 and special.terrain:sub(1,3):upper() or "TER",
                 special~=nil and special.terrain~=nil,150,-125)
-        elseif rule.manualSecondary~=nil then
+        elseif rule.manualSecondary~=nil and
+            (not isArtifact or trackerPrivate.artifactManualNoteVisible(card)) then
             startingControl("manual","?",false,135,-125)
         end
     end
