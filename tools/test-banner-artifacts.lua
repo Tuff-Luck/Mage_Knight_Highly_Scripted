@@ -92,6 +92,25 @@ for _,pair in ipairs(bannerPairs) do
         "Full Banner must retain normal artifact calculation")
 end
 
+-- The manual '?' note stays on face-up Banners, but disappears on both
+-- face-down forms (spent attached half or broken full). Other Artifacts keep
+-- their existing manual-note behavior.
+for _,pair in ipairs(bannerPairs) do
+    local full,half=pair[1],pair[2]
+    assert(private.artifactManualNoteVisible({guid=full,is_face_down=false})
+        and private.artifactManualNoteVisible({guid=half,is_face_down=false}),
+        "Face-up Banner manual notes must remain available")
+    assert(not private.artifactManualNoteVisible({guid=full,is_face_down=true})
+        and not private.artifactManualNoteVisible({guid=half,is_face_down=true}),
+        "Face-down Banner manual '?' buttons must disappear in both states")
+end
+gameCards.otherArtifact={cardType="Artifact",resourceKey="artifactUtility"}
+assert(private.artifactManualNoteVisible({guid="otherArtifact",is_face_down=true}),
+    "Other face-down Artifacts must keep their existing manual-note behavior")
+assert(recognition:find(
+    'and posture=="upright" and trackerPrivate.artifactManualNoteVisible(card) then',
+    1,true),"Artifact '?' rendering must use the Banner visibility guard")
+
 -- Exercise UnitLayout's real attachment matching: only half cards
 -- grant their own Unit bonuses. Full cards must be played or converted first.
 local attachmentSource=between(layout,
