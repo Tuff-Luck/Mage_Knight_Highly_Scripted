@@ -71,6 +71,13 @@ trackerPrivate.bannerStrongActive=function(card)
     return card~=nil and trackerPrivate.bannerCardForm(card.guid)=="full"
         and card.is_face_down==true
 end
+-- Attached halves are not separate played actions. This also protects
+-- direct calculateCard() callers, even when a thin play-zone overlaps a Unit.
+trackerPrivate.bannerAttachedCardResult=function(guid)
+    if trackerPrivate.bannerCardForm(guid)~="half" then return nil end
+    return {guid=guid,known=true,complete=true,powered=false,
+        links={},status="blue",resources=nil}
+end
 
 -- An attached Banner of Fear adds a selectable, non-printed Unit
 -- activation. Do not alter the shared per-type Unit catalog.
@@ -6880,10 +6887,8 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
     -- A half Banner is an attached Unit accessory, NOT a played Artifact.
     -- In particular Banner of Command must not award its Break Fame +2 or
     -- its full-card Influence 4 when the Command source is flipped/spent.
-    if trackerPrivate.bannerCardForm(card.guid)=="half" then
-        return {guid=card.guid,known=true,complete=true,powered=false,
-            links={},status="blue",resources=nil}
-    end
+    local attachedResult=trackerPrivate.bannerAttachedCardResult(card.guid)
+    if attachedResult~=nil then return attachedResult end
     local tracked=data==nil or data.resourceTracked~=false
     local powered=manaPowered or linkedBoost~=nil
     if repeatLink~=nil then powered=repeatLink.powered end
