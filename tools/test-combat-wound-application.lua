@@ -45,7 +45,9 @@ resourceCardsSourceChanged=function() end
 mainUIUpdate=function() end
 warningColor={1,0,0}
 local warnings={}
-broadcastToColor=function(message) warnings[#warnings+1]=message end
+broadcastToColor=function(message, _playerColor, _messageTint)
+    warnings[#warnings+1]=message
+end
 safeBroadcastToColor=broadcastToColor
 isolated(recognition,"combatConfig.woundLedger=function(seat)",
     "local function combatDamageNotes")
