@@ -4187,16 +4187,15 @@ local function combatAssignmentRefreshRows(entries,sources)
     local showTotal=totalHeroWounds>0
     combatPanelSetAttribute("CombatTotalRow","active",showTotal and "true" or "false")
     if showTotal then
-        -- Align with Result; allow the separate knockout warning to extend slightly
-        -- into the preceding column rather than clipping in a 180-unit text field.
-        local spacer=-hiddenWidth-50
+        -- Align the Wound button directly below the dynamically sized Result column.
+        local spacer=-hiddenWidth
         for _,width in ipairs({120,55,150,columnWidths.range,105,130,columnWidths.block,columnWidths.attack}) do
             spacer=spacer+width
         end
         combatPanelSetAttribute("CombatTotalSpacer","preferredWidth",tostring(spacer))
         local poisonText=totalDiscardWounds>0 and " ("..tostring(totalDiscardWounds).." Poison)" or ""
         combatPanelSetAttribute("CombatTotalDamage","text",
-            "Total: "..combatRich(combatWoundsText(totalHeroWounds)..poisonText,combatConfig.COMBAT_RED))
+            "Draw: "..combatRich(combatWoundsText(totalHeroWounds)..poisonText,combatConfig.COMBAT_RED))
         combatPanelSetAttribute("CombatTotalDamage","font","Fonts/MKCardText")
         local pending=pendingHand+pendingDiscard>0
         combatPanelSetAttribute("CombatApplyWounds","interactable",
@@ -4214,7 +4213,7 @@ local function combatAssignmentRefreshRows(entries,sources)
                 "KNOCKED OUT")
             combatPanelSetAttribute("CombatKnockoutWarning","font","Fonts/MKCardText")
         end
-        local summaryHeight=knockout and 36 or 18
+        local summaryHeight=knockout and 40 or 22
         combatPanelSetAttribute("CombatTotalRow","preferredHeight",tostring(summaryHeight))
         totalRowHeight=totalRowHeight+summaryHeight
     end
