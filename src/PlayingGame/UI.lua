@@ -635,6 +635,8 @@ end
 -- skip the expensive Fame/Reputation combat-object reconciliation.
 local mainUINonCombatAccountingSources={
 	["Card Entered Hand"]=true,
+	-- Dealing calculated Wounds only changes hand/discard, never enemy rewards.
+	["Combat Wounds applied"]=true,
 	["Object entered into deed deck or discard"]=true,
 	["Deed pile state changed"]=true,
 	["Tactic 4 Hand Bonus Changed"]=true,
