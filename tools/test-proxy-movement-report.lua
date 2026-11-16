@@ -169,7 +169,14 @@ translatedEnv.gStates.proxyTurnReport.target="Mage Tower"
 translatedEnv.gStates.proxyTurnReport.sourceRerollColor="Gold"
 local tagged=taggedRender("headline")
 local function languageFragment(text,lang)
-    return text:match("{"..lang.."}(.-){") or text:match("{"..lang.."}(.*)$")
+    -- Language tags contain hyphens (zh-cn, pt-br); Lua patterns would
+    -- interpret '-' as a repetition operator, not a literal separator.
+    local marker="{"..lang.."}"
+    local start=text:find(marker,1,true)
+    if start==nil then return nil end
+    local from=start+#marker
+    local nextTag=text:find("{",from,true)
+    return text:sub(from,nextTag~=nil and nextTag-1 or #text)
 end
 assert(languageFragment(tagged,"en")=="Proxy moved toward the Mage Tower, and rolled a Source die.",
     "Localised English headline has misplaced punctuation")
