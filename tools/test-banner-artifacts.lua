@@ -57,7 +57,7 @@ assert(private.unitAbilitiesFor("unit",attached)==printed.unit,
 -- The real Damage-phase resolver must use one flipped Fortitude on one
 -- selected attack, including prevention of Poison and Paralysis, not both.
 local damageSource=between(recognition,
-    "-- Cold Fire only counts as resisted by a Unit",
+    "local function combatUnitResists(unit,attackKey)",
     "local function combatWoundsText(count)")
 local damageTest=assert(load([[
 local gStates={currentRound=1}
@@ -65,6 +65,7 @@ local fortitude={}
 local trackerPrivate={bannerEffectUses=function()
     return {fortitude=fortitude}
 end}
+local function combatUnitResists(unit,attackKey)
 ]]..damageSource..[[
 return combatDamageResolve
 ]]))()
