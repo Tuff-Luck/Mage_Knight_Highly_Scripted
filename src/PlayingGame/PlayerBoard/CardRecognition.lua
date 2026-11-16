@@ -2075,7 +2075,7 @@ function resourceCardsApplyCombatWounds(player)
     local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
     local ledger=current~=nil and combatConfig.woundLedger(current.seatPos) or nil
     local allocations,hand,discard,changed=combatConfig.woundPending(ledger)
-    if ledger==nil then return end
+    if current==nil or ledger==nil then return end
     if hand+discard==0 then
         if changed then
             broadcastToColor("Combat damage changed after Wounds were dealt. Check the physical cards; none are removed automatically.",
@@ -2108,7 +2108,7 @@ end
 function combatWoundsEndTurnReminder(color)
     local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
     local ledger=current~=nil and gStates.combatWoundApplication or nil
-    if ledger==nil or ledger.seat~=current.seatPos then return false end
+    if current==nil or ledger==nil or ledger.seat~=current.seatPos then return false end
     if combatConfig.woundApplying then
         safeBroadcastToColor("Wound cards are still being dealt. Finish applying them before ending combat.",
             color,warningColor)
