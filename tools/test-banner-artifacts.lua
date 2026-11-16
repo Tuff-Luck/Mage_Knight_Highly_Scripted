@@ -158,6 +158,28 @@ attached.bannersByUnit.unit["Banner of Fear"]=nil
 assert(private.unitAbilitiesFor("unit",attached)==printed.unit,
     "Detaching Fear must remove the Unit's added ability")
 
+-- Banner of Fear's delayed scan awards Fame only when the enemy is
+-- not Arcane Immune. The effect module must export its immunity helper so
+-- CardRecognition.lua can call it from the same Global script.
+local immuneSource=between(effects,
+    "-- Arcane Immunity ignores non-attack effects; directly changing an Attack remains legal.\n",
+    "-- Unlike a Spell that destroys")
+local immuneEnvironment={
+    monsterPugs={plain={},printed={arcaneImmunity=true}},
+    gStates={monsterPerks={perk={arcaneImmunity=true}}}
+}
+setmetatable(immuneEnvironment,{__index=_G})
+assert(load(immuneSource,"Banner of Fear immunity","t",immuneEnvironment))()
+assert(type(immuneEnvironment.combatEffectImmune)=="function",
+    "Banner of Fear requires a cross-module callable immunity helper")
+assert(immuneEnvironment.combatEffectImmune("printed")
+    and immuneEnvironment.combatEffectImmune("perk")
+    and not immuneEnvironment.combatEffectImmune("plain"),
+    "Banner of Fear must distinguish printed/perk Arcane Immunity from normal enemies")
+assert(recognition:find(
+    "if ability.bannerFear and not combatEffectImmune(target.guid) then",1,true),
+    "Banner of Fear Fame must check the exported immunity helper")
+
 -- The real Damage-phase resolver must use one flipped Fortitude on one
 -- selected attack, including prevention of Poison and Paralysis, not both.
 local damageSource=between(recognition,
