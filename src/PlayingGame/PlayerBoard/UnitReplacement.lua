@@ -103,6 +103,15 @@ function unitReplacementClose()
     end
 end
 
+-- Replacing a Banner of Command Unit cannot silently hand its Command
+-- source to the newcomer. The banner must first be removed, taking its Unit.
+local function replacementSelectable(layout,unit)
+    local slot=layout.unitSlotByGuid[unit.guid]
+    local command=slot~=nil and layout.commands[slot] or nil
+    return command~=nil and not (GUID.card~=nil
+        and command.guid==GUID.card.bannerOfCommandToken)
+end
+
 local function replacementRender(state)
     if state==nil then return end
     local layout=unitLayoutSnapshot(state.seatPos)
@@ -115,7 +124,7 @@ local function replacementRender(state)
     end
     state.candidates={}
     for _,unit in ipairs(layout.units) do
-        if layout.unitSlotByGuid[unit.guid]~=nil then
+        if replacementSelectable(layout,unit) then
             state.candidates[#state.candidates+1]=unit.guid
             replacementShowUnitButton(unit)
             if unit.highlightOn~=nil then unit.highlightOn({1,0.60,0.12}) end
@@ -134,7 +143,7 @@ function unitReplacementEnsureControls(seatPos)
     -- buttons. Reconcile invisible hit areas without stacking duplicates.
     local layout=unitLayoutSnapshot(state.seatPos)
     for _,unit in ipairs(layout.units) do
-        if layout.unitSlotByGuid[unit.guid]~=nil then
+        if replacementSelectable(layout,unit) then
             replacementShowUnitButton(unit)
         end
     end
@@ -181,7 +190,7 @@ local function unitReplacementSelectClicked(unit,playerColor)
         or not replacementPlayerAllowed({color=playerColor},state)
         or state.committing==true then return end
     local layout=unitLayoutSnapshot(state.seatPos)
-    if layout.unitSlotByGuid[unit.guid]==nil then return end
+    if not replacementSelectable(layout,unit) then return end
     state.selectedGUID=unit.guid
     state.committing=true
     unitReplacementConfirm({color=playerColor})
@@ -195,7 +204,7 @@ end
 
 -- The old Unit's Wound markers leave play; attached Banner Artifacts go to
 -- the player's DISCARD (base rules), not into the Trash or onto the new Unit.
--- Command sources (including Banner of Command and Bonds) are never removed.
+-- The protected Banner of Command slot is not a replacement candidate.
 local function replacementDetachAccessories(layout,unit,seatPos)
     local bounds=unit.getBounds()
     local size=bounds~=nil and bounds.size or nil
@@ -259,6 +268,7 @@ local function replacementValid(state)
     local token=slot~=nil and layout.commands[slot] or nil
     local unitX=slot~=nil and layout.slotX[slot] or nil
     if claimed==nil or old==nil or token==nil or unitX==nil
+        or not replacementSelectable(layout,old)
         or layout.unitBySlot[slot]==nil
         or layout.unitBySlot[slot].guid~=old.guid then return nil end
     return claimed,old,layout,unitX,token
