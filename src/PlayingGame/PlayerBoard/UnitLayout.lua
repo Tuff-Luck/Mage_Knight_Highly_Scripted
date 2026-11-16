@@ -442,6 +442,20 @@ end
 refreshUnitLayout=function(seatPos)
 	if seatPos==nil then return end
 	local layout=unitLayoutSnapshot(seatPos)
+    -- Remember which Unit depends on Banner of Command. Do not replace a
+    -- remembered owner while a card is in flight; the settled drop reconciles it.
+    if gStates~=nil then
+        gStates.bannerCommandOwnerBySeat=gStates.bannerCommandOwnerBySeat or {}
+        if gStates.bannerCommandOwnerBySeat[seatPos]==nil then
+            for slot,command in ipairs(layout.commands) do
+                if command.guid==GUID.card.bannerOfCommandToken
+                    and layout.unitBySlot[slot]~=nil then
+                    gStates.bannerCommandOwnerBySeat[seatPos]=layout.unitBySlot[slot].guid
+                    break
+                end
+            end
+        end
+    end
 	local commandCount=#layout.commands
 	if commandCount<=unitLayoutConfig.nativeSlots and layout.expanded~=true then return end
 	refreshUnitLayoutSnapPoints(seatPos,commandCount)
@@ -489,6 +503,45 @@ refreshUnitLayout=function(seatPos)
 		end
 	end
 	unitLayoutExpanded[seatPos]=commandCount>unitLayoutConfig.nativeSlots
+end
+
+-- Banner of Command is the Unit's actual Command source, not a spare token.
+-- A moved/stolen Banner removes its former Unit; if the Unit was manually
+-- disbanded instead, its Banner returns to discard. Only settled drops reconcile.
+function unitLayoutReconcileBannerCommand(seatPos)
+    if seatPos==nil or gStates==nil then return end
+    local owners=gStates.bannerCommandOwnerBySeat or {}
+    local previous=owners[seatPos]
+    local layout=unitLayoutSnapshot(seatPos)
+    local current=nil
+    for slot,command in ipairs(layout.commands) do
+        if command.guid==GUID.card.bannerOfCommandToken then
+            current=layout.unitBySlot[slot]~=nil and layout.unitBySlot[slot].guid or nil
+            break
+        end
+    end
+    if previous~=nil and previous~=current then
+        local old=getObjectFromGUID(previous)
+        if old~=nil and unitLayoutObjectInUnitArea(previous,seatPos) then
+            if resourceUnitsRetireUnit~=nil then resourceUnitsRetireUnit(previous) end
+            local trash=getObjectFromGUID(trashCan)
+            if trash~=nil then trash.putObject(old) end
+        else
+            -- A manually removed/destroyed dependent Unit loses the Banner.
+            local banner=getObjectFromGUID(GUID.card.bannerOfCommandToken)
+            local discard=getObjectFromGUID(deedDeckDiscardZones[seatPos])
+            if banner~=nil and discard~=nil
+                and unitLayoutObjectInUnitArea(banner.guid,seatPos) then
+                local pos=discard.getPosition()
+                banner.unlock()
+                banner.setPositionSmooth({(pos.x or pos[1]),
+                    (pos.y or pos[2])+2,(pos.z or pos[3])},false,false)
+            end
+        end
+    end
+    owners[seatPos]=current
+    gStates.bannerCommandOwnerBySeat=owners
+    if previous~=current then scheduleUnitLayoutRefresh(seatPos) end
 end
 
 function scheduleUnitLayoutRefresh(seatPos)
