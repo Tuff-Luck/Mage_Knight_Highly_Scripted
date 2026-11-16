@@ -48,6 +48,9 @@ local env={
     gStates=stored,
     Player={Blue={}},
     resourceCardsPlayerCanEdit=function(color) return color=="Blue" end,
+    -- Source-target assignment now classifies resource kinds in a helper.
+    -- This fixture tests cancellation, not resource-family classification.
+    attackAssignmentsKindFor=function() return "attack" end,
     resourceCardsPanelOpen=function() return true end,
     getObjectFromGUID=function(guid)
         return guid==moveGUID and sourceObject or nil
