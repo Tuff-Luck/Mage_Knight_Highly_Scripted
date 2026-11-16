@@ -10885,7 +10885,7 @@ local function scheduleSeatRender(seatPos)
     safeWaitFrames("PlayerBoard.CardRecognition",function()
         if trackerPrivate.pendingSeatRender[seatPos]~=generation then return end
         trackerPrivate.pendingSeatRender[seatPos]=nil
-        if trackerPrivate.generation[seatPos]==generation and resourceCardsPanelOpen() then
+        if (trackerPrivate.generation[seatPos] or 0)==generation and resourceCardsPanelOpen() then
             renderSeat(seatPos)
         end
     end,1)
@@ -10907,7 +10907,7 @@ local function queueSeat(seatPos,triggerGUID)
     end
     waits[triggerGUID]=generation
     local function stillCurrent()
-        return trackerPrivate.generation[seatPos]==generation
+        return (trackerPrivate.generation[seatPos] or 0)==generation
             and trackerPrivate.pendingSeatSettles[seatPos]==waits
             and waits[triggerGUID]==generation and resourceCardsPanelOpen()
     end
