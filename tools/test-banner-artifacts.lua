@@ -55,7 +55,7 @@ local function unitLayoutResourceState() return nil end
 trackerPrivate.bannerEffectUses=function()
 ]]..helpers..[[
 return trackerPrivate,gStates,unitResourceDefinitions
-]]))()(gameCards)
+]]))(gameCards)
 local use=private.bannerEffectUses()
 use.healing.fortitude=true
 use.courage.courage={eligible={}}
