@@ -512,6 +512,13 @@ function unitLayoutReconcileBannerCommand(seatPos)
     if seatPos==nil or gStates==nil then return end
     local owners=gStates.bannerCommandOwnerBySeat or {}
     local previous=owners[seatPos]
+    local heldBanner=getObjectFromGUID(GUID.card.bannerOfCommandToken)
+    local previousUnit=previous~=nil and getObjectFromGUID(previous) or nil
+    -- Picking up either card must not be mistaken for permanent loss.
+    if (heldBanner~=nil and heldBanner.held_by_color~=nil
+        and heldBanner.held_by_color~="")
+        or (previousUnit~=nil and previousUnit.held_by_color~=nil
+            and previousUnit.held_by_color~="") then return end
     local layout=unitLayoutSnapshot(seatPos)
     local current=nil
     for slot,command in ipairs(layout.commands) do
