@@ -22,6 +22,27 @@ for _,name in ipairs({"Fear","Courage","Glory","Protection","Fortitude","OfComma
     assert(data:find("artifactBanner"..name.."=",1,true),"missing official Banner "..name)
 end
 
+-- All seven physical card pairs, including the second copy of Glory.
+-- Assert each identifier is still registered in Data.lua, then use the same
+-- keys with the actual production form-detection helper.
+local bannerPairs={
+    {"7b9ec1","8e4b92","artifactBannerFear"},
+    {"6b4654","986216","artifactBannerCourage"},
+    {"085e50","0b5b32","artifactBannerGlory"},
+    {"df2eae","e48e44","artifactBannerProtection"},
+    {"7d608f","596cfa","artifactBannerFortitude"},
+    {"98681f","8dbce4","artifactBannerOfCommand"},
+    {"3d50e6","75a627","artifactBannerGlory"}
+}
+local gameCards={}
+for _,pair in ipairs(bannerPairs) do
+    local full,half,key=pair[1],pair[2],pair[3]
+    assert(data:find(full,1,true) and data:find(half,1,true),
+        "Missing full or half Banner GUID for "..key)
+    gameCards[full]={cardType="Artifact",resourceKey=key,half=half}
+    gameCards[half]={cardType="Artifact",resourceKey=key,full=full}
+end
+
 -- The state and temporary ability helper are the real production source.
 local helpers=between(recognition,"trackerPrivate.bannerEffectUses=function()",
     "trackerPrivate.commandPickupForUnits={}")
@@ -29,11 +50,12 @@ local private,states,printed=assert(load([[
 local trackerPrivate={}
 local gStates={currentRound=1}
 local unitResourceDefinitions={unit={{row=1,key="attack",attack=4}}}
+local gameCards=...
 local function unitLayoutResourceState() return nil end
 trackerPrivate.bannerEffectUses=function()
 ]]..helpers..[[
 return trackerPrivate,gStates,unitResourceDefinitions
-]]))()
+]]))()(gameCards)
 local use=private.bannerEffectUses()
 use.healing.fortitude=true
 use.courage.courage={eligible={}}
@@ -43,6 +65,30 @@ assert(private.bannerEffectUses().healing.fortitude==nil
     and private.bannerEffectUses().courage.courage==nil,
     "New Round must reset Banner uses")
 
+for _,pair in ipairs(bannerPairs) do
+    local full,half=pair[1],pair[2]
+    assert(private.bannerCardForm(full)=="full"
+        and private.bannerCardForm(half)=="half",
+        "Banner full and half must have separate semantic modes")
+    local fullUp={guid=full,is_face_down=false}
+    local fullDown={guid=full,is_face_down=true}
+    local halfUp={guid=half,is_face_down=false}
+    local halfDown={guid=half,is_face_down=true}
+    assert(not private.bannerStrongActive(fullUp)
+        and private.bannerStrongActive(fullDown)
+        and not private.bannerStrongActive(halfUp)
+        and not private.bannerStrongActive(halfDown),
+        "Only flipping the full-sized Banner may enable its Break effect")
+    for _,card in ipairs({halfUp,halfDown}) do
+        local result=private.bannerAttachedCardResult(card.guid)
+        assert(result~=nil and result.powered==false
+            and result.fameRep==nil and result.resources==nil,
+            "Attached half must never give full-card Influence, Fame or Break resources")
+    end
+    assert(private.bannerAttachedCardResult(full)==nil,
+        "Full Banner must retain normal artifact calculation")
+end
+
 local attached={bannersByUnit={unit={["Banner of Fear"]={
     guid="fear",faceDown=false}}}}
 local withFear=private.unitAbilitiesFor("unit",attached)
@@ -50,8 +96,12 @@ assert(withFear.bannerFearIndex==2 and withFear[2].enemyEffect.cancelOneAttack,
     "Attached Banner of Fear must add a distinct selectable Unit ability")
 assert(#printed.unit==1,"Banner of Fear must not mutate shared printed abilities")
 attached.bannersByUnit.unit["Banner of Fear"].faceDown=true
+local spentFear=private.unitAbilitiesFor("unit",attached)
+assert(spentFear.bannerFearIndex==2,
+    "Flipped half Fear must remain a basic Unit effect during its activation")
+attached.bannersByUnit.unit["Banner of Fear"]=nil
 assert(private.unitAbilitiesFor("unit",attached)==printed.unit,
-    "Broken Fear may not grant an attached Unit ability")
+    "Detaching Fear must remove the Unit's added ability")
 
 -- The real Damage-phase resolver must use one flipped Fortitude on one
 -- selected attack, including prevention of Poison and Paralysis, not both.
@@ -139,6 +189,26 @@ assert(#remaining==1 and remaining[1].value==7,
     "Fear must allow a chosen printed Attack to be cancelled")
 assert(#enemyAttacks(entry,true)==2,
     "Attack cycle must retain choices even after one is cancelled")
+
+-- All scans and strong-effect callbacks must distinguish the full form.
+assert(recognition:find('trackerPrivate.bannerCardForm(guid)~="half"',1,true),
+    "Half Banners must not enter the play-area Artifact list")
+assert(recognition:find('local attachedResult=trackerPrivate.bannerAttachedCardResult(card.guid)',1,true),
+    "The card calculator must leave attached halves inert")
+assert(recognition:find('and trackerPrivate.bannerCardForm(card.guid)~="half"',1,true),
+    "Only full Banners may be classified as broken Artifacts")
+assert(recognition:find('and trackerPrivate.bannerStrongActive(card)',1,true),
+    "Fortitude and other strong buttons must check the full-card form")
+assert(recognition:find('if trackerPrivate.bannerCardForm(guid)=="full" then',1,true),
+    "Courage full and attached Ready paths must be separate")
+assert(recognition:find('trackerPrivate.bannerStrongActive(artifact)',1,true),
+    "Glory army-wide bonus must only be enabled by full Break")
+assert(layout:find('data.cardType=="Artifact" and data.full~=nil',1,true),
+    "Only half-sized Banners may be attached as Unit bonuses")
+assert(event:find("bannerPosition[3]>=-38.4 and obj.is_face_down~=true",1,true),
+    "A broken full card must not be converted into a spendable half")
+assert(event:find("if fullCard.is_face_down==true then fullCard.flip() end",1,true),
+    "A spent half must be restored to a face-up full card on detachment")
 
 -- Banner of Courage is snapshotted once, rather than readied on every scan.
 assert(recognition:find("if courageUses[card.guid]==nil then",1,true),
