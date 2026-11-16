@@ -827,20 +827,24 @@ local function combatApplyAttackReductions(attacks,effect,ownerGUID,chosenAttack
         local sourceKey=reduction.id or tostring(reduction.source)
         local choice=chosenAttacks~=nil and chosenAttacks[sourceKey] or nil
         local target=choice~=nil and attacks[choice] or nil
-        if target~=nil and (target.pending or (ownerGUID~=nil and target.owner~=ownerGUID)) then
+        if target~=nil and (target.pending or target.cancelled
+            or (ownerGUID~=nil and target.owner~=ownerGUID)) then
             target=nil
         end
         -- Stale selections fall back to the strongest currently legal attack.
         if target==nil then
             for _,attack in ipairs(attacks) do
-                if not attack.pending and (ownerGUID==nil or attack.owner==ownerGUID)
-                    and (attack.value>0 or reduction.amount<0 or reduction.stripAbilities)
+                if not attack.pending and not attack.cancelled
+                    and (ownerGUID==nil or attack.owner==ownerGUID)
+                    and (attack.value>0 or reduction.amount<0
+                        or reduction.stripAbilities or reduction.cancelAttack)
                     and (target==nil or attack.value>target.value) then
                     target=attack
                 end
             end
         end
         if target~=nil then
+            if reduction.cancelAttack then target.cancelled=true end
             target.value=math.max(0,target.value-reduction.amount)
             if reduction.stripAbilities then
                 for _,trait in ipairs({"swift","brutal","cumbersome","poison",
@@ -852,7 +856,7 @@ local function combatApplyAttackReductions(attacks,effect,ownerGUID,chosenAttack
     end
 end
 
-local function combatEnemyAttacks(entry)
+local function combatEnemyAttacks(entry,includeCancelled)
     if entry.noAttack or entry.destroyed then return {} end
     local attacks=combatEnemyPrintedAttacks(entry.data,entry.perks,entry.removeAbilities,entry.guid)
     if entry.data.monsters~=nil then
@@ -890,6 +894,13 @@ local function combatEnemyAttacks(entry)
         for _,attack in ipairs(attacks) do
             if attack.owner==entry.guid and attack.key~="M"
                 and not attack.abilitiesStripped then attack.cumbersome=true end
+        end
+    end
+    -- Keep original attack positions for the attack-cycle selector; actual
+    -- combat omits precisely the cancelled attack and all its abilities.
+    if not includeCancelled then
+        for i=#attacks,1,-1 do
+            if attacks[i].cancelled then table.remove(attacks,i) end
         end
     end
     return attacks
@@ -2272,6 +2283,7 @@ combatConfig.effectButtonInfo=function(entry,applied)
         or spec.removeFortify==true or spec.removeResist==true
         or spec.removeFireResist==true or spec.destroy==true or spec.destroyDuringAttack==true
     local isBlock=attack>0 or spec.noAttack==true or spec.noAttackUnfortified==true
+        or spec.cancelOneAttack==true
         or spec.removeAbilities==true or spec.removeOneAttackAbilities==true
         or spec.destroyIfBlocked==true or spec.destroyIfFullyBlocked==true
     local attackIncrease=tonumber(spec.attackIncrease) or 0
@@ -2296,7 +2308,14 @@ combatConfig.effectButtonInfo=function(entry,applied)
     end
     local amount,description,reason="!", "Combat effect",nil
     local raw=entry.unmodifiedArmour or entry.baseArmour or 1
-    if spec.removeTrait~=nil then
+    if spec.cancelOneAttack==true then
+        amount="X"
+        description="Cancel one printed enemy Attack"
+        if actual.cancelOneAttack~=true then
+            reason=applied.immune and "Arcane Immunity ignores this effect."
+                or "This attack cannot be cancelled."
+        end
+    elseif spec.removeTrait~=nil then
         amount="X"
         description="Ignore printed "..tostring(spec.removeTrait)
         if actual.removedPrinted==nil or actual.removedPrinted[spec.removeTrait]~=true then
@@ -2786,7 +2805,7 @@ local function combatAssignmentRefreshRows(entries,sources)
             combatPanelSetAttribute("CombatEnemyRow"..row.."Name","color","rgb(0.96,0.92,0.82)")
             combatPanelSetAttribute("CombatEnemyRow"..row.."Armour","color","rgb(0.96,0.92,0.82)")
             combatPanelSetAttribute("CombatEnemyRow"..row.."Traits","color","rgb(0.88,0.84,0.73)")
-            local attacks=combatEnemyAttacks(entry)
+            local attacks=combatEnemyAttacks(entry,true)
             local options={}
             if #entry.attackReductions>0 then
                 for attackIndex,attack in ipairs(attacks) do
@@ -2811,7 +2830,9 @@ local function combatAssignmentRefreshRows(entries,sources)
                 combatPanelSetAttribute("CombatEnemyAttackCycle"..row,"tooltip",
                     "Reduction "..tostring(rank).."/"..tostring(#entry.attackReductions)
                     ..": "..tostring(sourceName)
-                    ..(selected.stripAbilities and " (remove abilities)" or (" (-"..tostring(selected.amount)..")"))
+                    ..(selected.cancelAttack and " (cancel one Attack)"
+                        or selected.stripAbilities and " (remove abilities)"
+                        or (" (-"..tostring(selected.amount)..")"))
                     ..". Left-click: cycle target (including Auto). Right-click: next reduction source.")
             end
             for _,column in ipairs({"Attacks","Offence","Traits"}) do
@@ -9346,6 +9367,15 @@ local function renderSeat(seatPos)
                                         if ability.enemyEffect~=nil then
                                             combatEffectAdd(enemyEffects,target.guid,unitGUID,ability.enemyEffect,sourceKey)
                                             result.links[#result.links+1]=target.guid
+                                            -- The Unit is spent for Fear rather than
+                                            -- its printed ability. Fame requires a legal
+                                            -- enemy target; Arcane Immunity negates it.
+                                            if ability.bannerFear and not combatEffectImmune(target.guid) then
+                                                result.fameRep={fame=1}
+                                                result.contributes=true
+                                                result.status="purple"
+                                                setHighlight(unit,"purple",false)
+                                            end
                                         end
                                         if sourceKey~=unitGUID then
                                             result.enemyEffectTargetGUIDs=result.enemyEffectTargetGUIDs or {}
