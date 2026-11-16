@@ -66,7 +66,7 @@ local ownerAPI=assert(load(ownerCode..
     "\nreturn resourceUnitsCommandSpent,resourceUnitsCommandOwner,"
     .."resourceUnitsAdoptCommand,resourceUnitsRecordSpentCommands,"
     .."resourceUnitsSpentCommands",
-    "Command ownership","t",ownerEnv))()
+    "Command ownership","t",ownerEnv))
 local commandSpent,commandOwner,adopt,record,spentTable=ownerAPI()
 assert(commandSpent(tokenGUID)==true and commandOwner(tokenGUID)==oldGUID)
 assert(adopt(tokenGUID,newGUID,1,false)==false,
