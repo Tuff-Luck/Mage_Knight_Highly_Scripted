@@ -117,7 +117,7 @@ eq(run,true,"Shared pool reservations/clamping")
 -- offensive abilities, without replacing the attack's Fire/Ice element.
 local reductionHelpers=extract(reader,
     "-- An Attack reduction modifies one printed Attack",
-    "local function combatEnemyAttacks(entry)")
+    "local function combatEnemyAttacks(entry,includeCancelled)")
 local strip=assert(load(reductionHelpers.."\nreturn combatApplyAttackReductions"))()
 local attacks={
     {value=5,key="F",owner="enemy",brutal=true,swift=true},
