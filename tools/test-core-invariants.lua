@@ -84,9 +84,26 @@ local expired={
     getName=function() error("destroyed TTS userdata") end,
     getGMNotes=function() error("destroyed TTS userdata") end
 }
+-- Loading can race the first destruction callback: the card catalog is optional.
+gameCards=nil
 gStates.volkarePursuitShields[expired.guid]=true
-assert(pcall(__onObjectDestroy_raw,expired),"Destroyed-object cleanup accessed expired methods")
+local destroyedOK,destroyedError=pcall(__onObjectDestroy_raw,expired)
+assert(destroyedOK,"Destroyed-object cleanup failed: "..tostring(destroyedError))
 equal(gStates.volkarePursuitShields[expired.guid],nil,"Expired Pursuit shield registration was not cleared")
+
+-- Known destroyed Units still retire their activation/Ready history by GUID,
+-- without requiring any methods on an already-expired object.
+local retiredUnit
+gameCards={spent_unit={cardType="Regular Unit"}}
+resourceUnitsRetireUnit=function(guid) retiredUnit=guid end
+local spentUnit={
+    guid="spent_unit",
+    getName=function() error("destroyed TTS userdata") end,
+    getGMNotes=function() error("destroyed TTS userdata") end
+}
+local unitOK,unitError=pcall(__onObjectDestroy_raw,spentUnit)
+assert(unitOK,"Destroyed Unit cleanup failed: "..tostring(unitError))
+equal(retiredUnit,"spent_unit","Destroyed Unit activation history was not retired")
 
 -- Event loops waiting for physics must terminate or take their bounded fallback.
 local pending
