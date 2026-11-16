@@ -127,13 +127,15 @@ function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec,sourceKey)
             iceResistant=iceResistant}
     end
     local attackAdjust=(tonumber(spec.attackReduce) or 0)-(tonumber(spec.attackIncrease) or 0)
-    if attackAdjust~=0 or spec.removeOneAttackAbilities==true then
+    if attackAdjust~=0 or spec.removeOneAttackAbilities==true or spec.cancelOneAttack==true then
         local ordinal=1
         for _,previous in ipairs(entry.attackReductions) do
             if previous.source==sourceGUID then ordinal=ordinal+1 end
         end
-        local id=tostring(sourceGUID)..(ordinal>1 and ("#"..tostring(ordinal)) or "")
+        local id=spec.cancelOneAttack==true and tostring(sourceKey or sourceGUID)
+            or (tostring(sourceGUID)..(ordinal>1 and ("#"..tostring(ordinal)) or ""))
         entry.attackReductions[#entry.attackReductions+1]={amount=attackAdjust,
+            cancelAttack=spec.cancelOneAttack==true,
             stripAbilities=spec.removeOneAttackAbilities==true,
             source=sourceGUID,id=id,
             firstDamageUnit=spec.firstDamageUnit==true and sourceGUID or nil}
