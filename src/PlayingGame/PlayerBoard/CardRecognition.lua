@@ -4181,13 +4181,8 @@ local function combatAssignmentRefreshRows(entries,sources)
         end
     end
 
-    -- Keep the Result cell and the Wound summary in the same right-hand space.
-    -- The panel reserves a little extra width for long Result text; measure
-    -- that remaining space instead of assuming its preferredWidth is its final width.
     local widthReduction=(170-columnWidths.range)+(170-columnWidths.block)+(170-columnWidths.attack)
     local panelWidth=1380-(255-combatConfig.columns.Result)-hiddenWidth-widthReduction
-    local beforeResult=120+55+150+columnWidths.range+105+130+columnWidths.block+columnWidths.attack-hiddenWidth
-    local summaryWidth=panelWidth-beforeResult-5 -- Same right inset as the Result row.
 
     combatConfig.woundRecordPreview(damageSeat,damageItems,damageResults)
     local ledger=combatConfig.woundLedger(damageSeat)
@@ -4195,11 +4190,8 @@ local function combatAssignmentRefreshRows(entries,sources)
     local showTotal=totalHeroWounds>0
     combatPanelSetAttribute("CombatTotalRow","active",showTotal and "true" or "false")
     if showTotal then
-        -- Right-aligned to the Result column, not to a separate spacer.
-        for _,id in ipairs({"CombatWoundSummary","CombatApplyWounds",
-            "CombatTotalDamage","CombatKnockoutWarning"}) do
-            combatPanelSetAttribute(id,"preferredWidth",tostring(summaryWidth))
-        end
+        -- The XML's fixed-width, right-anchored Panel is outside any
+        -- HorizontalLayout, so Unity's layout group cannot expand its child.
         local poisonText=totalDiscardWounds>0 and " ("..tostring(totalDiscardWounds).." Poison)" or ""
         combatPanelSetAttribute("CombatTotalDamage","text",
             "Draw: "..combatRich(combatWoundsText(totalHeroWounds)..poisonText,combatConfig.COMBAT_RED))
