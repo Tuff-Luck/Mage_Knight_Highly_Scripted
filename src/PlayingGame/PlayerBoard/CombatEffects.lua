@@ -63,7 +63,9 @@ end
 -- armourReduceRangedUnfortifiedOnly (does not reduce Armour in Ranged/Siege on a fortified enemy),
 -- all (every face-up enemy instead of one).
 -- Arcane Immunity ignores non-attack effects; directly changing an Attack remains legal.
-local function combatEffectImmune(enemyGUID)
+-- Shared by the effect resolver and Banner of Fear's Fame calculation.
+-- This must be a global function: CardRecognition.lua is a separate module.
+function combatEffectImmune(enemyGUID)
     local pug=monsterPugs[enemyGUID]
     local perks=gStates~=nil and gStates.monsterPerks~=nil and gStates.monsterPerks[enemyGUID] or nil
     return (pug~=nil and pug.arcaneImmunity==true) or (perks~=nil and perks.arcaneImmunity==true)
