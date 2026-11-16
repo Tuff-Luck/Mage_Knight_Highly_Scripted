@@ -630,6 +630,20 @@ function __onObjectDrop_raw(player_color, dropped_object)
 	local droppedGUID=dropped_object.guid
 	playAreaScaleObjectDropped(dropped_object)
     unitLayoutCommandDropped(dropped_object)
+    -- Reconcile Banner of Command only after the dropped Unit/Banner settles.
+    -- Until then a lifted card is not evidence of disbanding or theft.
+    if droppedGUID==GUID.card.bannerOfCommandToken or droppedGUID=="98681f"
+        or unitLayoutIsUnit(dropped_object) then
+        safeWaitTime("Events",function()
+            safeWaitCondition("Events.bannerCommandDrop",function()
+                for seat=1,4 do unitLayoutReconcileBannerCommand(seat) end
+            end,function()
+                local live=getObjectFromGUID(droppedGUID)
+                return live==nil or (live.held_by_color==nil and live.resting==true
+                    and live.isSmoothMoving()==false)
+            end,8)
+        end,0.35)
+    end
     resourceUnitsCommandDropped(player_color,dropped_object)
     resourceCardsObjectMoved(dropped_object)
     callOfferObjectDropped(dropped_object)
