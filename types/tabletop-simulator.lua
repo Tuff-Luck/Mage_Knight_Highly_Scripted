@@ -13,3 +13,9 @@ function getObjectFromGUID(guid) end
 ---@param label? string
 ---@param tags? string[]
 function log(value, label, tags) end
+
+---Send a chat message to a specific player, with an optional text colour.
+---@param message string
+---@param player_color string
+---@param message_tint? table
+function broadcastToColor(message, player_color, message_tint) end
