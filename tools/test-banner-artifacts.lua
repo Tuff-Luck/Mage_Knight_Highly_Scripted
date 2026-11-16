@@ -25,7 +25,7 @@ end
 -- The state and temporary ability helper are the real production source.
 local helpers=between(recognition,"trackerPrivate.bannerEffectUses=function()",
     "trackerPrivate.commandPickupForUnits={}")
-local helpersTest=assert(load([[
+local private,states,printed=assert(load([[
 local trackerPrivate={}
 local gStates={currentRound=1}
 local unitResourceDefinitions={unit={{row=1,key="attack",attack=4}}}
@@ -34,7 +34,6 @@ trackerPrivate.bannerEffectUses=function()
 ]]..helpers..[[
 return trackerPrivate,gStates,unitResourceDefinitions
 ]]))()
-local private,states,printed=helpersTest
 local use=private.bannerEffectUses()
 use.healing.fortitude=true
 use.courage.courage={eligible={}}
