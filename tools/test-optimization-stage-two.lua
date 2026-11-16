@@ -153,28 +153,34 @@ eq(sourceUpdates,2,"next Source event recovers normally")
 assert(events:find("unitLayoutCommandDropped(dropped_object)",1,true),
     "global drop must resume held Command release checks")
 
--- Do not rebuild an Object UI that is already empty. Preserve clearing real
--- buttons/other script XML on cards and enemies exiting the play area.
+-- Preserve unrelated Object UI while removing only tracker-owned controls.
+-- A thin-zone lift must never replace the whole XML table on the exit frame.
 local playerBoard=read("src/PlayingGame/PlayerBoard/Events.lua")
 local clearSource=extract(playerBoard,
     "local function playerBoardClearObjectUIIfPresent(obj)",
-    "\nfunction playerBoardZoneLeave(ctx)")
+    "\n-- A card can be carried")
 local clear=assert(load(clearSource..
     "\nreturn playerBoardClearObjectUIIfPresent","Object UI clearing"))()
-local xml,clears={},0
+local xml,clears,lastXml={},0,nil
 local obj={UI={
     getXmlTable=function() return xml end,
-    setXmlTable=function() clears=clears+1 end
+    setXmlTable=function(newXml) clears=clears+1 lastXml=newXml end
 }}
 eq(clear(obj),false,"empty {} UI not replaced")
 xml={{}}
 eq(clear(obj),false,"empty {{}} UI not replaced")
 eq(clears,0,"no writes for empty UI")
-xml={{tag="Button",attributes={id="test"}}}
-eq(clear(obj),true,"button UI is removed")
-eq(clears,1,"nonempty UI replaced once")
-assert(playerBoard:find("playerBoardClearObjectUIIfPresent(obj)",
-    assert(playerBoard:find("function playerBoardZoneLeave(ctx)",1,true)),true),
-    "play-area exits must use guarded clearing")
-
+xml={{tag="Button",attributes={id="ExternalClaim"}}}
+eq(clear(obj),false,"unrelated UI is preserved")
+eq(clears,0,"no writes for unrelated UI")
+xml={{tag="Button",attributes={id="ResourceCardChoice_test"}},
+     {tag="Button",attributes={id="ExternalClaim"}}}
+eq(clear(obj),true,"tracker-owned UI is removed")
+eq(clears,1,"one write for owned controls")
+eq(#lastXml,1,"unrelated UI is retained")
+eq(lastXml[1].attributes.id,"ExternalClaim","claim button survives")
+assert(playerBoard:find("playerBoardScheduleUICleanup(objGUID)",1,true),
+    "exits must defer Object UI cleanup")
+assert(playerBoard:find("function playerBoardObjectDropped(obj)",1,true),
+    "drop callback must resume a held cleanup")
 print("Optimization stage 2 settle and Object UI regressions passed")

@@ -29,7 +29,9 @@ local function fireTimers(seconds)
 end
 
 local objects,inside={},{}
+local zoneReads=0
 local zone={getObjects=function()
+    zoneReads=zoneReads+1
     local result={}
     for guid,inZone in pairs(inside) do
         if inZone then result[#result+1]=objects[guid] end
@@ -71,8 +73,10 @@ inside[a.guid]=true
 entry(a)
 eq(aeffects[1],"burst0","Immediate effect")
 eq(#aeffects,1,"No early looping")
+local beforeLoopReads=zoneReads
 fireTimers(1)
 eq(aeffects[2],"loop1","Loop starts after burst")
+eq(zoneReads,beforeLoopReads,"Loop uses cached zone membership")
 inside[a.guid]=false
 departure(a)
 fireTimers(0.22)

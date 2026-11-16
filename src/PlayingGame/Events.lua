@@ -624,7 +624,10 @@ function __onObjectDrop_raw(player_color, dropped_object)
 	if dropped_object==nil then return end
 	-- Start a carried crystal's burst before more expensive drop processing.
 	-- Position-sensitive tracker work still waits for physics to settle.
-	if dropped_object.guid~=nil then playerBoardCrystalDropped(dropped_object) end
+	if dropped_object.guid~=nil then
+        playerBoardCrystalDropped(dropped_object)
+        playerBoardObjectDropped(dropped_object)
+    end
 	attackAssignmentsObjectMoved(dropped_object)
 	if dropped_object==nil or dropped_object.guid==nil then return end
 	local droppedGUID=dropped_object.guid
@@ -1494,6 +1497,32 @@ local function handleClaimZoneEnter(ctx)
 
 end
 
+-- Avoid spawning a 10-second physics watcher for ordinary played cards,
+-- crystals and scenery when the only required reactions ran on entry.
+local function playerBoardSettledEntryNeeded(ctx)
+    local info=ctx.zoneInfo
+    if info==nil then return true end
+    local guid=ctx.objGUID
+    local card=gameCards[guid]
+    local enemy=monsterPugs[guid]~=nil
+    local ruinDefender=gStates.ruinMonsters~=nil and gStates.ruinMonsters[guid]~=nil
+    local avatar=mageKnightAvatarGUIDs[guid]==true
+    if info.kind=="play" then
+        return enemy or ruinDefender or avatar
+            or (card~=nil and card.half~=nil)
+            or guid==GUID.card.bannerOfCommandToken
+            or guid==GUID.skill.masterOfChaos
+    elseif info.kind=="unit" then
+        return ctx.objType=="Card" or ctx.objType=="Deck"
+            or enemy or ruinDefender or avatar
+            or unitLayoutIsCommand(ctx.obj) or unitLayoutIsWound(ctx.obj)
+    elseif info.kind=="crystal" then
+        return ruinDefender or avatar or (ctx.objType~="Dice"
+            and scriptObjectId(ctx.obj):sub(-6)=="Potion")
+    end
+    return true
+end
+
 local function handlePlayerBoardZoneEnter(ctx)
 	local zoneInfo=ctx.zoneInfo
 	if ctx.settledPlayerZoneEntry~=true and zoneInfo~=nil and (zoneInfo.kind=="play" or zoneInfo.kind=="unit" or zoneInfo.kind=="crystal") then
@@ -1509,10 +1538,12 @@ local function handlePlayerBoardZoneEnter(ctx)
 			playAreaScaleApplyObject(zoneInfo.seatPos,ctx.obj)
 			schedulePlayAreaScale(zoneInfo.seatPos)
 		end
-		scheduleSettledZoneEntry(ctx,function(liveCtx)
-			liveCtx.settledPlayerZoneEntry=true
-			playerBoardZoneEnterSettled(liveCtx)
-		end,"playerBoard")
+        if playerBoardSettledEntryNeeded(ctx) then
+            scheduleSettledZoneEntry(ctx,function(liveCtx)
+                liveCtx.settledPlayerZoneEntry=true
+                playerBoardZoneEnterSettled(liveCtx)
+            end,"playerBoard")
+        end
 		return false
 	end
 	return playerBoardZoneEnterSettled(ctx)

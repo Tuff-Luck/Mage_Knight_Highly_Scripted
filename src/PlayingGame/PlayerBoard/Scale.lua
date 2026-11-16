@@ -123,8 +123,12 @@ end
 function playAreaScaleApplyObject(seat,obj,pending)
     if gStates==nil or seat==nil or obj==nil or obj.guid==nil then return end
     local setting=playAreaScaleSettings(seat)
-    local records=playAreaScaleRecord()
-    local entry=records[obj.guid]
+    local records=gStates.playAreaScaledObjects
+    local entry=records~=nil and records[obj.guid] or nil
+    -- At 100%, an unmanaged arrival needs no eligibility checks, tags or
+    -- scale calls. Existing records must still be reconciled/restored.
+    if entry==nil and setting.step==20 then return end
+    records=records or playAreaScaleRecord()
     if not playAreaScaleEligible(seat,obj,setting.scope) then
         if entry~=nil and entry.seat==seat then playAreaScaleRestore(obj) end
         return
@@ -220,7 +224,22 @@ function refreshPlayAreaScale(seat)
 end
 
 function schedulePlayAreaScale(seat)
-    if seat==nil then return end
+    if seat==nil or gStates==nil then return end
+    -- Most players leave scaling at 100%. Without any scaled objects for
+    -- this seat there is nothing to gain from scanning two whole zones.
+    if playAreaScaleSettings(seat).step==20 then
+        local hasScaledObjects=false
+        for _,entry in pairs(gStates.playAreaScaledObjects or {}) do
+            if entry.seat==seat then hasScaledObjects=true break end
+        end
+        if not hasScaledObjects then
+            if playAreaScaleWait[seat]~=nil then
+                Wait.stop(playAreaScaleWait[seat])
+                playAreaScaleWait[seat]=nil
+            end
+            return
+        end
+    end
     if playAreaScaleWait[seat]~=nil then Wait.stop(playAreaScaleWait[seat]) end
     playAreaScaleWait[seat]=safeWaitFrames("PlayerBoard.Scale",function()
         playAreaScaleWait[seat]=nil

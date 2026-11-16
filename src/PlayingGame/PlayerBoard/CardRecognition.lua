@@ -3,6 +3,10 @@
 resourceCardScanBySeat={}
 local trackerPrivate={}
 trackerPrivate.generation={}
+-- One settling watcher per object and one render request per seat. A moving
+-- crystal must not block a second, already-settled card from updating.
+trackerPrivate.pendingSeatSettles={}
+trackerPrivate.pendingSeatRender={}
 local shown={}
 -- Mana crystal figurines are still read for powering cards, but should never
 -- receive Resource Tracker highlights. Avoid repeated highlightOff calls.
@@ -10874,22 +10878,55 @@ local function renderSeat(seatPos)
     end
 end
 
+local function scheduleSeatRender(seatPos)
+    local generation=trackerPrivate.generation[seatPos] or 0
+    if trackerPrivate.pendingSeatRender[seatPos]==generation then return end
+    trackerPrivate.pendingSeatRender[seatPos]=generation
+    safeWaitFrames("PlayerBoard.CardRecognition",function()
+        if trackerPrivate.pendingSeatRender[seatPos]~=generation then return end
+        trackerPrivate.pendingSeatRender[seatPos]=nil
+        if trackerPrivate.generation[seatPos]==generation and resourceCardsPanelOpen() then
+            renderSeat(seatPos)
+        end
+    end,1)
+end
+
 local function queueSeat(seatPos,triggerGUID)
     if not resourceCardsPanelOpen() or seatPos==nil or seatPos<1 or seatPos>4 then return end
-    trackerPrivate.generation[seatPos]=(trackerPrivate.generation[seatPos] or 0)+1
-    local serial=trackerPrivate.generation[seatPos]
-    -- Zone entry is the trigger, but never inspect a moving card/token's position.
-    safeWaitFrames("PlayerBoard.CardRecognition",function()
-        if trackerPrivate.generation[seatPos]~=serial or not resourceCardsPanelOpen() then return end
-        safeWaitCondition("PlayerBoard.CardRecognition",function()
-            if trackerPrivate.generation[seatPos]==serial and resourceCardsPanelOpen() then renderSeat(seatPos) end
-        end,function()
-            if trackerPrivate.generation[seatPos]~=serial or not resourceCardsPanelOpen() then return true end
-            if triggerGUID==nil then return true end
-            local obj=getObjectFromGUID(triggerGUID)
-            return obj==nil or (obj.held_by_color==nil and obj.resting==true and obj.isSmoothMoving()==false)
-        end,8)
-    end,1)
+    if triggerGUID==nil then scheduleSeatRender(seatPos) return end
+    local generation=trackerPrivate.generation[seatPos] or 0
+    local waits=trackerPrivate.pendingSeatSettles[seatPos]
+    if waits==nil then waits={} trackerPrivate.pendingSeatSettles[seatPos]=waits end
+    -- Zone entry and drop frequently report the same moving object.
+    if waits[triggerGUID]==generation then return end
+    local obj=getObjectFromGUID(triggerGUID)
+    if obj==nil or (obj.held_by_color==nil and obj.resting==true
+        and obj.isSmoothMoving()==false) then
+        scheduleSeatRender(seatPos)
+        return
+    end
+    waits[triggerGUID]=generation
+    local function stillCurrent()
+        return trackerPrivate.generation[seatPos]==generation
+            and trackerPrivate.pendingSeatSettles[seatPos]==waits
+            and waits[triggerGUID]==generation and resourceCardsPanelOpen()
+    end
+    local function settled()
+        if not stillCurrent() then return end
+        waits[triggerGUID]=nil
+        scheduleSeatRender(seatPos)
+    end
+    safeWaitCondition("PlayerBoard.CardRecognition",settled,function()
+        if not stillCurrent() then return true end
+        local live=getObjectFromGUID(triggerGUID)
+        return live==nil or (live.held_by_color==nil
+            and live.resting==true and live.isSmoothMoving()==false)
+    end,8,function()
+        -- A perpetually held/rolling token must not keep the watcher alive
+        -- or delay other objects' refreshes. Its eventual drop queues anew.
+        if trackerPrivate.pendingSeatSettles[seatPos]==waits
+            and waits[triggerGUID]==generation then waits[triggerGUID]=nil end
+    end)
 end
 
 function resourceCardsSourceChanged()
@@ -10899,6 +10936,8 @@ end
 
 local function clearAll()
     for seat=1,4 do trackerPrivate.generation[seat]=(trackerPrivate.generation[seat] or 0)+1 end
+    trackerPrivate.pendingSeatSettles={}
+    trackerPrivate.pendingSeatRender={}
     clearChoiceButtons()
     choiceExpandedByGUID={}
     -- Do not discard choices when closing/reopening the Resource Tracker.
@@ -12068,8 +12107,7 @@ function resourceCardsZoneLeft(ctx)
 end
 
 function resourceCardsObjectMoved(obj)
-    if not resourceCardsPanelOpen() then return end
-    if not resourceCardsPanelOpen() or obj==nil then return end
+    if obj==nil or not resourceCardsPanelOpen() then return end
     local player=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if player==nil then return end
     local seat=player.seatPos
@@ -12083,7 +12121,8 @@ function resourceCardsObjectMoved(obj)
     end
     local isUnitStateToken=unitLayoutIsCommand(obj) or unitLayoutIsWound(obj)
     local isMonster=combatEnemyData(obj.guid,obj)~=nil
-    if resourceObjectKind(obj)==nil and not isUnitStateToken and not isMonster then
+    local objectKind=resourceObjectKind(obj)
+    if objectKind==nil and not isUnitStateToken and not isMonster then
         -- A played powered One with the Land may change Block value when the
         -- Mage Knight moves to different terrain. Only watch avatar drops
         -- while that exact effect is selected; no continual background scan.
@@ -12100,9 +12139,30 @@ function resourceCardsObjectMoved(obj)
         end
         return
     end
-    for _,zoneGUID in ipairs({playerPlayAreas[seat],playerUnitAreas[seat],
-        playerCrystalAreas[seat],handZones[seat]}) do
-        local zone=getObjectFromGUID(zoneGUID)
+    -- Already-observed sources always need a settled reconciliation, even
+    -- when dropped just above a shallow zone. Avoid searching four zones to
+    -- discover information the last scan already provided.
+    local observed=trackerPrivate.bySeat[seat]
+    if observed~=nil and observed[obj.guid]==true then
+        if (objectKind=="card" or objectKind=="skill" or objectKind=="factionReward")
+            and not cardInSeatPlayArea(obj.guid,seat) then
+            scheduleChoiceResetAfterPlay(obj.guid,seat)
+        end
+        queueSeat(seat,obj.guid)
+        return
+    end
+    -- New arrivals only need zones that can actually hold their resource type.
+    -- Mana/dice have already taken the dedicated early path above.
+    local relevantZones
+    if isMonster or isUnitStateToken or objectKind=="unit" or objectKind=="puppet" then
+        relevantZones={playerPlayAreas[seat],playerUnitAreas[seat]}
+    elseif objectKind=="wound" then
+        relevantZones={playerPlayAreas[seat],playerUnitAreas[seat],handZones[seat]}
+    else
+        relevantZones={playerPlayAreas[seat]}
+    end
+    for _,zoneGUID in ipairs(relevantZones) do
+        local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
         if zone~=nil then
             for _,candidate in ipairs(zone.getObjects()) do
                 if candidate.guid==obj.guid then queueSeat(seat,obj.guid) return end

@@ -5,21 +5,53 @@ local removeCardRemoveDecal
 -- path used by positional card/Unit logic. A shallow zone is crossed again when
 -- objects are lifted, so invalidate old timers on every boundary transition.
 local playAreaCrystalAnimation={}
+-- Entry/exit callbacks are authoritative for the looping animation; only
+-- ambiguous drops and genuine departures need an expensive physical recheck.
+local playAreaCrystalMembership={}
 
-local function playAreaCrystalCancelTimer(state,key)
-    if state[key]~=nil then Wait.stop(state[key]) state[key]=nil end
+local function playAreaCrystalZoneGUID(ctx)
+    if ctx==nil then return nil end
+    if ctx.zoneGUID~=nil then return ctx.zoneGUID end
+    local seat=ctx.zoneInfo~=nil and ctx.zoneInfo.seatPos or nil
+    return seat~=nil and playerPlayAreas[seat] or nil
 end
 
-local function playAreaCrystalInZone(guid)
+local function playAreaCrystalSetMembership(ctx,inside)
+    local guid=ctx~=nil and ctx.objGUID or nil
+    local zoneGUID=playAreaCrystalZoneGUID(ctx)
+    if guid==nil or zoneGUID==nil then return end
+    local known=playAreaCrystalMembership[guid]
+    if inside then
+        if known==nil then known={} playAreaCrystalMembership[guid]=known end
+        known[zoneGUID]=true
+    elseif known~=nil then
+        known[zoneGUID]=nil
+        if next(known)==nil then playAreaCrystalMembership[guid]=nil end
+    end
+end
+
+local function playAreaCrystalInZone(guid,verifyPhysical)
+    if verifyPhysical~=true then
+        local known=playAreaCrystalMembership[guid]
+        return known~=nil and next(known)~=nil
+    end
+    -- A drop can occur above a shallow zone or after a missed boundary
+    -- transition. Refresh this token's membership only on that ambiguity.
+    local found={}
     for _,zoneGUID in pairs(playerPlayAreas or {}) do
         local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
         if zone~=nil then
             for _,candidate in ipairs(zone.getObjects()) do
-                if candidate.guid==guid then return true end
+                if candidate.guid==guid then found[zoneGUID]=true break end
             end
         end
     end
-    return false
+    playAreaCrystalMembership[guid]=next(found)~=nil and found or nil
+    return next(found)~=nil
+end
+
+local function playAreaCrystalCancelTimer(state,key)
+    if state[key]~=nil then Wait.stop(state[key]) state[key]=nil end
 end
 
 local function playAreaCrystalBurst(obj,state)
@@ -43,14 +75,14 @@ function playerBoardCrystalEnteredPlayArea(ctx)
     local obj=ctx~=nil and ctx.obj or nil
     if obj==nil or not isManaTokenFigurine(obj) then return end
     local guid=obj.guid
+    playAreaCrystalSetMembership(ctx,true)
     local state=playAreaCrystalAnimation[guid]
     if state==nil then state={serial=0} playAreaCrystalAnimation[guid]=state end
     if state.inPlay==true then return end
     state.serial=state.serial+1
     state.inPlay=true
     playAreaCrystalCancelTimer(state,"stopTimer")
-    -- Passing through the zone while held is not yet a placement. The
-    -- drop callback will play the burst without waiting for physics to rest.
+    -- A crossing while held is not placement: the drop callback handles it.
     if obj.held_by_color~=nil then state.awaitingDrop=true
     else playAreaCrystalBurst(obj,state) end
 end
@@ -59,6 +91,8 @@ function playerBoardCrystalLeftPlayArea(ctx)
     local obj=ctx~=nil and ctx.obj or nil
     if obj==nil or not isManaTokenFigurine(obj) then return end
     local guid=obj.guid
+    playAreaCrystalSetMembership(ctx,false)
+    if playAreaCrystalInZone(guid) then return end
     local state=playAreaCrystalAnimation[guid]
     if state==nil then state={serial=0} playAreaCrystalAnimation[guid]=state end
     state.serial=state.serial+1
@@ -72,10 +106,9 @@ function playerBoardCrystalLeftPlayArea(ctx)
         if playAreaCrystalAnimation[guid]~=state or state.serial~=serial or state.inPlay==true then return end
         local live=getObjectFromGUID(guid)
         if live==nil then playAreaCrystalAnimation[guid]=nil return end
-        if playAreaCrystalInZone(guid) then return end
-        -- Picking up a token is temporary; stop the loop only after it has
-        -- actually been dropped outside the play area.
+        -- Do not switch off a token still held above the mat.
         if live.held_by_color~=nil then return end
+        if playAreaCrystalInZone(guid,true) then return end
         if live.AssetBundle~=nil then live.AssetBundle.playLoopingEffect(0) end
         playAreaCrystalAnimation[guid]=nil
     end,0.22)
@@ -85,18 +118,32 @@ function playerBoardCrystalDropped(obj)
     if obj==nil or not isManaTokenFigurine(obj) then return end
     local state=playAreaCrystalAnimation[obj.guid]
     if state==nil then return end
-    if state.inPlay==true then
-        if state.awaitingDrop==true and playAreaCrystalInZone(obj.guid) then
-            playAreaCrystalBurst(obj,state)
-        end
-    elseif obj.held_by_color==nil and not playAreaCrystalInZone(obj.guid) then
+    local inside=playAreaCrystalInZone(obj.guid,true)
+    if state.inPlay==true and state.awaitingDrop==true and inside then
+        playAreaCrystalBurst(obj,state)
+    elseif not inside and obj.held_by_color==nil then
+        -- A missed exit event must not leave an endless crystal glow.
+        state.inPlay=false
+        state.awaitingDrop=false
+        state.serial=state.serial+1
         playAreaCrystalCancelTimer(state,"stopTimer")
+        playAreaCrystalCancelTimer(state,"loopTimer")
         if obj.AssetBundle~=nil then obj.AssetBundle.playLoopingEffect(0) end
         playAreaCrystalAnimation[obj.guid]=nil
     end
 end
 
 -- Player-board scripting-zone reactions dispatched by PlayingGame.Events.
+
+-- The main turn UI needs cards, skills, wounds and enemies, not every
+-- die, decoration or mana token briefly crossing a shallow play zone.
+local function playerBoardPlayAreaAffectsMainUI(obj)
+    if obj==nil or obj.guid==nil then return false end
+    if obj.type=="Card" or skillTokens[obj.guid]~=nil
+        or monsterPugs[obj.guid]~=nil then return true end
+    if unitLayoutIsCommand(obj) or unitLayoutIsWound(obj) then return true end
+    return obj.getGMNotes()=="Wound"
+end
 
 --Face-down cards in a player play area get a physical decal instead of Object UI.
 local cardRemoveDecalURL="https://steamusercontent-a.akamaihd.net/ugc/1661232230977162756/90D8AEB60005119DD4182B5FD24D7BDD8243B5F3/"
@@ -135,14 +182,17 @@ function playerBoardPlayAreaZoneEnterImmediate(ctx)
 	local obj=ctx.obj
 	if obj==nil then return end
 	local seatPos=zoneInfo.seatPos
-	updatePlayAreaObjectState(seatPos,obj,true)
+	local affectsMainUI=playerBoardPlayAreaAffectsMainUI(obj)
+    if affectsMainUI then updatePlayAreaObjectState(seatPos,obj,true) end
 	playAreaScaleApplyObject(seatPos,obj)
 	--The face-down remove image depends only on play-area membership and face state, not final position.
 	--Apply it on zone entry so it appears while the card is still falling/sliding into place.
 	if obj.type=="Card" and (gameCards[obj.guid]==nil or gameCards[obj.guid].full==nil) then refreshCardRemoveDecal(obj,true) end
-	dayTactic2ExpireIfCardPlayed(seatPos)
+    if affectsMainUI then
+        dayTactic2ExpireIfCardPlayed(seatPos)
+        mainUIUpdate("Object entered into play area")
+    end
 	schedulePlayAreaScale(seatPos)
-	mainUIUpdate("Object entered into play area")
 end
 
 function playerBoardZoneEnterSettled(ctx)
@@ -348,17 +398,102 @@ function playerBoardZoneEnterSettled(ctx)
 	return false
 end
 
--- Avoid a costly Object UI replacement when the departing piece has no
--- script XML. TTS and older saves can represent an empty UI as {} or {{}}.
+-- Remove only tracker-owned root controls. Claim/offer/ability UIs may
+-- already have been installed by the object entering a different zone.
 local function playerBoardClearObjectUIIfPresent(obj)
     if obj==nil or obj.UI==nil then return false end
-    for _,node in ipairs(obj.UI.getXmlTable() or {}) do
-        if type(node)=="table" and node.tag~=nil then
-            obj.UI.setXmlTable({{}})
-            return true
+    local xml=obj.UI.getXmlTable() or {}
+    local kept,changed={},false
+    for _,node in ipairs(xml) do
+        local attrs=type(node)=="table" and node.attributes or nil
+        local id=attrs~=nil and attrs.id or nil
+        local trackerOwned=type(id)=="string" and (
+            id:sub(1,19)=="ResourceCardChoice_"
+            or id:sub(1,23)=="AttackAssignmentSource_")
+        if trackerOwned then changed=true
+        elseif type(node)=="table" and node.tag~=nil then kept[#kept+1]=node end
+    end
+    if changed then obj.UI.setXmlTable(#kept>0 and kept or {{}}) end
+    return changed
+end
+
+-- A card can be carried above its shallow Play Area zone without leaving
+-- the mat. Check its horizontal footprint only after an actual drop/settle.
+local function playerBoardObjectOnPlayMat(obj)
+    local pos=obj~=nil and obj.getPosition() or nil
+    if pos==nil then return false end
+    local x,z=pos.x or pos[1],pos.z or pos[3]
+    if x==nil or z==nil then return false end
+    for seat=1,4 do
+        local zone=getObjectFromGUID(playerPlayAreas[seat])
+        local bounds=zone~=nil and zone.getBounds() or nil
+        local center=bounds~=nil and bounds.center or nil
+        local size=bounds~=nil and bounds.size or nil
+        if center~=nil and size~=nil then
+            local cx,cz=center.x or center[1],center.z or center[3]
+            local width,depth=size.x or size[1],size.z or size[3]
+            if cx~=nil and cz~=nil and width~=nil and depth~=nil
+                and math.abs(x-cx)<width*0.5 and math.abs(z-cz)<depth*0.5 then
+                return true
+            end
         end
     end
     return false
+end
+
+-- A lifted card must never have its buttons destroyed on the exit frame.
+-- One pending cleanup per GUID is resumed by onObjectDrop if still held.
+local playerBoardPendingUICleanup={}
+local function playerBoardScheduleUICleanup(guid)
+    if guid==nil then return end
+    local serial=(playerBoardPendingUICleanup[guid] or 0)+1
+    playerBoardPendingUICleanup[guid]=serial
+    local function apply()
+        if playerBoardPendingUICleanup[guid]~=serial then return end
+        local live=getObjectFromGUID(guid)
+        if live==nil then playerBoardPendingUICleanup[guid]=nil return end
+        if live.held_by_color~=nil or live.isSmoothMoving()==true then return end
+        playerBoardPendingUICleanup[guid]=nil
+        if unitLayoutIsUnit(live) and unitLayoutObjectInAnyUnitArea(guid) then return end
+        if monsterPugs[guid]~=nil then
+            -- Map entry has its own UI renderer; never overwrite its controls.
+            if objectInPlayerCombatArea(guid)==false and runtimeMapContainsGUID(guid)~=true then
+                for _,node in ipairs(live.UI.getXmlTable() or {}) do
+                    if type(node)=="table" and node.tag~=nil then
+                        live.UI.setXmlTable({{}})
+                        break
+                    end
+                end
+            end
+        elseif not cardInPlayerPlayArea(guid) and not playerBoardObjectOnPlayMat(live) then
+            playerBoardClearObjectUIIfPresent(live)
+        end
+    end
+    safeWaitFrames("PlayerBoard.Events",function()
+        if playerBoardPendingUICleanup[guid]~=serial then return end
+        local live=getObjectFromGUID(guid)
+        if live==nil then playerBoardPendingUICleanup[guid]=nil return end
+        if live.held_by_color~=nil then return end
+        if live.resting==true and live.isSmoothMoving()==false then apply() return end
+        safeWaitCondition("PlayerBoard.Events",apply,function()
+            if playerBoardPendingUICleanup[guid]~=serial then return true end
+            local candidate=getObjectFromGUID(guid)
+            return candidate==nil or (candidate.held_by_color==nil
+                and candidate.resting==true and candidate.isSmoothMoving()==false)
+        end,8,function()
+            if playerBoardPendingUICleanup[guid]~=serial then return end
+            local candidate=getObjectFromGUID(guid)
+            if candidate==nil or (candidate.held_by_color==nil
+                and candidate.isSmoothMoving()==false) then apply() end
+        end)
+    end,2)
+end
+
+function playerBoardObjectDropped(obj)
+    if obj~=nil and obj.guid~=nil
+        and playerBoardPendingUICleanup[obj.guid]~=nil then
+        playerBoardScheduleUICleanup(obj.guid)
+    end
 end
 
 function playerBoardZoneLeave(ctx)
@@ -376,15 +511,11 @@ function playerBoardZoneLeave(ctx)
 	end
 	if gStates.turnNumber>0 and turnOrder[gStates.turnNumber]~=nil and zone.guid==handZones[turnOrder[gStates.turnNumber].seatPos] then scheduleTactic4HandBonusRefresh() end
 	if (zone.guid==playerPlayAreas[2] or zone.guid==playerPlayAreas[3] or zone.guid==playerPlayAreas[1] or zone.guid==playerPlayAreas[4]) and getObjectFromGUID(obj.guid)~=nil then
-		-- A Unit may cross the thin Play Area zone boundary without leaving
-		-- its Unit mat. Its ability/target UI belongs to the settled Unit scan,
-		-- not this unrelated zone-exit event. Genuine departures are reconciled
-		-- by the Unit Area exit and tracker scan.
-		local activation=gStates~=nil and gStates.unitResourceActivations
-			and gStates.unitResourceActivations[objGUID] or nil
-		local activeUnit=unitLayoutIsUnit(obj) and activation~=nil
-			and zoneInfo~=nil and activation.seatPos==zoneInfo.seatPos
-		if not activeUnit then playerBoardClearObjectUIIfPresent(obj) end
+		-- Preserve Object UI during temporary lifts. Only clear owned
+        -- controls after a confirmed departure/drop, never on zone exit.
+        if not isManaTokenFigurine(obj) and objType~="Dice" then
+            playerBoardScheduleUICleanup(objGUID)
+        end
 		--Only remove the face-down card decal once the card is confirmed outside all player play areas.
 		if obj.type=="Card" then
 			local cardGUID=obj.guid
@@ -438,10 +569,12 @@ function playerBoardZoneLeave(ctx)
 		for a=1, #turnOrder, 1 do
 			local seatPos=turnOrder[a].seatPos
 			if zone.guid==playerPlayAreas[seatPos] then
-				updatePlayAreaObjectState(seatPos, obj, false)
+                if playerBoardPlayAreaAffectsMainUI(obj) then
+                    updatePlayAreaObjectState(seatPos,obj,false)
+                    mainUIUpdate("Object removed from zone")
+                end
 				schedulePlayAreaScale(seatPos)
 				if unitLayoutIsCommand(obj) then scheduleUnitLayoutRefreshAfterCommandRelease(seatPos,obj.guid) end
-				mainUIUpdate("Object removed from zone")
 				break
 			elseif zone.guid==deedDeckDiscardZones[seatPos] then
 				mainUIUpdate("Object removed from zone")
@@ -466,11 +599,9 @@ function playerBoardZoneLeave(ctx)
 		end
 	end
 	if leftUnitArea==true and monsterPugs[obj.guid]~=nil then
-		local monsterGUID=obj.guid
-		safeWaitFrames("PlayerBoard.Events",function()
-			local monster=getObjectFromGUID(monsterGUID)
-			if monster~=nil and objectInPlayerCombatArea(monsterGUID)==false then monster.UI.setXmlTable({{}}) end
-			mainUIUpdate("Monster removed from unit area")
-		end, 2)
+        playerBoardScheduleUICleanup(obj.guid)
+        safeWaitFrames("PlayerBoard.Events",function()
+            mainUIUpdate("Monster removed from unit area")
+        end,2)
 	end
 end
