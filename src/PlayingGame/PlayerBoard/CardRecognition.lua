@@ -7280,7 +7280,11 @@ end
 unitManaDecision=function(unit,abilities,activation,counts)
     -- A Command exhausted on a previous turn can be readied now, but that
     -- earlier use is not an ability in this turn's resource calculation.
-    if activation.priorTurnSpent==true then
+    if activation.priorTurnSpent==true
+        or (activation.bannerFearSelected==true
+            and abilities.bannerFearIndex==nil) then
+        -- Losing the Banner cannot retroactively turn its spent FEAR
+        -- activation into a printed Attack or Block.
         return {index=nil,display={},ambiguous=false,selected={}}
     end
     counts=counts or unitManaCounts(unit,activation.seatPos)
@@ -10767,10 +10771,9 @@ function resourceCardsArtifactHealUnitsClicked(player,value,id)
             healed=healed+1
         end
     end
-    if healed>0 then
-        scheduleUnitLayoutRefresh(current.seatPos)
-        resourceCardsSourceChanged()
-    end
+    if healed>0 then scheduleUnitLayoutRefresh(current.seatPos) end
+    -- Refresh the spent HEAL control even when zero Wounds were present.
+    resourceCardsSourceChanged()
     broadcastToColor("Banner of Fortitude: healed "..tostring(healed)
         .." Unit Wound(s).",player.color,{0.7,0.95,0.7})
 end
