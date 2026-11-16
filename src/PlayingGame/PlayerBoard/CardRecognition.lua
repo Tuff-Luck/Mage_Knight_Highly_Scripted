@@ -39,6 +39,20 @@ trackerPrivate.totalsKeys={move=true,ranged=true,siege=true,attack=true,block=tr
 
 -- Catalog is defined once in UnitResources.lua and keyed by card GUID.
 local unitResourceDefinitions=unitResourceDefinitions
+-- Persist one-shot Banner uses through save/rewind, resetting only at new Round.
+trackerPrivate.bannerEffectUses=function()
+    if gStates==nil then return {fortitude={},courage={},healing={}} end
+    local round=tonumber(gStates.currentRound) or 0
+    local uses=gStates.bannerArtifactUses
+    if type(uses)~="table" or uses.round~=round then
+        uses={round=round,fortitude={},courage={},healing={}}
+        gStates.bannerArtifactUses=uses
+    end
+    uses.fortitude=uses.fortitude or {}
+    uses.courage=uses.courage or {}
+    uses.healing=uses.healing or {}
+    return uses
+end
 trackerPrivate.commandPickupForUnits={}
 -- Only mana objects actually moved by players are candidates for extra Unit
 -- payment checks. A stacked crystal can sit above the Unit scripting zone,
@@ -1791,6 +1805,8 @@ local function combatDamageUnits(seat)
                     +(protection and 1 or 0),
                 level=math.max(1,tonumber(data.level) or 1),
                 resist=resist,wounded=not unitState.unwounded,
+                fortitudeGUID=banner~=nil and banner["Banner of Fortitude"]~=nil
+                    and banner["Banner of Fortitude"].guid or nil,
                 fortitudeUsed=banner~=nil and banner["Banner of Fortitude"]~=nil
                     and banner["Banner of Fortitude"].faceDown==true,
                 arcaneImmunity=data.arcaneImmunity==true,
@@ -1837,14 +1853,18 @@ local function combatDamageResolve(items,units,heroArmour,targetsOf,mitigation,e
                 remaining=math.max(0,remaining-armour)
                 entry.wounds=item.poison and 2 or 1
                 entry.destroyed=item.paralyse==true
-                if unit.fortitudeUsed then
-                    -- A flipped, attached Banner of Fortitude cancels this
-                    -- wound AND its Poison/Paralysis consequences. The Unit
-                    -- still absorbed damage and counts as assigned once.
-                    entry.wounded=false
-                    entry.wounds=nil
-                    entry.destroyed=nil
-                    entry.fortitudePrevented=true
+                if unit.fortitudeUsed and unit.fortitudeGUID~=nil then
+                    -- Once per Round, on one printed attack; calculator rescans
+                    -- of this same attack may preview it without recharging.
+                    local uses=trackerPrivate.bannerEffectUses().fortitude
+                    local prior=uses[unit.fortitudeGUID]
+                    if prior==nil or prior.attackKey==item.key then
+                        if prior==nil then uses[unit.fortitudeGUID]={attackKey=item.key} end
+                        entry.wounded=false
+                        entry.wounds=nil
+                        entry.destroyed=nil
+                        entry.fortitudePrevented=true
+                    end
                 end
             end
             result.units[#result.units+1]=entry
@@ -5812,7 +5832,8 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     end
     if rule~=nil and isArtifact
         and cardData.resourceKey=="artifactBannerFortitude"
-        and card.is_face_down==true and posture=="upright" then
+        and card.is_face_down==true and posture=="upright"
+        and not trackerPrivate.bannerEffectUses().healing[card.guid] then
         xml[#xml+1]={tag="Button",attributes={
             id="ResourceCardChoice_"..card.guid.."_healAllUnits",
             onClick="global/resourceCardsArtifactHealUnitsClicked",
@@ -9119,15 +9140,28 @@ local function renderSeat(seatPos)
                 unitHistoryReadyLink(courage.guid,unitGUID,seatPos,nil)
             end
         end
+        local courageUses=trackerPrivate.bannerEffectUses().courage
         for _,card in ipairs(cards) do
             local data=gameCards[card.guid]
             if data~=nil and data.resourceKey=="artifactBannerCourage"
                 and card.is_face_down and cardPosture(card)=="upright" then
-                for index,entry in ipairs(unitState.units) do
-                    if not entry.ready then
-                        local key=card.guid.."#ready"..index
-                        if gStates.unitReadyLinks[key]==nil then
-                            unitHistoryReadyLink(key,entry.guid,seatPos,nil)
+                -- Capture eligible spent Units at the moment the Banner breaks.
+                -- Spent Units appearing later in this Round are never added.
+                if courageUses[card.guid]==nil then
+                    local eligible={}
+                    for index,entry in ipairs(unitState.units) do
+                        if not entry.ready then
+                            eligible[#eligible+1]={key=card.guid.."#ready"..index,
+                                guid=entry.guid}
+                        end
+                    end
+                    courageUses[card.guid]={eligible=eligible}
+                end
+                for _,entry in ipairs(courageUses[card.guid].eligible) do
+                    if not entry.linked then
+                        if gStates.unitReadyLinks[entry.key]~=nil
+                            or unitHistoryReadyLink(entry.key,entry.guid,seatPos,nil) then
+                            entry.linked=true
                         end
                     end
                 end
@@ -10653,6 +10687,10 @@ function resourceCardsArtifactHealUnitsClicked(player,value,id)
     local layout=unitLayoutSnapshot(current.seatPos)
     local trash=getObjectFromGUID(trashCan)
     if trash==nil then return end
+    local uses=trackerPrivate.bannerEffectUses().healing
+    if uses[guid] then return end
+    -- Activating the break effect consumes it, even if no Units are wounded.
+    uses[guid]=true
     local healed=0
     for _,obj in ipairs(layout.objects or {}) do
         if unitLayoutIsWound(obj) then
@@ -11031,7 +11069,11 @@ function resourceCardsReadySourceValid(sourceKey,seatPos)
         if card==nil or card.is_face_down~=true or seatPos==nil then return false end
         if cardInSeatPlayArea(guid,seatPos)
             and cardPosture(card)=="upright" then
-            return sourceKey:match("^"..guid.."#ready%d+$")~=nil
+            local uses=trackerPrivate.bannerEffectUses().courage[guid]
+            for _,entry in ipairs(uses~=nil and uses.eligible or {}) do
+                if entry.key==sourceKey then return true end
+            end
+            return false
         end
         local state=unitLayoutResourceState(seatPos)
         if sourceKey~=guid then return false end
