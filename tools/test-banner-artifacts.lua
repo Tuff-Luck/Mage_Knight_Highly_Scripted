@@ -97,7 +97,7 @@ local monsterPugs={}
 local gStates={monsterPerks={}}
 local function combatEffectImmune() return immune end
 function combatEffectAdd(
-]]..addSource..[[
+]]..addSource.."\n"..[[
 end
 return combatEffectAdd,function(value) immune=value end
 ]]))()
