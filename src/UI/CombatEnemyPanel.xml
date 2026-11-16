@@ -593,11 +593,11 @@
 		<!-- A layout group stretched the lone child across the whole calculator.
 		     Keep the row in the outer VerticalLayout, but absolutely anchor its button. -->
 		<Panel id="CombatTotalRow" active="false" preferredHeight="22" color="rgba(0,0,0,0)" outlineSize="0 0">
-			<Panel id="CombatWoundSummary" rectAlignment="UpperRight" offsetXY="-5 -3" width="220" height="36" color="rgba(0,0,0,0)" outlineSize="0 0">
-				<Button id="CombatApplyWounds" onClick="resourceTracker" rectAlignment="UpperCenter" width="220" height="18" color="rgb(0.48,0.36,0.20)" tooltip="Deal Hero Wounds to hand and Poison Wounds to discard">
-					<Text id="CombatTotalDamage" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" rectAlignment="MiddleCenter" width="220" height="18" alignment="MiddleLeft" raycastTarget="false"/>
+			<Panel id="CombatWoundSummary" rectAlignment="UpperRight" offsetXY="0 -4" width="205" height="36" color="rgba(0,0,0,0)" outlineSize="0 0">
+				<Button id="CombatApplyWounds" onClick="resourceTracker" rectAlignment="UpperCenter" width="205" height="18" color="rgb(0.48,0.36,0.20)" tooltip="Deal Hero Wounds to hand and Poison Wounds to discard">
+					<Text id="CombatTotalDamage" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" rectAlignment="MiddleCenter" width="205" height="18" alignment="MiddleLeft" raycastTarget="false"/>
 				</Button>
-				<Text id="CombatKnockoutWarning" active="false" class="Text12" fontSize="12" color="#FF5555" rectAlignment="UpperCenter" offsetXY="0 -18" width="220" height="18" alignment="MiddleLeft"/>
+				<Text id="CombatKnockoutWarning" active="false" class="Text12" fontSize="12" color="#FF5555" rectAlignment="UpperCenter" offsetXY="0 -18" width="205" height="18" alignment="MiddleLeft"/>
 			</Panel>
 		</Panel>
         <Text id="CombatResourceOverflow" active="false" class="Text12" color="#FFCC66" preferredHeight="18" alignment="MiddleLeft"/>

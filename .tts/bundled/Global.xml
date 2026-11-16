@@ -2347,15 +2347,16 @@ Einheiten</Text></Cell>
 				</Button>
 			</HorizontalLayout>
 		</Panel>
-		<HorizontalLayout id="CombatTotalRow" active="false" padding="5 0 3 0" preferredHeight="22" childForceExpandWidth="false">
-			<Panel id="CombatTotalSpacer" preferredWidth="1000" color="rgba(0,0,0,0)" outlineSize="0 0"/>
-			<VerticalLayout preferredWidth="255" childForceExpandHeight="false">
-				<Button id="CombatApplyWounds" onClick="resourceTracker" preferredWidth="255" preferredHeight="18" color="rgb(0.48,0.36,0.20)" tooltip="Deal Hero Wounds to hand and Poison Wounds to discard">
-                    <Text id="CombatTotalDamage" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="255" preferredHeight="18" alignment="MiddleLeft" raycastTarget="false"/>
-                </Button>
-				<Text id="CombatKnockoutWarning" active="false" class="Text12" fontSize="12" color="#FF5555" preferredWidth="255" preferredHeight="18" alignment="MiddleLeft"/>
-			</VerticalLayout>
-		</HorizontalLayout>
+		<!-- A layout group stretched the lone child across the whole calculator.
+		     Keep the row in the outer VerticalLayout, but absolutely anchor its button. -->
+		<Panel id="CombatTotalRow" active="false" preferredHeight="22" color="rgba(0,0,0,0)" outlineSize="0 0">
+			<Panel id="CombatWoundSummary" rectAlignment="UpperRight" offsetXY="0 -4" width="205" height="36" color="rgba(0,0,0,0)" outlineSize="0 0">
+				<Button id="CombatApplyWounds" onClick="resourceTracker" rectAlignment="UpperCenter" width="205" height="18" color="rgb(0.48,0.36,0.20)" tooltip="Deal Hero Wounds to hand and Poison Wounds to discard">
+					<Text id="CombatTotalDamage" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" rectAlignment="MiddleCenter" width="205" height="18" alignment="MiddleLeft" raycastTarget="false"/>
+				</Button>
+				<Text id="CombatKnockoutWarning" active="false" class="Text12" fontSize="12" color="#FF5555" rectAlignment="UpperCenter" offsetXY="0 -18" width="205" height="18" alignment="MiddleLeft"/>
+			</Panel>
+		</Panel>
         <Text id="CombatResourceOverflow" active="false" class="Text12" color="#FFCC66" preferredHeight="18" alignment="MiddleLeft"/>
 		</VerticalLayout>
 </Panel>

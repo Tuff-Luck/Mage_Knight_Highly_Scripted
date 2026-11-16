@@ -48341,6 +48341,11 @@ trackerPrivate.bannerCardForm=function(guid)
     if data.half~=nil then return "full" end
     return nil
 end
+-- Banner effects are handled through their card state and Unit interactions;
+-- the manual '?' note control is never needed on either physical Banner form.
+trackerPrivate.artifactManualNoteVisible=function(card)
+    return card~=nil and trackerPrivate.bannerCardForm(card.guid)==nil
+end
 trackerPrivate.bannerStrongActive=function(card)
     return card~=nil and trackerPrivate.bannerCardForm(card.guid)=="full"
         and card.is_face_down==true
@@ -52451,18 +52456,17 @@ local function combatAssignmentRefreshRows(entries,sources)
         end
     end
 
+    local widthReduction=(170-columnWidths.range)+(170-columnWidths.block)+(170-columnWidths.attack)
+    local panelWidth=1380-(255-combatConfig.columns.Result)-hiddenWidth-widthReduction
+
     combatConfig.woundRecordPreview(damageSeat,damageItems,damageResults)
     local ledger=combatConfig.woundLedger(damageSeat)
     local _,pendingHand,pendingDiscard,changed=combatConfig.woundPending(ledger)
     local showTotal=totalHeroWounds>0
     combatPanelSetAttribute("CombatTotalRow","active",showTotal and "true" or "false")
     if showTotal then
-        -- Align the Wound button directly below the dynamically sized Result column.
-        local spacer=-hiddenWidth
-        for _,width in ipairs({120,55,150,columnWidths.range,105,130,columnWidths.block,columnWidths.attack}) do
-            spacer=spacer+width
-        end
-        combatPanelSetAttribute("CombatTotalSpacer","preferredWidth",tostring(spacer))
+        -- The XML's fixed-width, right-anchored Panel is outside any
+        -- HorizontalLayout, so Unity's layout group cannot expand its child.
         local poisonText=totalDiscardWounds>0 and " ("..tostring(totalDiscardWounds).." Poison)" or ""
         combatPanelSetAttribute("CombatTotalDamage","text",
             "Draw: "..combatRich(combatWoundsText(totalHeroWounds)..poisonText,combatConfig.COMBAT_RED))
@@ -52505,9 +52509,7 @@ local function combatAssignmentRefreshRows(entries,sources)
             "{de}"..overflow.." Ressourcensymbole passen nicht in die verfügbaren Zeilen."
         }))
     end
-    local widthReduction=(170-columnWidths.range)+(170-columnWidths.block)+(170-columnWidths.attack)
-    combatPanelSetAttribute("CombatEnemyPanel","width",
-        tostring(1380-(255-combatConfig.columns.Result)-hiddenWidth-widthReduction))
+    combatPanelSetAttribute("CombatEnemyPanel","width",tostring(panelWidth))
     combatPanelSetAttribute("CombatEnemyPanel","color","rgb(0.24,0.2,0.15)")
     local headerWidths={Monster=120,Armour=55,DefenceTraits=150,RangeSiege=columnWidths.range,EnemyAttack=105,
         Offence=130,Block=columnWidths.block,AssignedAttack=columnWidths.attack,Result=combatConfig.columns.Result}
@@ -54300,12 +54302,13 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             startingControl("terrain",special~=nil and special.terrain~=nil
                 and special.terrain:sub(1,3):upper() or "TER",
                 special~=nil and special.terrain~=nil,150,-125)
-        elseif rule.manualSecondary~=nil then
+        elseif rule.manualSecondary~=nil and
+            (not isArtifact or trackerPrivate.artifactManualNoteVisible(card)) then
             startingControl("manual","?",false,135,-125)
         end
     end
     if rule~=nil and isArtifact and rule.manualSecondary~=nil
-        and posture=="upright" then
+        and posture=="upright" and trackerPrivate.artifactManualNoteVisible(card) then
         xml[#xml+1]={tag="Button",attributes={
             id="ResourceCardChoice_"..card.guid.."_artifactNote",
             onClick="global/resourceCardsArtifactNoteClicked",
@@ -60528,7 +60531,9 @@ end
 -- armourReduceRangedUnfortifiedOnly (does not reduce Armour in Ranged/Siege on a fortified enemy),
 -- all (every face-up enemy instead of one).
 -- Arcane Immunity ignores non-attack effects; directly changing an Attack remains legal.
-local function combatEffectImmune(enemyGUID)
+-- Shared by the effect resolver and Banner of Fear's Fame calculation.
+-- This must be a global function: CardRecognition.lua is a separate module.
+function combatEffectImmune(enemyGUID)
     local pug=monsterPugs[enemyGUID]
     local perks=gStates~=nil and gStates.monsterPerks~=nil and gStates.monsterPerks[enemyGUID] or nil
     return (pug~=nil and pug.arcaneImmunity==true) or (perks~=nil and perks.arcaneImmunity==true)
@@ -68831,7 +68836,7 @@ local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
 local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="460"
+local automaticLuaErrorReporterVersion="461"
 
 -- Automatic Lua error reporting, protected callback helpers and diagnostic context builders.
 local automaticLuaZoneContext
