@@ -54,7 +54,25 @@ trackerPrivate.bannerEffectUses=function()
     return uses
 end
 
--- An attached face-up Banner of Fear adds a selectable, non-printed Unit
+-- The same printed Banner has two TTS card states with different rules:
+-- full-size = playable Artifact (face down means Break), half-size =
+-- attached to a Unit (face down means its basic effect was spent).
+-- Never infer which effect was used from is_face_down alone.
+trackerPrivate.bannerCardForm=function(guid)
+    local data=gameCards~=nil and gameCards[guid] or nil
+    if data==nil or data.cardType~="Artifact"
+        or type(data.resourceKey)~="string"
+        or data.resourceKey:sub(1,14)~="artifactBanner" then return nil end
+    if data.full~=nil then return "half" end
+    if data.half~=nil then return "full" end
+    return nil
+end
+trackerPrivate.bannerStrongActive=function(card)
+    return card~=nil and trackerPrivate.bannerCardForm(card.guid)=="full"
+        and card.is_face_down==true
+end
+
+-- An attached Banner of Fear adds a selectable, non-printed Unit
 -- activation. Do not alter the shared per-type Unit catalog.
 trackerPrivate.unitAbilitiesFor=function(guid,state,seatPos)
     local printed=unitResourceDefinitions~=nil and unitResourceDefinitions[guid] or nil
@@ -63,7 +81,10 @@ trackerPrivate.unitAbilitiesFor=function(guid,state,seatPos)
     local banners=state~=nil and state.bannersByUnit~=nil
         and state.bannersByUnit[guid] or nil
     local fear=banners~=nil and banners["Banner of Fear"] or nil
-    if fear==nil or fear.faceDown==true then return printed end
+    -- Spending the Unit may turn the half-card face down. That is the
+    -- basic effect in progress, not a Break; re-readying the Unit permits
+    -- another Fear use even during the same Round.
+    if fear==nil then return printed end
     local abilities={}
     for key,value in pairs(printed) do abilities[key]=value end
     local index=#printed+1
@@ -6015,7 +6036,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     end
     if rule~=nil and isArtifact
         and cardData.resourceKey=="artifactBannerFortitude"
-        and card.is_face_down==true and posture=="upright"
+        and trackerPrivate.bannerStrongActive(card) and posture=="upright"
         and not trackerPrivate.bannerEffectUses().healing[card.guid] then
         xml[#xml+1]={tag="Button",attributes={
             id="ResourceCardChoice_"..card.guid.."_healAllUnits",
@@ -6856,6 +6877,13 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
     local data=gameCards[card.guid]
     local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
     local known=data~=nil
+    -- A half Banner is an attached Unit accessory, NOT a played Artifact.
+    -- In particular Banner of Command must not award its Break Fame +2 or
+    -- its full-card Influence 4 when the Command source is flipped/spent.
+    if trackerPrivate.bannerCardForm(card.guid)=="half" then
+        return {guid=card.guid,known=true,complete=true,powered=false,
+            links={},status="blue",resources=nil}
+    end
     local tracked=data==nil or data.resourceTracked~=false
     local powered=manaPowered or linkedBoost~=nil
     if repeatLink~=nil then powered=repeatLink.powered end
@@ -8137,6 +8165,7 @@ local function renderSeat(seatPos)
     for guid,obj in pairs(objects) do
         local kind=objectKinds[guid]
         if kind=="card" and placements[guid]=="play"
+            and trackerPrivate.bannerCardForm(guid)~="half"
             and (trainingOfferReservedCard==nil
                 or not trainingOfferReservedCard(guid,seatPos)) then
             cards[#cards+1]=obj
@@ -8469,6 +8498,7 @@ local function renderSeat(seatPos)
         local rule=cardData~=nil and cardResourceDefinitions[cardData.resourceKey] or nil
         local artifactBreak=cardData~=nil and cardData.cardType=="Artifact"
             and card.is_face_down==true
+            and trackerPrivate.bannerCardForm(card.guid)~="half"
         local isStrong=powered[card.guid]==true or boostBy[card.guid]~=nil or artifactBreak
         if repeatByTarget[card.guid]~=nil then
             isStrong=repeatByTarget[card.guid].powered
@@ -9351,7 +9381,8 @@ local function renderSeat(seatPos)
         for _,card in ipairs(cards) do
             local data=gameCards[card.guid]
             if data~=nil and data.resourceKey=="artifactBannerCourage"
-                and card.is_face_down and cardPosture(card)=="upright" then
+                and trackerPrivate.bannerStrongActive(card)
+                and cardPosture(card)=="upright" then
                 -- Capture eligible spent Units at the moment the Banner breaks.
                 -- Spent Units appearing later in this Round are never added.
                 if courageUses[card.guid]==nil then
@@ -9431,7 +9462,7 @@ local function renderSeat(seatPos)
                             for _,artifact in ipairs(cards) do
                                 local data=gameCards[artifact.guid]
                                 if data~=nil and data.resourceKey=="artifactBannerGlory"
-                                    and artifact.is_face_down==true
+                                    and trackerPrivate.bannerStrongActive(artifact)
                                     and cardPosture(artifact)=="upright" then return true end
                             end
                             return false
@@ -10755,7 +10786,8 @@ local function renderSeat(seatPos)
             for _,card in ipairs(cards) do
                 local data=gameCards[card.guid]
                 if data~=nil and data.resourceKey=="artifactBannerGlory"
-                    and card.is_face_down==true and cardPosture(card)=="upright" then
+                    and trackerPrivate.bannerStrongActive(card)
+                    and cardPosture(card)=="upright" then
                     return true
                 end
             end
@@ -10893,7 +10925,8 @@ function resourceCardsArtifactHealUnitsClicked(player,value,id)
         or type(id)~="string" or combatCalcOn then return end
     local guid=id:match("^ResourceCardChoice_([0-9a-f]+)_healAllUnits$")
     local data=guid~=nil and gameCards[guid] or nil
-    if data==nil or data.resourceKey~="artifactBannerFortitude" then return end
+    if data==nil or data.resourceKey~="artifactBannerFortitude"
+        or trackerPrivate.bannerCardForm(guid)~="full" then return end
     local current=turnOrder~=nil and gStates~=nil
         and turnOrder[gStates.turnNumber] or nil
     local card=getObjectFromGUID(guid)
@@ -10934,6 +10967,7 @@ function resourceCardsArtifactNoteClicked(player,value,id)
         and turnOrder[gStates.turnNumber] or nil
     local card=guid~=nil and getObjectFromGUID(guid) or nil
     if rule==nil or rule.manualSecondary==nil or current==nil or card==nil
+        or trackerPrivate.bannerCardForm(guid)=="half"
         or cardPosture(card)~="upright"
         or not cardInSeatPlayArea(guid,current.seatPos) then return end
     broadcastToColor(rule.manualSecondary,player.color,{0.9,0.8,0.4})
@@ -11282,16 +11316,20 @@ function resourceCardsReadySourceValid(sourceKey,seatPos)
         local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
         seatPos=seatPos or (current~=nil and current.seatPos)
         if card==nil or card.is_face_down~=true or seatPos==nil then return false end
-        if cardInSeatPlayArea(guid,seatPos)
-            and cardPosture(card)=="upright" then
+        if trackerPrivate.bannerCardForm(guid)=="full" then
+            if not cardInSeatPlayArea(guid,seatPos)
+                or cardPosture(card)~="upright" then return false end
             local uses=trackerPrivate.bannerEffectUses().courage[guid]
             for _,entry in ipairs(uses~=nil and uses.eligible or {}) do
                 if entry.key==sourceKey then return true end
             end
             return false
         end
+        if trackerPrivate.bannerCardForm(guid)~="half"
+            or sourceKey~=guid then return false end
+        -- Unit and play scripting zones overlap near the Banner snap.
+        -- A face-down half still authorises exactly its own attached Unit.
         local state=unitLayoutResourceState(seatPos)
-        if sourceKey~=guid then return false end
         for _,banners in pairs(state~=nil and state.bannersByUnit or {}) do
             if banners["Banner of Courage"]~=nil
                 and banners["Banner of Courage"].guid==guid then return true end
