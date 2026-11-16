@@ -271,7 +271,9 @@ local function unitLayoutBannersForUnits(layout)
     local byUnit={}
     for _,obj in ipairs(layout.objects) do
         local data=gameCards~=nil and gameCards[obj.guid] or nil
-        if data~=nil and data.cardType=="Artifact" and (data.full~=nil or data.half~=nil)
+        -- Only the physical half-card is attached. A full Banner in transit
+        -- must not grant any Unit bonuses until TTS finishes state conversion.
+        if data~=nil and data.cardType=="Artifact" and data.full~=nil
             and type(data.name)=="table" and data.name[1]~="Banner of Command" then
             local x=obj.getPosition().x
             local nearest,distance=nil,math.huge
