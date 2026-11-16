@@ -39,8 +39,10 @@ for _,pair in ipairs(bannerPairs) do
     local full,half,key=pair[1],pair[2],pair[3]
     assert(data:find(full,1,true) and data:find(half,1,true),
         "Missing full or half Banner GUID for "..key)
-    gameCards[full]={cardType="Artifact",resourceKey=key,half=half}
-    gameCards[half]={cardType="Artifact",resourceKey=key,full=full}
+    local name=key=="artifactBannerOfCommand" and "Banner of Command"
+        or "Banner of "..key:sub(15)
+    gameCards[full]={cardType="Artifact",resourceKey=key,half=half,name={name}}
+    gameCards[half]={cardType="Artifact",resourceKey=key,full=full,name={name}}
 end
 
 -- The state and temporary ability helper are the real production source.
@@ -87,6 +89,37 @@ for _,pair in ipairs(bannerPairs) do
     end
     assert(private.bannerAttachedCardResult(full)==nil,
         "Full Banner must retain normal artifact calculation")
+end
+
+-- Exercise UnitLayout's real attachment matching: only half cards
+-- grant their own Unit bonuses. Full cards must be played or converted first.
+local attachmentSource=between(layout,
+    "local function unitLayoutBannersForUnits(layout)",
+    "-- Shared by Skills that count ready/unwounded Units")
+local attachedUnits=assert(load([[
+local gameCards=...
+local function unitLayoutBannersForUnits(layout)
+]]..attachmentSource..[[
+return unitLayoutBannersForUnits
+]]))(gameCards)
+local sampleUnit={guid="unit",
+    getPosition=function() return {x=0} end,
+    getBounds=function() return {size={x=2}} end}
+for _,pair in ipairs(bannerPairs) do
+    local full,half=pair[1],pair[2]
+    local name=gameCards[half].name[1]
+    if name~="Banner of Command" then
+        local fullObj={guid=full,is_face_down=true,
+            getPosition=function() return {x=0} end}
+        local halfObj={guid=half,is_face_down=true,
+            getPosition=function() return {x=0} end}
+        assert(next(attachedUnits({objects={fullObj},units={sampleUnit}}))==nil,
+            "Full "..name.." must never give an attached basic effect")
+        local result=attachedUnits({objects={halfObj},units={sampleUnit}})
+        assert(result.unit~=nil and result.unit[name]~=nil
+            and result.unit[name].guid==half and result.unit[name].faceDown,
+            "Flipped half "..name.." must remain correctly attached")
+    end
 end
 
 local attached={bannersByUnit={unit={["Banner of Fear"]={
