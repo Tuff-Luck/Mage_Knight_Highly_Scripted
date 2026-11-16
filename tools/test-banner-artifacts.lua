@@ -91,7 +91,7 @@ assert(later.wounded and later.destroyed and later.wounds==2,
 -- cancellation, and Arcane Immunity must reject the non-attack effect.
 local addSource=between(effects,"function combatEffectAdd(",
     "\nend\n")
-local register=assert(load([[
+local add,setImmune=assert(load([[
 local immune=false
 local monsterPugs={}
 local gStates={monsterPerks={}}
@@ -101,7 +101,6 @@ function combatEffectAdd(
 end
 return combatEffectAdd,function(value) immune=value end
 ]]))()
-local add,setImmune=register()
 local applied={}
 add(applied,"enemy","unit",{cancelOneAttack=true},"unit#effect2")
 assert(#applied.enemy.attackReductions==1
@@ -117,7 +116,7 @@ assert(#ignored.immune.attackReductions==0,
 local attacksCode=between(recognition,
     "local function combatOrderedReductions(effect)",
     "-- Used by Battle Hardened's per-Attack selector.")
-local attackTest=assert(load([[
+local enemyAttacks,choices=assert(load([[
 local combatReductionAttackChoice={}
 local combatConfig={convertPreyAttacks=function() end}
 local function combatEnemyPrintedAttacks()
@@ -130,7 +129,6 @@ local function combatOrderedReductions(effect)
 ]]..attacksCode..[[
 return combatEnemyAttacks,combatReductionAttackChoice
 ]]))()
-local enemyAttacks,choices=attackTest()
 local entry={guid="enemy",data={},effect=applied.enemy}
 local remaining=enemyAttacks(entry)
 assert(#remaining==1 and remaining[1].value==4,
