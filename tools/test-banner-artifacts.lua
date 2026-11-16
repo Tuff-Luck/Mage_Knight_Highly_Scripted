@@ -16,6 +16,7 @@ local effects=read("src/PlayingGame/PlayerBoard/CombatEffects.lua")
 local layout=read("src/PlayingGame/PlayerBoard/UnitLayout.lua")
 local replace=read("src/PlayingGame/PlayerBoard/UnitReplacement.lua")
 local event=read("src/PlayingGame/Events.lua")
+local boardEvent=read("src/PlayingGame/PlayerBoard/Events.lua")
 local data=read("src/Data.lua")
 
 for _,name in ipairs({"Fear","Courage","Glory","Protection","Fortitude","OfCommand"}) do
@@ -238,9 +239,9 @@ assert(recognition:find('trackerPrivate.bannerStrongActive(artifact)',1,true),
     "Glory army-wide bonus must only be enabled by full Break")
 assert(layout:find('data.cardType=="Artifact" and data.full~=nil',1,true),
     "Only half-sized Banners may be attached as Unit bonuses")
-assert(event:find("bannerPosition[3]>=-38.4 and obj.is_face_down~=true",1,true),
+assert(boardEvent:find("bannerPosition[3]>=-38.4 and obj.is_face_down~=true",1,true),
     "A broken full card must not be converted into a spendable half")
-assert(event:find("if fullCard.is_face_down==true then fullCard.flip() end",1,true),
+assert(boardEvent:find("if fullCard.is_face_down==true then fullCard.flip() end",1,true),
     "A spent half must be restored to a face-up full card on detachment")
 
 -- Banner of Courage is snapshotted once, rather than readied on every scan.
