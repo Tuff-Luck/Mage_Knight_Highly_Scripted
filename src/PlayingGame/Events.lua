@@ -922,7 +922,9 @@ function __onObjectDestroy_raw(destroyedObj)
     -- A deliberately destroyed Unit must not leave old activation and Ready
     -- links behind. Do not erase its Command's spent state until a NEW Unit
     -- is recruited into that capacity.
-    local destroyedData=destroyedGuid~=nil and gameCards[destroyedGuid] or nil
+    -- A destroy callback can fire before the card registry finishes loading.
+    -- Keep GUID-based cleanup working even when this optional lookup is unavailable.
+    local destroyedData=destroyedGuid~=nil and type(gameCards)=="table" and gameCards[destroyedGuid] or nil
     if destroyedData~=nil and (destroyedData.cardType=="Regular Unit"
         or destroyedData.cardType=="Elite Unit") and resourceUnitsRetireUnit~=nil then
         resourceUnitsRetireUnit(destroyedGuid)
