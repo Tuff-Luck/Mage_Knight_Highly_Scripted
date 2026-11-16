@@ -167,6 +167,8 @@ function startOfTurn()
     gStates.startingCardSelections={}
     gStates.resourceCardPlayOrder={}
     gStates.resourceCardPlaySerial=0
+    -- New turns start fresh; a save/reload within the turn preserves the ledger.
+    gStates.combatWoundApplication=nil
 	if currentPlayer~=nil then
         currentPlayer.puppetMasterUsed=false
         currentPlayer.whoNeedsMagicSourceDieUsed=false

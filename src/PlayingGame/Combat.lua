@@ -1311,6 +1311,8 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 		if rewindReady==true then rewindTransactionFinish("Pre-end-turn cleanup") end
 		return
 	end
+	if rewindReady~=true and combatWoundsEndTurnReminder~=nil
+        and combatWoundsEndTurnReminder(player.color)==true then return end
 	if rewindReady~=true then
 		if rewindTransactionOwnerActive("Pre-end-turn cleanup")==true then return end
 		rewindTransactionStart(function() preEndTurn(player,mouseButton,id,true) end,"Pre-end-turn cleanup")
