@@ -71,6 +71,12 @@ trackerPrivate.bannerCardForm=function(guid)
     if data.half~=nil then return "full" end
     return nil
 end
+-- The manual-effect question mark is useful on playable Artifacts, but a
+-- face-down Banner has already spent its basic (half) or strong (full) effect.
+trackerPrivate.artifactManualNoteVisible=function(card)
+    return card~=nil and (card.is_face_down~=true
+        or trackerPrivate.bannerCardForm(card.guid)==nil)
+end
 trackerPrivate.bannerStrongActive=function(card)
     return card~=nil and trackerPrivate.bannerCardForm(card.guid)=="full"
         and card.is_face_down==true
@@ -6032,7 +6038,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         end
     end
     if rule~=nil and isArtifact and rule.manualSecondary~=nil
-        and posture=="upright" then
+        and posture=="upright" and trackerPrivate.artifactManualNoteVisible(card) then
         xml[#xml+1]={tag="Button",attributes={
             id="ResourceCardChoice_"..card.guid.."_artifactNote",
             onClick="global/resourceCardsArtifactNoteClicked",
