@@ -1775,6 +1775,46 @@ function scheduleCoralQuickWittedBottom(delayFrames)
 	coralQuickWittedShufflePause=safeWaitFrames("CardFlow",function() coralQuickWittedShufflePause=nil coralSetAsideQuickWitted() end, delayFrames or 5)
 end
 
+-- Deal confirmed calculator Wounds one at a time. Each card is acknowledged
+-- immediately by GUID, so a save/reload during transfer does not duplicate it.
+function combatDealCalculatedWounds(seat,allocations,onCard,onDone)
+    local bag=nil
+    for _,obj in ipairs(getObjects()) do
+        if obj.getGMNotes()=="Wound Cards"
+            and math.ceil((obj.getPosition()[1]+80)/40)==seat then
+            bag=obj break
+        end
+    end
+    if bag==nil then
+        if onDone then onDone(false,"Wound Cards bag missing") end
+        return
+    end
+    local queue={}
+    for _,entry in ipairs(allocations or {}) do
+        for _,destination in ipairs({"hand","discard"}) do
+            local count=math.max(0,math.floor(tonumber(entry[destination]) or 0))
+            for _=1,count do queue[#queue+1]={key=entry.key,to=destination} end
+        end
+    end
+    local index=0
+    local function dealNext()
+        index=index+1
+        local entry=queue[index]
+        if entry==nil then if onDone then onDone(true) end return end
+        local hand=entry.to=="hand"
+        local position=hand and {(seat*40)-91,2.98+0.08*((index-1)%5),-48.40}
+            or {(seat*40)-110.54,2+0.08*((index-1)%5),-43.20}
+        local card=safeTakeObject("PlayerBoard.CardFlow",bag,{position=position,smooth=true})
+        if card==nil then
+            if onDone then onDone(false,"Wound Cards bag failed to produce a card") end
+            return
+        end
+        if onCard then onCard(entry.key,entry.to,card.guid) end
+        safeWaitFrames("PlayerBoard.CardFlow",dealNext,3)
+    end
+    dealNext()
+end
+
 -- Wound dealing helper
 function DealWound(paramaters)
 	local woundbag=getObjectFromGUID(paramaters.guid)

@@ -466,7 +466,10 @@ local function combatAssignmentSources(seat)
                         explosiveBolt=record.explosiveBolt,
                         dodgeConditional=record.dodgeConditional==true,
                         possessExclude=record.possessEnemyGUID,
-                        dueling=guid=="7d1c32"}
+                        dueling=guid=="7d1c32",
+                        damagePhaseWound=gStates~=nil and gStates.combatWoundApplication~=nil
+                            and gStates.combatWoundApplication.cards~=nil
+                            and gStates.combatWoundApplication.cards[physicalGUID]==true}
                     parts[slot]=source
                     sources[#sources+1]=source
                 end
@@ -554,6 +557,7 @@ local function combatAssignmentSources(seat)
     local diplomacy,_,diplomacyOn=combatConfig.conversionFor(seat,"diplomacy")
     -- Reserve points already committed to Cumbersome/Psychic; consume only
     -- the otherwise available pool. Existing sources cannot count twice.
+    local lateMoveSpent=0
     local function consumeShared(field,amount)
         for _,source in ipairs(sources) do
             if amount<=0 then break end
@@ -562,6 +566,7 @@ local function combatAssignmentSources(seat)
                 and combatAssignmentState.targets[source.key]~=nil
             if value~=nil and value>0 and not committed then
                 local consumed=math.min(value,amount)
+                if field=="move" and source.damagePhaseWound then lateMoveSpent=lateMoveSpent+consumed end
                 local remaining=value-consumed
                 if field=="move" then source.move=remaining
                 else source.psychicInfluence=remaining end
@@ -601,6 +606,8 @@ local function combatAssignmentSources(seat)
             attack=family=="attack" and points or 0,
             move=0,psychicInfluence=0,psychicInfluenceCounts=false,
             convertedResource=key,convertedFamily=family,convertedAmount=points,
+            -- All converted points stay late if any Damage-phase Wound paid for them.
+            damagePhaseWound=guid=="878d92" and lateMoveSpent>0,
             resources={[key]=points},
             details={{text=key.." "..points,amount=points,
                 icon=icon,key=key,family=family,
@@ -623,6 +630,20 @@ local function combatAssignmentSources(seat)
     -- Shield of the Fallen Kings gives separate Block effects, not one
     -- divisible pool. Each part has its own target key, arrow and assignment.
     -- An Ambush bonus belongs to the FIRST printed Block effect only.
+    -- A newly received Wound cannot Block or spend Move against Cumbersome:
+    -- both happen before the Damage phase. Agility has already consumed Move.
+    for _,source in ipairs(sources) do
+        if source.damagePhaseWound then
+            source.block=0 source.move=0
+            for key in pairs(source.resources or {}) do
+                if key=="move" or key:sub(1,5)=="block" then source.resources[key]=0 end
+            end
+            for index=#source.details,1,-1 do
+                local family=source.details[index].family
+                if family=="block" or family=="move" then table.remove(source.details,index) end
+            end
+        end
+    end
     local splitBlocks={}
     for _,source in ipairs(sources) do
         local count=tonumber(source.repeatBlocks) or 1
@@ -1355,8 +1376,8 @@ local function combatRangeResult(entry,sources)
     -- player selects melee, none of its bolts can score a Ranged-phase kill.
     local eligible={}
     for _,source in ipairs(sources) do
-        if not source.forkedLightning
-            or (gStates==nil or gStates.forkedLightningPhase~="attack") then
+        if not source.damagePhaseWound and (not source.forkedLightning
+            or (gStates==nil or gStates.forkedLightningPhase~="attack")) then
             eligible[#eligible+1]=source
         end
     end
@@ -1374,6 +1395,7 @@ end
 -- Block cells hold block, the Ranged/Siege cell holds range/siege only once it can legally
 -- defeat the enemy, and everything else is generic Attack.
 local function combatDetailPhase(detail,rangeDefeated,fortification,source)
+    if source~=nil and source.damagePhaseWound then return "attack" end
     if source~=nil and source.forkedLightning then
         return (gStates==nil or gStates.forkedLightningPhase~="attack") and "range" or "attack"
     end
@@ -1963,6 +1985,114 @@ end
 
 local function combatWoundsText(count)
     return tostring(count)..(count==1 and " Wound" or " Wounds")
+end
+
+-- Physical Wounds can leave the Hero's hand after being used. Persist their
+-- origin and the number dealt per printed attack, rather than recounting hand.
+combatConfig.woundLedger=function(seat)
+    if gStates==nil or seat==nil then return nil end
+    local ledger=gStates.combatWoundApplication
+    if type(ledger)~="table" or ledger.seat~=seat then
+        ledger={seat=seat,applied={},cards={},preview={},hasPreview=false}
+        gStates.combatWoundApplication=ledger
+    end
+    ledger.applied=ledger.applied or {}
+    ledger.cards=ledger.cards or {}
+    ledger.preview=ledger.preview or {}
+    return ledger
+end
+
+combatConfig.woundRecordPreview=function(seat,items,results)
+    local ledger=combatConfig.woundLedger(seat)
+    if ledger==nil then return end
+    local expected={}
+    for _,item in ipairs(items or {}) do
+        local result=results[item.key] or {}
+        expected[item.key]={hand=result.heroWounds or 0,discard=result.discard or 0}
+    end
+    ledger.preview=expected
+    ledger.hasPreview=true
+end
+
+combatConfig.woundPending=function(ledger)
+    local allocations,hand,discard,changed={},0,0,false
+    if ledger==nil or not ledger.hasPreview then return allocations,hand,discard,changed end
+    for key,expected in pairs(ledger.preview) do
+        local applied=(ledger.applied or {})[key] or {}
+        local h=math.max(0,(expected.hand or 0)-(applied.hand or 0))
+        local d=math.max(0,(expected.discard or 0)-(applied.discard or 0))
+        if h>0 or d>0 then
+            allocations[#allocations+1]={key=key,hand=h,discard=d}
+            hand=hand+h discard=discard+d
+        end
+        if (applied.hand or 0)>(expected.hand or 0)
+            or (applied.discard or 0)>(expected.discard or 0) then changed=true end
+    end
+    for key,applied in pairs(ledger.applied or {}) do
+        if ledger.preview[key]==nil and ((applied.hand or 0)>0 or (applied.discard or 0)>0) then
+            changed=true
+        end
+    end
+    table.sort(allocations,function(a,b) return a.key<b.key end)
+    return allocations,hand,discard,changed
+end
+
+function resourceCardsApplyCombatWounds(player)
+    if not resourceCardsPanelOpen() or not resourceCardsPlayerCanEdit(player and player.color or nil)
+        or combatConfig.woundApplying then return end
+    local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    local ledger=current~=nil and combatConfig.woundLedger(current.seatPos) or nil
+    local allocations,hand,discard,changed=combatConfig.woundPending(ledger)
+    if ledger==nil then return end
+    if hand+discard==0 then
+        if changed then
+            broadcastToColor("Combat damage changed after Wounds were dealt. Check the physical cards; none are removed automatically.",
+                player.color,warningColor)
+        end
+        return
+    end
+    ledger.warned=nil
+    combatConfig.woundApplying=true
+    combatDealCalculatedWounds(current.seatPos,allocations,
+        function(key,destination,guid)
+            local record=ledger.applied[key] or {hand=0,discard=0}
+            record[destination]=(record[destination] or 0)+1
+            ledger.applied[key]=record
+            if destination=="hand" then ledger.cards[guid]=true end
+        end,
+        function(success,reason)
+            combatConfig.woundApplying=false
+            if not success then
+                broadcastToColor("Apply Wounds stopped: "..tostring(reason)..". Click again to finish.",
+                    player.color,warningColor)
+            end
+            resourceCardsSourceChanged()
+            mainUIUpdate("Combat Wounds applied")
+        end)
+end
+
+-- A soft two-click acknowledgement also works if the tracker was minimized.
+-- An in-progress physical transfer is always held until its queue finishes.
+function combatWoundsEndTurnReminder(color)
+    local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    local ledger=current~=nil and gStates.combatWoundApplication or nil
+    if ledger==nil or ledger.seat~=current.seatPos then return false end
+    if combatConfig.woundApplying then
+        safeBroadcastToColor("Wound cards are still being dealt. Finish applying them before ending combat.",
+            color,warningColor)
+        return true
+    end
+    local _,hand,discard,changed=combatConfig.woundPending(ledger)
+    if hand+discard==0 and not changed then return false end
+    local signature=tostring(hand)..":"..tostring(discard)..":"..tostring(changed)
+    if ledger.warned==signature then return false end
+    ledger.warned=signature
+    local message=hand+discard>0
+        and ("Unapplied combat Wounds: "..tostring(hand).." to hand, "..tostring(discard)
+            .." to discard. Use Apply Wounds, or click End Turn again if handled manually.")
+        or "Combat damage changed after Wounds were applied. Check physical cards; click End Turn again to continue."
+    safeBroadcastToColor(message,color,warningColor)
+    return true
 end
 
 -- Short notes under an attack's line: what each chosen Unit took and what is left for the Hero.
@@ -4019,6 +4149,9 @@ local function combatAssignmentRefreshRows(entries,sources)
         end
     end
 
+    combatConfig.woundRecordPreview(damageSeat,damageItems,damageResults)
+    local ledger=combatConfig.woundLedger(damageSeat)
+    local _,pendingHand,pendingDiscard,changed=combatConfig.woundPending(ledger)
     local showTotal=totalHeroWounds>0
     combatPanelSetAttribute("CombatTotalRow","active",showTotal and "true" or "false")
     if showTotal then
@@ -4033,6 +4166,16 @@ local function combatAssignmentRefreshRows(entries,sources)
         combatPanelSetAttribute("CombatTotalDamage","text",
             "Total: "..combatRich(combatWoundsText(totalHeroWounds)..poisonText,combatConfig.COMBAT_RED))
         combatPanelSetAttribute("CombatTotalDamage","font","Fonts/MKCardText")
+        local pending=pendingHand+pendingDiscard>0
+        combatPanelSetAttribute("CombatApplyWounds","interactable",
+            (pending or changed) and not combatConfig.woundApplying and "true" or "false")
+        combatPanelSetAttribute("CombatApplyWounds","color",
+            pending and "rgb(0.48,0.36,0.20)" or changed and "rgb(0.49,0.30,0.22)"
+            or "rgb(0.23,0.37,0.24)")
+        combatPanelSetAttribute("CombatApplyWounds","tooltip",
+            pending and ("Apply "..pendingHand.." Wounds to hand and "..pendingDiscard.." to discard")
+            or changed and "Damage changed after application; check Wounds manually"
+            or "All calculated Hero Wounds have been applied")
         combatPanelSetAttribute("CombatKnockoutWarning","active",knockout and "true" or "false")
         if knockout then
             combatPanelSetAttribute("CombatKnockoutWarning","text",
