@@ -128,17 +128,19 @@ local nonCombatUpdates=isolated(ui,"local mainUINonCombatAccountingSources={",
 eq(nonCombatUpdates["Combat Wounds applied"],true,
     "drawing physical Wounds must preserve pending enemy Fame")
 local enemyPanel=fileText("src/UI/CombatEnemyPanel.xml")
-assert(enemyPanel:find('id="CombatTotalRow" active="false" padding="5 0 3 0" preferredHeight="22" childAlignment="UpperRight"',1,true),
-    "Draw Wounds must align to Result's right edge")
-assert(not enemyPanel:find('CombatTotalSpacer',1,true),
-    "Wound summary must not use a separate spacer calculation")
-assert(enemyPanel:find('id="CombatWoundSummary" preferredWidth="220"',1,true)
-    and enemyPanel:find('id="CombatApplyWounds" onClick="resourceTracker" preferredWidth="220"',1,true),
-    "Draw Wounds should no longer use the unrelated 255-unit width")
-assert(recognition:find('local summaryWidth=panelWidth-beforeResult-5',1,true),
-    "Result and Draw Wounds should share the dynamically calculated width")
-assert(recognition:find('combatPanelSetAttribute(id,"preferredWidth",tostring(summaryWidth))',1,true),
-    "Draw Wounds and KO warning must use the actual Result space")
+-- A HorizontalLayout with only one child expands it across the entire panel in TTS.
+-- The summary row must instead be a plain Panel with a right-anchored fixed-size child.
+assert(enemyPanel:find('<Panel id="CombatTotalRow" active="false" preferredHeight="22"',1,true),
+    "Draw Wounds row must not be a layout group")
+assert(enemyPanel:find('id="CombatWoundSummary" rectAlignment="UpperRight" offsetXY="-5 -3" width="220"',1,true),
+    "Wound button must have a fixed 220-unit right-anchored container")
+assert(enemyPanel:find('id="CombatApplyWounds" onClick="resourceTracker" rectAlignment="UpperCenter" width="220"',1,true),
+    "Wound button must have an actual width rather than a layout-preferred width")
+assert(not enemyPanel:find('CombatTotalSpacer',1,true)
+    and not enemyPanel:find('id="CombatWoundSummary" preferredWidth=',1,true),
+    "No spacer or layout-preferred sizing may stretch the Wound button")
+assert(not recognition:find('summaryWidth',1,true),
+    "No dynamic preferredWidth writes should fight TTS's anchored position")
 assert(recognition:find('"Draw: "..combatRich',1,true),
     "wound button should be labelled Draw")
 print("Combat Wound application regressions passed")
