@@ -119,4 +119,19 @@ assert(recognition:find('if field=="move" and source.damagePhaseWound',1,true),
     "Agility must track consumed Wound Move")
 assert(fileText("src/PlayingGame/Combat.lua"):find(
     "attackAssignmentsUnitPreviewCommit",1,true),"Unit preview still commits at End Turn")
+
+-- The explicit Draw Wounds UI refresh must not re-count all enemy rewards:
+-- temporary movement through the thin combat zone could otherwise revoke Fame.
+local ui=fileText("src/PlayingGame/UI.lua")
+local nonCombatUpdates=isolated(ui,"local mainUINonCombatAccountingSources={",
+    "local function setEndTurnText","return mainUINonCombatAccountingSources")
+eq(nonCombatUpdates["Combat Wounds applied"],true,
+    "drawing physical Wounds must preserve pending enemy Fame")
+local enemyPanel=fileText("src/UI/CombatEnemyPanel.xml")
+assert(enemyPanel:find('id="CombatTotalRow" active="false" padding="5 0 3 0"',1,true),
+    "Draw Wounds row should sit lower without excess bottom padding")
+assert(enemyPanel:find('id="CombatApplyWounds" onClick="resourceTracker" preferredWidth="255"',1,true),
+    "Draw Wounds button should fit beneath Result")
+assert(recognition:find('"Draw: "..combatRich',1,true),
+    "wound button should be labelled Draw")
 print("Combat Wound application regressions passed")
