@@ -184,7 +184,9 @@ assert(refresh:find("resourceCardsSourceChanged()",1,true),
 assert(not refresh:find("showUnitAbilityButtons(",1,true),
     "External refreshes may not paint Unit controls before combat state is known")
 local events=read("src/PlayingGame/PlayerBoard/Events.lua")
-assert(events:find("if not activeUnit then playerBoardClearObjectUIIfPresent(obj) end",1,true),
-    "Play Area zone exits must not erase active Unit buttons")
+assert(events:find("if unitLayoutIsUnit(live) and unitLayoutObjectInAnyUnitArea(guid) then return end",1,true),
+    "Settled cleanup must preserve active Unit buttons across thin-zone exits")
+assert(events:find("playerBoardScheduleUICleanup(objGUID)",1,true),
+    "Play Area exits must defer UI cleanup instead of clearing on lift")
 
 print("Unit activation settled-payment and enemy-target regressions passed")
