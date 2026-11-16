@@ -230,7 +230,9 @@ function playerBoardZoneEnterSettled(ctx)
 		--Toggle Half Cards
 		if gameCards[objGUID]~=nil and gameCards[objGUID].half~=nil then
 			local bannerPosition=obj.getPosition()
-			if bannerPosition[3]>=-38.4 then
+			-- A broken full Banner cannot be reattached to unlock its stronger
+            -- effect as a half-card basic effect.
+			if bannerPosition[3]>=-38.4 and obj.is_face_down~=true then
 				local pass=bannerPosition[1]
 				local halfGUID=gameCards[objGUID].half
 				obj.setState(2)
@@ -400,7 +402,13 @@ function playerBoardZoneLeave(ctx)
 					live.setState(1)
 					safeWaitFrames("PlayerBoard.Events",function()
 						local fullCard=getObjectFromGUID(fullGUID)
-						if fullCard~=nil then fullCard.setScale({1.5, 1, 1.5}) end
+						if fullCard~=nil then
+                        -- A half Banner's face-down state means its attached
+                        -- ability was spent, NOT that the full card was broken.
+                        -- Reset it on detachment before scanning as a card.
+                        if fullCard.is_face_down==true then fullCard.flip() end
+                        fullCard.setScale({1.5, 1, 1.5})
+                    end
 					end, 1)
 				end
 
