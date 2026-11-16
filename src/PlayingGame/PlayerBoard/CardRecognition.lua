@@ -53,6 +53,25 @@ trackerPrivate.bannerEffectUses=function()
     uses.healing=uses.healing or {}
     return uses
 end
+
+-- An attached face-up Banner of Fear adds a selectable, non-printed Unit
+-- activation. Do not alter the shared per-type Unit catalog.
+trackerPrivate.unitAbilitiesFor=function(guid,state,seatPos)
+    local printed=unitResourceDefinitions~=nil and unitResourceDefinitions[guid] or nil
+    if printed==nil then return nil end
+    state=state or (seatPos~=nil and unitLayoutResourceState(seatPos) or nil)
+    local banners=state~=nil and state.bannersByUnit~=nil
+        and state.bannersByUnit[guid] or nil
+    local fear=banners~=nil and banners["Banner of Fear"] or nil
+    if fear==nil or fear.faceDown==true then return printed end
+    local abilities={}
+    for key,value in pairs(printed) do abilities[key]=value end
+    local index=#printed+1
+    abilities[index]={row=99,key="bannerFear",buttonLabel="FEAR",
+        enemyEffect={cancelOneAttack=true},bannerFear=true}
+    abilities.bannerFearIndex=index
+    return abilities
+end
 trackerPrivate.commandPickupForUnits={}
 -- Only mana objects actually moved by players are candidates for extra Unit
 -- payment checks. A stacked crystal can sit above the Unit scripting zone,
@@ -7260,6 +7279,18 @@ unitManaDecision=function(unit,abilities,activation,counts)
     end
     local result={index=nil,display={},ambiguous=false,
         signature=signature}
+    local fearIndex=abilities.bannerFearIndex
+    if fearIndex~=nil and activation.choice==fearIndex
+        and activation.bannerFearSelected==true then
+        result.index=fearIndex
+        result.selected={[fearIndex]=true}
+        result.display={fearIndex}
+        for _,index in ipairs(paid) do result.display[#result.display+1]=index end
+        for _,index in ipairs(free) do
+            if index~=fearIndex then result.display[#result.display+1]=index end
+        end
+        return result
+    end
     if abilities.multi==true then
         local chosen={}
         for _,index in ipairs(direct) do chosen[index]=true end
@@ -7281,6 +7312,10 @@ unitManaDecision=function(unit,abilities,activation,counts)
             end
         end
         result.selected=chosen
+        if fearIndex~=nil then
+            for _,index in ipairs(direct) do result.display[#result.display+1]=index end
+            result.display[#result.display+1]=fearIndex
+        end
         return result
     end
     if #paid==1 then
@@ -7333,6 +7368,10 @@ unitManaDecision=function(unit,abilities,activation,counts)
             if activation.choice==index then result.index=index break end
         end
         if result.index==nil then result.index=free[1] end
+    end
+    if fearIndex~=nil and #paid>0 then
+        if #paid==1 then result.display={paid[1]} end
+        result.display[#result.display+1]=fearIndex
     end
     return result
 end
@@ -9181,7 +9220,7 @@ local function renderSeat(seatPos)
         local recordKey=unitHistoryKey(unitGUID,useIndex)
         activationByRecordKey[recordKey]=activation
             local unit=objects[unitGUID]
-            local abilities=unitResourceDefinitions[unitGUID]
+            local abilities=trackerPrivate.unitAbilitiesFor(unitGUID,unitState,seatPos)
             if unit~=nil and abilities~=nil then
                 if unitState==nil then unitState=unitLayoutResourceState(seatPos) end
                 if unitState==nil then error("Unable to read Unit resource state.",2) end
@@ -11432,7 +11471,8 @@ function resourceUnitsPruneHistoricalTargets(unitGUID)
     local activation=gStates~=nil and gStates.unitResourceActivations
         and gStates.unitResourceActivations[unitGUID] or nil
     local unit=getObjectFromGUID(unitGUID)
-    local abilities=unitResourceDefinitions[unitGUID]
+    local abilities=trackerPrivate.unitAbilitiesFor(unitGUID,nil,
+        activation~=nil and activation.seatPos or nil)
     if activation~=nil and unit~=nil and abilities~=nil then
         resourceUnitsReconcileChoiceTargets(unit,abilities,activation)
     elseif attackAssignmentsPruneUnitChoiceSources~=nil then
@@ -11448,8 +11488,9 @@ function resourceUnitsChoiceClicked(player,value,id)
     local latest=unitGUID~=nil and gStates.unitResourceActivations
         and gStates.unitResourceActivations[unitGUID] or nil
     local activation,useIndex=unitHistorySelected(unitGUID,latest)
-    local abilities=unitGUID~=nil and unitResourceDefinitions[unitGUID] or nil
     local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    local abilities=unitGUID~=nil and trackerPrivate.unitAbilitiesFor(
+        unitGUID,nil,current~=nil and current.seatPos) or nil
     if activation==nil or abilities==nil or current==nil or index==nil
         or abilities[index]==nil or activation.seatPos~=current.seatPos then return end
     local unit=getObjectFromGUID(unitGUID)
@@ -11474,7 +11515,14 @@ function resourceUnitsChoiceClicked(player,value,id)
         showUnitAbilityButtons(unit,abilities,activation,true,decision)
         return
     end
-    if abilities.multi==true then
+    if abilities.bannerFearIndex~=nil and index==abilities.bannerFearIndex then
+        activation.choice=index
+        activation.bannerFearSelected=true
+        activation.manaChoice=nil
+        activation.lastPaidIndex=nil
+        choiceExpandedByGUID[unitGUID]=nil
+    elseif abilities.multi==true then
+        activation.bannerFearSelected=nil
         -- Gold payments may be assigned to several different abilities, but
         -- never more abilities than the actual number of Gold tokens.
         -- Choosing another button reassigns Gold instead of silently
@@ -11500,12 +11548,14 @@ function resourceUnitsChoiceClicked(player,value,id)
         end
         choiceExpandedByGUID[unitGUID]=true
     elseif decision.ambiguous then
+        activation.bannerFearSelected=nil
         activation.manaChoice=index
         activation.manaSignature=decision.signature
         -- Once a payable alternative is selected, collapse to its icon and
         -- restore the target button, regardless of the Unit's display style.
         choiceExpandedByGUID[unitGUID]=nil
     else
+        activation.bannerFearSelected=nil
         activation.choice=index
         activation.manaChoice=nil
         activation.manaSignature=nil
