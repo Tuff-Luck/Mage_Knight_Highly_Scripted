@@ -590,13 +590,12 @@
 				</Button>
 			</HorizontalLayout>
 		</Panel>
-		<HorizontalLayout id="CombatTotalRow" active="false" padding="5 0 3 0" preferredHeight="22" childForceExpandWidth="false">
-			<Panel id="CombatTotalSpacer" preferredWidth="1000" color="rgba(0,0,0,0)" outlineSize="0 0"/>
-			<VerticalLayout preferredWidth="255" childForceExpandHeight="false">
-				<Button id="CombatApplyWounds" onClick="resourceTracker" preferredWidth="255" preferredHeight="18" color="rgb(0.48,0.36,0.20)" tooltip="Deal Hero Wounds to hand and Poison Wounds to discard">
-                    <Text id="CombatTotalDamage" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="255" preferredHeight="18" alignment="MiddleLeft" raycastTarget="false"/>
+		<HorizontalLayout id="CombatTotalRow" active="false" padding="5 0 3 0" preferredHeight="22" childAlignment="UpperRight" childForceExpandWidth="false">
+			<VerticalLayout id="CombatWoundSummary" preferredWidth="220" childForceExpandHeight="false">
+				<Button id="CombatApplyWounds" onClick="resourceTracker" preferredWidth="220" preferredHeight="18" color="rgb(0.48,0.36,0.20)" tooltip="Deal Hero Wounds to hand and Poison Wounds to discard">
+                    <Text id="CombatTotalDamage" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="220" preferredHeight="18" alignment="MiddleLeft" raycastTarget="false"/>
                 </Button>
-				<Text id="CombatKnockoutWarning" active="false" class="Text12" fontSize="12" color="#FF5555" preferredWidth="255" preferredHeight="18" alignment="MiddleLeft"/>
+				<Text id="CombatKnockoutWarning" active="false" class="Text12" fontSize="12" color="#FF5555" preferredWidth="220" preferredHeight="18" alignment="MiddleLeft"/>
 			</VerticalLayout>
 		</HorizontalLayout>
         <Text id="CombatResourceOverflow" active="false" class="Text12" color="#FFCC66" preferredHeight="18" alignment="MiddleLeft"/>
