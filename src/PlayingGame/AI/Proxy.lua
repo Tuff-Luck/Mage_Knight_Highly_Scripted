@@ -2319,7 +2319,7 @@ function proxyTurn(player,mouseButton,id)
 	if mouseButton~="-1" or proxyPlayerIsActive()~=true then return end
 	if gStates.tacticShown==true then
 		automatedTurnRewindStart(function()
-			automatedPlayerRandomTactic()
+			if automatedPlayerRandomTactic()~=true then automatedTurnRewindRelease() return end
 			gStates.proxyState="Start"
 			nextTurnMerged("incrementTurn")
 			automatedTacticRewindRelease()
