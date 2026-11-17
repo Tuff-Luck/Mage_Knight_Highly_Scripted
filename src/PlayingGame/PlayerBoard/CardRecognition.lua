@@ -2367,7 +2367,7 @@ function resourceCardsRequestCombatWounds(player)
         .."{fr}Le calculateur sera verrouillé, sauf pour ajuster les attaques. Utilisez le retour arrière de TTS pour annuler."
         .."{pt-br}A calculadora ficará bloqueada, exceto para ajustes de ataque. Use o Retroceder tempo do TTS para desfazer."
         .."{de}Der Rechner wird gesperrt; nur Angriffsanpassungen bleiben möglich. Zum Rückgängigmachen TTS-Zeit zurückspulen.",
-        "\n",
+        " ",
         "{en}Confirm your Ranged/Siege and Block decisions before applying combat damage."
         .."{it}Conferma le decisioni di Attacco a distanza/Assedio e Blocco prima di applicare i danni."
         .."{ru}Подтвердите дальние/осадные атаки и блоки перед применением урона."
