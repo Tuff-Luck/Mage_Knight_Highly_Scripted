@@ -1207,6 +1207,10 @@ cardResourceDefinitions={
     -- Spell resources are independent of the legality of the mana used.
     -- Purely narrative/non-numeric effects are deliberately blue, not unknown.
     spellUtility={normalChoices={{key="other"}},poweredChoices={{key="other"}}},
+    -- Underground Travel stays manual. Its stronger side initiates an assault
+    -- that ignores site/wall Fortification, but never printed Fortified.
+    spellUnderground={normalChoices={{key="other"}},poweredChoices={{key="other"}},
+        ignoreSiteFortification=true,ignoreSiteFortificationPowered=true},
     -- A played unpowered card changes movement routing, not Move points.
     -- Its active ability is independent of numeric Resource Tracker totals.
     spellSpaceBending={normalChoices={{key="other"}},poweredChoices={{key="other"}},
@@ -1842,7 +1846,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["2eb8f3"]={cardType="Spell", resourceKey="spellUtility", name={"Energy Flow", "Energy Steal"}, 		color={"Green"}, action={"Heal"}},
 			["47e71c"]={cardType="Spell", resourceKey="spellCure", name={"Cure", "Disease"}, 					color={"Green"}, action={"Heal", "Combat"}},
 			["2eb8d3"]={cardType="Spell", resourceKey="spellRestoration", name={"Restoration", "Rebirth"}, 				color={"Green"}, action={"Heal"}},
-			["2eb8d2"]={cardType="Spell", resourceKey="spellUtility", name={"Underground Travel", "Underground Attack"}, color={"Green"}, action={"Move"}},
+			["2eb8d2"]={cardType="Spell", resourceKey="spellUnderground", name={"Underground Travel", "Underground Attack"}, color={"Green"}, action={"Move"}},
 			["2eb8d1"]={cardType="Spell", resourceKey="spellTremor", name={"Tremor", "Earthquake"}, 				color={"Green"}, action={"Combat"}},
 			["2eb8d0"]={cardType="Spell", resourceKey="spellUtility", name={"Meditation", "Trance"}, 				color={"Green"}, action={"Special"}},
 			["995f43"]={cardType="Spell", resourceKey="spellRestoration", name={"Restoration", "Rebirth"}, 				color={"Green"}, action={"Heal"}},--Rise of the Forgemaster Start
