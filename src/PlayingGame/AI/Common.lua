@@ -66,21 +66,40 @@ end
 
 --Dummy and Volkare both use the center random-Tactic button, but their actual turns are processed separately.
 function automatedPlayerRandomTactic()
-	local dummyTactic=nil
-	local claimedCard=nil
-	while dummyTactic==nil do
-		dummyTactic=math.random(1,6)
-		for _, obj in pairs(getObjectFromGUID(tacticZones[dummyTactic]).getObjects()) do
-			if isTacticCard(obj) then claimedCard=obj break end
+	local currentPlayer=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+	local board=getObjectFromGUID(dummyBoard)
+	if currentPlayer==nil or board==nil then
+		broadcastToAll("Automatic tactic selection could not proceed: automated player or board is missing.",warningColor)
+		return false
+	end
+	--Sample only the physical tactics still in their zones. A missing zone must
+	--not cause a nil-object error, and an empty offer must not retry forever.
+	local available={}
+	for tactic=1,6 do
+		local zoneGUID=tacticZones~=nil and tacticZones[tactic] or nil
+		local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
+		if zone~=nil then
+			for _,obj in pairs(zone.getObjects()) do
+				if isTacticCard(obj) then
+					available[#available+1]={number=tactic,card=obj}
+					break
+				end
+			end
 		end
-		if claimedCard==nil then dummyTactic=nil end
 	end
+	if #available==0 then
+		broadcastToAll("Automatic tactic selection could not proceed: no available tactic cards were found.",warningColor)
+		return false
+	end
+	local selected=available[math.random(1,#available)]
+	local dummyTactic=selected.number
+	local claimedCard=selected.card
 	broadcastToAll(joinLang({gStates.positionMageKnight[5]=="Volkare" and "{en}Volkare RANDOMLY gained Tactic for {it}Volkare ha ottenuto CASUALMENTE la Tattica per {ru}Волкар получает СЛУЧАЙНУЮ Тактику для {zh-tw}沃卡里隨機選取戰術給{zh-cn}沃卡里随机选取战术给{ko}볼케어가 무작위 전략을 가져갑니다: {es}Volkare ganó ALEATORIAMENTE Táctica para {fr}Volkare a gagné au hasard une Tactique pour {pt-br}Volkare ALEATORIAMENTE ganhou a Tática por {de}Volkare hat ZUFÄLLIG eine Taktik für " or (proxyPlayerIsActive()==true and "{en}Proxy RANDOMLY gained Tactic for {it}Il Proxy ha ottenuto CASUALMENTE la Tattica per {ru}Прокси получает СЛУЧАЙНУЮ Тактику для {zh-tw}代理玩家隨機選取戰術給{zh-cn}代理玩家随机选取战术给{ko}프록시가 무작위 전략을 가져갑니다: {es}Proxy ganó ALEATORIAMENTE Táctica para {fr}Le Proxy a gagné au hasard une Tactique pour {pt-br}Proxy ALEATORIAMENTE ganhou a Tática por {de}Proxy hat ZUFÄLLIG eine Taktik für " or "{en}Dummy RANDOMLY gained Tactic for {it}Il Fittizio ha ottenuto CASUALMENTE la Tattica per {ru}Виртуальный игрок получает СЛУЧАЙНУЮ Тактику для {zh-cn}虚拟玩家随机选取战术给{ko}가상 플레이어가 무작위의 전략 카드를 가져갑니다: {es}Dummy ganada ALEATORIAMENTE Táctica para {fr}Le mannequin a gagné au hasard une Tactique pour {pt-br}Jog. Fictício ALEATORIAMENTE ganhou a Tática por {de}Dummy hat ZUFÄLLIG eine Taktik für {zh-tw}虛擬玩家隨機選取戰術給"), translateWord[turnOrder[gStates.turnNumber].mage]}), positionToColor(gStates.turnNumber))
-	if claimedCard~=nil then
-		claimedCard.unlock()
-		claimedCard.setPositionSmooth({getObjectFromGUID(dummyBoard).getPosition()[1], 3.0, getObjectFromGUID(dummyBoard).getPosition()[3]-5.17})
-	end
-	turnOrder[gStates.turnNumber].tactic=dummyTactic
+	claimedCard.unlock()
+	local boardPosition=board.getPosition()
+	claimedCard.setPositionSmooth({boardPosition[1],3.0,boardPosition[3]-5.17},false,false)
+	currentPlayer.tactic=dummyTactic
+	return true
 end
 
 --Draw from an automated player's Deed pile without ever calling takeObject on a Deck after it collapses to its final Card.
