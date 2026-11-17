@@ -1965,7 +1965,7 @@ local function combatUnitResists(unit,attackKey)
 end
 
 -- items: {key,type,damage,poison,paralyse,assassination} in resolution order; targetsOf(key) lists the Unit GUIDs the player chose.
-local function combatDamageResolve(items,units,heroArmour,targetsOf,mitigation,elementMitigation,ignoreFirstHeroWound)
+local function combatDamageResolve(items,units,heroArmour,targetsOf,mitigation,elementMitigation,ignoreFirstHeroWound,appliedDamage)
     local used,results={},{}
     local firstHeroWoundIgnored=false
     -- Reserve a Unit required to receive its own protected enemy's damage first.
@@ -1979,12 +1979,22 @@ local function combatDamageResolve(items,units,heroArmour,targetsOf,mitigation,e
     end
     for _,item in ipairs(items) do
         local remaining=item.damage
-        local result={units={},heroWounds=0,discard=0,heroDamage=0}
+        local result={units={},heroWounds=0,discard=0,heroDamage=0,committedDestroyed={}}
+        -- After Apply Wounds removes a Paralyzed Unit from the board, that
+        -- Unit must still absorb its already-resolved share of this attack.
+        -- Otherwise a new scan would incorrectly wound the Hero again.
+        local prior=appliedDamage~=nil and appliedDamage[item.key] or nil
+        for guid,absorbed in pairs(prior~=nil and prior.destroyed or {}) do
+            local value=math.max(0,tonumber(absorbed) or 0)
+            remaining=math.max(0,remaining-value)
+            result.committedDestroyed[guid]=value
+        end
         local function assign(guid,forced)
             local unit=units[guid]
             if unit==nil or unit.wounded or used[guid] or remaining<=0
                 or (not forced and reserved[guid]~=nil and reserved[guid]~=item.key) then return end
             used[guid]=true
+            local before=remaining
             local entry={unit=unit,wounded=true,resisted=combatUnitResists(unit,item.type),forced=forced}
             local armour=item.type=="M" and unit.level or unit.armour
             if entry.resisted then
@@ -2009,6 +2019,7 @@ local function combatDamageResolve(items,units,heroArmour,targetsOf,mitigation,e
                     end
                 end
             end
+            if entry.destroyed then entry.absorbed=math.max(0,before-remaining) end
             result.units[#result.units+1]=entry
         end
         -- Shocktroops must take damage first, even against Assassination.
@@ -3861,7 +3872,10 @@ local function combatAssignmentRefreshRows(entries,sources)
     end
     local damageResults=combatDamageResolve(damageItems,damageUnits,
         combatHeroArmour(nativeCommandCount),attackAssignmentsDamageTargetsOf,
-        mitigation,elementMitigation,seatScan~=nil and seatScan.heroFirstWoundIgnored==true)
+        mitigation,elementMitigation,seatScan~=nil and seatScan.heroFirstWoundIgnored==true,
+        gStates~=nil and gStates.combatWoundApplication~=nil
+            and gStates.combatWoundApplication.seat==damageSeat
+            and gStates.combatWoundApplication.applied or nil)
 
     -- Vampiric gains Armor for Wounds added to the Hero's hand and for each
     -- Unit its own non-Psychic attacks wound. Poison's extra discard/Unit
