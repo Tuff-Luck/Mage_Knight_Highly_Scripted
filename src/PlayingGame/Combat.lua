@@ -1550,11 +1550,15 @@ end
 function combatEnemyTokenDefeated(obj)
 	if obj==nil then return false end
 	if combatDefeatMarksActive==true and combatDefeatTracked[obj.guid]==true then
-		-- A boss reduced by one or more levels has earned Fame and must
-		-- undergo level cleanup, but only its final level earns a red X.
-		return combatDefeatDefeated[obj.guid]==true or combatDefeatPartial[obj.guid]==true
+		return combatDefeatDefeated[obj.guid]==true
 	end
 	return obj.is_face_down==false
+end
+
+-- Partial bosses count for their own level-based Fame, but never for ordinary
+-- death/reward/site conditions.
+function combatBossPartialRewardEligible(guid)
+	return combatDefeatMarksActive==true and combatDefeatPartial[guid]==true
 end
 
 -- Puppet Master must not treat every face-up enemy as defeated while the
