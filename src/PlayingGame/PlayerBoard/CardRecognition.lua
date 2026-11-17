@@ -2277,8 +2277,8 @@ end
 
 -- A Damage commit is a deliberate phase boundary: record a stable
 -- fingerprint of the planned Wounds, Paralysis, and assigned enemy targets.
--- The preview is recalculated after the dialog and again after TTS records
--- its rewind point; a changed plan must not be applied from stale counts.
+-- The latest preview is checked after the dialog and again after TTS
+-- records its rewind point; a changed plan must not use stale counts.
 combatConfig.woundCommitSignature=function(ledger)
     if ledger==nil or ledger.hasPreview~=true then return nil end
     local parts={tostring(ledger.seat)}
@@ -2535,7 +2535,14 @@ function resourceCardsApplyCombatWounds(player,onComplete)
                             or obj.resting==false) then return false end
                     end
                     return true
-                end,8,finalise)
+                end,45,function()
+                    -- TTS automatically releases rewind suppression at 60s.
+                    -- Report a rare stuck physics transfer rather than
+                    -- silently exposing an intermediate rewind state.
+                    broadcastToColor("Combat cards have not settled after 45 seconds. Check the table; use TTS Rewind Time if necessary.",
+                        player.color,warningColor)
+                    finalise()
+                end)
             end,3)
         end
     end
