@@ -123,6 +123,28 @@ env.gStates.proxyTurnReport.sourceRerollColor=nil
 assert(render("headline")=="Proxy moved 2 spaces to the Dungeon and\ntook Scouts from the offer.",
     "Reached destination and action should join without a reroll")
 
+-- A completed conquest at the destination should not name the same site twice.
+-- The saved action still contains the real site name; only the summary is shortened.
+env.gStates.proxyTurnReport.target="Mage Tower"
+env.gStates.proxyTurnReport.moved=1
+env.gStates.proxyTurnReport.reachedTarget=true
+env.gStates.proxyTurnReport.action="conquered the Mage Tower"
+env.gStates.proxyTurnReport.sourceRerollColor="Gold"
+assert(render("headline")=="Proxy moved 1 space to the Mage Tower,\nconquered it, and rolled a Source die.",
+    "Conquered destination was repeated in the Proxy summary")
+env.gStates.proxyTurnReport.sourceRerollColor=nil
+assert(render("headline")=="Proxy moved 1 space to the Mage Tower and\nconquered it.",
+    "Conquest without a Source reroll should avoid repeating the destination")
+env.gStates.proxyTurnReport.moved=0
+assert(render("headline")=="Proxy conquered the Mage Tower.",
+    "Conquest without movement still needs the site name")
+env.gStates.proxyTurnReport.moved=1
+env.gStates.proxyTurnReport.reachedTarget=false
+assert(render("headline")=="Proxy moved 1 space toward the Mage Tower and\nconquered the Mage Tower.",
+    "Conquest should only abbreviate the name after reaching the target")
+env.gStates.proxyTurnReport.target="Dungeon"
+env.gStates.proxyTurnReport.moved=2
+
 -- Combat against a rampager en route does not imply the objective was reached.
 env.gStates.proxyTurnReport.reachedTarget=false
 env.gStates.proxyTurnReport.action="defeated the rampaging Orc"
