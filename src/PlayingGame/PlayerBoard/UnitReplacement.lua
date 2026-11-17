@@ -205,7 +205,7 @@ end
 -- The old Unit's Wound markers leave play; attached Banner Artifacts go to
 -- the player's DISCARD (base rules), not into the Trash or onto the new Unit.
 -- The protected Banner of Command slot is not a replacement candidate.
-local function replacementDetachAccessories(layout,unit,seatPos)
+function unitReplacementDetachAccessories(layout,unit,seatPos)
     local bounds=unit.getBounds()
     local size=bounds~=nil and bounds.size or nil
     local centre=bounds~=nil and bounds.center or unit.getPosition()
@@ -328,7 +328,7 @@ unitReplacementConfirm=function(player)
                 return
             end
         end
-        replacementDetachAccessories(currentLayout,oldUnit,pending.seatPos)
+        unitReplacementDetachAccessories(currentLayout,oldUnit,pending.seatPos)
         if resourceUnitsRetireUnit~=nil then resourceUnitsRetireUnit(oldUnit.guid) end
         if readyPosition~=nil then command.setPositionSmooth(readyPosition,false,false) end
         -- TTS bags retain classic object buttons on contained cards. Clear
