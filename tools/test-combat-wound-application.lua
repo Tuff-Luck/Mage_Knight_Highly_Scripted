@@ -456,4 +456,39 @@ eq(attrs["CombatDamageConfirm:active"],"false","dialog stays closed after commit
 resourceCardsRequestCombatWounds(player)
 eq(attrs["CombatDamageConfirm:active"],"false","second click has nothing left to apply")
 
+-- Exercise the production rewind guard itself (not just the commit
+-- coordinator stub): storage is requested once, owners stay blocked through
+-- the scripted work, and failed storage never starts the destructive action.
+local shared=fileText("src/Shared.lua")
+local checkpoints,allowed,waiting=0,0,nil
+storeRewindState=function(callback,block)
+    checkpoints=checkpoints+1
+    eq(block,true,"damage transaction must block further rewind stores")
+    waiting=callback
+end
+allowRewindStore=function() allowed=allowed+1 end
+safeWaitTime=function() return 1 end
+broadcastToAll=function() end
+isolated(shared,"local rewindTransactionStorePending=false",
+    "--Return one loose card to the bottom of a live deck")
+eq(rewindTransactionCanStartFresh(),true,"new transaction can begin fresh")
+local mutation=0
+rewindTransactionStart(function() mutation=mutation+1 end,"Damage transaction")
+eq(checkpoints,1,"rewind snapshot requested before mutation")
+eq(mutation,0,"no mutation while snapshot is pending")
+eq(rewindTransactionCanStartFresh(),false,"no overlapping checkpoint")
+waiting(true,false) -- TTS also succeeds when no new state was necessary.
+eq(mutation,1,"snapshot success permits damage")
+eq(rewindTransactionCanStartFresh(),false,"rewind stays blocked through commit")
+rewindTransactionFinish("Damage transaction")
+eq(allowed,1,"rewind automatically restored after physical completion")
+eq(rewindTransactionCanStartFresh(),true,"next transaction can start fresh")
+local rejected=0
+rewindTransactionStart(function() mutation=mutation+1 end,"Failed transaction",
+    function() rejected=rejected+1 end)
+waiting(false,false)
+eq(mutation,1,"failed snapshot must not permit physical mutations")
+eq(rejected,1,"snapshot failure callback invoked")
+eq(rewindTransactionCanStartFresh(),true,"snapshot failure releases pending state")
+
 print("Combat Wound application regressions passed")
