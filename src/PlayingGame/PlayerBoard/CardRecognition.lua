@@ -2359,7 +2359,7 @@ local function combatBossPhasePlan(group,entries,total,phase,blockedAll)
     local anyBoss=false
     for _,index in ipairs(group.members) do
         local entry=entries[index]
-        if entry.bossLevel~=nil then anyBoss=true end
+        if entry.bossLevel~=nil and entry.bossType~="control" then anyBoss=true end
         if not entry.attackOnly and not entry.destroyed
             and (phase=="range" or not entry.rangeDead) then
             local remaining=entry.bossLevel~=nil
@@ -2397,6 +2397,7 @@ local function combatBossPhasePlan(group,entries,total,phase,blockedAll)
             local am=manual[a.entry.guid]~=nil
             local bm=manual[b.entry.guid]~=nil
             if am~=bm then return am end
+            if a.entry.x~=b.entry.x then return a.entry.x<b.entry.x end
             return a.entry.guid<b.entry.guid
         end)
         for pass=1,2 do
@@ -3938,9 +3939,9 @@ local function combatAssignmentRefreshRows(entries,sources)
             for _,source in ipairs(meleeSources) do
                 local resources={}
                 for key,value in pairs(source.resources or {}) do
-                    if key:sub(1,6)~="ranged" and key:sub(1,5)~="siege" then
-                        resources[key]=value
-                    end
+                    local spent=(key:sub(1,6)=="ranged" and group.fortification==0)
+                        or (key:sub(1,5)=="siege" and group.fortification<2)
+                    if not spent then resources[key]=value end
                 end
                 laterSources[#laterSources+1]=setmetatable({resources=resources},{__index=source})
             end
@@ -4535,6 +4536,7 @@ local function combatCalcShutdown()
     combatConfig.blockedEnemyCounts={}
     combatConfig.conversionState={}
     combatConfig.panelHeight=0
+    if gStates~=nil then gStates.combatBossManual={} end
     combatTrackedSeat=nil
     combatTrackedEnemies={}
     combatCalcOn=false
