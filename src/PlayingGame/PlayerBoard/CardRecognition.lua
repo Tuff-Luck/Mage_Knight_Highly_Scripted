@@ -811,7 +811,7 @@ combatConfig.captureParalyzedUnitSources=function(seat,unitGUID)
         if source.kind=="unit" and source.guid==unitGUID
             and combatAssignmentState.targets[source.key]~=nil
             and source.ranged+source.siege+source.block+source.move>0 then
-            local copy=combatFrozenCopy(source)
+            local copy=combatFrozenCopy(source) or {}
             copy.retiredUnit=true
             copy.retiredUnitPosition=pos~=nil
                 and {pos.x or pos[1],pos.y or pos[2],pos.z or pos[3]} or nil
