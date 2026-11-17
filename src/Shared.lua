@@ -628,6 +628,14 @@ function rewindTransactionOwnerActive(owner)
 	return rewindTransactionOwners[owner]==true or rewindTransactionPendingOwners[owner]==true
 end
 
+-- The combat damage commit requires its OWN checkpoint, not a nested
+-- transaction's older snapshot. Reject the click while another scripted
+-- operation is recording or holding a rewind point.
+function rewindTransactionCanStartFresh()
+	return rewindTransactionBlocked~=true and rewindTransactionStorePending~=true
+		and next(rewindTransactionOwners)==nil
+end
+
 function rewindTransactionStart(andThen,owner,onFailure)
 	owner=owner or "Automated turn"
 	if type(andThen)~="function" then return false end
