@@ -2328,10 +2328,16 @@ function resourceTracker(player, mouseButton, id)
             end
             return
 		end
+        -- Confirmation belongs to the currently authorised player. Cancel
+        -- also works if the tracker was collapsed after the dialog opened.
+        if id=="CombatDamageConfirmApply" or id=="CombatDamageConfirmCancel" then
+            combatConfig.woundConfirmChoice(player,id)
+            return
+        end
         -- Stale hidden XML controls cannot revive calculations while OFF.
         if not resourceCardsPanelOpen() then return end
         if id=="CombatApplyWounds" then
-            resourceCardsApplyCombatWounds(player)
+            resourceCardsRequestCombatWounds(player)
             return
         end
 		if id:match("^CombatSourceSlot")~=nil then
