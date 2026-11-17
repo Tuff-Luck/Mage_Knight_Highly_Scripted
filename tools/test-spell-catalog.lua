@@ -42,7 +42,7 @@ local expected={
     {"Green","Energy Flow","Energy Steal","spellUtility"},
     {"Green","Cure","Disease","spellCure"},
     {"Green","Restoration","Rebirth","spellRestoration"},
-    {"Green","Underground Travel","Underground Attack","spellUtility"},
+    {"Green","Underground Travel","Underground Attack","spellUnderground"},
     {"Green","Tremor","Earthquake","spellTremor"},
     {"Green","Meditation","Trance","spellUtility"}
 }
