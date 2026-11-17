@@ -572,14 +572,17 @@ function proxyTurnReportBegin(objective,colors,baseMove,shieldMove,sourceMove)
 		moved=0,
 		action=nil,
 		reason=nil,
-		target=nil
+		target=nil,
+		reachedTarget=false
 	}
 end
 
 function proxyTurnReportSetTarget(target)
 	local report=gStates.proxyTurnReport
 	if report==nil or target==nil then return end
-	report.target=proxyTargetDisplayName(target)
+	local name=proxyTargetDisplayName(target)
+	if report.target~=name then report.reachedTarget=false end
+	report.target=name
 	report.reason=target.proxyReason or report.reason
 	if (target.proxyChoiceCount or 0)>1 then
 		report.choiceCount=target.proxyChoiceCount
@@ -705,26 +708,54 @@ function proxyTurnReportText(section)
 	if report==nil then return "{en}Proxy processing is complete.{it}Elaborazione Proxy completata.{ru}Обработка Прокси завершена.{zh-tw}代理玩家處理完成。{zh-cn}代理玩家处理完成。{ko}프록시 처리가 완료되었습니다.{es}El procesamiento del Proxy ha terminado.{fr}Le traitement du Proxy est terminé.{pt-br}O processamento do Proxy foi concluído.{de}Die Proxy-Verarbeitung ist abgeschlossen." end
 	local moved=report.moved or 0
 	local action=report.action
-	local first
+	-- Earlier saves recorded an unfinished move as the *action*, causing
+	-- "moved N spaces and moved toward..." in the report. The selected
+	-- target is movement context, not an extra action.
+	local oldUnreached=type(action)=="string" and action:match("^moved toward the (.+)\nbut did not reach it$") or nil
+	if oldUnreached~=nil then action=nil end
+	local targetName=report.target or oldUnreached
+	local target=targetName~=nil and proxyLocalizedTerm(targetName) or nil
 	local active=gStates.proxyState=="Processing" or gStates.proxyState=="PickDestination" or gStates.proxyState=="PickRoute" or gStates.proxyState=="PickCard" or gStates.proxyState=="PickEnemy" or gStates.proxyState=="PickMana"
-	local target=proxyLocalizedTerm(report.target)
-	if action==nil or action=="" then
-		if report.target~=nil then
-			if active==true then first=joinLang({"{en}Proxy moved toward the {it}Il Proxy si è mosso verso {ru}Прокси переместился к {zh-tw}代理玩家朝 {zh-cn}代理玩家朝 {ko}프록시가 다음 목표로 이동했습니다: {es}El Proxy se movió hacia {fr}Le Proxy s’est déplacé vers {pt-br}O Proxy moveu-se em direção a {de}Der Proxy bewegte sich in Richtung ",target,"."})
-			elseif moved<=0 then first=joinLang({"{en}Proxy did not move toward the {it}Il Proxy non si è mosso verso {ru}Прокси не двигался к {zh-tw}代理玩家沒有朝 {zh-cn}代理玩家没有朝 {ko}프록시는 다음 목표로 이동하지 않았습니다: {es}El Proxy no se movió hacia {fr}Le Proxy ne s’est pas déplacé vers {pt-br}O Proxy não se moveu em direção a {de}Der Proxy bewegte sich nicht in Richtung ",target,"."})
-			elseif moved==1 then first=joinLang({"{en}Proxy moved 1 space toward the {it}Il Proxy si è mosso di 1 spazio verso {ru}Прокси переместился на 1 клетку к {zh-tw}代理玩家朝 {zh-cn}代理玩家朝 {ko}프록시가 다음 목표로 1칸 이동했습니다: {es}El Proxy se movió 1 espacio hacia {fr}Le Proxy s’est déplacé d’une case vers {pt-br}O Proxy moveu-se 1 espaço em direção a {de}Der Proxy bewegte sich 1 Feld in Richtung ",target,"."})
-			else first=joinLang({"{en}Proxy moved {it}Il Proxy si è mosso di {ru}Прокси переместился на {zh-tw}代理玩家移動了 {zh-cn}代理玩家移动了 {ko}프록시가 {es}El Proxy se movió {fr}Le Proxy s’est déplacé de {pt-br}O Proxy moveu-se {de}Der Proxy bewegte sich ",tostring(moved),"{en} spaces toward the {it} spazi verso {ru} клетки к {zh-tw} 格，朝向 {zh-cn} 格，朝向 {ko}칸 이동했습니다: {es} espacios hacia {fr} cases vers {pt-br} espaços em direção a {de} Felder in Richtung ",target,"."}) end
+	local destination=nil
+	if target~=nil then
+		if report.reachedTarget==true and oldUnreached==nil then
+			destination=joinLang({"{en} to the {it} fino a {ru} к {zh-tw}，抵達 {zh-cn}，抵达 {ko}에 도착: {es} hasta {fr} jusqu’à {pt-br} até {de} bis zu ",target})
 		else
-			if active==true then first="{en}Proxy is preparing their movement.{it}Il Proxy prepara il movimento.{ru}Прокси готовится к движению.{zh-tw}代理玩家正在準備移動。{zh-cn}代理玩家正在准备移动。{ko}프록시가 이동을 준비하고 있습니다.{es}El Proxy prepara su movimiento.{fr}Le Proxy prépare son déplacement.{pt-br}O Proxy está preparando seu movimento.{de}Der Proxy bereitet seine Bewegung vor."
-			elseif moved<=0 then first="{en}Proxy completed their movement.{it}Il Proxy ha completato il movimento.{ru}Прокси завершил движение.{zh-tw}代理玩家完成移動。{zh-cn}代理玩家完成移动。{ko}프록시가 이동을 완료했습니다.{es}El Proxy completó su movimiento.{fr}Le Proxy a terminé son déplacement.{pt-br}O Proxy concluiu seu movimento.{de}Der Proxy hat seine Bewegung abgeschlossen."
-			elseif moved==1 then first="{en}Proxy moved 1 space.{it}Il Proxy si è mosso di 1 spazio.{ru}Прокси переместился на 1 клетку.{zh-tw}代理玩家移動了 1 格。{zh-cn}代理玩家移动了 1 格。{ko}프록시가 1칸 이동했습니다.{es}El Proxy se movió 1 espacio.{fr}Le Proxy s’est déplacé d’une case.{pt-br}O Proxy moveu-se 1 espaço.{de}Der Proxy bewegte sich 1 Feld."
-			else first=joinLang({"{en}Proxy moved {it}Il Proxy si è mosso di {ru}Прокси переместился на {zh-tw}代理玩家移動了 {zh-cn}代理玩家移动了 {ko}프록시가 {es}El Proxy se movió {fr}Le Proxy s’est déplacé de {pt-br}O Proxy moveu-se {de}Der Proxy bewegte sich ",tostring(moved),"{en} spaces.{it} spazi.{ru} клетки.{zh-tw} 格。{zh-cn} 格。{ko}칸 이동했습니다.{es} espacios.{fr} cases.{pt-br} espaços.{de} Felder."}) end
+			destination=joinLang({"{en} toward the {it} verso {ru} к {zh-tw}，朝向 {zh-cn}，朝向 {ko} 방향으로: {es} hacia {fr} vers {pt-br} em direção a {de} in Richtung ",target})
+		end
+	end
+	local first
+	-- The same movement clause is shared by ordinary actions, route
+	-- exhaustion and Source rerolls, so none of them repeats "moved".
+	local movement
+	if moved==1 then
+		movement="{en}Proxy moved 1 space{it}Il Proxy si è mosso di 1 spazio{ru}Прокси переместился на 1 клетку{zh-tw}代理玩家移動 1 格{zh-cn}代理玩家移动 1 格{ko}프록시가 1칸 이동했습니다{es}El Proxy se movió 1 espacio{fr}Le Proxy s’est déplacé d’une case{pt-br}O Proxy moveu-se 1 espaço{de}Der Proxy bewegte sich 1 Feld"
+	elseif moved>1 then
+		movement=joinLang({"{en}Proxy moved {it}Il Proxy si è mosso di {ru}Прокси переместился на {zh-tw}代理玩家移動 {zh-cn}代理玩家移动 {ko}프록시가 {es}El Proxy se movió {fr}Le Proxy s’est déplacé de {pt-br}O Proxy moveu-se {de}Der Proxy bewegte sich ",tostring(moved),"{en} spaces{it} spazi{ru} клетки{zh-tw} 格{zh-cn} 格{ko}칸 이동했습니다{es} espacios{fr} cases{pt-br} espaços{de} Felder"})
+	end
+	local period="{en}.{it}.{ru}.{zh-tw}。{zh-cn}。{ko}.{es}.{fr}.{pt-br}.{de}."
+	if action==nil or action=="" then
+		if active==true then
+			if target~=nil then first=joinLang({"{en}Proxy moved toward the {it}Il Proxy si è mosso verso {ru}Прокси переместился к {zh-tw}代理玩家朝 {zh-cn}代理玩家朝 {ko}프록시가 다음 목표로 이동했습니다: {es}El Proxy se movió hacia {fr}Le Proxy s’est déplacé vers {pt-br}O Proxy moveu-se em direção a {de}Der Proxy bewegte sich in Richtung ",target,period})
+			else first="{en}Proxy is preparing their movement.{it}Il Proxy prepara il movimento.{ru}Прокси готовится к движению.{zh-tw}代理玩家正在準備移動。{zh-cn}代理玩家正在准备移动。{ko}프록시가 이동을 준비하고 있습니다.{es}El Proxy prepara su movimiento.{fr}Le Proxy prépare son déplacement.{pt-br}O Proxy está preparando seu movimento.{de}Der Proxy bereitet seine Bewegung vor." end
+		elseif moved<=0 then
+			if target~=nil then first=joinLang({"{en}Proxy did not move toward the {it}Il Proxy non si è mosso verso {ru}Прокси не двигался к {zh-tw}代理玩家沒有朝 {zh-cn}代理玩家没有朝 {ko}프록시는 다음 목표로 이동하지 않았습니다: {es}El Proxy no se movió hacia {fr}Le Proxy ne s’est pas déplacé vers {pt-br}O Proxy não se moveu em direção a {de}Der Proxy bewegte sich nicht in Richtung ",target,period})
+			else first="{en}Proxy completed their movement.{it}Il Proxy ha completato il movimento.{ru}Прокси завершил движение.{zh-tw}代理玩家完成移動。{zh-cn}代理玩家完成移动。{ko}프록시가 이동을 완료했습니다.{es}El Proxy completó su movimiento.{fr}Le Proxy a terminé son déplacement.{pt-br}O Proxy concluiu seu movimento.{de}Der Proxy hat seine Bewegung abgeschlossen." end
+		else
+			first=joinLang({movement,destination or "",period})
 		end
 	else
 		local localizedAction=proxyLocalizedAction(action)
-		if moved<=0 then first=joinLang({"{en}Proxy {it}Il Proxy {ru}Прокси {zh-tw}代理玩家{zh-cn}代理玩家{ko}프록시가 {es}El Proxy {fr}Le Proxy {pt-br}O Proxy {de}Der Proxy ",localizedAction,"."})
-		elseif moved==1 then first=joinLang({"{en}Proxy moved 1 space and\n{it}Il Proxy si è mosso di 1 spazio e\n{ru}Прокси переместился на 1 клетку и\n{zh-tw}代理玩家移動 1 格並\n{zh-cn}代理玩家移动 1 格并\n{ko}프록시가 1칸 이동하고\n{es}El Proxy se movió 1 espacio y\n{fr}Le Proxy s’est déplacé d’une case et\n{pt-br}O Proxy moveu-se 1 espaço e\n{de}Der Proxy bewegte sich 1 Feld und\n",localizedAction,"."})
-		else first=joinLang({"{en}Proxy moved {it}Il Proxy si è mosso di {ru}Прокси переместился на {zh-tw}代理玩家移動 {zh-cn}代理玩家移动 {ko}프록시가 {es}El Proxy se movió {fr}Le Proxy s’est déplacé de {pt-br}O Proxy moveu-se {de}Der Proxy bewegte sich ",tostring(moved),"{en} spaces and\n{it} spazi e\n{ru} клетки и\n{zh-tw} 格並\n{zh-cn} 格并\n{ko}칸 이동하고\n{es} espacios y\n{fr} cases et\n{pt-br} espaços e\n{de} Felder und\n",localizedAction,"."}) end
+		if moved<=0 then
+			first=joinLang({"{en}Proxy {it}Il Proxy {ru}Прокси {zh-tw}代理玩家{zh-cn}代理玩家{ko}프록시가 {es}El Proxy {fr}Le Proxy {pt-br}O Proxy {de}Der Proxy ",localizedAction,period})
+		else
+			-- With a Source reroll there are three clauses, so do not use
+			-- "and" before the action and again before the die roll.
+			local connector=report.sourceRerollColor~=nil
+				and "{en},\n{it},\n{ru},\n{zh-tw}，\n{zh-cn}，\n{ko},\n{es},\n{fr},\n{pt-br},\n{de},\n"
+				or "{en} and\n{it} e\n{ru} и\n{zh-tw} 並\n{zh-cn} 并\n{ko} 그리고\n{es} y\n{fr} et\n{pt-br} e\n{de} und\n"
+			first=joinLang({movement,destination or "",connector,localizedAction,period})
+		end
 	end
 
 	-- The Source reroll belongs to the movement sentence, not to the
@@ -2098,6 +2129,14 @@ function proxyResolveBurn(hex,mapObjects)
 end
 
 function proxyResolveArrival(target,hazard,lastSafe,hexes,mapObjects,proxyIndex)
+	-- Arrival is independent of the action: a rampaging enemy can interrupt
+	-- the route, while a site action can be resolved after reaching the site.
+	if gStates.proxyTurnReport~=nil then
+		local avatar=proxyAvatarObject()
+		local current=avatar~=nil and runtimeMapHexForPosition(hexes,avatar.getPosition(),mapObjects) or nil
+		gStates.proxyTurnReport.reachedTarget=target~=nil and target.hex~=nil and current~=nil
+			and runtimeMapHexKey(current)==runtimeMapHexKey(target.hex)
+	end
 	local completed=true
 	if hazard~=nil then
 		if hazard.action=="rampager" then completed=proxyResolveRampager(hazard,mapObjects)
@@ -2179,7 +2218,8 @@ function proxyAnimateRoute(route,index,target,hazard,lastSafe,hexes,mapObjects,p
 		local current=runtimeMapHexForPosition(hexes,avatar.getPosition(),mapObjects)
 		if hazard~=nil or (target~=nil and current~=nil and runtimeMapHexKey(current)==runtimeMapHexKey(target.hex)) then proxyResolveArrival(target,hazard,lastSafe,hexes,mapObjects,proxyIndex)
 		else
-			if gStates.proxyTurnReport~=nil and gStates.proxyTurnReport.action==nil then proxyTurnReportSetAction("moved toward the "..proxyTargetDisplayName(target).."\nbut did not reach it") end
+			-- The report already knows the target and moved spaces; no
+			-- synthetic "did not reach" action is needed.
 			proxyFinishTurn(hexes,mapObjects,proxyIndex)
 		end
 		return
