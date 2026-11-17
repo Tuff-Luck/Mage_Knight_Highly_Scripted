@@ -49,6 +49,15 @@ broadcastToColor=function(message, _playerColor, _messageTint)
     warnings[#warnings+1]=message
 end
 safeBroadcastToColor=broadcastToColor
+-- Isolation tests do not load the earlier module-local snapshot helpers.
+-- Provide equivalent minimal globals for the extracted wound coordinator.
+combatPhaseLock=function() return nil end
+combatFrozenCopy=function(value)
+    if type(value)~="table" then return value end
+    local copy={}
+    for key,item in pairs(value) do copy[key]=combatFrozenCopy(item) end
+    return copy
+end
 isolated(recognition,"combatConfig.woundLedger=function(seat)",
     "local function combatDamageNotes")
 
@@ -415,6 +424,10 @@ rewindTransactionFinish=function(owner)
 end
 storeRewindState=function(_callback,_block) end
 local player={color="Red"}
+-- The production calculator builds this candidate during the preview pass.
+combatConfig.phasePreview={seat=1,turn=1,sources={},sourceKeys={},
+    objectKeys={},targets={},explicit={},positions={},joined={},
+    entries={},damageResults={},damage={attacks={},units={},targets={}}}
 local startCount=#dealt
 gStates.combatWoundApplication=nil
 combatConfig.woundRecordPreview(1,{{key="confirm:1"}},{
@@ -496,8 +509,57 @@ settle.done()
 eq(combatConfig.woundApplying,false,"settlement clears applying flag")
 eq(#finishedSnapshots,previousFinished+1,"rewind released once after settling")
 eq(attrs["CombatDamageConfirm:active"],"false","dialog stays closed after commit")
+local committed=gStates.combatWoundApplication.phaseLock
+assert(committed~=nil and committed.seat==1 and committed.turn==1,
+    "successful checkpoint must persist the phase lock in the wound ledger")
 resourceCardsRequestCombatWounds(player)
 eq(attrs["CombatDamageConfirm:active"],"false","second click has nothing left to apply")
+
+-- Regression: an earlier Block remains fixed when its card leaves play;
+-- playing the same GUID again cannot produce a second Block or more Attack.
+local phaseSources=isolated(recognition,
+    "local function combatFrozenCopy(value)",
+    "combatConfig.captureParalyzedUnitSources=function",
+    "return combatPhaseLockSources")
+local original={guid="played",key="played",name="Played",kind="card",
+    ranged=0,siege=0,block=2,attack=2,move=0,psychicInfluence=0,
+    resources={block=2,attack=2},
+    details={{family="block",key="block",amount=2},
+        {family="attack",key="attack",amount=2}}}
+local wound={guid="wound",key="wound",name="Fresh Wound",kind="wound",
+    ranged=0,siege=0,block=3,attack=4,move=0,psychicInfluence=0,
+    resources={block=3,attack=4},
+    details={{family="block",key="block",amount=3},
+        {family="attack",key="attack",amount=4}}}
+local lock={sources={original},sourceKeys={played=true},spentRange={}}
+local onlyWound=phaseSources(lock,{wound})
+eq(onlyWound[1].block,2,"earlier Block remains after card returns to hand")
+eq(onlyWound[1].noAttackPhase,true,"committed source not reused in Attack")
+eq(onlyWound[2].block,0,"Damage-phase Wound cannot retroactively Block")
+eq(onlyWound[2].attack,4,"new Wound may Attack with a legal linked Skill")
+eq(onlyWound[2].damagePhaseWound,true,"late Wound cannot join Ranged/Siege")
+local replay=combatFrozenCopy(original)
+replay.block=99 replay.attack=99 replay.resources.block=99
+replay.resources.attack=99
+replay.details[2].amount=99
+local repeated=phaseSources(lock,{replay})
+eq(repeated[1].block,2,"replayed GUID retains original Block")
+eq(repeated[1].attack,0,"frozen early source has no second Attack")
+eq(repeated[2].key,"played#postDamage","later Attack separated")
+eq(repeated[2].attack,2,"replayed GUID cannot inflate original Attack")
+eq(repeated[2].resources.attack,2,"late Attack resource itself is capped")
+assert(recognition:find('item.source.phaseLocked and "false" or "true"',1,true),
+    "frozen calculator icons must not be clickable")
+assert(recognition:find('combatConfig.phaseObjectLocked(card.guid)',1,true)
+    and recognition:find('combatConfig.phaseObjectLocked(unit.guid)',1,true),
+    "locked cards and Units must lose choice and target controls")
+local assignments=fileText("src/PlayingGame/AttackAssignments.lua")
+assert(assignments:find('lock.positions or {}',1,true)
+    and assignments:find('combatCommittedSource(entry.sourceGUID)',1,true),
+    "locked arrows must stay at their old origin and survive card removal")
+assert(assignments:find('function attackAssignmentsDamageSnapshot()',1,true)
+    and assignments:find('if lock~=nil then',1,true),
+    "Damage targets must persist and be non-interactive after commit")
 
 -- Exercise the production rewind guard itself (not just the commit
 -- coordinator stub): storage is requested once, owners stay blocked through
