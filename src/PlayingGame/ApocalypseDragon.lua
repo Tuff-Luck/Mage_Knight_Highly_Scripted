@@ -1142,7 +1142,8 @@ end
 apocalypseDragonGroundReduction=function(headName)
 	local combat=gStates~=nil and gStates.apocalypseDragonGroundCombat or nil
 	if combat==nil or combat.reductions==nil then return 1 end
-	return math.max(1,math.floor(tonumber(combat.reductions[headName]) or 1))
+	-- An explicit zero is different from an unset manual dial.
+	return math.max(0,math.floor(tonumber(combat.reductions[headName]) or 1))
 end
 
 apocalypseDragonGroundControlGUIDs=function()
@@ -1206,7 +1207,7 @@ function apocalypseDragonRefreshGroundAttackSuppression()
 end
 
 apocalypseDragonGroundReductionAdjust=function(player,mouseButton,id)
-	if mouseButton~="-1" then return end
+	if mouseButton~="-1" and mouseButton~="1" then return end
 	local guid=tostring(id or ""):sub(1,6)
 	local active,headName=apocalypseDragonGroundHeadToken(guid)
 	local combat=gStates~=nil and gStates.apocalypseDragonGroundCombat or nil
@@ -1217,19 +1218,30 @@ apocalypseDragonGroundReductionAdjust=function(player,mouseButton,id)
 	local color=player~=nil and player.color or nil
 	local allowed=positionToColor(owner)
 	if color~="Black" and color~=allowed then return end
+	local automatic=combatBossAutomationActive~=nil and combatBossAutomationActive()
+	if mouseButton=="1" then
+		-- Right-click either arrow to return to Auto.
+		if automatic and combatBossSetManual~=nil then combatBossSetManual(guid,nil) end
+		return
+	end
 	local current=tonumber(gStates.apocalypseDragonHeadLevels~=nil and gStates.apocalypseDragonHeadLevels[headName] or 0) or 0
 	if current<1 then return end
-	local value=apocalypseDragonGroundReduction(headName)
+	local minimum=automatic and 0 or 1
+	local value=math.max(minimum,apocalypseDragonGroundReduction(headName))
 	if id:find("GroundOverkillUp",1,true)~=nil and value<current then value=value+1 end
-	if id:find("GroundOverkillDown",1,true)~=nil and value>1 then value=value-1 end
+	if id:find("GroundOverkillDown",1,true)~=nil and value>minimum then value=value-1 end
 	local reductions=combat.reductions or {}
 	combat.reductions=reductions
 	reductions[headName]=value
 	local token=getObjectFromGUID(guid)
 	if token~=nil then token.UI.setAttribute(guid.."GroundOverkill","text",tostring(value)) end
 	apocalypseDragonRefreshGroundAttackSuppression()
-	apocalypseDragonRefreshGroundFameGain(owner)
-	mainUIUpdate("Dragon Head Reduction")
+	if automatic and combatBossSetManual~=nil then
+		combatBossSetManual(guid,value)
+	else
+		apocalypseDragonRefreshGroundFameGain(owner)
+		mainUIUpdate("Dragon Head Reduction")
+	end
 end
 
 function apocalypseDragonGroundHeadButtons(obj)
@@ -1253,7 +1265,10 @@ apocalypseDragonGroundPrepareColoredHead=function(combat,headName,playerIndex)
 	if token==nil then return false end
 	combat.deployed[headName]=true
 	combat.headOwners[headName]=playerIndex
-	combat.reductions[headName]=1
+	-- In an open calculator, unreached heads begin at zero rather than
+	-- displaying one unearned level/Fame before resource scanning.
+	combat.reductions[headName]=resourceCardsPanelOpen~=nil
+		and resourceCardsPanelOpen() and 0 or 1
 	local printed=apocalypseDragonMonsterData(headName,level)
 	if printed~=nil then
 		printed.fame=1
