@@ -32,7 +32,7 @@ local linksCode=section(src,"local function resolveActionLinks(cards,wounds,foot
 local zoneCode=section(src,"local function resourceCardsRelevantZone(ctx)",
     "function resourceCardsZoneLeft(ctx)")
 local dropCode=section(src,"function resourceCardsObjectMoved(obj)",
-    "-- Register all Artifact and readying Object UI callbacks")
+    "-- Register the remaining readying and Artifact gameplay buttons through the")
 local recoverCode=section(src,"    -- A Source die resting ON a played Action",
     "    -- A resting active Unit can be lifted above the thin Zone")
 
