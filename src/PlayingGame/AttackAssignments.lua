@@ -1246,6 +1246,7 @@ function attackAssignmentsBegin(source,resource,playerColor,additional,sourceKey
 		or type(resource)~="string" or resource=="" or type(playerColor)~="string"
 		or Player[playerColor]==nil then return false end
 	sourceKey=sourceKey or source.guid
+    if combatCommittedSource(sourceKey) then return false end
 	local pending=targetingByPlayer[playerColor]
 	if pending~=nil and pending.sourceGUID==sourceKey and pending.resource==resource then
 		targetingByPlayer[playerColor]=nil
@@ -1494,6 +1495,7 @@ end
 
 -- Called by the Attack Assignment panel so both interfaces show the same single target.
 function attackAssignmentsSetSourceTarget(sourceGUID,targetGUID,kind)
+    if combatCommittedSource(sourceGUID) then return end
     if resourceCardsPanelOpen~=nil and not resourceCardsPanelOpen() then return end
 	local source,target=getObjectFromGUID(assignmentBaseGUID(sourceGUID)),getObjectFromGUID(targetGUID)
 	if source==nil or target==nil then return end
@@ -1532,6 +1534,10 @@ end
 -- Removes arrows of sources that still exist on the table but no longer offer that target
 -- (for example when a card's choice stops splitting its resources).
 function attackAssignmentsPruneInactive(activeKeys,activeObjects,keepsLock)
+    local lock=combatCommittedLock()
+    if lock~=nil then
+        for key in pairs(lock.sourceKeys or {}) do activeKeys[key]=true end
+    end
 	local remove={}
 	for id,entry in pairs(assignmentRegistry) do
 		if activeKeys[entry.sourceGUID]~=true and (activeObjects[assignmentBaseGUID(entry.sourceGUID)]==true
