@@ -2275,6 +2275,207 @@ combatConfig.woundPending=function(ledger)
     return allocations,hand,discard,changed,effects
 end
 
+-- A Damage commit is a deliberate phase boundary: record a stable
+-- fingerprint of the planned Wounds, Paralysis, and assigned enemy targets.
+-- The preview is recalculated after the dialog and again after TTS records
+-- its rewind point; a changed plan must not be applied from stale counts.
+combatConfig.woundCommitSignature=function(ledger)
+    if ledger==nil or ledger.hasPreview~=true then return nil end
+    local parts={tostring(ledger.seat)}
+    local keys,seen={},{}
+    for key in pairs(ledger.preview or {}) do
+        keys[#keys+1]=key
+        seen[key]=true
+    end
+    for key in pairs(ledger.applied or {}) do
+        if not seen[key] then keys[#keys+1]=key end
+    end
+    table.sort(keys)
+    for _,key in ipairs(keys) do
+        local expected=ledger.preview[key] or {}
+        local applied=ledger.applied[key] or {}
+        parts[#parts+1]=table.concat({key,tostring(expected.hand or 0),
+            tostring(expected.discard or 0),tostring(expected.paralyse==true),
+            tostring(applied.hand or 0),tostring(applied.discard or 0),
+            tostring(applied.paralyse==true)},":")
+        local guids,seenGUIDs={},{}
+        for guid in pairs(expected.destroyed or {}) do
+            guids[#guids+1]=guid seenGUIDs[guid]=true
+        end
+        for guid in pairs(applied.destroyed or {}) do
+            if not seenGUIDs[guid] then guids[#guids+1]=guid end
+        end
+        table.sort(guids)
+        for _,guid in ipairs(guids) do
+            parts[#parts+1]=key..":"..guid..":"
+                ..tostring((expected.destroyed or {})[guid])..":"
+                ..tostring((applied.destroyed or {})[guid])
+        end
+    end
+    local targets={}
+    for source,target in pairs(combatAssignmentState.targets or {}) do
+        targets[#targets+1]=tostring(source)..":"..tostring(target)
+            ..":"..tostring(combatAssignmentState.explicit[source]==true)
+    end
+    table.sort(targets)
+    for _,target in ipairs(targets) do parts[#parts+1]=target end
+    return table.concat(parts,"|")
+end
+
+combatConfig.woundConfirmClose=function()
+    combatConfig.woundConfirmation=nil
+    UI.setAttribute("CombatDamageConfirm","active","false")
+end
+
+-- The original wound button stays unchanged; it only opens the dialog.
+function resourceCardsRequestCombatWounds(player)
+    local color=player~=nil and player.color or nil
+    if not resourceCardsPanelOpen() or not resourceCardsPlayerCanEdit(color)
+        or combatConfig.woundApplying or combatConfig.woundTransactionPending then return end
+    local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    local ledger=active~=nil and combatConfig.woundLedger(active.seatPos) or nil
+    local _,hand,discard,changed,effects=combatConfig.woundPending(ledger)
+    if ledger==nil then return end
+    if hand+discard+effects.paralyseCount+effects.destroyCount==0 then
+        if changed then
+            broadcastToColor("Combat damage changed after consequences were applied. Check physical cards; they cannot be undone automatically.",
+                color,warningColor)
+        end
+        return
+    end
+    local signature=combatConfig.woundCommitSignature(ledger)
+    if signature==nil then return end
+    combatConfig.woundConfirmation={
+        seat=active.seatPos,turn=gStates.turnNumber,color=color,
+        ledger=ledger,signature=signature}
+    local summary=joinLang({
+        "{en}Confirm your Ranged/Siege and Block decisions before applying combat damage."
+        .."{it}Conferma le decisioni di Attacco a distanza/Assedio e Blocco prima di applicare i danni."
+        .."{ru}Подтвердите дальние/осадные атаки и блоки перед применением урона."
+        .."{zh-tw}套用戰鬥傷害前，請確認遠程／攻城攻擊與格擋決定。"
+        .."{zh-cn}应用战斗伤害前，请确认远程／攻城攻击与格挡决定。"
+        .."{ko}전투 피해를 적용하기 전에 원거리/공성 공격과 방어 결정을 확인하세요."
+        .."{es}Confirma el ataque a distancia/asedio y el bloqueo antes de aplicar el daño."
+        .."{fr}Confirmez les attaques à distance/de siège et les blocages avant d'appliquer les dégâts."
+        .."{pt-br}Confirme os ataques à distância/cerco e os bloqueios antes de aplicar o dano."
+        .."{de}Fern-/Belagerungsangriffe und Blocks vor dem Schaden bestätigen."})
+    summary=summary.."\n\n"..joinLang({
+        "{en}Hero Wounds to hand: {it}Ferite in mano: {ru}Раны в руку: {zh-tw}加入手牌的傷害：{zh-cn}加入手牌的伤害：{ko}손에 받는 상처: {es}Heridas a la mano: {fr}Blessures en main : {pt-br}Ferimentos na mão: {de}Wunden auf die Hand: ",
+        hand})
+    summary=summary.."\n"..joinLang({
+        "{en}Poison Wounds to discard: {it}Ferite da Veleno negli scarti: {ru}Ядовитые раны в сброс: {zh-tw}棄牌區的毒傷：{zh-cn}弃牌区的毒伤：{ko}버림더미 독 상처: {es}Heridas de Veneno al descarte: {fr}Blessures de poison en défausse : {pt-br}Ferimentos de Veneno no descarte: {de}Giftwunden in den Ablagestapel: ",
+        discard})
+    if effects.paralyseCount>0 then
+        summary=summary.."\n"..joinLang({
+            "{en}Paralysis: discard all non-Wound hand cards."
+            .."{it}Paralisi: scarta tutte le carte in mano tranne le Ferite."
+            .."{ru}Паралич: сбросьте все карты с руки, кроме Ран."
+            .."{zh-tw}麻痺：棄掉手牌中所有非傷害牌。"
+            .."{zh-cn}麻痹：弃掉手牌中所有非伤害牌。"
+            .."{ko}마비: 손에 있는 상처가 아닌 카드를 모두 버립니다."
+            .."{es}Parálisis: descarta las cartas en mano que no sean Heridas."
+            .."{fr}Paralysie : défaussez les cartes en main sauf les Blessures."
+            .."{pt-br}Paralisia: descarte as cartas na mão que não sejam Ferimentos."
+            .."{de}Lähmung: Alle Nicht-Wunden auf der Hand abwerfen."})
+    end
+    if effects.destroyCount>0 then
+        summary=summary.."\n"..joinLang({
+            "{en}Paralyzed Units destroyed: {it}Unità paralizzate distrutte: {ru}Уничтожено парализованных отрядов: {zh-tw}將摧毀的麻痺單位：{zh-cn}将摧毁的麻痹单位：{ko}파괴되는 마비 유닛: {es}Unidades paralizadas destruidas: {fr}Unités paralysées détruites : {pt-br}Unidades paralisadas destruídas: {de}Zerstörte gelähmte Einheiten: ",
+            effects.destroyCount})
+    end
+    summary=summary.."\n\n"..joinLang({
+        "{en}A TTS rewind point is saved first. Use Rewind Time to retry."
+        .."{it}Prima viene salvato un punto di ripristino TTS. Usa Riavvolgi tempo per riprovare."
+        .."{ru}Сначала создаётся точка отката TTS. Для повтора используйте перемотку времени."
+        .."{zh-tw}將先儲存 TTS 回溯點；若要重試，請使用時間回溯。"
+        .."{zh-cn}将先保存 TTS 回溯点；若要重试，请使用时间回溯。"
+        .."{ko}먼저 TTS 되감기 지점을 저장합니다. 다시 하려면 시간 되감기를 사용하세요."
+        .."{es}Se guardará un punto de rebobinado TTS. Usa Retroceder tiempo para repetir."
+        .."{fr}Un point de retour TTS sera enregistré. Utilisez Retour dans le temps."
+        .."{pt-br}Um ponto de retorno TTS será salvo. Use Voltar no tempo para repetir."
+        .."{de}Zuerst wird ein TTS-Rückspulpunkt gespeichert. Zum Wiederholen Zeit zurückspulen."})
+    setUIVisibility("CombatDamageConfirm",{color})
+    UI.setAttribute("CombatDamageConfirmSummary","text",summary)
+    UI.setAttribute("CombatDamageConfirm","active","true")
+end
+
+-- Only a confirmed and successfully snapshotted action reaches the physical
+-- wound routine. No custom Undo: Rewind Time restores the entire pre-commit
+-- table, including the attack ledger and Units.
+combatConfig.woundConfirmChoice=function(player,id)
+    local confirmation=combatConfig.woundConfirmation
+    local color=player~=nil and player.color or nil
+    if confirmation==nil or color~=confirmation.color
+        or not resourceCardsPlayerCanEdit(color) then return end
+    if id=="CombatDamageConfirmCancel" then
+        combatConfig.woundConfirmClose()
+        return
+    end
+    if id~="CombatDamageConfirmApply"
+        or combatConfig.woundApplying or combatConfig.woundTransactionPending then return end
+    local function stillCurrent()
+        local current=turnOrder~=nil and gStates~=nil
+            and turnOrder[gStates.turnNumber] or nil
+        return resourceCardsPanelOpen() and current~=nil
+            and current.seatPos==confirmation.seat
+            and gStates.turnNumber==confirmation.turn
+            and gStates.combatWoundApplication==confirmation.ledger
+            and combatConfig.woundCommitSignature(confirmation.ledger)==confirmation.signature
+    end
+    if not stillCurrent() then
+        combatConfig.woundConfirmClose()
+        broadcastToColor("Combat changed since confirmation opened. Review the calculator and try again.",
+            color,warningColor)
+        return
+    end
+    if type(storeRewindState)~="function"
+        or type(rewindTransactionStart)~="function" then
+        broadcastToColor("TTS rewind snapshots are unavailable. Combat damage was not applied.",
+            color,warningColor)
+        return
+    end
+    if rewindTransactionCanStartFresh==nil or not rewindTransactionCanStartFresh() then
+        broadcastToColor("Another scripted action is still using Rewind Time. Finish that action before committing damage.",
+            color,warningColor)
+        return
+    end
+    local owner="Combat damage "..tostring(confirmation.seat)
+    combatConfig.woundConfirmClose()
+    combatConfig.woundTransactionPending=true
+    local function abort(message)
+        combatConfig.woundTransactionPending=false
+        if rewindTransactionOwnerActive~=nil and rewindTransactionOwnerActive(owner) then
+            rewindTransactionFinish(owner)
+        end
+        if message~=nil then broadcastToColor(message,color,warningColor) end
+    end
+    local started=rewindTransactionStart(function()
+        if not stillCurrent() then
+            abort("Combat changed while the rewind point was being saved. No damage was applied; review the calculator.")
+            return
+        end
+        combatConfig.woundTransactionPending=false
+        local ok,startedOrError=pcall(resourceCardsApplyCombatWounds,player,
+            function()
+                -- Called after every dealt Wound and moved accessory settles,
+                -- including failed/partially completed applications.
+                rewindTransactionFinish(owner)
+            end)
+        if not ok or startedOrError~=true then
+            abort("Could not apply combat damage safely: "..tostring(startedOrError))
+        end
+    end,owner,function()
+        -- Shared.lua also reports the snapshot failure. Never deal a Wound
+        -- without a successful rewind checkpoint.
+        combatConfig.woundTransactionPending=false
+    end)
+    if started~=true then
+        combatConfig.woundTransactionPending=false
+        broadcastToColor("Could not start a combat rewind transaction. No damage was applied.",
+            color,warningColor)
+    end
+end
+
 function resourceCardsApplyCombatWounds(player)
     if not resourceCardsPanelOpen() or not resourceCardsPlayerCanEdit(player and player.color or nil)
         or combatConfig.woundApplying then return end
