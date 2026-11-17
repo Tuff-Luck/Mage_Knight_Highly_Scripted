@@ -192,7 +192,7 @@ local moved={}
 local function card(guid,wound)
     return {guid=guid,type="Card",getGMNotes=function()
         return wound and "Wound" or "Advanced Action"
-    end,setPositionSmooth=function()
+    end,setPositionSmooth=function(pos,collide,fast)
         moved[#moved+1]=guid
     end}
 end

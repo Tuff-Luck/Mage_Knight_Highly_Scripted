@@ -54,6 +54,8 @@ Keep changes focused. Prefer one clean commit for one logical change. Do not add
 ## Lua and module rules
 
 Tabletop Simulator compatibility is validated against Lua 5.2. Do not introduce syntax that requires a newer Lua version.
+Test-only TTS object/UI mocks under `tools/test-*.lua` must declare the arguments accepted by their real TTS API methods, including optional smooth-movement flags. Lua Diagnostics analyzes test mocks alongside `src/`, so zero-argument stubs can create false `redundant-parameter` warnings in production code. Correct the mock rather than adding editor-only casts to `src/`. The project validator checks common TTS mock signatures.
+
 
 Keep shared helpers defined once. Cross-system helpers belong in `src/Shared.lua` or another clearly owned module; do not duplicate implementations in multiple modules. `require()` does not merge duplicate local functions.
 Default file-private helpers to `local function`; keep a function global only when TTS/UI must resolve it by name or another module intentionally calls it as part of that subsystem's public API.

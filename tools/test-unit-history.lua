@@ -26,7 +26,7 @@ local function object(guid)
         for i,b in ipairs(o.buttons) do b.index=i-1 end
     end
     function o.getPosition() return o.position end
-    function o.setPositionSmooth(pos)
+    function o.setPositionSmooth(pos,collide,fast)
         o.position={x=pos[1],y=pos[2],z=pos[3]}
         o.moved=true
     end

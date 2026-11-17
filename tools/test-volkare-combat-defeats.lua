@@ -16,7 +16,7 @@ trashCan="trash"
 playerPlayAreas={[1]="playzone"}
 turnOrder={{mage="Tester",seatPos=1}}
 mageKnightsByName={Tester={shieldContainer="shieldBag"}}
-UI={setAttribute=function() end}
+UI={setAttribute=function(id,attribute,value) end}
 setUIButtonEnabled=function() end
 mainUIUpdate=function() end
 joinLang=function() return "" end
@@ -25,7 +25,8 @@ broadcastToAll=function() end
 safeWaitTime=function() end -- Pursuit only schedules cosmetic shield locking.
 translateWord={Tester="Tester"}
 local playObjects,shieldCount={},0
-local shieldBag={takeObject=function()
+local shieldBag={takeObject=function(params)
+    assert(type(params)=="table","Shield draw requires TTS takeObject parameters")
     shieldCount=shieldCount+1
     return {guid="shield"..shieldCount,setGMNotes=function() end}
 end}
@@ -50,10 +51,12 @@ end
 local function enemy(guid,faceDown)
     local token={guid=guid,is_face_down=faceDown,returns=0,rotations=0}
     token.getGMNotes=function() return "" end
-    token.setPositionSmooth=function()
+    token.setPositionSmooth=function(position,collide,fast)
+        assert(type(position)=="table" and collide==false and fast==false,"Survivors must return with normal smooth movement")
         token.returns=token.returns+1
     end
-    token.setRotationSmooth=function()
+    token.setRotationSmooth=function(rotation,collide,fast)
+        assert(type(rotation)=="table" and collide==false and fast==false,"Survivors must rotate with normal smooth movement")
         token.rotations=token.rotations+1
     end
     return token

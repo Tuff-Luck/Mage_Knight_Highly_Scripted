@@ -1,6 +1,3 @@
--- Editor-only TTS container signature: takeObject accepts a parameter table.
----@alias ApocalypseDragonContainer { takeObject: fun(params: table): any }
-
 -- Apocalypse Dragon-private helpers. Predeclared so forward references keep resolving locally.
 local apocalypseDragonHeadTokenPosition, apocalypseDragonPositionHeadToken, apocalypseDragonCopyAttack, apocalypseDragonRefreshRuntimeData
 local apocalypseDragonDeployHeadToken, apocalypseDragonLevelMarkerPosition, apocalypseDragonLockLevelMarker, apocalypseDragonDefeatedHeadCount, apocalypseDragonSyncControlLevel
@@ -33,7 +30,6 @@ function apocalypseDragonPossessSummonedEnemy(enemyGUID,target)
 		bag=getObjectFromGUID(GUID.bag.possessed)
 	end
 	if bag==nil or bag.getQuantity()==0 then return false end
-	---@cast bag ApocalypseDragonContainer
 	--Match the working Quest possessed-enemy path: draw both tokens to the same X/Z, with the
 	--Possessed token above the enemy. Falling through the player scripting zone performs the link.
 	local possessed=bag.takeObject({position={target[1],target[2]+1.10,target[3]},rotation={0,180,0},smooth=true})
@@ -60,7 +56,6 @@ function apocalypseDragonPositionRoundOrderToken(target,options)
 	local token=getObjectFromGUID(apocalypseDragon.roundOrder)
 	if token==nil and options.takeFromBag==true then
 		local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
-		---@cast bag ApocalypseDragonContainer?
 		if bag~=nil then token=bag.takeObject({guid=apocalypseDragon.roundOrder,position=target,rotation={0,180,0},smooth=false}) end
 	end
 	if token==nil then return false end
@@ -492,7 +487,6 @@ function apocalypseDragonSetHeadLevel(headName,level)
 	if marker==nil then
 		local shieldBag=getObjectFromGUID(GUID.bag.neutralShield)
 		if shieldBag==nil then return false end
-		---@cast shieldBag ApocalypseDragonContainer
 		marker=shieldBag.takeObject({position=target,rotation={0,180,0},smooth=false})
 		if marker==nil then return false end
 		gStates.apocalypseDragonLevelMarkers[headName]=marker.guid
@@ -518,7 +512,6 @@ local apocalypseDragonVariantManaFaces={
 local function apocalypseDragonShowVariantRollHistories(histories,onComplete,xStart)
 	local bag=getObjectFromGUID(GUID.bag.spareDice)
 	if bag==nil then if onComplete~=nil then onComplete() end return false end
-	---@cast bag ApocalypseDragonContainer
 	xStart=xStart or -9
 	local dice={}
 	local maxSteps=1
@@ -788,7 +781,6 @@ function setupApocalypseDragonHeads()
 	gStates.apocalypseDragonDefeated=false
 	gStates.furyDragonEverDefeatedHeads=gStates.gameScenario=="Fury of the Apocalypse Dragon" and {} or nil
 	local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
-	---@cast bag ApocalypseDragonContainer?
 	local preload=getObjectFromGUID(apocalypseDragon.dragonPreload)
 	local preloadTarget=apocalypseDragon.dragonPreloadPosition
 	if preload==nil and bag~=nil then
@@ -1659,7 +1651,6 @@ function apocalypseDragonDropScoringShield(playerIndex,position)
 	end
 	local bag=mage~=nil and mage.shieldContainer~=nil and getObjectFromGUID(mage.shieldContainer) or nil
 	if bag==nil then return false end
-	---@cast bag ApocalypseDragonContainer
 	return bag.takeObject({position=position,smooth=false})~=nil
 end
 
@@ -2010,7 +2001,6 @@ function apocalypseDragonFinishTurn(force)
 	if force~=true and gStates.apocalypseDragonUIState~="ReadyToEnd" then return false end
 	apocalypseDragonTurnChoiceClearButtons()
 	againstDragonAttackControlUI(false)
-	---@cast UI { setAttribute: fun(id: string, attribute: string, value: string) }
 	UI.setAttribute("DummyTurn","active","false")
 	automatedAttackResponseUI(nil)
 	gStates.apocalypseDragonTurnActive=false

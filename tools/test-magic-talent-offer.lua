@@ -17,9 +17,9 @@ local function fakeCard(guid,x,z)
     card.getRotation=function() return copy(card.rotation) end
     card.getScale=function() return copy(card.scale) end
     card.setPosition=function(v) card.position=copy(v) end
-    card.setPositionSmooth=function(v) card.position=copy(v) end
+    card.setPositionSmooth=function(v,collide,fast) card.position=copy(v) end
     card.setRotation=function(v) card.rotation=copy(v) end
-    card.setRotationSmooth=function(v) card.rotation=copy(v) end
+    card.setRotationSmooth=function(v,collide,fast) card.rotation=copy(v) end
     card.setScale=function(v) card.scale=copy(v) end
     card.isSmoothMoving=function() return false end
     card.unlock=function() end

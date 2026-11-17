@@ -104,10 +104,10 @@ wound.getPosition=function() return {x=0,y=1.5,z=-34.74} end
 local banner={guid="bba123",moved=false}
 local mana={guid="cba123",staged=false}
 mana.getPosition=function() return {x=0,y=1.5,z=-34.74} end
-mana.setPositionSmooth=function(pos) mana.staged=pos end
+mana.setPositionSmooth=function(pos,collide,fast) mana.staged=pos end
 local command={guid="c0a001",resting=true,moved=false}
 command.isSmoothMoving=function() return false end
-command.setPositionSmooth=function(pos)
+command.setPositionSmooth=function(pos,collide,fast)
     command.moved=true
     command.position=pos
 end
@@ -132,7 +132,7 @@ owner.highlightOff=function() end
 candidate.highlightOn=function() end
 candidate.highlightOff=function() end
 banner.unlock=function() end
-banner.setPositionSmooth=function() banner.moved=true end
+banner.setPositionSmooth=function(pos,collide,fast) banner.moved=true end
 local bag={putObject=function(obj)
     if obj==wound then woundReturned=true end
 end}

@@ -151,6 +151,40 @@ try {
         throw "Risky local state/context shadowing found:`n$($shadowingIssues -join "`n")"
     }
 
+    Write-Host "Checking TTS test mock signatures..."
+    # Test mocks are visible to Lua Diagnostics along with src/. Under-specified methods
+    # can make legitimate TTS calls appear to pass redundant parameters.
+    $mockRequiredArity = @{
+        takeObject = 1
+        setPositionSmooth = 3
+        setRotationSmooth = 3
+        setAttribute = 3
+    }
+    $mockPatterns = @(
+        '(?<method>takeObject|setPositionSmooth|setRotationSmooth|setAttribute)[ \t]*=[ \t]*function[ \t]*\((?<params>[^)]*)\)',
+        '\bfunction[ \t]+[A-Za-z_][A-Za-z0-9_.]*\.(?<method>takeObject|setPositionSmooth|setRotationSmooth|setAttribute)[ \t]*\((?<params>[^)]*)\)'
+    )
+    $mockSignatureIssues = @()
+    foreach ($file in (Get-ChildItem -Path "tools" -File -Filter "test-*.lua")) {
+        $content = Get-Content -Raw -LiteralPath $file.FullName
+        foreach ($pattern in $mockPatterns) {
+            foreach ($match in [regex]::Matches($content, $pattern)) {
+                $method = $match.Groups["method"].Value
+                $params = $match.Groups["params"].Value.Trim()
+                if ($params -match '\.\.\.') { continue }
+                $arity = if ([string]::IsNullOrWhiteSpace($params)) { 0 } else { $params.Split(',').Length }
+                if ($arity -lt $mockRequiredArity[$method]) {
+                    $line = [regex]::Matches($content.Substring(0, $match.Index), "`n").Count + 1
+                    $relative = $file.FullName.Substring($root.Length + 1)
+                    $mockSignatureIssues += "${relative}:${line} TTS mock '$method' accepts $arity arguments; expected $($mockRequiredArity[$method])."
+                }
+            }
+        }
+    }
+    if ($mockSignatureIssues.Count -gt 0) {
+        throw "Incorrect TTS mock signatures in tools/test-*.lua:`n$($mockSignatureIssues -join "`n")"
+    }
+
     Write-Host "Checking Lua 5.2 syntax..."
     $compiler = Get-Command "luac5.2" -ErrorAction SilentlyContinue
     if ($null -eq $compiler) {

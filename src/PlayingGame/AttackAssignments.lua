@@ -934,7 +934,6 @@ local function previewSpawnWound(entry,slot,position)
     end
     -- Spawn beside the source bag and classify immediately, before moving into the Unit zone.
     local bagPos=bag.getPosition()
-    ---@cast bag { takeObject: fun(params: table): any }
     local token=bag.takeObject({position={bagPos.x or bagPos[1],(bagPos.y or bagPos[2])+2,bagPos.z or bagPos[3]},smooth=false,callback_function=finish})
     -- Mark it immediately as well as in the callback, before zone-entry scans.
     if token~=nil then finish(token) end
