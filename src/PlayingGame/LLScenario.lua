@@ -110,7 +110,7 @@ function volkarePursuitResolveCombat(playerIndex)
 	if combat==nil or combat.player~=playerIndex then return end
 	local success=false
 	for _,obj in pairs(playerCombatObjects(turnOrder[playerIndex].seatPos)) do
-		if combat.monsters~=nil and combat.monsters[obj.guid]==true and obj.is_face_down==false then success=true break end
+		if combat.monsters~=nil and combat.monsters[obj.guid]==true and combatEnemyTokenDefeated(obj)==true then success=true break end
 	end
 	if success==true and volkarePursuitHexUsed(combat.hexKey)~=true then volkarePursuitDropShield(playerIndex,combat) end
 	gStates.volkarePursuitCombat=nil

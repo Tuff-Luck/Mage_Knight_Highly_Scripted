@@ -762,10 +762,11 @@ function volkareTurn(player, mouseButton, id)
 				if id=="VolkareAttackedPartial" then
 					for _, playAreaObj in pairs(getObjectFromGUID(playerPlayAreas[mageDetails.seatPos]).getObjects()) do
 						if monsterPugs[playAreaObj.guid]~=nil then
-							if playAreaObj.is_face_down==true then
-								--returns undefeated monsters.
-								playAreaObj.setRotationSmooth({0, 180, 0})
-								playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid])
+							-- The calculator can leave surviving and defeated enemies face up.
+							-- Only its defeat state (or the manual face-up convention) decides which return.
+							if combatEnemyTokenDefeated(playAreaObj)~=true then
+								playAreaObj.setRotationSmooth({0, 180, 0},false,false)
+								playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid],false,false)
 							else
 								--mark city monsters defeated
 								if gStates.cityMonsterQty[volkare.model][playAreaObj.guid]~=nil then
