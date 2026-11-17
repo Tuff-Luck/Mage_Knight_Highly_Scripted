@@ -171,4 +171,146 @@ assert(not recognition:find('summaryWidth',1,true),
     "No dynamic preferredWidth writes should fight TTS's anchored position")
 assert(recognition:find('"Draw: "..combatRich',1,true),
     "Wound button should be labelled Draw")
+-- Paralysis must discard only the cards STILL IN HAND, including mixed
+-- Deck stacks, and must never discard already played cards.
+local discardHand=isolated(cardflow,"function combatDiscardParalyzedHand(seat)",
+    "-- Wound dealing helper","return combatDiscardParalyzedHand")
+local moved={}
+local function card(guid,wound)
+    return {guid=guid,type="Card",getGMNotes=function()
+        return wound and "Wound" or "Advanced Action"
+    end,setPositionSmooth=function()
+        moved[#moved+1]=guid
+    end}
+end
+local good=card("good",false)
+local existingWound=card("wound",true)
+local deck={type="Deck",getObjects=function()
+    return {{guid="stacked",gm_notes="Spell"},{guid="stackWound",gm_notes="Wound"}}
+end,takeObject=function(_,args)
+    eq(args.guid,"stacked","mixed Deck must extract only non-Wound cards")
+    moved[#moved+1]=args.guid
+    return {guid=args.guid}
+end}
+local held=card("held",false)
+local handObjects={good,existingWound,deck}
+local handZone={getObjects=function() return handObjects end}
+local discardZone={getPosition=function() return {x=2,y=1,z=3} end}
+handZones={[1]="hand"}
+deedDeckDiscardZones={[1]="discard"}
+getObjectFromGUID=function(guid)
+    if guid=="hand" then return handZone end
+    if guid=="discard" then return discardZone end
+    return nil
+end
+local discarded,count=discardHand(1)
+eq(discarded,true,"Paralysis discard should succeed")
+eq(count,2,"only non-Wounds should be discarded")
+eq(#moved,2,"exactly two cards physically discarded")
+eq(moved[1],"good","ordinary hand card discarded")
+eq(moved[2],"stacked","mixed deck non-Wound discarded")
+held.held_by_color="Blue"
+handObjects={held}
+discarded=discardHand(1)
+eq(discarded,false,"held hand cards must abort a destructive discard")
+eq(#moved,2,"held card must remain untouched")
+handObjects={}
+
+-- If a destroyed Unit had already helped defeat a different enemy with
+-- Ranged/Siege, its early attack must remain valid after physical removal.
+local resolveDamage=isolated(recognition,"local function combatDamageResolve(items,units,heroArmour,targetsOf,mitigation,elementMitigation,ignoreFirstHeroWound,appliedDamage)",
+    "local function combatWoundsText","return combatDamageResolve")
+combatUnitResists=function() return false end
+gameCards={unitR={name={"Crossbowmen"}}}
+local attack={{key="enemyB:1",owner="enemyB",type="P",damage=4,paralyse=true}}
+local initial=resolveDamage(attack,{unitR={guid="unitR",armour=2,resist={},wounded=false}},
+    2,function() return {"unitR"} end)
+eq(initial["enemyB:1"].heroWounds,1,"Hero receives one residual Wound")
+eq(initial["enemyB:1"].units[1].destroyed,true,"Paralysis destroys hit Unit")
+eq(initial["enemyB:1"].units[1].absorbed,2,"destroyed Unit absorbed its Armour")
+local after=resolveDamage(attack,{},2,function() return {} end,
+    nil,nil,nil,{["enemyB:1"]={destroyed={unitR=2}}})
+eq(after["enemyB:1"].heroWounds,1,
+    "recalculation cannot reassign a destroyed Unit's damage to Hero")
+eq(#after["enemyB:1"].units,1,"resolved Unit hit remains in history")
+eq(after["enemyB:1"].units[1].alreadyApplied,true,
+    "resolved Unit hit is not a fresh physical wound")
+assert(recognition:find('retiredUnitSources',1,true)
+    and recognition:find('source.retiredUnitPosition',1,true),
+    "destroyed Ranged/Siege Unit must survive calculation as a frozen source")
+local snapshot=isolated(recognition,"local function combatFrozenCopy(value)",
+    "local function combatNearestEnemyGUID",
+    "return combatConfig.captureParalyzedUnitSources")
+combatAssignmentState={targets={unitR="enemyA"},explicit={unitR=true}}
+combatAssignmentSources=function()
+    return {{kind="unit",guid="unitR",key="unitR",name="Crossbowmen",
+        ranged=4,siege=0,block=2,attack=5,move=0,
+        resources={ranged=4,block=2,attack=5},
+        details={{family="ranged",key="ranged",amount=4},
+            {family="block",key="block",amount=2},
+            {family="attack",key="attack",amount=5}}}}
+end
+getObjectFromGUID=function(guid)
+    if guid=="unitR" then
+        return {getPosition=function() return {0,1,-39} end}
+    end
+    return nil
+end
+gStates.combatWoundApplication=nil
+eq(snapshot(1,"unitR"),true,"retired Unit snapshot succeeds")
+local saved=gStates.combatWoundApplication.retiredUnitSources.unitR[1]
+eq(saved.ranged,4,"previous Ranged contribution survives")
+eq(saved.block,2,"previous Block contribution survives")
+eq(saved.attack,0,"destroyed Unit cannot attack in later phase")
+eq(saved.resources.attack,nil,"Attack resource must not survive")
+eq(saved.retiredTarget,"enemyA","chosen Ranged target must survive")
+eq(saved.retiredUnitPosition[3],-39,"automatic targeting preserves position")
+
+-- Draw Wounds must commit each Paralysis consequence once, including when
+-- the Hero took zero Wounds and the only effect is destroying one Unit.
+gStates.combatWoundApplication=nil
+combatConfig.woundRecordPreview(1,{{key="enemyC:1"}},{
+    ["enemyC:1"]={heroWounds=0,discard=0,paralyse=false,
+        units={{wounded=true,destroyed=true,absorbed=2,
+            unit={guid="unitR",name="Crossbowmen"}}}}})
+ledger=gStates.combatWoundApplication
+local _,ph,pd,pc,fx=combatConfig.woundPending(ledger)
+eq(ph,0,"Unit-only Paralysis owes no Hero Wounds")
+eq(fx.destroyCount,1,"Unit-only Paralysis requires Apply")
+local captured,destroyedUnits=0,0
+combatConfig.captureParalyzedUnitSources=function()
+    captured=captured+1
+    return true
+end
+attackAssignmentsUnitPreviewApplyDestroyed=function(_,guid)
+    eq(guid,"unitR","only the assigned Paralyzed Unit is destroyed")
+    destroyedUnits=destroyedUnits+1
+    return true
+end
+resourceCardsApplyCombatWounds({color="Red"})
+eq(captured,1,"early Unit attack captured before destruction")
+eq(destroyedUnits,1,"Apply destroys Unit immediately")
+resourceCardsApplyCombatWounds({color="Red"})
+eq(destroyedUnits,1,"second click must not destroy twice")
+
+gStates.combatWoundApplication=nil
+combatConfig.woundRecordPreview(1,{{key="enemyD:1"}},{
+    ["enemyD:1"]={heroWounds=1,discard=0,paralyse=true,units={}}})
+getObjectFromGUID=function(guid)
+    return guid=="hand" and handZone or guid=="discard" and discardZone or nil
+end
+local discardCount=0
+combatDiscardParalyzedHand=function()
+    discardCount=discardCount+1
+    return true,2
+end
+resourceCardsApplyCombatWounds({color="Red"})
+eq(discardCount,1,"first hit discards non-Wounds from hand")
+resourceCardsApplyCombatWounds({color="Red"})
+eq(discardCount,1,"second click cannot discard newly drawn cards")
+assert(recognition:find("effects.destroyCount>0",1,true),
+    "Paralysis-only effects must show the Apply row")
+assert(recognition:find("combatConfig.captureParalyzedUnitSources(seat,effect.guid)",1,true),
+    "snapshot ranged actions before deleting Unit")
+
 print("Combat Wound application regressions passed")
