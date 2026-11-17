@@ -332,4 +332,126 @@ assert(recognition:find("effects.destroyCount>0",1,true),
 assert(recognition:find("combatConfig.captureParalyzedUnitSources(seat,effect.guid)",1,true),
     "snapshot ranged actions before deleting Unit")
 
+-- The existing Draw Wounds button does not mutate anything. It opens a
+-- seat-scoped confirmation, and a fresh rewind snapshot is required before
+-- ANY physical Wounds or Paralysis consequences can be committed.
+local xml=fileText("src/UI/CombatEnemyPanel.xml")
+assert(xml:find('id="CombatDamageConfirm" active="false"',1,true)
+    and xml:find('id="CombatDamageConfirmSummary"',1,true)
+    and xml:find('id="CombatDamageConfirmCancel" onClick="resourceTracker"',1,true)
+    and xml:find('id="CombatDamageConfirmApply" onClick="resourceTracker"',1,true),
+    "Combat damage confirmation controls must be present and initially hidden")
+assert(fileText("src/PlayingGame/UI.lua"):find(
+    'resourceCardsRequestCombatWounds(player)',1,true),
+    "the original wound button must open confirmation, not deal Wounds")
+assert(recognition:find('type(storeRewindState)~="function"',1,true)
+    and recognition:find('rewindTransactionCanStartFresh()',1,true)
+    and recognition:find('rewindTransactionStart(function()',1,true)
+    and recognition:find('rewindTransactionFinish(owner)',1,true),
+    "combat commits require a new protected TTS rewind point")
+assert(fileText("src/Shared.lua"):find(
+    'function rewindTransactionCanStartFresh()',1,true),
+    "rewind helper must refuse nesting under an older snapshot")
+
+local attrs={}
+UI={setAttribute=function(id,field,value) attrs[id..":"..field]=value end}
+setUIVisibility=function(id,viewers)
+    eq(id,"CombatDamageConfirm","confirmation must be private")
+    eq(viewers[1],"Red","only the committing player sees dialog")
+end
+joinLang=function(parts)
+    local first=tostring(parts[1]):match("^{en}(.-){it}") or tostring(parts[1])
+    if parts[2]~=nil then first=first..tostring(parts[2]) end
+    return first
+end
+combatAssignmentState={targets={unitR="enemyA"},explicit={unitR=true}}
+local capturedSnapshot,finishedSnapshots={},{}
+local activeRewind=true
+rewindTransactionCanStartFresh=function() return activeRewind end
+rewindTransactionOwnerActive=function() return true end
+rewindTransactionStart=function(callback,owner,onFail)
+    capturedSnapshot={callback=callback,owner=owner,fail=onFail}
+    return true
+end
+rewindTransactionFinish=function(owner)
+    finishedSnapshots[#finishedSnapshots+1]=owner
+end
+storeRewindState=function() end
+local player={color="Red"}
+local startCount=#dealt
+gStates.combatWoundApplication=nil
+combatConfig.woundRecordPreview(1,{{key="confirm:1"}},{
+    ["confirm:1"]={heroWounds=2,discard=0}})
+resourceCardsRequestCombatWounds(player)
+eq(attrs["CombatDamageConfirm:active"],"true","button must open confirmation")
+eq(#dealt,startCount,"opening dialog does not draw Wounds")
+eq(combatWoundsEndTurnReminder("Red"),true,
+    "End Turn blocked while confirmation is open")
+combatConfig.woundConfirmChoice(player,"CombatDamageConfirmCancel")
+eq(attrs["CombatDamageConfirm:active"],"false","Cancel closes dialog")
+eq(#dealt,startCount,"Cancel must not draw any Wounds")
+
+-- Stale plans are rejected BEFORE snapshot and again AFTER it is recorded.
+resourceCardsRequestCombatWounds(player)
+combatConfig.woundRecordPreview(1,{{key="confirm:1"}},{
+    ["confirm:1"]={heroWounds=3,discard=0}})
+combatConfig.woundConfirmChoice(player,"CombatDamageConfirmApply")
+eq(#dealt,startCount,"changed plan cannot be confirmed")
+eq(combatConfig.woundTransactionPending,nil,
+    "stale dialog must not start rewind transaction")
+resourceCardsRequestCombatWounds(player)
+combatConfig.woundConfirmChoice(player,"CombatDamageConfirmApply")
+eq(combatConfig.woundTransactionPending,true,
+    "while recording checkpoint, damage remains blocked")
+eq(#dealt,startCount,"snapshot must precede card transfer")
+eq(combatWoundsEndTurnReminder("Red"),true,
+    "End Turn blocked while checkpoint is pending")
+combatConfig.woundRecordPreview(1,{{key="confirm:1"}},{
+    ["confirm:1"]={heroWounds=4,discard=0}})
+capturedSnapshot.callback()
+eq(#dealt,startCount,"plan changed during rewind snapshot must abort")
+eq(combatConfig.woundTransactionPending,false,"aborted snapshot clears pending")
+eq(#finishedSnapshots,1,"aborted snapshot releases rewind owner")
+
+-- A failed checkpoint leaves the table untouched and allows another try.
+resourceCardsRequestCombatWounds(player)
+combatConfig.woundConfirmChoice(player,"CombatDamageConfirmApply")
+capturedSnapshot.fail()
+eq(#dealt,startCount,"snapshot failure cannot deliver physical Wounds")
+eq(combatConfig.woundTransactionPending,false,"snapshot failure clears lock")
+
+-- Rewind API unavailable and an older active transaction both block commit.
+resourceCardsRequestCombatWounds(player)
+storeRewindState=nil
+combatConfig.woundConfirmChoice(player,"CombatDamageConfirmApply")
+eq(#dealt,startCount,"without TTS rewind API, commit is refused")
+storeRewindState=function() end
+activeRewind=false
+combatConfig.woundConfirmChoice(player,"CombatDamageConfirmApply")
+eq(#dealt,startCount,"nested transaction cannot reuse older checkpoint")
+activeRewind=true
+combatConfig.woundConfirmChoice(player,"CombatDamageConfirmCancel")
+
+-- Successfully snapped commits wait for the FINAL moving card before
+-- releasing rewind storage. The underlying Wound ledger remains idempotent.
+local settle={}
+safeWaitCondition=function(_,done,ready)
+    settle={done=done,ready=ready}
+end
+resourceCardsRequestCombatWounds(player)
+combatConfig.woundConfirmChoice(player,"CombatDamageConfirmApply")
+local previousFinished=#finishedSnapshots
+capturedSnapshot.callback()
+eq(#dealt,startCount+4,"checkpoint allows exactly planned four Wounds")
+eq(combatConfig.woundApplying,true,"physical settlement holds commit lock")
+eq(#finishedSnapshots,previousFinished,"rewind remains protected while cards move")
+eq(type(settle.ready),"function","settling condition registered")
+eq(settle.ready(),true,"all card movements eventually settle")
+settle.done()
+eq(combatConfig.woundApplying,false,"settlement clears applying flag")
+eq(#finishedSnapshots,previousFinished+1,"rewind released once after settling")
+eq(attrs["CombatDamageConfirm:active"],"false","dialog stays closed after commit")
+resourceCardsRequestCombatWounds(player)
+eq(attrs["CombatDamageConfirm:active"],"false","second click has nothing left to apply")
+
 print("Combat Wound application regressions passed")
