@@ -89,6 +89,8 @@ assert(recognition:find("group.rangeSpent",1,true),"Ranged points double-counted
 assert(combat:find("combatDefeatPartial",1,true),"Partial cleanup missing")
 assert(combat:find("combatBossPartialRewardEligible",1,true),"Partial Fame state missing")
 assert(leaders:find("combatBossSetManual",1,true),"Leader manual override missing")
+assert(leaders:find('mouseButton=="-2"',1,true),"Leader Auto reset needs TTS right-click")
 assert(dragon:find("combatBossSetManual",1,true),"Dragon manual override missing")
+assert(dragon:find('mouseButton=="-2"',1,true),"Dragon Auto reset needs TTS right-click")
 assert(ui:find("combatBossPartialRewardEligible",1,true),"Leader partial Fame missing")
 print("Official Dragon head and faction leader overkill regression checks passed")
