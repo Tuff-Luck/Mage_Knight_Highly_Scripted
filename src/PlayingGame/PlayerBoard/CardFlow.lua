@@ -1815,6 +1815,62 @@ function combatDealCalculatedWounds(seat,allocations,onCard,onDone)
     dealNext()
 end
 
+-- A Paralyzing hit discards the Hero's CURRENT non-Wound hand, not
+-- already-played cards. Validate the zones and held objects before moving
+-- anything. A mixed physical Deck can occur when hand cards are stacked;
+-- extract only its non-Wound cards, leaving any Wounds behind.
+function combatDiscardParalyzedHand(seat)
+    local hand=getObjectFromGUID(handZones~=nil and handZones[seat] or nil)
+    local discard=getObjectFromGUID(deedDeckDiscardZones~=nil and deedDeckDiscardZones[seat] or nil)
+    if hand==nil or discard==nil then return false,"Hand or discard zone is missing" end
+    local transfers={}
+    for _,obj in ipairs(hand.getObjects() or {}) do
+        if obj.type=="Card" and obj.getGMNotes()~="Wound" then
+            if obj.held_by_color~=nil and obj.held_by_color~="" then
+                return false,"A hand card is being held"
+            end
+            transfers[#transfers+1]={object=obj}
+        elseif obj.type=="Deck" then
+            if obj.held_by_color~=nil and obj.held_by_color~="" then
+                return false,"A hand deck is being held"
+            end
+            local contents=obj.getObjects() or {}
+            local nonWounds={}
+            for _,card in ipairs(contents) do
+                if card.gm_notes~="Wound" then nonWounds[#nonWounds+1]=card.guid end
+            end
+            if #nonWounds>0 then
+                if #nonWounds==#contents then
+                    transfers[#transfers+1]={object=obj}
+                else
+                    transfers[#transfers+1]={deck=obj,guids=nonWounds}
+                end
+            end
+        end
+    end
+    local pos=discard.getPosition()
+    local x,y,z=pos.x or pos[1],pos.y or pos[2],pos.z or pos[3]
+    local moved=0
+    for _,entry in ipairs(transfers) do
+        if entry.object~=nil then
+            entry.object.setPositionSmooth({x,y+2+0.07*(moved%5),z},false,false)
+            moved=moved+1
+        else
+            for _,guid in ipairs(entry.guids) do
+                -- Mixed decks always retain at least one Wound card, so the
+                -- deck can safely provide every listed non-Wound by GUID.
+                local card=entry.deck.takeObject({guid=guid,
+                    position={x,y+2+0.07*(moved%5),z},smooth=false})
+                if card==nil then
+                    return false,"A stacked hand card could not be discarded"
+                end
+                moved=moved+1
+            end
+        end
+    end
+    return true,moved
+end
+
 -- Wound dealing helper
 function DealWound(paramaters)
 	local woundbag=getObjectFromGUID(paramaters.guid)
