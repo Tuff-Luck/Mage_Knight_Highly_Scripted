@@ -74,8 +74,18 @@ function tacticToggle()
 	--rearanges the turn order tokens
 	local function turnOrderSort()
 		for a=1, #turnOrder, 1 do
-			getObjectFromGUID(turnOrder[a].turnOrderTokenGUID).unlock()
-			getObjectFromGUID(turnOrder[a].turnOrderTokenGUID).setPositionSmooth({-1.90, 1.2, -18.00-(1.4*a)},false,false)
+			local details=turnOrder[a]
+			local tokenGUID=details~=nil and details.turnOrderTokenGUID or nil
+			local token=tokenGUID~=nil and getObjectFromGUID(tokenGUID) or nil
+			if token~=nil then
+				token.unlock()
+				token.setPositionSmooth({-1.90, 1.2, -18.00-(1.4*a)},false,false)
+			else
+				-- A turn-order token can be missing from a damaged or still-settling table.
+				-- Keep tactic selection moving; warn so the player can restore it manually.
+				local who=details~=nil and (details.mage or details.seatPos) or a
+				broadcastToAll("Missing turn-order token for "..tostring(who).."; continuing tactic selection.",warningColor)
+			end
 		end
 		if againstDragonPositionRoundOrderToken~=nil then againstDragonPositionRoundOrderToken() end
 		if furyDragonPositionRoundOrderToken~=nil then furyDragonPositionRoundOrderToken() end
