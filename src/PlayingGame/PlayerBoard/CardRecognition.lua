@@ -799,6 +799,119 @@ local function combatFrozenCopy(value)
     return copy
 end
 
+
+-- A committed Damage phase is immutable, even if cards are lifted, returned
+-- to hand, or re-enter the play area. Keep the snapshot in gStates so it
+-- survives ordinary TTS save/reload and is reverted by the pre-commit rewind.
+local function combatPhaseLock(seat)
+    local ledger=gStates~=nil and gStates.combatWoundApplication or nil
+    local lock=ledger~=nil and ledger.phaseLock or nil
+    if lock~=nil and ledger.seat==seat and lock.turn==gStates.turnNumber then
+        return lock
+    end
+    return nil
+end
+
+local function combatPhaseLockSources(lock,live)
+    if lock==nil then return live end
+    local results,byKey={},{}
+    for _,source in ipairs(live) do byKey[source.key]=source end
+    local frozenKeys=lock.sourceKeys or {}
+    for _,original in ipairs(lock.sources or {}) do
+        if frozenKeys[original.key] then
+            local frozen=combatFrozenCopy(original)
+            frozen.phaseLocked=true
+            frozen.noAttackPhase=true
+            frozen.attack=0
+            for key in pairs(frozen.resources or {}) do
+                if type(key)=="string" and key:sub(1,6)=="attack" then
+                    frozen.resources[key]=nil
+                end
+            end
+            for i=#(frozen.details or {}),1,-1 do
+                if frozen.details[i].family=="attack" then
+                    table.remove(frozen.details,i)
+                end
+            end
+            results[#results+1]=frozen
+            -- The card's later Attack is separate from the already committed
+            -- resource. Never grant a second copy when the same GUID re-enters.
+            local current=byKey[original.key]
+            if current~=nil then
+                local fallback=(lock.spentRange or {})[original.key]~=true
+                local late=combatFrozenCopy(original)
+                late.key=original.key.."#postDamage"
+                late.phaseAfterDamage=true
+                late.damagePhaseWound=true
+                late.block=0 late.move=0 late.psychicInfluence=0
+                late.attack=(original.attack or 0)>0 and (current.attack or 0) or 0
+                late.ranged=fallback and (original.ranged or 0) or 0
+                late.siege=fallback and (original.siege or 0) or 0
+                late.resources={}
+                late.details={}
+                for _,detail in ipairs(original.details or {}) do
+                    if (detail.family=="ranged" or detail.family=="siege") and fallback then
+                        late.details[#late.details+1]=combatFrozenCopy(detail)
+                        late.resources[detail.key]=detail.amount
+                    end
+                end
+                if (original.attack or 0)>0 then
+                    for _,detail in ipairs(current.details or {}) do
+                        if detail.family=="attack" then
+                            late.details[#late.details+1]=combatFrozenCopy(detail)
+                            late.resources[detail.key]=detail.amount
+                        end
+                    end
+                end
+                if late.attack+late.ranged+late.siege>0 then
+                    results[#results+1]=late
+                end
+            end
+        end
+    end
+    for _,source in ipairs(live) do
+        if not frozenKeys[source.key] then
+            local late=combatFrozenCopy(source)
+            -- Only new Attack-phase actions may be introduced after Damage.
+            -- Ranged/Siege can fall back as Attack; Block and Move cannot.
+            late.damagePhaseWound=true
+            late.phaseAfterDamage=true
+            late.block=0 late.move=0 late.psychicInfluence=0
+            late.psychicInfluenceCounts=false
+            for key in pairs(late.resources or {}) do
+                if key=="move" or key=="influence" or key:sub(1,5)=="block" then
+                    late.resources[key]=nil
+                end
+            end
+            for i=#(late.details or {}),1,-1 do
+                local family=late.details[i].family
+                if family=="block" or family=="move" or family=="influence" then
+                    table.remove(late.details,i)
+                end
+            end
+            if late.attack+late.ranged+late.siege>0 then
+                results[#results+1]=late
+            end
+        end
+    end
+    table.sort(results,function(a,b)
+        if a.name==b.name then return a.key<b.key end
+        return a.name<b.name
+    end)
+    return results
+end
+
+combatConfig.phaseKeyLocked=function(key)
+    local seat=combatAssignmentActiveSeat()
+    local lock=combatPhaseLock(seat)
+    return lock~=nil and (lock.sourceKeys or {})[key]==true
+end
+
+combatConfig.phaseObjectLocked=function(guid)
+    local lock=combatPhaseLock(combatAssignmentActiveSeat())
+    return lock~=nil and (lock.objectKeys or {})[guid]==true
+end
+
 combatConfig.captureParalyzedUnitSources=function(seat,unitGUID)
     local ledger=combatConfig.woundLedger(seat)
     if ledger==nil or unitGUID==nil then return false end
@@ -2336,6 +2449,7 @@ function resourceCardsRequestCombatWounds(player)
     local color=player~=nil and player.color or nil
     if not resourceCardsPanelOpen() or not resourceCardsPlayerCanEdit(color)
         or combatConfig.woundApplying or combatConfig.woundTransactionPending then return end
+    if combatPhaseLock(combatAssignmentActiveSeat())~=nil then return end
     local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
     if active==nil or active.seatPos==nil then return end
     local ledger=combatConfig.woundLedger(active.seatPos)
@@ -2471,6 +2585,13 @@ combatConfig.woundConfirmChoice=function(player,id)
             return
         end
         combatConfig.woundTransactionPending=false
+        local preview=combatConfig.phasePreview
+        if preview==nil or preview.seat~=confirmation.seat
+            or preview.turn~=confirmation.turn or preview.damageResults==nil then
+            abort("Combat phase snapshot is unavailable. No damage was applied.")
+            return
+        end
+        confirmation.ledger.phaseLock=combatFrozenCopy(preview)
         local ok,startedOrError=pcall(resourceCardsApplyCombatWounds,player,
             function()
                 -- Called after every dealt Wound and moved accessory settles,
@@ -3379,7 +3500,7 @@ end
 combatConfig.attackPhaseSources=function(sources,wounded)
     local active={}
     for _,source in ipairs(sources or {}) do
-        if wounded[source.guid]~=true then active[#active+1]=source end
+        if wounded[source.guid]~=true and not source.noAttackPhase then active[#active+1]=source end
     end
     return active
 end
@@ -4273,6 +4394,43 @@ local function combatAssignmentRefreshRows(entries,sources)
         group.destroyed=not members[1].attackOnly and #group.members==1
             and entries[group.members[1]].destroyed==true
     end
+    -- Snapshot resolved Ranged/Siege and Block before the Damage phase.
+    -- Results, not just UI labels, are retained for later recalculations.
+    local earlyLock=combatPhaseLock(combatAssignmentActiveSeat())
+    if earlyLock~=nil and earlyLock.earlyGroups~=nil then
+        for index,group in ipairs(groups) do
+            local saved=earlyLock.earlyGroups[index]
+            if saved~=nil then
+                for _,field in ipairs({"rangeTotal","rangeArmour","rangeDefeated",
+                    "rangeSpent","fortification","bossSpecial","attackArmour","destroyed"}) do
+                    group[field]=saved[field]
+                end
+            end
+        end
+        for index,saved in ipairs(earlyLock.earlyEntries or {}) do
+            if entries[index]~=nil then
+                for field,value in pairs(saved) do
+                    if field~="x" then entries[index][field]=combatFrozenCopy(value) end
+                end
+            end
+        end
+        rowBlock=combatFrozenCopy(earlyLock.rowBlock)
+    elseif combatConfig.phasePreview~=nil then
+        local preview=combatConfig.phasePreview
+        preview.earlyGroups=combatFrozenCopy(groups)
+        preview.earlyEntries=combatFrozenCopy(entries)
+        preview.rowBlock=combatFrozenCopy(rowBlock)
+        preview.spentRange={}
+        for _,group in ipairs(groups) do
+            if group.rangeDefeated or group.rangeSpent then
+                for _,source in ipairs(group.sources or {}) do
+                    if (source.ranged or 0)+(source.siege or 0)>0 then
+                        preview.spentRange[source.key]=true
+                    end
+                end
+            end
+        end
+    end
     -- Counterattack counts *enemies*, not individual attacks. Multi-attack
     -- enemies (including summoners) count only when every attack was blocked.
     -- Ranged-defeated and attack-only preview tokens never count.
@@ -4384,6 +4542,11 @@ local function combatAssignmentRefreshRows(entries,sources)
         gStates~=nil and gStates.combatWoundApplication~=nil
             and gStates.combatWoundApplication.seat==damageSeat
             and gStates.combatWoundApplication.applied or nil)
+    if earlyLock~=nil and earlyLock.damageResults~=nil then
+        damageResults=combatFrozenCopy(earlyLock.damageResults)
+    elseif combatConfig.phasePreview~=nil then
+        combatConfig.phasePreview.damageResults=combatFrozenCopy(damageResults)
+    end
 
     -- Vampiric gains Armor for Wounds added to the Hero's hand and for each
     -- Unit its own non-Psychic attacks wound. Poison's extra discard/Unit
@@ -4832,11 +4995,16 @@ local function combatAssignmentRefreshRows(entries,sources)
                         tooltip=tooltip.."\nBow of Starsdawn: "..description
                             ..". Right-click this source icon to switch."
                     end
+                    if item.source.phaseLocked then
+                        tooltip=tooltip.."\nLocked by Commit Damage. Use TTS Rewind to change."
+                    end
                     combatAssignmentIconButton(id,true,item.amount,item.icon,
                         tooltip,combatAssignmentState.selected==item.source.key,
                         (item.wounded or item.ineffective) and "#292323" or (item.typeKey~=nil
                             and combatConfig.typeColors[item.typeKey][item.reduced and 2 or 1] or nil),
                         item.wounded,item.ineffective)
+                    combatPanelSetAttribute(id,"interactable",
+                        item.source.phaseLocked and "false" or "true")
                 else
                     combatAssignmentIconButton(id,false,0,"","",false)
                 end
@@ -5260,7 +5428,45 @@ local function refreshCombatEnemyPanel(monsters,calculated)
         combatAssignmentState={seat=currentSeat,selected=nil,targets={},explicit={}}
         combatExpandedResults={}
     end
+    local lock=combatPhaseLock(currentSeat)
     local sources=combatAssignmentSources(currentSeat)
+    if lock~=nil then
+        -- Use the exact enemy state and grouping that existed when Damage
+        -- was confirmed, rather than newly changed earlier-phase effects.
+        entries=combatFrozenCopy(lock.entries)
+        combatAssignmentJoined=combatFrozenCopy(lock.joined or {})
+        for key,target in pairs(lock.targets or {}) do
+            if (lock.sourceKeys or {})[key] then
+                combatAssignmentState.targets[key]=target
+                combatAssignmentState.explicit[key]=(lock.explicit or {})[key]==true
+            end
+        end
+        sources=combatPhaseLockSources(lock,sources)
+    else
+        local keys,objects,positions={}, {}, {}
+        for _,source in ipairs(sources) do
+            if (source.ranged or 0)+(source.siege or 0)+(source.block or 0)
+                +(source.move or 0)+(source.psychicInfluence or 0)>0 then
+                keys[source.key]=true
+                objects[source.guid]=true
+                local obj=getObjectFromGUID(source.guid)
+                if obj~=nil then
+                    local pos=obj.getPosition()
+                    positions[source.key]={pos.x or pos[1],pos.y or pos[2],pos.z or pos[3]}
+                end
+            end
+        end
+        combatConfig.phasePreview={
+            seat=currentSeat,turn=gStates.turnNumber,
+            entries=combatFrozenCopy(entries),
+            sources=combatFrozenCopy(sources),
+            enemyEffects=combatFrozenCopy(enemyEffects or {}),
+            sourceKeys=keys,objectKeys=objects,positions=positions,
+            joined=combatFrozenCopy(combatAssignmentJoined),
+            targets=combatFrozenCopy(combatAssignmentState.targets),
+            explicit=combatFrozenCopy(combatAssignmentState.explicit)
+        }
+    end
     local activeSources,activeObjects={},{}
     -- Unit effects such as Illusionists and Delphana Masters can target an enemy
     -- without creating Attack/Block points. Keep their arrows while that ability is active.
@@ -5301,7 +5507,10 @@ local function refreshCombatEnemyPanel(monsters,calculated)
         end
     end
     for guid in pairs(combatAssignmentState.targets) do
-        if activeSources[guid]~=true and not combatSourceKeepsLock(guid) then combatAssignmentState.targets[guid]=nil end
+        if activeSources[guid]~=true and not combatSourceKeepsLock(guid)
+            and not (lock~=nil and (lock.sourceKeys or {})[guid]) then
+            combatAssignmentState.targets[guid]=nil
+        end
     end
     if combatAssignmentState.selected~=nil and activeSources[combatAssignmentState.selected]~=true then
         combatAssignmentState.selected=nil
@@ -5339,6 +5548,7 @@ function resourceCardsRefreshCombatEnemies()
 end
 
 function resourceCardsCombatAssignSource(sourceGUID,enemyGUID)
+    if combatConfig.phaseKeyLocked(sourceGUID) then return end
     if not resourceCardsCombatTargetAcceptsSource(sourceGUID,enemyGUID) then return end
     if gStates~=nil and combatAssignmentState.targets[sourceGUID]~=enemyGUID then
         if sourceGUID=="0688d8" then gStates.battleHardenedAttackKey=nil end
@@ -5464,6 +5674,7 @@ function resourceCardsCombatPage(delta)
 end
 
 function resourceCardsCombatCycleAttack(row,nextSource)
+    if combatPhaseLock(combatAssignmentActiveSeat())~=nil then return end
     local guid=combatAssignmentRowTargets[row]
     local selector=combatAttackChoiceByRow[row]
     if guid==nil or selector==nil or #selector.options<2 then return end
@@ -5492,6 +5703,7 @@ end
 
 -- The first visible row can still join the preceding enemy on another page.
 function resourceCardsCombatToggleGroup(row)
+    if combatPhaseLock(combatAssignmentActiveSeat())~=nil then return end
     local guid=combatAssignmentRowTargets[row]
     local index=combatAssignmentRowIndices[row]
     if guid==nil or index==nil or index<2 then return end
@@ -5517,6 +5729,7 @@ end
 
 -- Called when a targeting arrow is removed; the source re-locks to the nearest enemy on refresh.
 function resourceCardsCombatForgetSource(sourceGUID)
+    if combatConfig.phaseKeyLocked(sourceGUID) then return end
     combatAssignmentState.targets[sourceGUID]=nil
     combatAssignmentState.explicit[sourceGUID]=nil
 end
@@ -5540,6 +5753,8 @@ local function combatForgetPhysicalSourceTargets(unitGUID)
 end
 
 function resourceCardsCombatAssignmentClick(id,mouseButton)
+    local lockedSource=combatAssignmentSlotSources[id]
+    if lockedSource~=nil and combatConfig.phaseKeyLocked(lockedSource) then return end
     if tostring(mouseButton)=="-2" and combatConfig.artifactCombat.bow then
         local key=combatAssignmentSlotSources[id]
         local family=combatConfig.slotBowFamilies[id]
@@ -5560,6 +5775,11 @@ function resourceCardsCombatAssignmentClick(id,mouseButton)
     if targetGUID==nil then return end
     local sourceGUID=combatAssignmentSlotSources[id]
     local moved=combatAssignmentState.selected
+    if moved~=nil and combatConfig.phaseKeyLocked(moved) then
+        combatAssignmentState.selected=nil
+        combatConfig.refreshSelectedSlots()
+        return
+    end
     if moved~=nil then
         if sourceGUID==moved then
             combatAssignmentState.selected=nil
@@ -6280,6 +6500,12 @@ end
 -- choices; selecting one immediately collapses back to its icon.
 local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySets,resources,repeatLink)
     if card==nil or combatConfig.cardInTransit(card) then return end
+    if combatConfig.phaseObjectLocked(card.guid) then
+        removeChoiceButtons(card)
+        choiceButtonShown[card.guid]="hidden"
+        choiceExpandedByGUID[card.guid]=nil
+        return
+    end
     local cardData=gameCards[card.guid]
     local rule=cardData~=nil and cardResourceDefinitions[cardData.resourceKey]
         or skillResourceDefinitions[card.guid]
@@ -6943,6 +7169,11 @@ end
 -- This is intentionally independent of translated text position.
 local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decision,useIndex)
     if unit==nil then return end
+    if combatConfig.phaseObjectLocked(unit.guid) then
+        removeChoiceButtons(unit)
+        choiceButtonShown[unit.guid]="hidden"
+        return
+    end
     useIndex=useIndex or unitHistorySelectedNumber(unit.guid)
     if not unwounded or activation==nil or abilities==nil or #abilities==0 then
         removeChoiceButtons(unit)
@@ -11967,7 +12198,7 @@ function resourceCardsChoiceClicked(player,value,id)
     if guid==nil then
         guid,category=id:match("^ResourceCardChoice_([0-9a-f]+)_([%w]+)$")
     end
-    if guid==nil then return end
+    if guid==nil or combatConfig.phaseObjectLocked(guid) then return end
     setIndex=setIndex~=nil and tonumber(setIndex) or nil
     repeatIndex=repeatIndex~=nil and tonumber(repeatIndex) or nil
     if not resourceCardsDetailsOpen() then return end
