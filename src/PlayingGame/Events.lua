@@ -120,11 +120,11 @@ local function protectedObjectDestroyAudit(guid)
 			reportAutomaticLuaDiagnostic("protectedObjectDestroyAudit",
 				"Round Order token disappeared after destroy callback GUID="..tostring(guid),
 				"Owner at destroy audit: "..owner
-					.."\\nScenario="..tostring(gStates.gameScenario)
+					.."\nScenario="..tostring(gStates.gameScenario)
 					.." round="..tostring(gStates.currentRound)
 					.." turn="..tostring(gStates.turnNumber)
-					.."\\nProtected removal permit: none"
-					.."\\nLookup after 2 frames: NOT FOUND")
+					.."\nProtected removal permit: none"
+					.."\nLookup after 2 frames: NOT FOUND")
 		end
 	end,2)
 end
