@@ -280,9 +280,8 @@ adjustOverkill=function(player, mouseButton, id)
 	if leaderObj~=nil then leaderObj.UI.setAttribute(guid.."Overkill","Text",tostring(current)) end
 	if automatic and combatBossSetManual~=nil then
 		combatBossSetManual(guid,current)
-	else
-		mainUIUpdate("Leader Overkilled")
 	end
+	mainUIUpdate("Leader Overkilled")
 end
 
 
