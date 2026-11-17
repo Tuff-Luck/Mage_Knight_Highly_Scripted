@@ -2063,6 +2063,16 @@ local function combatDamageResolve(items,units,heroArmour,targetsOf,mitigation,e
             local value=math.max(0,tonumber(absorbed) or 0)
             remaining=math.max(0,remaining-value)
             result.committedDestroyed[guid]=value
+            -- Keep a resolved damage-phase entry for Vampiric Armor, Glory
+            -- and other effects that look at which Units were wounded. This
+            -- is not a live Unit and must never generate a new wound preview.
+            local data=gameCards~=nil and gameCards[guid] or nil
+            local name=data~=nil and data.name or nil
+            result.units[#result.units+1]={
+                unit={guid=guid,name=type(name)=="table" and name[1]
+                    or tostring(name or guid)},
+                wounded=true,destroyed=true,alreadyApplied=true,
+                absorbed=value,wounds=1}
         end
         local function assign(guid,forced)
             local unit=units[guid]
