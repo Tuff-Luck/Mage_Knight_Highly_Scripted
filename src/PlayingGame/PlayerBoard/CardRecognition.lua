@@ -4600,7 +4600,7 @@ local function combatAssignmentRefreshRows(entries,sources)
             and gStates.combatWoundApplication.seat==damageSeat
             and gStates.combatWoundApplication.applied or nil)
     if earlyLock~=nil and earlyLock.damageResults~=nil then
-        damageResults=combatFrozenCopy(earlyLock.damageResults)
+        damageResults=combatFrozenCopy(earlyLock.damageResults) or damageResults
     elseif combatConfig.phasePreview~=nil then
         combatConfig.phasePreview.damageResults=combatFrozenCopy(damageResults)
         if attackAssignmentsDamageSnapshot~=nil then
