@@ -2621,6 +2621,16 @@ end
 -- A soft two-click acknowledgement also works if the tracker was minimized.
 -- An in-progress physical transfer is always held until its queue finishes.
 function combatWoundsEndTurnReminder(color)
+    if combatConfig.woundConfirmation~=nil then
+        safeBroadcastToColor("Confirm or cancel Combat Damage before ending the turn.",
+            color,warningColor)
+        return true
+    end
+    if combatConfig.woundTransactionPending then
+        safeBroadcastToColor("A safe Combat Damage rewind point is being saved. Finish before ending the turn.",
+            color,warningColor)
+        return true
+    end
     local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
     local ledger=current~=nil and gStates.combatWoundApplication or nil
     if current==nil or ledger==nil or ledger.seat~=current.seatPos then return false end
@@ -12713,6 +12723,11 @@ function resourceCardsPanelChanged(open)
     if open==true and not resourceCardsPanelReady() then return end
     trackerPrivate.trackerStartupRequest=trackerPrivate.trackerStartupRequest+1
     if open~=true then
+        -- Closing the tracker cancels a pending decision, not a physical
+        -- transaction whose rewind point is already being stored.
+        if combatConfig.woundConfirmation~=nil then
+            combatConfig.woundConfirmClose()
+        end
         trackerPrivate.trackerWasDisabled=true
         trackerPrivate.trackerSession=trackerPrivate.trackerSession+1
         -- Turn the tracker completely off: stop callbacks and remove its visuals.
