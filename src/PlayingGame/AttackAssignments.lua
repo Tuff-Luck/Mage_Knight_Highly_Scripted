@@ -22,6 +22,18 @@ local previewHeight=1.3
 local arrowHeadLength=0.34
 local arrowHeadAngle=0.55
 local assignmentRegistry={}
+-- Once Damage has been committed, older targets and their lines are historical.
+-- Rewind Time (not moving a card) is the way to undo these assignments.
+local function combatCommittedLock()
+    local ledger=gStates~=nil and gStates.combatWoundApplication or nil
+    local lock=ledger~=nil and ledger.phaseLock or nil
+    return lock~=nil and lock.turn==gStates.turnNumber and lock or nil
+end
+
+local function combatCommittedSource(key)
+    local lock=combatCommittedLock()
+    return lock~=nil and (lock.sourceKeys or {})[key]==true
+end
 local targetingByPlayer={}
 local blockLinkPending={} -- Player colour -> Spirit Guides Skill GUID while selecting a Block source.
 local readyUnitPending={} -- Player colour -> {sourceGUID,sourceKey,seat,limit}
@@ -158,6 +170,14 @@ local function activeVisualLines()
 		-- rather than reading a stale cached source/target reference.
 		local source=getObjectFromGUID(assignmentBaseGUID(entry.sourceGUID))
 		local target=getObjectFromGUID(entry.targetGUID)
+        local lock=combatCommittedLock()
+        local frozen=lock~=nil and (lock.positions or {})[entry.sourceGUID] or nil
+        if frozen~=nil then
+            -- A frozen arrow stays on the play-area location even when the
+            -- physical card is retrieved, stacked, or moved to the hand.
+            source={getPosition=function() return frozen end,
+                isDestroyed=function() return false end}
+        end
 		local assignment=assignmentLines(source,target,assignmentColorFor(entry.kind))
 		for _,line in ipairs(assignment or {}) do lines[#lines+1]=line end
 	end
@@ -651,6 +671,35 @@ end
 -- or an assignment to undo.
 function attackAssignmentsDamageSync(spec)
     if resourceCardsPanelOpen~=nil and not resourceCardsPanelOpen() then return end
+    local lock=combatCommittedLock()
+    if lock~=nil then
+        -- Preserve red damage links but remove enemy and Unit click targets;
+        -- their allocation was already resolved by the committed snapshot.
+        local frozen=lock.damage or {}
+        damageTargets={}
+        for key,targets in pairs(frozen.targets or {}) do
+            damageTargets[key]={}
+            for _,guid in ipairs(targets) do
+                damageTargets[key][#damageTargets[key]+1]=guid
+            end
+        end
+        damageSpec={attacks=frozen.attacks or {},units=frozen.units or {},
+            byOwner={},byKey={},reserved={}}
+        for _,attack in ipairs(damageSpec.attacks) do
+            damageSpec.byKey[attack.key]=attack
+        end
+        damagePending=nil
+        for guid in pairs(damageButtonObjects) do
+            local obj=getObjectFromGUID(guid)
+            if obj~=nil then removeDamageButtons(obj) end
+        end
+        damageButtonObjects={}
+        damageOwnerSignatures={}
+        damageTargetUnits={}
+        damageSignature=""
+        refreshRenderedLines(true)
+        return
+    end
 	damageSpec={attacks=spec.attacks,units=spec.units or {},byOwner={},byKey={},reserved={}}
 	for _,attack in ipairs(spec.attacks) do
 		damageSpec.byKey[attack.key]=attack
@@ -721,6 +770,27 @@ function attackAssignmentsDamageSync(spec)
 		refreshRenderedLines(true)
 	end
 	if hasRuntimeWork() then scheduleRefresh() end
+end
+
+-- Plain data only: the lock is JSON-persisted across TTS saves.
+function attackAssignmentsDamageSnapshot()
+    local result={attacks={},units={},targets={}}
+    for _,attack in ipairs(damageSpec.attacks or {}) do
+        local copy={}
+        for key,value in pairs(attack) do
+            if type(value)=="string" or type(value)=="number"
+                or type(value)=="boolean" then copy[key]=value end
+        end
+        result.attacks[#result.attacks+1]=copy
+    end
+    for guid,value in pairs(damageSpec.units or {}) do
+        if value==true then result.units[guid]=true end
+    end
+    for key,guids in pairs(damageTargets) do
+        result.targets[key]={}
+        for _,guid in ipairs(guids) do result.targets[key][#result.targets[key]+1]=guid end
+    end
+    return result
 end
 
 function attackAssignmentsDamageTargetsOf(key)
@@ -1079,7 +1149,7 @@ local function damageChanged()
 end
 
 local function damageAttackClicked(obj,playerColor,index,altClick)
-    if not resourceCardsPlayerCanEdit(playerColor) then return end
+    if combatCommittedLock()~=nil or not resourceCardsPlayerCanEdit(playerColor) then return end
 	local list=obj~=nil and damageSpec.byOwner[obj.guid] or nil
 	local attack=list~=nil and list[index] or nil
 	if attack==nil then return end
@@ -1109,7 +1179,7 @@ end
 -- Clicking a free Unit adds it to the attack in order; clicking one already on the attack returns its share to the Hero.
 function attackAssignmentDamageUnitClicked(unit,playerColor)
 	return safeCallback("attackAssignmentDamageUnitClicked",function()
-        if not resourceCardsPlayerCanEdit(playerColor) then return end
+        if combatCommittedLock()~=nil or not resourceCardsPlayerCanEdit(playerColor) then return end
 		if damagePending==nil or unit==nil or damagePending.color~=playerColor then return end
 		local key=damagePending.key
 		local list=damageTargets[key] or {}
@@ -1526,7 +1596,7 @@ end
 function attackAssignmentsPruneTargets(eligible)
     local changed=false
     for id,entry in pairs(assignmentRegistry) do
-        if eligible[entry.targetGUID]~=true then
+        if eligible[entry.targetGUID]~=true and not combatCommittedSource(entry.sourceGUID) then
             local target=getObjectFromGUID(entry.targetGUID)
             local inTransit=target~=nil
                 and ((target.held_by_color~=nil and target.held_by_color~="")
@@ -1573,6 +1643,8 @@ function attackAssignmentsTargetCounts(sourceGUID)
 end
 
 function attackAssignmentsRemove(id)
+    local entry=assignmentRegistry[tostring(id)]
+    if entry~=nil and combatCommittedSource(entry.sourceGUID) then return false end
 	return removeAssignment(tostring(id))
 end
 
@@ -1582,7 +1654,9 @@ function attackAssignmentsClearForObject(objectOrGUID)
 	if guid==nil then return 0 end
 	local remove={}
 	for id,entry in pairs(assignmentRegistry) do
-		if assignmentKeyMatches(entry.sourceGUID,guid) or entry.targetGUID==guid then remove[#remove+1]=id end
+        if not combatCommittedSource(entry.sourceGUID)
+            and (assignmentKeyMatches(entry.sourceGUID,guid)
+                or entry.targetGUID==guid) then remove[#remove+1]=id end
 	end
 	for _,id in ipairs(remove) do assignmentRegistry[id]=nil end
 	local pendingRemoved=false
@@ -1682,7 +1756,9 @@ function attackAssignmentsRestore()
 	for _,saved in ipairs(gStates~=nil and gStates.attackAssignments or {}) do
 		local source=getObjectFromGUID(assignmentBaseGUID(saved.sourceGUID))
 		local target=getObjectFromGUID(saved.targetGUID)
-		if source~=nil and target~=nil
+        local lock=combatCommittedLock()
+        local frozen=lock~=nil and (lock.positions or {})[saved.sourceGUID]~=nil
+		if (source~=nil or frozen) and target~=nil
 			and (monsterPugs[target.guid]~=nil or eligible[target.guid]~=nil)
 			and type(saved.resource)=="string" then
 			local id=tostring(saved.id or "")
