@@ -2089,7 +2089,7 @@ local function combatWoundsText(count)
 end
 
 -- Physical Wounds can leave the Hero's hand after being used. Persist their
--- origin and the number dealt per printed attack, rather than recounting hand.
+-- source and every confirmed consequence per printed attack, not hand contents.
 combatConfig.woundLedger=function(seat)
     if gStates==nil or seat==nil then return nil end
     local ledger=gStates.combatWoundApplication
@@ -2109,15 +2109,35 @@ combatConfig.woundRecordPreview=function(seat,items,results)
     local expected={}
     for _,item in ipairs(items or {}) do
         local result=results[item.key] or {}
-        expected[item.key]={hand=result.heroWounds or 0,discard=result.discard or 0}
+        -- Previously destroyed Units are no longer physically in the Unit zone.
+        -- Keep them in this attack's expected record and retain the damage
+        -- they absorbed before removal, so they cannot hurt the Hero twice.
+        local destroyed={}
+        for guid,absorbed in pairs(result.committedDestroyed or {}) do
+            destroyed[guid]=absorbed
+        end
+        for _,entry in ipairs(result.units or {}) do
+            if entry.destroyed==true and entry.wounded==true
+                and entry.unit~=nil and entry.unit.guid~=nil then
+                destroyed[entry.unit.guid]=entry.absorbed or 0
+            end
+        end
+        expected[item.key]={hand=result.heroWounds or 0,
+            discard=result.discard or 0,paralyse=result.paralyse==true,
+            destroyed=destroyed}
     end
     ledger.preview=expected
     ledger.hasPreview=true
 end
 
+-- Retain the original first four return values for existing consumers.
+-- The fifth describes uncommitted physical Paralysis consequences.
 combatConfig.woundPending=function(ledger)
     local allocations,hand,discard,changed={},0,0,false
-    if ledger==nil or not ledger.hasPreview then return allocations,hand,discard,changed end
+    local effects={paralyse={},destroyed={},paralyseCount=0,destroyCount=0}
+    if ledger==nil or not ledger.hasPreview then
+        return allocations,hand,discard,changed,effects
+    end
     for key,expected in pairs(ledger.preview) do
         local applied=(ledger.applied or {})[key] or {}
         local h=math.max(0,(expected.hand or 0)-(applied.hand or 0))
@@ -2126,16 +2146,37 @@ combatConfig.woundPending=function(ledger)
             allocations[#allocations+1]={key=key,hand=h,discard=d}
             hand=hand+h discard=discard+d
         end
+        if expected.paralyse==true and applied.paralyse~=true then
+            effects.paralyse[#effects.paralyse+1]=key
+            effects.paralyseCount=effects.paralyseCount+1
+        elseif applied.paralyse==true and expected.paralyse~=true then
+            changed=true
+        end
+        for guid,absorbed in pairs(expected.destroyed or {}) do
+            if (applied.destroyed or {})[guid]==nil then
+                effects.destroyed[#effects.destroyed+1]={
+                    key=key,guid=guid,absorbed=absorbed}
+                effects.destroyCount=effects.destroyCount+1
+            end
+        end
+        for guid in pairs(applied.destroyed or {}) do
+            if (expected.destroyed or {})[guid]==nil then changed=true end
+        end
         if (applied.hand or 0)>(expected.hand or 0)
             or (applied.discard or 0)>(expected.discard or 0) then changed=true end
     end
     for key,applied in pairs(ledger.applied or {}) do
-        if ledger.preview[key]==nil and ((applied.hand or 0)>0 or (applied.discard or 0)>0) then
-            changed=true
-        end
+        if ledger.preview[key]==nil and ((applied.hand or 0)>0
+            or (applied.discard or 0)>0 or applied.paralyse==true
+            or next(applied.destroyed or {})~=nil) then changed=true end
     end
     table.sort(allocations,function(a,b) return a.key<b.key end)
-    return allocations,hand,discard,changed
+    table.sort(effects.paralyse)
+    table.sort(effects.destroyed,function(a,b)
+        if a.key~=b.key then return a.key<b.key end
+        return a.guid<b.guid
+    end)
+    return allocations,hand,discard,changed,effects
 end
 
 function resourceCardsApplyCombatWounds(player)
@@ -2143,9 +2184,9 @@ function resourceCardsApplyCombatWounds(player)
         or combatConfig.woundApplying then return end
     local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
     local ledger=current~=nil and combatConfig.woundLedger(current.seatPos) or nil
-    local allocations,hand,discard,changed=combatConfig.woundPending(ledger)
+    local allocations,hand,discard,changed,effects=combatConfig.woundPending(ledger)
     if current==nil or ledger==nil then return end
-    if hand+discard==0 then
+    if hand+discard==0 and effects.paralyseCount==0 and effects.destroyCount==0 then
         if changed then
             broadcastToColor("Combat damage changed after Wounds were dealt. Check the physical cards; none are removed automatically.",
                 player.color,warningColor)
@@ -2154,21 +2195,81 @@ function resourceCardsApplyCombatWounds(player)
     end
     ledger.warned=nil
     combatConfig.woundApplying=true
-    combatDealCalculatedWounds(current.seatPos,allocations,
+    local seat=current.seatPos
+    local function record(key)
+        local applied=ledger.applied[key]
+        if applied==nil then
+            applied={hand=0,discard=0}
+            ledger.applied[key]=applied
+        end
+        return applied
+    end
+    local function finish(success,reason)
+        combatConfig.woundApplying=false
+        if not success then
+            broadcastToColor("Apply Wounds stopped: "..tostring(reason)
+                ..". Check the physical cards and click again to finish.",
+                player.color,warningColor)
+        end
+        resourceCardsSourceChanged()
+        mainUIUpdate("Combat Wounds applied")
+    end
+    local function commitConsequences()
+        -- Check both zones before any irreversible Paralysis discard. A
+        -- retry must never discard newly drawn cards if the first attempt
+        -- already processed that printed attack.
+        if effects.paralyseCount>0 then
+            local handZone=getObjectFromGUID(handZones~=nil and handZones[seat] or nil)
+            local discardZone=getObjectFromGUID(deedDeckDiscardZones~=nil
+                and deedDeckDiscardZones[seat] or nil)
+            if handZone==nil or discardZone==nil then
+                finish(false,"Hand or discard zone missing for Paralysis")
+                return
+            end
+            -- Claim the effect before moving anything: if TTS interrupts a
+            -- partially transferred hand, retries must not discard new cards.
+            for _,key in ipairs(effects.paralyse) do record(key).paralyse=true end
+            local ok,movedOrReason=pcall(combatDiscardParalyzedHand,seat)
+            if not ok or movedOrReason~=true then
+                finish(false,"Paralysis hand discard requires manual review: "
+                    ..tostring(ok and movedOrReason or movedOrReason))
+                return
+            end
+        end
+        for _,effect in ipairs(effects.destroyed) do
+            local applied=record(effect.key)
+            applied.destroyed=applied.destroyed or {}
+            if applied.destroyed[effect.guid]==nil then
+                if attackAssignmentsUnitPreviewApplyDestroyed==nil then
+                    finish(false,"Paralysis Unit cleanup is unavailable")
+                    return
+                end
+                local ok,reason=attackAssignmentsUnitPreviewApplyDestroyed(seat,effect.guid)
+                if not ok then
+                    finish(false,reason)
+                    return
+                end
+                applied.destroyed[effect.guid]=effect.absorbed
+            end
+        end
+        finish(true)
+    end
+    if hand+discard==0 then
+        commitConsequences()
+        return
+    end
+    combatDealCalculatedWounds(seat,allocations,
         function(key,destination,guid)
-            local record=ledger.applied[key] or {hand=0,discard=0}
-            record[destination]=(record[destination] or 0)+1
-            ledger.applied[key]=record
+            local applied=record(key)
+            applied[destination]=(applied[destination] or 0)+1
             if destination=="hand" then ledger.cards[guid]=true end
         end,
         function(success,reason)
-            combatConfig.woundApplying=false
             if not success then
-                broadcastToColor("Apply Wounds stopped: "..tostring(reason)..". Click again to finish.",
-                    player.color,warningColor)
+                finish(false,reason)
+            else
+                commitConsequences()
             end
-            resourceCardsSourceChanged()
-            mainUIUpdate("Combat Wounds applied")
         end)
 end
 
@@ -2179,19 +2280,32 @@ function combatWoundsEndTurnReminder(color)
     local ledger=current~=nil and gStates.combatWoundApplication or nil
     if current==nil or ledger==nil or ledger.seat~=current.seatPos then return false end
     if combatConfig.woundApplying then
-        safeBroadcastToColor("Wound cards are still being dealt. Finish applying them before ending combat.",
+        safeBroadcastToColor("Combat consequences are still being applied. Finish before ending combat.",
             color,warningColor)
         return true
     end
-    local _,hand,discard,changed=combatConfig.woundPending(ledger)
-    if hand+discard==0 and not changed then return false end
+    local _,hand,discard,changed,effects=combatConfig.woundPending(ledger)
+    if hand+discard==0 and effects.paralyseCount==0 and effects.destroyCount==0
+        and not changed then return false end
     local signature=tostring(hand)..":"..tostring(discard)..":"..tostring(changed)
+        ..":"..tostring(effects.paralyseCount)..":"..tostring(effects.destroyCount)
     if ledger.warned==signature then return false end
     ledger.warned=signature
-    local message=hand+discard>0
-        and ("Unapplied combat Wounds: "..tostring(hand).." to hand, "..tostring(discard)
-            .." to discard. Use Apply Wounds, or click End Turn again if handled manually.")
-        or "Combat damage changed after Wounds were applied. Check physical cards; click End Turn again to continue."
+    local message
+    if hand+discard>0 or effects.paralyseCount>0 or effects.destroyCount>0 then
+        message="Unapplied combat: "..tostring(hand).." Wounds to hand, "
+            ..tostring(discard).." to discard"
+        if effects.paralyseCount>0 then
+            message=message..", Paralysis hand discard pending"
+        end
+        if effects.destroyCount>0 then
+            message=message..", "..tostring(effects.destroyCount)
+                .." Paralyzed Units to destroy"
+        end
+        message=message..". Use Apply Wounds, or click End Turn again if handled manually."
+    else
+        message="Combat damage changed after effects were applied. Check physical cards; click End Turn again to continue."
+    end
     safeBroadcastToColor(message,color,warningColor)
     return true
 end
