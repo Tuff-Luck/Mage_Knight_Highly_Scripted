@@ -11,11 +11,11 @@
         <HorizontalLayout spacing="12" preferredHeight="32" childForceExpandWidth="true">
             <Button id="CombatDamageConfirmCancel" onClick="resourceTracker" preferredWidth="180" preferredHeight="32">
                 <Image image="Sliced Button/Button New Active" type="Sliced"/>
-                <Text class="Text18">{en}Cancel{it}Annulla{ru}Отмена{zh-tw}取消{zh-cn}取消{ko}취소{es}Cancelar{fr}Annuler{pt-br}Cancelar{de}Abbrechen</Text>
+                <Text id="CombatDamageConfirmCancelText" class="Text18">{en}Cancel{it}Annulla{ru}Отмена{zh-tw}取消{zh-cn}取消{ko}취소{es}Cancelar{fr}Annuler{pt-br}Cancelar{de}Abbrechen</Text>
             </Button>
             <Button id="CombatDamageConfirmApply" onClick="resourceTracker" preferredWidth="220" preferredHeight="32">
                 <Image image="Sliced Button/Button New Active" type="Sliced"/>
-                <Text class="Text18">{en}Commit Damage{it}Conferma danni{ru}Применить урон{zh-tw}確認傷害{zh-cn}确认伤害{ko}피해 확정{es}Aplicar daño{fr}Appliquer les dégâts{pt-br}Aplicar dano{de}Schaden übernehmen</Text>
+                <Text id="CombatDamageConfirmApplyText" class="Text18">{en}Commit Damage{it}Conferma danni{ru}Применить урон{zh-tw}確認傷害{zh-cn}确认伤害{ko}피해 확정{es}Aplicar daño{fr}Appliquer les dégâts{pt-br}Aplicar dano{de}Schaden übernehmen</Text>
             </Button>
         </HorizontalLayout>
     </VerticalLayout>
