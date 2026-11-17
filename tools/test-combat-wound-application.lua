@@ -343,9 +343,37 @@ assert(xml:find('id="CombatDamageConfirm" active="false"',1,true)
     and xml:find('id="CombatDamageConfirmCancel" onClick="resourceTracker"',1,true)
     and xml:find('id="CombatDamageConfirmApply" onClick="resourceTracker"',1,true),
     "Combat damage confirmation controls must be present and initially hidden")
+assert(xml:find('<Text id="CombatDamageConfirmCancelText" class="Text18">',1,true)
+    and xml:find('<Text id="CombatDamageConfirmApplyText" class="Text18">',1,true),
+    "the Cancel and Commit Damage labels need stable translation IDs")
 assert(fileText("src/PlayingGame/UI.lua"):find(
     'resourceCardsRequestCombatWounds(player)',1,true),
     "the original wound button must open confirmation, not deal Wounds")
+
+-- Exercise the actual UI routing with no access to the module-private
+-- combatConfig table. Previously both buttons failed here with a nil index.
+local uiSource=fileText("src/PlayingGame/UI.lua")
+local routeStart=assert(uiSource:find("function resourceTracker(player, mouseButton, id)",1,true))
+local routeEnd=assert(uiSource:find(
+    "-- Stale hidden XML controls cannot revive calculations while OFF.",routeStart,true))
+local clickChoices={}
+local clickEnv={
+    resourceCardsPlayerCanEdit=function(color) return color=="Red" end,
+    resourceCardsConfirmCombatWounds=function(_,choice)
+        clickChoices[#clickChoices+1]=choice
+    end,
+}
+setmetatable(clickEnv,{__index=function(_,name)
+    if name=="combatConfig" then error("UI accessed private combatConfig") end
+    return _G[name]
+end})
+assert(load(uiSource:sub(routeStart,routeEnd-1).."\n    end\nend\n",
+    "combat UI click routing","t",clickEnv))()
+clickEnv.resourceTracker({color="Red"},"-1","CombatDamageConfirmCancel")
+clickEnv.resourceTracker({color="Red"},"-1","CombatDamageConfirmApply")
+eq(clickChoices[1],"CombatDamageConfirmCancel","Cancel reaches public handler")
+eq(clickChoices[2],"CombatDamageConfirmApply","Commit reaches public handler")
+eq(#clickChoices,2,"both confirm buttons invoke exactly one handler")
 assert(recognition:find('type(storeRewindState)~="function"',1,true)
     and recognition:find('rewindTransactionCanStartFresh()',1,true)
     and recognition:find('rewindTransactionStart(function()',1,true)
@@ -389,7 +417,7 @@ eq(attrs["CombatDamageConfirm:active"],"true","button must open confirmation")
 eq(#dealt,startCount,"opening dialog does not draw Wounds")
 eq(combatWoundsEndTurnReminder("Red"),true,
     "End Turn blocked while confirmation is open")
-combatConfig.woundConfirmChoice(player,"CombatDamageConfirmCancel")
+resourceCardsConfirmCombatWounds(player,"CombatDamageConfirmCancel")
 eq(attrs["CombatDamageConfirm:active"],"false","Cancel closes dialog")
 eq(#dealt,startCount,"Cancel must not draw any Wounds")
 
@@ -397,7 +425,7 @@ eq(#dealt,startCount,"Cancel must not draw any Wounds")
 resourceCardsRequestCombatWounds(player)
 combatConfig.woundRecordPreview(1,{{key="confirm:1"}},{
     ["confirm:1"]={heroWounds=3,discard=0}})
-combatConfig.woundConfirmChoice(player,"CombatDamageConfirmApply")
+resourceCardsConfirmCombatWounds(player,"CombatDamageConfirmApply")
 eq(#dealt,startCount,"changed plan cannot be confirmed")
 eq(combatConfig.woundTransactionPending,nil,
     "stale dialog must not start rewind transaction")
