@@ -787,7 +787,7 @@ local function mainUIRefreshPlayerState(context)
 				if gStates.gainList[obj.guid]==nil then
 					--record token orientation and do the math if face up.
 					gStates.gainList[obj.guid]={exists=true, siteRepLoss=0, keepHalfFame=false}
-					if combatEnemyTokenDefeated(obj) then
+					if combatEnemyTokenDefeated(obj) or combatBossPartialRewardEligible(obj.guid) then
 						gStates.gainList[obj.guid].tokenDirection=1
 						doMath=true
 					else
@@ -835,6 +835,7 @@ local function mainUIRefreshPlayerState(context)
 				end
 				--existing token found, but it has been flipped
 				local defeatedNow=combatEnemyTokenDefeated(obj)
+					or combatBossPartialRewardEligible(obj.guid)
 				if (defeatedNow and gStates.gainList[obj.guid].tokenDirection==-1)
 				or (not defeatedNow and gStates.gainList[obj.guid].tokenDirection==1) then
 					gStates.gainList[obj.guid].tokenDirection=gStates.gainList[obj.guid].tokenDirection*-1
@@ -937,7 +938,9 @@ local function mainUIRefreshPlayerState(context)
 						turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain-math.ceil(monsterPugs[a].fame/2)
 					else
 						local multiple=1
-						if a==darkCrusader.token or a==elementalist.token then multiple=gStates.leaderOverkill end
+						if a==darkCrusader.token or a==elementalist.token then
+							multiple=b.overkill or gStates.leaderOverkill
+						end
 						if gStates.druidNightsSummon~=nil then multiple=2 end
 						local perks=0
 						if gStates.monsterPerks[a]~=nil and gStates.monsterPerks[a].fame~=nil then perks=gStates.monsterPerks[a].fame end
