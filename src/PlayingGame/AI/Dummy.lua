@@ -40,7 +40,7 @@ function dummyTurn(player, mouseButton, id)
 	if mouseButton~="-1" or gStates.positionMageKnight[5]=="Volkare" or proxyPlayerIsActive()==true then return end
 	if gStates.tacticShown==true then
 		automatedTurnRewindStart(function()
-			automatedPlayerRandomTactic()
+			if automatedPlayerRandomTactic()~=true then automatedTurnRewindRelease() return end
 			nextTurnMerged("incrementTurn")
 			automatedTacticRewindRelease()
 		end)
