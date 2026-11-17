@@ -1688,6 +1688,12 @@ end
 -- Block cells hold block, the Ranged/Siege cell holds range/siege only once it can legally
 -- defeat the enemy, and everything else is generic Attack.
 local function combatDetailPhase(detail,rangeDefeated,fortification,source)
+    if source~=nil and source.noAttackPhase then
+        if rangeDefeated and ((detail.family=="ranged" and fortification==0)
+            or (detail.family=="siege" and fortification<2)) then return "range" end
+        if detail.family=="block" or detail.family=="move" then return "block" end
+        return nil -- unspent Ranged falls back through its separate Attack source
+    end
     if source~=nil and source.damagePhaseWound then return "attack" end
     if source~=nil and source.forkedLightning then
         return (gStates==nil or gStates.forkedLightningPhase~="attack") and "range" or "attack"
@@ -4546,6 +4552,9 @@ local function combatAssignmentRefreshRows(entries,sources)
         damageResults=combatFrozenCopy(earlyLock.damageResults)
     elseif combatConfig.phasePreview~=nil then
         combatConfig.phasePreview.damageResults=combatFrozenCopy(damageResults)
+        if attackAssignmentsDamageSnapshot~=nil then
+            combatConfig.phasePreview.damage=attackAssignmentsDamageSnapshot()
+        end
     end
 
     -- Vampiric gains Armor for Wounds added to the Hero's hand and for each
@@ -4896,10 +4905,12 @@ local function combatAssignmentRefreshRows(entries,sources)
                     -- and explain why it does not count. Earlier Ranged/Block stands.
                     local wounded=phase=="attack" and (woundedBeforeAttack[item.source.guid]==true
                         or item.source.dodgeIneligible==true)
-                    lists[phase][#lists[phase]+1]={source=item.source,amount=item.detail.amount,
-                        icon=item.detail.icon,text=item.detail.text,typeKey=item.detail.typeKey,
-                        reduced=combatEnemyResists(group.entry.data,group.entry.perks,item.detail.typeKey),
-                        wounded=wounded}
+                    if phase~=nil then
+                        lists[phase][#lists[phase]+1]={source=item.source,amount=item.detail.amount,
+                            icon=item.detail.icon,text=item.detail.text,typeKey=item.detail.typeKey,
+                            reduced=combatEnemyResists(group.entry.data,group.entry.perks,item.detail.typeKey),
+                            wounded=wounded}
+                    end
                 end
             end
             perMember[index]=lists
@@ -5516,6 +5527,12 @@ local function refreshCombatEnemyPanel(monsters,calculated)
         combatAssignmentState.selected=nil
     end
     local rowHeight=combatAssignmentRefreshRows(entries,sources)
+    if lock==nil and combatConfig.phasePreview~=nil then
+        -- Automatic nearest-enemy targeting is resolved inside the calculator,
+        -- so capture it AFTER that pass rather than before the first render.
+        combatConfig.phasePreview.targets=combatFrozenCopy(combatAssignmentState.targets)
+        combatConfig.phasePreview.explicit=combatFrozenCopy(combatAssignmentState.explicit)
+    end
     if attackAssignmentsRefreshTargetButtons~=nil then
         attackAssignmentsRefreshTargetButtons(monsters)
     end
