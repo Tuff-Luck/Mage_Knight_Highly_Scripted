@@ -2301,15 +2301,19 @@ function resourceCardsApplyCombatWounds(player)
                 finish(false,"Hand or discard zone missing for Paralysis")
                 return
             end
-            -- Claim the effect before moving anything: if TTS interrupts a
-            -- partially transferred hand, retries must not discard new cards.
-            for _,key in ipairs(effects.paralyse) do record(key).paralyse=true end
-            local ok,movedOrReason=pcall(combatDiscardParalyzedHand,seat)
-            if not ok or movedOrReason~=true then
-                finish(false,"Paralysis hand discard requires manual review: "
-                    ..tostring(ok and movedOrReason or movedOrReason))
+            -- Failed validation (for example, a card being held) is safe to
+            -- retry. After a partial transfer, mark the hand effect committed
+            -- and ask for manual correction, never discard new draws on retry.
+            local ok,success,countOrReason,moved=pcall(combatDiscardParalyzedHand,seat)
+            if not ok or success~=true then
+                if not ok or (tonumber(moved) or 0)>0 then
+                    for _,key in ipairs(effects.paralyse) do record(key).paralyse=true end
+                end
+                finish(false,"Paralysis hand discard: "
+                    ..tostring(ok and countOrReason or success))
                 return
             end
+            for _,key in ipairs(effects.paralyse) do record(key).paralyse=true end
         end
         for _,effect in ipairs(effects.destroyed) do
             local applied=record(effect.key)
@@ -2318,6 +2322,11 @@ function resourceCardsApplyCombatWounds(player)
                 if attackAssignmentsUnitPreviewApplyDestroyed==nil then
                     finish(false,"Paralysis Unit cleanup is unavailable")
                     return
+                end
+                -- Capture this Unit's already-resolved Ranged/Siege and Block
+                -- before physically removing its resource source from the mat.
+                if combatConfig.captureParalyzedUnitSources~=nil then
+                    combatConfig.captureParalyzedUnitSources(seat,effect.guid)
                 end
                 local ok,reason=attackAssignmentsUnitPreviewApplyDestroyed(seat,effect.guid)
                 if not ok then
