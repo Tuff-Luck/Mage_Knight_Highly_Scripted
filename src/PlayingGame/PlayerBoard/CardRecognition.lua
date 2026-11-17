@@ -757,6 +757,27 @@ local function combatAssignmentSources(seat)
         end
     end
     sources=splitBlocks
+    -- Paralyzed Units disappear physically in the Damage phase. Keep only
+    -- their ALREADY resolved Ranged/Siege and Block/Move contributions until
+    -- turn end. Their Attack-phase ability cannot be used after destruction.
+    local ledger=gStates~=nil and gStates.combatWoundApplication or nil
+    if ledger~=nil and ledger.seat==seat then
+        local active={}
+        for _,source in ipairs(sources) do active[source.key]=true end
+        for _,retired in pairs(ledger.retiredUnitSources or {}) do
+            for _,source in ipairs(retired) do
+                if not active[source.key] then
+                    sources[#sources+1]=source
+                    active[source.key]=true
+                    if combatAssignmentState.targets[source.key]==nil
+                        and source.retiredTarget~=nil then
+                        combatAssignmentState.targets[source.key]=source.retiredTarget
+                        combatAssignmentState.explicit[source.key]=source.retiredExplicit==true
+                    end
+                end
+            end
+        end
+    end
     table.sort(sources,function(a,b)
         if a.name==b.name then return a.key<b.key end
         return a.name<b.name
@@ -764,10 +785,64 @@ local function combatAssignmentSources(seat)
     return sources
 end
 
+-- Preserve resolved pre-Damage Unit contributions before removing the card
+-- from its zone. Snapshot plain scalar data only so TTS JSON save/reload
+-- does not capture objects or userdata.
+local function combatFrozenCopy(value)
+    if type(value)~="table" then
+        if type(value)=="string" or type(value)=="number" or type(value)=="boolean" then
+            return value
+        end
+        return nil
+    end
+    local copy={}
+    for key,entry in pairs(value) do
+        if type(key)=="string" or type(key)=="number" then
+            copy[key]=combatFrozenCopy(entry)
+        end
+    end
+    return copy
+end
+
+combatConfig.captureParalyzedUnitSources=function(seat,unitGUID)
+    local ledger=combatConfig.woundLedger(seat)
+    if ledger==nil or unitGUID==nil then return false end
+    ledger.retiredUnitSources=ledger.retiredUnitSources or {}
+    if ledger.retiredUnitSources[unitGUID]~=nil then return true end
+    local unit=getObjectFromGUID(unitGUID)
+    local pos=unit~=nil and unit.getPosition() or nil
+    local saved={}
+    for _,source in ipairs(combatAssignmentSources(seat)) do
+        if source.kind=="unit" and source.guid==unitGUID
+            and source.ranged+source.siege+source.block+source.move>0 then
+            local copy=combatFrozenCopy(source)
+            copy.retiredUnit=true
+            copy.retiredUnitPosition=pos~=nil
+                and {pos.x or pos[1],pos.y or pos[2],pos.z or pos[3]} or nil
+            copy.retiredTarget=combatAssignmentState.targets[source.key]
+            copy.retiredExplicit=combatAssignmentState.explicit[source.key]==true
+            copy.attack=0
+            copy.conditionalCounterattack=nil
+            for field in pairs(copy.resources or {}) do
+                if field:sub(1,6)=="attack" then copy.resources[field]=nil end
+            end
+            for i=#(copy.details or {}),1,-1 do
+                if copy.details[i].family=="attack" then
+                    table.remove(copy.details,i)
+                end
+            end
+            saved[#saved+1]=copy
+        end
+    end
+    ledger.retiredUnitSources[unitGUID]=saved
+    return true
+end
+
 local function combatNearestEnemyGUID(source,entries)
     local sourceObject=getObjectFromGUID(source.guid)
-    if sourceObject==nil then return nil end
-    local sourcePosition=sourceObject.getPosition()
+    local sourcePosition=sourceObject~=nil and sourceObject.getPosition()
+        or source.retiredUnitPosition
+    if sourcePosition==nil then return nil end
     local nearestGUID,nearestDistance=nil,nil
     for _,entry in ipairs(entries) do
         local enemy=getObjectFromGUID(entry.guid)
