@@ -1822,17 +1822,17 @@ end
 function combatDiscardParalyzedHand(seat)
     local hand=getObjectFromGUID(handZones~=nil and handZones[seat] or nil)
     local discard=getObjectFromGUID(deedDeckDiscardZones~=nil and deedDeckDiscardZones[seat] or nil)
-    if hand==nil or discard==nil then return false,"Hand or discard zone is missing" end
+    if hand==nil or discard==nil then return false,"Hand or discard zone is missing",0 end
     local transfers={}
     for _,obj in ipairs(hand.getObjects() or {}) do
         if obj.type=="Card" and obj.getGMNotes()~="Wound" then
             if obj.held_by_color~=nil and obj.held_by_color~="" then
-                return false,"A hand card is being held"
+                return false,"A hand card is being held",0
             end
             transfers[#transfers+1]={object=obj}
         elseif obj.type=="Deck" then
             if obj.held_by_color~=nil and obj.held_by_color~="" then
-                return false,"A hand deck is being held"
+                return false,"A hand deck is being held",0
             end
             local contents=obj.getObjects() or {}
             local nonWounds={}
@@ -1862,7 +1862,7 @@ function combatDiscardParalyzedHand(seat)
                 local card=entry.deck.takeObject({guid=guid,
                     position={x,y+2+0.07*(moved%5),z},smooth=false})
                 if card==nil then
-                    return false,"A stacked hand card could not be discarded"
+                    return false,"A stacked hand card could not be discarded",moved
                 end
                 moved=moved+1
             end
