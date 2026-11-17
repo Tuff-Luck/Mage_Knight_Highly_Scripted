@@ -208,7 +208,7 @@ local function card(guid,wound)
 end
 local good=card("good",false)
 local existingWound=card("wound",true)
-local deck={type="Deck",getObjects=function()
+local deck={guid="deck",type="Deck",getObjects=function()
     return {{guid="stacked",gm_notes="Spell"},{guid="stackWound",gm_notes="Wound"}}
 end,takeObject=function(args)
     eq(args.guid,"stacked","mixed Deck must extract only non-Wound cards")
@@ -238,6 +238,28 @@ discarded=discardHand(1)
 eq(discarded,false,"held hand cards must abort a destructive discard")
 eq(#moved,2,"held card must remain untouched")
 handObjects={}
+
+-- In live TTS, the actual player HandTrigger may contain cards not reported
+-- by the scripted hand zone. Paralysis must still discard those cards and
+-- must not discard native hand Wounds or the same card twice.
+local native=card("native",false)
+local nativeWound=card("nativeWound",true)
+local nativeHand={native,nativeWound}
+Player={Red={getHandObjects=function() return nativeHand end}}
+positionToColor=function() return "Red" end
+discarded,count=discardHand(1)
+eq(discarded,true,"native TTS hand should be inspected")
+eq(count,1,"native hand discards its non-Wound card")
+eq(moved[3],"native","native hand card actually moved")
+handObjects={native}
+discarded,count=discardHand(1)
+eq(discarded,true,"duplicate physical and native hand views can merge")
+eq(count,1,"duplicate hand views must not discard a card twice")
+eq(#moved,4,"same GUID is moved only once per application")
+nativeHand={}
+handObjects={}
+Player=nil
+positionToColor=nil
 
 -- If a destroyed Unit had already helped defeat a different enemy with
 -- Ranged/Siege, its early attack must remain valid after physical removal.
