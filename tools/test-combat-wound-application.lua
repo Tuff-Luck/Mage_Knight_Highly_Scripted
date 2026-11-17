@@ -136,6 +136,19 @@ local summaryRow=assert(enemyPanel:match('<Panel id="CombatTotalRow"[^>]*>'),
 assert(summaryRow:find('active="false"',1,true)
     and summaryRow:find('preferredHeight="22"',1,true),
     "Draw Wounds row needs the original collapsed height")
+-- The Phase prompt must not join a HorizontalLayout or alter the existing
+-- fixed-width Draw Wounds button. It is a non-interactive sibling immediately
+-- to the left, with a Unicode arrow rather than a literal angle bracket.
+local phasePrompt=assert(enemyPanel:match('<Text id="CombatDamagePhasePrompt"[^>]*>Perform Damage Phase →</Text>'),
+    "Damage phase prompt or proper arrow is missing")
+assert(phasePrompt:find('rectAlignment="UpperRight"',1,true)
+    and phasePrompt:find('offsetXY="-213 -4"',1,true)
+    and phasePrompt:find('width="200"',1,true)
+    and phasePrompt:find('raycastTarget="false"',1,true),
+    "Damage phase prompt must be absolutely positioned and non-interactive")
+assert(enemyPanel:find('id="CombatDamagePhasePrompt"',1,true)
+    < enemyPanel:find('id="CombatWoundSummary"',1,true),
+    "Damage phase prompt must precede the right-hand wound button")
 local summary=assert(enemyPanel:match('<Panel id="CombatWoundSummary"[^>]*>'),
     "Draw Wounds needs a dedicated anchored container")
 local apply=assert(enemyPanel:match('<Button id="CombatApplyWounds"[^>]*>'),
