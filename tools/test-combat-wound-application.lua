@@ -534,11 +534,13 @@ local wound={guid="wound",key="wound",name="Fresh Wound",kind="wound",
         {family="attack",key="attack",amount=4}}}
 local lock={sources={original},sourceKeys={played=true},spentRange={}}
 local onlyWound=phaseSources(lock,{wound})
-eq(onlyWound[1].block,2,"earlier Block remains after card returns to hand")
-eq(onlyWound[1].noAttackPhase,true,"committed source not reused in Attack")
-eq(onlyWound[2].block,0,"Damage-phase Wound cannot retroactively Block")
-eq(onlyWound[2].attack,4,"new Wound may Attack with a legal linked Skill")
-eq(onlyWound[2].damagePhaseWound,true,"late Wound cannot join Ranged/Siege")
+local byKey={}
+for _,source in ipairs(onlyWound) do byKey[source.key]=source end
+eq(byKey.played.block,2,"earlier Block remains after card returns to hand")
+eq(byKey.played.noAttackPhase,true,"committed source not reused in Attack")
+eq(byKey.wound.block,0,"Damage-phase Wound cannot retroactively Block")
+eq(byKey.wound.attack,4,"new Wound may Attack with a legal linked Skill")
+eq(byKey.wound.damagePhaseWound,true,"late Wound cannot join Ranged/Siege")
 local replay=combatFrozenCopy(original)
 replay.block=99 replay.attack=99 replay.resources.block=99
 replay.resources.attack=99
