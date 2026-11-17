@@ -121,9 +121,75 @@ eq(diseaseEffects.plain.noAttack,false,"Disease does not erase enemy attack")
 combatEffectAdd(diseaseEffects,"immune","47e71c",disease)
 eq(diseaseEffects.immune.armourSetIfBlocked,nil,"Arcane Immunity negates Disease")
 
--- Three non-numeric Green spells are intentional manual effects. Keep them
--- deliberately neutral, with both sides selectable and no invented totals.
-for _,name in ipairs({"Energy Flow","Underground Travel","Meditation"}) do
+-- Underground Attack is a paid, non-numeric assault effect. It shares
+-- Demolish's site-only bypass, but only on the stronger side.
+local underground=spells.spellUnderground
+eq(underground.ignoreSiteFortification,true,"Underground Attack site bypass")
+eq(underground.ignoreSiteFortificationPowered,true,"Bypass requires stronger side")
+local siteBypassCheck=assert(load([[
+local function cardPosture(card) return card.posture end
+]]..between(reader,"local function resourceCardsIgnoreSiteFortification(rule,result,card)",
+    "-- Ambush can augment exactly one played card")..
+    "\nreturn resourceCardsIgnoreSiteFortification"))()
+local played={posture="upright",is_face_down=false}
+local result={complete=true,powered=true,resources={}}
+eq(siteBypassCheck(underground,result,played),true,"Paid Underground Attack bypass")
+result.powered=false
+eq(siteBypassCheck(underground,result,played),false,"Basic Underground Travel has no bypass")
+result.powered=true
+result.complete=false
+eq(siteBypassCheck(underground,result,played),false,"Unpaid Underground Attack has no bypass")
+result.complete=true
+result.resources=nil
+eq(siteBypassCheck(underground,result,played),false,"Missing paid resources disable bypass")
+result.resources={}
+played.posture="discard"
+eq(siteBypassCheck(underground,result,played),false,"Discarded Underground Attack is inactive")
+played.posture="upright"
+played.is_face_down=true
+eq(siteBypassCheck(underground,result,played),false,"Facedown Underground Attack is inactive")
+played.is_face_down=false
+eq(siteBypassCheck(underground,result,nil),false,"Removed Underground Attack is inactive")
+result.powered=false
+eq(siteBypassCheck(spells.spellDemolish,result,played),true,"Demolish keeps basic bypass")
+result.powered=true
+eq(siteBypassCheck(spells.spellDemolish,result,played),false,"Disintegrate has no bypass")
+
+-- Exercise the calculator's actual stripping logic (not an invented rule).
+local fortificationCount=assert(load([[
+local function combatEnemyHasTrait(data,perks,key)
+    return data[key]==true or (perks~=nil and perks[key]==true)
+end
+]]..between(reader,"local function combatEnemyFortificationCount(data,perks)",
+    "-- owner/slot identify the physical token")..
+    "\nreturn combatEnemyFortificationCount"))()
+local stripSites=assert(load("return function(entries,seatScan)\n"..
+    between(reader,"    -- Ignore site/wall Fortified, but preserve the monster's printed Fortified.",
+        "    for _,entry in ipairs(entries) do\n        local obj=getObjectFromGUID")..
+    "\nreturn entries\nend"))()
+local sitePerks={fortified=true,wallFortified=true}
+local entry={data={arcaneImmunity=true},perks=sitePerks}
+eq(fortificationCount(entry.data,entry.perks),2,"Site and Wall are two fortifications")
+stripSites({entry},{ignoreSiteFortifications=true})
+eq(fortificationCount(entry.data,entry.perks),0,"Both site fortifications bypassed")
+eq(sitePerks.fortified,true,"Bypass never mutates original site perks")
+entry={data={fortified=true},perks=sitePerks}
+stripSites({entry},{ignoreSiteFortifications=true})
+eq(fortificationCount(entry.data,entry.perks),1,"Printed Fortified survives bypass")
+local earthquakeSpec=combatEffectSpec(spells.spellTremor,true,"single")
+eq(earthquakeSpec.armourReduce,3,"Earthquake uses base reduction without Fortified")
+eq(earthquakeSpec.armourReduceFortified,6,"Printed Fortified still qualifies for Earthquake")
+entry={data={},perks={fortified=true}}
+stripSites({entry},{ignoreSiteFortifications=false})
+eq(fortificationCount(entry.data,entry.perks),1,"Without bypass site stays fortified")
+assert(reader:find("if resourceCardsIgnoreSiteFortification(rule,result,card) then",1,true),
+    "Scanner must activate site bypass only when physically played")
+assert(reader:find("ignoreSiteFortifications=ignoreSiteFortifications",1,true),
+    "Calculator must receive site-bypass state")
+
+-- Two other non-numeric Green spells remain deliberately manual, with no
+-- invented numeric resources.
+for _,name in ipairs({"Energy Flow","Meditation"}) do
     assert(data:find('name={"'..name..'",',1,true),
         "Unregistered Green manual Spell "..name)
 end
