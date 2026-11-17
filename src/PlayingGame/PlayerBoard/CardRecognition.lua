@@ -281,6 +281,20 @@ local function resourceCardsApplyFameRep(seat)
 end
 -- The calculator runs only while the Resource Tracker details are open and an enemy is in play.
 local combatCalcOn=false
+-- Explicit boss overkill corrections are kept in save state until the
+-- calculator closes. Nil selects Auto, while zero is a valid manual value.
+function combatBossAutomationActive()
+    return combatCalcOn==true and resourceCardsPanelOpen()
+end
+function combatBossSetManual(guid,value)
+    if gStates==nil or guid==nil then return end
+    gStates.combatBossManual=gStates.combatBossManual or {}
+    if value==nil then gStates.combatBossManual[guid]=nil
+    else gStates.combatBossManual[guid]=math.max(0,math.floor(tonumber(value) or 0)) end
+    if combatBossAutomationActive() and resourceCardsSourceChanged~=nil then
+        resourceCardsSourceChanged()
+    end
+end
 local combatCumbersomeActive=false
 local combatPsychicActive=false
 local combatAssignmentJoined={}
@@ -339,6 +353,30 @@ local function combatEnemyData(guid,obj)
     if obj==nil then return nil end
     local reminder=combatConfig.attackOnlyReminders[obj.getGMNotes()]
     return reminder,reminder~=nil and "attackOnly" or nil
+end
+
+-- Level-based bosses keep their entered-combat characteristics even after
+-- an earlier phase or cooperative participant has removed levels.
+local function combatBossIdentity(guid,data,perks,mode)
+    if data.pugType=="leader" then
+        local realGUID=guid
+        if mode=="preview" and factionLeaderForCity~=nil then
+            local leader=factionLeaderForCity(gStates.coopAssaultCityGUID)
+            if leader~=nil then realGUID=leader.token end
+        end
+        local level=realGUID==darkCrusader.token and gStates.darkCrusaderLevel
+            or realGUID==elementalist.token and gStates.elementalistLevel or nil
+        if level~=nil then return "leader",math.max(0,(tonumber(level) or 0)
+            -(tonumber(gStates.leaderReduction) or 0)),nil end
+    end
+    if perks~=nil and perks.dragonGround==true
+        and apocalypseDragonGroundHeadNameForGUID~=nil then
+        local head=apocalypseDragonGroundHeadNameForGUID(guid)
+        if head=="Control" then return "control",0,head end
+        if head~=nil then return "dragon",math.max(0,tonumber(perks.dragonGroundLevel)
+            or tonumber(gStates.apocalypseDragonHeadLevels[head]) or 0),head end
+    end
+    return nil,nil,nil
 end
 
 local function combatTypeRich(text,typeKey,reduced)
@@ -1083,6 +1121,10 @@ function resourceCardsCombatTargetRejectMessage(sourceKey,targetGUID)
     if resourceCardsUnitTargetRequiresUnfortified(sourceKey) then
         return "Illusionists can only target an unfortified enemy."
     end
+    if apocalypseDragonGroundHeadNameForGUID~=nil
+        and apocalypseDragonGroundHeadNameForGUID(targetGUID)=="Control" then
+        return "The Control head cannot be attacked."
+    end
     if sourceKey=="6a33c1" then
         return "Curse's Armour reduction cannot target an attack-only reminder."
     end
@@ -1098,6 +1140,17 @@ function resourceCardsCombatTargetAcceptsSource(sourceKey,targetGUID)
     local scan=seat~=nil and resourceCardScanBySeat[seat] or nil
     local record=scan~=nil and scan.cards[sourceKey] or nil
     if record~=nil and record.possessEnemyGUID==targetGUID then return false end
+    if apocalypseDragonGroundHeadNameForGUID~=nil
+        and apocalypseDragonGroundHeadNameForGUID(targetGUID)=="Control" then
+        local effectSource=combatConfig.effectSources[sourceKey]
+        if effectSource~=nil then return effectSource.arrow~="armour" end
+        for _,source in ipairs(combatAssignmentSources(seat)) do
+            if source.key==sourceKey then
+                return source.ranged+source.siege+source.attack==0
+            end
+        end
+        return sourceKey~="6a33c1"
+    end
     if resourceCardsUnitTargetRequiresUnfortified(sourceKey) then
         local seat=combatAssignmentActiveSeat()
         local scan=seat~=nil and resourceCardScanBySeat~=nil
@@ -1426,7 +1479,7 @@ local function combatRangeResult(entry,sources)
     if fortification<2 then groups[#groups+1]={sources=sources,category="siege"} end
     local total=combatAttackTotal(groups,data,perks,"range")
     local armour=combatEnemyHasTrait(data,perks,"elusive") and entry.elusiveArmour or entry.baseArmour
-    return total,armour,total>0 and total>=armour,fortification
+    return total,armour,total>0 and total>=(entry.fullLevelArmour or armour),fortification
 end
 
 -- Block cells hold block, the Ranged/Siege cell holds range/siege only once it can legally
@@ -2223,6 +2276,18 @@ local function combatRangeGroupEntry(members)
         result.baseArmour=result.baseArmour-lateBonus
         result.elusiveArmour=result.elusiveArmour-lateBonus
     end
+    local extra=0
+    for _,member in ipairs(members) do
+        if (member.bossLevel or 0)>1 then
+            local armour=combatEnemyHasTrait(member.data,member.perks,"elusive")
+                and (member.rangeElusiveArmour or member.elusiveArmour)
+                or (member.rangeBaseArmour or member.baseArmour)
+            extra=extra+((member.bossLevel-1)*math.max(1,
+                armour-(member.defendMeleeBonus or 0)))
+        end
+    end
+    result.fullLevelArmour=(combatEnemyHasTrait(result.data,result.perks,"elusive")
+        and result.elusiveArmour or result.baseArmour)+extra
     return result
 end
 
@@ -2362,7 +2427,7 @@ local function combatApplyDefend(entries,groups,allocated)
                 rangeBaseArmour=entry.rangeBaseArmour~=nil and entry.rangeBaseArmour+bonus or nil,
                 rangeElusiveArmour=entry.rangeElusiveArmour~=nil and entry.rangeElusiveArmour+bonus or nil,
                 stripFortify=entry.stripFortify,stripResist=entry.stripResist,
-                stripFireResist=entry.stripFireResist}
+                stripFireResist=entry.stripFireResist,bossLevel=entry.bossLevel}
         end
         local grouped=combatRangeGroupEntry(members)
         local _,_,defeated=combatRangeResult(grouped,groupSources[group])
@@ -4306,8 +4371,10 @@ local function refreshCombatEnemyPanel(monsters,calculated)
             local baseArmour=tonumber(data.armour) or 0
             local armourBonus=perks~=nil and (tonumber(perks.armour) or 0) or 0
             local armour=baseArmour+armourBonus
+            local bossType,bossLevel,bossHead=combatBossIdentity(guid,data,perks,mode)
             entries[#entries+1]={guid=guid,name=tostring(data.name or "Enemy"),
-                attackOnly=mode=="attackOnly",preview=mode=="preview",
+                attackOnly=mode=="attackOnly" or bossType=="control",preview=mode=="preview",
+                bossType=bossType,bossLevel=bossLevel,bossHead=bossHead,
                 armour=tostring(armour),unmodifiedArmour=armour,baseArmour=baseArmour+armourBonus,
                 elusiveArmour=baseArmour*2+armourBonus,data=data,perks=perks,
                 summoned=data.monsters~=nil and combatSummonedFor(guid) or nil}
