@@ -69,6 +69,86 @@ function togglePlayerDropoutRequest(player, mouseButton, id)
 end
 
 
+-- Capture the original missing-token state before turn order or physical objects move.
+-- This is diagnostic-only: never fabricate a replacement or change turn ordering.
+local function turnOrderTokenMissingSnapshot(missingIndex,missingGUID)
+	local function objectPosition(obj)
+		if obj==nil then return "?" end
+		local pos=obj.getPosition()
+		if pos==nil then return "?" end
+		return string.format("(%.2f, %.2f, %.2f)",tonumber(pos.x or pos[1]) or 0,
+			tonumber(pos.y or pos[2]) or 0,tonumber(pos.z or pos[3]) or 0)
+	end
+	local function objectStatus(guid)
+		if type(guid)~="string" or guid=="" then return "GUID not assigned" end
+		local obj=getObjectFromGUID(guid)
+		if obj==nil then return "NOT FOUND" end
+		return "FOUND type="..tostring(obj.type).." position="..objectPosition(obj)
+			.." resting="..tostring(obj.resting)
+	end
+	local state=gStates or {}
+	local entries={
+		"Missing token index="..tostring(missingIndex).." expected GUID="..tostring(missingGUID),
+		"Scenario="..tostring(state.gameScenario).." round="..tostring(state.currentRound)
+			.." turn="..tostring(state.turnNumber).." realTurn="..tostring(state.realTurn),
+		"tacticShown="..tostring(state.tacticShown).." dayRound="..tostring(state.dayRound)
+			.." firstStarted="..tostring(state.firstStarted).." endRoundCalled="..tostring(state.endRoundCalled),
+		"playerCount="..tostring(state.playerCount).." coop="..tostring(state.coop),
+		"Expected object at failure: "..objectStatus(missingGUID),
+		"Saved turnOrder entries (index, seat, mage, tactic, GUID, lookup):"
+	}
+	for index,details in ipairs(turnOrder or {}) do
+		local guid=details~=nil and details.turnOrderTokenGUID or nil
+		entries[#entries+1]=tostring(index)..": seat="..tostring(details and details.seatPos)
+			.." mage="..tostring(details and details.mage)
+			.." tactic="..tostring(details and details.tactic)
+			.." guid="..tostring(guid).." "..objectStatus(guid)
+	end
+	local zone=type(turnOrderArea)=="string" and getObjectFromGUID(turnOrderArea) or nil
+	if zone==nil then
+		entries[#entries+1]="Turn-order zone "..tostring(turnOrderArea).." NOT FOUND"
+	else
+		local candidates={}
+		for _,obj in ipairs(zone.getObjects()) do
+			candidates[#candidates+1]=tostring(obj.guid).." type="..tostring(obj.type)
+				.." position="..objectPosition(obj)
+		end
+		table.sort(candidates)
+		entries[#entries+1]="Turn-order zone GUID="..tostring(turnOrderArea)
+			.." objects="..tostring(#candidates)
+		for index=1,math.min(#candidates,24) do
+			entries[#entries+1]="Zone object: "..candidates[index]
+		end
+		if #candidates>24 then entries[#entries+1]="Additional zone objects omitted: "..tostring(#candidates-24) end
+	end
+	return table.concat(entries,"\n")
+end
+
+local function reportTurnOrderTokenMissing(index,guid)
+	local ok,snapshot=pcall(turnOrderTokenMissingSnapshot,index,guid)
+	if not ok then snapshot="Initial diagnostic snapshot failed: "..tostring(snapshot) end
+	local summary="Missing turn-order token index="..tostring(index).." GUID="..tostring(guid)
+	log("TURN ORDER TOKEN DIAGNOSTIC: "..summary)
+	-- TTS can temporarily reinstantiate an object. Recheck without mutating the
+	-- saved GUID so the report can distinguish transient lookup from loss.
+	safeWaitFrames("Turn",function()
+		local verified,detail=pcall(function()
+			local obj=type(guid)=="string" and getObjectFromGUID(guid) or nil
+			local found=obj~=nil
+			local result=found and "REAPPEARED" or "STILL MISSING"
+			local position=""
+			if found then
+				local p=obj.getPosition()
+				position=" position="..tostring(p)
+			end
+			return "After 2 frames: "..result..position
+		end)
+		if not verified then detail="Two-frame lookup failed: "..tostring(detail) end
+		reportAutomaticLuaDiagnostic("tacticToggle.turnOrderSort",summary,
+			tostring(snapshot).."\n"..tostring(detail))
+	end,2)
+end
+
 --Tactic Showing and Hiding
 function tacticToggle()
 	--rearanges the turn order tokens
@@ -81,10 +161,11 @@ function tacticToggle()
 				token.unlock()
 				token.setPositionSmooth({-1.90, 1.2, -18.00-(1.4*a)},false,false)
 			else
-				-- A turn-order token can be missing from a damaged or still-settling table.
-				-- Keep tactic selection moving; warn so the player can restore it manually.
+				-- Keep normal tactic selection moving, but send enough state to the
+				-- bug-report Sheet to investigate why a protected token was unavailable.
 				local who=details~=nil and (details.mage or details.seatPos) or a
 				broadcastToAll("Missing turn-order token for "..tostring(who).."; continuing tactic selection.",warningColor)
+				reportTurnOrderTokenMissing(a,tokenGUID)
 			end
 		end
 		if againstDragonPositionRoundOrderToken~=nil then againstDragonPositionRoundOrderToken() end
