@@ -4600,6 +4600,87 @@ local function combatAssignmentRefreshRows(entries,sources)
         end
     end
 
+    -- Resolve newly played enemy-targeted effects in Attack only. Their
+    -- source may not undo a committed Ranged kill, Block or Wound allocation.
+    -- Pre-commit sources are excluded even if their physical cards move.
+    if earlyLock~=nil and seatScan~=nil and combatEffectPostDamageSpecs~=nil then
+        local committedSources={}
+        for _,source in ipairs(earlyLock.sources or {}) do
+            committedSources[source.guid]=true
+        end
+        for _,effect in pairs(earlyLock.enemyEffects or {}) do
+            for _,item in ipairs(effect.applied or {}) do
+                committedSources[item.source]=true
+            end
+        end
+        local lateChanged=false
+        for _,entry in ipairs(entries) do
+            local latest=(seatScan.enemyEffects or {})[entry.guid]
+            local committed=(earlyLock.enemyEffects or {})[entry.guid]
+            local newEffects=combatEffectPostDamageSpecs(latest,committed,committedSources)
+            for _,applied in ipairs(newEffects) do
+                local spec=applied.effective or {}
+                local contributes=false
+                local fortified=combatEnemyFortificationCount(entry.data,entry.perks)>0
+                    and not entry.stripFortify
+                local reduction=fortified
+                    and (tonumber(spec.armourReduceFortified)
+                        or tonumber(spec.armourReduce) or 0)
+                    or (tonumber(spec.armourReduce) or 0)
+                local perResist=tonumber(spec.armourReduceByResist) or 0
+                if perResist>0 then
+                    for _,trait in ipairs({"pResist","fResist","iResist"}) do
+                        if combatEnemyHasTrait(entry.data,entry.perks,trait) then
+                            reduction=reduction+perResist
+                        end
+                    end
+                end
+                if reduction>0 then
+                    entry.baseArmour=math.max(1,entry.baseArmour-reduction)
+                    entry.elusiveArmour=math.max(1,entry.elusiveArmour-reduction)
+                    entry.effectArmourReduction=(entry.effectArmourReduction or 0)+reduction
+                    contributes=true
+                end
+                if spec.destroyDuringAttack==true or spec.destroy==true then
+                    entry.attackPhaseDestroyed=true
+                    contributes=true
+                end
+                if spec.removeResist==true then
+                    entry.stripResist=true
+                    contributes=true
+                end
+                if spec.removeFireResist==true then
+                    entry.stripFireResist=true
+                    contributes=true
+                end
+                if spec.removeTrait~=nil then
+                    local updated=combatFrozenCopy(entry.data)
+                    updated[spec.removeTrait]=spec.removeTrait=="defend" and 0 or false
+                    entry.data=updated
+                    contributes=true
+                end
+                if contributes then
+                    entry.effect=entry.effect or {}
+                    entry.effect.applied=entry.effect.applied or {}
+                    local tagged=combatFrozenCopy(applied)
+                    tagged.phaseAfterDamage=true
+                    entry.effect.applied[#entry.effect.applied+1]=tagged
+                    lateChanged=true
+                end
+            end
+        end
+        if lateChanged then
+            for _,group in ipairs(groups) do
+                local members,blockedAll={},{}
+                for _,index in ipairs(group.members) do
+                    members[#members+1]=entries[index]
+                    blockedAll[entries[index].guid]=rowBlock[index].allBlocked
+                end
+                group.entry,group.attackArmour=combatGroupEntry(members,blockedAll)
+            end
+        end
+    end
+
     -- Damage is earlier than Attack. Do not invalidate Ranged/Siege kills or
     -- The player still confirms Wounds received outside calculated Damage.
     local dodgeWounded=false
@@ -4945,7 +5026,13 @@ local function combatAssignmentRefreshRows(entries,sources)
                 combatConfig.effectSources[item.source.key]={arrow=item.arrow}
             end
             for _,applied in ipairs(targetEntry.effect~=nil and targetEntry.effect.applied or {}) do
-                insertEffect(combatConfig.effectButtonInfo(targetEntry,applied))
+                local effectButton=combatConfig.effectButtonInfo(targetEntry,applied)
+                if effectButton~=nil and applied.phaseAfterDamage then
+                    effectButton.family="attack"
+                    effectButton.tooltip=(effectButton.tooltip or "")
+                        .."\nPlayed after Damage; Ranged/Siege and Block are locked."
+                end
+                insertEffect(effectButton)
             end
             -- The extra target from Explosive Bolt is an Armour effect, not
             -- more Ranged Attack. Red/grey states explain unmet conditions.
