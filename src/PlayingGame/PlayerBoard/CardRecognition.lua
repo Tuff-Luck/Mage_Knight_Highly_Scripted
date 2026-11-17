@@ -2089,7 +2089,7 @@ local function combatDamageResolve(items,units,heroArmour,targetsOf,mitigation,e
             if entry.wounded then
                 remaining=math.max(0,remaining-armour)
                 entry.wounds=item.poison and 2 or 1
-                entry.destroyed=item.paralyse==true
+                entry.destroyed=item.paralyse==true and unit.arcaneImmunity~=true
                 if unit.fortitudeUsed and unit.fortitudeGUID~=nil then
                     -- Once per Round, on one printed attack; calculator rescans
                     -- of this same attack may preview it without recharging.
