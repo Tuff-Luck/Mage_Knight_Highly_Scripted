@@ -4010,6 +4010,7 @@ local function combatAssignmentRefreshRows(entries,sources)
     -- Scenario modules still own Shields, physical level markers, and
     -- reward finalisation; the calculator only publishes calculated amounts.
     local dragonOwners={}
+    local leaderChanged=false
     for _,member in ipairs(entries) do
         if member.bossLevel~=nil and not member.preview and not member.attackOnly then
             local value=math.min(member.bossLevel,
@@ -4017,6 +4018,7 @@ local function combatAssignmentRefreshRows(entries,sources)
             if member.bossType=="leader" then
                 if gStates.leaderOverkill~=value then
                     gStates.leaderOverkill=value
+                    leaderChanged=true
                     local token=getObjectFromGUID(member.guid)
                     if token~=nil then
                         token.UI.setAttribute(member.guid.."Overkill","Text",tostring(value))
@@ -4040,6 +4042,7 @@ local function combatAssignmentRefreshRows(entries,sources)
         end
     end
     for owner in pairs(dragonOwners) do apocalypseDragonRefreshGroundFameGain(owner) end
+    if leaderChanged then mainUIUpdate("Combat leader levels") end
 
     local totalHeroWounds,totalDiscardWounds=0,0
     for _,result in pairs(damageResults) do
@@ -4406,7 +4409,8 @@ local function combatAssignmentRefreshRows(entries,sources)
                     and gStates.combatBossManual[entry.guid]~=nil
                 lines[#lines+1]="Levels: -"..tostring(ranged+melee).."/"..tostring(entry.bossLevel)
                     .." (R "..tostring(ranged)..", A "..tostring(melee)..")"
-                    ..(manual and " [Manual]" or "")
+                    ..(manual and (group.bossSpecial and #group.members>1
+                        and " [Manual priority]" or " [Manual]") or "")
             end
             local compactLines=combatCompactResultLines(lines,rowBlock[index].damageItems,damageResults)
             local detailText=table.concat(lines,"\n")
