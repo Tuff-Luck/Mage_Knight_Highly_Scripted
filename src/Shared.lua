@@ -264,7 +264,7 @@ local GLOBAL_UI_PUBLIC_VISIBILITY_IDS={
 	"CoopAssault","cameraControl","zigguratPyramidInteract",
 }
 local GLOBAL_UI_RUNTIME_VISIBILITY_IDS={
-	"ScoreBoard","ExtraTurnChoice","WallAssaultChoice","CoralDrawChoice","MineClaimChoice","cameraControlDetail",
+	"ScoreBoard","ExtraTurnChoice","WallAssaultChoice","CoralDrawChoice","MineClaimChoice","CombatDamageConfirm","cameraControlDetail",
 }
 
 function setUIVisibility(id,viewers)
