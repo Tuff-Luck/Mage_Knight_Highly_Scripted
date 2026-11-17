@@ -1,3 +1,6 @@
+-- Editor-only TTS container signature; takeObject accepts a parameter table.
+---@alias ProxyContainer { takeObject: fun(params: table): any }
+
 -- Apocalypse Proxy Player runtime.
 
 --Apocalypse Dragon Proxy Player variant. It shares the normal Dummy deck/tactic machinery, but keeps its Hero on the map and resolves its turn visibly.
@@ -192,6 +195,7 @@ function proxyAddObjectiveShield()
 	if gStates.proxyObjectiveShieldGUIDs==nil then gStates.proxyObjectiveShieldGUIDs={} end
 	local pos=objective.getPosition()
 	local count=#gStates.proxyObjectiveShieldGUIDs
+	---@cast bag ProxyContainer
 	local shield=bag.takeObject({position={pos[1]-0.65+(0.43*count),pos[2]+0.22,pos[3]+1.15},rotation={0,180,0},smooth=false})
 	if shield~=nil then proxyLockShieldWhenResting(shield) gStates.proxyObjectiveShieldGUIDs[#gStates.proxyObjectiveShieldGUIDs+1]=shield.guid end
 	return shield
@@ -1603,6 +1607,7 @@ function proxyTakeShield(location,lockToken,rotation)
 		end
 		return nil
 	end
+	---@cast bag ProxyContainer
 	local shield=bag.takeObject({position=location,rotation=rotation or {0,180,0},smooth=false})
 	if shield~=nil and lockToken==true then proxyLockShieldWhenResting(shield) end
 	return shield
@@ -1879,6 +1884,7 @@ function proxyResolveAdventure(hex,mapObjects,proxyIndex)
 			for a,pugType in ipairs(monsterPugs[ruin.guid].monsters) do
 				local bag=getObjectFromGUID(monsterPiles[pugType])
 				if bag~=nil and bag.getQuantity()>0 then
+					---@cast bag ProxyContainer
 					local enemy=bag.takeObject({position={hex.position[1]+((a-1)*0.28),2+(a*0.15),hex.position[3]+0.25},rotation={0,180,0},smooth=false})
 					if enemy~=nil then
 						if enemy.is_face_down==true then enemy.flip() end
