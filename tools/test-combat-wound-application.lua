@@ -128,19 +128,47 @@ local nonCombatUpdates=isolated(ui,"local mainUINonCombatAccountingSources={",
 eq(nonCombatUpdates["Combat Wounds applied"],true,
     "drawing physical Wounds must preserve pending enemy Fame")
 local enemyPanel=fileText("src/UI/CombatEnemyPanel.xml")
--- A HorizontalLayout with only one child expands it across the entire panel in TTS.
--- The summary row must instead be a plain Panel with a right-anchored fixed-size child.
-assert(enemyPanel:find('<Panel id="CombatTotalRow" active="false" preferredHeight="22"',1,true),
-    "Draw Wounds row must not be a layout group")
-assert(enemyPanel:find('id="CombatWoundSummary" rectAlignment="UpperRight" offsetXY="-5 -3" width="220"',1,true),
-    "Wound button must have a fixed 220-unit right-anchored container")
-assert(enemyPanel:find('id="CombatApplyWounds" onClick="resourceTracker" rectAlignment="UpperCenter" width="220"',1,true),
-    "Wound button must have an actual width rather than a layout-preferred width")
-assert(not enemyPanel:find('CombatTotalSpacer',1,true)
-    and not enemyPanel:find('id="CombatWoundSummary" preferredWidth=',1,true),
-    "No spacer or layout-preferred sizing may stretch the Wound button")
+-- TTS expands a HorizontalLayout with only one child to the whole calculator.
+-- Preserve the plain row and fixed-width, right-anchored wound summary while
+-- allowing cosmetic changes to its width and offset (currently 205, 0 -4).
+local summaryRow=assert(enemyPanel:match('<Panel id="CombatTotalRow"[^>]*>'),
+    "Draw Wounds row must remain a plain Panel, not a HorizontalLayout")
+assert(summaryRow:find('active="false"',1,true)
+    and summaryRow:find('preferredHeight="22"',1,true),
+    "Draw Wounds row needs the original collapsed height")
+local summary=assert(enemyPanel:match('<Panel id="CombatWoundSummary"[^>]*>'),
+    "Draw Wounds needs a dedicated anchored container")
+local apply=assert(enemyPanel:match('<Button id="CombatApplyWounds"[^>]*>'),
+    "Draw Wounds button was removed")
+local label=assert(enemyPanel:match('<Text id="CombatTotalDamage"[^>]*>'),
+    "Draw Wounds label was removed")
+local warning=assert(enemyPanel:match('<Text id="CombatKnockoutWarning"[^>]*>'),
+    "Knockout warning was removed")
+local function fixedWidth(tag,name)
+    local width=tonumber(tag:match('width="(%d+)"'))
+    assert(width~=nil and width>0,name.." must use an explicit fixed width")
+    assert(not tag:find('preferredWidth=',1,true),
+        name.." must not use layout-preferred sizing")
+    return width
+end
+assert(summary:find('rectAlignment="UpperRight"',1,true),
+    "Wound summary must stay anchored to the result column at the right")
+assert(summary:match('offsetXY="[%-%d%.]+ [%-%d%.]+"'),
+    "Wound summary needs an explicit anchored offset")
+assert(apply:find('onClick="resourceTracker"',1,true)
+    and apply:find('rectAlignment="UpperCenter"',1,true),
+    "Wound button must stay clickable and centred inside its summary")
+local width=fixedWidth(summary,"Wound summary")
+eq(fixedWidth(apply,"Draw Wounds button"),width,
+    "Button and summary container widths must match")
+eq(fixedWidth(label,"Draw Wounds text"),width,
+    "Text must remain aligned with the Draw Wounds button")
+eq(fixedWidth(warning,"Knockout warning"),width,
+    "Knockout warning must align with the Draw Wounds button")
+assert(not enemyPanel:find('CombatTotalSpacer',1,true),
+    "No spacer may stretch the Draw Wounds row")
 assert(not recognition:find('summaryWidth',1,true),
     "No dynamic preferredWidth writes should fight TTS's anchored position")
 assert(recognition:find('"Draw: "..combatRich',1,true),
-    "wound button should be labelled Draw")
+    "Wound button should be labelled Draw")
 print("Combat Wound application regressions passed")
