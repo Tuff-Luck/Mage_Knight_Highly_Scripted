@@ -1020,14 +1020,14 @@ function attackAssignmentsUnitPreviewApplyDestroyed(seat,guid)
     end
     -- Reuse the replacement/disband cleanup: return attached Wounds, discard
     -- Banners, and stage miscellaneous tokens while preserving Command state.
-    unitReplacementDetachAccessories(layout,unit,seat)
+    local movedGUIDs=unitReplacementDetachAccessories(layout,unit,seat)
     if resourceUnitsRetireUnit~=nil then resourceUnitsRetireUnit(guid) end
     previewUnitMarker(unit,false)
     protectedObjectAllowScriptRemoval(unit.guid,trashCan,"Paralysis destroyed Unit")
     trash.putObject(unit)
     if preview~=nil then preview.committed=true previewWoundsByUnit[guid]=nil end
     if scheduleUnitLayoutRefresh~=nil then scheduleUnitLayoutRefresh(seat) end
-    return true
+    return true,movedGUIDs
 end
 
 -- Normal Unit Wound ghosts still become official at End Turn. A Paralyzed
