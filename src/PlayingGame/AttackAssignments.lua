@@ -996,30 +996,59 @@ function attackAssignmentsUnitPreviewSync(seat,results,selfWounds)
     end
 end
 
--- This is the *end of turn*, not the end of round. Make Wounds official
--- before ordinary player-area cleanup runs. Closing the tracker instead
--- removes all pending ghosts without committing any of them.
+-- Physical destruction is separate from planning. Only the explicit Apply
+-- action (or End Turn fallback) may remove a Paralyzed Unit. Return a failure
+-- instead of trashing an unexpected Unit or leaving its accessories behind.
+function attackAssignmentsUnitPreviewApplyDestroyed(seat,guid)
+    if seat==nil or guid==nil then return false,"Missing Unit or seat" end
+    local preview=previewWoundsByUnit[guid]
+    if preview~=nil and (preview.seat~=seat or preview.kind~="destroyed") then
+        return false,"Unit preview no longer indicates Paralysis"
+    end
+    local unit=getObjectFromGUID(guid)
+    if unit==nil then
+        if preview~=nil then previewWoundsByUnit[guid]=nil end
+        return true -- Already removed physically (manual correction / reload).
+    end
+    local layout=unitLayoutSnapshot~=nil and unitLayoutSnapshot(seat) or nil
+    local slot=layout~=nil and layout.unitSlotByGuid~=nil and layout.unitSlotByGuid[guid] or nil
+    if slot==nil then return false,"Paralyzed Unit is no longer in its Unit slot" end
+    local trash=getObjectFromGUID(trashCan)
+    if trash==nil then return false,"Unit Trash is missing" end
+    if unitReplacementDetachAccessories==nil then
+        return false,"Unit accessory cleanup is unavailable"
+    end
+    -- Reuse the replacement/disband cleanup: return attached Wounds, discard
+    -- Banners, and stage miscellaneous tokens while preserving Command state.
+    unitReplacementDetachAccessories(layout,unit,seat)
+    if resourceUnitsRetireUnit~=nil then resourceUnitsRetireUnit(guid) end
+    previewUnitMarker(unit,false)
+    protectedObjectAllowScriptRemoval(unit.guid,trashCan,"Paralysis destroyed Unit")
+    trash.putObject(unit)
+    if preview~=nil then preview.committed=true previewWoundsByUnit[guid]=nil end
+    if scheduleUnitLayoutRefresh~=nil then scheduleUnitLayoutRefresh(seat) end
+    return true
+end
+
+-- Normal Unit Wound ghosts still become official at End Turn. A Paralyzed
+-- Unit is also destroyed here if the player skipped the explicit Apply action.
 function attackAssignmentsUnitPreviewCommit(seat)
     if seat==nil then return end
     for guid,entry in pairs(previewWoundsByUnit) do
         if entry.seat==seat then
-            entry.committed=true
             if entry.kind=="destroyed" then
-                previewUnitMarker(getObjectFromGUID(guid),false)
-                local unit=getObjectFromGUID(guid)
-                -- A Paralyzed Unit is destroyed rather than Wounded.
-                local trash=getObjectFromGUID(trashCan)
-                if unit~=nil and trash~=nil then
-                    protectedObjectAllowScriptRemoval(unit.guid,trashCan,"Paralysis destroyed Unit")
-                    trash.putObject(unit)
+                local ok,reason=attackAssignmentsUnitPreviewApplyDestroyed(seat,guid)
+                if not ok then
+                    print("COMBAT PARALYSIS: "..tostring(reason).." ("..tostring(guid)..")")
                 end
             else
+                entry.committed=true
                 for _,tokenGUID in pairs(entry.guids) do
                     local token=getObjectFromGUID(tokenGUID)
                     if token~=nil then previewMakePermanent(token) end
                 end
+                previewWoundsByUnit[guid]=nil
             end
-            previewWoundsByUnit[guid]=nil
         end
     end
 end
