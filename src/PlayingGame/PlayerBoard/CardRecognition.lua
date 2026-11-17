@@ -2353,7 +2353,21 @@ function resourceCardsRequestCombatWounds(player)
     combatConfig.woundConfirmation={
         seat=active.seatPos,turn=gStates.turnNumber,color=color,
         ledger=ledger,signature=signature}
-    local summary=joinLang({
+    -- Build one complete multilingual string. Concatenating already translated
+    -- strings repeats {en}/{it}/... tags, so TTS may display only the first
+    -- paragraph and hide the actual wound totals.
+    local summaryParts={
+        "{en}Calculator will be locked in to attack adjustments only. Use TTS Rewind to undo."
+        .."{it}Il calcolatore sarà bloccato: potrai solo modificare gli attacchi. Usa il riavvolgimento TTS per annullare."
+        .."{ru}Калькулятор будет заблокирован, кроме корректировок атаки. Для отмены используйте перемотку TTS."
+        .."{zh-tw}計算器將鎖定，只允許調整攻擊。若要復原，請使用 TTS 時間回溯。"
+        .."{zh-cn}计算器将锁定，只允许调整攻击。若要撤销，请使用 TTS 时间回溯。"
+        .."{ko}계산기는 공격 조정만 허용하도록 잠깁니다. 취소하려면 TTS 되감기를 사용하세요."
+        .."{es}La calculadora quedará bloqueada, salvo los ajustes de ataque. Usa Rebobinar tiempo de TTS para deshacerlo."
+        .."{fr}Le calculateur sera verrouillé, sauf pour ajuster les attaques. Utilisez le retour arrière de TTS pour annuler."
+        .."{pt-br}A calculadora ficará bloqueada, exceto para ajustes de ataque. Use o Retroceder tempo do TTS para desfazer."
+        .."{de}Der Rechner wird gesperrt; nur Angriffsanpassungen bleiben möglich. Zum Rückgängigmachen TTS-Zeit zurückspulen.",
+        "\n",
         "{en}Confirm your Ranged/Siege and Block decisions before applying combat damage."
         .."{it}Conferma le decisioni di Attacco a distanza/Assedio e Blocco prima di applicare i danni."
         .."{ru}Подтвердите дальние/осадные атаки и блоки перед применением урона."
@@ -2363,16 +2377,18 @@ function resourceCardsRequestCombatWounds(player)
         .."{es}Confirma el ataque a distancia/asedio y el bloqueo antes de aplicar el daño."
         .."{fr}Confirmez les attaques à distance/de siège et les blocages avant d'appliquer les dégâts."
         .."{pt-br}Confirme os ataques à distância/cerco e os bloqueios antes de aplicar o dano."
-        .."{de}Fern-/Belagerungsangriffe und Blocks vor dem Schaden bestätigen."})
-    summary=summary.."\n\n"..joinLang({
+        .."{de}Fern-/Belagerungsangriffe und Blocks vor dem Schaden bestätigen.",
+        "\n\n",
         "{en}Hero Wounds to hand: {it}Ferite in mano: {ru}Раны в руку: {zh-tw}加入手牌的傷害：{zh-cn}加入手牌的伤害：{ko}손에 받는 상처: {es}Heridas a la mano: {fr}Blessures en main : {pt-br}Ferimentos na mão: {de}Wunden auf die Hand: ",
-        hand})
-    summary=summary.."\n"..joinLang({
+        hand,
+        "\n",
         "{en}Poison Wounds to discard: {it}Ferite da Veleno negli scarti: {ru}Ядовитые раны в сброс: {zh-tw}棄牌區的毒傷：{zh-cn}弃牌区的毒伤：{ko}버림더미 독 상처: {es}Heridas de Veneno al descarte: {fr}Blessures de poison en défausse : {pt-br}Ferimentos de Veneno no descarte: {de}Giftwunden in den Ablagestapel: ",
-        discard})
+        discard
+    }
+    local summaryHeight=154
     if effects.paralyseCount>0 then
-        summary=summary.."\n"..joinLang({
-            "{en}Paralysis: discard all non-Wound hand cards."
+        summaryParts[#summaryParts+1]="\n"
+        summaryParts[#summaryParts+1]="{en}Paralysis: discard all non-Wound hand cards."
             .."{it}Paralisi: scarta tutte le carte in mano tranne le Ferite."
             .."{ru}Паралич: сбросьте все карты с руки, кроме Ран."
             .."{zh-tw}麻痺：棄掉手牌中所有非傷害牌。"
@@ -2381,24 +2397,19 @@ function resourceCardsRequestCombatWounds(player)
             .."{es}Parálisis: descarta las cartas en mano que no sean Heridas."
             .."{fr}Paralysie : défaussez les cartes en main sauf les Blessures."
             .."{pt-br}Paralisia: descarte as cartas na mão que não sejam Ferimentos."
-            .."{de}Lähmung: Alle Nicht-Wunden auf der Hand abwerfen."})
+            .."{de}Lähmung: Alle Nicht-Wunden auf der Hand abwerfen."
+        summaryHeight=summaryHeight+40
     end
     if effects.destroyCount>0 then
-        summary=summary.."\n"..joinLang({
-            "{en}Paralyzed Units destroyed: {it}Unità paralizzate distrutte: {ru}Уничтожено парализованных отрядов: {zh-tw}將摧毀的麻痺單位：{zh-cn}将摧毁的麻痹单位：{ko}파괴되는 마비 유닛: {es}Unidades paralizadas destruidas: {fr}Unités paralysées détruites : {pt-br}Unidades paralisadas destruídas: {de}Zerstörte gelähmte Einheiten: ",
-            effects.destroyCount})
+        summaryParts[#summaryParts+1]="\n"
+        summaryParts[#summaryParts+1]="{en}Paralyzed Units destroyed: {it}Unità paralizzate distrutte: {ru}Уничтожено парализованных отрядов: {zh-tw}將摧毀的麻痺單位：{zh-cn}将摧毁的麻痹单位：{ko}파괴되는 마비 유닛: {es}Unidades paralizadas destruidas: {fr}Unités paralysées détruites : {pt-br}Unidades paralisadas destruídas: {de}Zerstörte gelähmte Einheiten: "
+        summaryParts[#summaryParts+1]=effects.destroyCount
+        summaryHeight=summaryHeight+28
     end
-    summary=summary.."\n\n"..joinLang({
-        "{en}A TTS rewind point is saved first. Use Rewind Time to retry."
-        .."{it}Prima viene salvato un punto di ripristino TTS. Usa Riavvolgi tempo per riprovare."
-        .."{ru}Сначала создаётся точка отката TTS. Для повтора используйте перемотку времени."
-        .."{zh-tw}將先儲存 TTS 回溯點；若要重試，請使用時間回溯。"
-        .."{zh-cn}将先保存 TTS 回溯点；若要重试，请使用时间回溯。"
-        .."{ko}먼저 TTS 되감기 지점을 저장합니다. 다시 하려면 시간 되감기를 사용하세요."
-        .."{es}Se guardará un punto de rebobinado TTS. Usa Retroceder tiempo para repetir."
-        .."{fr}Un point de retour TTS sera enregistré. Utilisez Retour dans le temps."
-        .."{pt-br}Um ponto de retorno TTS será salvo. Use Voltar no tempo para repetir."
-        .."{de}Zuerst wird ein TTS-Rückspulpunkt gespeichert. Zum Wiederholen Zeit zurückspulen."})
+    local summary=joinLang(summaryParts)
+    -- Keep the normal dialog compact but grow for optional Paralysis details.
+    UI.setAttribute("CombatDamageConfirmSummary","preferredHeight",tostring(summaryHeight))
+    UI.setAttribute("CombatDamageConfirm","height",tostring(summaryHeight+96))
     setUIVisibility("CombatDamageConfirm",{color})
     UI.setAttribute("CombatDamageConfirmSummary","text",summary)
     UI.setAttribute("CombatDamageConfirm","active","true")
