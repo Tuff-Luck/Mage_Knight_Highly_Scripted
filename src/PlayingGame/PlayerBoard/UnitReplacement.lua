@@ -206,6 +206,7 @@ end
 -- the player's DISCARD (base rules), not into the Trash or onto the new Unit.
 -- The protected Banner of Command slot is not a replacement candidate.
 function unitReplacementDetachAccessories(layout,unit,seatPos)
+    local movedGUIDs={}
     local bounds=unit.getBounds()
     local size=bounds~=nil and bounds.size or nil
     local centre=bounds~=nil and bounds.center or unit.getPosition()
@@ -234,6 +235,7 @@ function unitReplacementDetachAccessories(layout,unit,seatPos)
                 card.unlock()
                 card.setPositionSmooth({(pos.x or pos[1]),(pos.y or pos[2])+2,
                     (pos.z or pos[3])},false,false)
+                movedGUIDs[#movedGUIDs+1]=card.guid
             end
         end
     end
@@ -254,9 +256,11 @@ function unitReplacementDetachAccessories(layout,unit,seatPos)
                 extras=extras+1
                 obj.setPositionSmooth({stagingX+(extras-1)*0.55,
                     math.max(1.4,p.y or p[2]),-40.3},false,false)
+                movedGUIDs[#movedGUIDs+1]=obj.guid
             end
         end
     end
+    return movedGUIDs
 end
 
 local function replacementValid(state)
