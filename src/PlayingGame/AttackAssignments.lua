@@ -675,6 +675,7 @@ function attackAssignmentsDamageSync(spec)
     if lock~=nil then
         -- Preserve red damage links but remove enemy and Unit click targets;
         -- their allocation was already resolved by the committed snapshot.
+        local firstLock=damageSignature~="#COMMITTED"
         local frozen=lock.damage or {}
         damageTargets={}
         for key,targets in pairs(frozen.targets or {}) do
@@ -693,11 +694,13 @@ function attackAssignmentsDamageSync(spec)
             local obj=getObjectFromGUID(guid)
             if obj~=nil then removeDamageButtons(obj) end
         end
-        damageButtonObjects={}
-        damageOwnerSignatures={}
-        damageTargetUnits={}
-        damageSignature=""
-        refreshRenderedLines(true)
+        if firstLock then
+            damageButtonObjects={}
+            damageOwnerSignatures={}
+            damageTargetUnits={}
+            damageSignature="#COMMITTED"
+            refreshRenderedLines(true)
+        end
         return
     end
 	damageSpec={attacks=spec.attacks,units=spec.units or {},byOwner={},byKey={},reserved={}}
