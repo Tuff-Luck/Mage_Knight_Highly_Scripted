@@ -5376,6 +5376,17 @@ local function cardPosture(card)
     return "sideways"
 end
 
+-- Site-fortification bypass is a combat rule, not an enemy debuff; even
+-- Arcane Immunity / Fire Resistance cannot prevent it. Demolish uses its
+-- basic side, while Underground Attack uses its stronger side.
+local function resourceCardsIgnoreSiteFortification(rule,result,card)
+    if rule==nil or rule.ignoreSiteFortification~=true
+        or result==nil or result.complete~=true or result.resources==nil
+        or card==nil or card.is_face_down==true
+        or cardPosture(card)~="upright" then return false end
+    return (result.powered==true)==(rule.ignoreSiteFortificationPowered==true)
+end
+
 -- Ambush can augment exactly one played card's first Attack or Block. This
 -- pool is shared by the target buttons and the calculation, rather than
 -- requiring the cards to physically touch.
@@ -9831,10 +9842,11 @@ local function renderSeat(seatPos)
                 end
             end
         end
-        -- Demolish removes site fortification independent of enemy Fire Resistance.
-        if rule~=nil and rule.ignoreSiteFortification==true
-            and result.complete and not result.powered and result.resources~=nil
-            and cardPosture(card)=="upright" and card.is_face_down~=true then
+        -- Both Demolish (basic) and Underground Attack (strong) bypass the
+        -- current assault's site/wall Fortification, never printed Fortified.
+        -- Recomputed each scan so lost mana, a changed side or a removed card
+        -- cannot leave a stale combat modifier.
+        if resourceCardsIgnoreSiteFortification(rule,result,card) then
             ignoreSiteFortifications=true
         end
         -- Conditional combat effects apply only on a paid, upright, actually
