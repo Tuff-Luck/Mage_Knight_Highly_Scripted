@@ -4613,26 +4613,41 @@ local function combatAssignmentRefreshRows(entries,sources)
 
     combatConfig.woundRecordPreview(damageSeat,damageItems,damageResults)
     local ledger=combatConfig.woundLedger(damageSeat)
-    local _,pendingHand,pendingDiscard,changed=combatConfig.woundPending(ledger)
-    local showTotal=totalHeroWounds>0
+    local _,pendingHand,pendingDiscard,changed,effects=combatConfig.woundPending(ledger)
+    -- A Paralyzed Unit needs an Apply button even when all its attack damage
+    -- was absorbed and the Hero has zero Wounds.
+    local showTotal=totalHeroWounds>0 or effects.destroyCount>0
+        or effects.paralyseCount>0
     combatPanelSetAttribute("CombatTotalRow","active",showTotal and "true" or "false")
     if showTotal then
         -- The XML's fixed-width, right-anchored Panel is outside any
         -- HorizontalLayout, so Unity's layout group cannot expand its child.
         local poisonText=totalDiscardWounds>0 and " ("..tostring(totalDiscardWounds).." Poison)" or ""
-        combatPanelSetAttribute("CombatTotalDamage","text",
-            "Draw: "..combatRich(combatWoundsText(totalHeroWounds)..poisonText,combatConfig.COMBAT_RED))
+        local text=totalHeroWounds>0
+            and ("Draw: "..combatRich(combatWoundsText(totalHeroWounds)..poisonText,combatConfig.COMBAT_RED))
+            or ("Apply: Destroy "..tostring(effects.destroyCount)..
+                (effects.destroyCount==1 and " Unit" or " Units"))
+        combatPanelSetAttribute("CombatTotalDamage","text",text)
         combatPanelSetAttribute("CombatTotalDamage","font","Fonts/MKCardText")
         local pending=pendingHand+pendingDiscard>0
+            or effects.paralyseCount>0 or effects.destroyCount>0
         combatPanelSetAttribute("CombatApplyWounds","interactable",
             (pending or changed) and not combatConfig.woundApplying and "true" or "false")
         combatPanelSetAttribute("CombatApplyWounds","color",
             pending and "rgb(0.48,0.36,0.20)" or changed and "rgb(0.49,0.30,0.22)"
             or "rgb(0.23,0.37,0.24)")
+        local tooltip="Apply "..pendingHand.." Wounds to hand and "
+            ..pendingDiscard.." to discard"
+        if effects.paralyseCount>0 then
+            tooltip=tooltip.."; discard all non-Wound hand cards (Paralysis)"
+        end
+        if effects.destroyCount>0 then
+            tooltip=tooltip.."; destroy "..tostring(effects.destroyCount).." Paralyzed Units"
+        end
         combatPanelSetAttribute("CombatApplyWounds","tooltip",
-            pending and ("Apply "..pendingHand.." Wounds to hand and "..pendingDiscard.." to discard")
-            or changed and "Damage changed after application; check Wounds manually"
-            or "All calculated Hero Wounds have been applied")
+            pending and tooltip
+            or changed and "Damage changed after application; check consequences manually"
+            or "All calculated combat consequences have been applied")
         combatPanelSetAttribute("CombatKnockoutWarning","active",knockout and "true" or "false")
         if knockout then
             combatPanelSetAttribute("CombatKnockoutWarning","text",
