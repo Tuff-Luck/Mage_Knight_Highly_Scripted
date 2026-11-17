@@ -266,7 +266,7 @@ local function automaticLuaErrorSignature(functionName,errorText)
 	return tostring(functionName).."|"..firstLine
 end
 
-local function reportAutomaticLuaError(functionName, errorText, context)
+local function reportAutomaticLuaError(functionName, errorText, context, heading)
 	if automaticLuaErrorReporting then return end
 	local now=os.time()
 	local signature=automaticLuaErrorSignature(functionName,errorText)
@@ -281,7 +281,7 @@ local function reportAutomaticLuaError(functionName, errorText, context)
 	end
 	if signatureCount>100 then automaticLuaErrorSignatures={} automaticLuaErrorSignatures[signature]=now end
 	automaticLuaErrorReporting=true
-	local comment="AUTOMATIC LUA ERROR\nReporter Version: "..tostring(automaticLuaErrorReporterVersion).."\nFunction: "..tostring(functionName)
+	local comment=(heading or "AUTOMATIC LUA ERROR").."\nReporter Version: "..tostring(automaticLuaErrorReporterVersion).."\nFunction: "..tostring(functionName)
 	if context~=nil and context~="" then comment=comment.."\n"..tostring(context) end
 	local breadcrumbs=automaticLuaBreadcrumbText()
 	if breadcrumbs~="" then comment=comment.."\nRecent script actions: "..breadcrumbs end
@@ -289,6 +289,12 @@ local function reportAutomaticLuaError(functionName, errorText, context)
 	local ok, reportError=pcall(function() sendAutomaticLuaErrorRequest(comment) end)
 	if not ok then log("Automatic Lua error report failed: "..tostring(reportError).."\n"..comment) end
 	automaticLuaErrorReporting=false
+end
+
+-- Report a non-fatal state inconsistency through the same bug-report Sheet.
+-- Keep its own heading so expected diagnostic probes are never mistaken for Lua exceptions.
+function reportAutomaticLuaDiagnostic(functionName, summary, context)
+	reportAutomaticLuaError(functionName, summary, context, "AUTOMATIC LUA DIAGNOSTIC")
 end
 
 function safeCallback(functionName, callback, contextCallback)
