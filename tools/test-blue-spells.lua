@@ -52,7 +52,7 @@ eq(effects.immune.armourReduce,0,"Arcane Immunity blocks Armour reduction")
 -- ignored Wound must not trigger Poison or Paralyse on the Hero.
 combatUnitResists=function() return false end
 local resolve=isolated(recognition,
-    "local function combatDamageResolve(items,units,heroArmour,targetsOf,mitigation,elementMitigation,ignoreFirstHeroWound)",
+    "local function combatDamageResolve(items,units,heroArmour,targetsOf,mitigation,elementMitigation,ignoreFirstHeroWound,appliedDamage)",
     "local function combatWoundsText", "combatDamageResolve")
 local none=function() return {} end
 local hits={
