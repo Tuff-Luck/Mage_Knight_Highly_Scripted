@@ -175,3 +175,23 @@ function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec,sourceKey)
     entry.removeFireResist=entry.removeFireResist or spec.removeFireResist==true
     entry.sources[#entry.sources+1]=sourceGUID
 end
+
+
+-- After Damage, newly played enemy effects may only influence the later
+-- Attack phase. Reject sources that already existed at the commitment point:
+-- moving or replaying a committed effect cannot grant it a second activation.
+-- This only discovers new effects; the caller resolves their Attack-only part.
+function combatEffectPostDamageSpecs(latest,committed,committedSources)
+    local seen={}
+    for _,item in ipairs(committed~=nil and committed.applied or {}) do
+        seen[tostring(item.source)..":"..tostring(item.key or item.source)]=true
+    end
+    local additions={}
+    for _,item in ipairs(latest~=nil and latest.applied or {}) do
+        local key=tostring(item.source)..":"..tostring(item.key or item.source)
+        if not seen[key] and not (committedSources or {})[item.source] then
+            additions[#additions+1]=item
+        end
+    end
+    return additions
+end
