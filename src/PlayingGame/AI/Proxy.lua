@@ -758,8 +758,8 @@ function proxyTurnReportText(section)
 			-- With a Source reroll there are three clauses, so do not use
 			-- "and" before the action and again before the die roll.
 			local connector=report.sourceRerollColor~=nil
-				and "{en},\n{it},\n{ru},\n{zh-tw}，\n{zh-cn}，\n{ko},\n{es},\n{fr},\n{pt-br},\n{de},\n"
-				or "{en} and\n{it} e\n{ru} и\n{zh-tw} 並\n{zh-cn} 并\n{ko} 그리고\n{es} y\n{fr} et\n{pt-br} e\n{de} und\n"
+				and "{en}, {it}, {ru}, {zh-tw}， {zh-cn}， {ko}, {es}, {fr}, {pt-br}, {de}, "
+				or "{en} and {it} e {ru} и {zh-tw} 並 {zh-cn} 并 {ko} 그리고 {es} y {fr} et {pt-br} e {de} und "
 			first=joinLang({movement,destination or "",connector,localizedAction,period})
 		end
 	end
