@@ -1209,6 +1209,16 @@ end
 -- Reminders accept only Block/Move and enemy-attack effects, not attacks
 -- against Armour. Unknown source keys represent effect-only targeting links.
 function resourceCardsCombatTargetAcceptsSource(sourceKey,targetGUID)
+    -- Committed pre-Damage Unit resources are historical. Keep the enemy
+    -- originally attacked, but never let a destroyed Unit retarget them.
+    local ledger=gStates~=nil and gStates.combatWoundApplication or nil
+    for _,sources in pairs(ledger~=nil and ledger.retiredUnitSources or {}) do
+        for _,source in ipairs(sources) do
+            if source.key==sourceKey then
+                return source.retiredTarget==targetGUID
+            end
+        end
+    end
     local data=combatEnemyData(targetGUID)
     if data==nil then return false end
     local seat=combatAssignmentActiveSeat()
