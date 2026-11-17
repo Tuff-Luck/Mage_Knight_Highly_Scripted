@@ -262,7 +262,7 @@ adjustOverkill=function(player, mouseButton, id)
 	if factionLeaderForToken(guid)==nil then return end
 	local automatic=combatBossAutomationActive~=nil and combatBossAutomationActive()
 	-- Right-click either +/- restores the calculator's automatic value.
-	if mouseButton=="1" then
+	if mouseButton=="-2" then
 		if automatic and combatBossSetManual~=nil then combatBossSetManual(guid,nil) end
 		return
 	end
