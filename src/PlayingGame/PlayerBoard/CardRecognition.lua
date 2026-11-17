@@ -4117,7 +4117,9 @@ local function combatAssignmentRefreshRows(entries,sources)
     end
     if not duelingUnitDamaged then
         for _,group in ipairs(groups) do
-            if group.defeated and not group.rangeDefeated and not group.destroyed then
+            if (group.defeated or (group.bossSpecial
+                and defeatedCount(group,false)>defeatedCount(group,true)))
+                and not group.rangeDefeated and not group.destroyed then
                 local targetGUID=nil
                 for _,source in ipairs(group.sources) do
                     if source.dueling and source.duelingEligible==true then
@@ -4129,7 +4131,10 @@ local function combatAssignmentRefreshRows(entries,sources)
                     local targetInGroup=false
                     local usedUnit=false
                     for _,index in ipairs(group.members) do
-                        if entries[index].guid==targetGUID then targetInGroup=true end
+                        if entries[index].guid==targetGUID
+                            and (not group.bossSpecial or entries[index].attackDead==true) then
+                            targetInGroup=true
+                        end
                     end
                     for _,source in ipairs(group.sources) do
                         if source.kind=="unit" then usedUnit=true break end
