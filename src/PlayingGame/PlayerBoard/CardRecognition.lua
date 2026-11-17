@@ -844,7 +844,11 @@ local function combatPhaseLockSources(lock,live)
                 late.phaseAfterDamage=true
                 late.damagePhaseWound=true
                 late.block=0 late.move=0 late.psychicInfluence=0
-                late.attack=(original.attack or 0)>0 and (current.attack or 0) or 0
+                -- Replaying the same GUID cannot inflate the Attack it had
+                -- when Damage was committed. A separate authorised reuse
+                -- requires an explicit activation record, not a new scan.
+                late.attack=(original.attack or 0)>0
+                    and math.min(original.attack or 0,current.attack or 0) or 0
                 late.ranged=fallback and (original.ranged or 0) or 0
                 late.siege=fallback and (original.siege or 0) or 0
                 late.resources={}
@@ -858,8 +862,14 @@ local function combatPhaseLockSources(lock,live)
                 if (original.attack or 0)>0 then
                     for _,detail in ipairs(current.details or {}) do
                         if detail.family=="attack" then
-                            late.details[#late.details+1]=combatFrozenCopy(detail)
-                            late.resources[detail.key]=detail.amount
+                            local allowed=math.min(detail.amount or 0,
+                                (original.resources or {})[detail.key] or 0)
+                            if allowed>0 then
+                                local copy=combatFrozenCopy(detail)
+                                copy.amount=allowed
+                                late.details[#late.details+1]=copy
+                                late.resources[detail.key]=allowed
+                            end
                         end
                     end
                 end
