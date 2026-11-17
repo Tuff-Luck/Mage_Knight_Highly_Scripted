@@ -97,6 +97,52 @@ assert(offerResult:find("Proxy moved 2 spaces and\ntook Scouts from the offer.",
 assert(not offerResult:find("rolled a Source die.",1,true),
     "Source reroll was reported even though no die was rolled")
 
+-- Destination wording distinguishes a reached site from an unfinished route;
+-- a Source reroll remains part of the movement sentence.
+begin({cardType="Starting"},{"Green"},1,1,true)
+env.gStates.proxyTurnReport.moved=2
+env.gStates.proxyTurnReport.target="Dungeon"
+env.gStates.proxyTurnReport.reachedTarget=false
+env.gStates.proxyTurnReport.sourceRerollColor="White"
+local incomplete=render("headline")
+assert(incomplete=="Proxy moved 2 spaces toward the Dungeon, and rolled a Source die.",
+    "Unfinished destination wording was incorrect: "..incomplete)
+assert(not incomplete:find("did not reach",1,true),"Incomplete routes should not include a redundant warning")
+env.gStates.proxyTurnReport.reachedTarget=true
+local arrived=render("headline")
+assert(arrived=="Proxy moved 2 spaces to the Dungeon, and rolled a Source die.",
+    "Reached destination should use 'to', not 'toward': "..arrived)
+
+-- Destination and offer-taking are separate clauses; with a reroll the
+-- joining "and" should only appear at the final clause.
+env.gStates.proxyTurnReport.action="took Scouts from the offer"
+local arrivedAndTook=render("headline")
+assert(arrivedAndTook=="Proxy moved 2 spaces to the Dungeon,\ntook Scouts from the offer, and rolled a Source die.",
+    "Destination/action/reroll wording was incorrect: "..arrivedAndTook)
+env.gStates.proxyTurnReport.sourceRerollColor=nil
+assert(render("headline")=="Proxy moved 2 spaces to the Dungeon and\ntook Scouts from the offer.",
+    "Reached destination and action should join without a reroll")
+
+-- Combat against a rampager en route does not imply the objective was reached.
+env.gStates.proxyTurnReport.reachedTarget=false
+env.gStates.proxyTurnReport.action="defeated the rampaging Orc"
+assert(render("headline")=="Proxy moved 2 spaces toward the Dungeon and\ndefeated the rampaging Orc.",
+    "En-route combat incorrectly implied destination arrival")
+env.gStates.proxyTurnReport.moved=0
+env.gStates.proxyTurnReport.action=nil
+assert(render("headline")=="Proxy did not move toward the Dungeon.",
+    "No-movement case should not claim the Proxy moved")
+
+-- A saved report from before this change may carry the obsolete sentence
+-- as its action. Treat it as route context rather than repeat the movement.
+env.gStates.proxyTurnReport.moved=2
+env.gStates.proxyTurnReport.action="moved toward the Dungeon\nbut did not reach it"
+assert(render("headline")=="Proxy moved 2 spaces toward the Dungeon.",
+    "Legacy unfinished route action was repeated")
+env.gStates.proxyTurnReport.target=nil
+assert(render("headline")=="Proxy moved 2 spaces toward the Dungeon.",
+    "Legacy report should recover the destination from its action")
+
 -- Only a successful Source reroll amends the first sentence. The report
 -- still tracks the original die colour internally, even though no separate
 -- colour line is shown.
