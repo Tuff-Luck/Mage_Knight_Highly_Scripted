@@ -92,7 +92,7 @@ begin({cardType="Starting"},{"White"},1,1,false)
 env.gStates.proxyTurnReport.moved=2
 env.gStates.proxyTurnReport.action="took Scouts from the offer"
 local offerResult=render()
-assert(offerResult:find("Proxy moved 2 spaces and\ntook Scouts from the offer.",1,true),
+assert(offerResult:find("Proxy moved 2 spaces and took Scouts from the offer.",1,true),
     "Proxy offer text was not rendered correctly: "..offerResult)
 assert(not offerResult:find("rolled a Source die.",1,true),
     "Source reroll was reported even though no die was rolled")
@@ -117,10 +117,10 @@ assert(arrived=="Proxy moved 2 spaces to the Dungeon, and rolled a Source die.",
 -- joining "and" should only appear at the final clause.
 env.gStates.proxyTurnReport.action="took Scouts from the offer"
 local arrivedAndTook=render("headline")
-assert(arrivedAndTook=="Proxy moved 2 spaces to the Dungeon,\ntook Scouts from the offer, and rolled a Source die.",
+assert(arrivedAndTook=="Proxy moved 2 spaces to the Dungeon, took Scouts from the offer, and rolled a Source die.",
     "Destination/action/reroll wording was incorrect: "..arrivedAndTook)
 env.gStates.proxyTurnReport.sourceRerollColor=nil
-assert(render("headline")=="Proxy moved 2 spaces to the Dungeon and\ntook Scouts from the offer.",
+assert(render("headline")=="Proxy moved 2 spaces to the Dungeon and took Scouts from the offer.",
     "Reached destination and action should join without a reroll")
 
 -- A completed conquest at the destination should not name the same site twice.
@@ -130,17 +130,17 @@ env.gStates.proxyTurnReport.moved=1
 env.gStates.proxyTurnReport.reachedTarget=true
 env.gStates.proxyTurnReport.action="conquered the Mage Tower"
 env.gStates.proxyTurnReport.sourceRerollColor="Gold"
-assert(render("headline")=="Proxy moved 1 space to the Mage Tower,\nconquered it, and rolled a Source die.",
+assert(render("headline")=="Proxy moved 1 space to the Mage Tower, conquered it, and rolled a Source die.",
     "Conquered destination was repeated in the Proxy summary")
 env.gStates.proxyTurnReport.sourceRerollColor=nil
-assert(render("headline")=="Proxy moved 1 space to the Mage Tower and\nconquered it.",
+assert(render("headline")=="Proxy moved 1 space to the Mage Tower and conquered it.",
     "Conquest without a Source reroll should avoid repeating the destination")
 env.gStates.proxyTurnReport.moved=0
 assert(render("headline")=="Proxy conquered the Mage Tower.",
     "Conquest without movement still needs the site name")
 env.gStates.proxyTurnReport.moved=1
 env.gStates.proxyTurnReport.reachedTarget=false
-assert(render("headline")=="Proxy moved 1 space toward the Mage Tower and\nconquered the Mage Tower.",
+assert(render("headline")=="Proxy moved 1 space toward the Mage Tower and conquered the Mage Tower.",
     "Conquest should only abbreviate the name after reaching the target")
 env.gStates.proxyTurnReport.target="Dungeon"
 env.gStates.proxyTurnReport.moved=2
@@ -148,8 +148,17 @@ env.gStates.proxyTurnReport.moved=2
 -- Combat against a rampager en route does not imply the objective was reached.
 env.gStates.proxyTurnReport.reachedTarget=false
 env.gStates.proxyTurnReport.action="defeated the rampaging Orc"
-assert(render("headline")=="Proxy moved 2 spaces toward the Dungeon and\ndefeated the rampaging Orc.",
+assert(render("headline")=="Proxy moved 2 spaces toward the Dungeon and defeated the rampaging Orc.",
     "En-route combat incorrectly implied destination arrival")
+-- The destination and subsequent action must be a continuous sentence;
+-- TTS should choose where to wrap, including after a long site name.
+env.gStates.proxyTurnReport.target="Monster Den"
+env.gStates.proxyTurnReport.action="defeated the rampaging Wolf Riders"
+env.gStates.proxyTurnReport.sourceRerollColor="White"
+assert(render("headline")=="Proxy moved 2 spaces toward the Monster Den, defeated the rampaging Wolf Riders, and rolled a Source die.",
+    "Proxy headline inserted a forced line break after Monster Den")
+env.gStates.proxyTurnReport.sourceRerollColor=nil
+env.gStates.proxyTurnReport.target="Dungeon"
 env.gStates.proxyTurnReport.moved=0
 env.gStates.proxyTurnReport.action=nil
 assert(render("headline")=="Proxy did not move toward the Dungeon.",
