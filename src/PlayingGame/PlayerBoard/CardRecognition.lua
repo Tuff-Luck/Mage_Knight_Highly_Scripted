@@ -819,12 +819,21 @@ combatConfig.captureParalyzedUnitSources=function(seat,unitGUID)
             copy.retiredExplicit=combatAssignmentState.explicit[source.key]==true
             copy.attack=0
             copy.conditionalCounterattack=nil
-            for field in pairs(copy.resources or {}) do
-                if field:sub(1,6)=="attack" then copy.resources[field]=nil end
+            local resources=copy.resources
+            if type(resources)=="table" then
+                for field in pairs(resources) do
+                    if type(field)=="string" and field:sub(1,6)=="attack" then
+                        resources[field]=nil
+                    end
+                end
             end
-            for i=#(copy.details or {}),1,-1 do
-                if copy.details[i].family=="attack" then
-                    table.remove(copy.details,i)
+            local details=copy.details
+            if type(details)=="table" then
+                for i=#details,1,-1 do
+                    local detail=details[i]
+                    if type(detail)=="table" and detail.family=="attack" then
+                        table.remove(details,i)
+                    end
                 end
             end
             saved[#saved+1]=copy
@@ -2328,9 +2337,10 @@ function resourceCardsRequestCombatWounds(player)
     if not resourceCardsPanelOpen() or not resourceCardsPlayerCanEdit(color)
         or combatConfig.woundApplying or combatConfig.woundTransactionPending then return end
     local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
-    local ledger=active~=nil and combatConfig.woundLedger(active.seatPos) or nil
-    local _,hand,discard,changed,effects=combatConfig.woundPending(ledger)
+    if active==nil or active.seatPos==nil then return end
+    local ledger=combatConfig.woundLedger(active.seatPos)
     if ledger==nil then return end
+    local _,hand,discard,changed,effects=combatConfig.woundPending(ledger)
     if hand+discard+effects.paralyseCount+effects.destroyCount==0 then
         if changed then
             broadcastToColor("Combat damage changed after consequences were applied. Check physical cards; they cannot be undone automatically.",
