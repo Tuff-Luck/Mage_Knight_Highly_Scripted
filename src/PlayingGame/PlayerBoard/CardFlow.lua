@@ -1840,7 +1840,7 @@ function combatDiscardParalyzedHand(seat)
     if current~=nil and current.seatPos==seat and positionToColor~=nil
         and Player~=nil then
         local color=positionToColor(gStates.turnNumber)
-        local player=color~=nil and Player[color] or nil
+        local player=color~=nil and color~="Black" and color~="Grey" and Player[color] or nil
         if player~=nil and player.getHandObjects~=nil then
             local ok,objects=pcall(player.getHandObjects)
             if not ok then return false,"Could not inspect the TTS hand",0 end
