@@ -187,7 +187,7 @@ local good=card("good",false)
 local existingWound=card("wound",true)
 local deck={type="Deck",getObjects=function()
     return {{guid="stacked",gm_notes="Spell"},{guid="stackWound",gm_notes="Wound"}}
-end,takeObject=function(_,args)
+end,takeObject=function(args)
     eq(args.guid,"stacked","mixed Deck must extract only non-Wound cards")
     moved[#moved+1]=args.guid
     return {guid=args.guid}
