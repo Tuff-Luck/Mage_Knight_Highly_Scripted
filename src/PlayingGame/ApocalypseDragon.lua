@@ -1207,7 +1207,7 @@ function apocalypseDragonRefreshGroundAttackSuppression()
 end
 
 apocalypseDragonGroundReductionAdjust=function(player,mouseButton,id)
-	if mouseButton~="-1" and mouseButton~="1" then return end
+	if mouseButton~="-1" and mouseButton~="-2" then return end
 	local guid=tostring(id or ""):sub(1,6)
 	local active,headName=apocalypseDragonGroundHeadToken(guid)
 	local combat=gStates~=nil and gStates.apocalypseDragonGroundCombat or nil
@@ -1219,7 +1219,7 @@ apocalypseDragonGroundReductionAdjust=function(player,mouseButton,id)
 	local allowed=positionToColor(owner)
 	if color~="Black" and color~=allowed then return end
 	local automatic=combatBossAutomationActive~=nil and combatBossAutomationActive()
-	if mouseButton=="1" then
+	if mouseButton=="-2" then
 		-- Right-click either arrow to return to Auto.
 		if automatic and combatBossSetManual~=nil then combatBossSetManual(guid,nil) end
 		return
