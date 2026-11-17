@@ -5575,7 +5575,7 @@ function resourceCardsRefreshCombatEnemies()
 end
 
 function resourceCardsCombatAssignSource(sourceGUID,enemyGUID)
-    if combatConfig.phaseKeyLocked~=nil
+    if combatConfig~=nil and combatConfig.phaseKeyLocked~=nil
         and combatConfig.phaseKeyLocked(sourceGUID) then return end
     if not resourceCardsCombatTargetAcceptsSource(sourceGUID,enemyGUID) then return end
     if gStates~=nil and combatAssignmentState.targets[sourceGUID]~=enemyGUID then
@@ -5757,7 +5757,7 @@ end
 
 -- Called when a targeting arrow is removed; the source re-locks to the nearest enemy on refresh.
 function resourceCardsCombatForgetSource(sourceGUID)
-    if combatConfig.phaseKeyLocked~=nil
+    if combatConfig~=nil and combatConfig.phaseKeyLocked~=nil
         and combatConfig.phaseKeyLocked(sourceGUID) then return end
     combatAssignmentState.targets[sourceGUID]=nil
     combatAssignmentState.explicit[sourceGUID]=nil
@@ -5783,7 +5783,7 @@ end
 
 function resourceCardsCombatAssignmentClick(id,mouseButton)
     local lockedSource=combatAssignmentSlotSources[id]
-    if lockedSource~=nil and combatConfig.phaseKeyLocked~=nil
+    if lockedSource~=nil and combatConfig~=nil and combatConfig.phaseKeyLocked~=nil
         and combatConfig.phaseKeyLocked(lockedSource) then return end
     if tostring(mouseButton)=="-2" and combatConfig.artifactCombat.bow then
         local key=combatAssignmentSlotSources[id]
@@ -5805,7 +5805,7 @@ function resourceCardsCombatAssignmentClick(id,mouseButton)
     if targetGUID==nil then return end
     local sourceGUID=combatAssignmentSlotSources[id]
     local moved=combatAssignmentState.selected
-    if moved~=nil and combatConfig.phaseKeyLocked~=nil
+    if moved~=nil and combatConfig~=nil and combatConfig.phaseKeyLocked~=nil
         and combatConfig.phaseKeyLocked(moved) then
         combatAssignmentState.selected=nil
         combatConfig.refreshSelectedSlots()
@@ -6531,7 +6531,7 @@ end
 -- choices; selecting one immediately collapses back to its icon.
 local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySets,resources,repeatLink)
     if card==nil or combatConfig.cardInTransit(card) then return end
-    if combatConfig.phaseObjectLocked~=nil
+    if combatConfig~=nil and combatConfig.phaseObjectLocked~=nil
         and combatConfig.phaseObjectLocked(card.guid) then
         removeChoiceButtons(card)
         choiceButtonShown[card.guid]="hidden"
@@ -7201,7 +7201,7 @@ end
 -- This is intentionally independent of translated text position.
 local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decision,useIndex)
     if unit==nil then return end
-    if combatConfig.phaseObjectLocked~=nil
+    if combatConfig~=nil and combatConfig.phaseObjectLocked~=nil
         and combatConfig.phaseObjectLocked(unit.guid) then
         removeChoiceButtons(unit)
         choiceButtonShown[unit.guid]="hidden"
@@ -12231,7 +12231,7 @@ function resourceCardsChoiceClicked(player,value,id)
     if guid==nil then
         guid,category=id:match("^ResourceCardChoice_([0-9a-f]+)_([%w]+)$")
     end
-    if guid==nil or (combatConfig.phaseObjectLocked~=nil
+    if guid==nil or (combatConfig~=nil and combatConfig.phaseObjectLocked~=nil
         and combatConfig.phaseObjectLocked(guid)) then return end
     setIndex=setIndex~=nil and tonumber(setIndex) or nil
     repeatIndex=repeatIndex~=nil and tonumber(repeatIndex) or nil
