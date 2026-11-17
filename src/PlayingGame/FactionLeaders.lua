@@ -258,17 +258,29 @@ end
 
 --Leader overkill adjust
 adjustOverkill=function(player, mouseButton, id)
-	if mouseButton=="-1" then
-		local level=gStates.elementalistLevel-gStates.leaderReduction
-		if id:sub(1,6)==darkCrusader.token then level=gStates.darkCrusaderLevel-gStates.leaderReduction end
-		if id:sub(7,16)=="OverkillUp" and gStates.leaderOverkill<level then
-			gStates.leaderOverkill=gStates.leaderOverkill+1
-		end
-		if id:sub(7,18)=="OverkillDown" and gStates.leaderOverkill>1 then
-			gStates.leaderOverkill=gStates.leaderOverkill-1
-		end
-		local leaderObj=getObjectFromGUID(id:sub(1,6))
-		if leaderObj~=nil then leaderObj.UI.setAttribute(id:sub(1,14),"Text",gStates.leaderOverkill) end
+	local guid=tostring(id or ""):sub(1,6)
+	if factionLeaderForToken(guid)==nil then return end
+	local automatic=combatBossAutomationActive~=nil and combatBossAutomationActive()
+	-- Right-click either +/- restores the calculator's automatic value.
+	if mouseButton=="1" then
+		if automatic and combatBossSetManual~=nil then combatBossSetManual(guid,nil) end
+		return
+	end
+	if mouseButton~="-1" then return end
+	local level=gStates.elementalistLevel-(gStates.leaderReduction or 0)
+	if guid==darkCrusader.token then level=gStates.darkCrusaderLevel-(gStates.leaderReduction or 0) end
+	level=math.max(0,tonumber(level) or 0)
+	local minValue=automatic and 0 or 1
+	local current=math.max(minValue,tonumber(gStates.leaderOverkill) or minValue)
+	if id:find("OverkillUp",7,true)~=nil then current=math.min(level,current+1)
+	elseif id:find("OverkillDown",7,true)~=nil then current=math.max(minValue,current-1)
+	else return end
+	gStates.leaderOverkill=current
+	local leaderObj=getObjectFromGUID(guid)
+	if leaderObj~=nil then leaderObj.UI.setAttribute(guid.."Overkill","Text",tostring(current)) end
+	if automatic and combatBossSetManual~=nil then
+		combatBossSetManual(guid,current)
+	else
 		mainUIUpdate("Leader Overkilled")
 	end
 end
@@ -334,7 +346,10 @@ function factionLeaderResolveCombatToken(token,playerIndex,cleanupContext,discar
 	if leader==nil then return end
 	local startingLevel=leader==darkCrusader and gStates.darkCrusaderLevel or gStates.elementalistLevel
 	local reduction=gStates.leaderReduction or 0
-	local overkill=gStates.leaderOverkill or 1
+	-- Zero means the calculator found no successful Attack. Do not award
+	-- a Shield or reduce levels merely because a token is face up.
+	local overkill=math.max(0,math.floor(tonumber(gStates.leaderOverkill) or 1))
+	overkill=math.min(overkill,math.max(0,startingLevel-reduction))
 	local disc=getObjectFromGUID(leader.disc)
 	if disc~=nil then
 		local position=disc.getPosition()
