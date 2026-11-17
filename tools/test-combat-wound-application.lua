@@ -228,6 +228,10 @@ local initial=resolveDamage(attack,{unitR={guid="unitR",armour=2,resist={},wound
 eq(initial["enemyB:1"].heroWounds,1,"Hero receives one residual Wound")
 eq(initial["enemyB:1"].units[1].destroyed,true,"Paralysis destroys hit Unit")
 eq(initial["enemyB:1"].units[1].absorbed,2,"destroyed Unit absorbed its Armour")
+local immune=resolveDamage(attack,{unitR={guid="unitR",armour=2,resist={},
+    wounded=false,arcaneImmunity=true}},2,function() return {"unitR"} end)
+eq(immune["enemyB:1"].units[1].destroyed,false,
+    "Arcane Immunity prevents Paralysis destruction")
 local after=resolveDamage(attack,{},2,function() return {} end,
     nil,nil,nil,{["enemyB:1"]={destroyed={unitR=2}}})
 eq(after["enemyB:1"].heroWounds,1,
@@ -265,6 +269,8 @@ eq(saved.attack,0,"destroyed Unit cannot attack in later phase")
 eq(saved.resources.attack,nil,"Attack resource must not survive")
 eq(saved.retiredTarget,"enemyA","chosen Ranged target must survive")
 eq(saved.retiredUnitPosition[3],-39,"automatic targeting preserves position")
+assert(recognition:find('return source.retiredTarget==targetGUID',1,true),
+    "destroyed Unit must not redirect its earlier Ranged/Siege attack")
 
 -- Draw Wounds must commit each Paralysis consequence once, including when
 -- the Hero took zero Wounds and the only effect is destroying one Unit.
