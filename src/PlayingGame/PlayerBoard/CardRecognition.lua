@@ -3929,13 +3929,43 @@ local function combatAssignmentRefreshRows(entries,sources)
                 meleeSources[#meleeSources+1]=source
             end
         end
+        -- Ranged/Siege points that already reduced a boss cannot be played
+        -- as melee Attack a second time. Unspent ranged resources still have
+        -- their ordinary fallback to the later Attack phase.
+        local laterSources=meleeSources
+        if group.bossSpecial and group.rangeSpent then
+            laterSources={}
+            for _,source in ipairs(meleeSources) do
+                local resources={}
+                for key,value in pairs(source.resources or {}) do
+                    if key:sub(1,6)~="ranged" and key:sub(1,5)~="siege" then
+                        resources[key]=value
+                    end
+                end
+                laterSources[#laterSources+1]=setmetatable({resources=resources},{__index=source})
+            end
+        end
         local meleeTotal=combatAttackTotal({
-            {sources=meleeSources,category="attack"},
-            {sources=meleeSources,category="ranged"},
-            {sources=meleeSources,category="siege"}},group.entry.data,group.entry.perks,"attack")
+            {sources=laterSources,category="attack"},
+            {sources=laterSources,category="ranged"},
+            {sources=laterSources,category="siege"}},group.entry.data,group.entry.perks,"attack")
         group.attackTotal=meleeTotal
         group.defeated=not entries[group.members[1]].attackOnly
             and (group.rangeDefeated or (meleeTotal>0 and meleeTotal>=group.attackArmour))
+        if group.bossSpecial then
+            local blockedAll={}
+            for _,index in ipairs(group.members) do
+                blockedAll[entries[index].guid]=rowBlock[index].allBlocked
+            end
+            local plan=not group.rangeDefeated
+                and combatBossPhasePlan(group,entries,meleeTotal,"attack",blockedAll) or nil
+            for _,index in ipairs(group.members) do
+                local member=entries[index]
+                member.bossAttackLevels=plan~=nil and (plan.reductions[member.guid] or 0) or 0
+                member.attackDead=plan~=nil and plan.killed[member.guid]==true
+            end
+            group.defeated=group.rangeDefeated or (plan~=nil and plan.full==true)
+        end
         if group.destroyed then group.defeated,group.rangeDefeated=true,false end
         if group.defeated and not group.destroyed then
             local count=0
@@ -3958,6 +3988,40 @@ local function combatAssignmentRefreshRows(entries,sources)
             end
         end
     end
+    -- Scenario modules still own Shields, physical level markers, and
+    -- reward finalisation; the calculator only publishes calculated amounts.
+    local dragonOwners={}
+    for _,member in ipairs(entries) do
+        if member.bossLevel~=nil and not member.preview and not member.attackOnly then
+            local value=math.min(member.bossLevel,
+                (member.bossRangeLevels or 0)+(member.bossAttackLevels or 0))
+            if member.bossType=="leader" then
+                if gStates.leaderOverkill~=value then
+                    gStates.leaderOverkill=value
+                    local token=getObjectFromGUID(member.guid)
+                    if token~=nil then
+                        token.UI.setAttribute(member.guid.."Overkill","Text",tostring(value))
+                    end
+                end
+            elseif member.bossType=="dragon" then
+                local combat=gStates.apocalypseDragonGroundCombat
+                if combat~=nil and combat.reductions~=nil
+                    and (combat.processedTokens==nil
+                        or combat.processedTokens[member.guid]~=true)
+                    and combat.reductions[member.bossHead]~=value then
+                    combat.reductions[member.bossHead]=value
+                    local token=getObjectFromGUID(member.guid)
+                    if token~=nil then
+                        token.UI.setAttribute(member.guid.."GroundOverkill","text",tostring(value))
+                    end
+                    local owner=apocalypseDragonGroundHeadOwner(member.bossHead)
+                    if owner~=nil then dragonOwners[owner]=true end
+                end
+            end
+        end
+    end
+    for owner in pairs(dragonOwners) do apocalypseDragonRefreshGroundFameGain(owner) end
+
     local totalHeroWounds,totalDiscardWounds=0,0
     for _,result in pairs(damageResults) do
         totalHeroWounds=totalHeroWounds+result.heroWounds
@@ -4075,15 +4139,20 @@ local function combatAssignmentRefreshRows(entries,sources)
     end
     combatDefeatFameRep.fame,combatDefeatFameRep.rep=defeatFame,defeatRep
     resourceCardsApplyFameRep(damageSeat)
-    local trackedGuids,defeatedGuids={},{}
+    local trackedGuids,defeatedGuids,partialGuids={},{},{}
     for _,group in ipairs(groups) do
         for _,index in ipairs(group.members) do
             local entry=entries[index]
             local guid=entry.guid
             if not entry.attackOnly and not entry.preview then
                 trackedGuids[guid]=true
-                if group.defeated or (not group.rangeDefeated
-                    and entry.attackPhaseDestroyed) then defeatedGuids[guid]=true end
+                if group.defeated or entry.rangeDead or entry.attackDead
+                    or (not group.rangeDefeated and entry.attackPhaseDestroyed) then
+                    defeatedGuids[guid]=true
+                elseif entry.bossLevel~=nil
+                    and (entry.bossRangeLevels or 0)+(entry.bossAttackLevels or 0)>0 then
+                    partialGuids[guid]=true
+                end
                 for summonedGUID in pairs(entry.summonedDestroyed or {}) do
                     trackedGuids[summonedGUID]=true
                     defeatedGuids[summonedGUID]=true
@@ -4091,7 +4160,7 @@ local function combatAssignmentRefreshRows(entries,sources)
             end
         end
     end
-    combatSetDefeatMarks(trackedGuids,defeatedGuids)
+    combatSetDefeatMarks(trackedGuids,defeatedGuids,partialGuids)
     -- Build all grouped rows before paging or rendering them. A group can
     -- span pages, and each following member offers two six-icon display lines.
     -- Only the button placement changes; allocated sources stay on their targets.
@@ -4272,6 +4341,8 @@ local function combatAssignmentRefreshRows(entries,sources)
             local isLast=group.members[#group.members]==index
             if group.destroyed then
                 lines[1]=combatRich("Destroyed",combatConfig.COMBAT_GREEN)
+            elseif entry.rangeDead then
+                lines[1]=combatRich("Ranged defeated",combatConfig.COMBAT_GREEN)
             elseif group.rangeDefeated then
                 -- Group results sit under the last enemy of the group.
                 if isLast then
@@ -4299,9 +4370,25 @@ local function combatAssignmentRefreshRows(entries,sources)
                 grandDamage=grandDamage+rowBlock[index].damage
                 damageSources=damageSources+rowBlock[index].count
                 if isLast and not entry.attackOnly then
-                    local line=combatGroupAttackLine(group.attackTotal,group.attackArmour)
-                    if line~=nil then lines[#lines+1]=line end
+                    if group.bossSpecial then
+                        if group.attackTotal>0 then
+                            lines[#lines+1]="Attack "..tostring(group.attackTotal).." (level attack)"
+                        end
+                    else
+                        local line=combatGroupAttackLine(group.attackTotal,group.attackArmour)
+                        if line~=nil then lines[#lines+1]=line end
+                    end
                 end
+            end
+            if entry.bossType=="control" then
+                lines[#lines+1]="Control: cannot be attacked"
+            elseif entry.bossLevel~=nil then
+                local ranged,melee=entry.bossRangeLevels or 0,entry.bossAttackLevels or 0
+                local manual=gStates.combatBossManual~=nil
+                    and gStates.combatBossManual[entry.guid]~=nil
+                lines[#lines+1]="Levels: -"..tostring(ranged+melee).."/"..tostring(entry.bossLevel)
+                    .." (R "..tostring(ranged)..", A "..tostring(melee)..")"
+                    ..(manual and " [Manual]" or "")
             end
             local compactLines=combatCompactResultLines(lines,rowBlock[index].damageItems,damageResults)
             local detailText=table.concat(lines,"\n")
