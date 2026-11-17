@@ -806,7 +806,8 @@ end
 local function combatPhaseLock(seat)
     local ledger=gStates~=nil and gStates.combatWoundApplication or nil
     local lock=ledger~=nil and ledger.phaseLock or nil
-    if lock~=nil and ledger.seat==seat and lock.turn==gStates.turnNumber then
+    if ledger~=nil and lock~=nil and gStates~=nil
+        and ledger.seat==seat and lock.turn==gStates.turnNumber then
         return lock
     end
     return nil
@@ -819,7 +820,7 @@ local function combatPhaseLockSources(lock,live)
     local frozenKeys=lock.sourceKeys or {}
     for _,original in ipairs(lock.sources or {}) do
         if frozenKeys[original.key] then
-            local frozen=combatFrozenCopy(original)
+            local frozen=combatFrozenCopy(original) or {}
             frozen.phaseLocked=true
             frozen.noAttackPhase=true
             frozen.attack=0
@@ -839,7 +840,7 @@ local function combatPhaseLockSources(lock,live)
             local current=byKey[original.key]
             if current~=nil then
                 local fallback=(lock.spentRange or {})[original.key]~=true
-                local late=combatFrozenCopy(original)
+                local late=combatFrozenCopy(original) or {}
                 late.key=original.key.."#postDamage"
                 late.phaseAfterDamage=true
                 late.damagePhaseWound=true
@@ -881,7 +882,7 @@ local function combatPhaseLockSources(lock,live)
     end
     for _,source in ipairs(live) do
         if not frozenKeys[source.key] then
-            local late=combatFrozenCopy(source)
+            local late=combatFrozenCopy(source) or {}
             -- Only new Attack-phase actions may be introduced after Damage.
             -- Ranged/Siege can fall back as Attack; Block and Move cannot.
             late.damagePhaseWound=true
@@ -4470,7 +4471,7 @@ local function combatAssignmentRefreshRows(entries,sources)
                 end
             end
         end
-        rowBlock=combatFrozenCopy(earlyLock.rowBlock)
+        rowBlock=combatFrozenCopy(earlyLock.rowBlock) or rowBlock
     elseif combatConfig.phasePreview~=nil then
         local preview=combatConfig.phasePreview
         preview.earlyGroups=combatFrozenCopy(groups)
@@ -5592,8 +5593,8 @@ local function refreshCombatEnemyPanel(monsters,calculated)
     if lock~=nil then
         -- Use the exact enemy state and grouping that existed when Damage
         -- was confirmed, rather than newly changed earlier-phase effects.
-        entries=combatFrozenCopy(lock.entries)
-        combatAssignmentJoined=combatFrozenCopy(lock.joined or {})
+        entries=combatFrozenCopy(lock.entries) or entries
+        combatAssignmentJoined=combatFrozenCopy(lock.joined or {}) or {}
         for key,target in pairs(lock.targets or {}) do
             if (lock.sourceKeys or {})[key] then
                 combatAssignmentState.targets[key]=target
