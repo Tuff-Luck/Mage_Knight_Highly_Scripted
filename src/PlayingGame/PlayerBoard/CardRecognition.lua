@@ -71,11 +71,6 @@ trackerPrivate.bannerCardForm=function(guid)
     if data.half~=nil then return "full" end
     return nil
 end
--- Banner effects are handled through their card state and Unit interactions;
--- the manual '?' note control is never needed on either physical Banner form.
-trackerPrivate.artifactManualNoteVisible=function(card)
-    return card~=nil and trackerPrivate.bannerCardForm(card.guid)==nil
-end
 trackerPrivate.bannerStrongActive=function(card)
     return card~=nil and trackerPrivate.bannerCardForm(card.guid)=="full"
         and card.is_face_down==true
@@ -6291,10 +6286,10 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     elseif rule~=nil and rule.damageMitigation~=nil then
         choices={{key="hardened",icon="other"}}
     end
-    -- Official starting cards with a separate conditional/manual effect keep
-    -- their own controls even when their Move/Influence value is fixed.
+    -- Starting cards with selectable conditional effects keep their controls
+    -- even when their Move/Influence value is fixed; manual notes need no button.
     if rule~=nil and (rule.interactionReward~=nil or rule.recruitDiscount~=nil
-        or rule.selectedTerrainDiscount~=nil or rule.manualSecondary~=nil)
+        or rule.selectedTerrainDiscount~=nil)
         and (choices==nil or #choices==0) and type(resources)=="table" then
         if (tonumber(resources.move) or 0)>0 then choices={{move=resources.move}}
         elseif (tonumber(resources.influence) or 0)>0 then
@@ -6855,20 +6850,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             startingControl("terrain",special~=nil and special.terrain~=nil
                 and special.terrain:sub(1,3):upper() or "TER",
                 special~=nil and special.terrain~=nil,150,-125)
-        elseif rule.manualSecondary~=nil and
-            (not isArtifact or trackerPrivate.artifactManualNoteVisible(card)) then
-            startingControl("manual","?",false,135,-125)
         end
-    end
-    if rule~=nil and isArtifact and rule.manualSecondary~=nil
-        and posture=="upright" and trackerPrivate.artifactManualNoteVisible(card) then
-        xml[#xml+1]={tag="Button",attributes={
-            id="ResourceCardChoice_"..card.guid.."_artifactNote",
-            onClick="global/resourceCardsArtifactNoteClicked",
-            position="145 -240 "..buttonDepth,rotation=uiRotation,
-            width=140,height=82,scale="0.28 0.28",fontSize=43,
-            colors="#454D5D|#69798E|#444C63|#454D5D",
-            textColor="#FFFFFF",textAlignment="MiddleCenter"},value="?"}
     end
     if rule~=nil and isArtifact
         and cardData.resourceKey=="artifactBannerFortitude"
@@ -11824,25 +11806,6 @@ function resourceCardsArtifactHealUnitsClicked(player,value,id)
         .." Unit Wound(s).",player.color,{0.7,0.95,0.7})
 end
 
--- Artifact effects with physical dice, crystals or other player-decided
--- outcomes remain explicitly announced, not silently credited as resources.
-function resourceCardsArtifactNoteClicked(player,value,id)
-    if not resourceCardsPanelOpen()
-        or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil)
-        or type(id)~="string" then return end
-    local guid=id:match("^ResourceCardChoice_([0-9a-f]+)_artifactNote$")
-    local data=guid~=nil and gameCards[guid] or nil
-    local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
-    local current=turnOrder~=nil and gStates~=nil
-        and turnOrder[gStates.turnNumber] or nil
-    local card=guid~=nil and getObjectFromGUID(guid) or nil
-    if rule==nil or rule.manualSecondary==nil or current==nil or card==nil
-        or trackerPrivate.bannerCardForm(guid)=="half"
-        or cardPosture(card)~="upright"
-        or not cardInSeatPlayArea(guid,current.seatPos) then return end
-    broadcastToColor(rule.manualSecondary,player.color,{0.9,0.8,0.4})
-end
-
 -- Forked Lightning commits every bolt to one combat phase, rather than
 -- allowing a Ranged kill with one and a later melee hit with another.
 function resourceCardsForkedLightningPhaseClicked(player,value,id)
@@ -11957,9 +11920,6 @@ function resourceCardsStartingCardControlClicked(player,value,id)
             attackAssignmentsBeginUnitReady(guid,guid.."#ready"..index,player.color,
                 rule.readyWithInfluence.maxLevel)
         end
-    elseif control=="manual" and rule.manualSecondary~=nil then
-        broadcastToColor(rule.manualSecondary,player.color,{0.9,0.8,0.4})
-        return
     else return end
     gStates.startingCardSelections[guid]=selected
     resourceCardsSourceChanged()
@@ -13015,10 +12975,9 @@ function resourceCardsObjectMoved(obj)
     end
 end
 
--- Register all Artifact and readying Object UI callbacks through the protected
--- public boundary so the onLoad callback audit and error reporter can track them.
+-- Register the remaining readying and Artifact gameplay buttons through the
+-- protected public boundary for the onLoad audit and error reporter.
 publishPublicUICallbacks({
     resourceCardsRegenerationReadyClicked=resourceCardsRegenerationReadyClicked,
-    resourceCardsArtifactNoteClicked=resourceCardsArtifactNoteClicked,
     resourceCardsArtifactHealUnitsClicked=resourceCardsArtifactHealUnitsClicked
 })
