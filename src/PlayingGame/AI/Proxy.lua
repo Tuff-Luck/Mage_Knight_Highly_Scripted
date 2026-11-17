@@ -675,6 +675,7 @@ function proxyLocalizedAction(action)
 		["could not restore the selected route"]="{en}could not restore the selected route{it}impossibile ripristinare il percorso scelto{ru}не смог восстановить выбранный маршрут{zh-tw}無法恢復所選路線{zh-cn}无法恢复所选路线{ko}선택한 경로를 복원하지 못했습니다{es}no pudo restaurar la ruta seleccionada{fr}n’a pas pu restaurer l’itinéraire sélectionné{pt-br}não conseguiu restaurar a rota selecionada{de}konnte die ausgewählte Route nicht wiederherstellen",
 		["could not restore the selected destination"]="{en}could not restore the selected destination{it}impossibile ripristinare la destinazione scelta{ru}не смог восстановить выбранное место назначения{zh-tw}無法恢復所選目的地{zh-cn}无法恢复所选目的地{ko}선택한 목적지를 복원하지 못했습니다{es}no pudo restaurar el destino seleccionado{fr}n’a pas pu restaurer la destination sélectionnée{pt-br}não conseguiu restaurar o destino selecionado{de}konnte das ausgewählte Ziel nicht wiederherstellen",
 		["conquered the City"]="{en}conquered the City{it}ha conquistato la Città{ru}покорил Город{zh-tw}征服了城市{zh-cn}征服了城市{ko}도시를 정복했습니다{es}conquistó la Ciudad{fr}a conquis la Cité{pt-br}conquistou a Cidade{de}hat die Stadt erobert",
+		["conquered it"]="{en}conquered it{it}l’ha conquistato{ru}покорил его{zh-tw}征服了該地點{zh-cn}征服了该地点{ko}그곳을 정복했습니다{es}lo conquistó{fr}l’a conquis{pt-br}conquistou o local{de}eroberte das Ziel",
 		["could not find the selected offer card"]="{en}could not find the selected offer card{it}non ha trovato la carta scelta nell'offerta{ru}не смог найти выбранную карту предложения{zh-tw}找不到所選供應牌{zh-cn}找不到所选供应牌{ko}선택한 제안 카드를 찾지 못했습니다{es}no pudo encontrar la carta seleccionada de la oferta{fr}n’a pas pu trouver la carte sélectionnée dans l’offre{pt-br}não conseguiu encontrar a carta selecionada da oferta{de}konnte die ausgewählte Angebotskarte nicht finden",
 		["found no legal card to take at the interaction site"]="{en}found no legal card to take at the interaction site{it}non ha trovato carte valide da prendere nel sito d'interazione{ru}не нашёл допустимой карты для получения в месте взаимодействия{zh-tw}在互動地點找不到可合法取得的牌{zh-cn}在互动地点找不到可合法取得的牌{ko}상호작용 장소에서 가져갈 수 있는 합법적인 카드를 찾지 못했습니다{es}no encontró ninguna carta legal para tomar en el lugar de interacción{fr}n’a trouvé aucune carte légale à prendre sur le site d’interaction{pt-br}não encontrou nenhuma carta válida para pegar no local de interação{de}fand am Interaktionsort keine gültige Karte zum Nehmen",
 		["explored a predefined tile"]="{en}explored a predefined tile{it}ha esplorato una tessera predefinita{ru}исследовал предопределённую плитку{zh-tw}探索了一個預設板塊{zh-cn}探索了一个预设板块{ko}미리 정해진 타일을 탐험했습니다{es}exploró una loseta predefinida{fr}a exploré une tuile prédéfinie{pt-br}explorou uma peça predefinida{de}hat ein vordefiniertes Plättchen erkundet",
@@ -746,6 +747,11 @@ function proxyTurnReportText(section)
 		end
 	else
 		local localizedAction=proxyLocalizedAction(action)
+		--When the same site was reached and conquered, refer back to the destination
+		--rather than repeating its name in the movement sentence.
+		if moved>0 and report.reachedTarget==true and targetName~=nil and action=="conquered the "..targetName then
+			localizedAction=proxyLocalizedAction("conquered it")
+		end
 		if moved<=0 then
 			first=joinLang({"{en}Proxy {it}Il Proxy {ru}Прокси {zh-tw}代理玩家{zh-cn}代理玩家{ko}프록시가 {es}El Proxy {fr}Le Proxy {pt-br}O Proxy {de}Der Proxy ",localizedAction,period})
 		else
