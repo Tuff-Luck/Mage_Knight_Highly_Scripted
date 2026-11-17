@@ -1823,8 +1823,32 @@ function combatDiscardParalyzedHand(seat)
     local hand=getObjectFromGUID(handZones~=nil and handZones[seat] or nil)
     local discard=getObjectFromGUID(deedDeckDiscardZones~=nil and deedDeckDiscardZones[seat] or nil)
     if hand==nil or discard==nil then return false,"Hand or discard zone is missing",0 end
+    -- The physical scripting zone and TTS's native Player hand do not always
+    -- report exactly the same objects (especially while cards are settling).
+    -- Read both, so an empty scripting zone cannot silently acknowledge a
+    -- Paralysis discard while the player still holds non-Wound cards.
+    local handObjects,seen={},{}
+    local function include(obj)
+        if obj~=nil and obj.guid~=nil and (obj.type=="Card" or obj.type=="Deck")
+            and not seen[obj.guid] then
+            seen[obj.guid]=true
+            handObjects[#handObjects+1]=obj
+        end
+    end
+    for _,obj in ipairs(hand.getObjects() or {}) do include(obj) end
+    local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    if current~=nil and current.seatPos==seat and positionToColor~=nil
+        and Player~=nil then
+        local color=positionToColor(gStates.turnNumber)
+        local player=color~=nil and Player[color] or nil
+        if player~=nil and player.getHandObjects~=nil then
+            local ok,objects=pcall(player.getHandObjects)
+            if not ok then return false,"Could not inspect the TTS hand",0 end
+            for _,obj in ipairs(objects or {}) do include(obj) end
+        end
+    end
     local transfers={}
-    for _,obj in ipairs(hand.getObjects() or {}) do
+    for _,obj in ipairs(handObjects) do
         if obj.type=="Card" and obj.getGMNotes()~="Wound" then
             if obj.held_by_color~=nil and obj.held_by_color~="" then
                 return false,"A hand card is being held",0
