@@ -31,7 +31,7 @@ local function combatCommittedLock()
 end
 
 local function combatCommittedSource(key)
-    local lock=combatCommittedLock()
+    local lock=combatCommittedLock~=nil and combatCommittedLock() or nil
     return lock~=nil and (lock.sourceKeys or {})[key]==true
 end
 local targetingByPlayer={}
@@ -170,7 +170,7 @@ local function activeVisualLines()
 		-- rather than reading a stale cached source/target reference.
 		local source=getObjectFromGUID(assignmentBaseGUID(entry.sourceGUID))
 		local target=getObjectFromGUID(entry.targetGUID)
-        local lock=combatCommittedLock()
+        local lock=combatCommittedLock~=nil and combatCommittedLock() or nil
         local frozen=lock~=nil and (lock.positions or {})[entry.sourceGUID] or nil
         if frozen~=nil then
             -- A frozen arrow stays on the play-area location even when the
@@ -671,7 +671,7 @@ end
 -- or an assignment to undo.
 function attackAssignmentsDamageSync(spec)
     if resourceCardsPanelOpen~=nil and not resourceCardsPanelOpen() then return end
-    local lock=combatCommittedLock()
+    local lock=combatCommittedLock~=nil and combatCommittedLock() or nil
     if lock~=nil then
         -- Preserve red damage links but remove enemy and Unit click targets;
         -- their allocation was already resolved by the committed snapshot.
@@ -1149,7 +1149,8 @@ local function damageChanged()
 end
 
 local function damageAttackClicked(obj,playerColor,index,altClick)
-    if combatCommittedLock()~=nil or not resourceCardsPlayerCanEdit(playerColor) then return end
+    if (combatCommittedLock~=nil and combatCommittedLock()~=nil)
+        or not resourceCardsPlayerCanEdit(playerColor) then return end
 	local list=obj~=nil and damageSpec.byOwner[obj.guid] or nil
 	local attack=list~=nil and list[index] or nil
 	if attack==nil then return end
@@ -1179,7 +1180,8 @@ end
 -- Clicking a free Unit adds it to the attack in order; clicking one already on the attack returns its share to the Hero.
 function attackAssignmentDamageUnitClicked(unit,playerColor)
 	return safeCallback("attackAssignmentDamageUnitClicked",function()
-        if combatCommittedLock()~=nil or not resourceCardsPlayerCanEdit(playerColor) then return end
+        if (combatCommittedLock~=nil and combatCommittedLock()~=nil)
+        or not resourceCardsPlayerCanEdit(playerColor) then return end
 		if damagePending==nil or unit==nil or damagePending.color~=playerColor then return end
 		local key=damagePending.key
 		local list=damageTargets[key] or {}
@@ -1246,7 +1248,7 @@ function attackAssignmentsBegin(source,resource,playerColor,additional,sourceKey
 		or type(resource)~="string" or resource=="" or type(playerColor)~="string"
 		or Player[playerColor]==nil then return false end
 	sourceKey=sourceKey or source.guid
-    if combatCommittedSource(sourceKey) then return false end
+    if combatCommittedSource~=nil and combatCommittedSource(sourceKey) then return false end
 	local pending=targetingByPlayer[playerColor]
 	if pending~=nil and pending.sourceGUID==sourceKey and pending.resource==resource then
 		targetingByPlayer[playerColor]=nil
@@ -1495,7 +1497,7 @@ end
 
 -- Called by the Attack Assignment panel so both interfaces show the same single target.
 function attackAssignmentsSetSourceTarget(sourceGUID,targetGUID,kind)
-    if combatCommittedSource(sourceGUID) then return end
+    if combatCommittedSource~=nil and combatCommittedSource(sourceGUID) then return end
     if resourceCardsPanelOpen~=nil and not resourceCardsPanelOpen() then return end
 	local source,target=getObjectFromGUID(assignmentBaseGUID(sourceGUID)),getObjectFromGUID(targetGUID)
 	if source==nil or target==nil then return end
@@ -1534,7 +1536,7 @@ end
 -- Removes arrows of sources that still exist on the table but no longer offer that target
 -- (for example when a card's choice stops splitting its resources).
 function attackAssignmentsPruneInactive(activeKeys,activeObjects,keepsLock)
-    local lock=combatCommittedLock()
+    local lock=combatCommittedLock~=nil and combatCommittedLock() or nil
     if lock~=nil then
         for key in pairs(lock.sourceKeys or {}) do activeKeys[key]=true end
     end
@@ -1602,7 +1604,8 @@ end
 function attackAssignmentsPruneTargets(eligible)
     local changed=false
     for id,entry in pairs(assignmentRegistry) do
-        if eligible[entry.targetGUID]~=true and not combatCommittedSource(entry.sourceGUID) then
+        if eligible[entry.targetGUID]~=true and not
+            (combatCommittedSource~=nil and combatCommittedSource(entry.sourceGUID)) then
             local target=getObjectFromGUID(entry.targetGUID)
             local inTransit=target~=nil
                 and ((target.held_by_color~=nil and target.held_by_color~="")
@@ -1650,7 +1653,8 @@ end
 
 function attackAssignmentsRemove(id)
     local entry=assignmentRegistry[tostring(id)]
-    if entry~=nil and combatCommittedSource(entry.sourceGUID) then return false end
+    if entry~=nil and combatCommittedSource~=nil
+        and combatCommittedSource(entry.sourceGUID) then return false end
 	return removeAssignment(tostring(id))
 end
 
@@ -1660,7 +1664,7 @@ function attackAssignmentsClearForObject(objectOrGUID)
 	if guid==nil then return 0 end
 	local remove={}
 	for id,entry in pairs(assignmentRegistry) do
-        if not combatCommittedSource(entry.sourceGUID)
+        if not (combatCommittedSource~=nil and combatCommittedSource(entry.sourceGUID))
             and (assignmentKeyMatches(entry.sourceGUID,guid)
                 or entry.targetGUID==guid) then remove[#remove+1]=id end
 	end
@@ -1762,7 +1766,7 @@ function attackAssignmentsRestore()
 	for _,saved in ipairs(gStates~=nil and gStates.attackAssignments or {}) do
 		local source=getObjectFromGUID(assignmentBaseGUID(saved.sourceGUID))
 		local target=getObjectFromGUID(saved.targetGUID)
-        local lock=combatCommittedLock()
+        local lock=combatCommittedLock~=nil and combatCommittedLock() or nil
         local frozen=lock~=nil and (lock.positions or {})[saved.sourceGUID]~=nil
 		if (source~=nil or frozen) and target~=nil
 			and (monsterPugs[target.guid]~=nil or eligible[target.guid]~=nil)
