@@ -182,6 +182,43 @@ eq(earthquakeSpec.armourReduceFortified,6,"Printed Fortified still qualifies for
 entry={data={},perks={fortified=true}}
 stripSites({entry},{ignoreSiteFortifications=false})
 eq(fortificationCount(entry.data,entry.perks),1,"Without bypass site stays fortified")
+
+-- The real Ranged/Siege grouping must change along with Fortification counts.
+-- Stub only attack summation, keeping the production phase eligibility rules.
+local rangeResult=assert(load([[
+return function(count)
+    local combatEnemyFortificationCount=count
+    local function combatEnemyHasTrait(data,perks,key)
+        return data[key]==true or (perks~=nil and perks[key]==true)
+    end
+    local function combatAttackTotal(groups)
+        local total=0
+        for _,group in ipairs(groups) do
+            for _,source in ipairs(group.sources) do
+                total=total+(tonumber(source[group.category]) or 0)
+            end
+        end
+        return total
+    end
+]]..between(reader,"local function combatRangeResult(entry,sources)",
+    "-- Block cells hold block")..[[
+    return combatRangeResult
+end]]))()(fortificationCount)
+local attacks={{ranged=6,siege=4}}
+entry={data={},perks={fortified=true,wallFortified=true},baseArmour=5}
+local total,_,_,layers=rangeResult(entry,attacks)
+eq(layers,2,"A site behind a Wall is doubly fortified")
+eq(total,0,"Neither Ranged nor Siege can hit twice-fortified enemy")
+stripSites({entry},{ignoreSiteFortifications=true})
+total,_,_,layers=rangeResult(entry,attacks)
+eq(layers,0,"Underground Attack bypasses site and Wall")
+eq(total,10,"Ranged and Siege both work after bypass")
+entry={data={fortified=true},perks={fortified=true,wallFortified=true},baseArmour=5}
+stripSites({entry},{ignoreSiteFortifications=true})
+total,_,_,layers=rangeResult(entry,attacks)
+eq(layers,1,"Innate Fortification still applies")
+eq(total,4,"Only Siege works against printed Fortified")
+
 assert(reader:find("if resourceCardsIgnoreSiteFortification(rule,result,card) then",1,true),
     "Scanner must activate site bypass only when physically played")
 assert(reader:find("ignoreSiteFortifications=ignoreSiteFortifications",1,true),
