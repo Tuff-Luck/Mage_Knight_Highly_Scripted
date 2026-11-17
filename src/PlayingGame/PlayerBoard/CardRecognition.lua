@@ -2465,7 +2465,7 @@ function resourceCardsRequestCombatWounds(player)
     local color=player~=nil and player.color or nil
     if not resourceCardsPanelOpen() or not resourceCardsPlayerCanEdit(color)
         or combatConfig.woundApplying or combatConfig.woundTransactionPending then return end
-    if combatPhaseLock(combatAssignmentActiveSeat())~=nil then return end
+    if combatPhaseLock~=nil and combatPhaseLock(combatAssignmentActiveSeat())~=nil then return end
     local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
     if active==nil or active.seatPos==nil then return end
     local ledger=combatConfig.woundLedger(active.seatPos)
@@ -5575,7 +5575,8 @@ function resourceCardsRefreshCombatEnemies()
 end
 
 function resourceCardsCombatAssignSource(sourceGUID,enemyGUID)
-    if combatConfig.phaseKeyLocked(sourceGUID) then return end
+    if combatConfig.phaseKeyLocked~=nil
+        and combatConfig.phaseKeyLocked(sourceGUID) then return end
     if not resourceCardsCombatTargetAcceptsSource(sourceGUID,enemyGUID) then return end
     if gStates~=nil and combatAssignmentState.targets[sourceGUID]~=enemyGUID then
         if sourceGUID=="0688d8" then gStates.battleHardenedAttackKey=nil end
@@ -5701,7 +5702,7 @@ function resourceCardsCombatPage(delta)
 end
 
 function resourceCardsCombatCycleAttack(row,nextSource)
-    if combatPhaseLock(combatAssignmentActiveSeat())~=nil then return end
+    if combatPhaseLock~=nil and combatPhaseLock(combatAssignmentActiveSeat())~=nil then return end
     local guid=combatAssignmentRowTargets[row]
     local selector=combatAttackChoiceByRow[row]
     if guid==nil or selector==nil or #selector.options<2 then return end
@@ -5730,7 +5731,7 @@ end
 
 -- The first visible row can still join the preceding enemy on another page.
 function resourceCardsCombatToggleGroup(row)
-    if combatPhaseLock(combatAssignmentActiveSeat())~=nil then return end
+    if combatPhaseLock~=nil and combatPhaseLock(combatAssignmentActiveSeat())~=nil then return end
     local guid=combatAssignmentRowTargets[row]
     local index=combatAssignmentRowIndices[row]
     if guid==nil or index==nil or index<2 then return end
@@ -5756,7 +5757,8 @@ end
 
 -- Called when a targeting arrow is removed; the source re-locks to the nearest enemy on refresh.
 function resourceCardsCombatForgetSource(sourceGUID)
-    if combatConfig.phaseKeyLocked(sourceGUID) then return end
+    if combatConfig.phaseKeyLocked~=nil
+        and combatConfig.phaseKeyLocked(sourceGUID) then return end
     combatAssignmentState.targets[sourceGUID]=nil
     combatAssignmentState.explicit[sourceGUID]=nil
 end
@@ -5781,7 +5783,8 @@ end
 
 function resourceCardsCombatAssignmentClick(id,mouseButton)
     local lockedSource=combatAssignmentSlotSources[id]
-    if lockedSource~=nil and combatConfig.phaseKeyLocked(lockedSource) then return end
+    if lockedSource~=nil and combatConfig.phaseKeyLocked~=nil
+        and combatConfig.phaseKeyLocked(lockedSource) then return end
     if tostring(mouseButton)=="-2" and combatConfig.artifactCombat.bow then
         local key=combatAssignmentSlotSources[id]
         local family=combatConfig.slotBowFamilies[id]
@@ -5802,7 +5805,8 @@ function resourceCardsCombatAssignmentClick(id,mouseButton)
     if targetGUID==nil then return end
     local sourceGUID=combatAssignmentSlotSources[id]
     local moved=combatAssignmentState.selected
-    if moved~=nil and combatConfig.phaseKeyLocked(moved) then
+    if moved~=nil and combatConfig.phaseKeyLocked~=nil
+        and combatConfig.phaseKeyLocked(moved) then
         combatAssignmentState.selected=nil
         combatConfig.refreshSelectedSlots()
         return
@@ -6527,7 +6531,8 @@ end
 -- choices; selecting one immediately collapses back to its icon.
 local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySets,resources,repeatLink)
     if card==nil or combatConfig.cardInTransit(card) then return end
-    if combatConfig.phaseObjectLocked(card.guid) then
+    if combatConfig.phaseObjectLocked~=nil
+        and combatConfig.phaseObjectLocked(card.guid) then
         removeChoiceButtons(card)
         choiceButtonShown[card.guid]="hidden"
         choiceExpandedByGUID[card.guid]=nil
@@ -7196,7 +7201,8 @@ end
 -- This is intentionally independent of translated text position.
 local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decision,useIndex)
     if unit==nil then return end
-    if combatConfig.phaseObjectLocked(unit.guid) then
+    if combatConfig.phaseObjectLocked~=nil
+        and combatConfig.phaseObjectLocked(unit.guid) then
         removeChoiceButtons(unit)
         choiceButtonShown[unit.guid]="hidden"
         return
@@ -12225,7 +12231,8 @@ function resourceCardsChoiceClicked(player,value,id)
     if guid==nil then
         guid,category=id:match("^ResourceCardChoice_([0-9a-f]+)_([%w]+)$")
     end
-    if guid==nil or combatConfig.phaseObjectLocked(guid) then return end
+    if guid==nil or (combatConfig.phaseObjectLocked~=nil
+        and combatConfig.phaseObjectLocked(guid)) then return end
     setIndex=setIndex~=nil and tonumber(setIndex) or nil
     repeatIndex=repeatIndex~=nil and tonumber(repeatIndex) or nil
     if not resourceCardsDetailsOpen() then return end
