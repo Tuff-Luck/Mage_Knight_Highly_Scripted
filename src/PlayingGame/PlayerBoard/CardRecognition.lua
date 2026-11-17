@@ -3634,6 +3634,26 @@ local function combatAssignmentRefreshRows(entries,sources)
         end
     end
     local defeatFame,defeatRep=0,0
+    -- Joined boss attacks may defeat an ordinary enemy or one head without
+    -- defeating the whole group. Per-defeat bonuses count each actual kill,
+    -- never every level removed from a still-living boss.
+    local function defeatedCount(group,rangedOnly)
+        local count=0
+        for _,index in ipairs(group.members) do
+            local entry=entries[index]
+            if not entry.preview and not entry.attackOnly then
+                local dead
+                if group.bossSpecial then
+                    dead=entry.rangeDead==true or (not rangedOnly and
+                        (entry.attackDead==true or entry.attackPhaseDestroyed==true))
+                else
+                    dead=group.defeated and (not rangedOnly or group.rangeDefeated)
+                end
+                if dead then count=count+1 end
+            end
+        end
+        return count
+    end
     for _,group in ipairs(groups) do
         local members,blockedAll={},{}
         for _,index in ipairs(group.members) do
@@ -3968,19 +3988,17 @@ local function combatAssignmentRefreshRows(entries,sources)
             group.defeated=group.rangeDefeated or (plan~=nil and plan.full==true)
         end
         if group.destroyed then group.defeated,group.rangeDefeated=true,false end
-        if group.defeated and not group.destroyed then
-            local count=0
-            for _,index in ipairs(group.members) do
-                if not entries[index].preview then count=count+1 end
-            end
+        if (group.defeated or group.bossSpecial) and not group.destroyed then
+            local count=defeatedCount(group,false)
+            local rangedCount=defeatedCount(group,true)
             local counted={}
             for _,source in ipairs(group.sources) do
                 local spec=source.defeatFameRep
                 local availableInFinalPhase=woundedBeforeAttack[source.guid]~=true
                 if count>0 and spec~=nil and spec.scope==nil
                     and not counted[source.guid] and (
-                        (group.rangeDefeated and (source.ranged>0 or source.siege>0))
-                        or (not group.rangeDefeated and availableInFinalPhase)) then
+                        (rangedCount>0 and (source.ranged>0 or source.siege>0))
+                        or (count>rangedCount and availableInFinalPhase)) then
                     counted[source.guid]=true
                     local times=spec.once and 1 or count
                     defeatFame=defeatFame+(spec.fame or 0)*times
@@ -4042,17 +4060,13 @@ local function combatAssignmentRefreshRows(entries,sources)
     -- to the artifact itself being allocated as an Attack source.
     if combatConfig.artifactCombat.swordFame or combatConfig.artifactCombat.bowFame then
         for _,group in ipairs(groups) do
-            if group.defeated then
-                local count=0
-                for _,index in ipairs(group.members) do
-                    if not entries[index].preview then count=count+1 end
-                end
-                if combatConfig.artifactCombat.swordFame then
-                    defeatFame=defeatFame+count
-                end
-                if group.rangeDefeated and combatConfig.artifactCombat.bowFame then
-                    defeatFame=defeatFame+count
-                end
+            local count=defeatedCount(group,false)
+            local rangedCount=defeatedCount(group,true)
+            if combatConfig.artifactCombat.swordFame then
+                defeatFame=defeatFame+count
+            end
+            if combatConfig.artifactCombat.bowFame then
+                defeatFame=defeatFame+rangedCount
             end
         end
     end
@@ -4086,11 +4100,8 @@ local function combatAssignmentRefreshRows(entries,sources)
         if spec~=nil and spec.scope~=nil and not seenScope[source.guid] then
             seenScope[source.guid]=true
             for _,group in ipairs(groups) do
-                if group.defeated and (spec.scope=="all" or group.rangeDefeated) then
-                    local count=0
-                    for _,index in ipairs(group.members) do
-                        if not entries[index].preview then count=count+1 end
-                    end
+                local count=defeatedCount(group,spec.scope~="all")
+                if count>0 then
                     defeatFame=defeatFame+(spec.fame or 0)*count
                     defeatRep=defeatRep+(spec.rep or 0)*count
                 end
@@ -4185,7 +4196,8 @@ local function combatAssignmentRefreshRows(entries,sources)
                         reduced=rowBlock[index].wrongBlock[item.source.key..tostring(item.detail.key)]==true}
                 end
                 if item.detail.family~="block" and item.detail.family~="move" then
-                    local phase=combatDetailPhase(item.detail,group.rangeDefeated,group.fortification,item.source)
+                    local phase=combatDetailPhase(item.detail,
+                        group.rangeDefeated or group.rangeSpent,group.fortification,item.source)
                     -- Keep invalidated Attack-phase Unit icons visible so players
                     -- can see what was assigned, but make the unavailable value grey
                     -- and explain why it does not count. Earlier Ranged/Block stands.
