@@ -1851,9 +1851,11 @@ function combatDiscardParalyzedHand(seat)
     local pos=discard.getPosition()
     local x,y,z=pos.x or pos[1],pos.y or pos[2],pos.z or pos[3]
     local moved=0
+    local movedGUIDs={}
     for _,entry in ipairs(transfers) do
         if entry.object~=nil then
             entry.object.setPositionSmooth({x,y+2+0.07*(moved%5),z},false,false)
+            movedGUIDs[#movedGUIDs+1]=entry.object.guid
             moved=moved+1
         else
             for _,guid in ipairs(entry.guids) do
@@ -1864,11 +1866,12 @@ function combatDiscardParalyzedHand(seat)
                 if card==nil then
                     return false,"A stacked hand card could not be discarded",moved
                 end
+                movedGUIDs[#movedGUIDs+1]=card.guid
                 moved=moved+1
             end
         end
     end
-    return true,moved
+    return true,moved,movedGUIDs
 end
 
 -- Wound dealing helper
