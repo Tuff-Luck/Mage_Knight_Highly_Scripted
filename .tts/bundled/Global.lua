@@ -303,8 +303,7 @@ local expectedProtectedUICallbacks={
 	"proxyTurn","refillMonsterTokenPiles","removeTactic","restoreDestroyedSiteAtCurrentPlayer","shieldDrop",
 	"steadyTempoChoice","summonMonster","togglePlayerDropoutRequest","volkarePursuitAction","volkareTurn",
 	"coopCompSkillWarningClick","combatDefeatMarkerNoop","nightTactic6StoredCountNoop",
-	"resourceCardsRegenerationReadyClicked","resourceCardsArtifactNoteClicked",
-    "resourceCardsArtifactHealUnitsClicked"
+	"resourceCardsRegenerationReadyClicked","resourceCardsArtifactHealUnitsClicked"
 }
 
 validatePublicUICallbacks=function()
@@ -941,6 +940,26 @@ local function protectedObjectDestroyAudit(guid)
 		log("PROTECTED OBJECT MISSING: "..kind.." ["..guid.."] in scenario "..tostring(gStates.gameScenario)
 			..", round "..tostring(gStates.currentRound)..", turn "..tostring(gStates.turnNumber)
 			..". Check unexpected script destruction/container cleanup.")
+		-- A vanished turn-order token is especially serious. Report its destroy
+		-- callback independently from any later tactic-sort lookup failure.
+		if kind=="Round Order token" and reportAutomaticLuaDiagnostic~=nil then
+			local owner="unknown"
+			for index,details in pairs(turnOrder or {}) do
+				if type(details)=="table" and details.turnOrderTokenGUID==guid then
+					owner="index="..tostring(index).." seat="..tostring(details.seatPos)
+						.." mage="..tostring(details.mage).." tactic="..tostring(details.tactic)
+					break
+				end
+			end
+			reportAutomaticLuaDiagnostic("protectedObjectDestroyAudit",
+				"Round Order token disappeared after destroy callback GUID="..tostring(guid),
+				"Owner at destroy audit: "..owner
+					.."\nScenario="..tostring(gStates.gameScenario)
+					.." round="..tostring(gStates.currentRound)
+					.." turn="..tostring(gStates.turnNumber)
+					.."\nProtected removal permit: none"
+					.."\nLookup after 2 frames: NOT FOUND")
+		end
 	end,2)
 end
 
@@ -4087,7 +4106,10 @@ local function mainUIRefreshPlayerState(context)
 				if gStates.gainList[obj.guid]==nil then
 					--record token orientation and do the math if face up.
 					gStates.gainList[obj.guid]={exists=true, siteRepLoss=0, keepHalfFame=false}
-					if combatEnemyTokenDefeated(obj) then
+					local dragonPerks=gStates.monsterPerks[obj.guid]
+					gStates.gainList[obj.guid].dragonCustomFame=dragonPerks~=nil
+						and (dragonPerks.dragonAirborne==true or dragonPerks.dragonGround==true)
+					if combatEnemyTokenDefeated(obj) or combatBossPartialRewardEligible(obj.guid) then
 						gStates.gainList[obj.guid].tokenDirection=1
 						doMath=true
 					else
@@ -4135,6 +4157,7 @@ local function mainUIRefreshPlayerState(context)
 				end
 				--existing token found, but it has been flipped
 				local defeatedNow=combatEnemyTokenDefeated(obj)
+					or combatBossPartialRewardEligible(obj.guid)
 				if (defeatedNow and gStates.gainList[obj.guid].tokenDirection==-1)
 				or (not defeatedNow and gStates.gainList[obj.guid].tokenDirection==1) then
 					gStates.gainList[obj.guid].tokenDirection=gStates.gainList[obj.guid].tokenDirection*-1
@@ -4237,14 +4260,17 @@ local function mainUIRefreshPlayerState(context)
 						turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain-math.ceil(monsterPugs[a].fame/2)
 					else
 						local multiple=1
-						if a==darkCrusader.token or a==elementalist.token then multiple=gStates.leaderOverkill end
+						if a==darkCrusader.token or a==elementalist.token then
+							multiple=b.overkill or gStates.leaderOverkill
+						end
 						if gStates.druidNightsSummon~=nil then multiple=2 end
 						local perks=0
 						if gStates.monsterPerks[a]~=nil and gStates.monsterPerks[a].fame~=nil then perks=gStates.monsterPerks[a].fame end
 						local questFame=monsterPugs[a].fame+perks
 						--Dragon rewards are owned by their custom combat tracker. Mirror the add-side suppression
 						--here so removing a Dragon head cannot subtract ordinary monster Fame behind its back.
-						if gStates.monsterPerks[a]~=nil and (gStates.monsterPerks[a].dragonAirborne==true or gStates.monsterPerks[a].dragonGround==true) then questFame=0 end
+						if b.dragonCustomFame==true or
+							(gStates.monsterPerks[a]~=nil and (gStates.monsterPerks[a].dragonAirborne==true or gStates.monsterPerks[a].dragonGround==true)) then questFame=0 end
 						if gStates.monsterPerks[a]~=nil and gStates.monsterPerks[a].questHalfFame==true then questFame=math.ceil(questFame/2) end
 						turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain-(questFame*multiple)
 					end
@@ -5621,10 +5647,16 @@ function resourceTracker(player, mouseButton, id)
             end
             return
 		end
+        -- Confirmation belongs to the currently authorised player. Cancel
+        -- also works if the tracker was collapsed after the dialog opened.
+        if id=="CombatDamageConfirmApply" or id=="CombatDamageConfirmCancel" then
+            resourceCardsConfirmCombatWounds(player,id)
+            return
+        end
         -- Stale hidden XML controls cannot revive calculations while OFF.
         if not resourceCardsPanelOpen() then return end
         if id=="CombatApplyWounds" then
-            resourceCardsApplyCombatWounds(player)
+            resourceCardsRequestCombatWounds(player)
             return
         end
 		if id:match("^CombatSourceSlot")~=nil then
@@ -8296,7 +8328,7 @@ function volkareTurn(player, mouseButton, id)
 	if mouseButton~="-1" or gStates.positionMageKnight[5]~="Volkare" then return end
 	if gStates.tacticShown==true then
 		automatedTurnRewindStart(function()
-			automatedPlayerRandomTactic()
+			if automatedPlayerRandomTactic()~=true then automatedTurnRewindRelease() return end
 			gStates.volkareState="Start"
 			gStates.volkareAttacked={}
 			nextTurnMerged("incrementTurn")
@@ -8840,10 +8872,11 @@ function volkareTurn(player, mouseButton, id)
 				if id=="VolkareAttackedPartial" then
 					for _, playAreaObj in pairs(getObjectFromGUID(playerPlayAreas[mageDetails.seatPos]).getObjects()) do
 						if monsterPugs[playAreaObj.guid]~=nil then
-							if playAreaObj.is_face_down==true then
-								--returns undefeated monsters.
-								playAreaObj.setRotationSmooth({0, 180, 0})
-								playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid])
+							-- The calculator can leave surviving and defeated enemies face up.
+							-- Only its defeat state (or the manual face-up convention) decides which return.
+							if combatEnemyTokenDefeated(playAreaObj)~=true then
+								playAreaObj.setRotationSmooth({0, 180, 0},false,false)
+								playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid],false,false)
 							else
 								--mark city monsters defeated
 								if gStates.cityMonsterQty[volkare.model][playAreaObj.guid]~=nil then
@@ -9093,7 +9126,7 @@ function dummyTurn(player, mouseButton, id)
 	if mouseButton~="-1" or gStates.positionMageKnight[5]=="Volkare" or proxyPlayerIsActive()==true then return end
 	if gStates.tacticShown==true then
 		automatedTurnRewindStart(function()
-			automatedPlayerRandomTactic()
+			if automatedPlayerRandomTactic()~=true then automatedTurnRewindRelease() return end
 			nextTurnMerged("incrementTurn")
 			automatedTacticRewindRelease()
 		end)
@@ -9691,14 +9724,17 @@ function proxyTurnReportBegin(objective,colors,baseMove,shieldMove,sourceMove)
 		moved=0,
 		action=nil,
 		reason=nil,
-		target=nil
+		target=nil,
+		reachedTarget=false
 	}
 end
 
 function proxyTurnReportSetTarget(target)
 	local report=gStates.proxyTurnReport
 	if report==nil or target==nil then return end
-	report.target=proxyTargetDisplayName(target)
+	local name=proxyTargetDisplayName(target)
+	if report.target~=name then report.reachedTarget=false end
+	report.target=name
 	report.reason=target.proxyReason or report.reason
 	if (target.proxyChoiceCount or 0)>1 then
 		report.choiceCount=target.proxyChoiceCount
@@ -9791,6 +9827,7 @@ function proxyLocalizedAction(action)
 		["could not restore the selected route"]="{en}could not restore the selected route{it}impossibile ripristinare il percorso scelto{ru}не смог восстановить выбранный маршрут{zh-tw}無法恢復所選路線{zh-cn}无法恢复所选路线{ko}선택한 경로를 복원하지 못했습니다{es}no pudo restaurar la ruta seleccionada{fr}n’a pas pu restaurer l’itinéraire sélectionné{pt-br}não conseguiu restaurar a rota selecionada{de}konnte die ausgewählte Route nicht wiederherstellen",
 		["could not restore the selected destination"]="{en}could not restore the selected destination{it}impossibile ripristinare la destinazione scelta{ru}не смог восстановить выбранное место назначения{zh-tw}無法恢復所選目的地{zh-cn}无法恢复所选目的地{ko}선택한 목적지를 복원하지 못했습니다{es}no pudo restaurar el destino seleccionado{fr}n’a pas pu restaurer la destination sélectionnée{pt-br}não conseguiu restaurar o destino selecionado{de}konnte das ausgewählte Ziel nicht wiederherstellen",
 		["conquered the City"]="{en}conquered the City{it}ha conquistato la Città{ru}покорил Город{zh-tw}征服了城市{zh-cn}征服了城市{ko}도시를 정복했습니다{es}conquistó la Ciudad{fr}a conquis la Cité{pt-br}conquistou a Cidade{de}hat die Stadt erobert",
+		["conquered it"]="{en}conquered it{it}l’ha conquistato{ru}покорил его{zh-tw}征服了該地點{zh-cn}征服了该地点{ko}그곳을 정복했습니다{es}lo conquistó{fr}l’a conquis{pt-br}conquistou o local{de}eroberte das Ziel",
 		["could not find the selected offer card"]="{en}could not find the selected offer card{it}non ha trovato la carta scelta nell'offerta{ru}не смог найти выбранную карту предложения{zh-tw}找不到所選供應牌{zh-cn}找不到所选供应牌{ko}선택한 제안 카드를 찾지 못했습니다{es}no pudo encontrar la carta seleccionada de la oferta{fr}n’a pas pu trouver la carte sélectionnée dans l’offre{pt-br}não conseguiu encontrar a carta selecionada da oferta{de}konnte die ausgewählte Angebotskarte nicht finden",
 		["found no legal card to take at the interaction site"]="{en}found no legal card to take at the interaction site{it}non ha trovato carte valide da prendere nel sito d'interazione{ru}не нашёл допустимой карты для получения в месте взаимодействия{zh-tw}在互動地點找不到可合法取得的牌{zh-cn}在互动地点找不到可合法取得的牌{ko}상호작용 장소에서 가져갈 수 있는 합법적인 카드를 찾지 못했습니다{es}no encontró ninguna carta legal para tomar en el lugar de interacción{fr}n’a trouvé aucune carte légale à prendre sur le site d’interaction{pt-br}não encontrou nenhuma carta válida para pegar no local de interação{de}fand am Interaktionsort keine gültige Karte zum Nehmen",
 		["explored a predefined tile"]="{en}explored a predefined tile{it}ha esplorato una tessera predefinita{ru}исследовал предопределённую плитку{zh-tw}探索了一個預設板塊{zh-cn}探索了一个预设板块{ko}미리 정해진 타일을 탐험했습니다{es}exploró una loseta predefinida{fr}a exploré une tuile prédéfinie{pt-br}explorou uma peça predefinida{de}hat ein vordefiniertes Plättchen erkundet",
@@ -9824,26 +9861,59 @@ function proxyTurnReportText(section)
 	if report==nil then return "{en}Proxy processing is complete.{it}Elaborazione Proxy completata.{ru}Обработка Прокси завершена.{zh-tw}代理玩家處理完成。{zh-cn}代理玩家处理完成。{ko}프록시 처리가 완료되었습니다.{es}El procesamiento del Proxy ha terminado.{fr}Le traitement du Proxy est terminé.{pt-br}O processamento do Proxy foi concluído.{de}Die Proxy-Verarbeitung ist abgeschlossen." end
 	local moved=report.moved or 0
 	local action=report.action
-	local first
+	-- Earlier saves recorded an unfinished move as the *action*, causing
+	-- "moved N spaces and moved toward..." in the report. The selected
+	-- target is movement context, not an extra action.
+	local oldUnreached=type(action)=="string" and action:match("^moved toward the (.+)\nbut did not reach it$") or nil
+	if oldUnreached~=nil then action=nil end
+	local targetName=report.target or oldUnreached
+	local target=targetName~=nil and proxyLocalizedTerm(targetName) or nil
 	local active=gStates.proxyState=="Processing" or gStates.proxyState=="PickDestination" or gStates.proxyState=="PickRoute" or gStates.proxyState=="PickCard" or gStates.proxyState=="PickEnemy" or gStates.proxyState=="PickMana"
-	local target=proxyLocalizedTerm(report.target)
-	if action==nil or action=="" then
-		if report.target~=nil then
-			if active==true then first=joinLang({"{en}Proxy moved toward the {it}Il Proxy si è mosso verso {ru}Прокси переместился к {zh-tw}代理玩家朝 {zh-cn}代理玩家朝 {ko}프록시가 다음 목표로 이동했습니다: {es}El Proxy se movió hacia {fr}Le Proxy s’est déplacé vers {pt-br}O Proxy moveu-se em direção a {de}Der Proxy bewegte sich in Richtung ",target,"."})
-			elseif moved<=0 then first=joinLang({"{en}Proxy did not move toward the {it}Il Proxy non si è mosso verso {ru}Прокси не двигался к {zh-tw}代理玩家沒有朝 {zh-cn}代理玩家没有朝 {ko}프록시는 다음 목표로 이동하지 않았습니다: {es}El Proxy no se movió hacia {fr}Le Proxy ne s’est pas déplacé vers {pt-br}O Proxy não se moveu em direção a {de}Der Proxy bewegte sich nicht in Richtung ",target,"."})
-			elseif moved==1 then first=joinLang({"{en}Proxy moved 1 space toward the {it}Il Proxy si è mosso di 1 spazio verso {ru}Прокси переместился на 1 клетку к {zh-tw}代理玩家朝 {zh-cn}代理玩家朝 {ko}프록시가 다음 목표로 1칸 이동했습니다: {es}El Proxy se movió 1 espacio hacia {fr}Le Proxy s’est déplacé d’une case vers {pt-br}O Proxy moveu-se 1 espaço em direção a {de}Der Proxy bewegte sich 1 Feld in Richtung ",target,"."})
-			else first=joinLang({"{en}Proxy moved {it}Il Proxy si è mosso di {ru}Прокси переместился на {zh-tw}代理玩家移動了 {zh-cn}代理玩家移动了 {ko}프록시가 {es}El Proxy se movió {fr}Le Proxy s’est déplacé de {pt-br}O Proxy moveu-se {de}Der Proxy bewegte sich ",tostring(moved),"{en} spaces toward the {it} spazi verso {ru} клетки к {zh-tw} 格，朝向 {zh-cn} 格，朝向 {ko}칸 이동했습니다: {es} espacios hacia {fr} cases vers {pt-br} espaços em direção a {de} Felder in Richtung ",target,"."}) end
+	local destination=nil
+	if target~=nil then
+		if report.reachedTarget==true and oldUnreached==nil then
+			destination=joinLang({"{en} to the {it} fino a {ru} к {zh-tw}，抵達 {zh-cn}，抵达 {ko}에 도착: {es} hasta {fr} jusqu’à {pt-br} até {de} bis zu ",target})
 		else
-			if active==true then first="{en}Proxy is preparing their movement.{it}Il Proxy prepara il movimento.{ru}Прокси готовится к движению.{zh-tw}代理玩家正在準備移動。{zh-cn}代理玩家正在准备移动。{ko}프록시가 이동을 준비하고 있습니다.{es}El Proxy prepara su movimiento.{fr}Le Proxy prépare son déplacement.{pt-br}O Proxy está preparando seu movimento.{de}Der Proxy bereitet seine Bewegung vor."
-			elseif moved<=0 then first="{en}Proxy completed their movement.{it}Il Proxy ha completato il movimento.{ru}Прокси завершил движение.{zh-tw}代理玩家完成移動。{zh-cn}代理玩家完成移动。{ko}프록시가 이동을 완료했습니다.{es}El Proxy completó su movimiento.{fr}Le Proxy a terminé son déplacement.{pt-br}O Proxy concluiu seu movimento.{de}Der Proxy hat seine Bewegung abgeschlossen."
-			elseif moved==1 then first="{en}Proxy moved 1 space.{it}Il Proxy si è mosso di 1 spazio.{ru}Прокси переместился на 1 клетку.{zh-tw}代理玩家移動了 1 格。{zh-cn}代理玩家移动了 1 格。{ko}프록시가 1칸 이동했습니다.{es}El Proxy se movió 1 espacio.{fr}Le Proxy s’est déplacé d’une case.{pt-br}O Proxy moveu-se 1 espaço.{de}Der Proxy bewegte sich 1 Feld."
-			else first=joinLang({"{en}Proxy moved {it}Il Proxy si è mosso di {ru}Прокси переместился на {zh-tw}代理玩家移動了 {zh-cn}代理玩家移动了 {ko}프록시가 {es}El Proxy se movió {fr}Le Proxy s’est déplacé de {pt-br}O Proxy moveu-se {de}Der Proxy bewegte sich ",tostring(moved),"{en} spaces.{it} spazi.{ru} клетки.{zh-tw} 格。{zh-cn} 格。{ko}칸 이동했습니다.{es} espacios.{fr} cases.{pt-br} espaços.{de} Felder."}) end
+			destination=joinLang({"{en} toward the {it} verso {ru} к {zh-tw}，朝向 {zh-cn}，朝向 {ko} 방향으로: {es} hacia {fr} vers {pt-br} em direção a {de} in Richtung ",target})
+		end
+	end
+	local first
+	-- The same movement clause is shared by ordinary actions, route
+	-- exhaustion and Source rerolls, so none of them repeats "moved".
+	local movement
+	if moved==1 then
+		movement="{en}Proxy moved 1 space{it}Il Proxy si è mosso di 1 spazio{ru}Прокси переместился на 1 клетку{zh-tw}代理玩家移動 1 格{zh-cn}代理玩家移动 1 格{ko}프록시가 1칸 이동했습니다{es}El Proxy se movió 1 espacio{fr}Le Proxy s’est déplacé d’une case{pt-br}O Proxy moveu-se 1 espaço{de}Der Proxy bewegte sich 1 Feld"
+	elseif moved>1 then
+		movement=joinLang({"{en}Proxy moved {it}Il Proxy si è mosso di {ru}Прокси переместился на {zh-tw}代理玩家移動 {zh-cn}代理玩家移动 {ko}프록시가 {es}El Proxy se movió {fr}Le Proxy s’est déplacé de {pt-br}O Proxy moveu-se {de}Der Proxy bewegte sich ",tostring(moved),"{en} spaces{it} spazi{ru} клетки{zh-tw} 格{zh-cn} 格{ko}칸 이동했습니다{es} espacios{fr} cases{pt-br} espaços{de} Felder"})
+	end
+	local period="{en}.{it}.{ru}.{zh-tw}。{zh-cn}。{ko}.{es}.{fr}.{pt-br}.{de}."
+	if action==nil or action=="" then
+		if active==true then
+			if target~=nil then first=joinLang({"{en}Proxy moved toward the {it}Il Proxy si è mosso verso {ru}Прокси переместился к {zh-tw}代理玩家朝 {zh-cn}代理玩家朝 {ko}프록시가 다음 목표로 이동했습니다: {es}El Proxy se movió hacia {fr}Le Proxy s’est déplacé vers {pt-br}O Proxy moveu-se em direção a {de}Der Proxy bewegte sich in Richtung ",target,period})
+			else first="{en}Proxy is preparing their movement.{it}Il Proxy prepara il movimento.{ru}Прокси готовится к движению.{zh-tw}代理玩家正在準備移動。{zh-cn}代理玩家正在准备移动。{ko}프록시가 이동을 준비하고 있습니다.{es}El Proxy prepara su movimiento.{fr}Le Proxy prépare son déplacement.{pt-br}O Proxy está preparando seu movimento.{de}Der Proxy bereitet seine Bewegung vor." end
+		elseif moved<=0 then
+			if target~=nil then first=joinLang({"{en}Proxy did not move toward the {it}Il Proxy non si è mosso verso {ru}Прокси не двигался к {zh-tw}代理玩家沒有朝 {zh-cn}代理玩家没有朝 {ko}프록시는 다음 목표로 이동하지 않았습니다: {es}El Proxy no se movió hacia {fr}Le Proxy ne s’est pas déplacé vers {pt-br}O Proxy não se moveu em direção a {de}Der Proxy bewegte sich nicht in Richtung ",target,period})
+			else first="{en}Proxy completed their movement.{it}Il Proxy ha completato il movimento.{ru}Прокси завершил движение.{zh-tw}代理玩家完成移動。{zh-cn}代理玩家完成移动。{ko}프록시가 이동을 완료했습니다.{es}El Proxy completó su movimiento.{fr}Le Proxy a terminé son déplacement.{pt-br}O Proxy concluiu seu movimento.{de}Der Proxy hat seine Bewegung abgeschlossen." end
+		else
+			first=joinLang({movement,destination or "",period})
 		end
 	else
 		local localizedAction=proxyLocalizedAction(action)
-		if moved<=0 then first=joinLang({"{en}Proxy {it}Il Proxy {ru}Прокси {zh-tw}代理玩家{zh-cn}代理玩家{ko}프록시가 {es}El Proxy {fr}Le Proxy {pt-br}O Proxy {de}Der Proxy ",localizedAction,"."})
-		elseif moved==1 then first=joinLang({"{en}Proxy moved 1 space and\n{it}Il Proxy si è mosso di 1 spazio e\n{ru}Прокси переместился на 1 клетку и\n{zh-tw}代理玩家移動 1 格並\n{zh-cn}代理玩家移动 1 格并\n{ko}프록시가 1칸 이동하고\n{es}El Proxy se movió 1 espacio y\n{fr}Le Proxy s’est déplacé d’une case et\n{pt-br}O Proxy moveu-se 1 espaço e\n{de}Der Proxy bewegte sich 1 Feld und\n",localizedAction,"."})
-		else first=joinLang({"{en}Proxy moved {it}Il Proxy si è mosso di {ru}Прокси переместился на {zh-tw}代理玩家移動 {zh-cn}代理玩家移动 {ko}프록시가 {es}El Proxy se movió {fr}Le Proxy s’est déplacé de {pt-br}O Proxy moveu-se {de}Der Proxy bewegte sich ",tostring(moved),"{en} spaces and\n{it} spazi e\n{ru} клетки и\n{zh-tw} 格並\n{zh-cn} 格并\n{ko}칸 이동하고\n{es} espacios y\n{fr} cases et\n{pt-br} espaços e\n{de} Felder und\n",localizedAction,"."}) end
+		--When the same site was reached and conquered, refer back to the destination
+		--rather than repeating its name in the movement sentence.
+		if moved>0 and report.reachedTarget==true and targetName~=nil and action=="conquered the "..targetName then
+			localizedAction=proxyLocalizedAction("conquered it")
+		end
+		if moved<=0 then
+			first=joinLang({"{en}Proxy {it}Il Proxy {ru}Прокси {zh-tw}代理玩家{zh-cn}代理玩家{ko}프록시가 {es}El Proxy {fr}Le Proxy {pt-br}O Proxy {de}Der Proxy ",localizedAction,period})
+		else
+			-- With a Source reroll there are three clauses, so do not use
+			-- "and" before the action and again before the die roll.
+			local connector=report.sourceRerollColor~=nil
+				and "{en}, {it}, {ru}, {zh-tw}， {zh-cn}， {ko}, {es}, {fr}, {pt-br}, {de}, "
+				or "{en} and {it} e {ru} и {zh-tw} 並 {zh-cn} 并 {ko} 그리고 {es} y {fr} et {pt-br} e {de} und "
+			first=joinLang({movement,destination or "",connector,localizedAction,period})
+		end
 	end
 
 	-- The Source reroll belongs to the movement sentence, not to the
@@ -11217,6 +11287,14 @@ function proxyResolveBurn(hex,mapObjects)
 end
 
 function proxyResolveArrival(target,hazard,lastSafe,hexes,mapObjects,proxyIndex)
+	-- Arrival is independent of the action: a rampaging enemy can interrupt
+	-- the route, while a site action can be resolved after reaching the site.
+	if gStates.proxyTurnReport~=nil then
+		local avatar=proxyAvatarObject()
+		local current=avatar~=nil and runtimeMapHexForPosition(hexes,avatar.getPosition(),mapObjects) or nil
+		gStates.proxyTurnReport.reachedTarget=target~=nil and target.hex~=nil and current~=nil
+			and runtimeMapHexKey(current)==runtimeMapHexKey(target.hex)
+	end
 	local completed=true
 	if hazard~=nil then
 		if hazard.action=="rampager" then completed=proxyResolveRampager(hazard,mapObjects)
@@ -11298,7 +11376,8 @@ function proxyAnimateRoute(route,index,target,hazard,lastSafe,hexes,mapObjects,p
 		local current=runtimeMapHexForPosition(hexes,avatar.getPosition(),mapObjects)
 		if hazard~=nil or (target~=nil and current~=nil and runtimeMapHexKey(current)==runtimeMapHexKey(target.hex)) then proxyResolveArrival(target,hazard,lastSafe,hexes,mapObjects,proxyIndex)
 		else
-			if gStates.proxyTurnReport~=nil and gStates.proxyTurnReport.action==nil then proxyTurnReportSetAction("moved toward the "..proxyTargetDisplayName(target).."\nbut did not reach it") end
+			-- The report already knows the target and moved spaces; no
+			-- synthetic "did not reach" action is needed.
 			proxyFinishTurn(hexes,mapObjects,proxyIndex)
 		end
 		return
@@ -11438,7 +11517,7 @@ function proxyTurn(player,mouseButton,id)
 	if mouseButton~="-1" or proxyPlayerIsActive()~=true then return end
 	if gStates.tacticShown==true then
 		automatedTurnRewindStart(function()
-			automatedPlayerRandomTactic()
+			if automatedPlayerRandomTactic()~=true then automatedTurnRewindRelease() return end
 			gStates.proxyState="Start"
 			nextTurnMerged("incrementTurn")
 			automatedTacticRewindRelease()
@@ -11543,21 +11622,40 @@ end
 
 --Dummy and Volkare both use the center random-Tactic button, but their actual turns are processed separately.
 function automatedPlayerRandomTactic()
-	local dummyTactic=nil
-	local claimedCard=nil
-	while dummyTactic==nil do
-		dummyTactic=math.random(1,6)
-		for _, obj in pairs(getObjectFromGUID(tacticZones[dummyTactic]).getObjects()) do
-			if isTacticCard(obj) then claimedCard=obj break end
+	local currentPlayer=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+	local board=getObjectFromGUID(dummyBoard)
+	if currentPlayer==nil or board==nil then
+		broadcastToAll("Automatic tactic selection could not proceed: automated player or board is missing.",warningColor)
+		return false
+	end
+	--Sample only the physical tactics still in their zones. A missing zone must
+	--not cause a nil-object error, and an empty offer must not retry forever.
+	local available={}
+	for tactic=1,6 do
+		local zoneGUID=tacticZones~=nil and tacticZones[tactic] or nil
+		local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
+		if zone~=nil then
+			for _,obj in pairs(zone.getObjects()) do
+				if isTacticCard(obj) then
+					available[#available+1]={number=tactic,card=obj}
+					break
+				end
+			end
 		end
-		if claimedCard==nil then dummyTactic=nil end
 	end
+	if #available==0 then
+		broadcastToAll("Automatic tactic selection could not proceed: no available tactic cards were found.",warningColor)
+		return false
+	end
+	local selected=available[math.random(1,#available)]
+	local dummyTactic=selected.number
+	local claimedCard=selected.card
 	broadcastToAll(joinLang({gStates.positionMageKnight[5]=="Volkare" and "{en}Volkare RANDOMLY gained Tactic for {it}Volkare ha ottenuto CASUALMENTE la Tattica per {ru}Волкар получает СЛУЧАЙНУЮ Тактику для {zh-tw}沃卡里隨機選取戰術給{zh-cn}沃卡里随机选取战术给{ko}볼케어가 무작위 전략을 가져갑니다: {es}Volkare ganó ALEATORIAMENTE Táctica para {fr}Volkare a gagné au hasard une Tactique pour {pt-br}Volkare ALEATORIAMENTE ganhou a Tática por {de}Volkare hat ZUFÄLLIG eine Taktik für " or (proxyPlayerIsActive()==true and "{en}Proxy RANDOMLY gained Tactic for {it}Il Proxy ha ottenuto CASUALMENTE la Tattica per {ru}Прокси получает СЛУЧАЙНУЮ Тактику для {zh-tw}代理玩家隨機選取戰術給{zh-cn}代理玩家随机选取战术给{ko}프록시가 무작위 전략을 가져갑니다: {es}Proxy ganó ALEATORIAMENTE Táctica para {fr}Le Proxy a gagné au hasard une Tactique pour {pt-br}Proxy ALEATORIAMENTE ganhou a Tática por {de}Proxy hat ZUFÄLLIG eine Taktik für " or "{en}Dummy RANDOMLY gained Tactic for {it}Il Fittizio ha ottenuto CASUALMENTE la Tattica per {ru}Виртуальный игрок получает СЛУЧАЙНУЮ Тактику для {zh-cn}虚拟玩家随机选取战术给{ko}가상 플레이어가 무작위의 전략 카드를 가져갑니다: {es}Dummy ganada ALEATORIAMENTE Táctica para {fr}Le mannequin a gagné au hasard une Tactique pour {pt-br}Jog. Fictício ALEATORIAMENTE ganhou a Tática por {de}Dummy hat ZUFÄLLIG eine Taktik für {zh-tw}虛擬玩家隨機選取戰術給"), translateWord[turnOrder[gStates.turnNumber].mage]}), positionToColor(gStates.turnNumber))
-	if claimedCard~=nil then
-		claimedCard.unlock()
-		claimedCard.setPositionSmooth({getObjectFromGUID(dummyBoard).getPosition()[1], 3.0, getObjectFromGUID(dummyBoard).getPosition()[3]-5.17})
-	end
-	turnOrder[gStates.turnNumber].tactic=dummyTactic
+	claimedCard.unlock()
+	local boardPosition=board.getPosition()
+	claimedCard.setPositionSmooth({boardPosition[1],3.0,boardPosition[3]-5.17},false,false)
+	currentPlayer.tactic=dummyTactic
+	return true
 end
 
 --Draw from an automated player's Deed pile without ever calling takeObject on a Deck after it collapses to its final Card.
@@ -14879,7 +14977,8 @@ end
 apocalypseDragonGroundReduction=function(headName)
 	local combat=gStates~=nil and gStates.apocalypseDragonGroundCombat or nil
 	if combat==nil or combat.reductions==nil then return 1 end
-	return math.max(1,math.floor(tonumber(combat.reductions[headName]) or 1))
+	-- An explicit zero is different from an unset manual dial.
+	return math.max(0,math.floor(tonumber(combat.reductions[headName]) or 1))
 end
 
 apocalypseDragonGroundControlGUIDs=function()
@@ -14943,7 +15042,7 @@ function apocalypseDragonRefreshGroundAttackSuppression()
 end
 
 apocalypseDragonGroundReductionAdjust=function(player,mouseButton,id)
-	if mouseButton~="-1" then return end
+	if mouseButton~="-1" and mouseButton~="-2" then return end
 	local guid=tostring(id or ""):sub(1,6)
 	local active,headName=apocalypseDragonGroundHeadToken(guid)
 	local combat=gStates~=nil and gStates.apocalypseDragonGroundCombat or nil
@@ -14954,19 +15053,30 @@ apocalypseDragonGroundReductionAdjust=function(player,mouseButton,id)
 	local color=player~=nil and player.color or nil
 	local allowed=positionToColor(owner)
 	if color~="Black" and color~=allowed then return end
+	local automatic=combatBossAutomationActive~=nil and combatBossAutomationActive()
+	if mouseButton=="-2" then
+		-- Right-click either arrow to return to Auto.
+		if automatic and combatBossSetManual~=nil then combatBossSetManual(guid,nil) end
+		return
+	end
 	local current=tonumber(gStates.apocalypseDragonHeadLevels~=nil and gStates.apocalypseDragonHeadLevels[headName] or 0) or 0
 	if current<1 then return end
-	local value=apocalypseDragonGroundReduction(headName)
+	local minimum=automatic and 0 or 1
+	local value=math.max(minimum,apocalypseDragonGroundReduction(headName))
 	if id:find("GroundOverkillUp",1,true)~=nil and value<current then value=value+1 end
-	if id:find("GroundOverkillDown",1,true)~=nil and value>1 then value=value-1 end
+	if id:find("GroundOverkillDown",1,true)~=nil and value>minimum then value=value-1 end
 	local reductions=combat.reductions or {}
 	combat.reductions=reductions
 	reductions[headName]=value
 	local token=getObjectFromGUID(guid)
 	if token~=nil then token.UI.setAttribute(guid.."GroundOverkill","text",tostring(value)) end
 	apocalypseDragonRefreshGroundAttackSuppression()
-	apocalypseDragonRefreshGroundFameGain(owner)
-	mainUIUpdate("Dragon Head Reduction")
+	if automatic and combatBossSetManual~=nil then
+		combatBossSetManual(guid,value)
+	else
+		apocalypseDragonRefreshGroundFameGain(owner)
+		mainUIUpdate("Dragon Head Reduction")
+	end
 end
 
 function apocalypseDragonGroundHeadButtons(obj)
@@ -14990,7 +15100,10 @@ apocalypseDragonGroundPrepareColoredHead=function(combat,headName,playerIndex)
 	if token==nil then return false end
 	combat.deployed[headName]=true
 	combat.headOwners[headName]=playerIndex
-	combat.reductions[headName]=1
+	-- In an open calculator, unreached heads begin at zero rather than
+	-- displaying one unearned level/Fame before resource scanning.
+	combat.reductions[headName]=resourceCardsPanelOpen~=nil
+		and resourceCardsPanelOpen() and 0 or 1
 	local printed=apocalypseDragonMonsterData(headName,level)
 	if printed~=nil then
 		printed.fame=1
@@ -19257,7 +19370,7 @@ function volkarePursuitResolveCombat(playerIndex)
 	if combat==nil or combat.player~=playerIndex then return end
 	local success=false
 	for _,obj in pairs(playerCombatObjects(turnOrder[playerIndex].seatPos)) do
-		if combat.monsters~=nil and combat.monsters[obj.guid]==true and obj.is_face_down==false then success=true break end
+		if combat.monsters~=nil and combat.monsters[obj.guid]==true and combatEnemyTokenDefeated(obj)==true then success=true break end
 	end
 	if success==true and volkarePursuitHexUsed(combat.hexKey)~=true then volkarePursuitDropShield(playerIndex,combat) end
 	gStates.volkarePursuitCombat=nil
@@ -20276,13 +20389,104 @@ function togglePlayerDropoutRequest(player, mouseButton, id)
 end
 
 
+-- Capture the original missing-token state before turn order or physical objects move.
+-- This is diagnostic-only: never fabricate a replacement or change turn ordering.
+local function turnOrderTokenMissingSnapshot(missingIndex,missingGUID)
+	local function objectPosition(obj)
+		if obj==nil then return "?" end
+		local pos=obj.getPosition()
+		if pos==nil then return "?" end
+		return string.format("(%.2f, %.2f, %.2f)",tonumber(pos.x or pos[1]) or 0,
+			tonumber(pos.y or pos[2]) or 0,tonumber(pos.z or pos[3]) or 0)
+	end
+	local function objectStatus(guid)
+		if type(guid)~="string" or guid=="" then return "GUID not assigned" end
+		local obj=getObjectFromGUID(guid)
+		if obj==nil then return "NOT FOUND" end
+		return "FOUND type="..tostring(obj.type).." position="..objectPosition(obj)
+			.." resting="..tostring(obj.resting)
+	end
+	local state=gStates or {}
+	local entries={
+		"Missing token index="..tostring(missingIndex).." expected GUID="..tostring(missingGUID),
+		"Scenario="..tostring(state.gameScenario).." round="..tostring(state.currentRound)
+			.." turn="..tostring(state.turnNumber).." realTurn="..tostring(state.realTurn),
+		"tacticShown="..tostring(state.tacticShown).." dayRound="..tostring(state.dayRound)
+			.." firstStarted="..tostring(state.firstStarted).." endRoundCalled="..tostring(state.endRoundCalled),
+		"playerCount="..tostring(state.playerCount).." coop="..tostring(state.coop),
+		"Expected object at failure: "..objectStatus(missingGUID),
+		"Saved turnOrder entries (index, seat, mage, tactic, GUID, lookup):"
+	}
+	for index,details in ipairs(turnOrder or {}) do
+		local guid=details~=nil and details.turnOrderTokenGUID or nil
+		entries[#entries+1]=tostring(index)..": seat="..tostring(details and details.seatPos)
+			.." mage="..tostring(details and details.mage)
+			.." tactic="..tostring(details and details.tactic)
+			.." guid="..tostring(guid).." "..objectStatus(guid)
+	end
+	local zone=type(turnOrderArea)=="string" and getObjectFromGUID(turnOrderArea) or nil
+	if zone==nil then
+		entries[#entries+1]="Turn-order zone "..tostring(turnOrderArea).." NOT FOUND"
+	else
+		local candidates={}
+		for _,obj in ipairs(zone.getObjects()) do
+			candidates[#candidates+1]=tostring(obj.guid).." type="..tostring(obj.type)
+				.." position="..objectPosition(obj)
+		end
+		table.sort(candidates)
+		entries[#entries+1]="Turn-order zone GUID="..tostring(turnOrderArea)
+			.." objects="..tostring(#candidates)
+		for index=1,math.min(#candidates,24) do
+			entries[#entries+1]="Zone object: "..candidates[index]
+		end
+		if #candidates>24 then entries[#entries+1]="Additional zone objects omitted: "..tostring(#candidates-24) end
+	end
+	return table.concat(entries,"\n")
+end
+
+local function reportTurnOrderTokenMissing(index,guid)
+	local ok,snapshot=pcall(turnOrderTokenMissingSnapshot,index,guid)
+	if not ok then snapshot="Initial diagnostic snapshot failed: "..tostring(snapshot) end
+	local summary="Missing turn-order token index="..tostring(index).." GUID="..tostring(guid)
+	log("TURN ORDER TOKEN DIAGNOSTIC: "..summary)
+	-- TTS can temporarily reinstantiate an object. Recheck without mutating the
+	-- saved GUID so the report can distinguish transient lookup from loss.
+	safeWaitFrames("Turn",function()
+		local verified,detail=pcall(function()
+			local obj=type(guid)=="string" and getObjectFromGUID(guid) or nil
+			local found=obj~=nil
+			local result=found and "REAPPEARED" or "STILL MISSING"
+			local position=""
+			if found then
+				local p=obj.getPosition()
+				position=" position="..tostring(p)
+			end
+			return "After 2 frames: "..result..position
+		end)
+		if not verified then detail="Two-frame lookup failed: "..tostring(detail) end
+		reportAutomaticLuaDiagnostic("tacticToggle.turnOrderSort",summary,
+			tostring(snapshot).."\n"..tostring(detail))
+	end,2)
+end
+
 --Tactic Showing and Hiding
 function tacticToggle()
 	--rearanges the turn order tokens
 	local function turnOrderSort()
 		for a=1, #turnOrder, 1 do
-			getObjectFromGUID(turnOrder[a].turnOrderTokenGUID).unlock()
-			getObjectFromGUID(turnOrder[a].turnOrderTokenGUID).setPositionSmooth({-1.90, 1.2, -18.00-(1.4*a)},false,false)
+			local details=turnOrder[a]
+			local tokenGUID=details~=nil and details.turnOrderTokenGUID or nil
+			local token=tokenGUID~=nil and getObjectFromGUID(tokenGUID) or nil
+			if token~=nil then
+				token.unlock()
+				token.setPositionSmooth({-1.90, 1.2, -18.00-(1.4*a)},false,false)
+			else
+				-- Keep normal tactic selection moving, but send enough state to the
+				-- bug-report Sheet to investigate why a protected token was unavailable.
+				local who=details~=nil and (details.mage or details.seatPos) or a
+				broadcastToAll("Missing turn-order token for "..tostring(who).."; continuing tactic selection.",warningColor)
+				reportTurnOrderTokenMissing(a,tokenGUID)
+			end
 		end
 		if againstDragonPositionRoundOrderToken~=nil then againstDragonPositionRoundOrderToken() end
 		if furyDragonPositionRoundOrderToken~=nil then furyDragonPositionRoundOrderToken() end
@@ -22320,6 +22524,18 @@ local previewHeight=1.3
 local arrowHeadLength=0.34
 local arrowHeadAngle=0.55
 local assignmentRegistry={}
+-- Once Damage has been committed, older targets and their lines are historical.
+-- Rewind Time (not moving a card) is the way to undo these assignments.
+local function combatCommittedLock()
+    local ledger=gStates~=nil and gStates.combatWoundApplication or nil
+    local lock=ledger~=nil and ledger.phaseLock or nil
+    return lock~=nil and lock.turn==gStates.turnNumber and lock or nil
+end
+
+local function combatCommittedSource(key)
+    local lock=combatCommittedLock~=nil and combatCommittedLock() or nil
+    return lock~=nil and (lock.sourceKeys or {})[key]==true
+end
 local targetingByPlayer={}
 local blockLinkPending={} -- Player colour -> Spirit Guides Skill GUID while selecting a Block source.
 local readyUnitPending={} -- Player colour -> {sourceGUID,sourceKey,seat,limit}
@@ -22456,6 +22672,14 @@ local function activeVisualLines()
 		-- rather than reading a stale cached source/target reference.
 		local source=getObjectFromGUID(assignmentBaseGUID(entry.sourceGUID))
 		local target=getObjectFromGUID(entry.targetGUID)
+        local lock=combatCommittedLock~=nil and combatCommittedLock() or nil
+        local frozen=lock~=nil and (lock.positions or {})[entry.sourceGUID] or nil
+        if frozen~=nil then
+            -- A frozen arrow stays on the play-area location even when the
+            -- physical card is retrieved, stacked, or moved to the hand.
+            source={getPosition=function() return frozen end,
+                isDestroyed=function() return false end}
+        end
 		local assignment=assignmentLines(source,target,assignmentColorFor(entry.kind))
 		for _,line in ipairs(assignment or {}) do lines[#lines+1]=line end
 	end
@@ -22949,6 +23173,38 @@ end
 -- or an assignment to undo.
 function attackAssignmentsDamageSync(spec)
     if resourceCardsPanelOpen~=nil and not resourceCardsPanelOpen() then return end
+    local lock=combatCommittedLock~=nil and combatCommittedLock() or nil
+    if lock~=nil then
+        -- Preserve red damage links but remove enemy and Unit click targets;
+        -- their allocation was already resolved by the committed snapshot.
+        local firstLock=damageSignature~="#COMMITTED"
+        local frozen=lock.damage or {}
+        damageTargets={}
+        for key,targets in pairs(frozen.targets or {}) do
+            damageTargets[key]={}
+            for _,guid in ipairs(targets) do
+                damageTargets[key][#damageTargets[key]+1]=guid
+            end
+        end
+        damageSpec={attacks=frozen.attacks or {},units=frozen.units or {},
+            byOwner={},byKey={},reserved={}}
+        for _,attack in ipairs(damageSpec.attacks) do
+            damageSpec.byKey[attack.key]=attack
+        end
+        damagePending=nil
+        for guid in pairs(damageButtonObjects) do
+            local obj=getObjectFromGUID(guid)
+            if obj~=nil then removeDamageButtons(obj) end
+        end
+        if firstLock then
+            damageButtonObjects={}
+            damageOwnerSignatures={}
+            damageTargetUnits={}
+            damageSignature="#COMMITTED"
+            refreshRenderedLines(true)
+        end
+        return
+    end
 	damageSpec={attacks=spec.attacks,units=spec.units or {},byOwner={},byKey={},reserved={}}
 	for _,attack in ipairs(spec.attacks) do
 		damageSpec.byKey[attack.key]=attack
@@ -23019,6 +23275,27 @@ function attackAssignmentsDamageSync(spec)
 		refreshRenderedLines(true)
 	end
 	if hasRuntimeWork() then scheduleRefresh() end
+end
+
+-- Plain data only: the lock is JSON-persisted across TTS saves.
+function attackAssignmentsDamageSnapshot()
+    local result={attacks={},units={},targets={}}
+    for _,attack in ipairs(damageSpec.attacks or {}) do
+        local copy={}
+        for key,value in pairs(attack) do
+            if type(value)=="string" or type(value)=="number"
+                or type(value)=="boolean" then copy[key]=value end
+        end
+        result.attacks[#result.attacks+1]=copy
+    end
+    for guid,value in pairs(damageSpec.units or {}) do
+        if value==true then result.units[guid]=true end
+    end
+    for key,guids in pairs(damageTargets) do
+        result.targets[key]={}
+        for _,guid in ipairs(guids) do result.targets[key][#result.targets[key]+1]=guid end
+    end
+    return result
 end
 
 function attackAssignmentsDamageTargetsOf(key)
@@ -23294,30 +23571,59 @@ function attackAssignmentsUnitPreviewSync(seat,results,selfWounds)
     end
 end
 
--- This is the *end of turn*, not the end of round. Make Wounds official
--- before ordinary player-area cleanup runs. Closing the tracker instead
--- removes all pending ghosts without committing any of them.
+-- Physical destruction is separate from planning. Only the explicit Apply
+-- action (or End Turn fallback) may remove a Paralyzed Unit. Return a failure
+-- instead of trashing an unexpected Unit or leaving its accessories behind.
+function attackAssignmentsUnitPreviewApplyDestroyed(seat,guid)
+    if seat==nil or guid==nil then return false,"Missing Unit or seat" end
+    local preview=previewWoundsByUnit[guid]
+    if preview~=nil and (preview.seat~=seat or preview.kind~="destroyed") then
+        return false,"Unit preview no longer indicates Paralysis"
+    end
+    local unit=getObjectFromGUID(guid)
+    if unit==nil then
+        if preview~=nil then previewWoundsByUnit[guid]=nil end
+        return true -- Already removed physically (manual correction / reload).
+    end
+    local layout=unitLayoutSnapshot~=nil and unitLayoutSnapshot(seat) or nil
+    local slot=layout~=nil and layout.unitSlotByGuid~=nil and layout.unitSlotByGuid[guid] or nil
+    if slot==nil then return false,"Paralyzed Unit is no longer in its Unit slot" end
+    local trash=getObjectFromGUID(trashCan)
+    if trash==nil then return false,"Unit Trash is missing" end
+    if unitReplacementDetachAccessories==nil then
+        return false,"Unit accessory cleanup is unavailable"
+    end
+    -- Reuse the replacement/disband cleanup: return attached Wounds, discard
+    -- Banners, and stage miscellaneous tokens while preserving Command state.
+    local movedGUIDs=unitReplacementDetachAccessories(layout,unit,seat)
+    if resourceUnitsRetireUnit~=nil then resourceUnitsRetireUnit(guid) end
+    previewUnitMarker(unit,false)
+    protectedObjectAllowScriptRemoval(unit.guid,trashCan,"Paralysis destroyed Unit")
+    trash.putObject(unit)
+    if preview~=nil then preview.committed=true previewWoundsByUnit[guid]=nil end
+    if scheduleUnitLayoutRefresh~=nil then scheduleUnitLayoutRefresh(seat) end
+    return true,movedGUIDs
+end
+
+-- Normal Unit Wound ghosts still become official at End Turn. A Paralyzed
+-- Unit is also destroyed here if the player skipped the explicit Apply action.
 function attackAssignmentsUnitPreviewCommit(seat)
     if seat==nil then return end
     for guid,entry in pairs(previewWoundsByUnit) do
         if entry.seat==seat then
-            entry.committed=true
             if entry.kind=="destroyed" then
-                previewUnitMarker(getObjectFromGUID(guid),false)
-                local unit=getObjectFromGUID(guid)
-                -- A Paralyzed Unit is destroyed rather than Wounded.
-                local trash=getObjectFromGUID(trashCan)
-                if unit~=nil and trash~=nil then
-                    protectedObjectAllowScriptRemoval(unit.guid,trashCan,"Paralysis destroyed Unit")
-                    trash.putObject(unit)
+                local ok,reason=attackAssignmentsUnitPreviewApplyDestroyed(seat,guid)
+                if not ok then
+                    print("COMBAT PARALYSIS: "..tostring(reason).." ("..tostring(guid)..")")
                 end
             else
+                entry.committed=true
                 for _,tokenGUID in pairs(entry.guids) do
                     local token=getObjectFromGUID(tokenGUID)
                     if token~=nil then previewMakePermanent(token) end
                 end
+                previewWoundsByUnit[guid]=nil
             end
-            previewWoundsByUnit[guid]=nil
         end
     end
 end
@@ -23348,7 +23654,8 @@ local function damageChanged()
 end
 
 local function damageAttackClicked(obj,playerColor,index,altClick)
-    if not resourceCardsPlayerCanEdit(playerColor) then return end
+    if (combatCommittedLock~=nil and combatCommittedLock()~=nil)
+        or not resourceCardsPlayerCanEdit(playerColor) then return end
 	local list=obj~=nil and damageSpec.byOwner[obj.guid] or nil
 	local attack=list~=nil and list[index] or nil
 	if attack==nil then return end
@@ -23378,7 +23685,8 @@ end
 -- Clicking a free Unit adds it to the attack in order; clicking one already on the attack returns its share to the Hero.
 function attackAssignmentDamageUnitClicked(unit,playerColor)
 	return safeCallback("attackAssignmentDamageUnitClicked",function()
-        if not resourceCardsPlayerCanEdit(playerColor) then return end
+        if (combatCommittedLock~=nil and combatCommittedLock()~=nil)
+        or not resourceCardsPlayerCanEdit(playerColor) then return end
 		if damagePending==nil or unit==nil or damagePending.color~=playerColor then return end
 		local key=damagePending.key
 		local list=damageTargets[key] or {}
@@ -23445,6 +23753,7 @@ function attackAssignmentsBegin(source,resource,playerColor,additional,sourceKey
 		or type(resource)~="string" or resource=="" or type(playerColor)~="string"
 		or Player[playerColor]==nil then return false end
 	sourceKey=sourceKey or source.guid
+    if combatCommittedSource~=nil and combatCommittedSource(sourceKey) then return false end
 	local pending=targetingByPlayer[playerColor]
 	if pending~=nil and pending.sourceGUID==sourceKey and pending.resource==resource then
 		targetingByPlayer[playerColor]=nil
@@ -23693,6 +24002,7 @@ end
 
 -- Called by the Attack Assignment panel so both interfaces show the same single target.
 function attackAssignmentsSetSourceTarget(sourceGUID,targetGUID,kind)
+    if combatCommittedSource~=nil and combatCommittedSource(sourceGUID) then return end
     if resourceCardsPanelOpen~=nil and not resourceCardsPanelOpen() then return end
 	local source,target=getObjectFromGUID(assignmentBaseGUID(sourceGUID)),getObjectFromGUID(targetGUID)
 	if source==nil or target==nil then return end
@@ -23731,6 +24041,10 @@ end
 -- Removes arrows of sources that still exist on the table but no longer offer that target
 -- (for example when a card's choice stops splitting its resources).
 function attackAssignmentsPruneInactive(activeKeys,activeObjects,keepsLock)
+    local lock=combatCommittedLock~=nil and combatCommittedLock() or nil
+    if lock~=nil then
+        for key in pairs(lock.sourceKeys or {}) do activeKeys[key]=true end
+    end
 	local remove={}
 	for id,entry in pairs(assignmentRegistry) do
 		if activeKeys[entry.sourceGUID]~=true and (activeObjects[assignmentBaseGUID(entry.sourceGUID)]==true
@@ -23795,7 +24109,8 @@ end
 function attackAssignmentsPruneTargets(eligible)
     local changed=false
     for id,entry in pairs(assignmentRegistry) do
-        if eligible[entry.targetGUID]~=true then
+        if eligible[entry.targetGUID]~=true and not
+            (combatCommittedSource~=nil and combatCommittedSource(entry.sourceGUID)) then
             local target=getObjectFromGUID(entry.targetGUID)
             local inTransit=target~=nil
                 and ((target.held_by_color~=nil and target.held_by_color~="")
@@ -23842,6 +24157,9 @@ function attackAssignmentsTargetCounts(sourceGUID)
 end
 
 function attackAssignmentsRemove(id)
+    local entry=assignmentRegistry[tostring(id)]
+    if entry~=nil and combatCommittedSource~=nil
+        and combatCommittedSource(entry.sourceGUID) then return false end
 	return removeAssignment(tostring(id))
 end
 
@@ -23851,7 +24169,9 @@ function attackAssignmentsClearForObject(objectOrGUID)
 	if guid==nil then return 0 end
 	local remove={}
 	for id,entry in pairs(assignmentRegistry) do
-		if assignmentKeyMatches(entry.sourceGUID,guid) or entry.targetGUID==guid then remove[#remove+1]=id end
+        if not (combatCommittedSource~=nil and combatCommittedSource(entry.sourceGUID))
+            and (assignmentKeyMatches(entry.sourceGUID,guid)
+                or entry.targetGUID==guid) then remove[#remove+1]=id end
 	end
 	for _,id in ipairs(remove) do assignmentRegistry[id]=nil end
 	local pendingRemoved=false
@@ -23951,7 +24271,9 @@ function attackAssignmentsRestore()
 	for _,saved in ipairs(gStates~=nil and gStates.attackAssignments or {}) do
 		local source=getObjectFromGUID(assignmentBaseGUID(saved.sourceGUID))
 		local target=getObjectFromGUID(saved.targetGUID)
-		if source~=nil and target~=nil
+        local lock=combatCommittedLock~=nil and combatCommittedLock() or nil
+        local frozen=lock~=nil and (lock.positions or {})[saved.sourceGUID]~=nil
+		if (source~=nil or frozen) and target~=nil
 			and (monsterPugs[target.guid]~=nil or eligible[target.guid]~=nil)
 			and type(saved.resource)=="string" then
 			local id=tostring(saved.id or "")
@@ -25487,6 +25809,7 @@ end
 --defeated; they carry a red X instead of being flipped face down. Cleared whenever the calculator stops.
 local combatDefeatTracked={}
 local combatDefeatDefeated={}
+local combatDefeatPartial={}
 combatDefeatMarksActive=false
 combatDefeatCleanupSnapshot=nil
 local combatDefeatFlipRestoring={}
@@ -25523,8 +25846,16 @@ end
 
 function combatEnemyTokenDefeated(obj)
 	if obj==nil then return false end
-	if combatDefeatMarksActive==true and combatDefeatTracked[obj.guid]==true then return combatDefeatDefeated[obj.guid]==true end
+	if combatDefeatMarksActive==true and combatDefeatTracked[obj.guid]==true then
+		return combatDefeatDefeated[obj.guid]==true
+	end
 	return obj.is_face_down==false
+end
+
+-- Partial bosses count for their own level-based Fame, but never for ordinary
+-- death/reward/site conditions.
+function combatBossPartialRewardEligible(guid)
+	return combatDefeatMarksActive==true and combatDefeatPartial[guid]==true
 end
 
 -- Puppet Master must not treat every face-up enemy as defeated while the
@@ -25548,8 +25879,16 @@ local function combatDefeatRefreshTokens(guids)
 end
 
 --tracked: {guid=true} for every enemy the calculator is evaluating; defeated: {guid=true} for those it shows defeated.
-function combatSetDefeatMarks(tracked,defeated)
+function combatSetDefeatMarks(tracked,defeated,partial)
+	partial=partial or {}
 	local changed={}
+	local progressChanged=false
+	for guid in pairs(partial) do
+		if combatDefeatPartial[guid]~=true then progressChanged=true end
+	end
+	for guid in pairs(combatDefeatPartial) do
+		if partial[guid]~=true then progressChanged=true end
+	end
 	for guid in pairs(defeated) do if combatDefeatDefeated[guid]~=true then changed[guid]=true end end
 	for guid in pairs(combatDefeatDefeated) do if defeated[guid]~=true then changed[guid]=true end end
 	local trackingChanged=combatDefeatMarksActive~=true
@@ -25561,9 +25900,11 @@ function combatSetDefeatMarks(tracked,defeated)
 	for guid in pairs(tracked) do if combatDefeatTracked[guid]~=true then refresh[guid]=true end end
 	for guid in pairs(combatDefeatTracked) do if tracked[guid]~=true then refresh[guid]=true end end
 	combatDefeatMarksActive=true
-	combatDefeatTracked,combatDefeatDefeated=tracked,defeated
+	combatDefeatTracked,combatDefeatDefeated,combatDefeatPartial=tracked,defeated,partial
 	combatDefeatRefreshTokens(refresh)
-	if next(changed)~=nil or trackingChanged then mainUIUpdate("Combat Calculator defeat marks") end
+	if next(changed)~=nil or trackingChanged or progressChanged then
+		mainUIUpdate("Combat Calculator defeat marks")
+	end
 end
 
 function combatClearDefeatMarks()
@@ -25572,7 +25913,7 @@ function combatClearDefeatMarks()
 	for guid in pairs(combatDefeatTracked) do refresh[guid]=true end
 	for guid in pairs(combatDefeatDefeated) do refresh[guid]=true end
 	combatDefeatMarksActive=false
-	combatDefeatTracked,combatDefeatDefeated={},{}
+	combatDefeatTracked,combatDefeatDefeated,combatDefeatPartial={},{},{}
 	combatDefeatRefreshTokens(refresh)
 	mainUIUpdate("Combat Calculator defeat marks")
 end
@@ -25583,7 +25924,8 @@ function combatDefeatSnapshotForCleanup()
 	if combatDefeatMarksActive~=true then combatDefeatCleanupSnapshot=nil return end
 	local snapshot={}
 	for guid in pairs(combatDefeatTracked) do
-		if combatDefeatDefeated[guid]~=true then snapshot[guid]=true end
+		if combatDefeatDefeated[guid]~=true
+			and combatDefeatPartial[guid]~=true then snapshot[guid]=true end
 	end
 	combatDefeatCleanupSnapshot=snapshot
 end
@@ -35373,19 +35715,30 @@ end
 
 --Leader overkill adjust
 adjustOverkill=function(player, mouseButton, id)
-	if mouseButton=="-1" then
-		local level=gStates.elementalistLevel-gStates.leaderReduction
-		if id:sub(1,6)==darkCrusader.token then level=gStates.darkCrusaderLevel-gStates.leaderReduction end
-		if id:sub(7,16)=="OverkillUp" and gStates.leaderOverkill<level then
-			gStates.leaderOverkill=gStates.leaderOverkill+1
-		end
-		if id:sub(7,18)=="OverkillDown" and gStates.leaderOverkill>1 then
-			gStates.leaderOverkill=gStates.leaderOverkill-1
-		end
-		local leaderObj=getObjectFromGUID(id:sub(1,6))
-		if leaderObj~=nil then leaderObj.UI.setAttribute(id:sub(1,14),"Text",gStates.leaderOverkill) end
-		mainUIUpdate("Leader Overkilled")
+	local guid=tostring(id or ""):sub(1,6)
+	if factionLeaderForToken(guid)==nil then return end
+	local automatic=combatBossAutomationActive~=nil and combatBossAutomationActive()
+	-- Right-click either +/- restores the calculator's automatic value.
+	if mouseButton=="-2" then
+		if automatic and combatBossSetManual~=nil then combatBossSetManual(guid,nil) end
+		return
 	end
+	if mouseButton~="-1" then return end
+	local level=gStates.elementalistLevel-(gStates.leaderReduction or 0)
+	if guid==darkCrusader.token then level=gStates.darkCrusaderLevel-(gStates.leaderReduction or 0) end
+	level=math.max(0,tonumber(level) or 0)
+	local minValue=automatic and 0 or 1
+	local current=math.max(minValue,tonumber(gStates.leaderOverkill) or minValue)
+	if id:find("OverkillUp",7,true)~=nil then current=math.min(level,current+1)
+	elseif id:find("OverkillDown",7,true)~=nil then current=math.max(minValue,current-1)
+	else return end
+	gStates.leaderOverkill=current
+	local leaderObj=getObjectFromGUID(guid)
+	if leaderObj~=nil then leaderObj.UI.setAttribute(guid.."Overkill","Text",tostring(current)) end
+	if automatic and combatBossSetManual~=nil then
+		combatBossSetManual(guid,current)
+	end
+	mainUIUpdate("Leader Overkilled")
 end
 
 
@@ -35449,7 +35802,10 @@ function factionLeaderResolveCombatToken(token,playerIndex,cleanupContext,discar
 	if leader==nil then return end
 	local startingLevel=leader==darkCrusader and gStates.darkCrusaderLevel or gStates.elementalistLevel
 	local reduction=gStates.leaderReduction or 0
-	local overkill=gStates.leaderOverkill or 1
+	-- Zero means the calculator found no successful Attack. Do not award
+	-- a Shield or reduce levels merely because a token is face up.
+	local overkill=math.max(0,math.floor(tonumber(gStates.leaderOverkill) or 1))
+	overkill=math.min(overkill,math.max(0,startingLevel-reduction))
 	local disc=getObjectFromGUID(leader.disc)
 	if disc~=nil then
 		local position=disc.getPosition()
@@ -48093,7 +48449,8 @@ end
 -- The old Unit's Wound markers leave play; attached Banner Artifacts go to
 -- the player's DISCARD (base rules), not into the Trash or onto the new Unit.
 -- The protected Banner of Command slot is not a replacement candidate.
-local function replacementDetachAccessories(layout,unit,seatPos)
+function unitReplacementDetachAccessories(layout,unit,seatPos)
+    local movedGUIDs={}
     local bounds=unit.getBounds()
     local size=bounds~=nil and bounds.size or nil
     local centre=bounds~=nil and bounds.center or unit.getPosition()
@@ -48122,6 +48479,7 @@ local function replacementDetachAccessories(layout,unit,seatPos)
                 card.unlock()
                 card.setPositionSmooth({(pos.x or pos[1]),(pos.y or pos[2])+2,
                     (pos.z or pos[3])},false,false)
+                movedGUIDs[#movedGUIDs+1]=card.guid
             end
         end
     end
@@ -48142,9 +48500,11 @@ local function replacementDetachAccessories(layout,unit,seatPos)
                 extras=extras+1
                 obj.setPositionSmooth({stagingX+(extras-1)*0.55,
                     math.max(1.4,p.y or p[2]),-40.3},false,false)
+                movedGUIDs[#movedGUIDs+1]=obj.guid
             end
         end
     end
+    return movedGUIDs
 end
 
 local function replacementValid(state)
@@ -48216,7 +48576,7 @@ unitReplacementConfirm=function(player)
                 return
             end
         end
-        replacementDetachAccessories(currentLayout,oldUnit,pending.seatPos)
+        unitReplacementDetachAccessories(currentLayout,oldUnit,pending.seatPos)
         if resourceUnitsRetireUnit~=nil then resourceUnitsRetireUnit(oldUnit.guid) end
         if readyPosition~=nil then command.setPositionSmooth(readyPosition,false,false) end
         -- TTS bags retain classic object buttons on contained cards. Clear
@@ -48340,11 +48700,6 @@ trackerPrivate.bannerCardForm=function(guid)
     if data.full~=nil then return "half" end
     if data.half~=nil then return "full" end
     return nil
-end
--- Banner effects are handled through their card state and Unit interactions;
--- the manual '?' note control is never needed on either physical Banner form.
-trackerPrivate.artifactManualNoteVisible=function(card)
-    return card~=nil and trackerPrivate.bannerCardForm(card.guid)==nil
 end
 trackerPrivate.bannerStrongActive=function(card)
     return card~=nil and trackerPrivate.bannerCardForm(card.guid)=="full"
@@ -48551,6 +48906,20 @@ local function resourceCardsApplyFameRep(seat)
 end
 -- The calculator runs only while the Resource Tracker details are open and an enemy is in play.
 local combatCalcOn=false
+-- Explicit boss overkill corrections are kept in save state until the
+-- calculator closes. Nil selects Auto, while zero is a valid manual value.
+function combatBossAutomationActive()
+    return combatCalcOn==true and resourceCardsPanelOpen()
+end
+function combatBossSetManual(guid,value)
+    if gStates==nil or guid==nil then return end
+    gStates.combatBossManual=gStates.combatBossManual or {}
+    if value==nil then gStates.combatBossManual[guid]=nil
+    else gStates.combatBossManual[guid]=math.max(0,math.floor(tonumber(value) or 0)) end
+    if combatBossAutomationActive() and resourceCardsSourceChanged~=nil then
+        resourceCardsSourceChanged()
+    end
+end
 local combatCumbersomeActive=false
 local combatPsychicActive=false
 local combatAssignmentJoined={}
@@ -48609,6 +48978,30 @@ local function combatEnemyData(guid,obj)
     if obj==nil then return nil end
     local reminder=combatConfig.attackOnlyReminders[obj.getGMNotes()]
     return reminder,reminder~=nil and "attackOnly" or nil
+end
+
+-- Level-based bosses keep their entered-combat characteristics even after
+-- an earlier phase or cooperative participant has removed levels.
+local function combatBossIdentity(guid,data,perks,mode)
+    if data.pugType=="leader" then
+        local realGUID=guid
+        if mode=="preview" and factionLeaderForCity~=nil then
+            local leader=factionLeaderForCity(gStates.coopAssaultCityGUID)
+            if leader~=nil then realGUID=leader.token end
+        end
+        local level=realGUID==darkCrusader.token and gStates.darkCrusaderLevel
+            or realGUID==elementalist.token and gStates.elementalistLevel or nil
+        if level~=nil then return "leader",math.max(0,(tonumber(level) or 0)
+            -(tonumber(gStates.leaderReduction) or 0)),nil end
+    end
+    if perks~=nil and perks.dragonGround==true
+        and apocalypseDragonGroundHeadNameForGUID~=nil then
+        local head=apocalypseDragonGroundHeadNameForGUID(guid)
+        if head=="Control" then return "control",0,head end
+        if head~=nil then return "dragon",math.max(0,tonumber(perks.dragonGroundLevel)
+            or tonumber(gStates.apocalypseDragonHeadLevels[head]) or 0),head end
+    end
+    return nil,nil,nil
 end
 
 local function combatTypeRich(text,typeKey,reduced)
@@ -48906,7 +49299,7 @@ local function combatAssignmentSources(seat)
         local icon=family=="ranged" and "MKChoiceRanged"
             or family=="siege" and "MKChoiceSiege"
             or family=="block" and "MKChoiceBlock" or "MKChoiceAttack"
-        local source={guid=guid,key=guid.."#"..part,part=part,name=label,
+        local source={guid=guid,key=guid.."#"..part,part=part,kind="card",name=label,
             ranged=family=="ranged" and points or 0,
             siege=family=="siege" and points or 0,
             block=family=="block" and points or 0,
@@ -48989,6 +49382,27 @@ local function combatAssignmentSources(seat)
         end
     end
     sources=splitBlocks
+    -- Paralyzed Units disappear physically in the Damage phase. Keep only
+    -- their ALREADY resolved Ranged/Siege and Block/Move contributions until
+    -- turn end. Their Attack-phase ability cannot be used after destruction.
+    local ledger=gStates~=nil and gStates.combatWoundApplication or nil
+    if ledger~=nil and ledger.seat==seat then
+        local active={}
+        for _,source in ipairs(sources) do active[source.key]=true end
+        for _,retired in pairs(ledger.retiredUnitSources or {}) do
+            for _,source in ipairs(retired) do
+                if not active[source.key] then
+                    sources[#sources+1]=source
+                    active[source.key]=true
+                    if combatAssignmentState.targets[source.key]==nil
+                        and source.retiredTarget~=nil then
+                        combatAssignmentState.targets[source.key]=source.retiredTarget
+                        combatAssignmentState.explicit[source.key]=source.retiredExplicit==true
+                    end
+                end
+            end
+        end
+    end
     table.sort(sources,function(a,b)
         if a.name==b.name then return a.key<b.key end
         return a.name<b.name
@@ -48996,10 +49410,198 @@ local function combatAssignmentSources(seat)
     return sources
 end
 
+-- Preserve resolved pre-Damage Unit contributions before removing the card
+-- from its zone. Snapshot plain scalar data only so TTS JSON save/reload
+-- does not capture objects or userdata.
+local function combatFrozenCopy(value)
+    if type(value)~="table" then
+        if type(value)=="string" or type(value)=="number" or type(value)=="boolean" then
+            return value
+        end
+        return nil
+    end
+    local copy={}
+    for key,entry in pairs(value) do
+        if type(key)=="string" or type(key)=="number" then
+            copy[key]=combatFrozenCopy(entry)
+        end
+    end
+    return copy
+end
+
+
+-- A committed Damage phase is immutable, even if cards are lifted, returned
+-- to hand, or re-enter the play area. Keep the snapshot in gStates so it
+-- survives ordinary TTS save/reload and is reverted by the pre-commit rewind.
+local function combatPhaseLock(seat)
+    local ledger=gStates~=nil and gStates.combatWoundApplication or nil
+    local lock=ledger~=nil and ledger.phaseLock or nil
+    if ledger~=nil and lock~=nil and gStates~=nil
+        and ledger.seat==seat and lock.turn==gStates.turnNumber then
+        return lock
+    end
+    return nil
+end
+
+local function combatPhaseLockSources(lock,live)
+    if lock==nil then return live end
+    local results,byKey={},{}
+    for _,source in ipairs(live) do byKey[source.key]=source end
+    local frozenKeys=lock.sourceKeys or {}
+    for _,original in ipairs(lock.sources or {}) do
+        if frozenKeys[original.key] then
+            local frozen=combatFrozenCopy(original) or {}
+            frozen.phaseLocked=true
+            frozen.noAttackPhase=true
+            frozen.attack=0
+            for key in pairs(frozen.resources or {}) do
+                if type(key)=="string" and key:sub(1,6)=="attack" then
+                    frozen.resources[key]=nil
+                end
+            end
+            for i=#(frozen.details or {}),1,-1 do
+                if frozen.details[i].family=="attack" then
+                    table.remove(frozen.details,i)
+                end
+            end
+            results[#results+1]=frozen
+            -- The card's later Attack is separate from the already committed
+            -- resource. Never grant a second copy when the same GUID re-enters.
+            local current=byKey[original.key]
+            if current~=nil then
+                local fallback=(lock.spentRange or {})[original.key]~=true
+                local late=combatFrozenCopy(original) or {}
+                late.key=original.key.."#postDamage"
+                late.phaseAfterDamage=true
+                late.damagePhaseWound=true
+                late.block=0 late.move=0 late.psychicInfluence=0
+                -- Replaying the same GUID cannot inflate the Attack it had
+                -- when Damage was committed. A separate authorised reuse
+                -- requires an explicit activation record, not a new scan.
+                late.attack=(original.attack or 0)>0
+                    and math.min(original.attack or 0,current.attack or 0) or 0
+                late.ranged=fallback and (original.ranged or 0) or 0
+                late.siege=fallback and (original.siege or 0) or 0
+                late.resources={}
+                late.details={}
+                for _,detail in ipairs(original.details or {}) do
+                    if (detail.family=="ranged" or detail.family=="siege") and fallback then
+                        late.details[#late.details+1]=combatFrozenCopy(detail)
+                        late.resources[detail.key]=detail.amount
+                    end
+                end
+                if (original.attack or 0)>0 then
+                    for _,detail in ipairs(current.details or {}) do
+                        if detail.family=="attack" then
+                            local allowed=math.min(detail.amount or 0,
+                                (original.resources or {})[detail.key] or 0)
+                            if allowed>0 then
+                                local copy=combatFrozenCopy(detail)
+                                copy.amount=allowed
+                                late.details[#late.details+1]=copy
+                                late.resources[detail.key]=allowed
+                            end
+                        end
+                    end
+                end
+                if late.attack+late.ranged+late.siege>0 then
+                    results[#results+1]=late
+                end
+            end
+        end
+    end
+    for _,source in ipairs(live) do
+        if not frozenKeys[source.key] then
+            local late=combatFrozenCopy(source) or {}
+            -- Only new Attack-phase actions may be introduced after Damage.
+            -- Ranged/Siege can fall back as Attack; Block and Move cannot.
+            late.damagePhaseWound=true
+            late.phaseAfterDamage=true
+            late.block=0 late.move=0 late.psychicInfluence=0
+            late.psychicInfluenceCounts=false
+            for key in pairs(late.resources or {}) do
+                if key=="move" or key=="influence" or key:sub(1,5)=="block" then
+                    late.resources[key]=nil
+                end
+            end
+            for i=#(late.details or {}),1,-1 do
+                local family=late.details[i].family
+                if family=="block" or family=="move" or family=="influence" then
+                    table.remove(late.details,i)
+                end
+            end
+            if late.attack+late.ranged+late.siege>0 then
+                results[#results+1]=late
+            end
+        end
+    end
+    table.sort(results,function(a,b)
+        if a.name==b.name then return a.key<b.key end
+        return a.name<b.name
+    end)
+    return results
+end
+
+combatConfig.phaseKeyLocked=function(key)
+    local seat=combatAssignmentActiveSeat()
+    local lock=combatPhaseLock(seat)
+    return lock~=nil and (lock.sourceKeys or {})[key]==true
+end
+
+combatConfig.phaseObjectLocked=function(guid)
+    local lock=combatPhaseLock(combatAssignmentActiveSeat())
+    return lock~=nil and (lock.objectKeys or {})[guid]==true
+end
+
+combatConfig.captureParalyzedUnitSources=function(seat,unitGUID)
+    local ledger=combatConfig.woundLedger(seat)
+    if ledger==nil or unitGUID==nil then return false end
+    ledger.retiredUnitSources=ledger.retiredUnitSources or {}
+    if ledger.retiredUnitSources[unitGUID]~=nil then return true end
+    local unit=getObjectFromGUID(unitGUID)
+    local pos=unit~=nil and unit.getPosition() or nil
+    local saved={}
+    for _,source in ipairs(combatAssignmentSources(seat)) do
+        if source.kind=="unit" and source.guid==unitGUID
+            and combatAssignmentState.targets[source.key]~=nil
+            and source.ranged+source.siege+source.block+source.move>0 then
+            local copy=combatFrozenCopy(source) or {}
+            copy.retiredUnit=true
+            copy.retiredUnitPosition=pos~=nil
+                and {pos.x or pos[1],pos.y or pos[2],pos.z or pos[3]} or nil
+            copy.retiredTarget=combatAssignmentState.targets[source.key]
+            copy.retiredExplicit=combatAssignmentState.explicit[source.key]==true
+            copy.attack=0
+            copy.conditionalCounterattack=nil
+            local resources=copy.resources
+            if type(resources)=="table" then
+                for field in pairs(resources) do
+                    if type(field)=="string" and field:sub(1,6)=="attack" then
+                        resources[field]=nil
+                    end
+                end
+            end
+            local details=copy.details
+            if type(details)=="table" then
+                for i=#details,1,-1 do
+                    local detail=details[i]
+                    if type(detail)=="table" and detail.family=="attack" then
+                        table.remove(details,i)
+                    end
+                end
+            end
+            saved[#saved+1]=copy
+        end
+    end
+    ledger.retiredUnitSources[unitGUID]=saved
+    return true
+end
+
 local function combatNearestEnemyGUID(source,entries)
     local sourceObject=getObjectFromGUID(source.guid)
-    if sourceObject==nil then return nil end
-    local sourcePosition=sourceObject.getPosition()
+    local sourcePosition=sourceObject~=nil and sourceObject.getPosition()
+        or source.retiredUnitPosition
+    if sourcePosition==nil then return nil end
     local nearestGUID,nearestDistance=nil,nil
     for _,entry in ipairs(entries) do
         local enemy=getObjectFromGUID(entry.guid)
@@ -49353,6 +49955,10 @@ function resourceCardsCombatTargetRejectMessage(sourceKey,targetGUID)
     if resourceCardsUnitTargetRequiresUnfortified(sourceKey) then
         return "Illusionists can only target an unfortified enemy."
     end
+    if apocalypseDragonGroundHeadNameForGUID~=nil
+        and apocalypseDragonGroundHeadNameForGUID(targetGUID)=="Control" then
+        return "The Control head cannot be attacked."
+    end
     if sourceKey=="6a33c1" then
         return "Curse's Armour reduction cannot target an attack-only reminder."
     end
@@ -49362,12 +49968,42 @@ end
 -- Reminders accept only Block/Move and enemy-attack effects, not attacks
 -- against Armour. Unknown source keys represent effect-only targeting links.
 function resourceCardsCombatTargetAcceptsSource(sourceKey,targetGUID)
+    -- Committed pre-Damage Unit resources are historical. Keep the enemy
+    -- originally attacked, but never let a destroyed Unit retarget them.
+    local ledger=gStates~=nil and gStates.combatWoundApplication or nil
+    for _,sources in pairs(ledger~=nil and ledger.retiredUnitSources or {}) do
+        for _,source in ipairs(sources) do
+            if source.key==sourceKey then
+                return source.retiredTarget==targetGUID
+            end
+        end
+    end
     local data=combatEnemyData(targetGUID)
     if data==nil then return false end
+    -- Post-Damage companion sources are Attack-only. Their generated keys do
+    -- not appear in the ordinary live source list, so reject attack-only
+    -- reminder tokens explicitly (including the Dragon's Control head).
+    if type(sourceKey)=="string" and sourceKey:match("#postDamage$")
+        and (data.attackOnly==true
+            or (apocalypseDragonGroundHeadNameForGUID~=nil
+                and apocalypseDragonGroundHeadNameForGUID(targetGUID)=="Control")) then
+        return false
+    end
     local seat=combatAssignmentActiveSeat()
     local scan=seat~=nil and resourceCardScanBySeat[seat] or nil
     local record=scan~=nil and scan.cards[sourceKey] or nil
     if record~=nil and record.possessEnemyGUID==targetGUID then return false end
+    if apocalypseDragonGroundHeadNameForGUID~=nil
+        and apocalypseDragonGroundHeadNameForGUID(targetGUID)=="Control" then
+        local effectSource=combatConfig.effectSources[sourceKey]
+        if effectSource~=nil then return effectSource.arrow~="armour" end
+        for _,source in ipairs(combatAssignmentSources(seat)) do
+            if source.key==sourceKey then
+                return source.ranged+source.siege+source.attack==0
+            end
+        end
+        return sourceKey~="6a33c1"
+    end
     if resourceCardsUnitTargetRequiresUnfortified(sourceKey) then
         local seat=combatAssignmentActiveSeat()
         local scan=seat~=nil and resourceCardScanBySeat~=nil
@@ -49696,12 +50332,18 @@ local function combatRangeResult(entry,sources)
     if fortification<2 then groups[#groups+1]={sources=sources,category="siege"} end
     local total=combatAttackTotal(groups,data,perks,"range")
     local armour=combatEnemyHasTrait(data,perks,"elusive") and entry.elusiveArmour or entry.baseArmour
-    return total,armour,total>0 and total>=armour,fortification
+    return total,armour,total>0 and total>=(entry.fullLevelArmour or armour),fortification
 end
 
 -- Block cells hold block, the Ranged/Siege cell holds range/siege only once it can legally
 -- defeat the enemy, and everything else is generic Attack.
 local function combatDetailPhase(detail,rangeDefeated,fortification,source)
+    if source~=nil and source.noAttackPhase then
+        if rangeDefeated and ((detail.family=="ranged" and fortification==0)
+            or (detail.family=="siege" and fortification<2)) then return "range" end
+        if detail.family=="block" or detail.family=="move" then return "block" end
+        return nil -- unspent Ranged falls back through its separate Attack source
+    end
     if source~=nil and source.damagePhaseWound then return "attack" end
     if source~=nil and source.forkedLightning then
         return (gStates==nil or gStates.forkedLightningPhase~="attack") and "range" or "attack"
@@ -50182,7 +50824,7 @@ local function combatUnitResists(unit,attackKey)
 end
 
 -- items: {key,type,damage,poison,paralyse,assassination} in resolution order; targetsOf(key) lists the Unit GUIDs the player chose.
-local function combatDamageResolve(items,units,heroArmour,targetsOf,mitigation,elementMitigation,ignoreFirstHeroWound)
+local function combatDamageResolve(items,units,heroArmour,targetsOf,mitigation,elementMitigation,ignoreFirstHeroWound,appliedDamage)
     local used,results={},{}
     local firstHeroWoundIgnored=false
     -- Reserve a Unit required to receive its own protected enemy's damage first.
@@ -50196,12 +50838,32 @@ local function combatDamageResolve(items,units,heroArmour,targetsOf,mitigation,e
     end
     for _,item in ipairs(items) do
         local remaining=item.damage
-        local result={units={},heroWounds=0,discard=0,heroDamage=0}
+        local result={units={},heroWounds=0,discard=0,heroDamage=0,committedDestroyed={}}
+        -- After Apply Wounds removes a Paralyzed Unit from the board, that
+        -- Unit must still absorb its already-resolved share of this attack.
+        -- Otherwise a new scan would incorrectly wound the Hero again.
+        local prior=appliedDamage~=nil and appliedDamage[item.key] or nil
+        for guid,absorbed in pairs(prior~=nil and prior.destroyed or {}) do
+            local value=math.max(0,tonumber(absorbed) or 0)
+            remaining=math.max(0,remaining-value)
+            result.committedDestroyed[guid]=value
+            -- Keep a resolved damage-phase entry for Vampiric Armor, Glory
+            -- and other effects that look at which Units were wounded. This
+            -- is not a live Unit and must never generate a new wound preview.
+            local data=gameCards~=nil and gameCards[guid] or nil
+            local name=data~=nil and data.name or nil
+            result.units[#result.units+1]={
+                unit={guid=guid,name=type(name)=="table" and name[1]
+                    or tostring(name or guid)},
+                wounded=true,destroyed=true,alreadyApplied=true,
+                absorbed=value,wounds=1}
+        end
         local function assign(guid,forced)
             local unit=units[guid]
             if unit==nil or unit.wounded or used[guid] or remaining<=0
                 or (not forced and reserved[guid]~=nil and reserved[guid]~=item.key) then return end
             used[guid]=true
+            local before=remaining
             local entry={unit=unit,wounded=true,resisted=combatUnitResists(unit,item.type),forced=forced}
             local armour=item.type=="M" and unit.level or unit.armour
             if entry.resisted then
@@ -50211,7 +50873,7 @@ local function combatDamageResolve(items,units,heroArmour,targetsOf,mitigation,e
             if entry.wounded then
                 remaining=math.max(0,remaining-armour)
                 entry.wounds=item.poison and 2 or 1
-                entry.destroyed=item.paralyse==true
+                entry.destroyed=item.paralyse==true and unit.arcaneImmunity~=true
                 if unit.fortitudeUsed and unit.fortitudeGUID~=nil then
                     -- Once per Round, on one printed attack; calculator rescans
                     -- of this same attack may preview it without recharging.
@@ -50226,6 +50888,7 @@ local function combatDamageResolve(items,units,heroArmour,targetsOf,mitigation,e
                     end
                 end
             end
+            if entry.destroyed then entry.absorbed=math.max(0,before-remaining) end
             result.units[#result.units+1]=entry
         end
         -- Shocktroops must take damage first, even against Assassination.
@@ -50295,7 +50958,7 @@ local function combatWoundsText(count)
 end
 
 -- Physical Wounds can leave the Hero's hand after being used. Persist their
--- origin and the number dealt per printed attack, rather than recounting hand.
+-- source and every confirmed consequence per printed attack, not hand contents.
 combatConfig.woundLedger=function(seat)
     if gStates==nil or seat==nil then return nil end
     local ledger=gStates.combatWoundApplication
@@ -50315,15 +50978,35 @@ combatConfig.woundRecordPreview=function(seat,items,results)
     local expected={}
     for _,item in ipairs(items or {}) do
         local result=results[item.key] or {}
-        expected[item.key]={hand=result.heroWounds or 0,discard=result.discard or 0}
+        -- Previously destroyed Units are no longer physically in the Unit zone.
+        -- Keep them in this attack's expected record and retain the damage
+        -- they absorbed before removal, so they cannot hurt the Hero twice.
+        local destroyed={}
+        for guid,absorbed in pairs(result.committedDestroyed or {}) do
+            destroyed[guid]=absorbed
+        end
+        for _,entry in ipairs(result.units or {}) do
+            if entry.destroyed==true and entry.wounded==true
+                and entry.unit~=nil and entry.unit.guid~=nil then
+                destroyed[entry.unit.guid]=entry.absorbed or 0
+            end
+        end
+        expected[item.key]={hand=result.heroWounds or 0,
+            discard=result.discard or 0,paralyse=result.paralyse==true,
+            destroyed=destroyed}
     end
     ledger.preview=expected
     ledger.hasPreview=true
 end
 
+-- Retain the original first four return values for existing consumers.
+-- The fifth describes uncommitted physical Paralysis consequences.
 combatConfig.woundPending=function(ledger)
     local allocations,hand,discard,changed={},0,0,false
-    if ledger==nil or not ledger.hasPreview then return allocations,hand,discard,changed end
+    local effects={paralyse={},destroyed={},paralyseCount=0,destroyCount=0}
+    if ledger==nil or not ledger.hasPreview then
+        return allocations,hand,discard,changed,effects
+    end
     for key,expected in pairs(ledger.preview) do
         local applied=(ledger.applied or {})[key] or {}
         local h=math.max(0,(expected.hand or 0)-(applied.hand or 0))
@@ -50332,72 +51015,468 @@ combatConfig.woundPending=function(ledger)
             allocations[#allocations+1]={key=key,hand=h,discard=d}
             hand=hand+h discard=discard+d
         end
+        if expected.paralyse==true and applied.paralyse~=true then
+            effects.paralyse[#effects.paralyse+1]=key
+            effects.paralyseCount=effects.paralyseCount+1
+        elseif applied.paralyse==true and expected.paralyse~=true then
+            changed=true
+        end
+        for guid,absorbed in pairs(expected.destroyed or {}) do
+            if (applied.destroyed or {})[guid]==nil then
+                effects.destroyed[#effects.destroyed+1]={
+                    key=key,guid=guid,absorbed=absorbed}
+                effects.destroyCount=effects.destroyCount+1
+            end
+        end
+        for guid in pairs(applied.destroyed or {}) do
+            if (expected.destroyed or {})[guid]==nil then changed=true end
+        end
         if (applied.hand or 0)>(expected.hand or 0)
             or (applied.discard or 0)>(expected.discard or 0) then changed=true end
     end
     for key,applied in pairs(ledger.applied or {}) do
-        if ledger.preview[key]==nil and ((applied.hand or 0)>0 or (applied.discard or 0)>0) then
-            changed=true
-        end
+        if ledger.preview[key]==nil and ((applied.hand or 0)>0
+            or (applied.discard or 0)>0 or applied.paralyse==true
+            or next(applied.destroyed or {})~=nil) then changed=true end
     end
     table.sort(allocations,function(a,b) return a.key<b.key end)
-    return allocations,hand,discard,changed
+    table.sort(effects.paralyse)
+    table.sort(effects.destroyed,function(a,b)
+        if a.key~=b.key then return a.key<b.key end
+        return a.guid<b.guid
+    end)
+    return allocations,hand,discard,changed,effects
 end
 
-function resourceCardsApplyCombatWounds(player)
+-- A Damage commit is a deliberate phase boundary: record a stable
+-- fingerprint of the planned Wounds, Paralysis, and assigned enemy targets.
+-- The latest preview is checked after the dialog and again after TTS
+-- records its rewind point; a changed plan must not use stale counts.
+combatConfig.woundCommitSignature=function(ledger)
+    if ledger==nil or ledger.hasPreview~=true then return nil end
+    local parts={tostring(ledger.seat)}
+    local keys,seen={},{}
+    for key in pairs(ledger.preview or {}) do
+        keys[#keys+1]=key
+        seen[key]=true
+    end
+    for key in pairs(ledger.applied or {}) do
+        if not seen[key] then keys[#keys+1]=key end
+    end
+    table.sort(keys)
+    for _,key in ipairs(keys) do
+        local expected=ledger.preview[key] or {}
+        local applied=ledger.applied[key] or {}
+        parts[#parts+1]=table.concat({key,tostring(expected.hand or 0),
+            tostring(expected.discard or 0),tostring(expected.paralyse==true),
+            tostring(applied.hand or 0),tostring(applied.discard or 0),
+            tostring(applied.paralyse==true)},":")
+        local guids,seenGUIDs={},{}
+        for guid in pairs(expected.destroyed or {}) do
+            guids[#guids+1]=guid seenGUIDs[guid]=true
+        end
+        for guid in pairs(applied.destroyed or {}) do
+            if not seenGUIDs[guid] then guids[#guids+1]=guid end
+        end
+        table.sort(guids)
+        for _,guid in ipairs(guids) do
+            parts[#parts+1]=key..":"..guid..":"
+                ..tostring((expected.destroyed or {})[guid])..":"
+                ..tostring((applied.destroyed or {})[guid])
+        end
+    end
+    local targets={}
+    for source,target in pairs(combatAssignmentState.targets or {}) do
+        targets[#targets+1]=tostring(source)..":"..tostring(target)
+            ..":"..tostring(combatAssignmentState.explicit[source]==true)
+    end
+    table.sort(targets)
+    for _,target in ipairs(targets) do parts[#parts+1]=target end
+    return table.concat(parts,"|")
+end
+
+combatConfig.woundConfirmClose=function()
+    combatConfig.woundConfirmation=nil
+    UI.setAttribute("CombatDamageConfirm","active","false")
+end
+
+-- The original wound button stays unchanged; it only opens the dialog.
+function resourceCardsRequestCombatWounds(player)
+    local color=player~=nil and player.color or nil
+    if not resourceCardsPanelOpen() or not resourceCardsPlayerCanEdit(color)
+        or combatConfig.woundApplying or combatConfig.woundTransactionPending then return end
+    if combatPhaseLock~=nil and combatPhaseLock(combatAssignmentActiveSeat())~=nil then return end
+    local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    if active==nil or active.seatPos==nil then return end
+    local ledger=combatConfig.woundLedger(active.seatPos)
+    if ledger==nil then return end
+    local _,hand,discard,changed,effects=combatConfig.woundPending(ledger)
+    if hand+discard+effects.paralyseCount+effects.destroyCount==0 then
+        if changed then
+            broadcastToColor("Combat damage changed after consequences were applied. Check physical cards; they cannot be undone automatically.",
+                color,warningColor)
+        end
+        return
+    end
+    local signature=combatConfig.woundCommitSignature(ledger)
+    if signature==nil then return end
+    combatConfig.woundConfirmation={
+        seat=active.seatPos,turn=gStates.turnNumber,color=color,
+        ledger=ledger,signature=signature}
+    -- Build one complete multilingual string. Concatenating already translated
+    -- strings repeats {en}/{it}/... tags, so TTS may display only the first
+    -- paragraph and hide the actual wound totals.
+    local summaryParts={
+        "{en}Calculator will be locked in to attack adjustments only. Use TTS Rewind to undo."
+        .."{it}Il calcolatore sarà bloccato: potrai solo modificare gli attacchi. Usa il riavvolgimento TTS per annullare."
+        .."{ru}Калькулятор будет заблокирован, кроме корректировок атаки. Для отмены используйте перемотку TTS."
+        .."{zh-tw}計算器將鎖定，只允許調整攻擊。若要復原，請使用 TTS 時間回溯。"
+        .."{zh-cn}计算器将锁定，只允许调整攻击。若要撤销，请使用 TTS 时间回溯。"
+        .."{ko}계산기는 공격 조정만 허용하도록 잠깁니다. 취소하려면 TTS 되감기를 사용하세요."
+        .."{es}La calculadora quedará bloqueada, salvo los ajustes de ataque. Usa Rebobinar tiempo de TTS para deshacerlo."
+        .."{fr}Le calculateur sera verrouillé, sauf pour ajuster les attaques. Utilisez le retour arrière de TTS pour annuler."
+        .."{pt-br}A calculadora ficará bloqueada, exceto para ajustes de ataque. Use o Retroceder tempo do TTS para desfazer."
+        .."{de}Der Rechner wird gesperrt; nur Angriffsanpassungen bleiben möglich. Zum Rückgängigmachen TTS-Zeit zurückspulen.",
+        " ",
+        "{en}Confirm your Ranged/Siege and Block decisions before applying combat damage."
+        .."{it}Conferma le decisioni di Attacco a distanza/Assedio e Blocco prima di applicare i danni."
+        .."{ru}Подтвердите дальние/осадные атаки и блоки перед применением урона."
+        .."{zh-tw}套用戰鬥傷害前，請確認遠程／攻城攻擊與格擋決定。"
+        .."{zh-cn}应用战斗伤害前，请确认远程／攻城攻击与格挡决定。"
+        .."{ko}전투 피해를 적용하기 전에 원거리/공성 공격과 방어 결정을 확인하세요."
+        .."{es}Confirma el ataque a distancia/asedio y el bloqueo antes de aplicar el daño."
+        .."{fr}Confirmez les attaques à distance/de siège et les blocages avant d'appliquer les dégâts."
+        .."{pt-br}Confirme os ataques à distância/cerco e os bloqueios antes de aplicar o dano."
+        .."{de}Fern-/Belagerungsangriffe und Blocks vor dem Schaden bestätigen.",
+        "\n\n",
+        "{en}Hero Wounds to hand: {it}Ferite in mano: {ru}Раны в руку: {zh-tw}加入手牌的傷害：{zh-cn}加入手牌的伤害：{ko}손에 받는 상처: {es}Heridas a la mano: {fr}Blessures en main : {pt-br}Ferimentos na mão: {de}Wunden auf die Hand: ",
+        hand,
+        "\n",
+        "{en}Poison Wounds to discard: {it}Ferite da Veleno negli scarti: {ru}Ядовитые раны в сброс: {zh-tw}棄牌區的毒傷：{zh-cn}弃牌区的毒伤：{ko}버림더미 독 상처: {es}Heridas de Veneno al descarte: {fr}Blessures de poison en défausse : {pt-br}Ferimentos de Veneno no descarte: {de}Giftwunden in den Ablagestapel: ",
+        discard
+    }
+    local summaryHeight=154
+    if effects.paralyseCount>0 then
+        summaryParts[#summaryParts+1]="\n"
+        summaryParts[#summaryParts+1]="{en}Paralysis: discard all non-Wound hand cards."
+            .."{it}Paralisi: scarta tutte le carte in mano tranne le Ferite."
+            .."{ru}Паралич: сбросьте все карты с руки, кроме Ран."
+            .."{zh-tw}麻痺：棄掉手牌中所有非傷害牌。"
+            .."{zh-cn}麻痹：弃掉手牌中所有非伤害牌。"
+            .."{ko}마비: 손에 있는 상처가 아닌 카드를 모두 버립니다."
+            .."{es}Parálisis: descarta las cartas en mano que no sean Heridas."
+            .."{fr}Paralysie : défaussez les cartes en main sauf les Blessures."
+            .."{pt-br}Paralisia: descarte as cartas na mão que não sejam Ferimentos."
+            .."{de}Lähmung: Alle Nicht-Wunden auf der Hand abwerfen."
+        summaryHeight=summaryHeight+40
+    end
+    if effects.destroyCount>0 then
+        summaryParts[#summaryParts+1]="\n"
+        summaryParts[#summaryParts+1]="{en}Paralyzed Units destroyed: {it}Unità paralizzate distrutte: {ru}Уничтожено парализованных отрядов: {zh-tw}將摧毀的麻痺單位：{zh-cn}将摧毁的麻痹单位：{ko}파괴되는 마비 유닛: {es}Unidades paralizadas destruidas: {fr}Unités paralysées détruites : {pt-br}Unidades paralisadas destruídas: {de}Zerstörte gelähmte Einheiten: "
+        summaryParts[#summaryParts+1]=effects.destroyCount
+        summaryHeight=summaryHeight+28
+    end
+    local summary=joinLang(summaryParts)
+    -- Keep the normal dialog compact but grow for optional Paralysis details.
+    UI.setAttribute("CombatDamageConfirmSummary","preferredHeight",tostring(summaryHeight))
+    UI.setAttribute("CombatDamageConfirm","height",tostring(summaryHeight+96))
+    setUIVisibility("CombatDamageConfirm",{color})
+    UI.setAttribute("CombatDamageConfirmSummary","text",summary)
+    UI.setAttribute("CombatDamageConfirm","active","true")
+end
+
+-- Only a confirmed and successfully snapshotted action reaches the physical
+-- wound routine. No custom Undo: Rewind Time restores the entire pre-commit
+-- table, including the attack ledger and Units.
+combatConfig.woundConfirmChoice=function(player,id)
+    local confirmation=combatConfig.woundConfirmation
+    local color=player~=nil and player.color or nil
+    if confirmation==nil or color~=confirmation.color
+        or not resourceCardsPlayerCanEdit(color) then return end
+    if id=="CombatDamageConfirmCancel" then
+        combatConfig.woundConfirmClose()
+        return
+    end
+    if id~="CombatDamageConfirmApply"
+        or combatConfig.woundApplying or combatConfig.woundTransactionPending then return end
+    local function stillCurrent()
+        local current=turnOrder~=nil and gStates~=nil
+            and turnOrder[gStates.turnNumber] or nil
+        return resourceCardsPanelOpen() and current~=nil
+            and current.seatPos==confirmation.seat
+            and gStates.turnNumber==confirmation.turn
+            and gStates.combatWoundApplication==confirmation.ledger
+            and combatConfig.woundCommitSignature(confirmation.ledger)==confirmation.signature
+    end
+    if not stillCurrent() then
+        combatConfig.woundConfirmClose()
+        broadcastToColor("Combat changed since confirmation opened. Review the calculator and try again.",
+            color,warningColor)
+        return
+    end
+    if type(storeRewindState)~="function"
+        or type(rewindTransactionStart)~="function" then
+        broadcastToColor("TTS rewind snapshots are unavailable. Combat damage was not applied.",
+            color,warningColor)
+        return
+    end
+    if rewindTransactionCanStartFresh==nil or not rewindTransactionCanStartFresh() then
+        broadcastToColor("Another scripted action is still using Rewind Time. Finish that action before committing damage.",
+            color,warningColor)
+        return
+    end
+    local owner="Combat damage "..tostring(confirmation.seat)
+    combatConfig.woundConfirmClose()
+    combatConfig.woundTransactionPending=true
+    local function abort(message)
+        combatConfig.woundTransactionPending=false
+        if rewindTransactionOwnerActive~=nil and rewindTransactionOwnerActive(owner) then
+            rewindTransactionFinish(owner)
+        end
+        if message~=nil then broadcastToColor(message,color,warningColor) end
+    end
+    local started=rewindTransactionStart(function()
+        if not stillCurrent() then
+            abort("Combat changed while the rewind point was being saved. No damage was applied; review the calculator.")
+            return
+        end
+        combatConfig.woundTransactionPending=false
+        local preview=combatConfig.phasePreview
+        if preview==nil or preview.seat~=confirmation.seat
+            or preview.turn~=confirmation.turn or preview.damageResults==nil then
+            abort("Combat phase snapshot is unavailable. No damage was applied.")
+            return
+        end
+        confirmation.ledger.phaseLock=combatFrozenCopy(preview)
+        local ok,startedOrError=pcall(resourceCardsApplyCombatWounds,player,
+            function()
+                -- Called after every dealt Wound and moved accessory settles,
+                -- including failed/partially completed applications.
+                rewindTransactionFinish(owner)
+            end)
+        if not ok or startedOrError~=true then
+            abort("Could not apply combat damage safely: "..tostring(startedOrError))
+        end
+    end,owner,function()
+        -- Shared.lua also reports the snapshot failure. Never deal a Wound
+        -- without a successful rewind checkpoint.
+        combatConfig.woundTransactionPending=false
+    end)
+    if started~=true then
+        combatConfig.woundTransactionPending=false
+        broadcastToColor("Could not start a combat rewind transaction. No damage was applied.",
+            color,warningColor)
+    end
+end
+
+-- TTS global UI callbacks live in UI.lua, outside this module's private
+-- combatConfig scope. Expose only the confirmation action they need.
+function resourceCardsConfirmCombatWounds(player,id)
+    combatConfig.woundConfirmChoice(player,id)
+end
+
+function resourceCardsApplyCombatWounds(player,onComplete)
     if not resourceCardsPanelOpen() or not resourceCardsPlayerCanEdit(player and player.color or nil)
-        or combatConfig.woundApplying then return end
+        or combatConfig.woundApplying then return false end
     local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
     local ledger=current~=nil and combatConfig.woundLedger(current.seatPos) or nil
-    local allocations,hand,discard,changed=combatConfig.woundPending(ledger)
-    if current==nil or ledger==nil then return end
-    if hand+discard==0 then
+    local allocations,hand,discard,changed,effects=combatConfig.woundPending(ledger)
+    if current==nil or ledger==nil then return false end
+    if hand+discard==0 and effects.paralyseCount==0 and effects.destroyCount==0 then
         if changed then
             broadcastToColor("Combat damage changed after Wounds were dealt. Check the physical cards; none are removed automatically.",
                 player.color,warningColor)
         end
-        return
+        return false
     end
     ledger.warned=nil
     combatConfig.woundApplying=true
-    combatDealCalculatedWounds(current.seatPos,allocations,
-        function(key,destination,guid)
-            local record=ledger.applied[key] or {hand=0,discard=0}
-            record[destination]=(record[destination] or 0)+1
-            ledger.applied[key]=record
-            if destination=="hand" then ledger.cards[guid]=true end
-        end,
-        function(success,reason)
+    local seat=current.seatPos
+    local function record(key)
+        local applied=ledger.applied[key]
+        if applied==nil then
+            applied={hand=0,discard=0}
+            ledger.applied[key]=applied
+        end
+        return applied
+    end
+    local settlingGUIDs={}
+    local unitAreaTouched=false
+    local completing=false
+    local finalized=false
+    local function finish(success,reason)
+        if completing then return end
+        completing=true
+        local function finalise()
+            if finalized then return end
+            finalized=true
             combatConfig.woundApplying=false
             if not success then
-                broadcastToColor("Apply Wounds stopped: "..tostring(reason)..". Click again to finish.",
+                broadcastToColor("Apply Wounds stopped: "..tostring(reason)
+                    ..". Check the physical cards and click again to finish.",
                     player.color,warningColor)
             end
             resourceCardsSourceChanged()
             mainUIUpdate("Combat Wounds applied")
+            if onComplete~=nil then onComplete(success,reason) end
+        end
+        if onComplete==nil or (not unitAreaTouched and next(settlingGUIDs)==nil)
+            or safeWaitFrames==nil or safeWaitCondition==nil then
+            finalise()
+        else
+            -- TTS smooth movement continues after setPositionSmooth returns.
+            -- Keep the rewind transaction open until the last affected card
+            -- settles, never expose a partial physical snapshot mid-commit.
+            safeWaitFrames("PlayerBoard.CardRecognition",function()
+                safeWaitCondition("PlayerBoard.CardRecognition",finalise,function()
+                    for guid in pairs(settlingGUIDs) do
+                        local obj=getObjectFromGUID(guid)
+                        if obj~=nil and ((obj.isSmoothMoving~=nil and obj.isSmoothMoving())
+                            or obj.resting==false) then return false end
+                    end
+                    return true
+                end,45,function()
+                    -- TTS automatically releases rewind suppression at 60s.
+                    -- Report a rare stuck physics transfer rather than
+                    -- silently exposing an intermediate rewind state.
+                    broadcastToColor("Combat cards have not settled after 45 seconds. Check the table; use TTS Rewind Time if necessary.",
+                        player.color,warningColor)
+                    finalise()
+                end)
+            end,unitAreaTouched and 18 or 3)
+        end
+    end
+    local function commitConsequences()
+        -- Check both zones before any irreversible Paralysis discard. A
+        -- retry must never discard newly drawn cards if the first attempt
+        -- already processed that printed attack.
+        if effects.paralyseCount>0 then
+            local handZone=getObjectFromGUID(handZones~=nil and handZones[seat] or nil)
+            local discardZone=getObjectFromGUID(deedDeckDiscardZones~=nil
+                and deedDeckDiscardZones[seat] or nil)
+            if handZone==nil or discardZone==nil then
+                finish(false,"Hand or discard zone missing for Paralysis")
+                return
+            end
+            -- Failed validation (for example, a card being held) is safe to
+            -- retry. After a partial transfer, mark the hand effect committed
+            -- and ask for manual correction, never discard new draws on retry.
+            local ok,success,countOrReason,moved=pcall(combatDiscardParalyzedHand,seat)
+            if not ok or success~=true then
+                if not ok or (tonumber(moved) or 0)>0 then
+                    for _,key in ipairs(effects.paralyse) do record(key).paralyse=true end
+                end
+                finish(false,"Paralysis hand discard: "
+                    ..tostring(ok and countOrReason or success))
+                return
+            end
+            for _,key in ipairs(effects.paralyse) do record(key).paralyse=true end
+            -- On success the fourth pcall value is the transferred GUID list.
+            for _,guid in ipairs(type(moved)=="table" and moved or {}) do
+                settlingGUIDs[guid]=true
+            end
+        end
+        for _,effect in ipairs(effects.destroyed) do
+            local applied=record(effect.key)
+            applied.destroyed=applied.destroyed or {}
+            if applied.destroyed[effect.guid]==nil then
+                if attackAssignmentsUnitPreviewApplyDestroyed==nil then
+                    finish(false,"Paralysis Unit cleanup is unavailable")
+                    return
+                end
+                -- Capture this Unit's already-resolved Ranged/Siege and Block
+                -- before physically removing its resource source from the mat.
+                if combatConfig.captureParalyzedUnitSources~=nil then
+                    combatConfig.captureParalyzedUnitSources(seat,effect.guid)
+                end
+                local ok,movedOrReason=attackAssignmentsUnitPreviewApplyDestroyed(seat,effect.guid)
+                if not ok then
+                    finish(false,movedOrReason)
+                    return
+                end
+                for _,guid in ipairs(type(movedOrReason)=="table" and movedOrReason or {}) do
+                    settlingGUIDs[guid]=true
+                end
+                -- Unit-area compaction is scheduled 0.2 seconds after
+                -- removal. Wait through that timer and the resulting smooth
+                -- moves before allowing TTS to store further rewind states.
+                unitAreaTouched=true
+                local zoneGUID=playerUnitAreas~=nil and playerUnitAreas[seat] or nil
+                local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
+                for _,obj in ipairs(zone~=nil and zone.getObjects() or {}) do
+                    if obj.guid~=nil then settlingGUIDs[obj.guid]=true end
+                end
+                applied.destroyed[effect.guid]=effect.absorbed
+            end
+        end
+        finish(true)
+    end
+    if hand+discard==0 then
+        local ok,reason=pcall(commitConsequences)
+        if not ok then finish(false,reason) end
+        return true
+    end
+    combatDealCalculatedWounds(seat,allocations,
+        function(key,destination,guid)
+            local applied=record(key)
+            applied[destination]=(applied[destination] or 0)+1
+            if destination=="hand" then ledger.cards[guid]=true end
+            settlingGUIDs[guid]=true
+        end,
+        function(success,reason)
+            if not success then
+                finish(false,reason)
+            else
+                local ok,problem=pcall(commitConsequences)
+                if not ok then finish(false,problem) end
+            end
         end)
+    return true
 end
 
 -- A soft two-click acknowledgement also works if the tracker was minimized.
 -- An in-progress physical transfer is always held until its queue finishes.
 function combatWoundsEndTurnReminder(color)
+    if combatConfig.woundConfirmation~=nil then
+        safeBroadcastToColor("Confirm or cancel Combat Damage before ending the turn.",
+            color,warningColor)
+        return true
+    end
+    if combatConfig.woundTransactionPending then
+        safeBroadcastToColor("A safe Combat Damage rewind point is being saved. Finish before ending the turn.",
+            color,warningColor)
+        return true
+    end
     local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
     local ledger=current~=nil and gStates.combatWoundApplication or nil
     if current==nil or ledger==nil or ledger.seat~=current.seatPos then return false end
     if combatConfig.woundApplying then
-        safeBroadcastToColor("Wound cards are still being dealt. Finish applying them before ending combat.",
+        safeBroadcastToColor("Combat consequences are still being applied. Finish before ending combat.",
             color,warningColor)
         return true
     end
-    local _,hand,discard,changed=combatConfig.woundPending(ledger)
-    if hand+discard==0 and not changed then return false end
+    local _,hand,discard,changed,effects=combatConfig.woundPending(ledger)
+    if hand+discard==0 and effects.paralyseCount==0 and effects.destroyCount==0
+        and not changed then return false end
     local signature=tostring(hand)..":"..tostring(discard)..":"..tostring(changed)
+        ..":"..tostring(effects.paralyseCount)..":"..tostring(effects.destroyCount)
     if ledger.warned==signature then return false end
     ledger.warned=signature
-    local message=hand+discard>0
-        and ("Unapplied combat Wounds: "..tostring(hand).." to hand, "..tostring(discard)
-            .." to discard. Use Apply Wounds, or click End Turn again if handled manually.")
-        or "Combat damage changed after Wounds were applied. Check physical cards; click End Turn again to continue."
+    local message
+    if hand+discard>0 or effects.paralyseCount>0 or effects.destroyCount>0 then
+        message="Unapplied combat: "..tostring(hand).." Wounds to hand, "
+            ..tostring(discard).." to discard"
+        if effects.paralyseCount>0 then
+            message=message..", Paralysis hand discard pending"
+        end
+        if effects.destroyCount>0 then
+            message=message..", "..tostring(effects.destroyCount)
+                .." Paralyzed Units to destroy"
+        end
+        message=message..". Use Apply Wounds, or click End Turn again if handled manually."
+    else
+        message="Combat damage changed after effects were applied. Check physical cards; click End Turn again to continue."
+    end
     safeBroadcastToColor(message,color,warningColor)
     return true
 end
@@ -50493,6 +51572,18 @@ local function combatRangeGroupEntry(members)
         result.baseArmour=result.baseArmour-lateBonus
         result.elusiveArmour=result.elusiveArmour-lateBonus
     end
+    local extra=0
+    for _,member in ipairs(members) do
+        if (member.bossLevel or 0)>1 then
+            local armour=combatEnemyHasTrait(member.data,member.perks,"elusive")
+                and (member.rangeElusiveArmour or member.elusiveArmour)
+                or (member.rangeBaseArmour or member.baseArmour)
+            extra=extra+((member.bossLevel-1)*math.max(1,
+                armour-(member.defendMeleeBonus or 0)))
+        end
+    end
+    result.fullLevelArmour=(combatEnemyHasTrait(result.data,result.perks,"elusive")
+        and result.elusiveArmour or result.baseArmour)+extra
     return result
 end
 
@@ -50547,6 +51638,115 @@ local function combatSyncDefenderMark(marks)
         if combatDefenderMarks[guid]~=key then combatSetDefenderDecal(guid,key) end
     end
     combatDefenderMarks=wanted
+end
+
+-- Whole multiples of effective Armour remove levels of either boss type.
+function combatBossLevelCount(total,armour,remaining)
+    local a=math.max(1,tonumber(armour) or 1)
+    return math.max(0,math.min(math.max(0,tonumber(remaining) or 0),
+        math.floor(math.max(0,tonumber(total) or 0)/a)))
+end
+
+-- Joined attacks reserve one Armour for every living ordinary enemy and
+-- one Armour/level for each boss, then allocate spare points to further
+-- reductions. Never spend the same Attack points independently on two heads.
+local function combatBossPhasePlan(group,entries,total,phase,blockedAll)
+    local bosses,ordinary={},{}
+    local anyBoss=false
+    for _,index in ipairs(group.members) do
+        local entry=entries[index]
+        if entry.bossLevel~=nil and entry.bossType~="control" then anyBoss=true end
+        if not entry.attackOnly and not entry.destroyed
+            and (phase=="range" or not entry.rangeDead) then
+            local remaining=entry.bossLevel~=nil
+                and math.max(0,entry.bossLevel-(phase=="attack"
+                    and (entry.bossRangeLevels or 0) or 0)) or 1
+            if remaining>0 then
+                local elusive=combatEnemyHasTrait(entry.data,entry.perks,"elusive")
+                local armour
+                if phase=="range" then
+                    armour=elusive and (entry.rangeElusiveArmour or entry.elusiveArmour)
+                        or (entry.rangeBaseArmour or entry.baseArmour)
+                    armour=armour-(entry.defendMeleeBonus or 0)
+                else
+                    armour=elusive and not (blockedAll or {})[entry.guid]
+                        and entry.elusiveArmour or entry.baseArmour
+                end
+                local item={entry=entry,armour=math.max(1,armour),remaining=remaining}
+                if entry.bossLevel~=nil then bosses[#bosses+1]=item
+                else ordinary[#ordinary+1]=item end
+            end
+        end
+    end
+    if not anyBoss then return nil end
+    local result={reductions={},killed={},spent=false}
+    local required=0
+    for _,item in ipairs(bosses) do required=required+item.armour end
+    for _,item in ipairs(ordinary) do required=required+item.armour end
+    local points=math.max(0,tonumber(total) or 0)
+    if required>0 and points>=required then
+        points=points-required
+        for _,item in ipairs(ordinary) do result.killed[item.entry.guid]=true end
+        for _,item in ipairs(bosses) do result.reductions[item.entry.guid]=1 end
+        local manual=gStates~=nil and gStates.combatBossManual or {}
+        table.sort(bosses,function(a,b)
+            local am=manual[a.entry.guid]~=nil
+            local bm=manual[b.entry.guid]~=nil
+            if am~=bm then return am end
+            if a.entry.x~=b.entry.x then return a.entry.x<b.entry.x end
+            return a.entry.guid<b.entry.guid
+        end)
+        for pass=1,2 do
+            for _,item in ipairs(bosses) do
+                local guid=item.entry.guid
+                local current=result.reductions[guid] or 0
+                local extra=math.min(item.remaining-current,math.floor(points/item.armour))
+                if pass==1 then
+                    local target=manual[guid]
+                    if target==nil then extra=0
+                    else
+                        extra=math.min(extra,math.max(0,target
+                            -(phase=="attack" and (item.entry.bossRangeLevels or 0) or 0)
+                            -current))
+                    end
+                end
+                if extra>0 then
+                    result.reductions[guid]=current+extra
+                    points=points-extra*item.armour
+                end
+            end
+        end
+    end
+    -- In a single-target attack the player may explicitly correct an
+    -- unrecognised effect. Extra corrections belong to the later Attack
+    -- phase so that Block/Damage timing is not rewritten retroactively.
+    if #group.members==1 and #bosses==1 then
+        local item=bosses[1]
+        local target=gStates~=nil and gStates.combatBossManual~=nil
+            and gStates.combatBossManual[item.entry.guid] or nil
+        if target~=nil then
+            if phase=="range" then
+                result.reductions[item.entry.guid]=math.min(target,
+                    result.reductions[item.entry.guid] or 0)
+            else
+                result.reductions[item.entry.guid]=math.min(item.remaining,
+                    math.max(0,target-(item.entry.bossRangeLevels or 0)))
+            end
+        end
+    end
+    for _,item in ipairs(bosses) do
+        local value=result.reductions[item.entry.guid] or 0
+        if value>0 then result.spent=true end
+        if value>=item.remaining then result.killed[item.entry.guid]=true end
+    end
+    if #ordinary>0 and next(result.killed)~=nil then result.spent=true end
+    result.full=true
+    for _,index in ipairs(group.members) do
+        local entry=entries[index]
+        if not entry.attackOnly and not entry.destroyed and not entry.rangeDead
+            and not result.killed[entry.guid] then result.full=false break end
+    end
+    return result
 end
 
 -- Each Defend symbol may protect one attacked enemy, including a member of an
@@ -50632,7 +51832,7 @@ local function combatApplyDefend(entries,groups,allocated)
                 rangeBaseArmour=entry.rangeBaseArmour~=nil and entry.rangeBaseArmour+bonus or nil,
                 rangeElusiveArmour=entry.rangeElusiveArmour~=nil and entry.rangeElusiveArmour+bonus or nil,
                 stripFortify=entry.stripFortify,stripResist=entry.stripResist,
-                stripFireResist=entry.stripFireResist}
+                stripFireResist=entry.stripFireResist,bossLevel=entry.bossLevel}
         end
         local grouped=combatRangeGroupEntry(members)
         local _,_,defeated=combatRangeResult(grouped,groupSources[group])
@@ -50953,10 +52153,41 @@ end
 -- Unit resources already spent in the Ranged/Block phases stand. Unused
 -- Ranged/Siege effects fall back to normal Attack only if their Unit survived
 -- damage unwounded; a wound cannot retroactively undo an earlier phase.
-combatConfig.attackPhaseSources=function(sources,wounded)
+-- A Paralyzing Wound assigned to the Hero discards all non-Wound cards from
+-- hand BEFORE the Attack phase. In a backwards-planned combat those cards may
+-- already be laid out, so treat their Attack resources as unavailable instead
+-- of letting them produce a false kill. Range/Siege and Block remain settled.
+-- After Damage was committed, a genuinely NEW card can still be played.
+combatConfig.paralysisAttackCards=function(sources,results,lock)
+    local heroParalyzed=false
+    for _,result in pairs(results or {}) do
+        if result.paralyse==true and (tonumber(result.heroWounds) or 0)>0 then
+            heroParalyzed=true
+            break
+        end
+    end
+    if not heroParalyzed then return {} end
+    local preDamageCards={}
+    for _,source in ipairs(lock~=nil and lock.sources or {}) do
+        if source.kind=="card" then preDamageCards[source.guid]=true end
+    end
+    local unavailable={}
+    for _,source in ipairs(sources or {}) do
+        if source.kind=="card" and (lock==nil or source.phaseAfterDamage~=true
+            or preDamageCards[source.guid]==true) then
+            unavailable[source.guid]=true
+        end
+    end
+    return unavailable
+end
+
+combatConfig.attackPhaseSources=function(sources,wounded,paralysisCards)
     local active={}
     for _,source in ipairs(sources or {}) do
-        if wounded[source.guid]~=true then active[#active+1]=source end
+        if wounded[source.guid]~=true and not source.noAttackPhase
+            and not (paralysisCards~=nil and paralysisCards[source.guid]==true) then
+            active[#active+1]=source
+        end
     end
     return active
 end
@@ -51730,6 +52961,26 @@ local function combatAssignmentRefreshRows(entries,sources)
         end
     end
     local defeatFame,defeatRep=0,0
+    -- Joined boss attacks may defeat an ordinary enemy or one head without
+    -- defeating the whole group. Per-defeat bonuses count each actual kill,
+    -- never every level removed from a still-living boss.
+    local function defeatedCount(group,rangedOnly)
+        local count=0
+        for _,index in ipairs(group.members) do
+            local entry=entries[index]
+            if not entry.preview and not entry.attackOnly then
+                local dead
+                if group.bossSpecial then
+                    dead=entry.rangeDead==true or (not rangedOnly and
+                        (entry.attackDead==true or entry.attackPhaseDestroyed==true))
+                else
+                    dead=group.defeated and (not rangedOnly or group.rangeDefeated)
+                end
+                if dead then count=count+1 end
+            end
+        end
+        return count
+    end
     for _,group in ipairs(groups) do
         local members,blockedAll={},{}
         for _,index in ipairs(group.members) do
@@ -51749,6 +53000,17 @@ local function combatAssignmentRefreshRows(entries,sources)
         group.rangeTotal,group.rangeArmour,group.rangeDefeated,group.fortification=
             combatRangeResult(combatRangeGroupEntry(members),group.sources)
         if members[1].attackOnly then group.rangeDefeated=false end
+        local plan=combatBossPhasePlan(group,entries,group.rangeTotal,"range",blockedAll)
+        if plan~=nil then
+            group.bossSpecial=true
+            group.rangeSpent=plan.spent
+            group.rangeDefeated=plan.full
+            for _,index in ipairs(group.members) do
+                local member=entries[index]
+                member.bossRangeLevels=plan.reductions[member.guid] or 0
+                member.rangeDead=plan.killed[member.guid]==true
+            end
+        end
         -- Disease resolves after Block, not during Ranged/Siege. Every attack
         -- of the actual enemy must be blocked; an immune enemy gets no effect.
         if not group.rangeDefeated then
@@ -51805,7 +53067,7 @@ local function combatAssignmentRefreshRows(entries,sources)
                 if source.dueling then source.duelingEligible=false end
             end
         end
-        if rangedBeforeBlock~=nil then
+        if rangedBeforeBlock~=nil and not group.bossSpecial then
             -- A later Block-phase destruction cannot retrospectively win the
             -- Ranged phase or create extra Ranged-only rewards.
             group.rangeDefeated=true
@@ -51819,6 +53081,43 @@ local function combatAssignmentRefreshRows(entries,sources)
         group.destroyed=not members[1].attackOnly and #group.members==1
             and entries[group.members[1]].destroyed==true
     end
+    -- Snapshot resolved Ranged/Siege and Block before the Damage phase.
+    -- Results, not just UI labels, are retained for later recalculations.
+    local earlyLock=combatPhaseLock(combatAssignmentActiveSeat())
+    if earlyLock~=nil and earlyLock.earlyGroups~=nil then
+        for index,group in ipairs(groups) do
+            local saved=earlyLock.earlyGroups[index]
+            if saved~=nil then
+                for _,field in ipairs({"rangeTotal","rangeArmour","rangeDefeated",
+                    "rangeSpent","fortification","bossSpecial","attackArmour","destroyed"}) do
+                    group[field]=saved[field]
+                end
+            end
+        end
+        for index,saved in ipairs(earlyLock.earlyEntries or {}) do
+            if entries[index]~=nil then
+                for field,value in pairs(saved) do
+                    if field~="x" then entries[index][field]=combatFrozenCopy(value) end
+                end
+            end
+        end
+        rowBlock=combatFrozenCopy(earlyLock.rowBlock) or rowBlock
+    elseif combatConfig.phasePreview~=nil then
+        local preview=combatConfig.phasePreview
+        preview.earlyGroups=combatFrozenCopy(groups)
+        preview.earlyEntries=combatFrozenCopy(entries)
+        preview.rowBlock=combatFrozenCopy(rowBlock)
+        preview.spentRange={}
+        for _,group in ipairs(groups) do
+            if group.rangeDefeated or group.rangeSpent then
+                for _,source in ipairs(group.sources or {}) do
+                    if (source.ranged or 0)+(source.siege or 0)>0 then
+                        preview.spentRange[source.key]=true
+                    end
+                end
+            end
+        end
+    end
     -- Counterattack counts *enemies*, not individual attacks. Multi-attack
     -- enemies (including summoners) count only when every attack was blocked.
     -- Ranged-defeated and attack-only preview tokens never count.
@@ -51827,7 +53126,7 @@ local function combatAssignmentRefreshRows(entries,sources)
         if not group.rangeDefeated then
             for _,index in ipairs(group.members) do
                 local enemy=entries[index]
-                if not enemy.attackOnly and not enemy.destroyed
+                if not enemy.attackOnly and not enemy.destroyed and not enemy.rangeDead
                     and rowBlock[index]~=nil and rowBlock[index].allBlocked
                     and #combatEnemyAttacks(enemy)>0 then
                     blockedEnemies=blockedEnemies+1
@@ -51865,7 +53164,8 @@ local function combatAssignmentRefreshRows(entries,sources)
                 for attackIndex in pairs(unblocked) do last=math.max(last,attackIndex) end
                 for attackIndex=1,last do
                     local info=unblocked[attackIndex]
-                    if info~=nil and info.attack.owner~=nil then
+                    if info~=nil and info.attack.owner~=nil
+                        and not entries[index].rangeDead then
                         local attack=info.attack
                         local item={key=attack.owner..":"..tostring(attack.slot),owner=attack.owner,type=attack.key,
                             damage=info.damage,poison=attack.poison,paralyse=attack.paralyse,
@@ -51925,7 +53225,18 @@ local function combatAssignmentRefreshRows(entries,sources)
     end
     local damageResults=combatDamageResolve(damageItems,damageUnits,
         combatHeroArmour(nativeCommandCount),attackAssignmentsDamageTargetsOf,
-        mitigation,elementMitigation,seatScan~=nil and seatScan.heroFirstWoundIgnored==true)
+        mitigation,elementMitigation,seatScan~=nil and seatScan.heroFirstWoundIgnored==true,
+        gStates~=nil and gStates.combatWoundApplication~=nil
+            and gStates.combatWoundApplication.seat==damageSeat
+            and gStates.combatWoundApplication.applied or nil)
+    if earlyLock~=nil and earlyLock.damageResults~=nil then
+        damageResults=combatFrozenCopy(earlyLock.damageResults) or damageResults
+    elseif combatConfig.phasePreview~=nil then
+        combatConfig.phasePreview.damageResults=combatFrozenCopy(damageResults)
+        if attackAssignmentsDamageSnapshot~=nil then
+            combatConfig.phasePreview.damage=attackAssignmentsDamageSnapshot()
+        end
+    end
 
     -- Vampiric gains Armor for Wounds added to the Hero's hand and for each
     -- Unit its own non-Psychic attacks wound. Poison's extra discard/Unit
@@ -51960,6 +53271,87 @@ local function combatAssignmentRefreshRows(entries,sources)
         end
     end
 
+    -- Resolve newly played enemy-targeted effects in Attack only. Their
+    -- source may not undo a committed Ranged kill, Block or Wound allocation.
+    -- Pre-commit sources are excluded even if their physical cards move.
+    if earlyLock~=nil and seatScan~=nil and combatEffectPostDamageSpecs~=nil then
+        local committedSources={}
+        for _,source in ipairs(earlyLock.sources or {}) do
+            committedSources[source.guid]=true
+        end
+        for _,effect in pairs(earlyLock.enemyEffects or {}) do
+            for _,item in ipairs(effect.applied or {}) do
+                committedSources[item.source]=true
+            end
+        end
+        local lateChanged=false
+        for _,entry in ipairs(entries) do
+            local latest=(seatScan.enemyEffects or {})[entry.guid]
+            local committed=(earlyLock.enemyEffects or {})[entry.guid]
+            local newEffects=combatEffectPostDamageSpecs(latest,committed,committedSources)
+            for _,applied in ipairs(newEffects) do
+                local spec=applied.effective or {}
+                local contributes=false
+                local fortified=combatEnemyFortificationCount(entry.data,entry.perks)>0
+                    and not entry.stripFortify
+                local reduction=fortified
+                    and (tonumber(spec.armourReduceFortified)
+                        or tonumber(spec.armourReduce) or 0)
+                    or (tonumber(spec.armourReduce) or 0)
+                local perResist=tonumber(spec.armourReduceByResist) or 0
+                if perResist>0 then
+                    for _,trait in ipairs({"pResist","fResist","iResist"}) do
+                        if combatEnemyHasTrait(entry.data,entry.perks,trait) then
+                            reduction=reduction+perResist
+                        end
+                    end
+                end
+                if reduction>0 then
+                    entry.baseArmour=math.max(1,entry.baseArmour-reduction)
+                    entry.elusiveArmour=math.max(1,entry.elusiveArmour-reduction)
+                    entry.effectArmourReduction=(entry.effectArmourReduction or 0)+reduction
+                    contributes=true
+                end
+                if spec.destroyDuringAttack==true or spec.destroy==true then
+                    entry.attackPhaseDestroyed=true
+                    contributes=true
+                end
+                if spec.removeResist==true then
+                    entry.stripResist=true
+                    contributes=true
+                end
+                if spec.removeFireResist==true then
+                    entry.stripFireResist=true
+                    contributes=true
+                end
+                if spec.removeTrait~=nil then
+                    local updated=combatFrozenCopy(entry.data)
+                    updated[spec.removeTrait]=spec.removeTrait=="defend" and 0 or false
+                    entry.data=updated
+                    contributes=true
+                end
+                if contributes then
+                    entry.effect=entry.effect or {}
+                    entry.effect.applied=entry.effect.applied or {}
+                    local tagged=combatFrozenCopy(applied)
+                    tagged.phaseAfterDamage=true
+                    entry.effect.applied[#entry.effect.applied+1]=tagged
+                    lateChanged=true
+                end
+            end
+        end
+        if lateChanged then
+            for _,group in ipairs(groups) do
+                local members,blockedAll={},{}
+                for _,index in ipairs(group.members) do
+                    members[#members+1]=entries[index]
+                    blockedAll[entries[index].guid]=rowBlock[index].allBlocked
+                end
+                group.entry,group.attackArmour=combatGroupEntry(members,blockedAll)
+            end
+        end
+    end
+
     -- Damage is earlier than Attack. Do not invalidate Ranged/Siege kills or
     -- The player still confirms Wounds received outside calculated Damage.
     local dodgeWounded=false
@@ -51975,6 +53367,10 @@ local function combatAssignmentRefreshRows(entries,sources)
             end
         end
     end
+    -- An unblocked Paralyzing Wound to the Hero makes staged card Attacks
+    -- unavailable in the later Attack phase. Recalculate with every damage
+    -- assignment so a successful Block or a Unit assignment restores them.
+    local paralysisAttackCards=combatConfig.paralysisAttackCards(sources,damageResults,earlyLock)
     -- Blocks: only suppress remaining Unit attacks after *actual* wounds.
     -- Resisted assignments that cause no Wound leave the Unit eligible.
     local woundedBeforeAttack=combatConfig.unitsWoundedByDamage(damageResults)
@@ -51993,7 +53389,7 @@ local function combatAssignmentRefreshRows(entries,sources)
             local surviving,blockedAll={},{}
             for _,index in ipairs(group.members) do
                 local entry=entries[index]
-                if not entry.attackPhaseDestroyed then
+                if not entry.attackPhaseDestroyed and not entry.rangeDead then
                     surviving[#surviving+1]=entry
                     blockedAll[entry.guid]=rowBlock[index].allBlocked
                 end
@@ -52006,7 +53402,7 @@ local function combatAssignmentRefreshRows(entries,sources)
         end
     end
     for _,group in ipairs(groups) do
-        local available=combatConfig.attackPhaseSources(group.sources,woundedBeforeAttack)
+        local available=combatConfig.attackPhaseSources(group.sources,woundedBeforeAttack,paralysisAttackCards)
         local meleeSources={}
         for _,source in ipairs(available) do
             if not source.forkedLightning
@@ -52014,27 +53410,55 @@ local function combatAssignmentRefreshRows(entries,sources)
                 meleeSources[#meleeSources+1]=source
             end
         end
+        -- Ranged/Siege points that already reduced a boss cannot be played
+        -- as melee Attack a second time. Unspent ranged resources still have
+        -- their ordinary fallback to the later Attack phase.
+        local laterSources=meleeSources
+        if group.bossSpecial and group.rangeSpent then
+            laterSources={}
+            for _,source in ipairs(meleeSources) do
+                local resources={}
+                for key,value in pairs(source.resources or {}) do
+                    local spent=(key:sub(1,6)=="ranged" and group.fortification==0)
+                        or (key:sub(1,5)=="siege" and group.fortification<2)
+                    if not spent then resources[key]=value end
+                end
+                laterSources[#laterSources+1]=setmetatable({resources=resources},{__index=source})
+            end
+        end
         local meleeTotal=combatAttackTotal({
-            {sources=meleeSources,category="attack"},
-            {sources=meleeSources,category="ranged"},
-            {sources=meleeSources,category="siege"}},group.entry.data,group.entry.perks,"attack")
+            {sources=laterSources,category="attack"},
+            {sources=laterSources,category="ranged"},
+            {sources=laterSources,category="siege"}},group.entry.data,group.entry.perks,"attack")
         group.attackTotal=meleeTotal
         group.defeated=not entries[group.members[1]].attackOnly
             and (group.rangeDefeated or (meleeTotal>0 and meleeTotal>=group.attackArmour))
-        if group.destroyed then group.defeated,group.rangeDefeated=true,false end
-        if group.defeated and not group.destroyed then
-            local count=0
+        if group.bossSpecial then
+            local blockedAll={}
             for _,index in ipairs(group.members) do
-                if not entries[index].preview then count=count+1 end
+                blockedAll[entries[index].guid]=rowBlock[index].allBlocked
             end
+            local plan=not group.rangeDefeated
+                and combatBossPhasePlan(group,entries,meleeTotal,"attack",blockedAll) or nil
+            for _,index in ipairs(group.members) do
+                local member=entries[index]
+                member.bossAttackLevels=plan~=nil and (plan.reductions[member.guid] or 0) or 0
+                member.attackDead=plan~=nil and plan.killed[member.guid]==true
+            end
+            group.defeated=group.rangeDefeated or (plan~=nil and plan.full==true)
+        end
+        if group.destroyed then group.defeated,group.rangeDefeated=true,false end
+        if (group.defeated or group.bossSpecial) and not group.destroyed then
+            local count=defeatedCount(group,false)
+            local rangedCount=defeatedCount(group,true)
             local counted={}
             for _,source in ipairs(group.sources) do
                 local spec=source.defeatFameRep
                 local availableInFinalPhase=woundedBeforeAttack[source.guid]~=true
                 if count>0 and spec~=nil and spec.scope==nil
                     and not counted[source.guid] and (
-                        (group.rangeDefeated and (source.ranged>0 or source.siege>0))
-                        or (not group.rangeDefeated and availableInFinalPhase)) then
+                        (rangedCount>0 and (source.ranged>0 or source.siege>0))
+                        or (count>rangedCount and availableInFinalPhase)) then
                     counted[source.guid]=true
                     local times=spec.once and 1 or count
                     defeatFame=defeatFame+(spec.fame or 0)*times
@@ -52043,6 +53467,43 @@ local function combatAssignmentRefreshRows(entries,sources)
             end
         end
     end
+    -- Scenario modules still own Shields, physical level markers, and
+    -- reward finalisation; the calculator only publishes calculated amounts.
+    local dragonOwners={}
+    local leaderChanged=false
+    for _,member in ipairs(entries) do
+        if member.bossLevel~=nil and not member.preview and not member.attackOnly then
+            local value=math.min(member.bossLevel,
+                (member.bossRangeLevels or 0)+(member.bossAttackLevels or 0))
+            if member.bossType=="leader" then
+                if gStates.leaderOverkill~=value then
+                    gStates.leaderOverkill=value
+                    leaderChanged=true
+                    local token=getObjectFromGUID(member.guid)
+                    if token~=nil then
+                        token.UI.setAttribute(member.guid.."Overkill","Text",tostring(value))
+                    end
+                end
+            elseif member.bossType=="dragon" then
+                local combat=gStates.apocalypseDragonGroundCombat
+                if combat~=nil and combat.reductions~=nil
+                    and (combat.processedTokens==nil
+                        or combat.processedTokens[member.guid]~=true)
+                    and combat.reductions[member.bossHead]~=value then
+                    combat.reductions[member.bossHead]=value
+                    local token=getObjectFromGUID(member.guid)
+                    if token~=nil then
+                        token.UI.setAttribute(member.guid.."GroundOverkill","text",tostring(value))
+                    end
+                    local owner=apocalypseDragonGroundHeadOwner(member.bossHead)
+                    if owner~=nil then dragonOwners[owner]=true end
+                end
+            end
+        end
+    end
+    for owner in pairs(dragonOwners) do apocalypseDragonRefreshGroundFameGain(owner) end
+    if leaderChanged then mainUIUpdate("Combat leader levels") end
+
     local totalHeroWounds,totalDiscardWounds=0,0
     for _,result in pairs(damageResults) do
         totalHeroWounds=totalHeroWounds+result.heroWounds
@@ -52062,17 +53523,13 @@ local function combatAssignmentRefreshRows(entries,sources)
     -- to the artifact itself being allocated as an Attack source.
     if combatConfig.artifactCombat.swordFame or combatConfig.artifactCombat.bowFame then
         for _,group in ipairs(groups) do
-            if group.defeated then
-                local count=0
-                for _,index in ipairs(group.members) do
-                    if not entries[index].preview then count=count+1 end
-                end
-                if combatConfig.artifactCombat.swordFame then
-                    defeatFame=defeatFame+count
-                end
-                if group.rangeDefeated and combatConfig.artifactCombat.bowFame then
-                    defeatFame=defeatFame+count
-                end
+            local count=defeatedCount(group,false)
+            local rangedCount=defeatedCount(group,true)
+            if combatConfig.artifactCombat.swordFame then
+                defeatFame=defeatFame+count
+            end
+            if combatConfig.artifactCombat.bowFame then
+                defeatFame=defeatFame+rangedCount
             end
         end
     end
@@ -52106,11 +53563,8 @@ local function combatAssignmentRefreshRows(entries,sources)
         if spec~=nil and spec.scope~=nil and not seenScope[source.guid] then
             seenScope[source.guid]=true
             for _,group in ipairs(groups) do
-                if group.defeated and (spec.scope=="all" or group.rangeDefeated) then
-                    local count=0
-                    for _,index in ipairs(group.members) do
-                        if not entries[index].preview then count=count+1 end
-                    end
+                local count=defeatedCount(group,spec.scope~="all")
+                if count>0 then
                     defeatFame=defeatFame+(spec.fame or 0)*count
                     defeatRep=defeatRep+(spec.rep or 0)*count
                 end
@@ -52126,7 +53580,9 @@ local function combatAssignmentRefreshRows(entries,sources)
     end
     if not duelingUnitDamaged then
         for _,group in ipairs(groups) do
-            if group.defeated and not group.rangeDefeated and not group.destroyed then
+            if (group.defeated or (group.bossSpecial
+                and defeatedCount(group,false)>defeatedCount(group,true)))
+                and not group.rangeDefeated and not group.destroyed then
                 local targetGUID=nil
                 for _,source in ipairs(group.sources) do
                     if source.dueling and source.duelingEligible==true then
@@ -52138,7 +53594,10 @@ local function combatAssignmentRefreshRows(entries,sources)
                     local targetInGroup=false
                     local usedUnit=false
                     for _,index in ipairs(group.members) do
-                        if entries[index].guid==targetGUID then targetInGroup=true end
+                        if entries[index].guid==targetGUID
+                            and (not group.bossSpecial or entries[index].attackDead==true) then
+                            targetInGroup=true
+                        end
                     end
                     for _,source in ipairs(group.sources) do
                         if source.kind=="unit" then usedUnit=true break end
@@ -52160,15 +53619,20 @@ local function combatAssignmentRefreshRows(entries,sources)
     end
     combatDefeatFameRep.fame,combatDefeatFameRep.rep=defeatFame,defeatRep
     resourceCardsApplyFameRep(damageSeat)
-    local trackedGuids,defeatedGuids={},{}
+    local trackedGuids,defeatedGuids,partialGuids={},{},{}
     for _,group in ipairs(groups) do
         for _,index in ipairs(group.members) do
             local entry=entries[index]
             local guid=entry.guid
             if not entry.attackOnly and not entry.preview then
                 trackedGuids[guid]=true
-                if group.defeated or (not group.rangeDefeated
-                    and entry.attackPhaseDestroyed) then defeatedGuids[guid]=true end
+                if group.defeated or entry.rangeDead or entry.attackDead
+                    or (not group.rangeDefeated and entry.attackPhaseDestroyed) then
+                    defeatedGuids[guid]=true
+                elseif entry.bossLevel~=nil
+                    and (entry.bossRangeLevels or 0)+(entry.bossAttackLevels or 0)>0 then
+                    partialGuids[guid]=true
+                end
                 for summonedGUID in pairs(entry.summonedDestroyed or {}) do
                     trackedGuids[summonedGUID]=true
                     defeatedGuids[summonedGUID]=true
@@ -52176,7 +53640,7 @@ local function combatAssignmentRefreshRows(entries,sources)
             end
         end
     end
-    combatSetDefeatMarks(trackedGuids,defeatedGuids)
+    combatSetDefeatMarks(trackedGuids,defeatedGuids,partialGuids)
     -- Build all grouped rows before paging or rendering them. A group can
     -- span pages, and each following member offers two six-icon display lines.
     -- Only the button placement changes; allocated sources stay on their targets.
@@ -52200,16 +53664,21 @@ local function combatAssignmentRefreshRows(entries,sources)
                         reduced=rowBlock[index].wrongBlock[item.source.key..tostring(item.detail.key)]==true}
                 end
                 if item.detail.family~="block" and item.detail.family~="move" then
-                    local phase=combatDetailPhase(item.detail,group.rangeDefeated,group.fortification,item.source)
+                    local phase=combatDetailPhase(item.detail,
+                        group.rangeDefeated or group.rangeSpent,group.fortification,item.source)
                     -- Keep invalidated Attack-phase Unit icons visible so players
                     -- can see what was assigned, but make the unavailable value grey
                     -- and explain why it does not count. Earlier Ranged/Block stands.
                     local wounded=phase=="attack" and (woundedBeforeAttack[item.source.guid]==true
                         or item.source.dodgeIneligible==true)
-                    lists[phase][#lists[phase]+1]={source=item.source,amount=item.detail.amount,
-                        icon=item.detail.icon,text=item.detail.text,typeKey=item.detail.typeKey,
-                        reduced=combatEnemyResists(group.entry.data,group.entry.perks,item.detail.typeKey),
-                        wounded=wounded}
+                    local paralysisCard=phase=="attack"
+                        and paralysisAttackCards[item.source.guid]==true
+                    if phase~=nil then
+                        lists[phase][#lists[phase]+1]={source=item.source,amount=item.detail.amount,
+                            icon=item.detail.icon,text=item.detail.text,typeKey=item.detail.typeKey,
+                            reduced=combatEnemyResists(group.entry.data,group.entry.perks,item.detail.typeKey),
+                            wounded=wounded,paralysisCard=paralysisCard,ineffective=paralysisCard}
+                    end
                 end
             end
             perMember[index]=lists
@@ -52234,7 +53703,13 @@ local function combatAssignmentRefreshRows(entries,sources)
                 combatConfig.effectSources[item.source.key]={arrow=item.arrow}
             end
             for _,applied in ipairs(targetEntry.effect~=nil and targetEntry.effect.applied or {}) do
-                insertEffect(combatConfig.effectButtonInfo(targetEntry,applied))
+                local effectButton=combatConfig.effectButtonInfo(targetEntry,applied)
+                if effectButton~=nil and applied.phaseAfterDamage then
+                    effectButton.family="attack"
+                    effectButton.tooltip=(effectButton.tooltip or "")
+                        .."\nPlayed after Damage; Ranged/Siege and Block are locked."
+                end
+                insertEffect(effectButton)
             end
             -- The extra target from Explosive Bolt is an Armour effect, not
             -- more Ranged Attack. Red/grey states explain unmet conditions.
@@ -52292,6 +53767,11 @@ local function combatAssignmentRefreshRows(entries,sources)
                         ..(item.source.dodgeIneligible and
                             " unavailable: the Hero took Wounds before the Attack phase"
                             or (item.wounded and " can't apply 'Wounded'" or "")))
+                    if item.paralysisCard then
+                        tooltip=tooltip.."\nParalysis: the Hero takes a Paralyzing Wound"
+                            .." before Attack, discarding non-Wound hand cards."
+                            .." This planned card Attack does not count."
+                    end
                     local bowFamily=combatConfig.slotBowFamilies[id]
                     if bowFamily~=nil and combatConfig.artifactCombat.bow then
                         local bowMode=combatConfig.bowSourceModes[
@@ -52305,11 +53785,16 @@ local function combatAssignmentRefreshRows(entries,sources)
                         tooltip=tooltip.."\nBow of Starsdawn: "..description
                             ..". Right-click this source icon to switch."
                     end
+                    if item.source.phaseLocked then
+                        tooltip=tooltip.."\nLocked by Commit Damage. Use TTS Rewind to change."
+                    end
                     combatAssignmentIconButton(id,true,item.amount,item.icon,
                         tooltip,combatAssignmentState.selected==item.source.key,
                         (item.wounded or item.ineffective) and "#292323" or (item.typeKey~=nil
                             and combatConfig.typeColors[item.typeKey][item.reduced and 2 or 1] or nil),
                         item.wounded,item.ineffective)
+                    combatPanelSetAttribute(id,"interactable",
+                        item.source.phaseLocked and "false" or "true")
                 else
                     combatAssignmentIconButton(id,false,0,"","",false)
                 end
@@ -52357,6 +53842,8 @@ local function combatAssignmentRefreshRows(entries,sources)
             local isLast=group.members[#group.members]==index
             if group.destroyed then
                 lines[1]=combatRich("Destroyed",combatConfig.COMBAT_GREEN)
+            elseif entry.rangeDead then
+                lines[1]=combatRich("Ranged defeated",combatConfig.COMBAT_GREEN)
             elseif group.rangeDefeated then
                 -- Group results sit under the last enemy of the group.
                 if isLast then
@@ -52384,9 +53871,26 @@ local function combatAssignmentRefreshRows(entries,sources)
                 grandDamage=grandDamage+rowBlock[index].damage
                 damageSources=damageSources+rowBlock[index].count
                 if isLast and not entry.attackOnly then
-                    local line=combatGroupAttackLine(group.attackTotal,group.attackArmour)
-                    if line~=nil then lines[#lines+1]=line end
+                    if group.bossSpecial then
+                        if group.attackTotal>0 then
+                            lines[#lines+1]="Attack "..tostring(group.attackTotal).." (level attack)"
+                        end
+                    else
+                        local line=combatGroupAttackLine(group.attackTotal,group.attackArmour)
+                        if line~=nil then lines[#lines+1]=line end
+                    end
                 end
+            end
+            if entry.bossType=="control" then
+                lines[#lines+1]="Control: cannot be attacked"
+            elseif entry.bossLevel~=nil then
+                local ranged,melee=entry.bossRangeLevels or 0,entry.bossAttackLevels or 0
+                local manual=gStates.combatBossManual~=nil
+                    and gStates.combatBossManual[entry.guid]~=nil
+                lines[#lines+1]="Levels: -"..tostring(ranged+melee).."/"..tostring(entry.bossLevel)
+                    .." (R "..tostring(ranged)..", A "..tostring(melee)..")"
+                    ..(manual and (group.bossSpecial and #group.members>1
+                        and " [Manual priority]" or " [Manual]") or "")
             end
             local compactLines=combatCompactResultLines(lines,rowBlock[index].damageItems,damageResults)
             local detailText=table.concat(lines,"\n")
@@ -52461,26 +53965,41 @@ local function combatAssignmentRefreshRows(entries,sources)
 
     combatConfig.woundRecordPreview(damageSeat,damageItems,damageResults)
     local ledger=combatConfig.woundLedger(damageSeat)
-    local _,pendingHand,pendingDiscard,changed=combatConfig.woundPending(ledger)
-    local showTotal=totalHeroWounds>0
+    local _,pendingHand,pendingDiscard,changed,effects=combatConfig.woundPending(ledger)
+    -- A Paralyzed Unit needs an Apply button even when all its attack damage
+    -- was absorbed and the Hero has zero Wounds.
+    local showTotal=totalHeroWounds>0 or effects.destroyCount>0
+        or effects.paralyseCount>0
     combatPanelSetAttribute("CombatTotalRow","active",showTotal and "true" or "false")
     if showTotal then
         -- The XML's fixed-width, right-anchored Panel is outside any
         -- HorizontalLayout, so Unity's layout group cannot expand its child.
         local poisonText=totalDiscardWounds>0 and " ("..tostring(totalDiscardWounds).." Poison)" or ""
-        combatPanelSetAttribute("CombatTotalDamage","text",
-            "Draw: "..combatRich(combatWoundsText(totalHeroWounds)..poisonText,combatConfig.COMBAT_RED))
+        local text=totalHeroWounds>0
+            and ("Draw: "..combatRich(combatWoundsText(totalHeroWounds)..poisonText,combatConfig.COMBAT_RED))
+            or ("Apply: Destroy "..tostring(effects.destroyCount)..
+                (effects.destroyCount==1 and " Unit" or " Units"))
+        combatPanelSetAttribute("CombatTotalDamage","text",text)
         combatPanelSetAttribute("CombatTotalDamage","font","Fonts/MKCardText")
         local pending=pendingHand+pendingDiscard>0
+            or effects.paralyseCount>0 or effects.destroyCount>0
         combatPanelSetAttribute("CombatApplyWounds","interactable",
             (pending or changed) and not combatConfig.woundApplying and "true" or "false")
         combatPanelSetAttribute("CombatApplyWounds","color",
             pending and "rgb(0.48,0.36,0.20)" or changed and "rgb(0.49,0.30,0.22)"
             or "rgb(0.23,0.37,0.24)")
+        local tooltip="Apply "..pendingHand.." Wounds to hand and "
+            ..pendingDiscard.." to discard"
+        if effects.paralyseCount>0 then
+            tooltip=tooltip.."; discard all non-Wound hand cards (Paralysis)"
+        end
+        if effects.destroyCount>0 then
+            tooltip=tooltip.."; destroy "..tostring(effects.destroyCount).." Paralyzed Units"
+        end
         combatPanelSetAttribute("CombatApplyWounds","tooltip",
-            pending and ("Apply "..pendingHand.." Wounds to hand and "..pendingDiscard.." to discard")
-            or changed and "Damage changed after application; check Wounds manually"
-            or "All calculated Hero Wounds have been applied")
+            pending and tooltip
+            or changed and "Damage changed after application; check consequences manually"
+            or "All calculated combat consequences have been applied")
         combatPanelSetAttribute("CombatKnockoutWarning","active",knockout and "true" or "false")
         if knockout then
             combatPanelSetAttribute("CombatKnockoutWarning","text",
@@ -52533,6 +54052,7 @@ local function combatCalcShutdown()
     combatConfig.blockedEnemyCounts={}
     combatConfig.conversionState={}
     combatConfig.panelHeight=0
+    if gStates~=nil then gStates.combatBossManual={} end
     combatTrackedSeat=nil
     combatTrackedEnemies={}
     combatCalcOn=false
@@ -52576,8 +54096,10 @@ local function refreshCombatEnemyPanel(monsters,calculated)
             local baseArmour=tonumber(data.armour) or 0
             local armourBonus=perks~=nil and (tonumber(perks.armour) or 0) or 0
             local armour=baseArmour+armourBonus
+            local bossType,bossLevel,bossHead=combatBossIdentity(guid,data,perks,mode)
             entries[#entries+1]={guid=guid,name=tostring(data.name or "Enemy"),
-                attackOnly=mode=="attackOnly",preview=mode=="preview",
+                attackOnly=mode=="attackOnly" or bossType=="control",preview=mode=="preview",
+                bossType=bossType,bossLevel=bossLevel,bossHead=bossHead,
                 armour=tostring(armour),unmodifiedArmour=armour,baseArmour=baseArmour+armourBonus,
                 elusiveArmour=baseArmour*2+armourBonus,data=data,perks=perks,
                 summoned=data.monsters~=nil and combatSummonedFor(guid) or nil}
@@ -52696,7 +54218,45 @@ local function refreshCombatEnemyPanel(monsters,calculated)
         combatAssignmentState={seat=currentSeat,selected=nil,targets={},explicit={}}
         combatExpandedResults={}
     end
+    local lock=combatPhaseLock(currentSeat)
     local sources=combatAssignmentSources(currentSeat)
+    if lock~=nil then
+        -- Use the exact enemy state and grouping that existed when Damage
+        -- was confirmed, rather than newly changed earlier-phase effects.
+        entries=combatFrozenCopy(lock.entries) or entries
+        combatAssignmentJoined=combatFrozenCopy(lock.joined or {}) or {}
+        for key,target in pairs(lock.targets or {}) do
+            if (lock.sourceKeys or {})[key] then
+                combatAssignmentState.targets[key]=target
+                combatAssignmentState.explicit[key]=(lock.explicit or {})[key]==true
+            end
+        end
+        sources=combatPhaseLockSources(lock,sources)
+    else
+        local keys,objects,positions={}, {}, {}
+        for _,source in ipairs(sources) do
+            if (source.ranged or 0)+(source.siege or 0)+(source.block or 0)
+                +(source.move or 0)+(source.psychicInfluence or 0)>0 then
+                keys[source.key]=true
+                objects[source.guid]=true
+                local obj=getObjectFromGUID(source.guid)
+                if obj~=nil then
+                    local pos=obj.getPosition()
+                    positions[source.key]={pos.x or pos[1],pos.y or pos[2],pos.z or pos[3]}
+                end
+            end
+        end
+        combatConfig.phasePreview={
+            seat=currentSeat,turn=gStates.turnNumber,
+            entries=combatFrozenCopy(entries),
+            sources=combatFrozenCopy(sources),
+            enemyEffects=combatFrozenCopy(enemyEffects or {}),
+            sourceKeys=keys,objectKeys=objects,positions=positions,
+            joined=combatFrozenCopy(combatAssignmentJoined),
+            targets=combatFrozenCopy(combatAssignmentState.targets),
+            explicit=combatFrozenCopy(combatAssignmentState.explicit)
+        }
+    end
     local activeSources,activeObjects={},{}
     -- Unit effects such as Illusionists and Delphana Masters can target an enemy
     -- without creating Attack/Block points. Keep their arrows while that ability is active.
@@ -52737,12 +54297,21 @@ local function refreshCombatEnemyPanel(monsters,calculated)
         end
     end
     for guid in pairs(combatAssignmentState.targets) do
-        if activeSources[guid]~=true and not combatSourceKeepsLock(guid) then combatAssignmentState.targets[guid]=nil end
+        if activeSources[guid]~=true and not combatSourceKeepsLock(guid)
+            and not (lock~=nil and (lock.sourceKeys or {})[guid]) then
+            combatAssignmentState.targets[guid]=nil
+        end
     end
     if combatAssignmentState.selected~=nil and activeSources[combatAssignmentState.selected]~=true then
         combatAssignmentState.selected=nil
     end
     local rowHeight=combatAssignmentRefreshRows(entries,sources)
+    if lock==nil and combatConfig.phasePreview~=nil then
+        -- Automatic nearest-enemy targeting is resolved inside the calculator,
+        -- so capture it AFTER that pass rather than before the first render.
+        combatConfig.phasePreview.targets=combatFrozenCopy(combatAssignmentState.targets)
+        combatConfig.phasePreview.explicit=combatFrozenCopy(combatAssignmentState.explicit)
+    end
     if attackAssignmentsRefreshTargetButtons~=nil then
         attackAssignmentsRefreshTargetButtons(monsters)
     end
@@ -52775,6 +54344,8 @@ function resourceCardsRefreshCombatEnemies()
 end
 
 function resourceCardsCombatAssignSource(sourceGUID,enemyGUID)
+    if combatConfig~=nil and combatConfig.phaseKeyLocked~=nil
+        and combatConfig.phaseKeyLocked(sourceGUID) then return end
     if not resourceCardsCombatTargetAcceptsSource(sourceGUID,enemyGUID) then return end
     if gStates~=nil and combatAssignmentState.targets[sourceGUID]~=enemyGUID then
         if sourceGUID=="0688d8" then gStates.battleHardenedAttackKey=nil end
@@ -52834,6 +54405,17 @@ local function cardPosture(card)
     return "sideways"
 end
 
+-- Site-fortification bypass is a combat rule, not an enemy debuff; even
+-- Arcane Immunity / Fire Resistance cannot prevent it. Demolish uses its
+-- basic side, while Underground Attack uses its stronger side.
+local function resourceCardsIgnoreSiteFortification(rule,result,card)
+    if rule==nil or rule.ignoreSiteFortification~=true
+        or result==nil or result.complete~=true or result.resources==nil
+        or card==nil or card.is_face_down==true
+        or cardPosture(card)~="upright" then return false end
+    return (result.powered==true)==(rule.ignoreSiteFortificationPowered==true)
+end
+
 -- Ambush can augment exactly one played card's first Attack or Block. This
 -- pool is shared by the target buttons and the calculation, rather than
 -- requiring the cards to physically touch.
@@ -52889,6 +54471,7 @@ function resourceCardsCombatPage(delta)
 end
 
 function resourceCardsCombatCycleAttack(row,nextSource)
+    if combatPhaseLock~=nil and combatPhaseLock(combatAssignmentActiveSeat())~=nil then return end
     local guid=combatAssignmentRowTargets[row]
     local selector=combatAttackChoiceByRow[row]
     if guid==nil or selector==nil or #selector.options<2 then return end
@@ -52917,6 +54500,7 @@ end
 
 -- The first visible row can still join the preceding enemy on another page.
 function resourceCardsCombatToggleGroup(row)
+    if combatPhaseLock~=nil and combatPhaseLock(combatAssignmentActiveSeat())~=nil then return end
     local guid=combatAssignmentRowTargets[row]
     local index=combatAssignmentRowIndices[row]
     if guid==nil or index==nil or index<2 then return end
@@ -52942,6 +54526,8 @@ end
 
 -- Called when a targeting arrow is removed; the source re-locks to the nearest enemy on refresh.
 function resourceCardsCombatForgetSource(sourceGUID)
+    if combatConfig~=nil and combatConfig.phaseKeyLocked~=nil
+        and combatConfig.phaseKeyLocked(sourceGUID) then return end
     combatAssignmentState.targets[sourceGUID]=nil
     combatAssignmentState.explicit[sourceGUID]=nil
 end
@@ -52965,6 +54551,9 @@ local function combatForgetPhysicalSourceTargets(unitGUID)
 end
 
 function resourceCardsCombatAssignmentClick(id,mouseButton)
+    local lockedSource=combatAssignmentSlotSources[id]
+    if lockedSource~=nil and combatConfig~=nil and combatConfig.phaseKeyLocked~=nil
+        and combatConfig.phaseKeyLocked(lockedSource) then return end
     if tostring(mouseButton)=="-2" and combatConfig.artifactCombat.bow then
         local key=combatAssignmentSlotSources[id]
         local family=combatConfig.slotBowFamilies[id]
@@ -52985,6 +54574,12 @@ function resourceCardsCombatAssignmentClick(id,mouseButton)
     if targetGUID==nil then return end
     local sourceGUID=combatAssignmentSlotSources[id]
     local moved=combatAssignmentState.selected
+    if moved~=nil and combatConfig~=nil and combatConfig.phaseKeyLocked~=nil
+        and combatConfig.phaseKeyLocked(moved) then
+        combatAssignmentState.selected=nil
+        combatConfig.refreshSelectedSlots()
+        return
+    end
     if moved~=nil then
         if sourceGUID==moved then
             combatAssignmentState.selected=nil
@@ -53705,6 +55300,13 @@ end
 -- choices; selecting one immediately collapses back to its icon.
 local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySets,resources,repeatLink)
     if card==nil or combatConfig.cardInTransit(card) then return end
+    if combatConfig~=nil and combatConfig.phaseObjectLocked~=nil
+        and combatConfig.phaseObjectLocked(card.guid) then
+        removeChoiceButtons(card)
+        choiceButtonShown[card.guid]="hidden"
+        choiceExpandedByGUID[card.guid]=nil
+        return
+    end
     local cardData=gameCards[card.guid]
     local rule=cardData~=nil and cardResourceDefinitions[cardData.resourceKey]
         or skillResourceDefinitions[card.guid]
@@ -53738,10 +55340,10 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     elseif rule~=nil and rule.damageMitigation~=nil then
         choices={{key="hardened",icon="other"}}
     end
-    -- Official starting cards with a separate conditional/manual effect keep
-    -- their own controls even when their Move/Influence value is fixed.
+    -- Starting cards with selectable conditional effects keep their controls
+    -- even when their Move/Influence value is fixed; manual notes need no button.
     if rule~=nil and (rule.interactionReward~=nil or rule.recruitDiscount~=nil
-        or rule.selectedTerrainDiscount~=nil or rule.manualSecondary~=nil)
+        or rule.selectedTerrainDiscount~=nil)
         and (choices==nil or #choices==0) and type(resources)=="table" then
         if (tonumber(resources.move) or 0)>0 then choices={{move=resources.move}}
         elseif (tonumber(resources.influence) or 0)>0 then
@@ -54302,20 +55904,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             startingControl("terrain",special~=nil and special.terrain~=nil
                 and special.terrain:sub(1,3):upper() or "TER",
                 special~=nil and special.terrain~=nil,150,-125)
-        elseif rule.manualSecondary~=nil and
-            (not isArtifact or trackerPrivate.artifactManualNoteVisible(card)) then
-            startingControl("manual","?",false,135,-125)
         end
-    end
-    if rule~=nil and isArtifact and rule.manualSecondary~=nil
-        and posture=="upright" and trackerPrivate.artifactManualNoteVisible(card) then
-        xml[#xml+1]={tag="Button",attributes={
-            id="ResourceCardChoice_"..card.guid.."_artifactNote",
-            onClick="global/resourceCardsArtifactNoteClicked",
-            position="145 -240 "..buttonDepth,rotation=uiRotation,
-            width=140,height=82,scale="0.28 0.28",fontSize=43,
-            colors="#454D5D|#69798E|#444C63|#454D5D",
-            textColor="#FFFFFF",textAlignment="MiddleCenter"},value="?"}
     end
     if rule~=nil and isArtifact
         and cardData.resourceKey=="artifactBannerFortitude"
@@ -54381,6 +55970,12 @@ end
 -- This is intentionally independent of translated text position.
 local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decision,useIndex)
     if unit==nil then return end
+    if combatConfig~=nil and combatConfig.phaseObjectLocked~=nil
+        and combatConfig.phaseObjectLocked(unit.guid) then
+        removeChoiceButtons(unit)
+        choiceButtonShown[unit.guid]="hidden"
+        return
+    end
     useIndex=useIndex or unitHistorySelectedNumber(unit.guid)
     if not unwounded or activation==nil or abilities==nil or #abilities==0 then
         removeChoiceButtons(unit)
@@ -57289,10 +58884,11 @@ local function renderSeat(seatPos)
                 end
             end
         end
-        -- Demolish removes site fortification independent of enemy Fire Resistance.
-        if rule~=nil and rule.ignoreSiteFortification==true
-            and result.complete and not result.powered and result.resources~=nil
-            and cardPosture(card)=="upright" and card.is_face_down~=true then
+        -- Both Demolish (basic) and Underground Attack (strong) bypass the
+        -- current assault's site/wall Fortification, never printed Fortified.
+        -- Recomputed each scan so lost mana, a changed side or a removed card
+        -- cannot leave a stale combat modifier.
+        if resourceCardsIgnoreSiteFortification(rule,result,card) then
             ignoreSiteFortifications=true
         end
         -- Conditional combat effects apply only on a paid, upright, actually
@@ -59270,25 +60866,6 @@ function resourceCardsArtifactHealUnitsClicked(player,value,id)
         .." Unit Wound(s).",player.color,{0.7,0.95,0.7})
 end
 
--- Artifact effects with physical dice, crystals or other player-decided
--- outcomes remain explicitly announced, not silently credited as resources.
-function resourceCardsArtifactNoteClicked(player,value,id)
-    if not resourceCardsPanelOpen()
-        or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil)
-        or type(id)~="string" then return end
-    local guid=id:match("^ResourceCardChoice_([0-9a-f]+)_artifactNote$")
-    local data=guid~=nil and gameCards[guid] or nil
-    local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
-    local current=turnOrder~=nil and gStates~=nil
-        and turnOrder[gStates.turnNumber] or nil
-    local card=guid~=nil and getObjectFromGUID(guid) or nil
-    if rule==nil or rule.manualSecondary==nil or current==nil or card==nil
-        or trackerPrivate.bannerCardForm(guid)=="half"
-        or cardPosture(card)~="upright"
-        or not cardInSeatPlayArea(guid,current.seatPos) then return end
-    broadcastToColor(rule.manualSecondary,player.color,{0.9,0.8,0.4})
-end
-
 -- Forked Lightning commits every bolt to one combat phase, rather than
 -- allowing a Ranged kill with one and a later melee hit with another.
 function resourceCardsForkedLightningPhaseClicked(player,value,id)
@@ -59403,9 +60980,6 @@ function resourceCardsStartingCardControlClicked(player,value,id)
             attackAssignmentsBeginUnitReady(guid,guid.."#ready"..index,player.color,
                 rule.readyWithInfluence.maxLevel)
         end
-    elseif control=="manual" and rule.manualSecondary~=nil then
-        broadcastToColor(rule.manualSecondary,player.color,{0.9,0.8,0.4})
-        return
     else return end
     gStates.startingCardSelections[guid]=selected
     resourceCardsSourceChanged()
@@ -59426,7 +61000,8 @@ function resourceCardsChoiceClicked(player,value,id)
     if guid==nil then
         guid,category=id:match("^ResourceCardChoice_([0-9a-f]+)_([%w]+)$")
     end
-    if guid==nil then return end
+    if guid==nil or (combatConfig~=nil and combatConfig.phaseObjectLocked~=nil
+        and combatConfig.phaseObjectLocked(guid)) then return end
     setIndex=setIndex~=nil and tonumber(setIndex) or nil
     repeatIndex=repeatIndex~=nil and tonumber(repeatIndex) or nil
     if not resourceCardsDetailsOpen() then return end
@@ -60198,6 +61773,11 @@ function resourceCardsPanelChanged(open)
     if open==true and not resourceCardsPanelReady() then return end
     trackerPrivate.trackerStartupRequest=trackerPrivate.trackerStartupRequest+1
     if open~=true then
+        -- Closing the tracker cancels a pending decision, not a physical
+        -- transaction whose rewind point is already being stored.
+        if combatConfig.woundConfirmation~=nil then
+            combatConfig.woundConfirmClose()
+        end
         trackerPrivate.trackerWasDisabled=true
         trackerPrivate.trackerSession=trackerPrivate.trackerSession+1
         -- Turn the tracker completely off: stop callbacks and remove its visuals.
@@ -60456,11 +62036,10 @@ function resourceCardsObjectMoved(obj)
     end
 end
 
--- Register all Artifact and readying Object UI callbacks through the protected
--- public boundary so the onLoad callback audit and error reporter can track them.
+-- Register the remaining readying and Artifact gameplay buttons through the
+-- protected public boundary for the onLoad audit and error reporter.
 publishPublicUICallbacks({
     resourceCardsRegenerationReadyClicked=resourceCardsRegenerationReadyClicked,
-    resourceCardsArtifactNoteClicked=resourceCardsArtifactNoteClicked,
     resourceCardsArtifactHealUnitsClicked=resourceCardsArtifactHealUnitsClicked
 })
 
@@ -60642,6 +62221,26 @@ function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec,sourceKey)
     entry.removeResist=entry.removeResist or spec.removeResist==true
     entry.removeFireResist=entry.removeFireResist or spec.removeFireResist==true
     entry.sources[#entry.sources+1]=sourceGUID
+end
+
+
+-- After Damage, newly played enemy effects may only influence the later
+-- Attack phase. Reject sources that already existed at the commitment point:
+-- moving or replaying a committed effect cannot grant it a second activation.
+-- This only discovers new effects; the caller resolves their Attack-only part.
+function combatEffectPostDamageSpecs(latest,committed,committedSources)
+    local seen={}
+    for _,item in ipairs(committed~=nil and committed.applied or {}) do
+        seen[tostring(item.source)..":"..tostring(item.key or item.source)]=true
+    end
+    local additions={}
+    for _,item in ipairs(latest~=nil and latest.applied or {}) do
+        local key=tostring(item.source)..":"..tostring(item.key or item.source)
+        if not seen[key] and not (committedSources or {})[item.source] then
+            additions[#additions+1]=item
+        end
+    end
+    return additions
 end
 
 end)
@@ -64976,6 +66575,89 @@ function combatDealCalculatedWounds(seat,allocations,onCard,onDone)
     dealNext()
 end
 
+-- A Paralyzing hit discards the Hero's CURRENT non-Wound hand, not
+-- already-played cards. Validate the zones and held objects before moving
+-- anything. A mixed physical Deck can occur when hand cards are stacked;
+-- extract only its non-Wound cards, leaving any Wounds behind.
+function combatDiscardParalyzedHand(seat)
+    local hand=getObjectFromGUID(handZones~=nil and handZones[seat] or nil)
+    local discard=getObjectFromGUID(deedDeckDiscardZones~=nil and deedDeckDiscardZones[seat] or nil)
+    if hand==nil or discard==nil then return false,"Hand or discard zone is missing",0 end
+    -- The physical scripting zone and TTS's native Player hand do not always
+    -- report exactly the same objects (especially while cards are settling).
+    -- Read both, so an empty scripting zone cannot silently acknowledge a
+    -- Paralysis discard while the player still holds non-Wound cards.
+    local handObjects,seen={},{}
+    local function include(obj)
+        if obj~=nil and obj.guid~=nil and (obj.type=="Card" or obj.type=="Deck")
+            and not seen[obj.guid] then
+            seen[obj.guid]=true
+            handObjects[#handObjects+1]=obj
+        end
+    end
+    for _,obj in ipairs(hand.getObjects() or {}) do include(obj) end
+    local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    if current~=nil and current.seatPos==seat and positionToColor~=nil
+        and Player~=nil then
+        local color=positionToColor(gStates.turnNumber)
+        local player=color~=nil and color~="Black" and color~="Grey" and Player[color] or nil
+        if player~=nil and player.getHandObjects~=nil then
+            local ok,objects=pcall(player.getHandObjects)
+            if not ok then return false,"Could not inspect the TTS hand",0 end
+            for _,obj in ipairs(objects or {}) do include(obj) end
+        end
+    end
+    local transfers={}
+    for _,obj in ipairs(handObjects) do
+        if obj.type=="Card" and obj.getGMNotes()~="Wound" then
+            if obj.held_by_color~=nil and obj.held_by_color~="" then
+                return false,"A hand card is being held",0
+            end
+            transfers[#transfers+1]={object=obj}
+        elseif obj.type=="Deck" then
+            if obj.held_by_color~=nil and obj.held_by_color~="" then
+                return false,"A hand deck is being held",0
+            end
+            local contents=obj.getObjects() or {}
+            local nonWounds={}
+            for _,card in ipairs(contents) do
+                if card.gm_notes~="Wound" then nonWounds[#nonWounds+1]=card.guid end
+            end
+            if #nonWounds>0 then
+                if #nonWounds==#contents then
+                    transfers[#transfers+1]={object=obj}
+                else
+                    transfers[#transfers+1]={deck=obj,guids=nonWounds}
+                end
+            end
+        end
+    end
+    local pos=discard.getPosition()
+    local x,y,z=pos.x or pos[1],pos.y or pos[2],pos.z or pos[3]
+    local moved=0
+    local movedGUIDs={}
+    for _,entry in ipairs(transfers) do
+        if entry.object~=nil then
+            entry.object.setPositionSmooth({x,y+2+0.07*(moved%5),z},false,false)
+            movedGUIDs[#movedGUIDs+1]=entry.object.guid
+            moved=moved+1
+        else
+            for _,guid in ipairs(entry.guids) do
+                -- Mixed decks always retain at least one Wound card, so the
+                -- deck can safely provide every listed non-Wound by GUID.
+                local card=entry.deck.takeObject({guid=guid,
+                    position={x,y+2+0.07*(moved%5),z},smooth=false})
+                if card==nil then
+                    return false,"A stacked hand card could not be discarded",moved
+                end
+                movedGUIDs[#movedGUIDs+1]=card.guid
+                moved=moved+1
+            end
+        end
+    end
+    return true,moved,movedGUIDs
+end
+
 -- Wound dealing helper
 function DealWound(paramaters)
 	local woundbag=getObjectFromGUID(paramaters.guid)
@@ -67585,7 +69267,7 @@ local GLOBAL_UI_PUBLIC_VISIBILITY_IDS={
 	"CoopAssault","cameraControl","zigguratPyramidInteract",
 }
 local GLOBAL_UI_RUNTIME_VISIBILITY_IDS={
-	"ScoreBoard","ExtraTurnChoice","WallAssaultChoice","CoralDrawChoice","MineClaimChoice","cameraControlDetail",
+	"ScoreBoard","ExtraTurnChoice","WallAssaultChoice","CoralDrawChoice","MineClaimChoice","CombatDamageConfirm","cameraControlDetail",
 }
 
 function setUIVisibility(id,viewers)
@@ -67947,6 +69629,14 @@ local rewindTransactionPendingOwners={}
 function rewindTransactionOwnerActive(owner)
 	owner=owner or "Automated turn"
 	return rewindTransactionOwners[owner]==true or rewindTransactionPendingOwners[owner]==true
+end
+
+-- The combat damage commit requires its OWN checkpoint, not a nested
+-- transaction's older snapshot. Reject the click while another scripted
+-- operation is recording or holding a rewind point.
+function rewindTransactionCanStartFresh()
+	return rewindTransactionBlocked~=true and rewindTransactionStorePending~=true
+		and next(rewindTransactionOwners)==nil
 end
 
 function rewindTransactionStart(andThen,owner,onFailure)
@@ -68836,7 +70526,7 @@ local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
 local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="461"
+local automaticLuaErrorReporterVersion="462"
 
 -- Automatic Lua error reporting, protected callback helpers and diagnostic context builders.
 local automaticLuaZoneContext
@@ -69097,7 +70787,7 @@ local function automaticLuaErrorSignature(functionName,errorText)
 	return tostring(functionName).."|"..firstLine
 end
 
-local function reportAutomaticLuaError(functionName, errorText, context)
+local function reportAutomaticLuaError(functionName, errorText, context, heading)
 	if automaticLuaErrorReporting then return end
 	local now=os.time()
 	local signature=automaticLuaErrorSignature(functionName,errorText)
@@ -69112,7 +70802,7 @@ local function reportAutomaticLuaError(functionName, errorText, context)
 	end
 	if signatureCount>100 then automaticLuaErrorSignatures={} automaticLuaErrorSignatures[signature]=now end
 	automaticLuaErrorReporting=true
-	local comment="AUTOMATIC LUA ERROR\nReporter Version: "..tostring(automaticLuaErrorReporterVersion).."\nFunction: "..tostring(functionName)
+	local comment=(heading or "AUTOMATIC LUA ERROR").."\nReporter Version: "..tostring(automaticLuaErrorReporterVersion).."\nFunction: "..tostring(functionName)
 	if context~=nil and context~="" then comment=comment.."\n"..tostring(context) end
 	local breadcrumbs=automaticLuaBreadcrumbText()
 	if breadcrumbs~="" then comment=comment.."\nRecent script actions: "..breadcrumbs end
@@ -69120,6 +70810,12 @@ local function reportAutomaticLuaError(functionName, errorText, context)
 	local ok, reportError=pcall(function() sendAutomaticLuaErrorRequest(comment) end)
 	if not ok then log("Automatic Lua error report failed: "..tostring(reportError).."\n"..comment) end
 	automaticLuaErrorReporting=false
+end
+
+-- Report a non-fatal state inconsistency through the same bug-report Sheet.
+-- Keep its own heading so expected diagnostic probes are never mistaken for Lua exceptions.
+function reportAutomaticLuaDiagnostic(functionName, summary, context)
+	reportAutomaticLuaError(functionName, summary, context, "AUTOMATIC LUA DIAGNOSTIC")
 end
 
 function safeCallback(functionName, callback, contextCallback)
@@ -70480,6 +72176,10 @@ cardResourceDefinitions={
     -- Spell resources are independent of the legality of the mana used.
     -- Purely narrative/non-numeric effects are deliberately blue, not unknown.
     spellUtility={normalChoices={{key="other"}},poweredChoices={{key="other"}}},
+    -- Underground Travel stays manual. Its stronger side initiates an assault
+    -- that ignores site/wall Fortification, but never printed Fortified.
+    spellUnderground={normalChoices={{key="other"}},poweredChoices={{key="other"}},
+        ignoreSiteFortification=true,ignoreSiteFortificationPowered=true},
     -- A played unpowered card changes movement routing, not Move points.
     -- Its active ability is independent of numeric Resource Tracker totals.
     spellSpaceBending={normalChoices={{key="other"}},poweredChoices={{key="other"}},
@@ -71115,7 +72815,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["2eb8f3"]={cardType="Spell", resourceKey="spellUtility", name={"Energy Flow", "Energy Steal"}, 		color={"Green"}, action={"Heal"}},
 			["47e71c"]={cardType="Spell", resourceKey="spellCure", name={"Cure", "Disease"}, 					color={"Green"}, action={"Heal", "Combat"}},
 			["2eb8d3"]={cardType="Spell", resourceKey="spellRestoration", name={"Restoration", "Rebirth"}, 				color={"Green"}, action={"Heal"}},
-			["2eb8d2"]={cardType="Spell", resourceKey="spellUtility", name={"Underground Travel", "Underground Attack"}, color={"Green"}, action={"Move"}},
+			["2eb8d2"]={cardType="Spell", resourceKey="spellUnderground", name={"Underground Travel", "Underground Attack"}, color={"Green"}, action={"Move"}},
 			["2eb8d1"]={cardType="Spell", resourceKey="spellTremor", name={"Tremor", "Earthquake"}, 				color={"Green"}, action={"Combat"}},
 			["2eb8d0"]={cardType="Spell", resourceKey="spellUtility", name={"Meditation", "Trance"}, 				color={"Green"}, action={"Special"}},
 			["995f43"]={cardType="Spell", resourceKey="spellRestoration", name={"Restoration", "Rebirth"}, 				color={"Green"}, action={"Heal"}},--Rise of the Forgemaster Start
