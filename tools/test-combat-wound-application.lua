@@ -52,6 +52,7 @@ safeBroadcastToColor=broadcastToColor
 -- Isolation tests do not load the earlier module-local snapshot helpers.
 -- Provide equivalent minimal globals for the extracted wound coordinator.
 combatPhaseLock=function() return nil end
+combatAssignmentActiveSeat=function() return 1 end
 combatFrozenCopy=function(value)
     if type(value)~="table" then return value end
     local copy={}
