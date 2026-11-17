@@ -335,7 +335,9 @@ assert(recognition:find("combatConfig.captureParalyzedUnitSources(seat,effect.gu
 -- The existing Draw Wounds button does not mutate anything. It opens a
 -- seat-scoped confirmation, and a fresh rewind snapshot is required before
 -- ANY physical Wounds or Paralysis consequences can be committed.
-local xml=fileText("src/UI/CombatEnemyPanel.xml")
+local xml=fileText("src/UI/CombatDamageConfirm.xml")
+assert(fileText(".tts/objects/Global.xml"):find('UI/CombatDamageConfirm.xml',1,true),
+    "confirmation dialog must be included in the global UI")
 assert(xml:find('id="CombatDamageConfirm" active="false"',1,true)
     and xml:find('id="CombatDamageConfirmSummary"',1,true)
     and xml:find('id="CombatDamageConfirmCancel" onClick="resourceTracker"',1,true)
