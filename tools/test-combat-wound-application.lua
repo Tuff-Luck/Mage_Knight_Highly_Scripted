@@ -346,6 +346,10 @@ assert(xml:find('id="CombatDamageConfirm" active="false"',1,true)
 assert(xml:find('<Text id="CombatDamageConfirmCancelText" class="Text18">',1,true)
     and xml:find('<Text id="CombatDamageConfirmApplyText" class="Text18">',1,true),
     "the Cancel and Commit Damage labels need stable translation IDs")
+assert(xml:find('width="410" height="250"',1,true)
+    and xml:find('returnToOriginalPositionWhenReleased="false"',1,true)
+    and xml:find('preferredHeight="154"',1,true),
+    "confirmation should be compact and stay where dragged")
 assert(fileText("src/PlayingGame/UI.lua"):find(
     'resourceCardsRequestCombatWounds(player)',1,true),
     "the original wound button must open confirmation, not deal Wounds")
@@ -390,9 +394,12 @@ setUIVisibility=function(id,viewers)
     eq(viewers[1],"Red","only the committing player sees dialog")
 end
 joinLang=function(parts)
-    local first=tostring(parts[1]):match("^{en}(.-){it}") or tostring(parts[1])
-    if parts[2]~=nil then first=first..tostring(parts[2]) end
-    return first
+    local result={}
+    for _,part in ipairs(parts) do
+        local value=tostring(part)
+        result[#result+1]=value:match("^{en}(.-){it}") or value
+    end
+    return table.concat(result)
 end
 combatAssignmentState={targets={unitR="enemyA"},explicit={unitR=true}}
 local capturedSnapshot,finishedSnapshots={},{}
@@ -414,6 +421,14 @@ combatConfig.woundRecordPreview(1,{{key="confirm:1"}},{
     ["confirm:1"]={heroWounds=2,discard=0}})
 resourceCardsRequestCombatWounds(player)
 eq(attrs["CombatDamageConfirm:active"],"true","button must open confirmation")
+eq(attrs["CombatDamageConfirm:height"],"250","normal damage dialog should stay compact")
+eq(attrs["CombatDamageConfirmSummary:preferredHeight"],"154","compact summary height")
+local damageText=attrs["CombatDamageConfirmSummary:text"]
+assert(damageText:find("Calculator will be locked in to attack adjustments only. Use TTS Rewind to undo.",1,true)
+    and damageText:find("Confirm your Ranged/Siege and Block decisions",1,true)
+    and damageText:find("Hero Wounds to hand: 2",1,true)
+    and damageText:find("Poison Wounds to discard: 0",1,true),
+    "all confirmation paragraphs must survive as one localized message")
 eq(#dealt,startCount,"opening dialog does not draw Wounds")
 eq(combatWoundsEndTurnReminder("Red"),true,
     "End Turn blocked while confirmation is open")
