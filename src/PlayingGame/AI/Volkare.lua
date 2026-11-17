@@ -1,3 +1,7 @@
+-- Editor-only signatures for Tabletop Simulator objects used in Volkare's routines.
+---@alias VolkareContainer { takeObject: fun(params: table): any }
+---@alias VolkareReturningEnemy { setRotationSmooth: fun(rotation: table, collide: boolean, fast: boolean), setPositionSmooth: fun(position: table, collide: boolean, fast: boolean) }
+
 -- Volkare automated turn and combat-response runtime.
 
 --Return the legal top-tile exploration position that contains a world hex.
@@ -312,7 +316,9 @@ function volkareTurn(player, mouseButton, id)
 						 	params.position[2]=getObjectFromGUID(dummyBoard).getPosition()[2]+1.0+(0.2*gStates.volkareRecruit)
 						 	params.position[3]=getObjectFromGUID(dummyBoard).getPosition()[3]+1.9+(0.2*gStates.volkareRecruit)
 							gStates.volkareRecruit=gStates.volkareRecruit+1
-						 	local monster=getObjectFromGUID(monsterPiles.gray).takeObject(params)
+						 	---@type VolkareContainer
+						 	local grayPile=getObjectFromGUID(monsterPiles.gray)
+						 	local monster=grayPile.takeObject(params)
 						 	gStates.monsterPlayLocation[monster.guid]={params.position[1], params.position[2], params.position[3]}
 							gStates.cityMonsterQty[volkare.model][monster.guid]="alive"
 						else
@@ -433,6 +439,7 @@ function volkareTurn(player, mouseButton, id)
 						local canExplore=terrainStack~=nil and terrainStack.getQuantity()>0
 						volkareExploreBearings, terrainSpot=planVolkareExploreMove(volkarePOS, originalBearing, volkareDrew.spell, mapSnapshot, canExplore)
 						if terrainSpot~=nil then
+							---@cast terrainStack VolkareContainer
 							local newtile=terrainStack.takeObject({position=terrainSpot, smooth=true})
 							if newtile~=nil then
 								terrainPlayed=true
@@ -765,6 +772,7 @@ function volkareTurn(player, mouseButton, id)
 							-- The calculator can leave surviving and defeated enemies face up.
 							-- Only its defeat state (or the manual face-up convention) decides which return.
 							if combatEnemyTokenDefeated(playAreaObj)~=true then
+								---@cast playAreaObj VolkareReturningEnemy
 								playAreaObj.setRotationSmooth({0, 180, 0},false,false)
 								playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid],false,false)
 							else
@@ -857,7 +865,9 @@ function volkareRetreat(player, mouseButton, id)
 				if playerRetreat==true then
 					--give woundCards
 					for a=1, (math.ceil(gStates.currentRound/2)+1), 1 do
-						getObjectFromGUID("e917e2").takeObject({position={(mageDetails.seatPos*40)-90, 3.5, -48.4}, rotation={0, 180, 0}, smooth=false})
+						---@type VolkareContainer
+						local woundBag=getObjectFromGUID("e917e2")
+						woundBag.takeObject({position={(mageDetails.seatPos*40)-90, 3.5, -48.4}, rotation={0, 180, 0}, smooth=false})
 					end
 					broadcastToAll(joinLang({translateWord[mageDetails.mage], "{en} gained {it} ha ricevuto {ru} получает {zh-tw}增加了{zh-cn}增加了{ko}의 획득:  {es} ganó {fr} a subi {pt-br} ganhou {de} gewonnen ", (math.ceil(gStates.currentRound/2)+1), "{en} wounds.{it} Ferite.{ru} раны.{zh-tw}张创伤卡{zh-cn}张创伤卡{ko}장의 부상{es} heridas.{fr} blessures.{pt-br} ferimentos.{de} Wunden."}), positionToColor(x))
 					if gStates.volkareAttacked[1].distance<1.5 and gStates.volkareMovementStepPending~=true then broadcastToAll(joinLang({translateWord[mageDetails.mage], "{en} needs to withdraw to a neighboring Safe space.{it} deve ritirarsi in uno spazio Sicuro adiacente.{ru} должен перейти на соседнее безопасное место.{zh-tw}需要强制撤退到附近的安全地带{zh-cn}需要强制撤退到附近的安全地带{ko}: 인접한 안전한 칸으로 강제후퇴해야 합니다.{es} necesita retirarse a un espacio seguro vecino.{fr} doit se retirer dans un espace sûr voisin.{pt-br} precisa se retirar para um espaço seguro vizinho.{de} sich auf ein benachbartes sicheres Feld zurückziehen muss."}), positionToColor(x)) end
