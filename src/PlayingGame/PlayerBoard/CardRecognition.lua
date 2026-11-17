@@ -2502,6 +2502,7 @@ function resourceCardsApplyCombatWounds(player,onComplete)
         return applied
     end
     local settlingGUIDs={}
+    local unitAreaTouched=false
     local completing=false
     local finalized=false
     local function finish(success,reason)
@@ -2520,7 +2521,7 @@ function resourceCardsApplyCombatWounds(player,onComplete)
             mainUIUpdate("Combat Wounds applied")
             if onComplete~=nil then onComplete(success,reason) end
         end
-        if onComplete==nil or next(settlingGUIDs)==nil
+        if onComplete==nil or (not unitAreaTouched and next(settlingGUIDs)==nil)
             or safeWaitFrames==nil or safeWaitCondition==nil then
             finalise()
         else
@@ -2543,7 +2544,7 @@ function resourceCardsApplyCombatWounds(player,onComplete)
                         player.color,warningColor)
                     finalise()
                 end)
-            end,3)
+            end,unitAreaTouched and 18 or 3)
         end
     end
     local function commitConsequences()
@@ -2596,6 +2597,15 @@ function resourceCardsApplyCombatWounds(player,onComplete)
                 end
                 for _,guid in ipairs(type(movedOrReason)=="table" and movedOrReason or {}) do
                     settlingGUIDs[guid]=true
+                end
+                -- Unit-area compaction is scheduled 0.2 seconds after
+                -- removal. Wait through that timer and the resulting smooth
+                -- moves before allowing TTS to store further rewind states.
+                unitAreaTouched=true
+                local zoneGUID=playerUnitAreas~=nil and playerUnitAreas[seat] or nil
+                local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
+                for _,obj in ipairs(zone~=nil and zone.getObjects() or {}) do
+                    if obj.guid~=nil then settlingGUIDs[obj.guid]=true end
                 end
                 applied.destroyed[effect.guid]=effect.absorbed
             end
