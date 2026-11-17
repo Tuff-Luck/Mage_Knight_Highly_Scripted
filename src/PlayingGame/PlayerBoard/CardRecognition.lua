@@ -669,7 +669,7 @@ local function combatAssignmentSources(seat)
         local icon=family=="ranged" and "MKChoiceRanged"
             or family=="siege" and "MKChoiceSiege"
             or family=="block" and "MKChoiceBlock" or "MKChoiceAttack"
-        local source={guid=guid,key=guid.."#"..part,part=part,name=label,
+        local source={guid=guid,key=guid.."#"..part,part=part,kind="card",name=label,
             ranged=family=="ranged" and points or 0,
             siege=family=="siege" and points or 0,
             block=family=="block" and points or 0,
@@ -3522,10 +3522,41 @@ end
 -- Unit resources already spent in the Ranged/Block phases stand. Unused
 -- Ranged/Siege effects fall back to normal Attack only if their Unit survived
 -- damage unwounded; a wound cannot retroactively undo an earlier phase.
-combatConfig.attackPhaseSources=function(sources,wounded)
+-- A Paralyzing Wound assigned to the Hero discards all non-Wound cards from
+-- hand BEFORE the Attack phase. In a backwards-planned combat those cards may
+-- already be laid out, so treat their Attack resources as unavailable instead
+-- of letting them produce a false kill. Range/Siege and Block remain settled.
+-- After Damage was committed, a genuinely NEW card can still be played.
+combatConfig.paralysisAttackCards=function(sources,results,lock)
+    local heroParalyzed=false
+    for _,result in pairs(results or {}) do
+        if result.paralyse==true and (tonumber(result.heroWounds) or 0)>0 then
+            heroParalyzed=true
+            break
+        end
+    end
+    if not heroParalyzed then return {} end
+    local preDamageCards={}
+    for _,source in ipairs(lock~=nil and lock.sources or {}) do
+        if source.kind=="card" then preDamageCards[source.guid]=true end
+    end
+    local unavailable={}
+    for _,source in ipairs(sources or {}) do
+        if source.kind=="card" and (lock==nil or source.phaseAfterDamage~=true
+            or preDamageCards[source.guid]==true) then
+            unavailable[source.guid]=true
+        end
+    end
+    return unavailable
+end
+
+combatConfig.attackPhaseSources=function(sources,wounded,paralysisCards)
     local active={}
     for _,source in ipairs(sources or {}) do
-        if wounded[source.guid]~=true and not source.noAttackPhase then active[#active+1]=source end
+        if wounded[source.guid]~=true and not source.noAttackPhase
+            and not (paralysisCards~=nil and paralysisCards[source.guid]==true) then
+            active[#active+1]=source
+        end
     end
     return active
 end
@@ -4705,6 +4736,10 @@ local function combatAssignmentRefreshRows(entries,sources)
             end
         end
     end
+    -- An unblocked Paralyzing Wound to the Hero makes staged card Attacks
+    -- unavailable in the later Attack phase. Recalculate with every damage
+    -- assignment so a successful Block or a Unit assignment restores them.
+    local paralysisAttackCards=combatConfig.paralysisAttackCards(sources,damageResults,earlyLock)
     -- Blocks: only suppress remaining Unit attacks after *actual* wounds.
     -- Resisted assignments that cause no Wound leave the Unit eligible.
     local woundedBeforeAttack=combatConfig.unitsWoundedByDamage(damageResults)
@@ -4736,7 +4771,7 @@ local function combatAssignmentRefreshRows(entries,sources)
         end
     end
     for _,group in ipairs(groups) do
-        local available=combatConfig.attackPhaseSources(group.sources,woundedBeforeAttack)
+        local available=combatConfig.attackPhaseSources(group.sources,woundedBeforeAttack,paralysisAttackCards)
         local meleeSources={}
         for _,source in ipairs(available) do
             if not source.forkedLightning
@@ -5005,11 +5040,13 @@ local function combatAssignmentRefreshRows(entries,sources)
                     -- and explain why it does not count. Earlier Ranged/Block stands.
                     local wounded=phase=="attack" and (woundedBeforeAttack[item.source.guid]==true
                         or item.source.dodgeIneligible==true)
+                    local paralysisCard=phase=="attack"
+                        and paralysisAttackCards[item.source.guid]==true
                     if phase~=nil then
                         lists[phase][#lists[phase]+1]={source=item.source,amount=item.detail.amount,
                             icon=item.detail.icon,text=item.detail.text,typeKey=item.detail.typeKey,
                             reduced=combatEnemyResists(group.entry.data,group.entry.perks,item.detail.typeKey),
-                            wounded=wounded}
+                            wounded=wounded,paralysisCard=paralysisCard,ineffective=paralysisCard}
                     end
                 end
             end
@@ -5099,6 +5136,11 @@ local function combatAssignmentRefreshRows(entries,sources)
                         ..(item.source.dodgeIneligible and
                             " unavailable: the Hero took Wounds before the Attack phase"
                             or (item.wounded and " can't apply 'Wounded'" or "")))
+                    if item.paralysisCard then
+                        tooltip=tooltip.."\nParalysis: the Hero takes a Paralyzing Wound"
+                            .." before Attack, discarding non-Wound hand cards."
+                            .." This planned card Attack does not count."
+                    end
                     local bowFamily=combatConfig.slotBowFamilies[id]
                     if bowFamily~=nil and combatConfig.artifactCombat.bow then
                         local bowMode=combatConfig.bowSourceModes[
