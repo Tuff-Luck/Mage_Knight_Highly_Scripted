@@ -19,8 +19,7 @@ local env=setmetatable({gStates={combatBossManual={}},
     combatEnemyHasTrait=function(data,perks,key)
         return data[key]==true or (perks~=nil and perks[key]==true)
     end},{__index=_G})
-local count,phase=assert(load(code.."
-return combatBossLevelCount,combatBossPhasePlan","boss level rules","t",env))()
+local count,phase=assert(load(code.."\\nreturn combatBossLevelCount,combatBossPhasePlan","boss level rules","t",env))()
 local function eq(actual,expected,what)
     assert(actual==expected,what..": expected "..tostring(expected)
         ..", got "..tostring(actual))
