@@ -2476,19 +2476,19 @@ combatConfig.woundConfirmChoice=function(player,id)
     end
 end
 
-function resourceCardsApplyCombatWounds(player)
+function resourceCardsApplyCombatWounds(player,onComplete)
     if not resourceCardsPanelOpen() or not resourceCardsPlayerCanEdit(player and player.color or nil)
-        or combatConfig.woundApplying then return end
+        or combatConfig.woundApplying then return false end
     local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
     local ledger=current~=nil and combatConfig.woundLedger(current.seatPos) or nil
     local allocations,hand,discard,changed,effects=combatConfig.woundPending(ledger)
-    if current==nil or ledger==nil then return end
+    if current==nil or ledger==nil then return false end
     if hand+discard==0 and effects.paralyseCount==0 and effects.destroyCount==0 then
         if changed then
             broadcastToColor("Combat damage changed after Wounds were dealt. Check the physical cards; none are removed automatically.",
                 player.color,warningColor)
         end
-        return
+        return false
     end
     ledger.warned=nil
     combatConfig.woundApplying=true
@@ -2501,15 +2501,43 @@ function resourceCardsApplyCombatWounds(player)
         end
         return applied
     end
+    local settlingGUIDs={}
+    local completing=false
+    local finalized=false
     local function finish(success,reason)
-        combatConfig.woundApplying=false
-        if not success then
-            broadcastToColor("Apply Wounds stopped: "..tostring(reason)
-                ..". Check the physical cards and click again to finish.",
-                player.color,warningColor)
+        if completing then return end
+        completing=true
+        local function finalise()
+            if finalized then return end
+            finalized=true
+            combatConfig.woundApplying=false
+            if not success then
+                broadcastToColor("Apply Wounds stopped: "..tostring(reason)
+                    ..". Check the physical cards and click again to finish.",
+                    player.color,warningColor)
+            end
+            resourceCardsSourceChanged()
+            mainUIUpdate("Combat Wounds applied")
+            if onComplete~=nil then onComplete(success,reason) end
         end
-        resourceCardsSourceChanged()
-        mainUIUpdate("Combat Wounds applied")
+        if onComplete==nil or next(settlingGUIDs)==nil
+            or safeWaitFrames==nil or safeWaitCondition==nil then
+            finalise()
+        else
+            -- TTS smooth movement continues after setPositionSmooth returns.
+            -- Keep the rewind transaction open until the last affected card
+            -- settles, never expose a partial physical snapshot mid-commit.
+            safeWaitFrames("PlayerBoard.CardRecognition",function()
+                safeWaitCondition("PlayerBoard.CardRecognition",finalise,function()
+                    for guid in pairs(settlingGUIDs) do
+                        local obj=getObjectFromGUID(guid)
+                        if obj~=nil and ((obj.isSmoothMoving~=nil and obj.isSmoothMoving())
+                            or obj.resting==false) then return false end
+                    end
+                    return true
+                end,8,finalise)
+            end,3)
+        end
     end
     local function commitConsequences()
         -- Check both zones before any irreversible Paralysis discard. A
@@ -2536,6 +2564,10 @@ function resourceCardsApplyCombatWounds(player)
                 return
             end
             for _,key in ipairs(effects.paralyse) do record(key).paralyse=true end
+            -- On success the fourth pcall value is the transferred GUID list.
+            for _,guid in ipairs(type(moved)=="table" and moved or {}) do
+                settlingGUIDs[guid]=true
+            end
         end
         for _,effect in ipairs(effects.destroyed) do
             local applied=record(effect.key)
@@ -2550,10 +2582,13 @@ function resourceCardsApplyCombatWounds(player)
                 if combatConfig.captureParalyzedUnitSources~=nil then
                     combatConfig.captureParalyzedUnitSources(seat,effect.guid)
                 end
-                local ok,reason=attackAssignmentsUnitPreviewApplyDestroyed(seat,effect.guid)
+                local ok,movedOrReason=attackAssignmentsUnitPreviewApplyDestroyed(seat,effect.guid)
                 if not ok then
-                    finish(false,reason)
+                    finish(false,movedOrReason)
                     return
+                end
+                for _,guid in ipairs(type(movedOrReason)=="table" and movedOrReason or {}) do
+                    settlingGUIDs[guid]=true
                 end
                 applied.destroyed[effect.guid]=effect.absorbed
             end
@@ -2561,22 +2596,26 @@ function resourceCardsApplyCombatWounds(player)
         finish(true)
     end
     if hand+discard==0 then
-        commitConsequences()
-        return
+        local ok,reason=pcall(commitConsequences)
+        if not ok then finish(false,reason) end
+        return true
     end
     combatDealCalculatedWounds(seat,allocations,
         function(key,destination,guid)
             local applied=record(key)
             applied[destination]=(applied[destination] or 0)+1
             if destination=="hand" then ledger.cards[guid]=true end
+            settlingGUIDs[guid]=true
         end,
         function(success,reason)
             if not success then
                 finish(false,reason)
             else
-                commitConsequences()
+                local ok,problem=pcall(commitConsequences)
+                if not ok then finish(false,problem) end
             end
         end)
+    return true
 end
 
 -- A soft two-click acknowledgement also works if the tracker was minimized.
