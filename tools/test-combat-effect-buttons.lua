@@ -150,4 +150,18 @@ assert(cardRecognition:find('(wounded or ineffective) and "rgb(0.90,0.37,0.35)"'
     "Red must reuse the existing unavailable/Wounded slot background")
 assert(cardRecognition:find('selected and "rgb(1,0.75,0.2)" or "rgb(0.85,0.82,0.72)"',1,true),
     "Effective buttons should retain the same neutral gray as resources")
+-- A new Attack-phase effect may change the later enemy Armour, but a
+-- committed source must not reapply by moving to a different enemy.
+local committed={applied={{source="old",key="old",effective={armourReduce=2}}}}
+local latest={applied={{source="old",key="old",effective={armourReduce=2}},
+    {source="new",key="new",effective={armourReduce=1}}}}
+local late=combatEffectPostDamageSpecs(latest,committed,{old=true})
+eq(#late,1,"only one new effect appears after Damage")
+eq(late[1].source,"new","new source remains eligible for late Attack")
+eq(#combatEffectPostDamageSpecs(latest,nil,{old=true,new=true}),0,
+    "moving committed sources cannot grant additional effects")
+assert(cardRecognition:find("local newEffects=combatEffectPostDamageSpecs",1,true)
+    and cardRecognition:find("entry.attackPhaseDestroyed=true",1,true)
+    and cardRecognition:find('effectButton.family="attack"',1,true),
+    "late effects must modify Attack only, not the committed Damage preview")
 print("Combat effect button regressions passed")
