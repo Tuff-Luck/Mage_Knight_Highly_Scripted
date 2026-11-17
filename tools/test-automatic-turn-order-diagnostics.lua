@@ -63,4 +63,52 @@ assert(#reports==2)
 assert(reports[2].context:find("After 2 frames: REAPPEARED",1,true))
 assert(env.turnOrder[2].turnOrderTokenGUID=="missing456",
     "Diagnostics must not rewrite turn-order references")
+-- The existing deletion-protection audit must also report an actual destroy
+-- callback, so the later tactic check can be distinguished from the original event.
+local eventFile=assert(io.open("src/PlayingGame/Events.lua","r"))
+local eventSource=eventFile:read("*a")
+eventFile:close()
+local eventStart=assert(eventSource:find(
+    "local function protectedObjectDestroyAudit(",1,true))
+local eventFinish=assert(eventSource:find(
+    "\nfunction __tryObjectEnterContainer_raw",eventStart,true))
+local eventImplementation=eventSource:sub(eventStart,eventFinish-1)
+    .."\nreturn protectedObjectDestroyAudit"
+local destroyPending={}
+local destroyEnv={
+    gStates={firstStarted=true,gameScenario="First Conquest",
+        currentRound=1,turnNumber=2},
+    turnOrder=env.turnOrder,
+    protectedExpectedScriptRemovals={},
+    protectedUnexpectedDestroyReported={},
+    protectedObjectKind=function() return "Round Order token",true end,
+    getObjectFromGUID=function(guid) return objects[guid] end,
+    safeWaitFrames=function(scope,fn,frames)
+        assert(scope=="ProtectedObjects" and frames==2)
+        destroyPending[#destroyPending+1]=fn
+    end,
+    reportAutomaticLuaDiagnostic=env.reportAutomaticLuaDiagnostic,
+    log=env.log
+}
+setmetatable(destroyEnv,{__index=_G})
+local destroyAudit=assert(load(eventImplementation,
+    "Protected object audit","t",destroyEnv))()
+objects.missing456=nil
+destroyAudit("missing456")
+assert(#destroyPending==1 and #reports==2,"Destroy audit should be deferred")
+destroyPending[1]()
+assert(#reports==3,"Missing protected token should be reported")
+assert(reports[3].name=="protectedObjectDestroyAudit")
+assert(reports[3].context:find("seat=5 mage=Dummy",1,true))
+assert(reports[3].context:find("Lookup after 2 frames: NOT FOUND",1,true))
+
+-- Restored or explicitly permitted objects must not generate a false alarm.
+destroyAudit("returned123")
+objects.returned123=token
+destroyPending[2]()
+assert(#reports==3,"Restored object incorrectly reported as destroyed")
+destroyEnv.protectedExpectedScriptRemovals.allowed123={destination="trash"}
+destroyAudit("allowed123")
+assert(#destroyPending==2,"Expected removal should not schedule an audit")
+
 print("Automatic turn-order token diagnostics passed")
