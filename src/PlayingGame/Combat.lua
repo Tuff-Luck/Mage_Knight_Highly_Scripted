@@ -1512,6 +1512,7 @@ end
 --defeated; they carry a red X instead of being flipped face down. Cleared whenever the calculator stops.
 local combatDefeatTracked={}
 local combatDefeatDefeated={}
+local combatDefeatPartial={}
 combatDefeatMarksActive=false
 combatDefeatCleanupSnapshot=nil
 local combatDefeatFlipRestoring={}
@@ -1548,7 +1549,11 @@ end
 
 function combatEnemyTokenDefeated(obj)
 	if obj==nil then return false end
-	if combatDefeatMarksActive==true and combatDefeatTracked[obj.guid]==true then return combatDefeatDefeated[obj.guid]==true end
+	if combatDefeatMarksActive==true and combatDefeatTracked[obj.guid]==true then
+		-- A boss reduced by one or more levels has earned Fame and must
+		-- undergo level cleanup, but only its final level earns a red X.
+		return combatDefeatDefeated[obj.guid]==true or combatDefeatPartial[obj.guid]==true
+	end
 	return obj.is_face_down==false
 end
 
@@ -1573,8 +1578,16 @@ local function combatDefeatRefreshTokens(guids)
 end
 
 --tracked: {guid=true} for every enemy the calculator is evaluating; defeated: {guid=true} for those it shows defeated.
-function combatSetDefeatMarks(tracked,defeated)
+function combatSetDefeatMarks(tracked,defeated,partial)
+	partial=partial or {}
 	local changed={}
+	local progressChanged=false
+	for guid in pairs(partial) do
+		if combatDefeatPartial[guid]~=true then progressChanged=true end
+	end
+	for guid in pairs(combatDefeatPartial) do
+		if partial[guid]~=true then progressChanged=true end
+	end
 	for guid in pairs(defeated) do if combatDefeatDefeated[guid]~=true then changed[guid]=true end end
 	for guid in pairs(combatDefeatDefeated) do if defeated[guid]~=true then changed[guid]=true end end
 	local trackingChanged=combatDefeatMarksActive~=true
@@ -1586,9 +1599,11 @@ function combatSetDefeatMarks(tracked,defeated)
 	for guid in pairs(tracked) do if combatDefeatTracked[guid]~=true then refresh[guid]=true end end
 	for guid in pairs(combatDefeatTracked) do if tracked[guid]~=true then refresh[guid]=true end end
 	combatDefeatMarksActive=true
-	combatDefeatTracked,combatDefeatDefeated=tracked,defeated
+	combatDefeatTracked,combatDefeatDefeated,combatDefeatPartial=tracked,defeated,partial
 	combatDefeatRefreshTokens(refresh)
-	if next(changed)~=nil or trackingChanged then mainUIUpdate("Combat Calculator defeat marks") end
+	if next(changed)~=nil or trackingChanged or progressChanged then
+		mainUIUpdate("Combat Calculator defeat marks")
+	end
 end
 
 function combatClearDefeatMarks()
@@ -1597,7 +1612,7 @@ function combatClearDefeatMarks()
 	for guid in pairs(combatDefeatTracked) do refresh[guid]=true end
 	for guid in pairs(combatDefeatDefeated) do refresh[guid]=true end
 	combatDefeatMarksActive=false
-	combatDefeatTracked,combatDefeatDefeated={},{}
+	combatDefeatTracked,combatDefeatDefeated,combatDefeatPartial={},{},{}
 	combatDefeatRefreshTokens(refresh)
 	mainUIUpdate("Combat Calculator defeat marks")
 end
@@ -1608,7 +1623,8 @@ function combatDefeatSnapshotForCleanup()
 	if combatDefeatMarksActive~=true then combatDefeatCleanupSnapshot=nil return end
 	local snapshot={}
 	for guid in pairs(combatDefeatTracked) do
-		if combatDefeatDefeated[guid]~=true then snapshot[guid]=true end
+		if combatDefeatDefeated[guid]~=true
+			and combatDefeatPartial[guid]~=true then snapshot[guid]=true end
 	end
 	combatDefeatCleanupSnapshot=snapshot
 end
