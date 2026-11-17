@@ -88,8 +88,13 @@ assert(ui:find("resourceCardsCombatAssignmentClick(id,mouseButton)",1,true),
     "Combat UI must forward right-click for Bow options")
 assert(recognition:find('inventorySpec={choices=remaining}',1,true),
     "Druidic Staff's second UI option must be clickable")
-assert(recognition:find('resourceCardsArtifactNoteClicked',1,true),
-    "Manual Horn and Soul effects must be visible on either artifact face")
+assert(not recognition:find('resourceCardsArtifactNoteClicked',1,true),
+    "Artifact '?' note callback should be removed with the buttons")
+assert(not recognition:find('startingControl("manual"',1,true)
+    and not recognition:find('value="?"',1,true),
+    "Manual '?' controls must be absent from all cards")
+assert(recognition:find('rule.manualSecondary~=nil and status=="green"',1,true),
+    "Manual secondary effects must remain marked as partially tracked")
 
 -- The startup audit requires the Artifact Object UI callbacks to be published,
 -- not merely defined as globals; exercise the exact production registration.
@@ -104,7 +109,6 @@ local function publishPublicUICallbacks(callbacks)
     end
 end
 local resourceCardsRegenerationReadyClicked=function() end
-local resourceCardsArtifactNoteClicked=function() end
 local resourceCardsArtifactHealUnitsClicked=function() end
 ]]..registration..[[
 return published
@@ -112,7 +116,6 @@ return published
 registrationTest()
 for _,name in ipairs({
     "resourceCardsRegenerationReadyClicked",
-    "resourceCardsArtifactNoteClicked",
     "resourceCardsArtifactHealUnitsClicked"
 }) do
     assert(published[name]==true,"Unprotected Artifact UI callback: "..name)
