@@ -106,6 +106,26 @@ local function protectedObjectDestroyAudit(guid)
 		log("PROTECTED OBJECT MISSING: "..kind.." ["..guid.."] in scenario "..tostring(gStates.gameScenario)
 			..", round "..tostring(gStates.currentRound)..", turn "..tostring(gStates.turnNumber)
 			..". Check unexpected script destruction/container cleanup.")
+		-- A vanished turn-order token is especially serious. Report its destroy
+		-- callback independently from any later tactic-sort lookup failure.
+		if kind=="Round Order token" and reportAutomaticLuaDiagnostic~=nil then
+			local owner="unknown"
+			for index,details in pairs(turnOrder or {}) do
+				if type(details)=="table" and details.turnOrderTokenGUID==guid then
+					owner="index="..tostring(index).." seat="..tostring(details.seatPos)
+						.." mage="..tostring(details.mage).." tactic="..tostring(details.tactic)
+					break
+				end
+			end
+			reportAutomaticLuaDiagnostic("protectedObjectDestroyAudit",
+				"Round Order token disappeared after destroy callback GUID="..tostring(guid),
+				"Owner at destroy audit: "..owner
+					.."\\nScenario="..tostring(gStates.gameScenario)
+					.." round="..tostring(gStates.currentRound)
+					.." turn="..tostring(gStates.turnNumber)
+					.."\\nProtected removal permit: none"
+					.."\\nLookup after 2 frames: NOT FOUND")
+		end
 	end,2)
 end
 
