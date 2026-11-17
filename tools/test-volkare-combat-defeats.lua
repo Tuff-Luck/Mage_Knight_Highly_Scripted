@@ -28,7 +28,7 @@ local playObjects,shieldCount={},0
 local shieldBag={takeObject=function(params)
     assert(type(params)=="table","Shield draw requires TTS takeObject parameters")
     shieldCount=shieldCount+1
-    return {guid="shield"..shieldCount,setGMNotes=function() end}
+    return {guid="shield"..shieldCount,setGMNotes=function(notes) assert(notes=="Volkare Pursuit") end}
 end}
 getObjectFromGUID=function(guid)
     if guid=="playzone" then return {getObjects=function() return playObjects end} end

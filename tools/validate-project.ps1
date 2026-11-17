@@ -159,10 +159,12 @@ try {
         setPositionSmooth = 3
         setRotationSmooth = 3
         setAttribute = 3
+        setGMNotes = 1
+        storeRewindState = 2
     }
     $mockPatterns = @(
-        '(?<method>takeObject|setPositionSmooth|setRotationSmooth|setAttribute)[ \t]*=[ \t]*function[ \t]*\((?<params>[^)]*)\)',
-        '\bfunction[ \t]+[A-Za-z_][A-Za-z0-9_.]*\.(?<method>takeObject|setPositionSmooth|setRotationSmooth|setAttribute)[ \t]*\((?<params>[^)]*)\)'
+        '(?<method>takeObject|setPositionSmooth|setRotationSmooth|setAttribute|setGMNotes|storeRewindState)[ \t]*=[ \t]*function[ \t]*\((?<params>[^)]*)\)',
+        '\bfunction[ \t]+[A-Za-z_][A-Za-z0-9_.]*\.(?<method>takeObject|setPositionSmooth|setRotationSmooth|setAttribute|setGMNotes|storeRewindState)[ \t]*\((?<params>[^)]*)\)'
     )
     $mockSignatureIssues = @()
     foreach ($file in (Get-ChildItem -Path "tools" -File -Filter "test-*.lua")) {

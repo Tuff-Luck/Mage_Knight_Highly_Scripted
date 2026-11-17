@@ -378,7 +378,7 @@ end
 rewindTransactionFinish=function(owner)
     finishedSnapshots[#finishedSnapshots+1]=owner
 end
-storeRewindState=function() end
+storeRewindState=function(_callback,_block) end
 local player={color="Red"}
 local startCount=#dealt
 gStates.combatWoundApplication=nil
@@ -427,7 +427,7 @@ resourceCardsRequestCombatWounds(player)
 storeRewindState=nil
 combatConfig.woundConfirmChoice(player,"CombatDamageConfirmApply")
 eq(#dealt,startCount,"without TTS rewind API, commit is refused")
-storeRewindState=function() end
+storeRewindState=function(_callback,_block) end
 activeRewind=false
 combatConfig.woundConfirmChoice(player,"CombatDamageConfirmApply")
 eq(#dealt,startCount,"nested transaction cannot reuse older checkpoint")
