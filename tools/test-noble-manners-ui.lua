@@ -19,7 +19,7 @@ assert(source:find("if not combatConfig.cardInTransit(previousObject) then",1,tr
     "Temporary play-zone exits must preserve card-attached controls")
 assert(source:find("and combatConfig.cardChoicesPresent(card) then return end",1,true),
     "All card controls must be checked before reusing a cached UI signature")
-assert(source:find("queueSeat(seat,obj.guid)\n    end\nend\n\n-- Register all Artifact",1,true),
+assert(source:find("queueSeat(seat,obj.guid)\n    end\nend\n\n-- Register the remaining readying",1,true),
     "Tracked cards dropped outside the thin zone must wait until settled")
 local guid="eaaaa5"
 local xmlWrites=0
