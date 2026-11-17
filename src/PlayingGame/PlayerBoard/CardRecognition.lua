@@ -1349,6 +1349,15 @@ function resourceCardsCombatTargetAcceptsSource(sourceKey,targetGUID)
     end
     local data=combatEnemyData(targetGUID)
     if data==nil then return false end
+    -- Post-Damage companion sources are Attack-only. Their generated keys do
+    -- not appear in the ordinary live source list, so reject attack-only
+    -- reminder tokens explicitly (including the Dragon's Control head).
+    if type(sourceKey)=="string" and sourceKey:match("#postDamage$")
+        and (data.attackOnly==true
+            or (apocalypseDragonGroundHeadNameForGUID~=nil
+                and apocalypseDragonGroundHeadNameForGUID(targetGUID)=="Control")) then
+        return false
+    end
     local seat=combatAssignmentActiveSeat()
     local scan=seat~=nil and resourceCardScanBySeat[seat] or nil
     local record=scan~=nil and scan.cards[sourceKey] or nil
