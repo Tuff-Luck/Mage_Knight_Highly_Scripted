@@ -2471,6 +2471,12 @@ combatConfig.woundConfirmChoice=function(player,id)
     end
 end
 
+-- TTS global UI callbacks live in UI.lua, outside this module's private
+-- combatConfig scope. Expose only the confirmation action they need.
+function resourceCardsConfirmCombatWounds(player,id)
+    combatConfig.woundConfirmChoice(player,id)
+end
+
 function resourceCardsApplyCombatWounds(player,onComplete)
     if not resourceCardsPanelOpen() or not resourceCardsPlayerCanEdit(player and player.color or nil)
         or combatConfig.woundApplying then return false end
