@@ -814,6 +814,7 @@ combatConfig.captureParalyzedUnitSources=function(seat,unitGUID)
     local saved={}
     for _,source in ipairs(combatAssignmentSources(seat)) do
         if source.kind=="unit" and source.guid==unitGUID
+            and combatAssignmentState.targets[source.key]~=nil
             and source.ranged+source.siege+source.block+source.move>0 then
             local copy=combatFrozenCopy(source)
             copy.retiredUnit=true
