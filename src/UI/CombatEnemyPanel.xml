@@ -604,25 +604,3 @@
         <Text id="CombatResourceOverflow" active="false" class="Text12" color="#FFCC66" preferredHeight="18" alignment="MiddleLeft"/>
 		</VerticalLayout>
 </Panel>
-<!-- Confirmation is a separate root, never a child of the fixed-width Wound
-     row or the calculator. It stays hidden until the active player commits. -->
-<Panel id="CombatDamageConfirm" active="false" rectAlignment="MiddleCenter"
-       offsetXY="0 95" width="445" height="242" color="#302A27F5"
-       outline="#8D785A" outlineSize="2 -2" allowDragging="true">
-    <VerticalLayout padding="12 12 10 10" spacing="7" childForceExpandHeight="false">
-        <Text id="CombatDamageConfirmTitle" class="Title22" color="#F8E6C9"
-              preferredHeight="31">{en}Confirm Combat Damage{it}Conferma danni di combattimento{ru}Подтвердить боевой урон{zh-tw}確認戰鬥傷害{zh-cn}确认战斗伤害{ko}전투 피해 확인{es}Confirmar daño de combate{fr}Confirmer les dégâts de combat{pt-br}Confirmar dano de combate{de}Kampfschaden bestätigen</Text>
-        <Text id="CombatDamageConfirmSummary" class="Text16" color="#F4E6D5"
-              preferredHeight="149" alignment="UpperLeft" raycastTarget="false"/>
-        <HorizontalLayout spacing="12" preferredHeight="32" childForceExpandWidth="true">
-            <Button id="CombatDamageConfirmCancel" onClick="resourceTracker" preferredWidth="180" preferredHeight="32">
-                <Image image="Sliced Button/Button New Active" type="Sliced"/>
-                <Text class="Text18">{en}Cancel{it}Annulla{ru}Отмена{zh-tw}取消{zh-cn}取消{ko}취소{es}Cancelar{fr}Annuler{pt-br}Cancelar{de}Abbrechen</Text>
-            </Button>
-            <Button id="CombatDamageConfirmApply" onClick="resourceTracker" preferredWidth="220" preferredHeight="32">
-                <Image image="Sliced Button/Button New Active" type="Sliced"/>
-                <Text class="Text18">{en}Commit Damage{it}Conferma danni{ru}Применить урон{zh-tw}確認傷害{zh-cn}确认伤害{ko}피해 확정{es}Aplicar daño{fr}Appliquer les dégâts{pt-br}Aplicar dano{de}Schaden übernehmen</Text>
-            </Button>
-        </HorizontalLayout>
-    </VerticalLayout>
-</Panel>
