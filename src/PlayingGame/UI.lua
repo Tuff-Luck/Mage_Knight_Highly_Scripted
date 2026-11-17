@@ -787,6 +787,9 @@ local function mainUIRefreshPlayerState(context)
 				if gStates.gainList[obj.guid]==nil then
 					--record token orientation and do the math if face up.
 					gStates.gainList[obj.guid]={exists=true, siteRepLoss=0, keepHalfFame=false}
+					local dragonPerks=gStates.monsterPerks[obj.guid]
+					gStates.gainList[obj.guid].dragonCustomFame=dragonPerks~=nil
+						and (dragonPerks.dragonAirborne==true or dragonPerks.dragonGround==true)
 					if combatEnemyTokenDefeated(obj) or combatBossPartialRewardEligible(obj.guid) then
 						gStates.gainList[obj.guid].tokenDirection=1
 						doMath=true
@@ -947,7 +950,8 @@ local function mainUIRefreshPlayerState(context)
 						local questFame=monsterPugs[a].fame+perks
 						--Dragon rewards are owned by their custom combat tracker. Mirror the add-side suppression
 						--here so removing a Dragon head cannot subtract ordinary monster Fame behind its back.
-						if gStates.monsterPerks[a]~=nil and (gStates.monsterPerks[a].dragonAirborne==true or gStates.monsterPerks[a].dragonGround==true) then questFame=0 end
+						if b.dragonCustomFame==true or
+							(gStates.monsterPerks[a]~=nil and (gStates.monsterPerks[a].dragonAirborne==true or gStates.monsterPerks[a].dragonGround==true)) then questFame=0 end
 						if gStates.monsterPerks[a]~=nil and gStates.monsterPerks[a].questHalfFame==true then questFame=math.ceil(questFame/2) end
 						turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain-(questFame*multiple)
 					end
