@@ -212,7 +212,7 @@ function rollerOnSave()
                 if die==nil or die.isDestroyed() then return nil end
                 return die.getGUID()
             end)
-            if ok and type(dieGUID)=="string" and getObjectFromGUID(dieGUID)~=nil then
+            if ok and type(dieGUID)=="string" and dieGUID~="" then
                 dice[#dice+1]=dieGUID
             end
         end
