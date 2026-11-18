@@ -7830,7 +7830,11 @@ local function resourceCardsCombatNightFromEnemies(enemies)
             and (enemy.isDestroyed==nil or enemy.isDestroyed()~=true) then
             local perks=gStates~=nil and gStates.monsterPerks~=nil
                 and gStates.monsterPerks[guid] or nil
-            if perks~=nil and perks.nightRules==true then return true end
+            -- Earlier saves could have nightRules mistakenly stamped on every
+            -- summoned monster. For a summon, require the actual Night decal.
+            local summoned=gStates~=nil and gStates.summonStates~=nil
+                and gStates.summonStates[guid]=="summoned"
+            if not summoned and perks~=nil and perks.nightRules==true then return true end
             if enemy.getDecals~=nil then
                 local ok,decals=pcall(enemy.getDecals)
                 if ok and type(decals)=="table" then
