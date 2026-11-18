@@ -2922,14 +2922,19 @@ function resourceCardsApplyCombatWounds(player,onComplete)
             -- Failed validation (for example, a card being held) is safe to
             -- retry. After a partial transfer, mark the hand effect committed
             -- and ask for manual correction, never discard new draws on retry.
-            local ok,success,countOrReason,moved=pcall(combatDiscardParalyzedHand,seat)
-            if not ok or (tonumber(success==true and countOrReason or moved) or 0)>0 then
-                physicallyTouched=true
-            end
+            local ok,success,countOrReason,moved,partialGUIDs=
+                pcall(combatDiscardParalyzedHand,seat,player.color)
+            local movedCount=ok and success==true
+                and (tonumber(countOrReason) or 0) or (tonumber(moved) or 0)
+            if movedCount>0 then physicallyTouched=true end
             if not ok or success~=true then
-                if not ok or (tonumber(moved) or 0)>0 then
-                    ledger.handDiscardApplied=true
-                    for _,key in ipairs(effects.paralyse) do record(key).paralyse=true end
+                -- Do not acknowledge an exception or partial failure as an
+                -- applied hand discard: previously this permanently skipped
+                -- Knockout/Paralysis even when zero cards had actually moved.
+                -- A retry inspects the remaining hand, without repeating the
+                -- Wounds already committed in the damage ledger.
+                for _,guid in ipairs(type(partialGUIDs)=="table" and partialGUIDs or {}) do
+                    settlingGUIDs[guid]=true
                 end
                 finish(false,"Knockout/Paralysis hand discard: "
                     ..tostring(ok and countOrReason or success))
