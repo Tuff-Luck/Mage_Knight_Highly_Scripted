@@ -56,6 +56,9 @@ equal(gStates.motivationLockBySeat[1],nil,"Out-of-turn activation unlocks after 
 
 -- Test the actual payment helper, isolated from Tabletop Simulator userdata.
 local recognition=source("src/PlayingGame/PlayerBoard/CardRecognition.lua")
+-- The isolated mana helper now consults the tracker's cached combat-night
+-- state; supply the same private context that the complete module initializes.
+trackerPrivate={renderCombatNight=nil}
 local manaHelpers=sliceBetween(recognition,
     "local function resourceCardsUsesDayMana()",
     "-- A powered link grants a target Action card")
