@@ -2912,13 +2912,14 @@ function resourceCardsApplyCombatWounds(player,onComplete)
         -- Knockout and Paralysis share exactly one hand discard. Its saved
         -- flag prevents retries from discarding newly drawn cards again.
         if effects.handDiscard then
-            local handZone=getObjectFromGUID(handZones~=nil and handZones[seat] or nil)
             local discardZone=getObjectFromGUID(deedDeckDiscardZones~=nil
                 and deedDeckDiscardZones[seat] or nil)
-            if handZone==nil or discardZone==nil then
-                finish(false,"Hand or discard zone missing for Knockout/Paralysis")
+            if discardZone==nil then
+                finish(false,"Discard zone missing for Knockout/Paralysis")
                 return
             end
+            -- The hand helper accepts either the scripting hand zone or the
+            -- native TTS HandTrigger, and rejects an uninspectable hand.
             -- Failed validation (for example, a card being held) is safe to
             -- retry. After a partial transfer, mark the hand effect committed
             -- and ask for manual correction, never discard new draws on retry.
