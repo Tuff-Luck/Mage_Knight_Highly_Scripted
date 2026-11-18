@@ -3090,8 +3090,13 @@ summonMonster=function(player, mouseButton, id, rewindReady)
 				local returnPos={summonPilePos[1],2,summonPilePos[3]}
 				if cameraFocused==false then combatCameraFocus(turnOrder[gStates.turnNumber]) cameraFocused=true end
 				gStates.attackedMonsters[summonedMonster.guid]={returnPos,{0.00,0.00,0.00},"summoned",id}
-				if id==darkCrusader.token or (summonerFaction=="Dark" and turnOrder[gStates.turnNumber].avatarLocation=="graveyard") then
+				local summonedNightRules=id==darkCrusader.token
+					or (summonerFaction=="Dark" and turnOrder[gStates.turnNumber].avatarLocation=="graveyard")
+				if summonedNightRules then
 					summonedMonster.addDecal({name="NightRules",position={0.85,0.15,-0.85},rotation={90,180,0},scale={0.6,0.6,1},url=nightRulesDecal})
+					if gStates.monsterPerks[summonedMonster.guid]==nil then
+						gStates.monsterPerks[summonedMonster.guid]={nightRules=true}
+					else gStates.monsterPerks[summonedMonster.guid].nightRules=true end
 				end
 				gStates.summonStates[summonedMonster.guid]="summoned"
 				local dragonControl=apocalypseDragonGroundControlToken~=nil and select(1,apocalypseDragonGroundControlToken(id))==true
@@ -3124,8 +3129,6 @@ summonMonster=function(player, mouseButton, id, rewindReady)
 						return child==nil or not child.isSmoothMoving()
 					end,5,settleSummon)
 				end,2)
-				if gStates.monsterPerks[summonedMonster.guid]==nil then gStates.monsterPerks[summonedMonster.guid]={nightRules=true}
-				else gStates.monsterPerks[summonedMonster.guid].nightRules=true end
 				cityBonusDecals(summoner,summonedMonster)
 				local attachments=summoner.getAttachments()
 				if attachments[1]~=nil and summonDelay==5 then
