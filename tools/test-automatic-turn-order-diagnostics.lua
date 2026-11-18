@@ -66,13 +66,23 @@ assert(env.turnOrder[2].turnOrderTokenGUID=="missing456",
 local eventFile=assert(io.open("src/PlayingGame/Events.lua","r"))
 local eventSource=eventFile:read("*a")
 eventFile:close()
--- Setup tokens should start at the same safe height used during tactic sorting.
+-- Starting turn-order tokens must rest at the table height rather than
+-- hover above it. The dummy token must remain movable like human tokens.
 local setupFile=assert(io.open("src/SetupGame/Players.lua","r"))
 local setupSource=setupFile:read("*a")
 setupFile:close()
-assert(not setupSource:find("params.position={-1.9, 0.96",1,true),
-    "Starting round-order tokens must not spawn at the old low height")
-assert(setupSource:find("params.position={-1.9, 1.2",1,true))
+assert(not setupSource:find("params.position={-1.9, 1.2",1,true),
+    "Starting turn-order tokens must not spawn at the old floating height")
+assert(setupSource:find("params.position={-1.9, 0.97, -19.4}",1,true),
+    "Dummy-first turn-order token must rest at table height")
+assert(setupSource:find("params.position={-1.9, 0.97, -19.4-(gStates.playerCount*1.4)}",1,true),
+    "Dummy-last turn-order token must rest at table height")
+assert(setupSource:find("params.position={-1.9, 0.97, -19.4-((turnRef-1)*1.4)}",1,true),
+    "Human turn-order tokens must rest at table height")
+assert(not setupSource:find("(i==1 or i==3 or i==4 or i==5 or i==11)",1,true),
+    "Do not lock the dummy's turn-order token")
+assert(setupSource:find("(i==3 or i==4 or i==5 or i==11)",1,true),
+    "Retain locks on the dummy's other board components")
 assert(setupSource:find("protectedTurnOrderTokenSetup(obj,playerBag,params.position)",1,true))
 
 -- Capture the actual setup/container breadcrumb logic rather than a fabricated report.
