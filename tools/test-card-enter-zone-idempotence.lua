@@ -73,13 +73,14 @@ assert(state.choiceResetGenerationByGUID["52efb0"]==1,
     "Reentry must cancel a queued exit choice-reset")
 assert(state.playCardMovements["52efb0"]==nil,
     "EnterZone must not start a new movement transaction")
-assert(keeps("52efb0"),"An on-mat source retains its arrow even while falling")
+assert(not keeps("52efb0"),
+    "Released active cards should be preserved by the scan, not by blanket lock")
 -- A later delayed entry with resting=true is equally redundant.
 card.resting=true
 onEnter(ctx)
 assert(queued==0,"Rested source must not rescan on duplicate EnterZone")
-assert(keeps("52efb0"),
-    "Resting played card absent from shallow zone retains target lock")
+assert(not keeps("52efb0"),
+    "A settled inactive source must not keep an obsolete target lock")
 -- Even if a temporary scan lost the candidate cache, the prior seat scan
 -- still proves that this is a rearrangement rather than a newly played card.
 state.playCandidatesBySeat[1]["52efb0"]=nil
