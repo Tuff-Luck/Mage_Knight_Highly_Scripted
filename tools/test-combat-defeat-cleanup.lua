@@ -81,7 +81,7 @@ local untouched={guid="survivor",type="Custom_Tile",is_face_down=false,
     setRotation=function() rotations=rotations+1 end}
 local importedDeck={guid="externalDeck",type="Deck",is_face_down=false,
     getAttachments=function() error("Unexpected deck was inspected") end,
-    takeObject=function() error("Unexpected deck was split") end}
+    takeObject=function(_params) error("Unexpected deck was split") end}
 local objects={possessed,untouched,importedDeck}
 env.gStates={preEndTurn=true,combatPreEndTurnRecovery={
     defeatResults={possessed=true,survivor=false}
