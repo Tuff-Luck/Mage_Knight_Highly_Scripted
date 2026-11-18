@@ -29,7 +29,13 @@ function onLoad(saved_data)
 		validatePublicUICallbacks()
 		resourceCardsRegisterIconAssets()
 		local loadedData=nil
-		if type(saved_data)=="string" and saved_data~="" then loadedData=JSON.decode(saved_data) end
+		if type(saved_data)=="string" and saved_data~="" then
+			local ok,decoded=pcall(JSON.decode,saved_data)
+			if not ok or type(decoded)~="table" then
+				error("Could not decode saved Mage Knight game: "..tostring(decoded),0)
+			end
+			loadedData=decoded
+		end
 		-- Global lines survive TTS rewinds while the movement display's runtime
 		-- snapshot does not. Remove only old map route overlays before UI restores.
 		moveDisplayDiscardSavedRouteLines()
@@ -45,14 +51,11 @@ function onLoad(saved_data)
 		safeWaitFrames("Callbacks",function()
 			coralDrawChoiceRestoreState(loadedData~=nil and loadedData.coralDrawPending or nil)
 		end,5)
-		safeWaitFrames("Callbacks",function() attackAssignmentsRestore() end,4)
 		safeWaitFrames("Callbacks",function()
 			monsterReplenishTranslationRefresh()
 			artifactOfferRewardTextRefresh()
 			siteDescriptionTranslationRefresh()
 			deedOfferArrowTextRefresh()
-			-- Recreate runtime card buttons if a saved tracker was already open.
-			if resourceCardsPanelOpen() then resourceCardsPanelChanged(true) end
 		end,2)
 		return result
 	end)
