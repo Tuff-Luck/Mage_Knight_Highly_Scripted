@@ -797,6 +797,42 @@ function attackAssignmentsDamageSnapshot()
     return result
 end
 
+-- Uncommitted Unit allocations cannot be reconstructed from the physical table.
+-- Persist the player's ordered targets only; enemy damage and eligible Units are
+-- recalculated from the live combat area and validated on the first tracker scan.
+function attackAssignmentsDamageSave()
+    if gStates==nil then return end
+    if combatCommittedLock()~=nil then
+        gStates.combatDamageDraft=nil -- Committed damage already lives in the phase lock.
+        return
+    end
+    local snapshot=attackAssignmentsDamageSnapshot()
+    gStates.combatDamageDraft=next(snapshot.targets)~=nil
+        and {turn=gStates.turnNumber,targets=snapshot.targets} or nil
+end
+
+function attackAssignmentsDamageRestore()
+    damageTargets={}
+    damagePending=nil -- Pointer-targeting is transient, not a saved player decision.
+    damageSignature=""
+    local draft=gStates~=nil and gStates.combatDamageDraft or nil
+    if type(draft)~="table" or draft.turn~=gStates.turnNumber
+        or type(draft.targets)~="table" or combatCommittedLock()~=nil then return end
+    for key,guids in pairs(draft.targets) do
+        if type(key)=="string" and type(guids)=="table" then
+            local targets,seen={},{}
+            for _,guid in ipairs(guids) do
+                if type(guid)=="string" and seen[guid]~=true
+                    and getObjectFromGUID(guid)~=nil then
+                    targets[#targets+1]=guid
+                    seen[guid]=true
+                end
+            end
+            if #targets>0 then damageTargets[key]=targets end
+        end
+    end
+end
+
 function attackAssignmentsDamageTargetsOf(key)
 	return damageTargets[key] or {}
 end
