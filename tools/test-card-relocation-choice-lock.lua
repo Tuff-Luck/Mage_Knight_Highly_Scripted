@@ -14,7 +14,7 @@ local function slice(source,first,last)
 end
 
 local source=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-local matCode=slice(source,"trackerPrivate.cardOverPlayMat=function(obj,seatPos)",
+local matCode=slice(source,"trackerPrivate.zoneFootprintContainsXZ=function(obj,zone)",
     "local function scheduleChoiceResetAfterPlay(")
 local resetCode=slice(source,"local function scheduleChoiceResetAfterPlay(guid,seatPos)",
     "local function footprint(obj)")
