@@ -7820,12 +7820,50 @@ local function resourceObjectKind(obj)
     return nil
 end
 
--- Dungeon and Tomb mana is Night even in an otherwise Day round.
+-- A NightRules token represents a combat fought under Night rules, even
+-- during a Day round or when the Mage Knight is standing outside the site.
+-- The saved perk is authoritative; the physical decal also supports older
+-- saves/manual tokens that have the marker but no matching perk entry.
+local function resourceCardsCombatNightFromEnemies(enemies)
+    for guid,enemy in pairs(enemies or {}) do
+        if enemy~=nil and enemy.is_face_down~=true
+            and (enemy.isDestroyed==nil or enemy.isDestroyed()~=true) then
+            local perks=gStates~=nil and gStates.monsterPerks~=nil
+                and gStates.monsterPerks[guid] or nil
+            if perks~=nil and perks.nightRules==true then return true end
+            if enemy.getDecals~=nil then
+                local ok,decals=pcall(enemy.getDecals)
+                if ok and type(decals)=="table" then
+                    for _,decal in ipairs(decals) do
+                        if decal.name=="NightRules" then return true end
+                    end
+                end
+            end
+        end
+    end
+    return false
+end
+
+-- This is the effective Day/Night setting for combat Skills and mana, not the
+-- world's round setting. Terrain movement and other non-combat Day effects
+-- still use gStates.dayRound. One visible NightRules enemy makes the active
+-- combat Night, including for a hero fighting from an adjacent hex.
 local function resourceCardsUsesDayMana()
-    if gStates.dayRound~=true then return false end
+    if gStates==nil or gStates.dayRound~=true then return false end
     local player=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     local site=player~=nil and player.avatarLocation or nil
-    return site~="dungeon" and site~="tomb"
+    if site=="dungeon" or site=="tomb" then return false end
+    -- The render already collected the active combat tokens once. Avoid
+    -- rescanning scripting zones for every mana/Skill lookup in that pass.
+    if trackerPrivate.renderCombatNight~=nil then
+        return not trackerPrivate.renderCombatNight
+    end
+    if player~=nil and player.seatPos~=nil
+        and type(playerPlayAreas)=="table" and type(playerUnitAreas)=="table"
+        and getObjectFromGUID~=nil then
+        return not resourceCardsCombatNightFromEnemies(combatPlayMonsters())
+    end
+    return true
 end
 
 -- These are separate permissions. Amulet of the Sun permits Gold at Night
@@ -9386,6 +9424,7 @@ local function renderSeat(seatPos)
     if not resourceCardsPanelOpen() then return end
     local active=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if active==nil or active.seatPos~=seatPos then return end
+    trackerPrivate.renderCombatNight=nil
 
     local objects,placements,monsters,playMonsters={},{},{},{}
     local combatMonsters,combatPlayMonsters={},{}
@@ -9500,6 +9539,9 @@ local function renderSeat(seatPos)
     -- One observation and one held-enemy reconciliation serve both systems.
     -- Reminders/Leader previews belong to combat, but never to card enemy-count bonuses.
     combatKeepHeldEnemies(seatPos,combatMonsters,combatPlayMonsters)
+    -- Apply NightRules to the entire active combat, not just Dungeon/Tomb
+    -- location checks. The same value powers mana legality and day/night Skills.
+    trackerPrivate.renderCombatNight=resourceCardsCombatNightFromEnemies(combatMonsters)
     for guid,enemy in pairs(combatMonsters) do
         local pug=monsterPugs[guid]
         if pug~=nil and pug.name~="Ruin" then
@@ -12241,6 +12283,7 @@ local function renderSeat(seatPos)
     if steadyTempoRefreshAll~=nil and next(gStates.steadyTempoPending or {})~=nil then
         steadyTempoRefreshAll()
     end
+    trackerPrivate.renderCombatNight=nil
 end
 
 local function scheduleSeatRender(seatPos)
