@@ -8297,7 +8297,7 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
     if usesTerrainBlock then
         local value=currentLandBlockValue()
         if value~=nil then
-            chosen=gStates.dayRound==true and {blockFire=value} or {blockIce=value}
+            chosen=resourceCardsUsesDayMana() and {blockFire=value} or {blockIce=value}
         else
             -- Terrain not yet determinable. Preserve the B selection, but
             -- do not invent a Block amount; show yellow until the next scan.
