@@ -17,7 +17,7 @@ local source=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local events=read("src/PlayingGame/Events.lua")
 assert(events:find("resourceCardsObjectPickedUp(picked_up_object)",1,true),
     "Picking up a source must mark the relocation before callbacks rescan it")
-local matCode=section(source,"trackerPrivate.cardOverPlayMat=function(obj,seatPos)",
+local matCode=section(source,"trackerPrivate.zoneFootprintContainsXZ=function(obj,zone)",
     "local function scheduleChoiceResetAfterPlay(")
 local resetCode=section(source,"local function scheduleChoiceResetAfterPlay(guid,seatPos)",
     "local function footprint(obj)")
