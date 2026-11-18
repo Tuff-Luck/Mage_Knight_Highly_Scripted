@@ -2517,6 +2517,10 @@ function drawMonster(color, player, id, possessedFaction)
 						monsterDrawn.addDecal({name="NightRules", position={0.85, 0.15, -0.85}, rotation={90, 180, 0}, scale={0.6, 0.6, 1}, url=nightRulesDecal})
 						if gStates.monsterPerks[monsterDrawn.guid]==nil then gStates.monsterPerks[monsterDrawn.guid]={nightRules=true} else gStates.monsterPerks[monsterDrawn.guid].nightRules=true end
 					end
+					-- These decals/perks are applied after token placement. Refresh
+					-- once now so Night combat and Unit restrictions don't keep the
+					-- values from the earlier onEnterZone scan.
+					if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
 				end
 			end, 0.5)
 		end
