@@ -261,6 +261,35 @@ handObjects={}
 Player=nil
 positionToColor=nil
 
+-- Count physical "take a Wound" costs during this combat, not previously
+-- held Wounds or Wounds already dealt through the enemy damage transaction.
+local playObjects={}
+local playZone={getObjects=function() return playObjects end}
+playerPlayAreas={[1]="play"}
+getObjectFromGUID=function(guid)
+    return guid=="hand" and handZone or guid=="play" and playZone
+        or guid=="discard" and discardZone or nil
+end
+gStates.combatWoundApplication=nil
+handObjects={existingWound}
+eq(combatConfig.combatOtherWounds(1),0,"start-of-combat existing Wound ignored")
+local costWound=card("costWound",true)
+handObjects={existingWound,costWound}
+eq(combatConfig.combatOtherWounds(1),1,"card-cost Wound is counted")
+local costLedger=gStates.combatWoundApplication
+costLedger.cards.enemyWound=true
+handObjects[#handObjects+1]=card("enemyWound",true)
+eq(combatConfig.combatOtherWounds(1),1,"dealt enemy Wound not counted twice")
+handObjects={existingWound}
+playObjects={costWound}
+eq(combatConfig.combatOtherWounds(1),1,
+    "playing an extra combat Wound does not erase its count")
+playObjects={}
+eq(combatConfig.combatOtherWounds(1),1,
+    "discarding a spent cost Wound does not erase prior combat damage")
+gStates.combatWoundApplication=nil
+handObjects={}
+
 -- If a destroyed Unit had already helped defeat a different enemy with
 -- Ranged/Siege, its early attack must remain valid after physical removal.
 local resolveDamage=isolated(recognition,"local function combatDamageResolve(items,units,heroArmour,targetsOf,mitigation,elementMitigation,ignoreFirstHeroWound,appliedDamage)",
@@ -359,6 +388,40 @@ resourceCardsApplyCombatWounds({color="Red"})
 eq(discardCount,1,"first hit discards non-Wounds from hand")
 resourceCardsApplyCombatWounds({color="Red"})
 eq(discardCount,1,"second click cannot discard newly drawn cards")
+
+-- Knockout alone, with no calculated enemy Wounds left to deal, must still
+-- expose a Commit action that discards hand cards exactly once.
+gStates.combatWoundApplication=nil
+combatConfig.woundRecordPreview(1,{{key="costKO:1"}},{
+    ["costKO:1"]={heroWounds=0,discard=0,paralyse=false,units={}}},true,5)
+local koLedger=gStates.combatWoundApplication
+local _,koh,kod,_,koEffects=combatConfig.woundPending(koLedger)
+eq(koh,0,"Knockout can be caused entirely by card-effect Wounds")
+eq(kod,0,"Knockout does not fabricate extra Poison Wounds")
+eq(koEffects.handDiscard,true,"Knockout alone requires hand discard")
+eq(koEffects.knockout,true,"Knockout is included in the pending ledger")
+local beforeKO=discardCount
+resourceCardsApplyCombatWounds({color="Red"})
+eq(discardCount,beforeKO+1,"Knockout discards the Hero hand")
+eq(koLedger.handDiscardApplied,true,"Knockout discard is saved")
+resourceCardsApplyCombatWounds({color="Red"})
+eq(discardCount,beforeKO+1,"retry cannot discard newly drawn cards")
+
+-- A simultaneous Paralyzing Wound and Knockout must share one physical
+-- discard instead of triggering the same destructive effect twice.
+gStates.combatWoundApplication=nil
+combatConfig.woundRecordPreview(1,{{key="combined:1"}},{
+    ["combined:1"]={heroWounds=1,discard=0,paralyse=true,units={}}},true,4)
+local combined=gStates.combatWoundApplication
+local _,_,_,_,combinedEffects=combatConfig.woundPending(combined)
+eq(combinedEffects.paralyseCount,1,"Paralysis is still reported")
+eq(combinedEffects.handDiscard,true,"simultaneous effects need one discard")
+resourceCardsApplyCombatWounds({color="Red"})
+eq(discardCount,beforeKO+2,"simultaneous effects discarded exactly once")
+eq(combined.handDiscardApplied,true,"combined discard stays committed")
+resourceCardsApplyCombatWounds({color="Red"})
+eq(discardCount,beforeKO+2,"combined effect never double discards")
+
 assert(recognition:find("effects.destroyCount>0",1,true),
     "Paralysis-only effects must show the Apply row")
 assert(recognition:find("combatConfig.captureParalyzedUnitSources(seat,effect.guid)",1,true),
