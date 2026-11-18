@@ -25,10 +25,12 @@ local card={guid="52efb0",type="Card",resting=true,held_by_color=nil,
     isSmoothMoving=function() return false end,
     isDestroyed=function() return false end}
 local zone={getObjects=function() return {} end,
-    getBounds=function() return {center={x=0,z=0},size={x=12,z=12}} end}
+    getBounds=function() return {center={x=0,z=0},size={x=0,z=0}} end,
+    getPosition=function() return {x=0,z=0} end,
+    getScale=function() return {x=12,z=12} end}
 local state={playCandidatesBySeat={[1]={["52efb0"]=true}},
     bySeat={[1]={["52efb0"]=true}},
-    playCardMovements={},finishedPlayDrops={},choiceResetGenerationByGUID={},
+    playCardMovements={},choiceResetGenerationByGUID={},
     playCandidateKind=function(kind) return kind=="card" end}
 local queued,resets=0,0
 local env={
