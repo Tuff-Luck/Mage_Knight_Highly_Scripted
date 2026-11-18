@@ -270,6 +270,23 @@ discarded,count=discardHand(1,"Blue")
 eq(discarded,true,"explicit owner hand must be inspected")
 eq(count,1,"explicit owner hand must discard its ordinary card")
 eq(moved[5],"explicitCard","the real committing player controls the hand lookup")
+-- The player's native TTS hand remains usable if the mod's scripting zone
+-- is missing. Do not mistake an unavailable script zone for an empty hand.
+local nativeOnly=card("nativeOnly",false)
+Player.Blue={getHandObjects=function() return {nativeOnly} end}
+getObjectFromGUID=function(guid)
+    return guid=="discard" and discardZone or nil
+end
+discarded,count=discardHand(1,"Blue")
+eq(discarded,true,"native hand works without a scripted hand zone")
+eq(count,1,"native hand must still discard its non-Wound card")
+eq(moved[6],"nativeOnly","native-only card reaches discard")
+Player=nil
+discarded=discardHand(1)
+eq(discarded,false,"missing both hand sources must not silently succeed")
+getObjectFromGUID=function(guid)
+    return guid=="hand" and handZone or guid=="discard" and discardZone or nil
+end
 nativeHand={}
 handObjects={}
 Player=nil
