@@ -195,11 +195,11 @@ local function playerSetupDeployUniqueComponents(orderIndex,position,offsetPosit
 				local dummyStats={	seatPos=position, mage=gStates.positionMageKnight[5], fame=0, fameGain=0, reputation=0, repGain=0, scoreLoop=0, hand=5, baseHand=5, handBonus=0, tactic=1, keepsBeat=0, gladesMarked={}, deedCount=11, discardCount=0, defeatedCities={}, deadDeckInventory={}, score={Glade=0, GraveYard=0},
 									dummyCrystals={["Red"]=0, Blue=0, Green=0, ["White"]=0}}
 				if scenarioList[gStates.scenarioRef][gStates.playersRef].dummyTacticSelection=="F" then
-					params.position={-1.9, 0.96, -19.4}--if dummy draws first
+					params.position={-1.9, 1.2, -19.4}--if dummy draws first
 					context.startPos[1]=1
 					turnOrder[1]=dummyStats
 				else
-					params.position={-1.9, 0.96, -19.4-(gStates.playerCount*1.4)}--if dummy draw last
+					params.position={-1.9, 1.2, -19.4-(gStates.playerCount*1.4)}--if dummy draw last
 					context.startPos[gStates.playerCount+1]=1
 					turnOrder[gStates.playerCount+1]=dummyStats
 					turnOrder[gStates.playerCount+1].tactic=gStates.playerCount+1
@@ -213,7 +213,7 @@ local function playerSetupDeployUniqueComponents(orderIndex,position,offsetPosit
 					if scenarioList[gStates.scenarioRef][gStates.playersRef].dummyTacticSelection=="F" then turnRef=turnRef+1 end
 					if context.startPos[turnRef]==1 then duplicate=true else context.startPos[turnRef]=1 end
 				end
-				params.position={-1.9, 0.96, -19.4-((turnRef-1)*1.4)}
+				params.position={-1.9, 1.2, -19.4-((turnRef-1)*1.4)}
 				turnOrder[turnRef]={seatPos=position,mage=gStates.positionMageKnight[position], questScore=0, fame=0, fameGain=0, reputation=0, repGain=0, scoreLoop=0, level=1, levelUp=0, influence=6, hand=5, baseHand=5, handBonus=0, tactic=turnRef, keepsBeat=0, gladesMarked={}, deedCount=11, discardCount=0, combatIconHide="None", defeatedCities={}, levelUpComplete=false, avatarLocation="portal", deadDeckInventory={}, levelingStats={}, score={Glade=0, GraveYard=0}}
 			end
 		end
@@ -447,7 +447,13 @@ local function playerSetupDeployUniqueComponents(orderIndex,position,offsetPosit
 			local obj=safeTakeObject("SetupGame",playerBag,params)
 			if (i==4 or i==5 or i==10 or i==11 or i==13) and gStates.positionMageKnight[position]~="nobody" and position<5 then obj.lock() end--lock player board components
 			if (i==1 or i==3 or i==4 or i==5 or i==11) and (gStates.positionMageKnight[position]=="nobody" or position==5) then obj.lock() end--lock dummy board components
-			if i==1 then turnOrder[turnRef].turnOrderTokenGUID=obj.guid end
+			if i==1 then
+				turnOrder[turnRef].turnOrderTokenGUID=obj.guid
+				-- Record the original bag and spawn position before setup destroys the clone.
+				if protectedTurnOrderTokenSetup~=nil then
+					protectedTurnOrderTokenSetup(obj,playerBag,params.position)
+				end
+			end
 			if (i==4 and gStates.positionMageKnight[position]~="nobody" and position<=4) or (i==4 and gStates.playerCount==1) then
 				turnOrder[turnRef].skillBagGUID=obj.guid
 				--Hero Challenges reserve the prescribed first Skill before the Hero's remaining Skill bag is shuffled.
