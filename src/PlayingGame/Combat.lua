@@ -411,11 +411,12 @@ local function combatDiscardMonster(playAreaObj, giveRewards, context)
 	local cleanupPlayer=context.player or gStates.turnNumber
 	if cleanupPlayer==nil or turnOrder[cleanupPlayer]==nil then return false end
 	local monsterGUID=playAreaObj.guid
+	local defeated=combatEnemyTokenDefeated(playAreaObj)
 	local monsterData=monsterPugs[monsterGUID]
 	if monsterData==nil then return false end
 	if gStates.apocalypseQuestGoblinEnemies~=nil and gStates.apocalypseQuestGoblinEnemies[monsterGUID]~=nil then
 		--Goblin Warrens enemies come from an Infinite Bag and are not members of a normal discard cycle.
-		apocalypseQuestGoblinRecordCleanup(monsterGUID,playAreaObj.is_face_down==false)
+		apocalypseQuestGoblinRecordCleanup(monsterGUID,defeated)
 		gStates.apocalypseQuestGoblinEnemies[monsterGUID]=nil
 		if gStates.monsterPerks~=nil then gStates.monsterPerks[monsterGUID]=nil end
 		if gStates.attackedMonsters~=nil then gStates.attackedMonsters[monsterGUID]=nil end
@@ -433,7 +434,7 @@ local function combatDiscardMonster(playAreaObj, giveRewards, context)
 	local summoned=gStates.summonStates~=nil and gStates.summonStates[monsterGUID]=="summoned"
 
 	if route.faction=="Dark" or route.faction=="Elem" then
-		if giveRewards==true and summoned~=true and playAreaObj.is_face_down==false then
+		if giveRewards==true and summoned~=true and defeated then
 			local reward=combatFactionRewards[route.faction]
 			local claimed,reason=awardFactionRewardToken(cleanupPlayer,reward.pile,context.coopCombatReward,reward.key)
 			if claimed~=true and reason=="empty" then
@@ -444,19 +445,19 @@ local function combatDiscardMonster(playAreaObj, giveRewards, context)
 	elseif route.possessed==true then
 		local possessedFaction=(gStates.apocalypsePossessedFactionByToken~=nil and gStates.apocalypsePossessedFactionByToken[monsterGUID]) or "Apoc"
 		local reward=combatFactionRewards[possessedFaction] or combatFactionRewards.Apoc
-		if giveRewards==true and summoned~=true and playAreaObj.is_face_down==false then
+		if giveRewards==true and summoned~=true and defeated then
 			local claimed,reason=awardFactionRewardToken(cleanupPlayer,reward.pile,context.coopCombatReward,reward.key)
 			if claimed~=true and reason=="empty" then broadcastToAll("{en}Sorry, there are no more Faction Reward Tokens to claim.{it}Non restano segnalini Ricompensa di Fazione.{ru}Извините, жетонов наград фракции больше не осталось.{zh-tw}抱歉，沒有更多派系獎勵標記可供領取。{zh-cn}抱歉，没有更多派系奖励标记可供领取。{ko}죄송합니다. 획득할 수 있는 세력 보상 토큰이 더 이상 없습니다.{es}Lo sentimos, no quedan fichas de recompensa de facción por reclamar.{fr}Désolé, il ne reste plus de jetons de récompense de faction à réclamer.{pt-br}Desculpe, não restam fichas de recompensa da facção para reivindicar.{de}Es sind keine Fraktionsbelohnungsmarker mehr zum Beanspruchen übrig.",positionToColor(cleanupPlayer)) end
 		end
 		if gStates.apocalypsePossessedFactionByToken~=nil then gStates.apocalypsePossessedFactionByToken[monsterGUID]=nil end
 	end
 
-	if giveRewards==true and playAreaObj.is_face_down==false and horsemanHorseOwner~=nil and horsemanHorseOwner(monsterGUID)~=nil then
+	if giveRewards==true and defeated and horsemanHorseOwner~=nil and horsemanHorseOwner(monsterGUID)~=nil then
 		horsemanResolveHorseDefeat(monsterGUID)
 	end
 
 	for cityguid, monsters in pairs(gStates.cityMonsterQty) do
-		if monsters[monsterGUID]~=nil then
+		if monsters[monsterGUID]~=nil and defeated then
 			monsters[monsterGUID]="dead"
 			if monsters.extra~=nil and (monsters.extra.megapolisPair==nil or monsters.extra.megapolisPair~=cityguid) then
 				local cityZoneObj=combatCityZones[cityguid]~=nil and getObjectFromGUID(combatCityZones[cityguid]) or nil
@@ -482,18 +483,18 @@ local function combatDiscardMonster(playAreaObj, giveRewards, context)
 		end
 	end
 
-	if monsterData.pugType=="yellow" and monsterData.fame>0 then gStates.crytalRuin=true end
+	if defeated and monsterData.pugType=="yellow" and monsterData.fame>0 then gStates.crytalRuin=true end
 	local cleanupLocation=turnOrder[cleanupPlayer].avatarLocation or ""
 	local avatarPos=context.avatarPos or {}
 	local suppressConquerHoldSiteShield=false
 	local holdAssault=gStates.conquerHoldAssault
 	if holdAssault~=nil and holdAssault.mage==turnOrder[cleanupPlayer].mage and holdAssault.site==cleanupLocation and holdAssault.monsters[monsterGUID]==true then
-		if playAreaObj.is_face_down==false then holdAssault.defeated[monsterGUID]=true end
+		if defeated then holdAssault.defeated[monsterGUID]=true end
 		local conquered=0
 		for _,yes in pairs(holdAssault.defeated) do if yes then conquered=conquered+1 end end
 		suppressConquerHoldSiteShield=conquered<holdAssault.expected
 	end
-	if playAreaObj.is_face_down==false and not suppressConquerHoldSiteShield and gStates.druidNightsSummon==nil and
+	if defeated and not suppressConquerHoldSiteShield and gStates.druidNightsSummon==nil and
 		(gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[monsterGUID]~=true) and (
 		(monsterData.pugType=="gray" and cleanupLocation=="keep") or
 		(monsterData.pugType=="yellow" and cleanupLocation=="ruin") or
@@ -541,7 +542,7 @@ local function combatDiscardMonster(playAreaObj, giveRewards, context)
 		end
 	end
 
-	if playAreaObj.is_face_down==false and monsterData.pugType=="tan" and cleanupLocation=="spawning grounds" then
+	if defeated and monsterData.pugType=="tan" and cleanupLocation=="spawning grounds" then
 		context.spawningGroundMonstersBeat=(context.spawningGroundMonstersBeat or 0)+1
 	end
 	if gStates.gameScenario=="Mines Liberation" or gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The Hidden Valley Blitz" then
@@ -919,12 +920,10 @@ local function combatPreEndTurnPreparePlayArea(cleanupPlayer,recovery)
 		if playAreaObj.type~="Deck" then
 			if released[playAreaObj.guid]==true then pendingSettle[playAreaObj.guid]=true end
 			if alreadyPrepared~=true then
-				if combatDefeatFlipUndefeated(playAreaObj)==true then pendingSettle[playAreaObj.guid]=true end
 				-- A defeated Possessed enemy must separate before its pieces are cleaned up.
-				-- An undefeated face-down enemy retains the attached Possessed token.
+				-- An undefeated enemy keeps its attachment even if both tokens are face up.
 				local attachments=playAreaObj.getAttachments()
-				if attachments[1]~=nil and playAreaObj.is_face_down==false
-					and (combatDefeatCleanupSnapshot==nil or combatDefeatCleanupSnapshot[playAreaObj.guid]~=true) then
+				if attachments[1]~=nil and combatEnemyTokenDefeated(playAreaObj)==true then
 					pendingSettle[playAreaObj.guid]=true
 					for _, attached in ipairs(attachments) do
 						if attached.guid~=nil then pendingSettle[attached.guid]=true end
@@ -1185,9 +1184,9 @@ local function combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatRe
 						if gStates.mageSkills[playAreaObj.guid]~=nil then playAreaObj.setPositionSmooth(gStates.mageSkills[playAreaObj.guid],false,false) end
 					end
 
-					--Mark mine monster as defeated
+					--Mark mine monster as defeated.
 					for _, monsters in pairs(gStates.mineMonsterQty) do
-						if monsters[playAreaObj.guid]~=nil and playAreaObj.is_face_down==false then
+						if monsters[playAreaObj.guid]~=nil and combatEnemyTokenDefeated(playAreaObj)==true then
 							monsters[playAreaObj.guid]="dead"
 							break
 						end
@@ -1200,8 +1199,11 @@ local function combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatRe
 						return
 					end
 
-					--Return undefeated face down tokens
-					if monsterPugs[playAreaObj.guid]~=nil and playAreaObj.is_face_down==true and dragonGroundCleanup~=true then
+					-- Return surviving enemies using the calculator's recorded result, or
+					-- the manual face-down convention when the calculator was closed.
+					local enemyRegistered=monsterPugs[playAreaObj.guid]~=nil
+					local enemyDefeated=enemyRegistered and combatEnemyTokenDefeated(playAreaObj)==true
+					if enemyRegistered and not enemyDefeated and dragonGroundCleanup~=true then
 						if gStates.monsterPlayLocation[playAreaObj.guid]==nil or turnOrder[cleanupPlayer].avatarLocation=="spawning grounds" then
 							--if manual drawn assign the avatar location as return spot.
 							if (gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[playAreaObj.guid]~=true) and gStates.summonStates[playAreaObj.guid]~="summoned" and (turnOrder[cleanupPlayer].avatarLocation=="monster den" or turnOrder[cleanupPlayer].avatarLocation=="spawning grounds" or turnOrder[cleanupPlayer].avatarLocation=="ruin") then
@@ -1215,12 +1217,13 @@ local function combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatRe
 								pursuit.state="Stunned" pursuit.stunned=true
 								playAreaObj.setRotation({0, 180, 0})
 								broadcastToAll(joinLang({translateWord[turnOrder[cleanupPlayer].mage],"{en} Stunned the Pursuing Rampager (Skips next turns Movement){it} ha Stordito il Nemico Inseguitore (salta il Movimento del prossimo turno){ru} «оглушает» преследователя (тот пропускает одно Движение){zh-tw} 暈眩了狂暴追擊者（它會跳過下次移動）{zh-cn}晕眩了狂暴追击者(它跳过下次行动){ko}: 추적하는 적 기절시킴. (다음 추적 단계 건너뜀.){es} Aturdido al agresor que lo persigue (se salta el movimiento del siguiente turno){fr} Étourdi le saccageur à la poursuite (ignore le mouvement des tours suivants){pt-br} Atordoou o Irascível Perseguidor (Pule próximos turnos de movimento).{de} hat den Verfolger betäubt (überspringt die Bewegung des nächsten Zuges)"}), positionToColor(cleanupPlayer))
-							else
+							elseif playAreaObj.is_face_down==true then
+								-- Only manually flipped survivors need turning face up on return.
 								local returningMonsterGUID=playAreaObj.guid
 								safeWaitTime("Combat",function()
 									local returningMonster=getObjectFromGUID(returningMonsterGUID)
 									if returningMonster~=nil then returningMonster.setRotation({0,180,0}) end
-								end,3)--long enough to have traveled back to the board.
+								end,3)--long enough to have travelled back to the board.
 							end
 							if gStates.coopAssaultPhase=="combat" and coopAssaultTargetType()=="horsemen" and horsemanTokenToName~=nil and horsemanTokenToName[playAreaObj.guid]~=nil then
 								--Each Horseman is assigned to exactly one participant; a survivor returns to its Portal-card slot.
@@ -1245,13 +1248,15 @@ local function combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatRe
 						end
 					end
 
-					--Process and Discard Face up monsters. Horsemen are persistent Custom Tiles, so identify
-					--them before any generic rotation-value discard route can mistake them for a normal token.
-					if monsterPugs[playAreaObj.guid]~=nil and dragonGroundCleanup~=true and (playAreaObj.is_face_down==false or gStates.monsterPlayLocation[playAreaObj.guid]==nil) then
+					-- Defeated enemies are removed; partial bosses still run their level handler.
+					-- A survivor without a registered return position uses the legacy discard fallback.
+					if enemyRegistered and dragonGroundCleanup~=true and (enemyDefeated
+						or combatBossPartialRewardEligible(playAreaObj.guid)
+						or gStates.monsterPlayLocation[playAreaObj.guid]==nil) then
 						if horsemanTokenToName~=nil and horsemanTokenToName[playAreaObj.guid]~=nil then
 							horsemanResolveDefeat(playAreaObj,cleanupPlayer,coopCombatReward)
 						elseif playAreaObj.getRotationValues()[2]~=nil then
-							combatDiscardMonster(playAreaObj,true,state.cleanupContext)
+							combatDiscardMonster(playAreaObj,enemyDefeated,state.cleanupContext)
 						else--Faction Leaders are resolved by their own damage handler
 							combatTrackReturningObject(state,playAreaObj)
 							factionLeaderResolveCombatToken(playAreaObj,cleanupPlayer,state.cleanupContext,combatDiscardMonster)
@@ -1357,8 +1362,11 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 	-- Promote only this turn\u0027s ghost Unit wounds before play-area cleanup.
 	-- Paralysis destroys the marked Unit instead of making a permanent Wound.
 	attackAssignmentsUnitPreviewCommit(turnOrder[cleanupPlayer].seatPos)
-	combatDefeatSnapshotForCleanup()
+	local defeatResults,partialResults=combatDefeatSnapshotForCleanup()
 	local coopCombatReward,recovery=combatPreEndTurnOpenRewardBoundary(cleanupPlayer)
+	-- Persist the calculator's verdict before any asynchronous cleanup begins.
+	recovery.defeatResults=defeatResults
+	recovery.partialResults=partialResults
 	turnPreparePreEndTurn(cleanupPlayer,player.color,id)
 	local tokenRaised,avatarPos,avatarModel=combatPreEndTurnRaiseAvatar(cleanupPlayer)
 	recovery.tokenRaised=tokenRaised
@@ -1543,12 +1551,12 @@ applyCurrentAssaultWallFortified=function(fortified)
 end
 
 --Runtime-only defeat marks. While the Combat Calculator is running it decides which tracked enemy tokens are
---defeated; they carry a red X instead of being flipped face down. Cleared whenever the calculator stops.
+--defeated; they carry a red X instead of being flipped face down. The verdict is saved into
+--the existing pre-end-turn recovery state so cleanup never needs to physically flip survivors.
 local combatDefeatTracked={}
 local combatDefeatDefeated={}
 local combatDefeatPartial={}
 combatDefeatMarksActive=false
-combatDefeatCleanupSnapshot=nil
 local combatDefeatFlipRestoring={}
 local combatDefeatFlipWarning="{en}There is no need to flip an enemy face down while the Combat Calculator is open. It marks defeated enemies with a red X and returns the rest at the end of the turn."
 local combatDefeatMarkerClick="combatDefeatMarkerNoop"
@@ -1583,15 +1591,23 @@ end
 
 function combatEnemyTokenDefeated(obj)
 	if obj==nil then return false end
+	-- End-turn cleanup must keep its original verdict even after calculator marks
+	-- have been cleared or a saved cleanup has been resumed after loading.
+	local recovery=gStates~=nil and gStates.preEndTurn==true and gStates.combatPreEndTurnRecovery or nil
+	local results=recovery~=nil and recovery.defeatResults or nil
+	if results~=nil and results[obj.guid]~=nil then return results[obj.guid]==true end
 	if combatDefeatMarksActive==true and combatDefeatTracked[obj.guid]==true then
-		return combatDefeatDefeated[obj.guid]==true
+		return combatDefeatDefeated[obj.guid]==true and combatDefeatPartial[obj.guid]~=true
 	end
+	-- Calculator closed: manual face-up = defeated, face-down = survivor.
 	return obj.is_face_down==false
 end
 
 -- Partial bosses count for their own level-based Fame, but never for ordinary
 -- death/reward/site conditions.
 function combatBossPartialRewardEligible(guid)
+	local recovery=gStates~=nil and gStates.preEndTurn==true and gStates.combatPreEndTurnRecovery or nil
+	if recovery~=nil and recovery.partialResults~=nil and recovery.partialResults[guid]==true then return true end
 	return combatDefeatMarksActive==true and combatDefeatPartial[guid]==true
 end
 
@@ -1655,16 +1671,17 @@ function combatClearDefeatMarks()
 	mainUIUpdate("Combat Calculator defeat marks")
 end
 
---End Turn snapshot, taken before the calculator can stop. Undefeated tracked tokens are flipped face down
---during cleanup so the unchanged face-down cleanup returns them without rewards.
+-- Freeze the calculator's results before it can close. Include BOTH outcomes:
+-- a surviving token can remain face up, while a partial boss still needs level
+-- reduction but must not receive ordinary defeat/site rewards.
 function combatDefeatSnapshotForCleanup()
-	if combatDefeatMarksActive~=true then combatDefeatCleanupSnapshot=nil return end
-	local snapshot={}
+	if combatDefeatMarksActive~=true then return nil,nil end
+	local results,partials={},{}
 	for guid in pairs(combatDefeatTracked) do
-		if combatDefeatDefeated[guid]~=true
-			and combatDefeatPartial[guid]~=true then snapshot[guid]=true end
+		results[guid]=combatDefeatDefeated[guid]==true and combatDefeatPartial[guid]~=true
+		if combatDefeatPartial[guid]==true then partials[guid]=true end
 	end
-	combatDefeatCleanupSnapshot=snapshot
+	return results,partials
 end
 
 -- A Ruin with printed defenders is NOT defeated by one successful kill.
@@ -1688,15 +1705,6 @@ combatRuinHasSurvivorForCleanup=function(ruinGUID)
 	-- No linked defenders means the site could not establish that all its
 	-- printed enemies were resolved. Never give an unearned completion Shield.
 	return not linked
-end
-
-function combatDefeatFlipUndefeated(obj)
-	local snapshot=combatDefeatCleanupSnapshot
-	if snapshot==nil or obj==nil or snapshot[obj.guid]~=true or obj.is_face_down==true then return end
-	if monsterPugs[obj.guid]==nil or gStates.summonStates[obj.guid]=="summoned" then return end
-	local rotation=obj.getRotation()
-	obj.setRotation({rotation.x,rotation.y,180})
-	return true
 end
 
 --Block the F-key flip before TTS rotates the token. Do not prevent normal Q/E spins.
