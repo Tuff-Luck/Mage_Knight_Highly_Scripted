@@ -260,6 +260,16 @@ discarded,count=discardHand(1)
 eq(discarded,true,"duplicate physical and native hand views can merge")
 eq(count,1,"duplicate hand views must not discard a card twice")
 eq(#moved,4,"same GUID is moved only once per application")
+-- The caller's actual colour overrides an unreliable seat-to-hand lookup.
+-- This is important when the TTS hand was moved after initial setup.
+local explicitCard=card("explicitCard",false)
+handObjects={}
+Player.Blue={getHandObjects=function() return {explicitCard} end}
+positionToColor=function() return "Black" end
+discarded,count=discardHand(1,"Blue")
+eq(discarded,true,"explicit owner hand must be inspected")
+eq(count,1,"explicit owner hand must discard its ordinary card")
+eq(moved[5],"explicitCard","the real committing player controls the hand lookup")
 nativeHand={}
 handObjects={}
 Player=nil
@@ -430,6 +440,50 @@ eq(discardCount,beforeKO+2,"simultaneous effects discarded exactly once")
 eq(combined.handDiscardApplied,true,"combined discard stays committed")
 resourceCardsApplyCombatWounds({color="Red"})
 eq(discardCount,beforeKO+2,"combined effect never double discards")
+
+-- A failure before any physical hand movement must NOT acknowledge the
+-- discard. The previous implementation marked a throwing helper as done,
+-- leaving every playable card in hand on all subsequent retries.
+gStates.combatWoundApplication=nil
+combatConfig.woundRecordPreview(1,{{key="exception:1"}},{
+    ["exception:1"]={heroWounds=0,discard=0,paralyse=false,units={}}},true,5)
+local failedLedger=gStates.combatWoundApplication
+combatDiscardParalyzedHand=function()
+    error("test hand error")
+end
+resourceCardsApplyCombatWounds({color="Red"})
+eq(failedLedger.handDiscardApplied,false,
+    "an exception must not silently acknowledge Knockout")
+eq(select(5,combatConfig.woundPending(failedLedger)).handDiscard,true,
+    "failed Knockout discard remains pending for retry")
+combatDiscardParalyzedHand=function(seat,color)
+    eq(seat,1,"commit must pass the correct seat")
+    eq(color,"Red","commit must pass the committing TTS hand colour")
+    discardCount=discardCount+1
+    return true,1,{"retryCard"}
+end
+resourceCardsApplyCombatWounds({color="Red"})
+eq(failedLedger.handDiscardApplied,true,"retry finally commits Knockout")
+eq(discardCount,beforeKO+3,"retry moves the remaining hand")
+
+gStates.combatWoundApplication=nil
+combatConfig.woundRecordPreview(1,{{key="partial:1"}},{
+    ["partial:1"]={heroWounds=0,discard=0,paralyse=false,units={}}},true,5)
+local partialLedger=gStates.combatWoundApplication
+combatDiscardParalyzedHand=function()
+    return false,"partial move",1,{"oneCard"}
+end
+resourceCardsApplyCombatWounds({color="Red"})
+eq(partialLedger.handDiscardApplied,false,
+    "a partial hand transfer must not abandon remaining cards")
+eq(select(5,combatConfig.woundPending(partialLedger)).handDiscard,true,
+    "partial Knockout discard remains pending")
+combatDiscardParalyzedHand=function()
+    discardCount=discardCount+1
+    return true,1,{"remainingCard"}
+end
+resourceCardsApplyCombatWounds({color="Red"})
+eq(partialLedger.handDiscardApplied,true,"a partial discard can safely finish")
 
 assert(recognition:find("effects.destroyCount>0",1,true),
     "Paralysis-only effects must show the Apply row")
