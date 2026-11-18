@@ -61,6 +61,39 @@ end
 
 local protectedExpectedScriptRemovals={}
 local protectedUnexpectedDestroyReported={}
+-- Keep a short, token-specific lifecycle trail. The generic recent-callback list
+-- cannot tell whether a missing turn-order token fell, entered a bag, or was
+-- deleted by setup/cleanup. This history exists only while this script runs.
+local protectedTurnOrderTokenTrail={}
+local protectedTurnOrderTokenSequence=0
+local function protectedTurnOrderTokenObjectState(obj)
+	if obj==nil then return "object=nil" end
+	local ok,description=pcall(function()
+		local p=obj.getPosition()
+		local position=p~=nil and string.format("(%.2f,%.2f,%.2f)",
+			tonumber(p.x or p[1]) or 0,tonumber(p.y or p[2]) or 0,
+			tonumber(p.z or p[3]) or 0) or "unknown"
+		return "type="..tostring(obj.type).." position="..position
+			.." resting="..tostring(obj.resting)
+	end)
+	return ok and description or "object state unavailable: "..tostring(description)
+end
+local function protectedTurnOrderTokenRecord(guid,event,obj)
+	if type(guid)~="string" or protectedObjectKind(guid)~="Round Order token" then return end
+	protectedTurnOrderTokenSequence=protectedTurnOrderTokenSequence+1
+	local history=protectedTurnOrderTokenTrail[guid] or {}
+	history[#history+1]=tostring(protectedTurnOrderTokenSequence)..". "..event.." "
+		..protectedTurnOrderTokenObjectState(obj)
+	if #history>8 then table.remove(history,1) end
+	protectedTurnOrderTokenTrail[guid]=history
+end
+function protectedTurnOrderTokenSetup(obj,sourceBag,position)
+	if obj==nil then return end
+	local intended=position~=nil and table.concat(position,",") or "unknown"
+	protectedTurnOrderTokenRecord(obj.guid,
+		"Setup took token from cloned bag="..tostring(sourceBag and sourceBag.guid)
+			.." intended position=("..intended..")",obj)
+end
 -- The game intentionally moves certain protected pieces into Trash: tactics at round end,
 -- and Volkare when his scenario ends. The permit is scoped to that destination and expires.
 function protectedObjectAllowScriptRemoval(guid,containerGUID,reason)
@@ -124,7 +157,9 @@ local function protectedObjectDestroyAudit(guid)
 					.." round="..tostring(gStates.currentRound)
 					.." turn="..tostring(gStates.turnNumber)
 					.."\nProtected removal permit: none"
-					.."\nLookup after 2 frames: NOT FOUND")
+					.."\nLookup after 2 frames: NOT FOUND"
+					.."\nToken lifecycle:\n"..(protectedTurnOrderTokenTrail[guid]~=nil
+						and table.concat(protectedTurnOrderTokenTrail[guid],"\n") or "No token events captured"))
 		end
 	end,2)
 end
@@ -562,6 +597,7 @@ end
 function __onObjectPickUp_raw(player_color, picked_up_object)
 	picked_up_object=eventsLiveObject(picked_up_object)
 	if picked_up_object==nil then return end
+	protectedTurnOrderTokenRecord(picked_up_object.guid,"Player picked up token: "..tostring(player_color),picked_up_object)
     if picked_up_object.guid=="2eb8e8" then callOfferSpellPickedUp() end
     trainingOfferCardPickedUp(player_color,picked_up_object)
     magicTalentCardPickedUp(player_color,picked_up_object)
@@ -667,6 +703,7 @@ end
 function __onObjectDrop_raw(player_color, dropped_object)
 	dropped_object=eventsLiveObject(dropped_object)
 	if dropped_object==nil then return end
+	protectedTurnOrderTokenRecord(dropped_object.guid,"Player dropped token: "..tostring(player_color),dropped_object)
 	-- Start a carried crystal's burst before more expensive drop processing.
 	-- Position-sensitive tracker work still waits for physics to settle.
 	if dropped_object.guid~=nil then
@@ -896,6 +933,7 @@ end
 --fix for new objects getting existing GUID, and update competative skill location
 function __onObjectSpawn_raw(spawn_object)
 	if spawn_object==nil or spawn_object.isDestroyed() or spawn_object.guid==nil then return end
+	protectedTurnOrderTokenRecord(spawn_object.guid,"onObjectSpawn",spawn_object)
 	applyAltViewAngle(spawn_object)
 	if puppetMasterManualCopyDropEligible~=nil and puppetMasterManualCopyDropEligible(spawn_object)==true then puppetMasterCheckManualCopyWhenResting(spawn_object) end
 	--code stops objects getting a GUID of a registered object.
@@ -967,6 +1005,7 @@ function __onObjectDestroy_raw(destroyedObj)
 	if destroyedObj==nil then return end
 	attackAssignmentsClearForObject(destroyedObj)
 	local destroyedGuid=destroyedObj.guid
+	protectedTurnOrderTokenRecord(destroyedGuid,"onObjectDestroy",destroyedObj)
     -- A deliberately destroyed Unit must not leave old activation and Ready
     -- links behind. Do not erase its Command's spent state until a NEW Unit
     -- is recruited into that capacity.
@@ -1878,6 +1917,8 @@ local function containerShufflesOnEntry(guid)
 end
 
 function __onObjectEnterContainer_raw(bag, obj)
+	if obj~=nil then protectedTurnOrderTokenRecord(obj.guid,
+		"Entered container="..tostring(bag and bag.guid),obj) end
 	attackAssignmentsClearForObject(obj)
 	if obj~=nil and runtimeMapContainsGUID(obj.guid)==true then
 		if terrainTiles[obj.guid]~=nil then runtimeMapInvalidateTerrain() else runtimeMapInvalidateObjects() end
@@ -1978,6 +2019,7 @@ function __onObjectLeaveContainer_raw(bag, obj)
 	obj=eventsLiveObject(obj)
 	if obj==nil then return end
 	bag=eventsLiveObject(bag)
+	protectedTurnOrderTokenRecord(obj.guid,"Left container="..tostring(bag and bag.guid),obj)
 	if bag~=nil and obj~=nil and bag.guid==GUID.bag.apocalypseQuestTokens then
 		if gStates.apocalypseQuestTokenGUIDs==nil or gStates.apocalypseQuestTokenInBag==nil then apocalypseQuestTokenBagSetup() end
 		if gStates.apocalypseQuestTokenGUIDs[obj.guid]==true then gStates.apocalypseQuestTokenInBag[obj.guid]=false end
