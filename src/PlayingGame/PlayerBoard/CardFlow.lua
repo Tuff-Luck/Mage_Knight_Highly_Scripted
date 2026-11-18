@@ -1822,12 +1822,13 @@ end
 function combatDiscardParalyzedHand(seat,ownerColor)
     local hand=getObjectFromGUID(handZones~=nil and handZones[seat] or nil)
     local discard=getObjectFromGUID(deedDeckDiscardZones~=nil and deedDeckDiscardZones[seat] or nil)
-    if hand==nil or discard==nil then return false,"Hand or discard zone is missing",0 end
+    if discard==nil then return false,"Discard zone is missing",0 end
     -- The physical scripting zone and TTS's native Player hand do not always
     -- report exactly the same objects (especially while cards are settling).
     -- Read both, so an empty scripting zone cannot silently acknowledge a
     -- Paralysis discard while the player still holds non-Wound cards.
     local handObjects,seen={},{}
+    local hasHandSource=hand~=nil and hand.getObjects~=nil
     local function include(obj)
         if obj~=nil and obj.guid~=nil and (obj.type=="Card" or obj.type=="Deck")
             and not seen[obj.guid] then
@@ -1835,7 +1836,9 @@ function combatDiscardParalyzedHand(seat,ownerColor)
             handObjects[#handObjects+1]=obj
         end
     end
-    for _,obj in ipairs(hand.getObjects() or {}) do include(obj) end
+    if hasHandSource then
+        for _,obj in ipairs(hand.getObjects() or {}) do include(obj) end
+    end
     local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
     if current~=nil and current.seatPos==seat and Player~=nil then
         -- The commit callback knows the real player colour. Prefer it to
@@ -1850,8 +1853,15 @@ function combatDiscardParalyzedHand(seat,ownerColor)
         if player~=nil and player.getHandObjects~=nil then
             local ok,objects=pcall(player.getHandObjects)
             if not ok then return false,"Could not inspect the TTS hand",0 end
+            hasHandSource=true
             for _,obj in ipairs(objects or {}) do include(obj) end
         end
+    end
+    -- A missing scripting zone is not evidence of an empty player hand.
+    -- The TTS HandTrigger is authoritative when available; never silently
+    -- mark the consequence applied if neither source could be inspected.
+    if not hasHandSource then
+        return false,"Neither a scripting hand zone nor TTS hand is available",0
     end
     local transfers={}
     for _,obj in ipairs(handObjects) do
