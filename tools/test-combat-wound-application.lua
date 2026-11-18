@@ -194,6 +194,10 @@ assert(not recognition:find('summaryWidth',1,true),
     "No dynamic preferredWidth writes should fight TTS's anchored position")
 assert(recognition:find('"Draw: "..combatRich',1,true),
     "Wound button should be labelled Draw")
+assert(recognition:find('local showTotal=totalHeroWounds>0 or knockout',1,true),
+    "Knockout warning must remain visible after a cost-only discard")
+assert(recognition:find('effects.handDiscard and "Apply: Discard hand"',1,true),
+    "cost-only Knockout must show an actionable hand-discard button")
 -- Paralysis must discard only the cards STILL IN HAND, including mixed
 -- Deck stacks, and must never discard already played cards.
 local discardHand=isolated(cardflow,"function combatDiscardParalyzedHand(seat)",
