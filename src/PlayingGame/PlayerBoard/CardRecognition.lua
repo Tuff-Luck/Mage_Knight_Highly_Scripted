@@ -124,6 +124,7 @@ trackerPrivate.forestersTerrainModifier={mode="reduce",
 trackerPrivate.trackerWasDisabled=false
 trackerPrivate.trackerSession=0
 trackerPrivate.trackerStartupRequest=0
+trackerPrivate.restoreAssignmentsPending=false
 -- Preferences are saved per seat; older saves default to automation enabled.
 function resourceCardsSeatEnabled(seat)
     local settings=gStates~=nil and gStates.resourceTrackerEnabledBySeat or nil
@@ -13258,6 +13259,68 @@ local function resourceUnitsRebuildFromTable()
     for guid in pairs(activations) do unitHistoryRefreshToken(guid) end
 end
 
+-- Explicit card choices represent player decisions rather than reconstructable table state.
+-- Save only choices for cards still in the current player's play/unit areas.
+local function resourceCardsCopyChoice(selection,fromSave)
+    if type(selection)~="table" then return nil end
+    local result={}
+    for _,field in ipairs({"effect","sideways"}) do
+        if type(selection[field])=="string" then result[field]=selection[field] end
+    end
+    for _,field in ipairs({"repeatChoices","inventorySets"}) do
+        local entries={}
+        if fromSave then
+            for _,entry in ipairs(type(selection[field])=="table" and selection[field] or {}) do
+                local index=type(entry)=="table" and tonumber(entry.index) or nil
+                if index~=nil and index>=1 and index%1==0 and type(entry.choice)=="string" then
+                    entries[index]=entry.choice
+                end
+            end
+        else
+            for index,choice in pairs(type(selection[field])=="table" and selection[field] or {}) do
+                if type(index)=="number" and index>=1 and index%1==0 and type(choice)=="string" then
+                    entries[#entries+1]={index=index,choice=choice}
+                end
+            end
+            table.sort(entries,function(a,b) return a.index<b.index end)
+        end
+        if next(entries)~=nil then result[field]=entries end
+    end
+    return next(result)~=nil and result or nil
+end
+
+function resourceCardsChoicesSave()
+    if gStates==nil then return end
+    local selected={}
+    local active=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    if active~=nil and active.seatPos~=nil then
+        local present={}
+        for _,zoneGUID in ipairs({playerPlayAreas[active.seatPos],playerUnitAreas[active.seatPos]}) do
+            local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
+            if zone~=nil then
+                for _,obj in ipairs(zone.getObjects()) do present[obj.guid]=true end
+            end
+        end
+        for guid,selection in pairs(selectedResourceByGUID) do
+            if present[guid]==true and gameCards[guid]~=nil then
+                selected[guid]=resourceCardsCopyChoice(selection,false)
+            end
+        end
+    end
+    gStates.resourceCardSelectedChoices=selected
+end
+
+function resourceCardsChoicesRestore()
+    selectedResourceByGUID={}
+    local stored=gStates~=nil and gStates.resourceCardSelectedChoices or nil
+    if type(stored)~="table" then return end
+    for guid,selection in pairs(stored) do
+        if type(guid)=="string" and gameCards[guid]~=nil then
+            selectedResourceByGUID[guid]=resourceCardsCopyChoice(selection,true)
+        end
+    end
+end
+
 function resourceCardsPanelChanged(open)
     local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
     if open==true and (current==nil or not resourceCardsSeatEnabled(current.seatPos)) then return end
@@ -13364,7 +13427,8 @@ end
 -- Shared by saved-game load, first-game setup and re-expanding the panel.
 -- Wait for the actual UI state rather than treating startup's collapsed XML
 -- defaults as a player pressing OFF. Explicit minimization cancels this wait.
-function resourceCardsOnLoad()
+function resourceCardsOnLoad(restoringSave)
+    if restoringSave==true then trackerPrivate.restoreAssignmentsPending=true end
     if gStates==nil or gStates.firstStarted~=true then return end
     local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if current~=nil and not resourceCardsSeatEnabled(current.seatPos) then
@@ -13382,6 +13446,10 @@ function resourceCardsOnLoad()
     local request=trackerPrivate.trackerStartupRequest
     safeWaitCondition("PlayerBoard.CardRecognition",function()
         if trackerPrivate.trackerStartupRequest==request and resourceCardsPanelReady() then
+            if trackerPrivate.restoreAssignmentsPending==true then
+                trackerPrivate.restoreAssignmentsPending=false
+                attackAssignmentsRestore()
+            end
             resourceCardsPanelChanged(true)
         end
     end,function()
