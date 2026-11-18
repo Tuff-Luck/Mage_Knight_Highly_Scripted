@@ -32,10 +32,11 @@ local card={
     isDestroyed=function() return false end,
     getPosition=function() return pos end
 }
+local zoneContents={}
 local zone={
     -- The card is directly over the mat but has not fallen into the thin
-    -- scripting zone yet, so getObjects returns no cards.
-    getObjects=function() return {} end,
+    -- scripting zone yet, so getObjects initially returns no cards.
+    getObjects=function() return zoneContents end,
     getBounds=function()
         return {center={x=0,z=0},size={x=12,z=12}}
     end
@@ -120,6 +121,19 @@ assert(objects.rage==card and placements.rage=="play" and kinds.rage=="card",
     "Released falling Rage must be included in resource scan")
 assert(selected.rage.effect=="attack" and keepsLock("rage"),
     "Rage Attack and explicit enemy lock must remain through recovery")
+
+-- EnterZone is positive evidence that the zone contains this card, even
+-- when the approximate X/Z bounds disagree. The older membership check
+-- returned false before looking at zone.getObjects(), which could clear
+-- the option and prune the persistent enemy arrow after the drop.
+pos.x,pos[1]=30,30
+zoneContents={card}
+assert(onMat("rage",1),
+    "A zone-confirmed reentry must win over an X/Z bounds disagreement")
+assert(keepsLock("rage"),
+    "The physical left-target arrow must survive zone-confirmed reentry")
+pos.x,pos[1]=0,0
+zoneContents={}
 
 -- While lifted, preserve the arrow but do not count a temporary hover as a
 -- resource-producing card. A later drop can still restore it.
