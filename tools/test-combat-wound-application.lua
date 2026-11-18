@@ -538,6 +538,50 @@ assert(committed~=nil and committed.seat==1 and committed.turn==1,
 resourceCardsRequestCombatWounds(player)
 eq(attrs["CombatDamageConfirm:active"],"false","second click has nothing left to apply")
 
+-- Clean validation failure should release the newly created phase lock.
+-- If a physical transfer has begun, leave it locked but allow a fresh
+-- confirmation to resume the same idempotent ledger.
+local realApply=resourceCardsApplyCombatWounds
+gStates.combatWoundApplication=nil
+combatConfig.woundRecordPreview(1,{{key="retry:1"}},{
+    ["retry:1"]={heroWounds=2,discard=0}})
+local retryLedger=gStates.combatWoundApplication
+resourceCardsRequestCombatWounds(player)
+resourceCardsApplyCombatWounds=function(_,done)
+    done(false,"missing hand zone",false)
+    return true
+end
+combatConfig.woundConfirmChoice(player,"CombatDamageConfirmApply")
+capturedSnapshot.callback()
+eq(retryLedger.phaseLock,nil,"clean failure must release phase lock")
+resourceCardsRequestCombatWounds(player)
+eq(attrs["CombatDamageConfirm:active"],"true",
+    "clean failed commit may be attempted again")
+resourceCardsApplyCombatWounds=function(_,done)
+    done(false,"one card was moved",true)
+    return true
+end
+combatConfig.woundConfirmChoice(player,"CombatDamageConfirmApply")
+capturedSnapshot.callback()
+local partialLock=retryLedger.phaseLock
+assert(partialLock~=nil,"partial physical failure keeps the committed phase")
+resourceCardsRequestCombatWounds(player)
+eq(attrs["CombatDamageConfirm:active"],"true",
+    "partial failure may reopen the confirmation under its phase lock")
+-- A retry uses the original lock even if the live preview is unavailable.
+local savedPreview=combatConfig.phasePreview
+combatConfig.phasePreview=nil
+resourceCardsApplyCombatWounds=function(_,done)
+    done(true,nil,false)
+    return true
+end
+combatConfig.woundConfirmChoice(player,"CombatDamageConfirmApply")
+capturedSnapshot.callback()
+eq(retryLedger.phaseLock,partialLock,
+    "retry must preserve rather than replace the original combat snapshot")
+combatConfig.phasePreview=savedPreview
+resourceCardsApplyCombatWounds=realApply
+
 -- Regression: an earlier Block remains fixed when its card leaves play;
 -- playing the same GUID again cannot produce a second Block or more Attack.
 local phaseSources=isolated(recognition,
@@ -573,6 +617,14 @@ eq(repeated[1].attack,0,"frozen early source has no second Attack")
 eq(repeated[2].key,"played#postDamage","later Attack separated")
 eq(repeated[2].attack,2,"replayed GUID cannot inflate original Attack")
 eq(repeated[2].resources.attack,2,"late Attack resource itself is capped")
+local unusedBlock=phaseSources({sources={original},sourceKeys={},spentRange={}},
+    {{guid="played",key="played",name="Played",kind="card",
+        ranged=0,siege=0,block=2,attack=4,move=0,psychicInfluence=0,
+        resources={block=2,attack=4},details={{family="attack",key="attack",amount=4}}}})
+eq(#unusedBlock,1,"unspent Block does not create a frozen early source")
+eq(unusedBlock[1].block,0,"unspent Block cannot retroactively Block")
+eq(unusedBlock[1].attack,4,"unspent Block may be changed to a later Attack")
+eq(unusedBlock[1].phaseAfterDamage,true,"changed source is Attack-phase only")
 assert(recognition:find('item.source.phaseLocked and "false" or "true"',1,true),
     "frozen calculator icons must not be clickable")
 assert(recognition:find('combatConfig.phaseObjectLocked(card.guid)',1,true)
@@ -585,6 +637,54 @@ assert(assignments:find('lock.positions or {}',1,true)
 assert(assignments:find('function attackAssignmentsDamageSnapshot()',1,true)
     and assignments:find('if lock~=nil then',1,true),
     "Damage targets must persist and be non-interactive after commit")
+
+-- Exercise the real Block optimiser: spare and failed Blocks must not
+-- lock their sources, while Block points used for success and Cumbersome
+-- Move reductions must remain committed.
+local blockStart=assert(recognition:find(
+    "local function combatBlockLegal(attack,item)",1,true))
+local blockEnd=assert(recognition:find(
+    "-- Damage phase. Every unblocked attack",blockStart,true))
+local blockEnv={
+    combatConfig={sourceFields={{key="block",family="block"}},
+        COMBAT_EFFICIENT_BLOCKS={P={block=true}},COMBAT_RED="red"},
+    combatEnemyAttacks=function(enemy) return enemy.attacks end,
+    combatRich=function(value) return value end,
+    combatAssignmentActiveSeat=function() return 1 end,
+    gStates={turnNumber=1,competitiveSkillReminders={}},
+}
+setmetatable(blockEnv,{__index=_G})
+local blockResult=assert(load(recognition:sub(blockStart,blockEnd-1)..
+    "\nreturn combatBlockResult","Block effective source locking","t",blockEnv))()
+local function testEnemy(guid,cumbersome)
+    return {guid=guid,attacks={{owner=guid,slot=1,key="P",value=5,
+        cumbersome=cumbersome==true}}}
+end
+local function blockSource(guid,amount)
+    return {key=guid,guid=guid,block=amount,move=0,
+        resources={block=amount}}
+end
+local function moveSource(guid,amount)
+    return {key=guid,guid=guid,block=0,move=amount,moveCounts=true,resources={}}
+end
+local function effective(enemy,sources)
+    local _,_,_,_,_,_,_,_,_,_,usedBlockKeys,usedMoveKeys=blockResult(enemy,sources)
+    return usedBlockKeys,usedMoveKeys
+end
+local failed=effective(testEnemy("failed"),{blockSource("b2",2)})
+eq(failed.b2,nil,"an ineffective partial Block must remain editable")
+local spare=effective(testEnemy("spare"),{blockSource("b5",5),blockSource("b1",1)})
+eq(spare.b5,true,"successful Block source is committed")
+eq(spare.b1,nil,"spare Block must remain editable")
+local together=effective(testEnemy("together"),{blockSource("b4",4),blockSource("b1",1)})
+eq(together.b4,true,"first contributing Block is committed")
+eq(together.b1,true,"second contributing Block is committed")
+local _,moved=effective(testEnemy("cumbersome",true),{moveSource("m2",2)})
+eq(moved.m2,true,"effective Cumbersome Move reduction is committed")
+assert(recognition:find("preview.sourceKeys={}",1,true)
+    and recognition:find("block.successfulSourceKeys",1,true)
+    and recognition:find("block.spentMoveKeys",1,true),
+    "phase lock must be derived from actual successful Block and Move use")
 
 -- Exercise the production rewind guard itself (not just the commit
 -- coordinator stub): storage is requested once, owners stay blocked through
