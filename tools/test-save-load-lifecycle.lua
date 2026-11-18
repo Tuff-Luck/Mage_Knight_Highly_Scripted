@@ -177,6 +177,63 @@ startup()
 eq(#startupEvents,3,"reopening must not repeat assignment recovery")
 eq(startupEvents[3],"scan","reopen still initiates scan")
 
+-- Previously persisted cleanup checkpoints must resume without replaying
+-- already-processed physical objects or inventing a new cleanup sequence.
+local combatSource=read("src/PlayingGame/Combat.lua")
+local cleanupCount=0
+local cleanupEnv={
+    gStates={preEndTurn=true,combatPreEndTurnRecovery={
+        player=1,processedObjects={cardA=true},rewardBoundaryDone=true}},
+    turnOrder={{seatPos=1}},
+    Player={Red={color="Red"}},
+    positionToColor=function() return "Red" end,
+    combatPreEndTurnPreparePlayArea=function(_,recovery)
+        eq(recovery.processedObjects.cardA,true,"recovered cleanup ledger")
+        return nil,{}
+    end,
+    combatSchedulePreEndTurnCleanup=function()
+        cleanupCount=cleanupCount+1
+    end
+}
+local recover=loadSection(combatSource,"function combatRecoverPreEndTurn()",
+    "function __preEndTurn_raw(player, mouseButton, id, rewindReady)",cleanupEnv,
+    "return combatRecoverPreEndTurn")
+eq(recover(),true,"interrupted cleanup resumes")
+eq(cleanupCount,1,"only one cleanup resume scheduled")
+cleanupEnv.gStates.combatPreEndTurnRecovery=nil
+eq(recover(),false,"no phantom second cleanup")
+
+-- A saved pre-End-Turn reward without its commit marker is applied once;
+-- an already committed reward takes the non-duplicating reconciliation path.
+local fameSource=read("src/PlayingGame/FameReputation.lua")
+local commits,reconciles=0,0
+local fameEnv={
+    gStates={preEndTurn=true,turnNumber=1},
+    turnOrder={{fameGain=3,repGain=0}},
+    eventsOnLoadRawBase=function() return true end,
+    safeWaitFrames=function(_,callback) callback() end,
+    applyPlayerFameReputation=function()
+        commits=commits+1
+    end,
+    syncPostCommitAdjustments=function()
+        reconciles=reconciles+1
+    end
+}
+setmetatable(fameEnv,{__index=_G})
+local fameStart=assert(fameSource:find(
+    "function fameReputationOnLoadRaw(saved_data, loaded_data)",1,true))
+local restoreFame=assert(load(fameSource:sub(fameStart)..
+    "\nreturn fameReputationOnLoadRaw","fame load recovery","t",fameEnv))()
+restoreFame("",nil)
+eq(commits,1,"missing commit marker recovered")
+fameEnv.gStates.fameRepCommitted={[1]={fame=3,rep=0}}
+restoreFame("",nil)
+eq(commits,1,"committed fame not applied twice")
+eq(reconciles,1,"committed fame routed to adjustment reconciliation")
+assert(events:find("gStates.endRoundResetPending==true",1,true)
+    and callbacks:find("coralDrawChoiceRestoreState(",1,true),
+    "end-of-round and pending Coral draw recovery must remain installed")
+
 -- Startup must reconstruct decisions once, before the first tracker calculation.
 assert(events:find("resourceCardsChoicesRestore()",1,true)
     and events:find("attackAssignmentsDamageRestore()",1,true),
