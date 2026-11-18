@@ -1203,7 +1203,8 @@ local function combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatRe
 					-- the manual face-down convention when the calculator was closed.
 					local enemyRegistered=monsterPugs[playAreaObj.guid]~=nil
 					local enemyDefeated=enemyRegistered and combatEnemyTokenDefeated(playAreaObj)==true
-					if enemyRegistered and not enemyDefeated and dragonGroundCleanup~=true then
+					local enemyPartial=enemyRegistered and combatBossPartialRewardEligible(playAreaObj.guid)==true
+					if enemyRegistered and not enemyDefeated and not enemyPartial and dragonGroundCleanup~=true then
 						if gStates.monsterPlayLocation[playAreaObj.guid]==nil or turnOrder[cleanupPlayer].avatarLocation=="spawning grounds" then
 							--if manual drawn assign the avatar location as return spot.
 							if (gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[playAreaObj.guid]~=true) and gStates.summonStates[playAreaObj.guid]~="summoned" and (turnOrder[cleanupPlayer].avatarLocation=="monster den" or turnOrder[cleanupPlayer].avatarLocation=="spawning grounds" or turnOrder[cleanupPlayer].avatarLocation=="ruin") then
@@ -1251,10 +1252,9 @@ local function combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatRe
 					-- Defeated enemies are removed; partial bosses still run their level handler.
 					-- A survivor without a registered return position uses the legacy discard fallback.
 					if enemyRegistered and dragonGroundCleanup~=true and (enemyDefeated
-						or combatBossPartialRewardEligible(playAreaObj.guid)
-						or gStates.monsterPlayLocation[playAreaObj.guid]==nil) then
+						or enemyPartial or gStates.monsterPlayLocation[playAreaObj.guid]==nil) then
 						if horsemanTokenToName~=nil and horsemanTokenToName[playAreaObj.guid]~=nil then
-							horsemanResolveDefeat(playAreaObj,cleanupPlayer,coopCombatReward)
+							if enemyDefeated then horsemanResolveDefeat(playAreaObj,cleanupPlayer,coopCombatReward) end
 						elseif playAreaObj.getRotationValues()[2]~=nil then
 							combatDiscardMonster(playAreaObj,enemyDefeated,state.cleanupContext)
 						else--Faction Leaders are resolved by their own damage handler
