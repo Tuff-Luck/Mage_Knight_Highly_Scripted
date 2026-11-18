@@ -171,7 +171,8 @@ local function activeVisualLines()
 		local source=getObjectFromGUID(assignmentBaseGUID(entry.sourceGUID))
 		local target=getObjectFromGUID(entry.targetGUID)
         local lock=combatCommittedLock~=nil and combatCommittedLock() or nil
-        local frozen=lock~=nil and (lock.positions or {})[entry.sourceGUID] or nil
+        local frozen=lock~=nil and (lock.sourceKeys or {})[entry.sourceGUID]==true
+            and (lock.positions or {})[entry.sourceGUID] or nil
         if frozen~=nil then
             -- A frozen arrow stays on the play-area location even when the
             -- physical card is retrieved, stacked, or moved to the hand.
