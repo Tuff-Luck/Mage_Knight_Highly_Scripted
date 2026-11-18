@@ -248,6 +248,25 @@ end
 -- Event Handling functions
 ---------------
 --Save and load settings
+local function loadPersistedGameState(saved_data,loaded_data)
+    if type(saved_data)~="string" or saved_data=="" then return end
+    if type(loaded_data)~="table" or type(loaded_data.turnOrder)~="table"
+        or type(loaded_data.gStates)~="table" then
+        error("Saved game is missing its turn order or game state.",2)
+    end
+    turnOrder=loaded_data.turnOrder
+    gStates=loaded_data.gStates
+    if type(gStates.positionMageKnight)~="table" then
+        error("Saved game is missing Mage Knight seat configuration.",2)
+    end
+    -- Older saves may predate optional scenario maps and tracking metadata.
+    -- Do not replace false/zero flags or invent any historical game decisions.
+    for _,field in ipairs({"hexOverideSave","ambushingMonsters","pursuingMonsters"}) do
+        if gStates[field]==nil then gStates[field]={} end
+    end
+    gStates.seatTeams=gStates.seatTeams or {0,0,0,0}
+end
+
 function eventsOnLoadRawBase(saved_data, loaded_data)
 	cacheScenarioTweakDefaults()
 	local megaFreeze=  {"3d4319", "519f96",	playerBoard[1], playerBoard[2], playerBoard[3], playerBoard[4], dummyBoard, "a02b0f"}--player mats
@@ -259,12 +278,10 @@ function eventsOnLoadRawBase(saved_data, loaded_data)
 	for _, seat in pairs(Player.getAvailableColors()) do
 		Player[seat].setHandTransform({position={Player[seat].getHandTransform().position[1], 3.1, -48.4}, scale={18, 3.8, 1}}, 1)
 	end
-	--load saved data
-	if saved_data~="" then
-		loaded_data=loaded_data or JSON.decode(saved_data)
-		turnOrder=loaded_data.turnOrder
-		gStates=loaded_data.gStates
-	end
+	-- Recover deliberate player choices before any UI/Combat restoration runs.
+	loadPersistedGameState(saved_data,loaded_data)
+	resourceCardsChoicesRestore()
+	attackAssignmentsDamageRestore()
 	gStates.seatTeams=gStates.seatTeams or {0,0,0,0}
 	resetGlobalUIVisibility()
 	--Refresh saved Puppets so presentation changes (decal/hover data) also apply to existing accepted Puppets.
@@ -292,7 +309,7 @@ function eventsOnLoadRawBase(saved_data, loaded_data)
 	safeWaitCondition("Events",function() refreshTableExtensionUI() end,function() return tableExtensionUIReady()==true end,5)
 	-----------
 	refreshResourceTrackerText()--Refresh the tracker from saved values so TTS resolves its language tags on load.
-    safeWaitFrames("Events",function() resourceCardsOnLoad() end,4)
+    safeWaitFrames("Events",function() resourceCardsOnLoad(true) end,4)
     safeWaitFrames("Events",function() callOfferRestoreOnLoad() end,4)
     safeWaitFrames("Events",function() trainingOfferRestoreOnLoad() end,4)
     safeWaitFrames("Events",function() magicTalentRestoreOnLoad() end,5)
@@ -456,13 +473,19 @@ function eventsOnLoadRawBase(saved_data, loaded_data)
 		normalizeSetupTableObjects()
 		for seatPos=1,4 do scheduleUnitLayoutRefresh(seatPos) end
 
-		--stop unit wound creep and keep units cards under all the tokens.
+		-- Keep existing Unit/Wound position repairs without moving objects already correct.
 		for _, obj in pairs(getObjects()) do
+			local card=gameCards[obj.guid]
 			if obj.getGMNotes()=="Unit Wound" then
-				obj.setPosition({obj.getPosition()[1], obj.getPosition()[2], -33.29})
-			end
-			if gameCards[obj.guid]~=nil and (gameCards[obj.guid].cardType=="Regular Unit" or gameCards[obj.guid].cardType=="Elite Unit") then
-				obj.setPosition({obj.getPosition()[1], 1.09, obj.getPosition()[3]})
+				local pos=obj.getPosition()
+				if math.abs(pos[3]+33.29)>0.005 then
+					obj.setPosition({pos[1],pos[2],-33.29})
+				end
+			elseif card~=nil and (card.cardType=="Regular Unit" or card.cardType=="Elite Unit") then
+				local pos=obj.getPosition()
+				if math.abs(pos[2]-1.09)>0.005 then
+					obj.setPosition({pos[1],1.09,pos[3]})
+				end
 			end
 		end
 		--A rewind taken immediately before the round reset restores this checkpoint, but not the callback
@@ -478,6 +501,8 @@ function onSave()
 	return safeCallback("onSave",function()
 		saveZigguratPyramidUI()
 		saveSetupState()
+		resourceCardsChoicesSave()
+		attackAssignmentsDamageSave()
 		local data_to_save={
 			turnOrder=turnOrder,
 			gStates=gStates,
