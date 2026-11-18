@@ -88,10 +88,42 @@ verify(true,"Cached combat Day context")
 assert(scans==before)
 env.trackerPrivate.renderCombatNight=nil
 
--- Movement terrain rules intentionally continue to use actual round day/night.
+-- One with the Land's powered Fire/Ice Block must use the same combat
+-- Night context; physical terrain movement costs must retain actual Day/Night.
+assert(source:find("chosen=resourceCardsUsesDayMana() and {blockFire=value} or {blockIce=value}",1,true),
+    "One with the Land must follow NightRules enemy combat")
 assert(source:find("return effect.dayRound==nil or effect.dayRound==(gStates.dayRound==true)",1,true))
 assert(source:find("trackerPrivate.renderCombatNight=resourceCardsCombatNightFromEnemies(combatMonsters)",1,true),
     "Active combat must build one shared Night snapshot")
 assert(source:find("trackerPrivate.renderCombatNight=nil\nend\n\nlocal function scheduleSeatRender(",1,true),
     "Night context must be cleared after rendering")
+
+-- A normal Summoner must not accidentally mark every summon as Night.
+-- Test the same conditional block that adds the visible NightRules decal.
+local combatFile=assert(io.open("src/PlayingGame/Combat.lua","r"))
+local combatSource=combatFile:read("*a")
+combatFile:close()
+local spawnStart=assert(combatSource:find(
+    "local summonedNightRules=id==darkCrusader.token",1,true))
+local spawnFinish=assert(combatSource:find(
+    "\n\t\t\t\tgStates.summonStates[summonedMonster.guid]",spawnStart,true))
+local spawnCode=combatSource:sub(spawnStart,spawnFinish-1)
+local function testSummon(summonerGUID,faction,place,expected)
+    local decals={}
+    local states={turnNumber=1,monsterPerks={}}
+    local e={
+        id=summonerGUID,darkCrusader={token="darkLeader"},
+        summonerFaction=faction,turnOrder={{avatarLocation=place}},
+        gStates=states,nightRulesDecal="test-night-icon",
+        summonedMonster={guid="summon",addDecal=function(decal) decals[#decals+1]=decal end}
+    }
+    setmetatable(e,{__index=_G})
+    assert(load(spawnCode,"Summon NightRules","t",e))()
+    assert((#decals>0)==expected,"Summon Night decal mismatch")
+    assert((states.monsterPerks.summon~=nil and states.monsterPerks.summon.nightRules==true)==expected,
+        "Summon Night perk must agree with its decal")
+end
+testSummon("ordinary","Other","plains",false)
+testSummon("darkLeader","Other","plains",true)
+testSummon("ordinary","Dark","graveyard",true)
 print("Combat NightRules regression passed")
