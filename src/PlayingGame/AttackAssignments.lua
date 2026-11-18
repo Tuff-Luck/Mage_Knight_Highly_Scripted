@@ -1278,6 +1278,9 @@ function attackAssignmentSourceClicked(player,value,id)
 		rowIndex=tonumber(rowIndex)
 		local resource=rowIndex>0 and ("set"..rowIndex..":"..category) or category
 		local sourceKey=part~=nil and (guid.."#"..part) or guid
+        -- A stale TTS button must not erase a committed arrow before
+        -- attackAssignmentsBegin gets its own phase-lock check.
+        if combatCommittedSource(sourceKey) then return end
 		if part~=nil then resource=resource.."@"..part end
 		local color=player~=nil and player.color or nil
 		local source=guid~=nil and getObjectFromGUID(guid) or nil
