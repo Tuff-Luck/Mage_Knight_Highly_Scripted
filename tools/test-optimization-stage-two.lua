@@ -24,6 +24,8 @@ local commands={}
 local inside={}
 local env={
     getObjectFromGUID=function(guid) return commands[guid] end,
+    playerUnitAreas={[1]="unit1",[2]="unit2",[3]="unit3",[4]="unit4"},
+    unitLayoutObjectOnMat=function() return false end,
     unitLayoutObjectInUnitArea=function(guid) return inside[guid]==true end,
     scheduleUnitLayoutRefresh=function(seat) refreshes[#refreshes+1]=seat end,
     safeWaitFrames=function(_,callback,delay)
@@ -64,9 +66,12 @@ eq(#frames,1,"drop schedules a single delayed check")
 runFrames()
 eq(#waits,1,"drop creates one settle check")
 eq(waits[1].timeout,5,"Command settle check is bounded")
-eq(waits[1].condition(),false,"still-bouncing Command is not settled")
+-- Position-based Unit layout checks deliberately ignore the resting flag.
+-- A released non-smooth token can be reconciled while falling in Y.
+eq(waits[1].condition(),true,
+    "released non-smooth Command may reconcile before physics resting")
 held.resting=true
-eq(waits[1].condition(),true,"Command settle condition detects resting")
+eq(waits[1].condition(),true,"settled Command remains eligible")
 waits[1].callback()
 runFrames()
 eq(#refreshes,1,"Unit layout refreshes after actual drop")
