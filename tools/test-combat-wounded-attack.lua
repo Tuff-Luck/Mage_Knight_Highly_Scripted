@@ -74,6 +74,14 @@ eq(#eligibleSources(sources,{unit=true},invalid),0,
     "Paralysis and Unit wounds independently remove late Attack")
 eq(#eligibleSources(sources,{},paralysisCards(sources,{},nil)),3,
     "removing Paralyze restores staged card resources")
+local knockedOut=paralysisCards(sources,{},nil,true)
+eq(knockedOut.card1,true,"Knockout removes a staged Attack card")
+eq(knockedOut.card2,true,"Knockout removes both planned card Attacks")
+eq(knockedOut.unit,nil,"Knockout cannot remove an active Unit's Attack")
+eq(total(eligibleSources(sources,{},knockedOut)),2,
+    "Knockout cannot create a false melee defeat")
+eq(#eligibleSources(sources,{},paralysisCards(sources,{},nil,false)),3,
+    "below Knockout threshold leaves card Attacks intact")
 eq(#eligibleSources(sources,{},paralysisCards(sources,{
     attack1={paralyse=false,heroWounds=0}},nil)),3,
     "fully blocked Paralyze does not invalidate cards")
@@ -101,8 +109,10 @@ contains("combatGroupAttackLine(group.attackTotal,group.attackArmour)",
     "Result uses authoritative Attack total")
 contains("wounded=wounded,paralysisCard=paralysisCard,ineffective=paralysisCard",
     "Paralyzed card Attack icon is rendered dark/red")
-contains("local paralysisAttackCards=combatConfig.paralysisAttackCards(sources,damageResults,earlyLock)",
-    "Paralysis uses resolved actual Hero damage")
+contains("local knockout=totalHeroWounds+otherCombatWounds>=handLimit",
+    "Knockout includes only this combat's Wounds")
+contains("local paralysisAttackCards=combatConfig.paralysisAttackCards(sources,damageResults,earlyLock,knockout)",
+    "Paralysis and Knockout invalidate Attack using resolved Hero damage")
 contains("combatConfig.attackPhaseSources(group.sources,woundedBeforeAttack,paralysisAttackCards)",
     "Defeat calculation excludes paralyzed card Attack")
 print("Combat wounded Attack result regressions passed")
