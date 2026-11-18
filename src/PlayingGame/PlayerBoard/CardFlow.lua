@@ -1819,7 +1819,7 @@ end
 -- already-played cards. Validate the zones and held objects before moving
 -- anything. A mixed physical Deck can occur when hand cards are stacked;
 -- extract only its non-Wound cards, leaving any Wounds behind.
-function combatDiscardParalyzedHand(seat)
+function combatDiscardParalyzedHand(seat,ownerColor)
     local hand=getObjectFromGUID(handZones~=nil and handZones[seat] or nil)
     local discard=getObjectFromGUID(deedDeckDiscardZones~=nil and deedDeckDiscardZones[seat] or nil)
     if hand==nil or discard==nil then return false,"Hand or discard zone is missing",0 end
@@ -1837,9 +1837,15 @@ function combatDiscardParalyzedHand(seat)
     end
     for _,obj in ipairs(hand.getObjects() or {}) do include(obj) end
     local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
-    if current~=nil and current.seatPos==seat and positionToColor~=nil
-        and Player~=nil then
-        local color=positionToColor(gStates.turnNumber)
+    if current~=nil and current.seatPos==seat and Player~=nil then
+        -- The commit callback knows the real player colour. Prefer it to
+        -- reconstructing ownership from an approximate hand transform, which
+        -- can resolve to Black while the player still has cards in TTS's hand.
+        local color=ownerColor
+        if (color==nil or color=="Black" or color=="Grey")
+            and positionToColor~=nil then
+            color=positionToColor(gStates.turnNumber)
+        end
         local player=color~=nil and color~="Black" and color~="Grey" and Player[color] or nil
         if player~=nil and player.getHandObjects~=nil then
             local ok,objects=pcall(player.getHandObjects)
