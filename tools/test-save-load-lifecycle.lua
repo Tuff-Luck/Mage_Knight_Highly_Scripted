@@ -186,12 +186,12 @@ local cleanupEnv={
         player=1,processedObjects={cardA=true},rewardBoundaryDone=true}},
     turnOrder={{seatPos=1}},
     Player={Red={color="Red"}},
-    positionToColor=function() return "Red" end,
+    positionToColor=function(_index) return "Red" end,
     combatPreEndTurnPreparePlayArea=function(_,recovery)
         eq(recovery.processedObjects.cardA,true,"recovered cleanup ledger")
         return nil,{}
     end,
-    combatSchedulePreEndTurnCleanup=function()
+    combatSchedulePreEndTurnCleanup=function(...)
         cleanupCount=cleanupCount+1
     end
 }
@@ -210,12 +210,12 @@ local commits,reconciles=0,0
 local fameEnv={
     gStates={preEndTurn=true,turnNumber=1},
     turnOrder={{fameGain=3,repGain=0}},
-    eventsOnLoadRawBase=function() return true end,
-    safeWaitFrames=function(_,callback) callback() end,
-    applyPlayerFameReputation=function()
+    eventsOnLoadRawBase=function(...) return true end,
+    safeWaitFrames=function(_,callback,_frames) callback() end,
+    applyPlayerFameReputation=function(_index)
         commits=commits+1
     end,
-    syncPostCommitAdjustments=function()
+    syncPostCommitAdjustments=function(_index)
         reconciles=reconciles+1
     end
 }
