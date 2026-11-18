@@ -2630,7 +2630,7 @@ function resourceCardsRequestCombatWounds(player)
     local ledger=combatConfig.woundLedger(active.seatPos)
     if ledger==nil then return end
     local _,hand,discard,changed,effects=combatConfig.woundPending(ledger)
-    if hand+discard+effects.paralyseCount+effects.destroyCount==0 then
+    if hand+discard+effects.destroyCount==0 and not effects.handDiscard then
         if changed then
             broadcastToColor("Combat damage changed after consequences were applied. Check physical cards; they cannot be undone automatically.",
                 color,warningColor)
@@ -2675,18 +2675,33 @@ function resourceCardsRequestCombatWounds(player)
         discard
     }
     local summaryHeight=154
-    if effects.paralyseCount>0 then
+    if (ledger.previewOtherWounds or 0)>0 then
         summaryParts[#summaryParts+1]="\n"
-        summaryParts[#summaryParts+1]="{en}Paralysis: discard all non-Wound hand cards."
-            .."{it}Paralisi: scarta tutte le carte in mano tranne le Ferite."
-            .."{ru}Паралич: сбросьте все карты с руки, кроме Ран."
-            .."{zh-tw}麻痺：棄掉手牌中所有非傷害牌。"
-            .."{zh-cn}麻痹：弃掉手牌中所有非伤害牌。"
-            .."{ko}마비: 손에 있는 상처가 아닌 카드를 모두 버립니다."
-            .."{es}Parálisis: descarta las cartas en mano que no sean Heridas."
-            .."{fr}Paralysie : défaussez les cartes en main sauf les Blessures."
-            .."{pt-br}Paralisia: descarte as cartas na mão que não sejam Ferimentos."
-            .."{de}Lähmung: Alle Nicht-Wunden auf der Hand abwerfen."
+        summaryParts[#summaryParts+1]="{en}Other combat Wounds already taken: "
+            .."{it}Altre Ferite già ricevute nel combattimento: "
+            .."{ru}Другие Раны, уже полученные в бою: "
+            .."{zh-tw}本次戰鬥已受到的其他傷害："
+            .."{zh-cn}本次战斗已受到的其他伤害："
+            .."{ko}이번 전투에서 이미 받은 추가 부상: "
+            .."{es}Otras Heridas ya recibidas en combate: "
+            .."{fr}Autres Blessures déjà reçues au combat : "
+            .."{pt-br}Outros Ferimentos já recebidos em combate: "
+            .."{de}Andere im Kampf bereits erhaltene Wunden: "
+        summaryParts[#summaryParts+1]=ledger.previewOtherWounds
+        summaryHeight=summaryHeight+24
+    end
+    if effects.handDiscard then
+        summaryParts[#summaryParts+1]="\n"
+        summaryParts[#summaryParts+1]="{en}Knockout / Paralysis: discard all non-Wound hand cards."
+            .."{it}KO / Paralisi: scarta tutte le carte in mano tranne le Ferite."
+            .."{ru}Нокаут / Паралич: сбросьте все карты с руки, кроме Ран."
+            .."{zh-tw}昏迷／麻痺：棄掉手牌中所有非傷害牌。"
+            .."{zh-cn}昏迷／麻痹：弃掉手牌中所有非伤害牌。"
+            .."{ko}기절 / 마비: 손에 있는 상처가 아닌 카드를 모두 버립니다."
+            .."{es}K.O. / Parálisis: descarta las cartas en mano que no sean Heridas."
+            .."{fr}K.O. / Paralysie : défaussez les cartes en main sauf les Blessures."
+            .."{pt-br}Nocaute / Paralisia: descarte as cartas na mão que não sejam Ferimentos."
+            .."{de}K. o. / Lähmung: Alle Nicht-Wunden auf der Hand abwerfen."
         summaryHeight=summaryHeight+40
     end
     if effects.destroyCount>0 then
@@ -2815,7 +2830,7 @@ function resourceCardsApplyCombatWounds(player,onComplete)
     local ledger=current~=nil and combatConfig.woundLedger(current.seatPos) or nil
     local allocations,hand,discard,changed,effects=combatConfig.woundPending(ledger)
     if current==nil or ledger==nil then return false end
-    if hand+discard==0 and effects.paralyseCount==0 and effects.destroyCount==0 then
+    if hand+discard==0 and not effects.handDiscard and effects.destroyCount==0 then
         if changed then
             broadcastToColor("Combat damage changed after Wounds were dealt. Check the physical cards; none are removed automatically.",
                 player.color,warningColor)
@@ -2881,15 +2896,14 @@ function resourceCardsApplyCombatWounds(player,onComplete)
         end
     end
     local function commitConsequences()
-        -- Check both zones before any irreversible Paralysis discard. A
-        -- retry must never discard newly drawn cards if the first attempt
-        -- already processed that printed attack.
-        if effects.paralyseCount>0 then
+        -- Knockout and Paralysis share exactly one hand discard. Its saved
+        -- flag prevents retries from discarding newly drawn cards again.
+        if effects.handDiscard then
             local handZone=getObjectFromGUID(handZones~=nil and handZones[seat] or nil)
             local discardZone=getObjectFromGUID(deedDeckDiscardZones~=nil
                 and deedDeckDiscardZones[seat] or nil)
             if handZone==nil or discardZone==nil then
-                finish(false,"Hand or discard zone missing for Paralysis")
+                finish(false,"Hand or discard zone missing for Knockout/Paralysis")
                 return
             end
             -- Failed validation (for example, a card being held) is safe to
@@ -2901,12 +2915,14 @@ function resourceCardsApplyCombatWounds(player,onComplete)
             end
             if not ok or success~=true then
                 if not ok or (tonumber(moved) or 0)>0 then
+                    ledger.handDiscardApplied=true
                     for _,key in ipairs(effects.paralyse) do record(key).paralyse=true end
                 end
-                finish(false,"Paralysis hand discard: "
+                finish(false,"Knockout/Paralysis hand discard: "
                     ..tostring(ok and countOrReason or success))
                 return
             end
+            ledger.handDiscardApplied=true
             for _,key in ipairs(effects.paralyse) do record(key).paralyse=true end
             -- On success the fourth pcall value is the transferred GUID list.
             for _,guid in ipairs(type(moved)=="table" and moved or {}) do
@@ -2997,18 +3013,19 @@ function combatWoundsEndTurnReminder(color)
         return true
     end
     local _,hand,discard,changed,effects=combatConfig.woundPending(ledger)
-    if hand+discard==0 and effects.paralyseCount==0 and effects.destroyCount==0
+    if hand+discard==0 and not effects.handDiscard and effects.destroyCount==0
         and not changed then return false end
     local signature=tostring(hand)..":"..tostring(discard)..":"..tostring(changed)
         ..":"..tostring(effects.paralyseCount)..":"..tostring(effects.destroyCount)
+        ..":"..tostring(effects.knockout)
     if ledger.warned==signature then return false end
     ledger.warned=signature
     local message
-    if hand+discard>0 or effects.paralyseCount>0 or effects.destroyCount>0 then
+    if hand+discard>0 or effects.handDiscard or effects.destroyCount>0 then
         message="Unapplied combat: "..tostring(hand).." Wounds to hand, "
             ..tostring(discard).." to discard"
-        if effects.paralyseCount>0 then
-            message=message..", Paralysis hand discard pending"
+        if effects.handDiscard then
+            message=message..", Knockout/Paralysis hand discard pending"
         end
         if effects.destroyCount>0 then
             message=message..", "..tostring(effects.destroyCount)
