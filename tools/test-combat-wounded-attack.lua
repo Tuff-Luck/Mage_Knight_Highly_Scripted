@@ -27,7 +27,7 @@ combatRich=function(value,color)
 end
 local attackTotal=isolated("local function combatEnemyResists(",
     "-- Blocks of the wrong element", "combatAttackTotal")
-local paralysisCards=isolated("combatConfig.paralysisAttackCards=function(sources,results,lock)",
+local paralysisCards=isolated("combatConfig.paralysisAttackCards=function(sources,results,lock,knockout)",
     "combatConfig.attackPhaseSources=function", "combatConfig.paralysisAttackCards")
 local eligibleSources=isolated("combatConfig.attackPhaseSources=function(sources,wounded,paralysisCards)",
     "-- Timing of self-wounding Unit abilities", "combatConfig.attackPhaseSources")
@@ -58,6 +58,14 @@ eq(#eligibleSources(sources,{}),3,"undoing the wound restores eligibility")
 eq(resultLine(0,6),nil,"fully ineligible Attack has no result line")
 eq(sources[3].resources.attack,2,"excluded source remains available for undo")
 
+-- The physical calculateCard record must carry a kind. This was previously
+-- absent, so the filter saw nil for *every* played Attack card and treated
+-- Knockout/Paralysis as warnings only.
+contains('return {guid=card.guid,kind="card",known=known',
+    "real played-card records must be classified as cards")
+contains('ambushFirstBlockBonus=record.ambushFirstBlockBonus,kind=record.kind,',
+    "the resource calculator must propagate the record kind to combat sources")
+
 -- A pending Hero Paralysis discards staged Attack cards before melee, but
 -- never retroactively cancels Unit attacks or earlier Ranged/Siege/Block.
 local heroHit={attack1={paralyse=true,heroWounds=1}}
@@ -75,6 +83,10 @@ eq(#eligibleSources(sources,{unit=true},invalid),0,
 eq(#eligibleSources(sources,{},paralysisCards(sources,{},nil)),3,
     "removing Paralyze restores staged card resources")
 local knockedOut=paralysisCards(sources,{},nil,true)
+local realCardSource={guid="physicalAttackCard",kind="card",
+    resources={attack=2}}
+eq(paralysisCards({realCardSource},{},nil,true).physicalAttackCard,true,
+    "newly classified physical Attack cards are blocked during Knockout")
 eq(knockedOut.card1,true,"Knockout removes a staged Attack card")
 eq(knockedOut.card2,true,"Knockout removes both planned card Attacks")
 eq(knockedOut.unit,nil,"Knockout cannot remove an active Unit's Attack")
