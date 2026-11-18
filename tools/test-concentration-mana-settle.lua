@@ -72,9 +72,9 @@ local env={
 }
 setmetatable(env,{__index=_G})
 local compiled=assert(load(table.concat({manaCode,bonusCode,linksCode,zoneCode,dropCode,
-    "return manaColor,applyLinkedResourceBonus,resolveActionLinks,resourceCardsZoneEntered,resourceCardsObjectMoved"},"\n"),
+    "return manaColor,trackerPrivate.readyForXZ,applyLinkedResourceBonus,resolveActionLinks,resourceCardsZoneEntered,resourceCardsObjectMoved"},"\n"),
     "Concentration mana settle","t",env))
-local manaColor,applyBonus,resolveLinks,zoneEntered,objectMoved=compiled()
+local manaColor,readyForXZ,applyBonus,resolveLinks,zoneEntered,objectMoved=compiled()
 assert(manaColor(die)==nil,"Rolling die should not expose a mana colour")
 zoneEntered({obj=die,objGUID=die.guid,objType="Dice",
     zoneInfo={kind="play",seatPos=2}})
@@ -96,6 +96,7 @@ local concentrationPosition={0,1.0,0}
 die.getPosition=function() return diePosition end
 env.getObjectFromGUID=function(guid) return guid==die.guid and die or nil end
 env.manaColor=manaColor
+env.trackerPrivate.readyForXZ=readyForXZ
 env.footprint=function(card)
     local pos=card.getPosition()
     return {x=pos[1],z=pos[3],halfX=1,halfZ=1}

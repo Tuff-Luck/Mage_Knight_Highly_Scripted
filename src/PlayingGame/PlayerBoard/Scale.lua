@@ -50,10 +50,30 @@ local function playAreaScaleInZone(guid,zoneGUID)
     return false
 end
 
+local function playAreaScaleOverZoneXZ(obj,zoneGUID)
+    local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
+    if obj==nil or zone==nil then return false end
+    local bounds=zone.getBounds()
+    local center,size=bounds~=nil and bounds.center or nil,bounds~=nil and bounds.size or nil
+    if center==nil or size==nil then return false end
+    local pos=obj.getPosition()
+    return math.abs((pos.x or pos[1])-(center.x or center[1]))<(size.x or size[1])*0.5
+        and math.abs((pos.z or pos[3])-(center.z or center[3]))<(size.z or size[3])*0.5
+end
+
 local function playAreaScaleSeatContaining(guid)
     for seat=1,4 do
         if playAreaScaleInZone(guid,playerPlayAreas[seat])
             or playAreaScaleInZone(guid,playerUnitAreas[seat]) then return seat end
+    end
+    -- A released object may be falling above a shallow scripting zone.
+    local obj=getObjectFromGUID(guid)
+    if obj~=nil and (obj.held_by_color==nil or obj.held_by_color=="")
+        and not obj.isSmoothMoving() then
+        for seat=1,4 do
+            if playAreaScaleOverZoneXZ(obj,playerPlayAreas[seat])
+                or playAreaScaleOverZoneXZ(obj,playerUnitAreas[seat]) then return seat end
+        end
     end
     return nil
 end
@@ -155,8 +175,8 @@ function playAreaScaleApplyObject(seat,obj,pending)
     if factor==1 then records[obj.guid]=nil else entry.factor=factor end
 end
 
--- A transient exit during a drag is not a real removal. Recheck the
--- object's destination after it is dropped and the physics have settled.
+-- A transient exit during a drag is not a real removal. Recheck X/Z
+-- after release; the object need not finish falling vertically.
 local function playAreaScaleRecheckObject(guid)
     local records=gStates~=nil and gStates.playAreaScaledObjects or nil
     if records==nil or records[guid]==nil then return end
@@ -178,7 +198,7 @@ local function playAreaScaleWaitForSettle(guid)
     safeWaitCondition("PlayerBoard.Scale",finish,function()
         local obj=getObjectFromGUID(guid)
         return obj==nil or (not playAreaScaleObjectHeld(obj)
-            and obj.resting==true and obj.isSmoothMoving()==false)
+            and obj.isSmoothMoving()==false)
     end,5,finish)
 end
 
@@ -217,7 +237,9 @@ function refreshPlayAreaScale(seat)
                 -- Scripted moves keep the same size until they reach their destination.
                 playAreaScaleWaitForSettle(guid)
             else
-                playAreaScaleRestore(obj)
+                local destination=playAreaScaleSeatContaining(guid)
+                if destination~=nil then playAreaScaleApplyObject(destination,obj)
+                else playAreaScaleRestore(obj) end
             end
         end
     end

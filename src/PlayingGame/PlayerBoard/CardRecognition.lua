@@ -1488,7 +1488,7 @@ local function combatKeepHeldEnemies(seatPos,monsters,playMonsters)
             local obj=getObjectFromGUID(guid)
             if obj~=nil and not obj.isDestroyed()
                 and ((obj.held_by_color~=nil and obj.held_by_color~="")
-                    or obj.isSmoothMoving() or obj.resting==false) then
+                    or obj.isSmoothMoving()) then
                 monsters[guid]=obj
                 if wasInPlay then playMonsters[guid]=obj end
             else
@@ -6725,7 +6725,7 @@ end
 -- its controls for a genuinely changed posture or area.
 combatConfig.cardInTransit=function(card)
     return card~=nil and ((card.held_by_color~=nil and card.held_by_color~="")
-        or card.resting==false or card.isSmoothMoving())
+        or card.isSmoothMoving())
 end
 
 -- TTS and other object-UI owners can replace the XML while a card is lifted.
@@ -7702,8 +7702,7 @@ local function scheduleChoiceResetAfterPlay(guid,seatPos)
         end,function()
             if trackerPrivate.choiceResetGenerationByGUID[guid]~=serial then return true end
             local obj=getObjectFromGUID(guid)
-            return obj==nil or (obj.held_by_color==nil and obj.resting==true
-                and obj.isSmoothMoving()==false)
+            return obj==nil or trackerPrivate.readyForXZ(obj)
         end,8)
     end,1)
 end
@@ -7736,6 +7735,14 @@ local function manaColor(obj)
     return nil
 end
 
+-- Placement and resource links use X/Z, so vertical falling does not delay
+-- an otherwise released object. Dice must finish rolling before reading a face.
+trackerPrivate.readyForXZ=function(obj)
+    if obj==nil or (obj.held_by_color~=nil and obj.held_by_color~="")
+        or obj.isSmoothMoving() then return false end
+    return obj.type~="Dice" or obj.resting==true
+end
+
 -- Magic Talent's strong side consumes TWO distinct mana objects, not the
 -- single mana that normally powers an Advanced Action. Read the same settled
 -- die faces/crystals as the ordinary tracker, even when its panel is minimized.
@@ -7747,7 +7754,7 @@ function magicTalentManaPayments(seatPos)
     local payments,seen={},{}
     local function consider(obj)
         if obj==nil or seen[obj.guid] or obj.guid==card.guid
-            or obj.resting~=true or obj.isSmoothMoving()==true then return end
+            or not trackerPrivate.readyForXZ(obj) then return end
         seen[obj.guid]=true
         local p=obj.getPosition()
         if math.abs(p[1]-area.x)<area.halfX
@@ -7875,7 +7882,7 @@ function magicTalentSpellCastingPaid(seatPos,guid)
     local seen={}
     local function paidBy(mana)
         if mana==nil or seen[mana.guid] or mana.guid==guid
-            or mana.resting~=true or mana.isSmoothMoving()==true then return false end
+            or not trackerPrivate.readyForXZ(mana) then return false end
         seen[mana.guid]=true
         local p=mana.getPosition()
         if math.abs(p[1]-area.x)>=area.halfX
@@ -8729,7 +8736,8 @@ local function unitManaCounts(unit,seatPos,source,crystalsOnly)
             local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
             if zone~=nil then
                 for _,obj in ipairs(zone.getObjects()) do
-                    if not seen[obj.guid] and manaColor(obj)~=nil then
+                    if not seen[obj.guid] and trackerPrivate.readyForXZ(obj)
+                        and manaColor(obj)~=nil then
                         seen[obj.guid]=true
                         tokens[#tokens+1]=obj
                     end
@@ -8740,14 +8748,16 @@ local function unitManaCounts(unit,seatPos,source,crystalsOnly)
     local counts,area={},footprint(unit)
     local seen={}
     for _,mana in ipairs(tokens) do
-        seen[mana.guid]=true
-        local color=manaColor(mana)
-        if color~=nil and (not crystalsOnly or isManaTokenFigurine(mana))
+        if trackerPrivate.readyForXZ(mana) then
+            seen[mana.guid]=true
+            local color=manaColor(mana)
+            if color~=nil and (not crystalsOnly or isManaTokenFigurine(mana))
             and manaInsideFootprint(mana,area) then
-            counts[color]=(counts[color] or 0)+1
+                counts[color]=(counts[color] or 0)+1
+            end
         end
     end
-    -- Stacking raises a resting crystal beyond the zone's Y extent. Recover
+    -- Stacking can raise a crystal beyond the zone's Y extent. Recover
     -- only previously moved mana physically covering this Unit, once per GUID.
     -- Inventory crystals elsewhere never pay a Unit, and a lifted/moving
     -- crystal cannot retain its previous payment during settling.
@@ -8757,8 +8767,7 @@ local function unitManaCounts(unit,seatPos,source,crystalsOnly)
             local mana=getObjectFromGUID(guid)
             if mana==nil then
                 candidates[guid]=nil
-            elseif (mana.held_by_color==nil or mana.held_by_color=="")
-                and mana.resting==true and not mana.isSmoothMoving() then
+            elseif trackerPrivate.readyForXZ(mana) then
                 local color=manaColor(mana)
                 if color~=nil and (not crystalsOnly or isManaTokenFigurine(mana))
                     and manaInsideFootprint(mana,area) then
@@ -9396,7 +9405,8 @@ local function renderSeat(seatPos)
                 kind=resourceObjectKind(obj)
                 if kind~=nil then objectKinds[obj.guid]=kind end
             end
-            if kind~=nil and (zoneKind=="play"
+            if kind~=nil and (kind~="mana" or trackerPrivate.readyForXZ(obj))
+                and (zoneKind=="play"
                 or (zoneKind=="unit" and (kind=="unit" or kind=="mana" or kind=="puppet"))
                 or (zoneKind=="crystal" and kind=="mana")) then
                 -- Play-area placement takes precedence when scripting zones overlap.
@@ -9411,9 +9421,9 @@ local function renderSeat(seatPos)
     inspectZone(playerCrystalAreas[seatPos],"crystal")
     inspectZone(playerUnitAreas[seatPos],"unit")
     inspectZone(playerPlayAreas[seatPos],"play")
-    -- A Source die resting ON a played Action may sit above the thin play
+    -- Mana dropped ON a played Action may sit above the thin play
     -- scripting zone, even though its dropped GUID was seen. Recover only
-    -- settled, physically overlapping mana candidates; a die elsewhere on
+    -- released, physically overlapping mana candidates; a die elsewhere on
     -- the table must never pay for an Action merely because it was moved.
     local manaCandidates=trackerPrivate.unitManaCandidatesBySeat[seatPos] or {}
     local candidateUnitFootprints=nil
@@ -9436,8 +9446,7 @@ local function renderSeat(seatPos)
             local mana=objects[guid] or getObjectFromGUID(guid)
             if mana==nil or (mana.isDestroyed~=nil and mana.isDestroyed()) then
                 manaCandidates[guid]=nil
-            elseif (mana.held_by_color==nil or mana.held_by_color=="")
-                and mana.resting==true and not mana.isSmoothMoving() then
+            elseif trackerPrivate.readyForXZ(mana) then
                 local pos=mana.getPosition()
                 local recovered=false
                 if manaColor(mana)~=nil then
@@ -10652,7 +10661,7 @@ local function renderSeat(seatPos)
     -- Unit activation is historical: a Command token may stay on the card for
     -- the entire round, or be moved away by an ability. Only a Command move
     -- during THIS turn creates an entry, never a static token found on load.
-    -- Read only mana physically resting over each Unit; inventory mana does
+    -- Read only released mana physically over each Unit; inventory mana does
     -- not pay costs. Familiar crystals are a persistent modifier, not a cost.
     local howlOwner=gStates~=nil and gStates.doingTheRounds
         and gStates.doingTheRounds["a92d73"] or nil
@@ -12255,8 +12264,7 @@ local function queueSeat(seatPos,triggerGUID)
     -- Zone entry and drop frequently report the same moving object.
     if waits[triggerGUID]==generation then return end
     local obj=getObjectFromGUID(triggerGUID)
-    if obj==nil or (obj.held_by_color==nil and obj.resting==true
-        and obj.isSmoothMoving()==false) then
+    if obj==nil or trackerPrivate.readyForXZ(obj) then
         scheduleSeatRender(seatPos)
         return
     end
@@ -12274,8 +12282,7 @@ local function queueSeat(seatPos,triggerGUID)
     safeWaitCondition("PlayerBoard.CardRecognition",settled,function()
         if not stillCurrent() then return true end
         local live=getObjectFromGUID(triggerGUID)
-        return live==nil or (live.held_by_color==nil
-            and live.resting==true and live.isSmoothMoving()==false)
+        return live==nil or trackerPrivate.readyForXZ(live)
     end,8,function()
         -- A perpetually held/rolling token must not keep the watcher alive
         -- or delay other objects' refreshes. Its eventual drop queues anew.
@@ -13007,8 +13014,7 @@ function resourceUnitsCommandDropped(playerColor,obj)
     end,function()
         if not resourceCardsPanelOpen() or trackerPrivate.trackerSession~=serial then return true end
         local token=getObjectFromGUID(guid)
-        return token==nil or (token.held_by_color==nil and token.resting==true
-            and token.isSmoothMoving()==false)
+        return token==nil or trackerPrivate.readyForXZ(token)
     end,8)
 end
 

@@ -70,6 +70,8 @@ local reader=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 -- The mana candidate check must only supplement missing zone objects.
 local manaCode=extract(reader,"local function unitManaCounts(unit,seatPos,source,crystalsOnly)",
     "local function unitAbilityPaid")
+local readyCode=extract(reader,"trackerPrivate.readyForXZ=function(obj)",
+    "-- Magic Talent's strong side")
 local blue={guid="blue",type="Figurine",color="Blue",resting=true,moving=false,
     position={x=0,z=0}}
 blue.isSmoothMoving=function() return blue.moving end
@@ -92,10 +94,13 @@ local function manaInsideFootprint(m,area)
 end
 local function manaColor(obj) return obj.color end
 local function isManaTokenFigurine(obj) return obj.type=="Figurine" end
-]]..manaCode..[[
+]]..readyCode.."\n"..manaCode..[[
 return unitManaCounts
 ]],"Unit payment fallback","t",_G))()
-eq(payment(unit,1,{}).Blue,1,"Stacked settled blue crystal pays Northern Monks")
+eq(payment(unit,1,{}).Blue,1,"Stacked blue crystal pays Northern Monks")
+blue.resting=false
+eq(payment(unit,1,{}).Blue,1,"Falling crystal pays without waiting for Y")
+blue.resting=true
 eq(payment(unit,1,{blue}).Blue,1,"Zone and candidate do not double-count one crystal")
 blue.held_by_color="Blue"
 eq(payment(unit,1,{}).Blue,nil,"Held crystal does not pay the Unit")

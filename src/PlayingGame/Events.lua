@@ -1100,7 +1100,7 @@ local function settledZoneContainsGUID(zone,objGUID)
 	return false
 end
 
-local function scheduleSettledZoneEntry(ctx,callback,channel)
+local function scheduleSettledZoneEntry(ctx,callback,channel,positionOnly)
 	if ctx==nil or callback==nil then return end
 	local zoneGUID=ctx.zoneGUID
 	local objGUID=ctx.objGUID
@@ -1121,7 +1121,15 @@ local function scheduleSettledZoneEntry(ctx,callback,channel)
 	safeWaitCondition("Events.zoneSettle."..tostring(channel or "default"),dispatchSettled,function()
 		if settledZoneEntrySerial[key]~=serial then return true end
 		local liveObj=getObjectFromGUID(objGUID)
-		return liveObj==nil or (liveObj.resting==true and liveObj.isSmoothMoving()==false)
+		if liveObj==nil then return true end
+		if positionOnly==true then
+			-- X/Z placement is meaningful after release, even while falling.
+			-- Dice and scripted smooth movement remain deferred.
+			return (liveObj.held_by_color==nil or liveObj.held_by_color=="")
+				and liveObj.isSmoothMoving()==false
+				and (liveObj.type~="Dice" or liveObj.resting==true)
+		end
+		return liveObj.resting==true and liveObj.isSmoothMoving()==false
 	end,10,function()
 		if settledZoneEntrySerial[key]~=serial then return end
 		local liveObj=getObjectFromGUID(objGUID)
@@ -1201,7 +1209,7 @@ local function handleStartedZoneEnterPrelude(ctx)
 					if enteredSkill.skillType=="Coop" or enteredSkill.skillType=="Comp" then activateCoopCompSkill(liveGUID, playerIndex) end
 				end
 			end
-		end,"started")
+		end,"started",true)
 	end
 end
 
@@ -1562,7 +1570,13 @@ local function handlePlayerBoardZoneEnter(ctx)
             scheduleSettledZoneEntry(ctx,function(liveCtx)
                 liveCtx.settledPlayerZoneEntry=true
                 playerBoardZoneEnterSettled(liveCtx)
-            end,"playerBoard")
+            end,"playerBoard",ctx.objType~="Deck"
+                and ctx.objType~="Dice"
+                and zoneInfo.kind~="crystal"
+                and ctx.objGUID~=GUID.card.bannerOfCommandToken
+                and ctx.objGUID~=GUID.skill.masterOfChaos
+                and not (gameCards[ctx.objGUID]~=nil
+                    and gameCards[ctx.objGUID].half~=nil))
         end
 		return false
 	end
@@ -1642,7 +1656,8 @@ function __onObjectEnterZone_raw(zone, obj)
                 callOfferSpellEntered(ctx.objGUID,seat)
             end,function()
                 local spell=getObjectFromGUID("2eb8e8")
-                return spell==nil or (spell.resting and spell.isSmoothMoving()==false)
+                return spell==nil or ((spell.held_by_color==nil or spell.held_by_color=="")
+                    and spell.isSmoothMoving()==false)
             end,8)
         end
     end

@@ -46,15 +46,19 @@ scheduleScale(1)
 eq(#scaleFrames,2,"90 percent schedules a refresh")
 eq(scaleStops,1,"only one outstanding scale refresh")
 
--- Settling two objects creates two object watchers, but only one per seat
+-- Two held objects create two watchers, but only one per seat
 -- render is scheduled for each frame. One held crystal cannot starve a card.
 local cards=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local queueSource=extract(cards,"local function scheduleSeatRender(seatPos)",
     "\nfunction resourceCardsSourceChanged()")
+local readySource=extract(cards,"trackerPrivate.readyForXZ=function(obj)",
+    "-- Magic Talent's strong side")
 local objects={
     a={guid="a",held_by_color="Blue",resting=false},
     b={guid="b",held_by_color="Blue",resting=false},
-    c={guid="c",held_by_color="Blue",resting=false}
+    c={guid="c",held_by_color="Blue",resting=false},
+    falling={guid="falling",held_by_color=nil,resting=false},
+    die={guid="die",type="Dice",held_by_color=nil,resting=false}
 }
 for _,obj in pairs(objects) do obj.isSmoothMoving=function() return false end end
 local cardFrames,cardWaits,renderCount={}, {}, 0
@@ -75,7 +79,7 @@ local cardEnv={
     end
 }
 setmetatable(cardEnv,{__index=_G})
-local queue=assert(load(queueSource.."\nreturn queueSeat",
+local queue=assert(load(readySource.."\n"..queueSource.."\nreturn queueSeat",
     "Per seat render scheduler","t",cardEnv))()
 local function fireCardFrames()
     local pending=cardFrames
@@ -108,6 +112,17 @@ fireCardFrames()
 eq(renderCount,3,"late drop recovers a timed-out object")
 queue(1,"c")
 eq(#cardWaits,3,"third object has its own watcher")
+queue(1,"falling")
+eq(#cardWaits,3,"released falling card does not wait for Y")
+fireCardFrames()
+eq(renderCount,4,"released falling card refreshes immediately")
+queue(1,"die")
+eq(#cardWaits,4,"rolling die still waits for resting")
+objects.die.resting=true
+eq(cardWaits[4].condition(),true,"settled die is ready")
+cardWaits[4].callback()
+fireCardFrames()
+eq(renderCount,5,"settled die refreshes its face")
 panelOpen=false
 tracker.generation[1]=1
 tracker.pendingSeatSettles={}
@@ -160,7 +175,7 @@ assert(board:find("if affectsMainUI then",1,true),
     "play-area main UI updates must be filtered")
 -- Unused mana candidates must be pruned without losing above-zone
 -- payments on played Actions or active Units. Held objects stay pending.
-local manaCandidates={far=true,action=true,unit=true,held=true}
+local manaCandidates={far=true,action=true,unit=true,held=true,falling=true}
 local activeCard={guid="actionCard",area={x=0,z=0,halfX=1,halfZ=1},
     getPosition=function() return {0,1,0} end}
 local activeUnit={guid="activeUnit",area={x=10,z=10,halfX=1,halfZ=1}}
@@ -174,11 +189,17 @@ local manaObjects={
     far=manaCandidate("far",30,30),
     action=manaCandidate("action",0,0),
     unit=manaCandidate("unit",10,10),
-    held=manaCandidate("held",30,30,true)
+    held=manaCandidate("held",30,30,true),
+    falling=manaCandidate("falling",0,0,false)
 }
+manaObjects.falling.resting=false
 local layoutReads=0
 local pruneEnv={
-    trackerPrivate={unitManaCandidatesBySeat={[1]=manaCandidates}},
+    trackerPrivate={unitManaCandidatesBySeat={[1]=manaCandidates},
+        readyForXZ=function(obj)
+            return obj.held_by_color==nil and not obj.isSmoothMoving()
+                and (obj.type~="Dice" or obj.resting==true)
+        end},
     seatPos=1,
     objects={actionCard=activeCard},
     placements={actionCard="play"},
@@ -199,7 +220,9 @@ assert(load(pruneSource,"Mana candidate pruning","t",pruneEnv))()
 eq(manaCandidates.far,nil,"settled mana far from relevant cards should be pruned")
 eq(manaCandidates.action,true,"above-play-area Action payment must remain tracked")
 eq(manaCandidates.unit,true,"above-zone Unit payment must remain tracked")
-eq(manaCandidates.held,true,"held mana should remain until it settles")
+eq(manaCandidates.held,true,"held mana stays pending until release")
+eq(manaCandidates.falling,true,"falling crystal remains eligible")
+eq(pruneEnv.placements.falling,"play","falling crystal recovered using X/Z")
 eq(pruneEnv.placements.action,"play","above-zone Action mana should be recovered")
 eq(layoutReads,1,"Unit footprint snapshot should be reused within a scan")
 

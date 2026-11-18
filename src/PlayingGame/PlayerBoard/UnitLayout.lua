@@ -570,7 +570,7 @@ end
 
 --Players routinely lift Command tokens to place them on Units. Defer held tokens
 --until their drop event rather than polling a held object every frame.
---Scripted moves still receive a bounded physics-settle check.
+--Scripted moves still receive a bounded smooth-movement check.
 local unitLayoutCommandReleaseWatch={}
 
 function scheduleUnitLayoutRefreshAfterCommandRelease(seatPos,commandGUID)
@@ -602,7 +602,12 @@ function scheduleUnitLayoutRefreshAfterCommandRelease(seatPos,commandGUID)
         end
         unitLayoutCommandReleaseWatch[commandGUID]=nil
         safeWaitFrames("SetupGame",function()
-            if unitLayoutObjectInUnitArea(commandGUID,seatPos)==false then
+            local token=getObjectFromGUID(commandGUID)
+            local zone=getObjectFromGUID(playerUnitAreas[seatPos])
+            -- A falling Command may cover the mat in X/Z before crossing
+            -- the shallow scripting zone's Y extent.
+            if not unitLayoutObjectInUnitArea(commandGUID,seatPos)
+                and not unitLayoutObjectOnMat(token,zone) then
                 scheduleUnitLayoutRefresh(seatPos)
             end
         end,2)
@@ -611,7 +616,7 @@ function scheduleUnitLayoutRefreshAfterCommandRelease(seatPos,commandGUID)
         local current=getObjectFromGUID(commandGUID)
         if current==nil then return true end
         local released=current.held_by_color==nil or current.held_by_color==""
-        return released and current.resting==true and current.isSmoothMoving()==false
+        return released and current.isSmoothMoving()==false
     end,5,finish)
 end
 

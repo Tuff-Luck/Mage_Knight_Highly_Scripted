@@ -314,8 +314,8 @@ function playerBoardZoneEnterSettled(ctx)
 		if objType=="Card" or objType=="Deck" then safeWaitFrames("PlayerBoard.Events",function() separateCombinedUnitsInArea(unitSeatPos) end, 2) end
 		scheduleUnitLayoutRefresh(unitSeatPos)
         -- A manually added Unit may replace one that was trashed earlier.
-        -- Wait for a settled physical position before deciding that its
-        -- Command belongs to someone new; lifts never clear spent history.
+        -- Once released, X/Z identifies its Command column even if the
+        -- card is falling. Lifts never clear spent Command history.
         if objType=="Card" and unitLayoutIsUnit(obj) then
             local incomingGUID=objGUID
             safeWaitCondition("PlayerBoard.Events",function()
@@ -326,7 +326,7 @@ function playerBoardZoneEnterSettled(ctx)
                 end
             end,function()
                 local incoming=getObjectFromGUID(incomingGUID)
-                return incoming==nil or (incoming.resting==true
+                return incoming==nil or ((incoming.held_by_color==nil or incoming.held_by_color=="")
                     and incoming.isSmoothMoving()==false)
             end,8)
         end
@@ -474,12 +474,12 @@ local function playerBoardScheduleUICleanup(guid)
         local live=getObjectFromGUID(guid)
         if live==nil then playerBoardPendingUICleanup[guid]=nil return end
         if live.held_by_color~=nil then return end
-        if live.resting==true and live.isSmoothMoving()==false then apply() return end
+        if live.isSmoothMoving()==false then apply() return end
         safeWaitCondition("PlayerBoard.Events",apply,function()
             if playerBoardPendingUICleanup[guid]~=serial then return true end
             local candidate=getObjectFromGUID(guid)
-            return candidate==nil or (candidate.held_by_color==nil
-                and candidate.resting==true and candidate.isSmoothMoving()==false)
+            return candidate==nil or ((candidate.held_by_color==nil or candidate.held_by_color=="")
+                and candidate.isSmoothMoving()==false)
         end,8,function()
             if playerBoardPendingUICleanup[guid]~=serial then return end
             local candidate=getObjectFromGUID(guid)
