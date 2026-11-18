@@ -4965,9 +4965,9 @@ local function combatAssignmentRefreshRows(entries,sources)
             end
         end
     end
-    -- An unblocked Paralyzing Wound to the Hero makes staged card Attacks
-    -- unavailable in the later Attack phase. Recalculate with every damage
-    -- assignment so a successful Block or a Unit assignment restores them.
+    -- An unblocked Paralyzing Wound or Knockout removes planned hand-card
+    -- Attacks in the later phase. A successful Block or a Unit assignment
+    -- can restore these resources while damage has not been committed.
     -- Wounds received from played-card costs DURING this combat count
     -- toward Knockout alongside enemy hits, but never double-count the
     -- calculated Wounds already delivered by the damage transaction.
@@ -5582,7 +5582,7 @@ local function combatAssignmentRefreshRows(entries,sources)
     local _,pendingHand,pendingDiscard,changed,effects=combatConfig.woundPending(ledger)
     -- A Paralyzed Unit needs an Apply button even when all its attack damage
     -- was absorbed and the Hero has zero Wounds.
-    local showTotal=totalHeroWounds>0 or effects.destroyCount>0
+    local showTotal=totalHeroWounds>0 or knockout or effects.destroyCount>0
         or effects.handDiscard
     combatPanelSetAttribute("CombatTotalRow","active",showTotal and "true" or "false")
     if showTotal then
@@ -5592,8 +5592,9 @@ local function combatAssignmentRefreshRows(entries,sources)
         local text=totalHeroWounds>0
             and ("Draw: "..combatRich(combatWoundsText(totalHeroWounds)..poisonText,combatConfig.COMBAT_RED))
             or (effects.handDiscard and "Apply: Discard hand"
-                or ("Apply: Destroy "..tostring(effects.destroyCount)..
-                    (effects.destroyCount==1 and " Unit" or " Units")))
+                or (knockout and "Knocked out (applied)"
+                    or ("Apply: Destroy "..tostring(effects.destroyCount)..
+                        (effects.destroyCount==1 and " Unit" or " Units"))))
         combatPanelSetAttribute("CombatTotalDamage","text",text)
         combatPanelSetAttribute("CombatTotalDamage","font","Fonts/MKCardText")
         local pending=pendingHand+pendingDiscard>0
