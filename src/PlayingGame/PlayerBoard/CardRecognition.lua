@@ -13631,7 +13631,40 @@ function resourceCardsObjectPickedUp(obj)
         or (previous~=nil and previous[obj.guid]==true)
         or cardInSeatPlayArea(obj.guid,seat) then
         -- A second pickup invalidates the first drop's pending callbacks.
-        trackerPrivate.playCardMovements[obj.guid]={seatPos=seat}
+        -- Capture what the player actually chose; a scan must not replace
+        -- these choices or enemy targets with the nearest/default ones.
+        local savedTargets={}
+        local prefix=obj.guid.."#"
+        for sourceKey,targetGUID in pairs(combatAssignmentState.targets or {}) do
+            if sourceKey==obj.guid or sourceKey:sub(1,#prefix)==prefix then
+                savedTargets[sourceKey]={targetGUID=targetGUID,
+                    explicit=combatAssignmentState.explicit[sourceKey]==true}
+            end
+        end
+        trackerPrivate.playCardMovements[obj.guid]={
+            seatPos=seat,choice=selectedResourceByGUID[obj.guid],
+            targets=savedTargets,posture=cardPosture(obj),
+            faceDown=obj.is_face_down
+        }
+    end
+end
+
+-- Restore the player's source decisions before a completed drop recalculates.
+-- This is runtime-only and applies only while the original card remains on
+-- the same Play Area. Deliberate sideways/flipped play can change targeting.
+trackerPrivate.restorePlayCardMove=function(obj,state)
+    if state==nil or obj==nil
+        or not cardInSeatPlayArea(obj.guid,state.seatPos) then return end
+    if state.choice~=nil then
+        selectedResourceByGUID[obj.guid]=state.choice
+    end
+    if state.posture~=cardPosture(obj)
+        or state.faceDown~=obj.is_face_down then return end
+    for sourceKey,saved in pairs(state.targets or {}) do
+        if saved.targetGUID~=nil then
+            combatAssignmentState.targets[sourceKey]=saved.targetGUID
+            combatAssignmentState.explicit[sourceKey]=saved.explicit
+        end
     end
 end
 
@@ -13687,6 +13720,7 @@ trackerPrivate.finishPlayCardMove=function(obj)
             safeWaitFrames("PlayerBoard.CardRecognition",sample,1)
             return
         end
+        trackerPrivate.restorePlayCardMove(live,state)
         trackerPrivate.playCardMovements[guid]=nil
         -- Resume a single complete scan; normal drop handling determines
         -- whether this was a reposition or a genuine departure from play.
@@ -13703,6 +13737,10 @@ function resourceCardsZoneEntered(ctx)
     if seat==nil then return end
     if ctx.zoneInfo.kind=="play" and ctx.objType~="Dice"
         and trackerPrivate.playCandidateKind(resourceObjectKind(ctx.obj)) then
+        -- A returned card invalidates any delayed choice-clear queued by its
+        -- earlier onExitZone. The exit callback must never win after reentry.
+        trackerPrivate.choiceResetGenerationByGUID[ctx.objGUID]=
+            (trackerPrivate.choiceResetGenerationByGUID[ctx.objGUID] or 0)+1
         trackerPrivate.playCandidatesBySeat[seat]=trackerPrivate.playCandidatesBySeat[seat] or {}
         trackerPrivate.playCandidatesBySeat[seat][ctx.objGUID]=true
         if trackerPrivate.playCardMovements[ctx.objGUID]==nil

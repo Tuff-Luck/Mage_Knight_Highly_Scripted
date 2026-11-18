@@ -51,6 +51,7 @@ local zone={
 }
 local selected={rage={effect="attack"}}
 local targets={rage="left"}
+local calculator={targets={rage="left"},explicit={rage=true}}
 local tracker={
     playCandidatesBySeat={[1]={rage=true}},bySeat={[1]={rage=true}},
     playCardMovements={},choiceResetGenerationByGUID={},
@@ -63,6 +64,13 @@ local frames,conditions={},{}
 local completeScans,dropCommits=0,0
 local env={
     trackerPrivate=tracker,selectedResourceByGUID=selected,
+    combatAssignmentState=calculator,
+    cardPosture=function(obj)
+        local y=(obj.getRotation().y or 0)%180
+        if y<25 then return "upright" end
+        if y<=70 then return "discard" end
+        return "sideways"
+    end,
     choiceExpandedByGUID={},gStates={turnNumber=1,
         resourceCardPlayOrder={rage=1}},turnOrder={{seatPos=1}},
     playerPlayAreas={[1]="zone"},
@@ -85,7 +93,8 @@ local env={
         assert(moved==card and stabilized==true
             and moved.resting==false,"Y falling must not rearm drop processing")
         dropCommits=dropCommits+1
-        assert(selected.rage.effect=="attack" and targets.rage=="left",
+        assert(selected.rage.effect=="attack" and targets.rage=="left"
+            and calculator.targets.rage=="left" and calculator.explicit.rage,
             "Card must not silently change effect or its explicitly locked enemy")
     end,
     choiceAvailable=function(options,category)
@@ -123,12 +132,19 @@ renderIfReady()
 assert(completeScans==1,"Initial calculator must be rendered")
 pickup(card)
 assert(tracker.playCardMovements.rage~=nil,"Pickup did not protect card")
+assert(tracker.playCardMovements.rage.targets.rage.targetGUID=="left",
+    "Pickup must save the explicit calculator target")
 renderIfReady()
 assert(completeScans==1,"Pickup must freeze the previous calculator result")
 reset("rage",1)
 tick()
 assert(#conditions==1,"A temporary zone exit must defer its choice reset")
 assert(conditions[1].predicate()==false,"Held card is not ready for reset")
+-- Even if an unrelated event tried to reassign the intermediate source,
+-- the completed drop must restore the selected card effect and original lock.
+selected.rage=nil
+calculator.targets.rage="right"
+calculator.explicit.rage=nil
 
 -- A fast dropped card can rotate through the sideways and discard values.
 -- The tracker must not publish any of those transient interpretations.
