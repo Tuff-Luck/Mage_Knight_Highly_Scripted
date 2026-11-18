@@ -1906,8 +1906,22 @@ function combatDiscardParalyzedHand(seat,ownerColor)
             -- returns to the hand, and the prior code falsely committed
             -- the discard. Teleport directly OUT of the hand instead.
             local target={x,y+2+0.07*(moved%5),z}
-            local ok=entry.object.setPosition~=nil
-                and pcall(entry.object.setPosition,target)
+            local obj=entry.object
+            local usedHands=obj.use_hands==true
+            if usedHands then obj.use_hands=false end
+            local ok=obj.setPosition~=nil and pcall(obj.setPosition,target)
+            -- Re-enable hand use only AFTER TTS has had time to release
+            -- the card from the HandTrigger, so future draws still work.
+            if usedHands then
+                local function restoreHandUse()
+                    pcall(function() obj.use_hands=true end)
+                end
+                if safeWaitFrames~=nil then
+                    safeWaitFrames("PlayerBoard.CardFlow",restoreHandUse,3)
+                else
+                    restoreHandUse()
+                end
+            end
             if not ok then
                 return false,"A hand card could not be moved to discard",moved,movedGUIDs
             end
