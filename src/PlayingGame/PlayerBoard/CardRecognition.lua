@@ -5224,7 +5224,7 @@ local function combatAssignmentRefreshRows(entries,sources)
                     local coldToughness=seatScan~=nil and seatScan.cards["79bfbd"] or nil
                     if item.source.guid=="79bfbd" and item.typeKey=="I"
                         and coldToughness~=nil and coldToughness.powered==true then
-                        local printedEnemy=monsterPugs[entry.guid]
+                        local printedEnemy=entry~=nil and monsterPugs[entry.guid] or nil
                         if printedEnemy~=nil and printedEnemy.arcaneImmunity==true then
                             tooltip=tooltip.."\nCold Toughness: Ice Block 5 + 0 icon bonus (Arcane Immunity)."
                         else
