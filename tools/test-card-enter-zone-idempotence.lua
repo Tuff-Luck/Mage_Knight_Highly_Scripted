@@ -13,7 +13,7 @@ local function section(source,first,last)
     return source:sub(a,b-1)
 end
 local source=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-local mat=section(source,"trackerPrivate.cardOverPlayMat=function(obj,seatPos)",
+local mat=section(source,"trackerPrivate.zoneFootprintContainsXZ=function(obj,zone)",
     "local function scheduleChoiceResetAfterPlay(")
 local zones=section(source,"function resourceCardsZoneEntered(ctx)",
     "function resourceCardsObjectMoved(")
