@@ -2469,11 +2469,12 @@ combatConfig.combatOtherWounds=function(seat)
             -- cards, not new combat damage if a card effect retrieves them.
             -- These zones are baseline-only: newly dealt Poison discards
             -- must never enter the Hero's combat knockout count.
-            for _,zoneGUID in ipairs({
-                deedDeckZones~=nil and deedDeckZones[seat] or nil,
-                deedDeckDiscardZones~=nil and deedDeckDiscardZones[seat] or nil}) do
+            for _,zoneGUID in pairs({
+                deed=deedDeckZones~=nil and deedDeckZones[seat] or nil,
+                discard=deedDeckDiscardZones~=nil
+                    and deedDeckDiscardZones[seat] or nil}) do
                 local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
-                if zone~=nil then
+                if zone~=nil and zone.getObjects~=nil then
                     for _,obj in ipairs(zone.getObjects() or {}) do inspect(obj) end
                 end
             end
