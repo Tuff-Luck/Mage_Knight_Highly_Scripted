@@ -15,7 +15,7 @@ end
 local source=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local zoneCode=section(source,"function resourceCardsZoneEntered(ctx)",
     "function resourceCardsZoneLeft(ctx)")
-local matCode=section(source,"trackerPrivate.cardOverPlayMat=function(obj,seatPos)",
+local matCode=section(source,"trackerPrivate.zoneFootprintContainsXZ=function(obj,zone)",
     "local function scheduleChoiceResetAfterPlay(guid,seatPos)")
 local resetCode=section(source,"local function scheduleChoiceResetAfterPlay(guid,seatPos)",
     "local function footprint(obj)")
