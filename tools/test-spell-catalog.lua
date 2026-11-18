@@ -112,6 +112,7 @@ local paymentFunctions=between(reader,"local function resourceCardsUsesDayMana()
     "-- A powered link grants a target Action card")
 local payment=assert(load([[
 local gameCards={spell={cardType="Spell",color={"Blue"}}}
+local trackerPrivate={renderCombatNight=nil}
 local gStates={dayRound=true,turnNumber=1}
 local turnOrder={{avatarLocation="glade"}}
 ]]..paymentFunctions..[[
