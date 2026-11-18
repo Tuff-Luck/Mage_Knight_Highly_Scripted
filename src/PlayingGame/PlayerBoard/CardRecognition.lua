@@ -1949,7 +1949,7 @@ local function combatBlockResult(entry,sources)
     local parts={tostring(movePool),tostring(#attacks),tostring(#items)}
     for _,attack in ipairs(attacks) do
         parts[#parts+1]=table.concat({
-            tostring(attack.key),tostring(attack.value),tostring(attack.owner),
+            tostring(attack.key),tostring(attack.value),tostring(attack.damageValue),tostring(attack.owner),
             tostring(attack.slot),tostring(attack.pending),tostring(attack.swift),
             tostring(attack.brutal),tostring(attack.cumbersome),tostring(attack.poison),
             tostring(attack.paralyse),tostring(attack.assassination),
@@ -1962,6 +1962,16 @@ local function combatBlockResult(entry,sources)
             tostring(item.source.heroPsychicBlock),
             tostring(item.source.excessBlockArmour)},":")
     end
+    -- Move-source identity matters to the committed phase even when its
+    -- total reduction is unchanged (e.g. swapping Move 2 cards).
+    local moveSignature={}
+    for _,source in ipairs(sources) do
+        if source.moveCounts==true and (source.move or 0)>0 then
+            moveSignature[#moveSignature+1]=source.key..":"..tostring(source.move)
+        end
+    end
+    table.sort(moveSignature)
+    for _,piece in ipairs(moveSignature) do parts[#parts+1]="move:"..piece end
     local key=table.concat(parts,";")
     local cached=entry.guid~=nil and combatBlockResultCache[entry.guid] or nil
     if cached~=nil and cached.key==key then return table.unpack(cached.result,1,12) end
