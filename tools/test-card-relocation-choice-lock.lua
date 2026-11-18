@@ -38,13 +38,15 @@ local zone={
     -- scripting zone yet, so getObjects initially returns no cards.
     getObjects=function() return zoneContents end,
     getBounds=function()
-        return {center={x=0,z=0},size={x=12,z=12}}
-    end
+        return {center={x=0,z=0},size={x=0,z=0}}
+    end,
+    getPosition=function() return {x=0,z=0} end,
+    getScale=function() return {x=12,z=12} end
 }
 local selected={rage={effect="attack"}}
 local targets={rage="left"}
 local tracker={choiceResetGenerationByGUID={},
-    playCardMovements={},finishedPlayDrops={},
+    playCardMovements={},
     playCandidatesBySeat={[1]={rage=true}},
     playCandidateKind=function(kind)
         return kind=="card" or kind=="skill" or kind=="factionReward"
