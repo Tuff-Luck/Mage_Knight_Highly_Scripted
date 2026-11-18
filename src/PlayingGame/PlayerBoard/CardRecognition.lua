@@ -270,11 +270,24 @@ combatConfig.startingCardConditionalFameRep=function()
                 rep=rep+(reward.rep or 0)
             end
             if selected.recruited==true and rule.recruitDiscount~=nil then
-                rep=rep-(rule.recruitRepPenalty or 0)
+                rep=rep+(rule.recruitRepPenalty or 0)
             end
         end
     end
     return fame,rep
+end
+
+-- The basic Ruthless Coercion recruitment discount is player-declared.
+-- Give the player two more Influence to spend manually rather than
+-- attempting to identify or discount the recruited Unit's offer cost.
+local function resourceCardsRecruitInfluenceBonus(guid,rule,record)
+    if rule==nil or rule.recruitDiscount==nil or record==nil
+        or record.powered==true or record.complete~=true
+        or record.resources==nil then return 0 end
+    local selected=gStates~=nil and gStates.startingCardSelections~=nil
+        and gStates.startingCardSelections[guid] or nil
+    return selected~=nil and selected.recruited==true
+        and (tonumber(rule.recruitDiscount) or 0) or 0
 end
 
 -- One owner for the pending Fame/Reputation this seat's played sources provide (scan part + defeat part).
@@ -7054,6 +7067,14 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         table.sort(readyLinks)
     end
     local readyCount=#readyLinks
+    -- Keep the Ready control for undo while links exist; otherwise show it
+    -- only if the active Unit layout has a spent, eligible target.
+    local canReadyUnit=rule~=nil and rule.readyWithInfluence~=nil and powered
+        and attackAssignmentsHasReadyTarget~=nil
+        and attackAssignmentsHasReadyTarget(
+            turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber]~=nil
+                and turnOrder[gStates.turnNumber].seatPos or nil,
+            rule.readyWithInfluence.maxLevel) or false
     local signature=(posture=="sideways" and "S" or (powered and "P" or "N"))
         ..":"..table.concat(signatureParts,";")..":"..uiRotation..":"..buttonDepth
         ..(combatCalcOn and (combatCumbersomeActive and ":CC" or ":C") or "")
@@ -7068,6 +7089,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         ..(special~=nil and (":START:"..tostring(special.interaction)..":"
             ..tostring(special.recruited)..":"..tostring(special.terrain)) or "")
         ..":READY:"..tostring(readyCount)..":"..table.concat(readyLinks,",")
+        ..":READY_ELIGIBLE:"..tostring(canReadyUnit)
         ..":TARGETS:"..tostring(trackerPrivate.singleAutoEnemyGUID)
     if choiceButtonShown[card.guid]==signature
         and combatConfig.cardChoicesPresent(card) then return end
@@ -7395,7 +7417,8 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         elseif rule.recruitDiscount~=nil and not powered then
             startingControl("recruit","-2 REC",
                 special~=nil and special.recruited==true,135,-125)
-        elseif rule.readyWithInfluence~=nil and powered then
+        elseif rule.readyWithInfluence~=nil and powered
+            and (canReadyUnit or readyCount>0) then
             startingControl("ruthlessReady","RDY "..tostring(readyCount),
                 readyCount>0,145,-125)
         elseif rule.selectedTerrainDiscount~=nil and powered then
@@ -10461,6 +10484,15 @@ local function renderSeat(seatPos)
             -- The Red card discarded onto the Staff grants a single Unit
             -- Ready, even though no numeric resource is contributed.
             choices={{key="red",icon="other"}}
+        end
+        -- The recruitment-cost change is not performed by the offer script:
+        -- the player chooses when to use these two extra Influence points.
+        local recruitBonus=resourceCardsRecruitInfluenceBonus(card.guid,rule,result)
+        if recruitBonus>0 then
+            local adjusted={}
+            for key,value in pairs(result.resources) do adjusted[key]=value end
+            adjusted.influence=(tonumber(adjusted.influence) or 0)+recruitBonus
+            result.resources=adjusted
         end
         result.choices=choices -- Also authoritative for payment-restricted click validation.
         showChoiceButtons(card,choices,result.powered,inventorySpec,inventorySets,result.resources,
