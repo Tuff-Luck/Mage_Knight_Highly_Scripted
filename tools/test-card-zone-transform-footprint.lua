@@ -9,7 +9,7 @@ local function read(path)
     return text
 end
 local source=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-local a=assert(source:find("trackerPrivate.cardOverPlayMat=function(obj,seatPos)",1,true))
+local a=assert(source:find("trackerPrivate.zoneFootprintContainsXZ=function(obj,zone)",1,true))
 local b=assert(source:find("local function scheduleChoiceResetAfterPlay(guid,seatPos)",a,true))
 local matCode=source:sub(a,b-1)
 local position={x=-20.08,y=2,z=-42.19}
