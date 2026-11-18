@@ -146,6 +146,36 @@ assert(type(loadEnv.gStates.pursuingMonsters)=="table","old pursuit map initiali
 local ok=pcall(normalize,"saved",{gStates={},turnOrder={}})
 eq(ok,false,"invalid essential configuration rejected")
 
+-- The first real ready-panel startup must restore arrows before asking
+-- the tracker to scan. Later ordinary reopen calls must not restore again.
+local startupEvents={}
+local startupEnv={
+    gStates={firstStarted=true,turnNumber=1},
+    turnOrder={{seatPos=1}},
+    trackerPrivate={trackerStartupRequest=0,restoreAssignmentsPending=false},
+    resourceCardsSeatEnabled=function() return true end,
+    resourceCardsPanelReady=function() return true end,
+    resourceTrackerSyncLayout=function() end,
+    UI={getAttribute=function() return "true" end},
+    attackAssignmentsRestore=function() startupEvents[#startupEvents+1]="restore" end,
+    resourceCardsPanelChanged=function(open)
+        startupEvents[#startupEvents+1]=open and "scan" or "close"
+    end,
+    safeWaitCondition=function(_,callback,condition)
+        assert(condition(),"Ready-panel restore should not wait")
+        callback()
+    end
+}
+local startup=loadSection(cards,"function resourceCardsOnLoad(restoringSave)",
+    "local function resourceCardsRelevantZone(ctx)",startupEnv,
+    "return resourceCardsOnLoad")
+startup(true)
+eq(startupEvents[1],"restore","saved arrows restore first")
+eq(startupEvents[2],"scan","initial scan starts after restore")
+startup()
+eq(#startupEvents,3,"reopening must not repeat assignment recovery")
+eq(startupEvents[3],"scan","reopen still initiates scan")
+
 -- Startup must reconstruct decisions once, before the first tracker calculation.
 assert(events:find("resourceCardsChoicesRestore()",1,true)
     and events:find("attackAssignmentsDamageRestore()",1,true),
