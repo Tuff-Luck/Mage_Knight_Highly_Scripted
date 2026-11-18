@@ -204,11 +204,18 @@ local discardHand=isolated(cardflow,"function combatDiscardParalyzedHand(seat)",
     "-- Wound dealing helper","return combatDiscardParalyzedHand")
 local moved={}
 local function card(guid,wound)
+    local position={x=0,y=1,z=0}
     return {guid=guid,type="Card",getGMNotes=function()
         return wound and "Wound" or "Advanced Action"
-    end,setPositionSmooth=function(pos,collide,fast)
+    end,getPosition=function() return position end,
+    setPosition=function(target)
+        position={x=target.x or target[1],y=target.y or target[2],
+            z=target.z or target[3]}
         moved[#moved+1]=guid
-    end}
+    end,
+    -- A smooth move out of a TTS HandTrigger may be intercepted without
+    -- throwing. Deliberately do NOT move this mock on smooth motion.
+    setPositionSmooth=function() end}
 end
 local good=card("good",false)
 local existingWound=card("wound",true)
@@ -236,11 +243,24 @@ eq(count,2,"only non-Wounds should be discarded")
 eq(#moved,2,"exactly two cards physically discarded")
 eq(moved[1],"good","ordinary hand card discarded")
 eq(moved[2],"stacked","mixed deck non-Wound discarded")
+eq(good.getPosition().x,2,"non-Wound hand card must escape HandTrigger")
+eq(good.getPosition().z,3,"non-Wound hand card reaches discard zone")
+-- Scripting Zone tag filters may exclude playable cards. Request the
+-- unfiltered contents when available.
+local tagFiltered=card("tagFiltered",false)
+handZone.getObjects=function(includeAll)
+    return includeAll and {tagFiltered} or {}
+end
+discarded,count=discardHand(1)
+eq(discarded,true,"tag-filtered scripting hand must be included")
+eq(count,1,"tag-filtered card moved to discard")
+eq(tagFiltered.getPosition().x,2,"tag-filtered hand card left hand")
+handZone.getObjects=function() return handObjects end
 held.held_by_color="Blue"
 handObjects={held}
 discarded=discardHand(1)
 eq(discarded,false,"held hand cards must abort a destructive discard")
-eq(#moved,2,"held card must remain untouched")
+eq(#moved,3,"held card must remain untouched")
 handObjects={}
 
 -- In live TTS, the actual player HandTrigger may contain cards not reported
@@ -254,12 +274,12 @@ positionToColor=function() return "Red" end
 discarded,count=discardHand(1)
 eq(discarded,true,"native TTS hand should be inspected")
 eq(count,1,"native hand discards its non-Wound card")
-eq(moved[3],"native","native hand card actually moved")
+eq(moved[4],"native","native hand card actually moved")
 handObjects={native}
 discarded,count=discardHand(1)
 eq(discarded,true,"duplicate physical and native hand views can merge")
 eq(count,1,"duplicate hand views must not discard a card twice")
-eq(#moved,4,"same GUID is moved only once per application")
+eq(#moved,5,"same GUID is moved only once per application")
 -- The caller's actual colour overrides an unreliable seat-to-hand lookup.
 -- This is important when the TTS hand was moved after initial setup.
 local explicitCard=card("explicitCard",false)
@@ -269,7 +289,7 @@ positionToColor=function() return "Black" end
 discarded,count=discardHand(1,"Blue")
 eq(discarded,true,"explicit owner hand must be inspected")
 eq(count,1,"explicit owner hand must discard its ordinary card")
-eq(moved[5],"explicitCard","the real committing player controls the hand lookup")
+eq(moved[6],"explicitCard","the real committing player controls the hand lookup")
 -- The player's native TTS hand remains usable if the mod's scripting zone
 -- is missing. Do not mistake an unavailable script zone for an empty hand.
 local nativeOnly=card("nativeOnly",false)
@@ -280,7 +300,7 @@ end
 discarded,count=discardHand(1,"Blue")
 eq(discarded,true,"native hand works without a scripted hand zone")
 eq(count,1,"native hand must still discard its non-Wound card")
-eq(moved[6],"nativeOnly","native-only card reaches discard")
+eq(moved[7],"nativeOnly","native-only card reaches discard")
 Player=nil
 discarded=discardHand(1)
 eq(discarded,false,"missing both hand sources must not silently succeed")
