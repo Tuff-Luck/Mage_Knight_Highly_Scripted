@@ -126,6 +126,7 @@ local paymentSource=between(recognition,"local function resourceCardsUsesDayMana
     "-- A powered link grants a target Action card")
 local payment=assert(load([[
 local combatConfig={amuletMana={gold=false,black=false}}
+local trackerPrivate={}
 local gameCards={spell={cardType="Spell",color={"Blue"}}}
 local gStates={dayRound=true,turnNumber=1}
 local turnOrder={{avatarLocation="glade"}}
