@@ -42,7 +42,7 @@ local env={
     gStates={startingCardSelections={[guid]=selection}},
     combatConfig={sourceFields={}},
     combatAssignmentState={targets={}},
-    trackerPrivate={singleAutoEnemyGUID=nil},
+    trackerPrivate={singleAutoEnemyGUID=nil,playCardMovements={}},
     selectedResourceByGUID={},choiceExpandedByGUID={},
     choiceButtonShown=choicesShown,choiceLetters={influence="I"},
     combatCalcOn=false,combatPsychicActive=false,combatCumbersomeActive=false,
@@ -136,6 +136,9 @@ refresh()
 assert(xmlWrites==writesAtRest and hasInteraction(),
     "Smooth movement must leave the card control attached")
 card.moving=false
+-- A real pickup creates this transaction; the subsequent drop preserves it
+-- until X/Z and orientation settle, even when the resting flag is false.
+env.trackerPrivate.playCardMovements[guid]={seatPos=1}
 card.resting=false
 card.rotation={0,45,0}
 refresh()
@@ -143,6 +146,7 @@ assert(xmlWrites==writesAtRest and hasInteraction(),
     "A dropped but still-tumbling card must retain the Interaction button")
 card.resting=true
 card.rotation={0,0,0}
+env.trackerPrivate.playCardMovements[guid]=nil
 refresh()
 assert(xmlWrites==writesAtRest and hasInteraction(),
     "Settling with an unchanged signature should not need a redraw")
