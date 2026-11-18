@@ -17,10 +17,6 @@ trackerPrivate.bySeat={}
 trackerPrivate.playCandidatesBySeat={}
 -- Protect explicit options and targets from half-complete relocation scans.
 trackerPrivate.playCardMovements={}
--- A completed drop already queues its authoritative resource refresh. TTS
--- can report a second EnterZone for the same card as its Y falls into the
--- thin zone; that event must not publish a second intermediate combat scan.
-trackerPrivate.finishedPlayDrops={}
 trackerPrivate.playCandidateKind=function(kind)
     return kind=="card" or kind=="skill" or kind=="factionReward"
 end
@@ -3984,26 +3980,9 @@ local function combatAssignmentRefreshRows(entries,sources)
             and source.psychicInfluence==0
         local influenceOnly=source.ranged+source.siege+source.block+source.attack==0
             and source.psychicInfluence>0 and source.move==0
-        -- The physical assignment arrow is the persistent target lock. A
-        -- later zone-entry scan can carry a stale nearest-target guess in the
-        -- calculator state; never let it replace a still-valid single arrow.
+        -- Explicit calculator targets remain authoritative. If none exists,
+        -- the saved arrow is recovered below (including after reload).
         local targetGUID=combatAssignmentState.targets[source.key]
-        local existingTargets=attackAssignmentsTargetGUIDs(source.key)
-        local soleArrow,arrowCount=nil,0
-        for guid in pairs(existingTargets) do
-            if rowByGUID[guid]~=nil then
-                soleArrow,arrowCount=guid,arrowCount+1
-            end
-        end
-        if arrowCount==1 and targetGUID~=soleArrow then
-            targetGUID=soleArrow
-            combatAssignmentState.targets[source.key]=soleArrow
-            -- Keep a prior explicit choice when the source was manually
-            -- assigned. A recovered arrow is never a reason to auto-retarget.
-            if combatAssignmentState.explicit[source.key]==nil then
-                combatAssignmentState.explicit[source.key]=true
-            end
-        end
         if targetGUID==nil then
             -- Restore the saved visual assignment for every source after a reload.
             -- Move has no automatic target, while other resources use nearest-enemy only
@@ -4049,9 +4028,6 @@ local function combatAssignmentRefreshRows(entries,sources)
             targetGUID=combatNearestEnemyGUID(source,entries)
             combatAssignmentState.targets[source.key]=targetGUID
             combatAssignmentState.explicit[source.key]=nil
-            if trackerPrivate~=nil and trackerPrivate.tracePlayCard~=nil then
-                trackerPrivate.tracePlayCard(source.guid,"automatic-nearest-target")
-            end
             targetIndex=targetGUID~=nil and rowByGUID[targetGUID] or nil
         end
         if targetIndex==nil and targetGUID~=nil then
@@ -5793,27 +5769,12 @@ local function refreshCombatEnemyPanel(monsters,calculated)
             end
         end
     end
-    if trackerPrivate.tracePlayCard~=nil then
-        for guid in pairs(trackerPrivate.relocationDiagnostics or {}) do
-            trackerPrivate.tracePlayCard(guid,"before-prune-inactive")
-        end
-    end
     attackAssignmentsPruneInactive(activeSources,activeObjects,combatSourceKeepsLock)
-    if trackerPrivate.tracePlayCard~=nil then
-        for guid in pairs(trackerPrivate.relocationDiagnostics or {}) do
-            trackerPrivate.tracePlayCard(guid,"after-prune-inactive")
-        end
-    end
     local validTargets={}
     for guid,obj in pairs(monsters or {}) do
         if obj.is_face_down~=true then validTargets[guid]=true end
     end
     attackAssignmentsPruneTargets(validTargets)
-    if trackerPrivate.tracePlayCard~=nil then
-        for guid in pairs(trackerPrivate.relocationDiagnostics or {}) do
-            trackerPrivate.tracePlayCard(guid,"after-prune-enemies")
-        end
-    end
     -- Reconcile effect-only Unit arrows on *every* calculator refresh, not only
     -- when an assignment is clicked. The damage overlay may come and go as
     -- attacks are blocked; its removal must not remove the originating arrow.
@@ -6649,9 +6610,6 @@ local function guessInitialCardChoice(card,choices,seatPos,rule,sideways)
         selected.effect=best
     end
     selectedResourceByGUID[card.guid]=selected
-    if trackerPrivate~=nil and trackerPrivate.tracePlayCard~=nil then
-        trackerPrivate.tracePlayCard(card.guid,"automatic-choice-guess")
-    end
 end
 
 local function effectHasTrackedResource(effects)
@@ -7797,52 +7755,6 @@ end
 -- lock check cannot contradict the choice-reset check.
 trackerPrivate.cardInSeatPlayArea=cardInSeatPlayArea
 
--- Temporary, event-driven relocation diagnostics. Produce no output for
--- successful moves, but log the recorded event sequence immediately if a
--- played card loses its selected option, calculator target or saved arrow.
--- This distinguishes an exit reset from an incomplete scan or arrow prune.
-trackerPrivate.relocationDiagnostics={}
-trackerPrivate.tracePlayCard=function(guid,stage)
-    local info=trackerPrivate.relocationDiagnostics[guid]
-    if info==nil then return end
-    local obj=getObjectFromGUID(guid)
-    local saved=selectedResourceByGUID[guid]
-    local option=saved~=nil and (saved.effect or saved.sideways) or nil
-    local target=combatAssignmentState.targets[guid]
-    local arrowTargets={}
-    for enemyGUID in pairs(attackAssignmentsTargetGUIDs(guid)) do
-        arrowTargets[#arrowTargets+1]=enemyGUID
-    end
-    table.sort(arrowTargets)
-    local arrow=table.concat(arrowTargets,",")
-    local inZone=false
-    local zoneGUID=playerPlayAreas~=nil and playerPlayAreas[info.seat] or nil
-    local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
-    for _,candidate in ipairs(zone~=nil and zone.getObjects() or {}) do
-        if candidate.guid==guid then inZone=true break end
-    end
-    local pos=obj~=nil and obj.getPosition() or nil
-    local x=pos~=nil and (pos.x or pos[1]) or 0
-    local z=pos~=nil and (pos.z or pos[3]) or 0
-    local text=stage.." option="..tostring(option).." target="..tostring(target)
-        .." arrows="..arrow.." inZone="..tostring(inZone)
-        .." XZ="..tostring(trackerPrivate.cardOverPlayMat(obj,info.seat))
-        .." pos="..string.format("%.2f,%.2f",x,z)
-        .." held="..tostring(obj~=nil and obj.held_by_color)
-        .." smooth="..tostring(obj~=nil and obj.isSmoothMoving())
-        .." resting="..tostring(obj~=nil and obj.resting)
-    info.events[#info.events+1]=text
-    if #info.events>18 then table.remove(info.events,1) end
-    if not info.reported and ((info.option~=nil and option~=info.option)
-        or (info.target~=nil and target~=info.target)
-        or (info.arrow~="" and arrow~=info.arrow)) then
-        info.reported=true
-        log("[MK Relocation] UNEXPECTED change for "..guid
-            .." (copy these lines from the Lua console)")
-        for _,event in ipairs(info.events) do log("[MK Relocation] "..event) end
-    end
-end
-
 local function scheduleChoiceResetAfterPlay(guid,seatPos)
     if guid==nil or seatPos==nil then return end
     -- Avoid physics waits for mana, enemies and unrelated play-area objects.
@@ -7864,9 +7776,6 @@ local function scheduleChoiceResetAfterPlay(guid,seatPos)
                     gStates.resourceCardPlayOrder[guid]=nil
                 end
                 selectedResourceByGUID[guid]=nil
-                if trackerPrivate.tracePlayCard~=nil then
-                    trackerPrivate.tracePlayCard(guid,"exit-choice-cleared")
-                end
                 choiceExpandedByGUID[guid]=nil
                 if gStates~=nil and gStates.unitReadyCardChoices~=nil then
                     gStates.unitReadyCardChoices[guid]=nil
@@ -9602,9 +9511,6 @@ local function renderSeat(seatPos)
     if not resourceCardsPanelOpen() then return end
     local active=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if active==nil or active.seatPos~=seatPos then return end
-    for guid,info in pairs(trackerPrivate.relocationDiagnostics or {}) do
-        if info.seat==seatPos then trackerPrivate.tracePlayCard(guid,"scan-start") end
-    end
     -- Keep the last complete calculator result while a played card is carried
     -- or its final X/Z/orientation is being confirmed. Never publish a
     -- half-empty scan that discards a choice or replaces an explicit target.
@@ -12454,13 +12360,7 @@ local function renderSeat(seatPos)
         -- history rather than showing those stale contributions for one scan.
         resourceCardsSourceChanged()
     end
-    for guid,info in pairs(trackerPrivate.relocationDiagnostics or {}) do
-        if info.seat==seatPos then trackerPrivate.tracePlayCard(guid,"before-combat-panel") end
-    end
     refreshCombatEnemyPanel(combatMonsters,true)
-    for guid,info in pairs(trackerPrivate.relocationDiagnostics or {}) do
-        if info.seat==seatPos then trackerPrivate.tracePlayCard(guid,"after-combat-panel") end
-    end
     resourceCardsApplyFameRep(seatPos)
     -- Refresh Reputation on every settled Skill scan so flipping Arcane
     -- Disguise updates Influence without requiring a panel toggle.
@@ -12589,8 +12489,6 @@ local function clearAll()
     trackerPrivate.bySeat={}
     trackerPrivate.playCandidatesBySeat={}
     trackerPrivate.playCardMovements={}
-    trackerPrivate.finishedPlayDrops={}
-    trackerPrivate.relocationDiagnostics={}
     resourceCardScanBySeat={}
     combatConfig.bowSourceModes={}
     combatConfig.amuletMana={gold=false,black=false}
@@ -13794,27 +13692,11 @@ function resourceCardsObjectPickedUp(obj)
                     explicit=combatAssignmentState.explicit[sourceKey]==true}
             end
         end
-        trackerPrivate.finishedPlayDrops[obj.guid]=nil
         trackerPrivate.playCardMovements[obj.guid]={
             seatPos=seat,choice=selectedResourceByGUID[obj.guid],
             targets=savedTargets,posture=cardPosture(obj),
             faceDown=obj.is_face_down
         }
-        if trackerPrivate.relocationDiagnostics~=nil then
-            local currentChoice=selectedResourceByGUID[obj.guid]
-            local arrows={}
-            for targetGUID in pairs(attackAssignmentsTargetGUIDs(obj.guid)) do
-                arrows[#arrows+1]=targetGUID
-            end
-            table.sort(arrows)
-            trackerPrivate.relocationDiagnostics[obj.guid]={
-                seat=seat,option=currentChoice~=nil
-                    and (currentChoice.effect or currentChoice.sideways) or nil,
-                target=combatAssignmentState.targets[obj.guid],
-                arrow=table.concat(arrows,","),events={}
-            }
-            trackerPrivate.tracePlayCard(obj.guid,"pickup")
-        end
     end
 end
 
@@ -13890,35 +13772,10 @@ trackerPrivate.finishPlayCardMove=function(obj)
             return
         end
         trackerPrivate.restorePlayCardMove(live,state)
-        if trackerPrivate.tracePlayCard~=nil then
-            trackerPrivate.tracePlayCard(guid,"drop-restored")
-        end
         trackerPrivate.playCardMovements[guid]=nil
         -- Resume a single complete scan; normal drop handling determines
         -- whether this was a reposition or a genuine departure from play.
         resourceCardsObjectMoved(live,true)
-        if trackerPrivate.tracePlayCard~=nil then
-            trackerPrivate.tracePlayCard(guid,"drop-reconciled")
-        end
-        local diagnostic=trackerPrivate.relocationDiagnostics~=nil
-            and trackerPrivate.relocationDiagnostics[guid] or nil
-        if diagnostic~=nil then
-            safeWaitFrames("PlayerBoard.CardRecognition",function()
-                if trackerPrivate.relocationDiagnostics[guid]==diagnostic then
-                    trackerPrivate.relocationDiagnostics[guid]=nil
-                end
-            end,180)
-        end
-        if cardInSeatPlayArea(guid,state.seatPos) then
-            -- Suppress the matching delayed EnterZone once, not every later
-            -- zone entry. Expire this guard when TTS reports no duplicate.
-            trackerPrivate.finishedPlayDrops[guid]=state
-            safeWaitFrames("PlayerBoard.CardRecognition",function()
-                if trackerPrivate.finishedPlayDrops[guid]==state then
-                    trackerPrivate.finishedPlayDrops[guid]=nil
-                end
-            end,90)
-        end
         queueSeat(state.seatPos,nil)
     end
     safeWaitFrames("PlayerBoard.CardRecognition",sample,1)
@@ -13926,9 +13783,6 @@ end
 
 function resourceCardsZoneEntered(ctx)
     if not resourceCardsPanelOpen() or ctx==nil or ctx.zoneInfo==nil then return end
-    if trackerPrivate.tracePlayCard~=nil then
-        trackerPrivate.tracePlayCard(ctx.objGUID,"enter-zone-"..tostring(ctx.zoneInfo.kind))
-    end
     -- Filter irrelevant zones and other players before touching the Unit layout.
     local seat=resourceCardsRelevantZone(ctx)
     if seat==nil then return end
@@ -13946,14 +13800,10 @@ function resourceCardsZoneEntered(ctx)
             or trackerPrivate.playCardMovements[ctx.objGUID]~=nil
         candidates[ctx.objGUID]=true
         if alreadyPlayed then
-            if trackerPrivate.tracePlayCard~=nil then
-                trackerPrivate.tracePlayCard(ctx.objGUID,"enter-known-no-scan")
-            end
             -- TTS emits EnterZone again when a relocated card falls through
             -- the thin zone. That is not a new play or another pickup.
             -- onObjectDrop owns its one reconciliation, even if the zone
             -- entry happens before the drop's final callback.
-            trackerPrivate.finishedPlayDrops[ctx.objGUID]=nil
             return
         end
         -- For a genuinely new play, queue its first scan normally. Do not
@@ -13978,9 +13828,6 @@ end
 
 function resourceCardsZoneLeft(ctx)
     if not resourceCardsPanelOpen() or ctx==nil or ctx.zoneInfo==nil then return end
-    if trackerPrivate.tracePlayCard~=nil then
-        trackerPrivate.tracePlayCard(ctx.objGUID,"leave-zone-"..tostring(ctx.zoneInfo.kind))
-    end
     local seat=resourceCardsRelevantZone(ctx)
     if ctx.zoneInfo.kind=="play" then
         if ctx.obj~=nil and trackerPrivate.playCandidateKind(resourceObjectKind(ctx.obj))
@@ -14000,10 +13847,6 @@ end
 
 function resourceCardsObjectMoved(obj,stabilized)
     if obj==nil or not resourceCardsPanelOpen() then return end
-    if trackerPrivate.tracePlayCard~=nil then
-        trackerPrivate.tracePlayCard(obj.guid,
-            stabilized and "stable-drop-callback" or "object-drop-or-rotate")
-    end
     -- Some entries are reported only after the card is dropped. Protect that
     -- first scan too, even if no pickup/enter event registered the movement.
     if not stabilized and obj.type~="Dice" and obj.resting==false
