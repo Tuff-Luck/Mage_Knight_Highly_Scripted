@@ -601,6 +601,7 @@ function __onObjectPickUp_raw(player_color, picked_up_object)
     if picked_up_object.guid=="2eb8e8" then callOfferSpellPickedUp() end
     trainingOfferCardPickedUp(player_color,picked_up_object)
     magicTalentCardPickedUp(player_color,picked_up_object)
+    resourceCardsObjectPickedUp(picked_up_object)
 	attackAssignmentsObjectMoved(picked_up_object)
 	if picked_up_object~=nil and mapTokenNeedsArrangement~=nil and mapTokenNeedsArrangement(picked_up_object)==true then
 		mapTokenReleaseObject(picked_up_object)

@@ -20,7 +20,7 @@ local resetCode=slice(source,"local function scheduleChoiceResetAfterPlay(guid,s
     "local function footprint(obj)")
 local lockCode=slice(source,"local function combatSourceKeepsLock(key)",
     "-- Orange arrows aim at armour")
-local dropCode=slice(source,"function resourceCardsObjectMoved(obj)",
+local dropCode=slice(source,"function resourceCardsObjectMoved(obj,stabilized)",
     "-- Register the remaining readying")
 local recoverCode=slice(source,"    -- A released source may be above the shallow zone",
     "    -- Mana dropped ON a played Action")
@@ -43,6 +43,7 @@ local zone={
 local selected={rage={effect="attack"}}
 local targets={rage="left"}
 local tracker={choiceResetGenerationByGUID={},
+    playCardMovements={},
     playCandidatesBySeat={[1]={rage=true}},
     playCandidateKind=function(kind)
         return kind=="card" or kind=="skill" or kind=="factionReward"
@@ -73,6 +74,9 @@ local env={
         return obj.held_by_color~=nil or obj.isSmoothMoving()
     end},
     resourceObjectKind=function() return "card" end,
+    -- This test covers the independent X/Z fallback, not the new pickup
+    -- stability watcher (tested by test-card-relocation-stable-drop.lua).
+    resourceCardsObjectPickedUp=function() end,
     manaColor=function() return nil end,
     unitLayoutIsCommand=function() return false end,
     unitLayoutIsWound=function() return false end,

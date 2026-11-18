@@ -15,6 +15,8 @@ trackerPrivate.bySeat={}
 -- Known play sources survive transient shallow-zone exits while a card is
 -- lifted or still falling above the mat. Rebuilt from entries/scans, not saved.
 trackerPrivate.playCandidatesBySeat={}
+-- Protect explicit options and targets from half-complete relocation scans.
+trackerPrivate.playCardMovements={}
 trackerPrivate.playCandidateKind=function(kind)
     return kind=="card" or kind=="skill" or kind=="factionReward"
 end
@@ -6735,7 +6737,8 @@ end
 -- its controls for a genuinely changed posture or area.
 combatConfig.cardInTransit=function(card)
     return card~=nil and ((card.held_by_color~=nil and card.held_by_color~="")
-        or card.isSmoothMoving())
+        or card.isSmoothMoving() or (trackerPrivate.playCardMovements~=nil
+            and trackerPrivate.playCardMovements[card.guid]~=nil))
 end
 
 -- TTS and other object-UI owners can replace the XML while a card is lifted.
@@ -7697,10 +7700,17 @@ local function cardInSeatPlayArea(guid,seatPos)
     local zoneGUID=playerPlayAreas~=nil and playerPlayAreas[seatPos] or nil
     local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
     if zone==nil then return false end
-    for _,obj in ipairs(zone.getObjects()) do
-        if obj.guid==guid then return true end
+    local obj=getObjectFromGUID(guid)
+    -- Once released, the live X/Z is more reliable than the shallow zone's
+    -- possibly stale membership during the first frames after a drop.
+    if obj~=nil and (obj.held_by_color==nil or obj.held_by_color=="")
+        and not obj.isSmoothMoving() then
+        return trackerPrivate.cardOverPlayMat(obj,seatPos)
     end
-    return trackerPrivate.cardOverPlayMat(getObjectFromGUID(guid),seatPos)
+    for _,candidate in ipairs(zone.getObjects()) do
+        if candidate.guid==guid then return true end
+    end
+    return false
 end
 
 local function scheduleChoiceResetAfterPlay(guid,seatPos)
@@ -7733,7 +7743,8 @@ local function scheduleChoiceResetAfterPlay(guid,seatPos)
         end,function()
             if trackerPrivate.choiceResetGenerationByGUID[guid]~=serial then return true end
             local obj=getObjectFromGUID(guid)
-            return obj==nil or trackerPrivate.readyForXZ(obj)
+            return obj==nil or (trackerPrivate.playCardMovements[guid]==nil
+                and trackerPrivate.readyForXZ(obj))
         end,8)
     end,1)
 end
@@ -9458,6 +9469,15 @@ local function renderSeat(seatPos)
     if not resourceCardsPanelOpen() then return end
     local active=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if active==nil or active.seatPos~=seatPos then return end
+    -- Keep the last complete calculator result while a played card is carried
+    -- or its final X/Z/orientation is being confirmed. Never publish a
+    -- half-empty scan that discards a choice or replaces an explicit target.
+    for guid,movement in pairs(trackerPrivate.playCardMovements or {}) do
+        local live=getObjectFromGUID(guid)
+        if live==nil or (live.isDestroyed~=nil and live.isDestroyed()) then
+            trackerPrivate.playCardMovements[guid]=nil
+        elseif movement.seatPos==seatPos then return end
+    end
     trackerPrivate.renderCombatNight=nil
 
     local objects,placements,monsters,playMonsters={},{},{},{}
@@ -12417,6 +12437,7 @@ local function clearAll()
     for guid in pairs(shown) do clearHighlight(guid) end
     trackerPrivate.bySeat={}
     trackerPrivate.playCandidatesBySeat={}
+    trackerPrivate.playCardMovements={}
     resourceCardScanBySeat={}
     combatConfig.bowSourceModes={}
     combatConfig.amuletMana={gold=false,black=false}
@@ -13596,15 +13617,102 @@ local function resourceCardsRelevantZone(ctx)
     return nil
 end
 
+-- Mark played cards while dragged, so zone callbacks cannot publish an
+-- intermediate 'card absent' calculation and overwrite a chosen target.
+function resourceCardsObjectPickedUp(obj)
+    if obj==nil or obj.guid==nil or not resourceCardsPanelOpen()
+        or not trackerPrivate.playCandidateKind(resourceObjectKind(obj)) then return end
+    local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    if active==nil then return end
+    local seat=active.seatPos
+    local candidates=trackerPrivate.playCandidatesBySeat[seat]
+    local previous=trackerPrivate.bySeat[seat]
+    if (candidates~=nil and candidates[obj.guid]==true)
+        or (previous~=nil and previous[obj.guid]==true)
+        or cardInSeatPlayArea(obj.guid,seat) then
+        -- A second pickup invalidates the first drop's pending callbacks.
+        trackerPrivate.playCardMovements[obj.guid]={seatPos=seat}
+    end
+end
+
+-- A card may still be falling in Y when its X/Z and rotation are final.
+-- Observe those values for three frames instead of waiting for 'resting'.
+trackerPrivate.finishPlayCardMove=function(obj)
+    local state=obj~=nil and trackerPrivate.playCardMovements[obj.guid] or nil
+    if state==nil or state.releasing then return end
+    state.releasing=true
+    state.samples=0
+    state.consecutive=0
+    state.last=nil
+    local guid=obj.guid
+    local function sample()
+        if trackerPrivate.playCardMovements[guid]~=state then return end
+        local live=getObjectFromGUID(guid)
+        if live==nil then
+            trackerPrivate.playCardMovements[guid]=nil
+            queueSeat(state.seatPos,nil)
+            return
+        end
+        state.samples=state.samples+1
+        if (live.held_by_color~=nil and live.held_by_color~="")
+            or live.isSmoothMoving() then
+            -- A new drop restarts this watcher if TTS briefly still reports
+            -- the object as held. Do not unblock a genuinely held card.
+            if state.samples>=30 then state.releasing=nil
+            else safeWaitFrames("PlayerBoard.CardRecognition",sample,1) end
+            return
+        end
+        local pos=live.getPosition()
+        local rot=live.getRotation()
+        local now={x=pos.x or pos[1],z=pos.z or pos[3],
+            rx=rot.x or rot[1],ry=rot.y or rot[2],rz=rot.z or rot[3],
+            face=live.is_face_down}
+        local previous=state.last
+        local function angleDifference(a,b)
+            return math.abs(((a or 0)-(b or 0)+180)%360-180)
+        end
+        if previous~=nil
+            and math.abs(now.x-previous.x)<0.04
+            and math.abs(now.z-previous.z)<0.04
+            and angleDifference(now.rx,previous.rx)<1
+            and angleDifference(now.ry,previous.ry)<1
+            and angleDifference(now.rz,previous.rz)<1
+            and now.face==previous.face then
+            state.consecutive=state.consecutive+1
+        else
+            state.consecutive=0
+        end
+        state.last=now
+        if state.consecutive<2 and state.samples<24 then
+            safeWaitFrames("PlayerBoard.CardRecognition",sample,1)
+            return
+        end
+        trackerPrivate.playCardMovements[guid]=nil
+        -- Resume a single complete scan; normal drop handling determines
+        -- whether this was a reposition or a genuine departure from play.
+        resourceCardsObjectMoved(live,true)
+        queueSeat(state.seatPos,nil)
+    end
+    safeWaitFrames("PlayerBoard.CardRecognition",sample,1)
+end
+
 function resourceCardsZoneEntered(ctx)
     if not resourceCardsPanelOpen() or ctx==nil or ctx.zoneInfo==nil then return end
     -- Filter irrelevant zones and other players before touching the Unit layout.
     local seat=resourceCardsRelevantZone(ctx)
     if seat==nil then return end
-    if ctx.zoneInfo.kind=="play"
+    if ctx.zoneInfo.kind=="play" and ctx.objType~="Dice"
         and trackerPrivate.playCandidateKind(resourceObjectKind(ctx.obj)) then
         trackerPrivate.playCandidatesBySeat[seat]=trackerPrivate.playCandidatesBySeat[seat] or {}
         trackerPrivate.playCandidatesBySeat[seat][ctx.objGUID]=true
+        if trackerPrivate.playCardMovements[ctx.objGUID]==nil
+            and ((ctx.obj.held_by_color~=nil and ctx.obj.held_by_color~="")
+                or ctx.obj.resting==false) then
+            resourceCardsObjectPickedUp(ctx.obj)
+            if ctx.obj.held_by_color==nil or ctx.obj.held_by_color=="" then
+                trackerPrivate.finishPlayCardMove(ctx.obj)
+            end
+        end
     end
     if ctx.zoneInfo.kind=="play" and gameCards[ctx.objGUID]~=nil
         and gStates~=nil then
@@ -13635,8 +13743,21 @@ function resourceCardsZoneLeft(ctx)
     queueSeat(seat,ctx.objGUID)
 end
 
-function resourceCardsObjectMoved(obj)
+function resourceCardsObjectMoved(obj,stabilized)
     if obj==nil or not resourceCardsPanelOpen() then return end
+    -- Some entries are reported only after the card is dropped. Protect that
+    -- first scan too, even if no pickup/enter event registered the movement.
+    if not stabilized and obj.type~="Dice" and obj.resting==false
+        and trackerPrivate.playCardMovements[obj.guid]==nil
+        and trackerPrivate.playCandidateKind(resourceObjectKind(obj)) then
+        resourceCardsObjectPickedUp(obj)
+    end
+    -- Drop callbacks can arrive before the card's final rotation or before
+    -- the shallow zone knows it is back. Keep the calculator unchanged.
+    if trackerPrivate.playCardMovements[obj.guid]~=nil then
+        trackerPrivate.finishPlayCardMove(obj)
+        return
+    end
     local player=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if player==nil then return end
     local seat=player.seatPos
