@@ -66,6 +66,14 @@ enemy.is_face_down=true
 env.gStates.monsterPerks.nightMonster={nightRules=true}
 verify(true,"Face-down defeated NightRules enemy does not count")
 enemy.is_face_down=false
+-- Older saves may have erroneously marked an un-decaled summoned monster
+-- as nightRules. Only the physical decal establishes Night for that summon.
+env.gStates.summonStates={nightMonster="summoned"}
+enemy.getDecals=function() return {} end
+verify(true,"Legacy summoned monster with stale perk is not Night")
+enemy.getDecals=function() return {{name="NightRules"}} end
+verify(false,"Actually Night-marked summoned monster still counts")
+env.gStates.summonStates=nil
 enemies={}
 verify(true,"Removing last marked enemy restores Day")
 env.turnOrder[1].avatarLocation="dungeon"
