@@ -101,7 +101,7 @@ local onMat,scheduleReset,keepsLock,onDrop=
     assert(load(code,"Card relocation","t",env))()
 
 assert(onMat("rage",1),"Released Rage above thin zone must count as on mat")
-assert(keepsLock("rage"),"Rage's left-enemy target must survive vertical falling")
+assert(not keepsLock("rage"),"Settled cards rely on active sources, not blanket arrow protection")
 scheduleReset("rage",1)
 assert(#frames==1,"Zone exit should defer choice reset")
 frames[1]()
@@ -121,8 +121,8 @@ local objects,placements,kinds={}, {}, {}
 recover(1,objects,placements,kinds)
 assert(objects.rage==card and placements.rage=="play" and kinds.rage=="card",
     "Released falling Rage must be included in resource scan")
-assert(selected.rage.effect=="attack" and keepsLock("rage"),
-    "Rage Attack and explicit enemy lock must remain through recovery")
+assert(selected.rage.effect=="attack" and targets.rage=="left",
+    "Recovered Rage keeps its Attack option and previously selected target")
 
 -- EnterZone is positive evidence that the zone contains this card, even
 -- when the approximate X/Z bounds disagree. The older membership check
@@ -132,8 +132,8 @@ pos.x,pos[1]=30,30
 zoneContents={card}
 assert(onMat("rage",1),
     "A zone-confirmed reentry must win over an X/Z bounds disagreement")
-assert(keepsLock("rage"),
-    "The physical left-target arrow must survive zone-confirmed reentry")
+assert(not keepsLock("rage"),
+    "On-mat geometry alone must not protect an inactive arrow after a choice change")
 pos.x,pos[1]=0,0
 zoneContents={}
 
