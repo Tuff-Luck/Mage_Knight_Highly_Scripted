@@ -205,17 +205,21 @@ local discardHand=isolated(cardflow,"function combatDiscardParalyzedHand(seat)",
 local moved={}
 local function card(guid,wound)
     local position={x=0,y=1,z=0}
-    return {guid=guid,type="Card",getGMNotes=function()
-        return wound and "Wound" or "Advanced Action"
-    end,getPosition=function() return position end,
-    setPosition=function(target)
+    local obj={guid=guid,type="Card",use_hands=true,
+        getGMNotes=function()
+            return wound and "Wound" or "Advanced Action"
+        end,
+        getPosition=function() return position end,
+        -- Smooth moves fail silently in a TTS HandTrigger. Direct movement
+        -- works only when the script temporarily disables hand capture.
+        setPositionSmooth=function() end}
+    obj.setPosition=function(target)
+        eq(obj.use_hands,false,"temporarily disable TTS hand capture before moving")
         position={x=target.x or target[1],y=target.y or target[2],
             z=target.z or target[3]}
         moved[#moved+1]=guid
-    end,
-    -- A smooth move out of a TTS HandTrigger may be intercepted without
-    -- throwing. Deliberately do NOT move this mock on smooth motion.
-    setPositionSmooth=function() end}
+    end
+    return obj
 end
 local good=card("good",false)
 local existingWound=card("wound",true)
@@ -245,6 +249,7 @@ eq(moved[1],"good","ordinary hand card discarded")
 eq(moved[2],"stacked","mixed deck non-Wound discarded")
 eq(good.getPosition().x,2,"non-Wound hand card must escape HandTrigger")
 eq(good.getPosition().z,3,"non-Wound hand card reaches discard zone")
+eq(good.use_hands,true,"restore hand eligibility after discarding")
 -- Scripting Zone tag filters may exclude playable cards. Request the
 -- unfiltered contents when available.
 local tagFiltered=card("tagFiltered",false)
