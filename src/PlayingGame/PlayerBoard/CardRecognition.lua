@@ -9506,23 +9506,25 @@ local function renderSeat(seatPos)
     inspectZone(playerUnitAreas[seatPos],"unit")
     inspectZone(playerPlayAreas[seatPos],"play")
     -- A released source may be above the shallow zone despite its X/Z being
-    -- on the play mat. Recover only objects actually seen entering this play
-    -- area, never arbitrary nearby cards from elsewhere on the table.
-    local playCandidates=trackerPrivate.playCandidatesBySeat[seatPos] or {}
-    for guid in pairs(playCandidates) do
-        if placements[guid]~="play" then
-            local obj=getObjectFromGUID(guid)
-            if obj==nil or (obj.isDestroyed~=nil and obj.isDestroyed()) then
-                playCandidates[guid]=nil
-            elseif trackerPrivate.cardOverPlayMat(obj,seatPos) then
-                local kind=resourceObjectKind(obj)
-                if trackerPrivate.playCandidateKind(kind) then
-                    objects[guid]=obj
-                    placements[guid]="play"
-                    objectKinds[guid]=kind
+    -- on the play mat. Recover only previously seen/dropped play sources,
+    -- never arbitrary cards elsewhere on the table.
+    do
+        local playCandidates=trackerPrivate.playCandidatesBySeat[seatPos] or {}
+        for guid in pairs(playCandidates) do
+            if placements[guid]~="play" then
+                local obj=getObjectFromGUID(guid)
+                if obj==nil or (obj.isDestroyed~=nil and obj.isDestroyed()) then
+                    playCandidates[guid]=nil
+                elseif trackerPrivate.cardOverPlayMat(obj,seatPos) then
+                    local kind=resourceObjectKind(obj)
+                    if trackerPrivate.playCandidateKind(kind) then
+                        objects[guid]=obj
+                        placements[guid]="play"
+                        objectKinds[guid]=kind
+                    end
+                elseif not combatConfig.cardInTransit(obj) then
+                    playCandidates[guid]=nil
                 end
-            elseif not combatConfig.cardInTransit(obj) then
-                playCandidates[guid]=nil
             end
         end
     end
