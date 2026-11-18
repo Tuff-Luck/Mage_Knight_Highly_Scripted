@@ -17,6 +17,10 @@ trackerPrivate.bySeat={}
 trackerPrivate.playCandidatesBySeat={}
 -- Protect explicit options and targets from half-complete relocation scans.
 trackerPrivate.playCardMovements={}
+-- A completed drop already queues its authoritative resource refresh. TTS
+-- can report a second EnterZone for the same card as its Y falls into the
+-- thin zone; that event must not publish a second intermediate combat scan.
+trackerPrivate.finishedPlayDrops={}
 trackerPrivate.playCandidateKind=function(kind)
     return kind=="card" or kind=="skill" or kind=="factionReward"
 end
@@ -3965,8 +3969,26 @@ local function combatAssignmentRefreshRows(entries,sources)
             and source.psychicInfluence==0
         local influenceOnly=source.ranged+source.siege+source.block+source.attack==0
             and source.psychicInfluence>0 and source.move==0
-        -- Once locked, a source stays on its enemy until it is retargeted or its arrow is removed.
+        -- The physical assignment arrow is the persistent target lock. A
+        -- later zone-entry scan can carry a stale nearest-target guess in the
+        -- calculator state; never let it replace a still-valid single arrow.
         local targetGUID=combatAssignmentState.targets[source.key]
+        local existingTargets=attackAssignmentsTargetGUIDs(source.key)
+        local soleArrow,arrowCount=nil,0
+        for guid in pairs(existingTargets) do
+            if rowByGUID[guid]~=nil then
+                soleArrow,arrowCount=guid,arrowCount+1
+            end
+        end
+        if arrowCount==1 and targetGUID~=soleArrow then
+            targetGUID=soleArrow
+            combatAssignmentState.targets[source.key]=soleArrow
+            -- Keep a prior explicit choice when the source was manually
+            -- assigned. A recovered arrow is never a reason to auto-retarget.
+            if combatAssignmentState.explicit[source.key]==nil then
+                combatAssignmentState.explicit[source.key]=true
+            end
+        end
         if targetGUID==nil then
             -- Restore the saved visual assignment for every source after a reload.
             -- Move has no automatic target, while other resources use nearest-enemy only
@@ -12438,6 +12460,7 @@ local function clearAll()
     trackerPrivate.bySeat={}
     trackerPrivate.playCandidatesBySeat={}
     trackerPrivate.playCardMovements={}
+    trackerPrivate.finishedPlayDrops={}
     resourceCardScanBySeat={}
     combatConfig.bowSourceModes={}
     combatConfig.amuletMana={gold=false,black=false}
@@ -13641,6 +13664,7 @@ function resourceCardsObjectPickedUp(obj)
                     explicit=combatAssignmentState.explicit[sourceKey]==true}
             end
         end
+        trackerPrivate.finishedPlayDrops[obj.guid]=nil
         trackerPrivate.playCardMovements[obj.guid]={
             seatPos=seat,choice=selectedResourceByGUID[obj.guid],
             targets=savedTargets,posture=cardPosture(obj),
@@ -13725,6 +13749,16 @@ trackerPrivate.finishPlayCardMove=function(obj)
         -- Resume a single complete scan; normal drop handling determines
         -- whether this was a reposition or a genuine departure from play.
         resourceCardsObjectMoved(live,true)
+        if cardInSeatPlayArea(guid,state.seatPos) then
+            -- Suppress the matching delayed EnterZone once, not every later
+            -- zone entry. Expire this guard when TTS reports no duplicate.
+            trackerPrivate.finishedPlayDrops[guid]=state
+            safeWaitFrames("PlayerBoard.CardRecognition",function()
+                if trackerPrivate.finishedPlayDrops[guid]==state then
+                    trackerPrivate.finishedPlayDrops[guid]=nil
+                end
+            end,90)
+        end
         queueSeat(state.seatPos,nil)
     end
     safeWaitFrames("PlayerBoard.CardRecognition",sample,1)
@@ -13742,7 +13776,16 @@ function resourceCardsZoneEntered(ctx)
         trackerPrivate.choiceResetGenerationByGUID[ctx.objGUID]=
             (trackerPrivate.choiceResetGenerationByGUID[ctx.objGUID] or 0)+1
         trackerPrivate.playCandidatesBySeat[seat]=trackerPrivate.playCandidatesBySeat[seat] or {}
+        local known=trackerPrivate.playCandidatesBySeat[seat][ctx.objGUID]==true
         trackerPrivate.playCandidatesBySeat[seat][ctx.objGUID]=true
+        -- The drop has already performed the resource refresh. The later
+        -- EnterZone for the same card only confirms shallow-zone membership.
+        local completed=trackerPrivate.finishedPlayDrops[ctx.objGUID]
+        if known and completed~=nil and completed.seatPos==seat
+            and cardInSeatPlayArea(ctx.objGUID,seat) then
+            trackerPrivate.finishedPlayDrops[ctx.objGUID]=nil
+            return
+        end
         if trackerPrivate.playCardMovements[ctx.objGUID]==nil
             and ((ctx.obj.held_by_color~=nil and ctx.obj.held_by_color~="")
                 or ctx.obj.resting==false) then

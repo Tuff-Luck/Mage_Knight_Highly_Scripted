@@ -28,7 +28,7 @@ local zone={getObjects=function() return {} end,
     getBounds=function() return {center={x=0,z=0},size={x=12,z=12}} end}
 local states={rage={effect="block"}}
 local tracker={
-    playCandidatesBySeat={},playCardMovements={},choiceResetGenerationByGUID={},
+    playCandidatesBySeat={},playCardMovements={},finishedPlayDrops={},choiceResetGenerationByGUID={},
     playCandidateKind=function(kind) return kind=="card" end,
     readyForXZ=function() return true end
 }
@@ -69,7 +69,14 @@ frameCallbacks[1]()
 assert(#waits==0 and states.rage.effect=="block",
     "Reentry must invalidate queued exit reset before it runs")
 assert(queued==1,"Reentering should still request a resource scan")
+-- A completed onDrop was already calculated. TTS subsequently reports
+-- onEnterZone when that same card falls into the shallow scripting zone.
+-- This must NOT calculate a second time or override the selected target.
 pos.x,pos[1]=0,0
+tracker.finishedPlayDrops.rage={seatPos=1}
+onEnter({obj=card,objGUID="rage",objType="Card",zoneInfo={kind="play",seatPos=1}})
+assert(queued==1,"Late onEnter after onDrop must not recalculate")
+assert(tracker.finishedPlayDrops.rage==nil,"Consume only this duplicated entry")
 assert(states.rage.effect=="block","Card selection remains Block after reentry")
 -- A subsequent *real* removal, with no reentry, still retires that choice.
 pos.x,pos[1]=30,30

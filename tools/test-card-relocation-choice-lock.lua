@@ -43,7 +43,7 @@ local zone={
 local selected={rage={effect="attack"}}
 local targets={rage="left"}
 local tracker={choiceResetGenerationByGUID={},
-    playCardMovements={},
+    playCardMovements={},finishedPlayDrops={},
     playCandidatesBySeat={[1]={rage=true}},
     playCandidateKind=function(kind)
         return kind=="card" or kind=="skill" or kind=="factionReward"

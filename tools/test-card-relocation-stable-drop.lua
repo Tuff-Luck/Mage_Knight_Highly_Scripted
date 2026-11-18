@@ -32,7 +32,7 @@ assert(source:find("trackerPrivate.playCardMovements[obj.guid]~=nil then",1,true
 assert(source:find("resourceCardsObjectMoved(live,true)",1,true)
     and source:find('if not stabilized and obj.type~="Dice"',1,true),
     "Stable falling cards must not restart the relocation watcher")
-assert(source:find("trackerPrivate.playCardMovements={}\n    resourceCardScanBySeat={}",1,true),
+assert(source:find("trackerPrivate.playCardMovements={}\n    trackerPrivate.finishedPlayDrops={}\n    resourceCardScanBySeat={}",1,true),
     "Disabling tracker must cancel relocation watches")
 
 local pos={x=0,y=5,z=0,[1]=0,[2]=5,[3]=0}
@@ -54,7 +54,7 @@ local targets={rage="left"}
 local calculator={targets={rage="left"},explicit={rage=true}}
 local tracker={
     playCandidatesBySeat={[1]={rage=true}},bySeat={[1]={rage=true}},
-    playCardMovements={},choiceResetGenerationByGUID={},
+    playCardMovements={},finishedPlayDrops={},choiceResetGenerationByGUID={},
     playCandidateKind=function(kind) return kind=="card" end,
     readyForXZ=function(obj)
         return obj.held_by_color==nil and not obj.isSmoothMoving()
@@ -167,6 +167,7 @@ assert(dropCommits==0,"One stable rotation frame is insufficient")
 tick()
 assert(dropCommits==1,"Stable released card must reconcile exactly once")
 assert(tracker.playCardMovements.rage==nil,"Completed move must unblock scans")
+assert(tracker.finishedPlayDrops.rage~=nil,"Drop must suppress duplicate enter-zone scan")
 assert(conditions[1].predicate()==true,"Real release must unblock reset check")
 conditions[1].callback()
 checkChoice()
