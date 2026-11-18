@@ -271,8 +271,13 @@ getObjectFromGUID=function(guid)
         or guid=="discard" and discardZone or nil
 end
 gStates.combatWoundApplication=nil
+local oldDiscardWound=card("oldDiscardWound",true)
+discardZone.getObjects=function() return {oldDiscardWound} end
 handObjects={existingWound}
 eq(combatConfig.combatOtherWounds(1),0,"start-of-combat existing Wound ignored")
+handObjects={existingWound,oldDiscardWound}
+eq(combatConfig.combatOtherWounds(1),0,
+    "retrieving an old discard Wound is not new combat damage")
 local costWound=card("costWound",true)
 handObjects={existingWound,costWound}
 eq(combatConfig.combatOtherWounds(1),1,"card-cost Wound is counted")
