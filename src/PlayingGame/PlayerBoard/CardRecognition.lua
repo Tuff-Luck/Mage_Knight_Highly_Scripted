@@ -5137,6 +5137,18 @@ local function combatAssignmentRefreshRows(entries,sources)
                         ..(item.source.dodgeIneligible and
                             " unavailable: the Hero took Wounds before the Attack phase"
                             or (item.wounded and " can't apply 'Wounded'" or "")))
+                    -- Cold Toughness's powered icon bonus is automatic. Explain
+                    -- its printed Arcane Immunity exception on the Block source icon.
+                    local coldToughness=seatScan~=nil and seatScan.cards["79bfbd"] or nil
+                    if item.source.guid=="79bfbd" and item.typeKey=="I"
+                        and coldToughness~=nil and coldToughness.powered==true then
+                        local printedEnemy=monsterPugs[entry.guid]
+                        if printedEnemy~=nil and printedEnemy.arcaneImmunity==true then
+                            tooltip=tooltip.."\nCold Toughness: Ice Block 5 + 0 icon bonus (Arcane Immunity)."
+                        else
+                            tooltip=tooltip.."\nCold Toughness: Ice Block 5 + 1 per printed enemy ability, attack type or resistance icon (automatic)."
+                        end
+                    end
                     if item.paralysisCard then
                         tooltip=tooltip.."\nParalysis: the Hero takes a Paralyzing Wound"
                             .." before Attack, discarding non-Wound hand cards."
