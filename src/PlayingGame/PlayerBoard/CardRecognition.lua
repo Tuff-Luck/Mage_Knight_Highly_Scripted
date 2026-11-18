@@ -2465,6 +2465,18 @@ combatConfig.combatOtherWounds=function(seat)
             end
         end
         if ledger.initialCombatWounds==nil then
+            -- Wounds already owned in the Deed deck or discard pile are old
+            -- cards, not new combat damage if a card effect retrieves them.
+            -- These zones are baseline-only: newly dealt Poison discards
+            -- must never enter the Hero's combat knockout count.
+            for _,zoneGUID in ipairs({
+                deedDeckZones~=nil and deedDeckZones[seat] or nil,
+                deedDeckDiscardZones~=nil and deedDeckDiscardZones[seat] or nil}) do
+                local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
+                if zone~=nil then
+                    for _,obj in ipairs(zone.getObjects() or {}) do inspect(obj) end
+                end
+            end
             ledger.initialCombatWounds=seen
         else
             for guid in pairs(seen) do
