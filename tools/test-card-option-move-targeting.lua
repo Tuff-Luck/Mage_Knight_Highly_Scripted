@@ -185,4 +185,31 @@ assert(registered.manual~=nil and targetState.targets[other]==enemyGUID
     "Selecting an already-active Move choice must preserve manual targeting")
 assert(rescanCount>0 and redraws>0 and recordsCleared>0,
     "Changing Move choices should update the card and calculator")
+-- A queued/stale target button cannot clear a Block source that has
+-- already been committed by the Damage phase.
+local lockedArrow={id="lock",sourceGUID="cafe01",targetGUID=enemyGUID}
+local lockedRegistry={lock=lockedArrow}
+local mutations=0
+local lockedEnv={
+    assignmentRegistry=lockedRegistry,
+    Player={Red={}},
+    safeCallback=function(_,fn) return fn() end,
+    resourceCardsPlayerCanEdit=function() return true end,
+    resourceCardsPanelOpen=function() return true end,
+    getObjectFromGUID=function() return {guid="cafe01"} end,
+    combatCommittedSource=function(key) return key=="cafe01" end,
+    persistAssignments=function() mutations=mutations+1 end,
+    resourceCardsCombatForgetSource=function() mutations=mutations+1 end,
+    attackAssignmentsBegin=function() mutations=mutations+1 end,
+    resourceCardsSourceChanged=function() mutations=mutations+1 end
+}
+setmetatable(lockedEnv,{__index=_G})
+local lockedClick=assert(load(slice(arrows,
+    "function attackAssignmentSourceClicked(player,value,id)",
+    "-- The Ambush button is reusable")..
+    "\nreturn attackAssignmentSourceClicked","Committed targeting guard","t",lockedEnv))()
+lockedClick({color="Red"},"-1","AttackAssignmentSource_cafe01_0_block")
+assert(lockedRegistry.lock==lockedArrow and mutations==0,
+    "A locked combat source must not lose its arrow or calculator assignment")
+
 print("Generic Move-option targeting regression passed")
