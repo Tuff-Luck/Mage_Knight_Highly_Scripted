@@ -1494,9 +1494,10 @@ local function combatCalcUpdate(monsters)
     return on
 end
 
--- A token lifted above a short scripting zone is still part of the current combat.
--- Remember only enemies already seen on the active board; never pull in arbitrary
--- held enemies from elsewhere on the table. This is runtime-only and seat-scoped.
+-- A shallow zone can miss an enemy that was just dropped above it.
+-- Recover ONLY enemies previously observed in this seat's combat areas.
+-- Held/smooth enemies remain visible; released ones must still be over
+-- either combat zone in X/Z. Otherwise real departures leave combat normally.
 local combatTrackedSeat=nil
 local combatTrackedEnemies={}
 local function combatKeepHeldEnemies(seatPos,monsters,playMonsters)
@@ -1509,17 +1510,36 @@ local function combatKeepHeldEnemies(seatPos,monsters,playMonsters)
             combatTrackedEnemies[guid]=playMonsters[guid]~=nil
         end
     end
+    local playZone=nil
+    local unitZone=nil
     for guid,wasInPlay in pairs(combatTrackedEnemies) do
         if monsters[guid]==nil then
             local obj=getObjectFromGUID(guid)
-            if obj~=nil and not obj.isDestroyed()
-                and ((obj.held_by_color~=nil and obj.held_by_color~="")
-                    or obj.isSmoothMoving()) then
-                monsters[guid]=obj
-                if wasInPlay then playMonsters[guid]=obj end
-            else
-                -- On a settled drop outside the combat zones, stop retaining it.
+            if obj==nil or obj.isDestroyed() then
                 combatTrackedEnemies[guid]=nil
+            else
+                -- The source may be released before zone.getObjects() sees
+                -- its new Y position. Check the zone's actual transform
+                -- footprint, never its zero-sized scripting-zone bounds.
+                if playZone==nil and playerPlayAreas[seatPos]~=nil then
+                    playZone=getObjectFromGUID(playerPlayAreas[seatPos])
+                end
+                if unitZone==nil and playerUnitAreas[seatPos]~=nil then
+                    unitZone=getObjectFromGUID(playerUnitAreas[seatPos])
+                end
+                local overPlay=trackerPrivate.zoneFootprintContainsXZ(obj,playZone)
+                local overUnit=trackerPrivate.zoneFootprintContainsXZ(obj,unitZone)
+                local held=obj.held_by_color~=nil and obj.held_by_color~=""
+                if held or obj.isSmoothMoving() or overPlay or overUnit then
+                    monsters[guid]=obj
+                    local inPlay=overPlay or (wasInPlay and not overUnit)
+                    if inPlay then playMonsters[guid]=obj end
+                    combatTrackedEnemies[guid]=inPlay
+                else
+                    -- A genuinely removed token must not leave a ghost
+                    -- enemy or permanently lock an invalid assignment.
+                    combatTrackedEnemies[guid]=nil
+                end
             end
         end
     end
@@ -7698,21 +7718,12 @@ local function clearChoiceButtons()
     combatConfig.cardButtonIds={}
 end
 
--- The play scripting zone is shallow. A dropped card can be directly above
--- the play mat in X/Z but absent from zone.getObjects() until it falls.
-trackerPrivate.cardOverPlayMat=function(obj,seatPos)
-    if obj==nil or seatPos==nil
-        or (obj.isDestroyed~=nil and obj.isDestroyed())
-        or (obj.held_by_color~=nil and obj.held_by_color~="")
-        or obj.isSmoothMoving() then return false end
-    local zoneGUID=playerPlayAreas~=nil and playerPlayAreas[seatPos] or nil
-    local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
-    -- Scripting zones have no dependable collider bounds. In TTS,
-    -- getBounds().size can be zero even when the trigger's actual area is
-    -- large; using it falsely marks every released card as outside play.
-    -- A scripting zone's transform scale gives its real X/Z footprint.
-    local center=zone~=nil and zone.getPosition() or nil
-    local size=zone~=nil and zone.getScale() or nil
+-- Read a scripting zone's transform, not its (potentially zero-sized)
+-- collider bounds. Sharing this X/Z test keeps Card, Skill, Reward and enemy
+-- recovery consistent, including rotated play and unit zones.
+trackerPrivate.zoneFootprintContainsXZ=function(obj,zone)
+    if obj==nil or zone==nil then return false end
+    local center,size=zone.getPosition(),zone.getScale()
     if center==nil or size==nil then return false end
     local pos=obj.getPosition()
     local x,z=pos.x or pos[1],pos.z or pos[3]
@@ -7720,7 +7731,6 @@ trackerPrivate.cardOverPlayMat=function(obj,seatPos)
     local width,depth=size.x or size[1],size.z or size[3]
     if x==nil or z==nil or cx==nil or cz==nil
         or width==nil or depth==nil or width<=0 or depth<=0 then return false end
-    -- Compare in the zone's local X/Z axes, so rotated play areas work too.
     local rotation=zone.getRotation~=nil and zone.getRotation() or nil
     local yaw=math.rad(rotation~=nil and (rotation.y or rotation[2]) or 0)
     local cosYaw,sinYaw=math.cos(yaw),math.sin(yaw)
@@ -7728,6 +7738,18 @@ trackerPrivate.cardOverPlayMat=function(obj,seatPos)
     local localX=dx*cosYaw-dz*sinYaw
     local localZ=dx*sinYaw+dz*cosYaw
     return math.abs(localX)<width*0.5 and math.abs(localZ)<depth*0.5
+end
+
+-- A dropped play source can be above the shallow zone while still in play.
+-- Held/smooth sources are not counted until released.
+trackerPrivate.cardOverPlayMat=function(obj,seatPos)
+    if obj==nil or seatPos==nil
+        or (obj.isDestroyed~=nil and obj.isDestroyed())
+        or (obj.held_by_color~=nil and obj.held_by_color~="")
+        or obj.isSmoothMoving() then return false end
+    local zoneGUID=playerPlayAreas~=nil and playerPlayAreas[seatPos] or nil
+    local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
+    return trackerPrivate.zoneFootprintContainsXZ(obj,zone)
 end
 
 -- Reset a player's explicit choice only after the card has actually left
