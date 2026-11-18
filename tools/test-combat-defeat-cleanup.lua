@@ -100,16 +100,13 @@ env.attachEnemy=function(_,_,mode,obj)
     equal(obj.guid,"possessed","Only defeated attached monster detaches")
     detachments=detachments+1
 end
-local prep=assert(load(slice("local function combatPreEndTurnPreparePlayArea(cleanupPlayer,recovery)",
-    "local function combatTrackReturningObject(state,obj)")..
-    "\nreturn combatPreEndTurnPreparePlayArea","cleanup preparation","t",env))()
 -- Production's release routine is local to Combat.lua; this isolated test
 -- supplies it as an upvalue-compatible local alias.
 local prepareCode=slice("local function combatPreEndTurnPreparePlayArea(cleanupPlayer,recovery)",
     "local function combatTrackReturningObject(state,obj)")
 prepareCode="local combatReleaseAllSummonedEnemies = _ENV.combatReleaseAllSummonedEnemies\n"..
     prepareCode.."\nreturn combatPreEndTurnPreparePlayArea"
-prep=assert(load(prepareCode,"cleanup preparation","t",env))()
+local prep=assert(load(prepareCode,"cleanup preparation","t",env))()
 local destination,settle=prep(1,env.gStates.combatPreEndTurnRecovery)
 equal(destination,nil,"No discard destination")
 equal(next(settle)~=nil,true,"Defeated possessed separation must settle")
