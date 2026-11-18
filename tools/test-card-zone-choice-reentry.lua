@@ -28,7 +28,7 @@ local zone={getObjects=function() return {} end,
     getBounds=function() return {center={x=0,z=0},size={x=12,z=12}} end}
 local states={rage={effect="block"}}
 local tracker={
-    playCandidatesBySeat={},playCardMovements={},finishedPlayDrops={},choiceResetGenerationByGUID={},
+    playCandidatesBySeat={},bySeat={},playCardMovements={},finishedPlayDrops={},choiceResetGenerationByGUID={},
     playCandidateKind=function(kind) return kind=="card" end,
     readyForXZ=function() return true end
 }

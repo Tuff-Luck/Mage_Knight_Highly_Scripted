@@ -1447,8 +1447,7 @@ local function combatSourceKeepsLock(key)
     if obj==nil or next(attackAssignmentsTargetGUIDs(key))==nil then return false end
     local held=obj.held_by_color
     return (held~=nil and held~="") or obj.isSmoothMoving()
-        or (obj.type=="Card" and obj.resting==false
-            and trackerPrivate.cardOverPlayMat~=nil
+        or (obj.type=="Card" and trackerPrivate.cardOverPlayMat~=nil
             and trackerPrivate.cardOverPlayMat(obj,combatAssignmentActiveSeat()))
 end
 
@@ -13808,24 +13807,22 @@ function resourceCardsZoneEntered(ctx)
         trackerPrivate.choiceResetGenerationByGUID[ctx.objGUID]=
             (trackerPrivate.choiceResetGenerationByGUID[ctx.objGUID] or 0)+1
         trackerPrivate.playCandidatesBySeat[seat]=trackerPrivate.playCandidatesBySeat[seat] or {}
-        local known=trackerPrivate.playCandidatesBySeat[seat][ctx.objGUID]==true
-        trackerPrivate.playCandidatesBySeat[seat][ctx.objGUID]=true
-        -- The drop has already performed the resource refresh. The later
-        -- EnterZone for the same card only confirms shallow-zone membership.
-        local completed=trackerPrivate.finishedPlayDrops[ctx.objGUID]
-        if known and completed~=nil and completed.seatPos==seat
-            and cardInSeatPlayArea(ctx.objGUID,seat) then
+        local candidates=trackerPrivate.playCandidatesBySeat[seat]
+        local previous=trackerPrivate.bySeat[seat]
+        local alreadyPlayed=candidates[ctx.objGUID]==true
+            or (previous~=nil and previous[ctx.objGUID]==true)
+            or trackerPrivate.playCardMovements[ctx.objGUID]~=nil
+        candidates[ctx.objGUID]=true
+        if alreadyPlayed then
+            -- TTS emits EnterZone again when a relocated card falls through
+            -- the thin zone. That is not a new play or another pickup.
+            -- onObjectDrop owns its one reconciliation, even if the zone
+            -- entry happens before the drop's final callback.
             trackerPrivate.finishedPlayDrops[ctx.objGUID]=nil
             return
         end
-        if trackerPrivate.playCardMovements[ctx.objGUID]==nil
-            and ((ctx.obj.held_by_color~=nil and ctx.obj.held_by_color~="")
-                or ctx.obj.resting==false) then
-            resourceCardsObjectPickedUp(ctx.obj)
-            if ctx.obj.held_by_color==nil or ctx.obj.held_by_color=="" then
-                trackerPrivate.finishPlayCardMove(ctx.obj)
-            end
-        end
+        -- For a genuinely new play, queue its first scan normally. Do not
+        -- infer an ObjectPickUp from resting=false on zone entry.
     end
     if ctx.zoneInfo.kind=="play" and gameCards[ctx.objGUID]~=nil
         and gStates~=nil then
@@ -13848,11 +13845,18 @@ function resourceCardsZoneLeft(ctx)
     if not resourceCardsPanelOpen() or ctx==nil or ctx.zoneInfo==nil then return end
     local seat=resourceCardsRelevantZone(ctx)
     if ctx.zoneInfo.kind=="play" then
+        if ctx.obj~=nil and trackerPrivate.playCandidateKind(resourceObjectKind(ctx.obj))
+            and (combatConfig.cardInTransit(ctx.obj)
+                or cardInSeatPlayArea(ctx.objGUID,ctx.zoneInfo.seatPos)) then
+            -- This is a transient exit of a card still being moved or
+            -- physically over the play mat, not an ended play. Crucially,
+            -- do not schedule a delayed choice reset here: onDrop owns the
+            -- final departure check, and reentry may occur after the timer.
+            return
+        end
         scheduleChoiceResetAfterPlay(ctx.objGUID,ctx.zoneInfo.seatPos)
     end
     if seat==nil then return end
-    -- Do not redraw Unit buttons while a crystal is lifted from a thin zone.
-    -- A complete scan will reconcile its actual settled payment and targets.
     queueSeat(seat,ctx.objGUID)
 end
 
