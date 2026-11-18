@@ -41,7 +41,7 @@ assert(assets:find('target={name="MKTargetIcon",url=',1,true),
 -- Exercise the actual combat enemy counter on face-up, face-down, summoned,
 -- reminder, and multiple enemy cases.
 local calcCode=slice(source,"local function combatCalcUpdate(monsters)",
-    "-- A token lifted above a short scripting zone")
+    "-- A shallow zone can miss an enemy that was just dropped above it.")
 local env={
     gStates={monsterPerks={}},
     trackerPrivate={},
