@@ -1837,7 +1837,14 @@ function combatDiscardParalyzedHand(seat,ownerColor)
         end
     end
     if hasHandSource then
-        for _,obj in ipairs(hand.getObjects() or {}) do include(obj) end
+        -- Scripting zones with tag filters otherwise hide legitimate hand
+        -- cards. The player's physical hand must be inspected unfiltered.
+        local ok,objects=pcall(hand.getObjects,true)
+        if not ok then
+            ok,objects=pcall(hand.getObjects)
+        end
+        if not ok then return false,"Could not inspect the scripting hand zone",0 end
+        for _,obj in ipairs(objects or {}) do include(obj) end
     end
     local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
     if current~=nil and current.seatPos==seat and Player~=nil then
@@ -1894,10 +1901,25 @@ function combatDiscardParalyzedHand(seat,ownerColor)
     local movedGUIDs={}
     for _,entry in ipairs(transfers) do
         if entry.object~=nil then
-            local ok=pcall(entry.object.setPositionSmooth,
-                {x,y+2+0.07*(moved%5),z},false,false)
+            -- IMPORTANT: TTS reclaims objects that start a smooth move
+            -- inside a player's HandTrigger. The card appears to twitch,
+            -- returns to the hand, and the prior code falsely committed
+            -- the discard. Teleport directly OUT of the hand instead.
+            local target={x,y+2+0.07*(moved%5),z}
+            local ok=entry.object.setPosition~=nil
+                and pcall(entry.object.setPosition,target)
             if not ok then
                 return false,"A hand card could not be moved to discard",moved,movedGUIDs
+            end
+            -- Verify the immediate world position. A successful Lua call
+            -- alone does not prove the card escaped the HandTrigger.
+            if entry.object.getPosition~=nil then
+                local got,position=pcall(entry.object.getPosition)
+                if not got or position==nil
+                    or math.abs((position.x or position[1])-x)>1
+                    or math.abs((position.z or position[3])-z)>1 then
+                    return false,"A hand card is still in the hand",moved,movedGUIDs
+                end
             end
             movedGUIDs[#movedGUIDs+1]=entry.object.guid
             moved=moved+1
