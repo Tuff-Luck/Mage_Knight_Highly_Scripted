@@ -2352,7 +2352,7 @@ Einheiten</Text></Cell>
 		<Panel id="CombatTotalRow" active="false" preferredHeight="22" color="rgba(0,0,0,0)" outlineSize="0 0">
 			<Text id="CombatDamagePhasePrompt" class="Text14" fontSize="13" color="White" rectAlignment="UpperRight" offsetXY="-213 -4" width="200" height="18" alignment="MiddleRight" raycastTarget="false">Perform Damage Phase →</Text>
 			<Panel id="CombatWoundSummary" rectAlignment="UpperRight" offsetXY="0 -4" width="205" height="36" color="rgba(0,0,0,0)" outlineSize="0 0">
-				<Button id="CombatApplyWounds" onClick="resourceTracker" rectAlignment="UpperCenter" width="205" height="18" color="rgb(0.48,0.36,0.20)" tooltip="Deal Hero Wounds to hand and Poison Wounds to discard">
+				<Button id="CombatApplyWounds" onClick="resourceTracker" rectAlignment="UpperCenter" width="205" height="18" color="rgb(0.48,0.36,0.20)">
 					<Text id="CombatTotalDamage" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" rectAlignment="MiddleCenter" width="205" height="18" alignment="MiddleLeft" raycastTarget="false"/>
 				</Button>
 				<Text id="CombatKnockoutWarning" active="false" class="Text12" fontSize="12" color="#FF5555" rectAlignment="UpperCenter" offsetXY="0 -18" width="205" height="18" alignment="MiddleLeft"/>

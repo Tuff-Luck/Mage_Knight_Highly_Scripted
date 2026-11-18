@@ -137,7 +137,13 @@ function onLoad(saved_data)
 		validatePublicUICallbacks()
 		resourceCardsRegisterIconAssets()
 		local loadedData=nil
-		if type(saved_data)=="string" and saved_data~="" then loadedData=JSON.decode(saved_data) end
+		if type(saved_data)=="string" and saved_data~="" then
+			local ok,decoded=pcall(JSON.decode,saved_data)
+			if not ok or type(decoded)~="table" then
+				error("Could not decode saved Mage Knight game: "..tostring(decoded),0)
+			end
+			loadedData=decoded
+		end
 		-- Global lines survive TTS rewinds while the movement display's runtime
 		-- snapshot does not. Remove only old map route overlays before UI restores.
 		moveDisplayDiscardSavedRouteLines()
@@ -153,14 +159,11 @@ function onLoad(saved_data)
 		safeWaitFrames("Callbacks",function()
 			coralDrawChoiceRestoreState(loadedData~=nil and loadedData.coralDrawPending or nil)
 		end,5)
-		safeWaitFrames("Callbacks",function() attackAssignmentsRestore() end,4)
 		safeWaitFrames("Callbacks",function()
 			monsterReplenishTranslationRefresh()
 			artifactOfferRewardTextRefresh()
 			siteDescriptionTranslationRefresh()
 			deedOfferArrowTextRefresh()
-			-- Recreate runtime card buttons if a saved tracker was already open.
-			if resourceCardsPanelOpen() then resourceCardsPanelChanged(true) end
 		end,2)
 		return result
 	end)
@@ -895,6 +898,39 @@ end
 
 local protectedExpectedScriptRemovals={}
 local protectedUnexpectedDestroyReported={}
+-- Keep a short, token-specific lifecycle trail. The generic recent-callback list
+-- cannot tell whether a missing turn-order token fell, entered a bag, or was
+-- deleted by setup/cleanup. This history exists only while this script runs.
+local protectedTurnOrderTokenTrail={}
+local protectedTurnOrderTokenSequence=0
+local function protectedTurnOrderTokenObjectState(obj)
+	if obj==nil then return "object=nil" end
+	local ok,description=pcall(function()
+		local p=obj.getPosition()
+		local position=p~=nil and string.format("(%.2f,%.2f,%.2f)",
+			tonumber(p.x or p[1]) or 0,tonumber(p.y or p[2]) or 0,
+			tonumber(p.z or p[3]) or 0) or "unknown"
+		return "type="..tostring(obj.type).." position="..position
+			.." resting="..tostring(obj.resting)
+	end)
+	return ok and description or "object state unavailable: "..tostring(description)
+end
+local function protectedTurnOrderTokenRecord(guid,event,obj)
+	if type(guid)~="string" or protectedObjectKind(guid)~="Round Order token" then return end
+	protectedTurnOrderTokenSequence=protectedTurnOrderTokenSequence+1
+	local history=protectedTurnOrderTokenTrail[guid] or {}
+	history[#history+1]=tostring(protectedTurnOrderTokenSequence)..". "..event.." "
+		..protectedTurnOrderTokenObjectState(obj)
+	if #history>8 then table.remove(history,1) end
+	protectedTurnOrderTokenTrail[guid]=history
+end
+function protectedTurnOrderTokenSetup(obj,sourceBag,position)
+	if obj==nil then return end
+	local intended=position~=nil and table.concat(position,",") or "unknown"
+	protectedTurnOrderTokenRecord(obj.guid,
+		"Setup took token from cloned bag="..tostring(sourceBag and sourceBag.guid)
+			.." intended position=("..intended..")",obj)
+end
 -- The game intentionally moves certain protected pieces into Trash: tactics at round end,
 -- and Volkare when his scenario ends. The permit is scoped to that destination and expires.
 function protectedObjectAllowScriptRemoval(guid,containerGUID,reason)
@@ -958,7 +994,9 @@ local function protectedObjectDestroyAudit(guid)
 					.." round="..tostring(gStates.currentRound)
 					.." turn="..tostring(gStates.turnNumber)
 					.."\nProtected removal permit: none"
-					.."\nLookup after 2 frames: NOT FOUND")
+					.."\nLookup after 2 frames: NOT FOUND"
+					.."\nToken lifecycle:\n"..(protectedTurnOrderTokenTrail[guid]~=nil
+						and table.concat(protectedTurnOrderTokenTrail[guid],"\n") or "No token events captured"))
 		end
 	end,2)
 end
@@ -1082,6 +1120,25 @@ end
 -- Event Handling functions
 ---------------
 --Save and load settings
+local function loadPersistedGameState(saved_data,loaded_data)
+    if type(saved_data)~="string" or saved_data=="" then return end
+    if type(loaded_data)~="table" or type(loaded_data.turnOrder)~="table"
+        or type(loaded_data.gStates)~="table" then
+        error("Saved game is missing its turn order or game state.",2)
+    end
+    turnOrder=loaded_data.turnOrder
+    gStates=loaded_data.gStates
+    if type(gStates.positionMageKnight)~="table" then
+        error("Saved game is missing Mage Knight seat configuration.",2)
+    end
+    -- Older saves may predate optional scenario maps and tracking metadata.
+    -- Do not replace false/zero flags or invent any historical game decisions.
+    for _,field in ipairs({"hexOverideSave","ambushingMonsters","pursuingMonsters"}) do
+        if gStates[field]==nil then gStates[field]={} end
+    end
+    gStates.seatTeams=gStates.seatTeams or {0,0,0,0}
+end
+
 function eventsOnLoadRawBase(saved_data, loaded_data)
 	cacheScenarioTweakDefaults()
 	local megaFreeze=  {"3d4319", "519f96",	playerBoard[1], playerBoard[2], playerBoard[3], playerBoard[4], dummyBoard, "a02b0f"}--player mats
@@ -1093,12 +1150,10 @@ function eventsOnLoadRawBase(saved_data, loaded_data)
 	for _, seat in pairs(Player.getAvailableColors()) do
 		Player[seat].setHandTransform({position={Player[seat].getHandTransform().position[1], 3.1, -48.4}, scale={18, 3.8, 1}}, 1)
 	end
-	--load saved data
-	if saved_data~="" then
-		loaded_data=loaded_data or JSON.decode(saved_data)
-		turnOrder=loaded_data.turnOrder
-		gStates=loaded_data.gStates
-	end
+	-- Recover deliberate player choices before any UI/Combat restoration runs.
+	loadPersistedGameState(saved_data,loaded_data)
+	resourceCardsChoicesRestore()
+	attackAssignmentsDamageRestore()
 	gStates.seatTeams=gStates.seatTeams or {0,0,0,0}
 	resetGlobalUIVisibility()
 	--Refresh saved Puppets so presentation changes (decal/hover data) also apply to existing accepted Puppets.
@@ -1126,7 +1181,7 @@ function eventsOnLoadRawBase(saved_data, loaded_data)
 	safeWaitCondition("Events",function() refreshTableExtensionUI() end,function() return tableExtensionUIReady()==true end,5)
 	-----------
 	refreshResourceTrackerText()--Refresh the tracker from saved values so TTS resolves its language tags on load.
-    safeWaitFrames("Events",function() resourceCardsOnLoad() end,4)
+    safeWaitFrames("Events",function() resourceCardsOnLoad(true) end,4)
     safeWaitFrames("Events",function() callOfferRestoreOnLoad() end,4)
     safeWaitFrames("Events",function() trainingOfferRestoreOnLoad() end,4)
     safeWaitFrames("Events",function() magicTalentRestoreOnLoad() end,5)
@@ -1290,13 +1345,19 @@ function eventsOnLoadRawBase(saved_data, loaded_data)
 		normalizeSetupTableObjects()
 		for seatPos=1,4 do scheduleUnitLayoutRefresh(seatPos) end
 
-		--stop unit wound creep and keep units cards under all the tokens.
+		-- Keep existing Unit/Wound position repairs without moving objects already correct.
 		for _, obj in pairs(getObjects()) do
+			local card=gameCards[obj.guid]
 			if obj.getGMNotes()=="Unit Wound" then
-				obj.setPosition({obj.getPosition()[1], obj.getPosition()[2], -33.29})
-			end
-			if gameCards[obj.guid]~=nil and (gameCards[obj.guid].cardType=="Regular Unit" or gameCards[obj.guid].cardType=="Elite Unit") then
-				obj.setPosition({obj.getPosition()[1], 1.09, obj.getPosition()[3]})
+				local pos=obj.getPosition()
+				if math.abs(pos[3]+33.29)>0.005 then
+					obj.setPosition({pos[1],pos[2],-33.29})
+				end
+			elseif card~=nil and (card.cardType=="Regular Unit" or card.cardType=="Elite Unit") then
+				local pos=obj.getPosition()
+				if math.abs(pos[2]-1.09)>0.005 then
+					obj.setPosition({pos[1],1.09,pos[3]})
+				end
 			end
 		end
 		--A rewind taken immediately before the round reset restores this checkpoint, but not the callback
@@ -1312,6 +1373,8 @@ function onSave()
 	return safeCallback("onSave",function()
 		saveZigguratPyramidUI()
 		saveSetupState()
+		resourceCardsChoicesSave()
+		attackAssignmentsDamageSave()
 		local data_to_save={
 			turnOrder=turnOrder,
 			gStates=gStates,
@@ -1371,9 +1434,11 @@ end
 function __onObjectPickUp_raw(player_color, picked_up_object)
 	picked_up_object=eventsLiveObject(picked_up_object)
 	if picked_up_object==nil then return end
+	protectedTurnOrderTokenRecord(picked_up_object.guid,"Player picked up token: "..tostring(player_color),picked_up_object)
     if picked_up_object.guid=="2eb8e8" then callOfferSpellPickedUp() end
     trainingOfferCardPickedUp(player_color,picked_up_object)
     magicTalentCardPickedUp(player_color,picked_up_object)
+    resourceCardsObjectPickedUp(picked_up_object)
 	attackAssignmentsObjectMoved(picked_up_object)
 	if picked_up_object~=nil and mapTokenNeedsArrangement~=nil and mapTokenNeedsArrangement(picked_up_object)==true then
 		mapTokenReleaseObject(picked_up_object)
@@ -1476,6 +1541,7 @@ end
 function __onObjectDrop_raw(player_color, dropped_object)
 	dropped_object=eventsLiveObject(dropped_object)
 	if dropped_object==nil then return end
+	protectedTurnOrderTokenRecord(dropped_object.guid,"Player dropped token: "..tostring(player_color),dropped_object)
 	-- Start a carried crystal's burst before more expensive drop processing.
 	-- Position-sensitive tracker work still waits for physics to settle.
 	if dropped_object.guid~=nil then
@@ -1705,6 +1771,7 @@ end
 --fix for new objects getting existing GUID, and update competative skill location
 function __onObjectSpawn_raw(spawn_object)
 	if spawn_object==nil or spawn_object.isDestroyed() or spawn_object.guid==nil then return end
+	protectedTurnOrderTokenRecord(spawn_object.guid,"onObjectSpawn",spawn_object)
 	applyAltViewAngle(spawn_object)
 	if puppetMasterManualCopyDropEligible~=nil and puppetMasterManualCopyDropEligible(spawn_object)==true then puppetMasterCheckManualCopyWhenResting(spawn_object) end
 	--code stops objects getting a GUID of a registered object.
@@ -1776,6 +1843,7 @@ function __onObjectDestroy_raw(destroyedObj)
 	if destroyedObj==nil then return end
 	attackAssignmentsClearForObject(destroyedObj)
 	local destroyedGuid=destroyedObj.guid
+	protectedTurnOrderTokenRecord(destroyedGuid,"onObjectDestroy",destroyedObj)
     -- A deliberately destroyed Unit must not leave old activation and Ready
     -- links behind. Do not erase its Command's spent state until a NEW Unit
     -- is recruited into that capacity.
@@ -1934,7 +2002,7 @@ local function settledZoneContainsGUID(zone,objGUID)
 	return false
 end
 
-local function scheduleSettledZoneEntry(ctx,callback,channel)
+local function scheduleSettledZoneEntry(ctx,callback,channel,positionOnly)
 	if ctx==nil or callback==nil then return end
 	local zoneGUID=ctx.zoneGUID
 	local objGUID=ctx.objGUID
@@ -1955,7 +2023,15 @@ local function scheduleSettledZoneEntry(ctx,callback,channel)
 	safeWaitCondition("Events.zoneSettle."..tostring(channel or "default"),dispatchSettled,function()
 		if settledZoneEntrySerial[key]~=serial then return true end
 		local liveObj=getObjectFromGUID(objGUID)
-		return liveObj==nil or (liveObj.resting==true and liveObj.isSmoothMoving()==false)
+		if liveObj==nil then return true end
+		if positionOnly==true then
+			-- X/Z placement is meaningful after release, even while falling.
+			-- Dice and scripted smooth movement remain deferred.
+			return (liveObj.held_by_color==nil or liveObj.held_by_color=="")
+				and liveObj.isSmoothMoving()==false
+				and (liveObj.type~="Dice" or liveObj.resting==true)
+		end
+		return liveObj.resting==true and liveObj.isSmoothMoving()==false
 	end,10,function()
 		if settledZoneEntrySerial[key]~=serial then return end
 		local liveObj=getObjectFromGUID(objGUID)
@@ -2035,7 +2111,7 @@ local function handleStartedZoneEnterPrelude(ctx)
 					if enteredSkill.skillType=="Coop" or enteredSkill.skillType=="Comp" then activateCoopCompSkill(liveGUID, playerIndex) end
 				end
 			end
-		end,"started")
+		end,"started",true)
 	end
 end
 
@@ -2396,7 +2472,13 @@ local function handlePlayerBoardZoneEnter(ctx)
             scheduleSettledZoneEntry(ctx,function(liveCtx)
                 liveCtx.settledPlayerZoneEntry=true
                 playerBoardZoneEnterSettled(liveCtx)
-            end,"playerBoard")
+            end,"playerBoard",ctx.objType~="Deck"
+                and ctx.objType~="Dice"
+                and zoneInfo.kind~="crystal"
+                and ctx.objGUID~=GUID.card.bannerOfCommandToken
+                and ctx.objGUID~=GUID.skill.masterOfChaos
+                and not (gameCards[ctx.objGUID]~=nil
+                    and gameCards[ctx.objGUID].half~=nil))
         end
 		return false
 	end
@@ -2476,7 +2558,8 @@ function __onObjectEnterZone_raw(zone, obj)
                 callOfferSpellEntered(ctx.objGUID,seat)
             end,function()
                 local spell=getObjectFromGUID("2eb8e8")
-                return spell==nil or (spell.resting and spell.isSmoothMoving()==false)
+                return spell==nil or ((spell.held_by_color==nil or spell.held_by_color=="")
+                    and spell.isSmoothMoving()==false)
             end,8)
         end
     end
@@ -2672,6 +2755,8 @@ local function containerShufflesOnEntry(guid)
 end
 
 function __onObjectEnterContainer_raw(bag, obj)
+	if obj~=nil then protectedTurnOrderTokenRecord(obj.guid,
+		"Entered container="..tostring(bag and bag.guid),obj) end
 	attackAssignmentsClearForObject(obj)
 	if obj~=nil and runtimeMapContainsGUID(obj.guid)==true then
 		if terrainTiles[obj.guid]~=nil then runtimeMapInvalidateTerrain() else runtimeMapInvalidateObjects() end
@@ -2772,6 +2857,7 @@ function __onObjectLeaveContainer_raw(bag, obj)
 	obj=eventsLiveObject(obj)
 	if obj==nil then return end
 	bag=eventsLiveObject(bag)
+	protectedTurnOrderTokenRecord(obj.guid,"Left container="..tostring(bag and bag.guid),obj)
 	if bag~=nil and obj~=nil and bag.guid==GUID.bag.apocalypseQuestTokens then
 		if gStates.apocalypseQuestTokenGUIDs==nil or gStates.apocalypseQuestTokenInBag==nil then apocalypseQuestTokenBagSetup() end
 		if gStates.apocalypseQuestTokenGUIDs[obj.guid]==true then gStates.apocalypseQuestTokenInBag[obj.guid]=false end
@@ -7122,7 +7208,15 @@ function rollerOnSave()
     for guid, state in pairs(rollerState) do
         local dice = {}
         for _, die in ipairs(state.dice or {}) do
-            if die ~= nil then dice[#dice + 1] = die.getGUID() end
+            -- A player may have deleted a displayed die since it was rolled.
+            -- TTS invalid object references can throw even while non-nil.
+            local ok, dieGUID=pcall(function()
+                if die==nil or die.isDestroyed() then return nil end
+                return die.getGUID()
+            end)
+            if ok and type(dieGUID)=="string" and dieGUID~="" then
+                dice[#dice+1]=dieGUID
+            end
         end
         savedState[guid] = dice
     end
@@ -13794,7 +13888,7 @@ function horsemanResolveDefeat(token,playerIndex,coopCombatReward)
 	--frame so combat cleanup can finish iterating its current play-area snapshot safely.
 	local survivingHorseGUID=state.horseGUID
 	local survivingHorse=survivingHorseGUID~=nil and getObjectFromGUID(survivingHorseGUID) or nil
-	if survivingHorse~=nil and survivingHorse.is_face_down==true then
+	if survivingHorse~=nil and combatEnemyTokenDefeated(survivingHorse)~=true then
 		safeWaitFrames("Horsemen",function()
 			local currentState=gStates.horsemen~=nil and gStates.horsemen[name] or nil
 			if currentState~=nil and currentState.horseGUID==survivingHorseGUID then horsemanDiscardLinkedHorse(name) end
@@ -15521,7 +15615,8 @@ function apocalypseDragonGroundResolveToken(obj)
 		return true
 	end
 
-	if obj.is_face_down==false and apocalypseDragonGroundTokenInPlayerArea(obj.guid,owner)==true then
+	if (combatEnemyTokenDefeated(obj)==true or combatBossPartialRewardEligible(obj.guid)==true)
+		and apocalypseDragonGroundTokenInPlayerArea(obj.guid,owner)==true then
 		local headLevels=gStates.apocalypseDragonHeadLevels or {}
 		local current=tonumber(headLevels[headName]) or 0
 		local reduction=math.min(current,apocalypseDragonGroundReduction(headName))
@@ -22673,7 +22768,8 @@ local function activeVisualLines()
 		local source=getObjectFromGUID(assignmentBaseGUID(entry.sourceGUID))
 		local target=getObjectFromGUID(entry.targetGUID)
         local lock=combatCommittedLock~=nil and combatCommittedLock() or nil
-        local frozen=lock~=nil and (lock.positions or {})[entry.sourceGUID] or nil
+        local frozen=lock~=nil and (lock.sourceKeys or {})[entry.sourceGUID]==true
+            and (lock.positions or {})[entry.sourceGUID] or nil
         if frozen~=nil then
             -- A frozen arrow stays on the play-area location even when the
             -- physical card is retrieved, stacked, or moved to the hand.
@@ -22797,17 +22893,47 @@ local function vectorLineSignature(lines)
 	return table.concat(parts,";")
 end
 
+-- Share the exact eligibility test between the Ruthless Coercion control
+-- and the physical Unit click targets. A Command spent on an earlier turn
+-- may have no current activation history, but can still be readied.
+local function readyUnitCandidates(seat,levelLimit)
+    local candidates={}
+    if seat==nil then return candidates end
+    local state=unitLayoutResourceState(seat)
+    local layout=nil
+    for _,entry in ipairs(state~=nil and state.units or {}) do
+        local data=gameCards~=nil and gameCards[entry.guid] or nil
+        if not entry.ready and entry.unwounded
+            and (levelLimit==nil
+                or (data~=nil and (tonumber(data.level) or math.huge)<=levelLimit)) then
+            local spent=unitHistoryUses(entry.guid)[1]~=nil
+            if not spent and resourceUnitsCommandSpent~=nil then
+                layout=layout or unitLayoutSnapshot(seat)
+                for _,token in ipairs(layout~=nil and layout.commands or {}) do
+                    if resourceUnitsCommandSpent(token.guid) then
+                        local unit=unitLayoutCommandTarget(token,seat)
+                        if unit~=nil and unit.guid==entry.guid then
+                            spent=true
+                            break
+                        end
+                    end
+                end
+            end
+            if spent then candidates[entry.guid]=entry.unit end
+        end
+    end
+    return candidates
+end
+
+function attackAssignmentsHasReadyTarget(seat,levelLimit)
+    return next(readyUnitCandidates(seat,levelLimit))~=nil
+end
+
 local function syncReadyUnitButtons()
     local candidates={}
-    for color,pending in pairs(readyUnitPending) do
-        local state=unitLayoutResourceState(pending.seat)
-        for _,entry in ipairs(state~=nil and state.units or {}) do
-            local data=gameCards~=nil and gameCards[entry.guid] or nil
-            if not entry.ready and entry.unwounded
-                and (pending.limit==nil or (data~=nil and data.level<=pending.limit))
-                and unitHistoryUses(entry.guid)[1]~=nil then
-                candidates[entry.guid]=entry.unit
-            end
+    for _,pending in pairs(readyUnitPending) do
+        for guid,obj in pairs(readyUnitCandidates(pending.seat,pending.limit)) do
+            candidates[guid]=obj
         end
     end
     for guid,obj in pairs(candidates) do
@@ -23298,6 +23424,42 @@ function attackAssignmentsDamageSnapshot()
     return result
 end
 
+-- Uncommitted Unit allocations cannot be reconstructed from the physical table.
+-- Persist the player's ordered targets only; enemy damage and eligible Units are
+-- recalculated from the live combat area and validated on the first tracker scan.
+function attackAssignmentsDamageSave()
+    if gStates==nil then return end
+    if combatCommittedLock()~=nil then
+        gStates.combatDamageDraft=nil -- Committed damage already lives in the phase lock.
+        return
+    end
+    local snapshot=attackAssignmentsDamageSnapshot()
+    gStates.combatDamageDraft=next(snapshot.targets)~=nil
+        and {turn=gStates.turnNumber,targets=snapshot.targets} or nil
+end
+
+function attackAssignmentsDamageRestore()
+    damageTargets={}
+    damagePending=nil -- Pointer-targeting is transient, not a saved player decision.
+    damageSignature=""
+    local draft=gStates~=nil and gStates.combatDamageDraft or nil
+    if type(draft)~="table" or draft.turn~=gStates.turnNumber
+        or type(draft.targets)~="table" or combatCommittedLock()~=nil then return end
+    for key,guids in pairs(draft.targets) do
+        if type(key)=="string" and type(guids)=="table" then
+            local targets,seen={},{}
+            for _,guid in ipairs(guids) do
+                if type(guid)=="string" and seen[guid]~=true
+                    and getObjectFromGUID(guid)~=nil then
+                    targets[#targets+1]=guid
+                    seen[guid]=true
+                end
+            end
+            if #targets>0 then damageTargets[key]=targets end
+        end
+    end
+end
+
 function attackAssignmentsDamageTargetsOf(key)
 	return damageTargets[key] or {}
 end
@@ -23780,6 +23942,9 @@ function attackAssignmentSourceClicked(player,value,id)
 		rowIndex=tonumber(rowIndex)
 		local resource=rowIndex>0 and ("set"..rowIndex..":"..category) or category
 		local sourceKey=part~=nil and (guid.."#"..part) or guid
+        -- A stale TTS button must not erase a committed arrow before
+        -- attackAssignmentsBegin gets its own phase-lock check.
+        if combatCommittedSource(sourceKey) then return end
 		if part~=nil then resource=resource.."@"..part end
 		local color=player~=nil and player.color or nil
 		local source=guid~=nil and getObjectFromGUID(guid) or nil
@@ -24690,12 +24855,16 @@ local function combatReleaseSummonedEnemy(token)
 end
 
 local function combatReleaseAllSummonedEnemies()
+	local changed={}
 	for guid in pairs(gStates.summonedEnemyScales or {}) do
 		local token=getObjectFromGUID(guid)
-		if token~=nil then combatReleaseSummonedEnemy(token) end
+		if token~=nil and combatReleaseSummonedEnemy(token)==true then changed[guid]=true end
 	end
+	-- Unlocking suspended neighbours also changes their physics state.
+	for guid in pairs(gStates.summonLiftedTokens or {}) do changed[guid]=true end
 	-- End-turn and site-abandonment cleanup must release any suspended neighbours too.
 	if combatSummonReleaseOccupants~=nil then combatSummonReleaseOccupants() end
+	return changed
 end
 
 local function combatDiscardMonster(playAreaObj, giveRewards, context)
@@ -24704,11 +24873,12 @@ local function combatDiscardMonster(playAreaObj, giveRewards, context)
 	local cleanupPlayer=context.player or gStates.turnNumber
 	if cleanupPlayer==nil or turnOrder[cleanupPlayer]==nil then return false end
 	local monsterGUID=playAreaObj.guid
+	local defeated=combatEnemyTokenDefeated(playAreaObj)
 	local monsterData=monsterPugs[monsterGUID]
 	if monsterData==nil then return false end
 	if gStates.apocalypseQuestGoblinEnemies~=nil and gStates.apocalypseQuestGoblinEnemies[monsterGUID]~=nil then
 		--Goblin Warrens enemies come from an Infinite Bag and are not members of a normal discard cycle.
-		apocalypseQuestGoblinRecordCleanup(monsterGUID,playAreaObj.is_face_down==false)
+		apocalypseQuestGoblinRecordCleanup(monsterGUID,defeated)
 		gStates.apocalypseQuestGoblinEnemies[monsterGUID]=nil
 		if gStates.monsterPerks~=nil then gStates.monsterPerks[monsterGUID]=nil end
 		if gStates.attackedMonsters~=nil then gStates.attackedMonsters[monsterGUID]=nil end
@@ -24726,7 +24896,7 @@ local function combatDiscardMonster(playAreaObj, giveRewards, context)
 	local summoned=gStates.summonStates~=nil and gStates.summonStates[monsterGUID]=="summoned"
 
 	if route.faction=="Dark" or route.faction=="Elem" then
-		if giveRewards==true and summoned~=true and playAreaObj.is_face_down==false then
+		if giveRewards==true and summoned~=true and defeated then
 			local reward=combatFactionRewards[route.faction]
 			local claimed,reason=awardFactionRewardToken(cleanupPlayer,reward.pile,context.coopCombatReward,reward.key)
 			if claimed~=true and reason=="empty" then
@@ -24737,19 +24907,19 @@ local function combatDiscardMonster(playAreaObj, giveRewards, context)
 	elseif route.possessed==true then
 		local possessedFaction=(gStates.apocalypsePossessedFactionByToken~=nil and gStates.apocalypsePossessedFactionByToken[monsterGUID]) or "Apoc"
 		local reward=combatFactionRewards[possessedFaction] or combatFactionRewards.Apoc
-		if giveRewards==true and summoned~=true and playAreaObj.is_face_down==false then
+		if giveRewards==true and summoned~=true and defeated then
 			local claimed,reason=awardFactionRewardToken(cleanupPlayer,reward.pile,context.coopCombatReward,reward.key)
 			if claimed~=true and reason=="empty" then broadcastToAll("{en}Sorry, there are no more Faction Reward Tokens to claim.{it}Non restano segnalini Ricompensa di Fazione.{ru}Извините, жетонов наград фракции больше не осталось.{zh-tw}抱歉，沒有更多派系獎勵標記可供領取。{zh-cn}抱歉，没有更多派系奖励标记可供领取。{ko}죄송합니다. 획득할 수 있는 세력 보상 토큰이 더 이상 없습니다.{es}Lo sentimos, no quedan fichas de recompensa de facción por reclamar.{fr}Désolé, il ne reste plus de jetons de récompense de faction à réclamer.{pt-br}Desculpe, não restam fichas de recompensa da facção para reivindicar.{de}Es sind keine Fraktionsbelohnungsmarker mehr zum Beanspruchen übrig.",positionToColor(cleanupPlayer)) end
 		end
 		if gStates.apocalypsePossessedFactionByToken~=nil then gStates.apocalypsePossessedFactionByToken[monsterGUID]=nil end
 	end
 
-	if giveRewards==true and playAreaObj.is_face_down==false and horsemanHorseOwner~=nil and horsemanHorseOwner(monsterGUID)~=nil then
+	if giveRewards==true and defeated and horsemanHorseOwner~=nil and horsemanHorseOwner(monsterGUID)~=nil then
 		horsemanResolveHorseDefeat(monsterGUID)
 	end
 
 	for cityguid, monsters in pairs(gStates.cityMonsterQty) do
-		if monsters[monsterGUID]~=nil then
+		if monsters[monsterGUID]~=nil and defeated then
 			monsters[monsterGUID]="dead"
 			if monsters.extra~=nil and (monsters.extra.megapolisPair==nil or monsters.extra.megapolisPair~=cityguid) then
 				local cityZoneObj=combatCityZones[cityguid]~=nil and getObjectFromGUID(combatCityZones[cityguid]) or nil
@@ -24775,18 +24945,18 @@ local function combatDiscardMonster(playAreaObj, giveRewards, context)
 		end
 	end
 
-	if monsterData.pugType=="yellow" and monsterData.fame>0 then gStates.crytalRuin=true end
+	if defeated and monsterData.pugType=="yellow" and monsterData.fame>0 then gStates.crytalRuin=true end
 	local cleanupLocation=turnOrder[cleanupPlayer].avatarLocation or ""
 	local avatarPos=context.avatarPos or {}
 	local suppressConquerHoldSiteShield=false
 	local holdAssault=gStates.conquerHoldAssault
 	if holdAssault~=nil and holdAssault.mage==turnOrder[cleanupPlayer].mage and holdAssault.site==cleanupLocation and holdAssault.monsters[monsterGUID]==true then
-		if playAreaObj.is_face_down==false then holdAssault.defeated[monsterGUID]=true end
+		if defeated then holdAssault.defeated[monsterGUID]=true end
 		local conquered=0
 		for _,yes in pairs(holdAssault.defeated) do if yes then conquered=conquered+1 end end
 		suppressConquerHoldSiteShield=conquered<holdAssault.expected
 	end
-	if playAreaObj.is_face_down==false and not suppressConquerHoldSiteShield and gStates.druidNightsSummon==nil and
+	if defeated and not suppressConquerHoldSiteShield and gStates.druidNightsSummon==nil and
 		(gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[monsterGUID]~=true) and (
 		(monsterData.pugType=="gray" and cleanupLocation=="keep") or
 		(monsterData.pugType=="yellow" and cleanupLocation=="ruin") or
@@ -24834,7 +25004,7 @@ local function combatDiscardMonster(playAreaObj, giveRewards, context)
 		end
 	end
 
-	if playAreaObj.is_face_down==false and monsterData.pugType=="tan" and cleanupLocation=="spawning grounds" then
+	if defeated and monsterData.pugType=="tan" and cleanupLocation=="spawning grounds" then
 		context.spawningGroundMonstersBeat=(context.spawningGroundMonstersBeat or 0)+1
 	end
 	if gStates.gameScenario=="Mines Liberation" or gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The Hidden Valley Blitz" then
@@ -25194,46 +25364,49 @@ function manaClaimReturnHeldDice()
 end
 
 local function combatPreEndTurnPreparePlayArea(cleanupPlayer,recovery)
-	--locate discard deck
+	-- Locate the discard pile, which can legitimately be a Deck. An unexpected Deck
+	-- in the *play area* is different: leave it intact and do not process its cards.
 	local cardDestination=nil
 	for _, deckSearch in pairs(getObjectFromGUID(deedDeckDiscardZones[turnOrder[cleanupPlayer].seatPos]).getObjects()) do
 		if deckSearch.type=="Card" or deckSearch.type=="Deck" then cardDestination=deckSearch break end
 	end
 
-	--Release summons before either a summoner or its children can be moved or discarded.
-	combatReleaseAllSummonedEnemies()
-	--separate any decks and possessed tokens found. Unit Area monsters use the same combat cleanup path.
+	-- Releasing summons, lifted neighbours and Possessed attachments can disturb
+	-- otherwise stable objects. Only those changed objects need a settling check.
+	local released=combatReleaseAllSummonedEnemies()
 	local combatObjects=playerCombatObjects(turnOrder[cleanupPlayer].seatPos)
 	manaClaimRegisterForTurn(cleanupPlayer)
-	if recovery~=nil and recovery.playAreaPrepared==true then return cardDestination,#combatObjects>0 and 40 or 0 end
-	local tokenWait=0
+	local pendingSettle={}
+	local alreadyPrepared=recovery~=nil and recovery.playAreaPrepared==true
 	for _, playAreaObj in pairs(combatObjects) do
-		combatDefeatFlipUndefeated(playAreaObj)
-		--separate decks
-		if playAreaObj.type=="Deck" then
-			for count=1, #playAreaObj.getObjects()-1, 1 do
-				playAreaObj.takeObject({position={playAreaObj.getPosition()[1]+(0.8*count), playAreaObj.getPosition()[2]+(0.06*count), playAreaObj.getPosition()[3]+(0.8*count)}, smooth=false})
-			end
-		end
-		--Separate possessed tokens only after the base enemy was actually defeated.
-		--An undefeated face-down rampager returns to the map with its possession still attached.
-		if playAreaObj.getAttachments()[1]~=nil and playAreaObj.is_face_down==false and (combatDefeatCleanupSnapshot==nil or combatDefeatCleanupSnapshot[playAreaObj.guid]~=true) then
-			local destroyedSiteRewards=againstApocalypseRampagerDestroyedSiteRewards~=nil and againstApocalypseRampagerDestroyedSiteRewards(playAreaObj) or 0
-			if destroyedSiteRewards>0 then
-				local destroyedBag=getObjectFromGUID(GUID.bag.destroyedSite)
-				if destroyedBag~=nil then
-					for _=1,destroyedSiteRewards do
-						destroyedBag.takeObject({position={(turnOrder[cleanupPlayer].seatPos*40)-117.2+(math.random()*6.5), 2, -35+(math.random()*3.2)}})
+		if playAreaObj.type~="Deck" then
+			if released[playAreaObj.guid]==true then pendingSettle[playAreaObj.guid]=true end
+			if alreadyPrepared~=true then
+				-- A defeated Possessed enemy must separate before its pieces are cleaned up.
+				-- An undefeated enemy keeps its attachment even if both tokens are face up.
+				local attachments=playAreaObj.getAttachments()
+				if attachments[1]~=nil and combatEnemyTokenDefeated(playAreaObj)==true then
+					pendingSettle[playAreaObj.guid]=true
+					for _, attached in ipairs(attachments) do
+						if attached.guid~=nil then pendingSettle[attached.guid]=true end
 					end
+					local destroyedSiteRewards=againstApocalypseRampagerDestroyedSiteRewards~=nil and againstApocalypseRampagerDestroyedSiteRewards(playAreaObj) or 0
+					if destroyedSiteRewards>0 then
+						local destroyedBag=getObjectFromGUID(GUID.bag.destroyedSite)
+						if destroyedBag~=nil then
+							for _=1,destroyedSiteRewards do
+								destroyedBag.takeObject({position={(turnOrder[cleanupPlayer].seatPos*40)-117.2+(math.random()*6.5), 2, -35+(math.random()*3.2)}})
+							end
+						end
+					end
+					-- Automated separation must not reverse Fame already earned from this enemy.
+					attachEnemy(nil,nil,"detachCleanup",playAreaObj,nil)
 				end
 			end
-			--Automated separation must not reverse Fame already earned from the defeated enemy.
-			attachEnemy(nil, nil, "detachCleanup", playAreaObj, nil)
 		end
-		tokenWait=40
 	end
 	if recovery~=nil then recovery.playAreaPrepared=true end
-	return cardDestination,tokenWait
+	return cardDestination,pendingSettle
 end
 
 local function combatTrackReturningObject(state,obj)
@@ -25403,8 +25576,12 @@ local function combatCleanupPreEndTurnUnitArea(cleanupPlayer,recovery)
 	end
 end
 
-local function combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatReward,tokenRaised,avatarPos,avatarModel,cardDestination,tokenWait,recovery)
-	safeWaitFrames("Combat",function()
+local function combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatReward,tokenRaised,avatarPos,avatarModel,cardDestination,pendingSettle,recovery)
+	local started=false
+	local function beginCleanup()
+		if started==true or gStates.preEndTurn~=true or turnOrder[cleanupPlayer]==nil then return end
+		started=true
+		local tokenWait=0
 		--Get objects from player area to clean them up
 		local state={
 			returningObjects={},
@@ -25415,143 +25592,152 @@ local function combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatRe
 		--Goblin Warrens is resolved by the normal monster-cleanup result below. Fresh Goblins begin
 		--face up, so checking them here would incorrectly count an untouched/failed fight as success.
 		for _, playAreaObj in pairs(playerCombatObjects(turnOrder[cleanupPlayer].seatPos)) do
-			local cleanupObjectGUID=playAreaObj.guid
-			safeWaitFrames("Combat",function()
-				if recovery~=nil then
-					recovery.processedObjects=recovery.processedObjects or {}
-					if recovery.processedObjects[cleanupObjectGUID]==true then return end
-					recovery.processedObjects[cleanupObjectGUID]=true
-				end
-				--Returning an airborne Dragon head restores its real image with reload(), which invalidates
-				--the old TTS Object userdata for all four captured head objects. Identify them by GUID before
-				--touching that userdata, return the set once, and stop this object's ordinary cleanup here.
-				local dragonAirborneCleanup=againstDragonFullAttendInProgress~=nil and againstDragonFullAttendInProgress(cleanupPlayer)==true and againstDragonAirborneHeadGUID~=nil and againstDragonAirborneHeadGUID(cleanupObjectGUID)==true
-				if dragonAirborneCleanup==true then
-					againstDragonReturnAirborneHeads()
-					--The avatar is still raised at this cleanup boundary. Resolve site protection now so
-					--the Destroyed Site marker can settle underneath it before the avatar comes back down.
-					local pendingDragonAttack=gStates~=nil and gStates.apocalypseDragonPendingAttack or nil
-					if againstDragonResolveAirborneProtection~=nil then againstDragonResolveAirborneProtection(pendingDragonAttack) end
-					return
-				end
-				playAreaObj=getObjectFromGUID(cleanupObjectGUID)
-				if playAreaObj==nil then return end
-
-				-- A multi-defender Ruin is conquered only after the FINAL defender.
-				-- Return its revealed token beside survivors; do not send it to the
-				-- Ruin discard or award a premature adventure-site Shield/reward.
-				local ruinPosition=recovery~=nil and recovery.ruinReturns
-					and recovery.ruinReturns[cleanupObjectGUID] or nil
-				if ruinPosition~=nil then
-					combatTrackReturningObject(state,playAreaObj)
-					playAreaObj.setRotation({0,180,0})
-					playAreaObj.setPositionSmooth(ruinPosition,false,false)
-					return
-				end
-
-				--Return any Mana dice
-				if playAreaObj.type=="Dice" and not manaClaimDieHeld(playAreaObj.guid) then
-					combatReturnPreEndTurnDie(cleanupPlayer,playAreaObj.guid)
-				end
-
-				--Delete wound tokens, shards and face up potions.
-				if playAreaObj.getGMNotes()=="Unit Wound" or playAreaObj.getGMNotes()=="Volkare Reminder Token" or playAreaObj.getGMNotes()=="Trap Reminder Token" or playAreaObj.getGMNotes()=="Oasis Reminder Token" or
-					scriptObjectId(playAreaObj)=="Green Shard" or scriptObjectId(playAreaObj)=="Red Shard" or scriptObjectId(playAreaObj)=="Blue Shard" or scriptObjectId(playAreaObj)=="White Shard" or
-					((scriptObjectId(playAreaObj)=="Green Potion" or scriptObjectId(playAreaObj)=="Red Potion" or scriptObjectId(playAreaObj)=="Blue Potion" or scriptObjectId(playAreaObj)=="White Potion") and playAreaObj.is_face_down==false) or
-					(playAreaObj.getName()=="" and playAreaObj.type=="Tile" and monsterPugs[playAreaObj.guid]==nil) then
-					getObjectFromGUID(trashCan).putObject(playAreaObj)
-				end
-
-				--Return face down Potion
-				if ((scriptObjectId(playAreaObj)=="Green Potion" or scriptObjectId(playAreaObj)=="Red Potion" or scriptObjectId(playAreaObj)=="Blue Potion" or scriptObjectId(playAreaObj)=="White Potion") and playAreaObj.is_face_down==true) then
-					if gStates.mageSkills[playAreaObj.guid]~=nil then playAreaObj.setPositionSmooth(gStates.mageSkills[playAreaObj.guid],false,false) end
-				end
-
-				--Mark mine monster as defeated
-				for _, monsters in pairs(gStates.mineMonsterQty) do
-					if monsters[playAreaObj.guid]~=nil and playAreaObj.is_face_down==false then
-						monsters[playAreaObj.guid]="dead"
-						break
+			-- Deck objects brought into the play area are not played cards. Ignore them.
+			if playAreaObj.type~="Deck" then
+				local cleanupObjectGUID=playAreaObj.guid
+				safeWaitFrames("Combat",function()
+					if recovery~=nil then
+						recovery.processedObjects=recovery.processedObjects or {}
+						if recovery.processedObjects[cleanupObjectGUID]==true then return end
+						recovery.processedObjects[cleanupObjectGUID]=true
 					end
-				end
-
-				local dragonGroundCleanup=apocalypseDragonGroundCombatForPlayer~=nil and apocalypseDragonGroundCombatForPlayer(cleanupPlayer)==true and apocalypseDragonGroundCombatToken~=nil and select(1,apocalypseDragonGroundCombatToken(playAreaObj.guid))==true
-				if dragonGroundCleanup==true then
-					apocalypseDragonGroundResolveToken(playAreaObj)
-					apocalypseDragonGroundTryApplyLevelsBeforeRewards(cleanupPlayer)
-					return
-				end
-
-				--Return undefeated face down tokens
-				if monsterPugs[playAreaObj.guid]~=nil and playAreaObj.is_face_down==true and dragonGroundCleanup~=true then
-					if gStates.monsterPlayLocation[playAreaObj.guid]==nil or turnOrder[cleanupPlayer].avatarLocation=="spawning grounds" then
-						--if manual drawn assign the avatar location as return spot.
-						if (gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[playAreaObj.guid]~=true) and gStates.summonStates[playAreaObj.guid]~="summoned" and (turnOrder[cleanupPlayer].avatarLocation=="monster den" or turnOrder[cleanupPlayer].avatarLocation=="spawning grounds" or turnOrder[cleanupPlayer].avatarLocation=="ruin") then
-							gStates.monsterPlayLocation[playAreaObj.guid]={avatarPos[1], 2.5, avatarPos[3]}
-						end
+					--Returning an airborne Dragon head restores its real image with reload(), which invalidates
+					--the old TTS Object userdata for all four captured head objects. Identify them by GUID before
+					--touching that userdata, return the set once, and stop this object's ordinary cleanup here.
+					local dragonAirborneCleanup=againstDragonFullAttendInProgress~=nil and againstDragonFullAttendInProgress(cleanupPlayer)==true and againstDragonAirborneHeadGUID~=nil and againstDragonAirborneHeadGUID(cleanupObjectGUID)==true
+					if dragonAirborneCleanup==true then
+						againstDragonReturnAirborneHeads()
+						--The avatar is still raised at this cleanup boundary. Resolve site protection now so
+						--the Destroyed Site marker can settle underneath it before the avatar comes back down.
+						local pendingDragonAttack=gStates~=nil and gStates.apocalypseDragonPendingAttack or nil
+						if againstDragonResolveAirborneProtection~=nil then againstDragonResolveAirborneProtection(pendingDragonAttack) end
+						return
 					end
-					if gStates.monsterPlayLocation[playAreaObj.guid]~=nil then
+					playAreaObj=getObjectFromGUID(cleanupObjectGUID)
+					if playAreaObj==nil then return end
+
+					-- A multi-defender Ruin is conquered only after the FINAL defender.
+					-- Return its revealed token beside survivors; do not send it to the
+					-- Ruin discard or award a premature adventure-site Shield/reward.
+					local ruinPosition=recovery~=nil and recovery.ruinReturns
+						and recovery.ruinReturns[cleanupObjectGUID] or nil
+					if ruinPosition~=nil then
 						combatTrackReturningObject(state,playAreaObj)
-						if gStates.pursuingMonsters[turnOrder[cleanupPlayer].mage]~=nil and gStates.pursuingMonsters[turnOrder[cleanupPlayer].mage][playAreaObj.guid]~=nil then
-							local pursuit=gStates.pursuingMonsters[turnOrder[cleanupPlayer].mage][playAreaObj.guid]
-							pursuit.state="Stunned" pursuit.stunned=true
-							playAreaObj.setRotation({0, 180, 0})
-							broadcastToAll(joinLang({translateWord[turnOrder[cleanupPlayer].mage],"{en} Stunned the Pursuing Rampager (Skips next turns Movement){it} ha Stordito il Nemico Inseguitore (salta il Movimento del prossimo turno){ru} «оглушает» преследователя (тот пропускает одно Движение){zh-tw} 暈眩了狂暴追擊者（它會跳過下次移動）{zh-cn}晕眩了狂暴追击者(它跳过下次行动){ko}: 추적하는 적 기절시킴. (다음 추적 단계 건너뜀.){es} Aturdido al agresor que lo persigue (se salta el movimiento del siguiente turno){fr} Étourdi le saccageur à la poursuite (ignore le mouvement des tours suivants){pt-br} Atordoou o Irascível Perseguidor (Pule próximos turnos de movimento).{de} hat den Verfolger betäubt (überspringt die Bewegung des nächsten Zuges)"}), positionToColor(cleanupPlayer))
-						else
-							local returningMonsterGUID=playAreaObj.guid
-							safeWaitTime("Combat",function()
-								local returningMonster=getObjectFromGUID(returningMonsterGUID)
-								if returningMonster~=nil then returningMonster.setRotation({0,180,0}) end
-							end,3)--long enough to have traveled back to the board.
+						playAreaObj.setRotation({0,180,0})
+						playAreaObj.setPositionSmooth(ruinPosition,false,false)
+						return
+					end
+
+					--Return any Mana dice
+					if playAreaObj.type=="Dice" and not manaClaimDieHeld(playAreaObj.guid) then
+						combatReturnPreEndTurnDie(cleanupPlayer,playAreaObj.guid)
+					end
+
+					--Delete wound tokens, shards and face up potions.
+					if playAreaObj.getGMNotes()=="Unit Wound" or playAreaObj.getGMNotes()=="Volkare Reminder Token" or playAreaObj.getGMNotes()=="Trap Reminder Token" or playAreaObj.getGMNotes()=="Oasis Reminder Token" or
+						scriptObjectId(playAreaObj)=="Green Shard" or scriptObjectId(playAreaObj)=="Red Shard" or scriptObjectId(playAreaObj)=="Blue Shard" or scriptObjectId(playAreaObj)=="White Shard" or
+						((scriptObjectId(playAreaObj)=="Green Potion" or scriptObjectId(playAreaObj)=="Red Potion" or scriptObjectId(playAreaObj)=="Blue Potion" or scriptObjectId(playAreaObj)=="White Potion") and playAreaObj.is_face_down==false) or
+						(playAreaObj.getName()=="" and playAreaObj.type=="Tile" and monsterPugs[playAreaObj.guid]==nil) then
+						getObjectFromGUID(trashCan).putObject(playAreaObj)
+					end
+
+					--Return face down Potion
+					if ((scriptObjectId(playAreaObj)=="Green Potion" or scriptObjectId(playAreaObj)=="Red Potion" or scriptObjectId(playAreaObj)=="Blue Potion" or scriptObjectId(playAreaObj)=="White Potion") and playAreaObj.is_face_down==true) then
+						if gStates.mageSkills[playAreaObj.guid]~=nil then playAreaObj.setPositionSmooth(gStates.mageSkills[playAreaObj.guid],false,false) end
+					end
+
+					--Mark mine monster as defeated.
+					for _, monsters in pairs(gStates.mineMonsterQty) do
+						if monsters[playAreaObj.guid]~=nil and combatEnemyTokenDefeated(playAreaObj)==true then
+							monsters[playAreaObj.guid]="dead"
+							break
 						end
-						if gStates.coopAssaultPhase=="combat" and coopAssaultTargetType()=="horsemen" and horsemanTokenToName~=nil and horsemanTokenToName[playAreaObj.guid]~=nil then
-							--Each Horseman is assigned to exactly one participant; a survivor returns to its Portal-card slot.
-							playAreaObj.setRotation({0,180,0})
-							playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid],false,false)
-							combatTrackReturningObject(state,playAreaObj)
-						elseif gStates.coopAssaultPhase=="combat" and coopAssaultTargetType()=="leader" and factionLeaderForToken(playAreaObj.guid)~=nil then
-							factionLeaderReturnUnbeatenCoopToken(playAreaObj)
-						elseif getObjectFromGUID(turnOrder[nextTurnMerged("nextMage")].turnOrderTokenGUID).is_face_down==true and playAreaObj.getRotationValues()[2]==nil then
-							--Move to next players play area.
-							playAreaObj.setPositionSmooth({turnOrder[nextTurnMerged("nextMage")].seatPos*40-100, 1.5, -39.41},false,false)
-						else
-							if turnOrder[cleanupPlayer].avatarLocation=="spawning grounds" and (gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[playAreaObj.guid]~=true) then
-								gStates.monsterPlayLocation[playAreaObj.guid][1]=gStates.monsterPlayLocation[playAreaObj.guid][1]-0.22+(state.spawningGroundMonstersReturned*0.44)
-								gStates.monsterPlayLocation[playAreaObj.guid][2]=gStates.monsterPlayLocation[playAreaObj.guid][2]+(state.spawningGroundMonstersReturned*0.12)
-								state.spawningGroundMonstersReturned=state.spawningGroundMonstersReturned+1
+					end
+
+					local dragonGroundCleanup=apocalypseDragonGroundCombatForPlayer~=nil and apocalypseDragonGroundCombatForPlayer(cleanupPlayer)==true and apocalypseDragonGroundCombatToken~=nil and select(1,apocalypseDragonGroundCombatToken(playAreaObj.guid))==true
+					if dragonGroundCleanup==true then
+						apocalypseDragonGroundResolveToken(playAreaObj)
+						apocalypseDragonGroundTryApplyLevelsBeforeRewards(cleanupPlayer)
+						return
+					end
+
+					-- Return surviving enemies using the calculator's recorded result, or
+					-- the manual face-down convention when the calculator was closed.
+					local enemyRegistered=monsterPugs[playAreaObj.guid]~=nil
+					local enemyDefeated=enemyRegistered and combatEnemyTokenDefeated(playAreaObj)==true
+					local enemyPartial=enemyRegistered and combatBossPartialRewardEligible(playAreaObj.guid)==true
+					if enemyRegistered and not enemyDefeated and not enemyPartial and dragonGroundCleanup~=true then
+						if gStates.monsterPlayLocation[playAreaObj.guid]==nil or turnOrder[cleanupPlayer].avatarLocation=="spawning grounds" then
+							--if manual drawn assign the avatar location as return spot.
+							if (gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[playAreaObj.guid]~=true) and gStates.summonStates[playAreaObj.guid]~="summoned" and (turnOrder[cleanupPlayer].avatarLocation=="monster den" or turnOrder[cleanupPlayer].avatarLocation=="spawning grounds" or turnOrder[cleanupPlayer].avatarLocation=="ruin") then
+								gStates.monsterPlayLocation[playAreaObj.guid]={avatarPos[1], 2.5, avatarPos[3]}
 							end
-							if gStates.monsterPerks[playAreaObj.guid]~=nil and gStates.monsterPerks[playAreaObj.guid].wallFortified~=nil then setAssaultWallFortified(playAreaObj, false) end
-							playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid],false,false)
+						end
+						if gStates.monsterPlayLocation[playAreaObj.guid]~=nil then
 							combatTrackReturningObject(state,playAreaObj)
+							if gStates.pursuingMonsters[turnOrder[cleanupPlayer].mage]~=nil and gStates.pursuingMonsters[turnOrder[cleanupPlayer].mage][playAreaObj.guid]~=nil then
+								local pursuit=gStates.pursuingMonsters[turnOrder[cleanupPlayer].mage][playAreaObj.guid]
+								pursuit.state="Stunned" pursuit.stunned=true
+								playAreaObj.setRotation({0, 180, 0})
+								broadcastToAll(joinLang({translateWord[turnOrder[cleanupPlayer].mage],"{en} Stunned the Pursuing Rampager (Skips next turns Movement){it} ha Stordito il Nemico Inseguitore (salta il Movimento del prossimo turno){ru} «оглушает» преследователя (тот пропускает одно Движение){zh-tw} 暈眩了狂暴追擊者（它會跳過下次移動）{zh-cn}晕眩了狂暴追击者(它跳过下次行动){ko}: 추적하는 적 기절시킴. (다음 추적 단계 건너뜀.){es} Aturdido al agresor que lo persigue (se salta el movimiento del siguiente turno){fr} Étourdi le saccageur à la poursuite (ignore le mouvement des tours suivants){pt-br} Atordoou o Irascível Perseguidor (Pule próximos turnos de movimento).{de} hat den Verfolger betäubt (überspringt die Bewegung des nächsten Zuges)"}), positionToColor(cleanupPlayer))
+							elseif playAreaObj.is_face_down==true then
+								-- Only manually flipped survivors need turning face up on return.
+								local returningMonsterGUID=playAreaObj.guid
+								safeWaitTime("Combat",function()
+									local returningMonster=getObjectFromGUID(returningMonsterGUID)
+									if returningMonster~=nil then returningMonster.setRotation({0,180,0}) end
+								end,3)--long enough to have travelled back to the board.
+							end
+							if gStates.coopAssaultPhase=="combat" and coopAssaultTargetType()=="horsemen" and horsemanTokenToName~=nil and horsemanTokenToName[playAreaObj.guid]~=nil then
+								--Each Horseman is assigned to exactly one participant; a survivor returns to its Portal-card slot.
+								playAreaObj.setRotation({0,180,0})
+								playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid],false,false)
+								combatTrackReturningObject(state,playAreaObj)
+							elseif gStates.coopAssaultPhase=="combat" and coopAssaultTargetType()=="leader" and factionLeaderForToken(playAreaObj.guid)~=nil then
+								factionLeaderReturnUnbeatenCoopToken(playAreaObj)
+							elseif getObjectFromGUID(turnOrder[nextTurnMerged("nextMage")].turnOrderTokenGUID).is_face_down==true and playAreaObj.getRotationValues()[2]==nil then
+								--Move to next players play area.
+								playAreaObj.setPositionSmooth({turnOrder[nextTurnMerged("nextMage")].seatPos*40-100, 1.5, -39.41},false,false)
+							else
+								if turnOrder[cleanupPlayer].avatarLocation=="spawning grounds" and (gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[playAreaObj.guid]~=true) then
+									gStates.monsterPlayLocation[playAreaObj.guid][1]=gStates.monsterPlayLocation[playAreaObj.guid][1]-0.22+(state.spawningGroundMonstersReturned*0.44)
+									gStates.monsterPlayLocation[playAreaObj.guid][2]=gStates.monsterPlayLocation[playAreaObj.guid][2]+(state.spawningGroundMonstersReturned*0.12)
+									state.spawningGroundMonstersReturned=state.spawningGroundMonstersReturned+1
+								end
+								if gStates.monsterPerks[playAreaObj.guid]~=nil and gStates.monsterPerks[playAreaObj.guid].wallFortified~=nil then setAssaultWallFortified(playAreaObj, false) end
+								playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid],false,false)
+								combatTrackReturningObject(state,playAreaObj)
+							end
 						end
 					end
-				end
 
-				--Process and Discard Face up monsters. Horsemen are persistent Custom Tiles, so identify
-				--them before any generic rotation-value discard route can mistake them for a normal token.
-				if monsterPugs[playAreaObj.guid]~=nil and dragonGroundCleanup~=true and (playAreaObj.is_face_down==false or gStates.monsterPlayLocation[playAreaObj.guid]==nil) then
-					if horsemanTokenToName~=nil and horsemanTokenToName[playAreaObj.guid]~=nil then
-						horsemanResolveDefeat(playAreaObj,cleanupPlayer,coopCombatReward)
-					elseif playAreaObj.getRotationValues()[2]~=nil then
-						combatDiscardMonster(playAreaObj,true,state.cleanupContext)
-					else--Faction Leaders are resolved by their own damage handler
-						combatTrackReturningObject(state,playAreaObj)
-						factionLeaderResolveCombatToken(playAreaObj,cleanupPlayer,state.cleanupContext,combatDiscardMonster)
+					-- Defeated enemies are removed; partial bosses still run their level handler.
+					-- A survivor without a registered return position uses the legacy discard fallback.
+					if enemyRegistered and dragonGroundCleanup~=true and (enemyDefeated
+						or enemyPartial or gStates.monsterPlayLocation[playAreaObj.guid]==nil) then
+						if horsemanTokenToName~=nil and horsemanTokenToName[playAreaObj.guid]~=nil then
+							if enemyDefeated then horsemanResolveDefeat(playAreaObj,cleanupPlayer,coopCombatReward) end
+						elseif playAreaObj.getRotationValues()[2]~=nil then
+							combatDiscardMonster(playAreaObj,enemyDefeated,state.cleanupContext)
+						else--Faction Leaders are resolved by their own damage handler
+							combatTrackReturningObject(state,playAreaObj)
+							factionLeaderResolveCombatToken(playAreaObj,cleanupPlayer,state.cleanupContext,combatDiscardMonster)
+						end
 					end
-				end
 
-				--Discard Reward Tokens
-				local rewardDiscardGUID=combatRewardDiscardByNotes[playAreaObj.getGMNotes()]
-				if rewardDiscardGUID~=nil then
-					playAreaObj.setRotation({0,180,180})
-					local rewardDiscard=getObjectFromGUID(rewardDiscardGUID)
-					if rewardDiscard~=nil then rewardDiscard.putObject(playAreaObj) end
-				end
+					--Discard Reward Tokens
+					local rewardDiscardGUID=combatRewardDiscardByNotes[playAreaObj.getGMNotes()]
+					if rewardDiscardGUID~=nil then
+						playAreaObj.setRotation({0,180,180})
+						local rewardDiscard=getObjectFromGUID(rewardDiscardGUID)
+						if rewardDiscard~=nil then rewardDiscard.putObject(playAreaObj) end
+					end
 
-				if playAreaObj.type=="Card" then cardDestination=cleanupPlayedCardAtEndTurn(playAreaObj,cleanupPlayer,cardDestination) end
-				cleanupPlayedSkillAtEndTurn(playAreaObj,cleanupPlayer)
-			end, tokenWait+3)
-			tokenWait=tokenWait+3
+					if playAreaObj.type=="Card" then cardDestination=cleanupPlayedCardAtEndTurn(playAreaObj,cleanupPlayer,cardDestination) end
+					cleanupPlayedSkillAtEndTurn(playAreaObj,cleanupPlayer)
+				end, tokenWait+3)
+				tokenWait=tokenWait+3
+			end
 		end
 		safeWaitFrames("Combat",function() tokenRefill() end,tokenWait+1)
 
@@ -25559,7 +25745,25 @@ local function combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatRe
 		combatSchedulePreEndTurnStateRefresh(player,cleanupPlayer,state,tokenWait,recovery)
 		combatSchedulePreEndTurnSkillCleanup(cleanupPlayer,tokenWait,recovery)
 		combatCleanupPreEndTurnUnitArea(cleanupPlayer,recovery)
-	end,tokenWait)
+	end
+
+	if next(pendingSettle or {})==nil then
+		-- Normal play areas are already stable when End Turn is clicked.
+		-- Keep one frame of asynchronous separation, not a fixed 40-frame pause.
+		safeWaitFrames("Combat",beginCleanup,1)
+		return
+	end
+	-- Only wait for physics we caused (summons, detached attachments or a
+	-- calculator-driven enemy flip). Timeout protects against never-resting TTS objects.
+	safeWaitFrames("Combat",function()
+		safeWaitCondition("Combat",beginCleanup,function()
+			for guid in pairs(pendingSettle) do
+				local obj=getObjectFromGUID(guid)
+				if obj~=nil and (obj.resting~=true or obj.isSmoothMoving()) then return false end
+			end
+			return true
+		end,3,beginCleanup)
+	end,2)
 end
 
 function combatRecoverPreEndTurn()
@@ -25584,10 +25788,10 @@ function combatRecoverPreEndTurn()
 	if avatarModel==nil and (recovery.tokenRaised or 0)>0 then avatarModel=mageKnightAvatarObject(cleanupPlayer,false) end
 	local avatarPos=recovery.avatarPos or {}
 	local tokenRaised=tonumber(recovery.tokenRaised) or 0
-	local cardDestination,tokenWait=combatPreEndTurnPreparePlayArea(cleanupPlayer,recovery)
+	local cardDestination,pendingSettle=combatPreEndTurnPreparePlayArea(cleanupPlayer,recovery)
 	local color=positionToColor(cleanupPlayer)
 	local playerObj=Player[color] or {color=color}
-	combatSchedulePreEndTurnCleanup(playerObj,cleanupPlayer,coopCombatReward,tokenRaised,avatarPos,avatarModel,cardDestination,tokenWait,recovery)
+	combatSchedulePreEndTurnCleanup(playerObj,cleanupPlayer,coopCombatReward,tokenRaised,avatarPos,avatarModel,cardDestination,pendingSettle,recovery)
 	return true
 end
 
@@ -25620,15 +25824,18 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 	-- Promote only this turn\u0027s ghost Unit wounds before play-area cleanup.
 	-- Paralysis destroys the marked Unit instead of making a permanent Wound.
 	attackAssignmentsUnitPreviewCommit(turnOrder[cleanupPlayer].seatPos)
-	combatDefeatSnapshotForCleanup()
+	local defeatResults,partialResults=combatDefeatSnapshotForCleanup()
 	local coopCombatReward,recovery=combatPreEndTurnOpenRewardBoundary(cleanupPlayer)
+	-- Persist the calculator's verdict before any asynchronous cleanup begins.
+	recovery.defeatResults=defeatResults
+	recovery.partialResults=partialResults
 	turnPreparePreEndTurn(cleanupPlayer,player.color,id)
 	local tokenRaised,avatarPos,avatarModel=combatPreEndTurnRaiseAvatar(cleanupPlayer)
 	recovery.tokenRaised=tokenRaised
 	recovery.avatarPos={avatarPos[1],avatarPos[2],avatarPos[3]}
 	recovery.avatarModelGUID=avatarModel~=nil and avatarModel.guid or nil
-	local cardDestination,tokenWait=combatPreEndTurnPreparePlayArea(cleanupPlayer,recovery)
-	combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatReward,tokenRaised,avatarPos,avatarModel,cardDestination,tokenWait,recovery)
+	local cardDestination,pendingSettle=combatPreEndTurnPreparePlayArea(cleanupPlayer,recovery)
+	combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatReward,tokenRaised,avatarPos,avatarModel,cardDestination,pendingSettle,recovery)
 end
 
 assaultApproachOrigin=nil
@@ -25806,12 +26013,12 @@ applyCurrentAssaultWallFortified=function(fortified)
 end
 
 --Runtime-only defeat marks. While the Combat Calculator is running it decides which tracked enemy tokens are
---defeated; they carry a red X instead of being flipped face down. Cleared whenever the calculator stops.
+--defeated; they carry a red X instead of being flipped face down. The verdict is saved into
+--the existing pre-end-turn recovery state so cleanup never needs to physically flip survivors.
 local combatDefeatTracked={}
 local combatDefeatDefeated={}
 local combatDefeatPartial={}
 combatDefeatMarksActive=false
-combatDefeatCleanupSnapshot=nil
 local combatDefeatFlipRestoring={}
 local combatDefeatFlipWarning="{en}There is no need to flip an enemy face down while the Combat Calculator is open. It marks defeated enemies with a red X and returns the rest at the end of the turn."
 local combatDefeatMarkerClick="combatDefeatMarkerNoop"
@@ -25846,15 +26053,23 @@ end
 
 function combatEnemyTokenDefeated(obj)
 	if obj==nil then return false end
+	-- End-turn cleanup must keep its original verdict even after calculator marks
+	-- have been cleared or a saved cleanup has been resumed after loading.
+	local recovery=gStates~=nil and gStates.preEndTurn==true and gStates.combatPreEndTurnRecovery or nil
+	local results=recovery~=nil and recovery.defeatResults or nil
+	if results~=nil and results[obj.guid]~=nil then return results[obj.guid]==true end
 	if combatDefeatMarksActive==true and combatDefeatTracked[obj.guid]==true then
-		return combatDefeatDefeated[obj.guid]==true
+		return combatDefeatDefeated[obj.guid]==true and combatDefeatPartial[obj.guid]~=true
 	end
+	-- Calculator closed: manual face-up = defeated, face-down = survivor.
 	return obj.is_face_down==false
 end
 
 -- Partial bosses count for their own level-based Fame, but never for ordinary
 -- death/reward/site conditions.
 function combatBossPartialRewardEligible(guid)
+	local recovery=gStates~=nil and gStates.preEndTurn==true and gStates.combatPreEndTurnRecovery or nil
+	if recovery~=nil and recovery.partialResults~=nil and recovery.partialResults[guid]==true then return true end
 	return combatDefeatMarksActive==true and combatDefeatPartial[guid]==true
 end
 
@@ -25918,16 +26133,17 @@ function combatClearDefeatMarks()
 	mainUIUpdate("Combat Calculator defeat marks")
 end
 
---End Turn snapshot, taken before the calculator can stop. Undefeated tracked tokens are flipped face down
---during cleanup so the unchanged face-down cleanup returns them without rewards.
+-- Freeze the calculator's results before it can close. Include BOTH outcomes:
+-- a surviving token can remain face up, while a partial boss still needs level
+-- reduction but must not receive ordinary defeat/site rewards.
 function combatDefeatSnapshotForCleanup()
-	if combatDefeatMarksActive~=true then combatDefeatCleanupSnapshot=nil return end
-	local snapshot={}
+	if combatDefeatMarksActive~=true then return nil,nil end
+	local results,partials={},{}
 	for guid in pairs(combatDefeatTracked) do
-		if combatDefeatDefeated[guid]~=true
-			and combatDefeatPartial[guid]~=true then snapshot[guid]=true end
+		results[guid]=combatDefeatDefeated[guid]==true and combatDefeatPartial[guid]~=true
+		if combatDefeatPartial[guid]==true then partials[guid]=true end
 	end
-	combatDefeatCleanupSnapshot=snapshot
+	return results,partials
 end
 
 -- A Ruin with printed defenders is NOT defeated by one successful kill.
@@ -25951,14 +26167,6 @@ combatRuinHasSurvivorForCleanup=function(ruinGUID)
 	-- No linked defenders means the site could not establish that all its
 	-- printed enemies were resolved. Never give an unearned completion Shield.
 	return not linked
-end
-
-function combatDefeatFlipUndefeated(obj)
-	local snapshot=combatDefeatCleanupSnapshot
-	if snapshot==nil or obj==nil or snapshot[obj.guid]~=true or obj.is_face_down==true then return end
-	if monsterPugs[obj.guid]==nil or gStates.summonStates[obj.guid]=="summoned" then return end
-	local rotation=obj.getRotation()
-	obj.setRotation({rotation.x,rotation.y,180})
 end
 
 --Block the F-key flip before TTS rotates the token. Do not prevent normal Q/E spins.
@@ -26771,6 +26979,10 @@ function drawMonster(color, player, id, possessedFaction)
 						monsterDrawn.addDecal({name="NightRules", position={0.85, 0.15, -0.85}, rotation={90, 180, 0}, scale={0.6, 0.6, 1}, url=nightRulesDecal})
 						if gStates.monsterPerks[monsterDrawn.guid]==nil then gStates.monsterPerks[monsterDrawn.guid]={nightRules=true} else gStates.monsterPerks[monsterDrawn.guid].nightRules=true end
 					end
+					-- These decals/perks are applied after token placement. Refresh
+					-- once now so Night combat and Unit restrictions don't keep the
+					-- values from the earlier onEnterZone scan.
+					if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
 				end
 			end, 0.5)
 		end
@@ -27344,8 +27556,13 @@ summonMonster=function(player, mouseButton, id, rewindReady)
 				local returnPos={summonPilePos[1],2,summonPilePos[3]}
 				if cameraFocused==false then combatCameraFocus(turnOrder[gStates.turnNumber]) cameraFocused=true end
 				gStates.attackedMonsters[summonedMonster.guid]={returnPos,{0.00,0.00,0.00},"summoned",id}
-				if id==darkCrusader.token or (summonerFaction=="Dark" and turnOrder[gStates.turnNumber].avatarLocation=="graveyard") then
+				local summonedNightRules=id==darkCrusader.token
+					or (summonerFaction=="Dark" and turnOrder[gStates.turnNumber].avatarLocation=="graveyard")
+				if summonedNightRules then
 					summonedMonster.addDecal({name="NightRules",position={0.85,0.15,-0.85},rotation={90,180,0},scale={0.6,0.6,1},url=nightRulesDecal})
+					if gStates.monsterPerks[summonedMonster.guid]==nil then
+						gStates.monsterPerks[summonedMonster.guid]={nightRules=true}
+					else gStates.monsterPerks[summonedMonster.guid].nightRules=true end
 				end
 				gStates.summonStates[summonedMonster.guid]="summoned"
 				local dragonControl=apocalypseDragonGroundControlToken~=nil and select(1,apocalypseDragonGroundControlToken(id))==true
@@ -27378,8 +27595,6 @@ summonMonster=function(player, mouseButton, id, rewindReady)
 						return child==nil or not child.isSmoothMoving()
 					end,5,settleSummon)
 				end,2)
-				if gStates.monsterPerks[summonedMonster.guid]==nil then gStates.monsterPerks[summonedMonster.guid]={nightRules=true}
-				else gStates.monsterPerks[summonedMonster.guid].nightRules=true end
 				cityBonusDecals(summoner,summonedMonster)
 				local attachments=summoner.getAttachments()
 				if attachments[1]~=nil and summonDelay==5 then
@@ -47486,11 +47701,11 @@ local function playerSetupDeployUniqueComponents(orderIndex,position,offsetPosit
 				local dummyStats={	seatPos=position, mage=gStates.positionMageKnight[5], fame=0, fameGain=0, reputation=0, repGain=0, scoreLoop=0, hand=5, baseHand=5, handBonus=0, tactic=1, keepsBeat=0, gladesMarked={}, deedCount=11, discardCount=0, defeatedCities={}, deadDeckInventory={}, score={Glade=0, GraveYard=0},
 									dummyCrystals={["Red"]=0, Blue=0, Green=0, ["White"]=0}}
 				if scenarioList[gStates.scenarioRef][gStates.playersRef].dummyTacticSelection=="F" then
-					params.position={-1.9, 0.96, -19.4}--if dummy draws first
+					params.position={-1.9, 0.97, -19.4}--if dummy draws first
 					context.startPos[1]=1
 					turnOrder[1]=dummyStats
 				else
-					params.position={-1.9, 0.96, -19.4-(gStates.playerCount*1.4)}--if dummy draw last
+					params.position={-1.9, 0.97, -19.4-(gStates.playerCount*1.4)}--if dummy draw last
 					context.startPos[gStates.playerCount+1]=1
 					turnOrder[gStates.playerCount+1]=dummyStats
 					turnOrder[gStates.playerCount+1].tactic=gStates.playerCount+1
@@ -47504,7 +47719,7 @@ local function playerSetupDeployUniqueComponents(orderIndex,position,offsetPosit
 					if scenarioList[gStates.scenarioRef][gStates.playersRef].dummyTacticSelection=="F" then turnRef=turnRef+1 end
 					if context.startPos[turnRef]==1 then duplicate=true else context.startPos[turnRef]=1 end
 				end
-				params.position={-1.9, 0.96, -19.4-((turnRef-1)*1.4)}
+				params.position={-1.9, 0.97, -19.4-((turnRef-1)*1.4)}
 				turnOrder[turnRef]={seatPos=position,mage=gStates.positionMageKnight[position], questScore=0, fame=0, fameGain=0, reputation=0, repGain=0, scoreLoop=0, level=1, levelUp=0, influence=6, hand=5, baseHand=5, handBonus=0, tactic=turnRef, keepsBeat=0, gladesMarked={}, deedCount=11, discardCount=0, combatIconHide="None", defeatedCities={}, levelUpComplete=false, avatarLocation="portal", deadDeckInventory={}, levelingStats={}, score={Glade=0, GraveYard=0}}
 			end
 		end
@@ -47737,8 +47952,14 @@ local function playerSetupDeployUniqueComponents(orderIndex,position,offsetPosit
 		if skip==0 then
 			local obj=safeTakeObject("SetupGame",playerBag,params)
 			if (i==4 or i==5 or i==10 or i==11 or i==13) and gStates.positionMageKnight[position]~="nobody" and position<5 then obj.lock() end--lock player board components
-			if (i==1 or i==3 or i==4 or i==5 or i==11) and (gStates.positionMageKnight[position]=="nobody" or position==5) then obj.lock() end--lock dummy board components
-			if i==1 then turnOrder[turnRef].turnOrderTokenGUID=obj.guid end
+			if (i==3 or i==4 or i==5 or i==11) and (gStates.positionMageKnight[position]=="nobody" or position==5) then obj.lock() end--lock dummy board components
+			if i==1 then
+				turnOrder[turnRef].turnOrderTokenGUID=obj.guid
+				-- Record the original bag and spawn position before setup destroys the clone.
+				if protectedTurnOrderTokenSetup~=nil then
+					protectedTurnOrderTokenSetup(obj,playerBag,params.position)
+				end
+			end
 			if (i==4 and gStates.positionMageKnight[position]~="nobody" and position<=4) or (i==4 and gStates.playerCount==1) then
 				turnOrder[turnRef].skillBagGUID=obj.guid
 				--Hero Challenges reserve the prescribed first Skill before the Hero's remaining Skill bag is shuffled.
@@ -48642,6 +48863,14 @@ local shown={}
 -- receive Resource Tracker highlights. Avoid repeated highlightOff calls.
 trackerPrivate.crystalHighlightCleared={}
 trackerPrivate.bySeat={}
+-- Known play sources survive transient shallow-zone exits while a card is
+-- lifted or still falling above the mat. Rebuilt from entries/scans, not saved.
+trackerPrivate.playCandidatesBySeat={}
+-- Protect explicit options and targets from half-complete relocation scans.
+trackerPrivate.playCardMovements={}
+trackerPrivate.playCandidateKind=function(kind)
+    return kind=="card" or kind=="skill" or kind=="factionReward"
+end
 -- Initial guesses and explicit player choices are transient, never saved in gStates or JSON.
 local selectedResourceByGUID={}
 -- Retain the chosen crystal-pair Attack after Sacrifice converts the pairs to mana.
@@ -48754,6 +48983,7 @@ trackerPrivate.forestersTerrainModifier={mode="reduce",
 trackerPrivate.trackerWasDisabled=false
 trackerPrivate.trackerSession=0
 trackerPrivate.trackerStartupRequest=0
+trackerPrivate.restoreAssignmentsPending=false
 -- Preferences are saved per seat; older saves default to automation enabled.
 function resourceCardsSeatEnabled(seat)
     local settings=gStates~=nil and gStates.resourceTrackerEnabledBySeat or nil
@@ -48887,11 +49117,24 @@ combatConfig.startingCardConditionalFameRep=function()
                 rep=rep+(reward.rep or 0)
             end
             if selected.recruited==true and rule.recruitDiscount~=nil then
-                rep=rep-(rule.recruitRepPenalty or 0)
+                rep=rep+(rule.recruitRepPenalty or 0)
             end
         end
     end
     return fame,rep
+end
+
+-- The basic Ruthless Coercion recruitment discount is player-declared.
+-- Give the player two more Influence to spend manually rather than
+-- attempting to identify or discount the recruited Unit's offer cost.
+local function resourceCardsRecruitInfluenceBonus(guid,rule,record)
+    if rule==nil or rule.recruitDiscount==nil or record==nil
+        or record.powered==true or record.complete~=true
+        or record.resources==nil then return 0 end
+    local selected=gStates~=nil and gStates.startingCardSelections~=nil
+        and gStates.startingCardSelections[guid] or nil
+    return selected~=nil and selected.recruited==true
+        and (tonumber(rule.recruitDiscount) or 0) or 0
 end
 
 -- One owner for the pending Fame/Reputation this seat's played sources provide (scan part + defeat part).
@@ -50044,13 +50287,17 @@ function resourceCardsCombatTargetAcceptsSource(sourceKey,targetGUID)
 end
 
 -- A lifted card keeps its target while its arrow still exists.
--- A card being carried (for example lifted to rearrange the play area) keeps its targeting. Once it is put down
--- anywhere without being an active source (hand, discard, elsewhere) its targeting is dropped.
+-- Preserve existing target arrows only while a source is actually in transit.
+-- Once a card settles, the live active-source list must decide whether its
+-- arrow survives. In particular, switching to a non-combat option must clear
+-- the old attack/block arrow even if the card remains on the play mat.
 local function combatSourceKeepsLock(key)
     local obj=getObjectFromGUID(key:match("^[^#]+"))
     if obj==nil or next(attackAssignmentsTargetGUIDs(key))==nil then return false end
     local held=obj.held_by_color
     return (held~=nil and held~="") or obj.isSmoothMoving()
+        or (trackerPrivate.playCardMovements~=nil
+            and trackerPrivate.playCardMovements[obj.guid]~=nil)
 end
 
 -- Orange arrows aim at armour; blue arrows (Block, Move) affect an enemy attack.
@@ -50098,9 +50345,10 @@ local function combatCalcUpdate(monsters)
     return on
 end
 
--- A token lifted above a short scripting zone is still part of the current combat.
--- Remember only enemies already seen on the active board; never pull in arbitrary
--- held enemies from elsewhere on the table. This is runtime-only and seat-scoped.
+-- A shallow zone can miss an enemy that was just dropped above it.
+-- Recover ONLY enemies previously observed in this seat's combat areas.
+-- Held/smooth enemies remain visible; released ones must still be over
+-- either combat zone in X/Z. Otherwise real departures leave combat normally.
 local combatTrackedSeat=nil
 local combatTrackedEnemies={}
 local function combatKeepHeldEnemies(seatPos,monsters,playMonsters)
@@ -50113,17 +50361,36 @@ local function combatKeepHeldEnemies(seatPos,monsters,playMonsters)
             combatTrackedEnemies[guid]=playMonsters[guid]~=nil
         end
     end
+    local playZone=nil
+    local unitZone=nil
     for guid,wasInPlay in pairs(combatTrackedEnemies) do
         if monsters[guid]==nil then
             local obj=getObjectFromGUID(guid)
-            if obj~=nil and not obj.isDestroyed()
-                and ((obj.held_by_color~=nil and obj.held_by_color~="")
-                    or obj.isSmoothMoving() or obj.resting==false) then
-                monsters[guid]=obj
-                if wasInPlay then playMonsters[guid]=obj end
-            else
-                -- On a settled drop outside the combat zones, stop retaining it.
+            if obj==nil or obj.isDestroyed() then
                 combatTrackedEnemies[guid]=nil
+            else
+                -- The source may be released before zone.getObjects() sees
+                -- its new Y position. Check the zone's actual transform
+                -- footprint, never its zero-sized scripting-zone bounds.
+                if playZone==nil and playerPlayAreas[seatPos]~=nil then
+                    playZone=getObjectFromGUID(playerPlayAreas[seatPos])
+                end
+                if unitZone==nil and playerUnitAreas[seatPos]~=nil then
+                    unitZone=getObjectFromGUID(playerUnitAreas[seatPos])
+                end
+                local overPlay=trackerPrivate.zoneFootprintContainsXZ(obj,playZone)
+                local overUnit=trackerPrivate.zoneFootprintContainsXZ(obj,unitZone)
+                local held=obj.held_by_color~=nil and obj.held_by_color~=""
+                if held or obj.isSmoothMoving() or overPlay or overUnit then
+                    monsters[guid]=obj
+                    local inPlay=overPlay or (wasInPlay and not overUnit)
+                    if inPlay then playMonsters[guid]=obj end
+                    combatTrackedEnemies[guid]=inPlay
+                else
+                    -- A genuinely removed token must not leave a ghost
+                    -- enemy or permanently lock an invalid assignment.
+                    combatTrackedEnemies[guid]=nil
+                end
             end
         end
     end
@@ -50579,7 +50846,7 @@ local function combatBlockResult(entry,sources)
     local parts={tostring(movePool),tostring(#attacks),tostring(#items)}
     for _,attack in ipairs(attacks) do
         parts[#parts+1]=table.concat({
-            tostring(attack.key),tostring(attack.value),tostring(attack.owner),
+            tostring(attack.key),tostring(attack.value),tostring(attack.damageValue),tostring(attack.owner),
             tostring(attack.slot),tostring(attack.pending),tostring(attack.swift),
             tostring(attack.brutal),tostring(attack.cumbersome),tostring(attack.poison),
             tostring(attack.paralyse),tostring(attack.assassination),
@@ -50592,18 +50859,29 @@ local function combatBlockResult(entry,sources)
             tostring(item.source.heroPsychicBlock),
             tostring(item.source.excessBlockArmour)},":")
     end
+    -- Move-source identity matters to the committed phase even when its
+    -- total reduction is unchanged (e.g. swapping Move 2 cards).
+    local moveSignature={}
+    for _,source in ipairs(sources) do
+        if source.moveCounts==true and (source.move or 0)>0 then
+            moveSignature[#moveSignature+1]=source.key..":"..tostring(source.move)
+        end
+    end
+    table.sort(moveSignature)
+    for _,piece in ipairs(moveSignature) do parts[#parts+1]="move:"..piece end
     local key=table.concat(parts,";")
     local cached=entry.guid~=nil and combatBlockResultCache[entry.guid] or nil
-    if cached~=nil and cached.key==key then return table.unpack(cached.result,1,10) end
+    if cached~=nil and cached.key==key then return table.unpack(cached.result,1,12) end
     local plan,solved,leftover=combatSolveBlocks(attacks,items,movePool)
-    -- Capture the genuinely spent Block sources before spare Block display
-    -- items are appended to the plan, or a free counterattack can result.
-    local successfulSources,successfulOwners={},{}
+    -- Capture only the resources assigned to a successful Block. The later
+    -- display of spare/failed Block icons must never commit their sources.
+    local successfulSources,successfulOwners,successfulSourceKeys={},{},{}
     for index,attack in ipairs(attacks) do
         if plan[index]~=nil and plan[index].blocked and not attack.pending then
             for j,item in ipairs(solved) do
                 if plan[index].used[j] and item.key:sub(1,5)=="block" then
                     successfulSources[item.source.guid]=true
+                    successfulSourceKeys[item.source.key]=true
                     local owners=successfulOwners[item.source.guid] or {}
                     owners[attack.owner or entry.guid]=true
                     successfulOwners[item.source.guid]=owners
@@ -50659,6 +50937,26 @@ local function combatBlockResult(entry,sources)
             end
         end
     end
+    -- Cumbersome Move is effective even when damage is not fully blocked.
+    -- Commit only enough physical Move sources to cover the actual reductions;
+    -- unused sources remain free to supply Attack-phase alternatives.
+    local spentMoveKeys={}
+    local remainingMove=0
+    for _,step in ipairs(plan) do remainingMove=remainingMove+(step.reduction or 0) end
+    if remainingMove>0 then
+        local moveSources={}
+        for _,source in ipairs(sources) do
+            if source.moveCounts==true and (source.move or 0)>0 then
+                moveSources[#moveSources+1]=source
+            end
+        end
+        table.sort(moveSources,function(a,b) return a.key<b.key end)
+        for _,source in ipairs(moveSources) do
+            if remainingMove<=0 then break end
+            spentMoveKeys[source.key]=true
+            remainingMove=remainingMove-source.move
+        end
+    end
     local lines,reductions,totalDamage,damageCount,allBlocked={},{},0,0,#attacks>0
     local unblocked={}
     -- Block items applied at the wrong element (halved) against their attack, keyed source.key..field.key.
@@ -50692,10 +50990,10 @@ local function combatBlockResult(entry,sources)
     if entry.guid~=nil then
         combatBlockResultCache[entry.guid]={key=key,result={
             lines,totalDamage,damageCount,allBlocked,reductions,wrongBlock,unblocked,
-            successfulSources,successfulOwners,shieldBashExcess}}
+            successfulSources,successfulOwners,shieldBashExcess,successfulSourceKeys,spentMoveKeys}}
     end
     return lines,totalDamage,damageCount,allBlocked,reductions,wrongBlock,unblocked,
-        successfulSources,successfulOwners,shieldBashExcess
+        successfulSources,successfulOwners,shieldBashExcess,successfulSourceKeys,spentMoveKeys
 end
 
 -- Damage phase. Every unblocked attack starts wholly on the Hero; the player may route it through free Units first
@@ -50969,10 +51267,85 @@ combatConfig.woundLedger=function(seat)
     ledger.applied=ledger.applied or {}
     ledger.cards=ledger.cards or {}
     ledger.preview=ledger.preview or {}
+    -- Legacy saves only tracked the individual Paralysis application.
+    if ledger.handDiscardApplied==nil then
+        ledger.handDiscardApplied=false
+        for _,applied in pairs(ledger.applied) do
+            if applied.paralyse==true then ledger.handDiscardApplied=true break end
+        end
+    end
     return ledger
 end
 
-combatConfig.woundRecordPreview=function(seat,items,results)
+-- Extra Wounds from "take a Wound" card effects count toward Knockout.
+-- Snapshot the existing hand/play Wound GUIDs when combat begins; newly
+-- observed GUIDs remain counted even if those Wounds are played or discarded.
+-- Do not count enemy Wounds already recorded by the Apply Wounds ledger.
+combatConfig.combatOtherWounds=function(seat)
+    local ledger=combatConfig.woundLedger(seat)
+    if ledger==nil then return 0 end
+    local observed=ledger.otherCombatWounds or {}
+    local hand=handZones~=nil and handZones[seat]~=nil
+        and getObjectFromGUID(handZones[seat]) or nil
+    local play=playerPlayAreas~=nil and playerPlayAreas[seat]~=nil
+        and getObjectFromGUID(playerPlayAreas[seat]) or nil
+    if hand~=nil and play~=nil then
+        local seen={}
+        local function inspect(obj)
+            if obj==nil then return end
+            if obj.type=="Card" and obj.getGMNotes~=nil
+                and obj.getGMNotes()=="Wound" then
+                seen[obj.guid]=true
+            elseif obj.type=="Deck" and obj.getObjects~=nil then
+                for _,card in ipairs(obj.getObjects() or {}) do
+                    if card.gm_notes=="Wound" then seen[card.guid]=true end
+                end
+            end
+        end
+        for _,obj in ipairs(hand.getObjects() or {}) do inspect(obj) end
+        for _,obj in ipairs(play.getObjects() or {}) do inspect(obj) end
+        local current=turnOrder~=nil and gStates~=nil
+            and turnOrder[gStates.turnNumber] or nil
+        if current~=nil and current.seatPos==seat
+            and positionToColor~=nil and Player~=nil then
+            local color=positionToColor(gStates.turnNumber)
+            local player=color~=nil and Player[color] or nil
+            if player~=nil and player.getHandObjects~=nil then
+                local ok,objects=pcall(player.getHandObjects)
+                if ok then for _,obj in ipairs(objects or {}) do inspect(obj) end end
+            end
+        end
+        if ledger.initialCombatWounds==nil then
+            -- Wounds already owned in the Deed deck or discard pile are old
+            -- cards, not new combat damage if a card effect retrieves them.
+            -- These zones are baseline-only: newly dealt Poison discards
+            -- must never enter the Hero's combat knockout count.
+            for _,zoneGUID in pairs({
+                deed=deedDeckZones~=nil and deedDeckZones[seat] or nil,
+                discard=deedDeckDiscardZones~=nil
+                    and deedDeckDiscardZones[seat] or nil}) do
+                local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
+                if zone~=nil and zone.getObjects~=nil then
+                    for _,obj in ipairs(zone.getObjects() or {}) do inspect(obj) end
+                end
+            end
+            ledger.initialCombatWounds=seen
+        else
+            for guid in pairs(seen) do
+                if ledger.initialCombatWounds[guid]~=true
+                    and ledger.cards[guid]~=true then
+                    observed[guid]=true
+                end
+            end
+        end
+    end
+    ledger.otherCombatWounds=observed
+    local count=0
+    for _ in pairs(observed) do count=count+1 end
+    return count
+end
+
+combatConfig.woundRecordPreview=function(seat,items,results,knockout,otherWounds)
     local ledger=combatConfig.woundLedger(seat)
     if ledger==nil then return end
     local expected={}
@@ -50996,6 +51369,8 @@ combatConfig.woundRecordPreview=function(seat,items,results)
             destroyed=destroyed}
     end
     ledger.preview=expected
+    ledger.previewKnockout=knockout==true
+    ledger.previewOtherWounds=math.max(0,tonumber(otherWounds) or 0)
     ledger.hasPreview=true
 end
 
@@ -51003,7 +51378,8 @@ end
 -- The fifth describes uncommitted physical Paralysis consequences.
 combatConfig.woundPending=function(ledger)
     local allocations,hand,discard,changed={},0,0,false
-    local effects={paralyse={},destroyed={},paralyseCount=0,destroyCount=0}
+    local effects={paralyse={},destroyed={},paralyseCount=0,destroyCount=0,
+        knockout=false,handDiscard=false}
     if ledger==nil or not ledger.hasPreview then
         return allocations,hand,discard,changed,effects
     end
@@ -51015,7 +51391,8 @@ combatConfig.woundPending=function(ledger)
             allocations[#allocations+1]={key=key,hand=h,discard=d}
             hand=hand+h discard=discard+d
         end
-        if expected.paralyse==true and applied.paralyse~=true then
+        if expected.paralyse==true and applied.paralyse~=true
+            and ledger.handDiscardApplied~=true then
             effects.paralyse[#effects.paralyse+1]=key
             effects.paralyseCount=effects.paralyseCount+1
         elseif applied.paralyse==true and expected.paralyse~=true then
@@ -51039,6 +51416,9 @@ combatConfig.woundPending=function(ledger)
             or (applied.discard or 0)>0 or applied.paralyse==true
             or next(applied.destroyed or {})~=nil) then changed=true end
     end
+    effects.knockout=ledger.previewKnockout==true
+        and ledger.handDiscardApplied~=true
+    effects.handDiscard=effects.knockout or effects.paralyseCount>0
     table.sort(allocations,function(a,b) return a.key<b.key end)
     table.sort(effects.paralyse)
     table.sort(effects.destroyed,function(a,b)
@@ -51054,7 +51434,9 @@ end
 -- records its rewind point; a changed plan must not use stale counts.
 combatConfig.woundCommitSignature=function(ledger)
     if ledger==nil or ledger.hasPreview~=true then return nil end
-    local parts={tostring(ledger.seat)}
+    local parts={tostring(ledger.seat),tostring(ledger.previewKnockout==true),
+        tostring(ledger.previewOtherWounds or 0),
+        tostring(ledger.handDiscardApplied==true)}
     local keys,seen={},{}
     for key in pairs(ledger.preview or {}) do
         keys[#keys+1]=key
@@ -51105,13 +51487,14 @@ function resourceCardsRequestCombatWounds(player)
     local color=player~=nil and player.color or nil
     if not resourceCardsPanelOpen() or not resourceCardsPlayerCanEdit(color)
         or combatConfig.woundApplying or combatConfig.woundTransactionPending then return end
-    if combatPhaseLock~=nil and combatPhaseLock(combatAssignmentActiveSeat())~=nil then return end
+    -- A previous partial application may have committed the phase but not
+    -- finished its physical consequences. Let the player confirm a safe retry.
     local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
     if active==nil or active.seatPos==nil then return end
     local ledger=combatConfig.woundLedger(active.seatPos)
     if ledger==nil then return end
     local _,hand,discard,changed,effects=combatConfig.woundPending(ledger)
-    if hand+discard+effects.paralyseCount+effects.destroyCount==0 then
+    if hand+discard+effects.destroyCount==0 and not effects.handDiscard then
         if changed then
             broadcastToColor("Combat damage changed after consequences were applied. Check physical cards; they cannot be undone automatically.",
                 color,warningColor)
@@ -51156,18 +51539,33 @@ function resourceCardsRequestCombatWounds(player)
         discard
     }
     local summaryHeight=154
-    if effects.paralyseCount>0 then
+    if (ledger.previewOtherWounds or 0)>0 then
         summaryParts[#summaryParts+1]="\n"
-        summaryParts[#summaryParts+1]="{en}Paralysis: discard all non-Wound hand cards."
-            .."{it}Paralisi: scarta tutte le carte in mano tranne le Ferite."
-            .."{ru}Паралич: сбросьте все карты с руки, кроме Ран."
-            .."{zh-tw}麻痺：棄掉手牌中所有非傷害牌。"
-            .."{zh-cn}麻痹：弃掉手牌中所有非伤害牌。"
-            .."{ko}마비: 손에 있는 상처가 아닌 카드를 모두 버립니다."
-            .."{es}Parálisis: descarta las cartas en mano que no sean Heridas."
-            .."{fr}Paralysie : défaussez les cartes en main sauf les Blessures."
-            .."{pt-br}Paralisia: descarte as cartas na mão que não sejam Ferimentos."
-            .."{de}Lähmung: Alle Nicht-Wunden auf der Hand abwerfen."
+        summaryParts[#summaryParts+1]="{en}Other combat Wounds already taken: "
+            .."{it}Altre Ferite già ricevute nel combattimento: "
+            .."{ru}Другие Раны, уже полученные в бою: "
+            .."{zh-tw}本次戰鬥已受到的其他傷害："
+            .."{zh-cn}本次战斗已受到的其他伤害："
+            .."{ko}이번 전투에서 이미 받은 추가 부상: "
+            .."{es}Otras Heridas ya recibidas en combate: "
+            .."{fr}Autres Blessures déjà reçues au combat : "
+            .."{pt-br}Outros Ferimentos já recebidos em combate: "
+            .."{de}Andere im Kampf bereits erhaltene Wunden: "
+        summaryParts[#summaryParts+1]=ledger.previewOtherWounds
+        summaryHeight=summaryHeight+24
+    end
+    if effects.handDiscard then
+        summaryParts[#summaryParts+1]="\n"
+        summaryParts[#summaryParts+1]="{en}Knockout / Paralysis: discard all non-Wound hand cards."
+            .."{it}KO / Paralisi: scarta tutte le carte in mano tranne le Ferite."
+            .."{ru}Нокаут / Паралич: сбросьте все карты с руки, кроме Ран."
+            .."{zh-tw}昏迷／麻痺：棄掉手牌中所有非傷害牌。"
+            .."{zh-cn}昏迷／麻痹：弃掉手牌中所有非伤害牌。"
+            .."{ko}기절 / 마비: 손에 있는 상처가 아닌 카드를 모두 버립니다."
+            .."{es}K.O. / Parálisis: descarta las cartas en mano que no sean Heridas."
+            .."{fr}K.O. / Paralysie : défaussez les cartes en main sauf les Blessures."
+            .."{pt-br}Nocaute / Paralisia: descarte as cartas na mão que não sejam Ferimentos."
+            .."{de}K. o. / Lähmung: Alle Nicht-Wunden auf der Hand abwerfen."
         summaryHeight=summaryHeight+40
     end
     if effects.destroyCount>0 then
@@ -51241,20 +51639,34 @@ combatConfig.woundConfirmChoice=function(player,id)
             return
         end
         combatConfig.woundTransactionPending=false
-        local preview=combatConfig.phasePreview
-        if preview==nil or preview.seat~=confirmation.seat
-            or preview.turn~=confirmation.turn or preview.damageResults==nil then
-            abort("Combat phase snapshot is unavailable. No damage was applied.")
-            return
+        local existingLock=confirmation.ledger.phaseLock
+        if existingLock==nil then
+            local preview=combatConfig.phasePreview
+            if preview==nil or preview.seat~=confirmation.seat
+                or preview.turn~=confirmation.turn or preview.damageResults==nil then
+                abort("Combat phase snapshot is unavailable. No damage was applied.")
+                return
+            end
+            confirmation.ledger.phaseLock=combatFrozenCopy(preview)
         end
-        confirmation.ledger.phaseLock=combatFrozenCopy(preview)
         local ok,startedOrError=pcall(resourceCardsApplyCombatWounds,player,
-            function()
-                -- Called after every dealt Wound and moved accessory settles,
-                -- including failed/partially completed applications.
+            function(success,_,physicallyTouched)
+                -- A failed validation before any physical mutation must not
+                -- strand the player behind an irreversible phase lock.
+                -- Partial transfers keep their lock and can be retried safely.
+                if not success and not physicallyTouched and existingLock==nil then
+                    confirmation.ledger.phaseLock=nil
+                    resourceCardsSourceChanged()
+                end
                 rewindTransactionFinish(owner)
             end)
         if not ok or startedOrError~=true then
+            -- An exception may occur after a physical move. Preserve the
+            -- snapshot conservatively; the next Apply click can retry it.
+            if ok and existingLock==nil then
+                confirmation.ledger.phaseLock=nil
+                resourceCardsSourceChanged()
+            end
             abort("Could not apply combat damage safely: "..tostring(startedOrError))
         end
     end,owner,function()
@@ -51282,7 +51694,7 @@ function resourceCardsApplyCombatWounds(player,onComplete)
     local ledger=current~=nil and combatConfig.woundLedger(current.seatPos) or nil
     local allocations,hand,discard,changed,effects=combatConfig.woundPending(ledger)
     if current==nil or ledger==nil then return false end
-    if hand+discard==0 and effects.paralyseCount==0 and effects.destroyCount==0 then
+    if hand+discard==0 and not effects.handDiscard and effects.destroyCount==0 then
         if changed then
             broadcastToColor("Combat damage changed after Wounds were dealt. Check the physical cards; none are removed automatically.",
                 player.color,warningColor)
@@ -51302,6 +51714,7 @@ function resourceCardsApplyCombatWounds(player,onComplete)
     end
     local settlingGUIDs={}
     local unitAreaTouched=false
+    local physicallyTouched=false
     local completing=false
     local finalized=false
     local function finish(success,reason)
@@ -51318,7 +51731,7 @@ function resourceCardsApplyCombatWounds(player,onComplete)
             end
             resourceCardsSourceChanged()
             mainUIUpdate("Combat Wounds applied")
-            if onComplete~=nil then onComplete(success,reason) end
+            if onComplete~=nil then onComplete(success,reason,physicallyTouched) end
         end
         if onComplete==nil or (not unitAreaTouched and next(settlingGUIDs)==nil)
             or safeWaitFrames==nil or safeWaitCondition==nil then
@@ -51347,29 +51760,39 @@ function resourceCardsApplyCombatWounds(player,onComplete)
         end
     end
     local function commitConsequences()
-        -- Check both zones before any irreversible Paralysis discard. A
-        -- retry must never discard newly drawn cards if the first attempt
-        -- already processed that printed attack.
-        if effects.paralyseCount>0 then
-            local handZone=getObjectFromGUID(handZones~=nil and handZones[seat] or nil)
+        -- Knockout and Paralysis share exactly one hand discard. Its saved
+        -- flag prevents retries from discarding newly drawn cards again.
+        if effects.handDiscard then
             local discardZone=getObjectFromGUID(deedDeckDiscardZones~=nil
                 and deedDeckDiscardZones[seat] or nil)
-            if handZone==nil or discardZone==nil then
-                finish(false,"Hand or discard zone missing for Paralysis")
+            if discardZone==nil then
+                finish(false,"Discard zone missing for Knockout/Paralysis")
                 return
             end
+            -- The hand helper accepts either the scripting hand zone or the
+            -- native TTS HandTrigger, and rejects an uninspectable hand.
             -- Failed validation (for example, a card being held) is safe to
             -- retry. After a partial transfer, mark the hand effect committed
             -- and ask for manual correction, never discard new draws on retry.
-            local ok,success,countOrReason,moved=pcall(combatDiscardParalyzedHand,seat)
+            local ok,success,countOrReason,moved,partialGUIDs=
+                pcall(combatDiscardParalyzedHand,seat,player.color)
+            local movedCount=ok and success==true
+                and (tonumber(countOrReason) or 0) or (tonumber(moved) or 0)
+            if movedCount>0 then physicallyTouched=true end
             if not ok or success~=true then
-                if not ok or (tonumber(moved) or 0)>0 then
-                    for _,key in ipairs(effects.paralyse) do record(key).paralyse=true end
+                -- Do not acknowledge an exception or partial failure as an
+                -- applied hand discard: previously this permanently skipped
+                -- Knockout/Paralysis even when zero cards had actually moved.
+                -- A retry inspects the remaining hand, without repeating the
+                -- Wounds already committed in the damage ledger.
+                for _,guid in ipairs(type(partialGUIDs)=="table" and partialGUIDs or {}) do
+                    settlingGUIDs[guid]=true
                 end
-                finish(false,"Paralysis hand discard: "
+                finish(false,"Knockout/Paralysis hand discard: "
                     ..tostring(ok and countOrReason or success))
                 return
             end
+            ledger.handDiscardApplied=true
             for _,key in ipairs(effects.paralyse) do record(key).paralyse=true end
             -- On success the fourth pcall value is the transferred GUID list.
             for _,guid in ipairs(type(moved)=="table" and moved or {}) do
@@ -51389,6 +51812,9 @@ function resourceCardsApplyCombatWounds(player,onComplete)
                 if combatConfig.captureParalyzedUnitSources~=nil then
                     combatConfig.captureParalyzedUnitSources(seat,effect.guid)
                 end
+                -- Accessory detachment may partially move objects before
+                -- reporting an error, so retain the phase lock conservatively.
+                physicallyTouched=true
                 local ok,movedOrReason=attackAssignmentsUnitPreviewApplyDestroyed(seat,effect.guid)
                 if not ok then
                     finish(false,movedOrReason)
@@ -51418,6 +51844,7 @@ function resourceCardsApplyCombatWounds(player,onComplete)
     end
     combatDealCalculatedWounds(seat,allocations,
         function(key,destination,guid)
+            physicallyTouched=true
             local applied=record(key)
             applied[destination]=(applied[destination] or 0)+1
             if destination=="hand" then ledger.cards[guid]=true end
@@ -51456,18 +51883,19 @@ function combatWoundsEndTurnReminder(color)
         return true
     end
     local _,hand,discard,changed,effects=combatConfig.woundPending(ledger)
-    if hand+discard==0 and effects.paralyseCount==0 and effects.destroyCount==0
+    if hand+discard==0 and not effects.handDiscard and effects.destroyCount==0
         and not changed then return false end
     local signature=tostring(hand)..":"..tostring(discard)..":"..tostring(changed)
         ..":"..tostring(effects.paralyseCount)..":"..tostring(effects.destroyCount)
+        ..":"..tostring(effects.knockout)
     if ledger.warned==signature then return false end
     ledger.warned=signature
     local message
-    if hand+discard>0 or effects.paralyseCount>0 or effects.destroyCount>0 then
+    if hand+discard>0 or effects.handDiscard or effects.destroyCount>0 then
         message="Unapplied combat: "..tostring(hand).." Wounds to hand, "
             ..tostring(discard).." to discard"
-        if effects.paralyseCount>0 then
-            message=message..", Paralysis hand discard pending"
+        if effects.handDiscard then
+            message=message..", Knockout/Paralysis hand discard pending"
         end
         if effects.destroyCount>0 then
             message=message..", "..tostring(effects.destroyCount)
@@ -52153,13 +52581,12 @@ end
 -- Unit resources already spent in the Ranged/Block phases stand. Unused
 -- Ranged/Siege effects fall back to normal Attack only if their Unit survived
 -- damage unwounded; a wound cannot retroactively undo an earlier phase.
--- A Paralyzing Wound assigned to the Hero discards all non-Wound cards from
--- hand BEFORE the Attack phase. In a backwards-planned combat those cards may
--- already be laid out, so treat their Attack resources as unavailable instead
--- of letting them produce a false kill. Range/Siege and Block remain settled.
--- After Damage was committed, a genuinely NEW card can still be played.
-combatConfig.paralysisAttackCards=function(sources,results,lock)
-    local heroParalyzed=false
+-- Knockout and an unblocked Paralyzing Wound both discard non-Wound hand
+-- cards before Attack. Backwards-planned card Attacks therefore cannot count
+-- while earlier Range/Siege/Block and surviving Unit/Skill actions still do.
+-- Cards genuinely played *after* committed Damage remain legal.
+combatConfig.paralysisAttackCards=function(sources,results,lock,knockout)
+    local heroParalyzed=knockout==true
     for _,result in pairs(results or {}) do
         if result.paralyse==true and (tonumber(result.heroWounds) or 0)>0 then
             heroParalyzed=true
@@ -52529,7 +52956,8 @@ local function combatAssignmentRefreshRows(entries,sources)
             and source.psychicInfluence==0
         local influenceOnly=source.ranged+source.siege+source.block+source.attack==0
             and source.psychicInfluence>0 and source.move==0
-        -- Once locked, a source stays on its enemy until it is retargeted or its arrow is removed.
+        -- Explicit calculator targets remain authoritative. If none exists,
+        -- the saved arrow is recovered below (including after reload).
         local targetGUID=combatAssignmentState.targets[source.key]
         if targetGUID==nil then
             -- Restore the saved visual assignment for every source after a reload.
@@ -52986,10 +53414,11 @@ local function combatAssignmentRefreshRows(entries,sources)
         for _,index in ipairs(group.members) do
             local entry=entries[index]
             local target=allocated[index] or emptyTarget
-            local lines,damage,count,allBlocked,reductions,wrongBlock,unblocked,_,_,shieldBashExcess=
-                combatBlockResult(entry,target.sources)
+            local lines,damage,count,allBlocked,reductions,wrongBlock,unblocked,_,_,shieldBashExcess,
+                successfulSourceKeys,spentMoveKeys=combatBlockResult(entry,target.sources)
             rowBlock[index]={lines=lines,damage=damage,count=count,allBlocked=allBlocked,reductions=reductions,
-                wrongBlock=wrongBlock,unblocked=unblocked,shieldBashExcess=shieldBashExcess,damageItems={}}
+                wrongBlock=wrongBlock,unblocked=unblocked,shieldBashExcess=shieldBashExcess,
+                successfulSourceKeys=successfulSourceKeys,spentMoveKeys=spentMoveKeys,damageItems={}}
             blockedAll[entry.guid]=allBlocked
             members[#members+1]=entry
             for _,source in ipairs(target.sources) do
@@ -53108,13 +53537,39 @@ local function combatAssignmentRefreshRows(entries,sources)
         preview.earlyEntries=combatFrozenCopy(entries)
         preview.rowBlock=combatFrozenCopy(rowBlock)
         preview.spentRange={}
+        -- A Damage commitment freezes the actual resources spent in earlier
+        -- phases, not every Block icon laid out while planning combat.
+        preview.sourceKeys={}
+        preview.objectKeys={}
+        local sourcesByKey={}
+        for _,source in ipairs(preview.sources or {}) do
+            sourcesByKey[source.key]=source
+        end
+        local function commitEarlySource(key)
+            local source=sourcesByKey[key]
+            if source==nil then return end
+            preview.sourceKeys[key]=true
+            preview.objectKeys[source.guid]=true
+        end
         for _,group in ipairs(groups) do
             if group.rangeDefeated or group.rangeSpent then
                 for _,source in ipairs(group.sources or {}) do
-                    if (source.ranged or 0)+(source.siege or 0)>0 then
+                    local legalRange=(source.ranged or 0)>0 and group.fortification==0
+                    local legalSiege=(source.siege or 0)>0 and group.fortification<2
+                    if legalRange or legalSiege then
                         preview.spentRange[source.key]=true
+                        commitEarlySource(source.key)
                     end
                 end
+            end
+        end
+        for index,block in ipairs(rowBlock) do
+            local group=groupOf[index]
+            local enemy=entries[index]
+            if group~=nil and not group.rangeDefeated and not group.destroyed
+                and enemy~=nil and not enemy.rangeDead then
+                for key in pairs(block.successfulSourceKeys or {}) do commitEarlySource(key) end
+                for key in pairs(block.spentMoveKeys or {}) do commitEarlySource(key) end
             end
         end
     end
@@ -53367,10 +53822,23 @@ local function combatAssignmentRefreshRows(entries,sources)
             end
         end
     end
-    -- An unblocked Paralyzing Wound to the Hero makes staged card Attacks
-    -- unavailable in the later Attack phase. Recalculate with every damage
-    -- assignment so a successful Block or a Unit assignment restores them.
-    local paralysisAttackCards=combatConfig.paralysisAttackCards(sources,damageResults,earlyLock)
+    -- An unblocked Paralyzing Wound or Knockout removes planned hand-card
+    -- Attacks in the later phase. A successful Block or a Unit assignment
+    -- can restore these resources while damage has not been committed.
+    -- Wounds received from played-card costs DURING this combat count
+    -- toward Knockout alongside enemy hits, but never double-count the
+    -- calculated Wounds already delivered by the damage transaction.
+    local totalHeroWounds,totalDiscardWounds=0,0
+    for _,result in pairs(damageResults) do
+        totalHeroWounds=totalHeroWounds+(tonumber(result.heroWounds) or 0)
+        totalDiscardWounds=totalDiscardWounds+(tonumber(result.discard) or 0)
+    end
+    local otherCombatWounds=combatConfig.combatOtherWounds(damageSeat)
+    local currentPlayer=turnOrder~=nil and gStates~=nil
+        and turnOrder[gStates.turnNumber] or nil
+    local handLimit=math.max(1,tonumber(currentPlayer~=nil and currentPlayer.baseHand) or 5)
+    local knockout=totalHeroWounds+otherCombatWounds>=handLimit
+    local paralysisAttackCards=combatConfig.paralysisAttackCards(sources,damageResults,earlyLock,knockout)
     -- Blocks: only suppress remaining Unit attacks after *actual* wounds.
     -- Resisted assignments that cause no Wound leave the Unit eligible.
     local woundedBeforeAttack=combatConfig.unitsWoundedByDamage(damageResults)
@@ -53504,19 +53972,8 @@ local function combatAssignmentRefreshRows(entries,sources)
     for owner in pairs(dragonOwners) do apocalypseDragonRefreshGroundFameGain(owner) end
     if leaderChanged then mainUIUpdate("Combat leader levels") end
 
-    local totalHeroWounds,totalDiscardWounds=0,0
-    for _,result in pairs(damageResults) do
-        totalHeroWounds=totalHeroWounds+result.heroWounds
-        totalDiscardWounds=totalDiscardWounds+result.discard
-    end
-
-    -- Knockout uses the unmodified Hand limit, never temporary draw bonuses.
-    -- Wounds from card costs are not inferred here; players may need to add
-    -- them when deciding whether to apply Knockout.
-    local currentPlayer=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
-    local handLimit=math.max(1,tonumber(currentPlayer~=nil and currentPlayer.baseHand) or 5)
-    local knockout=totalHeroWounds>=handLimit
-
+    -- Knockout was resolved before Attack, so a staged card cannot
+    -- incorrectly defeat an enemy once the Hero has lost their hand.
     -- An active Sword gives +1 Fame for EACH real enemy defeated, even when
     -- no cards were discarded for its basic Attack. Bow's basic side gives
     -- +1 for each enemy defeated in the Ranged/Siege phase. This is not tied
@@ -53767,9 +54224,22 @@ local function combatAssignmentRefreshRows(entries,sources)
                         ..(item.source.dodgeIneligible and
                             " unavailable: the Hero took Wounds before the Attack phase"
                             or (item.wounded and " can't apply 'Wounded'" or "")))
+                    -- Cold Toughness's powered icon bonus is automatic. Explain
+                    -- its printed Arcane Immunity exception on the Block source icon.
+                    local coldToughness=seatScan~=nil and seatScan.cards["79bfbd"] or nil
+                    if item.source.guid=="79bfbd" and item.typeKey=="I"
+                        and coldToughness~=nil and coldToughness.powered==true then
+                        local printedEnemy=entry~=nil and monsterPugs[entry.guid] or nil
+                        if printedEnemy~=nil and printedEnemy.arcaneImmunity==true then
+                            tooltip=tooltip.."\nCold Toughness: Ice Block 5 + 0 icon bonus (Arcane Immunity)."
+                        else
+                            tooltip=tooltip.."\nCold Toughness: Ice Block 5 + 1 per printed enemy ability, attack type or resistance icon (automatic)."
+                        end
+                    end
                     if item.paralysisCard then
-                        tooltip=tooltip.."\nParalysis: the Hero takes a Paralyzing Wound"
-                            .." before Attack, discarding non-Wound hand cards."
+                        tooltip=tooltip.."\n"
+                            ..(knockout and "Knockout" or "Paralysis")
+                            ..": the Hero discards non-Wound cards before Attack."
                             .." This planned card Attack does not count."
                     end
                     local bowFamily=combatConfig.slotBowFamilies[id]
@@ -53963,13 +54433,14 @@ local function combatAssignmentRefreshRows(entries,sources)
     local widthReduction=(170-columnWidths.range)+(170-columnWidths.block)+(170-columnWidths.attack)
     local panelWidth=1380-(255-combatConfig.columns.Result)-hiddenWidth-widthReduction
 
-    combatConfig.woundRecordPreview(damageSeat,damageItems,damageResults)
+    combatConfig.woundRecordPreview(damageSeat,damageItems,damageResults,
+        knockout,otherCombatWounds)
     local ledger=combatConfig.woundLedger(damageSeat)
     local _,pendingHand,pendingDiscard,changed,effects=combatConfig.woundPending(ledger)
     -- A Paralyzed Unit needs an Apply button even when all its attack damage
     -- was absorbed and the Hero has zero Wounds.
-    local showTotal=totalHeroWounds>0 or effects.destroyCount>0
-        or effects.paralyseCount>0
+    local showTotal=totalHeroWounds>0 or knockout or effects.destroyCount>0
+        or effects.handDiscard
     combatPanelSetAttribute("CombatTotalRow","active",showTotal and "true" or "false")
     if showTotal then
         -- The XML's fixed-width, right-anchored Panel is outside any
@@ -53977,29 +54448,22 @@ local function combatAssignmentRefreshRows(entries,sources)
         local poisonText=totalDiscardWounds>0 and " ("..tostring(totalDiscardWounds).." Poison)" or ""
         local text=totalHeroWounds>0
             and ("Draw: "..combatRich(combatWoundsText(totalHeroWounds)..poisonText,combatConfig.COMBAT_RED))
-            or ("Apply: Destroy "..tostring(effects.destroyCount)..
-                (effects.destroyCount==1 and " Unit" or " Units"))
+            or (effects.handDiscard and "Apply: Discard hand"
+                or (knockout and "Knocked out (applied)"
+                    or ("Apply: Destroy "..tostring(effects.destroyCount)..
+                        (effects.destroyCount==1 and " Unit" or " Units"))))
         combatPanelSetAttribute("CombatTotalDamage","text",text)
         combatPanelSetAttribute("CombatTotalDamage","font","Fonts/MKCardText")
         local pending=pendingHand+pendingDiscard>0
-            or effects.paralyseCount>0 or effects.destroyCount>0
+            or effects.handDiscard or effects.destroyCount>0
         combatPanelSetAttribute("CombatApplyWounds","interactable",
             (pending or changed) and not combatConfig.woundApplying and "true" or "false")
         combatPanelSetAttribute("CombatApplyWounds","color",
             pending and "rgb(0.48,0.36,0.20)" or changed and "rgb(0.49,0.30,0.22)"
             or "rgb(0.23,0.37,0.24)")
-        local tooltip="Apply "..pendingHand.." Wounds to hand and "
-            ..pendingDiscard.." to discard"
-        if effects.paralyseCount>0 then
-            tooltip=tooltip.."; discard all non-Wound hand cards (Paralysis)"
-        end
-        if effects.destroyCount>0 then
-            tooltip=tooltip.."; destroy "..tostring(effects.destroyCount).." Paralyzed Units"
-        end
-        combatPanelSetAttribute("CombatApplyWounds","tooltip",
-            pending and tooltip
-            or changed and "Damage changed after application; check consequences manually"
-            or "All calculated combat consequences have been applied")
+        -- The commit confirmation already explains the consequences.
+        -- Clear any tooltip cached from an earlier calculator refresh.
+        combatPanelSetAttribute("CombatApplyWounds","tooltip","")
         combatPanelSetAttribute("CombatKnockoutWarning","active",knockout and "true" or "false")
         if knockout then
             combatPanelSetAttribute("CombatKnockoutWarning","text",
@@ -54106,6 +54570,12 @@ local function refreshCombatEnemyPanel(monsters,calculated)
         end
     end
     local currentSeat=combatAssignmentActiveSeat()
+    -- Establish the pre-combat Wound baseline as soon as enemies appear.
+    -- Doing this before resources resolve prevents an old Wound moved into
+    -- the play area from being mistaken for a newly taken card-cost Wound.
+    if #entries>0 and currentSeat~=nil then
+        combatConfig.combatOtherWounds(currentSeat)
+    end
     local seatScan=currentSeat~=nil and resourceCardScanBySeat[currentSeat] or nil
     local enemyEffects=seatScan~=nil and seatScan.enemyEffects or nil
     -- Preserve the printed/site Fortification before Demolish/Expose strips it.
@@ -55262,7 +55732,8 @@ end
 -- its controls for a genuinely changed posture or area.
 combatConfig.cardInTransit=function(card)
     return card~=nil and ((card.held_by_color~=nil and card.held_by_color~="")
-        or card.resting==false or card.isSmoothMoving())
+        or card.isSmoothMoving() or (trackerPrivate.playCardMovements~=nil
+            and trackerPrivate.playCardMovements[card.guid]~=nil))
 end
 
 -- TTS and other object-UI owners can replace the XML while a card is lifted.
@@ -55556,6 +56027,14 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         table.sort(readyLinks)
     end
     local readyCount=#readyLinks
+    -- Keep the Ready control for undo while links exist; otherwise show it
+    -- only if the active Unit layout has a spent, eligible target.
+    local canReadyUnit=rule~=nil and rule.readyWithInfluence~=nil and powered
+        and attackAssignmentsHasReadyTarget~=nil
+        and attackAssignmentsHasReadyTarget(
+            turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber]~=nil
+                and turnOrder[gStates.turnNumber].seatPos or nil,
+            rule.readyWithInfluence.maxLevel) or false
     local signature=(posture=="sideways" and "S" or (powered and "P" or "N"))
         ..":"..table.concat(signatureParts,";")..":"..uiRotation..":"..buttonDepth
         ..(combatCalcOn and (combatCumbersomeActive and ":CC" or ":C") or "")
@@ -55570,6 +56049,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         ..(special~=nil and (":START:"..tostring(special.interaction)..":"
             ..tostring(special.recruited)..":"..tostring(special.terrain)) or "")
         ..":READY:"..tostring(readyCount)..":"..table.concat(readyLinks,",")
+        ..":READY_ELIGIBLE:"..tostring(canReadyUnit)
         ..":TARGETS:"..tostring(trackerPrivate.singleAutoEnemyGUID)
     if choiceButtonShown[card.guid]==signature
         and combatConfig.cardChoicesPresent(card) then return end
@@ -55897,7 +56377,8 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         elseif rule.recruitDiscount~=nil and not powered then
             startingControl("recruit","-2 REC",
                 special~=nil and special.recruited==true,135,-125)
-        elseif rule.readyWithInfluence~=nil and powered then
+        elseif rule.readyWithInfluence~=nil and powered
+            and (canReadyUnit or readyCount>0) then
             startingControl("ruthlessReady","RDY "..tostring(readyCount),
                 readyCount>0,145,-125)
         elseif rule.selectedTerrainDiscount~=nil and powered then
@@ -56197,16 +56678,58 @@ local function clearChoiceButtons()
     combatConfig.cardButtonIds={}
 end
 
--- Reset a player's explicit choice only after the card has actually finished
--- leaving that player's Play Area. Zone exits while held are not new plays.
+-- Read a scripting zone's transform, not its (potentially zero-sized)
+-- collider bounds. Sharing this X/Z test keeps Card, Skill, Reward and enemy
+-- recovery consistent, including rotated play and unit zones.
+trackerPrivate.zoneFootprintContainsXZ=function(obj,zone)
+    if obj==nil or zone==nil then return false end
+    local center,size=zone.getPosition(),zone.getScale()
+    if center==nil or size==nil then return false end
+    local pos=obj.getPosition()
+    local x,z=pos.x or pos[1],pos.z or pos[3]
+    local cx,cz=center.x or center[1],center.z or center[3]
+    local width,depth=size.x or size[1],size.z or size[3]
+    if x==nil or z==nil or cx==nil or cz==nil
+        or width==nil or depth==nil or width<=0 or depth<=0 then return false end
+    local rotation=zone.getRotation~=nil and zone.getRotation() or nil
+    local yaw=math.rad(rotation~=nil and (rotation.y or rotation[2]) or 0)
+    local cosYaw,sinYaw=math.cos(yaw),math.sin(yaw)
+    local dx,dz=x-cx,z-cz
+    local localX=dx*cosYaw-dz*sinYaw
+    local localZ=dx*sinYaw+dz*cosYaw
+    return math.abs(localX)<width*0.5 and math.abs(localZ)<depth*0.5
+end
+
+-- A dropped play source can be above the shallow zone while still in play.
+-- Held/smooth sources are not counted until released.
+trackerPrivate.cardOverPlayMat=function(obj,seatPos)
+    if obj==nil or seatPos==nil
+        or (obj.isDestroyed~=nil and obj.isDestroyed())
+        or (obj.held_by_color~=nil and obj.held_by_color~="")
+        or obj.isSmoothMoving() then return false end
+    local zoneGUID=playerPlayAreas~=nil and playerPlayAreas[seatPos] or nil
+    local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
+    return trackerPrivate.zoneFootprintContainsXZ(obj,zone)
+end
+
+-- Reset a player's explicit choice only after the card has actually left
+-- the play mat in X/Z. A temporary zone exit while lifted is not a new play.
 local function cardInSeatPlayArea(guid,seatPos)
     local zoneGUID=playerPlayAreas~=nil and playerPlayAreas[seatPos] or nil
     local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
     if zone==nil then return false end
-    for _,obj in ipairs(zone.getObjects()) do
-        if obj.guid==guid then return true end
+    -- Actual zone membership is affirmative evidence: it must not be
+    -- overruled by an X/Z bounds approximation as the card drops into the
+    -- shallow trigger. The previous check returned the X/Z result first,
+    -- allowing a delayed exit callback to erase the chosen effect even
+    -- when zone.getObjects() already contained the card.
+    for _,candidate in ipairs(zone.getObjects()) do
+        if candidate.guid==guid then return true end
     end
-    return false
+    -- Above a shallow zone, keep the X/Z fallback for released cards that
+    -- have not yet entered the zone's Y range.
+    local obj=getObjectFromGUID(guid)
+    return obj~=nil and trackerPrivate.cardOverPlayMat(obj,seatPos) or false
 end
 
 local function scheduleChoiceResetAfterPlay(guid,seatPos)
@@ -56217,8 +56740,8 @@ local function scheduleChoiceResetAfterPlay(guid,seatPos)
         or gStates.resourceCardPlayOrder[guid]==nil) then return end
     trackerPrivate.choiceResetGenerationByGUID[guid]=(trackerPrivate.choiceResetGenerationByGUID[guid] or 0)+1
     local serial=trackerPrivate.choiceResetGenerationByGUID[guid]
-    -- Allow the zone's membership to settle before checking whether this
-    -- is a real departure or just a temporary lift/rearrangement.
+    -- On release, check X/Z instead of waiting for the shallow zone's Y
+    -- membership to catch up with a card that is still falling.
     safeWaitFrames("PlayerBoard.CardRecognition",function()
         if trackerPrivate.choiceResetGenerationByGUID[guid]~=serial then return end
         safeWaitCondition("PlayerBoard.CardRecognition",function()
@@ -56239,8 +56762,8 @@ local function scheduleChoiceResetAfterPlay(guid,seatPos)
         end,function()
             if trackerPrivate.choiceResetGenerationByGUID[guid]~=serial then return true end
             local obj=getObjectFromGUID(guid)
-            return obj==nil or (obj.held_by_color==nil and obj.resting==true
-                and obj.isSmoothMoving()==false)
+            return obj==nil or (trackerPrivate.playCardMovements[guid]==nil
+                and trackerPrivate.readyForXZ(obj))
         end,8)
     end,1)
 end
@@ -56273,6 +56796,14 @@ local function manaColor(obj)
     return nil
 end
 
+-- Placement and resource links use X/Z, so vertical falling does not delay
+-- an otherwise released object. Dice must finish rolling before reading a face.
+trackerPrivate.readyForXZ=function(obj)
+    if obj==nil or (obj.held_by_color~=nil and obj.held_by_color~="")
+        or obj.isSmoothMoving() then return false end
+    return obj.type~="Dice" or obj.resting==true
+end
+
 -- Magic Talent's strong side consumes TWO distinct mana objects, not the
 -- single mana that normally powers an Advanced Action. Read the same settled
 -- die faces/crystals as the ordinary tracker, even when its panel is minimized.
@@ -56284,7 +56815,7 @@ function magicTalentManaPayments(seatPos)
     local payments,seen={},{}
     local function consider(obj)
         if obj==nil or seen[obj.guid] or obj.guid==card.guid
-            or obj.resting~=true or obj.isSmoothMoving()==true then return end
+            or not trackerPrivate.readyForXZ(obj) then return end
         seen[obj.guid]=true
         local p=obj.getPosition()
         if math.abs(p[1]-area.x)<area.halfX
@@ -56349,12 +56880,54 @@ local function resourceObjectKind(obj)
     return nil
 end
 
--- Dungeon and Tomb mana is Night even in an otherwise Day round.
+-- A NightRules token represents a combat fought under Night rules, even
+-- during a Day round or when the Mage Knight is standing outside the site.
+-- The saved perk is authoritative; the physical decal also supports older
+-- saves/manual tokens that have the marker but no matching perk entry.
+local function resourceCardsCombatNightFromEnemies(enemies)
+    for guid,enemy in pairs(enemies or {}) do
+        if enemy~=nil and enemy.is_face_down~=true
+            and (enemy.isDestroyed==nil or enemy.isDestroyed()~=true) then
+            local perks=gStates~=nil and gStates.monsterPerks~=nil
+                and gStates.monsterPerks[guid] or nil
+            -- Earlier saves could have nightRules mistakenly stamped on every
+            -- summoned monster. For a summon, require the actual Night decal.
+            local summoned=gStates~=nil and gStates.summonStates~=nil
+                and gStates.summonStates[guid]=="summoned"
+            if not summoned and perks~=nil and perks.nightRules==true then return true end
+            if enemy.getDecals~=nil then
+                local ok,decals=pcall(enemy.getDecals)
+                if ok and type(decals)=="table" then
+                    for _,decal in ipairs(decals) do
+                        if decal.name=="NightRules" then return true end
+                    end
+                end
+            end
+        end
+    end
+    return false
+end
+
+-- This is the effective Day/Night setting for combat Skills and mana, not the
+-- world's round setting. Terrain movement and other non-combat Day effects
+-- still use gStates.dayRound. One visible NightRules enemy makes the active
+-- combat Night, including for a hero fighting from an adjacent hex.
 local function resourceCardsUsesDayMana()
-    if gStates.dayRound~=true then return false end
+    if gStates==nil or gStates.dayRound~=true then return false end
     local player=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     local site=player~=nil and player.avatarLocation or nil
-    return site~="dungeon" and site~="tomb"
+    if site=="dungeon" or site=="tomb" then return false end
+    -- The render already collected the active combat tokens once. Avoid
+    -- rescanning scripting zones for every mana/Skill lookup in that pass.
+    if trackerPrivate.renderCombatNight~=nil then
+        return not trackerPrivate.renderCombatNight
+    end
+    if player~=nil and player.seatPos~=nil
+        and type(playerPlayAreas)=="table" and type(playerUnitAreas)=="table"
+        and getObjectFromGUID~=nil then
+        return not resourceCardsCombatNightFromEnemies(combatPlayMonsters())
+    end
+    return true
 end
 
 -- These are separate permissions. Amulet of the Sun permits Gold at Night
@@ -56412,7 +56985,7 @@ function magicTalentSpellCastingPaid(seatPos,guid)
     local seen={}
     local function paidBy(mana)
         if mana==nil or seen[mana.guid] or mana.guid==guid
-            or mana.resting~=true or mana.isSmoothMoving()==true then return false end
+            or not trackerPrivate.readyForXZ(mana) then return false end
         seen[mana.guid]=true
         local p=mana.getPosition()
         if math.abs(p[1]-area.x)>=area.halfX
@@ -56788,7 +57361,7 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
     if usesTerrainBlock then
         local value=currentLandBlockValue()
         if value~=nil then
-            chosen=gStates.dayRound==true and {blockFire=value} or {blockIce=value}
+            chosen=resourceCardsUsesDayMana() and {blockFire=value} or {blockIce=value}
         else
             -- Terrain not yet determinable. Preserve the B selection, but
             -- do not invent a Block amount; show yellow until the next scan.
@@ -56955,7 +57528,9 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
             defeatSide=scaled
         end
     end
-    return {guid=card.guid,known=known,complete=complete,powered=powered,fameRep=fameRepSide,
+    -- Preserve the physical source type for phase rules (Knockout and
+    -- Paralysis invalidate only non-Wound hand-card Attacks, not Units/Skills).
+    return {guid=card.guid,kind="card",known=known,complete=complete,powered=powered,fameRep=fameRepSide,
         conditionalFireAttack=complete and not powered and chosen~=nil
             and chosen.conditionalFireAttack or nil,
         flameWave=complete and powered and rule~=nil and rule.poweredEnemyBonus~=nil,
@@ -57266,7 +57841,8 @@ local function unitManaCounts(unit,seatPos,source,crystalsOnly)
             local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
             if zone~=nil then
                 for _,obj in ipairs(zone.getObjects()) do
-                    if not seen[obj.guid] and manaColor(obj)~=nil then
+                    if not seen[obj.guid] and trackerPrivate.readyForXZ(obj)
+                        and manaColor(obj)~=nil then
                         seen[obj.guid]=true
                         tokens[#tokens+1]=obj
                     end
@@ -57277,14 +57853,16 @@ local function unitManaCounts(unit,seatPos,source,crystalsOnly)
     local counts,area={},footprint(unit)
     local seen={}
     for _,mana in ipairs(tokens) do
-        seen[mana.guid]=true
-        local color=manaColor(mana)
-        if color~=nil and (not crystalsOnly or isManaTokenFigurine(mana))
+        if trackerPrivate.readyForXZ(mana) then
+            seen[mana.guid]=true
+            local color=manaColor(mana)
+            if color~=nil and (not crystalsOnly or isManaTokenFigurine(mana))
             and manaInsideFootprint(mana,area) then
-            counts[color]=(counts[color] or 0)+1
+                counts[color]=(counts[color] or 0)+1
+            end
         end
     end
-    -- Stacking raises a resting crystal beyond the zone's Y extent. Recover
+    -- Stacking can raise a crystal beyond the zone's Y extent. Recover
     -- only previously moved mana physically covering this Unit, once per GUID.
     -- Inventory crystals elsewhere never pay a Unit, and a lifted/moving
     -- crystal cannot retain its previous payment during settling.
@@ -57294,8 +57872,7 @@ local function unitManaCounts(unit,seatPos,source,crystalsOnly)
             local mana=getObjectFromGUID(guid)
             if mana==nil then
                 candidates[guid]=nil
-            elseif (mana.held_by_color==nil or mana.held_by_color=="")
-                and mana.resting==true and not mana.isSmoothMoving() then
+            elseif trackerPrivate.readyForXZ(mana) then
                 local color=manaColor(mana)
                 if color~=nil and (not crystalsOnly or isManaTokenFigurine(mana))
                     and manaInsideFootprint(mana,area) then
@@ -57913,6 +58490,16 @@ local function renderSeat(seatPos)
     if not resourceCardsPanelOpen() then return end
     local active=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if active==nil or active.seatPos~=seatPos then return end
+    -- Keep the last complete calculator result while a played card is carried
+    -- or its final X/Z/orientation is being confirmed. Never publish a
+    -- half-empty scan that discards a choice or replaces an explicit target.
+    for guid,movement in pairs(trackerPrivate.playCardMovements or {}) do
+        local live=getObjectFromGUID(guid)
+        if live==nil or (live.isDestroyed~=nil and live.isDestroyed()) then
+            trackerPrivate.playCardMovements[guid]=nil
+        elseif movement.seatPos==seatPos then return end
+    end
+    trackerPrivate.renderCombatNight=nil
 
     local objects,placements,monsters,playMonsters={},{},{},{}
     local combatMonsters,combatPlayMonsters={},{}
@@ -57933,7 +58520,18 @@ local function renderSeat(seatPos)
                 kind=resourceObjectKind(obj)
                 if kind~=nil then objectKinds[obj.guid]=kind end
             end
-            if kind~=nil and (zoneKind=="play"
+            if zoneKind=="play" and trackerPrivate.playCandidateKind(kind) then
+                local candidates=trackerPrivate.playCandidatesBySeat[seatPos]
+                if candidates==nil then
+                    candidates={}
+                    trackerPrivate.playCandidatesBySeat[seatPos]=candidates
+                end
+                candidates[obj.guid]=true
+            end
+            if kind~=nil and (kind~="mana" or trackerPrivate.readyForXZ(obj))
+                and (zoneKind~="play" or not trackerPrivate.playCandidateKind(kind)
+                    or not combatConfig.cardInTransit(obj))
+                and (zoneKind=="play"
                 or (zoneKind=="unit" and (kind=="unit" or kind=="mana" or kind=="puppet"))
                 or (zoneKind=="crystal" and kind=="mana")) then
                 -- Play-area placement takes precedence when scripting zones overlap.
@@ -57948,34 +58546,80 @@ local function renderSeat(seatPos)
     inspectZone(playerCrystalAreas[seatPos],"crystal")
     inspectZone(playerUnitAreas[seatPos],"unit")
     inspectZone(playerPlayAreas[seatPos],"play")
-    -- A Source die resting ON a played Action may sit above the thin play
+    -- A released source may be above the shallow zone despite its X/Z being
+    -- on the play mat. Recover only previously seen/dropped play sources,
+    -- never arbitrary cards elsewhere on the table.
+    do
+        local playCandidates=trackerPrivate.playCandidatesBySeat[seatPos] or {}
+        for guid in pairs(playCandidates) do
+            if placements[guid]~="play" then
+                local obj=getObjectFromGUID(guid)
+                if obj==nil or (obj.isDestroyed~=nil and obj.isDestroyed()) then
+                    playCandidates[guid]=nil
+                elseif trackerPrivate.cardOverPlayMat(obj,seatPos) then
+                    local kind=resourceObjectKind(obj)
+                    if trackerPrivate.playCandidateKind(kind) then
+                        objects[guid]=obj
+                        placements[guid]="play"
+                        objectKinds[guid]=kind
+                    end
+                elseif not combatConfig.cardInTransit(obj) then
+                    playCandidates[guid]=nil
+                end
+            end
+        end
+    end
+    -- Mana dropped ON a played Action may sit above the thin play
     -- scripting zone, even though its dropped GUID was seen. Recover only
-    -- settled, physically overlapping mana candidates; a die elsewhere on
+    -- released, physically overlapping mana candidates; a die elsewhere on
     -- the table must never pay for an Action merely because it was moved.
     local manaCandidates=trackerPrivate.unitManaCandidatesBySeat[seatPos] or {}
+    local candidateUnitFootprints=nil
+    local function candidateTouchesUnit(pos)
+        if candidateUnitFootprints==nil then
+            candidateUnitFootprints={}
+            local snapshot=unitLayoutSnapshot~=nil and unitLayoutSnapshot(seatPos) or nil
+            for _,unit in ipairs(snapshot~=nil and snapshot.units or {}) do
+                candidateUnitFootprints[#candidateUnitFootprints+1]=footprint(unit)
+            end
+        end
+        for _,area in ipairs(candidateUnitFootprints) do
+            if math.abs(pos[1]-area.x)<area.halfX
+                and math.abs(pos[3]-area.z)<area.halfZ then return true end
+        end
+        return false
+    end
     for guid in pairs(manaCandidates) do
         if placements[guid]~="play" then
             local mana=objects[guid] or getObjectFromGUID(guid)
             if mana==nil or (mana.isDestroyed~=nil and mana.isDestroyed()) then
                 manaCandidates[guid]=nil
-            elseif (mana.held_by_color==nil or mana.held_by_color=="")
-                and mana.resting==true and not mana.isSmoothMoving()
-                and manaColor(mana)~=nil then
+            elseif trackerPrivate.readyForXZ(mana) then
                 local pos=mana.getPosition()
-                for cardGUID,card in pairs(objects) do
-                    if placements[cardGUID]=="play"
-                        and (objectKinds[cardGUID]=="card" or objectKinds[cardGUID]=="skill") then
-                        local area=footprint(card)
-                        local cardPos=card.getPosition()
-                        if pos[2]>=cardPos[2] and pos[2]-cardPos[2]<3
-                            and math.abs(pos[1]-area.x)<area.halfX
-                            and math.abs(pos[3]-area.z)<area.halfZ then
-                            objects[guid]=mana
-                            objectKinds[guid]="mana"
-                            placements[guid]="play"
-                            break
+                local recovered=false
+                if manaColor(mana)~=nil then
+                    for cardGUID,card in pairs(objects) do
+                        if placements[cardGUID]=="play"
+                            and (objectKinds[cardGUID]=="card" or objectKinds[cardGUID]=="skill") then
+                            local area=footprint(card)
+                            local cardPos=card.getPosition()
+                            if pos[2]>=cardPos[2] and pos[2]-cardPos[2]<3
+                                and math.abs(pos[1]-area.x)<area.halfX
+                                and math.abs(pos[3]-area.z)<area.halfZ then
+                                objects[guid]=mana
+                                objectKinds[guid]="mana"
+                                placements[guid]="play"
+                                recovered=true
+                                break
+                            end
                         end
                     end
+                end
+                -- Remember above-zone payments on Units as well as Actions.
+                -- Remove settled tokens dropped elsewhere; they can register
+                -- again on a future drop without slowing every subsequent scan.
+                if not recovered and not candidateTouchesUnit(pos) then
+                    manaCandidates[guid]=nil
                 end
             end
         end
@@ -58003,6 +58647,9 @@ local function renderSeat(seatPos)
     -- One observation and one held-enemy reconciliation serve both systems.
     -- Reminders/Leader previews belong to combat, but never to card enemy-count bonuses.
     combatKeepHeldEnemies(seatPos,combatMonsters,combatPlayMonsters)
+    -- Apply NightRules to the entire active combat, not just Dungeon/Tomb
+    -- location checks. The same value powers mana legality and day/night Skills.
+    trackerPrivate.renderCombatNight=resourceCardsCombatNightFromEnemies(combatMonsters)
     for guid,enemy in pairs(combatMonsters) do
         local pug=monsterPugs[guid]
         if pug~=nil and pug.name~="Ruin" then
@@ -58814,6 +59461,15 @@ local function renderSeat(seatPos)
             -- Ready, even though no numeric resource is contributed.
             choices={{key="red",icon="other"}}
         end
+        -- The recruitment-cost change is not performed by the offer script:
+        -- the player chooses when to use these two extra Influence points.
+        local recruitBonus=resourceCardsRecruitInfluenceBonus(card.guid,rule,result)
+        if recruitBonus>0 then
+            local adjusted={}
+            for key,value in pairs(result.resources) do adjusted[key]=value end
+            adjusted.influence=(tonumber(adjusted.influence) or 0)+recruitBonus
+            result.resources=adjusted
+        end
         result.choices=choices -- Also authoritative for payment-restricted click validation.
         showChoiceButtons(card,choices,result.powered,inventorySpec,inventorySets,result.resources,
             repeatByTarget[card.guid])
@@ -59165,7 +59821,7 @@ local function renderSeat(seatPos)
     -- Unit activation is historical: a Command token may stay on the card for
     -- the entire round, or be moved away by an ability. Only a Command move
     -- during THIS turn creates an entry, never a static token found on load.
-    -- Read only mana physically resting over each Unit; inventory mana does
+    -- Read only released mana physically over each Unit; inventory mana does
     -- not pay costs. Familiar crystals are a persistent modifier, not a cost.
     local howlOwner=gStates~=nil and gStates.doingTheRounds
         and gStates.doingTheRounds["a92d73"] or nil
@@ -60744,6 +61400,7 @@ local function renderSeat(seatPos)
     if steadyTempoRefreshAll~=nil and next(gStates.steadyTempoPending or {})~=nil then
         steadyTempoRefreshAll()
     end
+    trackerPrivate.renderCombatNight=nil
 end
 
 local function scheduleSeatRender(seatPos)
@@ -60768,8 +61425,7 @@ local function queueSeat(seatPos,triggerGUID)
     -- Zone entry and drop frequently report the same moving object.
     if waits[triggerGUID]==generation then return end
     local obj=getObjectFromGUID(triggerGUID)
-    if obj==nil or (obj.held_by_color==nil and obj.resting==true
-        and obj.isSmoothMoving()==false) then
+    if obj==nil or trackerPrivate.readyForXZ(obj) then
         scheduleSeatRender(seatPos)
         return
     end
@@ -60787,8 +61443,7 @@ local function queueSeat(seatPos,triggerGUID)
     safeWaitCondition("PlayerBoard.CardRecognition",settled,function()
         if not stillCurrent() then return true end
         local live=getObjectFromGUID(triggerGUID)
-        return live==nil or (live.held_by_color==nil
-            and live.resting==true and live.isSmoothMoving()==false)
+        return live==nil or trackerPrivate.readyForXZ(live)
     end,8,function()
         -- A perpetually held/rolling token must not keep the watcher alive
         -- or delay other objects' refreshes. Its eventual drop queues anew.
@@ -60811,6 +61466,8 @@ local function clearAll()
     -- Do not discard choices when closing/reopening the Resource Tracker.
     for guid in pairs(shown) do clearHighlight(guid) end
     trackerPrivate.bySeat={}
+    trackerPrivate.playCandidatesBySeat={}
+    trackerPrivate.playCardMovements={}
     resourceCardScanBySeat={}
     combatConfig.bowSourceModes={}
     combatConfig.amuletMana={gold=false,black=false}
@@ -61520,8 +62177,7 @@ function resourceUnitsCommandDropped(playerColor,obj)
     end,function()
         if not resourceCardsPanelOpen() or trackerPrivate.trackerSession~=serial then return true end
         local token=getObjectFromGUID(guid)
-        return token==nil or (token.held_by_color==nil and token.resting==true
-            and token.isSmoothMoving()==false)
+        return token==nil or trackerPrivate.readyForXZ(token)
     end,8)
 end
 
@@ -61765,6 +62421,68 @@ local function resourceUnitsRebuildFromTable()
     for guid in pairs(activations) do unitHistoryRefreshToken(guid) end
 end
 
+-- Explicit card choices represent player decisions rather than reconstructable table state.
+-- Save only choices for cards still in the current player's play/unit areas.
+trackerPrivate.copyCardSelection=function(selection,fromSave)
+    if type(selection)~="table" then return nil end
+    local result={}
+    for _,field in ipairs({"effect","sideways"}) do
+        if type(selection[field])=="string" then result[field]=selection[field] end
+    end
+    for _,field in ipairs({"repeatChoices","inventorySets"}) do
+        local entries={}
+        if fromSave then
+            for _,entry in ipairs(type(selection[field])=="table" and selection[field] or {}) do
+                local index=type(entry)=="table" and tonumber(entry.index) or nil
+                if index~=nil and index>=1 and index%1==0 and type(entry.choice)=="string" then
+                    entries[index]=entry.choice
+                end
+            end
+        else
+            for index,choice in pairs(type(selection[field])=="table" and selection[field] or {}) do
+                if type(index)=="number" and index>=1 and index%1==0 and type(choice)=="string" then
+                    entries[#entries+1]={index=index,choice=choice}
+                end
+            end
+            table.sort(entries,function(a,b) return a.index<b.index end)
+        end
+        if next(entries)~=nil then result[field]=entries end
+    end
+    return next(result)~=nil and result or nil
+end
+
+function resourceCardsChoicesSave()
+    if gStates==nil then return end
+    local selected={}
+    local active=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    if active~=nil and active.seatPos~=nil then
+        local present={}
+        for _,zoneGUID in ipairs({playerPlayAreas[active.seatPos],playerUnitAreas[active.seatPos]}) do
+            local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
+            if zone~=nil then
+                for _,obj in ipairs(zone.getObjects()) do present[obj.guid]=true end
+            end
+        end
+        for guid,selection in pairs(selectedResourceByGUID) do
+            if present[guid]==true and gameCards[guid]~=nil then
+                selected[guid]=trackerPrivate.copyCardSelection(selection,false)
+            end
+        end
+    end
+    gStates.resourceCardSelectedChoices=selected
+end
+
+function resourceCardsChoicesRestore()
+    selectedResourceByGUID={}
+    local stored=gStates~=nil and gStates.resourceCardSelectedChoices or nil
+    if type(stored)~="table" then return end
+    for guid,selection in pairs(stored) do
+        if type(guid)=="string" and gameCards[guid]~=nil then
+            selectedResourceByGUID[guid]=trackerPrivate.copyCardSelection(selection,true)
+        end
+    end
+end
+
 function resourceCardsPanelChanged(open)
     local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
     if open==true and (current==nil or not resourceCardsSeatEnabled(current.seatPos)) then return end
@@ -61871,7 +62589,8 @@ end
 -- Shared by saved-game load, first-game setup and re-expanding the panel.
 -- Wait for the actual UI state rather than treating startup's collapsed XML
 -- defaults as a player pressing OFF. Explicit minimization cancels this wait.
-function resourceCardsOnLoad()
+function resourceCardsOnLoad(restoringSave)
+    if restoringSave==true then trackerPrivate.restoreAssignmentsPending=true end
     if gStates==nil or gStates.firstStarted~=true then return end
     local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if current~=nil and not resourceCardsSeatEnabled(current.seatPos) then
@@ -61889,6 +62608,10 @@ function resourceCardsOnLoad()
     local request=trackerPrivate.trackerStartupRequest
     safeWaitCondition("PlayerBoard.CardRecognition",function()
         if trackerPrivate.trackerStartupRequest==request and resourceCardsPanelReady() then
+            if trackerPrivate.restoreAssignmentsPending==true then
+                trackerPrivate.restoreAssignmentsPending=false
+                attackAssignmentsRestore()
+            end
             resourceCardsPanelChanged(true)
         end
     end,function()
@@ -61924,11 +62647,147 @@ local function resourceCardsRelevantZone(ctx)
     return nil
 end
 
+-- Mark played cards while dragged, so zone callbacks cannot publish an
+-- intermediate 'card absent' calculation and overwrite a chosen target.
+function resourceCardsObjectPickedUp(obj)
+    if obj==nil or obj.guid==nil or not resourceCardsPanelOpen()
+        or not trackerPrivate.playCandidateKind(resourceObjectKind(obj)) then return end
+    local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    if active==nil then return end
+    local seat=active.seatPos
+    local candidates=trackerPrivate.playCandidatesBySeat[seat]
+    local previous=trackerPrivate.bySeat[seat]
+    if (candidates~=nil and candidates[obj.guid]==true)
+        or (previous~=nil and previous[obj.guid]==true)
+        or cardInSeatPlayArea(obj.guid,seat) then
+        -- A second pickup invalidates the first drop's pending callbacks.
+        -- Capture what the player actually chose; a scan must not replace
+        -- these choices or enemy targets with the nearest/default ones.
+        local savedTargets={}
+        local prefix=obj.guid.."#"
+        for sourceKey,targetGUID in pairs(combatAssignmentState.targets or {}) do
+            if sourceKey==obj.guid or sourceKey:sub(1,#prefix)==prefix then
+                savedTargets[sourceKey]={targetGUID=targetGUID,
+                    explicit=combatAssignmentState.explicit[sourceKey]==true}
+            end
+        end
+        trackerPrivate.playCardMovements[obj.guid]={
+            seatPos=seat,choice=selectedResourceByGUID[obj.guid],
+            targets=savedTargets,posture=cardPosture(obj),
+            faceDown=obj.is_face_down
+        }
+    end
+end
+
+-- Restore the player's source decisions before a completed drop recalculates.
+-- This is runtime-only and applies only while the original card remains on
+-- the same Play Area. Deliberate sideways/flipped play can change targeting.
+trackerPrivate.restorePlayCardMove=function(obj,state)
+    if state==nil or obj==nil
+        or not cardInSeatPlayArea(obj.guid,state.seatPos) then return end
+    if state.choice~=nil then
+        selectedResourceByGUID[obj.guid]=state.choice
+    end
+    if state.posture~=cardPosture(obj)
+        or state.faceDown~=obj.is_face_down then return end
+    for sourceKey,saved in pairs(state.targets or {}) do
+        if saved.targetGUID~=nil then
+            combatAssignmentState.targets[sourceKey]=saved.targetGUID
+            combatAssignmentState.explicit[sourceKey]=saved.explicit
+        end
+    end
+end
+
+-- A card may still be falling in Y when its X/Z and rotation are final.
+-- Observe those values for three frames instead of waiting for 'resting'.
+trackerPrivate.finishPlayCardMove=function(obj)
+    local state=obj~=nil and trackerPrivate.playCardMovements[obj.guid] or nil
+    if state==nil or state.releasing then return end
+    state.releasing=true
+    state.samples=0
+    state.consecutive=0
+    state.last=nil
+    local guid=obj.guid
+    local function sample()
+        if trackerPrivate.playCardMovements[guid]~=state then return end
+        local live=getObjectFromGUID(guid)
+        if live==nil then
+            trackerPrivate.playCardMovements[guid]=nil
+            queueSeat(state.seatPos,nil)
+            return
+        end
+        state.samples=state.samples+1
+        if (live.held_by_color~=nil and live.held_by_color~="")
+            or live.isSmoothMoving() then
+            -- A new drop restarts this watcher if TTS briefly still reports
+            -- the object as held. Do not unblock a genuinely held card.
+            if state.samples>=30 then state.releasing=nil
+            else safeWaitFrames("PlayerBoard.CardRecognition",sample,1) end
+            return
+        end
+        local pos=live.getPosition()
+        local rot=live.getRotation()
+        local now={x=pos.x or pos[1],z=pos.z or pos[3],
+            rx=rot.x or rot[1],ry=rot.y or rot[2],rz=rot.z or rot[3],
+            face=live.is_face_down}
+        local previous=state.last
+        local function angleDifference(a,b)
+            return math.abs(((a or 0)-(b or 0)+180)%360-180)
+        end
+        if previous~=nil
+            and math.abs(now.x-previous.x)<0.04
+            and math.abs(now.z-previous.z)<0.04
+            and angleDifference(now.rx,previous.rx)<1
+            and angleDifference(now.ry,previous.ry)<1
+            and angleDifference(now.rz,previous.rz)<1
+            and now.face==previous.face then
+            state.consecutive=state.consecutive+1
+        else
+            state.consecutive=0
+        end
+        state.last=now
+        if state.consecutive<2 and state.samples<24 then
+            safeWaitFrames("PlayerBoard.CardRecognition",sample,1)
+            return
+        end
+        trackerPrivate.restorePlayCardMove(live,state)
+        trackerPrivate.playCardMovements[guid]=nil
+        -- Resume a single complete scan; normal drop handling determines
+        -- whether this was a reposition or a genuine departure from play.
+        resourceCardsObjectMoved(live,true)
+        queueSeat(state.seatPos,nil)
+    end
+    safeWaitFrames("PlayerBoard.CardRecognition",sample,1)
+end
+
 function resourceCardsZoneEntered(ctx)
     if not resourceCardsPanelOpen() or ctx==nil or ctx.zoneInfo==nil then return end
     -- Filter irrelevant zones and other players before touching the Unit layout.
     local seat=resourceCardsRelevantZone(ctx)
     if seat==nil then return end
+    if ctx.zoneInfo.kind=="play" and ctx.objType~="Dice"
+        and trackerPrivate.playCandidateKind(resourceObjectKind(ctx.obj)) then
+        -- A returned card invalidates any delayed choice-clear queued by its
+        -- earlier onExitZone. The exit callback must never win after reentry.
+        trackerPrivate.choiceResetGenerationByGUID[ctx.objGUID]=
+            (trackerPrivate.choiceResetGenerationByGUID[ctx.objGUID] or 0)+1
+        trackerPrivate.playCandidatesBySeat[seat]=trackerPrivate.playCandidatesBySeat[seat] or {}
+        local candidates=trackerPrivate.playCandidatesBySeat[seat]
+        local previous=trackerPrivate.bySeat[seat]
+        local alreadyPlayed=candidates[ctx.objGUID]==true
+            or (previous~=nil and previous[ctx.objGUID]==true)
+            or trackerPrivate.playCardMovements[ctx.objGUID]~=nil
+        candidates[ctx.objGUID]=true
+        if alreadyPlayed then
+            -- TTS emits EnterZone again when a relocated card falls through
+            -- the thin zone. That is not a new play or another pickup.
+            -- onObjectDrop owns its one reconciliation, even if the zone
+            -- entry happens before the drop's final callback.
+            return
+        end
+        -- For a genuinely new play, queue its first scan normally. Do not
+        -- infer an ObjectPickUp from resting=false on zone entry.
+    end
     if ctx.zoneInfo.kind=="play" and gameCards[ctx.objGUID]~=nil
         and gStates~=nil then
         gStates.resourceCardPlayOrder=gStates.resourceCardPlayOrder or {}
@@ -61950,16 +62809,36 @@ function resourceCardsZoneLeft(ctx)
     if not resourceCardsPanelOpen() or ctx==nil or ctx.zoneInfo==nil then return end
     local seat=resourceCardsRelevantZone(ctx)
     if ctx.zoneInfo.kind=="play" then
+        if ctx.obj~=nil and trackerPrivate.playCandidateKind(resourceObjectKind(ctx.obj))
+            and (combatConfig.cardInTransit(ctx.obj)
+                or cardInSeatPlayArea(ctx.objGUID,ctx.zoneInfo.seatPos)) then
+            -- This is a transient exit of a card still being moved or
+            -- physically over the play mat, not an ended play. Crucially,
+            -- do not schedule a delayed choice reset here: onDrop owns the
+            -- final departure check, and reentry may occur after the timer.
+            return
+        end
         scheduleChoiceResetAfterPlay(ctx.objGUID,ctx.zoneInfo.seatPos)
     end
     if seat==nil then return end
-    -- Do not redraw Unit buttons while a crystal is lifted from a thin zone.
-    -- A complete scan will reconcile its actual settled payment and targets.
     queueSeat(seat,ctx.objGUID)
 end
 
-function resourceCardsObjectMoved(obj)
+function resourceCardsObjectMoved(obj,stabilized)
     if obj==nil or not resourceCardsPanelOpen() then return end
+    -- Some entries are reported only after the card is dropped. Protect that
+    -- first scan too, even if no pickup/enter event registered the movement.
+    if not stabilized and obj.type~="Dice" and obj.resting==false
+        and trackerPrivate.playCardMovements[obj.guid]==nil
+        and trackerPrivate.playCandidateKind(resourceObjectKind(obj)) then
+        resourceCardsObjectPickedUp(obj)
+    end
+    -- Drop callbacks can arrive before the card's final rotation or before
+    -- the shallow zone knows it is back. Keep the calculator unchanged.
+    if trackerPrivate.playCardMovements[obj.guid]~=nil then
+        trackerPrivate.finishPlayCardMove(obj)
+        return
+    end
     local player=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if player==nil then return end
     local seat=player.seatPos
@@ -61995,6 +62874,25 @@ function resourceCardsObjectMoved(obj)
     -- when dropped just above a shallow zone. Avoid searching four zones to
     -- discover information the last scan already provided.
     local observed=trackerPrivate.bySeat[seat]
+    -- The drop event can precede the shallow zone's physical re-entry.
+    -- Keep the previously played source (and its explicit choices/target)
+    -- when its released X/Z is still over this mat.
+    if trackerPrivate.playCandidateKind(objectKind) then
+        local candidates=trackerPrivate.playCandidatesBySeat[seat] or {}
+        local known=candidates[obj.guid]==true
+        local inPlay=cardInSeatPlayArea(obj.guid,seat)
+        if inPlay then
+            candidates[obj.guid]=true
+            trackerPrivate.playCandidatesBySeat[seat]=candidates
+        elseif known then
+            candidates[obj.guid]=nil
+            scheduleChoiceResetAfterPlay(obj.guid,seat)
+        end
+        if inPlay or known then
+            queueSeat(seat,obj.guid)
+            return
+        end
+    end
     if observed~=nil and observed[obj.guid]==true then
         if (objectKind=="card" or objectKind=="skill" or objectKind=="factionReward")
             and not cardInSeatPlayArea(obj.guid,seat) then
@@ -62770,8 +63668,8 @@ function playerBoardZoneEnterSettled(ctx)
 		if objType=="Card" or objType=="Deck" then safeWaitFrames("PlayerBoard.Events",function() separateCombinedUnitsInArea(unitSeatPos) end, 2) end
 		scheduleUnitLayoutRefresh(unitSeatPos)
         -- A manually added Unit may replace one that was trashed earlier.
-        -- Wait for a settled physical position before deciding that its
-        -- Command belongs to someone new; lifts never clear spent history.
+        -- Once released, X/Z identifies its Command column even if the
+        -- card is falling. Lifts never clear spent Command history.
         if objType=="Card" and unitLayoutIsUnit(obj) then
             local incomingGUID=objGUID
             safeWaitCondition("PlayerBoard.Events",function()
@@ -62782,7 +63680,7 @@ function playerBoardZoneEnterSettled(ctx)
                 end
             end,function()
                 local incoming=getObjectFromGUID(incomingGUID)
-                return incoming==nil or (incoming.resting==true
+                return incoming==nil or ((incoming.held_by_color==nil or incoming.held_by_color=="")
                     and incoming.isSmoothMoving()==false)
             end,8)
         end
@@ -62930,12 +63828,12 @@ local function playerBoardScheduleUICleanup(guid)
         local live=getObjectFromGUID(guid)
         if live==nil then playerBoardPendingUICleanup[guid]=nil return end
         if live.held_by_color~=nil then return end
-        if live.resting==true and live.isSmoothMoving()==false then apply() return end
+        if live.isSmoothMoving()==false then apply() return end
         safeWaitCondition("PlayerBoard.Events",apply,function()
             if playerBoardPendingUICleanup[guid]~=serial then return true end
             local candidate=getObjectFromGUID(guid)
-            return candidate==nil or (candidate.held_by_color==nil
-                and candidate.resting==true and candidate.isSmoothMoving()==false)
+            return candidate==nil or ((candidate.held_by_color==nil or candidate.held_by_color=="")
+                and candidate.isSmoothMoving()==false)
         end,8,function()
             if playerBoardPendingUICleanup[guid]~=serial then return end
             local candidate=getObjectFromGUID(guid)
@@ -63777,10 +64675,30 @@ local function playAreaScaleInZone(guid,zoneGUID)
     return false
 end
 
+local function playAreaScaleOverZoneXZ(obj,zoneGUID)
+    local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
+    if obj==nil or zone==nil then return false end
+    local bounds=zone.getBounds()
+    local center,size=bounds~=nil and bounds.center or nil,bounds~=nil and bounds.size or nil
+    if center==nil or size==nil then return false end
+    local pos=obj.getPosition()
+    return math.abs((pos.x or pos[1])-(center.x or center[1]))<(size.x or size[1])*0.5
+        and math.abs((pos.z or pos[3])-(center.z or center[3]))<(size.z or size[3])*0.5
+end
+
 local function playAreaScaleSeatContaining(guid)
     for seat=1,4 do
         if playAreaScaleInZone(guid,playerPlayAreas[seat])
             or playAreaScaleInZone(guid,playerUnitAreas[seat]) then return seat end
+    end
+    -- A released object may be falling above a shallow scripting zone.
+    local obj=getObjectFromGUID(guid)
+    if obj~=nil and (obj.held_by_color==nil or obj.held_by_color=="")
+        and not obj.isSmoothMoving() then
+        for seat=1,4 do
+            if playAreaScaleOverZoneXZ(obj,playerPlayAreas[seat])
+                or playAreaScaleOverZoneXZ(obj,playerUnitAreas[seat]) then return seat end
+        end
     end
     return nil
 end
@@ -63882,8 +64800,8 @@ function playAreaScaleApplyObject(seat,obj,pending)
     if factor==1 then records[obj.guid]=nil else entry.factor=factor end
 end
 
--- A transient exit during a drag is not a real removal. Recheck the
--- object's destination after it is dropped and the physics have settled.
+-- A transient exit during a drag is not a real removal. Recheck X/Z
+-- after release; the object need not finish falling vertically.
 local function playAreaScaleRecheckObject(guid)
     local records=gStates~=nil and gStates.playAreaScaledObjects or nil
     if records==nil or records[guid]==nil then return end
@@ -63905,7 +64823,7 @@ local function playAreaScaleWaitForSettle(guid)
     safeWaitCondition("PlayerBoard.Scale",finish,function()
         local obj=getObjectFromGUID(guid)
         return obj==nil or (not playAreaScaleObjectHeld(obj)
-            and obj.resting==true and obj.isSmoothMoving()==false)
+            and obj.isSmoothMoving()==false)
     end,5,finish)
 end
 
@@ -63944,7 +64862,9 @@ function refreshPlayAreaScale(seat)
                 -- Scripted moves keep the same size until they reach their destination.
                 playAreaScaleWaitForSettle(guid)
             else
-                playAreaScaleRestore(obj)
+                local destination=playAreaScaleSeatContaining(guid)
+                if destination~=nil then playAreaScaleApplyObject(destination,obj)
+                else playAreaScaleRestore(obj) end
             end
         end
     end
@@ -64698,7 +65618,7 @@ end
 
 --Players routinely lift Command tokens to place them on Units. Defer held tokens
 --until their drop event rather than polling a held object every frame.
---Scripted moves still receive a bounded physics-settle check.
+--Scripted moves still receive a bounded smooth-movement check.
 local unitLayoutCommandReleaseWatch={}
 
 function scheduleUnitLayoutRefreshAfterCommandRelease(seatPos,commandGUID)
@@ -64730,7 +65650,12 @@ function scheduleUnitLayoutRefreshAfterCommandRelease(seatPos,commandGUID)
         end
         unitLayoutCommandReleaseWatch[commandGUID]=nil
         safeWaitFrames("SetupGame",function()
-            if unitLayoutObjectInUnitArea(commandGUID,seatPos)==false then
+            local token=getObjectFromGUID(commandGUID)
+            local zone=getObjectFromGUID(playerUnitAreas[seatPos])
+            -- A falling Command may cover the mat in X/Z before crossing
+            -- the shallow scripting zone's Y extent.
+            if not unitLayoutObjectInUnitArea(commandGUID,seatPos)
+                and not unitLayoutObjectOnMat(token,zone) then
                 scheduleUnitLayoutRefresh(seatPos)
             end
         end,2)
@@ -64739,7 +65664,7 @@ function scheduleUnitLayoutRefreshAfterCommandRelease(seatPos,commandGUID)
         local current=getObjectFromGUID(commandGUID)
         if current==nil then return true end
         local released=current.held_by_color==nil or current.held_by_color==""
-        return released and current.resting==true and current.isSmoothMoving()==false
+        return released and current.isSmoothMoving()==false
     end,5,finish)
 end
 
@@ -66579,15 +67504,16 @@ end
 -- already-played cards. Validate the zones and held objects before moving
 -- anything. A mixed physical Deck can occur when hand cards are stacked;
 -- extract only its non-Wound cards, leaving any Wounds behind.
-function combatDiscardParalyzedHand(seat)
+function combatDiscardParalyzedHand(seat,ownerColor)
     local hand=getObjectFromGUID(handZones~=nil and handZones[seat] or nil)
     local discard=getObjectFromGUID(deedDeckDiscardZones~=nil and deedDeckDiscardZones[seat] or nil)
-    if hand==nil or discard==nil then return false,"Hand or discard zone is missing",0 end
+    if discard==nil then return false,"Discard zone is missing",0 end
     -- The physical scripting zone and TTS's native Player hand do not always
     -- report exactly the same objects (especially while cards are settling).
     -- Read both, so an empty scripting zone cannot silently acknowledge a
     -- Paralysis discard while the player still holds non-Wound cards.
     local handObjects,seen={},{}
+    local hasHandSource=hand~=nil and hand.getObjects~=nil
     local function include(obj)
         if obj~=nil and obj.guid~=nil and (obj.type=="Card" or obj.type=="Deck")
             and not seen[obj.guid] then
@@ -66595,17 +67521,39 @@ function combatDiscardParalyzedHand(seat)
             handObjects[#handObjects+1]=obj
         end
     end
-    for _,obj in ipairs(hand.getObjects() or {}) do include(obj) end
+    if hasHandSource then
+        -- Scripting zones with tag filters otherwise hide legitimate hand
+        -- cards. The player's physical hand must be inspected unfiltered.
+        local ok,objects=pcall(hand.getObjects,true)
+        if not ok then
+            ok,objects=pcall(hand.getObjects)
+        end
+        if not ok then return false,"Could not inspect the scripting hand zone",0 end
+        for _,obj in ipairs(objects or {}) do include(obj) end
+    end
     local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
-    if current~=nil and current.seatPos==seat and positionToColor~=nil
-        and Player~=nil then
-        local color=positionToColor(gStates.turnNumber)
+    if current~=nil and current.seatPos==seat and Player~=nil then
+        -- The commit callback knows the real player colour. Prefer it to
+        -- reconstructing ownership from an approximate hand transform, which
+        -- can resolve to Black while the player still has cards in TTS's hand.
+        local color=ownerColor
+        if (color==nil or color=="Black" or color=="Grey")
+            and positionToColor~=nil then
+            color=positionToColor(gStates.turnNumber)
+        end
         local player=color~=nil and color~="Black" and color~="Grey" and Player[color] or nil
         if player~=nil and player.getHandObjects~=nil then
             local ok,objects=pcall(player.getHandObjects)
             if not ok then return false,"Could not inspect the TTS hand",0 end
+            hasHandSource=true
             for _,obj in ipairs(objects or {}) do include(obj) end
         end
+    end
+    -- A missing scripting zone is not evidence of an empty player hand.
+    -- The TTS HandTrigger is authoritative when available; never silently
+    -- mark the consequence applied if neither source could be inspected.
+    if not hasHandSource then
+        return false,"Neither a scripting hand zone nor TTS hand is available",0
     end
     local transfers={}
     for _,obj in ipairs(handObjects) do
@@ -66638,17 +67586,50 @@ function combatDiscardParalyzedHand(seat)
     local movedGUIDs={}
     for _,entry in ipairs(transfers) do
         if entry.object~=nil then
-            entry.object.setPositionSmooth({x,y+2+0.07*(moved%5),z},false,false)
+            -- IMPORTANT: TTS reclaims objects that start a smooth move
+            -- inside a player's HandTrigger. The card appears to twitch,
+            -- returns to the hand, and the prior code falsely committed
+            -- the discard. Teleport directly OUT of the hand instead.
+            local target={x,y+2+0.07*(moved%5),z}
+            local obj=entry.object
+            local usedHands=obj.use_hands==true
+            if usedHands then obj.use_hands=false end
+            local ok=obj.setPosition~=nil and pcall(obj.setPosition,target)
+            -- Re-enable hand use only AFTER TTS has had time to release
+            -- the card from the HandTrigger, so future draws still work.
+            if usedHands then
+                local function restoreHandUse()
+                    pcall(function() obj.use_hands=true end)
+                end
+                if safeWaitFrames~=nil then
+                    safeWaitFrames("PlayerBoard.CardFlow",restoreHandUse,3)
+                else
+                    restoreHandUse()
+                end
+            end
+            if not ok then
+                return false,"A hand card could not be moved to discard",moved,movedGUIDs
+            end
+            -- Verify the immediate world position. A successful Lua call
+            -- alone does not prove the card escaped the HandTrigger.
+            if entry.object.getPosition~=nil then
+                local got,position=pcall(entry.object.getPosition)
+                if not got or position==nil
+                    or math.abs((position.x or position[1])-x)>1
+                    or math.abs((position.z or position[3])-z)>1 then
+                    return false,"A hand card is still in the hand",moved,movedGUIDs
+                end
+            end
             movedGUIDs[#movedGUIDs+1]=entry.object.guid
             moved=moved+1
         else
             for _,guid in ipairs(entry.guids) do
                 -- Mixed decks always retain at least one Wound card, so the
                 -- deck can safely provide every listed non-Wound by GUID.
-                local card=entry.deck.takeObject({guid=guid,
+                local ok,card=pcall(entry.deck.takeObject,{guid=guid,
                     position={x,y+2+0.07*(moved%5),z},smooth=false})
-                if card==nil then
-                    return false,"A stacked hand card could not be discarded",moved
+                if not ok or card==nil then
+                    return false,"A stacked hand card could not be discarded",moved,movedGUIDs
                 end
                 movedGUIDs[#movedGUIDs+1]=card.guid
                 moved=moved+1
@@ -70526,7 +71507,7 @@ local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
 local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="462"
+local automaticLuaErrorReporterVersion="463"
 
 -- Automatic Lua error reporting, protected callback helpers and diagnostic context builders.
 local automaticLuaZoneContext
