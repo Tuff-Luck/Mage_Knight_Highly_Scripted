@@ -8671,7 +8671,9 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
             defeatSide=scaled
         end
     end
-    return {guid=card.guid,known=known,complete=complete,powered=powered,fameRep=fameRepSide,
+    -- Preserve the physical source type for phase rules (Knockout and
+    -- Paralysis invalidate only non-Wound hand-card Attacks, not Units/Skills).
+    return {guid=card.guid,kind="card",known=known,complete=complete,powered=powered,fameRep=fameRepSide,
         conditionalFireAttack=complete and not powered and chosen~=nil
             and chosen.conditionalFireAttack or nil,
         flameWave=complete and powered and rule~=nil and rule.poweredEnemyBonus~=nil,
