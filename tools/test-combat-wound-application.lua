@@ -632,8 +632,9 @@ assert(recognition:find('combatConfig.phaseObjectLocked(card.guid)',1,true)
     "locked cards and Units must lose choice and target controls")
 local assignments=fileText("src/PlayingGame/AttackAssignments.lua")
 assert(assignments:find('lock.positions or {}',1,true)
+    and assignments:find('(lock.sourceKeys or {})[entry.sourceGUID]==true',1,true)
     and assignments:find('combatCommittedSource(entry.sourceGUID)',1,true),
-    "locked arrows must stay at their old origin and survive card removal")
+    "only committed arrows stay frozen; unused Block arrows may still move")
 assert(assignments:find('function attackAssignmentsDamageSnapshot()',1,true)
     and assignments:find('if lock~=nil then',1,true),
     "Damage targets must persist and be non-interactive after commit")
