@@ -12,6 +12,12 @@ local shown={}
 -- receive Resource Tracker highlights. Avoid repeated highlightOff calls.
 trackerPrivate.crystalHighlightCleared={}
 trackerPrivate.bySeat={}
+-- Known play sources survive transient shallow-zone exits while a card is
+-- lifted or still falling above the mat. Rebuilt from entries/scans, not saved.
+trackerPrivate.playCandidatesBySeat={}
+trackerPrivate.playCandidateKind=function(kind)
+    return kind=="card" or kind=="skill" or kind=="factionReward"
+end
 -- Initial guesses and explicit player choices are transient, never saved in gStates or JSON.
 local selectedResourceByGUID={}
 -- Retain the chosen crystal-pair Attack after Sacrifice converts the pairs to mana.
@@ -1422,6 +1428,9 @@ local function combatSourceKeepsLock(key)
     if obj==nil or next(attackAssignmentsTargetGUIDs(key))==nil then return false end
     local held=obj.held_by_color
     return (held~=nil and held~="") or obj.isSmoothMoving()
+        or (obj.type=="Card" and obj.resting==false
+            and trackerPrivate.cardOverPlayMat~=nil
+            and trackerPrivate.cardOverPlayMat(obj,combatAssignmentActiveSeat()))
 end
 
 -- Orange arrows aim at armour; blue arrows (Block, Move) affect an enemy attack.
@@ -7661,8 +7670,29 @@ local function clearChoiceButtons()
     combatConfig.cardButtonIds={}
 end
 
--- Reset a player's explicit choice only after the card has actually finished
--- leaving that player's Play Area. Zone exits while held are not new plays.
+-- The play scripting zone is shallow. A dropped card can be directly above
+-- the play mat in X/Z but absent from zone.getObjects() until it falls.
+trackerPrivate.cardOverPlayMat=function(obj,seatPos)
+    if obj==nil or seatPos==nil
+        or (obj.isDestroyed~=nil and obj.isDestroyed())
+        or (obj.held_by_color~=nil and obj.held_by_color~="")
+        or obj.isSmoothMoving() then return false end
+    local zoneGUID=playerPlayAreas~=nil and playerPlayAreas[seatPos] or nil
+    local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
+    local bounds=zone~=nil and zone.getBounds() or nil
+    local center,size=bounds~=nil and bounds.center or nil,bounds~=nil and bounds.size or nil
+    if center==nil or size==nil then return false end
+    local pos=obj.getPosition()
+    local x,z=pos.x or pos[1],pos.z or pos[3]
+    local cx,cz=center.x or center[1],center.z or center[3]
+    local width,depth=size.x or size[1],size.z or size[3]
+    return x~=nil and z~=nil and cx~=nil and cz~=nil
+        and width~=nil and depth~=nil
+        and math.abs(x-cx)<width*0.5 and math.abs(z-cz)<depth*0.5
+end
+
+-- Reset a player's explicit choice only after the card has actually left
+-- the play mat in X/Z. A temporary zone exit while lifted is not a new play.
 local function cardInSeatPlayArea(guid,seatPos)
     local zoneGUID=playerPlayAreas~=nil and playerPlayAreas[seatPos] or nil
     local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
@@ -7670,7 +7700,7 @@ local function cardInSeatPlayArea(guid,seatPos)
     for _,obj in ipairs(zone.getObjects()) do
         if obj.guid==guid then return true end
     end
-    return false
+    return trackerPrivate.cardOverPlayMat(getObjectFromGUID(guid),seatPos)
 end
 
 local function scheduleChoiceResetAfterPlay(guid,seatPos)
@@ -7681,8 +7711,8 @@ local function scheduleChoiceResetAfterPlay(guid,seatPos)
         or gStates.resourceCardPlayOrder[guid]==nil) then return end
     trackerPrivate.choiceResetGenerationByGUID[guid]=(trackerPrivate.choiceResetGenerationByGUID[guid] or 0)+1
     local serial=trackerPrivate.choiceResetGenerationByGUID[guid]
-    -- Allow the zone's membership to settle before checking whether this
-    -- is a real departure or just a temporary lift/rearrangement.
+    -- On release, check X/Z instead of waiting for the shallow zone's Y
+    -- membership to catch up with a card that is still falling.
     safeWaitFrames("PlayerBoard.CardRecognition",function()
         if trackerPrivate.choiceResetGenerationByGUID[guid]~=serial then return end
         safeWaitCondition("PlayerBoard.CardRecognition",function()
@@ -9449,7 +9479,17 @@ local function renderSeat(seatPos)
                 kind=resourceObjectKind(obj)
                 if kind~=nil then objectKinds[obj.guid]=kind end
             end
+            if zoneKind=="play" and trackerPrivate.playCandidateKind(kind) then
+                local candidates=trackerPrivate.playCandidatesBySeat[seatPos]
+                if candidates==nil then
+                    candidates={}
+                    trackerPrivate.playCandidatesBySeat[seatPos]=candidates
+                end
+                candidates[obj.guid]=true
+            end
             if kind~=nil and (kind~="mana" or trackerPrivate.readyForXZ(obj))
+                and (zoneKind~="play" or not trackerPrivate.playCandidateKind(kind)
+                    or not combatConfig.cardInTransit(obj))
                 and (zoneKind=="play"
                 or (zoneKind=="unit" and (kind=="unit" or kind=="mana" or kind=="puppet"))
                 or (zoneKind=="crystal" and kind=="mana")) then
@@ -9465,6 +9505,27 @@ local function renderSeat(seatPos)
     inspectZone(playerCrystalAreas[seatPos],"crystal")
     inspectZone(playerUnitAreas[seatPos],"unit")
     inspectZone(playerPlayAreas[seatPos],"play")
+    -- A released source may be above the shallow zone despite its X/Z being
+    -- on the play mat. Recover only objects actually seen entering this play
+    -- area, never arbitrary nearby cards from elsewhere on the table.
+    local playCandidates=trackerPrivate.playCandidatesBySeat[seatPos] or {}
+    for guid in pairs(playCandidates) do
+        if placements[guid]~="play" then
+            local obj=getObjectFromGUID(guid)
+            if obj==nil or (obj.isDestroyed~=nil and obj.isDestroyed()) then
+                playCandidates[guid]=nil
+            elseif trackerPrivate.cardOverPlayMat(obj,seatPos) then
+                local kind=resourceObjectKind(obj)
+                if trackerPrivate.playCandidateKind(kind) then
+                    objects[guid]=obj
+                    placements[guid]="play"
+                    objectKinds[guid]=kind
+                end
+            elseif not combatConfig.cardInTransit(obj) then
+                playCandidates[guid]=nil
+            end
+        end
+    end
     -- Mana dropped ON a played Action may sit above the thin play
     -- scripting zone, even though its dropped GUID was seen. Recover only
     -- released, physically overlapping mana candidates; a die elsewhere on
@@ -12353,6 +12414,7 @@ local function clearAll()
     -- Do not discard choices when closing/reopening the Resource Tracker.
     for guid in pairs(shown) do clearHighlight(guid) end
     trackerPrivate.bySeat={}
+    trackerPrivate.playCandidatesBySeat={}
     resourceCardScanBySeat={}
     combatConfig.bowSourceModes={}
     combatConfig.amuletMana={gold=false,black=false}
@@ -13537,6 +13599,11 @@ function resourceCardsZoneEntered(ctx)
     -- Filter irrelevant zones and other players before touching the Unit layout.
     local seat=resourceCardsRelevantZone(ctx)
     if seat==nil then return end
+    if ctx.zoneInfo.kind=="play"
+        and trackerPrivate.playCandidateKind(resourceObjectKind(ctx.obj)) then
+        trackerPrivate.playCandidatesBySeat[seat]=trackerPrivate.playCandidatesBySeat[seat] or {}
+        trackerPrivate.playCandidatesBySeat[seat][ctx.objGUID]=true
+    end
     if ctx.zoneInfo.kind=="play" and gameCards[ctx.objGUID]~=nil
         and gStates~=nil then
         gStates.resourceCardPlayOrder=gStates.resourceCardPlayOrder or {}
@@ -13603,6 +13670,25 @@ function resourceCardsObjectMoved(obj)
     -- when dropped just above a shallow zone. Avoid searching four zones to
     -- discover information the last scan already provided.
     local observed=trackerPrivate.bySeat[seat]
+    -- The drop event can precede the shallow zone's physical re-entry.
+    -- Keep the previously played source (and its explicit choices/target)
+    -- when its released X/Z is still over this mat.
+    if trackerPrivate.playCandidateKind(objectKind) then
+        local candidates=trackerPrivate.playCandidatesBySeat[seat] or {}
+        local known=candidates[obj.guid]==true
+        local inPlay=cardInSeatPlayArea(obj.guid,seat)
+        if inPlay then
+            candidates[obj.guid]=true
+            trackerPrivate.playCandidatesBySeat[seat]=candidates
+        elseif known then
+            candidates[obj.guid]=nil
+            scheduleChoiceResetAfterPlay(obj.guid,seat)
+        end
+        if inPlay or known then
+            queueSeat(seat,obj.guid)
+            return
+        end
+    end
     if observed~=nil and observed[obj.guid]==true then
         if (objectKind=="card" or objectKind=="skill" or objectKind=="factionReward")
             and not cardInSeatPlayArea(obj.guid,seat) then
