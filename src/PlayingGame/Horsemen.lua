@@ -398,7 +398,7 @@ function horsemanResolveDefeat(token,playerIndex,coopCombatReward)
 	--frame so combat cleanup can finish iterating its current play-area snapshot safely.
 	local survivingHorseGUID=state.horseGUID
 	local survivingHorse=survivingHorseGUID~=nil and getObjectFromGUID(survivingHorseGUID) or nil
-	if survivingHorse~=nil and survivingHorse.is_face_down==true then
+	if survivingHorse~=nil and combatEnemyTokenDefeated(survivingHorse)~=true then
 		safeWaitFrames("Horsemen",function()
 			local currentState=gStates.horsemen~=nil and gStates.horsemen[name] or nil
 			if currentState~=nil and currentState.horseGUID==survivingHorseGUID then horsemanDiscardLinkedHorse(name) end
