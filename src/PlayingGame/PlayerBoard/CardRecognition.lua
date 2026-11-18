@@ -5604,18 +5604,9 @@ local function combatAssignmentRefreshRows(entries,sources)
         combatPanelSetAttribute("CombatApplyWounds","color",
             pending and "rgb(0.48,0.36,0.20)" or changed and "rgb(0.49,0.30,0.22)"
             or "rgb(0.23,0.37,0.24)")
-        local tooltip="Apply "..pendingHand.." Wounds to hand and "
-            ..pendingDiscard.." to discard"
-        if effects.handDiscard then
-            tooltip=tooltip.."; discard all non-Wound hand cards (Knockout/Paralysis)"
-        end
-        if effects.destroyCount>0 then
-            tooltip=tooltip.."; destroy "..tostring(effects.destroyCount).." Paralyzed Units"
-        end
-        combatPanelSetAttribute("CombatApplyWounds","tooltip",
-            pending and tooltip
-            or changed and "Damage changed after application; check consequences manually"
-            or "All calculated combat consequences have been applied")
+        -- The commit confirmation already explains the consequences.
+        -- Clear any tooltip cached from an earlier calculator refresh.
+        combatPanelSetAttribute("CombatApplyWounds","tooltip","")
         combatPanelSetAttribute("CombatKnockoutWarning","active",knockout and "true" or "false")
         if knockout then
             combatPanelSetAttribute("CombatKnockoutWarning","text",
