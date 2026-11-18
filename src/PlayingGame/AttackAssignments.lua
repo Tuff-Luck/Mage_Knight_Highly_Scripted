@@ -296,17 +296,47 @@ local function vectorLineSignature(lines)
 	return table.concat(parts,";")
 end
 
+-- Share the exact eligibility test between the Ruthless Coercion control
+-- and the physical Unit click targets. A Command spent on an earlier turn
+-- may have no current activation history, but can still be readied.
+local function readyUnitCandidates(seat,levelLimit)
+    local candidates={}
+    if seat==nil then return candidates end
+    local state=unitLayoutResourceState(seat)
+    local layout=nil
+    for _,entry in ipairs(state~=nil and state.units or {}) do
+        local data=gameCards~=nil and gameCards[entry.guid] or nil
+        if not entry.ready and entry.unwounded
+            and (levelLimit==nil
+                or (data~=nil and (tonumber(data.level) or math.huge)<=levelLimit)) then
+            local spent=unitHistoryUses(entry.guid)[1]~=nil
+            if not spent and resourceUnitsCommandSpent~=nil then
+                layout=layout or unitLayoutSnapshot(seat)
+                for _,token in ipairs(layout~=nil and layout.commands or {}) do
+                    if resourceUnitsCommandSpent(token.guid) then
+                        local unit=unitLayoutCommandTarget(token,seat)
+                        if unit~=nil and unit.guid==entry.guid then
+                            spent=true
+                            break
+                        end
+                    end
+                end
+            end
+            if spent then candidates[entry.guid]=entry.unit end
+        end
+    end
+    return candidates
+end
+
+function attackAssignmentsHasReadyTarget(seat,levelLimit)
+    return next(readyUnitCandidates(seat,levelLimit))~=nil
+end
+
 local function syncReadyUnitButtons()
     local candidates={}
-    for color,pending in pairs(readyUnitPending) do
-        local state=unitLayoutResourceState(pending.seat)
-        for _,entry in ipairs(state~=nil and state.units or {}) do
-            local data=gameCards~=nil and gameCards[entry.guid] or nil
-            if not entry.ready and entry.unwounded
-                and (pending.limit==nil or (data~=nil and data.level<=pending.limit))
-                and unitHistoryUses(entry.guid)[1]~=nil then
-                candidates[entry.guid]=entry.unit
-            end
+    for _,pending in pairs(readyUnitPending) do
+        for guid,obj in pairs(readyUnitCandidates(pending.seat,pending.limit)) do
+            candidates[guid]=obj
         end
     end
     for guid,obj in pairs(candidates) do
