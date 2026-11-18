@@ -1686,7 +1686,8 @@ function apocalypseDragonGroundResolveToken(obj)
 		return true
 	end
 
-	if obj.is_face_down==false and apocalypseDragonGroundTokenInPlayerArea(obj.guid,owner)==true then
+	if (combatEnemyTokenDefeated(obj)==true or combatBossPartialRewardEligible(obj.guid)==true)
+		and apocalypseDragonGroundTokenInPlayerArea(obj.guid,owner)==true then
 		local headLevels=gStates.apocalypseDragonHeadLevels or {}
 		local current=tonumber(headLevels[headName]) or 0
 		local reduction=math.min(current,apocalypseDragonGroundReduction(headName))
