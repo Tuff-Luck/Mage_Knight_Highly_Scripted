@@ -2416,10 +2416,72 @@ combatConfig.woundLedger=function(seat)
     ledger.applied=ledger.applied or {}
     ledger.cards=ledger.cards or {}
     ledger.preview=ledger.preview or {}
+    -- Legacy saves only tracked the individual Paralysis application.
+    if ledger.handDiscardApplied==nil then
+        ledger.handDiscardApplied=false
+        for _,applied in pairs(ledger.applied) do
+            if applied.paralyse==true then ledger.handDiscardApplied=true break end
+        end
+    end
     return ledger
 end
 
-combatConfig.woundRecordPreview=function(seat,items,results)
+-- Extra Wounds from "take a Wound" card effects count toward Knockout.
+-- Snapshot the existing hand/play Wound GUIDs when combat begins; newly
+-- observed GUIDs remain counted even if those Wounds are played or discarded.
+-- Do not count enemy Wounds already recorded by the Apply Wounds ledger.
+combatConfig.combatOtherWounds=function(seat)
+    local ledger=combatConfig.woundLedger(seat)
+    if ledger==nil then return 0 end
+    local observed=ledger.otherCombatWounds or {}
+    local hand=handZones~=nil and handZones[seat]~=nil
+        and getObjectFromGUID(handZones[seat]) or nil
+    local play=playerPlayAreas~=nil and playerPlayAreas[seat]~=nil
+        and getObjectFromGUID(playerPlayAreas[seat]) or nil
+    if hand~=nil and play~=nil then
+        local seen={}
+        local function inspect(obj)
+            if obj==nil then return end
+            if obj.type=="Card" and obj.getGMNotes~=nil
+                and obj.getGMNotes()=="Wound" then
+                seen[obj.guid]=true
+            elseif obj.type=="Deck" and obj.getObjects~=nil then
+                for _,card in ipairs(obj.getObjects() or {}) do
+                    if card.gm_notes=="Wound" then seen[card.guid]=true end
+                end
+            end
+        end
+        for _,obj in ipairs(hand.getObjects() or {}) do inspect(obj) end
+        for _,obj in ipairs(play.getObjects() or {}) do inspect(obj) end
+        local current=turnOrder~=nil and gStates~=nil
+            and turnOrder[gStates.turnNumber] or nil
+        if current~=nil and current.seatPos==seat
+            and positionToColor~=nil and Player~=nil then
+            local color=positionToColor(gStates.turnNumber)
+            local player=color~=nil and Player[color] or nil
+            if player~=nil and player.getHandObjects~=nil then
+                local ok,objects=pcall(player.getHandObjects)
+                if ok then for _,obj in ipairs(objects or {}) do inspect(obj) end end
+            end
+        end
+        if ledger.initialCombatWounds==nil then
+            ledger.initialCombatWounds=seen
+        else
+            for guid in pairs(seen) do
+                if ledger.initialCombatWounds[guid]~=true
+                    and ledger.cards[guid]~=true then
+                    observed[guid]=true
+                end
+            end
+        end
+    end
+    ledger.otherCombatWounds=observed
+    local count=0
+    for _ in pairs(observed) do count=count+1 end
+    return count
+end
+
+combatConfig.woundRecordPreview=function(seat,items,results,knockout,otherWounds)
     local ledger=combatConfig.woundLedger(seat)
     if ledger==nil then return end
     local expected={}
@@ -2443,6 +2505,8 @@ combatConfig.woundRecordPreview=function(seat,items,results)
             destroyed=destroyed}
     end
     ledger.preview=expected
+    ledger.previewKnockout=knockout==true
+    ledger.previewOtherWounds=math.max(0,tonumber(otherWounds) or 0)
     ledger.hasPreview=true
 end
 
@@ -2450,7 +2514,8 @@ end
 -- The fifth describes uncommitted physical Paralysis consequences.
 combatConfig.woundPending=function(ledger)
     local allocations,hand,discard,changed={},0,0,false
-    local effects={paralyse={},destroyed={},paralyseCount=0,destroyCount=0}
+    local effects={paralyse={},destroyed={},paralyseCount=0,destroyCount=0,
+        knockout=false,handDiscard=false}
     if ledger==nil or not ledger.hasPreview then
         return allocations,hand,discard,changed,effects
     end
@@ -2462,7 +2527,8 @@ combatConfig.woundPending=function(ledger)
             allocations[#allocations+1]={key=key,hand=h,discard=d}
             hand=hand+h discard=discard+d
         end
-        if expected.paralyse==true and applied.paralyse~=true then
+        if expected.paralyse==true and applied.paralyse~=true
+            and ledger.handDiscardApplied~=true then
             effects.paralyse[#effects.paralyse+1]=key
             effects.paralyseCount=effects.paralyseCount+1
         elseif applied.paralyse==true and expected.paralyse~=true then
@@ -2486,6 +2552,9 @@ combatConfig.woundPending=function(ledger)
             or (applied.discard or 0)>0 or applied.paralyse==true
             or next(applied.destroyed or {})~=nil) then changed=true end
     end
+    effects.knockout=ledger.previewKnockout==true
+        and ledger.handDiscardApplied~=true
+    effects.handDiscard=effects.knockout or effects.paralyseCount>0
     table.sort(allocations,function(a,b) return a.key<b.key end)
     table.sort(effects.paralyse)
     table.sort(effects.destroyed,function(a,b)
@@ -2501,7 +2570,9 @@ end
 -- records its rewind point; a changed plan must not use stale counts.
 combatConfig.woundCommitSignature=function(ledger)
     if ledger==nil or ledger.hasPreview~=true then return nil end
-    local parts={tostring(ledger.seat)}
+    local parts={tostring(ledger.seat),tostring(ledger.previewKnockout==true),
+        tostring(ledger.previewOtherWounds or 0),
+        tostring(ledger.handDiscardApplied==true)}
     local keys,seen={},{}
     for key in pairs(ledger.preview or {}) do
         keys[#keys+1]=key
