@@ -34,6 +34,7 @@ local zones={
     units={getObjects=function() return {{guid="unit"}} end}
 }
 local choiceEnv={
+    trackerPrivate={},
     gStates={turnNumber=1},
     turnOrder={{seatPos=1}},
     playerPlayAreas={[1]="play"},
