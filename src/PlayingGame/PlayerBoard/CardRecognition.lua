@@ -13261,7 +13261,7 @@ end
 
 -- Explicit card choices represent player decisions rather than reconstructable table state.
 -- Save only choices for cards still in the current player's play/unit areas.
-local function resourceCardsCopyChoice(selection,fromSave)
+trackerPrivate.copyCardSelection=function(selection,fromSave)
     if type(selection)~="table" then return nil end
     local result={}
     for _,field in ipairs({"effect","sideways"}) do
@@ -13303,7 +13303,7 @@ function resourceCardsChoicesSave()
         end
         for guid,selection in pairs(selectedResourceByGUID) do
             if present[guid]==true and gameCards[guid]~=nil then
-                selected[guid]=resourceCardsCopyChoice(selection,false)
+                selected[guid]=trackerPrivate.copyCardSelection(selection,false)
             end
         end
     end
@@ -13316,7 +13316,7 @@ function resourceCardsChoicesRestore()
     if type(stored)~="table" then return end
     for guid,selection in pairs(stored) do
         if type(guid)=="string" and gameCards[guid]~=nil then
-            selectedResourceByGUID[guid]=resourceCardsCopyChoice(selection,true)
+            selectedResourceByGUID[guid]=trackerPrivate.copyCardSelection(selection,true)
         end
     end
 end
