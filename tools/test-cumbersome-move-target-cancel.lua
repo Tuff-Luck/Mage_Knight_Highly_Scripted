@@ -52,6 +52,8 @@ local env={
     -- This fixture tests cancellation, not resource-family classification.
     attackAssignmentsKindFor=function() return "attack" end,
     resourceCardsPanelOpen=function() return true end,
+    -- The isolated callback is outside committed combat phases.
+    combatCommittedSource=function() return false end,
     getObjectFromGUID=function(guid)
         return guid==moveGUID and sourceObject or nil
     end,
