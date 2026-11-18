@@ -1884,17 +1884,21 @@ function combatDiscardParalyzedHand(seat,ownerColor)
     local movedGUIDs={}
     for _,entry in ipairs(transfers) do
         if entry.object~=nil then
-            entry.object.setPositionSmooth({x,y+2+0.07*(moved%5),z},false,false)
+            local ok=pcall(entry.object.setPositionSmooth,
+                {x,y+2+0.07*(moved%5),z},false,false)
+            if not ok then
+                return false,"A hand card could not be moved to discard",moved,movedGUIDs
+            end
             movedGUIDs[#movedGUIDs+1]=entry.object.guid
             moved=moved+1
         else
             for _,guid in ipairs(entry.guids) do
                 -- Mixed decks always retain at least one Wound card, so the
                 -- deck can safely provide every listed non-Wound by GUID.
-                local card=entry.deck.takeObject({guid=guid,
+                local ok,card=pcall(entry.deck.takeObject,{guid=guid,
                     position={x,y+2+0.07*(moved%5),z},smooth=false})
-                if card==nil then
-                    return false,"A stacked hand card could not be discarded",moved
+                if not ok or card==nil then
+                    return false,"A stacked hand card could not be discarded",moved,movedGUIDs
                 end
                 movedGUIDs[#movedGUIDs+1]=card.guid
                 moved=moved+1
