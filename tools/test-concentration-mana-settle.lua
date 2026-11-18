@@ -42,7 +42,7 @@ local die={
     isSmoothMoving=function() return false end,
     getRotationValue=function() error("Unsettled die face must not be read") end,
 }
-local tracker={unitManaCandidatesBySeat={},playCardMovements={},finishedPlayDrops={}}
+local tracker={unitManaCandidatesBySeat={},playCardMovements={}}
 local cards={
     ["af9def"]={resourceKey="concentration",cardType="Starting"},
     ["acdcb2"]={resourceKey="swiftness",cardType="Starting"},
