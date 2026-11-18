@@ -63,11 +63,38 @@ assert(#reports==2)
 assert(reports[2].context:find("After 2 frames: REAPPEARED",1,true))
 assert(env.turnOrder[2].turnOrderTokenGUID=="missing456",
     "Diagnostics must not rewrite turn-order references")
--- The existing deletion-protection audit must also report an actual destroy
--- callback, so the later tactic check can be distinguished from the original event.
 local eventFile=assert(io.open("src/PlayingGame/Events.lua","r"))
 local eventSource=eventFile:read("*a")
 eventFile:close()
+-- Setup tokens should start at the same safe height used during tactic sorting.
+local setupFile=assert(io.open("src/SetupGame/Players.lua","r"))
+local setupSource=setupFile:read("*a")
+setupFile:close()
+assert(not setupSource:find("params.position={-1.9, 0.96",1,true),
+    "Starting round-order tokens must not spawn at the old low height")
+assert(setupSource:find("params.position={-1.9, 1.2",1,true))
+assert(setupSource:find("protectedTurnOrderTokenSetup(obj,playerBag,params.position)",1,true))
+
+-- Capture the actual setup/container breadcrumb logic rather than a fabricated report.
+local traceStart=assert(eventSource:find(
+    "local protectedTurnOrderTokenTrail={}",1,true))
+local traceFinish=assert(eventSource:find(
+    "\n-- The game intentionally moves certain protected pieces",traceStart,true))
+local traceImplementation=eventSource:sub(traceStart,traceFinish-1)
+    .."\nreturn protectedTurnOrderTokenRecord, protectedTurnOrderTokenTrail, protectedTurnOrderTokenSetup"
+local traceEnv={protectedObjectKind=function() return "Round Order token",true end}
+setmetatable(traceEnv,{__index=_G})
+local trackToken,tokenHistory,setupToken=assert(load(traceImplementation,
+    "Turn token lifecycle trail","t",traceEnv))()
+local missingToken={guid="missing456",type="Custom_Token",resting=false,
+    getPosition=function() return {x=-1.9,y=1.2,z=-20.8} end}
+setupToken(missingToken,{guid="mage-bag"},{-1.9,1.2,-20.8})
+trackToken("missing456","Entered container=trash",missingToken)
+assert(#tokenHistory.missing456==2)
+assert(tokenHistory.missing456[1]:find("cloned bag=mage-bag",1,true))
+assert(tokenHistory.missing456[2]:find("Entered container=trash",1,true))
+-- The existing deletion-protection audit must also report an actual destroy
+-- callback, so the later tactic check can be distinguished from the original event.
 local eventStart=assert(eventSource:find(
     "local function protectedObjectDestroyAudit(",1,true))
 local eventFinish=assert(eventSource:find(
@@ -81,6 +108,7 @@ local destroyEnv={
     turnOrder=env.turnOrder,
     protectedExpectedScriptRemovals={},
     protectedUnexpectedDestroyReported={},
+    protectedTurnOrderTokenTrail=tokenHistory,
     protectedObjectKind=function() return "Round Order token",true end,
     getObjectFromGUID=function(guid) return objects[guid] end,
     safeWaitFrames=function(scope,fn,frames)
@@ -101,6 +129,8 @@ assert(#reports==3,"Missing protected token should be reported")
 assert(reports[3].name=="protectedObjectDestroyAudit")
 assert(reports[3].context:find("seat=5 mage=Dummy",1,true))
 assert(reports[3].context:find("Lookup after 2 frames: NOT FOUND",1,true))
+assert(reports[3].context:find("Entered container=trash",1,true),
+    "Destroy report must retain the last recorded container destination")
 
 -- Restored or explicitly permitted objects must not generate a false alarm.
 destroyAudit("returned123")
