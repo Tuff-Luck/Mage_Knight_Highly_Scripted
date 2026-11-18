@@ -7750,16 +7750,27 @@ trackerPrivate.cardOverPlayMat=function(obj,seatPos)
         or obj.isSmoothMoving() then return false end
     local zoneGUID=playerPlayAreas~=nil and playerPlayAreas[seatPos] or nil
     local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
-    local bounds=zone~=nil and zone.getBounds() or nil
-    local center,size=bounds~=nil and bounds.center or nil,bounds~=nil and bounds.size or nil
+    -- Scripting zones have no dependable collider bounds. In TTS,
+    -- getBounds().size can be zero even when the trigger's actual area is
+    -- large; using it falsely marks every released card as outside play.
+    -- A scripting zone's transform scale gives its real X/Z footprint.
+    local center=zone~=nil and zone.getPosition() or nil
+    local size=zone~=nil and zone.getScale() or nil
     if center==nil or size==nil then return false end
     local pos=obj.getPosition()
     local x,z=pos.x or pos[1],pos.z or pos[3]
     local cx,cz=center.x or center[1],center.z or center[3]
     local width,depth=size.x or size[1],size.z or size[3]
-    return x~=nil and z~=nil and cx~=nil and cz~=nil
-        and width~=nil and depth~=nil
-        and math.abs(x-cx)<width*0.5 and math.abs(z-cz)<depth*0.5
+    if x==nil or z==nil or cx==nil or cz==nil
+        or width==nil or depth==nil or width<=0 or depth<=0 then return false end
+    -- Compare in the zone's local X/Z axes, so rotated play areas work too.
+    local rotation=zone.getRotation~=nil and zone.getRotation() or nil
+    local yaw=math.rad(rotation~=nil and (rotation.y or rotation[2]) or 0)
+    local cosYaw,sinYaw=math.cos(yaw),math.sin(yaw)
+    local dx,dz=x-cx,z-cz
+    local localX=dx*cosYaw-dz*sinYaw
+    local localZ=dx*sinYaw+dz*cosYaw
+    return math.abs(localX)<width*0.5 and math.abs(localZ)<depth*0.5
 end
 
 -- Reset a player's explicit choice only after the card has actually left
