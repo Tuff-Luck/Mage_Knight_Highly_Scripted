@@ -9406,29 +9406,53 @@ local function renderSeat(seatPos)
     -- settled, physically overlapping mana candidates; a die elsewhere on
     -- the table must never pay for an Action merely because it was moved.
     local manaCandidates=trackerPrivate.unitManaCandidatesBySeat[seatPos] or {}
+    local candidateUnitFootprints=nil
+    local function candidateTouchesUnit(pos)
+        if candidateUnitFootprints==nil then
+            candidateUnitFootprints={}
+            local snapshot=unitLayoutSnapshot~=nil and unitLayoutSnapshot(seatPos) or nil
+            for _,unit in ipairs(snapshot~=nil and snapshot.units or {}) do
+                candidateUnitFootprints[#candidateUnitFootprints+1]=footprint(unit)
+            end
+        end
+        for _,area in ipairs(candidateUnitFootprints) do
+            if math.abs(pos[1]-area.x)<area.halfX
+                and math.abs(pos[3]-area.z)<area.halfZ then return true end
+        end
+        return false
+    end
     for guid in pairs(manaCandidates) do
         if placements[guid]~="play" then
             local mana=objects[guid] or getObjectFromGUID(guid)
             if mana==nil or (mana.isDestroyed~=nil and mana.isDestroyed()) then
                 manaCandidates[guid]=nil
             elseif (mana.held_by_color==nil or mana.held_by_color=="")
-                and mana.resting==true and not mana.isSmoothMoving()
-                and manaColor(mana)~=nil then
+                and mana.resting==true and not mana.isSmoothMoving() then
                 local pos=mana.getPosition()
-                for cardGUID,card in pairs(objects) do
-                    if placements[cardGUID]=="play"
-                        and (objectKinds[cardGUID]=="card" or objectKinds[cardGUID]=="skill") then
-                        local area=footprint(card)
-                        local cardPos=card.getPosition()
-                        if pos[2]>=cardPos[2] and pos[2]-cardPos[2]<3
-                            and math.abs(pos[1]-area.x)<area.halfX
-                            and math.abs(pos[3]-area.z)<area.halfZ then
-                            objects[guid]=mana
-                            objectKinds[guid]="mana"
-                            placements[guid]="play"
-                            break
+                local recovered=false
+                if manaColor(mana)~=nil then
+                    for cardGUID,card in pairs(objects) do
+                        if placements[cardGUID]=="play"
+                            and (objectKinds[cardGUID]=="card" or objectKinds[cardGUID]=="skill") then
+                            local area=footprint(card)
+                            local cardPos=card.getPosition()
+                            if pos[2]>=cardPos[2] and pos[2]-cardPos[2]<3
+                                and math.abs(pos[1]-area.x)<area.halfX
+                                and math.abs(pos[3]-area.z)<area.halfZ then
+                                objects[guid]=mana
+                                objectKinds[guid]="mana"
+                                placements[guid]="play"
+                                recovered=true
+                                break
+                            end
                         end
                     end
+                end
+                -- Remember above-zone payments on Units as well as Actions.
+                -- Remove settled tokens dropped elsewhere; they can register
+                -- again on a future drop without slowing every subsequent scan.
+                if not recovered and not candidateTouchesUnit(pos) then
+                    manaCandidates[guid]=nil
                 end
             end
         end
