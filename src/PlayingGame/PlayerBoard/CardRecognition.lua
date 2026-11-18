@@ -3711,13 +3711,12 @@ end
 -- Unit resources already spent in the Ranged/Block phases stand. Unused
 -- Ranged/Siege effects fall back to normal Attack only if their Unit survived
 -- damage unwounded; a wound cannot retroactively undo an earlier phase.
--- A Paralyzing Wound assigned to the Hero discards all non-Wound cards from
--- hand BEFORE the Attack phase. In a backwards-planned combat those cards may
--- already be laid out, so treat their Attack resources as unavailable instead
--- of letting them produce a false kill. Range/Siege and Block remain settled.
--- After Damage was committed, a genuinely NEW card can still be played.
-combatConfig.paralysisAttackCards=function(sources,results,lock)
-    local heroParalyzed=false
+-- Knockout and an unblocked Paralyzing Wound both discard non-Wound hand
+-- cards before Attack. Backwards-planned card Attacks therefore cannot count
+-- while earlier Range/Siege/Block and surviving Unit/Skill actions still do.
+-- Cards genuinely played *after* committed Damage remain legal.
+combatConfig.paralysisAttackCards=function(sources,results,lock,knockout)
+    local heroParalyzed=knockout==true
     for _,result in pairs(results or {}) do
         if result.paralyse==true and (tonumber(result.heroWounds) or 0)>0 then
             heroParalyzed=true
@@ -4956,7 +4955,20 @@ local function combatAssignmentRefreshRows(entries,sources)
     -- An unblocked Paralyzing Wound to the Hero makes staged card Attacks
     -- unavailable in the later Attack phase. Recalculate with every damage
     -- assignment so a successful Block or a Unit assignment restores them.
-    local paralysisAttackCards=combatConfig.paralysisAttackCards(sources,damageResults,earlyLock)
+    -- Wounds received from played-card costs DURING this combat count
+    -- toward Knockout alongside enemy hits, but never double-count the
+    -- calculated Wounds already delivered by the damage transaction.
+    local totalHeroWounds,totalDiscardWounds=0,0
+    for _,result in pairs(damageResults) do
+        totalHeroWounds=totalHeroWounds+(tonumber(result.heroWounds) or 0)
+        totalDiscardWounds=totalDiscardWounds+(tonumber(result.discard) or 0)
+    end
+    local otherCombatWounds=combatConfig.combatOtherWounds(damageSeat)
+    local currentPlayer=turnOrder~=nil and gStates~=nil
+        and turnOrder[gStates.turnNumber] or nil
+    local handLimit=math.max(1,tonumber(currentPlayer~=nil and currentPlayer.baseHand) or 5)
+    local knockout=totalHeroWounds+otherCombatWounds>=handLimit
+    local paralysisAttackCards=combatConfig.paralysisAttackCards(sources,damageResults,earlyLock,knockout)
     -- Blocks: only suppress remaining Unit attacks after *actual* wounds.
     -- Resisted assignments that cause no Wound leave the Unit eligible.
     local woundedBeforeAttack=combatConfig.unitsWoundedByDamage(damageResults)
@@ -5090,19 +5102,8 @@ local function combatAssignmentRefreshRows(entries,sources)
     for owner in pairs(dragonOwners) do apocalypseDragonRefreshGroundFameGain(owner) end
     if leaderChanged then mainUIUpdate("Combat leader levels") end
 
-    local totalHeroWounds,totalDiscardWounds=0,0
-    for _,result in pairs(damageResults) do
-        totalHeroWounds=totalHeroWounds+result.heroWounds
-        totalDiscardWounds=totalDiscardWounds+result.discard
-    end
-
-    -- Knockout uses the unmodified Hand limit, never temporary draw bonuses.
-    -- Wounds from card costs are not inferred here; players may need to add
-    -- them when deciding whether to apply Knockout.
-    local currentPlayer=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
-    local handLimit=math.max(1,tonumber(currentPlayer~=nil and currentPlayer.baseHand) or 5)
-    local knockout=totalHeroWounds>=handLimit
-
+    -- Knockout was resolved before Attack, so a staged card cannot
+    -- incorrectly defeat an enemy once the Hero has lost their hand.
     -- An active Sword gives +1 Fame for EACH real enemy defeated, even when
     -- no cards were discarded for its basic Attack. Bow's basic side gives
     -- +1 for each enemy defeated in the Ranged/Siege phase. This is not tied
@@ -5366,8 +5367,9 @@ local function combatAssignmentRefreshRows(entries,sources)
                         end
                     end
                     if item.paralysisCard then
-                        tooltip=tooltip.."\nParalysis: the Hero takes a Paralyzing Wound"
-                            .." before Attack, discarding non-Wound hand cards."
+                        tooltip=tooltip.."\n"
+                            ..(knockout and "Knockout" or "Paralysis")
+                            ..": the Hero discards non-Wound cards before Attack."
                             .." This planned card Attack does not count."
                     end
                     local bowFamily=combatConfig.slotBowFamilies[id]
@@ -5561,13 +5563,14 @@ local function combatAssignmentRefreshRows(entries,sources)
     local widthReduction=(170-columnWidths.range)+(170-columnWidths.block)+(170-columnWidths.attack)
     local panelWidth=1380-(255-combatConfig.columns.Result)-hiddenWidth-widthReduction
 
-    combatConfig.woundRecordPreview(damageSeat,damageItems,damageResults)
+    combatConfig.woundRecordPreview(damageSeat,damageItems,damageResults,
+        knockout,otherCombatWounds)
     local ledger=combatConfig.woundLedger(damageSeat)
     local _,pendingHand,pendingDiscard,changed,effects=combatConfig.woundPending(ledger)
     -- A Paralyzed Unit needs an Apply button even when all its attack damage
     -- was absorbed and the Hero has zero Wounds.
     local showTotal=totalHeroWounds>0 or effects.destroyCount>0
-        or effects.paralyseCount>0
+        or effects.handDiscard
     combatPanelSetAttribute("CombatTotalRow","active",showTotal and "true" or "false")
     if showTotal then
         -- The XML's fixed-width, right-anchored Panel is outside any
@@ -5575,12 +5578,13 @@ local function combatAssignmentRefreshRows(entries,sources)
         local poisonText=totalDiscardWounds>0 and " ("..tostring(totalDiscardWounds).." Poison)" or ""
         local text=totalHeroWounds>0
             and ("Draw: "..combatRich(combatWoundsText(totalHeroWounds)..poisonText,combatConfig.COMBAT_RED))
-            or ("Apply: Destroy "..tostring(effects.destroyCount)..
-                (effects.destroyCount==1 and " Unit" or " Units"))
+            or (effects.handDiscard and "Apply: Discard hand"
+                or ("Apply: Destroy "..tostring(effects.destroyCount)..
+                    (effects.destroyCount==1 and " Unit" or " Units")))
         combatPanelSetAttribute("CombatTotalDamage","text",text)
         combatPanelSetAttribute("CombatTotalDamage","font","Fonts/MKCardText")
         local pending=pendingHand+pendingDiscard>0
-            or effects.paralyseCount>0 or effects.destroyCount>0
+            or effects.handDiscard or effects.destroyCount>0
         combatPanelSetAttribute("CombatApplyWounds","interactable",
             (pending or changed) and not combatConfig.woundApplying and "true" or "false")
         combatPanelSetAttribute("CombatApplyWounds","color",
@@ -5588,8 +5592,8 @@ local function combatAssignmentRefreshRows(entries,sources)
             or "rgb(0.23,0.37,0.24)")
         local tooltip="Apply "..pendingHand.." Wounds to hand and "
             ..pendingDiscard.." to discard"
-        if effects.paralyseCount>0 then
-            tooltip=tooltip.."; discard all non-Wound hand cards (Paralysis)"
+        if effects.handDiscard then
+            tooltip=tooltip.."; discard all non-Wound hand cards (Knockout/Paralysis)"
         end
         if effects.destroyCount>0 then
             tooltip=tooltip.."; destroy "..tostring(effects.destroyCount).." Paralyzed Units"
@@ -5704,6 +5708,12 @@ local function refreshCombatEnemyPanel(monsters,calculated)
         end
     end
     local currentSeat=combatAssignmentActiveSeat()
+    -- Establish the pre-combat Wound baseline as soon as enemies appear.
+    -- Doing this before resources resolve prevents an old Wound moved into
+    -- the play area from being mistaken for a newly taken card-cost Wound.
+    if #entries>0 and currentSeat~=nil then
+        combatConfig.combatOtherWounds(currentSeat)
+    end
     local seatScan=currentSeat~=nil and resourceCardScanBySeat[currentSeat] or nil
     local enemyEffects=seatScan~=nil and seatScan.enemyEffects or nil
     -- Preserve the printed/site Fortification before Demolish/Expose strips it.
