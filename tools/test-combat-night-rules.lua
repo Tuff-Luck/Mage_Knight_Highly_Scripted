@@ -116,6 +116,8 @@ local spawnStart=assert(combatSource:find(
 local spawnFinish=assert(combatSource:find(
     "\n\t\t\t\tgStates.summonStates[summonedMonster.guid]",spawnStart,true))
 local spawnCode=combatSource:sub(spawnStart,spawnFinish-1)
+assert(combatSource:find("if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end",1,true),
+    "Delayed NightRules decals must trigger a fresh tracker scan")
 local function testSummon(summonerGUID,faction,place,expected)
     local decals={}
     local states={turnNumber=1,monsterPerks={}}
