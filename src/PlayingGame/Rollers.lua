@@ -206,7 +206,15 @@ function rollerOnSave()
     for guid, state in pairs(rollerState) do
         local dice = {}
         for _, die in ipairs(state.dice or {}) do
-            if die ~= nil then dice[#dice + 1] = die.getGUID() end
+            -- A player may have deleted a displayed die since it was rolled.
+            -- TTS invalid object references can throw even while non-nil.
+            local ok, dieGUID=pcall(function()
+                if die==nil or die.isDestroyed() then return nil end
+                return die.getGUID()
+            end)
+            if ok and type(dieGUID)=="string" and getObjectFromGUID(dieGUID)~=nil then
+                dice[#dice+1]=dieGUID
+            end
         end
         savedState[guid] = dice
     end
