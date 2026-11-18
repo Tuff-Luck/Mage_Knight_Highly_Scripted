@@ -1436,18 +1436,17 @@ function resourceCardsCombatTargetAcceptsSource(sourceKey,targetGUID)
 end
 
 -- A lifted card keeps its target while its arrow still exists.
--- A card being carried (for example lifted to rearrange the play area) keeps its targeting. Once it is put down
--- anywhere without being an active source (hand, discard, elsewhere) its targeting is dropped.
+-- Preserve existing target arrows only while a source is actually in transit.
+-- Once a card settles, the live active-source list must decide whether its
+-- arrow survives. In particular, switching to a non-combat option must clear
+-- the old attack/block arrow even if the card remains on the play mat.
 local function combatSourceKeepsLock(key)
     local obj=getObjectFromGUID(key:match("^[^#]+"))
     if obj==nil or next(attackAssignmentsTargetGUIDs(key))==nil then return false end
     local held=obj.held_by_color
     return (held~=nil and held~="") or obj.isSmoothMoving()
-        or (obj.type=="Card"
-            and ((trackerPrivate.cardInSeatPlayArea~=nil
-                and trackerPrivate.cardInSeatPlayArea(obj.guid,combatAssignmentActiveSeat()))
-                or (trackerPrivate.cardOverPlayMat~=nil
-                    and trackerPrivate.cardOverPlayMat(obj,combatAssignmentActiveSeat()))))
+        or (trackerPrivate.playCardMovements~=nil
+            and trackerPrivate.playCardMovements[obj.guid]~=nil)
 end
 
 -- Orange arrows aim at armour; blue arrows (Block, Move) affect an enemy attack.
@@ -7750,10 +7749,6 @@ local function cardInSeatPlayArea(guid,seatPos)
     local obj=getObjectFromGUID(guid)
     return obj~=nil and trackerPrivate.cardOverPlayMat(obj,seatPos) or false
 end
--- The assignment-pruning helper is defined earlier in this very large module.
--- Expose the same authoritative play-membership predicate at runtime so its
--- lock check cannot contradict the choice-reset check.
-trackerPrivate.cardInSeatPlayArea=cardInSeatPlayArea
 
 local function scheduleChoiceResetAfterPlay(guid,seatPos)
     if guid==nil or seatPos==nil then return end
