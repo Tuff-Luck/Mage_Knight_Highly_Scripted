@@ -1964,16 +1964,17 @@ local function combatBlockResult(entry,sources)
     end
     local key=table.concat(parts,";")
     local cached=entry.guid~=nil and combatBlockResultCache[entry.guid] or nil
-    if cached~=nil and cached.key==key then return table.unpack(cached.result,1,10) end
+    if cached~=nil and cached.key==key then return table.unpack(cached.result,1,12) end
     local plan,solved,leftover=combatSolveBlocks(attacks,items,movePool)
-    -- Capture the genuinely spent Block sources before spare Block display
-    -- items are appended to the plan, or a free counterattack can result.
-    local successfulSources,successfulOwners={},{}
+    -- Capture only the resources assigned to a successful Block. The later
+    -- display of spare/failed Block icons must never commit their sources.
+    local successfulSources,successfulOwners,successfulSourceKeys={},{},{}
     for index,attack in ipairs(attacks) do
         if plan[index]~=nil and plan[index].blocked and not attack.pending then
             for j,item in ipairs(solved) do
                 if plan[index].used[j] and item.key:sub(1,5)=="block" then
                     successfulSources[item.source.guid]=true
+                    successfulSourceKeys[item.source.key]=true
                     local owners=successfulOwners[item.source.guid] or {}
                     owners[attack.owner or entry.guid]=true
                     successfulOwners[item.source.guid]=owners
@@ -2029,6 +2030,26 @@ local function combatBlockResult(entry,sources)
             end
         end
     end
+    -- Cumbersome Move is effective even when damage is not fully blocked.
+    -- Commit only enough physical Move sources to cover the actual reductions;
+    -- unused sources remain free to supply Attack-phase alternatives.
+    local spentMoveKeys={}
+    local remainingMove=0
+    for _,step in ipairs(plan) do remainingMove=remainingMove+(step.reduction or 0) end
+    if remainingMove>0 then
+        local moveSources={}
+        for _,source in ipairs(sources) do
+            if source.moveCounts==true and (source.move or 0)>0 then
+                moveSources[#moveSources+1]=source
+            end
+        end
+        table.sort(moveSources,function(a,b) return a.key<b.key end)
+        for _,source in ipairs(moveSources) do
+            if remainingMove<=0 then break end
+            spentMoveKeys[source.key]=true
+            remainingMove=remainingMove-source.move
+        end
+    end
     local lines,reductions,totalDamage,damageCount,allBlocked={},{},0,0,#attacks>0
     local unblocked={}
     -- Block items applied at the wrong element (halved) against their attack, keyed source.key..field.key.
@@ -2062,10 +2083,10 @@ local function combatBlockResult(entry,sources)
     if entry.guid~=nil then
         combatBlockResultCache[entry.guid]={key=key,result={
             lines,totalDamage,damageCount,allBlocked,reductions,wrongBlock,unblocked,
-            successfulSources,successfulOwners,shieldBashExcess}}
+            successfulSources,successfulOwners,shieldBashExcess,successfulSourceKeys,spentMoveKeys}}
     end
     return lines,totalDamage,damageCount,allBlocked,reductions,wrongBlock,unblocked,
-        successfulSources,successfulOwners,shieldBashExcess
+        successfulSources,successfulOwners,shieldBashExcess,successfulSourceKeys,spentMoveKeys
 end
 
 -- Damage phase. Every unblocked attack starts wholly on the Hero; the player may route it through free Units first
@@ -2475,7 +2496,8 @@ function resourceCardsRequestCombatWounds(player)
     local color=player~=nil and player.color or nil
     if not resourceCardsPanelOpen() or not resourceCardsPlayerCanEdit(color)
         or combatConfig.woundApplying or combatConfig.woundTransactionPending then return end
-    if combatPhaseLock~=nil and combatPhaseLock(combatAssignmentActiveSeat())~=nil then return end
+    -- A previous partial application may have committed the phase but not
+    -- finished its physical consequences. Let the player confirm a safe retry.
     local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
     if active==nil or active.seatPos==nil then return end
     local ledger=combatConfig.woundLedger(active.seatPos)
@@ -2611,20 +2633,34 @@ combatConfig.woundConfirmChoice=function(player,id)
             return
         end
         combatConfig.woundTransactionPending=false
-        local preview=combatConfig.phasePreview
-        if preview==nil or preview.seat~=confirmation.seat
-            or preview.turn~=confirmation.turn or preview.damageResults==nil then
-            abort("Combat phase snapshot is unavailable. No damage was applied.")
-            return
+        local existingLock=confirmation.ledger.phaseLock
+        if existingLock==nil then
+            local preview=combatConfig.phasePreview
+            if preview==nil or preview.seat~=confirmation.seat
+                or preview.turn~=confirmation.turn or preview.damageResults==nil then
+                abort("Combat phase snapshot is unavailable. No damage was applied.")
+                return
+            end
+            confirmation.ledger.phaseLock=combatFrozenCopy(preview)
         end
-        confirmation.ledger.phaseLock=combatFrozenCopy(preview)
         local ok,startedOrError=pcall(resourceCardsApplyCombatWounds,player,
-            function()
-                -- Called after every dealt Wound and moved accessory settles,
-                -- including failed/partially completed applications.
+            function(success,_,physicallyTouched)
+                -- A failed validation before any physical mutation must not
+                -- strand the player behind an irreversible phase lock.
+                -- Partial transfers keep their lock and can be retried safely.
+                if not success and not physicallyTouched and existingLock==nil then
+                    confirmation.ledger.phaseLock=nil
+                    resourceCardsSourceChanged()
+                end
                 rewindTransactionFinish(owner)
             end)
         if not ok or startedOrError~=true then
+            -- An exception may occur after a physical move. Preserve the
+            -- snapshot conservatively; the next Apply click can retry it.
+            if ok and existingLock==nil then
+                confirmation.ledger.phaseLock=nil
+                resourceCardsSourceChanged()
+            end
             abort("Could not apply combat damage safely: "..tostring(startedOrError))
         end
     end,owner,function()
@@ -2672,6 +2708,7 @@ function resourceCardsApplyCombatWounds(player,onComplete)
     end
     local settlingGUIDs={}
     local unitAreaTouched=false
+    local physicallyTouched=false
     local completing=false
     local finalized=false
     local function finish(success,reason)
@@ -2688,7 +2725,7 @@ function resourceCardsApplyCombatWounds(player,onComplete)
             end
             resourceCardsSourceChanged()
             mainUIUpdate("Combat Wounds applied")
-            if onComplete~=nil then onComplete(success,reason) end
+            if onComplete~=nil then onComplete(success,reason,physicallyTouched) end
         end
         if onComplete==nil or (not unitAreaTouched and next(settlingGUIDs)==nil)
             or safeWaitFrames==nil or safeWaitCondition==nil then
@@ -2732,6 +2769,9 @@ function resourceCardsApplyCombatWounds(player,onComplete)
             -- retry. After a partial transfer, mark the hand effect committed
             -- and ask for manual correction, never discard new draws on retry.
             local ok,success,countOrReason,moved=pcall(combatDiscardParalyzedHand,seat)
+            if not ok or (tonumber(success==true and countOrReason or moved) or 0)>0 then
+                physicallyTouched=true
+            end
             if not ok or success~=true then
                 if not ok or (tonumber(moved) or 0)>0 then
                     for _,key in ipairs(effects.paralyse) do record(key).paralyse=true end
@@ -2759,6 +2799,9 @@ function resourceCardsApplyCombatWounds(player,onComplete)
                 if combatConfig.captureParalyzedUnitSources~=nil then
                     combatConfig.captureParalyzedUnitSources(seat,effect.guid)
                 end
+                -- Accessory detachment may partially move objects before
+                -- reporting an error, so retain the phase lock conservatively.
+                physicallyTouched=true
                 local ok,movedOrReason=attackAssignmentsUnitPreviewApplyDestroyed(seat,effect.guid)
                 if not ok then
                     finish(false,movedOrReason)
@@ -2788,6 +2831,7 @@ function resourceCardsApplyCombatWounds(player,onComplete)
     end
     combatDealCalculatedWounds(seat,allocations,
         function(key,destination,guid)
+            physicallyTouched=true
             local applied=record(key)
             applied[destination]=(applied[destination] or 0)+1
             if destination=="hand" then ledger.cards[guid]=true end
@@ -4356,10 +4400,11 @@ local function combatAssignmentRefreshRows(entries,sources)
         for _,index in ipairs(group.members) do
             local entry=entries[index]
             local target=allocated[index] or emptyTarget
-            local lines,damage,count,allBlocked,reductions,wrongBlock,unblocked,_,_,shieldBashExcess=
-                combatBlockResult(entry,target.sources)
+            local lines,damage,count,allBlocked,reductions,wrongBlock,unblocked,_,_,shieldBashExcess,
+                successfulSourceKeys,spentMoveKeys=combatBlockResult(entry,target.sources)
             rowBlock[index]={lines=lines,damage=damage,count=count,allBlocked=allBlocked,reductions=reductions,
-                wrongBlock=wrongBlock,unblocked=unblocked,shieldBashExcess=shieldBashExcess,damageItems={}}
+                wrongBlock=wrongBlock,unblocked=unblocked,shieldBashExcess=shieldBashExcess,
+                successfulSourceKeys=successfulSourceKeys,spentMoveKeys=spentMoveKeys,damageItems={}}
             blockedAll[entry.guid]=allBlocked
             members[#members+1]=entry
             for _,source in ipairs(target.sources) do
@@ -4478,13 +4523,39 @@ local function combatAssignmentRefreshRows(entries,sources)
         preview.earlyEntries=combatFrozenCopy(entries)
         preview.rowBlock=combatFrozenCopy(rowBlock)
         preview.spentRange={}
+        -- A Damage commitment freezes the actual resources spent in earlier
+        -- phases, not every Block icon laid out while planning combat.
+        preview.sourceKeys={}
+        preview.objectKeys={}
+        local sourcesByKey={}
+        for _,source in ipairs(preview.sources or {}) do
+            sourcesByKey[source.key]=source
+        end
+        local function commitEarlySource(key)
+            local source=sourcesByKey[key]
+            if source==nil then return end
+            preview.sourceKeys[key]=true
+            preview.objectKeys[source.guid]=true
+        end
         for _,group in ipairs(groups) do
             if group.rangeDefeated or group.rangeSpent then
                 for _,source in ipairs(group.sources or {}) do
-                    if (source.ranged or 0)+(source.siege or 0)>0 then
+                    local legalRange=(source.ranged or 0)>0 and group.fortification==0
+                    local legalSiege=(source.siege or 0)>0 and group.fortification<2
+                    if legalRange or legalSiege then
                         preview.spentRange[source.key]=true
+                        commitEarlySource(source.key)
                     end
                 end
+            end
+        end
+        for index,block in ipairs(rowBlock) do
+            local group=groupOf[index]
+            local enemy=entries[index]
+            if group~=nil and not group.rangeDefeated and not group.destroyed
+                and enemy~=nil and not enemy.rangeDead then
+                for key in pairs(block.successfulSourceKeys or {}) do commitEarlySource(key) end
+                for key in pairs(block.spentMoveKeys or {}) do commitEarlySource(key) end
             end
         end
     end
