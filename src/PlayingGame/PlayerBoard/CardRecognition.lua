@@ -7121,9 +7121,9 @@ local function guessInitialCardChoice(card,choices,seatPos,rule,sideways,cards,f
     if selectedResourceByGUID[card.guid]~=nil or choices==nil or #choices<2
         or card.is_face_down==true then return end
     local nearby=trackerPrivate.nearbyCardChoice(card,choices,seatPos,cards,footprints,records)
-    local scores=nearby==nil and trackerChoiceScores(card.guid,seatPos) or nil
     local best,bestValue,bestRank=nearby,nil,nil
     if best==nil then
+        local scores=trackerChoiceScores(card.guid,seatPos)
         for _,choice in ipairs(choices) do
             local category=choiceCategory(choice)
             local rank=resourceChoiceRank(category,choice)
