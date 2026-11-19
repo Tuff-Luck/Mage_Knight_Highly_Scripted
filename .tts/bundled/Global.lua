@@ -3970,7 +3970,7 @@ function automatedProxyPanelSpec(stats,stateOverride)
 			spec.label="{en}Dummy Processed{it}Fittizio Completato{ru}Виртуальный игрок сходил{zh-tw}虛擬玩家行動結束{zh-cn}虚拟玩家行动结束{ko}진행 완료{es}Jugador Virtual Procesado{fr}Fantôme préparé{pt-br}Jog.Fictício Processado{de}Dummy verarbeitet"
 			spec.interactable=false
 		else
-			spec.notes="{en}Proxy reveals its objective, calculates movement, then moves across the map and resolves its action. If a legal destination, card, or enemy choice is tied, the lowest-Fame player chooses using the highlighted board buttons.{it}Il Proxy rivela l'obiettivo, calcola il movimento, attraversa la mappa e risolve l'azione. In caso di parità tra destinazioni, carte o nemici validi, sceglie il giocatore con meno Fama usando i pulsanti evidenziati sulla plancia.{ru}Прокси раскрывает цель, рассчитывает движение, затем перемещается по карте и выполняет действие.{zh-tw}代理玩家會揭示目標、計算移動，然後在地圖上移動並執行行動。{zh-cn}代理玩家会揭示目标、计算移动，然后在地图上移动并执行行动。{ko}프록시는 목표를 공개하고 이동력을 계산한 뒤 지도에서 이동하고 행동을 해결합니다.{es}El Proxy revela su objetivo, calcula el movimiento, se desplaza por el mapa y resuelve su acción.{fr}Le Proxy révèle son objectif, calcule son déplacement, se déplace sur la carte puis résout son action.{pt-br}O Proxy revela seu objetivo, calcula o movimento, percorre o mapa e resolve sua ação.{de}Der Proxy deckt sein Ziel auf, berechnet seine Bewegung, bewegt sich über die Karte und führt seine Aktion aus."
+			spec.notes="{en}Proxy reveals its objective, calculates movement, then moves across the map and resolves its action.{it}Il Proxy rivela l'obiettivo, calcola il movimento, attraversa la mappa e risolve l'azione.{ru}Прокси раскрывает цель, рассчитывает движение, затем перемещается по карте и выполняет действие.{zh-tw}代理玩家會揭示目標、計算移動，然後在地圖上移動並執行行動。{zh-cn}代理玩家会揭示目标、计算移动，然后在地图上移动并执行行动。{ko}프록시는 목표를 공개하고 이동력을 계산한 뒤 지도에서 이동하고 행동을 해결합니다.{es}El Proxy revela su objetivo, calcula el movimiento, se desplaza por el mapa y resuelve su acción.{fr}Le Proxy révèle son objectif, calcule son déplacement, se déplace sur la carte puis résout son action.{pt-br}O Proxy revela seu objetivo, calcula o movimento, percorre o mapa e resolve sua ação.{de}Der Proxy deckt sein Ziel auf, berechnet seine Bewegung, bewegt sich über die Karte und führt seine Aktion aus."
 		end
 	end
 	if gStates.tacticRemove==true or gStates.tacticShown==true then
@@ -21950,6 +21950,9 @@ local function turnEndRoundResetPlayerDecks()
 					end
 				end
 			end
+			-- A previous undersized discard pile can become the new Deed Deck.
+			-- Restore its physical scale before merging the remaining cards.
+			if newDeck~=nil then newDeck.setScale({1.5,1,1.5}) end
 			--remove crystals from unit area likely for magic familiars
 			for _, obj in pairs(getObjectFromGUID(playerUnitAreas[playerDetails.seatPos]).getObjects()) do
 				if obj.type=="Figurine" and obj.getGMNotes()~="Unit Wound" then getObjectFromGUID(trashCan).putObject(obj) end
@@ -36767,8 +36770,17 @@ resetCityGarrisonData=function(cityGUID)
 	return newData
 end
 
-cityObjectsAreReady=function(cityGUID)
+cityObjectsAreReady=function(cityGUID, initialDeployment)
 	if cityMegapolisPending(cityGUID)==true then return false end
+	local cardGUID=gStates.cityCard~=nil and gStates.cityCard[cityGUID] or nil
+	local card=cardGUID~=nil and getObjectFromGUID(cardGUID) or nil
+	if initialDeployment==true then
+		-- The defenders must follow the City card, not wait for the model/card physics to rest.
+		-- A reserved destination also guards against starting the army while the card is in flight.
+		if cardGUID~=nil and card==nil then return false end
+		if cardGUID~=nil and cityCardPendingDestination(cardGUID)~=nil then return false end
+		return card==nil or card.isSmoothMoving==nil or card.isSmoothMoving()~=true
+	end
 	local cityObj=getObjectFromGUID(cityGUID)
 	if cityObj~=nil and cityObj.resting~=true then return false end
 	local pair=cityMegapolisPair(cityGUID)
@@ -36776,8 +36788,6 @@ cityObjectsAreReady=function(cityGUID)
 		local pairObj=getObjectFromGUID(pair)
 		if pairObj~=nil and pairObj.resting~=true then return false end
 	end
-	local cardGUID=gStates.cityCard~=nil and gStates.cityCard[cityGUID] or nil
-	local card=cardGUID~=nil and getObjectFromGUID(cardGUID) or nil
 	if card~=nil and card.resting~=true then return false end
 	return true
 end
@@ -36826,8 +36836,8 @@ rebuildCityGarrisonNow=function(cityGUID, terrainGUID)
 	end, delay+5)
 end
 
-rebuildCityGarrison=function(cityGUID, terrainGUID)
-	safeWaitCondition("City",function() rebuildCityGarrisonNow(cityGUID, terrainGUID) end, function() return cityObjectsAreReady(cityGUID) end)
+rebuildCityGarrison=function(cityGUID, terrainGUID, initialDeployment)
+	safeWaitCondition("City",function() rebuildCityGarrisonNow(cityGUID, terrainGUID) end, function() return cityObjectsAreReady(cityGUID, initialDeployment) end)
 end
 
 scheduleCityRebuild=function(cityGUID, terrainGUID)
@@ -37241,7 +37251,8 @@ function playCity(obj, hexFeature, dropped)
 			local level=gStates.cityLevels~=nil and gStates.cityLevels[playedCities] or nil
 			if level~=nil and level>0 and gStates.gameScenario~="The Lost Relic Blitz" and gStates.gameScenario~="The Realm of the Dead Blitz" and gStates.gameScenario~="Life and Death" and gStates.gameScenario~="The Hidden Valley Blitz" then
 				if gStates.gameScenario=="Fury of the Apocalypse Dragon" then deployFriendlyCityShields(cityGUID) end
-				safeWaitFrames("City",function() rebuildCityGarrison(cityGUID,obj.guid) end,10)
+				-- The initial garrison can launch as soon as its City card reaches its reserved position.
+				rebuildCityGarrison(cityGUID,obj.guid,true)
 			elseif level~=nil then
 				if cityGUID~=darkCrusader.terrainHex and cityGUID~=elementalist.terrainHex then table.insert(gStates.cityLevels,#gStates.citiesPlayed,0) table.remove(gStates.cityLevels,#gStates.cityLevels) end
 				deployFriendlyCityShields(cityGUID)
@@ -56024,21 +56035,96 @@ local function trackerChoiceScores(guid,seatPos)
     return scores
 end
 
-local function guessInitialCardChoice(card,choices,seatPos,rule,sideways)
+-- First try to match a resource already contributed by an overlapping (or
+-- closely adjacent) played card. Only the first guess uses this spatial hint:
+-- selecting an option manually, lifting cards and using U/Place Under must
+-- never reassign a previously chosen option.
+trackerPrivate.nearbyCardChoice=function(card,choices,seatPos,cards,footprints,records)
+    local own=footprints[card.guid]
+    if own==nil then return nil end
+    local available={}
+    for _,choice in ipairs(choices) do
+        local category=choiceCategory(choice)
+        if category~=nil and choiceLetters[category]~=nil then
+            local rank=resourceChoiceRank(category,choice)
+            if rank<=#resourceChoiceFamilies and available[rank]==nil then
+                available[rank]=category
+            end
+        end
+    end
+    if next(available)==nil then return nil end
+    local previous=resourceCardScanBySeat[seatPos]
+    local best=nil
+    for _,other in ipairs(cards) do
+        if other.guid~=card.guid and other.is_face_down~=true
+            and cardPosture(other)~="discard" then
+            local area=footprints[other.guid]
+            if area~=nil then
+                local gapX=math.max(0,math.abs(own.x-area.x)-own.halfX-area.halfX)
+                local gapZ=math.max(0,math.abs(own.z-area.z)-own.halfZ-area.halfZ)
+                -- Allow a narrow gap beside a card, not unrelated cards elsewhere
+                -- on the mat. Actual overlap always takes precedence over a gap.
+                local reach=math.min(own.halfX,area.halfX)*0.5
+                local gap=gapX*gapX+gapZ*gapZ
+                if gap<=reach*reach then
+                    local record=records[other.guid]
+                        or (previous~=nil and previous.cards[other.guid] or nil)
+                    if record~=nil and record.complete==true
+                        and type(record.resources)=="table" then
+                        local overlapX=math.max(0,
+                            math.min(own.x+own.halfX,area.x+area.halfX)
+                            -math.max(own.x-own.halfX,area.x-area.halfX))
+                        local overlapZ=math.max(0,
+                            math.min(own.z+own.halfZ,area.z+area.halfZ)
+                            -math.max(own.z-own.halfZ,area.z-area.halfZ))
+                        local overlap=overlapX*overlapZ
+                        local distance=(own.x-area.x)^2+(own.z-area.z)^2
+                        for rank,category in pairs(available) do
+                            local amount=0
+                            for _,key in pairs(resourceTotalsKeyByField[resourceChoiceFamilies[rank]]) do
+                                amount=amount+math.max(0,tonumber(record.resources[key]) or 0)
+                            end
+                            if amount>0 and (best==nil
+                                or overlap>best.overlap
+                                or (overlap==best.overlap and gap<best.gap)
+                                or (overlap==best.overlap and gap==best.gap
+                                    and distance<best.distance)
+                                or (overlap==best.overlap and gap==best.gap
+                                    and distance==best.distance and amount>best.amount)
+                                or (overlap==best.overlap and gap==best.gap
+                                    and distance==best.distance and amount==best.amount
+                                    and (rank<best.rank or (rank==best.rank
+                                        and other.guid<best.guid)))) then
+                                best={category=category,overlap=overlap,gap=gap,
+                                    distance=distance,amount=amount,rank=rank,guid=other.guid}
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return best~=nil and best.category or nil
+end
+
+local function guessInitialCardChoice(card,choices,seatPos,rule,sideways,cards,footprints,records)
     -- A Wound-paid spell must be confirmed by the player, never guessed.
     if rule~=nil and rule.woundConfirmation==true and not sideways then return end
     if selectedResourceByGUID[card.guid]~=nil or choices==nil or #choices<2
         or card.is_face_down==true then return end
-    local scores=trackerChoiceScores(card.guid,seatPos)
-    local best,bestValue,bestRank=nil,nil,nil
-    for _,choice in ipairs(choices) do
-        local category=choiceCategory(choice)
-        local rank=resourceChoiceRank(category,choice)
-        if category~=nil and choiceLetters[category]~=nil
-            and rank<=#resourceChoiceFamilies then
-            local value=scores[resourceChoiceFamilies[rank]]
-            if best==nil or value>bestValue or (value==bestValue and rank<bestRank) then
-                best,bestValue,bestRank=category,value,rank
+    local nearby=trackerPrivate.nearbyCardChoice(card,choices,seatPos,cards,footprints,records)
+    local best,bestValue,bestRank=nearby,nil,nil
+    if best==nil then
+        local scores=trackerChoiceScores(card.guid,seatPos)
+        for _,choice in ipairs(choices) do
+            local category=choiceCategory(choice)
+            local rank=resourceChoiceRank(category,choice)
+            if category~=nil and choiceLetters[category]~=nil
+                and rank<=#resourceChoiceFamilies then
+                local value=scores[resourceChoiceFamilies[rank]]
+                if best==nil or value>bestValue or (value==bestValue and rank<bestRank) then
+                    best,bestValue,bestRank=category,value,rank
+                end
             end
         end
     end
@@ -57249,26 +57335,25 @@ end
 local function manaColor(obj)
     if isManaTokenFigurine(obj) then return manaTokenColor(obj) end
     if obj.type=="Dice" then
-        -- A dropped Source die can enter the thin play zone while still rolling.
-        -- TTS may not have a usable rotation value until its physics settles.
-        -- Its zone/drop callbacks queue a settled scan without reading the face.
-        if obj.resting~=true or obj.isSmoothMoving() then return nil end
+        -- Treat released dice like crystals: a slight physical wobble can
+        -- leave resting=false indefinitely, even when the visible face is stable.
+        -- Still exclude scripted smooth movement while reading the face.
+        if obj.isSmoothMoving() then return nil end
         local face=obj.getRotationValue()
         if type(face)=="string" then return face:match("^([%a]+) Mana$") end
     end
     return nil
 end
 
--- Placement and resource links use X/Z, so vertical falling does not delay
--- an otherwise released object. Dice must finish rolling before reading a face.
+-- Placement and resource links use X/Z, so vertical falling or a slightly
+-- rocking die does not delay an otherwise released object.
 trackerPrivate.readyForXZ=function(obj)
-    if obj==nil or (obj.held_by_color~=nil and obj.held_by_color~="")
-        or obj.isSmoothMoving() then return false end
-    return obj.type~="Dice" or obj.resting==true
+    return obj~=nil and (obj.held_by_color==nil or obj.held_by_color=="")
+        and not obj.isSmoothMoving()
 end
 
 -- Magic Talent's strong side consumes TWO distinct mana objects, not the
--- single mana that normally powers an Advanced Action. Read the same settled
+-- single mana that normally powers an Advanced Action. Read the same released
 -- die faces/crystals as the ordinary tracker, even when its panel is minimized.
 function magicTalentManaPayments(seatPos)
     local card=getObjectFromGUID("3d832c")
@@ -59597,7 +59682,8 @@ local function renderSeat(seatPos)
             end
         end
         if choices~=nil and cardPosture(card)~="discard" then
-            guessInitialCardChoice(card,choices,seatPos,rule,cardPosture(card)=="sideways")
+            guessInitialCardChoice(card,choices,seatPos,rule,cardPosture(card)=="sideways",
+                cards,footprints,records)
         end
         local result=calculateCard(card,powered[card.guid]==true or artifactBreak,boostBy[card.guid],
             links[card.guid],discarded[card.guid]~=nil,hasDiscard[card.guid]==true,
@@ -63339,7 +63425,7 @@ function resourceCardsUnderAction(targets)
         -- Native Under changes card height, sometimes nudging a die that was
         -- above the deliberately shallow play zone. It may not emit a Die
         -- pickup/drop/zone event. Discover only mana dice above this play mat,
-        -- on this rare action, and watch their actual resting faces.
+        -- on this rare action, and refresh their visible faces.
         if playedCardUnder and seat~=nil then
             local candidates=trackerPrivate.unitManaCandidatesBySeat[seat]
             if candidates==nil then
@@ -63358,7 +63444,7 @@ function resourceCardsUnderAction(targets)
                 end
             end
             -- If TTS starts jostling the die after its first frame, sample
-            -- again; the normal per-object watcher then owns final settling.
+            -- again; a slight wobble no longer blocks mana recognition.
             safeWaitFrames("PlayerBoard.CardRecognition",function()
                 if trackerPrivate.trackerSession~=session
                     or not resourceCardsPanelOpen() then return end
@@ -63418,7 +63504,7 @@ function resourceCardsZoneEntered(ctx)
     end
     if ctx.obj~=nil and ((ctx.objType=="Dice" and scriptObjectId(ctx.obj)=="Mana Dice")
         or manaColor(ctx.obj)~=nil) then
-        -- Recognize the die before it rests; only read its face in the settled scan.
+        -- Track a die even if it is still slightly rocking; the released scan reads its face.
         trackerPrivate.unitManaCandidatesBySeat[seat]=trackerPrivate.unitManaCandidatesBySeat[seat] or {}
         trackerPrivate.unitManaCandidatesBySeat[seat][ctx.objGUID]=true
     end
@@ -63472,7 +63558,7 @@ function resourceCardsObjectMoved(obj,stabilized)
     local seat=player.seatPos
     if (obj.type=="Dice" and scriptObjectId(obj)=="Mana Dice") or manaColor(obj)~=nil then
         -- Drop callbacks fire even if the final die/crystal sits above both thin
-        -- scripting zones. Remember its GUID and scan after it settles.
+        -- scripting zones. Remember its GUID and scan once released.
         trackerPrivate.unitManaCandidatesBySeat[seat]=trackerPrivate.unitManaCandidatesBySeat[seat] or {}
         trackerPrivate.unitManaCandidatesBySeat[seat][obj.guid]=true
         queueSeat(seat,obj.guid)
@@ -67237,6 +67323,8 @@ function drawUpTo(player, mouseButton, id)
 						local deckPos={-74.19+(40*(turnOrder[turnAffected].seatPos-1)), 1.50, -43.16}
 						if deedDeck~=nil then
 							if deedDeck.type=="Deck" then
+								-- Recover the normal deck size before any extracted card inherits it.
+								deedDeck.setScale({1.5,1,1.5})
 								local deckQuantity=deedDeck.getQuantity()
 								local drawNow=math.min(drawNeeded, deckQuantity)
 								excess=drawNeeded-drawNow
@@ -67245,7 +67333,10 @@ function drawUpTo(player, mouseButton, id)
 								if takeRemainder==true then deckTakes=math.max(0,deckQuantity-1) end
 								for x=1, deckTakes do
 									local drawn=deedDeck.takeObject({position=deedHandDrawPosition(playerPosition,x), rotation={0, 180, 0}, smooth=true})
-									if drawn~=nil then turnOrder[turnAffected].deedCount=math.max(0,(turnOrder[turnAffected].deedCount or 0)-1) end
+									if drawn~=nil then
+										drawn.setScale({1.5,1,1.5})
+										turnOrder[turnAffected].deedCount=math.max(0,(turnOrder[turnAffected].deedCount or 0)-1)
+									end
 								end
 								if takeRemainder==true then
 									safeWaitFrames("PlayerBoard.CardFlow",function()
@@ -67430,6 +67521,11 @@ function cleanupPlayedCardAtEndTurn(card, playerIndex, cardDestination)
 
 	for _, ownedGUID in ipairs(turnOrder[playerIndex].deadDeckInventory or {}) do
 		if card.guid==ownedGUID then
+			-- Cards may be temporarily shrunk on the play mat. Remove that scale
+			-- record before setting the fixed discard/hand size so a delayed zone
+			-- exit cannot apply the old multiplier in reverse.
+			if playAreaScaleForgetObject~=nil then playAreaScaleForgetObject(card) end
+			card.setScale({1.5,1,1.5})
 			if gStates.timeBending=="Started" and playerIndex==gStates.realTurn then
 				if card.guid==(gStates.timeBendingRemovedGUID or timeBendingGUID) then
 					gStates.timeBendingRemovedSeat=turnOrder[playerIndex].seatPos
@@ -67444,6 +67540,8 @@ function cleanupPlayedCardAtEndTurn(card, playerIndex, cardDestination)
 				card.setPosition({(turnOrder[playerIndex].seatPos*40)-110.54,1.12,-43.20})
 				cardDestination=card
 			else
+				-- An already-shrunken discard Card/Deck must not seed the new pile.
+				cardDestination.setScale({1.5,1,1.5})
 				local cardPos=card.getPosition()
 				card.setPosition({cardPos[1],1.9,cardPos[3]})
 				cardDestination=cardDestination.putObject(card)
