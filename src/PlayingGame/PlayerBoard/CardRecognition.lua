@@ -5070,6 +5070,13 @@ local function combatAssignmentRefreshRows(entries,sources)
     local handLimit=math.max(1,tonumber(currentPlayer~=nil and currentPlayer.baseHand) or 5)
     local knockout=totalHeroWounds+otherCombatWounds>=handLimit
     local paralysisAttackCards=combatConfig.paralysisAttackCards(sources,damageResults,earlyLock,knockout)
+    local stagedAttackCards={}
+    if earlyLock~=nil and earlyLock.attackDiscards~=nil then
+        stagedAttackCards=earlyLock.attackDiscards
+    elseif next(paralysisAttackCards)~=nil then
+        stagedAttackCards=combatConfig.knockoutStagedAttackCards(
+            sources,paralysisAttackCards,damageSeat,combatConfig.phasePreview)
+    end
     -- Blocks: only suppress remaining Unit attacks after *actual* wounds.
     -- Resisted assignments that cause no Wound leave the Unit eligible.
     local woundedBeforeAttack=combatConfig.unitsWoundedByDamage(damageResults)
@@ -5664,8 +5671,11 @@ local function combatAssignmentRefreshRows(entries,sources)
     local widthReduction=(170-columnWidths.range)+(170-columnWidths.block)+(170-columnWidths.attack)
     local panelWidth=1380-(255-combatConfig.columns.Result)-hiddenWidth-widthReduction
 
+    if earlyLock==nil and combatConfig.phasePreview~=nil then
+        combatConfig.phasePreview.attackDiscards=combatFrozenCopy(stagedAttackCards)
+    end
     combatConfig.woundRecordPreview(damageSeat,damageItems,damageResults,
-        knockout,otherCombatWounds)
+        knockout,otherCombatWounds,stagedAttackCards)
     local ledger=combatConfig.woundLedger(damageSeat)
     local _,pendingHand,pendingDiscard,changed,effects=combatConfig.woundPending(ledger)
     -- A Paralyzed Unit needs an Apply button even when all its attack damage
