@@ -1954,6 +1954,78 @@ function combatDiscardParalyzedHand(seat,ownerColor)
     return true,moved,movedGUIDs
 end
 
+-- Discard only the Attack-only GUIDs captured by the confirmed Damage
+-- snapshot. Do not sweep the play zone or remove a mixed-effect card just
+-- because it also has an Attack source. Validate *all* candidates first.
+function combatDiscardStagedAttackCards(seat,guids)
+    if guids==nil or #guids==0 then return true,0,{} end
+    local play=getObjectFromGUID(playerPlayAreas~=nil and playerPlayAreas[seat] or nil)
+    local discard=getObjectFromGUID(deedDeckDiscardZones~=nil
+        and deedDeckDiscardZones[seat] or nil)
+    if play==nil or discard==nil then
+        return false,"Play area or discard zone is missing",0,{}
+    end
+    local ok,objects=pcall(play.getObjects,true)
+    if not ok then ok,objects=pcall(play.getObjects) end
+    if not ok then return false,"Could not inspect the play area",0,{} end
+    local inPlay={}
+    for _,obj in ipairs(objects or {}) do
+        if obj.type=="Card" and obj.guid~=nil then inPlay[obj.guid]=obj end
+    end
+    local queue,seen={},{}
+    for _,guid in ipairs(guids) do
+        if not seen[guid] then
+            seen[guid]=true
+            local card=inPlay[guid]
+            if card==nil then
+                return false,"Planned Attack card "..tostring(guid)
+                    .." is no longer in the play area",0,{}
+            end
+            if card.held_by_color~=nil and card.held_by_color~="" then
+                return false,"A staged Attack card is being held",0,{}
+            end
+            if card.is_face_down==true or card.getGMNotes==nil
+                or card.getGMNotes()=="Wound" then
+                return false,"A staged Attack card is no longer eligible",0,{}
+            end
+            queue[#queue+1]=card
+        end
+    end
+    local pos=discard.getPosition()
+    local x,y,z=pos.x or pos[1],pos.y or pos[2],pos.z or pos[3]
+    local moved,movedGUIDs=0,{}
+    for _,card in ipairs(queue) do
+        local target={x,y+2+0.07*(moved%5),z}
+        local usedHands=card.use_hands==true
+        if usedHands then card.use_hands=false end
+        local movedOK=card.setPosition~=nil and pcall(card.setPosition,target)
+        if usedHands then
+            local function restore()
+                pcall(function() card.use_hands=true end)
+            end
+            if safeWaitFrames~=nil then
+                safeWaitFrames("PlayerBoard.CardFlow",restore,3)
+            else
+                restore()
+            end
+        end
+        if not movedOK then
+            return false,"Could not discard a staged Attack card",moved,movedGUIDs
+        end
+        if card.getPosition~=nil then
+            local readOK,actual=pcall(card.getPosition)
+            if not readOK or actual==nil
+                or math.abs((actual.x or actual[1])-x)>1
+                or math.abs((actual.z or actual[3])-z)>1 then
+                return false,"A staged Attack card did not reach discard",moved,movedGUIDs
+            end
+        end
+        moved=moved+1
+        movedGUIDs[#movedGUIDs+1]=card.guid
+    end
+    return true,moved,movedGUIDs
+end
+
 -- Wound dealing helper
 function DealWound(paramaters)
 	local woundbag=getObjectFromGUID(paramaters.guid)
