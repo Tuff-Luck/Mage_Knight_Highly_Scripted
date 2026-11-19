@@ -1152,9 +1152,13 @@ local function mapMarkerTrackingZone(zoneGUID)
 end
 local function zoneEventContext(zone, obj)
 	if zone==nil or obj==nil then return nil end
-	local zoneGUID=zone.guid
-	local objGUID=obj.guid
-	if zoneGUID==nil or objGUID==nil then return nil end
+	-- A disappearing Deck (or a game quitting to the menu) can deliver an
+	-- onObjectLeaveZone event whose Lua userdata is non-nil but already expired.
+	-- Property reads on that userdata can raise a Unity object-reference error.
+	local readable,zoneGUID,objGUID,objType=pcall(function()
+		return zone.guid,obj.guid,obj.type
+	end)
+	if not readable or type(zoneGUID)~="string" or type(objGUID)~="string" then return nil end
 	local zoneInfo=playerZoneLookup[zoneGUID]
 	return {
 		zone=zone,
@@ -1162,7 +1166,7 @@ local function zoneEventContext(zone, obj)
 		zoneGUID=zoneGUID,
 		objGUID=objGUID,
 		zoneInfo=zoneInfo,
-		objType=obj.type,
+		objType=objType,
 		isMap=zoneGUID==mapArea,
 		playerZoneKind=zoneInfo~=nil and zoneInfo.kind or nil
 	}
@@ -1741,12 +1745,12 @@ local function handleManaZoneEnter(ctx)
 end
 
 function __onObjectEnterZone_raw(zone, obj)
-	if zone~=nil and zone.guid==mapArea then
-		if obj~=nil and obj.guid~=nil then mapZoneMembership[obj.guid]=true end
-		if obj~=nil and terrainTiles[obj.guid]~=nil then runtimeMapInvalidateTerrain() else runtimeMapInvalidateObjects() end
-	end
 	local ctx=zoneEventContext(zone,obj)
 	if ctx==nil then return end
+	if ctx.isMap then
+		mapZoneMembership[ctx.objGUID]=true
+		if terrainTiles[ctx.objGUID]~=nil then runtimeMapInvalidateTerrain() else runtimeMapInvalidateObjects() end
+	end
 	if handleZoneEnterPrelude(ctx)==true then return end
     if ctx.objGUID=="3d832c" and ctx.playerZoneKind=="play" then
         magicTalentScheduleCheck()
@@ -1884,12 +1888,20 @@ local function handlePreGameZoneLeave(ctx)
 end
 
 function __onObjectLeaveZone_raw(zone, obj)
-	if zone~=nil and zone.guid==mapArea then
-		if obj~=nil and obj.guid~=nil then mapZoneMembership[obj.guid]=nil end
-		if obj~=nil and terrainTiles[obj.guid]~=nil then runtimeMapInvalidateTerrain() else runtimeMapInvalidateObjects() end
-	end
 	local ctx=zoneEventContext(zone,obj)
 	if ctx==nil then return end
+	if ctx.isMap then
+		mapZoneMembership[ctx.objGUID]=nil
+		if terrainTiles[ctx.objGUID]~=nil then runtimeMapInvalidateTerrain() else runtimeMapInvalidateObjects() end
+	end
+	-- No player is moving these during shutdown: TTS is dismantling the table.
+	-- Disposed objects and zones must not trigger gameplay/offer/UI side effects.
+	-- Do not use deletion counts or skip live zone exits, which also occur at setup.
+	local valid,disposed=pcall(function()
+		return (zone.isDestroyed~=nil and zone.isDestroyed()==true)
+			or (obj.isDestroyed~=nil and obj.isDestroyed()==true)
+	end)
+	if not valid or disposed then return end
     if ctx.objGUID=="2eb8e8" and ctx.playerZoneKind=="play" then
         callOfferSpellLeft(ctx.objGUID,ctx.zoneInfo~=nil and ctx.zoneInfo.seatPos or nil)
     end
