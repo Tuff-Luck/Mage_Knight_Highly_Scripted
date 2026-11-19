@@ -2813,7 +2813,8 @@ skillResourceDefinitions={
     ["e45fdf"]={untracked=true}, -- Whisper in the Treetops: gain a White crystal and Green mana manually.
     ["e68fed"]={untracked=true},
     ["e7abd5"]={normal={move=1},partial=true},
-    ["e88483"]={choices={{key="split",rangedIce=1,rangedFire=1},{ranged=2}}},
+    ["e88483"]={choices={{key="split",icon="ranged",iconOverlay="I/F",
+        iconOverlaySize=42,iconOverlayColor="#FFFFFF",rangedIce=1,rangedFire=1},{ranged=2}}},
     ["ebbbfc"]={untracked=true},
     ["eeb395"]={attackCardBoost=true,partial=true}, -- Deadly Aim; player links a specific Attack card.
     ["eec431"]={normal={healing=2}},
