@@ -1472,8 +1472,10 @@ function attackAssignmentTargetClicked(target,playerColor)
         -- the *current* card/skill option, not just the printed card name.
         local extraMode=nil
         if pending.additional then
-            local maximum,mode=resourceCardsCombatAdditionalTargetLimit~=nil
-                and resourceCardsCombatAdditionalTargetLimit(pending.sourceGUID) or 1
+            local maximum,mode=1,nil
+            if resourceCardsCombatAdditionalTargetLimit~=nil then
+                maximum,mode=resourceCardsCombatAdditionalTargetLimit(pending.sourceGUID)
+            end
             extraMode=mode
             if maximum<=1 then
                 targetingByPlayer[playerColor]=nil
