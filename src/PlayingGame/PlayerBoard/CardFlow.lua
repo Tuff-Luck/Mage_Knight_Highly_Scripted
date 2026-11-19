@@ -1828,7 +1828,8 @@ function combatDiscardParalyzedHand(seat,ownerColor)
     -- Read both, so an empty scripting zone cannot silently acknowledge a
     -- Paralysis discard while the player still holds non-Wound cards.
     local handObjects,seen={},{}
-    local hasHandSource=hand~=nil and hand.getObjects~=nil
+    local getZoneObjects=hand~=nil and hand.getObjects or nil
+    local hasHandSource=getZoneObjects~=nil
     local function include(obj)
         if obj~=nil and obj.guid~=nil and (obj.type=="Card" or obj.type=="Deck")
             and not seen[obj.guid] then
@@ -1836,12 +1837,12 @@ function combatDiscardParalyzedHand(seat,ownerColor)
             handObjects[#handObjects+1]=obj
         end
     end
-    if hasHandSource then
+    if getZoneObjects~=nil then
         -- Scripting zones with tag filters otherwise hide legitimate hand
         -- cards. The player's physical hand must be inspected unfiltered.
-        local ok,objects=pcall(hand.getObjects,true)
+        local ok,objects=pcall(getZoneObjects,true)
         if not ok then
-            ok,objects=pcall(hand.getObjects)
+            ok,objects=pcall(getZoneObjects)
         end
         if not ok then return false,"Could not inspect the scripting hand zone",0 end
         for _,obj in ipairs(objects or {}) do include(obj) end
