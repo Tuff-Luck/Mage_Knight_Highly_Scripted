@@ -1745,6 +1745,8 @@ local function handleManaZoneEnter(ctx)
 end
 
 function __onObjectEnterZone_raw(zone, obj)
+	-- onObjectDestroy has already confirmed table teardown; ignore later zone churn.
+	if gameExitTeardown then return end
 	local ctx=zoneEventContext(zone,obj)
 	if ctx==nil then return end
 	if ctx.isMap then
@@ -1888,6 +1890,9 @@ local function handlePreGameZoneLeave(ctx)
 end
 
 function __onObjectLeaveZone_raw(zone, obj)
+	-- Check the cached teardown flag only: scanning table anchors on every zone
+	-- event would be unnecessarily expensive during normal gameplay.
+	if gameExitTeardown then return end
 	local ctx=zoneEventContext(zone,obj)
 	if ctx==nil then return end
 	if ctx.isMap then
