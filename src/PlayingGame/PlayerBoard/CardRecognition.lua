@@ -7047,7 +7047,7 @@ end
 -- closely adjacent) played card. Only the first guess uses this spatial hint:
 -- selecting an option manually, lifting cards and using U/Place Under must
 -- never reassign a previously chosen option.
-local function nearbyCardChoice(card,choices,seatPos,cards,footprints,records)
+trackerPrivate.nearbyCardChoice=function(card,choices,seatPos,cards,footprints,records)
     local own=footprints[card.guid]
     if own==nil then return nil end
     local available={}
@@ -7120,7 +7120,7 @@ local function guessInitialCardChoice(card,choices,seatPos,rule,sideways,cards,f
     if rule~=nil and rule.woundConfirmation==true and not sideways then return end
     if selectedResourceByGUID[card.guid]~=nil or choices==nil or #choices<2
         or card.is_face_down==true then return end
-    local nearby=nearbyCardChoice(card,choices,seatPos,cards,footprints,records)
+    local nearby=trackerPrivate.nearbyCardChoice(card,choices,seatPos,cards,footprints,records)
     local scores=nearby==nil and trackerChoiceScores(card.guid,seatPos) or nil
     local best,bestValue,bestRank=nearby,nil,nil
     if best==nil then
