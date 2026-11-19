@@ -9291,6 +9291,36 @@ local function manaInsideFootprint(mana,area)
         and math.abs(p[3]-area.z)<area.halfZ
 end
 
+-- U/Place Under changes the vertical order of overlapping cards without
+-- changing their X/Z centres. Mana belongs to the physically highest eligible
+-- card, not the closest centre (nor the first GUID in a table).
+-- Coloured mana considers only legally matching cards; Gold considers any
+-- eligible card. For equal height, preserve the old X/Z nearest-card rule.
+trackerPrivate.bestManaCard=function(mana,cards,footprints,eligible)
+    local p=mana.getPosition()
+    local px,pz=p.x or p[1],p.z or p[3]
+    local best,bestY,bestDistance=nil,nil,nil
+    for _,card in ipairs(cards) do
+        local f=footprints[card.guid]
+        if f~=nil then
+            local dx,dz=px-f.x,pz-f.z
+            if math.abs(dx)<f.halfX and math.abs(dz)<f.halfZ
+                and eligible(card) then
+                local cp=card.getPosition()
+                local y=cp.y or cp[2] or 0
+                local distance=dx*dx+dz*dz
+                if best==nil or y>bestY+0.025
+                    or (math.abs(y-bestY)<=0.025
+                        and (distance<bestDistance
+                            or (distance==bestDistance and card.guid<best.guid))) then
+                    best,bestY,bestDistance=card,y,distance
+                end
+            end
+        end
+    end
+    return best
+end
+
 -- Time Bending's extra turn must be usable without opening the Resource Tracker.
 -- Read the physical Blue casting payment and a separate Black strong-side payment;
 -- the mere presence of the Spell in the play area does not establish either.
@@ -10089,21 +10119,30 @@ local function renderSeat(seatPos)
                 local pos=mana.getPosition()
                 local recovered=false
                 if manaColor(mana)~=nil then
+                    -- Use the top of the stack to establish that the mana is
+                    -- physically on the cards. Comparing its Y against *each*
+                    -- buried card can reject a valid die after U/Place Under.
+                    local highestCardY=nil
                     for cardGUID,card in pairs(objects) do
                         if placements[cardGUID]=="play"
                             and (objectKinds[cardGUID]=="card" or objectKinds[cardGUID]=="skill") then
                             local area=footprint(card)
                             local cardPos=card.getPosition()
-                            if pos[2]>=cardPos[2] and pos[2]-cardPos[2]<3
-                                and math.abs(pos[1]-area.x)<area.halfX
-                                and math.abs(pos[3]-area.z)<area.halfZ then
-                                objects[guid]=mana
-                                objectKinds[guid]="mana"
-                                placements[guid]="play"
-                                recovered=true
-                                break
+                            local cy=cardPos.y or cardPos[2]
+                            if math.abs(pos[1]-area.x)<area.halfX
+                                and math.abs(pos[3]-area.z)<area.halfZ
+                                and cy~=nil and (highestCardY==nil or cy>highestCardY) then
+                                highestCardY=cy
                             end
                         end
+                    end
+                    local manaY=pos.y or pos[2]
+                    if highestCardY~=nil and manaY~=nil
+                        and manaY>=highestCardY-0.15 and manaY-highestCardY<3 then
+                        objects[guid]=mana
+                        objectKinds[guid]="mana"
+                        placements[guid]="play"
+                        recovered=true
                     end
                 end
                 -- Remember above-zone payments on Units as well as Actions.
@@ -10381,21 +10420,13 @@ local function renderSeat(seatPos)
             and sidewaysSkillMana[mana.guid]==nil then
             local color=manaColor(mana)
             if color~=nil then
-                local p=mana.getPosition()
-                local best,bestDistance=nil,nil
-                for _,card in ipairs(cards) do
-                    local f=footprints[card.guid]
-                    local dx,dz=p[1]-f.x,p[3]-f.z
-                    if math.abs(dx)<f.halfX and math.abs(dz)<f.halfZ
-                        and cardPosture(card)=="upright" and card.is_face_down~=true
+                local best=trackerPrivate.bestManaCard(mana,cards,footprints,function(card)
+                    return cardPosture(card)=="upright" and card.is_face_down~=true
                         and (matchesCardMana(card,color)
                             or (specialPaymentByCard[card.guid]~=nil
                                 and (specialPaymentByCard[card.guid].colors[color]~=nil
-                                    or (color=="Gold" and resourceCardsGoldAllowed())))) then
-                        local distance=dx*dx+dz*dz
-                        if bestDistance==nil or distance<bestDistance then best,bestDistance=card,distance end
-                    end
-                end
+                                    or (color=="Gold" and resourceCardsGoldAllowed())))
+                end)
                 if best~=nil then spendMana(best,color,mana.guid) end
             end
         end
@@ -10425,23 +10456,15 @@ local function renderSeat(seatPos)
         if placements[mana.guid]=="play" and usedMana[mana.guid]==nil
             and manaByObject[mana.guid]==nil and sidewaysSkillMana[mana.guid]==nil then
             local color=manaColor(mana)
-            local best,bestDistance=nil,nil
-            for _,card in ipairs(cards) do
+            local best=trackerPrivate.bestManaCard(mana,cards,footprints,function(card)
                 local data=gameCards[card.guid]
                 local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
                 local spec=rule~=nil and rule.extraTerrainMana or nil
-                if spec~=nil and spec.color==color and extraTerrainManaByCard[card.guid]==nil
+                return spec~=nil and spec.color==color
+                    and extraTerrainManaByCard[card.guid]==nil
                     and (not spec.poweredOnly or powered[card.guid]==true or boostBy[card.guid]~=nil)
                     and card.is_face_down~=true and cardPosture(card)=="upright"
-                    and manaInsideFootprint(mana,footprints[card.guid]) then
-                    local p=mana.getPosition()
-                    local f=footprints[card.guid]
-                    local distance=(p[1]-f.x)^2+(p[3]-f.z)^2
-                    if bestDistance==nil or distance<bestDistance then
-                        best,bestDistance=card,distance
-                    end
-                end
-            end
+            end)
             if best~=nil then
                 extraTerrainManaByCard[best.guid]=mana.guid
                 extraTerrainManaByObject[mana.guid]=best.guid
