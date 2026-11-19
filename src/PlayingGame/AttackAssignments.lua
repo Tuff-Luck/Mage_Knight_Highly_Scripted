@@ -1484,7 +1484,28 @@ function attackAssignmentTargetClicked(target,playerColor)
                     playerColor,{1,0.6,0.2})
                 return
             end
-            if mode~="move" then
+            -- The first arrow is the primary allocation. Effect-only sources
+            -- may have a saved arrow without a numeric calculator target.
+            local primary=resourceCardsCombatPrimaryTarget~=nil
+                and resourceCardsCombatPrimaryTarget(pending.sourceGUID) or nil
+            if primary==nil then
+                for guid in pairs(attackAssignmentsTargetGUIDs(pending.sourceGUID)) do
+                    primary=guid
+                    break
+                end
+            end
+            if primary==nil then
+                -- Right-click before any assignment is a first target, not
+                -- a duplicate allocation or a split into two invisible pools.
+                pending.additional=false
+            elseif mode=="influence" and target.guid==primary then
+                targetingByPlayer[playerColor]=nil
+                syncTargetButtons()
+                broadcastToColor("The primary enemy already receives the remaining Influence points.",
+                    playerColor,{1,0.6,0.2})
+                return
+            end
+            if pending.additional and mode~="move" then
                 local distinct,total={},0
                 for _,existing in pairs(assignmentRegistry) do
                     if existing.sourceGUID==pending.sourceGUID then
