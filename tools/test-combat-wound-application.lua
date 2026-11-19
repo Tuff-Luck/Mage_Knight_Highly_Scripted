@@ -200,8 +200,11 @@ assert(recognition:find('effects.handDiscard and "Apply: Discard hand"',1,true),
     "cost-only Knockout must show an actionable hand-discard button")
 -- Paralysis must discard only the cards STILL IN HAND, including mixed
 -- Deck stacks, and must never discard already played cards.
-local discardHand=isolated(cardflow,"function combatDiscardParalyzedHand(seat)",
-    "-- Wound dealing helper","return combatDiscardParalyzedHand")
+local discardHand=isolated(cardflow,"function combatDiscardParalyzedHand(seat,ownerColor)",
+    "-- Discard only the Attack-only GUIDs","return combatDiscardParalyzedHand")
+local discardStaged=isolated(cardflow,
+    "function combatDiscardStagedAttackCards(seat,guids)",
+    "-- Wound dealing helper","return combatDiscardStagedAttackCards")
 local moved={}
 local function card(guid,wound)
     local position={x=0,y=1,z=0}
@@ -348,6 +351,30 @@ eq(combatConfig.combatOtherWounds(1),1,
 playObjects={}
 eq(combatConfig.combatOtherWounds(1),1,
     "discarding a spent cost Wound does not erase prior combat damage")
+
+-- Physical Attack-only discards use the same direct TTS movement as hand
+-- cards, but target ONLY the exact play-zone GUIDs from the frozen plan.
+local stageRage=card("stageRage",false)
+local stageShield=card("stageShield",false)
+playObjects={stageRage,stageShield,existingWound}
+local beforeStage=#moved
+local okStage,movedStage,guidsStage=discardStaged(1,{"stageRage"})
+eq(okStage,true,"Attack-only staged card discarded")
+eq(movedStage,1,"only one confirmed Attack-only card moved")
+eq(guidsStage[1],"stageRage","moved GUID recorded for transaction")
+eq(#moved,beforeStage+1,"staged Attack moves once")
+eq(stageRage.getPosition().x,2,"staged Attack reaches discard zone")
+eq(stageShield.getPosition().x,0,"played Shield is never swept up")
+eq(stageRage.use_hands,true,"hand eligibility restored after staged discard")
+local beforeInvalid=#moved
+okStage=discardStaged(1,{"stageShield","absent"})
+eq(okStage,false,"missing frozen card aborts the staged transfer")
+eq(#moved,beforeInvalid,"failed validation cannot partly discard")
+stageShield.held_by_color="Red"
+okStage=discardStaged(1,{"stageShield"})
+eq(okStage,false,"held staged card is not discarded")
+stageShield.held_by_color=nil
+playObjects={}
 gStates.combatWoundApplication=nil
 handObjects={}
 
@@ -526,6 +553,52 @@ combatDiscardParalyzedHand=function()
 end
 resourceCardsApplyCombatWounds({color="Red"})
 eq(partialLedger.handDiscardApplied,true,"a partial discard can safely finish")
+
+-- A confirmed Attack-only plan persists through the commit, save/reload,
+-- retry, and temporary disappearance of the physical card from the scan.
+local stageCalls={}
+combatDiscardStagedAttackCards=function(seat,guids)
+    eq(seat,1,"Attack-only discard has the right seat")
+    stageCalls[#stageCalls+1]=table.concat(guids,",")
+    return true,#guids,guids
+end
+combatDiscardParalyzedHand=function()
+    return true,0,{}
+end
+gStates.combatWoundApplication=nil
+combatConfig.woundRecordPreview(1,{{key="stage:1"}},{
+    ["stage:1"]={heroWounds=0,discard=0,paralyse=false,units={}}},
+    true,0,{"rage","swiftness"})
+local stageLedger=gStates.combatWoundApplication
+local _,_,_,_,stageFx=combatConfig.woundPending(stageLedger)
+eq(stageFx.stagedDiscardCount,2,"two invalidated pure Attack cards are pending")
+resourceCardsApplyCombatWounds({color="Red"})
+eq(stageCalls[1],"rage,swiftness","only captured Attack GUIDs moved")
+eq(stageLedger.playDiscardApplied.rage,true,"Rage transfer saved by GUID")
+eq(stageLedger.playDiscardApplied.swiftness,true,"Swiftness saved by GUID")
+resourceCardsApplyCombatWounds({color="Red"})
+eq(#stageCalls,1,"a second commit must not discard new played cards")
+
+gStates.combatWoundApplication=nil
+combatConfig.woundRecordPreview(1,{{key="stageFail:1"}},{
+    ["stageFail:1"]={heroWounds=0,discard=0,paralyse=false,units={}}},
+    true,0,{"rage","swiftness"})
+local stageFailed=gStates.combatWoundApplication
+combatDiscardStagedAttackCards=function()
+    return false,"second card failed",1,{"rage"}
+end
+resourceCardsApplyCombatWounds({color="Red"})
+eq(stageFailed.playDiscardApplied.rage,true,"partial staged transfer recorded")
+eq(stageFailed.playDiscardApplied.swiftness,nil,"unmoved card remains pending")
+local _,_,_,_,remainingStage=combatConfig.woundPending(stageFailed)
+eq(remainingStage.stagedDiscardCount,1,"only one Attack remains for retry")
+combatDiscardStagedAttackCards=function(_,guids)
+    stageCalls[#stageCalls+1]=table.concat(guids,",")
+    return true,#guids,guids
+end
+resourceCardsApplyCombatWounds({color="Red"})
+eq(stageCalls[2],"swiftness","retry moves only the remaining Attack")
+eq(stageFailed.playDiscardApplied.swiftness,true,"retry persists staged transfer")
 
 assert(recognition:find("effects.destroyCount>0",1,true),
     "Paralysis-only effects must show the Apply row")
