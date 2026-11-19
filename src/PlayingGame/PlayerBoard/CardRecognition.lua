@@ -2983,6 +2983,29 @@ function resourceCardsApplyCombatWounds(player,onComplete)
                 settlingGUIDs[guid]=true
             end
         end
+        -- Transfer the exact Attack-only physical GUIDs frozen before the
+        -- Damage commit. Hand cards have already been handled separately.
+        -- Each successful GUID is saved immediately so a partial failure,
+        -- saved game, or retry never discards a card twice.
+        if effects.stagedDiscardCount>0 then
+            if type(combatDiscardStagedAttackCards)~="function" then
+                finish(false,"Staged Attack discard helper is unavailable")
+                return
+            end
+            local ok,success,countOrReason,moved,partial=
+                pcall(combatDiscardStagedAttackCards,seat,effects.stagedDiscards)
+            local confirmed=success==true and moved or partial
+            for _,guid in ipairs(type(confirmed)=="table" and confirmed or {}) do
+                ledger.playDiscardApplied[guid]=true
+                settlingGUIDs[guid]=true
+                physicallyTouched=true
+            end
+            if not ok or success~=true then
+                finish(false,"Staged Attack discard: "
+                    ..tostring(ok and countOrReason or success))
+                return
+            end
+        end
         for _,effect in ipairs(effects.destroyed) do
             local applied=record(effect.key)
             applied.destroyed=applied.destroyed or {}
