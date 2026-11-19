@@ -61,6 +61,20 @@ end
 
 local protectedExpectedScriptRemovals={}
 local protectedUnexpectedDestroyReported={}
+-- TTS has no Global onExit event. During menu teardown, both permanent anchors
+-- disappear; losing only one is NOT enough evidence (it may be an in-game bug).
+-- Once teardown is confirmed, cancel pending Wait callbacks and avoid new cleanup.
+local gameExitTeardown=false
+local function eventsExitTeardown()
+	if gameExitTeardown then return true end
+	local mapOK,mapObj=pcall(getObjectFromGUID,mapArea)
+	local tableOK,tableObj=pcall(getObjectFromGUID,"519f96")
+	if mapOK and tableOK and mapObj==nil and tableObj==nil then
+		gameExitTeardown=true
+		if Wait~=nil and type(Wait.stopAll)=="function" then Wait.stopAll() end
+	end
+	return gameExitTeardown
+end
 -- Keep a short, token-specific lifecycle trail. The generic recent-callback list
 -- cannot tell whether a missing turn-order token fell, entered a bag, or was
 -- deleted by setup/cleanup. This history exists only while this script runs.
@@ -128,11 +142,13 @@ function __onPlayerAction_raw(player,action,targets)
 end
 
 local function protectedObjectDestroyAudit(guid)
+	if eventsExitTeardown() then return end
 	if type(gStates)~="table" or gStates.firstStarted~=true then return end
 	local kind,diagnose=protectedObjectKind(guid)
 	if kind==nil or diagnose~=true or protectedExpectedScriptRemovals[guid]~=nil or protectedUnexpectedDestroyReported[guid]==true then return end
 	-- Wait for actual disappearance, not an object temporarily reloading/changing state.
 	safeWaitFrames("ProtectedObjects",function()
+		if eventsExitTeardown() then return end
 		if getObjectFromGUID(guid)~=nil or protectedExpectedScriptRemovals[guid]~=nil then return end
 		if protectedUnexpectedDestroyReported[guid]==true then return end
 		protectedUnexpectedDestroyReported[guid]=true
@@ -1003,7 +1019,7 @@ end
 
 --Alter Fame board Values, Skill register, and Add icons when changing avatar **This script runs when exiting the game**
 function __onObjectDestroy_raw(destroyedObj)
-	if destroyedObj==nil then return end
+	if destroyedObj==nil or eventsExitTeardown() then return end
 	-- A TTS destroy event can provide userdata whose underlying Unity object is already gone.
 	-- Read its GUID once, defensively; pass only the GUID to cleanup that does not need the object.
 	local guidOK,destroyedGuid=pcall(function() return destroyedObj.guid end)

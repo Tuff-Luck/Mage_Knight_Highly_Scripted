@@ -79,7 +79,10 @@ puppetMasterUndoFreshClaim=function() return true end
 avatarButtonXmlState={}
 isShieldObject=function() return false end
 scriptObjectId=function(obj) return obj.getName() end
-getObjectFromGUID=function() return nil end
+local permanentAnchors={map={guid="map"},["519f96"]={guid="519f96"}}
+getObjectFromGUID=function(guid) return permanentAnchors[guid] end
+local teardownStops=0
+Wait={stopAll=function() teardownStops=teardownStops+1 end}
 local deferredDestroyWork={}
 safeWaitFrames=function(_,callback)
     deferredDestroyWork[#deferredDestroyWork+1]=callback
@@ -131,6 +134,21 @@ mapTokenNeedsArrangement=function() error("Unity object reference unavailable") 
 assert(pcall(__onObjectDestroy_raw,{guid="bad_marker",getName=function() return "" end,
     getGMNotes=function() return "" end}),"Destroyed marker classification aborted cleanup")
 mapTokenNeedsArrangement=function() return false end
+
+-- Losing only one fixture must not suppress real in-game destruction cleanup.
+local previousWork=#deferredDestroyWork
+permanentAnchors.map=nil
+assert(pcall(__onObjectDestroy_raw,{guid="single_missing_anchor"}))
+equal(teardownStops,0,"Single missing protected anchor triggered shutdown")
+equal(#deferredDestroyWork,previousWork+1,"Live destruction cleanup was incorrectly skipped")
+
+-- Once both permanent fixtures are gone, stop queued work and skip teardown callbacks.
+permanentAnchors["519f96"]=nil
+previousWork=#deferredDestroyWork
+assert(pcall(__onObjectDestroy_raw,{guid="exit_object"}))
+assert(pcall(__onObjectDestroy_raw,{guid="exit_object_again"}))
+equal(teardownStops,1,"Shutdown must cancel pending waits only once")
+equal(#deferredDestroyWork,previousWork,"Exit destruction scheduled more cleanup")
 
 -- Event loops waiting for physics must terminate or take their bounded fallback.
 local pending
