@@ -215,7 +215,7 @@ local function card(guid,wound)
         getPosition=function() return position end,
         -- Smooth moves fail silently in a TTS HandTrigger. Direct movement
         -- works only when the script temporarily disables hand capture.
-        setPositionSmooth=function() end}
+        setPositionSmooth=function(pos,collide,fast) end}
     obj.setPosition=function(target)
         eq(obj.use_hands,false,"temporarily disable TTS hand capture before moving")
         position={x=target.x or target[1],y=target.y or target[2],
