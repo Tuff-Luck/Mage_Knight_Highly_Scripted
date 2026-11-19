@@ -196,7 +196,11 @@ function onObjectSpawn(spawn_object)
 end
 
 function onObjectDestroy(destroyedObj)
-	return safeCallback("onObjectDestroy", function() __onObjectDestroy_raw(destroyedObj) end)
+	return safeCallback("onObjectDestroy", function() __onObjectDestroy_raw(destroyedObj) end,
+		function()
+			local ok,guid=pcall(function() return destroyedObj~=nil and destroyedObj.guid or nil end)
+			return "Destroyed object GUID="..tostring(ok and guid or "unavailable")
+		end)
 end
 
 function onObjectEnterZone(zone, obj)
@@ -331,6 +335,12 @@ end
 
 function onChat(message, player)
 	if player~=nil and player.admin==true then
+        -- Opt-in resource tracker trace; only the admin can dump the ring log.
+        local traceAction=type(message)=="string" and message:match("^!trackertrace%s*(%a*)%s*$") or nil
+        if traceAction~=nil and resourceCardsTraceCommand~=nil then
+            if traceAction=="" then traceAction="status" end
+            if resourceCardsTraceCommand(traceAction,player.color) then return false end
+        end
 		if message=="!testerror" then testAutomaticLuaError() return false end
 		if message=="!testasyncerror" then testAutomaticLuaAsyncError() return false end
 	end
@@ -898,6 +908,20 @@ end
 
 local protectedExpectedScriptRemovals={}
 local protectedUnexpectedDestroyReported={}
+-- TTS has no Global onExit event. During menu teardown, both permanent anchors
+-- disappear; losing only one is NOT enough evidence (it may be an in-game bug).
+-- Once teardown is confirmed, cancel pending Wait callbacks and avoid new cleanup.
+local gameExitTeardown=false
+local function eventsExitTeardown()
+	if gameExitTeardown then return true end
+	local mapOK,mapObj=pcall(getObjectFromGUID,mapArea)
+	local tableOK,tableObj=pcall(getObjectFromGUID,"519f96")
+	if mapOK and tableOK and mapObj==nil and tableObj==nil then
+		gameExitTeardown=true
+		if Wait~=nil and type(Wait.stopAll)=="function" then Wait.stopAll() end
+	end
+	return gameExitTeardown
+end
 -- Keep a short, token-specific lifecycle trail. The generic recent-callback list
 -- cannot tell whether a missing turn-order token fell, entered a bag, or was
 -- deleted by setup/cleanup. This history exists only while this script runs.
@@ -951,6 +975,14 @@ local function protectedObjectCanEnterContainer(container,obj)
 end
 
 function __onPlayerAction_raw(player,action,targets)
+    -- U/Place Under is a native TTS action and may not emit a normal Drop
+    -- or Zone event. Capture existing choices before it moves the object,
+    -- then reconcile after TTS applies the new stacking position.
+    if action==Player.Action.Under then
+        if gStates~=nil and gStates.firstStarted==true
+            and resourceCardsUnderAction~=nil then resourceCardsUnderAction(targets) end
+        return true
+    end
 	if action~=Player.Action.Delete and action~=Player.Action.Cut then return true end
 	for _,obj in ipairs(targets or {}) do
 		local kind=obj~=nil and protectedObjectKind(obj.guid) or nil
@@ -965,11 +997,13 @@ function __onPlayerAction_raw(player,action,targets)
 end
 
 local function protectedObjectDestroyAudit(guid)
+	if eventsExitTeardown() then return end
 	if type(gStates)~="table" or gStates.firstStarted~=true then return end
 	local kind,diagnose=protectedObjectKind(guid)
 	if kind==nil or diagnose~=true or protectedExpectedScriptRemovals[guid]~=nil or protectedUnexpectedDestroyReported[guid]==true then return end
 	-- Wait for actual disappearance, not an object temporarily reloading/changing state.
 	safeWaitFrames("ProtectedObjects",function()
+		if eventsExitTeardown() then return end
 		if getObjectFromGUID(guid)~=nil or protectedExpectedScriptRemovals[guid]~=nil then return end
 		if protectedUnexpectedDestroyReported[guid]==true then return end
 		protectedUnexpectedDestroyReported[guid]=true
@@ -1840,9 +1874,14 @@ end
 
 --Alter Fame board Values, Skill register, and Add icons when changing avatar **This script runs when exiting the game**
 function __onObjectDestroy_raw(destroyedObj)
-	if destroyedObj==nil then return end
-	attackAssignmentsClearForObject(destroyedObj)
-	local destroyedGuid=destroyedObj.guid
+	if destroyedObj==nil or eventsExitTeardown() then return end
+	-- A TTS destroy event can provide userdata whose underlying Unity object is already gone.
+	-- Read its GUID once, defensively; pass only the GUID to cleanup that does not need the object.
+	local guidOK,destroyedGuid=pcall(function() return destroyedObj.guid end)
+	if not guidOK or type(destroyedGuid)~="string" or destroyedGuid=="" then return end
+	-- Combat cleanup refreshes target buttons/lines. Run it after TTS finishes retiring the
+	-- object, rather than recalculating while the dying object is still in physics/zone lists.
+	safeWaitFrames("Events",function() attackAssignmentsClearForObject(destroyedGuid) end,1)
 	protectedTurnOrderTokenRecord(destroyedGuid,"onObjectDestroy",destroyedObj)
     -- A deliberately destroyed Unit must not leave old activation and Ready
     -- links behind. Do not erase its Command's spent state until a NEW Unit
@@ -1861,10 +1900,18 @@ function __onObjectDestroy_raw(destroyedObj)
 	-- This callback can receive an object already flagged for destruction.
 	-- Avoid reading its .type: use the slower, guarded marker classification.
 	local destroyMetadata={destroying=true}
-	if mapTokenNeedsArrangement~=nil and mapTokenNeedsArrangement(destroyedObj,destroyMetadata)==true then
-		-- MapTokens.lua declares (obj, metadata); the second argument enables safe access during destruction.
-		---@diagnostic disable-next-line: redundant-parameter
-		mapTokenReleaseObject(destroyedObj,destroyMetadata)
+	if mapTokenNeedsArrangement~=nil then
+		-- Even classification can cross the native-object boundary. Map release is best-effort:
+		-- a destroyed object must not prevent the remaining GUID-based cleanup from running.
+		local classified,needsArrangement=pcall(mapTokenNeedsArrangement,destroyedObj,destroyMetadata)
+		if classified and needsArrangement==true then
+			-- MapTokens.lua declares (obj, metadata); the second argument enables safe access during destruction.
+			---@diagnostic disable-next-line: redundant-parameter
+			local released,reason=pcall(mapTokenReleaseObject,destroyedObj,destroyMetadata)
+			if not released then log("Destroyed map token release failed ["..destroyedGuid.."]: "..tostring(reason)) end
+		elseif not classified then
+			log("Destroyed map token classification failed ["..destroyedGuid.."]: "..tostring(needsArrangement))
+		end
 	end
 	local questScorePlayer=apocalypseQuestScoreMarkerPlayerIndex(destroyedGuid)
 	if questScorePlayer~=nil then
@@ -1952,9 +1999,13 @@ local function mapMarkerTrackingZone(zoneGUID)
 end
 local function zoneEventContext(zone, obj)
 	if zone==nil or obj==nil then return nil end
-	local zoneGUID=zone.guid
-	local objGUID=obj.guid
-	if zoneGUID==nil or objGUID==nil then return nil end
+	-- A disappearing Deck (or a game quitting to the menu) can deliver an
+	-- onObjectLeaveZone event whose Lua userdata is non-nil but already expired.
+	-- Property reads on that userdata can raise a Unity object-reference error.
+	local readable,zoneGUID,objGUID,objType=pcall(function()
+		return zone.guid,obj.guid,obj.type
+	end)
+	if not readable or type(zoneGUID)~="string" or type(objGUID)~="string" then return nil end
 	local zoneInfo=playerZoneLookup[zoneGUID]
 	return {
 		zone=zone,
@@ -1962,7 +2013,7 @@ local function zoneEventContext(zone, obj)
 		zoneGUID=zoneGUID,
 		objGUID=objGUID,
 		zoneInfo=zoneInfo,
-		objType=obj.type,
+		objType=objType,
 		isMap=zoneGUID==mapArea,
 		playerZoneKind=zoneInfo~=nil and zoneInfo.kind or nil
 	}
@@ -2541,12 +2592,14 @@ local function handleManaZoneEnter(ctx)
 end
 
 function __onObjectEnterZone_raw(zone, obj)
-	if zone~=nil and zone.guid==mapArea then
-		if obj~=nil and obj.guid~=nil then mapZoneMembership[obj.guid]=true end
-		if obj~=nil and terrainTiles[obj.guid]~=nil then runtimeMapInvalidateTerrain() else runtimeMapInvalidateObjects() end
-	end
+	-- onObjectDestroy has already confirmed table teardown; ignore later zone churn.
+	if gameExitTeardown then return end
 	local ctx=zoneEventContext(zone,obj)
 	if ctx==nil then return end
+	if ctx.isMap then
+		mapZoneMembership[ctx.objGUID]=true
+		if terrainTiles[ctx.objGUID]~=nil then runtimeMapInvalidateTerrain() else runtimeMapInvalidateObjects() end
+	end
 	if handleZoneEnterPrelude(ctx)==true then return end
     if ctx.objGUID=="3d832c" and ctx.playerZoneKind=="play" then
         magicTalentScheduleCheck()
@@ -2684,12 +2737,23 @@ local function handlePreGameZoneLeave(ctx)
 end
 
 function __onObjectLeaveZone_raw(zone, obj)
-	if zone~=nil and zone.guid==mapArea then
-		if obj~=nil and obj.guid~=nil then mapZoneMembership[obj.guid]=nil end
-		if obj~=nil and terrainTiles[obj.guid]~=nil then runtimeMapInvalidateTerrain() else runtimeMapInvalidateObjects() end
-	end
+	-- Check the cached teardown flag only: scanning table anchors on every zone
+	-- event would be unnecessarily expensive during normal gameplay.
+	if gameExitTeardown then return end
 	local ctx=zoneEventContext(zone,obj)
 	if ctx==nil then return end
+	if ctx.isMap then
+		mapZoneMembership[ctx.objGUID]=nil
+		if terrainTiles[ctx.objGUID]~=nil then runtimeMapInvalidateTerrain() else runtimeMapInvalidateObjects() end
+	end
+	-- No player is moving these during shutdown: TTS is dismantling the table.
+	-- Disposed objects and zones must not trigger gameplay/offer/UI side effects.
+	-- Do not use deletion counts or skip live zone exits, which also occur at setup.
+	local valid,disposed=pcall(function()
+		return (zone.isDestroyed~=nil and zone.isDestroyed()==true)
+			or (obj.isDestroyed~=nil and obj.isDestroyed()==true)
+	end)
+	if not valid or disposed then return end
     if ctx.objGUID=="2eb8e8" and ctx.playerZoneKind=="play" then
         callOfferSpellLeft(ctx.objGUID,ctx.zoneInfo~=nil and ctx.zoneInfo.seatPos or nil)
     end
@@ -5642,6 +5706,21 @@ function resourceTrackerSyncLayout(expanded, changedPanel, changedActive)
     end
     UI.setAttribute("ResourceTracker","height",tostring(height))
     UI.setAttribute("ResourceTrackerDetail","height",tostring(detailHeight))
+end
+
+-- On a TTS rewind, the XML starts with a 35px collapsed root even if the
+-- saved seat had the tracker open. Restore the same known-good geometry used
+-- by first-game setup *before* showing the details: activating them while the
+-- root is still 35px tall makes the lower-anchored details overlap the header.
+-- Clear nested sections as a normal fresh open does, rather than expanding
+-- an unknown combination of stale UI flags during load.
+function resourceTrackerRestoreExpandedLayout()
+    for _,spec in pairs(RESOURCE_TRACKER_EXPANDERS) do
+        UI.setAttribute(spec[1],"active","false")
+    end
+    UI.setAttribute("ResourceTracker","height","245")
+    UI.setAttribute("ResourceTrackerDetail","height","210")
+    UI.setAttribute("ResourceTrackerDetail","active","true")
 end
 
 local RESOURCE_TRACKER_FIELDS={	["MovemAmountPlain"]={"move", "move", "{en}Move : {it}Movimento : {ru}Движение: {zh-tw}移動：{zh-cn}移动：{ko}이동 : {es}Mover : {fr}Se déplacer : {pt-br}Mover : {de}Bewegen : "},
@@ -23916,6 +23995,15 @@ function attackAssignmentsBegin(source,resource,playerColor,additional,sourceKey
 		or Player[playerColor]==nil then return false end
 	sourceKey=sourceKey or source.guid
     if combatCommittedSource~=nil and combatCommittedSource(sourceKey) then return false end
+    if additional==true then
+        local maximum=resourceCardsCombatAdditionalTargetLimit~=nil
+            and resourceCardsCombatAdditionalTargetLimit(sourceKey) or 1
+        if maximum<=1 then
+            broadcastToColor("This resource can target only one enemy. Left-click to retarget.",
+                playerColor,{1,0.6,0.2})
+            return false
+        end
+    end
 	local pending=targetingByPlayer[playerColor]
 	if pending~=nil and pending.sourceGUID==sourceKey and pending.resource==resource then
 		targetingByPlayer[playerColor]=nil
@@ -24055,25 +24143,61 @@ function attackAssignmentTargetClicked(target,playerColor)
 			broadcastToColor("Move can only be assigned to a Cumbersome enemy.",playerColor,{1,0.6,0.2})
 			return
 		end
-        -- Lost Legion Banner of Fear's broken effect can cancel at most three
-        -- distinct enemies. Do not add a fourth physical target arrow.
+        -- Extra arrows are legal only for independently divisible points or
+        -- explicitly multi-target enemy effects. The limit is resolved from
+        -- the *current* card/skill option, not just the printed card name.
+        local extraMode=nil
         if pending.additional then
-            local data=gameCards~=nil and gameCards[currentSource.guid] or nil
-            local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
-            local spec=rule~=nil and rule.enemyEffect~=nil and rule.enemyEffect.powered or nil
-            local maximum=spec~=nil and tonumber(spec.maxTargets) or nil
-            if maximum~=nil then
-                local distinct={}
+            local maximum,mode=1,nil
+            if resourceCardsCombatAdditionalTargetLimit~=nil then
+                maximum,mode=resourceCardsCombatAdditionalTargetLimit(pending.sourceGUID)
+            end
+            extraMode=mode
+            if maximum<=1 then
+                targetingByPlayer[playerColor]=nil
+                syncTargetButtons()
+                broadcastToColor("This resource can target only one enemy. Left-click to retarget.",
+                    playerColor,{1,0.6,0.2})
+                return
+            end
+            -- The first arrow is the primary allocation. Effect-only sources
+            -- may have a saved arrow without a numeric calculator target.
+            local primary=resourceCardsCombatPrimaryTarget~=nil
+                and resourceCardsCombatPrimaryTarget(pending.sourceGUID) or nil
+            if primary==nil then
+                for guid in pairs(attackAssignmentsTargetGUIDs(pending.sourceGUID)) do
+                    primary=guid
+                    break
+                end
+            end
+            if primary==nil then
+                -- Right-click before any assignment is a first target, not
+                -- a duplicate allocation or a split into two invisible pools.
+                pending.additional=false
+            elseif mode=="influence" and target.guid==primary then
+                targetingByPlayer[playerColor]=nil
+                syncTargetButtons()
+                broadcastToColor("The primary enemy already receives the remaining Influence points.",
+                    playerColor,{1,0.6,0.2})
+                return
+            end
+            if pending.additional and mode~="move" then
+                local distinct,total={},0
                 for _,existing in pairs(assignmentRegistry) do
                     if existing.sourceGUID==pending.sourceGUID then
                         distinct[existing.targetGUID]=true
+                        total=total+1
                     end
                 end
-                local total=0
-                for _ in pairs(distinct) do total=total+1 end
-                if total>=maximum and not distinct[target.guid] then
-                    broadcastToColor("Banner of Fear can cancel at most "
-                        ..tostring(maximum).." enemies.",playerColor,{1,0.6,0.2})
+                if mode=="targets" then
+                    total=0
+                    for _ in pairs(distinct) do total=total+1 end
+                end
+                if total>=maximum and (mode~="targets" or not distinct[target.guid]) then
+                    broadcastToColor(mode=="targets"
+                        and ("This effect can target at most "..tostring(maximum).." enemies.")
+                        or "All resource points are already assigned.",
+                        playerColor,{1,0.6,0.2})
                     return
                 end
             end
@@ -24088,25 +24212,10 @@ function attackAssignmentTargetClicked(target,playerColor)
 			if entry.sourceGUID==pending.sourceGUID and entry.targetGUID==target.guid
 				and entry.resource==pending.resource then duplicate=true break end
 		end
-        -- Each additional right-clicked Influence arrow is ONE extra point
-        -- allocated to that enemy. Repeating it assigns more points, but never
-        -- more than the physical card or Unit actually generated.
-        if pending.additional and pending.resource=="influence" then
-            local current=turnOrder~=nil and gStates~=nil
-                and turnOrder[gStates.turnNumber] or nil
-            local scan=current~=nil and resourceCardScanBySeat[current.seatPos] or nil
-            local record=scan~=nil and scan.cards[currentSource.guid] or nil
-            local maxPoints=record~=nil and record.resources~=nil
-                and tonumber(record.resources.influence) or nil
-            local existing=0
-            for _,entry in pairs(assignmentRegistry) do
-                if entry.sourceGUID==pending.sourceGUID then existing=existing+1 end
-            end
-            if maxPoints~=nil and existing>=maxPoints then
-                broadcastToColor("All Influence points from this source are already targeted.",
-                    playerColor,{1,0.6,0.2})
-                return
-            end
+        -- Psychic Influence is a point pool: repeated arrows to the same
+        -- enemy each spend one additional point. Converted point pools instead
+        -- keep one arrow per distinct enemy.
+        if pending.additional and extraMode=="influence" then
             duplicate=false
         end
 		if not duplicate then
@@ -24217,6 +24326,27 @@ function attackAssignmentsPruneInactive(activeKeys,activeObjects,keepsLock)
 			remove[#remove+1]=id
 		end
 	end
+    -- Clear legacy phantom arrows created when right-clicking an ordinary
+    -- Attack/Block source. Keep its first arrow; split sources already have
+    -- separate keys and legal multi-target effects have an explicit limit.
+    local bySource={}
+    for id,entry in pairs(assignmentRegistry) do
+        if activeKeys[entry.sourceGUID]==true
+            and not combatCommittedSource(entry.sourceGUID) then
+            local entries=bySource[entry.sourceGUID] or {}
+            entries[#entries+1]=id
+            bySource[entry.sourceGUID]=entries
+        end
+    end
+    for key,ids in pairs(bySource) do
+        if #ids>1 and resourceCardsCombatAdditionalTargetLimit~=nil
+            and resourceCardsCombatAdditionalTargetLimit(key)<=1 then
+            table.sort(ids,function(a,b)
+                return (tonumber(a) or 0)<(tonumber(b) or 0)
+            end)
+            for i=2,#ids do remove[#remove+1]=ids[i] end
+        end
+    end
 	for _,id in ipairs(remove) do assignmentRegistry[id]=nil end
 	if #remove>0 then
 		persistAssignments()
@@ -48858,6 +48988,71 @@ trackerPrivate.generation={}
 -- crystal must not block a second, already-settled card from updating.
 trackerPrivate.pendingSeatSettles={}
 trackerPrivate.pendingSeatRender={}
+-- Opt-in ring trace for reproducing a stalled tracker without permanent log spam.
+-- Use the admin chat commands !trackertrace on/status/dump/off.
+trackerPrivate.traceEnabled=false
+trackerPrivate.traceLines={}
+trackerPrivate.traceSequence=0
+trackerPrivate.traceEvent=function(event,seat,guid,detail)
+    if not trackerPrivate.traceEnabled then return end
+    trackerPrivate.traceSequence=trackerPrivate.traceSequence+1
+    local line=string.format("%04d %s seat=%s guid=%s %s",
+        trackerPrivate.traceSequence,tostring(event),tostring(seat or "-"),
+        tostring(guid or "-"),tostring(detail or ""))
+    local lines=trackerPrivate.traceLines
+    lines[#lines+1]=line
+    if #lines>180 then table.remove(lines,1) end
+end
+
+function resourceCardsTraceCommand(command,playerColor)
+    command=command or "status"
+    if command=="on" then
+        trackerPrivate.traceEnabled=true
+        trackerPrivate.traceLines={}
+        trackerPrivate.traceSequence=0
+        trackerPrivate.traceEvent("trace.enabled")
+    elseif command=="off" then
+        trackerPrivate.traceEvent("trace.disabled")
+        trackerPrivate.traceEnabled=false
+    elseif command=="dump" then
+        log("[TrackerTrace] BEGIN "..tostring(#trackerPrivate.traceLines).." events")
+        for _,line in ipairs(trackerPrivate.traceLines) do
+            log("[TrackerTrace] "..line)
+        end
+        log("[TrackerTrace] END")
+    elseif command~="status" then
+        return false
+    end
+    local movements={}
+    for guid,movement in pairs(trackerPrivate.playCardMovements or {}) do
+        local obj=getObjectFromGUID(guid)
+        local held=obj~=nil and obj.held_by_color or nil
+        local smooth=obj~=nil and obj.isSmoothMoving~=nil and obj.isSmoothMoving() or false
+        movements[#movements+1]=guid.."(seat="..tostring(movement.seatPos)
+            ..",held="..tostring(held)..",smooth="..tostring(smooth)
+            ..",watch="..tostring(movement.releasing)
+            ..",samples="..tostring(movement.samples)..")"
+    end
+    table.sort(movements)
+    local seat=turnOrder~=nil and gStates~=nil
+        and turnOrder[gStates.turnNumber]~=nil
+        and turnOrder[gStates.turnNumber].seatPos or nil
+    local pending=seat~=nil and trackerPrivate.pendingSeatSettles[seat] or nil
+    local pendingCount=0
+    for _ in pairs(pending or {}) do pendingCount=pendingCount+1 end
+    local status="Tracker trace "..(trackerPrivate.traceEnabled and "ON" or "OFF")
+        .."; panel="..tostring(resourceCardsPanelOpen())
+        .."; seat="..tostring(seat)
+        .."; renderQueued="..tostring(seat~=nil and trackerPrivate.pendingSeatRender[seat] or nil)
+        .."; settleWaits="..pendingCount
+        .."; movements="..(#movements>0 and table.concat(movements,", ") or "none")
+        .."; events="..#trackerPrivate.traceLines
+    log("[TrackerTrace] "..status)
+    if playerColor~=nil then
+        broadcastToColor(status,playerColor,{0.7,0.9,1})
+    end
+    return true
+end
 local shown={}
 -- Mana crystal figurines are still read for powering cards, but should never
 -- receive Resource Tracker highlights. Avoid repeated highlightOff calls.
@@ -51267,6 +51462,7 @@ combatConfig.woundLedger=function(seat)
     ledger.applied=ledger.applied or {}
     ledger.cards=ledger.cards or {}
     ledger.preview=ledger.preview or {}
+    ledger.playDiscardApplied=ledger.playDiscardApplied or {}
     -- Legacy saves only tracked the individual Paralysis application.
     if ledger.handDiscardApplied==nil then
         ledger.handDiscardApplied=false
@@ -51345,7 +51541,7 @@ combatConfig.combatOtherWounds=function(seat)
     return count
 end
 
-combatConfig.woundRecordPreview=function(seat,items,results,knockout,otherWounds)
+combatConfig.woundRecordPreview=function(seat,items,results,knockout,otherWounds,stagedCards)
     local ledger=combatConfig.woundLedger(seat)
     if ledger==nil then return end
     local expected={}
@@ -51371,6 +51567,9 @@ combatConfig.woundRecordPreview=function(seat,items,results,knockout,otherWounds
     ledger.preview=expected
     ledger.previewKnockout=knockout==true
     ledger.previewOtherWounds=math.max(0,tonumber(otherWounds) or 0)
+    -- The confirmed plan survives moving cards away and save/reload.
+    ledger.previewStagedDiscards=ledger.phaseLock~=nil
+        and (ledger.phaseLock.attackDiscards or {}) or (stagedCards or {})
     ledger.hasPreview=true
 end
 
@@ -51379,6 +51578,7 @@ end
 combatConfig.woundPending=function(ledger)
     local allocations,hand,discard,changed={},0,0,false
     local effects={paralyse={},destroyed={},paralyseCount=0,destroyCount=0,
+        stagedDiscards={},stagedDiscardCount=0,
         knockout=false,handDiscard=false}
     if ledger==nil or not ledger.hasPreview then
         return allocations,hand,discard,changed,effects
@@ -51419,6 +51619,13 @@ combatConfig.woundPending=function(ledger)
     effects.knockout=ledger.previewKnockout==true
         and ledger.handDiscardApplied~=true
     effects.handDiscard=effects.knockout or effects.paralyseCount>0
+    for _,guid in ipairs(ledger.previewStagedDiscards or {}) do
+        if (ledger.playDiscardApplied or {})[guid]~=true then
+            effects.stagedDiscards[#effects.stagedDiscards+1]=guid
+            effects.stagedDiscardCount=effects.stagedDiscardCount+1
+        end
+    end
+    table.sort(effects.stagedDiscards)
     table.sort(allocations,function(a,b) return a.key<b.key end)
     table.sort(effects.paralyse)
     table.sort(effects.destroyed,function(a,b)
@@ -51426,6 +51633,37 @@ combatConfig.woundPending=function(ledger)
         return a.guid<b.guid
     end)
     return allocations,hand,discard,changed,effects
+end
+
+-- Deterministic, unambiguous plain-data fingerprint. The saved phase preview
+-- already contains scalar snapshots; sorting keys avoids pairs() traversal order
+-- making unchanged decisions look different.
+combatConfig.decisionFingerprint=function(value)
+    local function encode(item)
+        if type(item)~="table" then
+            local kind=type(item)
+            local valueText=tostring(item)
+            return kind..":"..#valueText..":"..valueText
+        end
+        local keys={}
+        for key in pairs(item) do
+            if type(key)=="string" or type(key)=="number" then
+                keys[#keys+1]=key
+            end
+        end
+        table.sort(keys,function(a,b)
+            if type(a)==type(b) then return a<b end
+            return type(a)<type(b)
+        end)
+        local parts={"{"}
+        for _,key in ipairs(keys) do
+            parts[#parts+1]=encode(key)
+            parts[#parts+1]=encode(item[key])
+        end
+        parts[#parts+1]="}"
+        return table.concat(parts,"|")
+    end
+    return encode(value)
 end
 
 -- A Damage commit is a deliberate phase boundary: record a stable
@@ -51467,6 +51705,12 @@ combatConfig.woundCommitSignature=function(ledger)
                 ..tostring((applied.destroyed or {})[guid])
         end
     end
+    -- Fingerprint staged physical discards so a changed selection cannot
+    -- use a stale confirmation or its rewind snapshot.
+    for _,guid in ipairs(ledger.previewStagedDiscards or {}) do
+        parts[#parts+1]="staged:"..guid..":"
+            ..tostring((ledger.playDiscardApplied or {})[guid]==true)
+    end
     local targets={}
     for source,target in pairs(combatAssignmentState.targets or {}) do
         targets[#targets+1]=tostring(source)..":"..tostring(target)
@@ -51474,6 +51718,30 @@ combatConfig.woundCommitSignature=function(ledger)
     end
     table.sort(targets)
     for _,target in ipairs(targets) do parts[#parts+1]=target end
+    -- Equal Wound totals do not mean equal decisions: a different Unit can
+    -- receive the same damage, or a Block/Attack option can be changed while
+    -- leaving the pending consequence counts unchanged. Reject that dialog.
+    local phase=ledger.phaseLock or combatConfig.phasePreview
+    if phase~=nil and phase.seat==ledger.seat
+        and gStates~=nil and phase.turn==gStates.turnNumber then
+        parts[#parts+1]="phase:"..combatConfig.decisionFingerprint({
+            entries=phase.entries,sources=phase.sources,
+            enemyEffects=phase.enemyEffects,joined=phase.joined,
+            targets=phase.targets,explicit=phase.explicit,
+            earlyGroups=phase.earlyGroups,rowBlock=phase.rowBlock,
+            spentRange=phase.spentRange,damage=phase.damage,
+            damageResults=phase.damageResults,attackDiscards=phase.attackDiscards
+        })
+    end
+    if ledger.phaseLock==nil then
+        parts[#parts+1]="choices:"..combatConfig.decisionFingerprint({
+            reductions=combatReductionAttackChoice,
+            hardened=gStates~=nil and gStates.battleHardenedAttackKey or nil,
+            elemental=gStates~=nil and gStates.elementalResistanceAttackKey or nil,
+            forked=gStates~=nil and gStates.forkedLightningPhase or nil,
+            arrows=gStates~=nil and gStates.attackAssignments or nil
+        })
+    end
     return table.concat(parts,"|")
 end
 
@@ -51494,7 +51762,8 @@ function resourceCardsRequestCombatWounds(player)
     local ledger=combatConfig.woundLedger(active.seatPos)
     if ledger==nil then return end
     local _,hand,discard,changed,effects=combatConfig.woundPending(ledger)
-    if hand+discard+effects.destroyCount==0 and not effects.handDiscard then
+    if hand+discard+effects.destroyCount+effects.stagedDiscardCount==0
+        and not effects.handDiscard then
         if changed then
             broadcastToColor("Combat damage changed after consequences were applied. Check physical cards; they cannot be undone automatically.",
                 color,warningColor)
@@ -51567,6 +51836,21 @@ function resourceCardsRequestCombatWounds(player)
             .."{pt-br}Nocaute / Paralisia: descarte as cartas na mão que não sejam Ferimentos."
             .."{de}K. o. / Lähmung: Alle Nicht-Wunden auf der Hand abwerfen."
         summaryHeight=summaryHeight+40
+    end
+    if effects.stagedDiscardCount>0 then
+        summaryParts[#summaryParts+1]="\n"
+        summaryParts[#summaryParts+1]="{en}Attack-only cards moved from play area: "
+            .."{it}Carte solo Attacco scartate dall'area di gioco: "
+            .."{ru}Карты только атаки, сбрасываемые из игровой области: "
+            .."{zh-tw}將從遊戲區棄掉的純攻擊牌："
+            .."{zh-cn}将从游戏区弃掉的纯攻击牌："
+            .."{ko}플레이 구역에서 버릴 공격 전용 카드: "
+            .."{es}Cartas solo de Ataque descartadas del área de juego: "
+            .."{fr}Cartes Attaque uniquement défaussées de la zone de jeu : "
+            .."{pt-br}Cartas só de Ataque descartadas da área de jogo: "
+            .."{de}Reine Angriffskarten aus dem Spielbereich abwerfen: "
+        summaryParts[#summaryParts+1]=effects.stagedDiscardCount
+        summaryHeight=summaryHeight+26
     end
     if effects.destroyCount>0 then
         summaryParts[#summaryParts+1]="\n"
@@ -51694,7 +51978,8 @@ function resourceCardsApplyCombatWounds(player,onComplete)
     local ledger=current~=nil and combatConfig.woundLedger(current.seatPos) or nil
     local allocations,hand,discard,changed,effects=combatConfig.woundPending(ledger)
     if current==nil or ledger==nil then return false end
-    if hand+discard==0 and not effects.handDiscard and effects.destroyCount==0 then
+    if hand+discard==0 and not effects.handDiscard
+        and effects.destroyCount+effects.stagedDiscardCount==0 then
         if changed then
             broadcastToColor("Combat damage changed after Wounds were dealt. Check the physical cards; none are removed automatically.",
                 player.color,warningColor)
@@ -51799,6 +52084,29 @@ function resourceCardsApplyCombatWounds(player,onComplete)
                 settlingGUIDs[guid]=true
             end
         end
+        -- Transfer the exact Attack-only physical GUIDs frozen before the
+        -- Damage commit. Hand cards have already been handled separately.
+        -- Each successful GUID is saved immediately so a partial failure,
+        -- saved game, or retry never discards a card twice.
+        if effects.stagedDiscardCount>0 then
+            if type(combatDiscardStagedAttackCards)~="function" then
+                finish(false,"Staged Attack discard helper is unavailable")
+                return
+            end
+            local ok,success,countOrReason,moved,partial=
+                pcall(combatDiscardStagedAttackCards,seat,effects.stagedDiscards)
+            local confirmed=success==true and moved or partial
+            for _,guid in ipairs(type(confirmed)=="table" and confirmed or {}) do
+                ledger.playDiscardApplied[guid]=true
+                settlingGUIDs[guid]=true
+                physicallyTouched=true
+            end
+            if not ok or success~=true then
+                finish(false,"Staged Attack discard: "
+                    ..tostring(ok and countOrReason or success))
+                return
+            end
+        end
         for _,effect in ipairs(effects.destroyed) do
             local applied=record(effect.key)
             applied.destroyed=applied.destroyed or {}
@@ -51883,15 +52191,18 @@ function combatWoundsEndTurnReminder(color)
         return true
     end
     local _,hand,discard,changed,effects=combatConfig.woundPending(ledger)
-    if hand+discard==0 and not effects.handDiscard and effects.destroyCount==0
+    if hand+discard==0 and not effects.handDiscard
+        and effects.destroyCount+effects.stagedDiscardCount==0
         and not changed then return false end
     local signature=tostring(hand)..":"..tostring(discard)..":"..tostring(changed)
         ..":"..tostring(effects.paralyseCount)..":"..tostring(effects.destroyCount)
         ..":"..tostring(effects.knockout)
+        ..":"..tostring(effects.stagedDiscardCount)
     if ledger.warned==signature then return false end
     ledger.warned=signature
     local message
-    if hand+discard>0 or effects.handDiscard or effects.destroyCount>0 then
+    if hand+discard>0 or effects.handDiscard or effects.destroyCount>0
+        or effects.stagedDiscardCount>0 then
         message="Unapplied combat: "..tostring(hand).." Wounds to hand, "
             ..tostring(discard).." to discard"
         if effects.handDiscard then
@@ -51900,6 +52211,10 @@ function combatWoundsEndTurnReminder(color)
         if effects.destroyCount>0 then
             message=message..", "..tostring(effects.destroyCount)
                 .." Paralyzed Units to destroy"
+        end
+        if effects.stagedDiscardCount>0 then
+            message=message..", "..tostring(effects.stagedDiscardCount)
+                .." Attack-only played cards to discard"
         end
         message=message..". Use Apply Wounds, or click End Turn again if handled manually."
     else
@@ -52598,14 +52913,106 @@ combatConfig.paralysisAttackCards=function(sources,results,lock,knockout)
     for _,source in ipairs(lock~=nil and lock.sources or {}) do
         if source.kind=="card" then preDamageCards[source.guid]=true end
     end
+    -- Cards actually played in earlier phases survive Knockout/Paralysis.
+    -- This includes Burning Shield's Attack earned from a successful Block.
+    local previous=lock or combatConfig.phasePreview
+    local alreadyPlayed={}
+    for guid in pairs(previous~=nil and previous.objectKeys or {}) do
+        alreadyPlayed[guid]=true
+    end
+    -- Some early effects have no numeric source (e.g. Exploding Shield).
+    for _,effect in pairs(previous~=nil and previous.enemyEffects or {}) do
+        for _,applied in ipairs(effect.applied or {}) do
+            if applied.phaseAfterDamage~=true and applied.source~=nil then
+                alreadyPlayed[applied.source]=true
+            end
+        end
+    end
     local unavailable={}
     for _,source in ipairs(sources or {}) do
-        if source.kind=="card" and (lock==nil or source.phaseAfterDamage~=true
-            or preDamageCards[source.guid]==true) then
+        if source.kind=="card" and not alreadyPlayed[source.guid]
+            and (lock==nil or source.phaseAfterDamage~=true
+                or preDamageCards[source.guid]==true) then
             unavailable[source.guid]=true
         end
     end
     return unavailable
+end
+
+-- Only auto-discard unambiguously Attack-only staged physical cards.
+-- Inspect ALL sources with the same physical GUID; no single split-target
+-- resource is allowed to pull an earlier Block/Ranged/conditional card away.
+combatConfig.knockoutStagedAttackCards=function(sources,unavailable,seat,phase)
+    local protected,hasAttack={},{}
+    for _,source in ipairs(sources or {}) do
+        if source.kind=="card" and source.guid~=nil then
+            local guid=source.guid
+            if (source.attack or 0)>0 then hasAttack[guid]=true end
+            if (source.block or 0)>0 or (source.move or 0)>0
+                or (source.psychicInfluence or 0)>0
+                or (source.ranged or 0)>0 or (source.siege or 0)>0
+                or source.conditionalFireAttack~=nil
+                or source.conditionalCounterattack~=nil then
+                protected[guid]=true
+            end
+        end
+    end
+    local snapshot=phase or combatConfig.phasePreview
+    for guid in pairs(snapshot~=nil and snapshot.objectKeys or {}) do
+        protected[guid]=true
+    end
+    for _,effect in pairs(snapshot~=nil and snapshot.enemyEffects or {}) do
+        for _,applied in ipairs(effect.applied or {}) do
+            if applied.source~=nil then protected[applied.source]=true end
+        end
+    end
+    local scan=seat~=nil and resourceCardScanBySeat[seat] or nil
+    for guid,record in pairs(scan~=nil and scan.cards or {}) do
+        if record.kind=="card" then
+            local data=gameCards~=nil and gameCards[guid] or nil
+            local rule=data~=nil and cardResourceDefinitions~=nil
+                and cardResourceDefinitions[data.resourceKey] or nil
+            if record.complete~=true or record.status=="yellow"
+                or #(record.links or {})>0 or record.enemyGUID~=nil
+                or #(record.enemyEffectTargetKeys or {})>0
+                or record.conditionalFireAttack~=nil
+                or record.combatConversion~=nil
+                or record.fameRep~=nil or record.defeatFameRep~=nil
+                or (rule~=nil and (rule.enemyEffect~=nil
+                    or rule.movementEffects~=nil
+                    or rule.unitCombatBoost~=nil
+                    or rule.preventUnitDamage==true)) then
+                protected[guid]=true
+            end
+            -- "Pure Attack" means the currently selected, fully understood
+            -- resource has no other usable family, even if the calculator
+            -- only drew its Attack icon.
+            for field,amount in pairs(record.resources or {}) do
+                if type(field)=="string" and type(amount)=="number"
+                    and amount>0 and field:sub(1,6)~="attack" then
+                    protected[guid]=true
+                    break
+                end
+            end
+        end
+    end
+    local eligible={}
+    for guid in pairs(hasAttack) do
+        local record=scan~=nil and scan.cards or nil
+        if unavailable[guid]==true and protected[guid]~=true
+            and record~=nil and record[guid]~=nil
+            and record[guid].complete==true then
+            local obj=getObjectFromGUID(guid)
+            local data=gameCards~=nil and gameCards[guid] or nil
+            if obj~=nil and obj.type=="Card" and obj.is_face_down~=true
+                and obj.getGMNotes~=nil and obj.getGMNotes()~="Wound"
+                and data~=nil and data.cardType~="Artifact" then
+                eligible[#eligible+1]=guid
+            end
+        end
+    end
+    table.sort(eligible)
+    return eligible
 end
 
 combatConfig.attackPhaseSources=function(sources,wounded,paralysisCards)
@@ -53839,6 +54246,13 @@ local function combatAssignmentRefreshRows(entries,sources)
     local handLimit=math.max(1,tonumber(currentPlayer~=nil and currentPlayer.baseHand) or 5)
     local knockout=totalHeroWounds+otherCombatWounds>=handLimit
     local paralysisAttackCards=combatConfig.paralysisAttackCards(sources,damageResults,earlyLock,knockout)
+    local stagedAttackCards={}
+    if earlyLock~=nil and earlyLock.attackDiscards~=nil then
+        stagedAttackCards=earlyLock.attackDiscards
+    elseif next(paralysisAttackCards)~=nil then
+        stagedAttackCards=combatConfig.knockoutStagedAttackCards(
+            sources,paralysisAttackCards,damageSeat,combatConfig.phasePreview)
+    end
     -- Blocks: only suppress remaining Unit attacks after *actual* wounds.
     -- Resisted assignments that cause no Wound leave the Unit eligible.
     local woundedBeforeAttack=combatConfig.unitsWoundedByDamage(damageResults)
@@ -54433,14 +54847,17 @@ local function combatAssignmentRefreshRows(entries,sources)
     local widthReduction=(170-columnWidths.range)+(170-columnWidths.block)+(170-columnWidths.attack)
     local panelWidth=1380-(255-combatConfig.columns.Result)-hiddenWidth-widthReduction
 
+    if earlyLock==nil and combatConfig.phasePreview~=nil then
+        combatConfig.phasePreview.attackDiscards=combatFrozenCopy(stagedAttackCards)
+    end
     combatConfig.woundRecordPreview(damageSeat,damageItems,damageResults,
-        knockout,otherCombatWounds)
+        knockout,otherCombatWounds,stagedAttackCards)
     local ledger=combatConfig.woundLedger(damageSeat)
     local _,pendingHand,pendingDiscard,changed,effects=combatConfig.woundPending(ledger)
     -- A Paralyzed Unit needs an Apply button even when all its attack damage
     -- was absorbed and the Hero has zero Wounds.
     local showTotal=totalHeroWounds>0 or knockout or effects.destroyCount>0
-        or effects.handDiscard
+        or effects.handDiscard or effects.stagedDiscardCount>0
     combatPanelSetAttribute("CombatTotalRow","active",showTotal and "true" or "false")
     if showTotal then
         -- The XML's fixed-width, right-anchored Panel is outside any
@@ -54449,13 +54866,15 @@ local function combatAssignmentRefreshRows(entries,sources)
         local text=totalHeroWounds>0
             and ("Draw: "..combatRich(combatWoundsText(totalHeroWounds)..poisonText,combatConfig.COMBAT_RED))
             or (effects.handDiscard and "Apply: Discard hand"
-                or (knockout and "Knocked out (applied)"
+                or (effects.stagedDiscardCount>0 and "Apply: Discard Attack"
+                    or (knockout and "Knocked out (applied)"
                     or ("Apply: Destroy "..tostring(effects.destroyCount)..
-                        (effects.destroyCount==1 and " Unit" or " Units"))))
+                        (effects.destroyCount==1 and " Unit" or " Units")))))
         combatPanelSetAttribute("CombatTotalDamage","text",text)
         combatPanelSetAttribute("CombatTotalDamage","font","Fonts/MKCardText")
         local pending=pendingHand+pendingDiscard>0
             or effects.handDiscard or effects.destroyCount>0
+            or effects.stagedDiscardCount>0
         combatPanelSetAttribute("CombatApplyWounds","interactable",
             (pending or changed) and not combatConfig.woundApplying and "true" or "false")
         combatPanelSetAttribute("CombatApplyWounds","color",
@@ -55340,7 +55759,7 @@ local choiceLetters={attackP1="A",attackP2="A2",attackP3="A3",
     ranged="R",siege="S",healing="H",draw="D",other="O",armour="Arm",
     guide="M",hardened="H",
     siegeFire="SF",siegeIce="SI",rangedFire="RF",rangedIce="RI",blockIce="BI",
-    fire="F",ice="I",coldFire="C",boost="H+",split="I/F",negative="N",
+    fire="F",ice="I",coldFire="C",boost="H+",reduce="AR",split="I/F",negative="N",
     single="1",all="All",singleBefore="1st",allBefore="All 1st",
     heal="H",combat="C",wound="W",fame="F",reputation="R",gain="G",ready="R",
     base="2",sourceUnused="3",red="R",blue="B",white="W",green="G",
@@ -55497,6 +55916,50 @@ end
 
 local function chosenEffect(guid,powered,choices,sideways)
     return currentChoice(guid,powered,choices,sideways)
+end
+
+-- Only resources that explicitly split a pool or apply a multi-enemy effect
+-- may keep additional right-click arrows. Independent printed effects already
+-- have their own source keys and do not need a second arrow on one source.
+function resourceCardsCombatAdditionalTargetLimit(sourceKey)
+    if type(sourceKey)~="string" then return 1 end
+    local seat=combatAssignmentActiveSeat()
+    local scan=seat~=nil and resourceCardScanBySeat[seat] or nil
+    local guid=sourceKey:match("^[^#]+")
+    local record=scan~=nil and scan.cards[guid] or nil
+    if record~=nil and record.complete==true then
+        for _,key in ipairs(record.enemyEffectTargetKeys or {}) do
+            if key==sourceKey then
+                local data=gameCards[guid]
+                local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+                local _,category=currentChoice(guid,record.powered,
+                    sideChoices(rule,record.powered))
+                local spec=combatEffectSpec(rule,record.powered,category)
+                if spec~=nil then
+                    if spec.multiTargetMove==true then return math.huge,"move" end
+                    local maximum=tonumber(spec.maxTargets) or 0
+                    if maximum>1 then return maximum,"targets" end
+                end
+                break
+            end
+        end
+    end
+    for _,source in ipairs(combatAssignmentSources(seat)) do
+        if source.key==sourceKey then
+            local converted=tonumber(source.convertedAmount) or 0
+            if converted>1 then return converted,"points" end
+            local influence=tonumber(source.psychicInfluence) or 0
+            if influence>1 then return influence,"influence" end
+            break
+        end
+    end
+    return 1
+end
+
+-- The primary allocation already receives the source's remaining points.
+-- An extra Influence arrow to that same enemy would be purely decorative.
+function resourceCardsCombatPrimaryTarget(sourceKey)
+    return combatAssignmentState.targets[sourceKey]
 end
 
 -- Every Maximal Effect application may choose independently. The stored choice
@@ -57809,6 +58272,39 @@ local function manaInsideFootprint(mana,area)
         and math.abs(p[3]-area.z)<area.halfZ
 end
 
+-- U/Place Under changes the vertical order of overlapping cards without
+-- changing their X/Z centres. Mana belongs to the physically highest eligible
+-- card, not the closest centre (nor the first GUID in a table).
+-- Coloured mana considers only legally matching cards; Gold considers any
+-- eligible card. For equal height, preserve the old X/Z nearest-card rule.
+trackerPrivate.bestManaCard=function(mana,cards,footprints,eligible)
+    local p=mana.getPosition()
+    local px,pz=p.x or p[1],p.z or p[3]
+    local py=p.y or p[2]
+    local best,bestY,bestDistance=nil,nil,nil
+    for _,card in ipairs(cards) do
+        local f=footprints[card.guid]
+        if f~=nil then
+            local dx,dz=px-f.x,pz-f.z
+            if math.abs(dx)<f.halfX and math.abs(dz)<f.halfZ
+                and eligible(card) then
+                local cp=card.getPosition()
+                local y=cp.y or cp[2] or 0
+                local distance=dx*dx+dz*dz
+                -- A payment tucked between cards cannot power a card above it.
+                if (py==nil or y<=py+0.15)
+                    and (best==nil or y>bestY+0.001
+                    or (math.abs(y-bestY)<=0.001
+                        and (distance<bestDistance
+                            or (distance==bestDistance and card.guid<best.guid)))) then
+                    best,bestY,bestDistance=card,y,distance
+                end
+            end
+        end
+    end
+    return best
+end
+
 -- Time Bending's extra turn must be usable without opening the Resource Tracker.
 -- Read the physical Blue casting payment and a separate Black strong-side payment;
 -- the mere presence of the Spell in the play area does not establish either.
@@ -58490,6 +58986,7 @@ local function renderSeat(seatPos)
     if not resourceCardsPanelOpen() then return end
     local active=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if active==nil or active.seatPos~=seatPos then return end
+    if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("render.start",seatPos) end
     -- Keep the last complete calculator result while a played card is carried
     -- or its final X/Z/orientation is being confirmed. Never publish a
     -- half-empty scan that discards a choice or replaces an explicit target.
@@ -58497,7 +58994,15 @@ local function renderSeat(seatPos)
         local live=getObjectFromGUID(guid)
         if live==nil or (live.isDestroyed~=nil and live.isDestroyed()) then
             trackerPrivate.playCardMovements[guid]=nil
-        elseif movement.seatPos==seatPos then return end
+        elseif movement.seatPos==seatPos then
+            if trackerPrivate.traceEnabled then
+                trackerPrivate.traceEvent("render.blocked",seatPos,guid,
+                    "watch="..tostring(movement.releasing)
+                    .." samples="..tostring(movement.samples)
+                    .." held="..tostring(live.held_by_color))
+            end
+            return
+        end
     end
     trackerPrivate.renderCombatNight=nil
 
@@ -58598,21 +59103,30 @@ local function renderSeat(seatPos)
                 local pos=mana.getPosition()
                 local recovered=false
                 if manaColor(mana)~=nil then
+                    -- Use the top of the stack to establish that the mana is
+                    -- physically on the cards. Comparing its Y against *each*
+                    -- buried card can reject a valid die after U/Place Under.
+                    local manaY=pos.y or pos[2]
+                    local highestCardY=nil
                     for cardGUID,card in pairs(objects) do
                         if placements[cardGUID]=="play"
                             and (objectKinds[cardGUID]=="card" or objectKinds[cardGUID]=="skill") then
                             local area=footprint(card)
                             local cardPos=card.getPosition()
-                            if pos[2]>=cardPos[2] and pos[2]-cardPos[2]<3
-                                and math.abs(pos[1]-area.x)<area.halfX
-                                and math.abs(pos[3]-area.z)<area.halfZ then
-                                objects[guid]=mana
-                                objectKinds[guid]="mana"
-                                placements[guid]="play"
-                                recovered=true
-                                break
+                            local cy=cardPos.y or cardPos[2]
+                            if math.abs(pos[1]-area.x)<area.halfX
+                                and math.abs(pos[3]-area.z)<area.halfZ
+                                and cy~=nil and manaY~=nil and cy<=manaY+0.15
+                                and (highestCardY==nil or cy>highestCardY) then
+                                highestCardY=cy
                             end
                         end
+                    end
+                    if highestCardY~=nil and manaY-highestCardY<3 then
+                        objects[guid]=mana
+                        objectKinds[guid]="mana"
+                        placements[guid]="play"
+                        recovered=true
                     end
                 end
                 -- Remember above-zone payments on Units as well as Actions.
@@ -58883,6 +59397,10 @@ local function renderSeat(seatPos)
             powerManaColorsByCard[card.guid][color]=true
         end
         usedMana[manaGUID]=card.guid
+        if trackerPrivate.traceEnabled then
+            trackerPrivate.traceEvent("mana.assigned",seatPos,manaGUID,
+                "color="..tostring(color).." card="..card.guid)
+        end
     end
     -- Mana physically on the Skill cannot also power the card directly.
     for _,mana in ipairs(manaObjects) do
@@ -58890,21 +59408,13 @@ local function renderSeat(seatPos)
             and sidewaysSkillMana[mana.guid]==nil then
             local color=manaColor(mana)
             if color~=nil then
-                local p=mana.getPosition()
-                local best,bestDistance=nil,nil
-                for _,card in ipairs(cards) do
-                    local f=footprints[card.guid]
-                    local dx,dz=p[1]-f.x,p[3]-f.z
-                    if math.abs(dx)<f.halfX and math.abs(dz)<f.halfZ
-                        and cardPosture(card)=="upright" and card.is_face_down~=true
+                local best=trackerPrivate.bestManaCard(mana,cards,footprints,function(card)
+                    return cardPosture(card)=="upright" and card.is_face_down~=true
                         and (matchesCardMana(card,color)
                             or (specialPaymentByCard[card.guid]~=nil
                                 and (specialPaymentByCard[card.guid].colors[color]~=nil
-                                    or (color=="Gold" and resourceCardsGoldAllowed())))) then
-                        local distance=dx*dx+dz*dz
-                        if bestDistance==nil or distance<bestDistance then best,bestDistance=card,distance end
-                    end
-                end
+                                    or (color=="Gold" and resourceCardsGoldAllowed()))))
+                end)
                 if best~=nil then spendMana(best,color,mana.guid) end
             end
         end
@@ -58934,23 +59444,15 @@ local function renderSeat(seatPos)
         if placements[mana.guid]=="play" and usedMana[mana.guid]==nil
             and manaByObject[mana.guid]==nil and sidewaysSkillMana[mana.guid]==nil then
             local color=manaColor(mana)
-            local best,bestDistance=nil,nil
-            for _,card in ipairs(cards) do
+            local best=trackerPrivate.bestManaCard(mana,cards,footprints,function(card)
                 local data=gameCards[card.guid]
                 local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
                 local spec=rule~=nil and rule.extraTerrainMana or nil
-                if spec~=nil and spec.color==color and extraTerrainManaByCard[card.guid]==nil
+                return spec~=nil and spec.color==color
+                    and extraTerrainManaByCard[card.guid]==nil
                     and (not spec.poweredOnly or powered[card.guid]==true or boostBy[card.guid]~=nil)
                     and card.is_face_down~=true and cardPosture(card)=="upright"
-                    and manaInsideFootprint(mana,footprints[card.guid]) then
-                    local p=mana.getPosition()
-                    local f=footprints[card.guid]
-                    local distance=(p[1]-f.x)^2+(p[3]-f.z)^2
-                    if bestDistance==nil or distance<bestDistance then
-                        best,bestDistance=card,distance
-                    end
-                end
-            end
+            end)
             if best~=nil then
                 extraTerrainManaByCard[best.guid]=mana.guid
                 extraTerrainManaByObject[mana.guid]=best.guid
@@ -61401,12 +61903,17 @@ local function renderSeat(seatPos)
         steadyTempoRefreshAll()
     end
     trackerPrivate.renderCombatNight=nil
+    if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("render.done",seatPos) end
 end
 
 local function scheduleSeatRender(seatPos)
     local generation=trackerPrivate.generation[seatPos] or 0
-    if trackerPrivate.pendingSeatRender[seatPos]==generation then return end
+    if trackerPrivate.pendingSeatRender[seatPos]==generation then
+        if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("render.coalesced",seatPos) end
+        return
+    end
     trackerPrivate.pendingSeatRender[seatPos]=generation
+    if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("render.queued",seatPos,nil,"gen="..generation) end
     safeWaitFrames("PlayerBoard.CardRecognition",function()
         if trackerPrivate.pendingSeatRender[seatPos]~=generation then return end
         trackerPrivate.pendingSeatRender[seatPos]=nil
@@ -61423,13 +61930,18 @@ local function queueSeat(seatPos,triggerGUID)
     local waits=trackerPrivate.pendingSeatSettles[seatPos]
     if waits==nil then waits={} trackerPrivate.pendingSeatSettles[seatPos]=waits end
     -- Zone entry and drop frequently report the same moving object.
-    if waits[triggerGUID]==generation then return end
+    if waits[triggerGUID]==generation then
+        if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("settle.coalesced",seatPos,triggerGUID) end
+        return
+    end
     local obj=getObjectFromGUID(triggerGUID)
     if obj==nil or trackerPrivate.readyForXZ(obj) then
+        if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("settle.ready",seatPos,triggerGUID) end
         scheduleSeatRender(seatPos)
         return
     end
     waits[triggerGUID]=generation
+    if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("settle.wait",seatPos,triggerGUID) end
     local function stillCurrent()
         return (trackerPrivate.generation[seatPos] or 0)==generation
             and trackerPrivate.pendingSeatSettles[seatPos]==waits
@@ -61438,6 +61950,7 @@ local function queueSeat(seatPos,triggerGUID)
     local function settled()
         if not stillCurrent() then return end
         waits[triggerGUID]=nil
+        if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("settle.done",seatPos,triggerGUID) end
         scheduleSeatRender(seatPos)
     end
     safeWaitCondition("PlayerBoard.CardRecognition",settled,function()
@@ -61448,16 +61961,23 @@ local function queueSeat(seatPos,triggerGUID)
         -- A perpetually held/rolling token must not keep the watcher alive
         -- or delay other objects' refreshes. Its eventual drop queues anew.
         if trackerPrivate.pendingSeatSettles[seatPos]==waits
-            and waits[triggerGUID]==generation then waits[triggerGUID]=nil end
+            and waits[triggerGUID]==generation then
+            waits[triggerGUID]=nil
+            if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("settle.timeout",seatPos,triggerGUID) end
+        end
     end)
 end
 
 function resourceCardsSourceChanged()
     local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
-    if current~=nil and resourceCardsPanelOpen() then queueSeat(current.seatPos,nil) end
+    if current~=nil and resourceCardsPanelOpen() then
+        if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("source.changed",current.seatPos) end
+        queueSeat(current.seatPos,nil)
+    end
 end
 
 local function clearAll()
+    if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("tracker.reset") end
     for seat=1,4 do trackerPrivate.generation[seat]=(trackerPrivate.generation[seat] or 0)+1 end
     trackerPrivate.pendingSeatSettles={}
     trackerPrivate.pendingSeatRender={}
@@ -62599,9 +63119,13 @@ function resourceCardsOnLoad(restoringSave)
         resourceCardsPanelChanged(false)
         return
     end
-    -- Repair a restored panel whose child expansion flags outlived its height.
-    -- Do not force open an intentionally collapsed saved UI.
-    if UI.getAttribute("ResourceTrackerDetail","active")=="true" then
+    -- TTS rewinds rebuild Global XML with a 35px collapsed root. Size the
+    -- tracker first, then reveal its details, so the lower-anchored contents
+    -- cannot cover the header/minimize button during the load transition.
+    if restoringSave==true and current~=nil then
+        resourceTrackerRestoreExpandedLayout()
+    elseif UI.getAttribute("ResourceTrackerDetail","active")=="true" then
+        -- Normal reopen/turn handoff keeps any chosen nested sections.
         resourceTrackerSyncLayout(true)
     end
     trackerPrivate.trackerStartupRequest=trackerPrivate.trackerStartupRequest+1
@@ -62617,8 +63141,8 @@ function resourceCardsOnLoad(restoringSave)
     end,function()
         return trackerPrivate.trackerStartupRequest~=request or resourceCardsPanelReady()
     end,5,function()
-        -- A genuinely collapsed saved panel stays OFF; it must never
-        -- trigger a new scan until the player explicitly expands it.
+        -- A panel that is still collapsed after the readiness wait stays
+        -- OFF; it must never scan until the player explicitly expands it.
         if trackerPrivate.trackerStartupRequest==request and not resourceCardsPanelReady() then
             resourceCardsPanelChanged(false)
         end
@@ -62676,6 +63200,13 @@ function resourceCardsObjectPickedUp(obj)
             targets=savedTargets,posture=cardPosture(obj),
             faceDown=obj.is_face_down
         }
+        if trackerPrivate.traceEnabled then
+            trackerPrivate.traceEvent("move.pickup",seat,obj.guid,
+                "held="..tostring(obj.held_by_color))
+        end
+        -- A normal Drop is not guaranteed (e.g. the native U/Place Under
+        -- action). Watch every known pickup until the object is released.
+        trackerPrivate.finishPlayCardMove(obj)
     end
 end
 
@@ -62708,21 +63239,29 @@ trackerPrivate.finishPlayCardMove=function(obj)
     state.consecutive=0
     state.last=nil
     local guid=obj.guid
+    if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("move.watch",state.seatPos,guid) end
     local function sample()
         if trackerPrivate.playCardMovements[guid]~=state then return end
         local live=getObjectFromGUID(guid)
-        if live==nil then
+        if live==nil or (live.isDestroyed~=nil and live.isDestroyed()) then
             trackerPrivate.playCardMovements[guid]=nil
+            if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("move.gone",state.seatPos,guid) end
             queueSeat(state.seatPos,nil)
             return
         end
         state.samples=state.samples+1
-        if (live.held_by_color~=nil and live.held_by_color~="")
-            or live.isSmoothMoving() then
-            -- A new drop restarts this watcher if TTS briefly still reports
-            -- the object as held. Do not unblock a genuinely held card.
-            if state.samples>=30 then state.releasing=nil
-            else safeWaitFrames("PlayerBoard.CardRecognition",sample,1) end
+        local held=live.held_by_color~=nil and live.held_by_color~=""
+        local smooth=live.isSmoothMoving()
+        if held or smooth then
+            -- Never abandon the watcher with the movement lock still set.
+            -- A missed onObjectDrop (notably U/Place Under) must not freeze
+            -- every future option button and combat calculator refresh.
+            if trackerPrivate.traceEnabled and (state.samples==1 or state.samples%90==0) then
+                trackerPrivate.traceEvent("move.wait",state.seatPos,guid,
+                    "held="..tostring(held).." smooth="..tostring(smooth)
+                    .." samples="..state.samples)
+            end
+            safeWaitFrames("PlayerBoard.CardRecognition",sample,held and 6 or 3)
             return
         end
         local pos=live.getPosition()
@@ -62752,6 +63291,10 @@ trackerPrivate.finishPlayCardMove=function(obj)
         end
         trackerPrivate.restorePlayCardMove(live,state)
         trackerPrivate.playCardMovements[guid]=nil
+        if trackerPrivate.traceEnabled then
+            trackerPrivate.traceEvent("move.complete",state.seatPos,guid,
+                "samples="..state.samples.." onMat="..tostring(cardInSeatPlayArea(guid,state.seatPos)))
+        end
         -- Resume a single complete scan; normal drop handling determines
         -- whether this was a reposition or a genuine departure from play.
         resourceCardsObjectMoved(live,true)
@@ -62760,11 +63303,87 @@ trackerPrivate.finishPlayCardMove=function(obj)
     safeWaitFrames("PlayerBoard.CardRecognition",sample,1)
 end
 
+-- Native TTS Place Under (U) does not promise a pickup/drop or zone change.
+-- Mark existing play sources before the action, then reconcile the target(s)
+-- after TTS has applied it, including non-Card Skills and Faction Rewards.
+function resourceCardsUnderAction(targets)
+    if not resourceCardsPanelOpen() then return end
+    local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    local seat=active~=nil and active.seatPos or nil
+    local zoneGUID=seat~=nil and playerPlayAreas~=nil and playerPlayAreas[seat] or nil
+    local playZone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
+    local guids,playedCardUnder={},false
+    for _,obj in ipairs(targets or {}) do
+        if obj~=nil and obj.guid~=nil then
+            guids[#guids+1]=obj.guid
+            if playZone~=nil and trackerPrivate.playCandidateKind(resourceObjectKind(obj))
+                and trackerPrivate.zoneFootprintContainsXZ(obj,playZone) then
+                playedCardUnder=true
+            end
+            if trackerPrivate.traceEnabled then
+                trackerPrivate.traceEvent("action.under",seat,obj.guid)
+            end
+            resourceCardsObjectPickedUp(obj)
+        end
+    end
+    if #guids==0 then return end
+    local session=trackerPrivate.trackerSession
+    safeWaitFrames("PlayerBoard.CardRecognition",function()
+        if trackerPrivate.trackerSession~=session or not resourceCardsPanelOpen() then return end
+        for _,guid in ipairs(guids) do
+            local obj=getObjectFromGUID(guid)
+            if obj~=nil and (obj.isDestroyed==nil or not obj.isDestroyed()) then
+                resourceCardsObjectMoved(obj)
+            end
+        end
+        -- Native Under changes card height, sometimes nudging a die that was
+        -- above the deliberately shallow play zone. It may not emit a Die
+        -- pickup/drop/zone event. Discover only mana dice above this play mat,
+        -- on this rare action, and watch their actual resting faces.
+        if playedCardUnder and seat~=nil then
+            local candidates=trackerPrivate.unitManaCandidatesBySeat[seat]
+            if candidates==nil then
+                candidates={}
+                trackerPrivate.unitManaCandidatesBySeat[seat]=candidates
+            end
+            for _,obj in ipairs(getAllObjects()) do
+                if obj.type=="Dice" and scriptObjectId(obj)=="Mana Dice"
+                    and trackerPrivate.zoneFootprintContainsXZ(obj,playZone) then
+                    candidates[obj.guid]=true
+                    if trackerPrivate.traceEnabled then
+                        trackerPrivate.traceEvent("under.mana",seat,obj.guid,
+                            "resting="..tostring(obj.resting))
+                    end
+                    queueSeat(seat,obj.guid)
+                end
+            end
+            -- If TTS starts jostling the die after its first frame, sample
+            -- again; the normal per-object watcher then owns final settling.
+            safeWaitFrames("PlayerBoard.CardRecognition",function()
+                if trackerPrivate.trackerSession~=session
+                    or not resourceCardsPanelOpen() then return end
+                for guid in pairs(candidates) do
+                    local die=getObjectFromGUID(guid)
+                    if die~=nil and die.type=="Dice"
+                        and trackerPrivate.zoneFootprintContainsXZ(die,playZone) then
+                        queueSeat(seat,guid)
+                    end
+                end
+                resourceCardsSourceChanged()
+            end,22)
+        end
+        resourceCardsSourceChanged()
+    end,2)
+end
+
 function resourceCardsZoneEntered(ctx)
     if not resourceCardsPanelOpen() or ctx==nil or ctx.zoneInfo==nil then return end
     -- Filter irrelevant zones and other players before touching the Unit layout.
     local seat=resourceCardsRelevantZone(ctx)
     if seat==nil then return end
+    if trackerPrivate.traceEnabled then
+        trackerPrivate.traceEvent("zone.enter",seat,ctx.objGUID,ctx.zoneInfo.kind)
+    end
     if ctx.zoneInfo.kind=="play" and ctx.objType~="Dice"
         and trackerPrivate.playCandidateKind(resourceObjectKind(ctx.obj)) then
         -- A returned card invalidates any delayed choice-clear queued by its
@@ -62779,6 +63398,7 @@ function resourceCardsZoneEntered(ctx)
             or trackerPrivate.playCardMovements[ctx.objGUID]~=nil
         candidates[ctx.objGUID]=true
         if alreadyPlayed then
+            if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("zone.reentry",seat,ctx.objGUID) end
             -- TTS emits EnterZone again when a relocated card falls through
             -- the thin zone. That is not a new play or another pickup.
             -- onObjectDrop owns its one reconciliation, even if the zone
@@ -62808,6 +63428,9 @@ end
 function resourceCardsZoneLeft(ctx)
     if not resourceCardsPanelOpen() or ctx==nil or ctx.zoneInfo==nil then return end
     local seat=resourceCardsRelevantZone(ctx)
+    if trackerPrivate.traceEnabled then
+        trackerPrivate.traceEvent("zone.leave",seat,ctx.objGUID,ctx.zoneInfo.kind)
+    end
     if ctx.zoneInfo.kind=="play" then
         if ctx.obj~=nil and trackerPrivate.playCandidateKind(resourceObjectKind(ctx.obj))
             and (combatConfig.cardInTransit(ctx.obj)
@@ -62816,6 +63439,7 @@ function resourceCardsZoneLeft(ctx)
             -- physically over the play mat, not an ended play. Crucially,
             -- do not schedule a delayed choice reset here: onDrop owns the
             -- final departure check, and reentry may occur after the timer.
+            if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("zone.leave-transit",seat,ctx.objGUID) end
             return
         end
         scheduleChoiceResetAfterPlay(ctx.objGUID,ctx.zoneInfo.seatPos)
@@ -62826,6 +63450,10 @@ end
 
 function resourceCardsObjectMoved(obj,stabilized)
     if obj==nil or not resourceCardsPanelOpen() then return end
+    if trackerPrivate.traceEnabled then
+        trackerPrivate.traceEvent("object.moved",nil,obj.guid,
+            "stable="..tostring(stabilized).." held="..tostring(obj.held_by_color))
+    end
     -- Some entries are reported only after the card is dropped. Protect that
     -- first scan too, even if no pickup/enter event registered the movement.
     if not stabilized and obj.type~="Dice" and obj.resting==false
@@ -67513,7 +68141,8 @@ function combatDiscardParalyzedHand(seat,ownerColor)
     -- Read both, so an empty scripting zone cannot silently acknowledge a
     -- Paralysis discard while the player still holds non-Wound cards.
     local handObjects,seen={},{}
-    local hasHandSource=hand~=nil and hand.getObjects~=nil
+    local getZoneObjects=hand~=nil and hand.getObjects or nil
+    local hasHandSource=getZoneObjects~=nil
     local function include(obj)
         if obj~=nil and obj.guid~=nil and (obj.type=="Card" or obj.type=="Deck")
             and not seen[obj.guid] then
@@ -67521,12 +68150,12 @@ function combatDiscardParalyzedHand(seat,ownerColor)
             handObjects[#handObjects+1]=obj
         end
     end
-    if hasHandSource then
+    if getZoneObjects~=nil then
         -- Scripting zones with tag filters otherwise hide legitimate hand
         -- cards. The player's physical hand must be inspected unfiltered.
-        local ok,objects=pcall(hand.getObjects,true)
+        local ok,objects=pcall(getZoneObjects,true)
         if not ok then
-            ok,objects=pcall(hand.getObjects)
+            ok,objects=pcall(getZoneObjects)
         end
         if not ok then return false,"Could not inspect the scripting hand zone",0 end
         for _,obj in ipairs(objects or {}) do include(obj) end
@@ -67635,6 +68264,78 @@ function combatDiscardParalyzedHand(seat,ownerColor)
                 moved=moved+1
             end
         end
+    end
+    return true,moved,movedGUIDs
+end
+
+-- Discard only the Attack-only GUIDs captured by the confirmed Damage
+-- snapshot. Do not sweep the play zone or remove a mixed-effect card just
+-- because it also has an Attack source. Validate *all* candidates first.
+function combatDiscardStagedAttackCards(seat,guids)
+    if guids==nil or #guids==0 then return true,0,{} end
+    local play=getObjectFromGUID(playerPlayAreas~=nil and playerPlayAreas[seat] or nil)
+    local discard=getObjectFromGUID(deedDeckDiscardZones~=nil
+        and deedDeckDiscardZones[seat] or nil)
+    if play==nil or discard==nil then
+        return false,"Play area or discard zone is missing",0,{}
+    end
+    local ok,objects=pcall(play.getObjects,true)
+    if not ok then ok,objects=pcall(play.getObjects) end
+    if not ok then return false,"Could not inspect the play area",0,{} end
+    local inPlay={}
+    for _,obj in ipairs(objects or {}) do
+        if obj.type=="Card" and obj.guid~=nil then inPlay[obj.guid]=obj end
+    end
+    local queue,seen={},{}
+    for _,guid in ipairs(guids) do
+        if not seen[guid] then
+            seen[guid]=true
+            local card=inPlay[guid]
+            if card==nil then
+                return false,"Planned Attack card "..tostring(guid)
+                    .." is no longer in the play area",0,{}
+            end
+            if card.held_by_color~=nil and card.held_by_color~="" then
+                return false,"A staged Attack card is being held",0,{}
+            end
+            if card.is_face_down==true or card.getGMNotes==nil
+                or card.getGMNotes()=="Wound" then
+                return false,"A staged Attack card is no longer eligible",0,{}
+            end
+            queue[#queue+1]=card
+        end
+    end
+    local pos=discard.getPosition()
+    local x,y,z=pos.x or pos[1],pos.y or pos[2],pos.z or pos[3]
+    local moved,movedGUIDs=0,{}
+    for _,card in ipairs(queue) do
+        local target={x,y+2+0.07*(moved%5),z}
+        local usedHands=card.use_hands==true
+        if usedHands then card.use_hands=false end
+        local movedOK=card.setPosition~=nil and pcall(card.setPosition,target)
+        if usedHands then
+            local function restore()
+                pcall(function() card.use_hands=true end)
+            end
+            if safeWaitFrames~=nil then
+                safeWaitFrames("PlayerBoard.CardFlow",restore,3)
+            else
+                restore()
+            end
+        end
+        if not movedOK then
+            return false,"Could not discard a staged Attack card",moved,movedGUIDs
+        end
+        if card.getPosition~=nil then
+            local readOK,actual=pcall(card.getPosition)
+            if not readOK or actual==nil
+                or math.abs((actual.x or actual[1])-x)>1
+                or math.abs((actual.z or actual[3])-z)>1 then
+                return false,"A staged Attack card did not reach discard",moved,movedGUIDs
+            end
+        end
+        moved=moved+1
+        movedGUIDs[#movedGUIDs+1]=card.guid
     end
     return true,moved,movedGUIDs
 end
@@ -71507,7 +72208,7 @@ local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
 local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="463"
+local automaticLuaErrorReporterVersion="464"
 
 -- Automatic Lua error reporting, protected callback helpers and diagnostic context builders.
 local automaticLuaZoneContext
@@ -71825,7 +72526,17 @@ function safeZoneCallback(functionName, callback, zone, obj)
 	automaticLuaProtectedCallbackDepth=automaticLuaProtectedCallbackDepth-1
 	if not ok then
 		automaticLuaBreadcrumb(functionName)
-		reportAutomaticLuaError(functionName,result,automaticLuaZoneContext(zone,obj))
+		-- During table teardown, TTS can expire the zone/object before its error
+		-- context is constructed. A failure in diagnostics must never escape the
+		-- already-protected callback and create a second player-facing Lua error.
+		local contextOK,context=pcall(automaticLuaZoneContext,zone,obj)
+		if not contextOK then context="Zone/object context unavailable: "..tostring(context) end
+		-- WebRequest can also become unavailable while TTS closes. Preserve the
+		-- original Lua error without letting failure to send its report escape.
+		local reportOK,reportError=pcall(reportAutomaticLuaError,functionName,result,context)
+		if not reportOK then
+			pcall(log,"Automatic Lua zone error reporter unavailable: "..tostring(reportError))
+		end
 		return false
 	end
 	return result
@@ -71868,14 +72579,12 @@ function testAutomaticLuaAsyncError()
 end
 
 automaticLuaZoneContext=function(zone, obj)
-	local objectGUID=obj~=nil and obj.guid or "nil"
-	local zoneGUID=zone~=nil and zone.guid or "nil"
-	local objectType=obj~=nil and obj.type or "nil"
-	local objectName=""
-	if obj~=nil then
-		local ok, name=pcall(function() return obj.getName() end)
-		if ok==true and name~=nil then objectName=tostring(name) end
-	end
+	-- GUID and type property reads can themselves throw for expired TTS userdata.
+	-- Capture each field independently so even a half-destroyed object is reportable.
+	local objectGUID=automaticLuaErrorValue(function() return obj~=nil and obj.guid or nil end,"unavailable")
+	local zoneGUID=automaticLuaErrorValue(function() return zone~=nil and zone.guid or nil end,"unavailable")
+	local objectType=automaticLuaErrorValue(function() return obj~=nil and obj.type or nil end,"unavailable")
+	local objectName=automaticLuaErrorValue(function() return obj~=nil and obj.getName() or nil end,"")
 	local context="Object: "..tostring(objectGUID)..(objectName~="" and " ("..objectName..")" or "")..
 		"\nObject type: "..tostring(objectType)..
 		"\nZone: "..tostring(zoneGUID)
@@ -74763,7 +75472,8 @@ skillResourceDefinitions={
     ["e45fdf"]={untracked=true}, -- Whisper in the Treetops: gain a White crystal and Green mana manually.
     ["e68fed"]={untracked=true},
     ["e7abd5"]={normal={move=1},partial=true},
-    ["e88483"]={choices={{key="split",rangedIce=1,rangedFire=1},{ranged=2}}},
+    ["e88483"]={choices={{key="split",icon="ranged",iconOverlay="I/F",
+        iconOverlaySize=42,iconOverlayColor="#FFFFFF",rangedIce=1,rangedFire=1},{ranged=2}}},
     ["ebbbfc"]={untracked=true},
     ["eeb395"]={attackCardBoost=true,partial=true}, -- Deadly Aim; player links a specific Attack card.
     ["eec431"]={normal={healing=2}},
