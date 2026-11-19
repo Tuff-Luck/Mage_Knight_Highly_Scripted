@@ -10413,6 +10413,10 @@ local function renderSeat(seatPos)
             powerManaColorsByCard[card.guid][color]=true
         end
         usedMana[manaGUID]=card.guid
+        if trackerPrivate.traceEnabled then
+            trackerPrivate.traceEvent("mana.assigned",seatPos,manaGUID,
+                "color="..tostring(color).." card="..card.guid)
+        end
     end
     -- Mana physically on the Skill cannot also power the card directly.
     for _,mana in ipairs(manaObjects) do
