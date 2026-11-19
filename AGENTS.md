@@ -79,6 +79,14 @@ For visible scripted movement, use Tabletop Simulator\'s normal/slow smooth move
 
 Do not add backwards-compatibility or old-save recovery code unless the user explicitly requests it.
 
+## TTS scripting zones, bounds, and object relocation
+
+The player-board scripting zones are **deliberately shallow**. They were originally designed to detect an object being **picked up/lifted off the mat** via a zone-exit event. Do not treat their small Y extent as an accidental configuration error or enlarge the zones as a default fix for pickup/drop problems. A card, Skill, Faction Reward, or enemy can legitimately be above its mat in X/Z while absent from `zone.getObjects()` during a lift or drop.
+
+**General TTS `getBounds()` limitation:** `getBounds()` is not a dependable measure of every object's visible, logical, or trigger footprint. In particular, scripting zones can report zero-sized `getBounds().size` even when their trigger areas have nonzero dimensions. Do not assume an object's bounds represent its scripting-zone geometry or use them as the sole membership test. Check the API behaviour for the object type involved. For scripting-zone X/Z coverage, use the zone's `getPosition()`, `getScale()`, and `getRotation()` (compare in local X/Z coordinates for rotated zones).
+
+Distinguish *current trigger membership* (`zone.getObjects()`) from *logical membership in the play/combat area* while an object is in transit. Previously recognised objects may need temporary position-based recovery until their drop/zone callbacks settle, preserving player-selected options and explicit target assignments. Apply this consistently to cards, Skills, Faction Rewards, and enemy tokens; do not recover arbitrary previously unseen objects or retain objects after a genuine departure. Before adding callback-suppression caches or retry timers for missing objects/retargeting, inspect the shallow-zone intent, current physics state, and X/Z footprint first.
+
 ## Gameplay automation philosophy
 
 **Scripts should help, remind, and warn — not prevent.** When a player action may depend on an ambiguous rule, table ruling, optional interpretation, or deliberate manual correction, preserve the player's physical choice and continue the normal bookkeeping/automation. Give a concise warning or reminder when useful, but do not silently undo the action, disable the relevant control, pause the subsystem, or otherwise force the script's interpretation.
