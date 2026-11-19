@@ -554,8 +554,17 @@ resetCityGarrisonData=function(cityGUID)
 	return newData
 end
 
-cityObjectsAreReady=function(cityGUID)
+cityObjectsAreReady=function(cityGUID, initialDeployment)
 	if cityMegapolisPending(cityGUID)==true then return false end
+	local cardGUID=gStates.cityCard~=nil and gStates.cityCard[cityGUID] or nil
+	local card=cardGUID~=nil and getObjectFromGUID(cardGUID) or nil
+	if initialDeployment==true then
+		-- The defenders must follow the City card, not wait for the model/card physics to rest.
+		-- A reserved destination also guards against starting the army while the card is in flight.
+		if cardGUID~=nil and card==nil then return false end
+		if cardGUID~=nil and cityCardPendingDestination(cardGUID)~=nil then return false end
+		return card==nil or card.isSmoothMoving==nil or card.isSmoothMoving()~=true
+	end
 	local cityObj=getObjectFromGUID(cityGUID)
 	if cityObj~=nil and cityObj.resting~=true then return false end
 	local pair=cityMegapolisPair(cityGUID)
@@ -563,8 +572,6 @@ cityObjectsAreReady=function(cityGUID)
 		local pairObj=getObjectFromGUID(pair)
 		if pairObj~=nil and pairObj.resting~=true then return false end
 	end
-	local cardGUID=gStates.cityCard~=nil and gStates.cityCard[cityGUID] or nil
-	local card=cardGUID~=nil and getObjectFromGUID(cardGUID) or nil
 	if card~=nil and card.resting~=true then return false end
 	return true
 end
@@ -613,8 +620,8 @@ rebuildCityGarrisonNow=function(cityGUID, terrainGUID)
 	end, delay+5)
 end
 
-rebuildCityGarrison=function(cityGUID, terrainGUID)
-	safeWaitCondition("City",function() rebuildCityGarrisonNow(cityGUID, terrainGUID) end, function() return cityObjectsAreReady(cityGUID) end)
+rebuildCityGarrison=function(cityGUID, terrainGUID, initialDeployment)
+	safeWaitCondition("City",function() rebuildCityGarrisonNow(cityGUID, terrainGUID) end, function() return cityObjectsAreReady(cityGUID, initialDeployment) end)
 end
 
 scheduleCityRebuild=function(cityGUID, terrainGUID)
@@ -1028,7 +1035,8 @@ function playCity(obj, hexFeature, dropped)
 			local level=gStates.cityLevels~=nil and gStates.cityLevels[playedCities] or nil
 			if level~=nil and level>0 and gStates.gameScenario~="The Lost Relic Blitz" and gStates.gameScenario~="The Realm of the Dead Blitz" and gStates.gameScenario~="Life and Death" and gStates.gameScenario~="The Hidden Valley Blitz" then
 				if gStates.gameScenario=="Fury of the Apocalypse Dragon" then deployFriendlyCityShields(cityGUID) end
-				safeWaitFrames("City",function() rebuildCityGarrison(cityGUID,obj.guid) end,10)
+				-- The initial garrison can launch as soon as its City card reaches its reserved position.
+				rebuildCityGarrison(cityGUID,obj.guid,true)
 			elseif level~=nil then
 				if cityGUID~=darkCrusader.terrainHex and cityGUID~=elementalist.terrainHex then table.insert(gStates.cityLevels,#gStates.citiesPlayed,0) table.remove(gStates.cityLevels,#gStates.cityLevels) end
 				deployFriendlyCityShields(cityGUID)
