@@ -2628,6 +2628,12 @@ combatConfig.woundCommitSignature=function(ledger)
                 ..tostring((applied.destroyed or {})[guid])
         end
     end
+    -- Fingerprint staged physical discards so a changed selection cannot
+    -- use a stale confirmation or its rewind snapshot.
+    for _,guid in ipairs(ledger.previewStagedDiscards or {}) do
+        parts[#parts+1]="staged:"..guid..":"
+            ..tostring((ledger.playDiscardApplied or {})[guid]==true)
+    end
     local targets={}
     for source,target in pairs(combatAssignmentState.targets or {}) do
         targets[#targets+1]=tostring(source)..":"..tostring(target)
@@ -2655,7 +2661,8 @@ function resourceCardsRequestCombatWounds(player)
     local ledger=combatConfig.woundLedger(active.seatPos)
     if ledger==nil then return end
     local _,hand,discard,changed,effects=combatConfig.woundPending(ledger)
-    if hand+discard+effects.destroyCount==0 and not effects.handDiscard then
+    if hand+discard+effects.destroyCount+effects.stagedDiscardCount==0
+        and not effects.handDiscard then
         if changed then
             broadcastToColor("Combat damage changed after consequences were applied. Check physical cards; they cannot be undone automatically.",
                 color,warningColor)
@@ -2728,6 +2735,21 @@ function resourceCardsRequestCombatWounds(player)
             .."{pt-br}Nocaute / Paralisia: descarte as cartas na mão que não sejam Ferimentos."
             .."{de}K. o. / Lähmung: Alle Nicht-Wunden auf der Hand abwerfen."
         summaryHeight=summaryHeight+40
+    end
+    if effects.stagedDiscardCount>0 then
+        summaryParts[#summaryParts+1]="\n"
+        summaryParts[#summaryParts+1]="{en}Attack-only cards moved from play area: "
+            .."{it}Carte solo Attacco scartate dall'area di gioco: "
+            .."{ru}Карты только атаки, сбрасываемые из игровой области: "
+            .."{zh-tw}將從遊戲區棄掉的純攻擊牌："
+            .."{zh-cn}将从游戏区弃掉的纯攻击牌："
+            .."{ko}플레이 구역에서 버릴 공격 전용 카드: "
+            .."{es}Cartas solo de Ataque descartadas del área de juego: "
+            .."{fr}Cartes Attaque uniquement défaussées de la zone de jeu : "
+            .."{pt-br}Cartas só de Ataque descartadas da área de jogo: "
+            .."{de}Reine Angriffskarten aus dem Spielbereich abwerfen: "
+        summaryParts[#summaryParts+1]=effects.stagedDiscardCount
+        summaryHeight=summaryHeight+26
     end
     if effects.destroyCount>0 then
         summaryParts[#summaryParts+1]="\n"
@@ -2855,7 +2877,8 @@ function resourceCardsApplyCombatWounds(player,onComplete)
     local ledger=current~=nil and combatConfig.woundLedger(current.seatPos) or nil
     local allocations,hand,discard,changed,effects=combatConfig.woundPending(ledger)
     if current==nil or ledger==nil then return false end
-    if hand+discard==0 and not effects.handDiscard and effects.destroyCount==0 then
+    if hand+discard==0 and not effects.handDiscard
+        and effects.destroyCount+effects.stagedDiscardCount==0 then
         if changed then
             broadcastToColor("Combat damage changed after Wounds were dealt. Check the physical cards; none are removed automatically.",
                 player.color,warningColor)
@@ -3044,15 +3067,18 @@ function combatWoundsEndTurnReminder(color)
         return true
     end
     local _,hand,discard,changed,effects=combatConfig.woundPending(ledger)
-    if hand+discard==0 and not effects.handDiscard and effects.destroyCount==0
+    if hand+discard==0 and not effects.handDiscard
+        and effects.destroyCount+effects.stagedDiscardCount==0
         and not changed then return false end
     local signature=tostring(hand)..":"..tostring(discard)..":"..tostring(changed)
         ..":"..tostring(effects.paralyseCount)..":"..tostring(effects.destroyCount)
         ..":"..tostring(effects.knockout)
+        ..":"..tostring(effects.stagedDiscardCount)
     if ledger.warned==signature then return false end
     ledger.warned=signature
     local message
-    if hand+discard>0 or effects.handDiscard or effects.destroyCount>0 then
+    if hand+discard>0 or effects.handDiscard or effects.destroyCount>0
+        or effects.stagedDiscardCount>0 then
         message="Unapplied combat: "..tostring(hand).." Wounds to hand, "
             ..tostring(discard).." to discard"
         if effects.handDiscard then
@@ -3061,6 +3087,10 @@ function combatWoundsEndTurnReminder(color)
         if effects.destroyCount>0 then
             message=message..", "..tostring(effects.destroyCount)
                 .." Paralyzed Units to destroy"
+        end
+        if effects.stagedDiscardCount>0 then
+            message=message..", "..tostring(effects.stagedDiscardCount)
+                .." Attack-only played cards to discard"
         end
         message=message..". Use Apply Wounds, or click End Turn again if handled manually."
     else
@@ -5681,7 +5711,7 @@ local function combatAssignmentRefreshRows(entries,sources)
     -- A Paralyzed Unit needs an Apply button even when all its attack damage
     -- was absorbed and the Hero has zero Wounds.
     local showTotal=totalHeroWounds>0 or knockout or effects.destroyCount>0
-        or effects.handDiscard
+        or effects.handDiscard or effects.stagedDiscardCount>0
     combatPanelSetAttribute("CombatTotalRow","active",showTotal and "true" or "false")
     if showTotal then
         -- The XML's fixed-width, right-anchored Panel is outside any
@@ -5690,13 +5720,15 @@ local function combatAssignmentRefreshRows(entries,sources)
         local text=totalHeroWounds>0
             and ("Draw: "..combatRich(combatWoundsText(totalHeroWounds)..poisonText,combatConfig.COMBAT_RED))
             or (effects.handDiscard and "Apply: Discard hand"
-                or (knockout and "Knocked out (applied)"
+                or (effects.stagedDiscardCount>0 and "Apply: Discard Attack"
+                    or (knockout and "Knocked out (applied)"
                     or ("Apply: Destroy "..tostring(effects.destroyCount)..
-                        (effects.destroyCount==1 and " Unit" or " Units"))))
+                        (effects.destroyCount==1 and " Unit" or " Units")))))
         combatPanelSetAttribute("CombatTotalDamage","text",text)
         combatPanelSetAttribute("CombatTotalDamage","font","Fonts/MKCardText")
         local pending=pendingHand+pendingDiscard>0
             or effects.handDiscard or effects.destroyCount>0
+            or effects.stagedDiscardCount>0
         combatPanelSetAttribute("CombatApplyWounds","interactable",
             (pending or changed) and not combatConfig.woundApplying and "true" or "false")
         combatPanelSetAttribute("CombatApplyWounds","color",
