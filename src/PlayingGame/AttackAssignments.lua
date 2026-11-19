@@ -1319,6 +1319,15 @@ function attackAssignmentsBegin(source,resource,playerColor,additional,sourceKey
 		or Player[playerColor]==nil then return false end
 	sourceKey=sourceKey or source.guid
     if combatCommittedSource~=nil and combatCommittedSource(sourceKey) then return false end
+    if additional==true then
+        local maximum=resourceCardsCombatAdditionalTargetLimit~=nil
+            and resourceCardsCombatAdditionalTargetLimit(sourceKey) or 1
+        if maximum<=1 then
+            broadcastToColor("This resource can target only one enemy. Left-click to retarget.",
+                playerColor,{1,0.6,0.2})
+            return false
+        end
+    end
 	local pending=targetingByPlayer[playerColor]
 	if pending~=nil and pending.sourceGUID==sourceKey and pending.resource==resource then
 		targetingByPlayer[playerColor]=nil
@@ -1458,25 +1467,38 @@ function attackAssignmentTargetClicked(target,playerColor)
 			broadcastToColor("Move can only be assigned to a Cumbersome enemy.",playerColor,{1,0.6,0.2})
 			return
 		end
-        -- Lost Legion Banner of Fear's broken effect can cancel at most three
-        -- distinct enemies. Do not add a fourth physical target arrow.
+        -- Extra arrows are legal only for independently divisible points or
+        -- explicitly multi-target enemy effects. The limit is resolved from
+        -- the *current* card/skill option, not just the printed card name.
+        local extraMode=nil
         if pending.additional then
-            local data=gameCards~=nil and gameCards[currentSource.guid] or nil
-            local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
-            local spec=rule~=nil and rule.enemyEffect~=nil and rule.enemyEffect.powered or nil
-            local maximum=spec~=nil and tonumber(spec.maxTargets) or nil
-            if maximum~=nil then
-                local distinct={}
+            local maximum,mode=resourceCardsCombatAdditionalTargetLimit~=nil
+                and resourceCardsCombatAdditionalTargetLimit(pending.sourceGUID) or 1
+            extraMode=mode
+            if maximum<=1 then
+                targetingByPlayer[playerColor]=nil
+                syncTargetButtons()
+                broadcastToColor("This resource can target only one enemy. Left-click to retarget.",
+                    playerColor,{1,0.6,0.2})
+                return
+            end
+            if mode~="move" then
+                local distinct,total={},0
                 for _,existing in pairs(assignmentRegistry) do
                     if existing.sourceGUID==pending.sourceGUID then
                         distinct[existing.targetGUID]=true
+                        total=total+1
                     end
                 end
-                local total=0
-                for _ in pairs(distinct) do total=total+1 end
-                if total>=maximum and not distinct[target.guid] then
-                    broadcastToColor("Banner of Fear can cancel at most "
-                        ..tostring(maximum).." enemies.",playerColor,{1,0.6,0.2})
+                if mode=="targets" then
+                    total=0
+                    for _ in pairs(distinct) do total=total+1 end
+                end
+                if total>=maximum and (mode~="targets" or not distinct[target.guid]) then
+                    broadcastToColor(mode=="targets"
+                        and ("This effect can target at most "..tostring(maximum).." enemies.")
+                        or "All resource points are already assigned.",
+                        playerColor,{1,0.6,0.2})
                     return
                 end
             end
@@ -1491,25 +1513,10 @@ function attackAssignmentTargetClicked(target,playerColor)
 			if entry.sourceGUID==pending.sourceGUID and entry.targetGUID==target.guid
 				and entry.resource==pending.resource then duplicate=true break end
 		end
-        -- Each additional right-clicked Influence arrow is ONE extra point
-        -- allocated to that enemy. Repeating it assigns more points, but never
-        -- more than the physical card or Unit actually generated.
-        if pending.additional and pending.resource=="influence" then
-            local current=turnOrder~=nil and gStates~=nil
-                and turnOrder[gStates.turnNumber] or nil
-            local scan=current~=nil and resourceCardScanBySeat[current.seatPos] or nil
-            local record=scan~=nil and scan.cards[currentSource.guid] or nil
-            local maxPoints=record~=nil and record.resources~=nil
-                and tonumber(record.resources.influence) or nil
-            local existing=0
-            for _,entry in pairs(assignmentRegistry) do
-                if entry.sourceGUID==pending.sourceGUID then existing=existing+1 end
-            end
-            if maxPoints~=nil and existing>=maxPoints then
-                broadcastToColor("All Influence points from this source are already targeted.",
-                    playerColor,{1,0.6,0.2})
-                return
-            end
+        -- Psychic Influence is a point pool: repeated arrows to the same
+        -- enemy each spend one additional point. Converted point pools instead
+        -- keep one arrow per distinct enemy.
+        if pending.additional and extraMode=="influence" then
             duplicate=false
         end
 		if not duplicate then
@@ -1620,6 +1627,27 @@ function attackAssignmentsPruneInactive(activeKeys,activeObjects,keepsLock)
 			remove[#remove+1]=id
 		end
 	end
+    -- Clear legacy phantom arrows created when right-clicking an ordinary
+    -- Attack/Block source. Keep its first arrow; split sources already have
+    -- separate keys and legal multi-target effects have an explicit limit.
+    local bySource={}
+    for id,entry in pairs(assignmentRegistry) do
+        if activeKeys[entry.sourceGUID]==true
+            and not combatCommittedSource(entry.sourceGUID) then
+            local entries=bySource[entry.sourceGUID] or {}
+            entries[#entries+1]=id
+            bySource[entry.sourceGUID]=entries
+        end
+    end
+    for key,ids in pairs(bySource) do
+        if #ids>1 and resourceCardsCombatAdditionalTargetLimit~=nil
+            and resourceCardsCombatAdditionalTargetLimit(key)<=1 then
+            table.sort(ids,function(a,b)
+                return (tonumber(a) or 0)<(tonumber(b) or 0)
+            end)
+            for i=2,#ids do remove[#remove+1]=ids[i] end
+        end
+    end
 	for _,id in ipairs(remove) do assignmentRegistry[id]=nil end
 	if #remove>0 then
 		persistAssignments()
