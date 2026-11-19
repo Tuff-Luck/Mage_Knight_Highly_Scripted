@@ -40,9 +40,10 @@ local recoverCode=section(src,"    -- Mana dropped ON a played Action",
 local calls={}
 local die={
     type="Dice",guid="die001",resting=false,smooth=false,
-    isSmoothMoving=function(self) return self.smooth end,
+    isSmoothMoving=function() return false end,
     getRotationValue=function() return "Green Mana" end,
 }
+die.isSmoothMoving=function() return die.smooth end
 local tracker={unitManaCandidatesBySeat={},playCardMovements={}}
 local cards={
     ["af9def"]={resourceKey="concentration",cardType="Starting"},
