@@ -190,4 +190,61 @@ assert(dropCommits==2 and tracker.playCardMovements.rage==nil,
     "Second relocation must also reconcile exactly once")
 checkChoice()
 assert(targets.rage=="left","Second move must retain left-enemy lock")
-print("Card relocation stable-drop regressions passed")
+
+-- A missed Drop must NOT leave an immortal lock after 30 held samples.
+-- U/Place Under can rearrange a card without any normal pickup/drop sequence.
+-- The watcher begins at pickup and recovers on release without a Drop event.
+card.held_by_color="Blue"
+pickup(card)
+assert(#frames>0,"Pickup must start its own release watcher")
+for i=1,45 do tick() end
+assert(tracker.playCardMovements.rage~=nil,
+    "A long hold should still protect the selected choice and target")
+card.held_by_color=nil
+for i=1,4 do tick() end
+assert(dropCommits==3 and tracker.playCardMovements.rage==nil,
+    "Missing onObjectDrop must recover and unblock future updates")
+
+-- Native U is observable through onPlayerAction even when no zone events fire.
+local underCode=section(source,"function resourceCardsUnderAction(targets)",
+    "\nfunction resourceCardsZoneEntered(ctx)")
+local actionCode=section(events,"function __onPlayerAction_raw(player,action,targets)",
+    "\nlocal function protectedObjectDestroyAudit")
+local underFrames,picked,moved,changed={},0,0,0
+local underEnv={
+    trackerPrivate={traceEnabled=false},
+    resourceCardsPanelOpen=function() return true end,
+    resourceCardsObjectPickedUp=function(obj)
+        assert(obj==card)
+        picked=picked+1
+    end,
+    resourceCardsObjectMoved=function(obj)
+        assert(obj==card)
+        moved=moved+1
+    end,
+    resourceCardsSourceChanged=function() changed=changed+1 end,
+    getObjectFromGUID=function(guid) return guid==card.guid and card or nil end,
+    safeWaitFrames=function(_owner,callback,_frames)
+        underFrames[#underFrames+1]=callback
+    end
+}
+setmetatable(underEnv,{__index=_G})
+local under=assert(load(underCode.."\nreturn resourceCardsUnderAction",
+    "Native Under action","t",underEnv))()
+local actionEnv={
+    Player={Action={Under=1,Delete=2,Cut=3,PickUp=4}},
+    gStates={firstStarted=true},
+    resourceCardsUnderAction=under
+}
+setmetatable(actionEnv,{__index=_G})
+local playerAction=assert(load(actionCode.."\nreturn __onPlayerAction_raw",
+    "TTS player action","t",actionEnv))()
+assert(playerAction({color="Blue"},actionEnv.Player.Action.Under,{card})==true)
+assert(picked==1 and moved==0 and #underFrames==1,
+    "U must capture the moved card before its native stacking finishes")
+underFrames[1]()
+assert(moved==1 and changed==1,
+    "U must trigger a settled tracker refresh without Drop/Zone callbacks")
+assert(playerAction({color="Blue"},actionEnv.Player.Action.PickUp,{card})==true
+    and picked==1,"Other player actions must not be intercepted")
+print("Card relocation stable-drop and U action regressions passed")
