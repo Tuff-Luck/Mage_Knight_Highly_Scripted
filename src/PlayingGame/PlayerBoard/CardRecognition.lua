@@ -2416,6 +2416,7 @@ combatConfig.woundLedger=function(seat)
     ledger.applied=ledger.applied or {}
     ledger.cards=ledger.cards or {}
     ledger.preview=ledger.preview or {}
+    ledger.playDiscardApplied=ledger.playDiscardApplied or {}
     -- Legacy saves only tracked the individual Paralysis application.
     if ledger.handDiscardApplied==nil then
         ledger.handDiscardApplied=false
@@ -2494,7 +2495,7 @@ combatConfig.combatOtherWounds=function(seat)
     return count
 end
 
-combatConfig.woundRecordPreview=function(seat,items,results,knockout,otherWounds)
+combatConfig.woundRecordPreview=function(seat,items,results,knockout,otherWounds,stagedCards)
     local ledger=combatConfig.woundLedger(seat)
     if ledger==nil then return end
     local expected={}
@@ -2520,6 +2521,9 @@ combatConfig.woundRecordPreview=function(seat,items,results,knockout,otherWounds
     ledger.preview=expected
     ledger.previewKnockout=knockout==true
     ledger.previewOtherWounds=math.max(0,tonumber(otherWounds) or 0)
+    -- The confirmed plan survives moving cards away and save/reload.
+    ledger.previewStagedDiscards=ledger.phaseLock~=nil
+        and (ledger.phaseLock.attackDiscards or {}) or (stagedCards or {})
     ledger.hasPreview=true
 end
 
@@ -2528,6 +2532,7 @@ end
 combatConfig.woundPending=function(ledger)
     local allocations,hand,discard,changed={},0,0,false
     local effects={paralyse={},destroyed={},paralyseCount=0,destroyCount=0,
+        stagedDiscards={},stagedDiscardCount=0,
         knockout=false,handDiscard=false}
     if ledger==nil or not ledger.hasPreview then
         return allocations,hand,discard,changed,effects
@@ -2568,6 +2573,13 @@ combatConfig.woundPending=function(ledger)
     effects.knockout=ledger.previewKnockout==true
         and ledger.handDiscardApplied~=true
     effects.handDiscard=effects.knockout or effects.paralyseCount>0
+    for _,guid in ipairs(ledger.previewStagedDiscards or {}) do
+        if (ledger.playDiscardApplied or {})[guid]~=true then
+            effects.stagedDiscards[#effects.stagedDiscards+1]=guid
+            effects.stagedDiscardCount=effects.stagedDiscardCount+1
+        end
+    end
+    table.sort(effects.stagedDiscards)
     table.sort(allocations,function(a,b) return a.key<b.key end)
     table.sort(effects.paralyse)
     table.sort(effects.destroyed,function(a,b)
@@ -3747,14 +3759,84 @@ combatConfig.paralysisAttackCards=function(sources,results,lock,knockout)
     for _,source in ipairs(lock~=nil and lock.sources or {}) do
         if source.kind=="card" then preDamageCards[source.guid]=true end
     end
+    -- Cards actually played in earlier phases survive Knockout/Paralysis.
+    -- This includes Burning Shield's Attack earned from a successful Block.
+    local previous=lock or combatConfig.phasePreview
+    local alreadyPlayed={}
+    for guid in pairs(previous~=nil and previous.objectKeys or {}) do
+        alreadyPlayed[guid]=true
+    end
+    -- Some early effects have no numeric source (e.g. Exploding Shield).
+    for _,effect in pairs(previous~=nil and previous.enemyEffects or {}) do
+        for _,applied in ipairs(effect.applied or {}) do
+            if applied.phaseAfterDamage~=true and applied.source~=nil then
+                alreadyPlayed[applied.source]=true
+            end
+        end
+    end
     local unavailable={}
     for _,source in ipairs(sources or {}) do
-        if source.kind=="card" and (lock==nil or source.phaseAfterDamage~=true
-            or preDamageCards[source.guid]==true) then
+        if source.kind=="card" and not alreadyPlayed[source.guid]
+            and (lock==nil or source.phaseAfterDamage~=true
+                or preDamageCards[source.guid]==true) then
             unavailable[source.guid]=true
         end
     end
     return unavailable
+end
+
+-- Only auto-discard unambiguously Attack-only staged physical cards.
+-- Inspect ALL sources with the same physical GUID; no single split-target
+-- resource is allowed to pull an earlier Block/Ranged/conditional card away.
+combatConfig.knockoutStagedAttackCards=function(sources,unavailable,seat,phase)
+    local protected,hasAttack={},{}
+    for _,source in ipairs(sources or {}) do
+        if source.kind=="card" and source.guid~=nil then
+            local guid=source.guid
+            if (source.attack or 0)>0 then hasAttack[guid]=true end
+            if (source.block or 0)>0 or (source.move or 0)>0
+                or (source.psychicInfluence or 0)>0
+                or (source.ranged or 0)>0 or (source.siege or 0)>0
+                or source.conditionalFireAttack~=nil
+                or source.conditionalCounterattack~=nil then
+                protected[guid]=true
+            end
+        end
+    end
+    local snapshot=phase or combatConfig.phasePreview
+    for guid in pairs(snapshot~=nil and snapshot.objectKeys or {}) do
+        protected[guid]=true
+    end
+    for _,effect in pairs(snapshot~=nil and snapshot.enemyEffects or {}) do
+        for _,applied in ipairs(effect.applied or {}) do
+            if applied.source~=nil then protected[applied.source]=true end
+        end
+    end
+    local scan=seat~=nil and resourceCardScanBySeat[seat] or nil
+    for guid,record in pairs(scan~=nil and scan.cards or {}) do
+        if record.kind=="card" and (#(record.links or {})>0
+            or record.enemyGUID~=nil
+            or #(record.enemyEffectTargetKeys or {})>0
+            or record.conditionalFireAttack~=nil
+            or record.combatConversion~=nil
+            or record.fameRep~=nil or record.defeatFameRep~=nil) then
+            protected[guid]=true
+        end
+    end
+    local eligible={}
+    for guid in pairs(hasAttack) do
+        if unavailable[guid]==true and protected[guid]~=true then
+            local obj=getObjectFromGUID(guid)
+            local data=gameCards~=nil and gameCards[guid] or nil
+            if obj~=nil and obj.type=="Card" and obj.is_face_down~=true
+                and obj.getGMNotes~=nil and obj.getGMNotes()~="Wound"
+                and data~=nil and data.cardType~="Artifact" then
+                eligible[#eligible+1]=guid
+            end
+        end
+    end
+    table.sort(eligible)
+    return eligible
 end
 
 combatConfig.attackPhaseSources=function(sources,wounded,paralysisCards)
