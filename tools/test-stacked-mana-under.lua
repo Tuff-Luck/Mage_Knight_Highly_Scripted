@@ -63,6 +63,13 @@ assert(select(gold,candidates,footprints,function(card)
     return colorMatches(card,"Gold")
 end)==blue,"Equal-height ties use the closest X/Z centre")
 green.position.y,green.position[2]=2.8,2.8
+-- A crystal/die wedged between the cards is still a valid payment for
+-- the lower card, even though the higher card is physically above the mana.
+gold.position.y,gold.position[2]=2.55,2.55
+assert(select(gold,candidates,footprints,function(card)
+    return colorMatches(card,"Gold")
+end)==blue,"Between-card mana must not be lost or power a card above itself")
+gold.position.y,gold.position[2]=3.3,3.3
 
 local zone={
     getPosition=function() return position(0,1,0) end,
