@@ -2239,6 +2239,21 @@ function resourceTrackerSyncLayout(expanded, changedPanel, changedActive)
     UI.setAttribute("ResourceTrackerDetail","height",tostring(detailHeight))
 end
 
+-- On a TTS rewind, the XML starts with a 35px collapsed root even if the
+-- saved seat had the tracker open. Restore the same known-good geometry used
+-- by first-game setup *before* showing the details: activating them while the
+-- root is still 35px tall makes the lower-anchored details overlap the header.
+-- Clear nested sections as a normal fresh open does, rather than expanding
+-- an unknown combination of stale UI flags during load.
+function resourceTrackerRestoreExpandedLayout()
+    for _,spec in pairs(RESOURCE_TRACKER_EXPANDERS) do
+        UI.setAttribute(spec[1],"active","false")
+    end
+    UI.setAttribute("ResourceTracker","height","245")
+    UI.setAttribute("ResourceTrackerDetail","height","210")
+    UI.setAttribute("ResourceTrackerDetail","active","true")
+end
+
 local RESOURCE_TRACKER_FIELDS={	["MovemAmountPlain"]={"move", "move", "{en}Move : {it}Movimento : {ru}Движение: {zh-tw}移動：{zh-cn}移动：{ko}이동 : {es}Mover : {fr}Se déplacer : {pt-br}Mover : {de}Bewegen : "},
 					["SiegeAmountPlain"]={"siege", "physical", "{en}Siege : {it}Assedio : {ru}Осадная: {zh-tw}攻城：{zh-cn}攻城：{ko}공성 : {es}Asedio : {fr}Siège : {pt-br}Cerco : {de}Belagerung : "},
 					["SiegeAmountPhysi"]={"siege", "physical", "{en}Physical : {it}Fisico : {ru}Физическая(ий): {zh-tw}物理：{zh-cn}物理：{ko}물리 : {es}Físico : {fr}Physique : {pt-br}Físico : {de}Physikalisch : "},
