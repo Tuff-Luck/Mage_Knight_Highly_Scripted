@@ -2589,6 +2589,37 @@ combatConfig.woundPending=function(ledger)
     return allocations,hand,discard,changed,effects
 end
 
+-- Deterministic, unambiguous plain-data fingerprint. The saved phase preview
+-- already contains scalar snapshots; sorting keys avoids pairs() traversal order
+-- making unchanged decisions look different.
+combatConfig.decisionFingerprint=function(value)
+    local function encode(item)
+        if type(item)~="table" then
+            local kind=type(item)
+            local valueText=tostring(item)
+            return kind..":"..#valueText..":"..valueText
+        end
+        local keys={}
+        for key in pairs(item) do
+            if type(key)=="string" or type(key)=="number" then
+                keys[#keys+1]=key
+            end
+        end
+        table.sort(keys,function(a,b)
+            if type(a)==type(b) then return a<b end
+            return type(a)<type(b)
+        end)
+        local parts={"{"}
+        for _,key in ipairs(keys) do
+            parts[#parts+1]=encode(key)
+            parts[#parts+1]=encode(item[key])
+        end
+        parts[#parts+1]="}"
+        return table.concat(parts,"|")
+    end
+    return encode(value)
+end
+
 -- A Damage commit is a deliberate phase boundary: record a stable
 -- fingerprint of the planned Wounds, Paralysis, and assigned enemy targets.
 -- The latest preview is checked after the dialog and again after TTS
@@ -2641,6 +2672,30 @@ combatConfig.woundCommitSignature=function(ledger)
     end
     table.sort(targets)
     for _,target in ipairs(targets) do parts[#parts+1]=target end
+    -- Equal Wound totals do not mean equal decisions: a different Unit can
+    -- receive the same damage, or a Block/Attack option can be changed while
+    -- leaving the pending consequence counts unchanged. Reject that dialog.
+    local phase=ledger.phaseLock or combatConfig.phasePreview
+    if phase~=nil and phase.seat==ledger.seat
+        and gStates~=nil and phase.turn==gStates.turnNumber then
+        parts[#parts+1]="phase:"..combatConfig.decisionFingerprint({
+            entries=phase.entries,sources=phase.sources,
+            enemyEffects=phase.enemyEffects,joined=phase.joined,
+            targets=phase.targets,explicit=phase.explicit,
+            earlyGroups=phase.earlyGroups,rowBlock=phase.rowBlock,
+            spentRange=phase.spentRange,damage=phase.damage,
+            damageResults=phase.damageResults,attackDiscards=phase.attackDiscards
+        })
+    end
+    if ledger.phaseLock==nil then
+        parts[#parts+1]="choices:"..combatConfig.decisionFingerprint({
+            reductions=combatReductionAttackChoice,
+            hardened=gStates~=nil and gStates.battleHardenedAttackKey or nil,
+            elemental=gStates~=nil and gStates.elementalResistanceAttackKey or nil,
+            forked=gStates~=nil and gStates.forkedLightningPhase or nil,
+            arrows=gStates~=nil and gStates.attackAssignments or nil
+        })
+    end
     return table.concat(parts,"|")
 end
 
@@ -6815,6 +6870,44 @@ end
 
 local function chosenEffect(guid,powered,choices,sideways)
     return currentChoice(guid,powered,choices,sideways)
+end
+
+-- Only resources that explicitly split a pool or apply a multi-enemy effect
+-- may keep additional right-click arrows. Independent printed effects already
+-- have their own source keys and do not need a second arrow on one source.
+function resourceCardsCombatAdditionalTargetLimit(sourceKey)
+    if type(sourceKey)~="string" then return 1 end
+    local seat=combatAssignmentActiveSeat()
+    local scan=seat~=nil and resourceCardScanBySeat[seat] or nil
+    local guid=sourceKey:match("^[^#]+")
+    local record=scan~=nil and scan.cards[guid] or nil
+    if record~=nil and record.complete==true then
+        for _,key in ipairs(record.enemyEffectTargetKeys or {}) do
+            if key==sourceKey then
+                local data=gameCards[guid]
+                local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+                local _,category=currentChoice(guid,record.powered,
+                    sideChoices(rule,record.powered))
+                local spec=combatEffectSpec(rule,record.powered,category)
+                if spec~=nil then
+                    if spec.multiTargetMove==true then return math.huge,"move" end
+                    local maximum=tonumber(spec.maxTargets) or 0
+                    if maximum>1 then return maximum,"targets" end
+                end
+                break
+            end
+        end
+    end
+    for _,source in ipairs(combatAssignmentSources(seat)) do
+        if source.key==sourceKey then
+            local converted=tonumber(source.convertedAmount) or 0
+            if converted>1 then return converted,"points" end
+            local influence=tonumber(source.psychicInfluence) or 0
+            if influence>1 then return influence,"influence" end
+            break
+        end
+    end
+    return 1
 end
 
 -- Every Maximal Effect application may choose independently. The stored choice
