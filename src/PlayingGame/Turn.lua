@@ -1456,6 +1456,9 @@ local function turnEndRoundResetPlayerDecks()
 					end
 				end
 			end
+			-- A previous undersized discard pile can become the new Deed Deck.
+			-- Restore its physical scale before merging the remaining cards.
+			if newDeck~=nil then newDeck.setScale({1.5,1,1.5}) end
 			--remove crystals from unit area likely for magic familiars
 			for _, obj in pairs(getObjectFromGUID(playerUnitAreas[playerDetails.seatPos]).getObjects()) do
 				if obj.type=="Figurine" and obj.getGMNotes()~="Unit Wound" then getObjectFromGUID(trashCan).putObject(obj) end
