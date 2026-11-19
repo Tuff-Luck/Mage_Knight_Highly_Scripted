@@ -3867,18 +3867,40 @@ combatConfig.knockoutStagedAttackCards=function(sources,unavailable,seat,phase)
     end
     local scan=seat~=nil and resourceCardScanBySeat[seat] or nil
     for guid,record in pairs(scan~=nil and scan.cards or {}) do
-        if record.kind=="card" and (#(record.links or {})>0
-            or record.enemyGUID~=nil
-            or #(record.enemyEffectTargetKeys or {})>0
-            or record.conditionalFireAttack~=nil
-            or record.combatConversion~=nil
-            or record.fameRep~=nil or record.defeatFameRep~=nil) then
-            protected[guid]=true
+        if record.kind=="card" then
+            local data=gameCards~=nil and gameCards[guid] or nil
+            local rule=data~=nil and cardResourceDefinitions~=nil
+                and cardResourceDefinitions[data.resourceKey] or nil
+            if record.complete~=true or record.status=="yellow"
+                or #(record.links or {})>0 or record.enemyGUID~=nil
+                or #(record.enemyEffectTargetKeys or {})>0
+                or record.conditionalFireAttack~=nil
+                or record.combatConversion~=nil
+                or record.fameRep~=nil or record.defeatFameRep~=nil
+                or (rule~=nil and (rule.enemyEffect~=nil
+                    or rule.movementEffects~=nil
+                    or rule.unitCombatBoost~=nil
+                    or rule.preventUnitDamage==true)) then
+                protected[guid]=true
+            end
+            -- "Pure Attack" means the currently selected, fully understood
+            -- resource has no other usable family, even if the calculator
+            -- only drew its Attack icon.
+            for field,amount in pairs(record.resources or {}) do
+                if type(field)=="string" and type(amount)=="number"
+                    and amount>0 and field:sub(1,6)~="attack" then
+                    protected[guid]=true
+                    break
+                end
+            end
         end
     end
     local eligible={}
     for guid in pairs(hasAttack) do
-        if unavailable[guid]==true and protected[guid]~=true then
+        local record=scan~=nil and scan.cards or nil
+        if unavailable[guid]==true and protected[guid]~=true
+            and record~=nil and record[guid]~=nil
+            and record[guid].complete==true then
             local obj=getObjectFromGUID(guid)
             local data=gameCards~=nil and gameCards[guid] or nil
             if obj~=nil and obj.type=="Card" and obj.is_face_down~=true
