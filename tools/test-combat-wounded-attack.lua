@@ -100,6 +100,49 @@ eq(#eligibleSources(sources,{},paralysisCards(sources,{
 eq(#eligibleSources(sources,{},paralysisCards(sources,{
     attack1={paralyse=false,heroWounds=0,units={{destroyed=true}}}},nil)),3,
     "Paralyzed Unit alone does not discard Hero cards")
+-- Burning Shield was PLAYED in Block, and its triggered Fire Attack
+-- persists through Knockout. Exploding Shield's nonnumeric pre-Damage effect
+-- likewise protects it from Attack-only auto-discard.
+local early={objectKeys={burning=true,ranged=true},
+    enemyEffects={enemyA={applied={{source="exploding"}}}}}
+combatConfig.phasePreview=early
+local staged={
+    {guid="rage",key="rage",kind="card",attack=2},
+    {guid="swiftness",key="swiftness",kind="card",attack=1},
+    {guid="burning",key="burning#block",kind="card",block=4},
+    {guid="burning",key="burning#attack",kind="card",attack=4,
+        conditionalCounterattack=4},
+    {guid="exploding",key="exploding",kind="card",block=4},
+    {guid="ranged",key="ranged",kind="card",ranged=5},
+    {guid="linked",key="linked",kind="card",attack=3},
+    {guid="unit",key="unit",kind="unit",attack=6}
+}
+local invalidKO=paralysisCards(staged,{},nil,true)
+eq(invalidKO.rage,true,"staged Rage must lose its planned Attack")
+eq(invalidKO.swiftness,true,"staged Swiftness must lose Attack")
+eq(invalidKO.burning,nil,"Burning Shield's Block earned the Fire Attack")
+eq(invalidKO.exploding,nil,"pre-Damage Exploding Shield effect remains played")
+eq(invalidKO.ranged,nil,"already used Ranged/Siege effect remains valid")
+eq(invalidKO.unit,nil,"Unit Attack survives Knockout")
+local stageOnly=isolated(
+    "combatConfig.knockoutStagedAttackCards=function(sources,unavailable,seat,phase)",
+    "combatConfig.attackPhaseSources=function",
+    "combatConfig.knockoutStagedAttackCards")
+gameCards={rage={cardType="Starting"},swiftness={cardType="Starting"},
+    burning={cardType="Spell"},exploding={cardType="Spell"},
+    ranged={cardType="Starting"},linked={cardType="Advanced Action"}}
+resourceCardScanBySeat={[1]={cards={linked={kind="card",links={"mana"}}}}}
+getObjectFromGUID=function(guid)
+    return {guid=guid,type="Card",is_face_down=false,
+        getGMNotes=function() return "Starting" end}
+end
+local candidates=stageOnly(staged,invalidKO,1,early)
+eq(#candidates,2,"only pure Attack cards are auto-discarded")
+eq(candidates[1],"rage","Rage is an Attack-only discard")
+eq(candidates[2],"swiftness","Swiftness is an Attack-only discard")
+eq(invalidKO.linked,true,"linked Attack is still invalidated")
+combatConfig.phasePreview=nil
+
 local postDamage={
     {guid="card1",key="card1",kind="card",phaseAfterDamage=true,
         resources={attack=1}},
