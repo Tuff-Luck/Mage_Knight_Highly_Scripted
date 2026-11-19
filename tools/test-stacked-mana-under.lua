@@ -54,6 +54,10 @@ end)==blue,"Blue mana must power the highest matching blue card beneath green")
 assert(select(blueDie,candidates,footprints,function(card)
     return colorMatches(card,"Red")
 end)==nil,"Unmatched coloured mana must not power a card")
+green.position.y,green.position[2]=2.31,2.31
+assert(select(gold,candidates,footprints,function(card)
+    return colorMatches(card,"Gold")
+end)==green,"Even a thin 0.01 stack offset must outrank X/Z proximity")
 green.position.y,green.position[2]=2.3,2.3
 assert(select(gold,candidates,footprints,function(card)
     return colorMatches(card,"Gold")
