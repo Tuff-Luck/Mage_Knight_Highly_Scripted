@@ -7,8 +7,10 @@ on:
     paths:
       - '.github/workflows/combat-regressions.yml'
       - 'src/PlayingGame/PlayerBoard/CardRecognition.lua'
+      - 'src/PlayingGame/AttackAssignments.lua'
       - 'src/PlayingGame/PlayerBoard/CardFlow.lua'
       - 'tools/test-combat-wound-application.lua'
+      - 'tools/test-combat-target-and-commit.lua'
       - 'tools/test-combat-wounded-attack.lua'
       - 'tools/test-red-spells.lua'
 
@@ -28,5 +30,7 @@ jobs:
         run: lua5.2 tools/test-combat-wound-application.lua
       - name: Knockout, Paralysis, and Attack eligibility tests
         run: lua5.2 tools/test-combat-wounded-attack.lua
+      - name: Targeting permissions and Damage confirmation tests
+        run: lua5.2 tools/test-combat-target-and-commit.lua
       - name: Burning Shield and Exploding Shield tests
         run: lua5.2 tools/test-red-spells.lua
