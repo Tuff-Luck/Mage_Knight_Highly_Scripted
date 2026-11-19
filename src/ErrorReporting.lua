@@ -328,7 +328,12 @@ function safeZoneCallback(functionName, callback, zone, obj)
 		-- already-protected callback and create a second player-facing Lua error.
 		local contextOK,context=pcall(automaticLuaZoneContext,zone,obj)
 		if not contextOK then context="Zone/object context unavailable: "..tostring(context) end
-		reportAutomaticLuaError(functionName,result,context)
+		-- WebRequest can also become unavailable while TTS closes. Preserve the
+		-- original Lua error without letting failure to send its report escape.
+		local reportOK,reportError=pcall(reportAutomaticLuaError,functionName,result,context)
+		if not reportOK then
+			pcall(log,"Automatic Lua zone error reporter unavailable: "..tostring(reportError))
+		end
 		return false
 	end
 	return result
