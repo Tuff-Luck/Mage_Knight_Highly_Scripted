@@ -14108,8 +14108,14 @@ function resourceCardsOnLoad(restoringSave)
         resourceCardsPanelChanged(false)
         return
     end
-    -- Repair a restored panel whose child expansion flags outlived its height.
-    -- Do not force open an intentionally collapsed saved UI.
+    -- TTS rewinds rebuild Global XML from its collapsed defaults. The active
+    -- seat's saved enabled preference is the expand/collapse state, so restore
+    -- it before waiting for the panel to become ready and rescanning cards.
+    -- Ordinary reopen/turn-handoff calls leave the caller's UI state intact.
+    if restoringSave==true and current~=nil then
+        UI.setAttribute("ResourceTrackerDetail","active","true")
+    end
+    -- Repair an expanded panel whose child flags outlived its height.
     if UI.getAttribute("ResourceTrackerDetail","active")=="true" then
         resourceTrackerSyncLayout(true)
     end
@@ -14126,8 +14132,8 @@ function resourceCardsOnLoad(restoringSave)
     end,function()
         return trackerPrivate.trackerStartupRequest~=request or resourceCardsPanelReady()
     end,5,function()
-        -- A genuinely collapsed saved panel stays OFF; it must never
-        -- trigger a new scan until the player explicitly expands it.
+        -- A panel that is still collapsed after the readiness wait stays
+        -- OFF; it must never scan until the player explicitly expands it.
         if trackerPrivate.trackerStartupRequest==request and not resourceCardsPanelReady() then
             resourceCardsPanelChanged(false)
         end
