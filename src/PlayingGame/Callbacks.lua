@@ -88,7 +88,11 @@ function onObjectSpawn(spawn_object)
 end
 
 function onObjectDestroy(destroyedObj)
-	return safeCallback("onObjectDestroy", function() __onObjectDestroy_raw(destroyedObj) end)
+	return safeCallback("onObjectDestroy", function() __onObjectDestroy_raw(destroyedObj) end,
+		function()
+			local ok,guid=pcall(function() return destroyedObj~=nil and destroyedObj.guid or nil end)
+			return "Destroyed object GUID="..tostring(ok and guid or "unavailable")
+		end)
 end
 
 function onObjectEnterZone(zone, obj)
