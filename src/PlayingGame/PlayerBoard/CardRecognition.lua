@@ -9309,8 +9309,8 @@ trackerPrivate.bestManaCard=function(mana,cards,footprints,eligible)
                 local cp=card.getPosition()
                 local y=cp.y or cp[2] or 0
                 local distance=dx*dx+dz*dz
-                if best==nil or y>bestY+0.025
-                    or (math.abs(y-bestY)<=0.025
+                if best==nil or y>bestY+0.001
+                    or (math.abs(y-bestY)<=0.001
                         and (distance<bestDistance
                             or (distance==bestDistance and card.guid<best.guid))) then
                     best,bestY,bestDistance=card,y,distance
