@@ -1,5 +1,6 @@
--- Regression: a rolling mana die must not read its face before settling,
--- and a paid Concentration must link the correct stronger Swiftness effect.
+-- Regression: a released mana die works like a crystal even if TTS keeps
+-- resting=false; held/smooth-moving dice remain excluded from payments.
+-- Paid Concentration must still link the correct stronger Swiftness effect.
 -- Run from repository root: lua5.2 tools/test-concentration-mana-settle.lua
 local function read(path)
     local f=assert(io.open(path,"r"))
@@ -38,9 +39,9 @@ local recoverCode=section(src,"    -- Mana dropped ON a played Action",
 
 local calls={}
 local die={
-    type="Dice",guid="die001",resting=false,
-    isSmoothMoving=function() return false end,
-    getRotationValue=function() error("Unsettled die face must not be read") end,
+    type="Dice",guid="die001",resting=false,smooth=false,
+    isSmoothMoving=function(self) return self.smooth end,
+    getRotationValue=function() return "Green Mana" end,
 }
 local tracker={unitManaCandidatesBySeat={},playCardMovements={}}
 local cards={
@@ -75,19 +76,26 @@ local compiled=assert(load(table.concat({manaCode,bonusCode,linksCode,zoneCode,d
     "return manaColor,trackerPrivate.readyForXZ,applyLinkedResourceBonus,resolveActionLinks,resourceCardsZoneEntered,resourceCardsObjectMoved"},"\n"),
     "Concentration mana settle","t",env))
 local manaColor,readyForXZ,applyBonus,resolveLinks,zoneEntered,objectMoved=compiled()
-assert(manaColor(die)==nil,"Rolling die should not expose a mana colour")
+assert(manaColor(die)=="Green","Released, slightly rocking die should expose its face")
+assert(readyForXZ(die),"Released die is ready despite resting=false")
+die.smooth=true
+assert(manaColor(die)==nil and not readyForXZ(die),
+    "Smooth-moving die must not count as a mana payment")
+die.smooth=false
+die.held_by_color="Blue"
+assert(not readyForXZ(die),"Held die must not count as a mana payment")
+die.held_by_color=nil
 zoneEntered({obj=die,objGUID=die.guid,objType="Dice",
     zoneInfo={kind="play",seatPos=2}})
 assert(#calls==1 and calls[1].seat==2 and calls[1].guid==die.guid,
-    "Rolling die entering play should queue a settled scan")
+    "Released die entering play should queue a resource scan")
 assert(tracker.unitManaCandidatesBySeat[2][die.guid]==true,
-    "Rolling die candidate was not recorded")
+    "Released die candidate was not recorded")
 objectMoved(die)
 assert(#calls==2 and calls[2].guid==die.guid,
-    "Die dropped above the thin scripting zone should queue a settled scan")
-die.resting=true
-die.getRotationValue=function() return "Green Mana" end
-assert(manaColor(die)=="Green","Settled mana die should report Green")
+    "Die dropped above the thin scripting zone should queue a resource scan")
+assert(manaColor(die)=="Green" and not die.resting,
+    "Non-resting but released mana die should still report Green")
 
 -- The die can settle above the thin scripting zone, outside getObjects().
 -- It still powers Concentration if and only if it physically covers the card.
@@ -115,16 +123,20 @@ end
 local recoveredObjects,recoveredPlacement,recoveredKinds=recover()
 assert(recoveredObjects[die.guid]==die and recoveredPlacement[die.guid]=="play"
     and recoveredKinds[die.guid]=="mana",
-    "Settled Source die physically on Concentration must be included in play scan")
+    "Released Source die physically on Concentration must be included in play scan")
 diePosition={10,2.0,10}
 local _,farPlacement=recover()
 assert(farPlacement[die.guid]==nil,
     "Source die away from Action cards must not be counted as payment")
 diePosition={0.1,2.0,0.1}
-die.resting=false
+die.smooth=true
 local _,movingPlacement=recover()
-assert(movingPlacement[die.guid]==nil,"Rolling die must not be treated as a paid Action")
-die.resting=true
+assert(movingPlacement[die.guid]==nil,"Smooth-moving die must not be treated as a paid Action")
+die.smooth=false
+die.held_by_color="Blue"
+local _,heldPlacement=recover()
+assert(heldPlacement[die.guid]==nil,"Held die must not be treated as a paid Action")
+die.held_by_color=nil
 
 local concentration={guid="af9def",is_face_down=false}
 local swiftness={guid="acdcb2",is_face_down=false}
@@ -139,4 +151,4 @@ assert(boostBy["acdcb2"]==rules.concentration.poweredLink,
     "Swiftness should receive Concentration's stronger-side bonus")
 assert(applyBonus(rules.swiftness.powered,boostBy["acdcb2"]).ranged==5,
     "Paid Concentration + Swiftness must yield Ranged Attack 5")
-print("Concentration / Swiftness rolling die regression passed")
+print("Concentration / Swiftness released die regression passed")

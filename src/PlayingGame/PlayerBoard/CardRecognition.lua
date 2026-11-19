@@ -8343,26 +8343,25 @@ end
 local function manaColor(obj)
     if isManaTokenFigurine(obj) then return manaTokenColor(obj) end
     if obj.type=="Dice" then
-        -- A dropped Source die can enter the thin play zone while still rolling.
-        -- TTS may not have a usable rotation value until its physics settles.
-        -- Its zone/drop callbacks queue a settled scan without reading the face.
-        if obj.resting~=true or obj.isSmoothMoving() then return nil end
+        -- Treat released dice like crystals: a slight physical wobble can
+        -- leave resting=false indefinitely, even when the visible face is stable.
+        -- Still exclude scripted smooth movement while reading the face.
+        if obj.isSmoothMoving() then return nil end
         local face=obj.getRotationValue()
         if type(face)=="string" then return face:match("^([%a]+) Mana$") end
     end
     return nil
 end
 
--- Placement and resource links use X/Z, so vertical falling does not delay
--- an otherwise released object. Dice must finish rolling before reading a face.
+-- Placement and resource links use X/Z, so vertical falling or a slightly
+-- rocking die does not delay an otherwise released object.
 trackerPrivate.readyForXZ=function(obj)
-    if obj==nil or (obj.held_by_color~=nil and obj.held_by_color~="")
-        or obj.isSmoothMoving() then return false end
-    return obj.type~="Dice" or obj.resting==true
+    return obj~=nil and (obj.held_by_color==nil or obj.held_by_color=="")
+        and not obj.isSmoothMoving()
 end
 
 -- Magic Talent's strong side consumes TWO distinct mana objects, not the
--- single mana that normally powers an Advanced Action. Read the same settled
+-- single mana that normally powers an Advanced Action. Read the same released
 -- die faces/crystals as the ordinary tracker, even when its panel is minimized.
 function magicTalentManaPayments(seatPos)
     local card=getObjectFromGUID("3d832c")
@@ -14434,7 +14433,7 @@ function resourceCardsUnderAction(targets)
         -- Native Under changes card height, sometimes nudging a die that was
         -- above the deliberately shallow play zone. It may not emit a Die
         -- pickup/drop/zone event. Discover only mana dice above this play mat,
-        -- on this rare action, and watch their actual resting faces.
+        -- on this rare action, and refresh their visible faces.
         if playedCardUnder and seat~=nil then
             local candidates=trackerPrivate.unitManaCandidatesBySeat[seat]
             if candidates==nil then
@@ -14453,7 +14452,7 @@ function resourceCardsUnderAction(targets)
                 end
             end
             -- If TTS starts jostling the die after its first frame, sample
-            -- again; the normal per-object watcher then owns final settling.
+            -- again; a slight wobble no longer blocks mana recognition.
             safeWaitFrames("PlayerBoard.CardRecognition",function()
                 if trackerPrivate.trackerSession~=session
                     or not resourceCardsPanelOpen() then return end
@@ -14513,7 +14512,7 @@ function resourceCardsZoneEntered(ctx)
     end
     if ctx.obj~=nil and ((ctx.objType=="Dice" and scriptObjectId(ctx.obj)=="Mana Dice")
         or manaColor(ctx.obj)~=nil) then
-        -- Recognize the die before it rests; only read its face in the settled scan.
+        -- Track a die even if it is still slightly rocking; the released scan reads its face.
         trackerPrivate.unitManaCandidatesBySeat[seat]=trackerPrivate.unitManaCandidatesBySeat[seat] or {}
         trackerPrivate.unitManaCandidatesBySeat[seat][ctx.objGUID]=true
     end
@@ -14567,7 +14566,7 @@ function resourceCardsObjectMoved(obj,stabilized)
     local seat=player.seatPos
     if (obj.type=="Dice" and scriptObjectId(obj)=="Mana Dice") or manaColor(obj)~=nil then
         -- Drop callbacks fire even if the final die/crystal sits above both thin
-        -- scripting zones. Remember its GUID and scan after it settles.
+        -- scripting zones. Remember its GUID and scan once released.
         trackerPrivate.unitManaCandidatesBySeat[seat]=trackerPrivate.unitManaCandidatesBySeat[seat] or {}
         trackerPrivate.unitManaCandidatesBySeat[seat][obj.guid]=true
         queueSeat(seat,obj.guid)

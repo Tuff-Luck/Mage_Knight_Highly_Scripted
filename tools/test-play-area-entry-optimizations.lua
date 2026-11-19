@@ -117,12 +117,17 @@ eq(#cardWaits,3,"released falling card does not wait for Y")
 fireCardFrames()
 eq(renderCount,4,"released falling card refreshes immediately")
 queue(1,"die")
-eq(#cardWaits,4,"rolling die still waits for resting")
-objects.die.resting=true
-eq(cardWaits[4].condition(),true,"settled die is ready")
+eq(#cardWaits,3,"released die does not wait for resting")
+fireCardFrames()
+eq(renderCount,5,"released die refreshes despite resting=false")
+objects.die.isSmoothMoving=function() return true end
+queue(1,"die")
+eq(#cardWaits,4,"smooth-moving die still waits")
+objects.die.isSmoothMoving=function() return false end
+eq(cardWaits[4].condition(),true,"die is ready after smooth movement ends")
 cardWaits[4].callback()
 fireCardFrames()
-eq(renderCount,5,"settled die refreshes its face")
+eq(renderCount,6,"smooth-movement completion refreshes die")
 panelOpen=false
 tracker.generation[1]=1
 tracker.pendingSeatSettles={}
