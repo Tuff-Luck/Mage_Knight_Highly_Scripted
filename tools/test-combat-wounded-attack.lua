@@ -115,6 +115,8 @@ local staged={
     {guid="exploding",key="exploding",kind="card",block=4},
     {guid="ranged",key="ranged",kind="card",ranged=5},
     {guid="linked",key="linked",kind="card",attack=3},
+    {guid="mixed",key="mixed",kind="card",attack=2},
+    {guid="uncertain",key="uncertain",kind="card",attack=2},
     {guid="unit",key="unit",kind="unit",attack=6}
 }
 local invalidKO=paralysisCards(staged,{},nil,true)
@@ -130,8 +132,14 @@ local stageOnly=isolated(
     "combatConfig.knockoutStagedAttackCards")
 gameCards={rage={cardType="Starting"},swiftness={cardType="Starting"},
     burning={cardType="Spell"},exploding={cardType="Spell"},
-    ranged={cardType="Starting"},linked={cardType="Advanced Action"}}
-resourceCardScanBySeat={[1]={cards={linked={kind="card",links={"mana"}}}}}
+    ranged={cardType="Starting"},linked={cardType="Advanced Action"},
+    mixed={cardType="Advanced Action"},uncertain={cardType="Starting"}}
+resourceCardScanBySeat={[1]={cards={
+    rage={kind="card",complete=true,resources={attack=2}},
+    swiftness={kind="card",complete=true,resources={attack=1}},
+    linked={kind="card",complete=true,links={"mana"},resources={attack=3}},
+    mixed={kind="card",complete=true,resources={attack=2,healing=1}},
+    uncertain={kind="card",complete=false,resources={attack=2}}}}}
 getObjectFromGUID=function(guid)
     return {guid=guid,type="Card",is_face_down=false,
         getGMNotes=function() return "Starting" end}
