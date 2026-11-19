@@ -7,6 +7,71 @@ trackerPrivate.generation={}
 -- crystal must not block a second, already-settled card from updating.
 trackerPrivate.pendingSeatSettles={}
 trackerPrivate.pendingSeatRender={}
+-- Opt-in ring trace for reproducing a stalled tracker without permanent log spam.
+-- Use the admin chat commands !trackertrace on/status/dump/off.
+trackerPrivate.traceEnabled=false
+trackerPrivate.traceLines={}
+trackerPrivate.traceSequence=0
+trackerPrivate.traceEvent=function(event,seat,guid,detail)
+    if not trackerPrivate.traceEnabled then return end
+    trackerPrivate.traceSequence=trackerPrivate.traceSequence+1
+    local line=string.format("%04d %s seat=%s guid=%s %s",
+        trackerPrivate.traceSequence,tostring(event),tostring(seat or "-"),
+        tostring(guid or "-"),tostring(detail or ""))
+    local lines=trackerPrivate.traceLines
+    lines[#lines+1]=line
+    if #lines>180 then table.remove(lines,1) end
+end
+
+function resourceCardsTraceCommand(command,playerColor)
+    command=command or "status"
+    if command=="on" then
+        trackerPrivate.traceEnabled=true
+        trackerPrivate.traceLines={}
+        trackerPrivate.traceSequence=0
+        trackerPrivate.traceEvent("trace.enabled")
+    elseif command=="off" then
+        trackerPrivate.traceEvent("trace.disabled")
+        trackerPrivate.traceEnabled=false
+    elseif command=="dump" then
+        log("[TrackerTrace] BEGIN "..tostring(#trackerPrivate.traceLines).." events")
+        for _,line in ipairs(trackerPrivate.traceLines) do
+            log("[TrackerTrace] "..line)
+        end
+        log("[TrackerTrace] END")
+    elseif command~="status" then
+        return false
+    end
+    local movements={}
+    for guid,movement in pairs(trackerPrivate.playCardMovements or {}) do
+        local obj=getObjectFromGUID(guid)
+        local held=obj~=nil and obj.held_by_color or nil
+        local smooth=obj~=nil and obj.isSmoothMoving~=nil and obj.isSmoothMoving() or false
+        movements[#movements+1]=guid.."(seat="..tostring(movement.seatPos)
+            ..",held="..tostring(held)..",smooth="..tostring(smooth)
+            ..",watch="..tostring(movement.releasing)
+            ..",samples="..tostring(movement.samples)..")"
+    end
+    table.sort(movements)
+    local seat=turnOrder~=nil and gStates~=nil
+        and turnOrder[gStates.turnNumber]~=nil
+        and turnOrder[gStates.turnNumber].seatPos or nil
+    local pending=seat~=nil and trackerPrivate.pendingSeatSettles[seat] or nil
+    local pendingCount=0
+    for _ in pairs(pending or {}) do pendingCount=pendingCount+1 end
+    local status="Tracker trace "..(trackerPrivate.traceEnabled and "ON" or "OFF")
+        .."; panel="..tostring(resourceCardsPanelOpen())
+        .."; seat="..tostring(seat)
+        .."; renderQueued="..tostring(seat~=nil and trackerPrivate.pendingSeatRender[seat] or nil)
+        .."; settleWaits="..pendingCount
+        .."; movements="..(#movements>0 and table.concat(movements,", ") or "none")
+        .."; events="..#trackerPrivate.traceLines
+    log("[TrackerTrace] "..status)
+    if playerColor~=nil then
+        broadcastToColor(status,playerColor,{0.7,0.9,1})
+    end
+    return true
+end
 local shown={}
 -- Mana crystal figurines are still read for powering cards, but should never
 -- receive Resource Tracker highlights. Avoid repeated highlightOff calls.
@@ -9907,6 +9972,7 @@ local function renderSeat(seatPos)
     if not resourceCardsPanelOpen() then return end
     local active=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if active==nil or active.seatPos~=seatPos then return end
+    if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("render.start",seatPos) end
     -- Keep the last complete calculator result while a played card is carried
     -- or its final X/Z/orientation is being confirmed. Never publish a
     -- half-empty scan that discards a choice or replaces an explicit target.
@@ -9914,7 +9980,15 @@ local function renderSeat(seatPos)
         local live=getObjectFromGUID(guid)
         if live==nil or (live.isDestroyed~=nil and live.isDestroyed()) then
             trackerPrivate.playCardMovements[guid]=nil
-        elseif movement.seatPos==seatPos then return end
+        elseif movement.seatPos==seatPos then
+            if trackerPrivate.traceEnabled then
+                trackerPrivate.traceEvent("render.blocked",seatPos,guid,
+                    "watch="..tostring(movement.releasing)
+                    .." samples="..tostring(movement.samples)
+                    .." held="..tostring(live.held_by_color))
+            end
+            return
+        end
     end
     trackerPrivate.renderCombatNight=nil
 
@@ -12818,12 +12892,17 @@ local function renderSeat(seatPos)
         steadyTempoRefreshAll()
     end
     trackerPrivate.renderCombatNight=nil
+    if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("render.done",seatPos) end
 end
 
 local function scheduleSeatRender(seatPos)
     local generation=trackerPrivate.generation[seatPos] or 0
-    if trackerPrivate.pendingSeatRender[seatPos]==generation then return end
+    if trackerPrivate.pendingSeatRender[seatPos]==generation then
+        if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("render.coalesced",seatPos) end
+        return
+    end
     trackerPrivate.pendingSeatRender[seatPos]=generation
+    if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("render.queued",seatPos,nil,"gen="..generation) end
     safeWaitFrames("PlayerBoard.CardRecognition",function()
         if trackerPrivate.pendingSeatRender[seatPos]~=generation then return end
         trackerPrivate.pendingSeatRender[seatPos]=nil
@@ -12840,13 +12919,18 @@ local function queueSeat(seatPos,triggerGUID)
     local waits=trackerPrivate.pendingSeatSettles[seatPos]
     if waits==nil then waits={} trackerPrivate.pendingSeatSettles[seatPos]=waits end
     -- Zone entry and drop frequently report the same moving object.
-    if waits[triggerGUID]==generation then return end
+    if waits[triggerGUID]==generation then
+        if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("settle.coalesced",seatPos,triggerGUID) end
+        return
+    end
     local obj=getObjectFromGUID(triggerGUID)
     if obj==nil or trackerPrivate.readyForXZ(obj) then
+        if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("settle.ready",seatPos,triggerGUID) end
         scheduleSeatRender(seatPos)
         return
     end
     waits[triggerGUID]=generation
+    if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("settle.wait",seatPos,triggerGUID) end
     local function stillCurrent()
         return (trackerPrivate.generation[seatPos] or 0)==generation
             and trackerPrivate.pendingSeatSettles[seatPos]==waits
@@ -12855,6 +12939,7 @@ local function queueSeat(seatPos,triggerGUID)
     local function settled()
         if not stillCurrent() then return end
         waits[triggerGUID]=nil
+        if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("settle.done",seatPos,triggerGUID) end
         scheduleSeatRender(seatPos)
     end
     safeWaitCondition("PlayerBoard.CardRecognition",settled,function()
@@ -12865,16 +12950,23 @@ local function queueSeat(seatPos,triggerGUID)
         -- A perpetually held/rolling token must not keep the watcher alive
         -- or delay other objects' refreshes. Its eventual drop queues anew.
         if trackerPrivate.pendingSeatSettles[seatPos]==waits
-            and waits[triggerGUID]==generation then waits[triggerGUID]=nil end
+            and waits[triggerGUID]==generation then
+            waits[triggerGUID]=nil
+            if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("settle.timeout",seatPos,triggerGUID) end
+        end
     end)
 end
 
 function resourceCardsSourceChanged()
     local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
-    if current~=nil and resourceCardsPanelOpen() then queueSeat(current.seatPos,nil) end
+    if current~=nil and resourceCardsPanelOpen() then
+        if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("source.changed",current.seatPos) end
+        queueSeat(current.seatPos,nil)
+    end
 end
 
 local function clearAll()
+    if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("tracker.reset") end
     for seat=1,4 do trackerPrivate.generation[seat]=(trackerPrivate.generation[seat] or 0)+1 end
     trackerPrivate.pendingSeatSettles={}
     trackerPrivate.pendingSeatRender={}
@@ -14093,6 +14185,13 @@ function resourceCardsObjectPickedUp(obj)
             targets=savedTargets,posture=cardPosture(obj),
             faceDown=obj.is_face_down
         }
+        if trackerPrivate.traceEnabled then
+            trackerPrivate.traceEvent("move.pickup",seat,obj.guid,
+                "held="..tostring(obj.held_by_color))
+        end
+        -- A normal Drop is not guaranteed (e.g. the native U/Place Under
+        -- action). Watch every known pickup until the object is released.
+        trackerPrivate.finishPlayCardMove(obj)
     end
 end
 
@@ -14125,21 +14224,29 @@ trackerPrivate.finishPlayCardMove=function(obj)
     state.consecutive=0
     state.last=nil
     local guid=obj.guid
+    if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("move.watch",state.seatPos,guid) end
     local function sample()
         if trackerPrivate.playCardMovements[guid]~=state then return end
         local live=getObjectFromGUID(guid)
-        if live==nil then
+        if live==nil or (live.isDestroyed~=nil and live.isDestroyed()) then
             trackerPrivate.playCardMovements[guid]=nil
+            if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("move.gone",state.seatPos,guid) end
             queueSeat(state.seatPos,nil)
             return
         end
         state.samples=state.samples+1
-        if (live.held_by_color~=nil and live.held_by_color~="")
-            or live.isSmoothMoving() then
-            -- A new drop restarts this watcher if TTS briefly still reports
-            -- the object as held. Do not unblock a genuinely held card.
-            if state.samples>=30 then state.releasing=nil
-            else safeWaitFrames("PlayerBoard.CardRecognition",sample,1) end
+        local held=live.held_by_color~=nil and live.held_by_color~=""
+        local smooth=live.isSmoothMoving()
+        if held or smooth then
+            -- Never abandon the watcher with the movement lock still set.
+            -- A missed onObjectDrop (notably U/Place Under) must not freeze
+            -- every future option button and combat calculator refresh.
+            if trackerPrivate.traceEnabled and (state.samples==1 or state.samples%90==0) then
+                trackerPrivate.traceEvent("move.wait",state.seatPos,guid,
+                    "held="..tostring(held).." smooth="..tostring(smooth)
+                    .." samples="..state.samples)
+            end
+            safeWaitFrames("PlayerBoard.CardRecognition",sample,held and 6 or 3)
             return
         end
         local pos=live.getPosition()
@@ -14169,6 +14276,10 @@ trackerPrivate.finishPlayCardMove=function(obj)
         end
         trackerPrivate.restorePlayCardMove(live,state)
         trackerPrivate.playCardMovements[guid]=nil
+        if trackerPrivate.traceEnabled then
+            trackerPrivate.traceEvent("move.complete",state.seatPos,guid,
+                "samples="..state.samples.." onMat="..tostring(cardInSeatPlayArea(guid,state.seatPos)))
+        end
         -- Resume a single complete scan; normal drop handling determines
         -- whether this was a reposition or a genuine departure from play.
         resourceCardsObjectMoved(live,true)
@@ -14177,11 +14288,41 @@ trackerPrivate.finishPlayCardMove=function(obj)
     safeWaitFrames("PlayerBoard.CardRecognition",sample,1)
 end
 
+-- Native TTS Place Under (U) does not promise a pickup/drop or zone change.
+-- Mark existing play sources before the action, then reconcile the target(s)
+-- after TTS has applied it, including non-Card Skills and Faction Rewards.
+function resourceCardsUnderAction(targets)
+    if not resourceCardsPanelOpen() then return end
+    local guids={}
+    for _,obj in ipairs(targets or {}) do
+        if obj~=nil and obj.guid~=nil then
+            guids[#guids+1]=obj.guid
+            if trackerPrivate.traceEnabled then
+                trackerPrivate.traceEvent("action.under",nil,obj.guid)
+            end
+            resourceCardsObjectPickedUp(obj)
+        end
+    end
+    if #guids==0 then return end
+    safeWaitFrames("PlayerBoard.CardRecognition",function()
+        for _,guid in ipairs(guids) do
+            local obj=getObjectFromGUID(guid)
+            if obj~=nil and (obj.isDestroyed==nil or not obj.isDestroyed()) then
+                resourceCardsObjectMoved(obj)
+            end
+        end
+        resourceCardsSourceChanged()
+    end,2)
+end
+
 function resourceCardsZoneEntered(ctx)
     if not resourceCardsPanelOpen() or ctx==nil or ctx.zoneInfo==nil then return end
     -- Filter irrelevant zones and other players before touching the Unit layout.
     local seat=resourceCardsRelevantZone(ctx)
     if seat==nil then return end
+    if trackerPrivate.traceEnabled then
+        trackerPrivate.traceEvent("zone.enter",seat,ctx.objGUID,ctx.zoneInfo.kind)
+    end
     if ctx.zoneInfo.kind=="play" and ctx.objType~="Dice"
         and trackerPrivate.playCandidateKind(resourceObjectKind(ctx.obj)) then
         -- A returned card invalidates any delayed choice-clear queued by its
@@ -14196,6 +14337,7 @@ function resourceCardsZoneEntered(ctx)
             or trackerPrivate.playCardMovements[ctx.objGUID]~=nil
         candidates[ctx.objGUID]=true
         if alreadyPlayed then
+            if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("zone.reentry",seat,ctx.objGUID) end
             -- TTS emits EnterZone again when a relocated card falls through
             -- the thin zone. That is not a new play or another pickup.
             -- onObjectDrop owns its one reconciliation, even if the zone
@@ -14225,6 +14367,9 @@ end
 function resourceCardsZoneLeft(ctx)
     if not resourceCardsPanelOpen() or ctx==nil or ctx.zoneInfo==nil then return end
     local seat=resourceCardsRelevantZone(ctx)
+    if trackerPrivate.traceEnabled then
+        trackerPrivate.traceEvent("zone.leave",seat,ctx.objGUID,ctx.zoneInfo.kind)
+    end
     if ctx.zoneInfo.kind=="play" then
         if ctx.obj~=nil and trackerPrivate.playCandidateKind(resourceObjectKind(ctx.obj))
             and (combatConfig.cardInTransit(ctx.obj)
@@ -14233,6 +14378,7 @@ function resourceCardsZoneLeft(ctx)
             -- physically over the play mat, not an ended play. Crucially,
             -- do not schedule a delayed choice reset here: onDrop owns the
             -- final departure check, and reentry may occur after the timer.
+            if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("zone.leave-transit",seat,ctx.objGUID) end
             return
         end
         scheduleChoiceResetAfterPlay(ctx.objGUID,ctx.zoneInfo.seatPos)
@@ -14243,6 +14389,10 @@ end
 
 function resourceCardsObjectMoved(obj,stabilized)
     if obj==nil or not resourceCardsPanelOpen() then return end
+    if trackerPrivate.traceEnabled then
+        trackerPrivate.traceEvent("object.moved",nil,obj.guid,
+            "stable="..tostring(stabilized).." held="..tostring(obj.held_by_color))
+    end
     -- Some entries are reported only after the card is dropped. Protect that
     -- first scan too, even if no pickup/enter event registered the movement.
     if not stabilized and obj.type~="Dice" and obj.resting==false
