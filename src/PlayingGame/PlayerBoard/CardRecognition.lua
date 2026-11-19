@@ -14322,23 +14322,69 @@ end
 -- after TTS has applied it, including non-Card Skills and Faction Rewards.
 function resourceCardsUnderAction(targets)
     if not resourceCardsPanelOpen() then return end
-    local guids={}
+    local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    local seat=active~=nil and active.seatPos or nil
+    local zoneGUID=seat~=nil and playerPlayAreas~=nil and playerPlayAreas[seat] or nil
+    local playZone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
+    local guids,playedCardUnder={},false
     for _,obj in ipairs(targets or {}) do
         if obj~=nil and obj.guid~=nil then
             guids[#guids+1]=obj.guid
+            if playZone~=nil and trackerPrivate.playCandidateKind(resourceObjectKind(obj))
+                and trackerPrivate.zoneFootprintContainsXZ(obj,playZone) then
+                playedCardUnder=true
+            end
             if trackerPrivate.traceEnabled then
-                trackerPrivate.traceEvent("action.under",nil,obj.guid)
+                trackerPrivate.traceEvent("action.under",seat,obj.guid)
             end
             resourceCardsObjectPickedUp(obj)
         end
     end
     if #guids==0 then return end
+    local session=trackerPrivate.trackerSession
     safeWaitFrames("PlayerBoard.CardRecognition",function()
+        if trackerPrivate.trackerSession~=session or not resourceCardsPanelOpen() then return end
         for _,guid in ipairs(guids) do
             local obj=getObjectFromGUID(guid)
             if obj~=nil and (obj.isDestroyed==nil or not obj.isDestroyed()) then
                 resourceCardsObjectMoved(obj)
             end
+        end
+        -- Native Under changes card height, sometimes nudging a die that was
+        -- above the deliberately shallow play zone. It may not emit a Die
+        -- pickup/drop/zone event. Discover only mana dice above this play mat,
+        -- on this rare action, and watch their actual resting faces.
+        if playedCardUnder and seat~=nil then
+            local candidates=trackerPrivate.unitManaCandidatesBySeat[seat]
+            if candidates==nil then
+                candidates={}
+                trackerPrivate.unitManaCandidatesBySeat[seat]=candidates
+            end
+            for _,obj in ipairs(getAllObjects()) do
+                if obj.type=="Dice" and scriptObjectId(obj)=="Mana Dice"
+                    and trackerPrivate.zoneFootprintContainsXZ(obj,playZone) then
+                    candidates[obj.guid]=true
+                    if trackerPrivate.traceEnabled then
+                        trackerPrivate.traceEvent("under.mana",seat,obj.guid,
+                            "resting="..tostring(obj.resting))
+                    end
+                    queueSeat(seat,obj.guid)
+                end
+            end
+            -- If TTS starts jostling the die after its first frame, sample
+            -- again; the normal per-object watcher then owns final settling.
+            safeWaitFrames("PlayerBoard.CardRecognition",function()
+                if trackerPrivate.trackerSession~=session
+                    or not resourceCardsPanelOpen() then return end
+                for guid in pairs(candidates) do
+                    local die=getObjectFromGUID(guid)
+                    if die~=nil and die.type=="Dice"
+                        and trackerPrivate.zoneFootprintContainsXZ(die,playZone) then
+                        queueSeat(seat,guid)
+                    end
+                end
+                resourceCardsSourceChanged()
+            end,22)
         end
         resourceCardsSourceChanged()
     end,2)
