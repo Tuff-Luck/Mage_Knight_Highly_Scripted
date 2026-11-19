@@ -10425,7 +10425,7 @@ local function renderSeat(seatPos)
                         and (matchesCardMana(card,color)
                             or (specialPaymentByCard[card.guid]~=nil
                                 and (specialPaymentByCard[card.guid].colors[color]~=nil
-                                    or (color=="Gold" and resourceCardsGoldAllowed())))
+                                    or (color=="Gold" and resourceCardsGoldAllowed()))))
                 end)
                 if best~=nil then spendMana(best,color,mana.guid) end
             end
