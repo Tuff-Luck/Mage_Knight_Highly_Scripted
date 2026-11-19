@@ -135,6 +135,30 @@ assert(pcall(__onObjectDestroy_raw,{guid="bad_marker",getName=function() return 
     getGMNotes=function() return "" end}),"Destroyed marker classification aborted cleanup")
 mapTokenNeedsArrangement=function() return false end
 
+-- Zone exits must ignore expired native userdata without suppressing real setup events.
+local zoneLeaveRefreshes=0
+playerZoneLookup={test_zone={kind="play"}}
+refreshHigherLevelSetupUI=function() zoneLeaveRefreshes=zoneLeaveRefreshes+1 end
+gStates.mageKnightLevels=true
+local liveTestZone={guid="test_zone",isDestroyed=function() return false end}
+local liveTestCard={guid="live_card",type="Card",isDestroyed=function() return false end}
+assert(pcall(__onObjectLeaveZone_raw,liveTestZone,liveTestCard),"Valid setup-zone departure errored")
+equal(zoneLeaveRefreshes,1,"Valid zone departure was incorrectly suppressed")
+local expiredTestCard=setmetatable({guid="expired_card"},{
+    __index=function(_,key)
+        if key=="type" then error("Object reference not set to an instance of an object") end
+    end
+})
+assert(pcall(__onObjectLeaveZone_raw,liveTestZone,expiredTestCard),"Expired zone-exit object errored")
+assert(pcall(__onObjectLeaveZone_raw,liveTestZone,
+    {guid="retiring",type="Card",isDestroyed=function() return true end}),
+    "Destroyed object passed through zone exit")
+assert(pcall(__onObjectLeaveZone_raw,
+    {guid="test_zone",isDestroyed=function() return true end},liveTestCard),
+    "Destroyed scripting zone passed through zone exit")
+equal(zoneLeaveRefreshes,1,"Expired/destroyed zone events reached gameplay handlers")
+gStates.mageKnightLevels=nil
+
 -- Losing only one fixture must not suppress real in-game destruction cleanup.
 local previousWork=#deferredDestroyWork
 permanentAnchors.map=nil
@@ -149,6 +173,9 @@ assert(pcall(__onObjectDestroy_raw,{guid="exit_object"}))
 assert(pcall(__onObjectDestroy_raw,{guid="exit_object_again"}))
 equal(teardownStops,1,"Shutdown must cancel pending waits only once")
 equal(#deferredDestroyWork,previousWork,"Exit destruction scheduled more cleanup")
+assert(pcall(__onObjectLeaveZone_raw,liveTestZone,liveTestCard),
+    "Zone exit raised after shutdown confirmation")
+equal(zoneLeaveRefreshes,1,"Confirmed teardown ran normal zone gameplay logic")
 
 -- Event loops waiting for physics must terminate or take their bounded fallback.
 local pending
