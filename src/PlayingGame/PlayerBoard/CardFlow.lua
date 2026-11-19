@@ -924,6 +924,8 @@ function drawUpTo(player, mouseButton, id)
 						local deckPos={-74.19+(40*(turnOrder[turnAffected].seatPos-1)), 1.50, -43.16}
 						if deedDeck~=nil then
 							if deedDeck.type=="Deck" then
+								-- Recover the normal deck size before any extracted card inherits it.
+								deedDeck.setScale({1.5,1,1.5})
 								local deckQuantity=deedDeck.getQuantity()
 								local drawNow=math.min(drawNeeded, deckQuantity)
 								excess=drawNeeded-drawNow
@@ -932,7 +934,10 @@ function drawUpTo(player, mouseButton, id)
 								if takeRemainder==true then deckTakes=math.max(0,deckQuantity-1) end
 								for x=1, deckTakes do
 									local drawn=deedDeck.takeObject({position=deedHandDrawPosition(playerPosition,x), rotation={0, 180, 0}, smooth=true})
-									if drawn~=nil then turnOrder[turnAffected].deedCount=math.max(0,(turnOrder[turnAffected].deedCount or 0)-1) end
+									if drawn~=nil then
+										drawn.setScale({1.5,1,1.5})
+										turnOrder[turnAffected].deedCount=math.max(0,(turnOrder[turnAffected].deedCount or 0)-1)
+									end
 								end
 								if takeRemainder==true then
 									safeWaitFrames("PlayerBoard.CardFlow",function()
@@ -1117,6 +1122,11 @@ function cleanupPlayedCardAtEndTurn(card, playerIndex, cardDestination)
 
 	for _, ownedGUID in ipairs(turnOrder[playerIndex].deadDeckInventory or {}) do
 		if card.guid==ownedGUID then
+			-- Cards may be temporarily shrunk on the play mat. Remove that scale
+			-- record before setting the fixed discard/hand size so a delayed zone
+			-- exit cannot apply the old multiplier in reverse.
+			if playAreaScaleForgetObject~=nil then playAreaScaleForgetObject(card) end
+			card.setScale({1.5,1,1.5})
 			if gStates.timeBending=="Started" and playerIndex==gStates.realTurn then
 				if card.guid==(gStates.timeBendingRemovedGUID or timeBendingGUID) then
 					gStates.timeBendingRemovedSeat=turnOrder[playerIndex].seatPos
@@ -1131,6 +1141,8 @@ function cleanupPlayedCardAtEndTurn(card, playerIndex, cardDestination)
 				card.setPosition({(turnOrder[playerIndex].seatPos*40)-110.54,1.12,-43.20})
 				cardDestination=card
 			else
+				-- An already-shrunken discard Card/Deck must not seed the new pile.
+				cardDestination.setScale({1.5,1,1.5})
 				local cardPos=card.getPosition()
 				card.setPosition({cardPos[1],1.9,cardPos[3]})
 				cardDestination=cardDestination.putObject(card)
