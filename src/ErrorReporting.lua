@@ -323,7 +323,12 @@ function safeZoneCallback(functionName, callback, zone, obj)
 	automaticLuaProtectedCallbackDepth=automaticLuaProtectedCallbackDepth-1
 	if not ok then
 		automaticLuaBreadcrumb(functionName)
-		reportAutomaticLuaError(functionName,result,automaticLuaZoneContext(zone,obj))
+		-- During table teardown, TTS can expire the zone/object before its error
+		-- context is constructed. A failure in diagnostics must never escape the
+		-- already-protected callback and create a second player-facing Lua error.
+		local contextOK,context=pcall(automaticLuaZoneContext,zone,obj)
+		if not contextOK then context="Zone/object context unavailable: "..tostring(context) end
+		reportAutomaticLuaError(functionName,result,context)
 		return false
 	end
 	return result
@@ -366,14 +371,12 @@ function testAutomaticLuaAsyncError()
 end
 
 automaticLuaZoneContext=function(zone, obj)
-	local objectGUID=obj~=nil and obj.guid or "nil"
-	local zoneGUID=zone~=nil and zone.guid or "nil"
-	local objectType=obj~=nil and obj.type or "nil"
-	local objectName=""
-	if obj~=nil then
-		local ok, name=pcall(function() return obj.getName() end)
-		if ok==true and name~=nil then objectName=tostring(name) end
-	end
+	-- GUID and type property reads can themselves throw for expired TTS userdata.
+	-- Capture each field independently so even a half-destroyed object is reportable.
+	local objectGUID=automaticLuaErrorValue(function() return obj~=nil and obj.guid or nil end,"unavailable")
+	local zoneGUID=automaticLuaErrorValue(function() return zone~=nil and zone.guid or nil end,"unavailable")
+	local objectType=automaticLuaErrorValue(function() return obj~=nil and obj.type or nil end,"unavailable")
+	local objectName=automaticLuaErrorValue(function() return obj~=nil and obj.getName() or nil end,"")
 	local context="Object: "..tostring(objectGUID)..(objectName~="" and " ("..objectName..")" or "")..
 		"\nObject type: "..tostring(objectType)..
 		"\nZone: "..tostring(zoneGUID)
