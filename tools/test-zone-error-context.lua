@@ -64,4 +64,10 @@ assert(callbackResult==false and #errors==2,"Diagnostic failure escaped its guar
 assert(errors[2].context:find("Zone/object context unavailable:",1,true),
     "Missing fallback for failed zone-context builder")
 
+-- Sending the report can itself fail when the native WebRequest layer shuts down.
+env.reportAutomaticLuaError=function() error("WebRequest unavailable during shutdown",0) end
+assert(safeZoneCallback("onObjectLeaveZone",function()
+    error("Original callback error",0)
+end,disposed,disposed)==false,"Failed native report escaped the zone callback")
+
 print("Expired-zone diagnostics regression passed")
