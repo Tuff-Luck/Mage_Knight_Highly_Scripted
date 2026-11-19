@@ -14138,15 +14138,13 @@ function resourceCardsOnLoad(restoringSave)
         resourceCardsPanelChanged(false)
         return
     end
-    -- TTS rewinds rebuild Global XML from its collapsed defaults. The active
-    -- seat's saved enabled preference is the expand/collapse state, so restore
-    -- it before waiting for the panel to become ready and rescanning cards.
-    -- Ordinary reopen/turn-handoff calls leave the caller's UI state intact.
+    -- TTS rewinds rebuild Global XML with a 35px collapsed root. Size the
+    -- tracker first, then reveal its details, so the lower-anchored contents
+    -- cannot cover the header/minimize button during the load transition.
     if restoringSave==true and current~=nil then
-        UI.setAttribute("ResourceTrackerDetail","active","true")
-    end
-    -- Repair an expanded panel whose child flags outlived its height.
-    if UI.getAttribute("ResourceTrackerDetail","active")=="true" then
+        resourceTrackerRestoreExpandedLayout()
+    elseif UI.getAttribute("ResourceTrackerDetail","active")=="true" then
+        -- Normal reopen/turn handoff keeps any chosen nested sections.
         resourceTrackerSyncLayout(true)
     end
     trackerPrivate.trackerStartupRequest=trackerPrivate.trackerStartupRequest+1
