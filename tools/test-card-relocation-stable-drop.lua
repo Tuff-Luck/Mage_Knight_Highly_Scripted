@@ -82,7 +82,7 @@ local env={
     end,
     resourceCardsPanelOpen=function() return true end,
     resourceObjectKind=function() return "card" end,
-    safeWaitFrames=function(_,callback)
+    safeWaitFrames=function(_owner,callback,_frames)
         frames[#frames+1]=callback
         return #frames
     end,
