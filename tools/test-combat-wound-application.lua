@@ -600,6 +600,25 @@ resourceCardsApplyCombatWounds({color="Red"})
 eq(stageCalls[2],"swiftness","retry moves only the remaining Attack")
 eq(stageFailed.playDiscardApplied.swiftness,true,"retry persists staged transfer")
 
+-- Save/reload may rescan an empty play area after cards were physically
+-- discarded. The stored phaseLock must keep the original candidate GUIDs;
+-- only the uncommitted ones remain eligible on recovery.
+gStates.combatWoundApplication=nil
+combatConfig.woundRecordPreview(1,{{key="savedStage:1"}},{
+    ["savedStage:1"]={heroWounds=0,discard=0,paralyse=false,units={}}},
+    true,0,{"rage","swiftness"})
+local savedStage=gStates.combatWoundApplication
+savedStage.phaseLock={attackDiscards={"rage","swiftness"}}
+savedStage.playDiscardApplied.rage=true
+combatConfig.woundRecordPreview(1,{{key="savedStage:1"}},{
+    ["savedStage:1"]={heroWounds=0,discard=0,paralyse=false,units={}}},
+    true,0,{})
+local _,_,_,_,savedStageEffects=combatConfig.woundPending(savedStage)
+eq(savedStageEffects.stagedDiscardCount,1,
+    "save/reload preserves the one remaining staged discard")
+eq(savedStageEffects.stagedDiscards[1],"swiftness",
+    "save/reload never re-discards the committed Rage card")
+
 assert(recognition:find("effects.destroyCount>0",1,true),
     "Paralysis-only effects must show the Apply row")
 assert(recognition:find("combatConfig.captureParalyzedUnitSources(seat,effect.guid)",1,true),
