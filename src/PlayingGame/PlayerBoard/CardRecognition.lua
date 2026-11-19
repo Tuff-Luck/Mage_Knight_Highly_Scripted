@@ -9299,6 +9299,7 @@ end
 trackerPrivate.bestManaCard=function(mana,cards,footprints,eligible)
     local p=mana.getPosition()
     local px,pz=p.x or p[1],p.z or p[3]
+    local py=p.y or p[2]
     local best,bestY,bestDistance=nil,nil,nil
     for _,card in ipairs(cards) do
         local f=footprints[card.guid]
@@ -9309,10 +9310,12 @@ trackerPrivate.bestManaCard=function(mana,cards,footprints,eligible)
                 local cp=card.getPosition()
                 local y=cp.y or cp[2] or 0
                 local distance=dx*dx+dz*dz
-                if best==nil or y>bestY+0.001
+                -- A payment tucked between cards cannot power a card above it.
+                if (py==nil or y<=py+0.15)
+                    and (best==nil or y>bestY+0.001
                     or (math.abs(y-bestY)<=0.001
                         and (distance<bestDistance
-                            or (distance==bestDistance and card.guid<best.guid))) then
+                            or (distance==bestDistance and card.guid<best.guid)))) then
                     best,bestY,bestDistance=card,y,distance
                 end
             end
@@ -10122,6 +10125,7 @@ local function renderSeat(seatPos)
                     -- Use the top of the stack to establish that the mana is
                     -- physically on the cards. Comparing its Y against *each*
                     -- buried card can reject a valid die after U/Place Under.
+                    local manaY=pos.y or pos[2]
                     local highestCardY=nil
                     for cardGUID,card in pairs(objects) do
                         if placements[cardGUID]=="play"
@@ -10131,14 +10135,13 @@ local function renderSeat(seatPos)
                             local cy=cardPos.y or cardPos[2]
                             if math.abs(pos[1]-area.x)<area.halfX
                                 and math.abs(pos[3]-area.z)<area.halfZ
-                                and cy~=nil and (highestCardY==nil or cy>highestCardY) then
+                                and cy~=nil and manaY~=nil and cy<=manaY+0.15
+                                and (highestCardY==nil or cy>highestCardY) then
                                 highestCardY=cy
                             end
                         end
                     end
-                    local manaY=pos.y or pos[2]
-                    if highestCardY~=nil and manaY~=nil
-                        and manaY>=highestCardY-0.15 and manaY-highestCardY<3 then
+                    if highestCardY~=nil and manaY-highestCardY<3 then
                         objects[guid]=mana
                         objectKinds[guid]="mana"
                         placements[guid]="play"
