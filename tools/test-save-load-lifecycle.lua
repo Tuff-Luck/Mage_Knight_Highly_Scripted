@@ -150,14 +150,24 @@ eq(ok,false,"invalid essential configuration rejected")
 -- The first real ready-panel startup must restore arrows before asking
 -- the tracker to scan. Later ordinary reopen calls must not restore again.
 local startupEvents={}
+local savedDetailActive="false" -- Loaded XML defaults to closed after a rewind.
+local savedSeatEnabled=true
+local startupLayoutExpanded=nil
 local startupEnv={
     gStates={firstStarted=true,turnNumber=1},
     turnOrder={{seatPos=1}},
     trackerPrivate={trackerStartupRequest=0,restoreAssignmentsPending=false},
-    resourceCardsSeatEnabled=function() return true end,
-    resourceCardsPanelReady=function() return true end,
-    resourceTrackerSyncLayout=function() end,
-    UI={getAttribute=function() return "true" end},
+    resourceCardsSeatEnabled=function() return savedSeatEnabled end,
+    resourceCardsPanelReady=function() return savedDetailActive=="true" end,
+    resourceTrackerSyncLayout=function(expanded) startupLayoutExpanded=expanded end,
+    UI={
+        getAttribute=function(id,attribute)
+            if id=="ResourceTrackerDetail" and attribute=="active" then return savedDetailActive end
+        end,
+        setAttribute=function(id,attribute,value)
+            if id=="ResourceTrackerDetail" and attribute=="active" then savedDetailActive=value end
+        end
+    },
     attackAssignmentsRestore=function() startupEvents[#startupEvents+1]="restore" end,
     resourceCardsPanelChanged=function(open)
         startupEvents[#startupEvents+1]=open and "scan" or "close"
@@ -171,11 +181,22 @@ local startup=loadSection(cards,"function resourceCardsOnLoad(restoringSave)",
     "local function resourceCardsRelevantZone(ctx)",startupEnv,
     "return resourceCardsOnLoad")
 startup(true)
+eq(savedDetailActive,"true","rewind restores the saved expanded panel over closed XML")
+eq(startupLayoutExpanded,true,"restored tracker gets expanded height before scan")
 eq(startupEvents[1],"restore","saved arrows restore first")
 eq(startupEvents[2],"scan","initial scan starts after restore")
 startup()
 eq(#startupEvents,3,"reopening must not repeat assignment recovery")
 eq(startupEvents[3],"scan","reopen still initiates scan")
+
+-- A seat whose tracker was explicitly minimized at the checkpoint must
+-- stay minimized rather than being reopened by the saved-game startup.
+savedSeatEnabled=false
+savedDetailActive="true"
+startup(true)
+eq(savedDetailActive,"false","saved minimized tracker stays closed on rewind")
+eq(startupLayoutExpanded,false,"closed tracker gets collapsed height")
+eq(startupEvents[4],"close","saved minimized tracker does not start a scan")
 
 -- Previously persisted cleanup checkpoints must resume without replaying
 -- already-processed physical objects or inventing a new cleanup sequence.
