@@ -7043,21 +7043,96 @@ local function trackerChoiceScores(guid,seatPos)
     return scores
 end
 
-local function guessInitialCardChoice(card,choices,seatPos,rule,sideways)
+-- First try to match a resource already contributed by an overlapping (or
+-- closely adjacent) played card. Only the first guess uses this spatial hint:
+-- selecting an option manually, lifting cards and using U/Place Under must
+-- never reassign a previously chosen option.
+local function nearbyCardChoice(card,choices,seatPos,cards,footprints,records)
+    local own=footprints[card.guid]
+    if own==nil then return nil end
+    local available={}
+    for _,choice in ipairs(choices) do
+        local category=choiceCategory(choice)
+        if category~=nil and choiceLetters[category]~=nil then
+            local rank=resourceChoiceRank(category,choice)
+            if rank<=#resourceChoiceFamilies and available[rank]==nil then
+                available[rank]=category
+            end
+        end
+    end
+    if next(available)==nil then return nil end
+    local previous=resourceCardScanBySeat[seatPos]
+    local best=nil
+    for _,other in ipairs(cards) do
+        if other.guid~=card.guid and other.is_face_down~=true
+            and cardPosture(other)~="discard" then
+            local area=footprints[other.guid]
+            if area~=nil then
+                local gapX=math.max(0,math.abs(own.x-area.x)-own.halfX-area.halfX)
+                local gapZ=math.max(0,math.abs(own.z-area.z)-own.halfZ-area.halfZ)
+                -- Allow a narrow gap beside a card, not unrelated cards elsewhere
+                -- on the mat. Actual overlap always takes precedence over a gap.
+                local reach=math.min(own.halfX,area.halfX)*0.5
+                local gap=gapX*gapX+gapZ*gapZ
+                if gap<=reach*reach then
+                    local record=records[other.guid]
+                        or (previous~=nil and previous.cards[other.guid] or nil)
+                    if record~=nil and record.complete==true
+                        and type(record.resources)=="table" then
+                        local overlapX=math.max(0,
+                            math.min(own.x+own.halfX,area.x+area.halfX)
+                            -math.max(own.x-own.halfX,area.x-area.halfX))
+                        local overlapZ=math.max(0,
+                            math.min(own.z+own.halfZ,area.z+area.halfZ)
+                            -math.max(own.z-own.halfZ,area.z-area.halfZ))
+                        local overlap=overlapX*overlapZ
+                        local distance=(own.x-area.x)^2+(own.z-area.z)^2
+                        for rank,category in pairs(available) do
+                            local amount=0
+                            for _,key in pairs(resourceTotalsKeyByField[resourceChoiceFamilies[rank]]) do
+                                amount=amount+math.max(0,tonumber(record.resources[key]) or 0)
+                            end
+                            if amount>0 and (best==nil
+                                or overlap>best.overlap
+                                or (overlap==best.overlap and gap<best.gap)
+                                or (overlap==best.overlap and gap==best.gap
+                                    and distance<best.distance)
+                                or (overlap==best.overlap and gap==best.gap
+                                    and distance==best.distance and amount>best.amount)
+                                or (overlap==best.overlap and gap==best.gap
+                                    and distance==best.distance and amount==best.amount
+                                    and (rank<best.rank or (rank==best.rank
+                                        and other.guid<best.guid)))) then
+                                best={category=category,overlap=overlap,gap=gap,
+                                    distance=distance,amount=amount,rank=rank,guid=other.guid}
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return best~=nil and best.category or nil
+end
+
+local function guessInitialCardChoice(card,choices,seatPos,rule,sideways,cards,footprints,records)
     -- A Wound-paid spell must be confirmed by the player, never guessed.
     if rule~=nil and rule.woundConfirmation==true and not sideways then return end
     if selectedResourceByGUID[card.guid]~=nil or choices==nil or #choices<2
         or card.is_face_down==true then return end
-    local scores=trackerChoiceScores(card.guid,seatPos)
-    local best,bestValue,bestRank=nil,nil,nil
-    for _,choice in ipairs(choices) do
-        local category=choiceCategory(choice)
-        local rank=resourceChoiceRank(category,choice)
-        if category~=nil and choiceLetters[category]~=nil
-            and rank<=#resourceChoiceFamilies then
-            local value=scores[resourceChoiceFamilies[rank]]
-            if best==nil or value>bestValue or (value==bestValue and rank<bestRank) then
-                best,bestValue,bestRank=category,value,rank
+    local nearby=nearbyCardChoice(card,choices,seatPos,cards,footprints,records)
+    local scores=nearby==nil and trackerChoiceScores(card.guid,seatPos) or nil
+    local best,bestValue,bestRank=nearby,nil,nil
+    if best==nil then
+        for _,choice in ipairs(choices) do
+            local category=choiceCategory(choice)
+            local rank=resourceChoiceRank(category,choice)
+            if category~=nil and choiceLetters[category]~=nil
+                and rank<=#resourceChoiceFamilies then
+                local value=scores[resourceChoiceFamilies[rank]]
+                if best==nil or value>bestValue or (value==bestValue and rank<bestRank) then
+                    best,bestValue,bestRank=category,value,rank
+                end
             end
         end
     end
@@ -10616,7 +10691,8 @@ local function renderSeat(seatPos)
             end
         end
         if choices~=nil and cardPosture(card)~="discard" then
-            guessInitialCardChoice(card,choices,seatPos,rule,cardPosture(card)=="sideways")
+            guessInitialCardChoice(card,choices,seatPos,rule,cardPosture(card)=="sideways",
+                cards,footprints,records)
         end
         local result=calculateCard(card,powered[card.guid]==true or artifactBreak,boostBy[card.guid],
             links[card.guid],discarded[card.guid]~=nil,hasDiscard[card.guid]==true,
