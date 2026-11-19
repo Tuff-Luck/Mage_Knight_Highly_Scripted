@@ -63,7 +63,11 @@ deedDeckDiscardZones={}
 handZones={}
 gStates={firstStarted=false,mageSkills={},puppetMasterPuppets={},monsterPerks={},volkarePursuitShields={}}
 turnOrder={}
-attackAssignmentsClearForObject=function() end
+local clearedDestroyedAssignments={}
+attackAssignmentsClearForObject=function(guid)
+    assert(type(guid)=="string","Destroyed assignment cleanup must receive a GUID, not expired userdata")
+    clearedDestroyedAssignments[#clearedDestroyedAssignments+1]=guid
+end
 runtimeMapContainsGUID=function() return false end
 mapTokenNeedsArrangement=function() return false end
 apocalypseQuestScoreMarkerPlayerIndex=function() return nil end
@@ -76,7 +80,10 @@ avatarButtonXmlState={}
 isShieldObject=function() return false end
 scriptObjectId=function(obj) return obj.getName() end
 getObjectFromGUID=function() return nil end
-safeWaitFrames=function() end
+local deferredDestroyWork={}
+safeWaitFrames=function(_,callback)
+    deferredDestroyWork[#deferredDestroyWork+1]=callback
+end
 log=function() end
 dofile("src/PlayingGame/Events.lua")
 local expired={
@@ -104,6 +111,26 @@ local spentUnit={
 local unitOK,unitError=pcall(__onObjectDestroy_raw,spentUnit)
 assert(unitOK,"Destroyed Unit cleanup failed: "..tostring(unitError))
 equal(retiredUnit,"spent_unit","Destroyed Unit activation history was not retired")
+
+-- Target UI must not re-scan the scene until after the native destruction callback.
+equal(#clearedDestroyedAssignments,0,"Destroy event refreshed combat UI before TTS finished deleting objects")
+for _,callback in ipairs(deferredDestroyWork) do callback() end
+equal(clearedDestroyedAssignments[1],"expired","Expired object's combat links were not cleared by GUID")
+equal(clearedDestroyedAssignments[2],"spent_unit","Destroyed Unit's combat links were not cleared by GUID")
+
+-- A completely expired object may not even expose its GUID; still don't crash.
+local missingGUID=setmetatable({},{
+    __index=function(_,key)
+        if key=="guid" then error("Unity object reference unavailable") end
+    end
+})
+assert(pcall(__onObjectDestroy_raw,missingGUID),"Unreadable GUID caused a destruction crash")
+
+-- Failed native marker classification should not interrupt other destruction bookkeeping.
+mapTokenNeedsArrangement=function() error("Unity object reference unavailable") end
+assert(pcall(__onObjectDestroy_raw,{guid="bad_marker",getName=function() return "" end,
+    getGMNotes=function() return "" end}),"Destroyed marker classification aborted cleanup")
+mapTokenNeedsArrangement=function() return false end
 
 -- Event loops waiting for physics must terminate or take their bounded fallback.
 local pending
