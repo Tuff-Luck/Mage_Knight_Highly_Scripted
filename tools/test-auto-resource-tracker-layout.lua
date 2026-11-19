@@ -24,12 +24,14 @@ local attrs={
     CombatCalculatorHelp={active="false"}
 }
 local UI={}
+local writes={}
 function UI.getAttribute(id,key)
     return attrs[id] and attrs[id][key] or nil
 end
 function UI.setAttribute(id,key,value)
     if attrs[id]==nil then attrs[id]={} end
     attrs[id][key]=value
+    writes[#writes+1]={id=id,key=key,value=value}
 end
 local openRequests,closedRequests,enabled=0,0,true
 local env={
@@ -48,7 +50,7 @@ setmetatable(env,{__index=_G})
 local callbackSource=slice(uiSource,"local RESOURCE_TRACKER_EXPANDERS={",
     "local RESOURCE_TRACKER_ZERO_TEXT_COLOR=")
 local callback=assert(load(callbackSource..
-    "\nreturn {click=resourceTracker,layout=resourceTrackerSyncLayout}",
+    "\nreturn {click=resourceTracker,layout=resourceTrackerSyncLayout,restore=resourceTrackerRestoreExpandedLayout}",
     "Resource Tracker layout","t",env))()
 local function click(id)
     callback.click({color="Blue"},"-1",id)
@@ -120,4 +122,32 @@ click("DisplayResourceTrackerDetails")
 size(35,210,"Closing despite stale height")
 click("DisplayResourceTrackerDetails")
 size(245,210,"Reopening after stale height")
-print("Resource Tracker layout and reopen regression tests passed")
+
+-- TTS rewinds start from 35px XML. The layout must be sized before enabling
+-- the lower-anchored detail panel, otherwise it covers the header off-screen.
+UI.setAttribute("ResourceTracker","height","35")
+UI.setAttribute("ResourceTrackerDetail","active","false")
+UI.setAttribute("MoveCosts","active","true")
+UI.setAttribute("SiegeAmountDetails","active","true")
+local start=#writes
+callback.restore()
+size(245,210,"Rewind restores known-good tracker geometry")
+eq(UI.getAttribute("ResourceTrackerDetail","active"),"true","Rewind opens tracker")
+eq(UI.getAttribute("MoveCosts","active"),"false","Rewind clears terrain expansion")
+eq(UI.getAttribute("SiegeAmountDetails","active"),"false","Rewind clears combat expansion")
+local rootSize,detailSize,shown=nil,nil,nil
+for i=start+1,#writes do
+    local write=writes[i]
+    if write.id=="ResourceTracker" and write.key=="height" then rootSize=i end
+    if write.id=="ResourceTrackerDetail" and write.key=="height" then detailSize=i end
+    if write.id=="ResourceTrackerDetail" and write.key=="active" and write.value=="true" then shown=i end
+end
+assert(rootSize~=nil and detailSize~=nil and shown~=nil
+    and rootSize<shown and detailSize<shown,
+    "Rewind must size both panels before showing the resource details")
+local xml=read("src/UI/ResourceTracker.xml")
+assert(xml:find('id="ResourceTrackerDetail"',1,true)
+    <xml:find('id="DisplayResourceTrackerDetails"',1,true),
+    "Minimize button must render above details if the panels overlap")
+
+print("Resource Tracker layout, header and rewind regression tests passed")
