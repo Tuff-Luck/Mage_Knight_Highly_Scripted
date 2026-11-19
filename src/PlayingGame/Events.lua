@@ -128,6 +128,14 @@ local function protectedObjectCanEnterContainer(container,obj)
 end
 
 function __onPlayerAction_raw(player,action,targets)
+    -- U/Place Under is a native TTS action and may not emit a normal Drop
+    -- or Zone event. Capture existing choices before it moves the object,
+    -- then reconcile after TTS applies the new stacking position.
+    if action==Player.Action.Under then
+        if gStates~=nil and gStates.firstStarted==true
+            and resourceCardsUnderAction~=nil then resourceCardsUnderAction(targets) end
+        return true
+    end
 	if action~=Player.Action.Delete and action~=Player.Action.Cut then return true end
 	for _,obj in ipairs(targets or {}) do
 		local kind=obj~=nil and protectedObjectKind(obj.guid) or nil
