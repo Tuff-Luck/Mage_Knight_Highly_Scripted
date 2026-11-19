@@ -6910,6 +6910,12 @@ function resourceCardsCombatAdditionalTargetLimit(sourceKey)
     return 1
 end
 
+-- The primary allocation already receives the source's remaining points.
+-- An extra Influence arrow to that same enemy would be purely decorative.
+function resourceCardsCombatPrimaryTarget(sourceKey)
+    return combatAssignmentState.targets[sourceKey]
+end
+
 -- Every Maximal Effect application may choose independently. The stored choice
 -- is per *use*, not per linked card, and never invents an optional Wound payment.
 combatConfig.repeatChoiceFor=function(guid,powered,choices,index)
