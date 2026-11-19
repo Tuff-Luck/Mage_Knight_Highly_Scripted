@@ -1,0 +1,32 @@
+name: Combat calculator Lua regressions
+
+on:
+  push:
+    branches:
+      - Main-WIP
+    paths:
+      - '.github/workflows/combat-regressions.yml'
+      - 'src/PlayingGame/PlayerBoard/CardRecognition.lua'
+      - 'src/PlayingGame/PlayerBoard/CardFlow.lua'
+      - 'tools/test-combat-wound-application.lua'
+      - 'tools/test-combat-wounded-attack.lua'
+      - 'tools/test-red-spells.lua'
+
+permissions:
+  contents: read
+
+jobs:
+  combat:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install Lua 5.2
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lua5.2
+      - name: Combat wound and hand-discard tests
+        run: lua5.2 tools/test-combat-wound-application.lua
+      - name: Knockout, Paralysis, and Attack eligibility tests
+        run: lua5.2 tools/test-combat-wounded-attack.lua
+      - name: Burning Shield and Exploding Shield tests
+        run: lua5.2 tools/test-red-spells.lua
