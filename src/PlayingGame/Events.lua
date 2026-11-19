@@ -1004,8 +1004,13 @@ end
 --Alter Fame board Values, Skill register, and Add icons when changing avatar **This script runs when exiting the game**
 function __onObjectDestroy_raw(destroyedObj)
 	if destroyedObj==nil then return end
-	attackAssignmentsClearForObject(destroyedObj)
-	local destroyedGuid=destroyedObj.guid
+	-- A TTS destroy event can provide userdata whose underlying Unity object is already gone.
+	-- Read its GUID once, defensively; pass only the GUID to cleanup that does not need the object.
+	local guidOK,destroyedGuid=pcall(function() return destroyedObj.guid end)
+	if not guidOK or type(destroyedGuid)~="string" or destroyedGuid=="" then return end
+	-- Combat cleanup refreshes target buttons/lines. Run it after TTS finishes retiring the
+	-- object, rather than recalculating while the dying object is still in physics/zone lists.
+	safeWaitFrames("Events",function() attackAssignmentsClearForObject(destroyedGuid) end,1)
 	protectedTurnOrderTokenRecord(destroyedGuid,"onObjectDestroy",destroyedObj)
     -- A deliberately destroyed Unit must not leave old activation and Ready
     -- links behind. Do not erase its Command's spent state until a NEW Unit
@@ -1024,10 +1029,18 @@ function __onObjectDestroy_raw(destroyedObj)
 	-- This callback can receive an object already flagged for destruction.
 	-- Avoid reading its .type: use the slower, guarded marker classification.
 	local destroyMetadata={destroying=true}
-	if mapTokenNeedsArrangement~=nil and mapTokenNeedsArrangement(destroyedObj,destroyMetadata)==true then
-		-- MapTokens.lua declares (obj, metadata); the second argument enables safe access during destruction.
-		---@diagnostic disable-next-line: redundant-parameter
-		mapTokenReleaseObject(destroyedObj,destroyMetadata)
+	if mapTokenNeedsArrangement~=nil then
+		-- Even classification can cross the native-object boundary. Map release is best-effort:
+		-- a destroyed object must not prevent the remaining GUID-based cleanup from running.
+		local classified,needsArrangement=pcall(mapTokenNeedsArrangement,destroyedObj,destroyMetadata)
+		if classified and needsArrangement==true then
+			-- MapTokens.lua declares (obj, metadata); the second argument enables safe access during destruction.
+			---@diagnostic disable-next-line: redundant-parameter
+			local released,reason=pcall(mapTokenReleaseObject,destroyedObj,destroyMetadata)
+			if not released then log("Destroyed map token release failed ["..destroyedGuid.."]: "..tostring(reason)) end
+		elseif not classified then
+			log("Destroyed map token classification failed ["..destroyedGuid.."]: "..tostring(needsArrangement))
+		end
 	end
 	local questScorePlayer=apocalypseQuestScoreMarkerPlayerIndex(destroyedGuid)
 	if questScorePlayer~=nil then
