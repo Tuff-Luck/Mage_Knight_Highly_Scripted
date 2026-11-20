@@ -36,6 +36,30 @@ function cachedPlayAreaCounts(seatPos)
 	return cardCount, skillCount
 end
 
+--Use the same action gate for End Turn's image and click callback. Only a growing
+--discard pile counts as a discard; rebuilding/shuffling the pile is not an action.
+--When called without a count (on click), recheck the physical play area rather
+--than trusting a possibly stale entry/exit cache.
+function endTurnPlayerHasAction(playerIndex,playAreaCardCount)
+	local current=turnOrder[playerIndex]
+	if current==nil then return false end
+	if playAreaCardCount==nil then
+		syncPlayAreaObjectState(current.seatPos)
+		playAreaCardCount=cachedPlayAreaCounts(current.seatPos)
+	end
+	if playAreaCardCount>0 then return true end
+	local discardZoneGUID=deedDeckDiscardZones[current.seatPos]
+	local discardZone=discardZoneGUID~=nil and getObjectFromGUID(discardZoneGUID) or nil
+	if discardZone==nil then return false end
+	local discardAreaCards=0
+	for _,obj in pairs(discardZone.getObjects()) do
+		if obj.type=="Card" then discardAreaCards=1 break end
+		if obj.type=="Deck" then discardAreaCards=obj.getQuantity() break end
+	end
+	local discardAtTurnStart=tonumber(current.discardCount)
+	return discardAtTurnStart~=nil and discardAreaCards>discardAtTurnStart
+end
+
 --End-round availability only changes when the deed pile, current play area, turn/round state, or tactic state changes.
 --Track deed-pile emptiness from Card/Deck zone/container events so ordinary main UI refreshes never rescan the pile.
 endRoundDeedHasCards={}
@@ -695,6 +719,8 @@ local function mainUIBuildRefreshContext(source)
 	--Normal final-turn completion is promoted to gStates.gameOver by nextTurnMerged("incrementTurn"),
 	--after Rewards Claimed has finished the last player's cleanup.
 	gameOver=gStates.gameOver==true or gStates.volkareWon==true
+	--A new turn must not inherit stale membership from the previous cleanup.
+	if source=="New Turn" then syncPlayAreaObjectState(currentPlayer.seatPos) end
 	local playerAreaCardCount,playerAreaSkillCount=cachedPlayAreaCounts(currentPlayer.seatPos)
 	return {
 		source=source,
@@ -1173,23 +1199,13 @@ end
 
 local function mainUIRefreshTurnAvailability(context,playerState)
 	if playerState.automated==true then return end
-	local playerAreaCardCount=context.playerAreaCardCount
-	--lock end turn button if no cards are played or discarded
-	--discard object detection
-	local discardAreaCards=0
-	local discardZoneGUID=deedDeckDiscardZones[turnOrder[gStates.turnNumber].seatPos]
-	local discardZone=discardZoneGUID~=nil and getObjectFromGUID(discardZoneGUID) or nil
-	if discardZone==nil then return false end
-	for _, b in pairs(discardZone.getObjects()) do
-		if b.type=="Card" then discardAreaCards=1 break end
-		if b.type=="Deck" then discardAreaCards=b.getQuantity() break end
-	end
 	local coopCombat=gStates.coopAssaultPhase=="combat"
 	setEndTurnTooltip(coopCombat and "" or "At least one card must be played or discarded to 'End Your Turn'.")
 	if gStates.endRoundCalled==true then setEndTurnTooltip("") end
 	--Combat Complete is not a normal End Turn: a co-op participant may legitimately resolve combat
 	--without playing a Deed card. During cleanup keep it locked only until the safe handoff boundary.
-	local normalTurnActionLocked=coopCombat~=true and playerAreaCardCount<1 and gStates.endRoundCalled==false and discardAreaCards==turnOrder[gStates.turnNumber].discardCount
+	local normalTurnActionLocked=coopCombat~=true and gStates.endRoundCalled~=true
+		and endTurnPlayerHasAction(gStates.turnNumber,context.playerAreaCardCount)~=true
 	local coopCombatButtonLocked=coopCombat==true and gStates.preEndTurn==true and gStates.coopCombatHandoffReady~=true
 	if normalTurnActionLocked or coopCombatButtonLocked or gStates.tacticShown==true or gStates.tacticRemove==true then
 		setUIButtonEnabled("EndTurnButton",false)

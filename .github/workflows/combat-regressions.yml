@@ -10,6 +10,7 @@ on:
       - 'src/PlayingGame/UIAssets.lua'
       - 'src/PlayingGame/AttackAssignments.lua'
       - 'src/PlayingGame/UI.lua'
+      - 'src/PlayingGame/Combat.lua'
       - 'src/PlayingGame/PlayerBoard/CardFlow.lua'
       - 'tools/test-combat-wound-application.lua'
       - 'tools/test-combat-target-and-commit.lua'
@@ -23,6 +24,7 @@ on:
       - 'tools/test-ambush-dual-target.lua'
       - 'tools/test-combat-enemy-drop-target-lock.lua'
       - 'tools/test-resource-tracker-pool-integrity.lua'
+      - 'tools/test-end-turn-action.lua'
 
 permissions:
   contents: read
@@ -36,6 +38,8 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq lua5.2
+      - name: End Turn button and click action gate
+        run: lua5.2 tools/test-end-turn-action.lua
       - name: Combat wound and hand-discard tests
         run: lua5.2 tools/test-combat-wound-application.lua
       - name: Knockout, Paralysis, and Attack eligibility tests

@@ -1345,6 +1345,14 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 		if gStates.coopCombatHandoffReady==true then endTurn(player,"-1","CoopCombatComplete") end
 		return
 	end
+	--The button can briefly be stale during zone transitions. Never start cleanup
+	--unless the live play area or discard delta satisfies the normal End Turn gate.
+	if gStates.coopAssaultPhase~="combat" and gStates.endRoundCalled~=true
+		and endTurnPlayerHasAction(gStates.turnNumber)~=true then
+		if rewindReady==true then rewindTransactionFinish("Pre-end-turn cleanup") end
+		mainUIUpdate("End Turn action requirement")
+		return
+	end
 	if gStates.mineClaimPending~=nil then
 		safeBroadcastToColor("{en}Resolve the pending crystal choice before ending the turn.{it}Risolvi la scelta del cristallo prima di terminare il turno.{ru}Завершите ожидающий выбор кристалла, прежде чем заканчивать ход.{zh-tw}結束回合前，請先完成尚未處理的魔晶選擇。{zh-cn}结束回合前，请先完成尚未处理的魔晶选择。{ko}턴을 끝내기 전에 대기 중인 수정 선택을 완료하세요.{es}Resuelve la elección de cristal pendiente antes de terminar el turno.{fr}Résolvez le choix de cristal en attente avant de terminer le tour.{pt-br}Resolva a escolha de cristal pendente antes de encerrar o turno.{de}Schließe die ausstehende Kristallauswahl ab, bevor du den Zug beendest.",player.color,warningColor)
 		if rewindReady==true then rewindTransactionFinish("Pre-end-turn cleanup") end
