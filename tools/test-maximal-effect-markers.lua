@@ -90,7 +90,8 @@ return {
     mark=resourceCardsMaximalEffectMark,
     marked=resourceCardsMaximalEffectMarked,
     link=resourceCardsMaximalEffectLink,
-    sync=resourceCardsMaximalEffectSyncMarks
+    sync=resourceCardsMaximalEffectSyncMarks,
+    beforeEnd=resourceCardsMaximalEffectBeforeEndTurn
 }]],"Maximal Effect marks","t",env))()
 eq(methods.link(1,training.guid).count,3,"Physical OFF link finds three basic uses")
 methods.sync(1,{maximal,training},{[training.guid]={count=3,powered=false}})
