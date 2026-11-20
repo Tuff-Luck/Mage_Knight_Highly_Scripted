@@ -148,6 +148,7 @@ assert(rootSize~=nil and detailSize~=nil and shown~=nil
     and rootSize<shown and detailSize<shown,
     "Rewind must size both panels before showing the resource details")
 local xml=read("src/UI/ResourceTracker.xml")
+local combatXml=read("src/UI/CombatEnemyPanel.xml")
 assert(xml:find('id="ResourceTrackerDetail"',1,true)
     <xml:find('id="DisplayResourceTrackerDetails"',1,true),
     "Minimize button must render above details if the panels overlap")
@@ -205,6 +206,26 @@ UI.setAttribute("ResourceTracker","height","73")
 UI.setAttribute("ResourceTrackerDetail","active","false")
 eq(ready(),false,"Hidden detail cannot scan")
 
+local trackerWidth=tonumber(xml:match('id="ResourceTracker"[^>]-width="(%d+)"'))
+local trackerX=tonumber(xml:match('id="ResourceTracker"[^>]-offsetXY="(%d+)'))
+local combatX=tonumber(combatXml:match('id="CombatEnemyPanel"[^>]-offsetXY="(%d+)'))
+eq(trackerWidth,225,"Tracker must stay within its original combat boundary")
+assert(trackerX+trackerWidth<=combatX,"Tracker must not overlap combat panel")
+assert(xml:find('id="ResourceTracker"[^>]-color="rgb%(0%.2, 0%.2, 0%.2%)"'),
+    "Tracker should match the combat calculator dark panel")
+for _,prefix in ipairs({"MovemAmountPlain","InfluAmountPlain","HealiAmountPlain"}) do
+    assert(xml:find('id="'..prefix..'Down" rectAlignment="MiddleLeft" width="112"',1,true),
+        prefix.." must have a broad left-side reduce target")
+    assert(xml:find('id="'..prefix..'Up" rectAlignment="MiddleRight" width="113"',1,true),
+        prefix.." must have a broad right-side increase target")
+    assert(xml:find('id="'..prefix..'Add" active="false"',1,true),
+        prefix.." must be restorable when its zero row disappears")
+end
+for _,prefix in ipairs({"Movem","Siege","Range","Block","Attac","Influ","Heali"}) do
+    assert(xml:find('id="'..prefix..'AmountPlainText" fontSize="19"',1,true),
+        prefix.." headline must be one point smaller than Title20")
+end
+assert(uiSource:find('id:sub(17,19)=="Add"',1,true),"Missing-resource + clicks must route as increases")
 assert(xml:find('id="MoveCostHeaderText"',1,true),
     "Terrain Costs must have an id for translated text reapplication")
 for _,id in ipairs({"MovemAmountPlainRow","InfluAmountPlainRow","HealiAmountPlainRow"}) do
