@@ -1392,7 +1392,12 @@ function attackAssignmentSourceClicked(player,value,id)
             if part=="rep"..repeatIndex and category~="effect" then return end
         end
 		local resource=rowIndex>0 and ("set"..rowIndex..":"..category) or category
-		local sourceKey=part~=nil and (guid.."#"..part) or guid
+        -- Two independently controlled Diplomacy counters still feed one
+        -- composite Block target. Their unique UI IDs must not create
+        -- separately spendable combat resources.
+        local sourcePart=part~=nil and part:match("^convertBlock%d+$")
+            and "convertBlock" or part
+		local sourceKey=sourcePart~=nil and (guid.."#"..sourcePart) or guid
         -- A stale TTS button must not erase a committed arrow before
         -- attackAssignmentsBegin gets its own phase-lock check.
         if combatCommittedSource(sourceKey) then return end

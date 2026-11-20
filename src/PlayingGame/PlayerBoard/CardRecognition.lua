@@ -858,7 +858,8 @@ local function combatAssignmentSources(seat)
         if copied and record.powered then
             local amounts={blockFire=0,blockIce=0}
             for index=1,record.repeatLink.count do
-                local element=diplomacy.elementUses[index]=="I"
+                local element=diplomacy.elementUses~=nil
+                    and diplomacy.elementUses[index]=="I"
                     and "blockIce" or "blockFire"
                 amounts[element]=amounts[element]+(diplomacy.blockUses[index] or 0)
             end
@@ -8133,7 +8134,8 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             controls={}
             for index=1,repeatLink.count do
                 controls[#controls+1]={part="Block"..index,
-                    value=conversion.blockUses[index] or 0,label="B"..index,
+                    value=conversion.blockUses~=nil
+                        and conversion.blockUses[index] or 0,label="B"..index,
                     x=-152,y=-12-(repeatLink.count-1)*15+(index-1)*30,
                     index=index}
             end
@@ -8176,7 +8178,8 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                     scale="0.30 0.30",fontSize=55,
                     colors="#454D5D|#69798E|#444C63|#454D5D",
                     textColor="#FFFFFF",textAlignment="MiddleCenter"},
-                    value=conversion.elementUses[control.index]}
+                    value=conversion.elementUses~=nil
+                        and conversion.elementUses[control.index] or "F"}
             end
         end
         if not agility and powered and not multiDiplomacy then
