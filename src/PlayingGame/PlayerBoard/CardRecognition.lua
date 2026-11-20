@@ -7624,7 +7624,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             _,selected=inventorySetChoice(card.guid,row.index,row.choices,choices)
         end
         row.selected=selected
-        if selected~=nil and combatCumbersomeActive
+        if selected~=nil and combatCalcOn and combatCumbersomeActive
             and resourceCardsMoveRole(card.guid,false)=="combat" then
             for _,option in ipairs(row.choices) do
                 if choiceCategory(option)==selected and (tonumber(option.move) or 0)>0 then
@@ -7665,7 +7665,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                     row.entries[#row.entries+1]=entry
                     -- Only offer defensive Move when at least one enemy has
                     -- Cumbersome. Normal Move stays available otherwise.
-                    if combatCumbersomeActive then
+                    if combatCalcOn and combatCumbersomeActive then
                         local combatEntry={}
                         for key,value in pairs(entry) do combatEntry[key]=value end
                         combatEntry.category="combatMove"..category
@@ -7793,6 +7793,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     local signature=(posture=="sideways" and "S" or (powered and "P" or "N"))
         ..":"..table.concat(signatureParts,";")..":"..uiRotation..":"..buttonDepth
         ..(combatCalcOn and (combatCumbersomeActive and ":CC" or ":C") or "")
+        ..":PSY:"..tostring(combatPsychicActive)
         ..(rule~=nil and rule.damageMitigation~=nil
             and (":H:"..tostring(hardenedTarget)..":"..tostring(#hardenedOptions)
                 ..":"..tostring(hardenedIndex)) or "")
@@ -13689,6 +13690,8 @@ function resourceCardsChoiceClicked(player,value,id)
         choices=inventorySpec.choices
     end
     local selectedMoveCategory=category:match("^combatMove(.+)$")
+    -- Reject a stale UI click after the last Cumbersome enemy is removed.
+    if selectedMoveCategory~=nil and not (combatCalcOn and combatCumbersomeActive) then return end
     local requestedMoveRole=selectedMoveCategory~=nil and "combat" or nil
     if selectedMoveCategory~=nil then category=selectedMoveCategory end
     local valid=choiceAvailable(choices,category)
@@ -14229,6 +14232,9 @@ function resourceUnitsChoiceClicked(player,value,id)
         or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil) then return end
     local unitGUID,index=id:match("^ResourceCardChoice_([0-9a-f]+)_unit(%d+)Combat$")
     local combatMoveChoice=unitGUID~=nil
+    -- The visible Unit button is removed on refresh, but an in-flight click
+    -- must also be rejected when there is no Cumbersome target.
+    if combatMoveChoice and not (combatCalcOn and combatCumbersomeActive) then return end
     if unitGUID==nil then
         unitGUID,index=id:match("^ResourceCardChoice_([0-9a-f]+)_unit(%d+)$")
     end
