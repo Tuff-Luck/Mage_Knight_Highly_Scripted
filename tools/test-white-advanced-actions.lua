@@ -83,6 +83,8 @@ local conversion=extract(reader,"combatConfig.conversionFor=function",
 local setup=[=[
 local combatConfig={conversionState={}}
 local combatAssignmentState={explicit={},targets={}}
+local moveRoles={}
+local resourceCardsMoveRole=function(guid) return moveRoles[guid] or "combat" end
 local resourceCardScanBySeat={[1]={cards={
     ["878d92"]={combatConversion="agility",resources={move=4}},
     ["9757b3"]={resources={move=2}},
@@ -100,7 +102,12 @@ assert(move==6 and agility.attack==2 and agility.ranged==2)
 combatAssignmentState.explicit["9757b3"]=true
 combatAssignmentState.targets["9757b3"]="enemy"
 agility,move=combatConfig.conversionFor(1,"agility")
+assert(move==6 and agility.attack==2 and agility.ranged==2)
+-- Explicit Cumbersome targets no longer reserve the entire printed source.
+moveRoles["9757b3"]="movement"
+agility,move=combatConfig.conversionFor(1,"agility")
 assert(move==4 and agility.attack==2 and agility.ranged==1)
+moveRoles["9757b3"]=nil
 
 local diplomacy,influence,diplomacyOn=combatConfig.conversionFor(1,"diplomacy")
 assert(diplomacyOn and influence==7)
@@ -108,10 +115,10 @@ diplomacy.block=7
 combatAssignmentState.explicit["878d90"]=true
 combatAssignmentState.targets["878d90"]="enemy"
 diplomacy,influence=combatConfig.conversionFor(1,"diplomacy")
-assert(influence==4 and diplomacy.block==4)
+assert(influence==7 and diplomacy.block==7)
 return true
 ]=]))()
-eq(run,true,"Shared pool reservations/clamping")
+eq(run,true,"Shared per-point pools and phase-aware Move")
 
 -- The actual attack-selection engine must strip only the chosen attack's
 -- offensive abilities, without replacing the attack's Fire/Ice element.
