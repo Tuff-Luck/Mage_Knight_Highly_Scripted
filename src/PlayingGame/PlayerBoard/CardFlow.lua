@@ -1115,7 +1115,12 @@ function cleanupPlayedCardAtEndTurn(card, playerIndex, cardDestination)
 
 	gStates.turnForfeited=false
 	local trash=getObjectFromGUID(trashCan)
-	if card.is_face_down==true then
+	-- Maximal Effect consumes its linked Action even when flipped face up.
+	-- Remove the red X before bagging so it cannot leak into a future play.
+	local maximalThrown=resourceCardsMaximalEffectMarked~=nil
+		and resourceCardsMaximalEffectMarked(card)
+	if card.is_face_down==true or maximalThrown then
+		if maximalThrown then resourceCardsMaximalEffectMark(card,false) end
 		if trash~=nil then trash.putObject(card) end
 		return cardDestination
 	end
