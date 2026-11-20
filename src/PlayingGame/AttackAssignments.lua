@@ -1295,11 +1295,36 @@ local function persistAssignments()
 	gStates.attackAssignments=saved
 end
 
+-- A source can own several arrows (one primary plus point allocations). Keep
+-- the calculator's primary while it still has an arrow. If that arrow is
+-- removed, promote the oldest remaining assignment, never a random pairs()
+-- entry. This changes only calculator locks, not the surviving arrow registry.
+local function reconcileRemainingSourceTarget(sourceGUID)
+    if sourceGUID==nil or resourceCardsCombatForgetSource==nil then return end
+    local primary=resourceCardsCombatPrimaryTarget~=nil
+        and resourceCardsCombatPrimaryTarget(sourceGUID) or nil
+    local primarySurvives=false
+    local firstId,firstGUID=nil,nil
+    for id,entry in pairs(assignmentRegistry) do
+        if entry.sourceGUID==sourceGUID then
+            if entry.targetGUID==primary then primarySurvives=true end
+            local rank=tonumber(id) or math.huge
+            local firstRank=tonumber(firstId) or math.huge
+            if firstId==nil or rank<firstRank
+                or (rank==firstRank and tostring(id)<tostring(firstId)) then
+                firstId,firstGUID=id,entry.targetGUID
+            end
+        end
+    end
+    if primary~=nil and primarySurvives then return end
+    resourceCardsCombatForgetSource(sourceGUID,firstGUID)
+end
+
 local function removeAssignment(id)
 	if assignmentRegistry[id]==nil then return false end
 	local sourceGUID=assignmentRegistry[id].sourceGUID
 	assignmentRegistry[id]=nil
-	if resourceCardsCombatForgetSource~=nil and sourceGUID~=nil then resourceCardsCombatForgetSource(sourceGUID) end
+    reconcileRemainingSourceTarget(sourceGUID)
 	persistAssignments()
 	refreshRenderedLines()
 	if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
@@ -1672,8 +1697,15 @@ function attackAssignmentsPruneInactive(activeKeys,activeObjects,keepsLock)
             for i=2,#ids do remove[#remove+1]=ids[i] end
         end
     end
-	for _,id in ipairs(remove) do assignmentRegistry[id]=nil end
+    local affected={}
+	for _,id in ipairs(remove) do
+        if assignmentRegistry[id]~=nil then
+            affected[assignmentRegistry[id].sourceGUID]=true
+            assignmentRegistry[id]=nil
+        end
+    end
 	if #remove>0 then
+        for sourceGUID in pairs(affected) do reconcileRemainingSourceTarget(sourceGUID) end
 		persistAssignments()
 		refreshRenderedLines()
 	end
@@ -1691,6 +1723,7 @@ function attackAssignmentsPruneSourceTargets(sourceGUID,eligible)
         end
     end
     if changed then
+        reconcileRemainingSourceTarget(sourceGUID)
         persistAssignments()
         refreshRenderedLines()
     end
@@ -1705,13 +1738,16 @@ function attackAssignmentsPruneUnitChoiceSources(unitGUID,activeKeys)
     if type(unitGUID)~="string" then return end
     activeKeys=activeKeys or {}
     local changed=false
+    local affected={}
     for id,entry in pairs(assignmentRegistry) do
         if assignmentBaseGUID(entry.sourceGUID)==unitGUID
             and activeKeys[entry.sourceGUID]~=true then
+            affected[entry.sourceGUID]=true
             assignmentRegistry[id]=nil
             changed=true
         end
     end
+    for sourceGUID in pairs(affected) do reconcileRemainingSourceTarget(sourceGUID) end
     local cancelled=false
     for color,pending in pairs(targetingByPlayer) do
         if assignmentBaseGUID(pending.sourceGUID)==unitGUID
@@ -1728,6 +1764,7 @@ end
 -- Preserve held/moving targets but prune arrows left on enemies outside combat.
 function attackAssignmentsPruneTargets(eligible)
     local changed=false
+    local affected={}
     for id,entry in pairs(assignmentRegistry) do
         if eligible[entry.targetGUID]~=true and not
             (combatCommittedSource~=nil and combatCommittedSource(entry.sourceGUID)) then
@@ -1735,10 +1772,15 @@ function attackAssignmentsPruneTargets(eligible)
             local inTransit=target~=nil
                 and ((target.held_by_color~=nil and target.held_by_color~="")
                     or target.isSmoothMoving() or target.resting==false)
-            if not inTransit then assignmentRegistry[id]=nil changed=true end
+            if not inTransit then
+                affected[entry.sourceGUID]=true
+                assignmentRegistry[id]=nil
+                changed=true
+            end
         end
     end
     if changed then
+        for sourceGUID in pairs(affected) do reconcileRemainingSourceTarget(sourceGUID) end
         persistAssignments()
         refreshRenderedLines()
     end
@@ -1793,7 +1835,12 @@ function attackAssignmentsClearForObject(objectOrGUID)
             and (assignmentKeyMatches(entry.sourceGUID,guid)
                 or entry.targetGUID==guid) then remove[#remove+1]=id end
 	end
-	for _,id in ipairs(remove) do assignmentRegistry[id]=nil end
+    local affected={}
+	for _,id in ipairs(remove) do
+        affected[assignmentRegistry[id].sourceGUID]=true
+        assignmentRegistry[id]=nil
+    end
+    for sourceGUID in pairs(affected) do reconcileRemainingSourceTarget(sourceGUID) end
 	local pendingRemoved=false
 	for color,pending in pairs(targetingByPlayer) do
 		if assignmentKeyMatches(pending.sourceGUID,guid) then
