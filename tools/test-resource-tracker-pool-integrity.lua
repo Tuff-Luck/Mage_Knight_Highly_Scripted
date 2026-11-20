@@ -51,9 +51,12 @@ local cards={
     influenceA={resources={influence=4}},
     influenceB={resources={influence=3}}}
 local conversionEnv={
-    combatConfig={conversionState={}},
+    combatConfig={conversionState={},hasPsychicAttack=function(guid)
+        return guid=="enemy2"
+    end},
     combatAssignmentState=state,
     resourceCardScanBySeat={[1]={cards=cards}},
+    resourceCardsCombatTargetAcceptsMove=function(guid) return guid=="enemy1" end,
     resourceCardsMoveRole=function() return "combat" end
 }
 setmetatable(conversionEnv,{__index=_G})
@@ -80,6 +83,10 @@ assert(saved.block==3,"Unassigned Influence remains convertible")
 state.targets.influenceA=nil
 local _,allInfluence=conversionEnv.combatConfig.conversionFor(1,"diplomacy")
 assert(allInfluence==7,"Clearing Psychic assignment must free Influence")
+state.targets.influenceA="ordinaryEnemy"
+local _,otherTarget=conversionEnv.combatConfig.conversionFor(1,"diplomacy")
+assert(otherTarget==7,
+    "Ordinary enemy targeting must not reserve an unrelated Influence pool")
 
 -- Also test the actual source-consumption loop: its input order must never
 -- let a reserved source be consumed before an unassigned one.
@@ -87,8 +94,13 @@ local consumeCode=section(reader,
     "local function consumeShared(field,amount)",
     "local function converted(guid,part,original,points,resourceCost)")
 local consumeEnv={
-    combatConversionReserved=function(key,amount)
-        return state.explicit[key] and state.targets[key] and amount or 0
+    combatConversionReserved=function(key,amount,field)
+        local target=state.targets[key]
+        if state.explicit[key] and ((field=="move" and target=="enemy1")
+            or (field=="influence" and target=="enemy2")) then
+            return amount
+        end
+        return 0
     end
 }
 setmetatable(consumeEnv,{__index=_G})
