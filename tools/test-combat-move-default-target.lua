@@ -20,15 +20,23 @@ assert(reader:find('if moveAmount>0 and resourceCardsMoveRole(guid,true)=="comba
 assert(reader:find('combatAssignmentState.explicit[source.key]=autoCombatMove and targetGUID~=nil or nil',
     1,true),"Default Cumbersome target must reserve the Move pool")
 assert(reader:find('combatEntry.icon="block"',1,true)
-    and reader:find('combatEntry.iconForeground="move"',1,true)
+    and reader:find('combatEntry.stackedIcons={"block","move"}',1,true)
     and reader:find('combatEntry.roleBadge=nil',1,true),
-    "Combat Move option must show shield beneath Move, not a C text badge")
-assert(reader:find('entry.iconForeground="influence"',1,true)
+    "Combat Move option must use full-size shield + Move icons, not a C badge")
+assert(reader:find('entry.stackedIcons={"block","influence"}',1,true)
     and reader:find('if category=="influence" and combatPsychicActive',1,true),
-    "Psychic Block option must show shield beneath Influence")
-assert(reader:find('image=foreground.name,width=49,height=49',1,true)
-    and reader:find('rectAlignment="LowerRight",offsetXY="-3 3"',1,true),
-    "Overlay must be a smaller, non-clickable foreground image")
+    "Psychic Block option must use full-size shield + Influence icons")
+assert(reader:find('image=stackedAsset.name,width=82,height=82',1,true)
+    and reader:find('for _,stackedIcon in ipairs(entry.stackedIcons)',1,true),
+    "Composite icons must reuse Tempered Steel's full-size stacked rendering")
+assert(reader:find('if combatCalcOn and combatCumbersomeActive then',1,true)
+    and reader:find('if selected~=nil and combatCalcOn and combatCumbersomeActive',1,true),
+    "Combat Move choice must disappear when no Cumbersome enemy is available")
+assert(reader:find('if combatMoveAvailable then',1,true)
+    and reader:find('if combatMoveAvailable and',1,true),
+    "Unit Combat Move must disappear when no Cumbersome enemy is available")
+assert(reader:find('..":PSY:"..tostring(combatPsychicActive)',1,true),
+    "Card icons must refresh when the last Psychic attacker disappears")
 assert(reader:find('local shield=resourceCardsChoiceIcon("block")',1,true)
     and reader:find('local movement=resourceCardsChoiceIcon("move")',1,true),
     "Unit combat Move needs the same layered icon")
