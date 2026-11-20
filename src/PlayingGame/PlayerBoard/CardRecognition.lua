@@ -7815,6 +7815,11 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     if choiceButtonShown[card.guid]==signature
         and combatConfig.cardChoicesPresent(card) then return end
     local xml=resourceObjectUiXmlTable(card.UI)
+    -- Preserve the actual pre-render object UI for a structural comparison.
+    -- Unrelated object buttons remain in both lists, and moving a card with
+    -- unchanged choices does not require a destructive TTS UI rebuild.
+    local previousXml={}
+    for index,node in ipairs(xml) do previousXml[index]=node end
     for i=#xml,1,-1 do
         local attr=xml[i].attributes
         if attr~=nil and type(attr.id)=="string"
@@ -8210,7 +8215,18 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     -- A fixed Attack/Block against a sole enemy needs no manual target icon.
     -- That can leave an otherwise empty object UI; TTS rejects setXmlTable({})
     -- with an Object reference error. The shared writer uses setXml("") here.
-    resourceObjectUiSetTable(card.UI,xml,assets)
+    -- A harmless signature change (for example, another enemy's target
+    -- context during a card drop) must not flash an unchanged card UI.
+    -- New image registrations still need the asset-list writer.
+    if assets~=nil or not resourceObjectUiSameXML(previousXml,xml) then
+        resourceObjectUiSetTable(card.UI,xml,assets)
+        if trackerPrivate.traceEnabled then
+            trackerPrivate.traceEvent("choice.write",nil,card.guid,
+                "buttons="..tostring(#combatConfig.cardChoiceIds(card.guid,xml)))
+        end
+    elseif trackerPrivate.traceEnabled then
+        trackerPrivate.traceEvent("choice.same",nil,card.guid)
+    end
     combatConfig.cardButtonIds[card.guid]=combatConfig.cardChoiceIds(card.guid,xml)
     choiceButtonShown[card.guid]=signature
 end
@@ -13436,6 +13452,7 @@ local function clearAll()
     trackerPrivate.bySeat={}
     trackerPrivate.playCandidatesBySeat={}
     trackerPrivate.playCardMovements={}
+    trackerPrivate.cardUIRecheckSerial={}
     resourceCardScanBySeat={}
     combatConfig.bowSourceModes={}
     combatConfig.amuletMana={gold=false,black=false}
@@ -14937,6 +14954,44 @@ function resourceCardsZoneLeft(ctx)
     queueSeat(seat,ctx.objGUID)
 end
 
+
+-- A late TTS object-UI refresh can clear option buttons AFTER the settled
+-- tracker scan has finished. A targeted recheck repairs only genuinely lost
+-- controls; unchanged buttons and combat values are never rebuilt.
+trackerPrivate.cardUIRecheckSerial={}
+trackerPrivate.checkCardChoicesAfterDrop=function(guid,seatPos)
+    if guid==nil or seatPos==nil then return end
+    local serial=(trackerPrivate.cardUIRecheckSerial[guid] or 0)+1
+    trackerPrivate.cardUIRecheckSerial[guid]=serial
+    local session=trackerPrivate.trackerSession
+    local function verify(attempt)
+        if trackerPrivate.cardUIRecheckSerial[guid]~=serial
+            or trackerPrivate.trackerSession~=session
+            or not resourceCardsPanelOpen() then return end
+        local card=getObjectFromGUID(guid)
+        if card==nil or (card.isDestroyed~=nil and card.isDestroyed())
+            or not cardInSeatPlayArea(guid,seatPos) then return end
+        if not combatConfig.cardInTransit(card) then
+            local expected=combatConfig.cardButtonIds[guid]
+            if choiceButtonShown[guid]~=nil and choiceButtonShown[guid]~="hidden"
+                and expected~=nil and #expected>0
+                and not combatConfig.cardChoicesPresent(card) then
+                if trackerPrivate.traceEnabled then
+                    trackerPrivate.traceEvent("choice.repair",seatPos,guid,
+                        "attempt="..tostring(attempt).." expected="..tostring(#expected))
+                end
+                queueSeat(seatPos,guid)
+            end
+        end
+        if attempt==1 then
+            -- Catch a late overwrite from TTS/another card-UI owner, without
+            -- permanently polling every card in the play area.
+            safeWaitFrames("PlayerBoard.CardRecognition",function() verify(2) end,12)
+        end
+    end
+    safeWaitFrames("PlayerBoard.CardRecognition",function() verify(1) end,5)
+end
+
 function resourceCardsObjectMoved(obj,stabilized)
     if obj==nil or not resourceCardsPanelOpen() then return end
     if trackerPrivate.traceEnabled then
@@ -15007,6 +15062,7 @@ function resourceCardsObjectMoved(obj,stabilized)
         end
         if inPlay or known then
             queueSeat(seat,obj.guid)
+            if inPlay then trackerPrivate.checkCardChoicesAfterDrop(obj.guid,seat) end
             return
         end
     end
@@ -15016,6 +15072,10 @@ function resourceCardsObjectMoved(obj,stabilized)
             scheduleChoiceResetAfterPlay(obj.guid,seat)
         end
         queueSeat(seat,obj.guid)
+        if trackerPrivate.playCandidateKind(objectKind)
+            and cardInSeatPlayArea(obj.guid,seat) then
+            trackerPrivate.checkCardChoicesAfterDrop(obj.guid,seat)
+        end
         return
     end
     -- New arrivals only need zones that can actually hold their resource type.
