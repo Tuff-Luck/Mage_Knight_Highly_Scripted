@@ -7230,6 +7230,64 @@ combatConfig.repeatChoiceFor=function(guid,powered,choices,index)
     return currentChoice(guid,powered,choices)
 end
 
+-- A Maximal Effect copy is one composite effect: repeated options cannot
+-- straddle separate combat phases. Move may join Block only when explicitly
+-- allocated against Cumbersome. Draw/Heal and other instantaneous options
+-- do not independently define a combat phase.
+combatConfig.compositeChoicePhase=function(guid,choice)
+    if type(choice)~="table" then return nil end
+    local found={}
+    for key,value in pairs(choice) do
+        if type(value)=="number" and value>0 then
+            if key:sub(1,6)=="ranged" or key:sub(1,5)=="siege" then
+                found.range=true
+            elseif key:sub(1,6)=="attack" then
+                found.attack=true
+            elseif key:sub(1,5)=="block" then
+                found.block=true
+            elseif key=="move" then
+                found.move=true
+            elseif key=="influence" then
+                found.influence=true
+            end
+        end
+    end
+    if found.range then return "range" end
+    if found.attack and not found.block then return "attack" end
+    if found.block then return "block" end
+    if found.move then
+        return combatCalcOn and combatCumbersomeActive
+            and resourceCardsMoveRole(guid,false)=="combat"
+            and "block" or "move"
+    end
+    if found.influence then
+        local data=gameCards[guid]
+        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+        if combatCalcOn and (combatPsychicActive
+            or (rule~=nil and rule.combatConversion=="diplomacy")) then
+            return "block"
+        end
+        return "influence"
+    end
+    return nil
+end
+
+combatConfig.compositePhasesMatch=function(guid,powered,choices,repeatLink)
+    if repeatLink==nil or (repeatLink.count or 1)<2 then return true end
+    local phase=nil
+    for index=1,repeatLink.count do
+        local options=repeatLink.options~=nil
+            and repeatLink.options[index] or choices
+        local selected=combatConfig.repeatChoiceFor(guid,powered,options,index)
+        local current=combatConfig.compositeChoicePhase(guid,selected)
+        if current~=nil then
+            if phase~=nil and current~=phase then return false end
+            phase=current
+        end
+    end
+    return true
+end
+
 -- Bonus choices are independent of the card's primary selection. Until the
 -- player chooses a bonus explicitly, it follows the main choice (or the
 -- printed first alternative if the main category is unavailable).
@@ -9448,6 +9506,12 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
     local canApply=not discardTarget or repeatLink~=nil
     local effects=sideTracked and faceUp and costPaid and canApply
         and applyLinkedResourceBonus(base,linkedBoost) or nil
+    local invalidComposite=repeatLink~=nil and not combatConfig.compositePhasesMatch(
+        card.guid,powered,choices,repeatLink)
+    if invalidComposite then
+        canApply=false
+        effects=nil
+    end
     if effects~=nil and repeatLink~=nil then
         -- Repeated choices are independent. A copied Ritual Attack can use
         -- differently coloured discarded cards on its separate applications.
@@ -9509,6 +9573,7 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
     -- green default; only a genuinely unresolved selected effect stays yellow.
     local knownSelectedOption=chosen~=nil and effectHasTrackedResource(chosen)
     local complete=sideTracked and base~=nil and not choicePending and not statePartial
+        and not invalidComposite
         and (rule==nil or rule.partial~=true or knownSelectedOption)
         and (rule==nil or rule.woundBonus==nil or woundCount~=nil)
         and (rule==nil or rule.enemyIconBlock~=true or not powered
@@ -9590,7 +9655,7 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
         links=linked,status=status,resources=effects,
         usesTerrainBlock=usesTerrainBlock and faceUp and costPaid and canApply,
         repeatCount=repeatLink~=nil and repeatLink.count or nil,
-        repeatLink=repeatLink}
+        repeatLink=repeatLink,incompatibleComposite=invalidComposite}
 end
 
 local function overlapArea(a,b)
@@ -14193,6 +14258,14 @@ function resourceCardsChoiceClicked(player,value,id)
         selected.sideways=category
     end
     selectedResourceByGUID[guid]=selected
+    if repeatIndex~=nil and record~=nil and record.repeatLink~=nil
+        and not combatConfig.compositePhasesMatch(
+            guid,powered,mainChoices,record.repeatLink) then
+        safeBroadcastToColor(
+            "Maximal Effect: repeated options must resolve in one phase. "
+            .."Adjust the other rows; mixed phases contribute nothing until compatible.",
+            player.color,warningColor)
+    end
     local previousMoveRole=requestedMoveRole~=nil
         and resourceCardsMoveRole(guid,true) or nil
     if requestedMoveRole~=nil then
