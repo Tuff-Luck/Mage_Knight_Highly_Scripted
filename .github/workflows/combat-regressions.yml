@@ -19,6 +19,7 @@ on:
       - 'tools/test-card-option-move-targeting.lua'
       - 'tools/test-fixed-combat-card-ui.lua'
       - 'tools/test-card-option-drop-stability.lua'
+      - 'tools/test-auto-resource-tracker-layout.lua'
       - 'tools/test-combat-move-default-target.lua'
       - 'tools/test-cumbersome-move-target-cancel.lua'
       - 'tools/test-ambush-dual-target.lua'
@@ -38,6 +39,8 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq lua5.2
+      - name: Resource Tracker minimized Help and layout
+        run: lua5.2 tools/test-auto-resource-tracker-layout.lua
       - name: End Turn button and click action gate
         run: lua5.2 tools/test-end-turn-action.lua
       - name: Combat wound and hand-discard tests
