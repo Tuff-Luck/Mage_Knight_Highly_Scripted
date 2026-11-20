@@ -1089,6 +1089,8 @@ end
 function cleanupPlayedCardAtEndTurn(card, playerIndex, cardDestination)
 	if card==nil or card.type~="Card" or turnOrder[playerIndex]==nil then return cardDestination end
 	local keepInPlay=false
+	local maximalThrown=resourceCardsMaximalEffectMarked~=nil
+		and resourceCardsMaximalEffectMarked(card)
 
 	--Banner cards remain attached/available for their own banner handling.
 	if gameCards[card.guid]~=nil and gameCards[card.guid].full~=nil then
@@ -1097,7 +1099,8 @@ function cleanupPlayedCardAtEndTurn(card, playerIndex, cardDestination)
 	end
 
 	--Steady Tempo stays in the play area while its explicit end-turn choice is unresolved.
-	if isSteadyTempoGUID~=nil and isSteadyTempoGUID(card.guid)==true and cardEffectIsVertical(card)==true then
+	if not maximalThrown and isSteadyTempoGUID~=nil
+		and isSteadyTempoGUID(card.guid)==true and cardEffectIsVertical(card)==true then
 		keepInPlay=true
 		gStates.turnForfeited=false
 		if card.is_face_down==false then steadyTempoPrepare(card, playerIndex) end
@@ -1108,17 +1111,17 @@ function cleanupPlayedCardAtEndTurn(card, playerIndex, cardDestination)
 	--a face-down copy follows the normal thrown-away cleanup path.
 	local manualEndTurnCard=(card.guid=="085e69" or card.guid=="7ebe5e")
 		and card.is_face_down==false and cardEffectIsVertical(card)==true
-	if manualEndTurnCard then keepInPlay=true gStates.turnForfeited=false end
+	if manualEndTurnCard and not maximalThrown then
+		keepInPlay=true gStates.turnForfeited=false
+	end
 
 	if isQuestCardObject(card) then keepInPlay=true gStates.turnForfeited=false end
-	if keepInPlay==true then return cardDestination end
+	if keepInPlay==true and not maximalThrown then return cardDestination end
 
 	gStates.turnForfeited=false
 	local trash=getObjectFromGUID(trashCan)
 	-- Maximal Effect consumes its linked Action even when flipped face up.
 	-- Remove the red X before bagging so it cannot leak into a future play.
-	local maximalThrown=resourceCardsMaximalEffectMarked~=nil
-		and resourceCardsMaximalEffectMarked(card)
 	if card.is_face_down==true or maximalThrown then
 		if maximalThrown then resourceCardsMaximalEffectMark(card,false) end
 		if trash~=nil then trash.putObject(card) end
