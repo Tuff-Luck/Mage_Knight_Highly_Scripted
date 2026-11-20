@@ -21,6 +21,7 @@ on:
       - 'tools/test-red-spells.lua'
       - 'tools/test-magic-talent-offer.lua'
       - 'tools/test-maximal-effect-markers.lua'
+      - 'tools/test-maximal-effect-repeat-targets.lua'
       - 'tools/test-card-option-move-targeting.lua'
       - 'tools/test-fixed-combat-card-ui.lua'
       - 'tools/test-card-option-drop-stability.lua'
@@ -50,6 +51,8 @@ jobs:
         run: |
           lua5.2 tools/test-maximal-effect-markers.lua
           lua5.2 tools/test-magic-talent-offer.lua
+      - name: Maximal Effect repeated options, targets and conversions
+        run: lua5.2 tools/test-maximal-effect-repeat-targets.lua
       - name: End Turn button and click action gate
         run: lua5.2 tools/test-end-turn-action.lua
       - name: Combat wound and hand-discard tests
