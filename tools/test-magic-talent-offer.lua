@@ -297,6 +297,9 @@ spellPaymentCounts[red1.guid]=3
 magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..red1.guid.."_sameUse")
 eq(s.mode,"completed","Third paid cast finishes repeated Spell")
 eq(magicTalentOfferSpellCastCount(1,red1.guid),3,"Same Spell has three paid copies")
+spellPaymentCounts[red1.guid]=1
+eq(magicTalentOfferSpellCastCount(1,red1.guid),1,
+    "Removing two casting mana retracts repeated uses")
 magicTalentClose(true)
 maximalCopy=nil
 talent.is_face_down=false
