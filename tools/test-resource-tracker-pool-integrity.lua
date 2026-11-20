@@ -14,6 +14,13 @@ local function section(source,first,last)
 end
 local reader=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local arrows=read("src/PlayingGame/AttackAssignments.lua")
+local trackerUI=read("src/PlayingGame/UI.lua")
+-- Interaction modifiers belong to Interaction itself, even at zero generated
+-- Influence. The Resource Tracker must not hide them until a card is played.
+assert(trackerUI:find('showRow("InfluAmountReput",not combat and reputation~=0)',1,true),
+    "Reputation must remain visible independently of played Influence")
+assert(trackerUI:find('showRow("InfluAmountCityS",not combat and shields~=0)',1,true),
+    "Conquered-city Shields must remain visible independently of played Influence")
 
 -- Reputation and conquered-city shields are real usable Influence even if
 -- no card is played, but must not bias the default resource choice on a card.
