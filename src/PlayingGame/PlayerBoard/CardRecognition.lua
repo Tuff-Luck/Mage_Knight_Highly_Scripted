@@ -8147,14 +8147,18 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     -- other Attack cards, while these buttons independently reduce enemy Attacks.
     if rule~=nil and rule.dodgeAttackSplit and combatCalcOn
         and posture=="upright" and resources~=nil then
-        local count=powered and 2 or 1
+        local perUse=powered and 2 or 1
+        local repeatCount=repeatLink~=nil and repeatLink.count or 1
+        local count=perUse*repeatCount
         local targetAsset=resourceCardsChoiceIcon("target")
         local reduceAsset=resourceCardsChoiceIcon("attackReduction")
-        -- Negative object-UI X appears to the right of the card centre
-        -- after its 180-degree rotation. Keep both powered targets on one row.
+        -- Each copied use has its own effect targets. The printed Attack
+        -- points still form one composite combat source.
         local targetX=-44
-        local targetY=-12
         for index=1,count do
+            local useIndex=math.floor((index-1)/perUse)+1
+            local withinUse=(index-1)%perUse
+            local targetY=-12-(repeatCount-1)*15+(useIndex-1)*30
             local children={}
             if reduceAsset~=nil and not blocked[reduceAsset.name] then
                 children[#children+1]={tag="Image",attributes={image=reduceAsset.name,
@@ -8168,7 +8172,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             xml[#xml+1]={tag="Button",attributes={
                 id="AttackAssignmentSource_"..card.guid.."_0_effect@effect"..index,
                 onClick="global/attackAssignmentSourceClicked",
-                position=tostring(targetX-(index-1)*44).." "..tostring(targetY).." "..buttonDepth,
+                position=tostring(targetX-withinUse*44).." "..tostring(targetY).." "..buttonDepth,
                 rotation=uiRotation,width=90,height=90,scale=buttonScale,
                 colors="#454D5D|#69798E|#444C63|#454D5D",
                 textColor="#FFFFFF",textAlignment="MiddleCenter"},
@@ -11729,7 +11733,7 @@ local function renderSeat(seatPos)
                     -- The optional Attack is automatic, with its own ordinary
                     -- target assignment. Always expose two -2 targets when
                     -- powered, even if both currently point to one enemy.
-                    local count=result.powered and 2 or 1
+                    local count=(result.powered and 2 or 1)*(result.repeatCount or 1)
                     result.enemyEffectTargetKeys={}
                     result.enemyEffectTargetGUIDs={}
                     for index=1,count do
@@ -11742,10 +11746,8 @@ local function renderSeat(seatPos)
                             -- at one multi-attack enemy, the calculator can
                             -- select a different printed Attack for each.
                             -- Two selections of the SAME Attack still total -4.
-                            for _=1,(result.repeatCount or 1) do
-                                combatEffectAdd(enemyEffects,target.guid,card.guid,
-                                    {attackReduce=2},key)
-                            end
+                            combatEffectAdd(enemyEffects,target.guid,card.guid,
+                                {attackReduce=2},key)
                             result.enemyGUID=result.enemyGUID or target.guid
                             result.enemyEffectTargetGUIDs[key]=target.guid
                             result.links[#result.links+1]=target.guid
