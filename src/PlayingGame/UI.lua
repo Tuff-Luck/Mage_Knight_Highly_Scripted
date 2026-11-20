@@ -2360,7 +2360,7 @@ function resourceTracker(player, mouseButton, id)
             local category,field=resourceField[1],resourceField[2]
             if category=="attack" or category=="ranged" or category=="siege" or category=="block" then return end
             local isDown=id:sub(17,20)=="Down"
-            local isUp=id:sub(17,18)=="Up"
+            local isUp=id:sub(17,18)=="Up" or id:sub(17,19)=="Add"
             local current=resourceCardsEffectiveValue(category,field)
             if (isDown and (current>0 or id:sub(1,16)=="InfluAmountReput" or id:sub(1,16)=="InfluAmountPlain"))
                 or (isUp and (category~="move" or resourceCardsEffectiveMove()<99)) then
@@ -2454,7 +2454,7 @@ function refreshResourceTrackerText()
         local elementName=""
         if nonzero==1 and only~=nil then
             local label=joinLang({RESOURCE_TRACKER_FIELDS[only][3]})
-            elementName=label:gsub("%s*:%s*$","")
+            elementName=label:gsub("%s*:%s*(%b{})","%1"):gsub("%s*:%s*$","")
         end
         setResourceTrackerDisplayAttribute(prefix.."SingleElement","text",elementName)
         for _,element in ipairs(elements) do
@@ -2484,6 +2484,16 @@ function refreshResourceTrackerText()
     showRow("HealiAmountPlain",healingTotal>0,34)
     setResourceTrackerDisplayAttribute("HealiAmountPlainText","text",
         joinLang({RESOURCE_TRACKER_FIELDS.HealiAmountPlain[3],healingTotal}))
+    -- At zero, the main row disappears but an unobtrusive + button remains
+    -- so the player can restore a manually reduced resource.
+    local missing={MovemAmountPlain=moveTotal<=0,
+        InfluAmountPlain=influenceTotal<=0,HealiAmountPlain=healingTotal<=0}
+    local anyMissing=false
+    for prefix,hidden in pairs(missing) do
+        setResourceTrackerDisplayAttribute(prefix.."Add","active",hidden and "true" or "false")
+        anyMissing=anyMissing or hidden
+    end
+    showRow("ResourceTrackerAdd",anyMissing,23)
     showRow("HealiGenerated",healingGenerated~=healingTotal)
     setResourceTrackerDisplayAttribute("HealiGeneratedText","text",
         joinLang({RESOURCE_TRACKER_FIELDS.InfluAmountPhysi[3],healingGenerated}))
