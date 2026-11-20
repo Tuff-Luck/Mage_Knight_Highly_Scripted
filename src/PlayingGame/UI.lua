@@ -2419,6 +2419,7 @@ function refreshResourceTrackerText()
     if reputation==-99 then influenceTotal=0 end
     local healingTotal=math.max(0,resourceCardsEffectiveValue("healing","healing"))
     local moveTotal=resourceCardsEffectiveMove()
+    local moveGenerated=resourceCardsGeneratedMove~=nil and resourceCardsGeneratedMove() or 0
     local combatMove=resourceCardsEffectiveCombatMove~=nil and resourceCardsEffectiveCombatMove() or 0
 
     local visibleHeight=26+12 -- Terrain header and breathing room; resource rows are conditional.
@@ -2429,6 +2430,9 @@ function refreshResourceTrackerText()
     showRow("MovemAmountPlain",moveTotal>0,34)
     setResourceTrackerDisplayAttribute("MovemAmountPlainText","text",
         joinLang({RESOURCE_TRACKER_FIELDS.MovemAmountPlain[3],moveTotal}))
+    showRow("MovemGenerated",moveGenerated~=moveTotal)
+    setResourceTrackerDisplayAttribute("MovemGeneratedText","text",
+        joinLang({RESOURCE_TRACKER_FIELDS.InfluAmountPhysi[3],moveGenerated}))
     setResourceTrackerDisplayAttribute("CombatMoveText","text",
         joinLang({"{en}Combat Move : {it}Movimento in combattimento : {ru}Движение в бою: {zh-tw}戰鬥移動：{zh-cn}战斗移动：{ko}전투 이동 : {es}Movimiento en combate : {fr}Déplacement en combat : {pt-br}Movimento em combate : {de}Bewegung im Kampf : ",combatMove}))
     showRow("CombatMove",combatMove>0)
