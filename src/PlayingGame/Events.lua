@@ -776,6 +776,7 @@ function __onObjectDrop_raw(player_color, dropped_object)
     callOfferObjectDropped(dropped_object)
     trainingOfferObjectDropped(player_color,dropped_object)
     magicTalentObjectDropped(player_color,dropped_object)
+    resourceCardsMaximalEffectOffDrop(dropped_object)
     if droppedGUID=="2eb8e8" then
         callOfferScheduleSpellCheck()
     end
