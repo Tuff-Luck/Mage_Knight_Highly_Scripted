@@ -155,6 +155,9 @@ assert(xml:find('id="ResourceTrackerDetail"',1,true)
 assert(not xml:find('id="DisplaySiegeDetails"',1,true),"Combat dropdowns must be removed")
 assert(xml:find('id="CombatMoveRow"',1,true),"Combat Move requires its own conditional row")
 assert(xml:find('id="HealiGeneratedRow"',1,true),"Healing requires a conditional Generated row")
+assert(xml:find('id="MovemGeneratedRow"',1,true),"Move requires a conditional Generated row")
+assert(xml:find('id="MoveCostHeader"',1,true)>xml:find('id="ResourceTrackerAddRow"',1,true),
+    "Terrain Costs must be the bottom section under resource controls")
 
 -- With zero visible resources, the tracker still exposes a 23px + control row
 -- (35px title + 38px terrain header). It must still be considered open, or
@@ -178,6 +181,8 @@ env.joinLang=function(parts) return table.concat(parts) end
 local move,influence,healing=0,0,0
 env.resourceCardsCurrentTotals=function() return {influence=influence,healing=healing} end
 env.resourceCardsEffectiveMove=function() return move end
+local generatedMove=nil
+env.resourceCardsGeneratedMove=function() return generatedMove or move end
 env.resourceCardsEffectiveValue=function(category,field)
     if category=="healing" and field=="healing" then return healing end
     return 0
@@ -192,10 +197,24 @@ eq(ready(),true,"Compact open tracker must still scan cards")
 move,influence,healing=4,2,1
 callback.render()
 size(178,143,"Three resources expand tracker")
+eq(UI.getAttribute("MovemGeneratedRow","active"),"false","Unadjusted Move hides Generated")
 eq(UI.getAttribute("MovemAmountPlainRow","active"),"true","Move reappears")
 eq(UI.getAttribute("InfluAmountPlainRow","active"),"true","Influence reappears")
 eq(UI.getAttribute("HealiAmountPlainRow","active"),"true","Healing reappears")
 
+-- Manual adjustments change Move but not the printed generated amount.
+generatedMove=4
+move=3
+callback.render()
+size(201,166,"Move adjustment displays Generated")
+eq(UI.getAttribute("MovemGeneratedRow","active"),"true","Adjusted Move shows Generated")
+eq(UI.getAttribute("MovemGeneratedText","text"),"Generated : 4",
+    "Move Generated remains the played-card amount")
+move=4
+callback.render()
+size(178,143,"Undo Move adjustment hides Generated")
+eq(UI.getAttribute("MovemGeneratedRow","active"),"false","Generated hides when matching Move")
+generatedMove=nil
 move,influence,healing=0,0,0
 callback.render()
 size(97,62,"Resources removed shrink tracker")
@@ -210,7 +229,7 @@ local trackerWidth=tonumber(xml:match('id="ResourceTracker"[^>]-width="(%d+)"'))
 local trackerX=tonumber(xml:match('id="ResourceTracker"[^>]-offsetXY="(%d+)'))
 local combatX=tonumber(combatXml:match('id="CombatEnemyPanel"[^>]-offsetXY="(%d+)'))
 eq(trackerWidth,225,"Tracker must stay within its original combat boundary")
-assert(trackerX+trackerWidth<=combatX,"Tracker must not overlap combat panel")
+eq(combatX-trackerX-trackerWidth,5,"Tracker and calculator must have five units gap")
 assert(xml:find('id="ResourceTracker"[^>]-color="rgb%(0%.2, 0%.2, 0%.2%)"'),
     "Tracker should match the combat calculator dark panel")
 for _,prefix in ipairs({"MovemAmountPlain","InfluAmountPlain","HealiAmountPlain"}) do
@@ -220,10 +239,27 @@ for _,prefix in ipairs({"MovemAmountPlain","InfluAmountPlain","HealiAmountPlain"
         prefix.." must have a broad right-side increase target")
     assert(xml:find('id="'..prefix..'Add" active="false"',1,true),
         prefix.." must be restorable when its zero row disappears")
+    for _,direction in ipairs({"Down","Up"}) do
+        assert(xml:find('id="'..prefix..direction..'"',1,true),
+            prefix.." must retain "..direction.." click area")
+    end
 end
 for _,prefix in ipairs({"Movem","Siege","Range","Block","Attac","Influ","Heali"}) do
-    assert(xml:find('id="'..prefix..'AmountPlainText" fontSize="19"',1,true),
-        prefix.." headline must be one point smaller than Title20")
+    assert(xml:find('id="'..prefix..'AmountPlainText" fontSize="18" fontStyle="Normal"',1,true),
+        prefix.." headline must be 18pt with normal weight")
+end
+for _,prefix in ipairs({"MovemAmountPlain","InfluAmountPlain","HealiAmountPlain"}) do
+    for _,direction in ipairs({"Down","Up"}) do
+        assert(xml:find('id="'..prefix..direction..'"[^>]*colors="#FFFFFF00|#FFFFFF00|#FFFFFF00|#FFFFFF00"'),
+            prefix.." "..direction.." must stay transparent on hover")
+    end
+end
+assert(not xml:find('tooltip="[Ii]ncrease [MHI]',1,false)
+    and not xml:find('tooltip="Decrease ',1,true),
+    "Tracker adjustment buttons must not have tooltips")
+for _,prefix in ipairs({"Siege","Range","Block","Attac"}) do
+    assert(xml:find('id="'..prefix..'SingleElement"[^>]-offsetXY="-16 0"',1,false),
+        prefix.." element label must match 16-unit left padding on the right")
 end
 assert(uiSource:find('id:sub(17,19)=="Add"',1,true),"Missing-resource + clicks must route as increases")
 assert(xml:find('id="MoveCostHeaderText"',1,true),
