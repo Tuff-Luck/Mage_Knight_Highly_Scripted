@@ -292,7 +292,7 @@ magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..red1.guid.."_sameUs
 eq(s.used,0,"One mana cannot be spent twice")
 spellPaymentCounts[red1.guid]=2
 magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..red1.guid.."_sameUse")
-eq(s.used,1,"Second mana pays second cast")
+eq(s.used,2,"Second mana settles the first and second casts")
 spellPaymentCounts[red1.guid]=3
 magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..red1.guid.."_sameUse")
 eq(s.mode,"completed","Third paid cast finishes repeated Spell")
