@@ -7657,6 +7657,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                     and (tonumber(choice.influence) or 0)>0 then
                     entry.icon="block"
                     entry.iconForeground="influence"
+                    entry.stackedIcons=nil
                 end
                 if producesMove then
                     -- Two cells, one printed Move effect. Never duplicate points.
