@@ -25,6 +25,8 @@ end
 
 -- Wrap TTS event callbacks so unexpected Lua errors are reported automatically.
 function onLoad(saved_data)
+	-- Capture the actual load event, including TTS rewind and scripted reloads.
+	automaticLuaRecordModLoad()
 	return safeCallback("onLoad",function()
 		validatePublicUICallbacks()
 		resourceCardsRegisterIconAssets()
