@@ -1498,10 +1498,11 @@ function attackAssignmentTargetClicked(target,playerColor)
                 -- Right-click before any assignment is a first target, not
                 -- a duplicate allocation or a split into two invisible pools.
                 pending.additional=false
-            elseif mode=="influence" and target.guid==primary then
+            elseif (mode=="influence" or mode=="movePoints")
+                and target.guid==primary then
                 targetingByPlayer[playerColor]=nil
                 syncTargetButtons()
-                broadcastToColor("The primary enemy already receives the remaining Influence points.",
+                broadcastToColor("The primary enemy already receives the remaining resource points.",
                     playerColor,{1,0.6,0.2})
                 return
             end
@@ -1539,7 +1540,7 @@ function attackAssignmentTargetClicked(target,playerColor)
         -- Psychic Influence is a point pool: repeated arrows to the same
         -- enemy each spend one additional point. Converted point pools instead
         -- keep one arrow per distinct enemy.
-        if pending.additional and extraMode=="influence" then
+        if pending.additional and (extraMode=="influence" or extraMode=="movePoints") then
             duplicate=false
         end
 		if not duplicate then
