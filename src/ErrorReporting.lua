@@ -5,7 +5,31 @@ local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
 local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="464"
+local automaticLuaErrorReporterVersion="465"
+
+-- Per-script-session wall-clock timestamps. They are deliberately not saved:
+-- onLoad / rewind creates a new TTS script session.
+local automaticLuaErrorModLoadedAt=os.time()
+local automaticLuaErrorLastSaveAt=nil
+function automaticLuaRecordModLoad()
+	automaticLuaErrorModLoadedAt=os.time()
+	automaticLuaErrorLastSaveAt=nil
+end
+function automaticLuaRecordModSave()
+	automaticLuaErrorLastSaveAt=os.time()
+end
+local function automaticLuaErrorUtcTimestamp(timestamp)
+	return os.date("!%Y-%m-%d %H:%M:%S UTC",timestamp)
+end
+local function automaticLuaErrorDuration(seconds)
+	seconds=math.max(0,math.floor(seconds))
+	local h=math.floor(seconds/3600)
+	local m=math.floor((seconds%3600)/60)
+	local s=seconds%60
+	if h>0 then return string.format("%dh %dm %ds",h,m,s) end
+	if m>0 then return string.format("%dm %ds",m,s) end
+	return tostring(s).."s"
+end
 
 -- Automatic Lua error reporting, protected callback helpers and diagnostic context builders.
 local automaticLuaZoneContext
@@ -282,6 +306,14 @@ local function reportAutomaticLuaError(functionName, errorText, context, heading
 	if signatureCount>100 then automaticLuaErrorSignatures={} automaticLuaErrorSignatures[signature]=now end
 	automaticLuaErrorReporting=true
 	local comment=(heading or "AUTOMATIC LUA ERROR").."\nReporter Version: "..tostring(automaticLuaErrorReporterVersion).."\nFunction: "..tostring(functionName)
+		.."\nMod loaded (UTC): "..automaticLuaErrorUtcTimestamp(automaticLuaErrorModLoadedAt)
+		.."\nReport generated (UTC): "..automaticLuaErrorUtcTimestamp(now)
+		.."\nTime since mod load: "..tostring(math.max(0,now-automaticLuaErrorModLoadedAt))
+			.."s ("..automaticLuaErrorDuration(now-automaticLuaErrorModLoadedAt)..")"
+	if automaticLuaErrorLastSaveAt~=nil then
+		comment=comment.."\nLast onSave (UTC): "..automaticLuaErrorUtcTimestamp(automaticLuaErrorLastSaveAt)
+			.."\nTime since onSave: "..tostring(math.max(0,now-automaticLuaErrorLastSaveAt)).."s"
+	end
 	if context~=nil and context~="" then comment=comment.."\n"..tostring(context) end
 	local breadcrumbs=automaticLuaBreadcrumbText()
 	if breadcrumbs~="" then comment=comment.."\nRecent script actions: "..breadcrumbs end
