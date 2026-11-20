@@ -9699,6 +9699,152 @@ local function resolveActionLinks(cards,wounds,footprints,manaPowered,skillLinks
         repeatByTarget,discardBoostBySource
 end
 
+-- A consumed Action carries the same floating red X as a defeated token.
+-- Its printed face remains readable, and cleanup uses this distinct button
+-- identity to throw the card away even if the player turns it face up.
+function resourceCardsMaximalEffectMarkerNoop() end
+
+function resourceCardsMaximalEffectMarked(card)
+    if card==nil or card.getButtons==nil then return false end
+    for _,button in ipairs(card.getButtons() or {}) do
+        if button.click_function=="resourceCardsMaximalEffectMarkerNoop" then return true end
+    end
+    return false
+end
+
+function resourceCardsMaximalEffectMark(card,active)
+    if card==nil or card.type~="Card" or card.getButtons==nil then return end
+    local found={}
+    for _,button in ipairs(card.getButtons() or {}) do
+        if button.click_function=="resourceCardsMaximalEffectMarkerNoop" then
+            found[#found+1]=button.index
+        end
+    end
+    for i=#found,(active and 2 or 1),-1 do card.removeButton(found[i]) end
+    if active and #found==0 and card.createButton~=nil then
+        local bounds=card.getBoundsNormalized()
+        local scale=card.getScale()
+        local height=bounds~=nil and bounds.size~=nil and (bounds.size.y or bounds.size[2]) or 0
+        local scaleY=scale~=nil and (scale.y or scale[2]) or 1
+        card.createButton({click_function="resourceCardsMaximalEffectMarkerNoop",
+            function_owner=Global,label="X",
+            position={0,math.max(0.12,height/(2*math.max(0.01,scaleY))+0.08),0},
+            rotation={0,0,0},width=0,height=0,font_size=640,
+            font_color={1,0.04,0.04}})
+    end
+    trackerPrivate.maximalMarkedByGUID=trackerPrivate.maximalMarkedByGUID or {}
+    trackerPrivate.maximalMarkedByGUID[card.guid]=active and true or nil
+end
+
+-- Special-card workflows also need this link while tracking is OFF. Recover
+-- only the overlap and power for Maximal Effect, not full resource totals.
+-- When tracking is ON, its authoritative resolver record takes precedence.
+function resourceCardsMaximalEffectLink(seatPos,targetGUID)
+    if seatPos==nil or targetGUID==nil then return nil end
+    if resourceCardsPanelOpen() then
+        local scan=resourceCardScanBySeat[seatPos]
+        local record=scan~=nil and scan.cards~=nil and scan.cards[targetGUID] or nil
+        if record~=nil then return record.repeatLink end
+    end
+    local zone=getObjectFromGUID(playerPlayAreas[seatPos])
+    if zone==nil then return nil end
+    local objects=zone.getObjects()
+    local target=nil
+    for _,obj in ipairs(objects) do
+        if obj.guid==targetGUID then target=obj break end
+    end
+    local data=target~=nil and gameCards[target.guid] or nil
+    if data==nil or (data.cardType~="Starting" and data.cardType~="Advanced Action")
+        or cardPosture(target)~="upright" then return nil end
+    for _,source in ipairs(objects) do
+        local sourceData=gameCards[source.guid]
+        local rule=sourceData~=nil and cardResourceDefinitions[sourceData.resourceKey] or nil
+        local spec=rule~=nil and rule.requiredLink or nil
+        if spec~=nil and spec.mode=="repeat" and source.is_face_down~=true
+            and cardPosture(source)=="upright" then
+            local area=footprint(source)
+            local best,bestPriority,bestArea=nil,-1,0
+            for _,candidate in ipairs(objects) do
+                local details=gameCards[candidate.guid]
+                if candidate.guid~=source.guid and details~=nil
+                    and (details.cardType=="Starting" or details.cardType=="Advanced Action")
+                    and cardPosture(candidate)=="upright" then
+                    local overlap=overlapArea(area,footprint(candidate))
+                    local priority=candidate.is_face_down==true and 1 or 0
+                    if overlap>0 and (priority>bestPriority
+                        or (priority==bestPriority and (overlap>bestArea
+                            or (overlap==bestArea and best~=nil
+                                and candidate.guid<best.guid)))) then
+                        best,bestPriority,bestArea=candidate,priority,overlap
+                    end
+                end
+            end
+            if best~=nil and best.guid==targetGUID then
+                local strong=false
+                for _,mana in ipairs(objects) do
+                    local color=manaColor(mana)
+                    if color~=nil and matchesCardMana(source,color) then
+                        local p=mana.getPosition()
+                        local x,z=p.x or p[1],p.z or p[3]
+                        if math.abs(x-area.x)<area.halfX
+                            and math.abs(z-area.z)<area.halfZ then
+                            strong=true break
+                        end
+                    end
+                end
+                return {powered=strong,count=strong and spec.poweredCount or spec.normalCount}
+            end
+        end
+    end
+    return nil
+end
+
+function resourceCardsMaximalEffectSyncMarks(seatPos,cards,repeats)
+    local present={}
+    for _,card in ipairs(cards or {}) do
+        present[card.guid]=true
+        local linked=repeats~=nil and repeats[card.guid]~=nil
+            or (repeats==nil and resourceCardsMaximalEffectLink(seatPos,card.guid)~=nil)
+        resourceCardsMaximalEffectMark(card,linked)
+    end
+    for guid in pairs(trackerPrivate.maximalMarkedByGUID or {}) do
+        if not present[guid] then
+            local previous=getObjectFromGUID(guid)
+            if previous==nil then trackerPrivate.maximalMarkedByGUID[guid]=nil
+            elseif not combatConfig.cardInTransit(previous) then
+                resourceCardsMaximalEffectMark(previous,false)
+            end
+        end
+    end
+end
+
+-- Marker reconciliation while minimized is independent of card recalculation.
+function resourceCardsMaximalEffectOffDrop(obj)
+    if obj==nil or gStates==nil or gStates.firstStarted~=true
+        or gStates.preEndTurn==true or resourceCardsPanelOpen() then return end
+    local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    local seat=current~=nil and current.seatPos or nil
+    if seat==nil or (not objectGUIDInZone("8fac50",playerPlayAreas[seat])
+        and not objectGUIDInZone("d030d8",playerPlayAreas[seat])
+        and next(trackerPrivate.maximalMarkedByGUID or {})==nil) then return end
+    local guid=obj.guid
+    local function update()
+        if gStates==nil or gStates.preEndTurn==true or resourceCardsPanelOpen() then return end
+        local zone=getObjectFromGUID(playerPlayAreas[seat])
+        if zone==nil then return end
+        local cards={}
+        for _,card in ipairs(zone.getObjects()) do
+            if card.type=="Card" then cards[#cards+1]=card end
+        end
+        resourceCardsMaximalEffectSyncMarks(seat,cards)
+    end
+    safeWaitCondition("PlayerBoard.MaximalEffect",update,function()
+        local live=getObjectFromGUID(guid)
+        return live==nil or (live.held_by_color==nil and live.resting
+            and not live.isSmoothMoving())
+    end,8,update)
+end
+
 -- Generic Skill-card links: one Skill per target, one target per Skill.
 -- The descriptor, not an individual Skill GUID, determines replacement value,
 -- card-type bonuses, mana payment and player-declared conditional values.
@@ -10873,6 +11019,7 @@ local function renderSeat(seatPos)
     local links,boostBy,boostSource,discarded,hasDiscard,linkedCardBySource,
         repeatByTarget,discardBoostBySource=
         resolveActionLinks(cards,wounds,footprints,powered,skillLinksByTarget)
+    resourceCardsMaximalEffectSyncMarks(seatPos,cards,repeatByTarget)
     -- Extra terrain mana is an optional physical payment, separate from the
     -- mana that powers the strong action. Never reuse a claimed mana object.
     local extraTerrainManaByCard,extraTerrainManaByObject={},{}
