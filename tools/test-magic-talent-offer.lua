@@ -148,6 +148,10 @@ end
 
 local maximalCopy=nil
 resourceCardsMaximalEffectLink=function() return maximalCopy end
+local excludedPowerMana={}
+resourceCardsMaximalEffectSourceManaGUIDs=function()
+    return excludedPowerMana
+end
 local spellPaymentCounts={}
 magicTalentSpellCastingPaymentCount=function(_,guid)
     return spellPaymentCounts[guid] or 0
@@ -210,8 +214,13 @@ magicTalentClose(true)
 red1.setPosition({10,1,-20})
 red2.setPosition({15,1,-20})
 talent.is_face_down=true
-maximalCopy={powered=true,count=2}
+maximalCopy={powered=true,count=2,sourceGUID="8fac50"}
+excludedPowerMana={manaRed1=true}
 payments={{guid="manaRed1",color="Red"},{guid="manaRed2",color="Red"}}
+magicTalentSync()
+eq(gStates.magicTalentPreview,nil,
+    "Mana already powering Maximal Effect cannot pay Magic Talent again")
+payments[#payments+1]={guid="manaRed3",color="Red"}
 magicTalentSync()
 s=assert(gStates.magicTalentPreview,"Copied strong Magic Talent starts with two extra mana")
 eq(s.mode,"strong","Copied strong mode")
@@ -226,6 +235,7 @@ eq(s.used,2,"Second strong claim committed")
 eq(s.mode,"claimed","Cannot claim a third")
 eq(s.cardGUID,nil,"Strong copy cannot borrow after second claim")
 magicTalentClose(true)
+excludedPowerMana={}
 
 -- Basic Maximal Effect must discard all three additional hand cards
 -- even when the player skips one of the permitted Spell casts.
