@@ -145,6 +145,11 @@ local cleanup=extract(flow,"function cleanupPlayedCardAtEndTurn(",
     "local MEDITATION_BUTTON_SUFFIXES=")
 env.resourceCardsMaximalEffectMarked=methods.marked
 env.resourceCardsMaximalEffectMark=methods.mark
+-- A copied Steady Tempo must be thrown away rather than retained for
+-- its normal End Turn placement decision.
+env.isSteadyTempoGUID=function(guid) return guid==training.guid end
+env.cardEffectIsVertical=function() return true end
+env.steadyTempoPrepare=function() error("Marked card must never be retained") end
 local run=assert(load(cleanup.."\nreturn cleanupPlayedCardAtEndTurn",
     "End Turn red-X trash","t",env))()
 eq(run(training,1,nil),nil,"Marked card does not seed discard")
