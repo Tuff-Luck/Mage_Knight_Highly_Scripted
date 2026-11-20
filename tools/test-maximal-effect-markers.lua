@@ -60,6 +60,7 @@ local env={
     gStates={firstStarted=true,turnNumber=1},
     turnOrder={{seatPos=1,deadDeckInventory={"8fac50","6fdeb0","a11111"}}},
     playerPlayAreas={[1]="zone"},trashCan="trash",
+    resourceCardScanBySeat={},
     gameCards={
         ["8fac50"]={cardType="Advanced Action",resourceKey="maximalEffect"},
         ["6fdeb0"]={cardType="Advanced Action",resourceKey="training"},
