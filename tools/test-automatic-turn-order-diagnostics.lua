@@ -103,16 +103,42 @@ trackToken("missing456","Entered container=trash",missingToken)
 assert(#tokenHistory.missing456==2)
 assert(tokenHistory.missing456[1]:find("cloned bag=mage-bag",1,true))
 assert(tokenHistory.missing456[2]:find("Entered container=trash",1,true))
+-- TTS can remove the anchors in different orders when exiting. Never infer
+-- shutdown from a single missing anchor (which could be an in-game fault).
+local exitStart=assert(eventSource:find("local gameExitTeardown=false",1,true))
+local exitFinish=assert(eventSource:find(
+    "\n-- Keep a short, token-specific lifecycle trail",exitStart,true))
+local exitImplementation=eventSource:sub(exitStart,exitFinish-1)
+    .."\nreturn eventsExitTeardown"
+local anchorPresent={["map-zone"]=true,["519f96"]=true,["turn-zone"]=true}
+local stops=0
+local exitEnv={
+    mapArea="map-zone",turnOrderArea="turn-zone",
+    getObjectFromGUID=function(guid) return anchorPresent[guid] and {} or nil end,
+    Wait={stopAll=function() stops=stops+1 end}
+}
+setmetatable(exitEnv,{__index=_G})
+local detectExit=assert(load(exitImplementation,"Exit detector","t",exitEnv))()
+assert(detectExit()==false)
+anchorPresent["519f96"]=false
+assert(detectExit()==false and stops==0,"One absent anchor is not shutdown")
+anchorPresent["turn-zone"]=false
+assert(detectExit()==true and stops==1,
+    "Two missing anchors should confirm teardown even with map zone present")
+assert(detectExit()==true and stops==1,"Teardown cancellation should run once")
+
 -- The existing deletion-protection audit must also report an actual destroy
 -- callback, so the later tactic check can be distinguished from the original event.
 local eventStart=assert(eventSource:find(
-    "local function protectedObjectDestroyAudit(",1,true))
+    "local protectedDestroyAuditPending={}",1,true))
 local eventFinish=assert(eventSource:find(
     "\nfunction __tryObjectEnterContainer_raw",eventStart,true))
 local eventImplementation=eventSource:sub(eventStart,eventFinish-1)
     .."\nreturn protectedObjectDestroyAudit"
 local destroyPending={}
+local inTeardown=false
 local destroyEnv={
+    eventsExitTeardown=function() return inTeardown end,
     gStates={firstStarted=true,gameScenario="First Conquest",
         currentRound=1,turnNumber=2},
     turnOrder=env.turnOrder,
@@ -122,7 +148,7 @@ local destroyEnv={
     protectedObjectKind=function() return "Round Order token",true end,
     getObjectFromGUID=function(guid) return objects[guid] end,
     safeWaitFrames=function(scope,fn,frames)
-        assert(scope=="ProtectedObjects" and frames==2)
+        assert(scope=="ProtectedObjects" and frames==120)
         destroyPending[#destroyPending+1]=fn
     end,
     reportAutomaticLuaDiagnostic=env.reportAutomaticLuaDiagnostic,
@@ -133,12 +159,14 @@ local destroyAudit=assert(load(eventImplementation,
     "Protected object audit","t",destroyEnv))()
 objects.missing456=nil
 destroyAudit("missing456")
-assert(#destroyPending==1 and #reports==2,"Destroy audit should be deferred")
+destroyAudit("missing456")
+assert(#destroyPending==1 and #reports==2,
+    "Destroy audit should be deferred and pending reports deduplicated")
 destroyPending[1]()
 assert(#reports==3,"Missing protected token should be reported")
 assert(reports[3].name=="protectedObjectDestroyAudit")
 assert(reports[3].context:find("seat=5 mage=Dummy",1,true))
-assert(reports[3].context:find("Lookup after 2 frames: NOT FOUND",1,true))
+assert(reports[3].context:find("Lookup after 120 frames: NOT FOUND",1,true))
 assert(reports[3].context:find("Entered container=trash",1,true),
     "Destroy report must retain the last recorded container destination")
 
@@ -150,5 +178,19 @@ assert(#reports==3,"Restored object incorrectly reported as destroyed")
 destroyEnv.protectedExpectedScriptRemovals.allowed123={destination="trash"}
 destroyAudit("allowed123")
 assert(#destroyPending==2,"Expected removal should not schedule an audit")
+
+-- A destroy event observed while playing can become normal teardown before
+-- the grace expires; it must not submit the false-positive remote report.
+destroyAudit("shutdown789")
+assert(#destroyPending==3 and #reports==3)
+inTeardown=true
+destroyPending[3]()
+assert(#reports==3,"Shutdown should suppress pending destroy reports")
+inTeardown=false
+destroyAudit("genuine789")
+assert(#destroyPending==4,"Normal gameplay must still audit later token losses")
+destroyPending[4]()
+assert(#reports==4 and reports[4].summary:find("genuine789",1,true),
+    "A genuine in-game token loss must still be reported")
 
 print("Automatic turn-order token diagnostics passed")
