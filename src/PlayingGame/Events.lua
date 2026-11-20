@@ -571,6 +571,9 @@ function eventsOnLoadRawBase(saved_data, loaded_data)
 end
 
 function onSave()
+	-- onSave commonly precedes teardown, but also occurs during ordinary saves.
+	-- Record it for diagnostics without treating a save as evidence of shutdown.
+	automaticLuaRecordModSave()
 	return safeCallback("onSave",function()
 		saveZigguratPyramidUI()
 		saveSetupState()
