@@ -61,15 +61,21 @@ end
 
 local protectedExpectedScriptRemovals={}
 local protectedUnexpectedDestroyReported={}
--- TTS has no Global onExit event. During menu teardown, both permanent anchors
--- disappear; losing only one is NOT enough evidence (it may be an in-game bug).
+-- TTS has no Global onExit event. During menu teardown, permanent anchors
+-- disappear in an unpredictable order. Losing two independent anchors signals
+-- teardown; losing only one is NOT enough evidence (it may be an in-game bug).
 -- Once teardown is confirmed, cancel pending Wait callbacks and avoid new cleanup.
 local gameExitTeardown=false
 local function eventsExitTeardown()
 	if gameExitTeardown then return true end
-	local mapOK,mapObj=pcall(getObjectFromGUID,mapArea)
-	local tableOK,tableObj=pcall(getObjectFromGUID,"519f96")
-	if mapOK and tableOK and mapObj==nil and tableObj==nil then
+	local missing=0
+	for _,guid in ipairs({mapArea,"519f96",turnOrderArea}) do
+		if type(guid)=="string" and guid~="" then
+			local ok,obj=pcall(getObjectFromGUID,guid)
+			if ok and obj==nil then missing=missing+1 end
+		end
+	end
+	if missing>=2 then
 		gameExitTeardown=true
 		if Wait~=nil and type(Wait.stopAll)=="function" then Wait.stopAll() end
 	end
@@ -149,14 +155,22 @@ function __onPlayerAction_raw(player,action,targets)
 	return true
 end
 
+local protectedDestroyAuditPending={}
+-- Let TTS finish unloading before treating a destroy event as a real in-game loss.
+-- A save alone is not proof of exit; genuine losses still report after this grace.
+local PROTECTED_DESTROY_AUDIT_GRACE_FRAMES=120
 local function protectedObjectDestroyAudit(guid)
 	if eventsExitTeardown() then return end
 	if type(gStates)~="table" or gStates.firstStarted~=true then return end
 	local kind,diagnose=protectedObjectKind(guid)
-	if kind==nil or diagnose~=true or protectedExpectedScriptRemovals[guid]~=nil or protectedUnexpectedDestroyReported[guid]==true then return end
-	-- Wait for actual disappearance, not an object temporarily reloading/changing state.
+	if kind==nil or diagnose~=true or protectedExpectedScriptRemovals[guid]~=nil
+		or protectedUnexpectedDestroyReported[guid]==true or protectedDestroyAuditPending[guid]==true then return end
+	-- Shutdown destroys objects in stages; the old two-frame check could run while
+	-- anchors were still present and dispatch a spurious remote error report.
+	protectedDestroyAuditPending[guid]=true
 	safeWaitFrames("ProtectedObjects",function()
-		if eventsExitTeardown() then return end
+		protectedDestroyAuditPending[guid]=nil
+		if eventsExitTeardown() or type(gStates)~="table" or gStates.firstStarted~=true then return end
 		if getObjectFromGUID(guid)~=nil or protectedExpectedScriptRemovals[guid]~=nil then return end
 		if protectedUnexpectedDestroyReported[guid]==true then return end
 		protectedUnexpectedDestroyReported[guid]=true
@@ -181,11 +195,11 @@ local function protectedObjectDestroyAudit(guid)
 					.." round="..tostring(gStates.currentRound)
 					.." turn="..tostring(gStates.turnNumber)
 					.."\nProtected removal permit: none"
-					.."\nLookup after 2 frames: NOT FOUND"
+					.."\nLookup after "..tostring(PROTECTED_DESTROY_AUDIT_GRACE_FRAMES).." frames: NOT FOUND"
 					.."\nToken lifecycle:\n"..(protectedTurnOrderTokenTrail[guid]~=nil
 						and table.concat(protectedTurnOrderTokenTrail[guid],"\n") or "No token events captured"))
 		end
-	end,2)
+	end,PROTECTED_DESTROY_AUDIT_GRACE_FRAMES)
 end
 
 function __tryObjectEnterContainer_raw(container, object)
