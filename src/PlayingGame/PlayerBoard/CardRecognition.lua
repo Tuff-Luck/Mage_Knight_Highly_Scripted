@@ -1100,7 +1100,7 @@ combatConfig.captureParalyzedUnitSources=function(seat,unitGUID)
     return true
 end
 
-local function combatNearestEnemyGUID(source,entries)
+local function combatNearestEnemyGUID(source,entries,eligible)
     local sourceObject=getObjectFromGUID(source.guid)
     local sourcePosition=sourceObject~=nil and sourceObject.getPosition()
         or source.retiredUnitPosition
@@ -1116,6 +1116,7 @@ local function combatNearestEnemyGUID(source,entries)
             end
         end
         if enemy~=nil and not forkDuplicate and entry.guid~=source.possessExclude
+            and (eligible==nil or eligible(entry.guid))
             and (not entry.attackOnly
             or source.ranged+source.siege+source.attack==0) then
             local position=enemy.getPosition()
@@ -4453,8 +4454,7 @@ local function combatAssignmentRefreshRows(entries,sources)
         local targetGUID=combatAssignmentState.targets[source.key]
         if targetGUID==nil then
             -- Restore the saved visual assignment for every source after a reload.
-            -- Move has no automatic target, while other resources use nearest-enemy only
-            -- when no valid persisted assignment exists.
+            -- Persisted/manual assignments win over nearest-enemy defaults.
             for guid in pairs(attackAssignmentsTargetGUIDs(source.key)) do
                 if rowByGUID[guid]~=nil then
                     targetGUID=guid
@@ -4492,10 +4492,17 @@ local function combatAssignmentRefreshRows(entries,sources)
             attackAssignmentsClearForObject(source.key)
             targetGUID,targetIndex=nil,nil
         end
-        if targetIndex==nil and not moveOnly and not influenceOnly then
-            targetGUID=combatNearestEnemyGUID(source,entries)
+        -- Combat Move is a deliberate phase choice, unlike ordinary movement.
+        -- Its nearest eligible Cumbersome enemy gets the same initial arrow
+        -- and lock as other combat sources. A manually assigned target wins.
+        -- Mark this automatic Move lock allocated so its points actually
+        -- reduce Cumbersome and are reserved from Agility conversion.
+        local autoCombatMove=moveOnly and source.move>0 and combatCumbersomeActive
+        if targetIndex==nil and (autoCombatMove or (not moveOnly and not influenceOnly)) then
+            targetGUID=combatNearestEnemyGUID(source,entries,
+                autoCombatMove and combatGUIDHasCumbersome or nil)
             combatAssignmentState.targets[source.key]=targetGUID
-            combatAssignmentState.explicit[source.key]=nil
+            combatAssignmentState.explicit[source.key]=autoCombatMove and targetGUID~=nil or nil
             targetIndex=targetGUID~=nil and rowByGUID[targetGUID] or nil
         end
         if targetIndex==nil and targetGUID~=nil then
@@ -7644,6 +7651,13 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                     iconOverlayAlignment=choice.iconOverlayAlignment,
                     iconOverlaySize=choice.iconOverlaySize,
                     roleBadge=producesMove and "M" or nil}
+                -- In combat, Influence can be committed to Psychic Block.
+                -- Show its function with shield beneath the Influence symbol.
+                if category=="influence" and combatPsychicActive
+                    and (tonumber(choice.influence) or 0)>0 then
+                    entry.icon="block"
+                    entry.iconForeground="influence"
+                end
                 if producesMove then
                     -- Two cells, one printed Move effect. Never duplicate points.
                     entry.targetResource=nil
@@ -7652,7 +7666,12 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                     for key,value in pairs(entry) do combatEntry[key]=value end
                     combatEntry.category="combatMove"..category
                     combatEntry.originalIndex=j+0.5
-                    combatEntry.roleBadge="C"
+                    -- Shield first, then an overlapping Move symbol, instead
+                    -- of the text-only C badge on combat Move choices.
+                    combatEntry.icon="block"
+                    combatEntry.iconForeground="move"
+                    combatEntry.stackedIcons=nil
+                    combatEntry.roleBadge=nil
                     combatEntry.targetResource=combatCumbersomeActive and "move" or nil
                     row.entries[#row.entries+1]=combatEntry
                 else
@@ -7697,6 +7716,10 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             if not assetSeen[entry.icon] then
                 visibleAssets[#visibleAssets+1]=entry.icon
                 assetSeen[entry.icon]=true
+            end
+            if entry.iconForeground~=nil and not assetSeen[entry.iconForeground] then
+                visibleAssets[#visibleAssets+1]=entry.iconForeground
+                assetSeen[entry.iconForeground]=true
             end
             for _,stackedIcon in ipairs(entry.stackedIcons or {}) do
                 if not assetSeen[stackedIcon] then
@@ -7857,7 +7880,9 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                     colors=active and "#387D30|#4CA940|#387D30|#387D30"
                         or "#454D5D|#69798E|#444C63|#454D5D",
                     fontSize=77,textColor="#FFFFFF",textAlignment="MiddleCenter"
-                },value=icon==nil and choiceLetters[category] or ""}
+                },value=icon==nil
+                    and (choiceLetters[category] or (entry.iconForeground=="move" and "C")
+                        or (entry.iconForeground=="influence" and "I") or "") or ""}
                 if icon~=nil then
                     if entry.stackedIcons~=nil then
                         button.children={}
@@ -7875,6 +7900,17 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                             image=icon.name,width=82,height=82,preserveAspect="true",
                             raycastTarget="false",color="#FFFFFF"}}
                         }
+                    end
+                    -- The icon layer is smaller so the shield remains readable.
+                    -- Keep both layers non-interactive; the parent is the button.
+                    if entry.iconForeground~=nil then
+                        local foreground=resourceCardsChoiceIcon(entry.iconForeground)
+                        if foreground~=nil and not blocked[foreground.name] then
+                            button.children[#button.children+1]={tag="Image",attributes={
+                                image=foreground.name,width=49,height=49,
+                                rectAlignment="LowerRight",offsetXY="-3 3",
+                                preserveAspect="true",raycastTarget="false",color="#FFFFFF"}}
+                        end
                     end
                     local mark=entry.iconOverlay
                     if mark==nil and (category=="fireAttack" or category=="fireBlock") then
@@ -8321,6 +8357,23 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decisi
         local name=ability.icon or ability.key
         if not seen[name] then visibleAssets[#visibleAssets+1]=name seen[name]=true end
     end
+    -- Unit Move has the same shield/Move choice as Action cards; Psychic
+    -- Influence shares the shield/Influence treatment when relevant.
+    for _,index in ipairs(displayed) do
+        local ability=abilities[index]
+        if (tonumber(ability.move) or 0)>0
+            or (combatPsychicActive and ability.key=="influence"
+                and (tonumber(ability.influence) or 0)>0) then
+            if not seen.block then visibleAssets[#visibleAssets+1]="block" seen.block=true end
+            if not seen.move and (tonumber(ability.move) or 0)>0 then
+                visibleAssets[#visibleAssets+1]="move" seen.move=true
+            end
+            if not seen.influence and combatPsychicActive
+                and ability.key=="influence" then
+                visibleAssets[#visibleAssets+1]="influence" seen.influence=true
+            end
+        end
+    end
     if #targetLabels>0 then visibleAssets[#visibleAssets+1]="target" end
     local assets,blocked=resourceCardsChoiceAssetsFor(unit.UI,visibleAssets)
 
@@ -8378,6 +8431,20 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decisi
                 button.children={{tag="Image",attributes={
                     image=icon.name,width=82,height=82,preserveAspect="true",
                     raycastTarget="false",color="#FFFFFF"}}}
+                if combatPsychicActive and ability.key=="influence"
+                    and (tonumber(ability.influence) or 0)>0 then
+                    local shield=resourceCardsChoiceIcon("block")
+                    local influence=resourceCardsChoiceIcon("influence")
+                    if shield~=nil and influence~=nil
+                        and not blocked[shield.name] and not blocked[influence.name] then
+                        button.children={{tag="Image",attributes={
+                            image=shield.name,width=82,height=82,preserveAspect="true",
+                            raycastTarget="false",color="#FFFFFF"}},
+                            {tag="Image",attributes={image=influence.name,width=49,height=49,
+                                rectAlignment="LowerRight",offsetXY="-3 3",
+                                preserveAspect="true",raycastTarget="false",color="#FFFFFF"}}}
+                    end
+                end
                 if ability.iconOverlay~=nil then
                     button.children[#button.children+1]={tag="Text",attributes={
                         text=ability.iconOverlay,width=82,height=82,
@@ -8411,7 +8478,26 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decisi
                         or "#454D5D|#69798E|#444C63|#454D5D",
                     fontSize=77,textColor="#FFFFFF",textAlignment="MiddleCenter"},
                     value=icon==nil and "C" or ""}
-                if icon~=nil then
+                local shield=resourceCardsChoiceIcon("block")
+                local movement=resourceCardsChoiceIcon("move")
+                if shield~=nil and not blocked[shield.name] then
+                    combatButton.value=""
+                    combatButton.children={{tag="Image",attributes={
+                        image=shield.name,width=82,height=82,preserveAspect="true",
+                        raycastTarget="false",color="#FFFFFF"}}}
+                    if movement~=nil and not blocked[movement.name] then
+                        combatButton.children[#combatButton.children+1]={tag="Image",attributes={
+                            image=movement.name,width=49,height=49,rectAlignment="LowerRight",
+                            offsetXY="-3 3",preserveAspect="true",
+                            raycastTarget="false",color="#FFFFFF"}}
+                    else
+                        combatButton.children[#combatButton.children+1]={tag="Text",attributes={
+                            text="M",width=34,height=34,alignment="LowerRight",
+                            fontSize=37,fontStyle="Bold",color="#69AEFF",
+                            raycastTarget="false"}}
+                    end
+                elseif icon~=nil then
+                    -- Missing shield artwork: retain the old legible fallback.
                     combatButton.children={{tag="Image",attributes={
                         image=icon.name,width=82,height=82,preserveAspect="true",
                         raycastTarget="false",color="#FFFFFF"}},
