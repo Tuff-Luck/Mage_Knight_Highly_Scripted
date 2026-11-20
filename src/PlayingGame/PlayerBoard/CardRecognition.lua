@@ -7429,6 +7429,11 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         and cardPosture(card)=="upright" and card.is_face_down~=true then
         choices={{move=resources.move}}
     end
+    -- Fixed Move effects also require an ordinary grid choice for their phase.
+    if (choices==nil or #choices==0) and type(resources)=="table"
+        and (tonumber(resources.move) or 0)>0 then
+        choices={{move=resources.move}}
+    end
     -- A fixed effect (no alternatives) still needs a Target button for its combat resource.
     if (choices==nil or #choices==0) and type(resources)=="table" then
         local bestKey,bestRank
@@ -7505,13 +7510,22 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             _,selected=inventorySetChoice(card.guid,row.index,row.choices,choices)
         end
         row.selected=selected
+        if selected~=nil and resourceCardsMoveRole(card.guid,false)=="combat" then
+            for _,option in ipairs(row.choices) do
+                if choiceCategory(option)==selected and (tonumber(option.move) or 0)>0 then
+                    row.selected="combatMove"..selected
+                    break
+                end
+            end
+        end
         row.entries={}
         local seen={}
         for j,choice in ipairs(row.choices) do
             local category=choiceCategory(choice)
             if category~=nil and choiceLetters[category]~=nil and not seen[category] then
                 seen[category]=true
-                row.entries[#row.entries+1]={category=category,
+                local producesMove=(tonumber(choice.move) or 0)>0
+                local entry={category=category,
                     rank=resourceChoiceRank(category,choice),originalIndex=j,
                     skillFamily=isSkill and skillChoiceFamily(category,choice) or nil,
                     icon=combatReductionChoiceIcon(rule,powered,choice,category),
@@ -7521,7 +7535,22 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                     targetResource=targetResourceFor(choice,category),
                     iconOverlayColor=choice.iconOverlayColor,
                     iconOverlayAlignment=choice.iconOverlayAlignment,
-                    iconOverlaySize=choice.iconOverlaySize}
+                    iconOverlaySize=choice.iconOverlaySize,
+                    roleBadge=producesMove and "M" or nil}
+                if producesMove then
+                    -- Two cells, one printed Move effect. Never duplicate points.
+                    entry.targetResource=nil
+                    row.entries[#row.entries+1]=entry
+                    local combatEntry={}
+                    for key,value in pairs(entry) do combatEntry[key]=value end
+                    combatEntry.category="combatMove"..category
+                    combatEntry.originalIndex=j+0.5
+                    combatEntry.roleBadge="C"
+                    combatEntry.targetResource=combatCumbersomeActive and "move" or nil
+                    row.entries[#row.entries+1]=combatEntry
+                else
+                    row.entries[#row.entries+1]=entry
+                end
             end
         end
         table.sort(row.entries,function(a,b)
@@ -7753,6 +7782,15 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                             outline="#1C1514",outlineSize="2 -2",
                             raycastTarget="false"}}
                     end
+                end
+                if entry.roleBadge~=nil then
+                    button.children=button.children or {}
+                    button.children[#button.children+1]={tag="Text",attributes={
+                        text=entry.roleBadge,width=34,height=34,
+                        alignment="LowerRight",fontSize=37,fontStyle="Bold",
+                        color=entry.roleBadge=="C" and "#69AEFF" or "#9AFFA4",
+                        outline="#101820",outlineSize="2 -2",
+                        raycastTarget="false"}}
                 end
                 -- Text-only alternatives (e.g. Chivalry's Reputation choice) are
                 -- real buttons even when no custom icon asset exists.
