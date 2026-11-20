@@ -230,7 +230,9 @@ function resourceCardsPanelReady()
     return gStates~=nil and gStates.firstStarted==true
         and UI.getAttribute("ResourceTracker","active")=="true"
         and UI.getAttribute("ResourceTrackerDetail","active")=="true"
-        and (tonumber(UI.getAttribute("ResourceTracker","height")) or 0)>200
+        -- The compact panel can legitimately be shorter than 200px with few/no resources.
+        -- Only the collapsed 35px header indicates that the content is not yet ready.
+        and (tonumber(UI.getAttribute("ResourceTracker","height")) or 0)>35
 end
 
 function resourceCardsPanelOpen()
