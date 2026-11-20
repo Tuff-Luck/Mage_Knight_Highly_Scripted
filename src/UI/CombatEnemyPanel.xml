@@ -1,4 +1,4 @@
-<Panel id="CombatEnemyPanel" active="false" class="Floating" rectAlignment="UpperLeft" offsetXY="360 -80" width="1100" height="125" color="rgb(0.2, 0.2, 0.2)" outlineSize="1 -1">
+<Panel id="CombatEnemyPanel" active="false" class="Floating" rectAlignment="UpperLeft" offsetXY="365 -80" width="1100" height="125" color="rgb(0.2, 0.2, 0.2)" outlineSize="1 -1">
 	<VerticalLayout rectAlignment="UpperCenter" offsetXY="0 0" padding="6 6 3 3" childForceExpandHeight="false">
 		<HorizontalLayout padding="5 0 0 0" preferredHeight="20" childForceExpandWidth="false">
 			<Text id="CombatMonsterHeader" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="White" preferredWidth="120" alignment="MiddleLeft">{en}Enemy{it}Nemico{ru}Враг{zh-tw}敵人{zh-cn}敌人{ko}적{es}Enemigo{fr}Ennemi{pt-br}Inimigo{de}Feind</Text>
