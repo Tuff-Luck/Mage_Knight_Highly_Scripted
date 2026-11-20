@@ -6441,7 +6441,7 @@ end
 local function resourceCardsIgnoreSiteFortification(rule,result,card)
     if rule==nil or rule.ignoreSiteFortification~=true
         or result==nil or result.complete~=true or result.resources==nil
-        or card==nil or card.is_face_down==true
+        or card==nil or (card.is_face_down==true and result.repeatLink==nil)
         or cardPosture(card)~="upright" then return false end
     return (result.powered==true)==(rule.ignoreSiteFortificationPowered==true)
 end
@@ -9161,6 +9161,8 @@ function resourceCardsTrainingMode(seatPos)
     if record~=nil and resourceCardsPanelOpen() then
         return record.powered==true,record.repeatCount or 1
     end
+    local copied=resourceCardsMaximalEffectLink(seatPos,"6fdeb0")
+    if copied~=nil then return copied.powered==true,copied.count end
     local card=getObjectFromGUID("6fdeb0")
     local zone=seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
     if card==nil or zone==nil or card.is_face_down==true then return false,1 end
@@ -11593,7 +11595,7 @@ local function renderSeat(seatPos)
         -- resource values/completeness. A powered side must never inherit the
         -- unpowered side's movement rules.
         if rule~=nil and rule.movementEffects~=nil and cardPosture(card)=="upright"
-            and card.is_face_down~=true
+            and (card.is_face_down~=true or result.repeatLink~=nil)
             and (cardData==nil or cardData.cardType~="Spell"
                 or spellCastingPaid[card.guid]==true)
             and (discarded[card.guid]==nil or repeatByTarget[card.guid]~=nil) then
@@ -11605,7 +11607,8 @@ local function renderSeat(seatPos)
             end
         end
         if rule~=nil and result.complete and result.resources~=nil
-            and cardPosture(card)=="upright" and card.is_face_down~=true then
+            and cardPosture(card)=="upright"
+            and (card.is_face_down~=true or result.repeatLink~=nil) then
             if rule.oneSpaceDiscount~=nil and not result.powered then
                 -- Basic Druidic Paths discounts a single entered space per
                 -- route, never every space of one terrain type.
@@ -11636,7 +11639,8 @@ local function renderSeat(seatPos)
         -- Conditional combat effects apply only on a paid, upright, actually
         -- played side, never when the card is merely in the zone for display.
         if rule~=nil and result.complete and result.resources~=nil
-            and cardPosture(card)=="upright" and card.is_face_down~=true then
+            and cardPosture(card)=="upright"
+            and (card.is_face_down~=true or result.repeatLink~=nil) then
             if rule.unitCombatBoost~=nil then
                 local bonus=result.powered and rule.unitCombatBoost.powered
                     or rule.unitCombatBoost.normal
@@ -11668,7 +11672,8 @@ local function renderSeat(seatPos)
         local origin=records[source.guid]
         if modifier~=nil and origin~=nil and origin.complete==true
             and origin.resources~=nil and (tonumber(origin.resources.move) or 0)>0
-            and cardPosture(source)=="upright" and source.is_face_down~=true then
+            and cardPosture(source)=="upright"
+            and (source.is_face_down~=true or origin.repeatLink~=nil) then
             local order=gStates.resourceCardPlayOrder[source.guid]
             local candidates={}
             for _,target in ipairs(cards) do
@@ -14043,13 +14048,14 @@ function resourceCardsReadySourceValid(sourceKey,seatPos)
         and data.resourceKey~="regeneration"
         and data.resourceKey~="ruthlessCoercion") then return false end
     local card=getObjectFromGUID(guid)
-    if card==nil or card.is_face_down or cardPosture(card)~="upright" then return false end
+    if card==nil or cardPosture(card)~="upright" then return false end
     local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     seatPos=seatPos or (current~=nil and current.seatPos)
     if seatPos==nil or not cardInSeatPlayArea(guid,seatPos) then return false end
     local scan=resourceCardScanBySeat[seatPos]
     local record=scan~=nil and scan.cards[guid] or nil
-    if record==nil or record.complete~=true then return false end
+    if record==nil or record.complete~=true
+        or (card.is_face_down==true and record.repeatLink==nil) then return false end
     if data.resourceKey=="ruthlessCoercion" then
         return record.powered==true
             and sourceKey:match("^"..guid.."#ready%d+$")~=nil
