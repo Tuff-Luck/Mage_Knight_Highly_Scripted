@@ -49,8 +49,10 @@ setmetatable(env,{__index=_G})
 -- Load the real UI callback and its layout constants/functions, without starting TTS.
 local callbackSource=slice(uiSource,"local RESOURCE_TRACKER_EXPANDERS={",
     "local RESOURCE_TRACKER_ZERO_TEXT_COLOR=")
-local callback=assert(load(callbackSource..
-    "\nreturn {click=resourceTracker,layout=resourceTrackerSyncLayout,restore=resourceTrackerRestoreExpandedLayout}",
+local renderSource=slice(uiSource,"local RESOURCE_TRACKER_ZERO_TEXT_COLOR=",
+    "function resetResourceTrackerState()")
+local callback=assert(load(callbackSource..renderSource..
+    "\nreturn {click=resourceTracker,layout=resourceTrackerSyncLayout,restore=resourceTrackerRestoreExpandedLayout,render=refreshResourceTrackerText}",
     "Resource Tracker layout","t",env))()
 local function click(id)
     callback.click({color="Blue"},"-1",id)
@@ -153,4 +155,61 @@ assert(not xml:find('id="DisplaySiegeDetails"',1,true),"Combat dropdowns must be
 assert(xml:find('id="CombatMoveRow"',1,true),"Combat Move requires its own conditional row")
 assert(xml:find('id="HealiGeneratedRow"',1,true),"Healing requires a conditional Generated row")
 
-print("Resource Tracker layout, header and rewind regression tests passed")
+-- With zero visible resources the tracker is intentionally only 73px high
+-- (35px title + 38px terrain header). It must still be considered open, or
+-- adding cards will never trigger the first resource scan.
+local readyCode=slice(cardSource,"function resourceCardsPanelReady()",
+    "function resourceCardsPanelOpen()")
+local ready=assert(load(readyCode.."\nreturn resourceCardsPanelReady",
+    "Tracker scan readiness","t",env))()
+env.gStates.resourceTracker={
+    move={move=0},
+    influence={generated=0,reputation=0,cityShields=0},
+    healing={healing=0}
+}
+env.gStates.moveCost={}
+env.refreshResourceTrackerReputation=function() end
+env.resourceCardsEnemyPresent=function() return false end
+env.currentCityShieldInfluence=function() return 0 end
+env.resourceCardsEffectiveTerrainCost=function() return 2 end
+env.resourceCardsEffectiveCombatMove=function() return 0 end
+env.joinLang=function(parts) return table.concat(parts) end
+local move,influence,healing=0,0,0
+env.resourceCardsCurrentTotals=function() return {influence=influence,healing=healing} end
+env.resourceCardsEffectiveMove=function() return move end
+env.resourceCardsEffectiveValue=function(category,field)
+    if category=="healing" and field=="healing" then return healing end
+    return 0
+end
+callback.render()
+size(73,38,"Zero resources compact height")
+eq(UI.getAttribute("MovemAmountPlainRow","active"),"false","Empty Move hidden")
+eq(UI.getAttribute("InfluAmountPlainRow","active"),"false","Empty Influence hidden")
+eq(UI.getAttribute("HealiAmountPlainRow","active"),"false","Empty Healing hidden")
+eq(ready(),true,"Compact open tracker must still scan cards")
+
+move,influence,healing=4,2,1
+callback.render()
+size(178,143,"Three resources expand tracker")
+eq(UI.getAttribute("MovemAmountPlainRow","active"),"true","Move reappears")
+eq(UI.getAttribute("InfluAmountPlainRow","active"),"true","Influence reappears")
+eq(UI.getAttribute("HealiAmountPlainRow","active"),"true","Healing reappears")
+
+move,influence,healing=0,0,0
+callback.render()
+size(73,38,"Resources removed shrink tracker")
+eq(ready(),true,"Empty tracker remains ready for next card")
+UI.setAttribute("ResourceTracker","height","35")
+eq(ready(),false,"Collapsed header cannot scan")
+UI.setAttribute("ResourceTracker","height","73")
+UI.setAttribute("ResourceTrackerDetail","active","false")
+eq(ready(),false,"Hidden detail cannot scan")
+
+assert(xml:find('id="MoveCostHeaderText"',1,true),
+    "Terrain Costs must have an id for translated text reapplication")
+for _,id in ipairs({"MovemAmountPlainRow","InfluAmountPlainRow","HealiAmountPlainRow"}) do
+    assert(xml:find('id="'..id..'" active="false"',1,true),
+        id.." must start hidden before the first scan")
+end
+
+print("Resource Tracker layout, scanning, localization and rewind regression tests passed")
