@@ -156,7 +156,7 @@ assert(not xml:find('id="DisplaySiegeDetails"',1,true),"Combat dropdowns must be
 assert(xml:find('id="CombatMoveRow"',1,true),"Combat Move requires its own conditional row")
 assert(xml:find('id="HealiGeneratedRow"',1,true),"Healing requires a conditional Generated row")
 
--- With zero visible resources the tracker is intentionally only 73px high
+-- With zero visible resources, the tracker still exposes a 23px + control row
 -- (35px title + 38px terrain header). It must still be considered open, or
 -- adding cards will never trigger the first resource scan.
 local readyCode=slice(cardSource,"function resourceCardsPanelReady()",
@@ -183,7 +183,7 @@ env.resourceCardsEffectiveValue=function(category,field)
     return 0
 end
 callback.render()
-size(73,38,"Zero resources compact height")
+size(97,62,"Zero resources compact height")
 eq(UI.getAttribute("MovemAmountPlainRow","active"),"false","Empty Move hidden")
 eq(UI.getAttribute("InfluAmountPlainRow","active"),"false","Empty Influence hidden")
 eq(UI.getAttribute("HealiAmountPlainRow","active"),"false","Empty Healing hidden")
@@ -198,11 +198,11 @@ eq(UI.getAttribute("HealiAmountPlainRow","active"),"true","Healing reappears")
 
 move,influence,healing=0,0,0
 callback.render()
-size(73,38,"Resources removed shrink tracker")
+size(97,62,"Resources removed shrink tracker")
 eq(ready(),true,"Empty tracker remains ready for next card")
 UI.setAttribute("ResourceTracker","height","35")
 eq(ready(),false,"Collapsed header cannot scan")
-UI.setAttribute("ResourceTracker","height","73")
+UI.setAttribute("ResourceTracker","height","97")
 UI.setAttribute("ResourceTrackerDetail","active","false")
 eq(ready(),false,"Hidden detail cannot scan")
 
