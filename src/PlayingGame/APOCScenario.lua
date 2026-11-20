@@ -1089,12 +1089,12 @@ apocalypseIsHereShowTargetChoice=function(name,options,previousReport,choicePlay
 		previousReport=previousReport~=nil and previousReport or (gStates.apocalypseHereHorsemenTurnReport or "")
 	}
 	gStates.apocalypseHereHorsemanPendingChoice=pending
-	applyTerrainHexChoiceButtons(options,function(option,index,xml,splitIndex,splitCount)
+	applyTerrainHexChoiceButtons(options,function(option,index,xml,splitIndex,splitCount,spatial)
 		return appendTerrainHexChoiceButton(option.key,index,xml,splitIndex,splitCount,{
 			idPrefix="ApocalypseHorsemanTarget",onClick="global/apocalypseIsHereHorsemanTargetSelect",
 			buttonScale=0.16,referenceScale=0.38,width=320,height=300,fontSize=65,splitFontSize=65,
 			text=joinLang({name,"\n","{en}Target{it}Bersaglio{ru}Цель{zh-tw}目標{zh-cn}目标{ko}목표{es}Objetivo{fr}Cible{pt-br}Alvo{de}Ziel"})
-		})
+		},spatial)
 	end)
 	gStates.apocalypseHereHorsemenUIState="WaitingChoice"
 	local choiceText=joinLang({name,"{en} has tied preferred targets. {it} ha più bersagli preferiti a pari merito. {ru} имеет несколько равноценных предпочтительных целей. {zh-tw} 有多個同等優先的目標。{zh-cn} 有多个同等优先的目标。{ko}에게 동률인 우선 목표가 있습니다. {es} tiene varios objetivos preferidos empatados. {fr} a plusieurs cibles prioritaires à égalité. {pt-br} tem vários alvos preferidos empatados. {de} hat mehrere gleichrangige bevorzugte Ziele. ",apocalypseDragonChoicePlayerLabel(pending.playerIndex),"{en} must choose which site it moves toward.{it} deve scegliere il sito verso cui si muove.{ru} должен выбрать, к какому месту он двинется.{zh-tw} 必須選擇它要朝哪個地點移動。{zh-cn} 必须选择它要朝哪个地点移动。{ko}이(가) 어느 장소로 이동할지 선택해야 합니다.{es} debe elegir hacia qué lugar se moverá.{fr} doit choisir vers quel site il se déplacera.{pt-br} deve escolher em direção a qual local ele se moverá.{de} muss wählen, auf welchen Ort er sich zubewegt."})
@@ -1943,14 +1943,14 @@ function againstDragonOffMapChoiceClearButtons()
 	end
 end
 
-againstDragonTargetChoiceButton=function(option,index,xml,splitIndex,splitCount)
+againstDragonTargetChoiceButton=function(option,index,xml,splitIndex,splitCount,spatial)
 	if option==nil or option.key==nil then return nil,xml end
 	local label="{en}Dragon\nDestroy{it}Distruzione\nDrago{ru}Дракон\nУничтожает{zh-tw}巨龍\n摧毀{zh-cn}巨龙\n摧毁{ko}드래곤\n파괴{es}Dragón\nDestruir{fr}Dragon\nDétruire{pt-br}Dragão\nDestruir{de}Drache\nZerstört"
 	if option.kind=="attack" then label=joinLang({"{en}Attack\n{it}Attacco\n{ru}Атака\n{zh-tw}攻擊\n{zh-cn}攻击\n{ko}공격\n{es}Atacar\n{fr}Attaquer\n{pt-br}Atacar\n{de}Angriff\n",tostring(option.mage or joinLang({"{en}Player{it}Giocatore{ru}Игрок{zh-tw}玩家{zh-cn}玩家{ko}플레이어{es}Jugador{fr}Joueur{pt-br}Jogador{de}Spieler"}))}) end
 	return appendTerrainHexChoiceButton(option.key,index,xml,splitIndex,splitCount,{
 		idPrefix="DragonTargetChoice",onClick="global/againstDragonTargetChoiceSelect",
 		buttonScale=0.16,referenceScale=0.38,splitFontSize=60,fontSize=72,text=label
-	})
+	},spatial)
 end
 
 againstDragonShowMapChoice=function(pending)
