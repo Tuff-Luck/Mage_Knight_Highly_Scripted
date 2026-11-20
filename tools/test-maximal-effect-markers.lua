@@ -94,6 +94,17 @@ return {
     beforeEnd=resourceCardsMaximalEffectBeforeEndTurn
 }]],"Maximal Effect marks","t",env))()
 eq(methods.link(1,training.guid).count,3,"Physical OFF link finds three basic uses")
+
+-- Training's offer browser must recognise the same repeated effect even
+-- with the Resource Tracker minimized, and regardless of the linked flip.
+env.resourceCardsMaximalEffectLink=methods.link
+local trainingMode=assert(load(extract(reader,
+    "function resourceCardsTrainingMode(seatPos)",
+    "-- Used by Steady Tempo")..
+    "\nreturn resourceCardsTrainingMode","Training OFF mode","t",env))()
+local basicTraining,basicUses=trainingMode(1)
+eq(basicTraining,false,"Unpowered copied Training")
+eq(basicUses,3,"Training has three uses while OFF")
 methods.sync(1,{maximal,training},{[training.guid]={count=3,powered=false}})
 eq(methods.marked(training),true,"Linked card displays red X")
 eq(#training.getButtons(),1,"Only one X")
@@ -113,6 +124,14 @@ zone.getObjects=function() return {maximal,training,mana} end
 local strong=methods.link(1,training.guid)
 eq(strong.count,2,"Powered OFF link gives two uses")
 eq(strong.powered,true,"Powered copy is strong")
+local poweredTraining,strongUses=trainingMode(1)
+eq(poweredTraining,true,"Powered copied Training while OFF")
+eq(strongUses,2,"Training's two stronger uses while OFF")
+training.is_face_down=true
+local flippedTraining,flippedUses=trainingMode(1)
+eq(flippedTraining,true,"Thrown-away Training still powered")
+eq(flippedUses,2,"Face-down Training retains two uses")
+training.is_face_down=false
 zone.getObjects=function() return {maximal,training} end
 
 -- Cleanup consumes a marked face-up Action instead of returning it to
