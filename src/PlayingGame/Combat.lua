@@ -902,6 +902,11 @@ function manaClaimReturnHeldDice()
 end
 
 local function combatPreEndTurnPreparePlayArea(cleanupPlayer,recovery)
+	-- Reconcile Maximal Effect's red-X throw-away marks before any card moves.
+	-- A resumed cleanup must keep its original verdict instead of recalculating.
+	if recovery==nil or recovery.playAreaPrepared~=true then
+		resourceCardsMaximalEffectBeforeEndTurn(turnOrder[cleanupPlayer].seatPos)
+	end
 	-- Locate the discard pile, which can legitimately be a Deck. An unexpected Deck
 	-- in the *play area* is different: leave it intact and do not process its cards.
 	local cardDestination=nil
