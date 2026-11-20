@@ -2429,7 +2429,7 @@ function refreshResourceTrackerText()
     setResourceTrackerDisplayAttribute("MovemAmountPlainText","text",
         joinLang({RESOURCE_TRACKER_FIELDS.MovemAmountPlain[3],moveTotal}))
     setResourceTrackerDisplayAttribute("CombatMoveText","text",
-        "Combat Move : "..tostring(combatMove))
+        joinLang({"{en}Combat Move : {it}Movimento in combattimento : {ru}Движение в бою: {zh-tw}戰鬥移動：{zh-cn}战斗移动：{ko}전투 이동 : {es}Movimiento en combate : {fr}Déplacement en combat : {pt-br}Movimento em combate : {de}Bewegung im Kampf : ",combatMove}))
     showRow("CombatMove",combatMove>0)
 
     local elements={{"Physi","physical"},{"Firex","fire"},{"Icexx","ice"},
