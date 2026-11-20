@@ -161,6 +161,29 @@ function resourceObjectUiSetTable(ui,xml,assets)
     end
 end
 
+-- Avoid replacing an entire object UI when the intended controls are already
+-- identical. TTS briefly blanks a Card's UI during setXmlTable even if no
+-- visible attribute changed, so harmless option/signature refreshes should be
+-- a no-op. Compare both nested image/text content and button attributes:
+-- IDs alone are insufficient when the actual selected icon changes.
+function resourceObjectUiSameXML(left,right)
+    local function same(a,b)
+        if type(a)=="table" or type(b)=="table" then
+            if type(a)~="table" or type(b)~="table" then return false end
+            for key,value in pairs(a) do
+                if not same(value,b[key]) then return false end
+            end
+            for key in pairs(b) do
+                if a[key]==nil then return false end
+            end
+            return true
+        end
+        if a==b then return true end
+        return a~=nil and b~=nil and tostring(a)==tostring(b)
+    end
+    return same(left,right)
+end
+
 -- Legacy shared artwork also needs registration on object-attached UIs.
 -- Call Offer reuses the exact Up/Down images already used by Scale.lua.
 function resourceObjectUiXmlTable(ui)
