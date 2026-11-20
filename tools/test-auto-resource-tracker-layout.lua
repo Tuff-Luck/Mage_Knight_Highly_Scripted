@@ -34,6 +34,7 @@ function UI.setAttribute(id,key,value)
     writes[#writes+1]={id=id,key=key,value=value}
 end
 local openRequests,closedRequests,enabled=0,0,true
+local mapRefreshes={}
 local env={
     UI=UI,
     resourceCardsPlayerCanEdit=function() return true end,
@@ -42,7 +43,8 @@ local env={
     resourceCardsPanelChanged=function(value)
         if value==false then closedRequests=closedRequests+1 end
     end,
-    resourceCardsOnLoad=function() openRequests=openRequests+1 end
+    resourceCardsOnLoad=function() openRequests=openRequests+1 end,
+    updateMoveDisplay=function(id) mapRefreshes[#mapRefreshes+1]=id end
 }
 setmetatable(env,{__index=_G})
 
@@ -64,9 +66,17 @@ end
 
 callback.layout(true)
 size(175,140,"Fresh open")
+click("MovemAmountUpdate")
+eq(#mapRefreshes,1,"Map refresh works with Terrain Costs collapsed")
+eq(mapRefreshes[1],"MovemAmountUpdate","Map refresh uses avatar-position action")
+eq(UI.getAttribute("MoveCosts","active"),nil,"Map refresh does not open Terrain Costs")
 click("DisplayMoveCosts")
 eq(UI.getAttribute("MoveCosts","active"),"true","Terrain panel expands")
 size(415,380,"Terrain expanded")
+click("MovemAmountUpdate")
+eq(#mapRefreshes,2,"Map refresh works with Terrain Costs expanded")
+eq(UI.getAttribute("MoveCosts","active"),"true","Map refresh leaves Terrain Costs expanded")
+size(415,380,"Map refresh leaves layout unchanged")
 click("DisplaySiegeDetails")
 size(415,380,"Legacy combat submenu is gone")
 
@@ -149,6 +159,11 @@ assert(rootSize~=nil and detailSize~=nil and shown~=nil
     "Rewind must size both panels before showing the resource details")
 local xml=read("src/UI/ResourceTracker.xml")
 local combatXml=read("src/UI/CombatEnemyPanel.xml")
+local terrainHeader=assert(xml:match('<Panel id="MoveCostHeader".-</Panel>'),"Missing Terrain Costs header")
+assert(terrainHeader:find('id="DisplayMoveCosts"',1,true)<terrainHeader:find('id="MovemAmountUpdate"',1,true),
+    "Map refresh must sit beside and after Terrain Costs toggle")
+assert(terrainHeader:find('id="MovemAmountUpdate"[^>]-onClick="resourceTracker"'),
+    "Map refresh must use the existing tracker callback")
 assert(xml:find('id="ResourceTrackerDetail"',1,true)
     <xml:find('id="DisplayResourceTrackerDetails"',1,true),
     "Minimize button must render above details if the panels overlap")
