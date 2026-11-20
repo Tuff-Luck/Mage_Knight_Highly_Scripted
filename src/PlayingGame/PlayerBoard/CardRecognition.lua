@@ -7260,14 +7260,21 @@ combatConfig.compositeChoicePhase=function(guid,choice)
             and resourceCardsMoveRole(guid,false)=="combat"
             and "block" or "move"
     end
+    local data=gameCards[guid]
+    local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
     if found.influence then
-        local data=gameCards[guid]
-        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
         if combatCalcOn and (combatPsychicActive
             or (rule~=nil and rule.combatConversion=="diplomacy")) then
             return "block"
         end
         return "influence"
+    end
+    if rule~=nil and rule.enemyEffect~=nil then
+        local category=choiceCategory(choice)
+        local spec=combatEffectSpec(rule,false,category)
+            or combatEffectSpec(rule,true,category)
+        if spec~=nil and (spec.attackReduce~=nil or spec.noAttack==true
+            or spec.cancelOneAttack==true) then return "block" end
     end
     return nil
 end
@@ -7698,6 +7705,13 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             end
         end
         if bestKey~=nil then choices={{[bestKey]=resources[bestKey]}} end
+    end
+    -- Training, Force of Nature (basic) and other manual copied effects
+    -- still get one visible reminder row per use. Never manufacture a
+    -- numeric effect or an unsupported target for an untracked action.
+    if repeatLink~=nil and repeatLink.count>1
+        and (choices==nil or #choices==0) then
+        choices={{key="other",icon="other"}}
     end
     local posture=cardPosture(card)
     local reward=factionRewardForObject~=nil and factionRewardForObject(card) or nil
