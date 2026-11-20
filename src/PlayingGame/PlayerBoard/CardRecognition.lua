@@ -7581,7 +7581,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             or (row.index<0 and expandedRow=="rep"..tostring(-row.index)))
         local selectedEntry
         for _,entry in ipairs(row.entries) do
-            if entry.category==selected then selectedEntry=entry break end
+            if entry.category==row.selected then selectedEntry=entry break end
         end
         row.visible=row.expanded and row.entries or {selectedEntry}
         local categories={}
@@ -7609,7 +7609,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                 end
             end
         end
-        signatureParts[#signatureParts+1]=row.index..":"..selected..":"
+        signatureParts[#signatureParts+1]=row.index..":"..row.selected..":"
             ..(row.expanded and "open" or "closed")..":"..table.concat(categories,",")
     end
     local buttonRotation=180
@@ -13407,6 +13407,10 @@ function resourceCardsChoiceClicked(player,value,id)
         -- Do not rediscover the full printed menu and offer unpaid alternatives.
         mainChoices=record~=nil and record.choices or nil
     end
+    if (mainChoices==nil or #mainChoices==0) and record~=nil
+        and (tonumber(record.resources~=nil and record.resources.move) or 0)>0 then
+        mainChoices={{move=record.resources.move}}
+    end
     local choices=mainChoices
     if repeatIndex~=nil then
         local repeated=record~=nil and record.repeatLink or nil
@@ -13431,8 +13435,19 @@ function resourceCardsChoiceClicked(player,value,id)
         if inventorySpec==nil or setIndex<1 or setIndex>inventorySets then return end
         choices=inventorySpec.choices
     end
+    local selectedMoveCategory=category:match("^combatMove(.+)$")
+    local requestedMoveRole=selectedMoveCategory~=nil and "combat" or nil
+    if selectedMoveCategory~=nil then category=selectedMoveCategory end
     local valid=choiceAvailable(choices,category)
     if not valid then return end
+    if requestedMoveRole==nil then
+        for _,option in ipairs(choices) do
+            if choiceCategory(option)==category and (tonumber(option.move) or 0)>0 then
+                requestedMoveRole="movement"
+                break
+            end
+        end
+    end
     -- Any card whose newly selected effect is Move-only must start without
     -- an enemy assignment. Move can Block Cumbersome, but only when the
     -- player explicitly targets it; never carry an old Attack/Block arrow.
@@ -13486,7 +13501,13 @@ function resourceCardsChoiceClicked(player,value,id)
         selected.sideways=category
     end
     selectedResourceByGUID[guid]=selected
-    if selectedMoveOnly then
+    local previousMoveRole=requestedMoveRole~=nil
+        and resourceCardsMoveRole(guid,true) or nil
+    if requestedMoveRole~=nil then
+        gStates.resourceCardMoveRoles[guid]=requestedMoveRole
+    end
+    if selectedMoveOnly or (previousMoveRole=="combat"
+        and requestedMoveRole=="movement") then
         -- Clear both the saved arrow and the independent calculator lock
         -- before the rescan. The newly selected Move stays available for
         -- a deliberate new target, but does not auto-Block any enemy.
