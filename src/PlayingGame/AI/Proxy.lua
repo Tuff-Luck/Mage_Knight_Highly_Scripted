@@ -1377,13 +1377,13 @@ function proxyDestinationChoiceActionText(saved)
 	return "Proxy\n"..tostring(action or "Choose")
 end
 
-function proxyDestinationChoiceButton(saved,index,xml,splitIndex,splitCount)
+function proxyDestinationChoiceButton(saved,index,xml,splitIndex,splitCount,spatial)
 	if saved==nil or saved.key==nil then return nil,xml end
 	return appendTerrainHexChoiceButton(saved.key,index,xml,splitIndex,splitCount,{
 		idPrefix="ProxyDestinationChoice",onClick="global/proxyDestinationChoiceSelect",
 		buttonScale=0.16,referenceScale=0.38,splitFontSize=62,fontSize=76,
 		text=proxyDestinationChoiceActionText(saved)
-	})
+	},spatial)
 end
 
 function proxyChoiceMapRefresh(pending)
