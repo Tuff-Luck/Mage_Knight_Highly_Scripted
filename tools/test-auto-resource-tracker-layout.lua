@@ -276,4 +276,118 @@ for _,id in ipairs({"MovemAmountPlainRow","InfluAmountPlainRow","HealiAmountPlai
         id.." must start hidden before the first scan")
 end
 
+-- Exercise the actual saved-game reload path for both per-seat states.
+-- A fresh Global XML begins with a collapsed header regardless of how the
+-- active player's enablement preference was saved in gStates.
+local onLoadSource=slice(cardSource,"function resourceCardsOnLoad(restoringSave)",
+    "local function resourceCardsRelevantZone(ctx)")
+local function simulateSavedTrackerReload(savedEnabled)
+    local savedAttrs={
+        ResourceTracker={active="true",height="35"},
+        ResourceTrackerDetail={active="false",height="140"},
+        MoveCosts={active="false"}
+    }
+    local events={}
+    local savedUI={}
+    function savedUI.getAttribute(id,key)
+        return savedAttrs[id] and savedAttrs[id][key] or nil
+    end
+    function savedUI.setAttribute(id,key,value)
+        savedAttrs[id]=savedAttrs[id] or {}
+        savedAttrs[id][key]=value
+        events[#events+1]={id=id,key=key,value=value}
+    end
+    local stored={
+        firstStarted=true,turnNumber=1,
+        resourceTrackerEnabledBySeat={[1]=savedEnabled}
+    }
+    local private={trackerStartupRequest=0,restoreAssignmentsPending=false}
+    local calls={started=0,stopped=0,restoredAssignments=0}
+    local loadEnv={
+        UI=savedUI,gStates=stored,trackerPrivate=private,
+        turnOrder={{seatPos=1}},
+        resourceCardsSeatEnabled=function(seat)
+            return stored.resourceTrackerEnabledBySeat[seat]~=false
+        end,
+        resourceCardsSetSeatEnabled=function(enabled)
+            stored.resourceTrackerEnabledBySeat[1]=enabled
+        end,
+        resourceCardsPlayerCanEdit=function() return true end,
+        resourceCardsPanelReady=function()
+            return savedUI.getAttribute("ResourceTracker","active")=="true"
+                and savedUI.getAttribute("ResourceTrackerDetail","active")=="true"
+                and (tonumber(savedUI.getAttribute("ResourceTracker","height")) or 0)>35
+        end,
+        resourceCardsPanelChanged=function(open)
+            if open then
+                calls.started=calls.started+1
+                private.trackerWasDisabled=false
+            else
+                calls.stopped=calls.stopped+1
+                private.trackerWasDisabled=true
+            end
+        end,
+        safeWaitCondition=function(_,callback,condition)
+            if condition() then callback() end
+        end,
+        attackAssignmentsRestore=function()
+            calls.restoredAssignments=calls.restoredAssignments+1
+        end
+    }
+    setmetatable(loadEnv,{__index=_G})
+    local layout=assert(load(callbackSource..
+        "\nreturn {sync=resourceTrackerSyncLayout,restore=resourceTrackerRestoreExpandedLayout,click=resourceTracker}",
+        "Reload layout functions","t",loadEnv))()
+    loadEnv.resourceTrackerSyncLayout=layout.sync
+    loadEnv.resourceTrackerRestoreExpandedLayout=layout.restore
+    loadEnv.resourceCardsOnLoad=assert(load(onLoadSource.."\nreturn resourceCardsOnLoad",
+        "Saved tracker reload","t",loadEnv))()
+    loadEnv.resourceCardsOnLoad(true)
+    return savedUI,stored,private,calls,events,layout.click
+end
+
+local closedUI,closedSaved,closedPrivate,closedCalls,_,closedClick=simulateSavedTrackerReload(false)
+eq(closedUI.getAttribute("ResourceTracker","height"),"35","Closed save stays header-only")
+eq(closedUI.getAttribute("ResourceTrackerDetail","active"),"false","Closed save stays collapsed")
+eq(closedCalls.started,0,"Closed save must not scan play area")
+eq(closedCalls.stopped,1,"Closed save keeps automation disabled")
+eq(closedSaved.resourceTrackerEnabledBySeat[1],false,"Closed seat preference is preserved")
+eq(closedPrivate.restoreAssignmentsPending,true,
+    "Closed save defers assignments until explicit reopening")
+
+-- The user can open a previously closed save; reopening must enable the
+-- preference and restore the panel/scanning through its normal click flow.
+closedClick({color="Blue"},"-1","DisplayResourceTrackerDetails")
+eq(closedUI.getAttribute("ResourceTracker","height"),"175",
+    "Manual reopening resizes tracker before scan")
+eq(closedUI.getAttribute("ResourceTrackerDetail","active"),"true",
+    "Manual reopening restores detail panel")
+eq(closedSaved.resourceTrackerEnabledBySeat[1],true,
+    "Manual reopening updates saved seat preference")
+eq(closedCalls.started,1,"Manual reopening restarts automation")
+eq(closedCalls.restoredAssignments,1,
+    "Manual reopening recovers a deferred assignment if present")
+
+local openUI,openSaved,openPrivate,openCalls,openEvents=simulateSavedTrackerReload(true)
+eq(openUI.getAttribute("ResourceTrackerDetail","active"),"true",
+    "Open save restores expanded detail panel")
+eq(openUI.getAttribute("ResourceTracker","height"),"175",
+    "Open save sizes root before first rescan")
+eq(openCalls.started,1,"Open save starts automation exactly once")
+eq(openCalls.stopped,0,"Open save must not be disabled by initial collapsed XML")
+eq(openCalls.restoredAssignments,1,
+    "Open save restores previously saved enemy targeting")
+eq(openSaved.resourceTrackerEnabledBySeat[1],true,"Open save keeps enabled preference")
+eq(openPrivate.restoreAssignmentsPending,false,"Open save completes pending restore")
+local rootSize,detailSize,detailShow=nil,nil,nil
+for index,write in ipairs(openEvents) do
+    if write.id=="ResourceTracker" and write.key=="height" then rootSize=index end
+    if write.id=="ResourceTrackerDetail" and write.key=="height" then detailSize=index end
+    if write.id=="ResourceTrackerDetail" and write.key=="active"
+        and write.value=="true" then detailShow=index end
+end
+assert(rootSize~=nil and detailSize~=nil and detailShow~=nil
+    and rootSize<detailShow and detailSize<detailShow,
+    "Reload must size the tracker before making its contents visible")
+
 print("Resource Tracker layout, scanning, localization and rewind regression tests passed")
