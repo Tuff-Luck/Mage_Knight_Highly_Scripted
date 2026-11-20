@@ -203,4 +203,61 @@ assert(splitButton~=nil and splitButton.children~=nil
     and splitButton.children[1].attributes.image=="test_ranged"
     and splitButton.children[2].attributes.text=="I/F",
     "Split Ranged Skill must show its Fire/Ice overlay on a Ranged icon")
+
+-- Defensive variants are contextual choices, not perpetual alternatives.
+-- Full-size stacks must behave like Tempered Steel (two 82x82 images).
+local march=makeCard("march")
+state.gameCards.march={resourceKey="march",cardType="Starting"}
+state.cardResourceDefinitions.march={normalChoices={{move=2}}}
+chosen.march="move"
+local moveRole="combat"
+state.resourceCardsMoveRole=function() return moveRole end
+state.combatCalcOn=true
+state.combatCumbersomeActive=false
+state.combatPsychicActive=false
+render(march,state.cardResourceDefinitions.march.normalChoices,false,nil,nil,{move=2},nil)
+assert(choiceButton("march","combatMovemove")==nil,
+    "No Cumbersome enemy: March must not show Combat Move")
+state.combatCumbersomeActive=true
+render(march,state.cardResourceDefinitions.march.normalChoices,false,nil,nil,{move=2},nil)
+local combatMove=choiceButton("march","combatMovemove")
+assert(combatMove~=nil and #combatMove.children==2
+    and combatMove.children[1].attributes.image=="test_block"
+    and combatMove.children[2].attributes.image=="test_move"
+    and combatMove.children[1].attributes.width==82
+    and combatMove.children[2].attributes.width==82,
+    "Combat Move must layer full-size shield and Move icons like Tempered Steel")
+state.combatCumbersomeActive=false
+render(march,state.cardResourceDefinitions.march.normalChoices,false,nil,nil,{move=2},nil)
+assert(choiceButton("march","combatMovemove")==nil,
+    "Removing last Cumbersome enemy must hide combat Move even when it was selected")
+
+local psychic=makeCard("psychic")
+state.gameCards.psychic={resourceKey="psychic",cardType="Starting"}
+state.cardResourceDefinitions.psychic={normalChoices={{influence=2},{attack=2}}}
+chosen.psychic="influence"
+render(psychic,state.cardResourceDefinitions.psychic.normalChoices,false,
+    nil,nil,{influence=2},nil)
+local plainInfluence=choiceButton("psychic","influence")
+assert(plainInfluence~=nil and #plainInfluence.children==1
+    and plainInfluence.children[1].attributes.image=="test_influence",
+    "Without Psychic attacks, Influence must not display a Block overlay")
+state.combatPsychicActive=true
+render(psychic,state.cardResourceDefinitions.psychic.normalChoices,false,
+    nil,nil,{influence=2},nil)
+local psychicBlock=choiceButton("psychic","influence")
+assert(psychicBlock~=nil and #psychicBlock.children==2
+    and psychicBlock.children[1].attributes.image=="test_block"
+    and psychicBlock.children[2].attributes.image=="test_influence"
+    and psychicBlock.children[1].attributes.width==82
+    and psychicBlock.children[2].attributes.width==82,
+    "Psychic Block must layer two full-size icons")
+state.combatPsychicActive=false
+render(psychic,state.cardResourceDefinitions.psychic.normalChoices,false,
+    nil,nil,{influence=2},nil)
+plainInfluence=choiceButton("psychic","influence")
+assert(plainInfluence~=nil and #plainInfluence.children==1
+    and plainInfluence.children[1].attributes.image=="test_influence",
+    "Removing last Psychic attack must restore plain Influence without stale shield")
+
 print("Fixed combat/choice icon regressions passed")
