@@ -18,6 +18,8 @@ local targeting=source("src/PlayingGame/AttackAssignments.lua")
 -- A fixed-effect copy must produce two/three rows, not one multiplied button.
 contains(reader,'if repeatLink~=nil and repeatLink.count>1 and posture=="upright" then',
     "Every copied Action must show per-use rows")
+contains(reader,'choices={{key="other",icon="other"}}',
+    "Untracked repeated effects still display numbered manual-use rows")
 contains(reader,'row.index<0 and targetCategory~="unitReady"',
     "A repeated numeric target button has a unique visible row identifier")
 contains(targeting,'local repeatIndex,repeatCategory=category:match("^rep(%d+):(.+)$")',
@@ -43,8 +45,15 @@ local combatCalcOn=true
 local combatCumbersomeActive=false
 local combatPsychicActive=false
 local role="movement"
-local gameCards={}
-local cardResourceDefinitions={}
+local gameCards={swift={resourceKey="swiftReflexes"}}
+local cardResourceDefinitions={swiftReflexes={
+    enemyEffect={normal={choice="reduce",attackReduce=1}}
+}}
+local function choiceCategory(choice) return choice.key or next(choice) end
+local function combatEffectSpec(rule,powered,category)
+    local spec=rule.enemyEffect.normal
+    return spec.choice==category and spec or nil
+end
 local function resourceCardsMoveRole() return role end
 combatConfig.repeatChoiceFor=function(guid,powered,choices,index)
     return choices[1],nil
@@ -76,6 +85,8 @@ eq(phase.check("card",false,nil,uses({move=3},{block=3})),true,
     "Move and Block can combine against Cumbersome")
 eq(phase.check("card",false,nil,uses({attack=2},{healing=1})),true,
     "Unphased healing cannot invent another combat phase")
+eq(phase.check("swift",false,nil,uses({key="reduce"},{ranged=2})),false,
+    "Enemy Attack reductions cannot accompany a different combat phase")
 
 -- Exercise the real Diplomacy conversion limiter with two copied uses.
 local a=assert(reader:find("combatConfig.conversionFor=function",1,true))
