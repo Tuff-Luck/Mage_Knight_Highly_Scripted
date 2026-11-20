@@ -2443,7 +2443,7 @@ function refreshResourceTrackerText()
 
     -- Terrain Costs is the final row. Do not add bottom breathing room: the
     -- tracker ends immediately after the last visible control.
-    local visibleHeight=26 -- Terrain header; resource rows are conditional.
+    local visibleHeight=29 -- Terrain header, including top/bottom padding.
     local function showRow(id,visible,height)
         setResourceTrackerDisplayAttribute(id.."Row","active",visible and "true" or "false")
         if visible then visibleHeight=visibleHeight+(height or 22)+1 end
@@ -2518,7 +2518,7 @@ function refreshResourceTrackerText()
         setResourceTrackerDisplayAttribute(prefix.."Add","active",hidden and "true" or "false")
         anyMissing=anyMissing or hidden
     end
-    showRow("ResourceTrackerAdd",anyMissing,26)
+    showRow("ResourceTrackerAdd",anyMissing,28)
     showRow("HealiGenerated",healingGenerated~=healingTotal)
     setResourceTrackerDisplayAttribute("HealiGeneratedText","text",
         joinLang({RESOURCE_TRACKER_FIELDS.InfluAmountPhysi[3],healingGenerated}))
