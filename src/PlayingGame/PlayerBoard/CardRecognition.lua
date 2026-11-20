@@ -13058,6 +13058,8 @@ local function renderSeat(seatPos)
     local previousScan=resourceCardScanBySeat[seatPos]
     local previousMove=previousScan~=nil and (previousScan.totals.move or 0) or 0
     local previousSplit=previousScan~=nil and previousScan.moveSplit or nil
+    local enemyStateChanged=previousScan==nil
+        or previousScan.enemyPresent~=combatEnemyInPlay
     local moveSplitChanged=previousSplit==nil
         or previousSplit.movement~=moveSplit.movement
         or previousSplit.combat~=moveSplit.combat
@@ -13113,7 +13115,7 @@ local function renderSeat(seatPos)
     local fameRepBase={fame=fameTotal,rep=repTotal}
     trackerPrivate.bySeat[seatPos]=current
     resourceCardScanBySeat[seatPos]={cards=records,totals=totals,
-        moveSplit=moveSplit,
+        moveSplit=moveSplit,enemyPresent=combatEnemyInPlay,
         attackTransforms=attackTransforms,
         terrainModifiers=terrainModifiers,movementEffects=movementEffects,
         enemyEffects=enemyEffects,fameRepBase=fameRepBase,
@@ -13156,7 +13158,9 @@ local function renderSeat(seatPos)
         and gStates.resourceTracker.influence.reputation or nil
     -- Redraw movement when ability flags change, even if total Move stays equal.
     if totalsChanged or terrainChanged or transformChanged or moveSplitChanged
-        or reputationBefore~=reputationAfter then refreshResourceTrackerText() end
+        or enemyStateChanged or reputationBefore~=reputationAfter then
+        refreshResourceTrackerText()
+    end
     if previousMove~=(totals.move or 0) or moveSplitChanged
         or terrainChanged or movementChanged then
         updateMoveDisplay()
