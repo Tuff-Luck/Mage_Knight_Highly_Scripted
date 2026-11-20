@@ -91,8 +91,7 @@ local resourceCardScanBySeat={
 local combatAssignmentState={explicit={},targets={}}
 local function combatConversionReserved() return 0 end
 local function resourceCardsMoveRole() return "movement" end
-]]..reader:sub(a,b-1).."
-return combatConfig.conversionFor"))()
+]]..reader:sub(a,b-1).."\nreturn combatConfig.conversionFor"))()
 local choice,available,valid=conversion(1,"diplomacy")
 eq(valid,true,"Copied Diplomacy is active")
 eq(available,8,"Two powered uses generate eight Influence")
