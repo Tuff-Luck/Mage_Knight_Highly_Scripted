@@ -910,7 +910,32 @@ function runtimeMapWorldHexDistance(fromPos,toPos)
 	return runtimeMapAxialDistance(q,r)
 end
 
-local function terrainHexChoiceUIPlacement(key,buttonScale,splitIndex,splitCount,referenceScale)
+-- Adjustable vertical gap above the highest token/shield in an AI map-choice hex.
+-- Measured in Tabletop Simulator world units. Increase to raise the buttons.
+local TERRAIN_HEX_CHOICE_CLEARANCE = 0.14
+local TERRAIN_HEX_CHOICE_PIECE_TOP_OFFSET = 0.06
+local TERRAIN_HEX_CHOICE_MIN_HEIGHT = 0.08
+
+local function terrainHexChoiceDepth(hexPos,tileY,uiFactor,spatial)
+	local highestTop=nil
+	if spatial~=nil then
+		-- Use the same 1.5-squared hex footprint as the map token arranger; do not let
+		-- tokens on adjacent hexes determine this button's height.
+		for _,obj in ipairs(runtimeMapSpatialNearbyObjects(spatial,hexPos,1.25)) do
+			local pos=spatial.positions[obj.guid] or obj.getPosition()
+			local dx,dz=pos[1]-hexPos[1],pos[3]-hexPos[3]
+			if dx*dx+dz*dz<1.5 and (mapTokenIsSpreadEnemy(obj) or mapTokenIsShield(obj) or mapTokenIsBaseSite(obj)) then
+				local top=pos[2]+TERRAIN_HEX_CHOICE_PIECE_TOP_OFFSET
+				if highestTop==nil or top>highestTop then highestTop=top end
+			end
+		end
+	end
+	-- The UI's 110 coordinate units per world unit match its X/Y map placement.
+	local height=math.max(TERRAIN_HEX_CHOICE_MIN_HEIGHT,(highestTop or tileY)+TERRAIN_HEX_CHOICE_CLEARANCE-tileY)
+	return -height*110*uiFactor
+end
+
+local function terrainHexChoiceUIPlacement(key,buttonScale,splitIndex,splitCount,referenceScale,spatial)
 	if key==nil then return nil,nil end
 	local terrainGUID,bearing=tostring(key):match("^([^|]+)|(.+)$")
 	local terrain=terrainGUID~=nil and getObjectFromGUID(terrainGUID) or nil
@@ -931,17 +956,17 @@ local function terrainHexChoiceUIPlacement(key,buttonScale,splitIndex,splitCount
 	local height=320/count
 	if count>1 then uiY=uiY+(((count+1)/2)-slot)*height*buttonScale end
 	return terrain,{
-		x=uiX,y=uiY,depth=-40*uiFactor,
+		x=uiX,y=uiY,depth=terrainHexChoiceDepth({hexXY[1],tilePos[2],hexXY[2]},tilePos[2],uiFactor,spatial),
 		rotation=terrain.getRotation()[2] or 180,
 		height=height,count=count,scale=buttonScale
 	}
 end
 
 --Build the common transparent choice button used directly on terrain hexes.
-function appendTerrainHexChoiceButton(key,index,xml,splitIndex,splitCount,spec)
+function appendTerrainHexChoiceButton(key,index,xml,splitIndex,splitCount,spec,spatial)
 	spec=spec or {}
 	if key==nil or spec.idPrefix==nil or spec.onClick==nil then return nil,xml end
-	local terrain,placement=terrainHexChoiceUIPlacement(key,spec.buttonScale or 0.38,splitIndex,splitCount,spec.referenceScale or spec.buttonScale or 0.38)
+	local terrain,placement=terrainHexChoiceUIPlacement(key,spec.buttonScale or 0.38,splitIndex,splitCount,spec.referenceScale or spec.buttonScale or 0.38,spatial or runtimeMapSpatialSnapshot())
 	if terrain==nil or placement==nil then return nil,xml end
 	local id=terrain.guid..tostring(spec.idPrefix)..tostring(index)
 	local split=placement.count>1
@@ -958,6 +983,7 @@ end
 -- Callers retain their own labels/onClick handlers; grouping and XML writes happen once per tile.
 function applyTerrainHexChoiceButtons(options,buttonBuilder)
 	if type(buttonBuilder)~="function" then return false end
+	local spatial=runtimeMapSpatialSnapshot()
 	local byTerrain,sameHexCounts,sameHexSeen={},{},{}
 	for _,option in ipairs(options or {}) do
 		local key=option~=nil and option.key or nil
@@ -972,7 +998,7 @@ function applyTerrainHexChoiceButtons(options,buttonBuilder)
 			if group==nil then group={terrain=terrain,xml=terrain.UI.getXmlTable() or {}} byTerrain[terrainGUID]=group end
 			local seen=sameHexSeen[key] or 0
 			sameHexSeen[key]=seen+1
-			local _,xml=buttonBuilder(option,index,group.xml,seen+1,sameHexCounts[key])
+			local _,xml=buttonBuilder(option,index,group.xml,seen+1,sameHexCounts[key],spatial)
 			group.xml=xml or group.xml
 		end
 	end
