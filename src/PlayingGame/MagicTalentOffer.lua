@@ -124,6 +124,20 @@ local function controls(s)
     end
     local images=callOfferAppendBrowseControls(xml,card.guid,CONTROL_PREFIX,
         "magicTalentClicked",s.mode=="strong")
+    if s.mode=="basic" and (s.limit or 1)>1 then
+        for _,entry in ipairs({
+            {suffix="nextUse",text="Next",x="-115"},
+            {suffix="sameUse",text="Same",x="115"}
+        }) do
+            xml[#xml+1]={tag="Button",attributes={
+                id=CONTROL_PREFIX..card.guid.."_"..entry.suffix,
+                onClick="global/magicTalentClicked",
+                position=entry.x.." -140 -35",rotation="0 0 0",
+                width=140,height=70,scale="0.30 0.30",fontSize=38,
+                text=entry.text,color="rgba(0.25,0.23,0.18,0.94)",
+                textColor="rgba(1,1,1,1)"}}
+        end
+    end
     resourceObjectUiSetTable(card.UI,xml,
         resourceCardsExistingImageAssetsFor(card.UI,images))
 end
@@ -133,14 +147,18 @@ function magicTalentEnsureControls(seat)
     if s==nil or s.cardGUID==nil or (seat~=nil and s.seatPos~=seat) then return end
     local card=getObjectFromGUID(s.cardGUID)
     if card==nil then return end
-    local previous,nextArrow,take=false,false,false
+    local previous,nextArrow,take,nextUse,sameUse=false,false,false,false,false
     for _,node in ipairs(resourceObjectUiXmlTable(card.UI)) do
         local id=node.attributes~=nil and node.attributes.id or nil
         if id==CONTROL_PREFIX..card.guid.."_previous" then previous=true
         elseif id==CONTROL_PREFIX..card.guid.."_next" then nextArrow=true
-        elseif id==CONTROL_PREFIX..card.guid.."_claim" then take=true end
+        elseif id==CONTROL_PREFIX..card.guid.."_claim" then take=true
+        elseif id==CONTROL_PREFIX..card.guid.."_nextUse" then nextUse=true
+        elseif id==CONTROL_PREFIX..card.guid.."_sameUse" then sameUse=true end
     end
-    if not previous or not nextArrow or (s.mode=="strong" and not take) then controls(s) end
+    if not previous or not nextArrow or (s.mode=="strong" and not take)
+        or (s.mode=="basic" and (s.limit or 1)>1
+            and (not nextUse or not sameUse)) then controls(s) end
 end
 
 -- The offer card keeps its GUID and is never cloned. Retire the calculator
@@ -186,7 +204,14 @@ end
 function magicTalentClose(immediate)
     settleSerial=settleSerial+1
     local s=state()
-    if s~=nil then returnPreview(s,immediate==true) end
+    if s~=nil then
+        returnPreview(s,immediate==true)
+        -- Each confirmed basic use keeps its borrowed Spell in play until
+        -- end-of-turn cleanup. All loans return to their own offer slots.
+        for guid,home in pairs(s.loans or {}) do
+            returnPreview({cardGUID=guid,home=home},immediate==true)
+        end
+    end
     if gStates~=nil then gStates.magicTalentPreview=nil end
     fromHand={}
     if immediate==true then returning={} end
@@ -195,7 +220,14 @@ end
 -- Do not allow the ordinary Offer claim path to consume a temporary preview.
 function magicTalentReservedCard(guid)
     local s=state()
-    return returning[guid]==true or (s~=nil and s.cardGUID==guid)
+    return returning[guid]==true
+        or (s~=nil and (s.cardGUID==guid or (s.loans or {})[guid]~=nil))
+end
+
+function magicTalentOfferSpellCastCount(seat,guid)
+    local s=state()
+    if s==nil or s.seatPos~=seat or s.mode=="strong" or s.mode=="claimed" then return 1 end
+    return math.max(1,tonumber((s.repeatCasts or {})[guid]) or 1)
 end
 
 -- Time Bending borrowed through Magic Talent must set aside Magic Talent,
@@ -203,9 +235,10 @@ end
 -- validates the real blue + black casting mana on the loaned Spell.
 function magicTalentBorrowedTimeBendingPaid(seat)
     local s=state()
-    if s==nil or s.mode~="basic" or s.seatPos~=seat
-        or s.cardGUID~=GUID.card.timeBending then return false end
-    local spell=getObjectFromGUID(s.cardGUID)
+    if s==nil or (s.mode~="basic" and s.mode~="completed") or s.seatPos~=seat
+        or (s.cardGUID~=GUID.card.timeBending
+            and (s.loans or {})[GUID.card.timeBending]==nil) then return false end
+    local spell=getObjectFromGUID(GUID.card.timeBending)
     return spell~=nil and resourceCardsTimeBendingPaid(seat,spell)==true
 end
 
@@ -213,7 +246,8 @@ local function borrow(s,index)
     local guid=s.order[index]
     local card=guid~=nil and getObjectFromGUID(guid) or nil
     local talent=getObjectFromGUID(MAGIC_TALENT_GUID)
-    if card==nil or talent==nil or not objectGUIDInZone(guid,GUID.zone.offer) then return false end
+    if card==nil or talent==nil or (s.loans or {})[guid]~=nil
+        or not objectGUIDInZone(guid,GUID.zone.offer) then return false end
     s.index=index
     s.cardGUID=guid
     s.home={position=ttsVectorArray(card.getPosition()),
