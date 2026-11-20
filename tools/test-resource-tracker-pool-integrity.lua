@@ -140,6 +140,16 @@ assert(sourceList[1].psychicInfluence==4
     and sourceList[2].psychicInfluence==0,
     "Converting free Influence must preserve the assigned Psychic pool")
 
+-- Even when the physical scan changes record order, consuming free Move
+-- must choose a consistent source rather than whichever pairs() visited first.
+local unordered={
+    {key="zFree",move=2,resources={move=2},details={{key="move",amount=2}}},
+    {key="aFree",move=2,resources={move=2},details={{key="move",amount=2}}}
+}
+spend(unordered,"move",2)
+assert(unordered[1].move==2 and unordered[2].move==0,
+    "A rescan must consume the same unassigned source in key order")
+
 -- Removing a secondary arrow must preserve the original primary. If the
 -- primary disappears, the oldest remaining arrow becomes primary, regardless
 -- of Lua pairs() enumeration order. Test duplicate arrows to one target too.
