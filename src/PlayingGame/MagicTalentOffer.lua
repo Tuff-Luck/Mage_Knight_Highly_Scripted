@@ -71,8 +71,10 @@ local function strongColor(seat,useIndex,copy)
         -- Its two *additional* mana payments must still be distinct.
         local choices,seen={},{}
         local goldLegal=resourceCardsGoldAllowed~=nil and resourceCardsGoldAllowed()
+        local sourcePayments=resourceCardsMaximalEffectSourceManaGUIDs~=nil
+            and resourceCardsMaximalEffectSourceManaGUIDs(seat,copy.sourceGUID) or {}
         for _,payment in ipairs(payments) do
-            if seen[payment.guid]~=true
+            if seen[payment.guid]~=true and sourcePayments[payment.guid]~=true
                 and (payment.color=="Red" or payment.color=="Blue"
                     or payment.color=="Green" or payment.color=="White"
                     or (payment.color=="Gold" and goldLegal)) then
@@ -514,7 +516,8 @@ local function start(seat,mode,color,source,copy,costs)
     local count=copy~=nil and copy.count or 1
     local s={seatPos=seat,mode=mode,color=color,order=offerOrder(color),index=1,
         sourceGUID=source~=nil and source.guid or nil,
-        copy=copy~=nil and {count=count,powered=copy.powered==true} or nil,
+        copy=copy~=nil and {count=count,powered=copy.powered==true,
+            sourceGUID=copy.sourceGUID} or nil,
         limit=count,used=0,loans={},repeatCasts={}}
     if costs~=nil then
         s.costColors={}
@@ -543,7 +546,8 @@ function magicTalentSync()
     local copy=maximalEntitlement(seat)
     if s~=nil and s.copy~=nil
         and (copy==nil or s.copy.count~=copy.count
-            or s.copy.powered~=(copy.powered==true)) then
+            or s.copy.powered~=(copy.powered==true)
+            or s.copy.sourceGUID~=copy.sourceGUID) then
         -- If Maximal Effect's physical link is undone, every temporary
         -- Spell returns to the offer and its cast stops contributing.
         magicTalentClose(true)
