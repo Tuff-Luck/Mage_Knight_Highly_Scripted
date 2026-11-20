@@ -42,7 +42,7 @@ local shown={}
 local registered={}
 local pending={}
 local targetState={targets={},explicit={},selected=nil}
-local state={turnNumber=1,attackAssignments={}}
+local state={turnNumber=1,attackAssignments={},resourceCardMoveRoles={}}
 local scans={[1]={cards={}}}
 local cards={}
 local redraws=0
