@@ -317,14 +317,15 @@ end
 
 local function claim(s)
     if state()~=s or s.mode~="strong" or not talentInPlay(s.seatPos)
-        or strongColor(s.seatPos)~=s.color then return end
+        or strongColor(s.seatPos,(s.used or 0)+1,s.copy)~=s.color then return end
     local gained=s.cardGUID~=nil and getObjectFromGUID(s.cardGUID) or nil
     local destination=getObjectFromGUID(deedDeckDiscardZones[s.seatPos])
     if gained==nil or destination==nil or not matching(gained.guid,s.color) then return end
     browseSerial=browseSerial+1
     local gainedGUID=gained.guid
     s.cardGUID,s.home=nil,nil
-    s.mode="claimed"  -- A paid claim cannot restart on the next mana refresh.
+    s.used=(s.used or 0)+1
+    s.mode=s.used>=(s.limit or 1) and "claimed" or "strong"
     clean(gained)
     gained.UI.setXml("")
     for _,player in ipairs(turnOrder) do
@@ -348,10 +349,59 @@ local function claim(s)
         if not objectGUIDInZone(gainedGUID,GUID.zone.offer) then
             compactAndRefillDeedOffer()
             scheduleDeedPileDescriptionRefresh(s.seatPos,"discard")
+            if s.mode=="strong" then magicTalentSync() end
         end
     end,function()
         return not objectGUIDInZone(gainedGUID,GUID.zone.offer)
     end,8)
+    if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
+end
+
+-- A copied basic Magic Talent is one composite effect with independent
+-- colored discard costs. "Next" keeps a paid Spell in play as a committed loan
+-- (or returns an uncast preview). "Same" needs one NEW casting mana on the
+-- same physical Spell, so no mana object can pay for two repetitions.
+local function advanceBasic(s,sameSpell)
+    if state()~=s or s.mode~="basic" or s.copy==nil
+        or s.copy.powered==true or s.cardGUID==nil
+        or (s.used or 0)>=(s.limit or 1) then return end
+    local guid=s.cardGUID
+    local paid=paymentStillOnSpell(s)
+    local nextColor=s.costColors~=nil and s.costColors[(s.used or 0)+2] or nil
+    if sameSpell then
+        if not paid or nextColor==nil or not matching(guid,nextColor) then return end
+        local previous=(s.repeatCasts or {})[guid] or 1
+        if magicTalentSpellCastingPaymentCount==nil
+            or magicTalentSpellCastingPaymentCount(s.seatPos,guid)<previous+1 then return end
+        s.repeatCasts[guid]=previous+1
+        s.used=s.used+1
+        if s.used>=s.limit then
+            s.loans[guid]=s.home
+            clean(getObjectFromGUID(guid))
+            s.cardGUID,s.home=nil,nil
+            s.mode="completed"
+        else
+            s.color=nextColor
+            controls(s)
+        end
+    else
+        if paid then
+            s.loans[guid]=s.home
+            clean(getObjectFromGUID(guid))
+            s.cardGUID,s.home=nil,nil
+        else
+            returnPreview(s,false)
+        end
+        s.used=s.used+1
+        if s.used>=s.limit then
+            s.mode="completed"
+        else
+            s.color=s.costColors[s.used+1]
+            s.order=offerOrder(s.color)
+            s.index=1
+            if #s.order>0 then borrow(s,1) end
+        end
+    end
     if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
 end
 
@@ -363,8 +413,12 @@ publishPublicUICallbacks({
         local guid,action=id:match("^MagicTalentControl_([0-9a-f]+)_(previous)$")
         if guid==nil then guid,action=id:match("^MagicTalentControl_([0-9a-f]+)_(next)$") end
         if guid==nil then guid,action=id:match("^MagicTalentControl_([0-9a-f]+)_(claim)$") end
+        if guid==nil then guid,action=id:match("^MagicTalentControl_([0-9a-f]+)_(nextUse)$") end
+        if guid==nil then guid,action=id:match("^MagicTalentControl_([0-9a-f]+)_(sameUse)$") end
         if guid~=s.cardGUID then return end
         if action=="claim" then claim(s)
+        elseif action=="nextUse" or action=="sameUse" then
+            advanceBasic(s,action=="sameUse")
         else cycle(s,action=="previous" and -1 or 1) end
     end
 })
