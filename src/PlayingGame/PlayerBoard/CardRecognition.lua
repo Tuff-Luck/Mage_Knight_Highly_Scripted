@@ -554,10 +554,16 @@ end
 -- source; additional arrows transfer individual points from that same pool.
 -- While such an explicit allocation exists, conversions must use OTHER
 -- unassigned sources. The player can remove/retarget an arrow to free its pool.
-local function combatConversionReserved(key,amount)
-    if amount<=0 then return 0 end
-    if combatAssignmentState.explicit[key]==true
-        and combatAssignmentState.targets[key]~=nil then return amount end
+local function combatConversionReserved(key,amount,field)
+    if amount<=0 or combatAssignmentState.explicit[key]~=true then return 0 end
+    local target=combatAssignmentState.targets[key]
+    if target==nil then return 0 end
+    -- An ordinary Attack target does not reserve unrelated Influence. Only
+    -- an actual Cumbersome/Psychic target owns the respective shared pool.
+    if field=="move" and resourceCardsCombatTargetAcceptsMove~=nil
+        and resourceCardsCombatTargetAcceptsMove(target) then return amount end
+    if field=="influence" and combatConfig.hasPsychicAttack~=nil
+        and combatConfig.hasPsychicAttack(target) then return amount end
     return 0
 end
 
@@ -594,7 +600,7 @@ combatConfig.conversionFor=function(seat,kind)
             local sourceKey=record.splitTargets~=nil and (sourceGUID.."#block")
                 or sourceGUID
             available=available+math.max(0,
-                amount-combatConversionReserved(sourceKey,amount))
+                amount-combatConversionReserved(sourceKey,amount,field))
         end
     end
     choice.attack=math.max(0,math.floor(tonumber(choice.attack) or 0))
@@ -750,7 +756,7 @@ local function combatAssignmentSources(seat)
             if amount<=0 then break end
             local value=field=="move" and source.move or source.psychicInfluence
             if value~=nil and value>0 then
-                local spendable=math.max(0,value-combatConversionReserved(source.key,value))
+                local spendable=math.max(0,value-combatConversionReserved(source.key,value,field))
                 local consumed=math.min(spendable,amount)
                 if field=="move" and source.damagePhaseWound then lateMoveSpent=lateMoveSpent+consumed end
                 local remaining=value-consumed
@@ -1320,6 +1326,21 @@ local function combatEnemyAttacks(entry,includeCancelled)
         end
     end
     return attacks
+end
+
+-- Conversion availability must reserve Influence only if its explicit target
+-- can actually receive Psychic Block, including a summoner's live attacks.
+combatConfig.hasPsychicAttack=function(guid)
+    local data=guid~=nil and combatEnemyData(guid) or nil
+    if data==nil then return false end
+    local perks=gStates~=nil and gStates.monsterPerks~=nil
+        and gStates.monsterPerks[guid] or nil
+    local entry={guid=guid,data=data,perks=perks,
+        summoned=data.monsters~=nil and combatSummonedFor(guid) or nil}
+    for _,attack in ipairs(combatEnemyAttacks(entry)) do
+        if attack.key=="M" and not attack.pending then return true end
+    end
+    return false
 end
 
 -- Used by Battle Hardened's per-Attack selector. A summoner's separately
