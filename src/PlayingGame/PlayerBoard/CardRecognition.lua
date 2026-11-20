@@ -9562,7 +9562,7 @@ local function resolveActionLinks(cards,wounds,footprints,manaPowered,skillLinks
                 hasDiscard[source.guid]=true
                 linkedCardBySource[source.guid]=target.guid
                 local strong=manaPowered[source.guid]==true or boostBy[source.guid]~=nil
-                repeatByTarget[target.guid]={powered=strong,
+                repeatByTarget[target.guid]={powered=strong,sourceGUID=source.guid,
                     count=strong and requirement.poweredCount or requirement.normalCount}
                 connect(source,target)
             end
@@ -9825,11 +9825,37 @@ function resourceCardsMaximalEffectLink(seatPos,targetGUID)
                         end
                     end
                 end
-                return {powered=strong,count=strong and spec.poweredCount or spec.normalCount}
+                return {powered=strong,sourceGUID=source.guid,
+                    count=strong and spec.poweredCount or spec.normalCount}
             end
         end
     end
     return nil
+end
+
+-- A Maximal Effect power mana object cannot also be one of Magic Talent's
+-- additional casting/claim payments, even if overlapping cards share X/Z.
+function resourceCardsMaximalEffectSourceManaGUIDs(seatPos,sourceGUID)
+    local source=sourceGUID~=nil and getObjectFromGUID(sourceGUID) or nil
+    local zone=seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
+    if source==nil or zone==nil then return {} end
+    local area=footprint(source)
+    local spent,seen={},{}
+    local function inspect(mana)
+        if mana==nil or seen[mana.guid] or mana.guid==sourceGUID
+            or not trackerPrivate.readyForXZ(mana) then return end
+        seen[mana.guid]=true
+        local color=manaColor(mana)
+        if color==nil or not matchesCardMana(source,color) then return end
+        local pos=mana.getPosition()
+        local x,z=pos.x or pos[1],pos.z or pos[3]
+        if math.abs(x-area.x)<area.halfX and math.abs(z-area.z)<area.halfZ then
+            spent[mana.guid]=true
+        end
+    end
+    for _,mana in ipairs(zone.getObjects()) do inspect(mana) end
+    for _,mana in ipairs(getAllObjects()) do inspect(mana) end
+    return spent
 end
 
 function resourceCardsMaximalEffectSyncMarks(seatPos,cards,repeats)
