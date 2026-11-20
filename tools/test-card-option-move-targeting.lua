@@ -79,6 +79,10 @@ local env={
     combatConfig={sourceFields={{key="attack"},{key="block"},
         {key="ranged"},{key="siege"}}},
     resourceCardsPanelOpen=function() return true end,
+    resourceCardsMoveRole=function(guid)
+        return state.resourceCardMoveRoles and state.resourceCardMoveRoles[guid]
+            or "combat"
+    end,
     resourceCardsDetailsOpen=function() return true end,
     resourceCardsPlayerCanEdit=function() return true end,
     getObjectFromGUID=function(guid)
