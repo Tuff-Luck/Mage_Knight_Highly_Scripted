@@ -8902,6 +8902,35 @@ function magicTalentSpellCastingPaid(seatPos,guid)
     return false
 end
 
+-- Count distinct physical casting payments for repeated uses of the same
+-- Spell through Maximal Effect + Magic Talent. Both shallow-zone and raised
+-- mana objects are inspected; duplicates are counted only once.
+function magicTalentSpellCastingPaymentCount(seatPos,guid)
+    local card=guid~=nil and getObjectFromGUID(guid) or nil
+    local data=card~=nil and gameCards[guid] or nil
+    local zone=seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
+    if card==nil or data==nil or data.cardType~="Spell" or zone==nil
+        or card.is_face_down==true or cardPosture(card)~="upright" then return 0 end
+    local area=footprint(card)
+    local seen,count={},0
+    local function consider(mana)
+        if mana==nil or seen[mana.guid] or mana.guid==guid
+            or not trackerPrivate.readyForXZ(mana) then return end
+        seen[mana.guid]=true
+        local p=mana.getPosition()
+        local x,z=p.x or p[1],p.z or p[3]
+        if math.abs(x-area.x)>=area.halfX
+            or math.abs(z-area.z)>=area.halfZ then return end
+        local color=manaColor(mana)
+        if color~=nil and color~="Black" and matchesCardMana(card,color) then
+            count=count+1
+        end
+    end
+    for _,mana in ipairs(zone.getObjects()) do consider(mana) end
+    for _,mana in ipairs(getAllObjects()) do consider(mana) end
+    return count
+end
+
 -- A powered link grants a target Action card its strong side for free and can
 -- amend only the resource types specified in that link's data definition.
 local function applyLinkedResourceBonus(effects,link)
@@ -9242,7 +9271,9 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
     -- selectable +1 when played sideways like any other non-Wound Action.
     if data~=nil and data.resourceAlwaysNeutral==true and posture~="sideways" then
         return {guid=card.guid,known=true,complete=true,powered=powered,
-            links=linked,status=#linked>0 and "purple" or "blue",resources=nil}
+            links=linked,status=#linked>0 and "purple" or "blue",resources=nil,
+            repeatCount=repeatLink~=nil and repeatLink.count or nil,
+            repeatLink=repeatLink}
     end
     -- Face-down Artifacts play their Break effect. Face-down Actions stay
     -- inert unless they are the Action selected by Maximal Effect.
@@ -11194,6 +11225,25 @@ local function renderSeat(seatPos)
         -- Spell from an actual paid cast, including non-numeric utility Spells.
         if cardData~=nil and cardData.cardType=="Spell" then
             result.spellCastPaid=spellCastingPaid[card.guid]==true
+            local repeats=result.spellCastPaid
+                and magicTalentOfferSpellCastCount~=nil
+                and magicTalentOfferSpellCastCount(seatPos,card.guid) or 1
+            if repeats>1 then
+                local multiplied={}
+                for key,value in pairs(result.resources or {}) do
+                    multiplied[key]=trackerPrivate.totalsKeys[key] and type(value)=="number"
+                        and value*repeats or value
+                end
+                result.resources=multiplied
+                result.repeatCount=repeats
+                if result.fameRep~=nil then
+                    local fameRep={}
+                    for key,value in pairs(result.fameRep) do
+                        fameRep[key]=type(value)=="number" and value*repeats or value
+                    end
+                    result.fameRep=fameRep
+                end
+            end
         end
 
         if rule~=nil and rule.poweredTargetBonuses~=nil and result.powered==true
