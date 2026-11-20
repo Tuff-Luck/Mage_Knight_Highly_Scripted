@@ -578,12 +578,10 @@ combatConfig.conversionFor=function(seat,kind)
             if kind=="agility" and resourceCardsMoveRole(sourceGUID,true)~="combat" then
                 amount=0
             end
-            local targetKey=record.splitTargets~=nil and (sourceGUID.."#block") or sourceGUID
-            -- A source committed to Cumbersome/Psychic cannot simultaneously
-            -- supply its full amount to Agility or Diplomacy.
-            local committed=combatAssignmentState.explicit[targetKey]==true
-                and combatAssignmentState.targets[targetKey]~=nil
-            if not committed then available=available+amount end
+            -- A printed Move/Influence amount is a pool. Conversion spends
+            -- explicit points first; the remaining points stay available to
+            -- a Cumbersome or Psychic target on the same source.
+            available=available+amount
         end
     end
     choice.attack=math.max(0,math.floor(tonumber(choice.attack) or 0))
@@ -738,9 +736,7 @@ local function combatAssignmentSources(seat)
         for _,source in ipairs(sources) do
             if amount<=0 then break end
             local value=field=="move" and source.move or source.psychicInfluence
-            local committed=combatAssignmentState.explicit[source.key]==true
-                and combatAssignmentState.targets[source.key]~=nil
-            if value~=nil and value>0 and not committed then
+            if value~=nil and value>0 then
                 local consumed=math.min(value,amount)
                 if field=="move" and source.damagePhaseWound then lateMoveSpent=lateMoveSpent+consumed end
                 local remaining=value-consumed
@@ -4534,6 +4530,54 @@ local function combatAssignmentRefreshRows(entries,sources)
                     target.details[#target.details+1]={source=source,detail=detail}
                 end
             end
+            if source.moveCounts and (source.move or 0)>0 then
+                -- Primary target receives the remaining Cumbersome Move.
+                -- Each extra arrow transfers one point to another Cumbersome
+                -- enemy, exactly as divisible Psychic Influence does.
+                local counts=attackAssignmentsTargetCounts(source.key)
+                local other={}
+                for guid in pairs(counts) do
+                    if guid~=targetGUID and rowByGUID[guid]~=nil then
+                        other[#other+1]=guid
+                    end
+                end
+                table.sort(other)
+                local remaining=source.move
+                for _,guid in ipairs(other) do
+                    if remaining<=0 then break end
+                    if combatGUIDHasCumbersome(guid) then
+                        local amount=math.min(counts[guid],remaining)
+                        local portion={guid=source.guid,key=source.key,name=source.name,
+                            ranged=0,siege=0,block=0,attack=0,
+                            move=amount,moveCounts=true,
+                            psychicInfluence=0,resources={move=amount},
+                            details={{text="Move "..tostring(amount),amount=amount,
+                                icon="MKChoiceMove",key="move",family="move"}}}
+                        local index=rowByGUID[guid]
+                        local extra=allocated[index]
+                        if extra==nil then
+                            extra={range={},block={},attack={},sources={},details={}}
+                            allocated[index]=extra
+                        end
+                        extra.sources[#extra.sources+1]=portion
+                        extra.details[#extra.details+1]={
+                            source=portion,detail=portion.details[1]}
+                        remaining=remaining-amount
+                    end
+                end
+                source.move=remaining
+                if source.resources~=nil then source.resources.move=remaining end
+                for i=#target.details,1,-1 do
+                    local item=target.details[i]
+                    if item.source==source and item.detail.family=="move" then
+                        if remaining<=0 then table.remove(target.details,i)
+                        else
+                            item.detail.amount=remaining
+                            item.detail.text="Move "..tostring(remaining)
+                        end
+                    end
+                end
+            end
             if source.psychicInfluenceCounts then
                 -- The primary left-click target initially receives all Influence.
                 -- Each additional right-click arrow transfers one point; repeated
@@ -7008,6 +7052,8 @@ function resourceCardsCombatAdditionalTargetLimit(sourceKey)
             if converted>1 then return converted,"points" end
             local influence=tonumber(source.psychicInfluence) or 0
             if influence>1 then return influence,"influence" end
+            local move=tonumber(source.move) or 0
+            if move>1 then return move,"movePoints" end
             break
         end
     end
