@@ -752,7 +752,16 @@ local function combatAssignmentSources(seat)
     -- the otherwise available pool. Existing sources cannot count twice.
     local lateMoveSpent=0
     local function consumeShared(field,amount)
+        -- Source records originate in a pairs() scan. Consume unassigned
+        -- points in a stable order so rescans cannot move the conversion
+        -- between physical cards (or change its Damage-phase timing).
+        local ordered={}
         for _,source in ipairs(sources) do
+            local value=field=="move" and source.move or source.psychicInfluence
+            if value~=nil and value>0 then ordered[#ordered+1]=source end
+        end
+        table.sort(ordered,function(a,b) return a.key<b.key end)
+        for _,source in ipairs(ordered) do
             if amount<=0 then break end
             local value=field=="move" and source.move or source.psychicInfluence
             if value~=nil and value>0 then
