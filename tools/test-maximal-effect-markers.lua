@@ -117,7 +117,9 @@ zone.getObjects=function() return {maximal,training} end
 
 -- Cleanup consumes a marked face-up Action instead of returning it to
 -- the discard pile. Unmarked Actions still use the normal discard branch.
-methods.mark(training,true)
+methods.beforeEnd(1)
+eq(methods.marked(training),true,
+    "End Turn rehydrates red X from physical OFF link before cleanup")
 local flow=read("src/PlayingGame/PlayerBoard/CardFlow.lua")
 local cleanup=extract(flow,"function cleanupPlayedCardAtEndTurn(",
     "local MEDITATION_BUTTON_SUFFIXES=")
