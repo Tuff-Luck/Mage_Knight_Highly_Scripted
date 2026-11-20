@@ -1,154 +1,155 @@
-<Panel id="ResourceTracker" active="false" class="Floating" rectAlignment="UpperLeft" offsetXY="135 -80" width="260" height="245">
-<Panel id="ResourceTrackerDetail" active="false" rectAlignment="LowerCenter" height="210" outlineSize="0 0"><VerticalLayout childForceExpandHeight="false" spacing="1">
-<Panel id="MovemAmountPlainRow" active="false" preferredHeight="34" outlineSize="0 0"><HorizontalLayout childForceExpandWidth="false" spacing="2"><Button id="MovemAmountPlainDown" preferredWidth="24" onClick="resourceTracker" colors="#FFFFFF00|#FFFFFF20|#FFFFFF00|#FFFFFF00" tooltip="Decrease Move"/><Text id="MovemAmountPlainText" fontSize="23" color="#FFFFFF" alignment="MiddleLeft" preferredWidth="170">Move : 0</Text><Button id="MovemAmountPlainUp" preferredWidth="24" onClick="resourceTracker" colors="#FFFFFF00|#FFFFFF20|#FFFFFF00|#FFFFFF00" tooltip="Increase Move"/></HorizontalLayout></Panel>
-<Panel id="CombatMoveRow" active="false" preferredHeight="22" outlineSize="0 0"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="CombatMoveText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="212">Combat Move : 0</Text></HorizontalLayout></Panel>
-<Panel id="MoveCostHeader" preferredHeight="26" outlineSize="0 0"><Button id="DisplayMoveCosts" onClick="resourceTracker"><Text id="MoveCostHeaderText" fontSize="15" color="#B7C5CF" alignment="MiddleCenter">{en}Terrain Costs ▾{it}Costi del terreno ▾{ru}Стоимость местности ▾{zh-tw}地形移動費用 ▾{zh-cn}地形移动费用 ▾{ko}지형 이동 비용 ▾{es}Costes del terreno ▾{fr}Coûts de terrain ▾{pt-br}Custos de terreno ▾{de}Geländekosten ▾</Text></Button></Panel>
-<Panel id="MoveCosts" active="false" preferredHeight="240" outlineSize="0 0">
+<Panel id="ResourceTracker" active="false" class="Floating" rectAlignment="UpperLeft" offsetXY="135 -80" width="225" height="245" color="rgb(0.2, 0.2, 0.2)" outlineSize="1 -1">
+<Panel id="ResourceTrackerDetail" active="false" rectAlignment="LowerCenter" height="210" outlineSize="0 0" color="rgba(0,0,0,0)"><VerticalLayout childForceExpandHeight="false" spacing="1">
+<Panel id="MovemAmountPlainRow" active="false" preferredHeight="34" outlineSize="0 0" color="rgba(0,0,0,0)"><Button id="MovemAmountPlainDown" rectAlignment="MiddleLeft" width="112" height="34" onClick="resourceTracker" colors="#FFFFFF00|#FFFFFF20|#FFFFFF00|#FFFFFF00" tooltip="Decrease Move"/><Button id="MovemAmountPlainUp" rectAlignment="MiddleRight" width="113" height="34" onClick="resourceTracker" colors="#FFFFFF00|#FFFFFF20|#FFFFFF00|#FFFFFF00" tooltip="Increase Move"/><Text id="MovemAmountPlainText" fontSize="19" fontStyle="Bold" color="#F4EDE2" alignment="MiddleLeft" rectAlignment="MiddleLeft" offsetXY="16 0" width="196" raycastTarget="false">Move : 0</Text></Panel>
+<Panel id="CombatMoveRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="CombatMoveText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Combat Move : 0</Text></HorizontalLayout></Panel>
+<Panel id="MoveCostHeader" preferredHeight="26" outlineSize="0 0" color="rgba(0,0,0,0)"><Button id="DisplayMoveCosts" onClick="resourceTracker" color="#4B4033" colors="#4B4033|#61513E|#4B4033|#4B4033"><Text id="MoveCostHeaderText" fontSize="15" color="#F0DDC0" alignment="MiddleCenter">{en}Terrain Costs ▾{it}Costi del terreno ▾{ru}Стоимость местности ▾{zh-tw}地形移動費用 ▾{zh-cn}地形移动费用 ▾{ko}지형 이동 비용 ▾{es}Costes del terreno ▾{fr}Coûts de terrain ▾{pt-br}Custos de terreno ▾{de}Geländekosten ▾</Text></Button></Panel>
+<Panel id="MoveCosts" active="false" preferredHeight="240" outlineSize="0 0" color="rgba(0,0,0,0)">
 				<VerticalLayout>
 					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="MoveCostPlainDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
+						<Button id="MoveCostPlainDown" preferredWidth="25" onClick="resourceTracker" class="ShortButton">
 							<Image id="MoveCostPlainDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
 							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
 						</Button>
-						<Button preferredWidth="210" interactable="false" onClick="">
+						<Button preferredWidth="175" interactable="false" onClick="">
 							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
 							<Text id="MoveCostPlainText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Plains : 2{it}Pianure : 2{ru}Равнины: 2{zh-tw}平原：2{zh-cn}平原：2{ko}평지 :2{es}Llanuras : 2{fr}Plaines : 2{pt-br}Planícies : 2{de}Ebenen : 2</Text>
 						</Button>
-						<Button id="MoveCostPlainUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
+						<Button id="MoveCostPlainUp" preferredWidth="25" onClick="resourceTracker" class="ShortButton">
 							<Image id="MoveCostPlainUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
 							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
 						</Button>
 					</HorizontalLayout>
 					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="MoveCostHillsDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
+						<Button id="MoveCostHillsDown" preferredWidth="25" onClick="resourceTracker" class="ShortButton">
 							<Image id="MoveCostHillsDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
 							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
 						</Button>
-						<Button preferredWidth="210" interactable="false" onClick="">
+						<Button preferredWidth="175" interactable="false" onClick="">
 							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
 							<Text id="MoveCostHillsText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Hills : 3{it}Colline : 3{ru}Холмы: 3{zh-tw}丘陵：3{zh-cn}丘陵：3{ko}언덕 : 3{es}Colinas : 3{fr}Collines : 3{pt-br}Colinas : 3{de}Hügel : 3</Text>
 						</Button>
-						<Button id="MoveCostHillsUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
+						<Button id="MoveCostHillsUp" preferredWidth="25" onClick="resourceTracker" class="ShortButton">
 							<Image id="MoveCostHillsUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
 							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
 						</Button>
 					</HorizontalLayout>
 					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="MoveCostForesDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
+						<Button id="MoveCostForesDown" preferredWidth="25" onClick="resourceTracker" class="ShortButton">
 							<Image id="MoveCostForesDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
 							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
 						</Button>
-						<Button preferredWidth="210" interactable="false" onClick="">
+						<Button preferredWidth="175" interactable="false" onClick="">
 							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
 							<Text id="MoveCostForesText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Forests : 3{it}Foreste : 3{ru}Леса: 3{zh-tw}森林：3{zh-cn}森林：3{ko}숲 : 3{es}Bosques : 3{fr}Forêts : 3{pt-br}Florestas : 3{de}Wälder : 3</Text>
 						</Button>
-						<Button id="MoveCostForesUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
+						<Button id="MoveCostForesUp" preferredWidth="25" onClick="resourceTracker" class="ShortButton">
 							<Image id="MoveCostForesUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
 							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
 						</Button>
 					</HorizontalLayout>
 					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="MoveCostWasteDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
+						<Button id="MoveCostWasteDown" preferredWidth="25" onClick="resourceTracker" class="ShortButton">
 							<Image id="MoveCostWasteDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
 							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
 						</Button>
-						<Button preferredWidth="210" interactable="false" onClick="">
+						<Button preferredWidth="175" interactable="false" onClick="">
 							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
 							<Text id="MoveCostWasteText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Wastelands : 4{it}Terre Desolate : 4{ru}Пустоши: 4{zh-tw}荒原：4{zh-cn}荒原：4{ko}황무지 : 4{es}Páramos : 4{fr}Terrains Vagues : 4{pt-br}Terras Devastadas : 4{de}Ödland : 4</Text>
 						</Button>
-						<Button id="MoveCostWasteUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
+						<Button id="MoveCostWasteUp" preferredWidth="25" onClick="resourceTracker" class="ShortButton">
 							<Image id="MoveCostWasteUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
 							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
 						</Button>
 					</HorizontalLayout>
 					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="MoveCostDeserDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
+						<Button id="MoveCostDeserDown" preferredWidth="25" onClick="resourceTracker" class="ShortButton">
 							<Image id="MoveCostDeserDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
 							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
 						</Button>
-						<Button preferredWidth="210" interactable="false" onClick="">
+						<Button preferredWidth="175" interactable="false" onClick="">
 							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
 							<Text id="MoveCostDeserText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Deserts : 5{it}Deserti : 5{ru}Пустыни: 5{zh-tw}沙漠：5{zh-cn}沙漠：5{ko}사막 : 5{es}Desiertos : 5{fr}Déserts : 5{pt-br}Desertos : 5{de}Wüsten : 5</Text>
 						</Button>
-						<Button id="MoveCostDeserUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
+						<Button id="MoveCostDeserUp" preferredWidth="25" onClick="resourceTracker" class="ShortButton">
 							<Image id="MoveCostDeserUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
 							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
 						</Button>
 					</HorizontalLayout>
 					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="MoveCostSwampDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
+						<Button id="MoveCostSwampDown" preferredWidth="25" onClick="resourceTracker" class="ShortButton">
 							<Image id="MoveCostSwampDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
 							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
 						</Button>
-						<Button preferredWidth="210" interactable="false" onClick="">
+						<Button preferredWidth="175" interactable="false" onClick="">
 							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
 							<Text id="MoveCostSwampText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Swamps : 5{it}Paludi : 5{ru}Болота: 5{zh-tw}沼澤：5{zh-cn}沼泽：5{ko}늪 : 5{es}Pantanos : 5{fr}Marécages : 5{pt-br}Pântanos : 5{de}Sümpfe : 5</Text>
 						</Button>
-						<Button id="MoveCostSwampUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
+						<Button id="MoveCostSwampUp" preferredWidth="25" onClick="resourceTracker" class="ShortButton">
 							<Image id="MoveCostSwampUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
 							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
 						</Button>
 					</HorizontalLayout>
 					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="MoveCostLakesDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
+						<Button id="MoveCostLakesDown" preferredWidth="25" onClick="resourceTracker" class="ShortButton">
 							<Image id="MoveCostLakesDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
 							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
 						</Button>
-						<Button preferredWidth="210" interactable="false" onClick="">
+						<Button preferredWidth="175" interactable="false" onClick="">
 							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
 							<Text id="MoveCostLakesText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Lakes : X{it}Laghi : X{ru}Озера: X{zh-tw}湖泊：X{zh-cn}湖泊：X{ko}호수 : X{es}Lagos : X{fr}Lacs : X{pt-br}Lagos : X{de}Seen : X</Text>
 						</Button>
-						<Button id="MoveCostLakesUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
+						<Button id="MoveCostLakesUp" preferredWidth="25" onClick="resourceTracker" class="ShortButton">
 							<Image id="MoveCostLakesUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
 							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
 						</Button>
 					</HorizontalLayout>
 					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="MoveCostMountDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
+						<Button id="MoveCostMountDown" preferredWidth="25" onClick="resourceTracker" class="ShortButton">
 							<Image id="MoveCostMountDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
 							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
 						</Button>
-						<Button preferredWidth="210" interactable="false" onClick="">
+						<Button preferredWidth="175" interactable="false" onClick="">
 							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
 							<Text id="MoveCostMountText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Mountains : X{it}Montagne : X{ru}Горы: X{zh-tw}山脈：X{zh-cn}山脉：X{ko}산 : X{es}Montañas : X{fr}Montagnes : X{pt-br}Montanhas : X{de}Berge : X</Text>
 						</Button>
-						<Button id="MoveCostMountUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
+						<Button id="MoveCostMountUp" preferredWidth="25" onClick="resourceTracker" class="ShortButton">
 							<Image id="MoveCostMountUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
 							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
 						</Button>
 					</HorizontalLayout>
 				</VerticalLayout>
 			</Panel>
-<Panel id="SiegeAmountPlainRow" active="false" preferredHeight="34" outlineSize="0 0"><HorizontalLayout childForceExpandWidth="false" spacing="2"><Panel preferredWidth="24" outlineSize="0 0"/><Text id="SiegeAmountPlainText" fontSize="23" color="#FFFFFF" alignment="MiddleLeft" preferredWidth="185">Siege : 0</Text><Text id="SiegeSingleElement" fontSize="14" color="#C7D3DB" alignment="MiddleRight" preferredWidth="55"></Text></HorizontalLayout></Panel>
-<Panel id="SiegeAmountPhysiRow" active="false" preferredHeight="22" outlineSize="0 0"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="SiegeAmountPhysiText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="212">Physical : 0</Text></HorizontalLayout></Panel>
-<Panel id="SiegeAmountFirexRow" active="false" preferredHeight="22" outlineSize="0 0"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="SiegeAmountFirexText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="212">Fire : 0</Text></HorizontalLayout></Panel>
-<Panel id="SiegeAmountIcexxRow" active="false" preferredHeight="22" outlineSize="0 0"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="SiegeAmountIcexxText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="212">Ice : 0</Text></HorizontalLayout></Panel>
-<Panel id="SiegeAmountColdFRow" active="false" preferredHeight="22" outlineSize="0 0"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="SiegeAmountColdFText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="212">Cold Fire : 0</Text></HorizontalLayout></Panel>
-<Panel id="SiegeAmountPsychRow" active="false" preferredHeight="22" outlineSize="0 0"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="SiegeAmountPsychText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="212">Psychic : 0</Text></HorizontalLayout></Panel>
-<Panel id="RangeAmountPlainRow" active="false" preferredHeight="34" outlineSize="0 0"><HorizontalLayout childForceExpandWidth="false" spacing="2"><Panel preferredWidth="24" outlineSize="0 0"/><Text id="RangeAmountPlainText" fontSize="23" color="#FFFFFF" alignment="MiddleLeft" preferredWidth="185">Ranged : 0</Text><Text id="RangeSingleElement" fontSize="14" color="#C7D3DB" alignment="MiddleRight" preferredWidth="55"></Text></HorizontalLayout></Panel>
-<Panel id="RangeAmountPhysiRow" active="false" preferredHeight="22" outlineSize="0 0"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="RangeAmountPhysiText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="212">Physical : 0</Text></HorizontalLayout></Panel>
-<Panel id="RangeAmountFirexRow" active="false" preferredHeight="22" outlineSize="0 0"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="RangeAmountFirexText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="212">Fire : 0</Text></HorizontalLayout></Panel>
-<Panel id="RangeAmountIcexxRow" active="false" preferredHeight="22" outlineSize="0 0"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="RangeAmountIcexxText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="212">Ice : 0</Text></HorizontalLayout></Panel>
-<Panel id="RangeAmountColdFRow" active="false" preferredHeight="22" outlineSize="0 0"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="RangeAmountColdFText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="212">Cold Fire : 0</Text></HorizontalLayout></Panel>
-<Panel id="RangeAmountPsychRow" active="false" preferredHeight="22" outlineSize="0 0"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="RangeAmountPsychText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="212">Psychic : 0</Text></HorizontalLayout></Panel>
-<Panel id="BlockAmountPlainRow" active="false" preferredHeight="34" outlineSize="0 0"><HorizontalLayout childForceExpandWidth="false" spacing="2"><Panel preferredWidth="24" outlineSize="0 0"/><Text id="BlockAmountPlainText" fontSize="23" color="#FFFFFF" alignment="MiddleLeft" preferredWidth="185">Block : 0</Text><Text id="BlockSingleElement" fontSize="14" color="#C7D3DB" alignment="MiddleRight" preferredWidth="55"></Text></HorizontalLayout></Panel>
-<Panel id="BlockAmountPhysiRow" active="false" preferredHeight="22" outlineSize="0 0"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="BlockAmountPhysiText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="212">Physical : 0</Text></HorizontalLayout></Panel>
-<Panel id="BlockAmountFirexRow" active="false" preferredHeight="22" outlineSize="0 0"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="BlockAmountFirexText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="212">Fire : 0</Text></HorizontalLayout></Panel>
-<Panel id="BlockAmountIcexxRow" active="false" preferredHeight="22" outlineSize="0 0"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="BlockAmountIcexxText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="212">Ice : 0</Text></HorizontalLayout></Panel>
-<Panel id="BlockAmountColdFRow" active="false" preferredHeight="22" outlineSize="0 0"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="BlockAmountColdFText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="212">Cold Fire : 0</Text></HorizontalLayout></Panel>
-<Panel id="BlockAmountPsychRow" active="false" preferredHeight="22" outlineSize="0 0"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="BlockAmountPsychText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="212">Psychic : 0</Text></HorizontalLayout></Panel>
-<Panel id="AttacAmountPlainRow" active="false" preferredHeight="34" outlineSize="0 0"><HorizontalLayout childForceExpandWidth="false" spacing="2"><Panel preferredWidth="24" outlineSize="0 0"/><Text id="AttacAmountPlainText" fontSize="23" color="#FFFFFF" alignment="MiddleLeft" preferredWidth="185">Attack : 0</Text><Text id="AttacSingleElement" fontSize="14" color="#C7D3DB" alignment="MiddleRight" preferredWidth="55"></Text></HorizontalLayout></Panel>
-<Panel id="AttacAmountPhysiRow" active="false" preferredHeight="22" outlineSize="0 0"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="AttacAmountPhysiText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="212">Physical : 0</Text></HorizontalLayout></Panel>
-<Panel id="AttacAmountFirexRow" active="false" preferredHeight="22" outlineSize="0 0"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="AttacAmountFirexText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="212">Fire : 0</Text></HorizontalLayout></Panel>
-<Panel id="AttacAmountIcexxRow" active="false" preferredHeight="22" outlineSize="0 0"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="AttacAmountIcexxText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="212">Ice : 0</Text></HorizontalLayout></Panel>
-<Panel id="AttacAmountColdFRow" active="false" preferredHeight="22" outlineSize="0 0"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="AttacAmountColdFText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="212">Cold Fire : 0</Text></HorizontalLayout></Panel>
-<Panel id="AttacAmountPsychRow" active="false" preferredHeight="22" outlineSize="0 0"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="AttacAmountPsychText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="212">Psychic : 0</Text></HorizontalLayout></Panel>
-<Panel id="InfluAmountPlainRow" active="false" preferredHeight="34" outlineSize="0 0"><HorizontalLayout childForceExpandWidth="false" spacing="2"><Button id="InfluAmountPlainDown" preferredWidth="24" onClick="resourceTracker" colors="#FFFFFF00|#FFFFFF20|#FFFFFF00|#FFFFFF00" tooltip="Decrease Influence"/><Text id="InfluAmountPlainText" fontSize="23" color="#FFFFFF" alignment="MiddleLeft" preferredWidth="170">Influence : 0</Text><Button id="InfluAmountPlainUp" preferredWidth="24" onClick="resourceTracker" colors="#FFFFFF00|#FFFFFF20|#FFFFFF00|#FFFFFF00" tooltip="Increase Influence"/></HorizontalLayout></Panel>
-<Panel id="InfluAmountPhysiRow" active="false" preferredHeight="22" outlineSize="0 0"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="InfluAmountPhysiText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="212">Generated : 0</Text></HorizontalLayout></Panel>
-<Panel id="InfluAmountReputRow" active="false" preferredHeight="22" outlineSize="0 0"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="InfluAmountReputText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="212">Reputation : 0</Text></HorizontalLayout></Panel>
-<Panel id="InfluAmountCitySRow" active="false" preferredHeight="22" outlineSize="0 0"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="InfluAmountCitySText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="212">City Shields : 0</Text></HorizontalLayout></Panel>
-<Panel id="HealiAmountPlainRow" active="false" preferredHeight="34" outlineSize="0 0"><HorizontalLayout childForceExpandWidth="false" spacing="2"><Button id="HealiAmountPlainDown" preferredWidth="24" onClick="resourceTracker" colors="#FFFFFF00|#FFFFFF20|#FFFFFF00|#FFFFFF00" tooltip="Decrease Healing"/><Text id="HealiAmountPlainText" fontSize="23" color="#FFFFFF" alignment="MiddleLeft" preferredWidth="170">Healing : 0</Text><Button id="HealiAmountPlainUp" preferredWidth="24" onClick="resourceTracker" colors="#FFFFFF00|#FFFFFF20|#FFFFFF00|#FFFFFF00" tooltip="Increase Healing"/></HorizontalLayout></Panel>
-<Panel id="HealiGeneratedRow" active="false" preferredHeight="22" outlineSize="0 0"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="HealiGeneratedText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="212">Generated : 0</Text></HorizontalLayout></Panel>
+<Panel id="SiegeAmountPlainRow" active="false" preferredHeight="34" outlineSize="0 0" color="rgba(0,0,0,0)"><Text id="SiegeAmountPlainText" fontSize="19" fontStyle="Bold" color="#F4EDE2" alignment="MiddleLeft" rectAlignment="MiddleLeft" offsetXY="16 0" width="150" raycastTarget="false">Siege : 0</Text><Text id="SiegeSingleElement" fontSize="12" color="#D8CBB5" alignment="MiddleRight" rectAlignment="MiddleRight" offsetXY="-7 0" width="76" raycastTarget="false"></Text></Panel>
+<Panel id="SiegeAmountPhysiRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="SiegeAmountPhysiText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Physical : 0</Text></HorizontalLayout></Panel>
+<Panel id="SiegeAmountFirexRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="SiegeAmountFirexText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Fire : 0</Text></HorizontalLayout></Panel>
+<Panel id="SiegeAmountIcexxRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="SiegeAmountIcexxText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Ice : 0</Text></HorizontalLayout></Panel>
+<Panel id="SiegeAmountColdFRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="SiegeAmountColdFText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Cold Fire : 0</Text></HorizontalLayout></Panel>
+<Panel id="SiegeAmountPsychRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="SiegeAmountPsychText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Psychic : 0</Text></HorizontalLayout></Panel>
+<Panel id="RangeAmountPlainRow" active="false" preferredHeight="34" outlineSize="0 0" color="rgba(0,0,0,0)"><Text id="RangeAmountPlainText" fontSize="19" fontStyle="Bold" color="#F4EDE2" alignment="MiddleLeft" rectAlignment="MiddleLeft" offsetXY="16 0" width="150" raycastTarget="false">Ranged : 0</Text><Text id="RangeSingleElement" fontSize="12" color="#D8CBB5" alignment="MiddleRight" rectAlignment="MiddleRight" offsetXY="-7 0" width="76" raycastTarget="false"></Text></Panel>
+<Panel id="RangeAmountPhysiRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="RangeAmountPhysiText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Physical : 0</Text></HorizontalLayout></Panel>
+<Panel id="RangeAmountFirexRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="RangeAmountFirexText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Fire : 0</Text></HorizontalLayout></Panel>
+<Panel id="RangeAmountIcexxRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="RangeAmountIcexxText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Ice : 0</Text></HorizontalLayout></Panel>
+<Panel id="RangeAmountColdFRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="RangeAmountColdFText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Cold Fire : 0</Text></HorizontalLayout></Panel>
+<Panel id="RangeAmountPsychRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="RangeAmountPsychText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Psychic : 0</Text></HorizontalLayout></Panel>
+<Panel id="BlockAmountPlainRow" active="false" preferredHeight="34" outlineSize="0 0" color="rgba(0,0,0,0)"><Text id="BlockAmountPlainText" fontSize="19" fontStyle="Bold" color="#F4EDE2" alignment="MiddleLeft" rectAlignment="MiddleLeft" offsetXY="16 0" width="150" raycastTarget="false">Block : 0</Text><Text id="BlockSingleElement" fontSize="12" color="#D8CBB5" alignment="MiddleRight" rectAlignment="MiddleRight" offsetXY="-7 0" width="76" raycastTarget="false"></Text></Panel>
+<Panel id="BlockAmountPhysiRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="BlockAmountPhysiText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Physical : 0</Text></HorizontalLayout></Panel>
+<Panel id="BlockAmountFirexRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="BlockAmountFirexText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Fire : 0</Text></HorizontalLayout></Panel>
+<Panel id="BlockAmountIcexxRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="BlockAmountIcexxText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Ice : 0</Text></HorizontalLayout></Panel>
+<Panel id="BlockAmountColdFRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="BlockAmountColdFText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Cold Fire : 0</Text></HorizontalLayout></Panel>
+<Panel id="BlockAmountPsychRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="BlockAmountPsychText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Psychic : 0</Text></HorizontalLayout></Panel>
+<Panel id="AttacAmountPlainRow" active="false" preferredHeight="34" outlineSize="0 0" color="rgba(0,0,0,0)"><Text id="AttacAmountPlainText" fontSize="19" fontStyle="Bold" color="#F4EDE2" alignment="MiddleLeft" rectAlignment="MiddleLeft" offsetXY="16 0" width="150" raycastTarget="false">Attack : 0</Text><Text id="AttacSingleElement" fontSize="12" color="#D8CBB5" alignment="MiddleRight" rectAlignment="MiddleRight" offsetXY="-7 0" width="76" raycastTarget="false"></Text></Panel>
+<Panel id="AttacAmountPhysiRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="AttacAmountPhysiText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Physical : 0</Text></HorizontalLayout></Panel>
+<Panel id="AttacAmountFirexRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="AttacAmountFirexText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Fire : 0</Text></HorizontalLayout></Panel>
+<Panel id="AttacAmountIcexxRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="AttacAmountIcexxText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Ice : 0</Text></HorizontalLayout></Panel>
+<Panel id="AttacAmountColdFRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="AttacAmountColdFText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Cold Fire : 0</Text></HorizontalLayout></Panel>
+<Panel id="AttacAmountPsychRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="AttacAmountPsychText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Psychic : 0</Text></HorizontalLayout></Panel>
+<Panel id="InfluAmountPlainRow" active="false" preferredHeight="34" outlineSize="0 0" color="rgba(0,0,0,0)"><Button id="InfluAmountPlainDown" rectAlignment="MiddleLeft" width="112" height="34" onClick="resourceTracker" colors="#FFFFFF00|#FFFFFF20|#FFFFFF00|#FFFFFF00" tooltip="Decrease Influence"/><Button id="InfluAmountPlainUp" rectAlignment="MiddleRight" width="113" height="34" onClick="resourceTracker" colors="#FFFFFF00|#FFFFFF20|#FFFFFF00|#FFFFFF00" tooltip="Increase Influence"/><Text id="InfluAmountPlainText" fontSize="19" fontStyle="Bold" color="#F4EDE2" alignment="MiddleLeft" rectAlignment="MiddleLeft" offsetXY="16 0" width="196" raycastTarget="false">Influence : 0</Text></Panel>
+<Panel id="InfluAmountPhysiRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="InfluAmountPhysiText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Generated : 0</Text></HorizontalLayout></Panel>
+<Panel id="InfluAmountReputRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="InfluAmountReputText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Reputation : 0</Text></HorizontalLayout></Panel>
+<Panel id="InfluAmountCitySRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="InfluAmountCitySText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">City Shields : 0</Text></HorizontalLayout></Panel>
+<Panel id="HealiAmountPlainRow" active="false" preferredHeight="34" outlineSize="0 0" color="rgba(0,0,0,0)"><Button id="HealiAmountPlainDown" rectAlignment="MiddleLeft" width="112" height="34" onClick="resourceTracker" colors="#FFFFFF00|#FFFFFF20|#FFFFFF00|#FFFFFF00" tooltip="Decrease Healing"/><Button id="HealiAmountPlainUp" rectAlignment="MiddleRight" width="113" height="34" onClick="resourceTracker" colors="#FFFFFF00|#FFFFFF20|#FFFFFF00|#FFFFFF00" tooltip="Increase Healing"/><Text id="HealiAmountPlainText" fontSize="19" fontStyle="Bold" color="#F4EDE2" alignment="MiddleLeft" rectAlignment="MiddleLeft" offsetXY="16 0" width="196" raycastTarget="false">Healing : 0</Text></Panel>
+<Panel id="HealiGeneratedRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="HealiGeneratedText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Generated : 0</Text></HorizontalLayout></Panel>
+<Panel id="ResourceTrackerAddRow" active="false" preferredHeight="23" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" spacing="0"><Button id="MovemAmountPlainAdd" active="false" preferredWidth="75" preferredHeight="23" onClick="resourceTracker" color="#4B4033" tooltip="Increase Move"><Text id="MovemAmountPlainAddText" fontSize="12" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="12" color="#EFE2CE" alignment="MiddleCenter" raycastTarget="false">{en}+ Move{it}+ Movimento{ru}+ Движение{zh-tw}+ 移動{zh-cn}+ 移动{ko}+ 이동{es}+ Mover{fr}+ Dépl.{pt-br}+ Mover{de}+ Bew.</Text></Button><Button id="InfluAmountPlainAdd" active="false" preferredWidth="75" preferredHeight="23" onClick="resourceTracker" color="#4B4033" tooltip="Increase Influence"><Text id="InfluAmountPlainAddText" fontSize="12" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="12" color="#EFE2CE" alignment="MiddleCenter" raycastTarget="false">{en}+ Influence{it}+ Influenza{ru}+ Влияние{zh-tw}+ 影響力{zh-cn}+ 影响力{ko}+ 영향력{es}+ Influencia{fr}+ Influence{pt-br}+ Influência{de}+ Einfluss</Text></Button><Button id="HealiAmountPlainAdd" active="false" preferredWidth="75" preferredHeight="23" onClick="resourceTracker" color="#4B4033" tooltip="Increase Healing"><Text id="HealiAmountPlainAddText" fontSize="12" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="12" color="#EFE2CE" alignment="MiddleCenter" raycastTarget="false">{en}+ Healing{it}+ Guarigione{ru}+ Лечение{zh-tw}+ 治療{zh-cn}+ 治疗{ko}+ 치유{es}+ Curación{fr}+ Guérison{pt-br}+ Cura{de}+ Heilung</Text></Button></HorizontalLayout></Panel>
 </VerticalLayout></Panel>
-<Panel height="35" rectAlignment="UpperCenter" outlineSize="0 0"><HorizontalLayout childForceExpandWidth="false" spacing="0"><Button id="DisplayResourceTrackerDetails" preferredWidth="224" onClick="resourceTracker"><Image id="DisplayResourceTrackerDetailsImage" image="Sliced Button/Button New Active" type="Sliced"/><Text class="Title20" alignment="MiddleCenter" id="resourceTrackerText">{en}Resource Tracker{it}Contatore Risorse{ru}Трекер Ресурсов{zh-tw}資源追蹤器{zh-cn}资源追踪器{ko}자원 추적표{es}Rastreador de Recursos{fr}Suivi des Ressources{pt-br}Rastreador de Recursos{de}Ressourcen-Tracker</Text></Button><Button id="DisplayCombatCalculatorHelp" preferredWidth="32" onClick="resourceTracker" class="ShortButton" tooltip="Combat calculator help"><Image image="Sliced Button/Button New Active" type="Sliced"/><Text class="Text24" alignment="MiddleCenter">?</Text></Button></HorizontalLayout></Panel>
+<Panel height="35" rectAlignment="UpperCenter" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" spacing="0"><Button id="DisplayResourceTrackerDetails" preferredWidth="193" onClick="resourceTracker"><Image id="DisplayResourceTrackerDetailsImage" image="Sliced Button/Button New Active" type="Sliced"/><Text class="Title20" alignment="MiddleCenter" id="resourceTrackerText">{en}Resource Tracker{it}Contatore Risorse{ru}Трекер Ресурсов{zh-tw}資源追蹤器{zh-cn}资源追踪器{ko}자원 추적표{es}Rastreador de Recursos{fr}Suivi des Ressources{pt-br}Rastreador de Recursos{de}Ressourcen-Tracker</Text></Button><Button id="DisplayCombatCalculatorHelp" preferredWidth="32" onClick="resourceTracker" class="ShortButton" tooltip="Combat calculator help"><Image image="Sliced Button/Button New Active" type="Sliced"/><Text class="Text24" alignment="MiddleCenter">?</Text></Button></HorizontalLayout></Panel>
 </Panel>
