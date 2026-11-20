@@ -446,14 +446,23 @@ local function discardCost(seat,card)
     return true
 end
 
-local function start(seat,mode,color,source)
-    local order=offerOrder(color)
-    local s={seatPos=seat,mode=mode,color=color,order=order,index=1,
-        sourceGUID=source~=nil and source.guid or nil}
-    if source~=nil and not discardCost(seat,source) then return end
+local function start(seat,mode,color,source,copy,costs)
+    local count=copy~=nil and copy.count or 1
+    local s={seatPos=seat,mode=mode,color=color,order=offerOrder(color),index=1,
+        sourceGUID=source~=nil and source.guid or nil,
+        copy=copy~=nil and {count=count,powered=copy.powered==true} or nil,
+        limit=count,used=0,loans={},repeatCasts={}}
+    if costs~=nil then
+        s.costColors={}
+        for index,entry in ipairs(costs) do
+            if not discardCost(seat,entry.card) then return end
+            s.costColors[index]=entry.color
+        end
+        s.color=s.costColors[1]
+    elseif source~=nil and not discardCost(seat,source) then return end
     gStates.magicTalentPreview=s
-    if #order>0 then borrow(s,1) end
-    if #order==0 then
+    if #s.order>0 then borrow(s,1) end
+    if #s.order==0 then
         safeBroadcastToColor("Magic Talent: no matching Spell is in the offer.",
             positionToColor(gStates.turnNumber),warningColor)
     end
@@ -467,19 +476,38 @@ function magicTalentSync()
         if s~=nil then magicTalentClose(true) end
         return
     end
+    local copy=maximalEntitlement(seat)
+    if s~=nil and s.copy~=nil
+        and (copy==nil or s.copy.count~=copy.count
+            or s.copy.powered~=(copy.powered==true)) then
+        -- If Maximal Effect's physical link is undone, every temporary
+        -- Spell returns to the offer and its cast stops contributing.
+        magicTalentClose(true)
+        s=nil
+    end
     if s==nil then
-        local cost,color=candidateCost(seat)
-        -- A coloured hand card on Magic Talent selects the basic effect;
-        -- without it two distinct mana payments select the strong effect.
-        if cost~=nil then start(seat,"basic",color,cost)
+        if copy~=nil and copy.powered==true then
+            local paid=strongColor(seat,1,copy)
+            if paid~=nil then start(seat,"strong",paid,nil,copy) end
+        elseif copy~=nil then
+            local costs=candidateCosts(seat,copy.count)
+            if costs~=nil then
+                start(seat,"basic",costs[1].color,nil,copy,costs)
+            end
         else
-            local paid=strongColor(seat)
-            if paid~=nil then start(seat,"strong",paid,nil) end
+            local cost,color=candidateCost(seat)
+            -- The ordinary basic effect spends one hand card. Otherwise a
+            -- blue power and a separate mana choose the strong effect.
+            if cost~=nil then start(seat,"basic",color,cost)
+            else
+                local paid=strongColor(seat)
+                if paid~=nil then start(seat,"strong",paid,nil) end
+            end
         end
         return
     end
     if s.mode=="basic" then
-        if s.cardGUID==nil then
+        if s.cardGUID==nil and (s.used or 0)<(s.limit or 1) then
             s.order=offerOrder(s.color)
             s.index=1
             if #s.order>0 then borrow(s,1) end
@@ -487,7 +515,7 @@ function magicTalentSync()
         return
     end
     if s.mode~="strong" then return end
-    local paid=strongColor(seat)
+    local paid=strongColor(seat,(s.used or 0)+1,s.copy)
     if paid==nil then
         if s.cardGUID~=nil then returnPreview(s,false) end
         return
