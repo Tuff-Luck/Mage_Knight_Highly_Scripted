@@ -8,6 +8,7 @@ on:
       - '.github/workflows/combat-regressions.yml'
       - 'src/PlayingGame/PlayerBoard/CardRecognition.lua'
       - 'src/PlayingGame/AttackAssignments.lua'
+      - 'src/PlayingGame/UI.lua'
       - 'src/PlayingGame/PlayerBoard/CardFlow.lua'
       - 'tools/test-combat-wound-application.lua'
       - 'tools/test-combat-target-and-commit.lua'
