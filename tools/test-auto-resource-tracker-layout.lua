@@ -19,8 +19,8 @@ end
 local uiSource=read("src/PlayingGame/UI.lua")
 local cardSource=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local attrs={
-    ResourceTracker={active="true",height="245"},
-    ResourceTrackerDetail={active="true",height="210"},
+    ResourceTracker={active="true",height="175"},
+    ResourceTrackerDetail={active="true",height="140"},
     CombatCalculatorHelp={active="false"}
 }
 local UI={}
@@ -61,33 +61,33 @@ local function size(root,detail,label)
 end
 
 callback.layout(true)
-size(245,210,"Fresh open")
+size(175,140,"Fresh open")
 click("DisplayMoveCosts")
 eq(UI.getAttribute("MoveCosts","active"),"true","Terrain panel expands")
-size(485,450,"Terrain expanded")
+size(415,380,"Terrain expanded")
 click("DisplaySiegeDetails")
-size(635,600,"Two expanded sections")
+size(415,380,"Legacy combat submenu is gone")
 
 -- Simulate a handoff overwriting only the parent heights, as the old code did.
-UI.setAttribute("ResourceTracker","height","245")
-UI.setAttribute("ResourceTrackerDetail","height","210")
+UI.setAttribute("ResourceTracker","height","175")
+UI.setAttribute("ResourceTrackerDetail","height","140")
 callback.layout(true)
-size(635,600,"Restore visible sections after handoff")
+size(415,380,"Restore terrain after handoff")
 click("DisplaySiegeDetails")
-size(485,450,"Collapse one section")
+size(415,380,"Combat dropdown remains removed")
 click("DisplayMoveCosts")
-size(245,210,"Collapse terrain")
+size(175,140,"Collapse terrain")
 
 -- Closing turns tracking OFF, resets nested sections, and reopening uses fresh height.
 click("DisplayMoveCosts")
 click("DisplayResourceTrackerDetails")
-size(35,210,"Closed")
+size(35,140,"Closed")
 eq(UI.getAttribute("ResourceTrackerDetail","active"),"false","Tracker details close")
 eq(UI.getAttribute("MoveCosts","active"),"false","Terrain closes with tracker")
 eq(enabled,false,"Tracker disabled")
 eq(closedRequests,1,"Panel OFF cleanup")
 click("DisplayResourceTrackerDetails")
-size(245,210,"Reopened")
+size(175,140,"Reopened")
 eq(enabled,true,"Tracker enabled")
 eq(openRequests,1,"Tracker startup requested")
 
@@ -103,38 +103,38 @@ local handoff=assert(load(handoffCode..
     "\nreturn resourceCardsAfterTurnHandoff","Tracker handoff","t",env))()
 UI.setAttribute("MoveCosts","active","true")
 handoff(1)
-size(485,450,"Turn handoff keeps expanded terrain readable")
+size(415,380,"Turn handoff keeps expanded terrain readable")
 eq(UI.getAttribute("ResourceTrackerDetail","active"),"true","Incoming enabled seat opens")
 eq(openRequests,2,"Incoming seat startup requested")
 
 env.turnOrder[3]={seatPos=3}
 env.gStates.turnNumber=3
 handoff(2)
-size(35,210,"Disabled seat stays collapsed")
+size(35,380,"Disabled seat stays collapsed")
 eq(UI.getAttribute("ResourceTrackerDetail","active"),"false","Disabled seat details close")
 env.gStates.turnNumber=2
 handoff(3)
-size(485,450,"Restored enabled seat keeps expanded terrain")
+size(415,380,"Restored enabled seat keeps expanded terrain")
 
 -- Reopening should not depend on a stale root height left by a previous turn.
 UI.setAttribute("ResourceTracker","height","35")
 click("DisplayResourceTrackerDetails")
-size(35,210,"Closing despite stale height")
+size(35,140,"Closing despite stale height")
 click("DisplayResourceTrackerDetails")
-size(245,210,"Reopening after stale height")
+size(175,140,"Reopening after stale height")
 
 -- TTS rewinds start from 35px XML. The layout must be sized before enabling
 -- the lower-anchored detail panel, otherwise it covers the header off-screen.
 UI.setAttribute("ResourceTracker","height","35")
 UI.setAttribute("ResourceTrackerDetail","active","false")
 UI.setAttribute("MoveCosts","active","true")
-UI.setAttribute("SiegeAmountDetails","active","true")
+
 local start=#writes
 callback.restore()
-size(245,210,"Rewind restores known-good tracker geometry")
+size(175,140,"Rewind restores known-good tracker geometry")
 eq(UI.getAttribute("ResourceTrackerDetail","active"),"true","Rewind opens tracker")
 eq(UI.getAttribute("MoveCosts","active"),"false","Rewind clears terrain expansion")
-eq(UI.getAttribute("SiegeAmountDetails","active"),"false","Rewind clears combat expansion")
+
 local rootSize,detailSize,shown=nil,nil,nil
 for i=start+1,#writes do
     local write=writes[i]
@@ -149,5 +149,8 @@ local xml=read("src/UI/ResourceTracker.xml")
 assert(xml:find('id="ResourceTrackerDetail"',1,true)
     <xml:find('id="DisplayResourceTrackerDetails"',1,true),
     "Minimize button must render above details if the panels overlap")
+assert(not xml:find('id="DisplaySiegeDetails"',1,true),"Combat dropdowns must be removed")
+assert(xml:find('id="CombatMoveRow"',1,true),"Combat Move requires its own conditional row")
+assert(xml:find('id="HealiGeneratedRow"',1,true),"Healing requires a conditional Generated row")
 
 print("Resource Tracker layout, header and rewind regression tests passed")
