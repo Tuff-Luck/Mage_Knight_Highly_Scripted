@@ -8476,8 +8476,10 @@ local function scheduleChoiceResetAfterPlay(guid,seatPos)
     if guid==nil or seatPos==nil then return end
     -- Avoid physics waits for mana, enemies and unrelated play-area objects.
     if selectedResourceByGUID[guid]==nil and (gStates==nil
-        or gStates.resourceCardPlayOrder==nil
-        or gStates.resourceCardPlayOrder[guid]==nil) then return end
+        or ((gStates.resourceCardPlayOrder==nil
+                or gStates.resourceCardPlayOrder[guid]==nil)
+            and (gStates.resourceCardMoveRoles==nil
+                or gStates.resourceCardMoveRoles[guid]==nil))) then return end
     trackerPrivate.choiceResetGenerationByGUID[guid]=(trackerPrivate.choiceResetGenerationByGUID[guid] or 0)+1
     local serial=trackerPrivate.choiceResetGenerationByGUID[guid]
     -- On release, check X/Z instead of waiting for the shallow zone's Y
