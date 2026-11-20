@@ -1,5 +1,6 @@
--- A Move-only option is never assigned to Cumbersome automatically just
--- because the previous Attack/Block option had a target. Applies to ALL cards.
+-- Selecting ordinary Movement must clear any previous Attack/Block target.
+-- Combat Move has a distinct, deliberately chosen role and may auto-target
+-- a nearest eligible Cumbersome enemy on the next scan.
 -- Run from the repository root: lua5.2 tools/test-card-option-move-targeting.lua
 local function read(path)
     local f=assert(io.open(path,"r"))
@@ -18,8 +19,12 @@ local arrows=read("src/PlayingGame/AttackAssignments.lua")
 local data=read("src/Data.lua")
 assert(data:find('resourceKey="pureMagic"',1,true),"Pure Magic mapping missing")
 assert(data:find('resourceKey="oneWithTheLand"',1,true),"One with the Land mapping missing")
-assert(reader:find("if targetIndex==nil and not moveOnly and not influenceOnly then",1,true),
-    "Unassigned Move must not be auto-targeted by the Combat Calculator")
+assert(reader:find("local autoCombatMove=moveOnly and source.move>0 and combatCumbersomeActive",1,true),
+    "Combat Move alone must qualify for the new nearest-Cumbersome default")
+assert(reader:find("if targetIndex==nil and (autoCombatMove or (not moveOnly and not influenceOnly)) then",1,true),
+    "Movement-role Move must not be auto-targeted by the Combat Calculator")
+assert(reader:find('if moveAmount>0 and resourceCardsMoveRole(guid,true)=="combat" then',1,true),
+    "Movement-role Move must never enter the calculator's auto-target source list")
 
 local forgetCode=slice(reader,
     "local function combatForgetPhysicalSourceTargets(unitGUID)",
