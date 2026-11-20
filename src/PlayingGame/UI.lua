@@ -2409,12 +2409,16 @@ function refreshResourceTrackerText()
     local rawTotals=resourceCardsCurrentTotals() or {}
     local influenceGenerated=tonumber(rawTotals.influence) or 0
     local healingGenerated=tonumber(rawTotals.healing) or 0
-    local reputation=not combat and (gStates.resourceTracker.influence.reputation or 0) or 0
-    local shields=not combat and currentCityShieldInfluence(current) or 0
+    local influenceBase=influenceGenerated+(gStates.resourceTracker.influence.generated or 0)
+    -- Reputation and conquered-city Shield bonuses modify an Influence play;
+    -- they do not independently generate spendable Influence. Manual Influence
+    -- represents an unrecognised played source and can also enable modifiers.
+    local canModifyInfluence=not combat and influenceBase>0
+    local reputation=canModifyInfluence and (gStates.resourceTracker.influence.reputation or 0) or 0
+    local shields=canModifyInfluence and currentCityShieldInfluence(current) or 0
     -- City Shields used to be a manually editable field; their value now comes
     -- from the same live city-zone count as the main player information.
     gStates.resourceTracker.influence.cityShields=shields
-    local influenceBase=influenceGenerated+(gStates.resourceTracker.influence.generated or 0)
     local influenceTotal=math.max(0,influenceBase+(reputation==-99 and 0 or reputation)+shields)
     if reputation==-99 then influenceTotal=0 end
     local healingTotal=math.max(0,resourceCardsEffectiveValue("healing","healing"))
@@ -2478,12 +2482,12 @@ function refreshResourceTrackerText()
     showRow("InfluAmountPhysi",influenceGenerated~=influenceTotal)
     setResourceTrackerDisplayAttribute("InfluAmountPhysiText","text",
         joinLang({RESOURCE_TRACKER_FIELDS.InfluAmountPhysi[3],influenceGenerated}))
-    showRow("InfluAmountReput",not combat and reputation~=0)
+    showRow("InfluAmountReput",canModifyInfluence and reputation~=0)
     local repText=reputation==-99 and "No Interaction"
         or (reputation>0 and "+" or "")..tostring(reputation)
     setResourceTrackerDisplayAttribute("InfluAmountReputText","text",
         joinLang({RESOURCE_TRACKER_FIELDS.InfluAmountReput[3],repText}))
-    showRow("InfluAmountCityS",not combat and shields~=0)
+    showRow("InfluAmountCityS",canModifyInfluence and shields~=0)
     setResourceTrackerDisplayAttribute("InfluAmountCitySText","text",
         joinLang({RESOURCE_TRACKER_FIELDS.InfluAmountCityS[3],shields>0 and ("+"..shields) or shields}))
 
