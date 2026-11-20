@@ -2,6 +2,8 @@
 -- Runtime-only observations never overwrite the saved manual +/- adjustments.
 resourceCardScanBySeat={}
 local trackerPrivate={}
+-- Small module-private state tables live here to keep sufficient headroom
+-- beneath Lua 5.2's 200-active-local limit when this module is bundled.
 trackerPrivate.generation={}
 -- One settling watcher per object and one render request per seat. A moving
 -- crystal must not block a second, already-settled card from updating.
@@ -1869,11 +1871,11 @@ combatConfig.COMBAT_EFFICIENT_BLOCKS={
 }
 
 -- The assignment panel is rescanned with every card scan; only send attributes that changed.
-local combatPanelAttributes={}
+trackerPrivate.combatPanelAttributes={}
 local function combatPanelSetAttribute(id,attribute,value)
     local key=id.."\0"..attribute
-    if combatPanelAttributes[key]==value then return end
-    combatPanelAttributes[key]=value
+    if trackerPrivate.combatPanelAttributes[key]==value then return end
+    trackerPrivate.combatPanelAttributes[key]=value
     UI.setAttribute(id,attribute,value)
 end
 
@@ -2146,7 +2148,7 @@ local function combatNatureVengeanceBlockBonus()
     return 0
 end
 
-local combatBlockResultCache={}
+trackerPrivate.combatBlockResultCache={}
 local function combatBlockResult(entry,sources)
     local items={}
     local movePool=0
@@ -2216,7 +2218,7 @@ local function combatBlockResult(entry,sources)
     table.sort(moveSignature)
     for _,piece in ipairs(moveSignature) do parts[#parts+1]="move:"..piece end
     local key=table.concat(parts,";")
-    local cached=entry.guid~=nil and combatBlockResultCache[entry.guid] or nil
+    local cached=entry.guid~=nil and trackerPrivate.combatBlockResultCache[entry.guid] or nil
     if cached~=nil and cached.key==key then return table.unpack(cached.result,1,12) end
     local plan,solved,leftover=combatSolveBlocks(attacks,items,movePool)
     -- Capture only the resources assigned to a successful Block. The later
@@ -2334,7 +2336,7 @@ local function combatBlockResult(entry,sources)
         end
     end
     if entry.guid~=nil then
-        combatBlockResultCache[entry.guid]={key=key,result={
+        trackerPrivate.combatBlockResultCache[entry.guid]={key=key,result={
             lines,totalDamage,damageCount,allBlocked,reductions,wrongBlock,unblocked,
             successfulSources,successfulOwners,shieldBashExcess,successfulSourceKeys,spentMoveKeys}}
     end
@@ -2351,16 +2353,16 @@ combatConfig.COMBAT_UNIT_RESIST_KEYS={Physical="P",Fire="F",Ice="I"}
 -- location. A Dungeon/Tomb or burning Monastery normally forbids all Units,
 -- except the Unit occupying Bonds of Loyalty's own Command slot. Maze and
 -- Labyrinth allow one Unit TOTAL; Bonds adds no second companion.
-local combatUnitSiteModeByLocation={
+trackerPrivate.combatUnitSiteModeByLocation={
     dungeon="bonds",tomb="bonds",monastery="bonds",
     maze="one",labyrinth="one",ziggurat="none",pyramid="none"
 }
-local combatOneUnitBySeat={}
+trackerPrivate.combatOneUnitBySeat={}
 local function combatUnitSiteRestriction(seatPos,combatEnemies)
     local player=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
     if player==nil or player.seatPos~=seatPos then return nil end
     local site=player.avatarLocation
-    local mode=combatUnitSiteModeByLocation[site]
+    local mode=trackerPrivate.combatUnitSiteModeByLocation[site]
     if mode==nil then return nil end
     local perkKey=mode=="one" and "oneUnit" or "noUnits"
     for guid,enemy in pairs(combatEnemies or combatPlayMonsters()) do
@@ -2374,14 +2376,14 @@ local function combatUnitSiteRestriction(seatPos,combatEnemies)
 end
 
 local function combatOneUnitChosen(seatPos,site)
-    local state=combatOneUnitBySeat[seatPos]
+    local state=trackerPrivate.combatOneUnitBySeat[seatPos]
     if state~=nil and state.site==site and state.round==gStates.currentRound
         and state.turn==gStates.turnNumber then return state.guid end
     return nil
 end
 
 local function combatOneUnitSelect(seatPos,site,guid)
-    combatOneUnitBySeat[seatPos]={site=site,round=gStates.currentRound,
+    trackerPrivate.combatOneUnitBySeat[seatPos]={site=site,round=gStates.currentRound,
         turn=gStates.turnNumber,guid=guid}
 end
 
@@ -2395,8 +2397,8 @@ function resourceCardsCombatSelectOneUnit(guid)
 end
 
 function resourceCardsCombatClearOneUnit(seatPos)
-    if seatPos~=nil then combatOneUnitBySeat[seatPos]=nil
-    else combatOneUnitBySeat={} end
+    if seatPos~=nil then trackerPrivate.combatOneUnitBySeat[seatPos]=nil
+    else trackerPrivate.combatOneUnitBySeat={} end
 end
 
 local function combatUnitSitePermits(mode,bondsGUID,chosenGUID,unitGUID,damageChoice)
@@ -3502,7 +3504,7 @@ local function combatGroupAttackLine(meleeTotal,attackArmour)
     return meleeTotal>=attackArmour and (line.." "..combatRich("Defeated",combatConfig.COMBAT_GREEN)) or line
 end
 
-local combatDefenderMarks={}
+trackerPrivate.combatDefenderMarks={}
 combatConfig.COMBAT_DEFENDER_DECAL_URLS={
     [1]="https://steamusercontent-a.akamaihd.net/ugc/10632112705667530745/ABBA1BEC1D6355C0F4E08DA79140A8CB24A03A7A/",
     [2]="https://steamusercontent-a.akamaihd.net/ugc/10268219428207943773/49479D6AF430568A0B487F79709FD20C77E3BA6C/"}
@@ -3525,13 +3527,13 @@ end
 local function combatSyncDefenderMark(marks)
     local wanted={}
     for guid,amount in pairs(marks or {}) do wanted[guid]=amount>=2 and 2 or 1 end
-    for guid,key in pairs(combatDefenderMarks) do
+    for guid,key in pairs(trackerPrivate.combatDefenderMarks) do
         if wanted[guid]==nil then combatSetDefenderDecal(guid,nil) end
     end
     for guid,key in pairs(wanted) do
-        if combatDefenderMarks[guid]~=key then combatSetDefenderDecal(guid,key) end
+        if trackerPrivate.combatDefenderMarks[guid]~=key then combatSetDefenderDecal(guid,key) end
     end
-    combatDefenderMarks=wanted
+    trackerPrivate.combatDefenderMarks=wanted
 end
 
 -- Whole multiples of effective Armour remove levels of either boss type.
@@ -6157,7 +6159,7 @@ local function combatCalcShutdown()
     combatEnemyPage=1
     combatAssignmentRowIndices={}
     combatExpandedResults={}
-    combatBlockResultCache={}
+    trackerPrivate.combatBlockResultCache={}
     combatReductionAttackChoice={}
     combatReductionActiveSource={}
     combatAttackChoiceByRow={}
@@ -6724,7 +6726,7 @@ function resourceCardsCurrentTotals()
     return scan~=nil and scan.totals or nil
 end
 
-local resourceTotalsKeyByField={
+trackerPrivate.resourceTotalsKeyByField={
     move={move="move"},
     ranged={physical="ranged",fire="rangedFire",ice="rangedIce",iceFire="rangedColdFire",psychic="rangedPsychic"},
     siege={physical="siege",fire="siegeFire",ice="siegeIce",iceFire="siegeColdFire",psychic="siegePsychic"},
@@ -6734,8 +6736,8 @@ local resourceTotalsKeyByField={
     healing={healing="healing"}
 }
 
-local attackTransformFamilies={"attack","ranged","siege"}
-local attackTransformFields={"physical","fire","ice","iceFire","psychic"}
+trackerPrivate.attackTransformFamilies={"attack","ranged","siege"}
+trackerPrivate.attackTransformFields={"physical","fire","ice","iceFire","psychic"}
 
 -- Manual adjustments only remain for Move, Influence and Healing; combat resources come from the scan.
 local function resourceCardsRawValue(tracker,totals,category,field)
@@ -6743,7 +6745,7 @@ local function resourceCardsRawValue(tracker,totals,category,field)
     if category~="attack" and category~="ranged" and category~="siege" and category~="block" then
         manual=tracker~=nil and tracker[category]~=nil and tracker[category][field] or 0
     end
-    local fields=resourceTotalsKeyByField[category]
+    local fields=trackerPrivate.resourceTotalsKeyByField[category]
     local totalKey=fields~=nil and fields[field] or nil
     local estimated=totals~=nil and totalKey~=nil and (totals[totalKey] or 0) or 0
     return manual+estimated
@@ -6762,11 +6764,11 @@ function resourceCardsEffectiveValue(category,field)
     end
 
     -- Same key mapping as the Combat Calculator's per-source resources.
-    local wanted=resourceTotalsKeyByField[category][field]
+    local wanted=trackerPrivate.resourceTotalsKeyByField[category][field]
     local amount=0
-    for _,sourceFamily in ipairs(attackTransformFamilies) do
-        for _,sourceField in ipairs(attackTransformFields) do
-            local sourceKey=resourceTotalsKeyByField[sourceFamily][sourceField]
+    for _,sourceFamily in ipairs(trackerPrivate.attackTransformFamilies) do
+        for _,sourceField in ipairs(trackerPrivate.attackTransformFields) do
+            local sourceKey=trackerPrivate.resourceTotalsKeyByField[sourceFamily][sourceField]
             if resourceCardsTransformedKey(sourceKey,transform)==wanted then
                 amount=amount+resourceCardsRawValue(tracker,totals,sourceFamily,sourceField)
             end
@@ -6823,7 +6825,7 @@ local function ownedSkillAtSeat(guid,seatPos)
         and home[3]<-30.5 and math.abs(home[1]-(seatPos*40-109.5))<15
 end
 
-local passableTerrain={
+trackerPrivate.passableTerrain={
     plains=true,hills=true,forest=true,wasteland=true,desert=true,swamp=true,
     lake=true,mountain=true
 }
@@ -6889,8 +6891,8 @@ local function terrainEffectActive(effect)
 end
 
 local function terrainEffectApplies(effect,terrain)
-    return effect.terrains=="passable" and passableTerrain[terrain]==true
-        or effect.terrains=="weather" and (passableTerrain[terrain]==true or terrain=="city")
+    return effect.terrains=="passable" and trackerPrivate.passableTerrain[terrain]==true
+        or effect.terrains=="weather" and (trackerPrivate.passableTerrain[terrain]==true or terrain=="city")
         or type(effect.terrains)=="table" and effect.terrains[terrain]==true
 end
 
@@ -6982,7 +6984,7 @@ local function cardCanPlaySideways(card)
             or data.cardType=="Spell" or data.cardType=="Artifact")
 end
 
-local sidewaysChoices={{move=1},{block=1},{attack=1},{influence=1}}
+trackerPrivate.sidewaysChoices={{move=1},{block=1},{attack=1},{influence=1}}
 
 local choiceLetters={attackP1="A",attackP2="A2",attackP3="A3",
     attackF1="AF",attackF2="AF2",attackI1="AI",attackI2="AI2",
@@ -7002,13 +7004,13 @@ local choiceLetters={attackP1="A",attackP2="A2",attackP3="A3",
     woundPending="W?",woundTaken="W✓",
     splitBlock="B2",zero="0",one="1",two="2",three="3",four="4",five="5"}
 -- The choice UI and initial-guess tie-breaks follow the Resource Tracker order.
-local resourceChoiceOrder={
+trackerPrivate.resourceChoiceOrder={
     move=1,siege=2,ranged=3,block=4,attack=5,influence=6,healing=7,heal=7,fame=8,
     fireBlock=4,fireAttack=5,fireSiege=2,iceSiege=2
 }
 local resourceChoiceFamilies={"move","siege","ranged","block","attack","influence","healing"}
 local function resourceChoiceRank(category,choice)
-    local rank=resourceChoiceOrder[category]
+    local rank=trackerPrivate.resourceChoiceOrder[category]
     if rank~=nil then return rank end
     -- Choices with non-resource keys (e.g. heal, combat, wound) retain
     -- their unique callback IDs while sorting by what they contribute.
@@ -7332,7 +7334,7 @@ local function trackerChoiceScores(guid,seatPos)
                 value=value+offset
             end
         end
-        for _,totalKey in pairs(resourceTotalsKeyByField[family]) do
+        for _,totalKey in pairs(trackerPrivate.resourceTotalsKeyByField[family]) do
             value=value+(estimated[totalKey] or 0)-(own[totalKey] or 0)
         end
         scores[family]=math.max(0,value)
@@ -7386,7 +7388,7 @@ trackerPrivate.nearbyCardChoice=function(card,choices,seatPos,cards,footprints,r
                         local distance=(own.x-area.x)^2+(own.z-area.z)^2
                         for rank,category in pairs(available) do
                             local amount=0
-                            for _,key in pairs(resourceTotalsKeyByField[resourceChoiceFamilies[rank]]) do
+                            for _,key in pairs(trackerPrivate.resourceTotalsKeyByField[resourceChoiceFamilies[rank]]) do
                                 amount=amount+math.max(0,tonumber(record.resources[key]) or 0)
                             end
                             if amount>0 and (best==nil
@@ -8930,7 +8932,7 @@ end
 
 -- Reuse the same stable identifiers as Skills and Combat's faction reward cleanup.
 -- No name/description guessing for Skills, Units or Faction Rewards.
-local factionRewardNotes={
+trackerPrivate.factionRewardNotes={
     ["Dark Crusader Reward"]="Dark",
     ["Elementalist Reward"]="Elem",
     ["Apocalypse Cult Reward"]="Apoc",
@@ -8941,7 +8943,7 @@ local factionRewardNotes={
 -- Front-art image hashes are independent of translated names and survive
 -- regenerated GUIDs when a token is extracted from a bag.
 factionRewardForObject=function(obj)
-    if obj==nil or factionRewardNotes[obj.getGMNotes()]==nil then return nil end
+    if obj==nil or trackerPrivate.factionRewardNotes[obj.getGMNotes()]==nil then return nil end
     local custom=obj.getCustomObject()
     local image=custom~=nil and custom.image or nil
     local hash=type(image)=="string" and image:match("([0-9A-Fa-f]+)/?$") or nil
@@ -8967,7 +8969,7 @@ local function resourceObjectKind(obj)
         return "card"
     end
     if manaColor(obj)~=nil then return "mana" end
-    if factionRewardNotes[obj.getGMNotes()]~=nil then return "factionReward" end
+    if trackerPrivate.factionRewardNotes[obj.getGMNotes()]~=nil then return "factionReward" end
     return nil
 end
 
@@ -9236,7 +9238,7 @@ end
 
 -- Colour-triggered Actions use stable target-card data, not translated text.
 -- Dual-colour Actions offer an explicit choice, using the existing card buttons.
-local basicActionColors={"Red","Blue","White","Green"}
+trackerPrivate.basicActionColors={"Red","Blue","White","Green"}
 local function linkedColorChoices(rule,targetGUID,powered)
     if rule==nil or rule.linkedColorEffects==nil or targetGUID==nil then return nil end
     local data=gameCards[targetGUID]
@@ -9246,7 +9248,7 @@ local function linkedColorChoices(rule,targetGUID,powered)
     local definitions=powered and rule.linkedColorEffects.powered
         or rule.linkedColorEffects.normal
     local choices={}
-    for _,color in ipairs(basicActionColors) do
+    for _,color in ipairs(trackerPrivate.basicActionColors) do
         if definitions[color]~=nil then
             for _,cardColor in ipairs(colors) do
                 if cardColor==color then
@@ -9264,11 +9266,11 @@ end
 -- Powered One with the Land references the *printed*, unmodified Move
 -- cost of the Mage Knight's actual hex, not player-adjusted gStates.moveCost.
 -- Lakes and Mountains explicitly have special printed values on the card.
-local landPrintedMoveDay={
+trackerPrivate.landPrintedMoveDay={
     plains=2,hills=3,forest=3,wasteland=4,desert=5,swamp=5,
     lake=2,mountain=5,city=2
 }
-local landPrintedMoveNight={
+trackerPrivate.landPrintedMoveNight={
     plains=2,hills=3,forest=5,wasteland=4,desert=3,swamp=5,
     lake=2,mountain=5,city=2
 }
@@ -9282,7 +9284,7 @@ local function currentLandBlockValue()
     if position==nil then return nil end
     local hex,_,_,_,_,_,terrain=runtimeMapHexAtPosition(position)
     terrain=terrain or (hex~=nil and hex.hexType or nil)
-    local costs=gStates.dayRound==true and landPrintedMoveDay or landPrintedMoveNight
+    local costs=gStates.dayRound==true and trackerPrivate.landPrintedMoveDay or trackerPrivate.landPrintedMoveNight
     return costs[terrain]
 end
 
@@ -9425,7 +9427,7 @@ end
 -- One sideways calculator for ordinary Actions and Skill-linked exceptions.
 -- A linked Skill changes the value, not the player's chosen resource.
 local function calculateSideways(card,known,skillLink)
-    local choice=chosenEffect(card.guid,false,sidewaysChoices,true)
+    local choice=chosenEffect(card.guid,false,trackerPrivate.sidewaysChoices,true)
     local resources=nil
     if choice~=nil then
         resources={}
@@ -10528,7 +10530,7 @@ end
 -- Physical mana transformations are distinct from Action-card boost links.
 -- The Skill selects one mana resting on it, then an overlapping powerable card.
 -- Neither the die nor the crystal is physically changed or double-counted.
-local oppositeMana={Red="Blue",Blue="Red",Green="White",White="Green",Gold="Black",Black="Gold"}
+trackerPrivate.oppositeMana={Red="Blue",Blue="Red",Green="White",White="Green",Gold="Black",Black="Gold"}
 
 local function convertedManaMatchesCard(card,color)
     local data=gameCards[card.guid]
@@ -10561,7 +10563,7 @@ local function resolveManaSkillLinks(skills,manaObjects,cards,footprints,placeme
             end
             if nearest~=nil then
                 local original=manaColor(nearest)
-                local converted=spec.mode=="opposite" and oppositeMana[original] or nil
+                local converted=spec.mode=="opposite" and trackerPrivate.oppositeMana[original] or nil
                 local link={skillGUID=skill.guid,manaGUID=nearest.guid,
                     original=original,converted=converted}
                 bySkill[skill.guid]=link
@@ -11453,7 +11455,7 @@ local function renderSeat(seatPos)
         local choices=nil
         if discarded[card.guid]==nil or repeatByTarget[card.guid]~=nil then
             if cardPosture(card)=="sideways" then
-                if cardCanPlaySideways(card) then choices=sidewaysChoices end
+                if cardCanPlaySideways(card) then choices=trackerPrivate.sidewaysChoices end
             elseif (cardData==nil or cardData.resourceAlwaysNeutral~=true)
                 and (rule==nil or rule.requiredLink==nil or hasDiscard[card.guid]==true)
                 and (cardData==nil or cardData.cardType~="Spell"
@@ -12231,7 +12233,7 @@ local function renderSeat(seatPos)
         if skillLink~=nil then
             local result=calculateSideways(wound,true,skillLink)
             result.kind="wound"
-            showChoiceButtons(wound,sidewaysChoices,result.powered)
+            showChoiceButtons(wound,trackerPrivate.sidewaysChoices,result.powered)
             addResourceAmounts(result,totals)
             records[wound.guid]=result
             current[wound.guid]=true
@@ -13531,8 +13533,8 @@ local function renderSeat(seatPos)
     local tracker=gStates.resourceTracker or {}
     for sourceKey,mode in pairs(transformingUnits) do
         local affected=false
-        for _,family in ipairs(attackTransformFamilies) do
-            for _,field in ipairs(attackTransformFields) do
+        for _,family in ipairs(trackerPrivate.attackTransformFamilies) do
+            for _,field in ipairs(trackerPrivate.attackTransformFields) do
                 if (mode=="coldFire" and field~="iceFire")
                     or (mode=="siege" and family~="siege") then
                     if resourceCardsRawValue(tracker,totals,family,field)~=0 then
@@ -14176,7 +14178,7 @@ function resourceCardsChoiceClicked(player,value,id)
     if isSkill or isPuppet or isReward then
         mainChoices=record~=nil and record.choices or (rule~=nil and rule.choices or nil)
     elseif sideways and (cardCanPlaySideways(card) or linkedWound) then
-        mainChoices=sidewaysChoices
+        mainChoices=trackerPrivate.sidewaysChoices
     elseif not sideways then
         -- Paid mana choices were filtered during the most recent physical scan.
         -- Do not rediscover the full printed menu and offer unpaid alternatives.
