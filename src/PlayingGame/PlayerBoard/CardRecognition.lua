@@ -612,7 +612,31 @@ combatConfig.conversionFor=function(seat,kind)
         choice.attack=math.min(choice.attack,available)
         choice.ranged=math.min(choice.ranged,math.floor((available-choice.attack)/2))
     else
-        choice.block=math.min(choice.block,available)
+        local copied=valid and active.repeatLink~=nil
+            and active.repeatLink.count>1
+        if copied then
+            -- Each copied Diplomacy may select its own elemental Block.
+            -- Its counters spend distinct points from ONE Influence pool.
+            local uses=active.repeatLink.count
+            if type(choice.blockUses)~="table" then
+                choice.blockUses={[1]=choice.block}
+            end
+            if type(choice.elementUses)~="table" then
+                choice.elementUses={[1]=choice.element}
+            end
+            choice.block=0
+            for index=1,uses do
+                local count=math.max(0,math.floor(tonumber(choice.blockUses[index]) or 0))
+                count=math.min(count,math.max(0,available-choice.block))
+                choice.blockUses[index]=count
+                choice.elementUses[index]=choice.elementUses[index]=="I" and "I" or "F"
+                choice.block=choice.block+count
+            end
+            choice.useCount=uses
+        else
+            choice.useCount=1
+            choice.block=math.min(choice.block,available)
+        end
     end
     return choice,available,valid,active
 end
@@ -826,9 +850,49 @@ local function combatAssignmentSources(seat)
     end
     if diplomacyOn and diplomacy~=nil then
         consumeShared("influence",diplomacy.block)
-        local key=not resourceCardScanBySeat[seat].cards["8c3de6"].powered and "block"
+        local record=resourceCardScanBySeat[seat].cards["8c3de6"]
+        local copied=record~=nil and record.repeatLink~=nil
+            and record.repeatLink.count>1
+        local key=not record.powered and "block"
             or diplomacy.element=="I" and "blockIce" or "blockFire"
-        converted("8c3de6","convertBlock",key,diplomacy.block,diplomacy.block)
+        if copied and record.powered then
+            local amounts={blockFire=0,blockIce=0}
+            for index=1,record.repeatLink.count do
+                local element=diplomacy.elementUses[index]=="I"
+                    and "blockIce" or "blockFire"
+                amounts[element]=amounts[element]+(diplomacy.blockUses[index] or 0)
+            end
+            key=amounts.blockFire>0 and "blockFire" or "blockIce"
+            if diplomacy.block>0 then
+                converted("8c3de6","convertBlock",key,diplomacy.block,diplomacy.block)
+                local source=sources[#sources]
+                -- A copied card is one composite Block, even when its two
+                -- uses have different elements. The two typed details must
+                -- share one target and must never be divided by right-click.
+                source.convertedResource=nil
+                source.convertedAmount=nil
+                source.resources={}
+                source.details={}
+                for _,field in ipairs({"blockFire","blockIce"}) do
+                    local amount=amounts[field]
+                    if amount>0 then
+                        source.resources[field]=amount
+                        source.details[#source.details+1]={
+                            text=field.." "..amount,amount=amount,
+                            icon="MKChoiceBlock",key=field,family="block",
+                            typeKey=field=="blockFire" and "F" or "I"}
+                    end
+                end
+            end
+        else
+            converted("8c3de6","convertBlock",key,diplomacy.block,diplomacy.block)
+            if copied and diplomacy.block>0 then
+                -- Three basic uses also form one composite Physical Block.
+                local source=sources[#sources]
+                source.convertedResource=nil
+                source.convertedAmount=nil
+            end
+        end
     end
     -- Shield of the Fallen Kings gives separate Block effects, not one
     -- divisible pool. Each part has its own target key, arrow and assignment.
@@ -7817,7 +7881,9 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             and (":FL:"..tostring(gStates~=nil and gStates.forkedLightningPhase or "range")) or "")
         ..(conversionValid and conversion~=nil and (":CV:"..tostring(conversionBudget)..":"
             ..tostring(conversion.attack)..":"..tostring(conversion.ranged)..":"
-            ..tostring(conversion.block)..":"..tostring(conversion.element)) or "")
+            ..tostring(conversion.block)..":"..tostring(conversion.element)
+            ..":"..table.concat(conversion.blockUses or {},",")
+            ..":"..table.concat(conversion.elementUses or {},",")) or "")
         ..(special~=nil and (":START:"..tostring(special.interaction)..":"
             ..tostring(special.recruited)..":"..tostring(special.terrain)) or "")
         ..":READY:"..tostring(readyCount)..":"..table.concat(readyLinks,",")
@@ -8057,15 +8123,26 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     -- or Influence resource. No other printed card is duplicated.
     if conversionValid and conversion~=nil then
         local agility=rule.combatConversion=="agility"
+        local multiDiplomacy=not agility and repeatLink~=nil
+            and repeatLink.count>1
         local controls=agility and
-            {{part="Attack",value=conversion.attack,label="A",x=-145},
-             {part="Ranged",value=conversion.ranged,label="R",x=15}}
-            or {{part="Block",value=conversion.block,label="B",x=-80}}
+            {{part="Attack",value=conversion.attack,label="A",x=-145,y=135},
+             {part="Ranged",value=conversion.ranged,label="R",x=15,y=135}}
+            or {{part="Block",value=conversion.block,label="B",x=-80,y=135}}
+        if multiDiplomacy then
+            controls={}
+            for index=1,repeatLink.count do
+                controls[#controls+1]={part="Block"..index,
+                    value=conversion.blockUses[index] or 0,label="B"..index,
+                    x=-152,y=-12-(repeatLink.count-1)*15+(index-1)*30,
+                    index=index}
+            end
+        end
         for _,control in ipairs(controls) do
             xml[#xml+1]={tag="Button",attributes={
                 id="ResourceCardChoice_"..card.guid.."_convert"..control.part,
                 onClick="global/resourceCardsConversionClicked",
-                position=tostring(control.x).." 135 "..buttonDepth,
+                position=tostring(control.x).." "..tostring(control.y).." "..buttonDepth,
                 rotation=uiRotation,width=125,height=90,scale="0.30 0.30",
                 fontSize=55,colors="#454D5D|#69798E|#444C63|#454D5D",
                 textColor="#FFFFFF",textAlignment="MiddleCenter"},
@@ -8082,15 +8159,27 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                     id="AttackAssignmentSource_"..card.guid.."_0_"
                         ..string.lower(control.part).."@convert"..control.part,
                     onClick="global/attackAssignmentSourceClicked",
-                    position=tostring(control.x+73).." 135 "..buttonDepth,
+                    position=tostring(multiDiplomacy and 174 or control.x+73)
+                        .." "..tostring(control.y).." "..buttonDepth,
                     rotation=uiRotation,width=90,height=90,
                     scale="0.25 0.25",fontSize=60,
                     colors="#454D5D|#69798E|#444C63|#454D5D",
                     textColor="#FFFFFF",textAlignment="MiddleCenter"},
                     value=#children==0 and "T" or "",children=children}
             end
+            if multiDiplomacy and powered then
+                xml[#xml+1]={tag="Button",attributes={
+                    id="ResourceCardChoice_"..card.guid.."_convertElement"..control.index,
+                    onClick="global/resourceCardsConversionClicked",
+                    position="103 "..tostring(control.y).." "..buttonDepth,
+                    rotation=uiRotation,width=105,height=90,
+                    scale="0.30 0.30",fontSize=55,
+                    colors="#454D5D|#69798E|#444C63|#454D5D",
+                    textColor="#FFFFFF",textAlignment="MiddleCenter"},
+                    value=conversion.elementUses[control.index]}
+            end
         end
-        if not agility and powered then
+        if not agility and powered and not multiDiplomacy then
             xml[#xml+1]={tag="Button",attributes={
                 id="ResourceCardChoice_"..card.guid.."_convertElement",
                 onClick="global/resourceCardsConversionClicked",
@@ -13848,9 +13937,10 @@ end
 function resourceCardsConversionClicked(player,value,id)
     if not resourceCardsPanelOpen()
         or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil) then return end
-    local guid,part=nil,nil
+    local guid,part,useIndex=nil,nil,nil
     if type(id)=="string" then
-        guid,part=id:match("^ResourceCardChoice_([0-9a-f]+)_convert([%a]+)$")
+        guid,part,useIndex=id:match(
+            "^ResourceCardChoice_([0-9a-f]+)_convert([%a]+)(%d*)$")
     end
     -- The match above uses two captures; do not mistake a missing part for an action.
     if guid~="878d92" and guid~="8c3de6" then return end
@@ -13858,18 +13948,29 @@ function resourceCardsConversionClicked(player,value,id)
     local kind=guid=="878d92" and "agility" or "diplomacy"
     local conversion,available,valid,record=combatConfig.conversionFor(seat,kind)
     if not valid or record==nil or conversion==nil then return end
+    local index=useIndex~="" and tonumber(useIndex) or nil
+    if index~=nil and (kind~="diplomacy" or record.repeatLink==nil
+        or index<1 or index>record.repeatLink.count) then return end
     if part=="Element" then
         if kind~="diplomacy" or record.powered~=true then return end
-        conversion.element=conversion.element=="F" and "I" or "F"
+        if index~=nil then
+            conversion.elementUses[index]=conversion.elementUses[index]=="F" and "I" or "F"
+        else
+            conversion.element=conversion.element=="F" and "I" or "F"
+        end
     else
         local delta=tostring(value)=="-2" and -1 or 1
-        if kind=="agility" and part=="Attack" then
+        if kind=="agility" and part=="Attack" and index==nil then
             conversion.attack=math.max(0,math.min(available-2*conversion.ranged,
                 conversion.attack+delta))
-        elseif kind=="agility" and part=="Ranged" then
+        elseif kind=="agility" and part=="Ranged" and index==nil then
             conversion.ranged=math.max(0,math.min(
                 math.floor((available-conversion.attack)/2),conversion.ranged+delta))
-        elseif kind=="diplomacy" and part=="Block" then
+        elseif kind=="diplomacy" and part=="Block" and index~=nil then
+            local current=conversion.blockUses[index] or 0
+            local unspent=available-conversion.block+current
+            conversion.blockUses[index]=math.max(0,math.min(unspent,current+delta))
+        elseif kind=="diplomacy" and part=="Block" and index==nil then
             conversion.block=math.max(0,math.min(available,conversion.block+delta))
         else return end
     end
