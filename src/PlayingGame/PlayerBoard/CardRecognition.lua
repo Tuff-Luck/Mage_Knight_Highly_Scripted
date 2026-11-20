@@ -6649,6 +6649,7 @@ function resourceCardsEffectiveValue(category,field)
 end
 
 local function resourceCardsMoveByRole(role)
+    if not resourceCardsPanelOpen() then return 0 end
     local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
     local scan=active~=nil and resourceCardScanBySeat[active.seatPos] or nil
     local amount=0
@@ -12944,6 +12945,13 @@ local function renderSeat(seatPos)
     -- again against Cumbersome or in the Movement display.
     for _,pending in ipairs(pendingWingsNight) do
         local spent,count=0,0
+        local combatMoveAvailable=0
+        for sourceGUID,record in pairs(records) do
+            if resourceCardsMoveRole(sourceGUID,true)=="combat" then
+                combatMoveAvailable=combatMoveAvailable
+                    +math.max(0,tonumber(record.resources~=nil and record.resources.move) or 0)
+            end
+        end
         for _,guid in ipairs(pending.targets) do
             local enemy=monsters[guid]
             if enemy~=nil and enemy.is_face_down~=true then
@@ -12953,7 +12961,7 @@ local function renderSeat(seatPos)
                 local immune=(data~=nil and data.arcaneImmunity==true)
                     or (perks~=nil and perks.arcaneImmunity==true)
                 local cost=count
-                local affordable=cost<=(tonumber(totals.move) or 0)-spent
+                local affordable=cost<=combatMoveAvailable-spent
                 combatEffectAdd(enemyEffects,guid,pending.source,
                     {noAttack=true,moveCost=cost,insufficientMove=not affordable},
                     pending.source)
@@ -12964,7 +12972,8 @@ local function renderSeat(seatPos)
             local remaining=spent
             local moveSources={}
             for guid,record in pairs(records) do
-                if record.resources~=nil and (tonumber(record.resources.move) or 0)>0 then
+                if record.resources~=nil and (tonumber(record.resources.move) or 0)>0
+                    and resourceCardsMoveRole(guid,true)=="combat" then
                     moveSources[#moveSources+1]=guid
                 end
             end
