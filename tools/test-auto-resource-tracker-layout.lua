@@ -188,7 +188,7 @@ env.resourceCardsEffectiveValue=function(category,field)
     return 0
 end
 callback.render()
-size(97,62,"Zero resources compact height")
+size(85,50,"Zero resources compact height")
 eq(UI.getAttribute("MovemAmountPlainRow","active"),"false","Empty Move hidden")
 eq(UI.getAttribute("InfluAmountPlainRow","active"),"false","Empty Influence hidden")
 eq(UI.getAttribute("HealiAmountPlainRow","active"),"false","Empty Healing hidden")
@@ -196,7 +196,7 @@ eq(ready(),true,"Compact open tracker must still scan cards")
 
 move,influence,healing=4,2,1
 callback.render()
-size(178,143,"Three resources expand tracker")
+size(166,131,"Three resources expand tracker")
 eq(UI.getAttribute("MovemGeneratedRow","active"),"false","Unadjusted Move hides Generated")
 eq(UI.getAttribute("MovemAmountPlainRow","active"),"true","Move reappears")
 eq(UI.getAttribute("InfluAmountPlainRow","active"),"true","Influence reappears")
@@ -206,22 +206,26 @@ eq(UI.getAttribute("HealiAmountPlainRow","active"),"true","Healing reappears")
 generatedMove=4
 move=3
 callback.render()
-size(201,166,"Move adjustment displays Generated")
+size(189,154,"Move adjustment displays Generated")
 eq(UI.getAttribute("MovemGeneratedRow","active"),"true","Adjusted Move shows Generated")
 eq(UI.getAttribute("MovemGeneratedText","text"),"Generated : 4",
     "Move Generated remains the played-card amount")
 move=4
 callback.render()
-size(178,143,"Undo Move adjustment hides Generated")
+size(166,131,"Undo Move adjustment hides Generated")
 eq(UI.getAttribute("MovemGeneratedRow","active"),"false","Generated hides when matching Move")
 generatedMove=nil
 move,influence,healing=0,0,0
 callback.render()
-size(97,62,"Resources removed shrink tracker")
+size(85,50,"Resources removed shrink tracker")
 eq(ready(),true,"Empty tracker remains ready for next card")
+click("DisplayMoveCosts")
+size(325,290,"Expanded terrain has no extra bottom buffer")
+click("DisplayMoveCosts")
+size(85,50,"Collapsed terrain returns to flush bottom")
 UI.setAttribute("ResourceTracker","height","35")
 eq(ready(),false,"Collapsed header cannot scan")
-UI.setAttribute("ResourceTracker","height","97")
+UI.setAttribute("ResourceTracker","height","85")
 UI.setAttribute("ResourceTrackerDetail","active","false")
 eq(ready(),false,"Hidden detail cannot scan")
 
@@ -230,8 +234,11 @@ local trackerX=tonumber(xml:match('id="ResourceTracker"[^>]-offsetXY="(%d+)'))
 local combatX=tonumber(combatXml:match('id="CombatEnemyPanel"[^>]-offsetXY="(%d+)'))
 eq(trackerWidth,225,"Tracker must stay within its original combat boundary")
 eq(combatX-trackerX-trackerWidth,5,"Tracker and calculator must have five units gap")
-assert(xml:find('id="ResourceTracker"[^>]-color="rgb%(0%.2, 0%.2, 0%.2%)"'),
-    "Tracker should match the combat calculator dark panel")
+assert(xml:find('id="ResourceTracker"[^>]-color="rgb%(0%.24,0%.2,0%.15%)"'),
+    "Tracker should use the combat calculator runtime dark-brown colour")
+assert(cardSource:find('function resourceCardsPanelReady()',1,true)
+    and cardSource:find('UI.getAttribute("ResourceTrackerDetail","active")=="true"',1,true),
+    "Tracker scanning readiness must still follow the expanded state")
 for _,prefix in ipairs({"MovemAmountPlain","InfluAmountPlain","HealiAmountPlain"}) do
     assert(xml:find('id="'..prefix..'Down" rectAlignment="MiddleLeft" width="112"',1,true),
         prefix.." must have a broad left-side reduce target")
