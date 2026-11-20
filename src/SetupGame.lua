@@ -821,8 +821,7 @@ local function finalizeSetup()
 	artifactOfferRewardTextRefresh()
 	-- On the first game setup, present the Resource Tracker expanded.
 	-- Saved-game UI layout is left to the usual onLoad handling.
-	UI.setAttribute("ResourceTracker", "height", "245")
-	UI.setAttribute("ResourceTrackerDetail", "height", "210")
+	resourceTrackerSyncLayout(true)
 	UI.setAttribute("ResourceTrackerDetail", "active", "true")
 	UI.setAttribute("ResourceTracker", "active", "true")
     -- The panel is shown immediately, but TTS applies its attributes asynchronously.
