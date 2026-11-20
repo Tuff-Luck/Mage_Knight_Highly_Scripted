@@ -9851,6 +9851,31 @@ function resourceCardsMaximalEffectSyncMarks(seatPos,cards,repeats)
     end
 end
 
+-- The last End Turn click is a final physical reconciliation point. On a
+-- fresh load the classic X may not exist yet, and while OFF no resource scan
+-- should run just to discover it. Record all consumed Actions before any
+-- callback starts moving their source cards to the discard pile.
+function resourceCardsMaximalEffectBeforeEndTurn(seatPos)
+    if seatPos==nil then return end
+    local zone=getObjectFromGUID(playerPlayAreas[seatPos])
+    if zone==nil then return end
+    local cards={}
+    for _,obj in ipairs(zone.getObjects()) do
+        if obj.type=="Card" then cards[#cards+1]=obj end
+    end
+    local repeats=nil
+    if resourceCardsPanelOpen() then
+        local scan=resourceCardScanBySeat[seatPos]
+        if scan~=nil and scan.cards~=nil then
+            repeats={}
+            for guid,record in pairs(scan.cards) do
+                if record.repeatLink~=nil then repeats[guid]=record.repeatLink end
+            end
+        end
+    end
+    resourceCardsMaximalEffectSyncMarks(seatPos,cards,repeats)
+end
+
 -- Marker reconciliation while minimized is independent of card recalculation.
 function resourceCardsMaximalEffectOffDrop(obj)
     if obj==nil or gStates==nil or gStates.firstStarted~=true
