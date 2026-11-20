@@ -13,6 +13,11 @@ on:
       - 'tools/test-combat-target-and-commit.lua'
       - 'tools/test-combat-wounded-attack.lua'
       - 'tools/test-red-spells.lua'
+      - 'tools/test-card-option-move-targeting.lua'
+      - 'tools/test-cumbersome-move-target-cancel.lua'
+      - 'tools/test-ambush-dual-target.lua'
+      - 'tools/test-combat-enemy-drop-target-lock.lua'
+      - 'tools/test-resource-tracker-pool-integrity.lua'
 
 permissions:
   contents: read
@@ -34,3 +39,13 @@ jobs:
         run: lua5.2 tools/test-combat-target-and-commit.lua
       - name: Burning Shield and Exploding Shield tests
         run: lua5.2 tools/test-red-spells.lua
+      - name: Move options and cancelling Cumbersome arrows
+        run: |
+          lua5.2 tools/test-card-option-move-targeting.lua
+          lua5.2 tools/test-cumbersome-move-target-cancel.lua
+      - name: Ambush links and enemy drop target locks
+        run: |
+          lua5.2 tools/test-ambush-dual-target.lua
+          lua5.2 tools/test-combat-enemy-drop-target-lock.lua
+      - name: Influence scoring, conversion pools and split-arrow integrity
+        run: lua5.2 tools/test-resource-tracker-pool-integrity.lua
