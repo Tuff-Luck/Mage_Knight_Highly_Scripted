@@ -8115,6 +8115,9 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decisi
             end
             local category=unitAbilityTargetCategory(ability)
             local numericKey=unitHistoryKey(unit.guid,useIndex)
+            if category=="move" and resourceCardsMoveRole(numericKey,false)~="combat" then
+                category=nil
+            end
             if category~=nil and not resourceCardsHideAutomaticEnemyTarget(
                 numericKey,category,false) then
                 targetSpecs[#targetSpecs+1]={index=index,category=category,
@@ -8138,7 +8141,14 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decisi
             addTarget(decision.index)
         end
     end
-    local hasChoices=#available>=2 or decision.ambiguous
+    local hasMoveAbility=false
+    for _,index in ipairs(available) do
+        if (tonumber(abilities[index]~=nil and abilities[index].move) or 0)>0 then
+            hasMoveAbility=true
+            break
+        end
+    end
+    local hasChoices=#available>=2 or decision.ambiguous or hasMoveAbility
     if not hasChoices and #targetSpecs==0 then
         if choiceButtonShown[unit.guid]~="hidden" then
             removeChoiceButtons(unit)
@@ -8150,7 +8160,8 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decisi
     local selected=decision.index
     -- Paid choices explicitly marked expandable start as a single button.
     -- Opening that button must not activate an undecided mana-powered effect.
-    local expanded=(decision.ambiguous and decision.index==nil and not abilities.paidChoiceExpandable)
+    local expanded=hasMoveAbility
+        or (decision.ambiguous and decision.index==nil and not abilities.paidChoiceExpandable)
         or (choiceExpandedByGUID[unit.guid]==true and #available>1)
     local selectedKeys={}
     for i in pairs(decision.selected or {}) do selectedKeys[#selectedKeys+1]=tostring(i) end
@@ -8162,6 +8173,7 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decisi
     local signature="Unit:"..tostring(selected)..":"..tostring(expanded)
         ..":"..table.concat(available,",")..":"..table.concat(selectedKeys,",")
         ..":use="..tostring(useIndex)
+        ..":move="..resourceCardsMoveRole(unitHistoryKey(unit.guid,useIndex),false)
         ..":targets="..table.concat(targetLabels,",")
     local xml=resourceObjectUiXmlTable(unit.UI)
     if choiceButtonShown[unit.guid]==signature then
@@ -8172,6 +8184,9 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decisi
         if hasChoices then
             for _,index in ipairs(expanded and available or {selected or available[1]}) do
                 needed["ResourceCardChoice_"..unit.guid.."_unit"..index]=true
+                if (tonumber(abilities[index]~=nil and abilities[index].move) or 0)>0 then
+                    needed["ResourceCardChoice_"..unit.guid.."_unit"..index.."Combat"]=true
+                end
             end
         end
         if #targetLabels>0 then
@@ -8265,7 +8280,44 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decisi
                         raycastTarget="false"}}
                 end
             end
-            xml[#xml+1]=button
+            if (tonumber(ability.move) or 0)>0 then
+                local phase=resourceCardsMoveRole(unitHistoryKey(unit.guid,useIndex),true)
+                -- The regular button becomes the Movement variant; the
+                -- adjacent C variant is a normal, equally-sized option cell.
+                local isMovement=phase~="combat"
+                button.attributes.colors=isMovement
+                    and "#387D30|#4CA940|#387D30|#387D30"
+                    or "#454D5D|#69798E|#444C63|#454D5D"
+                button.children=button.children or {}
+                button.children[#button.children+1]={tag="Text",attributes={
+                    text="M",width=34,height=34,alignment="LowerRight",
+                    fontSize=37,fontStyle="Bold",color="#9AFFA4",
+                    outline="#101820",outlineSize="2 -2",raycastTarget="false"}}
+                local combatButton={tag="Button",attributes={
+                    id="ResourceCardChoice_"..unit.guid.."_unit"..index.."Combat",
+                    onClick="global/resourceUnitsChoiceClicked",
+                    position=tostring(baseX-(#indices+columnIndex-1)*columnSpacing)
+                        .." "..tostring(y).." -35",
+                    rotation="0 0 180",width=90,height=90,scale="0.22 0.22",
+                    colors=not isMovement
+                        and "#387D30|#4CA940|#387D30|#387D30"
+                        or "#454D5D|#69798E|#444C63|#454D5D",
+                    fontSize=77,textColor="#FFFFFF",textAlignment="MiddleCenter"},
+                    value=icon==nil and "C" or ""}
+                if icon~=nil then
+                    combatButton.children={{tag="Image",attributes={
+                        image=icon.name,width=82,height=82,preserveAspect="true",
+                        raycastTarget="false",color="#FFFFFF"}},
+                        {tag="Text",attributes={text="C",width=34,height=34,
+                            alignment="LowerRight",fontSize=37,fontStyle="Bold",
+                            color="#69AEFF",outline="#101820",
+                            outlineSize="2 -2",raycastTarget="false"}}}
+                end
+                xml[#xml+1]=button
+                xml[#xml+1]=combatButton
+            else
+                xml[#xml+1]=button
+            end
         end
     end
     if #targetLabels>0 then
@@ -13974,7 +14026,11 @@ end
 function resourceUnitsChoiceClicked(player,value,id)
     if not resourceCardsPanelOpen() or type(id)~="string"
         or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil) then return end
-    local unitGUID,index=id:match("^ResourceCardChoice_([0-9a-f]+)_unit(%d+)$")
+    local unitGUID,index=id:match("^ResourceCardChoice_([0-9a-f]+)_unit(%d+)Combat$")
+    local combatMoveChoice=unitGUID~=nil
+    if unitGUID==nil then
+        unitGUID,index=id:match("^ResourceCardChoice_([0-9a-f]+)_unit(%d+)$")
+    end
     index=tonumber(index)
     local latest=unitGUID~=nil and gStates.unitResourceActivations
         and gStates.unitResourceActivations[unitGUID] or nil
@@ -14000,7 +14056,8 @@ function resourceUnitsChoiceClicked(player,value,id)
     end
     if not available then return end
     if (not decision.ambiguous or abilities.paidChoiceExpandable or decision.index~=nil)
-        and choiceExpandedByGUID[unitGUID]~=true and #decision.display>1 then
+        and choiceExpandedByGUID[unitGUID]~=true and #decision.display>1
+        and (tonumber(abilities[index].move) or 0)==0 then
         -- Expanding ordinary choices does not change what was played.
         choiceExpandedByGUID[unitGUID]=true
         showUnitAbilityButtons(unit,abilities,activation,true,decision)
@@ -14052,6 +14109,15 @@ function resourceUnitsChoiceClicked(player,value,id)
         activation.manaSignature=nil
         activation.lastPaidIndex=nil
         choiceExpandedByGUID[unitGUID]=nil
+    end
+    if (tonumber(abilities[index].move) or 0)>0 then
+        gStates.resourceCardMoveRoles=gStates.resourceCardMoveRoles or {}
+        local sourceKey=unitHistoryKey(unitGUID,useIndex)
+        local before=resourceCardsMoveRole(sourceKey,true)
+        gStates.resourceCardMoveRoles[sourceKey]=combatMoveChoice and "combat" or "movement"
+        if before=="combat" and not combatMoveChoice then
+            attackAssignmentsClearForObject(sourceKey)
+        end
     end
     resourceUnitsReconcileChoiceTargets(unit,abilities,activation)
     unitHistoryValidSources(current.seatPos)
