@@ -379,6 +379,22 @@ function combatBossSetManual(guid,value)
 end
 local combatCumbersomeActive=false
 local combatPsychicActive=false
+
+-- Save each Move source's phase, never infer it again after the first scan.
+-- Source role is independent of the printed resource-choice category.
+local function resourceCardsMoveRole(guid,assign)
+    if gStates==nil or guid==nil then return "movement" end
+    gStates.resourceCardMoveRoles=gStates.resourceCardMoveRoles or {}
+    local role=gStates.resourceCardMoveRoles[guid]
+    if role~="movement" and role~="combat" then
+        role=combatCalcOn and "combat" or "movement"
+        if assign then gStates.resourceCardMoveRoles[guid]=role end
+    end
+    return role
+end
+function resourceCardsEnemyPresent()
+    return combatCalcOn==true
+end
 local combatAssignmentJoined={}
 local combatAssignmentSlotSources={}
 combatConfig.bowSourceModes={}
@@ -559,6 +575,9 @@ combatConfig.conversionFor=function(seat,kind)
         for sourceGUID,record in pairs(cards) do
             local field=kind=="agility" and "move" or "influence"
             local amount=math.max(0,tonumber(record.resources~=nil and record.resources[field]) or 0)
+            if kind=="agility" and resourceCardsMoveRole(sourceGUID,true)~="combat" then
+                amount=0
+            end
             local targetKey=record.splitTargets~=nil and (sourceGUID.."#block") or sourceGUID
             -- A source committed to Cumbersome/Psychic cannot simultaneously
             -- supply its full amount to Agility or Diplomacy.
@@ -669,7 +688,7 @@ local function combatAssignmentSources(seat)
                 end
             end
             local moveAmount=tonumber(record.resources.move) or 0
-            if moveAmount>0 then
+            if moveAmount>0 and resourceCardsMoveRole(guid,true)=="combat" then
                 local source=ensureSource("block")
                 source.move=moveAmount
                 source.details[#source.details+1]={text="Move "..tostring(moveAmount),
@@ -6585,8 +6604,28 @@ function resourceCardsEffectiveValue(category,field)
     return amount
 end
 
+local function resourceCardsMoveByRole(role)
+    local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    local scan=active~=nil and resourceCardScanBySeat[active.seatPos] or nil
+    local amount=0
+    for guid,record in pairs(scan~=nil and scan.cards or {}) do
+        local generated=math.max(0,tonumber(record.resources~=nil and record.resources.move) or 0)
+        if generated>0 and resourceCardsMoveRole(guid,true)==role then
+            amount=amount+generated
+        end
+    end
+    if role=="movement" then
+        amount=amount+(gStates~=nil and gStates.resourceTracker~=nil
+            and gStates.resourceTracker.move~=nil
+            and (tonumber(gStates.resourceTracker.move.move) or 0) or 0)
+    end
+    return math.max(0,amount)
+end
 function resourceCardsEffectiveMove()
-    return math.max(0,resourceCardsEffectiveValue("move","move"))
+    return resourceCardsMoveByRole("movement")
+end
+function resourceCardsEffectiveCombatMove()
+    return resourceCardsMoveByRole("combat")
 end
 
 -- Active, reconstructable play-area effects, shared with the movement calculator.
@@ -8310,6 +8349,9 @@ local function scheduleChoiceResetAfterPlay(guid,seatPos)
                     gStates.resourceCardPlayOrder[guid]=nil
                 end
                 selectedResourceByGUID[guid]=nil
+                if gStates~=nil and gStates.resourceCardMoveRoles~=nil then
+                    gStates.resourceCardMoveRoles[guid]=nil
+                end
                 choiceExpandedByGUID[guid]=nil
                 if gStates~=nil and gStates.unitReadyCardChoices~=nil then
                     gStates.unitReadyCardChoices[guid]=nil
@@ -12851,9 +12893,22 @@ local function renderSeat(seatPos)
     end
     totals.influence=availableInfluence-ruthlessReadySpent
 
+    -- First recognition determines phase; later enemy arrivals do not change it.
+    local moveSplit={movement=0,combat=0}
+    for guid,record in pairs(records) do
+        local amount=math.max(0,tonumber(record.resources~=nil and record.resources.move) or 0)
+        if amount>0 then
+            local role=resourceCardsMoveRole(guid,true)
+            moveSplit[role]=moveSplit[role]+amount
+        end
+    end
     local previous=trackerPrivate.bySeat[seatPos] or {}
     local previousScan=resourceCardScanBySeat[seatPos]
     local previousMove=previousScan~=nil and (previousScan.totals.move or 0) or 0
+    local previousSplit=previousScan~=nil and previousScan.moveSplit or nil
+    local moveSplitChanged=previousSplit==nil
+        or previousSplit.movement~=moveSplit.movement
+        or previousSplit.combat~=moveSplit.combat
     table.sort(terrainModifiers,terrainModifierPrecedes)
     local prior=previousScan~=nil and previousScan.terrainModifiers or nil
     local terrainChanged=prior==nil and #terrainModifiers>0
@@ -12906,6 +12961,7 @@ local function renderSeat(seatPos)
     local fameRepBase={fame=fameTotal,rep=repTotal}
     trackerPrivate.bySeat[seatPos]=current
     resourceCardScanBySeat[seatPos]={cards=records,totals=totals,
+        moveSplit=moveSplit,
         attackTransforms=attackTransforms,
         terrainModifiers=terrainModifiers,movementEffects=movementEffects,
         enemyEffects=enemyEffects,fameRepBase=fameRepBase,
@@ -12947,9 +13003,10 @@ local function renderSeat(seatPos)
         and gStates.resourceTracker.influence~=nil
         and gStates.resourceTracker.influence.reputation or nil
     -- Redraw movement when ability flags change, even if total Move stays equal.
-    if totalsChanged or terrainChanged or transformChanged
+    if totalsChanged or terrainChanged or transformChanged or moveSplitChanged
         or reputationBefore~=reputationAfter then refreshResourceTrackerText() end
-    if previousMove~=(totals.move or 0) or terrainChanged or movementChanged then
+    if previousMove~=(totals.move or 0) or moveSplitChanged
+        or terrainChanged or movementChanged then
         updateMoveDisplay()
     end
     for guid in pairs(previous) do
@@ -14184,6 +14241,7 @@ function resourceCardsBeforeTurnHandoff(nextSeat)
     resourceCardsPanelChanged(false)
     resourceUnitsResetTurn()
     selectedResourceByGUID={}
+    if gStates~=nil then gStates.resourceCardMoveRoles={} end
 end
 
 -- The Global UI is shared, but its expanded/collapsed preference belongs to a seat.
