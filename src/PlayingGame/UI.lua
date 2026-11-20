@@ -2502,6 +2502,7 @@ function resetResourceTrackerState()
 								attack=		{physical=0, fire=0, ice=0, iceFire=0, psychic=0},
 								influence=	{generated=0, reputation=0, cityShields=0},
 								healing=	{healing=0}}
+		gStates.resourceCardMoveRoles={}
 		gStates.moveCost={["plains"]=2, ["hills"]=3, ["forest"]=5, ["wasteland"]=4, ["desert"]=3, ["swamp"]=5, ["lake"]=999, ["mountain"]=999, ["city"]=2, ["explore"]=2}
 		if gStates.dayRound==true then gStates.moveCost={["plains"]=2, ["hills"]=3, ["forest"]=3, ["wasteland"]=4, ["desert"]=5, ["swamp"]=5, ["lake"]=999, ["mountain"]=999, ["city"]=2, ["explore"]=2} end
 end
