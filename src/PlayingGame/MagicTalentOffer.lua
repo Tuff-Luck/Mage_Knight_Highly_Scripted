@@ -227,7 +227,13 @@ end
 function magicTalentOfferSpellCastCount(seat,guid)
     local s=state()
     if s==nil or s.seatPos~=seat or s.mode=="strong" or s.mode=="claimed" then return 1 end
-    return math.max(1,tonumber((s.repeatCasts or {})[guid]) or 1)
+    local copies=math.max(1,tonumber((s.repeatCasts or {})[guid]) or 1)
+    if copies>1 and magicTalentSpellCastingPaymentCount~=nil then
+        -- Removing a mana payment retracts its copied cast immediately.
+        copies=math.max(1,math.min(copies,
+            magicTalentSpellCastingPaymentCount(seat,guid)))
+    end
+    return copies
 end
 
 -- Time Bending borrowed through Magic Talent must set aside Magic Talent,
