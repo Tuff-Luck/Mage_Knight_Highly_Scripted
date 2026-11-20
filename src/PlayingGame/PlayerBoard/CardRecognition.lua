@@ -550,9 +550,19 @@ function resourceCardsTransformedKey(key,transform)
     return family..suffix
 end
 
--- Player-set conversion amounts spend one shared resource pool; never
--- treat every Move/Influence source as an extra, free combat resource.
--- Existing explicit Cumbersome/Psychic assignments have first claim.
+-- A primary Move/Psychic arrow owns all the points left on that physical
+-- source; additional arrows transfer individual points from that same pool.
+-- While such an explicit allocation exists, conversions must use OTHER
+-- unassigned sources. The player can remove/retarget an arrow to free its pool.
+local function combatConversionReserved(key,amount)
+    if amount<=0 then return 0 end
+    if combatAssignmentState.explicit[key]==true
+        and combatAssignmentState.targets[key]~=nil then return amount end
+    return 0
+end
+
+-- Player-set conversions spend only unassigned Move/Influence. A card already
+-- assigned to Cumbersome or Psychic Block must not be silently cannibalised.
 combatConfig.conversionFor=function(seat,kind)
     if seat==nil then return nil,0,false,nil end
     local scan=seat~=nil and resourceCardScanBySeat[seat] or nil
@@ -579,10 +589,12 @@ combatConfig.conversionFor=function(seat,kind)
             if kind=="agility" and resourceCardsMoveRole(sourceGUID,true)~="combat" then
                 amount=0
             end
-            -- A printed Move/Influence amount is a pool. Conversion spends
-            -- explicit points first; the remaining points stay available to
-            -- a Cumbersome or Psychic target on the same source.
-            available=available+amount
+            -- A manually targeted source retains its entire remaining pool.
+            -- Split-target cards put Move/Influence on their Block source.
+            local sourceKey=record.splitTargets~=nil and (sourceGUID.."#block")
+                or sourceGUID
+            available=available+math.max(0,
+                amount-combatConversionReserved(sourceKey,amount))
         end
     end
     choice.attack=math.max(0,math.floor(tonumber(choice.attack) or 0))
@@ -738,7 +750,8 @@ local function combatAssignmentSources(seat)
             if amount<=0 then break end
             local value=field=="move" and source.move or source.psychicInfluence
             if value~=nil and value>0 then
-                local consumed=math.min(value,amount)
+                local spendable=math.max(0,value-combatConversionReserved(source.key,value))
+                local consumed=math.min(spendable,amount)
                 if field=="move" and source.damagePhaseWound then lateMoveSpent=lateMoveSpent+consumed end
                 local remaining=value-consumed
                 if field=="move" then source.move=remaining
@@ -6503,11 +6516,14 @@ function resourceCardsCombatToggleResult(row)
 end
 
 -- Called when a targeting arrow is removed; the source re-locks to the nearest enemy on refresh.
-function resourceCardsCombatForgetSource(sourceGUID)
+function resourceCardsCombatForgetSource(sourceGUID,replacementTargetGUID)
     if combatConfig~=nil and combatConfig.phaseKeyLocked~=nil
         and combatConfig.phaseKeyLocked(sourceGUID) then return end
-    combatAssignmentState.targets[sourceGUID]=nil
-    combatAssignmentState.explicit[sourceGUID]=nil
+    -- Deleting one of several arrows must not wipe the remaining allocations.
+    -- The caller passes a deterministic replacement only when the primary
+    -- arrow itself has disappeared; nil still clears the source entirely.
+    combatAssignmentState.targets[sourceGUID]=replacementTargetGUID
+    combatAssignmentState.explicit[sourceGUID]=replacementTargetGUID~=nil or nil
 end
 
 -- Clear every target key owned by a physical card or Unit (including split
@@ -7125,8 +7141,13 @@ local function trackerChoiceScores(guid,seatPos)
     local scores={}
     for _,family in ipairs(resourceChoiceFamilies) do
         local value=0
-        for _,offset in pairs(tracker~=nil and tracker[family] or {}) do
-            value=value+offset
+        for field,offset in pairs(tracker~=nil and tracker[family] or {}) do
+            -- Reputation and conquered-city shields are valid Interaction
+            -- Influence on their own, but are not a generated resource type
+            -- for guessing which action the player meant to play.
+            if family~="influence" or field=="generated" then
+                value=value+offset
+            end
         end
         for _,totalKey in pairs(resourceTotalsKeyByField[family]) do
             value=value+(estimated[totalKey] or 0)-(own[totalKey] or 0)
