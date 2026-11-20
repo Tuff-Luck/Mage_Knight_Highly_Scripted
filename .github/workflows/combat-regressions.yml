@@ -15,6 +15,7 @@ on:
       - 'tools/test-combat-wounded-attack.lua'
       - 'tools/test-red-spells.lua'
       - 'tools/test-card-option-move-targeting.lua'
+      - 'tools/test-combat-move-default-target.lua'
       - 'tools/test-cumbersome-move-target-cancel.lua'
       - 'tools/test-ambush-dual-target.lua'
       - 'tools/test-combat-enemy-drop-target-lock.lua'
@@ -43,6 +44,7 @@ jobs:
       - name: Move options and cancelling Cumbersome arrows
         run: |
           lua5.2 tools/test-card-option-move-targeting.lua
+          lua5.2 tools/test-combat-move-default-target.lua
           lua5.2 tools/test-cumbersome-move-target-cancel.lua
       - name: Ambush links and enemy drop target locks
         run: |
