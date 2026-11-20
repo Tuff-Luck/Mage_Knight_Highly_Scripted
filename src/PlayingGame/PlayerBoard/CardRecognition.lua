@@ -6710,7 +6710,7 @@ function resourceCardsEffectiveValue(category,field)
     return amount
 end
 
-local function resourceCardsMoveByRole(role)
+local function resourceCardsMoveByRole(role,includeManual)
     if not resourceCardsPanelOpen() then return 0 end
     local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
     local scan=active~=nil and resourceCardScanBySeat[active.seatPos] or nil
@@ -6721,7 +6721,7 @@ local function resourceCardsMoveByRole(role)
             amount=amount+generated
         end
     end
-    if role=="movement" then
+    if role=="movement" and includeManual~=false then
         amount=amount+(gStates~=nil and gStates.resourceTracker~=nil
             and gStates.resourceTracker.move~=nil
             and (tonumber(gStates.resourceTracker.move.move) or 0) or 0)
@@ -6730,6 +6730,11 @@ local function resourceCardsMoveByRole(role)
 end
 function resourceCardsEffectiveMove()
     return resourceCardsMoveByRole("movement")
+end
+-- Printed Move from played movement-role sources, without tracker adjustments.
+-- Combat Move is intentionally excluded from this Generated breakdown.
+function resourceCardsGeneratedMove()
+    return resourceCardsMoveByRole("movement",false)
 end
 function resourceCardsEffectiveCombatMove()
     return resourceCardsMoveByRole("combat")
