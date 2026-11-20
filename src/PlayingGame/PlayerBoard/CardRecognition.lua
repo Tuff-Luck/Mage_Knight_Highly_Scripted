@@ -11692,8 +11692,9 @@ local function renderSeat(seatPos)
             and (result.enemyGUID==nil or rule.dodgeAttackSplit==true) then
             local _,category=currentChoice(card.guid,result.powered,choices)
             local spec=combatEffectSpec(rule,result.powered,category)
-            if spec~=nil or (result.repeatCount or 1)>1 then
-                if (result.repeatCount or 1)>1 and rule.dodgeAttackSplit~=true then
+            if spec~=nil or (result.repeatLink~=nil and result.repeatLink.count>1) then
+                if result.repeatLink~=nil and result.repeatLink.count>1
+                    and rule.dodgeAttackSplit~=true then
                     -- Maximal Effect plays each non-numeric enemy effect once.
                     -- A target key per use permits three different enemies,
                     -- while the printed Attack/Block points remain composite.
