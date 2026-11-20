@@ -27,7 +27,7 @@ assert(cardSource:find('trackerPrivate.checkCardChoicesAfterDrop(obj.guid,seat)'
 
 -- Exercise the exact delayed verifier, independently of full seat scanning.
 local verifierCode=slice(cardSource,
-    "trackerPrivate.cardUIRecheckSerial={}",
+    "-- A late TTS object-UI refresh can clear option buttons AFTER the settled",
     "function resourceCardsObjectMoved(obj,stabilized)")
 local expected={["ResourceCardChoice_rage_attack"]=true}
 local frames={}
