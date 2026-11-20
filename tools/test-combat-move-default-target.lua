@@ -33,7 +33,7 @@ assert(reader:find('if combatCalcOn and combatCumbersomeActive then',1,true)
     and reader:find('if selected~=nil and combatCalcOn and combatCumbersomeActive',1,true),
     "Combat Move choice must disappear when no Cumbersome enemy is available")
 assert(reader:find('if combatMoveAvailable then',1,true)
-    and reader:find('if combatMoveAvailable and',1,true),
+    and reader:find('if combatMoveAvailable\n',1,true),
     "Unit Combat Move must disappear when no Cumbersome enemy is available")
 assert(reader:find('..":PSY:"..tostring(combatPsychicActive)',1,true),
     "Card icons must refresh when the last Psychic attacker disappears")
