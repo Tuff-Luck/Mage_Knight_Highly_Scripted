@@ -146,6 +146,13 @@ local function hasButton(card,action)
     return false
 end
 
+local maximalCopy=nil
+resourceCardsMaximalEffectLink=function() return maximalCopy end
+local spellPaymentCounts={}
+magicTalentSpellCastingPaymentCount=function(_,guid)
+    return spellPaymentCounts[guid] or 0
+end
+
 dofile("src/PlayingGame/MagicTalentOffer.lua")
 eq(gStates.magicTalentPreview,nil,"No free initial preview")
 magicTalentHandLeft(redCost.guid,1)
@@ -197,4 +204,101 @@ s=assert(gStates.magicTalentPreview,"Blue discard starts Blue preview")
 eq(s.cardGUID,blue.guid,"Borrowed Time Bending")
 eq(magicTalentBorrowedTimeBendingPaid(1),true,"Borrowed Time Bending identified")
 magicTalentClose(true)
+
+-- Maximal Effect stronger side: two independent coloured mana payments
+-- buy exactly two Spells, without paying Magic Talent's Blue power again.
+red1.setPosition({10,1,-20})
+red2.setPosition({15,1,-20})
+talent.is_face_down=true
+maximalCopy={powered=true,count=2}
+payments={{guid="manaRed1",color="Red"},{guid="manaRed2",color="Red"}}
+magicTalentSync()
+s=assert(gStates.magicTalentPreview,"Copied strong Magic Talent starts with two extra mana")
+eq(s.mode,"strong","Copied strong mode")
+eq(s.limit,2,"Two strong uses")
+eq(s.cardGUID,red1.guid,"First strong preview")
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..red1.guid.."_claim")
+eq(s.used,1,"First of two strong claims committed")
+eq(s.mode,"strong","Still entitled to second claim")
+eq(s.cardGUID,red2.guid,"Second strong preview after refill")
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..red2.guid.."_claim")
+eq(s.used,2,"Second strong claim committed")
+eq(s.mode,"claimed","Cannot claim a third")
+eq(s.cardGUID,nil,"Strong copy cannot borrow after second claim")
+magicTalentClose(true)
+
+-- Basic Maximal Effect must discard all three additional hand cards
+-- even when the player skips one of the permitted Spell casts.
+maximalCopy={powered=false,count=3}
+payments={}
+red1.setPosition({10,1,-20})
+red2.setPosition({15,1,-20})
+blue.setPosition({20,1,-20})
+redCost.setPosition({0.4,1,0.2})
+blueCost.setPosition({0.5,1,0.25})
+local anotherCost=fakeCard("cc3333",0.6,0.3)
+cards[#cards+1]=anotherCost
+objects[anotherCost.guid]=anotherCost
+gameCards[anotherCost.guid]={cardType="Starting",color={"Red"}}
+magicTalentHandLeft(redCost.guid,1)
+magicTalentHandLeft(blueCost.guid,1)
+magicTalentSync()
+eq(gStates.magicTalentPreview,nil,"Cannot start three basic uses with only two discards")
+magicTalentHandLeft(anotherCost.guid,1)
+magicTalentSync()
+s=assert(gStates.magicTalentPreview,"Three discards start basic repetition")
+eq(s.limit,3,"Three basic uses")
+eq(inZone(redCost.guid,"discard"),true,"First card discarded")
+eq(inZone(blueCost.guid,"discard"),true,"Second card discarded")
+eq(inZone(anotherCost.guid,"discard"),true,"Third card discarded")
+eq(hasButton(red1,"nextUse"),true,"Next use control offered")
+eq(hasButton(red1,"sameUse"),true,"Same Spell control offered")
+resourceCardScanBySeat[1].cards[red1.guid]={spellCastPaid=true}
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..red1.guid.."_nextUse")
+eq(s.used,1,"First Spell cast committed")
+eq(s.cardGUID,blue.guid,"Blue discard permits Blue Spell second")
+eq(inZone(red1.guid,"play"),true,"First cast remains physically in play")
+eq(magicTalentReservedCard(red1.guid),true,"First borrowed Spell still reserved")
+eq(magicTalentBorrowedTimeBendingPaid(1),true,"Current Time Bending cast remains valid")
+resourceCardScanBySeat[1].cards[blue.guid]={spellCastPaid=false}
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..blue.guid.."_nextUse")
+eq(s.used,2,"Uncast optional second Spell skipped")
+eq(inZone(blue.guid,"offer"),true,"Skipped Spell returned")
+eq(s.cardGUID,red2.guid,"Third Red cost can borrow a second Red Spell")
+resourceCardScanBySeat[1].cards[red2.guid]={spellCastPaid=true}
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..red2.guid.."_nextUse")
+eq(s.mode,"completed","Third basic use completes the composite")
+eq(s.cardGUID,nil,"No fourth preview")
+magicTalentClose(true)
+eq(inZone(red1.guid,"offer"),true,"First borrowed cast restored at turn cleanup")
+eq(inZone(red2.guid,"offer"),true,"Third borrowed cast restored at turn cleanup")
+
+-- Repeating a single physical Spell requires a fresh casting mana each time.
+red1.setPosition({10,1,-20})
+red2.setPosition({15,1,-20})
+redCost.setPosition({0.4,1,0.2})
+blueCost.setPosition({0.5,1,0.25})
+anotherCost.setPosition({0.6,1,0.3})
+gameCards[blueCost.guid].color={"Red"}
+magicTalentHandLeft(redCost.guid,1)
+magicTalentHandLeft(blueCost.guid,1)
+magicTalentHandLeft(anotherCost.guid,1)
+magicTalentSync()
+s=assert(gStates.magicTalentPreview,"Same-Spell setup")
+eq(s.cardGUID,red1.guid,"Same-Spell first offer card")
+resourceCardScanBySeat[1].cards[red1.guid]={spellCastPaid=true}
+spellPaymentCounts[red1.guid]=1
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..red1.guid.."_sameUse")
+eq(s.used,0,"One mana cannot be spent twice")
+spellPaymentCounts[red1.guid]=2
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..red1.guid.."_sameUse")
+eq(s.used,1,"Second mana pays second cast")
+spellPaymentCounts[red1.guid]=3
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..red1.guid.."_sameUse")
+eq(s.mode,"completed","Third paid cast finishes repeated Spell")
+eq(magicTalentOfferSpellCastCount(1,red1.guid),3,"Same Spell has three paid copies")
+magicTalentClose(true)
+maximalCopy=nil
+talent.is_face_down=false
+
 print("Magic Talent physical offer regression tests passed")
