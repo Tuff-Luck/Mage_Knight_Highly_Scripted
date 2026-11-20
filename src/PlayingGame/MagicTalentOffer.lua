@@ -20,9 +20,15 @@ local function currentSeat()
     return player~=nil and player.seatPos or nil
 end
 
+local function maximalEntitlement(seat)
+    return resourceCardsMaximalEffectLink~=nil
+        and resourceCardsMaximalEffectLink(seat,MAGIC_TALENT_GUID) or nil
+end
+
 local function talentInPlay(seat)
     local card=getObjectFromGUID(MAGIC_TALENT_GUID)
-    return seat~=nil and card~=nil and card.is_face_down~=true
+    return seat~=nil and card~=nil
+        and (card.is_face_down~=true or maximalEntitlement(seat)~=nil)
         and cardEffectIsVertical(card)
         and objectGUIDInZone(MAGIC_TALENT_GUID,playerPlayAreas[seat])
 end
@@ -57,9 +63,26 @@ end
 
 -- Two different physical mana objects are required. Gold can power the
 -- blue Action only while legal and can select any Spell as the extra payment.
-local function strongColor(seat)
+local function strongColor(seat,useIndex,copy)
     if magicTalentManaPayments==nil then return nil end
     local payments=magicTalentManaPayments(seat)
+    if copy~=nil and copy.powered==true then
+        -- Maximal Effect provides Magic Talent's strong side for free.
+        -- Its two *additional* mana payments must still be distinct.
+        local choices,seen={},{}
+        local goldLegal=resourceCardsGoldAllowed~=nil and resourceCardsGoldAllowed()
+        for _,payment in ipairs(payments) do
+            if seen[payment.guid]~=true
+                and (payment.color=="Red" or payment.color=="Blue"
+                    or payment.color=="Green" or payment.color=="White"
+                    or (payment.color=="Gold" and goldLegal)) then
+                seen[payment.guid]=true
+                choices[#choices+1]=payment.color
+            end
+        end
+        if #choices<(copy.count or 1) then return nil end
+        return choices[useIndex or 1]
+    end
     local goldLegal=resourceCardsGoldAllowed~=nil and resourceCardsGoldAllowed()
     local power=nil
     for _,payment in ipairs(payments) do
@@ -344,6 +367,34 @@ local function candidateCost(seat)
         end
     end
     return nil,nil
+end
+
+-- The basic copied effect discards all three hand cards, whether or not the
+-- player subsequently casts every Spell. Their colors determine each use.
+local function candidateCosts(seat,need)
+    local talent=getObjectFromGUID(MAGIC_TALENT_GUID)
+    local zone=getObjectFromGUID(playerPlayAreas[seat])
+    if talent==nil or zone==nil then return nil end
+    local t=ttsVectorArray(talent.getPosition())
+    local choices={}
+    for _,card in ipairs(zone.getObjects()) do
+        local color=cardColor(card.guid)
+        local data=gameCards[card.guid]
+        if card.type=="Card" and card.guid~=MAGIC_TALENT_GUID
+            and fromHand[card.guid]==seat and color~=nil
+            and data~=nil and data.cardType~="Artifact"
+            and data.cardType~="Wound" and card.resting==true then
+            local p=ttsVectorArray(card.getPosition())
+            if math.abs(t[1]-p[1])<1.4 and math.abs(t[3]-p[3])<1.8 then
+                choices[#choices+1]={card=card,color=color}
+            end
+        end
+    end
+    table.sort(choices,function(a,b) return a.card.guid<b.card.guid end)
+    if #choices<need then return nil end
+    local paid={}
+    for i=1,need do paid[i]=choices[i] end
+    return paid
 end
 
 local function discardCost(seat,card)
