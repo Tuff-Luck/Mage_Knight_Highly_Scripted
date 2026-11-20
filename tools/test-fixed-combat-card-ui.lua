@@ -78,7 +78,6 @@ local state={
     gStates={},trackerPrivate={singleAutoEnemyGUID="643901"},
     combatConfig={sourceFields={{key="ranged"},{key="attack"},{key="block"}},
         cardInTransit=function() return false end,
-        cardChoiceIds=function() return {} end,
         cardButtonIds={}},
     combatCalcOn=true,combatCumbersomeActive=false,combatPsychicActive=false,
     resourceCardsMoveRole=function() return "movement" end,
@@ -132,6 +131,33 @@ local state={
     end
 }
 setmetatable(state,{__index=_G})
+-- The runtime detects missing options by their actual object XML IDs; an
+-- intact signature alone cannot prove the buttons survived a TTS UI update.
+state.combatConfig.cardChoiceIds=function(guid,xml)
+    local result={}
+    for _,node in ipairs(xml or {}) do
+        local id=node.attributes and node.attributes.id or nil
+        if node.tag=="Button" and type(id)=="string"
+            and (id:find("^ResourceCardChoice_"..guid.."_")
+                or id:find("^AttackAssignmentSource_"..guid.."_")) then
+            result[#result+1]=id
+        end
+    end
+    return result
+end
+state.combatConfig.cardChoicesPresent=function(card)
+    local expected=state.combatConfig.cardButtonIds[card.guid]
+    if expected==nil then return false end
+    local found={}
+    for _,node in ipairs(card.UI.getXmlTable()) do
+        local id=node.attributes and node.attributes.id or nil
+        if id~=nil then found[id]=true end
+    end
+    for _,id in ipairs(expected) do
+        if not found[id] then return false end
+    end
+    return true
+end
 state.choiceLetters=assert(load(letterCode.."\nreturn choiceLetters",
     "Choice keys","t",state))()
 state.combatReductionChoiceIcon=assert(load(reductionCode.."\nreturn combatReductionChoiceIcon",
@@ -142,8 +168,8 @@ local render=assert(load(buttonCode.."\nreturn showChoiceButtons",
 
 local swiftness=makeCard("acdcb2")
 render(swiftness,nil,true,nil,nil,{ranged=3},nil)
-assert(#displayed==1 and displayed[1].method=="clear",
-    "One enemy: Swiftness must clear its empty object UI safely")
+assert(#displayed==0,
+    "One enemy: an already-empty object UI must not receive an unnecessary clear")
 assert(state.choiceButtonShown.acdcb2~=nil,
     "Cleared object UI should still have an up-to-date signature")
 
@@ -259,5 +285,34 @@ plainInfluence=choiceButton("psychic","influence")
 assert(plainInfluence~=nil and #plainInfluence.children==1
     and plainInfluence.children[1].attributes.image=="test_influence",
     "Removing last Psychic attack must restore plain Influence without stale shield")
+
+
+-- A card that is merely moved should not have its whole UI torn down. Even
+-- if target context changes but the resulting buttons are identical, avoid
+-- TTS setXmlTable: it causes the visible off/on flash on drop.
+local beforeMoveWrites=#displayed
+render(rage,rules.rage.normalChoices,false,nil,nil,{attack=2},nil)
+assert(#displayed==beforeMoveWrites,
+    "Re-rendering an unchanged card must keep its option button intact")
+state.trackerPrivate.singleAutoEnemyGUID="otherEnemy"
+render(rage,rules.rage.normalChoices,false,nil,nil,{attack=2},nil)
+assert(#displayed==beforeMoveWrites,
+    "A changed signature with identical XML must not flash the buttons")
+
+-- If another TTS object-UI owner truly clears the buttons after dropping,
+-- an identical later scan must detect their absence and restore them.
+rage.UI.setXml("")
+local clearedWrites=#displayed
+render(rage,rules.rage.normalChoices,false,nil,nil,{attack=2},nil)
+assert(#displayed==clearedWrites+1
+    and displayed[#displayed].method=="table",
+    "Missing option UI must be restored even when the signature is unchanged")
+local foundRestored=false
+for _,node in ipairs(rage.UI.getXmlTable()) do
+    if node.attributes~=nil and node.attributes.id=="ResourceCardChoice_rageCard_attack" then
+        foundRestored=true
+    end
+end
+assert(foundRestored,"Repair must restore the original selected Rage option")
 
 print("Fixed combat/choice icon regressions passed")
