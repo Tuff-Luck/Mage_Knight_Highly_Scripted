@@ -81,6 +81,7 @@ local state={
         cardChoiceIds=function() return {} end,
         cardButtonIds={}},
     combatCalcOn=true,combatCumbersomeActive=false,combatPsychicActive=false,
+    resourceCardsMoveRole=function() return "movement" end,
     combatAssignmentState={targets={}},
     resourceCardsDetailsOpen=function() return true end,
     cardPosture=function() return "upright" end,
