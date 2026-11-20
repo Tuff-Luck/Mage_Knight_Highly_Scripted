@@ -1377,6 +1377,20 @@ function attackAssignmentSourceClicked(player,value,id)
 		local baseCategory,part=category:match("^(.-)@(.+)$")
 		if baseCategory~=nil then category=baseCategory end
 		rowIndex=tonumber(rowIndex)
+        -- Replicated numeric resources have ONE composite target. Only
+        -- effect-only target buttons have independent per-use source keys.
+        local repeatIndex,repeatCategory=category:match("^rep(%d+):(.+)$")
+        if repeatIndex~=nil then
+            local seat=turnOrder~=nil and gStates~=nil
+                and turnOrder[gStates.turnNumber] or nil
+            local scan=seat~=nil and resourceCardScanBySeat[seat.seatPos] or nil
+            local record=scan~=nil and scan.cards~=nil and scan.cards[guid] or nil
+            repeatIndex=tonumber(repeatIndex)
+            if record==nil or record.repeatLink==nil
+                or repeatIndex<1 or repeatIndex>record.repeatLink.count then return end
+            category=repeatCategory
+            if part=="rep"..repeatIndex and category~="effect" then return end
+        end
 		local resource=rowIndex>0 and ("set"..rowIndex..":"..category) or category
 		local sourceKey=part~=nil and (guid.."#"..part) or guid
         -- A stale TTS button must not erase a committed arrow before

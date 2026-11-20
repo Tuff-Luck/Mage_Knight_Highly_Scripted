@@ -7102,8 +7102,17 @@ function resourceCardsCombatAdditionalTargetLimit(sourceKey)
             if key==sourceKey then
                 local data=gameCards[guid]
                 local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
-                local _,category=currentChoice(guid,record.powered,
-                    sideChoices(rule,record.powered))
+                local index=tonumber(sourceKey:match("#rep(%d+)$"))
+                local _,category
+                if index~=nil and record.repeatLink~=nil then
+                    _,category=combatConfig.repeatChoiceFor(guid,record.powered,
+                        record.repeatLink.options~=nil
+                            and record.repeatLink.options[index]
+                            or sideChoices(rule,record.powered),index)
+                else
+                    _,category=currentChoice(guid,record.powered,
+                        sideChoices(rule,record.powered))
+                end
                 local spec=combatEffectSpec(rule,record.powered,category)
                 if spec~=nil then
                     if spec.multiTargetMove==true then return math.huge,"move" end
@@ -7602,8 +7611,10 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     -- Multiple-choice cards normally have one row. A declarative inventory
     -- set rule adds one more compact row for each complete set of crystals.
     local rows={{index=0,choices=choices}}
-    if repeatLink~=nil and repeatLink.count>1 and posture=="upright"
-        and (repeatLink.options~=nil or (choices~=nil and #choices>1)) then
+    -- Each copied use gets its own visible row, even when the printed
+    -- effect has no alternatives. Numeric effects still share one composite
+    -- combat source; enemy-only effects may have independent targets.
+    if repeatLink~=nil and repeatLink.count>1 and posture=="upright" then
         rows={}
         for i=1,repeatLink.count do
             rows[#rows+1]={index=-i,
@@ -7978,10 +7989,20 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                             alignment="LowerRight",color="#FFFFFF",
                             outline="#141820",outlineSize="2 -2",raycastTarget="false"}}
                     end
+                    local independentEffect=row.index<0 and entry.targetResource=="effect"
+                        and rule~=nil and rule.enemyEffect~=nil
+                        and combatEffectSpec(rule,powered,entry.category)~=nil
+                    local targetPart=independentEffect and ("rep"..(-row.index))
+                        or part
+                    local targetCategory=entry.targetResource
+                    if row.index<0 and targetCategory=="unitReady" then
+                        targetPart="use"..(-row.index)
+                    end
                     xml[#xml+1]={tag="Button",attributes={
                         id="AttackAssignmentSource_"..card.guid.."_0_"
-                            ..(row.index<0 and ("rep"..(-row.index)..":") or "")..entry.targetResource
-                            ..(part and ("@"..part) or ""),
+                            ..(row.index<0 and targetCategory~="unitReady"
+                                and ("rep"..(-row.index)..":") or "")..targetCategory
+                            ..(targetPart and ("@"..targetPart) or ""),
                         onClick=entry.targetResource=="unitReady"
                             and "global/attackAssignmentReadySourceClicked"
                             or (entry.targetResource=="blockSource"
@@ -11510,8 +11531,44 @@ local function renderSeat(seatPos)
             and (result.enemyGUID==nil or rule.dodgeAttackSplit==true) then
             local _,category=currentChoice(card.guid,result.powered,choices)
             local spec=combatEffectSpec(rule,result.powered,category)
-            if spec~=nil then
-                if rule.dodgeAttackSplit==true then
+            if spec~=nil or (result.repeatCount or 1)>1 then
+                if (result.repeatCount or 1)>1 and rule.dodgeAttackSplit~=true then
+                    -- Maximal Effect plays each non-numeric enemy effect once.
+                    -- A target key per use permits three different enemies,
+                    -- while the printed Attack/Block points remain composite.
+                    result.enemyEffectTargetKeys={}
+                    result.enemyEffectTargetGUIDs={}
+                    for index=1,result.repeatCount do
+                        local options=result.repeatLink.options~=nil
+                            and result.repeatLink.options[index] or choices
+                        local _,selected=combatConfig.repeatChoiceFor(
+                            card.guid,result.powered,options,index)
+                        local effect=combatEffectSpec(rule,result.powered,selected)
+                        if effect~=nil then
+                            local key=card.guid.."#rep"..index
+                            if not effect.all then
+                                result.enemyEffectTargetKeys[#result.enemyEffectTargetKeys+1]=key
+                            end
+                            local target=combatEffectChosenEnemy(key,footprints[card.guid],
+                                monsters,combatEffectTargetEligible(effect))
+                            if effect.all then
+                                for enemyGUID,monster in pairs(monsters) do
+                                    if monster.is_face_down~=true then
+                                        combatEffectAdd(enemyEffects,enemyGUID,card.guid,effect,key)
+                                        result.links[#result.links+1]=enemyGUID
+                                        result.status="purple"
+                                    end
+                                end
+                            elseif target~=nil then
+                                combatEffectAdd(enemyEffects,target.guid,card.guid,effect,key)
+                                result.enemyGUID=result.enemyGUID or target.guid
+                                result.enemyEffectTargetGUIDs[key]=target.guid
+                                result.links[#result.links+1]=target.guid
+                                result.status="purple"
+                            end
+                        end
+                    end
+                elseif rule.dodgeAttackSplit==true then
                     -- The optional Attack is automatic, with its own ordinary
                     -- target assignment. Always expose two -2 targets when
                     -- powered, even if both currently point to one enemy.
@@ -14165,6 +14222,16 @@ function resourceCardsReadySourceValid(sourceKey,seatPos)
         local index=tonumber(sourceKey:match("^"..guid.."#ready(%d+)$"))
         return index~=nil and index>=1 and index<=(record.repeatCount or 1)
             and record.resources~=nil and (tonumber(record.resources.healing) or 0)>0
+    end
+    local repeatIndex=tonumber(sourceKey:match("^"..guid.."#ready(%d+)$"))
+    if record.repeatLink~=nil and repeatIndex~=nil then
+        if repeatIndex<1 or repeatIndex>record.repeatLink.count then return false end
+        local options=record.repeatLink.options~=nil
+            and record.repeatLink.options[repeatIndex]
+            or sideChoices(rule,record.powered)
+        local _,selected=combatConfig.repeatChoiceFor(guid,record.powered,
+            options,repeatIndex)
+        return selected=="ready"
     end
     local choice=selectedResourceByGUID[guid]
     return (choice~=nil and choice.effect=="ready")
