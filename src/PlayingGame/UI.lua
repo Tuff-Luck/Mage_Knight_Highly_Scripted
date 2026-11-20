@@ -2422,7 +2422,9 @@ function refreshResourceTrackerText()
     local moveGenerated=resourceCardsGeneratedMove~=nil and resourceCardsGeneratedMove() or 0
     local combatMove=resourceCardsEffectiveCombatMove~=nil and resourceCardsEffectiveCombatMove() or 0
 
-    local visibleHeight=26+12 -- Terrain header and breathing room; resource rows are conditional.
+    -- Terrain Costs is the final row. Do not add bottom breathing room: the
+    -- tracker ends immediately after the last visible control.
+    local visibleHeight=26 -- Terrain header; resource rows are conditional.
     local function showRow(id,visible,height)
         setResourceTrackerDisplayAttribute(id.."Row","active",visible and "true" or "false")
         if visible then visibleHeight=visibleHeight+(height or 22)+1 end
