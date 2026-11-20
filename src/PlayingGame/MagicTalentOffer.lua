@@ -367,14 +367,18 @@ local function advanceBasic(s,sameSpell)
         or (s.used or 0)>=(s.limit or 1) then return end
     local guid=s.cardGUID
     local paid=paymentStillOnSpell(s)
-    local nextColor=s.costColors~=nil and s.costColors[(s.used or 0)+2] or nil
+    local firstRepeat=s.repeatCasts[guid]==nil
+    local nextIndex=(s.used or 0)+(firstRepeat and 2 or 1)
+    local nextColor=s.costColors~=nil and s.costColors[nextIndex] or nil
     if sameSpell then
         if not paid or nextColor==nil or not matching(guid,nextColor) then return end
-        local previous=(s.repeatCasts or {})[guid] or 1
+        local previous=s.repeatCasts[guid] or 1
         if magicTalentSpellCastingPaymentCount==nil
             or magicTalentSpellCastingPaymentCount(s.seatPos,guid)<previous+1 then return end
         s.repeatCasts[guid]=previous+1
-        s.used=s.used+1
+        -- The first Same press settles both the original cast and the second
+        -- paid casting; subsequent presses settle one more application.
+        s.used=s.used+(firstRepeat and 2 or 1)
         if s.used>=s.limit then
             s.loans[guid]=s.home
             clean(getObjectFromGUID(guid))
