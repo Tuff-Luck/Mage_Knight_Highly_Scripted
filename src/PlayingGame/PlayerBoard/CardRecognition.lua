@@ -8032,9 +8032,12 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             local buttonId="ResourceCardChoice_"..card.guid.."_"
                 ..(row.index>0 and ("set"..row.index.."_")
                     or row.index<0 and ("rep"..(-row.index).."_") or "")..category
-            if #row.entries>1 then
+            -- Fixed copied effects still need a visible icon in each row.
+            -- It is deliberately not clickable: there is no alternative.
+            if #row.entries>1 or (repeatLink~=nil and repeatLink.count>1) then
                 local button={tag="Button",attributes={
-                    id=buttonId,onClick="global/resourceCardsChoiceClicked",
+                    id=buttonId,onClick=#row.entries>1
+                        and "global/resourceCardsChoiceClicked" or nil,
                     position=tostring(x).." "..tostring(buttonY).." "..buttonDepth,
                     rotation=uiRotation,width=90,height=90,
                     scale=buttonScale,
@@ -8091,7 +8094,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             if not row.expanded and entry.targetResource~=nil then
                 local resource=row.index>0 and ("set"..row.index..":"..entry.targetResource) or entry.targetResource
                 local targetX=x
-                if #row.entries>1 then
+                if #row.entries>1 or (repeatLink~=nil and repeatLink.count>1) then
                     -- Skill tokens push the target button out a further half button width.
                     local gap=buttonSpacing/2+(isSkill and 90*0.70/2 or 0)
                     targetX=x+(x>=0 and gap or -gap)
