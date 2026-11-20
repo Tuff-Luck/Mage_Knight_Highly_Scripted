@@ -109,6 +109,7 @@ local env={
     queueSeat=function() rescanCount=rescanCount+1 end,
     syncTargetButtons=function() end,
     refreshRenderedLines=function() end,
+    reconcileRemainingSourceTarget=function() end,
     resourceCardsSourceChanged=function() rescanCount=rescanCount+1 end,
     persistAssignments=function()
         recordsCleared=recordsCleared+1
