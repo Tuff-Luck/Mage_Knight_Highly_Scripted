@@ -586,11 +586,9 @@ combatConfig.conversionFor=function(seat,kind)
         state={}
         combatConfig.conversionState[seat]=state
     end
-    local choice=state[kind]
-    if choice==nil then
-        choice={attack=0,ranged=0,block=0,element="F"}
-        state[kind]=choice
-    end
+    -- Normalise a missing choice before any counter is read.
+    local choice=state[kind] or {attack=0,ranged=0,block=0,element="F"}
+    state[kind]=choice
     local available=0
     if valid and cards~=nil then
         for sourceGUID,record in pairs(cards) do
@@ -614,12 +612,11 @@ combatConfig.conversionFor=function(seat,kind)
         choice.attack=math.min(choice.attack,available)
         choice.ranged=math.min(choice.ranged,math.floor((available-choice.attack)/2))
     else
-        local copied=valid and active.repeatLink~=nil
-            and active.repeatLink.count>1
-        if copied then
+        local repeatLink=active~=nil and active.repeatLink or nil
+        if valid and repeatLink~=nil and repeatLink.count>1 then
             -- Each copied Diplomacy may select its own elemental Block.
             -- Its counters spend distinct points from ONE Influence pool.
-            local uses=active.repeatLink.count
+            local uses=repeatLink.count
             if type(choice.blockUses)~="table" then
                 choice.blockUses={[1]=choice.block}
             end
@@ -11774,7 +11771,9 @@ local function renderSeat(seatPos)
                             result.status="purple"
                         end
                     end
-                else
+                elseif spec~=nil then
+                -- The repeated-effect branch may run without a spec;
+                -- only this ordinary-effect branch reads spec fields.
                 local key=rule.separateEffectTarget and not result.powered
                     and (card.guid.."#effect") or card.guid
                 if (tonumber(spec.maxTargets) or 0)>1 then
@@ -11787,7 +11786,8 @@ local function renderSeat(seatPos)
                     if next(targets)==nil and primary~=nil then targets[primary.guid]=true end
                     local ordered={}
                     for guid in pairs(targets) do
-                        if monsters[guid]~=nil and monsters[guid].is_face_down~=true then
+                        local monster=monsters[guid]
+                        if monster~=nil and monster.is_face_down~=true then
                             ordered[#ordered+1]=guid
                         end
                     end
@@ -11813,7 +11813,8 @@ local function renderSeat(seatPos)
                     if next(targets)==nil and primary~=nil then targets[primary.guid]=true end
                     local ordered={}
                     for guid in pairs(targets) do
-                        if monsters[guid]~=nil and monsters[guid].is_face_down~=true then
+                        local monster=monsters[guid]
+                        if monster~=nil and monster.is_face_down~=true then
                             ordered[#ordered+1]=guid
                         end
                     end
@@ -11835,6 +11836,7 @@ local function renderSeat(seatPos)
                     local target=combatEffectChosenEnemy(key,footprints[card.guid],
                         monsters,combatEffectTargetEligible(spec))
                     if target~=nil then
+                        local targetGUID=target.guid
                         for _=1,(result.repeatCount or 1) do
                             if spec.all then
                                 for guid,monster in pairs(monsters) do
@@ -11843,10 +11845,10 @@ local function renderSeat(seatPos)
                                     end
                                 end
                             else
-                                combatEffectAdd(enemyEffects,target.guid,card.guid,spec,key)
+                                combatEffectAdd(enemyEffects,targetGUID,card.guid,spec,key)
                                 if spec.othersArmourReduce~=nil then
                                     for guid,monster in pairs(monsters) do
-                                        if guid~=target.guid and monster.is_face_down~=true then
+                                        if guid~=targetGUID and monster~=nil and monster.is_face_down~=true then
                                             combatEffectAdd(enemyEffects,guid,card.guid,
                                                 {armourReduce=spec.othersArmourReduce,all=true,fireSpell=spec.fireSpell})
                                         end
@@ -11854,12 +11856,12 @@ local function renderSeat(seatPos)
                                 end
                             end
                         end
-                        result.enemyGUID=target.guid
-                        result.links[#result.links+1]=target.guid
+                        result.enemyGUID=targetGUID
+                        result.links[#result.links+1]=targetGUID
                         result.status="purple"
                         if not spec.all then
                             result.enemyEffectTargetKeys={key}
-                            result.enemyEffectTargetGUIDs={[key]=target.guid}
+                            result.enemyEffectTargetGUIDs={[key]=targetGUID}
                         end
                     end
                 end
