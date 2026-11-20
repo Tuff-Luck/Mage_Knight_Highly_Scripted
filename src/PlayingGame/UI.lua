@@ -2518,7 +2518,7 @@ function refreshResourceTrackerText()
         setResourceTrackerDisplayAttribute(prefix.."Add","active",hidden and "true" or "false")
         anyMissing=anyMissing or hidden
     end
-    showRow("ResourceTrackerAdd",anyMissing,23)
+    showRow("ResourceTrackerAdd",anyMissing,26)
     showRow("HealiGenerated",healingGenerated~=healingTotal)
     setResourceTrackerDisplayAttribute("HealiGeneratedText","text",
         joinLang({RESOURCE_TRACKER_FIELDS.InfluAmountPhysi[3],healingGenerated}))

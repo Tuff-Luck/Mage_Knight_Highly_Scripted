@@ -160,6 +160,26 @@ assert(rootSize~=nil and detailSize~=nil and shown~=nil
 local xml=read("src/UI/ResourceTracker.xml")
 local combatXml=read("src/UI/CombatEnemyPanel.xml")
 local terrainHeader=assert(xml:match('<Panel id="MoveCostHeader".-</Panel>'),"Missing Terrain Costs header")
+local addRow=assert(xml:match('<Panel id="ResourceTrackerAddRow".-</Panel>'),"Missing resource add row")
+for _,row in ipairs({addRow,terrainHeader}) do
+    assert(row:find('padding="3 3 0 0" spacing="3"',1,true),
+        "Both button rows must have identical 3px side margins and gaps")
+    assert(row:find('preferredHeight="26"',1,true),
+        "Both button rows must use identical 26px height")
+end
+local expectedWidth={MovemAmountPlainAdd=71,InfluAmountPlainAdd=71,HealiAmountPlainAdd=71,
+    DisplayMoveCosts=162,MovemAmountUpdate=54}
+for id,width in pairs(expectedWidth) do
+    local line=assert(xml:match('<Button id="'..id..'"[^>]*>'),"Missing styled button: "..id)
+    assert(line:find('preferredWidth="'..width..'"',1,true),"Wrong width for "..id)
+    assert(line:find('preferredHeight="26"',1,true),"Wrong height for "..id)
+    assert(line:find('color="#3A3025"',1,true),"Wrong shared brown colour for "..id)
+    assert(not line:find(' colors=',1,true),"Avoid compounded button tint for "..id)
+end
+-- 225px content width: top 3 * 71 + 2 * 3 gap + 2 * 3 margin,
+-- bottom 162 + 54 + 3 gap + 2 * 3 margin.
+eq(71*3+3*2+3*2,225,"Top row spans the tracker width")
+eq(162+54+3+3*2,225,"Terrain row spans the tracker width")
 assert(terrainHeader:find('id="DisplayMoveCosts"',1,true)<terrainHeader:find('id="MovemAmountUpdate"',1,true),
     "Map refresh must sit beside and after Terrain Costs toggle")
 assert(terrainHeader:find('id="MovemAmountUpdate"[^>]-onClick="resourceTracker"'),
@@ -174,8 +194,8 @@ assert(xml:find('id="MovemGeneratedRow"',1,true),"Move requires a conditional Ge
 assert(xml:find('id="MoveCostHeader"',1,true)>xml:find('id="ResourceTrackerAddRow"',1,true),
     "Terrain Costs must be the bottom section under resource controls")
 
--- With zero visible resources, the tracker still exposes a 23px + control row
--- (35px title + 38px terrain header). It must still be considered open, or
+-- With zero visible resources, the tracker still exposes a 26px + control row
+-- (35px title + 53px compact details). It must still be considered open, or
 -- adding cards will never trigger the first resource scan.
 local readyCode=slice(cardSource,"function resourceCardsPanelReady()",
     "function resourceCardsPanelOpen()")
@@ -203,7 +223,7 @@ env.resourceCardsEffectiveValue=function(category,field)
     return 0
 end
 callback.render()
-size(85,50,"Zero resources compact height")
+size(88,53,"Zero resources compact height")
 eq(UI.getAttribute("MovemAmountPlainRow","active"),"false","Empty Move hidden")
 eq(UI.getAttribute("InfluAmountPlainRow","active"),"false","Empty Influence hidden")
 eq(UI.getAttribute("HealiAmountPlainRow","active"),"false","Empty Healing hidden")
@@ -232,17 +252,19 @@ eq(UI.getAttribute("MovemGeneratedRow","active"),"false","Generated hides when m
 generatedMove=nil
 move,influence,healing=0,0,0
 callback.render()
-size(85,50,"Resources removed shrink tracker")
+size(88,53,"Resources removed shrink tracker")
 eq(ready(),true,"Empty tracker remains ready for next card")
 click("DisplayMoveCosts")
-size(325,290,"Expanded terrain has no extra bottom buffer")
+size(328,293,"Expanded terrain has no extra bottom buffer")
 click("DisplayMoveCosts")
-size(85,50,"Collapsed terrain returns to flush bottom")
+size(88,53,"Collapsed terrain returns to flush bottom")
 UI.setAttribute("ResourceTracker","height","35")
 eq(ready(),false,"Collapsed header cannot scan")
-UI.setAttribute("ResourceTracker","height","85")
+UI.setAttribute("ResourceTracker","height","88")
 UI.setAttribute("ResourceTrackerDetail","active","false")
 eq(ready(),false,"Hidden detail cannot scan")
+UI.setAttribute("ResourceTrackerDetail","active","true")
+eq(ready(),true,"Restored detail resumes scanning")
 
 -- Neither reputation nor owned-city Shields should create Influence by
 -- themselves. Positive card-generated Influence or a manual substitute enables
@@ -250,7 +272,7 @@ eq(ready(),false,"Hidden detail cannot scan")
 env.gStates.resourceTracker.influence.reputation=3
 env.currentCityShieldInfluence=function() return 2 end
 callback.render()
-size(85,50,"No played Influence cannot activate Reputation or City Shields")
+size(88,53,"No played Influence cannot activate Reputation or City Shields")
 eq(UI.getAttribute("InfluAmountPlainRow","active"),"false",
     "No unplayed Influence total from modifiers")
 eq(UI.getAttribute("InfluAmountReputRow","active"),"false",
@@ -262,7 +284,7 @@ eq(UI.getAttribute("InfluAmountPlainAdd","active"),"true",
 
 influence=2
 callback.render()
-size(189,154,"Played Influence enables both modifiers")
+size(192,157,"Played Influence enables both modifiers")
 eq(UI.getAttribute("InfluAmountPlainText","text"),"Influence : 7",
     "Influence 2 + Reputation 3 + City Shields 2")
 eq(UI.getAttribute("InfluAmountReputRow","active"),"true",
@@ -275,7 +297,7 @@ eq(UI.getAttribute("InfluAmountPhysiText","text"),"Generated : 2",
 influence=0
 env.gStates.resourceTracker.influence.generated=1
 callback.render()
-size(189,154,"Manually played Influence enables both modifiers")
+size(192,157,"Manually played Influence enables both modifiers")
 eq(UI.getAttribute("InfluAmountPlainText","text"),"Influence : 6",
     "Manual 1 + Reputation 3 + City Shields 2")
 env.gStates.resourceTracker.influence.generated=0
@@ -283,7 +305,7 @@ env.gStates.resourceTracker.influence.generated=0
 influence=2
 env.resourceCardsEnemyPresent=function() return true end
 callback.render()
-size(120,85,"Combat suppresses Interaction modifiers")
+size(123,88,"Combat suppresses Interaction modifiers")
 eq(UI.getAttribute("InfluAmountPlainText","text"),"Influence : 2",
     "Combat shows source Influence only")
 eq(UI.getAttribute("InfluAmountReputRow","active"),"false",
@@ -302,7 +324,7 @@ env.gStates.resourceTracker.influence.reputation=0
 env.currentCityShieldInfluence=function() return 0 end
 influence=0
 callback.render()
-size(85,50,"Clearing Influence removes its modifiers")
+size(88,53,"Clearing Influence removes its modifiers")
 
 local trackerWidth=tonumber(xml:match('id="ResourceTracker"[^>]-width="(%d+)"'))
 local trackerX=tonumber(xml:match('id="ResourceTracker"[^>]-offsetXY="(%d+)'))
