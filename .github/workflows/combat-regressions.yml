@@ -7,6 +7,9 @@ on:
     paths:
       - '.github/workflows/combat-regressions.yml'
       - 'src/PlayingGame/PlayerBoard/CardRecognition.lua'
+      - 'src/PlayingGame/MagicTalentOffer.lua'
+      - 'src/PlayingGame/TrainingOffer.lua'
+      - 'src/PlayingGame/Events.lua'
       - 'src/PlayingGame/UIAssets.lua'
       - 'src/PlayingGame/AttackAssignments.lua'
       - 'src/PlayingGame/UI.lua'
@@ -16,6 +19,7 @@ on:
       - 'tools/test-combat-target-and-commit.lua'
       - 'tools/test-combat-wounded-attack.lua'
       - 'tools/test-red-spells.lua'
+      - 'tools/test-magic-talent-offer.lua'
       - 'tools/test-card-option-move-targeting.lua'
       - 'tools/test-fixed-combat-card-ui.lua'
       - 'tools/test-card-option-drop-stability.lua'
@@ -41,6 +45,8 @@ jobs:
           sudo apt-get install -y -qq lua5.2
       - name: Resource Tracker minimized Help and layout
         run: lua5.2 tools/test-resource-tracker-minimized-help.lua
+      - name: Maximal Effect copied Magic Talent offer flows
+        run: lua5.2 tools/test-magic-talent-offer.lua
       - name: End Turn button and click action gate
         run: lua5.2 tools/test-end-turn-action.lua
       - name: Combat wound and hand-discard tests
