@@ -2208,7 +2208,7 @@ function cameraControlTopDown(player, value, id)
 end
 
 local RESOURCE_TRACKER_EXPANDERS={["DisplayMoveCosts"]={"MoveCosts",240}}
-local resourceTrackerVisibleHeight=140
+local resourceTrackerVisibleHeight=140 -- Safe initial size before the first resource scan.
 function resourceTrackerSyncLayout(expanded,changedPanel,changedActive)
     if expanded==nil then expanded=UI.getAttribute("ResourceTrackerDetail","active")=="true" end
     if changedPanel=="MoveCosts" then
@@ -2216,7 +2216,7 @@ function resourceTrackerSyncLayout(expanded,changedPanel,changedActive)
     end
     local terrainVisible=changedPanel=="MoveCosts" and changedActive
         or (changedPanel~="MoveCosts" and UI.getAttribute("MoveCosts","active")=="true")
-    local detailHeight=math.max(140,resourceTrackerVisibleHeight)+(terrainVisible and 240 or 0)
+    local detailHeight=math.max(38,resourceTrackerVisibleHeight)+(terrainVisible and 240 or 0)
     UI.setAttribute("ResourceTracker","height",tostring(expanded and detailHeight+35 or 35))
     UI.setAttribute("ResourceTrackerDetail","height",tostring(detailHeight))
 end
@@ -2421,11 +2421,12 @@ function refreshResourceTrackerText()
     local moveTotal=resourceCardsEffectiveMove()
     local combatMove=resourceCardsEffectiveCombatMove~=nil and resourceCardsEffectiveCombatMove() or 0
 
-    local visibleHeight=34+26+34+34+12 -- Move, terrain header, Influence, Healing, spacing
+    local visibleHeight=26+12 -- Terrain header and breathing room; resource rows are conditional.
     local function showRow(id,visible,height)
         setResourceTrackerDisplayAttribute(id.."Row","active",visible and "true" or "false")
         if visible then visibleHeight=visibleHeight+(height or 22)+1 end
     end
+    showRow("MovemAmountPlain",moveTotal>0,34)
     setResourceTrackerDisplayAttribute("MovemAmountPlainText","text",
         joinLang({RESOURCE_TRACKER_FIELDS.MovemAmountPlain[3],moveTotal}))
     setResourceTrackerDisplayAttribute("CombatMoveText","text",
@@ -2465,6 +2466,7 @@ function refreshResourceTrackerText()
         end
     end
 
+    showRow("InfluAmountPlain",influenceTotal>0,34)
     setResourceTrackerDisplayAttribute("InfluAmountPlainText","text",
         joinLang({RESOURCE_TRACKER_FIELDS.InfluAmountPlain[3],influenceTotal}))
     showRow("InfluAmountPhysi",influenceGenerated~=influenceTotal)
@@ -2479,6 +2481,7 @@ function refreshResourceTrackerText()
     setResourceTrackerDisplayAttribute("InfluAmountCitySText","text",
         joinLang({RESOURCE_TRACKER_FIELDS.InfluAmountCityS[3],shields>0 and ("+"..shields) or shields}))
 
+    showRow("HealiAmountPlain",healingTotal>0,34)
     setResourceTrackerDisplayAttribute("HealiAmountPlainText","text",
         joinLang({RESOURCE_TRACKER_FIELDS.HealiAmountPlain[3],healingTotal}))
     showRow("HealiGenerated",healingGenerated~=healingTotal)
