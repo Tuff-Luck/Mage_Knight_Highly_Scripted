@@ -363,6 +363,7 @@ local function resourceCardsApplyFameRep(seat)
 end
 -- The calculator runs only while the Resource Tracker details are open and an enemy is in play.
 local combatCalcOn=false
+local combatEnemyInPlay=false
 -- Explicit boss overkill corrections are kept in save state until the
 -- calculator closes. Nil selects Auto, while zero is a valid manual value.
 function combatBossAutomationActive()
@@ -387,13 +388,13 @@ local function resourceCardsMoveRole(guid,assign)
     gStates.resourceCardMoveRoles=gStates.resourceCardMoveRoles or {}
     local role=gStates.resourceCardMoveRoles[guid]
     if role~="movement" and role~="combat" then
-        role=combatCalcOn and "combat" or "movement"
+        role=combatEnemyInPlay and "combat" or "movement"
         if assign then gStates.resourceCardMoveRoles[guid]=role end
     end
     return role
 end
 function resourceCardsEnemyPresent()
-    return combatCalcOn==true
+    return combatEnemyInPlay==true
 end
 local combatAssignmentJoined={}
 local combatAssignmentSlotSources={}
@@ -1538,11 +1539,16 @@ end
 -- True while the Resource Tracker details are open and an enemy stands in the play area.
 local function combatCalcUpdate(monsters)
     local on=false
+    combatEnemyInPlay=false
     local cumbersome,psychic=false,false
     local enemyCount,singleEnemyGUID=0,nil
     if resourceCardsDetailsOpen() then
         for guid,obj in pairs(monsters or {}) do
             local data=combatEnemyData(guid,obj)
+            if data~=nil and data.name~="Ruin"
+                and (obj.isDestroyed==nil or not obj.isDestroyed()) then
+                combatEnemyInPlay=true
+            end
             if data~=nil and obj.is_face_down~=true then
                 -- A lone ordinary enemy needs no manual choice for automatic
                 -- Attack/Block and enemy effects. Reminders and summoned enemies
@@ -6021,6 +6027,7 @@ local function combatCalcShutdown()
     combatTrackedSeat=nil
     combatTrackedEnemies={}
     combatCalcOn=false
+    combatEnemyInPlay=false
     combatCumbersomeActive=false
     combatSyncDefenderMark(nil)
     combatClearDefeatMarks()
