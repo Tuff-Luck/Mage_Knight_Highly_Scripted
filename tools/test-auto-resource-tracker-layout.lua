@@ -229,6 +229,66 @@ UI.setAttribute("ResourceTracker","height","85")
 UI.setAttribute("ResourceTrackerDetail","active","false")
 eq(ready(),false,"Hidden detail cannot scan")
 
+-- Neither reputation nor owned-city Shields should create Influence by
+-- themselves. Positive card-generated Influence or a manual substitute enables
+-- both only outside combat. Preserve the -99 No Interaction restriction.
+env.gStates.resourceTracker.influence.reputation=3
+env.currentCityShieldInfluence=function() return 2 end
+callback.render()
+size(85,50,"No played Influence cannot activate Reputation or City Shields")
+eq(UI.getAttribute("InfluAmountPlainRow","active"),"false",
+    "No unplayed Influence total from modifiers")
+eq(UI.getAttribute("InfluAmountReputRow","active"),"false",
+    "Unplayed Reputation bonus hidden")
+eq(UI.getAttribute("InfluAmountCitySRow","active"),"false",
+    "Unplayed City Shields bonus hidden")
+eq(UI.getAttribute("InfluAmountPlainAdd","active"),"true",
+    "Add Influence remains available before a source is played")
+
+influence=2
+callback.render()
+size(189,154,"Played Influence enables both modifiers")
+eq(UI.getAttribute("InfluAmountPlainText","text"),"Influence : 7",
+    "Influence 2 + Reputation 3 + City Shields 2")
+eq(UI.getAttribute("InfluAmountReputRow","active"),"true",
+    "Reputation visible after Influence play")
+eq(UI.getAttribute("InfluAmountCitySRow","active"),"true",
+    "City Shields visible after Influence play")
+eq(UI.getAttribute("InfluAmountPhysiText","text"),"Generated : 2",
+    "Generated breakdown excludes Interaction modifiers")
+
+influence=0
+env.gStates.resourceTracker.influence.generated=1
+callback.render()
+size(189,154,"Manually played Influence enables both modifiers")
+eq(UI.getAttribute("InfluAmountPlainText","text"),"Influence : 6",
+    "Manual 1 + Reputation 3 + City Shields 2")
+env.gStates.resourceTracker.influence.generated=0
+
+influence=2
+env.resourceCardsEnemyPresent=function() return true end
+callback.render()
+size(120,85,"Combat suppresses Interaction modifiers")
+eq(UI.getAttribute("InfluAmountPlainText","text"),"Influence : 2",
+    "Combat shows source Influence only")
+eq(UI.getAttribute("InfluAmountReputRow","active"),"false",
+    "Combat hides Reputation")
+eq(UI.getAttribute("InfluAmountCitySRow","active"),"false",
+    "Combat hides City Shields")
+env.resourceCardsEnemyPresent=function() return false end
+
+env.gStates.resourceTracker.influence.reputation=-99
+callback.render()
+eq(UI.getAttribute("InfluAmountPlainRow","active"),"false",
+    "No Interaction prevents Influence despite generated points")
+eq(UI.getAttribute("InfluAmountReputRow","active"),"true",
+    "No Interaction warning shown after playing Influence")
+env.gStates.resourceTracker.influence.reputation=0
+env.currentCityShieldInfluence=function() return 0 end
+influence=0
+callback.render()
+size(85,50,"Clearing Influence removes its modifiers")
+
 local trackerWidth=tonumber(xml:match('id="ResourceTracker"[^>]-width="(%d+)"'))
 local trackerX=tonumber(xml:match('id="ResourceTracker"[^>]-offsetXY="(%d+)'))
 local combatX=tonumber(combatXml:match('id="CombatEnemyPanel"[^>]-offsetXY="(%d+)'))
