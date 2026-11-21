@@ -208,6 +208,27 @@ function protectedDestroyEvidence.otherTokensSnapshot(excludedGUID)
 	return "found="..tostring(found).." missing/unavailable="..tostring(missing)
 		.." ["..(#entries>0 and table.concat(entries,", ") or "none").."]"
 end
+-- The table can unload its tokens before the zones disappear, so the general
+-- two-anchor shutdown detector may not have fired yet. Restrict this alternate
+-- signal to round-order destroy diagnostics only. A missing table alone, a
+-- missing token alone, or a large normal cleanup alone is not sufficient.
+function protectedDestroyEvidence.probableTurnOrderTeardown(excludedGUID)
+	if protectedDestroyEvidence.objectStatus("519f96")~="MISSING" then return false end
+	if protectedDestroyEvidence.recent(os.time())<50 then return false end
+	if type(turnOrder)~="table" then return false end
+	-- The audited token is already confirmed absent by the caller. One other
+	-- *assigned* token missing means at least two distinct player tokens are gone.
+	for _,details in pairs(turnOrder) do
+		if type(details)=="table" then
+			local otherGUID=details.turnOrderTokenGUID
+			if type(otherGUID)=="string" and otherGUID~="" and otherGUID~=excludedGUID
+				and protectedDestroyEvidence.objectStatus(otherGUID)=="MISSING" then
+				return true
+			end
+		end
+	end
+	return false
+end
 -- Let TTS finish unloading before treating a destroy event as a real in-game loss.
 -- A save alone is not proof of exit; genuine losses still report after this grace.
 local PROTECTED_DESTROY_AUDIT_GRACE_FRAMES=120
@@ -235,6 +256,9 @@ local function protectedObjectDestroyAudit(guid)
 		if eventsExitTeardown() or type(gStates)~="table" or gStates.firstStarted~=true then return end
 		if getObjectFromGUID(guid)~=nil or protectedExpectedScriptRemovals[guid]~=nil then return end
 		if protectedUnexpectedDestroyReported[guid]==true then return end
+		-- Suppress the specific false-positive pattern seen during TTS teardown.
+		-- Do not set the global teardown flag or suppress other protected pieces.
+		if kind=="Round Order token" and protectedDestroyEvidence.probableTurnOrderTeardown(guid) then return end
 		protectedUnexpectedDestroyReported[guid]=true
 		log("PROTECTED OBJECT MISSING: "..kind.." ["..guid.."] in scenario "..tostring(gStates.gameScenario)
 			..", round "..tostring(gStates.currentRound)..", turn "..tostring(gStates.turnNumber)
