@@ -414,7 +414,9 @@ local function loadPersistedGameState(saved_data,loaded_data)
 end
 
 function eventsOnLoadRawBase(saved_data, loaded_data)
+	automaticLuaSetLoadStage("Events: scenario defaults")
 	cacheScenarioTweakDefaults()
+	automaticLuaSetLoadStage("Events: table and hand transforms")
 	local megaFreeze=  {"3d4319", "519f96",	playerBoard[1], playerBoard[2], playerBoard[3], playerBoard[4], dummyBoard, "a02b0f"}--player mats
 	for i=1, #megaFreeze, 1 do
 		local obj=getObjectFromGUID(megaFreeze[i])
@@ -425,11 +427,15 @@ function eventsOnLoadRawBase(saved_data, loaded_data)
 		Player[seat].setHandTransform({position={Player[seat].getHandTransform().position[1], 3.1, -48.4}, scale={18, 3.8, 1}}, 1)
 	end
 	-- Recover deliberate player choices before any UI/Combat restoration runs.
+	automaticLuaSetLoadStage("Events: restore saved game state")
 	loadPersistedGameState(saved_data,loaded_data)
+	automaticLuaSetLoadStage("Events: restore resource and combat choices")
 	resourceCardsChoicesRestore()
 	attackAssignmentsDamageRestore()
 	gStates.seatTeams=gStates.seatTeams or {0,0,0,0}
+	automaticLuaSetLoadStage("Events: reset global UI")
 	resetGlobalUIVisibility()
+	automaticLuaSetLoadStage("Events: schedule runtime restoration")
 	--Refresh saved Puppets so presentation changes (decal/hover data) also apply to existing accepted Puppets.
 	safeWaitFrames("Events",function() for guid,record in pairs(gStates.puppetMasterPuppets or {}) do puppetMasterRefreshPresentation(getObjectFromGUID(guid),record) end end,2)
 	--Goblin Warrens enemies come from an Infinite Bag and therefore receive new GUIDs. Restore their
@@ -445,6 +451,7 @@ function eventsOnLoadRawBase(saved_data, loaded_data)
 	if gStates.finalTurnReason~=nil then ensureFinalTurnBoundary() end
 	safeWaitFrames("Events",function() horsemanRestoreRuntimeState() end,2)
 	startMaintenanceTick()
+	automaticLuaSetLoadStage("Events: sanitize and translate global UI")
 	--Clean the serialized runtime tree before normal load-time UI state is restored.
 	--Collect translated Text/Toggle values during that same traversal so the translation repair does not
 	--need to serialize and rescan the complete Global UI a second time.
@@ -454,6 +461,7 @@ function eventsOnLoadRawBase(saved_data, loaded_data)
 	--so its translated labels render immediately and saved offer/table positions are restored without a toggle.
 	safeWaitCondition("Events",function() refreshTableExtensionUI() end,function() return tableExtensionUIReady()==true end,5)
 	-----------
+	automaticLuaSetLoadStage("Events: resource tracker and offer UI")
 	refreshResourceTrackerText()--Refresh the tracker from saved values so TTS resolves its language tags on load.
     safeWaitFrames("Events",function() resourceCardsOnLoad(true) end,4)
     safeWaitFrames("Events",function() callOfferRestoreOnLoad() end,4)
@@ -485,6 +493,7 @@ function eventsOnLoadRawBase(saved_data, loaded_data)
 	UI.show("MonsterButton")
 	UI.hide("welcome")
 	UI.setAttribute("currentTurnButtonRealText", "text", gStates.turnCount)
+	automaticLuaSetLoadStage("Events: restore setup or game panel")
 	if gStates.firstStarted~=true then
 		if gStates.mageKnightLevels==true then
 			for a=1, 4, 1 do
@@ -534,6 +543,7 @@ function eventsOnLoadRawBase(saved_data, loaded_data)
 		end
 		--Restore the centre panel through the same owner/state renderer used during live play.
 		automatedMainPanelRefresh()
+		automaticLuaSetLoadStage("Events: active-game terrain and encounter state")
 		for terrainGUID, hexOveride in pairs(gStates.hexOverideSave) do
 			for location, hexFeature in pairs(hexOveride) do
 				runtimeMapSetHexFeature(terrainGUID,location,hexFeature)
@@ -595,6 +605,7 @@ function eventsOnLoadRawBase(saved_data, loaded_data)
 		claimButtonRefresh()
 		dayTactic2ButtonActivate()
 		safeWaitFrames("Events",function() refreshMeditationTrance() steadyTempoRefreshAll() end, 3)
+		automaticLuaSetLoadStage("Events: active-game scoring and UI")
 		refreshCityScriptZones()
 		refreshAllPlayerFameReputationFromShields()
 		refreshTactic4HandBonus(false)
@@ -619,6 +630,7 @@ function eventsOnLoadRawBase(saved_data, loaded_data)
 		normalizeSetupTableObjects()
 		for seatPos=1,4 do scheduleUnitLayoutRefresh(seatPos) end
 
+		automaticLuaSetLoadStage("Events: active-game Unit and Wound positions")
 		-- Keep existing Unit/Wound position repairs without moving objects already correct.
 		for _, obj in pairs(getObjects()) do
 			local card=gameCards[obj.guid]
@@ -1182,8 +1194,12 @@ function __onObjectDestroy_raw(destroyedObj)
 			puppetMasterPickup[destroyedGuid]=nil
 		end
 
-		--Remove a skill from register if returned to the bag
-		if gStates.mageSkills[destroyedGuid]~=nil and getObjectFromGUID(destroyedGuid)==nil then gStates.mageSkills[destroyedGuid]=nil end
+		-- During startup or after a failed load, the saved Skill registry may not exist yet.
+		-- Do not let a routine destruction turn into a second Lua error.
+		if type(gStates)=="table" and type(gStates.mageSkills)=="table"
+			and gStates.mageSkills[destroyedGuid]~=nil and getObjectFromGUID(destroyedGuid)==nil then
+			gStates.mageSkills[destroyedGuid]=nil
+		end
 	end
 
 	--Check if a shield has been removed
