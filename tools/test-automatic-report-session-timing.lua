@@ -12,6 +12,12 @@ local eventSource=read("src/PlayingGame/Events.lua")
 assert(callbackSource:find("function onLoad(saved_data)\n\t-- Capture the actual load event",1,true),
     "onLoad must mark the beginning of a new script session")
 assert(callbackSource:find("automaticLuaRecordModLoad()",1,true))
+assert(callbackSource:find("end,automaticLuaLoadStageContext)",1,true),
+    "onLoad failures must attach their last stage")
+assert(callbackSource:find("automaticLuaSetLoadStage(nil)",1,true),
+    "successful onLoad must clear the incomplete-load marker")
+assert(eventSource:find('automaticLuaSetLoadStage("Events: restore saved game state")',1,true),
+    "saved game restoration must have a specific diagnostic stage")
 assert(eventSource:find("function onSave()\n\t-- onSave commonly precedes teardown",1,true))
 assert(eventSource:find("automaticLuaRecordModSave()",1,true))
 
@@ -48,7 +54,7 @@ fakeTime=fakeTime+15.25
 env.reportAutomaticLuaDiagnostic("testSessionTiming","first check","diagnostic context")
 assert(#posted==1)
 local comment=posted[1].Comment
-assert(comment:find("Reporter Version: 466",1,true))
+assert(comment:find("Reporter Version: 467",1,true))
 assert(comment:find("Mod loaded (UTC): "..os.date("!%Y-%m-%d %H:%M:%S UTC",loadAt),1,true))
 assert(comment:find("Report generated (UTC): "..os.date("!%Y-%m-%d %H:%M:%S UTC",fakeTime),1,true))
 assert(comment:find("Time since mod load: 90s (1m 30s)",1,true))
@@ -70,4 +76,27 @@ assert(afterReload:find("Time since mod load: 5s (5s)",1,true))
 assert(not afterReload:find("Last onSave (UTC):",1,true),
     "New script sessions should not retain timestamps from earlier sessions")
 
-print("Automatic report session timing passed")
+-- The failing phase must survive an unsuccessful load and appear in both
+-- its own report and a subsequent destruction report from the same session.
+env.automaticLuaSetLoadStage("Events: restore resource and combat choices")
+local failed=env.safeCallback("onLoad",function() error("simulated load failure") end,
+    env.automaticLuaLoadStageContext)
+assert(failed==false)
+assert(#posted==3)
+assert(posted[3].Comment:find("Load stage: Events: restore resource and combat choices",1,true))
+assert(posted[3].Comment:find("Seat configuration initialized: true",1,true))
+
+local destroyed=env.safeCallback("onObjectDestroy",function() error("simulated cleanup failure") end,
+    function() return "Destroyed object GUID=startup\\n"..env.automaticLuaLoadStageContext() end)
+assert(destroyed==false)
+assert(#posted==4)
+assert(posted[4].Comment:find("Destroyed object GUID=startup",1,true))
+assert(posted[4].Comment:find("Load stage: Events: restore resource and combat choices",1,true))
+env.automaticLuaSetLoadStage(nil)
+assert(env.automaticLuaLoadStageContext()=="",
+    "Successful loading must not mark later destruction as a partial startup")
+env.automaticLuaRecordModLoad()
+assert(env.automaticLuaLoadStageContext():find("Load stage: onLoad entered",1,true),
+    "A reload must discard the earlier failed stage")
+
+print("Automatic report session timing and startup diagnostics passed")
