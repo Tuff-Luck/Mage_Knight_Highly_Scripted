@@ -38,20 +38,21 @@ local env={
 setmetatable(env,{__index=_G})
 assert(loadfile("src/ErrorReporting.lua","t",env))()
 
-fakeTime=fakeTime+30
+fakeTime=fakeTime+30.25
 env.automaticLuaRecordModLoad()
 local loadAt=fakeTime
-fakeTime=fakeTime+75
+fakeTime=fakeTime+75.5
 env.automaticLuaRecordModSave()
 local saveAt=fakeTime
-fakeTime=fakeTime+15
+fakeTime=fakeTime+15.25
 env.reportAutomaticLuaDiagnostic("testSessionTiming","first check","diagnostic context")
 assert(#posted==1)
 local comment=posted[1].Comment
-assert(comment:find("Reporter Version: 465",1,true))
+assert(comment:find("Reporter Version: 466",1,true))
 assert(comment:find("Mod loaded (UTC): "..os.date("!%Y-%m-%d %H:%M:%S UTC",loadAt),1,true))
 assert(comment:find("Report generated (UTC): "..os.date("!%Y-%m-%d %H:%M:%S UTC",fakeTime),1,true))
 assert(comment:find("Time since mod load: 90s (1m 30s)",1,true))
+assert(not comment:find("90.75s",1,true),"Duration must be rounded down to whole seconds")
 assert(comment:find("Last onSave (UTC): "..os.date("!%Y-%m-%d %H:%M:%S UTC",saveAt),1,true))
 assert(comment:find("Time since onSave: 15s",1,true))
 assert(comment:find("diagnostic context",1,true))
@@ -60,7 +61,7 @@ assert(comment:find("diagnostic context",1,true))
 fakeTime=fakeTime+20
 env.automaticLuaRecordModLoad()
 local newLoad=fakeTime
-fakeTime=fakeTime+5
+fakeTime=fakeTime+5.75
 env.reportAutomaticLuaDiagnostic("testSessionTimingAfterReload","second check","")
 assert(#posted==2)
 local afterReload=posted[2].Comment
