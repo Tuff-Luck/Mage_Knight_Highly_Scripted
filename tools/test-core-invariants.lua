@@ -101,6 +101,16 @@ local destroyedOK,destroyedError=pcall(__onObjectDestroy_raw,expired)
 assert(destroyedOK,"Destroyed-object cleanup failed: "..tostring(destroyedError))
 equal(gStates.volkarePursuitShields[expired.guid],nil,"Expired Pursuit shield registration was not cleared")
 
+-- Destruction may also arrive on a brand-new table or after onLoad failed before
+-- restoring the saved Skill registry. Cleanup must not index the missing table.
+local initializedState=gStates
+gStates={}
+local startupOK,startupError=pcall(__onObjectDestroy_raw,{
+    guid="startup",getName=function() return "" end,getGMNotes=function() return "" end
+})
+assert(startupOK,"Destroy during incomplete load failed: "..tostring(startupError))
+gStates=initializedState
+
 -- Known destroyed Units still retire their activation/Ready history by GUID,
 -- without requiring any methods on an already-expired object.
 local retiredUnit
