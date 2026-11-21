@@ -617,6 +617,9 @@ function renderMoveDisplay(id)
         local jumpTwoSpaces=movementEffects~=nil and movementEffects.jumpTwoSpaces==true
         local ignoreRampagers=movementEffects~=nil and movementEffects.ignoreRampagers==true
         local windFlightMax=movementEffects~=nil and (movementEffects.windFlightMax or 0) or 0
+        -- Two route states (normal / one-space discount) can start from the
+        -- same hex: reuse its flight search for the whole map redraw.
+        local windDestinationsByOrigin={}
 
 		--Fractured Lands: index every revealed safe no-site destination by its printed terrain.
 		--Teleporting costs 1 Move, ignores intervening spaces/walls/rampagers, and can be mixed with normal movement repeatedly.
@@ -871,8 +874,14 @@ function renderMoveDisplay(id)
                 -- Wind states can continue moving, but cannot fly again.
                 if windFlightMax>0 and not spentWind and moveSpent<moveValue+searchLimit then
                     local windState=usedDiscount and "safeDiscountWind" or "safeWind"
-                    for _,landing in ipairs(moveDisplayWindDestinations(hexMap,
-                        hexDetail.coord[1],hexDetail.coord[2],windFlightMax,jumpTwoSpaces)) do
+                    local originKey=tostring(hexDetail.coord[1])..":"..tostring(hexDetail.coord[2])
+                    local landings=windDestinationsByOrigin[originKey]
+                    if landings==nil then
+                        landings=moveDisplayWindDestinations(hexMap,
+                            hexDetail.coord[1],hexDetail.coord[2],windFlightMax,jumpTwoSpaces)
+                        windDestinationsByOrigin[originKey]=landings
+                    end
+                    for _,landing in ipairs(landings) do
                         local hexCost=moveSpent+landing.cost
                         if hexCost<(moveDestination(landing.hor,landing.vec)[windState] or 100) then
                             local predecessor={hor=hexDetail.coord[1],vec=hexDetail.coord[2],
