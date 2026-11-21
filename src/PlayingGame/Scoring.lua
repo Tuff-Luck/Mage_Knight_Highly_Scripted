@@ -319,6 +319,29 @@ function closePanel(player, mouseButton, id)
 	end
 end
 
+-- The top Score button toggles only its viewer. Final-score card layout is
+-- performed once, then future openings merely display the scoreboard.
+function toggleScorePanel(player, mouseButton, id)
+	if mouseButton~="-1" or player==nil or player.color==nil then return end
+	for _,viewer in ipairs(scoreViewing) do
+		if viewer==player.color then
+			closePanel(player,mouseButton,id)
+			return
+		end
+	end
+	-- A final-score layout can open the board publicly. In that case the
+	-- existing scoreboard has no individual viewers to remove.
+	if UI.getAttribute("ScoreBoard","active")=="true" and (UI.getAttribute("ScoreBoard","visibility") or "")=="" then
+		UI.hide("ScoreBoard")
+		return
+	end
+	if gameOver==true and gStates.finalClaimedCardsLaidOut~=true then
+		layoutClaimedCards(player,mouseButton,id)
+	else
+		displayScore(player,mouseButton,id)
+	end
+end
+
 function displayScore(player, mouseButton, id)
 	if mouseButton=="-1" then
 		-- Sort only the presentation copy. Live turnOrder indices must never move,
@@ -1585,6 +1608,8 @@ function displayScore(player, mouseButton, id)
 
 		--final scoreboard tweaks
 		if player=="all" then
+			-- A public end-game scoreboard supersedes earlier private viewers.
+			scoreViewing={}
 			setUIVisibility("ScoreBoard")
 		else
 			scoreViewing[#scoreViewing+1]=player.color
@@ -1611,7 +1636,7 @@ function displayScore(player, mouseButton, id)
 end
 
 -- Final claimed-card layout
-function layoutClaimedCards()
+function layoutClaimedCards(player, mouseButton, id)
 	--A Time Bending set aside on the victorious final round still belongs to its owner and must be present for scoring.
 	if gStates~=nil and gStates.timeBendingRemovedSeat~=nil then if reclaimTimeBending(layoutClaimedCards)==true then return end end
 	--Never dismantle live deed decks/hands while the active turn is still waiting
@@ -1623,7 +1648,13 @@ function layoutClaimedCards()
 	--Score the untouched deck/discard/hand/play-area state before dismantling Deck objects.
 	--TTS zone membership can lag behind takeObject/setPosition by a frame, and Deck remainders below
 	--are deliberately moved later, so scoring after the layout could temporarily miss claimed cards.
-	displayScore("all", "-1", nil)
+	-- The Score button opens a private view; end-game controls continue to
+	-- show the completed scoreboard to everyone as before.
+	if id=="ScoreButtonReal" and player~=nil and player.color~=nil then
+		displayScore(player,"-1",id)
+	else
+		displayScore("all","-1",nil)
+	end
 	for _, turnDetails in pairs(turnOrder) do
 		if turnDetails.mage~=gStates.positionMageKnight[5] then
 			local obj={}
@@ -1671,12 +1702,14 @@ function layoutClaimedCards()
 			end
 		end
 	end
+	gStates.finalClaimedCardsLaidOut=true
 end
 
 --Swap Day and Night items
 
 -- Public UI callback ownership: publish protected TTS/XML entry points from the module that implements them.
 publishPublicUICallbacks({
+	toggleScorePanel=toggleScorePanel,
 	displayScore=displayScore,
 	closePanel=closePanel,
 	layoutClaimedCards=layoutClaimedCards
