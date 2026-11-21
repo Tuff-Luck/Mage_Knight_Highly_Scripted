@@ -1,9 +1,16 @@
 -- End-game scoring and Hero Challenge scoring runtime.
 
+-- The scoreboard uses its own sorted player view. Never reorder the live turnOrder:
+-- tactic claims and turn-number indices must keep referring to the same players.
+local scoringDisplayOrder=nil
+local function scoringPlayerDetails(playerIndex)
+	return (scoringDisplayOrder or turnOrder)[playerIndex]
+end
+
 -- Faction Fame is individual competitive scoring, never TTS team scoring.
 local function councilApocalypseScoreBonus(playerIndex)
     if gStates==nil or gStates.gameScenario~="The Council versus the Apocalypse" then return 0 end
-    local details=turnOrder[playerIndex]
+    local details=scoringPlayerDetails(playerIndex)
     if details==nil then return 0 end
     local faction=councilApocalypseFactionAtSeat(details.seatPos)
     -- No allegiance selected is not equivalent to choosing independence.
@@ -34,7 +41,7 @@ end
 --Hero Challenges are an optional Apocalypse-rulebook overlay. Keep all scoring/objective
 --math here so the underlying scenario can retain its normal victory and end conditions.
 local function heroChallengeActive(playerIndex)
-	return gStates~=nil and gStates.heroChallenges==true and turnOrder[playerIndex]~=nil and heroChallengesData[turnOrder[playerIndex].mage]~=nil
+	return gStates~=nil and gStates.heroChallenges==true and scoringPlayerDetails(playerIndex)~=nil and heroChallengesData[scoringPlayerDetails(playerIndex).mage]~=nil
 end
 
 local function heroChallengeRecordCard(stats, guid)
@@ -91,7 +98,7 @@ local function heroChallengeAACoversAllColors(stats)
 end
 
 local function heroChallengeFinalMapPosition(playerIndex)
-	local player=turnOrder[playerIndex]
+	local player=scoringPlayerDetails(playerIndex)
 	if player==nil then return nil end
 	--Shared map spaces park inactive avatars off-map. Score the logical hex, not the storage position.
 	if againstHorsemenPlayerAtCentralGlade(player)==true then return againstHorsemenCentralGladePosition(1.5) end
@@ -103,11 +110,18 @@ local function heroChallengeFinalMapPosition(playerIndex)
 			return pos
 		end
 	end
-	return fracturedLandsTeleportSourcePosition(playerIndex)
+	-- Movement's position lookup takes a live turnOrder index, not a scoreboard column.
+	local liveIndex=playerIndex
+	if scoringDisplayOrder~=nil then
+		for index,details in ipairs(turnOrder) do
+			if details==player then liveIndex=index break end
+		end
+	end
+	return fracturedLandsTeleportSourcePosition(liveIndex)
 end
 
 local function heroChallengeFinalTerrainBonus(playerIndex, objectsInPlay)
-	if heroChallengeActive(playerIndex)~=true or turnOrder[playerIndex].mage~="Braevalar" then return 0 end
+	if heroChallengeActive(playerIndex)~=true or scoringPlayerDetails(playerIndex).mage~="Braevalar" then return 0 end
 	local pos=heroChallengeFinalMapPosition(playerIndex)
 	if pos==nil then return 0 end
 	local _,_,_,_,hexType=terrainHexAtPosition(pos,objectsInPlay)
@@ -116,37 +130,37 @@ local function heroChallengeFinalTerrainBonus(playerIndex, objectsInPlay)
 end
 
 local function heroChallengeBeatingScore(playerIndex)
-	if heroChallengeActive(playerIndex)==true and turnOrder[playerIndex].mage=="Arythea" then return 0 end
-	return turnOrder[playerIndex].score.Wound*2
+	if heroChallengeActive(playerIndex)==true and scoringPlayerDetails(playerIndex).mage=="Arythea" then return 0 end
+	return scoringPlayerDetails(playerIndex).score.Wound*2
 end
 
 local function heroChallengeKnowledgeScore(playerIndex)
-	local score=turnOrder[playerIndex].score
-	local mage=heroChallengeActive(playerIndex) and turnOrder[playerIndex].mage or nil
+	local score=scoringPlayerDetails(playerIndex).score
+	local mage=heroChallengeActive(playerIndex) and scoringPlayerDetails(playerIndex).mage or nil
 	local aaRate=mage=="Braevalar" and 2 or 1
 	local spellRate=mage=="Goldyx" and 3 or 2
 	return (score.AdvanceAction*aaRate)+(score.Spell*spellRate)
 end
 
 local function heroChallengeLootScore(playerIndex)
-	local score=turnOrder[playerIndex].score
-	local mage=heroChallengeActive(playerIndex) and turnOrder[playerIndex].mage or nil
+	local score=scoringPlayerDetails(playerIndex).score
+	local mage=heroChallengeActive(playerIndex) and scoringPlayerDetails(playerIndex).mage or nil
 	local artifactRate=mage=="Coral" and 4 or 2
 	local crystalScore=(mage=="Goldyx" or mage=="Coral") and score.Crystal or math.floor(score.Crystal/2)
 	return (score.Artifact*artifactRate)+crystalScore+score.Potion
 end
 
 local function heroChallengeLeaderScore(playerIndex)
-	local score=turnOrder[playerIndex].score
-	local mage=heroChallengeActive(playerIndex) and turnOrder[playerIndex].mage or nil
+	local score=scoringPlayerDetails(playerIndex).score
+	local mage=heroChallengeActive(playerIndex) and scoringPlayerDetails(playerIndex).mage or nil
 	local healthy=mage=="Norowas" and score.UnitsLevel*2 or score.UnitsLevel
 	local wounded=mage=="Arythea" and score.WoundedUnitsRawLevel or score.WoundedUnitsLevel
 	return healthy+wounded
 end
 
 local function heroChallengeAdventurerScore(playerIndex, ref)
-	local score=turnOrder[playerIndex].score
-	local wolfhawk=heroChallengeActive(playerIndex) and turnOrder[playerIndex].mage=="Wolfhawk"
+	local score=scoringPlayerDetails(playerIndex).score
+	local wolfhawk=heroChallengeActive(playerIndex) and scoringPlayerDetails(playerIndex).mage=="Wolfhawk"
 	if ref==2 then
 		return (score.DungeonTomb*4)+(score.SpawningDen+score.Ruin+score.Maze+score.ZigguratPyramid)*(wolfhawk and 4 or 2)
 	end
@@ -157,14 +171,14 @@ local function heroChallengeAdventurerScore(playerIndex, ref)
 end
 
 local function heroChallengeConquerorScore(playerIndex)
-	local score=turnOrder[playerIndex].score
-	local rate=heroChallengeActive(playerIndex) and turnOrder[playerIndex].mage=="Tovak" and 4 or 2
+	local score=scoringPlayerDetails(playerIndex).score
+	local rate=heroChallengeActive(playerIndex) and scoringPlayerDetails(playerIndex).mage=="Tovak" and 4 or 2
 	return ((score.Keep+score.MageTower+score.Monastery)*rate)+score.VolkareCamp
 end
 
 local function heroChallengeEvaluate(playerIndex, objectsInPlay)
 	if heroChallengeActive(playerIndex)~=true then return nil end
-	local playerData=turnOrder[playerIndex]
+	local playerData=scoringPlayerDetails(playerIndex)
 	local score=playerData.score
 	local stats=playerData.heroChallengeStats or {crystalColors={},puppetFame={},basicActions=0,aaCards={}}
 	local complete=false
@@ -210,12 +224,12 @@ local SCORE_TEAM_STYLE={
 	Black={label="Black",color="rgba(0.20,0.20,0.20,0.35)"}
 }
 
-local function scoringArrangeTtsTeams()
+local function scoringArrangeTtsTeams(scoreOrder)
 	local groups={}
 	local byKey={}
 	local anyTeam=false
 	local dummyMage=gStates.positionMageKnight[5]
-	for playerIndex,details in ipairs(turnOrder) do
+	for playerIndex,details in ipairs(scoreOrder) do
 		if details.mage~=dummyMage then
 			--Use the saved Mage Knight seat assignment. TTS teams are only a mirror,
 			--and Black may control several seats belonging to different teams.
@@ -255,17 +269,17 @@ local function scoringArrangeTtsTeams()
 	end)
 	for groupOrder,group in ipairs(groups) do
 		group.order=groupOrder
-		for _,details in ipairs(turnOrder) do
+		for _,details in ipairs(scoreOrder) do
 			if details._scoreTeamKey==group.key then details._scoreGroupOrder=groupOrder end
 		end
 	end
-	for _,details in ipairs(turnOrder) do if details._scoreGroupOrder==nil then details._scoreGroupOrder=999 end end
-	table.sort(turnOrder,function(a,b)
+	for _,details in ipairs(scoreOrder) do if details._scoreGroupOrder==nil then details._scoreGroupOrder=999 end end
+	table.sort(scoreOrder,function(a,b)
 		if a._scoreGroupOrder~=b._scoreGroupOrder then return a._scoreGroupOrder<b._scoreGroupOrder end
 		return a.seatPos<b.seatPos
 	end)
 	for _,group in ipairs(groups) do group.members={} end
-	for playerIndex,details in ipairs(turnOrder) do
+	for playerIndex,details in ipairs(scoreOrder) do
 		local group=details._scoreTeamKey~=nil and byKey[details._scoreTeamKey] or nil
 		if group~=nil then group.members[#group.members+1]=playerIndex end
 	end
@@ -307,25 +321,18 @@ end
 
 function displayScore(player, mouseButton, id)
 	if mouseButton=="-1" then
-		-- Scoring may temporarily arrange presentation columns, but never change turn order.
-		local originalTurnOrder={}
-		for index,details in ipairs(turnOrder) do originalTurnOrder[index]=details end
+		-- Sort only the presentation copy. Live turnOrder indices must never move,
+		-- even briefly, while players are choosing their tactics.
+		local scoreboardOrder={}
+		for index,details in ipairs(turnOrder) do scoreboardOrder[index]=details end
+		table.sort(scoreboardOrder,function(a,b)
+			local aSeat=a.mage==gStates.positionMageKnight[5] and 5 or a.seatPos
+			local bSeat=b.mage==gStates.positionMageKnight[5] and 5 or b.seatPos
+			return aSeat<bSeat
+		end)
+		local turnOrder=scoreboardOrder
+		scoringDisplayOrder=turnOrder
 		--Count all objects required for scoring
-		local seatRecord=5
-		for a=1, #turnOrder, 1 do
-			if turnOrder[a].mage==gStates.positionMageKnight[5] then
-				seatRecord=turnOrder[a].seatPos
-				turnOrder[a].seatPos=5
-				break
-			end
-		end
-		table.sort(turnOrder, function (k1, k2) return k1.seatPos<k2.seatPos end)
-		for a=1, #turnOrder, 1 do
-			if turnOrder[a].mage==gStates.positionMageKnight[5] then
-				turnOrder[a].seatPos=seatRecord
-				break
-			end
-		end
 		local foundRelic=0--Not individually scored
 		local coopGraveYard=0
 		local objectsInPlay=getObjectFromGUID(mapArea).getObjects()
@@ -518,7 +525,7 @@ function displayScore(player, mouseButton, id)
 		local scoringGroups={}
 		local scoringGroupByKey={}
 		local teamScoring=false
-		if gStates.coop==0 and gStates.gameScenario~="One to Return" and gStates.gameScenario~="The Council versus the Apocalypse" then scoringGroups,scoringGroupByKey,teamScoring=scoringArrangeTtsTeams() end
+		if gStates.coop==0 and gStates.gameScenario~="One to Return" and gStates.gameScenario~="The Council versus the Apocalypse" then scoringGroups,scoringGroupByKey,teamScoring=scoringArrangeTtsTeams(turnOrder) end
 		local forTheCouncil=gStates.gameScenario=="For the Council"
 		local againstHorsemen=gStates.gameScenario=="Against the Horsemen Blitz"
 		local apocalypseHere=gStates.gameScenario=="Apocalypse is Here"
@@ -1599,7 +1606,7 @@ function displayScore(player, mouseButton, id)
 			details._scoreTeamName=nil
 			details._scoreGroupOrder=nil
 		end
-		for index,details in ipairs(originalTurnOrder) do turnOrder[index]=details end
+		scoringDisplayOrder=nil
 	end
 end
 
