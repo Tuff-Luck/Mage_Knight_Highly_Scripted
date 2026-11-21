@@ -28,8 +28,11 @@ function onLoad(saved_data)
 	-- Capture the actual load event, including TTS rewind and scripted reloads.
 	automaticLuaRecordModLoad()
 	return safeCallback("onLoad",function()
+		automaticLuaSetLoadStage("Callbacks: validate UI callbacks")
 		validatePublicUICallbacks()
+		automaticLuaSetLoadStage("Callbacks: resource icon assets")
 		resourceCardsRegisterIconAssets()
+		automaticLuaSetLoadStage("Callbacks: decode saved state")
 		local loadedData=nil
 		if type(saved_data)=="string" and saved_data~="" then
 			local ok,decoded=pcall(JSON.decode,saved_data)
@@ -40,14 +43,21 @@ function onLoad(saved_data)
 		end
 		-- Global lines survive TTS rewinds while the movement display's runtime
 		-- snapshot does not. Remove only old map route overlays before UI restores.
+		automaticLuaSetLoadStage("Callbacks: clear saved movement overlays")
 		moveDisplayDiscardSavedRouteLines()
 		--These objects already exist when Global loads. Install their XML immediately, then use the
 		--proven load-time setAttribute pass once TTS has had two frames to build/localise the object UI.
+		automaticLuaSetLoadStage("Callbacks: monster restock UI")
 		monsterReplenishObjectOnLoad()
+		automaticLuaSetLoadStage("Callbacks: artifact UI")
 		artifactOnLoad()
+		automaticLuaSetLoadStage("Callbacks: site description UI")
 		siteDescriptionObjectOnLoad()
+		automaticLuaSetLoadStage("Callbacks: restore roller state")
 		rollerOnLoad(rollerSavedState(loadedData))
+		automaticLuaSetLoadStage("Callbacks: game state/UI restore")
 		local result=__onLoad_raw(saved_data,loadedData)
+		automaticLuaSetLoadStage("Callbacks: queue post-load refreshes")
 		-- Rebuild any Quick Witted choice after Global XML/UI restoration has settled.
 		-- Restore only the prompt: do not auto-resolve the saved draw or change its count.
 		safeWaitFrames("Callbacks",function()
@@ -59,8 +69,9 @@ function onLoad(saved_data)
 			siteDescriptionTranslationRefresh()
 			deedOfferArrowTextRefresh()
 		end,2)
+		automaticLuaSetLoadStage(nil)
 		return result
-	end)
+	end,automaticLuaLoadStageContext)
 end
 
 -- TTS player Delete/Cut actions can be vetoed before any object is destroyed.
@@ -93,7 +104,9 @@ function onObjectDestroy(destroyedObj)
 	return safeCallback("onObjectDestroy", function() __onObjectDestroy_raw(destroyedObj) end,
 		function()
 			local ok,guid=pcall(function() return destroyedObj~=nil and destroyedObj.guid or nil end)
+			local loadContext=automaticLuaLoadStageContext()
 			return "Destroyed object GUID="..tostring(ok and guid or "unavailable")
+				..(loadContext~="" and "\n"..loadContext or "")
 		end)
 end
 
