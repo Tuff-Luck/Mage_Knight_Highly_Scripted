@@ -273,4 +273,34 @@ assert(destroyEnv.protectedUnexpectedDestroyReported.otherProtected==true,
     "Only round-order token diagnostics may use the probable-teardown suppression")
 assert(#reports==reportedBefore+3,"Other protected object tests should not emit a turn-order report")
 
+-- Score-layout callbacks do not have an already-confirmed missing GUID.
+-- They must independently find TWO distinct missing assigned tokens, a missing
+-- table surface and a substantial burst before treating the scene as unloading.
+fakeTime=fakeTime+16
+objects["519f96"]=nil
+objects.real123=nil
+objects.missing456=nil
+for _=1,50 do recordDestroy() end
+assert(type(destroyEnv.protectedTableTeardownLikely)=="function")
+assert(destroyEnv.protectedTableTeardownLikely()==true,
+    "Scoring guard should detect the reported mass-teardown signature")
+assert(inTeardown==false,
+    "The scoring-only guard must not trigger global TTS teardown")
+
+objects["519f96"]={}
+assert(destroyEnv.protectedTableTeardownLikely()==false,
+    "An intact table must not suppress scoring")
+objects["519f96"]=nil
+objects.real123=token
+assert(destroyEnv.protectedTableTeardownLikely()==false,
+    "A single missing token must not suppress scoring")
+objects.real123=nil
+fakeTime=fakeTime+16 -- Expire the 50 preceding destruction callbacks.
+recordDestroy()
+assert(destroyEnv.protectedTableTeardownLikely()==false,
+    "A missing table and multiple tokens without mass destruction must still report errors")
+for _=1,49 do recordDestroy() end
+assert(destroyEnv.protectedTableTeardownLikely()==true,
+    "The shared guard must recognise a 50-callback burst")
+
 print("Automatic turn-order token diagnostics passed")
