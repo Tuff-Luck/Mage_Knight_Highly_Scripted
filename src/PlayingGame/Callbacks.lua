@@ -193,7 +193,7 @@ end
 --unchanged and UI names continue resolving exactly as before.
 local expectedProtectedUICallbacks={
 	--Global XML setup/general controls
-	"BlitzSelection","displayScore","MoreRampageSelection","PlayerChosen","RampageSelection","SendDataRequest",
+	"BlitzSelection","displayScore","toggleScorePanel","MoreRampageSelection","PlayerChosen","RampageSelection","SendDataRequest",
 	"SetupMenu","VolkareLevelSelection","VolkareRaceSelection","adjustHigherLevelSetupValue",
 	"apocalypseDragonCityModeSelection","apocalypseDragonCityVariantSelection","apocalypseDragonLevelSelection",
 	"assaultAdjust","attackCity","autoflip","baseValueTweak","buttonClicked",
