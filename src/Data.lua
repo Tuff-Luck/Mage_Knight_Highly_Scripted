@@ -1273,7 +1273,10 @@ cardResourceDefinitions={
     spellRestoration={normal={healing=3},powered={healing=3},forestHealing=5},
     spellCharm={normal={influence=4},poweredChoices={{key="other"}},
         enemyAttackLink=true}, -- Possess: borrow an enemy's current Attack and suppress its attack
+    -- Wings of Wind is one instant flight of 1-5 revealed spaces, paid with existing Move.
+    -- Its stronger side (Wings of Night) has only the combat suppression effect.
     spellWingsNight={normalChoices={{key="other"}},poweredChoices={{key="other"}},
+        movementEffects={normal={windFlightMax=5}},
         enemyEffect={powered={noAttack=true,multiTargetMove=true}}},
     -- Cure's Heal is numeric; hand-Wound draws are player-confirmed.
     -- Disease reduces Armour to 1 after all of an enemy's attacks were blocked.
