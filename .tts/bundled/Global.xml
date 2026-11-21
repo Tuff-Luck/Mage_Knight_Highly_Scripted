@@ -462,7 +462,7 @@ Klicke auf die Einheit, die du ersetzen möchtest.</Text>
 		</Button>
 	</Panel>
 	<Panel id="ScoreButton" active="false" rectAlignment="UpperLeft" offsetXY="220 -30" width="110" height="30" outlineSize="0 0">
-		<Button id="ScoreButtonReal" onClick="displayScore" interactable="false">
+		<Button id="ScoreButtonReal" onClick="toggleScorePanel" interactable="false">
 			<Image id="ScoreButtonRealImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 			<VerticalLayout padding="6 6 6 6"><Text id="ScoreButtonRealText" class="Text18" offsetXY="0 1">{en}Score{it}Punteggio{ru}Результат{zh-tw}得  分{zh-cn}得  分{ko}점수{es}Puntuación{fr}Score{pt-br}Pontuação{de}Ergebnis</Text></VerticalLayout>
 		</Button>
@@ -1116,646 +1116,166 @@ Einheiten</Text></Cell>
 
 <!-- include UI/ObjectRotating.xml -->
 <!-- include UI/ResourceTracker.xml -->
-<Panel id="ResourceTracker"	active="false" class="Floating" rectAlignment="UpperLeft" offsetXY="135 -80" width="210" height="35">
-	<Panel id="ResourceTrackerDetail" active="false" rectAlignment="LowerCenter" height="210" outlineSize="0 0">
-		<VerticalLayout childForceExpandHeight="false">
-			<Panel preferredHeight="30" outlineSize="0 0">
+<Panel id="ResourceTracker" active="false" class="Floating" rectAlignment="UpperLeft" offsetXY="135 -80" width="225" height="245" color="rgb(0.24,0.2,0.15)" outlineSize="1 -1">
+<Panel id="ResourceTrackerDetail" active="false" rectAlignment="LowerCenter" height="210" outlineSize="0 0" color="rgba(0,0,0,0)"><VerticalLayout childForceExpandHeight="false" spacing="1">
+<Panel id="MovemAmountPlainRow" active="false" preferredHeight="34" outlineSize="0 0" color="rgba(0,0,0,0)"><Button id="MovemAmountPlainDown" rectAlignment="MiddleLeft" width="112" height="34" onClick="resourceTracker" colors="#FFFFFF00|#FFFFFF00|#FFFFFF00|#FFFFFF00"/><Button id="MovemAmountPlainUp" rectAlignment="MiddleRight" width="113" height="34" onClick="resourceTracker" colors="#FFFFFF00|#FFFFFF00|#FFFFFF00|#FFFFFF00"/><Text id="MovemAmountPlainText" fontSize="18" fontStyle="Normal" color="#F4EDE2" alignment="MiddleLeft" rectAlignment="MiddleLeft" offsetXY="16 0" width="196" raycastTarget="false">Move : 0</Text></Panel>
+<Panel id="MovemGeneratedRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="MovemGeneratedText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Generated : 0</Text></HorizontalLayout></Panel>
+<Panel id="CombatMoveRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="CombatMoveText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Combat Move : 0</Text></HorizontalLayout></Panel>
+<Panel id="SiegeAmountPlainRow" active="false" preferredHeight="34" outlineSize="0 0" color="rgba(0,0,0,0)"><Text id="SiegeAmountPlainText" fontSize="18" fontStyle="Normal" color="#F4EDE2" alignment="MiddleLeft" rectAlignment="MiddleLeft" offsetXY="16 0" width="150" raycastTarget="false">Siege : 0</Text><Text id="SiegeSingleElement" fontSize="12" color="#D8CBB5" alignment="MiddleRight" rectAlignment="MiddleRight" offsetXY="-16 0" width="76" raycastTarget="false"></Text></Panel>
+<Panel id="SiegeAmountPhysiRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="SiegeAmountPhysiText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Physical : 0</Text></HorizontalLayout></Panel>
+<Panel id="SiegeAmountFirexRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="SiegeAmountFirexText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Fire : 0</Text></HorizontalLayout></Panel>
+<Panel id="SiegeAmountIcexxRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="SiegeAmountIcexxText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Ice : 0</Text></HorizontalLayout></Panel>
+<Panel id="SiegeAmountColdFRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="SiegeAmountColdFText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Cold Fire : 0</Text></HorizontalLayout></Panel>
+<Panel id="SiegeAmountPsychRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="SiegeAmountPsychText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Psychic : 0</Text></HorizontalLayout></Panel>
+<Panel id="RangeAmountPlainRow" active="false" preferredHeight="34" outlineSize="0 0" color="rgba(0,0,0,0)"><Text id="RangeAmountPlainText" fontSize="18" fontStyle="Normal" color="#F4EDE2" alignment="MiddleLeft" rectAlignment="MiddleLeft" offsetXY="16 0" width="150" raycastTarget="false">Ranged : 0</Text><Text id="RangeSingleElement" fontSize="12" color="#D8CBB5" alignment="MiddleRight" rectAlignment="MiddleRight" offsetXY="-16 0" width="76" raycastTarget="false"></Text></Panel>
+<Panel id="RangeAmountPhysiRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="RangeAmountPhysiText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Physical : 0</Text></HorizontalLayout></Panel>
+<Panel id="RangeAmountFirexRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="RangeAmountFirexText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Fire : 0</Text></HorizontalLayout></Panel>
+<Panel id="RangeAmountIcexxRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="RangeAmountIcexxText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Ice : 0</Text></HorizontalLayout></Panel>
+<Panel id="RangeAmountColdFRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="RangeAmountColdFText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Cold Fire : 0</Text></HorizontalLayout></Panel>
+<Panel id="RangeAmountPsychRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="RangeAmountPsychText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Psychic : 0</Text></HorizontalLayout></Panel>
+<Panel id="BlockAmountPlainRow" active="false" preferredHeight="34" outlineSize="0 0" color="rgba(0,0,0,0)"><Text id="BlockAmountPlainText" fontSize="18" fontStyle="Normal" color="#F4EDE2" alignment="MiddleLeft" rectAlignment="MiddleLeft" offsetXY="16 0" width="150" raycastTarget="false">Block : 0</Text><Text id="BlockSingleElement" fontSize="12" color="#D8CBB5" alignment="MiddleRight" rectAlignment="MiddleRight" offsetXY="-16 0" width="76" raycastTarget="false"></Text></Panel>
+<Panel id="BlockAmountPhysiRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="BlockAmountPhysiText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Physical : 0</Text></HorizontalLayout></Panel>
+<Panel id="BlockAmountFirexRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="BlockAmountFirexText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Fire : 0</Text></HorizontalLayout></Panel>
+<Panel id="BlockAmountIcexxRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="BlockAmountIcexxText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Ice : 0</Text></HorizontalLayout></Panel>
+<Panel id="BlockAmountColdFRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="BlockAmountColdFText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Cold Fire : 0</Text></HorizontalLayout></Panel>
+<Panel id="BlockAmountPsychRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="BlockAmountPsychText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Psychic : 0</Text></HorizontalLayout></Panel>
+<Panel id="AttacAmountPlainRow" active="false" preferredHeight="34" outlineSize="0 0" color="rgba(0,0,0,0)"><Text id="AttacAmountPlainText" fontSize="18" fontStyle="Normal" color="#F4EDE2" alignment="MiddleLeft" rectAlignment="MiddleLeft" offsetXY="16 0" width="150" raycastTarget="false">Attack : 0</Text><Text id="AttacSingleElement" fontSize="12" color="#D8CBB5" alignment="MiddleRight" rectAlignment="MiddleRight" offsetXY="-16 0" width="76" raycastTarget="false"></Text></Panel>
+<Panel id="AttacAmountPhysiRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="AttacAmountPhysiText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Physical : 0</Text></HorizontalLayout></Panel>
+<Panel id="AttacAmountFirexRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="AttacAmountFirexText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Fire : 0</Text></HorizontalLayout></Panel>
+<Panel id="AttacAmountIcexxRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="AttacAmountIcexxText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Ice : 0</Text></HorizontalLayout></Panel>
+<Panel id="AttacAmountColdFRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="AttacAmountColdFText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Cold Fire : 0</Text></HorizontalLayout></Panel>
+<Panel id="AttacAmountPsychRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="AttacAmountPsychText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Psychic : 0</Text></HorizontalLayout></Panel>
+<Panel id="InfluAmountPlainRow" active="false" preferredHeight="34" outlineSize="0 0" color="rgba(0,0,0,0)"><Button id="InfluAmountPlainDown" rectAlignment="MiddleLeft" width="112" height="34" onClick="resourceTracker" colors="#FFFFFF00|#FFFFFF00|#FFFFFF00|#FFFFFF00"/><Button id="InfluAmountPlainUp" rectAlignment="MiddleRight" width="113" height="34" onClick="resourceTracker" colors="#FFFFFF00|#FFFFFF00|#FFFFFF00|#FFFFFF00"/><Text id="InfluAmountPlainText" fontSize="18" fontStyle="Normal" color="#F4EDE2" alignment="MiddleLeft" rectAlignment="MiddleLeft" offsetXY="16 0" width="196" raycastTarget="false">Influence : 0</Text></Panel>
+<Panel id="InfluAmountPhysiRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="InfluAmountPhysiText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Generated : 0</Text></HorizontalLayout></Panel>
+<Panel id="InfluAmountReputRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="InfluAmountReputText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Reputation : 0</Text></HorizontalLayout></Panel>
+<Panel id="InfluAmountCitySRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="InfluAmountCitySText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">City Shields : 0</Text></HorizontalLayout></Panel>
+<Panel id="HealiAmountPlainRow" active="false" preferredHeight="34" outlineSize="0 0" color="rgba(0,0,0,0)"><Button id="HealiAmountPlainDown" rectAlignment="MiddleLeft" width="112" height="34" onClick="resourceTracker" colors="#FFFFFF00|#FFFFFF00|#FFFFFF00|#FFFFFF00"/><Button id="HealiAmountPlainUp" rectAlignment="MiddleRight" width="113" height="34" onClick="resourceTracker" colors="#FFFFFF00|#FFFFFF00|#FFFFFF00|#FFFFFF00"/><Text id="HealiAmountPlainText" fontSize="18" fontStyle="Normal" color="#F4EDE2" alignment="MiddleLeft" rectAlignment="MiddleLeft" offsetXY="16 0" width="196" raycastTarget="false">Healing : 0</Text></Panel>
+<Panel id="HealiGeneratedRow" active="false" preferredHeight="22" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" padding="32 6 0 0"><Text id="HealiGeneratedText" fontSize="14" color="#C9C9C9" alignment="MiddleLeft" preferredWidth="182">Generated : 0</Text></HorizontalLayout></Panel>
+<Panel id="ResourceTrackerAddRow" active="false" preferredHeight="28" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" childForceExpandHeight="false" padding="2 2 2 0" spacing="2"><Button id="MovemAmountPlainAdd" active="false" preferredWidth="72" preferredHeight="26" onClick="resourceTracker" color="#30271E"><Text id="MovemAmountPlainAddText" fontSize="13" fontStyle="Normal" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="#EFE2CE" alignment="MiddleCenter" raycastTarget="false">{en}+ Move{it}+ Movimento{ru}+ Движение{zh-tw}+ 移動{zh-cn}+ 移动{ko}+ 이동{es}+ Mover{fr}+ Dépl.{pt-br}+ Mover{de}+ Bew.</Text></Button><Button id="InfluAmountPlainAdd" active="false" preferredWidth="73" preferredHeight="26" onClick="resourceTracker" color="#30271E"><Text id="InfluAmountPlainAddText" fontSize="13" fontStyle="Normal" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="#EFE2CE" alignment="MiddleCenter" raycastTarget="false">{en}+ Influence{it}+ Influenza{ru}+ Влияние{zh-tw}+ 影響力{zh-cn}+ 影响力{ko}+ 영향력{es}+ Influencia{fr}+ Influence{pt-br}+ Influência{de}+ Einfluss</Text></Button><Button id="HealiAmountPlainAdd" active="false" preferredWidth="72" preferredHeight="26" onClick="resourceTracker" color="#30271E"><Text id="HealiAmountPlainAddText" fontSize="13" fontStyle="Normal" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="#EFE2CE" alignment="MiddleCenter" raycastTarget="false">{en}+ Healing{it}+ Guarigione{ru}+ Лечение{zh-tw}+ 治療{zh-cn}+ 治疗{ko}+ 치유{es}+ Curación{fr}+ Guérison{pt-br}+ Cura{de}+ Heilung</Text></Button></HorizontalLayout></Panel>
+<Panel id="MoveCostHeader" preferredHeight="29" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" childForceExpandHeight="false" padding="2 2 1 2" spacing="2"><Button id="DisplayMoveCosts" preferredWidth="164" preferredHeight="26" onClick="resourceTracker" color="#30271E"><Text id="MoveCostHeaderText" fontSize="13" fontStyle="Normal" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="#EFE2CE" alignment="MiddleCenter" raycastTarget="false">{en}Terrain Costs ▾{it}Costi del terreno ▾{ru}Стоимость местности ▾{zh-tw}地形移動費用 ▾{zh-cn}地形移动费用 ▾{ko}지형 이동 비용 ▾{es}Costes del terreno ▾{fr}Coûts de terrain ▾{pt-br}Custos de terreno ▾{de}Geländekosten ▾</Text></Button><Button id="MovemAmountUpdate" preferredWidth="55" preferredHeight="26" onClick="resourceTracker" color="#30271E" tooltip="Recalculate movement costs from the avatar&#39;s current position."><Text id="MovemAmountUpdateText" fontSize="13" fontStyle="Normal" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="#EFE2CE" alignment="MiddleCenter" raycastTarget="false">{en}Map{it}Mappa{ru}Карта{zh-tw}地圖{zh-cn}地图{ko}지도{es}Mapa{fr}Carte{pt-br}Mapa{de}Karte</Text></Button></HorizontalLayout></Panel>
+<Panel id="MoveCosts" active="false" preferredHeight="240" outlineSize="0 0" color="rgba(0,0,0,0)">
 				<VerticalLayout>
 					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="MovemAmountPlainDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="MovemAmountPlainDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
-						</Button>
-						<Button preferredWidth="150" interactable="false" onClick="">
-							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
-							<Text id="MovemAmountPlainText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Move : 0{it}Movimento : 0{ru}Движение: 0{zh-tw}移動：0{zh-cn}移动：0{ko}이동 : 0{es}Mover : 0{fr}Se déplacer : 0{pt-br}Mover : 0{de}Bewegen : 0</Text>
-						</Button>
-						<Button id="MovemAmountUpdate" preferredWidth="30" onClick="resourceTracker" class="ShortButton" tooltipPosition="Right" tooltipOffset="50" tooltip="This will update the move costs to use the current position of your Mage Knight">
-							<Image id="MovemAmountUpdateImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">#</Text>
-						</Button>
-						<Button id="MovemAmountPlainUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="MovemAmountPlainUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
-						</Button>
-						<Button id="DisplayMoveCosts" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="DisplayMoveCostsImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">v</Text>
-						</Button>
-					</HorizontalLayout>
-				</VerticalLayout>
-			</Panel>
-			<Panel id="MoveCosts" active="false" preferredHeight="240" outlineSize="0 0">
-				<VerticalLayout>
-					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="MoveCostPlainDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
+						<Button id="MoveCostPlainDown" preferredWidth="25" onClick="resourceTracker" class="ShortButton">
 							<Image id="MoveCostPlainDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
 							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
 						</Button>
-						<Button preferredWidth="210" interactable="false" onClick="">
+						<Button preferredWidth="175" interactable="false" onClick="">
 							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
 							<Text id="MoveCostPlainText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Plains : 2{it}Pianure : 2{ru}Равнины: 2{zh-tw}平原：2{zh-cn}平原：2{ko}평지 :2{es}Llanuras : 2{fr}Plaines : 2{pt-br}Planícies : 2{de}Ebenen : 2</Text>
 						</Button>
-						<Button id="MoveCostPlainUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
+						<Button id="MoveCostPlainUp" preferredWidth="25" onClick="resourceTracker" class="ShortButton">
 							<Image id="MoveCostPlainUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
 							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
 						</Button>
 					</HorizontalLayout>
 					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="MoveCostHillsDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
+						<Button id="MoveCostHillsDown" preferredWidth="25" onClick="resourceTracker" class="ShortButton">
 							<Image id="MoveCostHillsDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
 							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
 						</Button>
-						<Button preferredWidth="210" interactable="false" onClick="">
+						<Button preferredWidth="175" interactable="false" onClick="">
 							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
 							<Text id="MoveCostHillsText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Hills : 3{it}Colline : 3{ru}Холмы: 3{zh-tw}丘陵：3{zh-cn}丘陵：3{ko}언덕 : 3{es}Colinas : 3{fr}Collines : 3{pt-br}Colinas : 3{de}Hügel : 3</Text>
 						</Button>
-						<Button id="MoveCostHillsUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
+						<Button id="MoveCostHillsUp" preferredWidth="25" onClick="resourceTracker" class="ShortButton">
 							<Image id="MoveCostHillsUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
 							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
 						</Button>
 					</HorizontalLayout>
 					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="MoveCostForesDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
+						<Button id="MoveCostForesDown" preferredWidth="25" onClick="resourceTracker" class="ShortButton">
 							<Image id="MoveCostForesDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
 							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
 						</Button>
-						<Button preferredWidth="210" interactable="false" onClick="">
+						<Button preferredWidth="175" interactable="false" onClick="">
 							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
 							<Text id="MoveCostForesText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Forests : 3{it}Foreste : 3{ru}Леса: 3{zh-tw}森林：3{zh-cn}森林：3{ko}숲 : 3{es}Bosques : 3{fr}Forêts : 3{pt-br}Florestas : 3{de}Wälder : 3</Text>
 						</Button>
-						<Button id="MoveCostForesUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
+						<Button id="MoveCostForesUp" preferredWidth="25" onClick="resourceTracker" class="ShortButton">
 							<Image id="MoveCostForesUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
 							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
 						</Button>
 					</HorizontalLayout>
 					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="MoveCostWasteDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
+						<Button id="MoveCostWasteDown" preferredWidth="25" onClick="resourceTracker" class="ShortButton">
 							<Image id="MoveCostWasteDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
 							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
 						</Button>
-						<Button preferredWidth="210" interactable="false" onClick="">
+						<Button preferredWidth="175" interactable="false" onClick="">
 							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
 							<Text id="MoveCostWasteText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Wastelands : 4{it}Terre Desolate : 4{ru}Пустоши: 4{zh-tw}荒原：4{zh-cn}荒原：4{ko}황무지 : 4{es}Páramos : 4{fr}Terrains Vagues : 4{pt-br}Terras Devastadas : 4{de}Ödland : 4</Text>
 						</Button>
-						<Button id="MoveCostWasteUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
+						<Button id="MoveCostWasteUp" preferredWidth="25" onClick="resourceTracker" class="ShortButton">
 							<Image id="MoveCostWasteUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
 							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
 						</Button>
 					</HorizontalLayout>
 					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="MoveCostDeserDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
+						<Button id="MoveCostDeserDown" preferredWidth="25" onClick="resourceTracker" class="ShortButton">
 							<Image id="MoveCostDeserDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
 							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
 						</Button>
-						<Button preferredWidth="210" interactable="false" onClick="">
+						<Button preferredWidth="175" interactable="false" onClick="">
 							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
 							<Text id="MoveCostDeserText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Deserts : 5{it}Deserti : 5{ru}Пустыни: 5{zh-tw}沙漠：5{zh-cn}沙漠：5{ko}사막 : 5{es}Desiertos : 5{fr}Déserts : 5{pt-br}Desertos : 5{de}Wüsten : 5</Text>
 						</Button>
-						<Button id="MoveCostDeserUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
+						<Button id="MoveCostDeserUp" preferredWidth="25" onClick="resourceTracker" class="ShortButton">
 							<Image id="MoveCostDeserUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
 							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
 						</Button>
 					</HorizontalLayout>
 					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="MoveCostSwampDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
+						<Button id="MoveCostSwampDown" preferredWidth="25" onClick="resourceTracker" class="ShortButton">
 							<Image id="MoveCostSwampDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
 							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
 						</Button>
-						<Button preferredWidth="210" interactable="false" onClick="">
+						<Button preferredWidth="175" interactable="false" onClick="">
 							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
 							<Text id="MoveCostSwampText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Swamps : 5{it}Paludi : 5{ru}Болота: 5{zh-tw}沼澤：5{zh-cn}沼泽：5{ko}늪 : 5{es}Pantanos : 5{fr}Marécages : 5{pt-br}Pântanos : 5{de}Sümpfe : 5</Text>
 						</Button>
-						<Button id="MoveCostSwampUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
+						<Button id="MoveCostSwampUp" preferredWidth="25" onClick="resourceTracker" class="ShortButton">
 							<Image id="MoveCostSwampUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
 							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
 						</Button>
 					</HorizontalLayout>
 					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="MoveCostLakesDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
+						<Button id="MoveCostLakesDown" preferredWidth="25" onClick="resourceTracker" class="ShortButton">
 							<Image id="MoveCostLakesDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
 							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
 						</Button>
-						<Button preferredWidth="210" interactable="false" onClick="">
+						<Button preferredWidth="175" interactable="false" onClick="">
 							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
 							<Text id="MoveCostLakesText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Lakes : X{it}Laghi : X{ru}Озера: X{zh-tw}湖泊：X{zh-cn}湖泊：X{ko}호수 : X{es}Lagos : X{fr}Lacs : X{pt-br}Lagos : X{de}Seen : X</Text>
 						</Button>
-						<Button id="MoveCostLakesUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
+						<Button id="MoveCostLakesUp" preferredWidth="25" onClick="resourceTracker" class="ShortButton">
 							<Image id="MoveCostLakesUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
 							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
 						</Button>
 					</HorizontalLayout>
 					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="MoveCostMountDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
+						<Button id="MoveCostMountDown" preferredWidth="25" onClick="resourceTracker" class="ShortButton">
 							<Image id="MoveCostMountDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
 							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
 						</Button>
-						<Button preferredWidth="210" interactable="false" onClick="">
+						<Button preferredWidth="175" interactable="false" onClick="">
 							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
 							<Text id="MoveCostMountText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Mountains : X{it}Montagne : X{ru}Горы: X{zh-tw}山脈：X{zh-cn}山脉：X{ko}산 : X{es}Montañas : X{fr}Montagnes : X{pt-br}Montanhas : X{de}Berge : X</Text>
 						</Button>
-						<Button id="MoveCostMountUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
+						<Button id="MoveCostMountUp" preferredWidth="25" onClick="resourceTracker" class="ShortButton">
 							<Image id="MoveCostMountUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
 							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
 						</Button>
 					</HorizontalLayout>
 				</VerticalLayout>
 			</Panel>
-			<Panel preferredHeight="30" outlineSize="0 0">
-				<VerticalLayout>
-					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="SiegeAmountPlainDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="SiegeAmountPlainDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
-						</Button>
-						<Button preferredWidth="180" interactable="false" onClick="">
-							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
-							<Text id="SiegeAmountPlainText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Siege : {it}Assedio : {ru}Осадная: {zh-cn}攻城 ：{ko}공성 : {es}Asedio : {fr}Siège : {pt-br}Cerco : {de}Belagerung : {zh-tw}攻城：</Text>
-						</Button>
-						<Button id="SiegeAmountPlainUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="SiegeAmountPlainUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
-						</Button>
-						<Button id="DisplaySiegeDetails" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="DisplaySiegeDetailsImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">v</Text>
-						</Button>
-					</HorizontalLayout>
-				</VerticalLayout>
-			</Panel>
-			<Panel id="SiegeAmountDetails" active="false" preferredHeight="150" outlineSize="0 0">
-				<VerticalLayout>
-					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="SiegeAmountPhysiDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="SiegeAmountPhysiDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
-						</Button>
-						<Button preferredWidth="210" interactable="false" onClick="">
-							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
-							<Text id="SiegeAmountPhysiText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Physical : 0{it}Fisico : 0{ru}Физическая(ий): 0{zh-tw}物理：0{zh-cn}物理：0{ko}물리 : 0{es}Físico : 0{fr}Physique : 0{pt-br}Físico : 0{de}Physikalisch : 0</Text>
-						</Button>
-						<Button id="SiegeAmountPhysiUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="SiegeAmountPhysiImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
-						</Button>
-					</HorizontalLayout>
-					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="SiegeAmountFirexDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="SiegeAmountFirexDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
-						</Button>
-						<Button preferredWidth="210" interactable="false" onClick="">
-							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
-							<Text id="SiegeAmountFirexText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Fire : 0{it}Fuoco : 0{ru}Огненная(ый): 0{zh-tw}火焰：0{zh-cn}火焰：0{ko}불 : 0{es}Fuego : 0{fr}Feu : 0{pt-br}Fogo : 0{de}Feuer : 0</Text>
-						</Button>
-						<Button id="SiegeAmountFirexUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="SiegeAmountFirexUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
-						</Button>
-					</HorizontalLayout>
-					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="SiegeAmountIcexxDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="SiegeAmountIcexxDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
-						</Button>
-						<Button preferredWidth="210" interactable="false" onClick="">
-							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
-							<Text id="SiegeAmountIcexxText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Ice : 0{it}Ghiaccio : 0{ru}Ледяная(ой): 0{zh-tw}寒冰：0{zh-cn}寒冰：0{ko}얼음 : 0{es}Hielo : 0{fr}Glace : 0{pt-br}Gelo : 0{de}Eis : 0</Text>
-						</Button>
-						<Button id="SiegeAmountIcexxUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="SiegeAmountIcexxUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
-						</Button>
-					</HorizontalLayout>
-					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="SiegeAmountColdFDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="SiegeAmountColdFDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
-						</Button>
-						<Button preferredWidth="210" interactable="false" onClick="">
-							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
-							<Text id="SiegeAmountColdFText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Cold Fire : 0{it}Fuoco Freddo : 0{ru}Холодный огонь: 0{zh-tw}冰火：0{zh-cn}冰火：0{ko}차가운 불 : 0{es}Fuego Frío :0{fr}Feu Froid : 0{pt-br}Fogo Frio : 0{de}Kaltes Feuer : 0</Text>
-						</Button>
-						<Button id="SiegeAmountColdFUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="SiegeAmountColdFUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
-						</Button>
-					</HorizontalLayout>
-					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="SiegeAmountPsychDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="SiegeAmountPsychDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
-						</Button>
-						<Button preferredWidth="210" interactable="false" onClick="">
-							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
-							<Text id="SiegeAmountPsychText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Psychic : 0{it}Psichico : 0{ru}Психическая : 0{zh-tw}心靈：0{zh-cn}心灵：0{ko}정신 : 0{es}Psíquico : 0{fr}Psychique : 0{pt-br}Psíquico : 0{de}Psychisch : 0</Text>
-						</Button>
-						<Button id="SiegeAmountPsychUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="SiegeAmountPsychUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
-						</Button>
-					</HorizontalLayout>
-				</VerticalLayout>
-			</Panel>
-			<Panel preferredHeight="30" outlineSize="0 0">
-				<VerticalLayout>
-					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="RangeAmountPlainDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="RangeAmountPlainDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
-						</Button>
-						<Button preferredWidth="180" interactable="false" onClick="">
-							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
-							<Text id="RangeAmountPlainText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Range : 0{it}Distanza : 0{ru}Дальняя: 0{zh-tw}遠程：0{zh-cn}远程：0{ko}원거리 : 0{es}Rango : 0{fr}Gamme : 0{pt-br}Distância : 0{de}Reichweite : 0</Text>
-						</Button>
-						<Button id="RangeAmountPlainUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="RangeAmountPlainUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
-						</Button>
-						<Button id="DisplayRangeDetails" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="DisplayRangeDetailsImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">v</Text>
-						</Button>
-					</HorizontalLayout>
-				</VerticalLayout>
-			</Panel>
-			<Panel id="RangeAmountDetails" active="false" preferredHeight="150" outlineSize="0 0">
-				<VerticalLayout>
-					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="RangeAmountPhysiDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="RangeAmountPhysiDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
-						</Button>
-						<Button preferredWidth="210" interactable="false" onClick="">
-							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
-							<Text id="RangeAmountPhysiText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Physical : 0{it}Fisico : 0{ru}Физическая(ий): 0{zh-tw}物理：0{zh-cn}物理：0{ko}물리 : 0{es}Físico : 0{fr}Physique : 0{pt-br}Físico : 0{de}Physikalisch : 0</Text>
-						</Button>
-						<Button id="RangeAmountPhysiUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="RangeAmountPhysiImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
-						</Button>
-					</HorizontalLayout>
-					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="RangeAmountFirexDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="RangeAmountFirexDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
-						</Button>
-						<Button preferredWidth="210" interactable="false" onClick="">
-							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
-							<Text id="RangeAmountFirexText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Fire : 0{it}Fuoco : 0{ru}Огненная(ый): 0{zh-tw}火焰：0{zh-cn}火焰：0{ko}불 : 0{es}Fuego : 0{fr}Feu : 0{pt-br}Fogo : 0{de}Feuer : 0</Text>
-						</Button>
-						<Button id="RangeAmountFirexUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="RangeAmountFirexUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
-						</Button>
-					</HorizontalLayout>
-					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="RangeAmountIcexxDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="RangeAmountIcexxDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
-						</Button>
-						<Button preferredWidth="210" interactable="false" onClick="">
-							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
-							<Text id="RangeAmountIcexxText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Ice : 0{it}Ghiaccio : 0{ru}Ледяная(ой): 0{zh-tw}寒冰：0{zh-cn}寒冰：0{ko}얼음 : 0{es}Hielo : 0{fr}Glace : 0{pt-br}Gelo : 0{de}Eis : 0</Text>
-						</Button>
-						<Button id="RangeAmountIcexxUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="RangeAmountIcexxUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
-						</Button>
-					</HorizontalLayout>
-					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="RangeAmountColdFDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="RangeAmountColdFDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
-						</Button>
-						<Button preferredWidth="210" interactable="false" onClick="">
-							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
-							<Text id="RangeAmountColdFText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Cold Fire : 0{it}Fuoco Freddo : 0{ru}Холодный огонь: 0{zh-tw}冰火：0{zh-cn}冰火：0{ko}차가운 불 : 0{es}Fuego Frío :0{fr}Feu Froid : 0{pt-br}Fogo Frio : 0{de}Kaltes Feuer : 0</Text>
-						</Button>
-						<Button id="RangeAmountColdFUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="RangeAmountColdFUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
-						</Button>
-					</HorizontalLayout>
-					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="RangeAmountPsychDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="RangeAmountPsychDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
-						</Button>
-						<Button preferredWidth="210" interactable="false" onClick="">
-							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
-							<Text id="RangeAmountPsychText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Psychic : 0{it}Psichico : 0{ru}Психическая : 0{zh-tw}心靈：0{zh-cn}心灵：0{ko}정신 : 0{es}Psíquico : 0{fr}Psychique : 0{pt-br}Psíquico : 0{de}Psychisch : 0</Text>
-						</Button>
-						<Button id="RangeAmountPsychUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="RangeAmountPsychUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
-						</Button>
-					</HorizontalLayout>
-				</VerticalLayout>
-			</Panel>
-			<Panel preferredHeight="30" outlineSize="0 0">
-				<VerticalLayout>
-					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="BlockAmountPlainDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="BlockAmountPlainDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
-						</Button>
-						<Button preferredWidth="180" interactable="false" onClick="">
-							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
-							<Text id="BlockAmountPlainText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Block : {it}Blocco : {zh-cn}阻止 : {ko}방어 : {es}Bloqueo : {fr}Blocage : {pt-br}Bloco : {de}Blockieren : 0{ru}Блок: {zh-tw}格擋：</Text>
-						</Button>
-						<Button id="BlockAmountPlainUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="BlockAmountPlainUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
-						</Button>
-						<Button id="DisplayBlockDetails" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="DisplayBlockDetailsImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">v</Text>
-						</Button>
-					</HorizontalLayout>
-				</VerticalLayout>
-			</Panel>
-			<Panel id="BlockAmountDetails" active="false" preferredHeight="150" outlineSize="0 0">
-				<VerticalLayout>
-					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="BlockAmountPhysiDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="BlockAmountPhysiDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
-						</Button>
-						<Button preferredWidth="210" interactable="false" onClick="">
-							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
-							<Text id="BlockAmountPhysiText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Physical : 0{it}Fisico : 0{ru}Физическая(ий): 0{zh-tw}物理：0{zh-cn}物理：0{ko}물리 : 0{es}Físico : 0{fr}Physique : 0{pt-br}Físico : 0{de}Physikalisch : 0</Text>
-						</Button>
-						<Button id="BlockAmountPhysiUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="BlockAmountPhysiImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
-						</Button>
-					</HorizontalLayout>
-					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="BlockAmountFirexDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="BlockAmountFirexDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
-						</Button>
-						<Button preferredWidth="210" interactable="false" onClick="">
-							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
-							<Text id="BlockAmountFirexText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Fire : 0{it}Fuoco : 0{ru}Огненная(ый): 0{zh-tw}火焰：0{zh-cn}火焰：0{ko}불 : 0{es}Fuego : 0{fr}Feu : 0{pt-br}Fogo : 0{de}Feuer : 0</Text>
-						</Button>
-						<Button id="BlockAmountFirexUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="BlockAmountFirexUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
-						</Button>
-					</HorizontalLayout>
-					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="BlockAmountIcexxDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="BlockAmountIcexxDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
-						</Button>
-						<Button preferredWidth="210" interactable="false" onClick="">
-							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
-							<Text id="BlockAmountIcexxText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Ice : 0{it}Ghiaccio : 0{ru}Ледяная(ой): 0{zh-tw}寒冰：0{zh-cn}寒冰：0{ko}얼음 : 0{es}Hielo : 0{fr}Glace : 0{pt-br}Gelo : 0{de}Eis : 0</Text>
-						</Button>
-						<Button id="BlockAmountIcexxUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="BlockAmountIcexxUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
-						</Button>
-					</HorizontalLayout>
-					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="BlockAmountColdFDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="BlockAmountColdFDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
-						</Button>
-						<Button preferredWidth="210" interactable="false" onClick="">
-							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
-							<Text id="BlockAmountColdFText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Cold Fire : 0{it}Fuoco Freddo : 0{ru}Холодный огонь: 0{zh-tw}冰火：0{zh-cn}冰火：0{ko}차가운 불 : 0{es}Fuego Frío :0{fr}Feu Froid : 0{pt-br}Fogo Frio : 0{de}Kaltes Feuer : 0</Text>
-						</Button>
-						<Button id="BlockAmountColdFUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="BlockAmountColdFUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
-						</Button>
-					</HorizontalLayout>
-					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="BlockAmountPsychDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="BlockAmountPsychDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
-						</Button>
-						<Button preferredWidth="210" interactable="false" onClick="">
-							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
-							<Text id="BlockAmountPsychText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Psychic : 0{it}Psichico : 0{ru}Психическая : 0{zh-tw}心靈：0{zh-cn}心灵：0{ko}정신 : 0{es}Psíquico : 0{fr}Psychique : 0{pt-br}Psíquico : 0{de}Psychisch : 0</Text>
-						</Button>
-						<Button id="BlockAmountPsychUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="BlockAmountPsychUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
-						</Button>
-					</HorizontalLayout>
-				</VerticalLayout>
-			</Panel>
-			<Panel preferredHeight="30" outlineSize="0 0">
-				<VerticalLayout>
-					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="AttacAmountPlainDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="AttacAmountPlainDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
-						</Button>
-						<Button preferredWidth="180" interactable="false" onClick="">
-							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
-							<Text id="AttacAmountPlainText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Attack : {it}Attacco : {zh-cn}攻击 : {ko}공격 : {es}Ataque : {fr}Attaque : {pt-br}Ataque : {de}Angriff : {ru}Атака: {zh-tw}攻擊：</Text>
-						</Button>
-						<Button id="AttacAmountPlainUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="AttacAmountPlainUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
-						</Button>
-						<Button id="DisplayAttacDetails" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="DisplayAttacDetailsImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">v</Text>
-						</Button>
-					</HorizontalLayout>
-				</VerticalLayout>
-			</Panel>
-			<Panel id="AttacAmountDetails" active="false" preferredHeight="150" outlineSize="0 0">
-				<VerticalLayout>
-					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="AttacAmountPhysiDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="AttacAmountPhysiDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
-						</Button>
-						<Button preferredWidth="210" interactable="false" onClick="">
-							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
-							<Text id="AttacAmountPhysiText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Physical : 0{it}Fisico : 0{ru}Физическая(ий): 0{zh-tw}物理：0{zh-cn}物理：0{ko}물리 : 0{es}Físico : 0{fr}Physique : 0{pt-br}Físico : 0{de}Physikalisch : 0</Text>
-						</Button>
-						<Button id="AttacAmountPhysiUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="AttacAmountPhysiImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
-						</Button>
-					</HorizontalLayout>
-					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="AttacAmountFirexDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="AttacAmountFirexDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
-						</Button>
-						<Button preferredWidth="210" interactable="false" onClick="">
-							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
-							<Text id="AttacAmountFirexText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Fire : 0{it}Fuoco : 0{ru}Огненная(ый): 0{zh-tw}火焰：0{zh-cn}火焰：0{ko}불 : 0{es}Fuego : 0{fr}Feu : 0{pt-br}Fogo : 0{de}Feuer : 0</Text>
-						</Button>
-						<Button id="AttacAmountFirexUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="AttacAmountFirexUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
-						</Button>
-					</HorizontalLayout>
-					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="AttacAmountIcexxDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="AttacAmountIcexxDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
-						</Button>
-						<Button preferredWidth="210" interactable="false" onClick="">
-							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
-							<Text id="AttacAmountIcexxText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Ice : 0{it}Ghiaccio : 0{ru}Ледяная(ой): 0{zh-tw}寒冰：0{zh-cn}寒冰：0{ko}얼음 : 0{es}Hielo : 0{fr}Glace : 0{pt-br}Gelo : 0{de}Eis : 0</Text>
-						</Button>
-						<Button id="AttacAmountIcexxUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="AttacAmountIcexxUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
-						</Button>
-					</HorizontalLayout>
-					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="AttacAmountColdFDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="AttacAmountColdFDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
-						</Button>
-						<Button preferredWidth="210" interactable="false" onClick="">
-							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
-							<Text id="AttacAmountColdFText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Cold Fire : 0{it}Fuoco Freddo : 0{ru}Холодный огонь: 0{zh-tw}冰火：0{zh-cn}冰火：0{ko}차가운 불 : 0{es}Fuego Frío :0{fr}Feu Froid : 0{pt-br}Fogo Frio : 0{de}Kaltes Feuer : 0</Text>
-						</Button>
-						<Button id="AttacAmountColdFUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="AttacAmountColdFUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
-						</Button>
-					</HorizontalLayout>
-					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="AttacAmountPsychDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="AttacAmountPsychDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
-						</Button>
-						<Button preferredWidth="210" interactable="false" onClick="">
-							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
-							<Text id="AttacAmountPsychText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Psychic : 0{it}Psichico : 0{ru}Психическая : 0{zh-tw}心靈：0{zh-cn}心灵：0{ko}정신 : 0{es}Psíquico : 0{fr}Psychique : 0{pt-br}Psíquico : 0{de}Psychisch : 0</Text>
-						</Button>
-						<Button id="AttacAmountPsychUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="AttacAmountPsychUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
-						</Button>
-					</HorizontalLayout>
-				</VerticalLayout>
-			</Panel>
-			<Panel preferredHeight="30" outlineSize="0 0">
-				<VerticalLayout>
-					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="InfluAmountPlainDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="InfluAmountPlainDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
-						</Button>
-						<Button preferredWidth="180" interactable="false" onClick="">
-							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
-							<Text id="InfluAmountPlainText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Influence : {it}Influenza : {zh-cn}影响 : {ko}영향력 : {es}Influencia : {fr}Influence : {pt-br}Influência : {de}Beeinflussung : {ru}Влияние: {zh-tw}影響力：</Text>
-						</Button>
-						<Button id="InfluAmountPlainUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="InfluAmountPlainUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
-						</Button>
-						<Button id="DisplayInfluDetails" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="DisplayInfluDetailsImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">v</Text>
-						</Button>
-					</HorizontalLayout>
-				</VerticalLayout>
-			</Panel>
-			<Panel id="InfluAmountDetails" active="false" preferredHeight="90" outlineSize="0 0">
-				<VerticalLayout>
-					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="InfluAmountPhysiDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="InfluAmountPhysiDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
-						</Button>
-						<Button preferredWidth="210" interactable="false" onClick="">
-							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
-							<Text id="InfluAmountPhysiText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Generated : {it}Generato : {zh-cn}生成的 : {ko}사용 : {es}Generación : {fr}Généré : {pt-br}Gerado : {de}Erzeugt : {ru}Сгенерировано: {zh-tw}產生的：</Text>
-						</Button>
-						<Button id="InfluAmountPhysiUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="InfluAmountPhysiImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
-						</Button>
-					</HorizontalLayout>
-					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="InfluAmountReputDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="InfluAmountReputDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
-						</Button>
-						<Button preferredWidth="210" interactable="false" onClick="">
-							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
-							<Text id="InfluAmountReputText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Reputation : 0{it}Reputazione : 0{ru}Репутация: 0{zh-tw}聲譽：0{zh-cn}声誉：0{ko}평판 : 0{es}Reputación : 0{fr}Réputation : 0{pt-br}Reputação : 0{de}Reputation : 0</Text>
-						</Button>
-						<Button id="InfluAmountReputUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="InfluAmountReputUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
-						</Button>
-					</HorizontalLayout>
-					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="InfluAmountCitySDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="InfluAmountCitySDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
-						</Button>
-						<Button preferredWidth="210" interactable="false" onClick="">
-							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
-							<Text id="InfluAmountCitySText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}City Shields : 0{it}Scudi nella Città : 0{ru}Щиты на городе: 0{zh-tw}城市的盾徽：0{zh-cn}城市的盾徽：0{ko}도시 방패 토큰 : 0{es}Escudos de la Ciudad : 0{fr}Boucliers de Ville : 0{pt-br}Escudos das Cidades : 0{de}Stadtschilde : 0</Text>
-						</Button>
-						<Button id="InfluAmountCitySUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="InfluAmountCitySUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
-						</Button>
-					</HorizontalLayout>
-				</VerticalLayout>
-			</Panel>
-			<Panel preferredHeight="30" outlineSize="0 0">
-				<VerticalLayout>
-					<HorizontalLayout childForceExpandWidth="false">
-						<Button id="HealiAmountPlainDown" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="HealiAmountPlainDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">-</Text>
-						</Button>
-						<Button preferredWidth="180" interactable="false" onClick="">
-							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
-							<Text id="HealiAmountPlainText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Healing : {it}Guarigione : {zh-cn}疗伤 : {ko}치유 : {es}Curación : {fr}Guérison : {pt-br}Cicatrização : {de}Heilung : {ru}Лечение: {zh-tw}治療：</Text>
-						</Button>
-						<Button id="HealiAmountPlainUp" preferredWidth="30" onClick="resourceTracker" class="ShortButton">
-							<Image id="HealiAmountPlainUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">+</Text>
-						</Button>
-						<Button id="DisplayHealiDetails" preferredWidth="30" onClick="" class="ShortButton">
-							<Image id="DisplayHealiDetailsImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1"></Text>
-						</Button>
-					</HorizontalLayout>
-				</VerticalLayout>
-			</Panel>
-		</VerticalLayout>
-	</Panel>
-	<Panel height="35" rectAlignment="UpperCenter" outlineSize="0 0">
-		<HorizontalLayout childForceExpandWidth="false" spacing="0">
-		<Button id="DisplayResourceTrackerDetails" preferredWidth="178" onClick="resourceTracker">
-			<Image id="DisplayResourceTrackerDetailsImage" image="Sliced Button/Button New Active" type="Sliced"/>
-			<VerticalLayout padding="5 5 5 5">
-				<Text class="Title20" alignment="MiddleCenter" id="resourceTrackerText" offsetXY="0 1">{en}Resource Tracker{it}Contatore Risorse{ru}Трекер Ресурсов{zh-tw}資源追蹤器{zh-cn}资源追踪器{ko}자원 추적표{es}Rastreador de Recursos{fr}Suivi des Ressources{pt-br}Rastreador de Recursos{de}Ressourcen-Tracker</Text>
-			</VerticalLayout>
-		</Button>
-		<Button id="DisplayCombatCalculatorHelp" preferredWidth="32" onClick="resourceTracker" class="ShortButton" tooltip="Combat calculator help">
-			<Image image="Sliced Button/Button New Active" type="Sliced"/>
-			<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">?</Text>
-		</Button>
-		</HorizontalLayout>
-	</Panel>
+</VerticalLayout></Panel>
+<Panel height="35" rectAlignment="UpperCenter" outlineSize="0 0" color="rgba(0,0,0,0)"><HorizontalLayout childForceExpandWidth="false" spacing="0"><Button id="DisplayResourceTrackerDetails" preferredWidth="193" onClick="resourceTracker"><Image id="DisplayResourceTrackerDetailsImage" image="Sliced Button/Button New Active" type="Sliced"/><Text class="Title20" alignment="MiddleCenter" id="resourceTrackerText">{en}Resource Tracker{it}Contatore Risorse{ru}Трекер Ресурсов{zh-tw}資源追蹤器{zh-cn}资源追踪器{ko}자원 추적표{es}Rastreador de Recursos{fr}Suivi des Ressources{pt-br}Rastreador de Recursos{de}Ressourcen-Tracker</Text></Button><Button id="DisplayCombatCalculatorHelp" preferredWidth="32" onClick="resourceTracker" class="ShortButton" tooltip="Combat calculator help"><Image image="Sliced Button/Button New Active" type="Sliced"/><Text class="Text24" alignment="MiddleCenter">?</Text></Button></HorizontalLayout></Panel>
 </Panel>
 
 <!-- include UI/ResourceTracker.xml -->
 <!-- include UI/CombatEnemyPanel.xml -->
-<Panel id="CombatEnemyPanel" active="false" class="Floating" rectAlignment="UpperLeft" offsetXY="360 -80" width="1100" height="125" color="rgb(0.2, 0.2, 0.2)" outlineSize="1 -1">
+<Panel id="CombatEnemyPanel" active="false" class="Floating" rectAlignment="UpperLeft" offsetXY="365 -80" width="1100" height="125" color="rgb(0.2, 0.2, 0.2)" outlineSize="1 -1">
 	<VerticalLayout rectAlignment="UpperCenter" offsetXY="0 0" padding="6 6 3 3" childForceExpandHeight="false">
 		<HorizontalLayout padding="5 0 0 0" preferredHeight="20" childForceExpandWidth="false">
 			<Text id="CombatMonsterHeader" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="White" preferredWidth="120" alignment="MiddleLeft">{en}Enemy{it}Nemico{ru}Враг{zh-tw}敵人{zh-cn}敌人{ko}적{es}Enemigo{fr}Ennemi{pt-br}Inimigo{de}Feind</Text>
