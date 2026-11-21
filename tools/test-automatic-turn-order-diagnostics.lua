@@ -153,7 +153,10 @@ local destroyEnv={
     protectedExpectedScriptRemovals={},
     protectedUnexpectedDestroyReported={},
     protectedTurnOrderTokenTrail=tokenHistory,
-    protectedObjectKind=function() return "Round Order token",true end,
+    protectedObjectKind=function(guid)
+        if guid=="otherProtected" then return "Map scripting zone",true end
+        return "Round Order token",true
+    end,
     getObjectFromGUID=function(guid) return objects[guid] end,
     safeWaitFrames=function(scope,fn,frames)
         assert(scope=="ProtectedObjects" and frames==120)
@@ -224,5 +227,51 @@ assert(#reports==4 and reports[4].summary:find("genuine789",1,true),
     "A genuine in-game token loss must still be reported")
 assert(reports[4].context:find("Destruction callbacks last 15s at destroy: 1",1,true),
     "Old destroy bursts must expire after the 15-second rolling window")
+
+-- The 466 reports showed a missing table, every turn-order token gone,
+-- and more than 150 destruction callbacks in 15 seconds. Only that combined
+-- signature should suppress round-order diagnostics (the table's zones survive).
+local nextPending=5
+local function auditWithEnvironment(guid,surfaceMissing,otherMissing,burst)
+    fakeTime=fakeTime+16 -- Age out prior 15-second callback buckets.
+    objects["map-zone"]={}
+    objects["turn-zone"]={}
+    if surfaceMissing then objects["519f96"]=nil else objects["519f96"]={} end
+    if otherMissing then objects.real123=nil else objects.real123=token end
+    for _=1,burst do recordDestroy() end
+    local before=#destroyPending
+    destroyAudit(guid)
+    assert(#destroyPending==before+1,"Protected token destroy should still schedule a check")
+    destroyPending[#destroyPending]()
+end
+
+local reportedBefore=#reports
+auditWithEnvironment("teardownMass",true,true,50)
+assert(#reports==reportedBefore,
+    "Missing table, multiple missing tokens and a large destruction burst should suppress the token report")
+assert(destroyEnv.protectedUnexpectedDestroyReported.teardownMass==nil,
+    "Probable shutdown should not mark the missing token as an ordinary incident")
+
+auditWithEnvironment("tableIntactMass",false,true,50)
+assert(#reports==reportedBefore+1,
+    "Even a large destruction burst must report a missing token if the table is intact")
+auditWithEnvironment("otherTokenIntact",true,false,50)
+assert(#reports==reportedBefore+2,
+    "Missing table and mass destruction must report an isolated token loss")
+auditWithEnvironment("smallCleanup",true,true,49)
+assert(#reports==reportedBefore+3,
+    "Missing table and multiple tokens without a substantial burst still require a report")
+
+-- The new heuristic must never mask missing non-turn-order protected objects,
+-- even if the same teardown-like signals are present.
+fakeTime=fakeTime+16
+objects["519f96"]=nil
+objects.real123=nil
+for _=1,55 do recordDestroy() end
+destroyAudit("otherProtected")
+destroyPending[#destroyPending]()
+assert(destroyEnv.protectedUnexpectedDestroyReported.otherProtected==true,
+    "Only round-order token diagnostics may use the probable-teardown suppression")
+assert(#reports==reportedBefore+3,"Other protected object tests should not emit a turn-order report")
 
 print("Automatic turn-order token diagnostics passed")
