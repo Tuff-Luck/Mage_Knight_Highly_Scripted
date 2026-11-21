@@ -353,6 +353,10 @@ function toggleScorePanel(player, mouseButton, id)
 end
 
 function displayScore(player, mouseButton, id)
+	-- A late score UI callback can run while TTS is unloading the entire table.
+	-- Suppress only the confirmed mass-teardown pattern; keep ordinary scoring
+	-- failures visible so real problems aren't mistaken for shutdown noise.
+	if type(protectedTableTeardownLikely)=="function" and protectedTableTeardownLikely() then return end
 	if mouseButton=="-1" then
 		-- Sort only the presentation copy. Live turnOrder indices must never move,
 		-- even briefly, while players are choosing their tactics.
@@ -1647,6 +1651,9 @@ end
 
 -- Final claimed-card layout
 function layoutClaimedCards(player, mouseButton, id)
+	-- Must run before any Time Bending, scoring, or deck-zone object lookups.
+	-- The physical table may already be gone even though its scripting zones survive.
+	if type(protectedTableTeardownLikely)=="function" and protectedTableTeardownLikely() then return end
 	--A Time Bending set aside on the victorious final round still belongs to its owner and must be present for scoring.
 	if gStates~=nil and gStates.timeBendingRemovedSeat~=nil then if reclaimTimeBending(layoutClaimedCards)==true then return end end
 	--Never dismantle live deed decks/hands while the active turn is still waiting
