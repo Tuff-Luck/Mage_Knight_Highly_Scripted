@@ -299,6 +299,8 @@ local function scoringTeamHeaderStyle(team)
 end
 
 scoreViewing={}
+-- Runtime-only: score UI contents are rebuilt from source on load/rewind.
+local finalScoreLayoutPrepared=false
 function closePanel(player, mouseButton, id)
 	if mouseButton=="-1" then
 		UI.setAttribute("helpButtonReal", "interactable", "true")
@@ -336,7 +338,7 @@ function toggleScorePanel(player, mouseButton, id)
 		return
 	end
 	if gameOver==true then
-		if gStates.finalClaimedCardsLaidOut==true then
+		if finalScoreLayoutPrepared==true then
 			-- Claimed cards have already left their scoring zones. Reopen the
 			-- prepared result without counting the now-moved cards again.
 			scoreViewing[#scoreViewing+1]=player.color
@@ -1710,7 +1712,7 @@ function layoutClaimedCards(player, mouseButton, id)
 			end
 		end
 	end
-	gStates.finalClaimedCardsLaidOut=true
+	finalScoreLayoutPrepared=true
 end
 
 --Swap Day and Night items
