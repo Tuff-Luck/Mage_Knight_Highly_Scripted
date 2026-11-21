@@ -237,7 +237,9 @@ function tacticToggle()
 				getObjectFromGUID(tacticCard[a+show]).lock()
 			end
 		end
-		setUIButtonEnabled("ScoreButtonReal",false)
+		-- Scoring now uses a separate display order, so the Score button stays usable
+		-- while tactics are being chosen.
+		setUIButtonEnabled("ScoreButtonReal",true)
 		--During the very first tactic selection, leave the randomly placed tokens alone so players
 		--can still rearrange them manually. Later rounds can immediately return them to sorted slots.
 		if gStates.turnOrderHelpDismissed==true then turnOrderSort() end
