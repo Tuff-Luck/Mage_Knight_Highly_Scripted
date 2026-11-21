@@ -536,7 +536,8 @@ function eventsOnLoadRawBase(saved_data, loaded_data)
 		if gStates.tacticShown==true or gStates.tacticRemove==true then
 		 	UI.show("NoticeBoard")
 		 	setUIButtonEnabled("DrawOne",false)
-			setUIButtonEnabled("ScoreButtonReal",false)
+			-- Score is safe during tactic selection: it does not reorder live players.
+			setUIButtonEnabled("ScoreButtonReal",true)
 		 	setUIButtonEnabled("EndTurnButton",false)
 		else
 			setUIButtonEnabled("ScoreButtonReal",true)
