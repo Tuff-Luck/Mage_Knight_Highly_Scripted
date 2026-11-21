@@ -134,11 +134,17 @@ local eventStart=assert(eventSource:find(
 local eventFinish=assert(eventSource:find(
     "\nfunction __tryObjectEnterContainer_raw",eventStart,true))
 local eventImplementation=eventSource:sub(eventStart,eventFinish-1)
-    .."\nreturn protectedObjectDestroyAudit"
+    .."\nreturn protectedObjectDestroyAudit, protectedObjectDestroyObserved"
 local destroyPending={}
 local inTeardown=false
+local fakeTime=1700000000.25
+objects["map-zone"]={}
+objects["519f96"]={}
 local destroyEnv={
     eventsExitTeardown=function() return inTeardown end,
+    mapArea="map-zone",
+    turnOrderArea="turn-zone",
+    os={time=function() return fakeTime end,date=os.date},
     gStates={firstStarted=true,gameScenario="First Conquest",
         currentRound=1,turnNumber=2},
     turnOrder=env.turnOrder,
@@ -155,13 +161,22 @@ local destroyEnv={
     log=env.log
 }
 setmetatable(destroyEnv,{__index=_G})
-local destroyAudit=assert(load(eventImplementation,
+local destroyAudit,recordDestroy=assert(load(eventImplementation,
     "Protected object audit","t",destroyEnv))()
 objects.missing456=nil
+recordDestroy()
 destroyAudit("missing456")
 destroyAudit("missing456")
 assert(#destroyPending==1 and #reports==2,
     "Destroy audit should be deferred and pending reports deduplicated")
+-- Three unrelated destruction callbacks follow the token, and another token
+-- disappears while the map and table surface are still present.
+fakeTime=fakeTime+3.25
+recordDestroy()
+recordDestroy()
+recordDestroy()
+objects.real123=nil
+objects["turn-zone"]=nil
 destroyPending[1]()
 assert(#reports==3,"Missing protected token should be reported")
 assert(reports[3].name=="protectedObjectDestroyAudit")
@@ -169,6 +184,16 @@ assert(reports[3].context:find("seat=5 mage=Dummy",1,true))
 assert(reports[3].context:find("Lookup after 120 frames: NOT FOUND",1,true))
 assert(reports[3].context:find("Entered container=trash",1,true),
     "Destroy report must retain the last recorded container destination")
+assert(reports[3].context:find("Token destroyed (UTC): "..
+    os.date("!%Y-%m-%d %H:%M:%S UTC",math.floor(fakeTime-3.25)),1,true))
+assert(reports[3].context:find("Elapsed since destroy callback: 3s",1,true))
+assert(reports[3].context:find("Destruction callbacks last 15s at destroy: 1",1,true))
+assert(reports[3].context:find("Destruction callbacks since token destroy: 3",1,true))
+assert(reports[3].context:find("Destruction callbacks last 15s at verification: 4",1,true))
+assert(reports[3].context:find("Shutdown anchors at destroy: map zone=FOUND, table surface=FOUND, turn-order zone=FOUND",1,true))
+assert(reports[3].context:find("Shutdown anchors at verification: map zone=FOUND, table surface=FOUND, turn-order zone=MISSING",1,true))
+assert(reports[3].context:find("Other turn-order tokens at destroy: found=1 missing/unavailable=0 [1:real123=FOUND]",1,true))
+assert(reports[3].context:find("Other turn-order tokens at verification: found=0 missing/unavailable=1 [1:real123=MISSING]",1,true))
 
 -- Restored or explicitly permitted objects must not generate a false alarm.
 destroyAudit("returned123")
