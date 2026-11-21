@@ -335,8 +335,16 @@ function toggleScorePanel(player, mouseButton, id)
 		UI.hide("ScoreBoard")
 		return
 	end
-	if gameOver==true and gStates.finalClaimedCardsLaidOut~=true then
-		layoutClaimedCards(player,mouseButton,id)
+	if gameOver==true then
+		if gStates.finalClaimedCardsLaidOut==true then
+			-- Claimed cards have already left their scoring zones. Reopen the
+			-- prepared result without counting the now-moved cards again.
+			scoreViewing[#scoreViewing+1]=player.color
+			setUIVisibility("ScoreBoard",scoreViewing)
+			UI.show("ScoreBoard")
+		else
+			layoutClaimedCards(player,mouseButton,id)
+		end
 	else
 		displayScore(player,mouseButton,id)
 	end
