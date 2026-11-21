@@ -231,7 +231,6 @@ assert(reports[4].context:find("Destruction callbacks last 15s at destroy: 1",1,
 -- The 466 reports showed a missing table, every turn-order token gone,
 -- and more than 150 destruction callbacks in 15 seconds. Only that combined
 -- signature should suppress round-order diagnostics (the table's zones survive).
-local nextPending=5
 local function auditWithEnvironment(guid,surfaceMissing,otherMissing,burst)
     fakeTime=fakeTime+16 -- Age out prior 15-second callback buckets.
     objects["map-zone"]={}
