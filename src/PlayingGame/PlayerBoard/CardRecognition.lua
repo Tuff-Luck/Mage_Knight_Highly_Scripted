@@ -11331,7 +11331,7 @@ local function renderSeat(seatPos)
     local ignoreSiteFortifications=false
     local terrainModifiers=resourceCardsWeatherTerrainEffects(seatPos)
     local movementEffects={jumpTwoSpaces=false,ignoreRampagers=false,
-        singleSpaceDiscount=0}
+        singleSpaceDiscount=0,windFlightMax=0}
     local usesSkillLocation=false
     -- This is a reusable declarative overlay. All passives are owned-Skill
     -- effects, whether the physical token is resting at home or being played.
@@ -11943,6 +11943,9 @@ local function renderSeat(seatPos)
             if effect~=nil then
                 if effect.jumpTwoSpaces==true then movementEffects.jumpTwoSpaces=true end
                 if effect.ignoreRampagers==true then movementEffects.ignoreRampagers=true end
+                if effect.windFlightMax~=nil then
+                    movementEffects.windFlightMax=math.max(movementEffects.windFlightMax,effect.windFlightMax)
+                end
             end
         end
         if rule~=nil and result.complete and result.resources~=nil
@@ -13733,6 +13736,7 @@ local function renderSeat(seatPos)
     local movementChanged=priorMovement==nil
         or priorMovement.jumpTwoSpaces~=movementEffects.jumpTwoSpaces
         or priorMovement.ignoreRampagers~=movementEffects.ignoreRampagers
+        or (priorMovement.windFlightMax or 0)~=movementEffects.windFlightMax
         or (priorMovement.singleSpaceDiscount or 0)~=movementEffects.singleSpaceDiscount
     local previousTransform=previousScan~=nil and previousScan.attackTransforms or nil
     local transformChanged=previousTransform==nil
