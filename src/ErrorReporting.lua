@@ -5,7 +5,7 @@ local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
 local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="466"
+local automaticLuaErrorReporterVersion="467"
 
 -- Per-script-session wall-clock timestamps. They are deliberately not saved:
 -- onLoad / rewind creates a new TTS script session. Keep these helpers together
@@ -28,6 +28,19 @@ local automaticLuaErrorSession={
 function automaticLuaRecordModLoad()
 	automaticLuaErrorSession.modLoadedAt=os.time()
 	automaticLuaErrorSession.lastSaveAt=nil
+	automaticLuaErrorSession.loadStage="onLoad entered"
+end
+-- An incomplete load retains its final stage until a new load starts.
+-- This also lets a later onObjectDestroy report explain a partial startup.
+function automaticLuaSetLoadStage(stage)
+	automaticLuaErrorSession.loadStage=stage
+end
+function automaticLuaLoadStageContext()
+	local stage=automaticLuaErrorSession.loadStage
+	if stage==nil then return "" end
+	return "Load stage: "..tostring(stage)
+		.."\nSeat configuration initialized: "
+		..tostring(type(gStates)=="table" and type(gStates.positionMageKnight)=="table")
 end
 function automaticLuaRecordModSave()
 	automaticLuaErrorSession.lastSaveAt=os.time()
