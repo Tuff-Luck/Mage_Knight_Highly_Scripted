@@ -160,7 +160,7 @@ local protectedDestroyAuditPending={}
 -- 15 one-second buckets avoid allocating a new history entry for every destroyed
 -- TTS object (important on slower machines and during mass scene teardown).
 local protectedDestroyEvidence={total=0,buckets={}}
-local function protectedObjectDestroyObserved()
+function protectedDestroyEvidence.observe()
 	local second=math.floor(os.time())
 	local index=(second%15)+1
 	local bucket=protectedDestroyEvidence.buckets[index]
@@ -171,7 +171,7 @@ local function protectedObjectDestroyObserved()
 	bucket.count=bucket.count+1
 	protectedDestroyEvidence.total=protectedDestroyEvidence.total+1
 end
-local function protectedObjectDestroyRecent(at)
+function protectedDestroyEvidence.recent(at)
 	local second=math.floor(at)
 	local count=0
 	for _,bucket in pairs(protectedDestroyEvidence.buckets) do
@@ -182,24 +182,24 @@ end
 
 -- These lookups are deliberately protected: a TTS object can expire while
 -- the report is being constructed, especially during scene teardown.
-local function protectedDestroyObjectStatus(guid)
+function protectedDestroyEvidence.objectStatus(guid)
 	if type(guid)~="string" or guid=="" then return "UNSET" end
 	local ok,obj=pcall(getObjectFromGUID,guid)
 	if not ok then return "LOOKUP ERROR" end
 	return obj==nil and "MISSING" or "FOUND"
 end
-local function protectedDestroyAnchorSnapshot()
-	return "map zone="..protectedDestroyObjectStatus(mapArea)
-		..", table surface="..protectedDestroyObjectStatus("519f96")
-		..", turn-order zone="..protectedDestroyObjectStatus(turnOrderArea)
+function protectedDestroyEvidence.anchorSnapshot()
+	return "map zone="..protectedDestroyEvidence.objectStatus(mapArea)
+		..", table surface="..protectedDestroyEvidence.objectStatus("519f96")
+		..", turn-order zone="..protectedDestroyEvidence.objectStatus(turnOrderArea)
 end
-local function protectedDestroyOtherTokensSnapshot(excludedGUID)
+function protectedDestroyEvidence.otherTokensSnapshot(excludedGUID)
 	local entries={}
 	local found,missing=0,0
 	for index,details in pairs(turnOrder or {}) do
 		if type(details)=="table" and details.turnOrderTokenGUID~=excludedGUID then
 			local guid=details.turnOrderTokenGUID
-			local status=protectedDestroyObjectStatus(guid)
+			local status=protectedDestroyEvidence.objectStatus(guid)
 			if status=="FOUND" then found=found+1 else missing=missing+1 end
 			entries[#entries+1]=tostring(index)..":"..tostring(guid).."="..status
 		end
@@ -223,9 +223,9 @@ local function protectedObjectDestroyAudit(guid)
 	local evidence=kind=="Round Order token" and {
 		destroyedAt=startedAt,
 		destroyCount=protectedDestroyEvidence.total,
-		recentCount=protectedObjectDestroyRecent(startedAt),
-		anchors=protectedDestroyAnchorSnapshot(),
-		otherTokens=protectedDestroyOtherTokensSnapshot(guid)
+		recentCount=protectedDestroyEvidence.recent(startedAt),
+		anchors=protectedDestroyEvidence.anchorSnapshot(),
+		otherTokens=protectedDestroyEvidence.otherTokensSnapshot(guid)
 	} or true
 	-- Shutdown destroys objects in stages; the old two-frame check could run while
 	-- anchors were still present and dispatch a spurious remote error report.
@@ -264,11 +264,11 @@ local function protectedObjectDestroyAudit(guid)
 					.."\nDestruction callbacks since token destroy: "
 						..tostring(math.max(0,protectedDestroyEvidence.total-evidence.destroyCount))
 					.."\nDestruction callbacks last 15s at verification: "
-						..tostring(protectedObjectDestroyRecent(os.time()))
+						..tostring(protectedDestroyEvidence.recent(os.time()))
 					.."\nShutdown anchors at destroy: "..evidence.anchors
-					.."\nShutdown anchors at verification: "..protectedDestroyAnchorSnapshot()
+					.."\nShutdown anchors at verification: "..protectedDestroyEvidence.anchorSnapshot()
 					.."\nOther turn-order tokens at destroy: "..evidence.otherTokens
-					.."\nOther turn-order tokens at verification: "..protectedDestroyOtherTokensSnapshot(guid)
+					.."\nOther turn-order tokens at verification: "..protectedDestroyEvidence.otherTokensSnapshot(guid)
 					.."\nToken lifecycle:\n"..(protectedTurnOrderTokenTrail[guid]~=nil
 						and table.concat(protectedTurnOrderTokenTrail[guid],"\n") or "No token events captured"))
 		end
@@ -1123,7 +1123,7 @@ function __onObjectDestroy_raw(destroyedObj)
 	-- Read its GUID once, defensively; pass only the GUID to cleanup that does not need the object.
 	local guidOK,destroyedGuid=pcall(function() return destroyedObj.guid end)
 	if not guidOK or type(destroyedGuid)~="string" or destroyedGuid=="" then return end
-	protectedObjectDestroyObserved()
+	protectedDestroyEvidence.observe()
 	-- Combat cleanup refreshes target buttons/lines. Run it after TTS finishes retiring the
 	-- object, rather than recalculating while the dying object is still in physics/zone lists.
 	safeWaitFrames("Events",function() attackAssignmentsClearForObject(destroyedGuid) end,1)
