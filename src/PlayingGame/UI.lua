@@ -1409,13 +1409,13 @@ local function mainUIRefreshStatusPanel(context,playerState)
 		setUIButtonEnabled("EndTurnButton",false)
 		setUIButtonEnabled("EndTurnButtonAlt",false)
 	end
-	UI.setAttribute("ScoreButtonReal", "onClick", "displayScore")
+	UI.setAttribute("ScoreButtonReal", "onClick", "toggleScorePanel")
 	if gameOver==true then
 		UI.setAttribute("PreEndTurn", "onClick", "layoutClaimedCards")
 		UI.setAttribute("PreEndTurnText", "text", "{en}Game Over - Show Score{it}Partita Finita - Punteggio{ru}Игра окончена{zh-tw}遊戲結束{zh-cn}游戏结束{ko}게임 종료{es}Fin de Partida{fr}Jeu Terminé{pt-br}Fim de Jogo{de}Spiel Beendet")
 		UI.setAttribute("DummyButton", "onClick", "layoutClaimedCards")
 		UI.setAttribute("DummyButtonText", "Text", "{en}Game Over - Show Score{it}Partita Finita - Punteggio{ru}Игра окончена{zh-tw}遊戲結束{zh-cn}游戏结束{ko}게임 종료{es}Fin de Partida{fr}Jeu Terminé{pt-br}Fim de Jogo{de}Spiel Beendet")
-		UI.setAttribute("ScoreButtonReal", "onClick", "layoutClaimedCards")
+		-- Score stays a toggle; the first final-score opening still lays out claimed cards.
 		local noTurnsLeftToUndoInto=gStates.endRoundCalled==true and nextPlayerEndCalled==true and gStates.currentRound>=gStates.rounds
 		local victoryRegistered=false
 		for _, turnDetails in pairs(turnOrder) do if turnDetails.gameEnder==true then victoryRegistered=true break end end
@@ -1997,7 +1997,9 @@ end
 
 
 function openBugReportPanel(player, value, id)
-	UI.setAttribute("SendBugRequest", "active", "true")
+	if value~="-1" then return end
+	local opened=UI.getAttribute("SendBugRequest","active")=="true"
+	UI.setAttribute("SendBugRequest","active",opened and "false" or "true")
 end
 
 function setBugReportComment(player, value, id)
