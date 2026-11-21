@@ -5,7 +5,7 @@ local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
 local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="465"
+local automaticLuaErrorReporterVersion="466"
 
 -- Per-script-session wall-clock timestamps. They are deliberately not saved:
 -- onLoad / rewind creates a new TTS script session. Keep these helpers together
@@ -310,11 +310,11 @@ local function reportAutomaticLuaError(functionName, errorText, context, heading
 	local comment=(heading or "AUTOMATIC LUA ERROR").."\nReporter Version: "..tostring(automaticLuaErrorReporterVersion).."\nFunction: "..tostring(functionName)
 		.."\nMod loaded (UTC): "..automaticLuaErrorSession.utcTimestamp(automaticLuaErrorSession.modLoadedAt)
 		.."\nReport generated (UTC): "..automaticLuaErrorSession.utcTimestamp(now)
-		.."\nTime since mod load: "..tostring(math.max(0,now-automaticLuaErrorSession.modLoadedAt))
+		.."\nTime since mod load: "..tostring(math.max(0,math.floor(now-automaticLuaErrorSession.modLoadedAt)))
 			.."s ("..automaticLuaErrorSession.duration(now-automaticLuaErrorSession.modLoadedAt)..")"
 	if automaticLuaErrorSession.lastSaveAt~=nil then
 		comment=comment.."\nLast onSave (UTC): "..automaticLuaErrorSession.utcTimestamp(automaticLuaErrorSession.lastSaveAt)
-			.."\nTime since onSave: "..tostring(math.max(0,now-automaticLuaErrorSession.lastSaveAt)).."s"
+			.."\nTime since onSave: "..tostring(math.max(0,math.floor(now-automaticLuaErrorSession.lastSaveAt))).."s"
 	end
 	if context~=nil and context~="" then comment=comment.."\n"..tostring(context) end
 	local breadcrumbs=automaticLuaBreadcrumbText()
