@@ -66,6 +66,8 @@ assert(env.turnOrder[2].turnOrderTokenGUID=="missing456",
 local eventFile=assert(io.open("src/PlayingGame/Events.lua","r"))
 local eventSource=eventFile:read("*a")
 eventFile:close()
+assert(eventSource:find("if not guidOK or type(destroyedGuid)~=\"string\" or destroyedGuid==\"\" then return end\n\tprotectedDestroyEvidence.observe()",1,true),
+    "Valid onObjectDestroy callbacks must update the rolling destruction counter")
 -- Starting turn-order tokens must rest at the table height rather than
 -- hover above it. The dummy token must remain movable like human tokens.
 local setupFile=assert(io.open("src/SetupGame/Players.lua","r"))
