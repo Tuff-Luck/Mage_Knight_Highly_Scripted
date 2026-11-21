@@ -216,18 +216,29 @@ function protectedDestroyEvidence.probableTurnOrderTeardown(excludedGUID)
 	if protectedDestroyEvidence.objectStatus("519f96")~="MISSING" then return false end
 	if protectedDestroyEvidence.recent(os.time())<50 then return false end
 	if type(turnOrder)~="table" then return false end
-	-- The audited token is already confirmed absent by the caller. One other
-	-- *assigned* token missing means at least two distinct player tokens are gone.
+	-- A token already verified as missing by the destroy audit counts once.
+	-- Other callers (such as scoring) must independently find two missing
+	-- assigned tokens. Never count a duplicated saved GUID twice.
+	local missing=(type(excludedGUID)=="string" and excludedGUID~="") and 1 or 0
+	local seen={}
 	for _,details in pairs(turnOrder) do
-		if type(details)=="table" then
-			local otherGUID=details.turnOrderTokenGUID
-			if type(otherGUID)=="string" and otherGUID~="" and otherGUID~=excludedGUID
-				and protectedDestroyEvidence.objectStatus(otherGUID)=="MISSING" then
-				return true
+		local guid=type(details)=="table" and details.turnOrderTokenGUID or nil
+		if type(guid)=="string" and guid~="" and guid~=excludedGUID and seen[guid]~=true then
+			seen[guid]=true
+			if protectedDestroyEvidence.objectStatus(guid)=="MISSING" then
+				missing=missing+1
+				if missing>=2 then return true end
 			end
 		end
 	end
 	return false
+end
+
+-- Scoring can be invoked by a late UI callback after the physical table has
+-- started unloading. Expose only the same strong, observational teardown signal;
+-- never set the global shutdown flag or change normal score calculations.
+function protectedTableTeardownLikely()
+	return protectedDestroyEvidence.probableTurnOrderTeardown(nil)
 end
 -- Let TTS finish unloading before treating a destroy event as a real in-game loss.
 -- A save alone is not proof of exit; genuine losses still report after this grace.
