@@ -87,7 +87,7 @@ assert(posted[3].Comment:find("Load stage: Events: restore resource and combat c
 assert(posted[3].Comment:find("Seat configuration initialized: true",1,true))
 
 local destroyed=env.safeCallback("onObjectDestroy",function() error("simulated cleanup failure") end,
-    function() return "Destroyed object GUID=startup\\n"..env.automaticLuaLoadStageContext() end)
+    function() return "Destroyed object GUID=startup\n"..env.automaticLuaLoadStageContext() end)
 assert(destroyed==false)
 assert(#posted==4)
 assert(posted[4].Comment:find("Destroyed object GUID=startup",1,true))
