@@ -134,7 +134,7 @@ local eventStart=assert(eventSource:find(
 local eventFinish=assert(eventSource:find(
     "\nfunction __tryObjectEnterContainer_raw",eventStart,true))
 local eventImplementation=eventSource:sub(eventStart,eventFinish-1)
-    .."\nreturn protectedObjectDestroyAudit, protectedObjectDestroyObserved"
+    .."\nreturn protectedObjectDestroyAudit, protectedDestroyEvidence.observe"
 local destroyPending={}
 local inTeardown=false
 local fakeTime=1700000000.25
@@ -212,10 +212,15 @@ inTeardown=true
 destroyPending[3]()
 assert(#reports==3,"Shutdown should suppress pending destroy reports")
 inTeardown=false
+-- The one-second rolling buckets expire without collecting unbounded history.
+fakeTime=fakeTime+16
+recordDestroy()
 destroyAudit("genuine789")
 assert(#destroyPending==4,"Normal gameplay must still audit later token losses")
 destroyPending[4]()
 assert(#reports==4 and reports[4].summary:find("genuine789",1,true),
     "A genuine in-game token loss must still be reported")
+assert(reports[4].context:find("Destruction callbacks last 15s at destroy: 1",1,true),
+    "Old destroy bursts must expire after the 15-second rolling window")
 
 print("Automatic turn-order token diagnostics passed")
