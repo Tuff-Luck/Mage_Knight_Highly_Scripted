@@ -107,6 +107,7 @@ local moveDisplaySavedRouteStyles={
     {color={0.20,0.70,1.00},thickness=0.12}, -- teleport
     {color={0.28,0.86,0.57},thickness=0.11}, -- leap
     {color={0.72,0.45,1.00},thickness=0.07}, -- tunnel
+    {color={0.96,0.78,0.25},thickness=0.13}, -- Wings of Wind
 }
 local function moveDisplayIsSavedRouteLine(line)
     if type(line)~="table" or type(line.points)~="table"
@@ -177,6 +178,56 @@ do
         end
     end
 end
+-- Wings of Wind is one flight, consuming 1-5 existing Move points. Traverse
+-- revealed spaces regardless of terrain, walls or enemies, but land only safely.
+-- Return the path as well as its cost so the calculator can draw the flight.
+function moveDisplayWindDestinations(hexMap,sourceHor,sourceVec,maxSteps,jumpTwoSpaces)
+    local vectors=MOVE_DISPLAY_VECTORS
+    if jumpTwoSpaces==true then
+        vectors={}
+        for _,offset in ipairs(MOVE_DISPLAY_VECTORS) do vectors[#vectors+1]=offset end
+        for _,offset in ipairs(MOVE_DISPLAY_TWO_HEX_VECTORS) do vectors[#vectors+1]=offset end
+    end
+    local queue={{hor=sourceHor,vec=sourceVec,distance=0}}
+    local seen={[tostring(sourceHor)..":"..tostring(sourceVec)]=true}
+    local results={}
+    local head=1
+    while head<=#queue do
+        local current=queue[head]
+        head=head+1
+        if current.distance<math.min(5,maxSteps or 5) then
+            for _,offset in ipairs(vectors) do
+                local hor,vec=current.hor+offset[1],current.vec+offset[2]
+                local key=tostring(hor)..":"..tostring(vec)
+                local row=hexMap[tostring(hor)]
+                local target=row~=nil and row[tostring(vec)] or nil
+                -- A wall or an exploration placeholder is not a revealed space.
+                if not seen[key] and target~=nil and target.tileGUID~=nil
+                    and target.hexType~=nil and target.hexType~="explore" then
+                    seen[key]=true
+                    local nextStep={hor=hor,vec=vec,distance=current.distance+1,parent=current}
+                    queue[#queue+1]=nextStep
+                    -- Unsafe spaces can be crossed but cannot end the spell's flight.
+                    local safe=(target.fortified==nil or target.fortified=="shield")
+                        and target.dragonLair~=true and target.rampager~=true
+                        and target.hexType~="rampager"
+                        and resourceCardsEffectiveTerrainCost(target.hexType)<900
+                    if safe then
+                        local path={}
+                        local cursor=nextStep
+                        while cursor~=nil do
+                            table.insert(path,1,{hor=cursor.hor,vec=cursor.vec})
+                            cursor=cursor.parent
+                        end
+                        results[#results+1]={hor=hor,vec=vec,cost=nextStep.distance,path=path}
+                    end
+                end
+            end
+        end
+    end
+    return results
+end
+
 MOVE_DISPLAY_RAMPAGE_ADJACENT={{1,0}, {0,-1}, {-1,-1}, {-1,0}, {0,1}, {1,1}, {1,0}, {0,-1}}
 MOVE_DISPLAY_RAMPAGE_WALL={{0.5,-0.5}, {-0.5,-1}, {-1,-0.5}, {-0.5,0.5}, {0.5,1}, {1,0.5}, {0.5,-0.5}}
 MOVE_DISPLAY_CITY_GUIDS=nil
@@ -565,6 +616,7 @@ function renderMoveDisplay(id)
         local movementEffects=resourceCardsCurrentMovementEffects()
         local jumpTwoSpaces=movementEffects~=nil and movementEffects.jumpTwoSpaces==true
         local ignoreRampagers=movementEffects~=nil and movementEffects.ignoreRampagers==true
+        local windFlightMax=movementEffects~=nil and (movementEffects.windFlightMax or 0) or 0
 
 		--Fractured Lands: index every revealed safe no-site destination by its printed terrain.
 		--Teleporting costs 1 Move, ignores intervening spaces/walls/rampagers, and can be mixed with normal movement repeatedly.
@@ -719,7 +771,7 @@ function renderMoveDisplay(id)
 			if hexCost<recordedCost then
 				destinationMove[state]=hexCost
 				destinationMove[state.."Prev"]=predecessor
-				if (state=="safe" or state=="safeDiscount") and allowFringe==true then
+				if state:sub(1,4)=="safe" and allowFringe==true then
                     queueMoveFringe(hor,vec,state)
                 end
 			end
@@ -735,6 +787,9 @@ function renderMoveDisplay(id)
 				local sourceMove=sourceRow~=nil and sourceRow[tostring(hexDetail.coord[2])] or nil
 				local sourceState=hexDetail.state or "safe"
                 local moveSpent=sourceMove~=nil and sourceMove[sourceState] or 99
+                local spentWind=sourceState:find("Wind",1,true)~=nil
+                local usedDiscount=sourceState:find("Discount",1,true)~=nil
+                local windSuffix=spentWind and "Wind" or ""
 
 				--figure out the move cost to reach surrounding hexs
 				for currentVector, vector in pairs(MOVE_DISPLAY_VECTORS) do
@@ -765,13 +820,13 @@ function renderMoveDisplay(id)
 							local predecessor={hor=hexDetail.coord[1],vec=hexDetail.coord[2],
                                 state=sourceState,teleport=false}
                             local canContinue=destinationHex.hexType~="explore"
-                            local kind=sourceState=="safeDiscount" and "safeDiscount" or "safe"
+                            local kind=usedDiscount and "safeDiscount"..windSuffix or "safe"..windSuffix
                             recordMoveDestination(hor,vec,combatDestination
-                                and (kind=="safeDiscount" and "combatDiscount" or "combat")
+                                and (usedDiscount and "combatDiscount"..windSuffix or "combat"..windSuffix)
                                 or kind,hexCost,predecessor,not combatDestination and canContinue)
-                            if moveDiscount>0 and sourceState=="safe" and terrainCost>2 then
+                            if moveDiscount>0 and not usedDiscount and terrainCost>2 then
                                 recordMoveDestination(hor,vec,
-                                    combatDestination and "combatDiscount" or "safeDiscount",
+                                    combatDestination and "combatDiscount"..windSuffix or "safeDiscount"..windSuffix,
                                     hexCost-math.min(moveDiscount,terrainCost-2),
                                     predecessor,not combatDestination and canContinue)
                             end
@@ -798,15 +853,32 @@ function renderMoveDisplay(id)
                                 local predecessor={hor=hexDetail.coord[1],vec=hexDetail.coord[2],
                                     state=sourceState,teleport=false,leap=true}
                                 recordMoveDestination(hor,vec,combat
-                                    and (sourceState=="safeDiscount" and "combatDiscount" or "combat")
+                                    and (usedDiscount and "combatDiscount"..windSuffix or "combat"..windSuffix)
                                     or sourceState,hexCost,predecessor,not combat)
-                                if moveDiscount>0 and sourceState=="safe" and terrainCost>2 then
-                                    recordMoveDestination(hor,vec,combat and "combatDiscount"
-                                        or "safeDiscount",
+                                if moveDiscount>0 and not usedDiscount and terrainCost>2 then
+                                    recordMoveDestination(hor,vec,combat and "combatDiscount"..windSuffix
+                                        or "safeDiscount"..windSuffix,
                                         hexCost-math.min(moveDiscount,terrainCost-2),
                                         predecessor,not combat)
                                 end
                             end
+                        end
+                    end
+                end
+
+                -- Cast the flight once from any reachable safe position. It
+                -- spends 1-5 Move, ignoring all intervening terrain costs.
+                -- Wind states can continue moving, but cannot fly again.
+                if windFlightMax>0 and not spentWind and moveSpent<moveValue+searchLimit then
+                    local windState=usedDiscount and "safeDiscountWind" or "safeWind"
+                    for _,landing in ipairs(moveDisplayWindDestinations(hexMap,
+                        hexDetail.coord[1],hexDetail.coord[2],windFlightMax,jumpTwoSpaces)) do
+                        local hexCost=moveSpent+landing.cost
+                        if hexCost<(moveDestination(landing.hor,landing.vec)[windState] or 100) then
+                            local predecessor={hor=hexDetail.coord[1],vec=hexDetail.coord[2],
+                                state=sourceState,windPath=landing.path}
+                            recordMoveDestination(landing.hor,landing.vec,windState,
+                                hexCost,predecessor,true)
                         end
                     end
                 end
@@ -853,7 +925,7 @@ function renderMoveDisplay(id)
 		local function routeWorldPosition(hor, vec)
 			return runtimeMapAxialToWorld(vec,hor,startTilePos,1.22)
 		end
-		local function addRouteSegment(fromHor, fromVec, toHor, toVec, teleport, tunnelPath, leap)
+		local function addRouteSegment(fromHor, fromVec, toHor, toVec, teleport, tunnelPath, leap, windPath)
 			local function addOne(aHor,aVec,bHor,bVec,mode)
 				local key=tostring(aHor)..":"..tostring(aVec)..">"..tostring(bHor)..":"..tostring(bVec)..":"..tostring(mode)
 				if routeSegmentSeen[key]==true then return end
@@ -862,10 +934,15 @@ function renderMoveDisplay(id)
 				local thickness=0.07
 				if mode=="teleport" then color={0.20,0.70,1.00} thickness=0.12
                 elseif mode=="leap" then color={0.28,0.86,0.57} thickness=0.11
-                elseif mode=="tunnel" then color={0.72,0.45,1.00} end
+                elseif mode=="tunnel" then color={0.72,0.45,1.00}
+                elseif mode=="wind" then color={0.96,0.78,0.25} thickness=0.13 end
 				routeLines[#routeLines+1]={points={routeWorldPosition(aHor,aVec),routeWorldPosition(bHor,bVec)},color=color,thickness=thickness,rotation={0,0,0}}
 			end
-			if tunnelPath~=nil and #tunnelPath>1 then
+			if windPath~=nil and #windPath>1 then
+                for i=1,#windPath-1 do
+                    addOne(windPath[i].hor,windPath[i].vec,windPath[i+1].hor,windPath[i+1].vec,"wind")
+                end
+            elseif tunnelPath~=nil and #tunnelPath>1 then
 				for i=1,#tunnelPath-1 do addOne(tunnelPath[i].hor,tunnelPath[i].vec,tunnelPath[i+1].hor,tunnelPath[i+1].vec,"tunnel") end
 			else
 				addOne(fromHor,fromVec,toHor,toVec,leap==true and "leap"
@@ -882,7 +959,8 @@ function renderMoveDisplay(id)
 			for vec, moveDetails in pairs(rowOfHexes) do
 				local routeCost=moveDetails.safe
                     local routeState="safe"
-                    for _,state in ipairs({"safeDiscount","combat","combatDiscount"}) do
+                    for _,state in ipairs({"safeDiscount","safeWind","safeDiscountWind",
+                        "combat","combatDiscount","combatWind","combatDiscountWind"}) do
                         if moveDetails[state]~=nil
                             and (routeCost==nil or moveDetails[state]<routeCost) then
                             routeCost=moveDetails[state]
@@ -900,12 +978,11 @@ function renderMoveDisplay(id)
 				local previous=routeMove~=nil and routeMove[current.state.."Prev"] or nil
 				if previous~=nil then
 					addRouteSegment(previous.hor, previous.vec, current.hor, current.vec,
-                        previous.teleport, previous.tunnelPath, previous.leap)
+                        previous.teleport, previous.tunnelPath, previous.leap, previous.windPath)
 					--Only a safe state used by a retained onward route deserves an alternate slash value.
 					local sourceRow=moveMap[tostring(previous.hor)]
 					local sourceMove=sourceRow~=nil and sourceRow[tostring(previous.vec)] or nil
-					if sourceMove~=nil and (previous.state=="safe"
-                        or previous.state=="safeDiscount") then sourceMove.safeUsedOnward=1 end
+					if sourceMove~=nil and (previous.state:sub(1,4)=="safe") then sourceMove.safeUsedOnward=1 end
 					queueRouteState(previous.hor,previous.vec,previous.state or "safe")
 				end
 			end
@@ -915,16 +992,16 @@ function renderMoveDisplay(id)
 		--Highlight movement costs with spawned text instead of numbered image decals.
 		for hor,rowOfHexes in pairs(moveMap) do
 			for vec,hexCost in pairs(rowOfHexes) do
-				local safeCost=hexCost.safe
-                    if hexCost.safeDiscount~=nil then
-                        safeCost=safeCost==nil and hexCost.safeDiscount
-                            or math.min(safeCost,hexCost.safeDiscount)
-                    end
-                    local combatCost=hexCost.combat
-                    if hexCost.combatDiscount~=nil then
-                        combatCost=combatCost==nil and hexCost.combatDiscount
-                            or math.min(combatCost,hexCost.combatDiscount)
-                    end
+				local safeCost=nil
+                for _,state in ipairs({"safe","safeDiscount","safeWind","safeDiscountWind"}) do
+                    local cost=hexCost[state]
+                    if cost~=nil then safeCost=safeCost==nil and cost or math.min(safeCost,cost) end
+                end
+                local combatCost=nil
+                for _,state in ipairs({"combat","combatDiscount","combatWind","combatDiscountWind"}) do
+                    local cost=hexCost[state]
+                    if cost~=nil then combatCost=combatCost==nil and cost or math.min(combatCost,cost) end
+                end
 				local lowestHex=safeCost
 				local lowestCombat=false
 				if combatCost~=nil and (lowestHex==nil or combatCost<lowestHex) then lowestHex=combatCost lowestCombat=true end
