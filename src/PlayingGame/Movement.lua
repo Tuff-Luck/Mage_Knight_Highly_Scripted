@@ -461,33 +461,55 @@ end
 
 -- Keep the movement-map origin in sync even if spending all Move hides the route overlay.
 -- Shared by the manual refresh button and the map exploration event.
-function moveDisplayCaptureAvatarOrigin()
+-- Use the same physical avatar and City translation for both the route
+-- origin and the movement already spent before an Explore click.
+function moveDisplayCurrentAvatarPosition()
     local currentTurn=gStates~=nil and turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
-    if currentTurn==nil or currentTurn.avatarLocation==nil
-        or gStates.resourceTracker==nil then return end
-	for _, details in pairs(mageKnights) do
-		if details.mage==currentTurn.mage then
-			if getObjectFromGUID(details.model)~=nil then gStates.resourceTracker.playerPos={getObjectFromGUID(details.model).getPosition()[1], getObjectFromGUID(details.model).getPosition()[2], getObjectFromGUID(details.model).getPosition()[3]} end
-			if getObjectFromGUID(details.token)~=nil then gStates.resourceTracker.playerPos=getObjectFromGUID(details.token).getPosition() end
-			if getObjectFromGUID(details.standee)~=nil then gStates.resourceTracker.playerPos=getObjectFromGUID(details.standee).getPosition() end
-		end
-	end
-	local avatarLocation=currentTurn.avatarLocation
-	if avatarLocation:sub(1, 4)=="city" or avatarLocation=="Volkare's Camp" then
-		--figure out which city avatar is in
-		for zone, citySearch in pairs(cityScriptZones) do
-			local zoneObj=getObjectFromGUID(zone)
-			if zoneObj~=nil then
-				for _, detail in pairs(zoneObj.getObjects()) do
-					if joinLangEnglish(tostring(detail.getName() or ""))==currentTurn.mage then
-						local cityObj=getObjectFromGUID(citySearch.cityGUID)
-						if cityObj~=nil then gStates.resourceTracker.playerPos=cityObj.getPosition() end
-						break
-					end
-				end
-			end
-		end
-	end
+    if currentTurn==nil or currentTurn.avatarLocation==nil then return nil end
+    local playerPos=nil
+    for _, details in pairs(mageKnights) do
+        if details.mage==currentTurn.mage then
+            local model=getObjectFromGUID(details.model)
+            local token=getObjectFromGUID(details.token)
+            local standee=getObjectFromGUID(details.standee)
+            if model~=nil then playerPos=model.getPosition() end
+            if token~=nil then playerPos=token.getPosition() end
+            if standee~=nil then playerPos=standee.getPosition() end
+        end
+    end
+    local avatarLocation=currentTurn.avatarLocation
+    if avatarLocation:sub(1,4)=="city" or avatarLocation=="Volkare's Camp" then
+        for zone, citySearch in pairs(cityScriptZones) do
+            local zoneObj=getObjectFromGUID(zone)
+            if zoneObj~=nil then
+                for _, detail in pairs(zoneObj.getObjects()) do
+                    if joinLangEnglish(tostring(detail.getName() or ""))==currentTurn.mage then
+                        local cityObj=getObjectFromGUID(citySearch.cityGUID)
+                        if cityObj~=nil then playerPos=cityObj.getPosition() end
+                        break
+                    end
+                end
+            end
+        end
+    end
+    return playerPos
+end
+
+function moveDisplayCaptureAvatarOrigin()
+    if gStates==nil or gStates.resourceTracker==nil then return end
+    local playerPos=moveDisplayCurrentAvatarPosition()
+    if playerPos~=nil then
+        gStates.resourceTracker.playerPos={playerPos[1],playerPos[2],playerPos[3]}
+    end
+end
+
+-- Query the same route graph used for the displayed costs, even when the
+-- tracker is minimized. Do this before Explore resets the route origin.
+function moveDisplayCostToAvatar()
+    if gStates==nil or gStates.resourceTracker==nil then return 0 end
+    local playerPos=moveDisplayCurrentAvatarPosition()
+    if playerPos==nil then return 0 end
+    return renderMoveDisplay(nil,playerPos) or 0
 end
 
 function updateMoveDisplay(id)
@@ -516,9 +538,10 @@ function updateMoveDisplay(id)
 	moveDisplayAutoPause=safeWaitTime("Movement",function() moveDisplayAutoPause=nil renderMoveDisplay() end, moveDisplayRefreshDelay)
 end
 
-function renderMoveDisplay(id)
-	--A pending background redraw must not restore routes after the tracker was minimized.
-	if not moveDisplayTrackerExpanded() then clearMoveDisplayVisuals() return end
+function renderMoveDisplay(id,targetPos)
+    local costOnly=targetPos~=nil
+	--A headless route query must work while minimized without touching visible overlays.
+	if not costOnly and not moveDisplayTrackerExpanded() then clearMoveDisplayVisuals() return end
     -- Druidic Paths' basic ability discounts only one space per route.
     local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
     local scan=active~=nil and resourceCardScanBySeat~=nil
@@ -527,15 +550,19 @@ function renderMoveDisplay(id)
         and (scan.movementEffects.singleSpaceDiscount or 0) or 0
 	--Preserve Global vector lines that existed before the movement display started.
 	local moveValue=gStates.resourceTracker~=nil and gStates.resourceTracker.move~=nil and resourceCardsEffectiveMove() or 0
-	if moveValue>0 and moveDisplayBaseVectorLines==nil then moveDisplayBaseVectorLines=attackAssignmentsWithoutVectorLines(Global.getVectorLines() or {}) end
+	if not costOnly and moveValue>0 and moveDisplayBaseVectorLines==nil then
+        moveDisplayBaseVectorLines=attackAssignmentsWithoutVectorLines(Global.getVectorLines() or {})
+    end
 
-	gStates.moveDisplayGeneration=(gStates.moveDisplayGeneration or 0)+1
-	local displayGeneration=gStates.moveDisplayGeneration
-	moveDisplayTextSlotRequests={}
-	gStates.moveDisplayTextGUIDs=gStates.moveDisplayTextGUIDs or {}
-	gStates.moveDisplayTextActiveCount=0
+    if not costOnly then
+        gStates.moveDisplayGeneration=(gStates.moveDisplayGeneration or 0)+1
+        moveDisplayTextSlotRequests={}
+        gStates.moveDisplayTextGUIDs=gStates.moveDisplayTextGUIDs or {}
+        gStates.moveDisplayTextActiveCount=0
+    end
+    local displayGeneration=gStates.moveDisplayGeneration or 0
 
-	if moveValue<=0 then
+	if moveValue<=0 and not costOnly then
 		clearMoveDisplayVisuals()
 		return
 	end
@@ -575,7 +602,10 @@ function renderMoveDisplay(id)
 	local startTileGUID=gStates.gameScenario=="Against the Horsemen Blitz" and GUID.tile.country01 or startTerrain.open
 	local startTile=getObjectFromGUID(startTileGUID)
 	if startTile==nil and gStates.gameScenario~="Against the Horsemen Blitz" then startTileGUID=startTerrain.wedge startTile=getObjectFromGUID(startTileGUID) end
-	if startTile==nil or getObjectFromGUID(mapArea)==nil then clearMoveDisplayVisuals() return end
+	if startTile==nil or getObjectFromGUID(mapArea)==nil then
+        if not costOnly then clearMoveDisplayVisuals() end
+        return nil
+    end
 	local startTilePos=startTile.getPosition()
 	local snapshot=runtimeMapSnapshot()
 	local playAreaObjects=snapshot.objects or {}
@@ -733,8 +763,8 @@ function renderMoveDisplay(id)
 		--Dummy and other non-avatar turns intentionally have no avatarLocation. Resource Tracker
 		--controls can still fire on those turns, but there is no player movement map to render.
 		if currentTurn==nil or currentTurn.avatarLocation==nil then
-			clearMoveDisplayVisuals()
-			return
+            if not costOnly then clearMoveDisplayVisuals() end
+			return nil
 		end
 		local turnStartLoc=currentTurn.turnStartLoc
 		if gStates.resourceTracker.playerPos==nil and turnStartLoc~=nil and turnStartLoc[1]~=nil and turnStartLoc[1]>-42 then
@@ -754,7 +784,7 @@ function renderMoveDisplay(id)
 		local fringe={{coord={playerHexGridHorizontal, playerHexGridAxial},state="safe"}}
 		local tempFringe={}
 		local tempFringeSet={}
-		local searchLimit=10
+		local searchLimit=costOnly and 99 or 10
 		local noMove=false
 
 		local function moveDestination(hor,vec)
@@ -932,6 +962,24 @@ function renderMoveDisplay(id)
 			tempFringe={}
 			tempFringeSet={}
 		end
+        -- Charge the cheapest valid route from the previous map origin to the
+        -- avatar's present hex. Reuse all regular route states (terrain
+        -- discounts, Wings of Wind, Space Bending, tunnels and teleportation).
+        -- A headless query must return before creating markers or vector lines.
+        if costOnly then
+            local targetVec,targetHor=runtimeMapWorldToAxial(targetPos,startTilePos)
+            local routeRow=moveMap[tostring(targetHor)]
+            local route=routeRow~=nil and routeRow[tostring(targetVec)] or nil
+            if route==nil then return nil end
+            local best=nil
+            for _,state in ipairs({"safe","safeDiscount","safeWind","safeDiscountWind",
+                "combat","combatDiscount","combatWind","combatDiscountWind"}) do
+                local cost=route[state]
+                if cost~=nil and (best==nil or cost<best) then best=cost end
+            end
+            return best
+        end
+
 		--Draw the predecessor tree used by the displayed cheapest routes. Each retained
 		--route state is walked once rather than retracing every destination back to the avatar.
 		local routeLines={}
