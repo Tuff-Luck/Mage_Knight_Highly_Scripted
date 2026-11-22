@@ -8139,6 +8139,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         ..":READY:"..tostring(readyCount)..":"..table.concat(readyLinks,",")
         ..":READY_ELIGIBLE:"..tostring(canReadyUnit)
         ..":ARTIFACT_BREAK:"..tostring(isArtifact and resourceCardsArtifactBroken(card.guid,card))
+        ..":ENEMY_PRESENT:"..tostring(combatEnemyInPlay)
         ..":GRAIL:"..tostring(gStates~=nil and gStates.artifactGrailHealingUsed~=nil
             and gStates.artifactGrailHealingUsed[card.guid] or 0)
         ..":TARGETS:"..tostring(trackerPrivate.singleAutoEnemyGUID)
