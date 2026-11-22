@@ -83,8 +83,8 @@ assert(recognition:find('fortitudePrevented=true',1,true),
     "Fortitude prevention must skip Wound and Poison/Paralysis consequences")
 assert(recognition:find('source.gloryFame',1,true),
     "Only activated combat Units can earn Glory Fame")
-assert(assignments:find('if total>=maximum and not distinct[target.guid] then',1,true),
-    "Fear must reject fourth target")
+assert(assignments:find('if total>=maximum and (mode~="targets" or not distinct[target.guid]) then',1,true),
+    "Fear must reject a fourth distinct target while preserving existing target selection")
 assert(ui:find("resourceCardsCombatAssignmentClick(id,mouseButton)",1,true),
     "Combat UI must forward right-click for Bow options")
 assert(recognition:find('inventorySpec={choices=remaining}',1,true),
