@@ -69,6 +69,7 @@ eq(defs.artifactShieldOfTheFallenKings.poweredChoices[2].repeatBlocks,3,
 eq(defs.artifactSwordOfJustice.artifactGlobalCombat,"sword","Sword active")
 eq(defs.artifactBowOfStarsdawn.artifactGlobalCombat,"bow","Bow active")
 eq(defs.artifactDruidicStaff.staffDualChoices,true,"Staff independent Break options")
+eq(defs.artifactGoldenGrail.grailFamePerHealing,1,"Grail Fame per spent Heal point")
 eq(defs.artifactDruidicStaff.unitReadyLevels.powered,3,"Staff ready level limit")
 eq(defs.artifactBannerFear.enemyEffect.powered.maxTargets,3,
     "Banner of Fear three-enemy maximum")
@@ -111,6 +112,7 @@ end
 local resourceCardsRegenerationReadyClicked=function() end
 local resourceCardsArtifactHealUnitsClicked=function() end
 local resourceCardsArtifactBreakClicked=function() end
+local resourceCardsArtifactGrailFameClicked=function() end
 ]]..registration..[[
 return published
 ]],"Artifact protected callback registration","t",setmetatable({published=published},{__index=_G})))
@@ -118,7 +120,8 @@ registrationTest()
 for _,name in ipairs({
     "resourceCardsRegenerationReadyClicked",
     "resourceCardsArtifactHealUnitsClicked",
-    "resourceCardsArtifactBreakClicked"
+    "resourceCardsArtifactBreakClicked",
+    "resourceCardsArtifactGrailFameClicked"
 }) do
     assert(published[name]==true,"Unprotected Artifact UI callback: "..name)
 end
