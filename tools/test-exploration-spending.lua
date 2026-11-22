@@ -105,8 +105,20 @@ eq(env.gStates.resourceTracker.move.exploreSpent,3,"Cumulative Explore cost")
 eq(env.gStates.resourceTracker.move.travelSpent,5,"Cumulative travel cost")
 eq(env.gStates.resourceTracker.move.exploreCount,3,"Free exploration still counts")
 eq(updates,3,"One tracker refresh per exploration")
+-- A route query reuses the movement calculator without rendering the overlay.
+local routeQuery=section(movement,"function moveDisplayCostToAvatar()",
+    "function updateMoveDisplay(id)","return moveDisplayCostToAvatar",env)
+env.moveDisplayCurrentAvatarPosition=function() return {4,1,5} end
+env.renderMoveDisplay=function(id,position)
+    eq(id,nil,"Travel query does not ask for a redraw")
+    eq(position[1],4,"Travel query receives current avatar position")
+    return 3
+end
+eq(routeQuery(),3,"Travel uses the movement map cost")
+env.moveDisplayCurrentAvatarPosition=function() return nil end
+eq(routeQuery(),0,"Unknown avatar position is not charged")
 local reset=section(ui,"function resetResourceTrackerState()",
-    "-- Record one irreversible EXPLORE action",
+    "-- Record each accepted Explore plus the route already walked to the avatar.",
     "return resetResourceTrackerState",env)
 reset()
 eq(env.gStates.resourceTracker.move.move,0,"Turn boundary resets Move offset")
