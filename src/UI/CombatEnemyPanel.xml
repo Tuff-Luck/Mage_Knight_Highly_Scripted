@@ -2,7 +2,7 @@
 	<VerticalLayout rectAlignment="UpperCenter" offsetXY="0 0" padding="6 6 3 3" childForceExpandHeight="false">
 		<HorizontalLayout padding="5 0 0 0" preferredHeight="20" childForceExpandWidth="false">
 			<Text id="CombatMonsterHeader" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="White" preferredWidth="120" alignment="MiddleLeft">{en}Enemy{it}Nemico{ru}Враг{zh-tw}敵人{zh-cn}敌人{ko}적{es}Enemigo{fr}Ennemi{pt-br}Inimigo{de}Feind</Text>
-			<Text id="CombatDefenceTraitsHeader" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleCenter">{en}Defensive Abilities{it}Abilità difensive{ru}Защитные способности{zh-tw}防禦能力{zh-cn}防御能力{ko}방어 능력{es}Habilidades defensivas{fr}Capacités défensives{pt-br}Habilidades defensivas{de}Verteidigungsfähigkeiten</Text>
+			<Text id="CombatDefenceTraitsHeader" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleCenter">{en}Def. Ability{it}Abil. dif.{ru}Защ. способ.{zh-tw}防禦能力{zh-cn}防御能力{ko}방어 능력{es}Hab. def.{fr}Cap. déf.{pt-br}Hab. def.{de}Abwehrf.</Text>
 			<Text id="CombatArmourHeader" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter">{en}Armor{it}Armatura{ru}Броня{zh-tw}護甲{zh-cn}护甲{ko}방어구{es}Armadura{fr}Armure{pt-br}Armadura{de}Rüstung</Text>
 			<Text id="CombatRangeSiegeHeader" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="White" preferredWidth="170" alignment="MiddleCenter">{en}Rng/Siege{it}Dist./Ass.{ru}Дальн./Осад.{zh-tw}遠程/攻城{zh-cn}远程/攻城{ko}원거리/공성{es}Dist./Ased.{fr}Dist./Siège{pt-br}Dist./Cerco{de}Fern/Bel.</Text>
 			<Text id="CombatEnemyAttackHeader" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="9" resizeTextMaxSize="13" color="White" preferredWidth="105" alignment="MiddleCenter">{en}Enemy Attack{it}Attacco nemico{ru}Атака врага{zh-tw}敵人攻擊{zh-cn}敌人攻击{ko}적 공격{es}Ataque enemigo{fr}Attaque ennemie{pt-br}Ataque inimigo{de}Feindangriff</Text>
@@ -19,9 +19,9 @@
 		<Panel id="CombatEnemyRow1" active="false" preferredHeight="32" outlineSize="0 0">
 			<HorizontalLayout padding="5 0 0 0" childForceExpandWidth="false">
 				<Panel id="CombatEnemyNameCell1" preferredWidth="120" color="rgba(0,0,0,0)" outlineSize="0 0">
-					<Button id="CombatEnemyJoin1" onClick="resourceTracker" color="rgba(0,0,0,0)"/><Text id="CombatEnemyRow1Name" class="Text14" fontSize="13" resizeTextMaxSize="13" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
+					<Button id="CombatEnemyJoin1" onClick="resourceTracker" color="rgba(0,0,0,0)"/><Text id="CombatEnemyRow1Name" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="10" resizeTextMaxSize="13" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
 				</Panel>
-				<Text id="CombatEnemyRow1Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
+				<Text id="CombatEnemyRow1Traits" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="10" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
 				<Text id="CombatEnemyRow1Armour" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter"/>
 				<Panel id="CombatSourceCell1range" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot1rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
@@ -91,9 +91,9 @@
 			<HorizontalLayout padding="5 0 0 0" childForceExpandWidth="false">
 				<Panel id="CombatEnemyNameCell2" preferredWidth="120" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatEnemyJoin2" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<Text id="CombatEnemyRow2Name" class="Text14" fontSize="13" resizeTextMaxSize="13" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
+					<Text id="CombatEnemyRow2Name" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="10" resizeTextMaxSize="13" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
 				</Panel>
-				<Text id="CombatEnemyRow2Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
+				<Text id="CombatEnemyRow2Traits" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="10" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
 				<Text id="CombatEnemyRow2Armour" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter"/>
 				<Panel id="CombatSourceCell2range" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot2rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
@@ -163,9 +163,9 @@
 			<HorizontalLayout padding="5 0 0 0" childForceExpandWidth="false">
 				<Panel id="CombatEnemyNameCell3" preferredWidth="120" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatEnemyJoin3" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<Text id="CombatEnemyRow3Name" class="Text14" fontSize="13" resizeTextMaxSize="13" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
+					<Text id="CombatEnemyRow3Name" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="10" resizeTextMaxSize="13" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
 				</Panel>
-				<Text id="CombatEnemyRow3Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
+				<Text id="CombatEnemyRow3Traits" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="10" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
 				<Text id="CombatEnemyRow3Armour" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter"/>
 				<Panel id="CombatSourceCell3range" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot3rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
@@ -235,9 +235,9 @@
 			<HorizontalLayout padding="5 0 0 0" childForceExpandWidth="false">
 				<Panel id="CombatEnemyNameCell4" preferredWidth="120" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatEnemyJoin4" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<Text id="CombatEnemyRow4Name" class="Text14" fontSize="13" resizeTextMaxSize="13" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
+					<Text id="CombatEnemyRow4Name" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="10" resizeTextMaxSize="13" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
 				</Panel>
-				<Text id="CombatEnemyRow4Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
+				<Text id="CombatEnemyRow4Traits" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="10" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
 				<Text id="CombatEnemyRow4Armour" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter"/>
 				<Panel id="CombatSourceCell4range" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot4rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
@@ -307,9 +307,9 @@
 			<HorizontalLayout padding="5 0 0 0" childForceExpandWidth="false">
 				<Panel id="CombatEnemyNameCell5" preferredWidth="120" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatEnemyJoin5" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<Text id="CombatEnemyRow5Name" class="Text14" fontSize="13" resizeTextMaxSize="13" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
+					<Text id="CombatEnemyRow5Name" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="10" resizeTextMaxSize="13" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
 				</Panel>
-				<Text id="CombatEnemyRow5Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
+				<Text id="CombatEnemyRow5Traits" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="10" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
 				<Text id="CombatEnemyRow5Armour" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter"/>
 				<Panel id="CombatSourceCell5range" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot5rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
@@ -379,9 +379,9 @@
 			<HorizontalLayout padding="5 0 0 0" childForceExpandWidth="false">
 				<Panel id="CombatEnemyNameCell6" preferredWidth="120" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatEnemyJoin6" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<Text id="CombatEnemyRow6Name" class="Text14" fontSize="13" resizeTextMaxSize="13" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
+					<Text id="CombatEnemyRow6Name" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="10" resizeTextMaxSize="13" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
 				</Panel>
-				<Text id="CombatEnemyRow6Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
+				<Text id="CombatEnemyRow6Traits" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="10" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
 				<Text id="CombatEnemyRow6Armour" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter"/>
 				<Panel id="CombatSourceCell6range" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot6rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
@@ -450,9 +450,9 @@
 		<Panel id="CombatEnemyRow7" active="false" preferredHeight="32" outlineSize="0 0">
 			<HorizontalLayout padding="5 0 0 0" childForceExpandWidth="false">
 				<Panel id="CombatEnemyNameCell7" preferredWidth="120" color="rgba(0,0,0,0)" outlineSize="0 0">
-					<Button id="CombatEnemyJoin7" onClick="resourceTracker" color="rgba(0,0,0,0)"/><Text id="CombatEnemyRow7Name" class="Text14" fontSize="13" resizeTextMaxSize="13" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
+					<Button id="CombatEnemyJoin7" onClick="resourceTracker" color="rgba(0,0,0,0)"/><Text id="CombatEnemyRow7Name" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="10" resizeTextMaxSize="13" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
 				</Panel>
-				<Text id="CombatEnemyRow7Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
+				<Text id="CombatEnemyRow7Traits" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="10" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
 				<Text id="CombatEnemyRow7Armour" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter"/>
 				<Panel id="CombatSourceCell7range" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot7rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
@@ -522,9 +522,9 @@
 			<HorizontalLayout padding="5 0 0 0" childForceExpandWidth="false">
 				<Panel id="CombatEnemyNameCell8" preferredWidth="120" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatEnemyJoin8" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<Text id="CombatEnemyRow8Name" class="Text14" fontSize="13" resizeTextMaxSize="13" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
+					<Text id="CombatEnemyRow8Name" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="10" resizeTextMaxSize="13" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
 				</Panel>
-				<Text id="CombatEnemyRow8Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
+				<Text id="CombatEnemyRow8Traits" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="10" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
 				<Text id="CombatEnemyRow8Armour" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter"/>
 				<Panel id="CombatSourceCell8range" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot8rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
