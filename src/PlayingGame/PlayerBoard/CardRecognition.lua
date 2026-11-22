@@ -4419,7 +4419,21 @@ combatConfig.enemyNameColumnWidth=function(label)
         elseif byte>=192 and byte<224 then width=width+10
         end
     end
-    return math.max(100,math.ceil(width))
+    return math.max(74,math.ceil(width))
+end
+
+-- Defensive abilities are displayed on separate lines. Measure only the
+-- longest visible line (ignoring TTS rich-text colours), not their total length.
+-- This keeps short entries compact while allowing long abilities to fit.
+combatConfig.traitColumnWidth=function(traits)
+    local width=78
+    for _,text in pairs(traits or {}) do
+        local plain=tostring(text or ""):gsub("<[^>]+>","")
+        for line in plain:gmatch("[^\n]+") do
+            width=math.max(width,combatConfig.enemyNameColumnWidth(line))
+        end
+    end
+    return width
 end
 
 local function combatAssignmentRefreshRows(entries,sources)
@@ -4492,13 +4506,14 @@ local function combatAssignmentRefreshRows(entries,sources)
     end
     -- The name and header occupy one shared column. Size it from the longest
     -- name on this page, including the '+ ' prefix for a joined enemy.
-    local enemyNameWidth=100
+    local enemyNameWidth=74
     for index=pageOffset+1,pageEnd do
         local entry=entries[index]
         local joined=groupOf[index]~=nil and groupOf[index].leader~=index
         local label=(joined and "+ " or "")..tostring(entry.name or "")
         enemyNameWidth=math.max(enemyNameWidth,combatConfig.enemyNameColumnWidth(label))
     end
+    combatConfig.columns.Name=enemyNameWidth
     for row=1,combatConfig.rowCount do
         combatPanelSetAttribute("CombatEnemyNameCell"..row,"preferredWidth",tostring(enemyNameWidth))
     end
@@ -6101,7 +6116,12 @@ local function combatAssignmentRefreshRows(entries,sources)
     -- Keep columns aligned across visible enemy rows, but size each
     -- resource phase to its fullest row (three to six icons wide).
     -- GridLayout wraps additional icons below the first line.
-    local columnWidths={traits=150,offence=130,enemyAttack=105}
+    local columnWidths={traits=combatConfig.traitColumnWidth(shownTraits),offence=130,enemyAttack=105}
+    -- Keep trait row cells and their header in lockstep, including when the
+    -- visible page changes or a combat ability is removed mid-fight.
+    for row=1,combatConfig.rowCount do
+        combatPanelSetAttribute("CombatEnemyRow"..row.."Traits","preferredWidth",tostring(columnWidths.traits))
+    end
     for _,family in ipairs({"range","block","attack"}) do
         local columns=math.max(3,math.min(combatConfig.lineSlotCount,maxResourceCounts[family]))
         columnWidths[family]=columns*24
@@ -6132,7 +6152,7 @@ local function combatAssignmentRefreshRows(entries,sources)
 
     local widthReduction=(170-columnWidths.range)+(170-columnWidths.block)+(170-columnWidths.attack)
     local panelWidth=1380-(255-combatConfig.columns.Result)-hiddenWidth-widthReduction
-        +(enemyNameWidth-120)
+        +(enemyNameWidth-120)+(columnWidths.traits-150)
 
     if earlyLock==nil and combatConfig.phasePreview~=nil then
         combatConfig.phasePreview.attackDiscards=combatFrozenCopy(stagedAttackCards)
@@ -6200,7 +6220,7 @@ local function combatAssignmentRefreshRows(entries,sources)
     end
     combatPanelSetAttribute("CombatEnemyPanel","width",tostring(panelWidth))
     combatPanelSetAttribute("CombatEnemyPanel","color","rgb(0.24,0.2,0.15)")
-    local headerWidths={Monster=enemyNameWidth,Armour=55,DefenceTraits=150,RangeSiege=columnWidths.range,EnemyAttack=105,
+    local headerWidths={Monster=enemyNameWidth,Armour=55,DefenceTraits=columnWidths.traits,RangeSiege=columnWidths.range,EnemyAttack=105,
         Offence=130,Block=columnWidths.block,AssignedAttack=columnWidths.attack,Result=combatConfig.columns.Result}
     for name,width in pairs(headerWidths) do
         local id="Combat"..name.."Header"
