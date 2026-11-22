@@ -2466,7 +2466,7 @@ function refreshResourceTrackerText()
         setResourceTrackerDisplayAttribute(id.."Row","active",visible and "true" or "false")
         if visible then visibleHeight=visibleHeight+(height or 22)+1 end
     end
-    showRow("MovemAmountPlain",moveTotal>0,34)
+    showRow("MovemAmountPlain",moveTotal>0 or exploreCount>0,34)
     setResourceTrackerDisplayAttribute("MovemAmountPlainText","text",
         joinLang({RESOURCE_TRACKER_FIELDS.MovemAmountPlain[3],moveTotal}))
     showRow("MovemGenerated",moveGenerated~=moveTotal)
@@ -2533,7 +2533,7 @@ function refreshResourceTrackerText()
         joinLang({RESOURCE_TRACKER_FIELDS.HealiAmountPlain[3],healingTotal}))
     -- At zero, the main row disappears but an unobtrusive + button remains
     -- so the player can restore a manually reduced resource.
-    local missing={MovemAmountPlain=moveTotal<=0,
+    local missing={MovemAmountPlain=moveTotal<=0 and exploreCount==0,
         InfluAmountPlain=influenceTotal<=0,HealiAmountPlain=healingTotal<=0}
     local anyMissing=false
     for prefix,hidden in pairs(missing) do
