@@ -217,7 +217,8 @@ local expectedProtectedUICallbacks={
 	"proxyTurn","refillMonsterTokenPiles","removeTactic","restoreDestroyedSiteAtCurrentPlayer","shieldDrop",
 	"steadyTempoChoice","summonMonster","togglePlayerDropoutRequest","volkarePursuitAction","volkareTurn",
 	"coopCompSkillWarningClick","combatDefeatMarkerNoop","nightTactic6StoredCountNoop",
-	"resourceCardsRegenerationReadyClicked","resourceCardsArtifactHealUnitsClicked"
+	"resourceCardsRegenerationReadyClicked","resourceCardsArtifactHealUnitsClicked",
+	"resourceCardsArtifactBreakClicked"
 }
 
 validatePublicUICallbacks=function()
