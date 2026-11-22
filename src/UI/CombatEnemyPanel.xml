@@ -18,7 +18,7 @@
         </HorizontalLayout>
 		<Panel id="CombatEnemyRow1" active="false" preferredHeight="32" outlineSize="0 0">
 			<HorizontalLayout padding="5 0 0 0" childForceExpandWidth="false">
-				<Panel preferredWidth="120" color="rgba(0,0,0,0)" outlineSize="0 0">
+				<Panel id="CombatEnemyNameCell1" preferredWidth="120" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatEnemyJoin1" onClick="resourceTracker" color="rgba(0,0,0,0)"/><Text id="CombatEnemyRow1Name" class="Text14" fontSize="13" resizeTextMaxSize="13" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
 				</Panel>
 				<Text id="CombatEnemyRow1Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
@@ -89,7 +89,7 @@
 		</Panel>
 		<Panel id="CombatEnemyRow2" active="false" preferredHeight="32" outlineSize="0 0">
 			<HorizontalLayout padding="5 0 0 0" childForceExpandWidth="false">
-				<Panel preferredWidth="120" color="rgba(0,0,0,0)" outlineSize="0 0">
+				<Panel id="CombatEnemyNameCell2" preferredWidth="120" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatEnemyJoin2" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
 					<Text id="CombatEnemyRow2Name" class="Text14" fontSize="13" resizeTextMaxSize="13" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
 				</Panel>
@@ -161,7 +161,7 @@
 		</Panel>
 		<Panel id="CombatEnemyRow3" active="false" preferredHeight="32" outlineSize="0 0">
 			<HorizontalLayout padding="5 0 0 0" childForceExpandWidth="false">
-				<Panel preferredWidth="120" color="rgba(0,0,0,0)" outlineSize="0 0">
+				<Panel id="CombatEnemyNameCell3" preferredWidth="120" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatEnemyJoin3" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
 					<Text id="CombatEnemyRow3Name" class="Text14" fontSize="13" resizeTextMaxSize="13" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
 				</Panel>
@@ -233,7 +233,7 @@
 		</Panel>
 		<Panel id="CombatEnemyRow4" active="false" preferredHeight="32" outlineSize="0 0">
 			<HorizontalLayout padding="5 0 0 0" childForceExpandWidth="false">
-				<Panel preferredWidth="120" color="rgba(0,0,0,0)" outlineSize="0 0">
+				<Panel id="CombatEnemyNameCell4" preferredWidth="120" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatEnemyJoin4" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
 					<Text id="CombatEnemyRow4Name" class="Text14" fontSize="13" resizeTextMaxSize="13" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
 				</Panel>
@@ -305,7 +305,7 @@
 		</Panel>
 		<Panel id="CombatEnemyRow5" active="false" preferredHeight="32" outlineSize="0 0">
 			<HorizontalLayout padding="5 0 0 0" childForceExpandWidth="false">
-				<Panel preferredWidth="120" color="rgba(0,0,0,0)" outlineSize="0 0">
+				<Panel id="CombatEnemyNameCell5" preferredWidth="120" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatEnemyJoin5" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
 					<Text id="CombatEnemyRow5Name" class="Text14" fontSize="13" resizeTextMaxSize="13" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
 				</Panel>
@@ -377,7 +377,7 @@
 		</Panel>
 		<Panel id="CombatEnemyRow6" active="false" preferredHeight="32" outlineSize="0 0">
 			<HorizontalLayout padding="5 0 0 0" childForceExpandWidth="false">
-				<Panel preferredWidth="120" color="rgba(0,0,0,0)" outlineSize="0 0">
+				<Panel id="CombatEnemyNameCell6" preferredWidth="120" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatEnemyJoin6" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
 					<Text id="CombatEnemyRow6Name" class="Text14" fontSize="13" resizeTextMaxSize="13" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
 				</Panel>
@@ -449,7 +449,7 @@
 		</Panel>
 		<Panel id="CombatEnemyRow7" active="false" preferredHeight="32" outlineSize="0 0">
 			<HorizontalLayout padding="5 0 0 0" childForceExpandWidth="false">
-				<Panel preferredWidth="120" color="rgba(0,0,0,0)" outlineSize="0 0">
+				<Panel id="CombatEnemyNameCell7" preferredWidth="120" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatEnemyJoin7" onClick="resourceTracker" color="rgba(0,0,0,0)"/><Text id="CombatEnemyRow7Name" class="Text14" fontSize="13" resizeTextMaxSize="13" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
 				</Panel>
 				<Text id="CombatEnemyRow7Traits" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="150" alignment="MiddleLeft"/>
@@ -520,7 +520,7 @@
 		</Panel>
 		<Panel id="CombatEnemyRow8" active="false" preferredHeight="32" outlineSize="0 0">
 			<HorizontalLayout padding="5 0 0 0" childForceExpandWidth="false">
-				<Panel preferredWidth="120" color="rgba(0,0,0,0)" outlineSize="0 0">
+				<Panel id="CombatEnemyNameCell8" preferredWidth="120" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatEnemyJoin8" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
 					<Text id="CombatEnemyRow8Name" class="Text14" fontSize="13" resizeTextMaxSize="13" alignment="MiddleLeft" raycastTarget="false">Monster</Text>
 				</Panel>
