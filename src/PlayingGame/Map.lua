@@ -938,6 +938,9 @@ function exploreMap(player, mouseButton, id)
 			if button.attributes~=nil and button.attributes.id==id then exploreStillLegal=true break end
 		end
 		if exploreStillLegal==false then explorePause=false return end
+        -- Capture the price at click time; later played cards must not change an
+        -- already-paid exploration, and one-time effects can use exploreCount.
+        local exploreCost=resourceCardsEffectiveExploreCost()
 		local exploreSnapshot=runtimeMapSnapshot()
 		for _,mapObject in ipairs(exploreSnapshot.terrainObjects or {}) do
 			local mapPos=exploreSnapshot.terrainPositions[mapObject.guid] or mapObject.getPosition()
@@ -971,6 +974,10 @@ function exploreMap(player, mouseButton, id)
 			if gStates.randomTileOrientation==true then tileRotation[2]=math.random(1,6)*60 end
 			if getObjectFromGUID(drawFrom).getQuantity()>0 then
 				local drawnTile=getObjectFromGUID(drawFrom).takeObject({position={pos[1], 2, pos[2]}, rotation=tileRotation, smooth=false, index=index})
+                -- The tile is committed: count and charge EXPLORE exactly once.
+                -- Keep the origin current even when this spends the last Move.
+                resourceCardsSpendExplore(exploreCost)
+                moveDisplayCaptureAvatarOrigin()
 				if gStates.gameScenario=="The Fractured Lands Blitz" then
 					startFracturedLandsOrientation(drawnTile, {pos[1],0.97,pos[2]})
 					rewindTransactionFinish("Explore map")
@@ -978,10 +985,12 @@ function exploreMap(player, mouseButton, id)
 					drawnTile.setPositionSmooth({pos[1], 0.97, pos[2]})
 					safeWaitFrames("Map",function() safeWaitCondition("Map",function()
 						mainUIUpdate("Moved city card")
+                        updateMoveDisplay()
 						explorePause=false
 						rewindTransactionFinish("Explore map")
 					end, function() return drawnTile==nil or drawnTile.resting end,8,function()
 						if drawnTile~=nil then drawnTile.setPosition({pos[1],0.97,pos[2]}) end
+                        updateMoveDisplay()
 						explorePause=false
 						rewindTransactionFinish("Explore map")
 					end) end, 2)
