@@ -92,7 +92,7 @@ eq(cost(),3,"Owned night Skill still applies while tracker is off")
 setOwned(true,true)
 eq(cost(),0,"Two owned Skill discounts still work while tracker is off")
 
-local spend=section(ui,"function resourceCardsSpendExplore(cost)",
+local spend=section(ui,"function resourceCardsSpendExplore(cost,travelCost)",
     "function refreshResourceTrackerReputation()",
     "return resourceCardsSpendExplore",env)
 env.gStates.resourceTracker={move={move=0,exploreSpent=0,travelSpent=0,exploreCount=0}}
