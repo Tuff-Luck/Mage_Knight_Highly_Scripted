@@ -164,6 +164,25 @@ local function playerSetupCreateMirrorSource(position,offsetPosition,context)
 	end
 end
 
+-- State swaps can fail (for example, when this card has no such saved state).
+-- A missing reference-card side is cosmetic; it must not abort the game setup.
+local function playerSetupLockReferenceState(obj,state,label)
+	if obj==nil then
+		print("SETUP WARNING: missing "..label.." reference card.")
+		return
+	end
+	if state==nil then obj.lock() return end
+	local guid=obj.guid
+	local switched=obj.setState(state)
+	if switched==nil then
+		-- setState may return nil for an unavailable/current state. Keep the original
+		-- card locked if TTS did not replace it, and leave a diagnostic for the player.
+		print("SETUP WARNING: "..label.." reference card state "..tostring(state).." was not available.")
+		switched=getObjectFromGUID(guid)
+	end
+	if switched~=nil then switched.lock() end
+end
+
 local function playerSetupMageBag(position,offsetPosition)
 	local mage=gStates.positionMageKnight[position]
 	if mage=="nobody" then mage=gStates.positionMageKnight[5] end
@@ -258,7 +277,7 @@ local function playerSetupDeployUniqueComponents(orderIndex,position,offsetPosit
 			else
 				params.callback_function=function(obj) obj.lock() end
 				if (gStates.coop==0 or gStates.WarOfFourComp==true) and gStates.positionMageKnight[position]~="Ymirgh" and gStates.positionMageKnight[position]~="Malek" and gStates.positionMageKnight[position]~="Duscenia" and gStates.positionMageKnight[position]~="Mevok" and gStates.positionMageKnight[position]~="Zirtae" then
-					params.callback_function=function(ob) local obj=ob.setState(1) obj.lock() end
+					params.callback_function=function(ob) playerSetupLockReferenceState(ob,1,"Skill Reference Card 2") end
 				end
 			end
 		end
@@ -392,7 +411,7 @@ local function playerSetupDeployUniqueComponents(orderIndex,position,offsetPosit
 				params.position={-72.5+offsetPosition, 1.06, -48.23}
 				params.callback_function=function(obj) obj.lock() end
 				if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" then
-					params.callback_function=function(ob) local obj=ob.setState(2) obj.lock() end
+					params.callback_function=function(ob) playerSetupLockReferenceState(ob,2,"Volkare Scenario Reference") end
 				end
 			end
 		end
