@@ -941,6 +941,9 @@ function exploreMap(player, mouseButton, id)
         -- Capture the price at click time; later played cards must not change an
         -- already-paid exploration, and one-time effects can use exploreCount.
         local exploreCost=resourceCardsEffectiveExploreCost()
+        -- Snapshot the route before this tile changes the map. The avatar may
+        -- already have walked several hexes since the last movement origin.
+        local travelCost=moveDisplayCostToAvatar()
 		local exploreSnapshot=runtimeMapSnapshot()
 		for _,mapObject in ipairs(exploreSnapshot.terrainObjects or {}) do
 			local mapPos=exploreSnapshot.terrainPositions[mapObject.guid] or mapObject.getPosition()
@@ -976,7 +979,7 @@ function exploreMap(player, mouseButton, id)
 				local drawnTile=getObjectFromGUID(drawFrom).takeObject({position={pos[1], 2, pos[2]}, rotation=tileRotation, smooth=false, index=index})
                 -- The tile is committed: count and charge EXPLORE exactly once.
                 -- Keep the origin current even when this spends the last Move.
-                resourceCardsSpendExplore(exploreCost)
+                resourceCardsSpendExplore(exploreCost,travelCost)
                 moveDisplayCaptureAvatarOrigin()
 				if gStates.gameScenario=="The Fractured Lands Blitz" then
 					startFracturedLandsOrientation(drawnTile, {pos[1],0.97,pos[2]})
