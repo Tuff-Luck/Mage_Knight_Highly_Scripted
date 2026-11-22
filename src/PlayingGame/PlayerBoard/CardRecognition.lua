@@ -7760,27 +7760,64 @@ end
 
 -- The Throw/Recover control selects the printed throw-away (strong) effect.
 -- This is independent of resource choices, including Artifacts without numeric choices.
-trackerPrivate.artifactBreakButton=function(card,above,uiRotation,buttonDepth)
+trackerPrivate.artifactBreakButton=function(card,uiRotation,buttonDepth)
     local broken=resourceCardsArtifactBroken(card.guid,card)
     local data=gameCards~=nil and gameCards[card.guid] or nil
     local key=data~=nil and data.resourceKey or nil
     local waitForCombat=not broken and combatEnemyInPlay
         and (key=="artifactDruidicStaff" or key=="artifactBannerCourage"
             or key=="artifactBannerFortitude")
+    local label=broken and "RECOVER" or (waitForCombat and "WAIT" or "THROW")
     return {tag="Button",attributes={
         id="ResourceCardChoice_"..card.guid.."_artifactBreak",
         onClick="global/resourceCardsArtifactBreakClicked",
-        -- The card UI is rotated 180 degrees: negative Y moves up toward the artwork.
-        -- Keep the toggle above the title, and higher when other choice controls exist.
-        position="0 "..tostring(above and -75 or -25).." "..buttonDepth,
-        rotation=uiRotation,width=220,height=92,scale="0.25 0.25",
-        font="Fonts/MKCardText",fontSize=58,
-        resizeTextForBestFit="true",resizeTextMinSize=26,resizeTextMaxSize=58,
+        -- Card UI rotates 180 degrees: negative Y is toward the top artwork.
+        -- Keep THROW below the printed text and RECOVER above the artwork.
+        position="0 "..tostring(broken and -140 or 140).." "..buttonDepth,
+        rotation=uiRotation,width=220,height=74,scale="0.25 0.25",
         colors=broken and "#81372F|#AD5045|#81372F|#81372F"
             or (waitForCombat and "#383838|#505050|#383838|#383838"
                 or "#454D5D|#69798E|#444C63|#454D5D"),
         textColor="#FFFFFF",textAlignment="MiddleCenter"},
-        value=broken and "RECOVER" or (waitForCombat and "WAIT" or "THROW")}
+        value="",
+        children={{tag="HorizontalLayout",attributes={
+            padding="18 18 9 9",childAlignment="MiddleCenter"},
+            children={{tag="Text",attributes={
+                text=label,font="Fonts/MKCardText",fontSize=58,
+                resizeTextForBestFit="true",resizeTextMinSize=26,
+                resizeTextMaxSize=58,color="#FFFFFF",alignment="MiddleCenter",
+                raycastTarget="false"}}}}}
+end
+
+-- Shift only the Artifact's newly generated option/target controls toward the
+-- artwork by half their actual rendered height (UI height times Y scale).
+-- Move multi-choice row labels with their buttons; leave unrelated object UI
+-- and the independent THROW/RECOVER control exactly where they are.
+trackerPrivate.raiseArtifactChoiceControls=function(xml,startIndex,guid)
+    local choicePrefix="ResourceCardChoice_"..guid.."_"
+    local targetPrefix="AttackAssignmentSource_"..guid.."_"
+    for i=startIndex,#xml do
+        local node=xml[i]
+        local attrs=node~=nil and node.attributes or nil
+        local id=attrs~=nil and attrs.id or nil
+        if type(id)=="string" and attrs.position~=nil
+            and id~=choicePrefix.."artifactBreak"
+            and (id:sub(1,#choicePrefix)==choicePrefix
+                or id:sub(1,#targetPrefix)==targetPrefix)
+            and (node.tag=="Button" or
+                (node.tag=="Text" and id:find("_label",1,true)~=nil)) then
+            local x,y,z=tostring(attrs.position):match("^(%S+)%s+(%S+)%s+(%S+)$")
+            local height=tonumber(attrs.height) or 0
+            if x~=nil and tonumber(y)~=nil and height>0 then
+                local sx,sy
+                if type(attrs.scale)=="string" then
+                    sx,sy=attrs.scale:match("^(%S+)%s+(%S+)")
+                end
+                local shift=height*(tonumber(sy) or tonumber(sx) or 1)/2
+                attrs.position=x.." "..tostring(tonumber(y)-shift).." "..z
+            end
+        end
+    end
 end
 
 -- A manual counter: only spent Heal points from the Grail's basic effect
@@ -7924,7 +7961,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         end
         local uiRotation=card.is_face_down==true and "0 180 180" or "0 0 180"
         local depth=card.is_face_down==true and "35" or "-35"
-        xml[#xml+1]=trackerPrivate.artifactBreakButton(card,false,uiRotation,depth)
+        xml[#xml+1]=trackerPrivate.artifactBreakButton(card,uiRotation,depth)
         if rule~=nil and rule.grailFamePerHealing~=nil and not powered then
             xml[#xml+1]=trackerPrivate.grailFameButton(card,uiRotation,depth)
         end
@@ -8617,7 +8654,8 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         end
     end
     if isArtifact and posture=="upright" then
-        xml[#xml+1]=trackerPrivate.artifactBreakButton(card,#xml>otherControlCount,uiRotation,buttonDepth)
+        trackerPrivate.raiseArtifactChoiceControls(xml,otherControlCount+1,card.guid)
+        xml[#xml+1]=trackerPrivate.artifactBreakButton(card,uiRotation,buttonDepth)
         if rule~=nil and rule.grailFamePerHealing~=nil and not powered then
             xml[#xml+1]=trackerPrivate.grailFameButton(card,uiRotation,buttonDepth)
         end
