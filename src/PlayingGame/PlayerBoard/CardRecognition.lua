@@ -6934,6 +6934,39 @@ function resourceCardsEffectiveTerrainCost(terrain)
     return cost
 end
 
+-- Exploring is not ordinary terrain. Apply the existing explicit explore modifiers
+-- (Hawk Eyes at night, Feral Allies, and any later explore-specific effects).
+-- In Hidden Valley the modified price is tripled, not the other way around.
+function resourceCardsEffectiveExploreCost()
+    local cost=resourceCardsEffectiveTerrainCost("explore")
+    -- Owned passive Skills still apply when the tracker has been minimized.
+    -- Played-card effects require an active scanner and remain player-managed while OFF.
+    if not resourceCardsPanelOpen() and gStates~=nil and turnOrder~=nil
+        and turnOrder[gStates.turnNumber]~=nil then
+        local seatPos=turnOrder[gStates.turnNumber].seatPos
+        for guid,rule in pairs(skillResourceDefinitions) do
+            if ownedSkillAtSeat(guid,seatPos) then
+                for _,effect in ipairs(rule.passiveTerrain or {}) do
+                    if effect.mode=="reduce" and terrainEffectApplies(effect,"explore") then
+                        cost=math.max(effect.minimum or 0,cost-effect.amount)
+                    end
+                end
+                if gStates.dayRound~=true then
+                    for _,effect in ipairs(rule.passiveNightTerrain or {}) do
+                        if effect.mode=="reduce" and terrainEffectApplies(effect,"explore") then
+                            cost=math.max(effect.minimum or 0,cost-effect.amount)
+                        end
+                    end
+                end
+            end
+        end
+    end
+    if gStates~=nil and gStates.gameScenario=="The Hidden Valley Blitz" then
+        cost=cost*3
+    end
+    return math.max(0,cost)
+end
+
 local function clearHighlight(guid)
     if shown[guid]==nil then return end
     local obj=getObjectFromGUID(guid)
