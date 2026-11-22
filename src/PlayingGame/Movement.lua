@@ -459,6 +459,37 @@ local function moveDisplayTrackerExpanded()
     return resourceCardsPanelOpen()
 end
 
+-- Keep the movement-map origin in sync even if spending all Move hides the route overlay.
+-- Shared by the manual refresh button and the map exploration event.
+function moveDisplayCaptureAvatarOrigin()
+    local currentTurn=gStates~=nil and turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    if currentTurn==nil or currentTurn.avatarLocation==nil
+        or gStates.resourceTracker==nil then return end
+	for _, details in pairs(mageKnights) do
+		if details.mage==currentTurn.mage then
+			if getObjectFromGUID(details.model)~=nil then gStates.resourceTracker.playerPos={getObjectFromGUID(details.model).getPosition()[1], getObjectFromGUID(details.model).getPosition()[2], getObjectFromGUID(details.model).getPosition()[3]} end
+			if getObjectFromGUID(details.token)~=nil then gStates.resourceTracker.playerPos=getObjectFromGUID(details.token).getPosition() end
+			if getObjectFromGUID(details.standee)~=nil then gStates.resourceTracker.playerPos=getObjectFromGUID(details.standee).getPosition() end
+		end
+	end
+	local avatarLocation=currentTurn.avatarLocation
+	if avatarLocation:sub(1, 4)=="city" or avatarLocation=="Volkare's Camp" then
+		--figure out which city avatar is in
+		for zone, citySearch in pairs(cityScriptZones) do
+			local zoneObj=getObjectFromGUID(zone)
+			if zoneObj~=nil then
+				for _, detail in pairs(zoneObj.getObjects()) do
+					if joinLangEnglish(tostring(detail.getName() or ""))==currentTurn.mage then
+						local cityObj=getObjectFromGUID(citySearch.cityGUID)
+						if cityObj~=nil then gStates.resourceTracker.playerPos=cityObj.getPosition() end
+						break
+					end
+				end
+			end
+		end
+	end
+end
+
 function updateMoveDisplay(id)
 	--Keep the movement calculation live while minimized, but never redraw its map overlays.
 	if not moveDisplayTrackerExpanded() then
@@ -709,31 +740,7 @@ function renderMoveDisplay(id)
 		if gStates.resourceTracker.playerPos==nil and turnStartLoc~=nil and turnStartLoc[1]~=nil and turnStartLoc[1]>-42 then
 			gStates.resourceTracker.playerPos={turnStartLoc[1], turnStartLoc[2], turnStartLoc[3]}--{0, 0, 0}
 		end
-		if id=="MovemAmountUpdate" then
-			for _, details in pairs(mageKnights) do
-				if details.mage==currentTurn.mage then
-					if getObjectFromGUID(details.model)~=nil then gStates.resourceTracker.playerPos={getObjectFromGUID(details.model).getPosition()[1], getObjectFromGUID(details.model).getPosition()[2], getObjectFromGUID(details.model).getPosition()[3]} end
-					if getObjectFromGUID(details.token)~=nil then gStates.resourceTracker.playerPos=getObjectFromGUID(details.token).getPosition() end
-					if getObjectFromGUID(details.standee)~=nil then gStates.resourceTracker.playerPos=getObjectFromGUID(details.standee).getPosition() end
-				end
-			end
-			local avatarLocation=currentTurn.avatarLocation
-			if avatarLocation:sub(1, 4)=="city" or avatarLocation=="Volkare's Camp" then
-				--figure out which city avatar is in
-				for zone, citySearch in pairs(cityScriptZones) do
-					local zoneObj=getObjectFromGUID(zone)
-					if zoneObj~=nil then
-						for _, detail in pairs(zoneObj.getObjects()) do
-							if joinLangEnglish(tostring(detail.getName() or ""))==currentTurn.mage then
-								local cityObj=getObjectFromGUID(citySearch.cityGUID)
-								if cityObj~=nil then gStates.resourceTracker.playerPos=cityObj.getPosition() end
-								break
-							end
-						end
-					end
-				end
-			end
-		end
+		if id=="MovemAmountUpdate" then moveDisplayCaptureAvatarOrigin() end
 		if gStates.resourceTracker.playerPos~=nil then playerPos=gStates.resourceTracker.playerPos end
 		--The shared Magical Glade is authoritative while the active Horsemen-scenario avatar is parked
 		--off-map between turns; never let an old Portal/start-tile position override that logical hex.
@@ -802,7 +809,8 @@ function renderMoveDisplay(id)
 					if destinationHex~=nil then
 						local hexCost,terrainCost=999,999
                         if destinationHex.hexType~=nil then
-                            terrainCost=resourceCardsEffectiveTerrainCost(destinationHex.hexType)
+                            terrainCost=destinationHex.hexType=="explore" and resourceCardsEffectiveExploreCost()
+                                or resourceCardsEffectiveTerrainCost(destinationHex.hexType)
                             if terrainCost<900 then hexCost=terrainCost+moveSpent end
                         end
 						local wallhor=hexDetail.coord[1]+(vector[1]/2)
