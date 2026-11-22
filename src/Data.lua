@@ -1306,8 +1306,9 @@ cardResourceDefinitions={
         enemyEffect={normal={choice="other",armourReduce=1,all=true,fireSpell=true},
             powered={choice="other",destroyDuringAttack=true,othersArmourReduce=1,
                 fireSpell=true}}},
-    -- Artifact sides are physical: face-up plays the basic effect and
-    -- face-down plays the break effect, without a separate mode control.
+    -- Full-size Artifacts use a saved Break toggle while staying face up.
+    -- An old face-down Artifact in the play area is interpreted as Break for
+    -- backwards compatibility; attached half Banners remain spent-on-flip.
     artifactUtility={normalTrackerNeutral=true,artifactMode=true,
         poweredChoices={{key="other"}}},
     -- These amulets change terrain routing in their matching round, not Move
@@ -1363,8 +1364,9 @@ cardResourceDefinitions={
         artifactGlobalCombat="bow",artifactGlobalFame="range",
         discardBoost={normal={perCard=2,maxWounds=0}},
         poweredChoices={{key="other"}}},
-    -- A tilted Green card on the Staff pays for Heal 3. The Break side
-    -- offers two independent effects, not yet represented by one number.
+    -- A tilted coloured card pays for its matching Staff ability. Its Break
+    -- side chooses two different effects without payment. In combat, only the
+    -- Blue two-crystal effect is legal; Ready must use the actual Red choice.
     artifactDruidicStaff={artifactMode=true,staffDualChoices=true,
         unitReadyLevels={normal=3,powered=3},requiredLink={mode="discard"},
         strongNoDiscard=true,
