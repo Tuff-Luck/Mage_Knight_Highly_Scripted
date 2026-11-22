@@ -7758,8 +7758,8 @@ combatConfig.cardChoicesPresent=function(card)
     return next(missing)==nil
 end
 
--- The Break control is a separate decision, not a fictitious resource option.
--- Rendering it independently also covers Artifacts with no numeric choices.
+-- The Throw/Recover control selects the printed throw-away (strong) effect.
+-- This is independent of resource choices, including Artifacts without numeric choices.
 trackerPrivate.artifactBreakButton=function(card,above,uiRotation,buttonDepth)
     local broken=resourceCardsArtifactBroken(card.guid,card)
     local data=gameCards~=nil and gameCards[card.guid] or nil
@@ -7770,13 +7770,13 @@ trackerPrivate.artifactBreakButton=function(card,above,uiRotation,buttonDepth)
     return {tag="Button",attributes={
         id="ResourceCardChoice_"..card.guid.."_artifactBreak",
         onClick="global/resourceCardsArtifactBreakClicked",
-        position="0 "..tostring(above and 108 or -12).." "..buttonDepth,
-        rotation=uiRotation,width=185,height=92,scale="0.25 0.25",fontSize=51,
+        position="0 "..tostring(above and 128 or 8).." "..buttonDepth,
+        rotation=uiRotation,width=220,height=92,scale="0.25 0.25",fontSize=44,
         colors=broken and "#81372F|#AD5045|#81372F|#81372F"
             or (waitForCombat and "#383838|#505050|#383838|#383838"
                 or "#454D5D|#69798E|#444C63|#454D5D"),
         textColor="#FFFFFF",textAlignment="MiddleCenter"},
-        value=broken and "BROKEN" or (waitForCombat and "WAIT" or "BREAK")}
+        value=broken and "RECOVER" or (waitForCombat and "WAIT" or "THROW")}
 end
 
 -- A manual counter: only spent Heal points from the Grail's basic effect
@@ -14434,12 +14434,12 @@ function resourceCardsArtifactBreakClicked(player,value,id)
     local broken=resourceCardsArtifactBroken(guid,card)
     if not broken and combatEnemyInPlay then
         if data.resourceKey=="artifactDruidicStaff" then
-            safeBroadcastToColor("Druidic Staff: Break requires two different "
+            safeBroadcastToColor("Druidic Staff: Throw requires two different "
                 .."options; only Blue is usable in combat.",player.color,warningColor)
             return
         elseif data.resourceKey=="artifactBannerCourage"
             or data.resourceKey=="artifactBannerFortitude" then
-            safeBroadcastToColor("This Banner's Break effect can only be used "
+            safeBroadcastToColor("This Banner's stronger effect can only be used "
                 .."outside combat.",player.color,warningColor)
             return
         end
