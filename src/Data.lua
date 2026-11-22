@@ -1321,7 +1321,11 @@ cardResourceDefinitions={
         normalChoices={{key="other"}},poweredChoices={{key="other"}},
         terrainEffects={normal={{mode="cap",terrains={forest=true},cost=3,dayRound=false}},
             powered={{mode="cap",terrains={forest=true},cost=3,dayRound=false}}}},
-    artifactGoldenGrail={artifactMode=true,normal={healing=2},powered={healing=6}},
+    -- Basic effect: Fame +1 for each of this card's Heal points actually spent.
+    -- The player confirms 0..2 used points; generating Heal is not enough.
+    artifactGoldenGrail={artifactMode=true,normal={healing=2},powered={healing=6},
+        grailFamePerHealing=1,
+        manualSecondary="Basic: set the Fame counter to the number of this card's Heal points actually spent (0-2). Break: Heal 6 only."},
     artifactSoulHarvester={artifactMode=true,normal={attack=3},powered={attack=8},
         manualSecondary="Gain one crystal for a kill made by the basic Attack; when broken, one for each enemy killed this phase. Choose White or a resistance colour (Red/Blue/Green). Confirm gains manually."},
     artifactBannerOfCommand={artifactMode=true,normal={influence=4},
