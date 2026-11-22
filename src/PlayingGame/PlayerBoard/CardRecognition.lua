@@ -7415,6 +7415,7 @@ end
 -- player chooses a bonus explicitly, it follows the main choice (or the
 -- printed first alternative if the main category is unavailable).
 local function inventorySetChoice(guid,index,choices,mainChoices)
+    if type(choices)~="table" or #choices==0 then return nil,nil end
     local stored=selectedResourceByGUID[guid]
     local selected=stored~=nil and stored.inventorySets~=nil and stored.inventorySets[index] or nil
     if not choiceAvailable(choices,selected) then
