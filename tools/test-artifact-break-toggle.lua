@@ -121,7 +121,8 @@ do
         ui("Button","AttackAssignmentSource_abc_0_block","40 -12 -35",90),
         ui("Text","ResourceCardChoice_abc_label0","-80 -12 -35",90),
         ui("Button","ResourceCardChoice_abc_artifactBreak","0 140 -35",74),
-        ui("Button","ResourceCardChoice_xyz_0","0 -12 -35",90)}
+        ui("Button","ResourceCardChoice_xyz_0","0 -12 -35",90),
+        ui("Button","ResourceCardChoice_abc_healAllUnits","145 -145 -35",85)}
     raise(xml,2,"abc")
     local function y(node)
         return tonumber(node.attributes.position:match("^%S+%s+(%S+)"))
@@ -129,8 +130,8 @@ do
     assert(y(xml[1])==-12 and y(xml[2])==-23.25
         and y(xml[3])==-23.25 and y(xml[4])==-23.25,
         "New choices, targets and their labels must rise by 11.25 UI units")
-    assert(y(xml[5])==140 and y(xml[6])==-12,
-        "Do not move Throw/Recover or unrelated card controls")
+    assert(y(xml[5])==140 and y(xml[6])==-12 and y(xml[7])==-145,
+        "Do not move Throw/Recover, unrelated controls, or edge-anchored buttons")
 end
 
 for _,needle in ipairs({
