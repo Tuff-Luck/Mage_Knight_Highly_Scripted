@@ -2419,7 +2419,9 @@ local function setResourceTrackerDisplayAttribute(id,attribute,value)
     UI.setAttribute(id,attribute,value)
 end
 
--- Shared by the tracker display and the Unit Offer affordability glow.
+-- Return both the ordinary Influence pool (usable by Learning and other
+-- special effects) and the separate Interaction-only amount. Never add
+-- Reputation/City Shields to the headline Influence pool.
 local function trackerSpendableInfluence()
     refreshResourceTrackerReputation()
     local combat=resourceCardsEnemyPresent~=nil and resourceCardsEnemyPresent() or false
@@ -2427,13 +2429,13 @@ local function trackerSpendableInfluence()
     local raw=resourceCardsCurrentTotals() or {}
     local generated=tonumber(raw.influence) or 0
     local base=generated+(gStates.resourceTracker.influence.generated or 0)
-    local modifiers=not combat and base>0
-    local reputation=modifiers and (gStates.resourceTracker.influence.reputation or 0) or 0
-    local shields=modifiers and currentCityShieldInfluence(current) or 0
+    local canModifyInfluence=not combat and base>0
+    local reputation=canModifyInfluence and (gStates.resourceTracker.influence.reputation or 0) or 0
+    local shields=canModifyInfluence and currentCityShieldInfluence(current) or 0
     gStates.resourceTracker.influence.cityShields=shields
-    local total=math.max(0,base+(reputation==-99 and 0 or reputation)+shields)
-    if reputation==-99 then total=0 end
-    return total,generated,reputation,shields,modifiers
+    local interactionTotal=math.max(0,base+(reputation==-99 and 0 or reputation)+shields)
+    if reputation==-99 then interactionTotal=0 end
+    return interactionTotal,base,generated,reputation,shields,canModifyInfluence
 end
 
 -- nil: the Resource Tracker is closed, so show only site eligibility.
@@ -2447,7 +2449,7 @@ end
 
 function refreshResourceTrackerText()
     if not resourceCardsPanelOpen() or gStates.resourceTracker==nil or gStates.moveCost==nil then return end
-    local influenceTotal,influenceGenerated,reputation,shields,canModifyInfluence=
+    local interactionTotal,influenceBase,influenceGenerated,reputation,shields,canModifyInfluence=
         trackerSpendableInfluence()
     local rawTotals=resourceCardsCurrentTotals() or {}
     local healingGenerated=tonumber(rawTotals.healing) or 0
@@ -2513,10 +2515,12 @@ function refreshResourceTrackerText()
         end
     end
 
-    showRow("InfluAmountPlain",influenceTotal>0,34)
+    -- The headline excludes Interaction-only modifiers even when no enemy
+    -- is present. Generated is a breakdown only when manually adjusted.
+    showRow("InfluAmountPlain",influenceBase>0,34)
     setResourceTrackerDisplayAttribute("InfluAmountPlainText","text",
-        joinLang({RESOURCE_TRACKER_FIELDS.InfluAmountPlain[3],influenceTotal}))
-    showRow("InfluAmountPhysi",influenceGenerated~=influenceTotal)
+        joinLang({RESOURCE_TRACKER_FIELDS.InfluAmountPlain[3],influenceBase}))
+    showRow("InfluAmountPhysi",influenceGenerated~=influenceBase)
     setResourceTrackerDisplayAttribute("InfluAmountPhysiText","text",
         joinLang({RESOURCE_TRACKER_FIELDS.InfluAmountPhysi[3],influenceGenerated}))
     showRow("InfluAmountReput",canModifyInfluence and reputation~=0)
@@ -2524,9 +2528,15 @@ function refreshResourceTrackerText()
         or (reputation>0 and "+" or "")..tostring(reputation)
     setResourceTrackerDisplayAttribute("InfluAmountReputText","text",
         joinLang({RESOURCE_TRACKER_FIELDS.InfluAmountReput[3],repText}))
-    showRow("InfluAmountCityS",canModifyInfluence and shields~=0)
+    showRow("InfluAmountCityS",canModifyInfluence and shields~=0 and reputation~=-99)
     setResourceTrackerDisplayAttribute("InfluAmountCitySText","text",
         joinLang({RESOURCE_TRACKER_FIELDS.InfluAmountCityS[3],shields>0 and ("+"..shields) or shields}))
+    -- Separate Interaction total makes the modifier scope unambiguous.
+    showRow("InfluInteractionTotal",canModifyInfluence and (reputation~=0 or shields~=0))
+    local interactionDisplay=reputation==-99 and "No Interaction" or tostring(interactionTotal)
+    setResourceTrackerDisplayAttribute("InfluInteractionTotalText","text",
+        joinLang({"{en}Interaction total : {it}Totale interazione : {ru}Итого взаимодействие: {zh-tw}互動總計：{zh-cn}互动总计：{ko}상호작용 합계 : {es}Total interacción : {fr}Total interaction : {pt-br}Total interação : {de}Interaktion gesamt : ",
+            interactionDisplay}))
 
     showRow("HealiAmountPlain",healingTotal>0,34)
     setResourceTrackerDisplayAttribute("HealiAmountPlainText","text",
@@ -2534,7 +2544,7 @@ function refreshResourceTrackerText()
     -- At zero, the main row disappears but an unobtrusive + button remains
     -- so the player can restore a manually reduced resource.
     local missing={MovemAmountPlain=moveTotal<=0 and exploreCount==0,
-        InfluAmountPlain=influenceTotal<=0,HealiAmountPlain=healingTotal<=0}
+        InfluAmountPlain=influenceBase<=0,HealiAmountPlain=healingTotal<=0}
     local anyMissing=false
     for prefix,hidden in pairs(missing) do
         setResourceTrackerDisplayAttribute(prefix.."Add","active",hidden and "true" or "false")
@@ -2551,7 +2561,7 @@ function refreshResourceTrackerText()
     end
     resourceTrackerVisibleHeight=visibleHeight
     resourceTrackerSyncLayout(true)
-    if refreshUnitOfferHighlights~=nil then refreshUnitOfferHighlights(influenceTotal) end
+    if refreshUnitOfferHighlights~=nil then refreshUnitOfferHighlights(interactionTotal) end
 end
 
 function resetResourceTrackerState()
