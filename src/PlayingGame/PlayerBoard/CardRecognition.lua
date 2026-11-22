@@ -118,6 +118,32 @@ trackerPrivate.totalsKeys={move=true,ranged=true,siege=true,attack=true,block=tr
 
 -- Catalog is defined once in UnitResources.lua and keyed by card GUID.
 local unitResourceDefinitions=unitResourceDefinitions
+-- Full-size Artifacts use an explicit, saved Break toggle instead of their physical back.
+-- An old face-down play is imported as Break on its first scan; an explicit
+-- false always overrides that legacy interpretation. Half Banners are spent
+-- Unit attachments, never independently broken Artifacts.
+function resourceCardsArtifactBroken(guid,card)
+    local data=gameCards~=nil and gameCards[guid] or nil
+    if data==nil or data.cardType~="Artifact" or data.full~=nil then return false end
+    local state=gStates~=nil and gStates.artifactBreaks or nil
+    if type(state)=="table" and type(state[guid])=="boolean" then return state[guid] end
+    local obj=card or getObjectFromGUID(guid)
+    if obj~=nil and obj.is_face_down==true then
+        if gStates~=nil then
+            gStates.artifactBreaks=gStates.artifactBreaks or {}
+            gStates.artifactBreaks[guid]=true
+        end
+        return true
+    end
+    return false
+end
+
+function resourceCardsArtifactBreakClear(guid)
+    if gStates~=nil and gStates.artifactBreaks~=nil then
+        gStates.artifactBreaks[guid]=nil
+    end
+end
+
 -- Persist one-shot Banner uses through save/rewind, resetting only at new Round.
 trackerPrivate.bannerEffectUses=function()
     if gStates==nil then return {fortitude={},courage={},healing={}} end
@@ -134,7 +160,7 @@ trackerPrivate.bannerEffectUses=function()
 end
 
 -- The same printed Banner has two TTS card states with different rules:
--- full-size = playable Artifact (face down means Break), half-size =
+-- full-size = playable Artifact (saved toggle means Break), half-size =
 -- attached to a Unit (face down means its basic effect was spent).
 -- Never infer which effect was used from is_face_down alone.
 trackerPrivate.bannerCardForm=function(guid)
@@ -148,7 +174,7 @@ trackerPrivate.bannerCardForm=function(guid)
 end
 trackerPrivate.bannerStrongActive=function(card)
     return card~=nil and trackerPrivate.bannerCardForm(card.guid)=="full"
-        and card.is_face_down==true
+        and resourceCardsArtifactBroken(card.guid,card)
 end
 -- Attached halves are not separate played actions. This also protects
 -- direct calculateCard() callers, even when a thin play-zone overlaps a Unit.
@@ -7130,6 +7156,7 @@ local function sideChoices(rule,powered)
 end
 
 local function choiceCategory(choice)
+    if type(choice)~="table" then return nil end
     -- Two choices may provide the same resource at different values (e.g.
     -- Blood Rage's Attack with/without a Wound). Their explicit key must
     -- identify the button, rather than the first resource field in pairs().
@@ -7710,6 +7737,21 @@ combatConfig.cardChoicesPresent=function(card)
     return next(missing)==nil
 end
 
+-- The Break control is a separate decision, not a fictitious resource option.
+-- Rendering it independently also covers Artifacts with no numeric choices.
+local function artifactBreakButton(card,above,uiRotation,buttonDepth)
+    local broken=resourceCardsArtifactBroken(card.guid,card)
+    return {tag="Button",attributes={
+        id="ResourceCardChoice_"..card.guid.."_artifactBreak",
+        onClick="global/resourceCardsArtifactBreakClicked",
+        position="0 "..tostring(above and 108 or -12).." "..buttonDepth,
+        rotation=uiRotation,width=185,height=92,scale="0.25 0.25",fontSize=51,
+        colors=broken and "#81372F|#AD5045|#81372F|#81372F"
+            or "#454D5D|#69798E|#444C63|#454D5D",
+        textColor="#FFFFFF",textAlignment="MiddleCenter"},
+        value=broken and "BROKEN" or "BREAK"}
+end
+
 -- A single selected icon is centred on the object. Click to expand all
 -- choices; selecting one immediately collapses back to its icon.
 local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySets,resources,repeatLink)
@@ -7820,7 +7862,27 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     local buttonSpacing=44
     local buttonRowOffset=-30
     local data=gameCards[card.guid]
-    local isArtifact=data~=nil and data.cardType=="Artifact"
+    local isArtifact=data~=nil and data.cardType=="Artifact" and data.full==nil
+    if isArtifact and posture=="upright" and (choices==nil or #choices==0) then
+        local xml=resourceObjectUiXmlTable(card.UI)
+        local old={}
+        for i,node in ipairs(xml) do old[i]=node end
+        for i=#xml,1,-1 do
+            local attr=xml[i].attributes
+            if attr~=nil and type(attr.id)=="string"
+                and (attr.id:sub(1,19)=="ResourceCardChoice_"
+                    or attr.id:find("^AttackAssignmentSource_")~=nil) then
+                table.remove(xml,i)
+            end
+        end
+        local uiRotation=card.is_face_down==true and "0 180 180" or "0 0 180"
+        local depth=card.is_face_down==true and "35" or "-35"
+        xml[#xml+1]=artifactBreakButton(card,false,uiRotation,depth)
+        if not resourceObjectUiSameXML(old,xml) then resourceObjectUiSetTable(card.UI,xml) end
+        combatConfig.cardButtonIds[card.guid]=combatConfig.cardChoiceIds(card.guid,xml)
+        choiceButtonShown[card.guid]="artifact-break-only:"..tostring(resourceCardsArtifactBroken(card.guid,card))
+        return
+    end
     if choices==nil or #choices==0
         or (card.is_face_down==true and not isSkill and not isArtifact and repeatLink==nil)
         or (not isSkill and posture=="discard")
@@ -8050,6 +8112,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             ..tostring(special.recruited)..":"..tostring(special.terrain)) or "")
         ..":READY:"..tostring(readyCount)..":"..table.concat(readyLinks,",")
         ..":READY_ELIGIBLE:"..tostring(canReadyUnit)
+        ..":ARTIFACT_BREAK:"..tostring(isArtifact and resourceCardsArtifactBroken(card.guid,card))
         ..":TARGETS:"..tostring(trackerPrivate.singleAutoEnemyGUID)
     if choiceButtonShown[card.guid]==signature
         and combatConfig.cardChoicesPresent(card) then return end
@@ -8065,6 +8128,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             and (attr.id:sub(1,19)=="ResourceCardChoice_"
                 or attr.id:find("^AttackAssignmentSource_")~=nil) then table.remove(xml,i) end
     end
+    local otherControlCount=#xml
     if conversionValid then visibleAssets[#visibleAssets+1]="target" end
     if rule~=nil and rule.dodgeAttackSplit and combatCalcOn
         and posture=="upright" and resources~=nil then
@@ -8457,14 +8521,19 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
             textColor="#FFFFFF",textAlignment="MiddleCenter"},value="HEAL"}
     end
     if rule~=nil and rule.staffDualChoices==true and posture=="upright" then
-        local redReady=not powered and type(resources)=="table" and resources.other==1
+        -- Colour identity, not the shared numeric 'other=1', grants Ready.
+        -- Ready may have been played earlier, but cannot be activated in combat.
+        local _,first=currentChoice(card.guid,powered,choices)
+        local second=nil
         if powered then
-            local _,first=currentChoice(card.guid,true,choices)
-            local selected=selectedResourceByGUID[card.guid]
-            local second=selected~=nil and selected.inventorySets~=nil
-                and selected.inventorySets[1] or nil
-            redReady=first=="red" or second=="red"
+            local remaining={}
+            for _,option in ipairs(choices or {}) do
+                if choiceCategory(option)~=first then remaining[#remaining+1]=option end
+            end
+            _,second=inventorySetChoice(card.guid,1,remaining,choices)
         end
+        local redReady=type(resources)=="table" and not combatEnemyInPlay
+            and (first=="red" or second=="red")
         if redReady then
             xml[#xml+1]={tag="Button",attributes={
                 id="AttackAssignmentSource_"..card.guid.."_0_unitReady",
@@ -8492,6 +8561,9 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
                     or "#454D5D|#69798E|#444C63|#454D5D"},
                 value="RDY"..(repeatLink~=nil and tostring(index) or "")}
         end
+    end
+    if isArtifact and posture=="upright" then
+        xml[#xml+1]=artifactBreakButton(card,#xml>otherControlCount,uiRotation,buttonDepth)
     end
     -- A fixed Attack/Block against a sole enemy needs no manual target icon.
     -- That can leave an otherwise empty object UI; TTS rejects setXmlTable({})
@@ -8912,7 +8984,8 @@ local function scheduleChoiceResetAfterPlay(guid,seatPos)
     if guid==nil or seatPos==nil then return end
     -- Avoid physics waits for mana, enemies and unrelated play-area objects.
     if selectedResourceByGUID[guid]==nil and (gStates==nil
-        or ((gStates.resourceCardPlayOrder==nil
+        or ((gStates.artifactBreaks==nil or gStates.artifactBreaks[guid]==nil)
+            and (gStates.resourceCardPlayOrder==nil
                 or gStates.resourceCardPlayOrder[guid]==nil)
             and (gStates.resourceCardMoveRoles==nil
                 or gStates.resourceCardMoveRoles[guid]==nil))) then return end
@@ -8935,6 +9008,7 @@ local function scheduleChoiceResetAfterPlay(guid,seatPos)
                     gStates.resourceCardMoveRoles[guid]=nil
                 end
                 choiceExpandedByGUID[guid]=nil
+                resourceCardsArtifactBreakClear(guid)
                 if gStates~=nil and gStates.unitReadyCardChoices~=nil then
                     gStates.unitReadyCardChoices[guid]=nil
                 end
@@ -9556,7 +9630,7 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
             repeatCount=repeatLink~=nil and repeatLink.count or nil,
             repeatLink=repeatLink}
     end
-    -- Face-down Artifacts play their Break effect. Face-down Actions stay
+    -- Artifacts use the saved Break decision; face-down Actions stay
     -- inert unless they are the Action selected by Maximal Effect.
     local artifactPlayed=known and data.cardType=="Artifact" and rule~=nil
         and rule.artifactMode==true
@@ -9904,7 +9978,7 @@ local function resolveActionLinks(cards,wounds,footprints,manaPowered,skillLinks
             and (source.is_face_down~=true or repeated~=nil)
             and cardPosture(source)=="upright"
             and not (data~=nil and data.cardType=="Artifact"
-                and source.is_face_down==true) then
+                and resourceCardsArtifactBroken(source.guid,source)) then
             local need=repeated~=nil and repeated.count or 1
             local paid=0
             for _=1,need do
@@ -11199,12 +11273,12 @@ local function renderSeat(seatPos)
         local data=gameCards[card.guid]
         local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
         if rule~=nil and cardPosture(card)=="upright" then
-            if rule.artifactGlobalCombat~=nil and card.is_face_down==true then
+            if rule.artifactGlobalCombat~=nil and resourceCardsArtifactBroken(card.guid,card) then
                 combatConfig.artifactCombat[rule.artifactGlobalCombat]=true
             end
             if rule.artifactGlobalFame=="all" then
                 combatConfig.artifactCombat.swordFame=true
-            elseif rule.artifactGlobalFame=="range" and card.is_face_down~=true then
+            elseif rule.artifactGlobalFame=="range" and not resourceCardsArtifactBroken(card.guid,card) then
                 combatConfig.artifactCombat.bowFame=true
             end
         end
@@ -11477,8 +11551,7 @@ local function renderSeat(seatPos)
         local cardData=gameCards[card.guid]
         local rule=cardData~=nil and cardResourceDefinitions[cardData.resourceKey] or nil
         local artifactBreak=cardData~=nil and cardData.cardType=="Artifact"
-            and card.is_face_down==true
-            and trackerPrivate.bannerCardForm(card.guid)~="half"
+            and resourceCardsArtifactBroken(card.guid,card)
         local isStrong=powered[card.guid]==true or boostBy[card.guid]~=nil or artifactBreak
         if repeatByTarget[card.guid]~=nil then
             isStrong=repeatByTarget[card.guid].powered
@@ -11544,7 +11617,8 @@ local function renderSeat(seatPos)
             if cardPosture(card)=="sideways" then
                 if cardCanPlaySideways(card) then choices=trackerPrivate.sidewaysChoices end
             elseif (cardData==nil or cardData.resourceAlwaysNeutral~=true)
-                and (rule==nil or rule.requiredLink==nil or hasDiscard[card.guid]==true)
+                and (rule==nil or rule.requiredLink==nil or hasDiscard[card.guid]==true
+                    or (isStrong and rule.strongNoDiscard==true))
                 and (cardData==nil or cardData.cardType~="Spell"
                     or spellCastingPaid[card.guid]==true) then
                 -- Don't guess an unavailable effect before its payment/link is present.
@@ -11746,8 +11820,9 @@ local function renderSeat(seatPos)
                 end
             end
             result.resources=adjusted
-            result.inventorySetCount=1
-            result.complete=true
+            result.inventorySetCount=second~=nil and 1 or 0
+            result.complete=result.complete==true and firstKey~=nil
+                and second~=nil and choiceCategory(second)~=firstKey
             -- The non-numeric options need the player to carry out the move,
             -- crystal gain, or Unit ready. Do not show fully automated green.
             if (firstKey~="green"
@@ -11971,12 +12046,6 @@ local function renderSeat(seatPos)
             result.status="purple"
             result.links[#result.links+1]=manaLink.skillGUID
             result.convertedMana=manaLink.converted
-        end
-        if rule~=nil and rule.staffDualChoices==true and result.powered~=true
-            and result.resources~=nil and result.resources.other==1 then
-            -- The Red card discarded onto the Staff grants a single Unit
-            -- Ready, even though no numeric resource is contributed.
-            choices={{key="red",icon="other"}}
         end
         -- The recruitment-cost change is not performed by the offer script:
         -- the player chooses when to use these two extra Influence points.
@@ -14069,7 +14138,7 @@ function resourceCardsArtifactHealUnitsClicked(player,value,id)
     local current=turnOrder~=nil and gStates~=nil
         and turnOrder[gStates.turnNumber] or nil
     local card=getObjectFromGUID(guid)
-    if current==nil or card==nil or card.is_face_down~=true
+    if current==nil or card==nil or not resourceCardsArtifactBroken(guid,card)
         or cardPosture(card)~="upright"
         or not cardInSeatPlayArea(guid,current.seatPos) then return end
     local layout=unitLayoutSnapshot(current.seatPos)
@@ -14224,6 +14293,34 @@ function resourceCardsStartingCardControlClicked(player,value,id)
     resourceCardsSourceChanged()
 end
 
+-- Toggle the strong effect on any full-size Artifact while keeping its text
+-- face up. The saved choice, not rotation, controls later end-turn destruction.
+function resourceCardsArtifactBreakClicked(player,value,id)
+    if not resourceCardsPanelOpen() or not resourceCardsDetailsOpen()
+        or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil)
+        or type(id)~="string" or gStates==nil then return end
+    local guid=id:match("^ResourceCardChoice_([0-9a-f]+)_artifactBreak$")
+    local data=guid~=nil and gameCards[guid] or nil
+    local card=guid~=nil and getObjectFromGUID(guid) or nil
+    local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    if data==nil or data.cardType~="Artifact" or data.full~=nil
+        or card==nil or current==nil or cardPosture(card)~="upright"
+        or not cardInSeatPlayArea(guid,current.seatPos)
+        or combatConfig.phaseObjectLocked(guid) then return end
+    local broken=resourceCardsArtifactBroken(guid,card)
+    if not broken and data.resourceKey=="artifactDruidicStaff"
+        and combatEnemyInPlay then
+        safeBroadcastToColor("Druidic Staff: Break needs two different options; "
+            .."only the Blue crystal option is allowed during combat.",
+            player.color,warningColor)
+        return
+    end
+    gStates.artifactBreaks=gStates.artifactBreaks or {}
+    gStates.artifactBreaks[guid]=not broken
+    choiceExpandedByGUID[guid]=nil
+    resourceCardsSourceChanged()
+end
+
 -- Player clicks always replace the one-time guess; opening the choice menu
 -- alone leaves that selection and the Resource Tracker totals unchanged.
 function resourceCardsChoiceClicked(player,value,id)
@@ -14313,6 +14410,12 @@ function resourceCardsChoiceClicked(player,value,id)
     if selectedMoveCategory~=nil and not (combatCalcOn and combatCumbersomeActive) then return end
     local requestedMoveRole=selectedMoveCategory~=nil and "combat" or nil
     if selectedMoveCategory~=nil then category=selectedMoveCategory end
+    if data~=nil and data.resourceKey=="artifactDruidicStaff"
+        and combatEnemyInPlay and category~="blue" then
+        safeBroadcastToColor("Druidic Staff: only the two-crystal option is usable in combat.",
+            player.color,warningColor)
+        return
+    end
     local valid=choiceAvailable(choices,category)
     if not valid then return end
     if requestedMoveRole==nil then
@@ -14463,20 +14566,29 @@ function resourceCardsReadySourceValid(sourceKey,seatPos)
         local scan=resourceCardScanBySeat[seatPos]
         local record=scan~=nil and scan.cards[guid] or nil
         if record==nil or not record.complete then return false end
-        if record.powered~=true then
-            return record.resources~=nil and record.resources.other==1
+        -- An already-committed pre-combat Ready remains valid during combat,
+        -- but a new in-combat Ready is never authorised by the Staff.
+        if combatEnemyInPlay and (gStates.unitReadyLinks==nil
+            or gStates.unitReadyLinks[sourceKey]==nil) then return false end
+        local choices=record.choices
+        local _,first=currentChoice(guid,record.powered,choices)
+        if record.powered~=true then return first=="red" end
+        local remaining={}
+        for _,option in ipairs(choices or {}) do
+            if choiceCategory(option)~=first then remaining[#remaining+1]=option end
         end
-        local selected=selectedResourceByGUID[guid]
-        local choices=sideChoices(cardResourceDefinitions[data.resourceKey],true)
-        local _,first=currentChoice(guid,true,choices)
-        return first=="red" or (selected~=nil and selected.inventorySets~=nil
-            and selected.inventorySets[1]=="red")
+        local _,second=inventorySetChoice(guid,1,remaining,choices)
+        return second~=nil and first~=second and (first=="red" or second=="red")
     end
     if data~=nil and data.resourceKey=="artifactBannerCourage" then
         local card=getObjectFromGUID(guid)
         local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
         seatPos=seatPos or (current~=nil and current.seatPos)
-        if card==nil or card.is_face_down~=true or seatPos==nil then return false end
+        if card==nil or seatPos==nil then return false end
+        if trackerPrivate.bannerCardForm(guid)=="full"
+            and not resourceCardsArtifactBroken(guid,card) then return false end
+        if trackerPrivate.bannerCardForm(guid)=="half"
+            and card.is_face_down~=true then return false end
         if trackerPrivate.bannerCardForm(guid)=="full" then
             if not cardInSeatPlayArea(guid,seatPos)
                 or cardPosture(card)~="upright" then return false end
@@ -14583,6 +14695,9 @@ function attackAssignmentReadySourceClicked(player,value,id)
     local useIndex=tonumber(suffix:match("^@use(%d+)$"))
     if suffix~="" and useIndex==nil then return end
     local sourceKey=unitHistoryKey(guid,useIndex or 1)
+    local data=gameCards~=nil and gameCards[guid] or nil
+    if data~=nil and data.resourceKey=="artifactDruidicStaff"
+        and combatEnemyInPlay then return end
     if not resourceCardsReadySourceValid(sourceKey) then return end
     local limit=unitResourceDefinitions[guid]~=nil and 2
         or resourceCardsReadySourceLevelLimit(sourceKey) 
@@ -15733,5 +15848,6 @@ end
 -- protected public boundary for the onLoad audit and error reporter.
 publishPublicUICallbacks({
     resourceCardsRegenerationReadyClicked=resourceCardsRegenerationReadyClicked,
-    resourceCardsArtifactHealUnitsClicked=resourceCardsArtifactHealUnitsClicked
+    resourceCardsArtifactHealUnitsClicked=resourceCardsArtifactHealUnitsClicked,
+    resourceCardsArtifactBreakClicked=resourceCardsArtifactBreakClicked
 })
