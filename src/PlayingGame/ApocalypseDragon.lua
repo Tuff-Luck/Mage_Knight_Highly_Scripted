@@ -143,7 +143,9 @@ end
 function apocalypseDragonMonsterData(headName,level)
 	local levelData=apocalypseDragonCurrentLevelData(headName,level)
 	if levelData==nil then return nil end
-	local data={name="Apocalypse Dragon - "..headName,pugType="dragonHead",dragonHead=headName,dragonHeadLevel=level}
+	-- Control has no printed Fame; generic enemy bookkeeping still needs a numeric value.
+	-- Coloured heads overwrite this with their level-specific Fame below.
+	local data={name="Apocalypse Dragon - "..headName,pugType="dragonHead",dragonHead=headName,dragonHeadLevel=level,fame=0}
 	for key,value in pairs(levelData) do
 		if key~="image" and key~="attackBonus" and key~="possessedSummon" then
 			if key=="attack" then data.attack=apocalypseDragonCopyAttack(value,0)
