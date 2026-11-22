@@ -95,13 +95,14 @@ eq(cost(),0,"Two owned Skill discounts still work while tracker is off")
 local spend=section(ui,"function resourceCardsSpendExplore(cost)",
     "function refreshResourceTrackerReputation()",
     "return resourceCardsSpendExplore",env)
-env.gStates.resourceTracker={move={move=0,exploreSpent=0,exploreCount=0}}
+env.gStates.resourceTracker={move={move=0,exploreSpent=0,travelSpent=0,exploreCount=0}}
 trackerOpen=true
-spend(2)
-spend(0)
-spend(1)
-eq(env.gStates.resourceTracker.move.move,-3,"Explore spending is a signed offset")
-eq(env.gStates.resourceTracker.move.exploreSpent,3,"Cumulative Move spent")
+spend(2,3)
+spend(0,0)
+spend(1,2)
+eq(env.gStates.resourceTracker.move.move,-8,"Exploration plus travel is a signed offset")
+eq(env.gStates.resourceTracker.move.exploreSpent,3,"Cumulative Explore cost")
+eq(env.gStates.resourceTracker.move.travelSpent,5,"Cumulative travel cost")
 eq(env.gStates.resourceTracker.move.exploreCount,3,"Free exploration still counts")
 eq(updates,3,"One tracker refresh per exploration")
 local reset=section(ui,"function resetResourceTrackerState()",
@@ -110,6 +111,7 @@ local reset=section(ui,"function resetResourceTrackerState()",
 reset()
 eq(env.gStates.resourceTracker.move.move,0,"Turn boundary resets Move offset")
 eq(env.gStates.resourceTracker.move.exploreSpent,0,"Turn boundary resets Explore spending")
+eq(env.gStates.resourceTracker.move.travelSpent,0,"Turn boundary resets travel spending")
 eq(env.gStates.resourceTracker.move.exploreCount,0,"Turn boundary resets Explore count")
 
 assert(xml:find('id="MovemExploreRow"',1,true),"Explore row exists in XML")
@@ -117,8 +119,16 @@ assert(ui:find('showRow("MovemExplore",exploreCount>0)',1,true),
     "Explore row visibility follows the number of explorations")
 assert(movement:find('destinationHex.hexType=="explore" and resourceCardsEffectiveExploreCost()',1,true),
     "Map routes use exploration-specific cost, not plain terrain pricing")
-assert(map:find('resourceCardsSpendExplore(exploreCost)',1,true),
-    "Explore click deducts its captured price")
+assert(map:find('resourceCardsSpendExplore(exploreCost,travelCost)',1,true),
+    "Explore click deducts both its captured price and route")
+assert(map:find('local travelCost=moveDisplayCostToAvatar()',1,true),
+    "Explore queries travel before the map mutates")
+assert(movement:find('local searchLimit=costOnly and 99 or 10',1,true),
+    "Headless route queries work for costs beyond visible Move")
+assert(movement:find('return renderMoveDisplay(nil,playerPos) or 0',1,true),
+    "Explore travel uses the displayed path calculator")
+assert(ui:find('{en}Spent : ',1,true),
+    "Travel and exploration appear together as Spent")
 assert(map:find('moveDisplayCaptureAvatarOrigin()',1,true),
     "Explore captures the avatar origin even at zero remaining Move")
 print("Exploration spending regression checks passed")
