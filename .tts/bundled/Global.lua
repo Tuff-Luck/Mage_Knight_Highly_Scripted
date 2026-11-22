@@ -326,7 +326,7 @@ local expectedProtectedUICallbacks={
 	"steadyTempoChoice","summonMonster","togglePlayerDropoutRequest","volkarePursuitAction","volkareTurn",
 	"coopCompSkillWarningClick","combatDefeatMarkerNoop","nightTactic6StoredCountNoop",
 	"resourceCardsRegenerationReadyClicked","resourceCardsArtifactHealUnitsClicked",
-	"resourceCardsArtifactBreakClicked"
+	"resourceCardsArtifactBreakClicked","resourceCardsArtifactGrailFameClicked"
 }
 
 validatePublicUICallbacks=function()
@@ -4563,18 +4563,18 @@ local function mainUIRefreshPlayerState(context)
 				if doMath==true then
 					--All tokens Fame
 					if gStates.gainList[obj.guid].keepHalfFame==true then
-						turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+(math.ceil(monsterPugs[obj.guid].fame/2)*gStates.gainList[obj.guid].tokenDirection)
+						turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+(math.ceil((tonumber(monsterPugs[obj.guid].fame) or 0)/2)*gStates.gainList[obj.guid].tokenDirection)
 					else
 						local multiple=1
 						if obj.guid==darkCrusader.token or obj.guid==elementalist.token then
-							if gStates.gainList[obj.guid].overkill~=gStates.leaderOverkill then turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain-(monsterPugs[obj.guid].fame*gStates.gainList[obj.guid].overkill) end
+							if gStates.gainList[obj.guid].overkill~=gStates.leaderOverkill then turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain-((tonumber(monsterPugs[obj.guid].fame) or 0)*gStates.gainList[obj.guid].overkill) end
 							multiple=gStates.leaderOverkill
 							gStates.gainList[obj.guid].overkill=gStates.leaderOverkill
 						end
 						if gStates.druidNightsSummon~=nil then multiple=2 end
 						local perks=0
 						if gStates.monsterPerks[obj.guid]~=nil and gStates.monsterPerks[obj.guid].fame~=nil then perks=gStates.monsterPerks[obj.guid].fame end
-						local questFame=monsterPugs[obj.guid].fame+perks
+						local questFame=(tonumber(monsterPugs[obj.guid].fame) or 0)+perks
 						--Dragon heads use custom reward resolution: airborne gives Round Fame once, while
 						--landed heads give 1 Fame for each selected level reduction at combat cleanup.
 						if gStates.monsterPerks[obj.guid]~=nil and (gStates.monsterPerks[obj.guid].dragonAirborne==true or gStates.monsterPerks[obj.guid].dragonGround==true) then questFame=0 end
@@ -4615,7 +4615,7 @@ local function mainUIRefreshPlayerState(context)
 				if b.tokenDirection==1 then
 					--fame
 					if b.keepHalfFame==true then
-						turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain-math.ceil(monsterPugs[a].fame/2)
+						turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain-math.ceil((tonumber(monsterPugs[a].fame) or 0)/2)
 					else
 						local multiple=1
 						if a==darkCrusader.token or a==elementalist.token then
@@ -4624,7 +4624,7 @@ local function mainUIRefreshPlayerState(context)
 						if gStates.druidNightsSummon~=nil then multiple=2 end
 						local perks=0
 						if gStates.monsterPerks[a]~=nil and gStates.monsterPerks[a].fame~=nil then perks=gStates.monsterPerks[a].fame end
-						local questFame=monsterPugs[a].fame+perks
+						local questFame=(tonumber(monsterPugs[a].fame) or 0)+perks
 						--Dragon rewards are owned by their custom combat tracker. Mirror the add-side suppression
 						--here so removing a Dragon head cannot subtract ordinary monster Fame behind its back.
 						if b.dragonCustomFame==true or
@@ -6117,6 +6117,7 @@ function refreshResourceTrackerText()
     local moveGenerated=resourceCardsGeneratedMove~=nil and resourceCardsGeneratedMove() or 0
     local moveState=gStates.resourceTracker.move or {}
     local exploreSpent=tonumber(moveState.exploreSpent) or 0
+    local travelSpent=tonumber(moveState.travelSpent) or 0
     local exploreCount=tonumber(moveState.exploreCount) or 0
     local combatMove=resourceCardsEffectiveCombatMove~=nil and resourceCardsEffectiveCombatMove() or 0
 
@@ -6133,6 +6134,10 @@ function refreshResourceTrackerText()
     showRow("MovemGenerated",moveGenerated~=moveTotal)
     setResourceTrackerDisplayAttribute("MovemGeneratedText","text",
         joinLang({RESOURCE_TRACKER_FIELDS.InfluAmountPhysi[3],moveGenerated}))
+    showRow("MovemSpent",travelSpent>0)
+    setResourceTrackerDisplayAttribute("MovemSpentText","text",
+        joinLang({"{en}Spent : {it}Speso : {ru}Потрачено: {zh-tw}已花費：{zh-cn}已花费：{ko}사용 : {es}Gastado : {fr}Dépensé : {pt-br}Gasto : {de}Ausgegeben : ",
+            travelSpent>0 and ("-"..tostring(travelSpent)) or "0"}))
     showRow("MovemExplore",exploreCount>0)
     setResourceTrackerDisplayAttribute("MovemExploreText","text",
         joinLang({"{en}Explore : {it}Esplorazione : {ru}Исследование: {zh-tw}探索：{zh-cn}探索：{ko}탐험 : {es}Explorar : {fr}Exploration : {pt-br}Exploração : {de}Erkunden : ",
@@ -6225,7 +6230,7 @@ end
 
 function resetResourceTrackerState()
         invalidateResourceTrackerDisplayCache()
-		gStates.resourceTracker={move=		{move=0,exploreSpent=0,exploreCount=0},
+		gStates.resourceTracker={move=		{move=0,exploreSpent=0,travelSpent=0,exploreCount=0},
 								siege=		{physical=0, fire=0, ice=0, iceFire=0, psychic=0},
 								ranged=		{physical=0, fire=0, ice=0, iceFire=0, psychic=0},
 								block=		{physical=0, fire=0, ice=0, iceFire=0, psychic=0},
@@ -6237,14 +6242,18 @@ function resetResourceTrackerState()
 		if gStates.dayRound==true then gStates.moveCost={["plains"]=2, ["hills"]=3, ["forest"]=3, ["wasteland"]=4, ["desert"]=5, ["swamp"]=5, ["lake"]=999, ["mountain"]=999, ["city"]=2, ["explore"]=2} end
 end
 
--- Record one irreversible EXPLORE action per accepted tile. The signed manual
--- offset preserves over-spending until later Move cards make up the deficit.
-function resourceCardsSpendExplore(cost)
+-- Record each accepted Explore plus the route already walked to the avatar.
+-- The signed manual offset preserves overspending until more Move is played.
+-- Once Explore commits, Movement.lua shifts the origin to the avatar, so later
+-- explorations cannot charge that same journey again.
+function resourceCardsSpendExplore(cost,travelCost)
     local move=gStates.resourceTracker~=nil and gStates.resourceTracker.move or nil
     if move==nil then return end
     cost=math.max(0,tonumber(cost) or 0)
-    move.move=(tonumber(move.move) or 0)-cost
+    travelCost=math.max(0,tonumber(travelCost) or 0)
+    move.move=(tonumber(move.move) or 0)-cost-travelCost
     move.exploreSpent=(tonumber(move.exploreSpent) or 0)+cost
+    move.travelSpent=(tonumber(move.travelSpent) or 0)+travelCost
     move.exploreCount=(tonumber(move.exploreCount) or 0)+1
     if resourceCardsPanelOpen() then refreshResourceTrackerText() end
 end
@@ -8088,33 +8097,55 @@ end
 
 -- Keep the movement-map origin in sync even if spending all Move hides the route overlay.
 -- Shared by the manual refresh button and the map exploration event.
-function moveDisplayCaptureAvatarOrigin()
+-- Use the same physical avatar and City translation for both the route
+-- origin and the movement already spent before an Explore click.
+function moveDisplayCurrentAvatarPosition()
     local currentTurn=gStates~=nil and turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
-    if currentTurn==nil or currentTurn.avatarLocation==nil
-        or gStates.resourceTracker==nil then return end
-	for _, details in pairs(mageKnights) do
-		if details.mage==currentTurn.mage then
-			if getObjectFromGUID(details.model)~=nil then gStates.resourceTracker.playerPos={getObjectFromGUID(details.model).getPosition()[1], getObjectFromGUID(details.model).getPosition()[2], getObjectFromGUID(details.model).getPosition()[3]} end
-			if getObjectFromGUID(details.token)~=nil then gStates.resourceTracker.playerPos=getObjectFromGUID(details.token).getPosition() end
-			if getObjectFromGUID(details.standee)~=nil then gStates.resourceTracker.playerPos=getObjectFromGUID(details.standee).getPosition() end
-		end
-	end
-	local avatarLocation=currentTurn.avatarLocation
-	if avatarLocation:sub(1, 4)=="city" or avatarLocation=="Volkare's Camp" then
-		--figure out which city avatar is in
-		for zone, citySearch in pairs(cityScriptZones) do
-			local zoneObj=getObjectFromGUID(zone)
-			if zoneObj~=nil then
-				for _, detail in pairs(zoneObj.getObjects()) do
-					if joinLangEnglish(tostring(detail.getName() or ""))==currentTurn.mage then
-						local cityObj=getObjectFromGUID(citySearch.cityGUID)
-						if cityObj~=nil then gStates.resourceTracker.playerPos=cityObj.getPosition() end
-						break
-					end
-				end
-			end
-		end
-	end
+    if currentTurn==nil or currentTurn.avatarLocation==nil then return nil end
+    local playerPos=nil
+    for _, details in pairs(mageKnights) do
+        if details.mage==currentTurn.mage then
+            local model=getObjectFromGUID(details.model)
+            local token=getObjectFromGUID(details.token)
+            local standee=getObjectFromGUID(details.standee)
+            if model~=nil then playerPos=model.getPosition() end
+            if token~=nil then playerPos=token.getPosition() end
+            if standee~=nil then playerPos=standee.getPosition() end
+        end
+    end
+    local avatarLocation=currentTurn.avatarLocation
+    if avatarLocation:sub(1,4)=="city" or avatarLocation=="Volkare's Camp" then
+        for zone, citySearch in pairs(cityScriptZones) do
+            local zoneObj=getObjectFromGUID(zone)
+            if zoneObj~=nil then
+                for _, detail in pairs(zoneObj.getObjects()) do
+                    if joinLangEnglish(tostring(detail.getName() or ""))==currentTurn.mage then
+                        local cityObj=getObjectFromGUID(citySearch.cityGUID)
+                        if cityObj~=nil then playerPos=cityObj.getPosition() end
+                        break
+                    end
+                end
+            end
+        end
+    end
+    return playerPos
+end
+
+function moveDisplayCaptureAvatarOrigin()
+    if gStates==nil or gStates.resourceTracker==nil then return end
+    local playerPos=moveDisplayCurrentAvatarPosition()
+    if playerPos~=nil then
+        gStates.resourceTracker.playerPos={playerPos[1],playerPos[2],playerPos[3]}
+    end
+end
+
+-- Query the same route graph used for the displayed costs, even when the
+-- tracker is minimized. Do this before Explore resets the route origin.
+function moveDisplayCostToAvatar()
+    if gStates==nil or gStates.resourceTracker==nil then return 0 end
+    local playerPos=moveDisplayCurrentAvatarPosition()
+    if playerPos==nil then return 0 end
+    return renderMoveDisplay(nil,playerPos) or 0
 end
 
 function updateMoveDisplay(id)
@@ -8143,9 +8174,10 @@ function updateMoveDisplay(id)
 	moveDisplayAutoPause=safeWaitTime("Movement",function() moveDisplayAutoPause=nil renderMoveDisplay() end, moveDisplayRefreshDelay)
 end
 
-function renderMoveDisplay(id)
-	--A pending background redraw must not restore routes after the tracker was minimized.
-	if not moveDisplayTrackerExpanded() then clearMoveDisplayVisuals() return end
+function renderMoveDisplay(id,targetPos)
+    local costOnly=targetPos~=nil
+	--A headless route query must work while minimized without touching visible overlays.
+	if not costOnly and not moveDisplayTrackerExpanded() then clearMoveDisplayVisuals() return end
     -- Druidic Paths' basic ability discounts only one space per route.
     local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
     local scan=active~=nil and resourceCardScanBySeat~=nil
@@ -8154,15 +8186,19 @@ function renderMoveDisplay(id)
         and (scan.movementEffects.singleSpaceDiscount or 0) or 0
 	--Preserve Global vector lines that existed before the movement display started.
 	local moveValue=gStates.resourceTracker~=nil and gStates.resourceTracker.move~=nil and resourceCardsEffectiveMove() or 0
-	if moveValue>0 and moveDisplayBaseVectorLines==nil then moveDisplayBaseVectorLines=attackAssignmentsWithoutVectorLines(Global.getVectorLines() or {}) end
+	if not costOnly and moveValue>0 and moveDisplayBaseVectorLines==nil then
+        moveDisplayBaseVectorLines=attackAssignmentsWithoutVectorLines(Global.getVectorLines() or {})
+    end
 
-	gStates.moveDisplayGeneration=(gStates.moveDisplayGeneration or 0)+1
-	local displayGeneration=gStates.moveDisplayGeneration
-	moveDisplayTextSlotRequests={}
-	gStates.moveDisplayTextGUIDs=gStates.moveDisplayTextGUIDs or {}
-	gStates.moveDisplayTextActiveCount=0
+    if not costOnly then
+        gStates.moveDisplayGeneration=(gStates.moveDisplayGeneration or 0)+1
+        moveDisplayTextSlotRequests={}
+        gStates.moveDisplayTextGUIDs=gStates.moveDisplayTextGUIDs or {}
+        gStates.moveDisplayTextActiveCount=0
+    end
+    local displayGeneration=gStates.moveDisplayGeneration or 0
 
-	if moveValue<=0 then
+	if moveValue<=0 and not costOnly then
 		clearMoveDisplayVisuals()
 		return
 	end
@@ -8202,7 +8238,10 @@ function renderMoveDisplay(id)
 	local startTileGUID=gStates.gameScenario=="Against the Horsemen Blitz" and GUID.tile.country01 or startTerrain.open
 	local startTile=getObjectFromGUID(startTileGUID)
 	if startTile==nil and gStates.gameScenario~="Against the Horsemen Blitz" then startTileGUID=startTerrain.wedge startTile=getObjectFromGUID(startTileGUID) end
-	if startTile==nil or getObjectFromGUID(mapArea)==nil then clearMoveDisplayVisuals() return end
+	if startTile==nil or getObjectFromGUID(mapArea)==nil then
+        if not costOnly then clearMoveDisplayVisuals() end
+        return nil
+    end
 	local startTilePos=startTile.getPosition()
 	local snapshot=runtimeMapSnapshot()
 	local playAreaObjects=snapshot.objects or {}
@@ -8360,8 +8399,8 @@ function renderMoveDisplay(id)
 		--Dummy and other non-avatar turns intentionally have no avatarLocation. Resource Tracker
 		--controls can still fire on those turns, but there is no player movement map to render.
 		if currentTurn==nil or currentTurn.avatarLocation==nil then
-			clearMoveDisplayVisuals()
-			return
+            if not costOnly then clearMoveDisplayVisuals() end
+			return nil
 		end
 		local turnStartLoc=currentTurn.turnStartLoc
 		if gStates.resourceTracker.playerPos==nil and turnStartLoc~=nil and turnStartLoc[1]~=nil and turnStartLoc[1]>-42 then
@@ -8381,7 +8420,7 @@ function renderMoveDisplay(id)
 		local fringe={{coord={playerHexGridHorizontal, playerHexGridAxial},state="safe"}}
 		local tempFringe={}
 		local tempFringeSet={}
-		local searchLimit=10
+		local searchLimit=costOnly and 99 or 10
 		local noMove=false
 
 		local function moveDestination(hor,vec)
@@ -8559,6 +8598,24 @@ function renderMoveDisplay(id)
 			tempFringe={}
 			tempFringeSet={}
 		end
+        -- Charge the cheapest valid route from the previous map origin to the
+        -- avatar's present hex. Reuse all regular route states (terrain
+        -- discounts, Wings of Wind, Space Bending, tunnels and teleportation).
+        -- A headless query must return before creating markers or vector lines.
+        if costOnly then
+            local targetVec,targetHor=runtimeMapWorldToAxial(targetPos,startTilePos)
+            local routeRow=moveMap[tostring(targetHor)]
+            local route=routeRow~=nil and routeRow[tostring(targetVec)] or nil
+            if route==nil then return nil end
+            local best=nil
+            for _,state in ipairs({"safe","safeDiscount","safeWind","safeDiscountWind",
+                "combat","combatDiscount","combatWind","combatDiscountWind"}) do
+                local cost=route[state]
+                if cost~=nil and (best==nil or cost<best) then best=cost end
+            end
+            return best
+        end
+
 		--Draw the predecessor tree used by the displayed cheapest routes. Each retained
 		--route state is walked once rather than retracing every destination back to the avatar.
 		local routeLines={}
@@ -14607,7 +14664,9 @@ end
 function apocalypseDragonMonsterData(headName,level)
 	local levelData=apocalypseDragonCurrentLevelData(headName,level)
 	if levelData==nil then return nil end
-	local data={name="Apocalypse Dragon - "..headName,pugType="dragonHead",dragonHead=headName,dragonHeadLevel=level}
+	-- Control has no printed Fame; generic enemy bookkeeping still needs a numeric value.
+	-- Coloured heads overwrite this with their level-specific Fame below.
+	local data={name="Apocalypse Dragon - "..headName,pugType="dragonHead",dragonHead=headName,dragonHeadLevel=level,fame=0}
 	for key,value in pairs(levelData) do
 		if key~="image" and key~="attackBonus" and key~="possessedSummon" then
 			if key=="attack" then data.attack=apocalypseDragonCopyAttack(value,0)
@@ -35564,6 +35623,9 @@ function exploreMap(player, mouseButton, id)
         -- Capture the price at click time; later played cards must not change an
         -- already-paid exploration, and one-time effects can use exploreCount.
         local exploreCost=resourceCardsEffectiveExploreCost()
+        -- Snapshot the route before this tile changes the map. The avatar may
+        -- already have walked several hexes since the last movement origin.
+        local travelCost=moveDisplayCostToAvatar()
 		local exploreSnapshot=runtimeMapSnapshot()
 		for _,mapObject in ipairs(exploreSnapshot.terrainObjects or {}) do
 			local mapPos=exploreSnapshot.terrainPositions[mapObject.guid] or mapObject.getPosition()
@@ -35599,7 +35661,7 @@ function exploreMap(player, mouseButton, id)
 				local drawnTile=getObjectFromGUID(drawFrom).takeObject({position={pos[1], 2, pos[2]}, rotation=tileRotation, smooth=false, index=index})
                 -- The tile is committed: count and charge EXPLORE exactly once.
                 -- Keep the origin current even when this spends the last Move.
-                resourceCardsSpendExplore(exploreCost)
+                resourceCardsSpendExplore(exploreCost,travelCost)
                 moveDisplayCaptureAvatarOrigin()
 				if gStates.gameScenario=="The Fractured Lands Blitz" then
 					startFracturedLandsOrientation(drawnTile, {pos[1],0.97,pos[2]})
@@ -48601,6 +48663,25 @@ local function playerSetupCreateMirrorSource(position,offsetPosition,context)
 	end
 end
 
+-- State swaps can fail (for example, when this card has no such saved state).
+-- A missing reference-card side is cosmetic; it must not abort the game setup.
+local function playerSetupLockReferenceState(obj,state,label)
+	if obj==nil then
+		print("SETUP WARNING: missing "..label.." reference card.")
+		return
+	end
+	if state==nil then obj.lock() return end
+	local guid=obj.guid
+	local switched=obj.setState(state)
+	if switched==nil then
+		-- setState may return nil for an unavailable/current state. Keep the original
+		-- card locked if TTS did not replace it, and leave a diagnostic for the player.
+		print("SETUP WARNING: "..label.." reference card state "..tostring(state).." was not available.")
+		switched=getObjectFromGUID(guid)
+	end
+	if switched~=nil then switched.lock() end
+end
+
 local function playerSetupMageBag(position,offsetPosition)
 	local mage=gStates.positionMageKnight[position]
 	if mage=="nobody" then mage=gStates.positionMageKnight[5] end
@@ -48695,7 +48776,7 @@ local function playerSetupDeployUniqueComponents(orderIndex,position,offsetPosit
 			else
 				params.callback_function=function(obj) obj.lock() end
 				if (gStates.coop==0 or gStates.WarOfFourComp==true) and gStates.positionMageKnight[position]~="Ymirgh" and gStates.positionMageKnight[position]~="Malek" and gStates.positionMageKnight[position]~="Duscenia" and gStates.positionMageKnight[position]~="Mevok" and gStates.positionMageKnight[position]~="Zirtae" then
-					params.callback_function=function(ob) local obj=ob.setState(1) obj.lock() end
+					params.callback_function=function(ob) playerSetupLockReferenceState(ob,1,"Skill Reference Card 2") end
 				end
 			end
 		end
@@ -48829,7 +48910,7 @@ local function playerSetupDeployUniqueComponents(orderIndex,position,offsetPosit
 				params.position={-72.5+offsetPosition, 1.06, -48.23}
 				params.callback_function=function(obj) obj.lock() end
 				if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" then
-					params.callback_function=function(ob) local obj=ob.setState(2) obj.lock() end
+					params.callback_function=function(ob) playerSetupLockReferenceState(ob,2,"Volkare Scenario Reference") end
 				end
 			end
 		end
@@ -54201,7 +54282,21 @@ combatConfig.enemyNameColumnWidth=function(label)
         elseif byte>=192 and byte<224 then width=width+10
         end
     end
-    return math.max(100,math.ceil(width))
+    return math.max(74,math.ceil(width))
+end
+
+-- Defensive abilities are displayed on separate lines. Measure only the
+-- longest visible line (ignoring TTS rich-text colours), not their total length.
+-- This keeps short entries compact while allowing long abilities to fit.
+combatConfig.traitColumnWidth=function(traits)
+    local width=78
+    for _,text in pairs(traits or {}) do
+        local plain=tostring(text or ""):gsub("<[^>]+>","")
+        for line in plain:gmatch("[^\n]+") do
+            width=math.max(width,combatConfig.enemyNameColumnWidth(line))
+        end
+    end
+    return width
 end
 
 local function combatAssignmentRefreshRows(entries,sources)
@@ -54274,13 +54369,14 @@ local function combatAssignmentRefreshRows(entries,sources)
     end
     -- The name and header occupy one shared column. Size it from the longest
     -- name on this page, including the '+ ' prefix for a joined enemy.
-    local enemyNameWidth=100
+    local enemyNameWidth=74
     for index=pageOffset+1,pageEnd do
         local entry=entries[index]
         local joined=groupOf[index]~=nil and groupOf[index].leader~=index
         local label=(joined and "+ " or "")..tostring(entry.name or "")
         enemyNameWidth=math.max(enemyNameWidth,combatConfig.enemyNameColumnWidth(label))
     end
+    combatConfig.columns.Name=enemyNameWidth
     for row=1,combatConfig.rowCount do
         combatPanelSetAttribute("CombatEnemyNameCell"..row,"preferredWidth",tostring(enemyNameWidth))
     end
@@ -55883,7 +55979,12 @@ local function combatAssignmentRefreshRows(entries,sources)
     -- Keep columns aligned across visible enemy rows, but size each
     -- resource phase to its fullest row (three to six icons wide).
     -- GridLayout wraps additional icons below the first line.
-    local columnWidths={traits=150,offence=130,enemyAttack=105}
+    local columnWidths={traits=combatConfig.traitColumnWidth(shownTraits),offence=130,enemyAttack=105}
+    -- Keep trait row cells and their header in lockstep, including when the
+    -- visible page changes or a combat ability is removed mid-fight.
+    for row=1,combatConfig.rowCount do
+        combatPanelSetAttribute("CombatEnemyRow"..row.."Traits","preferredWidth",tostring(columnWidths.traits))
+    end
     for _,family in ipairs({"range","block","attack"}) do
         local columns=math.max(3,math.min(combatConfig.lineSlotCount,maxResourceCounts[family]))
         columnWidths[family]=columns*24
@@ -55914,7 +56015,7 @@ local function combatAssignmentRefreshRows(entries,sources)
 
     local widthReduction=(170-columnWidths.range)+(170-columnWidths.block)+(170-columnWidths.attack)
     local panelWidth=1380-(255-combatConfig.columns.Result)-hiddenWidth-widthReduction
-        +(enemyNameWidth-120)
+        +(enemyNameWidth-120)+(columnWidths.traits-150)
 
     if earlyLock==nil and combatConfig.phasePreview~=nil then
         combatConfig.phasePreview.attackDiscards=combatFrozenCopy(stagedAttackCards)
@@ -55982,7 +56083,7 @@ local function combatAssignmentRefreshRows(entries,sources)
     end
     combatPanelSetAttribute("CombatEnemyPanel","width",tostring(panelWidth))
     combatPanelSetAttribute("CombatEnemyPanel","color","rgb(0.24,0.2,0.15)")
-    local headerWidths={Monster=enemyNameWidth,Armour=55,DefenceTraits=150,RangeSiege=columnWidths.range,EnemyAttack=105,
+    local headerWidths={Monster=enemyNameWidth,Armour=55,DefenceTraits=columnWidths.traits,RangeSiege=columnWidths.range,EnemyAttack=105,
         Offence=130,Block=columnWidths.block,AssignedAttack=columnWidths.attack,Result=combatConfig.columns.Result}
     for name,width in pairs(headerWidths) do
         local id="Combat"..name.."Header"
@@ -57520,19 +57621,81 @@ combatConfig.cardChoicesPresent=function(card)
     return next(missing)==nil
 end
 
--- The Break control is a separate decision, not a fictitious resource option.
--- Rendering it independently also covers Artifacts with no numeric choices.
-trackerPrivate.artifactBreakButton=function(card,above,uiRotation,buttonDepth)
+-- The Throw/Recover control selects the printed throw-away (strong) effect.
+-- This is independent of resource choices, including Artifacts without numeric choices.
+trackerPrivate.artifactBreakButton=function(card,uiRotation,buttonDepth)
     local broken=resourceCardsArtifactBroken(card.guid,card)
+    local data=gameCards~=nil and gameCards[card.guid] or nil
+    local key=data~=nil and data.resourceKey or nil
+    local waitForCombat=not broken and combatEnemyInPlay
+        and (key=="artifactDruidicStaff" or key=="artifactBannerCourage"
+            or key=="artifactBannerFortitude")
+    local label=broken and "RECOVER" or (waitForCombat and "WAIT" or "THROW")
     return {tag="Button",attributes={
         id="ResourceCardChoice_"..card.guid.."_artifactBreak",
         onClick="global/resourceCardsArtifactBreakClicked",
-        position="0 "..tostring(above and 108 or -12).." "..buttonDepth,
-        rotation=uiRotation,width=185,height=92,scale="0.25 0.25",fontSize=51,
+        -- Card UI rotates 180 degrees: negative Y is toward the top artwork.
+        -- Keep THROW below the printed text and RECOVER above the artwork.
+        position="0 "..tostring(broken and -140 or 140).." "..buttonDepth,
+        rotation=uiRotation,width=220,height=74,scale="0.25 0.25",
+        font="Fonts/MKCardText",fontSize=58,
+        resizeTextForBestFit="true",resizeTextMinSize=26,
+        resizeTextMaxSize=58,padding="18 18 9 9",
         colors=broken and "#81372F|#AD5045|#81372F|#81372F"
-            or "#454D5D|#69798E|#444C63|#454D5D",
+            or (waitForCombat and "#383838|#505050|#383838|#383838"
+                or "#454D5D|#69798E|#444C63|#454D5D"),
         textColor="#FFFFFF",textAlignment="MiddleCenter"},
-        value=broken and "BROKEN" or "BREAK"}
+        value=label}
+end
+
+-- Shift only the Artifact's newly generated option/target controls toward the
+-- artwork by half their actual rendered height (UI height times Y scale).
+-- Move multi-choice row labels with their buttons; leave unrelated object UI
+-- and the independent THROW/RECOVER control exactly where they are.
+trackerPrivate.raiseArtifactChoiceControls=function(xml,startIndex,guid)
+    local choicePrefix="ResourceCardChoice_"..guid.."_"
+    local targetPrefix="AttackAssignmentSource_"..guid.."_"
+    for i=startIndex,#xml do
+        local node=xml[i]
+        local attrs=node~=nil and node.attributes or nil
+        local id=attrs~=nil and attrs.id or nil
+        if type(id)=="string" and attrs.position~=nil
+            and id~=choicePrefix.."artifactBreak"
+            and (id:sub(1,#choicePrefix)==choicePrefix
+                or id:sub(1,#targetPrefix)==targetPrefix)
+            and (node.tag=="Button" or
+                (node.tag=="Text" and id:find("_label",1,true)~=nil)) then
+            local x,y,z=tostring(attrs.position):match("^(%S+)%s+(%S+)%s+(%S+)$")
+            local height=tonumber(attrs.height) or 0
+            -- Special edge controls (e.g. Banner HEAL and Staff RDY)
+            -- are already clear of the card title and must not be pushed off-card.
+            if x~=nil and tonumber(y)~=nil and math.abs(tonumber(y))<=110
+                and height>0 then
+                local sx,sy
+                if type(attrs.scale)=="string" then
+                    sx,sy=attrs.scale:match("^(%S+)%s+(%S+)")
+                end
+                local shift=height*(tonumber(sy) or tonumber(sx) or 1)/2
+                attrs.position=x.." "..tostring(tonumber(y)-shift).." "..z
+            end
+        end
+    end
+end
+
+-- A manual counter: only spent Heal points from the Grail's basic effect
+-- generate Fame. The user can left-click to add and right-click to subtract.
+trackerPrivate.grailFameButton=function(card,uiRotation,buttonDepth)
+    local used=gStates~=nil and gStates.artifactGrailHealingUsed~=nil
+        and gStates.artifactGrailHealingUsed[card.guid] or 0
+    used=math.max(0,math.min(2,tonumber(used) or 0))
+    return {tag="Button",attributes={
+        id="ResourceCardChoice_"..card.guid.."_grailFame",
+        onClick="global/resourceCardsArtifactGrailFameClicked",
+        position="145 -145 "..buttonDepth,rotation=uiRotation,
+        width=185,height=90,scale="0.28 0.28",fontSize=42,
+        colors="#454D5D|#69798E|#454D5D|#454D5D",
+        textColor="#FFFFFF",textAlignment="MiddleCenter"},
+        value="F "..tostring(used).."/2"}
 end
 
 -- A single selected icon is centred on the object. Click to expand all
@@ -57660,7 +57823,10 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         end
         local uiRotation=card.is_face_down==true and "0 180 180" or "0 0 180"
         local depth=card.is_face_down==true and "35" or "-35"
-        xml[#xml+1]=trackerPrivate.artifactBreakButton(card,false,uiRotation,depth)
+        xml[#xml+1]=trackerPrivate.artifactBreakButton(card,uiRotation,depth)
+        if rule~=nil and rule.grailFamePerHealing~=nil and not powered then
+            xml[#xml+1]=trackerPrivate.grailFameButton(card,uiRotation,depth)
+        end
         if not resourceObjectUiSameXML(old,xml) then resourceObjectUiSetTable(card.UI,xml) end
         combatConfig.cardButtonIds[card.guid]=combatConfig.cardChoiceIds(card.guid,xml)
         choiceButtonShown[card.guid]="artifact-break-only:"..tostring(resourceCardsArtifactBroken(card.guid,card))
@@ -57896,6 +58062,9 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         ..":READY:"..tostring(readyCount)..":"..table.concat(readyLinks,",")
         ..":READY_ELIGIBLE:"..tostring(canReadyUnit)
         ..":ARTIFACT_BREAK:"..tostring(isArtifact and resourceCardsArtifactBroken(card.guid,card))
+        ..":ENEMY_PRESENT:"..tostring(combatEnemyInPlay)
+        ..":GRAIL:"..tostring(gStates~=nil and gStates.artifactGrailHealingUsed~=nil
+            and gStates.artifactGrailHealingUsed[card.guid] or 0)
         ..":TARGETS:"..tostring(trackerPrivate.singleAutoEnemyGUID)
     if choiceButtonShown[card.guid]==signature
         and combatConfig.cardChoicesPresent(card) then return end
@@ -58294,6 +58463,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     if rule~=nil and isArtifact
         and cardData.resourceKey=="artifactBannerFortitude"
         and trackerPrivate.bannerStrongActive(card) and posture=="upright"
+        and not combatEnemyInPlay and not combatCalcOn
         and not trackerPrivate.bannerEffectUses().healing[card.guid] then
         xml[#xml+1]={tag="Button",attributes={
             id="ResourceCardChoice_"..card.guid.."_healAllUnits",
@@ -58346,7 +58516,11 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         end
     end
     if isArtifact and posture=="upright" then
-        xml[#xml+1]=trackerPrivate.artifactBreakButton(card,#xml>otherControlCount,uiRotation,buttonDepth)
+        trackerPrivate.raiseArtifactChoiceControls(xml,otherControlCount+1,card.guid)
+        xml[#xml+1]=trackerPrivate.artifactBreakButton(card,uiRotation,buttonDepth)
+        if rule~=nil and rule.grailFamePerHealing~=nil and not powered then
+            xml[#xml+1]=trackerPrivate.grailFameButton(card,uiRotation,buttonDepth)
+        end
     end
     -- A fixed Attack/Block against a sole enemy needs no manual target icon.
     -- That can leave an otherwise empty object UI; TTS rejects setXmlTable({})
@@ -58768,6 +58942,8 @@ local function scheduleChoiceResetAfterPlay(guid,seatPos)
     -- Avoid physics waits for mana, enemies and unrelated play-area objects.
     if selectedResourceByGUID[guid]==nil and (gStates==nil
         or ((gStates.artifactBreaks==nil or gStates.artifactBreaks[guid]==nil)
+            and (gStates.artifactGrailHealingUsed==nil
+                or gStates.artifactGrailHealingUsed[guid]==nil)
             and (gStates.resourceCardPlayOrder==nil
                 or gStates.resourceCardPlayOrder[guid]==nil)
             and (gStates.resourceCardMoveRoles==nil
@@ -58792,6 +58968,9 @@ local function scheduleChoiceResetAfterPlay(guid,seatPos)
                 end
                 choiceExpandedByGUID[guid]=nil
                 resourceCardsArtifactBreakClear(guid)
+                if gStates~=nil and gStates.artifactGrailHealingUsed~=nil then
+                    gStates.artifactGrailHealingUsed[guid]=nil
+                end
                 if gStates~=nil and gStates.unitReadyCardChoices~=nil then
                     gStates.unitReadyCardChoices[guid]=nil
                 end
@@ -59563,7 +59742,12 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
         or not complete and "yellow" or "green"
     -- The printed crystal gain on Savage Harvesting is deliberately manual.
     -- Move is still counted, but a green "fully understood" highlight would lie.
-    if rule~=nil and rule.manualSecondary~=nil and status=="green" then
+    -- Golden Grail's basic Fame is complete once both Heal points are confirmed;
+    -- its stronger-side card draws still require manual resolution.
+    if rule~=nil and rule.manualSecondary~=nil and status=="green"
+        and not (rule.grailFamePerHealing~=nil and not powered
+            and gStates~=nil and gStates.artifactGrailHealingUsed~=nil
+            and (tonumber(gStates.artifactGrailHealingUsed[card.guid]) or 0)>=2) then
         status="yellow"
     end
     -- Linking information is more valuable than the underlying certainty colour.
@@ -59798,11 +59982,14 @@ local function resolveActionLinks(cards,wounds,footprints,manaPowered,skillLinks
         local repeated=repeatByTarget[source.guid]
         if paid~=nil and (discarded[source.guid]==nil or repeated~=nil)
             and (source.is_face_down~=true or repeated~=nil)
-            and (cardPosture(source)=="upright" or repeated~=nil) then
+            and (cardPosture(source)=="upright" or repeated~=nil)
+            -- A face-up broken Sword/Bow has no basic discard-payment ability.
+            and not (data~=nil and data.cardType=="Artifact"
+                and resourceCardsArtifactBroken(source.guid,source)) then
             local chosen=selectedResourceByGUID[source.guid]
             local strong=manaPowered[source.guid]==true or boostBy[source.guid]~=nil
                 or (data~=nil and data.cardType=="Artifact"
-                    and source.is_face_down==true)
+                    and resourceCardsArtifactBroken(source.guid,source))
             if repeated~=nil then strong=repeated.powered end
             local spec=paid.normal
             if strong then spec=paid.powered end
@@ -61417,6 +61604,18 @@ local function renderSeat(seatPos)
             skillLinksByTarget[card.guid],linkedChoices,repeatByTarget[card.guid],
             discardBoostBySource[card.guid],woundCount,enemyBonus,
             spellCastingPaid[card.guid]==true)
+        if rule~=nil and rule.grailFamePerHealing~=nil
+            and not result.powered and result.complete
+            and cardPosture(card)=="upright" then
+            local used=gStates.artifactGrailHealingUsed~=nil
+                and gStates.artifactGrailHealingUsed[card.guid] or 0
+            used=math.max(0,math.min(2,tonumber(used) or 0))
+            if used>0 then
+                result.fameRep=result.fameRep or {}
+                result.fameRep.fame=(result.fameRep.fame or 0)
+                    +used*rule.grailFamePerHealing
+            end
+        end
         if rule~=nil and rule.staffDualChoices==true and combatEnemyInPlay then
             -- Only the blue crystal effect can be used during combat. Existing
             -- pre-combat Unit Ready history is preserved separately below.
@@ -62324,11 +62523,11 @@ local function renderSeat(seatPos)
                     courageUses[card.guid]={eligible=eligible}
                 end
                 for _,entry in ipairs(courageUses[card.guid].eligible) do
-                    if not entry.linked then
-                        if gStates.unitReadyLinks[entry.key]~=nil
-                            or unitHistoryReadyLink(entry.key,entry.guid,seatPos,nil) then
-                            entry.linked=true
-                        end
+                    -- The link, not a stale cached boolean, is authoritative.
+                    -- A Break toggle off/on restores only the original eligible
+                    -- Units, never Units spent after the first Break.
+                    if gStates.unitReadyLinks[entry.key]==nil then
+                        unitHistoryReadyLink(entry.key,entry.guid,seatPos,nil)
                     end
                 end
             end
@@ -63933,7 +64132,7 @@ end
 function resourceCardsArtifactHealUnitsClicked(player,value,id)
     if not resourceCardsPanelOpen()
         or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil)
-        or type(id)~="string" or combatCalcOn then return end
+        or type(id)~="string" or combatCalcOn or combatEnemyInPlay then return end
     local guid=id:match("^ResourceCardChoice_([0-9a-f]+)_healAllUnits$")
     local data=guid~=nil and gameCards[guid] or nil
     if data==nil or data.resourceKey~="artifactBannerFortitude"
@@ -64096,6 +64295,32 @@ function resourceCardsStartingCardControlClicked(player,value,id)
     resourceCardsSourceChanged()
 end
 
+-- Confirm how many of the basic Golden Grail's two Heal points were spent.
+-- Generated but unspent Heal is worth no Fame. Right-click removes a point.
+function resourceCardsArtifactGrailFameClicked(player,value,id)
+    if not resourceCardsPanelOpen() or not resourceCardsDetailsOpen()
+        or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil)
+        or type(id)~="string" or gStates==nil then return end
+    local guid=id:match("^ResourceCardChoice_([0-9a-f]+)_grailFame$")
+    local data=guid~=nil and gameCards[guid] or nil
+    local card=guid~=nil and getObjectFromGUID(guid) or nil
+    local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    if data==nil or data.resourceKey~="artifactGoldenGrail" or card==nil
+        or current==nil or cardPosture(card)~="upright"
+        or resourceCardsArtifactBroken(guid,card)
+        or not cardInSeatPlayArea(guid,current.seatPos)
+        or combatConfig.phaseObjectLocked(guid) then return end
+    local scan=resourceCardScanBySeat[current.seatPos]
+    local record=scan~=nil and scan.cards[guid] or nil
+    if record==nil or not record.complete or record.powered then return end
+    gStates.artifactGrailHealingUsed=gStates.artifactGrailHealingUsed or {}
+    local used=math.max(0,math.min(2,
+        tonumber(gStates.artifactGrailHealingUsed[guid]) or 0))
+    local delta=tostring(value)=="-2" and -1 or 1
+    gStates.artifactGrailHealingUsed[guid]=math.max(0,math.min(2,used+delta))
+    resourceCardsSourceChanged()
+end
+
 -- Toggle the strong effect on any full-size Artifact while keeping its text
 -- face up. The saved choice, not rotation, controls later end-turn destruction.
 function resourceCardsArtifactBreakClicked(player,value,id)
@@ -64111,12 +64336,28 @@ function resourceCardsArtifactBreakClicked(player,value,id)
         or not cardInSeatPlayArea(guid,current.seatPos)
         or combatConfig.phaseObjectLocked(guid) then return end
     local broken=resourceCardsArtifactBroken(guid,card)
-    if not broken and data.resourceKey=="artifactDruidicStaff"
-        and combatEnemyInPlay then
-        safeBroadcastToColor("Druidic Staff: Break needs two different options; "
-            .."only the Blue crystal option is allowed during combat.",
-            player.color,warningColor)
-        return
+    if not broken and combatEnemyInPlay then
+        if data.resourceKey=="artifactDruidicStaff" then
+            safeBroadcastToColor("Druidic Staff: Throw requires two different "
+                .."options; only Blue is usable in combat.",player.color,warningColor)
+            return
+        elseif data.resourceKey=="artifactBannerCourage"
+            or data.resourceKey=="artifactBannerFortitude" then
+            safeBroadcastToColor("This Banner's stronger effect can only be used "
+                .."outside combat.",player.color,warningColor)
+            return
+        end
+    end
+    -- Undo only this Banner's Ready permissions on unbreaking. A later
+    -- re-Break can restore the original eligible snapshot without granting
+    -- duplicate activations or newly-spent Units an extra Ready.
+    if broken and data.resourceKey=="artifactBannerCourage" then
+        local uses=trackerPrivate.bannerEffectUses().courage[guid]
+        for _,entry in ipairs(uses~=nil and uses.eligible or {}) do
+            if gStates.unitReadyLinks~=nil and gStates.unitReadyLinks[entry.key]~=nil then
+                unitHistoryCancelReadySource(entry.key)
+            end
+        end
     end
     gStates.artifactBreaks=gStates.artifactBreaks or {}
     gStates.artifactBreaks[guid]=not broken
@@ -65656,7 +65897,8 @@ end
 publishPublicUICallbacks({
     resourceCardsRegenerationReadyClicked=resourceCardsRegenerationReadyClicked,
     resourceCardsArtifactHealUnitsClicked=resourceCardsArtifactHealUnitsClicked,
-    resourceCardsArtifactBreakClicked=resourceCardsArtifactBreakClicked
+    resourceCardsArtifactBreakClicked=resourceCardsArtifactBreakClicked,
+    resourceCardsArtifactGrailFameClicked=resourceCardsArtifactGrailFameClicked
 })
 
 end)
@@ -69680,8 +69922,11 @@ function cleanupPlayedCardAtEndTurn(card, playerIndex, cardDestination)
 	--Mysterious Box and Crystal Joy both have an unresolved end-turn choice while upright and
 	--face up. A sideways Mysterious Box was used as a generic card and is discarded normally;
 	--a face-down copy follows the normal thrown-away cleanup path.
+	local boxBroken=card.guid=="085e69" and resourceCardsArtifactBroken~=nil
+		and resourceCardsArtifactBroken(card.guid,card)
 	local manualEndTurnCard=(card.guid=="085e69" or card.guid=="7ebe5e")
 		and card.is_face_down==false and cardEffectIsVertical(card)==true
+		and not boxBroken
 	if manualEndTurnCard and not maximalThrown then
 		keepInPlay=true gStates.turnForfeited=false
 	end
@@ -69700,6 +69945,11 @@ function cleanupPlayedCardAtEndTurn(card, playerIndex, cardDestination)
 		else
 			artifactBroken=card.is_face_down==true
 		end
+	end
+	-- A new play must start with no Golden Grail Heal-spend confirmation.
+	if data~=nil and data.resourceKey=="artifactGoldenGrail"
+		and gStates~=nil and gStates.artifactGrailHealingUsed~=nil then
+		gStates.artifactGrailHealingUsed[card.guid]=nil
 	end
 	-- Clear even an explicit false toggle; each subsequent play is a new choice.
 	if playableArtifact and resourceCardsArtifactBreakClear~=nil then
@@ -74531,7 +74781,7 @@ local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
 local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="467"
+local automaticLuaErrorReporterVersion="468"
 
 -- Per-script-session wall-clock timestamps. They are deliberately not saved:
 -- onLoad / rewind creates a new TTS script session. Keep these helpers together
@@ -76350,7 +76600,11 @@ cardResourceDefinitions={
         normalChoices={{key="other"}},poweredChoices={{key="other"}},
         terrainEffects={normal={{mode="cap",terrains={forest=true},cost=3,dayRound=false}},
             powered={{mode="cap",terrains={forest=true},cost=3,dayRound=false}}}},
-    artifactGoldenGrail={artifactMode=true,normal={healing=2},powered={healing=6}},
+    -- Basic effect: Fame +1 for each of this card's Heal points actually spent.
+    -- The player confirms 0..2 used points; generating Heal is not enough.
+    artifactGoldenGrail={artifactMode=true,normal={healing=2},powered={healing=6},
+        grailFamePerHealing=1,
+        manualSecondary="Basic: set the Fame counter to this card's Heal points actually spent (0-2). Break: Heal 6; draw a card for each Wound healed from hand this turn (resolve draws manually)."},
     artifactSoulHarvester={artifactMode=true,normal={attack=3},powered={attack=8},
         manualSecondary="Gain one crystal for a kill made by the basic Attack; when broken, one for each enemy killed this phase. Choose White or a resistance colour (Red/Blue/Green). Confirm gains manually."},
     artifactBannerOfCommand={artifactMode=true,normal={influence=4},
