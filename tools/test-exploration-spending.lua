@@ -127,8 +127,14 @@ assert(movement:find('local searchLimit=costOnly and 99 or 10',1,true),
     "Headless route queries work for costs beyond visible Move")
 assert(movement:find('return renderMoveDisplay(nil,playerPos) or 0',1,true),
     "Explore travel uses the displayed path calculator")
+assert(xml:find('id="MovemSpentRow"',1,true),
+    "Separate Spent row exists in XML")
+assert(ui:find('showRow("MovemSpent",travelSpent>0)',1,true),
+    "Spent shows only when movement occurred")
 assert(ui:find('{en}Spent : ',1,true),
-    "Travel and exploration appear together as Spent")
+    "Travel appears separately as Spent")
+assert(ui:find('{en}Explore : ',1,true),
+    "Explore cost remains independently visible")
 assert(map:find('moveDisplayCaptureAvatarOrigin()',1,true),
     "Explore captures the avatar origin even at zero remaining Move")
 print("Exploration spending regression checks passed")
