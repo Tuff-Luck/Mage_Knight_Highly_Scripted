@@ -9818,12 +9818,12 @@ local function calculateCard(card,manaPowered,linkedBoost,linked,discardTarget,h
         or not complete and "yellow" or "green"
     -- The printed crystal gain on Savage Harvesting is deliberately manual.
     -- Move is still counted, but a green "fully understood" highlight would lie.
+    -- Golden Grail's basic Fame is complete once both Heal points are confirmed;
+    -- its stronger-side card draws still require manual resolution.
     if rule~=nil and rule.manualSecondary~=nil and status=="green"
-        -- Golden Grail's stronger side is fully handled, and its basic side
-        -- is fully confirmed once both available Heal points were spent.
-        and not (rule.grailFamePerHealing~=nil and (powered
-            or (gStates~=nil and gStates.artifactGrailHealingUsed~=nil
-                and (tonumber(gStates.artifactGrailHealingUsed[card.guid]) or 0)>=2))) then
+        and not (rule.grailFamePerHealing~=nil and not powered
+            and gStates~=nil and gStates.artifactGrailHealingUsed~=nil
+            and (tonumber(gStates.artifactGrailHealingUsed[card.guid]) or 0)>=2) then
         status="yellow"
     end
     -- Linking information is more valuable than the underlying certainty colour.
