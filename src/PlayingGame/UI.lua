@@ -1204,8 +1204,10 @@ local function mainUIRefreshTurnAvailability(context,playerState)
 	if gStates.endRoundCalled==true then setEndTurnTooltip("") end
 	--Combat Complete is not a normal End Turn: a co-op participant may legitimately resolve combat
 	--without playing a Deed card. During cleanup keep it locked only until the safe handoff boundary.
+	--Match the click handler's live play-area check: event-cached counts can outlive an
+	--object's physical zone membership and falsely display an available End Turn.
 	local normalTurnActionLocked=coopCombat~=true and gStates.endRoundCalled~=true
-		and endTurnPlayerHasAction(gStates.turnNumber,context.playerAreaCardCount)~=true
+		and endTurnPlayerHasAction(gStates.turnNumber)~=true
 	local coopCombatButtonLocked=coopCombat==true and gStates.preEndTurn==true and gStates.coopCombatHandoffReady~=true
 	if normalTurnActionLocked or coopCombatButtonLocked or gStates.tacticShown==true or gStates.tacticRemove==true then
 		setUIButtonEnabled("EndTurnButton",false)
