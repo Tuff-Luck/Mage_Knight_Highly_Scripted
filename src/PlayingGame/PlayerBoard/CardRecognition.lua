@@ -4423,7 +4423,7 @@ local function combatAssignmentRefreshRows(entries,sources)
     local overflow=0
     local maxResourceCounts={range=0,block=0,attack=0}
     -- Text shown in the ability columns and the columns that hold anything, so empty columns can be hidden.
-    local shownTraits,shownOffence,colUsed={},{},{range=false,block=false,attack=false}
+    local shownTraits,shownOffence,shownAttacks,colUsed={},{},{},{range=false,block=false,attack=false}
     -- Joined enemies form a group (the leader is its first row) that is attacked as one.
     local groups,groupOf={},{}
     for index=1,#entries do
@@ -5908,24 +5908,39 @@ local function combatAssignmentRefreshRows(entries,sources)
             shownTraits[row]=sharedText
             combatPanelSetAttribute("CombatEnemyRow"..row.."Traits","text",sharedText)
             entry.attackCount=math.max(entry.attackCount or 1,select(2,sharedText:gsub("\n",""))+1)
+            -- An enemy defeated before the Block phase has no attack or
+            -- offensive abilities to resolve, even if its printed token has them.
+            local noEnemyAttack=group.rangeDefeated or entry.rangeDead
+                or group.destroyed or entry.destroyed
             local attacks=combatEnemyAttacks(entry)
             local attackLines={}
-            for attackIndex,attack in ipairs(attacks) do
-                local reduction=rowBlock[index].reductions[attackIndex] or 0
-                local markers={}
-                local selections=combatReductionAttackChoice[entry.guid] or {}
-                for rank,effect in ipairs(entry.attackReductions) do
-                    if selections[effect.id or tostring(effect.source)]==attackIndex then
-                        markers[#markers+1]=tostring(rank)
+            if not noEnemyAttack then
+                for attackIndex,attack in ipairs(attacks) do
+                    local reduction=rowBlock[index].reductions[attackIndex] or 0
+                    local markers={}
+                    local selections=combatReductionAttackChoice[entry.guid] or {}
+                    for rank,effect in ipairs(entry.attackReductions) do
+                        if selections[effect.id or tostring(effect.source)]==attackIndex then
+                            markers[#markers+1]=tostring(rank)
+                        end
                     end
+                    attackLines[#attackLines+1]=(#markers>0 and ("▶"..table.concat(markers,",").." ") or "")
+                        ..combatTypeRich(attack.label.." "..tostring(attack.value-reduction)
+                            ..(combatNatureVengeanceBlockBonus()>0 and " (Block +1)" or ""),
+                            attack.key,reduction>0)
                 end
-                attackLines[#attackLines+1]=(#markers>0 and ("▶"..table.concat(markers,",").." ") or "")
-                    ..combatTypeRich(attack.label.." "..tostring(attack.value-reduction)
-                        ..(combatNatureVengeanceBlockBonus()>0 and " (Block +1)" or ""),
-                        attack.key,reduction>0)
             end
-            combatPanelSetAttribute("CombatEnemyRow"..row.."Attacks","text",
-                #attackLines>0 and table.concat(attackLines,"\n") or "-")
+            local attackText=noEnemyAttack and ""
+                or (#attackLines>0 and table.concat(attackLines,"\n") or "-")
+            shownAttacks[row]=attackText
+            combatPanelSetAttribute("CombatEnemyRow"..row.."Attacks","text",attackText)
+            if noEnemyAttack then
+                shownOffence[row]=""
+                combatPanelSetAttribute("CombatEnemyRow"..row.."Offence","text","")
+                combatPanelSetAttribute("CombatEnemyAttackCycle"..row,"active","false")
+                -- Removed attack lines must not leave extra empty height.
+                entry.attackCount=math.max(1,select(2,sharedText:gsub("\n",""))+1)
+            end
             local lines={}
             local isLast=group.members[#group.members]==index
             if group.destroyed then
@@ -6013,15 +6028,16 @@ local function combatAssignmentRefreshRows(entries,sources)
 
     -- Hide a column when every visible enemy leaves it blank or "None".
     local function textBlank(text) return text==nil or text=="" or text=="None" or text=="-" end
-    local colShown={range=colUsed.range,block=colUsed.block,attack=colUsed.attack,traits=false,offence=false}
+    local colShown={range=colUsed.range,block=colUsed.block,attack=colUsed.attack,traits=false,offence=false,enemyAttack=false}
     for row=1,combatConfig.rowCount do
         if not textBlank(shownTraits[row]) then colShown.traits=true end
         if not textBlank(shownOffence[row]) then colShown.offence=true end
+        if not textBlank(shownAttacks[row]) then colShown.enemyAttack=true end
     end
     -- Keep columns aligned across visible enemy rows, but size each
     -- resource phase to its fullest row (three to six icons wide).
     -- GridLayout wraps additional icons below the first line.
-    local columnWidths={traits=150,offence=130}
+    local columnWidths={traits=150,offence=130,enemyAttack=105}
     for _,family in ipairs({"range","block","attack"}) do
         local columns=math.max(3,math.min(combatConfig.lineSlotCount,maxResourceCounts[family]))
         columnWidths[family]=columns*24
@@ -6034,6 +6050,7 @@ local function combatAssignmentRefreshRows(entries,sources)
         end
     end
     local headerIDs={traits="CombatDefenceTraitsHeader",range="CombatRangeSiegeHeader",offence="CombatOffenceHeader",
+        enemyAttack="CombatEnemyAttackHeader",
         block="CombatBlockHeader",attack="CombatAssignedAttackHeader"}
     local hiddenWidth=0
     for column,shown in pairs(colShown) do
@@ -6043,6 +6060,7 @@ local function combatAssignmentRefreshRows(entries,sources)
         for index=1,combatConfig.rowCount do
             local cell=(column=="traits" and "CombatEnemyRow"..index.."Traits")
                 or (column=="offence" and "CombatEnemyRow"..index.."Offence")
+                or (column=="enemyAttack" and "CombatEnemyAttackCell"..index)
                 or "CombatSourceCell"..index..column
             combatPanelSetAttribute(cell,"active",active)
         end
