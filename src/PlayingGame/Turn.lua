@@ -1505,6 +1505,8 @@ local function turnEndRoundPrepareTurnOrder()
 	gStates.turnNumber=1
 	for a=1, #turnOrder, 1 do if playerDropoutInactive(a)==false then gStates.turnNumber=a break end end
 	gStates.realTurn=gStates.turnNumber
+	-- Planning from the previous round must not carry into the new hand deal.
+	gStates.tactic4HandBonus=0
     if resourceCardsAfterTurnHandoff~=nil then resourceCardsAfterTurnHandoff(nil) end
 	applyColorBarButtons()
 	broadcastToAll(joinLang({"{en}It is now {it}Ora è {ru}Ходит {zh-tw}现在是{zh-cn}现在是{ko}{es}Ahora es el turno de {fr}C'est maintenant au tour de {pt-br}é agora turno de {de}Jetzt ist ", translateWord[turnOrder[gStates.turnNumber].mage], "{en}'s turn.{it}.{ru} {zh-tw}的回合{zh-cn}的回合{ko}의 차례입니다.{es}.{fr}.{pt-br}.{de} an der Reihe."}), positionToColor(gStates.turnNumber))
@@ -1528,6 +1530,8 @@ local function turnEndRoundPrepareTactics()
 		else
 			--Remove the player's tactic Scenarios
 			gStates.tacticRemove=true
+			-- A queued hand-zone refresh may have restored last round's Planning bonus.
+			refreshTactic4HandBonus(false)
 			local d=1
 			for a=1, 6, 1 do
 				for b=1, #turnOrder, 1 do
@@ -2138,7 +2142,7 @@ function refreshTactic4HandBonus(updateUI)
 	if gStates==nil or gStates.turnNumber==nil or turnOrder[gStates.turnNumber]==nil then return false end
 	local playerData=turnOrder[gStates.turnNumber]
 	local bonus=0
-	if playerData.tactic==4 and gStates.dayRound==true and gStates.tacticShown==false and playerData.seatPos~=nil and playerData.seatPos<5 then
+	if playerData.tactic==4 and gStates.dayRound==true and gStates.tacticShown==false and gStates.tacticRemove~=true and playerData.seatPos~=nil and playerData.seatPos<5 then
 		local handZone=getObjectFromGUID(handZones[playerData.seatPos])
 		if handZone~=nil then
 			local cardsInHand=0
