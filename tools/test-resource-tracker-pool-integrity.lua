@@ -18,8 +18,13 @@ local trackerUI=read("src/PlayingGame/UI.lua")
 -- Reputation and conquered-city Shields are conditional Interaction bonuses,
 -- not independent Influence sources. A played Influence source (or a manual
 -- offset representing one) is needed before either modifier becomes usable.
-assert(trackerUI:find('local canModifyInfluence=not combat and influenceBase>0',1,true),
+assert(trackerUI:find('local canModifyInfluence=not combat and base>0',1,true),
     "Interaction modifiers require positive Influence outside combat")
+assert(trackerUI:find('showRow("InfluAmountPlain",influenceBase>0,34)',1,true)
+    and trackerUI:find('joinLang({RESOURCE_TRACKER_FIELDS.InfluAmountPlain[3],influenceBase})',1,true),
+    "The headline Influence row must exclude Interaction modifiers")
+assert(trackerUI:find('refreshUnitOfferHighlights(interactionTotal)',1,true),
+    "Unit affordability uses Interaction Influence, not Learning's ordinary pool")
 assert(trackerUI:find('showRow("InfluAmountReput",canModifyInfluence and reputation~=0)',1,true),
     "Reputation must be hidden until Influence is available")
 assert(trackerUI:find('showRow("InfluAmountCityS",canModifyInfluence and shields~=0)',1,true),
