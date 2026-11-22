@@ -192,6 +192,8 @@ assert(xml:find('id="ResourceTrackerDetail"',1,true)
 assert(not xml:find('id="DisplaySiegeDetails"',1,true),"Combat dropdowns must be removed")
 assert(xml:find('id="CombatMoveRow"',1,true),"Combat Move requires its own conditional row")
 assert(xml:find('id="HealiGeneratedRow"',1,true),"Healing requires a conditional Generated row")
+assert(xml:find('id="InfluInteractionTotalRow"',1,true),
+    "Interaction requires a separate total row")
 assert(xml:find('id="MovemGeneratedRow"',1,true),"Move requires a conditional Generated row")
 assert(xml:find('id="MoveCostHeader"',1,true)>xml:find('id="ResourceTrackerAddRow"',1,true),
     "Terrain Costs must be the bottom section under resource controls")
@@ -214,7 +216,11 @@ env.resourceCardsEnemyPresent=function() return false end
 env.currentCityShieldInfluence=function() return 0 end
 env.resourceCardsEffectiveTerrainCost=function() return 2 end
 env.resourceCardsEffectiveCombatMove=function() return 0 end
-env.joinLang=function(parts) return table.concat(parts) end
+env.joinLang=function(parts)
+    local head=tostring(parts[1] or "")
+    local english=head:match("{en}(.-){it}") or head
+    return english..tostring(parts[2] or "")
+end
 local move,influence,healing=0,0,0
 env.resourceCardsCurrentTotals=function() return {influence=influence,healing=healing} end
 env.resourceCardsEffectiveMove=function() return move end
@@ -286,22 +292,30 @@ eq(UI.getAttribute("InfluAmountPlainAdd","active"),"true",
 
 influence=2
 callback.render()
-size(197,162,"Played Influence enables both modifiers")
-eq(UI.getAttribute("InfluAmountPlainText","text"),"Influence : 7",
-    "Influence 2 + Reputation 3 + City Shields 2")
+size(197,162,"Played Influence shows separate Interaction total")
+eq(UI.getAttribute("InfluAmountPlainText","text"),"Influence : 2",
+    "Headline excludes Reputation and City Shields")
 eq(UI.getAttribute("InfluAmountReputRow","active"),"true",
     "Reputation visible after Influence play")
 eq(UI.getAttribute("InfluAmountCitySRow","active"),"true",
     "City Shields visible after Influence play")
-eq(UI.getAttribute("InfluAmountPhysiText","text"),"Generated : 2",
-    "Generated breakdown excludes Interaction modifiers")
+eq(UI.getAttribute("InfluInteractionTotalRow","active"),"true",
+    "Interaction total shown with bonuses")
+eq(UI.getAttribute("InfluInteractionTotalText","text"),"Interaction total : 7",
+    "Only the Interaction total includes both bonuses")
+eq(UI.getAttribute("InfluAmountPhysiRow","active"),"false",
+    "Unadjusted generated Influence needs no duplicate breakdown")
 
 influence=0
 env.gStates.resourceTracker.influence.generated=1
 callback.render()
-size(197,162,"Manually played Influence enables both modifiers")
-eq(UI.getAttribute("InfluAmountPlainText","text"),"Influence : 6",
-    "Manual 1 + Reputation 3 + City Shields 2")
+size(220,185,"Manually adjusted Influence preserves generated breakdown")
+eq(UI.getAttribute("InfluAmountPlainText","text"),"Influence : 1",
+    "Manual Influence stays separate from Interaction bonuses")
+eq(UI.getAttribute("InfluInteractionTotalText","text"),"Interaction total : 6",
+    "Manual Influence participates in actual Interactions")
+eq(UI.getAttribute("InfluAmountPhysiRow","active"),"true",
+    "Manual Influence displays raw card generation")
 env.gStates.resourceTracker.influence.generated=0
 
 influence=2
@@ -314,14 +328,22 @@ eq(UI.getAttribute("InfluAmountReputRow","active"),"false",
     "Combat hides Reputation")
 eq(UI.getAttribute("InfluAmountCitySRow","active"),"false",
     "Combat hides City Shields")
+eq(UI.getAttribute("InfluInteractionTotalRow","active"),"false",
+    "Combat hides the unavailable Interaction total")
 env.resourceCardsEnemyPresent=function() return false end
 
 env.gStates.resourceTracker.influence.reputation=-99
 callback.render()
-eq(UI.getAttribute("InfluAmountPlainRow","active"),"false",
-    "No Interaction prevents Influence despite generated points")
+eq(UI.getAttribute("InfluAmountPlainRow","active"),"true",
+    "No Interaction must not suppress usable Learning Influence")
+eq(UI.getAttribute("InfluAmountPlainText","text"),"Influence : 2",
+    "Learning Influence remains available at minimum Reputation")
 eq(UI.getAttribute("InfluAmountReputRow","active"),"true",
     "No Interaction warning shown after playing Influence")
+eq(UI.getAttribute("InfluAmountCitySRow","active"),"false",
+    "City shields cannot override No Interaction")
+eq(UI.getAttribute("InfluInteractionTotalText","text"),"Interaction total : No Interaction",
+    "Interaction amount is explicitly unavailable")
 env.gStates.resourceTracker.influence.reputation=0
 env.currentCityShieldInfluence=function() return 0 end
 influence=0
