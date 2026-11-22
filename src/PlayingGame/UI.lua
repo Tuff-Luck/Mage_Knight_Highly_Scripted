@@ -2466,6 +2466,8 @@ function refreshResourceTrackerText()
     local moveGenerated=resourceCardsGeneratedMove~=nil and resourceCardsGeneratedMove() or 0
     local moveState=gStates.resourceTracker.move or {}
     local exploreSpent=tonumber(moveState.exploreSpent) or 0
+    local travelSpent=tonumber(moveState.travelSpent) or 0
+    local totalSpent=exploreSpent+travelSpent
     local exploreCount=tonumber(moveState.exploreCount) or 0
     local combatMove=resourceCardsEffectiveCombatMove~=nil and resourceCardsEffectiveCombatMove() or 0
 
@@ -2484,8 +2486,8 @@ function refreshResourceTrackerText()
         joinLang({RESOURCE_TRACKER_FIELDS.InfluAmountPhysi[3],moveGenerated}))
     showRow("MovemExplore",exploreCount>0)
     setResourceTrackerDisplayAttribute("MovemExploreText","text",
-        joinLang({"{en}Explore : {it}Esplorazione : {ru}Исследование: {zh-tw}探索：{zh-cn}探索：{ko}탐험 : {es}Explorar : {fr}Exploration : {pt-br}Exploração : {de}Erkunden : ",
-            exploreSpent>0 and ("-"..tostring(exploreSpent)) or "0"}))
+        joinLang({"{en}Spent : {it}Speso : {ru}Потрачено: {zh-tw}已花費：{zh-cn}已花费：{ko}사용 : {es}Gastado : {fr}Dépensé : {pt-br}Gasto : {de}Ausgegeben : ",
+            totalSpent>0 and ("-"..tostring(totalSpent)) or "0"}))
     setResourceTrackerDisplayAttribute("CombatMoveText","text",
         joinLang({"{en}Combat Move : {it}Movimento in combattimento : {ru}Движение в бою: {zh-tw}戰鬥移動：{zh-cn}战斗移动：{ko}전투 이동 : {es}Movimiento en combate : {fr}Déplacement en combat : {pt-br}Movimento em combate : {de}Bewegung im Kampf : ",combatMove}))
     showRow("CombatMove",combatMove>0)
@@ -2574,7 +2576,7 @@ end
 
 function resetResourceTrackerState()
         invalidateResourceTrackerDisplayCache()
-		gStates.resourceTracker={move=		{move=0,exploreSpent=0,exploreCount=0},
+		gStates.resourceTracker={move=		{move=0,exploreSpent=0,travelSpent=0,exploreCount=0},
 								siege=		{physical=0, fire=0, ice=0, iceFire=0, psychic=0},
 								ranged=		{physical=0, fire=0, ice=0, iceFire=0, psychic=0},
 								block=		{physical=0, fire=0, ice=0, iceFire=0, psychic=0},
@@ -2586,14 +2588,18 @@ function resetResourceTrackerState()
 		if gStates.dayRound==true then gStates.moveCost={["plains"]=2, ["hills"]=3, ["forest"]=3, ["wasteland"]=4, ["desert"]=5, ["swamp"]=5, ["lake"]=999, ["mountain"]=999, ["city"]=2, ["explore"]=2} end
 end
 
--- Record one irreversible EXPLORE action per accepted tile. The signed manual
--- offset preserves over-spending until later Move cards make up the deficit.
-function resourceCardsSpendExplore(cost)
+-- Record each accepted Explore plus the route already walked to the avatar.
+-- The signed manual offset preserves overspending until more Move is played.
+-- Once Explore commits, Movement.lua shifts the origin to the avatar, so later
+-- explorations cannot charge that same journey again.
+function resourceCardsSpendExplore(cost,travelCost)
     local move=gStates.resourceTracker~=nil and gStates.resourceTracker.move or nil
     if move==nil then return end
     cost=math.max(0,tonumber(cost) or 0)
-    move.move=(tonumber(move.move) or 0)-cost
+    travelCost=math.max(0,tonumber(travelCost) or 0)
+    move.move=(tonumber(move.move) or 0)-cost-travelCost
     move.exploreSpent=(tonumber(move.exploreSpent) or 0)+cost
+    move.travelSpent=(tonumber(move.travelSpent) or 0)+travelCost
     move.exploreCount=(tonumber(move.exploreCount) or 0)+1
     if resourceCardsPanelOpen() then refreshResourceTrackerText() end
 end
