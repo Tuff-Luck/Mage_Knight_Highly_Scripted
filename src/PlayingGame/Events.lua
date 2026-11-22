@@ -1890,6 +1890,20 @@ local function handleManaZoneEnter(ctx)
     end)
 end
 
+-- Keep offer highlights in sync with enemy arrivals/removals even when
+-- Resource Tracker scanning is disabled. Wait a frame for zone membership.
+local function refreshUnitOfferForEnemyZoneChange(ctx)
+    local info=ctx.zoneInfo
+    if gStates.firstStarted~=true or info==nil
+        or (info.kind~="play" and info.kind~="unit")
+        or monsterPugs[ctx.objGUID]==nil then return end
+    local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    if current==nil or info.seatPos~=current.seatPos then return end
+    safeWaitFrames("Events",function()
+        if refreshUnitOfferHighlights~=nil then refreshUnitOfferHighlights() end
+    end,1)
+end
+
 function __onObjectEnterZone_raw(zone, obj)
 	-- onObjectDestroy has already confirmed table teardown; ignore later zone churn.
 	if gameExitTeardown then return end
@@ -1916,6 +1930,7 @@ function __onObjectEnterZone_raw(zone, obj)
         end
     end
     if gStates.firstStarted==true then resourceCardsZoneEntered(ctx) end
+    refreshUnitOfferForEnemyZoneChange(ctx)
 	if gStates.firstStarted==true then
 		handleStartedZoneEnterPrelude(ctx)
 		handleTurnOrderZoneEnter(ctx)
@@ -2073,6 +2088,7 @@ function __onObjectLeaveZone_raw(zone, obj)
 	cancelSettledZoneEntries(ctx.zoneGUID,ctx.objGUID)
 	if handleZoneLeavePrelude(ctx)==true then return end
     if gStates.firstStarted==true then resourceCardsZoneLeft(ctx) end
+    refreshUnitOfferForEnemyZoneChange(ctx)
 	if gStates.firstStarted==true then
 		playerBoardZoneLeave(ctx)
 		handleClaimZoneLeave(ctx)
