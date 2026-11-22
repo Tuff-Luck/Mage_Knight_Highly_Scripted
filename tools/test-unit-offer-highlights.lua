@@ -14,11 +14,17 @@ local a,b,c=unit("aaaaaa"),unit("bbbbbb"),unit("cccccc")
 local offer={a,b,c}
 local budget=nil
 gStates={turnNumber=1,firstStarted=true,positionMageKnight={[5]="Dummy"}}
-turnOrder={{mage="Tovak",avatarLocation="village"}}
+turnOrder={{mage="Tovak",seatPos=1,avatarLocation="village"}}
 gameCards={
     aaaaaa={recruit={"village"},influence=5},
     bbbbbb={recruit={"village"},influence=8},
     cccccc={recruit={"keep"},influence=2}}
+local combatObjects={}
+monsterPugs={enemy1={name="Orcs"}}
+function playerCombatObjects(seatPos)
+    assert(seatPos==1,"Only current player's enemies count")
+    return combatObjects
+end
 function unitOfferCards() return offer end
 function getObjectFromGUID(guid) return items[guid] end
 function resourceTrackerAvailableInfluence() return budget end
@@ -42,9 +48,25 @@ assert(b.color[1]==1,"affordability responds to added Influence")
 budget=nil
 refreshUnitOfferHighlights()
 assert(a.color[1]<0.8 and b.color[1]<0.8,"closing tracker darkens offers")
+-- Enemy tokens remove BOTH dark legal-site and bright affordable highlights,
+-- including when the resource tracker is closed.
+combatObjects={{guid="enemy1"}}
+refreshUnitOfferHighlights()
+assert(a.color==nil and b.color==nil and c.color==nil,
+    "An enemy in the play area removes every Unit highlight")
+budget=9
+refreshUnitOfferHighlights()
+assert(a.color==nil and b.color==nil,
+    "Affordability cannot restore highlights during combat")
+budget=nil
+combatObjects={}
+refreshUnitOfferHighlights()
+assert(a.color~=nil and b.color~=nil,
+    "Unit highlights resume when the enemy leaves")
 turnOrder[1].avatarLocation="keep"
 refreshUnitOfferHighlights()
-assert(a.clears==1 and b.clears==1 and c.color~=nil,"site move removes old highlights")
+assert(a.clears>=1 and b.clears>=1 and c.color~=nil,
+    "site move removes old highlights")
 offer={}
 refreshUnitOfferHighlights()
 assert(c.clears==1,"claim removes highlight")
@@ -55,5 +77,9 @@ assert(a.color==nil,"no glow while choosing tactics")
 local ui=assert(io.open("src/PlayingGame/UI.lua","r"))
 local sourceUI=ui:read("*a") ui:close()
 assert(sourceUI:find("if resourceCardsEnemyPresent~=nil and resourceCardsEnemyPresent() then return nil end",1,true),
-    "combat must suppress affordability, not legal-site highlights")
+    "combat must suppress affordability")
+local eventFile=assert(io.open("src/PlayingGame/Events.lua","r"))
+local eventSource=eventFile:read("*a") eventFile:close()
+assert(eventSource:find("refreshUnitOfferForEnemyZoneChange(ctx)",1,true),
+    "Enemy zone changes must refresh glow even when Resource Tracker is closed")
 print("Unit offer site and affordability highlights: PASS")
