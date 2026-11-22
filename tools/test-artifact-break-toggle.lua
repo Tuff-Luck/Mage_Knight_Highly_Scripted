@@ -84,4 +84,105 @@ assert(flow:find("resourceCardsArtifactBreakClear(card.guid)",1,true),
     "Cleanup must retire Break state")
 assert(callbacks:find('"resourceCardsArtifactBreakClicked"',1,true),
     "Protected Break callback must be registered")
-print("Artifact Break and Druidic Staff regression checks passed")
+-- Exercise Mysterious Box's real cleanup branch. An unresolved normal Box
+-- stays in play, but the same face-up Box must go to Trash once broken.
+do
+    local disposed,brokenByGUID={},{}
+    local box={guid="085e69",type="Card",is_face_down=false}
+    local trash={putObject=function(card) disposed[#disposed+1]=card.guid end}
+    local cleanupEnv=setmetatable({
+        gStates={bannercard={}},turnOrder={{deadDeckInventory={}}},
+        gameCards={["085e69"]={cardType="Artifact",resourceKey="artifactUtility"}},
+        trashCan="trash",getObjectFromGUID=function(guid)
+            return guid=="trash" and trash or nil end,
+        isQuestCardObject=function(card) return false end,
+        cardEffectIsVertical=function(card) return true end,
+        resourceCardsArtifactBroken=function(guid) return brokenByGUID[guid]==true end,
+        resourceCardsArtifactBreakClear=function(guid) brokenByGUID[guid]=nil end
+    },{__index=_G})
+    local cleanupSource=section(flow,"function cleanupPlayedCardAtEndTurn(",
+        "local MEDITATION_BUTTON_SUFFIXES")
+    local cleanup=assert(load(cleanupSource.."\\nreturn cleanupPlayedCardAtEndTurn",
+        "Mysterious Box cleanup","t",cleanupEnv))()
+    cleanup(box,1,nil)
+    assert(#disposed==0,"Normal unresolved Mysterious Box must stay in play")
+    brokenByGUID[box.guid]=true
+    cleanup(box,1,nil)
+    assert(#disposed==1 and disposed[1]==box.guid,
+        "Face-up broken Mysterious Box must be thrown away")
+    assert(brokenByGUID[box.guid]==nil,
+        "Mysterious Box Break state must be retired on cleanup")
+end
+
+-- Exercise the real Grail count callback, including clamping, right-click,
+-- and rejection when the card is broken or its basic side is unavailable.
+do
+    local state={turnNumber=1,artifactGrailHealingUsed={}}
+    local grail={guid="085e59",is_face_down=false}
+    local record={complete=true,powered=false}
+    local refreshes=0
+    local env=setmetatable({
+        gStates=state,
+        gameCards={["085e59"]={cardType="Artifact",resourceKey="artifactGoldenGrail"}},
+        turnOrder={{seatPos=1}},
+        resourceCardScanBySeat={[1]={cards={["085e59"]=record}}},
+        getObjectFromGUID=function(guid) return guid=="085e59" and grail or nil end,
+        cardPosture=function(card) return "upright" end,
+        cardInSeatPlayArea=function(guid,seat) return seat==1 end,
+        resourceCardsPanelOpen=function() return true end,
+        resourceCardsDetailsOpen=function() return true end,
+        resourceCardsPlayerCanEdit=function(color) return color=="Blue" end,
+        resourceCardsArtifactBroken=function() return state.broken==true end,
+        combatConfig={phaseObjectLocked=function(guid) return false end},
+        resourceCardsSourceChanged=function() refreshes=refreshes+1 end
+    },{__index=_G})
+    local clickSource=section(rec,"function resourceCardsArtifactGrailFameClicked(",
+        "-- Toggle the strong effect")
+    local click=assert(load(clickSource.."\\nreturn resourceCardsArtifactGrailFameClicked",
+        "Grail fame counter","t",env))()
+    local id="ResourceCardChoice_085e59_grailFame"
+    for i=1,3 do click({color="Blue"},"-1",id) end
+    assert(state.artifactGrailHealingUsed[grail.guid]==2,
+        "Grail Fame must be capped at its two basic Heal points")
+    click({color="Blue"},"-2",id)
+    assert(state.artifactGrailHealingUsed[grail.guid]==1,
+        "Right-click must decrement confirmed Heal spend")
+    state.broken=true
+    click({color="Blue"},"-1",id)
+    assert(state.artifactGrailHealingUsed[grail.guid]==1,
+        "Broken Grail must not earn the basic-side Fame")
+    state.broken=false
+    record.powered=true
+    click({color="Blue"},"-1",id)
+    assert(state.artifactGrailHealingUsed[grail.guid]==1,
+        "A powered record cannot alter the basic Fame count")
+    assert(refreshes==4,"Only four legal Grail counter clicks should redraw")
+end
+
+-- Structural checks for paths involving the combat calculator, Unit history,
+-- and the 25 official Artifact cards (full Banner forms included).
+for _,needle in ipairs({
+    "-- A face-up broken Sword/Bow has no basic discard-payment ability.",
+    "and resourceCardsArtifactBroken(source.guid,source)) then",
+    "local boxBroken=card.guid==\"085e69\"",
+    "and not boxBroken",
+    "trackerPrivate.grailFameButton=function",
+    "function resourceCardsArtifactGrailFameClicked(",
+    "used*rule.grailFamePerHealing",
+    "unitHistoryCancelReadySource(entry.key)",
+    "if gStates.unitReadyLinks[entry.key]==nil then",
+    "and not combatEnemyInPlay and not combatCalcOn",
+    "or type(id)~=\"string\" or combatCalcOn or combatEnemyInPlay",
+    "if not broken and combatEnemyInPlay then",
+    'key=="artifactBannerCourage"',
+    'key=="artifactBannerFortitude"',
+    ":ENEMY_PRESENT:",
+    "resourceCardsArtifactGrailFameClicked=resourceCardsArtifactGrailFameClicked"
+}) do
+    assert(rec:find(needle,1,true) or flow:find(needle,1,true),
+        "Missing Artifact fix or regression guard: "..needle)
+end
+assert(callbacks:find('"resourceCardsArtifactGrailFameClicked"',1,true),
+    "Grail Fame callback must be included in protected startup audit")
+
+print("Artifact Break, Mysterious Box, Golden Grail and Druidic Staff regression checks passed")
