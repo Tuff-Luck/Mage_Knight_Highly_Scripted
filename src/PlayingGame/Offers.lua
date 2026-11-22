@@ -278,6 +278,23 @@ end
 local OFFER_GOLD={legal={0.52,0.32,0.05},affordable={1,0.84,0.18}}
 local offerGlow={}
 
+-- Site eligibility must disappear during combat even with the tracker closed.
+-- The tracker-only combat flag is transient; inspect the current player's
+-- actual Play/Unit Areas so both dark and bright highlights are suppressed.
+local function unitOfferEnemyPresent(player)
+    if player~=nil and player.seatPos~=nil and playerCombatObjects~=nil then
+        for _,obj in ipairs(playerCombatObjects(player.seatPos)) do
+            local data=obj~=nil and monsterPugs~=nil and monsterPugs[obj.guid] or nil
+            if data~=nil and data.name~="Ruin"
+                and (obj.isDestroyed==nil or not obj.isDestroyed()) then
+                return true
+            end
+        end
+        return false
+    end
+    return resourceCardsEnemyPresent~=nil and resourceCardsEnemyPresent() or false
+end
+
 function refreshUnitOfferHighlights(availableInfluence)
     if availableInfluence==nil and resourceTrackerAvailableInfluence~=nil then
         availableInfluence=resourceTrackerAvailableInfluence()
@@ -288,6 +305,7 @@ function refreshUnitOfferHighlights(availableInfluence)
         and player.mage~=gStates.positionMageKnight[5]
         and gStates.tacticShown~=true and gStates.tacticRemove~=true
         and gStates.gameOver~=true
+        and not unitOfferEnemyPresent(player)
     local nextGlow={}
     if active then
         for _,unit in ipairs(unitOfferCards()) do
