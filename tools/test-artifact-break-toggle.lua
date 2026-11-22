@@ -79,28 +79,26 @@ do
         "-- Shift only the Artifact's")
     local button=assert(load(toggleSource.."\nreturn trackerPrivate.artifactBreakButton",
         "artifact toggle display","t",testEnv))()
-    local function labelOf(xml)
-        return xml.children[1].children[1].attributes.text
-    end
     local normal=button(card,"0 0 180","-35")
-    assert(normal.attributes.position=="0 140 -35" and labelOf(normal)=="THROW",
+    assert(normal.attributes.position=="0 140 -35" and normal.value=="THROW",
         "THROW must sit below the card text")
     assert(normal.attributes.height==74 and normal.attributes.width==220,
         "Artifact button must be about four-fifths the previous height")
-    assert(normal.children[1].attributes.padding=="18 18 9 9",
+    assert(normal.attributes.padding=="18 18 9 9",
         "Artifact button text needs interior padding")
-    local caption=normal.children[1].children[1].attributes
-    assert(caption.font=="Fonts/MKCardText" and caption.resizeTextForBestFit=="true"
-        and caption.resizeTextMinSize==26 and caption.resizeTextMaxSize==58,
+    assert(normal.attributes.font=="Fonts/MKCardText"
+        and normal.attributes.resizeTextForBestFit=="true"
+        and normal.attributes.resizeTextMinSize==26
+        and normal.attributes.resizeTextMaxSize==58,
         "Artifact button text must use shrinking MKCardText")
     selected=true
     local strong=button(card,"0 0 180","-35")
-    assert(strong.attributes.position=="0 -140 -35" and labelOf(strong)=="RECOVER",
+    assert(strong.attributes.position=="0 -140 -35" and strong.value=="RECOVER",
         "RECOVER must sit above the artwork")
     testEnv.combatEnemyInPlay=true
     selected=false
     local waiting=button(card,"0 0 180","-35")
-    assert(waiting.attributes.position=="0 140 -35" and labelOf(waiting)=="WAIT",
+    assert(waiting.attributes.position=="0 140 -35" and waiting.value=="WAIT",
         "Blocked THROW must stay at the lower edge")
 end
 
