@@ -639,6 +639,7 @@ function eventsOnLoadRawBase(saved_data, loaded_data)
 		skillButtonActivate()
 		refreshCoopCompSkillWarnings()
 		claimButtonRefresh()
+		if refreshUnitOfferHighlights~=nil then refreshUnitOfferHighlights() end
 		dayTactic2ButtonActivate()
 		safeWaitFrames("Events",function() refreshMeditationTrance() steadyTempoRefreshAll() end, 3)
 		automaticLuaSetLoadStage("Events: active-game scoring and UI")
@@ -1730,6 +1731,7 @@ local function handleClaimZoneEnter(ctx)
 			if gStates.tacticShown==false and gStates.tacticRemove==false then
 				offerCard.UI.setXmlTable({createClaimButton(offerCardGUID,cardSource)})
 			end
+			if cardSource=="unit" and refreshUnitOfferHighlights~=nil then refreshUnitOfferHighlights() end
 		end,function()
 			local offerCard=getObjectFromGUID(offerCardGUID)
 			return offerCard==nil or offerCard.resting
@@ -1954,6 +1956,10 @@ local function handleClaimZoneLeave(ctx)
         and (magicTalentReservedCard==nil or not magicTalentReservedCard(obj.guid)) then
         obj.UI.setXmlTable({{}})
     end
+
+	if zone.guid==GUID.zone.unitOffer and refreshUnitOfferHighlights~=nil then
+		refreshUnitOfferHighlights()
+	end
 
 	--Remove tactic claim buttons
 	if tacticClaimingZones[zone.guid]~=nil then obj.UI.setXmlTable({{}}) end

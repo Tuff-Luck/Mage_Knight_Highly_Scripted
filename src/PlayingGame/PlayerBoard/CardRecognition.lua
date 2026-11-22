@@ -15072,6 +15072,7 @@ function resourceCardsPanelChanged(open)
             tracker.playerPos=nil
         end
         clearMoveDisplayVisuals()
+        if refreshUnitOfferHighlights~=nil then refreshUnitOfferHighlights() end
         return
     end
     -- Expanding after an OFF period rebuilds from scratch, not cached choices.
@@ -15094,6 +15095,7 @@ function resourceCardsPanelChanged(open)
     end
     if attackAssignmentsRefreshReadyUI~=nil then attackAssignmentsRefreshReadyUI() end
     resourceUnitsRefreshButtons()
+    if refreshUnitOfferHighlights~=nil then refreshUnitOfferHighlights() end
     local player=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if player==nil then return end
     local seat=player.seatPos

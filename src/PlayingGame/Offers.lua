@@ -272,6 +272,47 @@ unitOfferCards=function()
 	return cards
 end
 
+-- Unit-offer recruitment highlights. Dark gold indicates this site can
+-- recruit the Unit; bright gold also requires enough spendable Influence.
+-- The glow is advisory: existing manual claim behavior is unchanged.
+local OFFER_GOLD={legal={0.52,0.32,0.05},affordable={1,0.84,0.18}}
+local offerGlow={}
+
+function refreshUnitOfferHighlights(availableInfluence)
+    if availableInfluence==nil and resourceTrackerAvailableInfluence~=nil then
+        availableInfluence=resourceTrackerAvailableInfluence()
+    end
+    local playerIndex=gStates~=nil and gStates.turnNumber or nil
+    local player=playerIndex~=nil and turnOrder~=nil and turnOrder[playerIndex] or nil
+    local active=gStates~=nil and gStates.firstStarted==true and player~=nil
+        and player.mage~=gStates.positionMageKnight[5]
+        and gStates.tacticShown~=true and gStates.tacticRemove~=true
+        and gStates.gameOver~=true
+    local nextGlow={}
+    if active then
+        for _,unit in ipairs(unitOfferCards()) do
+            local info=gameCards~=nil and gameCards[unit.guid] or nil
+            if info~=nil and type(info.recruit)=="table" and #info.recruit>0
+                and unitRecruitableAtCurrentLocation(playerIndex,unit)==true then
+                local cost=tonumber(info.influence)
+                local status=availableInfluence~=nil and cost~=nil
+                    and availableInfluence>=cost and "affordable" or "legal"
+                nextGlow[unit.guid]=status
+                if offerGlow[unit.guid]~=status and unit.highlightOn~=nil then
+                    unit.highlightOn(OFFER_GOLD[status])
+                end
+            end
+        end
+    end
+    for guid in pairs(offerGlow) do
+        if nextGlow[guid]==nil then
+            local obj=getObjectFromGUID(guid)
+            if obj~=nil and obj.highlightOff~=nil then obj.highlightOff() end
+        end
+    end
+    offerGlow=nextGlow
+end
+
 -- The Spell browser uses the same authoritative spatial order as offer layout.
 function callOfferAvailableUnits()
     return unitOfferCards()
