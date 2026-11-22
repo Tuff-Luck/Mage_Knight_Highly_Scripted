@@ -1120,9 +1120,19 @@ function cleanupPlayedCardAtEndTurn(card, playerIndex, cardDestination)
 
 	gStates.turnForfeited=false
 	local trash=getObjectFromGUID(trashCan)
+	local data=gameCards[card.guid]
+	local playableArtifact=data~=nil and data.cardType=="Artifact" and data.full==nil
+	local artifactBroken=playableArtifact and (resourceCardsArtifactBroken~=nil
+		and resourceCardsArtifactBroken(card.guid,card) or card.is_face_down==true)
+	-- Clear even an explicit false toggle; each subsequent play is a new choice.
+	if playableArtifact and resourceCardsArtifactBreakClear~=nil then
+		resourceCardsArtifactBreakClear(card.guid)
+	end
 	-- Maximal Effect consumes its linked Action even when flipped face up.
-	-- Remove the red X before bagging so it cannot leak into a future play.
-	if card.is_face_down==true or maximalThrown then
+	-- The saved Break toggle does the same for a full-size Artifact. Half Banners
+	-- are attachments, and their face-down state means spent, not broken.
+	if (playableArtifact and artifactBroken)
+		or (not playableArtifact and card.is_face_down==true) or maximalThrown then
 		if maximalThrown then resourceCardsMaximalEffectMark(card,false) end
 		if trash~=nil then trash.putObject(card) end
 		return cardDestination
