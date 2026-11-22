@@ -1109,8 +1109,11 @@ function cleanupPlayedCardAtEndTurn(card, playerIndex, cardDestination)
 	--Mysterious Box and Crystal Joy both have an unresolved end-turn choice while upright and
 	--face up. A sideways Mysterious Box was used as a generic card and is discarded normally;
 	--a face-down copy follows the normal thrown-away cleanup path.
+	local boxBroken=card.guid=="085e69" and resourceCardsArtifactBroken~=nil
+		and resourceCardsArtifactBroken(card.guid,card)
 	local manualEndTurnCard=(card.guid=="085e69" or card.guid=="7ebe5e")
 		and card.is_face_down==false and cardEffectIsVertical(card)==true
+		and not boxBroken
 	if manualEndTurnCard and not maximalThrown then
 		keepInPlay=true gStates.turnForfeited=false
 	end
@@ -1129,6 +1132,11 @@ function cleanupPlayedCardAtEndTurn(card, playerIndex, cardDestination)
 		else
 			artifactBroken=card.is_face_down==true
 		end
+	end
+	-- A new play must start with no Golden Grail Heal-spend confirmation.
+	if data~=nil and data.resourceKey=="artifactGoldenGrail"
+		and gStates~=nil and gStates.artifactGrailHealingUsed~=nil then
+		gStates.artifactGrailHealingUsed[card.guid]=nil
 	end
 	-- Clear even an explicit false toggle; each subsequent play is a new choice.
 	if playableArtifact and resourceCardsArtifactBreakClear~=nil then
