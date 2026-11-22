@@ -57,7 +57,7 @@ for name in pairs(seen) do unique=unique+1 end
 eq(unique,25,"Distinct official artifacts")
 assert(physical>=25,"Official alternate physical states are missing")
 
-local section=between(data,"    -- Artifact sides are physical",
+local section=between(data,"    -- Full-size Artifacts use a saved Break toggle",
     "    -- Wound-taking bonuses require")
 local defs=assert(load("return {\n"..section.."\n}"))()
 eq(defs.artifactAmuletSun.artifactMana,"gold","Sun permits Gold")
@@ -110,13 +110,15 @@ local function publishPublicUICallbacks(callbacks)
 end
 local resourceCardsRegenerationReadyClicked=function() end
 local resourceCardsArtifactHealUnitsClicked=function() end
+local resourceCardsArtifactBreakClicked=function() end
 ]]..registration..[[
 return published
 ]],"Artifact protected callback registration","t",setmetatable({published=published},{__index=_G})))
 registrationTest()
 for _,name in ipairs({
     "resourceCardsRegenerationReadyClicked",
-    "resourceCardsArtifactHealUnitsClicked"
+    "resourceCardsArtifactHealUnitsClicked",
+    "resourceCardsArtifactBreakClicked"
 }) do
     assert(published[name]==true,"Unprotected Artifact UI callback: "..name)
 end
