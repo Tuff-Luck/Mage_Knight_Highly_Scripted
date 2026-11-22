@@ -544,58 +544,43 @@ local function playerBoardScheduleCrookedUnder(obj)
             and playerBoardPlayMatSeat(card)==seat
     end
     local function sendUnder(card,top,seat)
-        local topGUID=top.guid
         local topPosition=top.getPosition()
         local topX,topY,topZ=topPosition.x or topPosition[1],
             topPosition.y or topPosition[2],topPosition.z or topPosition[3]
         local cardPosition=card.getPosition()
-        local cardX,cardZ=cardPosition.x or cardPosition[1],cardPosition.z or cardPosition[3]
-        -- Existing tracker selections/explicit target locks survive this
-        -- physical move exactly as they do when the player presses U.
+        local cardX,cardZ=cardPosition.x or cardPosition[1],
+            cardPosition.z or cardPosition[3]
+        -- Preserve explicit card options/target locks through the move.
         if resourceCardsObjectPickedUp~=nil then
             resourceCardsObjectPickedUp(card)
             resourceCardsObjectPickedUp(top)
         end
-        local function lowerTop()
+        -- With collision disabled during smooth movement, both cards can
+        -- exchange Y order directly. No large lift across the shallow zone
+        -- (or deck-merging putObject call) is necessary.
+        top.setPositionSmooth({topX,topY+0.13,topZ},false,false)
+        card.setPositionSmooth({cardX,topY,cardZ},false,false)
+        local function reconcile()
             if playerBoardCrookedUnderPending[guid]~=state then return end
-            local upper=getObjectFromGUID(topGUID)
-            if upper~=nil and upper.held_by_color==nil
-                and playerBoardPlayMatSeat(upper)==seat then
-                local p=upper.getPosition()
-                if math.abs((p.x or p[1])-topX)<0.4
-                    and math.abs((p.z or p[3])-topZ)<0.4 then
-                    upper.setPositionSmooth({topX,topY+0.13,topZ},false,false)
-                end
-            end
-            local placed=getObjectFromGUID(guid)
+            local lower=getObjectFromGUID(guid)
+            local upper=getObjectFromGUID(top.guid)
             if resourceCardsObjectMoved~=nil then
-                if placed~=nil then resourceCardsObjectMoved(placed) end
-                if upper~=nil then resourceCardsObjectMoved(upper) end
+                if lower~=nil and lower.held_by_color==nil then
+                    resourceCardsObjectMoved(lower)
+                end
+                if upper~=nil and upper.held_by_color==nil then
+                    resourceCardsObjectMoved(upper)
+                end
             end
             finish()
         end
-        top.setPositionSmooth({topX,topY+0.55,topZ},false,false)
-        safeWaitCondition("PlayerBoard.Events.crookedUnderRaise",function()
-            if playerBoardCrookedUnderPending[guid]~=state then return end
-            local moving=getObjectFromGUID(guid)
-            local upper=getObjectFromGUID(topGUID)
-            if not released(moving,seat) or upper==nil or upper.held_by_color~=nil then
-                lowerTop()
-                return
-            end
-            -- Keep the crooked card's X/Z and yaw exactly as dropped.
-            moving.setPositionSmooth({cardX,topY,cardZ},false,false)
-            safeWaitCondition("PlayerBoard.Events.crookedUnderPlace",lowerTop,function()
-                local current=getObjectFromGUID(guid)
-                if current==nil or current.held_by_color~=nil then return true end
-                local p=current.getPosition()
-                return not current.isSmoothMoving() and (p.y or p[2])<=topY+0.14
-            end,4,lowerTop)
-        end,function()
-            local upper=getObjectFromGUID(topGUID)
-            return upper==nil or upper.held_by_color~=nil
-                or (upper.getPosition().y or upper.getPosition()[2])>=topY+0.28
-        end,4,lowerTop)
+        safeWaitCondition("PlayerBoard.Events.crookedUnder",reconcile,function()
+            local lower=getObjectFromGUID(guid)
+            local upper=getObjectFromGUID(top.guid)
+            if lower==nil or upper==nil then return true end
+            if lower.held_by_color~=nil or upper.held_by_color~=nil then return true end
+            return not lower.isSmoothMoving() and not upper.isSmoothMoving()
+        end,4,reconcile)
     end
     local function sample()
         if playerBoardCrookedUnderPending[guid]~=state then return end

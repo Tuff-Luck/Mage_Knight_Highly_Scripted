@@ -1,6 +1,6 @@
 -- A crooked played card can tuck under one overlapping card without
 -- merging the two objects into a Deck or waiting for 'resting'.
--- Run from repository root: lua5.2 tools/test-play-area-crooked-under.lua
+-- Run from repository root: lua5.2 tools/test-00-play-area-crooked-under.lua
 local function read(path)
     local f=assert(io.open(path,"r"))
     local content=f:read("*a")
@@ -99,7 +99,7 @@ run(crooked)
 drain()
 assert(crooked.pos.y==1.20 and base.pos.y>crooked.pos.y
     and crooked.rotation.y==17 and crooked.pos.x==0.1
-    and crooked.moves==1 and base.moves==2,
+    and crooked.moves==1 and base.moves==1,
     "Crooked card must move beneath the other card without rotating or merging")
 assert(choices==2 and updates==2,
     "Repositioning must preserve tracker choices and refresh both cards")
@@ -148,7 +148,7 @@ drain(function(tick)
         crooked.pos=position(0,math.max(1.30,crooked.pos.y-0.20),0)
     end
 end)
-assert(crooked.moves==1 and base.moves==2,
+assert(crooked.moves==1 and base.moves==1,
     "A falling card should be restacked by height even when it never rests")
 
 base=makeCard("base",0,1.20,0,0)
