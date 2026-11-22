@@ -66,10 +66,12 @@ assert(key({key="red",other=1})=="red","Explicit colour takes priority")
 -- The visible controls must use printed-rule terminology and avoid the card title.
 assert(rec:find('value=broken and "RECOVER" or (waitForCombat and "WAIT" or "THROW")',1,true),
     "Artifact button labels must toggle THROW/RECOVER")
-assert(rec:find('position="0 "..tostring(above and 128 or 8)',1,true),
-    "Artifact button must clear the printed title in both layouts")
-assert(rec:find('width=220,height=92,scale="0.25 0.25",fontSize=44',1,true),
-    "RECOVER must fit in the artifact button")
+assert(rec:find('position="0 "..tostring(above and -75 or -25)',1,true),
+    "Artifact button must move upward in both layouts")
+assert(rec:find('font="Fonts/MKCardText",fontSize=58',1,true),
+    "Artifact button must use MKCardText")
+assert(rec:find('resizeTextForBestFit="true",resizeTextMinSize=26,resizeTextMaxSize=58',1,true),
+    "Artifact button must shrink text to fit")
 
 for _,needle in ipairs({
     "trackerPrivate.artifactBreakButton=function",
