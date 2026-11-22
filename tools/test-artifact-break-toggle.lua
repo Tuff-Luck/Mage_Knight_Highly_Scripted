@@ -102,7 +102,7 @@ do
     },{__index=_G})
     local cleanupSource=section(flow,"function cleanupPlayedCardAtEndTurn(",
         "local MEDITATION_BUTTON_SUFFIXES")
-    local cleanup=assert(load(cleanupSource.."\\nreturn cleanupPlayedCardAtEndTurn",
+    local cleanup=assert(load(cleanupSource.."\nreturn cleanupPlayedCardAtEndTurn",
         "Mysterious Box cleanup","t",cleanupEnv))()
     cleanup(box,1,nil)
     assert(#disposed==0,"Normal unresolved Mysterious Box must stay in play")
@@ -138,7 +138,7 @@ do
     },{__index=_G})
     local clickSource=section(rec,"function resourceCardsArtifactGrailFameClicked(",
         "-- Toggle the strong effect")
-    local click=assert(load(clickSource.."\\nreturn resourceCardsArtifactGrailFameClicked",
+    local click=assert(load(clickSource.."\nreturn resourceCardsArtifactGrailFameClicked",
         "Grail fame counter","t",env))()
     local id="ResourceCardChoice_085e59_grailFame"
     for i=1,3 do click({color="Blue"},"-1",id) end
