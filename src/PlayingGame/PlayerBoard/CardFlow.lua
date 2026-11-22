@@ -1122,8 +1122,14 @@ function cleanupPlayedCardAtEndTurn(card, playerIndex, cardDestination)
 	local trash=getObjectFromGUID(trashCan)
 	local data=gameCards[card.guid]
 	local playableArtifact=data~=nil and data.cardType=="Artifact" and data.full==nil
-	local artifactBroken=playableArtifact and (resourceCardsArtifactBroken~=nil
-		and resourceCardsArtifactBroken(card.guid,card) or card.is_face_down==true)
+	local artifactBroken=false
+	if playableArtifact then
+		if resourceCardsArtifactBroken~=nil then
+			artifactBroken=resourceCardsArtifactBroken(card.guid,card)
+		else
+			artifactBroken=card.is_face_down==true
+		end
+	end
 	-- Clear even an explicit false toggle; each subsequent play is a new choice.
 	if playableArtifact and resourceCardsArtifactBreakClear~=nil then
 		resourceCardsArtifactBreakClear(card.guid)
