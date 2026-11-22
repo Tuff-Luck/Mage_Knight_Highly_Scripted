@@ -7808,7 +7808,10 @@ trackerPrivate.raiseArtifactChoiceControls=function(xml,startIndex,guid)
                 (node.tag=="Text" and id:find("_label",1,true)~=nil)) then
             local x,y,z=tostring(attrs.position):match("^(%S+)%s+(%S+)%s+(%S+)$")
             local height=tonumber(attrs.height) or 0
-            if x~=nil and tonumber(y)~=nil and height>0 then
+            -- Special edge controls (e.g. Banner HEAL and Staff RDY)
+            -- are already clear of the card title and must not be pushed off-card.
+            if x~=nil and tonumber(y)~=nil and math.abs(tonumber(y))<=110
+                and height>0 then
                 local sx,sy
                 if type(attrs.scale)=="string" then
                     sx,sy=attrs.scale:match("^(%S+)%s+(%S+)")
