@@ -218,7 +218,7 @@ local expectedProtectedUICallbacks={
 	"steadyTempoChoice","summonMonster","togglePlayerDropoutRequest","volkarePursuitAction","volkareTurn",
 	"coopCompSkillWarningClick","combatDefeatMarkerNoop","nightTactic6StoredCountNoop",
 	"resourceCardsRegenerationReadyClicked","resourceCardsArtifactHealUnitsClicked",
-	"resourceCardsArtifactBreakClicked"
+	"resourceCardsArtifactBreakClicked","resourceCardsArtifactGrailFameClicked"
 }
 
 validatePublicUICallbacks=function()
