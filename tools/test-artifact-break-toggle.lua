@@ -58,7 +58,8 @@ assert(#dual==2 and dual[1].key=="red" and dual[2].key=="blue",
     "Dual-coloured cards must retain both Staff options")
 local keySource=section(rec,"local function choiceCategory(choice)",
     "local function choiceHasTargetableCombatResource(")
-local key=assert(load(keySource.."\nreturn choiceCategory","choice category","t",{}))()
+local key=assert(load(keySource.."\nreturn choiceCategory","choice category","t",
+    setmetatable({},{__index=_G})))()
 assert(key(nil)==nil and key(false)==nil,"Missing choices cannot cause nil indexing")
 assert(key({key="red",other=1})=="red","Explicit colour takes priority")
 
