@@ -40,7 +40,7 @@
 						<Button id="CombatSourceSlot1range12" class="CombatSlot"><Image id="CombatSourceSlot1range12Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot1range12Amount" class="CombatSlotAmount"/></Button>
 					</GridLayout>
 				</Panel>
-				<Panel preferredWidth="105" color="rgba(0,0,0,0)" outlineSize="0 0">
+				<Panel id="CombatEnemyAttackCell1" preferredWidth="105" color="rgba(0,0,0,0)" outlineSize="0 0">
 
 				    <Button id="CombatEnemyAttackCycle1" active="false" onClick="resourceTracker" color="rgba(0,0,0,0)" />
 
@@ -112,7 +112,7 @@
 						<Button id="CombatSourceSlot2range12" class="CombatSlot"><Image id="CombatSourceSlot2range12Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot2range12Amount" class="CombatSlotAmount"/></Button>
 					</GridLayout>
 				</Panel>
-				<Panel preferredWidth="105" color="rgba(0,0,0,0)" outlineSize="0 0">
+				<Panel id="CombatEnemyAttackCell2" preferredWidth="105" color="rgba(0,0,0,0)" outlineSize="0 0">
 
 				    <Button id="CombatEnemyAttackCycle2" active="false" onClick="resourceTracker" color="rgba(0,0,0,0)" />
 
@@ -184,7 +184,7 @@
 						<Button id="CombatSourceSlot3range12" class="CombatSlot"><Image id="CombatSourceSlot3range12Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot3range12Amount" class="CombatSlotAmount"/></Button>
 					</GridLayout>
 				</Panel>
-				<Panel preferredWidth="105" color="rgba(0,0,0,0)" outlineSize="0 0">
+				<Panel id="CombatEnemyAttackCell3" preferredWidth="105" color="rgba(0,0,0,0)" outlineSize="0 0">
 
 				    <Button id="CombatEnemyAttackCycle3" active="false" onClick="resourceTracker" color="rgba(0,0,0,0)" />
 
@@ -256,7 +256,7 @@
 						<Button id="CombatSourceSlot4range12" class="CombatSlot"><Image id="CombatSourceSlot4range12Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot4range12Amount" class="CombatSlotAmount"/></Button>
 					</GridLayout>
 				</Panel>
-				<Panel preferredWidth="105" color="rgba(0,0,0,0)" outlineSize="0 0">
+				<Panel id="CombatEnemyAttackCell4" preferredWidth="105" color="rgba(0,0,0,0)" outlineSize="0 0">
 
 				    <Button id="CombatEnemyAttackCycle4" active="false" onClick="resourceTracker" color="rgba(0,0,0,0)" />
 
@@ -328,7 +328,7 @@
 						<Button id="CombatSourceSlot5range12" class="CombatSlot"><Image id="CombatSourceSlot5range12Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot5range12Amount" class="CombatSlotAmount"/></Button>
 					</GridLayout>
 				</Panel>
-				<Panel preferredWidth="105" color="rgba(0,0,0,0)" outlineSize="0 0">
+				<Panel id="CombatEnemyAttackCell5" preferredWidth="105" color="rgba(0,0,0,0)" outlineSize="0 0">
 
 				    <Button id="CombatEnemyAttackCycle5" active="false" onClick="resourceTracker" color="rgba(0,0,0,0)" />
 
@@ -400,7 +400,7 @@
 						<Button id="CombatSourceSlot6range12" class="CombatSlot"><Image id="CombatSourceSlot6range12Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot6range12Amount" class="CombatSlotAmount"/></Button>
 					</GridLayout>
 				</Panel>
-				<Panel preferredWidth="105" color="rgba(0,0,0,0)" outlineSize="0 0">
+				<Panel id="CombatEnemyAttackCell6" preferredWidth="105" color="rgba(0,0,0,0)" outlineSize="0 0">
 
 				    <Button id="CombatEnemyAttackCycle6" active="false" onClick="resourceTracker" color="rgba(0,0,0,0)" />
 
@@ -471,7 +471,7 @@
 						<Button id="CombatSourceSlot7range12" class="CombatSlot"><Image id="CombatSourceSlot7range12Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot7range12Amount" class="CombatSlotAmount"/></Button>
 					</GridLayout>
 				</Panel>
-				<Panel preferredWidth="105" color="rgba(0,0,0,0)" outlineSize="0 0">
+				<Panel id="CombatEnemyAttackCell7" preferredWidth="105" color="rgba(0,0,0,0)" outlineSize="0 0">
 
 				    <Button id="CombatEnemyAttackCycle7" active="false" onClick="resourceTracker" color="rgba(0,0,0,0)" />
 
@@ -543,7 +543,7 @@
 						<Button id="CombatSourceSlot8range12" class="CombatSlot"><Image id="CombatSourceSlot8range12Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot8range12Amount" class="CombatSlotAmount"/></Button>
 					</GridLayout>
 				</Panel>
-				<Panel preferredWidth="105" color="rgba(0,0,0,0)" outlineSize="0 0">
+				<Panel id="CombatEnemyAttackCell8" preferredWidth="105" color="rgba(0,0,0,0)" outlineSize="0 0">
 
 				    <Button id="CombatEnemyAttackCycle8" active="false" onClick="resourceTracker" color="rgba(0,0,0,0)" />
 
