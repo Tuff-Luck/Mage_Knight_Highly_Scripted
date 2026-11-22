@@ -7742,15 +7742,37 @@ end
 -- Rendering it independently also covers Artifacts with no numeric choices.
 trackerPrivate.artifactBreakButton=function(card,above,uiRotation,buttonDepth)
     local broken=resourceCardsArtifactBroken(card.guid,card)
+    local data=gameCards~=nil and gameCards[card.guid] or nil
+    local key=data~=nil and data.resourceKey or nil
+    local waitForCombat=not broken and combatEnemyInPlay
+        and (key=="artifactDruidicStaff" or key=="artifactBannerCourage"
+            or key=="artifactBannerFortitude")
     return {tag="Button",attributes={
         id="ResourceCardChoice_"..card.guid.."_artifactBreak",
         onClick="global/resourceCardsArtifactBreakClicked",
         position="0 "..tostring(above and 108 or -12).." "..buttonDepth,
         rotation=uiRotation,width=185,height=92,scale="0.25 0.25",fontSize=51,
         colors=broken and "#81372F|#AD5045|#81372F|#81372F"
-            or "#454D5D|#69798E|#444C63|#454D5D",
+            or (waitForCombat and "#383838|#505050|#383838|#383838"
+                or "#454D5D|#69798E|#444C63|#454D5D"),
         textColor="#FFFFFF",textAlignment="MiddleCenter"},
-        value=broken and "BROKEN" or "BREAK"}
+        value=broken and "BROKEN" or (waitForCombat and "WAIT" or "BREAK")}
+end
+
+-- A manual counter: only spent Heal points from the Grail's basic effect
+-- generate Fame. The user can left-click to add and right-click to subtract.
+trackerPrivate.grailFameButton=function(card,uiRotation,buttonDepth)
+    local used=gStates~=nil and gStates.artifactGrailHealingUsed~=nil
+        and gStates.artifactGrailHealingUsed[card.guid] or 0
+    used=math.max(0,math.min(2,tonumber(used) or 0))
+    return {tag="Button",attributes={
+        id="ResourceCardChoice_"..card.guid.."_grailFame",
+        onClick="global/resourceCardsArtifactGrailFameClicked",
+        position="145 -145 "..buttonDepth,rotation=uiRotation,
+        width=185,height=90,scale="0.28 0.28",fontSize=42,
+        colors="#454D5D|#69798E|#454D5D|#454D5D",
+        textColor="#FFFFFF",textAlignment="MiddleCenter"},
+        value="F "..tostring(used).."/2"}
 end
 
 -- A single selected icon is centred on the object. Click to expand all
@@ -7879,6 +7901,9 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         local uiRotation=card.is_face_down==true and "0 180 180" or "0 0 180"
         local depth=card.is_face_down==true and "35" or "-35"
         xml[#xml+1]=trackerPrivate.artifactBreakButton(card,false,uiRotation,depth)
+        if rule~=nil and rule.grailFamePerHealing~=nil and not powered then
+            xml[#xml+1]=trackerPrivate.grailFameButton(card,uiRotation,depth)
+        end
         if not resourceObjectUiSameXML(old,xml) then resourceObjectUiSetTable(card.UI,xml) end
         combatConfig.cardButtonIds[card.guid]=combatConfig.cardChoiceIds(card.guid,xml)
         choiceButtonShown[card.guid]="artifact-break-only:"..tostring(resourceCardsArtifactBroken(card.guid,card))
@@ -8114,6 +8139,8 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         ..":READY:"..tostring(readyCount)..":"..table.concat(readyLinks,",")
         ..":READY_ELIGIBLE:"..tostring(canReadyUnit)
         ..":ARTIFACT_BREAK:"..tostring(isArtifact and resourceCardsArtifactBroken(card.guid,card))
+        ..":GRAIL:"..tostring(gStates~=nil and gStates.artifactGrailHealingUsed~=nil
+            and gStates.artifactGrailHealingUsed[card.guid] or 0)
         ..":TARGETS:"..tostring(trackerPrivate.singleAutoEnemyGUID)
     if choiceButtonShown[card.guid]==signature
         and combatConfig.cardChoicesPresent(card) then return end
@@ -8512,6 +8539,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     if rule~=nil and isArtifact
         and cardData.resourceKey=="artifactBannerFortitude"
         and trackerPrivate.bannerStrongActive(card) and posture=="upright"
+        and not combatEnemyInPlay and not combatCalcOn
         and not trackerPrivate.bannerEffectUses().healing[card.guid] then
         xml[#xml+1]={tag="Button",attributes={
             id="ResourceCardChoice_"..card.guid.."_healAllUnits",
@@ -8565,6 +8593,9 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     end
     if isArtifact and posture=="upright" then
         xml[#xml+1]=trackerPrivate.artifactBreakButton(card,#xml>otherControlCount,uiRotation,buttonDepth)
+        if rule~=nil and rule.grailFamePerHealing~=nil and not powered then
+            xml[#xml+1]=trackerPrivate.grailFameButton(card,uiRotation,buttonDepth)
+        end
     end
     -- A fixed Attack/Block against a sole enemy needs no manual target icon.
     -- That can leave an otherwise empty object UI; TTS rejects setXmlTable({})
@@ -8986,6 +9017,8 @@ local function scheduleChoiceResetAfterPlay(guid,seatPos)
     -- Avoid physics waits for mana, enemies and unrelated play-area objects.
     if selectedResourceByGUID[guid]==nil and (gStates==nil
         or ((gStates.artifactBreaks==nil or gStates.artifactBreaks[guid]==nil)
+            and (gStates.artifactGrailHealingUsed==nil
+                or gStates.artifactGrailHealingUsed[guid]==nil)
             and (gStates.resourceCardPlayOrder==nil
                 or gStates.resourceCardPlayOrder[guid]==nil)
             and (gStates.resourceCardMoveRoles==nil
@@ -9010,6 +9043,9 @@ local function scheduleChoiceResetAfterPlay(guid,seatPos)
                 end
                 choiceExpandedByGUID[guid]=nil
                 resourceCardsArtifactBreakClear(guid)
+                if gStates~=nil and gStates.artifactGrailHealingUsed~=nil then
+                    gStates.artifactGrailHealingUsed[guid]=nil
+                end
                 if gStates~=nil and gStates.unitReadyCardChoices~=nil then
                     gStates.unitReadyCardChoices[guid]=nil
                 end
@@ -10016,11 +10052,14 @@ local function resolveActionLinks(cards,wounds,footprints,manaPowered,skillLinks
         local repeated=repeatByTarget[source.guid]
         if paid~=nil and (discarded[source.guid]==nil or repeated~=nil)
             and (source.is_face_down~=true or repeated~=nil)
-            and (cardPosture(source)=="upright" or repeated~=nil) then
+            and (cardPosture(source)=="upright" or repeated~=nil)
+            -- A face-up broken Sword/Bow has no basic discard-payment ability.
+            and not (data~=nil and data.cardType=="Artifact"
+                and resourceCardsArtifactBroken(source.guid,source)) then
             local chosen=selectedResourceByGUID[source.guid]
             local strong=manaPowered[source.guid]==true or boostBy[source.guid]~=nil
                 or (data~=nil and data.cardType=="Artifact"
-                    and source.is_face_down==true)
+                    and resourceCardsArtifactBroken(source.guid,source))
             if repeated~=nil then strong=repeated.powered end
             local spec=paid.normal
             if strong then spec=paid.powered end
@@ -11635,6 +11674,18 @@ local function renderSeat(seatPos)
             skillLinksByTarget[card.guid],linkedChoices,repeatByTarget[card.guid],
             discardBoostBySource[card.guid],woundCount,enemyBonus,
             spellCastingPaid[card.guid]==true)
+        if rule~=nil and rule.grailFamePerHealing~=nil
+            and not result.powered and result.complete
+            and cardPosture(card)=="upright" then
+            local used=gStates.artifactGrailHealingUsed~=nil
+                and gStates.artifactGrailHealingUsed[card.guid] or 0
+            used=math.max(0,math.min(2,tonumber(used) or 0))
+            if used>0 then
+                result.fameRep=result.fameRep or {}
+                result.fameRep.fame=(result.fameRep.fame or 0)
+                    +used*rule.grailFamePerHealing
+            end
+        end
         if rule~=nil and rule.staffDualChoices==true and combatEnemyInPlay then
             -- Only the blue crystal effect can be used during combat. Existing
             -- pre-combat Unit Ready history is preserved separately below.
@@ -12542,11 +12593,11 @@ local function renderSeat(seatPos)
                     courageUses[card.guid]={eligible=eligible}
                 end
                 for _,entry in ipairs(courageUses[card.guid].eligible) do
-                    if not entry.linked then
-                        if gStates.unitReadyLinks[entry.key]~=nil
-                            or unitHistoryReadyLink(entry.key,entry.guid,seatPos,nil) then
-                            entry.linked=true
-                        end
+                    -- The link, not a stale cached boolean, is authoritative.
+                    -- A Break toggle off/on restores only the original eligible
+                    -- Units, never Units spent after the first Break.
+                    if gStates.unitReadyLinks[entry.key]==nil then
+                        unitHistoryReadyLink(entry.key,entry.guid,seatPos,nil)
                     end
                 end
             end
@@ -14151,7 +14202,7 @@ end
 function resourceCardsArtifactHealUnitsClicked(player,value,id)
     if not resourceCardsPanelOpen()
         or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil)
-        or type(id)~="string" or combatCalcOn then return end
+        or type(id)~="string" or combatCalcOn or combatEnemyInPlay then return end
     local guid=id:match("^ResourceCardChoice_([0-9a-f]+)_healAllUnits$")
     local data=guid~=nil and gameCards[guid] or nil
     if data==nil or data.resourceKey~="artifactBannerFortitude"
@@ -14314,6 +14365,32 @@ function resourceCardsStartingCardControlClicked(player,value,id)
     resourceCardsSourceChanged()
 end
 
+-- Confirm how many of the basic Golden Grail's two Heal points were spent.
+-- Generated but unspent Heal is worth no Fame. Right-click removes a point.
+function resourceCardsArtifactGrailFameClicked(player,value,id)
+    if not resourceCardsPanelOpen() or not resourceCardsDetailsOpen()
+        or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil)
+        or type(id)~="string" or gStates==nil then return end
+    local guid=id:match("^ResourceCardChoice_([0-9a-f]+)_grailFame$")
+    local data=guid~=nil and gameCards[guid] or nil
+    local card=guid~=nil and getObjectFromGUID(guid) or nil
+    local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    if data==nil or data.resourceKey~="artifactGoldenGrail" or card==nil
+        or current==nil or cardPosture(card)~="upright"
+        or resourceCardsArtifactBroken(guid,card)
+        or not cardInSeatPlayArea(guid,current.seatPos)
+        or combatConfig.phaseObjectLocked(guid) then return end
+    local scan=resourceCardScanBySeat[current.seatPos]
+    local record=scan~=nil and scan.cards[guid] or nil
+    if record==nil or not record.complete or record.powered then return end
+    gStates.artifactGrailHealingUsed=gStates.artifactGrailHealingUsed or {}
+    local used=math.max(0,math.min(2,
+        tonumber(gStates.artifactGrailHealingUsed[guid]) or 0))
+    local delta=tostring(value)=="-2" and -1 or 1
+    gStates.artifactGrailHealingUsed[guid]=math.max(0,math.min(2,used+delta))
+    resourceCardsSourceChanged()
+end
+
 -- Toggle the strong effect on any full-size Artifact while keeping its text
 -- face up. The saved choice, not rotation, controls later end-turn destruction.
 function resourceCardsArtifactBreakClicked(player,value,id)
@@ -14329,12 +14406,28 @@ function resourceCardsArtifactBreakClicked(player,value,id)
         or not cardInSeatPlayArea(guid,current.seatPos)
         or combatConfig.phaseObjectLocked(guid) then return end
     local broken=resourceCardsArtifactBroken(guid,card)
-    if not broken and data.resourceKey=="artifactDruidicStaff"
-        and combatEnemyInPlay then
-        safeBroadcastToColor("Druidic Staff: Break needs two different options; "
-            .."only the Blue crystal option is allowed during combat.",
-            player.color,warningColor)
-        return
+    if not broken and combatEnemyInPlay then
+        if data.resourceKey=="artifactDruidicStaff" then
+            safeBroadcastToColor("Druidic Staff: Break requires two different "
+                .."options; only Blue is usable in combat.",player.color,warningColor)
+            return
+        elseif data.resourceKey=="artifactBannerCourage"
+            or data.resourceKey=="artifactBannerFortitude" then
+            safeBroadcastToColor("This Banner's Break effect can only be used "
+                .."outside combat.",player.color,warningColor)
+            return
+        end
+    end
+    -- Undo only this Banner's Ready permissions on unbreaking. A later
+    -- re-Break can restore the original eligible snapshot without granting
+    -- duplicate activations or newly-spent Units an extra Ready.
+    if broken and data.resourceKey=="artifactBannerCourage" then
+        local uses=trackerPrivate.bannerEffectUses().courage[guid]
+        for _,entry in ipairs(uses~=nil and uses.eligible or {}) do
+            if gStates.unitReadyLinks~=nil and gStates.unitReadyLinks[entry.key]~=nil then
+                unitHistoryCancelReadySource(entry.key)
+            end
+        end
     end
     gStates.artifactBreaks=gStates.artifactBreaks or {}
     gStates.artifactBreaks[guid]=not broken
@@ -15874,5 +15967,6 @@ end
 publishPublicUICallbacks({
     resourceCardsRegenerationReadyClicked=resourceCardsRegenerationReadyClicked,
     resourceCardsArtifactHealUnitsClicked=resourceCardsArtifactHealUnitsClicked,
-    resourceCardsArtifactBreakClicked=resourceCardsArtifactBreakClicked
+    resourceCardsArtifactBreakClicked=resourceCardsArtifactBreakClicked,
+    resourceCardsArtifactGrailFameClicked=resourceCardsArtifactGrailFameClicked
 })
