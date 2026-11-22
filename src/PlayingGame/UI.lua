@@ -2437,6 +2437,9 @@ end
 -- nil: the Resource Tracker is closed, so show only site eligibility.
 function resourceTrackerAvailableInfluence()
     if not resourceCardsPanelOpen() or gStates.resourceTracker==nil then return nil end
+    -- A player with an enemy in the Play Area is in combat, not an
+    -- interaction; combat Influence must not advertise affordable recruits.
+    if resourceCardsEnemyPresent~=nil and resourceCardsEnemyPresent() then return nil end
     return trackerSpendableInfluence()
 end
 

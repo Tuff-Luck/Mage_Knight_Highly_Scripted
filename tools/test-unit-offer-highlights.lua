@@ -52,4 +52,8 @@ offer={a}
 gStates.tacticShown=true
 refreshUnitOfferHighlights()
 assert(a.color==nil,"no glow while choosing tactics")
+local ui=assert(io.open("src/PlayingGame/UI.lua","r"))
+local sourceUI=ui:read("*a") ui:close()
+assert(sourceUI:find("if resourceCardsEnemyPresent~=nil and resourceCardsEnemyPresent() then return nil end",1,true),
+    "combat must suppress affordability, not legal-site highlights")
 print("Unit offer site and affordability highlights: PASS")
