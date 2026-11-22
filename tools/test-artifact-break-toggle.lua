@@ -63,6 +63,14 @@ local key=assert(load(keySource.."\nreturn choiceCategory","choice category","t"
 assert(key(nil)==nil and key(false)==nil,"Missing choices cannot cause nil indexing")
 assert(key({key="red",other=1})=="red","Explicit colour takes priority")
 
+-- The visible controls must use printed-rule terminology and avoid the card title.
+assert(rec:find('value=broken and "RECOVER" or (waitForCombat and "WAIT" or "THROW")',1,true),
+    "Artifact button labels must toggle THROW/RECOVER")
+assert(rec:find('position="0 "..tostring(above and 128 or 8)',1,true),
+    "Artifact button must clear the printed title in both layouts")
+assert(rec:find('width=220,height=92,scale="0.25 0.25",fontSize=44',1,true),
+    "RECOVER must fit in the artifact button")
+
 for _,needle in ipairs({
     "trackerPrivate.artifactBreakButton=function",
     "function resourceCardsArtifactBreakClicked(",
