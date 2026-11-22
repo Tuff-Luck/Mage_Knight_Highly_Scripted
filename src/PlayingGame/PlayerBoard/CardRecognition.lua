@@ -11635,6 +11635,26 @@ local function renderSeat(seatPos)
             skillLinksByTarget[card.guid],linkedChoices,repeatByTarget[card.guid],
             discardBoostBySource[card.guid],woundCount,enemyBonus,
             spellCastingPaid[card.guid]==true)
+        if rule~=nil and rule.staffDualChoices==true and combatEnemyInPlay then
+            -- Only the blue crystal effect can be used during combat. Existing
+            -- pre-combat Unit Ready history is preserved separately below.
+            if result.powered~=true then
+                local _,option=currentChoice(card.guid,false,linkedChoices)
+                if option~="blue" then
+                    result.resources=nil
+                    result.complete=false
+                    result.status="yellow"
+                end
+            elseif result.resources~=nil then
+                -- A Break selected before combat can remain physically on the
+                -- table; its Healing points cannot be spent during combat.
+                local combatResources={}
+                for key,value in pairs(result.resources) do
+                    if key~="healing" then combatResources[key]=value end
+                end
+                result.resources=combatResources
+            end
+        end
         -- This explicit flag distinguishes browsing Magic Talent's loaned
         -- Spell from an actual paid cast, including non-numeric utility Spells.
         if cardData~=nil and cardData.cardType=="Spell" then
@@ -14566,7 +14586,11 @@ function resourceCardsReadySourceValid(sourceKey,seatPos)
             or cardPosture(card)~="upright" or sourceKey~=guid then return false end
         local scan=resourceCardScanBySeat[seatPos]
         local record=scan~=nil and scan.cards[guid] or nil
-        if record==nil or not record.complete then return false end
+        local linkedReady=gStates.unitReadyLinks~=nil
+            and gStates.unitReadyLinks[sourceKey]~=nil
+        if record==nil or (not record.complete and not (combatEnemyInPlay and linkedReady)) then
+            return false
+        end
         -- An already-committed pre-combat Ready remains valid during combat,
         -- but a new in-combat Ready is never authorised by the Staff.
         if combatEnemyInPlay and (gStates.unitReadyLinks==nil
