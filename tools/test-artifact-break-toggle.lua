@@ -63,21 +63,81 @@ local key=assert(load(keySource.."\nreturn choiceCategory","choice category","t"
 assert(key(nil)==nil and key(false)==nil,"Missing choices cannot cause nil indexing")
 assert(key({key="red",other=1})=="red","Explicit colour takes priority")
 
--- The visible controls must use printed-rule terminology and avoid the card title.
-assert(rec:find('value=broken and "RECOVER" or (waitForCombat and "WAIT" or "THROW")',1,true),
-    "Artifact button labels must toggle THROW/RECOVER")
-assert(rec:find('position="0 "..tostring(above and -75 or -25)',1,true),
-    "Artifact button must move upward in both layouts")
-assert(rec:find('font="Fonts/MKCardText",fontSize=58',1,true),
-    "Artifact button must use MKCardText")
-assert(rec:find('resizeTextForBestFit="true",resizeTextMinSize=26,resizeTextMaxSize=58',1,true),
-    "Artifact button must shrink text to fit")
+-- The printed-rule action moves between opposite card edges, and its
+-- shorter caption fits with padding using the bundled MKCardText font.
+do
+    local selected=false
+    local blocked=false
+    local card={guid="abc"}
+    local testEnv=setmetatable({
+        trackerPrivate={},
+        gameCards={abc={resourceKey="artifactDruidicStaff"}},
+        resourceCardsArtifactBroken=function() return selected end,
+        combatEnemyInPlay=false
+    },{__index=_G})
+    local toggleSource=section(rec,"trackerPrivate.artifactBreakButton=function",
+        "-- Shift only the Artifact's")
+    local button=assert(load(toggleSource.."\nreturn trackerPrivate.artifactBreakButton",
+        "artifact toggle display","t",testEnv))()
+    local function labelOf(xml)
+        return xml.children[1].children[1].attributes.text
+    end
+    local normal=button(card,"0 0 180","-35")
+    assert(normal.attributes.position=="0 140 -35" and labelOf(normal)=="THROW",
+        "THROW must sit below the card text")
+    assert(normal.attributes.height==74 and normal.attributes.width==220,
+        "Artifact button must be about four-fifths the previous height")
+    assert(normal.children[1].attributes.padding=="18 18 9 9",
+        "Artifact button text needs interior padding")
+    local caption=normal.children[1].children[1].attributes
+    assert(caption.font=="Fonts/MKCardText" and caption.resizeTextForBestFit=="true"
+        and caption.resizeTextMinSize==26 and caption.resizeTextMaxSize==58,
+        "Artifact button text must use shrinking MKCardText")
+    selected=true
+    local strong=button(card,"0 0 180","-35")
+    assert(strong.attributes.position=="0 -140 -35" and labelOf(strong)=="RECOVER",
+        "RECOVER must sit above the artwork")
+    testEnv.combatEnemyInPlay=true
+    selected=false
+    local waiting=button(card,"0 0 180","-35")
+    assert(waiting.attributes.position=="0 140 -35" and labelOf(waiting)=="WAIT",
+        "Blocked THROW must stay at the lower edge")
+end
+
+-- Raise each new Artifact option/target by half its rendered height, without
+-- moving unrelated controls, the toggle itself, or other cards' UI.
+do
+    local testEnv={trackerPrivate={}}
+    local raiseSource=section(rec,"trackerPrivate.raiseArtifactChoiceControls=function",
+        "-- A manual counter")
+    local raise=assert(load(raiseSource.."\nreturn trackerPrivate.raiseArtifactChoiceControls",
+        "artifact control lift","t",testEnv))()
+    local function ui(tag,id,pos,height)
+        return {tag=tag,attributes={id=id,position=pos,height=height,scale="0.25 0.25"}}
+    end
+    local xml={
+        ui("Button","ResourceCardChoice_abc_old","0 -12 -35",90),
+        ui("Button","ResourceCardChoice_abc_0","0 -12 -35",90),
+        ui("Button","AttackAssignmentSource_abc_0_block","40 -12 -35",90),
+        ui("Text","ResourceCardChoice_abc_label0","-80 -12 -35",90),
+        ui("Button","ResourceCardChoice_abc_artifactBreak","0 140 -35",74),
+        ui("Button","ResourceCardChoice_xyz_0","0 -12 -35",90)}
+    raise(xml,2,"abc")
+    local function y(node)
+        return tonumber(node.attributes.position:match("^%S+%s+(%S+)"))
+    end
+    assert(y(xml[1])==-12 and y(xml[2])==-23.25
+        and y(xml[3])==-23.25 and y(xml[4])==-23.25,
+        "New choices, targets and their labels must rise by 11.25 UI units")
+    assert(y(xml[5])==140 and y(xml[6])==-12,
+        "Do not move Throw/Recover or unrelated card controls")
+end
 
 for _,needle in ipairs({
     "trackerPrivate.artifactBreakButton=function",
     "function resourceCardsArtifactBreakClicked(",
-    "xml[#xml+1]=trackerPrivate.artifactBreakButton(card,false",
-    "xml[#xml+1]=trackerPrivate.artifactBreakButton(card,#xml>otherControlCount",
+    "xml[#xml+1]=trackerPrivate.artifactBreakButton(card,uiRotation,depth)",
+    "xml[#xml+1]=trackerPrivate.artifactBreakButton(card,uiRotation,buttonDepth)",
     "or (isStrong and rule.strongNoDiscard==true)",
     "and second~=nil and choiceCategory(second)~=firstKey",
     'local redReady=type(resources)=="table" and not combatEnemyInPlay',
