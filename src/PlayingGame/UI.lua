@@ -912,18 +912,18 @@ local function mainUIRefreshPlayerState(context)
 				if doMath==true then
 					--All tokens Fame
 					if gStates.gainList[obj.guid].keepHalfFame==true then
-						turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+(math.ceil(monsterPugs[obj.guid].fame/2)*gStates.gainList[obj.guid].tokenDirection)
+						turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+(math.ceil((tonumber(monsterPugs[obj.guid].fame) or 0)/2)*gStates.gainList[obj.guid].tokenDirection)
 					else
 						local multiple=1
 						if obj.guid==darkCrusader.token or obj.guid==elementalist.token then
-							if gStates.gainList[obj.guid].overkill~=gStates.leaderOverkill then turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain-(monsterPugs[obj.guid].fame*gStates.gainList[obj.guid].overkill) end
+							if gStates.gainList[obj.guid].overkill~=gStates.leaderOverkill then turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain-((tonumber(monsterPugs[obj.guid].fame) or 0)*gStates.gainList[obj.guid].overkill) end
 							multiple=gStates.leaderOverkill
 							gStates.gainList[obj.guid].overkill=gStates.leaderOverkill
 						end
 						if gStates.druidNightsSummon~=nil then multiple=2 end
 						local perks=0
 						if gStates.monsterPerks[obj.guid]~=nil and gStates.monsterPerks[obj.guid].fame~=nil then perks=gStates.monsterPerks[obj.guid].fame end
-						local questFame=monsterPugs[obj.guid].fame+perks
+						local questFame=(tonumber(monsterPugs[obj.guid].fame) or 0)+perks
 						--Dragon heads use custom reward resolution: airborne gives Round Fame once, while
 						--landed heads give 1 Fame for each selected level reduction at combat cleanup.
 						if gStates.monsterPerks[obj.guid]~=nil and (gStates.monsterPerks[obj.guid].dragonAirborne==true or gStates.monsterPerks[obj.guid].dragonGround==true) then questFame=0 end
@@ -964,7 +964,7 @@ local function mainUIRefreshPlayerState(context)
 				if b.tokenDirection==1 then
 					--fame
 					if b.keepHalfFame==true then
-						turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain-math.ceil(monsterPugs[a].fame/2)
+						turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain-math.ceil((tonumber(monsterPugs[a].fame) or 0)/2)
 					else
 						local multiple=1
 						if a==darkCrusader.token or a==elementalist.token then
@@ -973,7 +973,7 @@ local function mainUIRefreshPlayerState(context)
 						if gStates.druidNightsSummon~=nil then multiple=2 end
 						local perks=0
 						if gStates.monsterPerks[a]~=nil and gStates.monsterPerks[a].fame~=nil then perks=gStates.monsterPerks[a].fame end
-						local questFame=monsterPugs[a].fame+perks
+						local questFame=(tonumber(monsterPugs[a].fame) or 0)+perks
 						--Dragon rewards are owned by their custom combat tracker. Mirror the add-side suppression
 						--here so removing a Dragon head cannot subtract ordinary monster Fame behind its back.
 						if b.dragonCustomFame==true or
