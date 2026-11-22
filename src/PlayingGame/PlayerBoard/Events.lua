@@ -417,28 +417,36 @@ local function playerBoardClearObjectUIIfPresent(obj)
     return changed
 end
 
--- A card can be carried above its shallow Play Area zone without leaving
--- the mat. Check its horizontal footprint only after an actual drop/settle.
-local function playerBoardObjectOnPlayMat(obj)
+-- A card can be released above the deliberately shallow Play Area trigger.
+-- Use the zone's X/Z transform rather than getBounds(), which can be zero.
+local function playerBoardPlayMatSeat(obj)
     local pos=obj~=nil and obj.getPosition() or nil
-    if pos==nil then return false end
+    if pos==nil then return nil end
     local x,z=pos.x or pos[1],pos.z or pos[3]
-    if x==nil or z==nil then return false end
+    if x==nil or z==nil then return nil end
     for seat=1,4 do
         local zone=getObjectFromGUID(playerPlayAreas[seat])
-        local bounds=zone~=nil and zone.getBounds() or nil
-        local center=bounds~=nil and bounds.center or nil
-        local size=bounds~=nil and bounds.size or nil
-        if center~=nil and size~=nil then
+        if zone~=nil then
+            local center,size=zone.getPosition(),zone.getScale()
             local cx,cz=center.x or center[1],center.z or center[3]
             local width,depth=size.x or size[1],size.z or size[3]
-            if cx~=nil and cz~=nil and width~=nil and depth~=nil
-                and math.abs(x-cx)<width*0.5 and math.abs(z-cz)<depth*0.5 then
-                return true
+            if width>0 and depth>0 then
+                local rotation=zone.getRotation()
+                local yaw=math.rad(rotation.y or rotation[2] or 0)
+                local dx,dz=x-cx,z-cz
+                local localX=dx*math.cos(yaw)-dz*math.sin(yaw)
+                local localZ=dx*math.sin(yaw)+dz*math.cos(yaw)
+                if math.abs(localX)<width*0.5 and math.abs(localZ)<depth*0.5 then
+                    return seat
+                end
             end
         end
     end
-    return false
+    return nil
+end
+
+local function playerBoardObjectOnPlayMat(obj)
+    return playerBoardPlayMatSeat(obj)~=nil
 end
 
 -- A lifted card must never have its buttons destroyed on the exit frame.
@@ -489,11 +497,163 @@ local function playerBoardScheduleUICleanup(guid)
     end,2)
 end
 
+-- A deliberately crooked played card is a request to tuck it under ONE
+-- overlapping played card. Native U has no callable Lua equivalent, and
+-- putObject would merge the two cards into a Deck (losing individual UIs).
+local playerBoardCrookedUnderPending={}
+local function playerBoardCrookedUnderRotation(card)
+    local rot=card.getRotation()
+    local yaw=(rot.y or rot[2] or 0)%90
+    local pitch=(rot.x or rot[1] or 0)%180
+    local roll=(rot.z or rot[3] or 0)%180
+    return math.min(yaw,90-yaw)>5
+        and math.min(pitch,180-pitch)<12 and math.min(roll,180-roll)<12
+end
+
+local function playerBoardCrookedUnderOverlaps(a,b)
+    local aBounds,bBounds=a.getBounds(),b.getBounds()
+    local as=aBounds~=nil and aBounds.size or nil
+    local bs=bBounds~=nil and bBounds.size or nil
+    if as==nil or bs==nil then return false end
+    local ax,az=as.x or as[1],as.z or as[3]
+    local bx,bz=bs.x or bs[1],bs.z or bs[3]
+    if ax==nil or az==nil or bx==nil or bz==nil
+        or math.min(ax,az,bx,bz)<=0 then return false end
+    local ap,bp=a.getPosition(),b.getPosition()
+    local overlapX=(ax+bx)*0.5-math.abs((ap.x or ap[1])-(bp.x or bp[1]))
+    local overlapZ=(az+bz)*0.5-math.abs((ap.z or ap[3])-(bp.z or bp[3]))
+    -- A marginal corner touch must not rearrange adjacent played cards.
+    return overlapX>math.min(ax,bx)*0.35 and overlapZ>math.min(az,bz)*0.35
+end
+
+local function playerBoardScheduleCrookedUnder(obj)
+    if gStates==nil or gStates.firstStarted~=true or obj==nil
+        or obj.type~="Card" or gameCards[obj.guid]==nil
+        or not playerBoardCrookedUnderRotation(obj) then return end
+    local guid=obj.guid
+    local state={tries=0,stable=0}
+    playerBoardCrookedUnderPending[guid]=state
+    local function finish()
+        if playerBoardCrookedUnderPending[guid]==state then
+            playerBoardCrookedUnderPending[guid]=nil
+        end
+    end
+    local function released(card,seat)
+        return card~=nil and (card.isDestroyed==nil or not card.isDestroyed())
+            and card.held_by_color==nil and not card.isSmoothMoving()
+            and playerBoardPlayMatSeat(card)==seat
+    end
+    local function sendUnder(card,top,seat)
+        local topGUID=top.guid
+        local topPosition=top.getPosition()
+        local topX,topY,topZ=topPosition.x or topPosition[1],
+            topPosition.y or topPosition[2],topPosition.z or topPosition[3]
+        local cardPosition=card.getPosition()
+        local cardX,cardZ=cardPosition.x or cardPosition[1],cardPosition.z or cardPosition[3]
+        -- Existing tracker selections/explicit target locks survive this
+        -- physical move exactly as they do when the player presses U.
+        if resourceCardsObjectPickedUp~=nil then
+            resourceCardsObjectPickedUp(card)
+            resourceCardsObjectPickedUp(top)
+        end
+        local function lowerTop()
+            if playerBoardCrookedUnderPending[guid]~=state then return end
+            local upper=getObjectFromGUID(topGUID)
+            if upper~=nil and upper.held_by_color==nil
+                and playerBoardPlayMatSeat(upper)==seat then
+                local p=upper.getPosition()
+                if math.abs((p.x or p[1])-topX)<0.4
+                    and math.abs((p.z or p[3])-topZ)<0.4 then
+                    upper.setPositionSmooth({topX,topY+0.13,topZ},false,false)
+                end
+            end
+            local placed=getObjectFromGUID(guid)
+            if resourceCardsObjectMoved~=nil then
+                if placed~=nil then resourceCardsObjectMoved(placed) end
+                if upper~=nil then resourceCardsObjectMoved(upper) end
+            end
+            finish()
+        end
+        top.setPositionSmooth({topX,topY+0.55,topZ},false,false)
+        safeWaitCondition("PlayerBoard.Events.crookedUnderRaise",function()
+            if playerBoardCrookedUnderPending[guid]~=state then return end
+            local moving=getObjectFromGUID(guid)
+            local upper=getObjectFromGUID(topGUID)
+            if not released(moving,seat) or upper==nil or upper.held_by_color~=nil then
+                lowerTop()
+                return
+            end
+            -- Keep the crooked card's X/Z and yaw exactly as dropped.
+            moving.setPositionSmooth({cardX,topY,cardZ},false,false)
+            safeWaitCondition("PlayerBoard.Events.crookedUnderPlace",lowerTop,function()
+                local current=getObjectFromGUID(guid)
+                if current==nil or current.held_by_color~=nil then return true end
+                local p=current.getPosition()
+                return not current.isSmoothMoving() and (p.y or p[2])<=topY+0.14
+            end,4,lowerTop)
+        end,function()
+            local upper=getObjectFromGUID(topGUID)
+            return upper==nil or upper.held_by_color~=nil
+                or (upper.getPosition().y or upper.getPosition()[2])>=topY+0.28
+        end,4,lowerTop)
+    end
+    local function sample()
+        if playerBoardCrookedUnderPending[guid]~=state then return end
+        state.tries=state.tries+1
+        local card=getObjectFromGUID(guid)
+        local seat=card~=nil and playerBoardPlayMatSeat(card) or nil
+        if seat==nil or not released(card,seat)
+            or not playerBoardCrookedUnderRotation(card) then finish() return end
+        local p,rot=card.getPosition(),card.getRotation()
+        local x,y,z=p.x or p[1],p.y or p[2],p.z or p[3]
+        local yaw=rot.y or rot[2] or 0
+        local prior=state.previous
+        if prior~=nil and math.abs(x-prior.x)<0.04
+            and math.abs(z-prior.z)<0.04
+            and math.abs((yaw-prior.yaw+180)%360-180)<1 then
+            state.stable=state.stable+1
+        else state.stable=0 end
+        state.previous={x=x,z=z,yaw=yaw}
+        if state.stable>=2 then
+            if state.targetGUID==nil then
+                local candidate
+                for _,other in ipairs(getAllObjects()) do
+                    if other.guid~=guid and other.type=="Card"
+                        and gameCards[other.guid]~=nil
+                        and playerBoardPlayMatSeat(other)==seat
+                        and playerBoardCrookedUnderOverlaps(card,other) then
+                        if candidate~=nil then finish() return end
+                        candidate=other
+                    end
+                end
+                if candidate==nil then finish() return end
+                state.targetGUID=candidate.guid
+            end
+            local top=getObjectFromGUID(state.targetGUID)
+            if top==nil or not playerBoardCrookedUnderOverlaps(card,top)
+                or playerBoardPlayMatSeat(top)~=seat then finish() return end
+            local tp=top.getPosition()
+            local delta=y-(tp.y or tp[2])
+            if delta<=0.008 then finish() return end
+            if delta<=0.45 and released(top,seat) then
+                sendUnder(card,top,seat)
+                return
+            end
+        end
+        -- Falling through the shallow zone need not become 'resting'.
+        -- Give it a bounded height/XZ sampling window after the drop.
+        if state.tries>=90 then finish()
+        else safeWaitFrames("PlayerBoard.Events",sample,1) end
+    end
+    safeWaitFrames("PlayerBoard.Events",sample,1)
+end
+
 function playerBoardObjectDropped(obj)
     if obj~=nil and obj.guid~=nil
         and playerBoardPendingUICleanup[obj.guid]~=nil then
         playerBoardScheduleUICleanup(obj.guid)
     end
+    playerBoardScheduleCrookedUnder(obj)
 end
 
 function playerBoardZoneLeave(ctx)
