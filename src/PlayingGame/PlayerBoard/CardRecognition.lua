@@ -7775,18 +7775,14 @@ trackerPrivate.artifactBreakButton=function(card,uiRotation,buttonDepth)
         -- Keep THROW below the printed text and RECOVER above the artwork.
         position="0 "..tostring(broken and -140 or 140).." "..buttonDepth,
         rotation=uiRotation,width=220,height=74,scale="0.25 0.25",
+        font="Fonts/MKCardText",fontSize=58,
+        resizeTextForBestFit="true",resizeTextMinSize=26,
+        resizeTextMaxSize=58,padding="18 18 9 9",
         colors=broken and "#81372F|#AD5045|#81372F|#81372F"
             or (waitForCombat and "#383838|#505050|#383838|#383838"
                 or "#454D5D|#69798E|#444C63|#454D5D"),
         textColor="#FFFFFF",textAlignment="MiddleCenter"},
-        value="",
-        children={{tag="HorizontalLayout",attributes={
-            padding="18 18 9 9",childAlignment="MiddleCenter"},
-            children={{tag="Text",attributes={
-                text=label,font="Fonts/MKCardText",fontSize=58,
-                resizeTextForBestFit="true",resizeTextMinSize=26,
-                resizeTextMaxSize=58,color="#FFFFFF",alignment="MiddleCenter",
-                raycastTarget="false"}}}}}
+        value=label}
 end
 
 -- Shift only the Artifact's newly generated option/target controls toward the
