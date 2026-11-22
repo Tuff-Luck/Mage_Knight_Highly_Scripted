@@ -7770,8 +7770,12 @@ trackerPrivate.artifactBreakButton=function(card,above,uiRotation,buttonDepth)
     return {tag="Button",attributes={
         id="ResourceCardChoice_"..card.guid.."_artifactBreak",
         onClick="global/resourceCardsArtifactBreakClicked",
-        position="0 "..tostring(above and 128 or 8).." "..buttonDepth,
-        rotation=uiRotation,width=220,height=92,scale="0.25 0.25",fontSize=44,
+        -- The card UI is rotated 180 degrees: negative Y moves up toward the artwork.
+        -- Keep the toggle above the title, and higher when other choice controls exist.
+        position="0 "..tostring(above and -75 or -25).." "..buttonDepth,
+        rotation=uiRotation,width=220,height=92,scale="0.25 0.25",
+        font="Fonts/MKCardText",fontSize=58,
+        resizeTextForBestFit="true",resizeTextMinSize=26,resizeTextMaxSize=58,
         colors=broken and "#81372F|#AD5045|#81372F|#81372F"
             or (waitForCombat and "#383838|#505050|#383838|#383838"
                 or "#454D5D|#69798E|#444C63|#454D5D"),
