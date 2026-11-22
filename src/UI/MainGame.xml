@@ -8,7 +8,7 @@
 				<Button id="ShrinkHand" onClick="valueAdjust" class="ShortButton">
 					<Image id="ShrinkHandImage" image="Sliced Button/Button New Active" type="Sliced"/><Text class="Text26" offsetXY="0 1">-</Text>
 				</Button>
-				<Button id="DrawHand" preferredWidth="250" interactable="false" onClick="drawUpTo" onMouseDown="" onMouseUp="" tooltipOffset="65" tooltip="The displayed draw limit includes bonuses from Keeps, Cities and Day Tactic 4. Mountain Lore previews +1 on Hills or +2 on Mountains (powered only), but only grants it if you end the turn on that terrain.">
+				<Button id="DrawHand" preferredWidth="250" interactable="false" onClick="drawUpTo" onMouseDown="" onMouseUp="" tooltipOffset="65" tooltip="Hand limit is purple when above the base amount. Bonuses come from Keeps, Cities and Day Tactic 4. Mountain Lore previews +1 on Hills or +2 on Mountains (powered only), but only grants it if you end the turn on that terrain.">
 					<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<HorizontalLayout padding="5 5 0 0"><Text id="DrawHandText" class="Text20" offsetXY="0 1">Script Modifies - Hand Size</Text></HorizontalLayout>
 				</Button>
