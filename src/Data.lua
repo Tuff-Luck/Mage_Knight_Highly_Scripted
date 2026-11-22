@@ -1325,7 +1325,7 @@ cardResourceDefinitions={
     -- The player confirms 0..2 used points; generating Heal is not enough.
     artifactGoldenGrail={artifactMode=true,normal={healing=2},powered={healing=6},
         grailFamePerHealing=1,
-        manualSecondary="Basic: set the Fame counter to the number of this card's Heal points actually spent (0-2). Break: Heal 6 only."},
+        manualSecondary="Basic: set the Fame counter to this card's Heal points actually spent (0-2). Break: Heal 6; draw a card for each Wound healed from hand this turn (resolve draws manually)."},
     artifactSoulHarvester={artifactMode=true,normal={attack=3},powered={attack=8},
         manualSecondary="Gain one crystal for a kill made by the basic Attack; when broken, one for each enemy killed this phase. Choose White or a resistance colour (Red/Blue/Green). Confirm gains manually."},
     artifactBannerOfCommand={artifactMode=true,normal={influence=4},
