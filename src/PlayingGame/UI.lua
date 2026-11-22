@@ -1365,12 +1365,20 @@ local function mainUIRefreshStatusPanel(context,playerState)
 
 	local currentPlayer=turnOrder[gStates.turnNumber]
 	local meditationBonus=(gStates.meditationDrawBonus~=nil and gStates.meditationDrawBonus[gStates.turnNumber]) or 0
-	local drawHandSize=currentPlayer.hand+currentPlayer.handBonus+gStates.tactic4HandBonus+meditationBonus
-        +(gStates.mountainLoreDrawBonus~=nil
-            and (gStates.mountainLoreDrawBonus[currentPlayer.seatPos] or 0) or 0)
+	local pendingLoreBonus=gStates.mountainLoreDrawBonus~=nil
+		and (gStates.mountainLoreDrawBonus[currentPlayer.seatPos] or 0) or 0
+	--Preview Mountain Lore while the card is played and the avatar is on qualifying terrain.
+	--End Turn still captures the final terrain/card state; the preview never grants an early draw.
+	local previewLoreBonus=0
+	local playState=playAreaObjectState[currentPlayer.seatPos] or syncPlayAreaObjectState(currentPlayer.seatPos)
+	if playState["d3995b"]~=nil then
+		previewLoreBonus=resourceCardsMountainLoreEndTurnBonus(currentPlayer.seatPos)
+	end
+	local loreBonus=math.max(pendingLoreBonus,previewLoreBonus)
+	local drawHandSize=currentPlayer.hand+currentPlayer.handBonus+gStates.tactic4HandBonus+meditationBonus+loreBonus
 	local cityShields=currentCityShieldInfluence(currentPlayer)
 	local handMainKey=table.concat({gStates.turnNumber, currentPlayer.mage, currentPlayer.hand, currentPlayer.handBonus, gStates.tactic4HandBonus, meditationBonus,
-        gStates.mountainLoreDrawBonus~=nil and (gStates.mountainLoreDrawBonus[currentPlayer.seatPos] or 0) or 0, currentPlayer.baseHand, currentPlayer.reputation, cityShields, currentPlayer.fame, currentPlayer.level, fameForUp, gStates.positionMageKnight[5]}, "|")
+		loreBonus, currentPlayer.baseHand, currentPlayer.reputation, cityShields, currentPlayer.fame, currentPlayer.level, fameForUp, gStates.positionMageKnight[5]}, "|")
 	if handMainTextCache~=handMainKey then
 		handMainTextCache=handMainKey
 		UI.setAttribute("DrawHandText", "text", joinLang({"{en}Draw up to {it}Pesca fino a {ru}Добрать до {zh-tw}抽滿至 {zh-cn}抽满至 {ko}카드 보유 제한 {es}Roba hasta {fr}Piochez jusqu'à {pt-br}Compre até {de}Zieh auf ", tostring(drawHandSize), "{en} cards{it} carte{ru} карт{zh-tw} 張手牌{zh-cn} 张手牌{ko} 장{es} cartas{fr} cartes{pt-br} cartas{de} karten"}))
