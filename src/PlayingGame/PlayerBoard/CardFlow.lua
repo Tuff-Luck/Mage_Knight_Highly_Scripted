@@ -1572,9 +1572,12 @@ function dealAllHands()
 	local temp=gStates.turnNumber
 	for a=1, #turnOrder, 1 do
 		gStates.turnNumber=a
+		-- The Planning bonus is calculated for the active player, not shared across seats.
+		refreshTactic4HandBonus(false)
 		if turnOrder[gStates.turnNumber].mage~=gStates.positionMageKnight[5] and playerDropoutInactive(gStates.turnNumber)==false then drawUpTo({color="Black"}, "-1", "DrawHand") end--color is only there to stop error
 	end
 	gStates.turnNumber=temp
+	refreshTactic4HandBonus(false)
 	safeWaitTime("PlayerBoard.CardFlow",function()
 		for x=1, #turnOrder, 1 do
 			--Records current amount of cards in deed deck
