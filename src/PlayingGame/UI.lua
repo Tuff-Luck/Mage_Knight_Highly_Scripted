@@ -2467,7 +2467,6 @@ function refreshResourceTrackerText()
     local moveState=gStates.resourceTracker.move or {}
     local exploreSpent=tonumber(moveState.exploreSpent) or 0
     local travelSpent=tonumber(moveState.travelSpent) or 0
-    local totalSpent=exploreSpent+travelSpent
     local exploreCount=tonumber(moveState.exploreCount) or 0
     local combatMove=resourceCardsEffectiveCombatMove~=nil and resourceCardsEffectiveCombatMove() or 0
 
@@ -2484,10 +2483,14 @@ function refreshResourceTrackerText()
     showRow("MovemGenerated",moveGenerated~=moveTotal)
     setResourceTrackerDisplayAttribute("MovemGeneratedText","text",
         joinLang({RESOURCE_TRACKER_FIELDS.InfluAmountPhysi[3],moveGenerated}))
+    showRow("MovemSpent",travelSpent>0)
+    setResourceTrackerDisplayAttribute("MovemSpentText","text",
+        joinLang({"{en}Spent : {it}Speso : {ru}Потрачено: {zh-tw}已花費：{zh-cn}已花费：{ko}사용 : {es}Gastado : {fr}Dépensé : {pt-br}Gasto : {de}Ausgegeben : ",
+            travelSpent>0 and ("-"..tostring(travelSpent)) or "0"}))
     showRow("MovemExplore",exploreCount>0)
     setResourceTrackerDisplayAttribute("MovemExploreText","text",
-        joinLang({"{en}Spent : {it}Speso : {ru}Потрачено: {zh-tw}已花費：{zh-cn}已花费：{ko}사용 : {es}Gastado : {fr}Dépensé : {pt-br}Gasto : {de}Ausgegeben : ",
-            totalSpent>0 and ("-"..tostring(totalSpent)) or "0"}))
+        joinLang({"{en}Explore : {it}Esplorazione : {ru}Исследование: {zh-tw}探索：{zh-cn}探索：{ko}탐험 : {es}Explorar : {fr}Exploration : {pt-br}Exploração : {de}Erkunden : ",
+            exploreSpent>0 and ("-"..tostring(exploreSpent)) or "0"}))
     setResourceTrackerDisplayAttribute("CombatMoveText","text",
         joinLang({"{en}Combat Move : {it}Movimento in combattimento : {ru}Движение в бою: {zh-tw}戰鬥移動：{zh-cn}战斗移动：{ko}전투 이동 : {es}Movimiento en combate : {fr}Déplacement en combat : {pt-br}Movimento em combate : {de}Bewegung im Kampf : ",combatMove}))
     showRow("CombatMove",combatMove>0)
