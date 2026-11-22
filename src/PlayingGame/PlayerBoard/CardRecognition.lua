@@ -7740,7 +7740,7 @@ end
 
 -- The Break control is a separate decision, not a fictitious resource option.
 -- Rendering it independently also covers Artifacts with no numeric choices.
-local function artifactBreakButton(card,above,uiRotation,buttonDepth)
+trackerPrivate.artifactBreakButton=function(card,above,uiRotation,buttonDepth)
     local broken=resourceCardsArtifactBroken(card.guid,card)
     return {tag="Button",attributes={
         id="ResourceCardChoice_"..card.guid.."_artifactBreak",
@@ -7878,7 +7878,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         end
         local uiRotation=card.is_face_down==true and "0 180 180" or "0 0 180"
         local depth=card.is_face_down==true and "35" or "-35"
-        xml[#xml+1]=artifactBreakButton(card,false,uiRotation,depth)
+        xml[#xml+1]=trackerPrivate.artifactBreakButton(card,false,uiRotation,depth)
         if not resourceObjectUiSameXML(old,xml) then resourceObjectUiSetTable(card.UI,xml) end
         combatConfig.cardButtonIds[card.guid]=combatConfig.cardChoiceIds(card.guid,xml)
         choiceButtonShown[card.guid]="artifact-break-only:"..tostring(resourceCardsArtifactBroken(card.guid,card))
@@ -8564,7 +8564,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         end
     end
     if isArtifact and posture=="upright" then
-        xml[#xml+1]=artifactBreakButton(card,#xml>otherControlCount,uiRotation,buttonDepth)
+        xml[#xml+1]=trackerPrivate.artifactBreakButton(card,#xml>otherControlCount,uiRotation,buttonDepth)
     end
     -- A fixed Attack/Block against a sole enemy needs no manual target icon.
     -- That can leave an otherwise empty object UI; TTS rejects setXmlTable({})
