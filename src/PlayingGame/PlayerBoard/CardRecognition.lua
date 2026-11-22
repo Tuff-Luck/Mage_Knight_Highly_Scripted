@@ -4370,6 +4370,32 @@ combatConfig.applyExplosiveBoltRange=function(entries,groups,allocated,sources)
     end
 end
 
+-- TTS does not expose Unity's measured text width to Lua. Estimate 13px
+-- display text by glyph type (and UTF-8 codepoint, not byte count), with
+-- room for margins, so even long or translated enemy names stay readable.
+combatConfig.enemyNameColumnWidth=function(label)
+    label=tostring(label or "")
+    local width=18
+    for i=1,#label do
+        local byte=label:byte(i)
+        if byte<128 then
+            local char=label:sub(i,i)
+            if char==" " then width=width+5
+            elseif char=="i" or char=="l" or char=="I" or char=="t"
+                or char=="f" or char=="r" or char=="j" or char=="1"
+                or char=="'" or char=="." or char=="," then width=width+5
+            elseif char=="M" or char=="W" or char=="m" or char=="w"
+                or char=="@" then width=width+12
+            elseif char:match("%u") then width=width+10
+            else width=width+8 end
+        elseif byte>=240 and byte<248 then width=width+17
+        elseif byte>=224 and byte<240 then width=width+15
+        elseif byte>=192 and byte<224 then width=width+10
+        end
+    end
+    return math.max(100,math.ceil(width))
+end
+
 local function combatAssignmentRefreshRows(entries,sources)
     combatConfig.resultRowCache={}
     combatConfig.slotSelection={}
@@ -4437,6 +4463,18 @@ local function combatAssignmentRefreshRows(entries,sources)
         group.members[#group.members+1]=index
         group.leader=group.members[1]
         groupOf[index]=group
+    end
+    -- The name and header occupy one shared column. Size it from the longest
+    -- name on this page, including the '+ ' prefix for a joined enemy.
+    local enemyNameWidth=100
+    for index=pageOffset+1,pageEnd do
+        local entry=entries[index]
+        local joined=groupOf[index]~=nil and groupOf[index].leader~=index
+        local label=(joined and "+ " or "")..tostring(entry.name or "")
+        enemyNameWidth=math.max(enemyNameWidth,combatConfig.enemyNameColumnWidth(label))
+    end
+    for row=1,combatConfig.rowCount do
+        combatPanelSetAttribute("CombatEnemyNameCell"..row,"preferredWidth",tostring(enemyNameWidth))
     end
     for row=1,combatConfig.rowCount do
         local index=pageOffset+row
@@ -6068,6 +6106,7 @@ local function combatAssignmentRefreshRows(entries,sources)
 
     local widthReduction=(170-columnWidths.range)+(170-columnWidths.block)+(170-columnWidths.attack)
     local panelWidth=1380-(255-combatConfig.columns.Result)-hiddenWidth-widthReduction
+        +(enemyNameWidth-120)
 
     if earlyLock==nil and combatConfig.phasePreview~=nil then
         combatConfig.phasePreview.attackDiscards=combatFrozenCopy(stagedAttackCards)
@@ -6135,7 +6174,7 @@ local function combatAssignmentRefreshRows(entries,sources)
     end
     combatPanelSetAttribute("CombatEnemyPanel","width",tostring(panelWidth))
     combatPanelSetAttribute("CombatEnemyPanel","color","rgb(0.24,0.2,0.15)")
-    local headerWidths={Monster=120,Armour=55,DefenceTraits=150,RangeSiege=columnWidths.range,EnemyAttack=105,
+    local headerWidths={Monster=enemyNameWidth,Armour=55,DefenceTraits=150,RangeSiege=columnWidths.range,EnemyAttack=105,
         Offence=130,Block=columnWidths.block,AssignedAttack=columnWidths.attack,Result=combatConfig.columns.Result}
     for name,width in pairs(headerWidths) do
         local id="Combat"..name.."Header"
