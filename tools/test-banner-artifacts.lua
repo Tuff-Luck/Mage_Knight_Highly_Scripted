@@ -277,6 +277,20 @@ assert(boardEvent:find("bannerPosition[3]>=-38.4 and obj.is_face_down~=true",1,t
 assert(boardEvent:find("if fullCard.is_face_down==true then fullCard.flip() end",1,true),
     "A spent half must be restored to a face-up full card on detachment")
 
+-- Fear has only targeting links: neither the automatic nearest arrow nor
+-- subsequent calculator retargeting may make the first one blue. Enemies
+-- targeted by Fear must not be mistaken for Possess/printed-resource links.
+assert(recognition:find('local arrow=(spec.cancelOneAttack==true or (tonumber(spec.maxTargets) or 0)>1)',1,true),
+    "Fear effect slots must use purple arrows")
+assert(recognition:find('result.enemyEffectArrowKinds[key]="other"',1,true),
+    "Full Banner Fear must register a purple effect-only target")
+assert(recognition:find('result.enemyEffectArrowKinds[sourceKey]="other"',1,true),
+    "Attached Banner Fear must register a purple target")
+assert(recognition:find('(record.enemyEffectArrowKinds or {})[sourceKey] or "attack"',1,true),
+    "Automatic nearest effect arrows must preserve their effect type")
+assert(recognition:find('local borrowedEnemy=record~=nil and (record.possessEnemyGUID~=nil',1,true),
+    "Fear targets must not receive resource-link outlines")
+
 -- Banner of Courage is snapshotted once, rather than readied on every scan.
 assert(recognition:find("if courageUses[card.guid]==nil then",1,true),
     "Broken Courage must capture a one-time eligibility snapshot")
