@@ -3060,7 +3060,7 @@ end
 combatConfig.woundConfirmChoice=function(player,id)
     local confirmation=combatConfig.woundConfirmation
     local color=player~=nil and player.color or nil
-    if confirmation==nil or color~=confirmation.color
+    if type(color)~="string" or confirmation==nil or color~=confirmation.color
         or not resourceCardsPlayerCanEdit(color) then return end
     if id=="CombatDamageConfirmCancel" then
         combatConfig.woundConfirmClose()
@@ -7810,9 +7810,9 @@ trackerPrivate.raiseArtifactChoiceControls=function(xml,startIndex,guid)
     local targetPrefix="AttackAssignmentSource_"..guid.."_"
     for i=startIndex,#xml do
         local node=xml[i]
-        local attrs=node~=nil and node.attributes or nil
-        local id=attrs~=nil and attrs.id or nil
-        if type(id)=="string" and attrs.position~=nil
+        local attrs=type(node)=="table" and node.attributes or nil
+        local id=type(attrs)=="table" and attrs.id or nil
+        if type(attrs)=="table" and type(id)=="string" and attrs.position~=nil
             and id~=choicePrefix.."artifactBreak"
             and (id:sub(1,#choicePrefix)==choicePrefix
                 or id:sub(1,#targetPrefix)==targetPrefix)
