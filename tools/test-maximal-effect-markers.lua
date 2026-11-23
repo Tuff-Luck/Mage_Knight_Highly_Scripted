@@ -21,7 +21,7 @@ local function card(guid,x)
         local buttons={}
         for i,b in ipairs(c.buttons) do
             buttons[i]={index=i-1,click_function=b.click_function,
-                label=b.label,font_size=b.font_size}
+                label=b.label,font_size=b.font_size,position=b.position}
         end
         return buttons
     end
@@ -30,6 +30,10 @@ local function card(guid,x)
     end
     c.removeButton=function(index)
         table.remove(c.buttons,index+1)
+    end
+    c.editButton=function(changes)
+        local button=assert(c.buttons[changes.index+1])
+        if changes.position~=nil then button.position=changes.position end
     end
     c.getBoundsNormalized=function() return {size={x=1,y=0.1,z=1}} end
     c.getScale=function() return c.scale end
@@ -113,7 +117,13 @@ methods.sync(1,{artifact},{})
 eq(methods.marked(artifact),true,"THROW puts an X on a face-up Artifact")
 eq(#artifact.getButtons(),1,"Thrown Artifact has one red X")
 eq(artifact.buttons[1].font_size,640,"Artifact uses the same red X")
+assert(artifact.buttons[1].position[2]>=0.38,
+    "Thrown Artifact X must float clear of the card surface")
+-- An existing saved marker made at the old height must be lifted, not duplicated.
+artifact.buttons[1].position={0,0.13,0}
 methods.sync(1,{artifact},{})
+assert(artifact.buttons[1].position[2]>=0.38,
+    "Saved throw-away X must be raised during reconciliation")
 eq(#artifact.getButtons(),1,"Repeated Artifact scan does not duplicate X")
 artifactThrown=false
 methods.sync(1,{artifact},{})
