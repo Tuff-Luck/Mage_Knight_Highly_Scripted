@@ -384,6 +384,35 @@ local resolveDamage=isolated(recognition,"local function combatDamageResolve(ite
     "local function combatWoundsText","return combatDamageResolve")
 combatUnitResists=function() return false end
 gameCards={unitR={name={"Crossbowmen"}}}
+
+-- Hero Armor rises at levels 3, 7, 11, ...; extra native Command tokens
+-- must not increase Armor at levels 5, 9, 13, ...
+local heroArmour=isolated(recognition,"local function combatHeroArmour(nativeCommandCount)",
+    "local function combatDamageUnits","return combatHeroArmour")
+local savedHeroLevel=turnOrder[1].level
+for _,case in ipairs({
+    {1,1,2},{2,1,2},{3,2,3},{4,2,3},{5,3,3},{6,3,3},
+    {7,4,4},{8,4,4},{9,5,4},{10,5,4},
+    {11,6,5},{12,6,5},{13,7,5},{14,7,5},{15,8,6}
+}) do
+    turnOrder[1].level=case[1]
+    eq(heroArmour(case[2]),case[3],"Hero Armor at level "..case[1])
+end
+-- Regression: switching an attack-reduction modifier from -2 to none
+-- must return the High Dragon's Brutal 12 damage to four Hero Wounds.
+turnOrder[1].level=5
+local dragonHits={{key="highDragon:1",owner="highDragon",type="IF",damage=12}}
+local noAssignedUnits=function() return {} end
+local function dragonWounds()
+    local result=resolveDamage(dragonHits,{},heroArmour(3),noAssignedUnits)
+    return result["highDragon:1"].heroWounds
+end
+eq(dragonWounds(),4,"Brutal Cold Fire 12 vs Armor 3")
+dragonHits[1].damage=8
+eq(dragonWounds(),3,"reduced Brutal Cold Fire 8 vs Armor 3")
+dragonHits[1].damage=12
+eq(dragonWounds(),4,"reverted reduction restores four Wounds")
+turnOrder[1].level=savedHeroLevel
 local attack={{key="enemyB:1",owner="enemyB",type="P",damage=4,paralyse=true}}
 local initial=resolveDamage(attack,{unitR={guid="unitR",armour=2,resist={},wounded=false}},
     2,function() return {"unitR"} end)
