@@ -105,7 +105,7 @@ end
 -- Raise each new Artifact option/target by half its rendered height, without
 -- moving unrelated controls, the toggle itself, or other cards' UI.
 do
-    local testEnv={trackerPrivate={}}
+    local testEnv={trackerPrivate={},type=type,tostring=tostring,tonumber=tonumber,math=math}
     local raiseSource=section(rec,"trackerPrivate.raiseArtifactChoiceControls=function",
         "-- A manual counter")
     local raise=assert(load(raiseSource.."\nreturn trackerPrivate.raiseArtifactChoiceControls",
