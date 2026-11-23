@@ -31,6 +31,14 @@ assert(broken("a",objs.a) and broken("full",objs.full),
     "Face-up Staff and full Banner can be broken")
 state.artifactBreaks.a=false
 assert(not broken("a",objs.a),"Basic selection must override Break")
+-- Manual face-down still means THROW when the tracker is closed, even if
+-- RECOVER had previously saved false. Flipping back restores that choice.
+objs.a.is_face_down=true
+assert(broken("a",objs.a),"Manual face-down overrides a saved RECOVER")
+assert(state.artifactBreaks.a==false,
+    "A temporary physical flip must not erase saved RECOVER")
+objs.a.is_face_down=false
+assert(not broken("a",objs.a),"Turning face up restores the saved RECOVER")
 assert(broken("b",objs.b) and state.artifactBreaks.b==true,
     "Legacy face-down Artifact imports its Break flag")
 objs.b.is_face_down=false
