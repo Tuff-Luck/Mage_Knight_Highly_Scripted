@@ -2425,13 +2425,14 @@ local function combatUnitSitePermits(mode,bondsGUID,chosenGUID,unitGUID,damageCh
     return true
 end
 
--- The physical native Command tokens can lead the recorded level during testing.
--- Command slots imply Armor 2, 3, 3, 4, 4, 5, 5, 6, 6... for 1, 2, 3, 4...
--- Banner of Command and Bonds of Loyalty add slots, but not Hero Armor.
+-- Hero Armor: 2 at levels 1-2, 3 at 3-6, 4 at 7-10, then +1 per four levels.
+-- Native Command tokens are gained every two levels, but Armor does NOT increase
+-- with each token. Physical native tokens may lead the recorded level in testing;
+-- Banner of Command and Bonds of Loyalty add slots, not Hero Armor.
 local function combatHeroArmour(nativeCommandCount)
     local player=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
-    local level=math.max(1,math.min(10,tonumber(player~=nil and player.level or 1) or 1))
-    local levelArmour=2+math.floor((level-1)/2)
+    local level=math.max(1,math.floor(tonumber(player~=nil and player.level or 1) or 1))
+    local levelArmour=2+math.floor((level+1)/4)
     local physicalArmour=2+math.floor(math.max(0,tonumber(nativeCommandCount) or 0)/2)
     return math.max(levelArmour,physicalArmour)
 end
