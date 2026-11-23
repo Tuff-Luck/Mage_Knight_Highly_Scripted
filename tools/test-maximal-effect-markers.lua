@@ -96,6 +96,28 @@ return {
 }]],"Maximal Effect marks","t",env))()
 eq(methods.link(1,training.guid).count,3,"Physical OFF link finds three basic uses")
 
+-- Artifacts use the same existing red X, driven by the saved Throw state.
+-- Recover removes it; repeated recalculation must not duplicate the marker.
+local artifact=card("af0001",7)
+objects[artifact.guid]=artifact
+env.gameCards[artifact.guid]={cardType="Artifact",resourceKey="artifactUtility"}
+local artifactThrown=false
+env.resourceCardsArtifactBroken=function(guid)
+    return guid==artifact.guid and artifactThrown
+end
+methods.sync(1,{artifact},{})
+eq(methods.marked(artifact),false,"Unthrown Artifact has no X")
+artifactThrown=true
+methods.sync(1,{artifact},{})
+eq(methods.marked(artifact),true,"THROW puts an X on a face-up Artifact")
+eq(#artifact.getButtons(),1,"Thrown Artifact has one red X")
+eq(artifact.buttons[1].font_size,640,"Artifact uses the same red X")
+methods.sync(1,{artifact},{})
+eq(#artifact.getButtons(),1,"Repeated Artifact scan does not duplicate X")
+artifactThrown=false
+methods.sync(1,{artifact},{})
+eq(methods.marked(artifact),false,"RECOVER removes Artifact X")
+
 -- Training's offer browser must recognise the same repeated effect even
 -- with the Resource Tracker minimized, and regardless of the linked flip.
 env.resourceCardsMaximalEffectLink=methods.link
