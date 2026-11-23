@@ -2018,11 +2018,11 @@ local function handleMapZoneLeave(ctx)
 		if marker==true then scheduleShieldLocation(obj, zone, "remove") end
 	end
 
-	--remove red tint when lifting out terrain tile.
+	--Remove the red placement warning when lifting a tile, respecting the No Tint toggle.
 	if zone.guid==mapArea and terrainTiles[objGUID]~=nil then
 		if startingMapSetup==true then
 			if gStates.startAtNight==true then obj.setColorTint({r=0.6, g=0.6, b=0.6}) else obj.setColorTint({r=1.0, g=1.0, b=1.0}) end
-		elseif gStates.dayRound==false then
+		elseif gStates.nightTint==true then
 			obj.setColorTint({r=0.6, g=0.6, b=0.6})
 		else
 			obj.setColorTint({r=1.0, g=1.0, b=1.0})
