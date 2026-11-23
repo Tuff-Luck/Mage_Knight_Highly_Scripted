@@ -746,6 +746,8 @@ local function lockSetupVolkareOnMap(callback)
 		setupReleaseRewind()
 		error("SetupGame could not find Volkare after map construction.",2)
 	end
+	-- The fallback GUID must be persisted: turn processing cannot rely on onObjectSpawn having fired.
+	gStates.volkareModel=volkareGUID
 	model.unlock()
 	safeWaitFrames("SetupGame",function()
 		safeWaitCondition("SetupGame",function()
