@@ -213,6 +213,16 @@ function volkareResumeCoopDefenseMovement()
 	return true
 end
 
+-- Spawn callbacks can miss the initial model while setup still finds it via volkare.model.
+-- Recover that valid fallback before the turn draws a card or starts an irreversible movement.
+local function volkareEnsureModel()
+	local guid=gStates.volkareModel
+	local model=guid~=nil and getObjectFromGUID(guid) or nil
+	if model==nil and volkare~=nil and volkare.model~=nil then model=getObjectFromGUID(volkare.model) end
+	if model~=nil then gStates.volkareModel=model.guid end
+	return model
+end
+
 --Volkare only. Keep his existing slower state/prompt sequence independent from the fast standard Dummy.
 function volkareTurn(player, mouseButton, id)
 	if mouseButton~="-1" or gStates.positionMageKnight[5]~="Volkare" then return end
@@ -224,6 +234,13 @@ function volkareTurn(player, mouseButton, id)
 			nextTurnMerged("incrementTurn")
 			automatedTacticRewindRelease()
 		end)
+		return
+	end
+	-- A missed spawn GUID would otherwise crash when movement reads Volkare\'s position,
+	-- after consuming his card and rerolling a Mana die. Keep the turn retryable instead.
+	if gStates.endRoundCalled==false and gStates.volkareState=="Start" and volkareEnsureModel()==nil then
+		if id=="VolkareRewindReady" then automatedTurnRewindRelease() end
+		broadcastToAll("{en}Volkare\'s figure is missing. Restore it to the table, then click Process Volkare again.",warningColor)
 		return
 	end
 	--Only the initial Process Volkare click creates the rewind checkpoint. Combat-response clicks
