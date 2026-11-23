@@ -119,24 +119,16 @@ trackerPrivate.totalsKeys={move=true,ranged=true,siege=true,attack=true,block=tr
 -- Catalog is defined once in UnitResources.lua and keyed by card GUID.
 local unitResourceDefinitions=unitResourceDefinitions
 -- Full-size Artifacts use the saved THROW/RECOVER choice when face up.
--- A physical face-down play always means throw away, even after a prior
--- RECOVER choice. An explicit false remains saved if manually flipped back.
--- Half Banners are spent Unit attachments, never independently thrown.
+-- Physical face-down also means Throw, but must remain reversible without
+-- modifying an earlier button choice. Half Banners use their back to mean
+-- 'spent', not 'thrown away'.
 function resourceCardsArtifactBroken(guid,card)
     local data=gameCards~=nil and gameCards[guid] or nil
     if data==nil or data.cardType~="Artifact" or data.full~=nil then return false end
     local state=gStates~=nil and gStates.artifactBreaks or nil
     local chosen=type(state)=="table" and state[guid] or nil
     local obj=card or getObjectFromGUID(guid)
-    if obj~=nil and obj.is_face_down==true then
-        -- Import legacy flips only when no explicit choice was stored.
-        if chosen==nil and gStates~=nil then
-            gStates.artifactBreaks=gStates.artifactBreaks or {}
-            gStates.artifactBreaks[guid]=true
-        end
-        return true
-    end
-    return chosen==true
+    return (obj~=nil and obj.is_face_down==true) or chosen==true
 end
 
 function resourceCardsArtifactBreakClear(guid)
