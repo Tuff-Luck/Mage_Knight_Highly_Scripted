@@ -118,24 +118,25 @@ trackerPrivate.totalsKeys={move=true,ranged=true,siege=true,attack=true,block=tr
 
 -- Catalog is defined once in UnitResources.lua and keyed by card GUID.
 local unitResourceDefinitions=unitResourceDefinitions
--- Full-size Artifacts use an explicit, saved Break toggle instead of their physical back.
--- An old face-down play is imported as Break on its first scan; an explicit
--- false always overrides that legacy interpretation. Half Banners are spent
--- Unit attachments, never independently broken Artifacts.
+-- Full-size Artifacts use the saved THROW/RECOVER choice when face up.
+-- A physical face-down play always means throw away, even after a prior
+-- RECOVER choice. An explicit false remains saved if manually flipped back.
+-- Half Banners are spent Unit attachments, never independently thrown.
 function resourceCardsArtifactBroken(guid,card)
     local data=gameCards~=nil and gameCards[guid] or nil
     if data==nil or data.cardType~="Artifact" or data.full~=nil then return false end
     local state=gStates~=nil and gStates.artifactBreaks or nil
-    if type(state)=="table" and type(state[guid])=="boolean" then return state[guid] end
+    local chosen=type(state)=="table" and state[guid] or nil
     local obj=card or getObjectFromGUID(guid)
     if obj~=nil and obj.is_face_down==true then
-        if gStates~=nil then
+        -- Import legacy flips only when no explicit choice was stored.
+        if chosen==nil and gStates~=nil then
             gStates.artifactBreaks=gStates.artifactBreaks or {}
             gStates.artifactBreaks[guid]=true
         end
         return true
     end
-    return false
+    return chosen==true
 end
 
 function resourceCardsArtifactBreakClear(guid)
@@ -10224,9 +10225,9 @@ local function resolveActionLinks(cards,wounds,footprints,manaPowered,skillLinks
         repeatByTarget,discardBoostBySource
 end
 
--- A consumed Action carries the same floating red X as a defeated token.
--- Its printed face remains readable, and cleanup uses this distinct button
--- identity to throw the card away even if the player turns it face up.
+-- The same floating red X visualises Throw for full Artifacts and cards
+-- consumed by a linked effect (Maximal Effect or Ritual Attack). It is
+-- presentation, not the authoritative end-turn disposal decision.
 function resourceCardsMaximalEffectMarkerNoop() end
 
 function resourceCardsMaximalEffectMarked(card)
@@ -10350,18 +10351,37 @@ function resourceCardsMaximalEffectSourceManaGUIDs(seatPos,sourceGUID)
     return spent
 end
 
-function resourceCardsMaximalEffectSyncMarks(seatPos,cards,repeats)
+-- One shared linked-throw decision, kept separate from ordinary discard
+-- payments. The resolver only accepts Starting/Advanced Action cards for
+-- the two throw-away links; Spells/Artifacts may pay some discard costs but
+-- must never be promoted to throw-away because of that.
+function resourceCardsMaximalEffectSyncMarks(seatPos,cards,repeats,discarded,hasDiscard)
+    trackerPrivate.throwAwayLinksByGUID=trackerPrivate.throwAwayLinksByGUID or {}
+    local prior=trackerPrivate.throwAwayLinksByGUID
     local present={}
     for _,card in ipairs(cards or {}) do
         present[card.guid]=true
-        local linked=repeats~=nil and repeats[card.guid]~=nil
+        local repeated=repeats~=nil and repeats[card.guid]~=nil
             or (repeats==nil and resourceCardsMaximalEffectLink(seatPos,card.guid)~=nil)
-        -- A full Artifact selected for THROW uses the same floating X as a
-        -- consumed Maximal Effect target. The marker is visual; the saved
-        -- Break state remains authoritative for cleanup and calculations.
+        local costSource=discarded~=nil and discarded[card.guid] or nil
+        local costData=costSource~=nil and gameCards[costSource] or nil
+        local costRule=costData~=nil and cardResourceDefinitions[costData.resourceKey] or nil
+        local ritual=costRule~=nil and costRule.requiredLink~=nil
+            and costRule.requiredLink.mode=="throwAway"
+            and hasDiscard~=nil and hasDiscard[costSource]==true
+        -- Before End Turn, preserve the most recent authoritative ON scan.
+        -- An OFF reconciliation instead uses manual face-down or Maximal
+        -- Effect's physical fallback rather than guessing at payment links.
+        if discarded==nil and repeats~=nil and resourceCardsPanelOpen()
+            and prior[card.guid]=="ritualAttack" then ritual=true end
+        prior[card.guid]=repeated and "maximalEffect"
+            or ritual and "ritualAttack" or nil
         local artifactThrown=resourceCardsArtifactBroken~=nil
             and resourceCardsArtifactBroken(card.guid,card)==true
-        resourceCardsMaximalEffectMark(card,linked or artifactThrown)
+        resourceCardsMaximalEffectMark(card,repeated or ritual or artifactThrown)
+    end
+    for guid in pairs(prior) do
+        if not present[guid] then prior[guid]=nil end
     end
     for guid in pairs(trackerPrivate.maximalMarkedByGUID or {}) do
         if not present[guid] then
@@ -10372,6 +10392,20 @@ function resourceCardsMaximalEffectSyncMarks(seatPos,cards,repeats)
             end
         end
     end
+end
+
+-- Cleanup and the UI consult the same saved/physical/link verdict, not the
+-- red-X button. Half Banners use face-down only to mean 'spent', and stay
+-- attached. A Wound that is manually thrown is deleted at cleanup.
+function resourceCardsThrowAwayReason(card)
+    if card==nil or card.type~="Card" then return nil end
+    local data=gameCards~=nil and gameCards[card.guid] or nil
+    if data~=nil and data.cardType=="Artifact" and data.full~=nil then return nil end
+    if card.is_face_down==true then return "manual" end
+    if data~=nil and data.cardType=="Artifact"
+        and resourceCardsArtifactBroken(card.guid,card) then return "artifact" end
+    return trackerPrivate.throwAwayLinksByGUID~=nil
+        and trackerPrivate.throwAwayLinksByGUID[card.guid] or nil
 end
 
 -- The last End Turn click is a final physical reconciliation point. On a
@@ -11600,7 +11634,7 @@ local function renderSeat(seatPos)
     local links,boostBy,boostSource,discarded,hasDiscard,linkedCardBySource,
         repeatByTarget,discardBoostBySource=
         resolveActionLinks(cards,wounds,footprints,powered,skillLinksByTarget)
-    resourceCardsMaximalEffectSyncMarks(seatPos,cards,repeatByTarget)
+    resourceCardsMaximalEffectSyncMarks(seatPos,cards,repeatByTarget,discarded,hasDiscard)
     -- Extra terrain mana is an optional physical payment, separate from the
     -- mana that powers the strong action. Never reuse a claimed mana object.
     local extraTerrainManaByCard,extraTerrainManaByObject={},{}
