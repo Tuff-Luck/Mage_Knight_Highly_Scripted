@@ -1089,8 +1089,23 @@ end
 function cleanupPlayedCardAtEndTurn(card, playerIndex, cardDestination)
 	if card==nil or card.type~="Card" or turnOrder[playerIndex]==nil then return cardDestination end
 	local keepInPlay=false
-	local maximalThrown=resourceCardsMaximalEffectMarked~=nil
-		and resourceCardsMaximalEffectMarked(card)
+	-- The decision belongs to the card state/link resolver, not its red X.
+	-- Keep a fallback for independently loaded older Global scripts.
+	local throwReason=resourceCardsThrowAwayReason~=nil
+		and resourceCardsThrowAwayReason(card) or nil
+	if resourceCardsThrowAwayReason==nil then
+		local legacyMarked=resourceCardsMaximalEffectMarked~=nil
+			and resourceCardsMaximalEffectMarked(card)
+		local data=gameCards[card.guid]
+		local artifact=data~=nil and data.cardType=="Artifact" and data.full==nil
+		if legacyMarked then throwReason="maximalEffect"
+		elseif artifact and resourceCardsArtifactBroken~=nil
+			and resourceCardsArtifactBroken(card.guid,card) then throwReason="artifact"
+		elseif card.is_face_down==true and not (data~=nil and data.full~=nil) then
+			throwReason="manual"
+		end
+	end
+	local linkedThrown=throwReason=="maximalEffect" or throwReason=="ritualAttack"
 
 	--Banner cards remain attached/available for their own banner handling.
 	if gameCards[card.guid]~=nil and gameCards[card.guid].full~=nil then
@@ -1114,25 +1129,17 @@ function cleanupPlayedCardAtEndTurn(card, playerIndex, cardDestination)
 	local manualEndTurnCard=(card.guid=="085e69" or card.guid=="7ebe5e")
 		and card.is_face_down==false and cardEffectIsVertical(card)==true
 		and not boxBroken
-	if manualEndTurnCard and not maximalThrown then
+	if manualEndTurnCard and not linkedThrown then
 		keepInPlay=true gStates.turnForfeited=false
 	end
 
 	if isQuestCardObject(card) then keepInPlay=true gStates.turnForfeited=false end
-	if keepInPlay==true and not maximalThrown then return cardDestination end
+	if keepInPlay==true and not linkedThrown then return cardDestination end
 
 	gStates.turnForfeited=false
 	local trash=getObjectFromGUID(trashCan)
 	local data=gameCards[card.guid]
 	local playableArtifact=data~=nil and data.cardType=="Artifact" and data.full==nil
-	local artifactBroken=false
-	if playableArtifact then
-		if resourceCardsArtifactBroken~=nil then
-			artifactBroken=resourceCardsArtifactBroken(card.guid,card)
-		else
-			artifactBroken=card.is_face_down==true
-		end
-	end
 	-- A new play must start with no Golden Grail Heal-spend confirmation.
 	if data~=nil and data.resourceKey=="artifactGoldenGrail"
 		and gStates~=nil and gStates.artifactGrailHealingUsed~=nil then
@@ -1142,13 +1149,19 @@ function cleanupPlayedCardAtEndTurn(card, playerIndex, cardDestination)
 	if playableArtifact and resourceCardsArtifactBreakClear~=nil then
 		resourceCardsArtifactBreakClear(card.guid)
 	end
-	-- Maximal Effect consumes its linked Action even when flipped face up.
-	-- The saved Break toggle does the same for a full-size Artifact. Half Banners
-	-- are attachments, and their face-down state means spent, not broken.
-	if (playableArtifact and artifactBroken)
-		or (not playableArtifact and card.is_face_down==true) or maximalThrown then
-		if maximalThrown then resourceCardsMaximalEffectMark(card,false) end
-		if trash~=nil then trash.putObject(card) end
+	-- Artifacts, linked Actions and manually face-down cards all share this
+	-- verdict. Ordinary discard-payment links never enter the throw-away path.
+	-- Thrown Wounds are deleted: the source Wound bag is infinite.
+	if throwReason~=nil then
+		if resourceCardsMaximalEffectMark~=nil then
+			resourceCardsMaximalEffectMark(card,false)
+		end
+		if card.getGMNotes~=nil and card.getGMNotes()=="Wound" then
+			if playAreaScaleForgetObject~=nil then playAreaScaleForgetObject(card) end
+			card.destruct()
+		elseif trash~=nil then
+			trash.putObject(card)
+		end
 		return cardDestination
 	end
 
