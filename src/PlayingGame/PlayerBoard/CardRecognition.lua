@@ -10404,6 +10404,11 @@ function resourceCardsThrowAwayReason(card)
     if card.is_face_down==true then return "manual" end
     if data~=nil and data.cardType=="Artifact"
         and resourceCardsArtifactBroken(card.guid,card) then return "artifact" end
+    -- A resumed End Turn must retain the pre-cleanup verdict after a reload,
+    -- even if its source Action has already moved to discard.
+    local saved=gStates~=nil and gStates.preEndTurn==true
+        and gStates.throwAwayCleanupByGUID or nil
+    if saved~=nil and saved[card.guid]~=nil then return saved[card.guid] end
     return trackerPrivate.throwAwayLinksByGUID~=nil
         and trackerPrivate.throwAwayLinksByGUID[card.guid] or nil
 end
@@ -10420,6 +10425,8 @@ function resourceCardsMaximalEffectBeforeEndTurn(seatPos)
     for _,obj in ipairs(zone.getObjects()) do
         if obj.type=="Card" then cards[#cards+1]=obj end
     end
+    -- Rebuild only at the start of a new cleanup, never during recovery.
+    if gStates~=nil then gStates.throwAwayCleanupByGUID=nil end
     local repeats=nil
     if resourceCardsPanelOpen() then
         local scan=resourceCardScanBySeat[seatPos]
@@ -10431,6 +10438,20 @@ function resourceCardsMaximalEffectBeforeEndTurn(seatPos)
         end
     end
     resourceCardsMaximalEffectSyncMarks(seatPos,cards,repeats)
+    -- Save the link verdict before the source and target cards start moving.
+    -- Physical face-down and Artifact THROW states are already persisted or
+    -- reconstructible, so only linked consumptions require this snapshot.
+    if gStates~=nil then
+        local saved={}
+        local present={}
+        for _,card in ipairs(cards) do present[card.guid]=true end
+        for guid,reason in pairs(trackerPrivate.throwAwayLinksByGUID or {}) do
+            if present[guid] and (reason=="maximalEffect" or reason=="ritualAttack") then
+                saved[guid]=reason
+            end
+        end
+        gStates.throwAwayCleanupByGUID=saved
+    end
 end
 
 -- Marker reconciliation while minimized is independent of card recalculation.
