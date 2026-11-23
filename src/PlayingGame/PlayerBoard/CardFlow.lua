@@ -1114,7 +1114,7 @@ function cleanupPlayedCardAtEndTurn(card, playerIndex, cardDestination)
 	end
 
 	--Steady Tempo stays in the play area while its explicit end-turn choice is unresolved.
-	if not maximalThrown and isSteadyTempoGUID~=nil
+	if not linkedThrown and isSteadyTempoGUID~=nil
 		and isSteadyTempoGUID(card.guid)==true and cardEffectIsVertical(card)==true then
 		keepInPlay=true
 		gStates.turnForfeited=false
