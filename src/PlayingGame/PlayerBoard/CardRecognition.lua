@@ -204,8 +204,8 @@ trackerPrivate.commandPickupForUnits={}
 -- but its settled physical position still pays that Unit's ability.
 trackerPrivate.unitManaCandidatesBySeat={}
 -- Rebuilt with the live Unit layout for each Resource Tracker scan.
--- Existing Command tokens and Wounds suppress Unit highlights regardless of
--- whether an activated ability contributes resources this turn.
+-- Unit outlines require a Command token physically on the card and a valid
+-- activation this turn. Wounds and site restrictions also suppress outlines.
 trackerPrivate.unitHighlightBlocked={}
 -- Reuse a single immutable terrain modifier. Constructing a new table on
 -- every scan would make the terrain-effect comparison think the cost changed
@@ -11531,7 +11531,10 @@ local function renderSeat(seatPos)
             local activation=activations[entry.guid]
             local activeThisTurn=activation~=nil and activation.seatPos==seatPos
                 and unitResourceDefinitions[entry.guid]~=nil
-            if not entry.unwounded or (not entry.ready and not activeThisTurn)
+            -- Ready means no Command token is resting on the Unit card.
+            -- Historical/borrowed abilities can still contribute resources,
+            -- but cannot outline a Unit without its physical Command.
+            if entry.ready or not entry.unwounded or not activeThisTurn
                 or not combatUnitSitePermits(unitSiteMode,
                     unitState.bondsUnitGUID,chosenSiteUnit,entry.guid,false) then
                 trackerPrivate.unitHighlightBlocked[entry.guid]=true
@@ -12711,6 +12714,10 @@ local function renderSeat(seatPos)
     local offeredUnit=callOfferBorrowedUnitForSeat~=nil
         and callOfferBorrowedUnitForSeat(seatPos) or nil
     if offeredUnit~=nil then
+        -- Call to Arms grants an activation without a Command token. Keep its
+        -- abilities and buttons, but never highlight the borrowed Unit card.
+        trackerPrivate.unitHighlightBlocked[offeredUnit.guid]=true
+        clearHighlight(offeredUnit.guid)
         local spellRecord=records["2eb8e8"]
         local unitGUID=offeredUnit.guid
         local paid=spellRecord~=nil and spellRecord.complete==true
