@@ -231,6 +231,11 @@ env.trackerPrivate.throwAwayLinksByGUID={}
 env.gStates.preEndTurn=true
 eq(methods.throwReason(training),"maximalEffect",
     "Saved cleanup verdict must survive lost transient link state")
+local priorSaved=env.gStates.throwAwayCleanupByGUID
+env.gStates.throwAwayCleanupByGUID=nil
+eq(methods.throwReason(training),"maximalEffect",
+    "Old mid-cleanup saves still recognise an existing red X")
+env.gStates.throwAwayCleanupByGUID=priorSaved
 -- A copied Steady Tempo must be thrown away rather than retained for
 -- its normal End Turn placement decision.
 env.isSteadyTempoGUID=function(guid) return guid==training.guid end
