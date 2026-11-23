@@ -3870,7 +3870,9 @@ combatConfig.effectButtonInfo=function(entry,applied)
             or spec.removeTrait=="iResist" or spec.removeTrait=="mResist"
             or spec.removeTrait=="defend") and "attack" or "block"
     end
-    local arrow=isArmour and "armour" or "attack"
+    -- Fear is a non-resource enemy link: distinguish it from blue Block arrows.
+    local arrow=(spec.cancelOneAttack==true or (tonumber(spec.maxTargets) or 0)>1)
+        and "other" or (isArmour and "armour" or "attack")
     local icon=isArmour and "MKChoiceAttack" or "MKChoiceBlock"
     -- Use specific artwork for numeric reductions, preserving the usual icons
     -- for removal, prevention, conversion and other non-reduction effects.
@@ -6517,7 +6519,8 @@ local function refreshCombatEnemyPanel(monsters,calculated)
             if activeSources[sourceKey]==true and monsters[targetGUID]~=nil
                 and not attackAssignmentsIsTargeting(sourceKey)
                 and next(attackAssignmentsTargetGUIDs(sourceKey))==nil then
-                attackAssignmentsEnsureTarget(sourceKey,targetGUID,"attack")
+                attackAssignmentsEnsureTarget(sourceKey,targetGUID,
+                    (record.enemyEffectArrowKinds or {})[sourceKey] or "attack")
             end
         end
     end
@@ -10252,23 +10255,34 @@ end
 
 function resourceCardsMaximalEffectMark(card,active)
     if card==nil or card.type~="Card" or card.getButtons==nil then return end
-    local found={}
+    local found,existing={},nil
     for _,button in ipairs(card.getButtons() or {}) do
         if button.click_function=="resourceCardsMaximalEffectMarkerNoop" then
             found[#found+1]=button.index
+            existing=existing or button
         end
     end
     for i=#found,(active and 2 or 1),-1 do card.removeButton(found[i]) end
-    if active and #found==0 and card.createButton~=nil then
+    if active then
         local bounds=card.getBoundsNormalized()
         local scale=card.getScale()
         local height=bounds~=nil and bounds.size~=nil and (bounds.size.y or bounds.size[2]) or 0
         local scaleY=scale~=nil and (scale.y or scale[2]) or 1
-        card.createButton({click_function="resourceCardsMaximalEffectMarkerNoop",
-            function_owner=Global,label="X",
-            position={0,math.max(0.12,height/(2*math.max(0.01,scaleY))+0.08),0},
-            rotation={0,0,0},width=0,height=0,font_size=640,
-            font_color={1,0.04,0.04}})
+        -- Lift well clear of the card surface to avoid zoom-dependent z-fighting.
+        local markerY=math.max(0.38,height/(2*math.max(0.01,scaleY))+0.25)
+        if #found==0 and card.createButton~=nil then
+            card.createButton({click_function="resourceCardsMaximalEffectMarkerNoop",
+                function_owner=Global,label="X",position={0,markerY,0},
+                rotation={0,0,0},width=0,height=0,font_size=640,
+                font_color={1,0.04,0.04}})
+        elseif #found>0 and card.editButton~=nil then
+            -- Saved games may still contain the old near-surface button.
+            local position=existing~=nil and existing.position or nil
+            local oldY=position~=nil and (position.y or position[2]) or nil
+            if type(oldY)~="number" or math.abs(oldY-markerY)>0.02 then
+                card.editButton({index=found[1],position={0,markerY,0}})
+            end
+        end
     end
     trackerPrivate.maximalMarkedByGUID=trackerPrivate.maximalMarkedByGUID or {}
     trackerPrivate.maximalMarkedByGUID[card.guid]=active and true or nil
@@ -12193,6 +12207,10 @@ local function renderSeat(seatPos)
                 -- only this ordinary-effect branch reads spec fields.
                 local key=rule.separateEffectTarget and not result.powered
                     and (card.guid.."#effect") or card.guid
+                if spec.cancelOneAttack==true or (tonumber(spec.maxTargets) or 0)>1 then
+                    result.enemyEffectArrowKinds=result.enemyEffectArrowKinds or {}
+                    result.enemyEffectArrowKinds[key]="other"
+                end
                 if (tonumber(spec.maxTargets) or 0)>1 then
                     -- Banner of Fear (Lost Legion): at most three different
                     -- enemies are unable to attack. Each target is its own
@@ -12456,12 +12474,17 @@ local function renderSeat(seatPos)
             end
         end
     end
-    -- Outline an enemy that supplied a printed ability bonus or a Possess
-    -- Attack; the enemy record itself does not add those values twice.
-    -- Iterate the card list, not records: the loop also adds enemy records.
+    -- Only outline enemies that actually supply printed values to a card.
+    -- A debuff target (including Banner of Fear) is already identified by
+    -- its arrow; outlining the first target is misleading for multi-target effects.
+    -- Iterate cards, not records: this pass also creates enemy records.
     for _,card in ipairs(cards) do
         local record=records[card.guid]
-        if record~=nil and record.enemyGUID~=nil then
+        local data=gameCards[card.guid]
+        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+        local borrowedEnemy=record~=nil and (record.possessEnemyGUID~=nil
+            or (rule~=nil and rule.enemyIconBlock==true))
+        if borrowedEnemy and record.enemyGUID~=nil then
             local enemy=monsters[record.enemyGUID]
             if enemy~=nil then
                 local enemyRecord=records[enemy.guid]
@@ -12905,6 +12928,10 @@ local function renderSeat(seatPos)
                             local index,ability=pickedAbility.index,pickedAbility.ability
                             if ability.enemyEffect~=nil or ability.targetableEnemy==true then
                                 local sourceKey=unitAbilityTargetKey(unitGUID,index,ability,useIndex)
+                                if ability.bannerFear==true then
+                                    result.enemyEffectArrowKinds=result.enemyEffectArrowKinds or {}
+                                    result.enemyEffectArrowKinds[sourceKey]="other"
+                                end
                                 if sourceKey~=unitGUID then
                                     result.enemyEffectTargetKeys=result.enemyEffectTargetKeys or {}
                                     result.enemyEffectTargetKeys[#result.enemyEffectTargetKeys+1]=sourceKey
