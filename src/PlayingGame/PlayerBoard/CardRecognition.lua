@@ -2926,6 +2926,16 @@ combatConfig.woundConfirmClose=function()
     UI.setAttribute("CombatDamageConfirm","active","false")
 end
 
+-- Only the player viewing this dialog can opt out. Do not persist the choice
+-- until damage has actually been committed; Cancel must not change the setting.
+function resourceCardsCombatWoundsSkipChanged(player,value,id)
+    local confirmation=combatConfig.woundConfirmation
+    local color=player~=nil and player.color or nil
+    if id~="CombatDamageConfirmDontShowAgain" or confirmation==nil
+        or color~=confirmation.color or not resourceCardsPlayerCanEdit(color) then return end
+    confirmation.skipNext=value=="True" or value==true
+end
+
 -- The original wound button stays unchanged; it only opens the dialog.
 function resourceCardsRequestCombatWounds(player)
     local color=player~=nil and player.color or nil
@@ -2950,7 +2960,15 @@ function resourceCardsRequestCombatWounds(player)
     if signature==nil then return end
     combatConfig.woundConfirmation={
         seat=active.seatPos,turn=gStates.turnNumber,color=color,
-        ledger=ledger,signature=signature}
+        ledger=ledger,signature=signature,skipNext=false}
+    -- This option is saved per player colour with the game. Skipping the
+    -- prompt still uses the exact validation and protected rewind transaction.
+    if gStates.combatDamageSkipConfirmationByColor~=nil
+        and gStates.combatDamageSkipConfirmationByColor[color]==true then
+        combatConfig.woundConfirmChoice(player,"CombatDamageConfirmApply")
+        return
+    end
+    UI.setAttribute("CombatDamageConfirmDontShowAgain","isOn","false")
     -- Build one complete multilingual string. Concatenating already translated
     -- strings repeats {en}/{it}/... tags, so TTS may display only the first
     -- paragraph and hide the actual wound totals.
@@ -3037,7 +3055,7 @@ function resourceCardsRequestCombatWounds(player)
     local summary=joinLang(summaryParts)
     -- Keep the normal dialog compact but grow for optional Paralysis details.
     UI.setAttribute("CombatDamageConfirmSummary","preferredHeight",tostring(summaryHeight))
-    UI.setAttribute("CombatDamageConfirm","height",tostring(summaryHeight+96))
+    UI.setAttribute("CombatDamageConfirm","height",tostring(summaryHeight+126))
     setUIVisibility("CombatDamageConfirm",{color})
     UI.setAttribute("CombatDamageConfirmSummary","text",summary)
     UI.setAttribute("CombatDamageConfirm","active","true")
@@ -3111,6 +3129,11 @@ combatConfig.woundConfirmChoice=function(player,id)
         end
         local ok,startedOrError=pcall(resourceCardsApplyCombatWounds,player,
             function(success,_,physicallyTouched)
+                if success and confirmation.skipNext then
+                    gStates.combatDamageSkipConfirmationByColor=
+                        gStates.combatDamageSkipConfirmationByColor or {}
+                    gStates.combatDamageSkipConfirmationByColor[color]=true
+                end
                 -- A failed validation before any physical mutation must not
                 -- strand the player behind an irreversible phase lock.
                 -- Partial transfers keep their lock and can be retried safely.
@@ -16035,5 +16058,6 @@ publishPublicUICallbacks({
     resourceCardsRegenerationReadyClicked=resourceCardsRegenerationReadyClicked,
     resourceCardsArtifactHealUnitsClicked=resourceCardsArtifactHealUnitsClicked,
     resourceCardsArtifactBreakClicked=resourceCardsArtifactBreakClicked,
-    resourceCardsArtifactGrailFameClicked=resourceCardsArtifactGrailFameClicked
+    resourceCardsArtifactGrailFameClicked=resourceCardsArtifactGrailFameClicked,
+    resourceCardsCombatWoundsSkipChanged=resourceCardsCombatWoundsSkipChanged
 })

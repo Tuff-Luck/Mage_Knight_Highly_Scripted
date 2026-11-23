@@ -633,12 +633,14 @@ assert(fileText(".tts/objects/Global.xml"):find('UI/CombatDamageConfirm.xml',1,t
 assert(xml:find('id="CombatDamageConfirm" active="false"',1,true)
     and xml:find('id="CombatDamageConfirmSummary"',1,true)
     and xml:find('id="CombatDamageConfirmCancel" onClick="resourceTracker"',1,true)
-    and xml:find('id="CombatDamageConfirmApply" onClick="resourceTracker"',1,true),
+    and xml:find('id="CombatDamageConfirmApply" onClick="resourceTracker"',1,true)
+    and xml:find('id="CombatDamageConfirmDontShowAgain"',1,true)
+    and xml:find('onValueChanged="resourceCardsCombatWoundsSkipChanged"',1,true),
     "Combat damage confirmation controls must be present and initially hidden")
 assert(xml:find('<Text id="CombatDamageConfirmCancelText" class="Text18">',1,true)
     and xml:find('<Text id="CombatDamageConfirmApplyText" class="Text18">',1,true),
     "the Cancel and Commit Damage labels need stable translation IDs")
-assert(xml:find('width="410" height="250"',1,true)
+assert(xml:find('width="410" height="280"',1,true)
     and xml:find('returnToOriginalPositionWhenReleased="false"',1,true)
     and xml:find('preferredHeight="154"',1,true),
     "confirmation should be compact and stay where dragged")
@@ -717,7 +719,8 @@ combatConfig.woundRecordPreview(1,{{key="confirm:1"}},{
     ["confirm:1"]={heroWounds=2,discard=0}})
 resourceCardsRequestCombatWounds(player)
 eq(attrs["CombatDamageConfirm:active"],"true","button must open confirmation")
-eq(attrs["CombatDamageConfirm:height"],"250","normal damage dialog should stay compact")
+eq(attrs["CombatDamageConfirm:height"],"280","normal damage dialog fits the checkbox")
+eq(attrs["CombatDamageConfirmDontShowAgain:isOn"],"false","checkbox starts unchecked")
 eq(attrs["CombatDamageConfirmSummary:preferredHeight"],"154","compact summary height")
 local damageText=attrs["CombatDamageConfirmSummary:text"]
 assert(damageText:find("Calculator will be locked in to attack adjustments only. Use TTS Rewind to undo.",1,true)
@@ -841,6 +844,48 @@ eq(retryLedger.phaseLock,partialLock,
     "retry must preserve rather than replace the original combat snapshot")
 combatConfig.phasePreview=savedPreview
 resourceCardsApplyCombatWounds=realApply
+
+-- Opt-out belongs to the confirming colour, persists only after a successful
+-- protected commit, and never removes snapshot/validation on later clicks.
+gStates.combatWoundApplication=nil
+combatConfig.woundRecordPreview(1,{{key="optout:1"}},{
+    ["optout:1"]={heroWounds=1,discard=0}})
+resourceCardsRequestCombatWounds(player)
+resourceCardsCombatWoundsSkipChanged({color="Blue"},"True","CombatDamageConfirmDontShowAgain")
+eq(combatConfig.woundConfirmation.skipNext,false,
+    "another player cannot select the confirmation checkbox")
+resourceCardsCombatWoundsSkipChanged(player,"True","CombatDamageConfirmDontShowAgain")
+eq(combatConfig.woundConfirmation.skipNext,true,"checkbox records pending opt-out")
+resourceCardsConfirmCombatWounds(player,"CombatDamageConfirmCancel")
+eq(gStates.combatDamageSkipConfirmationByColor,nil,
+    "Cancel does not suppress the next confirmation")
+resourceCardsRequestCombatWounds(player)
+eq(attrs["CombatDamageConfirm:active"],"true","Cancel retains normal confirmation")
+resourceCardsCombatWoundsSkipChanged(player,"True","CombatDamageConfirmDontShowAgain")
+resourceCardsConfirmCombatWounds(player,"CombatDamageConfirmApply")
+eq(gStates.combatDamageSkipConfirmationByColor,nil,
+    "pre-checkpoint confirmation has not persisted opt-out")
+capturedSnapshot.callback()
+eq(settle.ready(),true,"opt-out commit Wound settles")
+settle.done()
+eq(gStates.combatDamageSkipConfirmationByColor.Red,true,
+    "successful commit saves opt-out for the player colour")
+eq(gStates.combatDamageSkipConfirmationByColor.Blue,nil,
+    "opt-out is not applied to other players")
+gStates.combatWoundApplication=nil
+combatConfig.woundRecordPreview(1,{{key="auto:1"}},{
+    ["auto:1"]={heroWounds=1,discard=0}})
+local beforeAuto=capturedSnapshot
+resourceCardsRequestCombatWounds(player)
+eq(attrs["CombatDamageConfirm:active"],"false",
+    "opted-out player commits without reopening confirmation")
+eq(combatConfig.woundTransactionPending,true,
+    "automatic confirmation still waits for a new rewind snapshot")
+assert(capturedSnapshot~=beforeAuto,"automatic confirmation starts a new rewind snapshot")
+capturedSnapshot.callback()
+eq(settle.ready(),true,"automatic confirm Wound settles")
+settle.done()
+eq(combatConfig.woundTransactionPending,false,"automatic commit completes normally")
 
 -- Regression: an earlier Block remains fixed when its card leaves play;
 -- playing the same GUID again cannot produce a second Block or more Attack.
