@@ -13,6 +13,7 @@ end
 local rec=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local flow=read("src/PlayingGame/PlayerBoard/CardFlow.lua")
 local callbacks=read("src/PlayingGame/Callbacks.lua")
+local events=read("src/PlayingGame/PlayerBoard/Events.lua")
 local cards={a={cardType="Artifact"},b={cardType="Artifact"},
     half={cardType="Artifact",full="full"},full={cardType="Artifact",half="half"}}
 local objs={a={guid="a",is_face_down=false},b={guid="b",is_face_down=true},
@@ -153,6 +154,67 @@ assert(flow:find("resourceCardsArtifactBreakClear(card.guid)",1,true),
     "Cleanup must retire Break state")
 assert(callbacks:find('"resourceCardsArtifactBreakClicked"',1,true),
     "Protected Break callback must be registered")
+-- A full Banner in the Unit attachment area may convert only on its
+-- basic/Recovered side. The stronger Throw side now remains face up.
+do
+    local conversions,scales,moves,refreshes=0,0,0,0
+    local z=-38.0
+    objs.full.getPosition=function() return {12,1,z} end
+    objs.full.setState=function(index)
+        assert(index==2,"Full Banner must convert to its half-card state")
+        conversions=conversions+1
+    end
+    local halfCard={
+        setScale=function(scale)
+            assert(scale[1]==0.65,"Attached Banner must use half scale")
+            scales=scales+1
+        end,
+        setPosition=function(pos)
+            assert(pos[1]==12 and pos[3]==-38.12,
+                "Attached Banner must enter the Unit attachment area")
+            moves=moves+1
+        end
+    }
+    local testEnv=setmetatable({
+        obj=objs.full,objGUID="full",zoneInfo={seatPos=1},gameCards=cards,
+        resourceCardsArtifactBroken=broken,
+        getObjectFromGUID=function(guid)
+            return guid=="half" and halfCard or nil
+        end,
+        safeWaitFrames=function(owner,callback,frames)
+            assert(owner=="PlayerBoard.Events" and frames==3)
+            callback()
+        end,
+        scheduleUnitLayoutRefresh=function(seat)
+            assert(seat==1)
+            refreshes=refreshes+1
+        end
+    },{__index=_G})
+    local convertSource=section(events,"--Toggle Half Cards","--Add command decal")
+    local convert=assert(load("return function()\n"..convertSource.."\nend",
+        "Banner attachment conversion","t",testEnv))()
+
+    state.artifactBreaks.full=true
+    convert()
+    assert(conversions==0,"Thrown face-up full Banner must not reattach")
+
+    state.artifactBreaks.full=false
+    convert()
+    assert(conversions==1 and scales==1 and moves==1 and refreshes==1,
+        "Recovered face-up full Banner must still attach normally")
+
+    objs.full.is_face_down=true
+    convert()
+    assert(conversions==1,
+        "A physically face-down full Banner must not attach")
+    objs.full.is_face_down=false
+    z=-39
+    convert()
+    assert(conversions==1,
+        "A full Banner outside the attachment area must not convert")
+    state.artifactBreaks.full=nil
+end
+
 -- Exercise Mysterious Box's real cleanup branch. An unresolved normal Box
 -- stays in play, but the same face-up Box must go to Trash once broken.
 do
