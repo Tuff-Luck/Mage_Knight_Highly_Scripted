@@ -47,6 +47,26 @@ local tied={
 sortTargets(tied)
 eq(tied[1].mage,"Earlier","Red card Fame tie follows Round order")
 
+-- Initial Volkare turns must recover a missed spawn GUID before drawing or rerolling.
+local ensureModel=upvalue(volkareTurn,"volkareEnsureModel")
+gStates={volkareModel="stale"}
+volkare={model="volkare-model"}
+local model={guid="volkare-model"}
+getObjectFromGUID=function(guid) if guid=="volkare-model" then return model end end
+eq(ensureModel(),model,"Fallback model should resolve")
+eq(gStates.volkareModel,"volkare-model","Recovered model GUID must persist")
+local warnings,releases=0,0
+getObjectFromGUID=function() return nil end
+gStates={positionMageKnight={[5]="Volkare"},tacticShown=false,endRoundCalled=false,volkareState="Start"}
+broadcastToAll=function() warnings=warnings+1 end
+automatedTurnRewindRelease=function() releases=releases+1 end
+volkareTurn(nil,"-1","VolkareRewindReady")
+eq(warnings,1,"Missing model warns instead of crashing")
+eq(releases,1,"Missing model releases the rewind checkpoint")
+eq(gStates.volkareState,"Start","Missing model leaves Volkare\'s turn retryable")
+
+local setupSource=source("src/SetupGame.lua")
+contains(setupSource,"gStates.volkareModel=volkareGUID","Setup fallback stores the model GUID")
 local volkare=source("src/PlayingGame/AI/Volkare.lua")
 local offers=source("src/PlayingGame/Offers.lua")
 contains(volkare,"if volkareDice==nil then","Missing die is handled before randomize")
