@@ -10401,6 +10401,12 @@ function resourceCardsThrowAwayReason(card)
     local saved=gStates~=nil and gStates.preEndTurn==true
         and gStates.throwAwayCleanupByGUID or nil
     if saved~=nil and saved[card.guid]~=nil then return saved[card.guid] end
+    -- Older saves taken midway through cleanup may have an X but no saved
+    -- verdict table. Only in that legacy recovery case is the physical
+    -- marker used as a migration fallback.
+    if gStates~=nil and gStates.preEndTurn==true
+        and gStates.throwAwayCleanupByGUID==nil
+        and resourceCardsMaximalEffectMarked(card) then return "maximalEffect" end
     return trackerPrivate.throwAwayLinksByGUID~=nil
         and trackerPrivate.throwAwayLinksByGUID[card.guid] or nil
 end
