@@ -2545,7 +2545,16 @@ function __onObjectRotate_raw(object, spin, flip, player_color, old_spin, old_fl
 	-- while the card is being held. Preserve buttons' ownership and state.
 	safeWaitFrames("Events",function()
 		local card=getObjectFromGUID(cardGUID)
-		if card~=nil then refreshCardClaimFaceVisibility(card) end
+		if card~=nil then
+			refreshCardClaimFaceVisibility(card)
+			-- The rotate event can precede the actual flip. Reconcile Artifact
+			-- controls and red-X markers only after the new face is applied.
+			local data=gameCards~=nil and gameCards[cardGUID] or nil
+			if data~=nil and data.cardType=="Artifact" and data.full==nil then
+				resourceCardsObjectMoved(card,true)
+				resourceCardsMaximalEffectOffDrop(card)
+			end
+		end
 	end,2)
 	if gStates~=nil and gStates.apocalypseQuestCardGUIDs~=nil
 		and gStates.apocalypseQuestCardGUIDs[cardGUID]==true then

@@ -14,6 +14,7 @@ local rec=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local flow=read("src/PlayingGame/PlayerBoard/CardFlow.lua")
 local callbacks=read("src/PlayingGame/Callbacks.lua")
 local events=read("src/PlayingGame/PlayerBoard/Events.lua")
+local runtimeEvents=read("src/PlayingGame/Events.lua")
 local cards={a={cardType="Artifact"},b={cardType="Artifact"},
     half={cardType="Artifact",full="full"},full={cardType="Artifact",half="half"}}
 local objs={a={guid="a",is_face_down=false},b={guid="b",is_face_down=true},
@@ -325,4 +326,122 @@ end
 assert(callbacks:find('"resourceCardsArtifactGrailFameClicked"',1,true),
     "Grail Fame callback must be included in protected startup audit")
 
-print("Artifact Break, Mysterious Box, Golden Grail and Druidic Staff regression checks passed")
+
+-- Physical flips never change the saved choice and never allow a stale
+-- Throw/Recover click from the back. Both clicks work again once face up.
+do
+    local toggleState={turnNumber=1,artifactBreaks={a=true}}
+    local artifact={guid="a",is_face_down=true}
+    local refreshes,marks=0,{}
+    local env=setmetatable({
+        gStates=toggleState,gameCards={a={cardType="Artifact",resourceKey="artifactUtility"}},
+        trackerPrivate={},choiceExpandedByGUID={},
+        turnOrder={{seatPos=1}},combatEnemyInPlay=false,
+        combatConfig={phaseObjectLocked=function(guid) return false end},
+        getObjectFromGUID=function(guid) return guid=="a" and artifact or nil end,
+        resourceCardsPanelOpen=function() return true end,
+        resourceCardsDetailsOpen=function() return true end,
+        resourceCardsPlayerCanEdit=function(color) return color=="Blue" end,
+        cardPosture=function(card) return "upright" end,
+        cardInSeatPlayArea=function(guid,seat) return guid=="a" and seat==1 end,
+        resourceCardsArtifactBroken=function(guid,card)
+            return card.is_face_down==true or toggleState.artifactBreaks[guid]==true
+        end,
+        resourceCardsMaximalEffectMark=function(card,active) marks[#marks+1]=active end,
+        resourceCardsSourceChanged=function() refreshes=refreshes+1 end
+    },{__index=_G})
+    local source=section(rec,"function resourceCardsArtifactBreakClicked(",
+        "-- Player clicks always")
+    local click=assert(load(source.."\nreturn resourceCardsArtifactBreakClicked",
+        "face-down Artifact click guard","t",env))()
+    local id="ResourceCardChoice_a_artifactBreak"
+    click({color="Blue"},"-1",id)
+    assert(toggleState.artifactBreaks.a==true and refreshes==0 and #marks==0,
+        "A stale face-down RECOVER must do nothing")
+    artifact.is_face_down=false
+    click({color="Blue"},"-1",id)
+    assert(toggleState.artifactBreaks.a==false and marks[#marks]==false,
+        "Face-up RECOVER must undo the red X")
+    click({color="Blue"},"-1",id)
+    assert(toggleState.artifactBreaks.a==true and marks[#marks]==true,
+        "Face-up THROW must restore the red X")
+    artifact.is_face_down=true
+    click({color="Blue"},"-1",id)
+    assert(toggleState.artifactBreaks.a==true and refreshes==2,
+        "A flipped artifact cannot silently alter its saved Throw state")
+end
+
+-- The marker itself is a TTS button. It must disappear from the back while
+-- retaining the saved state, and return on the front without another click.
+do
+    local markState={artifactBreaks={a=true}}
+    local artifact={guid="a",is_face_down=false}
+    local marks={}
+    local env=setmetatable({
+        trackerPrivate={},gameCards={a={cardType="Artifact"}},
+        resourceCardsArtifactBroken=function(guid,card)
+            return card.is_face_down==true or markState.artifactBreaks[guid]==true
+        end,
+        resourceCardsMaximalEffectMark=function(card,active) marks[#marks+1]=active end,
+        resourceCardsPanelOpen=function() return true end
+    },{__index=_G})
+    local source=section(rec,"function resourceCardsMaximalEffectSyncMarks(",
+        "-- Cleanup and the UI consult")
+    local sync=assert(load(source.."\nreturn resourceCardsMaximalEffectSyncMarks",
+        "Artifact flip marker reconciliation","t",env))()
+    sync(1,{artifact},{})
+    artifact.is_face_down=true
+    sync(1,{artifact},{})
+    artifact.is_face_down=false
+    sync(1,{artifact},{})
+    assert(marks[1]==true and marks[2]==false and marks[3]==true
+        and markState.artifactBreaks.a==true,
+        "The face-up X must return after an accidental flip")
+    markState.artifactBreaks.a=false
+    artifact.is_face_down=true
+    sync(1,{artifact},{})
+    artifact.is_face_down=false
+    sync(1,{artifact},{})
+    assert(marks[4]==false and marks[5]==false,
+        "A recovered card must stay recovered when flipped twice")
+end
+
+-- With the tracker closed there may be no Maximal Effect link or existing
+-- marker, but Artifact flips still need physical red-X reconciliation.
+do
+    local reconciles=0
+    local artifact={guid="a",type="Card",resting=true,
+        isSmoothMoving=function() return false end}
+    local zone={getObjects=function() return {artifact} end}
+    local env=setmetatable({
+        gStates={firstStarted=true,preEndTurn=false,turnNumber=1},
+        gameCards={a={cardType="Artifact"}},turnOrder={{seatPos=1}},
+        playerPlayAreas={"zone"},trackerPrivate={},
+        resourceCardsPanelOpen=function() return false end,
+        getObjectFromGUID=function(guid)
+            return guid=="zone" and zone or (guid=="a" and artifact or nil)
+        end,
+        safeWaitCondition=function(owner,callback,condition,timeout,onTimeout)
+            assert(condition(),"The artifact must be settled before resync")
+            callback()
+        end,
+        resourceCardsMaximalEffectSyncMarks=function(seat,cards)
+            assert(seat==1 and cards[1]==artifact)
+            reconciles=reconciles+1
+        end
+    },{__index=_G})
+    local source=section(rec,"function resourceCardsMaximalEffectOffDrop(",
+        "-- Generic Skill-card links")
+    local refresh=assert(load(source.."\nreturn resourceCardsMaximalEffectOffDrop",
+        "Artifact flip while tracker closed","t",env))()
+    refresh(artifact)
+    assert(reconciles==1,"OFF-mode Artifact flip must restore its marker")
+end
+
+assert(rec:find('if data~=nil and data.cardType=="Artifact" and card.is_face_down==true then',1,true),
+    "All Artifact resource controls must disappear when face down")
+assert(runtimeEvents:find("resourceCardsObjectMoved(card,true)",1,true)
+    and runtimeEvents:find("resourceCardsMaximalEffectOffDrop(card)",1,true),
+    "Rotating an Artifact must rescan the final face even without a drop")
+
+print("Artifact Throw/Recover, flip and Artifact regression checks passed")

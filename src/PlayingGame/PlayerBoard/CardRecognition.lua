@@ -7962,6 +7962,14 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     local buttonRowOffset=-30
     local data=gameCards[card.guid]
     local isArtifact=data~=nil and data.cardType=="Artifact" and data.full==nil
+    -- A physical flip is not a THROW/RECOVER choice. Hide every tracker
+    -- control on the back without changing the saved Artifact selection.
+    if data~=nil and data.cardType=="Artifact" and card.is_face_down==true then
+        removeChoiceButtons(card)
+        choiceButtonShown[card.guid]="hidden"
+        choiceExpandedByGUID[card.guid]=nil
+        return
+    end
     if isArtifact and posture=="upright" and (choices==nil or #choices==0) then
         local xml=resourceObjectUiXmlTable(card.UI)
         local old={}
@@ -10370,7 +10378,13 @@ function resourceCardsMaximalEffectSyncMarks(seatPos,cards,repeats,discarded,has
             or ritual and "ritualAttack" or nil
         local artifactThrown=resourceCardsArtifactBroken~=nil
             and resourceCardsArtifactBroken(card.guid,card)==true
-        resourceCardsMaximalEffectMark(card,repeated or ritual or artifactThrown)
+        local data=gameCards~=nil and gameCards[card.guid] or nil
+        -- The red X is a physical TTS button too: keep the back completely
+        -- clear, then restore the X from the saved state after turning face up.
+        local artifactBack=data~=nil and data.cardType=="Artifact"
+            and card.is_face_down==true
+        resourceCardsMaximalEffectMark(card,
+            not artifactBack and (repeated or ritual or artifactThrown))
     end
     for guid in pairs(prior) do
         if not present[guid] then prior[guid]=nil end
@@ -10458,7 +10472,10 @@ function resourceCardsMaximalEffectOffDrop(obj)
         or gStates.preEndTurn==true or resourceCardsPanelOpen() then return end
     local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     local seat=current~=nil and current.seatPos or nil
-    if seat==nil or (not objectGUIDInZone("8fac50",playerPlayAreas[seat])
+    local data=gameCards~=nil and gameCards[obj.guid] or nil
+    local artifact=data~=nil and data.cardType=="Artifact" and data.full==nil
+    if seat==nil or (not artifact
+        and not objectGUIDInZone("8fac50",playerPlayAreas[seat])
         and not objectGUIDInZone("d030d8",playerPlayAreas[seat])
         and next(trackerPrivate.maximalMarkedByGUID or {})==nil) then return end
     local guid=obj.guid
@@ -14550,7 +14567,8 @@ function resourceCardsArtifactBreakClicked(player,value,id)
     local card=guid~=nil and getObjectFromGUID(guid) or nil
     local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if data==nil or data.cardType~="Artifact" or data.full~=nil
-        or card==nil or current==nil or cardPosture(card)~="upright"
+        or card==nil or current==nil or card.is_face_down==true
+        or cardPosture(card)~="upright"
         or not cardInSeatPlayArea(guid,current.seatPos)
         or combatConfig.phaseObjectLocked(guid) then return end
     local broken=resourceCardsArtifactBroken(guid,card)
