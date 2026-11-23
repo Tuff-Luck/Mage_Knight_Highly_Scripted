@@ -2917,24 +2917,23 @@ end
 
 -- Day/night tint control
 function nightTint(player, mouseButton, id)
-	if mouseButton=="-1" then
-		local tileColor={}
-		if getObjectFromGUID(GUID.ui.nightTint).UI.getAttribute("43fa2eNightTintText", "text")=="No Tint" then
-			getObjectFromGUID(GUID.ui.nightTint).UI.setAttribute("43fa2eNightTintText", "text", "{en}Add Tint{it}Aggiungi Tinta{ru}Добавить оттенок{zh-tw}加入色調{zh-cn}加入色调{ko}색조 추가{es}Añadir Tinte{fr}Ajouter une Teinte{pt-br}Adicionar Tonalidade{de}Tönung hinzufügen")
-			tileColor={r=1.0, g=1.0, b=1.0}
-			gStates.nightTint=false
-		else
-			getObjectFromGUID(GUID.ui.nightTint).UI.setAttribute("43fa2eNightTintText", "text", "{en}No Tint{it}Nessuna Tinta{ru}Без оттенка{zh-tw}無色調{zh-cn}无色调{ko}색조 없음{es}Sin Tinte{fr}Sans Teinte{pt-br}Sem Tonalidade{de}Keine Tönung")
-			tileColor={r=0.6, g=0.6, b=0.6}
-			gStates.nightTint=true
-		end
-		--Make terrain tile light or dark
-		for a, _ in pairs(terrainTiles) do
-			local obj=getObjectFromGUID(a)
-			if obj~=nil then obj.setColorTint(tileColor) end
-		end
-		refreshPredefinedTerrainTint()
+	if mouseButton~="-1" then return end
+	-- The button text is localized; the saved tint setting is the source of truth.
+	gStates.nightTint=gStates.nightTint~=true
+	local tintControl=getObjectFromGUID(GUID.ui.nightTint)
+	if tintControl~=nil then
+		local label=gStates.nightTint
+			and "{en}No Tint{it}Nessuna Tinta{ru}Без оттенка{zh-tw}無色調{zh-cn}无色调{ko}색조 없음{es}Sin Tinte{fr}Sans Teinte{pt-br}Sem Tonalidade{de}Keine Tönung"
+			or "{en}Add Tint{it}Aggiungi Tinta{ru}Добавить оттенок{zh-tw}加入色調{zh-cn}加入色调{ko}색조 추가{es}Añadir Tinte{fr}Ajouter une Teinte{pt-br}Adicionar Tonalidade{de}Tönung hinzufügen"
+		tintControl.UI.setAttribute("43fa2eNightTintText", "text", label)
 	end
+	local tileColor=gStates.nightTint and {r=0.6, g=0.6, b=0.6} or {r=1.0, g=1.0, b=1.0}
+	for guid, _ in pairs(terrainTiles) do
+		local obj=getObjectFromGUID(guid)
+		if obj~=nil then obj.setColorTint(tileColor) end
+	end
+	-- Preserve red invalid-placement highlights on predefined maps.
+	refreshPredefinedTerrainTint()
 end
 
 -- Shared object claim button builder
