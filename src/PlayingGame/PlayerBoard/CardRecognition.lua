@@ -8793,10 +8793,10 @@ local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decisi
         return
     end
     local selected=decision.index
-    -- Paid choices explicitly marked expandable start as a single button.
-    -- Opening that button must not activate an undecided mana-powered effect.
-    local expanded=hasMoveAbility
-        or (decision.ambiguous and decision.index==nil and not abilities.paidChoiceExpandable)
+    -- Move is a normal Unit choice, not an automatic reason to expand every
+    -- option. When selected, its Movement/Combat controls are drawn separately.
+    -- An unresolved paid choice may still require an expanded selection.
+    local expanded=(decision.ambiguous and decision.index==nil and not abilities.paidChoiceExpandable)
         or (choiceExpandedByGUID[unit.guid]==true and #available>1)
     local selectedKeys={}
     for i in pairs(decision.selected or {}) do selectedKeys[#selectedKeys+1]=tostring(i) end
@@ -15319,10 +15319,11 @@ function resourceUnitsChoiceClicked(player,value,id)
         if candidate==index then available=true break end
     end
     if not available then return end
-    if (not decision.ambiguous or abilities.paidChoiceExpandable or decision.index~=nil)
-        and choiceExpandedByGUID[unitGUID]~=true and #decision.display>1
-        and (tonumber(abilities[index].move) or 0)==0 then
-        -- Expanding ordinary choices does not change what was played.
+    if not combatMoveChoice
+        and (not decision.ambiguous or abilities.paidChoiceExpandable or decision.index~=nil)
+        and choiceExpandedByGUID[unitGUID]~=true and #decision.display>1 then
+        -- Any selected Unit option (including Move) expands its alternatives.
+        -- The separate Cumbersome Combat-Move button still chooses its role.
         choiceExpandedByGUID[unitGUID]=true
         showUnitAbilityButtons(unit,abilities,activation,true,decision)
         return
