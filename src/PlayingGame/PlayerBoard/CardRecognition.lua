@@ -10356,7 +10356,12 @@ function resourceCardsMaximalEffectSyncMarks(seatPos,cards,repeats)
         present[card.guid]=true
         local linked=repeats~=nil and repeats[card.guid]~=nil
             or (repeats==nil and resourceCardsMaximalEffectLink(seatPos,card.guid)~=nil)
-        resourceCardsMaximalEffectMark(card,linked)
+        -- A full Artifact selected for THROW uses the same floating X as a
+        -- consumed Maximal Effect target. The marker is visual; the saved
+        -- Break state remains authoritative for cleanup and calculations.
+        local artifactThrown=resourceCardsArtifactBroken~=nil
+            and resourceCardsArtifactBroken(card.guid,card)==true
+        resourceCardsMaximalEffectMark(card,linked or artifactThrown)
     end
     for guid in pairs(trackerPrivate.maximalMarkedByGUID or {}) do
         if not present[guid] then
@@ -14521,6 +14526,8 @@ function resourceCardsArtifactBreakClicked(player,value,id)
     end
     gStates.artifactBreaks=gStates.artifactBreaks or {}
     gStates.artifactBreaks[guid]=not broken
+    -- Update the X immediately; the next tracker scan also reconciles it.
+    resourceCardsMaximalEffectMark(card,not broken)
     choiceExpandedByGUID[guid]=nil
     resourceCardsSourceChanged()
 end
