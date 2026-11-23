@@ -39,10 +39,11 @@ assert(state.artifactBreaks.a==false,
     "A temporary physical flip must not erase saved RECOVER")
 objs.a.is_face_down=false
 assert(not broken("a",objs.a),"Turning face up restores the saved RECOVER")
-assert(broken("b",objs.b) and state.artifactBreaks.b==true,
-    "Legacy face-down Artifact imports its Break flag")
+assert(broken("b",objs.b) and state.artifactBreaks.b==nil,
+    "Manual face-down Artifact is thrown without saving a permanent toggle")
 objs.b.is_face_down=false
-assert(broken("b",objs.b),"Break survives turning legacy Artifact face up")
+assert(not broken("b",objs.b),
+    "Turning a manually thrown Artifact face up must undo the throw")
 assert(not broken("half",objs.half),"Spent half Banner must never Break")
 clear("full")
 assert(not broken("full",objs.full),"Cleanup must clear the saved Break choice")
