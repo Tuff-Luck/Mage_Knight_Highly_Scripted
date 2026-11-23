@@ -142,6 +142,24 @@ methods.sync(1,{ritual,ritualCost},{},
 eq(methods.throwReason(ritualCost),nil,
     "Incomplete Ritual Attack cannot throw its payment")
 eq(methods.marked(ritualCost),false,"Incomplete Ritual Attack clears X")
+-- Ritual Attack also needs its linked cost to survive a mid-cleanup save.
+env.resourceCardsPanelOpen=function() return true end
+env.resourceCardScanBySeat[1]={cards={[ritualCost.guid]={}}}
+zone.getObjects=function() return {ritual,ritualCost} end
+methods.sync(1,{ritual,ritualCost},{},
+    {[ritualCost.guid]=ritual.guid},{[ritual.guid]=true})
+env.gStates.preEndTurn=true
+methods.beforeEnd(1)
+eq(env.gStates.throwAwayCleanupByGUID[ritualCost.guid],"ritualAttack",
+    "Ritual Attack cost must be saved before End Turn moves its source")
+env.trackerPrivate.throwAwayLinksByGUID={}
+eq(methods.throwReason(ritualCost),"ritualAttack",
+    "Resumed cleanup must still throw the Ritual Attack cost")
+env.gStates.preEndTurn=false
+env.resourceCardsPanelOpen=function() return false end
+zone.getObjects=function() return {maximal,training} end
+methods.sync(1,{ritual,ritualCost},{},
+    {[ritualCost.guid]=ritual.guid},{[ritual.guid]=false})
 methods.sync(1,{discardSource,spell,artifact},{},
     {[spell.guid]=discardSource.guid,[artifact.guid]=discardSource.guid},
     {[discardSource.guid]=true})
