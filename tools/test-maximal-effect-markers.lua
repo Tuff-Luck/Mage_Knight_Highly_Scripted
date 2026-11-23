@@ -92,7 +92,8 @@ return {
     marked=resourceCardsMaximalEffectMarked,
     link=resourceCardsMaximalEffectLink,
     sync=resourceCardsMaximalEffectSyncMarks,
-    beforeEnd=resourceCardsMaximalEffectBeforeEndTurn
+    beforeEnd=resourceCardsMaximalEffectBeforeEndTurn,
+    throwReason=resourceCardsThrowAwayReason
 }]],"Maximal Effect marks","t",env))()
 eq(methods.link(1,training.guid).count,3,"Physical OFF link finds three basic uses")
 
@@ -117,6 +118,44 @@ eq(#artifact.getButtons(),1,"Repeated Artifact scan does not duplicate X")
 artifactThrown=false
 methods.sync(1,{artifact},{})
 eq(methods.marked(artifact),false,"RECOVER removes Artifact X")
+
+-- A completed Ritual Attack link consumes an Action exactly like Maximal
+-- Effect, but an incomplete cost or an ordinary discard payment does not.
+local ritual=card("a22222",7.5)
+local ritualCost=card("a33333",7.6)
+local spell=card("c33333",7.7)
+local discardSource=card("a44444",8)
+objects[ritual.guid],objects[ritualCost.guid]=ritual,ritualCost
+env.gameCards[ritual.guid]={cardType="Advanced Action",resourceKey="ritualAttack"}
+env.gameCards[ritualCost.guid]={cardType="Starting",resourceKey="stamina"}
+env.gameCards[spell.guid]={cardType="Spell",resourceKey="spellUtility"}
+env.gameCards[discardSource.guid]={cardType="Advanced Action",resourceKey="discardCost"}
+env.cardResourceDefinitions.ritualAttack={requiredLink={mode="throwAway"}}
+env.cardResourceDefinitions.discardCost={requiredLink={mode="discard"}}
+methods.sync(1,{ritual,ritualCost},{},
+    {[ritualCost.guid]=ritual.guid},{[ritual.guid]=true})
+eq(methods.marked(ritualCost),true,"Ritual Attack cost displays red X")
+eq(methods.throwReason(ritualCost),"ritualAttack",
+    "Ritual Attack is a real throw-away link")
+methods.sync(1,{ritual,ritualCost},{},
+    {[ritualCost.guid]=ritual.guid},{[ritual.guid]=false})
+eq(methods.throwReason(ritualCost),nil,
+    "Incomplete Ritual Attack cannot throw its payment")
+eq(methods.marked(ritualCost),false,"Incomplete Ritual Attack clears X")
+methods.sync(1,{discardSource,spell,artifact},{},
+    {[spell.guid]=discardSource.guid,[artifact.guid]=discardSource.guid},
+    {[discardSource.guid]=true})
+eq(methods.throwReason(spell),nil,
+    "A Spell paid as an ordinary discard is not thrown away")
+eq(methods.throwReason(artifact),nil,
+    "An Artifact paid as an ordinary discard is not thrown away")
+eq(methods.marked(spell),false,"Discard payment cannot show throw X")
+
+local half=card("af0002",8.1)
+half.is_face_down=true
+env.gameCards[half.guid]={cardType="Artifact",full=artifact.guid}
+eq(methods.throwReason(half),nil,"Face-down half Banner is only spent")
+eq(methods.throwReason(ordinary),nil,"Normal face-up card is not thrown")
 
 -- Training's offer browser must recognise the same repeated effect even
 -- with the Resource Tracker minimized, and regardless of the linked flip.
@@ -167,6 +206,13 @@ local cleanup=extract(flow,"function cleanupPlayedCardAtEndTurn(",
     "local MEDITATION_BUTTON_SUFFIXES=")
 env.resourceCardsMaximalEffectMarked=methods.marked
 env.resourceCardsMaximalEffectMark=methods.mark
+env.resourceCardsThrowAwayReason=methods.throwReason
+-- Simulate a reload midway through End Turn: link cache is gone, but the
+-- saved pre-cleanup verdict still identifies the consumed face-up Action.
+env.trackerPrivate.throwAwayLinksByGUID={}
+env.gStates.preEndTurn=true
+eq(methods.throwReason(training),"maximalEffect",
+    "Saved cleanup verdict must survive lost transient link state")
 -- A copied Steady Tempo must be thrown away rather than retained for
 -- its normal End Turn placement decision.
 env.isSteadyTempoGUID=function(guid) return guid==training.guid end
@@ -182,4 +228,15 @@ eq(#trashed,1,"Unmarked face-up card not trashed")
 ordinary.is_face_down=true
 run(ordinary,1,nil)
 eq(trashed[2],ordinary.guid,"Manually face-down card still thrown away")
-print("Maximal Effect marker and cleanup regression passed")
+
+-- The Wound bag is infinite. An explicitly thrown Wound is destroyed
+-- in place; it must never be sent to either Trash or a discard pile.
+local wound=card("d11111",9)
+local destroyed=0
+wound.is_face_down=true
+wound.getGMNotes=function() return "Wound" end
+wound.destruct=function() destroyed=destroyed+1 end
+run(wound,1,nil)
+eq(destroyed,1,"Thrown Wound must be deleted")
+eq(#trashed,2,"Thrown Wound must not enter Trash")
+print("Artifact, linked-card and Wound throw-away regression checks passed")
