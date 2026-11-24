@@ -31,7 +31,8 @@ assert(not data:find('key="safe"',1,true),"Dodge must not have a Safe option")
 assert(not data:find('key="eligible"',1,true),"Dodge must not have an Eligible option")
 contains(data,'removeOneAttackAbilities=true',"Chilling Stare one attack")
 contains(reader,'source.dodgeIneligible=true',"Dodge Attack suppression")
-contains(reader,'dodgeConditional=complete and rule~=nil and rule.conditionalAttackNoWounds==true,',
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/CardEffects.lua"),
+    'dodgeConditional=complete and rule~=nil and rule.conditionalAttackNoWounds==true,',
     "Dodge conditional Attack without card options")
 contains(reader,'card.guid.."#effect"..index',"Dodge independent effect keys")
 contains(reader,'source.convertedResource',"Conversion resource source")
