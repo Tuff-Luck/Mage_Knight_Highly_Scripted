@@ -373,7 +373,7 @@ return function(deps)
                         end
                         xml[#xml+1]={tag="Button",attributes={
                             id="AttackAssignmentSource_"..card.guid.."_0_"
-                                ..(row.index<0 and targetCategory~="unitReady"
+                                ..(row.index<0 and targetCategory~="unitReady" and targetCategory~="ambush"
                                     and ("rep"..(-row.index)..":") or "")..targetCategory
                                 ..(targetPart and ("@"..targetPart) or ""),
                             onClick=entry.targetResource=="unitReady"
@@ -386,6 +386,28 @@ return function(deps)
                             position=tostring(partX).." "..tostring(buttonY).." "..buttonDepth,
                             rotation=uiRotation,width=90,height=90,scale=buttonScale,
                             colors="#454D5D|#69798E|#444C63|#454D5D",textColor="#FFFFFF",textAlignment="MiddleCenter"
+                        },value="",children=children}
+                    end
+                    if entry.extraTargetResource=="move" then
+                        -- Spirit Guides keeps its friendly Block link on one
+                        -- side and its own Combat Move target on the other.
+                        local moveAsset=resourceCardsChoiceIcon("move")
+                        local children={}
+                        if moveAsset~=nil and not blocked[moveAsset.name] then
+                            children[#children+1]={tag="Image",attributes={
+                                image=moveAsset.name,width=62,height=62,
+                                preserveAspect="true",raycastTarget="false",color="#FFFFFF"}}
+                        end
+                        children[#children+1]={tag="Image",attributes={
+                            image=targetAsset.name,width=82,height=82,
+                            preserveAspect="true",raycastTarget="false",color="#FFFFFF"}}
+                        xml[#xml+1]={tag="Button",attributes={
+                            id="AttackAssignmentSource_"..card.guid.."_0_move",
+                            onClick="global/attackAssignmentSourceClicked",
+                            position=tostring(2*x-targetX).." "..tostring(buttonY).." "..buttonDepth,
+                            rotation=uiRotation,width=90,height=90,scale=buttonScale,
+                            colors="#454D5D|#69798E|#444C63|#454D5D",
+                            textColor="#FFFFFF",textAlignment="MiddleCenter"
                         },value="",children=children}
                     end
                 end
