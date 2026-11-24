@@ -1,3 +1,4 @@
+package.path="src/?.lua;"..package.path
 -- Regression: a fixed powered Attack with one automatic enemy target must
 -- never submit an empty XML table to Tabletop Simulator. The original failure
 -- was Swiftness + White mana when Orc War Beasts entered the combat zone.
@@ -22,7 +23,7 @@ assert(data:find('swiftness={normal={move=2},powered={ranged=3}}',1,true),
 local uiCode=extract(assets,"function resourceObjectUiSetTable(ui,xml,assets)",
     "-- Legacy shared artwork")
 local buttonCode=extract(reader,
-    "local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySets,resources,repeatLink)",
+    'trackerPrivate.cardControlOptions=require("PlayingGame.PlayerBoard.ResourceTracker.CardControlOptions")',
     "-- One selected icon in the Unit's lower-left artwork margin")
 local letterCode=extract(reader,"local choiceLetters=",
     "-- The choice UI and initial-guess tie-breaks")

@@ -16,13 +16,13 @@ end
 local reader=source("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local targeting=source("src/PlayingGame/AttackAssignments.lua")
 -- A fixed-effect copy must produce two/three rows, not one multiplied button.
-contains(reader,'if repeatLink~=nil and repeatLink.count>1 and posture=="upright" then',
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/CardControlOptions.lua"),'if repeatLink~=nil and repeatLink.count>1 and posture=="upright" then',
     "Every copied Action must show per-use rows")
 contains(reader,'if #row.entries>1 or (repeatLink~=nil and repeatLink.count>1) then',
     "Fixed copied effects display one non-clickable icon per use")
 contains(reader,'onClick=#row.entries>1',
     "A one-choice icon cannot change the effect")
-contains(reader,'choices={{key="other",icon="other"}}',
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/CardControlOptions.lua"),'choices={{key="other",icon="other"}}',
     "Untracked repeated effects still display numbered manual-use rows")
 contains(reader,'row.index<0 and targetCategory~="unitReady"',
     "A repeated numeric target button has a unique visible row identifier")

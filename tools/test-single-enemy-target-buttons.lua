@@ -199,11 +199,11 @@ local readyButton=assert(hasButton(xml,"AttackAssignmentSource_cafe01_0_unitRead
 eq(readyButton.children[1].attributes.image,"MKTargetIcon",
     "Friendly Ready keeps its existing image")
 
-assert(source:find("resourceCardsHideAutomaticEnemyTarget(card.guid,",1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/CardControlOptions.lua"):find("resourceCardsHideAutomaticEnemyTarget(card.guid,",1,true),
     "Card target buttons must use the same one-enemy policy")
 assert(source:find('..":TARGETS:"..tostring(trackerPrivate.singleAutoEnemyGUID)',1,true),
     "Card UI signatures must respond when enemy count changes")
-assert(source:find("entry.splitTargets==nil",1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/CardControlOptions.lua"):find("entry.splitTargets==nil",1,true),
     "Cards with special split targets must retain manual buttons")
 
 print("Single-enemy targets and Enemy-to-Unit damage icon regressions passed")

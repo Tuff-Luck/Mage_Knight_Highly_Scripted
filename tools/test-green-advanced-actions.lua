@@ -22,7 +22,7 @@ local callbacks=source("src/PlayingGame/Callbacks.lua")
 -- Heal 1/2 and Ready are simultaneous. They are not a mutually exclusive
 -- choice, and each copied use has its own undoable readying source.
 assert(data:find("simultaneousReady=true,unitReadyLevels={normal=2,powered=3}",1,true))
-assert(reader:find("choices={{healing=resources.healing}}",1,true))
+assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/CardControlOptions.lua"):find("choices={{healing=resources.healing}}",1,true))
 assert(reader:find('onClick="global/resourceCardsRegenerationReadyClicked"',1,true))
 assert(reader:find('unitHistoryCancelReadySource(sourceKey)',1,true))
 assert(callbacks:find('"resourceCardsRegenerationReadyClicked"',1,true))

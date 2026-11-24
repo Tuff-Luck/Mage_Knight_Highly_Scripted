@@ -1,3 +1,4 @@
+package.path="src/?.lua;"..package.path
 -- Repositioning powered Noble Manners must not lose its Interaction toggle.
 -- Run from repository root: lua5.2 tools/test-noble-manners-ui.lua
 local function read(path)
