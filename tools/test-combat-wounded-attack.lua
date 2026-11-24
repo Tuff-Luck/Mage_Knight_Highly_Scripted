@@ -61,7 +61,10 @@ eq(sources[3].resources.attack,2,"excluded source remains available for undo")
 -- The physical calculateCard record must carry a kind. This was previously
 -- absent, so the filter saw nil for *every* played Attack card and treated
 -- Knockout/Paralysis as warnings only.
-contains('return {guid=card.guid,kind="card",known=known',
+local cardFile=assert(io.open("src/PlayingGame/PlayerBoard/ResourceTracker/CardEffects.lua","r"))
+local cardSource=cardFile:read("*a")
+cardFile:close()
+assert(cardSource:find('return {guid=card.guid,kind="card",known=known',1,true),
     "real played-card records must be classified as cards")
 contains('ambushFirstBlockBonus=record.ambushFirstBlockBonus,kind=record.kind,',
     "the resource calculator must propagate the record kind to combat sources")

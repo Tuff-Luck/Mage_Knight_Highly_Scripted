@@ -98,7 +98,10 @@ env.trackerPrivate.renderCombatNight=nil
 
 -- One with the Land's powered Fire/Ice Block must use the same combat
 -- Night context; physical terrain movement costs must retain actual Day/Night.
-assert(source:find("chosen=resourceCardsUsesDayMana() and {blockFire=value} or {blockIce=value}",1,true),
+local cardFile=assert(io.open("src/PlayingGame/PlayerBoard/ResourceTracker/CardEffects.lua","r"))
+local cardSource=cardFile:read("*a")
+cardFile:close()
+assert(cardSource:find("chosen=resourceCardsUsesDayMana() and {blockFire=value} or {blockIce=value}",1,true),
     "One with the Land must follow NightRules enemy combat")
 local movementFile=assert(io.open("src/PlayingGame/PlayerBoard/ResourceTracker/MovementEffects.lua","r"))
 local movementSource=movementFile:read("*a")

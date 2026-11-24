@@ -275,7 +275,7 @@ assert(#enemyAttacks(entry,true)==2,
 -- All scans and strong-effect callbacks must distinguish the full form.
 assert(recognition:find('trackerPrivate.bannerCardForm(guid)~="half"',1,true),
     "Half Banners must not enter the play-area Artifact list")
-assert(recognition:find('local attachedResult=trackerPrivate.bannerAttachedCardResult(card.guid)',1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/CardEffects.lua"):find('local attachedResult=trackerPrivate.bannerAttachedCardResult(card.guid)',1,true),
     "The card calculator must leave attached halves inert")
 assert(recognition:find("and resourceCardsArtifactBroken(card.guid,card)",1,true),
     "Artifact classification must consult the shared Throw/Recover state")

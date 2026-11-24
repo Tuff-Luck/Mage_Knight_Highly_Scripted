@@ -94,7 +94,7 @@ assert(not recognition:find('resourceCardsArtifactNoteClicked',1,true),
 assert(not recognition:find('startingControl("manual"',1,true)
     and not recognition:find('value="?"',1,true),
     "Manual '?' controls must be absent from all cards")
-assert(recognition:find('rule.manualSecondary~=nil and status=="green"',1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/CardEffects.lua"):find('rule.manualSecondary~=nil and status=="green"',1,true),
     "Manual secondary effects must remain marked as partially tracked")
 
 -- The startup audit requires the Artifact Object UI callbacks to be published,
