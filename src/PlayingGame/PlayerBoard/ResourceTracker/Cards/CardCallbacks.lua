@@ -209,7 +209,11 @@ function M.choiceClicked(player,value,id,combatConfig,resourceCardsDetailsOpen,f
     local powered=record~=nil and record.powered==true
     local sideways=not isSkill and not isReward and cardPosture(card)=="sideways"
     local mainChoices
-    if isSkill or isPuppet or isReward then
+    if record~=nil and record.copiedBasicField~=nil then
+        -- A copied Basic effect is fixed; never offer the generic sideways menu.
+        if record.copiedBasicField~="move" then return end
+        mainChoices=record.choices
+    elseif isSkill or isPuppet or isReward then
         mainChoices=record~=nil and record.choices or (rule~=nil and rule.choices or nil)
     elseif sideways and (cardCanPlaySideways(card) or linkedWound) then
         mainChoices=trackerPrivate.sidewaysChoices
@@ -309,7 +313,9 @@ function M.choiceClicked(player,value,id,combatConfig,resourceCardsDetailsOpen,f
         return
     end
     local selected=selectedResourceByGUID[guid] or {}
-    if repeatIndex~=nil then
+    if record~=nil and record.copiedBasicField~=nil then
+        -- Only the role changes; the original sideways choice stays intact.
+    elseif repeatIndex~=nil then
         selected.repeatChoices=selected.repeatChoices or {}
         selected.repeatChoices[repeatIndex]=category
     elseif setIndex~=nil then
