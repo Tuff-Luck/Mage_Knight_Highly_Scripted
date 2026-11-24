@@ -26,10 +26,13 @@ combatRich=function(value,color)
     return "<color="..color..">"..value.."</color>"
 end
 local attackTotal=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/EnemyDefences.lua")(combatConfig).attackTotal
-local paralysisCards=isolated("combatConfig.paralysisAttackCards=function(sources,results,lock,knockout)",
-    "combatConfig.attackPhaseSources=function", "combatConfig.paralysisAttackCards")
-local eligibleSources=isolated("combatConfig.attackPhaseSources=function(sources,wounded,paralysisCards)",
-    "-- Timing of self-wounding Unit abilities", "combatConfig.attackPhaseSources")
+local eligibility=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/AttackEligibility.lua")(combatConfig,
+    function(seat) return seat~=nil and resourceCardScanBySeat~=nil and resourceCardScanBySeat[seat] or nil end,
+    function(guid) return gameCards~=nil and gameCards[guid] or nil end,
+    function(key) return cardResourceDefinitions~=nil and cardResourceDefinitions[key] or nil end,
+    function(guid) return getObjectFromGUID(guid) end)
+local paralysisCards=eligibility.paralysisAttackCards
+local eligibleSources=eligibility.attackPhaseSources
 local resultLine=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/CombatDisplay.lua")(combatConfig,combatRich,nil).groupAttackLine
 local function total(sources)
     return attackTotal({
@@ -127,10 +130,7 @@ eq(invalidKO.burning,nil,"Burning Shield's Block earned the Fire Attack")
 eq(invalidKO.exploding,nil,"pre-Damage Exploding Shield effect remains played")
 eq(invalidKO.ranged,nil,"already used Ranged/Siege effect remains valid")
 eq(invalidKO.unit,nil,"Unit Attack survives Knockout")
-local stageOnly=isolated(
-    "combatConfig.knockoutStagedAttackCards=function(sources,unavailable,seat,phase)",
-    "combatConfig.attackPhaseSources=function",
-    "combatConfig.knockoutStagedAttackCards")
+local stageOnly=eligibility.knockoutStagedAttackCards
 gameCards={rage={cardType="Starting"},swiftness={cardType="Starting"},
     burning={cardType="Spell"},exploding={cardType="Spell"},
     ranged={cardType="Starting"},linked={cardType="Advanced Action"},
@@ -179,4 +179,53 @@ contains("local paralysisAttackCards=combatConfig.paralysisAttackCards(sources,d
     "Paralysis and Knockout invalidate Attack using resolved Hero damage")
 contains("combatConfig.attackPhaseSources(group.sources,woundedBeforeAttack,paralysisAttackCards)",
     "Defeat calculation excludes paralyzed card Attack")
+-- All historical uses of a wounded physical Unit are excluded, even if a
+-- different use was assigned to a second target. Prior phase results stand.
+local damaged=eligibility.unitsWoundedByDamage({
+    a={units={{unit={guid="unit"},wounded=true},{unit={guid="resisted"},wounded=false}}},
+    b={units={{unit={guid="retired"},wounded=true,destroyed=true,alreadyApplied=true}}},
+    c={}})
+eq(damaged.unit,true,"Wounded Unit identified from resolved damage")
+eq(damaged.resisted,nil,"Resisted Unit remains eligible")
+eq(damaged.retired,true,"Destroyed historical Unit excluded")
+eq(next(eligibility.unitsWoundedByDamage(nil)),nil,"Missing damage yields no wounded Units")
+local phaseSources={{guid="unit",key="unit#use1"},{guid="unit",key="unit#use2"},
+    {guid="other",key="other",noAttackPhase=true},{guid="resisted",key="resisted"}}
+local remaining=eligibleSources(phaseSources,damaged,{})
+eq(#remaining,1,"Exclude every wounded Unit use and early-only sources")
+eq(remaining[1].guid,"resisted","Resisting Unit can still Attack")
+eq(#phaseSources,4,"Eligibility never mutates assigned sources")
+-- A prior phase's effect-only card protects its physical source, but an
+-- effect explicitly played after Damage is not evidence of earlier play.
+local phases={enemyEffects={a={applied={{source="earlyEffect"},
+    {source="lateEffect",phaseAfterDamage=true}}}}}
+local cards={{guid="earlyEffect",kind="card"},{guid="lateEffect",kind="card"}}
+local rejected=paralysisCards(cards,heroHit,phases)
+eq(rejected.earlyEffect,nil,"Effect-only earlier source remains played")
+eq(rejected.lateEffect,true,"Late effect is not earlier-play evidence")
+-- Physical staged discard safeguards must reject Artifacts, Wounds, held
+-- face-down cards, unknown physical objects and rules with side effects.
+local discardSources={}
+local unavailable={}
+local scans={}
+for _,guid in ipairs({"pure","artifact","wound","faceDown","missing","ruleEffect","split"}) do
+    discardSources[#discardSources+1]={guid=guid,kind="card",attack=2}
+    unavailable[guid]=true
+    scans[guid]={kind="card",complete=true,resources={attack=2}}
+    gameCards[guid]={cardType="Starting"}
+end
+gameCards.artifact.cardType="Artifact"
+gameCards.ruleEffect.resourceKey="effect"
+cardResourceDefinitions={effect={enemyEffect={}}}
+discardSources[#discardSources+1]={guid="split",kind="card",block=1}
+resourceCardScanBySeat[1]={cards=scans}
+getObjectFromGUID=function(guid)
+    if guid=="missing" then return nil end
+    return {type="Card",is_face_down=guid=="faceDown",
+        getGMNotes=function() return guid=="wound" and "Wound" or "Starting" end}
+end
+local selected=stageOnly(discardSources,unavailable,1,{})
+eq(#selected,1,"Only unambiguously pure Attack is physically discardable")
+eq(selected[1],"pure","Every protected physical card remains untouched")
+eq(#stageOnly(discardSources,unavailable,nil,{}),0,"Missing scan cannot authorize physical discard")
 print("Combat wounded Attack result regressions passed")
