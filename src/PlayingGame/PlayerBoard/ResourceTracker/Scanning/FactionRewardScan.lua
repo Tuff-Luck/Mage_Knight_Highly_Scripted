@@ -58,7 +58,7 @@ function M.read(context)
             end
             if not flipped and rule~=nil and rule.movement~=nil
                 and rule.movement.ignoreRampagers then
-                movementEffects.ignoreRampagers=true
+                result.pendingIgnoreRampagers=true
             end
             if not flipped and rule~=nil and rule.heroPsychicBlock==true then
                 heroPsychicBlock=true
