@@ -1357,8 +1357,10 @@ function attackAssignmentsBegin(source,resource,playerColor,additional,sourceKey
 	if pending~=nil and pending.sourceGUID==sourceKey and pending.resource==resource then
 		targetingByPlayer[playerColor]=nil
 	else
+		local kind=resourceCardsCombatEffectArrowKind~=nil
+            and resourceCardsCombatEffectArrowKind(sourceKey) or nil
 		targetingByPlayer[playerColor]={source=source,sourceGUID=sourceKey,resource=resource,
-			additional=additional==true,kind=attackAssignmentsKindFor(part or resource)}
+			additional=additional==true,kind=kind or attackAssignmentsKindFor(part or resource)}
 	end
 	syncTargetButtons()
 	refreshRenderedLines()
@@ -1668,6 +1670,7 @@ end
 
 -- Auto-targeted sources get the same arrow a manual assignment would draw.
 function attackAssignmentsEnsureTarget(sourceGUID,targetGUID,kind)
+    if combatCommittedSource(sourceGUID) then return end
 	for _,entry in pairs(assignmentRegistry) do
 		if entry.sourceGUID==sourceGUID and entry.targetGUID==targetGUID then
 			if kind~=nil and entry.kind~=kind then
@@ -1679,6 +1682,25 @@ function attackAssignmentsEnsureTarget(sourceGUID,targetGUID,kind)
 		end
 	end
 	attackAssignmentsSetSourceTarget(sourceGUID,targetGUID,kind)
+end
+
+-- Recolour a live effect's existing arrows without changing their identity,
+-- primary lock, additional targets, counts, or committed combat history.
+function attackAssignmentsReconcileEffectTarget(sourceGUID,targetGUID,kind)
+    if combatCommittedSource(sourceGUID) or attackAssignmentsIsTargeting(sourceGUID) then return end
+    local found,changed=false,false
+    for _,entry in pairs(assignmentRegistry) do
+        if entry.sourceGUID==sourceGUID then
+            found=true
+            if entry.kind~=kind then entry.kind=kind changed=true end
+        end
+    end
+    if not found then
+        attackAssignmentsEnsureTarget(sourceGUID,targetGUID,kind)
+    elseif changed then
+        persistAssignments()
+        refreshRenderedLines()
+    end
 end
 
 -- Removes arrows of sources that still exist on the table but no longer offer that target

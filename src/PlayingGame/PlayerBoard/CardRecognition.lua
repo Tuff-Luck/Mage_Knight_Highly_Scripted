@@ -1659,8 +1659,19 @@ local function combatSourceKeepsLock(key)
             and trackerPrivate.playCardMovements[obj.guid]~=nil)
 end
 
+-- Physical target controls and the calculator share the current scan's
+-- effect classification; ordinary numeric resources keep their own colours.
+function resourceCardsCombatEffectArrowKind(sourceKey)
+    local seat=combatAssignmentActiveSeat()
+    local scan=seat~=nil and resourceCardScanBySeat[seat] or nil
+    return scan~=nil and scan.enemyEffectArrowKinds~=nil
+        and scan.enemyEffectArrowKinds[sourceKey] or nil
+end
+
 -- Orange arrows aim at armour; blue arrows (Block, Move) affect an enemy attack.
 local function combatSourceArrowKind(source)
+    local kind=resourceCardsCombatEffectArrowKind(source.key)
+    if kind~=nil then return kind end
     if source.ranged+source.siege+source.attack>0 then return "armour" end
     return "attack"
 end
@@ -3870,9 +3881,7 @@ combatConfig.effectButtonInfo=function(entry,applied)
             or spec.removeTrait=="iResist" or spec.removeTrait=="mResist"
             or spec.removeTrait=="defend") and "attack" or "block"
     end
-    -- Fear is a non-resource enemy link: distinguish it from blue Block arrows.
-    local arrow=(spec.cancelOneAttack==true or (tonumber(spec.maxTargets) or 0)>1)
-        and "other" or (isArmour and "armour" or "attack")
+    local arrow=combatEffectArrowKind(spec)
     local icon=isArmour and "MKChoiceAttack" or "MKChoiceBlock"
     -- Use specific artwork for numeric reductions, preserving the usual icons
     -- for removal, prevention, conversion and other non-reduction effects.
@@ -6511,16 +6520,14 @@ local function refreshCombatEnemyPanel(monsters,calculated)
         if obj.is_face_down~=true then validTargets[guid]=true end
     end
     attackAssignmentsPruneTargets(validTargets)
-    -- Reconcile effect-only Unit arrows on *every* calculator refresh, not only
-    -- when an assignment is clicked. The damage overlay may come and go as
-    -- attacks are blocked; its removal must not remove the originating arrow.
-    for guid,record in pairs(seatScan~=nil and seatScan.cards or {}) do
+    -- Reconcile effect colours even when a saved/manual arrow already exists.
+    -- Recolour all of a source's arrows in place; never replace extra targets.
+    local effectKinds=seatScan~=nil and seatScan.enemyEffectArrowKinds or {}
+    for _,record in pairs(seatScan~=nil and seatScan.cards or {}) do
         for sourceKey,targetGUID in pairs(record.enemyEffectTargetGUIDs or {}) do
-            if activeSources[sourceKey]==true and monsters[targetGUID]~=nil
-                and not attackAssignmentsIsTargeting(sourceKey)
-                and next(attackAssignmentsTargetGUIDs(sourceKey))==nil then
-                attackAssignmentsEnsureTarget(sourceKey,targetGUID,
-                    (record.enemyEffectArrowKinds or {})[sourceKey] or "attack")
+            if activeSources[sourceKey]==true and validTargets[targetGUID]==true then
+                attackAssignmentsReconcileEffectTarget(sourceKey,targetGUID,
+                    effectKinds[sourceKey] or "attack")
             end
         end
     end
@@ -12207,10 +12214,6 @@ local function renderSeat(seatPos)
                 -- only this ordinary-effect branch reads spec fields.
                 local key=rule.separateEffectTarget and not result.powered
                     and (card.guid.."#effect") or card.guid
-                if spec.cancelOneAttack==true or (tonumber(spec.maxTargets) or 0)>1 then
-                    result.enemyEffectArrowKinds=result.enemyEffectArrowKinds or {}
-                    result.enemyEffectArrowKinds[key]="other"
-                end
                 if (tonumber(spec.maxTargets) or 0)>1 then
                     -- Banner of Fear (Lost Legion): at most three different
                     -- enemies are unable to attack. Each target is its own
@@ -12928,10 +12931,6 @@ local function renderSeat(seatPos)
                             local index,ability=pickedAbility.index,pickedAbility.ability
                             if ability.enemyEffect~=nil or ability.targetableEnemy==true then
                                 local sourceKey=unitAbilityTargetKey(unitGUID,index,ability,useIndex)
-                                if ability.bannerFear==true then
-                                    result.enemyEffectArrowKinds=result.enemyEffectArrowKinds or {}
-                                    result.enemyEffectArrowKinds[sourceKey]="other"
-                                end
                                 if sourceKey~=unitGUID then
                                     result.enemyEffectTargetKeys=result.enemyEffectTargetKeys or {}
                                     result.enemyEffectTargetKeys[#result.enemyEffectTargetKeys+1]=sourceKey
@@ -14213,6 +14212,7 @@ local function renderSeat(seatPos)
         attackTransforms=attackTransforms,
         terrainModifiers=terrainModifiers,movementEffects=movementEffects,
         enemyEffects=enemyEffects,fameRepBase=fameRepBase,
+        enemyEffectArrowKinds=combatEffectArrowKinds(records,enemyEffects),
         ruthlessReadySpent=ruthlessReadySpent,
         ignoreSiteFortifications=ignoreSiteFortifications,
         unitState=unitState,gloryBroken=(function()

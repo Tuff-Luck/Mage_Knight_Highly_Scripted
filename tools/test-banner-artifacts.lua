@@ -280,14 +280,15 @@ assert(boardEvent:find("if fullCard.is_face_down==true then fullCard.flip() end"
 -- Fear has only targeting links: neither the automatic nearest arrow nor
 -- subsequent calculator retargeting may make the first one blue. Enemies
 -- targeted by Fear must not be mistaken for Possess/printed-resource links.
-assert(recognition:find('local arrow=(spec.cancelOneAttack==true or (tonumber(spec.maxTargets) or 0)>1)',1,true),
-    "Fear effect slots must use purple arrows")
-assert(recognition:find('result.enemyEffectArrowKinds[key]="other"',1,true),
-    "Full Banner Fear must register a purple effect-only target")
-assert(recognition:find('result.enemyEffectArrowKinds[sourceKey]="other"',1,true),
-    "Attached Banner Fear must register a purple target")
-assert(recognition:find('(record.enemyEffectArrowKinds or {})[sourceKey] or "attack"',1,true),
-    "Automatic nearest effect arrows must preserve their effect type")
+local arrowSource=between(effects,"function combatEffectArrowKind(spec)\n",
+    "\nend\n")
+local arrowKind=assert(load("return function(spec)\n"..arrowSource.."\nend"))()
+assert(arrowKind({cancelOneAttack=true})=="other",
+    "Attached Fear must use purple arrows")
+assert(arrowKind({noAttack=true,maxTargets=3})=="other",
+    "Full Fear must use purple arrows")
+assert(recognition:find('local arrow=combatEffectArrowKind(spec)',1,true),
+    "Calculator effect buttons must use shared classification")
 assert(recognition:find('local borrowedEnemy=record~=nil and (record.possessEnemyGUID~=nil',1,true),
     "Fear targets must not receive resource-link outlines")
 

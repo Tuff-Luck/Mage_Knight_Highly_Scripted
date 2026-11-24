@@ -81,6 +81,48 @@ function combatEffectDestroysFullyBlocked(applied,allBlocked,hasAttack)
         and allBlocked==true and hasAttack==true
 end
 
+-- One visual classification for effect buttons and both targeting interfaces.
+-- Requested effects retain their colour even when immunity prevents application.
+function combatEffectArrowKind(spec)
+    if spec==nil then return nil end
+    if spec.cancelOneAttack==true or (tonumber(spec.maxTargets) or 0)>1 then
+        return "other"
+    end
+    local armour=tonumber(spec.armourReduce) or 0
+    if armour>0 or (tonumber(spec.armourReduceFortified) or armour)>0
+        or (tonumber(spec.armourReduceByResist) or 0)>0
+        or spec.removeFortify==true or spec.removeResist==true
+        or spec.removeFireResist==true or spec.destroy==true
+        or spec.destroyDuringAttack==true then return "armour" end
+    return "attack"
+end
+
+-- Index only independently targetable effect keys. Numeric resource arrows
+-- and unrelated physical links must keep their normal resource classification.
+function combatEffectArrowKinds(records,enemyEffects)
+    local eligible,kinds={},{}
+    for _,record in pairs(records or {}) do
+        for _,key in ipairs(record.enemyEffectTargetKeys or {}) do
+            eligible[key]=true
+            -- Damage mitigation has no applied enemy-effect descriptor.
+            -- Do not override ordinary resource colours for unresolved keys.
+            if (record.enemyEffectTargetGUIDs or {})[key]~=nil then
+                kinds[key]="attack"
+            end
+            -- Explosive Bolt has a calculated follow-up rather than an applied spec.
+            if key:match("#explosiveAttack$") then kinds[key]="armour" end
+        end
+    end
+    for _,effect in pairs(enemyEffects or {}) do
+        for _,applied in ipairs(effect.applied or {}) do
+            if eligible[applied.key] then
+                kinds[applied.key]=combatEffectArrowKind(applied.spec)
+            end
+        end
+    end
+    return kinds
+end
+
 function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec,sourceKey)
     local entry=enemyEffects[enemyGUID]
     if entry==nil then

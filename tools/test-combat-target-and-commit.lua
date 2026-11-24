@@ -97,6 +97,57 @@ maxTargets=3
 eq(a.attackAssignmentsBegin(source,"attack","Blue",true,"ordinary"),true,
     "Explicit multi-target permission")
 eq(a.targetingByPlayer.Blue.additional,true,"Multi-target mode is retained")
+a.targetingByPlayer.Blue=nil
+a.resourceCardsCombatEffectArrowKind=function(key) return key=="ordinary" and "other" or nil end
+eq(a.attackAssignmentsBegin(source,"attack","Blue",true,"ordinary"),true,"Shared effect targeting")
+eq(a.targetingByPlayer.Blue.kind,"other","Physical targeting preview uses shared colour")
+
+-- Recolour saved multi-target arrows in place, preserve IDs/counts/locks,
+-- and create only one default arrow when none exists.
+local registry={
+    a={sourceGUID="fear",targetGUID="one",kind="attack"},
+    b={sourceGUID="fear",targetGUID="two",kind="other"},
+    c={sourceGUID="other",targetGUID="one",kind="armour"}
+}
+local locked,pending=false,false
+local saves,redraws,created=0,0,0
+local arrows={assignmentRegistry=registry,
+    combatCommittedSource=function() return locked end,
+    attackAssignmentsIsTargeting=function() return pending end,
+    attackAssignmentsEnsureTarget=function(key,target,kind)
+        created=created+1
+        registry.new={sourceGUID=key,targetGUID=target,kind=kind}
+    end,
+    persistAssignments=function() saves=saves+1 end,
+    refreshRenderedLines=function() redraws=redraws+1 end}
+isolate(assignments,"function attackAssignmentsReconcileEffectTarget(",
+    "-- Removes arrows of sources",arrows)
+local reconcile=arrows.attackAssignmentsReconcileEffectTarget
+reconcile("fear","one","other")
+eq(registry.a.kind,"other","Saved blue arrow recoloured")
+eq(registry.b.targetGUID,"two","Additional target preserved")
+eq(registry.c.kind,"armour","Unrelated arrow untouched")
+eq(created,0,"No replacement arrow")
+eq(saves,1,"Persist recolour once")
+eq(redraws,1,"Redraw recolour once")
+reconcile("fear","one","other")
+eq(saves,1,"No-op refresh does not persist")
+locked=true
+reconcile("fear","one","attack")
+eq(registry.a.kind,"other","Committed arrow preserved")
+locked=false
+pending=true
+reconcile("fear","one","attack")
+eq(registry.a.kind,"other","Pending retarget preserved")
+pending=false
+reconcile("fear","one","armour")
+eq(registry.a.kind,"armour","Switch to Armour effect")
+eq(registry.b.kind,"armour","All additional arrows switch colour")
+reconcile("fear","one","attack")
+eq(registry.a.kind,"attack","Switch back to Attack reduction")
+reconcile("new","one","other")
+eq(created,1,"Missing automatic arrow created")
+eq(registry.new.kind,"other","Automatic arrow uses shared colour")
 
 -- Two damage allocations can produce identical Wound counts but affect
 -- different Units. Confirmation must detect that exact decision change.
