@@ -74,12 +74,13 @@ contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/ConditionalBlockEff
 contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/ConditionalBlockEffects.lua"),'source.conditionalFireAttack~=nil',"Attack granted only after Block")
 contains(reader,'counter.conditionalCounterattack=amount',"Counter has a separately targetable Attack source")
 contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/ConditionalBlockEffects.lua"),'burningShieldTriggered[source.guid]=true',"Counter requires a successful Block")
-contains(reader,'source.attack=amount',"Conditional counter contributes only its earned Attack")
-assert(not reader:find('source.resources.attackFire=(source.resources.attackFire or 0)+amount',1,true),
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/ConditionalBlockEffects.lua"),'source.attack=amount',"Conditional counter contributes only its earned Attack")
+assert(not reader:find('source.resources.attackFire=(source.resources.attackFire or 0)+amount',1,true)
+    and not source("src/PlayingGame/PlayerBoard/ResourceTracker/ConditionalBlockEffects.lua"):find('source.resources.attackFire=(source.resources.attackFire or 0)+amount',1,true),
     "Burning Shield counter must not be added to its Block target")
 contains(blockResults,'successfulOwners[item.source.guid]=owners',"Block source is tied to attack owner")
 contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/ConditionalBlockEffects.lua"),'entry.summonedDestroyed[owner]=true',"Exploding Shield destroys summon, not summoner")
-contains(reader,'if not immune and owner==entry.guid then',"Fire Resistance evaluated on actual blocked token")
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/ConditionalBlockEffects.lua"),'if not immune and owner==entry.guid then',"Fire Resistance evaluated on actual blocked token")
 contains(data,'woundConfirmation=true',"Firestorm confirmation rule")
 contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/ResourceChoices.lua"),
     'rule.woundConfirmation==true and not sideways',"No auto-confirmation")
