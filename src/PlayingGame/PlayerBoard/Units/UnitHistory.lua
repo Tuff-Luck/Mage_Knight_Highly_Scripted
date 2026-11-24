@@ -65,8 +65,9 @@ end
 -- Readying permits more uses, but never a second combat activation of the
 -- same Unit during the turn. A printed multi-effect activation still counts
 -- as ONE use; noncombat choices in later uses remain available.
-function unitHistoryIsCombatAbility(ability)
+function unitHistoryIsCombatAbility(ability,moveRole)
     if ability==nil then return false end
+    if moveRole=="combat" and (tonumber(ability.move) or 0)>0 then return true end
     if ability.enemyEffect~=nil or ability.targetableEnemy==true
         or ability.attackTransform~=nil or ability.boostOtherUnits==true
         or ability.grantUnitResistances==true then return true end
@@ -80,29 +81,30 @@ function unitHistoryIsCombatAbility(ability)
     return false
 end
 
-function unitHistoryDecisionHasCombat(abilities,decision)
+function unitHistoryDecisionHasCombat(abilities,decision,moveRole)
     if abilities==nil or decision==nil then return false end
     if abilities.multi==true then
         for index,chosen in pairs(decision.selected or {}) do
-            if chosen==true and unitHistoryIsCombatAbility(abilities[index]) then
+            if chosen==true and unitHistoryIsCombatAbility(abilities[index],moveRole) then
                 return true
             end
         end
         return false
     end
-    return unitHistoryIsCombatAbility(abilities[decision.index])
+    return unitHistoryIsCombatAbility(abilities[decision.index],moveRole)
 end
 
 -- A choice change to an earlier use immediately changes eligibility; nothing
 -- here mutates the stored selections, paid mana snapshots, or target history.
-function unitHistoryCombatConflict(guid,useIndex,abilities,decisionFor)
+function unitHistoryCombatConflict(guid,useIndex,abilities,decisionFor,roleFor)
     if useIndex==nil or useIndex<=1 or type(decisionFor)~="function" then return false end
     local group=groupOf(guid)
     if group==nil then return false end
     for index=1,useIndex-1 do
         local earlier=group.uses[index]
         if earlier~=nil and earlier.priorTurnSpent~=true
-            and unitHistoryDecisionHasCombat(abilities,decisionFor(earlier)) then
+            and unitHistoryDecisionHasCombat(abilities,decisionFor(earlier),
+                roleFor~=nil and roleFor(unitHistoryKey(guid,index)) or nil) then
             return true
         end
     end
@@ -260,6 +262,7 @@ function unitHistoryTrim(guid,keep)
         local entry=group.uses[i]
         local key=unitHistoryKey(guid,i)
         group.uses[i]=nil
+        if gStates.resourceCardMoveRoles~=nil then gStates.resourceCardMoveRoles[key]=nil end
         if entry~=nil and entry.readiedBy~=nil then
             local link=gStates.unitReadyLinks and gStates.unitReadyLinks[entry.readiedBy]
             if link~=nil and link.unitGUID==guid then
@@ -428,6 +431,7 @@ function unitHistoryReleaseUnit(guid)
         end
     end
     if gStates.unitResourceActivations~=nil then gStates.unitResourceActivations[guid]=nil end
+    if gStates.resourceCardMoveRoles~=nil then gStates.resourceCardMoveRoles[guid]=nil end
     if resourceCardsCombatForgetSource~=nil then resourceCardsCombatForgetSource(guid) end
     if attackAssignmentsClearForObject~=nil then attackAssignmentsClearForObject(guid) end
     if resourceUnitsPruneHistoricalTargets~=nil then resourceUnitsPruneHistoricalTargets(guid) end
