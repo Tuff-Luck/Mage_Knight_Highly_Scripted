@@ -1,7 +1,7 @@
 -- Direct production formatting and grouped display tests.
 local traits={}
 local config={COMBAT_GREEN="green",enemyDefenceTraits=traits}
-local display=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/CombatDisplay.lua")(config,
+local display=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CombatDisplay.lua")(config,
     function(text,color) return "<"..color..">"..text.."</"..color..">" end,
     function(data,perks,definitions)
         return {data=data,perks=perks,definitions=definitions}

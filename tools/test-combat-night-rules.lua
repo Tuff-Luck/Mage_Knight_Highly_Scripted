@@ -42,7 +42,7 @@ local skillFinish=assert(source:find("\n-- Puppet Master tokens",skillStart,true
 local skillStrength=assert(load(source:sub(skillStart,skillFinish-1)
     .."\nreturn skillUsesDayStrength","Night skill strength","t",env))()
 env.skillResourceDefinitions={nightSkill={day={attack=2},night={block=3}}}
-local calculateSkill=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/SkillEffects.lua","t",env))()({
+local calculateSkill=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/SkillEffects.lua","t",env))()({
     skillChoicesForCurrentTurn=function(rule) return rule.choices end,
     chosenEffect=function(guid,powered,choices) return nil end,
     skillUsesDayStrength=skillStrength,
@@ -106,22 +106,22 @@ env.trackerPrivate.renderCombatNight=nil
 
 -- One with the Land's powered Fire/Ice Block must use the same combat
 -- Night context; physical terrain movement costs must retain actual Day/Night.
-local cardFile=assert(io.open("src/PlayingGame/PlayerBoard/ResourceTracker/CardEffects.lua","r"))
+local cardFile=assert(io.open("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/CardEffects.lua","r"))
 local cardSource=cardFile:read("*a")
 cardFile:close()
 assert(cardSource:find("chosen=resourceCardsUsesDayMana() and {blockFire=value} or {blockIce=value}",1,true),
     "One with the Land must follow NightRules enemy combat")
-local movementFile=assert(io.open("src/PlayingGame/PlayerBoard/ResourceTracker/MovementEffects.lua","r"))
+local movementFile=assert(io.open("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/MovementEffects.lua","r"))
 local movementSource=movementFile:read("*a")
 movementFile:close()
 assert(movementSource:find("return effect.dayRound==nil or effect.dayRound==(gStates.dayRound==true)",1,true),
     "Terrain movement must use actual Day/Night, not the combat Night context")
-local observationFile=assert(io.open("src/PlayingGame/PlayerBoard/ResourceTracker/ScanObservation.lua","r"))
+local observationFile=assert(io.open("src/PlayingGame/PlayerBoard/ResourceTracker/Scanning/ScanObservation.lua","r"))
 local observationSource=observationFile:read("*a")
 observationFile:close()
 assert(observationSource:find("trackerPrivate.renderCombatNight=resourceCardsCombatNightFromEnemies(combatMonsters)",1,true),
     "Active combat must build one shared Night snapshot")
-local publicationFile=assert(io.open("src/PlayingGame/PlayerBoard/ResourceTracker/ScanPublication.lua","r"))
+local publicationFile=assert(io.open("src/PlayingGame/PlayerBoard/ResourceTracker/Scanning/ScanPublication.lua","r"))
 local publicationSource=publicationFile:read("*a")
 publicationFile:close()
 assert(publicationSource:find("trackerPrivate.renderCombatNight=nil\n    if trackerPrivate.traceEnabled then trackerPrivate.traceEvent(\"render.done\",seatPos) end\nend",1,true),

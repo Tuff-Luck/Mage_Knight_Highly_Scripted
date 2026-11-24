@@ -1,7 +1,7 @@
 -- Verify fresh private state and the coordinator's actual reset semantics.
 -- Run from repository root: lua5.2 tools/test-resource-tracker-state.lua
 package.path="src/?.lua;"..package.path
-local create=require("PlayingGame.PlayerBoard.ResourceTracker.State")
+local create=require("PlayingGame.PlayerBoard.ResourceTracker.Core.State")
 local first,second=create(),create()
 assert(first~=second)
 for _,key in ipairs({"generation","pendingSeatSettles","pendingSeatRender",

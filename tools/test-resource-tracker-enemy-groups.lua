@@ -1,5 +1,5 @@
 -- Enemy group boundaries and resource collection use the production helpers.
-local engine=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/EnemyGroups.lua")
+local engine=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EnemyGroups.lua")
 local function eq(actual,expected,label)
     assert(actual==expected,label..": expected "..tostring(expected)..", got "..tostring(actual))
 end

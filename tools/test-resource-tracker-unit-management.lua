@@ -5,7 +5,7 @@ local retired={}
 local env=setmetatable({gStates={currentRound=2},gameCards={},cardResourceDefinitions={},
     unitLayoutObjectInAnyUnitArea=function(guid) return guid=="present" end,
     resourceUnitsRetireUnit=function(guid) retired[#retired+1]=guid end}, {__index=_G})
-local management=assert(loadfile(root.."UnitManagement.lua","t",env))()
+local management=assert(loadfile(root.."Units/UnitManagement.lua","t",env))()
 env.resourceUnitsSpentCommands=management.spentCommands
 env.resourceUnitsSetCommandSpent=management.setCommandSpent
 eq(management.commandSpent("token"),false,"Fresh Command")
@@ -31,7 +31,7 @@ env.unitHistoryCancelReadySource=function(key)
     cancelled[#cancelled+1]=key
     env.gStates.unitReadyLinks[key]=nil
 end
-local scan=assert(loadfile(root.."UnitScan.lua","t",env))()
+local scan=assert(loadfile(root.."Units/UnitScan.lua","t",env))()
 local records={abc={complete=true,powered=true}}
 local totals={influence=5}
 local spent,rescan=scan.payReadyInfluence({records=records,totals=totals})

@@ -22,7 +22,7 @@ end
 
 local data=source("src/Data.lua")
 local recognition=source("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-local skillInteractions=source("src/PlayingGame/PlayerBoard/ResourceTracker/SkillInteractions.lua")
+local skillInteractions=source("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/SkillInteractions.lua")
 eq(data:find('["e45fdf"]={untracked=true}',1,true)~=nil,true,
     "Whisper in the Treetops has explicit blue/untracked tracker definition")
 eq(data:find('attackPhaseFallback=true',1,true)~=nil,true,
@@ -81,7 +81,7 @@ gStates={turnNumber=1,currentRound=9,doingTheRounds={},
     coopCompSkillActivation={}}
 turnOrder={{seatPos=1,avatarLocation="plains"},{seatPos=2,avatarLocation="plains"}}
 resourceCardScanBySeat={}
-trackerPrivate={combatInteraction=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/CombatInteraction.lua")}
+trackerPrivate={combatInteraction=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/CombatInteraction.lua")}
 package.path="src/?.lua;"..package.path
 section(recognition,'trackerPrivate.movementEffects=require(',
     "local function clearHighlight(guid)","trackerPrivate.movementEffects")

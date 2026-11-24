@@ -14,7 +14,7 @@ local env={
     attackAssignmentsTargetGUIDs=function(key) return arrows[key] or {} end
 }
 setmetatable(env,{__index=_G})
-local recover=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/SourceTargetAllocation.lua")(env.attackAssignmentsTargetGUIDs).recoverTarget
+local recover=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/SourceTargetAllocation.lua")(env.attackAssignmentsTargetGUIDs).recoverTarget
 local function target(source,rows) return recover(source,rows,state) end
 local source={key="rage"}
 local rows={left=1,right=2}

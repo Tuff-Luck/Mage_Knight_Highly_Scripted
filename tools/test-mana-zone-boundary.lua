@@ -33,13 +33,13 @@ local env=setmetatable({
 },{__index=_G})
 env.require=function(name)
     local modules={
-        ["PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects"]="src/PlayingGame/PlayerBoard/ResourceTracker/PhysicalObjects.lua",
-        ["PlayingGame.PlayerBoard.ResourceTracker.ManaPayments"]="src/PlayingGame/PlayerBoard/ResourceTracker/ManaPayments.lua"
+        ["PlayingGame.PlayerBoard.ResourceTracker.Scanning.PhysicalObjects"]="src/PlayingGame/PlayerBoard/ResourceTracker/Scanning/PhysicalObjects.lua",
+        ["PlayingGame.PlayerBoard.ResourceTracker.Scanning.ManaPayments"]="src/PlayingGame/PlayerBoard/ResourceTracker/Scanning/ManaPayments.lua"
     }
     return assert(loadfile(assert(modules[name],"Unexpected payment dependency"),"t",env))()
 end
 assert(load(table.concat({
-    section('local manaColor=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").manaColor','factionRewardForObject=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").factionRewardForObject'),
+    section('local manaColor=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.PhysicalObjects").manaColor','factionRewardForObject=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.PhysicalObjects").factionRewardForObject'),
     section("function magicTalentSpellCastingPaid(","-- A powered link grants"),
     section("function resourceCardsMaximalEffectSourceManaGUIDs(","-- One shared linked-throw decision")
 },"\n"),"Zone-bound mana","t",env))()

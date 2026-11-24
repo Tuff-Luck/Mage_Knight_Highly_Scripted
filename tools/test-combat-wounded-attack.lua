@@ -25,15 +25,15 @@ combatEnemyHasTrait=function() return false end
 combatRich=function(value,color)
     return "<color="..color..">"..value.."</color>"
 end
-local attackTotal=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/EnemyDefences.lua")(combatConfig).attackTotal
-local eligibility=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/AttackEligibility.lua")(combatConfig,
+local attackTotal=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EnemyDefences.lua")(combatConfig).attackTotal
+local eligibility=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/AttackEligibility.lua")(combatConfig,
     function(seat) return seat~=nil and resourceCardScanBySeat~=nil and resourceCardScanBySeat[seat] or nil end,
     function(guid) return gameCards~=nil and gameCards[guid] or nil end,
     function(key) return cardResourceDefinitions~=nil and cardResourceDefinitions[key] or nil end,
     function(guid) return getObjectFromGUID(guid) end)
 local paralysisCards=eligibility.paralysisAttackCards
 local eligibleSources=eligibility.attackPhaseSources
-local resultLine=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/CombatDisplay.lua")(combatConfig,combatRich,nil).groupAttackLine
+local resultLine=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CombatDisplay.lua")(combatConfig,combatRich,nil).groupAttackLine
 local function total(sources)
     return attackTotal({
         {sources=sources,category="attack"},
@@ -62,7 +62,7 @@ eq(sources[3].resources.attack,2,"excluded source remains available for undo")
 -- The physical calculateCard record must carry a kind. This was previously
 -- absent, so the filter saw nil for *every* played Attack card and treated
 -- Knockout/Paralysis as warnings only.
-local cardFile=assert(io.open("src/PlayingGame/PlayerBoard/ResourceTracker/CardEffects.lua","r"))
+local cardFile=assert(io.open("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/CardEffects.lua","r"))
 local cardSource=cardFile:read("*a")
 cardFile:close()
 assert(cardSource:find('return {guid=card.guid,kind="card",known=known',1,true),
@@ -168,16 +168,16 @@ eq(total(eligibleSources(postDamage,{},postInvalid)),7,
     "later legal card and Wound attack remain usable")
 -- The rendered Result must use the exact total from the defeat calculation,
 -- never a fresh calculation over group.sources.
-local lateFile=assert(io.open("src/PlayingGame/PlayerBoard/ResourceTracker/LateCombatPhase.lua","r"))
+local lateFile=assert(io.open("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/LateCombatPhase.lua","r"))
 local latePhase=lateFile:read("*a")
 lateFile:close()
 assert(latePhase:find("group.attackTotal=meleeTotal",1,true),"save authoritative post-Damage Attack")
-local rowFile=assert(io.open("src/PlayingGame/PlayerBoard/ResourceTracker/CombatRowRenderer.lua","r"))
+local rowFile=assert(io.open("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CombatRowRenderer.lua","r"))
 local rowRenderer=rowFile:read("*a")
 rowFile:close()
 assert(rowRenderer:find("combatGroupAttackLine(group.attackTotal,group.attackArmour)",1,true),
     "Result uses authoritative Attack total")
-local resourceFile=assert(io.open("src/PlayingGame/PlayerBoard/ResourceTracker/CombatResourceDisplay.lua","r"))
+local resourceFile=assert(io.open("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CombatResourceDisplay.lua","r"))
 local resourceDisplay=resourceFile:read("*a")
 resourceFile:close()
 assert(resourceDisplay:find("wounded=wounded,paralysisCard=paralysisCard,ineffective=paralysisCard",1,true),

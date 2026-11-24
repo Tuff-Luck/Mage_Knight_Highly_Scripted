@@ -24,7 +24,7 @@ activations.multiple.uses={{index=1,frozenCounts={red=1},lastCounts={blue=1}},
     {index=2,lastCounts={red=2}}}
 records[key("multiple",2)]={complete=true}
 records[key("incomplete",1)].complete=false
-local calculate=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/UnitSelfWounds.lua")(
+local calculate=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Units/UnitSelfWounds.lua")(
     function(guid) return abilities[guid] end,
     function(guid,activation) return activation.uses end,key,
     function(guid) if guid~="missing" then return {guid=guid} end end,

@@ -14,12 +14,12 @@ local function section(source,first,last)
 end
 local reader=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local assets=read("src/PlayingGame/UIAssets.lua")
-local unitControls=read("src/PlayingGame/PlayerBoard/ResourceTracker/UnitControls.lua")
-local cardOptions=read("src/PlayingGame/PlayerBoard/ResourceTracker/CardControlOptions.lua")
+local unitControls=read("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/UnitControls.lua")
+local cardOptions=read("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CardControlOptions.lua")
 
 assert(reader:find('if moveAmount>0 and resourceCardsMoveRole(guid,true)=="combat" then',1,true),
     "Only combat-role Move can become a Calculator source")
-assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/SourceTargetAllocation.lua"):find('combatAssignmentState.explicit[source.key]=autoCombatMove and targetGUID~=nil or nil',
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/SourceTargetAllocation.lua"):find('combatAssignmentState.explicit[source.key]=autoCombatMove and targetGUID~=nil or nil',
     1,true),"Default Cumbersome target must reserve the Move pool")
 assert(cardOptions:find('combatEntry.icon="block"',1,true)
     and cardOptions:find('combatEntry.stackedIcons={"block","move"}',1,true)
@@ -28,8 +28,8 @@ assert(cardOptions:find('combatEntry.icon="block"',1,true)
 assert(cardOptions:find('entry.stackedIcons={"block","influence"}',1,true)
     and cardOptions:find('if category=="influence" and combatPsychicActive',1,true),
     "Psychic Block option must use full-size shield + Influence icons")
-assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua"):find('image=stackedAsset.name,width=82,height=82',1,true)
-    and read("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua"):find('for _,stackedIcon in ipairs(entry.stackedIcons)',1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CardControls.lua"):find('image=stackedAsset.name,width=82,height=82',1,true)
+    and read("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CardControls.lua"):find('for _,stackedIcon in ipairs(entry.stackedIcons)',1,true),
     "Composite icons must reuse Tempered Steel's full-size stacked rendering")
 assert(cardOptions:find('if combatCalcOn and combatCumbersomeActive then',1,true)
     and cardOptions:find('if selected~=nil and combatCalcOn and combatCumbersomeActive',1,true),
@@ -37,7 +37,7 @@ assert(cardOptions:find('if combatCalcOn and combatCumbersomeActive then',1,true
 assert(unitControls:find('if combatMoveAvailable then',1,true)
     and unitControls:find('if combatMoveAvailable\n',1,true),
     "Unit Combat Move must disappear when no Cumbersome enemy is available")
-assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua"):find('..":PSY:"..tostring(combatPsychicActive)',1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CardControls.lua"):find('..":PSY:"..tostring(combatPsychicActive)',1,true),
     "Card icons must refresh when the last Psychic attacker disappears")
 assert(unitControls:find('local shield=resourceCardsChoiceIcon("block")',1,true)
     and unitControls:find('local movement=resourceCardsChoiceIcon("move")',1,true),
@@ -74,7 +74,7 @@ local env={
 }
 setmetatable(env,{__index=_G})
 local nearest=assert(load(nearestCode.."\nreturn combatNearestEnemyGUID","Nearest enemy","t",env))()
-local evaluator=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/SourceTargetAllocation.lua")(
+local evaluator=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/SourceTargetAllocation.lua")(
     env.attackAssignmentsTargetGUIDs,env.attackAssignmentsClearForObject,
     env.resourceCardsCombatTargetAcceptsSource,env.combatGUIDHasCumbersome,nearest).resolveTarget
 local entries={

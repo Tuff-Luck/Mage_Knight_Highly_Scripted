@@ -28,12 +28,12 @@ local renderGuard=section(source,"local function renderSeat(seatPos)",
     "    trackerPrivate.renderCombatNight=nil")
 local choiceCode=section(source,"local currentChoice=trackerPrivate.choicePolicy.currentChoice",
     "local chosenEffect=trackerPrivate.choicePolicy.chosenEffect")
-assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/ObjectEvents.lua"):find("trackerPrivate.playCardMovements[obj.guid]~=nil then",1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Core/ObjectEvents.lua"):find("trackerPrivate.playCardMovements[obj.guid]~=nil then",1,true),
     "Dropped card must first finish its relocation")
-assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/ObjectEvents.lua"):find("resourceCardsObjectMoved(live,true)",1,true)
-    and read("src/PlayingGame/PlayerBoard/ResourceTracker/ObjectEvents.lua"):find('if not stabilized and obj.type~="Dice"',1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Core/ObjectEvents.lua"):find("resourceCardsObjectMoved(live,true)",1,true)
+    and read("src/PlayingGame/PlayerBoard/ResourceTracker/Core/ObjectEvents.lua"):find('if not stabilized and obj.type~="Dice"',1,true),
     "Stable falling cards must not restart the relocation watcher")
-assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/TrackerLifecycle.lua"):find("trackerPrivate.playCardMovements={}\n    trackerPrivate.cardUIRecheckSerial={}\n    resourceCardScanBySeat={}",1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Core/TrackerLifecycle.lua"):find("trackerPrivate.playCardMovements={}\n    trackerPrivate.cardUIRecheckSerial={}\n    resourceCardScanBySeat={}",1,true),
     "Disabling tracker must cancel relocation watches")
 
 local pos={x=0,y=5,z=0,[1]=0,[2]=5,[3]=0}
@@ -111,10 +111,10 @@ local env={
     end
 }
 setmetatable(env,{__index=_G})
-tracker.choicePolicy=require("PlayingGame.PlayerBoard.ResourceTracker.ResourceChoices")(tracker,
+tracker.choicePolicy=require("PlayingGame.PlayerBoard.ResourceTracker.Cards.ResourceChoices")(tracker,
     function() return env.selectedResourceByGUID end,{},env.cardPosture)
 env.trackerPrivate=env.trackerPrivate or {}
-env.trackerPrivate.objectEvents=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/ObjectEvents.lua","t",env))()
+env.trackerPrivate.objectEvents=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Core/ObjectEvents.lua","t",env))()
 local code=table.concat({matCode,resetCode,relocationCode,choiceCode,
     renderGuard,"    return true\nend",
     "return resourceCardsObjectPickedUp,trackerPrivate.finishPlayCardMove,"
@@ -235,7 +235,7 @@ local underEnv={
 }
 setmetatable(underEnv,{__index=_G})
 underEnv.trackerPrivate=underEnv.trackerPrivate or {}
-underEnv.trackerPrivate.objectEvents=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/ObjectEvents.lua","t",underEnv))()
+underEnv.trackerPrivate.objectEvents=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Core/ObjectEvents.lua","t",underEnv))()
 local under=assert(load(underCode.."\nreturn resourceCardsUnderAction",
     "Native Under action","t",underEnv))()
 local actionEnv={

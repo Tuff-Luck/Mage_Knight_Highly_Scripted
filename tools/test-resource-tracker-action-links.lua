@@ -1,6 +1,6 @@
 -- Direct regression of the physical Action pairing engine.
 package.path="src/?.lua;"..package.path
-local physical=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects")
+local physical=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.PhysicalObjects")
 local env=setmetatable({gameCards={},cardResourceDefinitions={
     concentration={poweredLink={mode="stronger",bonus=2}},
     willFocus={poweredLink={mode="stronger",bonus=3}},
@@ -27,7 +27,7 @@ local function wound(guid,x)
     return {guid=guid,posture="discard",getGMNotes=function() return "Wound" end}
 end
 local broken={}
-local resolve=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/ActionLinks.lua","t",env))()({
+local resolve=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/ActionLinks.lua","t",env))()({
     overlapArea=physical.overlapArea,cardPosture=function(c) return c.posture end,
     canPayDiscard=function(c) return not c.is_face_down and c.posture=="discard" end,
     resourceCardsArtifactBroken=function(guid,c) return broken[guid]==true or c.is_face_down==true end,

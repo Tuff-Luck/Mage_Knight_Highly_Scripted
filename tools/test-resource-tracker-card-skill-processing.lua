@@ -17,9 +17,9 @@ end
 local env=setmetatable({gameCards={},cardResourceDefinitions={},skillResourceDefinitions={},
     gStates={resourceCardPlayOrder={}},resourceCardsArtifactBroken=function() return false end},
     {__index=_G})
-local played=assert(loadfile(root.."PlayedCardScan.lua","t",env))()
-local interactions=assert(loadfile(root.."CardInteractions.lua","t",env))()
-local skillPass=assert(loadfile(root.."SkillInteractions.lua","t",env))()
+local played=assert(loadfile(root.."Cards/PlayedCardScan.lua","t",env))()
+local interactions=assert(loadfile(root.."Cards/CardInteractions.lua","t",env))()
+local skillPass=assert(loadfile(root.."Cards/SkillInteractions.lua","t",env))()
 local unit,action,following,skill=card("unit"),card("action"),card("following"),card("skill")
 env.gameCards.action={cardType="Advanced Action",resourceKey="action"}
 env.gameCards.following={cardType="Starting",resourceKey="following"}

@@ -16,21 +16,21 @@ end
 
 local data=source("src/Data.lua")
 local reader=source("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-local actionLinks=source("src/PlayingGame/PlayerBoard/ResourceTracker/ActionLinks.lua")
-local explosiveBolt=source("src/PlayingGame/PlayerBoard/ResourceTracker/ExplosiveBolt.lua")
+local actionLinks=source("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/ActionLinks.lua")
+local explosiveBolt=source("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/ExplosiveBolt.lua")
 
 -- Counterattack is a bonus per completely Blocked ENEMY, not per attack.
 contains(data,"blockedEnemyAttackBonus={normal=2,powered=3}","Counterattack amounts")
-contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/EarlyCombatPhase.lua"),"rowBlock[index].allBlocked","Every printed attack must be Blocked")
-contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/EarlyCombatPhase.lua"),"#combatEnemyAttacks(enemy)>0","No bonus from attackless enemies")
-contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/EarlyCombatPhase.lua"),"if not group.rangeDefeated then","No bonus from Ranged kills")
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EarlyCombatPhase.lua"),"rowBlock[index].allBlocked","Every printed attack must be Blocked")
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EarlyCombatPhase.lua"),"#combatEnemyAttacks(enemy)>0","No bonus from attackless enemies")
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EarlyCombatPhase.lua"),"if not group.rangeDefeated then","No bonus from Ranged kills")
 contains(reader,"combatConfig.blockedEnemyCounts[blockSeat]=blockedEnemies",
     "Dynamic Block count must be refreshed")
 
 -- Explosive Bolt generates conditional Armour reduction without adding
 -- unsupported numeric Ranged damage or altering the preceding Ranged phase.
 contains(data,"defeatArmourReduce=1","Explosive Bolt rule")
-contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/PlayedCardScan.lua"),'#explosiveAttack','Separate Armour target')
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/PlayedCardScan.lua"),'#explosiveAttack','Separate Armour target')
 contains(reader,'combatConfig.applyExplosiveBoltRange(entries,groups,allocated,sources)',
     "Explosive Bolt resolves before the Block phase")
 contains(explosiveBolt,'or combatEnemyHasTrait(target.data,target.perks,"arcaneImmunity")',
@@ -41,22 +41,22 @@ contains(explosiveBolt,'combatEnemyHasTrait(target.data,target.perks,"fResist")'
 contains(explosiveBolt,"math.max(1,member.baseArmour-delta)","Armour minimum one")
 contains(explosiveBolt,'member.rangeBaseArmour=math.max(1,',
     "Armour reduction also applies to subsequent Ranged-phase attacks")
-contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/CombatResourceDisplay.lua"),'icon="MKChoiceArmourReduction"',"Combat reduction icon")
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CombatResourceDisplay.lua"),'icon="MKChoiceArmourReduction"',"Combat reduction icon")
 
 -- Maximal Effect: 3 basic or 2 stronger repetitions, each with its
 -- own option and (for Improvisation/Ritual Attack) its own discard payment.
 contains(data,'normalCount=3,poweredCount=2',"Maximal Effect multipliers")
 contains(actionLinks,'hasDiscard[source.guid]=paid==need',"All copied costs must be paid")
 contains(actionLinks,'repeated.options[index]=linkedColorChoices',"Ritual Attack colors are independent")
-contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/CardInteraction.lua"),'selected.repeatChoices[repeatIndex]=category',"Independent choice buttons")
-contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/CardEffects.lua"),'value*repeatLink.count or value',"Repeated Reputation scales")
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/CardInteraction.lua"),'selected.repeatChoices[repeatIndex]=category',"Independent choice buttons")
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/CardEffects.lua"),'value*repeatLink.count or value',"Repeated Reputation scales")
 contains(actionLinks,'and (source.is_face_down~=true or repeated~=nil)',
     "Already thrown away copied Actions still resolve costs")
 
 -- Explicit Blood Rage Wound confirmation cannot be guessed from a
 -- prior resource total, nor reused for every Maximal Effect repetition.
 contains(data,'woundConfirmation=true',"Blood Rage manual payment")
-contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/ResourceChoices.lua"),
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/ResourceChoices.lua"),
     'rule.woundConfirmation==true and not sideways',
     "No initial Wound auto-selection")
 

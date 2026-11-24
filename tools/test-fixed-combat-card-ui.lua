@@ -23,7 +23,7 @@ assert(data:find('swiftness={normal={move=2},powered={ranged=3}}',1,true),
 local uiCode=extract(assets,"function resourceObjectUiSetTable(ui,xml,assets)",
     "-- Legacy shared artwork")
 local buttonCode=extract(reader,
-    'trackerPrivate.cardControlOptions=require("PlayingGame.PlayerBoard.ResourceTracker.CardControlOptions")',
+    'trackerPrivate.cardControlOptions=require("PlayingGame.PlayerBoard.ResourceTracker.Interface.CardControlOptions")',
     "-- One selected icon in the Unit's lower-left artwork margin")
 local letterCode=extract(reader,"local choiceLetters=",
     "-- The choice UI and initial-guess tie-breaks")

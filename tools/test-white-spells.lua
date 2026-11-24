@@ -56,7 +56,7 @@ eq(effects.immune.removeResist,false,"Arcane Immunity negates resistance removal
 -- Retargeting must preserve explicit arrows and reject face-down or
 -- attack-only reminder targets for defensive effects.
 local targets=between(reader,"local function combatEffectTargetEligible(spec)",
-    'trackerPrivate.unitEffects=require("PlayingGame.PlayerBoard.ResourceTracker.UnitEffects")')
+    'trackerPrivate.unitEffects=require("PlayingGame.PlayerBoard.ResourceTracker.Units.UnitEffects")')
 local targetLogic=assert(load([[
 local selected={}
 local function attackAssignmentsTargetGUIDs(key) return selected[key] or {} end
@@ -135,9 +135,9 @@ eq(possess.calculate({arcaneImmunity=true,attacks={{key="P",value=5}}},"immune")
 possess.block("second")
 eq(possess.calculate({attacks={{key="P",value=5}}},"second"),nil,
     "Perk Arcane Immunity blocks Possess")
-assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/PlayedCardScan.lua"):find("claimedPossessEnemies[guid]~=true",1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/PlayedCardScan.lua"):find("claimedPossessEnemies[guid]~=true",1,true),
     "One physical enemy cannot pay two Possess sources")
-assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/PlayedCardScan.lua"):find("{noAttack=true,all=true}",1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/PlayedCardScan.lua"):find("{noAttack=true,all=true}",1,true),
     "Borrowing an enemy suppresses its outgoing attack")
 
 -- Wings of Night: sequential targets spend cumulative Move exactly once;
@@ -146,10 +146,10 @@ local wings=rules.spellWingsNight
 local wingsStrong=assert(combatEffectSpec(wings,true,nil))
 eq(wingsStrong.noAttack,true,"Wings of Night suppression")
 eq(wingsStrong.multiTargetMove,true,"Wings of Night multi-target flow")
-assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/ScanFinalization.lua"):find("local cost=count",1,true),"Wings escalates each target cost")
-assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/ScanFinalization.lua"):find("if not immune and affordable then count=count+1 spent=spent+cost end",1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Scanning/ScanFinalization.lua"):find("local cost=count",1,true),"Wings escalates each target cost")
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Scanning/ScanFinalization.lua"):find("if not immune and affordable then count=count+1 spent=spent+cost end",1,true),
     "Only eligible targets count towards spent Move")
-assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/ScanFinalization.lua"):find("adjusted.move=original-used",1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Scanning/ScanFinalization.lua"):find("adjusted.move=original-used",1,true),
     "Wings actually consumes Move from its source")
 local wingsEffects={}
 combatEffectAdd(wingsEffects,"first","2eb8e9",
@@ -160,9 +160,9 @@ eq(wingsEffects.immune.noAttack,false,"Arcane Immunity prevents suppression")
 
 -- Call to Arms is a temporary borrowed Unit; Call to Glory is a one-use
 -- recruitment. The full physical browser is covered by test-call-offer.lua.
-assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/UnitScan.lua"):find('local spellRecord=records["2eb8e8"]',1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Units/UnitScan.lua"):find('local spellRecord=records["2eb8e8"]',1,true),
     "Borrowed Unit must depend on paid Call to Arms")
-assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/UnitScan.lua"):find("spellRecord.complete==true",1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Units/UnitScan.lua"):find("spellRecord.complete==true",1,true),
     "Unpaid Call to Arms cannot activate borrowed Unit")
 assert(offer:find("gStates.callOfferGloryClaimed=true",1,true),
     "Call to Glory cannot recruit multiple Units")

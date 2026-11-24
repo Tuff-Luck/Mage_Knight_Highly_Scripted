@@ -17,7 +17,7 @@ local env=setmetatable({
 },{__index=_G})
 local tracker={generation={[1]=1},pendingSeatRender={},pendingSeatSettles={},
     choiceResetGenerationByGUID={},playCardMovements={},readyForXZ=function(obj) return obj.ready end}
-local scheduler=assert(loadfile(root.."ScanScheduler.lua","t",env))()
+local scheduler=assert(loadfile(root.."Core/ScanScheduler.lua","t",env))()
 local renders=0
 local function render(seat) renders=renders+1 end
 local function schedule(seat) scheduler.schedule(seat,tracker,render) end
@@ -37,7 +37,7 @@ tracker.generation[1]=2
 tracker.pendingSeatRender={}
 frames[2]()
 eq(renders,1,"Old generation cannot render")
-local events=assert(loadfile(root.."ObjectEvents.lua","t",env))()
+local events=assert(loadfile(root.."Core/ObjectEvents.lua","t",env))()
 local original={card={effect="attack"}}
 local choices=original
 local expanded={card=true}

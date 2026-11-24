@@ -90,7 +90,7 @@ assert(combat:find("combatDefeatTracked[obj.guid]==true and combatDefeatDefeated
 local events=source("src/PlayingGame/PlayerBoard/Events.lua")
 assert(not events:find("incrementented in turn",1,true),"Master of Chaos state typo returned")
 local recognition=source("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/SkillInteractions.lua"):find("record.enemyEffectTargetKeys={skill.guid}",1,true),
+assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/SkillInteractions.lua"):find("record.enemyEffectTargetKeys={skill.guid}",1,true),
     "Curse targeting source must remain registered during selection")
 
 -- Execute the small, side-effect-free calculator helpers with mock data.
@@ -116,7 +116,7 @@ eq(combatEnemyEligibleAsDefeatedPuppet(token),false,"Untracked enemy rejected wh
 combatDefeatMarksActive=false
 eq(combatEnemyEligibleAsDefeatedPuppet(token),true,"Manual face-up fallback when calculator is closed")
 
-local damageResolve=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/DamageResolution.lua")(
+local damageResolve=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/DamageResolution.lua")(
     function(guid) return gameCards~=nil and gameCards[guid] or nil end,
     function(owner,summoner)
         local records=gStates~=nil and gStates.attackedMonsters or nil

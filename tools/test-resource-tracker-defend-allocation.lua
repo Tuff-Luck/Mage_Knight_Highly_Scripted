@@ -2,7 +2,7 @@
 local root="src/PlayingGame/PlayerBoard/"
 local cfg={attackTypes={{key="P",attack="attack",ranged="ranged",siege="siege"}},
     artifactCombat={},bowSourceModes={}}
-local defences=dofile(root.."ResourceTracker/EnemyDefences.lua")(cfg)
+local defences=dofile(root.."ResourceTracker/Combat/EnemyDefences.lua")(cfg)
 local function read(path)
     local f=assert(io.open(path,"r"))
     local text=f:read("*a")
@@ -16,7 +16,7 @@ local env=setmetatable({combatEnemyFortificationCount=defences.fortificationCoun
     combatAttackTotal=defences.attackTotal,combatEnemyHasTrait=defences.hasTrait,
     gStates={}},{__index=_G})
 local range=assert(load(text:sub(first,last-1).."\nreturn combatRangeResult","range","t",env))()
-local allocate=dofile(root.."ResourceTracker/DefendAllocation.lua")(defences,range)
+local allocate=dofile(root.."ResourceTracker/Combat/DefendAllocation.lua")(defences,range)
 local function eq(actual,expected,label)
     assert(actual==expected,label..": expected "..tostring(expected)..", got "..tostring(actual))
 end

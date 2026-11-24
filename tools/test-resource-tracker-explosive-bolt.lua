@@ -2,7 +2,7 @@
 local root="src/PlayingGame/PlayerBoard/"
 local cfg={attackTypes={{key="P",attack="attack",ranged="ranged",siege="siege"}},
     artifactCombat={},bowSourceModes={}}
-local defences=dofile(root.."ResourceTracker/EnemyDefences.lua")(cfg)
+local defences=dofile(root.."ResourceTracker/Combat/EnemyDefences.lua")(cfg)
 local function read(path)
     local f=assert(io.open(path,"r"))
     local value=f:read("*a")
@@ -16,9 +16,9 @@ local env=setmetatable({combatEnemyFortificationCount=defences.fortificationCoun
     combatAttackTotal=defences.attackTotal,combatEnemyHasTrait=defences.hasTrait,
     gStates={}},{__index=_G})
 local range=assert(load(text:sub(first,last-1).."\nreturn combatRangeResult","range","t",env))()
-local defend=dofile(root.."ResourceTracker/DefendAllocation.lua")(defences,range)
+local defend=dofile(root.."ResourceTracker/Combat/DefendAllocation.lua")(defences,range)
 local targets,saved,calls={},{},{}
-local apply=dofile(root.."ResourceTracker/ExplosiveBolt.lua")(
+local apply=dofile(root.."ResourceTracker/Combat/ExplosiveBolt.lua")(
     function(entries,groups,allocated) return defend(entries,groups,allocated,env.gStates.forkedLightningPhase) end,
     defences.rangeGroupEntry,range,defences.hasTrait,
     function(key) return targets[key] end,

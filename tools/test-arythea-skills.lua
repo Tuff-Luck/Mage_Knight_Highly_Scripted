@@ -88,7 +88,7 @@ assert(data:find('["3fba07"]={partial=true,linkedCard={targetKind="wound"',1,tru
     "Ritual of Pain must remain a Wound-only Skill link")
 assert(data:find("requiresCirculation=true,sideways={value=3}",1,true),
     "Ritual of Pain must require its following-turn circulation")
-local skillLinks=source("src/PlayingGame/PlayerBoard/ResourceTracker/SkillLinks.lua")
+local skillLinks=source("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/SkillLinks.lua")
 assert(skillLinks:find("(gStates.doingTheRounds or {})[skill.guid]~=nil",1,true),
     "Linked Wound must check the live circulation state")
 print("Arythea and shared Motivation regression checks passed")

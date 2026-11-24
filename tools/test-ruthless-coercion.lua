@@ -66,7 +66,7 @@ eq(bonus(guid,rule,basic),0,"Unselecting removes extra Influence")
 
 -- The bonus must be applied before the resource scan adds the card's
 -- contribution to totals, rather than directly changing the Unit offer.
-local playedCards=read("src/PlayingGame/PlayerBoard/ResourceTracker/PlayedCardScan.lua")
+local playedCards=read("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/PlayedCardScan.lua")
 local bonusCall=assert(playedCards:find(
     "local recruitBonus=resourceCardsRecruitInfluenceBonus(card.guid,rule,result)",1,true))
 local addTotals=assert(playedCards:find("addResourceAmounts(result,totals)",bonusCall,true))
@@ -90,7 +90,7 @@ env.resourceCardsSourceChanged=function() refreshes=refreshes+1 end
 env.turnOrder={{seatPos=1}}
 env.resourceCardScanBySeat={[1]={cards={[guid]=basic}}}
 env.trackerPrivate=env.trackerPrivate or {}
-env.trackerPrivate.cardInteraction=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/CardInteraction.lua","t",env))()
+env.trackerPrivate.cardInteraction=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/CardInteraction.lua","t",env))()
 assert(load(clickCode.."\nreturn resourceCardsStartingCardControlClicked",
     "Ruthless button click","t",env))()
 env.resourceCardsStartingCardControlClicked({color="Red"},"1",
@@ -142,8 +142,8 @@ priorSpent=true
 eq(eligible(1,2),true,"Prior-turn spent Unit remains eligible")
 priorSpent=false
 eq(eligible(1,2),false,"An unrecorded Unit is not a valid target")
-assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua"):find("and (canReadyUnit or readyCount>0) then",1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CardControls.lua"):find("and (canReadyUnit or readyCount>0) then",1,true),
     "Ready button must hide without targets but remain available for undo")
-assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua"):find('..":READY_ELIGIBLE:"..tostring(canReadyUnit)',1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CardControls.lua"):find('..":READY_ELIGIBLE:"..tostring(canReadyUnit)',1,true),
     "Ready UI signature must respond to changes in Unit eligibility")
 print("Ruthless Coercion recruitment and Ready visibility regressions passed")

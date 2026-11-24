@@ -25,7 +25,7 @@ local recognition=source("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local assignments=source("src/PlayingGame/AttackAssignments.lua")
 
 -- A forced Unit assignment overrides Assassination; a voluntary one does not.
-local resolve=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/DamageResolution.lua")(
+local resolve=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/DamageResolution.lua")(
     function(guid) return gameCards~=nil and gameCards[guid] or nil end,
     function(owner,summoner)
         local records=gStates~=nil and gStates.attackedMonsters or nil
@@ -84,14 +84,14 @@ assert(assignments:find("(freeUnit and not attack.assassination)",1,true),
     "unrelated voluntary Unit assignment still disallowed against Assassination")
 
 -- Illusionists must use the same site/wall suppression as the combat calculator.
-local defences=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/EnemyDefences.lua")({})
+local defences=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EnemyDefences.lua")({})
 combatEnemyHasTrait=defences.hasTrait
 combatEnemyFortificationCount=defences.fortificationCount
 local enemyData={}
 gStates={monsterPerks={}}
 combatEnemyData=function() return enemyData,"enemy" end
 combatEffectOf=function() return nil end
-local policy=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/CombatTargetPolicy.lua")
+local policy=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/CombatTargetPolicy.lua")
 local function eligible(data,perks,demolish,effect)
     enemyData=data
     gStates.monsterPerks.enemy=perks
@@ -124,9 +124,9 @@ eq(eligible({attackOnly=true},nil,true),false,
     "attack-only reminders remain ineligible")
 
 -- Both the current scan and manual retargeting must pass Demolish state.
-assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/CombatTargetPolicy.lua"):find("scan~=nil and scan.ignoreSiteFortifications==true",1,true),
+assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/CombatTargetPolicy.lua"):find("scan~=nil and scan.ignoreSiteFortifications==true",1,true),
     "manual target callback must carry Demolish state")
-assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/UnitScan.lua"):find(
+assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/Units/UnitScan.lua"):find(
     "resourceCardsEnemyEffectivelyUnfortified(guid,enemyEffects,\n                    ignoreSiteFortifications)",1,true),
     "automatic target scan must carry Demolish state")
 print("Level II Shocktroops and Illusionists regressions passed")

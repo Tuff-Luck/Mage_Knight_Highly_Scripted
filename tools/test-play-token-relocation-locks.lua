@@ -16,9 +16,9 @@ end
 local src=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local geometry=section(src,"trackerPrivate.zoneFootprintContainsXZ=require(",
     "local footprint=require(")
-local readiness=section(src,'local manaColor=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").manaColor',
+local readiness=section(src,'local manaColor=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.PhysicalObjects").manaColor',
     "-- Magic Talent's strong side")
-local kinds=section(src,'local resourceObjectKind=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").resourceObjectKind',
+local kinds=section(src,'local resourceObjectKind=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.PhysicalObjects").resourceObjectKind',
     "-- A NightRules token")
 local pickup=section(src,"function resourceCardsObjectPickedUp(obj)",
     "function resourceCardsZoneEntered(ctx)")
@@ -86,13 +86,13 @@ local env={
 }
 setmetatable(env,{__index=_G})
 env.require=function(name)
-    assert(name=="PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects", "Unexpected recognition dependency")
-    return assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/PhysicalObjects.lua","t",env))()
+    assert(name=="PlayingGame.PlayerBoard.ResourceTracker.Scanning.PhysicalObjects", "Unexpected recognition dependency")
+    return assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Scanning/PhysicalObjects.lua","t",env))()
 end
 local source=table.concat({geometry,readiness,kinds,pickup,drop,
     "return resourceObjectKind,resourceCardsObjectPickedUp,trackerPrivate.finishPlayCardMove"},"\n")
 env.trackerPrivate=env.trackerPrivate or {}
-env.trackerPrivate.objectEvents=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/ObjectEvents.lua","t",env))()
+env.trackerPrivate.objectEvents=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Core/ObjectEvents.lua","t",env))()
 local kindOf,onPickup,finish=assert(load(source,"Skill and reward relocation","t",env))()
 assert(kindOf(skill)=="skill","Skill token must be a tracked source")
 assert(kindOf(reward)=="factionReward","Faction Reward must be a tracked source")

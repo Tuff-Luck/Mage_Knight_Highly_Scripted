@@ -15,11 +15,11 @@ local states={resourceTracker={}}
 local env=setmetatable({
     trackerPrivate={},selectedResourceByGUID=selected,
     resourceCardScanBySeat=scans,gStates=states,
-    cardPosture=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").cardPosture
+    cardPosture=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.PhysicalObjects").cardPosture
 },{__index=_G})
 env.require=function(name)
-    assert(name=="PlayingGame.PlayerBoard.ResourceTracker.ResourceChoices")
-    return assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/ResourceChoices.lua","t",env))()
+    assert(name=="PlayingGame.PlayerBoard.ResourceTracker.Cards.ResourceChoices")
+    return assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/ResourceChoices.lua","t",env))()
 end
 local policy=assert(load(table.concat({
     section("trackerPrivate.resourceTotalsKeyByField={","trackerPrivate.attackTransformFamilies="),

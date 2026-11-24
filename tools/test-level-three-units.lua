@@ -74,11 +74,11 @@ eq(applied.ice.applied[1].iceResistant,true,"Retain resistance for red UI")
 eq(applied.ice.applied[1].spec.armourReduce,3,"Retain printed effect in tooltip")
 
 local reader=source("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-local payment=require("PlayingGame.PlayerBoard.ResourceTracker.ManaPayments")
+local payment=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.ManaPayments")
 local daytime=false
 local function resourceCardsGoldAllowed() return daytime end
 local function resourceCardsBlackAllowed() return not daytime end
-local unitManaDecision=require("PlayingGame.PlayerBoard.ResourceTracker.UnitChoices")({
+local unitManaDecision=require("PlayingGame.PlayerBoard.ResourceTracker.Units.UnitChoices")({
     unitManaCounts=function() error("Explicit test counts required") end,
     unitManaSignature=function(counts)
         return payment.unitManaSignature(counts,resourceCardsGoldAllowed,resourceCardsBlackAllowed)
@@ -133,7 +133,7 @@ local targetFunctions=slice(reader,
     "local function unitAbilityTargetCategory(ability)",
     "-- The printed normal and powered effects share one choice")
 local buttonFunction=slice(reader,
-    'local showUnitAbilityButtons=require("PlayingGame.PlayerBoard.ResourceTracker.UnitControls")({',
+    'local showUnitAbilityButtons=require("PlayingGame.PlayerBoard.ResourceTracker.Interface.UnitControls")({',
     "local function clearChoiceButtons()")
 local moveRole=slice(reader,"local function resourceCardsMoveRole(guid,assign)",
     "function resourceCardsEnemyPresent()")
@@ -210,9 +210,9 @@ ui.collapse(catUnit.guid) -- Choice click restores the ordinary target button.
 catUi=ui.render(catUnit,catapults,selectedBlue,1)
 assert(hasButton(catUi,"AttackAssignmentSource_1aa68c_0_siegeIce"),
     "Selected Catapults Siege has a single enemy target")
-assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/UnitManagement.lua"):find("allowed[unitHistoryKey(unit.guid,useIndex)]=true",1,true),
+assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/Units/UnitManagement.lua"):find("allowed[unitHistoryKey(unit.guid,useIndex)]=true",1,true),
     "Switching Sorcerers' effects must preserve their numeric ranged target")
-assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/UnitControls.lua"):find('targetSpecs[1].index==targetSpecs[2].index',1,true),
+assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/UnitControls.lua"):find('targetSpecs[1].index==targetSpecs[2].index',1,true),
     "Separate Ranged/effect buttons should be distinguishable")
 
 print("Level III Freezers, Sorcerers and Catapults regressions passed.")

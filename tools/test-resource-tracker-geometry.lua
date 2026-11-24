@@ -1,7 +1,7 @@
 -- Verify the actual extracted physical geometry, including boundary values.
 -- Run from repository root: lua5.2 tools/test-resource-tracker-geometry.lua
 package.path="src/?.lua;"..package.path
-local physical=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects")
+local physical=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.PhysicalObjects")
 local function eq(actual,expected,label)
     assert(actual==expected,(label or "Mismatch")..": expected "..tostring(expected)..
         ", got "..tostring(actual))

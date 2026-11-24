@@ -52,9 +52,9 @@ contains(assignments, 'pending.sourceGUID~="4ac9f6"',
     "Summoned enemy can be targeted with cooperative Vengeance")
 contains(assignments, 'pending.sourceGUID~="19daf9"',
     "Summoned enemy can be targeted with competitive Vengeance")
-contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/DefendAllocation.lua"), 'item.source.forkedLightning',
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/DefendAllocation.lua"), 'item.source.forkedLightning',
     "Forked Lightning stays in one phase")
-contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/CombatTargetPolicy.lua"), 'sourceKey:match("^d01b70#fork%d+$")',
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/CombatTargetPolicy.lua"), 'sourceKey:match("^d01b70#fork%d+$")',
     "Forked Lightning duplicate target is forbidden")
 
 -- Arcane Immunity does not stop Attack reduction / granting Cumbersome.
@@ -130,13 +130,13 @@ eq(defeated,false,"Melee-phase bolts wait until regular Attack phase")
 -- damage value remains unchanged when that Block fails.
 combatConfig=combatConfig or {}
 combatConfig.COMBAT_EFFICIENT_BLOCKS={P={block=true}}
-local blockSolver=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/BlockSolver.lua")(combatConfig).solve
+local blockSolver=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/BlockSolver.lua")(combatConfig).solve
 local blockItem={source={key="test"},key="block",value=4,part=1}
 local plan=blockSolver({{key="P",value=4}}, {blockItem}, 0)
 eq(plan[1].blocked,true,"Four Block covers a normal Attack of four")
 plan=blockSolver({{key="P",value=5,damageValue=4}}, {blockItem}, 0)
 eq(plan[1].blocked,false,"Competitive +1 raises Block requirement to five")
-local blockResultsSource=source("src/PlayingGame/PlayerBoard/ResourceTracker/BlockResults.lua")
+local blockResultsSource=source("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/BlockResults.lua")
 contains(blockResultsSource, 'attack.damageValue=attack.value',
     "Block-only penalty preserves original attack damage")
 contains(blockResultsSource, '(attack.damageValue or attack.value)-step.reduction',
@@ -163,7 +163,7 @@ eq(competitive(),0,"Expired competitive reminder has no bonus")
 
 -- Damage prevention happens AFTER Unit assignment and Brutal multiplication,
 -- is limited to a single attack, and works independently of Battle Hardened.
-local resolve=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/DamageResolution.lua")(
+local resolve=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/DamageResolution.lua")(
     function(guid) return gameCards~=nil and gameCards[guid] or nil end,
     function(owner,summoner)
         local records=gStates~=nil and gStates.attackedMonsters or nil

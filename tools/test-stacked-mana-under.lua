@@ -38,7 +38,7 @@ local footprints={
     blue2={x=1.3,z=0,halfX=1.5,halfZ=1.5}
 }
 local tracker={}
-local select=require("PlayingGame.PlayerBoard.ResourceTracker.ManaPayments").bestManaCard
+local select=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.ManaPayments").bestManaCard
 local function colorMatches(card,color)
     return color=="Gold" or (color=="Blue" and card.guid~="green")
         or (color=="Green" and card.guid=="green")
@@ -107,7 +107,7 @@ local env={
 }
 setmetatable(env,{__index=_G})
 env.trackerPrivate=env.trackerPrivate or {}
-env.trackerPrivate.objectEvents=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/ObjectEvents.lua","t",env))()
+env.trackerPrivate.objectEvents=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Core/ObjectEvents.lua","t",env))()
 local under=assert(load(zoneCode.."\n"..underCode
     .."\nreturn resourceCardsUnderAction","Under mana recovery","t",env))()
 under({blue})

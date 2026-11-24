@@ -3,7 +3,7 @@ package.path="src/?.lua;"..package.path
 local tracker={sidewaysChoices={{move=1},{attack=1}},totalsKeys={attack=true,move=true,block=true,blockFire=true,blockIce=true}}
 local cfg={blockedEnemyCounts={[1]=2},compositePhasesMatch=function() return true end}
 local selected={}
-local choice=require("PlayingGame.PlayerBoard.ResourceTracker.ResourceChoices")(tracker,function() return selected end,{},nil)
+local choice=require("PlayingGame.PlayerBoard.ResourceTracker.Cards.ResourceChoices")(tracker,function() return selected end,{},nil)
 local attached=nil
 tracker.bannerAttachedCardResult=function() return attached end
 local day=true
@@ -20,7 +20,7 @@ local env=setmetatable({
         manual={normal={move=2},manualSecondary=true}
     },gStates={turnNumber=1},turnOrder={{seatPos=1}}
 },{__index=_G})
-local calc=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/CardEffects.lua","t",env))()({
+local calc=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/CardEffects.lua","t",env))()({
     trackerPrivate=tracker,combatConfig=cfg,chosenEffect=choice.chosenEffect,cardPosture=function(c) return c.posture end,
     cardCanPlaySideways=function(c) return not c.is_face_down end,sideChoices=choice.sideChoices,
     currentLandBlockValue=function() return terrainValue end,resourceCardsUsesDayMana=function() return day end,
@@ -64,7 +64,7 @@ env.gameCards={new={cardType="Starting",resourceKey="rage"}}
 assert(card("new",true).resources.attack==4,"Read replaced catalog live")
 -- A played-card record may borrow its printed resource table. The actual
 -- coordinator's Tirelessness pass must not modify that catalog on rescan.
-local sourceFile=assert(io.open("src/PlayingGame/PlayerBoard/ResourceTracker/CardInteractions.lua","r"))
+local sourceFile=assert(io.open("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/CardInteractions.lua","r"))
 local source=sourceFile:read("*a")
 sourceFile:close()
 local first=assert(source:find("-- Wolfhawk's Tirelessness affects only subsequently PLAYED cards",1,true))

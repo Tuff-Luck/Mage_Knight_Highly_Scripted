@@ -139,7 +139,7 @@ eq(payment.matches(card,"Black"),true,"Dungeon permits Night Black")
 -- Mana Bolt/Thunderbolt has three independent physical mana roles: cast,
 -- stronger side, and elemental choice. No physical mana can pay twice.
 package.path="src/?.lua;"..package.path
-local possibilities=require("PlayingGame.PlayerBoard.ResourceTracker.ManaPayments").effectManaPossibilities
+local possibilities=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.ManaPayments").effectManaPossibilities
 local spec=defs.spellManaBolt.effectManaChoice
 local function mana(guid,color) return {guid=guid,color=color} end
 local options,wildcard=possibilities(spec,
@@ -157,9 +157,9 @@ options,wildcard=possibilities(spec,
     {mana("cast","Blue"),mana("effect","Gold")},false,true)
 eq(wildcard,true,"Daytime Gold may select a basic elemental effect")
 
-assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/PlayedCardScan.lua"):find('spellCastingPaid[card.guid]==true',1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/PlayedCardScan.lua"):find('spellCastingPaid[card.guid]==true',1,true),
     "Printed Spell resources need an actual casting payment")
-assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/CardEffects.lua"):find('local costPaid=(data==nil or data.cardType~="Spell" or spellCastPaid==true)',1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/CardEffects.lua"):find('local costPaid=(data==nil or data.cardType~="Spell" or spellCastPaid==true)',1,true),
     "Unpaid Spell must not enter the calculator")
 
 print("Spell catalogue and shared mana regressions passed (24 pairs / 28 cards)")

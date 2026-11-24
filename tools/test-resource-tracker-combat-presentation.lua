@@ -11,14 +11,14 @@ end
 local function icon(id,active,amount,image,tooltip,selected,color,wounded,ineffective)
     icons[id]={active=active,amount=amount,tooltip=tooltip,selected=selected,wounded=wounded,ineffective=ineffective}
 end
-local layout=dofile(root.."CombatPanelLayout.lua")
+local layout=dofile(root.."Interface/CombatPanelLayout.lua")
 local cfg={rowCount=2,slotCount=12,lineSlotCount=6,rowHeight=30,
     columns={Result=255},traitColumnWidth=layout.traitColumnWidth,
     textColumnWidth=layout.textColumnWidth,enemyNameColumnWidth=layout.enemyNameColumnWidth,
     effectSources={},slotBowFamilies={},slotSelection={},resultRowCache={},
     artifactCombat={},typeColors={P={"white","grey"}},COMBAT_GREEN="green",COMBAT_RED="red"}
 local function rich(s) return s end
-local panel=dofile(root.."CombatPanelRenderer.lua")(cfg,set,rich,
+local panel=dofile(root.."Interface/CombatPanelRenderer.lua")(cfg,set,rich,
     function(n) return tostring(n).." Wounds" end,function(lines) return table.concat(lines," ") end)
 local widths,w=panel.columns({"None","Resist"},{"","-"},{"P 3",""},
     {range=false,block=true,attack=false},{range=0,block=8,attack=0},100)
@@ -51,7 +51,7 @@ cfg.effectButtonInfo=function(entry,applied)
         arrow="other",requiresDefence=true,amount="-1",icon="effect",text="Armour -1"}
 end
 cfg.mitigationButtonInfo=function() return nil end
-local build=dofile(root.."CombatResourceDisplay.lua")(cfg,function() return nil end,
+local build=dofile(root.."Interface/CombatResourceDisplay.lua")(cfg,function() return nil end,
     function(detail) return detail.family end,function() return false end,
     function(members,perMember) return perMember,0 end)
 local e={guid="enemy",data={},baseArmour=3,attackReductions={},
@@ -66,7 +66,7 @@ eq(overflow,0,"No overflow")
 eq(display[1].attack[1].source.key,"effect","Effect button receives priority")
 eq(display[1].attack[2].wounded,true,"Wounded Unit remains visible")
 eq(cfg.effectSources.effect.requiresDefence,true,"Effect targeting metadata retained")
-local render=dofile(root.."CombatRowRenderer.lua")(cfg,set,icon,function() return false end,
+local render=dofile(root.."Interface/CombatRowRenderer.lua")(cfg,set,icon,function() return false end,
     function() return "None" end,function() return {} end,rich,function() return 0 end,rich,
     function() return {} end,function(total,armour) return "Attack "..total.."/"..armour end,
     function(lines) return lines end,function() return nil end)

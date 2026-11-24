@@ -77,7 +77,7 @@ combatEnemyPrintedAttacks=function(data) return {{value=data.attackValue or 0}} 
 getObjectFromGUID=function(guid) return {getName=function() return guid end} end
 joinLangEnglish=function(s) return s end
 local cardRecognition=source("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-local display=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/CombatEffectDisplay.lua")(
+local display=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CombatEffectDisplay.lua")(
     {fortificationCount=combatEnemyFortificationCount,hasTrait=combatEnemyHasTrait},
     combatEnemyAttacks,combatEnemyPrintedAttacks,combatEffectArrowKind,combatEffectRequiresDefence,
     function(guid) return skillResourceDefinitions[guid] end,
@@ -214,13 +214,13 @@ assert(krang:find('key="armour",icon="armourReduction"',1,true),
     "Curse Armour option uses new icon")
 
 -- Never change the CombatEnemyPanel XML or column widths for effect buttons.
-assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/CombatResourceDisplay.lua"):find("combatConfig.effectSources[item.source.key]",1,true),
+assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CombatResourceDisplay.lua"):find("combatConfig.effectSources[item.source.key]",1,true),
     "Effect sources must use the existing assignment maps")
 assert(cardRecognition:find("local function combatEffectTargetEligible(spec)",1,true),
     "Effect-only targeting should use the global reminder eligibility rule")
-assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/CombatTargetPolicy.lua"):find('return not effectSource.requiresDefence',1,true),
+assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/CombatTargetPolicy.lua"):find('return not effectSource.requiresDefence',1,true),
     "An Armour effect cannot target an attack-only reminder from the table")
-assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/CombatRowRenderer.lua"):find("combatAssignmentSlotSources[id]=item.source.key",1,true),
+assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CombatRowRenderer.lua"):find("combatAssignmentSlotSources[id]=item.source.key",1,true),
     "Effect buttons must use the ordinary clickable resource slots")
 assert(cardRecognition:find('(wounded or ineffective) and "rgb(0.90,0.37,0.35)"',1,true),
     "Red must reuse the existing unavailable/Wounded slot background")
@@ -236,9 +236,9 @@ eq(#late,1,"only one new effect appears after Damage")
 eq(late[1].source,"new","new source remains eligible for late Attack")
 eq(#combatEffectPostDamageSpecs(latest,nil,{old=true,new=true}),0,
     "moving committed sources cannot grant additional effects")
-local latePhase=source("src/PlayingGame/PlayerBoard/ResourceTracker/LateCombatPhase.lua")
+local latePhase=source("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/LateCombatPhase.lua")
 assert(latePhase:find("local newEffects=combatEffectPostDamageSpecs",1,true)
     and latePhase:find("entry.attackPhaseDestroyed=true",1,true)
-    and source("src/PlayingGame/PlayerBoard/ResourceTracker/CombatResourceDisplay.lua"):find('effectButton.family="attack"',1,true),
+    and source("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CombatResourceDisplay.lua"):find('effectButton.family="attack"',1,true),
     "late effects must modify Attack only, not the committed Damage preview")
 print("Combat effect button regressions passed")

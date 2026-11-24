@@ -25,9 +25,9 @@ assert(data:find('swiftness={normal={move=2},powered={ranged=3}}',1,true),
 assert(data:find('poweredLink={mode="stronger",bonus=2,',1,true),
     "Concentration powered Action link changed")
 
-local manaCode=section(src,'local manaColor=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").manaColor',"-- Magic Talent's strong side")
+local manaCode=section(src,'local manaColor=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.PhysicalObjects").manaColor',"-- Magic Talent's strong side")
 local bonusCode=section(src,"local function applyLinkedResourceBonus(effects,link)",
-    'local effectManaPossibilities=require("PlayingGame.PlayerBoard.ResourceTracker.ManaPayments").effectManaPossibilities')
+    'local effectManaPossibilities=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.ManaPayments").effectManaPossibilities')
 local linksCode=section(src,"-- The same floating red X visualises Throw",
     "-- Generic Skill-card links")
 local zoneCode=section(src,"local function resourceCardsRelevantZone(ctx)",
@@ -71,16 +71,16 @@ local env={
 }
 setmetatable(env,{__index=_G})
 env.require=function(name)
-    assert(name=="PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects", "Unexpected recognition dependency")
-    return assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/PhysicalObjects.lua","t",env))()
+    assert(name=="PlayingGame.PlayerBoard.ResourceTracker.Scanning.PhysicalObjects", "Unexpected recognition dependency")
+    return assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Scanning/PhysicalObjects.lua","t",env))()
 end
 env.trackerPrivate=env.trackerPrivate or {}
-env.trackerPrivate.objectEvents=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/ObjectEvents.lua","t",env))()
+env.trackerPrivate.objectEvents=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Core/ObjectEvents.lua","t",env))()
 local compiled=assert(load(table.concat({manaCode,bonusCode,linksCode,zoneCode,dropCode,
     "return manaColor,trackerPrivate.readyForXZ,applyLinkedResourceBonus,resourceCardsZoneEntered,resourceCardsObjectMoved"},"\n"),
     "Concentration mana settle","t",env))
 local manaColor,readyForXZ,applyBonus,zoneEntered,objectMoved=compiled()
-local resolveLinks=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/ActionLinks.lua","t",env))()({
+local resolveLinks=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/ActionLinks.lua","t",env))()({
     overlapArea=env.overlapArea,cardPosture=env.cardPosture
 })
 assert(manaColor(die)=="Green","Released, slightly rocking die should expose its face")

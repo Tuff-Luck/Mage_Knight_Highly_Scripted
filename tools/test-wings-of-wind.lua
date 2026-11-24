@@ -18,10 +18,10 @@ local spell=assert(rules.spellWingsNight)
 assert(spell.movementEffects.normal.windFlightMax==5)
 assert(spell.movementEffects.powered==nil,"Wings of Night is combat only")
 local reader=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/PlayedCardScan.lua"):find("or spellCastingPaid[card.guid]==true",1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/PlayedCardScan.lua"):find("or spellCastingPaid[card.guid]==true",1,true),
     "The existing movement effect collection must require a paid Spell")
-assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/PlayedCardScan.lua"):find("movementEffects.windFlightMax=math.max(",1,true))
-assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/ScanPublication.lua"):find("(priorMovement.windFlightMax or 0)~=movementEffects.windFlightMax",1,true))
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/PlayedCardScan.lua"):find("movementEffects.windFlightMax=math.max(",1,true))
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Scanning/ScanPublication.lua"):find("(priorMovement.windFlightMax or 0)~=movementEffects.windFlightMax",1,true))
 local movement=read("src/PlayingGame/Movement.lua")
 assert(movement:find("windFlightMax>0 and not spentWind",1,true),
     "A flight must be available only once along a route")

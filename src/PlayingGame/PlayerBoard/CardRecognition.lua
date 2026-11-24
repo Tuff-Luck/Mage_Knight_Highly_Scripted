@@ -1,26 +1,26 @@
 -- The physical play area supplies estimated resources to the Resource Tracker.
 -- Runtime-only observations never overwrite the saved manual +/- adjustments.
 resourceCardScanBySeat={}
-local trackerPrivate=require("PlayingGame.PlayerBoard.ResourceTracker.State")()
-trackerPrivate.combatTargetPolicy=require("PlayingGame.PlayerBoard.ResourceTracker.CombatTargetPolicy")
-trackerPrivate.combatInteraction=require("PlayingGame.PlayerBoard.ResourceTracker.CombatInteraction")
-trackerPrivate.playedCardScan=require("PlayingGame.PlayerBoard.ResourceTracker.PlayedCardScan")
-trackerPrivate.cardInteractions=require("PlayingGame.PlayerBoard.ResourceTracker.CardInteractions")
-trackerPrivate.skillInteractions=require("PlayingGame.PlayerBoard.ResourceTracker.SkillInteractions")
-trackerPrivate.unitScan=require("PlayingGame.PlayerBoard.ResourceTracker.UnitScan")
-trackerPrivate.unitManagement=require("PlayingGame.PlayerBoard.ResourceTracker.UnitManagement")
-trackerPrivate.readyPolicy=require("PlayingGame.PlayerBoard.ResourceTracker.ReadyPolicy")
-trackerPrivate.scanObservation=require("PlayingGame.PlayerBoard.ResourceTracker.ScanObservation")
-trackerPrivate.scanPayments=require("PlayingGame.PlayerBoard.ResourceTracker.ScanPayments")
-trackerPrivate.scanFinalization=require("PlayingGame.PlayerBoard.ResourceTracker.ScanFinalization")
-trackerPrivate.factionRewardScan=require("PlayingGame.PlayerBoard.ResourceTracker.FactionRewardScan")
-trackerPrivate.scanPublication=require("PlayingGame.PlayerBoard.ResourceTracker.ScanPublication")
-trackerPrivate.scanScheduler=require("PlayingGame.PlayerBoard.ResourceTracker.ScanScheduler")
-trackerPrivate.trackerLifecycle=require("PlayingGame.PlayerBoard.ResourceTracker.TrackerLifecycle")
-trackerPrivate.objectEvents=require("PlayingGame.PlayerBoard.ResourceTracker.ObjectEvents")
-trackerPrivate.cardInteraction=require("PlayingGame.PlayerBoard.ResourceTracker.CardInteraction")
+local trackerPrivate=require("PlayingGame.PlayerBoard.ResourceTracker.Core.State")()
+trackerPrivate.combatTargetPolicy=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.CombatTargetPolicy")
+trackerPrivate.combatInteraction=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.CombatInteraction")
+trackerPrivate.playedCardScan=require("PlayingGame.PlayerBoard.ResourceTracker.Cards.PlayedCardScan")
+trackerPrivate.cardInteractions=require("PlayingGame.PlayerBoard.ResourceTracker.Cards.CardInteractions")
+trackerPrivate.skillInteractions=require("PlayingGame.PlayerBoard.ResourceTracker.Cards.SkillInteractions")
+trackerPrivate.unitScan=require("PlayingGame.PlayerBoard.ResourceTracker.Units.UnitScan")
+trackerPrivate.unitManagement=require("PlayingGame.PlayerBoard.ResourceTracker.Units.UnitManagement")
+trackerPrivate.readyPolicy=require("PlayingGame.PlayerBoard.ResourceTracker.Units.ReadyPolicy")
+trackerPrivate.scanObservation=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.ScanObservation")
+trackerPrivate.scanPayments=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.ScanPayments")
+trackerPrivate.scanFinalization=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.ScanFinalization")
+trackerPrivate.factionRewardScan=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.FactionRewardScan")
+trackerPrivate.scanPublication=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.ScanPublication")
+trackerPrivate.scanScheduler=require("PlayingGame.PlayerBoard.ResourceTracker.Core.ScanScheduler")
+trackerPrivate.trackerLifecycle=require("PlayingGame.PlayerBoard.ResourceTracker.Core.TrackerLifecycle")
+trackerPrivate.objectEvents=require("PlayingGame.PlayerBoard.ResourceTracker.Core.ObjectEvents")
+trackerPrivate.cardInteraction=require("PlayingGame.PlayerBoard.ResourceTracker.Cards.CardInteraction")
 -- Keep the public chat callback here; diagnostics share this live private state.
-require("PlayingGame.PlayerBoard.ResourceTracker.Diagnostics")(trackerPrivate)
+require("PlayingGame.PlayerBoard.ResourceTracker.Core.Diagnostics")(trackerPrivate)
 function resourceCardsTraceCommand(command,playerColor)
     return trackerPrivate.traceCommand(command,playerColor)
 end
@@ -1138,12 +1138,12 @@ combatConfig.attackTypes={
     {key="M",label="Psychic",attack="attackPsychic",ranged="rangedPsychic",siege="siegePsychic",block="blockPsychic"}
 }
 
-trackerPrivate.enemyDefences=require("PlayingGame.PlayerBoard.ResourceTracker.EnemyDefences")(combatConfig)
+trackerPrivate.enemyDefences=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.EnemyDefences")(combatConfig)
 local combatEnemyHasTrait=trackerPrivate.enemyDefences.hasTrait
 local combatEnemyFortificationCount=trackerPrivate.enemyDefences.fortificationCount
 
 -- owner/slot identify the physical token carrying each attack; calculation is delegated.
-trackerPrivate.enemyAttacks=require("PlayingGame.PlayerBoard.ResourceTracker.EnemyAttacks")(
+trackerPrivate.enemyAttacks=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.EnemyAttacks")(
     combatConfig.attackTypes,combatEnemyHasTrait,combatEnemyFortificationCount)
 local combatEnemyPrintedAttacks=trackerPrivate.enemyAttacks.printed
 combatConfig.convertPreyAttacks=trackerPrivate.enemyAttacks.convertPreyAttacks
@@ -1580,7 +1580,7 @@ local function combatDetailPhase(detail,rangeDefeated,fortification,source)
 end
 
 -- Chooses which Block resources and Move reductions stop which attacks; the solver owns the allocation math.
-trackerPrivate.blockSolver=require("PlayingGame.PlayerBoard.ResourceTracker.BlockSolver")(combatConfig)
+trackerPrivate.blockSolver=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.BlockSolver")(combatConfig)
 
 -- Block resources only ever face the enemy they were targeted at.
 -- Move resources the player aimed at a Cumbersome attack reduce that attack by 1 each.
@@ -1605,7 +1605,7 @@ local function combatNatureVengeanceBlockBonus()
 end
 
 trackerPrivate.combatBlockResultCache={}
-trackerPrivate.blockResults=require("PlayingGame.PlayerBoard.ResourceTracker.BlockResults")(
+trackerPrivate.blockResults=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.BlockResults")(
     combatConfig,trackerPrivate.blockSolver,combatEnemyAttacks,
     combatNatureVengeanceBlockBonus,combatRich)
 local function combatBlockResult(entry,sources)
@@ -1727,7 +1727,7 @@ local function combatDamageUnits(seat)
     return units,state~=nil and state.nativeCommandCount or 0
 end
 
-trackerPrivate.damageResolution=require("PlayingGame.PlayerBoard.ResourceTracker.DamageResolution")(
+trackerPrivate.damageResolution=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.DamageResolution")(
     function(guid) return gameCards~=nil and gameCards[guid] or nil end,
     function(owner,summoner)
         local records=gStates~=nil and gStates.attackedMonsters or nil
@@ -2538,7 +2538,7 @@ function combatWoundsEndTurnReminder(color)
     return true
 end
 
-trackerPrivate.combatDisplay=require("PlayingGame.PlayerBoard.ResourceTracker.CombatDisplay")(
+trackerPrivate.combatDisplay=require("PlayingGame.PlayerBoard.ResourceTracker.Interface.CombatDisplay")(
     combatConfig,combatRich,combatEnemyTraitsText)
 local combatDamageNotes=trackerPrivate.combatDisplay.damageNotes
 local combatCompactResultLines=trackerPrivate.combatDisplay.compactResultLines
@@ -2581,7 +2581,7 @@ local function combatSyncDefenderMark(marks)
     trackerPrivate.combatDefenderMarks=wanted
 end
 
-trackerPrivate.bossAllocation=require("PlayingGame.PlayerBoard.ResourceTracker.BossAllocation")(combatEnemyHasTrait)
+trackerPrivate.bossAllocation=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.BossAllocation")(combatEnemyHasTrait)
 -- Preserve the public level-count helper for other modules.
 function combatBossLevelCount(total,armour,remaining)
     return trackerPrivate.bossAllocation.levelCount(total,armour,remaining)
@@ -2592,7 +2592,7 @@ local function combatBossPhasePlan(group,entries,total,phase,blockedAll)
         gStates~=nil and gStates.combatBossManual or nil)
 end
 
-trackerPrivate.defendAllocation=require("PlayingGame.PlayerBoard.ResourceTracker.DefendAllocation")(
+trackerPrivate.defendAllocation=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.DefendAllocation")(
     trackerPrivate.enemyDefences,combatRangeResult)
 local function combatApplyDefend(entries,groups,allocated)
     return trackerPrivate.defendAllocation(entries,groups,allocated,
@@ -2601,7 +2601,7 @@ end
 
 local combatGroupResourceRows=trackerPrivate.combatDisplay.groupResourceRows
 
-trackerPrivate.combatEffectDisplay=require("PlayingGame.PlayerBoard.ResourceTracker.CombatEffectDisplay")(
+trackerPrivate.combatEffectDisplay=require("PlayingGame.PlayerBoard.ResourceTracker.Interface.CombatEffectDisplay")(
     trackerPrivate.enemyDefences,combatEnemyAttacks,combatEnemyPrintedAttacks,
     function(spec) return combatEffectArrowKind(spec) end,
     function(spec) return combatEffectRequiresDefence(spec) end,
@@ -2614,7 +2614,7 @@ trackerPrivate.combatEffectDisplay=require("PlayingGame.PlayerBoard.ResourceTrac
 combatConfig.effectButtonInfo=trackerPrivate.combatEffectDisplay.effectButtonInfo
 combatConfig.mitigationButtonInfo=trackerPrivate.combatEffectDisplay.mitigationButtonInfo
 
-trackerPrivate.attackEligibility=require("PlayingGame.PlayerBoard.ResourceTracker.AttackEligibility")(
+trackerPrivate.attackEligibility=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.AttackEligibility")(
     combatConfig,
     function(seat) return seat~=nil and resourceCardScanBySeat[seat] or nil end,
     function(guid) return gameCards~=nil and gameCards[guid] or nil end,
@@ -2625,7 +2625,7 @@ combatConfig.paralysisAttackCards=trackerPrivate.attackEligibility.paralysisAtta
 combatConfig.knockoutStagedAttackCards=trackerPrivate.attackEligibility.knockoutStagedAttackCards
 combatConfig.attackPhaseSources=trackerPrivate.attackEligibility.attackPhaseSources
 
-trackerPrivate.unitSelfWounds=require("PlayingGame.PlayerBoard.ResourceTracker.UnitSelfWounds")(
+trackerPrivate.unitSelfWounds=require("PlayingGame.PlayerBoard.ResourceTracker.Units.UnitSelfWounds")(
     function(guid) return unitResourceDefinitions~=nil and unitResourceDefinitions[guid] or nil end,
     function(...) return unitHistoryUses(...) end,
     function(...) return unitHistoryKey(...) end,
@@ -2637,24 +2637,24 @@ combatConfig.selfWoundingUnitChoices=function(seat,groups)
         gStates~=nil and gStates.unitResourceActivations or {})
 end
 
-combatConfig.applyExplosiveBoltRange=require("PlayingGame.PlayerBoard.ResourceTracker.ExplosiveBolt")(
+combatConfig.applyExplosiveBoltRange=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.ExplosiveBolt")(
     combatApplyDefend,combatRangeGroupEntry,combatRangeResult,combatEnemyHasTrait,
     function(key) return combatAssignmentState.targets[key] end,
     function(key) return attackAssignmentsTargetGUIDs(key) end,
     function(key,guid,arrow) return attackAssignmentsReconcileEffectTarget(key,guid,arrow) end)
 
-trackerPrivate.combatPanelLayout=require("PlayingGame.PlayerBoard.ResourceTracker.CombatPanelLayout")
+trackerPrivate.combatPanelLayout=require("PlayingGame.PlayerBoard.ResourceTracker.Interface.CombatPanelLayout")
 combatConfig.enemyNameColumnWidth=trackerPrivate.combatPanelLayout.enemyNameColumnWidth
 combatConfig.textColumnWidth=trackerPrivate.combatPanelLayout.textColumnWidth
 combatConfig.traitColumnWidth=trackerPrivate.combatPanelLayout.traitColumnWidth
 
-trackerPrivate.enemyGroups=require("PlayingGame.PlayerBoard.ResourceTracker.EnemyGroups")
+trackerPrivate.enemyGroups=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.EnemyGroups")
 
-trackerPrivate.divisibleResources=require("PlayingGame.PlayerBoard.ResourceTracker.DivisibleResources")(
+trackerPrivate.divisibleResources=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.DivisibleResources")(
     function(key) return attackAssignmentsTargetCounts(key) end,
     combatGUIDHasCumbersome,combatEnemyAttacks)
 
-trackerPrivate.sourceTargetAllocation=require("PlayingGame.PlayerBoard.ResourceTracker.SourceTargetAllocation")(
+trackerPrivate.sourceTargetAllocation=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.SourceTargetAllocation")(
     function(key) return attackAssignmentsTargetGUIDs(key) end,
     function(key) return attackAssignmentsClearForObject(key) end,
     function(key,guid) return resourceCardsCombatTargetAcceptsSource(key,guid) end,
@@ -2667,36 +2667,36 @@ trackerPrivate.sourceTargetAllocation=require("PlayingGame.PlayerBoard.ResourceT
         return seat~=nil and resourceCardScanBySeat[seat] or nil
     end,combatSourceKeepsLock)
 
-trackerPrivate.flameWave=require("PlayingGame.PlayerBoard.ResourceTracker.FlameWave")(
+trackerPrivate.flameWave=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.FlameWave")(
     combatApplyDefend,trackerPrivate.enemyGroups.collect,combatRangeGroupEntry,combatRangeResult)
 
-trackerPrivate.conditionalBlockEffects=require("PlayingGame.PlayerBoard.ResourceTracker.ConditionalBlockEffects")(
+trackerPrivate.conditionalBlockEffects=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.ConditionalBlockEffects")(
     combatApplyDefend,trackerPrivate.enemyGroups.collect,combatRangeGroupEntry,combatRangeResult,
     combatEnemyAttacks,combatBlockResult,
     function(...) return combatEffectDestroysFullyBlocked(...) end,combatEnemyHasTrait,
     function(guid) return monsterPugs[guid] end,
     function(guid) return gStates~=nil and gStates.monsterPerks~=nil and gStates.monsterPerks[guid] or nil end)
 
-trackerPrivate.earlyCombatPhase=require("PlayingGame.PlayerBoard.ResourceTracker.EarlyCombatPhase")(
+trackerPrivate.earlyCombatPhase=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.EarlyCombatPhase")(
     combatBlockResult,combatGroupEntry,combatRangeResult,combatRangeGroupEntry,
     combatBossPhasePlan,combatEnemyAttacks,combatEnemyHasTrait,combatFrozenCopy)
-trackerPrivate.damagePreparation=require("PlayingGame.PlayerBoard.ResourceTracker.DamagePreparation")(
+trackerPrivate.damagePreparation=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.DamagePreparation")(
     function(guid) return skillResourceDefinitions[guid] end)
-trackerPrivate.lateCombatPhase=require("PlayingGame.PlayerBoard.ResourceTracker.LateCombatPhase")(
+trackerPrivate.lateCombatPhase=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.LateCombatPhase")(
     combatGroupEntry,combatEnemyHasTrait,combatEnemyFortificationCount,
     function(result) return combatVampiricArmourGain(result) end,
     function(...) return combatEffectPostDamageSpecs(...) end,combatFrozenCopy,
     combatConfig.attackPhaseSources,combatAttackTotal,combatBossPhasePlan)
 
-trackerPrivate.combatResourceDisplay=require("PlayingGame.PlayerBoard.ResourceTracker.CombatResourceDisplay")(
+trackerPrivate.combatResourceDisplay=require("PlayingGame.PlayerBoard.ResourceTracker.Interface.CombatResourceDisplay")(
     combatConfig,function(guid) return skillResourceDefinitions[guid] end,
     combatDetailPhase,combatEnemyResists,combatGroupResourceRows)
-trackerPrivate.combatRowRenderer=require("PlayingGame.PlayerBoard.ResourceTracker.CombatRowRenderer")(
+trackerPrivate.combatRowRenderer=require("PlayingGame.PlayerBoard.ResourceTracker.Interface.CombatRowRenderer")(
     combatConfig,combatPanelSetAttribute,combatAssignmentIconButton,combatEnemyHasTrait,
     combatGroupTraitsText,combatEnemyAttacks,combatTypeRich,combatNatureVengeanceBlockBonus,
     combatRich,combatDamageNotes,combatGroupAttackLine,combatCompactResultLines,
     function(guid) return monsterPugs[guid] end)
-trackerPrivate.combatPanelRenderer=require("PlayingGame.PlayerBoard.ResourceTracker.CombatPanelRenderer")(
+trackerPrivate.combatPanelRenderer=require("PlayingGame.PlayerBoard.ResourceTracker.Interface.CombatPanelRenderer")(
     combatConfig,combatPanelSetAttribute,combatRich,combatWoundsText,
     function(...) return joinLang(...) end)
 
@@ -3343,7 +3343,7 @@ function resourceCardsBlockLinkTargets()
     return trackerPrivate.combatTargetPolicy.blockLinkTargets(combatConfig)
 end
 
-local cardPosture=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").cardPosture
+local cardPosture=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.PhysicalObjects").cardPosture
 
 -- Site-fortification bypass is a combat rule, not an enemy debuff; even
 -- Arcane Immunity / Fire Resistance cannot prevent it. Demolish uses its
@@ -3511,7 +3511,7 @@ end
 -- preserves day/night terrain settings, manual adjustments and other cards.
 -- Explore is not terrain; Weather also changes the special movement cost of Cities.
 -- Claimed Skills keep their passive effects while their token remains at home.
-trackerPrivate.movementEffects=require("PlayingGame.PlayerBoard.ResourceTracker.MovementEffects")
+trackerPrivate.movementEffects=require("PlayingGame.PlayerBoard.ResourceTracker.Cards.MovementEffects")
 local ownedSkillAtSeat=trackerPrivate.movementEffects.ownedSkillAtSeat
 local resourceCardsWeatherTerrainEffects=trackerPrivate.movementEffects.resourceCardsWeatherTerrainEffects
 local cardTerrainEffects=trackerPrivate.movementEffects.cardTerrainEffects
@@ -3592,7 +3592,7 @@ local choiceLetters={attackP1="A",attackP2="A2",attackP3="A3",
     woundPending="W?",woundTaken="W✓",
     splitBlock="B2",zero="0",one="1",two="2",three="3",four="4",five="5"}
 -- The choice UI and initial-guess tie-breaks follow the Resource Tracker order.
-trackerPrivate.choicePolicy=require("PlayingGame.PlayerBoard.ResourceTracker.ResourceChoices")(
+trackerPrivate.choicePolicy=require("PlayingGame.PlayerBoard.ResourceTracker.Cards.ResourceChoices")(
     trackerPrivate,function() return selectedResourceByGUID end,choiceLetters,cardPosture)
 local resourceChoiceFamilies=trackerPrivate.choicePolicy.resourceChoiceFamilies
 local resourceChoiceRank=trackerPrivate.choicePolicy.resourceChoiceRank
@@ -4049,7 +4049,7 @@ trackerPrivate.grailFameButton=function(card,uiRotation,buttonDepth)
         value="F "..tostring(used).."/2"}
 end
 
-trackerPrivate.cardControlOptions=require("PlayingGame.PlayerBoard.ResourceTracker.CardControlOptions")({
+trackerPrivate.cardControlOptions=require("PlayingGame.PlayerBoard.ResourceTracker.Interface.CardControlOptions")({
     choiceLetters=choiceLetters,
     combatConfig=combatConfig,
     combatContext=function() return combatCalcOn,combatPsychicActive,combatCumbersomeActive end,
@@ -4068,7 +4068,7 @@ trackerPrivate.cardControlOptions=require("PlayingGame.PlayerBoard.ResourceTrack
 
 -- A single selected icon is centred on the object. Click to expand all
 -- choices; selecting one immediately collapses back to its icon.
-local showChoiceButtons=require("PlayingGame.PlayerBoard.ResourceTracker.CardControls")({
+local showChoiceButtons=require("PlayingGame.PlayerBoard.ResourceTracker.Interface.CardControls")({
     trackerPrivate=trackerPrivate,
     combatConfig=combatConfig,
     choiceLetters=choiceLetters,
@@ -4102,7 +4102,7 @@ local showChoiceButtons=require("PlayingGame.PlayerBoard.ResourceTracker.CardCon
 -- its Command token. Expand vertically in printed ability order.
 -- Alternatives sharing a printed row occupy adjacent columns to the right.
 -- This is intentionally independent of translated text position.
-local showUnitAbilityButtons=require("PlayingGame.PlayerBoard.ResourceTracker.UnitControls")({
+local showUnitAbilityButtons=require("PlayingGame.PlayerBoard.ResourceTracker.Interface.UnitControls")({
     combatConfig=combatConfig,
     choiceLetters=choiceLetters,
     getContext=function()
@@ -4131,7 +4131,7 @@ local function clearChoiceButtons()
     combatConfig.cardButtonIds={}
 end
 
-trackerPrivate.zoneFootprintContainsXZ=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").zoneFootprintContainsXZ
+trackerPrivate.zoneFootprintContainsXZ=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.PhysicalObjects").zoneFootprintContainsXZ
 
 -- A dropped play source can be above the shallow zone while still in play.
 -- Held/smooth sources are not counted until released.
@@ -4169,24 +4169,24 @@ local function scheduleChoiceResetAfterPlay(guid,seatPos)
     return trackerPrivate.objectEvents.scheduleChoiceReset(guid,seatPos,function() return selectedResourceByGUID end,function() return choiceExpandedByGUID end,trackerPrivate,cardInSeatPlayArea)
 end
 
-local footprint=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").footprint
-local overlapArea=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").overlapArea
-local overlaps=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").overlaps
+local footprint=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.PhysicalObjects").footprint
+local overlapArea=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.PhysicalObjects").overlapArea
+local overlaps=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.PhysicalObjects").overlaps
 
-local manaColor=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").manaColor
-trackerPrivate.readyForXZ=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").readyForXZ
+local manaColor=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.PhysicalObjects").manaColor
+trackerPrivate.readyForXZ=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.PhysicalObjects").readyForXZ
 
 -- Magic Talent's strong side consumes TWO distinct mana objects, not the
 -- single mana that normally powers an Advanced Action. Read the same released
 -- die faces/crystals as the ordinary tracker, even when its panel is minimized.
-trackerPrivate.manaPayments=require("PlayingGame.PlayerBoard.ResourceTracker.ManaPayments")
+trackerPrivate.manaPayments=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.ManaPayments")
 function magicTalentManaPayments(seatPos)
     return trackerPrivate.manaPayments.magicTalentManaPayments(seatPos,
         footprint,manaColor,trackerPrivate.readyForXZ)
 end
 
-factionRewardForObject=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").factionRewardForObject
-local resourceObjectKind=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").resourceObjectKind
+factionRewardForObject=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.PhysicalObjects").factionRewardForObject
+local resourceObjectKind=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.PhysicalObjects").resourceObjectKind
 
 -- A NightRules token represents a combat fought under Night rules, even
 -- during a Day round or when the Mage Knight is standing outside the site.
@@ -4319,8 +4319,8 @@ local function applyLinkedResourceBonus(effects,link)
     return values
 end
 
-local effectManaPossibilities=require("PlayingGame.PlayerBoard.ResourceTracker.ManaPayments").effectManaPossibilities
-local effectManaPowerColors=require("PlayingGame.PlayerBoard.ResourceTracker.ManaPayments").effectManaPowerColors
+local effectManaPossibilities=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.ManaPayments").effectManaPossibilities
+local effectManaPowerColors=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.ManaPayments").effectManaPowerColors
 
 -- Colour-triggered Actions use stable target-card data, not translated text.
 -- Dual-colour Actions offer an explicit choice, using the existing card buttons.
@@ -4510,7 +4510,7 @@ function resourceCardsSteadyTempoPowered(seatPos,cardGUID)
     return false
 end
 
-trackerPrivate.cardEffects=require("PlayingGame.PlayerBoard.ResourceTracker.CardEffects")({
+trackerPrivate.cardEffects=require("PlayingGame.PlayerBoard.ResourceTracker.Cards.CardEffects")({
     trackerPrivate=trackerPrivate,
     combatConfig=combatConfig,
     chosenEffect=chosenEffect,
@@ -4528,7 +4528,7 @@ trackerPrivate.cardEffects=require("PlayingGame.PlayerBoard.ResourceTracker.Card
 local calculateSideways=trackerPrivate.cardEffects.calculateSideways
 local calculateCard=trackerPrivate.cardEffects.calculateCard
 
-local resolveActionLinks=require("PlayingGame.PlayerBoard.ResourceTracker.ActionLinks")({
+local resolveActionLinks=require("PlayingGame.PlayerBoard.ResourceTracker.Cards.ActionLinks")({
     overlapArea=overlapArea,
     cardPosture=cardPosture,
     linkedColorChoices=linkedColorChoices,
@@ -4812,7 +4812,7 @@ local function manaInsideFootprint(mana,area)
         and math.abs(p[3]-area.z)<area.halfZ
 end
 
-trackerPrivate.bestManaCard=require("PlayingGame.PlayerBoard.ResourceTracker.ManaPayments").bestManaCard
+trackerPrivate.bestManaCard=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.ManaPayments").bestManaCard
 
 -- Time Bending's extra turn must be usable without opening the Resource Tracker.
 -- Read the physical Blue casting payment and a separate Black strong-side payment;
@@ -4839,7 +4839,7 @@ local function unitManaSignature(counts)
         resourceCardsGoldAllowed,resourceCardsBlackAllowed)
 end
 
-unitManaDecision=require("PlayingGame.PlayerBoard.ResourceTracker.UnitChoices")({
+unitManaDecision=require("PlayingGame.PlayerBoard.ResourceTracker.Units.UnitChoices")({
     unitManaCounts=unitManaCounts,
     unitManaSignature=unitManaSignature,
     unitAbilityPaid=unitAbilityPaid,
@@ -4868,7 +4868,7 @@ local function skillChoicesForCurrentTurn(rule)
     return rule~=nil and rule.choices or nil
 end
 
-trackerPrivate.skillLinks=require("PlayingGame.PlayerBoard.ResourceTracker.SkillLinks")({
+trackerPrivate.skillLinks=require("PlayingGame.PlayerBoard.ResourceTracker.Cards.SkillLinks")({
     trackerPrivate=trackerPrivate,
     resourceCardsGoldAllowed=resourceCardsGoldAllowed,
     resourceCardsBlackAllowed=resourceCardsBlackAllowed,
@@ -4927,7 +4927,7 @@ local function puppetResourceOptions(guid)
     return #choices>0 and choices or nil
 end
 
-local calculateSkill=require("PlayingGame.PlayerBoard.ResourceTracker.SkillEffects")({
+local calculateSkill=require("PlayingGame.PlayerBoard.ResourceTracker.Cards.SkillEffects")({
     skillChoicesForCurrentTurn=skillChoicesForCurrentTurn,
     chosenEffect=chosenEffect,
     skillUsesDayStrength=skillUsesDayStrength,
@@ -5040,7 +5040,7 @@ local function combatEffectChosenEnemy(sourceGUID,area,monsters,eligible)
     return chosen or combatEffectNearestEnemy(area,monsters,footprint,overlapArea,eligible)
 end
 
-trackerPrivate.unitEffects=require("PlayingGame.PlayerBoard.ResourceTracker.UnitEffects")(
+trackerPrivate.unitEffects=require("PlayingGame.PlayerBoard.ResourceTracker.Units.UnitEffects")(
     trackerPrivate,unitAbilityPaid,resourceCardsUsesDayMana)
 
 local function renderSeat(seatPos)

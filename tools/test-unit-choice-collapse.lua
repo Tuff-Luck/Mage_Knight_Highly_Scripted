@@ -27,7 +27,7 @@ assert(#printed==4 and printed[4].move==2,"Peasants test needs printed Move 2")
 
 local code=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local renderer=extract(code,
-    'local showUnitAbilityButtons=require("PlayingGame.PlayerBoard.ResourceTracker.UnitControls")({',
+    'local showUnitAbilityButtons=require("PlayingGame.PlayerBoard.ResourceTracker.Interface.UnitControls")({',
     "local function clearChoiceButtons()")
 local handler=extract(code,
     "function resourceUnitsChoiceClicked(player,value,id)",
@@ -87,7 +87,7 @@ local function resourceCardsCombatSelectOneUnit() end
 local function resourceUnitsReconcileChoiceTargets() end
 local function unitHistoryValidSources() end
 local function renderSeat() end
-]]..renderer.."\ntrackerPrivate.unitManagement=(function()\n"..read("src/PlayingGame/PlayerBoard/ResourceTracker/UnitManagement.lua").."\nend)()\n"..handler..[[
+]]..renderer.."\ntrackerPrivate.unitManagement=(function()\n"..read("src/PlayingGame/PlayerBoard/ResourceTracker/Units/UnitManagement.lua").."\nend)()\n"..handler..[[
 return {
     draw=function()
         showUnitAbilityButtons(unit,abilities,activation,true,nil,1)

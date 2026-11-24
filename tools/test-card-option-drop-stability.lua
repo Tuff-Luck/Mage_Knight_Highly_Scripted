@@ -20,9 +20,9 @@ local cardSource=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local uiAssets=read("src/PlayingGame/UIAssets.lua")
 assert(uiAssets:find("function resourceObjectUiSameXML(left,right)",1,true),
     "XML helper must prevent unchanged card UI writes")
-assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua"):find("if assets~=nil or not resourceObjectUiSameXML(previousXml,xml) then",
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CardControls.lua"):find("if assets~=nil or not resourceObjectUiSameXML(previousXml,xml) then",
     1,true),"Unchanged card XML must be kept in place")
-assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/ObjectEvents.lua"):find('trackerPrivate.checkCardChoicesAfterDrop(obj.guid,seat)',
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Core/ObjectEvents.lua"):find('trackerPrivate.checkCardChoicesAfterDrop(obj.guid,seat)',
     1,true),"Known drops must schedule a missing-option recheck")
 
 -- Exercise the exact delayed verifier, independently of full seat scanning.
@@ -65,7 +65,7 @@ local env={
 }
 setmetatable(env,{__index=_G})
 env.trackerPrivate=env.trackerPrivate or {}
-env.trackerPrivate.objectEvents=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/ObjectEvents.lua","t",env))()
+env.trackerPrivate.objectEvents=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Core/ObjectEvents.lua","t",env))()
 assert(load(verifierCode,"Drop option verifier","t",env))()
 local function runFrame()
     assert(#frames>0,"Expected a scheduled frame callback")

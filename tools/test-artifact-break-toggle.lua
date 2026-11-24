@@ -13,12 +13,12 @@ local function section(content,a,b)
 end
 local rec=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local flow=read("src/PlayingGame/PlayerBoard/CardFlow.lua")
-local actionLinks=read("src/PlayingGame/PlayerBoard/ResourceTracker/ActionLinks.lua")
-local cardControls=read("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua")
-local playedCards=read("src/PlayingGame/PlayerBoard/ResourceTracker/PlayedCardScan.lua")
-local cardInteraction=read("src/PlayingGame/PlayerBoard/ResourceTracker/CardInteraction.lua")
-local readyPolicy=read("src/PlayingGame/PlayerBoard/ResourceTracker/ReadyPolicy.lua")
-local unitScan=read("src/PlayingGame/PlayerBoard/ResourceTracker/UnitScan.lua")
+local actionLinks=read("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/ActionLinks.lua")
+local cardControls=read("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CardControls.lua")
+local playedCards=read("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/PlayedCardScan.lua")
+local cardInteraction=read("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/CardInteraction.lua")
+local readyPolicy=read("src/PlayingGame/PlayerBoard/ResourceTracker/Units/ReadyPolicy.lua")
+local unitScan=read("src/PlayingGame/PlayerBoard/ResourceTracker/Units/UnitScan.lua")
 local callbacks=read("src/PlayingGame/Callbacks.lua")
 local events=read("src/PlayingGame/PlayerBoard/Events.lua")
 local runtimeEvents=read("src/PlayingGame/Events.lua")
@@ -74,7 +74,7 @@ end
 local dual=choose(staff,"dual",false)
 assert(#dual==2 and dual[1].key=="red" and dual[2].key=="blue",
     "Dual-coloured cards must retain both Staff options")
-local key=require("PlayingGame.PlayerBoard.ResourceTracker.ResourceChoices")({},function() return {} end,{},nil).choiceCategory
+local key=require("PlayingGame.PlayerBoard.ResourceTracker.Cards.ResourceChoices")({},function() return {} end,{},nil).choiceCategory
 assert(key(nil)==nil and key(false)==nil,"Missing choices cannot cause nil indexing")
 assert(key({key="red",other=1})=="red","Explicit colour takes priority")
 
@@ -293,7 +293,7 @@ do
         resourceCardsSourceChanged=function() refreshes=refreshes+1 end
     },{__index=_G})
 env.trackerPrivate=env.trackerPrivate or {}
-env.trackerPrivate.cardInteraction=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/CardInteraction.lua","t",env))()
+env.trackerPrivate.cardInteraction=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/CardInteraction.lua","t",env))()
     local clickSource=section(rec,"function resourceCardsArtifactGrailFameClicked(",
         "-- Toggle the strong effect")
     local click=assert(load(clickSource.."\nreturn resourceCardsArtifactGrailFameClicked",
@@ -375,7 +375,7 @@ do
         resourceCardsSourceChanged=function() refreshes=refreshes+1 end
     },{__index=_G})
 env.trackerPrivate=env.trackerPrivate or {}
-env.trackerPrivate.cardInteraction=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/CardInteraction.lua","t",env))()
+env.trackerPrivate.cardInteraction=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/CardInteraction.lua","t",env))()
     local source=section(rec,"function resourceCardsArtifactBreakClicked(",
         "-- Player clicks always")
     local click=assert(load(source.."\nreturn resourceCardsArtifactBreakClicked",

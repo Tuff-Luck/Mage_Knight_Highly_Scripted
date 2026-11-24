@@ -12,7 +12,7 @@ local function fortifications(data,perks)
     return (data.fortified and 1 or 0)+(perks and perks.fortified and 1 or 0)
         +(perks and perks.wallFortified and 1 or 0)
 end
-local engine=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/EnemyAttacks.lua")(kinds,trait,fortifications)
+local engine=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EnemyAttacks.lua")(kinds,trait,fortifications)
 local function eq(a,b,label)
     assert(a==b,label..": expected "..tostring(b)..", got "..tostring(a))
 end

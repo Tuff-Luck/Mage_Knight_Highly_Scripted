@@ -17,7 +17,7 @@ local function eq(actual,expected,label)
 end
 local data=read("src/Data.lua")
 local reader=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-local playedCards=read("src/PlayingGame/PlayerBoard/ResourceTracker/PlayedCardScan.lua")
+local playedCards=read("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/PlayedCardScan.lua")
 local spells=assert(load("return {\n"..between(data,
     "    -- Spell resources are independent","    -- Full-size Artifacts use a saved Break toggle").."\n}"))()
 
@@ -28,7 +28,7 @@ eq(cure.normal.healing,2,"Cure basic Heal 2")
 eq(cure.poweredChoices[1].key,"other","Disease is not extra Heal")
 eq(cure.enemyEffect.powered.armourSetIfBlocked,1,"Disease sets Armour to 1")
 eq(cure.enemyEffect.powered.all,true,"Disease applies across the encounter")
-assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/EarlyCombatPhase.lua"):find('local limit=enemy.effect~=nil and enemy.effect.armourSetIfBlocked or nil',1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EarlyCombatPhase.lua"):find('local limit=enemy.effect~=nil and enemy.effect.armourSetIfBlocked or nil',1,true),
     "Disease must be resolved using the blocked-attack result")
 assert(playedCards:find('combatConfig.refreshCureDrawButton(card,',1,true),
     "Cure offers its separate confirmed draw")
@@ -157,8 +157,8 @@ result.powered=true
 eq(siteBypassCheck(spells.spellDemolish,result,played),false,"Disintegrate has no bypass")
 
 -- Exercise the calculator's actual stripping logic (not an invented rule).
-local fortificationCount=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/EnemyDefences.lua")({}).fortificationCount
-local prepareFortifications=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/EnemyDefences.lua")({}).prepareFortifications
+local fortificationCount=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EnemyDefences.lua")({}).fortificationCount
+local prepareFortifications=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EnemyDefences.lua")({}).prepareFortifications
 local function stripSites(entries,seatScan)
     prepareFortifications(entries,seatScan~=nil and seatScan.ignoreSiteFortifications==true)
     return entries

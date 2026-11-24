@@ -30,20 +30,20 @@ contains(data,'conditionalAttackNoWounds=true',"Dodge Wound condition")
 assert(not data:find('key="safe"',1,true),"Dodge must not have a Safe option")
 assert(not data:find('key="eligible"',1,true),"Dodge must not have an Eligible option")
 contains(data,'removeOneAttackAbilities=true',"Chilling Stare one attack")
-contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/LateCombatPhase.lua"),'source.dodgeIneligible=true',"Dodge Attack suppression")
-contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/CardEffects.lua"),
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/LateCombatPhase.lua"),'source.dodgeIneligible=true',"Dodge Attack suppression")
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/CardEffects.lua"),
     'dodgeConditional=complete and rule~=nil and rule.conditionalAttackNoWounds==true,',
     "Dodge conditional Attack without card options")
-contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/PlayedCardScan.lua"),'card.guid.."#effect"..index',"Dodge independent effect keys")
-contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/DivisibleResources.lua"),'source.convertedResource',"Conversion resource source")
-contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua"),'local perUse=powered and 2 or 1',"Powered Dodge has two target buttons")
-contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/PlayedCardScan.lua"),'local count=(result.powered and 2 or 1)*(result.repeatCount or 1)',"Both reduction effects always processed")
-contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua"),'local targetX=-44',"Dodge target buttons beside ordinary Attack source")
-contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua"),'local targetY=-12',"Dodge target alignment")
-contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua"),'targetX-withinUse*44',"Powered Dodge targets spaced apart")
-contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/PlayedCardScan.lua"),'(result.enemyGUID==nil or rule.dodgeAttackSplit==true)',
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/PlayedCardScan.lua"),'card.guid.."#effect"..index',"Dodge independent effect keys")
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/DivisibleResources.lua"),'source.convertedResource',"Conversion resource source")
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CardControls.lua"),'local perUse=powered and 2 or 1',"Powered Dodge has two target buttons")
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/PlayedCardScan.lua"),'local count=(result.powered and 2 or 1)*(result.repeatCount or 1)',"Both reduction effects always processed")
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CardControls.lua"),'local targetX=-44',"Dodge target buttons beside ordinary Attack source")
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CardControls.lua"),'local targetY=-12',"Dodge target alignment")
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CardControls.lua"),'targetX-withinUse*44',"Powered Dodge targets spaced apart")
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/PlayedCardScan.lua"),'(result.enemyGUID==nil or rule.dodgeAttackSplit==true)',
     "Dodge debuff works independently of an Attack assignment")
-contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/PlayedCardScan.lua"),'{attackReduce=2},key)',"Each Dodge button creates a separate -2 reduction")
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/PlayedCardScan.lua"),'{attackReduce=2},key)',"Each Dodge button creates a separate -2 reduction")
 assert(not reader:find('dodgeReductionAmounts',1,true),"No combined Dodge reduction")
 assert(not reader:find('resourceCardsDodgeSplitClicked',1,true),"Remove obsolete Dodge mode switch")
 assert(not reader:find('dodgeSplitMode',1,true),"Remove obsolete Dodge split state")
@@ -124,7 +124,7 @@ eq(run,true,"Shared per-point pools and phase-aware Move")
 
 -- The actual attack-selection engine must strip only the chosen attack's
 -- offensive abilities, without replacing the attack's Fire/Ice element.
-local strip=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/EnemyAttacks.lua")({},nil,nil).applyReductions
+local strip=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EnemyAttacks.lua")({},nil,nil).applyReductions
 local attacks={
     {value=5,key="F",owner="enemy",brutal=true,swift=true},
     {value=4,key="I",owner="enemy",poison=true,cumbersome=true}}

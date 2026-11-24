@@ -22,9 +22,9 @@ local callbacks=source("src/PlayingGame/Callbacks.lua")
 -- Heal 1/2 and Ready are simultaneous. They are not a mutually exclusive
 -- choice, and each copied use has its own undoable readying source.
 assert(data:find("simultaneousReady=true,unitReadyLevels={normal=2,powered=3}",1,true))
-assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/CardControlOptions.lua"):find("choices={{healing=resources.healing}}",1,true))
-assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua"):find('onClick="global/resourceCardsRegenerationReadyClicked"',1,true))
-assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/CardInteraction.lua"):find('unitHistoryCancelReadySource(sourceKey)',1,true))
+assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CardControlOptions.lua"):find("choices={{healing=resources.healing}}",1,true))
+assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CardControls.lua"):find('onClick="global/resourceCardsRegenerationReadyClicked"',1,true))
+assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/CardInteraction.lua"):find('unitHistoryCancelReadySource(sourceKey)',1,true))
 assert(callbacks:find('"resourceCardsRegenerationReadyClicked"',1,true))
 
 local readyCode=section(reader,
@@ -44,7 +44,7 @@ local function getObjectFromGUID(guid)
 end
 local function cardPosture(card) return "upright" end
 local function cardInSeatPlayArea(guid,seat) return guid=="878d91" and seat==1 end
-]].."\nlocal trackerPrivate={readyPolicy=(function()\n"..source("src/PlayingGame/PlayerBoard/ResourceTracker/ReadyPolicy.lua").."\nend)()}\n"..readyCode..[[
+]].."\nlocal trackerPrivate={readyPolicy=(function()\n"..source("src/PlayingGame/PlayerBoard/ResourceTracker/Units/ReadyPolicy.lua").."\nend)()}\n"..readyCode..[[
 return {valid=resourceCardsReadySourceValid,limit=resourceCardsReadySourceLevelLimit,
     record=record,scans=resourceCardScanBySeat}
 ]]))()
@@ -90,7 +90,7 @@ local function unitHistoryCancelReadySource(key)
     gStates.unitReadyLinks[key]=nil
 end
 local function resourceCardsSourceChanged() end
-]].."\nlocal trackerPrivate={cardInteraction=(function()\n"..source("src/PlayingGame/PlayerBoard/ResourceTracker/CardInteraction.lua").."\nend)()}\n"..clickCode..[[
+]].."\nlocal trackerPrivate={cardInteraction=(function()\n"..source("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/CardInteraction.lua").."\nend)()}\n"..clickCode..[[
 return {click=resourceCardsRegenerationReadyClicked,targets=targets,removed=removed,
     state=gStates}
 ]]))()

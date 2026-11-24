@@ -13,8 +13,8 @@ local leaders=read("src/PlayingGame/FactionLeaders.lua")
 local dragon=read("src/PlayingGame/ApocalypseDragon.lua")
 local ui=read("src/PlayingGame/UI.lua")
 local env={gStates={combatBossManual={}}}
-local defences=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/EnemyDefences.lua")({})
-local engine=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/BossAllocation.lua")(defences.hasTrait)
+local defences=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EnemyDefences.lua")({})
+local engine=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/BossAllocation.lua")(defences.hasTrait)
 local count=engine.levelCount
 local function phase(group,entries,total,kind,blockedAll)
     return engine.phasePlan(group,entries,total,kind,blockedAll,env.gStates.combatBossManual)
@@ -113,8 +113,8 @@ local control={guid="control",bossLevel=0,bossType="control",
     attackOnly=true,data={},perks={},baseArmour=0,elusiveArmour=0}
 eq(phase(group(control),{control},100,"range",{}),nil,"Control head never attacked")
 assert(recognition:find('bossType=="control"',1,true),"Control guard lost")
-assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/EarlyCombatPhase.lua"):find("group.rangeSpent=plan.spent",1,true)
-    and read("src/PlayingGame/PlayerBoard/ResourceTracker/LateCombatPhase.lua"):find("group.rangeSpent",1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EarlyCombatPhase.lua"):find("group.rangeSpent=plan.spent",1,true)
+    and read("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/LateCombatPhase.lua"):find("group.rangeSpent",1,true),
     "Ranged points double-counted")
 assert(combat:find("combatDefeatPartial",1,true),"Partial cleanup missing")
 assert(combat:find("combatBossPartialRewardEligible",1,true),"Partial Fame state missing")

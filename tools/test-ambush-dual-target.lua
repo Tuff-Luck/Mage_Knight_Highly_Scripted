@@ -17,9 +17,9 @@ local arrows=read("src/PlayingGame/AttackAssignments.lua")
 local data=read("src/Data.lua")
 assert(data:find("ambush={normal={move=2},powered={move=4}",1,true))
 assert(data:find("combatLink={normal={attack=1,block=2},powered={attack=2,block=4}}",1,true))
-assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/CardControlOptions.lua"):find('return "ambush" end',1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CardControlOptions.lua"):find('return "ambush" end',1,true),
     "Ambush must use the shared card/enemy target control")
-assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua"):find('global/attackAssignmentAmbushSourceClicked',1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CardControls.lua"):find('global/attackAssignmentAmbushSourceClicked',1,true),
     "Ambush target button must use the dual-target callback")
 assert(arrows:find('getObjectFromGUID(targetGUID),assignmentColors.other)',1,true),
     "The separate card bonus must draw a purple arrow")
@@ -64,9 +64,9 @@ local env={
     setHighlight=function() end
 }
 setmetatable(env,{__index=_G})
-env.trackerPrivate={combatTargetPolicy=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/CombatTargetPolicy.lua","t",env))()}
+env.trackerPrivate={combatTargetPolicy=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/CombatTargetPolicy.lua","t",env))()}
 package.path="src/?.lua;"..package.path
-local helpers=section(reader,'local cardPosture=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").cardPosture',
+local helpers=section(reader,'local cardPosture=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.PhysicalObjects").cardPosture',
     "-- Paging changes visible rows")
 assert(load(helpers,"Ambush candidate eligibility","t",env))()
 assert(env.cardPosture==nil,
@@ -83,7 +83,7 @@ block.is_face_down=false
 
 -- Resolve the actual buff code with a saved remote link and a physically
 -- overlapping DIFFERENT card. Explicit assignment must win.
-local calculate=section(read("src/PlayingGame/PlayerBoard/ResourceTracker/CardInteractions.lua"),
+local calculate=section(read("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/CardInteractions.lua"),
     "    -- Ambush's explicit card assignment takes priority over physical overlap.",
     "    -- Retire stale manual links when Ambush itself is no longer")
 local calcEnv=setmetatable({

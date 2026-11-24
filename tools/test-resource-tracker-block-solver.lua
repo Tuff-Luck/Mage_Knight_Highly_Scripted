@@ -1,5 +1,5 @@
 -- Exercise production Block allocation, including efficient and inefficient half-points.
-local engine=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/BlockSolver.lua")({COMBAT_EFFICIENT_BLOCKS={
+local engine=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/BlockSolver.lua")({COMBAT_EFFICIENT_BLOCKS={
     P={block=true,blockFire=true,blockIce=true,blockColdFire=true},
     F={blockIce=true,blockColdFire=true},I={blockFire=true,blockColdFire=true},
     IF={blockColdFire=true},M={blockPsychic=true}}})

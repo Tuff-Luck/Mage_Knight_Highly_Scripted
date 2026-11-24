@@ -10,7 +10,7 @@ local env=setmetatable({
     isManaTokenFigurine=function(obj) return obj.type=="Figurine" and obj.mana~=nil end,
     manaTokenColor=function(obj) return obj.mana end
 },{__index=_G})
-local physical=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/PhysicalObjects.lua","t",env))()
+local physical=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Scanning/PhysicalObjects.lua","t",env))()
 local function object(guid,kind,notes)
     local o={guid=guid,type=kind,notes=notes or "",resting=false}
     o.getGMNotes=function() return o.notes end

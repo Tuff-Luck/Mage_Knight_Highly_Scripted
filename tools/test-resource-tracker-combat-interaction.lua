@@ -16,7 +16,7 @@ local env={
     resourceCardsPlayerCanEdit=function(color) return color=="Blue" end
 }
 setmetatable(env,{__index=_G})
-local interaction=assert(loadfile(root.."CombatInteraction.lua","t",env))()
+local interaction=assert(loadfile(root.."Combat/CombatInteraction.lua","t",env))()
 local state={seat=1,targets={},explicit={}}
 local cfg={artifactCombat={bow=true},slotBowFamilies={},bowSourceModes={},effectSources={},
     resultRowCache={},refreshSelectedSlots=function() selectedRefreshes=selectedRefreshes+1 end}

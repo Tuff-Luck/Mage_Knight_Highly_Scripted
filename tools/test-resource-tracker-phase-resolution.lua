@@ -7,7 +7,7 @@ local function copy(value)
     for k,v in pairs(value) do result[k]=copy(v) end
     return result
 end
-local groupsEngine=dofile(root.."EnemyGroups.lua")
+local groupsEngine=dofile(root.."Combat/EnemyGroups.lua")
 local function groupEntry(members,blocked)
     local armour=0
     for _,member in ipairs(members) do armour=armour+member.baseArmour end
@@ -30,9 +30,9 @@ end
 local function attacks(entry) return entry.attacks or {} end
 local function trait(data,perks,key) return data[key]==true end
 local function boss() return nil end
-local early=dofile(root.."EarlyCombatPhase.lua")(block,groupEntry,range,rangeGroup,boss,attacks,trait,copy)
-local prep=dofile(root.."DamagePreparation.lua")(function() return {damageMitigation={physical=2,nonphysical=1}} end)
-local late=dofile(root.."LateCombatPhase.lua")(groupEntry,trait,function() return 0 end,
+local early=dofile(root.."Combat/EarlyCombatPhase.lua")(block,groupEntry,range,rangeGroup,boss,attacks,trait,copy)
+local prep=dofile(root.."Combat/DamagePreparation.lua")(function() return {damageMitigation={physical=2,nonphysical=1}} end)
+local late=dofile(root.."Combat/LateCombatPhase.lua")(groupEntry,trait,function() return 0 end,
     function(result) return result and result.heroWounds or 0 end,
     function(latest,committed,seen)
         local result={}

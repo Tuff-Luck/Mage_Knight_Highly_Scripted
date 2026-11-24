@@ -15,7 +15,7 @@ local function choose(_,_,choices)
 end
 local config={sourceFields={{key="attack"},{key="block"},{key="ranged"}}}
 config.repeatChoiceFor=choose
-local options=require("PlayingGame.PlayerBoard.ResourceTracker.CardControlOptions")({
+local options=require("PlayingGame.PlayerBoard.ResourceTracker.Interface.CardControlOptions")({
     choiceLetters={move="M",influence="I",attack="A",block="B",healing="H",ready="R",
         other="?",guide="G",hardened="H",ranged="R"},
     combatConfig=config,

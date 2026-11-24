@@ -190,7 +190,7 @@ eq(fixedWidth(warning,"Knockout warning"),width,
     "Knockout warning must align with the Draw Wounds button")
 assert(not enemyPanel:find('CombatTotalSpacer',1,true),
     "No spacer may stretch the Draw Wounds row")
-local renderer=fileText("src/PlayingGame/PlayerBoard/ResourceTracker/CombatPanelRenderer.lua")
+local renderer=fileText("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CombatPanelRenderer.lua")
 assert(not recognition:find('summaryWidth',1,true) and not renderer:find('summaryWidth',1,true),
     "No dynamic preferredWidth writes should fight TTS's anchored position")
 assert(renderer:find('"Draw: "..combatRich',1,true),
@@ -381,7 +381,7 @@ handObjects={}
 
 -- If a destroyed Unit had already helped defeat a different enemy with
 -- Ranged/Siege, its early attack must remain valid after physical removal.
-local resolveDamage=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/DamageResolution.lua")(
+local resolveDamage=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/DamageResolution.lua")(
     function(guid) return gameCards~=nil and gameCards[guid] or nil end,
     function(owner,summoner)
         local records=gStates~=nil and gStates.attackedMonsters or nil
@@ -466,7 +466,7 @@ eq(saved.attack,0,"destroyed Unit cannot attack in later phase")
 eq(saved.resources.attack,nil,"Attack resource must not survive")
 eq(saved.retiredTarget,"enemyA","chosen Ranged target must survive")
 eq(saved.retiredUnitPosition[3],-39,"automatic targeting preserves position")
-local targetPolicy=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/CombatTargetPolicy.lua")
+local targetPolicy=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/CombatTargetPolicy.lua")
 eq(targetPolicy.acceptsSource("unitR","enemyA"),true,
     "destroyed Unit retains its earlier Ranged/Siege target")
 eq(targetPolicy.acceptsSource("unitR","enemyB"),false,
@@ -968,10 +968,10 @@ eq(#unusedBlock,1,"unspent Block does not create a frozen early source")
 eq(unusedBlock[1].block,0,"unspent Block cannot retroactively Block")
 eq(unusedBlock[1].attack,4,"unspent Block may be changed to a later Attack")
 eq(unusedBlock[1].phaseAfterDamage,true,"changed source is Attack-phase only")
-assert(fileText("src/PlayingGame/PlayerBoard/ResourceTracker/CombatRowRenderer.lua"):find('item.source.phaseLocked and "false" or "true"',1,true),
+assert(fileText("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CombatRowRenderer.lua"):find('item.source.phaseLocked and "false" or "true"',1,true),
     "frozen calculator icons must not be clickable")
-assert(fileText("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua"):find('combatConfig.phaseObjectLocked(card.guid)',1,true)
-    and fileText("src/PlayingGame/PlayerBoard/ResourceTracker/UnitControls.lua"):find('combatConfig.phaseObjectLocked(unit.guid)',1,true),
+assert(fileText("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CardControls.lua"):find('combatConfig.phaseObjectLocked(card.guid)',1,true)
+    and fileText("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/UnitControls.lua"):find('combatConfig.phaseObjectLocked(unit.guid)',1,true),
     "locked cards and Units must lose choice and target controls")
 local assignments=fileText("src/PlayingGame/AttackAssignments.lua")
 assert(assignments:find('lock.positions or {}',1,true)
@@ -987,8 +987,8 @@ assert(assignments:find('function attackAssignmentsDamageSnapshot()',1,true)
 -- Move reductions must remain committed.
 local blockConfig={sourceFields={{key="block",family="block"}},
     COMBAT_EFFICIENT_BLOCKS={P={block=true}},COMBAT_RED="red"}
-local blockSolver=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/BlockSolver.lua")(blockConfig)
-local blockEngine=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/BlockResults.lua")(blockConfig,blockSolver,
+local blockSolver=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/BlockSolver.lua")(blockConfig)
+local blockEngine=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/BlockResults.lua")(blockConfig,blockSolver,
     function(enemy) return enemy.attacks end,function() return 0 end,
     function(value) return value end)
 local blockCache={}
@@ -1026,9 +1026,9 @@ local _,replacementMove=effective(swapEnemy,{moveSource("moveB",2)})
 eq(firstMove.moveA,true,"initial Move source committed")
 eq(replacementMove.moveB,true,"same-valued replacement Move source committed")
 eq(replacementMove.moveA,nil,"cache cannot retain a departed Move source")
-assert(fileText("src/PlayingGame/PlayerBoard/ResourceTracker/EarlyCombatPhase.lua"):find("preview.sourceKeys={}",1,true)
-    and fileText("src/PlayingGame/PlayerBoard/ResourceTracker/EarlyCombatPhase.lua"):find("block.successfulSourceKeys",1,true)
-    and fileText("src/PlayingGame/PlayerBoard/ResourceTracker/EarlyCombatPhase.lua"):find("block.spentMoveKeys",1,true),
+assert(fileText("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EarlyCombatPhase.lua"):find("preview.sourceKeys={}",1,true)
+    and fileText("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EarlyCombatPhase.lua"):find("block.successfulSourceKeys",1,true)
+    and fileText("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EarlyCombatPhase.lua"):find("block.spentMoveKeys",1,true),
     "phase lock must be derived from actual successful Block and Move use")
 
 -- Exercise the production rewind guard itself (not just the commit

@@ -42,7 +42,7 @@ setmetatable(scoreEnv,{__index=_G})
 -- Use the full production resource-key mapping, not a partial test copy.
 assert(load(section(reader,"trackerPrivate.resourceTotalsKeyByField={",
     "trackerPrivate.attackTransformFamilies="),"Resource key mapping","t",scoreEnv))()
-local choiceFactory=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/ResourceChoices.lua","t",scoreEnv))()
+local choiceFactory=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/ResourceChoices.lua","t",scoreEnv))()
 local scores=choiceFactory(scoreEnv.trackerPrivate,function() return {} end,{},nil).trackerChoiceScores
 assert(scores("unused",1).influence==0,
     "Reputation and shields must not bias Influence option guesses")

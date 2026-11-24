@@ -66,7 +66,7 @@ local env={
     resourceCardsSourceChanged=function() refreshes=refreshes+1 end
 }
 setmetatable(env,{__index=_G})
-env.trackerPrivate={combatInteraction=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/CombatInteraction.lua","t",env))()}
+env.trackerPrivate={combatInteraction=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/CombatInteraction.lua","t",env))()}
 assert(load(forget,"Combat lock removal","t",env))()
 local clicked=assert(load(callbacks.."\nreturn attackAssignmentSourceClicked",
     "Combat targeting control","t",env))()

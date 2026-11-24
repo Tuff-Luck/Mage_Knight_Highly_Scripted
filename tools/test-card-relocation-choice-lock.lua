@@ -23,7 +23,7 @@ local lockCode=slice(source,"local function combatSourceKeepsLock(key)",
     "-- Physical target controls and the calculator")
 local dropCode=slice(source,"function resourceCardsObjectMoved(obj,stabilized)",
     "-- Register the remaining readying")
-local recoverCode=slice(read("src/PlayingGame/PlayerBoard/ResourceTracker/ScanObservation.lua"),"    -- A released source may be above the shallow zone",
+local recoverCode=slice(read("src/PlayingGame/PlayerBoard/ResourceTracker/Scanning/ScanObservation.lua"),"    -- A released source may be above the shallow zone",
     "    -- A resting active Unit can be lifted")
 
 local pos={x=0,y=12,z=0,[1]=0,[2]=12,[3]=0}
@@ -99,7 +99,7 @@ local env={
 }
 setmetatable(env,{__index=_G})
 env.trackerPrivate=env.trackerPrivate or {}
-env.trackerPrivate.objectEvents=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/ObjectEvents.lua","t",env))()
+env.trackerPrivate.objectEvents=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Core/ObjectEvents.lua","t",env))()
 local code=table.concat({matCode,resetCode,lockCode,dropCode,
     "return cardInSeatPlayArea,scheduleChoiceResetAfterPlay,combatSourceKeepsLock,resourceCardsObjectMoved"},"\n")
 local onMat,scheduleReset,keepsLock,onDrop=

@@ -71,7 +71,7 @@ local reader=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 -- Unit payments require current play/Unit zone membership.
 local manaCode=extract(reader,"local function unitManaCounts(unit,seatPos,source,crystalsOnly)",
     "local function unitAbilityPaid")
-local readyCode=extract(reader,'trackerPrivate.readyForXZ=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").readyForXZ',
+local readyCode=extract(reader,'trackerPrivate.readyForXZ=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.PhysicalObjects").readyForXZ',
     "-- Magic Talent's strong side")
 local blue={guid="blue",type="Figurine",color="Blue",resting=true,moving=false,
     position={x=0,z=0}}
@@ -85,7 +85,7 @@ objects.blue=blue
 objects.inventory=inventory
 objects.playZone={getObjects=function() return {} end}
 local payment=assert(load([[
-local trackerPrivate={manaPayments=require("PlayingGame.PlayerBoard.ResourceTracker.ManaPayments")}
+local trackerPrivate={manaPayments=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.ManaPayments")}
 local playerUnitAreas={[1]="unitZone"}
 local playerPlayAreas={[1]="playZone"}
 local function footprint() return {x=0,z=0,halfX=1.2,halfZ=1.4} end
@@ -129,10 +129,10 @@ dofile("src/PlayingGame/PlayerBoard/UnitResources.lua")
 local abilities=assert(unitResourceDefinitions[unit.guid])
 eq(abilities[3].attackIce,4,"Northern Monks Ice Attack 4")
 eq(abilities[4].blockIce,4,"Northern Monks Ice Block 4")
-local payment=require("PlayingGame.PlayerBoard.ResourceTracker.ManaPayments")
+local payment=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.ManaPayments")
 local function resourceCardsGoldAllowed() return false end
 local function resourceCardsBlackAllowed() return false end
-local unitManaDecision=require("PlayingGame.PlayerBoard.ResourceTracker.UnitChoices")({
+local unitManaDecision=require("PlayingGame.PlayerBoard.ResourceTracker.Units.UnitChoices")({
     unitManaCounts=function() error("Pass explicit mana counts") end,
     unitManaSignature=function(counts)
         return payment.unitManaSignature(counts,resourceCardsGoldAllowed,resourceCardsBlackAllowed)
@@ -156,7 +156,7 @@ eq(decide(unit,abilities,{seatPos=1,choice=1},{}).index,1,
 local targetCode=extract(reader,"local function unitAbilityTargetCategory(ability)",
     "-- The printed normal and powered effects share one choice")
 local buttonCode=extract(reader,
-    'local showUnitAbilityButtons=require("PlayingGame.PlayerBoard.ResourceTracker.UnitControls")({',
+    'local showUnitAbilityButtons=require("PlayingGame.PlayerBoard.ResourceTracker.Interface.UnitControls")({',
     "local function clearChoiceButtons()")
 local moveRole=extract(reader,"local function resourceCardsMoveRole(guid,assign)",
     "function resourceCardsEnemyPresent()")
@@ -196,11 +196,11 @@ assert(hasButton(buttons,"AttackAssignmentSource_f17813_0_attackIce"),
     "Target button remains after retarget refresh")
 
 -- The pending scan, not the drop or crystal zone event, owns Unit controls.
-assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/ScanObservation.lua"):find("local missingActiveUnit=false",1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Scanning/ScanObservation.lua"):find("local missingActiveUnit=false",1,true),
     "Settled scan must recover active Units missed by zones")
-assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/UnitScan.lua"):find("or unitManaCounts(unit,seatPos,unitPaymentMana)",1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Units/UnitScan.lua"):find("or unitManaCounts(unit,seatPos,unitPaymentMana)",1,true),
     "Unit payments must use the play/Unit zone mana list")
-local refresh=extract(read("src/PlayingGame/PlayerBoard/ResourceTracker/UnitManagement.lua"),"function M.refreshButtons()",
+local refresh=extract(read("src/PlayingGame/PlayerBoard/ResourceTracker/Units/UnitManagement.lua"),"function M.refreshButtons()",
     "function M.rebuildFromTable(")
 assert(refresh:find("resourceCardsSourceChanged()",1,true),
     "External UI refreshes queue the settled scan")

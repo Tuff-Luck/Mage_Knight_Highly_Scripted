@@ -36,7 +36,7 @@ local tracker={playCandidatesBySeat={[1]={remembered=true,outside=true}},
     bestManaCard=function(mana,cards,footprints,eligible)
         for _,c in ipairs(cards) do if eligible(c) then return c end end
     end}
-local obs=assert(loadfile(root.."ScanObservation.lua","t",env))()
+local obs=assert(loadfile(root.."Scanning/ScanObservation.lua","t",env))()
 local seen,placements,monsters,playMonsters,combatMonsters,enemyEntries,counts,cards,wounds,skills,
     manaObjects,footprints,unitPaymentMana=obs.observe({
     seatPos=1,trackerPrivate=tracker,combatConfig={cardInTransit=function(obj) return false end},
@@ -53,7 +53,7 @@ eq(placements.unit,"unit","Previously activated Unit recovered")
 eq(counts.Blue,1,"Inventory crystal counted")
 eq(#unitPaymentMana,1,"Only settled play/Unit mana can pay Unit")
 eq(unitPaymentMana[1],mana,"Live play mana is the candidate")
-local pay=assert(loadfile(root.."ScanPayments.lua","t",env))()
+local pay=assert(loadfile(root.."Scanning/ScanPayments.lua","t",env))()
 local byObject,bySkill,byCard,skillTargets,skillLinks,sideways,powered,used=pay.resolve({
     seatPos=1,cards=cards,wounds=wounds,skills=skills,manaObjects=manaObjects,footprints=footprints,
     placements=placements,trackerPrivate=tracker,resolveManaSkillLinks=function() return {},{},{} end,

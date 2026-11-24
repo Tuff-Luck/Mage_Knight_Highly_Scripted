@@ -4,7 +4,7 @@ package.path="src/?.lua;"..package.path
 local tracker={totalsKeys={move=true,attack=true,block=true,blockColdFire=true,
     rangedColdFire=true,influence=true}}
 local selected={}
-local choices=require("PlayingGame.PlayerBoard.ResourceTracker.ResourceChoices")(
+local choices=require("PlayingGame.PlayerBoard.ResourceTracker.Cards.ResourceChoices")(
     tracker,function() return selected end,{},nil)
 local day=true
 local rules={
@@ -34,7 +34,7 @@ local env=setmetatable({
         return false
     end
 },{__index=_G})
-local calculate=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/SkillEffects.lua","t",env))()(env)
+local calculate=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/SkillEffects.lua","t",env))()(env)
 local function skill(guid,down,target,units,crystals)
     return calculate({guid=guid,is_face_down=down},target,units,crystals or {})
 end

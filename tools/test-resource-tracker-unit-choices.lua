@@ -1,6 +1,6 @@
 -- Direct Unit ability decision regressions (no TTS object discovery).
 package.path="src/?.lua;"..package.path
-local payment=require("PlayingGame.PlayerBoard.ResourceTracker.ManaPayments")
+local payment=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.ManaPayments")
 local gold,black=true,false
 local function goldAllowed() return gold end
 local function blackAllowed() return black end
@@ -8,7 +8,7 @@ local manaReads=0
 local function signature(counts)
     return payment.unitManaSignature(counts,goldAllowed,blackAllowed)
 end
-local decide=require("PlayingGame.PlayerBoard.ResourceTracker.UnitChoices")({
+local decide=require("PlayingGame.PlayerBoard.ResourceTracker.Units.UnitChoices")({
     unitManaCounts=function(unit,seatPos)
         assert(unit.guid=="unit" and seatPos==1)
         manaReads=manaReads+1

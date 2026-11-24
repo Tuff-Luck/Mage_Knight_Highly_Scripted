@@ -1,7 +1,7 @@
 -- Conditional Block effects: phase order, actual attack owner and counterattack gating.
 local root="src/PlayingGame/PlayerBoard/"
 dofile(root.."CombatEffects.lua")
-local groupModule=dofile(root.."ResourceTracker/EnemyGroups.lua")
+local groupModule=dofile(root.."ResourceTracker/Combat/EnemyGroups.lua")
 local calls,defends=0,0
 local tokens={summon={},immune={arcaneImmunity=true},fire={fResist=true},perk={}}
 local perks={perk={fResist=true}}
@@ -9,7 +9,7 @@ local function block(entry,sources)
     calls=calls+1
     return nil,nil,nil,entry.allBlocked,nil,nil,nil,entry.successful or {},entry.owners or {}
 end
-local engine=dofile(root.."ResourceTracker/ConditionalBlockEffects.lua")(
+local engine=dofile(root.."ResourceTracker/Combat/ConditionalBlockEffects.lua")(
     function(entries) defends=defends+1 for _,entry in ipairs(entries) do entry.previewOnly=true end end,
     groupModule.collect,function(members) return members end,
     function(members) return 0,0,members[1].rangedKill==true end,

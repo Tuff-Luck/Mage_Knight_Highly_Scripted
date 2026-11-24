@@ -1,7 +1,7 @@
 -- Direct tests of the production resolver with caller-owned runtime dependencies.
 local fortitude={}
 local summons={child="parent"}
-local engine=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/DamageResolution.lua")(
+local engine=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/DamageResolution.lua")(
     function(guid) return guid=="retired" and {name={"Retired Unit"}} or nil end,
     function(owner,summoner) return summons[owner]==summoner end,
     function() return fortitude end)

@@ -4,15 +4,20 @@
 local root="src/PlayingGame/PlayerBoard/"
 local prefix="PlayingGame.PlayerBoard.ResourceTracker."
 local modules=[[
-ActionLinks AttackEligibility BlockResults BlockSolver BossAllocation CardControlOptions CardControls
-CardEffects CardInteraction CardInteractions CombatDisplay CombatEffectDisplay CombatInteraction
-CombatPanelLayout CombatPanelRenderer CombatResourceDisplay CombatRowRenderer CombatTargetPolicy
-ConditionalBlockEffects DamagePreparation DamageResolution DefendAllocation Diagnostics
-DivisibleResources EarlyCombatPhase EnemyAttacks EnemyDefences EnemyGroups ExplosiveBolt
-FactionRewardScan FlameWave LateCombatPhase ManaPayments MovementEffects ObjectEvents PhysicalObjects
-PlayedCardScan ReadyPolicy ResourceChoices ScanFinalization ScanObservation ScanPayments ScanPublication
-ScanScheduler SkillEffects SkillInteractions SkillLinks SourceTargetAllocation State TrackerLifecycle
-UnitChoices UnitControls UnitEffects UnitManagement UnitScan UnitSelfWounds
+Cards.ActionLinks Cards.CardEffects Cards.CardInteraction Cards.CardInteractions Cards.MovementEffects
+Cards.PlayedCardScan Cards.ResourceChoices Cards.SkillEffects Cards.SkillInteractions Cards.SkillLinks
+Combat.AttackEligibility Combat.BlockResults Combat.BlockSolver Combat.BossAllocation
+Combat.CombatInteraction Combat.CombatTargetPolicy Combat.ConditionalBlockEffects
+Combat.DamagePreparation Combat.DamageResolution Combat.DefendAllocation Combat.DivisibleResources
+Combat.EarlyCombatPhase Combat.EnemyAttacks Combat.EnemyDefences Combat.EnemyGroups Combat.ExplosiveBolt
+Combat.FlameWave Combat.LateCombatPhase Combat.SourceTargetAllocation Core.Diagnostics Core.ObjectEvents
+Core.ScanScheduler Core.State Core.TrackerLifecycle Interface.CardControlOptions Interface.CardControls
+Interface.CombatDisplay Interface.CombatEffectDisplay Interface.CombatPanelLayout
+Interface.CombatPanelRenderer Interface.CombatResourceDisplay Interface.CombatRowRenderer
+Interface.UnitControls Scanning.FactionRewardScan Scanning.ManaPayments Scanning.PhysicalObjects
+Scanning.ScanFinalization Scanning.ScanObservation Scanning.ScanPayments Scanning.ScanPublication
+Units.ReadyPolicy Units.UnitChoices Units.UnitEffects Units.UnitManagement Units.UnitScan
+Units.UnitSelfWounds
 ]]
 local publicNames=[[
 attackAssignmentReadySourceClicked combatBossAutomationActive combatBossLevelCount combatBossSetManual
@@ -126,7 +131,7 @@ local function checkGlobals(path)
         end
     end
 end
-for name in modules:gmatch("%S+") do checkGlobals(root.."ResourceTracker/"..name..".lua") end
+for name in modules:gmatch("%S+") do checkGlobals(root.."ResourceTracker/"..name:gsub("%.","/")..".lua") end
 checkGlobals(root.."CardRecognition.lua")
 assert(environmentReads>100,"Compiler listing did not expose global references")
 assert(#violations==0,"Private helper escaped into globals:\n"..table.concat(violations,"\n"))

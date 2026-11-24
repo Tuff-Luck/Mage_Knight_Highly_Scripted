@@ -12,8 +12,8 @@ local env=setmetatable({
     resourceCardsPanelOpen=function() return open end
 },{__index=_G})
 env.require=function(name)
-    assert(name=="PlayingGame.PlayerBoard.ResourceTracker.MovementEffects")
-    return assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/MovementEffects.lua","t",env))()
+    assert(name=="PlayingGame.PlayerBoard.ResourceTracker.Cards.MovementEffects")
+    return assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/MovementEffects.lua","t",env))()
 end
 assert(load(source:sub(start,finish-1),"Movement effect wiring","t",env))()
 local function eq(actual,expected,label)

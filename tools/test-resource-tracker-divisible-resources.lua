@@ -1,6 +1,6 @@
 -- Direct tests of split-resource conservation, eligibility and icon records.
 local counts,cumbersome={},{}
-local split=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/DivisibleResources.lua")(
+local split=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/DivisibleResources.lua")(
     function(key) return counts end,
     function(guid) return cumbersome[guid]==true end,
     function(entry) return entry.attacks or {} end)

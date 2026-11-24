@@ -12,8 +12,8 @@ local function between(s,a,b)
     return s:sub(first+#a,last-1)
 end
 local recognition=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-local unitScan=read("src/PlayingGame/PlayerBoard/ResourceTracker/UnitScan.lua")
-local readyPolicy=read("src/PlayingGame/PlayerBoard/ResourceTracker/ReadyPolicy.lua")
+local unitScan=read("src/PlayingGame/PlayerBoard/ResourceTracker/Units/UnitScan.lua")
+local readyPolicy=read("src/PlayingGame/PlayerBoard/ResourceTracker/Units/ReadyPolicy.lua")
 local effects=read("src/PlayingGame/PlayerBoard/CombatEffects.lua")
 local layout=read("src/PlayingGame/PlayerBoard/UnitLayout.lua")
 local replace=read("src/PlayingGame/PlayerBoard/UnitReplacement.lua")
@@ -117,7 +117,7 @@ assert(not recognition:find('startingControl("manual"',1,true),
     "Generic card '?' button must not be rendered")
 assert(not recognition:find('_artifactNote',1,true),
     "Artifact '?' button must not be rendered")
-assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua"):find('"_healAllUnits"',1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CardControls.lua"):find('"_healAllUnits"',1,true),
     "Banner of Fortitude's actual HEAL button must remain")
 
 -- Exercise UnitLayout's real attachment matching: only half cards
@@ -190,7 +190,7 @@ assert(unitScan:find(
 -- The real Damage-phase resolver must use one flipped Fortitude on one
 -- selected attack, including prevention of Poison and Paralysis, not both.
 local fortitude={}
-local damageTest=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/DamageResolution.lua")(
+local damageTest=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/DamageResolution.lua")(
     function() return nil end,function() return false end,
     function() return fortitude end).resolve
 local unit={guid="unit",level=2,armour=2,resist={},wounded=false,
@@ -239,7 +239,7 @@ assert(#ignored.immune.attackReductions==0,
     "Arcane Immunity must ignore the Fear cancellation")
 
 local choices={}
-local engine=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/EnemyAttacks.lua")({
+local engine=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EnemyAttacks.lua")({
     {key="P",label="Physical",block="block"},
     {key="F",label="Fire",block="blockFire"}
 },function(data,perks,key) return data[key]==true or (perks~=nil and perks[key]==true) end,
@@ -261,7 +261,7 @@ assert(#enemyAttacks(entry,true)==2,
 -- All scans and strong-effect callbacks must distinguish the full form.
 assert(readyPolicy:find('trackerPrivate.bannerCardForm(guid)~="half"',1,true),
     "Half Banners must not enter the play-area Artifact list")
-assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/CardEffects.lua"):find('local attachedResult=trackerPrivate.bannerAttachedCardResult(card.guid)',1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/CardEffects.lua"):find('local attachedResult=trackerPrivate.bannerAttachedCardResult(card.guid)',1,true),
     "The card calculator must leave attached halves inert")
 assert(recognition:find("and resourceCardsArtifactBroken(card.guid,card)",1,true),
     "Artifact classification must consult the shared Throw/Recover state")
@@ -289,9 +289,9 @@ assert(arrowKind({cancelOneAttack=true})=="other",
     "Attached Fear must use purple arrows")
 assert(arrowKind({noAttack=true,maxTargets=3})=="other",
     "Full Fear must use purple arrows")
-assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/CombatEffectDisplay.lua"):find('local arrow=combatEffectArrowKind(spec)',1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CombatEffectDisplay.lua"):find('local arrow=combatEffectArrowKind(spec)',1,true),
     "Calculator effect buttons must use shared classification")
-assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/CardInteractions.lua"):find('local borrowedEnemy=record~=nil and (record.possessEnemyGUID~=nil',1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/CardInteractions.lua"):find('local borrowedEnemy=record~=nil and (record.possessEnemyGUID~=nil',1,true),
     "Fear targets must not receive resource-link outlines")
 
 -- Banner of Courage is snapshotted once, rather than readied on every scan.
@@ -301,11 +301,11 @@ assert(unitScan:find("for _,entry in ipairs(courageUses[card.guid].eligible)",1,
     "Only snapshotted Units may receive Courage Ready links")
 assert(readyPolicy:find("if entry.key==sourceKey then return true end",1,true),
     "Courage must reject unsnapshotted Ready source IDs")
-local cardInteraction=read("src/PlayingGame/PlayerBoard/ResourceTracker/CardInteraction.lua")
+local cardInteraction=read("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/CardInteraction.lua")
 assert(cardInteraction:find("if uses[guid] then return end",1,true)
     and cardInteraction:find("uses[guid]=true",1,true),
     "Broken Fortitude's Heal must not activate twice")
-assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua"):find("not trackerPrivate.bannerEffectUses().healing[card.guid]",1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CardControls.lua"):find("not trackerPrivate.bannerEffectUses().healing[card.guid]",1,true),
     "Consumed Fortitude Heal button must disappear")
 
 -- The replacement picker must never treat Banner of Command as a normal,

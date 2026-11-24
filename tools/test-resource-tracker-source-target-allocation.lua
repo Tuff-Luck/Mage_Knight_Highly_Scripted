@@ -4,8 +4,8 @@ local arrows,clears,ensures,kept,records={},{},{},{},{}
 local nearestCalls=0
 local function cumbersome(guid) return guid=="c" end
 local function attacks(entry) return entry.attacks or {} end
-local split=dofile(root.."DivisibleResources.lua")(function() return {} end,cumbersome,attacks)
-local engine=dofile(root.."SourceTargetAllocation.lua")(
+local split=dofile(root.."Combat/DivisibleResources.lua")(function() return {} end,cumbersome,attacks)
+local engine=dofile(root.."Combat/SourceTargetAllocation.lua")(
     function(key) return arrows[key] or {} end,
     function(key) clears[#clears+1]=key arrows[key]=nil end,
     function(key,guid) return guid~="bad" end,cumbersome,

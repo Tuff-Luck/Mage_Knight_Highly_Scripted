@@ -56,8 +56,8 @@ local day=true
 resourceCardsUsesDayMana=function() return day end
 resourceCardsGoldAllowed=function() return day end
 resourceCardsBlackAllowed=function() return not day end
-local payment=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/ManaPayments.lua")
-local effects=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/UnitEffects.lua")({totalsKeys={attackColdFire=true}},
+local payment=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Scanning/ManaPayments.lua")
+local effects=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Units/UnitEffects.lua")({totalsKeys={attackColdFire=true}},
     function(ability,counts)
         return payment.unitAbilityPaid(ability,counts,resourceCardsGoldAllowed,resourceCardsBlackAllowed)
     end,resourceCardsUsesDayMana)
@@ -77,7 +77,7 @@ eq(scale({Red=1,Blue=1,Gold=2}),4,"bonus capped at +4")
 day=false
 eq(scale({Gold=2}),0,"Gold unusable at Night")
 eq(scale({Blue=1,Gold=2}),2,"Night counts only Blue")
-assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/UnitScan.lua"):find("trackerPrivate.unitEffects.unitAbilityResources(selected,counts,crystalCounts,",1,true),
+assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/Units/UnitScan.lua"):find("trackerPrivate.unitEffects.unitAbilityResources(selected,counts,crystalCounts,",1,true),
     "live Unit resources must use the extracted calculator")
 
 -- Delphana red is not a Fire Block and does not need its own Block source.
@@ -101,23 +101,23 @@ local fireBlock={destroyIfBlocked=true,fireSpell=true}
 combatEffectAdd(effects,"normal","spell",fireBlock)
 eq(combatEffectDestroysFullyBlocked(effects.normal.applied[2],true,true),false,
     "Spell-specific Block destruction cannot use all-attacks rule")
-assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/ConditionalBlockEffects.lua"):find("local _,_,_,allBlocked,_,_,_,successfulSources,successfulOwners=",1,true),
+assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/ConditionalBlockEffects.lua"):find("local _,_,_,allBlocked,_,_,_,successfulSources,successfulOwners=",1,true),
     "combat must use allBlocked result, not a single successful Block")
-assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/ConditionalBlockEffects.lua"):find("combatEffectDestroysFullyBlocked(applied,allBlocked,hasAttack)",1,true),
+assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/ConditionalBlockEffects.lua"):find("combatEffectDestroysFullyBlocked(applied,allBlocked,hasAttack)",1,true),
     "red destruction must use full-Block check")
-assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/ConditionalBlockEffects.lua"):find("successfulSources[applied.source]==true",1,true),
+assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/ConditionalBlockEffects.lua"):find("successfulSources[applied.source]==true",1,true),
     "Spell destruction must remain tied to its own Block")
 assert(combatEffectRequiresDefence(delphana[2].enemyEffect),
     "attack-only reminders must not become eligible defensive targets")
-assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/CombatEffectDisplay.lua"):find("Destroy target if all its attacks are successfully Blocked",1,true),
+assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CombatEffectDisplay.lua"):find("Destroy target if all its attacks are successfully Blocked",1,true),
     "Delphana tooltip must describe all-attacks requirement")
 
 -- A Ready then Black transformation must credit use2, not use1; an old
 -- transform must not overwrite the currently selected Command highlight.
-assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/UnitScan.lua"):find("transformingUnits[recordKey]=selected.attackTransform",1,true),
+assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/Units/UnitScan.lua"):find("transformingUnits[recordKey]=selected.attackTransform",1,true),
     "track transform by historical source key")
-assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/UnitScan.lua"):find("local record=records[sourceKey]",1,true),
+assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/Units/UnitScan.lua"):find("local record=records[sourceKey]",1,true),
     "attribute transformation contribution to the correct use")
-assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/UnitScan.lua"):find("unitHistorySelectedNumber(unitGUID)==record.activationIndex",1,true),
+assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/Units/UnitScan.lua"):find("unitHistorySelectedNumber(unitGUID)==record.activationIndex",1,true),
     "do not overwrite another activation's highlight")
 print("Level IV Unit regressions passed")

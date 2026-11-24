@@ -1,6 +1,6 @@
 -- Direct regressions for physical Skill link resolution and shared mana reservation.
 package.path="src/?.lua;"..package.path
-local physical=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects")
+local physical=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.PhysicalObjects")
 local gold,black=true,false
 local selected="base"
 local env=setmetatable({
@@ -31,7 +31,7 @@ local function area(x,z) return {x=x,z=z,halfX=1,halfZ=1} end
 local function matches(card,color)
     return env.gameCards[card.guid].color==color or color=="Black" or color=="Gold"
 end
-local links=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/SkillLinks.lua","t",env))()({
+local links=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/SkillLinks.lua","t",env))()({
     trackerPrivate={},resourceCardsGoldAllowed=function() return gold end,
     resourceCardsBlackAllowed=function() return black end,
     currentChoice=function(guid,powered,choices) return nil,selected end,

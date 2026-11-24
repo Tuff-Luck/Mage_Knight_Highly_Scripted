@@ -60,7 +60,7 @@ end}
 objects.zone=zone
 objects.trash=trash
 local env={
-    Global={},trackerPrivate={readyForXZ=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/PhysicalObjects.lua").readyForXZ},
+    Global={},trackerPrivate={readyForXZ=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Scanning/PhysicalObjects.lua").readyForXZ},
     combatConfig={cardInTransit=function() return false end},
     gStates={firstStarted=true,turnNumber=1},
     turnOrder={{seatPos=1,deadDeckInventory={"8fac50","6fdeb0","a11111"}}},

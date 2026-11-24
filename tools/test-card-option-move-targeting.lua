@@ -15,7 +15,7 @@ local function slice(source,first,last)
 end
 
 local reader=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-local allocation=read("src/PlayingGame/PlayerBoard/ResourceTracker/SourceTargetAllocation.lua")
+local allocation=read("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/SourceTargetAllocation.lua")
 local arrows=read("src/PlayingGame/AttackAssignments.lua")
 local data=read("src/Data.lua")
 assert(data:find('resourceKey="pureMagic"',1,true),"Pure Magic mapping missing")
@@ -125,8 +125,8 @@ local env={
     end
 }
 setmetatable(env,{__index=_G})
-env.trackerPrivate={combatInteraction=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/CombatInteraction.lua","t",env))(),
-    cardInteraction=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/CardInteraction.lua","t",env))()}
+env.trackerPrivate={combatInteraction=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/CombatInteraction.lua","t",env))(),
+    cardInteraction=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/CardInteraction.lua","t",env))()}
 assert(load(clearCode,"Target clearing","t",env))()
 local click=assert(load(forgetCode.."\n"..choiceCode.."\nreturn resourceCardsChoiceClicked",
     "Card choice change","t",env))()

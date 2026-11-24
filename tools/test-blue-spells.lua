@@ -50,7 +50,7 @@ eq(effects.immune.armourReduce,0,"Arcane Immunity blocks Armour reduction")
 
 -- Veil of Mist: one Wound is ignored across all attacks, and the
 -- ignored Wound must not trigger Poison or Paralyse on the Hero.
-local resolve=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/DamageResolution.lua")(
+local resolve=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/DamageResolution.lua")(
     function(guid) return gameCards~=nil and gameCards[guid] or nil end,
     function(owner,summoner)
         local records=gStates~=nil and gStates.attackedMonsters or nil
@@ -101,7 +101,7 @@ getObjectFromGUID=function(guid)
 end
 package.path="src/?.lua;"..package.path
 trackerPrivate=trackerPrivate or {}
-trackerPrivate.manaPayments=require("PlayingGame.PlayerBoard.ResourceTracker.ManaPayments")
+trackerPrivate.manaPayments=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.ManaPayments")
 local paid=isolated(recognition,
     "function resourceCardsTimeBendingPaid(seatPos,card)",
     "-- Physical mana is authoritative", "resourceCardsTimeBendingPaid")
@@ -155,7 +155,7 @@ local held=isolated(combat,
 manaClaimRegisterForTurn(1)
 eq(held("claimed"),true,"Claimed die survives end-of-turn cleanup")
 eq(held("casting"),false,"Casting die is not retained")
-assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/ScanObservation.lua"):find("not manaClaimDieHeld(obj.guid)",1,true),
+assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/Scanning/ScanObservation.lua"):find("not manaClaimDieHeld(obj.guid)",1,true),
     "Claimed die cannot pay unrelated tracker actions")
 combatReturnPreEndTurnDie=function(_,guid) eq(guid,"claimed","Return claimed die") end
 isolated(combat,"function manaClaimReturnHeldDice()",

@@ -37,7 +37,7 @@ local r={
         return powered and rule.enemyEffect.powered or rule.enemyEffect.normal
     end,
 }
-r.trackerPrivate={combatTargetPolicy=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/CombatTargetPolicy.lua","t",r))()}
+r.trackerPrivate={combatTargetPolicy=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/CombatTargetPolicy.lua","t",r))()}
 isolate(recognition,"function resourceCardsCombatAdditionalTargetLimit(sourceKey)",
     "-- Every Maximal Effect application",r)
 

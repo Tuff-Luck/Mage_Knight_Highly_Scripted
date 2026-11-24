@@ -1,7 +1,7 @@
 -- Independent mana roles must use distinct objects and the live Gold/Black permissions.
 -- Run from the repository root with Lua 5.2.
 package.path="src/?.lua;"..package.path
-local payment=require("PlayingGame.PlayerBoard.ResourceTracker.ManaPayments")
+local payment=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.ManaPayments")
 local function mana(guid,color) return {guid=guid,color=color} end
 local spec={castColor="Blue",powerColor="Black",colors={Red="red",White="white",Blue="blue",Green="green"}}
 local cast,power,effect=mana("cast","Blue"),mana("power","Black"),mana("effect","Red")

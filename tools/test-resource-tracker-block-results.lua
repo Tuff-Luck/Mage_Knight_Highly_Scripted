@@ -2,14 +2,14 @@
 local cfg={sourceFields={{key="block",family="block"},{key="blockIce",family="block"}},
     COMBAT_EFFICIENT_BLOCKS={P={block=true,blockIce=true},F={blockIce=true},M={blockPsychic=true}},
     COMBAT_RED="red"}
-local solver=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/BlockSolver.lua")(cfg)
+local solver=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/BlockSolver.lua")(cfg)
 local calls,bonus=0,0
 local actualSolve=solver.solve
 solver.solve=function(...)
     calls=calls+1
     return actualSolve(...)
 end
-local calculate=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/BlockResults.lua")(cfg,solver,function(entry)
+local calculate=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/BlockResults.lua")(cfg,solver,function(entry)
     local attacks={}
     for i,a in ipairs(entry.attacks) do
         local copy={}

@@ -1,6 +1,6 @@
 -- Unit payment permission and signature checks use the real extracted helpers.
 package.path="src/?.lua;"..package.path
-local payment=require("PlayingGame.PlayerBoard.ResourceTracker.ManaPayments")
+local payment=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.ManaPayments")
 local gold,black=true,false
 local function goldAllowed() return gold end
 local function blackAllowed() return black end

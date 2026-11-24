@@ -1,12 +1,12 @@
 -- Direct regression for the extracted Unit numeric effects and Glory modifier.
 package.path="src/?.lua;"..package.path
-local payment=require("PlayingGame.PlayerBoard.ResourceTracker.ManaPayments")
+local payment=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.ManaPayments")
 local day=true
 local function dayMana() return day end
 local function blackAllowed() return not day end
 local tracker={totalsKeys={attack=true,attackFire=true,attackColdFire=true,
     block=true,blockIce=true,ranged=true,siege=true,move=true,influence=true,healing=true}}
-local effects=require("PlayingGame.PlayerBoard.ResourceTracker.UnitEffects")(
+local effects=require("PlayingGame.PlayerBoard.ResourceTracker.Units.UnitEffects")(
     tracker,function(ability,counts)
         return payment.unitAbilityPaid(ability,counts,dayMana,blackAllowed)
     end,dayMana)
