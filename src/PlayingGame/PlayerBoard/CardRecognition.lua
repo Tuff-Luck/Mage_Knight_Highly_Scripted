@@ -360,7 +360,7 @@ combatConfig.slotCount=12
 combatConfig.lineSlotCount=6 -- Wrap each resource cell after six visible icons.
 combatConfig.rowHeight=32
 combatConfig.panelBaseHeight=30
-combatConfig.columns={Name=120,Armour=55,Traits=150,Attacks=105,Offence=130,Result=170}
+combatConfig.columns={Name=120,Armour=55,Traits=150,Attacks=105,Offence=130}
 -- Damage/resistance colours: normal, then the darker shade used once a value has been reduced.
 combatConfig.typeColors={P={"#FFFFFF","#9A9A9A"},F={"#FF5555","#992E2E"},I={"#5AA0FF","#2F5F9A"},
     IF={"#C070FF","#74429A"},M={"#FFE055","#9A8A33"}}
@@ -3085,7 +3085,7 @@ local function combatAssignmentRefreshRows(entries,sources)
         combatReductionAttackChoice,combatExpandedResults,combatAttackChoiceByRow,
         gStates.combatBossManual,totalRowHeight)
 
-    local columnWidths,panelWidth=trackerPrivate.combatPanelRenderer.columns(
+    local columnWidths,baseWidth=trackerPrivate.combatPanelRenderer.columns(
         shownTraits,shownOffence,shownAttacks,colUsed,maxResourceCounts,enemyNameWidth)
 
     if earlyLock==nil and combatConfig.phasePreview~=nil then
@@ -3098,7 +3098,7 @@ local function combatAssignmentRefreshRows(entries,sources)
     totalRowHeight=totalRowHeight+trackerPrivate.combatPanelRenderer.woundSummary(
         totalHeroWounds,totalDiscardWounds,knockout,pendingHand,pendingDiscard,changed,effects)
 
-    trackerPrivate.combatPanelRenderer.finish(overflow,panelWidth,columnWidths,enemyNameWidth)
+    trackerPrivate.combatPanelRenderer.finish(overflow,baseWidth,columnWidths,enemyNameWidth,combatExpandedResults,pages)
     return totalRowHeight+(pages>1 and 22 or 0)+(overflow>0 and 18 or 0)
 end
 
@@ -3317,6 +3317,7 @@ combatConfig.refreshResultRowOnly=function(row)
         display..(expanded and " [-]" or " [+]"))
     combatPanelSetAttribute("CombatEnemyResultToggle"..row,"tooltip","")
     combatPanelSetAttribute("CombatEnemyRow"..row,"preferredHeight",tostring(height))
+    trackerPrivate.combatPanelRenderer.refreshResultWidth(combatExpandedResults)
     combatPanelSetAttribute("CombatEnemyPanel","height",tostring(combatConfig.panelHeight))
     return true
 end
