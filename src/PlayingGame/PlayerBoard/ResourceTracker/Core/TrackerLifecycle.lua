@@ -285,6 +285,7 @@ function M.beforeTurnHandoff(nextSeat,resetChoices)
         gStates.resourceCardMoveRoles={}
         gStates.resourceCardSelectedChoices={}
         gStates.resourceCardConversions={}
+        gStates.resourceCardPrimaryTargets={}
     end
 end
 

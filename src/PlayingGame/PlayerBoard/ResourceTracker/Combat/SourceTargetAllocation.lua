@@ -20,6 +20,9 @@ return function(attackAssignmentsTargetGUIDs,attackAssignmentsClearForObject,
             -- use a deterministic fallback for older saves.
             local primary=gStates~=nil and gStates.resourceCardPrimaryTargets
                 and gStates.resourceCardPrimaryTargets[source.key] or nil
+            if gStates~=nil and gStates.resourceCardPrimaryTargets~=nil then
+                gStates.resourceCardPrimaryTargets[source.key]=nil
+            end
             targetGUID=primary~=nil and rowByGUID[primary]~=nil
                 and attackAssignmentsTargetGUIDs(source.key)[primary] and primary or saved[1]
             if targetGUID~=nil then

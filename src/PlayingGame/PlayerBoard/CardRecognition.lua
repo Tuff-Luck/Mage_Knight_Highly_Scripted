@@ -5591,6 +5591,14 @@ trackerPrivate.copyCardSelection=function(selection,fromSave)
 end
 
 function resourceCardsChoicesSave()
+    -- Preserve the primary target of each divisible resource.
+    if gStates~=nil then
+        local primary={}
+        for key,guid in pairs(combatAssignmentState~=nil and combatAssignmentState.targets or {}) do
+            if type(key)=="string" and type(guid)=="string" then primary[key]=guid end
+        end
+        gStates.resourceCardPrimaryTargets=primary
+    end
     return trackerPrivate.trackerLifecycle.choicesSave(selectedResourceByGUID,trackerPrivate,resourceObjectKind)
 end
 
