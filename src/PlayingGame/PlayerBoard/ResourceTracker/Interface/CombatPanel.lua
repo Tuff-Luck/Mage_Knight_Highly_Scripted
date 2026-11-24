@@ -6,7 +6,7 @@ local layout=(function()
 -- TTS does not expose Unity's measured text width to Lua. Estimate 13px
 -- display text by glyph type (and UTF-8 codepoint, not byte count), with
 -- room for margins, so even long or translated enemy names stay readable.
-local function enemyNameColumnWidth(label)
+local function estimatedTextWidth(label)
     label=tostring(label or "")
     local width=18
     for i=1,#label do
@@ -26,7 +26,12 @@ local function enemyNameColumnWidth(label)
         elseif byte>=192 and byte<224 then width=width+10
         end
     end
-    return math.max(74,math.ceil(width))
+    return width
+end
+
+-- Compact 13px name labels while retaining a margin for the glyph estimates.
+local function enemyNameColumnWidth(label)
+    return math.max(54,math.ceil(8+(estimatedTextWidth(label)-18)*0.85))
 end
 
 -- Size textual combat columns from the longest displayed line rather than the
@@ -36,7 +41,7 @@ local function textColumnWidth(texts,minWidth)
     for _,text in pairs(texts or {}) do
         local plain=tostring(text or ""):gsub("<[^>]+>","")
         for line in plain:gmatch("[^\n]+") do
-            width=math.max(width,enemyNameColumnWidth(line))
+            width=math.max(width,math.max(74,math.ceil(estimatedTextWidth(line))))
         end
     end
     return width
@@ -81,7 +86,7 @@ end
 local function nameColumnWidth(entries,groupOf,pageOffset,pageEnd)
     -- The name and header occupy one shared column. Size it from the longest
     -- name on this page, including the '+ ' prefix for a joined enemy.
-    local enemyNameWidth=74
+    local enemyNameWidth=54
     for index=pageOffset+1,pageEnd do
         local entry=entries[index]
         local joined=groupOf[index]~=nil and groupOf[index].leader~=index
@@ -113,8 +118,8 @@ return function(combatConfig,combatPanelSetAttribute,combatRich,combatWoundsText
         -- GridLayout wraps additional icons below the first line.
         local columnWidths={
             traits=combatConfig.traitColumnWidth(shownTraits),
-            offence=combatConfig.textColumnWidth(shownOffence,combatConfig.enemyNameColumnWidth("Off. Ability")),
-            enemyAttack=combatConfig.textColumnWidth(shownAttacks,combatConfig.enemyNameColumnWidth("E. Attack"))
+            offence=combatConfig.textColumnWidth(shownOffence,math.max(74,estimatedTextWidth("Off. Ability"))),
+            enemyAttack=combatConfig.textColumnWidth(shownAttacks,math.max(74,estimatedTextWidth("E. Attack")))
         }
         -- Text columns share widths with their headers. Recalculate for each page
         -- and refresh, including after ranged kills remove attacks/abilities.
@@ -138,10 +143,12 @@ return function(combatConfig,combatPanelSetAttribute,combatRich,combatWoundsText
         local headerIDs={traits="CombatDefenceTraitsHeader",range="CombatRangeSiegeHeader",offence="CombatOffenceHeader",
             enemyAttack="CombatEnemyAttackHeader",
             block="CombatBlockHeader",attack="CombatAssignedAttackHeader"}
-        local hiddenWidth=0
+        -- Outer layout: 6+6 horizontal padding; header/rows: 5 left padding.
+        -- Sum visible cells directly rather than subtracting from a legacy wide panel.
+        local baseWidth=17+enemyNameWidth+55
         for column,shown in pairs(colShown) do
             local active=shown and "true" or "false"
-            if not shown then hiddenWidth=hiddenWidth+columnWidths[column] end
+            if shown then baseWidth=baseWidth+columnWidths[column] end
             combatPanelSetAttribute(headerIDs[column],"active",active)
             for index=1,combatConfig.rowCount do
                 local cell=(column=="traits" and "CombatEnemyRow"..index.."Traits")
@@ -152,11 +159,29 @@ return function(combatConfig,combatPanelSetAttribute,combatRich,combatWoundsText
             end
         end
 
-        local widthReduction=(170-columnWidths.range)+(170-columnWidths.block)+(170-columnWidths.attack)
-        local panelWidth=1380-(255-combatConfig.columns.Result)-hiddenWidth-widthReduction
-            +(enemyNameWidth-120)+(columnWidths.traits-150)
-            +(columnWidths.enemyAttack-105)+(columnWidths.offence-130)
-        return columnWidths,panelWidth
+        return columnWidths,baseWidth
+    end
+
+    -- Measure only visible result text, including the expansion marker.
+    -- Use the cached solution so opening a result never reruns combat.
+    local function refreshResultWidth(expandedResults)
+        local width=65
+        for _,cache in pairs(combatConfig.resultRowCache or {}) do
+            local expanded=cache.hasDetails and expandedResults[cache.guid]==true
+            local display=expanded and cache.detailText or cache.compactText
+            if cache.hasDetails then display=display..(expanded and " [-]" or " [+]") end
+            for line in display:gsub("<[^>]+>",""):gmatch("[^\n]+") do
+                width=math.max(width,math.ceil(10+(estimatedTextWidth(line)-18)*0.82))
+            end
+        end
+        combatPanelSetAttribute("CombatResultHeader","preferredWidth",tostring(width))
+        for row=1,combatConfig.rowCount do
+            combatPanelSetAttribute("CombatEnemyResultToggle"..row,"preferredWidth",tostring(width))
+            combatPanelSetAttribute("CombatEnemyRow"..row.."Result","preferredWidth",tostring(width))
+        end
+        local panelWidth=math.max(combatConfig.combatPanelMinimumWidth or 0,
+            (combatConfig.combatPanelBaseWidth or 0)+width)
+        combatPanelSetAttribute("CombatEnemyPanel","width",tostring(panelWidth))
     end
 
     local function woundSummary(totalHeroWounds,totalDiscardWounds,knockout,pendingHand,pendingDiscard,changed,effects)
@@ -164,6 +189,7 @@ return function(combatConfig,combatPanelSetAttribute,combatRich,combatWoundsText
         -- was absorbed and the Hero has zero Wounds.
         local showTotal=totalHeroWounds>0 or knockout or effects.destroyCount>0
             or effects.handDiscard or effects.stagedDiscardCount>0
+        combatConfig.combatPanelShowsWounds=showTotal
         combatPanelSetAttribute("CombatTotalRow","active",showTotal and "true" or "false")
         if showTotal then
             -- The XML's fixed-width, right-anchored Panel is outside any
@@ -202,7 +228,7 @@ return function(combatConfig,combatPanelSetAttribute,combatRich,combatWoundsText
         return 0
     end
 
-    local function finish(overflow,panelWidth,columnWidths,enemyNameWidth)
+    local function finish(overflow,baseWidth,columnWidths,enemyNameWidth,expandedResults,pages)
         -- A solo enemy can show twelve icons per phase; larger grouped stacks
         -- continue onto the next member row. Do not silently hide any remainder.
         combatPanelSetAttribute("CombatResourceOverflow","active",overflow>0 and "true" or "false")
@@ -220,11 +246,17 @@ return function(combatConfig,combatPanelSetAttribute,combatRich,combatWoundsText
                 "{de}"..overflow.." Ressourcensymbole passen nicht in die verfügbaren Zeilen."
             }))
         end
-        combatPanelSetAttribute("CombatEnemyPanel","width",tostring(panelWidth))
+        combatConfig.combatPanelBaseWidth=baseWidth
+        -- Preserve room for the absolutely anchored damage prompt and wound button.
+        combatConfig.combatPanelMinimumWidth=math.max(combatConfig.combatPanelShowsWounds and 430 or 0,
+            pages>1 and 260 or 0,overflow>0 and 350 or 0)
+        refreshResultWidth(expandedResults)
         combatPanelSetAttribute("CombatEnemyPanel","color","rgb(0.24,0.2,0.15)")
         local headerWidths={Monster=enemyNameWidth,Armour=55,DefenceTraits=columnWidths.traits,RangeSiege=columnWidths.range,
             EnemyAttack=columnWidths.enemyAttack,Offence=columnWidths.offence,
-            Block=columnWidths.block,AssignedAttack=columnWidths.attack,Result=combatConfig.columns.Result}
+            Block=columnWidths.block,AssignedAttack=columnWidths.attack}
+        combatPanelSetAttribute("CombatResultHeader","font","Fonts/MKCardTittle")
+        combatPanelSetAttribute("CombatResultHeader","color","rgb(0.95,0.9,0.78)")
         for name,width in pairs(headerWidths) do
             local id="Combat"..name.."Header"
             combatPanelSetAttribute(id,"font","Fonts/MKCardTittle")
@@ -235,7 +267,7 @@ return function(combatConfig,combatPanelSetAttribute,combatRich,combatWoundsText
             end
         end
     end
-    return {columns=columns,woundSummary=woundSummary,finish=finish}
+    return {columns=columns,woundSummary=woundSummary,finish=finish,refreshResultWidth=refreshResultWidth}
 end
 end)()
 
