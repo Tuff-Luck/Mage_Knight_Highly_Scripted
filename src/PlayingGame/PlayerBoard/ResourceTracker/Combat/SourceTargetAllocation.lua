@@ -11,13 +11,20 @@ return function(attackAssignmentsTargetGUIDs,attackAssignmentsClearForObject,
         if targetGUID==nil then
             -- Restore the saved visual assignment for every source after a reload.
             -- Persisted/manual assignments win over nearest-enemy defaults.
+            local saved={}
             for guid in pairs(attackAssignmentsTargetGUIDs(source.key)) do
-                if rowByGUID[guid]~=nil then
-                    targetGUID=guid
-                    combatAssignmentState.targets[source.key]=guid
-                    combatAssignmentState.explicit[source.key]=true
-                    break
-                end
+                if rowByGUID[guid]~=nil then saved[#saved+1]=guid end
+            end
+            table.sort(saved)
+            -- Prefer the persisted primary target when available; otherwise
+            -- use a deterministic fallback for older saves.
+            local primary=gStates~=nil and gStates.resourceCardPrimaryTargets
+                and gStates.resourceCardPrimaryTargets[source.key] or nil
+            targetGUID=primary~=nil and rowByGUID[primary]~=nil
+                and attackAssignmentsTargetGUIDs(source.key)[primary] and primary or saved[1]
+            if targetGUID~=nil then
+                combatAssignmentState.targets[source.key]=targetGUID
+                combatAssignmentState.explicit[source.key]=true
             end
         end
         return targetGUID
