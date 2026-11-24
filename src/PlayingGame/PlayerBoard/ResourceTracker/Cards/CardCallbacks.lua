@@ -60,7 +60,9 @@ function M.startingControl(player,value,id,resourceCardsDetailsOpen,cardPosture,
         selected.interactionPowered=selected.interaction and record.powered or nil
     elseif control=="recruit" and rule.recruitDiscount~=nil and not record.powered then
         selected.recruited=not selected.recruited
-    elseif control=="terrain" and rule.selectedTerrainDiscount~=nil and record.powered then
+    elseif control=="terrain" and rule.selectedTerrainDiscount~=nil and record.powered
+        and (tonumber(record.resources.move) or 0)>0
+        and (gStates.resourceCardMoveRoles or {})[guid]~="combat" then
         if right then selected.terrain=nil
         else
             local terrains={"plains","hills","forest","wasteland","desert",
