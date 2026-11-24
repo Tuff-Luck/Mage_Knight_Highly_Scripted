@@ -30,7 +30,7 @@ contains(data,'conditionalAttackNoWounds=true',"Dodge Wound condition")
 assert(not data:find('key="safe"',1,true),"Dodge must not have a Safe option")
 assert(not data:find('key="eligible"',1,true),"Dodge must not have an Eligible option")
 contains(data,'removeOneAttackAbilities=true',"Chilling Stare one attack")
-contains(reader,'source.dodgeIneligible=true',"Dodge Attack suppression")
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/LateCombatPhase.lua"),'source.dodgeIneligible=true',"Dodge Attack suppression")
 contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/CardEffects.lua"),
     'dodgeConditional=complete and rule~=nil and rule.conditionalAttackNoWounds==true,',
     "Dodge conditional Attack without card options")

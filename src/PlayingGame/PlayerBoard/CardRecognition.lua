@@ -2788,6 +2788,17 @@ trackerPrivate.conditionalBlockEffects=require("PlayingGame.PlayerBoard.Resource
     function(guid) return monsterPugs[guid] end,
     function(guid) return gStates~=nil and gStates.monsterPerks~=nil and gStates.monsterPerks[guid] or nil end)
 
+trackerPrivate.earlyCombatPhase=require("PlayingGame.PlayerBoard.ResourceTracker.EarlyCombatPhase")(
+    combatBlockResult,combatGroupEntry,combatRangeResult,combatRangeGroupEntry,
+    combatBossPhasePlan,combatEnemyAttacks,combatEnemyHasTrait,combatFrozenCopy)
+trackerPrivate.damagePreparation=require("PlayingGame.PlayerBoard.ResourceTracker.DamagePreparation")(
+    function(guid) return skillResourceDefinitions[guid] end)
+trackerPrivate.lateCombatPhase=require("PlayingGame.PlayerBoard.ResourceTracker.LateCombatPhase")(
+    combatGroupEntry,combatEnemyHasTrait,combatEnemyFortificationCount,
+    function(result) return combatVampiricArmourGain(result) end,
+    function(...) return combatEffectPostDamageSpecs(...) end,combatFrozenCopy,
+    combatConfig.attackPhaseSources,combatAttackTotal,combatBossPhasePlan)
+
 local function combatAssignmentRefreshRows(entries,sources)
     combatConfig.resultRowCache={}
     combatConfig.slotSelection={}
@@ -2916,213 +2927,19 @@ local function combatAssignmentRefreshRows(entries,sources)
     end
 
     local emptyTarget={sources={},details={}}
-    local rowBlock={}
     local defended=combatApplyDefend(entries,groups,allocated)
     local defendMarks={}
     for index,amount in pairs(defended) do defendMarks[entries[index].guid]=amount end
     combatSyncDefenderMark(defendMarks)
     trackerPrivate.conditionalBlockEffects.burningShield(entries,allocated,emptyTarget)
-    local defeatFame,defeatRep=0,0
-    -- Joined boss attacks may defeat an ordinary enemy or one head without
-    -- defeating the whole group. Per-defeat bonuses count each actual kill,
-    -- never every level removed from a still-living boss.
     local function defeatedCount(group,rangedOnly)
-        local count=0
-        for _,index in ipairs(group.members) do
-            local entry=entries[index]
-            if not entry.preview and not entry.attackOnly then
-                local dead
-                if group.bossSpecial then
-                    dead=entry.rangeDead==true or (not rangedOnly and
-                        (entry.attackDead==true or entry.attackPhaseDestroyed==true))
-                else
-                    dead=group.defeated and (not rangedOnly or group.rangeDefeated)
-                end
-                if dead then count=count+1 end
-            end
-        end
-        return count
+        return trackerPrivate.lateCombatPhase.defeatedCount(entries,group,rangedOnly)
     end
-    for _,group in ipairs(groups) do
-        local members,blockedAll={},{}
-        for _,index in ipairs(group.members) do
-            local entry=entries[index]
-            local target=allocated[index] or emptyTarget
-            local lines,damage,count,allBlocked,reductions,wrongBlock,unblocked,_,_,shieldBashExcess,
-                successfulSourceKeys,spentMoveKeys=combatBlockResult(entry,target.sources)
-            rowBlock[index]={lines=lines,damage=damage,count=count,allBlocked=allBlocked,reductions=reductions,
-                wrongBlock=wrongBlock,unblocked=unblocked,shieldBashExcess=shieldBashExcess,
-                successfulSourceKeys=successfulSourceKeys,spentMoveKeys=spentMoveKeys,damageItems={}}
-            blockedAll[entry.guid]=allBlocked
-            members[#members+1]=entry
-            for _,source in ipairs(target.sources) do
-                group.sources[#group.sources+1]=source
-            end
-        end
-        group.entry,group.attackArmour=combatGroupEntry(members,blockedAll)
-        group.rangeTotal,group.rangeArmour,group.rangeDefeated,group.fortification=
-            combatRangeResult(combatRangeGroupEntry(members),group.sources)
-        if members[1].attackOnly then group.rangeDefeated=false end
-        local plan=combatBossPhasePlan(group,entries,group.rangeTotal,"range",blockedAll)
-        if plan~=nil then
-            group.bossSpecial=true
-            group.rangeSpent=plan.spent
-            group.rangeDefeated=plan.full
-            for _,index in ipairs(group.members) do
-                local member=entries[index]
-                member.bossRangeLevels=plan.reductions[member.guid] or 0
-                member.rangeDead=plan.killed[member.guid]==true
-            end
-        end
-        -- Disease resolves after Block, not during Ranged/Siege. Every attack
-        -- of the actual enemy must be blocked; an immune enemy gets no effect.
-        if not group.rangeDefeated then
-            local diseaseChanged=false
-            for _,index in ipairs(group.members) do
-                local enemy=entries[index]
-                local limit=enemy.effect~=nil and enemy.effect.armourSetIfBlocked or nil
-                local blocked=rowBlock[index]
-                if limit~=nil and blocked~=nil and blocked.allBlocked
-                    and #combatEnemyAttacks(enemy)>0 and not enemy.attackOnly
-                    and not enemy.destroyed then
-                    enemy.rangeBaseArmour=enemy.rangeBaseArmour or enemy.baseArmour
-                    enemy.rangeElusiveArmour=enemy.rangeElusiveArmour or enemy.elusiveArmour
-                    enemy.baseArmour=math.min(enemy.baseArmour,limit)
-                    enemy.elusiveArmour=math.min(enemy.elusiveArmour,limit)
-                    diseaseChanged=true
-                end
-            end
-            if diseaseChanged then
-                group.entry,group.attackArmour=combatGroupEntry(members,blockedAll)
-            end
-        end
-        -- Shield Bash lowers Armour only in the later Attack phase, and only
-        -- after a successful Block against that enemy's own attack. A summoned
-        -- monster's Block never lowers its summoner's Armour. Ice Resistance
-        -- and Arcane Immunity ignore this non-Block effect, not the Block.
-        if not group.rangeDefeated then
-            local bashChanged=false
-            for _,index in ipairs(group.members) do
-                local enemy=entries[index]
-                local excess=(rowBlock[index].shieldBashExcess or {})[enemy.guid] or 0
-                if excess>0 and not enemy.attackOnly and not enemy.destroyed
-                    and not combatEnemyHasTrait(enemy.data,enemy.perks,"iResist")
-                    and not combatEnemyHasTrait(enemy.data,enemy.perks,"arcaneImmunity") then
-                    local originalArmour=enemy.baseArmour
-                    local originalElusive=enemy.elusiveArmour
-                    local reducedArmour=math.max(1,originalArmour-excess)
-                    local reducedElusive=math.max(1,originalElusive-excess)
-                    if reducedArmour~=originalArmour or reducedElusive~=originalElusive then
-                        enemy.rangeBaseArmour=enemy.rangeBaseArmour or originalArmour
-                        enemy.rangeElusiveArmour=enemy.rangeElusiveArmour or originalElusive
-                        enemy.baseArmour=reducedArmour
-                        enemy.elusiveArmour=reducedElusive
-                        bashChanged=true
-                    end
-                end
-            end
-            if bashChanged then
-                group.entry,group.attackArmour=combatGroupEntry(members,blockedAll)
-            end
-        end
-        if group.rangeDefeated then
-            for _,source in ipairs(group.sources) do
-                if source.dueling then source.duelingEligible=false end
-            end
-        end
-        if rangedBeforeBlock~=nil and not group.bossSpecial then
-            -- A later Block-phase destruction cannot retrospectively win the
-            -- Ranged phase or create extra Ranged-only rewards.
-            group.rangeDefeated=true
-            for _,index in ipairs(group.members) do
-                if rangedBeforeBlock[index]~=true then group.rangeDefeated=false break end
-            end
-        end
-        -- A destroyed enemy has already been removed by a pre-Damage effect.
-        -- Its final defeat state and any melee rewards are resolved only after
-        -- the damage assignments establish which Units survive into Attack.
-        group.destroyed=not members[1].attackOnly and #group.members==1
-            and entries[group.members[1]].destroyed==true
-    end
-    -- Snapshot resolved Ranged/Siege and Block before the Damage phase.
-    -- Results, not just UI labels, are retained for later recalculations.
+    local rowBlock=trackerPrivate.earlyCombatPhase.resolve(entries,groups,allocated,emptyTarget,rangedBeforeBlock)
     local earlyLock=combatPhaseLock(combatAssignmentActiveSeat())
-    if earlyLock~=nil and earlyLock.earlyGroups~=nil then
-        for index,group in ipairs(groups) do
-            local saved=earlyLock.earlyGroups[index]
-            if saved~=nil then
-                for _,field in ipairs({"rangeTotal","rangeArmour","rangeDefeated",
-                    "rangeSpent","fortification","bossSpecial","attackArmour","destroyed"}) do
-                    group[field]=saved[field]
-                end
-            end
-        end
-        for index,saved in ipairs(earlyLock.earlyEntries or {}) do
-            if entries[index]~=nil then
-                for field,value in pairs(saved) do
-                    if field~="x" then entries[index][field]=combatFrozenCopy(value) end
-                end
-            end
-        end
-        rowBlock=combatFrozenCopy(earlyLock.rowBlock) or rowBlock
-    elseif combatConfig.phasePreview~=nil then
-        local preview=combatConfig.phasePreview
-        preview.earlyGroups=combatFrozenCopy(groups)
-        preview.earlyEntries=combatFrozenCopy(entries)
-        preview.rowBlock=combatFrozenCopy(rowBlock)
-        preview.spentRange={}
-        -- A Damage commitment freezes the actual resources spent in earlier
-        -- phases, not every Block icon laid out while planning combat.
-        preview.sourceKeys={}
-        preview.objectKeys={}
-        local sourcesByKey={}
-        for _,source in ipairs(preview.sources or {}) do
-            sourcesByKey[source.key]=source
-        end
-        local function commitEarlySource(key)
-            local source=sourcesByKey[key]
-            if source==nil then return end
-            preview.sourceKeys[key]=true
-            preview.objectKeys[source.guid]=true
-        end
-        for _,group in ipairs(groups) do
-            if group.rangeDefeated or group.rangeSpent then
-                for _,source in ipairs(group.sources or {}) do
-                    local legalRange=(source.ranged or 0)>0 and group.fortification==0
-                    local legalSiege=(source.siege or 0)>0 and group.fortification<2
-                    if legalRange or legalSiege then
-                        preview.spentRange[source.key]=true
-                        commitEarlySource(source.key)
-                    end
-                end
-            end
-        end
-        for index,block in ipairs(rowBlock) do
-            local group=groupOf[index]
-            local enemy=entries[index]
-            if group~=nil and not group.rangeDefeated and not group.destroyed
-                and enemy~=nil and not enemy.rangeDead then
-                for key in pairs(block.successfulSourceKeys or {}) do commitEarlySource(key) end
-                for key in pairs(block.spentMoveKeys or {}) do commitEarlySource(key) end
-            end
-        end
-    end
-    -- Counterattack counts *enemies*, not individual attacks. Multi-attack
-    -- enemies (including summoners) count only when every attack was blocked.
-    -- Ranged-defeated and attack-only preview tokens never count.
-    local blockedEnemies=0
-    for _,group in ipairs(groups) do
-        if not group.rangeDefeated then
-            for _,index in ipairs(group.members) do
-                local enemy=entries[index]
-                if not enemy.attackOnly and not enemy.destroyed and not enemy.rangeDead
-                    and rowBlock[index]~=nil and rowBlock[index].allBlocked
-                    and #combatEnemyAttacks(enemy)>0 then
-                    blockedEnemies=blockedEnemies+1
-                end
-            end
-        end
-    end
+    rowBlock=trackerPrivate.earlyCombatPhase.snapshot(
+        entries,groups,groupOf,rowBlock,earlyLock,combatConfig.phasePreview)
+    local blockedEnemies=trackerPrivate.earlyCombatPhase.countBlockedEnemies(entries,groups,rowBlock)
     local blockSeat=combatAssignmentActiveSeat()
     if blockSeat~=nil then
         local previousBlocked=combatConfig.blockedEnemyCounts[blockSeat] or 0
@@ -3135,83 +2952,10 @@ local function combatAssignmentRefreshRows(entries,sources)
     local damageSeat=combatAssignmentActiveSeat()
     local selfWoundsEarly,selfWoundsLate=combatConfig.selfWoundingUnitChoices(damageSeat,groups)
     local damageUnits,nativeCommandCount=combatDamageUnits(damageSeat)
-    -- Block 6 (Utem Swordsmen) causes a Wound during Block, before any enemy
-    -- damage assignment; do not allow that Unit to absorb an enemy attack.
-    for guid in pairs(selfWoundsEarly) do
-        if damageUnits[guid]~=nil then damageUnits[guid].wounded=true end
-    end
-    local damageSpec={attacks={},units={}}
-    local damageItems={}
-    for guid,unit in pairs(damageUnits) do
-        if not unit.wounded then damageSpec.units[guid]=true end
-    end
-    for _,group in ipairs(groups) do
-        if not group.rangeDefeated and not group.destroyed then
-            for _,index in ipairs(group.members) do
-                local unblocked=rowBlock[index].unblocked
-                local last=0
-                for attackIndex in pairs(unblocked) do last=math.max(last,attackIndex) end
-                for attackIndex=1,last do
-                    local info=unblocked[attackIndex]
-                    if info~=nil and info.attack.owner~=nil
-                        and not entries[index].rangeDead then
-                        local attack=info.attack
-                        local item={key=attack.owner..":"..tostring(attack.slot),owner=attack.owner,type=attack.key,
-                            damage=info.damage,poison=attack.poison,paralyse=attack.paralyse,
-                            assassination=attack.assassination,firstDamageUnit=attack.firstDamageUnit}
-                        damageItems[#damageItems+1]=item
-                        rowBlock[index].damageItems[attackIndex]=item
-                        damageSpec.attacks[#damageSpec.attacks+1]={key=item.key,owner=item.owner,damage=item.damage,
-                            assassination=item.assassination,firstDamageUnit=item.firstDamageUnit}
-                    end
-                end
-            end
-        end
-    end
+    local damageSpec,damageItems=trackerPrivate.damagePreparation.build(entries,groups,rowBlock,damageUnits,selfWoundsEarly)
     attackAssignmentsDamageSync(damageSpec)
     local seatScan=damageSeat~=nil and resourceCardScanBySeat[damageSeat] or nil
-    local hardeningRecord=seatScan~=nil and seatScan.cards["0688d8"] or nil
-    local hardenedTarget=hardeningRecord~=nil and hardeningRecord.enemyGUID or nil
-    local mitigation=nil
-    if hardenedTarget~=nil then
-        local selected=gStates~=nil and gStates.battleHardenedAttackKey or nil
-        local available={}
-        for _,item in ipairs(damageItems) do
-            if item.owner==hardenedTarget
-                or (gStates~=nil and gStates.attackedMonsters~=nil
-                    and gStates.attackedMonsters[item.owner]~=nil
-                    and gStates.attackedMonsters[item.owner][3]=="summoned"
-                    and gStates.attackedMonsters[item.owner][4]==hardenedTarget) then
-                available[item.key]=true
-            end
-        end
-        -- An attack that was fully Blocked cannot consume Battle Hardened.
-        if selected~=nil and not available[selected] then selected=nil end
-        local rule=skillResourceDefinitions["0688d8"]
-        local spec=rule~=nil and rule.damageMitigation or nil
-        if spec~=nil then
-            mitigation={owner=hardenedTarget,attackKey=selected,
-                physical=spec.physical or 2,nonphysical=spec.nonphysical or 1}
-        end
-    end
-    local elementRecord=seatScan~=nil and seatScan.cards["ae8673"] or nil
-    local elementTarget=elementRecord~=nil and elementRecord.enemyGUID or nil
-    local elementMitigation=nil
-    if elementTarget~=nil then
-        local selected=gStates~=nil and gStates.elementalResistanceAttackKey or nil
-        local available={}
-        for _,item in ipairs(damageItems) do
-            if item.owner==elementTarget
-                or (gStates~=nil and gStates.attackedMonsters~=nil
-                    and gStates.attackedMonsters[item.owner]~=nil
-                    and gStates.attackedMonsters[item.owner][3]=="summoned"
-                    and gStates.attackedMonsters[item.owner][4]==elementTarget) then
-                available[item.key]=true
-            end
-        end
-        if selected~=nil and not available[selected] then selected=nil end
-        elementMitigation={owner=elementTarget,attackKey=selected}
-    end
+    local mitigation,elementMitigation=trackerPrivate.damagePreparation.mitigationFor(seatScan,damageItems,gStates)
     local damageResults=combatDamageResolve(damageItems,damageUnits,
         combatHeroArmour(nativeCommandCount),attackAssignmentsDamageTargetsOf,
         mitigation,elementMitigation,seatScan~=nil and seatScan.heroFirstWoundIgnored==true,
@@ -3227,135 +2971,11 @@ local function combatAssignmentRefreshRows(entries,sources)
         end
     end
 
-    -- Vampiric gains Armor for Wounds added to the Hero's hand and for each
-    -- Unit its own non-Psychic attacks wound. Poison's extra discard/Unit
-    -- Wounds do not double this bonus. Rebuild Attack-phase Armor only:
-    -- Ranged/Siege kills and Block were settled before damage.
-    local vampiricByOwner={}
-    for _,item in ipairs(damageItems) do
-        if item.type~="M" then
-            local bonus=combatVampiricArmourGain(damageResults[item.key])
-            if bonus>0 then
-                vampiricByOwner[item.owner]=(vampiricByOwner[item.owner] or 0)+bonus
-            end
-        end
-    end
-    for _,group in ipairs(groups) do
-        local changed=false
-        local members,blockedAll={},{}
-        for _,index in ipairs(group.members) do
-            local entry=entries[index]
-            local bonus=vampiricByOwner[entry.guid] or 0
-            if bonus>0 and not entry.removeAbilities
-                and combatEnemyHasTrait(entry.data,entry.perks,"vampiric") then
-                entry.baseArmour=entry.baseArmour+bonus
-                entry.elusiveArmour=entry.elusiveArmour+bonus
-                changed=true
-            end
-            members[#members+1]=entry
-            blockedAll[entry.guid]=rowBlock[index].allBlocked
-        end
-        if changed then
-            group.entry,group.attackArmour=combatGroupEntry(members,blockedAll)
-        end
-    end
+    trackerPrivate.lateCombatPhase.vampiric(entries,groups,rowBlock,damageItems,damageResults)
 
-    -- Resolve newly played enemy-targeted effects in Attack only. Their
-    -- source may not undo a committed Ranged kill, Block or Wound allocation.
-    -- Pre-commit sources are excluded even if their physical cards move.
-    if earlyLock~=nil and seatScan~=nil and combatEffectPostDamageSpecs~=nil then
-        local committedSources={}
-        for _,source in ipairs(earlyLock.sources or {}) do
-            committedSources[source.guid]=true
-        end
-        for _,effect in pairs(earlyLock.enemyEffects or {}) do
-            for _,item in ipairs(effect.applied or {}) do
-                committedSources[item.source]=true
-            end
-        end
-        local lateChanged=false
-        for _,entry in ipairs(entries) do
-            local latest=(seatScan.enemyEffects or {})[entry.guid]
-            local committed=(earlyLock.enemyEffects or {})[entry.guid]
-            local newEffects=combatEffectPostDamageSpecs(latest,committed,committedSources)
-            for _,applied in ipairs(newEffects) do
-                local spec=applied.effective or {}
-                local contributes=false
-                local fortified=combatEnemyFortificationCount(entry.data,entry.perks)>0
-                    and not entry.stripFortify
-                local reduction=fortified
-                    and (tonumber(spec.armourReduceFortified)
-                        or tonumber(spec.armourReduce) or 0)
-                    or (tonumber(spec.armourReduce) or 0)
-                local perResist=tonumber(spec.armourReduceByResist) or 0
-                if perResist>0 then
-                    for _,trait in ipairs({"pResist","fResist","iResist"}) do
-                        if combatEnemyHasTrait(entry.data,entry.perks,trait) then
-                            reduction=reduction+perResist
-                        end
-                    end
-                end
-                if reduction>0 then
-                    entry.baseArmour=math.max(1,entry.baseArmour-reduction)
-                    entry.elusiveArmour=math.max(1,entry.elusiveArmour-reduction)
-                    entry.effectArmourReduction=(entry.effectArmourReduction or 0)+reduction
-                    contributes=true
-                end
-                if spec.destroyDuringAttack==true or spec.destroy==true then
-                    entry.attackPhaseDestroyed=true
-                    contributes=true
-                end
-                if spec.removeResist==true then
-                    entry.stripResist=true
-                    contributes=true
-                end
-                if spec.removeFireResist==true then
-                    entry.stripFireResist=true
-                    contributes=true
-                end
-                if spec.removeTrait~=nil then
-                    local updated=combatFrozenCopy(entry.data)
-                    updated[spec.removeTrait]=spec.removeTrait=="defend" and 0 or false
-                    entry.data=updated
-                    contributes=true
-                end
-                if contributes then
-                    entry.effect=entry.effect or {}
-                    entry.effect.applied=entry.effect.applied or {}
-                    local tagged=combatFrozenCopy(applied)
-                    tagged.phaseAfterDamage=true
-                    entry.effect.applied[#entry.effect.applied+1]=tagged
-                    lateChanged=true
-                end
-            end
-        end
-        if lateChanged then
-            for _,group in ipairs(groups) do
-                local members,blockedAll={},{}
-                for _,index in ipairs(group.members) do
-                    members[#members+1]=entries[index]
-                    blockedAll[entries[index].guid]=rowBlock[index].allBlocked
-                end
-                group.entry,group.attackArmour=combatGroupEntry(members,blockedAll)
-            end
-        end
-    end
+    trackerPrivate.lateCombatPhase.lateEffects(entries,groups,rowBlock,earlyLock,seatScan,combatEffectPostDamageSpecs~=nil)
 
-    -- Damage is earlier than Attack. Do not invalidate Ranged/Siege kills or
-    -- The player still confirms Wounds received outside calculated Damage.
-    local dodgeWounded=false
-    for _,result in pairs(damageResults) do
-        if (tonumber(result.heroWounds) or 0)>0 then dodgeWounded=true break end
-    end
-    if dodgeWounded then
-        for _,source in ipairs(sources) do
-            if source.dodgeConditional then
-                source.attack=0
-                source.dodgeIneligible=true
-                if source.resources~=nil then source.resources.attack=0 end
-            end
-        end
-    end
+    trackerPrivate.lateCombatPhase.dodgeAfterDamage(sources,damageResults)
     -- An unblocked Paralyzing Wound or Knockout removes planned hand-card
     -- Attacks in the later phase. A successful Block or a Unit assignment
     -- can restore these resources while damage has not been committed.
@@ -3391,91 +3011,9 @@ local function combatAssignmentRefreshRows(entries,sources)
         if woundedBeforeAttack[guid]~=true then selfWounds[guid]=true end
     end
     attackAssignmentsUnitPreviewSync(damageSeat,damageResults,selfWounds)
-    -- Tornado resolves after enemy Damage. A grouped target is removed from
-    -- only the later Attack calculation; surviving group members keep Armour.
-    for _,group in ipairs(groups) do
-        if not group.rangeDefeated and not group.destroyed then
-            local surviving,blockedAll={},{}
-            for _,index in ipairs(group.members) do
-                local entry=entries[index]
-                if not entry.attackPhaseDestroyed and not entry.rangeDead then
-                    surviving[#surviving+1]=entry
-                    blockedAll[entry.guid]=rowBlock[index].allBlocked
-                end
-            end
-            if #surviving==0 then
-                group.destroyed=true
-            elseif #surviving<#group.members then
-                group.entry,group.attackArmour=combatGroupEntry(surviving,blockedAll)
-            end
-        end
-    end
-    for _,group in ipairs(groups) do
-        local available=combatConfig.attackPhaseSources(group.sources,woundedBeforeAttack,paralysisAttackCards)
-        local meleeSources={}
-        for _,source in ipairs(available) do
-            if not source.forkedLightning
-                or (gStates~=nil and gStates.forkedLightningPhase=="attack") then
-                meleeSources[#meleeSources+1]=source
-            end
-        end
-        -- Ranged/Siege points that already reduced a boss cannot be played
-        -- as melee Attack a second time. Unspent ranged resources still have
-        -- their ordinary fallback to the later Attack phase.
-        local laterSources=meleeSources
-        if group.bossSpecial and group.rangeSpent then
-            laterSources={}
-            for _,source in ipairs(meleeSources) do
-                local resources={}
-                for key,value in pairs(source.resources or {}) do
-                    local spent=(key:sub(1,6)=="ranged" and group.fortification==0)
-                        or (key:sub(1,5)=="siege" and group.fortification<2)
-                    if not spent then resources[key]=value end
-                end
-                laterSources[#laterSources+1]=setmetatable({resources=resources},{__index=source})
-            end
-        end
-        local meleeTotal=combatAttackTotal({
-            {sources=laterSources,category="attack"},
-            {sources=laterSources,category="ranged"},
-            {sources=laterSources,category="siege"}},group.entry.data,group.entry.perks,"attack")
-        group.attackTotal=meleeTotal
-        group.defeated=not entries[group.members[1]].attackOnly
-            and (group.rangeDefeated or (meleeTotal>0 and meleeTotal>=group.attackArmour))
-        if group.bossSpecial then
-            local blockedAll={}
-            for _,index in ipairs(group.members) do
-                blockedAll[entries[index].guid]=rowBlock[index].allBlocked
-            end
-            local plan=not group.rangeDefeated
-                and combatBossPhasePlan(group,entries,meleeTotal,"attack",blockedAll) or nil
-            for _,index in ipairs(group.members) do
-                local member=entries[index]
-                member.bossAttackLevels=plan~=nil and (plan.reductions[member.guid] or 0) or 0
-                member.attackDead=plan~=nil and plan.killed[member.guid]==true
-            end
-            group.defeated=group.rangeDefeated or (plan~=nil and plan.full==true)
-        end
-        if group.destroyed then group.defeated,group.rangeDefeated=true,false end
-        if (group.defeated or group.bossSpecial) and not group.destroyed then
-            local count=defeatedCount(group,false)
-            local rangedCount=defeatedCount(group,true)
-            local counted={}
-            for _,source in ipairs(group.sources) do
-                local spec=source.defeatFameRep
-                local availableInFinalPhase=woundedBeforeAttack[source.guid]~=true
-                if count>0 and spec~=nil and spec.scope==nil
-                    and not counted[source.guid] and (
-                        (rangedCount>0 and (source.ranged>0 or source.siege>0))
-                        or (count>rangedCount and availableInFinalPhase)) then
-                    counted[source.guid]=true
-                    local times=spec.once and 1 or count
-                    defeatFame=defeatFame+(spec.fame or 0)*times
-                    defeatRep=defeatRep+(spec.rep or 0)*times
-                end
-            end
-        end
-    end
+    local defeatFame,defeatRep=trackerPrivate.lateCombatPhase.resolve(
+        entries,groups,rowBlock,woundedBeforeAttack,paralysisAttackCards,
+        gStates~=nil and gStates.forkedLightningPhase or nil)
     -- Scenario modules still own Shields, physical level markers, and
     -- reward finalisation; the calculator only publishes calculated amounts.
     local dragonOwners={}

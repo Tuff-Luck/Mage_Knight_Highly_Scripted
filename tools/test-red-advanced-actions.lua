@@ -21,9 +21,9 @@ local explosiveBolt=source("src/PlayingGame/PlayerBoard/ResourceTracker/Explosiv
 
 -- Counterattack is a bonus per completely Blocked ENEMY, not per attack.
 contains(data,"blockedEnemyAttackBonus={normal=2,powered=3}","Counterattack amounts")
-contains(reader,"rowBlock[index].allBlocked","Every printed attack must be Blocked")
-contains(reader,"#combatEnemyAttacks(enemy)>0","No bonus from attackless enemies")
-contains(reader,"if not group.rangeDefeated then","No bonus from Ranged kills")
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/EarlyCombatPhase.lua"),"rowBlock[index].allBlocked","Every printed attack must be Blocked")
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/EarlyCombatPhase.lua"),"#combatEnemyAttacks(enemy)>0","No bonus from attackless enemies")
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/EarlyCombatPhase.lua"),"if not group.rangeDefeated then","No bonus from Ranged kills")
 contains(reader,"combatConfig.blockedEnemyCounts[blockSeat]=blockedEnemies",
     "Dynamic Block count must be refreshed")
 

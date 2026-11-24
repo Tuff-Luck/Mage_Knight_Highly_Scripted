@@ -236,8 +236,9 @@ eq(#late,1,"only one new effect appears after Damage")
 eq(late[1].source,"new","new source remains eligible for late Attack")
 eq(#combatEffectPostDamageSpecs(latest,nil,{old=true,new=true}),0,
     "moving committed sources cannot grant additional effects")
-assert(cardRecognition:find("local newEffects=combatEffectPostDamageSpecs",1,true)
-    and cardRecognition:find("entry.attackPhaseDestroyed=true",1,true)
+local latePhase=source("src/PlayingGame/PlayerBoard/ResourceTracker/LateCombatPhase.lua")
+assert(latePhase:find("local newEffects=combatEffectPostDamageSpecs",1,true)
+    and latePhase:find("entry.attackPhaseDestroyed=true",1,true)
     and cardRecognition:find('effectButton.family="attack"',1,true),
     "late effects must modify Attack only, not the committed Damage preview")
 print("Combat effect button regressions passed")

@@ -168,7 +168,10 @@ eq(total(eligibleSources(postDamage,{},postInvalid)),7,
     "later legal card and Wound attack remain usable")
 -- The rendered Result must use the exact total from the defeat calculation,
 -- never a fresh calculation over group.sources.
-contains("group.attackTotal=meleeTotal","save authoritative post-Damage Attack")
+local lateFile=assert(io.open("src/PlayingGame/PlayerBoard/ResourceTracker/LateCombatPhase.lua","r"))
+local latePhase=lateFile:read("*a")
+lateFile:close()
+assert(latePhase:find("group.attackTotal=meleeTotal",1,true),"save authoritative post-Damage Attack")
 contains("combatGroupAttackLine(group.attackTotal,group.attackArmour)",
     "Result uses authoritative Attack total")
 contains("wounded=wounded,paralysisCard=paralysisCard,ineffective=paralysisCard",
@@ -177,7 +180,7 @@ contains("local knockout=totalHeroWounds+otherCombatWounds>=handLimit",
     "Knockout includes only this combat's Wounds")
 contains("local paralysisAttackCards=combatConfig.paralysisAttackCards(sources,damageResults,earlyLock,knockout)",
     "Paralysis and Knockout invalidate Attack using resolved Hero damage")
-contains("combatConfig.attackPhaseSources(group.sources,woundedBeforeAttack,paralysisAttackCards)",
+assert(latePhase:find("attackPhaseSources(group.sources,woundedBeforeAttack,paralysisAttackCards)",1,true),
     "Defeat calculation excludes paralyzed card Attack")
 -- All historical uses of a wounded physical Unit are excluded, even if a
 -- different use was assigned to a second target. Prior phase results stand.
