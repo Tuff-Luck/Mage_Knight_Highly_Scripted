@@ -162,12 +162,14 @@ eq(competitive(),0,"Expired competitive reminder has no bonus")
 
 -- Damage prevention happens AFTER Unit assignment and Brutal multiplication,
 -- is limited to a single attack, and works independently of Battle Hardened.
-combatUnitResists=function(unit,typeKey)
-    return unit.resist~=nil and unit.resist[typeKey]==true
-end
-local resolve=isolated(recognition,
-    "local function combatDamageResolve(items,units,heroArmour,targetsOf,mitigation,elementMitigation,ignoreFirstHeroWound,appliedDamage)",
-    "local function combatWoundsText(", "combatDamageResolve")
+local resolve=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/DamageResolution.lua")(
+    function(guid) return gameCards~=nil and gameCards[guid] or nil end,
+    function(owner,summoner)
+        local records=gStates~=nil and gStates.attackedMonsters or nil
+        local record=records~=nil and records[owner] or nil
+        return record~=nil and record[3]=="summoned" and record[4]==summoner
+    end,
+    function() return trackerPrivate.bannerEffectUses().fortitude end).resolve
 local none=function() return {} end
 local function hit(typeKey,damage,mitigation,element)
     local key="e:1"

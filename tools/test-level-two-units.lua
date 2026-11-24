@@ -25,13 +25,16 @@ local recognition=source("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local assignments=source("src/PlayingGame/AttackAssignments.lua")
 
 -- A forced Unit assignment overrides Assassination; a voluntary one does not.
-combatUnitResists=function(unit,attackType)
-    return unit.resist~=nil and unit.resist[attackType]==true
-end
-local resolve=isolated(recognition,"local function combatDamageResolve(",
-    "local function combatWoundsText(", "combatDamageResolve")
+local resolve=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/DamageResolution.lua")(
+    function(guid) return gameCards~=nil and gameCards[guid] or nil end,
+    function(owner,summoner)
+        local records=gStates~=nil and gStates.attackedMonsters or nil
+        local record=records~=nil and records[owner] or nil
+        return record~=nil and record[3]=="summoned" and record[4]==summoner
+    end,
+    function() return trackerPrivate.bannerEffectUses().fortitude end).resolve
 local function unit(guid)
-    return {guid=guid,armour=3,level=2,wounded=false}
+    return {guid=guid,armour=3,level=2,wounded=false,resist={}}
 end
 local function damage(items,units,targets)
     return resolve(items,units,3,function(key) return targets[key] or {} end)

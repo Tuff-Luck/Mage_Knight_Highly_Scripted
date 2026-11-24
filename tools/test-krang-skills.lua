@@ -116,10 +116,14 @@ eq(combatEnemyEligibleAsDefeatedPuppet(token),false,"Untracked enemy rejected wh
 combatDefeatMarksActive=false
 eq(combatEnemyEligibleAsDefeatedPuppet(token),true,"Manual face-up fallback when calculator is closed")
 
-local damageChunk=sliceBetween(recognition,
-    "local function combatDamageResolve(items,units,heroArmour,targetsOf,mitigation,elementMitigation,ignoreFirstHeroWound,appliedDamage)",
-    "local function combatWoundsText")
-local damageResolve=assert(load(damageChunk.."\nreturn combatDamageResolve"))()
+local damageResolve=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/DamageResolution.lua")(
+    function(guid) return gameCards~=nil and gameCards[guid] or nil end,
+    function(owner,summoner)
+        local records=gStates~=nil and gStates.attackedMonsters or nil
+        local record=records~=nil and records[owner] or nil
+        return record~=nil and record[3]=="summoned" and record[4]==summoner
+    end,
+    function() return trackerPrivate.bannerEffectUses().fortitude end).resolve
 local noUnits=function() return {} end
 local attacks={
     {owner="enemy",key="enemy:1",damage=5,type="P"},
@@ -135,8 +139,7 @@ local physical=damageResolve({
     {owner="enemy",key="enemy:1",damage=5,type="P"}
 },{},2,noUnits,{owner="enemy",physical=2,nonphysical=1})
 eq(physical["enemy:1"].heroDamage,3,"Battle Hardened physical prevention")
-combatUnitResists=function() return false end
-local unit={guid="unit",wounded=false,armour=3,level=1}
+local unit={guid="unit",wounded=false,armour=3,level=1,resist={}}
 local assigned=damageResolve({
     {owner="enemy",key="enemy:1",damage=5,type="P"}
 },{unit=unit},2,function() return {"unit"} end,

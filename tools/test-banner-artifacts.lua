@@ -187,19 +187,10 @@ assert(recognition:find(
 
 -- The real Damage-phase resolver must use one flipped Fortitude on one
 -- selected attack, including prevention of Poison and Paralysis, not both.
-local damageSource=between(recognition,
-    "local function combatUnitResists(unit,attackKey)",
-    "local function combatWoundsText(count)")
-local damageTest=assert(load([[
-local gStates={currentRound=1}
 local fortitude={}
-local trackerPrivate={bannerEffectUses=function()
-    return {fortitude=fortitude}
-end}
-local function combatUnitResists(unit,attackKey)
-]]..damageSource..[[
-return combatDamageResolve
-]]))()
+local damageTest=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/DamageResolution.lua")(
+    function() return nil end,function() return false end,
+    function() return fortitude end).resolve
 local unit={guid="unit",level=2,armour=2,resist={},wounded=false,
     fortitudeUsed=true,fortitudeGUID="fortitude"}
 local function hit(key)

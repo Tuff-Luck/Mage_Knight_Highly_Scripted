@@ -79,7 +79,7 @@ assert(layout:find("bannersByUnit=unitLayoutBannersForUnits(layout)",1,true),
     "Attached banners must be observed in Unit layout")
 assert(recognition:find('source.key.."#block"..index',1,true),
     "Separate Shield block must have individual stable target key")
-assert(recognition:find('fortitudePrevented=true',1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/DamageResolution.lua"):find('fortitudePrevented=true',1,true),
     "Fortitude prevention must skip Wound and Poison/Paralysis consequences")
 assert(recognition:find('source.gloryFame',1,true),
     "Only activated combat Units can earn Glory Fame")

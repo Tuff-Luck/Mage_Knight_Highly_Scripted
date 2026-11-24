@@ -380,9 +380,14 @@ handObjects={}
 
 -- If a destroyed Unit had already helped defeat a different enemy with
 -- Ranged/Siege, its early attack must remain valid after physical removal.
-local resolveDamage=isolated(recognition,"local function combatDamageResolve(items,units,heroArmour,targetsOf,mitigation,elementMitigation,ignoreFirstHeroWound,appliedDamage)",
-    "local function combatWoundsText","return combatDamageResolve")
-combatUnitResists=function() return false end
+local resolveDamage=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/DamageResolution.lua")(
+    function(guid) return gameCards~=nil and gameCards[guid] or nil end,
+    function(owner,summoner)
+        local records=gStates~=nil and gStates.attackedMonsters or nil
+        local record=records~=nil and records[owner] or nil
+        return record~=nil and record[3]=="summoned" and record[4]==summoner
+    end,
+    function() return trackerPrivate.bannerEffectUses().fortitude end).resolve
 gameCards={unitR={name={"Crossbowmen"}}}
 
 -- Hero Armor rises at levels 3, 7, 11, ...; extra native Command tokens

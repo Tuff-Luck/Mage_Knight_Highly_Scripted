@@ -137,7 +137,7 @@ combatPlayMonsters=function()
 end
 combatConfig={}
 local damageUnits=section(recognition,"combatConfig.COMBAT_UNIT_RESIST_KEYS=",
-    "-- Cold Fire only counts as resisted","combatDamageUnits")
+    "trackerPrivate.damageResolution=require","combatDamageUnits")
 local function available()
     local units,native=damageUnits(1)
     eq(native,3,"Native Command count excludes Bonds")
