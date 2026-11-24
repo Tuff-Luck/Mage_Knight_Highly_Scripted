@@ -14,6 +14,7 @@ end
 local rec=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local flow=read("src/PlayingGame/PlayerBoard/CardFlow.lua")
 local actionLinks=read("src/PlayingGame/PlayerBoard/ResourceTracker/ActionLinks.lua")
+local cardControls=read("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua")
 local callbacks=read("src/PlayingGame/Callbacks.lua")
 local events=read("src/PlayingGame/PlayerBoard/Events.lua")
 local runtimeEvents=read("src/PlayingGame/Events.lua")
@@ -153,7 +154,7 @@ for _,needle in ipairs({
     'return second~=nil and first~=second and (first=="red" or second=="red")',
     "if type(choices)~=\"table\" or #choices==0 then return nil,nil end"
 }) do
-    assert(rec:find(needle,1,true),"Missing Staff/Break path: "..needle)
+    assert(rec:find(needle,1,true) or cardControls:find(needle,1,true),"Missing Staff/Break path: "..needle)
 end
 assert(not rec:find('choices={{key="red",icon="other"}}',1,true),
     "Blue and White must never be rewritten as Red")
@@ -333,7 +334,7 @@ for _,needle in ipairs({
     ":ENEMY_PRESENT:",
     "resourceCardsArtifactGrailFameClicked=resourceCardsArtifactGrailFameClicked"
 }) do
-    assert(rec:find(needle,1,true) or flow:find(needle,1,true),
+    assert(rec:find(needle,1,true) or flow:find(needle,1,true) or cardControls:find(needle,1,true),
         "Missing Artifact fix or regression guard: "..needle)
 end
 assert(callbacks:find('"resourceCardsArtifactGrailFameClicked"',1,true),
@@ -451,7 +452,7 @@ do
     assert(reconciles==1,"OFF-mode Artifact flip must restore its marker")
 end
 
-assert(rec:find('if data~=nil and data.cardType=="Artifact" and card.is_face_down==true then',1,true),
+assert(cardControls:find('if data~=nil and data.cardType=="Artifact" and card.is_face_down==true then',1,true),
     "All Artifact resource controls must disappear when face down")
 assert(runtimeEvents:find("resourceCardsObjectMoved(card,true)",1,true)
     and runtimeEvents:find("resourceCardsMaximalEffectOffDrop(card)",1,true),

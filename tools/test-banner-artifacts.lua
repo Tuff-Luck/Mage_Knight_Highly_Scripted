@@ -115,7 +115,7 @@ assert(not recognition:find('startingControl("manual"',1,true),
     "Generic card '?' button must not be rendered")
 assert(not recognition:find('_artifactNote',1,true),
     "Artifact '?' button must not be rendered")
-assert(recognition:find('"_healAllUnits"',1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua"):find('"_healAllUnits"',1,true),
     "Banner of Fortitude's actual HEAL button must remain")
 
 -- Exercise UnitLayout's real attachment matching: only half cards
@@ -318,7 +318,7 @@ assert(recognition:find("if entry.key==sourceKey then return true end",1,true),
 assert(recognition:find("if uses[guid] then return end",1,true)
     and recognition:find("uses[guid]=true",1,true),
     "Broken Fortitude's Heal must not activate twice")
-assert(recognition:find("not trackerPrivate.bannerEffectUses().healing[card.guid]",1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua"):find("not trackerPrivate.bannerEffectUses().healing[card.guid]",1,true),
     "Consumed Fortitude Heal button must disappear")
 
 -- The replacement picker must never treat Banner of Command as a normal,

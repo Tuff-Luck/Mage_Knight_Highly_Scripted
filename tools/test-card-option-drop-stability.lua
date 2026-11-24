@@ -20,7 +20,7 @@ local cardSource=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local uiAssets=read("src/PlayingGame/UIAssets.lua")
 assert(uiAssets:find("function resourceObjectUiSameXML(left,right)",1,true),
     "XML helper must prevent unchanged card UI writes")
-assert(cardSource:find("if assets~=nil or not resourceObjectUiSameXML(previousXml,xml) then",
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua"):find("if assets~=nil or not resourceObjectUiSameXML(previousXml,xml) then",
     1,true),"Unchanged card XML must be kept in place")
 assert(cardSource:find('trackerPrivate.checkCardChoicesAfterDrop(obj.guid,seat)',
     1,true),"Known drops must schedule a missing-option recheck")

@@ -201,7 +201,7 @@ eq(readyButton.children[1].attributes.image,"MKTargetIcon",
 
 assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/CardControlOptions.lua"):find("resourceCardsHideAutomaticEnemyTarget(card.guid,",1,true),
     "Card target buttons must use the same one-enemy policy")
-assert(source:find('..":TARGETS:"..tostring(trackerPrivate.singleAutoEnemyGUID)',1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua"):find('..":TARGETS:"..tostring(trackerPrivate.singleAutoEnemyGUID)',1,true),
     "Card UI signatures must respond when enemy count changes")
 assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/CardControlOptions.lua"):find("entry.splitTargets==nil",1,true),
     "Cards with special split targets must retain manual buttons")

@@ -18,13 +18,13 @@ local targeting=source("src/PlayingGame/AttackAssignments.lua")
 -- A fixed-effect copy must produce two/three rows, not one multiplied button.
 contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/CardControlOptions.lua"),'if repeatLink~=nil and repeatLink.count>1 and posture=="upright" then',
     "Every copied Action must show per-use rows")
-contains(reader,'if #row.entries>1 or (repeatLink~=nil and repeatLink.count>1) then',
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua"),'if #row.entries>1 or (repeatLink~=nil and repeatLink.count>1) then',
     "Fixed copied effects display one non-clickable icon per use")
-contains(reader,'onClick=#row.entries>1',
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua"),'onClick=#row.entries>1',
     "A one-choice icon cannot change the effect")
 contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/CardControlOptions.lua"),'choices={{key="other",icon="other"}}',
     "Untracked repeated effects still display numbered manual-use rows")
-contains(reader,'row.index<0 and targetCategory~="unitReady"',
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua"),'row.index<0 and targetCategory~="unitReady"',
     "A repeated numeric target button has a unique visible row identifier")
 contains(targeting,'local repeatIndex,repeatCategory=category:match("^rep(%d+):(.+)$")',
     "Repeated source IDs are decoded before aiming")
@@ -36,7 +36,7 @@ contains(reader,'source.convertedResource=nil',
     "Composite converted Block cannot be split by right-click")
 contains(reader,'local count=(result.powered and 2 or 1)*(result.repeatCount or 1)',
     "Dodge and Weave creates one reduction target per copied use")
-contains(reader,'local repeatCount=repeatLink~=nil and repeatLink.count or 1',
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua"),'local repeatCount=repeatLink~=nil and repeatLink.count or 1',
     "Repeated Dodge and Weave draws per-use target rows")
 
 -- Exercise the actual composite-phase checker without TTS.

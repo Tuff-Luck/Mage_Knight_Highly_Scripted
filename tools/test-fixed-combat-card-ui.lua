@@ -316,4 +316,13 @@ for _,node in ipairs(rage.UI.getXmlTable()) do
 end
 assert(foundRestored,"Repair must restore the original selected Rage option")
 
+-- Replacing UI caches and the assignment context must not leave the
+-- extracted renderer writing to a stale table after a reset.
+local oldShown=state.choiceButtonShown
+state.choiceButtonShown={}
+state.choiceExpandedByGUID={}
+state.combatAssignmentState={targets={}}
+render(rage,rules.rage.normalChoices,false,nil,nil,{attack=2},nil)
+assert(state.choiceButtonShown.rageCard~=nil and state.choiceButtonShown~=oldShown,
+    "Card renderer uses the replacement cache after reset")
 print("Fixed combat/choice icon regressions passed")

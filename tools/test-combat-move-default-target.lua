@@ -28,8 +28,8 @@ assert(cardOptions:find('combatEntry.icon="block"',1,true)
 assert(cardOptions:find('entry.stackedIcons={"block","influence"}',1,true)
     and cardOptions:find('if category=="influence" and combatPsychicActive',1,true),
     "Psychic Block option must use full-size shield + Influence icons")
-assert(reader:find('image=stackedAsset.name,width=82,height=82',1,true)
-    and reader:find('for _,stackedIcon in ipairs(entry.stackedIcons)',1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua"):find('image=stackedAsset.name,width=82,height=82',1,true)
+    and read("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua"):find('for _,stackedIcon in ipairs(entry.stackedIcons)',1,true),
     "Composite icons must reuse Tempered Steel's full-size stacked rendering")
 assert(cardOptions:find('if combatCalcOn and combatCumbersomeActive then',1,true)
     and cardOptions:find('if selected~=nil and combatCalcOn and combatCumbersomeActive',1,true),
@@ -37,7 +37,7 @@ assert(cardOptions:find('if combatCalcOn and combatCumbersomeActive then',1,true
 assert(unitControls:find('if combatMoveAvailable then',1,true)
     and unitControls:find('if combatMoveAvailable\n',1,true),
     "Unit Combat Move must disappear when no Cumbersome enemy is available")
-assert(reader:find('..":PSY:"..tostring(combatPsychicActive)',1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua"):find('..":PSY:"..tostring(combatPsychicActive)',1,true),
     "Card icons must refresh when the last Psychic attacker disappears")
 assert(unitControls:find('local shield=resourceCardsChoiceIcon("block")',1,true)
     and unitControls:find('local movement=resourceCardsChoiceIcon("move")',1,true),

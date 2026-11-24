@@ -19,7 +19,7 @@ assert(data:find("ambush={normal={move=2},powered={move=4}",1,true))
 assert(data:find("combatLink={normal={attack=1,block=2},powered={attack=2,block=4}}",1,true))
 assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/CardControlOptions.lua"):find('return "ambush" end',1,true),
     "Ambush must use the shared card/enemy target control")
-assert(reader:find('global/attackAssignmentAmbushSourceClicked',1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua"):find('global/attackAssignmentAmbushSourceClicked',1,true),
     "Ambush target button must use the dual-target callback")
 assert(arrows:find('getObjectFromGUID(targetGUID),assignmentColors.other)',1,true),
     "The separate card bonus must draw a purple arrow")

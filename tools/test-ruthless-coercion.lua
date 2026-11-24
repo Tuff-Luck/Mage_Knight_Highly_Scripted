@@ -139,8 +139,8 @@ priorSpent=true
 eq(eligible(1,2),true,"Prior-turn spent Unit remains eligible")
 priorSpent=false
 eq(eligible(1,2),false,"An unrecorded Unit is not a valid target")
-assert(recognition:find("and (canReadyUnit or readyCount>0) then",1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua"):find("and (canReadyUnit or readyCount>0) then",1,true),
     "Ready button must hide without targets but remain available for undo")
-assert(recognition:find('..":READY_ELIGIBLE:"..tostring(canReadyUnit)',1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua"):find('..":READY_ELIGIBLE:"..tostring(canReadyUnit)',1,true),
     "Ready UI signature must respond to changes in Unit eligibility")
 print("Ruthless Coercion recruitment and Ready visibility regressions passed")
