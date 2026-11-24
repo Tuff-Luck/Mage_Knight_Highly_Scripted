@@ -225,9 +225,9 @@ function M.wingsNight(context)
         local spent,count=0,0
         local combatMoveAvailable=0
         for sourceGUID,record in pairs(records) do
-            if resourceCardsMoveRole(sourceGUID,true)=="combat" then
-                combatMoveAvailable=combatMoveAvailable
-                    +math.max(0,tonumber(record.resources~=nil and record.resources.move) or 0)
+            local amount=math.max(0,tonumber(record.resources~=nil and record.resources.move) or 0)
+            if amount>0 and resourceCardsMoveRole(sourceGUID,true)=="combat" then
+                combatMoveAvailable=combatMoveAvailable+amount
             end
         end
         for _,guid in ipairs(pending.targets) do
