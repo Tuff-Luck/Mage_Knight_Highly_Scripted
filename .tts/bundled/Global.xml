@@ -1305,7 +1305,7 @@ Einheiten</Text></Cell>
 				<Text id="CombatEnemyRow1Armour" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter"/>
 				<Panel id="CombatSourceCell1range" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot1rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid1range" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid1range" rectAlignment="MiddleCenter" offsetXY="0 0" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot1range1" class="CombatSlot"><Image id="CombatSourceSlot1range1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot1range1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot1range2" class="CombatSlot"><Image id="CombatSourceSlot1range2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot1range2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot1range3" class="CombatSlot"><Image id="CombatSourceSlot1range3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot1range3Amount" class="CombatSlotAmount"/></Button>
@@ -1330,7 +1330,7 @@ Einheiten</Text></Cell>
 				<Text id="CombatEnemyRow1Offence" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="10" resizeTextMaxSize="13" color="White" preferredWidth="130" alignment="MiddleLeft"/>
 				<Panel id="CombatSourceCell1block" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot1blockCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid1block" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid1block" rectAlignment="MiddleCenter" offsetXY="0 0" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot1block1" class="CombatSlot"><Image id="CombatSourceSlot1block1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot1block1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot1block2" class="CombatSlot"><Image id="CombatSourceSlot1block2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot1block2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot1block3" class="CombatSlot"><Image id="CombatSourceSlot1block3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot1block3Amount" class="CombatSlotAmount"/></Button>
@@ -1347,7 +1347,7 @@ Einheiten</Text></Cell>
 				</Panel>
 				<Panel id="CombatSourceCell1attack" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot1attackCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid1attack" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid1attack" rectAlignment="MiddleCenter" offsetXY="0 0" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot1attack1" class="CombatSlot"><Image id="CombatSourceSlot1attack1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot1attack1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot1attack2" class="CombatSlot"><Image id="CombatSourceSlot1attack2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot1attack2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot1attack3" class="CombatSlot"><Image id="CombatSourceSlot1attack3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot1attack3Amount" class="CombatSlotAmount"/></Button>
@@ -1377,7 +1377,7 @@ Einheiten</Text></Cell>
 				<Text id="CombatEnemyRow2Armour" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter"/>
 				<Panel id="CombatSourceCell2range" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot2rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid2range" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid2range" rectAlignment="MiddleCenter" offsetXY="0 0" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot2range1" class="CombatSlot"><Image id="CombatSourceSlot2range1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot2range1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot2range2" class="CombatSlot"><Image id="CombatSourceSlot2range2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot2range2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot2range3" class="CombatSlot"><Image id="CombatSourceSlot2range3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot2range3Amount" class="CombatSlotAmount"/></Button>
@@ -1402,7 +1402,7 @@ Einheiten</Text></Cell>
 				<Text id="CombatEnemyRow2Offence" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="10" resizeTextMaxSize="13" color="White" preferredWidth="130" alignment="MiddleLeft"/>
 				<Panel id="CombatSourceCell2block" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot2blockCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid2block" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid2block" rectAlignment="MiddleCenter" offsetXY="0 0" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot2block1" class="CombatSlot"><Image id="CombatSourceSlot2block1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot2block1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot2block2" class="CombatSlot"><Image id="CombatSourceSlot2block2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot2block2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot2block3" class="CombatSlot"><Image id="CombatSourceSlot2block3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot2block3Amount" class="CombatSlotAmount"/></Button>
@@ -1419,7 +1419,7 @@ Einheiten</Text></Cell>
 				</Panel>
 				<Panel id="CombatSourceCell2attack" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot2attackCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid2attack" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid2attack" rectAlignment="MiddleCenter" offsetXY="0 0" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot2attack1" class="CombatSlot"><Image id="CombatSourceSlot2attack1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot2attack1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot2attack2" class="CombatSlot"><Image id="CombatSourceSlot2attack2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot2attack2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot2attack3" class="CombatSlot"><Image id="CombatSourceSlot2attack3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot2attack3Amount" class="CombatSlotAmount"/></Button>
@@ -1449,7 +1449,7 @@ Einheiten</Text></Cell>
 				<Text id="CombatEnemyRow3Armour" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter"/>
 				<Panel id="CombatSourceCell3range" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot3rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid3range" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid3range" rectAlignment="MiddleCenter" offsetXY="0 0" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot3range1" class="CombatSlot"><Image id="CombatSourceSlot3range1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot3range1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot3range2" class="CombatSlot"><Image id="CombatSourceSlot3range2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot3range2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot3range3" class="CombatSlot"><Image id="CombatSourceSlot3range3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot3range3Amount" class="CombatSlotAmount"/></Button>
@@ -1474,7 +1474,7 @@ Einheiten</Text></Cell>
 				<Text id="CombatEnemyRow3Offence" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="10" resizeTextMaxSize="13" color="White" preferredWidth="130" alignment="MiddleLeft"/>
 				<Panel id="CombatSourceCell3block" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot3blockCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid3block" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid3block" rectAlignment="MiddleCenter" offsetXY="0 0" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot3block1" class="CombatSlot"><Image id="CombatSourceSlot3block1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot3block1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot3block2" class="CombatSlot"><Image id="CombatSourceSlot3block2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot3block2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot3block3" class="CombatSlot"><Image id="CombatSourceSlot3block3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot3block3Amount" class="CombatSlotAmount"/></Button>
@@ -1491,7 +1491,7 @@ Einheiten</Text></Cell>
 				</Panel>
 				<Panel id="CombatSourceCell3attack" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot3attackCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid3attack" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid3attack" rectAlignment="MiddleCenter" offsetXY="0 0" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot3attack1" class="CombatSlot"><Image id="CombatSourceSlot3attack1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot3attack1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot3attack2" class="CombatSlot"><Image id="CombatSourceSlot3attack2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot3attack2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot3attack3" class="CombatSlot"><Image id="CombatSourceSlot3attack3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot3attack3Amount" class="CombatSlotAmount"/></Button>
@@ -1521,7 +1521,7 @@ Einheiten</Text></Cell>
 				<Text id="CombatEnemyRow4Armour" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter"/>
 				<Panel id="CombatSourceCell4range" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot4rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid4range" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid4range" rectAlignment="MiddleCenter" offsetXY="0 0" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot4range1" class="CombatSlot"><Image id="CombatSourceSlot4range1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot4range1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot4range2" class="CombatSlot"><Image id="CombatSourceSlot4range2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot4range2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot4range3" class="CombatSlot"><Image id="CombatSourceSlot4range3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot4range3Amount" class="CombatSlotAmount"/></Button>
@@ -1546,7 +1546,7 @@ Einheiten</Text></Cell>
 				<Text id="CombatEnemyRow4Offence" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="10" resizeTextMaxSize="13" color="White" preferredWidth="130" alignment="MiddleLeft"/>
 				<Panel id="CombatSourceCell4block" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot4blockCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid4block" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid4block" rectAlignment="MiddleCenter" offsetXY="0 0" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot4block1" class="CombatSlot"><Image id="CombatSourceSlot4block1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot4block1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot4block2" class="CombatSlot"><Image id="CombatSourceSlot4block2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot4block2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot4block3" class="CombatSlot"><Image id="CombatSourceSlot4block3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot4block3Amount" class="CombatSlotAmount"/></Button>
@@ -1563,7 +1563,7 @@ Einheiten</Text></Cell>
 				</Panel>
 				<Panel id="CombatSourceCell4attack" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot4attackCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid4attack" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid4attack" rectAlignment="MiddleCenter" offsetXY="0 0" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot4attack1" class="CombatSlot"><Image id="CombatSourceSlot4attack1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot4attack1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot4attack2" class="CombatSlot"><Image id="CombatSourceSlot4attack2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot4attack2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot4attack3" class="CombatSlot"><Image id="CombatSourceSlot4attack3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot4attack3Amount" class="CombatSlotAmount"/></Button>
@@ -1593,7 +1593,7 @@ Einheiten</Text></Cell>
 				<Text id="CombatEnemyRow5Armour" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter"/>
 				<Panel id="CombatSourceCell5range" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot5rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid5range" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid5range" rectAlignment="MiddleCenter" offsetXY="0 0" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot5range1" class="CombatSlot"><Image id="CombatSourceSlot5range1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot5range1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot5range2" class="CombatSlot"><Image id="CombatSourceSlot5range2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot5range2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot5range3" class="CombatSlot"><Image id="CombatSourceSlot5range3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot5range3Amount" class="CombatSlotAmount"/></Button>
@@ -1618,7 +1618,7 @@ Einheiten</Text></Cell>
 				<Text id="CombatEnemyRow5Offence" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="10" resizeTextMaxSize="13" color="White" preferredWidth="130" alignment="MiddleLeft"/>
 				<Panel id="CombatSourceCell5block" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot5blockCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid5block" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid5block" rectAlignment="MiddleCenter" offsetXY="0 0" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot5block1" class="CombatSlot"><Image id="CombatSourceSlot5block1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot5block1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot5block2" class="CombatSlot"><Image id="CombatSourceSlot5block2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot5block2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot5block3" class="CombatSlot"><Image id="CombatSourceSlot5block3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot5block3Amount" class="CombatSlotAmount"/></Button>
@@ -1635,7 +1635,7 @@ Einheiten</Text></Cell>
 				</Panel>
 				<Panel id="CombatSourceCell5attack" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot5attackCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid5attack" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid5attack" rectAlignment="MiddleCenter" offsetXY="0 0" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot5attack1" class="CombatSlot"><Image id="CombatSourceSlot5attack1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot5attack1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot5attack2" class="CombatSlot"><Image id="CombatSourceSlot5attack2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot5attack2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot5attack3" class="CombatSlot"><Image id="CombatSourceSlot5attack3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot5attack3Amount" class="CombatSlotAmount"/></Button>
@@ -1665,7 +1665,7 @@ Einheiten</Text></Cell>
 				<Text id="CombatEnemyRow6Armour" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter"/>
 				<Panel id="CombatSourceCell6range" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot6rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid6range" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid6range" rectAlignment="MiddleCenter" offsetXY="0 0" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot6range1" class="CombatSlot"><Image id="CombatSourceSlot6range1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot6range1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot6range2" class="CombatSlot"><Image id="CombatSourceSlot6range2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot6range2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot6range3" class="CombatSlot"><Image id="CombatSourceSlot6range3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot6range3Amount" class="CombatSlotAmount"/></Button>
@@ -1690,7 +1690,7 @@ Einheiten</Text></Cell>
 				<Text id="CombatEnemyRow6Offence" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="10" resizeTextMaxSize="13" color="White" preferredWidth="130" alignment="MiddleLeft"/>
 				<Panel id="CombatSourceCell6block" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot6blockCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid6block" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid6block" rectAlignment="MiddleCenter" offsetXY="0 0" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot6block1" class="CombatSlot"><Image id="CombatSourceSlot6block1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot6block1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot6block2" class="CombatSlot"><Image id="CombatSourceSlot6block2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot6block2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot6block3" class="CombatSlot"><Image id="CombatSourceSlot6block3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot6block3Amount" class="CombatSlotAmount"/></Button>
@@ -1707,7 +1707,7 @@ Einheiten</Text></Cell>
 				</Panel>
 				<Panel id="CombatSourceCell6attack" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot6attackCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid6attack" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid6attack" rectAlignment="MiddleCenter" offsetXY="0 0" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot6attack1" class="CombatSlot"><Image id="CombatSourceSlot6attack1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot6attack1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot6attack2" class="CombatSlot"><Image id="CombatSourceSlot6attack2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot6attack2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot6attack3" class="CombatSlot"><Image id="CombatSourceSlot6attack3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot6attack3Amount" class="CombatSlotAmount"/></Button>
@@ -1736,7 +1736,7 @@ Einheiten</Text></Cell>
 				<Text id="CombatEnemyRow7Armour" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter"/>
 				<Panel id="CombatSourceCell7range" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot7rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid7range" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid7range" rectAlignment="MiddleCenter" offsetXY="0 0" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot7range1" class="CombatSlot"><Image id="CombatSourceSlot7range1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot7range1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot7range2" class="CombatSlot"><Image id="CombatSourceSlot7range2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot7range2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot7range3" class="CombatSlot"><Image id="CombatSourceSlot7range3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot7range3Amount" class="CombatSlotAmount"/></Button>
@@ -1761,7 +1761,7 @@ Einheiten</Text></Cell>
 				<Text id="CombatEnemyRow7Offence" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="10" resizeTextMaxSize="13" color="White" preferredWidth="130" alignment="MiddleLeft"/>
 				<Panel id="CombatSourceCell7block" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot7blockCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid7block" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid7block" rectAlignment="MiddleCenter" offsetXY="0 0" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot7block1" class="CombatSlot"><Image id="CombatSourceSlot7block1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot7block1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot7block2" class="CombatSlot"><Image id="CombatSourceSlot7block2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot7block2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot7block3" class="CombatSlot"><Image id="CombatSourceSlot7block3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot7block3Amount" class="CombatSlotAmount"/></Button>
@@ -1778,7 +1778,7 @@ Einheiten</Text></Cell>
 				</Panel>
 				<Panel id="CombatSourceCell7attack" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot7attackCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid7attack" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid7attack" rectAlignment="MiddleCenter" offsetXY="0 0" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot7attack1" class="CombatSlot"><Image id="CombatSourceSlot7attack1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot7attack1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot7attack2" class="CombatSlot"><Image id="CombatSourceSlot7attack2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot7attack2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot7attack3" class="CombatSlot"><Image id="CombatSourceSlot7attack3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot7attack3Amount" class="CombatSlotAmount"/></Button>
@@ -1808,7 +1808,7 @@ Einheiten</Text></Cell>
 				<Text id="CombatEnemyRow8Armour" class="Text14" fontSize="13" resizeTextMaxSize="13" color="White" preferredWidth="55" alignment="MiddleCenter"/>
 				<Panel id="CombatSourceCell8range" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot8rangeCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid8range" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid8range" rectAlignment="MiddleCenter" offsetXY="0 0" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot8range1" class="CombatSlot"><Image id="CombatSourceSlot8range1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot8range1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot8range2" class="CombatSlot"><Image id="CombatSourceSlot8range2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot8range2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot8range3" class="CombatSlot"><Image id="CombatSourceSlot8range3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot8range3Amount" class="CombatSlotAmount"/></Button>
@@ -1833,7 +1833,7 @@ Einheiten</Text></Cell>
 				<Text id="CombatEnemyRow8Offence" class="Text14" fontSize="13" resizeTextForBestFit="true" resizeTextMinSize="10" resizeTextMaxSize="13" color="White" preferredWidth="130" alignment="MiddleLeft"/>
 				<Panel id="CombatSourceCell8block" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot8blockCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid8block" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid8block" rectAlignment="MiddleCenter" offsetXY="0 0" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot8block1" class="CombatSlot"><Image id="CombatSourceSlot8block1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot8block1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot8block2" class="CombatSlot"><Image id="CombatSourceSlot8block2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot8block2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot8block3" class="CombatSlot"><Image id="CombatSourceSlot8block3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot8block3Amount" class="CombatSlotAmount"/></Button>
@@ -1850,7 +1850,7 @@ Einheiten</Text></Cell>
 				</Panel>
 				<Panel id="CombatSourceCell8attack" preferredWidth="144" color="rgba(0,0,0,0)" outlineSize="0 0">
 					<Button id="CombatSourceSlot8attackCell" onClick="resourceTracker" color="rgba(0,0,0,0)"/>
-					<GridLayout id="CombatSourceGrid8attack" rectAlignment="MiddleCenter" offsetXY="0 -2" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
+					<GridLayout id="CombatSourceGrid8attack" rectAlignment="MiddleCenter" offsetXY="0 0" width="144" height="26" constraint="FixedColumnCount" constraintCount="6" cellSize="24 26" spacing="0 0" childAlignment="MiddleCenter" preferredHeight="26">
 						<Button id="CombatSourceSlot8attack1" class="CombatSlot"><Image id="CombatSourceSlot8attack1Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot8attack1Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot8attack2" class="CombatSlot"><Image id="CombatSourceSlot8attack2Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot8attack2Amount" class="CombatSlotAmount"/></Button>
 						<Button id="CombatSourceSlot8attack3" class="CombatSlot"><Image id="CombatSourceSlot8attack3Image" class="CombatSlotIcon"/><Text id="CombatSourceSlot8attack3Amount" class="CombatSlotAmount"/></Button>
@@ -2609,7 +2609,7 @@ Einheiten</Text></Cell>
 			</cell></Row>
 		</TableLayout>			
 	</Panel>
-	<Panel id="MegapolisReminder" active="false" offsetXY="670 -242" width="320" height="190" outlineSize="1 -1">
+	<Panel id="MegapolisReminder" active="false" offsetXY="670 -242" width="320" height="184" outlineSize="1 -1">
 		<Image image="Sliced Button/Button New Active" type="Sliced"/>
 		<VerticalLayout padding="6 6 0 6" childForceExpandHeight="False">
 			<TableLayout preferredHeight="34">
@@ -2618,59 +2618,23 @@ Einheiten</Text></Cell>
 					<Text id="MegapolisReminderTitle" class="Title18">{en}Megapolis Available{it}Megapoli Disponibile{ru}Мегаполис Доступен{zh-tw}可以使用大型城市{zh-cn}可以使用大型城市{ko}거대도시 옵션{es}Megapolis Disponible{fr}Megapolis Disponible{pt-br}Megalópole Disponível{de}Metropole Vorhanden</Text>
 				</Row>
 			</TableLayout>
-			<HorizontalLayout padding="0 0 0 0"><Text id="MegapolisReminderText1" class="Text16" alignment="MiddleCenter">{en}Use the arrows next to the City Levels, to change a City into a Megapolis.&lt;size=6&gt;
-
-&lt;/size&gt;When a city deploys in game, a second random city also deploys with it (each at half the level chosen here). Their two garrisons combine and get the bonuses from both cities applied.&lt;size=6&gt;
-
-&lt;/size&gt;After conquering the Megapolis, interactions from either city can be accessed.{it}Usa le frecce accanto ai livelli delle Città per trasformare una Città in Megapoli.&lt;size=6&gt;
-
-&lt;/size&gt;Quando viene posizionata, compare anche una seconda città casuale, ciascuna a metà del livello scelto qui. Le guarnigioni si uniscono e ricevono i bonus di entrambe.&lt;size=6&gt;
-
-&lt;/size&gt;Dopo la conquista, sono disponibili le interazioni di entrambe le città.{ru}Используйте стрелки рядом с ур. города, чтобы из Города сделать Мегаполис.&lt;size=6&gt;
-
-&lt;/size&gt;Вместо одного Города, появятся сразу два. Уровень каждого равен половине ур. выбранного здесь. Оба их гарнизона объединяются и получают бонусы от обоих городов.&lt;size=6&gt;
-
-&lt;/size&gt;Завоеванный Мегаполис позволяет взаимодействовать с каждым из городов.{zh-tw}使用城市等級選項旁邊的箭頭按鈕，
-來將一個城市更換成大型城市。&lt;size=3&gt;
-
-&lt;/size&gt;當一個城市在遊戲中部署時，
+			<VerticalLayout padding="0 0 0 0" spacing="4" preferredHeight="144" childForceExpandHeight="False">
+				<Text id="MegapolisReminderText1" class="Text16" alignment="MiddleCenter" preferredHeight="32">{en}Use the arrows next to the City Levels, to change a City into a Megapolis.{it}Usa le frecce accanto ai livelli delle Città per trasformare una Città in Megapoli.{ru}Используйте стрелки рядом с ур. города, чтобы из Города сделать Мегаполис.{zh-tw}使用城市等級選項旁邊的箭頭按鈕，
+來將一個城市更換成大型城市。{zh-cn}使用城市等级选项旁边的箭头按钮，
+来将一个城市更换成大型城市。{ko}거대도시를 사용하려면, 도시 레벨 옆 화살표를 누르세요.{es}Usa las flechas al lado de los niveles de la ciudad para convertir una ciudad en una Megapolis.{fr}Utilisez les flèches à côté des niveaux de la ville pour transformer une ville en Mégapole.{pt-br}Use as setas próximas ao níveis da Cidade, para transformar uma Cidade em uma Megalópole.{de}Verwenden Sie die Pfeile neben den Stadtebenen, um eine Stadt in eine Metropole zu verwandeln.</Text>
+				<Text id="MegapolisReminderText2" class="Text16" alignment="MiddleCenter" preferredHeight="72">{en}When a city deploys in game, a second random city also deploys with it (each at half the level chosen here). Their two garrisons combine and get the bonuses from both cities applied.{it}Quando viene posizionata, compare anche una seconda città casuale, ciascuna a metà del livello scelto qui. Le guarnigioni si uniscono e ricevono i bonus di entrambe.{ru}Вместо одного Города, появятся сразу два. Уровень каждого равен половине ур. выбранного здесь. Оба их гарнизона объединяются и получают бонусы от обоих городов.{zh-tw}當一個城市在遊戲中部署時，
 會跟著部屬另一個隨機城市在它旁邊。
 （每座城市的等級為選項中的一半。）
 兩座城市的守軍會合併，全部具有城防，
-並同時受到兩座城市的戰鬥加成。&lt;size=3&gt;
-
-&lt;/size&gt;征服大型城市後，無論位於哪片城區，
-在交涉時都可以選擇任意城區的購買選項。{zh-cn}使用城市等级选项旁边的箭头按钮，
-来将一个城市更换成大型城市。&lt;size=3&gt;
-
-&lt;/size&gt;当一个城市在游戏中部署时，
+並同時受到兩座城市的戰鬥加成。{zh-cn}当一个城市在游戏中部署时，
 会跟着部属另一个随机城市在它旁边。
 （每座城市的等级为选项中的一半。）
 两座城市的守军会合并，全部具有城防，
-并同时受到两座城市的战斗加成。&lt;size=3&gt;
-
-&lt;/size&gt;征服大型城市后，无论位于哪片城区，
-在交涉时都可以选择任意城区的购买选项。{ko}거대도시를 사용하려면, 도시 레벨 옆 화살표를 누르세요.&lt;size=6&gt;
-
-&lt;/size&gt;도시가 놓일 때, 두 번째 도시가 무작위로 선택되어 좌측에 같이 놓입니다.(각각 절반의 레벨)두 도시의 수비대가 합쳐지고 두 도시의 전투 보너스를 동시에 적용받습니다.&lt;size=6&gt;
-
-&lt;/size&gt;정복된 후, 플레이어는 도시 어느 부분에 있던지 두 도시의 모든 교류 혜택을 사용할 수 있습니다.{es}Usa las flechas al lado de los niveles de la ciudad para convertir una ciudad en una Megapolis.&lt;size=6&gt;
-
-&lt;/size&gt;Cuando una ciudad se despliega en el juego, también se despliega una segunda ciudad aleatoria con ella (cada una a la mitad del nivel elegido aquí). Sus dos guarniciones se combinan y se aplican las bonificaciones de ambas ciudades.&lt;size=6&gt;
-
-&lt;/size&gt;Después de conquistar la Megalópolis, se puede acceder a las interacciones de cualquiera de las ciudades.{fr}Utilisez les flèches à côté des niveaux de la ville pour transformer une ville en Mégapole.&lt;size=6&gt;
-
-&lt;/size&gt;Lorsqu'une ville se déploie en jeu, une seconde ville aléatoire se déploie également avec elle (chacune à la moitié du niveau choisi ici). Leurs deux garnisons se combinent et obtiennent les bonus des deux villes appliqués.&lt;size=6&gt;
-
-&lt;/size&gt;Après avoir conquis la Mégapole, les interactions de l'une ou l'autre ville sont accessibles.{pt-br}Use as setas próximas ao níveis da Cidade, para transformar uma Cidade em uma Megalópole.&lt;size=6&gt;
-
-&lt;/size&gt;Quando uma cidade é implementada no jogo, uma segunda cidade aleatória também é implementada com ela (cada uma a metade do nível escolhido aqui). Suas duas Guarnições combinam e ganham os bônus de ambas as cidades.&lt;size=6&gt;
-
-&lt;/size&gt;Depois de conquistar a Megalópolis, interações de ambras cidades podem ser acessadas.{de}Verwenden Sie die Pfeile neben den Stadtebenen, um eine Stadt in eine Metropole zu verwandeln.&lt;size=6&gt;
-
-&lt;/size&gt;Wenn eine Stadt im Spiel aufgestellt wird, wird auch eine zweite zufällige Stadt aufgestellt (jeweils auf der Hälfte des hier gewählten Levels). Ihre beiden Garnisonen verbinden sich und bekommen die Boni aus beiden Städten zugerechnet.&lt;size=6&gt;
-
-&lt;/size&gt;Nach der Eroberung der Metropole kann auf Interaktionen aus beiden Städten zugegriffen werden.</Text></HorizontalLayout>
+并同时受到两座城市的战斗加成。{ko}도시가 놓일 때, 두 번째 도시가 무작위로 선택되어 좌측에 같이 놓입니다.(각각 절반의 레벨)두 도시의 수비대가 합쳐지고 두 도시의 전투 보너스를 동시에 적용받습니다.{es}Cuando una ciudad se despliega en el juego, también se despliega una segunda ciudad aleatoria con ella (cada una a la mitad del nivel elegido aquí). Sus dos guarniciones se combinan y se aplican las bonificaciones de ambas ciudades.{fr}Lorsqu'une ville se déploie en jeu, une seconde ville aléatoire se déploie également avec elle (chacune à la moitié du niveau choisi ici). Leurs deux garnisons se combinent et obtiennent les bonus des deux villes appliqués.{pt-br}Quando uma cidade é implementada no jogo, uma segunda cidade aleatória também é implementada com ela (cada uma a metade do nível escolhido aqui). Suas duas Guarnições combinam e ganham os bônus de ambas as cidades.{de}Wenn eine Stadt im Spiel aufgestellt wird, wird auch eine zweite zufällige Stadt aufgestellt (jeweils auf der Hälfte des hier gewählten Levels). Ihre beiden Garnisonen verbinden sich und bekommen die Boni aus beiden Städten zugerechnet.</Text>
+				<Text id="MegapolisReminderText3" class="Text16" alignment="MiddleCenter" preferredHeight="32">{en}After conquering the Megapolis, interactions from either city can be accessed.{it}Dopo la conquista, sono disponibili le interazioni di entrambe le città.{ru}Завоеванный Мегаполис позволяет взаимодействовать с каждым из городов.{zh-tw}征服大型城市後，無論位於哪片城區，
+在交涉時都可以選擇任意城區的購買選項。{zh-cn}征服大型城市后，无论位于哪片城区，
+在交涉时都可以选择任意城区的购买选项。{ko}정복된 후, 플레이어는 도시 어느 부분에 있던지 두 도시의 모든 교류 혜택을 사용할 수 있습니다.{es}Después de conquistar la Megalópolis, se puede acceder a las interacciones de cualquiera de las ciudades.{fr}Après avoir conquis la Mégapole, les interactions de l'une ou l'autre ville sont accessibles.{pt-br}Depois de conquistar a Megalópolis, interações de ambras cidades podem ser acessadas.{de}Nach der Eroberung der Metropole kann auf Interaktionen aus beiden Städten zugegriffen werden.</Text>
+			</VerticalLayout>
 		</VerticalLayout>
 	</Panel>
 	<Panel id="DropDown" active="false" offsetXY="-100 -275" width="120" outlineSize="1 -1" scale="1">
