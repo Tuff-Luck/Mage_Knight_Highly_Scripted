@@ -335,6 +335,7 @@ end
 -- A Move role can be selected in any combat, not only against Cumbersome.
 -- Keep an already committed source editable after combat ends; do not
 -- automatically transfer its points to the movement pool.
+combatConfig.moveRoleForUI=function(guid) return resourceCardsMoveRole(guid,false) end
 combatConfig.moveRoleAvailable=function(guid)
     return combatCalcOn or combatEnemyInPlay
         or (gStates~=nil and gStates.resourceCardMoveRoles~=nil
@@ -5298,6 +5299,12 @@ local function renderSeat(seatPos)
 
     trackerPrivate.scanFinalization.spiritGuides({
         records=records, combatConfig=combatConfig, totals=totals, setHighlight=setHighlight, objects=objects,
+    })
+
+    trackerPrivate.cardInteractions.tirelessness(cards,records,totals,cardPosture)
+    trackerPrivate.scanFinalization.playedMovement({
+        records=records,terrainModifiers=terrainModifiers,movementEffects=movementEffects,
+        resourceCardsMoveRole=resourceCardsMoveRole,objects=objects,setHighlight=setHighlight,
     })
 
     trackerPrivate.scanFinalization.wingsNight({
