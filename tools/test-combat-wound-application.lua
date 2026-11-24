@@ -981,27 +981,16 @@ assert(assignments:find('function attackAssignmentsDamageSnapshot()',1,true)
 -- Exercise the real Block optimiser: spare and failed Blocks must not
 -- lock their sources, while Block points used for success and Cumbersome
 -- Move reductions must remain committed.
-local blockStart=assert(recognition:find(
-    "-- Block resources only ever face the enemy",1,true))
-local blockEnd=assert(recognition:find(
-    "-- Damage phase. Every unblocked attack",blockStart,true))
-local blockEnv={
-    trackerPrivate={},
-    combatConfig={sourceFields={{key="block",family="block"}},
-        COMBAT_EFFICIENT_BLOCKS={P={block=true}},COMBAT_RED="red"},
-    combatEnemyAttacks=function(enemy) return enemy.attacks end,
-    combatRich=function(value) return value end,
-    combatAssignmentActiveSeat=function() return 1 end,
-    gStates={turnNumber=1,competitiveSkillReminders={}},
-}
-local blockSolver=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/BlockSolver.lua")(blockEnv.combatConfig)
-blockEnv.combatBlockLegal=blockSolver.legal
-blockEnv.combatBlockEfficient=blockSolver.efficient
-blockEnv.combatSolveBlocks=blockSolver.solve
-blockEnv.combatBlockSpent=blockSolver.spent
-setmetatable(blockEnv,{__index=_G})
-local blockResult=assert(load(recognition:sub(blockStart,blockEnd-1)..
-    "\nreturn combatBlockResult","Block effective source locking","t",blockEnv))()
+local blockConfig={sourceFields={{key="block",family="block"}},
+    COMBAT_EFFICIENT_BLOCKS={P={block=true}},COMBAT_RED="red"}
+local blockSolver=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/BlockSolver.lua")(blockConfig)
+local blockEngine=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/BlockResults.lua")(blockConfig,blockSolver,
+    function(enemy) return enemy.attacks end,function() return 0 end,
+    function(value) return value end)
+local blockCache={}
+local function blockResult(enemy,sources)
+    return blockEngine(enemy,sources,blockCache)
+end
 local function testEnemy(guid,cumbersome)
     return {guid=guid,attacks={{owner=guid,slot=1,key="P",value=5,
         cumbersome=cumbersome==true}}}

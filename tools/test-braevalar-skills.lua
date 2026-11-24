@@ -136,9 +136,10 @@ local plan=blockSolver({{key="P",value=4}}, {blockItem}, 0)
 eq(plan[1].blocked,true,"Four Block covers a normal Attack of four")
 plan=blockSolver({{key="P",value=5,damageValue=4}}, {blockItem}, 0)
 eq(plan[1].blocked,false,"Competitive +1 raises Block requirement to five")
-contains(recognition, 'attack.damageValue=attack.value',
+local blockResultsSource=source("src/PlayingGame/PlayerBoard/ResourceTracker/BlockResults.lua")
+contains(blockResultsSource, 'attack.damageValue=attack.value',
     "Block-only penalty preserves original attack damage")
-contains(recognition, '(attack.damageValue or attack.value)-step.reduction',
+contains(blockResultsSource, '(attack.damageValue or attack.value)-step.reduction',
     "Damage phase uses original Attack strength")
 
 -- Block-only competitive modifier belongs to active opponents, not the owner.
