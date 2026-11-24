@@ -309,7 +309,7 @@ function M.choiceClicked(player,value,id,combatConfig,resourceCardsDetailsOpen,f
         choiceExpandedByGUID[guid]=rowId
         showChoiceButtons(card,mainChoices,powered,inventorySpec,inventorySets,
             record~=nil and record.resources,record~=nil and record.repeatLink,
-        record~=nil and record.shapeshiftField)
+            record~=nil and record.shapeshiftField)
         return
     end
     local selected=selectedResourceByGUID[guid] or {}
@@ -330,7 +330,9 @@ function M.choiceClicked(player,value,id,combatConfig,resourceCardsDetailsOpen,f
     else
         selected.sideways=category
     end
-    selectedResourceByGUID[guid]=selected
+    if record==nil or record.copiedBasicField==nil then
+        selectedResourceByGUID[guid]=selected
+    end
     if repeatIndex~=nil and record~=nil and record.repeatLink~=nil
         and not combatConfig.compositePhasesMatch(
             guid,powered,mainChoices,record.repeatLink) then
