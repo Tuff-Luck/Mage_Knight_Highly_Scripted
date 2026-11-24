@@ -1402,6 +1402,8 @@ function attackAssignmentSourceClicked(player,value,id)
         -- Two independently controlled Diplomacy counters still feed one
         -- composite Block target. Their unique UI IDs must not create
         -- separately spendable combat resources.
+        if category=="move" and part=="block"
+            and (resourceCardsSplitMoveActive==nil or not resourceCardsSplitMoveActive(guid)) then return end
         local sourcePart=part~=nil and part:match("^convertBlock%d+$")
             and "convertBlock" or part
 		local sourceKey=sourcePart~=nil and (guid.."#"..sourcePart) or guid
@@ -1515,7 +1517,13 @@ function attackAssignmentTargetClicked(target,playerColor)
             safeBroadcastToColor(message,playerColor,{1,0.6,0.2})
             return
         end
-		if tostring(pending.resource):find("move$")~=nil and resourceCardsCombatTargetAcceptsMove~=nil
+        -- Split Move uses move@block, and repeated Unit Move uses move@useN.
+        -- The resource family, not its source suffix, determines eligibility.
+        local pendingResource=tostring(pending.resource):match("^[^@]+") or ""
+        if pendingResource:match("move$") and pending.sourceGUID:match("#block$")
+            and (resourceCardsSplitMoveActive==nil
+                or not resourceCardsSplitMoveActive(assignmentBaseGUID(pending.sourceGUID))) then return end
+		if pendingResource:find("move$")~=nil and resourceCardsCombatTargetAcceptsMove~=nil
 			and not resourceCardsCombatTargetAcceptsMove(target.guid) then
 			broadcastToColor("Move can only be assigned to a Cumbersome enemy.",playerColor,{1,0.6,0.2})
 			return
