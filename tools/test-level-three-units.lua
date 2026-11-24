@@ -74,22 +74,24 @@ eq(applied.ice.applied[1].iceResistant,true,"Retain resistance for red UI")
 eq(applied.ice.applied[1].spec.armourReduce,3,"Retain printed effect in tooltip")
 
 local reader=source("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-local decisionCode=slice(reader,"local function unitAbilityPaid(ability,counts)",
-    "-- Earlier Command activations own")
-local decide=assert(load([[
-local trackerPrivate={manaPayments=require("PlayingGame.PlayerBoard.ResourceTracker.ManaPayments")}
+local payment=require("PlayingGame.PlayerBoard.ResourceTracker.ManaPayments")
 local daytime=false
-local resourceCardsUsesDayMana=function() return daytime end
-local resourceCardsGoldAllowed=function() return daytime end
-local resourceCardsBlackAllowed=function() return not daytime end
-local unitManaCounts=function() error("Explicit test counts required") end
-local unitManaDecision
-]]..decisionCode..[[
-return function(unit,abilities,activation,counts,isDay)
+local function resourceCardsGoldAllowed() return daytime end
+local function resourceCardsBlackAllowed() return not daytime end
+local unitManaDecision=require("PlayingGame.PlayerBoard.ResourceTracker.UnitChoices")({
+    unitManaCounts=function() error("Explicit test counts required") end,
+    unitManaSignature=function(counts)
+        return payment.unitManaSignature(counts,resourceCardsGoldAllowed,resourceCardsBlackAllowed)
+    end,
+    unitAbilityPaid=function(ability,counts)
+        return payment.unitAbilityPaid(ability,counts,resourceCardsGoldAllowed,resourceCardsBlackAllowed)
+    end,
+    resourceCardsGoldAllowed=resourceCardsGoldAllowed
+})
+local function decide(unit,abilities,activation,counts,isDay)
     daytime=isDay
     return unitManaDecision(unit,abilities,activation,counts)
 end
-]]))()
 local function choice(abilities,activation,counts,day)
     return decide({guid="unit"},abilities,activation,counts,day==true)
 end

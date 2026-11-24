@@ -129,17 +129,20 @@ dofile("src/PlayingGame/PlayerBoard/UnitResources.lua")
 local abilities=assert(unitResourceDefinitions[unit.guid])
 eq(abilities[3].attackIce,4,"Northern Monks Ice Attack 4")
 eq(abilities[4].blockIce,4,"Northern Monks Ice Block 4")
-local decisionCode=extract(reader,"local function unitAbilityPaid(ability,counts)",
-    "-- Earlier Command activations own")
-local decide=assert(load([[
-local trackerPrivate={manaPayments=require("PlayingGame.PlayerBoard.ResourceTracker.ManaPayments")}
-local resourceCardsGoldAllowed=function() return false end
-local resourceCardsBlackAllowed=function() return false end
-local unitManaCounts=function() error("Pass explicit mana counts") end
-local unitManaDecision
-]]..decisionCode..[[
-return unitManaDecision
-]],"Unit mana decision","t",_G))()
+local payment=require("PlayingGame.PlayerBoard.ResourceTracker.ManaPayments")
+local function resourceCardsGoldAllowed() return false end
+local function resourceCardsBlackAllowed() return false end
+local unitManaDecision=require("PlayingGame.PlayerBoard.ResourceTracker.UnitChoices")({
+    unitManaCounts=function() error("Pass explicit mana counts") end,
+    unitManaSignature=function(counts)
+        return payment.unitManaSignature(counts,resourceCardsGoldAllowed,resourceCardsBlackAllowed)
+    end,
+    unitAbilityPaid=function(ability,counts)
+        return payment.unitAbilityPaid(ability,counts,resourceCardsGoldAllowed,resourceCardsBlackAllowed)
+    end,
+    resourceCardsGoldAllowed=resourceCardsGoldAllowed
+})
+local decide=unitManaDecision
 local attackActivation={seatPos=1,choice=1}
 local blueAttack=decide(unit,abilities,attackActivation,{Blue=1})
 eq(blueAttack.index,3,"Attack 3 upgrades to Ice Attack 4")
