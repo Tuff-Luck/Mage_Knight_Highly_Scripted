@@ -56,9 +56,14 @@ local day=true
 resourceCardsUsesDayMana=function() return day end
 resourceCardsGoldAllowed=function() return day end
 resourceCardsBlackAllowed=function() return not day end
-local scale=assert(load(slice(recognition,
-    "    local function unitManaScaleBonus(counts)",
-    "    local function unitAbilityResources(").."\nreturn unitManaScaleBonus"))()
+local payment=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/ManaPayments.lua")
+local effects=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/UnitEffects.lua")({totalsKeys={attackColdFire=true}},
+    function(ability,counts)
+        return payment.unitAbilityPaid(ability,counts,resourceCardsGoldAllowed,resourceCardsBlackAllowed)
+    end,resourceCardsUsesDayMana)
+local function scale(counts)
+    return effects.unitAbilityResources(mages[2],counts,nil,0,false).attackColdFire-5
+end
 eq(scale({}),0,"unpaid Cold Fire base")
 eq(scale({Red=1}),2,"Red +2")
 eq(scale({Blue=1}),2,"Blue +2")
@@ -72,8 +77,8 @@ eq(scale({Red=1,Blue=1,Gold=2}),4,"bonus capped at +4")
 day=false
 eq(scale({Gold=2}),0,"Gold unusable at Night")
 eq(scale({Blue=1,Gold=2}),2,"Night counts only Blue")
-assert(recognition:find("bonus=bonus+unitManaScaleBonus(counts)",1,true),
-    "live unit resources must use gold-aware bonus")
+assert(recognition:find("trackerPrivate.unitEffects.unitAbilityResources(selected,counts,crystalCounts,",1,true),
+    "live Unit resources must use the extracted calculator")
 
 -- Delphana red is not a Fire Block and does not need its own Block source.
 gStates={monsterPerks={}}

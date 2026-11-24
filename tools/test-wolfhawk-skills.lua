@@ -117,17 +117,12 @@ state.targets["7d1c32"]="otherEnemy"
 eq(fame(),0,"Dueling cannot earn Fame for a different enemy")
 
 -- Run the actual unit modifier, not a copy of its arithmetic.
-first=assert(calc:find('    local function unitAbilityResources(ability,counts,crystalCounts)',1,true))
-last=assert(calc:find('    local selectedUnitAttacks={}',first,true))
-local prefix=[[return function(ability,penalty)
-  local howlPenalty=penalty
-  local unitCombatBoost=0
-  local trackerPrivate={totalsKeys={attack=true,attackFire=true,block=true,
-    blockIce=true,ranged=true,siege=true,influence=true,healing=true}}
-  local function unitAbilityPaid() return true end
-]]
-local unitFunction=assert(load(prefix..calc:sub(first,last-1)..
-    '\nreturn unitAbilityResources(ability,{}, {})\nend'))()
+local unitEffects=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/UnitEffects.lua")({totalsKeys={attack=true,attackFire=true,block=true,
+    blockIce=true,ranged=true,siege=true,influence=true,healing=true}},
+    function(ability,counts) return true end,function() return true end)
+local function unitFunction(ability,penalty)
+    return unitEffects.unitAbilityResources(ability,{}, {},0,penalty)
+end
 local result=unitFunction({attackFire=3,blockIce=1,influence=2},true)
 eq(result.attackFire,2,"Howl penalizes elemental Unit Attack")
 eq(result.blockIce,0,"Howl penalizes elemental Unit Block, minimum zero")

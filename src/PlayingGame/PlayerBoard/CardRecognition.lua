@@ -10098,6 +10098,9 @@ local function combatEffectChosenEnemy(sourceGUID,area,monsters,eligible)
     return chosen or combatEffectNearestEnemy(area,monsters,footprint,overlapArea,eligible)
 end
 
+trackerPrivate.unitEffects=require("PlayingGame.PlayerBoard.ResourceTracker.UnitEffects")(
+    trackerPrivate,unitAbilityPaid,resourceCardsUsesDayMana)
+
 local function renderSeat(seatPos)
     if not resourceCardsPanelOpen() then return end
     local active=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
@@ -11487,44 +11490,6 @@ local function renderSeat(seatPos)
         and gStates.doingTheRounds["a92d73"] or nil
     local howlPenalty=howlOwner~=nil and howlOwner~=gStates.turnNumber
         and (gStates.soloCoop==nil or gStates.soloCoop["a92d73"]~=true)
-    -- Printed Altem Mages' red/blue bonuses can each be bought once.
-    -- Daytime Gold substitutes for the missing basic colour, but never
-    -- buys more than the printed +4 total or counts twice as one token.
-    local function unitManaScaleBonus(counts)
-        local natural=(counts.Red or 0)>0 and 1 or 0
-        if (counts.Blue or 0)>0 then natural=natural+1 end
-        local gold=resourceCardsUsesDayMana() and (counts.Gold or 0) or 0
-        return math.min(2,natural+gold)*2
-    end
-    local function unitAbilityResources(ability,counts,crystalCounts)
-        if ability==nil or (not unitAbilityPaid(ability,counts)
-            and not ability.baseWithoutPayment) then return nil end
-        local resources={}
-        for category,value in pairs(ability) do
-            if trackerPrivate.totalsKeys[category] and type(value)=="number" then
-                local bonus=0
-                if ability.bonusColor~=nil and (crystalCounts[ability.bonusColor] or 0)>0 then
-                    bonus=ability.bonus or 0
-                end
-                if ability.manaScale then bonus=bonus+unitManaScaleBonus(counts) end
-                if unitCombatBoost>0 and (category:sub(1,6)=="attack"
-                    or category:sub(1,6)=="ranged"
-                    or category:sub(1,5)=="siege"
-                    or category:sub(1,5)=="block") then
-                    bonus=bonus+unitCombatBoost
-                end
-                local amount=value+bonus
-                if howlPenalty and (category:sub(1,6)=="attack"
-                    or category:sub(1,6)=="ranged"
-                    or category:sub(1,5)=="siege"
-                    or category:sub(1,5)=="block") then
-                    amount=math.max(0,amount-1)
-                end
-                resources[category]=amount
-            end
-        end
-        return resources
-    end
     -- Call to Arms uses the original Unit card temporarily positioned by
     -- the offer browser. It gains a normal Unit activation without a Command
     -- slot only when the basic white Spell was actually paid and played.
@@ -11651,7 +11616,8 @@ local function renderSeat(seatPos)
                     local crystalCounts=selected~=nil and selected.bonusColor~=nil
                         and unitManaCounts(unit,seatPos,unitPaymentMana,true) or nil
                     local resources=not deniedCombat and selected~=nil
-                        and unitAbilityResources(selected,counts,crystalCounts) or nil
+                        and trackerPrivate.unitEffects.unitAbilityResources(selected,counts,crystalCounts,
+                            unitCombatBoost,howlPenalty) or nil
                     local banners=unitState~=nil and unitState.bannersByUnit~=nil
                         and unitState.bannersByUnit[unitGUID] or nil
                     local gloryAttached=banners~=nil and banners["Banner of Glory"]~=nil
@@ -11665,18 +11631,8 @@ local function renderSeat(seatPos)
                             return false
                         end)()
                     local hasGlory=gloryAttached or gloryGlobal
-                    local gloryCombat=false
-                    if resources~=nil and hasGlory then
-                        local boosted={}
-                        for key,value in pairs(resources) do
-                            local combatResource=type(key)=="string" and type(value)=="number"
-                                and (key:sub(1,6)=="attack" or key:sub(1,6)=="ranged"
-                                    or key:sub(1,5)=="siege" or key:sub(1,5)=="block")
-                            boosted[key]=combatResource and value+1 or value
-                            if combatResource and value>0 then gloryCombat=true end
-                        end
-                        resources=boosted
-                    end
+                    local gloryCombat
+                    resources,gloryCombat=trackerPrivate.unitEffects.applyGlory(resources,hasGlory)
                     local result={guid=recordKey,sourceObjectGUID=unitGUID,
                         activationIndex=useIndex,kind="unit",known=true,
                         complete=not deniedCombat and (selected~=nil and unitAbilityPaid(selected,counts)
