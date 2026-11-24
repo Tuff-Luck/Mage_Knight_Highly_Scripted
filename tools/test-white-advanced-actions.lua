@@ -35,7 +35,7 @@ contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/CardEffects.lua"),
     'dodgeConditional=complete and rule~=nil and rule.conditionalAttackNoWounds==true,',
     "Dodge conditional Attack without card options")
 contains(reader,'card.guid.."#effect"..index',"Dodge independent effect keys")
-contains(reader,'source.convertedResource',"Conversion resource source")
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/DivisibleResources.lua"),'source.convertedResource',"Conversion resource source")
 contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua"),'local perUse=powered and 2 or 1',"Powered Dodge has two target buttons")
 contains(reader,'local count=(result.powered and 2 or 1)*(result.repeatCount or 1)',"Both reduction effects always processed")
 contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua"),'local targetX=-44',"Dodge target buttons beside ordinary Attack source")
