@@ -1133,10 +1133,9 @@ cardResourceDefinitions={
     steadyTempo={normal={move=2},powered={move=4}}, -- Deed-deck placement does not change Move
     mountainLore={normal={move=3},powered={move=5},
         terrainEffects={powered={{mode="set",terrains={mountain=true},cost=5}}}}, -- Hand-limit bonus remains manual
-    refreshingWalk={
-        normalChoices={{key="heal",move=2,healing=1},{key="combat",move=2}},
-        poweredChoices={{key="heal",move=4,healing=2},{key="combat",move=4}}},
-    -- H = Move plus Healing, C = combat (Move without Healing).
+    -- The standard Move role selector replaces the old printed-effect choices.
+    refreshingWalk={normal={move=2,healing=1},powered={move=4,healing=2},
+        combatMoveSuppressHealing=true},
     diplomacy={normal={influence=2},powered={influence=4},combatConversion="diplomacy"},
     heroicTale={normal={influence=3},powered={influence=6}}, -- Other effects remain manual
     peacefulMoment={normal={influence=3},powered={influence=6}}, -- Healing/refresh remains manual
