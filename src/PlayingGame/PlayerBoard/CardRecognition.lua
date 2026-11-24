@@ -4524,7 +4524,8 @@ trackerPrivate.cardEffects=require("PlayingGame.PlayerBoard.ResourceTracker.Card
     effectHasTrackedResource=effectHasTrackedResource,
     cardTerrainEffects=cardTerrainEffects,
     terrainEffectActive=terrainEffectActive,
-    choiceCategory=choiceCategory
+    choiceCategory=choiceCategory,
+    resourceCardsMoveRole=resourceCardsMoveRole
 })
 local calculateSideways=trackerPrivate.cardEffects.calculateSideways
 local calculateCard=trackerPrivate.cardEffects.calculateCard
