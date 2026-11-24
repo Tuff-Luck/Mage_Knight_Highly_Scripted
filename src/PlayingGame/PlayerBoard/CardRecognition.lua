@@ -7,6 +7,9 @@ trackerPrivate.combatInteraction=require("PlayingGame.PlayerBoard.ResourceTracke
 trackerPrivate.playedCardScan=require("PlayingGame.PlayerBoard.ResourceTracker.PlayedCardScan")
 trackerPrivate.cardInteractions=require("PlayingGame.PlayerBoard.ResourceTracker.CardInteractions")
 trackerPrivate.skillInteractions=require("PlayingGame.PlayerBoard.ResourceTracker.SkillInteractions")
+trackerPrivate.unitScan=require("PlayingGame.PlayerBoard.ResourceTracker.UnitScan")
+trackerPrivate.unitManagement=require("PlayingGame.PlayerBoard.ResourceTracker.UnitManagement")
+trackerPrivate.readyPolicy=require("PlayingGame.PlayerBoard.ResourceTracker.ReadyPolicy")
 -- Keep the public chat callback here; diagnostics share this live private state.
 require("PlayingGame.PlayerBoard.ResourceTracker.Diagnostics")(trackerPrivate)
 function resourceCardsTraceCommand(command,playerColor)
@@ -5598,274 +5601,25 @@ local function renderSeat(seatPos)
         calculateSideways=calculateSideways, showChoiceButtons=showChoiceButtons, trackerPrivate=trackerPrivate,
         addResourceAmounts=addResourceAmounts, links=links,
     })
-    -- Unit activation is historical: a Command token may stay on the card for
-    -- the entire round, or be moved away by an ability. Only a Command move
-    -- during THIS turn creates an entry, never a static token found on load.
-    -- Read only released mana physically over each Unit; inventory mana does
-    -- not pay costs. Familiar crystals are a persistent modifier, not a cost.
-    local howlOwner=gStates~=nil and gStates.doingTheRounds
-        and gStates.doingTheRounds["a92d73"] or nil
-    local howlPenalty=howlOwner~=nil and howlOwner~=gStates.turnNumber
-        and (gStates.soloCoop==nil or gStates.soloCoop["a92d73"]~=true)
-    -- Call to Arms uses the original Unit card temporarily positioned by
-    -- the offer browser. It gains a normal Unit activation without a Command
-    -- slot only when the basic white Spell was actually paid and played.
-    local offeredUnit=callOfferBorrowedUnitForSeat~=nil
-        and callOfferBorrowedUnitForSeat(seatPos) or nil
-    if offeredUnit~=nil then
-        -- Call to Arms grants an activation without a Command token. Keep its
-        -- abilities and buttons, but never highlight the borrowed Unit card.
-        trackerPrivate.unitHighlightBlocked[offeredUnit.guid]=true
-        clearHighlight(offeredUnit.guid)
-        local spellRecord=records["2eb8e8"]
-        local unitGUID=offeredUnit.guid
-        local paid=spellRecord~=nil and spellRecord.complete==true
-            and spellRecord.powered~=true and spellRecord.resources~=nil
-        if paid and unitResourceDefinitions[unitGUID]~=nil then
-            objects[unitGUID]=offeredUnit
-            local activation=activations[unitGUID]
-            if activation==nil or activation.callOffer~=true then
-                local abilities=unitResourceDefinitions[unitGUID]
-                local scores=trackerChoiceScores(unitGUID,seatPos)
-                local chosen,best=1,-math.huge
-                for i,ability in ipairs(abilities) do
-                    if ability.manaCost==nil then
-                        local score=scores[ability.key] or 0
-                        if score>best then chosen,best=i,score end
-                    end
-                end
-                activations[unitGUID]={seatPos=seatPos,callOffer=true,
-                    choice=chosen,selected=abilities.multi==true and {} or nil}
-            end
-        elseif activations[unitGUID]~=nil and activations[unitGUID].callOffer then
-            removeChoiceButtons(offeredUnit)
-            activations[unitGUID]=nil
-        end
-    end
-    -- A flipped attached Courage banner explicitly authorises the Unit to
-    -- ready once this round. The broken banner authorises every used Unit.
-    -- unitHistory owns the actual Command move, extra activation and undo;
-    -- simply flipping a card never creates free Attack or Block resources.
-    if not combatCalcOn and unitState~=nil then
-        gStates.unitReadyLinks=gStates.unitReadyLinks or {}
-        local byUnit=unitState.bannersByUnit or {}
-        for unitGUID,banners in pairs(byUnit) do
-            local courage=banners["Banner of Courage"]
-            if courage~=nil and courage.faceDown and
-                gStates.unitReadyLinks[courage.guid]==nil then
-                unitHistoryReadyLink(courage.guid,unitGUID,seatPos,nil)
-            end
-        end
-        local courageUses=trackerPrivate.bannerEffectUses().courage
-        for _,card in ipairs(cards) do
-            local data=gameCards[card.guid]
-            if data~=nil and data.resourceKey=="artifactBannerCourage"
-                and trackerPrivate.bannerStrongActive(card)
-                and cardPosture(card)=="upright" then
-                -- Capture eligible spent Units at the moment the Banner breaks.
-                -- Spent Units appearing later in this Round are never added.
-                if courageUses[card.guid]==nil then
-                    local eligible={}
-                    for index,entry in ipairs(unitState.units) do
-                        if not entry.ready then
-                            eligible[#eligible+1]={key=card.guid.."#ready"..index,
-                                guid=entry.guid}
-                        end
-                    end
-                    courageUses[card.guid]={eligible=eligible}
-                end
-                for _,entry in ipairs(courageUses[card.guid].eligible) do
-                    -- The link, not a stale cached boolean, is authoritative.
-                    -- A Break toggle off/on restores only the original eligible
-                    -- Units, never Units spent after the first Break.
-                    if gStates.unitReadyLinks[entry.key]==nil then
-                        unitHistoryReadyLink(entry.key,entry.guid,seatPos,nil)
-                    end
-                end
-            end
-        end
-    end
-    local selectedUnitAttacks={}
-    local activationByRecordKey={}
-    local shocktroopsBoosts=0
-    local attackTransforms={}
-    local transformingUnits={}
-    unitHistoryValidSources(seatPos)
-    for unitGUID,currentActivation in pairs(activations) do
-      if currentActivation.seatPos==seatPos then
-       for useIndex,activation in ipairs(unitHistoryUses(unitGUID,currentActivation)) do
-        if activation.priorTurnSpent~=true then
-        local recordKey=unitHistoryKey(unitGUID,useIndex)
-        activationByRecordKey[recordKey]=activation
-            local unit=objects[unitGUID]
-            local abilities=trackerPrivate.unitAbilitiesFor(unitGUID,unitState,seatPos)
-            if unit~=nil and abilities~=nil then
-                if unitState==nil then unitState=unitLayoutResourceState(seatPos) end
-                if unitState==nil then error("Unable to read Unit resource state.",2) end
-                local unwounded=true
-                for _,entry in ipairs(unitState.units) do
-                    if entry.guid==unitGUID then unwounded=entry.unwounded break end
-                end
-                local counts=activation.frozenCounts
-                    or unitManaCounts(unit,seatPos,unitPaymentMana)
-                if activation.frozenCounts==nil then
-                    activation.lastCounts=unitHistoryCopyCounts(counts)
-                end
-                local decision=unitManaDecision(unit,abilities,activation,counts)
-                local deniedCombat=combatConfig.unitCombatBlocked(unit,abilities,useIndex)
-                    and unitHistoryDecisionHasCombat(abilities,decision)
-                if activation.callOffer and unitSiteMode=="one"
-                    and chosenSiteUnit==nil then
-                    chosenSiteUnit=unitGUID
-                    combatOneUnitSelect(seatPos,unitSite,unitGUID)
-                end
-                local sitePermits=combatUnitSitePermits(unitSiteMode,
-                    unitState.bondsUnitGUID,chosenSiteUnit,unitGUID,false)
-                if unitHistorySelectedNumber(unitGUID)==useIndex then
-                    if sitePermits then
-                        showUnitAbilityButtons(unit,abilities,activation,true,decision,useIndex)
-                    else
-                        removeChoiceButtons(unit)
-                    end
-                end
-                local selected=decision.index~=nil and abilities[decision.index] or nil
-                if (unwounded or activation.frozenCounts~=nil) and sitePermits then
-                    local crystalCounts=selected~=nil and selected.bonusColor~=nil
-                        and unitManaCounts(unit,seatPos,unitPaymentMana,true) or nil
-                    local resources=not deniedCombat and selected~=nil
-                        and trackerPrivate.unitEffects.unitAbilityResources(selected,counts,crystalCounts,
-                            unitCombatBoost,howlPenalty) or nil
-                    local banners=unitState~=nil and unitState.bannersByUnit~=nil
-                        and unitState.bannersByUnit[unitGUID] or nil
-                    local gloryAttached=banners~=nil and banners["Banner of Glory"]~=nil
-                    local gloryGlobal=(function()
-                            for _,artifact in ipairs(cards) do
-                                local data=gameCards[artifact.guid]
-                                if data~=nil and data.resourceKey=="artifactBannerGlory"
-                                    and trackerPrivate.bannerStrongActive(artifact)
-                                    and cardPosture(artifact)=="upright" then return true end
-                            end
-                            return false
-                        end)()
-                    local hasGlory=gloryAttached or gloryGlobal
-                    local gloryCombat
-                    resources,gloryCombat=trackerPrivate.unitEffects.applyGlory(resources,hasGlory)
-                    local result={guid=recordKey,sourceObjectGUID=unitGUID,
-                        activationIndex=useIndex,kind="unit",known=true,
-                        complete=not deniedCombat and (selected~=nil and unitAbilityPaid(selected,counts)
-                            or abilities.multi==true and next(decision.selected or {})~=nil),
-                        resources=resources,powered=false,links={},
-                        swiftDouble=selected~=nil and selected.countsTwiceVsSwift==true or nil,
-                        gloryFame=gloryCombat and (gloryGlobal and "global" or "attached") or nil,
-                        fameRep=selected~=nil and selected.fameRep or nil}
-                    result.fameRep=result.complete and result.fameRep or nil
-                    addResourceAmounts(result,totals)
-                    result.status=result.contributes and "green" or "blue"
-                    records[recordKey]=result
-                    current[unitGUID]=true
-                    if unitHistorySelectedNumber(unitGUID)==useIndex then
-                        setHighlight(unit,result.status,false)
-                    end
-                    if selected~=nil and selected.terrainReduce and result.complete then
-                        terrainModifiers[#terrainModifiers+1]=trackerPrivate.forestersTerrainModifier
-                    end
-                    if selected~=nil and selected.boostOtherUnits and result.complete then
-                        shocktroopsBoosts=shocktroopsBoosts+1
-                    end
-                    if selected~=nil and selected.grantUnitResistances and result.complete then
-                        allUnitResistances=true
-                    end
-                    if selected~=nil and selected.attackTransform~=nil and result.complete then
-                        attackTransforms[selected.attackTransform]=true
-                        transformingUnits[recordKey]=selected.attackTransform
-                    end
-                    if result.complete then
-                        local picked={}
-                        if abilities.multi==true then
-                            for index,ability in ipairs(abilities) do
-                                if decision.selected~=nil and decision.selected[index]==true then
-                                    picked[#picked+1]={index=index,ability=ability}
-                                end
-                            end
-                        elseif selected~=nil then
-                            picked[1]={index=decision.index,ability=selected}
-                        end
-                        for _,pickedAbility in ipairs(picked) do
-                            local index,ability=pickedAbility.index,pickedAbility.ability
-                            if ability.enemyEffect~=nil or ability.targetableEnemy==true then
-                                local sourceKey=unitAbilityTargetKey(unitGUID,index,ability,useIndex)
-                                if sourceKey~=unitGUID then
-                                    result.enemyEffectTargetKeys=result.enemyEffectTargetKeys or {}
-                                    result.enemyEffectTargetKeys[#result.enemyEffectTargetKeys+1]=sourceKey
-                                end
-                                -- Every enemy-targeting Unit ability starts on a nearby
-                                -- enemy, even if it is a non-resource/manual effect.
-                                -- An explicit retarget wins over the nearest default.
-                                -- Keep effect-only arrows separate from the Unit's
-                                -- numeric Attack/Block source to prevent stale locks.
-                                if ability.enemyEffect~=nil
-                                    and ability.enemyEffect.noAttackUnfortified==true then
-                                    deferredUnfortifiedUnitEffects[#deferredUnfortifiedUnitEffects+1]={
-                                        sourceKey=sourceKey,unit=unit,unitGUID=unitGUID,
-                                        result=result,spec=ability.enemyEffect}
-                                else
-                                    local target=combatEffectChosenEnemy(sourceKey,footprint(unit),
-                                        monsters,combatEffectTargetEligible(ability.enemyEffect))
-                                    if target~=nil then
-                                        if ability.enemyEffect~=nil then
-                                            combatEffectAdd(enemyEffects,target.guid,unitGUID,ability.enemyEffect,sourceKey)
-                                            result.links[#result.links+1]=target.guid
-                                            -- The Unit is spent for Fear rather than
-                                            -- its printed ability. Fame requires a legal
-                                            -- enemy target; Arcane Immunity negates it.
-                                            if ability.bannerFear and not combatEffectImmune(target.guid) then
-                                                result.fameRep={fame=1}
-                                                result.contributes=true
-                                                result.status="purple"
-                                                setHighlight(unit,"purple",false)
-                                            end
-                                        end
-                                        if sourceKey~=unitGUID then
-                                            result.enemyEffectTargetGUIDs=result.enemyEffectTargetGUIDs or {}
-                                            result.enemyEffectTargetGUIDs[sourceKey]=target.guid
-                                        end
-                                    end
-                                end
-                            end
-                        end
-                    end
-                    if result.contributes then
-                        selectedUnitAttacks[#selectedUnitAttacks+1]=recordKey
-                    end
-                end
-            end
-        end -- Earlier-round spent Command: no active source this turn.
-       end
-      end
-    end
-    -- Shocktroops' Ranged Attack 1 also boosts ALL other activated Units'
-    -- Attacks, even if their ability was activated earlier this turn.
-    if shocktroopsBoosts>0 then
-        for _,unitGUID in ipairs(selectedUnitAttacks) do
-            local record=records[unitGUID]
-            local baseGUID=unitHistorySourceBase(unitGUID)
-            local use=activationByRecordKey[unitGUID]
-            local selected=use~=nil and unitResourceDefinitions[baseGUID]
-                and unitResourceDefinitions[baseGUID][use.choice or 1] or nil
-            local ownBoost=selected~=nil and selected.boostOtherUnits and 1 or 0
-            local bonus=shocktroopsBoosts-ownBoost
-            if bonus>0 and record~=nil and record.resources~=nil then
-                for category,value in pairs(record.resources) do
-                    if type(value)=="number" and (category:sub(1,6)=="attack"
-                        or category:sub(1,6)=="ranged"
-                        or category:sub(1,5)=="siege") then
-                        record.resources[category]=value+bonus
-                        totals[category]=(totals[category] or 0)+bonus
-                    end
-                end
-            end
-        end
-    end
+    local attackTransforms,transformingUnits
+    unitState,chosenSiteUnit,allUnitResistances,attackTransforms,transformingUnits=
+        trackerPrivate.unitScan.process({
+        seatPos=seatPos, cards=cards, records=records, objects=objects, activations=activations,
+        unitState=unitState, unitSiteMode=unitSiteMode, unitSite=unitSite, chosenSiteUnit=chosenSiteUnit,
+        unitPaymentMana=unitPaymentMana, unitCombatBoost=unitCombatBoost,
+        allUnitResistances=allUnitResistances, combatCalcOn=combatCalcOn, combatConfig=combatConfig,
+        trackerPrivate=trackerPrivate, unitResourceDefinitions=unitResourceDefinitions,
+        cardPosture=cardPosture, clearHighlight=clearHighlight, trackerChoiceScores=trackerChoiceScores,
+        removeChoiceButtons=removeChoiceButtons, unitManaCounts=unitManaCounts,
+        unitManaDecision=unitManaDecision, combatOneUnitSelect=combatOneUnitSelect,
+        combatUnitSitePermits=combatUnitSitePermits, showUnitAbilityButtons=showUnitAbilityButtons,
+        unitAbilityPaid=unitAbilityPaid, addResourceAmounts=addResourceAmounts, totals=totals, current=current,
+        setHighlight=setHighlight, terrainModifiers=terrainModifiers,
+        deferredUnfortifiedUnitEffects=deferredUnfortifiedUnitEffects,
+        unitAbilityTargetKey=unitAbilityTargetKey, combatEffectChosenEnemy=combatEffectChosenEnemy,
+        footprint=footprint, monsters=monsters, combatEffectTargetEligible=combatEffectTargetEligible,
+        enemyEffects=enemyEffects,
+    })
     trackerPrivate.skillInteractions.process({
         seatPos=seatPos, skills=skills, cards=cards, wounds=wounds, objects=objects, activations=activations,
         records=records, current=current, totals=totals, manaBySkill=manaBySkill,
@@ -6049,34 +5803,12 @@ local function renderSeat(seatPos)
         end
     end
 
-    -- Illusionists: now that every independent enemy effect has been read,
-    -- evaluate *effective* Fortification rather than the printed token alone.
-    -- Reevaluate legal locks each scan so an expired Remove Fortification
-    -- effect cannot leave an invalid target or a misleading attack arrow.
-    for _,pending in ipairs(deferredUnfortifiedUnitEffects) do
-        local eligible={}
-        for guid,enemy in pairs(monsters) do
-            if enemy.is_face_down~=true
-                and resourceCardsEnemyEffectivelyUnfortified(guid,enemyEffects,
-                    ignoreSiteFortifications) then
-                eligible[guid]=true
-            end
-        end
-        attackAssignmentsPruneSourceTargets(pending.sourceKey,eligible)
-        local locked=combatAssignmentState.targets[pending.sourceKey]
-        if locked~=nil and eligible[locked]~=true then
-            combatAssignmentState.targets[pending.sourceKey]=nil
-            combatAssignmentState.explicit[pending.sourceKey]=nil
-        end
-        local target=combatEffectChosenEnemy(pending.sourceKey,footprint(pending.unit),
-            monsters,function(_,guid) return eligible[guid]==true end)
-        if target~=nil then
-            combatEffectAdd(enemyEffects,target.guid,pending.unitGUID,pending.spec,pending.sourceKey)
-            pending.result.links[#pending.result.links+1]=target.guid
-            pending.result.enemyEffectTargetGUIDs=pending.result.enemyEffectTargetGUIDs or {}
-            pending.result.enemyEffectTargetGUIDs[pending.sourceKey]=target.guid
-        end
-    end
+    trackerPrivate.unitScan.resolveUnfortifiedTargets({
+        deferredUnfortifiedUnitEffects=deferredUnfortifiedUnitEffects, monsters=monsters,
+        enemyEffects=enemyEffects, ignoreSiteFortifications=ignoreSiteFortifications,
+        combatAssignmentState=combatAssignmentState, combatEffectChosenEnemy=combatEffectChosenEnemy,
+        footprint=footprint,
+    })
 
     -- Qualifying Units actually supplied the dynamic Skill resource. Show
     -- their link just like physical Skill/card interactions, without treating
@@ -6217,35 +5949,11 @@ local function renderSeat(seatPos)
         end
     end
 
-    -- Global Altem effects contribute when they upgrade an Attack, including
-    -- a value entered manually into the Resource Tracker.
-    local tracker=gStates.resourceTracker or {}
-    for sourceKey,mode in pairs(transformingUnits) do
-        local affected=false
-        for _,family in ipairs(trackerPrivate.attackTransformFamilies) do
-            for _,field in ipairs(trackerPrivate.attackTransformFields) do
-                if (mode=="coldFire" and field~="iceFire")
-                    or (mode=="siege" and family~="siege") then
-                    if resourceCardsRawValue(tracker,totals,family,field)~=0 then
-                        affected=true
-                        break
-                    end
-                end
-            end
-            if affected then break end
-        end
-        local record=records[sourceKey]
-        if record~=nil then
-            record.contributes=affected
-            record.status=affected and "green" or "blue"
-            local unitGUID=unitHistorySourceBase(sourceKey)
-            -- Only the Command's displayed use owns the physical highlight;
-            -- earlier uses retain their own record for History and Undo.
-            if unitHistorySelectedNumber(unitGUID)==record.activationIndex then
-                setHighlight(objects[unitGUID],record.status,false)
-            end
-        end
-    end
+    trackerPrivate.unitScan.markTransforms({
+        transformingUnits=transformingUnits, trackerPrivate=trackerPrivate,
+        resourceCardsRawValue=resourceCardsRawValue, totals=totals, records=records, objects=objects,
+        setHighlight=setHighlight,
+    })
 
 
     -- Spirit Guides adds its Block point to ONE existing Block source,
@@ -6337,48 +6045,11 @@ local function renderSeat(seatPos)
         end
     end
 
-    -- Pay for Ready links from the available Influence pool in creation
-    -- order. If a resource source is later undone, retire unaffordable
-    -- links newest-first, along with their dependent Unit activations.
-    local ruthlessReadySpent=0
-    local ruthlessReadyBySource={}
-    local readyNeedsRescan=false
-    local readyPayments={}
-    for key,link in pairs(gStates.unitReadyLinks or {}) do
-        local owner=key:match("^([0-9a-f]+)#ready%d+$")
-        local record=owner~=nil and records[owner] or nil
-        local data=owner~=nil and gameCards[owner] or nil
-        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
-        local unit=link~=nil and gameCards[link.unitGUID] or nil
-        if record~=nil and record.complete and record.powered and rule~=nil
-            and rule.readyWithInfluence~=nil and unit~=nil
-            and (tonumber(unit.level) or 99)<=rule.readyWithInfluence.maxLevel then
-            readyPayments[#readyPayments+1]={key=key,owner=owner,
-                cost=(tonumber(unit.level) or 0)*rule.readyWithInfluence.costPerLevel,
-                number=tonumber(key:match("#ready(%d+)$")) or 0}
-        end
-    end
-    table.sort(readyPayments,function(a,b)
-        if a.owner~=b.owner then return a.owner<b.owner end
-        return a.number<b.number
-    end)
-    local availableInfluence=totals.influence or 0
-    for _,payment in ipairs(readyPayments) do
-        if gStates.unitReadyLinks[payment.key]~=nil then
-            if ruthlessReadySpent+payment.cost<=availableInfluence then
-                ruthlessReadySpent=ruthlessReadySpent+payment.cost
-                ruthlessReadyBySource[payment.owner]=
-                    (ruthlessReadyBySource[payment.owner] or 0)+payment.cost
-            else
-                unitHistoryCancelReadySource(payment.key)
-                readyNeedsRescan=true
-            end
-        end
-    end
-    for owner,spent in pairs(ruthlessReadyBySource) do
-        if records[owner]~=nil then records[owner].readyInfluenceSpent=spent end
-    end
-    totals.influence=availableInfluence-ruthlessReadySpent
+    local ruthlessReadySpent,readyNeedsRescan
+    ruthlessReadySpent,readyNeedsRescan=
+        trackerPrivate.unitScan.payReadyInfluence({
+        records=records, totals=totals,
+    })
 
     -- First recognition determines phase; later enemy arrivals do not change it.
     local moveSplit={movement=0,combat=0}
@@ -7060,196 +6731,38 @@ end
 -- while the exact played choice remains Ready; physical Command movement
 -- alone cannot grant a second use.
 function resourceCardsReadySourceValid(sourceKey,seatPos)
-    if type(sourceKey)~="string" or gStates==nil then return false end
-    local guid=unitHistorySourceBase(sourceKey)
-    local abilities=unitResourceDefinitions[guid]
-    if abilities~=nil then
-        local useIndex=tonumber(sourceKey:match("#use(%d+)$")) or 1
-        local group=gStates.unitActivationHistory and gStates.unitActivationHistory[guid]
-        local activation=group~=nil and group.uses[useIndex] or nil
-        if activation==nil or (seatPos~=nil and activation.seatPos~=seatPos) then return false end
-        local unit=getObjectFromGUID(guid)
-        if unit==nil then return false end
-        local decision=unitManaDecision(unit,abilities,activation,
-            activation.frozenCounts or activation.lastCounts)
-        local choice=decision.index~=nil and abilities[decision.index] or nil
-        return choice~=nil and choice.key=="ready"
-    end
-    local data=gameCards[guid]
-    if data~=nil and data.resourceKey=="artifactDruidicStaff" then
-        local card=getObjectFromGUID(guid)
-        local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
-        seatPos=seatPos or (current~=nil and current.seatPos)
-        if card==nil or seatPos==nil or not cardInSeatPlayArea(guid,seatPos)
-            or cardPosture(card)~="upright" or sourceKey~=guid then return false end
-        local scan=resourceCardScanBySeat[seatPos]
-        local record=scan~=nil and scan.cards[guid] or nil
-        local linkedReady=gStates.unitReadyLinks~=nil
-            and gStates.unitReadyLinks[sourceKey]~=nil
-        if record==nil or (not record.complete and not (combatEnemyInPlay and linkedReady)) then
-            return false
-        end
-        -- An already-committed pre-combat Ready remains valid during combat,
-        -- but a new in-combat Ready is never authorised by the Staff.
-        if combatEnemyInPlay and (gStates.unitReadyLinks==nil
-            or gStates.unitReadyLinks[sourceKey]==nil) then return false end
-        local choices=record.choices
-        local _,first=currentChoice(guid,record.powered,choices)
-        if record.powered~=true then return first=="red" end
-        local remaining={}
-        for _,option in ipairs(choices or {}) do
-            if choiceCategory(option)~=first then remaining[#remaining+1]=option end
-        end
-        local _,second=inventorySetChoice(guid,1,remaining,choices)
-        return second~=nil and first~=second and (first=="red" or second=="red")
-    end
-    if data~=nil and data.resourceKey=="artifactBannerCourage" then
-        local card=getObjectFromGUID(guid)
-        local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
-        seatPos=seatPos or (current~=nil and current.seatPos)
-        if card==nil or seatPos==nil then return false end
-        if trackerPrivate.bannerCardForm(guid)=="full"
-            and not resourceCardsArtifactBroken(guid,card) then return false end
-        if trackerPrivate.bannerCardForm(guid)=="half"
-            and card.is_face_down~=true then return false end
-        if trackerPrivate.bannerCardForm(guid)=="full" then
-            if not cardInSeatPlayArea(guid,seatPos)
-                or cardPosture(card)~="upright" then return false end
-            local uses=trackerPrivate.bannerEffectUses().courage[guid]
-            for _,entry in ipairs(uses~=nil and uses.eligible or {}) do
-                if entry.key==sourceKey then return true end
-            end
-            return false
-        end
-        if trackerPrivate.bannerCardForm(guid)~="half"
-            or sourceKey~=guid then return false end
-        -- Unit and play scripting zones overlap near the Banner snap.
-        -- A face-down half still authorises exactly its own attached Unit.
-        local state=unitLayoutResourceState(seatPos)
-        for _,banners in pairs(state~=nil and state.bannersByUnit or {}) do
-            if banners["Banner of Courage"]~=nil
-                and banners["Banner of Courage"].guid==guid then return true end
-        end
-        return false
-    end
-    if data==nil or (data.resourceKey~="rejuvenate"
-        and data.resourceKey~="regeneration"
-        and data.resourceKey~="ruthlessCoercion") then return false end
-    local card=getObjectFromGUID(guid)
-    if card==nil or cardPosture(card)~="upright" then return false end
-    local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
-    seatPos=seatPos or (current~=nil and current.seatPos)
-    if seatPos==nil or not cardInSeatPlayArea(guid,seatPos) then return false end
-    local scan=resourceCardScanBySeat[seatPos]
-    local record=scan~=nil and scan.cards[guid] or nil
-    if record==nil or record.complete~=true
-        or (card.is_face_down==true and record.repeatLink==nil) then return false end
-    if data.resourceKey=="ruthlessCoercion" then
-        return record.powered==true
-            and sourceKey:match("^"..guid.."#ready%d+$")~=nil
-    end
-    if data.resourceKey=="regeneration" then
-        local index=tonumber(sourceKey:match("^"..guid.."#ready(%d+)$"))
-        return index~=nil and index>=1 and index<=(record.repeatCount or 1)
-            and record.resources~=nil and (tonumber(record.resources.healing) or 0)>0
-    end
-    local repeatIndex=tonumber(sourceKey:match("^"..guid.."#ready(%d+)$"))
-    if record.repeatLink~=nil and repeatIndex~=nil then
-        if repeatIndex<1 or repeatIndex>record.repeatLink.count then return false end
-        local options=record.repeatLink.options~=nil
-            and record.repeatLink.options[repeatIndex]
-            or sideChoices(rule,record.powered)
-        local _,selected=combatConfig.repeatChoiceFor(guid,record.powered,
-            options,repeatIndex)
-        return selected=="ready"
-    end
-    local choice=selectedResourceByGUID[guid]
-    return (choice~=nil and choice.effect=="ready")
-        or (choice==nil and gStates.unitReadyCardChoices~=nil
-            and gStates.unitReadyCardChoices[guid]==true)
+    return trackerPrivate.readyPolicy.sourceValid(sourceKey,seatPos,unitResourceDefinitions,unitManaDecision,cardInSeatPlayArea,cardPosture,combatEnemyInPlay,currentChoice,choiceCategory,inventorySetChoice,trackerPrivate,sideChoices,combatConfig,selectedResourceByGUID)
 end
 
 -- Used both when a new Ready link is made and when changing card sides
 -- invalidates a previously valid target.
 function resourceCardsReadySourceLevelLimit(sourceKey,seatPos)
-    local guid=type(sourceKey)=="string" and unitHistorySourceBase(sourceKey) or nil
-    local data=guid~=nil and gameCards[guid] or nil
-    local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
-    if rule==nil then return nil end
-    local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
-    seatPos=seatPos or (current~=nil and current.seatPos)
-    local scan=seatPos~=nil and resourceCardScanBySeat[seatPos] or nil
-    local record=scan~=nil and scan.cards[guid] or nil
-    if rule.unitReadyLevels~=nil then
-        return record~=nil and record.powered and rule.unitReadyLevels.powered
-            or rule.unitReadyLevels.normal
-    end
-    return rule.readyWithInfluence~=nil and rule.readyWithInfluence.maxLevel or nil
+    return trackerPrivate.readyPolicy.sourceLevelLimit(sourceKey,seatPos)
 end
 
 function resourceCardsReadyTargetEligible(sourceKey,unitGUID,seatPos)
-    local guid=type(sourceKey)=="string" and unitHistorySourceBase(sourceKey) or nil
-    local data=guid~=nil and gameCards[guid] or nil
-    local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
-    if rule==nil or rule.readyWithInfluence==nil then return true end
-    if not resourceCardsReadySourceValid(sourceKey,seatPos) then return false end
-    local unitData=gameCards[unitGUID]
-    local level=unitData~=nil and tonumber(unitData.level) or nil
-    if level==nil or level<1 or level>rule.readyWithInfluence.maxLevel then return false end
-    local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
-    seatPos=seatPos or (current~=nil and current.seatPos)
-    local scan=seatPos~=nil and resourceCardScanBySeat[seatPos] or nil
-    if scan==nil then return false end
-    local cost=level*rule.readyWithInfluence.costPerLevel
-    -- The scan already subtracts every existing Ready payment. A retargeted
-    -- existing link can reuse its previous payment instead of paying twice.
-    local link=gStates.unitReadyLinks~=nil and gStates.unitReadyLinks[sourceKey] or nil
-    local old=link~=nil and gameCards[link.unitGUID] or nil
-    local credit=old~=nil and (tonumber(old.level) or 0)
-        *rule.readyWithInfluence.costPerLevel or 0
-    return (tonumber(scan.totals.influence) or 0)+credit>=cost
+    return trackerPrivate.readyPolicy.targetEligible(sourceKey,unitGUID,seatPos)
 end
 
 function attackAssignmentReadySourceClicked(player,value,id)
-    if not resourceCardsPanelOpen() or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil)
-        or type(id)~="string" then return end
-    local guid,suffix=id:match("^AttackAssignmentSource_([0-9a-f]+)_0_unitReady(.*)$")
-    if guid==nil then return end
-    local useIndex=tonumber(suffix:match("^@use(%d+)$"))
-    if suffix~="" and useIndex==nil then return end
-    local sourceKey=unitHistoryKey(guid,useIndex or 1)
-    local data=gameCards~=nil and gameCards[guid] or nil
-    if data~=nil and data.resourceKey=="artifactDruidicStaff"
-        and combatEnemyInPlay then return end
-    if not resourceCardsReadySourceValid(sourceKey) then return end
-    local limit=unitResourceDefinitions[guid]~=nil and 2
-        or resourceCardsReadySourceLevelLimit(sourceKey) 
-    attackAssignmentsBeginUnitReady(guid,sourceKey,player.color,limit)
+    return trackerPrivate.readyPolicy.sourceClicked(player,value,id,combatEnemyInPlay,unitResourceDefinitions)
 end
 
 -- Command tokens remain spent for the entire round, even after the turn's
 -- resource history is cleared. A physical Command still on a Unit must not be
 -- treated as a new activation when its owner starts a later turn.
 function resourceUnitsSpentCommands()
-    local round=tonumber(gStates.currentRound) or 0
-    local state=gStates.unitSpentCommandTokens
-    if type(state)~="table" or state.round~=round then
-        state={round=round,tokens={},owners={}}
-        gStates.unitSpentCommandTokens=state
-    end
-    state.owners=state.owners or {}
-    return state.tokens
+    return trackerPrivate.unitManagement.spentCommands()
 end
 
 function resourceUnitsCommandSpent(tokenGUID)
-    return gStates~=nil and resourceUnitsSpentCommands()[tokenGUID]==true
+    return trackerPrivate.unitManagement.commandSpent(tokenGUID)
 end
 
 -- A legitimate Ready lifts the Command's round-long exhaustion; undoing the
 -- Ready reinstates it. These are history facts, not guesses from token height.
 function resourceUnitsSetCommandSpent(tokenGUID,spent)
-    if gStates==nil or tokenGUID==nil then return end
-    resourceUnitsSpentCommands()[tokenGUID]=spent==true and true or nil
+    return trackerPrivate.unitManagement.setCommandSpent(tokenGUID,spent)
 end
 
 -- The token's GUID is its Command capacity; the owner GUID identifies the
@@ -7257,76 +6770,32 @@ end
 -- inherit its predecessor's spent flag, but moving the SAME Unit may not
 -- erase it. Keep ownership alongside the existing round-long spent map.
 function resourceUnitsCommandOwner(tokenGUID)
-    if gStates==nil then return nil end
-    resourceUnitsSpentCommands()
-    return gStates.unitSpentCommandTokens.owners[tokenGUID]
+    return trackerPrivate.unitManagement.commandOwner(tokenGUID)
 end
 
 function resourceUnitsRecordSpentCommands(seatPos)
-    if gStates==nil or seatPos==nil then return end
-    local spent=resourceUnitsSpentCommands()
-    local owners=gStates.unitSpentCommandTokens.owners
-    local layout=unitLayoutSnapshot(seatPos)
-    for _,token in ipairs(layout.commands) do
-        local unit=unitLayoutCommandTarget(token,seatPos)
-        if unit~=nil then
-            spent[token.guid]=true
-            owners[token.guid]=unit.guid
-        end
-    end
+    return trackerPrivate.unitManagement.recordSpentCommands(seatPos)
 end
 
 -- Called once a NEW Unit owns a vacated Command position, not on token pickup.
 -- Ordinary board movement is not an excuse to ready an old Unit: without an
 -- approved recruit, the prior owner must truly have left every Unit Area.
 function resourceUnitsAdoptCommand(tokenGUID,unitGUID,seatPos,approvedRecruit)
-    if gStates==nil or tokenGUID==nil or unitGUID==nil then return false end
-    resourceUnitsSpentCommands()
-    local owners=gStates.unitSpentCommandTokens.owners
-    local previous=owners[tokenGUID]
-    if previous==unitGUID then return true end
-    if approvedRecruit~=true then
-        if previous==nil or unitLayoutObjectInAnyUnitArea(previous) then return false end
-    end
-    if previous~=nil and previous~=unitGUID
-        and unitLayoutObjectInAnyUnitArea(previous)==false then
-        if resourceUnitsRetireUnit~=nil then resourceUnitsRetireUnit(previous) end
-    end
-    resourceUnitsSetCommandSpent(tokenGUID,false)
-    owners[tokenGUID]=unitGUID
-    return true
+    return trackerPrivate.unitManagement.adoptCommand(tokenGUID,unitGUID,seatPos,approvedRecruit)
 end
 
 -- The only generic disband cleanup: retire the Unit's choices/Ready links,
 -- attack arrows and token number. Do not touch the spent Command flag here;
 -- only an actual newly claimed Unit may ready that Command.
 function resourceUnitsRetireUnit(unitGUID)
-    if unitGUID==nil then return end
-    if unitHistoryReleaseUnit~=nil then unitHistoryReleaseUnit(unitGUID) end
-    removeChoiceButtons(getObjectFromGUID(unitGUID))
-    choiceButtonShown[unitGUID]=nil
-    choiceExpandedByGUID[unitGUID]=nil
-    if gStates~=nil and gStates.unitReadyCardChoices~=nil then
-        gStates.unitReadyCardChoices[unitGUID]=nil
-    end
-    if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
+    return trackerPrivate.unitManagement.retireUnit(unitGUID,removeChoiceButtons,choiceButtonShown,choiceExpandedByGUID)
 end
 
 -- On a manually dragged replacement card, reconcile its settled physical
 -- Command column. No reset happens for the same Unit or while the previous
 -- owner is still on the Unit mat.
 function resourceUnitsReconcileNewUnit(unitGUID,seatPos)
-    if unitGUID==nil or seatPos==nil then return false end
-    local layout=unitLayoutSnapshot(seatPos)
-    local slot=layout.unitSlotByGuid[unitGUID]
-    local token=slot~=nil and layout.commands[slot] or nil
-    if token==nil then return false end
-    local changed=resourceUnitsCommandOwner(token.guid)~=unitGUID
-        and resourceUnitsAdoptCommand(token.guid,unitGUID,seatPos,false)
-    if changed==true and resourceCardsSourceChanged~=nil then
-        resourceCardsSourceChanged()
-    end
-    return changed==true
+    return trackerPrivate.unitManagement.reconcileNewUnit(unitGUID,seatPos)
 end
 
 -- An activation belongs to the physical Command token that started it.
@@ -7334,113 +6803,17 @@ end
 -- discard its saved choice and remove its buttons and tracked contribution.
 -- Returning the token to the same Unit preserves its selection.
 local function resourceUnitsCancelMovedCommand(tokenGUID,seatPos,targetGUID)
-    local activations=gStates~=nil and gStates.unitResourceActivations or nil
-    if activations==nil then return false end
-    local changed=false
-    for unitGUID,activation in pairs(activations) do
-        if activation.tokenGUID==tokenGUID and activation.seatPos==seatPos
-            and unitGUID~=targetGUID then
-            local sourceKey=targetGUID==nil and unitHistoryReadyPermission(unitGUID) or nil
-            if sourceKey~=nil then
-                -- This is a real Ready effect, not an undo. Preserve the
-                -- contribution and wait for the Command token to return.
-                unitHistoryMarkReady(unitGUID,sourceKey)
-            else
-                -- No linked Ready permission: lifting a Command token away
-                -- from its Unit undoes only its latest activation.
-                unitHistoryUndoLatest(unitGUID)
-                removeChoiceButtons(getObjectFromGUID(unitGUID))
-                choiceExpandedByGUID[unitGUID]=nil
-            end
-            changed=true
-        end
-    end
-    return changed
+    return trackerPrivate.unitManagement.cancelMovedCommand(tokenGUID,seatPos,targetGUID,removeChoiceButtons,choiceExpandedByGUID)
 end
 
 -- The picked-up origin is transient; only completed activations belong in
 -- saved state. A token placed back on its original Unit isn't a new play.
 function resourceUnitsCommandPickedUp(playerColor,obj)
-    if not resourceCardsPanelOpen() or obj==nil or not unitLayoutIsCommand(obj) then return end
-    local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
-    if current==nil or legalPlayerCheck(playerColor,current.seatPos)~=true then return end
-    local origin=unitLayoutCommandTarget(obj,current.seatPos)
-    trackerPrivate.commandPickupForUnits[obj.guid]={seatPos=current.seatPos,
-        turnNumber=gStates.turnNumber,origin=origin~=nil and origin.guid or nil}
+    return trackerPrivate.unitManagement.commandPickedUp(playerColor,obj,trackerPrivate)
 end
 
 function resourceUnitsCommandDropped(playerColor,obj)
-    if not resourceCardsPanelOpen() or obj==nil or not unitLayoutIsCommand(obj) then return end
-    local pickup=trackerPrivate.commandPickupForUnits[obj.guid]
-    trackerPrivate.commandPickupForUnits[obj.guid]=nil
-    if pickup==nil or not resourceCardsPanelOpen() then return end
-    local guid=obj.guid
-    local serial=trackerPrivate.trackerSession
-    safeWaitCondition("PlayerBoard.CardRecognition",function()
-        if not resourceCardsPanelOpen() or trackerPrivate.trackerSession~=serial then return end
-        local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
-        if current==nil or current.seatPos~=pickup.seatPos
-            or gStates.turnNumber~=pickup.turnNumber then return end
-        local token=getObjectFromGUID(guid)
-        local unit=token~=nil and unitLayoutCommandTarget(token,pickup.seatPos) or nil
-        local targetGUID=unit~=nil and unit.guid or nil
-        if resourceUnitsCancelMovedCommand(guid,pickup.seatPos,targetGUID) then
-            queueSeat(pickup.seatPos,nil)
-        end
-        if unit==nil then unitHistoryPriorTurnCommandMoved(guid,pickup.seatPos) end
-        if unit==nil or unit.guid==pickup.origin
-            or unitResourceDefinitions[unit.guid]==nil then return end
-        local state=unitLayoutResourceState(pickup.seatPos)
-        if state==nil then return end
-        for _,entry in ipairs(state.units) do
-            if entry.guid==unit.guid and not entry.unwounded then return end
-        end
-        -- Choose an unpowered default only. Physical mana overrides it
-        -- automatically when a particular paid ability is unambiguous.
-        local abilities=unitResourceDefinitions[unit.guid]
-        local scores=trackerChoiceScores(unit.guid,pickup.seatPos)
-        local choice,bestScore=1,-math.huge
-        for i,ability in ipairs(abilities) do
-            if ability.manaCost==nil then
-                local score=scores[ability.key] or 0
-                if score>bestScore then choice,bestScore=i,score end
-            end
-        end
-        gStates.unitResourceActivations=gStates.unitResourceActivations or {}
-        -- A new Unit claimed into this Command's slot is Ready even if the
-        -- former Unit used this token earlier in the same Round.
-        resourceUnitsAdoptCommand(guid,unit.guid,pickup.seatPos,false)
-        local previous=gStates.unitResourceActivations[unit.guid]
-        local newActivation={seatPos=pickup.seatPos,tokenGUID=guid,
-            choice=choice,selected=abilities.multi==true and {} or nil}
-        local useIndex=1
-        local permission=unitHistoryAwaiting(unit.guid)
-            or unitHistoryReadyPermission(unit.guid)
-        if previous~=nil or resourceUnitsCommandSpent(guid) or permission~=nil then
-            if permission==nil or (previous~=nil and previous.tokenGUID~=guid) then return end
-            local appendedIndex=unitHistoryAppend(unit.guid,newActivation,permission)
-            if appendedIndex==nil then return end
-            useIndex=appendedIndex
-        else
-            gStates.unitResourceActivations[unit.guid]=newActivation
-            unitHistoryEnsure(unit.guid,newActivation)
-            unitHistoryRefreshToken(unit.guid)
-        end
-        -- A newly used Command must remember which physical Unit owns it,
-        -- independent of the current turn's activation-history snapshots.
-        resourceUnitsSpentCommands()
-        gStates.unitSpentCommandTokens.owners[guid]=unit.guid
-        resourceCardsCombatSelectOneUnit(unit.guid)
-        choiceExpandedByGUID[unit.guid]=nil
-        -- The final settled scan owns the choice and target buttons. Painting
-        -- them here used an older combatCalcOn state, which could show a
-        -- choice but omit its enemy target (or immediately erase both).
-        queueSeat(pickup.seatPos,nil)
-    end,function()
-        if not resourceCardsPanelOpen() or trackerPrivate.trackerSession~=serial then return true end
-        local token=getObjectFromGUID(guid)
-        return token==nil or trackerPrivate.readyForXZ(token)
-    end,8)
+    return trackerPrivate.unitManagement.commandDropped(playerColor,obj,trackerPrivate,resourceUnitsCancelMovedCommand,queueSeat,unitResourceDefinitions,trackerChoiceScores,choiceExpandedByGUID)
 end
 
 -- A Unit's choice can switch its targeting key (e.g. Shocktroops
@@ -7448,257 +6821,39 @@ end
 -- immediately, keeping explicitly targeted effects whose keys stay active.
 -- The next scan then auto-targets newly selected effects just like attacks.
 function resourceUnitsReconcileChoiceTargets(unit,abilities,activation)
-    -- A changed historical choice may retire only THAT use's target. The
-    -- other activations of this same physical Unit keep their own arrows.
-    local allowed={}
-    local current=gStates~=nil and gStates.unitResourceActivations
-        and gStates.unitResourceActivations[unit.guid] or activation
-    for useIndex,entry in ipairs(unitHistoryUses(unit.guid,current)) do
-        local decision=unitManaDecision(unit,abilities,entry,
-            entry.frozenCounts or entry.lastCounts)
-        local combatBlocked=combatConfig.unitCombatBlocked(unit,abilities,useIndex)
-        local function allow(index)
-            local ability=abilities[index]
-            if ability~=nil and not (combatBlocked and unitHistoryIsCombatAbility(ability))
-                and (unitAbilityTargetCategory(ability)~=nil
-                or ability.enemyEffect~=nil or ability.targetableEnemy==true) then
-                allowed[unitAbilityTargetKey(unit.guid,index,ability,useIndex)]=true
-                -- Preserve the numeric attack target beside its separate
-                -- enemy-effect target, including earlier Command uses.
-                if ability.enemyEffect~=nil and unitAbilityTargetCategory(ability)~=nil then
-                    allowed[unitHistoryKey(unit.guid,useIndex)]=true
-                end
-            end
-        end
-        if abilities.multi==true then
-            for index in pairs(decision.selected or {}) do allow(index) end
-        elseif decision.index~=nil then
-            allow(decision.index)
-        end
-    end
-    local prefix=unit.guid.."#"
-    for key in pairs(combatAssignmentState.targets) do
-        if (key==unit.guid or key:sub(1,#prefix)==prefix)
-            and allowed[key]~=true then
-            combatAssignmentState.targets[key]=nil
-            combatAssignmentState.explicit[key]=nil
-            if combatAssignmentState.selected==key then
-                combatAssignmentState.selected=nil
-            end
-        end
-    end
-    attackAssignmentsPruneUnitChoiceSources(unit.guid,allowed)
+    return trackerPrivate.unitManagement.reconcileChoiceTargets(unit,abilities,activation,unitManaDecision,combatConfig,unitAbilityTargetCategory,unitAbilityTargetKey,combatAssignmentState)
 end
 
 function resourceUnitsPruneHistoricalTargets(unitGUID)
-    local activation=gStates~=nil and gStates.unitResourceActivations
-        and gStates.unitResourceActivations[unitGUID] or nil
-    local unit=getObjectFromGUID(unitGUID)
-    local abilities=trackerPrivate.unitAbilitiesFor(unitGUID,nil,
-        activation~=nil and activation.seatPos or nil)
-    if activation~=nil and unit~=nil and abilities~=nil then
-        resourceUnitsReconcileChoiceTargets(unit,abilities,activation)
-    elseif attackAssignmentsPruneUnitChoiceSources~=nil then
-        attackAssignmentsPruneUnitChoiceSources(unitGUID,{})
-    end
+    return trackerPrivate.unitManagement.pruneHistoricalTargets(unitGUID,trackerPrivate)
 end
 
 function resourceUnitsChoiceClicked(player,value,id)
-    if not resourceCardsPanelOpen() or type(id)~="string"
-        or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil) then return end
-    local unitGUID,index=id:match("^ResourceCardChoice_([0-9a-f]+)_unit(%d+)Combat$")
-    local combatMoveChoice=unitGUID~=nil
-    -- The visible Unit button is removed on refresh, but an in-flight click
-    -- must also be rejected when there is no Cumbersome target.
-    if combatMoveChoice and not (combatCalcOn and combatCumbersomeActive) then return end
-    if unitGUID==nil then
-        unitGUID,index=id:match("^ResourceCardChoice_([0-9a-f]+)_unit(%d+)$")
-    end
-    index=tonumber(index)
-    local latest=unitGUID~=nil and gStates.unitResourceActivations
-        and gStates.unitResourceActivations[unitGUID] or nil
-    local activation,useIndex=unitHistorySelected(unitGUID,latest)
-    local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
-    local abilities=unitGUID~=nil and trackerPrivate.unitAbilitiesFor(
-        unitGUID,nil,current~=nil and current.seatPos) or nil
-    if activation==nil or abilities==nil or current==nil or index==nil
-        or abilities[index]==nil or activation.seatPos~=current.seatPos then return end
-    local unit=getObjectFromGUID(unitGUID)
-    if unit==nil then return end
-    resourceCardsCombatSelectOneUnit(unitGUID)
-    local state=unitLayoutResourceState(current.seatPos)
-    if state==nil then return end
-    for _,entry in ipairs(state.units) do
-        if entry.guid==unitGUID and not entry.unwounded then return end
-    end
-    local decision=unitManaDecision(unit,abilities,activation,
-        activation.frozenCounts)
-    local available=false
-    for _,candidate in ipairs(decision.display) do
-        if candidate==index then available=true break end
-    end
-    if not available then return end
-    if not combatMoveChoice
-        and (not decision.ambiguous or abilities.paidChoiceExpandable or decision.index~=nil)
-        and choiceExpandedByGUID[unitGUID]~=true and #decision.display>1 then
-        -- Any selected Unit option (including Move) expands its alternatives.
-        -- The separate Cumbersome Combat-Move button still chooses its role.
-        choiceExpandedByGUID[unitGUID]=true
-        showUnitAbilityButtons(unit,abilities,activation,true,decision)
-        return
-    end
-    if abilities.bannerFearIndex~=nil and index==abilities.bannerFearIndex then
-        activation.choice=index
-        activation.bannerFearSelected=true
-        activation.manaChoice=nil
-        activation.lastPaidIndex=nil
-        choiceExpandedByGUID[unitGUID]=nil
-    elseif abilities.multi==true then
-        activation.bannerFearSelected=nil
-        -- Gold payments may be assigned to several different abilities, but
-        -- never more abilities than the actual number of Gold tokens.
-        -- Choosing another button reassigns Gold instead of silently
-        -- preserving an older choice the player can no longer see as active.
-        activation.selected=activation.selected or {}
-        if activation.manaSignature~=decision.signature then activation.selected={} end
-        activation.manaSignature=decision.signature
-        if decision.selected[index]==true then
-            activation.selected[index]=nil
-        else
-            local goldCount=((activation.frozenCounts
-                or unitManaCounts(unit,current.seatPos)).Gold or 0)
-            local prior={}
-            for _,candidate in ipairs(decision.display) do
-                if candidate~=index and activation.selected[candidate]==true then
-                    prior[#prior+1]=candidate
-                end
-            end
-            while #prior>=goldCount and #prior>0 do
-                activation.selected[table.remove(prior,1)]=nil
-            end
-            activation.selected[index]=true
-        end
-        choiceExpandedByGUID[unitGUID]=true
-    elseif decision.ambiguous then
-        activation.bannerFearSelected=nil
-        activation.manaChoice=index
-        activation.manaSignature=decision.signature
-        -- Once a payable alternative is selected, collapse to its icon and
-        -- restore the target button, regardless of the Unit's display style.
-        choiceExpandedByGUID[unitGUID]=nil
-    else
-        activation.bannerFearSelected=nil
-        activation.choice=index
-        activation.manaChoice=nil
-        activation.manaSignature=nil
-        activation.lastPaidIndex=nil
-        choiceExpandedByGUID[unitGUID]=nil
-    end
-    if (tonumber(abilities[index].move) or 0)>0 then
-        gStates.resourceCardMoveRoles=gStates.resourceCardMoveRoles or {}
-        local sourceKey=unitHistoryKey(unitGUID,useIndex)
-        local before=resourceCardsMoveRole(sourceKey,true)
-        gStates.resourceCardMoveRoles[sourceKey]=combatMoveChoice and "combat" or "movement"
-        if before=="combat" and not combatMoveChoice then
-            attackAssignmentsClearForObject(sourceKey)
-        end
-    end
-    resourceUnitsReconcileChoiceTargets(unit,abilities,activation)
-    unitHistoryValidSources(current.seatPos)
-    showUnitAbilityButtons(unit,abilities,activation,true,nil,useIndex)
-    if attackAssignmentsRefreshReadyUI~=nil then attackAssignmentsRefreshReadyUI() end
-    -- Recalculate Unit choices immediately; enemy modifiers are shown directly
-    -- in the Combat Calculator rather than broadcast into chat.
-    renderSeat(current.seatPos)
+    return trackerPrivate.unitManagement.choiceClicked(player,value,id,combatCalcOn,combatCumbersomeActive,trackerPrivate,unitManaDecision,choiceExpandedByGUID,showUnitAbilityButtons,unitManaCounts,resourceCardsMoveRole,renderSeat)
 end
 
 -- Release a temporary offered Unit without touching Command activations.
 function resourceUnitsBorrowedUnitEnded(guid)
-    local activation=gStates~=nil and gStates.unitResourceActivations
-        and gStates.unitResourceActivations[guid] or nil
-    if activation~=nil and activation.callOffer==true then
-        gStates.unitResourceActivations[guid]=nil
-    end
-    -- Retire the old Unit's combat source first. A failed Object UI update
-    -- must never leave its target arrow behind when Call to Arms cycles.
-    combatForgetPhysicalSourceTargets(guid)
-    if attackAssignmentsClearForObject~=nil then attackAssignmentsClearForObject(guid) end
-    if attackAssignmentsPruneUnitChoiceSources~=nil then
-        attackAssignmentsPruneUnitChoiceSources(guid,{})
-    end
-    removeChoiceButtons(getObjectFromGUID(guid))
-    choiceButtonShown[guid]=nil
-    choiceExpandedByGUID[guid]=nil
-    if resourceCardsPanelOpen() then resourceCardsSourceChanged() end
+    return trackerPrivate.unitManagement.borrowedUnitEnded(guid,combatForgetPhysicalSourceTargets,removeChoiceButtons,choiceButtonShown,choiceExpandedByGUID)
 end
 
 -- Clear any remaining activations at turn end without moving Command tokens.
 -- A token moved off its Unit during the turn cancels immediately on its drop.
 function resourceUnitsResetTurn()
-    if gStates~=nil then
-        for unitGUID in pairs(gStates.unitResourceActivations or {}) do
-            removeChoiceButtons(getObjectFromGUID(unitGUID))
-            choiceExpandedByGUID[unitGUID]=nil
-        end
-        unitHistoryReset()
-        gStates.unitReadyCardChoices={}
-        gStates.unitResourceActivations={}
-    end
-    trackerPrivate.commandPickupForUnits={}
-    if attackAssignmentsRefreshReadyUI~=nil then attackAssignmentsRefreshReadyUI() end
+    return trackerPrivate.unitManagement.resetTurn(removeChoiceButtons,choiceExpandedByGUID,trackerPrivate)
 end
 
 -- There is one owner for Unit control rendering: the settled Resource Tracker
 -- scan, after combat presence, payment, wound and site restrictions are known.
 -- Token-history arrows and other callers request that scan, not an early paint.
 function resourceUnitsRefreshButtons()
-    if not resourceCardsPanelOpen() or gStates==nil
-        or next(gStates.unitResourceActivations or {})==nil then return end
-    resourceCardsSourceChanged()
+    return trackerPrivate.unitManagement.refreshButtons()
 end
 
 -- Reconstruct used Units from Command tokens physically sitting on their cards.
 -- Command tokens in ready slots do not count as activations.
 local function resourceUnitsRebuildFromTable()
-    if not resourceCardsPanelOpen() or gStates==nil then return end
-    local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
-    if current==nil then return end
-    local seat=current.seatPos
-    local layout=unitLayoutSnapshot(seat)
-    local state=unitLayoutResourceState(seat)
-    local unwounded={}
-    for _,entry in ipairs(state~=nil and state.units or {}) do
-        unwounded[entry.guid]=entry.unwounded
-    end
-    local activations={}
-    for _,token in ipairs(layout.commands) do
-        local unit=unitLayoutCommandTarget(token,seat)
-        local abilities=unit~=nil and unitResourceDefinitions[unit.guid] or nil
-        if unit~=nil and abilities~=nil and unwounded[unit.guid]
-            and activations[unit.guid]==nil and not resourceUnitsCommandSpent(token.guid) then
-            local scores=trackerChoiceScores(unit.guid,seat)
-            local choice,bestScore=1,-math.huge
-            for i,ability in ipairs(abilities) do
-                if ability.manaCost==nil then
-                    local score=scores[ability.key] or 0
-                    if score>bestScore then choice,bestScore=i,score end
-                end
-            end
-            local activation={seatPos=seat,tokenGUID=token.guid,choice=choice,
-                selected=abilities.multi==true and {} or nil}
-            activations[unit.guid]=activation
-            -- A Ready completed while the panel was closed still belongs to
-            -- the current turn, never to the previous spent anchor.
-            local awaiting=unitHistoryAwaiting(unit.guid)
-            if awaiting~=nil then
-                unitHistoryAppend(unit.guid,activation,awaiting)
-            else
-                unitHistoryEnsure(unit.guid,activation)
-            end
-        end
-    end
-    gStates.unitResourceActivations=activations
-    for guid in pairs(activations) do unitHistoryRefreshToken(guid) end
+    return trackerPrivate.unitManagement.rebuildFromTable(unitResourceDefinitions,trackerChoiceScores)
 end
 
 -- Explicit card choices represent player decisions rather than reconstructable table state.

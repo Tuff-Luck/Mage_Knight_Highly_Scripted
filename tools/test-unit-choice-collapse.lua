@@ -87,7 +87,7 @@ local function resourceCardsCombatSelectOneUnit() end
 local function resourceUnitsReconcileChoiceTargets() end
 local function unitHistoryValidSources() end
 local function renderSeat() end
-]]..renderer..handler..[[
+]]..renderer.."\ntrackerPrivate.unitManagement=(function()\n"..read("src/PlayingGame/PlayerBoard/ResourceTracker/UnitManagement.lua").."\nend)()\n"..handler..[[
 return {
     draw=function()
         showUnitAbilityButtons(unit,abilities,activation,true,nil,1)

@@ -44,7 +44,7 @@ local function getObjectFromGUID(guid)
 end
 local function cardPosture(card) return "upright" end
 local function cardInSeatPlayArea(guid,seat) return guid=="878d91" and seat==1 end
-]]..readyCode..[[
+]].."\nlocal trackerPrivate={readyPolicy=(function()\n"..source("src/PlayingGame/PlayerBoard/ResourceTracker/ReadyPolicy.lua").."\nend)()}\n"..readyCode..[[
 return {valid=resourceCardsReadySourceValid,limit=resourceCardsReadySourceLevelLimit,
     record=record,scans=resourceCardScanBySeat}
 ]]))()

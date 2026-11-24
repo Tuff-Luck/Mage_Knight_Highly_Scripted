@@ -198,10 +198,10 @@ assert(hasButton(buttons,"AttackAssignmentSource_f17813_0_attackIce"),
 -- The pending scan, not the drop or crystal zone event, owns Unit controls.
 assert(reader:find("local missingActiveUnit=false",1,true),
     "Settled scan must recover active Units missed by zones")
-assert(reader:find("or unitManaCounts(unit,seatPos,unitPaymentMana)",1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/UnitScan.lua"):find("or unitManaCounts(unit,seatPos,unitPaymentMana)",1,true),
     "Unit payments must use the play/Unit zone mana list")
-local refresh=extract(reader,"function resourceUnitsRefreshButtons()",
-    "-- Reconstruct used Units from Command tokens")
+local refresh=extract(read("src/PlayingGame/PlayerBoard/ResourceTracker/UnitManagement.lua"),"function M.refreshButtons()",
+    "function M.rebuildFromTable(")
 assert(refresh:find("resourceCardsSourceChanged()",1,true),
     "External UI refreshes queue the settled scan")
 assert(not refresh:find("showUnitAbilityButtons(",1,true),

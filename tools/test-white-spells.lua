@@ -160,9 +160,9 @@ eq(wingsEffects.immune.noAttack,false,"Arcane Immunity prevents suppression")
 
 -- Call to Arms is a temporary borrowed Unit; Call to Glory is a one-use
 -- recruitment. The full physical browser is covered by test-call-offer.lua.
-assert(reader:find('local spellRecord=records["2eb8e8"]',1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/UnitScan.lua"):find('local spellRecord=records["2eb8e8"]',1,true),
     "Borrowed Unit must depend on paid Call to Arms")
-assert(reader:find("spellRecord.complete==true",1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/UnitScan.lua"):find("spellRecord.complete==true",1,true),
     "Unpaid Call to Arms cannot activate borrowed Unit")
 assert(offer:find("gStates.callOfferGloryClaimed=true",1,true),
     "Call to Glory cannot recruit multiple Units")

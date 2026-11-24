@@ -126,7 +126,7 @@ eq(eligible({attackOnly=true},nil,true),false,
 -- Both the current scan and manual retargeting must pass Demolish state.
 assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/CombatTargetPolicy.lua"):find("scan~=nil and scan.ignoreSiteFortifications==true",1,true),
     "manual target callback must carry Demolish state")
-assert(recognition:find(
+assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/UnitScan.lua"):find(
     "resourceCardsEnemyEffectivelyUnfortified(guid,enemyEffects,\n                    ignoreSiteFortifications)",1,true),
     "automatic target scan must carry Demolish state")
 print("Level II Shocktroops and Illusionists regressions passed")

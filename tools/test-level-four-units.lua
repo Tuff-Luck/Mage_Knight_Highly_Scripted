@@ -77,7 +77,7 @@ eq(scale({Red=1,Blue=1,Gold=2}),4,"bonus capped at +4")
 day=false
 eq(scale({Gold=2}),0,"Gold unusable at Night")
 eq(scale({Blue=1,Gold=2}),2,"Night counts only Blue")
-assert(recognition:find("trackerPrivate.unitEffects.unitAbilityResources(selected,counts,crystalCounts,",1,true),
+assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/UnitScan.lua"):find("trackerPrivate.unitEffects.unitAbilityResources(selected,counts,crystalCounts,",1,true),
     "live Unit resources must use the extracted calculator")
 
 -- Delphana red is not a Fire Block and does not need its own Block source.
@@ -114,10 +114,10 @@ assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/CombatEffectDisplay.l
 
 -- A Ready then Black transformation must credit use2, not use1; an old
 -- transform must not overwrite the currently selected Command highlight.
-assert(recognition:find("transformingUnits[recordKey]=selected.attackTransform",1,true),
+assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/UnitScan.lua"):find("transformingUnits[recordKey]=selected.attackTransform",1,true),
     "track transform by historical source key")
-assert(recognition:find("local record=records[sourceKey]",1,true),
+assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/UnitScan.lua"):find("local record=records[sourceKey]",1,true),
     "attribute transformation contribution to the correct use")
-assert(recognition:find("unitHistorySelectedNumber(unitGUID)==record.activationIndex",1,true),
+assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/UnitScan.lua"):find("unitHistorySelectedNumber(unitGUID)==record.activationIndex",1,true),
     "do not overwrite another activation's highlight")
 print("Level IV Unit regressions passed")

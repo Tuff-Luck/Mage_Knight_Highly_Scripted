@@ -12,6 +12,8 @@ local function between(s,a,b)
     return s:sub(first+#a,last-1)
 end
 local recognition=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
+local unitScan=read("src/PlayingGame/PlayerBoard/ResourceTracker/UnitScan.lua")
+local readyPolicy=read("src/PlayingGame/PlayerBoard/ResourceTracker/ReadyPolicy.lua")
 local effects=read("src/PlayingGame/PlayerBoard/CombatEffects.lua")
 local layout=read("src/PlayingGame/PlayerBoard/UnitLayout.lua")
 local replace=read("src/PlayingGame/PlayerBoard/UnitReplacement.lua")
@@ -181,7 +183,7 @@ assert(immuneEnvironment.combatEffectImmune("printed")
     and immuneEnvironment.combatEffectImmune("perk")
     and not immuneEnvironment.combatEffectImmune("plain"),
     "Banner of Fear must distinguish printed/perk Arcane Immunity from normal enemies")
-assert(recognition:find(
+assert(unitScan:find(
     "if ability.bannerFear and not combatEffectImmune(target.guid) then",1,true),
     "Banner of Fear Fame must check the exported immunity helper")
 
@@ -257,17 +259,17 @@ assert(#enemyAttacks(entry,true)==2,
     "Attack cycle must retain choices even after one is cancelled")
 
 -- All scans and strong-effect callbacks must distinguish the full form.
-assert(recognition:find('trackerPrivate.bannerCardForm(guid)~="half"',1,true),
+assert(readyPolicy:find('trackerPrivate.bannerCardForm(guid)~="half"',1,true),
     "Half Banners must not enter the play-area Artifact list")
 assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/CardEffects.lua"):find('local attachedResult=trackerPrivate.bannerAttachedCardResult(card.guid)',1,true),
     "The card calculator must leave attached halves inert")
 assert(recognition:find("and resourceCardsArtifactBroken(card.guid,card)",1,true),
     "Artifact classification must consult the shared Throw/Recover state")
-assert(recognition:find('and trackerPrivate.bannerStrongActive(card)',1,true),
+assert(unitScan:find('and trackerPrivate.bannerStrongActive(card)',1,true),
     "Fortitude and other strong buttons must check the full-card form")
-assert(recognition:find('if trackerPrivate.bannerCardForm(guid)=="full" then',1,true),
+assert(readyPolicy:find('if trackerPrivate.bannerCardForm(guid)=="full" then',1,true),
     "Courage full and attached Ready paths must be separate")
-assert(recognition:find('trackerPrivate.bannerStrongActive(artifact)',1,true),
+assert(unitScan:find('trackerPrivate.bannerStrongActive(artifact)',1,true),
     "Glory army-wide bonus must only be enabled by full Break")
 assert(layout:find('data.cardType=="Artifact" and data.full~=nil',1,true),
     "Only half-sized Banners may be attached as Unit bonuses")
@@ -293,11 +295,11 @@ assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/CardInteractions.lua"):
     "Fear targets must not receive resource-link outlines")
 
 -- Banner of Courage is snapshotted once, rather than readied on every scan.
-assert(recognition:find("if courageUses[card.guid]==nil then",1,true),
+assert(unitScan:find("if courageUses[card.guid]==nil then",1,true),
     "Broken Courage must capture a one-time eligibility snapshot")
-assert(recognition:find("for _,entry in ipairs(courageUses[card.guid].eligible)",1,true),
+assert(unitScan:find("for _,entry in ipairs(courageUses[card.guid].eligible)",1,true),
     "Only snapshotted Units may receive Courage Ready links")
-assert(recognition:find("if entry.key==sourceKey then return true end",1,true),
+assert(readyPolicy:find("if entry.key==sourceKey then return true end",1,true),
     "Courage must reject unsnapshotted Ready source IDs")
 assert(recognition:find("if uses[guid] then return end",1,true)
     and recognition:find("uses[guid]=true",1,true),

@@ -62,6 +62,7 @@ local ownerEnv={
     choiceButtonShown={},choiceExpandedByGUID={}
 }
 setmetatable(ownerEnv,{__index=_G})
+ownerEnv.trackerPrivate={unitManagement=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/UnitManagement.lua","t",ownerEnv))()}
 local ownerAPI=assert(load(ownerCode..
     "\nreturn resourceUnitsCommandSpent,resourceUnitsCommandOwner,"
     .."resourceUnitsAdoptCommand,resourceUnitsRecordSpentCommands,"
