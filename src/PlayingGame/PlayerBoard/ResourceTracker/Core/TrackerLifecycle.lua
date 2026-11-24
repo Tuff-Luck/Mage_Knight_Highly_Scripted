@@ -140,7 +140,17 @@ function M.copyCardSelection(selection,fromSave)
     return next(result)~=nil and result or nil
 end
 
-function M.choicesSave(selectedResourceByGUID,trackerPrivate)
+-- Dynamic reward and puppet GUIDs are not guaranteed to exist in gameCards.
+-- Save a validated source kind, so restoring during startup need not inspect
+-- an object whose TTS script has not yet loaded.
+local function selectionKind(obj,guid,resourceObjectKind)
+    if gameCards[guid]~=nil then return "card" end
+    if skillTokens~=nil and skillTokens[guid]~=nil then return "skill" end
+    local kind=obj~=nil and resourceObjectKind~=nil and resourceObjectKind(obj) or nil
+    if kind=="factionReward" or kind=="puppet" or kind=="wound" then return kind end
+end
+
+function M.choicesSave(selectedResourceByGUID,trackerPrivate,resourceObjectKind)
     if gStates==nil then return end
     local selected={}
     local active=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
@@ -149,12 +159,18 @@ function M.choicesSave(selectedResourceByGUID,trackerPrivate)
         for _,zoneGUID in ipairs({playerPlayAreas[active.seatPos],playerUnitAreas[active.seatPos]}) do
             local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
             if zone~=nil then
-                for _,obj in ipairs(zone.getObjects()) do present[obj.guid]=true end
+                for _,obj in ipairs(zone.getObjects()) do present[obj.guid]=obj end
             end
         end
         for guid,selection in pairs(selectedResourceByGUID) do
-            if present[guid]==true and gameCards[guid]~=nil then
-                selected[guid]=trackerPrivate.copyCardSelection(selection,false)
+            local obj=present[guid]
+            local kind=obj~=nil and selectionKind(obj,guid,resourceObjectKind) or nil
+            if kind~=nil then
+                local copy=trackerPrivate.copyCardSelection(selection,false)
+                if copy~=nil then
+                    copy.sourceKind=kind
+                    selected[guid]=copy
+                end
             end
         end
     end
@@ -166,8 +182,14 @@ function M.choicesRestore(resetChoices,getChoices,trackerPrivate)
     local stored=gStates~=nil and gStates.resourceCardSelectedChoices or nil
     if type(stored)~="table" then return end
     for guid,selection in pairs(stored) do
-        if type(guid)=="string" and gameCards[guid]~=nil then
-            getChoices()[guid]=trackerPrivate.copyCardSelection(selection,true)
+        if type(guid)=="string" and type(selection)=="table" then
+            local kind=selectionKind(nil,guid,nil)
+            local dynamic=guid:match("^[0-9a-f]+$")~=nil and #guid==6
+                and (selection.sourceKind=="factionReward" or selection.sourceKind=="puppet"
+                    or selection.sourceKind=="wound")
+            if kind~=nil or dynamic then
+                getChoices()[guid]=trackerPrivate.copyCardSelection(selection,true)
+            end
         end
     end
 end
@@ -259,7 +281,11 @@ function M.beforeTurnHandoff(nextSeat,resetChoices)
     resourceCardsPanelChanged(false)
     resourceUnitsResetTurn()
     resetChoices()
-    if gStates~=nil then gStates.resourceCardMoveRoles={} end
+    if gStates~=nil then
+        gStates.resourceCardMoveRoles={}
+        gStates.resourceCardSelectedChoices={}
+        gStates.resourceCardConversions={}
+    end
 end
 
 function M.afterTurnHandoff(previousSeat)
