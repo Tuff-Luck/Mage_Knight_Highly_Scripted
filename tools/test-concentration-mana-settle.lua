@@ -28,7 +28,7 @@ assert(data:find('poweredLink={mode="stronger",bonus=2,',1,true),
 local manaCode=section(src,'local manaColor=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").manaColor',"-- Magic Talent's strong side")
 local bonusCode=section(src,"local function applyLinkedResourceBonus(effects,link)",
     'local effectManaPossibilities=require("PlayingGame.PlayerBoard.ResourceTracker.ManaPayments").effectManaPossibilities')
-local linksCode=section(src,"local function resolveActionLinks(cards,wounds,footprints,manaPowered,skillLinksByTarget)",
+local linksCode=section(src,"-- The same floating red X visualises Throw",
     "-- Generic Skill-card links")
 local zoneCode=section(src,"local function resourceCardsRelevantZone(ctx)",
     "function resourceCardsZoneLeft(ctx)")
@@ -75,9 +75,12 @@ env.require=function(name)
     return assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/PhysicalObjects.lua","t",env))()
 end
 local compiled=assert(load(table.concat({manaCode,bonusCode,linksCode,zoneCode,dropCode,
-    "return manaColor,trackerPrivate.readyForXZ,applyLinkedResourceBonus,resolveActionLinks,resourceCardsZoneEntered,resourceCardsObjectMoved"},"\n"),
+    "return manaColor,trackerPrivate.readyForXZ,applyLinkedResourceBonus,resourceCardsZoneEntered,resourceCardsObjectMoved"},"\n"),
     "Concentration mana settle","t",env))
-local manaColor,readyForXZ,applyBonus,resolveLinks,zoneEntered,objectMoved=compiled()
+local manaColor,readyForXZ,applyBonus,zoneEntered,objectMoved=compiled()
+local resolveLinks=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/ActionLinks.lua","t",env))()({
+    overlapArea=env.overlapArea,cardPosture=env.cardPosture
+})
 assert(manaColor(die)=="Green","Released, slightly rocking die should expose its face")
 assert(readyForXZ(die),"Released die is ready despite resting=false")
 die.smooth=true

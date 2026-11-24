@@ -16,6 +16,7 @@ end
 
 local data=source("src/Data.lua")
 local reader=source("src/PlayingGame/PlayerBoard/CardRecognition.lua")
+local actionLinks=source("src/PlayingGame/PlayerBoard/ResourceTracker/ActionLinks.lua")
 
 -- Counterattack is a bonus per completely Blocked ENEMY, not per attack.
 contains(data,"blockedEnemyAttackBonus={normal=2,powered=3}","Counterattack amounts")
@@ -44,11 +45,11 @@ contains(reader,'icon="MKChoiceArmourReduction"',"Combat reduction icon")
 -- Maximal Effect: 3 basic or 2 stronger repetitions, each with its
 -- own option and (for Improvisation/Ritual Attack) its own discard payment.
 contains(data,'normalCount=3,poweredCount=2',"Maximal Effect multipliers")
-contains(reader,'hasDiscard[source.guid]=paid==need',"All copied costs must be paid")
-contains(reader,'repeated.options[index]=linkedColorChoices',"Ritual Attack colors are independent")
+contains(actionLinks,'hasDiscard[source.guid]=paid==need',"All copied costs must be paid")
+contains(actionLinks,'repeated.options[index]=linkedColorChoices',"Ritual Attack colors are independent")
 contains(reader,'selected.repeatChoices[repeatIndex]=category',"Independent choice buttons")
 contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/CardEffects.lua"),'value*repeatLink.count or value',"Repeated Reputation scales")
-contains(reader,'and (source.is_face_down~=true or repeated~=nil)',
+contains(actionLinks,'and (source.is_face_down~=true or repeated~=nil)',
     "Already thrown away copied Actions still resolve costs")
 
 -- Explicit Blood Rage Wound confirmation cannot be guessed from a
