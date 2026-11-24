@@ -129,7 +129,8 @@ equal(retiredUnit,"spent_unit","Destroyed Unit activation history was not retire
 equal(#clearedDestroyedAssignments,0,"Destroy event refreshed combat UI before TTS finished deleting objects")
 for _,callback in ipairs(deferredDestroyWork) do callback() end
 equal(clearedDestroyedAssignments[1],"expired","Expired object's combat links were not cleared by GUID")
-equal(clearedDestroyedAssignments[2],"spent_unit","Destroyed Unit's combat links were not cleared by GUID")
+equal(clearedDestroyedAssignments[2],"startup","Startup object's combat links were not cleared by GUID")
+equal(clearedDestroyedAssignments[3],"spent_unit","Destroyed Unit's combat links were not cleared by GUID")
 
 -- A completely expired object may not even expose its GUID; still don't crash.
 local missingGUID=setmetatable({},{

@@ -102,7 +102,7 @@ assert(recognition:find("combatEffectDestroysFullyBlocked(applied,allBlocked,has
     "red destruction must use full-Block check")
 assert(recognition:find("successfulSources[applied.source]==true",1,true),
     "Spell destruction must remain tied to its own Block")
-assert(recognition:find("or spec.destroyIfFullyBlocked==true)",1,true),
+assert(combatEffectRequiresDefence(delphana[2].enemyEffect),
     "attack-only reminders must not become eligible defensive targets")
 assert(recognition:find("Destroy target if all its attacks are successfully Blocked",1,true),
     "Delphana tooltip must describe all-attacks requirement")

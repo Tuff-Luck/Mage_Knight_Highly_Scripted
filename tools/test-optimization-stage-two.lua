@@ -163,7 +163,7 @@ assert(events:find("unitLayoutCommandDropped(dropped_object)",1,true),
 local playerBoard=read("src/PlayingGame/PlayerBoard/Events.lua")
 local clearSource=extract(playerBoard,
     "local function playerBoardClearObjectUIIfPresent(obj)",
-    "\n-- A card can be carried")
+    "\n-- A card can be released above")
 local clear=assert(load(clearSource..
     "\nreturn playerBoardClearObjectUIIfPresent","Object UI clearing"))()
 local xml,clears,lastXml={},0,nil

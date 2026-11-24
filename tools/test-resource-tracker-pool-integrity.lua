@@ -27,7 +27,7 @@ assert(trackerUI:find('refreshUnitOfferHighlights(interactionTotal)',1,true),
     "Unit affordability uses Interaction Influence, not Learning's ordinary pool")
 assert(trackerUI:find('showRow("InfluAmountReput",canModifyInfluence and reputation~=0)',1,true),
     "Reputation must be hidden until Influence is available")
-assert(trackerUI:find('showRow("InfluAmountCityS",canModifyInfluence and shields~=0)',1,true),
+assert(trackerUI:find('showRow("InfluAmountCityS",canModifyInfluence and shields~=0 and reputation~=-99)',1,true),
     "Conquered-city Shields must be hidden until Influence is available")
 
 -- Unplayed Reputation and Shields must never bias the default card resource choice.

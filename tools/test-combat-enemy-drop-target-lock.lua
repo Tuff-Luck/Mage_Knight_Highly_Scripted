@@ -18,6 +18,8 @@ local footprint=section(recognition,"trackerPrivate.zoneFootprintContainsXZ=func
     "local function scheduleChoiceResetAfterPlay(guid,seatPos)")
 local enemies=section(recognition,"local combatTrackedSeat=nil",
     "local function combatPlayMonsters()")
+local reconcile=section(assignments,"local function reconcileRemainingSourceTarget(sourceGUID)",
+    "local function removeAssignment(id)")
 local prune=section(assignments,"function attackAssignmentsPruneTargets(eligible)",
     "function attackAssignmentsIsTargeting(sourceGUID)")
 
@@ -55,7 +57,7 @@ local env={
 setmetatable(env,{__index=_G})
 local keep=assert(load(footprint.."\n"..enemies..
     "\nreturn combatKeepHeldEnemies","Enemy transit recovery","t",env))()
-assert(load(prune,"Prune dropped enemy targets","t",env))()
+assert(load(reconcile.."\n"..prune,"Prune dropped enemy targets","t",env))()
 local function pruneFor(monsters)
     local eligible={}
     for guid,obj in pairs(monsters) do
