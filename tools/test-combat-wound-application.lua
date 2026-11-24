@@ -60,7 +60,7 @@ combatFrozenCopy=function(value)
     return copy
 end
 isolated(recognition,"combatConfig.woundLedger=function(seat)",
-    "local function combatDamageNotes")
+    "trackerPrivate.combatDisplay=require")
 
 local items={{key="monsterA:1"},{key="monsterB:1"}}
 combatConfig.woundRecordPreview(1,items,{

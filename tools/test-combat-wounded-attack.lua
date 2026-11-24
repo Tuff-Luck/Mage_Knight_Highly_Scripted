@@ -30,8 +30,7 @@ local paralysisCards=isolated("combatConfig.paralysisAttackCards=function(source
     "combatConfig.attackPhaseSources=function", "combatConfig.paralysisAttackCards")
 local eligibleSources=isolated("combatConfig.attackPhaseSources=function(sources,wounded,paralysisCards)",
     "-- Timing of self-wounding Unit abilities", "combatConfig.attackPhaseSources")
-local resultLine=isolated("local function combatGroupAttackLine(meleeTotal,attackArmour)",
-    "trackerPrivate.combatDefenderMarks=", "combatGroupAttackLine")
+local resultLine=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/CombatDisplay.lua")(combatConfig,combatRich,nil).groupAttackLine
 local function total(sources)
     return attackTotal({
         {sources=sources,category="attack"},
