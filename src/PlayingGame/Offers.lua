@@ -261,14 +261,17 @@ refreshUnitOfferSnapPoints=function(count)
 end
 
 unitOfferCards=function()
-	local cards={}
+	local cards,xByCard={},{}
 	local zone=getObjectFromGUID(GUID.zone.unitOffer)
 	if zone~=nil then
 		for _,obj in pairs(zone.getObjects()) do
-			if unitOfferIsUnit(obj) then cards[#cards+1]=obj end
+			if unitOfferIsUnit(obj) then
+				cards[#cards+1]=obj
+				xByCard[obj]=obj.getPosition()[1]
+			end
 		end
 	end
-	table.sort(cards,function(a,b) return a.getPosition()[1]>b.getPosition()[1] end)
+	table.sort(cards,function(a,b) return xByCard[a]>xByCard[b] end)
 	return cards
 end
 

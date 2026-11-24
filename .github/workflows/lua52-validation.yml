@@ -18,6 +18,7 @@ jobs:
       - name: Validate project structure and Lua
         shell: pwsh
         run: ./tools/validate-project.ps1 -RequireLua52
+      # Includes every former focused combat-regressions test; run each once.
       - name: All Lua regression tests
         shell: bash
         run: |

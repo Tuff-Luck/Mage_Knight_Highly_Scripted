@@ -6373,7 +6373,7 @@ local function refreshCombatEnemyPanel(monsters,calculated)
         end
     end
     for _,entry in ipairs(entries) do
-        local obj=getObjectFromGUID(entry.guid)
+        local obj=monsters[entry.guid]
         entry.x=obj~=nil and obj.getPosition()[1] or 0
         -- Card effects on one enemy (Armour reduction never goes below 1).
         local effect=enemyEffects~=nil and enemyEffects[entry.guid] or nil

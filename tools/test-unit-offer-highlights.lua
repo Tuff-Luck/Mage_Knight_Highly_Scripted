@@ -3,6 +3,34 @@ local h=assert(io.open("src/PlayingGame/Offers.lua","r"))
 local src=h:read("*a") h:close()
 local start=assert(src:find("-- Unit-offer recruitment highlights.",1,true))
 local finish=assert(src:find("-- The Spell browser uses",start,true))
+-- Unit offer sorting snapshots each position exactly once and keeps the
+-- original right-to-left order without including non-Unit objects.
+local sortStart=assert(src:find("unitOfferCards=function()",1,true))
+local sortEnd=assert(src:find("-- Unit-offer recruitment highlights.",sortStart,true))
+local function sortable(guid,x,isUnit)
+    local obj={guid=guid,isUnit=isUnit,reads=0}
+    function obj.getPosition() obj.reads=obj.reads+1 return {x,0,0} end
+    return obj
+end
+local left=sortable("left",-8,true)
+local right=sortable("right",8,true)
+local middle=sortable("middle",0,true)
+local other=sortable("other",12,false)
+local zone={getObjects=function() return {left,right,middle,other} end}
+local env={
+    GUID={zone={unitOffer="offer"}},
+    getObjectFromGUID=function(guid) if guid=="offer" then return zone end end,
+    unitOfferIsUnit=function(obj) return obj.isUnit end
+}
+assert(load(src:sub(sortStart,sortEnd-1),"offer sorting","t",setmetatable(env,{__index=_G})))()
+local sorted=env.unitOfferCards()
+assert(#sorted==3 and sorted[1]==right and sorted[2]==middle and sorted[3]==left,
+    "Unit offer retains right-to-left order")
+assert(left.reads==1 and middle.reads==1 and right.reads==1 and other.reads==0,
+    "Each eligible Unit position is read exactly once")
+zone=nil
+assert(#env.unitOfferCards()==0,"Missing offer zone is safe")
+
 local items={}
 local function unit(guid)
     local o={guid=guid,changes=0,clears=0}

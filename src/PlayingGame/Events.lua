@@ -2244,6 +2244,26 @@ local competitiveSkillStateTargetByGUID={
 	["68f864"]="036e6b"  --Zirtae: Athena's Guile -> Hade's Resentment
 }
 
+-- Static trap art in die-result order; Data is loaded before Events.
+local TRAP_IMAGES_BY_BAG={
+	[monsterPiles.pyramidTrap]={
+		"https://steamusercontent-a.akamaihd.net/ugc/9508097467808968985/1AD863210453EFF576A15527777E7C5E31F9EC93/", -- Gold
+		"https://steamusercontent-a.akamaihd.net/ugc/13810202743907142900/76AF5A7290CA73D540748F724C7BE2B2E5A777C5/", -- Black
+		"https://steamusercontent-a.akamaihd.net/ugc/14739918052302431123/46BE9CE8E240D292A486F5A7CCD623D9880626D6/", -- Red
+		"https://steamusercontent-a.akamaihd.net/ugc/13951722604068836390/C3578979A8A14BF4F10ACC0A49B0EF95B171BBD9/", -- Green
+		"https://steamusercontent-a.akamaihd.net/ugc/10610671779031444146/6E1CFD8561A99C833C63A96110899BBA3267275E/", -- Blue
+		"https://steamusercontent-a.akamaihd.net/ugc/12287773203439696041/71B8553A65F222526279CD17461A9EBA9657154C/" -- White
+	},
+	[monsterPiles.zigguratTrap]={
+		"https://steamusercontent-a.akamaihd.net/ugc/10191292085001539923/E38D99F821EA897C948D77925F4D7651A8BA9F8F/", -- Gold
+		"https://steamusercontent-a.akamaihd.net/ugc/17636661188554526922/7DC7714EA95B3B4517E3105CAD85A111C2878B63/", -- Black
+		"https://steamusercontent-a.akamaihd.net/ugc/11039385731712809880/156DE139292E6D662CD5549B6053DA4326DF2836/", -- Red
+		"https://steamusercontent-a.akamaihd.net/ugc/10752341567973322991/65535F357B15C26D51E62C3C8A39DBE4D26EE9A6/", -- Green
+		"https://steamusercontent-a.akamaihd.net/ugc/17579437605089059358/89A6345E965E798021FA181063DE02FF79B9C7A5/", -- Blue
+		"https://steamusercontent-a.akamaihd.net/ugc/9254811815622642090/26E41B4769CC5BDBF5B22A14B31295C35106B8B1/" -- White
+	}
+}
+
 function __onObjectLeaveContainer_raw(bag, obj)
 	obj=eventsLiveObject(obj)
 	if obj==nil then return end
@@ -2325,18 +2345,6 @@ function __onObjectLeaveContainer_raw(bag, obj)
 	if bag~=nil and (bag.guid==monsterPiles.pyramidTrap or bag.guid==monsterPiles.zigguratTrap) then
 		local trapGUID=obj.guid
 		local trapBagGUID=bag.guid
-		local trapImage={[monsterPiles.pyramidTrap]={"https://steamusercontent-a.akamaihd.net/ugc/9508097467808968985/1AD863210453EFF576A15527777E7C5E31F9EC93/",--Gold Trap Pyramid
-									 "https://steamusercontent-a.akamaihd.net/ugc/13810202743907142900/76AF5A7290CA73D540748F724C7BE2B2E5A777C5/",--Black Trap Pyramid
-									 "https://steamusercontent-a.akamaihd.net/ugc/14739918052302431123/46BE9CE8E240D292A486F5A7CCD623D9880626D6/",--Red Trap Pyramid
-									 "https://steamusercontent-a.akamaihd.net/ugc/13951722604068836390/C3578979A8A14BF4F10ACC0A49B0EF95B171BBD9/",--Green Trap Pyramid
-									 "https://steamusercontent-a.akamaihd.net/ugc/10610671779031444146/6E1CFD8561A99C833C63A96110899BBA3267275E/",--Blue Trap Pyramid
-									 "https://steamusercontent-a.akamaihd.net/ugc/12287773203439696041/71B8553A65F222526279CD17461A9EBA9657154C/"},--White Trap Pyramid
-						 [monsterPiles.zigguratTrap]={"https://steamusercontent-a.akamaihd.net/ugc/10191292085001539923/E38D99F821EA897C948D77925F4D7651A8BA9F8F/",--Gold Trap Ziggurat
-									 "https://steamusercontent-a.akamaihd.net/ugc/17636661188554526922/7DC7714EA95B3B4517E3105CAD85A111C2878B63/",--Black Trap Ziggurat
-									 "https://steamusercontent-a.akamaihd.net/ugc/11039385731712809880/156DE139292E6D662CD5549B6053DA4326DF2836/",--Red Trap Ziggurat
-									 "https://steamusercontent-a.akamaihd.net/ugc/10752341567973322991/65535F357B15C26D51E62C3C8A39DBE4D26EE9A6/",--Green Trap Ziggurat
-									 "https://steamusercontent-a.akamaihd.net/ugc/17579437605089059358/89A6345E965E798021FA181063DE02FF79B9C7A5/",--Blue Trap Ziggurat
-									 "https://steamusercontent-a.akamaihd.net/ugc/9254811815622642090/26E41B4769CC5BDBF5B22A14B31295C35106B8B1/"}}--White Trap Ziggurat
 		--roll volkares dice and read result
 		local randomTrap=math.random(6)
 		local damageAdjust=0
@@ -2344,7 +2352,7 @@ function __onObjectLeaveContainer_raw(bag, obj)
 		safeWaitFrames("Events",function() safeWaitCondition("Events.trapEnter",function()
 			local trap=getObjectFromGUID(trapGUID)
 			if trap~=nil then
-				trap.setCustomObject({image=trapImage[trapBagGUID][randomTrap]})
+				trap.setCustomObject({image=TRAP_IMAGES_BY_BAG[trapBagGUID][randomTrap]})
 				if gStates.monsterPerks[trapGUID]==nil then gStates.monsterPerks[trapGUID]={} end
 				if randomTrap==1 then gStates.monsterPerks[trapGUID].attack={M={4+damageAdjust}} end
 				if randomTrap==2 then gStates.monsterPerks[trapGUID].brutal=true gStates.monsterPerks[trapGUID].cumbersome=true	gStates.monsterPerks[trapGUID].attack={P={4+damageAdjust}} end
