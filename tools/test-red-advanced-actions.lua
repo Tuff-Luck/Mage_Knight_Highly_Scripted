@@ -17,6 +17,7 @@ end
 local data=source("src/Data.lua")
 local reader=source("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local actionLinks=source("src/PlayingGame/PlayerBoard/ResourceTracker/ActionLinks.lua")
+local explosiveBolt=source("src/PlayingGame/PlayerBoard/ResourceTracker/ExplosiveBolt.lua")
 
 -- Counterattack is a bonus per completely Blocked ENEMY, not per attack.
 contains(data,"blockedEnemyAttackBonus={normal=2,powered=3}","Counterattack amounts")
@@ -32,13 +33,13 @@ contains(data,"defeatArmourReduce=1","Explosive Bolt rule")
 contains(reader,'#explosiveAttack','Separate Armour target')
 contains(reader,'combatConfig.applyExplosiveBoltRange(entries,groups,allocated,sources)',
     "Explosive Bolt resolves before the Block phase")
-contains(reader,'or combatEnemyHasTrait(target.data,target.perks,"arcaneImmunity")',
+contains(explosiveBolt,'or combatEnemyHasTrait(target.data,target.perks,"arcaneImmunity")',
     "Arcane Immunity protects against Armour reduction")
-contains(reader,"rangedVictims[enemy.guid]=true","Track prior Ranged defeats")
-contains(reader,'combatEnemyHasTrait(target.data,target.perks,"fResist")',
+contains(explosiveBolt,"rangedVictims[enemy.guid]=true","Track prior Ranged defeats")
+contains(explosiveBolt,'combatEnemyHasTrait(target.data,target.perks,"fResist")',
     "Fire resistant targets remain protected")
-contains(reader,"math.max(1,member.baseArmour-delta)","Armour minimum one")
-contains(reader,'member.rangeBaseArmour=math.max(1,',
+contains(explosiveBolt,"math.max(1,member.baseArmour-delta)","Armour minimum one")
+contains(explosiveBolt,'member.rangeBaseArmour=math.max(1,',
     "Armour reduction also applies to subsequent Ranged-phase attacks")
 contains(reader,'icon="MKChoiceArmourReduction"',"Combat reduction icon")
 
