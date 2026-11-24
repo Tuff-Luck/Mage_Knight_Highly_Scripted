@@ -11,12 +11,8 @@ end
 
 local source=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local xml=read("src/UI/CombatEnemyPanel.xml")
-local start=assert(source:find("combatConfig.enemyNameColumnWidth=function(label)",1,true))
-local finish=assert(source:find("local function combatAssignmentRefreshRows(entries,sources)",start, true))
-local env=setmetatable({combatConfig={}},{__index=_G})
-local sizing=source:sub(start,finish-1)..
-    "\nreturn combatConfig.enemyNameColumnWidth,combatConfig.traitColumnWidth,combatConfig.textColumnWidth"
-local nameWidth,traitWidth,textWidth=assert(load(sizing,"Combat column sizing","t",env))()
+local layout=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/CombatPanelLayout.lua")
+local nameWidth,traitWidth,textWidth=layout.enemyNameColumnWidth,layout.traitColumnWidth,layout.textColumnWidth
 
 assert(nameWidth("Ice Mages")<100,"A short enemy name should shrink below the old 100px minimum")
 assert(nameWidth("Apocalypse Dragon Head")>nameWidth("Ice Mages"),
@@ -77,4 +73,39 @@ for i=1,8 do
             id.." needs best-fit text when its content is unusually long")
     end
 end
+-- UTF-8 continuation bytes must not inflate the estimated width.
+assert(nameWidth("漢漢漢漢漢")==93,"Five CJK codepoints, not fifteen UTF-8 bytes")
+assert(nameWidth("éééééé")==78,"Six two-byte glyphs counted once each")
+assert(nameWidth("😀😀😀😀")==86,"Four supplementary codepoints counted once each")
+assert(nameWidth("WWWWWW")>nameWidth("iiiiii"),"Wide and narrow glyphs differ")
+local entries={}
+for i=1,9 do entries[i]={guid=tostring(i),name="Enemy "..i} end
+local function page(expectedPage,expectedPages,expectedOffset,expectedEnd,expectedRows,
+    list,joined,crowded,rows,requested)
+    local p,n,o,e,v=layout.paginate(list,joined,crowded,rows,requested)
+    assert(p==expectedPage and n==expectedPages and o==expectedOffset
+        and e==expectedEnd and v==expectedRows,
+        "Unexpected pagination: "..table.concat({p,n,o,e,v},","))
+end
+page(1,1,0,0,0,{}, {},4,8,8)
+page(1,1,0,3,3,{entries[1],entries[2],entries[3]}, {},4,8,1)
+page(1,3,0,4,4,entries,{},4,8,0)
+page(3,3,8,9,1,entries,{},4,8,99)
+page(1,3,0,3,3,entries,{["5"]=true},4,8,1)
+page(2,3,3,7,4,entries,{["5"]=true},4,8,2)
+-- An oversized group must not stall pagination or leave a blank page.
+page(1,3,0,4,4,entries,{["2"]=true,["3"]=true,["4"]=true,["5"]=true},4,8,1)
+entries[4].destroyed=true
+page(1,3,0,4,4,entries,{["5"]=true},4,8,1)
+entries[4].destroyed=nil
+entries[5].attackOnly=true
+page(1,3,0,4,4,entries,{["5"]=true},4,8,1)
+entries[5].attackOnly=nil
+entries[2].name="Long Apocalypse Dragon Head"
+entries[6].name="Much Longer Offscreen Apocalypse Dragon Name"
+local visibleWidth=layout.nameColumnWidth(entries,{[2]={leader=1}},0,4)
+assert(visibleWidth==nameWidth("+ "..entries[2].name),"Visible joined name includes prefix")
+assert(visibleWidth<nameWidth(entries[6].name),"Offscreen enemy does not widen visible page")
+assert(layout.nameColumnWidth(entries,{},0,0)==74,"Empty page uses minimum name width")
+assert(entries[4].destroyed==nil and entries[5].attackOnly==nil,"Pagination does not mutate entries")
 print("Compact combat column layout regressions passed")
