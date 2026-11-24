@@ -351,7 +351,6 @@ combatConfig.slotBowFamilies={}
 -- Effect-only buttons share the resource slots, without adding any Block/Attack.
 combatConfig.effectSources={}
 combatConfig.blockedEnemyCounts={}
-combatConfig.conversionState={}
 local combatAssignmentRowTargets={}
 local combatEnemyPage=1
 local combatAssignmentRowIndices={}
@@ -541,13 +540,20 @@ combatConfig.conversionFor=function(seat,kind,preview)
     local active=cards~=nil and cards[guid] or nil
     local valid=active~=nil and active.combatConversion==kind
         and active.resources~=nil
-    local state=combatConfig.conversionState[seat]
-    if state==nil then
-        state={}
-        combatConfig.conversionState[seat]=state
+    -- gStates is the save/rewind authority. Seat keys are strings to
+    -- avoid sparse-array ambiguity in TTS JSON.
+    if gStates==nil then return nil,0,false,nil end
+    local saved=type(gStates.resourceCardConversions)=="table"
+        and gStates.resourceCardConversions or {}
+    local seatKey=tostring(seat)
+    local state=type(saved[seatKey])=="table" and saved[seatKey] or {}
+    if not preview then
+        gStates.resourceCardConversions=saved
+        saved[seatKey]=state
     end
     -- Normalise a missing choice before any counter is read.
-    local choice=state[kind] or {attack=0,ranged=0,block=0,element="F"}
+    local choice=type(state[kind])=="table" and state[kind]
+        or {attack=0,ranged=0,block=0,element="F"}
     if preview then
         -- Object UI is built before the current scan is published. Never
         -- clamp the saved counters from that potentially stale preview.
@@ -560,8 +566,11 @@ combatConfig.conversionFor=function(seat,kind,preview)
             else copy[key]=value end
         end
         choice=copy
-    else
+    elseif valid then
         state[kind]=choice
+    else
+        state[kind]=nil
+        return {attack=0,ranged=0,block=0,element="F"},0,false,active
     end
     local available=0
     if valid and cards~=nil then
@@ -3163,8 +3172,7 @@ local function combatCalcShutdown()
     combatConfig.slotSelection={}
     combatConfig.effectSources={}
     combatConfig.blockedEnemyCounts={}
-    combatConfig.conversionState={}
-    combatConfig.panelHeight=0
+        combatConfig.panelHeight=0
     if gStates~=nil then gStates.combatBossManual={} end
     combatTrackedSeat=nil
     combatTrackedEnemies={}
@@ -3792,9 +3800,12 @@ combatConfig.compositeChoicePhase=function(guid,choice)
     if found.attack and not found.block then return "attack" end
     if found.block then return "block" end
     if found.move then
-        return combatCalcOn and combatCumbersomeActive
-            and resourceCardsMoveRole(guid,false)=="combat"
-            and "block" or "move"
+        if resourceCardsMoveRole(guid,false)=="combat" then
+            -- Combat Move without Cumbersome can still pay for conversions
+            -- or Spell costs, but is not ordinary map movement or Block.
+            return combatCumbersomeActive and "block" or "combatMove"
+        end
+        return "move"
     end
     local data=gameCards[guid]
     local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
@@ -5580,7 +5591,7 @@ trackerPrivate.copyCardSelection=function(selection,fromSave)
 end
 
 function resourceCardsChoicesSave()
-    return trackerPrivate.trackerLifecycle.choicesSave(selectedResourceByGUID,trackerPrivate)
+    return trackerPrivate.trackerLifecycle.choicesSave(selectedResourceByGUID,trackerPrivate,resourceObjectKind)
 end
 
 function resourceCardsChoicesRestore()
