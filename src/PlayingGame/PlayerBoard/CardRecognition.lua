@@ -502,22 +502,38 @@ end
 -- source; additional arrows transfer individual points from that same pool.
 -- While such an explicit allocation exists, conversions must use OTHER
 -- unassigned sources. The player can remove/retarget an arrow to free its pool.
-local function combatConversionReserved(key,amount,field)
-    if amount<=0 or combatAssignmentState.explicit[key]~=true then return 0 end
+-- Both scan-time Spell costs and calculator-time conversions use this
+-- reservation policy. A saved arrow is authoritative even before the
+-- calculator has reconstructed its target cache after a load.
+combatConfig.sharedSpendable=function(key,amount,field,moveEligible)
+    amount=math.max(0,tonumber(amount) or 0)
+    if amount==0 then return 0 end
+    if combatConfig.phaseKeyLocked~=nil and combatConfig.phaseKeyLocked(key) then return 0 end
+    local function reserves(target)
+        if field=="move" then
+            local eligible=moveEligible or resourceCardsCombatTargetAcceptsMove
+            return eligible~=nil and eligible(target)
+        end
+        return field=="influence" and combatConfig.hasPsychicAttack~=nil
+            and combatConfig.hasPsychicAttack(target)
+    end
     local target=combatAssignmentState.targets[key]
-    if target==nil then return 0 end
-    -- An ordinary Attack target does not reserve unrelated Influence. Only
-    -- an actual Cumbersome/Psychic target owns the respective shared pool.
-    if field=="move" and resourceCardsCombatTargetAcceptsMove~=nil
-        and resourceCardsCombatTargetAcceptsMove(target) then return amount end
-    if field=="influence" and combatConfig.hasPsychicAttack~=nil
-        and combatConfig.hasPsychicAttack(target) then return amount end
-    return 0
+    if target~=nil and combatAssignmentState.explicit[key]==true and reserves(target) then return 0 end
+    if attackAssignmentsTargetGUIDs~=nil then
+        for guid in pairs(attackAssignmentsTargetGUIDs(key)) do
+            if reserves(guid) then return 0 end
+        end
+    end
+    return amount
+end
+
+combatConfig.sharedSourceKey=function(guid,record)
+    return record.splitTargets~=nil and (guid.."#block") or guid
 end
 
 -- Player-set conversions spend only unassigned Move/Influence. A card already
 -- assigned to Cumbersome or Psychic Block must not be silently cannibalised.
-combatConfig.conversionFor=function(seat,kind)
+combatConfig.conversionFor=function(seat,kind,preview)
     if seat==nil then return nil,0,false,nil end
     local scan=seat~=nil and resourceCardScanBySeat[seat] or nil
     local cards=scan~=nil and scan.cards or nil
@@ -532,7 +548,21 @@ combatConfig.conversionFor=function(seat,kind)
     end
     -- Normalise a missing choice before any counter is read.
     local choice=state[kind] or {attack=0,ranged=0,block=0,element="F"}
-    state[kind]=choice
+    if preview then
+        -- Object UI is built before the current scan is published. Never
+        -- clamp the saved counters from that potentially stale preview.
+        local copy={}
+        for key,value in pairs(choice) do
+            if type(value)=="table" then
+                local nested={}
+                for index,item in pairs(value) do nested[index]=item end
+                copy[key]=nested
+            else copy[key]=value end
+        end
+        choice=copy
+    else
+        state[kind]=choice
+    end
     local available=0
     if valid and cards~=nil then
         for sourceGUID,record in pairs(cards) do
@@ -543,10 +573,8 @@ combatConfig.conversionFor=function(seat,kind)
             end
             -- A manually targeted source retains its entire remaining pool.
             -- Split-target cards put Move/Influence on their Block source.
-            local sourceKey=record.splitTargets~=nil and (sourceGUID.."#block")
-                or sourceGUID
-            available=available+math.max(0,
-                amount-combatConversionReserved(sourceKey,amount,field))
+            local sourceKey=combatConfig.sharedSourceKey(sourceGUID,record)
+            available=available+combatConfig.sharedSpendable(sourceKey,amount,field)
         end
     end
     choice.attack=math.max(0,math.floor(tonumber(choice.attack) or 0))
@@ -736,7 +764,7 @@ local function combatAssignmentSources(seat)
             if amount<=0 then break end
             local value=field=="move" and source.move or source.psychicInfluence
             if value~=nil and value>0 then
-                local spendable=math.max(0,value-combatConversionReserved(source.key,value,field))
+                local spendable=combatConfig.sharedSpendable(source.key,value,field)
                 local consumed=math.min(spendable,amount)
                 if field=="move" and source.damagePhaseWound then lateMoveSpent=lateMoveSpent+consumed end
                 local remaining=value-consumed
@@ -5310,6 +5338,14 @@ local function renderSeat(seatPos)
     trackerPrivate.scanFinalization.wingsNight({
         pendingWingsNight=pendingWingsNight, records=records, resourceCardsMoveRole=resourceCardsMoveRole,
         monsters=monsters, enemyEffects=enemyEffects, totals=totals,
+        sharedSpendable=combatConfig.sharedSpendable,sharedSourceKey=combatConfig.sharedSourceKey,
+        moveEligible=function(guid)
+            local obj=monsters[guid]
+            if obj==nil or obj.is_face_down==true then return false end
+            local effect=enemyEffects[guid]
+            if effect~=nil and effect.grantCumbersome==true then return true end
+            return resourceCardsCombatTargetAcceptsMove(guid)
+        end,
     })
 
     local ruthlessReadySpent,readyNeedsRescan
@@ -5321,6 +5357,7 @@ local function renderSeat(seatPos)
     trackerPrivate.scanPublication.publish({
         seatPos=seatPos, records=records, resourceCardsMoveRole=resourceCardsMoveRole,
         combatForgetPhysicalSourceTargets=combatForgetPhysicalSourceTargets,
+        showChoiceButtons=showChoiceButtons,objects=objects,
         trackerPrivate=trackerPrivate, combatEnemyInPlay=combatEnemyInPlay, terrainModifiers=terrainModifiers,
         terrainModifierPrecedes=terrainModifierPrecedes, totals=totals, movementEffects=movementEffects,
         attackTransforms=attackTransforms, resourceCardsSyncInteractionPower=resourceCardsSyncInteractionPower,
