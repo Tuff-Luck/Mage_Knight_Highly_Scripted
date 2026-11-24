@@ -203,21 +203,27 @@ function M.reconcileChoiceTargets(unit,abilities,activation,unitManaDecision,com
         local decision=unitManaDecision(unit,abilities,entry,
             entry.frozenCounts or entry.lastCounts)
         local combatBlocked=combatConfig.unitCombatBlocked(unit,abilities,useIndex)
+        local key=unitHistoryKey(unit.guid,useIndex)
+        local moveRole=combatConfig.unitMoveRole(key,false)
+        local denied=combatBlocked and unitHistoryDecisionHasCombat(abilities,decision,moveRole)
         local function allow(index)
             local ability=abilities[index]
-            if ability~=nil and not (combatBlocked and unitHistoryIsCombatAbility(ability))
-                and (unitAbilityTargetCategory(ability)~=nil
-                or ability.enemyEffect~=nil or ability.targetableEnemy==true) then
+            if ability==nil or denied then return end
+            local category=unitAbilityTargetCategory(ability)
+            if category=="move" and moveRole~="combat" then category=nil end
+            -- Do not retire committed Move just because a Cumbersome enemy
+            -- disappeared. The target solver owns enemy eligibility.
+            if category~=nil or (moveRole=="combat" and (tonumber(ability.move) or 0)>0) then
+                allowed[key]=true
+            end
+            if ability.enemyEffect~=nil or ability.targetableEnemy==true then
                 allowed[unitAbilityTargetKey(unit.guid,index,ability,useIndex)]=true
-                -- Preserve the numeric attack target beside its separate
-                -- enemy-effect target, including earlier Command uses.
-                if ability.enemyEffect~=nil and unitAbilityTargetCategory(ability)~=nil then
-                    allowed[unitHistoryKey(unit.guid,useIndex)]=true
-                end
             end
         end
         if abilities.multi==true then
-            for index in pairs(decision.selected or {}) do allow(index) end
+            for index,chosen in pairs(decision.selected or {}) do
+                if chosen==true then allow(index) end
+            end
         elseif decision.index~=nil then
             allow(decision.index)
         end
@@ -342,11 +348,9 @@ function M.choiceClicked(player,value,id,moveRoleAvailable,trackerPrivate,unitMa
     if (tonumber(abilities[index].move) or 0)>0 then
         gStates.resourceCardMoveRoles=gStates.resourceCardMoveRoles or {}
         local sourceKey=unitHistoryKey(unitGUID,useIndex)
-        local before=resourceCardsMoveRole(sourceKey,true)
         gStates.resourceCardMoveRoles[sourceKey]=combatMoveChoice and "combat" or "movement"
-        if before=="combat" and not combatMoveChoice then
-            attackAssignmentsClearForObject(sourceKey)
-        end
+        -- Reconcile exact activation keys below; clearing the bare GUID
+        -- would also remove every later use of this same physical Unit.
     end
     resourceUnitsReconcileChoiceTargets(unit,abilities,activation)
     unitHistoryValidSources(current.seatPos)
@@ -362,6 +366,7 @@ function M.borrowedUnitEnded(guid,combatForgetPhysicalSourceTargets,removeChoice
         and gStates.unitResourceActivations[guid] or nil
     if activation~=nil and activation.callOffer==true then
         gStates.unitResourceActivations[guid]=nil
+        if gStates.resourceCardMoveRoles~=nil then gStates.resourceCardMoveRoles[guid]=nil end
     end
     -- Retire the old Unit's combat source first. A failed Object UI update
     -- must never leave its target arrow behind when Call to Arms cycles.
