@@ -133,7 +133,7 @@ local targetFunctions=slice(reader,
     "local function unitAbilityTargetCategory(ability)",
     "-- The printed normal and powered effects share one choice")
 local buttonFunction=slice(reader,
-    "local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decision,useIndex)",
+    'local showUnitAbilityButtons=require("PlayingGame.PlayerBoard.ResourceTracker.UnitControls")({',
     "local function clearChoiceButtons()")
 local moveRole=slice(reader,"local function resourceCardsMoveRole(guid,assign)",
     "function resourceCardsEnemyPresent()")
@@ -212,7 +212,7 @@ assert(hasButton(catUi,"AttackAssignmentSource_1aa68c_0_siegeIce"),
     "Selected Catapults Siege has a single enemy target")
 assert(reader:find("allowed[unitHistoryKey(unit.guid,useIndex)]=true",1,true),
     "Switching Sorcerers' effects must preserve their numeric ranged target")
-assert(reader:find('targetSpecs[1].index==targetSpecs[2].index',1,true),
+assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/UnitControls.lua"):find('targetSpecs[1].index==targetSpecs[2].index',1,true),
     "Separate Ranged/effect buttons should be distinguishable")
 
 print("Level III Freezers, Sorcerers and Catapults regressions passed.")

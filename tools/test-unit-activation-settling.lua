@@ -156,7 +156,7 @@ eq(decide(unit,abilities,{seatPos=1,choice=1},{}).index,1,
 local targetCode=extract(reader,"local function unitAbilityTargetCategory(ability)",
     "-- The printed normal and powered effects share one choice")
 local buttonCode=extract(reader,
-    "local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decision,useIndex)",
+    'local showUnitAbilityButtons=require("PlayingGame.PlayerBoard.ResourceTracker.UnitControls")({',
     "local function clearChoiceButtons()")
 local moveRole=extract(reader,"local function resourceCardsMoveRole(guid,assign)",
     "function resourceCardsEnemyPresent()")

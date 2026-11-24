@@ -1,3 +1,4 @@
+package.path="src/?.lua;"..package.path
 -- Reproduce the Peasants (484fa3) option expansion / target regression.
 -- Run from repository root: lua5.2 tools/test-unit-choice-collapse.lua
 local function read(path)
@@ -26,7 +27,7 @@ assert(#printed==4 and printed[4].move==2,"Peasants test needs printed Move 2")
 
 local code=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local renderer=extract(code,
-    "local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decision,useIndex)",
+    'local showUnitAbilityButtons=require("PlayingGame.PlayerBoard.ResourceTracker.UnitControls")({',
     "local function clearChoiceButtons()")
 local handler=extract(code,
     "function resourceUnitsChoiceClicked(player,value,id)",
@@ -98,6 +99,11 @@ return {
         return unit.UI.nodes
     end,
     cumbersome=function(value) combatCumbersomeActive=value end,
+    resetCaches=function()
+        choiceButtonShown={}
+        choiceExpandedByGUID={}
+    end,
+    loseControls=function() unit.UI.nodes={} end,
     role=function() return resourceCardsMoveRole(unit.guid) end
 }
 ]],"Peasants Unit option regression","t",_G))(printed)
@@ -149,4 +155,12 @@ assert(hasButton(buttons,"ResourceCardChoice_484fa3_unit4Combat"),
 buttons=fixture.click(4,true)
 assert(fixture.role()=="combat","Combat-Move button must select the combat role")
 assertCollapsed(buttons,4,"move")
+-- A reload/reset replaces both shared UI-cache tables. A renderer retaining
+-- the old expanded table would incorrectly reopen all four options.
+fixture.click(4)
+fixture.resetCaches()
+assertCollapsed(fixture.draw(),4,"move")
+-- TTS may apply UI asynchronously; recreate missing buttons despite the cache.
+fixture.loseControls()
+assertCollapsed(fixture.draw(),4,"move")
 print("Peasants Unit option expansion, collapse and Move target regressions passed")

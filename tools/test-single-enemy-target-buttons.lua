@@ -1,3 +1,4 @@
+package.path="src/?.lua;"..package.path
 -- Single-enemy combat: only redundant automatic target buttons are hidden.
 -- Run from repo root: lua5.2 tools/test-single-enemy-target-buttons.lua
 local function read(path)
@@ -86,7 +87,7 @@ local targetFunctions=slice(source,
     "local function unitAbilityTargetCategory(ability)",
     "-- The printed normal and powered effects share one choice")
 local unitButtons=slice(source,
-    "local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decision,useIndex)",
+    'local showUnitAbilityButtons=require("PlayingGame.PlayerBoard.ResourceTracker.UnitControls")({',
     "local function clearChoiceButtons()")
 local moveRole=slice(source,"local function resourceCardsMoveRole(guid,assign)",
     "function resourceCardsEnemyPresent()")
