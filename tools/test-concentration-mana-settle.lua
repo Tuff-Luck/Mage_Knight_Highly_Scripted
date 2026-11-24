@@ -25,7 +25,7 @@ assert(data:find('swiftness={normal={move=2},powered={ranged=3}}',1,true),
 assert(data:find('poweredLink={mode="stronger",bonus=2,',1,true),
     "Concentration powered Action link changed")
 
-local manaCode=section(src,'local manaColor=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").manaColor','factionRewardForObject=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").factionRewardForObject')
+local manaCode=section(src,'local manaColor=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").manaColor',"-- Magic Talent's strong side")
 local bonusCode=section(src,"local function applyLinkedResourceBonus(effects,link)",
     'local effectManaPossibilities=require("PlayingGame.PlayerBoard.ResourceTracker.ManaPayments").effectManaPossibilities')
 local linksCode=section(src,"local function resolveActionLinks(cards,wounds,footprints,manaPowered,skillLinksByTarget)",

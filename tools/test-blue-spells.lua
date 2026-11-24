@@ -95,6 +95,9 @@ local playObjects={spell,blue,black}
 getObjectFromGUID=function(guid)
     if guid=="play" then return {getObjects=function() return playObjects end} end
 end
+package.path="src/?.lua;"..package.path
+trackerPrivate=trackerPrivate or {}
+trackerPrivate.manaPayments=require("PlayingGame.PlayerBoard.ResourceTracker.ManaPayments")
 local paid=isolated(recognition,
     "function resourceCardsTimeBendingPaid(seatPos,card)",
     "-- Physical mana is authoritative", "resourceCardsTimeBendingPaid")

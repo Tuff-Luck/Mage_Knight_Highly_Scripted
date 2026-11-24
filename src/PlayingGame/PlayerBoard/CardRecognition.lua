@@ -8720,28 +8720,10 @@ trackerPrivate.readyForXZ=require("PlayingGame.PlayerBoard.ResourceTracker.Physi
 -- Magic Talent's strong side consumes TWO distinct mana objects, not the
 -- single mana that normally powers an Advanced Action. Read the same released
 -- die faces/crystals as the ordinary tracker, even when its panel is minimized.
+trackerPrivate.manaPayments=require("PlayingGame.PlayerBoard.ResourceTracker.ManaPayments")
 function magicTalentManaPayments(seatPos)
-    local card=getObjectFromGUID("3d832c")
-    local zone=seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
-    if card==nil or zone==nil then return {} end
-    local area=footprint(card)
-    local payments,seen={},{}
-    local function consider(obj)
-        if obj==nil or seen[obj.guid] or obj.guid==card.guid
-            or not trackerPrivate.readyForXZ(obj) then return end
-        seen[obj.guid]=true
-        local p=obj.getPosition()
-        if math.abs(p[1]-area.x)<area.halfX
-            and math.abs(p[3]-area.z)<area.halfZ then
-            local color=manaColor(obj)
-            if color~=nil then
-                payments[#payments+1]={guid=obj.guid,color=color}
-            end
-        end
-    end
-    for _,obj in ipairs(zone.getObjects()) do consider(obj) end
-    table.sort(payments,function(a,b) return a.guid<b.guid end)
-    return payments
+    return trackerPrivate.manaPayments.magicTalentManaPayments(seatPos,
+        footprint,manaColor,trackerPrivate.readyForXZ)
 end
 
 factionRewardForObject=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").factionRewardForObject
@@ -8842,56 +8824,16 @@ end
 -- This check also works with the Resource Tracker minimized, when its cached
 -- records are deliberately cleared. A lone Black die never casts a Spell.
 function magicTalentSpellCastingPaid(seatPos,guid)
-    local card=guid~=nil and getObjectFromGUID(guid) or nil
-    local data=card~=nil and gameCards[guid] or nil
-    local zone=seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
-    if card==nil or data==nil or data.cardType~="Spell"
-        or zone==nil or card.is_face_down==true
-        or cardPosture(card)~="upright" then return false end
-    local area=footprint(card)
-    local seen={}
-    local function paidBy(mana)
-        if mana==nil or seen[mana.guid] or mana.guid==guid
-            or not trackerPrivate.readyForXZ(mana) then return false end
-        seen[mana.guid]=true
-        local p=mana.getPosition()
-        if math.abs(p[1]-area.x)>=area.halfX
-            or math.abs(p[3]-area.z)>=area.halfZ then return false end
-        local color=manaColor(mana)
-        return color~=nil and color~="Black" and matchesCardMana(card,color)
-    end
-    for _,mana in ipairs(zone.getObjects()) do
-        if paidBy(mana) then return true end
-    end
-    return false
+    return trackerPrivate.manaPayments.magicTalentSpellCastingPaid(seatPos,guid,
+        footprint,cardPosture,manaColor,trackerPrivate.readyForXZ,matchesCardMana)
 end
 
 -- Count distinct physical casting payments for repeated uses of the same
 -- Spell through Maximal Effect + Magic Talent. Only play-zone mana qualifies;
 -- duplicates are counted only once.
 function magicTalentSpellCastingPaymentCount(seatPos,guid)
-    local card=guid~=nil and getObjectFromGUID(guid) or nil
-    local data=card~=nil and gameCards[guid] or nil
-    local zone=seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
-    if card==nil or data==nil or data.cardType~="Spell" or zone==nil
-        or card.is_face_down==true or cardPosture(card)~="upright" then return 0 end
-    local area=footprint(card)
-    local seen,count={},0
-    local function consider(mana)
-        if mana==nil or seen[mana.guid] or mana.guid==guid
-            or not trackerPrivate.readyForXZ(mana) then return end
-        seen[mana.guid]=true
-        local p=mana.getPosition()
-        local x,z=p.x or p[1],p.z or p[3]
-        if math.abs(x-area.x)>=area.halfX
-            or math.abs(z-area.z)>=area.halfZ then return end
-        local color=manaColor(mana)
-        if color~=nil and color~="Black" and matchesCardMana(card,color) then
-            count=count+1
-        end
-    end
-    for _,mana in ipairs(zone.getObjects()) do consider(mana) end
-    return count
+    return trackerPrivate.manaPayments.magicTalentSpellCastingPaymentCount(seatPos,guid,
+        footprint,cardPosture,manaColor,trackerPrivate.readyForXZ,matchesCardMana)
 end
 
 -- A powered link grants a target Action card its strong side for free and can
@@ -9736,25 +9678,8 @@ end
 -- A Maximal Effect power mana object cannot also be one of Magic Talent's
 -- additional casting/claim payments, even if overlapping cards share X/Z.
 function resourceCardsMaximalEffectSourceManaGUIDs(seatPos,sourceGUID)
-    local source=sourceGUID~=nil and getObjectFromGUID(sourceGUID) or nil
-    local zone=seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
-    if source==nil or zone==nil then return {} end
-    local area=footprint(source)
-    local spent,seen={},{}
-    local function inspect(mana)
-        if mana==nil or seen[mana.guid] or mana.guid==sourceGUID
-            or not trackerPrivate.readyForXZ(mana) then return end
-        seen[mana.guid]=true
-        local color=manaColor(mana)
-        if color==nil or not matchesCardMana(source,color) then return end
-        local pos=mana.getPosition()
-        local x,z=pos.x or pos[1],pos.z or pos[3]
-        if math.abs(x-area.x)<area.halfX and math.abs(z-area.z)<area.halfZ then
-            spent[mana.guid]=true
-        end
-    end
-    for _,mana in ipairs(zone.getObjects()) do inspect(mana) end
-    return spent
+    return trackerPrivate.manaPayments.resourceCardsMaximalEffectSourceManaGUIDs(seatPos,sourceGUID,
+        footprint,manaColor,trackerPrivate.readyForXZ,matchesCardMana)
 end
 
 -- One shared linked-throw decision, kept separate from ordinary discard
@@ -9917,21 +9842,8 @@ trackerPrivate.bestManaCard=require("PlayingGame.PlayerBoard.ResourceTracker.Man
 -- Read the physical Blue casting payment and a separate Black strong-side payment;
 -- the mere presence of the Spell in the play area does not establish either.
 function resourceCardsTimeBendingPaid(seatPos,card)
-    if card==nil or card.guid~=GUID.card.timeBending
-        or card.is_face_down==true or cardPosture(card)~="upright"
-        or not resourceCardsBlackAllowed() then return false end
-    local zone=seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
-    if zone==nil then return false end
-    local area=footprint(card)
-    local blue,black=false,false
-    for _,mana in ipairs(zone.getObjects()) do
-        if mana.guid~=card.guid and manaInsideFootprint(mana,area)
-            and (manaClaimDieHeld==nil or not manaClaimDieHeld(mana.guid)) then
-            local color=manaColor(mana)
-            if color=="Blue" then blue=true elseif color=="Black" then black=true end
-        end
-    end
-    return blue and black
+    return trackerPrivate.manaPayments.resourceCardsTimeBendingPaid(seatPos,card,
+        footprint,cardPosture,manaColor,manaInsideFootprint)
 end
 
 -- Physical mana is authoritative for a paid Unit ability. It is read from

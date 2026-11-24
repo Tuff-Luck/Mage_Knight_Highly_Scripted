@@ -32,8 +32,11 @@ local env=setmetatable({
     matchesCardMana=function(_,color) return color=="Blue" end
 },{__index=_G})
 env.require=function(name)
-    assert(name=="PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects", "Unexpected recognition dependency")
-    return assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/PhysicalObjects.lua","t",env))()
+    local modules={
+        ["PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects"]="src/PlayingGame/PlayerBoard/ResourceTracker/PhysicalObjects.lua",
+        ["PlayingGame.PlayerBoard.ResourceTracker.ManaPayments"]="src/PlayingGame/PlayerBoard/ResourceTracker/ManaPayments.lua"
+    }
+    return assert(loadfile(assert(modules[name],"Unexpected payment dependency"),"t",env))()
 end
 assert(load(table.concat({
     section('local manaColor=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").manaColor','factionRewardForObject=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").factionRewardForObject'),
