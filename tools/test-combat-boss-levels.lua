@@ -12,14 +12,13 @@ local combat=read("src/PlayingGame/Combat.lua")
 local leaders=read("src/PlayingGame/FactionLeaders.lua")
 local dragon=read("src/PlayingGame/ApocalypseDragon.lua")
 local ui=read("src/PlayingGame/UI.lua")
-local start=assert(recognition:find("function combatBossLevelCount(",1,true))
-local finish=assert(recognition:find("-- Each Defend symbol",start,true))
-local code=recognition:sub(start,finish-1)
-local env=setmetatable({gStates={combatBossManual={}},
-    combatEnemyHasTrait=function(data,perks,key)
-        return data[key]==true or (perks~=nil and perks[key]==true)
-    end},{__index=_G})
-local count,phase=assert(load(code.."\nreturn combatBossLevelCount,combatBossPhasePlan","boss level rules","t",env))()
+local env={gStates={combatBossManual={}}}
+local defences=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/EnemyDefences.lua")({})
+local engine=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/BossAllocation.lua")(defences.hasTrait)
+local count=engine.levelCount
+local function phase(group,entries,total,kind,blockedAll)
+    return engine.phasePlan(group,entries,total,kind,blockedAll,env.gStates.combatBossManual)
+end
 local function eq(actual,expected,what)
     assert(actual==expected,what..": expected "..tostring(expected)
         ..", got "..tostring(actual))
@@ -80,6 +79,35 @@ env.gStates.combatBossManual[a.guid]=2
 result=phase(group(a),{a},0,"attack",{})
 eq(result.reductions[a.guid],2,"Manual correction handles unrecognised Attack")
 env.gStates.combatBossManual={}
+
+-- Phase-specific Elusive and Defend Armour; no state is written by allocation.
+local elusive=boss("elusive",4,3,3)
+elusive.data.elusive=true
+elusive.rangeElusiveArmour=9
+elusive.defendMeleeBonus=1
+result=phase(group(elusive),{elusive},8,"range",{})
+eq(result.reductions.elusive,1,"Ranged uses phase-specific Elusive Armour minus late Defend")
+result=phase(group(elusive),{elusive},4,"attack",{})
+eq(result.spent,false,"Unblocked Elusive boss needs higher Armour")
+result=phase(group(elusive),{elusive},4,"attack",{elusive=true})
+eq(result.reductions.elusive,1,"Blocked Elusive boss uses ordinary Armour")
+eq(elusive.bossLevel,3,"Allocation does not mutate boss levels")
+local first=boss("first",4,4,0)
+local second=boss("second",4,4,1)
+env.gStates.combatBossManual={second=3}
+result=phase(group(first,second),{first,second},12,"range",{})
+eq(result.reductions.first,1,"Joined allocation reserves first boss Armour")
+eq(result.reductions.second,2,"Manual preference receives spare budget first")
+eq(env.gStates.combatBossManual.second,3,"Allocation does not mutate manual overrides")
+env.gStates.combatBossManual={}
+first.bossRangeLevels=2
+result=phase(group(first),{first},100,"attack",{})
+eq(result.reductions.first,2,"Melee caps reduction at remaining boss levels")
+eq(result.full,true,"Remaining boss levels can be defeated")
+first.rangeDead=true
+result=phase(group(first,second),{first,second},4,"attack",{})
+eq(result.reductions.first,nil,"Previously range-defeated boss does not consume Attack")
+eq(result.reductions.second,1,"Surviving boss receives Attack")
 
 local control={guid="control",bossLevel=0,bossType="control",
     attackOnly=true,data={},perks={},baseArmour=0,elusiveArmour=0}
