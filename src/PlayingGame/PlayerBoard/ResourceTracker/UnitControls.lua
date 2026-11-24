@@ -112,6 +112,7 @@ return function(deps)
             ..":move="..resourceCardsMoveRole(unitHistoryKey(unit.guid,useIndex),false)
             ..":cumbersome="..tostring(combatMoveAvailable)
             ..":psychic="..tostring(combatPsychicActive)
+            ..":combatBlocked="..tostring(combatBlocked)
             ..":targets="..table.concat(targetLabels,",")
         local xml=resourceObjectUiXmlTable(unit.UI)
         if choiceButtonShown[unit.guid]==signature then

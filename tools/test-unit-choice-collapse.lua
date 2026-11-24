@@ -44,7 +44,8 @@ local turnOrder={[1]={seatPos=1}}
 local combatCalcOn=true
 local combatCumbersomeActive=false
 local combatPsychicActive=false
-local combatConfig={unitCombatBlocked=function() return false end}
+local combatBlocked,hideTargets=false,false
+local combatConfig={unitCombatBlocked=function() return combatBlocked end}
 local choiceButtonShown,choiceExpandedByGUID={},{}
 local choiceLetters={}
 local trackerPrivate={unitAbilitiesFor=function() return abilities end}
@@ -56,7 +57,7 @@ local function unitHistorySelectedNumber() return 1 end
 local function unitHistoryKey(guid,index)
     return index==1 and guid or guid.."#use"..index
 end
-local function unitHistoryIsCombatAbility() return false end
+local function unitHistoryIsCombatAbility(ability) return ability.attack~=nil or ability.block~=nil end
 local function unitLayoutResourceState()
     return {units={{guid=unit.guid,unwounded=true}}}
 end
@@ -76,7 +77,7 @@ end
 local function unitAbilityTargetKey(guid,index,ability,useIndex)
     return unitHistoryKey(guid,useIndex)
 end
-local function resourceCardsHideAutomaticEnemyTarget() return false end
+local function resourceCardsHideAutomaticEnemyTarget() return hideTargets end
 local function resourceCardsChoiceIcon() return nil end
 local function resourceCardsChoiceAssetsFor() return nil,{} end
 local function resourceObjectUiXmlTable(ui) return ui.nodes end
@@ -99,6 +100,8 @@ return {
         return unit.UI.nodes
     end,
     cumbersome=function(value) combatCumbersomeActive=value end,
+    combatBlocked=function(value) combatBlocked=value end,
+    hideTargets=function(value) hideTargets=value end,
     resetCaches=function()
         choiceButtonShown={}
         choiceExpandedByGUID={}
@@ -163,4 +166,23 @@ assertCollapsed(fixture.draw(),4,"move")
 -- TTS may apply UI asynchronously; recreate missing buttons despite the cache.
 fixture.loseControls()
 assertCollapsed(fixture.draw(),4,"move")
-print("Peasants Unit option expansion, collapse and Move target regressions passed")
+-- When automatic target buttons are hidden, a change in earlier Command
+-- use can change only the selected option's colour, not its visible IDs.
+fixture.click(4)
+fixture.click(1)
+fixture.hideTargets(true)
+local function selectedAttackColor()
+    local buttons=fixture.draw()
+    for _,node in ipairs(buttons) do
+        if node.attributes.id=="ResourceCardChoice_484fa3_unit1" then
+            return node.attributes.colors
+        end
+    end
+    error("Selected attack control missing")
+end
+assert(selectedAttackColor():find("#387D30",1,true),"Legal Attack is green")
+fixture.combatBlocked(true)
+assert(selectedAttackColor():find("#9C3737",1,true),"Historical combat conflict refreshes red Attack")
+fixture.combatBlocked(false)
+assert(selectedAttackColor():find("#387D30",1,true),"Cleared conflict restores green Attack")
+print("Peasants Unit option expansion, collapse, Move target and combat conflict regressions passed")

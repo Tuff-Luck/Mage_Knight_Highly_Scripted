@@ -14,6 +14,7 @@ local function section(source,first,last)
 end
 local reader=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local assets=read("src/PlayingGame/UIAssets.lua")
+local unitControls=read("src/PlayingGame/PlayerBoard/ResourceTracker/UnitControls.lua")
 
 assert(reader:find('if moveAmount>0 and resourceCardsMoveRole(guid,true)=="combat" then',1,true),
     "Only combat-role Move can become a Calculator source")
@@ -32,13 +33,13 @@ assert(reader:find('image=stackedAsset.name,width=82,height=82',1,true)
 assert(reader:find('if combatCalcOn and combatCumbersomeActive then',1,true)
     and reader:find('if selected~=nil and combatCalcOn and combatCumbersomeActive',1,true),
     "Combat Move choice must disappear when no Cumbersome enemy is available")
-assert(reader:find('if combatMoveAvailable then',1,true)
-    and reader:find('if combatMoveAvailable\n',1,true),
+assert(unitControls:find('if combatMoveAvailable then',1,true)
+    and unitControls:find('if combatMoveAvailable\n',1,true),
     "Unit Combat Move must disappear when no Cumbersome enemy is available")
 assert(reader:find('..":PSY:"..tostring(combatPsychicActive)',1,true),
     "Card icons must refresh when the last Psychic attacker disappears")
-assert(reader:find('local shield=resourceCardsChoiceIcon("block")',1,true)
-    and reader:find('local movement=resourceCardsChoiceIcon("move")',1,true),
+assert(unitControls:find('local shield=resourceCardsChoiceIcon("block")',1,true)
+    and unitControls:find('local movement=resourceCardsChoiceIcon("move")',1,true),
     "Unit combat Move needs the same layered icon")
 assert(assets:find('move={name="MKChoiceMove"',1,true)
     and assets:find('block={name="MKChoiceBlock"',1,true)

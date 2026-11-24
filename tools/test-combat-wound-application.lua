@@ -962,7 +962,7 @@ eq(unusedBlock[1].phaseAfterDamage,true,"changed source is Attack-phase only")
 assert(recognition:find('item.source.phaseLocked and "false" or "true"',1,true),
     "frozen calculator icons must not be clickable")
 assert(recognition:find('combatConfig.phaseObjectLocked(card.guid)',1,true)
-    and recognition:find('combatConfig.phaseObjectLocked(unit.guid)',1,true),
+    and fileText("src/PlayingGame/PlayerBoard/ResourceTracker/UnitControls.lua"):find('combatConfig.phaseObjectLocked(unit.guid)',1,true),
     "locked cards and Units must lose choice and target controls")
 local assignments=fileText("src/PlayingGame/AttackAssignments.lua")
 assert(assignments:find('lock.positions or {}',1,true)
