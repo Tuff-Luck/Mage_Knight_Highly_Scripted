@@ -245,23 +245,16 @@ add(ignored,"immune","unit",{cancelOneAttack=true},"unit#effect2")
 assert(#ignored.immune.attackReductions==0,
     "Arcane Immunity must ignore the Fear cancellation")
 
-local attacksCode=between(recognition,
-    "local function combatOrderedReductions(effect)",
-    "-- Used by Battle Hardened's per-Attack selector.")
-local enemyAttacks,choices=assert(load([[
-local combatReductionAttackChoice={}
-local combatConfig={convertPreyAttacks=function() end}
-local function combatEnemyPrintedAttacks()
-    return {
-        {owner="enemy",slot=1,key="P",label="Physical",value=4},
-        {owner="enemy",slot=2,key="F",label="Fire",value=7}
-    }
+local choices={}
+local engine=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/EnemyAttacks.lua")({
+    {key="P",label="Physical",block="block"},
+    {key="F",label="Fire",block="blockFire"}
+},function(data,perks,key) return data[key]==true or (perks~=nil and perks[key]==true) end,
+    function() return 0 end)
+local function enemyAttacks(entry,includeCancelled)
+    return engine.enemyAttacks(entry,includeCancelled,choices[entry.guid])
 end
-local function combatOrderedReductions(effect)
-]]..attacksCode..[[
-return combatEnemyAttacks,combatReductionAttackChoice
-]]))()
-local entry={guid="enemy",data={},effect=applied.enemy}
+local entry={guid="enemy",data={attack={P={4},F={7}}},effect=applied.enemy}
 local remaining=enemyAttacks(entry)
 assert(#remaining==1 and remaining[1].value==4,
     "Fear defaults to cancel the strongest printed Attack only")

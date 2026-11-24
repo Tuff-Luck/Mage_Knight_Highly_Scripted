@@ -124,10 +124,7 @@ eq(run,true,"Shared per-point pools and phase-aware Move")
 
 -- The actual attack-selection engine must strip only the chosen attack's
 -- offensive abilities, without replacing the attack's Fire/Ice element.
-local reductionHelpers=extract(reader,
-    "-- An Attack reduction modifies one printed Attack",
-    "local function combatEnemyAttacks(entry,includeCancelled)")
-local strip=assert(load(reductionHelpers.."\nreturn combatApplyAttackReductions"))()
+local strip=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/EnemyAttacks.lua")({},nil,nil).applyReductions
 local attacks={
     {value=5,key="F",owner="enemy",brutal=true,swift=true},
     {value=4,key="I",owner="enemy",poison=true,cumbersome=true}}

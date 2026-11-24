@@ -65,15 +65,14 @@ eq(effects.immune.removedPrinted.poison,nil,
     "Arcane Immunity prevents Know Your Prey's non-Attack effects")
 
 -- Compile and execute the exact elemental conversion helper from the calculator.
-local first=assert(calc:find('combatConfig.convertPreyAttacks=function',1,true))
-local last=assert(calc:find('\n-- Summoned tokens are not enemies',first,true))
+local first,last
 combatConfig={attackTypes={
     {key="P",label="Physical",block="block"},
     {key="F",label="Fire",block="blockIce"},
     {key="I",label="Ice",block="blockFire"},
     {key="IF",label="Cold Fire",block="blockColdFire"}
 }}
-assert(load(calc:sub(first,last-1)))()
+combatConfig.convertPreyAttacks=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/EnemyAttacks.lua")(combatConfig.attackTypes,nil,nil).convertPreyAttacks
 local attacks={
     {slot=1,key="F",label="Fire",block="blockIce"},
     {slot=2,key="IF",label="Cold Fire",block="blockColdFire"}
