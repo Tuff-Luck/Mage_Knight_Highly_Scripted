@@ -137,13 +137,13 @@ return function(deps)
                 _,selected=inventorySetChoice(card.guid,row.index,row.choices,choices)
             end
             row.selected=selected
-            if selected~=nil and combatCalcOn and combatCumbersomeActive
-                and shapeshiftField==nil then
+            if selected~=nil and shapeshiftField==nil then
                 for _,option in ipairs(row.choices) do
                     local roleGUID=option.shapeshiftTargetGUID or card.guid
                     local move=(tonumber(option.move) or 0)>0
                         or (option.shapeshiftTargetGUID~=nil and choiceCategory(option)=="move")
                     if choiceCategory(option)==selected and move
+                        and combatConfig.moveRoleAvailable(roleGUID)
                         and resourceCardsMoveRole(roleGUID,false)=="combat" then
                         row.selected="combatMove"..selected
                         break
@@ -181,19 +181,26 @@ return function(deps)
                         -- Two cells, one printed Move effect. Never duplicate points.
                         entry.targetResource=nil
                         row.entries[#row.entries+1]=entry
-                        -- Only offer defensive Move when at least one enemy has
-                        -- Cumbersome. Normal Move stays available otherwise.
-                        if combatCalcOn and combatCumbersomeActive then
+                        -- Combat Move can also pay for conversions and Spells.
+                        -- Cumbersome controls only the defensive icon and target.
+                        if combatConfig.moveRoleAvailable(choice.shapeshiftTargetGUID or card.guid) then
                             local combatEntry={}
                             for key,value in pairs(entry) do combatEntry[key]=value end
                             combatEntry.category="combatMove"..category
                             combatEntry.originalIndex=j+0.5
                             -- Match Tempered Steel: both icons are full-size,
                             -- drawn in order with the Move symbol on top.
-                            combatEntry.icon="block"
-                            combatEntry.stackedIcons={"block","move"}
-                            combatEntry.roleBadge=nil
-                            combatEntry.targetResource=choice.shapeshiftTargetGUID==nil and "move" or nil
+                            if combatCalcOn and combatCumbersomeActive then
+                                combatEntry.icon="block"
+                                combatEntry.stackedIcons={"block","move"}
+                                combatEntry.roleBadge=nil
+                                combatEntry.targetResource=choice.shapeshiftTargetGUID==nil and "move" or nil
+                            else
+                                combatEntry.icon="move"
+                                combatEntry.stackedIcons=nil
+                                combatEntry.roleBadge="C"
+                                combatEntry.targetResource=nil
+                            end
                             row.entries[#row.entries+1]=combatEntry
                         end
                     else
