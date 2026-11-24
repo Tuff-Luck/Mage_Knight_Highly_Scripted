@@ -2759,6 +2759,8 @@ combatConfig.enemyNameColumnWidth=trackerPrivate.combatPanelLayout.enemyNameColu
 combatConfig.textColumnWidth=trackerPrivate.combatPanelLayout.textColumnWidth
 combatConfig.traitColumnWidth=trackerPrivate.combatPanelLayout.traitColumnWidth
 
+trackerPrivate.enemyGroups=require("PlayingGame.PlayerBoard.ResourceTracker.EnemyGroups")
+
 local function combatAssignmentRefreshRows(entries,sources)
     combatConfig.resultRowCache={}
     combatConfig.slotSelection={}
@@ -2787,20 +2789,7 @@ local function combatAssignmentRefreshRows(entries,sources)
     local maxResourceCounts={range=0,block=0,attack=0}
     -- Text shown in the ability columns and the columns that hold anything, so empty columns can be hidden.
     local shownTraits,shownOffence,shownAttacks,colUsed={},{},{},{range=false,block=false,attack=false}
-    -- Joined enemies form a group (the leader is its first row) that is attacked as one.
-    local groups,groupOf={},{}
-    for index=1,#entries do
-        local group=groups[#groups]
-        if index==1 or combatAssignmentJoined[entries[index].guid]~=true
-            or entries[index].destroyed or entries[index-1].destroyed
-            or entries[index].attackOnly or entries[index-1].attackOnly then
-            group={members={},sources={}}
-            groups[#groups+1]=group
-        end
-        group.members[#group.members+1]=index
-        group.leader=group.members[1]
-        groupOf[index]=group
-    end
+    local groups,groupOf=trackerPrivate.enemyGroups.build(entries,combatAssignmentJoined)
     local enemyNameWidth=trackerPrivate.combatPanelLayout.nameColumnWidth(entries,groupOf,pageOffset,pageEnd)
     combatConfig.columns.Name=enemyNameWidth
     for row=1,combatConfig.rowCount do
@@ -3158,13 +3147,7 @@ local function combatAssignmentRefreshRows(entries,sources)
         combatApplyDefend(preview,groups,allocated)
         local remaining=0
         for _,group in ipairs(groups) do
-            local members,rangeSources={},{}
-            for _,index in ipairs(group.members) do
-                members[#members+1]=preview[index]
-                for _,source in ipairs((allocated[index] or {sources={}}).sources) do
-                    rangeSources[#rangeSources+1]=source
-                end
-            end
+            local members,rangeSources=trackerPrivate.enemyGroups.collect(group,preview,allocated)
             local _,_,rangeDefeated=combatRangeResult(combatRangeGroupEntry(members),rangeSources)
             if not rangeDefeated then
                 for _,member in ipairs(members) do
@@ -3224,13 +3207,7 @@ local function combatAssignmentRefreshRows(entries,sources)
         combatApplyDefend(preview,groups,allocated)
         rangedBeforeBlock={}
         for _,group in ipairs(groups) do
-            local members,sources={},{}
-            for _,index in ipairs(group.members) do
-                members[#members+1]=preview[index]
-                for _,source in ipairs((allocated[index] or {sources={}}).sources) do
-                    sources[#sources+1]=source
-                end
-            end
+            local members,sources=trackerPrivate.enemyGroups.collect(group,preview,allocated)
             local _,_,ranged=combatRangeResult(combatRangeGroupEntry(members),sources)
             if ranged and not members[1].attackOnly then
                 for _,index in ipairs(group.members) do rangedBeforeBlock[index]=true end
@@ -3293,19 +3270,7 @@ local function combatAssignmentRefreshRows(entries,sources)
     if conditionalDestroyed then
         -- A newly destroyed member splits joined groups just like a pre-destroyed member.
         -- Keep group visuals and group memberships consistent with the resulting combat.
-        groups,groupOf={},{}
-        for index=1,#entries do
-            local group=groups[#groups]
-            if index==1 or combatAssignmentJoined[entries[index].guid]~=true
-                or entries[index].destroyed or entries[index-1].destroyed
-            or entries[index].attackOnly or entries[index-1].attackOnly then
-                group={members={},sources={}}
-                groups[#groups+1]=group
-            end
-            group.members[#group.members+1]=index
-            group.leader=group.members[1]
-            groupOf[index]=group
-        end
+        groups,groupOf=trackerPrivate.enemyGroups.build(entries,combatAssignmentJoined)
         for index=1,#entries do
             local group=groupOf[index]
             local row=index-pageOffset
