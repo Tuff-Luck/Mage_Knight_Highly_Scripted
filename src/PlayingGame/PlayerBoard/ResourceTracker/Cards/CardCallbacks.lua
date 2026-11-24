@@ -259,6 +259,12 @@ function M.choiceClicked(player,value,id,combatConfig,resourceCardsDetailsOpen,f
     end
     local valid=choiceAvailable(choices,category)
     if not valid then return end
+    local shapeshiftTarget=rule~=nil and rule.shapeshift==true
+        and record~=nil and record.shapeshiftTargetGUID or nil
+    if rule~=nil and rule.shapeshift==true and shapeshiftTarget==nil then return end
+    if shapeshiftTarget~=nil and category=="move" and requestedMoveRole==nil then
+        requestedMoveRole="movement"
+    end
     if requestedMoveRole==nil then
         for _,option in ipairs(choices) do
             if choiceCategory(option)==category and (tonumber(option.move) or 0)>0 then
@@ -300,7 +306,8 @@ function M.choiceClicked(player,value,id,combatConfig,resourceCardsDetailsOpen,f
         -- Opening a row never changes the chosen resource.
         choiceExpandedByGUID[guid]=rowId
         showChoiceButtons(card,mainChoices,powered,inventorySpec,inventorySets,
-            record~=nil and record.resources,record~=nil and record.repeatLink)
+            record~=nil and record.resources,record~=nil and record.repeatLink,
+        record~=nil and record.shapeshiftField)
         return
     end
     local selected=selectedResourceByGUID[guid] or {}
@@ -328,18 +335,20 @@ function M.choiceClicked(player,value,id,combatConfig,resourceCardsDetailsOpen,f
             .."Adjust the other rows; mixed phases contribute nothing until compatible.",
             player.color,warningColor)
     end
+    local roleGUID=shapeshiftTarget or guid
     local previousMoveRole=requestedMoveRole~=nil
-        and resourceCardsMoveRole(guid,true) or nil
+        and resourceCardsMoveRole(roleGUID,true) or nil
     if requestedMoveRole~=nil then
-        gStates.resourceCardMoveRoles[guid]=requestedMoveRole
+        gStates.resourceCardMoveRoles[roleGUID]=requestedMoveRole
     end
     if selectedMoveOnly or (previousMoveRole=="combat"
-        and requestedMoveRole=="movement") then
+        and requestedMoveRole=="movement")
+        or (shapeshiftTarget~=nil and previousCategory~=category) then
         -- Clear both the saved arrow and the independent calculator lock
         -- before the rescan. The newly selected Move stays available for
         -- a deliberate new target, but does not auto-Block any enemy.
-        combatForgetPhysicalSourceTargets(guid)
-        if attackAssignmentsClearForObject~=nil then attackAssignmentsClearForObject(guid) end
+        combatForgetPhysicalSourceTargets(roleGUID)
+        if attackAssignmentsClearForObject~=nil then attackAssignmentsClearForObject(roleGUID) end
     end
     if data~=nil and data.resourceKey=="rejuvenate" then
         gStates.unitReadyCardChoices=gStates.unitReadyCardChoices or {}
@@ -347,7 +356,8 @@ function M.choiceClicked(player,value,id,combatConfig,resourceCardsDetailsOpen,f
     end
     choiceExpandedByGUID[guid]=nil
     showChoiceButtons(card,mainChoices,powered,inventorySpec,inventorySets,
-        record~=nil and record.resources,record~=nil and record.repeatLink)
+        record~=nil and record.resources,record~=nil and record.repeatLink,
+        record~=nil and record.shapeshiftField)
     if data~=nil and data.resourceKey=="rejuvenate" then
         unitHistoryValidSources(currentSeat.seatPos)
         if attackAssignmentsRefreshReadyUI~=nil then attackAssignmentsRefreshReadyUI() end
