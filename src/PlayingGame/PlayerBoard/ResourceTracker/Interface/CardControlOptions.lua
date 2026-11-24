@@ -74,7 +74,7 @@ return function(deps)
         return choices
     end
 
-    local function buildRows(card,cardData,rule,choices,powered,inventorySpec,inventorySets,repeatLink,posture,isSkill,expandedRow)
+    local function buildRows(card,cardData,rule,choices,powered,inventorySpec,inventorySets,repeatLink,posture,isSkill,expandedRow,shapeshiftField)
         local combatCalcOn,combatPsychicActive,combatCumbersomeActive=deps.combatContext()
         local function targetResourceFor(choice,category)
             if category=="ready" and cardData~=nil
@@ -86,8 +86,15 @@ return function(deps)
                 and card.is_face_down~=true then return "ambush" end
             -- Mana Overload's choices select which linked CARD resource is boosted;
             -- the Skill itself is not an independently targetable Attack/Block.
-            if rule~=nil and rule.manaOverload==true then return nil end
+            if rule~=nil and (rule.manaOverload==true or rule.shapeshift==true) then return nil end
             if not combatCalcOn then return nil end
+            if shapeshiftField~=nil then
+                if shapeshiftField=="move" then
+                    return combatCumbersomeActive and resourceCardsMoveRole(card.guid,false)=="combat"
+                        and "move" or nil
+                end
+                return shapeshiftField
+            end
             if rule~=nil and rule.damageMitigation~=nil then return "effect" end
             for _,field in ipairs(combatConfig.sourceFields) do
                 if (tonumber(choice[field.key]) or 0)>0 then return field.key end
@@ -131,9 +138,13 @@ return function(deps)
             end
             row.selected=selected
             if selected~=nil and combatCalcOn and combatCumbersomeActive
-                and resourceCardsMoveRole(card.guid,false)=="combat" then
+                and shapeshiftField==nil then
                 for _,option in ipairs(row.choices) do
-                    if choiceCategory(option)==selected and (tonumber(option.move) or 0)>0 then
+                    local roleGUID=option.shapeshiftTargetGUID or card.guid
+                    local move=(tonumber(option.move) or 0)>0
+                        or (option.shapeshiftTargetGUID~=nil and choiceCategory(option)=="move")
+                    if choiceCategory(option)==selected and move
+                        and resourceCardsMoveRole(roleGUID,false)=="combat" then
                         row.selected="combatMove"..selected
                         break
                     end
@@ -145,7 +156,8 @@ return function(deps)
                 local category=choiceCategory(choice)
                 if category~=nil and choiceLetters[category]~=nil and not seen[category] then
                     seen[category]=true
-                    local producesMove=(tonumber(choice.move) or 0)>0
+                    local producesMove=shapeshiftField==nil and ((tonumber(choice.move) or 0)>0
+                        or (choice.shapeshiftTargetGUID~=nil and category=="move"))
                     local entry={category=category,
                         rank=resourceChoiceRank(category,choice),originalIndex=j,
                         skillFamily=isSkill and skillChoiceFamily(category,choice) or nil,
@@ -181,7 +193,7 @@ return function(deps)
                             combatEntry.icon="block"
                             combatEntry.stackedIcons={"block","move"}
                             combatEntry.roleBadge=nil
-                            combatEntry.targetResource="move"
+                            combatEntry.targetResource=choice.shapeshiftTargetGUID==nil and "move" or nil
                             row.entries[#row.entries+1]=combatEntry
                         end
                     else
