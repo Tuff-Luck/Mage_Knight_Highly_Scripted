@@ -50,7 +50,7 @@ eq(effects.immune.armourReduce,0,"Arcane Immunity blocks Armour reduction")
 
 -- Veil of Mist: one Wound is ignored across all attacks, and the
 -- ignored Wound must not trigger Poison or Paralyse on the Hero.
-local resolve=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/DamageResolution.lua")(
+local resolve=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/DamageCalculation.lua").resolution(
     function(guid) return gameCards~=nil and gameCards[guid] or nil end,
     function(owner,summoner)
         local records=gStates~=nil and gStates.attackedMonsters or nil

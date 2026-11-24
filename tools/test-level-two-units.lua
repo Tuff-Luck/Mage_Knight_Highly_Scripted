@@ -25,7 +25,7 @@ local recognition=source("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local assignments=source("src/PlayingGame/AttackAssignments.lua")
 
 -- A forced Unit assignment overrides Assassination; a voluntary one does not.
-local resolve=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/DamageResolution.lua")(
+local resolve=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/DamageCalculation.lua").resolution(
     function(guid) return gameCards~=nil and gameCards[guid] or nil end,
     function(owner,summoner)
         local records=gStates~=nil and gStates.attackedMonsters or nil
@@ -84,7 +84,7 @@ assert(assignments:find("(freeUnit and not attack.assassination)",1,true),
     "unrelated voluntary Unit assignment still disallowed against Assassination")
 
 -- Illusionists must use the same site/wall suppression as the combat calculator.
-local defences=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EnemyDefences.lua")({})
+local defences=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EnemyProperties.lua").defences({})
 combatEnemyHasTrait=defences.hasTrait
 combatEnemyFortificationCount=defences.fortificationCount
 local enemyData={}

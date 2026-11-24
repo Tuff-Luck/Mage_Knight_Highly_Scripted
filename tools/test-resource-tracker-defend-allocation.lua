@@ -2,7 +2,7 @@
 local root="src/PlayingGame/PlayerBoard/"
 local cfg={attackTypes={{key="P",attack="attack",ranged="ranged",siege="siege"}},
     artifactCombat={},bowSourceModes={}}
-local defences=dofile(root.."ResourceTracker/Combat/EnemyDefences.lua")(cfg)
+local defences=dofile(root.."ResourceTracker/Combat/EnemyProperties.lua").defences(cfg)
 local function read(path)
     local f=assert(io.open(path,"r"))
     local text=f:read("*a")

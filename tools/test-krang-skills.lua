@@ -116,7 +116,7 @@ eq(combatEnemyEligibleAsDefeatedPuppet(token),false,"Untracked enemy rejected wh
 combatDefeatMarksActive=false
 eq(combatEnemyEligibleAsDefeatedPuppet(token),true,"Manual face-up fallback when calculator is closed")
 
-local damageResolve=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/DamageResolution.lua")(
+local damageResolve=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/DamageCalculation.lua").resolution(
     function(guid) return gameCards~=nil and gameCards[guid] or nil end,
     function(owner,summoner)
         local records=gStates~=nil and gStates.attackedMonsters or nil

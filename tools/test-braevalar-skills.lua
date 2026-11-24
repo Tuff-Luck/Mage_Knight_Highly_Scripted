@@ -130,13 +130,13 @@ eq(defeated,false,"Melee-phase bolts wait until regular Attack phase")
 -- damage value remains unchanged when that Block fails.
 combatConfig=combatConfig or {}
 combatConfig.COMBAT_EFFICIENT_BLOCKS={P={block=true}}
-local blockSolver=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/BlockSolver.lua")(combatConfig).solve
+local blockSolver=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/BlockCalculation.lua").solver(combatConfig).solve
 local blockItem={source={key="test"},key="block",value=4,part=1}
 local plan=blockSolver({{key="P",value=4}}, {blockItem}, 0)
 eq(plan[1].blocked,true,"Four Block covers a normal Attack of four")
 plan=blockSolver({{key="P",value=5,damageValue=4}}, {blockItem}, 0)
 eq(plan[1].blocked,false,"Competitive +1 raises Block requirement to five")
-local blockResultsSource=source("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/BlockResults.lua")
+local blockResultsSource=source("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/BlockCalculation.lua")
 contains(blockResultsSource, 'attack.damageValue=attack.value',
     "Block-only penalty preserves original attack damage")
 contains(blockResultsSource, '(attack.damageValue or attack.value)-step.reduction',
@@ -163,7 +163,7 @@ eq(competitive(),0,"Expired competitive reminder has no bonus")
 
 -- Damage prevention happens AFTER Unit assignment and Brutal multiplication,
 -- is limited to a single attack, and works independently of Battle Hardened.
-local resolve=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/DamageResolution.lua")(
+local resolve=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/DamageCalculation.lua").resolution(
     function(guid) return gameCards~=nil and gameCards[guid] or nil end,
     function(owner,summoner)
         local records=gStates~=nil and gStates.attackedMonsters or nil

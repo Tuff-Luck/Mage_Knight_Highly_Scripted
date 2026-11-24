@@ -190,7 +190,7 @@ assert(unitScan:find(
 -- The real Damage-phase resolver must use one flipped Fortitude on one
 -- selected attack, including prevention of Poison and Paralysis, not both.
 local fortitude={}
-local damageTest=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/DamageResolution.lua")(
+local damageTest=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/DamageCalculation.lua").resolution(
     function() return nil end,function() return false end,
     function() return fortitude end).resolve
 local unit={guid="unit",level=2,armour=2,resist={},wounded=false,
@@ -239,7 +239,7 @@ assert(#ignored.immune.attackReductions==0,
     "Arcane Immunity must ignore the Fear cancellation")
 
 local choices={}
-local engine=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EnemyAttacks.lua")({
+local engine=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EnemyProperties.lua").attacks({
     {key="P",label="Physical",block="block"},
     {key="F",label="Fire",block="blockFire"}
 },function(data,perks,key) return data[key]==true or (perks~=nil and perks[key]==true) end,

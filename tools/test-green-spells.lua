@@ -157,8 +157,8 @@ result.powered=true
 eq(siteBypassCheck(spells.spellDemolish,result,played),false,"Disintegrate has no bypass")
 
 -- Exercise the calculator's actual stripping logic (not an invented rule).
-local fortificationCount=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EnemyDefences.lua")({}).fortificationCount
-local prepareFortifications=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EnemyDefences.lua")({}).prepareFortifications
+local fortificationCount=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EnemyProperties.lua").defences({}).fortificationCount
+local prepareFortifications=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EnemyProperties.lua").defences({}).prepareFortifications
 local function stripSites(entries,seatScan)
     prepareFortifications(entries,seatScan~=nil and seatScan.ignoreSiteFortifications==true)
     return entries

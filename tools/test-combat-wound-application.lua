@@ -381,7 +381,7 @@ handObjects={}
 
 -- If a destroyed Unit had already helped defeat a different enemy with
 -- Ranged/Siege, its early attack must remain valid after physical removal.
-local resolveDamage=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/DamageResolution.lua")(
+local resolveDamage=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/DamageCalculation.lua").resolution(
     function(guid) return gameCards~=nil and gameCards[guid] or nil end,
     function(owner,summoner)
         local records=gStates~=nil and gStates.attackedMonsters or nil
@@ -987,8 +987,8 @@ assert(assignments:find('function attackAssignmentsDamageSnapshot()',1,true)
 -- Move reductions must remain committed.
 local blockConfig={sourceFields={{key="block",family="block"}},
     COMBAT_EFFICIENT_BLOCKS={P={block=true}},COMBAT_RED="red"}
-local blockSolver=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/BlockSolver.lua")(blockConfig)
-local blockEngine=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/BlockResults.lua")(blockConfig,blockSolver,
+local blockSolver=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/BlockCalculation.lua").solver(blockConfig)
+local blockEngine=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/BlockCalculation.lua").results(blockConfig,blockSolver,
     function(enemy) return enemy.attacks end,function() return 0 end,
     function(value) return value end)
 local blockCache={}

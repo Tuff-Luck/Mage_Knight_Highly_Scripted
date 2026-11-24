@@ -27,7 +27,7 @@ contains(data,'["2c74ca"]={prey=true,enemyEffect={normal={}}}',
     "Know Your Prey dynamic enemy targeting registered")
 contains(data,'wolfHowlPenalty=true',"Wolf's Howl has competitive penalty metadata")
 contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/SkillInteractions.lua"),'if skill.guid=="6a33c1"',"Krang's Curse path remains present")
-contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EnemyDefences.lua"),'local rangedReduction=math.max(0,reduction-lateReduction)',
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EnemyProperties.lua"),'local rangedReduction=math.max(0,reduction-lateReduction)',
     "Taunt Armour reduction must not be active during the Ranged/Siege phase")
 contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/SkillInteractions.lua"),'for _,wound in ipairs(wounds) do',"Wounds inspected in tracker")
 contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/SkillInteractions.lua"),'-- Power of Pain / Ritual of Pain can make a sideways Wound',
@@ -72,7 +72,7 @@ combatConfig={attackTypes={
     {key="I",label="Ice",block="blockFire"},
     {key="IF",label="Cold Fire",block="blockColdFire"}
 }}
-combatConfig.convertPreyAttacks=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EnemyAttacks.lua")(combatConfig.attackTypes,nil,nil).convertPreyAttacks
+combatConfig.convertPreyAttacks=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EnemyProperties.lua").attacks(combatConfig.attackTypes,nil,nil).convertPreyAttacks
 local attacks={
     {slot=1,key="F",label="Fire",block="blockIce"},
     {slot=2,key="IF",label="Cold Fire",block="blockColdFire"}

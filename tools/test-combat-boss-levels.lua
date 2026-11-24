@@ -13,7 +13,7 @@ local leaders=read("src/PlayingGame/FactionLeaders.lua")
 local dragon=read("src/PlayingGame/ApocalypseDragon.lua")
 local ui=read("src/PlayingGame/UI.lua")
 local env={gStates={combatBossManual={}}}
-local defences=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EnemyDefences.lua")({})
+local defences=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EnemyProperties.lua").defences({})
 local engine=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/BossAllocation.lua")(defences.hasTrait)
 local count=engine.levelCount
 local function phase(group,entries,total,kind,blockedAll)

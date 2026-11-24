@@ -1138,12 +1138,12 @@ combatConfig.attackTypes={
     {key="M",label="Psychic",attack="attackPsychic",ranged="rangedPsychic",siege="siegePsychic",block="blockPsychic"}
 }
 
-trackerPrivate.enemyDefences=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.EnemyDefences")(combatConfig)
+trackerPrivate.enemyDefences=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.EnemyProperties").defences(combatConfig)
 local combatEnemyHasTrait=trackerPrivate.enemyDefences.hasTrait
 local combatEnemyFortificationCount=trackerPrivate.enemyDefences.fortificationCount
 
 -- owner/slot identify the physical token carrying each attack; calculation is delegated.
-trackerPrivate.enemyAttacks=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.EnemyAttacks")(
+trackerPrivate.enemyAttacks=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.EnemyProperties").attacks(
     combatConfig.attackTypes,combatEnemyHasTrait,combatEnemyFortificationCount)
 local combatEnemyPrintedAttacks=trackerPrivate.enemyAttacks.printed
 combatConfig.convertPreyAttacks=trackerPrivate.enemyAttacks.convertPreyAttacks
@@ -1580,7 +1580,7 @@ local function combatDetailPhase(detail,rangeDefeated,fortification,source)
 end
 
 -- Chooses which Block resources and Move reductions stop which attacks; the solver owns the allocation math.
-trackerPrivate.blockSolver=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.BlockSolver")(combatConfig)
+trackerPrivate.blockSolver=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.BlockCalculation").solver(combatConfig)
 
 -- Block resources only ever face the enemy they were targeted at.
 -- Move resources the player aimed at a Cumbersome attack reduce that attack by 1 each.
@@ -1605,7 +1605,7 @@ local function combatNatureVengeanceBlockBonus()
 end
 
 trackerPrivate.combatBlockResultCache={}
-trackerPrivate.blockResults=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.BlockResults")(
+trackerPrivate.blockResults=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.BlockCalculation").results(
     combatConfig,trackerPrivate.blockSolver,combatEnemyAttacks,
     combatNatureVengeanceBlockBonus,combatRich)
 local function combatBlockResult(entry,sources)
@@ -1727,7 +1727,7 @@ local function combatDamageUnits(seat)
     return units,state~=nil and state.nativeCommandCount or 0
 end
 
-trackerPrivate.damageResolution=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.DamageResolution")(
+trackerPrivate.damageResolution=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.DamageCalculation").resolution(
     function(guid) return gameCards~=nil and gameCards[guid] or nil end,
     function(owner,summoner)
         local records=gStates~=nil and gStates.attackedMonsters or nil
@@ -2680,7 +2680,7 @@ trackerPrivate.conditionalBlockEffects=require("PlayingGame.PlayerBoard.Resource
 trackerPrivate.earlyCombatPhase=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.EarlyCombatPhase")(
     combatBlockResult,combatGroupEntry,combatRangeResult,combatRangeGroupEntry,
     combatBossPhasePlan,combatEnemyAttacks,combatEnemyHasTrait,combatFrozenCopy)
-trackerPrivate.damagePreparation=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.DamagePreparation")(
+trackerPrivate.damagePreparation=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.DamageCalculation").preparation(
     function(guid) return skillResourceDefinitions[guid] end)
 trackerPrivate.lateCombatPhase=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.LateCombatPhase")(
     combatGroupEntry,combatEnemyHasTrait,combatEnemyFortificationCount,

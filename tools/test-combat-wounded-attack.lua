@@ -25,7 +25,7 @@ combatEnemyHasTrait=function() return false end
 combatRich=function(value,color)
     return "<color="..color..">"..value.."</color>"
 end
-local attackTotal=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EnemyDefences.lua")(combatConfig).attackTotal
+local attackTotal=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EnemyProperties.lua").defences(combatConfig).attackTotal
 local eligibility=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/AttackEligibility.lua")(combatConfig,
     function(seat) return seat~=nil and resourceCardScanBySeat~=nil and resourceCardScanBySeat[seat] or nil end,
     function(guid) return gameCards~=nil and gameCards[guid] or nil end,

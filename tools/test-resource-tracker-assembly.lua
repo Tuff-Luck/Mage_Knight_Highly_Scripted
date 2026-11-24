@@ -6,18 +6,17 @@ local prefix="PlayingGame.PlayerBoard.ResourceTracker."
 local modules=[[
 Cards.ActionLinks Cards.CardEffects Cards.CardInteraction Cards.CardInteractions Cards.MovementEffects
 Cards.PlayedCardScan Cards.ResourceChoices Cards.SkillEffects Cards.SkillInteractions Cards.SkillLinks
-Combat.AttackEligibility Combat.BlockResults Combat.BlockSolver Combat.BossAllocation
-Combat.CombatInteraction Combat.CombatTargetPolicy Combat.ConditionalBlockEffects
-Combat.DamagePreparation Combat.DamageResolution Combat.DefendAllocation Combat.DivisibleResources
-Combat.EarlyCombatPhase Combat.EnemyAttacks Combat.EnemyDefences Combat.EnemyGroups Combat.ExplosiveBolt
-Combat.FlameWave Combat.LateCombatPhase Combat.SourceTargetAllocation Core.Diagnostics Core.ObjectEvents
-Core.ScanScheduler Core.State Core.TrackerLifecycle Interface.CardControlOptions Interface.CardControls
-Interface.CombatDisplay Interface.CombatEffectDisplay Interface.CombatPanelLayout
-Interface.CombatPanelRenderer Interface.CombatResourceDisplay Interface.CombatRowRenderer
-Interface.UnitControls Scanning.FactionRewardScan Scanning.ManaPayments Scanning.PhysicalObjects
-Scanning.ScanFinalization Scanning.ScanObservation Scanning.ScanPayments Scanning.ScanPublication
-Units.ReadyPolicy Units.UnitChoices Units.UnitEffects Units.UnitManagement Units.UnitScan
-Units.UnitSelfWounds
+Combat.AttackEligibility Combat.BlockCalculation Combat.BossAllocation Combat.CombatInteraction
+Combat.CombatTargetPolicy Combat.ConditionalBlockEffects Combat.DamageCalculation Combat.DefendAllocation
+Combat.DivisibleResources Combat.EarlyCombatPhase Combat.EnemyGroups Combat.EnemyProperties
+Combat.ExplosiveBolt Combat.FlameWave Combat.LateCombatPhase Combat.SourceTargetAllocation
+Core.Diagnostics Core.ObjectEvents Core.ScanScheduler Core.State Core.TrackerLifecycle
+Interface.CardControlOptions Interface.CardControls Interface.CombatDisplay Interface.CombatEffectDisplay
+Interface.CombatPanelLayout Interface.CombatPanelRenderer Interface.CombatResourceDisplay
+Interface.CombatRowRenderer Interface.UnitControls Scanning.FactionRewardScan Scanning.ManaPayments
+Scanning.PhysicalObjects Scanning.ScanFinalization Scanning.ScanObservation Scanning.ScanPayments
+Scanning.ScanPublication Units.ReadyPolicy Units.UnitChoices Units.UnitEffects Units.UnitManagement
+Units.UnitScan Units.UnitSelfWounds
 ]]
 local publicNames=[[
 attackAssignmentReadySourceClicked combatBossAutomationActive combatBossLevelCount combatBossSetManual
@@ -143,6 +142,19 @@ local env=setmetatable({unitResourceDefinitions={},skillResourceDefinitions={},p
     for name,callback in pairs(callbacks) do assert(type(callback)=="function",name) end
 end},{__index=_G})
 local loaded,loading={},{}
+local combinedFactories={
+    ["PlayingGame.PlayerBoard.ResourceTracker.Combat.EnemyProperties"]={"attacks","defences"},
+    ["PlayingGame.PlayerBoard.ResourceTracker.Combat.DamageCalculation"]={"preparation","resolution"},
+    ["PlayingGame.PlayerBoard.ResourceTracker.Combat.BlockCalculation"]={"solver","results"},
+}
+local function checkedFactory(name,factory)
+    return function(...)
+        for index=1,select("#",...) do
+            assert(select(index,...)~=nil,name..": nil factory dependency "..index)
+        end
+        return factory(...)
+    end
+end
 env.require=function(name)
     assert(not loading[name],"Circular require: "..name)
     if loaded[name]~=nil then return loaded[name] end
@@ -152,12 +164,11 @@ env.require=function(name)
     loading[name]=nil
     assert(result~=nil,"Module returned nil: "..name)
     if type(result)=="function" then
-        local factory=result
-        result=function(...)
-            for index=1,select("#",...) do
-                assert(select(index,...)~=nil,name..": nil factory dependency "..index)
-            end
-            return factory(...)
+        result=checkedFactory(name,result)
+    elseif combinedFactories[name]~=nil then
+        for _,member in ipairs(combinedFactories[name]) do
+            assert(type(result[member])=="function",name.." missing factory "..member)
+            result[member]=checkedFactory(name.."."..member,result[member])
         end
     end
     loaded[name]=result

@@ -79,7 +79,7 @@ assert(layout:find("bannersByUnit=unitLayoutBannersForUnits(layout)",1,true),
     "Attached banners must be observed in Unit layout")
 assert(recognition:find('source.key.."#block"..index',1,true),
     "Separate Shield block must have individual stable target key")
-assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/DamageResolution.lua"):find('fortitudePrevented=true',1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/DamageCalculation.lua"):find('fortitudePrevented=true',1,true),
     "Fortitude prevention must skip Wound and Poison/Paralysis consequences")
 assert(recognition:find('source.gloryFame',1,true),
     "Only activated combat Units can earn Glory Fame")
@@ -161,7 +161,7 @@ local combatConfig={
     bowSourceModes={},
     attackTypes={{key="P",attack="attack",ranged="ranged",siege="siege"}}
 }
-local calculator={sum=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EnemyDefences.lua")(combatConfig).attackTotal,
+local calculator={sum=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EnemyProperties.lua").defences(combatConfig).attackTotal,
     combat=combatConfig}
 local enemy={}
 local source={key="unit#use1",resources={ranged=3,siege=2,attack=4}}

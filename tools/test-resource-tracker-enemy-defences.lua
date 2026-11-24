@@ -5,7 +5,7 @@ local cfg={attackTypes={
     {key="I",attack="attackIce",ranged="rangedIce",siege="siegeIce"},
     {key="IF",attack="attackColdFire",ranged="rangedColdFire",siege="siegeColdFire"}},
     artifactCombat={},bowSourceModes={}}
-local engine=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EnemyDefences.lua")(cfg)
+local engine=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EnemyProperties.lua").defences(cfg)
 local function eq(actual,expected,label)
     assert(actual==expected,label..": expected "..tostring(expected)..", got "..tostring(actual))
 end

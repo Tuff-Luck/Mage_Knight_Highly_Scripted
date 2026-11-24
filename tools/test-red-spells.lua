@@ -63,7 +63,7 @@ eq(blocked.fire.applied[1].fireResistant,true,"UI retains fire immunity reason")
 -- definition, decides when each numeric combat effect becomes available.
 local data=source("src/Data.lua")
 local reader=source("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-local blockResults=source("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/BlockResults.lua")
+local blockResults=source("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/BlockCalculation.lua")
 contains(data,'ignoreSiteFortification=true',"Demolish site effect")
 contains(data,'destroyDuringAttack=true,othersArmourReduce=1',"Disintegrate phase")
 contains(data,'conditionalFireAttack=4',"Burning Shield conditional Attack")

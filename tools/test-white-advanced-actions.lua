@@ -124,7 +124,7 @@ eq(run,true,"Shared per-point pools and phase-aware Move")
 
 -- The actual attack-selection engine must strip only the chosen attack's
 -- offensive abilities, without replacing the attack's Fire/Ice element.
-local strip=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EnemyAttacks.lua")({},nil,nil).applyReductions
+local strip=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EnemyProperties.lua").attacks({},nil,nil).applyReductions
 local attacks={
     {value=5,key="F",owner="enemy",brutal=true,swift=true},
     {value=4,key="I",owner="enemy",poison=true,cumbersome=true}}
