@@ -607,7 +607,8 @@ local function combatAssignmentSources(seat)
                 if source==nil then
                     local physicalGUID=record.sourceObjectGUID or guid
                     local cardData=gameCards[physicalGUID]
-                    local sourceName=cardData~=nil and cardData.name or nil
+                    local sourceName=record.kind=="factionReward" and record.nameKey
+                        or (cardData~=nil and cardData.name or nil)
                     if type(sourceName)=="table" then sourceName=sourceName[1] end
                     source={guid=physicalGUID,key=part~=nil and (guid.."#"..part) or guid,part=part,
                         name=tostring(sourceName or record.kind or "Resource")
@@ -676,6 +677,7 @@ local function combatAssignmentSources(seat)
             if moveAmount>0 and resourceCardsMoveRole(guid,true)=="combat" then
                 local source=ensureSource("block")
                 source.move=moveAmount
+                if record.splitTargets~=nil then source.resources.move=moveAmount end
                 source.details[#source.details+1]={text="Move "..tostring(moveAmount),
                     amount=moveAmount,icon="MKChoiceMove",key="move",family="move"}
             end
@@ -1276,6 +1278,17 @@ end
 
 function resourceCardsCombatTargetAcceptsMove(guid)
     return combatGUIDHasCumbersome(guid)
+end
+
+-- Reject a stale split Move button after the reward changes role or flips.
+function resourceCardsSplitMoveActive(guid)
+    local seat=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+    local scan=seat~=nil and resourceCardScanBySeat[seat.seatPos] or nil
+    local record=scan~=nil and scan.cards[guid] or nil
+    return record~=nil and record.splitTargets~=nil
+        and (tonumber(record.resources~=nil and record.resources.move) or 0)>0
+        and resourceCardsMoveRole(guid,false)=="combat"
+        and combatCalcOn and combatCumbersomeActive
 end
 
 function resourceCardsAmbushCombatMoveActive(guid)
