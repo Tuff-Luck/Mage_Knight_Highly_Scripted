@@ -1,6 +1,7 @@
 -- Overlapping mana payments prefer the highest eligible played card, and
 -- native U/Place Under resamples mana in the live play zone.
 -- Run from repository root: lua5.2 tools/test-stacked-mana-under.lua
+package.path="src/?.lua;"..package.path
 local function read(path)
     local file=assert(io.open(path,"r"))
     local source=file:read("*a")
@@ -15,7 +16,7 @@ end
 local source=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local chooseCode=section(source,"trackerPrivate.bestManaCard=function(",
     "-- Read the physical Blue casting payment")
-local zoneCode=section(source,"trackerPrivate.zoneFootprintContainsXZ=function(",
+local zoneCode=section(source,"trackerPrivate.zoneFootprintContainsXZ=require(",
     "-- A dropped play source")
 local underCode=section(source,"function resourceCardsUnderAction(targets)",
     "\nfunction resourceCardsZoneEntered(ctx)")

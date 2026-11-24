@@ -1,6 +1,7 @@
 -- Moving an explicitly configured card must never publish intermediate
 -- resource totals or switch its enemy target to the nearest opponent.
 -- Run from repository root: lua5.2 tools/test-card-relocation-stable-drop.lua
+package.path="src/?.lua;"..package.path
 local function read(path)
     local file=assert(io.open(path,"r"))
     local source=file:read("*a")
@@ -17,10 +18,10 @@ local source=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local events=read("src/PlayingGame/Events.lua")
 assert(events:find("resourceCardsObjectPickedUp(picked_up_object)",1,true),
     "Picking up a source must mark the relocation before callbacks rescan it")
-local matCode=section(source,"trackerPrivate.zoneFootprintContainsXZ=function(obj,zone)",
+local matCode=section(source,"trackerPrivate.zoneFootprintContainsXZ=require(",
     "local function scheduleChoiceResetAfterPlay(")
 local resetCode=section(source,"local function scheduleChoiceResetAfterPlay(guid,seatPos)",
-    "local function footprint(obj)")
+    "local footprint=require(")
 local relocationCode=section(source,"function resourceCardsObjectPickedUp(obj)",
     "function resourceCardsZoneEntered(ctx)")
 local renderGuard=section(source,"local function renderSeat(seatPos)",

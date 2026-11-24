@@ -1,6 +1,7 @@
 -- Regression: a released card above the shallow Play Area zone keeps its
 -- selected option and enemy target when rearranged. Y is intentionally ignored.
 -- Run from repository root: lua5.2 tools/test-card-relocation-choice-lock.lua
+package.path="src/?.lua;"..package.path
 local function read(path)
     local f=assert(io.open(path,"r"))
     local content=f:read("*a")
@@ -14,10 +15,10 @@ local function slice(source,first,last)
 end
 
 local source=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-local matCode=slice(source,"trackerPrivate.zoneFootprintContainsXZ=function(obj,zone)",
+local matCode=slice(source,"trackerPrivate.zoneFootprintContainsXZ=require(",
     "local function scheduleChoiceResetAfterPlay(")
 local resetCode=slice(source,"local function scheduleChoiceResetAfterPlay(guid,seatPos)",
-    "local function footprint(obj)")
+    "local footprint=require(")
 local lockCode=slice(source,"local function combatSourceKeepsLock(key)",
     "-- Physical target controls and the calculator")
 local dropCode=slice(source,"function resourceCardsObjectMoved(obj,stabilized)",

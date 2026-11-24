@@ -1,6 +1,7 @@
 -- Skills and Faction Rewards must preserve manual options and enemy targets
 -- on the same shallow play mat, even though they are not TTS Card objects.
 -- Run: lua5.2 tools/test-play-token-relocation-locks.lua
+package.path="src/?.lua;"..package.path
 local function read(path)
     local f=assert(io.open(path,"r"))
     local s=f:read("*a")
@@ -13,8 +14,8 @@ local function section(src,first,last)
     return src:sub(a,b-1)
 end
 local src=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-local geometry=section(src,"trackerPrivate.zoneFootprintContainsXZ=function(obj,zone)",
-    "local function footprint(obj)")
+local geometry=section(src,"trackerPrivate.zoneFootprintContainsXZ=require(",
+    "local footprint=require(")
 local kinds=section(src,"local function resourceObjectKind(obj)",
     "-- A NightRules token")
 local pickup=section(src,"function resourceCardsObjectPickedUp(obj)",

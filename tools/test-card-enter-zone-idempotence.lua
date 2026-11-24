@@ -1,6 +1,7 @@
 -- Regression for TTS calling onEnterZone after the player's drop.
 -- A source already in play must not restart pickup/relocation or recalculate
 -- based on its new nearest enemy.  Run: lua5.2 tools/test-card-enter-zone-idempotence.lua
+package.path="src/?.lua;"..package.path
 local function read(path)
     local f=assert(io.open(path,"r"))
     local s=f:read("*a")
@@ -13,7 +14,7 @@ local function section(source,first,last)
     return source:sub(a,b-1)
 end
 local source=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-local mat=section(source,"trackerPrivate.zoneFootprintContainsXZ=function(obj,zone)",
+local mat=section(source,"trackerPrivate.zoneFootprintContainsXZ=require(",
     "local function scheduleChoiceResetAfterPlay(")
 local zones=section(source,"function resourceCardsZoneEntered(ctx)",
     "function resourceCardsObjectMoved(")

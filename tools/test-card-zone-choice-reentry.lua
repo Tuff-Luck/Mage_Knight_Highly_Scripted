@@ -1,6 +1,7 @@
 -- An onEnterZone for a returning card must cancel the pending
 -- onExitZone choice reset, even if the zone's object list lags the drop.
 -- Run from repository root: lua5.2 tools/test-card-zone-choice-reentry.lua
+package.path="src/?.lua;"..package.path
 local function read(path)
     local f=assert(io.open(path,"r"))
     local s=f:read("*a")
@@ -15,10 +16,10 @@ end
 local source=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local zoneCode=section(source,"function resourceCardsZoneEntered(ctx)",
     "function resourceCardsZoneLeft(ctx)")
-local matCode=section(source,"trackerPrivate.zoneFootprintContainsXZ=function(obj,zone)",
+local matCode=section(source,"trackerPrivate.zoneFootprintContainsXZ=require(",
     "local function scheduleChoiceResetAfterPlay(guid,seatPos)")
 local resetCode=section(source,"local function scheduleChoiceResetAfterPlay(guid,seatPos)",
-    "local function footprint(obj)")
+    "local footprint=require(")
 local pos={x=30,y=6,z=0,[1]=30,[2]=6,[3]=0}
 local card={guid="rage",type="Card",resting=true,held_by_color=nil,
     isSmoothMoving=function() return false end,

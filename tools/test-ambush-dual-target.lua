@@ -27,7 +27,7 @@ assert(arrows:find('for sourceGUID,targetGUID in pairs(gStates~=nil and gStates.
     "The saved bonus must survive independent enemy-target changes")
 assert(arrows:find('if resourceCardsPanelOpen~=nil and resourceCardsPanelOpen() then\n        for sourceGUID,targetGUID in pairs(gStates~=nil and gStates.ambushCombatLinks or {}) do',1,true),
     "Ambush's purple arrow must use the exported tracker visibility API")
-local postureDeclaration=assert(reader:find('local function cardPosture(card)',1,true))
+local postureDeclaration=assert(reader:find('local cardPosture=require(',1,true))
 local ambushDeclaration=assert(reader:find('combatConfig.ambushEligibleTarget=',1,true))
 assert(postureDeclaration<ambushDeclaration,
     "Ambush must bind to the local posture helper declared before its callbacks")

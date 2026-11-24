@@ -1,6 +1,7 @@
 -- Regression: an existing enemy's target arrows survive a drop while the
 -- shallow combat zones have not yet registered the token's new Y position.
 -- Run from repository root: lua5.2 tools/test-combat-enemy-drop-target-lock.lua
+package.path="src/?.lua;"..package.path
 local function read(path)
     local f=assert(io.open(path,"r"))
     local text=f:read("*a")
@@ -14,7 +15,7 @@ local function section(src,first,last)
 end
 local recognition=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local assignments=read("src/PlayingGame/AttackAssignments.lua")
-local footprint=section(recognition,"trackerPrivate.zoneFootprintContainsXZ=function(obj,zone)",
+local footprint=section(recognition,"trackerPrivate.zoneFootprintContainsXZ=require(",
     "local function scheduleChoiceResetAfterPlay(guid,seatPos)")
 local enemies=section(recognition,"local combatTrackedSeat=nil",
     "local function combatPlayMonsters()")

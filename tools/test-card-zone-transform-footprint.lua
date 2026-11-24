@@ -2,6 +2,7 @@
 -- transform dimensions. Recreates the two card locations from the user's
 -- relocation report, including absent zone.getObjects() while falling.
 -- Run: lua5.2 tools/test-card-zone-transform-footprint.lua
+package.path="src/?.lua;"..package.path
 local function read(path)
     local file=assert(io.open(path,"r"))
     local text=file:read("*a")
@@ -9,7 +10,7 @@ local function read(path)
     return text
 end
 local source=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-local a=assert(source:find("trackerPrivate.zoneFootprintContainsXZ=function(obj,zone)",1,true))
+local a=assert(source:find("trackerPrivate.zoneFootprintContainsXZ=require(",1,true))
 local b=assert(source:find("local function scheduleChoiceResetAfterPlay(guid,seatPos)",a,true))
 local matCode=source:sub(a,b-1)
 local position={x=-20.08,y=2,z=-42.19}
