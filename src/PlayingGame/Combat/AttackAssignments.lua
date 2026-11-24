@@ -387,7 +387,9 @@ local function syncTargetButtons(monsters)
                             candidates[guid]=obj
                         end
                     end
-                    if resourceCardsCombatTargetObjects~=nil then
+                    if resourceCardsCombatTargetObjects~=nil
+                        and resourceCardsAmbushCombatMoveActive~=nil
+                        and resourceCardsAmbushCombatMoveActive(pending.sourceGUID) then
                         for guid,obj in pairs(resourceCardsCombatTargetObjects(monsters)) do
                             if resourceCardsCombatTargetAcceptsMove~=nil
                                 and resourceCardsCombatTargetAcceptsMove(guid) then
@@ -1484,7 +1486,9 @@ function attackAssignmentTargetClicked(target,playerColor)
                 if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
                 return
             end
-            if resourceCardsCombatTargetAcceptsMove==nil
+            if resourceCardsAmbushCombatMoveActive==nil
+                or not resourceCardsAmbushCombatMoveActive(pending.sourceGUID)
+                or resourceCardsCombatTargetAcceptsMove==nil
                 or not resourceCardsCombatTargetAcceptsMove(target.guid) then return end
             -- The normal enemy assignment path owns Move points/purple arrows.
             -- It must not touch the stored purple card-buff assignment.
