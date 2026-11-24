@@ -77,8 +77,16 @@ combatEnemyPrintedAttacks=function(data) return {{value=data.attackValue or 0}} 
 getObjectFromGUID=function(guid) return {getName=function() return guid end} end
 joinLangEnglish=function(s) return s end
 local cardRecognition=source("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-assert(load(slice(cardRecognition,"combatConfig.effectButtonInfo=function(entry,applied)",
-    "-- Attack-phase eligibility comes from the preceding damage phase")))()
+local display=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/CombatEffectDisplay.lua")(
+    {fortificationCount=combatEnemyFortificationCount,hasTrait=combatEnemyHasTrait},
+    combatEnemyAttacks,combatEnemyPrintedAttacks,combatEffectArrowKind,combatEffectRequiresDefence,
+    function(guid) return skillResourceDefinitions[guid] end,
+    function(guid)
+        local obj=getObjectFromGUID(guid)
+        return joinLangEnglish(obj~=nil and obj.getName() or tostring(guid))
+    end)
+combatConfig.effectButtonInfo=display.effectButtonInfo
+combatConfig.mitigationButtonInfo=display.mitigationButtonInfo
 local spec={armourReduce=1,armourReduceRangedUnfortifiedOnly=1}
 local normal={source="6a33c1",key="6a33c1",spec=spec,effective=spec}
 local enemy={guid="enemy",data={attackValue=3},unmodifiedArmour=3,
@@ -141,6 +149,42 @@ assert(icon.tooltip:find("No Hero damage",1,true),"Mitigation tooltip")
 record.enemyGUID="other"
 eq(combatConfig.mitigationButtonInfo("0688d8",record,enemy,
     {},results,mitigation),nil,"No icon on unassigned enemy")
+
+-- The extracted descriptors must preserve the original record and distinguish
+-- failed effects from valid retargetable effects, without performing damage.
+local original=enemy.effect
+enemy.data.attackValue=3
+icon=combatConfig.effectButtonInfo(enemy,attackApplication)
+eq(enemy.effect,original,"Attack comparison restores the original effect record")
+eq(icon.source.key,"6a33c1","Retarget source key is stable")
+eq(icon.source.guid,"6a33c1","Physical source GUID is stable")
+eq(combatConfig.effectButtonInfo(enemy,{spec={all=true,armourReduce=1}}),nil,
+    "Global effect does not show individual button")
+eq(combatConfig.effectButtonInfo(enemy,{spec={}}),nil,"Empty effect has no button")
+local wing={source="wing",key="wing#1",spec={noAttack=true,moveCost=2,insufficientMove=true},
+    effective={}}
+icon=combatConfig.effectButtonInfo(enemy,wing)
+eq(icon.ineffective,true,"Insufficient Move is explained")
+assert(icon.tooltip:find("Not enough unspent Move",1,true),"Wings of Night tooltip")
+local cancel={source="fear",key="fear#1",spec={cancelOneAttack=true},effective={cancelOneAttack=true}}
+icon=combatConfig.effectButtonInfo(enemy,cancel)
+eq(icon.amount,"X","Single printed attack cancellation marker")
+eq(icon.arrow,"other","Fear cancellation retains purple targeting")
+eq(icon.ineffective,false,"Effective cancellation is not red")
+local conversion={source="prey",key="prey",spec={convertAttack={slot=2,from="IF",to="I"}},
+    effective={attackConversions={{slot=2,from="IF",to="I"}}}}
+icon=combatConfig.effectButtonInfo(enemy,conversion)
+eq(icon.ineffective,false,"Converted attack is effective")
+assert(icon.tooltip:find("Convert attack 2 from IF to I",1,true),"Conversion tooltip")
+skillResourceDefinitions.element={damageMitigation={fire=2,ice=2,other=1}}
+icon=combatConfig.mitigationButtonInfo("element",{enemyGUID="enemy"},enemy,
+    {},{["enemy:1"]={elementPrevented=2}},mitigation)
+eq(icon.amount,"2","Elemental mitigation uses actual prevented amount")
+eq(icon.ineffective,false,"Elemental protection effective")
+icon=combatConfig.mitigationButtonInfo("element",{enemyGUID="enemy"},enemy,
+    {rangeDefeated=true},{},nil)
+eq(icon.ineffective,true,"Defeated enemy gives no damage prevention")
+assert(icon.tooltip:find("already defeated",1,true),"Early defeat reason")
 
 -- Choice icons use the same registry and preserve explicitly chosen resource icons.
 local uiAssets=source("src/PlayingGame/UIAssets.lua")

@@ -287,7 +287,7 @@ assert(arrowKind({cancelOneAttack=true})=="other",
     "Attached Fear must use purple arrows")
 assert(arrowKind({noAttack=true,maxTargets=3})=="other",
     "Full Fear must use purple arrows")
-assert(recognition:find('local arrow=combatEffectArrowKind(spec)',1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/CombatEffectDisplay.lua"):find('local arrow=combatEffectArrowKind(spec)',1,true),
     "Calculator effect buttons must use shared classification")
 assert(recognition:find('local borrowedEnemy=record~=nil and (record.possessEnemyGUID~=nil',1,true),
     "Fear targets must not receive resource-link outlines")
