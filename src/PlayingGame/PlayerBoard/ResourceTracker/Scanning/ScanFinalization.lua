@@ -100,7 +100,7 @@ function M.remainingObjects(context)
                         if effects.ignoreRampagers then movementEffects.ignoreRampagers=true end
                     end
                 end
-                showChoiceButtons(obj,result.choices,result.powered)
+                showChoiceButtons(obj,result.choices,result.powered,nil,nil,result.resources)
                 if not alreadyRecorded then addResourceAmounts(result,totals) end
                 if skillLinksBySkill[guid]~=nil then
                     result.contributes=true
