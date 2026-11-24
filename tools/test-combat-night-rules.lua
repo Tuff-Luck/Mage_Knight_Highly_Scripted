@@ -100,7 +100,11 @@ env.trackerPrivate.renderCombatNight=nil
 -- Night context; physical terrain movement costs must retain actual Day/Night.
 assert(source:find("chosen=resourceCardsUsesDayMana() and {blockFire=value} or {blockIce=value}",1,true),
     "One with the Land must follow NightRules enemy combat")
-assert(source:find("return effect.dayRound==nil or effect.dayRound==(gStates.dayRound==true)",1,true))
+local movementFile=assert(io.open("src/PlayingGame/PlayerBoard/ResourceTracker/MovementEffects.lua","r"))
+local movementSource=movementFile:read("*a")
+movementFile:close()
+assert(movementSource:find("return effect.dayRound==nil or effect.dayRound==(gStates.dayRound==true)",1,true),
+    "Terrain movement must use actual Day/Night, not the combat Night context")
 assert(source:find("trackerPrivate.renderCombatNight=resourceCardsCombatNightFromEnemies(combatMonsters)",1,true),
     "Active combat must build one shared Night snapshot")
 assert(source:find("trackerPrivate.renderCombatNight=nil\n    if trackerPrivate.traceEnabled then trackerPrivate.traceEvent(\"render.done\",seatPos) end\nend\n\nlocal function scheduleSeatRender(",1,true),
