@@ -138,9 +138,8 @@ eq(payment.matches(card,"Black"),true,"Dungeon permits Night Black")
 
 -- Mana Bolt/Thunderbolt has three independent physical mana roles: cast,
 -- stronger side, and elemental choice. No physical mana can pay twice.
-local selectPayment=between(reader,"local function effectManaPossibilities(",
-    "-- Only the separate stronger-effect payment qualifies")
-local possibilities=assert(load(selectPayment.."\nreturn effectManaPossibilities"))()
+package.path="src/?.lua;"..package.path
+local possibilities=require("PlayingGame.PlayerBoard.ResourceTracker.ManaPayments").effectManaPossibilities
 local spec=defs.spellManaBolt.effectManaChoice
 local function mana(guid,color) return {guid=guid,color=color} end
 local options,wildcard=possibilities(spec,

@@ -14,8 +14,6 @@ local function section(source,first,last)
     return source:sub(a,b-1)
 end
 local source=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-local chooseCode=section(source,"trackerPrivate.bestManaCard=function(",
-    "-- Read the physical Blue casting payment")
 local zoneCode=section(source,"trackerPrivate.zoneFootprintContainsXZ=require(",
     "-- A dropped play source")
 local underCode=section(source,"function resourceCardsUnderAction(targets)",
@@ -40,8 +38,7 @@ local footprints={
     blue2={x=1.3,z=0,halfX=1.5,halfZ=1.5}
 }
 local tracker={}
-local select=assert(load(chooseCode.."\nreturn trackerPrivate.bestManaCard",
-    "Stack mana preference","t",{trackerPrivate=tracker,math=math,ipairs=ipairs}))()
+local select=require("PlayingGame.PlayerBoard.ResourceTracker.ManaPayments").bestManaCard
 local function colorMatches(card,color)
     return color=="Gold" or (color=="Blue" and card.guid~="green")
         or (color=="Green" and card.guid=="green")
