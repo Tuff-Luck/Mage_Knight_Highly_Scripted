@@ -11,14 +11,14 @@ end
 local function icon(id,active,amount,image,tooltip,selected,color,wounded,ineffective)
     icons[id]={active=active,amount=amount,tooltip=tooltip,selected=selected,wounded=wounded,ineffective=ineffective}
 end
-local layout=dofile(root.."Interface/CombatPanelLayout.lua")
+local layout=dofile(root.."Interface/CombatPanel.lua").layout
 local cfg={rowCount=2,slotCount=12,lineSlotCount=6,rowHeight=30,
     columns={Result=255},traitColumnWidth=layout.traitColumnWidth,
     textColumnWidth=layout.textColumnWidth,enemyNameColumnWidth=layout.enemyNameColumnWidth,
     effectSources={},slotBowFamilies={},slotSelection={},resultRowCache={},
     artifactCombat={},typeColors={P={"white","grey"}},COMBAT_GREEN="green",COMBAT_RED="red"}
 local function rich(s) return s end
-local panel=dofile(root.."Interface/CombatPanelRenderer.lua")(cfg,set,rich,
+local panel=dofile(root.."Interface/CombatPanel.lua").renderer(cfg,set,rich,
     function(n) return tostring(n).." Wounds" end,function(lines) return table.concat(lines," ") end)
 local widths,w=panel.columns({"None","Resist"},{"","-"},{"P 3",""},
     {range=false,block=true,attack=false},{range=0,block=8,attack=0},100)

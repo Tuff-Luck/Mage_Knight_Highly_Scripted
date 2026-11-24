@@ -81,7 +81,7 @@ local cardEnv={
 }
 setmetatable(cardEnv,{__index=_G})
 cardEnv.trackerPrivate=cardEnv.trackerPrivate or {}
-cardEnv.trackerPrivate.scanScheduler=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Core/ScanScheduler.lua","t",cardEnv))()
+cardEnv.trackerPrivate.scanScheduler=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Core/TrackerLifecycle.lua","t",cardEnv))().scheduler
 local queue=assert(load(readySource.."\n"..queueSource.."\nreturn queueSeat",
     "Per seat render scheduler","t",cardEnv))()
 local function fireCardFrames()

@@ -291,7 +291,7 @@ assert(arrowKind({noAttack=true,maxTargets=3})=="other",
     "Full Fear must use purple arrows")
 assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CombatEffectDisplay.lua"):find('local arrow=combatEffectArrowKind(spec)',1,true),
     "Calculator effect buttons must use shared classification")
-assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/CardInteractions.lua"):find('local borrowedEnemy=record~=nil and (record.possessEnemyGUID~=nil',1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/CrossCardEffects.lua"):find('local borrowedEnemy=record~=nil and (record.possessEnemyGUID~=nil',1,true),
     "Fear targets must not receive resource-link outlines")
 
 -- Banner of Courage is snapshotted once, rather than readied on every scan.
@@ -301,7 +301,7 @@ assert(unitScan:find("for _,entry in ipairs(courageUses[card.guid].eligible)",1,
     "Only snapshotted Units may receive Courage Ready links")
 assert(readyPolicy:find("if entry.key==sourceKey then return true end",1,true),
     "Courage must reject unsnapshotted Ready source IDs")
-local cardInteraction=read("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/CardInteraction.lua")
+local cardInteraction=read("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/CardCallbacks.lua")
 assert(cardInteraction:find("if uses[guid] then return end",1,true)
     and cardInteraction:find("uses[guid]=true",1,true),
     "Broken Fortitude's Heal must not activate twice")

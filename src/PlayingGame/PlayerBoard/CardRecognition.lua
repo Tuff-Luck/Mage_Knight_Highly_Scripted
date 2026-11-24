@@ -5,7 +5,7 @@ local trackerPrivate=require("PlayingGame.PlayerBoard.ResourceTracker.Core.State
 trackerPrivate.combatTargetPolicy=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.CombatTargetPolicy")
 trackerPrivate.combatInteraction=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.CombatInteraction")
 trackerPrivate.playedCardScan=require("PlayingGame.PlayerBoard.ResourceTracker.Cards.PlayedCardScan")
-trackerPrivate.cardInteractions=require("PlayingGame.PlayerBoard.ResourceTracker.Cards.CardInteractions")
+trackerPrivate.cardInteractions=require("PlayingGame.PlayerBoard.ResourceTracker.Cards.CrossCardEffects")
 trackerPrivate.skillInteractions=require("PlayingGame.PlayerBoard.ResourceTracker.Cards.SkillInteractions")
 trackerPrivate.unitScan=require("PlayingGame.PlayerBoard.ResourceTracker.Units.UnitScan")
 trackerPrivate.unitManagement=require("PlayingGame.PlayerBoard.ResourceTracker.Units.UnitManagement")
@@ -15,10 +15,10 @@ trackerPrivate.scanPayments=require("PlayingGame.PlayerBoard.ResourceTracker.Sca
 trackerPrivate.scanFinalization=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.ScanFinalization")
 trackerPrivate.factionRewardScan=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.FactionRewardScan")
 trackerPrivate.scanPublication=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.ScanPublication")
-trackerPrivate.scanScheduler=require("PlayingGame.PlayerBoard.ResourceTracker.Core.ScanScheduler")
-trackerPrivate.trackerLifecycle=require("PlayingGame.PlayerBoard.ResourceTracker.Core.TrackerLifecycle")
+trackerPrivate.scanScheduler=require("PlayingGame.PlayerBoard.ResourceTracker.Core.TrackerLifecycle").scheduler
+trackerPrivate.trackerLifecycle=require("PlayingGame.PlayerBoard.ResourceTracker.Core.TrackerLifecycle").lifecycle
 trackerPrivate.objectEvents=require("PlayingGame.PlayerBoard.ResourceTracker.Core.ObjectEvents")
-trackerPrivate.cardInteraction=require("PlayingGame.PlayerBoard.ResourceTracker.Cards.CardInteraction")
+trackerPrivate.cardInteraction=require("PlayingGame.PlayerBoard.ResourceTracker.Cards.CardCallbacks")
 -- Keep the public chat callback here; diagnostics share this live private state.
 require("PlayingGame.PlayerBoard.ResourceTracker.Core.Diagnostics")(trackerPrivate)
 function resourceCardsTraceCommand(command,playerColor)
@@ -2643,7 +2643,7 @@ combatConfig.applyExplosiveBoltRange=require("PlayingGame.PlayerBoard.ResourceTr
     function(key) return attackAssignmentsTargetGUIDs(key) end,
     function(key,guid,arrow) return attackAssignmentsReconcileEffectTarget(key,guid,arrow) end)
 
-trackerPrivate.combatPanelLayout=require("PlayingGame.PlayerBoard.ResourceTracker.Interface.CombatPanelLayout")
+trackerPrivate.combatPanelLayout=require("PlayingGame.PlayerBoard.ResourceTracker.Interface.CombatPanel").layout
 combatConfig.enemyNameColumnWidth=trackerPrivate.combatPanelLayout.enemyNameColumnWidth
 combatConfig.textColumnWidth=trackerPrivate.combatPanelLayout.textColumnWidth
 combatConfig.traitColumnWidth=trackerPrivate.combatPanelLayout.traitColumnWidth
@@ -2696,7 +2696,7 @@ trackerPrivate.combatRowRenderer=require("PlayingGame.PlayerBoard.ResourceTracke
     combatGroupTraitsText,combatEnemyAttacks,combatTypeRich,combatNatureVengeanceBlockBonus,
     combatRich,combatDamageNotes,combatGroupAttackLine,combatCompactResultLines,
     function(guid) return monsterPugs[guid] end)
-trackerPrivate.combatPanelRenderer=require("PlayingGame.PlayerBoard.ResourceTracker.Interface.CombatPanelRenderer")(
+trackerPrivate.combatPanelRenderer=require("PlayingGame.PlayerBoard.ResourceTracker.Interface.CombatPanel").renderer(
     combatConfig,combatPanelSetAttribute,combatRich,combatWoundsText,
     function(...) return joinLang(...) end)
 

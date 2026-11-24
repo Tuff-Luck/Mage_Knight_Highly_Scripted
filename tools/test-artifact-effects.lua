@@ -87,7 +87,7 @@ assert(assignments:find('if total>=maximum and (mode~="targets" or not distinct[
     "Fear must reject a fourth distinct target while preserving existing target selection")
 assert(ui:find("resourceCardsCombatAssignmentClick(id,mouseButton)",1,true),
     "Combat UI must forward right-click for Bow options")
-assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/CardInteraction.lua"):find('inventorySpec={choices=remaining}',1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/CardCallbacks.lua"):find('inventorySpec={choices=remaining}',1,true),
     "Druidic Staff's second UI option must be clickable")
 assert(not recognition:find('resourceCardsArtifactNoteClicked',1,true),
     "Artifact '?' note callback should be removed with the buttons")

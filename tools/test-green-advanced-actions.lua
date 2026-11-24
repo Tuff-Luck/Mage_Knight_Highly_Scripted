@@ -24,7 +24,7 @@ local callbacks=source("src/PlayingGame/Callbacks.lua")
 assert(data:find("simultaneousReady=true,unitReadyLevels={normal=2,powered=3}",1,true))
 assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CardControlOptions.lua"):find("choices={{healing=resources.healing}}",1,true))
 assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CardControls.lua"):find('onClick="global/resourceCardsRegenerationReadyClicked"',1,true))
-assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/CardInteraction.lua"):find('unitHistoryCancelReadySource(sourceKey)',1,true))
+assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/CardCallbacks.lua"):find('unitHistoryCancelReadySource(sourceKey)',1,true))
 assert(callbacks:find('"resourceCardsRegenerationReadyClicked"',1,true))
 
 local readyCode=section(reader,
@@ -90,7 +90,7 @@ local function unitHistoryCancelReadySource(key)
     gStates.unitReadyLinks[key]=nil
 end
 local function resourceCardsSourceChanged() end
-]].."\nlocal trackerPrivate={cardInteraction=(function()\n"..source("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/CardInteraction.lua").."\nend)()}\n"..clickCode..[[
+]].."\nlocal trackerPrivate={cardInteraction=(function()\n"..source("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/CardCallbacks.lua").."\nend)()}\n"..clickCode..[[
 return {click=resourceCardsRegenerationReadyClicked,targets=targets,removed=removed,
     state=gStates}
 ]]))()

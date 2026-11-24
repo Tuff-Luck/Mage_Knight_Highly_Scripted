@@ -190,7 +190,7 @@ eq(fixedWidth(warning,"Knockout warning"),width,
     "Knockout warning must align with the Draw Wounds button")
 assert(not enemyPanel:find('CombatTotalSpacer',1,true),
     "No spacer may stretch the Draw Wounds row")
-local renderer=fileText("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CombatPanelRenderer.lua")
+local renderer=fileText("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CombatPanel.lua")
 assert(not recognition:find('summaryWidth',1,true) and not renderer:find('summaryWidth',1,true),
     "No dynamic preferredWidth writes should fight TTS's anchored position")
 assert(renderer:find('"Draw: "..combatRich',1,true),

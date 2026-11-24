@@ -4,19 +4,18 @@
 local root="src/PlayingGame/PlayerBoard/"
 local prefix="PlayingGame.PlayerBoard.ResourceTracker."
 local modules=[[
-Cards.ActionLinks Cards.CardEffects Cards.CardInteraction Cards.CardInteractions Cards.MovementEffects
+Cards.ActionLinks Cards.CardCallbacks Cards.CardEffects Cards.CrossCardEffects Cards.MovementEffects
 Cards.PlayedCardScan Cards.ResourceChoices Cards.SkillEffects Cards.SkillInteractions Cards.SkillLinks
 Combat.AttackEligibility Combat.BlockCalculation Combat.BossAllocation Combat.CombatInteraction
 Combat.CombatTargetPolicy Combat.ConditionalBlockEffects Combat.DamageCalculation Combat.DefendAllocation
 Combat.DivisibleResources Combat.EarlyCombatPhase Combat.EnemyGroups Combat.EnemyProperties
 Combat.ExplosiveBolt Combat.FlameWave Combat.LateCombatPhase Combat.SourceTargetAllocation
-Core.Diagnostics Core.ObjectEvents Core.ScanScheduler Core.State Core.TrackerLifecycle
-Interface.CardControlOptions Interface.CardControls Interface.CombatDisplay Interface.CombatEffectDisplay
-Interface.CombatPanelLayout Interface.CombatPanelRenderer Interface.CombatResourceDisplay
-Interface.CombatRowRenderer Interface.UnitControls Scanning.FactionRewardScan Scanning.ManaPayments
-Scanning.PhysicalObjects Scanning.ScanFinalization Scanning.ScanObservation Scanning.ScanPayments
-Scanning.ScanPublication Units.ReadyPolicy Units.UnitChoices Units.UnitEffects Units.UnitManagement
-Units.UnitScan Units.UnitSelfWounds
+Core.Diagnostics Core.ObjectEvents Core.State Core.TrackerLifecycle Interface.CardControlOptions
+Interface.CardControls Interface.CombatDisplay Interface.CombatEffectDisplay Interface.CombatPanel
+Interface.CombatResourceDisplay Interface.CombatRowRenderer Interface.UnitControls
+Scanning.FactionRewardScan Scanning.ManaPayments Scanning.PhysicalObjects Scanning.ScanFinalization
+Scanning.ScanObservation Scanning.ScanPayments Scanning.ScanPublication Units.ReadyPolicy
+Units.UnitChoices Units.UnitEffects Units.UnitManagement Units.UnitScan Units.UnitSelfWounds
 ]]
 local publicNames=[[
 attackAssignmentReadySourceClicked combatBossAutomationActive combatBossLevelCount combatBossSetManual
@@ -143,6 +142,7 @@ local env=setmetatable({unitResourceDefinitions={},skillResourceDefinitions={},p
 end},{__index=_G})
 local loaded,loading={},{}
 local combinedFactories={
+    ["PlayingGame.PlayerBoard.ResourceTracker.Interface.CombatPanel"]={"renderer"},
     ["PlayingGame.PlayerBoard.ResourceTracker.Combat.EnemyProperties"]={"attacks","defences"},
     ["PlayingGame.PlayerBoard.ResourceTracker.Combat.DamageCalculation"]={"preparation","resolution"},
     ["PlayingGame.PlayerBoard.ResourceTracker.Combat.BlockCalculation"]={"solver","results"},

@@ -17,7 +17,7 @@ local env=setmetatable({
 },{__index=_G})
 local tracker={generation={[1]=1},pendingSeatRender={},pendingSeatSettles={},
     choiceResetGenerationByGUID={},playCardMovements={},readyForXZ=function(obj) return obj.ready end}
-local scheduler=assert(loadfile(root.."Core/ScanScheduler.lua","t",env))()
+local scheduler=assert(loadfile(root.."Core/TrackerLifecycle.lua","t",env))().scheduler
 local renders=0
 local function render(seat) renders=renders+1 end
 local function schedule(seat) scheduler.schedule(seat,tracker,render) end

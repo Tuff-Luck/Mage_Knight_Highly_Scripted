@@ -16,7 +16,7 @@ local flow=read("src/PlayingGame/PlayerBoard/CardFlow.lua")
 local actionLinks=read("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/ActionLinks.lua")
 local cardControls=read("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CardControls.lua")
 local playedCards=read("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/PlayedCardScan.lua")
-local cardInteraction=read("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/CardInteraction.lua")
+local cardInteraction=read("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/CardCallbacks.lua")
 local readyPolicy=read("src/PlayingGame/PlayerBoard/ResourceTracker/Units/ReadyPolicy.lua")
 local unitScan=read("src/PlayingGame/PlayerBoard/ResourceTracker/Units/UnitScan.lua")
 local callbacks=read("src/PlayingGame/Callbacks.lua")
@@ -293,7 +293,7 @@ do
         resourceCardsSourceChanged=function() refreshes=refreshes+1 end
     },{__index=_G})
 env.trackerPrivate=env.trackerPrivate or {}
-env.trackerPrivate.cardInteraction=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/CardInteraction.lua","t",env))()
+env.trackerPrivate.cardInteraction=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/CardCallbacks.lua","t",env))()
     local clickSource=section(rec,"function resourceCardsArtifactGrailFameClicked(",
         "-- Toggle the strong effect")
     local click=assert(load(clickSource.."\nreturn resourceCardsArtifactGrailFameClicked",
@@ -375,7 +375,7 @@ do
         resourceCardsSourceChanged=function() refreshes=refreshes+1 end
     },{__index=_G})
 env.trackerPrivate=env.trackerPrivate or {}
-env.trackerPrivate.cardInteraction=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/CardInteraction.lua","t",env))()
+env.trackerPrivate.cardInteraction=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/CardCallbacks.lua","t",env))()
     local source=section(rec,"function resourceCardsArtifactBreakClicked(",
         "-- Player clicks always")
     local click=assert(load(source.."\nreturn resourceCardsArtifactBreakClicked",

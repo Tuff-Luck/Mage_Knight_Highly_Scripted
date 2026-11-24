@@ -126,7 +126,7 @@ local env={
 }
 setmetatable(env,{__index=_G})
 env.trackerPrivate={combatInteraction=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/CombatInteraction.lua","t",env))(),
-    cardInteraction=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/CardInteraction.lua","t",env))()}
+    cardInteraction=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/CardCallbacks.lua","t",env))()}
 assert(load(clearCode,"Target clearing","t",env))()
 local click=assert(load(forgetCode.."\n"..choiceCode.."\nreturn resourceCardsChoiceClicked",
     "Card choice change","t",env))()

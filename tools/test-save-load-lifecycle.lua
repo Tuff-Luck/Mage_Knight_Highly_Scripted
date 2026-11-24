@@ -51,7 +51,7 @@ local choiceEnv={
     }
 }
 choiceEnv.trackerPrivate=choiceEnv.trackerPrivate or {}
-choiceEnv.trackerPrivate.trackerLifecycle=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Core/TrackerLifecycle.lua","t",choiceEnv))()
+choiceEnv.trackerPrivate.trackerLifecycle=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Core/TrackerLifecycle.lua","t",choiceEnv))().lifecycle
 setmetatable(choiceEnv,{__index=_G})
 local saveChoices,restoreChoices=loadSection(cards,
     "-- Explicit card choices represent player decisions",
@@ -187,7 +187,7 @@ local startupEnv={
     end
 }
 startupEnv.trackerPrivate=startupEnv.trackerPrivate or {}
-startupEnv.trackerPrivate.trackerLifecycle=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Core/TrackerLifecycle.lua","t",startupEnv))()
+startupEnv.trackerPrivate.trackerLifecycle=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Core/TrackerLifecycle.lua","t",startupEnv))().lifecycle
 local startup=loadSection(cards,"function resourceCardsOnLoad(restoringSave)",
     "local function resourceCardsRelevantZone(ctx)",startupEnv,
     "return resourceCardsOnLoad")

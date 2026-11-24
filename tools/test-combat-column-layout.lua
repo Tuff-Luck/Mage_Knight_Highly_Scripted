@@ -10,9 +10,9 @@ local function read(path)
 end
 
 local source=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-local panelRenderer=read("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CombatPanelRenderer.lua")
+local panelRenderer=read("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CombatPanel.lua")
 local xml=read("src/UI/CombatEnemyPanel.xml")
-local layout=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CombatPanelLayout.lua")
+local layout=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CombatPanel.lua").layout
 local nameWidth,traitWidth,textWidth=layout.enemyNameColumnWidth,layout.traitColumnWidth,layout.textColumnWidth
 
 assert(nameWidth("Ice Mages")<100,"A short enemy name should shrink below the old 100px minimum")
