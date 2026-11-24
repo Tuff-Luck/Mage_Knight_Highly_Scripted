@@ -5299,6 +5299,7 @@ local function renderSeat(seatPos)
 
     trackerPrivate.scanPublication.publish({
         seatPos=seatPos, records=records, resourceCardsMoveRole=resourceCardsMoveRole,
+        combatForgetPhysicalSourceTargets=combatForgetPhysicalSourceTargets,
         trackerPrivate=trackerPrivate, combatEnemyInPlay=combatEnemyInPlay, terrainModifiers=terrainModifiers,
         terrainModifierPrecedes=terrainModifierPrecedes, totals=totals, movementEffects=movementEffects,
         attackTransforms=attackTransforms, resourceCardsSyncInteractionPower=resourceCardsSyncInteractionPower,
