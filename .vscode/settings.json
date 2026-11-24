@@ -6,6 +6,7 @@
         "undefined-field",
         "param-type-mismatch"
     ],
+    "Lua.diagnostics.ignoredFiles": "Disable",
     "Lua.workspace.ignoreDir": [
         ".tts/bundled"
     ],
