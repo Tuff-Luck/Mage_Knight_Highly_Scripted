@@ -172,9 +172,15 @@ local lateFile=assert(io.open("src/PlayingGame/PlayerBoard/ResourceTracker/LateC
 local latePhase=lateFile:read("*a")
 lateFile:close()
 assert(latePhase:find("group.attackTotal=meleeTotal",1,true),"save authoritative post-Damage Attack")
-contains("combatGroupAttackLine(group.attackTotal,group.attackArmour)",
+local rowFile=assert(io.open("src/PlayingGame/PlayerBoard/ResourceTracker/CombatRowRenderer.lua","r"))
+local rowRenderer=rowFile:read("*a")
+rowFile:close()
+assert(rowRenderer:find("combatGroupAttackLine(group.attackTotal,group.attackArmour)",1,true),
     "Result uses authoritative Attack total")
-contains("wounded=wounded,paralysisCard=paralysisCard,ineffective=paralysisCard",
+local resourceFile=assert(io.open("src/PlayingGame/PlayerBoard/ResourceTracker/CombatResourceDisplay.lua","r"))
+local resourceDisplay=resourceFile:read("*a")
+resourceFile:close()
+assert(resourceDisplay:find("wounded=wounded,paralysisCard=paralysisCard,ineffective=paralysisCard",1,true),
     "Paralyzed card Attack icon is rendered dark/red")
 contains("local knockout=totalHeroWounds+otherCombatWounds>=handLimit",
     "Knockout includes only this combat's Wounds")

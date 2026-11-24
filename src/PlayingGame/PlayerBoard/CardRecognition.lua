@@ -2799,13 +2799,24 @@ trackerPrivate.lateCombatPhase=require("PlayingGame.PlayerBoard.ResourceTracker.
     function(...) return combatEffectPostDamageSpecs(...) end,combatFrozenCopy,
     combatConfig.attackPhaseSources,combatAttackTotal,combatBossPhasePlan)
 
+trackerPrivate.combatResourceDisplay=require("PlayingGame.PlayerBoard.ResourceTracker.CombatResourceDisplay")(
+    combatConfig,function(guid) return skillResourceDefinitions[guid] end,
+    combatDetailPhase,combatEnemyResists,combatGroupResourceRows)
+trackerPrivate.combatRowRenderer=require("PlayingGame.PlayerBoard.ResourceTracker.CombatRowRenderer")(
+    combatConfig,combatPanelSetAttribute,combatAssignmentIconButton,combatEnemyHasTrait,
+    combatGroupTraitsText,combatEnemyAttacks,combatTypeRich,combatNatureVengeanceBlockBonus,
+    combatRich,combatDamageNotes,combatGroupAttackLine,combatCompactResultLines,
+    function(guid) return monsterPugs[guid] end)
+trackerPrivate.combatPanelRenderer=require("PlayingGame.PlayerBoard.ResourceTracker.CombatPanelRenderer")(
+    combatConfig,combatPanelSetAttribute,combatRich,combatWoundsText,
+    function(...) return joinLang(...) end)
+
 local function combatAssignmentRefreshRows(entries,sources)
     combatConfig.resultRowCache={}
     combatConfig.slotSelection={}
     combatConfig.effectSources={}
     local rowByGUID={}
     local totalRowHeight=0
-    local grandDamage,damageSources=0,0
     combatAssignmentRowTargets={}
     combatAssignmentRowIndices={}
     local pages,pageOffset,pageEnd,visibleRows
@@ -2823,7 +2834,6 @@ local function combatAssignmentRefreshRows(entries,sources)
     combatPanelSetAttribute("CombatEnemyPageLabel","text",
         tostring(visibleRows>0 and pageOffset+1 or 0).."-"..tostring(pageEnd)
             .." / "..tostring(#entries))
-    local overflow=0
     local maxResourceCounts={range=0,block=0,attack=0}
     -- Text shown in the ability columns and the columns that hold anything, so empty columns can be hidden.
     local shownTraits,shownOffence,shownAttacks,colUsed={},{},{},{range=false,block=false,attack=false}
@@ -3177,373 +3187,17 @@ local function combatAssignmentRefreshRows(entries,sources)
         end
     end
     combatSetDefeatMarks(trackedGuids,defeatedGuids,partialGuids)
-    -- Build all grouped rows before paging or rendering them. A group can
-    -- span pages, and each following member offers two six-icon display lines.
-    -- Only the button placement changes; allocated sources stay on their targets.
-    local mitigationRecords={}
-    for guid,record in pairs(seatScan~=nil and seatScan.cards or {}) do
-        local rule=skillResourceDefinitions[guid]
-        if rule~=nil and rule.damageMitigation~=nil and record.enemyGUID~=nil then
-            mitigationRecords[#mitigationRecords+1]={guid=guid,record=record}
-        end
-    end
-    local displayByIndex={}
-    for _,group in ipairs(groups) do
-        local perMember={}
-        for _,index in ipairs(group.members) do
-            local lists={range={},block={},attack={}}
-            for _,item in ipairs((allocated[index] or emptyTarget).details) do
-                if item.detail.family=="block" or item.detail.family=="move"
-                    or item.detail.family=="influence" then
-                    lists.block[#lists.block+1]={source=item.source,amount=item.detail.amount,
-                        icon=item.detail.icon,text=item.detail.text,typeKey=item.detail.typeKey,
-                        reduced=rowBlock[index].wrongBlock[item.source.key..tostring(item.detail.key)]==true}
-                end
-                if item.detail.family~="block" and item.detail.family~="move" then
-                    local phase=combatDetailPhase(item.detail,
-                        group.rangeDefeated or group.rangeSpent,group.fortification,item.source)
-                    -- Keep invalidated Attack-phase Unit icons visible so players
-                    -- can see what was assigned, but make the unavailable value grey
-                    -- and explain why it does not count. Earlier Ranged/Block stands.
-                    local wounded=phase=="attack" and (woundedBeforeAttack[item.source.guid]==true
-                        or item.source.dodgeIneligible==true)
-                    local paralysisCard=phase=="attack"
-                        and paralysisAttackCards[item.source.guid]==true
-                    if phase~=nil then
-                        lists[phase][#lists[phase]+1]={source=item.source,amount=item.detail.amount,
-                            icon=item.detail.icon,text=item.detail.text,typeKey=item.detail.typeKey,
-                            reduced=combatEnemyResists(group.entry.data,group.entry.perks,item.detail.typeKey),
-                            wounded=wounded,paralysisCard=paralysisCard,ineffective=paralysisCard}
-                    end
-                end
-            end
-            perMember[index]=lists
-        end
-        local distributed,hidden=combatGroupResourceRows(group.members,perMember,combatConfig.slotCount)
-        for index,lists in pairs(distributed) do displayByIndex[index]=lists end
-        overflow=overflow+hidden
-        -- Numeric Ranged/Attack sources may flow through joined enemies, but
-        -- enemy effects always stay on the row of the enemy they actually target.
-        -- Put them first so the control stays visible even when a row is crowded.
-        for _,index in ipairs(group.members) do
-            local targetEntry=entries[index]
-            local lists=displayByIndex[index]
-            local function insertEffect(item)
-                if item==nil then return end
-                local buttons=lists[item.family]
-                table.insert(buttons,1,item)
-                if #buttons>combatConfig.slotCount then
-                    table.remove(buttons)
-                    overflow=overflow+1
-                end
-                combatConfig.effectSources[item.source.key]={arrow=item.arrow,
-                    requiresDefence=item.requiresDefence==true}
-            end
-            for _,applied in ipairs(targetEntry.effect~=nil and targetEntry.effect.applied or {}) do
-                local effectButton=combatConfig.effectButtonInfo(targetEntry,applied)
-                if effectButton~=nil and applied.phaseAfterDamage then
-                    effectButton.family="attack"
-                    effectButton.tooltip=(effectButton.tooltip or "")
-                        .."\nPlayed after Damage; Ranged/Siege and Block are locked."
-                end
-                insertEffect(effectButton)
-            end
-            -- The extra target from Explosive Bolt is an Armour effect, not
-            -- more Ranged Attack. Red/grey states explain unmet conditions.
-            for _,bolt in ipairs(targetEntry.explosiveBoltEffects or {}) do
-                insertEffect({source={guid=bolt.guid,key=bolt.key,name="Explosive Bolt"},
-                    family="attack",arrow="other",requiresDefence=true,amount="-"..tostring(bolt.earned),
-                    icon="MKChoiceArmourReduction",
-                    text="Armour -"..tostring(bolt.earned).." after Ranged defeat (min 1)",
-                    tooltip="Explosive Bolt: "..(bolt.reason or
-                        ("Applied Armour reduction: "..tostring(bolt.applied)))
-                        .."\nClick to retarget this effect separately from its Ranged Attack.",
-                    ineffective=bolt.reason~=nil})
-            end
-            -- Damage mitigation is a Block-column control, but not Block points.
-            for _,mitigationSource in ipairs(mitigationRecords) do
-                if mitigationSource.record.enemyGUID==targetEntry.guid then
-                    insertEffect(combatConfig.mitigationButtonInfo(mitigationSource.guid,
-                        mitigationSource.record,targetEntry,group,damageResults,
-                        mitigationSource.guid=="ae8673" and elementMitigation or mitigation))
-                end
-            end
-        end
-    end
-    for row=1,combatConfig.rowCount do
-        local index=pageOffset+row
-        local entry=row<=visibleRows and entries[index] or nil
-        local group=entry~=nil and groupOf[index] or nil
-        local lists=displayByIndex[index] or {range={},block={},attack={}}
-        local resourceLines=1
-        for _,family in ipairs({"range","block","attack"}) do
-            local items=lists[family]
-            if entry~=nil and #items>0 then
-                colUsed[family]=true
-                maxResourceCounts[family]=math.max(maxResourceCounts[family],#items)
-                resourceLines=math.max(resourceLines,math.ceil(#items/combatConfig.lineSlotCount))
-            end
-            -- Collapse the second icon line completely when unused. The Grid is
-            -- anchored to the cell's centre, so tall text rows don't strand
-            -- their one-line icons against the top of the enemy row.
-            local gridID="CombatSourceGrid"..row..family
-            local gridHeight=math.ceil(#items/combatConfig.lineSlotCount)*26
-            combatPanelSetAttribute(gridID,"height",tostring(gridHeight))
-            combatPanelSetAttribute(gridID,"preferredHeight",tostring(gridHeight))
-            for slot=1,combatConfig.slotCount do
-                local id="CombatSourceSlot"..row..family..slot
-                local item=items[slot]
-                if item~=nil then
-                    combatAssignmentSlotSources[id]=item.source.key
-                    combatConfig.slotBowFamilies[id]=item.detail~=nil
-                        and (item.detail.family=="ranged" or item.detail.family=="siege")
-                        and item.detail.family or nil
-                    combatConfig.slotSelection[id]={key=item.source.key,
-                        wounded=item.wounded,ineffective=item.ineffective}
-                    local tooltip=item.tooltip or (item.source.name..": "..item.text
-                        ..(item.source.dodgeIneligible and
-                            " unavailable: the Hero took Wounds before the Attack phase"
-                            or (item.wounded and " can't apply 'Wounded'" or "")))
-                    -- Cold Toughness's powered icon bonus is automatic. Explain
-                    -- its printed Arcane Immunity exception on the Block source icon.
-                    local coldToughness=seatScan~=nil and seatScan.cards["79bfbd"] or nil
-                    if item.source.guid=="79bfbd" and item.typeKey=="I"
-                        and coldToughness~=nil and coldToughness.powered==true then
-                        local printedEnemy=entry~=nil and monsterPugs[entry.guid] or nil
-                        if printedEnemy~=nil and printedEnemy.arcaneImmunity==true then
-                            tooltip=tooltip.."\nCold Toughness: Ice Block 5 + 0 icon bonus (Arcane Immunity)."
-                        else
-                            tooltip=tooltip.."\nCold Toughness: Ice Block 5 + 1 per printed enemy ability, attack type or resistance icon (automatic)."
-                        end
-                    end
-                    if item.paralysisCard then
-                        tooltip=tooltip.."\n"
-                            ..(knockout and "Knockout" or "Paralysis")
-                            ..": the Hero discards non-Wound cards before Attack."
-                            .." This planned card Attack does not count."
-                    end
-                    local bowFamily=combatConfig.slotBowFamilies[id]
-                    if bowFamily~=nil and combatConfig.artifactCombat.bow then
-                        local bowMode=combatConfig.bowSourceModes[
-                            item.source.key.."#"..bowFamily]
-                            or (bowFamily=="ranged" and "double" or "none")
-                        local description=bowFamily=="ranged"
-                            and (bowMode=="siege" and "Convert to Siege (same value)"
-                                or "Double Ranged")
-                            or (bowMode=="ranged" and "Double and convert to Ranged"
-                                or "Keep original Siege")
-                        tooltip=tooltip.."\nBow of Starsdawn: "..description
-                            ..". Right-click this source icon to switch."
-                    end
-                    if item.source.phaseLocked then
-                        tooltip=tooltip.."\nLocked by Commit Damage. Use TTS Rewind to change."
-                    end
-                    combatAssignmentIconButton(id,true,item.amount,item.icon,
-                        tooltip,combatAssignmentState.selected==item.source.key,
-                        (item.wounded or item.ineffective) and "#292323" or (item.typeKey~=nil
-                            and combatConfig.typeColors[item.typeKey][item.reduced and 2 or 1] or nil),
-                        item.wounded,item.ineffective)
-                    combatPanelSetAttribute(id,"interactable",
-                        item.source.phaseLocked and "false" or "true")
-                else
-                    combatAssignmentIconButton(id,false,0,"","",false)
-                end
-            end
-        end
-        local merged=group~=nil and #group.members>1
-        for _,family in ipairs({"range","attack"}) do
-            combatPanelSetAttribute("CombatSourceCell"..row..family,"color",
-                merged and "rgba(1,1,1,0.10)" or "rgba(0,0,0,0)")
-        end
-        local rowHeight=math.max(combatConfig.rowHeight,resourceLines*26+4)
-        if entry~=nil and group~=nil then
-            -- Final armour for the current layout: Elusive doubles unless every attack is blocked.
-            local armourValue=entry.baseArmour
-            if combatEnemyHasTrait(entry.data,entry.perks,"elusive") and not rowBlock[index].allBlocked then
-                armourValue=entry.elusiveArmour
-            end
-            combatPanelSetAttribute("CombatEnemyRow"..row.."Armour","text",
-                (entry.destroyed or entry.attackOnly) and "-" or tostring(armourValue))
-            -- Use actual modified defenses even on a single enemy (Sorcerers,
-            -- stripped fortification, and other effects may change them).
-            local sharedText=combatGroupTraitsText(entry,group.entry)
-            shownTraits[row]=sharedText
-            combatPanelSetAttribute("CombatEnemyRow"..row.."Traits","text",sharedText)
-            entry.attackCount=math.max(entry.attackCount or 1,select(2,sharedText:gsub("\n",""))+1)
-            -- An enemy defeated before the Block phase has no attack or
-            -- offensive abilities to resolve, even if its printed token has them.
-            local noEnemyAttack=group.rangeDefeated or entry.rangeDead
-                or group.destroyed or entry.destroyed
-            local attacks=combatEnemyAttacks(entry)
-            local attackLines={}
-            if not noEnemyAttack then
-                for attackIndex,attack in ipairs(attacks) do
-                    local reduction=rowBlock[index].reductions[attackIndex] or 0
-                    local markers={}
-                    local selections=combatReductionAttackChoice[entry.guid] or {}
-                    for rank,effect in ipairs(entry.attackReductions) do
-                        if selections[effect.id or tostring(effect.source)]==attackIndex then
-                            markers[#markers+1]=tostring(rank)
-                        end
-                    end
-                    attackLines[#attackLines+1]=(#markers>0 and ("▶"..table.concat(markers,",").." ") or "")
-                        ..combatTypeRich(attack.label.." "..tostring(attack.value-reduction)
-                            ..(combatNatureVengeanceBlockBonus()>0 and " (Block +1)" or ""),
-                            attack.key,reduction>0)
-                end
-            end
-            local attackText=noEnemyAttack and ""
-                or (#attackLines>0 and table.concat(attackLines,"\n") or "-")
-            shownAttacks[row]=attackText
-            combatPanelSetAttribute("CombatEnemyRow"..row.."Attacks","text",attackText)
-            if noEnemyAttack then
-                shownOffence[row]=""
-                combatPanelSetAttribute("CombatEnemyRow"..row.."Offence","text","")
-                combatPanelSetAttribute("CombatEnemyAttackCycle"..row,"active","false")
-                -- Removed attack lines must not leave extra empty height.
-                entry.attackCount=math.max(1,select(2,sharedText:gsub("\n",""))+1)
-            end
-            local lines={}
-            local isLast=group.members[#group.members]==index
-            if group.destroyed then
-                lines[1]=combatRich("Destroyed",combatConfig.COMBAT_GREEN)
-            elseif entry.rangeDead then
-                lines[1]=combatRich("Ranged defeated",combatConfig.COMBAT_GREEN)
-            elseif group.rangeDefeated then
-                -- Group results sit under the last enemy of the group.
-                if isLast then
-                    lines[1]=combatRich("Ranged "..tostring(group.rangeTotal).."/"..tostring(group.rangeArmour)
-                        .." Defeated",combatConfig.COMBAT_GREEN)
-                end
-            else
-                -- Keep each source's Block status and wound distribution together.
-                for lineIndex,line in ipairs(rowBlock[index].lines) do
-                    local item=rowBlock[index].damageItems[lineIndex]
-                    local attack=attacks[lineIndex]
-                    if attack~=nil and not attack.pending then
-                        local value=math.max(0,attack.value-(rowBlock[index].reductions[lineIndex] or 0))
-                        line=attack.label.." "..tostring(value)..": "..line
-                    end
-                    lines[#lines+1]=line
-                    if item~=nil then
-                        for _,note in ipairs(combatDamageNotes(item,damageResults[item.key])) do
-                            lines[#lines+1]=note
-                        end
-                    elseif rowBlock[index].lines[lineIndex]:find("Blocked",1,true) then
-                        lines[#lines+1]="Wounds: None"
-                    end
-                end
-                grandDamage=grandDamage+rowBlock[index].damage
-                damageSources=damageSources+rowBlock[index].count
-                if isLast and not entry.attackOnly then
-                    if group.bossSpecial then
-                        if group.attackTotal>0 then
-                            lines[#lines+1]="Attack "..tostring(group.attackTotal).." (level attack)"
-                        end
-                    else
-                        local line=combatGroupAttackLine(group.attackTotal,group.attackArmour)
-                        if line~=nil then lines[#lines+1]=line end
-                    end
-                end
-            end
-            if entry.bossType=="control" then
-                lines[#lines+1]="Control: cannot be attacked"
-            elseif entry.bossLevel~=nil then
-                local ranged,melee=entry.bossRangeLevels or 0,entry.bossAttackLevels or 0
-                local manual=gStates.combatBossManual~=nil
-                    and gStates.combatBossManual[entry.guid]~=nil
-                lines[#lines+1]="Levels: -"..tostring(ranged+melee).."/"..tostring(entry.bossLevel)
-                    .." (R "..tostring(ranged)..", A "..tostring(melee)..")"
-                    ..(manual and (group.bossSpecial and #group.members>1
-                        and " [Manual priority]" or " [Manual]") or "")
-            end
-            local compactLines=combatCompactResultLines(lines,rowBlock[index].damageItems,damageResults)
-            local detailText=table.concat(lines,"\n")
-            local compactText=table.concat(compactLines,"\n")
-            local hasDetails=detailText~=compactText
-            local expanded=hasDetails and combatExpandedResults[entry.guid]==true
-            local displayText=expanded and detailText or compactText
-            if hasDetails then displayText=displayText..(expanded and " [-]" or " [+]") end
-            -- Only explicit newlines take vertical space; Result text may overflow horizontally.
-            local displayLines=expanded and #lines or #compactLines
-            local minHeight=rowHeight
-            rowHeight=math.max(rowHeight,math.max(displayLines,entry.attackCount or 1)*15+4)
-            -- Only the Result text and its row/panel heights change when expanded.
-            combatConfig.resultRowCache[row]={guid=entry.guid,detailText=detailText,
-                compactText=compactText,hasDetails=hasDetails,detailLines=#lines,
-                compactLines=#compactLines,minHeight=minHeight,rowHeight=rowHeight,
-                attackCount=entry.attackCount or 1}
-            local resultID="CombatEnemyRow"..row.."Result"
-            combatPanelSetAttribute(resultID,"text",displayText)
-            combatPanelSetAttribute("CombatEnemyResultToggle"..row,"tooltip","")
-            combatPanelSetAttribute(resultID,"fontSize","12")
-            combatPanelSetAttribute(resultID,"font","Fonts/MKCardText")
-            combatPanelSetAttribute(resultID,"color","White")
-            totalRowHeight=totalRowHeight+rowHeight
-        end
-        combatPanelSetAttribute("CombatEnemyRow"..row,"preferredHeight",tostring(rowHeight))
-        if entry==nil then
-            combatAttackChoiceByRow[row]=nil
-            combatPanelSetAttribute("CombatEnemyAttackCycle"..row,"active","false")
-        end
-    end
+    local displayByIndex,overflow=trackerPrivate.combatResourceDisplay(
+        entries,groups,allocated,emptyTarget,rowBlock,seatScan,woundedBeforeAttack,
+        paralysisAttackCards,damageResults,mitigation,elementMitigation)
+    totalRowHeight=trackerPrivate.combatRowRenderer(entries,groupOf,rowBlock,displayByIndex,
+        seatScan,damageResults,knockout,pageOffset,visibleRows,shownTraits,shownOffence,shownAttacks,
+        colUsed,maxResourceCounts,combatAssignmentSlotSources,combatAssignmentState,
+        combatReductionAttackChoice,combatExpandedResults,combatAttackChoiceByRow,
+        gStates.combatBossManual,totalRowHeight)
 
-    -- Hide a column when every visible enemy leaves it blank or "None".
-    local function textBlank(text) return text==nil or text=="" or text=="None" or text=="-" end
-    local colShown={range=colUsed.range,block=colUsed.block,attack=colUsed.attack,traits=false,offence=false,enemyAttack=false}
-    for row=1,combatConfig.rowCount do
-        if not textBlank(shownTraits[row]) then colShown.traits=true end
-        if not textBlank(shownOffence[row]) then colShown.offence=true end
-        if not textBlank(shownAttacks[row]) then colShown.enemyAttack=true end
-    end
-    -- Keep columns aligned across visible enemy rows, but size each
-    -- resource phase to its fullest row (three to six icons wide).
-    -- GridLayout wraps additional icons below the first line.
-    local columnWidths={
-        traits=combatConfig.traitColumnWidth(shownTraits),
-        offence=combatConfig.textColumnWidth(shownOffence,combatConfig.enemyNameColumnWidth("Off. Ability")),
-        enemyAttack=combatConfig.textColumnWidth(shownAttacks,combatConfig.enemyNameColumnWidth("E. Attack"))
-    }
-    -- Text columns share widths with their headers. Recalculate for each page
-    -- and refresh, including after ranged kills remove attacks/abilities.
-    for row=1,combatConfig.rowCount do
-        combatPanelSetAttribute("CombatEnemyRow"..row.."Traits","preferredWidth",tostring(columnWidths.traits))
-        combatPanelSetAttribute("CombatEnemyAttackCell"..row,"preferredWidth",tostring(columnWidths.enemyAttack))
-        combatPanelSetAttribute("CombatEnemyRow"..row.."Attacks","preferredWidth",tostring(columnWidths.enemyAttack))
-        combatPanelSetAttribute("CombatEnemyRow"..row.."Offence","preferredWidth",tostring(columnWidths.offence))
-    end
-    for _,family in ipairs({"range","block","attack"}) do
-        local columns=math.max(3,math.min(combatConfig.lineSlotCount,maxResourceCounts[family]))
-        columnWidths[family]=columns*24
-        for row=1,combatConfig.rowCount do
-            combatPanelSetAttribute("CombatSourceCell"..row..family,"preferredWidth",
-                tostring(columnWidths[family]))
-            combatPanelSetAttribute("CombatSourceGrid"..row..family,"constraintCount",tostring(columns))
-            combatPanelSetAttribute("CombatSourceGrid"..row..family,"width",
-                tostring(columnWidths[family]))
-        end
-    end
-    local headerIDs={traits="CombatDefenceTraitsHeader",range="CombatRangeSiegeHeader",offence="CombatOffenceHeader",
-        enemyAttack="CombatEnemyAttackHeader",
-        block="CombatBlockHeader",attack="CombatAssignedAttackHeader"}
-    local hiddenWidth=0
-    for column,shown in pairs(colShown) do
-        local active=shown and "true" or "false"
-        if not shown then hiddenWidth=hiddenWidth+columnWidths[column] end
-        combatPanelSetAttribute(headerIDs[column],"active",active)
-        for index=1,combatConfig.rowCount do
-            local cell=(column=="traits" and "CombatEnemyRow"..index.."Traits")
-                or (column=="offence" and "CombatEnemyRow"..index.."Offence")
-                or (column=="enemyAttack" and "CombatEnemyAttackCell"..index)
-                or "CombatSourceCell"..index..column
-            combatPanelSetAttribute(cell,"active",active)
-        end
-    end
-
-    local widthReduction=(170-columnWidths.range)+(170-columnWidths.block)+(170-columnWidths.attack)
-    local panelWidth=1380-(255-combatConfig.columns.Result)-hiddenWidth-widthReduction
-        +(enemyNameWidth-120)+(columnWidths.traits-150)
-        +(columnWidths.enemyAttack-105)+(columnWidths.offence-130)
+    local columnWidths,panelWidth=trackerPrivate.combatPanelRenderer.columns(
+        shownTraits,shownOffence,shownAttacks,colUsed,maxResourceCounts,enemyNameWidth)
 
     if earlyLock==nil and combatConfig.phasePreview~=nil then
         combatConfig.phasePreview.attackDiscards=combatFrozenCopy(stagedAttackCards)
@@ -3552,77 +3206,10 @@ local function combatAssignmentRefreshRows(entries,sources)
         knockout,otherCombatWounds,stagedAttackCards)
     local ledger=combatConfig.woundLedger(damageSeat)
     local _,pendingHand,pendingDiscard,changed,effects=combatConfig.woundPending(ledger)
-    -- A Paralyzed Unit needs an Apply button even when all its attack damage
-    -- was absorbed and the Hero has zero Wounds.
-    local showTotal=totalHeroWounds>0 or knockout or effects.destroyCount>0
-        or effects.handDiscard or effects.stagedDiscardCount>0
-    combatPanelSetAttribute("CombatTotalRow","active",showTotal and "true" or "false")
-    if showTotal then
-        -- The XML's fixed-width, right-anchored Panel is outside any
-        -- HorizontalLayout, so Unity's layout group cannot expand its child.
-        local poisonText=totalDiscardWounds>0 and " ("..tostring(totalDiscardWounds).." Poison)" or ""
-        local text=totalHeroWounds>0
-            and ("Draw: "..combatRich(combatWoundsText(totalHeroWounds)..poisonText,combatConfig.COMBAT_RED))
-            or (effects.handDiscard and "Apply: Discard hand"
-                or (effects.stagedDiscardCount>0 and "Apply: Discard Attack"
-                    or (knockout and "Knocked out (applied)"
-                    or ("Apply: Destroy "..tostring(effects.destroyCount)..
-                        (effects.destroyCount==1 and " Unit" or " Units")))))
-        combatPanelSetAttribute("CombatTotalDamage","text",text)
-        combatPanelSetAttribute("CombatTotalDamage","font","Fonts/MKCardText")
-        local pending=pendingHand+pendingDiscard>0
-            or effects.handDiscard or effects.destroyCount>0
-            or effects.stagedDiscardCount>0
-        combatPanelSetAttribute("CombatApplyWounds","interactable",
-            (pending or changed) and not combatConfig.woundApplying and "true" or "false")
-        combatPanelSetAttribute("CombatApplyWounds","color",
-            pending and "rgb(0.48,0.36,0.20)" or changed and "rgb(0.49,0.30,0.22)"
-            or "rgb(0.23,0.37,0.24)")
-        -- The commit confirmation already explains the consequences.
-        -- Clear any tooltip cached from an earlier calculator refresh.
-        combatPanelSetAttribute("CombatApplyWounds","tooltip","")
-        combatPanelSetAttribute("CombatKnockoutWarning","active",knockout and "true" or "false")
-        if knockout then
-            combatPanelSetAttribute("CombatKnockoutWarning","text",
-                "KNOCKED OUT")
-            combatPanelSetAttribute("CombatKnockoutWarning","font","Fonts/MKCardText")
-        end
-        local summaryHeight=knockout and 40 or 22
-        combatPanelSetAttribute("CombatTotalRow","preferredHeight",tostring(summaryHeight))
-        totalRowHeight=totalRowHeight+summaryHeight
-    end
+    totalRowHeight=totalRowHeight+trackerPrivate.combatPanelRenderer.woundSummary(
+        totalHeroWounds,totalDiscardWounds,knockout,pendingHand,pendingDiscard,changed,effects)
 
-    -- A solo enemy can show twelve icons per phase; larger grouped stacks
-    -- continue onto the next member row. Do not silently hide any remainder.
-    combatPanelSetAttribute("CombatResourceOverflow","active",overflow>0 and "true" or "false")
-    if overflow>0 then
-        combatPanelSetAttribute("CombatResourceOverflow","text",joinLang({
-            "{en}"..overflow.." resource icons exceed the available rows.",
-            "{it}"..overflow.." icone delle risorse oltre le righe disponibili.",
-            "{ru}"..overflow.." значков ресурсов не помещается в строках.",
-            "{zh-tw}有 "..overflow.." 個資源圖示超出可用列數。",
-            "{zh-cn}有 "..overflow.." 个资源图标超出可用行数。",
-            "{ko}"..overflow.."개 자원 아이콘이 표시 행을 초과했습니다.",
-            "{es}"..overflow.." iconos de recursos superan las filas disponibles.",
-            "{fr}"..overflow.." icônes de ressources dépassent les lignes disponibles.",
-            "{pt-br}"..overflow.." ícones de recursos excedem as linhas disponíveis.",
-            "{de}"..overflow.." Ressourcensymbole passen nicht in die verfügbaren Zeilen."
-        }))
-    end
-    combatPanelSetAttribute("CombatEnemyPanel","width",tostring(panelWidth))
-    combatPanelSetAttribute("CombatEnemyPanel","color","rgb(0.24,0.2,0.15)")
-    local headerWidths={Monster=enemyNameWidth,Armour=55,DefenceTraits=columnWidths.traits,RangeSiege=columnWidths.range,
-        EnemyAttack=columnWidths.enemyAttack,Offence=columnWidths.offence,
-        Block=columnWidths.block,AssignedAttack=columnWidths.attack,Result=combatConfig.columns.Result}
-    for name,width in pairs(headerWidths) do
-        local id="Combat"..name.."Header"
-        combatPanelSetAttribute(id,"font","Fonts/MKCardTittle")
-        combatPanelSetAttribute(id,"color","rgb(0.95,0.9,0.78)")
-        combatPanelSetAttribute(id,"preferredWidth",tostring(width))
-        if name=="DefenceTraits" or name=="Offence" then
-            combatPanelSetAttribute(id,"alignment","MiddleCenter")
-        end
-    end
+    trackerPrivate.combatPanelRenderer.finish(overflow,panelWidth,columnWidths,enemyNameWidth)
     return totalRowHeight+(pages>1 and 22 or 0)+(overflow>0 and 18 or 0)
 end
 

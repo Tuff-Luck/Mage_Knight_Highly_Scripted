@@ -10,6 +10,7 @@ local function read(path)
 end
 
 local source=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
+local panelRenderer=read("src/PlayingGame/PlayerBoard/ResourceTracker/CombatPanelRenderer.lua")
 local xml=read("src/UI/CombatEnemyPanel.xml")
 local layout=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/CombatPanelLayout.lua")
 local nameWidth,traitWidth,textWidth=layout.enemyNameColumnWidth,layout.traitColumnWidth,layout.textColumnWidth
@@ -43,23 +44,23 @@ assert(textWidth({},attackFloor)==attackFloor and textWidth({},offenceFloor)==of
 
 assert(source:find('combatConfig.columns.Name=enemyNameWidth',1,true),
     "Name text width must follow its resized parent cell")
-assert(source:find('traits=combatConfig.traitColumnWidth(shownTraits)',1,true),
+assert(panelRenderer:find('traits=combatConfig.traitColumnWidth(shownTraits)',1,true),
     "Defensive column must use visible row text")
-assert(source:find('DefenceTraits=columnWidths.traits',1,true),
+assert(panelRenderer:find('DefenceTraits=columnWidths.traits',1,true),
     "Header must match the defensive row width")
-assert(source:find('+(enemyNameWidth-120)+(columnWidths.traits-150)',1,true),
+assert(panelRenderer:find('+(enemyNameWidth-120)+(columnWidths.traits-150)',1,true),
     "Panel width must account for dynamically sized names and traits")
-assert(source:find('+(columnWidths.enemyAttack-105)+(columnWidths.offence-130)',1,true),
+assert(panelRenderer:find('+(columnWidths.enemyAttack-105)+(columnWidths.offence-130)',1,true),
     "Panel width must reflect dynamic attack and offence widths")
-assert(source:find('EnemyAttack=columnWidths.enemyAttack,Offence=columnWidths.offence',1,true),
+assert(panelRenderer:find('EnemyAttack=columnWidths.enemyAttack,Offence=columnWidths.offence',1,true),
     "Headers must inherit attack and offence content widths")
-assert(source:find('combatPanelSetAttribute("CombatEnemyAttackCell"..row,"preferredWidth",tostring(columnWidths.enemyAttack))',1,true),
+assert(panelRenderer:find('combatPanelSetAttribute("CombatEnemyAttackCell"..row,"preferredWidth",tostring(columnWidths.enemyAttack))',1,true),
     "Attack panel cells must inherit their dynamically measured width")
-assert(source:find('combatPanelSetAttribute("CombatEnemyRow"..row.."Attacks","preferredWidth",tostring(columnWidths.enemyAttack))',1,true),
+assert(panelRenderer:find('combatPanelSetAttribute("CombatEnemyRow"..row.."Attacks","preferredWidth",tostring(columnWidths.enemyAttack))',1,true),
     "Attack text must inherit its dynamically measured width")
-assert(source:find('combatPanelSetAttribute("CombatEnemyRow"..row.."Offence","preferredWidth",tostring(columnWidths.offence))',1,true),
+assert(panelRenderer:find('combatPanelSetAttribute("CombatEnemyRow"..row.."Offence","preferredWidth",tostring(columnWidths.offence))',1,true),
     "Offensive ability rows must inherit their dynamically measured width")
-assert(source:find('combatPanelSetAttribute("CombatEnemyRow"..row.."Traits","preferredWidth",tostring(columnWidths.traits))',1,true),
+assert(panelRenderer:find('combatPanelSetAttribute("CombatEnemyRow"..row.."Traits","preferredWidth",tostring(columnWidths.traits))',1,true),
     "Every defensive row must use the shared content width")
 
 assert(xml:find("{en}Def. Ability",1,true),"Use the short defensive header")
