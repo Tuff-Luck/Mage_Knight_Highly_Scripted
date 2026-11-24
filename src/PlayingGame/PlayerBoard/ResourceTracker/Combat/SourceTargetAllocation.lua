@@ -63,6 +63,7 @@ return function(attackAssignmentsTargetGUIDs,attackAssignmentsClearForObject,
         -- Mark this automatic Move lock allocated so its points actually
         -- reduce Cumbersome and are reserved from Agility conversion.
         local autoCombatMove=moveOnly and source.move>0 and combatCumbersomeActive
+            and not attackAssignmentsIsTargeting(source.key)
         if targetIndex==nil and (autoCombatMove or (not moveOnly and not influenceOnly)) then
             targetGUID=combatNearestEnemyGUID(source,entries,
                 autoCombatMove and combatGUIDHasCumbersome or nil)
