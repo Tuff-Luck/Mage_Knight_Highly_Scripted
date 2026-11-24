@@ -29,11 +29,18 @@ jobs:
             echo "No Lua regression tests found" >&2
             exit 1
           fi
+          failed=()
           for test in "${tests[@]}"; do
             echo "::group::${test}"
-            lua5.2 "${test}"
+            if ! lua5.2 "${test}"; then
+              failed+=("$test")
+            fi
             echo "::endgroup::"
           done
+          if (( ${#failed[@]} > 0 )); then
+            printf 'Failed regression: %s\n' "${failed[@]}"
+            exit 1
+          fi
       - name: Check commit whitespace
         run: git diff --check HEAD^
 
