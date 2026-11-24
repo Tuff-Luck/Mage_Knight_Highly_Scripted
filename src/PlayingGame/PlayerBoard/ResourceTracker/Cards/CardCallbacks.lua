@@ -335,6 +335,12 @@ function M.choiceClicked(player,value,id,combatConfig,resourceCardsDetailsOpen,f
     if record==nil or record.copiedBasicField==nil then
         selectedResourceByGUID[guid]=selected
     end
+    local roleGUID=shapeshiftTarget or guid
+    local previousMoveRole=requestedMoveRole~=nil
+        and resourceCardsMoveRole(roleGUID,true) or nil
+    if requestedMoveRole~=nil then
+        gStates.resourceCardMoveRoles[roleGUID]=requestedMoveRole
+    end
     if repeatIndex~=nil and record~=nil and record.repeatLink~=nil
         and not combatConfig.compositePhasesMatch(
             guid,powered,mainChoices,record.repeatLink) then
@@ -342,12 +348,6 @@ function M.choiceClicked(player,value,id,combatConfig,resourceCardsDetailsOpen,f
             "Maximal Effect: repeated options must resolve in one phase. "
             .."Adjust the other rows; mixed phases contribute nothing until compatible.",
             player.color,warningColor)
-    end
-    local roleGUID=shapeshiftTarget or guid
-    local previousMoveRole=requestedMoveRole~=nil
-        and resourceCardsMoveRole(roleGUID,true) or nil
-    if requestedMoveRole~=nil then
-        gStates.resourceCardMoveRoles[roleGUID]=requestedMoveRole
     end
     if selectedMoveOnly or (previousMoveRole=="combat"
         and requestedMoveRole=="movement")
