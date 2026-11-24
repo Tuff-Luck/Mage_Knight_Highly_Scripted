@@ -249,14 +249,11 @@ function M.pruneHistoricalTargets(unitGUID,trackerPrivate)
     end
 end
 
-function M.choiceClicked(player,value,id,combatCalcOn,combatCumbersomeActive,trackerPrivate,unitManaDecision,choiceExpandedByGUID,showUnitAbilityButtons,unitManaCounts,resourceCardsMoveRole,renderSeat)
+function M.choiceClicked(player,value,id,moveRoleAvailable,trackerPrivate,unitManaDecision,choiceExpandedByGUID,showUnitAbilityButtons,unitManaCounts,resourceCardsMoveRole,renderSeat)
     if not resourceCardsPanelOpen() or type(id)~="string"
         or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil) then return end
     local unitGUID,index=id:match("^ResourceCardChoice_([0-9a-f]+)_unit(%d+)Combat$")
     local combatMoveChoice=unitGUID~=nil
-    -- The visible Unit button is removed on refresh, but an in-flight click
-    -- must also be rejected when there is no Cumbersome target.
-    if combatMoveChoice and not (combatCalcOn and combatCumbersomeActive) then return end
     if unitGUID==nil then
         unitGUID,index=id:match("^ResourceCardChoice_([0-9a-f]+)_unit(%d+)$")
     end
@@ -269,6 +266,8 @@ function M.choiceClicked(player,value,id,combatCalcOn,combatCumbersomeActive,tra
         unitGUID,nil,current~=nil and current.seatPos) or nil
     if activation==nil or abilities==nil or current==nil or index==nil
         or abilities[index]==nil or activation.seatPos~=current.seatPos then return end
+    if combatMoveChoice and ((tonumber(abilities[index].move) or 0)<=0
+        or not moveRoleAvailable(unitHistoryKey(unitGUID,useIndex))) then return end
     local unit=getObjectFromGUID(unitGUID)
     if unit==nil then return end
     resourceCardsCombatSelectOneUnit(unitGUID)
