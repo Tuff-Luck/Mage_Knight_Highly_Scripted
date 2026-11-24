@@ -81,12 +81,9 @@ assert(assignments:find("(freeUnit and not attack.assassination)",1,true),
     "unrelated voluntary Unit assignment still disallowed against Assassination")
 
 -- Illusionists must use the same site/wall suppression as the combat calculator.
-combatEnemyHasTrait=function(data,perks,key)
-    return data[key]==true or (perks~=nil and perks[key]==true)
-end
-combatEnemyFortificationCount=isolated(recognition,
-    "local function combatEnemyFortificationCount(data,perks)",
-    "-- owner/slot identify the physical token", "combatEnemyFortificationCount")
+local defences=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/EnemyDefences.lua")({})
+combatEnemyHasTrait=defences.hasTrait
+combatEnemyFortificationCount=defences.fortificationCount
 local enemyData={}
 gStates={monsterPerks={}}
 combatEnemyData=function() return enemyData,"enemy" end
