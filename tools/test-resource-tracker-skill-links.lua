@@ -11,7 +11,7 @@ local env=setmetatable({
         universal={linkedCard={targetKind="card",posture="sideways",sideways={value=3,manaRequired=true,matchingManaValue=4}}},
         first={linkedCard={targetKind="card",posture="sideways",sideways={value=2,faceDownValue=3}}},
         second={linkedCard={targetKind="card",posture="sideways",sideways={value=5}}},
-        ritual={linkedCard={targetKind="card",posture="sideways",requiresCirculation=true,sideways={value=3}}},
+        ritual={linkedCard={targetKind="wound",posture="sideways",requiresCirculation=true,sideways={value=3}}},
         choice={linkedCard={targetKind="card",posture="sideways",sideways={value=2,choiceValues={sourceUnused=3}}}},
         pack={linkedCard={targetKind="card",posture="sideways",sideways={value=4,perEmptyCommandSlot=1}}},
         polar={manaConversion={mode="opposite"}}
@@ -81,11 +81,15 @@ eq(target.red.sidewaysValue,3,"Flipped Skill strength")
 areas.second=area(0,0)
 target=sideways({skill("second"),skill("first")},{red})
 eq(target.red.skillGUID,"first","Equal overlap uses Skill GUID")
-target=sideways({skill("ritual")},{red})
-eq(target.red,nil,"Circulated Skill not yet available")
+local wound={guid="wound",kind="wound",posture="sideways"}
+areas.wound=area(0,0)
+target=sideways({skill("ritual")},{wound})
+eq(target.wound,nil,"Circulated Skill not yet available")
 env.gStates.doingTheRounds.ritual=1
 target=sideways({skill("ritual")},{red})
-eq(target.red.sidewaysValue,3,"Circulated Skill available")
+eq(target.red,nil,"Circulated Ritual of Pain rejects ordinary cards")
+target=sideways({skill("ritual")},{wound})
+eq(target.wound.sidewaysValue,3,"Circulated Skill available on Wound")
 selected="sourceUnused"
 target=sideways({skill("choice")},{red})
 eq(target.red.sidewaysValue,3,"Selected Skill strength")
