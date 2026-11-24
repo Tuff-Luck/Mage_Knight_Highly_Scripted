@@ -17,7 +17,7 @@ local function eq(actual,expected,what)
 end
 local data=read("src/Data.lua")
 local recognition=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-local layout=read("src/PlayingGame/PlayerBoard/UnitLayout.lua")
+local layout=read("src/PlayingGame/PlayerBoard/Units/UnitLayout.lua")
 local assignments=read("src/PlayingGame/Combat/AttackAssignments.lua")
 local map=read("src/PlayingGame/World/Map.lua")
 local ui=read("src/PlayingGame/Interface/UI.lua")

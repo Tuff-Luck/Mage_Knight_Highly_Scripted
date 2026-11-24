@@ -188,7 +188,7 @@ end
 unitLayoutIsCommand=function(obj) return obj.isCommand==true end
 unitLayoutIsWound=function() return false end
 unitLayoutBannersForUnits=function() return {} end -- Isolated Unit snapshot fixture
-local layout=source("src/PlayingGame/PlayerBoard/UnitLayout.lua")
+local layout=source("src/PlayingGame/PlayerBoard/Units/UnitLayout.lua")
 section(layout,"function unitLayoutResourceState(seatPos)",
     "function unitLayoutFirstFreeCommand(seatPos)","unitLayoutResourceState")
 eq(unitLayoutResourceState(1).bondsUnitGUID,"bond",

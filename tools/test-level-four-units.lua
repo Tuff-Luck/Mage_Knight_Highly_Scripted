@@ -18,7 +18,7 @@ end
 
 local recognition=source("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local data=source("src/Data.lua")
-dofile("src/PlayingGame/PlayerBoard/UnitResources.lua")
+dofile("src/PlayingGame/PlayerBoard/Units/UnitResources.lua")
 
 -- Each Level IV GUID is registered with its printed ability set.
 local mages=unitResourceDefinitions["bb1660"]

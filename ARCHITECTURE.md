@@ -24,7 +24,7 @@ The project is authored as Lua modules and bundled by Sebastian's Tabletop Simul
 | `src/PlayingGame/Components/ManaSource.lua` | Shared/mirrored Mana Source dice state and synchronization. |
 | `src/PlayingGame/Scenarios/Quests.lua` | Apocalypse Quest engine, quest state, offer flow, rewards and interactions. Quest-specific legality, combat metadata and resolution effects register through the local handler registry; `ResolveStepAction` is a lifecycle dispatcher over validation and Progress/Complete/Fail phases. |
 | `src/PlayingGame/PlayerBoard/CardFlow.lua` | Player deed/deck/discard/hand flow, wound dealing and Glade discard-healing runtime. |
-| `src/PlayingGame/PlayerBoard/UnitLayout.lua` | Runtime Unit/Command-slot layout, compression and player-board unit positioning. |
+| `src/PlayingGame/PlayerBoard/Units/UnitLayout.lua` | Runtime Unit/Command-slot layout, compression and player-board unit positioning. |
 | `src/PlayingGame/PlayerBoard/Events.lua` | Player-board scripting-zone reactions and card presentation helpers dispatched by the global event layer. |
 | `src/PlayingGame/PlayerBoard/CardRecognition.lua` | Resource Tracker and Combat Calculator coordinator; owns runtime scan state, player selections, public tracker callbacks and gameplay reconciliation. |
 | `src/PlayingGame/PlayerBoard/ResourceTracker/Core/State.lua` | Factory for initial runtime-only private state: scan generations, pending settles/renders, play-area candidates, relocation bookkeeping, highlights and resource-key metadata. The coordinator retains lifecycle reset and saved-state ownership. |

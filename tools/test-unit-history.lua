@@ -48,7 +48,7 @@ resourceCardsCombatForgetSource=function() end
 attackAssignmentsPruneSourceTargets=function() end
 resourceUnitsPruneHistoricalTargets=function() end
 attackAssignmentsRefreshReadyUI=function() end
-dofile("src/PlayingGame/PlayerBoard/UnitHistory.lua")
+dofile("src/PlayingGame/PlayerBoard/Units/UnitHistory.lua")
 
 local first={seatPos=1,tokenGUID="cmd",choice=1,
     lastCounts={Green=1}}

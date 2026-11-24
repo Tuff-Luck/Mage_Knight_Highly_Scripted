@@ -49,7 +49,7 @@ playerPlayAreas={[1]="playZone"}
 GUID={skill={bondsOfLoyalty="no-bonds"},card={bannerOfCommandToken="no-banner"}}
 gameCards={}
 gStates={unitResourceActivations={[unit.guid]={seatPos=1,tokenGUID=token.guid}}}
-dofile("src/PlayingGame/PlayerBoard/UnitLayout.lua")
+dofile("src/PlayingGame/PlayerBoard/Units/UnitLayout.lua")
 local layout=unitLayoutSnapshot(1)
 eq(#layout.units,1,"Settled Northern Monks retained above thin zone")
 eq(#layout.commands,1,"Settled Command token retained above thin zone")
@@ -125,7 +125,7 @@ zone.getObjects=function() return {} end
 objects.playZone.getObjects=function() return {} end
 eq(payment(unit,1).Blue,nil,"Removed mana no longer qualifies in either zone")
 
-dofile("src/PlayingGame/PlayerBoard/UnitResources.lua")
+dofile("src/PlayingGame/PlayerBoard/Units/UnitResources.lua")
 local abilities=assert(unitResourceDefinitions[unit.guid])
 eq(abilities[3].attackIce,4,"Northern Monks Ice Attack 4")
 eq(abilities[4].blockIce,4,"Northern Monks Ice Block 4")

@@ -58,7 +58,7 @@ assert(objectUI:find("local function showChoiceButtons(",1,true))
 assert(not objectUI:find("tooltip%s*="),
     "Card Object UI should not create upside-down tooltips")
 for _,path in ipairs({
-    "src/PlayingGame/PlayerBoard/UnitHistory.lua",
+    "src/PlayingGame/PlayerBoard/Units/UnitHistory.lua",
     "src/PlayingGame/Combat/AttackAssignments.lua",
     "src/PlayingGame/Combat/Combat.lua"
 }) do

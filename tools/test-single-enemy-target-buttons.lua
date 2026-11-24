@@ -78,7 +78,7 @@ eq(env.trackerPrivate.singleAutoEnemyGUID,nil,"Reminder alone never hides target
 calc({})
 eq(env.trackerPrivate.singleAutoEnemyGUID,nil,"No enemy cannot hide target buttons")
 
-dofile("src/PlayingGame/PlayerBoard/UnitResources.lua")
+dofile("src/PlayingGame/PlayerBoard/Units/UnitResources.lua")
 local northern=assert(unitResourceDefinitions["f17813"],"Northern Monks definition")
 local sorcerers=assert(unitResourceDefinitions["c3e3c5"],"Sorcerers definition")
 

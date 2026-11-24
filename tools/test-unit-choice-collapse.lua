@@ -21,7 +21,7 @@ local function hasButton(xml,id)
     return false
 end
 
-dofile("src/PlayingGame/PlayerBoard/UnitResources.lua")
+dofile("src/PlayingGame/PlayerBoard/Units/UnitResources.lua")
 local printed=assert(unitResourceDefinitions["484fa3"],"Peasants not registered")
 assert(#printed==4 and printed[4].move==2,"Peasants test needs printed Move 2")
 

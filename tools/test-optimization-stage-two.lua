@@ -18,7 +18,7 @@ end
 
 -- A held Command must not poll every frame. Its eventual drop restarts one
 -- bounded settle check, and returning it to its own Unit zone is a no-op.
-local layout=read("src/PlayingGame/PlayerBoard/UnitLayout.lua")
+local layout=read("src/PlayingGame/PlayerBoard/Units/UnitLayout.lua")
 local frames,waits,refreshes,stopped={},{},{},{}
 local commands={}
 local inside={}

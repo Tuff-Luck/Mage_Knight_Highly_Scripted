@@ -25,7 +25,7 @@ local function hasButton(xml,id)
     return false
 end
 
-dofile("src/PlayingGame/PlayerBoard/UnitResources.lua")
+dofile("src/PlayingGame/PlayerBoard/Units/UnitResources.lua")
 local freezers=assert(unitResourceDefinitions["9e8205"])
 local sorcerers=assert(unitResourceDefinitions["c3e3c5"])
 local catapults=assert(unitResourceDefinitions["1aa68c"])
