@@ -1,11 +1,6 @@
--- Lock down Skill resource record calculations before extracting them.
+-- Direct regression for the extracted Skill resource record calculator.
 -- Run from the repository root using Lua 5.2.
 package.path="src/?.lua;"..package.path
-local f=assert(io.open("src/PlayingGame/PlayerBoard/CardRecognition.lua","r"))
-local source=f:read("*a")
-f:close()
-local a=assert(source:find("local function calculateSkill(skill,linkedTarget,unitState,inventoryCrystalCounts)",1,true))
-local b=assert(source:find("-- Stable modifier instances",a,true))
 local tracker={totalsKeys={move=true,attack=true,block=true,blockColdFire=true,
     rangedColdFire=true,influence=true}}
 local selected={}
@@ -39,7 +34,7 @@ local env=setmetatable({
         return false
     end
 },{__index=_G})
-local calculate=assert(load(source:sub(a,b-1).."\nreturn calculateSkill","Skill calculations","t",env))()
+local calculate=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/SkillEffects.lua","t",env))()(env)
 local function skill(guid,down,target,units,crystals)
     return calculate({guid=guid,is_face_down=down},target,units,crystals or {})
 end

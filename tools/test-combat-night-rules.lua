@@ -41,12 +41,20 @@ local skillStart=assert(source:find("local function skillUsesDayStrength()",1,tr
 local skillFinish=assert(source:find("\n-- Puppet Master tokens",skillStart,true))
 local skillStrength=assert(load(source:sub(skillStart,skillFinish-1)
     .."\nreturn skillUsesDayStrength","Night skill strength","t",env))()
-assert(source:find("or (skillUsesDayStrength() and rule.day or rule.night)",1,true),
-    "Day/Night Skill resources must use the shared combat predicate")
+env.skillResourceDefinitions={nightSkill={day={attack=2},night={block=3}}}
+local calculateSkill=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/SkillEffects.lua","t",env))()({
+    skillChoicesForCurrentTurn=function(rule) return rule.choices end,
+    chosenEffect=function(guid,powered,choices) return nil end,
+    skillUsesDayStrength=skillStrength,
+    effectHasTrackedResource=function(effects) return effects~=nil end
+})
 
 local function verify(expectedDay,label)
     assert(dayMana()==expectedDay,label..": day/night check")
     assert(skillStrength()==expectedDay,label..": day/night Skill strength")
+    local resources=calculateSkill({guid="nightSkill"},nil,nil,{}).resources
+    assert(resources~=nil and (expectedDay and resources.attack==2 or not expectedDay and resources.block==3),
+        label..": actual Skill resource must follow combat Night rules")
     assert(goldAllowed()==expectedDay,label..": Gold legality")
     assert(blackAllowed()~=expectedDay,label..": Black legality")
 end
