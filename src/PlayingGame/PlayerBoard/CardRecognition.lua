@@ -25,7 +25,7 @@ function resourceCardsTraceCommand(command,playerColor)
     return trackerPrivate.traceCommand(command,playerColor)
 end
 local shown={}
--- Initial guesses and explicit player choices are transient, never saved in gStates or JSON.
+-- Runtime choices are kept here; explicit played choices are serialized by TrackerLifecycle.
 local selectedResourceByGUID={}
 -- Retain the chosen crystal-pair Attack after Sacrifice converts the pairs to mana.
 -- Uses combatConfig.sacrificeCastPairs to avoid Lua 5.2's 200-local module limit.
@@ -118,9 +118,7 @@ trackerPrivate.unitAbilitiesFor=function(guid,state,seatPos)
     return abilities
 end
 trackerPrivate.commandPickupForUnits={}
--- Only mana objects actually moved by players are candidates for extra Unit
--- payment checks. A stacked crystal can sit above the Unit scripting zone,
--- but its settled physical position still pays that Unit's ability.
+-- Mana payments use current scripting-zone membership, not outside-zone recovery.
 -- Rebuilt with the live Unit layout for each Resource Tracker scan.
 -- Unit outlines require a Command token physically on the card and a valid
 -- activation this turn. Wounds and site restrictions also suppress outlines.
@@ -4172,6 +4170,7 @@ local function scheduleChoiceResetAfterPlay(guid,seatPos)
 end
 
 local footprint=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").footprint
+local overlapArea=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").overlapArea
 local overlaps=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").overlaps
 
 local manaColor=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").manaColor
@@ -4528,8 +4527,6 @@ trackerPrivate.cardEffects=require("PlayingGame.PlayerBoard.ResourceTracker.Card
 })
 local calculateSideways=trackerPrivate.cardEffects.calculateSideways
 local calculateCard=trackerPrivate.cardEffects.calculateCard
-
-local overlapArea=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").overlapArea
 
 local resolveActionLinks=require("PlayingGame.PlayerBoard.ResourceTracker.ActionLinks")({
     overlapArea=overlapArea,

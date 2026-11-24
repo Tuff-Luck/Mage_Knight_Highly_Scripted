@@ -118,6 +118,14 @@ Cross-cutting services must not replace another module's global by load order. T
 
 Modules have separate lexical scope for `local` declarations. Globals are shared in the final bundled Global environment. A helper needed by multiple modules should therefore be intentionally global/shared or otherwise exposed once; copying a local helper into several files does not consolidate it.
 
+## Resource Tracker refactor boundaries
+
+CardRecognition remains the single public owner of the Resource Tracker and Combat Calculator API. The ResourceTracker directory contains the implementation services; keep their helpers private and pass coordinator dependencies explicitly. Stateful delayed callbacks must read replaceable tables through live accessors, rather than retaining a stale table across a reset or turn handoff.
+
+The settled scan order is observation and permissions → physical mana and Action/Skill links → played cards and cross-card interactions → activated Units → linked Skills → remaining objects and Faction Rewards → deferred targets and modifiers → Ready payments → publication and UI refresh. Do not reorder these stages as an incidental cleanup.
+
+`tools/test-resource-tracker-assembly.lua` checks real coordinator initialization, module reachability/cycles, non-nil module factory dependencies, accidental global references to formerly private coordinator names, the pre-refactor public API, and the real closed-tracker Mountain Lore callback. Run the full regression suite after changing module boundaries. A green Lua check is not a replacement for live Tabletop Simulator testing.
+
 ## TTS object files
 
 The remaining `.tts/objects/*.lua` files may be tiny placeholders even when their former logic has moved to Global. This is intentional: the extension can send an empty/comment-only script to the object and clear stale object-side code.

@@ -81,7 +81,6 @@ function M.publish(context)
     local earnedFame,earnedRep=combatConfig.startingCardConditionalFameRep()
     fameTotal=fameTotal+earnedFame
     repTotal=repTotal+earnedRep
-    local scanPlayer=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     local fameRepBase={fame=fameTotal,rep=repTotal}
     trackerPrivate.bySeat[seatPos]=current
     resourceCardScanBySeat[seatPos]={cards=records,totals=totals,
