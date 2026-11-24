@@ -1,3 +1,4 @@
+package.path="src/?.lua;"..package.path
 -- Regressions for the play-area entry optimization pass.
 -- Run from repository root: lua5.2 tools/test-play-area-entry-optimizations.lua
 local function read(path)
@@ -51,7 +52,7 @@ eq(scaleStops,1,"only one outstanding scale refresh")
 local cards=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local queueSource=extract(cards,"local function scheduleSeatRender(seatPos)",
     "\nfunction resourceCardsSourceChanged()")
-local readySource=extract(cards,"trackerPrivate.readyForXZ=function(obj)",
+local readySource=extract(cards,'trackerPrivate.readyForXZ=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").readyForXZ',
     "-- Magic Talent's strong side")
 local objects={
     a={guid="a",held_by_color="Blue",resting=false},

@@ -9050,25 +9050,8 @@ end
 local footprint=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").footprint
 local overlaps=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").overlaps
 
-local function manaColor(obj)
-    if isManaTokenFigurine(obj) then return manaTokenColor(obj) end
-    if obj.type=="Dice" then
-        -- Treat released dice like crystals: a slight physical wobble can
-        -- leave resting=false indefinitely, even when the visible face is stable.
-        -- Still exclude scripted smooth movement while reading the face.
-        if obj.isSmoothMoving() then return nil end
-        local face=obj.getRotationValue()
-        if type(face)=="string" then return face:match("^([%a]+) Mana$") end
-    end
-    return nil
-end
-
--- Placement and resource links use X/Z, so vertical falling or a slightly
--- rocking die does not delay an otherwise released object.
-trackerPrivate.readyForXZ=function(obj)
-    return obj~=nil and (obj.held_by_color==nil or obj.held_by_color=="")
-        and not obj.isSmoothMoving()
-end
+local manaColor=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").manaColor
+trackerPrivate.readyForXZ=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").readyForXZ
 
 -- Magic Talent's strong side consumes TWO distinct mana objects, not the
 -- single mana that normally powers an Advanced Action. Read the same released
@@ -9097,48 +9080,8 @@ function magicTalentManaPayments(seatPos)
     return payments
 end
 
--- Reuse the same stable identifiers as Skills and Combat's faction reward cleanup.
--- No name/description guessing for Skills, Units or Faction Rewards.
-trackerPrivate.factionRewardNotes={
-    ["Dark Crusader Reward"]="Dark",
-    ["Elementalist Reward"]="Elem",
-    ["Apocalypse Cult Reward"]="Apoc",
-    ["Council of the Void Reward"]="Coun"
-}
-
--- Original container GUIDs collide across factions in the pushed JSON.
--- Front-art image hashes are independent of translated names and survive
--- regenerated GUIDs when a token is extracted from a bag.
-factionRewardForObject=function(obj)
-    if obj==nil or trackerPrivate.factionRewardNotes[obj.getGMNotes()]==nil then return nil end
-    local custom=obj.getCustomObject()
-    local image=custom~=nil and custom.image or nil
-    local hash=type(image)=="string" and image:match("([0-9A-Fa-f]+)/?$") or nil
-    local definition=hash~=nil and factionRewardResourceByImage[hash:upper()] or nil
-    if definition~=nil and definition.notes==obj.getGMNotes() then return definition end
-    return factionRewardResourceByGUID[obj.getGMNotes()..":"..obj.guid]
-end
-
-local function resourceObjectKind(obj)
-    if obj==nil then return nil end
-    if skillTokens[obj.guid]~=nil then return "skill" end
-    if obj.getGMNotes()=="Puppet Master" then return "puppet" end
-    if obj.type=="Card" then
-        local data=gameCards[obj.guid]
-        if data~=nil then
-            if data.cardType=="Regular Unit" or data.cardType=="Elite Unit" then return "unit" end
-            return "card"
-        end
-        -- Wounds/Quests are not unknown resource cards.
-        local notes=obj.getGMNotes()
-        if notes=="Wound" then return "wound" end
-        if notes=="Quest" then return nil end
-        return "card"
-    end
-    if manaColor(obj)~=nil then return "mana" end
-    if trackerPrivate.factionRewardNotes[obj.getGMNotes()]~=nil then return "factionReward" end
-    return nil
-end
+factionRewardForObject=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").factionRewardForObject
+local resourceObjectKind=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").resourceObjectKind
 
 -- A NightRules token represents a combat fought under Night rules, even
 -- during a Day round or when the Mage Knight is standing outside the site.

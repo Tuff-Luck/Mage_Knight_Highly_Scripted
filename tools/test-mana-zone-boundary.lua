@@ -30,8 +30,12 @@ local env=setmetatable({
     cardPosture=function() return "upright" end,
     matchesCardMana=function(_,color) return color=="Blue" end
 },{__index=_G})
+env.require=function(name)
+    assert(name=="PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects", "Unexpected recognition dependency")
+    return assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/PhysicalObjects.lua","t",env))()
+end
 assert(load(table.concat({
-    section("local function manaColor(obj)","-- Reuse the same stable identifiers"),
+    section('local manaColor=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").manaColor','factionRewardForObject=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").factionRewardForObject'),
     section("function magicTalentSpellCastingPaid(","-- A powered link grants"),
     section("function resourceCardsMaximalEffectSourceManaGUIDs(","-- One shared linked-throw decision")
 },"\n"),"Zone-bound mana","t",env))()

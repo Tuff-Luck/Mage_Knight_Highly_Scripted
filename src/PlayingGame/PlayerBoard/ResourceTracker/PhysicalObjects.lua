@@ -1,4 +1,4 @@
--- Physical geometry shared by Resource Tracker recognition and linking.
+-- Physical geometry and object recognition shared by Resource Tracker scans and linking.
 -- These are geometric observations only: the coordinator owns actual zone
 -- membership, eligibility, relocation and mana-payment decisions.
 
@@ -61,10 +61,77 @@ local function overlapArea(a,b)
     return width*depth
 end
 
+local function manaColor(obj)
+    if isManaTokenFigurine(obj) then return manaTokenColor(obj) end
+    if obj.type=="Dice" then
+        -- Treat released dice like crystals: a slight physical wobble can
+        -- leave resting=false indefinitely, even when the visible face is stable.
+        -- Still exclude scripted smooth movement while reading the face.
+        if obj.isSmoothMoving() then return nil end
+        local face=obj.getRotationValue()
+        if type(face)=="string" then return face:match("^([%a]+) Mana$") end
+    end
+    return nil
+end
+
+-- Placement and resource links use X/Z, so vertical falling or a slightly
+-- rocking die does not delay an otherwise released object.
+local function readyForXZ(obj)
+    return obj~=nil and (obj.held_by_color==nil or obj.held_by_color=="")
+        and not obj.isSmoothMoving()
+end
+
+-- Reuse the same stable identifiers as Skills and Combat's faction reward cleanup.
+-- No name/description guessing for Skills, Units or Faction Rewards.
+local factionRewardNotes={
+    ["Dark Crusader Reward"]="Dark",
+    ["Elementalist Reward"]="Elem",
+    ["Apocalypse Cult Reward"]="Apoc",
+    ["Council of the Void Reward"]="Coun"
+}
+
+-- Original container GUIDs collide across factions in the pushed JSON.
+-- Front-art image hashes are independent of translated names and survive
+-- regenerated GUIDs when a token is extracted from a bag.
+local function factionRewardForObject(obj)
+    if obj==nil or factionRewardNotes[obj.getGMNotes()]==nil then return nil end
+    local custom=obj.getCustomObject()
+    local image=custom~=nil and custom.image or nil
+    local hash=type(image)=="string" and image:match("([0-9A-Fa-f]+)/?$") or nil
+    local definition=hash~=nil and factionRewardResourceByImage[hash:upper()] or nil
+    if definition~=nil and definition.notes==obj.getGMNotes() then return definition end
+    return factionRewardResourceByGUID[obj.getGMNotes()..":"..obj.guid]
+end
+
+local function resourceObjectKind(obj)
+    if obj==nil then return nil end
+    if skillTokens[obj.guid]~=nil then return "skill" end
+    if obj.getGMNotes()=="Puppet Master" then return "puppet" end
+    if obj.type=="Card" then
+        local data=gameCards[obj.guid]
+        if data~=nil then
+            if data.cardType=="Regular Unit" or data.cardType=="Elite Unit" then return "unit" end
+            return "card"
+        end
+        -- Wounds/Quests are not unknown resource cards.
+        local notes=obj.getGMNotes()
+        if notes=="Wound" then return "wound" end
+        if notes=="Quest" then return nil end
+        return "card"
+    end
+    if manaColor(obj)~=nil then return "mana" end
+    if factionRewardNotes[obj.getGMNotes()]~=nil then return "factionReward" end
+    return nil
+end
+
 return {
     cardPosture=cardPosture,
     zoneFootprintContainsXZ=zoneFootprintContainsXZ,
     footprint=footprint,
     overlaps=overlaps,
-    overlapArea=overlapArea
+    overlapArea=overlapArea,
+    manaColor=manaColor,
+    readyForXZ=readyForXZ,
+    factionRewardForObject=factionRewardForObject,
+    resourceObjectKind=resourceObjectKind
 }

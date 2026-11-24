@@ -25,7 +25,7 @@ assert(data:find('swiftness={normal={move=2},powered={ranged=3}}',1,true),
 assert(data:find('poweredLink={mode="stronger",bonus=2,',1,true),
     "Concentration powered Action link changed")
 
-local manaCode=section(src,"local function manaColor(obj)","-- Reuse the same stable identifiers")
+local manaCode=section(src,'local manaColor=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").manaColor','factionRewardForObject=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").factionRewardForObject')
 local bonusCode=section(src,"local function applyLinkedResourceBonus(effects,link)",
     "-- Resolve independent mana roles")
 local linksCode=section(src,"local function resolveActionLinks(cards,wounds,footprints,manaPowered,skillLinksByTarget)",
@@ -70,6 +70,10 @@ local env={
     end,
 }
 setmetatable(env,{__index=_G})
+env.require=function(name)
+    assert(name=="PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects", "Unexpected recognition dependency")
+    return assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/PhysicalObjects.lua","t",env))()
+end
 local compiled=assert(load(table.concat({manaCode,bonusCode,linksCode,zoneCode,dropCode,
     "return manaColor,trackerPrivate.readyForXZ,applyLinkedResourceBonus,resolveActionLinks,resourceCardsZoneEntered,resourceCardsObjectMoved"},"\n"),
     "Concentration mana settle","t",env))

@@ -16,7 +16,7 @@ end
 local src=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local geometry=section(src,"trackerPrivate.zoneFootprintContainsXZ=require(",
     "local footprint=require(")
-local kinds=section(src,"local function resourceObjectKind(obj)",
+local kinds=section(src,'local resourceObjectKind=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").resourceObjectKind',
     "-- A NightRules token")
 local pickup=section(src,"function resourceCardsObjectPickedUp(obj)",
     "function resourceCardsZoneEntered(ctx)")
@@ -52,7 +52,6 @@ local tracker={
     playCandidatesBySeat={[1]={skill01=true,reward01=true}},
     bySeat={[1]={skill01=true,reward01=true}},
     playCardMovements={},choiceResetGenerationByGUID={},
-    factionRewardNotes={["Dark Crusader Reward"]="Dark"},
     checkCardChoicesAfterDrop=function(guid,seat) assert(seat==1) end, -- UI repair is covered separately
     playCandidateKind=function(kind)
         return kind=="card" or kind=="skill" or kind=="factionReward"
@@ -74,7 +73,7 @@ local env={
         if guid=="play" then return zone end
         return tokens[guid]
     end,
-    manaColor=function() return nil end,
+    isManaTokenFigurine=function(obj) return false end,
     combatEnemyData=function() return nil end,
     unitLayoutIsCommand=function() return false end,
     unitLayoutIsWound=function() return false end,
@@ -84,6 +83,10 @@ local env={
     queueSeat=function() queues=queues+1 end
 }
 setmetatable(env,{__index=_G})
+env.require=function(name)
+    assert(name=="PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects", "Unexpected recognition dependency")
+    return assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/PhysicalObjects.lua","t",env))()
+end
 local source=table.concat({geometry,kinds,pickup,drop,
     "return resourceObjectKind,resourceCardsObjectPickedUp,trackerPrivate.finishPlayCardMove"},"\n")
 local kindOf,onPickup,finish=assert(load(source,"Skill and reward relocation","t",env))()

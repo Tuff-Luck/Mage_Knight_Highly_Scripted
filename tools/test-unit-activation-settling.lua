@@ -1,3 +1,4 @@
+package.path="src/?.lua;"..package.path
 -- Unit activation regression: stacked crystals, settled Command state, and target UI.
 -- Run from repository root: lua5.2 tools/test-unit-activation-settling.lua
 local function read(path)
@@ -70,7 +71,7 @@ local reader=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 -- Unit payments require current play/Unit zone membership.
 local manaCode=extract(reader,"local function unitManaCounts(unit,seatPos,source,crystalsOnly)",
     "local function unitAbilityPaid")
-local readyCode=extract(reader,"trackerPrivate.readyForXZ=function(obj)",
+local readyCode=extract(reader,'trackerPrivate.readyForXZ=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").readyForXZ',
     "-- Magic Talent's strong side")
 local blue={guid="blue",type="Figurine",color="Blue",resting=true,moving=false,
     position={x=0,z=0}}
