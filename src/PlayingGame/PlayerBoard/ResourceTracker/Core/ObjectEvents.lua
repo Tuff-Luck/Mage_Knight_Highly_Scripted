@@ -30,6 +30,11 @@ function M.scheduleChoiceReset(guid,seatPos,getChoices,getExpanded,trackerPrivat
                 if gStates~=nil and gStates.resourceCardMoveRoles~=nil then
                     gStates.resourceCardMoveRoles[guid]=nil
                 end
+                -- A genuinely departed conversion card starts fresh on replay.
+                local kind=guid=="878d92" and "agility" or guid=="8c3de6" and "diplomacy" or nil
+                local conversions=gStates~=nil and gStates.resourceCardConversions or nil
+                local seat=type(conversions)=="table" and conversions[tostring(seatPos)] or nil
+                if kind~=nil and type(seat)=="table" then seat[kind]=nil end
                 getExpanded()[guid]=nil
                 resourceCardsArtifactBreakClear(guid)
                 if gStates~=nil and gStates.artifactGrailHealingUsed~=nil then
