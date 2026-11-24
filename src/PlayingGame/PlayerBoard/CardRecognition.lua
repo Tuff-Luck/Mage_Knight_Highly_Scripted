@@ -5978,23 +5978,8 @@ local function refreshCombatEnemyPanel(monsters,calculated)
     end
     local seatScan=currentSeat~=nil and resourceCardScanBySeat[currentSeat] or nil
     local enemyEffects=seatScan~=nil and seatScan.enemyEffects or nil
-    -- Preserve the printed/site Fortification before Demolish/Expose strips it.
-    for _,entry in ipairs(entries) do
-        entry.originalFortification=combatEnemyFortificationCount(entry.data,entry.perks)
-    end
-    -- Ignore site/wall Fortified, but preserve the monster's printed Fortified.
-    if seatScan~=nil and seatScan.ignoreSiteFortifications==true then
-        for _,entry in ipairs(entries) do
-            local perks=entry.perks
-            if perks~=nil and (perks.fortified==true or perks.wallFortified==true) then
-                local adjusted={}
-                for key,value in pairs(perks) do adjusted[key]=value end
-                adjusted.fortified=false
-                adjusted.wallFortified=false
-                entry.perks=adjusted
-            end
-        end
-    end
+    trackerPrivate.enemyDefences.prepareFortifications(entries,
+        seatScan~=nil and seatScan.ignoreSiteFortifications==true)
     for _,entry in ipairs(entries) do
         local obj=monsters[entry.guid]
         entry.x=obj~=nil and obj.getPosition()[1] or 0
@@ -6002,73 +5987,7 @@ local function refreshCombatEnemyPanel(monsters,calculated)
         local effect=enemyEffects~=nil and enemyEffects[entry.guid] or nil
         entry.effect=effect
         entry.attackReductions=combatOrderedReductions(effect)
-        if effect~=nil then
-            -- Remove only the trait PRINTED on the selected enemy token. A
-            -- separate fortification/resistance granted by its site remains.
-            if next(effect.removedPrinted or {})~=nil then
-                local copy={}
-                for key,value in pairs(entry.data) do copy[key]=value end
-                for trait in pairs(effect.removedPrinted) do
-                    if trait=="defend" then copy[trait]=0
-                    else copy[trait]=false end
-                end
-                entry.data=copy
-            end
-            local currentlyFortified=combatEnemyFortificationCount(entry.data,entry.perks)>0
-                and effect.removeFortify~=true
-            local reduction=currentlyFortified and effect.armourReduceFortified
-                or effect.armourReduce
-            if not currentlyFortified and entry.originalFortification>0 then
-                reduction=reduction+(effect.armourBeforeFortificationRemoval or 0)
-            end
-            if effect.armourReduceByResist>0 then
-                local resistances=0
-                for _,key in ipairs({"pResist","fResist","iResist"}) do
-                    if combatEnemyHasTrait(entry.data,entry.perks,key) then resistances=resistances+1 end
-                end
-                reduction=reduction+effect.armourReduceByResist*resistances
-            end
-            -- Taunt's provoke option grants its Armour discount only if the
-            -- enemy actually attacks; it can NEVER help in Ranged/Siege.
-            local lateReduction=effect.armourReduceAttackOnly or 0
-            if lateReduction>0 then
-                local attacks=combatEnemyAttacks(entry)
-                local attacksNow=false
-                for _,attack in ipairs(attacks) do
-                    if not attack.pending then attacksNow=true break end
-                end
-                local noAttack=effect.noAttack==true or effect.destroy==true
-                    or (effect.noAttackUnfortified==true
-                        and (combatEnemyFortificationCount(entry.data,entry.perks)==0
-                            or effect.removeFortify==true))
-                if noAttack or not attacksNow then
-                    reduction=math.max(0,reduction-lateReduction)
-                    lateReduction=0
-                end
-            end
-            entry.effectArmourReduction=reduction
-            if reduction>0 then
-                -- Curse applies to fortified enemies only in the later Attack
-                -- phase. Preserve independent Ranged/Siege Armour, including
-                -- reductions from other sources and the minimum of 1.
-                local fortified=combatEnemyFortificationCount(entry.data,entry.perks)>0
-                    and effect.removeFortify~=true
-                local rangedReduction=math.max(0,reduction-lateReduction)
-                if fortified then
-                    rangedReduction=math.max(0,reduction
-                        -(effect.armourReduceRangedUnfortifiedOnly or 0))
-                end
-                if rangedReduction~=reduction then
-                    entry.rangeBaseArmour=math.max(1,entry.baseArmour-rangedReduction)
-                    entry.rangeElusiveArmour=math.max(1,entry.elusiveArmour-rangedReduction)
-                end
-                entry.baseArmour=math.max(1,entry.baseArmour-reduction)
-                entry.elusiveArmour=math.max(1,entry.elusiveArmour-reduction)
-            end
-            entry.stripFortify=effect.removeFortify
-            entry.stripResist=effect.removeResist
-            entry.stripFireResist=effect.removeFireResist
-        end
+        trackerPrivate.enemyDefences.applyEffects(entry,effect,combatEnemyAttacks)
         entry.noAttack=not entry.attackOnly and effect~=nil and (effect.noAttack==true or (effect.noAttackUnfortified==true
             and (combatEnemyFortificationCount(entry.data,entry.perks)==0
                 or effect.removeFortify==true)))

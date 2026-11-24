@@ -48,4 +48,55 @@ cfg.artifactCombat.sword=true
 eq(engine.attackTotal(groups,{pResist=true},nil,"attack"),10,"Live Sword configuration doubles Physical and strips Resistance")
 eq(engine.attackTotal(groups,{pResist=true,arcaneImmunity=true},nil,"attack"),8,"Arcane Immunity preserves Physical Resistance")
 eq(a.data.fResist,true,"Group calculation never mutates printed data")
-print("Enemy defences, grouped Armour, Resistance and effective Attack passed")
+-- Individual modifiers preserve original fortification and do not edit shared data.
+local printed={fortified=true,fResist=true,defend=2}
+local perks={fortified=true,wallFortified=true,iResist=true}
+local c=enemy("c",printed,perks,5,10)
+engine.prepareFortifications({c},true)
+eq(c.originalFortification,3,"Original fortification preserved before site bypass")
+eq(engine.fortificationCount(c.data,c.perks),1,"Site bypass leaves printed layer")
+eq(perks.wallFortified,true,"Saved perk data never mutated")
+local function effect(fields)
+    local result={armourReduce=0,armourReduceFortified=0,armourReduceByResist=0}
+    for key,value in pairs(fields or {}) do result[key]=value end
+    return result
+end
+local function actualAttack() return {{value=4}} end
+local function pendingAttack() return {{pending=true}} end
+engine.applyEffects(c,effect({removedPrinted={fortified=true,defend=true},
+    armourReduce=1,armourBeforeFortificationRemoval=2,armourReduceByResist=1}),actualAttack)
+eq(c.baseArmour,1,"Resistance and prior fortification reduction; minimum one")
+eq(c.elusiveArmour,5,"Same reduction applied to Elusive Armour")
+eq(c.effectArmourReduction,5,"Total reduction retains both resistances and former fortification")
+eq(c.data.defend,0,"Printed Defend removed numerically")
+eq(printed.defend,2,"Original Defend never mutated")
+eq(printed.fortified,true,"Original printed fortification never mutated")
+local function taunt(attacks,extras)
+    local e=enemy("taunt",{},nil,5,10)
+    engine.prepareFortifications({e},false)
+    local spec=effect({armourReduce=2,armourReduceFortified=2,armourReduceAttackOnly=2})
+    for key,value in pairs(extras or {}) do spec[key]=value end
+    engine.applyEffects(e,spec,attacks)
+    return e
+end
+local t=taunt(actualAttack)
+eq(t.baseArmour,3,"Taunt applies to melee Armour")
+eq(t.rangeBaseArmour,5,"Taunt cannot reduce Ranged Armour")
+eq(t.rangeElusiveArmour,10,"Taunt cannot reduce Ranged Elusive Armour")
+t=taunt(pendingAttack)
+eq(t.baseArmour,5,"Pending summon does not qualify for Taunt")
+t=taunt(actualAttack,{noAttack=true})
+eq(t.baseArmour,5,"Attack prevention cancels Taunt discount")
+local curse=enemy("curse",{fortified=true},nil,5,10)
+engine.prepareFortifications({curse},false)
+engine.applyEffects(curse,effect({armourReduce=2,armourReduceFortified=2,
+    armourReduceRangedUnfortifiedOnly=2}),actualAttack)
+eq(curse.baseArmour,3,"Fortified Curse reduces melee Armour")
+eq(curse.rangeBaseArmour,5,"Fortified Curse cannot reduce Ranged Armour")
+local expose=enemy("expose",{fortified=true,pResist=true,fResist=true},nil,5,10)
+engine.prepareFortifications({expose},false)
+engine.applyEffects(expose,effect({removeFortify=true,removeResist=true,removeFireResist=true}),actualAttack)
+eq(expose.stripFortify,true,"Remove Fortification flag preserved")
+eq(expose.stripResist,true,"Remove Resistance flag preserved")
+eq(expose.stripFireResist,true,"Remove Fire Resistance flag preserved")
+print("Enemy defences, individual modifiers, grouped Armour, Resistance and effective Attack passed")

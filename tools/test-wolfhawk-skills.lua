@@ -27,7 +27,7 @@ contains(data,'["2c74ca"]={prey=true,enemyEffect={normal={}}}',
     "Know Your Prey dynamic enemy targeting registered")
 contains(data,'wolfHowlPenalty=true',"Wolf's Howl has competitive penalty metadata")
 contains(calc,'if skill.guid=="6a33c1"',"Krang's Curse path remains present")
-contains(calc,'local rangedReduction=math.max(0,reduction-lateReduction)',
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/EnemyDefences.lua"),'local rangedReduction=math.max(0,reduction-lateReduction)',
     "Taunt Armour reduction must not be active during the Ranged/Siege phase")
 contains(calc,'for _,wound in ipairs(wounds) do',"Wounds inspected in tracker")
 contains(calc,'-- Power of Pain / Ritual of Pain can make a sideways Wound',

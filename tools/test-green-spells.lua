@@ -157,10 +157,11 @@ eq(siteBypassCheck(spells.spellDemolish,result,played),false,"Disintegrate has n
 
 -- Exercise the calculator's actual stripping logic (not an invented rule).
 local fortificationCount=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/EnemyDefences.lua")({}).fortificationCount
-local stripSites=assert(load("return function(entries,seatScan)\n"..
-    between(reader,"    -- Ignore site/wall Fortified, but preserve the monster's printed Fortified.",
-        "    for _,entry in ipairs(entries) do\n        local obj=monsters[entry.guid]")..
-    "\nreturn entries\nend"))()
+local prepareFortifications=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/EnemyDefences.lua")({}).prepareFortifications
+local function stripSites(entries,seatScan)
+    prepareFortifications(entries,seatScan~=nil and seatScan.ignoreSiteFortifications==true)
+    return entries
+end
 local sitePerks={fortified=true,wallFortified=true}
 local entry={data={arcaneImmunity=true},perks=sitePerks}
 eq(fortificationCount(entry.data,entry.perks),2,"Site and Wall are two fortifications")
