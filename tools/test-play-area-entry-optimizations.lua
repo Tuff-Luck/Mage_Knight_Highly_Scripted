@@ -178,57 +178,11 @@ assert(cards:find("local relevantZones",1,true),
 local board=read("src/PlayingGame/PlayerBoard/Events.lua")
 assert(board:find("if affectsMainUI then",1,true),
     "play-area main UI updates must be filtered")
--- Unused mana candidates must be pruned without losing above-zone
--- payments on played Actions or active Units. Held objects stay pending.
-local manaCandidates={far=true,action=true,unit=true,held=true,falling=true}
-local activeCard={guid="actionCard",area={x=0,z=0,halfX=1,halfZ=1},
-    getPosition=function() return {0,1,0} end}
-local activeUnit={guid="activeUnit",area={x=10,z=10,halfX=1,halfZ=1}}
-local function manaCandidate(guid,x,z,held)
-    return {guid=guid,resting=not held,held_by_color=held and "Red" or nil,
-        getPosition=function() return {x,2,z} end,
-        isDestroyed=function() return false end,
-        isSmoothMoving=function() return false end}
-end
-local manaObjects={
-    far=manaCandidate("far",30,30),
-    action=manaCandidate("action",0,0),
-    unit=manaCandidate("unit",10,10),
-    held=manaCandidate("held",30,30,true),
-    falling=manaCandidate("falling",0,0,false)
-}
-manaObjects.falling.resting=false
-local layoutReads=0
-local pruneEnv={
-    trackerPrivate={unitManaCandidatesBySeat={[1]=manaCandidates},
-        readyForXZ=function(obj)
-            return obj.held_by_color==nil and not obj.isSmoothMoving()
-                and (obj.type~="Dice" or obj.resting==true)
-        end},
-    seatPos=1,
-    objects={actionCard=activeCard},
-    placements={actionCard="play"},
-    objectKinds={actionCard="card"},
-    getObjectFromGUID=function(guid) return manaObjects[guid] end,
-    manaColor=function() return "Blue" end,
-    footprint=function(obj) return obj.area end,
-    unitLayoutSnapshot=function()
-        layoutReads=layoutReads+1
-        return {units={activeUnit}}
-    end
-}
-setmetatable(pruneEnv,{__index=_G})
-local pruneSource=extract(cards,
-    "    local manaCandidates=trackerPrivate.unitManaCandidatesBySeat[seatPos] or {}",
-    "    -- A resting active Unit can be lifted")
-assert(load(pruneSource,"Mana candidate pruning","t",pruneEnv))()
-eq(manaCandidates.far,nil,"settled mana far from relevant cards should be pruned")
-eq(manaCandidates.action,true,"above-play-area Action payment must remain tracked")
-eq(manaCandidates.unit,true,"above-zone Unit payment must remain tracked")
-eq(manaCandidates.held,true,"held mana stays pending until release")
-eq(manaCandidates.falling,true,"falling crystal remains eligible")
-eq(pruneEnv.placements.falling,"play","falling crystal recovered using X/Z")
-eq(pruneEnv.placements.action,"play","above-zone Action mana should be recovered")
-eq(layoutReads,1,"Unit footprint snapshot should be reused within a scan")
+-- Mana eligibility must come from current zone membership, not a historical
+-- drop registry or recovery based only on X/Z.
+assert(not cards:find("unitManaCandidatesBySeat",1,true),
+    "Obsolete above-zone mana candidate registry must be removed")
+assert(not cards:find("highestCardY",1,true),
+    "Above-zone mana must not be reinserted into play")
 
 print("Play-area entry optimizations regression passed")

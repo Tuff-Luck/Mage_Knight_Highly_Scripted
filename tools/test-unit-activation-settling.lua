@@ -67,7 +67,7 @@ position[1]=0
 eq(#unitLayoutSnapshot(1).units,1,"Returned Unit is recovered")
 
 local reader=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
--- The mana candidate check must only supplement missing zone objects.
+-- Unit payments require current play/Unit zone membership.
 local manaCode=extract(reader,"local function unitManaCounts(unit,seatPos,source,crystalsOnly)",
     "local function unitAbilityPaid")
 local readyCode=extract(reader,"trackerPrivate.readyForXZ=function(obj)",
@@ -84,7 +84,7 @@ objects.blue=blue
 objects.inventory=inventory
 objects.playZone={getObjects=function() return {} end}
 local payment=assert(load([[
-local trackerPrivate={unitManaCandidatesBySeat={[1]={blue=true,inventory=true}}}
+local trackerPrivate={}
 local playerUnitAreas={[1]="unitZone"}
 local playerPlayAreas={[1]="playZone"}
 local function footprint() return {x=0,z=0,halfX=1.2,halfZ=1.4} end
@@ -97,21 +97,22 @@ local function isManaTokenFigurine(obj) return obj.type=="Figurine" end
 ]]..readyCode.."\n"..manaCode..[[
 return unitManaCounts
 ]],"Unit payment fallback","t",_G))()
-eq(payment(unit,1,{}).Blue,1,"Stacked blue crystal pays Northern Monks")
+eq(payment(unit,1,{}).Blue,nil,"Outside-zone blue crystal cannot pay Northern Monks")
+eq(payment(unit,1,{blue}).Blue,1,"In-zone blue crystal pays Northern Monks")
 blue.resting=false
-eq(payment(unit,1,{}).Blue,1,"Falling crystal pays without waiting for Y")
+eq(payment(unit,1,{blue}).Blue,1,"Released in-zone crystal pays without waiting for resting")
 blue.resting=true
-eq(payment(unit,1,{blue}).Blue,1,"Zone and candidate do not double-count one crystal")
+eq(payment(unit,1,{blue,blue}).Blue,1,"Duplicate zone membership does not double-count one crystal")
 blue.held_by_color="Blue"
-eq(payment(unit,1,{}).Blue,nil,"Held crystal does not pay the Unit")
+eq(payment(unit,1,{blue}).Blue,nil,"Held crystal does not pay the Unit")
 blue.held_by_color=nil
 blue.moving=true
-eq(payment(unit,1,{}).Blue,nil,"Moving crystal does not pay the Unit")
+eq(payment(unit,1,{blue}).Blue,nil,"Moving crystal does not pay the Unit")
 blue.moving=false
 blue.position.x=20
-eq(payment(unit,1,{}).Blue,nil,"Crystal removed from Unit no longer pays")
+eq(payment(unit,1,{blue}).Blue,nil,"Crystal removed from Unit no longer pays")
 blue.position.x=0
-eq(payment(unit,1,{}).Blue,1,"Replacing crystal restores paid ability")
+eq(payment(unit,1,{blue}).Blue,1,"Replacing crystal restores paid ability")
 
 dofile("src/PlayingGame/PlayerBoard/UnitResources.lua")
 local abilities=assert(unitResourceDefinitions[unit.guid])
@@ -180,8 +181,8 @@ assert(hasButton(buttons,"AttackAssignmentSource_f17813_0_attackIce"),
 -- The pending scan, not the drop or crystal zone event, owns Unit controls.
 assert(reader:find("local missingActiveUnit=false",1,true),
     "Settled scan must recover active Units missed by zones")
-assert(reader:find("trackerPrivate.unitManaCandidatesBySeat[seat][obj.guid]=true",1,true),
-    "Mana dropped above thin zones must trigger Unit payment checks")
+assert(reader:find("or unitManaCounts(unit,seatPos,unitPaymentMana)",1,true),
+    "Unit payments must use the play/Unit zone mana list")
 local refresh=extract(reader,"function resourceUnitsRefreshButtons()",
     "-- Reconstruct used Units from Command tokens")
 assert(refresh:find("resourceCardsSourceChanged()",1,true),

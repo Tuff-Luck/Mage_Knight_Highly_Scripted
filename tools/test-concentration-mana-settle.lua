@@ -34,9 +34,6 @@ local zoneCode=section(src,"local function resourceCardsRelevantZone(ctx)",
     "function resourceCardsZoneLeft(ctx)")
 local dropCode=section(src,"function resourceCardsObjectMoved(obj,stabilized)",
     "-- Register the remaining readying and Artifact gameplay buttons through the")
-local recoverCode=section(src,"    -- Mana dropped ON a played Action",
-    "    -- A resting active Unit can be lifted above the thin Zone")
-
 local calls={}
 local die={
     type="Dice",guid="die001",resting=false,smooth=false,
@@ -44,7 +41,7 @@ local die={
     getRotationValue=function() return "Green Mana" end,
 }
 die.isSmoothMoving=function() return die.smooth end
-local tracker={unitManaCandidatesBySeat={},playCardMovements={}}
+local tracker={playCardMovements={}}
 local cards={
     ["af9def"]={resourceKey="concentration",cardType="Starting"},
     ["acdcb2"]={resourceKey="swiftness",cardType="Starting"},
@@ -90,54 +87,11 @@ zoneEntered({obj=die,objGUID=die.guid,objType="Dice",
     zoneInfo={kind="play",seatPos=2}})
 assert(#calls==1 and calls[1].seat==2 and calls[1].guid==die.guid,
     "Released die entering play should queue a resource scan")
-assert(tracker.unitManaCandidatesBySeat[2][die.guid]==true,
-    "Released die candidate was not recorded")
 objectMoved(die)
 assert(#calls==2 and calls[2].guid==die.guid,
-    "Die dropped above the thin scripting zone should queue a resource scan")
+    "Die drop must queue a resource scan even if it leaves the zone")
 assert(manaColor(die)=="Green" and not die.resting,
     "Non-resting but released mana die should still report Green")
-
--- The die can settle above the thin scripting zone, outside getObjects().
--- It still powers Concentration if and only if it physically covers the card.
-local diePosition={0.1,2.0,0.1}
-local concentrationPosition={0,1.0,0}
-die.getPosition=function() return diePosition end
-env.getObjectFromGUID=function(guid) return guid==die.guid and die or nil end
-env.manaColor=manaColor
-env.trackerPrivate.readyForXZ=readyForXZ
-env.footprint=function(card)
-    local pos=card.getPosition()
-    return {x=pos[1],z=pos[3],halfX=1,halfZ=1}
-end
-local recovered=assert(load("return function(seatPos,objects,placements,objectKinds)\n"
-    ..recoverCode.."\nend","Recover mana on Action card","t",env))()
-local function recover()
-    local objects={
-        ["af9def"]={guid="af9def",getPosition=function() return concentrationPosition end}
-    }
-    local placements={["af9def"]="play"}
-    local kinds={["af9def"]="card"}
-    recovered(2,objects,placements,kinds)
-    return objects,placements,kinds
-end
-local recoveredObjects,recoveredPlacement,recoveredKinds=recover()
-assert(recoveredObjects[die.guid]==die and recoveredPlacement[die.guid]=="play"
-    and recoveredKinds[die.guid]=="mana",
-    "Released Source die physically on Concentration must be included in play scan")
-diePosition={10,2.0,10}
-local _,farPlacement=recover()
-assert(farPlacement[die.guid]==nil,
-    "Source die away from Action cards must not be counted as payment")
-diePosition={0.1,2.0,0.1}
-die.smooth=true
-local _,movingPlacement=recover()
-assert(movingPlacement[die.guid]==nil,"Smooth-moving die must not be treated as a paid Action")
-die.smooth=false
-die.held_by_color="Blue"
-local _,heldPlacement=recover()
-assert(heldPlacement[die.guid]==nil,"Held die must not be treated as a paid Action")
-die.held_by_color=nil
 
 local concentration={guid="af9def",is_face_down=false}
 local swiftness={guid="acdcb2",is_face_down=false}

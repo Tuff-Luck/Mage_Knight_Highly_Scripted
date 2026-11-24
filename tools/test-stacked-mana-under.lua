@@ -1,5 +1,5 @@
 -- Overlapping mana payments prefer the highest eligible played card, and
--- native U/Place Under must rediscover an unsettled die above a shallow zone.
+-- native U/Place Under resamples mana in the live play zone.
 -- Run from repository root: lua5.2 tools/test-stacked-mana-under.lua
 local function read(path)
     local file=assert(io.open(path,"r"))
@@ -71,24 +71,23 @@ assert(select(gold,candidates,footprints,function(card)
 end)==blue,"Between-card mana must not be lost or power a card above itself")
 gold.position.y,gold.position[2]=3.3,3.3
 
+local zoneObjects={}
 local zone={
     getPosition=function() return position(0,1,0) end,
     getScale=function() return position(10,0.1,10) end,
     getRotation=function() return {y=0} end,
-    getObjects=function() return {} end -- above the shallow scripting zone
+    getObjects=function() return zoneObjects end
 }
 local objects={play=zone,green=green,blue=blue,blue2=otherBlue,gold=gold}
 local frames,queued,changed,moved,picked={},{},0,0,0
-local manaCandidates={}
 tracker.trackerSession=1
-tracker.unitManaCandidatesBySeat={[1]=manaCandidates}
 tracker.playCandidateKind=function(kind) return kind=="card" end
 tracker.traceEnabled=false
 local env={
     trackerPrivate=tracker,gStates={turnNumber=1},
     turnOrder={{seatPos=1}},playerPlayAreas={[1]="play"},
     getObjectFromGUID=function(guid) return objects[guid] end,
-    getAllObjects=function() return {green,blue,otherBlue,gold} end,
+    getAllObjects=function() error("Under must not scan the whole table") end,
     resourceCardsPanelOpen=function() return true end,
     resourceObjectKind=function(obj) return obj.type=="Card" and "card" or nil end,
     scriptObjectId=function(obj) return obj==gold and "Mana Dice" or nil end,
@@ -115,14 +114,13 @@ under({blue})
 assert(picked==1 and #frames==1 and frames[1].delay==2,
     "Under must capture the played source before TTS restacks it")
 frames[1].callback()
-assert(moved==1 and manaCandidates.gold==true,
-    "Unsettled die over stacked cards must remain a tracked payment")
-assert(queued[1].seat==1 and queued[1].guid=="gold",
-    "Under must wait on the die even when shallow zone lists are empty")
+assert(moved==1 and #queued==0,
+    "Die outside the zone must not be queued as a payment")
 assert(#frames==2 and frames[2].delay==22,
     "Under must schedule a second check for delayed physics")
+zoneObjects={gold}
 gold.resting=true
 frames[2].callback()
-assert(#queued==2 and queued[2].guid=="gold" and changed==2,
-    "Final die resting face must trigger recalculation without another card")
+assert(#queued==1 and queued[1].guid=="gold" and changed==2,
+    "Die returning into the zone triggers recalculation")
 print("Stacked mana and U action regressions passed")

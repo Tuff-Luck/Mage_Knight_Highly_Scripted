@@ -202,7 +202,6 @@ trackerPrivate.commandPickupForUnits={}
 -- Only mana objects actually moved by players are candidates for extra Unit
 -- payment checks. A stacked crystal can sit above the Unit scripting zone,
 -- but its settled physical position still pays that Unit's ability.
-trackerPrivate.unitManaCandidatesBySeat={}
 -- Rebuilt with the live Unit layout for each Resource Tracker scan.
 -- Unit outlines require a Command token physically on the card and a valid
 -- activation this turn. Wounds and site restrictions also suppress outlines.
@@ -9237,12 +9236,6 @@ function magicTalentManaPayments(seatPos)
         end
     end
     for _,obj in ipairs(zone.getObjects()) do consider(obj) end
-    if #payments<2 then
-        -- The play zone is deliberately thin; a crystal stacked on a card can
-        -- be above its Y boundary. Only inspect objects physically covering
-        -- Magic Talent, and never read die faces while still moving.
-        for _,obj in ipairs(getAllObjects()) do consider(obj) end
-    end
     table.sort(payments,function(a,b) return a.guid<b.guid end)
     return payments
 end
@@ -9406,16 +9399,12 @@ function magicTalentSpellCastingPaid(seatPos,guid)
     for _,mana in ipairs(zone.getObjects()) do
         if paidBy(mana) then return true end
     end
-    -- Stacked crystals can rest above the thin play scripting zone.
-    for _,mana in ipairs(getAllObjects()) do
-        if paidBy(mana) then return true end
-    end
     return false
 end
 
 -- Count distinct physical casting payments for repeated uses of the same
--- Spell through Maximal Effect + Magic Talent. Both shallow-zone and raised
--- mana objects are inspected; duplicates are counted only once.
+-- Spell through Maximal Effect + Magic Talent. Only play-zone mana qualifies;
+-- duplicates are counted only once.
 function magicTalentSpellCastingPaymentCount(seatPos,guid)
     local card=guid~=nil and getObjectFromGUID(guid) or nil
     local data=card~=nil and gameCards[guid] or nil
@@ -9438,7 +9427,6 @@ function magicTalentSpellCastingPaymentCount(seatPos,guid)
         end
     end
     for _,mana in ipairs(zone.getObjects()) do consider(mana) end
-    for _,mana in ipairs(getAllObjects()) do consider(mana) end
     return count
 end
 
@@ -10391,7 +10379,6 @@ function resourceCardsMaximalEffectSourceManaGUIDs(seatPos,sourceGUID)
         end
     end
     for _,mana in ipairs(zone.getObjects()) do inspect(mana) end
-    for _,mana in ipairs(getAllObjects()) do inspect(mana) end
     return spent
 end
 
@@ -10626,31 +10613,12 @@ local function unitManaCounts(unit,seatPos,source,crystalsOnly)
     local counts,area={},footprint(unit)
     local seen={}
     for _,mana in ipairs(tokens) do
-        if trackerPrivate.readyForXZ(mana) then
+        if not seen[mana.guid] and trackerPrivate.readyForXZ(mana) then
             seen[mana.guid]=true
             local color=manaColor(mana)
             if color~=nil and (not crystalsOnly or isManaTokenFigurine(mana))
             and manaInsideFootprint(mana,area) then
                 counts[color]=(counts[color] or 0)+1
-            end
-        end
-    end
-    -- Stacking can raise a crystal beyond the zone's Y extent. Recover
-    -- only previously moved mana physically covering this Unit, once per GUID.
-    -- Inventory crystals elsewhere never pay a Unit, and a lifted/moving
-    -- crystal cannot retain its previous payment during settling.
-    local candidates=trackerPrivate.unitManaCandidatesBySeat[seatPos] or {}
-    for guid in pairs(candidates) do
-        if not seen[guid] then
-            local mana=getObjectFromGUID(guid)
-            if mana==nil then
-                candidates[guid]=nil
-            elseif trackerPrivate.readyForXZ(mana) then
-                local color=manaColor(mana)
-                if color~=nil and (not crystalsOnly or isManaTokenFigurine(mana))
-                    and manaInsideFootprint(mana,area) then
-                    counts[color]=(counts[color] or 0)+1
-                end
             end
         end
     end
@@ -11345,70 +11313,6 @@ local function renderSeat(seatPos)
             end
         end
     end
-    -- Mana dropped ON a played Action may sit above the thin play
-    -- scripting zone, even though its dropped GUID was seen. Recover only
-    -- released, physically overlapping mana candidates; a die elsewhere on
-    -- the table must never pay for an Action merely because it was moved.
-    local manaCandidates=trackerPrivate.unitManaCandidatesBySeat[seatPos] or {}
-    local candidateUnitFootprints=nil
-    local function candidateTouchesUnit(pos)
-        if candidateUnitFootprints==nil then
-            candidateUnitFootprints={}
-            local snapshot=unitLayoutSnapshot~=nil and unitLayoutSnapshot(seatPos) or nil
-            for _,unit in ipairs(snapshot~=nil and snapshot.units or {}) do
-                candidateUnitFootprints[#candidateUnitFootprints+1]=footprint(unit)
-            end
-        end
-        for _,area in ipairs(candidateUnitFootprints) do
-            if math.abs(pos[1]-area.x)<area.halfX
-                and math.abs(pos[3]-area.z)<area.halfZ then return true end
-        end
-        return false
-    end
-    for guid in pairs(manaCandidates) do
-        if placements[guid]~="play" then
-            local mana=objects[guid] or getObjectFromGUID(guid)
-            if mana==nil or (mana.isDestroyed~=nil and mana.isDestroyed()) then
-                manaCandidates[guid]=nil
-            elseif trackerPrivate.readyForXZ(mana) then
-                local pos=mana.getPosition()
-                local recovered=false
-                if manaColor(mana)~=nil then
-                    -- Use the top of the stack to establish that the mana is
-                    -- physically on the cards. Comparing its Y against *each*
-                    -- buried card can reject a valid die after U/Place Under.
-                    local manaY=pos.y or pos[2]
-                    local highestCardY=nil
-                    for cardGUID,card in pairs(objects) do
-                        if placements[cardGUID]=="play"
-                            and (objectKinds[cardGUID]=="card" or objectKinds[cardGUID]=="skill") then
-                            local area=footprint(card)
-                            local cardPos=card.getPosition()
-                            local cy=cardPos.y or cardPos[2]
-                            if math.abs(pos[1]-area.x)<area.halfX
-                                and math.abs(pos[3]-area.z)<area.halfZ
-                                and cy~=nil and manaY~=nil and cy<=manaY+0.15
-                                and (highestCardY==nil or cy>highestCardY) then
-                                highestCardY=cy
-                            end
-                        end
-                    end
-                    if highestCardY~=nil and manaY-highestCardY<3 then
-                        objects[guid]=mana
-                        objectKinds[guid]="mana"
-                        placements[guid]="play"
-                        recovered=true
-                    end
-                end
-                -- Remember above-zone payments on Units as well as Actions.
-                -- Remove settled tokens dropped elsewhere; they can register
-                -- again on a future drop without slowing every subsequent scan.
-                if not recovered and not candidateTouchesUnit(pos) then
-                    manaCandidates[guid]=nil
-                end
-            end
-        end
-    end
     -- A resting active Unit can be lifted above the thin Zone by its stacked
     -- Command/crystal without actually leaving the Unit mat. Reuse the same
     -- X/Z and held-object checks as the physical Unit layout rather than
@@ -11461,6 +11365,7 @@ local function renderSeat(seatPos)
     end
 
     local cards,wounds,skills,manaObjects,footprints={}, {}, {}, {}, {}
+    local unitPaymentMana={}
     local enemyEffects={}
     local pendingWingsNight={}
     -- Resolve conditional Unit targets after other cards, Units, Skills and
@@ -11487,6 +11392,9 @@ local function renderSeat(seatPos)
         elseif kind=="mana" then
             if manaClaimDieHeld==nil or not manaClaimDieHeld(obj.guid) then
                 manaObjects[#manaObjects+1]=obj
+                if placements[guid]=="play" or placements[guid]=="unit" then
+                    unitPaymentMana[#unitPaymentMana+1]=obj
+                end
             end
         elseif kind=="unit" then
             -- Unit and Play Areas overlap; placement may be "play" here.
@@ -12840,7 +12748,7 @@ local function renderSeat(seatPos)
                     if entry.guid==unitGUID then unwounded=entry.unwounded break end
                 end
                 local counts=activation.frozenCounts
-                    or unitManaCounts(unit,seatPos,manaObjects)
+                    or unitManaCounts(unit,seatPos,unitPaymentMana)
                 if activation.frozenCounts==nil then
                     activation.lastCounts=unitHistoryCopyCounts(counts)
                 end
@@ -12864,7 +12772,7 @@ local function renderSeat(seatPos)
                 local selected=decision.index~=nil and abilities[decision.index] or nil
                 if (unwounded or activation.frozenCounts~=nil) and sitePermits then
                     local crystalCounts=selected~=nil and selected.bonusColor~=nil
-                        and unitManaCounts(unit,seatPos,manaObjects,true) or nil
+                        and unitManaCounts(unit,seatPos,unitPaymentMana,true) or nil
                     local resources=not deniedCombat and selected~=nil
                         and unitAbilityResources(selected,counts,crystalCounts) or nil
                     local banners=unitState~=nil and unitState.bannersByUnit~=nil
@@ -15915,39 +15823,23 @@ function resourceCardsUnderAction(targets)
                 resourceCardsObjectMoved(obj)
             end
         end
-        -- Native Under changes card height, sometimes nudging a die that was
-        -- above the deliberately shallow play zone. It may not emit a Die
-        -- pickup/drop/zone event. Discover only mana dice above this play mat,
-        -- on this rare action, and refresh their visible faces.
+        -- Native Under can jostle dice without a drop/zone callback. Resample
+        -- the live play zone after delayed physics; outside mana never pays.
         if playedCardUnder and seat~=nil then
-            local candidates=trackerPrivate.unitManaCandidatesBySeat[seat]
-            if candidates==nil then
-                candidates={}
-                trackerPrivate.unitManaCandidatesBySeat[seat]=candidates
-            end
-            for _,obj in ipairs(getAllObjects()) do
-                if obj.type=="Dice" and scriptObjectId(obj)=="Mana Dice"
-                    and trackerPrivate.zoneFootprintContainsXZ(obj,playZone) then
-                    candidates[obj.guid]=true
-                    if trackerPrivate.traceEnabled then
-                        trackerPrivate.traceEvent("under.mana",seat,obj.guid,
-                            "resting="..tostring(obj.resting))
+            local function queueZoneDice()
+                local zone=getObjectFromGUID(zoneGUID)
+                if zone==nil then return end
+                for _,obj in ipairs(zone.getObjects()) do
+                    if obj.type=="Dice" and scriptObjectId(obj)=="Mana Dice" then
+                        queueSeat(seat,obj.guid)
                     end
-                    queueSeat(seat,obj.guid)
                 end
             end
-            -- If TTS starts jostling the die after its first frame, sample
-            -- again; a slight wobble no longer blocks mana recognition.
+            queueZoneDice()
             safeWaitFrames("PlayerBoard.CardRecognition",function()
                 if trackerPrivate.trackerSession~=session
                     or not resourceCardsPanelOpen() then return end
-                for guid in pairs(candidates) do
-                    local die=getObjectFromGUID(guid)
-                    if die~=nil and die.type=="Dice"
-                        and trackerPrivate.zoneFootprintContainsXZ(die,playZone) then
-                        queueSeat(seat,guid)
-                    end
-                end
+                queueZoneDice()
                 resourceCardsSourceChanged()
             end,22)
         end
@@ -15994,12 +15886,6 @@ function resourceCardsZoneEntered(ctx)
             gStates.resourceCardPlaySerial=(gStates.resourceCardPlaySerial or 0)+1
             gStates.resourceCardPlayOrder[ctx.objGUID]=gStates.resourceCardPlaySerial
         end
-    end
-    if ctx.obj~=nil and ((ctx.objType=="Dice" and scriptObjectId(ctx.obj)=="Mana Dice")
-        or manaColor(ctx.obj)~=nil) then
-        -- Track a die even if it is still slightly rocking; the released scan reads its face.
-        trackerPrivate.unitManaCandidatesBySeat[seat]=trackerPrivate.unitManaCandidatesBySeat[seat] or {}
-        trackerPrivate.unitManaCandidatesBySeat[seat][ctx.objGUID]=true
     end
     queueSeat(seat,ctx.objGUID)
 end
@@ -16088,10 +15974,7 @@ function resourceCardsObjectMoved(obj,stabilized)
     if player==nil then return end
     local seat=player.seatPos
     if (obj.type=="Dice" and scriptObjectId(obj)=="Mana Dice") or manaColor(obj)~=nil then
-        -- Drop callbacks fire even if the final die/crystal sits above both thin
-        -- scripting zones. Remember its GUID and scan once released.
-        trackerPrivate.unitManaCandidatesBySeat[seat]=trackerPrivate.unitManaCandidatesBySeat[seat] or {}
-        trackerPrivate.unitManaCandidatesBySeat[seat][obj.guid]=true
+        -- Reconcile removal as well as arrival; the scan reads current zones.
         queueSeat(seat,obj.guid)
         return
     end
