@@ -11264,7 +11264,12 @@ local function renderSeat(seatPos)
             for i=1,count do
                 local target=candidates[i]
                 local record=records[target.guid]
-                record.resources.move=record.resources.move+extra
+                -- The calculator may return a shared printed resource table.
+                -- Copy before applying this scan-only modifier.
+                local adjusted={}
+                for key,value in pairs(record.resources) do adjusted[key]=value end
+                adjusted.move=adjusted.move+extra
+                record.resources=adjusted
                 record.tirelessnessBonus=(record.tirelessnessBonus or 0)+extra
                 totals.move=(totals.move or 0)+extra
             end

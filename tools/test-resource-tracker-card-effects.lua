@@ -62,4 +62,29 @@ assert(card("rage",true)==attached,"Attached Banner early result must take prior
 attached=nil
 env.gameCards={new={cardType="Starting",resourceKey="rage"}}
 assert(card("new",true).resources.attack==4,"Read replaced catalog live")
-print("Card resource calculation, payment gates, repeat and terrain regressions passed")
+-- A played-card record may borrow its printed resource table. The actual
+-- coordinator's Tirelessness pass must not modify that catalog on rescan.
+local sourceFile=assert(io.open("src/PlayingGame/PlayerBoard/CardRecognition.lua","r"))
+local source=sourceFile:read("*a")
+sourceFile:close()
+local first=assert(source:find("-- Wolfhawk's Tirelessness affects only subsequently PLAYED cards",1,true))
+local last=assert(source:find("-- Only outline enemies that actually supply printed values",first,true))
+local tirelessness=assert(load("return function(cards,records,totals)\n"
+    ..source:sub(first,last-1).."\nend","Tirelessness adjustment","t",env))()
+env.cardPosture=function(c) return c.posture end
+env.gameCards={tire={cardType="Starting",resourceKey="tire"},
+    march={cardType="Starting",resourceKey="march"}}
+env.cardResourceDefinitions={
+    tire={normal={move=2},followingMoveBonus={normal={amount=1,count=1}}},
+    march={normal={move=2}}}
+env.gStates.resourceCardPlayOrder={tire=1,march=2}
+local played={{guid="tire",posture="upright"},{guid="march",posture="upright"}}
+for scan=1,2 do
+    local records={tire=card("tire",false),march=card("march",false)}
+    local totals={move=4}
+    tirelessness(played,records,totals)
+    assert(records.march.resources.move==3,"Tirelessness grants one extra Move per scan")
+    assert(records.march.tirelessnessBonus==1 and totals.move==5,"Modifier and totals agree")
+    assert(env.cardResourceDefinitions.march.normal.move==2,"Printed Move must remain unchanged")
+end
+print("Card resource calculation, payment gates, repeat, terrain and rescan regressions passed")

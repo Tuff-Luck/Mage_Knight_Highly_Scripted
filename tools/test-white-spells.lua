@@ -56,7 +56,7 @@ eq(effects.immune.removeResist,false,"Arcane Immunity negates resistance removal
 -- Retargeting must preserve explicit arrows and reject face-down or
 -- attack-only reminder targets for defensive effects.
 local targets=between(reader,"local function combatEffectTargetEligible(spec)",
-    "local function renderSeat(seatPos)")
+    'trackerPrivate.unitEffects=require("PlayingGame.PlayerBoard.ResourceTracker.UnitEffects")')
 local targetLogic=assert(load([[
 local selected={}
 local function attackAssignmentsTargetGUIDs(key) return selected[key] or {} end
