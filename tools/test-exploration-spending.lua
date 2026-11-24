@@ -43,7 +43,11 @@ local env={
     invalidateResourceTrackerDisplayCache=function() end
 }
 setmetatable(env,{__index=_G})
-local cost=section(recognition,"local function ownedSkillAtSeat(guid,seatPos)",
+env.require=function(name)
+    assert(name=="PlayingGame.PlayerBoard.ResourceTracker.MovementEffects")
+    return assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/MovementEffects.lua","t",env))()
+end
+local cost=section(recognition,'trackerPrivate.movementEffects=require(',
     "local function clearHighlight(guid)",
     "return resourceCardsEffectiveExploreCost",env)
 -- The real Skill-home geometry is used by the ownership check.

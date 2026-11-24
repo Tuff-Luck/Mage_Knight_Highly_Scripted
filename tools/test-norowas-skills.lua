@@ -81,8 +81,10 @@ gStates={turnNumber=1,currentRound=9,doingTheRounds={},
 turnOrder={{seatPos=1,avatarLocation="plains"},{seatPos=2,avatarLocation="plains"}}
 resourceCardScanBySeat={}
 trackerPrivate={}
-local weatherEffects=section(recognition,"trackerPrivate.passableTerrain=",
-    "local function clearHighlight(guid)","resourceCardsWeatherTerrainEffects")
+package.path="src/?.lua;"..package.path
+section(recognition,'trackerPrivate.movementEffects=require(',
+    "local function clearHighlight(guid)","trackerPrivate.movementEffects")
+local weatherEffects=trackerPrivate.movementEffects.resourceCardsWeatherTerrainEffects
 local function terrainFor(player)
     gStates.turnNumber=player
     resourceCardScanBySeat[turnOrder[player].seatPos]={
@@ -91,6 +93,9 @@ end
 
 gStates.coopCompSkillActivation["55e5e5"]={player=1,round=9}
 terrainFor(1)
+local weatherRecord=resourceCardScanBySeat[1].terrainModifiers[1]
+terrainFor(1)
+eq(resourceCardScanBySeat[1].terrainModifiers[1],weatherRecord,"Stable weather record identity across scans")
 eq(resourceCardsEffectiveTerrainCost("forest"),3,"Calming owner: -2 Forest")
 eq(resourceCardsEffectiveTerrainCost("plains"),1,"Calming minimum 1")
 eq(resourceCardsEffectiveTerrainCost("city"),1,"Calming affects City entry")
