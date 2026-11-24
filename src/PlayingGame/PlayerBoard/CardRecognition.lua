@@ -9174,7 +9174,10 @@ function resourceCardsMaximalEffectLink(seatPos,targetGUID)
                 local strong=false
                 for _,mana in ipairs(objects) do
                     local color=manaColor(mana)
-                    if color~=nil and matchesCardMana(source,color) then
+                    -- A held or smooth-moving mana object is not a settled payment,
+                    -- even if TTS still reports it inside the shallow play zone.
+                    if color~=nil and trackerPrivate.readyForXZ(mana)
+                        and matchesCardMana(source,color) then
                         local p=mana.getPosition()
                         local x,z=p.x or p[1],p.z or p[3]
                         if math.abs(x-area.x)<area.halfX

@@ -13,6 +13,7 @@ local function section(content,a,b)
 end
 local rec=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local flow=read("src/PlayingGame/PlayerBoard/CardFlow.lua")
+local actionLinks=read("src/PlayingGame/PlayerBoard/ResourceTracker/ActionLinks.lua")
 local callbacks=read("src/PlayingGame/Callbacks.lua")
 local events=read("src/PlayingGame/PlayerBoard/Events.lua")
 local runtimeEvents=read("src/PlayingGame/Events.lua")
@@ -311,7 +312,12 @@ end
 -- and the 25 official Artifact cards (full Banner forms included).
 for _,needle in ipairs({
     "-- A face-up broken Sword/Bow has no basic discard-payment ability.",
-    "and resourceCardsArtifactBroken(source.guid,source)) then",
+    "and resourceCardsArtifactBroken(source.guid,source)) then"
+}) do
+    assert(actionLinks:find(needle,1,true),
+        "Missing ActionLinks Artifact discard guard: "..needle)
+end
+for _,needle in ipairs({
     "local boxBroken=card.guid==\"085e69\"",
     "and not boxBroken",
     "trackerPrivate.grailFameButton=function",

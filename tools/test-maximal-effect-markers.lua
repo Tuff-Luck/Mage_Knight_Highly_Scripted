@@ -60,7 +60,8 @@ end}
 objects.zone=zone
 objects.trash=trash
 local env={
-    Global={},trackerPrivate={},combatConfig={cardInTransit=function() return false end},
+    Global={},trackerPrivate={readyForXZ=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/PhysicalObjects.lua").readyForXZ},
+    combatConfig={cardInTransit=function() return false end},
     gStates={firstStarted=true,turnNumber=1},
     turnOrder={{seatPos=1,deadDeckInventory={"8fac50","6fdeb0","a11111"}}},
     playerPlayAreas={[1]="zone"},trashCan="trash",
@@ -209,11 +210,22 @@ eq(methods.marked(training),true,"Flip face up retains X")
 methods.sync(1,{maximal,training},{})
 eq(methods.marked(training),false,"Removing link clears X")
 
-local mana={guid="mana1",color="Red",getPosition=function() return {0,1,0} end}
+local mana={guid="mana1",color="Red",getPosition=function() return {0,1,0} end,
+    isSmoothMoving=function() return false end}
 zone.getObjects=function() return {maximal,training,mana} end
 local strong=methods.link(1,training.guid)
 eq(strong.count,2,"Powered OFF link gives two uses")
 eq(strong.powered,true,"Powered copy is strong")
+mana.held_by_color="Blue"
+eq(methods.link(1,training.guid).count,3,"Held mana cannot power OFF link")
+mana.held_by_color=nil
+mana.isSmoothMoving=function() return true end
+eq(methods.link(1,training.guid).count,3,"Smooth-moving mana cannot power OFF link")
+mana.isSmoothMoving=function() return false end
+zone.getObjects=function() return {maximal,training} end
+eq(methods.link(1,training.guid).count,3,"Out-of-zone mana cannot power OFF link")
+zone.getObjects=function() return {maximal,training,mana} end
+eq(methods.link(1,training.guid).count,2,"Released live-zone mana restores stronger copy")
 local poweredTraining,strongUses=trainingMode(1)
 eq(poweredTraining,true,"Powered copied Training while OFF")
 eq(strongUses,2,"Training's two stronger uses while OFF")
