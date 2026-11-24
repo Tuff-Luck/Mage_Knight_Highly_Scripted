@@ -34,16 +34,16 @@ contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/LateCombatPhase.lua
 contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/CardEffects.lua"),
     'dodgeConditional=complete and rule~=nil and rule.conditionalAttackNoWounds==true,',
     "Dodge conditional Attack without card options")
-contains(reader,'card.guid.."#effect"..index',"Dodge independent effect keys")
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/PlayedCardScan.lua"),'card.guid.."#effect"..index',"Dodge independent effect keys")
 contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/DivisibleResources.lua"),'source.convertedResource',"Conversion resource source")
 contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua"),'local perUse=powered and 2 or 1',"Powered Dodge has two target buttons")
-contains(reader,'local count=(result.powered and 2 or 1)*(result.repeatCount or 1)',"Both reduction effects always processed")
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/PlayedCardScan.lua"),'local count=(result.powered and 2 or 1)*(result.repeatCount or 1)',"Both reduction effects always processed")
 contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua"),'local targetX=-44',"Dodge target buttons beside ordinary Attack source")
 contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua"),'local targetY=-12',"Dodge target alignment")
 contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua"),'targetX-withinUse*44',"Powered Dodge targets spaced apart")
-contains(reader,'(result.enemyGUID==nil or rule.dodgeAttackSplit==true)',
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/PlayedCardScan.lua"),'(result.enemyGUID==nil or rule.dodgeAttackSplit==true)',
     "Dodge debuff works independently of an Attack assignment")
-contains(reader,'{attackReduce=2},key)',"Each Dodge button creates a separate -2 reduction")
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/PlayedCardScan.lua"),'{attackReduce=2},key)',"Each Dodge button creates a separate -2 reduction")
 assert(not reader:find('dodgeReductionAmounts',1,true),"No combined Dodge reduction")
 assert(not reader:find('resourceCardsDodgeSplitClicked',1,true),"Remove obsolete Dodge mode switch")
 assert(not reader:find('dodgeSplitMode',1,true),"Remove obsolete Dodge split state")

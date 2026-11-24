@@ -15,6 +15,7 @@ local rec=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local flow=read("src/PlayingGame/PlayerBoard/CardFlow.lua")
 local actionLinks=read("src/PlayingGame/PlayerBoard/ResourceTracker/ActionLinks.lua")
 local cardControls=read("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua")
+local playedCards=read("src/PlayingGame/PlayerBoard/ResourceTracker/PlayedCardScan.lua")
 local callbacks=read("src/PlayingGame/Callbacks.lua")
 local events=read("src/PlayingGame/PlayerBoard/Events.lua")
 local runtimeEvents=read("src/PlayingGame/Events.lua")
@@ -154,7 +155,8 @@ for _,needle in ipairs({
     'return second~=nil and first~=second and (first=="red" or second=="red")',
     "if type(choices)~=\"table\" or #choices==0 then return nil,nil end"
 }) do
-    assert(rec:find(needle,1,true) or cardControls:find(needle,1,true),"Missing Staff/Break path: "..needle)
+    assert(rec:find(needle,1,true) or cardControls:find(needle,1,true)
+        or playedCards:find(needle,1,true),"Missing Staff/Break path: "..needle)
 end
 assert(not rec:find('choices={{key="red",icon="other"}}',1,true),
     "Blue and White must never be rewritten as Red")
@@ -334,7 +336,8 @@ for _,needle in ipairs({
     ":ENEMY_PRESENT:",
     "resourceCardsArtifactGrailFameClicked=resourceCardsArtifactGrailFameClicked"
 }) do
-    assert(rec:find(needle,1,true) or flow:find(needle,1,true) or cardControls:find(needle,1,true),
+    assert(rec:find(needle,1,true) or flow:find(needle,1,true) or cardControls:find(needle,1,true)
+        or playedCards:find(needle,1,true),
         "Missing Artifact fix or regression guard: "..needle)
 end
 assert(callbacks:find('"resourceCardsArtifactGrailFameClicked"',1,true),

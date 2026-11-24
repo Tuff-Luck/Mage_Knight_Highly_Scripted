@@ -83,7 +83,7 @@ block.is_face_down=false
 
 -- Resolve the actual buff code with a saved remote link and a physically
 -- overlapping DIFFERENT card. Explicit assignment must win.
-local calculate=section(reader,
+local calculate=section(read("src/PlayingGame/PlayerBoard/ResourceTracker/CardInteractions.lua"),
     "    -- Ambush's explicit card assignment takes priority over physical overlap.",
     "    -- Retire stale manual links when Ambush itself is no longer")
 local calcEnv=setmetatable({

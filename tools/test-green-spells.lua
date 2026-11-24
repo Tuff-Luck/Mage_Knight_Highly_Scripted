@@ -17,6 +17,7 @@ local function eq(actual,expected,label)
 end
 local data=read("src/Data.lua")
 local reader=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
+local playedCards=read("src/PlayingGame/PlayerBoard/ResourceTracker/PlayedCardScan.lua")
 local spells=assert(load("return {\n"..between(data,
     "    -- Spell resources are independent","    -- Full-size Artifacts use a saved Break toggle").."\n}"))()
 
@@ -29,7 +30,7 @@ eq(cure.enemyEffect.powered.armourSetIfBlocked,1,"Disease sets Armour to 1")
 eq(cure.enemyEffect.powered.all,true,"Disease applies across the encounter")
 assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/EarlyCombatPhase.lua"):find('local limit=enemy.effect~=nil and enemy.effect.armourSetIfBlocked or nil',1,true),
     "Disease must be resolved using the blocked-attack result")
-assert(reader:find('combatConfig.refreshCureDrawButton(card,',1,true),
+assert(playedCards:find('combatConfig.refreshCureDrawButton(card,',1,true),
     "Cure offers its separate confirmed draw")
 local cureLogic=between(reader,"function resourceCardsCureCanDraw(color)",
     "local function resourceCardsDetailsOpen()")
@@ -69,9 +70,9 @@ local restoration=spells.spellRestoration
 eq(restoration.normal.healing,3,"Restoration Heal 3")
 eq(restoration.powered.healing,3,"Rebirth Heal 3")
 eq(restoration.forestHealing,5,"Forest Heal 5")
-assert(reader:find('if currentSpellTerrain()=="forest" then',1,true),
+assert(playedCards:find('if currentSpellTerrain()=="forest" then',1,true),
     "Forest modifier uses current Hero terrain")
-assert(reader:find('updated.healing=rule.forestHealing',1,true),
+assert(playedCards:find('updated.healing=rule.forestHealing',1,true),
     "Forest Heal must replace, not add to, the basic value")
 
 -- Tremor/Earthquake: resolve each option through the production effect
@@ -214,7 +215,7 @@ total,_,_,layers=rangeResult(entry,attacks)
 eq(layers,1,"Innate Fortification still applies")
 eq(total,4,"Only Siege works against printed Fortified")
 
-assert(reader:find("if resourceCardsIgnoreSiteFortification(rule,result,card) then",1,true),
+assert(playedCards:find("if resourceCardsIgnoreSiteFortification(rule,result,card) then",1,true),
     "Scanner must activate site bypass only when physically played")
 assert(reader:find("ignoreSiteFortifications=ignoreSiteFortifications",1,true),
     "Calculator must receive site-bypass state")

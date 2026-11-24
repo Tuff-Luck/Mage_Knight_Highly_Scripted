@@ -18,9 +18,9 @@ local spell=assert(rules.spellWingsNight)
 assert(spell.movementEffects.normal.windFlightMax==5)
 assert(spell.movementEffects.powered==nil,"Wings of Night is combat only")
 local reader=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-assert(reader:find("or spellCastingPaid[card.guid]==true",1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/PlayedCardScan.lua"):find("or spellCastingPaid[card.guid]==true",1,true),
     "The existing movement effect collection must require a paid Spell")
-assert(reader:find("movementEffects.windFlightMax=math.max(",1,true))
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/PlayedCardScan.lua"):find("movementEffects.windFlightMax=math.max(",1,true))
 assert(reader:find("(priorMovement.windFlightMax or 0)~=movementEffects.windFlightMax",1,true))
 local movement=read("src/PlayingGame/Movement.lua")
 assert(movement:find("windFlightMax>0 and not spentWind",1,true),

@@ -30,11 +30,11 @@ contains(targeting,'local repeatIndex,repeatCategory=category:match("^rep(%d+):(
     "Repeated source IDs are decoded before aiming")
 contains(targeting,'local sourcePart=part~=nil and part:match("^convertBlock%d+$")',
     "Copied Diplomacy target buttons share one composite source")
-contains(reader,'local key=card.guid.."#rep"..index',
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/PlayedCardScan.lua"),'local key=card.guid.."#rep"..index',
     "Enemy debuffs get independent use target keys")
 contains(reader,'source.convertedResource=nil',
     "Composite converted Block cannot be split by right-click")
-contains(reader,'local count=(result.powered and 2 or 1)*(result.repeatCount or 1)',
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/PlayedCardScan.lua"),'local count=(result.powered and 2 or 1)*(result.repeatCount or 1)',
     "Dodge and Weave creates one reduction target per copied use")
 contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua"),'local repeatCount=repeatLink~=nil and repeatLink.count or 1',
     "Repeated Dodge and Weave draws per-use target rows")

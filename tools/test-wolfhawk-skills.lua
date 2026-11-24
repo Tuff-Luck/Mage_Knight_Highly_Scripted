@@ -26,13 +26,13 @@ contains(data,'attackIncrease=2,armourReduce=2,armourReduceAttackOnly=2',
 contains(data,'["2c74ca"]={prey=true,enemyEffect={normal={}}}',
     "Know Your Prey dynamic enemy targeting registered")
 contains(data,'wolfHowlPenalty=true',"Wolf's Howl has competitive penalty metadata")
-contains(calc,'if skill.guid=="6a33c1"',"Krang's Curse path remains present")
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/SkillInteractions.lua"),'if skill.guid=="6a33c1"',"Krang's Curse path remains present")
 contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/EnemyDefences.lua"),'local rangedReduction=math.max(0,reduction-lateReduction)',
     "Taunt Armour reduction must not be active during the Ranged/Siege phase")
-contains(calc,'for _,wound in ipairs(wounds) do',"Wounds inspected in tracker")
-contains(calc,'-- Power of Pain / Ritual of Pain can make a sideways Wound',
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/SkillInteractions.lua"),'for _,wound in ipairs(wounds) do',"Wounds inspected in tracker")
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/SkillInteractions.lua"),'-- Power of Pain / Ritual of Pain can make a sideways Wound',
     "Deadly Aim considers already powered Wounds")
-contains(calc,'records[wound.guid].resources~=nil',
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/SkillInteractions.lua"),'records[wound.guid].resources~=nil',
     "Deadly Aim rejects inert Wounds")
 contains(skills,'gStates.wolfhawkPackUse={recipient=gStates.turnNumber,',
     "Pack recipient receives persistent combat claim")

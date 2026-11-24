@@ -22,21 +22,22 @@ end
 
 local data=source("src/Data.lua")
 local recognition=source("src/PlayingGame/PlayerBoard/CardRecognition.lua")
+local skillInteractions=source("src/PlayingGame/PlayerBoard/ResourceTracker/SkillInteractions.lua")
 eq(data:find('["e45fdf"]={untracked=true}',1,true)~=nil,true,
     "Whisper in the Treetops has explicit blue/untracked tracker definition")
 eq(data:find('attackPhaseFallback=true',1,true)~=nil,true,
     "Leadership has an Attack phase conversion option")
-eq(recognition:find('replacement="attack"..siege:sub',1,true)~=nil
-    and recognition:find('replacement="attack"..ranged:sub',1,true)~=nil,true,
+eq(skillInteractions:find('replacement="attack"..siege:sub',1,true)~=nil
+    and skillInteractions:find('replacement="attack"..ranged:sub',1,true)~=nil,true,
     "Leadership converts printed Siege/Ranged into ordinary Attack")
 
 -- Check Leadership's production phase-selection logic on elemental attacks.
 -- A Unit already supplying normal Attack keeps it; a Siege/Ranged-only
 -- Unit changes category only if the +2 regular-Attack choice was selected.
-local leadershipStart=assert(recognition:find(
+local leadershipStart=assert(skillInteractions:find(
     "local field=resourceFieldForFamily(record.resources,family)\n                        local replacement=nil",
     1,true))
-local leadershipEnd=assert(recognition:find(
+local leadershipEnd=assert(skillInteractions:find(
     "                        if field~=nil then",leadershipStart,true))
 resourceFieldForFamily=function(resources,family)
     local found=nil
@@ -50,7 +51,7 @@ resourceFieldForFamily=function(resources,family)
     return found
 end
 local leadershipChoice=assert(load("return function(record,family,rule)\n"..
-    recognition:sub(leadershipStart,leadershipEnd-1)..
+    skillInteractions:sub(leadershipStart,leadershipEnd-1)..
     "\nreturn field,replacement end"))()
 local field,replacement=leadershipChoice({resources={siegeFire=3}},
     "attack",{attackPhaseFallback=true})

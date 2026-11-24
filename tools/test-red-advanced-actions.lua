@@ -30,7 +30,7 @@ contains(reader,"combatConfig.blockedEnemyCounts[blockSeat]=blockedEnemies",
 -- Explosive Bolt generates conditional Armour reduction without adding
 -- unsupported numeric Ranged damage or altering the preceding Ranged phase.
 contains(data,"defeatArmourReduce=1","Explosive Bolt rule")
-contains(reader,'#explosiveAttack','Separate Armour target')
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/PlayedCardScan.lua"),'#explosiveAttack','Separate Armour target')
 contains(reader,'combatConfig.applyExplosiveBoltRange(entries,groups,allocated,sources)',
     "Explosive Bolt resolves before the Block phase")
 contains(explosiveBolt,'or combatEnemyHasTrait(target.data,target.perks,"arcaneImmunity")',

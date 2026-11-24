@@ -66,11 +66,12 @@ eq(bonus(guid,rule,basic),0,"Unselecting removes extra Influence")
 
 -- The bonus must be applied before the resource scan adds the card's
 -- contribution to totals, rather than directly changing the Unit offer.
-local bonusCall=assert(recognition:find(
+local playedCards=read("src/PlayingGame/PlayerBoard/ResourceTracker/PlayedCardScan.lua")
+local bonusCall=assert(playedCards:find(
     "local recruitBonus=resourceCardsRecruitInfluenceBonus(card.guid,rule,result)",1,true))
-local addTotals=assert(recognition:find("addResourceAmounts(result,totals)",bonusCall,true))
+local addTotals=assert(playedCards:find("addResourceAmounts(result,totals)",bonusCall,true))
 assert(addTotals>bonusCall,"Recruitment bonus must precede totals accounting")
-assert(recognition:find("adjusted.influence=(tonumber(adjusted.influence) or 0)+recruitBonus",
+assert(playedCards:find("adjusted.influence=(tonumber(adjusted.influence) or 0)+recruitBonus",
     bonusCall,true),"Recruitment bonus must change the card's own Influence")
 
 -- The actual on-card click toggles declaration and requests a recalculation.

@@ -90,7 +90,7 @@ assert(combat:find("combatDefeatTracked[obj.guid]==true and combatDefeatDefeated
 local events=source("src/PlayingGame/PlayerBoard/Events.lua")
 assert(not events:find("incrementented in turn",1,true),"Master of Chaos state typo returned")
 local recognition=source("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-assert(recognition:find("record.enemyEffectTargetKeys={skill.guid}",1,true),
+assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/SkillInteractions.lua"):find("record.enemyEffectTargetKeys={skill.guid}",1,true),
     "Curse targeting source must remain registered during selection")
 
 -- Execute the small, side-effect-free calculator helpers with mock data.

@@ -135,9 +135,9 @@ eq(possess.calculate({arcaneImmunity=true,attacks={{key="P",value=5}}},"immune")
 possess.block("second")
 eq(possess.calculate({attacks={{key="P",value=5}}},"second"),nil,
     "Perk Arcane Immunity blocks Possess")
-assert(reader:find("claimedPossessEnemies[guid]~=true",1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/PlayedCardScan.lua"):find("claimedPossessEnemies[guid]~=true",1,true),
     "One physical enemy cannot pay two Possess sources")
-assert(reader:find("{noAttack=true,all=true}",1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/PlayedCardScan.lua"):find("{noAttack=true,all=true}",1,true),
     "Borrowing an enemy suppresses its outgoing attack")
 
 -- Wings of Night: sequential targets spend cumulative Move exactly once;

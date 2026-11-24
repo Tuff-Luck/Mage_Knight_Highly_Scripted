@@ -64,7 +64,7 @@ env.gameCards={new={cardType="Starting",resourceKey="rage"}}
 assert(card("new",true).resources.attack==4,"Read replaced catalog live")
 -- A played-card record may borrow its printed resource table. The actual
 -- coordinator's Tirelessness pass must not modify that catalog on rescan.
-local sourceFile=assert(io.open("src/PlayingGame/PlayerBoard/CardRecognition.lua","r"))
+local sourceFile=assert(io.open("src/PlayingGame/PlayerBoard/ResourceTracker/CardInteractions.lua","r"))
 local source=sourceFile:read("*a")
 sourceFile:close()
 local first=assert(source:find("-- Wolfhawk's Tirelessness affects only subsequently PLAYED cards",1,true))
