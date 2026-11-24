@@ -105,12 +105,13 @@ return function(deps)
         if not expanded then
             for _,spec in ipairs(targetSpecs) do targetLabels[#targetLabels+1]=spec.idCategory end
         end
-        local combatMoveAvailable=combatCumbersomeActive==true and combatCalcOn==true
+        local combatMoveAvailable=combatConfig.moveRoleAvailable(unitHistoryKey(unit.guid,useIndex))==true
         local signature="Unit:"..tostring(selected)..":"..tostring(expanded)
             ..":"..table.concat(available,",")..":"..table.concat(selectedKeys,",")
             ..":use="..tostring(useIndex)
             ..":move="..resourceCardsMoveRole(unitHistoryKey(unit.guid,useIndex),false)
-            ..":cumbersome="..tostring(combatMoveAvailable)
+            ..":combatMove="..tostring(combatMoveAvailable)
+            ..":cumbersome="..tostring(combatCalcOn and combatCumbersomeActive)
             ..":psychic="..tostring(combatPsychicActive)
             ..":combatBlocked="..tostring(combatBlocked)
             ..":targets="..table.concat(targetLabels,",")
@@ -251,11 +252,11 @@ return function(deps)
                     end
                 end
                 if (tonumber(ability.move) or 0)>0 then
-                    local phase=resourceCardsMoveRole(unitHistoryKey(unit.guid,useIndex),true)
+                    local phase=resourceCardsMoveRole(unitHistoryKey(unit.guid,useIndex),false)
                     -- The regular button becomes the Movement variant; the
                     -- adjacent C variant is a normal, equally-sized option cell.
                     local isMovement=phase~="combat"
-                    button.attributes.colors=isMovement
+                    button.attributes.colors=active and isMovement
                         and "#387D30|#4CA940|#387D30|#387D30"
                         or "#454D5D|#69798E|#444C63|#454D5D"
                     button.children=button.children or {}
@@ -270,14 +271,14 @@ return function(deps)
                         position=tostring(baseX-(#indices+columnIndex-1)*columnSpacing)
                             .." "..tostring(y).." -35",
                         rotation="0 0 180",width=90,height=90,scale="0.22 0.22",
-                        colors=not isMovement
+                        colors=active and not isMovement
                             and "#387D30|#4CA940|#387D30|#387D30"
                             or "#454D5D|#69798E|#444C63|#454D5D",
                         fontSize=77,textColor="#FFFFFF",textAlignment="MiddleCenter"},
-                        value=icon==nil and "C" or ""}
+                        value="C"}
                     local shield=resourceCardsChoiceIcon("block")
                     local movement=resourceCardsChoiceIcon("move")
-                    if shield~=nil and not blocked[shield.name] then
+                    if combatCalcOn and combatCumbersomeActive and shield~=nil and not blocked[shield.name] then
                         combatButton.value=""
                         combatButton.children={{tag="Image",attributes={
                             image=shield.name,width=82,height=82,preserveAspect="true",
@@ -293,7 +294,8 @@ return function(deps)
                                 raycastTarget="false"}}
                         end
                     elseif icon~=nil then
-                        -- Missing shield artwork: retain the old legible fallback.
+                        -- Without Cumbersome use the Move icon with a C badge.
+                        combatButton.value=""
                         combatButton.children={{tag="Image",attributes={
                             image=icon.name,width=82,height=82,preserveAspect="true",
                             raycastTarget="false",color="#FFFFFF"}},
@@ -316,7 +318,9 @@ return function(deps)
             local count=#targetSpecs
             for i,spec in ipairs(targetSpecs) do
                 local targetAsset=resourceCardsChoiceIcon("target")
-                local x=hasChoices and baseX-columnSpacing or baseX
+                local selectedMove=selected~=nil and (tonumber(abilities[selected].move) or 0)>0
+                local choiceColumns=hasChoices and (selectedMove and combatMoveAvailable and 2 or 1) or 0
+                local x=baseX-choiceColumns*columnSpacing
                 local y=baseY+(i-(count+1)/2)*rowSpacing
                 local children={}
                 if targetAsset~=nil and not blocked[targetAsset.name] then
