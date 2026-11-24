@@ -140,6 +140,14 @@ function M.publish(context)
         resourceCardsSourceChanged()
     end
     refreshCombatEnemyPanel(combatMonsters,true)
+    -- Refresh conversion counters against the just-published shared budget,
+    -- not the preceding scan used during the initial card UI pass.
+    for guid,record in pairs(records) do
+        if record.combatConversion~=nil and context.objects[guid]~=nil then
+            context.showChoiceButtons(context.objects[guid],record.choices,record.powered,
+                nil,nil,record.resources,record.repeatLink,record.shapeshiftField)
+        end
+    end
     resourceCardsApplyFameRep(seatPos)
     -- Refresh Reputation on every settled Skill scan so flipping Arcane
     -- Disguise updates Influence without requiring a panel toggle.
