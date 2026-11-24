@@ -333,7 +333,7 @@ return function(deps)
                     local targetAsset=resourceCardsChoiceIcon("target")
                     -- A split choice gets one target button per resource, each marked with its icon.
                     ---@type (string|boolean)[]
-                    local parts=entry.splitTargets or {false}
+                    local parts=entry.splitTargets or {entry.targetPart or false}
                     if rule~=nil and rule.forkedLightning then
                         parts={}
                         for point=1,math.min(3,math.max(1,entry.forkedCount or 1)) do
@@ -389,8 +389,8 @@ return function(deps)
                         },value="",children=children}
                     end
                     if entry.extraTargetResource=="move" then
-                        -- Spirit Guides keeps its friendly Block link on one
-                        -- side and its own Combat Move target on the other.
+                        -- A second independent Move target sits opposite the
+                        -- first target (Spirit Guides' Block link or Boot's Attack).
                         local moveAsset=resourceCardsChoiceIcon("move")
                         local children={}
                         if moveAsset~=nil and not blocked[moveAsset.name] then
@@ -402,7 +402,8 @@ return function(deps)
                             image=targetAsset.name,width=82,height=82,
                             preserveAspect="true",raycastTarget="false",color="#FFFFFF"}}
                         xml[#xml+1]={tag="Button",attributes={
-                            id="AttackAssignmentSource_"..card.guid.."_0_move",
+                            id="AttackAssignmentSource_"..card.guid.."_0_move"
+                                ..(entry.extraTargetPart~=nil and ("@"..entry.extraTargetPart) or ""),
                             onClick="global/attackAssignmentSourceClicked",
                             position=tostring(2*x-targetX).." "..tostring(buttonY).." "..buttonDepth,
                             rotation=uiRotation,width=90,height=90,scale=buttonScale,
