@@ -155,19 +155,18 @@ return function(deps)
             local name=ability.icon or ability.key
             if not seen[name] then visibleAssets[#visibleAssets+1]=name seen[name]=true end
         end
-        -- Unit Move has the same shield/Move choice as Action cards; Psychic
-        -- Influence shares the shield/Influence treatment when relevant.
+        -- Combat Move uses the same Move icon as Action cards; only Psychic
+        -- Influence needs the shield/Influence artwork.
         for _,index in ipairs(displayed) do
             local ability=abilities[index]
-            if (combatMoveAvailable and (tonumber(ability.move) or 0)>0)
-                or (combatPsychicActive and ability.key=="influence"
-                    and (tonumber(ability.influence) or 0)>0) then
+            if combatMoveAvailable and (tonumber(ability.move) or 0)>0 and not seen.move then
+                visibleAssets[#visibleAssets+1]="move"
+                seen.move=true
+            end
+            if combatPsychicActive and ability.key=="influence"
+                and (tonumber(ability.influence) or 0)>0 then
                 if not seen.block then visibleAssets[#visibleAssets+1]="block" seen.block=true end
-                if not seen.move and (tonumber(ability.move) or 0)>0 then
-                    visibleAssets[#visibleAssets+1]="move" seen.move=true
-                end
-                if not seen.influence and combatPsychicActive
-                    and ability.key=="influence" then
+                if not seen.influence then
                     visibleAssets[#visibleAssets+1]="influence" seen.influence=true
                 end
             end
@@ -276,34 +275,17 @@ return function(deps)
                             or "#454D5D|#69798E|#444C63|#454D5D",
                         fontSize=77,textColor="#FFFFFF",textAlignment="MiddleCenter"},
                         value="C"}
-                    local shield=resourceCardsChoiceIcon("block")
-                    local movement=resourceCardsChoiceIcon("move")
-                    if combatCalcOn and combatCumbersomeActive and shield~=nil and not blocked[shield.name] then
-                        combatButton.value=""
-                        combatButton.children={{tag="Image",attributes={
-                            image=shield.name,width=82,height=82,preserveAspect="true",
-                            raycastTarget="false",color="#FFFFFF"}}}
+                        local movement=resourceCardsChoiceIcon("move")
                         if movement~=nil and not blocked[movement.name] then
-                            combatButton.children[#combatButton.children+1]={tag="Image",attributes={
-                                image=movement.name,width=82,height=82,
-                                preserveAspect="true",raycastTarget="false",color="#FFFFFF"}}
-                        else
-                            combatButton.children[#combatButton.children+1]={tag="Text",attributes={
-                                text="M",width=34,height=34,alignment="LowerRight",
-                                fontSize=37,fontStyle="Bold",color="#69AEFF",
-                                raycastTarget="false"}}
+                            combatButton.value=""
+                            combatButton.children={{tag="Image",attributes={
+                                image=movement.name,width=82,height=82,preserveAspect="true",
+                                raycastTarget="false",color="#FFFFFF"}},
+                                {tag="Text",attributes={text="C",width=34,height=34,
+                                    alignment="LowerRight",fontSize=37,fontStyle="Bold",
+                                    color="#69AEFF",outline="#101820",
+                                    outlineSize="2 -2",raycastTarget="false"}}}
                         end
-                    elseif icon~=nil then
-                        -- Without Cumbersome use the Move icon with a C badge.
-                        combatButton.value=""
-                        combatButton.children={{tag="Image",attributes={
-                            image=icon.name,width=82,height=82,preserveAspect="true",
-                            raycastTarget="false",color="#FFFFFF"}},
-                            {tag="Text",attributes={text="C",width=34,height=34,
-                                alignment="LowerRight",fontSize=37,fontStyle="Bold",
-                                color="#69AEFF",outline="#101820",
-                                outlineSize="2 -2",raycastTarget="false"}}}
-                    end
                         xml[#xml+1]=button
                         xml[#xml+1]=combatButton
                     else
