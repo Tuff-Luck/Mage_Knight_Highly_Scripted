@@ -2736,46 +2736,16 @@ combatConfig.paralysisAttackCards=trackerPrivate.attackEligibility.paralysisAtta
 combatConfig.knockoutStagedAttackCards=trackerPrivate.attackEligibility.knockoutStagedAttackCards
 combatConfig.attackPhaseSources=trackerPrivate.attackEligibility.attackPhaseSources
 
--- Timing of self-wounding Unit abilities: a Block wounds its Unit before
--- enemies may assign damage; an Attack wounds its Unit in the final Attack
--- phase, after enemy damage. Only Units with an activated, targeted ability
--- receive a preview. Other modifiers used earlier retain their effects.
+trackerPrivate.unitSelfWounds=require("PlayingGame.PlayerBoard.ResourceTracker.UnitSelfWounds")(
+    function(guid) return unitResourceDefinitions~=nil and unitResourceDefinitions[guid] or nil end,
+    function(...) return unitHistoryUses(...) end,
+    function(...) return unitHistoryKey(...) end,
+    function(guid) return getObjectFromGUID(guid) end,
+    function(...) return unitManaDecision(...) end)
 combatConfig.selfWoundingUnitChoices=function(seat,groups)
-    local early,late={},{}
-    local active={}
-    for _,group in ipairs(groups or {}) do
-        if not group.rangeDefeated and not group.destroyed then
-            for _,source in ipairs(group.sources or {}) do
-                if source.key~=nil then active[source.key]=true end
-            end
-        end
-    end
     local scan=seat~=nil and resourceCardScanBySeat[seat] or nil
-    local records=scan~=nil and scan.cards or {}
-    local activations=gStates~=nil and gStates.unitResourceActivations or {}
-    for guid,currentActivation in pairs(activations) do
-        local abilities=unitResourceDefinitions~=nil and unitResourceDefinitions[guid] or nil
-        if currentActivation.seatPos==seat and abilities~=nil then
-            for useIndex,activation in ipairs(unitHistoryUses(guid,currentActivation)) do
-                local key=unitHistoryKey(guid,useIndex)
-                local record=records[key]
-                local unit=getObjectFromGUID(guid)
-                local decision=unit~=nil and unitManaDecision(unit,abilities,activation,
-                    activation.frozenCounts or activation.lastCounts) or nil
-                local ability=decision~=nil and abilities[decision.index] or nil
-                if active[key] and record~=nil and record.complete==true
-                    and ability~=nil and ability.woundsSelf==true then
-                    local blocks=false
-                    for field,value in pairs(ability) do
-                        if type(value)=="number" and type(field)=="string"
-                            and field:sub(1,5)=="block" then blocks=true break end
-                    end
-                    if blocks then early[guid]=true else late[guid]=true end
-                end
-            end
-        end
-    end
-    return early,late
+    return trackerPrivate.unitSelfWounds(seat,groups,scan~=nil and scan.cards or {},
+        gStates~=nil and gStates.unitResourceActivations or {})
 end
 
 combatConfig.applyExplosiveBoltRange=require("PlayingGame.PlayerBoard.ResourceTracker.ExplosiveBolt")(
