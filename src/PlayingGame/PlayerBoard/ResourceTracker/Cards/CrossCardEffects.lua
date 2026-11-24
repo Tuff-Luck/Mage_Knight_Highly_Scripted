@@ -9,52 +9,6 @@ function M.process(context)
     local combatConfig, repeatByTarget, wounds = context.combatConfig, context.repeatByTarget, context.wounds
     local skillLinksByTarget, calculateSideways, showChoiceButtons = context.skillLinksByTarget, context.calculateSideways, context.showChoiceButtons
     local trackerPrivate, addResourceAmounts, links = context.trackerPrivate, context.addResourceAmounts, context.links
-    -- Wolfhawk's Tirelessness affects only subsequently PLAYED cards, not
-    -- already-played cards or Units. Maximal Effect repeats the bonus but
-    -- each repeated target Action is still only one played card.
-    for _,source in ipairs(cards) do
-        local data=gameCards[source.guid]
-        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
-        local modifier=rule~=nil and rule.followingMoveBonus or nil
-        local origin=records[source.guid]
-        if modifier~=nil and origin~=nil and origin.complete==true
-            and origin.resources~=nil and (tonumber(origin.resources.move) or 0)>0
-            and cardPosture(source)=="upright"
-            and (source.is_face_down~=true or origin.repeatLink~=nil) then
-            local order=gStates.resourceCardPlayOrder[source.guid]
-            local candidates={}
-            for _,target in ipairs(cards) do
-                local targetRecord=records[target.guid]
-                local targetOrder=gStates.resourceCardPlayOrder[target.guid]
-                if target.guid~=source.guid and targetOrder~=nil and order~=nil
-                    and targetOrder>order and targetRecord~=nil
-                    and targetRecord.complete==true and targetRecord.resources~=nil
-                    and (tonumber(targetRecord.resources.move) or 0)>0 then
-                    candidates[#candidates+1]=target
-                end
-            end
-            table.sort(candidates,function(a,b)
-                local aa=gStates.resourceCardPlayOrder[a.guid]
-                local bb=gStates.resourceCardPlayOrder[b.guid]
-                return aa==bb and a.guid<b.guid or aa<bb
-            end)
-            local spec=origin.powered and modifier.powered or modifier.normal
-            local count=spec.all and #candidates or math.min(#candidates,spec.count or 1)
-            local extra=(spec.amount or 1)*(origin.repeatCount or 1)
-            for i=1,count do
-                local target=candidates[i]
-                local record=records[target.guid]
-                -- The calculator may return a shared printed resource table.
-                -- Copy before applying this scan-only modifier.
-                local adjusted={}
-                for key,value in pairs(record.resources) do adjusted[key]=value end
-                adjusted.move=adjusted.move+extra
-                record.resources=adjusted
-                record.tirelessnessBonus=(record.tirelessnessBonus or 0)+extra
-                totals.move=(totals.move or 0)+extra
-            end
-        end
-    end
     -- Only outline enemies that actually supply printed values to a card.
     -- A debuff target (including Banner of Fear) is already identified by
     -- its arrow; outlining the first target is misleading for multi-target effects.
@@ -264,6 +218,57 @@ function M.process(context)
             records[wound.guid]=result
             current[wound.guid]=true
             setHighlight(wound,result.status,false)
+        end
+    end
+end
+ 
+-- Resolve after linked conversions, so an Action converted away from Move
+-- does not consume a subsequent-card bonus. Both Move roles remain eligible.
+function M.tirelessness(cards,records,totals,cardPosture)
+    -- Wolfhawk's Tirelessness affects only subsequently PLAYED cards, not
+    -- already-played cards or Units. Maximal Effect repeats the bonus but
+    -- each repeated target Action is still only one played card.
+    for _,source in ipairs(cards) do
+        local data=gameCards[source.guid]
+        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+        local modifier=rule~=nil and rule.followingMoveBonus or nil
+        local origin=records[source.guid]
+        if modifier~=nil and origin~=nil and origin.complete==true
+            and origin.resources~=nil and (tonumber(origin.resources.move) or 0)>0
+            and cardPosture(source)=="upright"
+            and (source.is_face_down~=true or origin.repeatLink~=nil) then
+            local order=gStates.resourceCardPlayOrder[source.guid]
+            local candidates={}
+            for _,target in ipairs(cards) do
+                local targetRecord=records[target.guid]
+                local targetOrder=gStates.resourceCardPlayOrder[target.guid]
+                if target.guid~=source.guid and targetOrder~=nil and order~=nil
+                    and targetOrder>order and targetRecord~=nil
+                    and targetRecord.complete==true and targetRecord.resources~=nil
+                    and (tonumber(targetRecord.resources.move) or 0)>0 then
+                    candidates[#candidates+1]=target
+                end
+            end
+            table.sort(candidates,function(a,b)
+                local aa=gStates.resourceCardPlayOrder[a.guid]
+                local bb=gStates.resourceCardPlayOrder[b.guid]
+                return aa==bb and a.guid<b.guid or aa<bb
+            end)
+            local spec=origin.powered and modifier.powered or modifier.normal
+            local count=spec.all and #candidates or math.min(#candidates,spec.count or 1)
+            local extra=(spec.amount or 1)*(origin.repeatCount or 1)
+            for i=1,count do
+                local target=candidates[i]
+                local record=records[target.guid]
+                -- The calculator may return a shared printed resource table.
+                -- Copy before applying this scan-only modifier.
+                local adjusted={}
+                for key,value in pairs(record.resources) do adjusted[key]=value end
+                adjusted.move=adjusted.move+extra
+                record.resources=adjusted
+                record.tirelessnessBonus=(record.tirelessnessBonus or 0)+extra
+                totals.move=(totals.move or 0)+extra
+            end
         end
     end
 end
