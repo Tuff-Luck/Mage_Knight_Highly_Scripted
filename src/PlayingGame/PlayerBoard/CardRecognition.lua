@@ -4877,11 +4877,12 @@ unitManaDecision=require("PlayingGame.PlayerBoard.ResourceTracker.Units.UnitChoi
 -- Earlier Command activations own the Unit's combat use for this turn.
 -- Check their actual paid/selected abilities rather than the currently
 -- displayed Command number; editing an earlier choice reopens a later use.
+combatConfig.unitMoveRole=resourceCardsMoveRole
 combatConfig.unitCombatBlocked=function(unit,abilities,useIndex)
     return unitHistoryCombatConflict(unit.guid,useIndex,abilities,function(activation)
         return unitManaDecision(unit,abilities,activation,
             activation.frozenCounts or activation.lastCounts)
-    end)
+    end,function(key) return resourceCardsMoveRole(key,false) end)
 end
 
 -- A Source die used earlier this turn disallows Who Needs Magic?'s +3.
