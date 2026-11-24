@@ -19,7 +19,8 @@ return function(deps)
         -- Give non-resource Skill effects the same dedicated targeting icon used
         -- by the combat calculator, without pretending the bonus is a free Block.
         if rule~=nil and rule.blockSourceBoost~=nil then
-            choices={{key="guide",icon="move"}}
+            local amount=tonumber(resources~=nil and resources.move) or 0
+            choices=amount>0 and {{move=amount}} or {{key="guide",icon="move"}}
         elseif rule~=nil and rule.damageMitigation~=nil then
             choices={{key="hardened",icon="other"}}
         end
@@ -179,7 +180,9 @@ return function(deps)
                     end
                     if producesMove then
                         -- Two cells, one printed Move effect. Never duplicate points.
-                        entry.targetResource=nil
+                        -- Friendly links are independent of Move's phase.
+                        local friendly=entry.targetResource=="ambush" or entry.targetResource=="blockSource"
+                        if not friendly then entry.targetResource=nil end
                         row.entries[#row.entries+1]=entry
                         -- Combat Move can also pay for conversions and Spells.
                         -- Cumbersome controls targeting, not the role icon.
@@ -191,8 +194,16 @@ return function(deps)
                             combatEntry.icon="move"
                             combatEntry.stackedIcons=nil
                             combatEntry.roleBadge="C"
-                            combatEntry.targetResource=combatCalcOn and combatCumbersomeActive
-                                and choice.shapeshiftTargetGUID==nil and "move" or nil
+                            if friendly then
+                                combatEntry.targetResource=entry.targetResource
+                                if entry.targetResource=="blockSource" and combatCalcOn
+                                    and combatCumbersomeActive then
+                                    combatEntry.extraTargetResource="move"
+                                end
+                            else
+                                combatEntry.targetResource=combatCalcOn and combatCumbersomeActive
+                                    and choice.shapeshiftTargetGUID==nil and "move" or nil
+                            end
                             row.entries[#row.entries+1]=combatEntry
                         end
                     else
@@ -205,6 +216,10 @@ return function(deps)
                 return a.originalIndex<b.originalIndex
             end)
             for _,entry in ipairs(row.entries) do
+                -- Ambush retains one reusable physical link even when repeated.
+                if entry.targetResource=="ambush" and row.index< -1 then
+                    entry.targetResource=nil
+                end
                 -- The Combat Calculator assigns ordinary Attack/Block to the lone
                 -- enemy automatically. Keep all special split, manual and friendly
                 -- target controls, even if they currently have only one candidate.
@@ -237,6 +252,7 @@ return function(deps)
                     tostring(entry.iconOverlayAlignment),tostring(entry.iconOverlaySize),
                     tostring(entry.roleBadge),table.concat(entry.stackedIcons or {},","),
                     tostring(not row.expanded and entry.targetResource or nil),
+                    tostring(not row.expanded and entry.extraTargetResource or nil),
                     not row.expanded and table.concat(entry.splitTargets or {},",") or "",
                     tostring(not row.expanded and entry.forkedCount or nil)
                 },"|")
@@ -254,6 +270,11 @@ return function(deps)
                     and not assetSeen.target then
                     visibleAssets[#visibleAssets+1]="target"
                     assetSeen.target=true
+                end
+                if not row.expanded and entry.extraTargetResource~=nil
+                    and not assetSeen.move then
+                    visibleAssets[#visibleAssets+1]="move"
+                    assetSeen.move=true
                 end
                 for _,part in ipairs(not row.expanded and entry.splitTargets or {}) do
                     if not assetSeen[part] then
