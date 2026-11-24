@@ -53,9 +53,8 @@ sync(records)
 rewards(0,0,"Interaction OFF")
 assert(recognition:find("resourceCardsSyncInteractionPower(records)\n    local earnedFame",1,true),
     "Live power must be synchronised before Fame/Reputation totals are calculated")
-local objectUI=recognition:sub(
-    assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua"):find("local function showChoiceButtons(",1,true)),
-    assert(recognition:find("-- One selected icon in the Unit",1,true))-1)
+local objectUI=read("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua")
+assert(objectUI:find("local function showChoiceButtons(",1,true))
 assert(not objectUI:find("tooltip%s*="),
     "Card Object UI should not create upside-down tooltips")
 for _,path in ipairs({

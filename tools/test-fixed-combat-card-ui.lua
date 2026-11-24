@@ -196,6 +196,21 @@ render(swiftness,nil,true,nil,nil,{ranged=3},nil)
 assert(displayed[#displayed].method=="clear",
     "Returning to one enemy must safely remove Swiftness's target UI")
 
+-- The sole enemy can remain the same while a pending retarget or changed
+-- eligibility requires manual targeting. Do not reuse the hidden signature.
+local sameEnemy=state.trackerPrivate.singleAutoEnemyGUID
+singleEnemy=false
+render(swiftness,nil,true,nil,nil,{ranged=3},nil)
+assert(state.trackerPrivate.singleAutoEnemyGUID==sameEnemy,
+    "The sole enemy GUID did not change")
+assert(displayed[#displayed].method=="table"
+    and displayed[#displayed].xml[1].attributes.id=="AttackAssignmentSource_acdcb2_0_ranged",
+    "Same-enemy eligibility change must restore manual targeting")
+singleEnemy=true
+render(swiftness,nil,true,nil,nil,{ranged=3},nil)
+assert(displayed[#displayed].method=="clear",
+    "Ending a same-enemy retarget must remove the redundant control")
+
 -- Rage's manually selected basic Attack/Block must remain an actual choice UI.
 local rage=makeCard("rageCard")
 render(rage,rules.rage.normalChoices,false,nil,nil,{attack=2},nil)

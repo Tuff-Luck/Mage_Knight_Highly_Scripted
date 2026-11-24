@@ -79,6 +79,23 @@ eq(rows[1].visible[1].targetResource,nil,"Single enemy suppresses redundant atta
 rows=build({{key="attack",attack=4,splitTargets={"attack","block"}}})
 eq(rows[1].visible[1].targetResource,"attack","Split targets are not suppressed")
 hideTarget=false
+local _,visibleSignature=build({{attack=4}})
+hideTarget=true
+local _,hiddenSignature=build({{attack=4}})
+assert(visibleSignature[1]~=hiddenSignature[1],
+    "Target visibility must participate in the row signature")
+hideTarget=false
+local _,singleSignature=build({{attack=4}})
+local _,multipleSignature=build({{attack=4},{block=2}})
+assert(singleSignature[1]~=multipleSignature[1],
+    "Collapsed option count affects button visibility and clickability")
+local _,plainSignature=build({{key="attack",attack=4,icon="attack"}})
+local _,overlaySignature=build({{key="attack",attack=4,icon="attack",iconOverlay="F"}})
+assert(plainSignature[1]~=overlaySignature[1],
+    "Changed icon overlay invalidates unchanged category")
+local _,splitSignature=build({{key="attack",attack=4,splitTargets={"attack","block"}}})
+assert(singleSignature[1]~=splitSignature[1],
+    "Split target changes invalidate row signature")
 rows=build({{attack=3}},nil,"rep2",{count=3,options={{{attack=1}},{{attack=2},{block=2}},{{attack=3}}}})
 eq(#rows,3,"Repeated effect uses independent rows")
 eq(rows[2].index,-2,"Second repetition index")

@@ -215,9 +215,20 @@ return function(deps)
                 if entry.category==row.selected then selectedEntry=entry break end
             end
             row.visible=row.expanded and row.entries or {selectedEntry}
-            local categories={}
+            -- A stable category/sole-enemy GUID does not imply a stable UI.
+            -- Pending retargets, eligibility, split counts and dynamic icons
+            -- can change the controls without changing the selected resource.
+            local visibleSignatures={}
             for _,entry in ipairs(row.visible) do
-                categories[#categories+1]=entry.category
+                visibleSignatures[#visibleSignatures+1]=table.concat({
+                    entry.category,tostring(entry.icon),tostring(entry.skillFamily),
+                    tostring(entry.iconOverlay),tostring(entry.iconOverlayColor),
+                    tostring(entry.iconOverlayAlignment),tostring(entry.iconOverlaySize),
+                    tostring(entry.roleBadge),table.concat(entry.stackedIcons or {},","),
+                    tostring(not row.expanded and entry.targetResource or nil),
+                    not row.expanded and table.concat(entry.splitTargets or {},",") or "",
+                    tostring(not row.expanded and entry.forkedCount or nil)
+                },"|")
                 if not assetSeen[entry.icon] then
                     visibleAssets[#visibleAssets+1]=entry.icon
                     assetSeen[entry.icon]=true
@@ -241,7 +252,8 @@ return function(deps)
                 end
             end
             signatureParts[#signatureParts+1]=row.index..":"..row.selected..":"
-                ..(row.expanded and "open" or "closed")..":"..table.concat(categories,",")
+                ..(row.expanded and "open" or "closed")..":"..tostring(#row.entries)
+                ..":"..table.concat(visibleSignatures,",")
         end
         return rows,signatureParts,visibleAssets,assetSeen
     end
