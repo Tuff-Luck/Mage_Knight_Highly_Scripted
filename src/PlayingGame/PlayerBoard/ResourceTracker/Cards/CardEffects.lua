@@ -15,6 +15,7 @@ return function(deps)
     local cardTerrainEffects=deps.cardTerrainEffects
     local terrainEffectActive=deps.terrainEffectActive
     local choiceCategory=deps.choiceCategory
+    local resourceCardsMoveRole=deps.resourceCardsMoveRole
 
     -- One sideways calculator for ordinary Actions and Skill-linked exceptions.
     -- A linked Skill changes the value, not the player's chosen resource.
@@ -180,6 +181,18 @@ return function(deps)
                         adjusted[category]=value+discardBonus
                     end
                 end
+            end
+            effects=adjusted
+        end
+        -- Refreshing Walk may be played for Move during combat, but its Heal
+        -- is unavailable in that role. Apply after linked bonuses/repeats and
+        -- never mutate the shared printed definition or suppress sideways play.
+        if rule~=nil and rule.combatMoveSuppressHealing==true and effects~=nil
+            and (tonumber(effects.move) or 0)>0
+            and resourceCardsMoveRole(card.guid,true)=="combat" then
+            local adjusted={}
+            for category,value in pairs(effects) do
+                if category~="healing" then adjusted[category]=value end
             end
             effects=adjusted
         end
