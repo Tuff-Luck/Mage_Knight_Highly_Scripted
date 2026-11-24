@@ -38,10 +38,11 @@ function M.read(context)
             if effect==nil and not flipped and rule~=nil then effect=rule.resources end
             -- Boot's printed resources are simultaneous, not alternatives.
             -- Its one UI choice selects the Move role only.
-            local splitMoveAttack=not flipped and rule~=nil and rule.splitMoveAttack==true
-                and (tonumber(effect~=nil and effect.move) or 0)>0
-                and (tonumber(effect~=nil and effect.attack) or 0)>0
-            if splitMoveAttack then
+            local splitMoveAttack=false
+            if not flipped and rule~=nil and rule.splitMoveAttack==true
+                and effect~=nil and (tonumber(effect.move) or 0)>0
+                and (tonumber(effect.attack) or 0)>0 then
+                splitMoveAttack=true
                 choices={{key="move",icon="move",move=effect.move,attack=effect.attack,
                     splitMoveAttack=true}}
             end
