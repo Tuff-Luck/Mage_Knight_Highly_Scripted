@@ -52,7 +52,7 @@ contains(assignments, 'pending.sourceGUID~="4ac9f6"',
     "Summoned enemy can be targeted with cooperative Vengeance")
 contains(assignments, 'pending.sourceGUID~="19daf9"',
     "Summoned enemy can be targeted with competitive Vengeance")
-contains(recognition, 'item.source.forkedLightning',
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/DefendAllocation.lua"), 'item.source.forkedLightning',
     "Forked Lightning stays in one phase")
 contains(recognition, 'sourceKey:match("^d01b70#fork%d+$")',
     "Forked Lightning duplicate target is forbidden")
