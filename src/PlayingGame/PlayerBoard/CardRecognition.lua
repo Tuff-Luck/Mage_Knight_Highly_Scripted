@@ -332,6 +332,14 @@ local function resourceCardsMoveRole(guid,assign)
     end
     return role
 end
+-- A Move role can be selected in any combat, not only against Cumbersome.
+-- Keep an already committed source editable after combat ends; do not
+-- automatically transfer its points to the movement pool.
+combatConfig.moveRoleAvailable=function(guid)
+    return combatCalcOn or combatEnemyInPlay
+        or (gStates~=nil and gStates.resourceCardMoveRoles~=nil
+            and gStates.resourceCardMoveRoles[guid]=="combat")
+end
 function resourceCardsEnemyPresent()
     return combatEnemyInPlay==true
 end
@@ -529,7 +537,7 @@ combatConfig.conversionFor=function(seat,kind)
         for sourceGUID,record in pairs(cards) do
             local field=kind=="agility" and "move" or "influence"
             local amount=math.max(0,tonumber(record.resources~=nil and record.resources[field]) or 0)
-            if kind=="agility" and resourceCardsMoveRole(sourceGUID,true)~="combat" then
+            if kind=="agility" and amount>0 and resourceCardsMoveRole(sourceGUID,true)~="combat" then
                 amount=0
             end
             -- A manually targeted source retains its entire remaining pool.
@@ -5474,7 +5482,7 @@ function resourceUnitsPruneHistoricalTargets(unitGUID)
 end
 
 function resourceUnitsChoiceClicked(player,value,id)
-    return trackerPrivate.unitManagement.choiceClicked(player,value,id,combatCalcOn,combatCumbersomeActive,trackerPrivate,unitManaDecision,choiceExpandedByGUID,showUnitAbilityButtons,unitManaCounts,resourceCardsMoveRole,renderSeat)
+    return trackerPrivate.unitManagement.choiceClicked(player,value,id,combatConfig.moveRoleAvailable,trackerPrivate,unitManaDecision,choiceExpandedByGUID,showUnitAbilityButtons,unitManaCounts,resourceCardsMoveRole,renderSeat)
 end
 
 -- Release a temporary offered Unit without touching Command activations.
