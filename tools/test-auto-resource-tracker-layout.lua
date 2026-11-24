@@ -386,7 +386,7 @@ assert(not xml:find('tooltip="[Ii]ncrease [MHI]',1,false)
     and not xml:find('tooltip="Decrease ',1,true),
     "Tracker adjustment buttons must not have tooltips")
 for _,prefix in ipairs({"Siege","Range","Block","Attac"}) do
-    assert(xml:find('id="'..prefix..'SingleElement"[^>]-offsetXY="-16 0"',1,false),
+    assert(xml:find('id="'..prefix..'SingleElement"[^>]-offsetXY="%-16 0"',1,false),
         prefix.." element label must match 16-unit left padding on the right")
 end
 assert(uiSource:find('id:sub(17,19)=="Add"',1,true),"Missing-resource + clicks must route as increases")
