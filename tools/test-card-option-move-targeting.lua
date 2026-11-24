@@ -15,13 +15,14 @@ local function slice(source,first,last)
 end
 
 local reader=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
+local allocation=read("src/PlayingGame/PlayerBoard/ResourceTracker/SourceTargetAllocation.lua")
 local arrows=read("src/PlayingGame/AttackAssignments.lua")
 local data=read("src/Data.lua")
 assert(data:find('resourceKey="pureMagic"',1,true),"Pure Magic mapping missing")
 assert(data:find('resourceKey="oneWithTheLand"',1,true),"One with the Land mapping missing")
-assert(reader:find("local autoCombatMove=moveOnly and source.move>0 and combatCumbersomeActive",1,true),
+assert(allocation:find("local autoCombatMove=moveOnly and source.move>0 and combatCumbersomeActive",1,true),
     "Combat Move alone must qualify for the new nearest-Cumbersome default")
-assert(reader:find("if targetIndex==nil and (autoCombatMove or (not moveOnly and not influenceOnly)) then",1,true),
+assert(allocation:find("if targetIndex==nil and (autoCombatMove or (not moveOnly and not influenceOnly)) then",1,true),
     "Movement-role Move must not be auto-targeted by the Combat Calculator")
 assert(reader:find('if moveAmount>0 and resourceCardsMoveRole(guid,true)=="combat" then',1,true),
     "Movement-role Move must never enter the calculator's auto-target source list")
