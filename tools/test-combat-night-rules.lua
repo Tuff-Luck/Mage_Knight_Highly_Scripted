@@ -116,9 +116,15 @@ local movementSource=movementFile:read("*a")
 movementFile:close()
 assert(movementSource:find("return effect.dayRound==nil or effect.dayRound==(gStates.dayRound==true)",1,true),
     "Terrain movement must use actual Day/Night, not the combat Night context")
-assert(source:find("trackerPrivate.renderCombatNight=resourceCardsCombatNightFromEnemies(combatMonsters)",1,true),
+local observationFile=assert(io.open("src/PlayingGame/PlayerBoard/ResourceTracker/ScanObservation.lua","r"))
+local observationSource=observationFile:read("*a")
+observationFile:close()
+assert(observationSource:find("trackerPrivate.renderCombatNight=resourceCardsCombatNightFromEnemies(combatMonsters)",1,true),
     "Active combat must build one shared Night snapshot")
-assert(source:find("trackerPrivate.renderCombatNight=nil\n    if trackerPrivate.traceEnabled then trackerPrivate.traceEvent(\"render.done\",seatPos) end\nend\n\nlocal function scheduleSeatRender(",1,true),
+local publicationFile=assert(io.open("src/PlayingGame/PlayerBoard/ResourceTracker/ScanPublication.lua","r"))
+local publicationSource=publicationFile:read("*a")
+publicationFile:close()
+assert(publicationSource:find("trackerPrivate.renderCombatNight=nil\n    if trackerPrivate.traceEnabled then trackerPrivate.traceEvent(\"render.done\",seatPos) end\nend",1,true),
     "Night context must be cleared after rendering")
 
 -- A normal Summoner must not accidentally mark every summon as Night.

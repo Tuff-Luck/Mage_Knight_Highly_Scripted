@@ -30,7 +30,7 @@ assert(not replacementPanel:find('id="UnitReplacementSelectedText"',1,true),
     "Selection is now immediate; no second status line should remain")
 assert(replacementPanel:find('id="UnitReplacementCancel"',1,true),
     "Cancel must remain available while picking a Unit")
-assert(cardRecognition:find('unitReplacementEnsureControls(seatPos)',1,true))
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/ScanPublication.lua"):find('unitReplacementEnsureControls(seatPos)',1,true))
 assert(read("src/PlayingGame/Events.lua"):find('resourceUnitsRetireUnit(obj.guid)',1,true))
 assert(read("src/PlayingGame/PlayerBoard/Events.lua"):find(
     'resourceUnitsReconcileNewUnit(incomingGUID,unitSeatPos)',1,true))

@@ -51,7 +51,7 @@ selected.interaction=false
 selected.interactionPowered=nil
 sync(records)
 rewards(0,0,"Interaction OFF")
-assert(recognition:find("resourceCardsSyncInteractionPower(records)\n    local earnedFame",1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/ScanPublication.lua"):find("resourceCardsSyncInteractionPower(records)\n    local earnedFame",1,true),
     "Live power must be synchronised before Fame/Reputation totals are calculated")
 local objectUI=read("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua")
 assert(objectUI:find("local function showChoiceButtons(",1,true))

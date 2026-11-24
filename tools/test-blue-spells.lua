@@ -155,7 +155,7 @@ local held=isolated(combat,
 manaClaimRegisterForTurn(1)
 eq(held("claimed"),true,"Claimed die survives end-of-turn cleanup")
 eq(held("casting"),false,"Casting die is not retained")
-assert(recognition:find("not manaClaimDieHeld(obj.guid)",1,true),
+assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/ScanObservation.lua"):find("not manaClaimDieHeld(obj.guid)",1,true),
     "Claimed die cannot pay unrelated tracker actions")
 combatReturnPreEndTurnDie=function(_,guid) eq(guid,"claimed","Return claimed die") end
 isolated(combat,"function manaClaimReturnHeldDice()",

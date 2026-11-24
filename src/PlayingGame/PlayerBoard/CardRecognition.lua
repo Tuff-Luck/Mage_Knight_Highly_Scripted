@@ -10,6 +10,11 @@ trackerPrivate.skillInteractions=require("PlayingGame.PlayerBoard.ResourceTracke
 trackerPrivate.unitScan=require("PlayingGame.PlayerBoard.ResourceTracker.UnitScan")
 trackerPrivate.unitManagement=require("PlayingGame.PlayerBoard.ResourceTracker.UnitManagement")
 trackerPrivate.readyPolicy=require("PlayingGame.PlayerBoard.ResourceTracker.ReadyPolicy")
+trackerPrivate.scanObservation=require("PlayingGame.PlayerBoard.ResourceTracker.ScanObservation")
+trackerPrivate.scanPayments=require("PlayingGame.PlayerBoard.ResourceTracker.ScanPayments")
+trackerPrivate.scanFinalization=require("PlayingGame.PlayerBoard.ResourceTracker.ScanFinalization")
+trackerPrivate.factionRewardScan=require("PlayingGame.PlayerBoard.ResourceTracker.FactionRewardScan")
+trackerPrivate.scanPublication=require("PlayingGame.PlayerBoard.ResourceTracker.ScanPublication")
 -- Keep the public chat callback here; diagnostics share this live private state.
 require("PlayingGame.PlayerBoard.ResourceTracker.Diagnostics")(trackerPrivate)
 function resourceCardsTraceCommand(command,playerColor)
@@ -5105,404 +5110,42 @@ local function renderSeat(seatPos)
     end
     trackerPrivate.renderCombatNight=nil
 
-    local objects,placements,monsters,playMonsters={},{},{},{}
-    local combatMonsters,combatPlayMonsters={},{}
-    local objectKinds={}
-    local function inspectZone(guid,zoneKind)
-        local zone=guid~=nil and getObjectFromGUID(guid) or nil
-        if zone==nil then return end
-        for _,obj in ipairs(zone.getObjects()) do
-            if zoneKind=="play" or zoneKind=="unit" then
-                local data=combatEnemyData(obj.guid,obj)
-                if data~=nil and data.name~="Ruin" then
-                    combatMonsters[obj.guid]=obj
-                    if zoneKind=="play" then combatPlayMonsters[obj.guid]=obj end
-                end
-            end
-            local kind=objectKinds[obj.guid]
-            if kind==nil then
-                kind=resourceObjectKind(obj)
-                if kind~=nil then objectKinds[obj.guid]=kind end
-            end
-            if zoneKind=="play" and trackerPrivate.playCandidateKind(kind) then
-                local candidates=trackerPrivate.playCandidatesBySeat[seatPos]
-                if candidates==nil then
-                    candidates={}
-                    trackerPrivate.playCandidatesBySeat[seatPos]=candidates
-                end
-                candidates[obj.guid]=true
-            end
-            if kind~=nil and (kind~="mana" or trackerPrivate.readyForXZ(obj))
-                and (zoneKind~="play" or not trackerPrivate.playCandidateKind(kind)
-                    or not combatConfig.cardInTransit(obj))
-                and (zoneKind=="play"
-                or (zoneKind=="unit" and (kind=="unit" or kind=="mana" or kind=="puppet"))
-                or (zoneKind=="crystal" and kind=="mana")) then
-                -- Play-area placement takes precedence when scripting zones overlap.
-                local existing=placements[obj.guid]
-                if existing==nil or (zoneKind=="play" and existing~="play") then
-                    objects[obj.guid]=obj
-                    placements[obj.guid]=zoneKind
-                end
-            end
-        end
-    end
-    inspectZone(playerCrystalAreas[seatPos],"crystal")
-    inspectZone(playerUnitAreas[seatPos],"unit")
-    inspectZone(playerPlayAreas[seatPos],"play")
-    -- A released source may be above the shallow zone despite its X/Z being
-    -- on the play mat. Recover only previously seen/dropped play sources,
-    -- never arbitrary cards elsewhere on the table.
-    do
-        local playCandidates=trackerPrivate.playCandidatesBySeat[seatPos] or {}
-        for guid in pairs(playCandidates) do
-            if placements[guid]~="play" then
-                local obj=getObjectFromGUID(guid)
-                if obj==nil or (obj.isDestroyed~=nil and obj.isDestroyed()) then
-                    playCandidates[guid]=nil
-                elseif trackerPrivate.cardOverPlayMat(obj,seatPos) then
-                    local kind=resourceObjectKind(obj)
-                    if trackerPrivate.playCandidateKind(kind) then
-                        objects[guid]=obj
-                        placements[guid]="play"
-                        objectKinds[guid]=kind
-                    end
-                elseif not combatConfig.cardInTransit(obj) then
-                    playCandidates[guid]=nil
-                end
-            end
-        end
-    end
-    -- A resting active Unit can be lifted above the thin Zone by its stacked
-    -- Command/crystal without actually leaving the Unit mat. Reuse the same
-    -- X/Z and held-object checks as the physical Unit layout rather than
-    -- interpreting a missing zone entry as an undone activation.
-    local missingActiveUnit=false
-    for guid,activation in pairs(gStates.unitResourceActivations or {}) do
-        if activation.seatPos==seatPos and objects[guid]==nil then
-            missingActiveUnit=true
-            break
-        end
-    end
-    if missingActiveUnit then
-        for _,unit in ipairs(unitLayoutSnapshot(seatPos).units) do
-            if objects[unit.guid]==nil and gStates.unitResourceActivations[unit.guid]~=nil then
-                objects[unit.guid]=unit
-                objectKinds[unit.guid]="unit"
-                placements[unit.guid]="unit"
-            end
-        end
-    end
-    -- One observation and one held-enemy reconciliation serve both systems.
-    -- Reminders/Leader previews belong to combat, but never to card enemy-count bonuses.
-    combatKeepHeldEnemies(seatPos,combatMonsters,combatPlayMonsters)
-    -- Apply NightRules to the entire active combat, not just Dungeon/Tomb
-    -- location checks. The same value powers mana legality and day/night Skills.
-    trackerPrivate.renderCombatNight=resourceCardsCombatNightFromEnemies(combatMonsters)
-    for guid,enemy in pairs(combatMonsters) do
-        local pug=monsterPugs[guid]
-        if pug~=nil and pug.name~="Ruin" then
-            monsters[guid]=enemy
-            if combatPlayMonsters[guid]~=nil then playMonsters[guid]=enemy end
-        end
-    end
-    combatCalcUpdate(combatMonsters)
-    local enemyEntries={}
-    for guid,enemy in pairs(monsters) do
-        if enemy.is_face_down~=true then enemyEntries[#enemyEntries+1]={guid=guid} end
-    end
+    local objects,placements,monsters,playMonsters,combatMonsters,
+        enemyEntries,inventoryCrystalCounts,cards,wounds,skills,
+        manaObjects,footprints,unitPaymentMana,enemyEffects,pendingWingsNight,
+        deferredUnfortifiedUnitEffects,unitCombatBoost,preventUnitDamage,allUnitResistances,heroFirstWoundIgnored,
+        heroPsychicBlock,hasUnits=
+        trackerPrivate.scanObservation.observe({
+        seatPos=seatPos, trackerPrivate=trackerPrivate, combatConfig=combatConfig,
+        combatEnemyData=combatEnemyData, resourceObjectKind=resourceObjectKind,
+        combatKeepHeldEnemies=combatKeepHeldEnemies,
+        resourceCardsCombatNightFromEnemies=resourceCardsCombatNightFromEnemies,
+        combatCalcUpdate=combatCalcUpdate, footprint=footprint,
+    })
 
-    -- Read *inventory* crystals only. A crystal moved to the Play Area is
-    -- mana being spent, not part of a complete set in inventory.
-    local inventoryCrystalCounts={}
-    for guid,obj in pairs(objects) do
-        if placements[guid]=="crystal" and isManaTokenFigurine(obj) then
-            local color=manaTokenColor(obj)
-            if color~=nil then
-                inventoryCrystalCounts[color]=(inventoryCrystalCounts[color] or 0)+1
-            end
-        end
-    end
+    local unitState, activations, unitSiteMode, unitSite, chosenSiteUnit, woundCount=
+        trackerPrivate.scanObservation.prepare({
+        seatPos=seatPos, cards=cards, skills=skills, placements=placements, hasUnits=hasUnits,
+        combatMonsters=combatMonsters, combatConfig=combatConfig, trackerPrivate=trackerPrivate,
+        cardPosture=cardPosture, combatUnitSiteRestriction=combatUnitSiteRestriction,
+        combatOneUnitChosen=combatOneUnitChosen, combatOneUnitSelect=combatOneUnitSelect,
+        combatUnitSitePermits=combatUnitSitePermits, unitResourceDefinitions=unitResourceDefinitions,
+        clearHighlight=clearHighlight,
+    })
 
-    local cards,wounds,skills,manaObjects,footprints={}, {}, {}, {}, {}
-    local unitPaymentMana={}
-    local enemyEffects={}
-    local pendingWingsNight={}
-    -- Resolve conditional Unit targets after other cards, Units, Skills and
-    -- rewards have had a chance to remove Fortification in this same scan.
-    local deferredUnfortifiedUnitEffects={}
-    local unitCombatBoost,preventUnitDamage,allUnitResistances=0,false,false
-    local heroFirstWoundIgnored=false
-    local heroPsychicBlock=false
-    local hasUnits=false
-    for guid,obj in pairs(objects) do
-        local kind=objectKinds[guid]
-        if kind=="card" and placements[guid]=="play"
-            and trackerPrivate.bannerCardForm(guid)~="half"
-            and (trainingOfferReservedCard==nil
-                or not trainingOfferReservedCard(guid,seatPos)) then
-            cards[#cards+1]=obj
-            footprints[guid]=footprint(obj)
-        elseif kind=="wound" and placements[guid]=="play" then
-            wounds[#wounds+1]=obj
-            footprints[guid]=footprint(obj)
-        elseif kind=="skill" and placements[guid]=="play" then
-            skills[#skills+1]=obj
-            footprints[guid]=footprint(obj)
-        elseif kind=="mana" then
-            if manaClaimDieHeld==nil or not manaClaimDieHeld(obj.guid) then
-                manaObjects[#manaObjects+1]=obj
-                if placements[guid]=="play" or placements[guid]=="unit" then
-                    unitPaymentMana[#unitPaymentMana+1]=obj
-                end
-            end
-        elseif kind=="unit" then
-            -- Unit and Play Areas overlap; placement may be "play" here.
-            -- The physical Unit-area snapshot still owns its wound/spent state.
-            hasUnits=true
-        end
-    end
-
-    -- Scan active Amulet permissions before resolving ANY physical mana.
-    -- The card itself is a free artifact effect; no mana should be attached.
-    combatConfig.amuletMana.gold=false
-    combatConfig.amuletMana.black=false
-    for _,card in ipairs(cards) do
-        local data=gameCards[card.guid]
-        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
-        if rule~=nil and rule.artifactMana~=nil
-            and cardPosture(card)=="upright" then
-            combatConfig.amuletMana[rule.artifactMana]=true
-        end
-    end
-
-    combatConfig.artifactCombat.sword=false
-    combatConfig.artifactCombat.bow=false
-    combatConfig.artifactCombat.swordFame=false
-    combatConfig.artifactCombat.bowFame=false
-    for _,card in ipairs(cards) do
-        local data=gameCards[card.guid]
-        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
-        if rule~=nil and cardPosture(card)=="upright" then
-            if rule.artifactGlobalCombat~=nil and resourceCardsArtifactBroken(card.guid,card) then
-                combatConfig.artifactCombat[rule.artifactGlobalCombat]=true
-            end
-            if rule.artifactGlobalFame=="all" then
-                combatConfig.artifactCombat.swordFame=true
-            elseif rule.artifactGlobalFame=="range" and not resourceCardsArtifactBroken(card.guid,card) then
-                combatConfig.artifactCombat.bowFame=true
-            end
-        end
-    end
-
-    -- Read the physical Unit state once per scan for highlights and Skills.
-    -- A Command token already resting on a Unit from a previous turn means
-    -- spent; a Unit activated by a Command move THIS turn is still active.
-    local unitState=hasUnits and unitLayoutResourceState(seatPos) or nil
-    gStates.unitResourceActivations=gStates.unitResourceActivations or {}
-    local activations=gStates.unitResourceActivations
-    local unitSiteMode,unitSite=combatUnitSiteRestriction(seatPos,combatMonsters)
-    if unitSiteMode==nil then resourceCardsCombatClearOneUnit(seatPos) end
-    local chosenSiteUnit=unitSiteMode=="one" and combatOneUnitChosen(seatPos,unitSite) or nil
-    if unitSiteMode=="one" and chosenSiteUnit==nil and unitState~=nil then
-        -- With just one used Unit, its Command token is an unambiguous choice.
-        -- If several are active, do not infer that all may participate.
-        local only,count=nil,0
-        for _,entry in ipairs(unitState.units) do
-            local activation=activations[entry.guid]
-            if entry.unwounded and activation~=nil
-                and activation.seatPos==seatPos then
-                only,count=entry.guid,count+1
-            end
-        end
-        if count==1 then
-            chosenSiteUnit=only
-            combatOneUnitSelect(seatPos,unitSite,only)
-        end
-    end
-    trackerPrivate.unitHighlightBlocked={}
-    if unitState~=nil then
-        for _,entry in ipairs(unitState.units) do
-            local activation=activations[entry.guid]
-            local activeThisTurn=activation~=nil and activation.seatPos==seatPos
-                and unitResourceDefinitions[entry.guid]~=nil
-            -- Ready means no Command token is resting on the Unit card.
-            -- Historical/borrowed abilities can still contribute resources,
-            -- but cannot outline a Unit without its physical Command.
-            if entry.ready or not entry.unwounded or not activeThisTurn
-                or not combatUnitSitePermits(unitSiteMode,
-                    unitState.bondsUnitGUID,chosenSiteUnit,entry.guid,false) then
-                trackerPrivate.unitHighlightBlocked[entry.guid]=true
-                clearHighlight(entry.guid)
-            end
-        end
-    end
-    local countWounds=false
-    for _,card in ipairs(cards) do
-        local data=gameCards[card.guid]
-        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
-        if rule~=nil and rule.woundBonus~=nil then countWounds=true break end
-    end
-    if countWounds and unitState==nil then unitState=unitLayoutResourceState(seatPos) end
-    for _,skill in ipairs(skills) do
-        local rule=skillResourceDefinitions[skill.guid]
-        local sideways=rule~=nil and rule.linkedCard~=nil and rule.linkedCard.sideways or nil
-        if unitState==nil and rule~=nil and (rule.unitCondition~=nil
-            or (sideways~=nil and sideways.perEmptyCommandSlot~=nil)) then
-            unitState=unitLayoutResourceState(seatPos)
-            break
-        end
-    end
-    -- Hand-zone Wounds are not play-area Wounds. Count the latter only when
-    -- physically placed on a Unit, via the shared Unit layout observer.
-    local woundCount=nil
-    if countWounds and unitState~=nil then
-        local hand=getObjectFromGUID(handZones[seatPos])
-        if hand~=nil then
-            woundCount=unitState.woundCount or 0
-            for _,obj in ipairs(hand.getObjects()) do
-                if obj.type=="Card" and obj.getGMNotes()=="Wound"
-                    and placements[obj.guid]~="play" then
-                    woundCount=woundCount+1
-                end
-            end
-        end
-    end
-
-    -- Wounds may be Skill targets, but are not ordinary Action-link candidates.
-    local skillTargets={}
-    for _,card in ipairs(cards) do skillTargets[#skillTargets+1]=card end
-    for _,wound in ipairs(wounds) do skillTargets[#skillTargets+1]=wound end
-
-    -- First reserve conversion mana (Polarization), then sideways-skill mana,
-    -- so one physical mana never powers two separate interactions.
-    table.sort(cards,function(a,b) return a.guid<b.guid end)
-    -- Cards already present when opening a saved/minimized tracker have no
-    -- reliable order; give them one shared ordinal instead of inventing one.
-    -- Subsequent real zone entries are recorded immediately at entry time.
-    gStates.resourceCardPlayOrder=gStates.resourceCardPlayOrder or {}
-    gStates.resourceCardPlaySerial=gStates.resourceCardPlaySerial or 0
-    local missingOrder=false
-    for _,card in ipairs(cards) do
-        if gStates.resourceCardPlayOrder[card.guid]==nil then
-            missingOrder=true break
-        end
-    end
-    if missingOrder then
-        gStates.resourceCardPlaySerial=gStates.resourceCardPlaySerial+1
-        for _,card in ipairs(cards) do
-            if gStates.resourceCardPlayOrder[card.guid]==nil then
-                gStates.resourceCardPlayOrder[card.guid]=gStates.resourceCardPlaySerial
-            end
-        end
-    end
-    local manaByObject,manaBySkill,manaByCard=
-        resolveManaSkillLinks(skills,manaObjects,cards,footprints,placements)
-    local skillLinksByTarget,skillLinksBySkill,sidewaysSkillMana=
-        resolveSkillCardLinks(skills,skillTargets,footprints,manaObjects,placements,manaByObject,unitState)
-    local powered,usedMana,spellCastingPaid,powerManaColorsByCard={}, {}, {}, {}
-    -- Some cards require a separate coloured mana payment to choose their
-    -- effect. Record those candidates before deciding which mana powers the
-    -- strong side; one token can never fill both roles.
-    local effectManaByCard,specialPaymentByCard={},{}
-    for _,card in ipairs(cards) do
-        local data=gameCards[card.guid]
-        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
-        if rule~=nil and rule.effectManaChoice~=nil then
-            specialPaymentByCard[card.guid]=rule.effectManaChoice
-        end
-    end
-    local function spendMana(card,color,manaGUID)
-        -- Never record an illegal Daytime Black payment through the separate
-        -- spell-effect or mana-conversion paths.
-        if color=="Black" and not resourceCardsBlackAllowed() then return end
-        local data=gameCards[card.guid]
-        if data~=nil and data.cardType=="Spell" and color~="Black"
-            and matchesCardMana(card,color) then
-            spellCastingPaid[card.guid]=true
-        end
-        if specialPaymentByCard[card.guid]~=nil then
-            local candidates=effectManaByCard[card.guid] or {}
-            candidates[#candidates+1]={guid=manaGUID,color=color}
-            effectManaByCard[card.guid]=candidates
-        elseif data~=nil and data.cardType=="Spell" then
-            -- Casting mana selects the normal Spell; only Black powers
-            -- the stronger effect and may activate Mana Overload.
-            if color=="Black" then
-                powered[card.guid]=true
-                powerManaColorsByCard[card.guid]=powerManaColorsByCard[card.guid] or {}
-                powerManaColorsByCard[card.guid][color]=true
-            end
-        else
-            powered[card.guid]=true
-            powerManaColorsByCard[card.guid]=powerManaColorsByCard[card.guid] or {}
-            powerManaColorsByCard[card.guid][color]=true
-        end
-        usedMana[manaGUID]=card.guid
-        if trackerPrivate.traceEnabled then
-            trackerPrivate.traceEvent("mana.assigned",seatPos,manaGUID,
-                "color="..tostring(color).." card="..card.guid)
-        end
-    end
-    -- Mana physically on the Skill cannot also power the card directly.
-    for _,mana in ipairs(manaObjects) do
-        if placements[mana.guid]=="play" and manaByObject[mana.guid]==nil
-            and sidewaysSkillMana[mana.guid]==nil then
-            local color=manaColor(mana)
-            if color~=nil then
-                local best=trackerPrivate.bestManaCard(mana,cards,footprints,function(card)
-                    return cardPosture(card)=="upright" and card.is_face_down~=true
-                        and (matchesCardMana(card,color)
-                            or (specialPaymentByCard[card.guid]~=nil
-                                and (specialPaymentByCard[card.guid].colors[color]~=nil
-                                    or (color=="Gold" and resourceCardsGoldAllowed()))))
-                end)
-                if best~=nil then spendMana(best,color,mana.guid) end
-            end
-        end
-    end
-    for _,link in pairs(manaBySkill) do
-        if link.targetGUID~=nil then
-            local card=getObjectFromGUID(link.targetGUID)
-            if card~=nil then spendMana(card,link.converted,link.manaGUID) end
-        end
-    end
-    -- Power the stronger side only when a complete distinct payment set is
-    -- possible. Pure Magic needs effect + Blue; Mana Thunderbolt needs
-    -- casting Blue/Gold + Black + a separate effect mana.
-    for guid,candidates in pairs(effectManaByCard) do
-        local spec=specialPaymentByCard[guid]
-        local options,wildcard=effectManaPossibilities(spec,candidates,true,
-            resourceCardsGoldAllowed(),resourceCardsBlackAllowed())
-        if wildcard or next(options)~=nil then powered[guid]=true end
-    end
-    local links,boostBy,boostSource,discarded,hasDiscard,linkedCardBySource,
-        repeatByTarget,discardBoostBySource=
-        resolveActionLinks(cards,wounds,footprints,powered,skillLinksByTarget)
-    resourceCardsMaximalEffectSyncMarks(seatPos,cards,repeatByTarget,discarded,hasDiscard)
-    -- Extra terrain mana is an optional physical payment, separate from the
-    -- mana that powers the strong action. Never reuse a claimed mana object.
-    local extraTerrainManaByCard,extraTerrainManaByObject={},{}
-    for _,mana in ipairs(manaObjects) do
-        if placements[mana.guid]=="play" and usedMana[mana.guid]==nil
-            and manaByObject[mana.guid]==nil and sidewaysSkillMana[mana.guid]==nil then
-            local color=manaColor(mana)
-            local best=trackerPrivate.bestManaCard(mana,cards,footprints,function(card)
-                local data=gameCards[card.guid]
-                local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
-                local spec=rule~=nil and rule.extraTerrainMana or nil
-                return spec~=nil and spec.color==color
-                    and extraTerrainManaByCard[card.guid]==nil
-                    and (not spec.poweredOnly or powered[card.guid]==true or boostBy[card.guid]~=nil)
-                    and card.is_face_down~=true and cardPosture(card)=="upright"
-            end)
-            if best~=nil then
-                extraTerrainManaByCard[best.guid]=mana.guid
-                extraTerrainManaByObject[mana.guid]=best.guid
-                usedMana[mana.guid]=best.guid
-            end
-        end
-    end
+    local manaByObject,manaBySkill,manaByCard,skillLinksByTarget,skillLinksBySkill,
+        sidewaysSkillMana,powered,usedMana,spellCastingPaid,powerManaColorsByCard,
+        effectManaByCard,links,boostBy,boostSource,discarded,
+        hasDiscard,linkedCardBySource,repeatByTarget,discardBoostBySource,extraTerrainManaByCard,
+        extraTerrainManaByObject=
+        trackerPrivate.scanPayments.resolve({
+        seatPos=seatPos, cards=cards, wounds=wounds, skills=skills, manaObjects=manaObjects,
+        footprints=footprints, placements=placements, unitState=unitState,
+        resolveManaSkillLinks=resolveManaSkillLinks, resolveSkillCardLinks=resolveSkillCardLinks,
+        trackerPrivate=trackerPrivate, cardPosture=cardPosture, matchesCardMana=matchesCardMana,
+        manaColor=manaColor, effectManaPossibilities=effectManaPossibilities,
+        resolveActionLinks=resolveActionLinks,
+    })
     local current,records,totals={}, {}, {}
     local usesCurrentHexBlock=false
     local usesCurrentHexHealing=false
@@ -5511,39 +5154,11 @@ local function renderSeat(seatPos)
     local movementEffects={jumpTwoSpaces=false,ignoreRampagers=false,
         singleSpaceDiscount=0,windFlightMax=0}
     local usesSkillLocation=false
-    -- This is a reusable declarative overlay. All passives are owned-Skill
-    -- effects, whether the physical token is resting at home or being played.
-    -- Read immutable rule tables so identical scans don't invalidate movement.
-    for skillGUID,rule in pairs(skillResourceDefinitions) do
-        if ownedSkillAtSeat(skillGUID,seatPos) then
-            for _,effect in ipairs(rule.passiveTerrain or {}) do
-                terrainModifiers[#terrainModifiers+1]=effect
-            end
-            if gStates.dayRound~=true then
-                for _,effect in ipairs(rule.passiveNightTerrain or {}) do
-                    terrainModifiers[#terrainModifiers+1]=effect
-                end
-            else
-                for _,effect in ipairs(rule.passiveDayTerrain or {}) do
-                    terrainModifiers[#terrainModifiers+1]=effect
-                end
-            end
-            local extra=rule.skillManaTerrain
-            if extra~=nil then
-                local token=getObjectFromGUID(skillGUID)
-                if token~=nil then
-                    local area=footprint(token)
-                    for _,mana in ipairs(manaObjects) do
-                        if placements[mana.guid]=="play" and manaColor(mana)==extra.color
-                            and manaInsideFootprint(mana,area) then
-                            terrainModifiers[#terrainModifiers+1]=extra.effect
-                            break
-                        end
-                    end
-                end
-            end
-        end
-    end
+    trackerPrivate.scanFinalization.passiveTerrain({
+        seatPos=seatPos, terrainModifiers=terrainModifiers, ownedSkillAtSeat=ownedSkillAtSeat,
+        footprint=footprint, manaObjects=manaObjects, placements=placements, manaColor=manaColor,
+        manaInsideFootprint=manaInsideFootprint,
+    })
     -- Only infer an effect after assigning separate casting/power/effect
     -- payments. If Gold or multiple valid assignments leave alternatives,
     -- show the supported choices rather than choosing a mana token by GUID.
@@ -5644,164 +5259,30 @@ local function renderSeat(seatPos)
         if effect.grantCumbersome==true then combatCumbersomeActive=true break end
     end
 
-    -- The linking card itself contributes the target's upgraded effect. Mark it
-    -- as a contributor so its powering mana token receives a green outline.
-    for targetGUID,sourceGUID in pairs(boostSource) do
-        if records[targetGUID]~=nil and records[targetGUID].contributes
-            and records[sourceGUID]~=nil then
-            records[sourceGUID].contributes=true
-        end
-    end
-
-    for guid,obj in pairs(objects) do
-        -- No contribution or outline for a Wound without a matching Skill.
-        -- Previously linked Skills need their button/highlight finalization
-        -- even though their resource record was created before target bonuses.
-        local kind=resourceObjectKind(obj)
-        if (records[guid]==nil or (kind=="skill" and placements[guid]=="play"))
-            and kind~="wound" then
-            local poweredTarget=usedMana[guid]
-            local contributing=poweredTarget~=nil and records[poweredTarget]~=nil
-                and records[poweredTarget].contributes==true
-            local result
-            if kind=="puppet" and (placements[guid]=="play" or placements[guid]=="unit") then
-                local choices=obj.is_face_down~=true and puppetResourceOptions(guid) or nil
-                local selected=choices~=nil and chosenEffect(guid,false,choices) or nil
-                result={guid=guid,kind="puppet",known=true,complete=selected~=nil,
-                    status=selected~=nil and "green" or "blue",
-                    resources=selected,choices=choices,powered=false,links={}}
-                showChoiceButtons(obj,choices,false)
-                addResourceAmounts(result,totals)
-            elseif kind=="skill" and placements[guid]=="play" then
-                local conversion=manaBySkill[guid]
-                local alreadyRecorded=records[guid]~=nil
-                result=alreadyRecorded and records[guid]
-                    or calculateSkill(obj,skillLinksBySkill[guid]
-                        or (conversion~=nil and conversion.targetGUID or nil),
-                        unitState,inventoryCrystalCounts)
-                local skillRule=skillResourceDefinitions[guid]
-                if skillRule~=nil then
-                    if skillRule.locationInfluence~=nil
-                        or skillRule.day~=nil or skillRule.night~=nil then
-                        usesSkillLocation=true
-                    end
-                    -- Played Skill movement flags are declarative, just like
-                    -- equivalent printed Action/Spell effects.
-                    local spec=skillRule.movementEffects
-                    local effects=spec~=nil
-                        and (obj.is_face_down==true and spec.flipped or spec.normal) or nil
-                    if effects~=nil then
-                        if effects.jumpTwoSpaces then movementEffects.jumpTwoSpaces=true end
-                        if effects.ignoreRampagers then movementEffects.ignoreRampagers=true end
-                    end
-                end
-                showChoiceButtons(obj,result.choices,result.powered)
-                if not alreadyRecorded then addResourceAmounts(result,totals) end
-                if skillLinksBySkill[guid]~=nil then
-                    result.contributes=true
-                    local link=skillLinksByTarget[skillLinksBySkill[guid]]
-                    if link~=nil and link.manaGUID~=nil then
-                        result.links[#result.links+1]=link.manaGUID
-                    end
-                end
-                if conversion~=nil then
-                    result.status="purple"
-                    result.powered=conversion.targetGUID~=nil
-                    result.links={conversion.manaGUID}
-                    if conversion.targetGUID~=nil then
-                        result.links[#result.links+1]=conversion.targetGUID
-                        local target=records[conversion.targetGUID]
-                        result.contributes=target~=nil and target.contributes==true
-                    end
-                end
-            else
-                local conversion=kind=="mana" and manaByObject[guid] or nil
-                local sidewaysLink=kind=="mana" and sidewaysSkillMana[guid] or nil
-                local extraTerrainTarget=kind=="mana" and extraTerrainManaByObject[guid] or nil
-                local skillContributes=sidewaysLink~=nil
-                    and records[sidewaysLink.targetGUID]~=nil
-                    and records[sidewaysLink.targetGUID].contributes==true
-                local status=(conversion~=nil or sidewaysLink~=nil or extraTerrainTarget~=nil) and "purple"
-                    or kind=="mana" and (contributing and "green" or "yellow") or "yellow"
-                local bright=kind=="mana" and (poweredTarget~=nil or sidewaysLink~=nil)
-                result={guid=guid,kind=kind,known=true,complete=false,
-                    contributes=contributing or skillContributes,powered=bright,status=status,
-                    powers=poweredTarget or (sidewaysLink~=nil and sidewaysLink.targetGUID or nil),
-                    links=conversion~=nil and {conversion.skillGUID}
-                        or sidewaysLink~=nil and {sidewaysLink.skillGUID,sidewaysLink.targetGUID}
-                        or extraTerrainTarget~=nil and {extraTerrainTarget} or {},
-                    convertedMana=conversion~=nil and conversion.converted or nil,
-                    resources=nil}
-            end
-            records[guid]=result
-            current[guid]=true
-            setHighlight(obj,result.status,result.powered)
-        end
-    end
+    usesSkillLocation=
+        trackerPrivate.scanFinalization.remainingObjects({
+        boostSource=boostSource, records=records, objects=objects, placements=placements, usedMana=usedMana,
+        resourceObjectKind=resourceObjectKind, puppetResourceOptions=puppetResourceOptions,
+        chosenEffect=chosenEffect, showChoiceButtons=showChoiceButtons, addResourceAmounts=addResourceAmounts,
+        totals=totals, manaBySkill=manaBySkill, calculateSkill=calculateSkill,
+        skillLinksBySkill=skillLinksBySkill, unitState=unitState,
+        inventoryCrystalCounts=inventoryCrystalCounts, usesSkillLocation=usesSkillLocation,
+        movementEffects=movementEffects, skillLinksByTarget=skillLinksByTarget, manaByObject=manaByObject,
+        sidewaysSkillMana=sidewaysSkillMana, extraTerrainManaByObject=extraTerrainManaByObject,
+        current=current, setHighlight=setHighlight,
+    })
 
 
-    -- Aura Gauntlet can only choose colours currently showing on physical
-    -- Mana Source dice (not spent dice or mirror copies).
-    local sourceRewardColors={}
-    for _,die in ipairs(gStates.manaSource or {}) do
-        local color=({[1]="blue",[2]="white",[3]="green",[4]="red"})[die.color]
-        if color~=nil then sourceRewardColors[color]=true end
-    end
-
-    -- A Faction Reward is available only after the player actually places it
-    -- in the Play Area. Face-down is the alternative interaction exchange:
-    -- choose +3 Influence or 1 Fame (Fame itself is not a Tracker column).
-    -- Do not infer its effect from being stored face-up in inventory.
-    local exchangeChoices={{key="fame"},{influence=3}}
-    for guid,token in pairs(objects) do
-        if resourceObjectKind(token)=="factionReward" and placements[guid]=="play" then
-            local rule=factionRewardForObject(token)
-            local flipped=token.is_face_down==true
-            local choices=flipped and exchangeChoices or (rule~=nil and rule.choices or nil)
-            if not flipped and rule~=nil and rule.name=="Aura Gauntlet" then
-                local available={}
-                for _,choice in ipairs(choices or {}) do
-                    if sourceRewardColors[choice.key] then available[#available+1]=choice end
-                end
-                choices=available
-            end
-            local effect=choices~=nil and chosenEffect(guid,flipped,choices) or nil
-            if effect==nil and not flipped and rule~=nil then effect=rule.resources end
-            local contributes=effectHasTrackedResource(effect)
-            local result={guid=guid,kind="factionReward",known=rule~=nil,
-                complete=rule~=nil,resources=effect,choices=choices,
-                modifier=not flipped and rule~=nil and rule.modifier or nil,
-                powered=flipped,links={},contributes=contributes,
-                status=contributes and "green" or "blue",
-                nameKey=rule~=nil and rule.name or nil}
-            if rule~=nil and not flipped and (rule.partial or rule.modifier~=nil) then
-                result.status="yellow"
-            end
-            if not flipped and rule~=nil and rule.movement~=nil
-                and rule.movement.ignoreRampagers then
-                movementEffects.ignoreRampagers=true
-            end
-            if not flipped and rule~=nil and rule.heroPsychicBlock==true then
-                heroPsychicBlock=true
-            end
-            if not flipped and rule~=nil and rule.enemyEffect~=nil then
-                local target=combatEffectChosenEnemy(guid,footprint(token),monsters,
-                    combatEffectTargetEligible(rule.enemyEffect))
-                if target~=nil then
-                    combatEffectAdd(enemyEffects,target.guid,guid,rule.enemyEffect)
-                    result.enemyEffectTargetKeys={guid}
-                    result.enemyEffectTargetGUIDs={[guid]=target.guid}
-                    result.links[#result.links+1]=target.guid
-                    result.status="purple"
-                end
-            end
-            showChoiceButtons(token,choices,flipped)
-            addResourceAmounts(result,totals)
-            records[guid]=result
-            current[guid]=true
-            setHighlight(token,result.status,result.powered)
-        end
-    end
+    heroPsychicBlock=
+        trackerPrivate.factionRewardScan.read({
+        objects=objects, placements=placements, resourceObjectKind=resourceObjectKind,
+        factionRewardForObject=factionRewardForObject, chosenEffect=chosenEffect,
+        effectHasTrackedResource=effectHasTrackedResource, movementEffects=movementEffects,
+        heroPsychicBlock=heroPsychicBlock, combatEffectChosenEnemy=combatEffectChosenEnemy,
+        footprint=footprint, monsters=monsters, combatEffectTargetEligible=combatEffectTargetEligible,
+        enemyEffects=enemyEffects, showChoiceButtons=showChoiceButtons, addResourceAmounts=addResourceAmounts,
+        totals=totals, records=records, current=current, setHighlight=setHighlight,
+    })
 
     trackerPrivate.unitScan.resolveUnfortifiedTargets({
         deferredUnfortifiedUnitEffects=deferredUnfortifiedUnitEffects, monsters=monsters,
@@ -5810,144 +5291,17 @@ local function renderSeat(seatPos)
         footprint=footprint,
     })
 
-    -- Qualifying Units actually supplied the dynamic Skill resource. Show
-    -- their link just like physical Skill/card interactions, without treating
-    -- Command or Wound markers as resource sources themselves.
-    for guid,record in pairs(records) do
-        if record.unitSources~=nil then
-            for _,unitGUID in ipairs(record.unitSources) do
-                local unit,unitRecord=objects[unitGUID],records[unitGUID]
-                if unit~=nil and unitRecord~=nil then
-                    local activated=activations[unitGUID]~=nil
-                        and activations[unitGUID].seatPos==seatPos
-                        and unitResourceDefinitions[unitGUID]~=nil
-                    -- Linked Skill sources normally show purple, but a Unit
-                    -- currently activated by its Command token keeps its
-                    -- own green/blue Resource Tracker status.
-                    unitRecord.status=activated
-                        and (effectHasTrackedResource(unitRecord.resources) and "green" or "blue")
-                        or "purple"
-                    unitRecord.powered=not activated
-                    unitRecord.contributes=true
-                    unitRecord.links[#unitRecord.links+1]=guid
-                    setHighlight(unit,unitRecord.status,unitRecord.powered)
-                end
-            end
-        end
-    end
+    trackerPrivate.scanFinalization.linkedUnits({
+        records=records, objects=objects, activations=activations, seatPos=seatPos,
+        unitResourceDefinitions=unitResourceDefinitions, effectHasTrackedResource=effectHasTrackedResource,
+        setHighlight=setHighlight,
+    })
 
-    -- Physical faction reward overlays. Place the token on its target:
-    -- gems convert one Action card's Attack/Block element; Ghostly Elixir
-    -- changes one melee Attack to Ranged; Vial of Toxin boosts one physical
-    -- Attack source. Nothing is awarded for a missing or ambiguous target.
-    local function rewardConversion(mode,category)
-        if mode=="makeRanged" then
-            return ({attack="ranged",attackFire="rangedFire",
-                attackIce="rangedIce",attackColdFire="rangedColdFire"})[category]
-        end
-        local family,suffix=category:match("^(attack)(.*)$")
-        if family==nil then family,suffix=category:match("^(ranged)(.*)$") end
-        if family==nil then family,suffix=category:match("^(siege)(.*)$") end
-        if family==nil then family,suffix=category:match("^(block)(.*)$") end
-        if family==nil then return nil end
-        if mode=="addFire" then
-            if suffix=="" then return family.."Fire" end
-            if suffix=="Ice" then return family.."ColdFire" end
-        elseif mode=="addIce" then
-            if suffix=="" then return family.."Ice" end
-            if suffix=="Fire" then return family.."ColdFire" end
-        end
-        return nil
-    end
-    -- Resolve element conversions before the toxin. Toxin's extra physical
-    -- Attack must vanish if a Gem subsequently makes that attack elemental.
-    for _,mode in ipairs({"makeRanged","addFire","addIce","physicalBoost"}) do
-        for rewardGUID,reward in pairs(records) do
-            local token=reward.kind=="factionReward" and reward.modifier==mode
-                and objects[rewardGUID] or nil
-            if token~=nil then
-                local winner,selected,bestArea=nil,nil,0
-                -- Inline record type avoids a duplicate global class declaration in the generated TTS bundle.
-                ---@type {resources: table<string, number>?, links: string[], status: string, powered: boolean}|nil
-                local sourceRecord=nil
-                local tokenArea=footprint(token)
-                for sourceGUID,candidate in pairs(objects) do
-                    local data=gameCards[sourceGUID]
-                    local action=data~=nil and (data.cardType=="Starting"
-                        or data.cardType=="Advanced Action")
-                    local unit=mode=="physicalBoost" and data~=nil
-                        and (data.cardType=="Regular Unit" or data.cardType=="Elite Unit")
-                    local record=records[sourceGUID]
-                    if sourceGUID~=rewardGUID and (action or unit) and record~=nil
-                        and record.contributes==true and record.resources~=nil
-                        and (unit or (candidate.is_face_down~=true
-                            and cardPosture(candidate)=="upright")) then
-                        local overlap=overlapArea(tokenArea,footprint(candidate))
-                        if overlap>bestArea then
-                            local possible={}
-                            for field,amount in pairs(record.resources) do
-                                if type(amount)=="number" and amount>0 then
-                                    local to=rewardConversion(mode,field)
-                                    if mode=="physicalBoost" then
-                                        -- Only the source's current physical
-                                        -- category qualifies for Vial of Toxin.
-                                        if not attackTransforms.coldFire
-                                            and (field=="attack" or field=="ranged"
-                                                or field=="siege") then to=field
-                                        else to=nil end
-                                    end
-                                    if to~=nil then
-                                        possible[#possible+1]={from=field,to=to}
-                                    end
-                                end
-                            end
-                            if #possible==1 then
-                                winner,sourceRecord,selected,bestArea=
-                                    candidate,record,possible[1],overlap
-                            end
-                        end
-                    end
-                end
-                if winner~=nil and sourceRecord~=nil and selected~=nil then
-                    local from,to=selected.from,selected.to
-                    if mode=="physicalBoost" then
-                        local effectiveFamily=attackTransforms.siege and "siege" or from
-                        local bonus=effectiveFamily=="siege" and 1
-                            or (effectiveFamily=="ranged" and 2 or 3)
-                        reward.resources={[from]=bonus}
-                        addResourceAmounts(reward,totals)
-                    else
-                        -- Never mutate the declarative global resource data,
-                        -- which can be reused by another identical card.
-                        if sourceRecord.resources==nil then
-                            error("The linked resource source has no resource values.",2)
-                        end
-                        local newResources={}
-                        for k,v in pairs(sourceRecord.resources) do newResources[k]=v end
-                        local amount=newResources[from]
-                        if type(amount)~="number" then
-                            error("The linked resource source is missing its selected value.",2)
-                        end
-                        newResources[from]=nil
-                        newResources[to]=(newResources[to] or 0)+amount
-                        sourceRecord.resources=newResources
-                        totals[from]=(totals[from] or 0)-amount
-                        totals[to]=(totals[to] or 0)+amount
-                        reward.contributes=true
-                    end
-                    if reward.links==nil or sourceRecord.links==nil then
-                        error("A linked resource record has no link list.",2)
-                    end
-                    reward.links[#reward.links+1]=winner.guid
-                    sourceRecord.links[#sourceRecord.links+1]=rewardGUID
-                    reward.status="purple"
-                    sourceRecord.status="purple"
-                    setHighlight(token,reward.status,true)
-                    setHighlight(winner,sourceRecord.status,sourceRecord.powered)
-                end
-            end
-        end
-    end
+    trackerPrivate.factionRewardScan.modifiers({
+        records=records, objects=objects, footprint=footprint, cardPosture=cardPosture,
+        overlapArea=overlapArea, attackTransforms=attackTransforms, addResourceAmounts=addResourceAmounts,
+        totals=totals, setHighlight=setHighlight,
+    })
 
     trackerPrivate.unitScan.markTransforms({
         transformingUnits=transformingUnits, trackerPrivate=trackerPrivate,
@@ -5956,94 +5310,14 @@ local function renderSeat(seatPos)
     })
 
 
-    -- Spirit Guides adds its Block point to ONE existing Block source,
-    -- regardless of physical distance. Preserve the source's element, and
-    -- never add the bonus before the target actually generates Block.
-    local guideGUID="f36762"
-    local guide=records[guideGUID]
-    local linkedGUID=guide~=nil and gStates.blockSourceLinks~=nil
-        and gStates.blockSourceLinks[guideGUID] or nil
-    local boosted=linkedGUID~=nil and records[linkedGUID] or nil
-    if boosted~=nil and boosted.contributes==true and boosted.resources~=nil then
-        local bestKey,bestValue=nil,0
-        for _,field in ipairs(combatConfig.spiritGuideBlockFields) do
-            local value=tonumber(boosted.resources[field]) or 0
-            if value>bestValue then bestKey,bestValue=field,value end
-        end
-        if bestKey~=nil then
-            local replacement={}
-            for key,value in pairs(boosted.resources) do replacement[key]=value end
-            replacement[bestKey]=replacement[bestKey]+1
-            boosted.resources=replacement
-            totals[bestKey]=(totals[bestKey] or 0)+1
-            guide.links[#guide.links+1]=linkedGUID
-            boosted.links=boosted.links or {}
-            boosted.links[#boosted.links+1]=guideGUID
-            guide.status="purple"
-            guide.complete=true
-            -- Activated Units keep their normal resource-state highlight;
-            -- the Spirit Guides arrow itself still shows the purple link.
-            if boosted.kind~="unit" then boosted.status="purple" end
-            setHighlight(objects[guideGUID],guide.status,guide.powered)
-            setHighlight(objects[linkedGUID],boosted.status,boosted.powered)
-        end
-    end
+    trackerPrivate.scanFinalization.spiritGuides({
+        records=records, combatConfig=combatConfig, totals=totals, setHighlight=setHighlight, objects=objects,
+    })
 
-    -- Wings of Night costs 0 for the first affected enemy, then 1, 2,
-    -- etc. Red buttons remain for immune/unaffordable selected targets.
-    -- Remove paid Move from original sources too, to avoid counting it
-    -- again against Cumbersome or in the Movement display.
-    for _,pending in ipairs(pendingWingsNight) do
-        local spent,count=0,0
-        local combatMoveAvailable=0
-        for sourceGUID,record in pairs(records) do
-            if resourceCardsMoveRole(sourceGUID,true)=="combat" then
-                combatMoveAvailable=combatMoveAvailable
-                    +math.max(0,tonumber(record.resources~=nil and record.resources.move) or 0)
-            end
-        end
-        for _,guid in ipairs(pending.targets) do
-            local enemy=monsters[guid]
-            if enemy~=nil and enemy.is_face_down~=true then
-                local data=monsterPugs[guid]
-                local perks=gStates~=nil and gStates.monsterPerks~=nil
-                    and gStates.monsterPerks[guid] or nil
-                local immune=(data~=nil and data.arcaneImmunity==true)
-                    or (perks~=nil and perks.arcaneImmunity==true)
-                local cost=count
-                local affordable=cost<=combatMoveAvailable-spent
-                combatEffectAdd(enemyEffects,guid,pending.source,
-                    {noAttack=true,moveCost=cost,insufficientMove=not affordable},
-                    pending.source)
-                if not immune and affordable then count=count+1 spent=spent+cost end
-            end
-        end
-        if spent>0 then
-            local remaining=spent
-            local moveSources={}
-            for guid,record in pairs(records) do
-                if record.resources~=nil and (tonumber(record.resources.move) or 0)>0
-                    and resourceCardsMoveRole(guid,true)=="combat" then
-                    moveSources[#moveSources+1]=guid
-                end
-            end
-            table.sort(moveSources)
-            for _,guid in ipairs(moveSources) do
-                if remaining<=0 then break end
-                local record=records[guid]
-                local original=tonumber(record.resources.move) or 0
-                local used=math.min(original,remaining)
-                if used>0 then
-                    local adjusted={}
-                    for key,value in pairs(record.resources) do adjusted[key]=value end
-                    adjusted.move=original-used
-                    record.resources=adjusted
-                    remaining=remaining-used
-                end
-            end
-            totals.move=math.max(0,(tonumber(totals.move) or 0)-spent)
-        end
-    end
+    trackerPrivate.scanFinalization.wingsNight({
+        pendingWingsNight=pendingWingsNight, records=records, resourceCardsMoveRole=resourceCardsMoveRole,
+        monsters=monsters, enemyEffects=enemyEffects, totals=totals,
+    })
 
     local ruthlessReadySpent,readyNeedsRescan
     ruthlessReadySpent,readyNeedsRescan=
@@ -6051,176 +5325,22 @@ local function renderSeat(seatPos)
         records=records, totals=totals,
     })
 
-    -- First recognition determines phase; later enemy arrivals do not change it.
-    local moveSplit={movement=0,combat=0}
-    for guid,record in pairs(records) do
-        local amount=math.max(0,tonumber(record.resources~=nil and record.resources.move) or 0)
-        if amount>0 then
-            local role=resourceCardsMoveRole(guid,true)
-            moveSplit[role]=moveSplit[role]+amount
-        end
-    end
-    local previous=trackerPrivate.bySeat[seatPos] or {}
-    local previousScan=resourceCardScanBySeat[seatPos]
-    local previousMove=previousScan~=nil and (previousScan.totals.move or 0) or 0
-    local previousSplit=previousScan~=nil and previousScan.moveSplit or nil
-    local enemyStateChanged=previousScan==nil
-        or previousScan.enemyPresent~=combatEnemyInPlay
-    local moveSplitChanged=previousSplit==nil
-        or previousSplit.movement~=moveSplit.movement
-        or previousSplit.combat~=moveSplit.combat
-    table.sort(terrainModifiers,terrainModifierPrecedes)
-    local prior=previousScan~=nil and previousScan.terrainModifiers or nil
-    local terrainChanged=prior==nil and #terrainModifiers>0
-        or prior~=nil and #prior~=#terrainModifiers
-    if prior~=nil and not terrainChanged then
-        for i,effect in ipairs(terrainModifiers) do
-            if prior[i]~=effect then terrainChanged=true break end
-        end
-    end
-    local totalsChanged=previousScan==nil
-    if not totalsChanged then
-        for category in pairs(trackerPrivate.totalsKeys) do
-            if (previousScan.totals[category] or 0)~=(totals[category] or 0) then
-                totalsChanged=true
-                break
-            end
-        end
-    end
-    local priorMovement=previousScan~=nil and previousScan.movementEffects or nil
-    local movementChanged=priorMovement==nil
-        or priorMovement.jumpTwoSpaces~=movementEffects.jumpTwoSpaces
-        or priorMovement.ignoreRampagers~=movementEffects.ignoreRampagers
-        or (priorMovement.windFlightMax or 0)~=movementEffects.windFlightMax
-        or (priorMovement.singleSpaceDiscount or 0)~=movementEffects.singleSpaceDiscount
-    local previousTransform=previousScan~=nil and previousScan.attackTransforms or nil
-    local transformChanged=previousTransform==nil
-        or (previousTransform.coldFire==true)~=(attackTransforms.coldFire==true)
-        or (previousTransform.siege==true)~=(attackTransforms.siege==true)
-    -- The normal recruitment discount cannot coexist with the stronger
-    -- side of the same card. Remove its pending event if the side changes.
-    for guid,selected in pairs(gStates.startingCardSelections or {}) do
-        local data=gameCards[guid]
-        local record=records[guid]
-        if data~=nil and data.resourceKey=="ruthlessCoercion"
-            and record~=nil and record.powered==true then
-            selected.recruited=nil
-        end
-    end
-    local fameTotal,repTotal=0,0
-    for _,record in pairs(records) do
-        if record.fameRep~=nil then
-            fameTotal=fameTotal+(record.fameRep.fame or 0)
-            repTotal=repTotal+(record.fameRep.rep or 0)
-        end
-    end
-    resourceCardsSyncInteractionPower(records)
-    local earnedFame,earnedRep=combatConfig.startingCardConditionalFameRep()
-    fameTotal=fameTotal+earnedFame
-    repTotal=repTotal+earnedRep
-    local scanPlayer=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
-    local fameRepBase={fame=fameTotal,rep=repTotal}
-    trackerPrivate.bySeat[seatPos]=current
-    resourceCardScanBySeat[seatPos]={cards=records,totals=totals,
-        moveSplit=moveSplit,enemyPresent=combatEnemyInPlay,
-        attackTransforms=attackTransforms,
-        terrainModifiers=terrainModifiers,movementEffects=movementEffects,
-        enemyEffects=enemyEffects,fameRepBase=fameRepBase,
-        ruthlessReadySpent=ruthlessReadySpent,
-        ignoreSiteFortifications=ignoreSiteFortifications,
-        unitState=unitState,gloryBroken=(function()
-            for _,card in ipairs(cards) do
-                local data=gameCards[card.guid]
-                if data~=nil and data.resourceKey=="artifactBannerGlory"
-                    and trackerPrivate.bannerStrongActive(card)
-                    and cardPosture(card)=="upright" then
-                    return true
-                end
-            end
-            return false
-        end)(),preventUnitDamage=preventUnitDamage,
-        allUnitResistances=allUnitResistances,heroFirstWoundIgnored=heroFirstWoundIgnored,
-        heroPsychicBlock=heroPsychicBlock,
-        usesCurrentHexBlock=usesCurrentHexBlock,
-        usesCurrentHexHealing=usesCurrentHexHealing,
-        usesSkillLocation=usesSkillLocation}
-    resourceCardScanBySeat[seatPos].enemyEffectArrowKinds,
-        resourceCardScanBySeat[seatPos].enemyEffectDefenceRequirements=
-        combatEffectArrowKinds(records,enemyEffects)
-    if attackAssignmentsRefreshAmbushLinks~=nil then attackAssignmentsRefreshAmbushLinks() end
-    -- This also retracts a saved Ready if its card loses power or the new
-    -- Rejuvenate side can no longer ready that Unit level.
-    if unitHistoryValidSources(seatPos) or readyNeedsRescan then
-        -- Links can undo earlier Unit resources; rebuild from the updated
-        -- history rather than showing those stale contributions for one scan.
-        resourceCardsSourceChanged()
-    end
-    refreshCombatEnemyPanel(combatMonsters,true)
-    resourceCardsApplyFameRep(seatPos)
-    -- Refresh Reputation on every settled Skill scan so flipping Arcane
-    -- Disguise updates Influence without requiring a panel toggle.
-    local reputationBefore=gStates.resourceTracker~=nil
-        and gStates.resourceTracker.influence~=nil
-        and gStates.resourceTracker.influence.reputation or nil
-    refreshResourceTrackerReputation()
-    local reputationAfter=gStates.resourceTracker~=nil
-        and gStates.resourceTracker.influence~=nil
-        and gStates.resourceTracker.influence.reputation or nil
-    -- Redraw movement when ability flags change, even if total Move stays equal.
-    if totalsChanged or terrainChanged or transformChanged or moveSplitChanged
-        or enemyStateChanged or reputationBefore~=reputationAfter then
-        refreshResourceTrackerText()
-    end
-    if previousMove~=(totals.move or 0) or moveSplitChanged
-        or terrainChanged or movementChanged then
-        updateMoveDisplay()
-    end
-    for guid in pairs(previous) do
-        if current[guid]~=true then
-            combatConfig.sacrificeCastPairs[guid]=nil
-            clearHighlight(guid)
-            local previousObject=getObjectFromGUID(guid)
-            if not combatConfig.cardInTransit(previousObject) then
-                if choiceButtonShown[guid]~=nil and choiceButtonShown[guid]~="hidden" then
-                    removeChoiceButtons(previousObject)
-                end
-                -- A genuinely removed card must rebuild its controls on re-entry.
-                -- Preserve the existing object UI and its signature during
-                -- transient lifts; the settled drop scan owns their cleanup.
-                choiceButtonShown[guid]=nil
-                choiceExpandedByGUID[guid]=nil
-            end
-            -- A used Skill leaves play at end of turn; do not allow the
-            -- previous turn's Block link to be silently reused next turn.
-            local rule=skillResourceDefinitions[guid]
-            if rule~=nil and rule.damageMitigation~=nil and gStates~=nil then
-                local obj=getObjectFromGUID(guid)
-                if obj==nil or (obj.held_by_color==nil and not obj.isSmoothMoving()) then
-                    if guid=="ae8673" then gStates.elementalResistanceAttackKey=nil
-                    else gStates.battleHardenedAttackKey=nil end
-                end
-            end
-            if rule~=nil and rule.blockSourceBoost~=nil
-                and attackAssignmentsForgetBlockLink~=nil then
-                local obj=getObjectFromGUID(guid)
-                if obj==nil or (obj.held_by_color==nil
-                    and not obj.isSmoothMoving()) then
-                    attackAssignmentsForgetBlockLink(guid)
-                end
-            end
-        end
-    end
-    -- A borrowed offer Unit is not a normal Unit-zone object. Zone-exit
-    -- tracker refreshes can drop its independent cycling UI during dragging.
-    -- Restore it after all tracker-owned UI writes, without touching resources.
-    if callOfferEnsureControls~=nil then callOfferEnsureControls(seatPos) end
-    if magicTalentEnsureControls~=nil then magicTalentEnsureControls(seatPos) end
-    if unitReplacementEnsureControls~=nil then unitReplacementEnsureControls(seatPos) end
-    if steadyTempoRefreshAll~=nil and next(gStates.steadyTempoPending or {})~=nil then
-        steadyTempoRefreshAll()
-    end
-    trackerPrivate.renderCombatNight=nil
-    if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("render.done",seatPos) end
+    trackerPrivate.scanPublication.publish({
+        seatPos=seatPos, records=records, resourceCardsMoveRole=resourceCardsMoveRole,
+        trackerPrivate=trackerPrivate, combatEnemyInPlay=combatEnemyInPlay, terrainModifiers=terrainModifiers,
+        terrainModifierPrecedes=terrainModifierPrecedes, totals=totals, movementEffects=movementEffects,
+        attackTransforms=attackTransforms, resourceCardsSyncInteractionPower=resourceCardsSyncInteractionPower,
+        combatConfig=combatConfig, current=current, enemyEffects=enemyEffects,
+        ruthlessReadySpent=ruthlessReadySpent, ignoreSiteFortifications=ignoreSiteFortifications,
+        unitState=unitState, cards=cards, cardPosture=cardPosture, preventUnitDamage=preventUnitDamage,
+        allUnitResistances=allUnitResistances, heroFirstWoundIgnored=heroFirstWoundIgnored,
+        heroPsychicBlock=heroPsychicBlock, usesCurrentHexBlock=usesCurrentHexBlock,
+        usesCurrentHexHealing=usesCurrentHexHealing, usesSkillLocation=usesSkillLocation,
+        readyNeedsRescan=readyNeedsRescan, refreshCombatEnemyPanel=refreshCombatEnemyPanel,
+        combatMonsters=combatMonsters, resourceCardsApplyFameRep=resourceCardsApplyFameRep,
+        clearHighlight=clearHighlight, choiceButtonShown=choiceButtonShown,
+        removeChoiceButtons=removeChoiceButtons, choiceExpandedByGUID=choiceExpandedByGUID,
+    })
 end
 
 local function scheduleSeatRender(seatPos)

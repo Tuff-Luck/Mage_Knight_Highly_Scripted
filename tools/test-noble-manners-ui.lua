@@ -16,7 +16,7 @@ assert(data:find('nobleManners={normal={influence=2},powered={influence=4}',1,tr
 local first=assert(source:find("combatConfig.cardInTransit=function(card)",1,true))
 local last=assert(source:find("-- One selected icon in the Unit",first,true))
 local uiSection=source:sub(first,last-1)
-assert(source:find("if not combatConfig.cardInTransit(previousObject) then",1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/ScanPublication.lua"):find("if not combatConfig.cardInTransit(previousObject) then",1,true),
     "Temporary play-zone exits must preserve card-attached controls")
 assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua"):find("and combatConfig.cardChoicesPresent(card) then return end",1,true),
     "All card controls must be checked before reusing a cached UI signature")

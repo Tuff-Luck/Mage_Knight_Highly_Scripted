@@ -23,7 +23,7 @@ local lockCode=slice(source,"local function combatSourceKeepsLock(key)",
     "-- Physical target controls and the calculator")
 local dropCode=slice(source,"function resourceCardsObjectMoved(obj,stabilized)",
     "-- Register the remaining readying")
-local recoverCode=slice(source,"    -- A released source may be above the shallow zone",
+local recoverCode=slice(read("src/PlayingGame/PlayerBoard/ResourceTracker/ScanObservation.lua"),"    -- A released source may be above the shallow zone",
     "    -- A resting active Unit can be lifted")
 
 local pos={x=0,y=12,z=0,[1]=0,[2]=12,[3]=0}

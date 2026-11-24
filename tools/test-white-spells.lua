@@ -146,10 +146,10 @@ local wings=rules.spellWingsNight
 local wingsStrong=assert(combatEffectSpec(wings,true,nil))
 eq(wingsStrong.noAttack,true,"Wings of Night suppression")
 eq(wingsStrong.multiTargetMove,true,"Wings of Night multi-target flow")
-assert(reader:find("local cost=count",1,true),"Wings escalates each target cost")
-assert(reader:find("if not immune and affordable then count=count+1 spent=spent+cost end",1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/ScanFinalization.lua"):find("local cost=count",1,true),"Wings escalates each target cost")
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/ScanFinalization.lua"):find("if not immune and affordable then count=count+1 spent=spent+cost end",1,true),
     "Only eligible targets count towards spent Move")
-assert(reader:find("adjusted.move=original-used",1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/ScanFinalization.lua"):find("adjusted.move=original-used",1,true),
     "Wings actually consumes Move from its source")
 local wingsEffects={}
 combatEffectAdd(wingsEffects,"first","2eb8e9",
