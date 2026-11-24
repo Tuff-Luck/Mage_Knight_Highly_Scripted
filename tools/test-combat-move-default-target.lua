@@ -15,23 +15,24 @@ end
 local reader=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local assets=read("src/PlayingGame/UIAssets.lua")
 local unitControls=read("src/PlayingGame/PlayerBoard/ResourceTracker/UnitControls.lua")
+local cardOptions=read("src/PlayingGame/PlayerBoard/ResourceTracker/CardControlOptions.lua")
 
 assert(reader:find('if moveAmount>0 and resourceCardsMoveRole(guid,true)=="combat" then',1,true),
     "Only combat-role Move can become a Calculator source")
 assert(reader:find('combatAssignmentState.explicit[source.key]=autoCombatMove and targetGUID~=nil or nil',
     1,true),"Default Cumbersome target must reserve the Move pool")
-assert(reader:find('combatEntry.icon="block"',1,true)
-    and reader:find('combatEntry.stackedIcons={"block","move"}',1,true)
-    and reader:find('combatEntry.roleBadge=nil',1,true),
+assert(cardOptions:find('combatEntry.icon="block"',1,true)
+    and cardOptions:find('combatEntry.stackedIcons={"block","move"}',1,true)
+    and cardOptions:find('combatEntry.roleBadge=nil',1,true),
     "Combat Move option must use full-size shield + Move icons, not a C badge")
-assert(reader:find('entry.stackedIcons={"block","influence"}',1,true)
-    and reader:find('if category=="influence" and combatPsychicActive',1,true),
+assert(cardOptions:find('entry.stackedIcons={"block","influence"}',1,true)
+    and cardOptions:find('if category=="influence" and combatPsychicActive',1,true),
     "Psychic Block option must use full-size shield + Influence icons")
 assert(reader:find('image=stackedAsset.name,width=82,height=82',1,true)
     and reader:find('for _,stackedIcon in ipairs(entry.stackedIcons)',1,true),
     "Composite icons must reuse Tempered Steel's full-size stacked rendering")
-assert(reader:find('if combatCalcOn and combatCumbersomeActive then',1,true)
-    and reader:find('if selected~=nil and combatCalcOn and combatCumbersomeActive',1,true),
+assert(cardOptions:find('if combatCalcOn and combatCumbersomeActive then',1,true)
+    and cardOptions:find('if selected~=nil and combatCalcOn and combatCumbersomeActive',1,true),
     "Combat Move choice must disappear when no Cumbersome enemy is available")
 assert(unitControls:find('if combatMoveAvailable then',1,true)
     and unitControls:find('if combatMoveAvailable\n',1,true),

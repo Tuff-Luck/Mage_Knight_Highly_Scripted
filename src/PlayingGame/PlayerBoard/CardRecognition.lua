@@ -7436,6 +7436,23 @@ trackerPrivate.grailFameButton=function(card,uiRotation,buttonDepth)
         value="F "..tostring(used).."/2"}
 end
 
+trackerPrivate.cardControlOptions=require("PlayingGame.PlayerBoard.ResourceTracker.CardControlOptions")({
+    choiceLetters=choiceLetters,
+    combatConfig=combatConfig,
+    combatContext=function() return combatCalcOn,combatPsychicActive,combatCumbersomeActive end,
+    cardPosture=function(...) return cardPosture(...) end,
+    choiceHasTargetableCombatResource=function(...) return choiceHasTargetableCombatResource(...) end,
+    combatEffectSpec=function(...) return combatEffectSpec(...) end,
+    resourceChoiceRank=function(...) return resourceChoiceRank(...) end,
+    currentChoice=function(...) return currentChoice(...) end,
+    inventorySetChoice=function(...) return inventorySetChoice(...) end,
+    choiceCategory=function(...) return choiceCategory(...) end,
+    skillChoiceFamily=function(...) return skillChoiceFamily(...) end,
+    combatReductionChoiceIcon=function(...) return combatReductionChoiceIcon(...) end,
+    resourceCardsMoveRole=function(...) return resourceCardsMoveRole(...) end,
+    resourceCardsHideAutomaticEnemyTarget=function(...) return resourceCardsHideAutomaticEnemyTarget(...) end
+})
+
 -- A single selected icon is centred on the object. Click to expand all
 -- choices; selecting one immediately collapses back to its icon.
 local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySets,resources,repeatLink)
@@ -7450,84 +7467,7 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
     local cardData=gameCards[card.guid]
     local rule=cardData~=nil and cardResourceDefinitions[cardData.resourceKey]
         or skillResourceDefinitions[card.guid]
-    local function targetResourceFor(choice,category)
-        if category=="ready" and cardData~=nil
-            and cardData.resourceKey=="rejuvenate" then return "unitReady" end
-        if rule~=nil and rule.blockSourceBoost~=nil then return "blockSource" end
-        -- Ambush has ONE reusable target button. An Action card receives the
-        -- combat bonus; a Cumbersome enemy receives the independent Move.
-        if rule~=nil and rule.combatLink~=nil and cardPosture(card)=="upright"
-            and card.is_face_down~=true then return "ambush" end
-        -- Mana Overload's choices select which linked CARD resource is boosted;
-        -- the Skill itself is not an independently targetable Attack/Block.
-        if rule~=nil and rule.manaOverload==true then return nil end
-        if not combatCalcOn then return nil end
-        if rule~=nil and rule.damageMitigation~=nil then return "effect" end
-        for _,field in ipairs(combatConfig.sourceFields) do
-            if (tonumber(choice[field.key]) or 0)>0 then return field.key end
-        end
-        if combatPsychicActive and (tonumber(choice.influence) or 0)>0 then return "influence" end
-        if combatCumbersomeActive and (tonumber(choice.move) or 0)>0 then return "move" end
-        if rule~=nil and rule.dodgeAttackSplit==true then return nil end
-        local spec=combatEffectSpec(rule,powered,category)
-        if spec~=nil and not spec.all then return "effect" end
-        return choiceHasTargetableCombatResource(category) and category or nil
-    end
-    -- Give non-resource Skill effects the same dedicated targeting icon used
-    -- by the combat calculator, without pretending the bonus is a free Block.
-    if rule~=nil and rule.blockSourceBoost~=nil then
-        choices={{key="guide",icon="move"}}
-    elseif rule~=nil and rule.damageMitigation~=nil then
-        choices={{key="hardened",icon="other"}}
-    end
-    -- Starting cards with selectable conditional effects keep their controls
-    -- even when their Move/Influence value is fixed; manual notes need no button.
-    if rule~=nil and (rule.interactionReward~=nil or rule.recruitDiscount~=nil
-        or rule.selectedTerrainDiscount~=nil)
-        and (choices==nil or #choices==0) and type(resources)=="table" then
-        if (tonumber(resources.move) or 0)>0 then choices={{move=resources.move}}
-        elseif (tonumber(resources.influence) or 0)>0 then
-            choices={{influence=resources.influence}} end
-    end
-    -- Regeneration's Heal and Ready are simultaneous, not a choice.
-    if (choices==nil or #choices==0) and rule~=nil
-        and rule.simultaneousReady==true and type(resources)=="table"
-        and (tonumber(resources.healing) or 0)>0 then
-        choices={{healing=resources.healing}}
-    end
-    -- Ambush has only printed Move, but its independent combat buff must be
-    -- targetable even before an enemy is in the play area.
-    if (choices==nil or #choices==0) and rule~=nil and rule.combatLink~=nil
-        and type(resources)=="table" and (tonumber(resources.move) or 0)>0
-        and cardPosture(card)=="upright" and card.is_face_down~=true then
-        choices={{move=resources.move}}
-    end
-    -- Fixed Move effects also require an ordinary grid choice for their phase.
-    if (choices==nil or #choices==0) and type(resources)=="table"
-        and (tonumber(resources.move) or 0)>0 then
-        choices={{move=resources.move}}
-    end
-    -- A fixed effect (no alternatives) still needs a Target button for its combat resource.
-    if (choices==nil or #choices==0) and type(resources)=="table" then
-        local bestKey,bestRank
-        for key,value in pairs(resources) do
-            if type(value)=="number" and value>0 and choiceLetters[key]~=nil
-                and choiceHasTargetableCombatResource(key) then
-                local rank=key=="move" and 99 or resourceChoiceRank(key,{[key]=value})
-                if bestKey==nil or rank<bestRank or (rank==bestRank and key<bestKey) then
-                    bestKey,bestRank=key,rank
-                end
-            end
-        end
-        if bestKey~=nil then choices={{[bestKey]=resources[bestKey]}} end
-    end
-    -- Training, Force of Nature (basic) and other manual copied effects
-    -- still get one visible reminder row per use. Never manufacture a
-    -- numeric effect or an unsupported target for an untracked action.
-    if repeatLink~=nil and repeatLink.count>1
-        and (choices==nil or #choices==0) then
-        choices={{key="other",icon="other"}}
-    end
+    choices=trackerPrivate.cardControlOptions.fallbackChoices(card,rule,choices,resources,repeatLink)
     local posture=cardPosture(card)
     local reward=factionRewardForObject~=nil and factionRewardForObject(card) or nil
     local isSkill=skillTokens[card.guid]~=nil or card.getGMNotes()=="Puppet Master"
@@ -7591,155 +7531,16 @@ local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySet
         return
     end
 
-    -- Multiple-choice cards normally have one row. A declarative inventory
-    -- set rule adds one more compact row for each complete set of crystals.
-    local rows={{index=0,choices=choices}}
-    -- Each copied use gets its own visible row, even when the printed
-    -- effect has no alternatives. Numeric effects still share one composite
-    -- combat source; enemy-only effects may have independent targets.
-    if repeatLink~=nil and repeatLink.count>1 and posture=="upright" then
-        rows={}
-        for i=1,repeatLink.count do
-            rows[#rows+1]={index=-i,
-                choices=repeatLink.options~=nil and (repeatLink.options[i] or {})
-                    or choices}
+    local rows,signatureParts,visibleAssets,assetSeen=trackerPrivate.cardControlOptions.buildRows(
+        card,cardData,rule,choices,powered,inventorySpec,inventorySets,repeatLink,
+        posture,isSkill,choiceExpandedByGUID[card.guid])
+    if rows==nil then
+        if choiceButtonShown[card.guid]~="hidden" then
+            removeChoiceButtons(card)
+            choiceButtonShown[card.guid]="hidden"
         end
-    end
-    if powered and posture=="upright" and inventorySpec~=nil then
-        for i=1,(inventorySets or 0) do
-            rows[#rows+1]={index=i,choices=inventorySpec.choices}
-        end
-    end
-    local expandedRow=choiceExpandedByGUID[card.guid]
-    local signatureParts,visibleAssets,assetSeen={}, {}, {}
-    for _,row in ipairs(rows) do
-        local _,selected
-        if row.index<0 then
-            _,selected=combatConfig.repeatChoiceFor(card.guid,powered,row.choices,-row.index)
-        elseif row.index==0 then
-            _,selected=currentChoice(card.guid,powered,row.choices,
-                not isSkill and posture=="sideways")
-        else
-            _,selected=inventorySetChoice(card.guid,row.index,row.choices,choices)
-        end
-        row.selected=selected
-        if selected~=nil and combatCalcOn and combatCumbersomeActive
-            and resourceCardsMoveRole(card.guid,false)=="combat" then
-            for _,option in ipairs(row.choices) do
-                if choiceCategory(option)==selected and (tonumber(option.move) or 0)>0 then
-                    row.selected="combatMove"..selected
-                    break
-                end
-            end
-        end
-        row.entries={}
-        local seen={}
-        for j,choice in ipairs(row.choices) do
-            local category=choiceCategory(choice)
-            if category~=nil and choiceLetters[category]~=nil and not seen[category] then
-                seen[category]=true
-                local producesMove=(tonumber(choice.move) or 0)>0
-                local entry={category=category,
-                    rank=resourceChoiceRank(category,choice),originalIndex=j,
-                    skillFamily=isSkill and skillChoiceFamily(category,choice) or nil,
-                    icon=combatReductionChoiceIcon(rule,powered,choice,category),
-                    iconOverlay=choice.iconOverlay,
-                    stackedIcons=choice.stackedIcons,splitTargets=choice.splitTargets,
-                    forkedCount=rule~=nil and rule.forkedLightning and choice.rangedColdFire or nil,
-                    targetResource=targetResourceFor(choice,category),
-                    iconOverlayColor=choice.iconOverlayColor,
-                    iconOverlayAlignment=choice.iconOverlayAlignment,
-                    iconOverlaySize=choice.iconOverlaySize,
-                    roleBadge=producesMove and "M" or nil}
-                -- In combat, Influence can be committed to Psychic Block.
-                -- Show its function with shield beneath the Influence symbol.
-                if category=="influence" and combatPsychicActive
-                    and (tonumber(choice.influence) or 0)>0 then
-                    entry.icon="block"
-                    entry.stackedIcons={"block","influence"}
-                end
-                if producesMove then
-                    -- Two cells, one printed Move effect. Never duplicate points.
-                    entry.targetResource=nil
-                    row.entries[#row.entries+1]=entry
-                    -- Only offer defensive Move when at least one enemy has
-                    -- Cumbersome. Normal Move stays available otherwise.
-                    if combatCalcOn and combatCumbersomeActive then
-                        local combatEntry={}
-                        for key,value in pairs(entry) do combatEntry[key]=value end
-                        combatEntry.category="combatMove"..category
-                        combatEntry.originalIndex=j+0.5
-                        -- Match Tempered Steel: both icons are full-size,
-                        -- drawn in order with the Move symbol on top.
-                        combatEntry.icon="block"
-                        combatEntry.stackedIcons={"block","move"}
-                        combatEntry.roleBadge=nil
-                        combatEntry.targetResource="move"
-                        row.entries[#row.entries+1]=combatEntry
-                    end
-                else
-                    row.entries[#row.entries+1]=entry
-                end
-            end
-        end
-        table.sort(row.entries,function(a,b)
-            if a.rank~=b.rank then return a.rank<b.rank end
-            return a.originalIndex<b.originalIndex
-        end)
-        for _,entry in ipairs(row.entries) do
-            -- The Combat Calculator assigns ordinary Attack/Block to the lone
-            -- enemy automatically. Keep all special split, manual and friendly
-            -- target controls, even if they currently have only one candidate.
-            if entry.targetResource~=nil and entry.splitTargets==nil
-                and (rule==nil or rule.forkedLightning~=true)
-                and resourceCardsHideAutomaticEnemyTarget(card.guid,
-                    entry.targetResource,false) then
-                entry.targetResource=nil
-            end
-        end
-        if #row.entries<1 or selected==nil then
-            if choiceButtonShown[card.guid]~="hidden" then
-                removeChoiceButtons(card)
-                choiceButtonShown[card.guid]="hidden"
-            end
-            choiceExpandedByGUID[card.guid]=nil
-            return
-        end
-        row.expanded=#row.entries>1 and ((row.index==0 and (expandedRow==true or expandedRow=="base"))
-            or (row.index>0 and expandedRow=="set"..tostring(row.index))
-            or (row.index<0 and expandedRow=="rep"..tostring(-row.index)))
-        local selectedEntry
-        for _,entry in ipairs(row.entries) do
-            if entry.category==row.selected then selectedEntry=entry break end
-        end
-        row.visible=row.expanded and row.entries or {selectedEntry}
-        local categories={}
-        for _,entry in ipairs(row.visible) do
-            categories[#categories+1]=entry.category
-            if not assetSeen[entry.icon] then
-                visibleAssets[#visibleAssets+1]=entry.icon
-                assetSeen[entry.icon]=true
-            end
-            for _,stackedIcon in ipairs(entry.stackedIcons or {}) do
-                if not assetSeen[stackedIcon] then
-                    visibleAssets[#visibleAssets+1]=stackedIcon
-                    assetSeen[stackedIcon]=true
-                end
-            end
-            if not row.expanded and entry.targetResource~=nil
-                and not assetSeen.target then
-                visibleAssets[#visibleAssets+1]="target"
-                assetSeen.target=true
-            end
-            for _,part in ipairs(not row.expanded and entry.splitTargets or {}) do
-                if not assetSeen[part] then
-                    visibleAssets[#visibleAssets+1]=part
-                    assetSeen[part]=true
-                end
-            end
-        end
-        signatureParts[#signatureParts+1]=row.index..":"..row.selected..":"
-            ..(row.expanded and "open" or "closed")..":"..table.concat(categories,",")
+        choiceExpandedByGUID[card.guid]=nil
+        return
     end
     local buttonRotation=180
     if posture=="sideways" then
