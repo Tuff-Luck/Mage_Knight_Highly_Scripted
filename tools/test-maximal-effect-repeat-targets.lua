@@ -14,7 +14,7 @@ local function eq(actual,expected,label)
         ..tostring(expected)..", got "..tostring(actual))
 end
 local reader=source("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-local targeting=source("src/PlayingGame/AttackAssignments.lua")
+local targeting=source("src/PlayingGame/Combat/AttackAssignments.lua")
 -- A fixed-effect copy must produce two/three rows, not one multiplied button.
 contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CardControlOptions.lua"),'if repeatLink~=nil and repeatLink.count>1 and posture=="upright" then',
     "Every copied Action must show per-use rows")

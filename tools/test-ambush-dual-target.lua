@@ -13,7 +13,7 @@ local function section(source,first,last)
     return source:sub(a,b-1)
 end
 local reader=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-local arrows=read("src/PlayingGame/AttackAssignments.lua")
+local arrows=read("src/PlayingGame/Combat/AttackAssignments.lua")
 local data=read("src/Data.lua")
 assert(data:find("ambush={normal={move=2},powered={move=4}",1,true))
 assert(data:find("combatLink={normal={attack=1,block=2},powered={attack=2,block=4}}",1,true))

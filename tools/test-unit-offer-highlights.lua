@@ -1,5 +1,5 @@
 -- Run from repo root: lua5.2 tools/test-unit-offer-highlights.lua
-local h=assert(io.open("src/PlayingGame/Offers.lua","r"))
+local h=assert(io.open("src/PlayingGame/Offers/Offers.lua","r"))
 local src=h:read("*a") h:close()
 local start=assert(src:find("-- Unit-offer recruitment highlights.",1,true))
 local finish=assert(src:find("-- The Spell browser uses",start,true))
@@ -102,11 +102,11 @@ offer={a}
 gStates.tacticShown=true
 refreshUnitOfferHighlights()
 assert(a.color==nil,"no glow while choosing tactics")
-local ui=assert(io.open("src/PlayingGame/UI.lua","r"))
+local ui=assert(io.open("src/PlayingGame/Interface/UI.lua","r"))
 local sourceUI=ui:read("*a") ui:close()
 assert(sourceUI:find("if resourceCardsEnemyPresent~=nil and resourceCardsEnemyPresent() then return nil end",1,true),
     "combat must suppress affordability")
-local eventFile=assert(io.open("src/PlayingGame/Events.lua","r"))
+local eventFile=assert(io.open("src/PlayingGame/GameFlow/Events.lua","r"))
 local eventSource=eventFile:read("*a") eventFile:close()
 assert(eventSource:find("refreshUnitOfferForEnemyZoneChange(ctx)",1,true),
     "Enemy zone changes must refresh glow even when Resource Tracker is closed")

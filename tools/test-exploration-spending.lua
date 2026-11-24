@@ -17,9 +17,9 @@ local function eq(actual,expected,label)
 end
 
 local recognition=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-local ui=read("src/PlayingGame/UI.lua")
-local map=read("src/PlayingGame/Map.lua")
-local movement=read("src/PlayingGame/Movement.lua")
+local ui=read("src/PlayingGame/Interface/UI.lua")
+local map=read("src/PlayingGame/World/Map.lua")
+local movement=read("src/PlayingGame/World/Movement.lua")
 local xml=read("src/UI/ResourceTracker.xml")
 local hawk="152a98"
 local feral="c73c8c"

@@ -68,7 +68,7 @@ eq(gStates.volkareState,"Start","Missing model leaves Volkare\'s turn retryable"
 local setupSource=source("src/SetupGame.lua")
 contains(setupSource,"gStates.volkareModel=volkareGUID","Setup fallback stores the model GUID")
 local volkare=source("src/PlayingGame/AI/Volkare.lua")
-local offers=source("src/PlayingGame/Offers.lua")
+local offers=source("src/PlayingGame/Offers/Offers.lua")
 contains(volkare,"if volkareDice==nil then","Missing die is handled before randomize")
 contains(volkare,"local color=volkareDieColor(die.getRotationValue())",
     "Physical die result uses normalized colour")
@@ -94,7 +94,7 @@ getObjectFromGUID=function(guid)
     return nil
 end
 gameCardType=function() return "Regular Unit" end
-dofile("src/PlayingGame/Offers.lua")
+dofile("src/PlayingGame/Offers/Offers.lua")
 local card={guid="a1b2c3",type="Card",resting=true,
     isSmoothMoving=function() return false end,
     getPosition=function() return {36,0.98,-4.2} end}

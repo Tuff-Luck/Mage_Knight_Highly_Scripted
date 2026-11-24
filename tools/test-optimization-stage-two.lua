@@ -118,7 +118,7 @@ assert(layout:find("function unitLayoutCommandDropped(obj)",1,true),
 
 -- The real Source wait must have a finite timeout, and must not mirror the
 -- face of an unsettled die at that timeout. A later entry can refresh it.
-local events=read("src/PlayingGame/Events.lua")
+local events=read("src/PlayingGame/GameFlow/Events.lua")
 local source=extract(events,"local function manaSourceDiceResting()",
     "\nfunction __onObjectEnterZone_raw(")
 local die={type="Dice",resting=false}

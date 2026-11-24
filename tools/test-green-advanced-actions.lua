@@ -17,7 +17,7 @@ local function eq(actual,expected,name)
 end
 local data=source("src/Data.lua")
 local reader=source("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-local callbacks=source("src/PlayingGame/Callbacks.lua")
+local callbacks=source("src/PlayingGame/GameFlow/Callbacks.lua")
 
 -- Heal 1/2 and Ready are simultaneous. They are not a mutually exclusive
 -- choice, and each copied use has its own undoable readying source.

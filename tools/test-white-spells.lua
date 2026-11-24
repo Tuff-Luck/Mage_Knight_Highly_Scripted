@@ -17,7 +17,7 @@ local function eq(value,expected,label)
 end
 local data=read("src/Data.lua")
 local reader=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-local offer=read("src/PlayingGame/CallOffer.lua")
+local offer=read("src/PlayingGame/Offers/CallOffer.lua")
 local rules=assert(load("return {\n"..between(data,
     "    -- Spell resources are independent","    -- Full-size Artifacts use a saved Break toggle").."\n}"))()
 gStates={monsterPerks={}}

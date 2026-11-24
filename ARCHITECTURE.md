@@ -7,8 +7,8 @@ The project is authored as Lua modules and bundled by Sebastian's Tabletop Simul
 | `src/Data.lua` | Static game data: cards, monsters, scenarios, GUID mappings and other large lookup tables. |
 | `src/ErrorReporting.lua` | Automatic Lua error reporting, protected callback helpers, breadcrumbs and diagnostic context builders. |
 | `src/Shared.lua` | Shared helpers used across setup/runtime modules, including protected asynchronous/callback helpers. |
-| `src/PlayingGame/DeckCycle.lua` | Shared live-pile lookup and bottom-return cycle tracking for Artifact, Unit, Advanced Action and Spell decks. |
-| `src/PlayingGame/AttackAssignments.lua` | Runtime attack-target selection, temporary enemy buttons, and persistent source-to-enemy vector arrows. |
+| `src/PlayingGame/Offers/DeckCycle.lua` | Shared live-pile lookup and bottom-return cycle tracking for Artifact, Unit, Advanced Action and Spell decks. |
+| `src/PlayingGame/Combat/AttackAssignments.lua` | Runtime attack-target selection, temporary enemy buttons, and persistent source-to-enemy vector arrows. |
 | `src/SetupInterface.lua` | Setup menu/UI state, scenario/variant option presentation, cross-option locks and setup-facing controls. |
 | `src/SetupGame.lua` | Setup orchestration: Start handling, final option normalization, delayed completion and setup callback boundary. |
 | `src/SetupGame/Components.lua` | Monster pools and setup-time expansion bag merging. |
@@ -17,12 +17,12 @@ The project is authored as Lua modules and bundled by Sebastian's Tabletop Simul
 | `src/SetupGame/HigherLevel.lua` | Start-at-higher-level setup and temporary player pools. |
 | `src/SetupGame/HeroChallenges.lua` | Hero Challenge legality, terrain assignment and setup-facing objective helpers. |
 | `src/SetupGame/Map.lua` | Starting-map construction, terrain-stack building and setup-only Fury lair placement. |
-| `src/PlayingGame/Map.lua` | Map state, avatar location, terrain placement/population, exploration, shield placement, terrain-site helpers and rampaging-enemy placement. |
-| `src/PlayingGame/MapTokens.lua` | Runtime-only physical map-token arrival, shared-hex stacking/separation and deterministic token layout. |
-| `src/PlayingGame/Offers.lua` | Artifact, Unit, Monastery and deed-offer layout/refill runtime. |
-| `src/PlayingGame/TokenPools.lua` | Monster token-pool refill plus bag scaling/discard-stack presentation. |
-| `src/PlayingGame/ManaSource.lua` | Shared/mirrored Mana Source dice state and synchronization. |
-| `src/PlayingGame/Quests.lua` | Apocalypse Quest engine, quest state, offer flow, rewards and interactions. Quest-specific legality, combat metadata and resolution effects register through the local handler registry; `ResolveStepAction` is a lifecycle dispatcher over validation and Progress/Complete/Fail phases. |
+| `src/PlayingGame/World/Map.lua` | Map state, avatar location, terrain placement/population, exploration, shield placement, terrain-site helpers and rampaging-enemy placement. |
+| `src/PlayingGame/World/MapTokens.lua` | Runtime-only physical map-token arrival, shared-hex stacking/separation and deterministic token layout. |
+| `src/PlayingGame/Offers/Offers.lua` | Artifact, Unit, Monastery and deed-offer layout/refill runtime. |
+| `src/PlayingGame/Components/TokenPools.lua` | Monster token-pool refill plus bag scaling/discard-stack presentation. |
+| `src/PlayingGame/Components/ManaSource.lua` | Shared/mirrored Mana Source dice state and synchronization. |
+| `src/PlayingGame/Scenarios/Quests.lua` | Apocalypse Quest engine, quest state, offer flow, rewards and interactions. Quest-specific legality, combat metadata and resolution effects register through the local handler registry; `ResolveStepAction` is a lifecycle dispatcher over validation and Progress/Complete/Fail phases. |
 | `src/PlayingGame/PlayerBoard/CardFlow.lua` | Player deed/deck/discard/hand flow, wound dealing and Glade discard-healing runtime. |
 | `src/PlayingGame/PlayerBoard/UnitLayout.lua` | Runtime Unit/Command-slot layout, compression and player-board unit positioning. |
 | `src/PlayingGame/PlayerBoard/Events.lua` | Player-board scripting-zone reactions and card presentation helpers dispatched by the global event layer. |
@@ -76,29 +76,29 @@ The project is authored as Lua modules and bundled by Sebastian's Tabletop Simul
 | `src/PlayingGame/PlayerBoard/CombatEffects.lua` | Runtime enemy-targeted Combat Action effects (nearest-enemy linking, Armour/attack modifiers) driven by `enemyEffect` rules in `Data.lua`. |
 | `src/PlayingGame/PlayerBoard/Skills.lua` | Skill offers, claims, skill state and player skill interactions. |
 | `src/PlayingGame/PlayerBoard/PuppetMaster.lua` | Krang Puppet Master enemy/puppet behaviour. |
-| `src/PlayingGame/Combat.lua` | Combat areas, attacks, assaults, combat UI/camera support, summons, pursuit and physical pre-end-turn combat cleanup. While the Combat Calculator runs, Combat also owns the runtime-only defeat marks (red X on tokens the calculator shows defeated; `combatEnemyTokenDefeated` feeds the UI Fame/Rep pass, End Turn uses persisted calculator defeat/partial verdicts without physically flipping tracked tokens, and manual face-down flips are reverted while the calculator is open). The public pre-end-turn path is a phase orchestrator; generic extra-turn/reward sequencing stays in Turn. |
-| `src/PlayingGame/FameReputation.lua` | Cross-module Fame/Reputation accounting service used explicitly by Combat, UI, Map, Skills, Turn and Events entry points. |
-| `src/PlayingGame/Turn.lua` | Turn progression, reward gates, final-turn boundaries, end-of-round lifecycle, tactics and day/night transitions. End-turn and end-round are explicit phase pipelines rather than monolithic callbacks. |
-| `src/PlayingGame/City.lua` | City placement, levels, garrisons, city state and city runtime behaviour; delegates faction-specific work. |
-| `src/PlayingGame/FactionLeaders.lua` | Dark Crusader and Elementalist levels, deployment, cooperative previews, combat damage, overkill controls and faction scoring. |
-| `src/PlayingGame/BaseScenario.lua` | Shared scenario lifecycle/victory dispatch, original Mage Knight rules, mines, Druid Nights, Dungeon Lords and One to Return. |
-| `src/PlayingGame/LLScenario.lua` | Lost Legion scenario runtime: Volkare's Quest/Return, camp-as-city and pursuit helpers. |
-| `src/PlayingGame/SOTScenario.lua` | Shades of Tezla scenario-specific rules for Realm of the Dead and Hidden Valley. |
-| `src/PlayingGame/APOCScenario.lua` | Apocalypse scenario runtime: Fractured Lands, Horsemen, Dragon, destroyed sites and Fury elite eligibility. |
-| `src/PlayingGame/FanScenario.lua` | Fan-created scenario victory rules, including the custom Conquest variants and War of Four. |
-| `src/PlayingGame/ApocalypseDragon.lua` | Shared Apocalypse Dragon infrastructure for all Dragon scenarios: head levels/setup, landed Dragon combat, common choice helpers, and the interstitial Dragon-turn shell shared by Against the Dragon and Fury. |
-| `src/PlayingGame/Horsemen.lua` | Shared Four Horsemen entity/combat layer for Against the Horsemen and Apocalypse is Here: level projection, individual attacks/defeats, shared restore state and defeat summaries. |
-| `src/PlayingGame/Scoring.lua` | End-game and scenario scoring. |
+| `src/PlayingGame/Combat/Combat.lua` | Combat areas, attacks, assaults, combat UI/camera support, summons, pursuit and physical pre-end-turn combat cleanup. While the Combat Calculator runs, Combat also owns the runtime-only defeat marks (red X on tokens the calculator shows defeated; `combatEnemyTokenDefeated` feeds the UI Fame/Rep pass, End Turn uses persisted calculator defeat/partial verdicts without physically flipping tracked tokens, and manual face-down flips are reverted while the calculator is open). The public pre-end-turn path is a phase orchestrator; generic extra-turn/reward sequencing stays in Turn. |
+| `src/PlayingGame/GameFlow/FameReputation.lua` | Cross-module Fame/Reputation accounting service used explicitly by Combat, UI, Map, Skills, Turn and Events entry points. |
+| `src/PlayingGame/GameFlow/Turn.lua` | Turn progression, reward gates, final-turn boundaries, end-of-round lifecycle, tactics and day/night transitions. End-turn and end-round are explicit phase pipelines rather than monolithic callbacks. |
+| `src/PlayingGame/World/City.lua` | City placement, levels, garrisons, city state and city runtime behaviour; delegates faction-specific work. |
+| `src/PlayingGame/Scenarios/FactionLeaders.lua` | Dark Crusader and Elementalist levels, deployment, cooperative previews, combat damage, overkill controls and faction scoring. |
+| `src/PlayingGame/Scenarios/BaseScenario.lua` | Shared scenario lifecycle/victory dispatch, original Mage Knight rules, mines, Druid Nights, Dungeon Lords and One to Return. |
+| `src/PlayingGame/Scenarios/LLScenario.lua` | Lost Legion scenario runtime: Volkare's Quest/Return, camp-as-city and pursuit helpers. |
+| `src/PlayingGame/Scenarios/SOTScenario.lua` | Shades of Tezla scenario-specific rules for Realm of the Dead and Hidden Valley. |
+| `src/PlayingGame/Scenarios/APOCScenario.lua` | Apocalypse scenario runtime: Fractured Lands, Horsemen, Dragon, destroyed sites and Fury elite eligibility. |
+| `src/PlayingGame/Scenarios/FanScenario.lua` | Fan-created scenario victory rules, including the custom Conquest variants and War of Four. |
+| `src/PlayingGame/Scenarios/ApocalypseDragon.lua` | Shared Apocalypse Dragon infrastructure for all Dragon scenarios: head levels/setup, landed Dragon combat, common choice helpers, and the interstitial Dragon-turn shell shared by Against the Dragon and Fury. |
+| `src/PlayingGame/Scenarios/Horsemen.lua` | Shared Four Horsemen entity/combat layer for Against the Horsemen and Apocalypse is Here: level projection, individual attacks/defeats, shared restore state and defeat summaries. |
+| `src/PlayingGame/GameFlow/Scoring.lua` | End-game and scenario scoring. |
 | `src/PlayingGame/AI/Common.lua` | Shared automated-player helpers. |
 | `src/PlayingGame/AI/Proxy.lua` | Apocalypse Proxy Player behaviour and choice flow. |
 | `src/PlayingGame/AI/Dummy.lua` | Standard Dummy player behaviour. |
 | `src/PlayingGame/AI/Volkare.lua` | Volkare movement, combat and scenario AI. |
-| `src/PlayingGame/Movement.lua` | Movement calculator, route/terrain costs and teleport movement assistance. |
-| `src/PlayingGame/Rollers.lua` | Centralized Roll Crystal Die/object roller behaviour. |
-| `src/PlayingGame/UI.lua` | Runtime presentation, camera controls, ALT views, resource/UI helpers and object UI installers. `mainUIUpdate()` is a coalesced dispatcher over focused refresh domains; expensive combat Fame/Reputation reconciliation is skipped only for explicitly non-combat sources. |
-| `src/PlayingGame/Events.lua` | Thin TTS event handling, maintenance/persistence support and runtime event dispatch. |
-| `src/PlayingGame/Telemetry.lua` | Opt-in statistics, bug-report and score-report payload construction/submission. |
-| `src/PlayingGame/Callbacks.lua` | Public/safe callback boundaries exposed to TTS/UI entry points, including final `onLoad` composition. |
+| `src/PlayingGame/World/Movement.lua` | Movement calculator, route/terrain costs and teleport movement assistance. |
+| `src/PlayingGame/Components/Rollers.lua` | Centralized Roll Crystal Die/object roller behaviour. |
+| `src/PlayingGame/Interface/UI.lua` | Runtime presentation, camera controls, ALT views, resource/UI helpers and object UI installers. `mainUIUpdate()` is a coalesced dispatcher over focused refresh domains; expensive combat Fame/Reputation reconciliation is skipped only for explicitly non-combat sources. |
+| `src/PlayingGame/GameFlow/Events.lua` | Thin TTS event handling, maintenance/persistence support and runtime event dispatch. |
+| `src/PlayingGame/GameFlow/Telemetry.lua` | Opt-in statistics, bug-report and score-report payload construction/submission. |
+| `src/PlayingGame/GameFlow/Callbacks.lua` | Public/safe callback boundaries exposed to TTS/UI entry points, including final `onLoad` composition. |
 | `src/PlayingGame/PlayerBoard/ResourceTracker/Combat/BlockCalculation.lua` | Exact Block and Cumbersome Move allocation, elemental/Psychic Block legality and efficiency, and spent Block totals. Operates on caller-supplied records; CardRecognition owns source collection, result cache, display, target assignment and phase commitments. Block/Move resource collection from assigned sources, result fingerprints and cache entries, successful Block and Move accounting, Shield Bash excess, ineffective Block display and unblocked damage records. Uses BlockSolver and coordinator-supplied callbacks; CardRecognition owns cache lifetime, target assignments and phase commitments. |
 | `src/PlayingGame/PlayerBoard/ResourceTracker/Combat/DamageCalculation.lua` | Damage input and legal Unit assignment specification, plus selected Battle Hardened and Elemental Resistance mitigation. No physical assignment mutations. Ordered Unit/Hero damage allocation, elemental resistance, forced recipients, Poison/Paralyse, Hero mitigation and already-applied destroyed-Unit damage. Consumes caller-supplied records and live lookup callbacks; CardRecognition retains Fortitude history ownership, wound ledger, physical dealing and targeting. |
 | `src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EnemyProperties.lua` | Fresh printed enemy Attack records, perk modifiers, elemental conversions, ordered per-Attack reductions and cancellation, summoned-token Attack assembly. Consumes caller-supplied records and selected attack indices; physical enemy lookup, phase state and assignment ownership remain with CardRecognition. Enemy traits, Fortification, elemental Resistance, effective Attack totals (including Artifact combat modes), grouped base/Elusive/boss Armour, and application of individual defensive effects to fresh calculator entries. Consumes caller-supplied enemy, resource and effect records; physical lookup, targeting, effect ownership and phase orchestration remain in CardRecognition. |
@@ -107,7 +107,7 @@ The project is authored as Lua modules and bundled by Sebastian's Tabletop Simul
 
 ## Dependency shape
 
-`Data`, `ErrorReporting`, `Shared` and `PlayingGame.DeckCycle` load first. DeckCycle owns the standard returned-card cycle and live draw-pile lookup used across Quest, Offer, Turn and player-board flows. Shared owns the generic runtime-map geometry/topology primitives (hex keys, adjacency, BFS distance maps, axial conversion and terrain-hex UI placement). Error reporting loads before Shared because the shared async/object helpers use its protected callback machinery. Setup modules then define setup-facing globals. Gameplay modules load after setup; FactionLeaders loads after City and before Combat, with other specialized modules defining systems before the final UI/event/callback layers. `PlayingGame.BaseScenario`, `PlayingGame.LLScenario`, `PlayingGame.SOTScenario`, `PlayingGame.APOCScenario` and `PlayingGame.FanScenario` load together before `PlayingGame.ApocalypseDragon` and `PlayingGame.Horsemen`; specialised encounter modules call scenario-owned hooks at runtime.
+`Data`, `ErrorReporting`, `Shared` and `PlayingGame.Offers.DeckCycle` load first. DeckCycle owns the standard returned-card cycle and live draw-pile lookup used across Quest, Offer, Turn and player-board flows. Shared owns the generic runtime-map geometry/topology primitives (hex keys, adjacency, BFS distance maps, axial conversion and terrain-hex UI placement). Error reporting loads before Shared because the shared async/object helpers use its protected callback machinery. Setup modules then define setup-facing globals. Gameplay modules load after setup; FactionLeaders loads after City and before Combat, with other specialized modules defining systems before the final UI/event/callback layers. `PlayingGame.Scenarios.BaseScenario`, `PlayingGame.Scenarios.LLScenario`, `PlayingGame.Scenarios.SOTScenario`, `PlayingGame.Scenarios.APOCScenario` and `PlayingGame.Scenarios.FanScenario` load together before `PlayingGame.Scenarios.ApocalypseDragon` and `PlayingGame.Scenarios.Horsemen`; specialised encounter modules call scenario-owned hooks at runtime.
 
 Cross-cutting services must not replace another module's global by load order. The owning module should keep the public entry point, give its underlying implementation a unique base name when necessary, and delegate explicitly to the service.
 

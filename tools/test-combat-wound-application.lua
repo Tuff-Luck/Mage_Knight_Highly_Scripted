@@ -127,12 +127,12 @@ assert(recognition:find('damagePhaseWound=guid=="878d92" and lateMoveSpent>0',1,
     "Agility must retain late-Move provenance")
 assert(recognition:find('if field=="move" and source.damagePhaseWound',1,true),
     "Agility must track consumed Wound Move")
-assert(fileText("src/PlayingGame/Combat.lua"):find(
+assert(fileText("src/PlayingGame/Combat/Combat.lua"):find(
     "attackAssignmentsUnitPreviewCommit",1,true),"Unit preview still commits at End Turn")
 
 -- The explicit Draw Wounds UI refresh must not re-count all enemy rewards:
 -- temporary movement through the thin combat zone could otherwise revoke Fame.
-local ui=fileText("src/PlayingGame/UI.lua")
+local ui=fileText("src/PlayingGame/Interface/UI.lua")
 local nonCombatUpdates=isolated(ui,"local mainUINonCombatAccountingSources={",
     "local function setEndTurnText","return mainUINonCombatAccountingSources")
 eq(nonCombatUpdates["Combat Wounds applied"],true,
@@ -682,13 +682,13 @@ assert(xml:find('width="410" height="280"',1,true)
     and xml:find('returnToOriginalPositionWhenReleased="false"',1,true)
     and xml:find('preferredHeight="154"',1,true),
     "confirmation should be compact and stay where dragged")
-assert(fileText("src/PlayingGame/UI.lua"):find(
+assert(fileText("src/PlayingGame/Interface/UI.lua"):find(
     'resourceCardsRequestCombatWounds(player)',1,true),
     "the original wound button must open confirmation, not deal Wounds")
 
 -- Exercise the actual UI routing with no access to the module-private
 -- combatConfig table. Previously both buttons failed here with a nil index.
-local uiSource=fileText("src/PlayingGame/UI.lua")
+local uiSource=fileText("src/PlayingGame/Interface/UI.lua")
 local routeStart=assert(uiSource:find("function resourceTracker(player, mouseButton, id)",1,true))
 local routeEnd=assert(uiSource:find(
     "-- Stale hidden XML controls cannot revive calculations while OFF.",routeStart,true))
@@ -973,7 +973,7 @@ assert(fileText("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CombatRow
 assert(fileText("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CardControls.lua"):find('combatConfig.phaseObjectLocked(card.guid)',1,true)
     and fileText("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/UnitControls.lua"):find('combatConfig.phaseObjectLocked(unit.guid)',1,true),
     "locked cards and Units must lose choice and target controls")
-local assignments=fileText("src/PlayingGame/AttackAssignments.lua")
+local assignments=fileText("src/PlayingGame/Combat/AttackAssignments.lua")
 assert(assignments:find('lock.positions or {}',1,true)
     and assignments:find('(lock.sourceKeys or {})[entry.sourceGUID]==true',1,true)
     and assignments:find('combatCommittedSource(entry.sourceGUID)',1,true),

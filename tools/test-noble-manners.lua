@@ -59,8 +59,8 @@ assert(not objectUI:find("tooltip%s*="),
     "Card Object UI should not create upside-down tooltips")
 for _,path in ipairs({
     "src/PlayingGame/PlayerBoard/UnitHistory.lua",
-    "src/PlayingGame/AttackAssignments.lua",
-    "src/PlayingGame/Combat.lua"
+    "src/PlayingGame/Combat/AttackAssignments.lua",
+    "src/PlayingGame/Combat/Combat.lua"
 }) do
     assert(not read(path):find("tooltip%s*="),
         path.." should not create object-attached tooltips")

@@ -13,7 +13,7 @@ monsterPiles=setmetatable({},{__index=function(_,key) return key end})
 cityScriptZones={cityZone={cityGUID=cityModel.red}}
 publishPublicUICallbacks=function() end
 factionLeaderRegisterConquered=function() error("A regular City was mistaken for a faction leader") end
-dofile("src/PlayingGame/City.lua")
+dofile("src/PlayingGame/World/City.lua")
 
 local function cityCase(level,options)
     options=options or {}
@@ -88,7 +88,7 @@ safeWaitFrames=function(_,callback)
     deferredDestroyWork[#deferredDestroyWork+1]=callback
 end
 log=function() end
-dofile("src/PlayingGame/Events.lua")
+dofile("src/PlayingGame/GameFlow/Events.lua")
 local expired={
     guid="expired",
     getName=function() error("destroyed TTS userdata") end,
@@ -195,7 +195,7 @@ safeWaitCondition=function(_,onSuccess,isReady,timeout,onTimeout)
 end
 local moving={guid="moving",resting=false,isSmoothMoving=function() return true end}
 getObjectFromGUID=function(guid) return guid=="moving" and moving or nil end
-dofile("src/PlayingGame/MapTokens.lua")
+dofile("src/PlayingGame/World/MapTokens.lua")
 local called=0
 mapTokenAfterArrivalComplete("moving",function() called=called+1 end)
 equal(pending.timeout,15,"Map arrival settle timeout")

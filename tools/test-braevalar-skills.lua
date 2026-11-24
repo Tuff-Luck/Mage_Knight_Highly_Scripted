@@ -28,7 +28,7 @@ end
 local data=source("src/Data.lua")
 local recognition=source("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local effects=source("src/PlayingGame/PlayerBoard/CombatEffects.lua")
-local assignments=source("src/PlayingGame/AttackAssignments.lua")
+local assignments=source("src/PlayingGame/Combat/AttackAssignments.lua")
 local skills=source("src/PlayingGame/PlayerBoard/Skills.lua")
 
 -- Every listed Skill has rule metadata, including the active/competitive pair.

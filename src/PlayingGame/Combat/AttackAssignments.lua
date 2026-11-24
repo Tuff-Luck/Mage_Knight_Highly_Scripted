@@ -516,7 +516,7 @@ end
 scheduleRefresh=function()
 	if refreshScheduled or not hasRuntimeWork() then return end
 	refreshScheduled=true
-	safeWaitTime("PlayingGame.AttackAssignments",function()
+	safeWaitTime("PlayingGame.Combat.AttackAssignments",function()
 		refreshScheduled=false
 		refreshRenderedLines()
 		if hasRuntimeWork() then scheduleRefresh() end

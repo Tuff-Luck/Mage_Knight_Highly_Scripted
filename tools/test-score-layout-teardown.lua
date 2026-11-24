@@ -1,7 +1,7 @@
 -- Regression: late score UI callbacks abort only during strong TTS teardown.
 -- Run from repo root: lua5.2 tools/test-score-layout-teardown.lua
 
-local file=assert(io.open("src/PlayingGame/Scoring.lua","r"))
+local file=assert(io.open("src/PlayingGame/GameFlow/Scoring.lua","r"))
 local source=file:read("*a")
 file:close()
 

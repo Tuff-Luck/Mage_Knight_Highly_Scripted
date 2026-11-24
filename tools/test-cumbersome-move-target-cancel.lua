@@ -13,7 +13,7 @@ local function section(source,first,last)
     return source:sub(a,b-1)
 end
 
-local source=read("src/PlayingGame/AttackAssignments.lua")
+local source=read("src/PlayingGame/Combat/AttackAssignments.lua")
 local reader=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local data=read("src/Data.lua")
 assert(data:find('pureMagic={',1,true),"Pure Magic definition missing")

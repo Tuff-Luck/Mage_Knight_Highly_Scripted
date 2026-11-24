@@ -14,11 +14,11 @@ local function section(source,a,b)
 end
 local cardRecognition=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local replacement=read("src/PlayingGame/PlayerBoard/UnitReplacement.lua")
-local assignments=read("src/PlayingGame/AttackAssignments.lua")
+local assignments=read("src/PlayingGame/Combat/AttackAssignments.lua")
 local replacementPanel=read("src/UI/UnitReplacement.xml")
 local flow=read("src/PlayingGame/PlayerBoard/CardFlow.lua")
 local entry=read(".tts/objects/Global.lua")
-local callbacks=read("src/PlayingGame/Callbacks.lua")
+local callbacks=read("src/PlayingGame/GameFlow/Callbacks.lua")
 assert(entry:find('require("PlayingGame.PlayerBoard.UnitReplacement")',1,true))
 assert(flow:find('unitReplacementBegin(player,claimedCard.guid,seatPos)',1,true))
 assert(callbacks:find('"unitReplacementCancel","unitReplacementSelectClicked"',1,true))
@@ -31,10 +31,10 @@ assert(not replacementPanel:find('id="UnitReplacementSelectedText"',1,true),
 assert(replacementPanel:find('id="UnitReplacementCancel"',1,true),
     "Cancel must remain available while picking a Unit")
 assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Scanning/ScanPublication.lua"):find('unitReplacementEnsureControls(seatPos)',1,true))
-assert(read("src/PlayingGame/Events.lua"):find('resourceUnitsRetireUnit(obj.guid)',1,true))
+assert(read("src/PlayingGame/GameFlow/Events.lua"):find('resourceUnitsRetireUnit(obj.guid)',1,true))
 assert(read("src/PlayingGame/PlayerBoard/Events.lua"):find(
     'resourceUnitsReconcileNewUnit(incomingGUID,unitSeatPos)',1,true))
-assert(read("src/PlayingGame/Turn.lua"):find('unitReplacementClose()',1,true))
+assert(read("src/PlayingGame/GameFlow/Turn.lua"):find('unitReplacementClose()',1,true))
 
 -- Ownership is not identical to the physical Command token's spent history.
 -- A mere token lift cannot ready its old owner, but a replacement must.

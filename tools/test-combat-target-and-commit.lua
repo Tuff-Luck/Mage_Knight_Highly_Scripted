@@ -20,7 +20,7 @@ local function differs(a,b,label)
 end
 
 local recognition=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-local assignments=read("src/PlayingGame/AttackAssignments.lua")
+local assignments=read("src/PlayingGame/Combat/AttackAssignments.lua")
 
 -- The authoritative source capability check must distinguish one-target cards,
 -- point pools, and explicitly multi-enemy effects.

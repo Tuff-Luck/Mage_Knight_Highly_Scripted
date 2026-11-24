@@ -20,8 +20,8 @@ end
 
 local data=source("src/Data.lua")
 local recognition=source("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-local combat=source("src/PlayingGame/Combat.lua")
-local turn=source("src/PlayingGame/Turn.lua")
+local combat=source("src/PlayingGame/Combat/Combat.lua")
+local turn=source("src/PlayingGame/GameFlow/Turn.lua")
 assert(data:find('removeFireResist=true,iceSpell=true',1,true),"Chill needs Ice Resistance marker")
 assert(data:find('armourReduce=4,iceSpell=true',1,true),"Lethal Chill needs Ice Resistance marker")
 assert(data:find('poweredHeroFirstWound=true',1,true),"Veil of Mist needs hero protection flag")

@@ -19,9 +19,9 @@ local playedCards=read("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/Played
 local cardInteraction=read("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/CardCallbacks.lua")
 local readyPolicy=read("src/PlayingGame/PlayerBoard/ResourceTracker/Units/ReadyPolicy.lua")
 local unitScan=read("src/PlayingGame/PlayerBoard/ResourceTracker/Units/UnitScan.lua")
-local callbacks=read("src/PlayingGame/Callbacks.lua")
+local callbacks=read("src/PlayingGame/GameFlow/Callbacks.lua")
 local events=read("src/PlayingGame/PlayerBoard/Events.lua")
-local runtimeEvents=read("src/PlayingGame/Events.lua")
+local runtimeEvents=read("src/PlayingGame/GameFlow/Events.lua")
 local cards={a={cardType="Artifact"},b={cardType="Artifact"},
     half={cardType="Artifact",full="full"},full={cardType="Artifact",half="half"}}
 local objs={a={guid="a",is_face_down=false},b={guid="b",is_face_down=true},

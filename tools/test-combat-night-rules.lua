@@ -129,7 +129,7 @@ assert(publicationSource:find("trackerPrivate.renderCombatNight=nil\n    if trac
 
 -- A normal Summoner must not accidentally mark every summon as Night.
 -- Test the same conditional block that adds the visible NightRules decal.
-local combatFile=assert(io.open("src/PlayingGame/Combat.lua","r"))
+local combatFile=assert(io.open("src/PlayingGame/Combat/Combat.lua","r"))
 local combatSource=combatFile:read("*a")
 combatFile:close()
 local spawnStart=assert(combatSource:find(

@@ -18,9 +18,9 @@ end
 local data=read("src/Data.lua")
 local recognition=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local layout=read("src/PlayingGame/PlayerBoard/UnitLayout.lua")
-local assignments=read("src/PlayingGame/AttackAssignments.lua")
-local map=read("src/PlayingGame/Map.lua")
-local ui=read("src/PlayingGame/UI.lua")
+local assignments=read("src/PlayingGame/Combat/AttackAssignments.lua")
+local map=read("src/PlayingGame/World/Map.lua")
+local ui=read("src/PlayingGame/Interface/UI.lua")
 
 local expected={
     ["Ruby Ring"]="artifactRing",["Emerald Ring"]="artifactRing",

@@ -17,7 +17,7 @@ local readyPolicy=read("src/PlayingGame/PlayerBoard/ResourceTracker/Units/ReadyP
 local effects=read("src/PlayingGame/PlayerBoard/CombatEffects.lua")
 local layout=read("src/PlayingGame/PlayerBoard/UnitLayout.lua")
 local replace=read("src/PlayingGame/PlayerBoard/UnitReplacement.lua")
-local event=read("src/PlayingGame/Events.lua")
+local event=read("src/PlayingGame/GameFlow/Events.lua")
 local boardEvent=read("src/PlayingGame/PlayerBoard/Events.lua")
 local data=read("src/Data.lua")
 

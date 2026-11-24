@@ -8,10 +8,10 @@ local function read(path)
     return value
 end
 local recognition=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-local combat=read("src/PlayingGame/Combat.lua")
-local leaders=read("src/PlayingGame/FactionLeaders.lua")
-local dragon=read("src/PlayingGame/ApocalypseDragon.lua")
-local ui=read("src/PlayingGame/UI.lua")
+local combat=read("src/PlayingGame/Combat/Combat.lua")
+local leaders=read("src/PlayingGame/Scenarios/FactionLeaders.lua")
+local dragon=read("src/PlayingGame/Scenarios/ApocalypseDragon.lua")
+local ui=read("src/PlayingGame/Interface/UI.lua")
 local env={gStates={combatBossManual={}}}
 local defences=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EnemyProperties.lua").defences({})
 local engine=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/BossAllocation.lua")(defences.hasTrait)

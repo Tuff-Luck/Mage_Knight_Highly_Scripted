@@ -7,8 +7,8 @@ local read=function(path)
     return text
 end
 
-local callbackSource=read("src/PlayingGame/Callbacks.lua")
-local eventSource=read("src/PlayingGame/Events.lua")
+local callbackSource=read("src/PlayingGame/GameFlow/Callbacks.lua")
+local eventSource=read("src/PlayingGame/GameFlow/Events.lua")
 assert(callbackSource:find("function onLoad(saved_data)\n\t-- Capture the actual load event",1,true),
     "onLoad must mark the beginning of a new script session")
 assert(callbackSource:find("automaticLuaRecordModLoad()",1,true))

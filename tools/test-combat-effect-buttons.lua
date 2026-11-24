@@ -189,7 +189,7 @@ eq(icon.ineffective,true,"Defeated enemy gives no damage prevention")
 assert(icon.tooltip:find("already defeated",1,true),"Early defeat reason")
 
 -- Choice icons use the same registry and preserve explicitly chosen resource icons.
-local uiAssets=source("src/PlayingGame/UIAssets.lua")
+local uiAssets=source("src/PlayingGame/Interface/UIAssets.lua")
 assert(uiAssets:find("MKChoiceArmourReduction",1,true),"Armour icon registered")
 assert(uiAssets:find("MKChoiceAttackReduction",1,true),"Attack icon registered")
 assert(uiAssets:find("armourReduction\",\"attackReduction",1,true),"Reduction assets available to Global UI")

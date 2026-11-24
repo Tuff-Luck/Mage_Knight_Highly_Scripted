@@ -1,5 +1,5 @@
 -- UI directly depends on the authoritative seat-team helpers; keep the dependency in the module so incremental bundles cannot omit it.
-require("PlayingGame.Teams")
+require("PlayingGame.GameFlow.Teams")
 
 -- Gameplay presentation, cached interface state and camera/object UI helpers.
 

@@ -71,7 +71,7 @@ assert(scaledRecords.third==nil,"New card loses the play-area scale record")
 
 assert(source:find("drawn.setScale({1.5,1,1.5})",1,true),"Scripted draw must normalize taken cards")
 assert(source:find("deedDeck.setScale({1.5,1,1.5})",1,true),"Scripted draw must normalize the source deck")
-assert(read("src/PlayingGame/Turn.lua"):find(
+assert(read("src/PlayingGame/GameFlow/Turn.lua"):find(
     "if newDeck~=nil then newDeck.setScale({1.5,1,1.5}) end",1,true),
     "Round reset must restore the discard deck before reusing it")
 print("Deed discard scale regression checks passed")

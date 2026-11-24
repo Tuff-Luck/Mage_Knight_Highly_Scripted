@@ -10,7 +10,7 @@ local function eq(actual,expected,message)
     assert(actual==expected,(message or "Mismatch")..": expected "..tostring(expected)..", got "..tostring(actual))
 end
 
-local ui=read("src/PlayingGame/UI.lua")
+local ui=read("src/PlayingGame/Interface/UI.lua")
 local start=assert(ui:find("local function clearStaleMapActionButtons(obj)",1,true))
 local finish=assert(ui:find("\nfunction addAvatarButtons()",start,true))
 local helperSource=ui:sub(start,finish-1)
@@ -64,7 +64,7 @@ assert(ui:find("if mapActionButtonsRefreshed[mapDetails.guid]~=true then clearSt
     "Any untouched map action object must lose last turn's controls")
 assert(ui:find("if order==gStates.turnNumber and gStates.preEndTurn==false then",1,true),
     "Only the current active Mage Knight may create map attacks")
-local turn=read("src/PlayingGame/Turn.lua")
+local turn=read("src/PlayingGame/GameFlow/Turn.lua")
 assert(turn:find("addAvatarButtons()",assert(turn:find("local function turnFinishCompletedTurnUI()",1,true)),true),
     "Turn-end UI must request map action reconciliation")
 

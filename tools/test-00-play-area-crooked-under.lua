@@ -13,7 +13,7 @@ local function section(source,first,last)
     return source:sub(a,b-1)
 end
 local events=read("src/PlayingGame/PlayerBoard/Events.lua")
-local callback=read("src/PlayingGame/Events.lua")
+local callback=read("src/PlayingGame/GameFlow/Events.lua")
 assert(callback:find("playerBoardObjectDropped(dropped_object)",1,true),
     "All manual drops must reach the crooked-card restack handler")
 assert(events:find("playerBoardScheduleCrookedUnder(obj)",1,true),

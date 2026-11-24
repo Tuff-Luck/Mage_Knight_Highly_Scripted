@@ -141,7 +141,7 @@ eq(#cardFrames,0,"closed tracker does not reschedule render")
 
 -- Ordinary cards and mana do not require a separate 10-second player-board
 -- entry watcher; monsters, Banner states and Unit work still do.
-local events=read("src/PlayingGame/Events.lua")
+local events=read("src/PlayingGame/GameFlow/Events.lua")
 local filterSource=extract(events,"local function playerBoardSettledEntryNeeded(ctx)",
     "\nlocal function handlePlayerBoardZoneEnter(ctx)")
 local filterEnv={

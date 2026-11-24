@@ -19,7 +19,7 @@ local function eq(actual,expected,label)
 end
 
 local recognition=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-local assignments=read("src/PlayingGame/AttackAssignments.lua")
+local assignments=read("src/PlayingGame/Combat/AttackAssignments.lua")
 local data=read("src/Data.lua")
 local guid="0b90e5"
 assert(data:find('["0b90e5"]={cardType="Starting", resourceKey="ruthlessCoercion"',1,true),

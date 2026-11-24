@@ -7,7 +7,7 @@ local function read(path)
     file:close()
     return content
 end
-local src=read("src/PlayingGame/UI.lua")
+local src=read("src/PlayingGame/Interface/UI.lua")
 local first=assert(src:find("local RESOURCE_TRACKER_EXPANDERS={",1,true))
 local last=assert(src:find("local RESOURCE_TRACKER_ZERO_TEXT_COLOR=",first,true))
 local attrs={

@@ -15,7 +15,7 @@ local fromArray=ttsVectorArray({4,5,6})
 assert(table.concat(fromVector,",")=="1,2,3","Vector coordinates")
 assert(table.concat(fromArray,",")=="4,5,6","Array coordinates")
 
-dofile("src/PlayingGame/UIAssets.lua")
+dofile("src/PlayingGame/Interface/UIAssets.lua")
 local writes=0
 local xml={
     {tag="Button",attributes={id="CallOfferControl_a11111_previous"}},

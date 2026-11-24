@@ -65,7 +65,7 @@ Keep turn lifecycle callbacks thin. `endTurn` should read as reward gates → pe
 
 Respect module ownership documented in `ARCHITECTURE.md`. When a feature already has a module, make the change there rather than adding another implementation to `PlayingGame.lua`.
 
-Require order in `.tts/objects/Global.lua` matters. `ErrorReporting` loads before `Shared` so shared async/object helpers can use its protected callback machinery. `PlayingGame.Callbacks` loads after UI and Events because its public lifecycle callbacks compose helpers defined by those modules.
+Require order in `.tts/objects/Global.lua` matters. `ErrorReporting` loads before `Shared` so shared async/object helpers can use its protected callback machinery. `PlayingGame.GameFlow.Callbacks` loads after UI and Events because its public lifecycle callbacks compose helpers defined by those modules.
 
 Functional object Lua should be moved into Global modules where practical. Placeholder object Lua files may remain so Sebastian's TTS extension clears old object-side scripts when compiling.
 
@@ -127,7 +127,7 @@ Movement, Proxy/AI, Quests, Map avatar scans and Combat now share the rebuildabl
 - `runtimeMapSpatialSnapshot()` overlays fresh physical-object positions and spatial buckets for live shields, enemies, avatars and other map pieces. It is deliberately runtime-only so moving a piece on the table remains authoritative.
 - Runtime changes to a terrain hex's logical feature/type must go through `runtimeMapSetHexFeature()` / `runtimeMapSetHexType()`. Do not write `terrainTiles[...].hexFeature/hexType` directly during play, because the shared topology cache must be invalidated with the mutation.
 - Generic map identity/geometry belongs in Shared: use `runtimeMapHexKey()`, `runtimeMapHexesAdjacent()`, `runtimeMapHexDistanceMap()`, `runtimeMapWorldToAxial()`, `runtimeMapAxialToWorld()`, `runtimeMapWorldHexDistance()`, and `runtimeMapHexForPosition()` instead of subsystem-prefixed copies.
-- `PlayingGame/MapTokens.lua` owns runtime-only arrival ordering and physical shared-hex token separation/stacking; scenario modules should call it rather than reimplementing token layout.
+- `PlayingGame/World/MapTokens.lua` owns runtime-only arrival ordering and physical shared-hex token separation/stacking; scenario modules should call it rather than reimplementing token layout.
 - `pursuingRampagers()` and Combat's nearby attack/shield checks use the shared topology/spatial view instead of rescanning the full map.
 - End-of-combat scenario completion state should continue to prefer explicit scenario/runtime state when that represents hidden or historical information; use the spatial map only for facts that are physically represented on the table.
 
@@ -199,7 +199,7 @@ Hard-disable **Rewards Claimed** only for short asynchronous/script-settling saf
 
 ## Image assets and decals
 
-Every image URL the script applies at runtime (decals, object/custom-token images, etc.) must also be registered as a Custom UI Asset in `src/PlayingGame/UIAssets.lua` (use the same URL). Otherwise TTS shows a white square for a frame while the image first loads. When adding or changing a scripted decal/image URL, update `UIAssets.lua` in the same change.
+Every image URL the script applies at runtime (decals, object/custom-token images, etc.) must also be registered as a Custom UI Asset in `src/PlayingGame/Interface/UIAssets.lua` (use the same URL). Otherwise TTS shows a white square for a frame while the image first loads. When adding or changing a scripted decal/image URL, update `UIAssets.lua` in the same change.
 
 ## Build/version conventions
 

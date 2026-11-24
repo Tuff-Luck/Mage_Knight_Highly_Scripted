@@ -15,7 +15,7 @@ local function section(source,first,last)
 end
 
 local source=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-local events=read("src/PlayingGame/Events.lua")
+local events=read("src/PlayingGame/GameFlow/Events.lua")
 assert(events:find("resourceCardsObjectPickedUp(picked_up_object)",1,true),
     "Picking up a source must mark the relocation before callbacks rescan it")
 local matCode=section(source,"trackerPrivate.zoneFootprintContainsXZ=require(",

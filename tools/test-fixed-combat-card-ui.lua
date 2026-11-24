@@ -16,7 +16,7 @@ local function extract(text,first,last)
 end
 
 local reader=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-local assets=read("src/PlayingGame/UIAssets.lua")
+local assets=read("src/PlayingGame/Interface/UIAssets.lua")
 local data=read("src/Data.lua")
 assert(data:find('swiftness={normal={move=2},powered={ranged=3}}',1,true),
     "Swiftness's printed effects must remain unchanged")

@@ -13,8 +13,8 @@ local function section(source,first,last)
     return source:sub(a,b-1)
 end
 local reader=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-local arrows=read("src/PlayingGame/AttackAssignments.lua")
-local trackerUI=read("src/PlayingGame/UI.lua")
+local arrows=read("src/PlayingGame/Combat/AttackAssignments.lua")
+local trackerUI=read("src/PlayingGame/Interface/UI.lua")
 -- Reputation and conquered-city Shields are conditional Interaction bonuses,
 -- not independent Influence sources. A played Influence source (or a manual
 -- offset representing one) is needed before either modifier becomes usable.

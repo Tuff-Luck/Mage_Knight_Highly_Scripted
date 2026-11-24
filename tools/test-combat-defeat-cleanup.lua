@@ -12,7 +12,7 @@ local function read(path)
     return source
 end
 
-local source=read("src/PlayingGame/Combat.lua")
+local source=read("src/PlayingGame/Combat/Combat.lua")
 local function slice(first,last)
     local a=assert(source:find(first,1,true),first.." missing")
     local b=assert(source:find(last,a+#first,true),last.." missing")
@@ -125,10 +125,10 @@ assert(source:find("elseif playAreaObj.is_face_down==true then",1,true),
     "Only manually flipped survivors should be turned upright on return")
 assert(source:find("recovery.defeatResults=defeatResults",1,true),
     "Verdict must be saved for reload during cleanup")
-assert(read("src/PlayingGame/Horsemen.lua"):find(
+assert(read("src/PlayingGame/Scenarios/Horsemen.lua"):find(
     "combatEnemyTokenDefeated(survivingHorse)",1,true),
     "Surviving Horseman horse must respect calculator")
-assert(read("src/PlayingGame/ApocalypseDragon.lua"):find(
+assert(read("src/PlayingGame/Scenarios/ApocalypseDragon.lua"):find(
     "combatBossPartialRewardEligible(obj.guid)",1,true),
     "Dragon head partial level reduction must remain eligible")
 

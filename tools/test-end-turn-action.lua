@@ -7,7 +7,7 @@ local function read(path)
     file:close()
     return contents
 end
-local source=read("src/PlayingGame/UI.lua")
+local source=read("src/PlayingGame/Interface/UI.lua")
 local first=assert(source:find("local playAreaObjectState={}",1,true))
 local last=assert(source:find("--End-round availability only changes",first,true))
 local playObjects,discardObjects={},{}
@@ -60,7 +60,7 @@ assert(source:find('if source=="New Turn" then syncPlayAreaObjectState(currentPl
     "New turns must recheck physical play-area membership")
 assert(source:find("endTurnPlayerHasAction(gStates.turnNumber)~=true",1,true),
     "The button must use the shared action gate")
-local combat=read("src/PlayingGame/Combat.lua")
+local combat=read("src/PlayingGame/Combat/Combat.lua")
 assert(combat:find("and endTurnPlayerHasAction(gStates.turnNumber)~=true",1,true),
     "The actual End Turn click must enforce the shared gate")
 print("End Turn play/discard action regressions passed")

@@ -14,7 +14,7 @@ local function section(src,first,last)
     return src:sub(a,b-1)
 end
 local recognition=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-local assignments=read("src/PlayingGame/AttackAssignments.lua")
+local assignments=read("src/PlayingGame/Combat/AttackAssignments.lua")
 local footprint=section(recognition,"trackerPrivate.zoneFootprintContainsXZ=require(",
     "local function scheduleChoiceResetAfterPlay(guid,seatPos)")
 local enemies=section(recognition,"local combatTrackedSeat=nil",

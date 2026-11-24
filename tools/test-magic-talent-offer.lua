@@ -157,7 +157,7 @@ magicTalentSpellCastingPaymentCount=function(_,guid)
     return spellPaymentCounts[guid] or 0
 end
 
-dofile("src/PlayingGame/MagicTalentOffer.lua")
+dofile("src/PlayingGame/Offers/MagicTalentOffer.lua")
 eq(gStates.magicTalentPreview,nil,"No free initial preview")
 magicTalentHandLeft(redCost.guid,1)
 magicTalentSync()

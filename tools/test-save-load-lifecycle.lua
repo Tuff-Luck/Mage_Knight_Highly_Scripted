@@ -23,10 +23,10 @@ local function loadSection(source,first,last,env,returns)
 end
 
 local cards=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-local combat=read("src/PlayingGame/AttackAssignments.lua")
-local events=read("src/PlayingGame/Events.lua")
-local callbacks=read("src/PlayingGame/Callbacks.lua")
-local rollers=read("src/PlayingGame/Rollers.lua")
+local combat=read("src/PlayingGame/Combat/AttackAssignments.lua")
+local events=read("src/PlayingGame/GameFlow/Events.lua")
+local callbacks=read("src/PlayingGame/GameFlow/Callbacks.lua")
+local rollers=read("src/PlayingGame/Components/Rollers.lua")
 
 -- Save current choices rather than re-guessing them after loading.
 local zones={
@@ -214,7 +214,7 @@ eq(startupRestoreCount,1,"saved minimized tracker must not be expanded")
 
 -- Previously persisted cleanup checkpoints must resume without replaying
 -- already-processed physical objects or inventing a new cleanup sequence.
-local combatSource=read("src/PlayingGame/Combat.lua")
+local combatSource=read("src/PlayingGame/Combat/Combat.lua")
 local cleanupCount=0
 local cleanupEnv={
     gStates={preEndTurn=true,combatPreEndTurnRecovery={
@@ -240,7 +240,7 @@ eq(recover(),false,"no phantom second cleanup")
 
 -- A saved pre-End-Turn reward without its commit marker is applied once;
 -- an already committed reward takes the non-duplicating reconciliation path.
-local fameSource=read("src/PlayingGame/FameReputation.lua")
+local fameSource=read("src/PlayingGame/GameFlow/FameReputation.lua")
 local commits,reconciles=0,0
 local fameEnv={
     gStates={preEndTurn=true,turnNumber=1},

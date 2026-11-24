@@ -67,7 +67,7 @@ publishPublicUICallbacks=function(callbacks)
     for name,callback in pairs(callbacks) do _G[name]=callback end
 end
 dofile("tools/load-offer-helpers.lua")
-dofile("src/PlayingGame/TrainingOffer.lua")
+dofile("src/PlayingGame/Offers/TrainingOffer.lua")
 
 local function originTable()
     for i=1,20 do

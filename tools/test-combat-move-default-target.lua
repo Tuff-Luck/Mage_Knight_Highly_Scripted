@@ -13,7 +13,7 @@ local function section(source,first,last)
     return source:sub(a,b-1)
 end
 local reader=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-local assets=read("src/PlayingGame/UIAssets.lua")
+local assets=read("src/PlayingGame/Interface/UIAssets.lua")
 local unitControls=read("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/UnitControls.lua")
 local cardOptions=read("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CardControlOptions.lua")
 

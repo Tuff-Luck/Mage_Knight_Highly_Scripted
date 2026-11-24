@@ -23,13 +23,13 @@ local function hasButton(xml,id)
 end
 
 local source=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-local assets=read("src/PlayingGame/UIAssets.lua")
+local assets=read("src/PlayingGame/Interface/UIAssets.lua")
 local newURL="https://steamusercontent-a.akamaihd.net/ugc/16695628476303620030/8C3369792E242542F0F8F489F12A4CABFA278F98/"
 assert(assets:find('damageTarget={name="MKDamageTargetIcon",url="'..newURL..'"}',1,true),
     "Enemy-to-Unit damage decal must be registered with the supplied URL")
 assert(assets:find('"target","damageTarget","siege"',1,true),
     "Damage decal image must be preloaded as a Custom UI Asset")
-local damage=read("src/PlayingGame/AttackAssignments.lua")
+local damage=read("src/PlayingGame/Combat/AttackAssignments.lua")
 assert(damage:find('local DAMAGE_DECAL_URL="'..newURL..'"',1,true),
     "Enemy attack damage-assignment decal must use the new artwork")
 assert(damage:find('name="DamageTarget"..index,url=DAMAGE_DECAL_URL',1,true),

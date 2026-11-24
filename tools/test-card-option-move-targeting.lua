@@ -16,7 +16,7 @@ end
 
 local reader=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local allocation=read("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/SourceTargetAllocation.lua")
-local arrows=read("src/PlayingGame/AttackAssignments.lua")
+local arrows=read("src/PlayingGame/Combat/AttackAssignments.lua")
 local data=read("src/Data.lua")
 assert(data:find('resourceKey="pureMagic"',1,true),"Pure Magic mapping missing")
 assert(data:find('resourceKey="oneWithTheLand"',1,true),"One with the Land mapping missing")

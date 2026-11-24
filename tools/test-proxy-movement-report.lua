@@ -267,7 +267,7 @@ assert(not renderCode:find("joinLangParse(",1,true),
 -- Smaller report details use their own Text16 element, not runtime XML tags.
 -- This avoids modifying the shared Volkare/Dummy font or writing unsafe markup
 -- to a saved Global UI.
-local panel=read("src/PlayingGame/UI.lua")
+local panel=read("src/PlayingGame/Interface/UI.lua")
 local panelXml=read("src/UI/MainGame.xml")
 assert(panelXml:find('id="DummyDetails" class="Text16"',1,true),
     "Proxy detail font should use the smaller Text16 class")

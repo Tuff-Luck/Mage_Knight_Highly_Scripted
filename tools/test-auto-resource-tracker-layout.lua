@@ -16,7 +16,7 @@ local function eq(actual,expected,label)
         ..", got "..tostring(actual),2)
 end
 
-local uiSource=read("src/PlayingGame/UI.lua")
+local uiSource=read("src/PlayingGame/Interface/UI.lua")
 local cardSource=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local attrs={
     ResourceTracker={active="true",height="175"},

@@ -15,7 +15,7 @@ local function equal(actual,expected,label)
     assert(actual==expected, label..": expected "..tostring(expected)..", got "..tostring(actual))
 end
 
-local dragon=read("src/PlayingGame/ApocalypseDragon.lua")
+local dragon=read("src/PlayingGame/Scenarios/ApocalypseDragon.lua")
 local constructorSource=section(dragon,"function apocalypseDragonMonsterData(", "--Refresh the persistent small head token stats.")
 local dragonEnv=setmetatable({
     apocalypseDragonCurrentLevelData=function(head)
@@ -34,7 +34,7 @@ equal(construct("Famine",4).fame,1,"Famine printed Fame retained")
 equal(construct("Unknown",4),nil,"Unknown head still absent")
 
 -- Exercise both Fame-calculator expressions with an older runtime record whose fame is nil.
-local ui=read("src/PlayingGame/UI.lua")
+local ui=read("src/PlayingGame/Interface/UI.lua")
 local cases=0
 for expression in ui:gmatch("local questFame=([^\r\n]+)") do
     cases=cases+1

@@ -22,7 +22,7 @@ local function isolated(content,startMarker,endMarker,name)
 end
 
 local recognition=source("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-local assignments=source("src/PlayingGame/AttackAssignments.lua")
+local assignments=source("src/PlayingGame/Combat/AttackAssignments.lua")
 
 -- A forced Unit assignment overrides Assassination; a voluntary one does not.
 local resolve=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/DamageCalculation.lua").resolution(

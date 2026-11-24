@@ -9,7 +9,7 @@ end
 
 publishPublicUICallbacks=function() end
 dofile("src/PlayingGame/AI/Volkare.lua")
-dofile("src/PlayingGame/LLScenario.lua")
+dofile("src/PlayingGame/Scenarios/LLScenario.lua")
 
 volkare={model="testVolkare"}
 trashCan="trash"

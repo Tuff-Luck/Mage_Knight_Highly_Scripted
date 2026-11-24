@@ -22,7 +22,7 @@ assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/PlayedCardScan.lu
     "The existing movement effect collection must require a paid Spell")
 assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/PlayedCardScan.lua"):find("movementEffects.windFlightMax=math.max(",1,true))
 assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Scanning/ScanPublication.lua"):find("(priorMovement.windFlightMax or 0)~=movementEffects.windFlightMax",1,true))
-local movement=read("src/PlayingGame/Movement.lua")
+local movement=read("src/PlayingGame/World/Movement.lua")
 assert(movement:find("windFlightMax>0 and not spentWind",1,true),
     "A flight must be available only once along a route")
 assert(movement:find('state:sub(1,4)=="safe"',1,true),

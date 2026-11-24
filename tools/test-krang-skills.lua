@@ -84,7 +84,7 @@ local function source(path)
     handle:close()
     return data
 end
-local combat=source("src/PlayingGame/Combat.lua")
+local combat=source("src/PlayingGame/Combat/Combat.lua")
 assert(combat:find("combatDefeatTracked[obj.guid]==true and combatDefeatDefeated[obj.guid]==true",1,true),
     "Puppet claim gate must require actual calculator defeat marks")
 local events=source("src/PlayingGame/PlayerBoard/Events.lua")
@@ -148,7 +148,7 @@ eq(assigned["enemy:1"].unitWounds,1,"Battle Hardened does not reduce Unit damage
 eq(assigned["enemy:1"].heroWounds,0,"Hero prevention follows Unit assignment")
 
 -- Verify the Reputation tracker applies Arcane Disguise even at -7.
-local ui=source("src/PlayingGame/UI.lua")
+local ui=source("src/PlayingGame/Interface/UI.lua")
 local reputationChunk=sliceBetween(ui,
     "function refreshResourceTrackerReputation()",
     "function refreshResourceTracker()")

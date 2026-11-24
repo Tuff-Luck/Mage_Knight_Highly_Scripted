@@ -1,6 +1,6 @@
 -- Regression: missing turn-order tokens yield actionable non-fatal reports.
 -- Run from repo root: lua5.2 tools/test-automatic-turn-order-diagnostics.lua
-local file=assert(io.open("src/PlayingGame/Turn.lua","r"))
+local file=assert(io.open("src/PlayingGame/GameFlow/Turn.lua","r"))
 local source=file:read("*a")
 file:close()
 local start=assert(source:find("local function turnOrderTokenMissingSnapshot(",1,true))
@@ -63,7 +63,7 @@ assert(#reports==2)
 assert(reports[2].context:find("After 2 frames: REAPPEARED",1,true))
 assert(env.turnOrder[2].turnOrderTokenGUID=="missing456",
     "Diagnostics must not rewrite turn-order references")
-local eventFile=assert(io.open("src/PlayingGame/Events.lua","r"))
+local eventFile=assert(io.open("src/PlayingGame/GameFlow/Events.lua","r"))
 local eventSource=eventFile:read("*a")
 eventFile:close()
 assert(eventSource:find("if not guidOK or type(destroyedGuid)~=\"string\" or destroyedGuid==\"\" then return end\n\tprotectedDestroyEvidence.observe()",1,true),
