@@ -27,7 +27,7 @@ eq(cure.normal.healing,2,"Cure basic Heal 2")
 eq(cure.poweredChoices[1].key,"other","Disease is not extra Heal")
 eq(cure.enemyEffect.powered.armourSetIfBlocked,1,"Disease sets Armour to 1")
 eq(cure.enemyEffect.powered.all,true,"Disease applies across the encounter")
-assert(reader:find('local limit=enemy.effect~=nil and enemy.effect.armourSetIfBlocked or nil',1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/EarlyCombatPhase.lua"):find('local limit=enemy.effect~=nil and enemy.effect.armourSetIfBlocked or nil',1,true),
     "Disease must be resolved using the blocked-attack result")
 assert(reader:find('combatConfig.refreshCureDrawButton(card,',1,true),
     "Cure offers its separate confirmed draw")

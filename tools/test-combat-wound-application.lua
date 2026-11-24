@@ -1022,9 +1022,9 @@ local _,replacementMove=effective(swapEnemy,{moveSource("moveB",2)})
 eq(firstMove.moveA,true,"initial Move source committed")
 eq(replacementMove.moveB,true,"same-valued replacement Move source committed")
 eq(replacementMove.moveA,nil,"cache cannot retain a departed Move source")
-assert(recognition:find("preview.sourceKeys={}",1,true)
-    and recognition:find("block.successfulSourceKeys",1,true)
-    and recognition:find("block.spentMoveKeys",1,true),
+assert(fileText("src/PlayingGame/PlayerBoard/ResourceTracker/EarlyCombatPhase.lua"):find("preview.sourceKeys={}",1,true)
+    and fileText("src/PlayingGame/PlayerBoard/ResourceTracker/EarlyCombatPhase.lua"):find("block.successfulSourceKeys",1,true)
+    and fileText("src/PlayingGame/PlayerBoard/ResourceTracker/EarlyCombatPhase.lua"):find("block.spentMoveKeys",1,true),
     "phase lock must be derived from actual successful Block and Move use")
 
 -- Exercise the production rewind guard itself (not just the commit
