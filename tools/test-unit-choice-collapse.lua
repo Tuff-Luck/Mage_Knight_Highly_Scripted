@@ -84,7 +84,7 @@ local function unitAbilityTargetKey(guid,index,ability,useIndex)
     return unitHistoryKey(guid,useIndex)
 end
 local function resourceCardsHideAutomaticEnemyTarget() return hideTargets end
-local function resourceCardsChoiceIcon() return nil end
+local function resourceCardsChoiceIcon(key) return {name=key} end
 local function resourceCardsChoiceAssetsFor() return nil,{} end
 local function resourceObjectUiXmlTable(ui) return ui.nodes end
 local function resourceObjectUiSetTable(ui,xml) ui.nodes=xml end
@@ -118,7 +118,11 @@ return {
 ]],"Peasants Unit option regression","t",_G))(printed)
 
 local function assertCollapsed(buttons,index,category)
-    assert(hasButton(buttons,"ResourceCardChoice_484fa3_unit"..index),
+    local combat=index==4 and fixture.role()=="combat"
+    local id="ResourceCardChoice_484fa3_unit"..index
+    assert(not combat or not hasButton(buttons,id),"Collapsed Combat Move must hide Movement")
+    assert(combat or not hasButton(buttons,id.."Combat"),"Collapsed option must hide Combat Move")
+    assert(hasButton(buttons,id..(combat and "Combat" or "")),
         "Selected Peasants option should be visible")
     for i=1,4 do
         if i~=index then
@@ -155,18 +159,34 @@ for i=1,4 do
 end
 assertCollapsed(fixture.click(4),4,nil)
 
--- When Cumbersome is present, the independent Combat-Move button must
--- remain available without reopening all other Peasants options.
+-- Both roles are choices, not permanently visible controls.
 fixture.cumbersome(true)
-buttons=fixture.draw()
-assert(hasButton(buttons,"ResourceCardChoice_484fa3_unit4Combat"),
-    "Cumbersome must expose the separate Combat-Move control")
+assertCollapsed(fixture.draw(),4,nil)
+buttons=fixture.click(4)
+local function assertRoleBadge(buttons,id,letter)
+    for _,node in ipairs(buttons) do
+        if node.attributes.id==id then
+            for _,child in ipairs(node.children or {}) do
+                if child.tag=="Text" and child.attributes.text==letter then
+                    assert(child.attributes.width>=child.attributes.fontSize
+                        and child.attributes.height>=child.attributes.fontSize,
+                        "Move role badge must fit its text area")
+                    return
+                end
+            end
+        end
+    end
+    error("Missing Move role badge "..letter)
+end
+assertRoleBadge(buttons,"ResourceCardChoice_484fa3_unit4","M")
+assertRoleBadge(buttons,"ResourceCardChoice_484fa3_unit4Combat","C")
 buttons=fixture.click(4,true)
-assert(fixture.role()=="combat","Combat-Move button must select the combat role")
+assert(fixture.role()=="combat","Combat-Move option must select the combat role")
 assertCollapsed(buttons,4,"move")
+assertRoleBadge(buttons,"ResourceCardChoice_484fa3_unit4Combat","C")
 -- A reload/reset replaces both shared UI-cache tables. A renderer retaining
 -- the old expanded table would incorrectly reopen all four options.
-fixture.click(4)
+fixture.click(4,true)
 fixture.resetCaches()
 assertCollapsed(fixture.draw(),4,"move")
 -- TTS may apply UI asynchronously; recreate missing buttons despite the cache.
@@ -174,7 +194,7 @@ fixture.loseControls()
 assertCollapsed(fixture.draw(),4,"move")
 -- When automatic target buttons are hidden, a change in earlier Command
 -- use can change only the selected option's colour, not its visible IDs.
-fixture.click(4)
+fixture.click(4,true)
 fixture.click(1)
 fixture.hideTargets(true)
 local function selectedAttackColor()

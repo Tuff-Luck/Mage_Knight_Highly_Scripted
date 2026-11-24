@@ -289,11 +289,12 @@ function M.choiceClicked(player,value,id,moveRoleAvailable,trackerPrivate,unitMa
         if candidate==index then available=true break end
     end
     if not available then return end
-    if not combatMoveChoice
-        and (not decision.ambiguous or abilities.paidChoiceExpandable or decision.index~=nil)
-        and choiceExpandedByGUID[unitGUID]~=true and #decision.display>1 then
-        -- Any selected Unit option (including Move) expands its alternatives.
-        -- The separate Cumbersome Combat-Move button still chooses its role.
+    local dualMove=(tonumber(abilities[index].move) or 0)>0
+        and moveRoleAvailable(unitHistoryKey(unitGUID,useIndex))
+    if (not decision.ambiguous or abilities.paidChoiceExpandable or decision.index~=nil)
+        and choiceExpandedByGUID[unitGUID]~=true and (#decision.display>1 or dualMove) then
+        -- Clicking the collapsed option (including either Move role) opens
+        -- the menu. Selecting an expanded alternative commits and collapses it.
         choiceExpandedByGUID[unitGUID]=true
         showUnitAbilityButtons(unit,abilities,activation,true,decision)
         return

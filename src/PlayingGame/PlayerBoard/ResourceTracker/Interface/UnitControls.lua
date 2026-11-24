@@ -96,11 +96,11 @@ return function(deps)
             return
         end
         local selected=decision.index
-        -- Move is a normal Unit choice, not an automatic reason to expand every
-        -- option. When selected, its Movement/Combat controls are drawn separately.
-        -- An unresolved paid choice may still require an expanded selection.
+        -- Movement and Combat Move are alternatives in the same choice menu.
+        local combatMoveAvailable=combatConfig.moveRoleAvailable(unitHistoryKey(unit.guid,useIndex))==true
         local expanded=(decision.ambiguous and decision.index==nil and not abilities.paidChoiceExpandable)
-            or (choiceExpandedByGUID[unit.guid]==true and #available>1)
+            or (choiceExpandedByGUID[unit.guid]==true
+                and (#available>1 or (hasMoveAbility and combatMoveAvailable)))
         local selectedKeys={}
         for i in pairs(decision.selected or {}) do selectedKeys[#selectedKeys+1]=tostring(i) end
         table.sort(selectedKeys)
@@ -108,7 +108,6 @@ return function(deps)
         if not expanded then
             for _,spec in ipairs(targetSpecs) do targetLabels[#targetLabels+1]=spec.idCategory end
         end
-        local combatMoveAvailable=combatConfig.moveRoleAvailable(unitHistoryKey(unit.guid,useIndex))==true
         local signature="Unit:"..tostring(selected)..":"..tostring(expanded)
             ..":"..table.concat(available,",")..":"..table.concat(selectedKeys,",")
             ..":use="..tostring(useIndex)
@@ -126,11 +125,11 @@ return function(deps)
             local needed={}
             if hasChoices then
                 for _,index in ipairs(expanded and available or {selected or available[1]}) do
-                    needed["ResourceCardChoice_"..unit.guid.."_unit"..index]=true
-                    if combatMoveAvailable
-                        and (tonumber(abilities[index]~=nil and abilities[index].move) or 0)>0 then
-                        needed["ResourceCardChoice_"..unit.guid.."_unit"..index.."Combat"]=true
-                    end
+                    local dualMove=combatMoveAvailable
+                        and (tonumber(abilities[index]~=nil and abilities[index].move) or 0)>0
+                    local id="ResourceCardChoice_"..unit.guid.."_unit"..index
+                    if expanded or not dualMove or moveRole~="combat" then needed[id]=true end
+                    if dualMove and (expanded or moveRole=="combat") then needed[id.."Combat"]=true end
                 end
             end
             if #targetLabels>0 then
@@ -255,8 +254,7 @@ return function(deps)
                 end
                 if (tonumber(ability.move) or 0)>0 then
                     local phase=resourceCardsMoveRole(unitHistoryKey(unit.guid,useIndex),false)
-                    -- The regular button becomes the Movement variant; the
-                    -- adjacent C variant is a normal, equally-sized option cell.
+                    -- Only the chosen role is visible in the collapsed menu.
                     local isMovement=phase~="combat"
                     button.attributes.colors=active and isMovement and invalidCombat
                         and "#9C3737|#B34A4A|#9C3737|#9C3737"
@@ -265,14 +263,14 @@ return function(deps)
                         or "#454D5D|#69798E|#444C63|#454D5D"
                     button.children=button.children or {}
                     button.children[#button.children+1]={tag="Text",attributes={
-                        text="M",width=34,height=34,alignment="LowerRight",
+                        text="M",width=82,height=82,alignment="LowerRight",
                         fontSize=37,fontStyle="Bold",color="#9AFFA4",
                         outline="#101820",outlineSize="2 -2",raycastTarget="false"}}
                     if combatMoveAvailable then
                         local combatButton={tag="Button",attributes={
                         id="ResourceCardChoice_"..unit.guid.."_unit"..index.."Combat",
                         onClick="global/resourceUnitsChoiceClicked",
-                        position=tostring(baseX-(#indices+columnIndex-1)*columnSpacing)
+                        position=tostring(baseX-(expanded and (#indices+columnIndex-1) or 0)*columnSpacing)
                             .." "..tostring(y).." -35",
                         rotation="0 0 180",width=90,height=90,scale="0.22 0.22",
                         colors=active and not isMovement and combatBlocked
@@ -288,13 +286,13 @@ return function(deps)
                             combatButton.children={{tag="Image",attributes={
                                 image=movement.name,width=82,height=82,preserveAspect="true",
                                 raycastTarget="false",color="#FFFFFF"}},
-                                {tag="Text",attributes={text="C",width=34,height=34,
+                                {tag="Text",attributes={text="C",width=82,height=82,
                                     alignment="LowerRight",fontSize=37,fontStyle="Bold",
                                     color="#69AEFF",outline="#101820",
                                     outlineSize="2 -2",raycastTarget="false"}}}
                         end
-                        xml[#xml+1]=button
-                        xml[#xml+1]=combatButton
+                        if expanded or isMovement then xml[#xml+1]=button end
+                        if expanded or not isMovement then xml[#xml+1]=combatButton end
                     else
                         xml[#xml+1]=button
                     end
@@ -307,8 +305,7 @@ return function(deps)
             local count=#targetSpecs
             for i,spec in ipairs(targetSpecs) do
                 local targetAsset=resourceCardsChoiceIcon("target")
-                local selectedMove=selected~=nil and (tonumber(abilities[selected].move) or 0)>0
-                local choiceColumns=hasChoices and (selectedMove and combatMoveAvailable and 2 or 1) or 0
+                local choiceColumns=hasChoices and 1 or 0
                 local x=baseX-choiceColumns*columnSpacing
                 local y=baseY+(i-(count+1)/2)*rowSpacing
                 local children={}

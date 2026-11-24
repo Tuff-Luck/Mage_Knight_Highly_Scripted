@@ -312,7 +312,7 @@ return function(deps)
                     if entry.roleBadge~=nil then
                         button.children=button.children or {}
                         button.children[#button.children+1]={tag="Text",attributes={
-                            text=entry.roleBadge,width=34,height=34,
+                            text=entry.roleBadge,width=82,height=82,
                             alignment="LowerRight",fontSize=37,fontStyle="Bold",
                             color=entry.roleBadge=="C" and "#69AEFF" or "#9AFFA4",
                             outline="#101820",outlineSize="2 -2",
