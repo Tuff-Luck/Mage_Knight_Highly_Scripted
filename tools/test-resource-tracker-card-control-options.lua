@@ -15,6 +15,7 @@ local function choose(_,_,choices)
 end
 local config={sourceFields={{key="attack"},{key="block"},{key="ranged"}}}
 config.repeatChoiceFor=choose
+config.moveRoleAvailable=function() return combat or moveRole=="combat" end
 local options=require("PlayingGame.PlayerBoard.ResourceTracker.Interface.CardControlOptions")({
     choiceLetters={move="M",influence="I",attack="A",block="B",healing="H",ready="R",
         other="?",guide="G",hardened="H",ranged="R"},
@@ -53,7 +54,7 @@ eq(fallback({damageMitigation=true},nil,nil)[1].key,"hardened","Battle Hardened 
 eq(fallback(nil,nil,nil,{count=3})[1].key,"other","Manual repeated effect reminder")
 local printed={{move=2},{attack=3},{attack=4}}
 local rows,signature,assets=build(printed,nil,true)
-eq(#rows[1].entries,2,"Duplicate categories collapsed")
+eq(#rows[1].entries,3,"Duplicate printed categories collapsed; Move has two roles")
 eq(rows[1].entries[1].category,"move","Choice order")
 eq(rows[1].expanded,true,"Base row expands")
 eq(rows[1].entries[1].targetResource,nil,"Ordinary Move has no enemy target")
@@ -62,8 +63,8 @@ moveRole="combat"
 rows=build(printed,nil,false)
 eq(rows[1].selected,"combatMovemove","Selected combat Move alias")
 eq(rows[1].visible[1].targetResource,"move","Combat Move target")
-eq(rows[1].visible[1].stackedIcons[1],"block","Combat Move shield layer")
-eq(rows[1].visible[1].stackedIcons[2],"move","Combat Move icon layer")
+eq(rows[1].visible[1].icon,"move","Combat Move icon")
+eq(rows[1].visible[1].roleBadge,"C","Combat Move badge")
 eq(#printed,3,"Printed choices remain unchanged")
 cumbersome=false
 moveRole="movement"

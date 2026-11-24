@@ -64,7 +64,8 @@ local cards={
     influenceA={resources={influence=4}},
     influenceB={resources={influence=3}}}
 local conversionEnv={
-    combatConfig={conversionState={},hasPsychicAttack=function(guid)
+    gStates={},
+    combatConfig={hasPsychicAttack=function(guid)
         return guid=="enemy2"
     end},
     combatAssignmentState=state,
@@ -74,7 +75,7 @@ local conversionEnv={
 }
 setmetatable(conversionEnv,{__index=_G})
 assert(load(section(reader,
-    "local function combatConversionReserved(key,amount,field)",
+    "combatConfig.sharedSpendable=function",
     "local function combatAssignmentSources(seat)"),
     "Conversion reservations","t",conversionEnv))()
 local agility,available,active=conversionEnv.combatConfig.conversionFor(1,"agility")
@@ -106,16 +107,7 @@ assert(otherTarget==7,
 local consumeCode=section(reader,
     "local function consumeShared(field,amount)",
     "local function converted(guid,part,original,points,resourceCost)")
-local consumeEnv={
-    combatConversionReserved=function(key,amount,field)
-        local target=state.targets[key]
-        if state.explicit[key] and ((field=="move" and target=="enemy1")
-            or (field=="influence" and target=="enemy2")) then
-            return amount
-        end
-        return 0
-    end
-}
+local consumeEnv={combatConfig=conversionEnv.combatConfig}
 setmetatable(consumeEnv,{__index=_G})
 local spend=assert(load([[
 return function(sources,field,amount)

@@ -79,10 +79,11 @@ contains(combat,'stripAbilities=spec.removeOneAttackAbilities==true',"Chilling S
 contains(combat,'removeOneAttackAbilities=spec.removeOneAttackAbilities',"Arcane Immunity exception")
 
 -- Evaluate the actual shared-pool allocation helper without TTS.
-local conversion=extract(reader,"local function combatConversionReserved(key,amount,field)",
+local conversion=extract(reader,"combatConfig.sharedSpendable=function",
     "local function combatAssignmentSources(seat)")
 local setup=[=[
-local combatConfig={conversionState={}}
+local combatConfig={}
+local gStates={}
 local combatAssignmentState={explicit={},targets={}}
 local moveRoles={}
 local resourceCardsMoveRole=function(guid) return moveRoles[guid] or "combat" end

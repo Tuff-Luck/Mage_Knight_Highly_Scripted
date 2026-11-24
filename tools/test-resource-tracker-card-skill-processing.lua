@@ -57,6 +57,7 @@ eq(wound,true,"Hero mitigation returned")
 env.gStates.resourceCardPlayOrder={action=1,following=2}
 ctx.wounds={}
 interactions.process(ctx)
+interactions.tirelessness(ctx.cards,ctx.records,ctx.totals,ctx.cardPosture)
 eq(ctx.records.following.resources.move,4,"Tirelessness boosts only later card")
 eq(ctx.records.action.resources.move,2,"Origin does not boost itself")
 eq(ctx.totals.move,6,"Following-card bonus updates shared totals")

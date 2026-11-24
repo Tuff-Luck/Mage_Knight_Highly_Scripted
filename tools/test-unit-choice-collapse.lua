@@ -45,7 +45,8 @@ local combatCalcOn=true
 local combatCumbersomeActive=false
 local combatPsychicActive=false
 local combatBlocked,hideTargets=false,false
-local combatConfig={unitCombatBlocked=function() return combatBlocked end}
+local combatConfig={unitCombatBlocked=function() return combatBlocked end,
+    moveRoleAvailable=function() return combatCalcOn end}
 local choiceButtonShown,choiceExpandedByGUID={},{}
 local choiceLetters={}
 local trackerPrivate={unitAbilitiesFor=function() return abilities end}
@@ -57,7 +58,12 @@ local function unitHistorySelectedNumber() return 1 end
 local function unitHistoryKey(guid,index)
     return index==1 and guid or guid.."#use"..index
 end
-local function unitHistoryIsCombatAbility(ability) return ability.attack~=nil or ability.block~=nil end
+local function unitHistoryIsCombatAbility(ability,role)
+    return ability.attack~=nil or ability.block~=nil or (ability.move~=nil and role=="combat")
+end
+local function unitHistoryDecisionHasCombat(abilities,decision,role)
+    return decision.index~=nil and unitHistoryIsCombatAbility(abilities[decision.index],role)
+end
 local function unitLayoutResourceState()
     return {units={{guid=unit.guid,unwounded=true}}}
 end

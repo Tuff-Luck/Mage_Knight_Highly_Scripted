@@ -145,6 +145,10 @@ eq(unitHistoryCombatConflict("u1",2,abilities,chosen),true,
     "passive combat bonuses also spend the combat use")
 firstChoice.choice=1
 eq(unitHistoryIsCombatAbility(abilities[1]),false,"Move is noncombat")
+eq(unitHistoryIsCombatAbility(abilities[1],"combat"),true,"Combat Move is combat")
+eq(unitHistoryCombatConflict("u1",2,abilities,chosen,function(key)
+    return key=="u1" and "combat" or "movement"
+end),true,"Earlier Combat Move blocks later combat use")
 eq(unitHistoryIsCombatAbility(abilities[3]),false,"Heal is noncombat")
 eq(unitHistoryDecisionHasCombat(abilities,{index=2}),true,"Attack is combat")
 local multi={multi=true,abilities[2],abilities[4]}
