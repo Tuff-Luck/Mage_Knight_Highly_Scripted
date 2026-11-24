@@ -51,7 +51,7 @@ local artifactState=between(recognition,"function resourceCardsArtifactBroken(gu
     "-- Persist one-shot Banner uses")
 local helpers=between(recognition,"trackerPrivate.bannerEffectUses=function()",
     "trackerPrivate.commandPickupForUnits={}")
-local private,states,printed=assert(load([[
+local private,states,printed,artifactBroken=assert(load([[
 local trackerPrivate={}
 local gStates={currentRound=1}
 local unitResourceDefinitions={unit={{row=1,key="attack",attack=4}}}
@@ -60,7 +60,7 @@ local function unitLayoutResourceState() return nil end
 ]].."function resourceCardsArtifactBroken(guid,card)"..artifactState..[[
 trackerPrivate.bannerEffectUses=function()
 ]]..helpers..[[
-return trackerPrivate,gStates,unitResourceDefinitions
+return trackerPrivate,gStates,unitResourceDefinitions,resourceCardsArtifactBroken
 ]]))(gameCards)
 local use=private.bannerEffectUses()
 use.healing.fortitude=true
@@ -84,7 +84,19 @@ for _,pair in ipairs(bannerPairs) do
         and private.bannerStrongActive(fullDown)
         and not private.bannerStrongActive(halfUp)
         and not private.bannerStrongActive(halfDown),
-        "Only flipping the full-sized Banner may enable its Break effect")
+        "Only the full-sized Banner may use the manual face-down Throw effect")
+    -- The full card also supports explicit Throw/Recover while face up;
+    -- even a stale saved flag must never make an attached half throwable.
+    states.artifactBreaks={[full]=true,[half]=true}
+    assert(artifactBroken(full,fullUp) and private.bannerStrongActive(fullUp),
+        "Explicit Throw must activate a face-up full Banner")
+    assert(not artifactBroken(half,halfUp) and not artifactBroken(half,halfDown)
+        and not private.bannerStrongActive(halfUp),
+        "Attached half must remain ineligible for Throw even with a saved flag")
+    states.artifactBreaks[full]=false
+    assert(not artifactBroken(full,fullUp) and not private.bannerStrongActive(fullUp),
+        "Recover must restore the full Banner basic side")
+    states.artifactBreaks=nil
     for _,card in ipairs({halfUp,halfDown}) do
         local result=private.bannerAttachedCardResult(card.guid)
         assert(result~=nil and result.powered==false
@@ -265,8 +277,8 @@ assert(recognition:find('trackerPrivate.bannerCardForm(guid)~="half"',1,true),
     "Half Banners must not enter the play-area Artifact list")
 assert(recognition:find('local attachedResult=trackerPrivate.bannerAttachedCardResult(card.guid)',1,true),
     "The card calculator must leave attached halves inert")
-assert(recognition:find('and trackerPrivate.bannerCardForm(card.guid)~="half"',1,true),
-    "Only full Banners may be classified as broken Artifacts")
+assert(recognition:find("and resourceCardsArtifactBroken(card.guid,card)",1,true),
+    "Artifact classification must consult the shared Throw/Recover state")
 assert(recognition:find('and trackerPrivate.bannerStrongActive(card)',1,true),
     "Fortitude and other strong buttons must check the full-card form")
 assert(recognition:find('if trackerPrivate.bannerCardForm(guid)=="full" then',1,true),
@@ -275,7 +287,8 @@ assert(recognition:find('trackerPrivate.bannerStrongActive(artifact)',1,true),
     "Glory army-wide bonus must only be enabled by full Break")
 assert(layout:find('data.cardType=="Artifact" and data.full~=nil',1,true),
     "Only half-sized Banners may be attached as Unit bonuses")
-assert(boardEvent:find("bannerPosition[3]>=-38.4 and obj.is_face_down~=true",1,true),
+assert(boardEvent:find("bannerPosition[3]>=-38.4 and obj.is_face_down~=true",1,true)
+    and boardEvent:find("and not resourceCardsArtifactBroken(objGUID,obj) then",1,true),
     "A broken full card must not be converted into a spendable half")
 assert(boardEvent:find("if fullCard.is_face_down==true then fullCard.flip() end",1,true),
     "A spent half must be restored to a face-up full card on detachment")
