@@ -64,7 +64,8 @@ local env={
     setHighlight=function() end
 }
 setmetatable(env,{__index=_G})
-local helpers=section(reader,"-- Separate the three physical orientations.",
+package.path="src/?.lua;"..package.path
+local helpers=section(reader,'local cardPosture=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").cardPosture',
     "-- Paging changes visible rows")
 assert(load(helpers,"Ambush candidate eligibility","t",env))()
 assert(env.cardPosture==nil,
