@@ -25,6 +25,24 @@ function M.publish(context)
     end
     local previous=trackerPrivate.bySeat[seatPos] or {}
     local previousScan=resourceCardScanBySeat[seatPos]
+    -- Linking/unlinking can change a card's effective resource family without
+    -- a choice click. Clear only assignments whose linked resource disappeared
+    -- or changed; identical copied/printed resources retain their target.
+    local changedLinkedSources={}
+    for guid,record in pairs(records) do
+        local old=previousScan~=nil and previousScan.cards[guid] or nil
+        if old~=nil then
+            local before=old.shapeshiftField or old.copiedBasicField
+            local after=record.shapeshiftField or record.copiedBasicField
+            if before~=after and not (combatConfig.phaseObjectLocked~=nil
+                and combatConfig.phaseObjectLocked(guid)) then
+                local incompatible=(before~=nil and after~=nil)
+                    or (before~=nil and (tonumber(record.resources~=nil and record.resources[before]) or 0)<=0)
+                    or (after~=nil and (tonumber(old.resources~=nil and old.resources[after]) or 0)<=0)
+                if incompatible then changedLinkedSources[#changedLinkedSources+1]=guid end
+            end
+        end
+    end
     local previousMove=previousScan~=nil and (previousScan.totals.move or 0) or 0
     local previousSplit=previousScan~=nil and previousScan.moveSplit or nil
     local enemyStateChanged=previousScan==nil
@@ -109,6 +127,10 @@ function M.publish(context)
     resourceCardScanBySeat[seatPos].enemyEffectArrowKinds,
         resourceCardScanBySeat[seatPos].enemyEffectDefenceRequirements=
         combatEffectArrowKinds(records,enemyEffects)
+    for _,guid in ipairs(changedLinkedSources) do
+        context.combatForgetPhysicalSourceTargets(guid)
+        if attackAssignmentsClearForObject~=nil then attackAssignmentsClearForObject(guid) end
+    end
     if attackAssignmentsRefreshAmbushLinks~=nil then attackAssignmentsRefreshAmbushLinks() end
     -- This also retracts a saved Ready if its card loses power or the new
     -- Rejuvenate side can no longer ready that Unit level.
