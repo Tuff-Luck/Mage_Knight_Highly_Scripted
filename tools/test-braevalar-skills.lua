@@ -130,9 +130,7 @@ eq(defeated,false,"Melee-phase bolts wait until regular Attack phase")
 -- damage value remains unchanged when that Block fails.
 combatConfig=combatConfig or {}
 combatConfig.COMBAT_EFFICIENT_BLOCKS={P={block=true}}
-local blockSolver=isolated(recognition,
-    "local function combatBlockLegal(attack,item)",
-    "local function combatBlockSpent(", "combatSolveBlocks")
+local blockSolver=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/BlockSolver.lua")(combatConfig).solve
 local blockItem={source={key="test"},key="block",value=4,part=1}
 local plan=blockSolver({{key="P",value=4}}, {blockItem}, 0)
 eq(plan[1].blocked,true,"Four Block covers a normal Attack of four")

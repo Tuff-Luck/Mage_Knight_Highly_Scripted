@@ -977,7 +977,7 @@ assert(assignments:find('function attackAssignmentsDamageSnapshot()',1,true)
 -- lock their sources, while Block points used for success and Cumbersome
 -- Move reductions must remain committed.
 local blockStart=assert(recognition:find(
-    "local function combatBlockLegal(attack,item)",1,true))
+    "-- Block resources only ever face the enemy",1,true))
 local blockEnd=assert(recognition:find(
     "-- Damage phase. Every unblocked attack",blockStart,true))
 local blockEnv={
@@ -989,6 +989,11 @@ local blockEnv={
     combatAssignmentActiveSeat=function() return 1 end,
     gStates={turnNumber=1,competitiveSkillReminders={}},
 }
+local blockSolver=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/BlockSolver.lua")(blockEnv.combatConfig)
+blockEnv.combatBlockLegal=blockSolver.legal
+blockEnv.combatBlockEfficient=blockSolver.efficient
+blockEnv.combatSolveBlocks=blockSolver.solve
+blockEnv.combatBlockSpent=blockSolver.spent
 setmetatable(blockEnv,{__index=_G})
 local blockResult=assert(load(recognition:sub(blockStart,blockEnd-1)..
     "\nreturn combatBlockResult","Block effective source locking","t",blockEnv))()
