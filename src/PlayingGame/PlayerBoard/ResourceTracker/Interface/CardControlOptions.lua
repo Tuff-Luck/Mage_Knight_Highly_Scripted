@@ -182,7 +182,11 @@ return function(deps)
                         -- Two cells, one printed Move effect. Never duplicate points.
                         -- Friendly links are independent of Move's phase.
                         local friendly=entry.targetResource=="ambush" or entry.targetResource=="blockSource"
-                        if not friendly then entry.targetResource=nil end
+                        local splitMoveAttack=choice.splitMoveAttack==true
+                        if splitMoveAttack and combatCalcOn then
+                            entry.targetResource="attack"
+                            entry.targetPart="attack"
+                        elseif not friendly then entry.targetResource=nil end
                         row.entries[#row.entries+1]=entry
                         -- Combat Move can also pay for conversions and Spells.
                         -- Cumbersome controls targeting, not the role icon.
@@ -194,7 +198,15 @@ return function(deps)
                             combatEntry.icon="move"
                             combatEntry.stackedIcons=nil
                             combatEntry.roleBadge="C"
-                            if friendly then
+                            if splitMoveAttack and combatCalcOn then
+                                -- Keep Attack aimed independently of the Move pool.
+                                combatEntry.targetResource="attack"
+                                combatEntry.targetPart="attack"
+                                if combatCumbersomeActive then
+                                    combatEntry.extraTargetResource="move"
+                                    combatEntry.extraTargetPart="block"
+                                end
+                            elseif friendly then
                                 combatEntry.targetResource=entry.targetResource
                                 if entry.targetResource=="blockSource" and combatCalcOn
                                     and combatCumbersomeActive then
@@ -224,6 +236,7 @@ return function(deps)
                 -- enemy automatically. Keep all special split, manual and friendly
                 -- target controls, even if they currently have only one candidate.
                 if entry.targetResource~=nil and entry.splitTargets==nil
+                    and entry.targetPart==nil
                     and (rule==nil or rule.forkedLightning~=true)
                     and resourceCardsHideAutomaticEnemyTarget(card.guid,
                         entry.targetResource,false) then
@@ -253,6 +266,8 @@ return function(deps)
                     tostring(entry.roleBadge),table.concat(entry.stackedIcons or {},","),
                     tostring(not row.expanded and entry.targetResource or nil),
                     tostring(not row.expanded and entry.extraTargetResource or nil),
+                    tostring(not row.expanded and entry.targetPart or nil),
+                    tostring(not row.expanded and entry.extraTargetPart or nil),
                     not row.expanded and table.concat(entry.splitTargets or {},",") or "",
                     tostring(not row.expanded and entry.forkedCount or nil)
                 },"|")
@@ -270,6 +285,11 @@ return function(deps)
                     and not assetSeen.target then
                     visibleAssets[#visibleAssets+1]="target"
                     assetSeen.target=true
+                end
+                if not row.expanded and entry.targetPart=="attack"
+                    and not assetSeen.attack then
+                    visibleAssets[#visibleAssets+1]="attack"
+                    assetSeen.attack=true
                 end
                 if not row.expanded and entry.extraTargetResource~=nil
                     and not assetSeen.move then
