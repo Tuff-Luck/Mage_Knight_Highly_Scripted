@@ -246,17 +246,23 @@ end
 function M.wingsNight(context)
     local pendingWingsNight, records, resourceCardsMoveRole = context.pendingWingsNight, context.records, context.resourceCardsMoveRole
     local monsters, enemyEffects, totals = context.monsters, context.enemyEffects, context.totals
-    -- Wings of Night costs 0 for the first affected enemy, then 1, 2,
-    -- etc. Red buttons remain for immune/unaffordable selected targets.
-    -- Remove paid Move from original sources too, to avoid counting it
-    -- again against Cumbersome or in the Movement display.
+    -- Priority: existing Cumbersome assignments, Wings of Night, then Agility
+    -- (which reads the remaining published resources). New automatic targets
+    -- may use only the points left after both costs.
+    table.sort(pendingWingsNight,function(a,b) return a.source<b.source end)
     for _,pending in ipairs(pendingWingsNight) do
         local spent,count=0,0
         local combatMoveAvailable=0
-        for sourceGUID,record in pairs(records) do
+        local moveSources={}
+        for guid,record in pairs(records) do
             local amount=math.max(0,tonumber(record.resources~=nil and record.resources.move) or 0)
-            if amount>0 and resourceCardsMoveRole(sourceGUID,true)=="combat" then
-                combatMoveAvailable=combatMoveAvailable+amount
+            if amount>0 and resourceCardsMoveRole(guid,true)=="combat" then
+                local key=context.sharedSourceKey(guid,record)
+                local free=context.sharedSpendable(key,amount,"move",context.moveEligible)
+                if free>0 then
+                    combatMoveAvailable=combatMoveAvailable+free
+                    moveSources[#moveSources+1]={guid=guid,amount=free}
+                end
             end
         end
         for _,guid in ipairs(pending.targets) do
@@ -277,28 +283,22 @@ function M.wingsNight(context)
         end
         if spent>0 then
             local remaining=spent
-            local moveSources={}
-            for guid,record in pairs(records) do
-                if record.resources~=nil and (tonumber(record.resources.move) or 0)>0
-                    and resourceCardsMoveRole(guid,true)=="combat" then
-                    moveSources[#moveSources+1]=guid
-                end
-            end
-            table.sort(moveSources)
-            for _,guid in ipairs(moveSources) do
+            table.sort(moveSources,function(a,b) return a.guid<b.guid end)
+            for _,source in ipairs(moveSources) do
                 if remaining<=0 then break end
-                local record=records[guid]
+                local record=records[source.guid]
                 local original=tonumber(record.resources.move) or 0
-                local used=math.min(original,remaining)
+                local used=math.min(source.amount,original,remaining)
                 if used>0 then
                     local adjusted={}
                     for key,value in pairs(record.resources) do adjusted[key]=value end
                     adjusted.move=original-used
                     record.resources=adjusted
+                    record.wingsNightMoveSpent=(record.wingsNightMoveSpent or 0)+used
                     remaining=remaining-used
                 end
             end
-            totals.move=math.max(0,(tonumber(totals.move) or 0)-spent)
+            totals.move=math.max(0,(tonumber(totals.move) or 0)-(spent-remaining))
         end
     end
 end
