@@ -23,7 +23,7 @@ return function(deps)
     local choiceCategory=deps.choiceCategory
     local inventorySetChoice=deps.inventorySetChoice
 
-    local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySets,resources,repeatLink)
+    local function showChoiceButtons(card,choices,powered,inventorySpec,inventorySets,resources,repeatLink,shapeshiftField)
         local choiceButtonShown,choiceExpandedByGUID,combatAssignmentState,
             combatCalcOn,combatCumbersomeActive,combatPsychicActive,combatEnemyInPlay,
             gameCards,cardResourceDefinitions,skillResourceDefinitions,skillTokens,
@@ -39,6 +39,13 @@ return function(deps)
         local cardData=gameCards[card.guid]
         local rule=cardData~=nil and cardResourceDefinitions[cardData.resourceKey]
             or skillResourceDefinitions[card.guid]
+        if shapeshiftField~=nil and (choices==nil or #choices==0) then
+            -- A fixed original Action needs only a target control for the
+            -- converted value, not another selectable printed effect.
+            local family=shapeshiftField=="move" and "move"
+                or (shapeshiftField:sub(1,6)=="attack" and "attack" or "block")
+            choices={{key=family,icon=family,[shapeshiftField]=0}}
+        end
         choices=trackerPrivate.cardControlOptions.fallbackChoices(card,rule,choices,resources,repeatLink)
         local posture=cardPosture(card)
         local reward=factionRewardForObject~=nil and factionRewardForObject(card) or nil
@@ -105,7 +112,7 @@ return function(deps)
 
         local rows,signatureParts,visibleAssets,assetSeen=trackerPrivate.cardControlOptions.buildRows(
             card,cardData,rule,choices,powered,inventorySpec,inventorySets,repeatLink,
-            posture,isSkill,choiceExpandedByGUID[card.guid])
+            posture,isSkill,choiceExpandedByGUID[card.guid],shapeshiftField)
         if rows==nil then
             if choiceButtonShown[card.guid]~="hidden" then
                 removeChoiceButtons(card)
