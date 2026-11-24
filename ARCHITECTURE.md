@@ -104,6 +104,16 @@ The project is authored as Lua modules and bundled by Sebastian's Tabletop Simul
 | `src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EnemyProperties.lua` | Fresh printed enemy Attack records, perk modifiers, elemental conversions, ordered per-Attack reductions and cancellation, summoned-token Attack assembly. Consumes caller-supplied records and selected attack indices; physical enemy lookup, phase state and assignment ownership remain with CardRecognition. Enemy traits, Fortification, elemental Resistance, effective Attack totals (including Artifact combat modes), grouped base/Elusive/boss Armour, and application of individual defensive effects to fresh calculator entries. Consumes caller-supplied enemy, resource and effect records; physical lookup, targeting, effect ownership and phase orchestration remain in CardRecognition. |
 | `src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CombatPanel.lua` | Pure combat panel text-width estimates, page boundaries that preserve joined groups when possible, page clamping and visible enemy-name sizing. CardRecognition owns actual UI attributes, active page and all combat calculations. Shared column widths and visibility, damage summary presentation, overflow localization and header geometry; no Damage commitment or physical wound changes. |
 | `src/PlayingGame/PlayerBoard/ResourceTracker/Core/TrackerLifecycle.lua` | Coalesced settled-object scans and per-seat generation cancellation. Uses existing protected waits; no independent tracker state. Panel open/close, turn handoff, saved choice serialization and startup restoration. Mutates the coordinator's live tables through supplied reset callbacks; retains public entry points. |
+| `src/PlayingGame/GameFlow/Teams.lua` | Authoritative seat team and scenario faction membership, allied sites and ownership checks. |
+| `src/PlayingGame/Offers/CallOffer.lua` | Physical Unit loan and offer browse/return lifecycle for Call to Arms and Call to Glory. |
+| `src/PlayingGame/Offers/TrainingOffer.lua` | Training cost selection and physical Advanced Action browse/claim/return lifecycle. |
+| `src/PlayingGame/Offers/MagicTalentOffer.lua` | Magic Talent physical Spell borrow/claim/return and casting lifecycle. |
+| `src/PlayingGame/PlayerBoard/Scale.lua` | Player-board play-area and component scaling. |
+| `src/PlayingGame/PlayerBoard/Units/UnitResources.lua` | Static Unit ability resource definitions. |
+| `src/PlayingGame/PlayerBoard/Units/UnitHistory.lua` | Authoritative activation-use history, selection and frozen paid-mana snapshots. |
+| `src/PlayingGame/PlayerBoard/Units/UnitReplacement.lua` | Player-confirmed replacement of Units at full Command capacity. |
+| `src/PlayingGame/Interface/UIAssets.lua` | Global Custom UI asset registration, including runtime decals and object interface icons. |
+| `src/PlayingGame/Interface/Help.lua` | Game help and rules reminders. |
 
 ## Dependency shape
 
@@ -112,6 +122,12 @@ The project is authored as Lua modules and bundled by Sebastian's Tabletop Simul
 Cross-cutting services must not replace another module's global by load order. The owning module should keep the public entry point, give its underlying implementation a unique base name when necessary, and delegate explicitly to the service.
 
 Modules have separate lexical scope for `local` declarations. Globals are shared in the final bundled Global environment. A helper needed by multiple modules should therefore be intentionally global/shared or otherwise exposed once; copying a local helper into several files does not consolidate it.
+
+## Source organisation
+
+The PlayingGame directory groups gameplay responsibilities into AI, Combat, Components, GameFlow, Interface, Offers, PlayerBoard, Scenarios and World. ResourceTracker contains Cards, Combat, Core, Interface, Scanning and Units. Folder names do not define load order: the Global entry point does. UI XML remains a flat, independent directory.
+
+Consolidated calculator modules expose named factories or subservices. Instantiate them at the original coordinator boundaries rather than eagerly capturing partially initialized dependencies. The combined files retain separate lexical scopes for their original implementations. Avoid making a second copy of a shared helper or mixing physical game state with calculation-only services.
 
 ## Resource Tracker refactor boundaries
 

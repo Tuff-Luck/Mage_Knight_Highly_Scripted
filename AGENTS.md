@@ -214,7 +214,7 @@ Run `tools/validate-project.ps1` before considering a structural change complete
 The validator currently checks:
 - JSON parsing for repository JSON files, excluding generated `.tts/bundled/` output.
 - TTS XML fragment parsing for object XML and `src/UI/` XML, including resolution of XML `<Include>` targets.
-- Every `require()` target in `.tts/objects/Global.lua` resolves to a source module under `src/`.
+- Every statically named `require()` reachable from `.tts/objects/Global.lua` resolves to a source module under `src/`; the dependency graph has no cycles or unreachable modules.
 - Duplicate global function definitions across `src/` modules.
 - Risky local `state`/`context` table shadowing patterns.
 - Lua 5.2 syntax for Lua files under `src/` and `.tts/objects/`.
