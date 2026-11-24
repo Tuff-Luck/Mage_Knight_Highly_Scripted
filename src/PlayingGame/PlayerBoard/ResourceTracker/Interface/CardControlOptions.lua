@@ -182,25 +182,17 @@ return function(deps)
                         entry.targetResource=nil
                         row.entries[#row.entries+1]=entry
                         -- Combat Move can also pay for conversions and Spells.
-                        -- Cumbersome controls only the defensive icon and target.
+                        -- Cumbersome controls targeting, not the role icon.
                         if combatConfig.moveRoleAvailable(choice.shapeshiftTargetGUID or card.guid) then
                             local combatEntry={}
                             for key,value in pairs(entry) do combatEntry[key]=value end
                             combatEntry.category="combatMove"..category
                             combatEntry.originalIndex=j+0.5
-                            -- Match Tempered Steel: both icons are full-size,
-                            -- drawn in order with the Move symbol on top.
-                            if combatCalcOn and combatCumbersomeActive then
-                                combatEntry.icon="block"
-                                combatEntry.stackedIcons={"block","move"}
-                                combatEntry.roleBadge=nil
-                                combatEntry.targetResource=choice.shapeshiftTargetGUID==nil and "move" or nil
-                            else
-                                combatEntry.icon="move"
-                                combatEntry.stackedIcons=nil
-                                combatEntry.roleBadge="C"
-                                combatEntry.targetResource=nil
-                            end
+                            combatEntry.icon="move"
+                            combatEntry.stackedIcons=nil
+                            combatEntry.roleBadge="C"
+                            combatEntry.targetResource=combatCalcOn and combatCumbersomeActive
+                                and choice.shapeshiftTargetGUID==nil and "move" or nil
                             row.entries[#row.entries+1]=combatEntry
                         end
                     else
