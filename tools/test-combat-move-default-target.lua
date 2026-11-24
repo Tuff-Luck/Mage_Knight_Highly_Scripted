@@ -19,7 +19,7 @@ local cardOptions=read("src/PlayingGame/PlayerBoard/ResourceTracker/CardControlO
 
 assert(reader:find('if moveAmount>0 and resourceCardsMoveRole(guid,true)=="combat" then',1,true),
     "Only combat-role Move can become a Calculator source")
-assert(reader:find('combatAssignmentState.explicit[source.key]=autoCombatMove and targetGUID~=nil or nil',
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/SourceTargetAllocation.lua"):find('combatAssignmentState.explicit[source.key]=autoCombatMove and targetGUID~=nil or nil',
     1,true),"Default Cumbersome target must reserve the Move pool")
 assert(cardOptions:find('combatEntry.icon="block"',1,true)
     and cardOptions:find('combatEntry.stackedIcons={"block","move"}',1,true)
@@ -50,11 +50,7 @@ assert(assets:find('move={name="MKChoiceMove"',1,true)
 local nearestCode=section(reader,
     "local function combatNearestEnemyGUID(source,entries,eligible)",
     "combatConfig.attackTypes=")
-local assignCode=section(reader,
-    "    for _,source in ipairs(sources) do\n        local moveOnly=",
-    "        if targetIndex~=nil then")
--- Exercise the real refresh-pass selection up to the point where source
--- details are copied into each enemy row. The later presentation is unrelated.
+-- Exercise the real target selection with the production nearest-enemy helper.
 local positions={
     moving={0,0,0},
     normal={1,0,0},
@@ -77,8 +73,10 @@ local env={
     resourceCardsCombatTargetAcceptsSource=function() return true end
 }
 setmetatable(env,{__index=_G})
-local evaluator=assert(load(nearestCode.."\nreturn function(entries,sources,rowByGUID)\n"..
-    assignCode.."\nend\nend","Combat Move nearest-default","t",env))()
+local nearest=assert(load(nearestCode.."\nreturn combatNearestEnemyGUID","Nearest enemy","t",env))()
+local evaluator=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/SourceTargetAllocation.lua")(
+    env.attackAssignmentsTargetGUIDs,env.attackAssignmentsClearForObject,
+    env.resourceCardsCombatTargetAcceptsSource,env.combatGUIDHasCumbersome,nearest).resolveTarget
 local entries={
     {guid="normal",attackOnly=false},
     {guid="farCumbersome",attackOnly=false},
@@ -91,7 +89,9 @@ local function source(key,move,attack)
         psychicInfluence=0}
 end
 local function scan(sources)
-    evaluator(entries,sources,rowByGUID)
+    for _,item in ipairs(sources) do
+        evaluator(item,entries,rowByGUID,state,env.combatCumbersomeActive)
+    end
 end
 scan({source("combatMove",4)})
 assert(state.targets.combatMove=="nearCumbersome",

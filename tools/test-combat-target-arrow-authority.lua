@@ -7,11 +7,6 @@ local function read(path)
     f:close()
     return text
 end
-local reader=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
-local first=assert(reader:find("        -- Explicit calculator targets remain authoritative.",1,true))
-local last=assert(reader:find("        local targetIndex=targetGUID~=nil",first+1,true))
-local snippet=reader:sub(first,last-1)
-
 local state={targets={rage="right"},explicit={rage=true}}
 local arrows={rage={left=true}}
 local env={
@@ -19,9 +14,8 @@ local env={
     attackAssignmentsTargetGUIDs=function(key) return arrows[key] or {} end
 }
 setmetatable(env,{__index=_G})
-local target=assert(load("return function(source,rowByGUID)\n"
-    ..snippet.."\nreturn targetGUID\nend",
-    "Combat calculator target authority","t",env))()
+local recover=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/SourceTargetAllocation.lua")(env.attackAssignmentsTargetGUIDs).recoverTarget
+local function target(source,rows) return recover(source,rows,state) end
 local source={key="rage"}
 local rows={left=1,right=2}
 
