@@ -109,7 +109,7 @@ assert(recognition:find("successfulSources[applied.source]==true",1,true),
     "Spell destruction must remain tied to its own Block")
 assert(combatEffectRequiresDefence(delphana[2].enemyEffect),
     "attack-only reminders must not become eligible defensive targets")
-assert(recognition:find("Destroy target if all its attacks are successfully Blocked",1,true),
+assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/CombatEffectDisplay.lua"):find("Destroy target if all its attacks are successfully Blocked",1,true),
     "Delphana tooltip must describe all-attacks requirement")
 
 -- A Ready then Black transformation must credit use2, not use1; an old

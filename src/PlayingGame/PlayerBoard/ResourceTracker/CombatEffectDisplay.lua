@@ -224,11 +224,11 @@ return function(defences,combatEnemyAttacks,combatEnemyPrintedAttacks,
             else reason="No Hero damage was prevented. The chosen attack may be blocked or its damage assigned to Units." end
         end
         local name=sourceNameOf(guid)
-        local tooltip=elemental
+        local tooltip=(elemental
             and (name..": Prevent 2 Fire/Ice or 1 Cold Fire/Physical/Psychic Hero damage from one attack.")
             or (name..": Prevent "..tostring(spec.physical or 2)
                 .." Physical or "..tostring(spec.nonphysical or 1)
-                .." non-Physical damage reaching the Hero from one attack.")
+                .." non-Physical damage reaching the Hero from one attack."))
             .."\nCurrently prevents "..tostring(prevented).." Hero damage."
             ..(reason~=nil and ("\nNo benefit: "..reason) or "")
             .."\nSelect the button then click an enemy row to retarget."

@@ -181,6 +181,8 @@ icon=combatConfig.mitigationButtonInfo("element",{enemyGUID="enemy"},enemy,
     {},{["enemy:1"]={elementPrevented=2}},mitigation)
 eq(icon.amount,"2","Elemental mitigation uses actual prevented amount")
 eq(icon.ineffective,false,"Elemental protection effective")
+assert(icon.tooltip:find("Currently prevents 2 Hero damage.",1,true),"Elemental prevention amount tooltip")
+assert(icon.tooltip:find("click an enemy row to retarget",1,true),"Elemental retarget instructions")
 icon=combatConfig.mitigationButtonInfo("element",{enemyGUID="enemy"},enemy,
     {rangeDefeated=true},{},nil)
 eq(icon.ineffective,true,"Defeated enemy gives no damage prevention")
