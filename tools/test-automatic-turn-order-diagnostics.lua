@@ -228,9 +228,9 @@ assert(#reports==4 and reports[4].summary:find("genuine789",1,true),
 assert(reports[4].context:find("Destruction callbacks last 15s at destroy: 1",1,true),
     "Old destroy bursts must expire after the 15-second rolling window")
 
--- The 466 reports showed a missing table, every turn-order token gone,
--- and more than 150 destruction callbacks in 15 seconds. Only that combined
--- signature should suppress round-order diagnostics (the table's zones survive).
+-- Version 469 showed the table already missing with 79 recent destroy
+-- callbacks, but the other player's token still present. The token audit
+-- must now suppress that case; the score layout keeps its two-token rule.
 local function auditWithEnvironment(guid,surfaceMissing,otherMissing,burst)
     fakeTime=fakeTime+16 -- Age out prior 15-second callback buckets.
     objects["map-zone"]={}
@@ -255,10 +255,15 @@ auditWithEnvironment("tableIntactMass",false,true,50)
 assert(#reports==reportedBefore+1,
     "Even a large destruction burst must report a missing token if the table is intact")
 auditWithEnvironment("otherTokenIntact",true,false,50)
-assert(#reports==reportedBefore+2,
-    "Missing table and mass destruction must report an isolated token loss")
+assert(#reports==reportedBefore+1,
+    "One missing token with a missing table and 50 destroys must be treated as probable teardown")
+assert(destroyEnv.protectedUnexpectedDestroyReported.otherTokenIntact==nil,
+    "Suppressed teardown must not be recorded as a genuine unexpected deletion")
+-- Scoring sees the same mass-destruction evidence but requires two tokens missing.
+assert(destroyEnv.protectedTableTeardownLikely()==false,
+    "Scoring must remain active while the other token still exists")
 auditWithEnvironment("smallCleanup",true,true,49)
-assert(#reports==reportedBefore+3,
+assert(#reports==reportedBefore+2,
     "Missing table and multiple tokens without a substantial burst still require a report")
 
 -- The new heuristic must never mask missing non-turn-order protected objects,
@@ -271,7 +276,7 @@ destroyAudit("otherProtected")
 destroyPending[#destroyPending]()
 assert(destroyEnv.protectedUnexpectedDestroyReported.otherProtected==true,
     "Only round-order token diagnostics may use the probable-teardown suppression")
-assert(#reports==reportedBefore+3,"Other protected object tests should not emit a turn-order report")
+assert(#reports==reportedBefore+2,"Other protected object tests should not emit a turn-order report")
 
 -- Score-layout callbacks do not have an already-confirmed missing GUID.
 -- They must independently find TWO distinct missing assigned tokens, a missing
