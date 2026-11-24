@@ -156,22 +156,13 @@ eq(payment.matches(spell,"Gold"),true,"Sun activates Gold during Night")
 eq(payment.matches(spell,"Black"),true,"Sun does not disable Night Black")
 
 -- Execute the production Attack totals with the same per-source Bow mode.
-local mathSource=between(recognition,"local function combatEnemyResists(",
-    "-- Blocks of the wrong element")
-local calculator=assert(load([[
 local combatConfig={
     artifactCombat={sword=false,bow=false},
     bowSourceModes={},
     attackTypes={{key="P",attack="attack",ranged="ranged",siege="siege"}}
 }
-local function combatEnemyHasTrait(data,perks,key)
-    return data[key]==true or (perks~=nil and perks[key]==true)
-end
-]]..mathSource..[[
-return {
-    sum=combatAttackTotal,combat=combatConfig
-}
-]]))()
+local calculator={sum=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/EnemyDefences.lua")(combatConfig).attackTotal,
+    combat=combatConfig}
 local enemy={}
 local source={key="unit#use1",resources={ranged=3,siege=2,attack=4}}
 eq(calculator.sum({{sources={source},category="ranged"},

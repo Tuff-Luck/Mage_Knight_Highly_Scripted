@@ -156,13 +156,7 @@ result.powered=true
 eq(siteBypassCheck(spells.spellDemolish,result,played),false,"Disintegrate has no bypass")
 
 -- Exercise the calculator's actual stripping logic (not an invented rule).
-local fortificationCount=assert(load([[
-local function combatEnemyHasTrait(data,perks,key)
-    return data[key]==true or (perks~=nil and perks[key]==true)
-end
-]]..between(reader,"local function combatEnemyFortificationCount(data,perks)",
-    "-- owner/slot identify the physical token")..
-    "\nreturn combatEnemyFortificationCount"))()
+local fortificationCount=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/EnemyDefences.lua")({}).fortificationCount
 local stripSites=assert(load("return function(entries,seatScan)\n"..
     between(reader,"    -- Ignore site/wall Fortified, but preserve the monster's printed Fortified.",
         "    for _,entry in ipairs(entries) do\n        local obj=monsters[entry.guid]")..

@@ -25,8 +25,7 @@ combatEnemyHasTrait=function() return false end
 combatRich=function(value,color)
     return "<color="..color..">"..value.."</color>"
 end
-local attackTotal=isolated("local function combatEnemyResists(",
-    "-- Blocks of the wrong element", "combatAttackTotal")
+local attackTotal=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/EnemyDefences.lua")(combatConfig).attackTotal
 local paralysisCards=isolated("combatConfig.paralysisAttackCards=function(sources,results,lock,knockout)",
     "combatConfig.attackPhaseSources=function", "combatConfig.paralysisAttackCards")
 local eligibleSources=isolated("combatConfig.attackPhaseSources=function(sources,wounded,paralysisCards)",
