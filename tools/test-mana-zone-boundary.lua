@@ -11,7 +11,7 @@ local spell={guid="spell"}
 local maximal={guid="maximal"}
 local function mana(guid,color)
     local o={guid=guid,type="Dice",color=color,resting=false}
-    o.getPosition=function() return {0,2,0} end
+    o.getPosition=function() return {o.x or 0,2,o.z or 0} end
     o.isSmoothMoving=function() return o.moving==true end
     o.getRotationValue=function() return o.color.." Mana" end
     return o
@@ -26,7 +26,8 @@ local env=setmetatable({
     getObjectFromGUID=function(guid) return objects[guid] end,
     getAllObjects=function() error("Payment may not scan the entire table") end,
     footprint=function() return {x=0,z=0,halfX=1,halfZ=1} end,
-    isManaTokenFigurine=function() return false end,
+    isManaTokenFigurine=function(obj) return obj.type=="Figurine" end,
+    manaTokenColor=function(obj) return obj.color end,
     cardPosture=function() return "upright" end,
     matchesCardMana=function(_,color) return color=="Blue" end
 },{__index=_G})
@@ -54,7 +55,28 @@ second.held_by_color="Red" check(1)
 second.held_by_color=nil second.moving=true check(1)
 second.moving=false check(2)
 members={second} check(1)
+second.x=1 check(0) -- Touching the edge is not a payment.
+second.x=0.99 check(1)
+second.x=0 second.z=-1 check(0)
+second.z=-0.99 check(1)
+second.z=0
+local crystal=mana("crystal","Blue")
+crystal.type="Figurine"
+members={crystal,blue,crystal} check(2)
+crystal.held_by_color="Blue" check(1)
+crystal.held_by_color=nil
 members={} check(0)
+-- Live membership, not physical X/Z overlap, decides whether mana qualifies.
+members={crystal} check(1)
+members={} check(0)
+members={blue}
+spell.is_face_down=true
+assert(not env.magicTalentSpellCastingPaid(1,"spell"))
+assert(env.magicTalentSpellCastingPaymentCount(1,"spell")==0)
+spell.is_face_down=false
+local oldZone=objects.zone
+objects.zone=nil check(0)
+objects.zone=oldZone check(1)
 members={black}
 assert(not env.magicTalentSpellCastingPaid(1,"spell"),"Black alone never casts a Spell")
 assert(env.magicTalentSpellCastingPaymentCount(1,"spell")==0)

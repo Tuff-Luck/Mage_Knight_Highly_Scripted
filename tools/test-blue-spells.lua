@@ -99,6 +99,14 @@ local paid=isolated(recognition,
     "function resourceCardsTimeBendingPaid(seatPos,card)",
     "-- Physical mana is authoritative", "resourceCardsTimeBendingPaid")
 eq(paid(1,spell),true,"Nighttime Blue and Black pay Time Bending")
+manaClaimDieHeld=function(guid) return guid=="blue" end
+eq(paid(1,spell),false,"A retained Mana Claim die cannot cast Time Bending")
+manaClaimDieHeld=function() return false end
+local oldBlackPosition=black.getPosition
+black.getPosition=function() return {1.5,1,0} end
+eq(paid(1,spell),false,"Footprint boundary is not a payment")
+black.getPosition=oldBlackPosition
+eq(paid(1,spell),true,"Repositioned in-zone Black die restores payment")
 playObjects={spell,black}
 eq(paid(1,spell),false,"Black alone is not a cast")
 playObjects={spell,blue}

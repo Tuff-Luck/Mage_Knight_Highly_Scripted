@@ -27,7 +27,7 @@ assert(data:find('poweredLink={mode="stronger",bonus=2,',1,true),
 
 local manaCode=section(src,'local manaColor=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").manaColor','factionRewardForObject=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").factionRewardForObject')
 local bonusCode=section(src,"local function applyLinkedResourceBonus(effects,link)",
-    "-- Resolve independent mana roles")
+    'local effectManaPossibilities=require("PlayingGame.PlayerBoard.ResourceTracker.ManaPayments").effectManaPossibilities')
 local linksCode=section(src,"local function resolveActionLinks(cards,wounds,footprints,manaPowered,skillLinksByTarget)",
     "-- Generic Skill-card links")
 local zoneCode=section(src,"local function resourceCardsRelevantZone(ctx)",
