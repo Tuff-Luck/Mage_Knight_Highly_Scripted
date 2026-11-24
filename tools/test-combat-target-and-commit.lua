@@ -88,6 +88,31 @@ local a={
 }
 isolate(assignments,"function attackAssignmentsBegin(",
     "function attackAssignmentSourceClicked(",a)
+-- Exercise real physical-resource colour parsing, including composite button IDs.
+isolate(assignments,"function attackAssignmentsKindFor(resource)",
+    "local function assignmentColorFor",a)
+eq(a.attackAssignmentsKindFor("attackFire"),"armour","Fire Attack is orange")
+eq(a.attackAssignmentsKindFor("rangedIce"),"armour","Ranged is orange")
+eq(a.attackAssignmentsKindFor("siege"),"armour","Siege is orange")
+eq(a.attackAssignmentsKindFor("blockColdFire"),"attack","Block is blue")
+eq(a.attackAssignmentsKindFor("influence@block"),"attack","Psychic Influence is blue")
+eq(a.attackAssignmentsKindFor("move@block"),"other","Cumbersome Move is purple")
+eq(a.attackAssignmentsKindFor("effect@attackReduction"),"other","Reduction is purple")
+eq(a.attackAssignmentsKindFor("attack@explosiveAttack"),"other","Explosive Bolt follow-up is purple")
+local numeric={resourceCardsCombatEffectArrowKind=function() return nil end}
+local numericStart=assert(recognition:find("local function combatSourceArrowKind(source)",1,true))
+local numericEnd=assert(recognition:find("-- True while the Resource Tracker",numericStart,true))
+setmetatable(numeric,{__index=_G})
+local numericKind=assert(load(recognition:sub(numericStart,numericEnd-1)
+    .."\nreturn combatSourceArrowKind","numeric colours","t",numeric))()
+local function numericSource(attack,block,move,influence)
+    return {key="ordinary",ranged=0,siege=0,attack=attack,block=block,
+        move=move,psychicInfluence=influence}
+end
+eq(numericKind(numericSource(3,0,0,0)),"armour","Automatic Attack orange")
+eq(numericKind(numericSource(0,3,0,0)),"attack","Automatic Block blue")
+eq(numericKind(numericSource(0,0,3,0)),"other","Automatic Move purple")
+eq(numericKind(numericSource(0,0,0,3)),"attack","Automatic Psychic Influence blue")
 local source={guid="ordinary",isDestroyed=function() return false end}
 eq(a.attackAssignmentsBegin(source,"attack","Blue",true,"ordinary"),false,
     "No extra arrows for ordinary Attack")

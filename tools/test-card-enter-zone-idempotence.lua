@@ -18,7 +18,7 @@ local mat=section(source,"trackerPrivate.zoneFootprintContainsXZ=function(obj,zo
 local zones=section(source,"function resourceCardsZoneEntered(ctx)",
     "function resourceCardsObjectMoved(")
 local lock=section(source,"local function combatSourceKeepsLock(key)",
-    "-- Orange arrows aim at armour")
+    "-- Physical target controls and the calculator")
 local position={x=0,y=6,z=0,[1]=0,[2]=6,[3]=0}
 local card={guid="52efb0",type="Card",resting=true,held_by_color=nil,
     getPosition=function() return position end,

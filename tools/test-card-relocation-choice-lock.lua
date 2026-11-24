@@ -19,7 +19,7 @@ local matCode=slice(source,"trackerPrivate.zoneFootprintContainsXZ=function(obj,
 local resetCode=slice(source,"local function scheduleChoiceResetAfterPlay(guid,seatPos)",
     "local function footprint(obj)")
 local lockCode=slice(source,"local function combatSourceKeepsLock(key)",
-    "-- Orange arrows aim at armour")
+    "-- Physical target controls and the calculator")
 local dropCode=slice(source,"function resourceCardsObjectMoved(obj,stabilized)",
     "-- Register the remaining readying")
 local recoverCode=slice(source,"    -- A released source may be above the shallow zone",

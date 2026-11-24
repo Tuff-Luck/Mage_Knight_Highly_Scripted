@@ -1595,10 +1595,14 @@ function resourceCardsCombatTargetAcceptsSource(sourceKey,targetGUID)
     local scan=seat~=nil and resourceCardScanBySeat[seat] or nil
     local record=scan~=nil and scan.cards[sourceKey] or nil
     if record~=nil and record.possessEnemyGUID==targetGUID then return false end
+    local effectRequiresDefence=scan~=nil and scan.enemyEffectDefenceRequirements or nil
+    local effectSource=combatConfig.effectSources[sourceKey]
     if apocalypseDragonGroundHeadNameForGUID~=nil
         and apocalypseDragonGroundHeadNameForGUID(targetGUID)=="Control" then
-        local effectSource=combatConfig.effectSources[sourceKey]
-        if effectSource~=nil then return effectSource.arrow~="armour" end
+        if effectRequiresDefence~=nil and effectRequiresDefence[sourceKey]~=nil then
+            return not effectRequiresDefence[sourceKey]
+        end
+        if effectSource~=nil then return not effectSource.requiresDefence end
         for _,source in ipairs(combatAssignmentSources(seat)) do
             if source.key==sourceKey then
                 return source.ranged+source.siege+source.attack==0
@@ -1629,8 +1633,10 @@ function resourceCardsCombatTargetAcceptsSource(sourceKey,targetGUID)
         return false -- Nature's Vengeance targets a summoned monster, never its Summoner.
     end
     if data.attackOnly~=true then return true end
-    local effectSource=combatConfig.effectSources[sourceKey]
-    if effectSource~=nil then return effectSource.arrow~="armour" end
+    if effectRequiresDefence~=nil and effectRequiresDefence[sourceKey]~=nil then
+        return not effectRequiresDefence[sourceKey]
+    end
+    if effectSource~=nil then return not effectSource.requiresDefence end
     -- An Attack-only reminder has no Armour to reduce. Curse's Attack option
     -- can still target its attack, but its Armour option cannot.
     if sourceKey=="6a33c1" then
@@ -1668,12 +1674,15 @@ function resourceCardsCombatEffectArrowKind(sourceKey)
         and scan.enemyEffectArrowKinds[sourceKey] or nil
 end
 
--- Orange arrows aim at armour; blue arrows (Block, Move) affect an enemy attack.
+-- Orange = Attack; blue = Block (including Psychic Influence); purple = other.
+-- A composite source with both Attack/Block and other resources retains the
+-- numeric Attack/Block colour because its arrow represents the shared target.
 local function combatSourceArrowKind(source)
     local kind=resourceCardsCombatEffectArrowKind(source.key)
     if kind~=nil then return kind end
     if source.ranged+source.siege+source.attack>0 then return "armour" end
-    return "attack"
+    if source.block>0 or (source.psychicInfluence or 0)>0 then return "attack" end
+    return "other"
 end
 
 -- True while the Resource Tracker details are open and an enemy stands in the play area.
@@ -4048,7 +4057,8 @@ combatConfig.effectButtonInfo=function(entry,applied)
     local tooltip=name..": "..description..(reason~=nil and ("\nNo benefit: "..reason) or "")
         .."\nClick to select, then click a cell in the enemy row to retarget."
     return {source={guid=applied.source,key=applied.key,name=name},
-        family=family,arrow=arrow,amount=amount,icon=icon,
+        family=family,arrow=arrow,requiresDefence=combatEffectRequiresDefence(spec),
+        amount=amount,icon=icon,
         text=description,tooltip=tooltip,ineffective=reason~=nil}
 end
 
@@ -4078,7 +4088,7 @@ combatConfig.mitigationButtonInfo=function(guid,record,entry,group,damageResults
         .."\nCurrently prevents "..tostring(prevented).." Hero damage."
         ..(reason~=nil and ("\nNo benefit: "..reason) or "")
         .."\nSelect the button then click an enemy row to retarget."
-    return {source={guid=guid,key=guid,name=name},family="block",arrow="attack",
+    return {source={guid=guid,key=guid,name=name},family="block",arrow="other",requiresDefence=false,
         amount=tostring(prevented>0 and prevented or (elemental and 2 or (spec.physical or 2))),
         icon="MKChoiceBlock",text="Hero damage prevention",tooltip=tooltip,
         ineffective=reason~=nil}
@@ -4359,11 +4369,11 @@ combatConfig.applyExplosiveBoltRange=function(entries,groups,allocated,sources)
         end
         local changed=false
         for _,source in ipairs(active) do
-            local target,key,locked=linkedTarget(source)
+            local target,key=linkedTarget(source)
             if target~=nil then
-                if not locked and not attackAssignmentsIsTargeting(key) then
-                    attackAssignmentsEnsureTarget(key,target.guid,"armour")
-                end
+                -- Also recolour an existing saved follow-up arrow; reconciliation
+                -- preserves the chosen target and skips committed/pending sources.
+                attackAssignmentsReconcileEffectTarget(key,target.guid,"other")
                 local already=appliedBySource[source.guid] or 0
                 local desired=(earned[source.guid] or 0)*(source.explosiveBolt or 0)
                 local immune=combatEnemyHasTrait(target.data,target.perks,"fResist")
@@ -5884,7 +5894,8 @@ local function combatAssignmentRefreshRows(entries,sources)
                     table.remove(buttons)
                     overflow=overflow+1
                 end
-                combatConfig.effectSources[item.source.key]={arrow=item.arrow}
+                combatConfig.effectSources[item.source.key]={arrow=item.arrow,
+                    requiresDefence=item.requiresDefence==true}
             end
             for _,applied in ipairs(targetEntry.effect~=nil and targetEntry.effect.applied or {}) do
                 local effectButton=combatConfig.effectButtonInfo(targetEntry,applied)
@@ -5899,7 +5910,7 @@ local function combatAssignmentRefreshRows(entries,sources)
             -- more Ranged Attack. Red/grey states explain unmet conditions.
             for _,bolt in ipairs(targetEntry.explosiveBoltEffects or {}) do
                 insertEffect({source={guid=bolt.guid,key=bolt.key,name="Explosive Bolt"},
-                    family="attack",arrow="armour",amount="-"..tostring(bolt.earned),
+                    family="attack",arrow="other",requiresDefence=true,amount="-"..tostring(bolt.earned),
                     icon="MKChoiceArmourReduction",
                     text="Armour -"..tostring(bolt.earned).." after Ranged defeat (min 1)",
                     tooltip="Explosive Bolt: "..(bolt.reason or
@@ -6527,7 +6538,7 @@ local function refreshCombatEnemyPanel(monsters,calculated)
         for sourceKey,targetGUID in pairs(record.enemyEffectTargetGUIDs or {}) do
             if activeSources[sourceKey]==true and validTargets[targetGUID]==true then
                 attackAssignmentsReconcileEffectTarget(sourceKey,targetGUID,
-                    effectKinds[sourceKey] or "attack")
+                    effectKinds[sourceKey] or "other")
             end
         end
     end
@@ -11218,13 +11229,7 @@ end
 -- Attack-only reminders have no Armour, Fortification, or defensive traits.
 -- Enforce this for every enemy-targeted card, Skill and Unit effect, not only Curse.
 local function combatEffectTargetEligible(spec)
-    local defenceEffect=type(spec)=="table" and (
-        (tonumber(spec.armourReduce) or 0)>0
-        or (tonumber(spec.armourReduceFortified) or 0)>0
-        or (tonumber(spec.armourReduceByResist) or 0)>0
-        or spec.removeFortify==true or spec.removeResist==true
-        or spec.removeFireResist==true or spec.destroy==true
-        or spec.destroyDuringAttack==true or spec.destroyIfFullyBlocked==true)
+    local defenceEffect=combatEffectRequiresDefence(spec)
     return function(enemy,guid)
         local data=combatEnemyData(guid,enemy)
         return data~=nil and (data.attackOnly~=true or not defenceEffect)
@@ -14212,7 +14217,6 @@ local function renderSeat(seatPos)
         attackTransforms=attackTransforms,
         terrainModifiers=terrainModifiers,movementEffects=movementEffects,
         enemyEffects=enemyEffects,fameRepBase=fameRepBase,
-        enemyEffectArrowKinds=combatEffectArrowKinds(records,enemyEffects),
         ruthlessReadySpent=ruthlessReadySpent,
         ignoreSiteFortifications=ignoreSiteFortifications,
         unitState=unitState,gloryBroken=(function()
@@ -14231,6 +14235,9 @@ local function renderSeat(seatPos)
         usesCurrentHexBlock=usesCurrentHexBlock,
         usesCurrentHexHealing=usesCurrentHexHealing,
         usesSkillLocation=usesSkillLocation}
+    resourceCardScanBySeat[seatPos].enemyEffectArrowKinds,
+        resourceCardScanBySeat[seatPos].enemyEffectDefenceRequirements=
+        combatEffectArrowKinds(records,enemyEffects)
     if attackAssignmentsRefreshAmbushLinks~=nil then attackAssignmentsRefreshAmbushLinks() end
     -- This also retracts a saved Ready if its card loses power or the new
     -- Rejuvenate side can no longer ready that Unit level.

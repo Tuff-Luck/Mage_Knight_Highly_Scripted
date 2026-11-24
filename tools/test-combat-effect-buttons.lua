@@ -31,26 +31,30 @@ eq(effects.immune.applied[1].effective.armourReduce,nil,"Arcane Immunity removes
 eq(effects.immune.applied[1].spec.armourReduce,1,"Original spec remains for UI tooltip")
 -- Exercise the shared classifier on requested (not effective) effects and
 -- independent keys from cards, Units, Skills and Faction Rewards.
-eq(combatEffectArrowKind({armourReduce=2,attackReduce=1}),"armour","Shocktroops / Freezers")
-eq(combatEffectArrowKind({removeFortify=true,removeResist=true}),"armour","Expose / Delphana Masters")
-eq(combatEffectArrowKind({attackReduce=2}),"attack","Dodge / Curse")
-eq(combatEffectArrowKind({noAttackUnfortified=true}),"attack","Illusionists")
-eq(combatEffectArrowKind({noAttack=true,moveCost=2,insufficientMove=true}),"attack","Wings of Night")
+eq(combatEffectArrowKind({armourReduce=2,attackReduce=1}),"other","Shocktroops / Freezers")
+eq(combatEffectArrowKind({removeFortify=true,removeResist=true}),"other","Expose / Delphana Masters")
+eq(combatEffectArrowKind({attackReduce=2}),"other","Dodge / Curse")
+eq(combatEffectArrowKind({noAttackUnfortified=true}),"other","Illusionists")
+eq(combatEffectArrowKind({noAttack=true,moveCost=2,insufficientMove=true}),"other","Wings of Night")
 eq(combatEffectArrowKind({cancelOneAttack=true}),"other","Attached Fear")
 eq(combatEffectArrowKind({noAttack=true,maxTargets=3}),"other","Full Fear")
-local kinds=combatEffectArrowKinds({
+local kinds,defence=combatEffectArrowKinds({
     curse={enemyEffectTargetKeys={"6a33c1"}},
     unit={enemyEffectTargetKeys={"unit#effect2"}},
     bolt={enemyEffectTargetKeys={"bolt#explosiveAttack"}},
     mitigation={enemyEffectTargetKeys={"mitigation"},enemyEffectTargetGUIDs={mitigation="enemy"}},
     unresolved={enemyEffectTargetKeys={"unresolved"}}
 },effects)
-eq(kinds["6a33c1"],"armour","Immune target keeps requested Armour colour")
-eq(kinds["unit#effect2"],"attack","Independent Unit effect colour")
-eq(kinds["bolt#explosiveAttack"],"armour","Calculated Explosive Bolt")
-eq(kinds.mitigation,"attack","Damage mitigation fallback")
+eq(kinds["6a33c1"],"other","Immune target keeps special-effect colour")
+eq(kinds["unit#effect2"],"other","Independent Unit effect colour")
+eq(kinds["bolt#explosiveAttack"],"other","Calculated Explosive Bolt")
+eq(kinds.mitigation,"other","Damage mitigation fallback")
 eq(kinds.ordinary,nil,"Ordinary numeric resource not overridden")
 eq(kinds.unresolved,nil,"Unresolved effect does not override numeric resource colour")
+eq(defence["6a33c1"],true,"Armour reduction requires a defensive target")
+eq(defence["unit#effect2"],false,"Attack reduction can target a reminder")
+eq(defence["bolt#explosiveAttack"],true,"Explosive Bolt requires Armour")
+eq(combatEffectRequiresDefence({noAttack=true}),false,"Attack prevention can target a reminder")
 local all={}
 combatEffectAdd(all,"enemy","group",{armourReduce=2,all=true})
 eq(#all.enemy.applied,0,"Global effects do not create individually retargetable icons")
@@ -81,7 +85,8 @@ local enemy={guid="enemy",data={attackValue=3},unmodifiedArmour=3,
     effectArmourReduction=1,effect={armourReduce=1,attackReductions={}}}
 local icon=combatConfig.effectButtonInfo(enemy,normal)
 eq(icon.family,"range","Armour effect in unfortified Ranged/Siege")
-eq(icon.arrow,"armour","Calculator uses shared Armour colour")
+eq(icon.arrow,"other","Calculator Armour reduction is purple")
+eq(icon.requiresDefence,true,"Armour reduction cannot target reminders")
 eq(icon.icon,"MKChoiceArmourReduction","Armour reduction icon")
 eq(icon.ineffective,false,"Armour reduction has benefit")
 eq(icon.amount,"-1","Armour badge value")
@@ -102,7 +107,8 @@ local attackApplication={source="6a33c1",key="6a33c1",spec=attackEffect,effectiv
 enemy.effect={attackReductions={{amount=1,source="6a33c1"}}}
 icon=combatConfig.effectButtonInfo(enemy,attackApplication)
 eq(icon.family,"block","Enemy Attack reduction in Block column")
-eq(icon.arrow,"attack","Calculator uses shared Attack reduction colour")
+eq(icon.arrow,"other","Calculator Attack reduction is purple")
+eq(icon.requiresDefence,false,"Attack reduction can target reminders")
 eq(icon.icon,"MKChoiceAttackReduction","Attack reduction icon")
 eq(icon.ineffective,false,"Actual enemy Attack reduced")
 enemy.data.attackValue=0
@@ -166,7 +172,7 @@ assert(cardRecognition:find("combatConfig.effectSources[item.source.key]",1,true
     "Effect sources must use the existing assignment maps")
 assert(cardRecognition:find("local function combatEffectTargetEligible(spec)",1,true),
     "Effect-only targeting should use the global reminder eligibility rule")
-assert(cardRecognition:find('effectSource.arrow~="armour"',1,true),
+assert(cardRecognition:find('return not effectSource.requiresDefence',1,true),
     "An Armour effect cannot target an attack-only reminder from the table")
 assert(cardRecognition:find("combatAssignmentSlotSources[id]=item.source.key",1,true),
     "Effect buttons must use the ordinary clickable resource slots")

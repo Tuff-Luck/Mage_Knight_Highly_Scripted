@@ -1,8 +1,8 @@
 -- Persistent visual links between generated combat resources and enemy objects.
 
 local assignmentColors={
-	armour={1.0,0.55,0.1},   -- Attack, Ranged, Siege and anything else aimed at armour
-	attack={0.25,0.6,1.0},   -- Block and anything that reduces or stops an enemy attack
+	armour={1.0,0.55,0.1},   -- Attack, Ranged, Siege
+	attack={0.25,0.6,1.0},   -- Block and Influence used as Psychic Block
 	damage={1.0,0.1,0.1},    -- Damage that an unblocked enemy attack assigns to a Unit
 	other={0.95,0.18,0.78}}
 local DAMAGE_BUTTON_LIMIT=6
@@ -55,13 +55,16 @@ local function assignmentKeyMatches(entryKey,wanted)
 	return type(wanted)=="string" and wanted:find("#",1,true)==nil and assignmentBaseGUID(entryKey)==wanted
 end
 
--- Resource names/parts map to an arrow kind: armour (orange), enemy attack (blue) or other (purple).
+-- Resource names/parts map to an arrow kind: Attack (orange), Block (blue)
+-- or other effects and Move (purple). Persisted kind names stay unchanged.
 function attackAssignmentsKindFor(resource)
 	local text=tostring(resource or ""):lower()
+    if text:find("reduction",1,true) or text:find("effect",1,true)
+        or text:find("explosiveattack",1,true)
+        or text:find("move",1,true) then return "other" end
 	if text:find("attack",1,true) or text:find("siege",1,true) or text:find("ranged",1,true)
 		or text:find("range",1,true) then return "armour" end
-	if text:find("block",1,true) or text:find("move",1,true)
-        or text:find("influence",1,true) then return "attack" end
+	if text:find("block",1,true) or text:find("influence",1,true) then return "attack" end
 	return "other"
 end
 
@@ -1360,7 +1363,7 @@ function attackAssignmentsBegin(source,resource,playerColor,additional,sourceKey
 		local kind=resourceCardsCombatEffectArrowKind~=nil
             and resourceCardsCombatEffectArrowKind(sourceKey) or nil
 		targetingByPlayer[playerColor]={source=source,sourceGUID=sourceKey,resource=resource,
-			additional=additional==true,kind=kind or attackAssignmentsKindFor(part or resource)}
+			additional=additional==true,kind=kind or attackAssignmentsKindFor(resource)}
 	end
 	syncTargetButtons()
 	refreshRenderedLines()
@@ -1483,10 +1486,10 @@ function attackAssignmentTargetClicked(target,playerColor)
             end
             if resourceCardsCombatTargetAcceptsMove==nil
                 or not resourceCardsCombatTargetAcceptsMove(target.guid) then return end
-            -- The normal enemy assignment path owns Move points/blue arrows.
+            -- The normal enemy assignment path owns Move points/purple arrows.
             -- It must not touch the stored purple card-buff assignment.
             pending.resource="move"
-            pending.kind="attack"
+            pending.kind="other"
         end
         local eligible=resourceCardsCombatTargetObjects~=nil and resourceCardsCombatTargetObjects() or {}
         if pending==nil or target==nil or target.guid==nil or eligible[target.guid]==nil then return end
@@ -1671,17 +1674,20 @@ end
 -- Auto-targeted sources get the same arrow a manual assignment would draw.
 function attackAssignmentsEnsureTarget(sourceGUID,targetGUID,kind)
     if combatCommittedSource(sourceGUID) then return end
-	for _,entry in pairs(assignmentRegistry) do
-		if entry.sourceGUID==sourceGUID and entry.targetGUID==targetGUID then
-			if kind~=nil and entry.kind~=kind then
-				entry.kind=kind
-				persistAssignments()
-				refreshRenderedLines()
-			end
-			return
-		end
-	end
-	attackAssignmentsSetSourceTarget(sourceGUID,targetGUID,kind)
+    local found=false
+    for _,entry in pairs(assignmentRegistry) do
+        if entry.sourceGUID==sourceGUID and entry.targetGUID==targetGUID then
+            found=true
+            break
+        end
+    end
+    if found then
+        -- A split Move/Influence pool can have multiple saved arrows.
+        -- Update every arrow of that source without altering any allocation.
+        if kind~=nil then attackAssignmentsReconcileEffectTarget(sourceGUID,targetGUID,kind) end
+    else
+        attackAssignmentsSetSourceTarget(sourceGUID,targetGUID,kind)
+    end
 end
 
 -- Recolour a live effect's existing arrows without changing their identity,

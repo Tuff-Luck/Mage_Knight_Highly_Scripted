@@ -177,8 +177,8 @@ assert(combatLocks[sourceGUID]==enemyGUID,
 local enemyLink
 for _,entry in pairs(assignments) do enemyLink=entry end
 assert(enemyLink~=nil and enemyLink.targetGUID==enemyGUID
-    and enemyLink.kind=="attack" and enemyLink.resource=="move",
-    "Move must receive its own blue arrow and normal resource key")
+    and enemyLink.kind=="other" and enemyLink.resource=="move",
+    "Move must receive its own purple arrow and normal resource key")
 actionEnv.attackAssignmentAmbushSourceClicked(player,"-1",id)
 actionEnv.attackAssignmentTargetClicked(block,"Blue")
 assert(gStates.ambushCombatLinks[sourceGUID]==blockGUID
