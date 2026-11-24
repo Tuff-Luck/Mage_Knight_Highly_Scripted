@@ -37,11 +37,13 @@ return function(deps)
         local available=decision.display
         local combatBlocked=combatConfig.unitCombatBlocked~=nil
             and combatConfig.unitCombatBlocked(unit,abilities,useIndex) or false
+        local moveRole=resourceCardsMoveRole(unitHistoryKey(unit.guid,useIndex),false)
+        local deniedCombat=combatBlocked and unitHistoryDecisionHasCombat(abilities,decision,moveRole)
         local targetSpecs={}
         do
             local function addTarget(index)
                 local ability=abilities[index]
-                if ability==nil or (combatBlocked and unitHistoryIsCombatAbility(ability)) then return end
+                if ability==nil or deniedCombat then return end
                 if ability.key=="ready" then
                     targetSpecs[#targetSpecs+1]={index=index,category="unitReady",
                         idCategory="unitReady"..(useIndex>1 and ("@use"..useIndex) or ""),
@@ -209,7 +211,7 @@ return function(deps)
                 local active=decision.selected~=nil and decision.selected[index]==true
                     or decision.selected==nil and index==selected
                 local invalidCombat=active and combatBlocked
-                    and unitHistoryIsCombatAbility(ability)
+                    and unitHistoryIsCombatAbility(ability,"movement")
                 local icon=resourceCardsChoiceIcon(ability.icon or ability.key)
                 if icon~=nil and blocked[icon.name] then icon=nil end
                 local button={tag="Button",attributes={
@@ -255,7 +257,9 @@ return function(deps)
                     -- The regular button becomes the Movement variant; the
                     -- adjacent C variant is a normal, equally-sized option cell.
                     local isMovement=phase~="combat"
-                    button.attributes.colors=active and isMovement
+                    button.attributes.colors=active and isMovement and invalidCombat
+                        and "#9C3737|#B34A4A|#9C3737|#9C3737"
+                        or active and isMovement
                         and "#387D30|#4CA940|#387D30|#387D30"
                         or "#454D5D|#69798E|#444C63|#454D5D"
                     button.children=button.children or {}
@@ -270,7 +274,9 @@ return function(deps)
                         position=tostring(baseX-(#indices+columnIndex-1)*columnSpacing)
                             .." "..tostring(y).." -35",
                         rotation="0 0 180",width=90,height=90,scale="0.22 0.22",
-                        colors=active and not isMovement
+                        colors=active and not isMovement and combatBlocked
+                            and "#9C3737|#B34A4A|#9C3737|#9C3737"
+                            or active and not isMovement
                             and "#387D30|#4CA940|#387D30|#387D30"
                             or "#454D5D|#69798E|#444C63|#454D5D",
                         fontSize=77,textColor="#FFFFFF",textAlignment="MiddleCenter"},
