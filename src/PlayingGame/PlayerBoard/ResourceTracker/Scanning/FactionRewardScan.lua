@@ -36,9 +36,19 @@ function M.read(context)
             end
             local effect=choices~=nil and chosenEffect(guid,flipped,choices) or nil
             if effect==nil and not flipped and rule~=nil then effect=rule.resources end
+            -- Boot's printed resources are simultaneous, not alternatives.
+            -- Its one UI choice selects the Move role only.
+            local splitMoveAttack=not flipped and rule~=nil and rule.splitMoveAttack==true
+                and (tonumber(effect~=nil and effect.move) or 0)>0
+                and (tonumber(effect~=nil and effect.attack) or 0)>0
+            if splitMoveAttack then
+                choices={{key="move",icon="move",move=effect.move,attack=effect.attack,
+                    splitMoveAttack=true}}
+            end
             local contributes=effectHasTrackedResource(effect)
             local result={guid=guid,kind="factionReward",known=rule~=nil,
                 complete=rule~=nil,resources=effect,choices=choices,
+                splitTargets=splitMoveAttack and {"block","attack"} or nil,
                 modifier=not flipped and rule~=nil and rule.modifier or nil,
                 powered=flipped,links={},contributes=contributes,
                 status=contributes and "green" or "blue",
@@ -64,7 +74,7 @@ function M.read(context)
                     result.status="purple"
                 end
             end
-            showChoiceButtons(token,choices,flipped)
+            showChoiceButtons(token,choices,flipped,nil,nil,effect)
             addResourceAmounts(result,totals)
             records[guid]=result
             current[guid]=true
