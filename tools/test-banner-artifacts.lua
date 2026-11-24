@@ -57,7 +57,7 @@ local gStates={currentRound=1}
 local unitResourceDefinitions={unit={{row=1,key="attack",attack=4}}}
 local gameCards=...
 local function unitLayoutResourceState() return nil end
-]]..artifactState..[[
+]].."function resourceCardsArtifactBroken(guid,card)"..artifactState..[[
 trackerPrivate.bannerEffectUses=function()
 ]]..helpers..[[
 return trackerPrivate,gStates,unitResourceDefinitions

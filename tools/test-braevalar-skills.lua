@@ -154,7 +154,7 @@ getObjectFromGUID=function(guid)
 end
 local competitive=isolated(recognition,
     "local function combatNatureVengeanceBlockBonus()",
-    "local combatBlockResultCache=", "combatNatureVengeanceBlockBonus")
+    "trackerPrivate.combatBlockResultCache=", "combatNatureVengeanceBlockBonus")
 eq(competitive(),1,"Opponent gets +1 to Block requirements")
 gStates.turnNumber=1
 eq(competitive(),0,"Skill owner never suffers competitive bonus")

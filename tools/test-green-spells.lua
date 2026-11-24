@@ -165,7 +165,7 @@ end
     "\nreturn combatEnemyFortificationCount"))()
 local stripSites=assert(load("return function(entries,seatScan)\n"..
     between(reader,"    -- Ignore site/wall Fortified, but preserve the monster's printed Fortified.",
-        "    for _,entry in ipairs(entries) do\n        local obj=getObjectFromGUID")..
+        "    for _,entry in ipairs(entries) do\n        local obj=monsters[entry.guid]")..
     "\nreturn entries\nend"))()
 local sitePerks={fortified=true,wallFortified=true}
 local entry={data={arcaneImmunity=true},perks=sitePerks}

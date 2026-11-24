@@ -79,7 +79,7 @@ puppetMasterUndoFreshClaim=function() return true end
 avatarButtonXmlState={}
 isShieldObject=function() return false end
 scriptObjectId=function(obj) return obj.getName() end
-local permanentAnchors={map={guid="map"},["519f96"]={guid="519f96"}}
+local permanentAnchors={map={guid="map"},["519f96"]={guid="519f96"},turn={guid="turn"}}
 getObjectFromGUID=function(guid) return permanentAnchors[guid] end
 local teardownStops=0
 Wait={stopAll=function() teardownStops=teardownStops+1 end}
@@ -177,7 +177,7 @@ assert(pcall(__onObjectDestroy_raw,{guid="single_missing_anchor"}))
 equal(teardownStops,0,"Single missing protected anchor triggered shutdown")
 equal(#deferredDestroyWork,previousWork+1,"Live destruction cleanup was incorrectly skipped")
 
--- Once both permanent fixtures are gone, stop queued work and skip teardown callbacks.
+-- Once two of the three permanent fixtures are gone, stop queued work and skip teardown callbacks.
 permanentAnchors["519f96"]=nil
 previousWork=#deferredDestroyWork
 assert(pcall(__onObjectDestroy_raw,{guid="exit_object"}))

@@ -37,8 +37,8 @@ local scoreEnv={
         move={move=0}}},
     resourceCardScanBySeat={[1]={cards={},totals={influence=0,move=4}}},
     resourceChoiceFamilies={"influence","move"},
-    resourceTotalsKeyByField={
-        influence={generated="influence"},move={move="move"}}
+    trackerPrivate={resourceTotalsKeyByField={
+        influence={generated="influence"},move={move="move"}}}
 }
 setmetatable(scoreEnv,{__index=_G})
 local scores=assert(load(section(reader,
@@ -75,7 +75,7 @@ local conversionEnv={
 }
 setmetatable(conversionEnv,{__index=_G})
 assert(load(section(reader,
-    "local function combatConversionReserved(key,amount)",
+    "local function combatConversionReserved(key,amount,field)",
     "local function combatAssignmentSources(seat)"),
     "Conversion reservations","t",conversionEnv))()
 local agility,available,active=conversionEnv.combatConfig.conversionFor(1,"agility")

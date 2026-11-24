@@ -78,7 +78,7 @@ contains(combat,'stripAbilities=spec.removeOneAttackAbilities==true',"Chilling S
 contains(combat,'removeOneAttackAbilities=spec.removeOneAttackAbilities',"Arcane Immunity exception")
 
 -- Evaluate the actual shared-pool allocation helper without TTS.
-local conversion=extract(reader,"combatConfig.conversionFor=function",
+local conversion=extract(reader,"local function combatConversionReserved(key,amount,field)",
     "local function combatAssignmentSources(seat)")
 local setup=[=[
 local combatConfig={conversionState={}}
@@ -103,7 +103,8 @@ combatAssignmentState.explicit["9757b3"]=true
 combatAssignmentState.targets["9757b3"]="enemy"
 agility,move=combatConfig.conversionFor(1,"agility")
 assert(move==6 and agility.attack==2 and agility.ranged==2)
--- Explicit Cumbersome targets no longer reserve the entire printed source.
+-- An ordinary enemy target does not reserve Move. Actual Cumbersome and
+-- Psychic targets are covered by test-resource-tracker-pool-integrity.lua.
 moveRoles["9757b3"]="movement"
 agility,move=combatConfig.conversionFor(1,"agility")
 assert(move==4 and agility.attack==2 and agility.ranged==1)

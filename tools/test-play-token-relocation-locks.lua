@@ -52,6 +52,7 @@ local tracker={
     bySeat={[1]={skill01=true,reward01=true}},
     playCardMovements={},choiceResetGenerationByGUID={},
     factionRewardNotes={["Dark Crusader Reward"]="Dark"},
+    checkCardChoicesAfterDrop=function(guid,seat) assert(seat==1) end, -- UI repair is covered separately
     playCandidateKind=function(kind)
         return kind=="card" or kind=="skill" or kind=="factionReward"
     end

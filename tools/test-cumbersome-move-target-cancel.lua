@@ -54,6 +54,8 @@ local env={
     resourceCardsPanelOpen=function() return true end,
     -- The isolated callback is outside committed combat phases.
     combatCommittedSource=function() return false end,
+    -- The fixture exercises a source permitted to split across enemies.
+    resourceCardsCombatAdditionalTargetLimit=function(key) assert(key==moveGUID) return 2 end,
     getObjectFromGUID=function(guid)
         return guid==moveGUID and sourceObject or nil
     end,
