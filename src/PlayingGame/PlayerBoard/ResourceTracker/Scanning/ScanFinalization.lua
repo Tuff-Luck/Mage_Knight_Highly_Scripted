@@ -1,6 +1,35 @@
 -- Passive terrain overlays, remaining Skill/mana/puppet records, linked Unit highlights, Spirit Guides and Wings of Night costs. Runs at original scan boundaries.
 local M={}
 
+-- Publish only effects belonging to the final, effective movement source.
+-- Owned passives and independent non-Move effects are handled separately.
+function M.playedMovement(context)
+    local records,terrainModifiers,movementEffects=context.records,context.terrainModifiers,context.movementEffects
+    for guid,record in pairs(records) do
+        if record.pendingTerrainModifiers~=nil or record.pendingSingleSpaceDiscount~=nil
+            or record.pendingIgnoreRampagers or record.pendingTerrainChoice then
+            local movement=record.independentTerrain==true
+                or ((tonumber(record.resources~=nil and record.resources.move) or 0)>0
+                    and context.resourceCardsMoveRole(guid,false)=="movement")
+            if movement then
+                for _,effect in ipairs(record.pendingTerrainModifiers or {}) do
+                    terrainModifiers[#terrainModifiers+1]=effect
+                end
+                if record.pendingSingleSpaceDiscount~=nil then
+                    movementEffects.singleSpaceDiscount=math.max(
+                        movementEffects.singleSpaceDiscount,record.pendingSingleSpaceDiscount)
+                end
+                if record.pendingIgnoreRampagers then movementEffects.ignoreRampagers=true end
+                if record.pendingTerrainChoice and record.status~="purple" then
+                    record.status="yellow"
+                    local obj=context.objects[record.sourceObjectGUID or guid]
+                    if obj~=nil then context.setHighlight(obj,record.status,record.powered) end
+                end
+            end
+        end
+    end
+end
+
 function M.passiveTerrain(context)
     local seatPos, terrainModifiers, ownedSkillAtSeat = context.seatPos, context.terrainModifiers, context.ownedSkillAtSeat
     local footprint, manaObjects, placements = context.footprint, context.manaObjects, context.placements
