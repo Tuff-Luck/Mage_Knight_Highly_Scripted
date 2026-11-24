@@ -16,6 +16,8 @@ end
 local src=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local geometry=section(src,"trackerPrivate.zoneFootprintContainsXZ=require(",
     "local footprint=require(")
+local readiness=section(src,'local manaColor=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").manaColor',
+    "-- Magic Talent's strong side")
 local kinds=section(src,'local resourceObjectKind=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").resourceObjectKind',
     "-- A NightRules token")
 local pickup=section(src,"function resourceCardsObjectPickedUp(obj)",
@@ -87,7 +89,7 @@ env.require=function(name)
     assert(name=="PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects", "Unexpected recognition dependency")
     return assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/PhysicalObjects.lua","t",env))()
 end
-local source=table.concat({geometry,kinds,pickup,drop,
+local source=table.concat({geometry,readiness,kinds,pickup,drop,
     "return resourceObjectKind,resourceCardsObjectPickedUp,trackerPrivate.finishPlayCardMove"},"\n")
 local kindOf,onPickup,finish=assert(load(source,"Skill and reward relocation","t",env))()
 assert(kindOf(skill)=="skill","Skill token must be a tracked source")
