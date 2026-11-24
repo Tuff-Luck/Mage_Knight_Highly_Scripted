@@ -64,6 +64,7 @@ local env={
     setHighlight=function() end
 }
 setmetatable(env,{__index=_G})
+env.trackerPrivate={combatTargetPolicy=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/CombatTargetPolicy.lua","t",env))()}
 package.path="src/?.lua;"..package.path
 local helpers=section(reader,'local cardPosture=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").cardPosture',
     "-- Paging changes visible rows")

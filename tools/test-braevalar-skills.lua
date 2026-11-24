@@ -54,7 +54,7 @@ contains(assignments, 'pending.sourceGUID~="19daf9"',
     "Summoned enemy can be targeted with competitive Vengeance")
 contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/DefendAllocation.lua"), 'item.source.forkedLightning',
     "Forked Lightning stays in one phase")
-contains(recognition, 'sourceKey:match("^d01b70#fork%d+$")',
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/CombatTargetPolicy.lua"), 'sourceKey:match("^d01b70#fork%d+$")',
     "Forked Lightning duplicate target is forbidden")
 
 -- Arcane Immunity does not stop Attack reduction / granting Cumbersome.

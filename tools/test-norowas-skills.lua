@@ -80,7 +80,7 @@ gStates={turnNumber=1,currentRound=9,doingTheRounds={},
     coopCompSkillActivation={}}
 turnOrder={{seatPos=1,avatarLocation="plains"},{seatPos=2,avatarLocation="plains"}}
 resourceCardScanBySeat={}
-trackerPrivate={}
+trackerPrivate={combatInteraction=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/CombatInteraction.lua")}
 package.path="src/?.lua;"..package.path
 section(recognition,'trackerPrivate.movementEffects=require(',
     "local function clearHighlight(guid)","trackerPrivate.movementEffects")

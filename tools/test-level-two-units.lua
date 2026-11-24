@@ -91,14 +91,13 @@ local enemyData={}
 gStates={monsterPerks={}}
 combatEnemyData=function() return enemyData,"enemy" end
 combatEffectOf=function() return nil end
-assert(load(slice(recognition,
-    "function resourceCardsEnemyEffectivelyUnfortified(guid,effects",
-    "function resourceCardsCombatTargetRejectMessage(")))()
+local policy=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/CombatTargetPolicy.lua")
 local function eligible(data,perks,demolish,effect)
     enemyData=data
     gStates.monsterPerks.enemy=perks
-    return resourceCardsEnemyEffectivelyUnfortified("enemy",
-        effect~=nil and {enemy=effect} or {},demolish)
+    return policy.effectivelyUnfortified("enemy",
+        effect~=nil and {enemy=effect} or {},demolish,combatEnemyData,combatEffectOf,
+        combatEnemyFortificationCount,combatEnemyHasTrait)
 end
 eq(eligible({},nil,false),true,"unfortified enemy targetable normally")
 eq(eligible({}, {fortified=true},false),false,
@@ -125,7 +124,7 @@ eq(eligible({attackOnly=true},nil,true),false,
     "attack-only reminders remain ineligible")
 
 -- Both the current scan and manual retargeting must pass Demolish state.
-assert(recognition:find("scan~=nil and scan.ignoreSiteFortifications==true",1,true),
+assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/CombatTargetPolicy.lua"):find("scan~=nil and scan.ignoreSiteFortifications==true",1,true),
     "manual target callback must carry Demolish state")
 assert(recognition:find(
     "resourceCardsEnemyEffectivelyUnfortified(guid,enemyEffects,\n                    ignoreSiteFortifications)",1,true),

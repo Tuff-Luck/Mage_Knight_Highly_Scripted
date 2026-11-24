@@ -113,7 +113,9 @@ local control={guid="control",bossLevel=0,bossType="control",
     attackOnly=true,data={},perks={},baseArmour=0,elusiveArmour=0}
 eq(phase(group(control),{control},100,"range",{}),nil,"Control head never attacked")
 assert(recognition:find('bossType=="control"',1,true),"Control guard lost")
-assert(recognition:find("group.rangeSpent",1,true),"Ranged points double-counted")
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/EarlyCombatPhase.lua"):find("group.rangeSpent=plan.spent",1,true)
+    and read("src/PlayingGame/PlayerBoard/ResourceTracker/LateCombatPhase.lua"):find("group.rangeSpent",1,true),
+    "Ranged points double-counted")
 assert(combat:find("combatDefeatPartial",1,true),"Partial cleanup missing")
 assert(combat:find("combatBossPartialRewardEligible",1,true),"Partial Fame state missing")
 assert(leaders:find("combatBossSetManual",1,true),"Leader manual override missing")

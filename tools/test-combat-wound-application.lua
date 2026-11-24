@@ -190,13 +190,14 @@ eq(fixedWidth(warning,"Knockout warning"),width,
     "Knockout warning must align with the Draw Wounds button")
 assert(not enemyPanel:find('CombatTotalSpacer',1,true),
     "No spacer may stretch the Draw Wounds row")
-assert(not recognition:find('summaryWidth',1,true),
+local renderer=fileText("src/PlayingGame/PlayerBoard/ResourceTracker/CombatPanelRenderer.lua")
+assert(not recognition:find('summaryWidth',1,true) and not renderer:find('summaryWidth',1,true),
     "No dynamic preferredWidth writes should fight TTS's anchored position")
-assert(recognition:find('"Draw: "..combatRich',1,true),
+assert(renderer:find('"Draw: "..combatRich',1,true),
     "Wound button should be labelled Draw")
-assert(recognition:find('local showTotal=totalHeroWounds>0 or knockout',1,true),
+assert(renderer:find('local showTotal=totalHeroWounds>0 or knockout',1,true),
     "Knockout warning must remain visible after a cost-only discard")
-assert(recognition:find('effects.handDiscard and "Apply: Discard hand"',1,true),
+assert(renderer:find('effects.handDiscard and "Apply: Discard hand"',1,true),
     "cost-only Knockout must show an actionable hand-discard button")
 -- Paralysis must discard only the cards STILL IN HAND, including mixed
 -- Deck stacks, and must never discard already played cards.
@@ -465,7 +466,10 @@ eq(saved.attack,0,"destroyed Unit cannot attack in later phase")
 eq(saved.resources.attack,nil,"Attack resource must not survive")
 eq(saved.retiredTarget,"enemyA","chosen Ranged target must survive")
 eq(saved.retiredUnitPosition[3],-39,"automatic targeting preserves position")
-assert(recognition:find('return source.retiredTarget==targetGUID',1,true),
+local targetPolicy=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/CombatTargetPolicy.lua")
+eq(targetPolicy.acceptsSource("unitR","enemyA"),true,
+    "destroyed Unit retains its earlier Ranged/Siege target")
+eq(targetPolicy.acceptsSource("unitR","enemyB"),false,
     "destroyed Unit must not redirect its earlier Ranged/Siege attack")
 
 -- Draw Wounds must commit each Paralysis consequence once, including when
@@ -653,7 +657,7 @@ eq(savedStageEffects.stagedDiscardCount,1,
 eq(savedStageEffects.stagedDiscards[1],"swiftness",
     "save/reload never re-discards the committed Rage card")
 
-assert(recognition:find("effects.destroyCount>0",1,true),
+assert(renderer:find("effects.destroyCount>0",1,true),
     "Paralysis-only effects must show the Apply row")
 assert(recognition:find("combatConfig.captureParalyzedUnitSources(seat,effect.guid)",1,true),
     "snapshot ranged actions before deleting Unit")
@@ -964,7 +968,7 @@ eq(#unusedBlock,1,"unspent Block does not create a frozen early source")
 eq(unusedBlock[1].block,0,"unspent Block cannot retroactively Block")
 eq(unusedBlock[1].attack,4,"unspent Block may be changed to a later Attack")
 eq(unusedBlock[1].phaseAfterDamage,true,"changed source is Attack-phase only")
-assert(recognition:find('item.source.phaseLocked and "false" or "true"',1,true),
+assert(fileText("src/PlayingGame/PlayerBoard/ResourceTracker/CombatRowRenderer.lua"):find('item.source.phaseLocked and "false" or "true"',1,true),
     "frozen calculator icons must not be clickable")
 assert(fileText("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua"):find('combatConfig.phaseObjectLocked(card.guid)',1,true)
     and fileText("src/PlayingGame/PlayerBoard/ResourceTracker/UnitControls.lua"):find('combatConfig.phaseObjectLocked(unit.guid)',1,true),

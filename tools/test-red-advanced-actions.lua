@@ -41,7 +41,7 @@ contains(explosiveBolt,'combatEnemyHasTrait(target.data,target.perks,"fResist")'
 contains(explosiveBolt,"math.max(1,member.baseArmour-delta)","Armour minimum one")
 contains(explosiveBolt,'member.rangeBaseArmour=math.max(1,',
     "Armour reduction also applies to subsequent Ranged-phase attacks")
-contains(reader,'icon="MKChoiceArmourReduction"',"Combat reduction icon")
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/CombatResourceDisplay.lua"),'icon="MKChoiceArmourReduction"',"Combat reduction icon")
 
 -- Maximal Effect: 3 basic or 2 stronger repetitions, each with its
 -- own option and (for Improvisation/Ritual Attack) its own discard payment.
