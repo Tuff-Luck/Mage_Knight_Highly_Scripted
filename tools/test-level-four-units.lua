@@ -101,11 +101,11 @@ local fireBlock={destroyIfBlocked=true,fireSpell=true}
 combatEffectAdd(effects,"normal","spell",fireBlock)
 eq(combatEffectDestroysFullyBlocked(effects.normal.applied[2],true,true),false,
     "Spell-specific Block destruction cannot use all-attacks rule")
-assert(recognition:find("local _,_,_,allBlocked,_,_,_,successfulSources,successfulOwners=",1,true),
+assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/ConditionalBlockEffects.lua"):find("local _,_,_,allBlocked,_,_,_,successfulSources,successfulOwners=",1,true),
     "combat must use allBlocked result, not a single successful Block")
-assert(recognition:find("combatEffectDestroysFullyBlocked(applied,allBlocked,hasAttack)",1,true),
+assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/ConditionalBlockEffects.lua"):find("combatEffectDestroysFullyBlocked(applied,allBlocked,hasAttack)",1,true),
     "red destruction must use full-Block check")
-assert(recognition:find("successfulSources[applied.source]==true",1,true),
+assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/ConditionalBlockEffects.lua"):find("successfulSources[applied.source]==true",1,true),
     "Spell destruction must remain tied to its own Block")
 assert(combatEffectRequiresDefence(delphana[2].enemyEffect),
     "attack-only reminders must not become eligible defensive targets")
