@@ -2847,7 +2847,7 @@ factionRewardResourceDefinitions={
     ["BindingContract"]={name="Binding Contract",notes="Council of the Void Reward",imageHash="896BF6AF73E16C73C3C09FC38B45EB8F196EDC5F",guids={"e13be2","bedce3"}},
     ["BladeofDominance"]={name="Blade of Dominance",notes="Apocalypse Cult Reward",imageHash="5312F4FEA02019FB21911122C8CCA40F1CEADDA6",guids={"20ec1f","ff7836"}},
     ["BloodFuryDagger"]={name="Blood Fury Dagger",notes="Apocalypse Cult Reward",imageHash="A3E337C9387FD4A67F25FDF789BFA544195465B0",guids={"90b0b3","dddcdd"},choices={{key="one",icon="attack",iconOverlay="2",attack=2},{key="two",icon="attack",iconOverlay="4",attack=4},{key="three",icon="attack",iconOverlay="6",attack=6}}},
-    ["BootofCharging"]={name="Boot of Charging",notes="Apocalypse Cult Reward",imageHash="F24661198BE97BC5A687D41FCCE400C08A0D9656",guids={"2722b3","72e29e"},resources={move=2,attack=2},partial=true},
+    ["BootofCharging"]={name="Boot of Charging",notes="Apocalypse Cult Reward",imageHash="F24661198BE97BC5A687D41FCCE400C08A0D9656",guids={"2722b3","72e29e"},resources={move=2,attack=2},splitMoveAttack=true,partial=true},
     ["CloakofShielding"]={name="Cloak of Shielding",notes="Elementalist Reward",imageHash="B03F5A28795462A6B66B95B5D100BA194D619326",guids={"41decd","504178"}},
     ["CloakoftheMartyr"]={name="Cloak of the Martyr",notes="Apocalypse Cult Reward",imageHash="0B4ABC0D5840AF6FAD68E398F66AA0729F04710D",guids={"cc1f9f","592fd8"}},
     ["FireGem"]={name="Fire Gem",notes="Elementalist Reward",imageHash="3BA57B65C60A918FCAB2D8832FFB909336AA1D8B",guids={"4433df","90b0b3"},modifier="addFire"},
