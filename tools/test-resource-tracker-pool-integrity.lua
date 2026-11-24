@@ -36,15 +36,14 @@ local scoreEnv={
         influence={generated=0,reputation=5,cityShields=2},
         move={move=0}}},
     resourceCardScanBySeat={[1]={cards={},totals={influence=0,move=4}}},
-    resourceChoiceFamilies={"influence","move"},
-    trackerPrivate={resourceTotalsKeyByField={
-        influence={generated="influence"},move={move="move"}}}
+    trackerPrivate={}
 }
 setmetatable(scoreEnv,{__index=_G})
-local scores=assert(load(section(reader,
-    "local function trackerChoiceScores(guid,seatPos)",
-    "-- First try to match a resource already contributed")..
-    "\nreturn trackerChoiceScores","Choice scoring","t",scoreEnv))()
+-- Use the full production resource-key mapping, not a partial test copy.
+assert(load(section(reader,"trackerPrivate.resourceTotalsKeyByField={",
+    "trackerPrivate.attackTransformFamilies="),"Resource key mapping","t",scoreEnv))()
+local choiceFactory=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/ResourceChoices.lua","t",scoreEnv))()
+local scores=choiceFactory(scoreEnv.trackerPrivate,function() return {} end,{},nil).trackerChoiceScores
 assert(scores("unused",1).influence==0,
     "Reputation and shields must not bias Influence option guesses")
 assert(scores("unused",1).move==4,

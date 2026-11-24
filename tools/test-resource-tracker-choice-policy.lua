@@ -17,11 +17,15 @@ local env=setmetatable({
     resourceCardScanBySeat=scans,gStates=states,
     cardPosture=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").cardPosture
 },{__index=_G})
+env.require=function(name)
+    assert(name=="PlayingGame.PlayerBoard.ResourceTracker.ResourceChoices")
+    return assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/ResourceChoices.lua","t",env))()
+end
 local policy=assert(load(table.concat({
     section("trackerPrivate.resourceTotalsKeyByField={","trackerPrivate.attackTransformFamilies="),
     section("local choiceLetters=","local function choiceHasTargetableCombatResource"),
-    section("local function choiceAvailable(choices,category)","-- Only resources that explicitly split"),
-    section("local function trackerChoiceScores(guid,seatPos)","local function effectHasTrackedResource"),
+    section("local choiceAvailable=trackerPrivate.choicePolicy.choiceAvailable","-- Only resources that explicitly split"),
+    section("local trackerChoiceScores=trackerPrivate.choicePolicy.trackerChoiceScores","local function effectHasTrackedResource"),
     [[return {rank=resourceChoiceRank,column=resourceChoiceColumn,
         sideChoices=sideChoices,category=choiceCategory,available=choiceAvailable,
         current=currentChoice,scores=trackerChoiceScores,
@@ -98,4 +102,13 @@ scans[1]=nil
 guess({{attack=1},{move=1}},{normalChoices={{healing=2}}},true)
 eq(selected.played.sideways,"move","Incompatible sideways choice stays separate")
 eq(selected.played.effect,nil,"Sideways guess must not replace printed preference")
+-- The coordinator replaces the selection table on load and turn handoff.
+local restored={played={effect="block"}}
+env.selectedResourceByGUID=restored
+_,key=policy.current("played",false,choices,false)
+eq(key,"block","Restored table must be read live")
+restored.played=nil
+guess(choices,rule,false)
+eq(restored.played.effect,"move","New guess must write to current table")
+eq(selected.played.sideways,"move","Retired table must remain unchanged")
 print("Resource Tracker initial choice, spatial priority and selection preservation passed")

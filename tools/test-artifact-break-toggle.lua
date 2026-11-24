@@ -1,3 +1,4 @@
+package.path="src/?.lua;"..package.path
 -- Run at repository root: lua5.2 tools/test-artifact-break-toggle.lua
 local function read(path)
     local file=assert(io.open(path,"r"))
@@ -67,10 +68,7 @@ end
 local dual=choose(staff,"dual",false)
 assert(#dual==2 and dual[1].key=="red" and dual[2].key=="blue",
     "Dual-coloured cards must retain both Staff options")
-local keySource=section(rec,"local function choiceCategory(choice)",
-    "local function choiceHasTargetableCombatResource(")
-local key=assert(load(keySource.."\nreturn choiceCategory","choice category","t",
-    setmetatable({},{__index=_G})))()
+local key=require("PlayingGame.PlayerBoard.ResourceTracker.ResourceChoices")({},function() return {} end,{},nil).choiceCategory
 assert(key(nil)==nil and key(false)==nil,"Missing choices cannot cause nil indexing")
 assert(key({key="red",other=1})=="red","Explicit colour takes priority")
 

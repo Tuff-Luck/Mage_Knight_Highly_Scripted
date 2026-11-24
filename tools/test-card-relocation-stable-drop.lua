@@ -26,8 +26,8 @@ local relocationCode=section(source,"function resourceCardsObjectPickedUp(obj)",
     "function resourceCardsZoneEntered(ctx)")
 local renderGuard=section(source,"local function renderSeat(seatPos)",
     "    trackerPrivate.renderCombatNight=nil")
-local choiceCode=section(source,"local function currentChoice(guid,powered,choices,sideways)",
-    "local function chosenEffect(")
+local choiceCode=section(source,"local currentChoice=trackerPrivate.choicePolicy.currentChoice",
+    "local chosenEffect=trackerPrivate.choicePolicy.chosenEffect")
 assert(source:find("trackerPrivate.playCardMovements[obj.guid]~=nil then",1,true),
     "Dropped card must first finish its relocation")
 assert(source:find("resourceCardsObjectMoved(live,true)",1,true)
@@ -111,6 +111,8 @@ local env={
     end
 }
 setmetatable(env,{__index=_G})
+tracker.choicePolicy=require("PlayingGame.PlayerBoard.ResourceTracker.ResourceChoices")(tracker,
+    function() return env.selectedResourceByGUID end,{},env.cardPosture)
 local code=table.concat({matCode,resetCode,relocationCode,choiceCode,
     renderGuard,"    return true\nend",
     "return resourceCardsObjectPickedUp,trackerPrivate.finishPlayCardMove,"
