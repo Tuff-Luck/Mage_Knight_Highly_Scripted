@@ -158,8 +158,8 @@ for _,needle in ipairs({
 end
 assert(not rec:find('choices={{key="red",icon="other"}}',1,true),
     "Blue and White must never be rewritten as Red")
-assert(flow:find("artifactBroken=resourceCardsArtifactBroken(card.guid,card)",1,true),
-    "End-turn cleanup must use explicit Break state")
+assert(flow:find("and resourceCardsThrowAwayReason(card) or nil",1,true),
+    "End-turn cleanup must use the shared throw-away verdict")
 assert(flow:find("resourceCardsArtifactBreakClear(card.guid)",1,true),
     "Cleanup must retire Break state")
 assert(callbacks:find('"resourceCardsArtifactBreakClicked"',1,true),
@@ -232,7 +232,7 @@ do
     local box={guid="085e69",type="Card",is_face_down=false}
     local trash={putObject=function(card) disposed[#disposed+1]=card.guid end}
     local cleanupEnv=setmetatable({
-        gStates={bannercard={}},turnOrder={{deadDeckInventory={}}},
+        gStates={bannercard={}},trackerPrivate={},turnOrder={{deadDeckInventory={}}},
         gameCards={["085e69"]={cardType="Artifact",resourceKey="artifactUtility"}},
         trashCan="trash",getObjectFromGUID=function(guid)
             return guid=="trash" and trash or nil end,
@@ -241,13 +241,22 @@ do
         resourceCardsArtifactBroken=function(guid) return brokenByGUID[guid]==true end,
         resourceCardsArtifactBreakClear=function(guid) brokenByGUID[guid]=nil end
     },{__index=_G})
+    -- Load the real shared verdict so this covers the current cleanup path,
+    -- not the independently loaded legacy fallback.
+    local verdictSource=section(rec,"function resourceCardsThrowAwayReason(card)",
+        "-- The last End Turn click")
+    assert(load(verdictSource,"Shared throw-away verdict","t",cleanupEnv))()
     local cleanupSource=section(flow,"function cleanupPlayedCardAtEndTurn(",
         "local MEDITATION_BUTTON_SUFFIXES")
     local cleanup=assert(load(cleanupSource.."\nreturn cleanupPlayedCardAtEndTurn",
         "Mysterious Box cleanup","t",cleanupEnv))()
+    assert(cleanupEnv.resourceCardsThrowAwayReason(box)==nil,
+        "Recovered face-up Box has no throw-away verdict")
     cleanup(box,1,nil)
     assert(#disposed==0,"Normal unresolved Mysterious Box must stay in play")
     brokenByGUID[box.guid]=true
+    assert(cleanupEnv.resourceCardsThrowAwayReason(box)=="artifact",
+        "Explicit Throw choice must reach the shared verdict")
     cleanup(box,1,nil)
     assert(#disposed==1 and disposed[1]==box.guid,
         "Face-up broken Mysterious Box must be thrown away")
