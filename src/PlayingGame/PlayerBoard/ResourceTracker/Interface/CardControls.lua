@@ -603,7 +603,9 @@ return function(deps)
                 and (canReadyUnit or readyCount>0) then
                 startingControl("ruthlessReady","RDY "..tostring(readyCount),
                     readyCount>0,145,-125)
-            elseif rule.selectedTerrainDiscount~=nil and powered then
+            elseif rule.selectedTerrainDiscount~=nil and powered
+                and (tonumber(resources~=nil and resources.move) or 0)>0
+                and combatConfig.moveRoleForUI(card.guid)=="movement" then
                 startingControl("terrain",special~=nil and special.terrain~=nil
                     and special.terrain:sub(1,3):upper() or "TER",
                     special~=nil and special.terrain~=nil,150,-125)
