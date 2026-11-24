@@ -58,7 +58,7 @@ discardObjects={deck(6)}
 equal(state.endTurnPlayerHasAction(1,0),false,"Missing baseline cannot unlock")
 assert(source:find('if source=="New Turn" then syncPlayAreaObjectState(currentPlayer.seatPos) end',1,true),
     "New turns must recheck physical play-area membership")
-assert(source:find("endTurnPlayerHasAction(gStates.turnNumber,context.playerAreaCardCount)",1,true),
+assert(source:find("endTurnPlayerHasAction(gStates.turnNumber)~=true",1,true),
     "The button must use the shared action gate")
 local combat=read("src/PlayingGame/Combat.lua")
 assert(combat:find("and endTurnPlayerHasAction(gStates.turnNumber)~=true",1,true),

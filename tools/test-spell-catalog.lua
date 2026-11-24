@@ -96,7 +96,7 @@ end
 
 -- Evaluate the actual Spell definition table, rather than copying numeric values.
 local section=between(data,"    -- Spell resources are independent",
-    "    -- Artifact sides are physical")
+    "    -- Full-size Artifacts use a saved Break toggle")
 local defs=assert(load("return {\n"..section.."\n}"))()
 for _,entry in ipairs(expected) do
     local key=entry[4]

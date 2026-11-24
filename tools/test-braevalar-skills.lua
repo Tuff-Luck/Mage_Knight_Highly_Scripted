@@ -83,7 +83,7 @@ getObjectFromGUID=function(guid)
     return pos~=nil and {getPosition=function() return pos end} or nil
 end
 local nearest=isolated(recognition,
-    "local function combatNearestEnemyGUID(source,entries)",
+    "local function combatNearestEnemyGUID(source,entries,eligible)",
     "combatConfig.attackTypes=", "combatNearestEnemyGUID")
 local enemies={{guid="a",attackOnly=false},{guid="b",attackOnly=false},
     {guid="c",attackOnly=false}}

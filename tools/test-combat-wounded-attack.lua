@@ -32,7 +32,7 @@ local paralysisCards=isolated("combatConfig.paralysisAttackCards=function(source
 local eligibleSources=isolated("combatConfig.attackPhaseSources=function(sources,wounded,paralysisCards)",
     "-- Timing of self-wounding Unit abilities", "combatConfig.attackPhaseSources")
 local resultLine=isolated("local function combatGroupAttackLine(meleeTotal,attackArmour)",
-    "local combatDefenderMarks=", "combatGroupAttackLine")
+    "trackerPrivate.combatDefenderMarks=", "combatGroupAttackLine")
 local function total(sources)
     return attackTotal({
         {sources=sources,category="attack"},

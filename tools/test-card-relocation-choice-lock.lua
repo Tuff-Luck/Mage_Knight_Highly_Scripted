@@ -23,7 +23,7 @@ local lockCode=slice(source,"local function combatSourceKeepsLock(key)",
 local dropCode=slice(source,"function resourceCardsObjectMoved(obj,stabilized)",
     "-- Register the remaining readying")
 local recoverCode=slice(source,"    -- A released source may be above the shallow zone",
-    "    -- Mana dropped ON a played Action")
+    "    -- A resting active Unit can be lifted")
 
 local pos={x=0,y=12,z=0,[1]=0,[2]=12,[3]=0}
 local card={
@@ -51,6 +51,7 @@ local tracker={choiceResetGenerationByGUID={},
     playCandidateKind=function(kind)
         return kind=="card" or kind=="skill" or kind=="factionReward"
     end,
+    checkCardChoicesAfterDrop=function() end, -- Independent UI repair tested elsewhere
     readyForXZ=function(obj)
         return obj.held_by_color==nil and not obj.isSmoothMoving()
             and (obj.type~="Dice" or obj.resting==true)
@@ -91,6 +92,7 @@ local env={
     safeWaitCondition=function(_,callback,predicate)
         conditions[#conditions+1]={callback=callback,predicate=predicate}
     end,
+    resourceCardsArtifactBreakClear=function(guid) end, -- No Artifact in this fixture
     unitHistoryValidSources=function() historyResets=historyResets+1 end,
     queueSeat=function() queues=queues+1 end
 }

@@ -80,7 +80,8 @@ gStates={turnNumber=1,currentRound=9,doingTheRounds={},
     coopCompSkillActivation={}}
 turnOrder={{seatPos=1,avatarLocation="plains"},{seatPos=2,avatarLocation="plains"}}
 resourceCardScanBySeat={}
-local weatherEffects=section(recognition,"local passableTerrain=",
+trackerPrivate={}
+local weatherEffects=section(recognition,"trackerPrivate.passableTerrain=",
     "local function clearHighlight(guid)","resourceCardsWeatherTerrainEffects")
 local function terrainFor(player)
     gStates.turnNumber=player

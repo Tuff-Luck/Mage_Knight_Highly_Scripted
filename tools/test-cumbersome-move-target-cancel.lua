@@ -21,7 +21,7 @@ assert(data:find('{key="move",move=4}',1,true),"Pure Magic basic Move 4 changed"
 
 local callbacks=section(source,"local function persistAssignments()",
     "function attackAssignmentTargetClicked(")
-local forget=section(reader,"function resourceCardsCombatForgetSource(sourceGUID)",
+local forget=section(reader,"function resourceCardsCombatForgetSource(sourceGUID,replacementTargetGUID)",
     "-- Clear every target key owned by a physical card or Unit")
 local moveGUID="878d89"
 local enemyGUID="2116ff"

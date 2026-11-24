@@ -103,7 +103,7 @@ assert(source:find("chosen=resourceCardsUsesDayMana() and {blockFire=value} or {
 assert(source:find("return effect.dayRound==nil or effect.dayRound==(gStates.dayRound==true)",1,true))
 assert(source:find("trackerPrivate.renderCombatNight=resourceCardsCombatNightFromEnemies(combatMonsters)",1,true),
     "Active combat must build one shared Night snapshot")
-assert(source:find("trackerPrivate.renderCombatNight=nil\nend\n\nlocal function scheduleSeatRender(",1,true),
+assert(source:find("trackerPrivate.renderCombatNight=nil\n    if trackerPrivate.traceEnabled then trackerPrivate.traceEvent(\"render.done\",seatPos) end\nend\n\nlocal function scheduleSeatRender(",1,true),
     "Night context must be cleared after rendering")
 
 -- A normal Summoner must not accidentally mark every summon as Night.

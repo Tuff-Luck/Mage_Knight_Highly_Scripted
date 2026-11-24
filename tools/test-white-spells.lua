@@ -19,7 +19,7 @@ local data=read("src/Data.lua")
 local reader=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local offer=read("src/PlayingGame/CallOffer.lua")
 local rules=assert(load("return {\n"..between(data,
-    "    -- Spell resources are independent","    -- Artifact sides are physical").."\n}"))()
+    "    -- Spell resources are independent","    -- Full-size Artifacts use a saved Break toggle").."\n}"))()
 gStates={monsterPerks={}}
 monsterPugs={
     first={name="First"},second={name="Second"},

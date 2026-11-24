@@ -18,7 +18,7 @@ end
 local data=read("src/Data.lua")
 local reader=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local spells=assert(load("return {\n"..between(data,
-    "    -- Spell resources are independent","    -- Artifact sides are physical").."\n}"))()
+    "    -- Spell resources are independent","    -- Full-size Artifacts use a saved Break toggle").."\n}"))()
 
 -- Cure's basic Heal is available without waiting for a Wound draw; the
 -- optional per-hand-Wound draw is a confirmed action, not automatic resources.

@@ -32,7 +32,7 @@ assert(source:find("trackerPrivate.playCardMovements[obj.guid]~=nil then",1,true
 assert(source:find("resourceCardsObjectMoved(live,true)",1,true)
     and source:find('if not stabilized and obj.type~="Dice"',1,true),
     "Stable falling cards must not restart the relocation watcher")
-assert(source:find("trackerPrivate.playCardMovements={}\n    resourceCardScanBySeat={}",1,true),
+assert(source:find("trackerPrivate.playCardMovements={}\n    trackerPrivate.cardUIRecheckSerial={}\n    resourceCardScanBySeat={}",1,true),
     "Disabling tracker must cancel relocation watches")
 
 local pos={x=0,y=5,z=0,[1]=0,[2]=5,[3]=0}
