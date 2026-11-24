@@ -85,7 +85,7 @@ objects.blue=blue
 objects.inventory=inventory
 objects.playZone={getObjects=function() return {} end}
 local payment=assert(load([[
-local trackerPrivate={}
+local trackerPrivate={manaPayments=require("PlayingGame.PlayerBoard.ResourceTracker.ManaPayments")}
 local playerUnitAreas={[1]="unitZone"}
 local playerPlayAreas={[1]="playZone"}
 local function footprint() return {x=0,z=0,halfX=1.2,halfZ=1.4} end
@@ -114,6 +114,16 @@ blue.position.x=20
 eq(payment(unit,1,{blue}).Blue,nil,"Crystal removed from Unit no longer pays")
 blue.position.x=0
 eq(payment(unit,1,{blue}).Blue,1,"Replacing crystal restores paid ability")
+local die={guid="die",type="Dice",color="Blue",getPosition=blue.getPosition,
+    isSmoothMoving=function() return false end}
+zone.getObjects=function() return {blue,die} end
+objects.playZone.getObjects=function() return {blue,die} end
+eq(payment(unit,1).Blue,2,"Both live zones are read without counting duplicate GUIDs")
+eq(payment(unit,1,nil,true).Blue,1,"Crystal-only abilities exclude dice")
+eq(payment(unit,1,{die},true).Blue,nil,"Explicit candidate dice cannot pay crystal-only abilities")
+zone.getObjects=function() return {} end
+objects.playZone.getObjects=function() return {} end
+eq(payment(unit,1).Blue,nil,"Removed mana no longer qualifies in either zone")
 
 dofile("src/PlayingGame/PlayerBoard/UnitResources.lua")
 local abilities=assert(unitResourceDefinitions[unit.guid])
@@ -122,6 +132,7 @@ eq(abilities[4].blockIce,4,"Northern Monks Ice Block 4")
 local decisionCode=extract(reader,"local function unitAbilityPaid(ability,counts)",
     "-- Earlier Command activations own")
 local decide=assert(load([[
+local trackerPrivate={manaPayments=require("PlayingGame.PlayerBoard.ResourceTracker.ManaPayments")}
 local resourceCardsGoldAllowed=function() return false end
 local resourceCardsBlackAllowed=function() return false end
 local unitManaCounts=function() error("Pass explicit mana counts") end

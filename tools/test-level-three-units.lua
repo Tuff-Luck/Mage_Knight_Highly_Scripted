@@ -1,3 +1,4 @@
+package.path="src/?.lua;"..package.path
 -- Level III Unit regressions: Freezers, Sorcerers and Catapults.
 -- Run from the repository root: lua5.2 tools/test-level-three-units.lua
 local function eq(actual,expected,label)
@@ -76,6 +77,7 @@ local reader=source("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local decisionCode=slice(reader,"local function unitAbilityPaid(ability,counts)",
     "-- Earlier Command activations own")
 local decide=assert(load([[
+local trackerPrivate={manaPayments=require("PlayingGame.PlayerBoard.ResourceTracker.ManaPayments")}
 local daytime=false
 local resourceCardsUsesDayMana=function() return daytime end
 local resourceCardsGoldAllowed=function() return daytime end

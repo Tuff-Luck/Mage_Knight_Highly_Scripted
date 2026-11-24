@@ -9849,53 +9849,18 @@ end
 -- Physical mana is authoritative for a paid Unit ability. It is read from
 -- either overlapping board zone, even with the Resource Tracker collapsed.
 local function unitManaCounts(unit,seatPos,source,crystalsOnly)
-    local tokens=source
-    if tokens==nil then
-        tokens={}
-        local seen={}
-        for _,zoneGUID in ipairs({playerUnitAreas[seatPos],playerPlayAreas[seatPos]}) do
-            local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
-            if zone~=nil then
-                for _,obj in ipairs(zone.getObjects()) do
-                    if not seen[obj.guid] and trackerPrivate.readyForXZ(obj)
-                        and manaColor(obj)~=nil then
-                        seen[obj.guid]=true
-                        tokens[#tokens+1]=obj
-                    end
-                end
-            end
-        end
-    end
-    local counts,area={},footprint(unit)
-    local seen={}
-    for _,mana in ipairs(tokens) do
-        if not seen[mana.guid] and trackerPrivate.readyForXZ(mana) then
-            seen[mana.guid]=true
-            local color=manaColor(mana)
-            if color~=nil and (not crystalsOnly or isManaTokenFigurine(mana))
-            and manaInsideFootprint(mana,area) then
-                counts[color]=(counts[color] or 0)+1
-            end
-        end
-    end
-    return counts
+    return trackerPrivate.manaPayments.unitManaCounts(unit,seatPos,source,crystalsOnly,
+        footprint,manaColor,trackerPrivate.readyForXZ,isManaTokenFigurine,manaInsideFootprint)
 end
 
 local function unitAbilityPaid(ability,counts)
-    local color=ability.manaCost
-    if color==nil then return true end
-    if color=="Black" and not resourceCardsBlackAllowed() then return false end
-    if (counts[color] or 0)>0 then return true end
-    -- Daytime Gold can pay any basic colour, but not Black.
-    return color~="Black" and resourceCardsGoldAllowed() and (counts.Gold or 0)>0
+    return trackerPrivate.manaPayments.unitAbilityPaid(ability,counts,
+        resourceCardsGoldAllowed,resourceCardsBlackAllowed)
 end
 
 local function unitManaSignature(counts)
-    local parts={tostring(resourceCardsGoldAllowed()),tostring(resourceCardsBlackAllowed())}
-    for _,color in ipairs({"Red","Blue","Green","White","Black","Gold"}) do
-        parts[#parts+1]=tostring(counts[color] or 0)
-    end
-    return table.concat(parts,":")
+    return trackerPrivate.manaPayments.unitManaSignature(counts,
+        resourceCardsGoldAllowed,resourceCardsBlackAllowed)
 end
 
 unitManaDecision=function(unit,abilities,activation,counts)

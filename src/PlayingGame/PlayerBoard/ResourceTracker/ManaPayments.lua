@@ -1,6 +1,6 @@
 -- Mana payment role assignment, physical candidate ranking and live payment scans.
--- Special-card scans read only the current play zone; ranking uses supplied
--- candidates. The coordinator retains the existing color and posture policies.
+-- Special-card scans read the current play zone; Unit scans read the play and
+-- Unit zones or supplied live candidates. The coordinator retains color and posture policies.
 
 -- Resolve independent mana roles without relying on placement order or GUID
 -- order. A casting payment (if declared), stronger-effect payment, and
@@ -250,6 +250,59 @@ local function resourceCardsTimeBendingPaid(seatPos,card,footprint,cardPosture,m
     return blue and black
 end
 
+-- Physical mana is authoritative for a paid Unit ability. It is read from
+-- either overlapping board zone, even with the Resource Tracker collapsed.
+local function unitManaCounts(unit,seatPos,source,crystalsOnly,
+    footprint,manaColor,readyForXZ,isManaTokenFigurine,manaInsideFootprint)
+    local tokens=source
+    if tokens==nil then
+        tokens={}
+        local seen={}
+        for _,zoneGUID in ipairs({playerUnitAreas[seatPos],playerPlayAreas[seatPos]}) do
+            local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
+            if zone~=nil then
+                for _,obj in ipairs(zone.getObjects()) do
+                    if not seen[obj.guid] and readyForXZ(obj)
+                        and manaColor(obj)~=nil then
+                        seen[obj.guid]=true
+                        tokens[#tokens+1]=obj
+                    end
+                end
+            end
+        end
+    end
+    local counts,area={},footprint(unit)
+    local seen={}
+    for _,mana in ipairs(tokens) do
+        if not seen[mana.guid] and readyForXZ(mana) then
+            seen[mana.guid]=true
+            local color=manaColor(mana)
+            if color~=nil and (not crystalsOnly or isManaTokenFigurine(mana))
+            and manaInsideFootprint(mana,area) then
+                counts[color]=(counts[color] or 0)+1
+            end
+        end
+    end
+    return counts
+end
+
+local function unitAbilityPaid(ability,counts,resourceCardsGoldAllowed,resourceCardsBlackAllowed)
+    local color=ability.manaCost
+    if color==nil then return true end
+    if color=="Black" and not resourceCardsBlackAllowed() then return false end
+    if (counts[color] or 0)>0 then return true end
+    -- Daytime Gold can pay any basic colour, but not Black.
+    return color~="Black" and resourceCardsGoldAllowed() and (counts.Gold or 0)>0
+end
+
+local function unitManaSignature(counts,resourceCardsGoldAllowed,resourceCardsBlackAllowed)
+    local parts={tostring(resourceCardsGoldAllowed()),tostring(resourceCardsBlackAllowed())}
+    for _,color in ipairs({"Red","Blue","Green","White","Black","Gold"}) do
+        parts[#parts+1]=tostring(counts[color] or 0)
+    end
+    return table.concat(parts,":")
+end
+
 return {
     effectManaPossibilities=effectManaPossibilities,
     effectManaPowerColors=effectManaPowerColors,
@@ -258,5 +311,8 @@ return {
     magicTalentSpellCastingPaid=magicTalentSpellCastingPaid,
     magicTalentSpellCastingPaymentCount=magicTalentSpellCastingPaymentCount,
     resourceCardsMaximalEffectSourceManaGUIDs=resourceCardsMaximalEffectSourceManaGUIDs,
-    resourceCardsTimeBendingPaid=resourceCardsTimeBendingPaid
+    resourceCardsTimeBendingPaid=resourceCardsTimeBendingPaid,
+    unitManaCounts=unitManaCounts,
+    unitAbilityPaid=unitAbilityPaid,
+    unitManaSignature=unitManaSignature
 }
