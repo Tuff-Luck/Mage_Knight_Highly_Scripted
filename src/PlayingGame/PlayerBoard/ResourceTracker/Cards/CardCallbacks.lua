@@ -353,8 +353,14 @@ function M.choiceClicked(player,value,id,combatConfig,resourceCardsDetailsOpen,f
         -- Clear both the saved arrow and the independent calculator lock
         -- before the rescan. The newly selected Move stays available for
         -- a deliberate new target, but does not auto-Block any enemy.
-        combatForgetPhysicalSourceTargets(roleGUID)
-        if attackAssignmentsClearForObject~=nil then attackAssignmentsClearForObject(roleGUID) end
+        local sourceKey=roleGUID
+        if record~=nil and record.kind=="factionReward" and record.splitTargets~=nil
+            and requestedMoveRole~=nil then
+            -- Only Move leaves combat. Preserve Boot's independent Attack.
+            sourceKey=roleGUID.."#block"
+        end
+        combatForgetPhysicalSourceTargets(sourceKey)
+        if attackAssignmentsClearForObject~=nil then attackAssignmentsClearForObject(sourceKey) end
     end
     if data~=nil and data.resourceKey=="rejuvenate" then
         gStates.unitReadyCardChoices=gStates.unitReadyCardChoices or {}
