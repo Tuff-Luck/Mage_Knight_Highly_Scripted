@@ -85,7 +85,7 @@ contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/ResourceChoices.lua
     'rule.woundConfirmation==true and not sideways',"No auto-confirmation")
 contains(data,'woundPending',"Firestorm unpaid default")
 contains(reader,'not combatIsSummonedToken(guid)',"Flame Wave excludes summons")
-contains(reader,'local _,_,rangeDefeated=combatRangeResult',"Flame Wave phase count")
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/FlameWave.lua"),'local _,_,rangeDefeated=combatRangeResult',"Flame Wave phase count")
 contains(reader,'sacrificeCastPairs[card.guid]=snapshot',"Crystal snapshot")
 contains(reader,'snapshot.pairs or 0',"Attack survives physical crystal conversion")
 contains(reader,'ignoreSiteFortifications=ignoreSiteFortifications',"Site bypass passes into calculator")
