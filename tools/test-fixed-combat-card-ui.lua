@@ -134,6 +134,8 @@ local state={
 setmetatable(state,{__index=_G})
 -- The runtime detects missing options by their actual object XML IDs; an
 -- intact signature alone cannot prove the buttons survived a TTS UI update.
+state.combatConfig.moveRoleAvailable=function() return state.combatCalcOn end
+state.combatConfig.moveRoleForUI=function(guid) return state.resourceCardsMoveRole(guid) end
 state.combatConfig.cardChoiceIds=function(guid,xml)
     local result={}
     for _,node in ipairs(xml or {}) do
@@ -258,21 +260,20 @@ state.combatCalcOn=true
 state.combatCumbersomeActive=false
 state.combatPsychicActive=false
 render(march,state.cardResourceDefinitions.march.normalChoices,false,nil,nil,{move=2},nil)
-assert(choiceButton("march","combatMovemove")==nil,
-    "No Cumbersome enemy: March must not show Combat Move")
+assert(choiceButton("march","combatMovemove")~=nil,
+    "Combat Move remains selectable without Cumbersome")
 state.combatCumbersomeActive=true
 render(march,state.cardResourceDefinitions.march.normalChoices,false,nil,nil,{move=2},nil)
 local combatMove=choiceButton("march","combatMovemove")
 assert(combatMove~=nil and #combatMove.children==2
-    and combatMove.children[1].attributes.image=="test_block"
-    and combatMove.children[2].attributes.image=="test_move"
-    and combatMove.children[1].attributes.width==82
-    and combatMove.children[2].attributes.width==82,
-    "Combat Move must layer full-size shield and Move icons like Tempered Steel")
+    and combatMove.children[1].attributes.image=="test_move"
+    and combatMove.children[2].attributes.text=="C"
+    and combatMove.children[2].attributes.color=="#69AEFF",
+    "Combat Move uses the standard Move icon and blue C badge")
 state.combatCumbersomeActive=false
 render(march,state.cardResourceDefinitions.march.normalChoices,false,nil,nil,{move=2},nil)
-assert(choiceButton("march","combatMovemove")==nil,
-    "Removing last Cumbersome enemy must hide combat Move even when it was selected")
+assert(choiceButton("march","combatMovemove")~=nil,
+    "Removing last Cumbersome enemy retains the selected Combat Move role")
 
 local psychic=makeCard("psychic")
 state.gameCards.psychic={resourceKey="psychic",cardType="Starting"}

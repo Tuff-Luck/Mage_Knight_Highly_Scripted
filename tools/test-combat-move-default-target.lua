@@ -21,22 +21,20 @@ assert(reader:find('if moveAmount>0 and resourceCardsMoveRole(guid,true)=="comba
     "Only combat-role Move can become a Calculator source")
 assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/SourceTargetAllocation.lua"):find('combatAssignmentState.explicit[source.key]=autoCombatMove and targetGUID~=nil or nil',
     1,true),"Default Cumbersome target must reserve the Move pool")
-assert(cardOptions:find('combatEntry.icon="block"',1,true)
-    and cardOptions:find('combatEntry.stackedIcons={"block","move"}',1,true)
-    and cardOptions:find('combatEntry.roleBadge=nil',1,true),
-    "Combat Move option must use full-size shield + Move icons, not a C badge")
+assert(cardOptions:find('combatEntry.icon="move"',1,true)
+    and cardOptions:find('combatEntry.roleBadge="C"',1,true)
+    and not cardOptions:find('combatEntry.stackedIcons={"block","move"}',1,true),
+    "Combat Move always uses the Move icon and C badge")
 assert(cardOptions:find('entry.stackedIcons={"block","influence"}',1,true)
     and cardOptions:find('if category=="influence" and combatPsychicActive',1,true),
     "Psychic Block option must use full-size shield + Influence icons")
 assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CardControls.lua"):find('image=stackedAsset.name,width=82,height=82',1,true)
     and read("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CardControls.lua"):find('for _,stackedIcon in ipairs(entry.stackedIcons)',1,true),
     "Composite icons must reuse Tempered Steel's full-size stacked rendering")
-assert(cardOptions:find('if combatCalcOn and combatCumbersomeActive then',1,true)
-    and cardOptions:find('if selected~=nil and combatCalcOn and combatCumbersomeActive',1,true),
-    "Combat Move choice must disappear when no Cumbersome enemy is available")
-assert(unitControls:find('if combatMoveAvailable then',1,true)
-    and unitControls:find('if combatMoveAvailable\n',1,true),
-    "Unit Combat Move must disappear when no Cumbersome enemy is available")
+assert(cardOptions:find('combatConfig.moveRoleAvailable',1,true),
+    "Combat Move availability is independent of Cumbersome")
+assert(unitControls:find('combatConfig.moveRoleAvailable',1,true),
+    "Units share the Combat Move availability policy")
 assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CardControls.lua"):find('..":PSY:"..tostring(combatPsychicActive)',1,true),
     "Card icons must refresh when the last Psychic attacker disappears")
 assert(unitControls:find('local shield=resourceCardsChoiceIcon("block")',1,true)
@@ -76,7 +74,8 @@ setmetatable(env,{__index=_G})
 local nearest=assert(load(nearestCode.."\nreturn combatNearestEnemyGUID","Nearest enemy","t",env))()
 local evaluator=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/SourceTargetAllocation.lua")(
     env.attackAssignmentsTargetGUIDs,env.attackAssignmentsClearForObject,
-    env.resourceCardsCombatTargetAcceptsSource,env.combatGUIDHasCumbersome,nearest).resolveTarget
+    env.resourceCardsCombatTargetAcceptsSource,env.combatGUIDHasCumbersome,nearest,
+    function() return false end).resolveTarget
 local entries={
     {guid="normal",attackOnly=false},
     {guid="farCumbersome",attackOnly=false},
@@ -125,4 +124,4 @@ scan({source("attack",0,3)})
 assert(state.targets.attack=="normal" and state.explicit.attack==nil,
     "Ordinary combat Attack nearest-target behaviour must stay unchanged")
 
-print("Combat Move default target and shield-overlay regression passed")
+print("Combat Move default target and role-icon regression passed")

@@ -30,7 +30,8 @@ local rollers=read("src/PlayingGame/Components/Rollers.lua")
 
 -- Save current choices rather than re-guessing them after loading.
 local zones={
-    play={getObjects=function() return {{guid="played"},{guid="facedown"}} end},
+    play={getObjects=function() return {{guid="played"},{guid="facedown"},
+        {guid="7d21e6"},{guid="a1b2c3"}} end},
     units={getObjects=function() return {{guid="unit"}} end}
 }
 local choiceEnv={
@@ -40,6 +41,8 @@ local choiceEnv={
     playerPlayAreas={[1]="play"},
     playerUnitAreas={[1]="units"},
     gameCards={played={},facedown={},unit={},discarded={}},
+    skillTokens={["7d21e6"]=true},
+    resourceObjectKind=function(obj) return obj.guid=="a1b2c3" and "factionReward" or nil end,
     getObjectFromGUID=function(guid) return zones[guid] end,
     selectedResourceByGUID={
         played={effect="block",sideways="move",
@@ -47,7 +50,9 @@ local choiceEnv={
             inventorySets={[2]="influence"}},
         facedown={effect="healing"},
         unit={effect="attack"},
-        discarded={effect="siege"}
+        discarded={effect="siege"},
+        ["7d21e6"]={effect="move"},
+        a1b2c3={effect="fame"}
     }
 }
 choiceEnv.trackerPrivate=choiceEnv.trackerPrivate or {}
@@ -65,6 +70,8 @@ eq(saved.played.repeatChoices[2].index,3,"sparse repeated effect index")
 eq(saved.played.repeatChoices[2].choice,"ranged","repeated effect value")
 eq(saved.played.inventorySets[1].index,2,"sparse inventory set index")
 eq(saved.discarded,nil,"discarded card choice excluded")
+eq(saved["7d21e6"].effect,"move","Skill choice saved")
+eq(saved.a1b2c3.sourceKind,"factionReward","Dynamic reward choice saved")
 choiceEnv.selectedResourceByGUID={}
 restoreChoices()
 local restored=choiceEnv.selectedResourceByGUID
@@ -74,6 +81,8 @@ eq(restored.played.repeatChoices[3],"ranged","restore sparse repeated choice")
 eq(restored.played.inventorySets[2],"influence","restore sparse inventory set")
 eq(restored.facedown.effect,"healing","restore saved face choice")
 eq(restored.discarded,nil,"discarded card not resurrected")
+eq(restored["7d21e6"].effect,"move","Shapeshift selection restored")
+eq(restored.a1b2c3.effect,"fame","Dynamic reward selection restored")
 
 -- An unresolved combat plan is distinct from the committed damage-phase snapshot.
 local damageEnv={

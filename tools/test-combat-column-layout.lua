@@ -20,14 +20,14 @@ assert(nameWidth("Apocalypse Dragon Head")>nameWidth("Ice Mages"),
     "Longer names must still receive more space")
 local iceResist="<color=#5AA0FF>Ice Resist</color>"
 local compact=traitWidth({"Fortified\n"..iceResist})
-assert(compact==math.max(78,nameWidth("Fortified"),nameWidth("Ice Resist")),
+assert(compact==math.max(traitWidth({"Fortified"}),traitWidth({"Ice Resist"})),
     "Ability width should use the longest displayed line, ignoring rich text tags")
 assert(traitWidth({"Double Fortified"})>compact,
     "A longer ability must expand the shared column")
 assert(traitWidth({})==78,"Empty ability content should use a compact floor")
 
-local attackFloor=nameWidth("E. Attack")
-local offenceFloor=nameWidth("Off. Ability")
+local attackFloor=textWidth({"E. Attack"},74)
+local offenceFloor=textWidth({"Off. Ability"},74)
 local shortAttack=textWidth({"Physical 3\nPhysical 2"},attackFloor)
 local longAttack=textWidth({"Physical 3\n<color=#FF5555>Fire Attack 12</color>"},attackFloor)
 assert(shortAttack<105,"Short multi-attack lines should shrink below the old 105px width")
@@ -48,10 +48,9 @@ assert(panelRenderer:find('traits=combatConfig.traitColumnWidth(shownTraits)',1,
     "Defensive column must use visible row text")
 assert(panelRenderer:find('DefenceTraits=columnWidths.traits',1,true),
     "Header must match the defensive row width")
-assert(panelRenderer:find('+(enemyNameWidth-120)+(columnWidths.traits-150)',1,true),
-    "Panel width must account for dynamically sized names and traits")
-assert(panelRenderer:find('+(columnWidths.enemyAttack-105)+(columnWidths.offence-130)',1,true),
-    "Panel width must reflect dynamic attack and offence widths")
+assert(panelRenderer:find('local baseWidth=17+enemyNameWidth+55',1,true)
+    and panelRenderer:find('if shown then baseWidth=baseWidth+columnWidths[column] end',1,true),
+    "Panel width sums visible dynamic columns")
 assert(panelRenderer:find('EnemyAttack=columnWidths.enemyAttack,Offence=columnWidths.offence',1,true),
     "Headers must inherit attack and offence content widths")
 assert(panelRenderer:find('combatPanelSetAttribute("CombatEnemyAttackCell"..row,"preferredWidth",tostring(columnWidths.enemyAttack))',1,true),
@@ -75,9 +74,9 @@ for i=1,8 do
     end
 end
 -- UTF-8 continuation bytes must not inflate the estimated width.
-assert(nameWidth("漢漢漢漢漢")==93,"Five CJK codepoints, not fifteen UTF-8 bytes")
-assert(nameWidth("éééééé")==78,"Six two-byte glyphs counted once each")
-assert(nameWidth("😀😀😀😀")==86,"Four supplementary codepoints counted once each")
+assert(nameWidth("漢漢漢漢漢")==72,"Five CJK codepoints, not fifteen UTF-8 bytes")
+assert(nameWidth("éééééé")==59,"Six two-byte glyphs counted once each")
+assert(nameWidth("😀😀😀😀")==66,"Four supplementary codepoints counted once each")
 assert(nameWidth("WWWWWW")>nameWidth("iiiiii"),"Wide and narrow glyphs differ")
 local entries={}
 for i=1,9 do entries[i]={guid=tostring(i),name="Enemy "..i} end
@@ -107,6 +106,6 @@ entries[6].name="Much Longer Offscreen Apocalypse Dragon Name"
 local visibleWidth=layout.nameColumnWidth(entries,{[2]={leader=1}},0,4)
 assert(visibleWidth==nameWidth("+ "..entries[2].name),"Visible joined name includes prefix")
 assert(visibleWidth<nameWidth(entries[6].name),"Offscreen enemy does not widen visible page")
-assert(layout.nameColumnWidth(entries,{},0,0)==74,"Empty page uses minimum name width")
+assert(layout.nameColumnWidth(entries,{},0,0)==54,"Empty page uses minimum name width")
 assert(entries[4].destroyed==nil and entries[5].attackOnly==nil,"Pagination does not mutate entries")
 print("Compact combat column layout regressions passed")

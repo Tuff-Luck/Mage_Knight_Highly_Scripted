@@ -144,6 +144,7 @@ local actionEnv=setmetatable({
     resourceCardsPlayerCanEdit=function(color) return color=="Blue" end,
     resourceCardsPanelOpen=function() return true end,
     resourceCardsAmbushSourceActive=env.resourceCardsAmbushSourceActive,
+    resourceCardsAmbushCombatMoveActive=function(guid) return guid==sourceGUID end,
     resourceCardsAmbushLinkTargets=env.resourceCardsAmbushLinkTargets,
     resourceCardsCombatTargetObjects=function() return {[enemyGUID]=enemy} end,
     resourceCardsCombatTargetAcceptsMove=function(guid) return guid==enemyGUID end,

@@ -210,7 +210,7 @@ ui.collapse(catUnit.guid) -- Choice click restores the ordinary target button.
 catUi=ui.render(catUnit,catapults,selectedBlue,1)
 assert(hasButton(catUi,"AttackAssignmentSource_1aa68c_0_siegeIce"),
     "Selected Catapults Siege has a single enemy target")
-assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/Units/UnitManagement.lua"):find("allowed[unitHistoryKey(unit.guid,useIndex)]=true",1,true),
+assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/Units/UnitManagement.lua"):find("allowed[key]=true",1,true),
     "Switching Sorcerers' effects must preserve their numeric ranged target")
 assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/UnitControls.lua"):find('targetSpecs[1].index==targetSpecs[2].index',1,true),
     "Separate Ranged/effect buttons should be distinguishable")

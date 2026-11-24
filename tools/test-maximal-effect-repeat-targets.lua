@@ -96,7 +96,8 @@ eq(phase.check("swift",false,nil,uses({key="reduce"},{ranged=2})),false,
 local a=assert(reader:find("combatConfig.conversionFor=function",1,true))
 local b=assert(reader:find("local function combatAssignmentSources",a,true))
 local conversion=assert(load([[
-local combatConfig={conversionState={}}
+local combatConfig={}
+local gStates={}
 local resourceCardScanBySeat={
     [1]={cards={
         ["8c3de6"]={combatConversion="diplomacy",resources={influence=8},
@@ -104,7 +105,8 @@ local resourceCardScanBySeat={
     }}
 }
 local combatAssignmentState={explicit={},targets={}}
-local function combatConversionReserved() return 0 end
+combatConfig.sharedSpendable=function(_,amount) return amount end
+combatConfig.sharedSourceKey=function(guid) return guid end
 local function resourceCardsMoveRole() return "movement" end
 ]]..reader:sub(a,b-1).."\nreturn combatConfig.conversionFor"))()
 local choice,available,valid=conversion(1,"diplomacy")
