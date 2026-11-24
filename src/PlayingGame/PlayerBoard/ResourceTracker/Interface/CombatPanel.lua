@@ -97,11 +97,13 @@ local function nameColumnWidth(entries,groupOf,pageOffset,pageEnd)
 end
 
 return {enemyNameColumnWidth=enemyNameColumnWidth,textColumnWidth=textColumnWidth,
-    traitColumnWidth=traitColumnWidth,paginate=paginate,nameColumnWidth=nameColumnWidth}
+    traitColumnWidth=traitColumnWidth,paginate=paginate,nameColumnWidth=nameColumnWidth,
+    estimatedTextWidth=estimatedTextWidth}
 end)()
 
 -- CombatPanelRenderer
 local renderer=(function()
+local estimatedTextWidth=layout.estimatedTextWidth
 -- Apply panel geometry, damage summary and final header/overflow attributes.
 return function(combatConfig,combatPanelSetAttribute,combatRich,combatWoundsText,joinLang)
     local function columns(shownTraits,shownOffence,shownAttacks,colUsed,maxResourceCounts,enemyNameWidth)
