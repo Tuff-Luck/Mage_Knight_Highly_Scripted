@@ -124,4 +124,15 @@ scan({source("attack",0,3)})
 assert(state.targets.attack=="normal" and state.explicit.attack==nil,
     "Ordinary combat Attack nearest-target behaviour must stay unchanged")
 
-print("Combat Move default target and role-icon regression passed")
+-- The saved primary is not necessarily the nearest or lexically first
+-- target. Restoring a split pool must keep the original allocation.
+local savedEnv=setmetatable({gStates={resourceCardPrimaryTargets={pool="nearCumbersome"}}},{__index=_G})
+local savedEvaluator=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/SourceTargetAllocation.lua","t",savedEnv))()(
+    function() return {farCumbersome=true,nearCumbersome=true} end).recoverTarget
+local restored={targets={},explicit={}}
+assert(savedEvaluator({key="pool"},rowByGUID,restored)=="nearCumbersome"
+    and restored.explicit.pool==true,"Saved primary target survives reload")
+local older={targets={},explicit={}}
+assert(savedEvaluator({key="pool"},rowByGUID,older)=="farCumbersome",
+    "Older saves choose a deterministic primary fallback")
+print("Combat Move default target, persisted primary and role-icon regression passed")

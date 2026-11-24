@@ -196,4 +196,68 @@ remove("5")
 assert(combat.targets.move4=="enemyC",
     "The final primary arrow must promote another saved target")
 
-print("Resource scoring, conversion reservations and split-arrow integrity passed")
+-- Wings of Night must use the same budget as Agility, including restored
+-- arrows and the separate Block-family key of a split Move/Attack reward.
+local wingRecords={
+    ["878d92"]={combatConversion="agility",resources={move=2}},
+    moveA={resources={move=4}},
+    normal={resources={move=5}},
+    boot={resources={move=2,attack=2},splitTargets={"block","attack"}}
+}
+conversionEnv.gStates={}
+conversionEnv.resourceCardScanBySeat[1].cards=wingRecords
+conversionEnv.resourceCardsMoveRole=function(guid)
+    return guid=="normal" and "movement" or "combat"
+end
+conversionEnv.attackAssignmentsTargetGUIDs=function(key)
+    return key=="boot#block" and {enemy1=true} or {}
+end
+state.targets.moveA="enemy1"
+state.explicit.moveA=true
+local effects,totals={}, {move=13}
+local wingEnv=setmetatable({
+    gStates=conversionEnv.gStates,monsterPugs={},
+    combatEffectAdd=function(result,guid,source,spec) result[guid]=spec end
+},{__index=_G})
+local finalize=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Scanning/ScanFinalization.lua","t",wingEnv))()
+finalize.wingsNight({
+    pendingWingsNight={{source="wings",targets={"enemy1","enemy2","enemy3"}}},
+    records=wingRecords,resourceCardsMoveRole=conversionEnv.resourceCardsMoveRole,
+    monsters={enemy1={},enemy2={},enemy3={}},enemyEffects=effects,totals=totals,
+    sharedSpendable=conversionEnv.combatConfig.sharedSpendable,
+    sharedSourceKey=conversionEnv.combatConfig.sharedSourceKey,
+    moveEligible=function(guid) return guid=="enemy1" end
+})
+assert(effects.enemy1.moveCost==0 and effects.enemy2.moveCost==1
+    and effects.enemy3.insufficientMove==true,
+    "Only the first two Wings of Night targets are affordable")
+assert(wingRecords.moveA.resources.move==4 and wingRecords.boot.resources.move==2
+    and wingRecords.normal.resources.move==5 and totals.move==12,
+    "Wings of Night preserves reserved and movement-role pools")
+local remaining,budget=conversionEnv.combatConfig.conversionFor(1,"agility")
+assert(budget==1,"Agility can only spend the one remaining free point")
+remaining.attack=1
+assert(conversionEnv.gStates.resourceCardConversions["1"].agility.attack==1,
+    "Conversion decisions belong to saved game state")
+local savedCounters=conversionEnv.gStates.resourceCardConversions
+local preview=conversionEnv.combatConfig.conversionFor(1,"agility",true)
+preview.attack=0
+assert(savedCounters["1"].agility.attack==1,"UI preview never mutates saved counters")
+
+local terrain={mode="set",cost=1}
+local terrainRecords={
+    movement={resources={move=2},pendingTerrainModifiers={terrain},pendingIgnoreRampagers=true},
+    combat={resources={move=2},pendingTerrainModifiers={terrain},pendingSingleSpaceDiscount=1},
+    shifted={resources={attack=2},pendingTerrainModifiers={terrain}},
+    amulet={resources={},independentTerrain=true,pendingTerrainModifiers={terrain}}
+}
+local modifiers,flags={}, {singleSpaceDiscount=0}
+finalize.playedMovement({
+    records=terrainRecords,terrainModifiers=modifiers,movementEffects=flags,
+    resourceCardsMoveRole=function(key) return key=="combat" and "combat" or "movement" end,
+    objects={},setHighlight=function() end
+})
+assert(#modifiers==2 and flags.ignoreRampagers and flags.singleSpaceDiscount==0,
+    "Only the movement-role source and independent amulet retain terrain effects")
+
+print("Resource scoring, shared Move expenditure, terrain and split-arrow integrity passed")

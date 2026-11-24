@@ -106,5 +106,20 @@ rows=build({{attack=3}},nil,"set2",nil,{choices={{attack=1},{block=1}}},2,true)
 eq(#rows,3,"Powered inventory adds two set rows")
 eq(rows[3].expanded,true,"Second inventory set expands")
 eq(rows[2].expanded,false,"First inventory set stays collapsed")
+-- A Boot of Charging role switch never turns Attack into an alternative.
+selected="move"
+moveRole="movement"
+cumbersome=true
+local boot={{key="move",move=2,attack=2,splitMoveAttack=true}}
+rows=build(boot)
+eq(rows[1].visible[1].targetPart,"attack","Normal Move keeps independent Attack")
+moveRole="combat"
+rows=build(boot)
+eq(rows[1].visible[1].targetPart,"attack","Combat Move keeps independent Attack")
+eq(rows[1].visible[1].extraTargetPart,"block","Combat Move uses split Block source")
+cumbersome=false
+rows=build(boot)
+eq(rows[1].selected,"combatMovemove","Combat role remains available")
+eq(rows[1].visible[1].extraTargetResource,nil,"Only Cumbersome enables enemy Move targeting")
 eq(build({}),nil,"Empty choices require caller to hide controls")
 print("Card control fallback, choice ordering, combat variants, repeated and inventory rows passed")
