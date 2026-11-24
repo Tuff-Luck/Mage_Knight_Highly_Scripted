@@ -668,17 +668,17 @@
 					<Text id="MegapolisReminderTitle" class="Title18">{en}Megapolis Available{it}Megapoli Disponibile{ru}Мегаполис Доступен{zh-tw}可以使用大型城市{zh-cn}可以使用大型城市{ko}거대도시 옵션{es}Megapolis Disponible{fr}Megapolis Disponible{pt-br}Megalópole Disponível{de}Metropole Vorhanden</Text>
 				</Row>
 			</TableLayout>
-			<HorizontalLayout padding="0 0 0 0"><Text id="MegapolisReminderText1" class="Text16" alignment="MiddleCenter">{en}Use the arrows next to the City Levels, to change a City into a Megapolis.&lt;size=6&gt;
+			<HorizontalLayout padding="0 0 0 0"><Text id="MegapolisReminderText1" class="Text16" alignment="MiddleCenter">{en}Use the arrows next to the City Levels, to change a City into a Megapolis.&lt;size=3&gt;
 
-&lt;/size&gt;When a city deploys in game, a second random city also deploys with it (each at half the level chosen here). Their two garrisons combine and get the bonuses from both cities applied.&lt;size=6&gt;
+&lt;/size&gt;When a city deploys in game, a second random city also deploys with it (each at half the level chosen here). Their two garrisons combine and get the bonuses from both cities applied.&lt;size=3&gt;
 
-&lt;/size&gt;After conquering the Megapolis, interactions from either city can be accessed.{it}Usa le frecce accanto ai livelli delle Città per trasformare una Città in Megapoli.&lt;size=6&gt;
+&lt;/size&gt;After conquering the Megapolis, interactions from either city can be accessed.{it}Usa le frecce accanto ai livelli delle Città per trasformare una Città in Megapoli.&lt;size=3&gt;
 
-&lt;/size&gt;Quando viene posizionata, compare anche una seconda città casuale, ciascuna a metà del livello scelto qui. Le guarnigioni si uniscono e ricevono i bonus di entrambe.&lt;size=6&gt;
+&lt;/size&gt;Quando viene posizionata, compare anche una seconda città casuale, ciascuna a metà del livello scelto qui. Le guarnigioni si uniscono e ricevono i bonus di entrambe.&lt;size=3&gt;
 
-&lt;/size&gt;Dopo la conquista, sono disponibili le interazioni di entrambe le città.{ru}Используйте стрелки рядом с ур. города, чтобы из Города сделать Мегаполис.&lt;size=6&gt;
+&lt;/size&gt;Dopo la conquista, sono disponibili le interazioni di entrambe le città.{ru}Используйте стрелки рядом с ур. города, чтобы из Города сделать Мегаполис.&lt;size=3&gt;
 
-&lt;/size&gt;Вместо одного Города, появятся сразу два. Уровень каждого равен половине ур. выбранного здесь. Оба их гарнизона объединяются и получают бонусы от обоих городов.&lt;size=6&gt;
+&lt;/size&gt;Вместо одного Города, появятся сразу два. Уровень каждого равен половине ур. выбранного здесь. Оба их гарнизона объединяются и получают бонусы от обоих городов.&lt;size=3&gt;
 
 &lt;/size&gt;Завоеванный Мегаполис позволяет взаимодействовать с каждым из городов.{zh-tw}使用城市等級選項旁邊的箭頭按鈕，
 來將一個城市更換成大型城市。&lt;size=3&gt;
@@ -700,25 +700,25 @@
 并同时受到两座城市的战斗加成。&lt;size=3&gt;
 
 &lt;/size&gt;征服大型城市后，无论位于哪片城区，
-在交涉时都可以选择任意城区的购买选项。{ko}거대도시를 사용하려면, 도시 레벨 옆 화살표를 누르세요.&lt;size=6&gt;
+在交涉时都可以选择任意城区的购买选项。{ko}거대도시를 사용하려면, 도시 레벨 옆 화살표를 누르세요.&lt;size=3&gt;
 
-&lt;/size&gt;도시가 놓일 때, 두 번째 도시가 무작위로 선택되어 좌측에 같이 놓입니다.(각각 절반의 레벨)두 도시의 수비대가 합쳐지고 두 도시의 전투 보너스를 동시에 적용받습니다.&lt;size=6&gt;
+&lt;/size&gt;도시가 놓일 때, 두 번째 도시가 무작위로 선택되어 좌측에 같이 놓입니다.(각각 절반의 레벨)두 도시의 수비대가 합쳐지고 두 도시의 전투 보너스를 동시에 적용받습니다.&lt;size=3&gt;
 
-&lt;/size&gt;정복된 후, 플레이어는 도시 어느 부분에 있던지 두 도시의 모든 교류 혜택을 사용할 수 있습니다.{es}Usa las flechas al lado de los niveles de la ciudad para convertir una ciudad en una Megapolis.&lt;size=6&gt;
+&lt;/size&gt;정복된 후, 플레이어는 도시 어느 부분에 있던지 두 도시의 모든 교류 혜택을 사용할 수 있습니다.{es}Usa las flechas al lado de los niveles de la ciudad para convertir una ciudad en una Megapolis.&lt;size=3&gt;
 
-&lt;/size&gt;Cuando una ciudad se despliega en el juego, también se despliega una segunda ciudad aleatoria con ella (cada una a la mitad del nivel elegido aquí). Sus dos guarniciones se combinan y se aplican las bonificaciones de ambas ciudades.&lt;size=6&gt;
+&lt;/size&gt;Cuando una ciudad se despliega en el juego, también se despliega una segunda ciudad aleatoria con ella (cada una a la mitad del nivel elegido aquí). Sus dos guarniciones se combinan y se aplican las bonificaciones de ambas ciudades.&lt;size=3&gt;
 
-&lt;/size&gt;Después de conquistar la Megalópolis, se puede acceder a las interacciones de cualquiera de las ciudades.{fr}Utilisez les flèches à côté des niveaux de la ville pour transformer une ville en Mégapole.&lt;size=6&gt;
+&lt;/size&gt;Después de conquistar la Megalópolis, se puede acceder a las interacciones de cualquiera de las ciudades.{fr}Utilisez les flèches à côté des niveaux de la ville pour transformer une ville en Mégapole.&lt;size=3&gt;
 
-&lt;/size&gt;Lorsqu'une ville se déploie en jeu, une seconde ville aléatoire se déploie également avec elle (chacune à la moitié du niveau choisi ici). Leurs deux garnisons se combinent et obtiennent les bonus des deux villes appliqués.&lt;size=6&gt;
+&lt;/size&gt;Lorsqu'une ville se déploie en jeu, une seconde ville aléatoire se déploie également avec elle (chacune à la moitié du niveau choisi ici). Leurs deux garnisons se combinent et obtiennent les bonus des deux villes appliqués.&lt;size=3&gt;
 
-&lt;/size&gt;Après avoir conquis la Mégapole, les interactions de l'une ou l'autre ville sont accessibles.{pt-br}Use as setas próximas ao níveis da Cidade, para transformar uma Cidade em uma Megalópole.&lt;size=6&gt;
+&lt;/size&gt;Après avoir conquis la Mégapole, les interactions de l'une ou l'autre ville sont accessibles.{pt-br}Use as setas próximas ao níveis da Cidade, para transformar uma Cidade em uma Megalópole.&lt;size=3&gt;
 
-&lt;/size&gt;Quando uma cidade é implementada no jogo, uma segunda cidade aleatória também é implementada com ela (cada uma a metade do nível escolhido aqui). Suas duas Guarnições combinam e ganham os bônus de ambas as cidades.&lt;size=6&gt;
+&lt;/size&gt;Quando uma cidade é implementada no jogo, uma segunda cidade aleatória também é implementada com ela (cada uma a metade do nível escolhido aqui). Suas duas Guarnições combinam e ganham os bônus de ambas as cidades.&lt;size=3&gt;
 
-&lt;/size&gt;Depois de conquistar a Megalópolis, interações de ambras cidades podem ser acessadas.{de}Verwenden Sie die Pfeile neben den Stadtebenen, um eine Stadt in eine Metropole zu verwandeln.&lt;size=6&gt;
+&lt;/size&gt;Depois de conquistar a Megalópolis, interações de ambras cidades podem ser acessadas.{de}Verwenden Sie die Pfeile neben den Stadtebenen, um eine Stadt in eine Metropole zu verwandeln.&lt;size=3&gt;
 
-&lt;/size&gt;Wenn eine Stadt im Spiel aufgestellt wird, wird auch eine zweite zufällige Stadt aufgestellt (jeweils auf der Hälfte des hier gewählten Levels). Ihre beiden Garnisonen verbinden sich und bekommen die Boni aus beiden Städten zugerechnet.&lt;size=6&gt;
+&lt;/size&gt;Wenn eine Stadt im Spiel aufgestellt wird, wird auch eine zweite zufällige Stadt aufgestellt (jeweils auf der Hälfte des hier gewählten Levels). Ihre beiden Garnisonen verbinden sich und bekommen die Boni aus beiden Städten zugerechnet.&lt;size=3&gt;
 
 &lt;/size&gt;Nach der Eroberung der Metropole kann auf Interaktionen aus beiden Städten zugegriffen werden.</Text></HorizontalLayout>
 		</VerticalLayout>
