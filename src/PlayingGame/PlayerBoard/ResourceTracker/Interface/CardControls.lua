@@ -144,7 +144,7 @@ return function(deps)
         if rule~=nil and rule.combatConversion~=nil and combatCalcOn
             and posture=="upright" and resources~=nil then
             conversion,conversionBudget,conversionValid=combatConfig.conversionFor(
-                combatAssignmentActiveSeat(),rule.combatConversion)
+                combatAssignmentActiveSeat(),rule.combatConversion,true)
             -- The first scan has not stored its new records yet; the card itself
             -- is already a valid source and must receive its controls immediately.
             conversionValid=conversion~=nil
