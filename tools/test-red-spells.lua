@@ -80,7 +80,8 @@ contains(reader,'successfulOwners[item.source.guid]=owners',"Block source is tie
 contains(reader,'entry.summonedDestroyed[owner]=true',"Exploding Shield destroys summon, not summoner")
 contains(reader,'if not immune and owner==entry.guid then',"Fire Resistance evaluated on actual blocked token")
 contains(data,'woundConfirmation=true',"Firestorm confirmation rule")
-contains(reader,'rule.woundConfirmation==true and not sideways',"No auto-confirmation")
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/ResourceChoices.lua"),
+    'rule.woundConfirmation==true and not sideways',"No auto-confirmation")
 contains(data,'woundPending',"Firestorm unpaid default")
 contains(reader,'not combatIsSummonedToken(guid)',"Flame Wave excludes summons")
 contains(reader,'local _,_,rangeDefeated=combatRangeResult',"Flame Wave phase count")

@@ -54,7 +54,8 @@ contains(reader,'and (source.is_face_down~=true or repeated~=nil)',
 -- Explicit Blood Rage Wound confirmation cannot be guessed from a
 -- prior resource total, nor reused for every Maximal Effect repetition.
 contains(data,'woundConfirmation=true',"Blood Rage manual payment")
-contains(reader,'rule.woundConfirmation==true and not sideways',
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/ResourceChoices.lua"),
+    'rule.woundConfirmation==true and not sideways',
     "No initial Wound auto-selection")
 
 -- Exercise the actual repeated-choice selector in isolation, without TTS.
