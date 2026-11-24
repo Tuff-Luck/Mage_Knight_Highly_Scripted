@@ -581,21 +581,25 @@ function M.process(context)
         if result.explosiveBolt~=nil and combatCalcOn then
             result.enemyEffectTargetKeys={card.guid.."#explosiveAttack"}
         end
-        -- Ordinary Move cards and played Artifacts can both change terrain
-        -- costs; amulets grant no numeric Move and work on their Break side.
+        -- Stage terrain effects until linked conversions have resolved.
+        -- Amulets grant no numeric Move and retain their independent effects.
         if rule~=nil and cardPosture(card)=="upright" and result.resources~=nil
             and (type(result.resources.move)=="number"
                 or (cardData~=nil and cardData.cardType=="Artifact")) then
+            result.independentTerrain=cardData~=nil and cardData.cardType=="Artifact"
+                and (tonumber(result.resources.move) or 0)<=0
             for _=1,(result.repeatCount or 1) do
                 for _,effect in ipairs(cardTerrainEffects(rule,result.powered) or {}) do
                     if terrainEffectActive(effect) then
-                        terrainModifiers[#terrainModifiers+1]=effect
+                        result.pendingTerrainModifiers=result.pendingTerrainModifiers or {}
+                        result.pendingTerrainModifiers[#result.pendingTerrainModifiers+1]=effect
                     end
                 end
             end
             local extraManaGUID=extraTerrainManaByCard[card.guid]
             if extraManaGUID~=nil and rule.extraTerrainMana~=nil then
-                terrainModifiers[#terrainModifiers+1]=rule.extraTerrainMana.effect
+                result.pendingTerrainModifiers=result.pendingTerrainModifiers or {}
+                result.pendingTerrainModifiers[#result.pendingTerrainModifiers+1]=rule.extraTerrainMana.effect
                 result.links[#result.links+1]=extraManaGUID
                 result.status="purple"
             end
@@ -625,8 +629,7 @@ function M.process(context)
             if rule.oneSpaceDiscount~=nil and not result.powered then
                 -- Basic Druidic Paths discounts a single entered space per
                 -- route, never every space of one terrain type.
-                movementEffects.singleSpaceDiscount=math.max(
-                    movementEffects.singleSpaceDiscount,rule.oneSpaceDiscount.amount or 1)
+                result.pendingSingleSpaceDiscount=rule.oneSpaceDiscount.amount or 1
             elseif rule.selectedTerrainDiscount~=nil and result.powered then
                 local selection=gStates.startingCardSelections
                     and gStates.startingCardSelections[card.guid] or nil
@@ -634,11 +637,12 @@ function M.process(context)
                     and combatConfig.druidicTerrainEffects[selection.terrain] or nil
                 if modifier~=nil then
                     for _=1,(result.repeatCount or 1) do
-                        terrainModifiers[#terrainModifiers+1]=modifier
+                        result.pendingTerrainModifiers=result.pendingTerrainModifiers or {}
+                        result.pendingTerrainModifiers[#result.pendingTerrainModifiers+1]=modifier
                     end
-                elseif result.status~="purple" then
-                    -- Move 4 is counted but the terrain choice is not guessed.
-                    result.status="yellow"
+                else
+                    -- Only movement-role Druidic Paths needs a terrain choice.
+                    result.pendingTerrainChoice=true
                 end
             end
         end
