@@ -305,9 +305,12 @@ function M.process(context)
                             origin.status="purple"
                             setHighlight(chosen.source,"purple",origin.powered)
                         end
-                        -- The sideways generic Move/Attack/Block button no
-                        -- longer describes its copied basic effect.
-                        showChoiceButtons(sideways,nil,false)
+                        -- The copied effect replaces the generic sideways
+                        -- choice, but copied Move still needs its M/C selector.
+                        original.copiedBasicField=chosen.field
+                        original.choices=chosen.field=="move" and {{move=chosen.value}} or nil
+                        showChoiceButtons(sideways,original.choices,false,nil,nil,
+                            chosen.field=="move" and original.resources or nil)
                     end
                 end
             end
