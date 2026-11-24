@@ -247,8 +247,6 @@ function M.choiceClicked(player,value,id,combatConfig,resourceCardsDetailsOpen,f
         choices=inventorySpec.choices
     end
     local selectedMoveCategory=category:match("^combatMove(.+)$")
-    -- Reject a stale UI click after the last Cumbersome enemy is removed.
-    if selectedMoveCategory~=nil and not (combatCalcOn and combatCumbersomeActive) then return end
     local requestedMoveRole=selectedMoveCategory~=nil and "combat" or nil
     if selectedMoveCategory~=nil then category=selectedMoveCategory end
     if data~=nil and data.resourceKey=="artifactDruidicStaff"
@@ -262,17 +260,17 @@ function M.choiceClicked(player,value,id,combatConfig,resourceCardsDetailsOpen,f
     local shapeshiftTarget=rule~=nil and rule.shapeshift==true
         and record~=nil and record.shapeshiftTargetGUID or nil
     if rule~=nil and rule.shapeshift==true and shapeshiftTarget==nil then return end
-    if shapeshiftTarget~=nil and category=="move" and requestedMoveRole==nil then
-        requestedMoveRole="movement"
-    end
-    if requestedMoveRole==nil then
-        for _,option in ipairs(choices) do
-            if choiceCategory(option)==category and (tonumber(option.move) or 0)>0 then
-                requestedMoveRole="movement"
-                break
-            end
+    local producesMove=shapeshiftTarget~=nil and category=="move"
+    for _,option in ipairs(choices) do
+        if choiceCategory(option)==category and (tonumber(option.move) or 0)>0 then
+            producesMove=true
+            break
         end
     end
+    -- Validate the actual selected resource and its owning physical source.
+    if requestedMoveRole=="combat" and (not producesMove
+        or not combatConfig.moveRoleAvailable(shapeshiftTarget or guid)) then return end
+    if producesMove and requestedMoveRole==nil then requestedMoveRole="movement" end
     -- Any card whose newly selected effect is Move-only must start without
     -- an enemy assignment. Move can Block Cumbersome, but only when the
     -- player explicitly targets it; never carry an old Attack/Block arrow.
