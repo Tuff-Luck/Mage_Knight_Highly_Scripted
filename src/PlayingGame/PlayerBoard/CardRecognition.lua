@@ -1278,6 +1278,11 @@ function resourceCardsCombatTargetAcceptsMove(guid)
     return combatGUIDHasCumbersome(guid)
 end
 
+function resourceCardsAmbushCombatMoveActive(guid)
+    return resourceCardsAmbushSourceActive(guid)
+        and resourceCardsMoveRole(guid,false)=="combat"
+end
+
 -- "Unfortified" Unit abilities (Illusionists) only target enemies whose
 -- effective Fortification is zero. A separate active Remove Fortification
 -- effect qualifies; the printed Fortified and Wall Fortified traits do not.
