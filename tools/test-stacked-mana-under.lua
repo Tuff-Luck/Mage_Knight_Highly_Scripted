@@ -106,6 +106,8 @@ local env={
     end
 }
 setmetatable(env,{__index=_G})
+env.trackerPrivate=env.trackerPrivate or {}
+env.trackerPrivate.objectEvents=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/ObjectEvents.lua","t",env))()
 local under=assert(load(zoneCode.."\n"..underCode
     .."\nreturn resourceCardsUnderAction","Under mana recovery","t",env))()
 under({blue})

@@ -111,6 +111,8 @@ local handoffCode=slice(cardSource,
 env.gStates={firstStarted=true,turnNumber=2}
 env.turnOrder={{seatPos=1},{seatPos=2}}
 env.resourceCardsSeatEnabled=function(seat) return seat~=3 end
+env.trackerPrivate=env.trackerPrivate or {}
+env.trackerPrivate.trackerLifecycle=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/TrackerLifecycle.lua","t",env))()
 local handoff=assert(load(handoffCode..
     "\nreturn resourceCardsAfterTurnHandoff","Tracker handoff","t",env))()
 UI.setAttribute("MoveCosts","active","true")
@@ -461,6 +463,8 @@ local function simulateSavedTrackerReload(savedEnabled)
         "Reload layout functions","t",loadEnv))()
     loadEnv.resourceTrackerSyncLayout=layout.sync
     loadEnv.resourceTrackerRestoreExpandedLayout=layout.restore
+loadEnv.trackerPrivate=loadEnv.trackerPrivate or {}
+loadEnv.trackerPrivate.trackerLifecycle=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/TrackerLifecycle.lua","t",loadEnv))()
     loadEnv.resourceCardsOnLoad=assert(load(onLoadSource.."\nreturn resourceCardsOnLoad",
         "Saved tracker reload","t",loadEnv))()
     loadEnv.resourceCardsOnLoad(true)

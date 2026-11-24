@@ -74,6 +74,8 @@ env.require=function(name)
     assert(name=="PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects", "Unexpected recognition dependency")
     return assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/PhysicalObjects.lua","t",env))()
 end
+env.trackerPrivate=env.trackerPrivate or {}
+env.trackerPrivate.objectEvents=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/ObjectEvents.lua","t",env))()
 local compiled=assert(load(table.concat({manaCode,bonusCode,linksCode,zoneCode,dropCode,
     "return manaColor,trackerPrivate.readyForXZ,applyLinkedResourceBonus,resourceCardsZoneEntered,resourceCardsObjectMoved"},"\n"),
     "Concentration mana settle","t",env))

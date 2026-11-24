@@ -98,6 +98,8 @@ local env={
     queueSeat=function() queues=queues+1 end
 }
 setmetatable(env,{__index=_G})
+env.trackerPrivate=env.trackerPrivate or {}
+env.trackerPrivate.objectEvents=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/ObjectEvents.lua","t",env))()
 local code=table.concat({matCode,resetCode,lockCode,dropCode,
     "return cardInSeatPlayArea,scheduleChoiceResetAfterPlay,combatSourceKeepsLock,resourceCardsObjectMoved"},"\n")
 local onMat,scheduleReset,keepsLock,onDrop=

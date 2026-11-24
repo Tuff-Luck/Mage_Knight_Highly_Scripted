@@ -61,6 +61,8 @@ local env={
     unitHistoryValidSources=function() end
 }
 setmetatable(env,{__index=_G})
+env.trackerPrivate=env.trackerPrivate or {}
+env.trackerPrivate.objectEvents=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/ObjectEvents.lua","t",env))()
 local functions=table.concat({matCode,resetCode,zoneCode,
     "return scheduleChoiceResetAfterPlay,resourceCardsZoneEntered"},"\n")
 local onExit,onEnter=assert(load(functions,"Reentry choice reset","t",env))()

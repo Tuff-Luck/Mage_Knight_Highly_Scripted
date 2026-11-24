@@ -91,6 +91,8 @@ env.require=function(name)
 end
 local source=table.concat({geometry,readiness,kinds,pickup,drop,
     "return resourceObjectKind,resourceCardsObjectPickedUp,trackerPrivate.finishPlayCardMove"},"\n")
+env.trackerPrivate=env.trackerPrivate or {}
+env.trackerPrivate.objectEvents=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/ObjectEvents.lua","t",env))()
 local kindOf,onPickup,finish=assert(load(source,"Skill and reward relocation","t",env))()
 assert(kindOf(skill)=="skill","Skill token must be a tracked source")
 assert(kindOf(reward)=="factionReward","Faction Reward must be a tracked source")

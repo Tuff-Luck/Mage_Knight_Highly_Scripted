@@ -301,8 +301,9 @@ assert(unitScan:find("for _,entry in ipairs(courageUses[card.guid].eligible)",1,
     "Only snapshotted Units may receive Courage Ready links")
 assert(readyPolicy:find("if entry.key==sourceKey then return true end",1,true),
     "Courage must reject unsnapshotted Ready source IDs")
-assert(recognition:find("if uses[guid] then return end",1,true)
-    and recognition:find("uses[guid]=true",1,true),
+local cardInteraction=read("src/PlayingGame/PlayerBoard/ResourceTracker/CardInteraction.lua")
+assert(cardInteraction:find("if uses[guid] then return end",1,true)
+    and cardInteraction:find("uses[guid]=true",1,true),
     "Broken Fortitude's Heal must not activate twice")
 assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua"):find("not trackerPrivate.bannerEffectUses().healing[card.guid]",1,true),
     "Consumed Fortitude Heal button must disappear")

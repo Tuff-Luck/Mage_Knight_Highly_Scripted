@@ -80,6 +80,8 @@ local cardEnv={
     end
 }
 setmetatable(cardEnv,{__index=_G})
+cardEnv.trackerPrivate=cardEnv.trackerPrivate or {}
+cardEnv.trackerPrivate.scanScheduler=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/ScanScheduler.lua","t",cardEnv))()
 local queue=assert(load(readySource.."\n"..queueSource.."\nreturn queueSeat",
     "Per seat render scheduler","t",cardEnv))()
 local function fireCardFrames()
@@ -174,7 +176,7 @@ cmd.obj.command=true
 eq(shouldSettle(cmd),true,"Command token keeps Unit settled work")
 assert(events:find("playerBoardObjectDropped(dropped_object)",1,true),
     "drop resumes transient UI cleanup")
-assert(cards:find("local relevantZones",1,true),
+assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/ObjectEvents.lua"):find("local relevantZones",1,true),
     "drop fallback narrows zone scanning by resource type")
 local board=read("src/PlayingGame/PlayerBoard/Events.lua")
 assert(board:find("if affectsMainUI then",1,true),

@@ -59,6 +59,8 @@ local env={
     attackAssignmentsTargetGUIDs=function() return {left=true} end
 }
 setmetatable(env,{__index=_G})
+env.trackerPrivate=env.trackerPrivate or {}
+env.trackerPrivate.objectEvents=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/ObjectEvents.lua","t",env))()
 local onEnter,onExit,keeps=assert(load(
     table.concat({mat,lock,zones,
         "return resourceCardsZoneEntered,resourceCardsZoneLeft,combatSourceKeepsLock"},"\n"),

@@ -48,7 +48,7 @@ contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/CombatResourceDispl
 contains(data,'normalCount=3,poweredCount=2',"Maximal Effect multipliers")
 contains(actionLinks,'hasDiscard[source.guid]=paid==need',"All copied costs must be paid")
 contains(actionLinks,'repeated.options[index]=linkedColorChoices',"Ritual Attack colors are independent")
-contains(reader,'selected.repeatChoices[repeatIndex]=category',"Independent choice buttons")
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/CardInteraction.lua"),'selected.repeatChoices[repeatIndex]=category',"Independent choice buttons")
 contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/CardEffects.lua"),'value*repeatLink.count or value',"Repeated Reputation scales")
 contains(actionLinks,'and (source.is_face_down~=true or repeated~=nil)',
     "Already thrown away copied Actions still resolve costs")

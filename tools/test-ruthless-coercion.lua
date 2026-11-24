@@ -89,6 +89,8 @@ env.resourceCardsPlayerCanEdit=function() return true end
 env.resourceCardsSourceChanged=function() refreshes=refreshes+1 end
 env.turnOrder={{seatPos=1}}
 env.resourceCardScanBySeat={[1]={cards={[guid]=basic}}}
+env.trackerPrivate=env.trackerPrivate or {}
+env.trackerPrivate.cardInteraction=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/CardInteraction.lua","t",env))()
 assert(load(clickCode.."\nreturn resourceCardsStartingCardControlClicked",
     "Ruthless button click","t",env))()
 env.resourceCardsStartingCardControlClicked({color="Red"},"1",

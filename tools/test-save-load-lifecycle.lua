@@ -50,6 +50,9 @@ local choiceEnv={
         discarded={effect="siege"}
     }
 }
+choiceEnv.trackerPrivate=choiceEnv.trackerPrivate or {}
+choiceEnv.trackerPrivate.trackerLifecycle=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/TrackerLifecycle.lua","t",choiceEnv))()
+setmetatable(choiceEnv,{__index=_G})
 local saveChoices,restoreChoices=loadSection(cards,
     "-- Explicit card choices represent player decisions",
     "function resourceCardsPanelChanged(open)",choiceEnv,
@@ -183,6 +186,8 @@ local startupEnv={
         callback()
     end
 }
+startupEnv.trackerPrivate=startupEnv.trackerPrivate or {}
+startupEnv.trackerPrivate.trackerLifecycle=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/TrackerLifecycle.lua","t",startupEnv))()
 local startup=loadSection(cards,"function resourceCardsOnLoad(restoringSave)",
     "local function resourceCardsRelevantZone(ctx)",startupEnv,
     "return resourceCardsOnLoad")
@@ -273,9 +278,10 @@ assert(events:find("resourceCardsOnLoad(true)",1,true),
 assert(not callbacks:find("attackAssignmentsRestore()",1,true)
     and not callbacks:find("resourceCardsPanelChanged(true)",1,true),
     "duplicate callback startup path remains")
-local start=assert(cards:find("function resourceCardsOnLoad(restoringSave)",1,true))
-local restoredLines=assert(cards:find("attackAssignmentsRestore()",start,true))
-local startedScan=assert(cards:find("resourceCardsPanelChanged(true)",start,true))
+local lifecycle=read("src/PlayingGame/PlayerBoard/ResourceTracker/TrackerLifecycle.lua")
+local start=assert(lifecycle:find("function M.onLoad(restoringSave,trackerPrivate)",1,true))
+local restoredLines=assert(lifecycle:find("attackAssignmentsRestore()",start,true))
+local startedScan=assert(lifecycle:find("resourceCardsPanelChanged(true)",start,true))
 assert(restoredLines<startedScan,"combat assignments must restore before tracker scan")
 assert(events:find("math.abs(pos[3]+33.29)>0.005",1,true)
     and events:find("math.abs(pos[2]-1.09)>0.005",1,true),

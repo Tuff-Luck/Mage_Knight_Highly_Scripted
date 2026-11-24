@@ -15,6 +15,10 @@ trackerPrivate.scanPayments=require("PlayingGame.PlayerBoard.ResourceTracker.Sca
 trackerPrivate.scanFinalization=require("PlayingGame.PlayerBoard.ResourceTracker.ScanFinalization")
 trackerPrivate.factionRewardScan=require("PlayingGame.PlayerBoard.ResourceTracker.FactionRewardScan")
 trackerPrivate.scanPublication=require("PlayingGame.PlayerBoard.ResourceTracker.ScanPublication")
+trackerPrivate.scanScheduler=require("PlayingGame.PlayerBoard.ResourceTracker.ScanScheduler")
+trackerPrivate.trackerLifecycle=require("PlayingGame.PlayerBoard.ResourceTracker.TrackerLifecycle")
+trackerPrivate.objectEvents=require("PlayingGame.PlayerBoard.ResourceTracker.ObjectEvents")
+trackerPrivate.cardInteraction=require("PlayingGame.PlayerBoard.ResourceTracker.CardInteraction")
 -- Keep the public chat callback here; diagnostics share this live private state.
 require("PlayingGame.PlayerBoard.ResourceTracker.Diagnostics")(trackerPrivate)
 function resourceCardsTraceCommand(command,playerColor)
@@ -4164,51 +4168,7 @@ local function cardInSeatPlayArea(guid,seatPos)
 end
 
 local function scheduleChoiceResetAfterPlay(guid,seatPos)
-    if guid==nil or seatPos==nil then return end
-    -- Avoid physics waits for mana, enemies and unrelated play-area objects.
-    if selectedResourceByGUID[guid]==nil and (gStates==nil
-        or ((gStates.artifactBreaks==nil or gStates.artifactBreaks[guid]==nil)
-            and (gStates.artifactGrailHealingUsed==nil
-                or gStates.artifactGrailHealingUsed[guid]==nil)
-            and (gStates.resourceCardPlayOrder==nil
-                or gStates.resourceCardPlayOrder[guid]==nil)
-            and (gStates.resourceCardMoveRoles==nil
-                or gStates.resourceCardMoveRoles[guid]==nil))) then return end
-    trackerPrivate.choiceResetGenerationByGUID[guid]=(trackerPrivate.choiceResetGenerationByGUID[guid] or 0)+1
-    local serial=trackerPrivate.choiceResetGenerationByGUID[guid]
-    -- On release, check X/Z instead of waiting for the shallow zone's Y
-    -- membership to catch up with a card that is still falling.
-    safeWaitFrames("PlayerBoard.CardRecognition",function()
-        if trackerPrivate.choiceResetGenerationByGUID[guid]~=serial then return end
-        safeWaitCondition("PlayerBoard.CardRecognition",function()
-            if trackerPrivate.choiceResetGenerationByGUID[guid]~=serial then return end
-            if not cardInSeatPlayArea(guid,seatPos) then
-                -- A genuine departure retires this play's time-order slot;
-                -- moving a card in/out again starts a fresh play sequence.
-                if gStates~=nil and gStates.resourceCardPlayOrder~=nil then
-                    gStates.resourceCardPlayOrder[guid]=nil
-                end
-                selectedResourceByGUID[guid]=nil
-                if gStates~=nil and gStates.resourceCardMoveRoles~=nil then
-                    gStates.resourceCardMoveRoles[guid]=nil
-                end
-                choiceExpandedByGUID[guid]=nil
-                resourceCardsArtifactBreakClear(guid)
-                if gStates~=nil and gStates.artifactGrailHealingUsed~=nil then
-                    gStates.artifactGrailHealingUsed[guid]=nil
-                end
-                if gStates~=nil and gStates.unitReadyCardChoices~=nil then
-                    gStates.unitReadyCardChoices[guid]=nil
-                end
-                unitHistoryValidSources(seatPos)
-            end
-        end,function()
-            if trackerPrivate.choiceResetGenerationByGUID[guid]~=serial then return true end
-            local obj=getObjectFromGUID(guid)
-            return obj==nil or (trackerPrivate.playCardMovements[guid]==nil
-                and trackerPrivate.readyForXZ(obj))
-        end,8)
-    end,1)
+    return trackerPrivate.objectEvents.scheduleChoiceReset(guid,seatPos,function() return selectedResourceByGUID end,function() return choiceExpandedByGUID end,trackerPrivate,cardInSeatPlayArea)
 end
 
 local footprint=require("PlayingGame.PlayerBoard.ResourceTracker.PhysicalObjects").footprint
@@ -5344,102 +5304,19 @@ local function renderSeat(seatPos)
 end
 
 local function scheduleSeatRender(seatPos)
-    local generation=trackerPrivate.generation[seatPos] or 0
-    if trackerPrivate.pendingSeatRender[seatPos]==generation then
-        if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("render.coalesced",seatPos) end
-        return
-    end
-    trackerPrivate.pendingSeatRender[seatPos]=generation
-    if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("render.queued",seatPos,nil,"gen="..generation) end
-    safeWaitFrames("PlayerBoard.CardRecognition",function()
-        if trackerPrivate.pendingSeatRender[seatPos]~=generation then return end
-        trackerPrivate.pendingSeatRender[seatPos]=nil
-        if (trackerPrivate.generation[seatPos] or 0)==generation and resourceCardsPanelOpen() then
-            renderSeat(seatPos)
-        end
-    end,1)
+    return trackerPrivate.scanScheduler.schedule(seatPos,trackerPrivate,renderSeat)
 end
 
 local function queueSeat(seatPos,triggerGUID)
-    if not resourceCardsPanelOpen() or seatPos==nil or seatPos<1 or seatPos>4 then return end
-    if triggerGUID==nil then scheduleSeatRender(seatPos) return end
-    local generation=trackerPrivate.generation[seatPos] or 0
-    local waits=trackerPrivate.pendingSeatSettles[seatPos]
-    if waits==nil then waits={} trackerPrivate.pendingSeatSettles[seatPos]=waits end
-    -- Zone entry and drop frequently report the same moving object.
-    if waits[triggerGUID]==generation then
-        if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("settle.coalesced",seatPos,triggerGUID) end
-        return
-    end
-    local obj=getObjectFromGUID(triggerGUID)
-    if obj==nil or trackerPrivate.readyForXZ(obj) then
-        if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("settle.ready",seatPos,triggerGUID) end
-        scheduleSeatRender(seatPos)
-        return
-    end
-    waits[triggerGUID]=generation
-    if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("settle.wait",seatPos,triggerGUID) end
-    local function stillCurrent()
-        return (trackerPrivate.generation[seatPos] or 0)==generation
-            and trackerPrivate.pendingSeatSettles[seatPos]==waits
-            and waits[triggerGUID]==generation and resourceCardsPanelOpen()
-    end
-    local function settled()
-        if not stillCurrent() then return end
-        waits[triggerGUID]=nil
-        if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("settle.done",seatPos,triggerGUID) end
-        scheduleSeatRender(seatPos)
-    end
-    safeWaitCondition("PlayerBoard.CardRecognition",settled,function()
-        if not stillCurrent() then return true end
-        local live=getObjectFromGUID(triggerGUID)
-        return live==nil or trackerPrivate.readyForXZ(live)
-    end,8,function()
-        -- A perpetually held/rolling token must not keep the watcher alive
-        -- or delay other objects' refreshes. Its eventual drop queues anew.
-        if trackerPrivate.pendingSeatSettles[seatPos]==waits
-            and waits[triggerGUID]==generation then
-            waits[triggerGUID]=nil
-            if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("settle.timeout",seatPos,triggerGUID) end
-        end
-    end)
+    return trackerPrivate.scanScheduler.queue(seatPos,triggerGUID,trackerPrivate,scheduleSeatRender)
 end
 
 function resourceCardsSourceChanged()
-    local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
-    if current~=nil and resourceCardsPanelOpen() then
-        if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("source.changed",current.seatPos) end
-        queueSeat(current.seatPos,nil)
-    end
+    return trackerPrivate.scanScheduler.sourceChanged(trackerPrivate,queueSeat)
 end
 
 local function clearAll()
-    if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("tracker.reset") end
-    for seat=1,4 do trackerPrivate.generation[seat]=(trackerPrivate.generation[seat] or 0)+1 end
-    trackerPrivate.pendingSeatSettles={}
-    trackerPrivate.pendingSeatRender={}
-    clearChoiceButtons()
-    choiceExpandedByGUID={}
-    -- Do not discard choices when closing/reopening the Resource Tracker.
-    for guid in pairs(shown) do clearHighlight(guid) end
-    trackerPrivate.bySeat={}
-    trackerPrivate.playCandidatesBySeat={}
-    trackerPrivate.playCardMovements={}
-    trackerPrivate.cardUIRecheckSerial={}
-    resourceCardScanBySeat={}
-    combatConfig.bowSourceModes={}
-    combatConfig.amuletMana={gold=false,black=false}
-    -- Ordinary resource sources disappear when tracking is OFF. Earned
-    -- conditional interaction rewards/penalties remain pending until turn end.
-    if turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber]~=nil then
-        local fame,rep=combatConfig.startingCardConditionalFameRep()
-        resourceFameRepApply(gStates.turnNumber,fame,rep)
-    end
-    -- Closing must not invoke tracker calculations or redraw its overlays.
-    if resourceCardsPanelOpen() and gStates~=nil and gStates.resourceTracker~=nil then
-        refreshResourceTrackerText()
-        updateMoveDisplay()
-    end
+    return trackerPrivate.trackerLifecycle.clearAll(trackerPrivate,clearChoiceButtons,function() choiceExpandedByGUID={} end,shown,clearHighlight,combatConfig)
 end
 
 -- Explicitly resolve Banner of Fortitude's all-Unit Healing against physical
@@ -5447,38 +5324,7 @@ end
 -- action is required; scanning must NEVER delete a Wound just because an
 -- artifact briefly changed posture.
 function resourceCardsArtifactHealUnitsClicked(player,value,id)
-    if not resourceCardsPanelOpen()
-        or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil)
-        or type(id)~="string" or combatCalcOn or combatEnemyInPlay then return end
-    local guid=id:match("^ResourceCardChoice_([0-9a-f]+)_healAllUnits$")
-    local data=guid~=nil and gameCards[guid] or nil
-    if data==nil or data.resourceKey~="artifactBannerFortitude"
-        or trackerPrivate.bannerCardForm(guid)~="full" then return end
-    local current=turnOrder~=nil and gStates~=nil
-        and turnOrder[gStates.turnNumber] or nil
-    local card=getObjectFromGUID(guid)
-    if current==nil or card==nil or not resourceCardsArtifactBroken(guid,card)
-        or cardPosture(card)~="upright"
-        or not cardInSeatPlayArea(guid,current.seatPos) then return end
-    local layout=unitLayoutSnapshot(current.seatPos)
-    local trash=getObjectFromGUID(trashCan)
-    if trash==nil then return end
-    local uses=trackerPrivate.bannerEffectUses().healing
-    if uses[guid] then return end
-    -- Activating the break effect consumes it, even if no Units are wounded.
-    uses[guid]=true
-    local healed=0
-    for _,obj in ipairs(layout.objects or {}) do
-        if unitLayoutIsWound(obj) then
-            trash.putObject(obj)
-            healed=healed+1
-        end
-    end
-    if healed>0 then scheduleUnitLayoutRefresh(current.seatPos) end
-    -- Refresh the spent HEAL control even when zero Wounds were present.
-    resourceCardsSourceChanged()
-    broadcastToColor("Banner of Fortitude: healed "..tostring(healed)
-        .." Unit Wound(s).",player.color,{0.7,0.95,0.7})
+    return trackerPrivate.cardInteraction.healUnits(player,value,id,combatCalcOn,combatEnemyInPlay,trackerPrivate,cardPosture,cardInSeatPlayArea)
 end
 
 -- Forked Lightning commits every bolt to one combat phase, rather than
@@ -5500,351 +5346,31 @@ end
 -- Explicit decisions for official starting cards that have a secondary effect.
 -- These controls never silently add conditional Fame, Reputation or Move.
 function resourceCardsStartingCardControlClicked(player,value,id)
-    if not resourceCardsPanelOpen() or not resourceCardsDetailsOpen()
-        or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil)
-        or type(id)~="string" then return end
-    local guid,control=id:match("^ResourceCardChoice_([0-9a-f]+)_([%a]+)$")
-    if guid==nil then return end
-    local card=getObjectFromGUID(guid)
-    local data=gameCards[guid]
-    local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
-    local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
-    if current==nil or card==nil or rule==nil or card.is_face_down
-        or cardPosture(card)~="upright"
-        or not cardInSeatPlayArea(guid,current.seatPos) then return end
-    local scan=resourceCardScanBySeat[current.seatPos]
-    local record=scan~=nil and scan.cards[guid] or nil
-    if record==nil or not record.complete or record.resources==nil then return end
-    gStates.startingCardSelections=gStates.startingCardSelections or {}
-    local selected=gStates.startingCardSelections[guid] or {}
-    local right=tostring(value)=="-2"
-    if control=="interaction" and rule.interactionReward~=nil then
-        selected.interaction=not selected.interaction
-        selected.interactionPowered=selected.interaction and record.powered or nil
-    elseif control=="recruit" and rule.recruitDiscount~=nil and not record.powered then
-        selected.recruited=not selected.recruited
-    elseif control=="terrain" and rule.selectedTerrainDiscount~=nil and record.powered then
-        if right then selected.terrain=nil
-        else
-            local terrains={"plains","hills","forest","wasteland","desert",
-                "swamp","lake","mountain","city"}
-            local index=0
-            for i,terrain in ipairs(terrains) do
-                if terrain==selected.terrain then index=i break end
-            end
-            selected.terrain=terrains[index%#terrains+1]
-        end
-    elseif control=="ruthlessReady" and rule.readyWithInfluence~=nil
-        and record.powered then
-        local links=gStates.unitReadyLinks or {}
-        if right then
-            local highest=0
-            for key in pairs(links) do
-                local index=tonumber(key:match("^"..guid.."#ready(%d+)$"))
-                if index~=nil and index>highest then highest=index end
-            end
-            if highest>0 then unitHistoryCancelReadySource(guid.."#ready"..highest) end
-        else
-            -- A new click chooses a fresh independent Ready source; old links
-            -- and their dependent activation history remain intact.
-            if (tonumber(scan.totals.influence) or 0)<2 then return end
-            local index=1
-            while links[guid.."#ready"..index]~=nil do index=index+1 end
-            attackAssignmentsBeginUnitReady(guid,guid.."#ready"..index,player.color,
-                rule.readyWithInfluence.maxLevel)
-        end
-    else return end
-    gStates.startingCardSelections[guid]=selected
-    resourceCardsSourceChanged()
+    return trackerPrivate.cardInteraction.startingControl(player,value,id,resourceCardsDetailsOpen,cardPosture,cardInSeatPlayArea)
 end
 
 -- Confirm how many of the basic Golden Grail's two Heal points were spent.
 -- Generated but unspent Heal is worth no Fame. Right-click removes a point.
 function resourceCardsArtifactGrailFameClicked(player,value,id)
-    if not resourceCardsPanelOpen() or not resourceCardsDetailsOpen()
-        or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil)
-        or type(id)~="string" or gStates==nil then return end
-    local guid=id:match("^ResourceCardChoice_([0-9a-f]+)_grailFame$")
-    local data=guid~=nil and gameCards[guid] or nil
-    local card=guid~=nil and getObjectFromGUID(guid) or nil
-    local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
-    if data==nil or data.resourceKey~="artifactGoldenGrail" or card==nil
-        or current==nil or cardPosture(card)~="upright"
-        or resourceCardsArtifactBroken(guid,card)
-        or not cardInSeatPlayArea(guid,current.seatPos)
-        or combatConfig.phaseObjectLocked(guid) then return end
-    local scan=resourceCardScanBySeat[current.seatPos]
-    local record=scan~=nil and scan.cards[guid] or nil
-    if record==nil or not record.complete or record.powered then return end
-    gStates.artifactGrailHealingUsed=gStates.artifactGrailHealingUsed or {}
-    local used=math.max(0,math.min(2,
-        tonumber(gStates.artifactGrailHealingUsed[guid]) or 0))
-    local delta=tostring(value)=="-2" and -1 or 1
-    gStates.artifactGrailHealingUsed[guid]=math.max(0,math.min(2,used+delta))
-    resourceCardsSourceChanged()
+    return trackerPrivate.cardInteraction.grailFame(player,value,id,resourceCardsDetailsOpen,cardPosture,cardInSeatPlayArea,combatConfig)
 end
 
 -- Toggle the strong effect on any full-size Artifact while keeping its text
 -- face up. The saved choice, not rotation, controls later end-turn destruction.
 function resourceCardsArtifactBreakClicked(player,value,id)
-    if not resourceCardsPanelOpen() or not resourceCardsDetailsOpen()
-        or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil)
-        or type(id)~="string" or gStates==nil then return end
-    local guid=id:match("^ResourceCardChoice_([0-9a-f]+)_artifactBreak$")
-    local data=guid~=nil and gameCards[guid] or nil
-    local card=guid~=nil and getObjectFromGUID(guid) or nil
-    local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
-    if data==nil or data.cardType~="Artifact" or data.full~=nil
-        or card==nil or current==nil or card.is_face_down==true
-        or cardPosture(card)~="upright"
-        or not cardInSeatPlayArea(guid,current.seatPos)
-        or combatConfig.phaseObjectLocked(guid) then return end
-    local broken=resourceCardsArtifactBroken(guid,card)
-    if not broken and combatEnemyInPlay then
-        if data.resourceKey=="artifactDruidicStaff" then
-            safeBroadcastToColor("Druidic Staff: Throw requires two different "
-                .."options; only Blue is usable in combat.",player.color,warningColor)
-            return
-        elseif data.resourceKey=="artifactBannerCourage"
-            or data.resourceKey=="artifactBannerFortitude" then
-            safeBroadcastToColor("This Banner's stronger effect can only be used "
-                .."outside combat.",player.color,warningColor)
-            return
-        end
-    end
-    -- Undo only this Banner's Ready permissions on unbreaking. A later
-    -- re-Break can restore the original eligible snapshot without granting
-    -- duplicate activations or newly-spent Units an extra Ready.
-    if broken and data.resourceKey=="artifactBannerCourage" then
-        local uses=trackerPrivate.bannerEffectUses().courage[guid]
-        for _,entry in ipairs(uses~=nil and uses.eligible or {}) do
-            if gStates.unitReadyLinks~=nil and gStates.unitReadyLinks[entry.key]~=nil then
-                unitHistoryCancelReadySource(entry.key)
-            end
-        end
-    end
-    gStates.artifactBreaks=gStates.artifactBreaks or {}
-    gStates.artifactBreaks[guid]=not broken
-    -- Update the X immediately; the next tracker scan also reconciles it.
-    resourceCardsMaximalEffectMark(card,not broken)
-    choiceExpandedByGUID[guid]=nil
-    resourceCardsSourceChanged()
+    return trackerPrivate.cardInteraction.artifactBreak(player,value,id,resourceCardsDetailsOpen,cardPosture,cardInSeatPlayArea,combatConfig,combatEnemyInPlay,trackerPrivate,choiceExpandedByGUID)
 end
 
 -- Player clicks always replace the one-time guess; opening the choice menu
 -- alone leaves that selection and the Resource Tracker totals unchanged.
 function resourceCardsChoiceClicked(player,value,id)
-    if not resourceCardsPanelOpen() or type(id)~="string"
-        or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil) then return end
-    local guid,repeatIndex,category=id:match(
-        "^ResourceCardChoice_([0-9a-f]+)_rep(%d+)_([%w]+)$")
-    local setIndex=nil
-    if guid==nil then
-        guid,setIndex,category=id:match(
-            "^ResourceCardChoice_([0-9a-f]+)_set(%d+)_([%w]+)$")
-    end
-    if guid==nil then
-        guid,category=id:match("^ResourceCardChoice_([0-9a-f]+)_([%w]+)$")
-    end
-    if guid==nil or (combatConfig~=nil and combatConfig.phaseObjectLocked~=nil
-        and combatConfig.phaseObjectLocked(guid)) then return end
-    setIndex=setIndex~=nil and tonumber(setIndex) or nil
-    repeatIndex=repeatIndex~=nil and tonumber(repeatIndex) or nil
-    if not resourceCardsDetailsOpen() then return end
-    local card=getObjectFromGUID(guid)
-    local data=card~=nil and gameCards[guid] or nil
-    local isSkill=skillTokens[guid]~=nil
-    local isReward=card~=nil and factionRewardForObject(card)~=nil
-    local isPuppet=card~=nil and card.getGMNotes()=="Puppet Master"
-    local rule=isSkill and skillResourceDefinitions[guid]
-        or (data~=nil and cardResourceDefinitions[data.resourceKey] or nil)
-    local currentSeat=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
-    if card==nil or currentSeat==nil then return end
-    local scan=resourceCardScanBySeat[currentSeat.seatPos]
-    local record=scan~=nil and scan.cards[guid] or nil
-    local linkedWound=card.getGMNotes()=="Wound" and record~=nil
-        and record.linkedSkill~=nil
-    if rule==nil and not isSkill and not isPuppet and not isReward and not (cardPosture(card)=="sideways"
-        and (cardCanPlaySideways(card) or linkedWound)) then return end
-    local zone=getObjectFromGUID(playerPlayAreas[currentSeat.seatPos])
-    local inZone=false
-    if zone~=nil then
-        for _,obj in ipairs(zone.getObjects()) do
-            if obj.guid==guid then inZone=true break end
-        end
-    end
-    if not inZone then return end
-    -- Linked cards take the powered choice even without mana placed on them.
-    local powered=record~=nil and record.powered==true
-    local sideways=not isSkill and not isReward and cardPosture(card)=="sideways"
-    local mainChoices
-    if isSkill or isPuppet or isReward then
-        mainChoices=record~=nil and record.choices or (rule~=nil and rule.choices or nil)
-    elseif sideways and (cardCanPlaySideways(card) or linkedWound) then
-        mainChoices=trackerPrivate.sidewaysChoices
-    elseif not sideways then
-        -- Paid mana choices were filtered during the most recent physical scan.
-        -- Do not rediscover the full printed menu and offer unpaid alternatives.
-        mainChoices=record~=nil and record.choices or nil
-    end
-    if (mainChoices==nil or #mainChoices==0) and record~=nil
-        and (tonumber(record.resources~=nil and record.resources.move) or 0)>0 then
-        mainChoices={{move=record.resources.move}}
-    end
-    local choices=mainChoices
-    if repeatIndex~=nil then
-        local repeated=record~=nil and record.repeatLink or nil
-        if repeated==nil or repeatIndex<1 or repeatIndex>repeated.count then return end
-        choices=repeated.options~=nil and repeated.options[repeatIndex] or mainChoices
-    end
-    local inventorySpec=not sideways and powered and rule~=nil
-        and rule.inventorySetChoices or nil
-    if rule~=nil and rule.staffDualChoices==true and powered and not sideways then
-        local _,firstKey=currentChoice(guid,true,mainChoices)
-        local remaining={}
-        for _,option in ipairs(mainChoices or {}) do
-            if choiceCategory(option)~=firstKey then
-                remaining[#remaining+1]=option
-            end
-        end
-        inventorySpec={choices=remaining}
-    end
-    local inventorySets=inventorySpec~=nil and record~=nil
-        and record.inventorySetCount or 0
-    if setIndex~=nil then
-        if inventorySpec==nil or setIndex<1 or setIndex>inventorySets then return end
-        choices=inventorySpec.choices
-    end
-    local selectedMoveCategory=category:match("^combatMove(.+)$")
-    -- Reject a stale UI click after the last Cumbersome enemy is removed.
-    if selectedMoveCategory~=nil and not (combatCalcOn and combatCumbersomeActive) then return end
-    local requestedMoveRole=selectedMoveCategory~=nil and "combat" or nil
-    if selectedMoveCategory~=nil then category=selectedMoveCategory end
-    if data~=nil and data.resourceKey=="artifactDruidicStaff"
-        and combatEnemyInPlay and category~="blue" then
-        safeBroadcastToColor("Druidic Staff: only the two-crystal option is usable in combat.",
-            player.color,warningColor)
-        return
-    end
-    local valid=choiceAvailable(choices,category)
-    if not valid then return end
-    if requestedMoveRole==nil then
-        for _,option in ipairs(choices) do
-            if choiceCategory(option)==category and (tonumber(option.move) or 0)>0 then
-                requestedMoveRole="movement"
-                break
-            end
-        end
-    end
-    -- Any card whose newly selected effect is Move-only must start without
-    -- an enemy assignment. Move can Block Cumbersome, but only when the
-    -- player explicitly targets it; never carry an old Attack/Block arrow.
-    local _,previousCategory
-    if repeatIndex~=nil then
-        _,previousCategory=combatConfig.repeatChoiceFor(guid,powered,choices,repeatIndex)
-    elseif setIndex~=nil then
-        _,previousCategory=inventorySetChoice(guid,setIndex,choices,mainChoices)
-    else
-        _,previousCategory=currentChoice(guid,powered,choices,sideways)
-    end
-    local selectedMoveOnly=false
-    if previousCategory~=category then
-        for _,option in ipairs(choices or {}) do
-            if choiceCategory(option)==category and (tonumber(option.move) or 0)>0 then
-                selectedMoveOnly=true
-                for _,field in ipairs(combatConfig.sourceFields) do
-                    if (tonumber(option[field.key]) or 0)>0 then
-                        selectedMoveOnly=false
-                        break
-                    end
-                end
-                break
-            end
-        end
-    end
-    local rowId=repeatIndex~=nil and ("rep"..repeatIndex)
-        or setIndex~=nil and ("set"..setIndex) or "base"
-    local currentlyExpanded=choiceExpandedByGUID[guid]
-    if currentlyExpanded~=rowId and not (rowId=="base" and currentlyExpanded==true) then
-        -- Opening a row never changes the chosen resource.
-        choiceExpandedByGUID[guid]=rowId
-        showChoiceButtons(card,mainChoices,powered,inventorySpec,inventorySets,
-            record~=nil and record.resources,record~=nil and record.repeatLink)
-        return
-    end
-    local selected=selectedResourceByGUID[guid] or {}
-    if repeatIndex~=nil then
-        selected.repeatChoices=selected.repeatChoices or {}
-        selected.repeatChoices[repeatIndex]=category
-    elseif setIndex~=nil then
-        selected.inventorySets=selected.inventorySets or {}
-        selected.inventorySets[setIndex]=category
-    elseif not sideways then
-        selected.effect=category
-    elseif choiceAvailable(sideChoices(rule,false),category)
-        or choiceAvailable(sideChoices(rule,true),category) then
-        selected.effect=category
-        selected.sideways=nil
-    else
-        selected.sideways=category
-    end
-    selectedResourceByGUID[guid]=selected
-    if repeatIndex~=nil and record~=nil and record.repeatLink~=nil
-        and not combatConfig.compositePhasesMatch(
-            guid,powered,mainChoices,record.repeatLink) then
-        safeBroadcastToColor(
-            "Maximal Effect: repeated options must resolve in one phase. "
-            .."Adjust the other rows; mixed phases contribute nothing until compatible.",
-            player.color,warningColor)
-    end
-    local previousMoveRole=requestedMoveRole~=nil
-        and resourceCardsMoveRole(guid,true) or nil
-    if requestedMoveRole~=nil then
-        gStates.resourceCardMoveRoles[guid]=requestedMoveRole
-    end
-    if selectedMoveOnly or (previousMoveRole=="combat"
-        and requestedMoveRole=="movement") then
-        -- Clear both the saved arrow and the independent calculator lock
-        -- before the rescan. The newly selected Move stays available for
-        -- a deliberate new target, but does not auto-Block any enemy.
-        combatForgetPhysicalSourceTargets(guid)
-        if attackAssignmentsClearForObject~=nil then attackAssignmentsClearForObject(guid) end
-    end
-    if data~=nil and data.resourceKey=="rejuvenate" then
-        gStates.unitReadyCardChoices=gStates.unitReadyCardChoices or {}
-        gStates.unitReadyCardChoices[guid]=selected.effect=="ready" or nil
-    end
-    choiceExpandedByGUID[guid]=nil
-    showChoiceButtons(card,mainChoices,powered,inventorySpec,inventorySets,
-        record~=nil and record.resources,record~=nil and record.repeatLink)
-    if data~=nil and data.resourceKey=="rejuvenate" then
-        unitHistoryValidSources(currentSeat.seatPos)
-        if attackAssignmentsRefreshReadyUI~=nil then attackAssignmentsRefreshReadyUI() end
-    end
-    queueSeat(currentSeat.seatPos,nil)
+    return trackerPrivate.cardInteraction.choiceClicked(player,value,id,combatConfig,resourceCardsDetailsOpen,factionRewardForObject,cardPosture,cardCanPlaySideways,trackerPrivate,currentChoice,choiceCategory,combatCalcOn,combatCumbersomeActive,combatEnemyInPlay,choiceAvailable,inventorySetChoice,choiceExpandedByGUID,showChoiceButtons,selectedResourceByGUID,sideChoices,resourceCardsMoveRole,combatForgetPhysicalSourceTargets,queueSeat)
 end
 
 -- Regeneration gives Heal and an independent Ready for each application.
 -- Right click cancels the link and its dependent Unit activation history.
 function resourceCardsRegenerationReadyClicked(player,value,id)
-    if not resourceCardsPanelOpen() or not resourceCardsDetailsOpen()
-        or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil)
-        or type(id)~="string" then return end
-    local guid,index=id:match("^ResourceCardChoice_([0-9a-f]+)_regenReady(%d+)$")
-    if guid~="878d91" then return end
-    local sourceKey=guid.."#ready"..index
-    if tostring(value)=="-2" then
-        if gStates.unitReadyLinks~=nil and gStates.unitReadyLinks[sourceKey]~=nil then
-            unitHistoryCancelReadySource(sourceKey)
-            resourceCardsSourceChanged()
-        end
-        return
-    end
-    if not resourceCardsReadySourceValid(sourceKey) then return end
-    local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
-    if active==nil then return end
-    attackAssignmentsBeginUnitReady(guid,sourceKey,player.color,
-        resourceCardsReadySourceLevelLimit(sourceKey,active.seatPos))
+    return trackerPrivate.cardInteraction.regenerationReady(player,value,id,resourceCardsDetailsOpen)
 end
 
 -- Ready sources need an active effect; a Command move alone cannot authorize reuse.
@@ -5979,489 +5505,75 @@ end
 -- Explicit card choices represent player decisions rather than reconstructable table state.
 -- Save only choices for cards still in the current player's play/unit areas.
 trackerPrivate.copyCardSelection=function(selection,fromSave)
-    if type(selection)~="table" then return nil end
-    local result={}
-    for _,field in ipairs({"effect","sideways"}) do
-        if type(selection[field])=="string" then result[field]=selection[field] end
-    end
-    for _,field in ipairs({"repeatChoices","inventorySets"}) do
-        local entries={}
-        if fromSave then
-            for _,entry in ipairs(type(selection[field])=="table" and selection[field] or {}) do
-                local index=type(entry)=="table" and tonumber(entry.index) or nil
-                if index~=nil and index>=1 and index%1==0 and type(entry.choice)=="string" then
-                    entries[index]=entry.choice
-                end
-            end
-        else
-            for index,choice in pairs(type(selection[field])=="table" and selection[field] or {}) do
-                if type(index)=="number" and index>=1 and index%1==0 and type(choice)=="string" then
-                    entries[#entries+1]={index=index,choice=choice}
-                end
-            end
-            table.sort(entries,function(a,b) return a.index<b.index end)
-        end
-        if next(entries)~=nil then result[field]=entries end
-    end
-    return next(result)~=nil and result or nil
+    return trackerPrivate.trackerLifecycle.copyCardSelection(selection,fromSave)
 end
 
 function resourceCardsChoicesSave()
-    if gStates==nil then return end
-    local selected={}
-    local active=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
-    if active~=nil and active.seatPos~=nil then
-        local present={}
-        for _,zoneGUID in ipairs({playerPlayAreas[active.seatPos],playerUnitAreas[active.seatPos]}) do
-            local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
-            if zone~=nil then
-                for _,obj in ipairs(zone.getObjects()) do present[obj.guid]=true end
-            end
-        end
-        for guid,selection in pairs(selectedResourceByGUID) do
-            if present[guid]==true and gameCards[guid]~=nil then
-                selected[guid]=trackerPrivate.copyCardSelection(selection,false)
-            end
-        end
-    end
-    gStates.resourceCardSelectedChoices=selected
+    return trackerPrivate.trackerLifecycle.choicesSave(selectedResourceByGUID,trackerPrivate)
 end
 
 function resourceCardsChoicesRestore()
-    selectedResourceByGUID={}
-    local stored=gStates~=nil and gStates.resourceCardSelectedChoices or nil
-    if type(stored)~="table" then return end
-    for guid,selection in pairs(stored) do
-        if type(guid)=="string" and gameCards[guid]~=nil then
-            selectedResourceByGUID[guid]=trackerPrivate.copyCardSelection(selection,true)
-        end
-    end
+    return trackerPrivate.trackerLifecycle.choicesRestore(function() selectedResourceByGUID={} end,function() return selectedResourceByGUID end,trackerPrivate)
 end
 
 function resourceCardsPanelChanged(open)
-    local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
-    if open==true and (current==nil or not resourceCardsSeatEnabled(current.seatPos)) then return end
-    -- A newly shown panel may need a frame before TTS reports its attributes.
-    -- That temporary state is not a player-requested OFF transition.
-    if open==true and not resourceCardsPanelReady() then return end
-    trackerPrivate.trackerStartupRequest=trackerPrivate.trackerStartupRequest+1
-    if open~=true then
-        -- Closing the tracker cancels a pending decision, not a physical
-        -- transaction whose rewind point is already being stored.
-        if combatConfig.woundConfirmation~=nil then
-            combatConfig.woundConfirmClose()
-        end
-        trackerPrivate.trackerWasDisabled=true
-        trackerPrivate.trackerSession=trackerPrivate.trackerSession+1
-        -- Turn the tracker completely off: stop callbacks and remove its visuals.
-        combatCalcShutdown()
-        clearAll()
-        unitHistoryHideControls()
-        for guid in pairs(trackerPrivate.choiceResetGenerationByGUID) do
-            trackerPrivate.choiceResetGenerationByGUID[guid]=trackerPrivate.choiceResetGenerationByGUID[guid]+1
-        end
-        trackerPrivate.crystalHighlightCleared={}
-        trackerPrivate.unitHighlightBlocked={}
-        -- Fresh starts never inherit manual resource offsets or an old avatar position.
-        -- Keep moveCost: those are real day/night and manually adjusted terrain rules.
-        local tracker=gStates~=nil and gStates.resourceTracker or nil
-        if tracker~=nil then
-            for _,category in ipairs({"move","influence","healing"}) do
-                for field,value in pairs(tracker[category] or {}) do
-                    if type(value)=="number" and not (category=="influence" and field=="reputation") then
-                        tracker[category][field]=0
-                    end
-                end
-            end
-            tracker.playerPos=nil
-        end
-        clearMoveDisplayVisuals()
-        if refreshUnitOfferHighlights~=nil then refreshUnitOfferHighlights() end
-        return
-    end
-    -- Expanding after an OFF period rebuilds from scratch, not cached choices.
-    local restart=trackerPrivate.trackerWasDisabled
-    trackerPrivate.trackerWasDisabled=false
-    if restart then refreshResourceTrackerReputation() end
-    clearAll()
-    if invalidateResourceTrackerDisplayCache~=nil then invalidateResourceTrackerDisplayCache() end
-    unitHistoryRestoreCurrent()
-    for guid,ready in pairs(gStates.unitReadyCardChoices or {}) do
-        if ready and selectedResourceByGUID[guid]==nil then
-            selectedResourceByGUID[guid]={effect="ready"}
-        end
-    end
-    if restart and next(gStates.unitResourceActivations or {})==nil then
-        resourceUnitsRebuildFromTable()
-    end
-    for guid in pairs(gStates.unitResourceActivations or {}) do
-        unitHistoryRefreshToken(guid)
-    end
-    if attackAssignmentsRefreshReadyUI~=nil then attackAssignmentsRefreshReadyUI() end
-    resourceUnitsRefreshButtons()
-    if refreshUnitOfferHighlights~=nil then refreshUnitOfferHighlights() end
-    local player=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
-    if player==nil then return end
-    local seat=player.seatPos
-    -- TTS may not expose the just-set ResourceTrackerDetail.active attribute
-    -- until the next UI update. queueSeat rejects closed panels immediately,
-    -- so invoking it in the same button callback could silently lose the scan.
-    -- Wait only while opening, then read every physical object exactly once.
-    local serial=trackerPrivate.generation[seat]
-    safeWaitCondition("PlayerBoard.CardRecognition",function()
-        if trackerPrivate.generation[seat]==serial and resourceCardsPanelOpen() then
-            renderSeat(seat)
-        end
-    end,function()
-        -- Closing or reopening the panel invalidates this pending request.
-        return trackerPrivate.generation[seat]~=serial or resourceCardsPanelOpen()
-    end,1)
+    return trackerPrivate.trackerLifecycle.panelChanged(open,trackerPrivate,combatConfig,combatCalcShutdown,clearAll,function() return selectedResourceByGUID end,resourceUnitsRebuildFromTable,renderSeat)
 end
 
 -- Clear the outgoing seat before changing turnNumber so rewards, overlays,
 -- damage previews and locks cannot leak into the next player's combat.
 function resourceCardsBeforeTurnHandoff(nextSeat)
-    if gStates==nil or gStates.firstStarted~=true then return end
-    local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
-    if current==nil or current.seatPos==nextSeat then return end
-    resourceCardsPanelChanged(false)
-    resourceUnitsResetTurn()
-    selectedResourceByGUID={}
-    if gStates~=nil then gStates.resourceCardMoveRoles={} end
+    return trackerPrivate.trackerLifecycle.beforeTurnHandoff(nextSeat,function() selectedResourceByGUID={} end)
 end
 
 -- The Global UI is shared, but its expanded/collapsed preference belongs to a seat.
 function resourceCardsAfterTurnHandoff(previousSeat)
-    if gStates==nil or gStates.firstStarted~=true then return end
-    local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
-    if current==nil or current.seatPos==previousSeat then return end
-    local enabled=resourceCardsSeatEnabled(current.seatPos)
-    UI.setAttribute("CombatCalculatorHelp","active","false")
-    UI.setAttribute("ResourceTrackerDetail","active",enabled and "true" or "false")
-    -- The previous seat may have left terrain/combat submenus expanded.
-    -- Preserve their visibility without squeezing them into the default height.
-    resourceTrackerSyncLayout(enabled)
-    if enabled then resourceCardsOnLoad() end
+    return trackerPrivate.trackerLifecycle.afterTurnHandoff(previousSeat)
 end
 
 -- Shared by saved-game load, first-game setup and re-expanding the panel.
 -- Wait for the actual UI state rather than treating startup's collapsed XML
 -- defaults as a player pressing OFF. Explicit minimization cancels this wait.
 function resourceCardsOnLoad(restoringSave)
-    if restoringSave==true then trackerPrivate.restoreAssignmentsPending=true end
-    if gStates==nil or gStates.firstStarted~=true then return end
-    local current=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
-    if current~=nil and not resourceCardsSeatEnabled(current.seatPos) then
-        UI.setAttribute("ResourceTrackerDetail","active","false")
-        resourceTrackerSyncLayout(false)
-        resourceCardsPanelChanged(false)
-        return
-    end
-    -- TTS rewinds rebuild Global XML with a 35px collapsed root. Size the
-    -- tracker first, then reveal its details, so the lower-anchored contents
-    -- cannot cover the header/minimize button during the load transition.
-    if restoringSave==true and current~=nil then
-        resourceTrackerRestoreExpandedLayout()
-    elseif UI.getAttribute("ResourceTrackerDetail","active")=="true" then
-        -- Normal reopen/turn handoff keeps any chosen nested sections.
-        resourceTrackerSyncLayout(true)
-    end
-    trackerPrivate.trackerStartupRequest=trackerPrivate.trackerStartupRequest+1
-    local request=trackerPrivate.trackerStartupRequest
-    safeWaitCondition("PlayerBoard.CardRecognition",function()
-        if trackerPrivate.trackerStartupRequest==request and resourceCardsPanelReady() then
-            if trackerPrivate.restoreAssignmentsPending==true then
-                trackerPrivate.restoreAssignmentsPending=false
-                attackAssignmentsRestore()
-            end
-            resourceCardsPanelChanged(true)
-        end
-    end,function()
-        return trackerPrivate.trackerStartupRequest~=request or resourceCardsPanelReady()
-    end,5,function()
-        -- A panel that is still collapsed after the readiness wait stays
-        -- OFF; it must never scan until the player explicitly expands it.
-        if trackerPrivate.trackerStartupRequest==request and not resourceCardsPanelReady() then
-            resourceCardsPanelChanged(false)
-        end
-    end)
+    return trackerPrivate.trackerLifecycle.onLoad(restoringSave,trackerPrivate)
 end
 
 local function resourceCardsRelevantZone(ctx)
-    if ctx==nil or ctx.zoneInfo==nil or ctx.obj==nil then return nil end
-    -- The tracker only renders the active Mage Knight's board; ignore other seats early.
-    local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
-    if active==nil or active.seatPos~=ctx.zoneInfo.seatPos then return nil end
-    local kind=ctx.zoneInfo.kind
-    -- A moving die is mana even though its face cannot yet be read safely.
-    local objectKind=(ctx.objType=="Dice" and scriptObjectId(ctx.obj)=="Mana Dice")
-        and "mana" or resourceObjectKind(ctx.obj)
-    if kind=="play" and (objectKind~=nil or combatEnemyData(ctx.objGUID,ctx.obj)~=nil) then
-        return ctx.zoneInfo.seatPos
-    end
-    if kind=="unit" and (objectKind=="unit" or objectKind=="mana" or objectKind=="puppet"
-        or combatEnemyData(ctx.objGUID,ctx.obj)~=nil
-        or unitLayoutIsCommand(ctx.obj) or unitLayoutIsWound(ctx.obj)) then
-        return ctx.zoneInfo.seatPos
-    end
-    if kind=="crystal" and objectKind=="mana" then return ctx.zoneInfo.seatPos end
-    if kind=="hand" and objectKind=="wound" then return ctx.zoneInfo.seatPos end
-    return nil
+    return trackerPrivate.objectEvents.relevantZone(ctx,resourceObjectKind,combatEnemyData)
 end
 
 -- Mark played cards while dragged, so zone callbacks cannot publish an
 -- intermediate 'card absent' calculation and overwrite a chosen target.
 function resourceCardsObjectPickedUp(obj)
-    if obj==nil or obj.guid==nil or not resourceCardsPanelOpen()
-        or not trackerPrivate.playCandidateKind(resourceObjectKind(obj)) then return end
-    local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
-    if active==nil then return end
-    local seat=active.seatPos
-    local candidates=trackerPrivate.playCandidatesBySeat[seat]
-    local previous=trackerPrivate.bySeat[seat]
-    if (candidates~=nil and candidates[obj.guid]==true)
-        or (previous~=nil and previous[obj.guid]==true)
-        or cardInSeatPlayArea(obj.guid,seat) then
-        -- A second pickup invalidates the first drop's pending callbacks.
-        -- Capture what the player actually chose; a scan must not replace
-        -- these choices or enemy targets with the nearest/default ones.
-        local savedTargets={}
-        local prefix=obj.guid.."#"
-        for sourceKey,targetGUID in pairs(combatAssignmentState.targets or {}) do
-            if sourceKey==obj.guid or sourceKey:sub(1,#prefix)==prefix then
-                savedTargets[sourceKey]={targetGUID=targetGUID,
-                    explicit=combatAssignmentState.explicit[sourceKey]==true}
-            end
-        end
-        trackerPrivate.playCardMovements[obj.guid]={
-            seatPos=seat,choice=selectedResourceByGUID[obj.guid],
-            targets=savedTargets,posture=cardPosture(obj),
-            faceDown=obj.is_face_down
-        }
-        if trackerPrivate.traceEnabled then
-            trackerPrivate.traceEvent("move.pickup",seat,obj.guid,
-                "held="..tostring(obj.held_by_color))
-        end
-        -- A normal Drop is not guaranteed (e.g. the native U/Place Under
-        -- action). Watch every known pickup until the object is released.
-        trackerPrivate.finishPlayCardMove(obj)
-    end
+    return trackerPrivate.objectEvents.pickedUp(obj,trackerPrivate,resourceObjectKind,cardInSeatPlayArea,combatAssignmentState,selectedResourceByGUID,cardPosture)
 end
 
 -- Restore the player's source decisions before a completed drop recalculates.
 -- This is runtime-only and applies only while the original card remains on
 -- the same Play Area. Deliberate sideways/flipped play can change targeting.
 trackerPrivate.restorePlayCardMove=function(obj,state)
-    if state==nil or obj==nil
-        or not cardInSeatPlayArea(obj.guid,state.seatPos) then return end
-    if state.choice~=nil then
-        selectedResourceByGUID[obj.guid]=state.choice
-    end
-    if state.posture~=cardPosture(obj)
-        or state.faceDown~=obj.is_face_down then return end
-    for sourceKey,saved in pairs(state.targets or {}) do
-        if saved.targetGUID~=nil then
-            combatAssignmentState.targets[sourceKey]=saved.targetGUID
-            combatAssignmentState.explicit[sourceKey]=saved.explicit
-        end
-    end
+    return trackerPrivate.objectEvents.restoreMove(obj,state,cardInSeatPlayArea,selectedResourceByGUID,cardPosture,combatAssignmentState)
 end
 
 -- A card may still be falling in Y when its X/Z and rotation are final.
 -- Observe those values for three frames instead of waiting for 'resting'.
 trackerPrivate.finishPlayCardMove=function(obj)
-    local state=obj~=nil and trackerPrivate.playCardMovements[obj.guid] or nil
-    if state==nil or state.releasing then return end
-    state.releasing=true
-    state.samples=0
-    state.consecutive=0
-    state.last=nil
-    local guid=obj.guid
-    if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("move.watch",state.seatPos,guid) end
-    local function sample()
-        if trackerPrivate.playCardMovements[guid]~=state then return end
-        local live=getObjectFromGUID(guid)
-        if live==nil or (live.isDestroyed~=nil and live.isDestroyed()) then
-            trackerPrivate.playCardMovements[guid]=nil
-            if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("move.gone",state.seatPos,guid) end
-            queueSeat(state.seatPos,nil)
-            return
-        end
-        state.samples=state.samples+1
-        local held=live.held_by_color~=nil and live.held_by_color~=""
-        local smooth=live.isSmoothMoving()
-        if held or smooth then
-            -- Never abandon the watcher with the movement lock still set.
-            -- A missed onObjectDrop (notably U/Place Under) must not freeze
-            -- every future option button and combat calculator refresh.
-            if trackerPrivate.traceEnabled and (state.samples==1 or state.samples%90==0) then
-                trackerPrivate.traceEvent("move.wait",state.seatPos,guid,
-                    "held="..tostring(held).." smooth="..tostring(smooth)
-                    .." samples="..state.samples)
-            end
-            safeWaitFrames("PlayerBoard.CardRecognition",sample,held and 6 or 3)
-            return
-        end
-        local pos=live.getPosition()
-        local rot=live.getRotation()
-        local now={x=pos.x or pos[1],z=pos.z or pos[3],
-            rx=rot.x or rot[1],ry=rot.y or rot[2],rz=rot.z or rot[3],
-            face=live.is_face_down}
-        local previous=state.last
-        local function angleDifference(a,b)
-            return math.abs(((a or 0)-(b or 0)+180)%360-180)
-        end
-        if previous~=nil
-            and math.abs(now.x-previous.x)<0.04
-            and math.abs(now.z-previous.z)<0.04
-            and angleDifference(now.rx,previous.rx)<1
-            and angleDifference(now.ry,previous.ry)<1
-            and angleDifference(now.rz,previous.rz)<1
-            and now.face==previous.face then
-            state.consecutive=state.consecutive+1
-        else
-            state.consecutive=0
-        end
-        state.last=now
-        if state.consecutive<2 and state.samples<24 then
-            safeWaitFrames("PlayerBoard.CardRecognition",sample,1)
-            return
-        end
-        trackerPrivate.restorePlayCardMove(live,state)
-        trackerPrivate.playCardMovements[guid]=nil
-        if trackerPrivate.traceEnabled then
-            trackerPrivate.traceEvent("move.complete",state.seatPos,guid,
-                "samples="..state.samples.." onMat="..tostring(cardInSeatPlayArea(guid,state.seatPos)))
-        end
-        -- Resume a single complete scan; normal drop handling determines
-        -- whether this was a reposition or a genuine departure from play.
-        resourceCardsObjectMoved(live,true)
-        queueSeat(state.seatPos,nil)
-    end
-    safeWaitFrames("PlayerBoard.CardRecognition",sample,1)
+    return trackerPrivate.objectEvents.finishMove(obj,trackerPrivate,queueSeat,cardInSeatPlayArea)
 end
 
 -- Native TTS Place Under (U) does not promise a pickup/drop or zone change.
 -- Mark existing play sources before the action, then reconcile the target(s)
 -- after TTS has applied it, including non-Card Skills and Faction Rewards.
 function resourceCardsUnderAction(targets)
-    if not resourceCardsPanelOpen() then return end
-    local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
-    local seat=active~=nil and active.seatPos or nil
-    local zoneGUID=seat~=nil and playerPlayAreas~=nil and playerPlayAreas[seat] or nil
-    local playZone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
-    local guids,playedCardUnder={},false
-    for _,obj in ipairs(targets or {}) do
-        if obj~=nil and obj.guid~=nil then
-            guids[#guids+1]=obj.guid
-            if playZone~=nil and trackerPrivate.playCandidateKind(resourceObjectKind(obj))
-                and trackerPrivate.zoneFootprintContainsXZ(obj,playZone) then
-                playedCardUnder=true
-            end
-            if trackerPrivate.traceEnabled then
-                trackerPrivate.traceEvent("action.under",seat,obj.guid)
-            end
-            resourceCardsObjectPickedUp(obj)
-        end
-    end
-    if #guids==0 then return end
-    local session=trackerPrivate.trackerSession
-    safeWaitFrames("PlayerBoard.CardRecognition",function()
-        if trackerPrivate.trackerSession~=session or not resourceCardsPanelOpen() then return end
-        for _,guid in ipairs(guids) do
-            local obj=getObjectFromGUID(guid)
-            if obj~=nil and (obj.isDestroyed==nil or not obj.isDestroyed()) then
-                resourceCardsObjectMoved(obj)
-            end
-        end
-        -- Native Under can jostle dice without a drop/zone callback. Resample
-        -- the live play zone after delayed physics; outside mana never pays.
-        if playedCardUnder and seat~=nil then
-            local function queueZoneDice()
-                local zone=getObjectFromGUID(zoneGUID)
-                if zone==nil then return end
-                for _,obj in ipairs(zone.getObjects()) do
-                    if obj.type=="Dice" and scriptObjectId(obj)=="Mana Dice" then
-                        queueSeat(seat,obj.guid)
-                    end
-                end
-            end
-            queueZoneDice()
-            safeWaitFrames("PlayerBoard.CardRecognition",function()
-                if trackerPrivate.trackerSession~=session
-                    or not resourceCardsPanelOpen() then return end
-                queueZoneDice()
-                resourceCardsSourceChanged()
-            end,22)
-        end
-        resourceCardsSourceChanged()
-    end,2)
+    return trackerPrivate.objectEvents.underAction(targets,trackerPrivate,resourceObjectKind,queueSeat)
 end
 
 function resourceCardsZoneEntered(ctx)
-    if not resourceCardsPanelOpen() or ctx==nil or ctx.zoneInfo==nil then return end
-    -- Filter irrelevant zones and other players before touching the Unit layout.
-    local seat=resourceCardsRelevantZone(ctx)
-    if seat==nil then return end
-    if trackerPrivate.traceEnabled then
-        trackerPrivate.traceEvent("zone.enter",seat,ctx.objGUID,ctx.zoneInfo.kind)
-    end
-    if ctx.zoneInfo.kind=="play" and ctx.objType~="Dice"
-        and trackerPrivate.playCandidateKind(resourceObjectKind(ctx.obj)) then
-        -- A returned card invalidates any delayed choice-clear queued by its
-        -- earlier onExitZone. The exit callback must never win after reentry.
-        trackerPrivate.choiceResetGenerationByGUID[ctx.objGUID]=
-            (trackerPrivate.choiceResetGenerationByGUID[ctx.objGUID] or 0)+1
-        trackerPrivate.playCandidatesBySeat[seat]=trackerPrivate.playCandidatesBySeat[seat] or {}
-        local candidates=trackerPrivate.playCandidatesBySeat[seat]
-        local previous=trackerPrivate.bySeat[seat]
-        local alreadyPlayed=candidates[ctx.objGUID]==true
-            or (previous~=nil and previous[ctx.objGUID]==true)
-            or trackerPrivate.playCardMovements[ctx.objGUID]~=nil
-        candidates[ctx.objGUID]=true
-        if alreadyPlayed then
-            if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("zone.reentry",seat,ctx.objGUID) end
-            -- TTS emits EnterZone again when a relocated card falls through
-            -- the thin zone. That is not a new play or another pickup.
-            -- onObjectDrop owns its one reconciliation, even if the zone
-            -- entry happens before the drop's final callback.
-            return
-        end
-        -- For a genuinely new play, queue its first scan normally. Do not
-        -- infer an ObjectPickUp from resting=false on zone entry.
-    end
-    if ctx.zoneInfo.kind=="play" and gameCards[ctx.objGUID]~=nil
-        and gStates~=nil then
-        gStates.resourceCardPlayOrder=gStates.resourceCardPlayOrder or {}
-        if gStates.resourceCardPlayOrder[ctx.objGUID]==nil then
-            gStates.resourceCardPlaySerial=(gStates.resourceCardPlaySerial or 0)+1
-            gStates.resourceCardPlayOrder[ctx.objGUID]=gStates.resourceCardPlaySerial
-        end
-    end
-    queueSeat(seat,ctx.objGUID)
+    return trackerPrivate.objectEvents.zoneEntered(ctx,trackerPrivate,resourceCardsRelevantZone,resourceObjectKind,queueSeat)
 end
 
 function resourceCardsZoneLeft(ctx)
-    if not resourceCardsPanelOpen() or ctx==nil or ctx.zoneInfo==nil then return end
-    local seat=resourceCardsRelevantZone(ctx)
-    if trackerPrivate.traceEnabled then
-        trackerPrivate.traceEvent("zone.leave",seat,ctx.objGUID,ctx.zoneInfo.kind)
-    end
-    if ctx.zoneInfo.kind=="play" then
-        if ctx.obj~=nil and trackerPrivate.playCandidateKind(resourceObjectKind(ctx.obj))
-            and (combatConfig.cardInTransit(ctx.obj)
-                or cardInSeatPlayArea(ctx.objGUID,ctx.zoneInfo.seatPos)) then
-            -- This is a transient exit of a card still being moved or
-            -- physically over the play mat, not an ended play. Crucially,
-            -- do not schedule a delayed choice reset here: onDrop owns the
-            -- final departure check, and reentry may occur after the timer.
-            if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("zone.leave-transit",seat,ctx.objGUID) end
-            return
-        end
-        scheduleChoiceResetAfterPlay(ctx.objGUID,ctx.zoneInfo.seatPos)
-    end
-    if seat==nil then return end
-    queueSeat(seat,ctx.objGUID)
+    return trackerPrivate.objectEvents.zoneLeft(ctx,trackerPrivate,resourceCardsRelevantZone,resourceObjectKind,combatConfig,cardInSeatPlayArea,scheduleChoiceResetAfterPlay,queueSeat)
 end
 
 
@@ -6470,152 +5582,11 @@ end
 -- controls; unchanged buttons and combat values are never rebuilt.
 trackerPrivate.cardUIRecheckSerial={}
 trackerPrivate.checkCardChoicesAfterDrop=function(guid,seatPos)
-    if guid==nil or seatPos==nil then return end
-    local serial=(trackerPrivate.cardUIRecheckSerial[guid] or 0)+1
-    trackerPrivate.cardUIRecheckSerial[guid]=serial
-    local session=trackerPrivate.trackerSession
-    local function verify(attempt)
-        if trackerPrivate.cardUIRecheckSerial[guid]~=serial
-            or trackerPrivate.trackerSession~=session
-            or not resourceCardsPanelOpen() then return end
-        local card=getObjectFromGUID(guid)
-        if card==nil or (card.isDestroyed~=nil and card.isDestroyed())
-            or not cardInSeatPlayArea(guid,seatPos) then return end
-        if not combatConfig.cardInTransit(card) then
-            local expected=combatConfig.cardButtonIds[guid]
-            if choiceButtonShown[guid]~=nil and choiceButtonShown[guid]~="hidden"
-                and expected~=nil and #expected>0
-                and not combatConfig.cardChoicesPresent(card) then
-                if trackerPrivate.traceEnabled then
-                    trackerPrivate.traceEvent("choice.repair",seatPos,guid,
-                        "attempt="..tostring(attempt).." expected="..tostring(#expected))
-                end
-                queueSeat(seatPos,guid)
-            end
-        end
-        if attempt==1 then
-            -- Catch a late overwrite from TTS/another card-UI owner, without
-            -- permanently polling every card in the play area.
-            safeWaitFrames("PlayerBoard.CardRecognition",function() verify(2) end,12)
-        end
-    end
-    safeWaitFrames("PlayerBoard.CardRecognition",function() verify(1) end,5)
+    return trackerPrivate.objectEvents.checkChoicesAfterDrop(guid,seatPos,trackerPrivate,cardInSeatPlayArea,combatConfig,function() return choiceButtonShown end,queueSeat)
 end
 
 function resourceCardsObjectMoved(obj,stabilized)
-    if obj==nil or not resourceCardsPanelOpen() then return end
-    if trackerPrivate.traceEnabled then
-        trackerPrivate.traceEvent("object.moved",nil,obj.guid,
-            "stable="..tostring(stabilized).." held="..tostring(obj.held_by_color))
-    end
-    -- Some entries are reported only after the card is dropped. Protect that
-    -- first scan too, even if no pickup/enter event registered the movement.
-    if not stabilized and obj.type~="Dice" and obj.resting==false
-        and trackerPrivate.playCardMovements[obj.guid]==nil
-        and trackerPrivate.playCandidateKind(resourceObjectKind(obj)) then
-        resourceCardsObjectPickedUp(obj)
-    end
-    -- Drop callbacks can arrive before the card's final rotation or before
-    -- the shallow zone knows it is back. Keep the calculator unchanged.
-    if trackerPrivate.playCardMovements[obj.guid]~=nil then
-        trackerPrivate.finishPlayCardMove(obj)
-        return
-    end
-    local player=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
-    if player==nil then return end
-    local seat=player.seatPos
-    if (obj.type=="Dice" and scriptObjectId(obj)=="Mana Dice") or manaColor(obj)~=nil then
-        -- Reconcile removal as well as arrival; the scan reads current zones.
-        queueSeat(seat,obj.guid)
-        return
-    end
-    local isUnitStateToken=unitLayoutIsCommand(obj) or unitLayoutIsWound(obj)
-    local isMonster=combatEnemyData(obj.guid,obj)~=nil
-    local objectKind=resourceObjectKind(obj)
-    if objectKind==nil and not isUnitStateToken and not isMonster then
-        -- A played powered One with the Land may change Block value when the
-        -- Mage Knight moves to different terrain. Only watch avatar drops
-        -- while that exact effect is selected; no continual background scan.
-        local scan=resourceCardScanBySeat[seat]
-        if scan~=nil and (scan.usesCurrentHexBlock==true
-            or scan.usesCurrentHexHealing==true or scan.usesSkillLocation==true) then
-            for _,hero in ipairs(mageKnights or {}) do
-                if hero.mage==player.mage and
-                    (obj.guid==hero.model or obj.guid==hero.token or obj.guid==hero.standee) then
-                    queueSeat(seat,obj.guid)
-                    return
-                end
-            end
-        end
-        return
-    end
-    -- Already-observed sources always need a settled reconciliation, even
-    -- when dropped just above a shallow zone. Avoid searching four zones to
-    -- discover information the last scan already provided.
-    local observed=trackerPrivate.bySeat[seat]
-    -- The drop event can precede the shallow zone's physical re-entry.
-    -- Keep the previously played source (and its explicit choices/target)
-    -- when its released X/Z is still over this mat.
-    if trackerPrivate.playCandidateKind(objectKind) then
-        local candidates=trackerPrivate.playCandidatesBySeat[seat] or {}
-        local known=candidates[obj.guid]==true
-        local inPlay=cardInSeatPlayArea(obj.guid,seat)
-        if inPlay then
-            candidates[obj.guid]=true
-            trackerPrivate.playCandidatesBySeat[seat]=candidates
-        elseif known then
-            candidates[obj.guid]=nil
-            scheduleChoiceResetAfterPlay(obj.guid,seat)
-        end
-        if inPlay or known then
-            queueSeat(seat,obj.guid)
-            if inPlay then trackerPrivate.checkCardChoicesAfterDrop(obj.guid,seat) end
-            return
-        end
-    end
-    if observed~=nil and observed[obj.guid]==true then
-        if (objectKind=="card" or objectKind=="skill" or objectKind=="factionReward")
-            and not cardInSeatPlayArea(obj.guid,seat) then
-            scheduleChoiceResetAfterPlay(obj.guid,seat)
-        end
-        queueSeat(seat,obj.guid)
-        if trackerPrivate.playCandidateKind(objectKind)
-            and cardInSeatPlayArea(obj.guid,seat) then
-            trackerPrivate.checkCardChoicesAfterDrop(obj.guid,seat)
-        end
-        return
-    end
-    -- New arrivals only need zones that can actually hold their resource type.
-    -- Mana/dice have already taken the dedicated early path above.
-    local relevantZones
-    if isMonster or isUnitStateToken or objectKind=="unit" or objectKind=="puppet" then
-        relevantZones={playerPlayAreas[seat],playerUnitAreas[seat]}
-    elseif objectKind=="wound" then
-        relevantZones={playerPlayAreas[seat],playerUnitAreas[seat],handZones[seat]}
-    else
-        relevantZones={playerPlayAreas[seat]}
-    end
-    for _,zoneGUID in ipairs(relevantZones) do
-        local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
-        if zone~=nil then
-            for _,candidate in ipairs(zone.getObjects()) do
-                if candidate.guid==obj.guid then queueSeat(seat,obj.guid) return end
-            end
-        end
-    end
-    if (isMonster and combatTrackedSeat==seat and combatTrackedEnemies[obj.guid]~=nil)
-        or isUnitStateToken or (isMonster and trackerPrivate.bySeat[seat]~=nil
-        and trackerPrivate.bySeat[seat][obj.guid]==true) then
-        -- On a drop outside the zones, wait for the token to settle before
-        -- checking membership. Otherwise smooth movement can retain a ghost
-        -- indefinitely if no further zone event fires.
-        queueSeat(seat,isMonster and obj.guid or nil)
-    elseif trackerPrivate.bySeat[seat]~=nil and trackerPrivate.bySeat[seat][obj.guid]==true then
-        scheduleChoiceResetAfterPlay(obj.guid,seat)
-        -- Wait for this specific card to settle before reconciling its XML.
-        -- An immediate scan could run while TTS is still clearing its UI.
-        queueSeat(seat,obj.guid)
-    end
+    return trackerPrivate.objectEvents.objectMoved(obj,stabilized,trackerPrivate,resourceObjectKind,manaColor,queueSeat,combatEnemyData,cardInSeatPlayArea,scheduleChoiceResetAfterPlay,combatTrackedSeat,combatTrackedEnemies)
 end
 
 -- Register the remaining readying and Artifact gameplay buttons through the

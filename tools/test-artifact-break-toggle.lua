@@ -16,6 +16,7 @@ local flow=read("src/PlayingGame/PlayerBoard/CardFlow.lua")
 local actionLinks=read("src/PlayingGame/PlayerBoard/ResourceTracker/ActionLinks.lua")
 local cardControls=read("src/PlayingGame/PlayerBoard/ResourceTracker/CardControls.lua")
 local playedCards=read("src/PlayingGame/PlayerBoard/ResourceTracker/PlayedCardScan.lua")
+local cardInteraction=read("src/PlayingGame/PlayerBoard/ResourceTracker/CardInteraction.lua")
 local readyPolicy=read("src/PlayingGame/PlayerBoard/ResourceTracker/ReadyPolicy.lua")
 local unitScan=read("src/PlayingGame/PlayerBoard/ResourceTracker/UnitScan.lua")
 local callbacks=read("src/PlayingGame/Callbacks.lua")
@@ -291,6 +292,8 @@ do
         combatConfig={phaseObjectLocked=function(guid) return false end},
         resourceCardsSourceChanged=function() refreshes=refreshes+1 end
     },{__index=_G})
+env.trackerPrivate=env.trackerPrivate or {}
+env.trackerPrivate.cardInteraction=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/CardInteraction.lua","t",env))()
     local clickSource=section(rec,"function resourceCardsArtifactGrailFameClicked(",
         "-- Toggle the strong effect")
     local click=assert(load(clickSource.."\nreturn resourceCardsArtifactGrailFameClicked",
@@ -341,7 +344,7 @@ for _,needle in ipairs({
 }) do
     assert(rec:find(needle,1,true) or flow:find(needle,1,true) or cardControls:find(needle,1,true)
         or playedCards:find(needle,1,true) or readyPolicy:find(needle,1,true)
-        or unitScan:find(needle,1,true),
+        or unitScan:find(needle,1,true) or cardInteraction:find(needle,1,true),
         "Missing Artifact fix or regression guard: "..needle)
 end
 assert(callbacks:find('"resourceCardsArtifactGrailFameClicked"',1,true),
@@ -371,6 +374,8 @@ do
         resourceCardsMaximalEffectMark=function(card,active) marks[#marks+1]=active end,
         resourceCardsSourceChanged=function() refreshes=refreshes+1 end
     },{__index=_G})
+env.trackerPrivate=env.trackerPrivate or {}
+env.trackerPrivate.cardInteraction=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/CardInteraction.lua","t",env))()
     local source=section(rec,"function resourceCardsArtifactBreakClicked(",
         "-- Player clicks always")
     local click=assert(load(source.."\nreturn resourceCardsArtifactBreakClicked",
