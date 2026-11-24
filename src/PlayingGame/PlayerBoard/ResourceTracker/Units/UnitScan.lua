@@ -193,7 +193,7 @@ function M.process(context)
                         setHighlight(unit,result.status,false)
                     end
                     if selected~=nil and selected.terrainReduce and result.complete then
-                        terrainModifiers[#terrainModifiers+1]=trackerPrivate.forestersTerrainModifier
+                        result.pendingTerrainModifiers={trackerPrivate.forestersTerrainModifier}
                     end
                     if selected~=nil and selected.boostOtherUnits and result.complete then
                         shocktroopsBoosts=shocktroopsBoosts+1
