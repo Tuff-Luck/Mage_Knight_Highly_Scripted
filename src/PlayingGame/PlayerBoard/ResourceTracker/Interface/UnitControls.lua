@@ -7,6 +7,7 @@ return function(deps)
     local unitHistorySelectedNumber=deps.unitHistorySelectedNumber
     local unitManaDecision=deps.unitManaDecision
     local unitHistoryIsCombatAbility=deps.unitHistoryIsCombatAbility
+    local unitHistoryDecisionHasCombat=deps.unitHistoryDecisionHasCombat
     local unitAbilityTargetCategory=deps.unitAbilityTargetCategory
     local unitHistoryKey=deps.unitHistoryKey
     local resourceCardsMoveRole=deps.resourceCardsMoveRole

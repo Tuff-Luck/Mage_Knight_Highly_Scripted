@@ -4179,6 +4179,7 @@ local showUnitAbilityButtons=require("PlayingGame.PlayerBoard.ResourceTracker.In
     unitHistorySelectedNumber=function(...) return unitHistorySelectedNumber(...) end,
     unitManaDecision=function(...) return unitManaDecision(...) end,
     unitHistoryIsCombatAbility=function(...) return unitHistoryIsCombatAbility(...) end,
+    unitHistoryDecisionHasCombat=function(...) return unitHistoryDecisionHasCombat(...) end,
     unitAbilityTargetCategory=function(...) return unitAbilityTargetCategory(...) end,
     unitHistoryKey=function(...) return unitHistoryKey(...) end,
     resourceCardsMoveRole=function(...) return resourceCardsMoveRole(...) end,
