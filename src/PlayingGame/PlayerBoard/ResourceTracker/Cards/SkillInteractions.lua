@@ -156,7 +156,7 @@ function M.process(context)
                 local record=records[card.guid]
                 if data~=nil and data.cardType=="Starting"
                     and card.is_face_down~=true and cardPosture(card)=="upright"
-                    and record~=nil and record.resources~=nil then
+                    and record~=nil and record.complete==true and record.resources~=nil then
                     local field=nil
                     local matches=0
                     for category,value in pairs(record.resources) do
@@ -184,20 +184,35 @@ function M.process(context)
                 for _,family in ipairs({"move","block","attack"}) do
                     if family~=sourceFamily then
                         local field=family=="move" and "move" or family..suffix
-                        choices[#choices+1]={key=family,icon=family,[field]=0}
+                        local option={key=family,icon=family,[field]=0,
+                            shapeshiftTargetGUID=best.card.guid}
+                        if family~="move" then
+                            if suffix=="Fire" then option.iconOverlay="F"
+                            elseif suffix=="Ice" then option.iconOverlay="I"
+                            elseif suffix=="ColdFire" then option.iconOverlay="C"
+                            elseif suffix=="Psychic" then option.iconOverlay="P" end
+                        end
+                        choices[#choices+1]=option
                     end
                 end
-                local result=records[skill.guid]
-                if result~=nil then
-                    result.choices=choices
-                    showChoiceButtons(skill,choices,false)
-                end
+                -- The normal Skill finalization pass renders these options.
+                -- Create the record before publishing them, not during linking.
+                local result=ensureSkillRecord(skill)
+                result.choices=choices
+                result.shapeshiftTargetGUID=best.card.guid
                 local selected=chosenEffect(skill.guid,false,choices)
                 if selected~=nil then
                     local family=choiceCategory(selected)
                     local newField=family=="move" and "move" or family..suffix
                     local original=records[best.card.guid].resources[sourceField]
                     skillTargetLinked(skill,best.card,sourceField,original,newField)
+                    local target=records[best.card.guid]
+                    target.shapeshiftField=newField
+                    -- Printed choices stay editable on the card; only its target
+                    -- control follows the converted resource. Move role is
+                    -- selected on the Skill but stored against this card.
+                    showChoiceButtons(best.card,target.choices,target.powered,nil,nil,
+                        target.resources,target.repeatLink,newField)
                 end
             end
         end
