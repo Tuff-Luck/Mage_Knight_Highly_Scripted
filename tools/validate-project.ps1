@@ -39,24 +39,48 @@ try {
         }
     }
 
-    Write-Host "Checking Global require() targets..."
+    Write-Host "Checking source module dependencies and reachability..."
+    $sourceLuaFiles = @(Get-ChildItem -Path "src" -Recurse -File -Filter *.lua)
+    $modules = [System.Collections.Generic.Dictionary[string,string]]::new([StringComparer]::Ordinal)
+    foreach ($file in $sourceLuaFiles) {
+        $relative = $file.FullName.Substring((Join-Path $root "src").Length + 1)
+        $module = ($relative -replace '\.lua$', '') -replace '[\\/]', '.'
+        $modules.Add($module, $file.FullName)
+    }
+    $activeModules = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    $visitedModules = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    function Visit-Module([string]$module, [string]$caller) {
+        if (-not $modules.ContainsKey($module)) {
+            throw "Unresolved require('$module') in $caller"
+        }
+        if ($activeModules.Contains($module)) {
+            throw "Circular require('$module') in $caller"
+        }
+        if ($visitedModules.Contains($module)) { return }
+        [void]$activeModules.Add($module)
+        $source = Get-Content -Raw -LiteralPath $modules[$module]
+        foreach ($dependency in [regex]::Matches($source, '(?m)^[ \t]*(?!--)[^\r\n]*?\brequire\s*\(\s*["'']([^"'']+)["'']\s*\)')) {
+            Visit-Module $dependency.Groups[1].Value $modules[$module]
+        }
+        [void]$activeModules.Remove($module)
+        [void]$visitedModules.Add($module)
+    }
     $entry = Get-Content -Raw -LiteralPath ".tts/objects/Global.lua"
-    $requires = [regex]::Matches($entry, 'require\(["'']([^"'']+)["'']\)')
+    $requires = [regex]::Matches($entry, '(?m)^[ \t]*require\s*\(\s*["'']([^"'']+)["'']\s*\)')
     if ($requires.Count -eq 0) {
         throw "No require() statements found in .tts/objects/Global.lua"
     }
     foreach ($match in $requires) {
-        $module = $match.Groups[1].Value
-        $relative = ($module -replace '\.', '/') + '.lua'
-        $target = Join-Path "src" $relative
-        if (-not (Test-Path -LiteralPath $target -PathType Leaf)) {
-            throw "Global require('$module') does not resolve to $target"
-        }
+        Visit-Module $match.Groups[1].Value ".tts/objects/Global.lua"
     }
+    $unreachable = @($modules.Keys | Where-Object { -not $visitedModules.Contains($_) } | Sort-Object)
+    if ($unreachable.Count -gt 0) {
+        throw "Source modules unreachable from Global.lua: $($unreachable -join ', ')"
+    }
+    Write-Host "Verified $($visitedModules.Count) reachable source modules."
 
     Write-Host "Checking duplicate global function definitions..."
     $functionOwners = @{}
-    $sourceLuaFiles = Get-ChildItem -Path "src" -Recurse -File -Filter *.lua
     foreach ($file in $sourceLuaFiles) {
         $content = Get-Content -Raw -LiteralPath $file.FullName
         # Lua treats "local" followed by line breaks and "function" as a local-function declaration.
