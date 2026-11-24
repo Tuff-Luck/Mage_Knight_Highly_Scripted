@@ -208,13 +208,20 @@ function protectedDestroyEvidence.otherTokensSnapshot(excludedGUID)
 	return "found="..tostring(found).." missing/unavailable="..tostring(missing)
 		.." ["..(#entries>0 and table.concat(entries,", ") or "none").."]"
 end
--- The table can unload its tokens before the zones disappear, so the general
--- two-anchor shutdown detector may not have fired yet. Restrict this alternate
--- signal to round-order destroy diagnostics only. A missing table alone, a
--- missing token alone, or a large normal cleanup alone is not sufficient.
+-- When TTS unloads a scene, its table may disappear before the scripting
+-- zones and other turn-order tokens. A missing table together with a large
+-- destruction burst is an indicator, not a global teardown event.
+-- Only the token audit uses this signal by itself, AFTER confirming that its
+-- specific token is still missing at the delayed verification.
+function protectedDestroyEvidence.probableMassTableTeardown()
+	return protectedDestroyEvidence.objectStatus("519f96")=="MISSING"
+		and protectedDestroyEvidence.recent(os.time())>=50
+end
+
+-- Scoring remains stricter: it has no already-confirmed missing token, so it
+-- must independently find at least two distinct missing assigned tokens.
 function protectedDestroyEvidence.probableTurnOrderTeardown(excludedGUID)
-	if protectedDestroyEvidence.objectStatus("519f96")~="MISSING" then return false end
-	if protectedDestroyEvidence.recent(os.time())<50 then return false end
+	if not protectedDestroyEvidence.probableMassTableTeardown() then return false end
 	if type(turnOrder)~="table" then return false end
 	-- A token already verified as missing by the destroy audit counts once.
 	-- Other callers (such as scoring) must independently find two missing
@@ -267,9 +274,10 @@ local function protectedObjectDestroyAudit(guid)
 		if eventsExitTeardown() or type(gStates)~="table" or gStates.firstStarted~=true then return end
 		if getObjectFromGUID(guid)~=nil or protectedExpectedScriptRemovals[guid]~=nil then return end
 		if protectedUnexpectedDestroyReported[guid]==true then return end
-		-- Suppress the specific false-positive pattern seen during TTS teardown.
-		-- Do not set the global teardown flag or suppress other protected pieces.
-		if kind=="Round Order token" and protectedDestroyEvidence.probableTurnOrderTeardown(guid) then return end
+		-- For this token the 120-frame verification above already confirmed loss.
+		-- Do not wait for another token to disappear: the table may unload first.
+		-- Scoring still requires two missing tokens. Never set global teardown.
+		if kind=="Round Order token" and protectedDestroyEvidence.probableMassTableTeardown() then return end
 		protectedUnexpectedDestroyReported[guid]=true
 		log("PROTECTED OBJECT MISSING: "..kind.." ["..guid.."] in scenario "..tostring(gStates.gameScenario)
 			..", round "..tostring(gStates.currentRound)..", turn "..tostring(gStates.turnNumber)
