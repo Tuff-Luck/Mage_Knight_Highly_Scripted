@@ -51,6 +51,7 @@ local tracker={
     playCandidatesBySeat={[1]={skill01=true,reward01=true}},
     bySeat={[1]={skill01=true,reward01=true}},
     playCardMovements={},choiceResetGenerationByGUID={},
+    factionRewardNotes={["Dark Crusader Reward"]="Dark"},
     playCandidateKind=function(kind)
         return kind=="card" or kind=="skill" or kind=="factionReward"
     end
@@ -67,7 +68,6 @@ local env={
     playerPlayAreas={[1]="play"},turnOrder={{seatPos=1}},
     gStates={turnNumber=1,resourceCardPlayOrder={skill01=1,reward01=2}},
     gameCards={},skillTokens={skill01={skillType="Hero"}},
-    factionRewardNotes={["Dark Crusader Reward"]="Dark"},
     getObjectFromGUID=function(guid)
         if guid=="play" then return zone end
         return tokens[guid]

@@ -47,6 +47,8 @@ for _,pair in ipairs(bannerPairs) do
 end
 
 -- The state and temporary ability helper are the real production source.
+local artifactState=between(recognition,"function resourceCardsArtifactBroken(guid,card)",
+    "-- Persist one-shot Banner uses")
 local helpers=between(recognition,"trackerPrivate.bannerEffectUses=function()",
     "trackerPrivate.commandPickupForUnits={}")
 local private,states,printed=assert(load([[
@@ -55,6 +57,7 @@ local gStates={currentRound=1}
 local unitResourceDefinitions={unit={{row=1,key="attack",attack=4}}}
 local gameCards=...
 local function unitLayoutResourceState() return nil end
+]]..artifactState..[[
 trackerPrivate.bannerEffectUses=function()
 ]]..helpers..[[
 return trackerPrivate,gStates,unitResourceDefinitions

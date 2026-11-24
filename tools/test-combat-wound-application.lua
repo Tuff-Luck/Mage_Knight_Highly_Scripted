@@ -981,6 +981,7 @@ local blockStart=assert(recognition:find(
 local blockEnd=assert(recognition:find(
     "-- Damage phase. Every unblocked attack",blockStart,true))
 local blockEnv={
+    trackerPrivate={},
     combatConfig={sourceFields={{key="block",family="block"}},
         COMBAT_EFFICIENT_BLOCKS={P={block=true}},COMBAT_RED="red"},
     combatEnemyAttacks=function(enemy) return enemy.attacks end,

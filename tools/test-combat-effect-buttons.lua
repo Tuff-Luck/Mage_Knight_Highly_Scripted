@@ -149,7 +149,7 @@ assert(uiAssets:find("MKChoiceAttackReduction",1,true),"Attack icon registered")
 assert(uiAssets:find("armourReduction\",\"attackReduction",1,true),"Reduction assets available to Global UI")
 local choiceSource=slice(cardRecognition,
     "local function combatReductionChoiceIcon(rule,powered,choice,category)",
-    "-- A single selected icon is centred on the object.")
+    "-- Keep card-attached controls intact while a card is being rearranged.")
 local optionIcon=assert(load(choiceSource.."return combatReductionChoiceIcon"))()
 local reductionRule={enemyEffect={normal={{choice="armour",armourReduce=1},
     {choice="attack",attackReduce=1},{choice="neutral",removeFortify=true}}}}

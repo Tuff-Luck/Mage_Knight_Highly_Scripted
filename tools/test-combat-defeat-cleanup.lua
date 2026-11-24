@@ -90,6 +90,7 @@ env.turnOrder={{seatPos=1}}
 env.deedDeckDiscardZones={[1]="discard"}
 env.playerCombatObjects=function() return objects end
 env.manaClaimRegisterForTurn=function() end
+env.resourceCardsMaximalEffectBeforeEndTurn=function(seat) equal(seat,1,"Throw verdict reconciliation seat") end
 env.combatReleaseAllSummonedEnemies=function() return {} end
 env.getObjectFromGUID=function(guid)
     if guid=="discard" then return {getObjects=function() return {} end} end

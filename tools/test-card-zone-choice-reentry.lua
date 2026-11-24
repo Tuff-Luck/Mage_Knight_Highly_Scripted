@@ -56,6 +56,7 @@ local env={
     safeWaitCondition=function(_,callback,predicate)
         waits[#waits+1]={callback=callback,predicate=predicate}
     end,
+    resourceCardsArtifactBreakClear=function(guid) end, -- No Artifact in this fixture
     unitHistoryValidSources=function() end
 }
 setmetatable(env,{__index=_G})
