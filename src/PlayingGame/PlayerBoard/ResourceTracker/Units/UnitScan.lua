@@ -130,8 +130,9 @@ function M.process(context)
                     activation.lastCounts=unitHistoryCopyCounts(counts)
                 end
                 local decision=unitManaDecision(unit,abilities,activation,counts)
+                local moveRole=combatConfig.unitMoveRole(recordKey,false)
                 local deniedCombat=combatConfig.unitCombatBlocked(unit,abilities,useIndex)
-                    and unitHistoryDecisionHasCombat(abilities,decision)
+                    and unitHistoryDecisionHasCombat(abilities,decision,moveRole)
                 if activation.callOffer and unitSiteMode=="one"
                     and chosenSiteUnit==nil then
                     chosenSiteUnit=unitGUID
@@ -150,6 +151,13 @@ function M.process(context)
                 if (unwounded or activation.frozenCounts~=nil) and sitePermits then
                     local crystalCounts=selected~=nil and selected.bonusColor~=nil
                         and unitManaCounts(unit,seatPos,unitPaymentMana,true) or nil
+                    -- Record the role of a genuinely selected, paid Move even
+                    -- when a prior combat use makes this activation invalid.
+                    -- Otherwise removing the enemy could silently make it legal.
+                    if selected~=nil and (tonumber(selected.move) or 0)>0
+                        and unitAbilityPaid(selected,counts) then
+                        combatConfig.unitMoveRole(recordKey,true)
+                    end
                     local resources=not deniedCombat and selected~=nil
                         and trackerPrivate.unitEffects.unitAbilityResources(selected,counts,crystalCounts,
                             unitCombatBoost,howlPenalty) or nil
