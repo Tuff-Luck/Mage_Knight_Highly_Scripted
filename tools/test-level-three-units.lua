@@ -131,6 +131,8 @@ local targetFunctions=slice(reader,
 local buttonFunction=slice(reader,
     "local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decision,useIndex)",
     "local function clearChoiceButtons()")
+local moveRole=slice(reader,"local function resourceCardsMoveRole(guid,assign)",
+    "function resourceCardsEnemyPresent()")
 local ui=assert(load([[
 local combatCalcOn=true
 local combatPsychicActive=false
@@ -152,7 +154,7 @@ local function resourceCardsChoiceIcon() return nil end
 local function resourceCardsChoiceAssetsFor() return nil,{} end
 local function resourceObjectUiSetTable(_,xml) lastXml=xml end
 local function removeChoiceButtons() end
-]]..targetFunctions..buttonFunction..[[
+]]..moveRole..targetFunctions..buttonFunction..[[
 return {
     key=unitAbilityTargetKey,
     category=unitAbilityTargetCategory,

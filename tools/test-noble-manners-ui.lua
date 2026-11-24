@@ -87,6 +87,10 @@ local env={
     end
 }
 setmetatable(env,{__index=_G})
+local assets=read("src/PlayingGame/UIAssets.lua")
+local sameStart=assert(assets:find("function resourceObjectUiSameXML(left,right)",1,true))
+local sameEnd=assert(assets:find("-- Legacy shared artwork",sameStart,true))
+assert(load(assets:sub(sameStart,sameEnd-1),"Shared UI comparison","t",env))()
 local render=assert(load(uiSection.."\nreturn showChoiceButtons",
     "Noble Manners interaction UI","t",env))()
 -- Check the shared recovery path for an ordinary Action's resource button and

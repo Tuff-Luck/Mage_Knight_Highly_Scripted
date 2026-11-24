@@ -88,6 +88,8 @@ local targetFunctions=slice(source,
 local unitButtons=slice(source,
     "local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decision,useIndex)",
     "local function clearChoiceButtons()")
+local moveRole=slice(source,"local function resourceCardsMoveRole(guid,assign)",
+    "function resourceCardsEnemyPresent()")
 local ui=assert(load([[
 local trackerPrivate={singleAutoEnemyGUID=nil}
 local combatCalcOn=true
@@ -118,7 +120,7 @@ end
 local function resourceCardsChoiceAssetsFor() return nil,{} end
 local function resourceObjectUiSetTable(objUI,xml) objUI.nodes=xml end
 local function removeChoiceButtons(unit) unit.UI.nodes={} end
-]]..targetFunctions..unitButtons..[[
+]]..moveRole..targetFunctions..unitButtons..[[
 return {
     single=function(guid) trackerPrivate.singleAutoEnemyGUID=guid end,
     pending=function(on) pending=on end,

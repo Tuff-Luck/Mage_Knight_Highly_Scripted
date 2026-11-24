@@ -143,6 +143,8 @@ local targetCode=extract(reader,"local function unitAbilityTargetCategory(abilit
 local buttonCode=extract(reader,
     "local function showUnitAbilityButtons(unit,abilities,activation,unwounded,decision,useIndex)",
     "local function clearChoiceButtons()")
+local moveRole=extract(reader,"local function resourceCardsMoveRole(guid,assign)",
+    "function resourceCardsEnemyPresent()")
 local ui=assert(load([[
 local combatCalcOn=true
 local combatPsychicActive=false
@@ -160,7 +162,7 @@ local function resourceCardsChoiceIcon() return nil end
 local function resourceCardsChoiceAssetsFor() return nil,{} end
 local function resourceObjectUiSetTable(u,xml) u.nodes=xml end
 local function removeChoiceButtons(u) u.nodes={} end
-]]..targetCode..buttonCode..[[
+]]..moveRole..targetCode..buttonCode..[[
 return function(unit,abilities,activation,decision)
     showUnitAbilityButtons(unit,abilities,activation,true,decision,1)
     return unit.UI.nodes
