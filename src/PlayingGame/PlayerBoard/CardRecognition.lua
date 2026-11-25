@@ -2961,9 +2961,13 @@ local function combatAssignmentRefreshRows(entries,sources)
         end or nil,trackerPrivate)
 
     if stageProfile~=nil then stageProfile=trackerPrivate.profileCheckpoint("rows.allocation",stageProfile) end
+    local earlyProfile
+    if stageProfile~=nil then earlyProfile=trackerPrivate.profileStart() end
     combatConfig.applyExplosiveBoltRange(entries,groups,allocated,sources)
+    if earlyProfile~=nil then earlyProfile=trackerPrivate.profileCheckpoint("early.explosiveBolt",earlyProfile) end
 
     trackerPrivate.flameWave(entries,groups,allocated,sources)
+    if earlyProfile~=nil then earlyProfile=trackerPrivate.profileCheckpoint("early.flameWave",earlyProfile) end
 
     local rangedBeforeBlock,conditionalDestroyed=trackerPrivate.conditionalBlockEffects.destroyAfterBlock(entries,groups,allocated)
     if conditionalDestroyed then
@@ -2982,19 +2986,24 @@ local function combatAssignmentRefreshRows(entries,sources)
         end
     end
 
+    if earlyProfile~=nil then earlyProfile=trackerPrivate.profileCheckpoint("early.conditionalDestroy",earlyProfile) end
     local emptyTarget={sources={},details={}}
     local defended=combatApplyDefend(entries,groups,allocated)
     local defendMarks={}
     for index,amount in pairs(defended) do defendMarks[entries[index].guid]=amount end
     combatSyncDefenderMark(defendMarks)
+    if earlyProfile~=nil then earlyProfile=trackerPrivate.profileCheckpoint("early.defender",earlyProfile) end
     trackerPrivate.conditionalBlockEffects.burningShield(entries,allocated,emptyTarget)
+    if earlyProfile~=nil then earlyProfile=trackerPrivate.profileCheckpoint("early.burningShield",earlyProfile) end
     local function defeatedCount(group,rangedOnly)
         return trackerPrivate.lateCombatPhase.defeatedCount(entries,group,rangedOnly)
     end
-    local rowBlock=trackerPrivate.earlyCombatPhase.resolve(entries,groups,allocated,emptyTarget,rangedBeforeBlock)
+    local rowBlock=trackerPrivate.earlyCombatPhase.resolve(entries,groups,allocated,emptyTarget,rangedBeforeBlock,trackerPrivate)
+    if earlyProfile~=nil then earlyProfile=trackerPrivate.profileCheckpoint("early.resolve",earlyProfile) end
     local earlyLock=combatPhaseLock(combatAssignmentActiveSeat())
     rowBlock=trackerPrivate.earlyCombatPhase.snapshot(
         entries,groups,groupOf,rowBlock,earlyLock,combatConfig.phasePreview)
+    if earlyProfile~=nil then earlyProfile=trackerPrivate.profileCheckpoint("early.snapshot",earlyProfile) end
     local blockedEnemies=trackerPrivate.earlyCombatPhase.countBlockedEnemies(entries,groups,rowBlock)
     local blockSeat=combatAssignmentActiveSeat()
     if blockSeat~=nil then
@@ -3004,6 +3013,7 @@ local function combatAssignmentRefreshRows(entries,sources)
             resourceCardsSourceChanged()
         end
     end
+    if earlyProfile~=nil then trackerPrivate.profileFinish("early.blockedCount",earlyProfile) end
     if stageProfile~=nil then stageProfile=trackerPrivate.profileCheckpoint("rows.earlyCombat",stageProfile) end
     -- Damage phase: each unblocked attack of an enemy that is not already defeated starts on the Hero.
     local damageSeat=combatAssignmentActiveSeat()
@@ -5544,13 +5554,13 @@ local function renderSeat(seatPos)
                 if type(value)=="number" and value~=0 then fields[#fields+1]=key.."="..value end
             end
             table.sort(fields)
-            descriptions[#descriptions+1]=tostring(data~=nil and (data.name or data.resourceKey) or card.guid)
-                .."("..card.guid..","..cardPosture(card)..",powered="..tostring(record~=nil and record.powered==true)
+            local name=trackerPrivate.profileCardName(data,card.guid)
+            descriptions[card.guid]=name.."("..card.guid..","..cardPosture(card)..",powered="..tostring(record~=nil and record.powered==true)
                 ..",links="..tostring(record~=nil and #(record.links or {}) or 0)..","..table.concat(fields,",")..")"
         end
         trackerPrivate.profileContext("cards="..#cards.." enemies="..#enemyEntries
             .." units="..tostring(unitState~=nil and #(unitState.units or {}) or 0)
-            .." | "..table.concat(descriptions,"; "))
+            ,descriptions)
     end
     trackerPrivate.scanPublication.publish({
         seatPos=seatPos, records=records, resourceCardsMoveRole=resourceCardsMoveRole,

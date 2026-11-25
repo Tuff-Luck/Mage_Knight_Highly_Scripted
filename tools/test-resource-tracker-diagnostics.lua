@@ -225,3 +225,32 @@ assert(report:find("card.xml=1",1,true) and report:find("test.stage=91.00",1,tru
 assert(command("slow"))
 assert(command("off"))
 assert(not private.profileCapturing())
+
+-- Follow-up frames may be slow even when Lua is fast; retain the report once.
+assert(command("slow 80"))
+local frames={}
+Wait={frames=function(callback,n) assert(n==1) frames[#frames+1]=callback end}
+Time={delta_time=0.005}
+private.traceEvent("source.changed",2)
+scan=private.profileScanStart(2)
+private.profileContext("cards=1",{a="Swiftness(a,sideways)"})
+tick=tick+0.010
+private.profileScanFinish(scan)
+assert(#frames==1)
+frames[1]()
+Time.delta_time=0.090 frames[2]()
+Time.delta_time=0.008 frames[3]()
+assert(#frames==3)
+firstMessage=#messages
+assert(command("slow"))
+report=table.concat(messages,"\n",firstMessage+1)
+assert(report:find("retained=1",1,true) and report:find("frames(ms)=5.00,90.00,8.00",1,true))
+assert(report:find("source.changed",1,true))
+assert(private.profileCardName({name={"Swiftness","Other"}},"a")=="Swiftness")
+scan=private.profileScanStart(2)
+private.profileContext("cards=1",{a="Swiftness(a,upright)"})
+private.profileScanFinish(scan)
+firstMessage=#messages assert(command("last"))
+assert(table.concat(messages,"\n",firstMessage+1):find("card.changed=1",1,true))
+assert(command("off"))
+Wait=nil Time=nil

@@ -446,11 +446,43 @@ function attackAssignmentsRefreshTargetButtons(monsters)
         or next(readyUnitPending)~=nil then syncTargetButtons(monsters) end
 end
 
-local function refreshRenderedLines(force)
+-- Compare the actual assignment geometry and colour as a multiset. Other
+-- vector owners may replace the table's lines between calculator refreshes.
+local function assignmentLinesIntact(desired,current)
+    local function key(line)
+        local geometry=vectorLineKey(line)
+        local r,g,b=vectorComponents(line.color)
+        if geometry==nil or r==nil or g==nil or b==nil then return nil end
+        return geometry..string.format(":%.3f,%.3f,%.3f",r,g,b)
+    end
+    local counts={}
+    for _,line in ipairs(desired) do
+        local k=key(line)
+        if k==nil then return false end
+        counts[k]=(counts[k] or 0)+1
+    end
+    for _,line in pairs(current) do
+        local geometry=vectorLineKey(line)
+        if isAssignmentLine(line) or (geometry~=nil and renderedAssignmentLineKeys[geometry]) then
+            local k=key(line)
+            if k==nil or (counts[k] or 0)==0 then return false end
+            counts[k]=counts[k]-1
+        end
+    end
+    for _,count in pairs(counts) do if count~=0 then return false end end
+    return true
+end
+
+local function refreshRenderedLines(force,verify)
 	local lines=activeVisualLines()
 	local signature=vectorLineSignature(lines)
-	if not force and signature==renderedSignature then return end
-	Global.setVectorLines(attackAssignmentsAppendVectorLines(Global.getVectorLines() or {},lines))
+    local current
+    if not force and signature==renderedSignature then
+        if not verify then return end
+        current=Global.getVectorLines() or {}
+        if assignmentLinesIntact(lines,current) then return end
+    end
+	Global.setVectorLines(attackAssignmentsAppendVectorLines(current or Global.getVectorLines() or {},lines))
     if resourceCardsTraceMutation~=nil then resourceCardsTraceMutation("arrow.redraw",#lines.." lines") end
 	renderedSignature=signature
 end
@@ -817,9 +849,9 @@ function attackAssignmentsDamageSync(spec)
     if signature~=damageSignature or clearanceChanged then
         damageSignature=signature
         rebuildDamageButtons()
-		-- Red damage lines coexist with Unit source-target lines. On block/unblock
-		-- transitions, force reconciliation even if another system redrew vectors.
-		refreshRenderedLines(true)
+        -- Damage amounts do not themselves change line geometry. Verify the
+        -- actual lines on the table instead of forcing an identical redraw.
+        refreshRenderedLines(false,true)
 	end
     if next(damageSpec.units)==nil and next(damageTargets)==nil and damagePending==nil
         and next(damageButtonObjects)==nil and next(damageOwnerSignatures)==nil

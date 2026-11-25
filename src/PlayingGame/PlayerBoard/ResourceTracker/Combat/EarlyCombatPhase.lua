@@ -1,10 +1,13 @@
 -- Ranged/Siege and Block phase resolution; immutable earlier-phase snapshots.
 return function(combatBlockResult,combatGroupEntry,combatRangeResult,combatRangeGroupEntry,
     combatBossPhasePlan,combatEnemyAttacks,combatEnemyHasTrait,combatFrozenCopy)
-    local function resolve(entries,groups,allocated,emptyTarget,rangedBeforeBlock)
+    local function resolve(entries,groups,allocated,emptyTarget,rangedBeforeBlock,profiler)
+        local tracing=profiler~=nil and profiler.traceEnabled
         local rowBlock={}
         for _,group in ipairs(groups) do
             local members,blockedAll={},{}
+            local profile
+            if tracing then profile=profiler.profileStart() end
             for _,index in ipairs(group.members) do
                 local entry=entries[index]
                 local target=allocated[index] or emptyTarget
@@ -19,6 +22,7 @@ return function(combatBlockResult,combatGroupEntry,combatRangeResult,combatRange
                     group.sources[#group.sources+1]=source
                 end
             end
+            if profile~=nil then profile=profiler.profileCheckpoint("early.resolveBlock",profile) end
             group.entry,group.attackArmour=combatGroupEntry(members,blockedAll)
             group.rangeTotal,group.rangeArmour,group.rangeDefeated,group.fortification=
                 combatRangeResult(combatRangeGroupEntry(members),group.sources)
@@ -34,6 +38,7 @@ return function(combatBlockResult,combatGroupEntry,combatRangeResult,combatRange
                     member.rangeDead=plan.killed[member.guid]==true
                 end
             end
+            if profile~=nil then profile=profiler.profileCheckpoint("early.resolveRange",profile) end
             -- Disease resolves after Block, not during Ranged/Siege. Every attack
             -- of the actual enemy must be blocked; an immune enemy gets no effect.
             if not group.rangeDefeated then
@@ -103,6 +108,7 @@ return function(combatBlockResult,combatGroupEntry,combatRangeResult,combatRange
             -- the damage assignments establish which Units survive into Attack.
             group.destroyed=not members[1].attackOnly and #group.members==1
                 and entries[group.members[1]].destroyed==true
+            if profile~=nil then profiler.profileFinish("early.postBlockEffects",profile) end
         end
         return rowBlock
     end

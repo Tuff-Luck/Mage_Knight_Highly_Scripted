@@ -53,7 +53,10 @@ local damageEnv={
     combatCommittedLock=function() return nil end,
     damageUsedBy=function() return nil end,
     rebuildDamageButtons=function() rebuilds=rebuilds+1 end,
-    refreshRenderedLines=function() redraws=redraws+1 end,
+    refreshRenderedLines=function(force,verify)
+        assert(force==false and verify==true,"Damage preview verifies rather than forces redraw")
+        redraws=redraws+1
+    end,
     hasRuntimeWork=function() return false end,
     resourceCardsPanelOpen=function() return true end,
     getObjectFromGUID=function() return nil end
@@ -79,6 +82,39 @@ assert(rebuilds==3 and redraws==3 and next(damageEnv.damageTargets)==nil,
     "Losing eligible Unit cleans existing assignment")
 sync(0,{})
 assert(rebuilds==3 and redraws==3,"Clean no-Unit state remains cheap")
+-- Verify recovery after another vector owner removes, duplicates or recolours an arrow.
+local helperStart=assert(code:find("local function assignmentLinesIntact(",1,true))
+local helperEnd=assert(code:find("function attackAssignmentsRefreshReadyUI()",helperStart,true))
+local desired={{points={{1,0,0},{2,0,0}},color={1,0,0},thickness=0.1}}
+local current=desired
+local writes=0
+local vectorEnv={
+    vectorLineKey=function(line) return line.key or "geometry" end,
+    vectorComponents=function(vec) return vec[1],vec[2],vec[3] end,
+    isAssignmentLine=function(line) return not line.foreign end,
+    renderedAssignmentLineKeys={geometry=true},
+    activeVisualLines=function() return desired end,
+    vectorLineSignature=function() return "same" end,
+    renderedSignature="same",
+    attackAssignmentsAppendVectorLines=function() return desired end,
+    Global={getVectorLines=function() return current end,setVectorLines=function() writes=writes+1 end}
+}
+setmetatable(vectorEnv,{__index=_G})
+local refresh=assert(load(code:sub(helperStart,helperEnd-1).."\nreturn refreshRenderedLines","Vector verification","t",vectorEnv))()
+refresh(false,true)
+assert(writes==0,"Existing correct arrows skip vector write")
+current={}
+refresh(false,true)
+assert(writes==1,"Missing arrow is repaired")
+current={desired[1],desired[1]}
+refresh(false,true)
+assert(writes==2,"Duplicate arrow is repaired")
+current={{color={0,0,1},thickness=0.1}}
+refresh(false,true)
+assert(writes==3,"Recoloured arrow is repaired")
+current={desired[1],{key="unrelated",foreign=true,color={0,0,0}}}
+refresh(false,true)
+assert(writes==3,"Unrelated vectors do not require rewrite")
 -- Exercise the real batch helper with observable publish and failure behaviour.
 local batchFirst=assert(code:find("local sourceTargetBatch",1,true))
 local batchLast=assert(code:find("-- A source can own several arrows",batchFirst,true))

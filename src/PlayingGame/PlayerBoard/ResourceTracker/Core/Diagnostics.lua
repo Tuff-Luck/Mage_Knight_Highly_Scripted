@@ -10,10 +10,10 @@ return function(trackerPrivate)
     -- Slow capture is separately opt-in. Reports are bounded and printed on
     -- demand, so console output does not itself hitch during the drop.
     local slowThreshold,activeReport,lastReport
-    local slowReports,pendingTriggers,previousCombat={}, {}, {}
+    local slowReports,pendingTriggers,previousCombat,previousCards={}, {}, {}, {}
     local function resetReports()
         activeReport,lastReport=nil,nil
-        slowReports,pendingTriggers,previousCombat={}, {}, {}
+        slowReports,pendingTriggers,previousCombat,previousCards={}, {}, {}, {}
     end
     trackerPrivate.profileMutation=function(kind,detail)
         local report=activeReport
@@ -23,8 +23,33 @@ return function(trackerPrivate)
             report.changes[#report.changes+1]=kind.." "..tostring(detail)
         end
     end
-    trackerPrivate.profileContext=function(context)
-        if activeReport~=nil then activeReport.context=context end
+    trackerPrivate.profileCardName=function(data,guid)
+        local name=data~=nil and data.name or nil
+        if type(name)=="table" then name=name.en or name[1] end
+        if type(name)~="string" or name=="" then name=data~=nil and data.resourceKey or nil end
+        return type(name)=="string" and name or tostring(guid)
+    end
+    trackerPrivate.profileContext=function(context,cards)
+        if activeReport==nil then return end
+        activeReport.context=context
+        if cards==nil then return end
+        local seat=activeReport.seat or 0
+        local before=previousCards[seat]
+        local descriptions={}
+        for guid,description in pairs(cards) do
+            descriptions[#descriptions+1]=description
+            if before~=nil and before[guid]~=description then
+                trackerPrivate.profileMutation(before[guid]==nil and "card.added" or "card.changed",description)
+            end
+        end
+        if before~=nil then
+            for guid,description in pairs(before) do
+                if cards[guid]==nil then trackerPrivate.profileMutation("card.removed",description) end
+            end
+        end
+        previousCards[seat]=cards
+        table.sort(descriptions)
+        activeReport.context=context.." | "..table.concat(descriptions,"; ")
     end
     trackerPrivate.profileCombatState=function(seat,states,wounds)
         if activeReport==nil then return end
@@ -49,8 +74,14 @@ return function(trackerPrivate)
     local function printReport(report)
         if report==nil then log("[TrackerHitch] No completed captured scan") return end
         local elapsed=report.ms~=nil and string.format("%.2fms",report.ms) or "clock unavailable"
+        local frames={}
+        for index=1,3 do
+            local ms=(report.frames or {})[index]
+            frames[index]=ms~=nil and string.format("%.2f",ms) or "-"
+        end
         log("[TrackerHitch] scan="..report.id.." seat="..tostring(report.seat).." "..elapsed
-            .." frame="..(report.frameMs~=nil and string.format("%.2fms",report.frameMs) or "unavailable/pending"))
+            .." frames(ms)="..table.concat(frames,",")
+            ..(report.followup and " followup scan queued" or ""))
         log("[TrackerHitch] "..(report.context or "context unavailable").." wounds="..tostring(report.wounds or "-"))
         log("[TrackerHitch] triggers="..(#report.triggers>0 and table.concat(report.triggers,"; ") or "no identified object event"))
         local stages={}
@@ -179,6 +210,8 @@ return function(trackerPrivate)
                 report.ms=math.max(0,(finished-sample.started)*1000)
             end
             lastReport=report
+            report.followup=trackerPrivate.pendingSeatRender~=nil
+                and trackerPrivate.pendingSeatRender[report.seat or 0]~=nil
             local threshold=slowThreshold
             local saved=false
             local function retain()
@@ -194,12 +227,20 @@ return function(trackerPrivate)
             -- Guard missing/restricted APIs and do not hold live object handles.
             if Wait~=nil and type(Wait.frames)=="function" then
                 local reports=slowReports
-                Wait.frames(function()
-                    if reports~=slowReports or not trackerPrivate.traceEnabled then return end
+                report.frames={}
+                local index=0
+                local function sampleFrame()
+                    if reports~=slowReports or not trackerPrivate.traceEnabled or slowThreshold==nil then return end
+                    index=index+1
                     local ok,delta=pcall(function() return Time.delta_time end)
-                    if ok and type(delta)=="number" then report.frameMs=delta*1000 end
+                    if ok and type(delta)=="number" then
+                        report.frames[index]=delta*1000
+                        report.frameMs=math.max(report.frameMs or 0,report.frames[index])
+                    end
                     retain()
-                end,1)
+                    if index<3 then Wait.frames(sampleFrame,1) end
+                end
+                Wait.frames(sampleFrame,1)
             end
         end
         if sample.kb==nil then return end
@@ -237,12 +278,14 @@ return function(trackerPrivate)
         local line=string.format("%04d %s seat=%s guid=%s %s",
             trackerPrivate.traceSequence,tostring(event),tostring(seat or "-"),
             tostring(guid or "-"),tostring(detail or ""))
-        if slowThreshold~=nil and seat~=nil and guid~=nil
-            and (event=="move.complete" or event=="settle.ready" or event=="render.queued"
+        if slowThreshold~=nil and seat~=nil
+            and (event=="move.complete" or event=="settle.ready" or event=="settle.done"
+                or event=="render.queued" or event=="render.coalesced" or event=="source.changed"
                 or event=="zone.enter" or event=="zone.leave") then
             local list=pendingTriggers[seat] or {}
             pendingTriggers[seat]=list
-            list[#list+1]=event.." "..guid
+            list[#list+1]=event..(guid~=nil and " "..guid or "")
+                ..(detail~=nil and " "..tostring(detail) or "")
             if #list>12 then table.remove(list,1) end
         end
         local lines=trackerPrivate.traceLines
