@@ -22,7 +22,7 @@ local trackerUI=read("src/PlayingGame/Interface/UI.lua")
 assert(trackerUI:find('local canModifyInfluence=not combat and base>0',1,true),
     "Interaction modifiers require positive Influence outside combat")
 assert(trackerUI:find('showRow("InfluAmountPlain",influenceBase>0,34)',1,true)
-    and trackerUI:find('joinLang({RESOURCE_TRACKER_FIELDS.InfluAmountPlain[3],influenceBase})',1,true),
+    and trackerUI:find('setResourceTrackerText("InfluAmountPlainText",{RESOURCE_TRACKER_FIELDS.InfluAmountPlain[3],influenceBase})',1,true),
     "The headline Influence row must exclude Interaction modifiers")
 assert(trackerUI:find('refreshUnitOfferHighlights(interactionTotal)',1,true),
     "Unit affordability uses Interaction Influence, not Learning's ordinary pool")

@@ -201,3 +201,27 @@ assert(next(private.profileMemory)==nil,"Starting trace resets memory samples")
 assert(gStates.traceLines==nil and gStates.traceEnabled==nil,
     "Diagnostics must remain runtime-only")
 print("Resource Tracker diagnostics wiring, commands and bounded buffer passed")
+
+-- Slow reports retain scan-local timings even without heap support.
+assert(command("slow 80"))
+local tick=1
+private.profileClock=function() return tick end
+private.profileHeap=function() return nil end
+private.traceEvent("settle.ready",2,"bbbbbb")
+local scan=private.profileScanStart(2)
+assert(private.profileCapturing())
+private.profileContext("cards=7 enemies=1")
+private.profileMutation("card.xml","bbbbbb")
+local stage=private.profileStart()
+tick=tick+0.091
+private.profileFinish("test.stage",stage)
+private.profileScanFinish(scan)
+assert(not private.profileCapturing())
+local firstMessage=#messages
+assert(command("last"))
+local report=table.concat(messages,"\n",firstMessage+1)
+assert(report:find("91.00ms",1,true) and report:find("settle.ready bbbbbb",1,true))
+assert(report:find("card.xml=1",1,true) and report:find("test.stage=91.00",1,true))
+assert(command("slow"))
+assert(command("off"))
+assert(not private.profileCapturing())

@@ -93,7 +93,10 @@ return function(deps)
             if rule~=nil and rule.grailFamePerHealing~=nil and not powered then
                 xml[#xml+1]=trackerPrivate.grailFameButton(card,uiRotation,depth)
             end
-            if not resourceObjectUiSameXML(old,xml) then resourceObjectUiSetTable(card.UI,xml) end
+            if not resourceObjectUiSameXML(old,xml) then
+                resourceObjectUiSetTable(card.UI,xml)
+                if trackerPrivate.traceEnabled and trackerPrivate.profileMutation~=nil then trackerPrivate.profileMutation("card.xml",card.guid) end
+            end
             combatConfig.cardButtonIds[card.guid]=combatConfig.cardChoiceIds(card.guid,xml)
             choiceButtonShown[card.guid]="artifact-break-only:"..tostring(resourceCardsArtifactBroken(card.guid,card))
             return
@@ -677,6 +680,7 @@ return function(deps)
         -- New image registrations still need the asset-list writer.
         if assets~=nil or not resourceObjectUiSameXML(previousXml,xml) then
             resourceObjectUiSetTable(card.UI,xml,assets)
+            if trackerPrivate.traceEnabled and trackerPrivate.profileMutation~=nil then trackerPrivate.profileMutation("card.xml",card.guid) end
             if trackerPrivate.traceEnabled then
                 trackerPrivate.traceEvent("choice.write",nil,card.guid,
                     "buttons="..tostring(#combatConfig.cardChoiceIds(card.guid,xml)))

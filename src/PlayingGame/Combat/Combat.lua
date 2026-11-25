@@ -1668,7 +1668,11 @@ function combatSetDefeatMarks(tracked,defeated,partial)
 	combatDefeatMarksActive=true
 	combatDefeatTracked,combatDefeatDefeated,combatDefeatPartial=tracked,defeated,partial
 	combatDefeatRefreshTokens(refresh)
+    if resourceCardsTraceMutation~=nil then
+        for guid in pairs(refresh) do resourceCardsTraceMutation("defeat.reconcile",guid) end
+    end
 	if next(changed)~=nil or trackingChanged or progressChanged then
+        if resourceCardsTraceMutation~=nil then resourceCardsTraceMutation("defeat.mainUIUpdate") end
 		mainUIUpdate("Combat Calculator defeat marks")
 	end
 end

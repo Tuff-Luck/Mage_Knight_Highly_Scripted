@@ -146,8 +146,13 @@ local arrows={assignmentRegistry=registry,
     end,
     persistAssignments=function() saves=saves+1 end,
     refreshRenderedLines=function() redraws=redraws+1 end}
-isolate(assignments,"function attackAssignmentsReconcileEffectTarget(",
-    "-- Removes arrows of sources",arrows)
+local batchStart=assert(assignments:find("local sourceTargetBatch",1,true))
+local batchEnd=assert(assignments:find("-- A source can own several arrows",batchStart,true))
+local reconcileStart=assert(assignments:find("function attackAssignmentsReconcileEffectTarget(",1,true))
+local reconcileEnd=assert(assignments:find("-- Removes arrows of sources",reconcileStart,true))
+setmetatable(arrows,{__index=_G})
+assert(load(assignments:sub(batchStart,batchEnd-1)..assignments:sub(reconcileStart,reconcileEnd-1),
+    "recolour batch regression","t",arrows))()
 local reconcile=arrows.attackAssignmentsReconcileEffectTarget
 reconcile("fear","one","other")
 eq(registry.a.kind,"other","Saved blue arrow recoloured")

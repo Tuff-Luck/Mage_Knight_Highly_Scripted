@@ -451,6 +451,7 @@ local function refreshRenderedLines(force)
 	local signature=vectorLineSignature(lines)
 	if not force and signature==renderedSignature then return end
 	Global.setVectorLines(attackAssignmentsAppendVectorLines(Global.getVectorLines() or {},lines))
+    if resourceCardsTraceMutation~=nil then resourceCardsTraceMutation("arrow.redraw",#lines.." lines") end
 	renderedSignature=signature
 end
 

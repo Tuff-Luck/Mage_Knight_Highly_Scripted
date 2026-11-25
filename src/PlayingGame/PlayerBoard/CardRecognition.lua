@@ -24,6 +24,9 @@ require("PlayingGame.PlayerBoard.ResourceTracker.Core.Diagnostics")(trackerPriva
 function resourceCardsTraceCommand(command,playerColor)
     return trackerPrivate.traceCommand(command,playerColor)
 end
+function resourceCardsTraceMutation(kind,detail)
+    if trackerPrivate.traceEnabled then trackerPrivate.profileMutation(kind,detail) end
+end
 local shown={}
 -- Runtime choices are kept here; explicit played choices are serialized by TrackerLifecycle.
 local selectedResourceByGUID={}
@@ -1552,7 +1555,17 @@ local function combatPanelSetAttribute(id,attribute,value)
     local writeProfile
     if trackerPrivate.traceEnabled then writeProfile=trackerPrivate.profileStart() end
     UI.setAttribute(id,attribute,value)
-    if writeProfile~=nil then trackerPrivate.profileUIWrite(id,writeProfile) end
+    if writeProfile~=nil then
+        trackerPrivate.profileUIWrite(id,writeProfile)
+        if trackerPrivate.profileCapturing~=nil and trackerPrivate.profileCapturing() then
+            trackerPrivate.profileMutation("combat.uiWrite")
+            if (attribute=="active" or attribute=="height" or attribute=="preferredHeight"
+                or attribute=="interactable") and (id:find("CombatApplyWounds",1,true)
+                or id:find("CombatTotal",1,true) or id=="CombatEnemyPanel") then
+                trackerPrivate.profileMutation("combat.layout",id.." "..attribute.."="..tostring(value))
+            end
+        end
+    end
     trackerPrivate.combatPanelAttributes[key]=value
     if trackerPrivate.traceEnabled then trackerPrivate.profileCount("ui.attribute.written") end
 end
@@ -3239,6 +3252,16 @@ local function combatAssignmentRefreshRows(entries,sources)
                 end
             end
         end
+    end
+    if trackerPrivate.traceEnabled and trackerPrivate.profileCapturing() then
+        local states={}
+        for index,entry in ipairs(entries) do
+            states[entry.guid]=(defeatedGuids[entry.guid] and "defeated"
+                or (partialGuids[entry.guid] and "partial" or "alive"))
+                .."/"..(rowBlock[index].allBlocked and "blocked" or "unblocked")
+        end
+        trackerPrivate.profileCombatState(damageSeat or 0,states,
+            tostring(totalHeroWounds).."/"..tostring(totalDiscardWounds))
     end
     combatSetDefeatMarks(trackedGuids,defeatedGuids,partialGuids)
     if stageProfile~=nil then stageProfile=trackerPrivate.profileCheckpoint("rows.defeatMarks",stageProfile) end
@@ -5269,7 +5292,7 @@ local function renderSeat(seatPos)
         end
     end
     trackerPrivate.renderCombatNight=nil
-    local profile=trackerPrivate.traceEnabled and trackerPrivate.profileScanStart() or nil
+    local profile=trackerPrivate.traceEnabled and trackerPrivate.profileScanStart(seatPos) or nil
     local scanStage
     if profile~=nil then scanStage=profile.started end
 
@@ -5511,6 +5534,24 @@ local function renderSeat(seatPos)
     })
 
     if scanStage~=nil then scanStage=trackerPrivate.profileCheckpoint("scan.finalization",scanStage) end
+    if profile~=nil and trackerPrivate.profileCapturing() then
+        local descriptions={}
+        for _,card in ipairs(cards) do
+            local record=records[card.guid]
+            local data=gameCards[card.guid]
+            local fields={}
+            for key,value in pairs(record~=nil and record.resources or {}) do
+                if type(value)=="number" and value~=0 then fields[#fields+1]=key.."="..value end
+            end
+            table.sort(fields)
+            descriptions[#descriptions+1]=tostring(data~=nil and (data.name or data.resourceKey) or card.guid)
+                .."("..card.guid..","..cardPosture(card)..",powered="..tostring(record~=nil and record.powered==true)
+                ..",links="..tostring(record~=nil and #(record.links or {}) or 0)..","..table.concat(fields,",")..")"
+        end
+        trackerPrivate.profileContext("cards="..#cards.." enemies="..#enemyEntries
+            .." units="..tostring(unitState~=nil and #(unitState.units or {}) or 0)
+            .." | "..table.concat(descriptions,"; "))
+    end
     trackerPrivate.scanPublication.publish({
         seatPos=seatPos, records=records, resourceCardsMoveRole=resourceCardsMoveRole,
         combatForgetPhysicalSourceTargets=combatForgetPhysicalSourceTargets,

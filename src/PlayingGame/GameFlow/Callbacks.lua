@@ -244,7 +244,7 @@ end
 function onChat(message, player)
 	if player~=nil and player.admin==true then
         -- Opt-in resource tracker trace; only the admin can dump the ring log.
-        local traceAction=type(message)=="string" and message:match("^!trackertrace%s*(%a*)%s*$") or nil
+        local traceAction=type(message)=="string" and (message:match("^!trackertrace%s+(slow%s+%d+)%s*$") or message:match("^!trackertrace%s*(%a*)%s*$")) or nil
         if traceAction~=nil and resourceCardsTraceCommand~=nil then
             if traceAction=="" then traceAction="status" end
             if resourceCardsTraceCommand(traceAction,player.color) then return false end

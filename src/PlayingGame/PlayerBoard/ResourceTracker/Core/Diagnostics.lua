@@ -7,6 +7,69 @@ return function(trackerPrivate)
     trackerPrivate.traceLines={}
     trackerPrivate.traceSequence=0
     trackerPrivate.profileStats={}
+    -- Slow capture is separately opt-in. Reports are bounded and printed on
+    -- demand, so console output does not itself hitch during the drop.
+    local slowThreshold,activeReport,lastReport
+    local slowReports,pendingTriggers,previousCombat={}, {}, {}
+    local function resetReports()
+        activeReport,lastReport=nil,nil
+        slowReports,pendingTriggers,previousCombat={}, {}, {}
+    end
+    trackerPrivate.profileMutation=function(kind,detail)
+        local report=activeReport
+        if report==nil then return end
+        report.mutations[kind]=(report.mutations[kind] or 0)+1
+        if detail~=nil and #report.changes<24 then
+            report.changes[#report.changes+1]=kind.." "..tostring(detail)
+        end
+    end
+    trackerPrivate.profileContext=function(context)
+        if activeReport~=nil then activeReport.context=context end
+    end
+    trackerPrivate.profileCombatState=function(seat,states,wounds)
+        if activeReport==nil then return end
+        local before=previousCombat[seat]
+        if before~=nil then
+            for guid,state in pairs(states) do
+                if before.states[guid]~=state then
+                    trackerPrivate.profileMutation("combat.transition",guid.." "..tostring(before.states[guid] or "new").." -> "..state)
+                end
+            end
+            for guid in pairs(before.states) do
+                if states[guid]==nil then trackerPrivate.profileMutation("combat.transition",guid.." removed") end
+            end
+            if before.wounds~=wounds then
+                trackerPrivate.profileMutation("wounds.transition",before.wounds.." -> "..wounds)
+            end
+        end
+        previousCombat[seat]={states=states,wounds=wounds}
+        activeReport.wounds=wounds
+    end
+    trackerPrivate.profileCapturing=function() return activeReport~=nil end
+    local function printReport(report)
+        if report==nil then log("[TrackerHitch] No completed captured scan") return end
+        local elapsed=report.ms~=nil and string.format("%.2fms",report.ms) or "clock unavailable"
+        log("[TrackerHitch] scan="..report.id.." seat="..tostring(report.seat).." "..elapsed
+            .." frame="..(report.frameMs~=nil and string.format("%.2fms",report.frameMs) or "unavailable/pending"))
+        log("[TrackerHitch] "..(report.context or "context unavailable").." wounds="..tostring(report.wounds or "-"))
+        log("[TrackerHitch] triggers="..(#report.triggers>0 and table.concat(report.triggers,"; ") or "no identified object event"))
+        local stages={}
+        for name,stat in pairs(report.stages) do
+            if stat.ms>0 then stages[#stages+1]={name=name,ms=stat.ms} end
+        end
+        table.sort(stages,function(a,b) return a.ms==b.ms and a.name<b.name or a.ms>b.ms end)
+        local parts={}
+        for i=1,math.min(#stages,16) do
+            local stage=stages[i]
+            parts[#parts+1]=stage.name.."="..string.format("%.2f",stage.ms)
+        end
+        log("[TrackerHitch] stages (nested, ms): "..table.concat(parts," "))
+        parts={}
+        for kind,count in pairs(report.mutations) do parts[#parts+1]=kind.."="..count end
+        table.sort(parts)
+        log("[TrackerHitch] mutations: "..table.concat(parts," "))
+        for _,change in ipairs(report.changes) do log("[TrackerHitch] "..change) end
+    end
     -- Lua CPU time when available; counts still work without os.clock.
     trackerPrivate.profileClock=function()
         if os~=nil and type(os.clock)=="function" then return os.clock() end
@@ -29,6 +92,12 @@ return function(trackerPrivate)
                 stats.ms=stats.ms+ms
                 stats.maxMs=math.max(stats.maxMs,ms)
                 stats.timed=stats.timed+1
+                if activeReport~=nil then
+                    local stage=activeReport.stages[name] or {ms=0,count=0}
+                    activeReport.stages[name]=stage
+                    stage.ms=stage.ms+ms
+                    stage.count=stage.count+1
+                end
             end
         end
     end
@@ -84,8 +153,13 @@ return function(trackerPrivate)
         return ok and type(kb)=="number" and kb or nil
     end
     trackerPrivate.profileMemory={}
-    trackerPrivate.profileScanStart=function()
+    trackerPrivate.profileScanStart=function(seat)
         if not trackerPrivate.traceEnabled then return nil end
+        if slowThreshold~=nil then
+            activeReport={id=trackerPrivate.traceSequence,seat=seat,stages={},mutations={},changes={},
+                triggers=pendingTriggers[seat or 0] or {}}
+            pendingTriggers[seat or 0]=nil
+        end
         local memory=trackerPrivate.profileMemory
         local kb
         if not memory.unavailable then
@@ -98,6 +172,36 @@ return function(trackerPrivate)
         if sample==nil or not trackerPrivate.traceEnabled then return end
         local finished=trackerPrivate.profileClock() or false
         trackerPrivate.profileFinish("tracker.scan",sample.started,finished)
+        local report=activeReport
+        activeReport=nil
+        if report~=nil then
+            if type(sample.started)=="number" and type(finished)=="number" then
+                report.ms=math.max(0,(finished-sample.started)*1000)
+            end
+            lastReport=report
+            local threshold=slowThreshold
+            local saved=false
+            local function retain()
+                if saved or threshold==nil or not trackerPrivate.traceEnabled then return end
+                if (report.ms or 0)>=threshold or (report.frameMs or 0)>=threshold then
+                    saved=true
+                    slowReports[#slowReports+1]=report
+                    if #slowReports>8 then table.remove(slowReports,1) end
+                end
+            end
+            retain()
+            -- TTS frame delta is an engine timing observation, not a CPU timer.
+            -- Guard missing/restricted APIs and do not hold live object handles.
+            if Wait~=nil and type(Wait.frames)=="function" then
+                local reports=slowReports
+                Wait.frames(function()
+                    if reports~=slowReports or not trackerPrivate.traceEnabled then return end
+                    local ok,delta=pcall(function() return Time.delta_time end)
+                    if ok and type(delta)=="number" then report.frameMs=delta*1000 end
+                    retain()
+                end,1)
+            end
+        end
         if sample.kb==nil then return end
         local memory=trackerPrivate.profileMemory
         local kb=trackerPrivate.profileHeap()
@@ -133,6 +237,14 @@ return function(trackerPrivate)
         local line=string.format("%04d %s seat=%s guid=%s %s",
             trackerPrivate.traceSequence,tostring(event),tostring(seat or "-"),
             tostring(guid or "-"),tostring(detail or ""))
+        if slowThreshold~=nil and seat~=nil and guid~=nil
+            and (event=="move.complete" or event=="settle.ready" or event=="render.queued"
+                or event=="zone.enter" or event=="zone.leave") then
+            local list=pendingTriggers[seat] or {}
+            pendingTriggers[seat]=list
+            list[#list+1]=event.." "..guid
+            if #list>12 then table.remove(list,1) end
+        end
         local lines=trackerPrivate.traceLines
         lines[#lines+1]=line
         if #lines>180 then table.remove(lines,1) end
@@ -140,16 +252,36 @@ return function(trackerPrivate)
 
     trackerPrivate.traceCommand=function(command,playerColor)
         command=command or "status"
-        if command=="on" then
+        local threshold=command:match("^slow%s+(%d+)$")
+        if threshold~=nil then
+            threshold=tonumber(threshold)
+            if threshold<1 or threshold>10000 then return false end
+            if not trackerPrivate.traceEnabled then trackerPrivate.traceCommand("on") end
+            slowThreshold=threshold
+            resetReports()
+            log("[TrackerHitch] Capture enabled; threshold="..threshold.."ms; use !trackertrace last or !trackertrace slow")
+            return true
+        elseif command=="last" then
+            printReport(lastReport)
+            return true
+        elseif command=="slow" then
+            log("[TrackerHitch] retained="..#slowReports)
+            for _,report in ipairs(slowReports) do printReport(report) end
+            return true
+        elseif command=="on" then
             trackerPrivate.traceEnabled=true
             trackerPrivate.traceLines={}
             trackerPrivate.traceSequence=0
             trackerPrivate.profileStats={}
             trackerPrivate.profileMemory={}
+            slowThreshold=nil
+            resetReports()
             trackerPrivate.traceEvent("trace.enabled")
         elseif command=="off" then
             trackerPrivate.traceEvent("trace.disabled")
             trackerPrivate.traceEnabled=false
+            activeReport=nil
+            slowThreshold=nil
         elseif command=="dump" then
             log("[TrackerTrace] BEGIN "..tostring(#trackerPrivate.traceLines).." events")
             for _,line in ipairs(trackerPrivate.traceLines) do
