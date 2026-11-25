@@ -99,11 +99,17 @@ return function(combatApplyDefend,collectGroup,combatRangeGroupEntry,combatRange
         local burningShieldTriggered={}
         for index,entry in ipairs(entries) do
             local target=allocated[index] or emptyTarget
-            local _,_,_,_,_,_,_,successfulSources=combatBlockResult(entry,target.sources)
+            local successfulSources
             for _,source in ipairs(target.sources) do
-                if source.conditionalFireAttack~=nil and source.block>0
-                    and successfulSources[source.guid]==true then
-                    burningShieldTriggered[source.guid]=true
+                if source.conditionalFireAttack~=nil and source.block>0 then
+                    -- No need to ask the Block solver on unrelated enemies.
+                    if successfulSources==nil then
+                        local _,_,_,_,_,_,_,resolved=combatBlockResult(entry,target.sources)
+                        successfulSources=resolved
+                    end
+                    if successfulSources[source.guid]==true then
+                        burningShieldTriggered[source.guid]=true
+                    end
                 end
             end
         end

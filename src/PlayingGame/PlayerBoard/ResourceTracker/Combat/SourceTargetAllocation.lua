@@ -11,11 +11,11 @@ return function(attackAssignmentsTargetGUIDs,attackAssignmentsClearForObject,
         if targetGUID==nil then
             -- Restore the saved visual assignment for every source after a reload.
             -- Persisted/manual assignments win over nearest-enemy defaults.
-            local saved={}
-            for guid in pairs(attackAssignmentsTargetGUIDs(source.key)) do
-                if rowByGUID[guid]~=nil then saved[#saved+1]=guid end
+            local saved=attackAssignmentsTargetGUIDs(source.key)
+            local first
+            for guid in pairs(saved) do
+                if rowByGUID[guid]~=nil and (first==nil or guid<first) then first=guid end
             end
-            table.sort(saved)
             -- Prefer the persisted primary target when available; otherwise
             -- use a deterministic fallback for older saves.
             local primary=gStates~=nil and gStates.resourceCardPrimaryTargets
@@ -24,7 +24,7 @@ return function(attackAssignmentsTargetGUIDs,attackAssignmentsClearForObject,
                 gStates.resourceCardPrimaryTargets[source.key]=nil
             end
             targetGUID=primary~=nil and rowByGUID[primary]~=nil
-                and attackAssignmentsTargetGUIDs(source.key)[primary] and primary or saved[1]
+                and saved[primary] and primary or first
             if targetGUID~=nil then
                 combatAssignmentState.targets[source.key]=targetGUID
                 combatAssignmentState.explicit[source.key]=true
@@ -33,7 +33,8 @@ return function(attackAssignmentsTargetGUIDs,attackAssignmentsClearForObject,
         return targetGUID
     end
 
-    local function resolveTarget(source,entries,rowByGUID,combatAssignmentState,combatCumbersomeActive)
+    local function resolveTarget(source,entries,rowByGUID,combatAssignmentState,combatCumbersomeActive,observation)
+        local cumbersome=observation~=nil and observation.cumbersome or combatGUIDHasCumbersome
         local moveOnly=source.ranged+source.siege+source.block+source.attack==0
             and source.psychicInfluence==0
         local influenceOnly=source.ranged+source.siege+source.block+source.attack==0
@@ -60,7 +61,7 @@ return function(attackAssignmentsTargetGUIDs,attackAssignmentsClearForObject,
             attackAssignmentsClearForObject(source.key)
             targetGUID,targetIndex=nil,nil
         end
-        if moveOnly and targetGUID~=nil and not combatGUIDHasCumbersome(targetGUID) then
+        if moveOnly and targetGUID~=nil and not cumbersome(targetGUID) then
             -- Move can only be aimed at a Cumbersome enemy.
             combatAssignmentState.targets[source.key]=nil
             combatAssignmentState.explicit[source.key]=nil
@@ -76,7 +77,7 @@ return function(attackAssignmentsTargetGUIDs,attackAssignmentsClearForObject,
             and not attackAssignmentsIsTargeting(source.key)
         if targetIndex==nil and (autoCombatMove or (not moveOnly and not influenceOnly)) then
             targetGUID=combatNearestEnemyGUID(source,entries,
-                autoCombatMove and combatGUIDHasCumbersome or nil)
+                autoCombatMove and cumbersome or nil,observation~=nil and observation.positions or nil)
             combatAssignmentState.targets[source.key]=targetGUID
             combatAssignmentState.explicit[source.key]=autoCombatMove and targetGUID~=nil or nil
             targetIndex=targetGUID~=nil and rowByGUID[targetGUID] or nil
@@ -115,24 +116,42 @@ return function(attackAssignmentsTargetGUIDs,attackAssignmentsClearForObject,
 
     local function allocate(entries,sources,rowByGUID,combatAssignmentState,combatCumbersomeActive,report)
         local allocated,activeSources={},{}
+        -- These observations are valid only during this allocation pass.
+        -- Later phases can change attacks and the next refresh sees live positions.
+        local cumbersomeCache,attackCache={},{}
+        local observation={positions={}}
+        observation.cumbersome=function(guid)
+            if cumbersomeCache[guid]==nil then
+                cumbersomeCache[guid]=combatGUIDHasCumbersome(guid)==true
+            end
+            return cumbersomeCache[guid]
+        end
+        observation.attacks=function(entry)
+            local cached=attackCache[entry]
+            if cached==nil then
+                cached=combatEnemyAttacks(entry)
+                attackCache[entry]=cached
+            end
+            return cached
+        end
         local original=report~=nil and {} or nil
         if original~=nil then
             for _,source in ipairs(sources) do addBudget(original,source) end
         end
         for _,source in ipairs(sources) do
             activeSources[source.key]=true
-            local targetGUID,targetIndex=resolveTarget(source,entries,rowByGUID,combatAssignmentState,combatCumbersomeActive)
+            local targetGUID,targetIndex=resolveTarget(source,entries,rowByGUID,combatAssignmentState,combatCumbersomeActive,observation)
             if targetIndex~=nil then
                 -- The arrow follows the lock, and returns if a cancelled retarget removed it.
                 if not attackAssignmentsIsTargeting(source.key) then
                     attackAssignmentsEnsureTarget(source.key,targetGUID,combatSourceArrowKind(source))
                 end
                 local manuallyTargeted=combatAssignmentState.explicit[source.key]==true
-                local explicit=manuallyTargeted and combatGUIDHasCumbersome(targetGUID)
+                local explicit=manuallyTargeted and observation.cumbersome(targetGUID)
                 source.moveCounts=explicit
                 source.psychicInfluenceCounts=manuallyTargeted
                     and source.psychicInfluence>0 and (function()
-                        for _,attack in ipairs(combatEnemyAttacks(entries[targetIndex])) do
+                        for _,attack in ipairs(observation.attacks(entries[targetIndex])) do
                             if attack.key=="M" then return true end
                         end
                         return false
@@ -145,11 +164,11 @@ return function(attackAssignmentsTargetGUIDs,attackAssignmentsClearForObject,
                 if source.dueling then
                     -- A target with no Block phase cannot receive Dueling's later Attack.
                     source.duelingEligible=false
-                    for _,attack in ipairs(combatEnemyAttacks(entries[targetIndex])) do
+                    for _,attack in ipairs(observation.attacks(entries[targetIndex])) do
                         if not attack.pending then source.duelingEligible=true break end
                     end
                 end
-                divisibleResources(source,target,targetGUID,explicit,rowByGUID,entries,allocated)
+                divisibleResources(source,target,targetGUID,explicit,rowByGUID,entries,allocated,observation)
             end
         end
         local effectOnly={}

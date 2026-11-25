@@ -2,8 +2,15 @@
 local root="src/PlayingGame/PlayerBoard/ResourceTracker/"
 local arrows,clears,ensures,kept,records={},{},{},{},{}
 local nearestCalls=0
-local function cumbersome(guid) return guid=="c" end
-local function attacks(entry) return entry.attacks or {} end
+local cumbersomeCalls,attackCalls={},{}
+local function cumbersome(guid)
+    cumbersomeCalls[guid]=(cumbersomeCalls[guid] or 0)+1
+    return guid=="c"
+end
+local function attacks(entry)
+    attackCalls[entry.guid]=(attackCalls[entry.guid] or 0)+1
+    return entry.attacks or {}
+end
 local split=dofile(root.."Combat/DivisibleResources.lua")(function() return {} end,cumbersome,attacks)
 local engine=dofile(root.."Combat/SourceTargetAllocation.lua")(
     function(key) return arrows[key] or {} end,
@@ -74,6 +81,23 @@ engine.allocate(entries,{source("fresh",{attack=1})},rows,other,false)
 eq(other.targets.fresh,"normal","New player's state receives target")
 eq(state.targets.fresh,nil,"Previous player's state is not retained")
 eq(state.targets.manual,"c","Previous player's manual lock unchanged")
+-- Multiple sources aimed at one enemy reuse the same fresh observations.
+local cacheState={targets={p1="psychic",p2="psychic",p3="psychic"},
+    explicit={p1=true,p2=true,p3=true}}
+local beforeAttacks=attackCalls.psychic or 0
+local beforeCumbersome=cumbersomeCalls.psychic or 0
+local psychicSources={source("p1",{psychicInfluence=2}),source("p2",{psychicInfluence=3}),
+    source("p3",{dueling=true,attack=2})}
+engine.allocate(entries,psychicSources,rows,cacheState,false)
+eq(attackCalls.psychic-beforeAttacks,1,"One attack observation per enemy per allocation")
+eq(cumbersomeCalls.psychic-beforeCumbersome,1,"One Cumbersome observation per enemy per allocation")
+eq(psychicSources[1].psychicInfluenceCounts,true,"First Psychic source eligible")
+eq(psychicSources[2].psychicInfluenceCounts,true,"Second Psychic source eligible")
+entries[3].attacks={{key="P"}}
+local changedSource=source("p1",{psychicInfluence=2})
+engine.allocate(entries,{changedSource},rows,cacheState,false)
+eq(changedSource.psychicInfluenceCounts,false,"Next allocation observes changed enemy attacks")
+entries[3].attacks={{key="M"}}
 -- A deliberately faulty allocator duplicates one source. Diagnostics must
 -- report its over-allocation without changing the combat calculation.
 local faulty=dofile(root.."Combat/SourceTargetAllocation.lua")(

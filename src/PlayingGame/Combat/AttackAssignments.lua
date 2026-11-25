@@ -1686,19 +1686,23 @@ end
 -- Auto-targeted sources get the same arrow a manual assignment would draw.
 function attackAssignmentsEnsureTarget(sourceGUID,targetGUID,kind)
     if combatCommittedSource(sourceGUID) then return end
-    local found=false
+    local found,changes=false,nil
     for _,entry in pairs(assignmentRegistry) do
-        if entry.sourceGUID==sourceGUID and entry.targetGUID==targetGUID then
-            found=true
-            break
+        if entry.sourceGUID==sourceGUID then
+            if entry.targetGUID==targetGUID then found=true end
+            if kind~=nil and entry.kind~=kind then
+                changes=changes or {}
+                changes[#changes+1]=entry
+            end
         end
     end
-    if found then
-        -- A split Move/Influence pool can have multiple saved arrows.
-        -- Update every arrow of that source without altering any allocation.
-        if kind~=nil then attackAssignmentsReconcileEffectTarget(sourceGUID,targetGUID,kind) end
-    else
+    if not found then
         attackAssignmentsSetSourceTarget(sourceGUID,targetGUID,kind)
+    elseif changes~=nil and not attackAssignmentsIsTargeting(sourceGUID) then
+        -- Preserve all split Move/Influence arrows; recolour in one registry pass.
+        for _,entry in ipairs(changes) do entry.kind=kind end
+        persistAssignments()
+        refreshRenderedLines()
     end
 end
 

@@ -90,6 +90,11 @@ run("resource-tracker-combat-presentation",function()
         icons[id]={active=active,amount=amount,tooltip=tooltip,selected=selected,wounded=wounded,ineffective=ineffective}
     end
     local layout=dofile(root.."Interface/CombatPanel.lua").layout
+    eq(layout.estimatedTextWidth("Wi"),35,"Glyph widths retained")
+    for i=1,520 do layout.estimatedTextWidth("different "..i) end
+    eq(layout.estimatedTextWidth("Wi"),35,"Bounded width cache preserves exact sizing")
+    eq(layout.textColumnWidth({"<color=red>Wide</color>\nI"},0),
+        math.max(74,layout.estimatedTextWidth("Wide")),"Rich text sizing unchanged")
     local cfg={rowCount=2,slotCount=12,lineSlotCount=6,rowHeight=30,
         columns={Result=255},traitColumnWidth=layout.traitColumnWidth,
         textColumnWidth=layout.textColumnWidth,enemyNameColumnWidth=layout.enemyNameColumnWidth,

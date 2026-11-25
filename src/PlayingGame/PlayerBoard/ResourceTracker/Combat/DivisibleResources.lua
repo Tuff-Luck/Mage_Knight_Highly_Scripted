@@ -1,11 +1,17 @@
 -- Distribute one physical resource source across its assigned enemy targets.
 -- The coordinator chooses targets and owns arrow state; only fresh allocation records are changed here.
 return function(attackAssignmentsTargetCounts,combatGUIDHasCumbersome,combatEnemyAttacks)
-    local function allocate(source,target,targetGUID,explicit,rowByGUID,entries,allocated)
+    local function allocate(source,target,targetGUID,explicit,rowByGUID,entries,allocated,observation)
+        local cumbersome=observation~=nil and observation.cumbersome or combatGUIDHasCumbersome
+        local attacks=observation~=nil and observation.attacks or combatEnemyAttacks
+        local counts
+        if source.convertedResource~=nil or (source.moveCounts and (source.move or 0)>0)
+            or source.psychicInfluenceCounts then
+            counts=attackAssignmentsTargetCounts(source.key)
+        end
         if source.convertedResource~=nil then
             -- A right-click adds an arrow to another enemy. Each extra
             -- arrow spends ONE converted point, never a second full pool.
-            local counts=attackAssignmentsTargetCounts(source.key)
             local other={}
             for guid in pairs(counts) do
                 if guid~=targetGUID and rowByGUID[guid]~=nil then other[#other+1]=guid end
@@ -58,7 +64,6 @@ return function(attackAssignmentsTargetCounts,combatGUIDHasCumbersome,combatEnem
             -- Primary target receives the remaining Cumbersome Move.
             -- Each extra arrow transfers one point to another Cumbersome
             -- enemy, exactly as divisible Psychic Influence does.
-            local counts=attackAssignmentsTargetCounts(source.key)
             local other={}
             for guid in pairs(counts) do
                 if guid~=targetGUID and rowByGUID[guid]~=nil then
@@ -69,7 +74,7 @@ return function(attackAssignmentsTargetCounts,combatGUIDHasCumbersome,combatEnem
             local remaining=source.move
             for _,guid in ipairs(other) do
                 if remaining<=0 then break end
-                if combatGUIDHasCumbersome(guid) then
+                if cumbersome(guid) then
                     local amount=math.min(counts[guid],remaining)
                     local portion={guid=source.guid,key=source.key,name=source.name,
                         ranged=0,siege=0,block=0,attack=0,
@@ -106,7 +111,7 @@ return function(attackAssignmentsTargetCounts,combatGUIDHasCumbersome,combatEnem
             -- The primary left-click target initially receives all Influence.
             -- Each additional right-click arrow transfers one point; repeated
             -- arrows to the same enemy transfer more. No point is double-spent.
-            local targetCounts=attackAssignmentsTargetCounts(source.key)
+            local targetCounts=counts
             local extraTargets={}
             for guid in pairs(targetCounts) do
                 if guid~=targetGUID and rowByGUID[guid]~=nil then
@@ -119,7 +124,7 @@ return function(attackAssignmentsTargetCounts,combatGUIDHasCumbersome,combatEnem
                 if remaining<=0 then break end
                 local index=rowByGUID[guid]
                 local psychic=false
-                for _,attack in ipairs(combatEnemyAttacks(entries[index])) do
+                for _,attack in ipairs(attacks(entries[index])) do
                     if attack.key=="M" then psychic=true break end
                 end
                 if psychic then

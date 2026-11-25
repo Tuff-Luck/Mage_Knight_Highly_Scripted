@@ -1134,14 +1134,22 @@ combatConfig.captureParalyzedUnitSources=function(seat,unitGUID)
     return true
 end
 
-local function combatNearestEnemyGUID(source,entries,eligible)
-    local sourceObject=getObjectFromGUID(source.guid)
-    local sourcePosition=sourceObject~=nil and sourceObject.getPosition()
-        or source.retiredUnitPosition
+local function combatNearestEnemyGUID(source,entries,eligible,positions)
+    -- Allocation passes may share a short-lived physical position snapshot.
+    -- Other callers still obtain fresh positions without a cache.
+    local function positionOf(guid)
+        if positions~=nil and positions[guid]~=nil then
+            return positions[guid] or nil
+        end
+        local obj=getObjectFromGUID(guid)
+        local position=obj~=nil and obj.getPosition() or nil
+        if positions~=nil then positions[guid]=position or false end
+        return position
+    end
+    local sourcePosition=positionOf(source.guid) or source.retiredUnitPosition
     if sourcePosition==nil then return nil end
     local nearestGUID,nearestDistance=nil,nil
     for _,entry in ipairs(entries) do
-        local enemy=getObjectFromGUID(entry.guid)
         local forkDuplicate=false
         if source.forkedLightning then
             for key,target in pairs(combatAssignmentState.targets or {}) do
@@ -1149,16 +1157,18 @@ local function combatNearestEnemyGUID(source,entries,eligible)
                     and target==entry.guid then forkDuplicate=true break end
             end
         end
-        if enemy~=nil and not forkDuplicate and entry.guid~=source.possessExclude
+        if not forkDuplicate and entry.guid~=source.possessExclude
             and (eligible==nil or eligible(entry.guid))
             and (not entry.attackOnly
             or source.ranged+source.siege+source.attack==0) then
-            local position=enemy.getPosition()
-            local dx,dz=position[1]-sourcePosition[1],position[3]-sourcePosition[3]
-            local distance=dx*dx+dz*dz
-            if nearestDistance==nil or distance<nearestDistance
-                or (distance==nearestDistance and entry.guid<nearestGUID) then
-                nearestGUID,nearestDistance=entry.guid,distance
+            local position=positionOf(entry.guid)
+            if position~=nil then
+                local dx,dz=position[1]-sourcePosition[1],position[3]-sourcePosition[3]
+                local distance=dx*dx+dz*dz
+                if nearestDistance==nil or distance<nearestDistance
+                    or (distance==nearestDistance and entry.guid<nearestGUID) then
+                    nearestGUID,nearestDistance=entry.guid,distance
+                end
             end
         end
     end
@@ -1557,26 +1567,33 @@ end
 local function combatAssignmentIconButton(id,active,amount,icon,tooltip,selected,textColor,wounded,ineffective)
     combatPanelSetAttribute(id,"active",active and "true" or "false")
     if active then
-        combatPanelSetAttribute(id.."Image","image",icon)
-        combatPanelSetAttribute(id.."Image","rectAlignment","MiddleCenter")
-        combatPanelSetAttribute(id.."Image","offsetXY","0 0")
-        combatPanelSetAttribute(id.."Image","width","24")
-        combatPanelSetAttribute(id.."Image","height","24")
-        combatPanelSetAttribute(id.."Image","preserveAspect","true")
-        combatPanelSetAttribute(id.."Amount","text",tostring(amount))
-        combatPanelSetAttribute(id.."Amount","rectAlignment","MiddleCenter")
-        combatPanelSetAttribute(id.."Amount","offsetXY","0 0")
-        combatPanelSetAttribute(id.."Amount","width","24")
-        combatPanelSetAttribute(id.."Amount","height","24")
-        combatPanelSetAttribute(id.."Amount","preferredHeight","24")
-        combatPanelSetAttribute(id.."Amount","alignment","MiddleCenter")
-        combatPanelSetAttribute(id.."Amount","fontSize","18")
-        combatPanelSetAttribute(id.."Amount","fontStyle","Bold")
-        combatPanelSetAttribute(id.."Amount","color",textColor or "White")
-        combatPanelSetAttribute(id.."Amount","outline","rgb(0,0,0)")
-        combatPanelSetAttribute(id.."Amount","outlineSize","1 -1")
-        combatPanelSetAttribute(id,"preferredWidth","24")
-        combatPanelSetAttribute(id,"preferredHeight","26")
+        local imageID,amountID=id.."Image",id.."Amount"
+        -- Fixed geometry is applied once per slot, for the lifetime of the
+        -- same attribute cache. Dynamic text, tint and interaction stay live.
+        local styleKey="style\0"..id
+        if not trackerPrivate.combatPanelAttributes[styleKey] then
+            combatPanelSetAttribute(imageID,"rectAlignment","MiddleCenter")
+            combatPanelSetAttribute(imageID,"offsetXY","0 0")
+            combatPanelSetAttribute(imageID,"width","24")
+            combatPanelSetAttribute(imageID,"height","24")
+            combatPanelSetAttribute(imageID,"preserveAspect","true")
+            combatPanelSetAttribute(amountID,"rectAlignment","MiddleCenter")
+            combatPanelSetAttribute(amountID,"offsetXY","0 0")
+            combatPanelSetAttribute(amountID,"width","24")
+            combatPanelSetAttribute(amountID,"height","24")
+            combatPanelSetAttribute(amountID,"preferredHeight","24")
+            combatPanelSetAttribute(amountID,"alignment","MiddleCenter")
+            combatPanelSetAttribute(amountID,"fontSize","18")
+            combatPanelSetAttribute(amountID,"fontStyle","Bold")
+            combatPanelSetAttribute(amountID,"outline","rgb(0,0,0)")
+            combatPanelSetAttribute(amountID,"outlineSize","1 -1")
+            combatPanelSetAttribute(id,"preferredWidth","24")
+            combatPanelSetAttribute(id,"preferredHeight","26")
+            trackerPrivate.combatPanelAttributes[styleKey]=true
+        end
+        combatPanelSetAttribute(imageID,"image",icon)
+        combatPanelSetAttribute(amountID,"text",tostring(amount))
+        combatPanelSetAttribute(amountID,"color",textColor or "White")
         combatPanelSetAttribute(id,"color",
             (wounded or ineffective) and "rgb(0.90,0.37,0.35)"
             or (selected and "rgb(1,0.75,0.2)" or "rgb(0.85,0.82,0.72)"))
@@ -2908,10 +2925,11 @@ local function combatAssignmentRefreshRows(entries,sources)
             shownOffence[row]=offenceText
             combatPanelSetAttribute("CombatEnemyRow"..row.."Offence","text",offenceText)
             local traitLines=math.max(select(2,offenceText:gsub("\n",""))+1,
-                select(2,combatEnemyTraitsText(entry.data,entry.perks,combatConfig.enemyDefenceTraits):gsub("\n",""))+1)
-            for column,width in pairs(combatConfig.columns) do
-                combatPanelSetAttribute("CombatEnemyRow"..row..column,"preferredWidth",tostring(width))
-            end
+                select(2,ownTraits:gsub("\n",""))+1)
+            -- Dynamic text widths are owned by the final column layout.
+            -- Do not overwrite them with legacy defaults before measuring them again.
+            combatPanelSetAttribute("CombatEnemyRow"..row.."Name","preferredWidth",tostring(enemyNameWidth))
+            combatPanelSetAttribute("CombatEnemyRow"..row.."Armour","preferredWidth",tostring(combatConfig.columns.Armour))
             entry.attackCount=math.max(#attacks,traitLines)
         end
     end

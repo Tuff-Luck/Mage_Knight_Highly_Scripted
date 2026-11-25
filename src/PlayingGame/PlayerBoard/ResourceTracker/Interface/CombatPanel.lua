@@ -6,8 +6,11 @@ local layout=(function()
 -- TTS does not expose Unity's measured text width to Lua. Estimate 13px
 -- display text by glyph type (and UTF-8 codepoint, not byte count), with
 -- room for margins, so even long or translated enemy names stay readable.
+local widthCache,widthCount={},0
 local function estimatedTextWidth(label)
     label=tostring(label or "")
+    local cached=widthCache[label]
+    if cached~=nil then return cached end
     local width=18
     for i=1,#label do
         local byte=label:byte(i)
@@ -26,6 +29,10 @@ local function estimatedTextWidth(label)
         elseif byte>=192 and byte<224 then width=width+10
         end
     end
+    -- Bounded cache of pure string measurements; no UI or combat state.
+    if widthCount>=512 then widthCache,widthCount={},0 end
+    widthCache[label]=width
+    widthCount=widthCount+1
     return width
 end
 
