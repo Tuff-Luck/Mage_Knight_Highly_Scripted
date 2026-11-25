@@ -81,7 +81,7 @@ local a={
     resourceCardsPanelOpen=function() return true end,
     combatCommittedSource=function() return false end,
     resourceCardsCombatAdditionalTargetLimit=function() return maxTargets end,
-    attackAssignmentsKindFor=function() return "armour" end,
+    attackAssignmentsKindFor=function(_resource) return "armour" end,
     broadcastToColor=function(message) announcements[#announcements+1]=message end,
     syncTargetButtons=function() end,
     refreshRenderedLines=function() end,
