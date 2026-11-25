@@ -1887,6 +1887,7 @@ combatConfig.woundRecordPreview=function(seat,items,results,knockout,otherWounds
     local ledger=combatConfig.woundLedger(seat)
     if ledger==nil then return end
     local expected={}
+    local unitAssignments,fortitude=0,{}
     for _,item in ipairs(items or {}) do
         local result=results[item.key] or {}
         -- Previously destroyed Units are no longer physically in the Unit zone.
@@ -1897,6 +1898,12 @@ combatConfig.woundRecordPreview=function(seat,items,results,knockout,otherWounds
             destroyed[guid]=absorbed
         end
         for _,entry in ipairs(result.units or {}) do
+            if entry.unit~=nil and entry.unit.guid~=nil then
+                unitAssignments=unitAssignments+1
+                if entry.fortitudePrevented and entry.unit.fortitudeGUID~=nil then
+                    fortitude[entry.unit.fortitudeGUID]={attackKey=item.key}
+                end
+            end
             if entry.destroyed==true and entry.wounded==true
                 and entry.unit~=nil and entry.unit.guid~=nil then
                 destroyed[entry.unit.guid]=entry.absorbed or 0
@@ -1907,6 +1914,8 @@ combatConfig.woundRecordPreview=function(seat,items,results,knockout,otherWounds
             destroyed=destroyed}
     end
     ledger.preview=expected
+    ledger.previewUnitAssignments=unitAssignments
+    ledger.previewFortitude=fortitude
     ledger.previewKnockout=knockout==true
     ledger.previewOtherWounds=math.max(0,tonumber(otherWounds) or 0)
     -- The confirmed plan survives moving cards away and save/reload.
@@ -1921,10 +1930,12 @@ combatConfig.woundPending=function(ledger)
     local allocations,hand,discard,changed={},0,0,false
     local effects={paralyse={},destroyed={},paralyseCount=0,destroyCount=0,
         stagedDiscards={},stagedDiscardCount=0,
-        knockout=false,handDiscard=false}
+        knockout=false,handDiscard=false,unitAssignments=0,unitCommitPending=false}
     if ledger==nil or not ledger.hasPreview then
         return allocations,hand,discard,changed,effects
     end
+    effects.unitAssignments=ledger.previewUnitAssignments or 0
+    effects.unitCommitPending=effects.unitAssignments>0 and ledger.damageAssignmentsCommitted~=true
     for key,expected in pairs(ledger.preview) do
         local applied=(ledger.applied or {})[key] or {}
         local h=math.max(0,(expected.hand or 0)-(applied.hand or 0))
@@ -2016,7 +2027,10 @@ combatConfig.woundCommitSignature=function(ledger)
     if combatConfig.scanAwaitingRescan or ledger==nil or ledger.hasPreview~=true then return nil end
     local parts={tostring(ledger.seat),tostring(ledger.previewKnockout==true),
         tostring(ledger.previewOtherWounds or 0),
-        tostring(ledger.handDiscardApplied==true)}
+        tostring(ledger.handDiscardApplied==true),
+        tostring(ledger.previewUnitAssignments or 0),
+        tostring(ledger.damageAssignmentsCommitted==true),
+        combatConfig.decisionFingerprint(ledger.previewFortitude or {})}
     local keys,seen={},{}
     for key in pairs(ledger.preview or {}) do
         keys[#keys+1]=key
@@ -2116,7 +2130,7 @@ function resourceCardsRequestCombatWounds(player)
     if ledger==nil then return end
     local _,hand,discard,changed,effects=combatConfig.woundPending(ledger)
     if hand+discard+effects.destroyCount+effects.stagedDiscardCount==0
-        and not effects.handDiscard then
+        and not effects.handDiscard and not effects.unitCommitPending then
         if changed then
             broadcastToColor("Combat damage changed after consequences were applied. Check physical cards; they cannot be undone automatically.",
                 color,warningColor)
@@ -2169,6 +2183,12 @@ function resourceCardsRequestCombatWounds(player)
         discard
     }
     local summaryHeight=154
+    if effects.unitCommitPending then
+        summaryParts[#summaryParts+1]="\n"
+        summaryParts[#summaryParts+1]="{en}Unit damage assignments: {it}Assegnazioni dei danni alle Unità: {ru}Назначения урона отрядам: {zh-tw}單位傷害分配：{zh-cn}单位伤害分配：{ko}유닛 피해 배정: {es}Asignaciones de daño a unidades: {fr}Affectations de dégâts aux unités : {pt-br}Atribuições de dano às unidades: {de}Schadenszuweisungen an Einheiten: "
+        summaryParts[#summaryParts+1]=effects.unitAssignments
+        summaryHeight=summaryHeight+24
+    end
     if (ledger.previewOtherWounds or 0)>0 then
         summaryParts[#summaryParts+1]="\n"
         summaryParts[#summaryParts+1]="{en}Other combat Wounds already taken: "
@@ -2348,7 +2368,8 @@ function resourceCardsApplyCombatWounds(player,onComplete)
     local allocations,hand,discard,changed,effects=combatConfig.woundPending(ledger)
     if current==nil or ledger==nil then return false end
     if hand+discard==0 and not effects.handDiscard
-        and effects.destroyCount+effects.stagedDiscardCount==0 then
+        and effects.destroyCount+effects.stagedDiscardCount==0
+        and not effects.unitCommitPending then
         if changed then
             broadcastToColor("Combat damage changed after Wounds were dealt. Check the physical cards; none are removed automatically.",
                 player.color,warningColor)
@@ -2516,6 +2537,17 @@ function resourceCardsApplyCombatWounds(player,onComplete)
                 applied.destroyed[effect.guid]=effect.absorbed
             end
         end
+        -- Commit previewed Banner uses only after all physical consequences
+        -- succeed. A failed transfer can retry against its frozen phase.
+        if effects.unitCommitPending then
+            if next(ledger.previewFortitude or {})~=nil then
+                local uses=trackerPrivate.bannerEffectUses().fortitude
+                for guid,use in pairs(ledger.previewFortitude) do
+                    if uses[guid]==nil then uses[guid]={attackKey=use.attackKey} end
+                end
+            end
+            ledger.damageAssignmentsCommitted=true
+        end
         finish(true)
     end
     if hand+discard==0 then
@@ -2569,6 +2601,11 @@ function combatWoundsEndTurnReminder(color)
         return true
     end
     local _,hand,discard,changed,effects=combatConfig.woundPending(ledger)
+    if effects.unitCommitPending then
+        safeBroadcastToColor("Confirm Unit damage with Give Wounds, or remove the damage assignments before ending the turn.",
+            color,warningColor)
+        return true
+    end
     if hand+discard==0 and not effects.handDiscard
         and effects.destroyCount+effects.stagedDiscardCount==0
         and not changed then return false end

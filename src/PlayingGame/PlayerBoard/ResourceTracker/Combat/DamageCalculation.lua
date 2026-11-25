@@ -106,6 +106,8 @@ return function(cardDataOf,summonedBy,fortitudeUses)
     -- items: {key,type,damage,poison,paralyse,assassination} in resolution order; targetsOf(key) lists the Unit GUIDs the player chose.
     local function combatDamageResolve(items,units,heroArmour,targetsOf,mitigation,elementMitigation,ignoreFirstHeroWound,appliedDamage)
         local used,results={},{}
+        -- Read committed Banner uses, but reserve new uses only within this preview.
+        local reservedFortitude={}
         local firstHeroWoundIgnored=false
         -- Reserve a Unit required to receive its own protected enemy's damage first.
         -- An earlier, unrelated enemy must not consume that Unit before its forced assignment.
@@ -155,12 +157,11 @@ return function(cardDataOf,summonedBy,fortitudeUses)
                     entry.wounds=item.poison and 2 or 1
                     entry.destroyed=item.paralyse==true and unit.arcaneImmunity~=true
                     if unit.fortitudeUsed and unit.fortitudeGUID~=nil then
-                        -- Once per Round, on one printed attack; calculator rescans
-                        -- of this same attack may preview it without recharging.
-                        local uses=fortitudeUses()
-                        local prior=uses[unit.fortitudeGUID]
-                        if prior==nil or prior.attackKey==item.key then
-                            if prior==nil then uses[unit.fortitudeGUID]={attackKey=item.key} end
+                        -- Only the damage commit consumes the once-per-Round use.
+                        -- The frozen damage results retain its protection after commit.
+                        local guid=unit.fortitudeGUID
+                        if fortitudeUses()[guid]==nil and not reservedFortitude[guid] then
+                            reservedFortitude[guid]=true
                             entry.wounded=false
                             entry.wounds=nil
                             entry.destroyed=nil

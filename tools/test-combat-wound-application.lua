@@ -902,6 +902,53 @@ eq(#finishedSnapshots,beforeException+1,"exception releases rewind owner")
 eq(retryLedger.phaseLock,partialLock,"exception preserves existing phase lock")
 resourceCardsApplyCombatWounds=realApply
 
+-- A Unit-only damage assignment can be reviewed, cancelled, and committed
+-- without drawing a Hero Wound. Fortitude is spent only at that boundary.
+gStates.combatWoundApplication=nil
+local bannerUses={}
+trackerPrivate=trackerPrivate or {}
+local originalBannerUses=trackerPrivate.bannerEffectUses
+trackerPrivate.bannerEffectUses=function() return {fortitude=bannerUses} end
+local unitItems={{key="bannerAttack:1"}}
+local unitResults={["bannerAttack:1"]={heroWounds=0,units={{
+    unit={guid="protectedUnit",fortitudeGUID="fortitude"},
+    wounded=false,fortitudePrevented=true}}}}
+local function unitPreview()
+    combatConfig.phasePreview.damageResults=combatFrozenCopy(unitResults)
+    combatConfig.woundRecordPreview(1,unitItems,unitResults)
+end
+unitPreview()
+local unitLedger=gStates.combatWoundApplication
+local _,_,_,_,unitEffects=combatConfig.woundPending(unitLedger)
+eq(unitEffects.unitCommitPending,true,"Zero Hero Wounds still require a Unit commitment")
+eq(combatWoundsEndTurnReminder("Red"),true,"Uncommitted Unit damage blocks End Turn")
+resourceCardsRequestCombatWounds(player)
+eq(attrs["CombatDamageConfirm:active"],"true","Unit-only commit opens normal dialog")
+eq(bannerUses.fortitude,nil,"Opening dialog does not spend Banner")
+resourceCardsConfirmCombatWounds(player,"CombatDamageConfirmCancel")
+eq(bannerUses.fortitude,nil,"Cancellation does not spend Banner")
+combatConfig.woundRecordPreview(1,unitItems,{["bannerAttack:1"]={heroWounds=0}})
+local _,_,_,_,removedEffects=combatConfig.woundPending(unitLedger)
+eq(removedEffects.unitCommitPending,false,"Removing assignment removes pending commitment")
+unitPreview()
+resourceCardsRequestCombatWounds(player)
+resourceCardsConfirmCombatWounds(player,"CombatDamageConfirmApply")
+eq(bannerUses.fortitude,nil,"Waiting for rewind point does not spend Banner")
+local beforeUnitCommit=#dealt
+capturedSnapshot.callback()
+eq(#dealt,beforeUnitCommit,"Zero-Wound commit draws no cards")
+eq(unitLedger.damageAssignmentsCommitted,true,"Unit-only damage committed")
+assert(unitLedger.phaseLock~=nil,"Unit-only damage freezes earlier phases")
+eq(bannerUses.fortitude.attackKey,"bannerAttack:1","Confirmed Banner use persisted")
+eq(combatConfig.woundApplying,false,"No physical movement to settle")
+local _,_,_,_,committedUnitEffects=combatConfig.woundPending(unitLedger)
+eq(committedUnitEffects.unitCommitPending,false,"Committed Unit assignment not pending")
+eq(combatWoundsEndTurnReminder("Red"),false,"Committed Unit damage permits End Turn")
+resourceCardsRequestCombatWounds(player)
+eq(attrs["CombatDamageConfirm:active"],"false","Cannot commit same Unit assignment twice")
+trackerPrivate.bannerEffectUses=originalBannerUses
+combatConfig.phasePreview.damageResults={}
+
 -- Opt-out belongs to the confirming colour, persists only after a successful
 -- protected commit, and never removes snapshot/validation on later clicks.
 gStates.combatWoundApplication=nil

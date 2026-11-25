@@ -124,6 +124,16 @@ run("resource-tracker-combat-presentation",function()
     effects.destroyCount=1
     eq(panel.woundSummary(0,0,false,0,0,false,effects),22,"Unit destruction displayed without Hero wounds")
     eq(ui.CombatTotalDamage.text,"Apply: Destroy 1 Unit","Singular Unit destruction")
+    effects.destroyCount=0
+    effects.unitAssignments=1
+    effects.unitCommitPending=true
+    eq(panel.woundSummary(0,0,false,0,0,false,effects),22,"Unit-only damage keeps button visible")
+    eq(ui.CombatTotalDamage.text,"Draw: 0 Wounds","Zero draws explicitly displayed")
+    eq(ui.CombatApplyWounds.interactable,"true","Unit-only commitment enabled")
+    effects.unitCommitPending=false
+    eq(panel.woundSummary(0,0,false,0,0,false,effects),22,"Committed Unit assignment remains visible")
+    eq(ui.CombatApplyWounds.interactable,"false","Committed Unit cannot be committed again")
+    effects.unitAssignments=0
     cfg.effectButtonInfo=function(entry,applied)
         return {source={key=applied.key,guid=applied.key,name="Effect"},family="attack",
             arrow="other",requiresDefence=true,amount="-1",icon="effect",text="Armour -1"}

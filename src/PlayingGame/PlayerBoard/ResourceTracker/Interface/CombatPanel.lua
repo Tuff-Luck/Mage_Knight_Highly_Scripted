@@ -187,10 +187,10 @@ return function(combatConfig,combatPanelSetAttribute,combatRich,combatWoundsText
     end
 
     local function woundSummary(totalHeroWounds,totalDiscardWounds,knockout,pendingHand,pendingDiscard,changed,effects)
-        -- A Paralyzed Unit needs an Apply button even when all its attack damage
-        -- was absorbed and the Hero has zero Wounds.
+        -- Unit assignments need a phase commit even when no Wound is drawn.
         local showTotal=totalHeroWounds>0 or knockout or effects.destroyCount>0
             or effects.handDiscard or effects.stagedDiscardCount>0
+            or (effects.unitAssignments or 0)>0
         combatConfig.combatPanelShowsWounds=showTotal
         combatPanelSetAttribute("CombatTotalRow","active",showTotal and "true" or "false")
         if showTotal then
@@ -202,13 +202,14 @@ return function(combatConfig,combatPanelSetAttribute,combatRich,combatWoundsText
                 or (effects.handDiscard and "Apply: Discard hand"
                     or (effects.stagedDiscardCount>0 and "Apply: Discard Attack"
                         or (knockout and "Knocked out (applied)"
-                        or ("Apply: Destroy "..tostring(effects.destroyCount)..
-                            (effects.destroyCount==1 and " Unit" or " Units")))))
+                        or (effects.destroyCount>0 and ("Apply: Destroy "..tostring(effects.destroyCount)..
+                            (effects.destroyCount==1 and " Unit" or " Units"))
+                            or (effects.unitCommitPending and "Draw: 0 Wounds" or "Damage: Confirmed")))))
             combatPanelSetAttribute("CombatTotalDamage","text",text)
             combatPanelSetAttribute("CombatTotalDamage","font","Fonts/MKCardText")
             local pending=pendingHand+pendingDiscard>0
                 or effects.handDiscard or effects.destroyCount>0
-                or effects.stagedDiscardCount>0
+                or effects.stagedDiscardCount>0 or effects.unitCommitPending
             combatPanelSetAttribute("CombatApplyWounds","interactable",
                 (pending or changed) and not combatConfig.woundApplying and "true" or "false")
             combatPanelSetAttribute("CombatApplyWounds","color",
