@@ -97,7 +97,8 @@ local calcEnv=setmetatable({
     end,
     cardPosture=function(card) return card.posture end,
     getObjectFromGUID=env.getObjectFromGUID,
-    setHighlight=function() end
+    setHighlight=function() end,
+    physicalLinks=require("PlayingGame.PlayerBoard.ResourceTracker.Core.PhysicalLinks")
 },{__index=env})
 local function calculateWith(sourcePowered,targetGUID,targetFamily)
     sourceRecord.powered=sourcePowered
@@ -124,6 +125,25 @@ assert(blockRecord.resources.block==6,
 calculateWith(true,blockGUID,"block")
 assert(blockRecord.resources.block==8,
     "Powered Ambush must grant +4 Block")
+
+-- A physical tie must not choose an arbitrary card; an explicit target wins.
+calcEnv.overlapArea=function() return 10 end
+sourceRecord.powered=false
+sourceRecord.resources={move=2}
+sourceRecord.links={}
+attackRecord.resources={attack=3}
+blockRecord.resources={block=4}
+attackRecord.links={}
+blockRecord.links={}
+gStates.ambushCombatLinks={}
+calcEnv.totals={attack=3,block=4}
+assert(load(calculate,"Ambush ambiguous physical link","t",calcEnv))()
+assert(attackRecord.resources.attack==3 and blockRecord.resources.block==4,
+    "Equal physical overlap must not assign a bonus")
+gStates.ambushCombatLinks[sourceGUID]=attackGUID
+assert(load(calculate,"Ambush explicit target on tie","t",calcEnv))()
+assert(attackRecord.resources.attack==4 and blockRecord.resources.block==4,
+    "An explicit target must win even on equal overlap")
 
 -- Exercise the real targeting callbacks (with only TTS boundary calls stubbed).
 sourceRecord.powered=false

@@ -1,5 +1,6 @@
 -- Cross-card bonuses and conversions, including Tirelessness, borrowed-enemy highlights, Deadly Precision, Ambush, and linked or discarded Wounds. Uses the current scan's records, resources and existing targeting callbacks.
 local M={}
+local physicalLinks=require("PlayingGame.PlayerBoard.ResourceTracker.Core.PhysicalLinks")
 local resourceOps=require("PlayingGame.PlayerBoard.ResourceTracker.Core.ResourceOperations")
 
 function M.process(context)
@@ -68,16 +69,12 @@ function M.process(context)
                     local area=overlapArea(footprints[source.guid],footprints[target.guid])
                     if attackKey~=nil and not ambiguous and area>0 then
                         candidates[#candidates+1]={card=target,record=targetRecord,
-                            key=attackKey,area=area}
+                            key=attackKey,overlap=area}
                     end
                 end
             end
-            table.sort(candidates,function(a,b)
-                if a.area~=b.area then return a.area>b.area end
-                return a.card.guid<b.card.guid
-            end)
-            local best=candidates[1]
-            if best~=nil and (candidates[2]==nil or best.area>candidates[2].area) then
+            local best=physicalLinks.unique(candidates)
+            if best~=nil then
                 local to=resourceOps.changeFamily(best.key,"ranged")
                 resourceOps.replace(best.record,totals,best.key,to)
                 sourceRecord.links[#sourceRecord.links+1]=best.card.guid
@@ -101,7 +98,7 @@ function M.process(context)
         if rule~=nil and rule.combatLink~=nil and sourceRecord~=nil
             and sourceRecord.resources~=nil and cardPosture(source)=="upright"
             and (discarded[source.guid]==nil or repeatByTarget[source.guid]~=nil) then
-            local best,bestCategory,bestType,bestOverlap=nil,nil,nil,0
+            local best,bestCategory,bestType=nil,nil,nil
             local function chooseCategory(target)
                 local record=records[target.guid]
                 if discarded[target.guid]~=nil
@@ -132,16 +129,20 @@ function M.process(context)
                 end
             end
             if best==nil and savedGUID==nil then
+                local candidates={}
                 for _,target in ipairs(cards) do
                     local area=target.guid~=source.guid
                         and overlapArea(footprints[source.guid],footprints[target.guid]) or 0
                     if area>0 then
                         local category,kind=chooseCategory(target)
-                        if category~=nil and (area>bestOverlap
-                            or (area==bestOverlap and best~=nil and target.guid<best.guid)) then
-                            best,bestCategory,bestType,bestOverlap=target,category,kind,area
+                        if category~=nil then
+                            candidates[#candidates+1]={card=target,category=category,kind=kind,overlap=area}
                         end
                     end
+                end
+                local chosen=physicalLinks.unique(candidates)
+                if chosen~=nil then
+                    best,bestCategory,bestType=chosen.card,chosen.category,chosen.kind
                 end
             end
             if best~=nil and bestCategory~=nil and bestType~=nil then

@@ -1,5 +1,6 @@
 -- Faction reward choices, enemy effects, and ordered physical element/Attack modifiers; updates current records without changing immutable catalogs.
 local M={}
+local physicalLinks=require("PlayingGame.PlayerBoard.ResourceTracker.Core.PhysicalLinks")
 local resourceOps=require("PlayingGame.PlayerBoard.ResourceTracker.Core.ResourceOperations")
 
 function M.read(context)
@@ -114,10 +115,7 @@ function M.modifiers(context)
             local token=reward.kind=="factionReward" and reward.modifier==mode
                 and objects[rewardGUID] or nil
             if token~=nil then
-                local winner,selected,bestArea=nil,nil,0
-                -- Inline record type avoids a duplicate global class declaration in the generated TTS bundle.
-                ---@type {resources: table<string, number>?, links: string[], status: string, powered: boolean}|nil
-                local sourceRecord=nil
+                local candidates={}
                 local tokenArea=footprint(token)
                 for sourceGUID,candidate in pairs(objects) do
                     local data=gameCards[sourceGUID]
@@ -131,7 +129,7 @@ function M.modifiers(context)
                         and (unit or (candidate.is_face_down~=true
                             and cardPosture(candidate)=="upright")) then
                         local overlap=overlapArea(tokenArea,footprint(candidate))
-                        if overlap>bestArea then
+                        if overlap>0 then
                             local possible={}
                             for field,amount in pairs(record.resources) do
                                 if type(amount)=="number" and amount>0 then
@@ -150,13 +148,15 @@ function M.modifiers(context)
                                 end
                             end
                             if #possible==1 then
-                                winner,sourceRecord,selected,bestArea=
-                                    candidate,record,possible[1],overlap
+                                candidates[#candidates+1]={card=candidate,record=record,
+                                    selected=possible[1],overlap=overlap}
                             end
                         end
                     end
                 end
-                if winner~=nil and sourceRecord~=nil and selected~=nil then
+                local chosen=physicalLinks.unique(candidates)
+                if chosen~=nil then
+                    local winner,sourceRecord,selected=chosen.card,chosen.record,chosen.selected
                     local from,to=selected.from,selected.to
                     if mode=="physicalBoost" then
                         local effectiveFamily=attackTransforms.siege and "siege" or from

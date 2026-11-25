@@ -1,5 +1,6 @@
 -- Linked Skill processing after activated Unit records exist: Leadership, Shapeshift, copying basic Actions, enemy effects, cooperative Skills, damage mitigation, Deadly Aim and Mana Overload. Receives live scan data and helpers; final object rendering, state publication and lifecycle remain with CardRecognition.
 local M={}
+local physicalLinks=require("PlayingGame.PlayerBoard.ResourceTracker.Core.PhysicalLinks")
 local resourceOps=require("PlayingGame.PlayerBoard.ResourceTracker.Core.ResourceOperations")
 
 function M.process(context)
@@ -117,15 +118,10 @@ function M.process(context)
                         end
                     end
                 end
-                table.sort(eligible,function(a,b)
-                    if a.overlap~=b.overlap then return a.overlap>b.overlap end
-                    return a.unit.guid<b.unit.guid
-                end)
                 -- One matching activated Unit is unambiguous. With several,
                 -- require a physical overlap to indicate the target.
-                if #eligible==1 or (#eligible>1 and eligible[1].overlap>0
-                    and eligible[1].overlap>eligible[2].overlap) then
-                    local chosenUnit=eligible[1]
+                local chosenUnit=physicalLinks.unique(eligible,true)
+                if chosenUnit~=nil then
                     local bonus=choice[family] or unitBoost[family]
                     if chosenUnit.replaceField~=nil then
                         local resources=records[chosenUnit.unit.guid].resources
@@ -143,7 +139,7 @@ function M.process(context)
     for _,skill in ipairs(skills) do
         local rule=skillResourceDefinitions[skill.guid]
         if rule~=nil and rule.shapeshift then
-            local best,bestOverlap=nil,0
+            local candidates={}
             for _,card in ipairs(cards) do
                 local data=gameCards[card.guid]
                 local record=records[card.guid]
@@ -162,12 +158,13 @@ function M.process(context)
                     end
                     if matches==1 then
                         local area=overlapArea(footprints[skill.guid],footprints[card.guid])
-                        if area>bestOverlap then
-                            best,bestOverlap={card=card,field=field},area
+                        if area>0 then
+                            candidates[#candidates+1]={card=card,field=field,overlap=area}
                         end
                     end
                 end
             end
+            local best=physicalLinks.unique(candidates)
             local sourceField=best~=nil and best.field or nil
             if best~=nil and sourceField~=nil then
                 local sourceFamily,suffix=resourceOps.splitKey(sourceField)
@@ -215,16 +212,20 @@ function M.process(context)
     for _,skill in ipairs(skills) do
         local skillRule=skillResourceDefinitions[skill.guid]
         if skillRule~=nil and skillRule.copyBasicAction then
-            local sideways,bestOverlap=nil,0
+            local sidewaysCandidates={}
             for _,card in ipairs(cards) do
                 local record=records[card.guid]
                 if cardPosture(card)=="sideways" and record~=nil
                     and record.resources~=nil
                     and skillLinksByTarget[card.guid]==nil then
                     local area=overlapArea(footprints[skill.guid],footprints[card.guid])
-                    if area>bestOverlap then sideways,bestOverlap=card,area end
+                    if area>0 then
+                        sidewaysCandidates[#sidewaysCandidates+1]={card=card,overlap=area}
+                    end
                 end
             end
+            local sidewaysChoice=physicalLinks.unique(sidewaysCandidates)
+            local sideways=sidewaysChoice~=nil and sidewaysChoice.card or nil
             if sideways~=nil then
                 local sidewaysData=gameCards[sideways.guid]
                 local sideIsArtifact=sidewaysData~=nil
@@ -272,12 +273,8 @@ function M.process(context)
                         end
                     end
                 end
-                table.sort(candidates,function(a,b)
-                    if a.overlap~=b.overlap then return a.overlap>b.overlap end
-                    return a.source.guid<b.source.guid
-                end)
-                if #candidates==1 or (#candidates>1 and candidates[1].overlap>0
-                    and candidates[1].overlap>candidates[2].overlap) then
+                local chosen=physicalLinks.unique(candidates,true)
+                if chosen~=nil then
                     local original=records[sideways.guid]
                     local oldField,oldCount=nil,0
                     for key,value in pairs(original.resources) do
@@ -286,7 +283,6 @@ function M.process(context)
                         end
                     end
                     if oldCount==1 then
-                        local chosen=candidates[1]
                         skillTargetLinked(skill,sideways,oldField,chosen.value,chosen.field)
                         local origin=records[chosen.source.guid]
                         local skillRecord=records[skill.guid]
@@ -525,7 +521,7 @@ function M.process(context)
     for _,skill in ipairs(skills) do
         local rule=skillResourceDefinitions[skill.guid]
         if rule~=nil and rule.attackCardBoost then
-            local best,bestOverlap=nil,0
+            local candidates={}
             local targets={}
             for _,card in ipairs(cards) do targets[#targets+1]=card end
             -- Power of Pain / Ritual of Pain can make a sideways Wound a real
@@ -551,12 +547,13 @@ function M.process(context)
                             end
                         end
                         local area=overlapArea(footprints[skill.guid],footprints[card.guid])
-                        if chosenField~=nil and area>bestOverlap then
-                            best,bestOverlap={card=card,field=chosenField,amount=amount},area
+                        if chosenField~=nil and area>0 then
+                            candidates[#candidates+1]={card=card,field=chosenField,amount=amount,overlap=area}
                         end
                     end
                 end
             end
+            local best=physicalLinks.unique(candidates)
             if best~=nil then
                 skillTargetLinked(skill,best.card,best.field,best.amount)
             end
@@ -636,13 +633,8 @@ function M.process(context)
                     end
                 end
             end
-            table.sort(candidates,function(a,b)
-                if a.overlap~=b.overlap then return a.overlap>b.overlap end
-                return a.card.guid<b.card.guid
-            end)
-            if #candidates==1 or (#candidates>1 and candidates[1].overlap>0
-                and candidates[1].overlap>candidates[2].overlap) then
-                local chosen=candidates[1]
+            local chosen=physicalLinks.unique(candidates,true)
+            if chosen~=nil then
                 local options,fieldByKey={},{}
                 for _,fieldInfo in ipairs(chosen.fields) do
                     local field,family=fieldInfo.field,fieldInfo.family
