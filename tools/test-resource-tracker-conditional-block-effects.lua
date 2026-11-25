@@ -82,8 +82,13 @@ local failed={guid="failed",conditionalCounterattack=4,attack=4,resources={attac
     details={{key="attackFire",text="old"}}}
 local targets={{sources={counter,failed},details={{source=counter,detail=counter.details[1]},
     {source=failed,detail=failed.details[1]}}},{sources={fireBlock,otherBlock},details={}}}
+local beforeBurning=calls
 engine.burningShield({{guid="attackTarget"},{guid="blockTarget",successful={burn=true}}},
     targets,{sources={},details={}})
+eq(calls-beforeBurning,1,"Only target with Burning Shield Block requires a Block result")
+local beforeOrdinary=calls
+engine.burningShield({{guid="ordinary"}},{{sources={{block=4}},details={}}},{sources={},details={}})
+eq(calls,beforeOrdinary,"Ordinary Block does not trigger a Burning Shield calculation")
 eq(counter.attack,4,"Successful Block elsewhere earns Fire Attack")
 eq(counter.resources.attackFire,4,"Resource record updated")
 eq(counter.details[1].text,"Fire Attack 4 (successful Block)","Counter tooltip updated")

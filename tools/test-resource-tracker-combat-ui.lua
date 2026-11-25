@@ -183,6 +183,49 @@ run("resource-tracker-combat-presentation",function()
     print("Combat resource lists, visible row rendering and panel summary passed")
 end)
 
+run("resource-tracker-icon-styling",function()
+    -- Exercise the actual coordinator functions rather than duplicating styling.
+    local f=assert(io.open("src/PlayingGame/PlayerBoard/CardRecognition.lua","r"))
+    local code=f:read("*a") f:close()
+    local first=assert(code:find("local function combatPanelSetAttribute(",1,true))
+    local last=assert(code:find("combatConfig.COMBAT_RED=",first,true))
+    local written,skipped,attrs=0,0,{}
+    local private={combatPanelAttributes={},traceEnabled=true,
+        profileCount=function(name)
+            if name=="ui.attribute.skipped" then skipped=skipped+1 end
+        end}
+    local config={slotSelection={slot={key="card"}}}
+    local state={selected="card"}
+    local env={trackerPrivate=private,combatConfig=config,combatAssignmentState=state,
+        UI={setAttribute=function(id,key,value)
+            written=written+1
+            attrs[id.."."..key]=value
+        end}}
+    setmetatable(env,{__index=_G})
+    local draw=assert(load(code:sub(first,last-1).."\nreturn combatAssignmentIconButton","Icon styling","t",env))()
+    draw("slot",true,2,"block","Block 2",true)
+    eq(attrs["slotImage.width"],"24","Initial geometry applied")
+    eq(attrs["slotAmount.text"],"2","Initial amount applied")
+    local before,skipBefore=written,skipped
+    draw("slot",true,2,"block","Block 2",true)
+    eq(written,before,"Repeated icon causes no UI writes")
+    eq(skipped-skipBefore,5+1,"Only six dynamic attributes enter cache on subsequent draws")
+    state.selected=nil
+    config.refreshSelectedSlots()
+    eq(attrs["slot.color"],"rgb(0.85,0.82,0.72)","Selection change remains live")
+    draw("slot",false,0,"","",false)
+    eq(attrs["slot.active"],"false","Slot hides")
+    draw("slot",true,3,"attack","Attack 3",false,"Red",true)
+    eq(attrs["slotAmount.text"],"3","Reused slot updates amount")
+    eq(attrs["slotImage.image"],"attack","Reused slot updates image")
+    eq(attrs["slotAmount.color"],"Red","Reused slot updates text tint")
+    eq(attrs["slot.color"],"rgb(0.90,0.37,0.35)","Wounded tint remains live")
+    private.combatPanelAttributes={}
+    local beforeReset=written
+    draw("slot",true,3,"attack","Attack 3",false,"Red",true)
+    assert(written-beforeReset>6,"Cleared attribute cache reapplies fixed style")
+end)
+
 run("resource-tracker-combat-interaction",function()
     -- Exercise extracted combat controls with live assignment tables.
     local root="src/PlayingGame/PlayerBoard/ResourceTracker/"

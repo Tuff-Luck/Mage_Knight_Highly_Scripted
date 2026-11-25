@@ -117,4 +117,32 @@ eq(bad[1][2],"attack","Diagnostic identifies resource family")
 eq(bad[1][3],3,"Original budget retained")
 eq(bad[1][4],6,"Actual allocation reported")
 eq(#faultyResult[1].sources,2,"Diagnostic does not mutate combat result")
+-- Nearest-target position cache is scoped to a single allocation, including
+-- absent objects. Other callers must still read current table positions.
+local file=assert(io.open("src/PlayingGame/PlayerBoard/CardRecognition.lua","r"))
+local code=file:read("*a") file:close()
+local start=assert(code:find("local function combatNearestEnemyGUID(",1,true))
+local finish=assert(code:find("combatConfig.attackTypes=",start,true))
+local reads={}
+local coordinates={source={0,0,0},a={1,0,0},b={2,0,0}}
+local env={combatAssignmentState={targets={}},getObjectFromGUID=function(guid)
+    if coordinates[guid]==nil then return nil end
+    return {getPosition=function()
+        reads[guid]=(reads[guid] or 0)+1
+        return coordinates[guid]
+    end}
+end}
+setmetatable(env,{__index=_G})
+local nearest=assert(load(code:sub(start,finish-1).."\nreturn combatNearestEnemyGUID","Nearest target","t",env))()
+local src={guid="source",key="source",attack=1,ranged=0,siege=0}
+local enemies={{guid="a"},{guid="b"}}
+local positions={}
+eq(nearest(src,enemies,nil,positions),"a","Nearest target selected")
+eq(nearest(src,enemies,nil,positions),"a","Repeat uses same position snapshot")
+eq(reads.source,1,"Source position reused")
+eq(reads.a,1,"First enemy position reused")
+eq(reads.b,1,"Second enemy position reused")
+coordinates.b={0.5,0,0}
+eq(nearest(src,enemies,nil,{}),"b","Next allocation observes moved enemy")
+eq(nearest(src,enemies),"b","Standalone caller observes live positions")
 print("Source target authority, eligibility, allocation and cleanup passed")
