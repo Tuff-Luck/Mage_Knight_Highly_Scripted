@@ -1,4 +1,5 @@
 -- Exercise Command ownership/exhaustion and the actual extracted Ready payment pass.
+package.path="src/?.lua;"..package.path
 local root="src/PlayingGame/PlayerBoard/ResourceTracker/"
 local function eq(a,b,label) assert(a==b,label..": expected "..tostring(b)..", got "..tostring(a)) end
 local retired={}

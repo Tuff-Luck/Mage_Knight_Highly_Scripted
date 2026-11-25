@@ -8,7 +8,7 @@ Cards.ActionLinks Cards.CardCallbacks Cards.CardEffects Cards.CrossCardEffects C
 Cards.PlayedCardScan Cards.ResourceChoices Cards.SkillEffects Cards.SkillInteractions Cards.SkillLinks
 Combat.AttackEligibility Combat.BlockCalculation Combat.BossAllocation Combat.CombatInteraction
 Combat.CombatTargetPolicy Combat.ConditionalBlockEffects Combat.DamageCalculation Combat.DefendAllocation
-Combat.DivisibleResources Combat.EarlyCombatPhase Combat.EnemyGroups Combat.EnemyProperties
+Combat.DivisibleResources Combat.EarlyCombatPhase Combat.EnemyEffectRecords Combat.EnemyGroups Combat.EnemyProperties
 Combat.ExplosiveBolt Combat.FlameWave Combat.LateCombatPhase Combat.SourceTargetAllocation
 Core.Diagnostics Core.ObjectEvents Core.PhysicalLinks Core.ResourceOperations Core.State Core.TrackerLifecycle Interface.CardControlOptions
 Interface.CardControls Interface.CombatDisplay Interface.CombatEffectDisplay Interface.CombatPanel

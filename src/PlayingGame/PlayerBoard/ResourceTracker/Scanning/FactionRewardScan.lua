@@ -1,5 +1,6 @@
 -- Faction reward choices, enemy effects, and ordered physical element/Attack modifiers; updates current records without changing immutable catalogs.
 local M={}
+local effectRecords=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.EnemyEffectRecords")
 local physicalLinks=require("PlayingGame.PlayerBoard.ResourceTracker.Core.PhysicalLinks")
 local resourceOps=require("PlayingGame.PlayerBoard.ResourceTracker.Core.ResourceOperations")
 
@@ -67,14 +68,12 @@ function M.read(context)
                 heroPsychicBlock=true
             end
             if not flipped and rule~=nil and rule.enemyEffect~=nil then
+                effectRecords.register(result,guid)
                 local target=combatEffectChosenEnemy(guid,footprint(token),monsters,
                     combatEffectTargetEligible(rule.enemyEffect))
                 if target~=nil then
                     combatEffectAdd(enemyEffects,target.guid,guid,rule.enemyEffect)
-                    result.enemyEffectTargetKeys={guid}
-                    result.enemyEffectTargetGUIDs={[guid]=target.guid}
-                    result.links[#result.links+1]=target.guid
-                    result.status="purple"
+                    effectRecords.link(result,guid,target.guid,{purple=true})
                 end
             end
             showChoiceButtons(token,choices,flipped,nil,nil,effect)

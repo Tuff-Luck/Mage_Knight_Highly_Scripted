@@ -1,6 +1,7 @@
 -- Unit scan passes. Read live activation history and paid abilities; keep scan order,
 -- shared records and final publication with the coordinator.
 local M={}
+local effectRecords=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.EnemyEffectRecords")
 
 function M.process(context)
     local seatPos, cards, records = context.seatPos, context.cards, context.records
@@ -221,8 +222,7 @@ function M.process(context)
                             if ability.enemyEffect~=nil or ability.targetableEnemy==true then
                                 local sourceKey=unitAbilityTargetKey(unitGUID,index,ability,useIndex)
                                 if sourceKey~=unitGUID then
-                                    result.enemyEffectTargetKeys=result.enemyEffectTargetKeys or {}
-                                    result.enemyEffectTargetKeys[#result.enemyEffectTargetKeys+1]=sourceKey
+                                    effectRecords.register(result,sourceKey)
                                 end
                                 -- Every enemy-targeting Unit ability starts on a nearby
                                 -- enemy, even if it is a non-resource/manual effect.
@@ -240,7 +240,8 @@ function M.process(context)
                                     if target~=nil then
                                         if ability.enemyEffect~=nil then
                                             combatEffectAdd(enemyEffects,target.guid,unitGUID,ability.enemyEffect,sourceKey)
-                                            result.links[#result.links+1]=target.guid
+                                            effectRecords.link(result,sourceKey~=unitGUID and sourceKey or nil,
+                                                target.guid,{})
                                             -- The Unit is spent for Fear rather than
                                             -- its printed ability. Fame requires a legal
                                             -- enemy target; Arcane Immunity negates it.
@@ -251,9 +252,8 @@ function M.process(context)
                                                 setHighlight(unit,"purple",false)
                                             end
                                         end
-                                        if sourceKey~=unitGUID then
-                                            result.enemyEffectTargetGUIDs=result.enemyEffectTargetGUIDs or {}
-                                            result.enemyEffectTargetGUIDs[sourceKey]=target.guid
+                                        if ability.enemyEffect==nil and sourceKey~=unitGUID then
+                                            effectRecords.target(result,sourceKey,target.guid)
                                         end
                                     end
                                 end
@@ -322,9 +322,7 @@ function M.resolveUnfortifiedTargets(context)
             monsters,function(_,guid) return eligible[guid]==true end)
         if target~=nil then
             combatEffectAdd(enemyEffects,target.guid,pending.unitGUID,pending.spec,pending.sourceKey)
-            pending.result.links[#pending.result.links+1]=target.guid
-            pending.result.enemyEffectTargetGUIDs=pending.result.enemyEffectTargetGUIDs or {}
-            pending.result.enemyEffectTargetGUIDs[pending.sourceKey]=target.guid
+            effectRecords.link(pending.result,pending.sourceKey,target.guid,{})
         end
     end
 end

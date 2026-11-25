@@ -1,5 +1,6 @@
 -- Linked Skill processing after activated Unit records exist: Leadership, Shapeshift, copying basic Actions, enemy effects, cooperative Skills, damage mitigation, Deadly Aim and Mana Overload. Receives live scan data and helpers; final object rendering, state publication and lifecycle remain with CardRecognition.
 local M={}
+local effectRecords=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.EnemyEffectRecords")
 local physicalLinks=require("PlayingGame.PlayerBoard.ResourceTracker.Core.PhysicalLinks")
 local resourceOps=require("PlayingGame.PlayerBoard.ResourceTracker.Core.ResourceOperations")
 
@@ -358,16 +359,13 @@ function M.process(context)
                 local target=combatEffectChosenEnemy(skill.guid,footprints[skill.guid],monsters,eligible)
                 local options=combatConfig.preyChoices(target~=nil and target.guid or nil)
                 record.choices=options
-                record.enemyEffectTargetKeys={skill.guid}
+                effectRecords.register(record,skill.guid)
                 local selected=chosenEffect(skill.guid,false,options)
                 spec=selected~=nil and selected.preySpec or nil
                 if target~=nil and spec~=nil then
                     combatEffectAdd(enemyEffects,target.guid,skill.guid,spec)
-                    record.enemyGUID=target.guid
-                    record.links[#record.links+1]=target.guid
-                    record.status="purple"
-                    record.complete=true
-                    record.enemyEffectTargetGUIDs={[skill.guid]=target.guid}
+                    effectRecords.link(record,skill.guid,target.guid,
+                        {primary="replace",purple=true,complete=true})
                 else
                     record.status="yellow"
                     record.complete=false
@@ -377,7 +375,7 @@ function M.process(context)
             -- player is choosing a new enemy; otherwise a rescan can erase
             -- the purple preview arrow before the target click is applied.
             if spec~=nil and not spec.all then
-                record.enemyEffectTargetKeys={skill.guid}
+                effectRecords.register(record,skill.guid)
             end
             if skill.guid=="6a33c1" and spec~=nil and spec.armourReduce~=nil then
                 -- Switching from Attack -1 to Armour -1 invalidates a saved
@@ -414,13 +412,8 @@ function M.process(context)
                 eligible or combatEffectTargetEligible(spec)) or nil
             if spec~=nil and target~=nil then
                 combatEffectAdd(enemyEffects,target.guid,skill.guid,spec)
-                record.enemyGUID=target.guid
-                record.links[#record.links+1]=target.guid
-                record.status="purple"
-                if not spec.all then
-                    record.enemyEffectTargetKeys={skill.guid}
-                    record.enemyEffectTargetGUIDs={[skill.guid]=target.guid}
-                end
+                effectRecords.link(record,not spec.all and skill.guid or nil,target.guid,
+                    {primary="replace",purple=true})
             end
         end
     end
@@ -438,7 +431,7 @@ function M.process(context)
             or fallback~=nil and footprint(fallback) or nil
         local record=records[key] or {guid=key,kind="skill",known=true,
             resources=nil,status="yellow",powered=false,complete=false,links={}}
-        record.enemyEffectTargetKeys={key}
+        effectRecords.register(record,key)
         records[key]=record
         current[key]=true
         if area~=nil then
@@ -446,11 +439,8 @@ function M.process(context)
                 combatEffectTargetEligible(spec))
             if target~=nil then
                 combatEffectAdd(enemyEffects,target.guid,key,spec)
-                record.enemyGUID=target.guid
-                record.links[#record.links+1]=target.guid
-                record.status="purple"
-                record.complete=true
-                record.enemyEffectTargetGUIDs={[key]=target.guid}
+                effectRecords.link(record,key,target.guid,
+                    {primary="replace",purple=true,complete=true})
             end
         end
     end
@@ -469,7 +459,7 @@ function M.process(context)
             or fallback~=nil and footprint(fallback) or nil
         local record=records[key] or {guid=key,kind="skill",known=true,
             resources=nil,status="yellow",powered=false,complete=false,links={}}
-        record.enemyEffectTargetKeys={key}
+        effectRecords.register(record,key)
         records[key]=record
         current[key]=true
         if area~=nil then
@@ -480,11 +470,8 @@ function M.process(context)
                 end)
             if target~=nil then
                 combatEffectAdd(enemyEffects,target.guid,key,spec)
-                record.enemyGUID=target.guid
-                record.links[#record.links+1]=target.guid
-                record.status="purple"
-                record.complete=true
-                record.enemyEffectTargetGUIDs={[key]=target.guid}
+                effectRecords.link(record,key,target.guid,
+                    {primary="replace",purple=true,complete=true})
             end
         end
     end
@@ -498,7 +485,7 @@ function M.process(context)
             -- Advertise the effect-only source even before the first target
             -- click. Otherwise an immediate calculator refresh prunes its new
             -- arrow before the pending Skill scan can apply the mitigation.
-            record.enemyEffectTargetKeys={skill.guid}
+            effectRecords.register(record,skill.guid)
             local targetGUID=combatAssignmentState.targets[skill.guid]
             if targetGUID==nil then
                 for guid in pairs(attackAssignmentsTargetGUIDs(skill.guid)) do
@@ -507,12 +494,8 @@ function M.process(context)
             end
             local target=targetGUID~=nil and combatMonsters[targetGUID] or nil
             if target~=nil and target.is_face_down~=true then
-                record.enemyGUID=targetGUID
-                record.links[#record.links+1]=targetGUID
-                record.status="purple"
-                record.complete=true
-                record.enemyEffectTargetKeys={skill.guid}
-                record.enemyEffectTargetGUIDs={[skill.guid]=targetGUID}
+                effectRecords.link(record,skill.guid,targetGUID,
+                    {primary="replace",purple=true,complete=true})
             end
         end
     end

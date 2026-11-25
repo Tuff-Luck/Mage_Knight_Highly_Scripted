@@ -1,5 +1,6 @@
 -- Per-card record processing after mana and Action links have been resolved. Applies existing conditional resources, target effects, inventory choices, card controls and movement/combat flags; returns scalar flags to the scan coordinator. Does not discover mana, publish scans or change phase ordering.
 local M={}
+local effectRecords=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.EnemyEffectRecords")
 
 function M.process(context)
     local seatPos, cards, powered = context.seatPos, context.cards, context.powered
@@ -402,7 +403,7 @@ function M.process(context)
                         if effect~=nil then
                             local key=card.guid.."#rep"..index
                             if not effect.all then
-                                result.enemyEffectTargetKeys[#result.enemyEffectTargetKeys+1]=key
+                                effectRecords.register(result,key)
                             end
                             local target=combatEffectChosenEnemy(key,footprints[card.guid],
                                 monsters,combatEffectTargetEligible(effect))
@@ -410,16 +411,12 @@ function M.process(context)
                                 for enemyGUID,monster in pairs(monsters) do
                                     if monster.is_face_down~=true then
                                         combatEffectAdd(enemyEffects,enemyGUID,card.guid,effect,key)
-                                        result.links[#result.links+1]=enemyGUID
-                                        result.status="purple"
+                                        effectRecords.link(result,nil,enemyGUID,{purple=true})
                                     end
                                 end
                             elseif target~=nil then
                                 combatEffectAdd(enemyEffects,target.guid,card.guid,effect,key)
-                                result.enemyGUID=result.enemyGUID or target.guid
-                                result.enemyEffectTargetGUIDs[key]=target.guid
-                                result.links[#result.links+1]=target.guid
-                                result.status="purple"
+                                effectRecords.link(result,key,target.guid,{primary="first",purple=true})
                             end
                         end
                     end
@@ -434,7 +431,7 @@ function M.process(context)
                         local key=card.guid.."#effect"..index
                         local target=combatEffectChosenEnemy(key,footprints[card.guid],
                             monsters,combatEffectTargetEligible({attackReduce=2}))
-                        result.enemyEffectTargetKeys[#result.enemyEffectTargetKeys+1]=key
+                        effectRecords.register(result,key)
                         if target~=nil then
                             -- Do not merge the two reductions. When both aim
                             -- at one multi-attack enemy, the calculator can
@@ -442,10 +439,7 @@ function M.process(context)
                             -- Two selections of the SAME Attack still total -4.
                             combatEffectAdd(enemyEffects,target.guid,card.guid,
                                 {attackReduce=2},key)
-                            result.enemyGUID=result.enemyGUID or target.guid
-                            result.enemyEffectTargetGUIDs[key]=target.guid
-                            result.links[#result.links+1]=target.guid
-                            result.status="purple"
+                            effectRecords.link(result,key,target.guid,{primary="first",purple=true})
                         end
                     end
                 elseif spec~=nil then
@@ -469,21 +463,17 @@ function M.process(context)
                         end
                     end
                     table.sort(ordered)
-                    result.enemyEffectTargetKeys={key}
+                    effectRecords.register(result,key)
                     for index=1,math.min(#ordered,spec.maxTargets) do
                         local targetGUID=ordered[index]
                         combatEffectAdd(enemyEffects,targetGUID,card.guid,spec,key)
-                        result.links[#result.links+1]=targetGUID
-                        if result.enemyGUID==nil then
-                            result.enemyGUID=targetGUID
-                            result.enemyEffectTargetGUIDs={[key]=targetGUID}
-                        end
-                        result.status="purple"
+                        local primaryKey=result.enemyGUID==nil and key or nil
+                        effectRecords.link(result,primaryKey,targetGUID,{primary="first",purple=true})
                     end
                 elseif spec.multiTargetMove then
                     -- Right-click target to add further enemies; cost is settled
                     -- after all Move-producing cards/Units/Skills have been read.
-                    result.enemyEffectTargetKeys={key}
+                    effectRecords.register(result,key)
                     local targets=attackAssignmentsTargetGUIDs(key)
                     local primary=combatEffectChosenEnemy(key,footprints[card.guid],
                         monsters,combatEffectTargetEligible(spec))
@@ -504,12 +494,13 @@ function M.process(context)
                     end)
                     if #ordered>0 then
                         pendingWingsNight[#pendingWingsNight+1]={source=card.guid,targets=ordered}
-                        result.enemyEffectTargetGUIDs={[key]=ordered[1]}
-                        result.enemyGUID=ordered[1]
-                        for _,guid in ipairs(ordered) do result.links[#result.links+1]=guid end
-                        result.status="purple"
+                        for index,guid in ipairs(ordered) do
+                            effectRecords.link(result,index==1 and key or nil,guid,
+                                {primary=index==1 and "replace" or nil,purple=true})
+                        end
                     end
                 else
+                    if not spec.all then effectRecords.register(result,key) end
                     local target=combatEffectChosenEnemy(key,footprints[card.guid],
                         monsters,combatEffectTargetEligible(spec))
                     if target~=nil then
@@ -533,13 +524,8 @@ function M.process(context)
                                 end
                             end
                         end
-                        result.enemyGUID=targetGUID
-                        result.links[#result.links+1]=targetGUID
-                        result.status="purple"
-                        if not spec.all then
-                            result.enemyEffectTargetKeys={key}
-                            result.enemyEffectTargetGUIDs={[key]=targetGUID}
-                        end
+                        effectRecords.link(result,not spec.all and key or nil,targetGUID,
+                            {primary="replace",purple=true})
                     end
                 end
                 end -- Dodge and Weave separate effect targets
