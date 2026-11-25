@@ -82,6 +82,71 @@ assert(rebuilds==3 and redraws==3 and next(damageEnv.damageTargets)==nil,
     "Losing eligible Unit cleans existing assignment")
 sync(0,{})
 assert(rebuilds==3 and redraws==3,"Clean no-Unit state remains cheap")
+-- The real geometry renderer must reuse only unchanged static lines.
+local geometryStart=assert(code:find("local function positionAtHeight(",1,true))
+local geometryEnd=assert(code:find("function attackAssignmentsAppendVectorLines(",geometryStart,true))
+local positions={card={0,0,0},other={2,0,0},enemy={8,0,0},unit={9,0,3}}
+local reads={}
+local colors={other={0.5,0,1},attack={0,0,1},damage={1,0,0}}
+local lock
+local registry={a={sourceGUID="card",targetGUID="enemy",kind="attack"}}
+local geomEnv={assignmentRegistry=registry,assignmentColors=colors,assignmentHeight=1.1,
+    assignmentThickness=0.1,damageThickness=0.2,previewThickness=0.3,previewHeight=1.2,
+    arrowHeadLength=0.34,arrowHeadAngle=0.4,
+    assignmentBaseGUID=function(guid) return guid end,
+    assignmentColorFor=function(kind) return colors[kind] or colors.other end,
+    combatCommittedLock=function() return lock end,
+    resourceCardsPanelOpen=function() return true end,
+    unitHistorySourceBase=function(key) return key end,
+    gStates={},readyUnitPending={},blockLinkPending={},targetingByPlayer={},
+    damageTargets={},damageSpec={byKey={},attacks={},units={}},
+    getObjectFromGUID=function(guid)
+        if positions[guid]==nil then return nil end
+        return {isDestroyed=function() return false end,
+            getPosition=function() reads[guid]=(reads[guid] or 0)+1 return positions[guid] end}
+    end}
+setmetatable(geomEnv,{__index=_G})
+local geometry=assert(load(code:sub(geometryStart,geometryEnd-1).."\nreturn activeVisualLines","Geometry cache","t",geomEnv))()
+local initial=geometry()
+assert(#initial==3)
+local same=geometry()
+assert(same[1]==initial[1] and same[2]==initial[2],"Unchanged geometry reused")
+registry.b={sourceGUID="other",targetGUID="enemy",kind="attack"}
+local before=reads.enemy
+local added=geometry()
+assert(#added==6 and reads.enemy==before+1,"Shared endpoint sampled once per pass")
+local function has(lines,line)
+    for _,candidate in ipairs(lines) do if candidate==line then return true end end
+    return false
+end
+assert(has(added,initial[1]),"Adding another arrow preserves existing geometry")
+positions.card={1,0,0}
+local moved=geometry()
+assert(not has(moved,initial[1]),"Moved source rebuilds its arrow")
+positions.enemy={8,0,1}
+local movedTarget=geometry()
+for _,line in ipairs(moved) do assert(not has(movedTarget,line),"Moved target invalidates both arrows") end
+registry.b=nil
+registry.a.kind="other"
+local recolored=geometry()
+assert(#recolored==3 and recolored[1].color==colors.other)
+lock={sourceKeys={card=true},positions={card={3,0,4}}}
+local frozen=geometry()
+assert(frozen[1].points[1][1]==3 and frozen[1].points[1][3]==4)
+positions.card=nil
+assert(geometry()[1]==frozen[1],"Frozen source survives missing live card")
+lock=nil
+assert(#geometry()==0,"Missing live source removes arrow and prunes cache")
+positions.card={3,0,4}
+assert(geometry()[1]~=frozen[1],"Restored live object is rebuilt")
+geomEnv.damageTargets={hit={"unit"}}
+geomEnv.damageSpec={byKey={hit={owner="enemy"}},attacks={},units={unit=true}}
+local damage=geometry()
+assert(#damage==4 and damage[4].color==colors.damage and damage[4].thickness==0.2)
+assert(geometry()[4]==damage[4],"Headless damage geometry reused")
+geomEnv.damageTargets={}
+registry.a=nil
+assert(#geometry()==0,"Removed assignments produce no stale lines")
 -- Verify recovery after another vector owner removes, duplicates or recolours an arrow.
 local helperStart=assert(code:find("local function assignmentLinesIntact(",1,true))
 local helperEnd=assert(code:find("function attackAssignmentsRefreshReadyUI()",helperStart,true))

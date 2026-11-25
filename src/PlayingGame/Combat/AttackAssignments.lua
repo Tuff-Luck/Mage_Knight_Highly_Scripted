@@ -140,11 +140,10 @@ local function positionAtHeight(position,height)
 	return {position[1],height or assignmentHeight,position[3]}
 end
 
-local function assignmentLines(source,target,color,noHead)
-	if source==nil or target==nil or source.isDestroyed() or target.isDestroyed() then return nil end
+local function assignmentLines(sourcePosition,targetPosition,color,noHead)
 	color=color or assignmentColors.other
-	local from=positionAtHeight(source.getPosition())
-	local to=positionAtHeight(target.getPosition())
+	local from=positionAtHeight(sourcePosition)
+	local to=positionAtHeight(targetPosition)
 	local dx,dz=to[1]-from[1],to[3]-from[3]
 	local distance=math.sqrt(dx*dx+dz*dz)
 	if distance<0.01 then return nil end
@@ -165,33 +164,56 @@ local function assignmentLines(source,target,color,noHead)
 	return lines
 end
 
+-- Only the previous pass's static geometry is retained. Positions and live
+-- object validity are sampled anew every pass; no userdata is cached.
+local previousArrowGeometry={}
 local function activeVisualLines()
 	local lines={}
+    local positions,nextGeometry={},{}
+    local function positionOf(guid)
+        if guid==nil then return nil end
+        local position=positions[guid]
+        if position~=nil then return position or nil end
+        local obj=getObjectFromGUID(guid)
+        if obj~=nil and not obj.isDestroyed() then
+            local live=obj.getPosition()
+            position={live[1],0,live[3]}
+        else
+            position=false
+        end
+        positions[guid]=position
+        return position or nil
+    end
+    local function appendStatic(sourceGUID,targetGUID,color,noHead,frozen)
+        local from=frozen or positionOf(sourceGUID)
+        local to=positionOf(targetGUID)
+        if from==nil or to==nil then return end
+        local key=sourceGUID.."\0"..targetGUID.."\0"..tostring(color)
+            .."\0"..tostring(noHead==true).."\0"..tostring(frozen~=nil)
+        local cached=nextGeometry[key] or previousArrowGeometry[key]
+        -- Exact X/Z comparisons preserve the original geometry for even tiny
+        -- changes. Y is deliberately irrelevant at the fixed arrow height.
+        if cached==nil or cached.sx~=from[1] or cached.sz~=from[3]
+            or cached.tx~=to[1] or cached.tz~=to[3] then
+            cached={sx=from[1],sz=from[3],tx=to[1],tz=to[3],
+                lines=assignmentLines(from,to,color,noHead) or {}}
+        end
+        nextGeometry[key]=cached
+        for _,line in ipairs(cached.lines) do lines[#lines+1]=line end
+    end
+    local lock=combatCommittedLock~=nil and combatCommittedLock() or nil
 	for _,entry in pairs(assignmentRegistry) do
-		-- TTS may invalidate userdata for a replaced object without clearing
-		-- its earlier assignment. Resolve fresh objects from the saved GUIDs
-		-- rather than reading a stale cached source/target reference.
-		local source=getObjectFromGUID(assignmentBaseGUID(entry.sourceGUID))
-		local target=getObjectFromGUID(entry.targetGUID)
-        local lock=combatCommittedLock~=nil and combatCommittedLock() or nil
         local frozen=lock~=nil and (lock.sourceKeys or {})[entry.sourceGUID]==true
             and (lock.positions or {})[entry.sourceGUID] or nil
-        if frozen~=nil then
-            -- A frozen arrow stays on the play-area location even when the
-            -- physical card is retrieved, stacked, or moved to the hand.
-            source={getPosition=function() return frozen end,
-                isDestroyed=function() return false end}
-        end
-		local assignment=assignmentLines(source,target,assignmentColorFor(entry.kind))
-		for _,line in ipairs(assignment or {}) do lines[#lines+1]=line end
+        -- Frozen sources use the saved play-area position; targets remain live.
+        appendStatic(assignmentBaseGUID(entry.sourceGUID),entry.targetGUID,
+            assignmentColorFor(entry.kind),false,frozen)
 	end
     -- Readying links remain visible even after their Command token returns to
     -- the ready slot. They identify the specific effect that authorised reuse.
     if resourceCardsPanelOpen~=nil and resourceCardsPanelOpen() then
         for sourceKey,link in pairs(gStates~=nil and gStates.unitReadyLinks or {}) do
-            local arrow=assignmentLines(getObjectFromGUID(unitHistorySourceBase(sourceKey)),
-                getObjectFromGUID(link.unitGUID),assignmentColors.other)
-            for _,line in ipairs(arrow or {}) do lines[#lines+1]=line end
+            appendStatic(unitHistorySourceBase(sourceKey),link.unitGUID,assignmentColors.other)
         end
     end
     for color,pending in pairs(readyUnitPending) do
@@ -209,25 +231,22 @@ local function activeVisualLines()
     -- Spirit Guides may link to a Block source anywhere in the play area.
     -- Its purple arrow is separate from enemy Attack/Block assignments.
     for skillGUID,targetGUID in pairs(gStates~=nil and gStates.blockSourceLinks or {}) do
-        local arrow=assignmentLines(getObjectFromGUID(skillGUID),getObjectFromGUID(targetGUID),assignmentColors.other)
-        for _,line in ipairs(arrow or {}) do lines[#lines+1]=line end
+        appendStatic(skillGUID,targetGUID,assignmentColors.other)
     end
     -- Ambush's card buff is independent of its blue Cumbersome Move arrow.
     -- Only the tracker shows this purple, card-to-card targeting link.
     if resourceCardsPanelOpen~=nil and resourceCardsPanelOpen() then
         for sourceGUID,targetGUID in pairs(gStates~=nil and gStates.ambushCombatLinks or {}) do
-            local arrow=assignmentLines(getObjectFromGUID(sourceGUID),
-                getObjectFromGUID(targetGUID),assignmentColors.other)
-            for _,line in ipairs(arrow or {}) do lines[#lines+1]=line end
+            appendStatic(sourceGUID,targetGUID,assignmentColors.other)
         end
     end
 	for key,guids in pairs(damageTargets) do
 		local attack=damageSpec.byKey[key]
-		local owner=attack~=nil and getObjectFromGUID(attack.owner) or nil
-		for _,guid in ipairs(guids) do
-			local assignment=assignmentLines(owner,getObjectFromGUID(guid),assignmentColors.damage,true)
-			for _,line in ipairs(assignment or {}) do lines[#lines+1]=line end
-		end
+		if attack~=nil then
+            for _,guid in ipairs(guids) do
+                appendStatic(attack.owner,guid,assignmentColors.damage,true)
+            end
+        end
 	end
 	-- A forced first recipient is also a real damage assignment and should be visible
 	-- without making the player click an additional control.
@@ -239,9 +258,7 @@ local function activeVisualLines()
 				if manual==guid then manuallyLinked=true break end
 			end
 			if not manuallyLinked then
-				local owner=getObjectFromGUID(attack.owner)
-				local assignment=assignmentLines(owner,getObjectFromGUID(guid),assignmentColors.damage,true)
-				for _,line in ipairs(assignment or {}) do lines[#lines+1]=line end
+                appendStatic(attack.owner,guid,assignmentColors.damage,true)
 			end
 		end
 	end
@@ -275,6 +292,8 @@ local function activeVisualLines()
 			lines[#lines+1]={points={from,to},color=assignmentColorFor(pending.kind),thickness=previewThickness,rotation={0,0,0}}
 		end
 	end
+    -- Removed assignments and missing objects are pruned automatically.
+    previousArrowGeometry=nextGeometry
 	return lines
 end
 
