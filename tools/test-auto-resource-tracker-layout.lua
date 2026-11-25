@@ -218,7 +218,9 @@ env.resourceCardsEnemyPresent=function() return false end
 env.currentCityShieldInfluence=function() return 0 end
 env.resourceCardsEffectiveTerrainCost=function() return 2 end
 env.resourceCardsEffectiveCombatMove=function() return 0 end
+local translations=0
 env.joinLang=function(parts)
+    translations=translations+1
     local head=tostring(parts[1] or "")
     local english=head:match("{en}(.-){it}") or head
     return english..tostring(parts[2] or "")
@@ -238,6 +240,12 @@ eq(UI.getAttribute("MovemAmountPlainRow","active"),"false","Empty Move hidden")
 eq(UI.getAttribute("InfluAmountPlainRow","active"),"false","Empty Influence hidden")
 eq(UI.getAttribute("HealiAmountPlainRow","active"),"false","Empty Healing hidden")
 eq(ready(),true,"Compact open tracker must still scan cards")
+local beforeTranslations=translations
+callback.render()
+eq(translations,beforeTranslations,"Unchanged resource text skips translation")
+env.invalidateResourceTrackerDisplayCache()
+callback.render()
+assert(translations>beforeTranslations,"Invalidation reapplies text")
 
 move,influence,healing=4,2,1
 callback.render()

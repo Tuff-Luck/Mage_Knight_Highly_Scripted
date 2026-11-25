@@ -3625,13 +3625,21 @@ local function resourceCardsRawValue(tracker,totals,category,field)
     return manual+estimated
 end
 
-function resourceCardsEffectiveValue(category,field)
-    if not resourceCardsPanelOpen() then return 0 end
-    local tracker=gStates~=nil and gStates.resourceTracker or nil
+-- A synchronous display pass can reuse the same live totals and phase flags.
+-- No snapshot is retained across scans, turns, or manual resource changes.
+function resourceCardsEffectiveValueSnapshot()
+    if not resourceCardsPanelOpen() then return {open=false} end
     local totals=resourceCardsCurrentTotals()
     local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
     local scan=current~=nil and resourceCardScanBySeat[current.seatPos] or nil
-    local transform=totals~=nil and scan~=nil and scan.attackTransforms or nil
+    return {open=true,tracker=gStates~=nil and gStates.resourceTracker or nil,
+        totals=totals,transform=totals~=nil and scan~=nil and scan.attackTransforms or nil}
+end
+
+function resourceCardsEffectiveValue(category,field,snapshot)
+    local state=snapshot or resourceCardsEffectiveValueSnapshot()
+    if not state.open then return 0 end
+    local tracker,totals,transform=state.tracker,state.totals,state.transform
     if transform==nil or (not transform.coldFire and not transform.siege)
         or (category~="attack" and category~="ranged" and category~="siege") then
         return resourceCardsRawValue(tracker,totals,category,field)

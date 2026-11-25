@@ -2417,14 +2417,26 @@ end
 
 local RESOURCE_TRACKER_ZERO_TEXT_COLOR="#555555" -- Adjust this shade to tune empty-resource contrast.
 local resourceTrackerDisplayCache={}
+local resourceTrackerTextInputs={}
 function invalidateResourceTrackerDisplayCache()
     resourceTrackerDisplayCache={}
+    resourceTrackerTextInputs={}
 end
 local function setResourceTrackerDisplayAttribute(id,attribute,value)
     local key=id.."\0"..attribute
     if resourceTrackerDisplayCache[key]==value then return end
-    resourceTrackerDisplayCache[key]=value
     UI.setAttribute(id,attribute,value)
+    resourceTrackerDisplayCache[key]=value
+end
+
+-- joinLang emits every language in one string. Reuse unchanged inputs before
+-- performing that translation work, rather than only skipping the final write.
+local function setResourceTrackerText(id,parts)
+    local first,second=tostring(parts[1]),tostring(parts[2])
+    local previous=resourceTrackerTextInputs[id]
+    if previous~=nil and previous.first==first and previous.second==second then return end
+    setResourceTrackerDisplayAttribute(id,"text",joinLang(parts))
+    resourceTrackerTextInputs[id]={first=first,second=second}
 end
 
 -- Return both the ordinary Influence pool (usable by Learning and other
@@ -2460,8 +2472,9 @@ function refreshResourceTrackerText()
     local interactionTotal,influenceBase,influenceGenerated,reputation,shields,canModifyInfluence=
         trackerSpendableInfluence()
     local rawTotals=resourceCardsCurrentTotals() or {}
+    local valueSnapshot=resourceCardsEffectiveValueSnapshot~=nil and resourceCardsEffectiveValueSnapshot() or nil
     local healingGenerated=tonumber(rawTotals.healing) or 0
-    local healingTotal=math.max(0,resourceCardsEffectiveValue("healing","healing"))
+    local healingTotal=math.max(0,resourceCardsEffectiveValue("healing","healing",valueSnapshot))
     local moveTotal=resourceCardsEffectiveMove()
     local moveGenerated=resourceCardsGeneratedMove~=nil and resourceCardsGeneratedMove() or 0
     local moveState=gStates.resourceTracker.move or {}
@@ -2478,21 +2491,16 @@ function refreshResourceTrackerText()
         if visible then visibleHeight=visibleHeight+(height or 22)+1 end
     end
     showRow("MovemAmountPlain",moveTotal>0 or exploreCount>0,34)
-    setResourceTrackerDisplayAttribute("MovemAmountPlainText","text",
-        joinLang({RESOURCE_TRACKER_FIELDS.MovemAmountPlain[3],moveTotal}))
+    setResourceTrackerText("MovemAmountPlainText",{RESOURCE_TRACKER_FIELDS.MovemAmountPlain[3],moveTotal})
     showRow("MovemGenerated",moveGenerated~=moveTotal)
-    setResourceTrackerDisplayAttribute("MovemGeneratedText","text",
-        joinLang({RESOURCE_TRACKER_FIELDS.InfluAmountPhysi[3],moveGenerated}))
+    setResourceTrackerText("MovemGeneratedText",{RESOURCE_TRACKER_FIELDS.InfluAmountPhysi[3],moveGenerated})
     showRow("MovemSpent",travelSpent>0)
-    setResourceTrackerDisplayAttribute("MovemSpentText","text",
-        joinLang({"{en}Spent : {it}Speso : {ru}Потрачено: {zh-tw}已花費：{zh-cn}已花费：{ko}사용 : {es}Gastado : {fr}Dépensé : {pt-br}Gasto : {de}Ausgegeben : ",
-            travelSpent>0 and ("-"..tostring(travelSpent)) or "0"}))
+    setResourceTrackerText("MovemSpentText",{"{en}Spent : {it}Speso : {ru}Потрачено: {zh-tw}已花費：{zh-cn}已花费：{ko}사용 : {es}Gastado : {fr}Dépensé : {pt-br}Gasto : {de}Ausgegeben : ",
+            travelSpent>0 and ("-"..tostring(travelSpent)) or "0"})
     showRow("MovemExplore",exploreCount>0)
-    setResourceTrackerDisplayAttribute("MovemExploreText","text",
-        joinLang({"{en}Explore : {it}Esplorazione : {ru}Исследование: {zh-tw}探索：{zh-cn}探索：{ko}탐험 : {es}Explorar : {fr}Exploration : {pt-br}Exploração : {de}Erkunden : ",
-            exploreSpent>0 and ("-"..tostring(exploreSpent)) or "0"}))
-    setResourceTrackerDisplayAttribute("CombatMoveText","text",
-        joinLang({"{en}Combat Move : {it}Movimento in combattimento : {ru}Движение в бою: {zh-tw}戰鬥移動：{zh-cn}战斗移动：{ko}전투 이동 : {es}Movimiento en combate : {fr}Déplacement en combat : {pt-br}Movimento em combate : {de}Bewegung im Kampf : ",combatMove}))
+    setResourceTrackerText("MovemExploreText",{"{en}Explore : {it}Esplorazione : {ru}Исследование: {zh-tw}探索：{zh-cn}探索：{ko}탐험 : {es}Explorar : {fr}Exploration : {pt-br}Exploração : {de}Erkunden : ",
+            exploreSpent>0 and ("-"..tostring(exploreSpent)) or "0"})
+    setResourceTrackerText("CombatMoveText",{"{en}Combat Move : {it}Movimento in combattimento : {ru}Движение в бою: {zh-tw}戰鬥移動：{zh-cn}战斗移动：{ko}전투 이동 : {es}Movimiento en combate : {fr}Déplacement en combat : {pt-br}Movimento em combate : {de}Bewegung im Kampf : ",combatMove})
     showRow("CombatMove",combatMove>0)
 
     local elements={{"Physi","physical"},{"Firex","fire"},{"Icexx","ice"},
@@ -2504,15 +2512,14 @@ function refreshResourceTrackerText()
         local only=nil
         for _,element in ipairs(elements) do
             local fieldName=prefix.."Amount"..element[1]
-            local value=math.max(0,resourceCardsEffectiveValue(family,element[2]))
+            local value=math.max(0,resourceCardsEffectiveValue(family,element[2],valueSnapshot))
             values[fieldName]=value
             total=total+value
             if value>0 then nonzero=nonzero+1 only=fieldName end
         end
         showRow(prefix.."AmountPlain",total>0,34)
         local spec=RESOURCE_TRACKER_FIELDS[prefix.."AmountPlain"]
-        setResourceTrackerDisplayAttribute(prefix.."AmountPlainText","text",
-            joinLang({spec[3],total}))
+        setResourceTrackerText(prefix.."AmountPlainText",{spec[3],total})
         local elementName=""
         if nonzero==1 and only~=nil then
             local label=joinLang({RESOURCE_TRACKER_FIELDS[only][3]})
@@ -2523,37 +2530,30 @@ function refreshResourceTrackerText()
             local id=prefix.."Amount"..element[1]
             local value=values[id]
             showRow(id,nonzero>1 and value>0)
-            setResourceTrackerDisplayAttribute(id.."Text","text",
-                joinLang({RESOURCE_TRACKER_FIELDS[id][3],value}))
+            setResourceTrackerText(id.."Text",{RESOURCE_TRACKER_FIELDS[id][3],value})
         end
     end
 
     -- The headline excludes Interaction-only modifiers even when no enemy
     -- is present. Generated is a breakdown only when manually adjusted.
     showRow("InfluAmountPlain",influenceBase>0,34)
-    setResourceTrackerDisplayAttribute("InfluAmountPlainText","text",
-        joinLang({RESOURCE_TRACKER_FIELDS.InfluAmountPlain[3],influenceBase}))
+    setResourceTrackerText("InfluAmountPlainText",{RESOURCE_TRACKER_FIELDS.InfluAmountPlain[3],influenceBase})
     showRow("InfluAmountPhysi",influenceGenerated~=influenceBase)
-    setResourceTrackerDisplayAttribute("InfluAmountPhysiText","text",
-        joinLang({RESOURCE_TRACKER_FIELDS.InfluAmountPhysi[3],influenceGenerated}))
+    setResourceTrackerText("InfluAmountPhysiText",{RESOURCE_TRACKER_FIELDS.InfluAmountPhysi[3],influenceGenerated})
     showRow("InfluAmountReput",canModifyInfluence and reputation~=0)
     local repText=reputation==-99 and "No Interaction"
         or (reputation>0 and "+" or "")..tostring(reputation)
-    setResourceTrackerDisplayAttribute("InfluAmountReputText","text",
-        joinLang({RESOURCE_TRACKER_FIELDS.InfluAmountReput[3],repText}))
+    setResourceTrackerText("InfluAmountReputText",{RESOURCE_TRACKER_FIELDS.InfluAmountReput[3],repText})
     showRow("InfluAmountCityS",canModifyInfluence and shields~=0 and reputation~=-99)
-    setResourceTrackerDisplayAttribute("InfluAmountCitySText","text",
-        joinLang({RESOURCE_TRACKER_FIELDS.InfluAmountCityS[3],shields>0 and ("+"..shields) or shields}))
+    setResourceTrackerText("InfluAmountCitySText",{RESOURCE_TRACKER_FIELDS.InfluAmountCityS[3],shields>0 and ("+"..shields) or shields})
     -- Separate Interaction total makes the modifier scope unambiguous.
     showRow("InfluInteractionTotal",canModifyInfluence and (reputation~=0 or shields~=0))
     local interactionDisplay=reputation==-99 and "No Interaction" or tostring(interactionTotal)
-    setResourceTrackerDisplayAttribute("InfluInteractionTotalText","text",
-        joinLang({"{en}Interaction total : {it}Totale interazione : {ru}Итого взаимодействие: {zh-tw}互動總計：{zh-cn}互动总计：{ko}상호작용 합계 : {es}Total interacción : {fr}Total interaction : {pt-br}Total interação : {de}Interaktion gesamt : ",
-            interactionDisplay}))
+    setResourceTrackerText("InfluInteractionTotalText",{"{en}Interaction total : {it}Totale interazione : {ru}Итого взаимодействие: {zh-tw}互動總計：{zh-cn}互动总计：{ko}상호작용 합계 : {es}Total interacción : {fr}Total interaction : {pt-br}Total interação : {de}Interaktion gesamt : ",
+            interactionDisplay})
 
     showRow("HealiAmountPlain",healingTotal>0,34)
-    setResourceTrackerDisplayAttribute("HealiAmountPlainText","text",
-        joinLang({RESOURCE_TRACKER_FIELDS.HealiAmountPlain[3],healingTotal}))
+    setResourceTrackerText("HealiAmountPlainText",{RESOURCE_TRACKER_FIELDS.HealiAmountPlain[3],healingTotal})
     -- At zero, the main row disappears but an unobtrusive + button remains
     -- so the player can restore a manually reduced resource.
     local missing={MovemAmountPlain=moveTotal<=0 and exploreCount==0,
@@ -2565,12 +2565,10 @@ function refreshResourceTrackerText()
     end
     showRow("ResourceTrackerAdd",anyMissing,28)
     showRow("HealiGenerated",healingGenerated~=healingTotal)
-    setResourceTrackerDisplayAttribute("HealiGeneratedText","text",
-        joinLang({RESOURCE_TRACKER_FIELDS.InfluAmountPhysi[3],healingGenerated}))
+    setResourceTrackerText("HealiGeneratedText",{RESOURCE_TRACKER_FIELDS.InfluAmountPhysi[3],healingGenerated})
     for id,spec in pairs(MOVE_COST_FIELDS) do
         local value=resourceCardsEffectiveTerrainCost(spec[1])
-        setResourceTrackerDisplayAttribute("MoveCost"..id.."Text","text",
-            joinLang({spec[2],value>900 and "X" or tostring(value)}))
+        setResourceTrackerText("MoveCost"..id.."Text",{spec[2],value>900 and "X" or tostring(value)})
     end
     resourceTrackerVisibleHeight=visibleHeight
     resourceTrackerSyncLayout(true)

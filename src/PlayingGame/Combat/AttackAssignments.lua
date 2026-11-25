@@ -278,8 +278,8 @@ local function activeVisualLines()
 	return lines
 end
 
-function attackAssignmentsAppendVectorLines(lines)
-	local assignmentLinesNow=activeVisualLines()
+function attackAssignmentsAppendVectorLines(lines,prepared)
+	local assignmentLinesNow=prepared or activeVisualLines()
 	local result=attackAssignmentsWithoutVectorLines(lines)
 	for _,line in ipairs(assignmentLinesNow) do result[#result+1]=line end
 	renderedAssignmentLineKeys=assignmentLineKeys(assignmentLinesNow)
@@ -447,9 +447,10 @@ function attackAssignmentsRefreshTargetButtons(monsters)
 end
 
 local function refreshRenderedLines(force)
-	local signature=vectorLineSignature(activeVisualLines())
+	local lines=activeVisualLines()
+	local signature=vectorLineSignature(lines)
 	if not force and signature==renderedSignature then return end
-	Global.setVectorLines(attackAssignmentsAppendVectorLines(Global.getVectorLines() or {}))
+	Global.setVectorLines(attackAssignmentsAppendVectorLines(Global.getVectorLines() or {},lines))
 	renderedSignature=signature
 end
 
@@ -1316,6 +1317,32 @@ local function persistAssignments()
 	gStates.attackAssignments=saved
 end
 
+-- Auto-assignment changes remain visible to the allocation registry immediately,
+-- but persistence and vector rendering are coalesced until the pass completes.
+local sourceTargetBatch
+local function publishSourceTargetChange(schedule)
+    if sourceTargetBatch~=nil then
+        sourceTargetBatch.changed=true
+        sourceTargetBatch.schedule=sourceTargetBatch.schedule or schedule
+    else
+        persistAssignments()
+        refreshRenderedLines()
+        if schedule then scheduleRefresh() end
+    end
+end
+
+function attackAssignmentsWithTargetBatch(callback,...)
+    if sourceTargetBatch~=nil then return callback(...) end
+    local batch={}
+    sourceTargetBatch=batch
+    local ok,result=pcall(callback,...)
+    sourceTargetBatch=nil
+    -- Flush even on a failed pass so the registry and persisted arrows agree.
+    if batch.changed then publishSourceTargetChange(batch.schedule) end
+    if not ok then error(result,0) end
+    return result
+end
+
 -- A source can own several arrows (one primary plus point allocations). Keep
 -- the calculator's primary while it still has an arrow. If that arrow is
 -- removed, promote the oldest remaining assignment, never a random pairs()
@@ -1694,9 +1721,7 @@ function attackAssignmentsSetSourceTarget(sourceGUID,targetGUID,kind)
 	local id=tostring(assignmentCounter)
 	assignmentRegistry[id]={id=id,source=source,target=target,sourceGUID=sourceGUID,
 		targetGUID=targetGUID,resource="panel",playerColor=nil,kind=kind}
-	persistAssignments()
-	refreshRenderedLines()
-	scheduleRefresh()
+    publishSourceTargetChange(true)
 end
 
 -- Auto-targeted sources get the same arrow a manual assignment would draw.
@@ -1717,8 +1742,7 @@ function attackAssignmentsEnsureTarget(sourceGUID,targetGUID,kind)
     elseif changes~=nil and not attackAssignmentsIsTargeting(sourceGUID) then
         -- Preserve all split Move/Influence arrows; recolour in one registry pass.
         for _,entry in ipairs(changes) do entry.kind=kind end
-        persistAssignments()
-        refreshRenderedLines()
+        publishSourceTargetChange(false)
     end
 end
 
@@ -1736,8 +1760,7 @@ function attackAssignmentsReconcileEffectTarget(sourceGUID,targetGUID,kind)
     if not found then
         attackAssignmentsEnsureTarget(sourceGUID,targetGUID,kind)
     elseif changed then
-        persistAssignments()
-        refreshRenderedLines()
+        publishSourceTargetChange(false)
     end
 end
 

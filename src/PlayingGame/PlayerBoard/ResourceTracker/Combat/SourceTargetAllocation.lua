@@ -114,7 +114,7 @@ return function(attackAssignmentsTargetGUIDs,attackAssignmentsClearForObject,
         end
     end
 
-    local function allocate(entries,sources,rowByGUID,combatAssignmentState,combatCumbersomeActive,report,profiler)
+    local function allocatePass(entries,sources,rowByGUID,combatAssignmentState,combatCumbersomeActive,report,profiler)
         local profile
         if profiler~=nil and profiler.traceEnabled then profile=profiler.profileStart() end
         local allocated,activeSources={},{}
@@ -202,6 +202,13 @@ return function(attackAssignmentsTargetGUIDs,attackAssignmentsClearForObject,
         if original~=nil then checkBudget(original,allocated,report) end
         if profile~=nil then profiler.profileFinish("allocation.audit",profile) end
         return allocated
+    end
+
+    local function allocate(...)
+        if attackAssignmentsWithTargetBatch~=nil then
+            return attackAssignmentsWithTargetBatch(allocatePass,...)
+        end
+        return allocatePass(...)
     end
 
     return {recoverTarget=recoverTarget,resolveTarget=resolveTarget,allocate=allocate}

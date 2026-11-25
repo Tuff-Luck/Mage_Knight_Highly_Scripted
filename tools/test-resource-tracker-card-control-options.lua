@@ -52,6 +52,26 @@ eq(fallback({simultaneousReady=true},nil,{healing=2})[1].healing,2,"Heal plus Re
 eq(fallback({blockSourceBoost=true},nil,nil)[1].key,"guide","Spirit Guides target choice")
 eq(fallback({damageMitigation=true},nil,nil)[1].key,"hardened","Battle Hardened choice")
 eq(fallback(nil,nil,nil,{count=3})[1].key,"other","Manual repeated effect reminder")
+-- Standard sideways choices may reuse the prepared rows, but live targeting
+-- and changed selections still invalidate them.
+card.posture="sideways"
+local sideways={{move=1},{block=1},{attack=1},{influence=1}}
+selected="block"
+local simple,_,firstAssets=build(sideways,nil,false)
+firstAssets[#firstAssets+1]="temporary"
+local again,_,againAssets=build(sideways,nil,false)
+eq(again,simple,"Unchanged plain sideways choices reuse rows")
+assert(againAssets[#againAssets]~="temporary","Asset list mutations never affect cache")
+selected="attack"
+local changed=build(sideways,nil,false)
+assert(changed~=simple,"Changed selection rebuilds rows")
+hideTarget=true
+local hidden=build(sideways,nil,false)
+assert(hidden~=changed,"Live target visibility invalidates rows")
+eq(hidden[1].visible[1].targetResource,nil,"Target suppression retained")
+hideTarget=false
+selected="move"
+card.posture="upright"
 local printed={{move=2},{attack=3},{attack=4}}
 local rows,signature,assets=build(printed,nil,true)
 eq(#rows[1].entries,3,"Duplicate printed categories collapsed; Move has two roles")

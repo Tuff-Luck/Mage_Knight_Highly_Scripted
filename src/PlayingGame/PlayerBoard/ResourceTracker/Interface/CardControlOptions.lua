@@ -76,8 +76,40 @@ return function(deps)
         return choices
     end
 
+    local sidewaysCache={}
+    local sidewaysCacheCount=0
+    local function simpleSidewaysKey(card,rule,choices,powered,inventorySpec,repeatLink,posture,isSkill,expandedRow,shapeshiftField,combat,psychic,cumbersome)
+        if posture~="sideways" or isSkill or powered or inventorySpec~=nil or repeatLink~=nil
+            or shapeshiftField~=nil or #choices~=4
+            or (rule~=nil and (rule.enemyEffect~=nil or rule.blockSourceBoost~=nil
+                or rule.damageMitigation~=nil or rule.manaOverload or rule.shapeshift
+                or rule.dodgeAttackSplit or rule.forkedLightning)) then return nil end
+        local plain={"move","block","attack","influence"}
+        for i,key in ipairs(plain) do
+            if choices[i][key]~=1 then return nil end
+            for field in pairs(choices[i]) do if field~=key then return nil end end
+        end
+        local _,selected=currentChoice(card.guid,powered,choices,true)
+        return table.concat({tostring(selected),tostring(expandedRow),tostring(combat),
+            tostring(psychic),tostring(cumbersome),tostring(combatConfig.moveRoleAvailable(card.guid)),
+            tostring(resourceCardsMoveRole(card.guid,false)),
+            tostring(resourceCardsHideAutomaticEnemyTarget(card.guid,"block",false)),
+            tostring(resourceCardsHideAutomaticEnemyTarget(card.guid,"attack",false))},"|")
+    end
+    local function copyList(values)
+        local copy={}
+        for key,value in pairs(values) do copy[key]=value end
+        return copy
+    end
     local function buildRows(card,cardData,rule,choices,powered,inventorySpec,inventorySets,repeatLink,posture,isSkill,expandedRow,shapeshiftField)
         local combatCalcOn,combatPsychicActive,combatCumbersomeActive=deps.combatContext()
+        local cacheKey=simpleSidewaysKey(card,rule,choices,powered,inventorySpec,repeatLink,posture,isSkill,
+            expandedRow,shapeshiftField,combatCalcOn,combatPsychicActive,combatCumbersomeActive)
+        local cached=cacheKey~=nil and sidewaysCache[card.guid] or nil
+        if cached~=nil and cached.key==cacheKey then
+            -- The renderer may append to its asset list; never expose cached assets.
+            return cached.rows,cached.signature,copyList(cached.assets),copyList(cached.seen)
+        end
         local function targetResourceFor(choice,category)
             if category=="ready" and cardData~=nil
                 and cardData.resourceKey=="rejuvenate" then return "unitReady" end
@@ -305,6 +337,14 @@ return function(deps)
             signatureParts[#signatureParts+1]=row.index..":"..row.selected..":"
                 ..(row.expanded and "open" or "closed")..":"..tostring(#row.entries)
                 ..":"..table.concat(visibleSignatures,",")
+        end
+        if cacheKey~=nil then
+            if sidewaysCache[card.guid]==nil then
+                if sidewaysCacheCount>=256 then sidewaysCache={} sidewaysCacheCount=0 end
+                sidewaysCacheCount=sidewaysCacheCount+1
+            end
+            sidewaysCache[card.guid]={key=cacheKey,rows=rows,signature=signatureParts,
+                assets=copyList(visibleAssets),seen=copyList(assetSeen)}
         end
         return rows,signatureParts,visibleAssets,assetSeen
     end
