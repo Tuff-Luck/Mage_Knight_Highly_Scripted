@@ -1535,9 +1535,13 @@ combatConfig.COMBAT_EFFICIENT_BLOCKS={
 trackerPrivate.combatPanelAttributes={}
 local function combatPanelSetAttribute(id,attribute,value)
     local key=id.."\0"..attribute
-    if trackerPrivate.combatPanelAttributes[key]==value then return end
-    trackerPrivate.combatPanelAttributes[key]=value
+    if trackerPrivate.combatPanelAttributes[key]==value then
+        if trackerPrivate.traceEnabled then trackerPrivate.profileCount("ui.attribute.skipped") end
+        return
+    end
     UI.setAttribute(id,attribute,value)
+    trackerPrivate.combatPanelAttributes[key]=value
+    if trackerPrivate.traceEnabled then trackerPrivate.profileCount("ui.attribute.written") end
 end
 
 -- Selection changes affect icon tint only; they cannot change combat outcomes.
@@ -1660,7 +1664,14 @@ trackerPrivate.blockResults=require("PlayingGame.PlayerBoard.ResourceTracker.Com
     combatConfig,trackerPrivate.blockSolver,combatEnemyAttacks,
     combatNatureVengeanceBlockBonus,combatRich)
 local function combatBlockResult(entry,sources)
-    return trackerPrivate.blockResults(entry,sources,trackerPrivate.combatBlockResultCache)
+    if not trackerPrivate.traceEnabled then
+        return trackerPrivate.blockResults(entry,sources,trackerPrivate.combatBlockResultCache)
+    end
+    local profile=trackerPrivate.profileStart()
+    local result={trackerPrivate.blockResults(entry,sources,trackerPrivate.combatBlockResultCache,
+        trackerPrivate.profileCount)}
+    trackerPrivate.profileFinish("block.result",profile)
+    return table.unpack(result,1,12)
 end
 
 -- Damage phase. Every unblocked attack starts wholly on the Hero; the player may route it through free Units first
@@ -3241,12 +3252,14 @@ end
 
 local function refreshCombatEnemyPanel(monsters,calculated)
     if combatConfig.scanAwaitingRescan then return end
+    local profile=trackerPrivate.profileStart()
     local active
     if calculated==true then active=combatCalcOn
     else active=combatCalcUpdate(monsters) end
     if not active then
         -- A closed calculator is already clean; don't repeatedly delete/rebuild overlays.
         if not combatConfig.shutdownClean then combatCalcShutdown() end
+        if trackerPrivate.traceEnabled then trackerPrivate.profileCount("combat.inactive") end
         return
     end
     combatConfig.shutdownClean=false
@@ -3393,7 +3406,9 @@ local function refreshCombatEnemyPanel(monsters,calculated)
     if combatAssignmentState.selected~=nil and activeSources[combatAssignmentState.selected]~=true then
         combatAssignmentState.selected=nil
     end
+    local rowProfile=trackerPrivate.profileStart()
     local rowHeight=combatAssignmentRefreshRows(entries,sources)
+    trackerPrivate.profileFinish("combat.rows",rowProfile)
     if lock==nil and combatConfig.phasePreview~=nil then
         -- Automatic nearest-enemy targeting is resolved inside the calculator,
         -- so capture it AFTER that pass rather than before the first render.
@@ -3405,6 +3420,7 @@ local function refreshCombatEnemyPanel(monsters,calculated)
     end
     combatConfig.panelHeight=combatConfig.panelBaseHeight+rowHeight
     combatPanelSetAttribute("CombatEnemyPanel","height",tostring(combatConfig.panelHeight))
+    trackerPrivate.profileFinish("combat.refresh",profile)
 end
 
 -- Result expansion is presentation only. Reuse the existing combat solution,
@@ -5166,6 +5182,7 @@ local function renderSeat(seatPos)
     if not resourceCardsPanelOpen() then return end
     local active=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if active==nil or active.seatPos~=seatPos then return end
+    local profile=trackerPrivate.profileStart()
     if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("render.start",seatPos) end
     -- Keep the last complete calculator result while a played card is carried
     -- or its final X/Z/orientation is being confirmed. Never publish a
@@ -5433,6 +5450,7 @@ local function renderSeat(seatPos)
         clearHighlight=clearHighlight, choiceButtonShown=choiceButtonShown,
         removeChoiceButtons=removeChoiceButtons, choiceExpandedByGUID=choiceExpandedByGUID,
     })
+    trackerPrivate.profileFinish("tracker.scan",profile)
 end
 
 local function scheduleSeatRender(seatPos)

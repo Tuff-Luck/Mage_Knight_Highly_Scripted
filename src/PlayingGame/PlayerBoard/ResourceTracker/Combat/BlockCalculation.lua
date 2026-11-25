@@ -25,13 +25,17 @@ return function(combatConfig)
                 and item.key~="blockPsychic")
     end
 
-    local function combatSolveBlocks(attacks,items,movePool)
+    local function sortItems(items)
         table.sort(items,function(a,b)
             if a.value~=b.value then return a.value>b.value end
             if a.source.key~=b.source.key then return a.source.key<b.source.key end
             if a.key~=b.key then return a.key<b.key end
             return (a.part or 0)<(b.part or 0)
         end)
+    end
+
+    local function combatSolveBlocks(attacks,items,movePool)
+        sortItems(items)
         local targets={}
         local initial={}
         for index,attack in ipairs(attacks) do
@@ -166,7 +170,7 @@ return function(combatConfig)
     end
 
     return {legal=combatBlockLegal,efficient=combatBlockEfficient,
-        solve=combatSolveBlocks,spent=combatBlockSpent}
+        sortItems=sortItems,solve=combatSolveBlocks,spent=combatBlockSpent}
 end
 end)()
 
@@ -180,7 +184,7 @@ return function(combatConfig,solver,combatEnemyAttacks,combatNatureVengeanceBloc
     local combatSolveBlocks=solver.solve
     local combatBlockSpent=solver.spent
 
-    local function combatBlockResult(entry,sources,cache)
+    local function combatBlockResult(entry,sources,cache,profileCount)
         local items={}
         local movePool=0
         for _,source in ipairs(sources) do
@@ -222,6 +226,8 @@ return function(combatConfig,solver,combatEnemyAttacks,combatNatureVengeanceBloc
                 end
             end
         end
+        -- Canonicalize the same resource set before keying the exact solver.
+        solver.sortItems(items)
         local parts={tostring(movePool),tostring(#attacks),tostring(#items)}
         for _,attack in ipairs(attacks) do
             parts[#parts+1]=table.concat({
@@ -229,11 +235,11 @@ return function(combatConfig,solver,combatEnemyAttacks,combatNatureVengeanceBloc
                 tostring(attack.slot),tostring(attack.pending),tostring(attack.swift),
                 tostring(attack.brutal),tostring(attack.cumbersome),tostring(attack.poison),
                 tostring(attack.paralyse),tostring(attack.assassination),
-                tostring(attack.firstDamageUnit)},":")
+                tostring(attack.firstDamageUnit),tostring(attack.label)},":")
         end
         for _,item in ipairs(items) do
             parts[#parts+1]=table.concat({
-                tostring(item.source.key),tostring(item.key),tostring(item.value),
+                tostring(item.source.key),tostring(item.source.guid),tostring(item.key),tostring(item.value),
                 tostring(item.swiftDouble),tostring(item.part),
                 tostring(item.source.heroPsychicBlock),
                 tostring(item.source.excessBlockArmour)},":")
@@ -250,7 +256,11 @@ return function(combatConfig,solver,combatEnemyAttacks,combatNatureVengeanceBloc
         for _,piece in ipairs(moveSignature) do parts[#parts+1]="move:"..piece end
         local key=table.concat(parts,";")
         local cached=entry.guid~=nil and cache[entry.guid] or nil
-        if cached~=nil and cached.key==key then return table.unpack(cached.result,1,12) end
+        if cached~=nil and cached.key==key then
+            if profileCount~=nil then profileCount("block.cache.hit") end
+            return table.unpack(cached.result,1,12)
+        end
+        if profileCount~=nil then profileCount("block.cache.miss") end
         local plan,solved,leftover=combatSolveBlocks(attacks,items,movePool)
         -- Capture only the resources assigned to a successful Block. The later
         -- display of spare/failed Block icons must never commit their sources.

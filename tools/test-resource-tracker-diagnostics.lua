@@ -70,6 +70,29 @@ private.playCardMovements={}
 assert(command("on"))
 assert(private.traceSequence==1 and #private.traceLines==1)
 assert(messages[#messages]:find("settleWaits=0; movements=none; events=1",1,true))
+local tick=10
+private.profileClock=function() return tick end
+local started=private.profileStart()
+tick=tick+0.005
+private.profileFinish("combat.refresh",started)
+started=private.profileStart()
+tick=tick+0.010
+private.profileFinish("combat.refresh",started)
+private.profileCount("block.hit")
+assert(private.profileStats["combat.refresh"].count==2)
+assert(math.abs(private.profileStats["combat.refresh"].ms-15)<0.001)
+assert(math.abs(private.profileStats["combat.refresh"].maxMs-10)<0.001)
+assert(private.profileStats["block.hit"].count==1)
+assert(command("status"))
+assert(messages[#messages]:find("combat.refresh count=2 total=15.00ms avg=7.50ms max=10.00ms",1,true))
+private.profileClock=function() return nil end
+private.profileFinish("clock.unavailable",private.profileStart())
+assert(private.profileStats["clock.unavailable"].count==1 and private.profileStats["clock.unavailable"].timed==0)
+assert(command("off"))
+private.profileCount("block.hit")
+assert(private.profileStats["block.hit"].count==1,"Disabled trace has no profiling side effects")
+assert(command("on"))
+assert(next(private.profileStats)==nil,"Starting trace resets profiling counters")
 assert(gStates.traceLines==nil and gStates.traceEnabled==nil,
     "Diagnostics must remain runtime-only")
 print("Resource Tracker diagnostics wiring, commands and bounded buffer passed")

@@ -122,8 +122,15 @@ run("resource-tracker-block-results",function()
     local cachedLines=calculate(e,sources,cache)
     eq(cachedLines,lines,"Unchanged fingerprint returns cached result")
     eq(calls,1,"Unchanged fingerprint skips DP")
-    calculate(e,sources,{})
+    local profile={}
+    calculate(e,{sources[2],sources[1]},cache,function(name)
+        profile[name]=(profile[name] or 0)+1
+    end)
+    eq(calls,1,"Permutation of identical sources reuses exact result")
+    eq(profile["block.cache.hit"],1,"Profile records exact cache hit")
+    calculate(e,sources,{},function(name) profile[name]=(profile[name] or 0)+1 end)
     eq(calls,2,"Caller cache reset recomputes")
+    eq(profile["block.cache.miss"],1,"Profile records exact cache miss")
     local _,_,_,_,_,_,_,_,_,surplusExcess,surplusKeys=calculate(
         enemy("surplusBash",{{key="P",value=4}}),
         {source("ordinary",4),source("shieldBash",2,{excessBlockArmour=true})},cache)

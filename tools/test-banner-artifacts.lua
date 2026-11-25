@@ -208,9 +208,15 @@ assert(first.fortitudePrevented and not first.wounded
 local repeatPreview=hit("enemy#attack1")
 assert(repeatPreview.fortitudePrevented,
     "Recalculating same attack must not consume another prevention")
-local later=hit("enemy#attack2")
+local reassigned=hit("enemy#attack2")
+assert(reassigned.fortitudePrevented and fortitude.fortitude==nil,
+    "Unconfirmed assignments may change without consuming the Banner")
+fortitude.fortitude={attackKey="enemy#attack2"}
+local later=hit("enemy#attack1")
 assert(later.wounded and later.destroyed and later.wounds==2,
-    "Fortitude may not protect a second printed Attack in that Round")
+    "Committed Fortitude may not protect a second printed Attack in that Round")
+assert(hit("enemy#attack2").wounded,
+    "A new combat cannot reuse a committed Banner even with the same printed attack key")
 
 -- The actual CombatEffects registration must produce one selectable
 -- cancellation, and Arcane Immunity must reject the non-attack effect.

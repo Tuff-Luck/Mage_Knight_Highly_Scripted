@@ -6,6 +6,34 @@ return function(trackerPrivate)
     trackerPrivate.traceEnabled=false
     trackerPrivate.traceLines={}
     trackerPrivate.traceSequence=0
+    trackerPrivate.profileStats={}
+    -- Lua CPU time when available; counts still work without os.clock.
+    trackerPrivate.profileClock=function()
+        if os~=nil and type(os.clock)=="function" then return os.clock() end
+        return nil
+    end
+    trackerPrivate.profileStart=function()
+        if trackerPrivate.traceEnabled then return trackerPrivate.profileClock() or false end
+        return nil
+    end
+    trackerPrivate.profileFinish=function(name,started)
+        if started==nil or not trackerPrivate.traceEnabled then return end
+        local stats=trackerPrivate.profileStats[name] or {count=0,ms=0,maxMs=0,timed=0}
+        trackerPrivate.profileStats[name]=stats
+        stats.count=stats.count+1
+        if type(started)=="number" then
+            local now=trackerPrivate.profileClock()
+            if type(now)=="number" then
+                local ms=math.max(0,(now-started)*1000)
+                stats.ms=stats.ms+ms
+                stats.maxMs=math.max(stats.maxMs,ms)
+                stats.timed=stats.timed+1
+            end
+        end
+    end
+    trackerPrivate.profileCount=function(name)
+        trackerPrivate.profileFinish(name,false)
+    end
     trackerPrivate.traceEvent=function(event,seat,guid,detail)
         if not trackerPrivate.traceEnabled then return end
         trackerPrivate.traceSequence=trackerPrivate.traceSequence+1
@@ -23,6 +51,7 @@ return function(trackerPrivate)
             trackerPrivate.traceEnabled=true
             trackerPrivate.traceLines={}
             trackerPrivate.traceSequence=0
+            trackerPrivate.profileStats={}
             trackerPrivate.traceEvent("trace.enabled")
         elseif command=="off" then
             trackerPrivate.traceEvent("trace.disabled")
@@ -61,6 +90,18 @@ return function(trackerPrivate)
             .."; movements="..(#movements>0 and table.concat(movements,", ") or "none")
             .."; events="..#trackerPrivate.traceLines
         log("[TrackerTrace] "..status)
+        if command=="dump" or command=="status" then
+            local names={}
+            for name in pairs(trackerPrivate.profileStats) do names[#names+1]=name end
+            table.sort(names)
+            for _,name in ipairs(names) do
+                local stats=trackerPrivate.profileStats[name]
+                local timing=stats.timed>0 and string.format(
+                    " total=%.2fms avg=%.2fms max=%.2fms",stats.ms,stats.ms/stats.timed,stats.maxMs)
+                    or ""
+                log("[TrackerProfile] "..name.." count="..stats.count..timing)
+            end
+        end
         if playerColor~=nil then
             broadcastToColor(status,playerColor,{0.7,0.9,1})
         end
