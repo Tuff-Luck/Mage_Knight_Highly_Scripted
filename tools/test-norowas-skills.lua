@@ -27,8 +27,8 @@ eq(data:find('["e45fdf"]={untracked=true}',1,true)~=nil,true,
     "Whisper in the Treetops has explicit blue/untracked tracker definition")
 eq(data:find('attackPhaseFallback=true',1,true)~=nil,true,
     "Leadership has an Attack phase conversion option")
-eq(skillInteractions:find('replacement="attack"..siege:sub',1,true)~=nil
-    and skillInteractions:find('replacement="attack"..ranged:sub',1,true)~=nil,true,
+eq(skillInteractions:find('replacement=resourceOps.changeFamily(siege,"attack")',1,true)~=nil
+    and skillInteractions:find('replacement=resourceOps.changeFamily(ranged,"attack")',1,true)~=nil,true,
     "Leadership converts printed Siege/Ranged into ordinary Attack")
 
 -- Check Leadership's production phase-selection logic on elemental attacks.
@@ -50,7 +50,7 @@ resourceFieldForFamily=function(resources,family)
     end
     return found
 end
-local leadershipChoice=assert(load("return function(record,family,rule)\n"..
+local leadershipChoice=assert(load("local resourceOps=dofile('src/PlayingGame/PlayerBoard/ResourceTracker/Core/ResourceOperations.lua')\nreturn function(record,family,rule)\n"..
     skillInteractions:sub(leadershipStart,leadershipEnd-1)..
     "\nreturn field,replacement end"))()
 local field,replacement=leadershipChoice({resources={siegeFire=3}},

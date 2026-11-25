@@ -170,6 +170,9 @@ return function(combatConfig,combatPanelSetAttribute,combatAssignmentIconButton,
                             lines[#lines+1]="Wounds: None"
                         end
                     end
+                    if entry.attackPhaseDestroyed and not entry.attackOnly then
+                        lines[#lines+1]=combatRich("Destroyed in Attack",combatConfig.COMBAT_GREEN)
+                    end
                     if isLast and not entry.attackOnly then
                         if group.bossSpecial then
                             if group.attackTotal>0 then

@@ -755,6 +755,12 @@ local startCount=#dealt
 gStates.combatWoundApplication=nil
 combatConfig.woundRecordPreview(1,{{key="confirm:1"}},{
     ["confirm:1"]={heroWounds=2,discard=0}})
+combatConfig.scanAwaitingRescan=true
+eq(combatConfig.woundCommitSignature(gStates.combatWoundApplication),nil,
+    "Intermediate Unit scan cannot supply a confirmation signature")
+eq(resourceCardsApplyCombatWounds(player),false,"Intermediate scan cannot apply Wounds")
+eq(combatWoundsEndTurnReminder("Red"),true,"Intermediate scan cannot end turn")
+combatConfig.scanAwaitingRescan=false
 resourceCardsRequestCombatWounds(player)
 eq(attrs["CombatDamageConfirm:active"],"true","button must open confirmation")
 eq(attrs["CombatDamageConfirm:height"],"280","normal damage dialog fits the checkbox")

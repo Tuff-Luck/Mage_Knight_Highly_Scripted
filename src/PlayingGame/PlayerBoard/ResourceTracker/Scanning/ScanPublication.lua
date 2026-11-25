@@ -59,7 +59,8 @@ function M.publish(context)
             if prior[i]~=effect then terrainChanged=true break end
         end
     end
-    local totalsChanged=previousScan==nil
+    -- The prior candidate may have been withheld while reconciling Unit history.
+    local totalsChanged=previousScan==nil or combatConfig.scanAwaitingRescan==true
     if not totalsChanged then
         for category in pairs(trackerPrivate.totalsKeys) do
             if (previousScan.totals[category] or 0)~=(totals[category] or 0) then
@@ -134,12 +135,14 @@ function M.publish(context)
     if attackAssignmentsRefreshAmbushLinks~=nil then attackAssignmentsRefreshAmbushLinks() end
     -- This also retracts a saved Ready if its card loses power or the new
     -- Rejuvenate side can no longer ready that Unit level.
-    if unitHistoryValidSources(seatPos) or readyNeedsRescan then
-        -- Links can undo earlier Unit resources; rebuild from the updated
-        -- history rather than showing those stale contributions for one scan.
+    combatConfig.scanAwaitingRescan=unitHistoryValidSources(seatPos) or readyNeedsRescan==true
+    if combatConfig.scanAwaitingRescan then
+        -- Source validation needs the candidate scan above, but the Combat
+        -- Calculator must not accept it as an authoritative damage plan.
         resourceCardsSourceChanged()
+    else
+        refreshCombatEnemyPanel(combatMonsters,true)
     end
-    refreshCombatEnemyPanel(combatMonsters,true)
     -- Refresh conversion counters against the just-published shared budget,
     -- not the preceding scan used during the initial card UI pass.
     for guid,record in pairs(records) do

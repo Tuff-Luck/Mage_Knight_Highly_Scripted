@@ -2009,7 +2009,7 @@ end
 -- The latest preview is checked after the dialog and again after TTS
 -- records its rewind point; a changed plan must not use stale counts.
 combatConfig.woundCommitSignature=function(ledger)
-    if ledger==nil or ledger.hasPreview~=true then return nil end
+    if combatConfig.scanAwaitingRescan or ledger==nil or ledger.hasPreview~=true then return nil end
     local parts={tostring(ledger.seat),tostring(ledger.previewKnockout==true),
         tostring(ledger.previewOtherWounds or 0),
         tostring(ledger.handDiscardApplied==true)}
@@ -2102,6 +2102,7 @@ end
 function resourceCardsRequestCombatWounds(player)
     local color=player~=nil and player.color or nil
     if not resourceCardsPanelOpen() or not resourceCardsPlayerCanEdit(color)
+        or combatConfig.scanAwaitingRescan
         or combatConfig.woundApplying or combatConfig.woundTransactionPending then return end
     -- A previous partial application may have committed the phase but not
     -- finished its physical consequences. Let the player confirm a safe retry.
@@ -2337,7 +2338,7 @@ end
 
 function resourceCardsApplyCombatWounds(player,onComplete)
     if not resourceCardsPanelOpen() or not resourceCardsPlayerCanEdit(player and player.color or nil)
-        or combatConfig.woundApplying then return false end
+        or combatConfig.scanAwaitingRescan or combatConfig.woundApplying then return false end
     local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
     local ledger=current~=nil and combatConfig.woundLedger(current.seatPos) or nil
     local allocations,hand,discard,changed,effects=combatConfig.woundPending(ledger)
@@ -2540,6 +2541,11 @@ end
 -- A soft two-click acknowledgement also works if the tracker was minimized.
 -- An in-progress physical transfer is always held until its queue finishes.
 function combatWoundsEndTurnReminder(color)
+    if combatConfig.scanAwaitingRescan then
+        safeBroadcastToColor("Combat resources are being recalculated. Review the calculator before ending the turn.",
+            color,warningColor)
+        return true
+    end
     if combatConfig.woundConfirmation~=nil then
         safeBroadcastToColor("Confirm or cancel Combat Damage before ending the turn.",
             color,warningColor)
@@ -3156,6 +3162,7 @@ local function combatAssignmentRefreshRows(entries,sources)
 end
 
 local function combatCalcShutdown()
+    combatConfig.scanAwaitingRescan=false
     combatConfig.shutdownClean=true
     combatConfig.resultRowCache={}
     combatConfig.slotSelection={}
@@ -3188,6 +3195,7 @@ local function combatCalcShutdown()
 end
 
 local function refreshCombatEnemyPanel(monsters,calculated)
+    if combatConfig.scanAwaitingRescan then return end
     local active
     if calculated==true then active=combatCalcOn
     else active=combatCalcUpdate(monsters) end

@@ -59,6 +59,7 @@ local targets=between(reader,"local function combatEffectTargetEligible(spec)",
     'trackerPrivate.unitEffects=require("PlayingGame.PlayerBoard.ResourceTracker.Units.UnitEffects")')
 local targetLogic=assert(load([[
 local selected={}
+local combatAssignmentState={targets={},explicit={}}
 local function attackAssignmentsTargetGUIDs(key) return selected[key] or {} end
 local function combatEnemyData(guid,enemy) return enemy~=nil and enemy.info or nil end
 local function combatPlayMonsters() return {} end
