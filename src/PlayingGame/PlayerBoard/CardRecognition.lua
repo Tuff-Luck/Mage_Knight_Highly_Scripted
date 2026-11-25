@@ -1549,7 +1549,10 @@ local function combatPanelSetAttribute(id,attribute,value)
         if trackerPrivate.traceEnabled then trackerPrivate.profileCount("ui.attribute.skipped") end
         return
     end
+    local writeProfile
+    if trackerPrivate.traceEnabled then writeProfile=trackerPrivate.profileStart() end
     UI.setAttribute(id,attribute,value)
+    if writeProfile~=nil then trackerPrivate.profileUIWrite(id,writeProfile) end
     trackerPrivate.combatPanelAttributes[key]=value
     if trackerPrivate.traceEnabled then trackerPrivate.profileCount("ui.attribute.written") end
 end
@@ -2824,7 +2827,7 @@ trackerPrivate.combatRowRenderer=require("PlayingGame.PlayerBoard.ResourceTracke
     combatConfig,combatPanelSetAttribute,combatAssignmentIconButton,combatEnemyHasTrait,
     combatGroupTraitsText,combatEnemyAttacks,combatTypeRich,combatNatureVengeanceBlockBonus,
     combatRich,combatDamageNotes,combatGroupAttackLine,combatCompactResultLines,
-    function(guid) return monsterPugs[guid] end)
+    function(guid) return monsterPugs[guid] end,trackerPrivate)
 trackerPrivate.combatPanelRenderer=require("PlayingGame.PlayerBoard.ResourceTracker.Interface.CombatPanel").renderer(
     combatConfig,combatPanelSetAttribute,combatRich,combatWoundsText,
     function(...) return joinLang(...) end)
@@ -2992,12 +2995,17 @@ local function combatAssignmentRefreshRows(entries,sources)
     -- Damage phase: each unblocked attack of an enemy that is not already defeated starts on the Hero.
     local damageSeat=combatAssignmentActiveSeat()
     local selfWoundsEarly,selfWoundsLate=combatConfig.selfWoundingUnitChoices(damageSeat,groups)
+    local damageProfile
+    if trackerPrivate.traceEnabled then damageProfile=trackerPrivate.profileStart() end
     local damageUnits,nativeCommandCount=combatDamageUnits(damageSeat)
+    if damageProfile~=nil then damageProfile=trackerPrivate.profileCheckpoint("damage.unitDiscovery",damageProfile) end
     local damageSpec,damageItems=trackerPrivate.damagePreparation.build(entries,groups,rowBlock,damageUnits,selfWoundsEarly)
+    if damageProfile~=nil then damageProfile=trackerPrivate.profileCheckpoint("damage.prepare",damageProfile) end
     attackAssignmentsDamageSync(damageSpec)
+    if damageProfile~=nil then trackerPrivate.profileFinish("damage.targetSync",damageProfile) end
     local seatScan=damageSeat~=nil and resourceCardScanBySeat[damageSeat] or nil
     local mitigation,elementMitigation=trackerPrivate.damagePreparation.mitigationFor(seatScan,damageItems,gStates)
-    local damageProfile=trackerPrivate.traceEnabled and (trackerPrivate.profileStart() or true) or nil
+    damageProfile=trackerPrivate.traceEnabled and (trackerPrivate.profileStart() or true) or nil
     local damageResults
     if earlyLock~=nil and earlyLock.damageResults~=nil then
         -- Do not recalculate the committed Damage phase just to discard it.
@@ -3062,7 +3070,9 @@ local function combatAssignmentRefreshRows(entries,sources)
     for guid in pairs(selfWoundsLate) do
         if woundedBeforeAttack[guid]~=true then selfWounds[guid]=true end
     end
+    damageProfile=trackerPrivate.traceEnabled and (trackerPrivate.profileStart() or true) or nil
     attackAssignmentsUnitPreviewSync(damageSeat,damageResults,selfWounds)
+    if damageProfile~=nil then trackerPrivate.profileFinish("damage.unitPreviewSync",damageProfile) end
     local defeatFame,defeatRep=trackerPrivate.lateCombatPhase.resolve(
         entries,groups,rowBlock,woundedBeforeAttack,paralysisAttackCards,
         gStates~=nil and gStates.forkedLightningPhase or nil)
@@ -5232,7 +5242,6 @@ local function renderSeat(seatPos)
     if not resourceCardsPanelOpen() then return end
     local active=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if active==nil or active.seatPos~=seatPos then return end
-    local profile=trackerPrivate.traceEnabled and (trackerPrivate.profileStart() or true) or nil
     if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("render.start",seatPos) end
     -- Keep the last complete calculator result while a played card is carried
     -- or its final X/Z/orientation is being confirmed. Never publish a
@@ -5252,6 +5261,7 @@ local function renderSeat(seatPos)
         end
     end
     trackerPrivate.renderCombatNight=nil
+    local profile=trackerPrivate.traceEnabled and trackerPrivate.profileScanStart() or nil
 
     local objects,placements,monsters,playMonsters,combatMonsters,
         enemyEntries,inventoryCrystalCounts,cards,wounds,skills,
@@ -5500,7 +5510,7 @@ local function renderSeat(seatPos)
         clearHighlight=clearHighlight, choiceButtonShown=choiceButtonShown,
         removeChoiceButtons=removeChoiceButtons, choiceExpandedByGUID=choiceExpandedByGUID,
     })
-    if profile~=nil then trackerPrivate.profileFinish("tracker.scan",profile) end
+    if profile~=nil then trackerPrivate.profileScanFinish(profile) end
 end
 
 local function scheduleSeatRender(seatPos)

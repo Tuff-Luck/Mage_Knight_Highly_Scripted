@@ -117,6 +117,39 @@ for _,name in ipairs({"grouping","enemyHeaders","allocation","earlyCombat","dama
     last=pos+1
 end
 assert(rowSource:find('profileFinish("rows.finalLayout",stageProfile)',last,true))
+-- Actual UI calls contribute once to the total and once to their column.
+private.profileClock=function() return tick end
+local uiStart=private.profileStart()
+tick=tick+0.003
+private.profileUIWrite("CombatSourceSlot1block12Amount",uiStart)
+assert(private.profileStats["ui.setAttribute"].count==1)
+assert(math.abs(private.profileStats["ui.setAttribute"].ms-3)<0.001)
+assert(math.abs(private.profileStats["ui.write.block"].ms-3)<0.001)
+uiStart=private.profileStart()
+tick=tick+0.002
+private.profileUIWrite("CombatEnemyRow1Result",uiStart)
+assert(private.profileStats["ui.write.Result"].count==1)
+assert(math.abs(private.profileStats["ui.setAttribute"].ms-5)<0.001)
+-- Sampled heap deltas can suggest collection but do not force it.
+local heap=100
+private.profileHeap=function() return heap end
+local scan=private.profileScanStart()
+heap=120 tick=tick+0.010
+private.profileScanFinish(scan)
+scan=private.profileScanStart()
+heap=90 tick=tick+0.030
+private.profileScanFinish(scan)
+local mem=private.profileMemory
+assert(mem.count==2 and mem.firstKB==100 and mem.lastKB==90)
+assert(mem.minKB==90 and mem.maxKB==120 and mem.totalDelta==-10)
+assert(mem.drops==1 and mem.dropKB==30 and mem.slowestDelta==-30)
+assert(math.abs(mem.slowestMs-30)<0.001)
+assert(command("status"))
+assert(messages[#messages]:find("heap.recent",1,true))
+private.profileHeap=function() return nil end
+private.profileScanFinish(private.profileScanStart())
+assert(private.profileMemory.unavailable and private.profileMemory.count==2)
+assert(private.profileStats["tracker.scan"].count==3)
 private.profileClock=function() return nil end
 local untimed=private.profileCheckpoint("rows.untimed",private.profileStart())
 assert(untimed==false and private.profileStats["rows.untimed"].count==1
@@ -127,10 +160,14 @@ assert(command("off"))
 private.profileClock=function() error("Disabled profiler must not sample the clock") end
 assert(private.profileCheckpoint("rows.disabled",private.profileStart())==nil)
 assert(private.profileStats["rows.disabled"]==nil)
+private.profileHeap=function() error("Disabled profiler must not sample memory") end
+assert(private.profileScanStart()==nil)
+private.profileScanFinish(nil)
 private.profileCount("block.hit")
 assert(private.profileStats["block.hit"].count==1,"Disabled trace has no profiling side effects")
 assert(command("on"))
 assert(next(private.profileStats)==nil,"Starting trace resets profiling counters")
+assert(next(private.profileMemory)==nil,"Starting trace resets memory samples")
 assert(gStates.traceLines==nil and gStates.traceEnabled==nil,
     "Diagnostics must remain runtime-only")
 print("Resource Tracker diagnostics wiring, commands and bounded buffer passed")

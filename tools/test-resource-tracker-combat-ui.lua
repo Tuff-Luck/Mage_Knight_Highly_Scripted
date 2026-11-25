@@ -190,15 +190,22 @@ run("resource-tracker-icon-styling",function()
     local first=assert(code:find("local function combatPanelSetAttribute(",1,true))
     local last=assert(code:find("combatConfig.COMBAT_RED=",first,true))
     local written,skipped,attrs=0,0,{}
-    local private={combatPanelAttributes={},traceEnabled=true,
-        profileCount=function(name)
-            if name=="ui.attribute.skipped" then skipped=skipped+1 end
-        end}
+    local private={combatPanelAttributes={}}
+    dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Core/Diagnostics.lua")(private)
+    private.traceEnabled=true
+    local tick=0
+    private.profileClock=function() return tick end
+    local count=private.profileCount
+    private.profileCount=function(name)
+        if name=="ui.attribute.skipped" then skipped=skipped+1 end
+        count(name)
+    end
     local config={slotSelection={slot={key="card"}}}
     local state={selected="card"}
     local env={trackerPrivate=private,combatConfig=config,combatAssignmentState=state,
         UI={setAttribute=function(id,key,value)
             written=written+1
+            tick=tick+0.001
             attrs[id.."."..key]=value
         end}}
     setmetatable(env,{__index=_G})
@@ -209,6 +216,8 @@ run("resource-tracker-icon-styling",function()
     local before,skipBefore=written,skipped
     draw("slot",true,2,"block","Block 2",true)
     eq(written,before,"Repeated icon causes no UI writes")
+    eq(private.profileStats["ui.setAttribute"].count,written,"Only real UI calls timed")
+    assert(math.abs(private.profileStats["ui.setAttribute"].ms-written)<0.001)
     eq(skipped-skipBefore,5+1,"Only six dynamic attributes enter cache on subsequent draws")
     state.selected=nil
     config.refreshSelectedSlots()

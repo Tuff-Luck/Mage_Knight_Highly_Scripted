@@ -2,12 +2,15 @@
 return function(combatConfig,combatPanelSetAttribute,combatAssignmentIconButton,
     combatEnemyHasTrait,combatGroupTraitsText,combatEnemyAttacks,combatTypeRich,
     combatNatureVengeanceBlockBonus,combatRich,combatDamageNotes,combatGroupAttackLine,
-    combatCompactResultLines,tokenOf)
+    combatCompactResultLines,tokenOf,profiler)
     local function render(entries,groupOf,rowBlock,displayByIndex,seatScan,damageResults,knockout,
         pageOffset,visibleRows,shownTraits,shownOffence,shownAttacks,colUsed,maxResourceCounts,
         combatAssignmentSlotSources,combatAssignmentState,combatReductionAttackChoice,
         combatExpandedResults,combatAttackChoiceByRow,bossManual,totalRowHeight)
+        local tracing=profiler~=nil and profiler.traceEnabled
         for row=1,combatConfig.rowCount do
+            local iconProfile
+            if tracing then iconProfile=profiler.profileStart() end
             local index=pageOffset+row
             local entry=row<=visibleRows and entries[index] or nil
             local group=entry~=nil and groupOf[index] or nil
@@ -37,6 +40,8 @@ return function(combatConfig,combatPanelSetAttribute,combatAssignmentIconButton,
                             and item.detail.family or nil
                         combatConfig.slotSelection[id]={key=item.source.key,
                             wounded=item.wounded,ineffective=item.ineffective}
+                        local tooltipProfile
+                        if tracing then tooltipProfile=profiler.profileStart() end
                         local tooltip=item.tooltip or (item.source.name..": "..item.text
                             ..(item.source.dodgeIneligible and
                                 " unavailable: the Hero took Wounds before the Attack phase"
@@ -75,6 +80,7 @@ return function(combatConfig,combatPanelSetAttribute,combatAssignmentIconButton,
                         if item.source.phaseLocked then
                             tooltip=tooltip.."\nLocked by Commit Damage. Use TTS Rewind to change."
                         end
+                        if tooltipProfile~=nil then profiler.profileFinish("renderer.tooltip",tooltipProfile) end
                         combatAssignmentIconButton(id,true,item.amount,item.icon,
                             tooltip,combatAssignmentState.selected==item.source.key,
                             (item.wounded or item.ineffective) and "#292323" or (item.typeKey~=nil
@@ -87,6 +93,7 @@ return function(combatConfig,combatPanelSetAttribute,combatAssignmentIconButton,
                     end
                 end
             end
+            if iconProfile~=nil then iconProfile=profiler.profileCheckpoint("renderer.iconSlots",iconProfile) end
             local merged=group~=nil and #group.members>1
             for _,family in ipairs({"range","attack"}) do
                 combatPanelSetAttribute("CombatSourceCell"..row..family,"color",
@@ -223,6 +230,7 @@ return function(combatConfig,combatPanelSetAttribute,combatAssignmentIconButton,
                 combatAttackChoiceByRow[row]=nil
                 combatPanelSetAttribute("CombatEnemyAttackCycle"..row,"active","false")
             end
+            if iconProfile~=nil then profiler.profileFinish("renderer.resultText",iconProfile) end
         end
         return totalRowHeight
     end
