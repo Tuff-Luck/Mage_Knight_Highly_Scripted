@@ -227,12 +227,37 @@ try {
             Get-ChildItem -Path "src" -Recurse -File -Filter *.lua
             Get-ChildItem -Path ".tts/objects" -File -Filter *.lua
         )
-        foreach ($file in $luaFiles) {
-            & $compiler.Source -p $file.FullName
-            if ($LASTEXITCODE -ne 0) {
-                throw "Lua 5.2 parse failed: $($file.FullName)"
+        # Lua 5.2 accepts multiple input files. Batch process launches, not Lua
+        # chunks: each input is still parsed independently by the compiler.
+        # A bounded batch also keeps command lines short on Windows.
+        function Invoke-LuaParseBatches(
+            [string[]]$paths,
+            [string]$failureLabel,
+            [hashtable]$sourcePaths = @{}
+        ) {
+            $batchSize = 16
+            for ($offset = 0; $offset -lt $paths.Count; $offset += $batchSize) {
+                $last = [Math]::Min($offset + $batchSize - 1, $paths.Count - 1)
+                $batch = @($paths[$offset..$last])
+                & $compiler.Source -p @batch
+                if ($LASTEXITCODE -eq 0) { continue }
+
+                # Preserve the original source path in error messages, especially
+                # when the failed input is a temporary bundled-module wrapper.
+                foreach ($path in $batch) {
+                    & $compiler.Source -p $path
+                    if ($LASTEXITCODE -ne 0) {
+                        $displayPath = $path
+                        if ($sourcePaths.ContainsKey($path)) {
+                            $displayPath = $sourcePaths[$path]
+                        }
+                        throw "${failureLabel}: $displayPath"
+                    }
+                }
+                throw "${failureLabel}: compiler rejected a batch of individually valid inputs."
             }
         }
+        Invoke-LuaParseBatches -paths @($luaFiles | ForEach-Object { $_.FullName }) -failureLabel "Lua 5.2 parse failed"
 
         # Check the exact generated script TTS loads, not only individual source
         # modules or approximations of their luabundle wrappers.
@@ -249,20 +274,24 @@ try {
         # luabundle wraps each source module in a function with four parameters.
         # A module can compile by itself but exceed Lua's 200-local limit in the bundle.
         Write-Host "Checking Lua 5.2 bundled-module local limits..."
-        $bundleCheckFile = [System.IO.Path]::GetTempFileName()
+        $bundleCheckDir = Join-Path ([System.IO.Path]::GetTempPath()) ("mage-knight-lua-" + [guid]::NewGuid().ToString("N"))
+        [void][System.IO.Directory]::CreateDirectory($bundleCheckDir)
         try {
+            $bundleCheckFiles = [System.Collections.Generic.List[string]]::new()
+            $bundleSourcePaths = @{}
+            $utf8 = [System.Text.UTF8Encoding]::new($false)
             foreach ($file in $sourceLuaFiles) {
                 $source = [System.IO.File]::ReadAllText($file.FullName)
                 $wrapped = "return function(require, _LOADED, __bundle_register, __bundle_modules)`n" + $source + "`nend`n"
-                [System.IO.File]::WriteAllText($bundleCheckFile, $wrapped, [System.Text.UTF8Encoding]::new($false))
-                & $compiler.Source -p $bundleCheckFile
-                if ($LASTEXITCODE -ne 0) {
-                    throw "Lua 5.2 bundled-module parse/local-limit failed: $($file.FullName)"
-                }
+                $bundleCheckFile = Join-Path $bundleCheckDir ("module-" + $bundleCheckFiles.Count + ".lua")
+                [System.IO.File]::WriteAllText($bundleCheckFile, $wrapped, $utf8)
+                $bundleCheckFiles.Add($bundleCheckFile)
+                $bundleSourcePaths[$bundleCheckFile] = $file.FullName
             }
+            Invoke-LuaParseBatches -paths $bundleCheckFiles.ToArray() -failureLabel "Lua 5.2 bundled-module parse/local-limit failed" -sourcePaths $bundleSourcePaths
         }
         finally {
-            Remove-Item -LiteralPath $bundleCheckFile -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $bundleCheckDir -Recurse -Force -ErrorAction SilentlyContinue
         }
     }
 
