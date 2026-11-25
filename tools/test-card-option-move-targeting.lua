@@ -1,3 +1,4 @@
+package.path="src/?.lua;"..package.path
 -- Selecting ordinary Movement must clear any previous Attack/Block target.
 -- Combat Move has a distinct, deliberately chosen role and may auto-target
 -- a nearest eligible Cumbersome enemy on the next scan.

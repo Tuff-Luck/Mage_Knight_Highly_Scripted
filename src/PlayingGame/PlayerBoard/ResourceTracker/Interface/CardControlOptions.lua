@@ -1,5 +1,6 @@
 -- Build card/Skill UI choices and row descriptors, without writing object XML.
 -- Selection persistence, visibility lifecycle and combat assignment remain with the caller.
+local moveOptions=require("PlayingGame.PlayerBoard.ResourceTracker.Interface.MoveRoleOptions")
 return function(deps)
     local choiceLetters=deps.choiceLetters
     local combatConfig=deps.combatConfig
@@ -141,12 +142,11 @@ return function(deps)
             if selected~=nil and shapeshiftField==nil then
                 for _,option in ipairs(row.choices) do
                     local roleGUID=option.shapeshiftTargetGUID or card.guid
-                    local move=(tonumber(option.move) or 0)>0
-                        or (option.shapeshiftTargetGUID~=nil and choiceCategory(option)=="move")
+                    local move=moveOptions.producesMove(option,choiceCategory(option))
                     if choiceCategory(option)==selected and move
                         and combatConfig.moveRoleAvailable(roleGUID)
                         and resourceCardsMoveRole(roleGUID,false)=="combat" then
-                        row.selected="combatMove"..selected
+                        row.selected=moveOptions.cardCategory(selected,"combat")
                         break
                     end
                 end
@@ -157,8 +157,7 @@ return function(deps)
                 local category=choiceCategory(choice)
                 if category~=nil and choiceLetters[category]~=nil and not seen[category] then
                     seen[category]=true
-                    local producesMove=shapeshiftField==nil and ((tonumber(choice.move) or 0)>0
-                        or (choice.shapeshiftTargetGUID~=nil and category=="move"))
+                    local producesMove=shapeshiftField==nil and moveOptions.producesMove(choice,category)
                     local entry={category=category,
                         rank=resourceChoiceRank(category,choice),originalIndex=j,
                         skillFamily=isSkill and skillChoiceFamily(category,choice) or nil,
@@ -170,7 +169,7 @@ return function(deps)
                         iconOverlayColor=choice.iconOverlayColor,
                         iconOverlayAlignment=choice.iconOverlayAlignment,
                         iconOverlaySize=choice.iconOverlaySize,
-                        roleBadge=producesMove and "M" or nil}
+                        roleBadge=producesMove and moveOptions.badge("movement") or nil}
                     -- In combat, Influence can be committed to Psychic Block.
                     -- Show its function with shield beneath the Influence symbol.
                     if category=="influence" and combatPsychicActive
@@ -193,11 +192,11 @@ return function(deps)
                         if combatConfig.moveRoleAvailable(choice.shapeshiftTargetGUID or card.guid) then
                             local combatEntry={}
                             for key,value in pairs(entry) do combatEntry[key]=value end
-                            combatEntry.category="combatMove"..category
+                            combatEntry.category=moveOptions.cardCategory(category,"combat")
                             combatEntry.originalIndex=j+0.5
                             combatEntry.icon="move"
                             combatEntry.stackedIcons=nil
-                            combatEntry.roleBadge="C"
+                            combatEntry.roleBadge=moveOptions.badge("combat")
                             if splitMoveAttack and combatCalcOn then
                                 -- Keep Attack aimed independently of the Move pool.
                                 combatEntry.targetResource="attack"

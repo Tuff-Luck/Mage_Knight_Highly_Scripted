@@ -1,5 +1,6 @@
 -- Player-facing card, Skill and Artifact choice callbacks, interaction rewards, Ready links and Throw/Recover. Uses live selections and coordinator helpers; public protected UI names remain unchanged.
 local M={}
+local moveOptions=require("PlayingGame.PlayerBoard.ResourceTracker.Interface.MoveRoleOptions")
 
 function M.healUnits(player,value,id,combatCalcOn,combatEnemyInPlay,trackerPrivate,cardPosture,cardInSeatPlayArea)
     if not resourceCardsPanelOpen()
@@ -252,9 +253,8 @@ function M.choiceClicked(player,value,id,combatConfig,resourceCardsDetailsOpen,f
         if inventorySpec==nil or setIndex<1 or setIndex>inventorySets then return end
         choices=inventorySpec.choices
     end
-    local selectedMoveCategory=category:match("^combatMove(.+)$")
-    local requestedMoveRole=selectedMoveCategory~=nil and "combat" or nil
-    if selectedMoveCategory~=nil then category=selectedMoveCategory end
+    local decodedCategory,requestedMoveRole=moveOptions.decodeCardCategory(category)
+    category=decodedCategory
     if data~=nil and data.resourceKey=="artifactDruidicStaff"
         and combatEnemyInPlay and category~="blue" then
         safeBroadcastToColor("Druidic Staff: only the two-crystal option is usable in combat.",
@@ -268,15 +268,17 @@ function M.choiceClicked(player,value,id,combatConfig,resourceCardsDetailsOpen,f
     if rule~=nil and rule.shapeshift==true and shapeshiftTarget==nil then return end
     local producesMove=shapeshiftTarget~=nil and category=="move"
     for _,option in ipairs(choices) do
-        if choiceCategory(option)==category and (tonumber(option.move) or 0)>0 then
+        if choiceCategory(option)==category and moveOptions.producesMove(option,category) then
             producesMove=true
             break
         end
     end
     -- Validate the actual selected resource and its owning physical source.
-    if requestedMoveRole=="combat" and (not producesMove
-        or not combatConfig.moveRoleAvailable(shapeshiftTarget or guid)) then return end
-    if producesMove and requestedMoveRole==nil then requestedMoveRole="movement" end
+    local validMoveRole
+    requestedMoveRole,validMoveRole=moveOptions.resolve(producesMove,
+        requestedMoveRole=="combat" and combatConfig.moveRoleAvailable(shapeshiftTarget or guid),
+        requestedMoveRole)
+    if not validMoveRole then return end
     -- Any card whose newly selected effect is Move-only must start without
     -- an enemy assignment. Move can Block Cumbersome, but only when the
     -- player explicitly targets it; never carry an old Attack/Block arrow.
@@ -291,7 +293,7 @@ function M.choiceClicked(player,value,id,combatConfig,resourceCardsDetailsOpen,f
     local selectedMoveOnly=false
     if previousCategory~=category then
         for _,option in ipairs(choices or {}) do
-            if choiceCategory(option)==category and (tonumber(option.move) or 0)>0 then
+            if choiceCategory(option)==category and moveOptions.producesMove(option,category) then
                 selectedMoveOnly=true
                 for _,field in ipairs(combatConfig.sourceFields) do
                     if (tonumber(option[field.key]) or 0)>0 then

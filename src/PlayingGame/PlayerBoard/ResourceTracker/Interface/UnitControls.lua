@@ -1,5 +1,6 @@
 -- Render Unit-specific choice and targeting buttons; no ownership of activation,
 -- combat assignment, or lifecycle state. Read current flags and cache tables per call.
+local moveOptions=require("PlayingGame.PlayerBoard.ResourceTracker.Interface.MoveRoleOptions")
 return function(deps)
     local combatConfig=deps.combatConfig
     local choiceLetters=deps.choiceLetters
@@ -125,11 +126,11 @@ return function(deps)
             local needed={}
             if hasChoices then
                 for _,index in ipairs(expanded and available or {selected or available[1]}) do
-                    local dualMove=combatMoveAvailable
-                        and (tonumber(abilities[index]~=nil and abilities[index].move) or 0)>0
+                    local dualMove=moveOptions.hasAlternative(moveOptions.producesMove(abilities[index]),combatMoveAvailable)
                     local id="ResourceCardChoice_"..unit.guid.."_unit"..index
-                    if expanded or not dualMove or moveRole~="combat" then needed[id]=true end
-                    if dualMove and (expanded or moveRole=="combat") then needed[id.."Combat"]=true end
+                    local showMovement,showCombat=moveOptions.visibleRoles(dualMove,expanded,moveRole)
+                    if showMovement then needed[id]=true end
+                    if showCombat then needed[id.."Combat"]=true end
                 end
             end
             if #targetLabels>0 then
@@ -161,7 +162,7 @@ return function(deps)
         -- Influence needs the shield/Influence artwork.
         for _,index in ipairs(displayed) do
             local ability=abilities[index]
-            if combatMoveAvailable and (tonumber(ability.move) or 0)>0 and not seen.move then
+            if moveOptions.hasAlternative(moveOptions.producesMove(ability),combatMoveAvailable) and not seen.move then
                 visibleAssets[#visibleAssets+1]="move"
                 seen.move=true
             end
@@ -252,8 +253,9 @@ return function(deps)
                             raycastTarget="false"}}
                     end
                 end
-                if (tonumber(ability.move) or 0)>0 then
-                    local phase=resourceCardsMoveRole(unitHistoryKey(unit.guid,useIndex),false)
+                if moveOptions.producesMove(ability) then
+                    local phase=moveRole
+                    local showMovement,showCombat=moveOptions.visibleRoles(combatMoveAvailable,expanded,phase)
                     -- Only the chosen role is visible in the collapsed menu.
                     local isMovement=phase~="combat"
                     button.attributes.colors=active and isMovement and invalidCombat
@@ -262,10 +264,7 @@ return function(deps)
                         and "#387D30|#4CA940|#387D30|#387D30"
                         or "#454D5D|#69798E|#444C63|#454D5D"
                     button.children=button.children or {}
-                    button.children[#button.children+1]={tag="Text",attributes={
-                        text="M",width=82,height=82,alignment="LowerRight",
-                        fontSize=37,fontStyle="Bold",color="#9AFFA4",
-                        outline="#101820",outlineSize="2 -2",raycastTarget="false"}}
+                    button.children[#button.children+1]=moveOptions.badgeNode(moveOptions.badge("movement"))
                     if combatMoveAvailable then
                         local combatButton={tag="Button",attributes={
                         id="ResourceCardChoice_"..unit.guid.."_unit"..index.."Combat",
@@ -286,13 +285,10 @@ return function(deps)
                             combatButton.children={{tag="Image",attributes={
                                 image=movement.name,width=82,height=82,preserveAspect="true",
                                 raycastTarget="false",color="#FFFFFF"}},
-                                {tag="Text",attributes={text="C",width=82,height=82,
-                                    alignment="LowerRight",fontSize=37,fontStyle="Bold",
-                                    color="#69AEFF",outline="#101820",
-                                    outlineSize="2 -2",raycastTarget="false"}}}
+                                moveOptions.badgeNode(moveOptions.badge("combat"))}
                         end
-                        if expanded or isMovement then xml[#xml+1]=button end
-                        if expanded or not isMovement then xml[#xml+1]=combatButton end
+                        if showMovement then xml[#xml+1]=button end
+                        if showCombat then xml[#xml+1]=combatButton end
                     else
                         xml[#xml+1]=button
                     end

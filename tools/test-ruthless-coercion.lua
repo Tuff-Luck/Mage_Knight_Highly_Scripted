@@ -1,3 +1,4 @@
+package.path="src/?.lua;"..package.path
 -- Run from repository root: lua5.2 tools/test-ruthless-coercion.lua
 -- Krang's basic recruitment declaration and powered Unit-ready visibility.
 local function read(path)

@@ -1,3 +1,4 @@
+package.path="src/?.lua;"..package.path
 -- Full Unit Area recruitment: cancelled selection, confirmed disband,
 -- command ownership, Banners, Wounds, and save/load restoration.
 -- Run from the repository root: lua5.2 tools/test-unit-replacement.lua

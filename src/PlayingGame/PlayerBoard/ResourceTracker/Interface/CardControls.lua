@@ -1,5 +1,6 @@
 -- Card/Skill object controls. Coordinator retains gameplay, click handlers and state.
 -- Read the current shared cache tables, combat flags and game state on every draw.
+local moveOptions=require("PlayingGame.PlayerBoard.ResourceTracker.Interface.MoveRoleOptions")
 return function(deps)
     local trackerPrivate=deps.trackerPrivate
     local combatConfig=deps.combatConfig
@@ -311,12 +312,7 @@ return function(deps)
                     end
                     if entry.roleBadge~=nil then
                         button.children=button.children or {}
-                        button.children[#button.children+1]={tag="Text",attributes={
-                            text=entry.roleBadge,width=82,height=82,
-                            alignment="LowerRight",fontSize=37,fontStyle="Bold",
-                            color=entry.roleBadge=="C" and "#69AEFF" or "#9AFFA4",
-                            outline="#101820",outlineSize="2 -2",
-                            raycastTarget="false"}}
+                        button.children[#button.children+1]=moveOptions.badgeNode(entry.roleBadge)
                     end
                     -- Text-only alternatives (e.g. Chivalry's Reputation choice) are
                     -- real buttons even when no custom icon asset exists.

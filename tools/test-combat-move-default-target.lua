@@ -22,7 +22,7 @@ assert(reader:find('if moveAmount>0 and resourceCardsMoveRole(guid,true)=="comba
 assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/SourceTargetAllocation.lua"):find('combatAssignmentState.explicit[source.key]=autoCombatMove and targetGUID~=nil or nil',
     1,true),"Default Cumbersome target must reserve the Move pool")
 assert(cardOptions:find('combatEntry.icon="move"',1,true)
-    and cardOptions:find('combatEntry.roleBadge="C"',1,true)
+    and cardOptions:find('combatEntry.roleBadge=moveOptions.badge("combat")',1,true)
     and not cardOptions:find('combatEntry.stackedIcons={"block","move"}',1,true),
     "Combat Move always uses the Move icon and C badge")
 assert(cardOptions:find('entry.stackedIcons={"block","influence"}',1,true)

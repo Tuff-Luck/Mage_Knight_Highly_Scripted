@@ -12,7 +12,7 @@ Combat.DivisibleResources Combat.EarlyCombatPhase Combat.EnemyEffectRecords Comb
 Combat.ExplosiveBolt Combat.FlameWave Combat.LateCombatPhase Combat.SourceTargetAllocation
 Core.Diagnostics Core.ObjectEvents Core.PhysicalLinks Core.ResourceOperations Core.State Core.TrackerLifecycle Interface.CardControlOptions
 Interface.CardControls Interface.CombatDisplay Interface.CombatEffectDisplay Interface.CombatPanel
-Interface.CombatResourceDisplay Interface.CombatRowRenderer Interface.UnitControls
+Interface.CombatResourceDisplay Interface.CombatRowRenderer Interface.MoveRoleOptions Interface.UnitControls
 Scanning.FactionRewardScan Scanning.ManaPayments Scanning.PhysicalObjects Scanning.ScanFinalization
 Scanning.ScanObservation Scanning.ScanPayments Scanning.ScanPublication Units.ReadyPolicy
 Units.UnitChoices Units.UnitEffects Units.UnitManagement Units.UnitScan Units.UnitSelfWounds

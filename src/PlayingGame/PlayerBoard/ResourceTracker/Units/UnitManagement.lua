@@ -1,5 +1,6 @@
 -- Command and Unit activation lifecycle, using live saved history and coordinator helpers.
 local M={}
+local moveOptions=require("PlayingGame.PlayerBoard.ResourceTracker.Interface.MoveRoleOptions")
 
 function M.spentCommands()
     local round=tonumber(gStates.currentRound) or 0
@@ -272,8 +273,11 @@ function M.choiceClicked(player,value,id,moveRoleAvailable,trackerPrivate,unitMa
         unitGUID,nil,current~=nil and current.seatPos) or nil
     if activation==nil or abilities==nil or current==nil or index==nil
         or abilities[index]==nil or activation.seatPos~=current.seatPos then return end
-    if combatMoveChoice and ((tonumber(abilities[index].move) or 0)<=0
-        or not moveRoleAvailable(unitHistoryKey(unitGUID,useIndex))) then return end
+    local producesMove=moveOptions.producesMove(abilities[index])
+    local requestedRole,validRole=moveOptions.resolve(producesMove,
+        combatMoveChoice and moveRoleAvailable(unitHistoryKey(unitGUID,useIndex)),
+        combatMoveChoice and "combat" or nil)
+    if not validRole then return end
     local unit=getObjectFromGUID(unitGUID)
     if unit==nil then return end
     resourceCardsCombatSelectOneUnit(unitGUID)
@@ -289,8 +293,8 @@ function M.choiceClicked(player,value,id,moveRoleAvailable,trackerPrivate,unitMa
         if candidate==index then available=true break end
     end
     if not available then return end
-    local dualMove=(tonumber(abilities[index].move) or 0)>0
-        and moveRoleAvailable(unitHistoryKey(unitGUID,useIndex))
+    local dualMove=moveOptions.hasAlternative(producesMove,
+        producesMove and moveRoleAvailable(unitHistoryKey(unitGUID,useIndex)))
     if (not decision.ambiguous or abilities.paidChoiceExpandable or decision.index~=nil)
         and choiceExpandedByGUID[unitGUID]~=true and (#decision.display>1 or dualMove) then
         -- Clicking the collapsed option (including either Move role) opens
@@ -346,10 +350,10 @@ function M.choiceClicked(player,value,id,moveRoleAvailable,trackerPrivate,unitMa
         activation.lastPaidIndex=nil
         choiceExpandedByGUID[unitGUID]=nil
     end
-    if (tonumber(abilities[index].move) or 0)>0 then
+    if requestedRole~=nil then
         gStates.resourceCardMoveRoles=gStates.resourceCardMoveRoles or {}
         local sourceKey=unitHistoryKey(unitGUID,useIndex)
-        gStates.resourceCardMoveRoles[sourceKey]=combatMoveChoice and "combat" or "movement"
+        gStates.resourceCardMoveRoles[sourceKey]=requestedRole
         -- Reconcile exact activation keys below; clearing the bare GUID
         -- would also remove every later use of this same physical Unit.
     end

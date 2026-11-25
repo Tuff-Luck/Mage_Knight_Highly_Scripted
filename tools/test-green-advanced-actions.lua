@@ -1,3 +1,4 @@
+package.path="src/?.lua;"..package.path
 -- Regression checks for the official Green Advanced Actions (not Forgemaster).
 -- Run from the repository root: lua5.2 tools/test-green-advanced-actions.lua.
 local function source(path)
