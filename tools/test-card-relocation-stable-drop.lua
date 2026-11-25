@@ -111,6 +111,7 @@ local env={
     end
 }
 setmetatable(env,{__index=_G})
+require("PlayingGame.PlayerBoard.ResourceTracker.Core.Diagnostics")(tracker)
 tracker.choicePolicy=require("PlayingGame.PlayerBoard.ResourceTracker.Cards.ResourceChoices")(tracker,
     function() return env.selectedResourceByGUID end,{},env.cardPosture)
 env.trackerPrivate=env.trackerPrivate or {}

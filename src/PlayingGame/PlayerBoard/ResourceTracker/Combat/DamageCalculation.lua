@@ -88,7 +88,22 @@ return function(skillRuleOf)
         return mitigation,elementMitigation
     end
 
-    return {build=build,mitigationFor=mitigationFor}
+    -- Damage resolution can use at most one attack per mitigation effect.
+    -- Reuse these recorded values rather than resolving mutable live Units again.
+    local function restoreMitigations(results,mitigation,elementMitigation)
+        for key,result in pairs(results or {}) do
+            if mitigation~=nil and (result.prevented or 0)>0 then
+                mitigation.used=true
+                mitigation.appliedKey=key
+            end
+            if elementMitigation~=nil and (result.elementPrevented or 0)>0 then
+                elementMitigation.used=true
+                elementMitigation.appliedKey=key
+            end
+        end
+    end
+
+    return {build=build,mitigationFor=mitigationFor,restoreMitigations=restoreMitigations}
 end
 end)()
 

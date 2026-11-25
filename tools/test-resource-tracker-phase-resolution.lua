@@ -98,6 +98,13 @@ local scan={cards={["0688d8"]={enemyGUID="vampire"},["ae8673"]={enemyGUID="vampi
 local mitigation,element=prep.mitigationFor(scan,items,{battleHardenedAttackKey="blocked:1",elementalResistanceAttackKey="vampire:2"})
 eq(mitigation.attackKey,nil,"Blocked attack cannot consume mitigation")
 eq(element.attackKey,"vampire:2","Valid selected attack retained")
+local frozenDamage={["vampire:2"]={prevented=2,heroWounds=1},
+    ["other:1"]={elementPrevented=1,heroWounds=0}}
+prep.restoreMitigations(frozenDamage,mitigation,element)
+eq(mitigation.appliedKey,"vampire:2","Committed mitigation display retains actual attack")
+eq(mitigation.used,true,"Committed Battle Hardened remains used")
+eq(element.appliedKey,"other:1","Elemental mitigation uses committed result rather than live target")
+eq(element.used,true,"Committed Elemental Resistance remains used")
 late.vampiric(entries,groups,row,items,{["vampire:2"]={heroWounds=2}})
 eq(entries[4].baseArmour,6,"Vampiric gains late Armour")
 eq(groups[4].attackArmour,6,"Group late Armour recomputed")

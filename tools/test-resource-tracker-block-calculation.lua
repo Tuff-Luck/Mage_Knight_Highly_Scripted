@@ -131,6 +131,13 @@ run("resource-tracker-block-results",function()
     calculate(e,sources,{},function(name) profile[name]=(profile[name] or 0)+1 end)
     eq(calls,2,"Caller cache reset recomputes")
     eq(profile["block.cache.miss"],1,"Profile records exact cache miss")
+    local alternateCalls=calls
+    calculate(e,{source("different",4)},cache)
+    eq(calls,alternateCalls+1,"Different source has its own exact solution")
+    calculate(e,sources,cache)
+    eq(calls,alternateCalls+1,"Alternating phase inputs reuse original solution")
+    for amount=1,6 do calculate(e,{source("variant",amount)},cache) end
+    eq(#cache[e.guid],4,"Per-enemy cache retains only four recent variants")
     local _,_,_,_,_,_,_,_,_,surplusExcess,surplusKeys=calculate(
         enemy("surplusBash",{{key="P",value=4}}),
         {source("ordinary",4),source("shieldBash",2,{excessBlockArmour=true})},cache)

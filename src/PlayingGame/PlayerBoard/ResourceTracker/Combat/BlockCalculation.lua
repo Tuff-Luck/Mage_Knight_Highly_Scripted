@@ -235,7 +235,8 @@ return function(combatConfig,solver,combatEnemyAttacks,combatNatureVengeanceBloc
                 tostring(attack.slot),tostring(attack.pending),tostring(attack.swift),
                 tostring(attack.brutal),tostring(attack.cumbersome),tostring(attack.poison),
                 tostring(attack.paralyse),tostring(attack.assassination),
-                tostring(attack.firstDamageUnit),tostring(attack.label)},":")
+                tostring(attack.firstDamageUnit),tostring(attack.label),
+                tostring(attack.block),tostring(attack.abilitiesStripped)},":")
         end
         for _,item in ipairs(items) do
             parts[#parts+1]=table.concat({
@@ -255,10 +256,21 @@ return function(combatConfig,solver,combatEnemyAttacks,combatNatureVengeanceBloc
         table.sort(moveSignature)
         for _,piece in ipairs(moveSignature) do parts[#parts+1]="move:"..piece end
         local key=table.concat(parts,";")
-        local cached=entry.guid~=nil and cache[entry.guid] or nil
-        if cached~=nil and cached.key==key then
-            if profileCount~=nil then profileCount("block.cache.hit") end
-            return table.unpack(cached.result,1,12)
+        -- Conditional effects can alternate between a few valid attack/source
+        -- variants in a single refresh. Retain the four most recent exact
+        -- solutions per enemy rather than evicting one on every phase pass.
+        local variants=entry.guid~=nil and cache[entry.guid] or nil
+        if variants~=nil then
+            for index,cached in ipairs(variants) do
+                if cached.key==key then
+                    if index>1 then
+                        table.remove(variants,index)
+                        table.insert(variants,1,cached)
+                    end
+                    if profileCount~=nil then profileCount("block.cache.hit") end
+                    return table.unpack(cached.result,1,12)
+                end
+            end
         end
         if profileCount~=nil then profileCount("block.cache.miss") end
         local plan,solved,leftover=combatSolveBlocks(attacks,items,movePool)
@@ -384,9 +396,11 @@ return function(combatConfig,solver,combatEnemyAttacks,combatNatureVengeanceBloc
             end
         end
         if entry.guid~=nil then
-            cache[entry.guid]={key=key,result={
+            if variants==nil then variants={} cache[entry.guid]=variants end
+            table.insert(variants,1,{key=key,result={
                 lines,totalDamage,damageCount,allBlocked,reductions,wrongBlock,unblocked,
-                successfulSources,successfulOwners,shieldBashExcess,successfulSourceKeys,spentMoveKeys}}
+                successfulSources,successfulOwners,shieldBashExcess,successfulSourceKeys,spentMoveKeys}})
+            if #variants>4 then table.remove(variants) end
         end
         return lines,totalDamage,damageCount,allBlocked,reductions,wrongBlock,unblocked,
             successfulSources,successfulOwners,shieldBashExcess,successfulSourceKeys,spentMoveKeys

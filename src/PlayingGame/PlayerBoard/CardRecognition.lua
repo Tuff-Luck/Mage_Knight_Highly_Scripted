@@ -1667,7 +1667,7 @@ local function combatBlockResult(entry,sources)
     if not trackerPrivate.traceEnabled then
         return trackerPrivate.blockResults(entry,sources,trackerPrivate.combatBlockResultCache)
     end
-    local profile=trackerPrivate.profileStart()
+    local profile=trackerPrivate.traceEnabled and (trackerPrivate.profileStart() or true) or nil
     local result={trackerPrivate.blockResults(entry,sources,trackerPrivate.combatBlockResultCache,
         trackerPrivate.profileCount)}
     trackerPrivate.profileFinish("block.result",profile)
@@ -2971,20 +2971,30 @@ local function combatAssignmentRefreshRows(entries,sources)
     attackAssignmentsDamageSync(damageSpec)
     local seatScan=damageSeat~=nil and resourceCardScanBySeat[damageSeat] or nil
     local mitigation,elementMitigation=trackerPrivate.damagePreparation.mitigationFor(seatScan,damageItems,gStates)
-    local damageResults=combatDamageResolve(damageItems,damageUnits,
-        combatHeroArmour(nativeCommandCount),attackAssignmentsDamageTargetsOf,
-        mitigation,elementMitigation,seatScan~=nil and seatScan.heroFirstWoundIgnored==true,
-        gStates~=nil and gStates.combatWoundApplication~=nil
-            and gStates.combatWoundApplication.seat==damageSeat
-            and gStates.combatWoundApplication.applied or nil)
+    local damageProfile=trackerPrivate.traceEnabled and (trackerPrivate.profileStart() or true) or nil
+    local damageResults
     if earlyLock~=nil and earlyLock.damageResults~=nil then
-        damageResults=combatFrozenCopy(earlyLock.damageResults) or damageResults
-    elseif combatConfig.phasePreview~=nil then
-        combatConfig.phasePreview.damageResults=combatFrozenCopy(damageResults)
-        if attackAssignmentsDamageSnapshot~=nil then
-            combatConfig.phasePreview.damage=attackAssignmentsDamageSnapshot()
+        -- Do not recalculate the committed Damage phase just to discard it.
+        -- Restore the mitigation controls from the same authoritative results.
+        damageResults=combatFrozenCopy(earlyLock.damageResults)
+        trackerPrivate.damagePreparation.restoreMitigations(damageResults,mitigation,elementMitigation)
+        if trackerPrivate.traceEnabled then trackerPrivate.profileCount("damage.frozen") end
+    else
+        damageResults=combatDamageResolve(damageItems,damageUnits,
+            combatHeroArmour(nativeCommandCount),attackAssignmentsDamageTargetsOf,
+            mitigation,elementMitigation,seatScan~=nil and seatScan.heroFirstWoundIgnored==true,
+            gStates~=nil and gStates.combatWoundApplication~=nil
+                and gStates.combatWoundApplication.seat==damageSeat
+                and gStates.combatWoundApplication.applied or nil)
+        if trackerPrivate.traceEnabled then trackerPrivate.profileCount("damage.resolved") end
+        if combatConfig.phasePreview~=nil then
+            combatConfig.phasePreview.damageResults=combatFrozenCopy(damageResults)
+            if attackAssignmentsDamageSnapshot~=nil then
+                combatConfig.phasePreview.damage=attackAssignmentsDamageSnapshot()
+            end
         end
     end
+    if damageProfile~=nil then trackerPrivate.profileFinish("damage.phase",damageProfile) end
 
     trackerPrivate.lateCombatPhase.vampiric(entries,groups,rowBlock,damageItems,damageResults)
 
@@ -3252,7 +3262,7 @@ end
 
 local function refreshCombatEnemyPanel(monsters,calculated)
     if combatConfig.scanAwaitingRescan then return end
-    local profile=trackerPrivate.profileStart()
+    local profile=trackerPrivate.traceEnabled and (trackerPrivate.profileStart() or true) or nil
     local active
     if calculated==true then active=combatCalcOn
     else active=combatCalcUpdate(monsters) end
@@ -3380,6 +3390,7 @@ local function refreshCombatEnemyPanel(monsters,calculated)
             end
         end
     end
+    local arrowProfile=trackerPrivate.traceEnabled and (trackerPrivate.profileStart() or true) or nil
     attackAssignmentsPruneInactive(activeSources,activeObjects,combatSourceKeepsLock)
     local validTargets={}
     for guid,obj in pairs(monsters or {}) do
@@ -3406,9 +3417,10 @@ local function refreshCombatEnemyPanel(monsters,calculated)
     if combatAssignmentState.selected~=nil and activeSources[combatAssignmentState.selected]~=true then
         combatAssignmentState.selected=nil
     end
-    local rowProfile=trackerPrivate.profileStart()
+    if arrowProfile~=nil then trackerPrivate.profileFinish("combat.arrows",arrowProfile) end
+    local rowProfile=trackerPrivate.traceEnabled and (trackerPrivate.profileStart() or true) or nil
     local rowHeight=combatAssignmentRefreshRows(entries,sources)
-    trackerPrivate.profileFinish("combat.rows",rowProfile)
+    if rowProfile~=nil then trackerPrivate.profileFinish("combat.rows",rowProfile) end
     if lock==nil and combatConfig.phasePreview~=nil then
         -- Automatic nearest-enemy targeting is resolved inside the calculator,
         -- so capture it AFTER that pass rather than before the first render.
@@ -3416,11 +3428,13 @@ local function refreshCombatEnemyPanel(monsters,calculated)
         combatConfig.phasePreview.explicit=combatFrozenCopy(combatAssignmentState.explicit)
     end
     if attackAssignmentsRefreshTargetButtons~=nil then
+        local buttonProfile=trackerPrivate.traceEnabled and (trackerPrivate.profileStart() or true) or nil
         attackAssignmentsRefreshTargetButtons(monsters)
+        if buttonProfile~=nil then trackerPrivate.profileFinish("combat.targetButtons",buttonProfile) end
     end
     combatConfig.panelHeight=combatConfig.panelBaseHeight+rowHeight
     combatPanelSetAttribute("CombatEnemyPanel","height",tostring(combatConfig.panelHeight))
-    trackerPrivate.profileFinish("combat.refresh",profile)
+    if profile~=nil then trackerPrivate.profileFinish("combat.refresh",profile) end
 end
 
 -- Result expansion is presentation only. Reuse the existing combat solution,
@@ -5182,7 +5196,7 @@ local function renderSeat(seatPos)
     if not resourceCardsPanelOpen() then return end
     local active=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
     if active==nil or active.seatPos~=seatPos then return end
-    local profile=trackerPrivate.profileStart()
+    local profile=trackerPrivate.traceEnabled and (trackerPrivate.profileStart() or true) or nil
     if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("render.start",seatPos) end
     -- Keep the last complete calculator result while a played card is carried
     -- or its final X/Z/orientation is being confirmed. Never publish a
@@ -5450,7 +5464,7 @@ local function renderSeat(seatPos)
         clearHighlight=clearHighlight, choiceButtonShown=choiceButtonShown,
         removeChoiceButtons=removeChoiceButtons, choiceExpandedByGUID=choiceExpandedByGUID,
     })
-    trackerPrivate.profileFinish("tracker.scan",profile)
+    if profile~=nil then trackerPrivate.profileFinish("tracker.scan",profile) end
 end
 
 local function scheduleSeatRender(seatPos)
