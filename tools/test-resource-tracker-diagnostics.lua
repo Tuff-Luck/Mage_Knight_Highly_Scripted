@@ -117,6 +117,17 @@ for _,name in ipairs({"grouping","enemyHeaders","allocation","earlyCombat","dama
     last=pos+1
 end
 assert(rowSource:find('profileFinish("rows.finalLayout",stageProfile)',last,true))
+local scanStart=assert(source:find("local function renderSeat(seatPos)",1,true))
+local scanEnd=assert(source:find("local function scheduleSeatRender",scanStart,true))
+local scanSource=source:sub(scanStart,scanEnd-1)
+last=1
+for _,name in ipairs({"observation","unitPreparation","payments","passiveTerrain","playedCards",
+    "cardInteractions","units","skills","finalization"}) do
+    local pos=assert(scanSource:find('profileCheckpoint("scan.'..name..'",scanStage)',last,true),
+        "Missing ordered tracker scan stage "..name)
+    last=pos+1
+end
+assert(scanSource:find('profileFinish("scan.publication",scanStage)',last,true))
 -- Actual UI calls contribute once to the total and once to their column.
 private.profileClock=function() return tick end
 local uiStart=private.profileStart()

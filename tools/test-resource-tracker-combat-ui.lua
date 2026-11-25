@@ -108,6 +108,21 @@ run("resource-tracker-combat-presentation",function()
         function(n) return tostring(n).." Wounds" end,function(lines) return table.concat(lines," ") end)
     local widths,w=panel.columns({"None","Resist"},{"","-"},{"P 3",""},
         {range=false,block=true,attack=false},{range=0,block=8,attack=0},100)
+    local beforeLayout=uiCalls
+    local sameWidths,sameW=panel.columns({"None","Resist"},{"","-"},{"P 3",""},
+        {range=false,block=true,attack=false},{range=0,block=7,attack=0},100)
+    eq(uiCalls,beforeLayout,"Same layout and capped icon count skip all column writes")
+    eq(sameWidths.block,widths.block,"Cached widths retained")
+    eq(sameW,w,"Cached base width retained")
+    sameWidths.block=0
+    local stable=panel.columns({"None","Resist"},{"","-"},{"P 3",""},
+        {range=false,block=true,attack=false},{range=0,block=8,attack=0},100)
+    eq(stable.block,widths.block,"Caller cannot mutate cached widths")
+    panel.columns({"None","Resist"},{"","-"},{"",""},
+        {range=false,block=true,attack=false},{range=0,block=8,attack=0},100)
+    eq(ui.CombatEnemyAttackHeader.active,"false","Changed text invalidates layout")
+    panel.columns({"None","Resist"},{"","-"},{"P 3",""},
+        {range=false,block=true,attack=false},{range=0,block=8,attack=0},100)
     eq(widths.block,144,"Resource grid width capped at six icons")
     eq(ui.CombatSourceGrid1block.constraintCount,"6","Grid matches column width")
     eq(ui.CombatSourceCell2range.active,"false","Empty resource column hidden")

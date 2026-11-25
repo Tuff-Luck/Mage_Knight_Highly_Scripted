@@ -2830,7 +2830,7 @@ trackerPrivate.combatRowRenderer=require("PlayingGame.PlayerBoard.ResourceTracke
     function(guid) return monsterPugs[guid] end,trackerPrivate)
 trackerPrivate.combatPanelRenderer=require("PlayingGame.PlayerBoard.ResourceTracker.Interface.CombatPanel").renderer(
     combatConfig,combatPanelSetAttribute,combatRich,combatWoundsText,
-    function(...) return joinLang(...) end)
+    function(...) return joinLang(...) end,trackerPrivate)
 
 local function combatAssignmentRefreshRows(entries,sources)
     -- Exclusive stage timings within combat.rows. Existing block.result,
@@ -2945,7 +2945,7 @@ local function combatAssignmentRefreshRows(entries,sources)
         trackerPrivate.traceEnabled and function(key,field,allowed,actual)
             trackerPrivate.traceEvent("resource.overallocated",combatAssignmentActiveSeat(),key,
                 field.." budget="..tostring(allowed).." allocated="..tostring(actual))
-        end or nil)
+        end or nil,trackerPrivate)
 
     if stageProfile~=nil then stageProfile=trackerPrivate.profileCheckpoint("rows.allocation",stageProfile) end
     combatConfig.applyExplosiveBoltRange(entries,groups,allocated,sources)
@@ -5262,6 +5262,8 @@ local function renderSeat(seatPos)
     end
     trackerPrivate.renderCombatNight=nil
     local profile=trackerPrivate.traceEnabled and trackerPrivate.profileScanStart() or nil
+    local scanStage
+    if profile~=nil then scanStage=profile.started end
 
     local objects,placements,monsters,playMonsters,combatMonsters,
         enemyEntries,inventoryCrystalCounts,cards,wounds,skills,
@@ -5276,6 +5278,7 @@ local function renderSeat(seatPos)
         combatCalcUpdate=combatCalcUpdate, footprint=footprint,
     })
 
+    if scanStage~=nil then scanStage=trackerPrivate.profileCheckpoint("scan.observation",scanStage) end
     local unitState, activations, unitSiteMode, unitSite, chosenSiteUnit, woundCount=
         trackerPrivate.scanObservation.prepare({
         seatPos=seatPos, cards=cards, skills=skills, placements=placements, hasUnits=hasUnits,
@@ -5286,6 +5289,7 @@ local function renderSeat(seatPos)
         clearHighlight=clearHighlight,
     })
 
+    if scanStage~=nil then scanStage=trackerPrivate.profileCheckpoint("scan.unitPreparation",scanStage) end
     local manaByObject,manaBySkill,manaByCard,skillLinksByTarget,skillLinksBySkill,
         sidewaysSkillMana,powered,usedMana,spellCastingPaid,powerManaColorsByCard,
         effectManaByCard,links,boostBy,boostSource,discarded,
@@ -5299,6 +5303,7 @@ local function renderSeat(seatPos)
         manaColor=manaColor, effectManaPossibilities=effectManaPossibilities,
         resolveActionLinks=resolveActionLinks,
     })
+    if scanStage~=nil then scanStage=trackerPrivate.profileCheckpoint("scan.payments",scanStage) end
     local current,records,totals={}, {}, {}
     local usesCurrentHexBlock=false
     local usesCurrentHexHealing=false
@@ -5328,6 +5333,7 @@ local function renderSeat(seatPos)
         end
         return choices
     end
+    if scanStage~=nil then scanStage=trackerPrivate.profileCheckpoint("scan.passiveTerrain",scanStage) end
     usesCurrentHexBlock,usesCurrentHexHealing,ignoreSiteFortifications,
         unitCombatBoost,preventUnitDamage,allUnitResistances,heroFirstWoundIgnored=
         trackerPrivate.playedCardScan.process({
@@ -5361,6 +5367,7 @@ local function renderSeat(seatPos)
         preventUnitDamage=preventUnitDamage, allUnitResistances=allUnitResistances,
         heroFirstWoundIgnored=heroFirstWoundIgnored,
     })
+    if scanStage~=nil then scanStage=trackerPrivate.profileCheckpoint("scan.playedCards",scanStage) end
     trackerPrivate.cardInteractions.process({
         cards=cards, records=records, totals=totals, cardPosture=cardPosture, monsters=monsters,
         current=current, setHighlight=setHighlight, discarded=discarded, choiceCategory=choiceCategory,
@@ -5369,6 +5376,7 @@ local function renderSeat(seatPos)
         calculateSideways=calculateSideways, showChoiceButtons=showChoiceButtons, trackerPrivate=trackerPrivate,
         addResourceAmounts=addResourceAmounts, links=links,
     })
+    if scanStage~=nil then scanStage=trackerPrivate.profileCheckpoint("scan.cardInteractions",scanStage) end
     local attackTransforms,transformingUnits
     unitState,chosenSiteUnit,allUnitResistances,attackTransforms,transformingUnits=
         trackerPrivate.unitScan.process({
@@ -5388,6 +5396,7 @@ local function renderSeat(seatPos)
         footprint=footprint, monsters=monsters, combatEffectTargetEligible=combatEffectTargetEligible,
         enemyEffects=enemyEffects,
     })
+    if scanStage~=nil then scanStage=trackerPrivate.profileCheckpoint("scan.units",scanStage) end
     trackerPrivate.skillInteractions.process({
         seatPos=seatPos, skills=skills, cards=cards, wounds=wounds, objects=objects, activations=activations,
         records=records, current=current, totals=totals, manaBySkill=manaBySkill,
@@ -5406,6 +5415,7 @@ local function renderSeat(seatPos)
         currentChoice=currentChoice, effectManaPowerColors=effectManaPowerColors,
         effectManaByCard=effectManaByCard, matchesCardMana=matchesCardMana,
     })
+    if scanStage~=nil then scanStage=trackerPrivate.profileCheckpoint("scan.skills",scanStage) end
     -- This scan has just granted Cumbersome to a target: show Move-target
     -- buttons immediately, without requiring the player to close/reopen the tracker.
     for _,effect in pairs(enemyEffects) do
@@ -5492,6 +5502,7 @@ local function renderSeat(seatPos)
         records=records, totals=totals,
     })
 
+    if scanStage~=nil then scanStage=trackerPrivate.profileCheckpoint("scan.finalization",scanStage) end
     trackerPrivate.scanPublication.publish({
         seatPos=seatPos, records=records, resourceCardsMoveRole=resourceCardsMoveRole,
         combatForgetPhysicalSourceTargets=combatForgetPhysicalSourceTargets,
@@ -5510,6 +5521,7 @@ local function renderSeat(seatPos)
         clearHighlight=clearHighlight, choiceButtonShown=choiceButtonShown,
         removeChoiceButtons=removeChoiceButtons, choiceExpandedByGUID=choiceExpandedByGUID,
     })
+    if scanStage~=nil then trackerPrivate.profileFinish("scan.publication",scanStage) end
     if profile~=nil then trackerPrivate.profileScanFinish(profile) end
 end
 

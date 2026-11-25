@@ -1,7 +1,7 @@
 -- Production source allocation with deterministic arrow and enemy callbacks.
 local root="src/PlayingGame/PlayerBoard/ResourceTracker/"
 local arrows,clears,ensures,kept,records={},{},{},{},{}
-local nearestCalls=0
+local nearestCalls,scanCalls=0,0
 local cumbersomeCalls,attackCalls={},{}
 local function cumbersome(guid)
     cumbersomeCalls[guid]=(cumbersomeCalls[guid] or 0)+1
@@ -26,7 +26,7 @@ local engine=dofile(root.."Combat/SourceTargetAllocation.lua")(
     function(key) return arrows[key]~=nil end,
     function(key,guid,kind) ensures[#ensures+1]={key,guid,kind} arrows[key]={[guid]=true} end,
     function() return "attack" end,attacks,split,
-    function() return {cards=records} end,function(key) return kept[key]==true end)
+    function() scanCalls=scanCalls+1 return {cards=records} end,function(key) return kept[key]==true end)
 local function eq(actual,expected,label)
     assert(actual==expected,label..": expected "..tostring(expected)..", got "..tostring(actual))
 end
@@ -77,7 +77,9 @@ eq(#assigned[2].sources,4,"Target allocation retains all four Cumbersome sources
 eq(assigned[3].sources[1],sources[7],"Psychic source remains assigned")
 eq(assigned[5],nil,"No offensive allocation to attack-only reminder")
 local other={targets={},explicit={}}
+local beforeScanCalls=scanCalls
 engine.allocate(entries,{source("fresh",{attack=1})},rows,other,false)
+eq(scanCalls,beforeScanCalls,"Numeric-only targets skip effect-index scan")
 eq(other.targets.fresh,"normal","New player's state receives target")
 eq(state.targets.fresh,nil,"Previous player's state is not retained")
 eq(state.targets.manual,"c","Previous player's manual lock unchanged")

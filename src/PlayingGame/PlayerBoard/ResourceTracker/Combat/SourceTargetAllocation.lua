@@ -114,7 +114,9 @@ return function(attackAssignmentsTargetGUIDs,attackAssignmentsClearForObject,
         end
     end
 
-    local function allocate(entries,sources,rowByGUID,combatAssignmentState,combatCumbersomeActive,report)
+    local function allocate(entries,sources,rowByGUID,combatAssignmentState,combatCumbersomeActive,report,profiler)
+        local profile
+        if profiler~=nil and profiler.traceEnabled then profile=profiler.profileStart() end
         local allocated,activeSources={},{}
         -- These observations are valid only during this allocation pass.
         -- Later phases can change attacks and the next refresh sees live positions.
@@ -138,6 +140,7 @@ return function(attackAssignmentsTargetGUIDs,attackAssignmentsClearForObject,
         if original~=nil then
             for _,source in ipairs(sources) do addBudget(original,source) end
         end
+        if profile~=nil then profile=profiler.profileCheckpoint("allocation.setup",profile) end
         for _,source in ipairs(sources) do
             activeSources[source.key]=true
             local targetGUID,targetIndex=resolveTarget(source,entries,rowByGUID,combatAssignmentState,combatCumbersomeActive,observation)
@@ -171,21 +174,28 @@ return function(attackAssignmentsTargetGUIDs,attackAssignmentsClearForObject,
                 divisibleResources(source,target,targetGUID,explicit,rowByGUID,entries,allocated,observation)
             end
         end
-        local effectOnly={}
-        local currentScan=scanOfActiveSeat()
-        for _,record in pairs(currentScan~=nil and currentScan.cards or {}) do
-            for _,key in ipairs(record.enemyEffectTargetKeys or {}) do effectOnly[key]=true end
-        end
+        if profile~=nil then profile=profiler.profileCheckpoint("allocation.targets",profile) end
+        local effectOnly
         for key in pairs(combatAssignmentState.targets) do
-            local active=effectOnly[key]==true or activeSources[key]==true
-            -- Enemy-effect Skills and Units are also real target sources even
-            -- when they generate no numeric Attack or Block.
-            if not active and not combatSourceKeepsLock(key) then
-                combatAssignmentState.targets[key]=nil
-                combatAssignmentState.explicit[key]=nil
+            if activeSources[key]~=true then
+                -- Most scans have only active numeric targets. Build the effect
+                -- index lazily, once, only if a nonnumeric/stale target exists.
+                if effectOnly==nil then
+                    effectOnly={}
+                    local currentScan=scanOfActiveSeat()
+                    for _,record in pairs(currentScan~=nil and currentScan.cards or {}) do
+                        for _,effectKey in ipairs(record.enemyEffectTargetKeys or {}) do effectOnly[effectKey]=true end
+                    end
+                end
+                if effectOnly[key]~=true and not combatSourceKeepsLock(key) then
+                    combatAssignmentState.targets[key]=nil
+                    combatAssignmentState.explicit[key]=nil
+                end
             end
         end
+        if profile~=nil then profile=profiler.profileCheckpoint("allocation.cleanup",profile) end
         if original~=nil then checkBudget(original,allocated,report) end
+        if profile~=nil then profiler.profileFinish("allocation.audit",profile) end
         return allocated
     end
 

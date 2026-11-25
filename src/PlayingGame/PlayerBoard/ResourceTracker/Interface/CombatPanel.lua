@@ -112,8 +112,33 @@ end)()
 local renderer=(function()
 local estimatedTextWidth=layout.estimatedTextWidth
 -- Apply panel geometry, damage summary and final header/overflow attributes.
-return function(combatConfig,combatPanelSetAttribute,combatRich,combatWoundsText,joinLang)
+return function(combatConfig,combatPanelSetAttribute,combatRich,combatWoundsText,joinLang,profiler)
+    local prior
+    local function equalRows(a,b)
+        -- Compare both ways: empty/missing rows and page changes must invalidate.
+        for k,value in pairs(a) do if b[k]~=value then return false end end
+        for k,value in pairs(b) do if a[k]~=value then return false end end
+        return true
+    end
+    local function copy(values)
+        local result={}
+        for k,value in pairs(values) do result[k]=value end
+        return result
+    end
     local function columns(shownTraits,shownOffence,shownAttacks,colUsed,maxResourceCounts,enemyNameWidth)
+        local cache=profiler~=nil and profiler.combatPanelAttributes or nil
+        local range=math.max(3,math.min(combatConfig.lineSlotCount,maxResourceCounts.range))
+        local block=math.max(3,math.min(combatConfig.lineSlotCount,maxResourceCounts.block))
+        local attack=math.max(3,math.min(combatConfig.lineSlotCount,maxResourceCounts.attack))
+        if prior~=nil and prior.cache==cache and prior.rowCount==combatConfig.rowCount
+            and prior.name==enemyNameWidth and prior.range==range and prior.block==block
+            and prior.attack==attack and equalRows(prior.used,colUsed)
+            and equalRows(prior.traits,shownTraits) and equalRows(prior.offence,shownOffence)
+            and equalRows(prior.attacks,shownAttacks) then
+            if profiler~=nil and profiler.traceEnabled then profiler.profileCount("layout.columns.hit") end
+            return copy(prior.widths),prior.base
+        end
+        if profiler~=nil and profiler.traceEnabled then profiler.profileCount("layout.columns.miss") end
         -- Hide a column when every visible enemy leaves it blank or "None".
         local function textBlank(text) return text==nil or text=="" or text=="None" or text=="-" end
         local colShown={range=colUsed.range,block=colUsed.block,attack=colUsed.attack,traits=false,offence=false,enemyAttack=false}
@@ -168,6 +193,9 @@ return function(combatConfig,combatPanelSetAttribute,combatRich,combatWoundsText
             end
         end
 
+        prior={cache=cache,rowCount=combatConfig.rowCount,name=enemyNameWidth,
+            range=range,block=block,attack=attack,used=copy(colUsed),traits=copy(shownTraits),
+            offence=copy(shownOffence),attacks=copy(shownAttacks),widths=copy(columnWidths),base=baseWidth}
         return columnWidths,baseWidth
     end
 

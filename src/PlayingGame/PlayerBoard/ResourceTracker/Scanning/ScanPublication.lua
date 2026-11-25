@@ -14,6 +14,8 @@ function M.publish(context)
     local refreshCombatEnemyPanel, combatMonsters, resourceCardsApplyFameRep = context.refreshCombatEnemyPanel, context.combatMonsters, context.resourceCardsApplyFameRep
     local clearHighlight, choiceButtonShown, removeChoiceButtons = context.clearHighlight, context.choiceButtonShown, context.removeChoiceButtons
     local choiceExpandedByGUID = context.choiceExpandedByGUID
+    local profile
+    if trackerPrivate.traceEnabled then profile=trackerPrivate.profileStart() end
     -- First recognition determines phase; later enemy arrivals do not change it.
     local moveSplit={movement=0,combat=0}
     for guid,record in pairs(records) do
@@ -135,7 +137,9 @@ function M.publish(context)
     if attackAssignmentsRefreshAmbushLinks~=nil then attackAssignmentsRefreshAmbushLinks() end
     -- This also retracts a saved Ready if its card loses power or the new
     -- Rejuvenate side can no longer ready that Unit level.
+    if profile~=nil then profile=trackerPrivate.profileCheckpoint("publish.state",profile) end
     combatConfig.scanAwaitingRescan=unitHistoryValidSources(seatPos) or readyNeedsRescan==true
+    if profile~=nil then profile=trackerPrivate.profileCheckpoint("publish.unitHistory",profile) end
     if combatConfig.scanAwaitingRescan then
         -- Source validation needs the candidate scan above, but the Combat
         -- Calculator must not accept it as an authoritative damage plan.
@@ -143,6 +147,7 @@ function M.publish(context)
     else
         refreshCombatEnemyPanel(combatMonsters,true)
     end
+    if profile~=nil then profile=trackerPrivate.profileCheckpoint("publish.combat",profile) end
     -- Refresh conversion counters against the just-published shared budget,
     -- not the preceding scan used during the initial card UI pass.
     for guid,record in pairs(records) do
@@ -170,6 +175,7 @@ function M.publish(context)
         or terrainChanged or movementChanged then
         updateMoveDisplay()
     end
+    if profile~=nil then profile=trackerPrivate.profileCheckpoint("publish.resources",profile) end
     for guid in pairs(previous) do
         if current[guid]~=true then
             combatConfig.sacrificeCastPairs[guid]=nil
@@ -205,6 +211,7 @@ function M.publish(context)
             end
         end
     end
+    if profile~=nil then profile=trackerPrivate.profileCheckpoint("publish.departed",profile) end
     -- A borrowed offer Unit is not a normal Unit-zone object. Zone-exit
     -- tracker refreshes can drop its independent cycling UI during dragging.
     -- Restore it after all tracker-owned UI writes, without touching resources.
@@ -216,6 +223,7 @@ function M.publish(context)
     end
     trackerPrivate.renderCombatNight=nil
     if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("render.done",seatPos) end
+    if profile~=nil then trackerPrivate.profileFinish("publish.controls",profile) end
 end
 
 return M
