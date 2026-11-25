@@ -81,7 +81,7 @@ local state={
         cardInTransit=function() return false end,
         cardButtonIds={}},
     combatCalcOn=true,combatCumbersomeActive=false,combatPsychicActive=false,
-    resourceCardsMoveRole=function() return "movement" end,
+    resourceCardsMoveRole=function(_guid,_assign) return "movement" end,
     combatAssignmentState={targets={}},
     resourceCardsDetailsOpen=function() return true end,
     cardPosture=function() return "upright" end,
@@ -255,7 +255,7 @@ state.gameCards.march={resourceKey="march",cardType="Starting"}
 state.cardResourceDefinitions.march={normalChoices={{move=2}}}
 chosen.march="move"
 local moveRole="combat"
-state.resourceCardsMoveRole=function() return moveRole end
+state.resourceCardsMoveRole=function(_guid,_assign) return moveRole end
 state.combatCalcOn=true
 state.combatCumbersomeActive=false
 state.combatPsychicActive=false
