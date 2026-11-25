@@ -82,11 +82,14 @@ run("resource-tracker-combat-presentation",function()
     -- Exercise extracted presentation with captured UI writes and resolved combat data.
     local root="src/PlayingGame/PlayerBoard/ResourceTracker/"
     local ui,icons={},{}
+    local iconCalls,uiCalls=0,0
     local function set(id,key,value)
+        uiCalls=uiCalls+1
         ui[id]=ui[id] or {}
         ui[id][key]=value
     end
     local function icon(id,active,amount,image,tooltip,selected,color,wounded,ineffective)
+        iconCalls=iconCalls+1
         icons[id]={active=active,amount=amount,tooltip=tooltip,selected=selected,wounded=wounded,ineffective=ineffective}
     end
     local layout=dofile(root.."Interface/CombatPanel.lua").layout
@@ -180,6 +183,43 @@ run("resource-tracker-combat-presentation",function()
     eq(counts.attack,2,"Visible maximum resource count updated")
     eq(height,30,"Single visible row height retained")
     eq(cfg.resultRowCache[1].guid,"enemy","Result cache belongs to enemy")
+    local function redraw(entries,groups,blocks,lists,offset,visible)
+        local currentSlots={}
+        cfg.slotSelection={} cfg.slotBowFamilies={} cfg.resultRowCache={}
+        render(entries,groups,blocks,lists,nil,{},false,offset,visible,{},{},{},
+            {range=false,block=false,attack=false},{range=0,block=0,attack=0},
+            currentSlots,{selected="effect"},{},{},choices,nil,0)
+        return currentSlots
+    end
+    iconCalls=0
+    local current=redraw({e},{g},{block},display,0,1)
+    eq(iconCalls,2,"Only occupied slots visited after initial reconciliation")
+    eq(current.CombatSourceSlot1attack1,"effect","Live click mapping rebuilt")
+    iconCalls=0
+    local smaller={{range={},block={},attack={display[1].attack[1]}}}
+    current=redraw({e},{g},{block},smaller,0,1)
+    eq(iconCalls,2,"One live and one removed slot reconciled")
+    eq(icons.CombatSourceSlot1attack2.active,false,"Removed resource hidden")
+    eq(current.CombatSourceSlot1attack2,nil,"Removed slot no longer clickable")
+    iconCalls=0
+    redraw({e},{g},{block},smaller,0,1)
+    eq(iconCalls,1,"Cleared tail not visited again")
+    iconCalls=0
+    -- The hidden row may have a real enemy from the next page in displayByIndex.
+    current=redraw({e,e},{g,g},{block,block},{smaller[1],display[1]},0,1)
+    eq(iconCalls,1,"Off-page enemy never fills hidden row")
+    eq(current.CombatSourceSlot2attack1,nil,"Off-page icon not clickable")
+    iconCalls=0
+    redraw({}, {}, {}, {},0,0)
+    eq(iconCalls,1,"Disappearing enemy clears last occupied slot")
+    eq(icons.CombatSourceSlot1attack1.active,false,"Disappearing row clears icons")
+    iconCalls=0 uiCalls=0
+    redraw({}, {}, {}, {},0,0)
+    eq(iconCalls,0,"Already cleared rows perform no icon work")
+    eq(uiCalls,0,"Already cleared rows perform no attribute work")
+    current=redraw({e},{g},{block},display,0,1)
+    eq(current.CombatSourceSlot1attack2,"unit","Reappearing row restores correct slot mapping")
+    eq(icons.CombatSourceSlot1attack2.active,true,"Reappearing row restores icon")
     print("Combat resource lists, visible row rendering and panel summary passed")
 end)
 

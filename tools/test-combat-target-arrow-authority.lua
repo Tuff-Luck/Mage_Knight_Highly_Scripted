@@ -42,4 +42,41 @@ arrows.rage={}
 state.targets.rage=nil
 assert(target(source,rows)==nil and state.targets.rage==nil,
     "Fresh card with no lock still uses ordinary targeting fallback")
-print("Combat calculator target authority regressions passed")
+-- Exercise the real DamageSync function with observable UI reconciliation.
+local code=read("src/PlayingGame/Combat/AttackAssignments.lua")
+local first=assert(code:find("function attackAssignmentsDamageSync(spec)",1,true))
+local last=assert(code:find("-- Uncommitted Unit allocations",first,true))
+local rebuilds,redraws=0,0
+local damageEnv={
+    damageTargets={},damageButtonObjects={},damageOwnerSignatures={},damageTargetUnits={},
+    damageButtonX={},damageSignature="",DAMAGE_BUTTON_LIMIT=6,
+    combatCommittedLock=function() return nil end,
+    damageUsedBy=function() return nil end,
+    rebuildDamageButtons=function() rebuilds=rebuilds+1 end,
+    refreshRenderedLines=function() redraws=redraws+1 end,
+    hasRuntimeWork=function() return false end,
+    resourceCardsPanelOpen=function() return true end,
+    getObjectFromGUID=function() return nil end
+}
+setmetatable(damageEnv,{__index=_G})
+assert(load(code:sub(first,last-1),"Damage sync","t",damageEnv))()
+local function sync(damage,units)
+    damageEnv.attackAssignmentsDamageSync({attacks={{key="enemy:1",owner="enemy",damage=damage}},units=units})
+end
+sync(4,{})
+assert(rebuilds==1 and redraws==1 and damageEnv.damageSignature=="#NO_UNITS",
+    "First no-Unit scan reconciles overlays")
+sync(3,{})
+assert(rebuilds==1 and redraws==1,"Subsequent no-Unit scan skips redraw")
+assert(damageEnv.attackAssignmentsDamageSnapshot().attacks[1].damage==3,
+    "Fast path preserves current attack snapshot")
+sync(2,{unit=true})
+assert(rebuilds==2 and redraws==2 and damageEnv.damageSpec.byOwner.enemy~=nil,
+    "New eligible Unit restores damage controls")
+damageEnv.damageTargets["enemy:1"]={"unit"}
+sync(1,{})
+assert(rebuilds==3 and redraws==3 and next(damageEnv.damageTargets)==nil,
+    "Losing eligible Unit cleans existing assignment")
+sync(0,{})
+assert(rebuilds==3 and redraws==3,"Clean no-Unit state remains cheap")
+print("Combat calculator target authority and damage sync regressions passed")

@@ -747,6 +747,17 @@ function attackAssignmentsDamageSync(spec)
 			damageSpec.reserved[guid]=attack.key
 		end
 	end
+    -- No eligible Units, no red links and no targeting overlays: there is
+    -- nothing to reconcile. Retain the fresh attack index for snapshots,
+    -- but avoid building signatures or forcing a vector redraw on each Block.
+    -- The first transition to this state still runs normal cleanup below.
+    if damageSignature=="#NO_UNITS" and next(damageSpec.units)==nil
+        and next(damageTargets)==nil and damagePending==nil
+        and next(damageButtonObjects)==nil and next(damageOwnerSignatures)==nil
+        and next(damageTargetUnits)==nil then
+        if hasRuntimeWork() then scheduleRefresh() end
+        return
+    end
 	for key,guids in pairs(damageTargets) do
 		local kept={}
 		for _,guid in ipairs(damageSpec.byKey[key]~=nil and guids or {}) do
@@ -808,6 +819,11 @@ function attackAssignmentsDamageSync(spec)
 		-- transitions, force reconciliation even if another system redrew vectors.
 		refreshRenderedLines(true)
 	end
+    if next(damageSpec.units)==nil and next(damageTargets)==nil and damagePending==nil
+        and next(damageButtonObjects)==nil and next(damageOwnerSignatures)==nil
+        and next(damageTargetUnits)==nil then
+        damageSignature="#NO_UNITS"
+    end
 	if hasRuntimeWork() then scheduleRefresh() end
 end
 
