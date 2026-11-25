@@ -10,7 +10,7 @@ Combat.AttackEligibility Combat.BlockCalculation Combat.BossAllocation Combat.Co
 Combat.CombatTargetPolicy Combat.ConditionalBlockEffects Combat.DamageCalculation Combat.DefendAllocation
 Combat.DivisibleResources Combat.EarlyCombatPhase Combat.EnemyGroups Combat.EnemyProperties
 Combat.ExplosiveBolt Combat.FlameWave Combat.LateCombatPhase Combat.SourceTargetAllocation
-Core.Diagnostics Core.ObjectEvents Core.State Core.TrackerLifecycle Interface.CardControlOptions
+Core.Diagnostics Core.ObjectEvents Core.ResourceOperations Core.State Core.TrackerLifecycle Interface.CardControlOptions
 Interface.CardControls Interface.CombatDisplay Interface.CombatEffectDisplay Interface.CombatPanel
 Interface.CombatResourceDisplay Interface.CombatRowRenderer Interface.UnitControls
 Scanning.FactionRewardScan Scanning.ManaPayments Scanning.PhysicalObjects Scanning.ScanFinalization

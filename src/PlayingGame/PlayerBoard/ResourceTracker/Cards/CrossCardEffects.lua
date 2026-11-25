@@ -1,5 +1,6 @@
 -- Cross-card bonuses and conversions, including Tirelessness, borrowed-enemy highlights, Deadly Precision, Ambush, and linked or discarded Wounds. Uses the current scan's records, resources and existing targeting callbacks.
 local M={}
+local resourceOps=require("PlayingGame.PlayerBoard.ResourceTracker.Core.ResourceOperations")
 
 function M.process(context)
     local cards, records, totals = context.cards, context.records, context.totals
@@ -77,15 +78,8 @@ function M.process(context)
             end)
             local best=candidates[1]
             if best~=nil and (candidates[2]==nil or best.area>candidates[2].area) then
-                local to="ranged"..best.key:sub(7)
-                local amount=best.record.resources[best.key]
-                local updated={}
-                for key,value in pairs(best.record.resources) do updated[key]=value end
-                updated[best.key]=nil
-                updated[to]=(updated[to] or 0)+amount
-                best.record.resources=updated
-                totals[best.key]=(totals[best.key] or 0)-amount
-                totals[to]=(totals[to] or 0)+amount
+                local to=resourceOps.changeFamily(best.key,"ranged")
+                resourceOps.replace(best.record,totals,best.key,to)
                 sourceRecord.links[#sourceRecord.links+1]=best.card.guid
                 best.record.links[#best.record.links+1]=source.guid
                 sourceRecord.complete=true

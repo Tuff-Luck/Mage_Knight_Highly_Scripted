@@ -1,5 +1,6 @@
 -- Linked Skill processing after activated Unit records exist: Leadership, Shapeshift, copying basic Actions, enemy effects, cooperative Skills, damage mitigation, Deadly Aim and Mana Overload. Receives live scan data and helpers; final object rendering, state publication and lifecycle remain with CardRecognition.
 local M={}
+local resourceOps=require("PlayingGame.PlayerBoard.ResourceTracker.Core.ResourceOperations")
 
 function M.process(context)
     local seatPos, skills, cards = context.seatPos, context.skills, context.cards
@@ -53,18 +54,10 @@ function M.process(context)
         if skillRecord==nil or targetRecord==nil or targetRecord.resources==nil then return end
         -- Cards often return the catalog's immutable basic-effect table.
         -- Never mutate a rule entry by adjusting the live played result.
-        local copy={}
-        for k,v in pairs(targetRecord.resources) do copy[k]=v end
-        targetRecord.resources=copy
-        local old=copy[field] or 0
         if replaceField~=nil then
-            targetRecord.resources[field]=nil
-            totals[field]=(totals[field] or 0)-old
-            targetRecord.resources[replaceField]=(targetRecord.resources[replaceField] or 0)+amount
-            totals[replaceField]=(totals[replaceField] or 0)+amount
+            resourceOps.replace(targetRecord,totals,field,replaceField,amount)
         else
-            targetRecord.resources[field]=old+amount
-            totals[field]=(totals[field] or 0)+amount
+            resourceOps.add(targetRecord,totals,field,amount)
         end
         skillRecord.complete=true
         skillRecord.contributes=true
@@ -111,10 +104,10 @@ function M.process(context)
                             local siege=resourceFieldForFamily(record.resources,"siege")
                             if ranged~=nil and siege==nil then
                                 field=ranged
-                                replacement="attack"..ranged:sub(7)
+                                replacement=resourceOps.changeFamily(ranged,"attack")
                             elseif siege~=nil and ranged==nil then
                                 field=siege
-                                replacement="attack"..siege:sub(6)
+                                replacement=resourceOps.changeFamily(siege,"attack")
                             end
                         end
                         if field~=nil then
@@ -177,13 +170,11 @@ function M.process(context)
             end
             local sourceField=best~=nil and best.field or nil
             if best~=nil and sourceField~=nil then
-                local sourceFamily=sourceField=="move" and "move"
-                    or (sourceField:sub(1,6)=="attack" and "attack" or "block")
-                local suffix=sourceField:sub(#sourceFamily+1)
+                local sourceFamily,suffix=resourceOps.splitKey(sourceField)
                 local choices={}
                 for _,family in ipairs({"move","block","attack"}) do
                     if family~=sourceFamily then
-                        local field=family=="move" and "move" or family..suffix
+                        local field=resourceOps.changeFamily(sourceField,family)
                         local option={key=family,icon=family,[field]=0,
                             shapeshiftTargetGUID=best.card.guid}
                         if family~="move" then
@@ -203,7 +194,7 @@ function M.process(context)
                 local selected=chosenEffect(skill.guid,false,choices)
                 if selected~=nil then
                     local family=choiceCategory(selected)
-                    local newField=family=="move" and "move" or family..suffix
+                    local newField=resourceOps.changeFamily(sourceField,family)
                     local original=records[best.card.guid].resources[sourceField]
                     skillTargetLinked(skill,best.card,sourceField,original,newField)
                     local target=records[best.card.guid]

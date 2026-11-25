@@ -1,4 +1,5 @@
 -- Exercise the production scan passes with current records and controlled helpers.
+package.path="src/?.lua;"..package.path
 local root="src/PlayingGame/PlayerBoard/ResourceTracker/"
 local function eq(actual,expected,label)
     assert(actual==expected,label..": expected "..tostring(expected)..", got "..tostring(actual))

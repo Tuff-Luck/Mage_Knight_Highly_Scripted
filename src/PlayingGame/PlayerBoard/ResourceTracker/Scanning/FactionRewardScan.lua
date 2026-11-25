@@ -1,5 +1,6 @@
 -- Faction reward choices, enemy effects, and ordered physical element/Attack modifiers; updates current records without changing immutable catalogs.
 local M={}
+local resourceOps=require("PlayingGame.PlayerBoard.ResourceTracker.Core.ResourceOperations")
 
 function M.read(context)
     local objects, placements, resourceObjectKind = context.objects, context.placements, context.resourceObjectKind
@@ -95,20 +96,14 @@ function M.modifiers(context)
     -- Attack source. Nothing is awarded for a missing or ambiguous target.
     local function rewardConversion(mode,category)
         if mode=="makeRanged" then
-            return ({attack="ranged",attackFire="rangedFire",
-                attackIce="rangedIce",attackColdFire="rangedColdFire"})[category]
-        end
-        local family,suffix=category:match("^(attack)(.*)$")
-        if family==nil then family,suffix=category:match("^(ranged)(.*)$") end
-        if family==nil then family,suffix=category:match("^(siege)(.*)$") end
-        if family==nil then family,suffix=category:match("^(block)(.*)$") end
-        if family==nil then return nil end
-        if mode=="addFire" then
-            if suffix=="" then return family.."Fire" end
-            if suffix=="Ice" then return family.."ColdFire" end
+            local family,suffix=resourceOps.splitKey(category)
+            if family=="attack" and suffix~="Psychic" then
+                return resourceOps.changeFamily(category,"ranged")
+            end
+        elseif mode=="addFire" then
+            return resourceOps.addElement(category,"Fire")
         elseif mode=="addIce" then
-            if suffix=="" then return family.."Ice" end
-            if suffix=="Fire" then return family.."ColdFire" end
+            return resourceOps.addElement(category,"Ice")
         end
         return nil
     end
@@ -175,17 +170,11 @@ function M.modifiers(context)
                         if sourceRecord.resources==nil then
                             error("The linked resource source has no resource values.",2)
                         end
-                        local newResources={}
-                        for k,v in pairs(sourceRecord.resources) do newResources[k]=v end
-                        local amount=newResources[from]
+                        local amount=sourceRecord.resources[from]
                         if type(amount)~="number" then
                             error("The linked resource source is missing its selected value.",2)
                         end
-                        newResources[from]=nil
-                        newResources[to]=(newResources[to] or 0)+amount
-                        sourceRecord.resources=newResources
-                        totals[from]=(totals[from] or 0)-amount
-                        totals[to]=(totals[to] or 0)+amount
+                        resourceOps.replace(sourceRecord,totals,from,to,amount)
                         reward.contributes=true
                     end
                     if reward.links==nil or sourceRecord.links==nil then

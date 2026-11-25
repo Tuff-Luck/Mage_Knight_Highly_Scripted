@@ -477,24 +477,12 @@ local function combatEffectOf(guid)
     return scan~=nil and scan.enemyEffects~=nil and scan.enemyEffects[guid] or nil
 end
 
-combatConfig.transformFamilies={attack=true,ranged=true,siege=true}
-combatConfig.elementSuffixes={"ColdFire","Fire","Ice","Psychic"}
+combatConfig.resourceOperations=require("PlayingGame.PlayerBoard.ResourceTracker.Core.ResourceOperations")
 
 -- The single place that maps a resource key through active attack transformations (Altem Mages).
 -- Cold Fire replaces the element; Siege replaces the family and keeps the element. Block is never changed.
 function resourceCardsTransformedKey(key,transform)
-    if transform==nil or (not transform.coldFire and not transform.siege) then return key end
-    local family,suffix=key,""
-    for _,candidate in ipairs(combatConfig.elementSuffixes) do
-        if key:sub(-#candidate)==candidate and #key>#candidate then
-            family,suffix=key:sub(1,#key-#candidate),candidate
-            break
-        end
-    end
-    if combatConfig.transformFamilies[family]~=true then return key end
-    if transform.siege then family="siege" end
-    if transform.coldFire then suffix="ColdFire" end
-    return family..suffix
+    return combatConfig.resourceOperations.globalAttackKey(key,transform)
 end
 
 -- A primary Move/Psychic arrow owns all the points left on that physical
