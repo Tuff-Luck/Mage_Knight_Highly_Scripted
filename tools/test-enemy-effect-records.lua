@@ -56,4 +56,46 @@ assert(pending.enemyEffectTargetKeys[1]=="reward" and #pending.links==0 and appl
 target={guid="enemy"}
 local resolved=read()
 assert(resolved.enemyEffectTargetGUIDs.reward=="enemy" and resolved.status=="purple" and applied==1)
+-- Register an independent effect without replacing an existing target.
+effects.register(r,"card#explosiveAttack")
+assert(r.enemyEffectTargetKeys[3]=="card#explosiveAttack")
+assert(r.enemyEffectTargetGUIDs["card#effect1"]=="enemy")
+-- Exercise the actual coordinator's enemy selection and invalid-arrow pruning.
+local file=assert(io.open("src/PlayingGame/PlayerBoard/CardRecognition.lua","r"))
+local source=file:read("*a") file:close()
+local first=assert(source:find("local function combatEffectChosenEnemy(",1,true))
+local last=assert(source:find("trackerPrivate.unitEffects=require(",first,true))
+local arrows={legal=true,invalid=true,gone=true}
+local enemies={legal={guid="legal"},invalid={guid="invalid",is_face_down=true}}
+local reminder={guid="reminder"}
+local state={targets={effect="invalid"},explicit={effect=true}}
+local pruned=0
+local chooserEnv=setmetatable({
+    combatAssignmentState=state,
+    attackAssignmentsTargetGUIDs=function() return arrows end,
+    attackAssignmentsPruneSourceTargets=function(key,eligible)
+        assert(key=="effect")
+        pruned=pruned+1
+        for guid in pairs(arrows) do
+            if not eligible[guid] then arrows[guid]=nil end
+        end
+    end,
+    combatPlayMonsters=function() return {reminder=reminder} end,
+    combatEnemyData=function(guid) return {attackOnly=guid=="reminder"} end,
+    combatEffectNearestEnemy=function() return nil end,
+},{__index=_G})
+local choose=assert(load(source:sub(first,last-1).."\nreturn combatEffectChosenEnemy",
+    "Enemy effect targeting","t",chooserEnv))()
+assert(choose("effect",{},enemies)==enemies.legal)
+assert(arrows.legal and not arrows.invalid and not arrows.gone and pruned==1)
+assert(state.targets.effect==nil and state.explicit.effect==nil)
+arrows={reminder=true}
+state.targets.effect="reminder" state.explicit.effect=true
+assert(choose("effect",{},enemies)==reminder and pruned==1)
+assert(state.targets.effect=="reminder")
+assert(choose("effect",{},enemies,function(_,guid) return guid~="reminder" end)==nil)
+assert(not arrows.reminder and state.targets.effect==nil and pruned==2)
+arrows={}
+assert(choose("effect",{},enemies)==nil and pruned==2,
+    "Unresolved source with no arrows is not pruned")
 print("Enemy effect record regression passed")

@@ -30,4 +30,9 @@ assert(not terrain.movementEligible({resources={attack=2}},"shifted",function() 
 assert(terrain.movementEligible({independentTerrain=true},"amulet",function() error("not needed") end))
 assert(terrain.selectedTerrainDiscounts.forest==terrain.selectedTerrainDiscounts.forest)
 assert(terrain.selectedTerrainDiscounts.forest.minimum==2)
+local floor4={mode="reduce",terrains={explore=true},amount=1,minimum=4}
+local floor0={mode="reduce",terrains={explore=true},amount=2,minimum=0}
+assert(terrain.cost(5,"explore",{floor0,floor4})==2)
+assert(terrain.cost(5,"explore",{floor4,floor0})==2)
+assert(terrain.cost(2,"explore",{floor4})==2)
 print("Shared terrain modifier policy passed")

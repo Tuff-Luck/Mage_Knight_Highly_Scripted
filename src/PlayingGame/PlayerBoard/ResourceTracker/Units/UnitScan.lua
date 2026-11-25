@@ -1,6 +1,7 @@
 -- Unit scan passes. Read live activation history and paid abilities; keep scan order,
 -- shared records and final publication with the coordinator.
 local M={}
+local resourceOps=require("PlayingGame.PlayerBoard.ResourceTracker.Core.ResourceOperations")
 local terrainPolicy=require("PlayingGame.PlayerBoard.ResourceTracker.Cards.TerrainModifiers")
 local highlightPolicy=require("PlayingGame.PlayerBoard.ResourceTracker.Core.HighlightPolicy")
 local effectRecords=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.EnemyEffectRecords")
@@ -16,7 +17,7 @@ function M.process(context)
     local unitManaDecision, combatOneUnitSelect, combatUnitSitePermits = context.unitManaDecision, context.combatOneUnitSelect, context.combatUnitSitePermits
     local showUnitAbilityButtons, unitAbilityPaid, addResourceAmounts = context.showUnitAbilityButtons, context.unitAbilityPaid, context.addResourceAmounts
     local totals, current, setHighlight = context.totals, context.current, context.setHighlight
-    local terrainModifiers, deferredUnfortifiedUnitEffects, unitAbilityTargetKey = context.terrainModifiers, context.deferredUnfortifiedUnitEffects, context.unitAbilityTargetKey
+    local deferredUnfortifiedUnitEffects, unitAbilityTargetKey = context.deferredUnfortifiedUnitEffects, context.unitAbilityTargetKey
     local combatEffectChosenEnemy, footprint, monsters = context.combatEffectChosenEnemy, context.footprint, context.monsters
     local combatEffectTargetEligible, enemyEffects = context.combatEffectTargetEligible, context.enemyEffects
     -- Unit activation is historical: a Command token may stay on the card for
@@ -250,8 +251,10 @@ function M.process(context)
                                             if ability.bannerFear and not combatEffectImmune(target.guid) then
                                                 result.fameRep={fame=1}
                                                 result.contributes=true
-                                                result.status="purple"
-                                                setHighlight(unit,"purple",false)
+                                                highlightPolicy.linkedSource(result)
+                                                if unitHistorySelectedNumber(unitGUID)==useIndex then
+                                                    setHighlight(unit,result.status,false)
+                                                end
                                             end
                                         end
                                         if ability.enemyEffect==nil and sourceKey~=unitGUID then
@@ -283,14 +286,15 @@ function M.process(context)
             local ownBoost=selected~=nil and selected.boostOtherUnits and 1 or 0
             local bonus=shocktroopsBoosts-ownBoost
             if bonus>0 and record~=nil and record.resources~=nil then
+                local amounts={}
                 for category,value in pairs(record.resources) do
-                    if type(value)=="number" and (category:sub(1,6)=="attack"
-                        or category:sub(1,6)=="ranged"
-                        or category:sub(1,5)=="siege") then
-                        record.resources[category]=value+bonus
-                        totals[category]=(totals[category] or 0)+bonus
+                    local family=resourceOps.splitKey(category)
+                    if type(value)=="number" and (family=="attack"
+                        or family=="ranged" or family=="siege") then
+                        amounts[category]=bonus
                     end
                 end
+                if next(amounts)~=nil then resourceOps.addAmounts(record,totals,amounts) end
             end
         end
     end

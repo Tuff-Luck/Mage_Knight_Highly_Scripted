@@ -154,21 +154,17 @@ function M.process(context)
                 if targetRecord==nil or targetRecord.resources==nil then
                     error("The linked combat target has no resource record.",2)
                 end
-                local adjusted={}
-                for key,value in pairs(targetRecord.resources) do adjusted[key]=value end
-                local targetAmount=adjusted[bestCategory]
+                local targetAmount=targetRecord.resources[bestCategory]
                 if type(targetAmount)~="number" then
                     error("The linked combat target is missing its selected resource.",2)
                 end
-                adjusted[bestCategory]=targetAmount+bonus
-                targetRecord.resources=adjusted
+                resourceOps.add(targetRecord,totals,bestCategory,bonus)
                 -- Shield of the Fallen Kings keeps separate Block effects.
                 -- Ambush augments only the first one, not each equal split.
                 if bestType=="block" and (tonumber(targetRecord.repeatBlocks) or 1)>1 then
                     targetRecord.ambushFirstBlockBonus=
                         (targetRecord.ambushFirstBlockBonus or 0)+bonus
                 end
-                totals[bestCategory]=(totals[bestCategory] or 0)+bonus
                 if sourceRecord.links==nil or targetRecord.links==nil then
                     error("A linked combat record has no link list.",2)
                 end
@@ -258,12 +254,8 @@ function M.tirelessness(cards,records,totals,cardPosture)
                 local record=records[target.guid]
                 -- The calculator may return a shared printed resource table.
                 -- Copy before applying this scan-only modifier.
-                local adjusted={}
-                for key,value in pairs(record.resources) do adjusted[key]=value end
-                adjusted.move=adjusted.move+extra
-                record.resources=adjusted
+                resourceOps.add(record,totals,"move",extra)
                 record.tirelessnessBonus=(record.tirelessnessBonus or 0)+extra
-                totals.move=(totals.move or 0)+extra
             end
         end
     end

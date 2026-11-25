@@ -99,6 +99,16 @@ eq(cost(),3,"Owned night Skill still applies while tracker is off")
 setOwned(true,true)
 eq(cost(),0,"Two owned Skill discounts still work while tracker is off")
 
+-- Mixed floors produce the same cost when active and minimized.
+env.gStates.gameScenario="Conquest"
+env.gStates.moveCost.explore=5
+skills[hawk].passiveNightTerrain[1].minimum=4
+skills[feral].passiveTerrain[1].amount=2
+setOwned(true,true)
+trackerOpen=true
+eq(cost(),2,"Active mixed-floor reductions")
+trackerOpen=false
+eq(cost(),2,"Minimized mixed-floor reductions")
 local spend=section(ui,"function resourceCardsSpendExplore(cost,travelCost)",
     "function refreshResourceTrackerReputation()",
     "return resourceCardsSpendExplore",env)

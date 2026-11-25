@@ -15,7 +15,7 @@ function M.process(context)
     local paidManaChoices, inventoryCrystalCounts, playMonsters = context.paidManaChoices, context.inventoryCrystalCounts, context.playMonsters
     local unitState, manaByCard, current = context.unitState, context.manaByCard, context.current
     local records, totals, enemyEffects = context.records, context.totals, context.enemyEffects
-    local pendingWingsNight, extraTerrainManaByCard, terrainModifiers = context.pendingWingsNight, context.extraTerrainManaByCard, context.terrainModifiers
+    local pendingWingsNight, extraTerrainManaByCard = context.pendingWingsNight, context.extraTerrainManaByCard
     local movementEffects, cardPosture, cardCanPlaySideways = context.movementEffects, context.cardPosture, context.cardCanPlaySideways
     local linkedColorChoices, overlapArea, footprint = context.linkedColorChoices, context.overlapArea, context.footprint
     local combatNearestEnemyGUID, enemyPrintedIconBonus, sideChoices = context.combatNearestEnemyGUID, context.enemyPrintedIconBonus, context.sideChoices
@@ -24,7 +24,7 @@ function M.process(context)
     local combatEnemyData, combatIsSummonedToken, currentSpellTerrain = context.combatEnemyData, context.combatIsSummonedToken, context.currentSpellTerrain
     local inventorySetChoice, effectHasTrackedResource, combatEffectChosenEnemy = context.inventorySetChoice, context.effectHasTrackedResource, context.combatEffectChosenEnemy
     local combatEffectTargetEligible, resourceCardsRecruitInfluenceBonus, showChoiceButtons = context.combatEffectTargetEligible, context.resourceCardsRecruitInfluenceBonus, context.showChoiceButtons
-    local resourceCardsDetailsOpen, cardTerrainEffects, terrainEffectActive = context.resourceCardsDetailsOpen, context.cardTerrainEffects, context.terrainEffectActive
+    local resourceCardsDetailsOpen, cardTerrainEffects = context.resourceCardsDetailsOpen, context.cardTerrainEffects
     local resourceCardsIgnoreSiteFortification, addResourceAmounts, setHighlight = context.resourceCardsIgnoreSiteFortification, context.addResourceAmounts, context.setHighlight
     local usesCurrentHexBlock, usesCurrentHexHealing, ignoreSiteFortifications = context.usesCurrentHexBlock, context.usesCurrentHexHealing, context.ignoreSiteFortifications
     local unitCombatBoost, preventUnitDamage, allUnitResistances = context.unitCombatBoost, context.preventUnitDamage, context.allUnitResistances
@@ -453,9 +453,9 @@ function M.process(context)
                     -- Banner of Fear (Lost Legion): at most three different
                     -- enemies are unable to attack. Each target is its own
                     -- persistent physical arrow; right-click adds another.
-                    local targets=attackAssignmentsTargetGUIDs(key)
                     local primary=combatEffectChosenEnemy(key,footprints[card.guid],
                         monsters,combatEffectTargetEligible(spec))
+                    local targets=attackAssignmentsTargetGUIDs(key)
                     if next(targets)==nil and primary~=nil then targets[primary.guid]=true end
                     local ordered={}
                     for guid in pairs(targets) do
@@ -476,9 +476,9 @@ function M.process(context)
                     -- Right-click target to add further enemies; cost is settled
                     -- after all Move-producing cards/Units/Skills have been read.
                     effectRecords.register(result,key)
-                    local targets=attackAssignmentsTargetGUIDs(key)
                     local primary=combatEffectChosenEnemy(key,footprints[card.guid],
                         monsters,combatEffectTargetEligible(spec))
+                    local targets=attackAssignmentsTargetGUIDs(key)
                     if next(targets)==nil and primary~=nil then targets[primary.guid]=true end
                     local ordered={}
                     for guid in pairs(targets) do
@@ -567,7 +567,7 @@ function M.process(context)
         -- Expose a separate Armour-reduction source. It is independent of the
         -- card's Ranged Attack target and becomes effective only after a kill.
         if result.explosiveBolt~=nil and combatCalcOn then
-            result.enemyEffectTargetKeys={card.guid.."#explosiveAttack"}
+            effectRecords.register(result,card.guid.."#explosiveAttack")
         end
         -- Stage terrain effects until linked conversions have resolved.
         -- Amulets grant no numeric Move and retain their independent effects.

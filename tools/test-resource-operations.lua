@@ -52,4 +52,12 @@ local second={resources=printed}
 local secondTotals={attackFire=4,rangedFire=1,move=2}
 ops.replace(second,secondTotals,"attackFire","rangedFire")
 eq(second.resources.rangedFire,5,"new scan does not accumulate")
+local batch={resources=printed}
+local batchTotals={attackFire=4,rangedFire=1,move=2}
+ops.addAmounts(batch,batchTotals,{attackFire=2,rangedFire=2})
+eq(batch.resources.attackFire,6,"Batch Attack bonus")
+eq(batch.resources.rangedFire,3,"Batch Ranged bonus")
+eq(batchTotals.attackFire,6,"Batch Attack totals")
+eq(batchTotals.rangedFire,3,"Batch Ranged totals")
+eq(printed.attackFire,4,"Batch does not mutate catalog")
 print("Resource category and live resource operations passed")

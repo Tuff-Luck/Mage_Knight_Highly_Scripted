@@ -1,5 +1,6 @@
 -- Resolve physical Skill links from the coordinator's current scan candidates.
 -- No zone discovery, payment consumption, UI or saved-state writes occur here.
+local physicalLinks=require("PlayingGame.PlayerBoard.ResourceTracker.Core.PhysicalLinks")
 return function(deps)
     local trackerPrivate=deps.trackerPrivate
     local resourceCardsGoldAllowed=deps.resourceCardsGoldAllowed
@@ -81,7 +82,8 @@ return function(deps)
                         and (spec.posture==nil or cardPosture(target)==spec.posture) then
                         local size=overlapArea(footprints[skill.guid],footprints[target.guid])
                         if size>0 then
-                            candidates[#candidates+1]={skill=skill,target=target,size=size,rule=spec.sideways}
+                            candidates[#candidates+1]={skill=skill,target=target,overlap=size,
+                                tieKey=skill.guid,secondaryKey=target.guid,rule=spec.sideways}
                         end
                     end
                 end
@@ -89,11 +91,7 @@ return function(deps)
         end
         -- The strongest physical overlap wins when two different Skills touch the
         -- same sideways card; never combine multiple replacement values.
-        table.sort(candidates,function(a,b)
-            if a.size~=b.size then return a.size>b.size end
-            if a.skill.guid~=b.skill.guid then return a.skill.guid<b.skill.guid end
-            return a.target.guid<b.target.guid
-        end)
+        table.sort(candidates,physicalLinks.precedes)
         for _,candidate in ipairs(candidates) do
             local skill,target,descriptor=candidate.skill,candidate.target,candidate.rule
             if bySkill[skill.guid]==nil and byTarget[target.guid]==nil then
@@ -172,17 +170,16 @@ return function(deps)
                     bySkill[skill.guid]=link
                     byMana[nearest.guid]=link
                     if converted~=nil then
-                        local best,areaSize=nil,0
+                        local candidates={}
                         for _,card in ipairs(cards) do
                             if byCard[card.guid]==nil and convertedManaMatchesCard(card,converted) then
-                                local size=overlapArea(area,footprints[card.guid])
-                                if size>areaSize or (size>0 and size==areaSize and best~=nil
-                                    and card.guid<best.guid) then best,areaSize=card,size end
+                                candidates[#candidates+1]={card=card,overlap=overlapArea(area,footprints[card.guid])}
                             end
                         end
+                        local best=physicalLinks.unique(candidates)
                         if best~=nil then
-                            link.targetGUID=best.guid
-                            byCard[best.guid]=link
+                            link.targetGUID=best.card.guid
+                            byCard[best.card.guid]=link
                         end
                     end
                 end

@@ -53,7 +53,12 @@ local spell=card("spell",nil,0,nil,false,"Spell")
 local faceDown=card("down",nil,0,nil,true)
 local links,boost,source,discarded,paid,linked,repeats,bonuses=
     scan({c,f,b,a,spell,faceDown},nil,{con=true,will=true})
-eq(boost.a.bonus,2,"Equal overlap chooses lower GUID")
+eq(boost.a,nil,"Equal strongest overlap leaves Concentration unresolved")
+eq(boost.b,nil,"Equal strongest overlap leaves Will Focus unresolved")
+areas.a.x=0.25
+links,boost,source,discarded,paid,linked,repeats,bonuses=
+    scan({c,f,b,a,spell,faceDown},nil,{con=true,will=true})
+eq(boost.a.bonus,2,"Unique strongest overlap chooses Concentration target")
 eq(boost.b.bonus,3,"Second stronger grant uses another target")
 eq(source.a,"con","Reverse boost source")
 eq(links.con[1],"a","Source link")

@@ -47,4 +47,61 @@ for _,terrain in ipairs({"plains","hills","forest","wasteland","desert",
 end
 M.selectedTerrainDiscounts=selected
 
+-- Keep the same ordering for active and minimized terrain overlays.
+local order={set=0,cap=1,reduce=2}
+function M.precedes(a,b)
+    local first,second=order[a.mode] or 9,order[b.mode] or 9
+    if first~=second then return first<second end
+    if a.mode=="reduce" then return (a.minimum or 0)>(b.minimum or 0) end
+    return false
+end
+
+local passable={plains=true,hills=true,forest=true,wasteland=true,desert=true,
+    swamp=true,lake=true,mountain=true}
+local function applies(effect,terrain)
+    return effect.terrains=="passable" and passable[terrain]==true
+        or effect.terrains=="weather" and (passable[terrain]==true or terrain=="city")
+        or type(effect.terrains)=="table" and effect.terrains[terrain]==true
+end
+
+function M.cost(base,terrain,effects)
+    if effects==nil then return base end
+    local setCost=nil
+    -- Published scans are already sorted. Only copy/sort if a standalone
+    -- caller supplies unsorted modifiers (e.g. passive-only exploration).
+    local previous,needsSort=nil,false
+    for _,effect in ipairs(effects) do
+        if effect.mode=="set" and applies(effect,terrain) then
+            setCost=setCost==nil and effect.cost or math.min(setCost,effect.cost)
+        elseif effect.mode=="cap" or effect.mode=="reduce" then
+            if previous~=nil and M.precedes(effect,previous) then needsSort=true end
+            previous=effect
+        end
+    end
+    if setCost==nil and base>=900 then return base end
+    local cost=setCost or base
+    local ordered=effects
+    if needsSort then
+        ordered={}
+        for _,effect in ipairs(effects) do ordered[#ordered+1]=effect end
+        table.sort(ordered,M.precedes)
+    end
+    for _,effect in ipairs(ordered) do
+        if applies(effect,terrain) then
+            if effect.mode=="cap" then cost=math.min(cost,effect.cost)
+            elseif effect.mode=="reduce" then
+                cost=math.min(cost,math.max(effect.minimum or 0,cost-effect.amount))
+            end
+        end
+    end
+    -- Preserve the existing Weather order and apply it last.
+    for _,effect in ipairs(effects) do
+        if effect.mode=="weather" and applies(effect,terrain) then
+            if effect.amount<0 then cost=math.max(1,cost+effect.amount)
+            else cost=math.min(5,cost+effect.amount) end
+        end
+    end
+    return cost
+end
+
 return M

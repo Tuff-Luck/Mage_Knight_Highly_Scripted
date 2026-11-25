@@ -4989,13 +4989,7 @@ local calculateSkill=require("PlayingGame.PlayerBoard.ResourceTracker.Cards.Skil
 
 -- Stable modifier instances prevent false movement redraws on every scan.
 combatConfig.druidicTerrainEffects=require("PlayingGame.PlayerBoard.ResourceTracker.Cards.TerrainModifiers").selectedTerrainDiscounts
-combatConfig.terrainEffectOrder={set=0,cap=1,reduce=2}
-local function terrainModifierPrecedes(a,b)
-    local first,second=combatConfig.terrainEffectOrder[a.mode] or 9,combatConfig.terrainEffectOrder[b.mode] or 9
-    if first~=second then return first<second end
-    if a.mode=="reduce" then return (a.minimum or 0)>(b.minimum or 0) end
-    return false
-end
+local terrainModifierPrecedes=require("PlayingGame.PlayerBoard.ResourceTracker.Cards.TerrainModifiers").precedes
 
 -- Count only printed enemy-token icons, not site-given traits.
 -- A Coldfire attack represents both Fire and Ice attack-colour icons.
@@ -5073,7 +5067,8 @@ end
 
 local function combatEffectChosenEnemy(sourceGUID,area,monsters,eligible)
     local chosen=nil
-    for guid in pairs(attackAssignmentsTargetGUIDs(sourceGUID)) do
+    local valid,invalid={},false
+    local function targetFor(guid)
         local target=monsters[guid]
         if target==nil then
             -- Attack-reducing effects can explicitly link to reminder attacks.
@@ -5082,8 +5077,25 @@ local function combatEffectChosenEnemy(sourceGUID,area,monsters,eligible)
             if data~=nil and data.attackOnly then target=special end
         end
         if target~=nil and target.is_face_down~=true
-            and (eligible==nil or eligible(target,guid))
-            and (chosen==nil or guid<chosen.guid) then chosen=target end
+            and (eligible==nil or eligible(target,guid)) then return target end
+        return nil
+    end
+    for guid in pairs(attackAssignmentsTargetGUIDs(sourceGUID)) do
+        local target=targetFor(guid)
+        if target~=nil then
+            valid[guid]=true
+            if chosen==nil or guid<chosen.guid then chosen=target end
+        else invalid=true end
+    end
+    -- A pending source may remain registered with no assigned enemy. Prune
+    -- only actual invalid arrows, not the source or its pending selection.
+    if invalid and attackAssignmentsPruneSourceTargets~=nil then
+        attackAssignmentsPruneSourceTargets(sourceGUID,valid)
+    end
+    local locked=combatAssignmentState.targets[sourceGUID]
+    if locked~=nil and targetFor(locked)==nil then
+        combatAssignmentState.targets[sourceGUID]=nil
+        combatAssignmentState.explicit[sourceGUID]=nil
     end
     return chosen or combatEffectNearestEnemy(area,monsters,footprint,overlapArea,eligible)
 end
@@ -5193,7 +5205,7 @@ local function renderSeat(seatPos)
         inventoryCrystalCounts=inventoryCrystalCounts, playMonsters=playMonsters, unitState=unitState,
         manaByCard=manaByCard, current=current, records=records, totals=totals, enemyEffects=enemyEffects,
         pendingWingsNight=pendingWingsNight, extraTerrainManaByCard=extraTerrainManaByCard,
-        terrainModifiers=terrainModifiers, movementEffects=movementEffects, cardPosture=cardPosture,
+        movementEffects=movementEffects, cardPosture=cardPosture,
         cardCanPlaySideways=cardCanPlaySideways, linkedColorChoices=linkedColorChoices, overlapArea=overlapArea,
         footprint=footprint, combatNearestEnemyGUID=combatNearestEnemyGUID,
         enemyPrintedIconBonus=enemyPrintedIconBonus, sideChoices=sideChoices,
@@ -5205,7 +5217,7 @@ local function renderSeat(seatPos)
         combatEffectChosenEnemy=combatEffectChosenEnemy, combatEffectTargetEligible=combatEffectTargetEligible,
         resourceCardsRecruitInfluenceBonus=resourceCardsRecruitInfluenceBonus,
         showChoiceButtons=showChoiceButtons, resourceCardsDetailsOpen=resourceCardsDetailsOpen,
-        cardTerrainEffects=cardTerrainEffects, terrainEffectActive=terrainEffectActive,
+        cardTerrainEffects=cardTerrainEffects,
         resourceCardsIgnoreSiteFortification=resourceCardsIgnoreSiteFortification,
         addResourceAmounts=addResourceAmounts, setHighlight=setHighlight,
         usesCurrentHexBlock=usesCurrentHexBlock, usesCurrentHexHealing=usesCurrentHexHealing,
@@ -5234,7 +5246,7 @@ local function renderSeat(seatPos)
         unitManaDecision=unitManaDecision, combatOneUnitSelect=combatOneUnitSelect,
         combatUnitSitePermits=combatUnitSitePermits, showUnitAbilityButtons=showUnitAbilityButtons,
         unitAbilityPaid=unitAbilityPaid, addResourceAmounts=addResourceAmounts, totals=totals, current=current,
-        setHighlight=setHighlight, terrainModifiers=terrainModifiers,
+        setHighlight=setHighlight,
         deferredUnfortifiedUnitEffects=deferredUnfortifiedUnitEffects,
         unitAbilityTargetKey=unitAbilityTargetKey, combatEffectChosenEnemy=combatEffectChosenEnemy,
         footprint=footprint, monsters=monsters, combatEffectTargetEligible=combatEffectTargetEligible,

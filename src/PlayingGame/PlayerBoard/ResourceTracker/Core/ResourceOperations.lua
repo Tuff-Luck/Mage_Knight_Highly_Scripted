@@ -48,11 +48,16 @@ end
 -- The caller supplies an already published, eligible resource record. These
 -- operations adjust only that record and its scan totals, not links, payment,
 -- contribution flags, highlights, target locks or effect ordering.
-function M.add(record,totals,field,amount)
+function M.addAmounts(record,totals,amounts)
     local copy=copyResources(record)
-    copy[field]=(copy[field] or 0)+amount
+    for field,amount in pairs(amounts) do
+        copy[field]=(copy[field] or 0)+amount
+        totals[field]=(totals[field] or 0)+amount
+    end
     record.resources=copy
-    totals[field]=(totals[field] or 0)+amount
+end
+function M.add(record,totals,field,amount)
+    M.addAmounts(record,totals,{[field]=amount})
 end
 
 -- Replace the complete original field. An omitted amount preserves its value;

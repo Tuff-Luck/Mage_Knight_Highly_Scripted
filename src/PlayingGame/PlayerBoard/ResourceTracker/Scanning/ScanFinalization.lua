@@ -1,5 +1,6 @@
 -- Passive terrain overlays, remaining Skill/mana/puppet records, linked Unit highlights, Spirit Guides and Wings of Night costs. Runs at original scan boundaries.
 local M={}
+local resourceOps=require("PlayingGame.PlayerBoard.ResourceTracker.Core.ResourceOperations")
 local terrainPolicy=require("PlayingGame.PlayerBoard.ResourceTracker.Cards.TerrainModifiers")
 local highlightPolicy=require("PlayingGame.PlayerBoard.ResourceTracker.Core.HighlightPolicy")
 
@@ -211,11 +212,7 @@ function M.spiritGuides(context)
             if value>bestValue then bestKey,bestValue=field,value end
         end
         if bestKey~=nil then
-            local replacement={}
-            for key,value in pairs(boosted.resources) do replacement[key]=value end
-            replacement[bestKey]=replacement[bestKey]+1
-            boosted.resources=replacement
-            totals[bestKey]=(totals[bestKey] or 0)+1
+            resourceOps.add(boosted,totals,bestKey,1)
             guide.links[#guide.links+1]=linkedGUID
             boosted.links=boosted.links or {}
             boosted.links[#boosted.links+1]=guideGUID

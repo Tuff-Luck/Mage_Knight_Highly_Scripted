@@ -13,6 +13,13 @@ assert(links.unique({remote})==nil)
 assert(links.unique({remote},true)==remote)
 assert(links.unique({remote,{overlap=0}},true)==nil)
 assert(links.unique({remote,a},true)==a)
+local first={overlap=2,priority=1,tieKey="a"}
+local second={overlap=2,priority=1,tieKey="b"}
+local larger={overlap=5,priority=0,tieKey="c"}
+assert(links.unique({first,second,larger})==nil)
+assert(links.unique({larger,first})==first)
+assert(links.ordered({second,larger,first})==first)
+assert(links.ordered({first,second,larger})==first)
 
 -- Exercise actual Faction Reward scan with tied eligible cards.
 local env=setmetatable({gameCards={a={cardType="Starting"},b={cardType="Advanced Action"}}},{__index=_G})

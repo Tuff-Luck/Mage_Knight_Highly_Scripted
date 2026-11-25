@@ -71,6 +71,9 @@ local env={
 }
 setmetatable(env,{__index=_G})
 env.require=function(name)
+    if name=="PlayingGame.PlayerBoard.ResourceTracker.Core.PhysicalLinks" then
+        return assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Core/PhysicalLinks.lua","t",env))()
+    end
     assert(name=="PlayingGame.PlayerBoard.ResourceTracker.Scanning.PhysicalObjects", "Unexpected recognition dependency")
     return assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Scanning/PhysicalObjects.lua","t",env))()
 end

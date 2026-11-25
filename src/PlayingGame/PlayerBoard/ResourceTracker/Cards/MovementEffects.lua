@@ -7,11 +7,6 @@ local function ownedSkillAtSeat(guid,seatPos)
         and home[3]<-30.5 and math.abs(home[1]-(seatPos*40-109.5))<15
 end
 
-local passableTerrain={
-    plains=true,hills=true,forest=true,wasteland=true,desert=true,swamp=true,
-    lake=true,mountain=true
-}
-
 -- Static rule objects are reused by every scan. The movement panel compares
 -- terrain modifier identity to avoid expensive redraws on unchanged positions.
 local weatherTerrain={}
@@ -70,12 +65,6 @@ local function terrainEffectActive(effect)
     return terrainModifiers.active(effect,gStates.dayRound)
 end
 
-local function terrainEffectApplies(effect,terrain)
-    return effect.terrains=="passable" and passableTerrain[terrain]==true
-        or effect.terrains=="weather" and (passableTerrain[terrain]==true or terrain=="city")
-        or type(effect.terrains)=="table" and effect.terrains[terrain]==true
-end
-
 local function resourceCardsEffectiveTerrainCost(terrain)
     local base=gStates~=nil and gStates.moveCost~=nil and gStates.moveCost[terrain] or nil
     if base==nil then base=999 end
@@ -84,37 +73,7 @@ local function resourceCardsEffectiveTerrainCost(terrain)
         and turnOrder[gStates.turnNumber] or nil
     local scan=player~=nil and resourceCardScanBySeat[player.seatPos] or nil
     local effects=scan~=nil and scan.terrainModifiers or nil
-    if effects==nil then return base end
-    -- Explicit traversal permissions (e.g. Song of Wind + extra Blue mana)
-    -- may open a lake; ordinary discounts cannot open impassable terrain.
-    -- Several simultaneous "set" effects use the lowest applicable cost,
-    -- independently of the order in which card/Skill effects were discovered.
-    local setCost=nil
-    for _,effect in ipairs(effects) do
-        if effect.mode=="set" and terrainEffectApplies(effect,terrain) then
-            setCost=setCost==nil and effect.cost or math.min(setCost,effect.cost)
-        end
-    end
-    if setCost==nil and base>=900 then return base end
-    local cost=setCost or base
-    -- Set effects grant traversal first; Path Finding can then discount that
-    -- newly passable terrain. A minimum is a floor, not a price increase.
-    for _,effect in ipairs(effects) do
-        if terrainEffectApplies(effect,terrain) then
-            if effect.mode=="cap" then
-                cost=math.min(cost,effect.cost)
-            elseif effect.mode=="reduce" then
-                cost=math.min(cost,math.max(effect.minimum or 0,cost-effect.amount))
-            end
-        end
-    end
-    for _,effect in ipairs(effects) do
-        if effect.mode=="weather" and terrainEffectApplies(effect,terrain) then
-            if effect.amount<0 then cost=math.max(1,cost+effect.amount)
-            else cost=math.min(5,cost+effect.amount) end
-        end
-    end
-    return cost
+    return terrainModifiers.cost(base,terrain,effects)
 end
 
 -- Exploring is not ordinary terrain. Apply the existing explicit explore modifiers
@@ -127,17 +86,17 @@ local function resourceCardsEffectiveExploreCost()
     if not resourceCardsPanelOpen() and gStates~=nil and turnOrder~=nil
         and turnOrder[gStates.turnNumber]~=nil then
         local seatPos=turnOrder[gStates.turnNumber].seatPos
+        local effects={}
         for guid,rule in pairs(skillResourceDefinitions) do
             if ownedSkillAtSeat(guid,seatPos) then
-                local effects={}
                 terrainModifiers.passive(effects,rule,gStates.dayRound)
-                for _,effect in ipairs(effects) do
-                    if effect.mode=="reduce" and terrainEffectApplies(effect,"explore") then
-                        cost=math.min(cost,math.max(effect.minimum or 0,cost-effect.amount))
-                    end
-                end
             end
         end
+        local reductions={}
+        for _,effect in ipairs(effects) do
+            if effect.mode=="reduce" then reductions[#reductions+1]=effect end
+        end
+        cost=terrainModifiers.cost(cost,"explore",reductions)
     end
     if gStates~=nil and gStates.gameScenario=="The Hidden Valley Blitz" then
         cost=cost*3

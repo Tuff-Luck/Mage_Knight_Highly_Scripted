@@ -1,5 +1,6 @@
 -- Resolve Action-card links using the coordinator's current scan candidates.
 -- Physical discovery, choice state, marks, cleanup and resource totals stay outside.
+local physicalLinks=require("PlayingGame.PlayerBoard.ResourceTracker.Core.PhysicalLinks")
 return function(deps)
     local overlapArea=deps.overlapArea
     local cardPosture=deps.cardPosture
@@ -20,22 +21,23 @@ return function(deps)
             links[source.guid][#links[source.guid]+1]=target.guid
             links[target.guid][#links[target.guid]+1]=source.guid
         end
-        local function nearestOverlap(source,valid,preference)
-            local best,bestArea,bestPriority=nil,0,-1
+        local function nearestOverlap(source,valid,preference,orderedPayment)
+            local candidates={}
             local a=footprints[source.guid]
             for _,target in ipairs(cards) do
                 if target.guid~=source.guid and valid(target) then
                     local area=overlapArea(a,footprints[target.guid])
                     local priority=((preference=="discard" and cardPosture(target)=="discard")
                         or (preference=="faceDown" and target.is_face_down==true)) and 1 or 0
-                    if area>0 and (priority>bestPriority
-                        or (priority==bestPriority and (area>bestArea
-                            or (area==bestArea and best~=nil and target.guid<best.guid)))) then
-                        best,bestArea,bestPriority=target,area,priority
+                    if area>0 then
+                        candidates[#candidates+1]={card=target,overlap=area,priority=priority,tieKey=target.guid}
                     end
                 end
             end
-            return best
+            local best
+            if orderedPayment then best=physicalLinks.ordered(candidates)
+            else best=physicalLinks.unique(candidates) end
+            return best~=nil and best.card or nil
         end
         for _,source in ipairs(cards) do
             local data=gameCards[source.guid]
@@ -111,7 +113,7 @@ return function(deps)
                             and discarded[candidate.guid]==nil and not boostClaimed[candidate.guid]
                             and not manaPowered[candidate.guid] and #links[candidate.guid]==0
                             and cardPosture(candidate)=="upright"
-                    end,"faceDown")
+                    end,"faceDown",true)
                     if target==nil then break end
                     discarded[target.guid]=source.guid
                     if paid==0 then linkedCardBySource[source.guid]=target.guid end
@@ -152,7 +154,7 @@ return function(deps)
                             and candidate.getGMNotes()~="Wound"
                             and candidate.getGMNotes()~="Quest"
                             and canPayDiscard(candidate)
-                    end,"discard")
+                    end,"discard",true)
                     if target==nil then break end
                     discarded[target.guid]=source.guid
                     if paid==0 then linkedCardBySource[source.guid]=target.guid end
@@ -190,8 +192,8 @@ return function(deps)
                 table.sort(choices,function(a,b)
                     local aa=overlapArea(footprints[source.guid],footprints[a.guid])
                     local bb=overlapArea(footprints[source.guid],footprints[b.guid])
-                    if aa==bb then return a.guid<b.guid end
-                    return aa>bb
+                    return physicalLinks.precedes({overlap=aa,tieKey=a.guid},
+                        {overlap=bb,tieKey=b.guid})
                 end)
                 local woundPayments,bonus=0,0
                 local perUse=repeated~=nil and {} or nil
