@@ -89,8 +89,9 @@ return function(attackAssignmentsTargetGUIDs,attackAssignmentsClearForObject,
     end
 
     local function allocate(entries,sources,rowByGUID,combatAssignmentState,combatCumbersomeActive)
-        local allocated={}
+        local allocated,activeSources={},{}
         for _,source in ipairs(sources) do
+            activeSources[source.key]=true
             local targetGUID,targetIndex=resolveTarget(source,entries,rowByGUID,combatAssignmentState,combatCumbersomeActive)
             if targetIndex~=nil then
                 -- The arrow follows the lock, and returns if a cancelled retarget removed it.
@@ -128,10 +129,7 @@ return function(attackAssignmentsTargetGUIDs,attackAssignmentsClearForObject,
             for _,key in ipairs(record.enemyEffectTargetKeys or {}) do effectOnly[key]=true end
         end
         for key in pairs(combatAssignmentState.targets) do
-            local active=effectOnly[key]==true
-            for _,source in ipairs(sources) do
-                if source.key==key then active=true break end
-            end
+            local active=effectOnly[key]==true or activeSources[key]==true
             -- Enemy-effect Skills and Units are also real target sources even
             -- when they generate no numeric Attack or Block.
             if not active and not combatSourceKeepsLock(key) then

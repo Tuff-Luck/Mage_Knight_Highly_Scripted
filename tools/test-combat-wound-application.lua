@@ -881,6 +881,19 @@ capturedSnapshot.callback()
 eq(retryLedger.phaseLock,partialLock,
     "retry must preserve rather than replace the original combat snapshot")
 combatConfig.phasePreview=savedPreview
+-- Unexpected exceptions after the busy flag is set must allow recovery.
+resourceCardsRequestCombatWounds(player)
+resourceCardsApplyCombatWounds=function()
+    combatConfig.woundApplying=true
+    error("injected physical transfer exception")
+end
+local beforeException=#finishedSnapshots
+combatConfig.woundConfirmChoice(player,"CombatDamageConfirmApply")
+capturedSnapshot.callback()
+eq(combatConfig.woundApplying,false,"exception clears applying flag")
+eq(combatConfig.woundTransactionPending,false,"exception clears pending flag")
+eq(#finishedSnapshots,beforeException+1,"exception releases rewind owner")
+eq(retryLedger.phaseLock,partialLock,"exception preserves existing phase lock")
 resourceCardsApplyCombatWounds=realApply
 
 -- Opt-out belongs to the confirming colour, persists only after a successful

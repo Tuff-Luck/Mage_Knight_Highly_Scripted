@@ -25,7 +25,8 @@ return function(combatConfig,skillRuleOf,combatDetailPhase,combatEnemyResists,co
                             icon=item.detail.icon,text=item.detail.text,typeKey=item.detail.typeKey,
                             reduced=rowBlock[index].wrongBlock[item.source.key..tostring(item.detail.key)]==true}
                     end
-                    if item.detail.family~="block" and item.detail.family~="move" then
+                    if item.detail.family~="block" and item.detail.family~="move"
+                        and item.detail.family~="influence" then
                         local phase=combatDetailPhase(item.detail,
                             group.rangeDefeated or group.rangeSpent,group.fortification,item.source)
                         -- Keep invalidated Attack-phase Unit icons visible so players

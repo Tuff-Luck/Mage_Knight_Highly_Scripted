@@ -119,4 +119,14 @@ eq(groups[1].defeated,true,"Earlier ranged defeat remains valid")
 eq(late.defeatedCount(entries,groups[1],true),1,"Ranged kill counted once")
 eq(fame,0,"No reward source grants no extra Fame")
 eq(rep,0,"No reward source grants no extra Reputation")
+-- A single destroyed member of a joined group is a real defeat even
+-- when the surviving members have not been defeated by melee.
+local partialEntries={enemy("destroyed",4,{attackPhaseDestroyed=true}),enemy("survivor",5)}
+local partial={members={1,2},defeated=false,rangeDefeated=false}
+eq(late.enemyDefeated(partialEntries[1],partial,false),true,"Destroyed member marked")
+eq(late.enemyDefeated(partialEntries[2],partial,false),false,"Living member not marked")
+eq(late.defeatedCount(partialEntries,partial,false),1,"Partial group counts individual defeat")
+eq(late.defeatedCount(partialEntries,partial,true),0,"Attack destruction is not ranged defeat")
+partial.defeated=true
+eq(late.defeatedCount(partialEntries,partial,false),2,"Defeated group counts each enemy once")
 print("Early, Damage and late Attack phase resolution passed")

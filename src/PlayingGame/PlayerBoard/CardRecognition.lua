@@ -2306,6 +2306,9 @@ combatConfig.woundConfirmChoice=function(player,id)
                 rewindTransactionFinish(owner)
             end)
         if not ok or startedOrError~=true then
+            -- A synchronous exception can bypass the normal finish callback.
+            -- Release the busy flag while retaining the idempotent ledger.
+            combatConfig.woundApplying=false
             -- An exception may occur after a physical move. Preserve the
             -- snapshot conservatively; the next Apply click can retry it.
             if ok and existingLock==nil then
@@ -2375,9 +2378,13 @@ function resourceCardsApplyCombatWounds(player,onComplete)
                     ..". Check the physical cards and click again to finish.",
                     player.color,warningColor)
             end
-            resourceCardsSourceChanged()
-            mainUIUpdate("Combat Wounds applied")
+            -- UI refresh errors must not strand a protected rewind transaction.
+            local refreshed,refreshError=pcall(function()
+                resourceCardsSourceChanged()
+                mainUIUpdate("Combat Wounds applied")
+            end)
             if onComplete~=nil then onComplete(success,reason,physicallyTouched) end
+            if not refreshed then error(refreshError) end
         end
         if onComplete==nil or (not unitAreaTouched and next(settlingGUIDs)==nil)
             or safeWaitFrames==nil or safeWaitCondition==nil then
@@ -3108,8 +3115,7 @@ local function combatAssignmentRefreshRows(entries,sources)
             local guid=entry.guid
             if not entry.attackOnly and not entry.preview then
                 trackedGuids[guid]=true
-                if group.defeated or entry.rangeDead or entry.attackDead
-                    or (not group.rangeDefeated and entry.attackPhaseDestroyed) then
+                if trackerPrivate.lateCombatPhase.enemyDefeated(entry,group,false) then
                     defeatedGuids[guid]=true
                 elseif entry.bossLevel~=nil
                     and (entry.bossRangeLevels or 0)+(entry.bossAttackLevels or 0)>0 then

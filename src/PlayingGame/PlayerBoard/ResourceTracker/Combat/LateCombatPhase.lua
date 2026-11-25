@@ -6,20 +6,18 @@ return function(combatGroupEntry,combatEnemyHasTrait,combatEnemyFortificationCou
     -- Joined boss attacks may defeat an ordinary enemy or one head without
     -- defeating the whole group. Per-defeat bonuses count each actual kill,
     -- never every level removed from a still-living boss.
+    local function enemyDefeated(entry,group,rangedOnly)
+        if entry.preview or entry.attackOnly then return false end
+        if entry.rangeDead or group.rangeDefeated then return true end
+        if rangedOnly then return false end
+        return group.defeated==true or entry.attackDead==true
+            or entry.attackPhaseDestroyed==true
+    end
+
     local function defeatedCount(entries,group,rangedOnly)
         local count=0
         for _,index in ipairs(group.members) do
-            local entry=entries[index]
-            if not entry.preview and not entry.attackOnly then
-                local dead
-                if group.bossSpecial then
-                    dead=entry.rangeDead==true or (not rangedOnly and
-                        (entry.attackDead==true or entry.attackPhaseDestroyed==true))
-                else
-                    dead=group.defeated and (not rangedOnly or group.rangeDefeated)
-                end
-                if dead then count=count+1 end
-            end
+            if enemyDefeated(entries[index],group,rangedOnly) then count=count+1 end
         end
         return count
     end
@@ -250,6 +248,6 @@ return function(combatGroupEntry,combatEnemyHasTrait,combatEnemyFortificationCou
         return defeatFame,defeatRep
     end
 
-    return {defeatedCount=defeatedCount,vampiric=vampiric,lateEffects=lateEffects,
+    return {enemyDefeated=enemyDefeated,defeatedCount=defeatedCount,vampiric=vampiric,lateEffects=lateEffects,
         dodgeAfterDamage=dodgeAfterDamage,resolve=resolve}
 end

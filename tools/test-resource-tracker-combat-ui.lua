@@ -144,6 +144,11 @@ run("resource-tracker-combat-presentation",function()
     eq(display[1].attack[1].source.key,"effect","Effect button receives priority")
     eq(display[1].attack[2].wounded,true,"Wounded Unit remains visible")
     eq(cfg.effectSources.effect.requiresDefence,true,"Effect targeting metadata retained")
+    local psychicDisplay=build({e},{g},{{details={{source=src,detail={family="influence",
+        key="influence",amount=2,icon="influence",text="Influence 2",typeKey="M"}}}}},
+        {details={}}, {block},nil,{},{},{},nil,nil)
+    eq(#psychicDisplay[1].block,1,"Psychic Influence displayed as Block")
+    eq(#psychicDisplay[1].attack,1,"Only the existing effect appears in Attack")
     local render=dofile(root.."Interface/CombatRowRenderer.lua")(cfg,set,icon,function() return false end,
         function() return "None" end,function() return {} end,rich,function() return 0 end,rich,
         function() return {} end,function(total,armour) return "Attack "..total.."/"..armour end,
