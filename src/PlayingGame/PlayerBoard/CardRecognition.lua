@@ -777,6 +777,10 @@ local function combatAssignmentSources(seat)
                 amount=amount-consumed
             end
         end
+        if amount>0 and trackerPrivate.traceEnabled then
+            trackerPrivate.traceEvent("resource.conversionUnderpaid",seat,nil,
+                field.." shortfall="..tostring(amount))
+        end
     end
     local function converted(guid,part,original,points,resourceCost)
         if points<=0 then return end
