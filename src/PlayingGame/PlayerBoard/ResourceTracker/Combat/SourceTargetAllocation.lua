@@ -88,8 +88,37 @@ return function(attackAssignmentsTargetGUIDs,attackAssignmentsClearForObject,
         return targetGUID,targetIndex
     end
 
-    local function allocate(entries,sources,rowByGUID,combatAssignmentState,combatCumbersomeActive)
+    -- Trace-only accounting captures original amounts before the divisible
+    -- allocator mutates its fresh source records. Unassigned resources are legal;
+    -- only allocation above the original source budget is a violation.
+    local fields={"ranged","siege","block","attack","move","psychicInfluence"}
+    local function addBudget(budgets,source)
+        local budget=budgets[source.key] or {}
+        budgets[source.key]=budget
+        for _,field in ipairs(fields) do
+            budget[field]=(budget[field] or 0)+(tonumber(source[field]) or 0)
+        end
+    end
+
+    local function checkBudget(original,allocated,report)
+        local actual={}
+        for _,row in pairs(allocated) do
+            for _,source in ipairs(row.sources) do addBudget(actual,source) end
+        end
+        for key,budget in pairs(actual) do
+            for _,field in ipairs(fields) do
+                local allowed=(original[key] or {})[field] or 0
+                if budget[field]>allowed then report(key,field,allowed,budget[field]) end
+            end
+        end
+    end
+
+    local function allocate(entries,sources,rowByGUID,combatAssignmentState,combatCumbersomeActive,report)
         local allocated,activeSources={},{}
+        local original=report~=nil and {} or nil
+        if original~=nil then
+            for _,source in ipairs(sources) do addBudget(original,source) end
+        end
         for _,source in ipairs(sources) do
             activeSources[source.key]=true
             local targetGUID,targetIndex=resolveTarget(source,entries,rowByGUID,combatAssignmentState,combatCumbersomeActive)
@@ -137,6 +166,7 @@ return function(attackAssignmentsTargetGUIDs,attackAssignmentsClearForObject,
                 combatAssignmentState.explicit[key]=nil
             end
         end
+        if original~=nil then checkBudget(original,allocated,report) end
         return allocated
     end
 

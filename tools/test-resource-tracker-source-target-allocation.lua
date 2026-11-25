@@ -44,7 +44,11 @@ local sources={source("manual",{attack=2}),source("saved",{attack=2}),
     source("possess",{attack=2,possessExclude="normal"}),source("fork",{attack=1,forkedLightning=true}),
     source("badAttack",{attack=2}),source("move",{move=3}),source("influence",{psychicInfluence=3}),
     source("unassignedInfluence",{psychicInfluence=2}),source("duel",{attack=2,dueling=true})}
-local assigned=engine.allocate(entries,sources,rows,state,true)
+local violations={}
+local assigned=engine.allocate(entries,sources,rows,state,true,function(...)
+    violations[#violations+1]={...}
+end)
+eq(#violations,0,"Valid allocations conserve each source family")
 eq(state.targets.manual,"c","Manual target wins against stale arrow")
 eq(state.targets.saved,"c","Saved arrow restored")
 eq(state.explicit.saved,true,"Saved target is explicit")
@@ -70,4 +74,23 @@ engine.allocate(entries,{source("fresh",{attack=1})},rows,other,false)
 eq(other.targets.fresh,"normal","New player's state receives target")
 eq(state.targets.fresh,nil,"Previous player's state is not retained")
 eq(state.targets.manual,"c","Previous player's manual lock unchanged")
+-- A deliberately faulty allocator duplicates one source. Diagnostics must
+-- report its over-allocation without changing the combat calculation.
+local faulty=dofile(root.."Combat/SourceTargetAllocation.lua")(
+    function() return {} end,function() end,function() return true end,cumbersome,
+    function() return "normal" end,function() return false end,function() end,
+    function() return "attack" end,attacks,
+    function(source,target)
+        target.sources[#target.sources+1]=source
+        target.sources[#target.sources+1]=source
+    end,function() return {cards={}} end,function() return false end)
+local bad={}
+local faultyResult=faulty.allocate(entries,{source("duplicate",{attack=3})},rows,
+    {targets={},explicit={}},false,function(...) bad[#bad+1]={...} end)
+eq(#bad,1,"Duplicate allocation produces one diagnostic")
+eq(bad[1][1],"duplicate","Diagnostic identifies source")
+eq(bad[1][2],"attack","Diagnostic identifies resource family")
+eq(bad[1][3],3,"Original budget retained")
+eq(bad[1][4],6,"Actual allocation reported")
+eq(#faultyResult[1].sources,2,"Diagnostic does not mutate combat result")
 print("Source target authority, eligibility, allocation and cleanup passed")

@@ -2862,7 +2862,11 @@ local function combatAssignmentRefreshRows(entries,sources)
     combatAssignmentSlotSources={}
     combatConfig.slotBowFamilies={}
     local allocated=trackerPrivate.sourceTargetAllocation.allocate(
-        entries,sources,rowByGUID,combatAssignmentState,combatCumbersomeActive)
+        entries,sources,rowByGUID,combatAssignmentState,combatCumbersomeActive,
+        trackerPrivate.traceEnabled and function(key,field,allowed,actual)
+            trackerPrivate.traceEvent("resource.overallocated",combatAssignmentActiveSeat(),key,
+                field.." budget="..tostring(allowed).." allocated="..tostring(actual))
+        end or nil)
 
     combatConfig.applyExplosiveBoltRange(entries,groups,allocated,sources)
 
