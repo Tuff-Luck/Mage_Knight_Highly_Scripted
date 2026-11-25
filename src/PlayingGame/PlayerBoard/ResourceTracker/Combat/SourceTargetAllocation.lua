@@ -142,13 +142,17 @@ return function(attackAssignmentsTargetGUIDs,attackAssignmentsClearForObject,
         end
         if profile~=nil then profile=profiler.profileCheckpoint("allocation.setup",profile) end
         for _,source in ipairs(sources) do
+            local targetProfile
+            if profile~=nil then targetProfile=profiler.profileStart() end
             activeSources[source.key]=true
             local targetGUID,targetIndex=resolveTarget(source,entries,rowByGUID,combatAssignmentState,combatCumbersomeActive,observation)
+            if targetProfile~=nil then targetProfile=profiler.profileCheckpoint("targets.resolve",targetProfile) end
             if targetIndex~=nil then
                 -- The arrow follows the lock, and returns if a cancelled retarget removed it.
                 if not attackAssignmentsIsTargeting(source.key) then
                     attackAssignmentsEnsureTarget(source.key,targetGUID,combatSourceArrowKind(source))
                 end
+                if targetProfile~=nil then targetProfile=profiler.profileCheckpoint("targets.arrows",targetProfile) end
                 local manuallyTargeted=combatAssignmentState.explicit[source.key]==true
                 local explicit=manuallyTargeted and observation.cumbersome(targetGUID)
                 source.moveCounts=explicit
@@ -172,6 +176,7 @@ return function(attackAssignmentsTargetGUIDs,attackAssignmentsClearForObject,
                     end
                 end
                 divisibleResources(source,target,targetGUID,explicit,rowByGUID,entries,allocated,observation)
+                if targetProfile~=nil then profiler.profileFinish("targets.distribute",targetProfile) end
             end
         end
         if profile~=nil then profile=profiler.profileCheckpoint("allocation.targets",profile) end

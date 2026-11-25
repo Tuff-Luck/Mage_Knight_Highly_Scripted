@@ -125,8 +125,11 @@ assert(observationSource:find("trackerPrivate.renderCombatNight=resourceCardsCom
 local publicationFile=assert(io.open("src/PlayingGame/PlayerBoard/ResourceTracker/Scanning/ScanPublication.lua","r"))
 local publicationSource=publicationFile:read("*a")
 publicationFile:close()
-assert(publicationSource:find("trackerPrivate.renderCombatNight=nil\n    if trackerPrivate.traceEnabled then trackerPrivate.traceEvent(\"render.done\",seatPos) end\nend",1,true),
+local clearNight=assert(publicationSource:find("trackerPrivate.renderCombatNight=nil",1,true),
     "Night context must be cleared after rendering")
+local renderDone=assert(publicationSource:find('trackerPrivate.traceEvent("render.done",seatPos)',clearNight,true))
+assert(not publicationSource:find("trackerPrivate.renderCombatNight=",renderDone,true),
+    "Night context must remain cleared after rendering")
 
 -- A normal Summoner must not accidentally mark every summon as Night.
 -- Test the same conditional block that adds the visible NightRules decal.

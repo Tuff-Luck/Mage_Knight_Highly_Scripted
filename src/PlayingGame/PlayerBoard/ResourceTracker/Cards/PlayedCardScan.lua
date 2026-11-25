@@ -30,7 +30,10 @@ function M.process(context)
     local unitCombatBoost, preventUnitDamage, allUnitResistances = context.unitCombatBoost, context.preventUnitDamage, context.allUnitResistances
     local heroFirstWoundIgnored = context.heroFirstWoundIgnored
     local claimedPossessEnemies={}
+    local tracing=trackerPrivate.traceEnabled
     for _,card in ipairs(cards) do
+        local cardProfile
+        if tracing then cardProfile=trackerPrivate.profileStart() end
         local cardData=gameCards[card.guid]
         local rule=cardData~=nil and cardResourceDefinitions[cardData.resourceKey] or nil
         local artifactBreak=cardData~=nil and cardData.cardType=="Artifact"
@@ -557,6 +560,7 @@ function M.process(context)
             result.resources=adjusted
         end
         result.choices=choices -- Also authoritative for payment-restricted click validation.
+        if cardProfile~=nil then cardProfile=trackerPrivate.profileCheckpoint("cards.recognition",cardProfile) end
         showChoiceButtons(card,choices,result.powered,inventorySpec,inventorySets,result.resources,
             repeatByTarget[card.guid])
         if cardData~=nil and cardData.resourceKey=="spellCure" then
@@ -564,6 +568,7 @@ function M.process(context)
                 result.complete==true and result.powered~=true
                 and resourceCardsDetailsOpen())
         end
+        if cardProfile~=nil then cardProfile=trackerPrivate.profileCheckpoint("cards.choiceButtons",cardProfile) end
         -- Expose a separate Armour-reduction source. It is independent of the
         -- card's Ranged Attack target and becomes effective only after a kill.
         if result.explosiveBolt~=nil and combatCalcOn then
@@ -655,7 +660,9 @@ function M.process(context)
         records[card.guid]=result
         current[card.guid]=true
         if result.usesTerrainBlock then usesCurrentHexBlock=true end
+        if cardProfile~=nil then cardProfile=trackerPrivate.profileCheckpoint("cards.effects",cardProfile) end
         setHighlight(card,result.status,result.powered)
+        if cardProfile~=nil then trackerPrivate.profileFinish("cards.highlight",cardProfile) end
     end
     return usesCurrentHexBlock,usesCurrentHexHealing,ignoreSiteFortifications,
         unitCombatBoost,preventUnitDamage,allUnitResistances,heroFirstWoundIgnored

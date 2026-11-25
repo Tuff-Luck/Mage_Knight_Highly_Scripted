@@ -148,6 +148,7 @@ function M.publish(context)
         refreshCombatEnemyPanel(combatMonsters,true)
     end
     if profile~=nil then profile=trackerPrivate.profileCheckpoint("publish.combat",profile) end
+    local resourceProfile=profile
     -- Refresh conversion counters against the just-published shared budget,
     -- not the preceding scan used during the initial card UI pass.
     for guid,record in pairs(records) do
@@ -156,7 +157,9 @@ function M.publish(context)
                 nil,nil,record.resources,record.repeatLink,record.shapeshiftField)
         end
     end
+    if resourceProfile~=nil then resourceProfile=trackerPrivate.profileCheckpoint("resources.conversions",resourceProfile) end
     resourceCardsApplyFameRep(seatPos)
+    if resourceProfile~=nil then resourceProfile=trackerPrivate.profileCheckpoint("resources.fameRep",resourceProfile) end
     -- Refresh Reputation on every settled Skill scan so flipping Arcane
     -- Disguise updates Influence without requiring a panel toggle.
     local reputationBefore=gStates.resourceTracker~=nil
@@ -166,16 +169,22 @@ function M.publish(context)
     local reputationAfter=gStates.resourceTracker~=nil
         and gStates.resourceTracker.influence~=nil
         and gStates.resourceTracker.influence.reputation or nil
+    if resourceProfile~=nil then resourceProfile=trackerPrivate.profileCheckpoint("resources.reputation",resourceProfile) end
     -- Redraw movement when ability flags change, even if total Move stays equal.
     if totalsChanged or terrainChanged or transformChanged or moveSplitChanged
         or enemyStateChanged or reputationBefore~=reputationAfter then
         refreshResourceTrackerText()
     end
+    if resourceProfile~=nil then resourceProfile=trackerPrivate.profileCheckpoint("resources.trackerText",resourceProfile) end
     if previousMove~=(totals.move or 0) or moveSplitChanged
         or terrainChanged or movementChanged then
         updateMoveDisplay()
     end
-    if profile~=nil then profile=trackerPrivate.profileCheckpoint("publish.resources",profile) end
+    if resourceProfile~=nil then
+        local finished=trackerPrivate.profileCheckpoint("resources.moveDisplay",resourceProfile)
+        trackerPrivate.profileFinish("publish.resources",profile,finished)
+        profile=finished
+    end
     for guid in pairs(previous) do
         if current[guid]~=true then
             combatConfig.sacrificeCastPairs[guid]=nil

@@ -128,6 +128,25 @@ for _,name in ipairs({"observation","unitPreparation","payments","passiveTerrain
     last=pos+1
 end
 assert(scanSource:find('profileFinish("scan.publication",scanStage)',last,true))
+local function moduleSource(path)
+    local file=assert(io.open("src/PlayingGame/PlayerBoard/ResourceTracker/"..path,"r"))
+    local code=file:read("*a") file:close()
+    return code
+end
+local publication=moduleSource("Scanning/ScanPublication.lua")
+local previousBoundary=1
+for _,name in ipairs({"conversions","fameRep","reputation","trackerText","moveDisplay"}) do
+    local position=assert(publication:find('profileCheckpoint("resources.'..name..'",resourceProfile)',previousBoundary,true))
+    previousBoundary=position+1
+end
+assert(publication:find('profileFinish("publish.resources",profile,finished)',previousBoundary,true))
+local played=moduleSource("Cards/PlayedCardScan.lua")
+previousBoundary=1
+for _,name in ipairs({"recognition","choiceButtons","effects"}) do
+    local position=assert(played:find('profileCheckpoint("cards.'..name..'",cardProfile)',previousBoundary,true))
+    previousBoundary=position+1
+end
+assert(played:find('profileFinish("cards.highlight",cardProfile)',previousBoundary,true))
 -- Actual UI calls contribute once to the total and once to their column.
 private.profileClock=function() return tick end
 local uiStart=private.profileStart()

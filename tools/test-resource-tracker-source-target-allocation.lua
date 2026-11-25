@@ -80,6 +80,21 @@ local other={targets={},explicit={}}
 local beforeScanCalls=scanCalls
 engine.allocate(entries,{source("fresh",{attack=1})},rows,other,false)
 eq(scanCalls,beforeScanCalls,"Numeric-only targets skip effect-index scan")
+local profiler={}
+dofile(root.."Core/Diagnostics.lua")(profiler)
+profiler.traceEnabled=true
+local tick=0
+profiler.profileClock=function() tick=tick+0.001 return tick end
+local profileState={targets={},explicit={}}
+engine.allocate(entries,{source("profiled",{block=1}),source("unassigned",{psychicInfluence=1})},
+    rows,profileState,false,nil,profiler)
+eq(profiler.profileStats["targets.resolve"].count,2,"Every source target resolution timed")
+eq(profiler.profileStats["targets.arrows"].count,1,"Only assigned source arrow reconciliation timed")
+eq(profiler.profileStats["targets.distribute"].count,1,"Only assigned source distribution timed")
+eq(profiler.profileStats["allocation.targets"].count,1,"Parent allocation timer retained")
+profiler.traceEnabled=false
+profiler.profileClock=function() error("Disabled profiling sampled clock") end
+engine.allocate(entries,{source("profiled",{block=1})},rows,profileState,false,nil,profiler)
 eq(other.targets.fresh,"normal","New player's state receives target")
 eq(state.targets.fresh,nil,"Previous player's state is not retained")
 eq(state.targets.manual,"c","Previous player's manual lock unchanged")
