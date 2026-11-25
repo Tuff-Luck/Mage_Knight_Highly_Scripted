@@ -58,6 +58,15 @@ run("resource-tracker-block-solver",function()
         {item("block",4,"a")},0)
     eq(plan[1].blocked,false,"Single resource cannot be spent twice")
     eq(plan[2].blocked,true,"Optimiser prefers stopping greater Brutal damage")
+    -- Equal-cost routes have a stable tie-break across input permutations.
+    for pass=1,10 do
+        local a,b=item("block",2,"a"),item("block",2,"b")
+        local p,ordered=engine.solve({attack("P",2),attack("P",2)},
+            pass%2==0 and {a,b} or {b,a},0)
+        eq(ordered[1].source.key,"a","Source order stable")
+        eq(p[1].used[1],true,"Equal allocation uses canonical route")
+        eq(p[2].used[2],true,"Second Block uses remaining canonical route")
+    end
     local many={}
     for i=1,14 do many[i]=item("block",1,tostring(i)) end
     plan,sorted,leftover=engine.solve({attack("P",14)},many,0)
@@ -108,13 +117,23 @@ run("resource-tracker-block-results",function()
     eq(used.spare,nil,"Displayed spare not committed")
     eq(owners.bash.enemy,true,"Successful attack owner retained")
     eq(excess.enemy,4,"Shield Bash counts displayed excess on same attack")
-    eq(keys.spare,nil,"Spare source key not locked")
+    eq(keys.spare,true,"Spare source contributing frozen Shield Bash reduction is locked")
     eq(calls,1,"Initial solve")
     local cachedLines=calculate(e,sources,cache)
     eq(cachedLines,lines,"Unchanged fingerprint returns cached result")
     eq(calls,1,"Unchanged fingerprint skips DP")
     calculate(e,sources,{})
     eq(calls,2,"Caller cache reset recomputes")
+    local _,_,_,_,_,_,_,_,_,surplusExcess,surplusKeys=calculate(
+        enemy("surplusBash",{{key="P",value=4}}),
+        {source("ordinary",4),source("shieldBash",2,{excessBlockArmour=true})},cache)
+    eq(surplusExcess.surplusBash,2,"Surplus Shield Bash grants Armour reduction")
+    eq(surplusKeys.shieldBash,true,"Surplus Shield Bash cannot escape committed lock")
+    eq(surplusKeys.ordinary,true,"Base Block contributing to reduction committed")
+    local _,_,_,_,_,_,_,_,_,_,ordinaryKeys=calculate(
+        enemy("ordinarySpare",{{key="P",value=4}}),
+        {source("ordinary",4),source("spare",2)},cache)
+    eq(ordinaryKeys.spare,nil,"Ordinary spare remains uncommitted without conditional effect")
     bonus=1
     local _,d=calculate(e,{source("normal",4)},cache)
     eq(d,4,"Competitive Block penalty changes threshold but not damage")

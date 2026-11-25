@@ -54,7 +54,8 @@ return function(combatConfig)
             local function retain(points,spent,route)
                 local key=table.concat(points,",")
                 local prior=nextStates[key]
-                if prior==nil or spent<prior.spent then
+                if prior==nil or spent<prior.spent
+                    or (spent==prior.spent and route<prior.route) then
                     nextStates[key]={points=points,spent=spent,route=route}
                 end
             end
@@ -124,7 +125,9 @@ return function(combatConfig)
                 end
             end
             score=score+state.spent*100
-            if bestScore==nil or score<bestScore then
+            -- Equal-cost routes must not depend on Lua hash iteration order.
+            if bestScore==nil or score<bestScore
+                or (score==bestScore and state.route<bestState.route) then
                 bestScore,bestState,bestReductions=score,state,reductions
             end
         end
@@ -309,6 +312,13 @@ return function(combatConfig,solver,combatEnemyAttacks,combatNatureVengeanceBloc
                     local owner=attack.owner or entry.guid
                     if excess>0 then
                         shieldBashExcess[owner]=(shieldBashExcess[owner] or 0)+excess*bashCount
+                            -- Every point used to generate the frozen Armour reduction
+                            -- was spent, including surplus Block assigned after solving.
+                            for itemIndex,item in ipairs(solved) do
+                                if step.used[itemIndex] then
+                                    successfulSourceKeys[item.source.key]=true
+                                end
+                            end
                     end
                 end
             end
