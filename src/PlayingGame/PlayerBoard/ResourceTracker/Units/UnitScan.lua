@@ -1,6 +1,7 @@
 -- Unit scan passes. Read live activation history and paid abilities; keep scan order,
 -- shared records and final publication with the coordinator.
 local M={}
+local highlightPolicy=require("PlayingGame.PlayerBoard.ResourceTracker.Core.HighlightPolicy")
 local effectRecords=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.EnemyEffectRecords")
 
 function M.process(context)
@@ -187,7 +188,7 @@ function M.process(context)
                         fameRep=selected~=nil and selected.fameRep or nil}
                     result.fameRep=result.complete and result.fameRep or nil
                     addResourceAmounts(result,totals)
-                    result.status=result.contributes and "green" or "blue"
+                    result.status=highlightPolicy.contribution(result.contributes)
                     records[recordKey]=result
                     current[unitGUID]=true
                     if unitHistorySelectedNumber(unitGUID)==useIndex then
@@ -351,7 +352,7 @@ function M.markTransforms(context)
         local record=records[sourceKey]
         if record~=nil then
             record.contributes=affected
-            record.status=affected and "green" or "blue"
+            record.status=highlightPolicy.contribution(affected)
             local unitGUID=unitHistorySourceBase(sourceKey)
             -- Only the Command's displayed use owns the physical highlight;
             -- earlier uses retain their own record for History and Undo.

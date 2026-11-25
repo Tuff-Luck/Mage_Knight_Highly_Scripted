@@ -1,5 +1,6 @@
 -- Cross-card bonuses and conversions, including Tirelessness, borrowed-enemy highlights, Deadly Precision, Ambush, and linked or discarded Wounds. Uses the current scan's records, resources and existing targeting callbacks.
 local M={}
+local highlightPolicy=require("PlayingGame.PlayerBoard.ResourceTracker.Core.HighlightPolicy")
 local physicalLinks=require("PlayingGame.PlayerBoard.ResourceTracker.Core.PhysicalLinks")
 local resourceOps=require("PlayingGame.PlayerBoard.ResourceTracker.Core.ResourceOperations")
 
@@ -81,10 +82,10 @@ function M.process(context)
                 best.record.links[#best.record.links+1]=source.guid
                 sourceRecord.complete=true
                 sourceRecord.contributes=true
-                sourceRecord.status="purple"
-                best.record.status="purple"
-                setHighlight(source,"purple",true)
-                setHighlight(best.card,"purple",best.record.powered)
+                highlightPolicy.linkedSource(sourceRecord)
+                highlightPolicy.linkedTarget(best.record)
+                setHighlight(source,sourceRecord.status,true)
+                setHighlight(best.card,best.record.status,best.record.powered)
             end
         end
     end
@@ -173,8 +174,8 @@ function M.process(context)
                 end
                 sourceRecord.links[#sourceRecord.links+1]=best.guid
                 targetRecord.links[#targetRecord.links+1]=source.guid
-                sourceRecord.status="purple"
-                targetRecord.status="purple"
+                highlightPolicy.linkedSource(sourceRecord)
+                highlightPolicy.linkedTarget(targetRecord)
                 sourceRecord.contributes=true
                 setHighlight(source,sourceRecord.status,sourceRecord.powered)
                 setHighlight(best,targetRecord.status,targetRecord.powered)

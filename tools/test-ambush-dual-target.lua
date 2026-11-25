@@ -98,6 +98,7 @@ local calcEnv=setmetatable({
     cardPosture=function(card) return card.posture end,
     getObjectFromGUID=env.getObjectFromGUID,
     setHighlight=function() end,
+    highlightPolicy=require("PlayingGame.PlayerBoard.ResourceTracker.Core.HighlightPolicy"),
     physicalLinks=require("PlayingGame.PlayerBoard.ResourceTracker.Core.PhysicalLinks")
 },{__index=env})
 local function calculateWith(sourcePowered,targetGUID,targetFamily)

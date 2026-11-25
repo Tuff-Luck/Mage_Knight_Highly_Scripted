@@ -1,3 +1,4 @@
+package.path="src/?.lua;"..package.path
 -- Regression: generated Influence scoring, explicit Move/Psychic pool
 -- reservations, and primary-target stability when split arrows are removed.
 -- Run from repo root: lua5.2 tools/test-resource-tracker-pool-integrity.lua

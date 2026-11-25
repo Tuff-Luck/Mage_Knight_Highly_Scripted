@@ -1,5 +1,6 @@
 -- Passive terrain overlays, remaining Skill/mana/puppet records, linked Unit highlights, Spirit Guides and Wings of Night costs. Runs at original scan boundaries.
 local M={}
+local highlightPolicy=require("PlayingGame.PlayerBoard.ResourceTracker.Core.HighlightPolicy")
 
 -- Publish only effects belonging to the final, effective movement source.
 -- Owned passives and independent non-Move effects are handled separately.
@@ -102,7 +103,7 @@ function M.remainingObjects(context)
                 local choices=obj.is_face_down~=true and puppetResourceOptions(guid) or nil
                 local selected=choices~=nil and chosenEffect(guid,false,choices) or nil
                 result={guid=guid,kind="puppet",known=true,complete=selected~=nil,
-                    status=selected~=nil and "green" or "blue",
+                    status=highlightPolicy.contribution(selected~=nil),
                     resources=selected,choices=choices,powered=false,links={}}
                 showChoiceButtons(obj,choices,false)
                 addResourceAmounts(result,totals)
@@ -139,7 +140,7 @@ function M.remainingObjects(context)
                     end
                 end
                 if conversion~=nil then
-                    result.status="purple"
+                    highlightPolicy.linkedSource(result)
                     result.powered=conversion.targetGUID~=nil
                     result.links={conversion.manaGUID}
                     if conversion.targetGUID~=nil then
@@ -193,10 +194,8 @@ function M.linkedUnits(context)
                     -- Linked Skill sources normally show purple, but a Unit
                     -- currently activated by its Command token keeps its
                     -- own green/blue Resource Tracker status.
-                    unitRecord.status=activated
-                        and (effectHasTrackedResource(unitRecord.resources) and "green" or "blue")
-                        or "purple"
-                    unitRecord.powered=not activated
+                    unitRecord.status,unitRecord.powered=highlightPolicy.dynamicUnit(
+                        activated,activated and effectHasTrackedResource(unitRecord.resources))
                     unitRecord.contributes=true
                     unitRecord.links[#unitRecord.links+1]=guid
                     setHighlight(unit,unitRecord.status,unitRecord.powered)
@@ -232,13 +231,15 @@ function M.spiritGuides(context)
             guide.links[#guide.links+1]=linkedGUID
             boosted.links=boosted.links or {}
             boosted.links[#boosted.links+1]=guideGUID
-            guide.status="purple"
+            highlightPolicy.linkedSource(guide)
             guide.complete=true
             -- Activated Units keep their normal resource-state highlight;
             -- the Spirit Guides arrow itself still shows the purple link.
-            if boosted.kind~="unit" then boosted.status="purple" end
+            local redrawTarget=highlightPolicy.linkedTarget(boosted)
             setHighlight(objects[guideGUID],guide.status,guide.powered)
-            setHighlight(objects[linkedGUID],boosted.status,boosted.powered)
+            if redrawTarget then
+                setHighlight(objects[linkedGUID],boosted.status,boosted.powered)
+            end
         end
     end
 end

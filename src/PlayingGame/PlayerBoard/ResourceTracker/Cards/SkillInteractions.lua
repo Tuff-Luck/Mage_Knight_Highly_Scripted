@@ -1,5 +1,6 @@
 -- Linked Skill processing after activated Unit records exist: Leadership, Shapeshift, copying basic Actions, enemy effects, cooperative Skills, damage mitigation, Deadly Aim and Mana Overload. Receives live scan data and helpers; final object rendering, state publication and lifecycle remain with CardRecognition.
 local M={}
+local highlightPolicy=require("PlayingGame.PlayerBoard.ResourceTracker.Core.HighlightPolicy")
 local effectRecords=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.EnemyEffectRecords")
 local physicalLinks=require("PlayingGame.PlayerBoard.ResourceTracker.Core.PhysicalLinks")
 local resourceOps=require("PlayingGame.PlayerBoard.ResourceTracker.Core.ResourceOperations")
@@ -64,15 +65,14 @@ function M.process(context)
         skillRecord.complete=true
         skillRecord.contributes=true
         skillRecord.powered=true
-        skillRecord.status="purple"
+        highlightPolicy.linkedSource(skillRecord)
         skillRecord.links[#skillRecord.links+1]=target.guid
         targetRecord.links[#targetRecord.links+1]=skill.guid
-        if targetRecord.kind~="unit" then targetRecord.status="purple" end
-        setHighlight(skill,"purple",true)
-        -- Activated Units retain their green/blue highlight; they are not
-        -- reclassified purple merely because Leadership enhanced the effect.
-        if targetRecord.kind~="unit" then
-            setHighlight(target,"purple",targetRecord.powered)
+        local redrawTarget=highlightPolicy.linkedTarget(targetRecord)
+        setHighlight(skill,skillRecord.status,true)
+        -- A linked Unit's activation owns its physical highlight.
+        if redrawTarget then
+            setHighlight(target,targetRecord.status,targetRecord.powered)
         end
     end
     for _,skill in ipairs(skills) do
@@ -290,8 +290,8 @@ function M.process(context)
                         if origin~=nil and skillRecord~=nil then
                             origin.links[#origin.links+1]=skill.guid
                             skillRecord.links[#skillRecord.links+1]=chosen.source.guid
-                            origin.status="purple"
-                            setHighlight(chosen.source,"purple",origin.powered)
+                            highlightPolicy.linkedSource(origin)
+                            setHighlight(chosen.source,origin.status,origin.powered)
                         end
                         -- The copied effect replaces the generic sideways
                         -- choice, but copied Move still needs its M/C selector.

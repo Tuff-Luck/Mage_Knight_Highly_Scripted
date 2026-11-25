@@ -1,5 +1,6 @@
 -- Faction reward choices, enemy effects, and ordered physical element/Attack modifiers; updates current records without changing immutable catalogs.
 local M={}
+local highlightPolicy=require("PlayingGame.PlayerBoard.ResourceTracker.Core.HighlightPolicy")
 local effectRecords=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.EnemyEffectRecords")
 local physicalLinks=require("PlayingGame.PlayerBoard.ResourceTracker.Core.PhysicalLinks")
 local resourceOps=require("PlayingGame.PlayerBoard.ResourceTracker.Core.ResourceOperations")
@@ -55,7 +56,7 @@ function M.read(context)
                 splitTargets=splitMoveAttack and {"block","attack"} or nil,
                 modifier=not flipped and rule~=nil and rule.modifier or nil,
                 powered=flipped,links={},contributes=contributes,
-                status=contributes and "green" or "blue",
+                status=highlightPolicy.contribution(contributes),
                 nameKey=rule~=nil and rule.name or nil}
             if rule~=nil and not flipped and (rule.partial or rule.modifier~=nil) then
                 result.status="yellow"
@@ -181,10 +182,12 @@ function M.modifiers(context)
                     end
                     reward.links[#reward.links+1]=winner.guid
                     sourceRecord.links[#sourceRecord.links+1]=rewardGUID
-                    reward.status="purple"
-                    sourceRecord.status="purple"
+                    highlightPolicy.linkedSource(reward)
+                    local redrawTarget=highlightPolicy.linkedTarget(sourceRecord)
                     setHighlight(token,reward.status,true)
-                    setHighlight(winner,sourceRecord.status,sourceRecord.powered)
+                    if redrawTarget then
+                        setHighlight(winner,sourceRecord.status,sourceRecord.powered)
+                    end
                 end
             end
         end

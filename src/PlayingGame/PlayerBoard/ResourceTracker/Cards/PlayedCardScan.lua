@@ -1,5 +1,6 @@
 -- Per-card record processing after mana and Action links have been resolved. Applies existing conditional resources, target effects, inventory choices, card controls and movement/combat flags; returns scalar flags to the scan coordinator. Does not discover mana, publish scans or change phase ordering.
 local M={}
+local highlightPolicy=require("PlayingGame.PlayerBoard.ResourceTracker.Core.HighlightPolicy")
 local effectRecords=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.EnemyEffectRecords")
 
 function M.process(context)
@@ -246,7 +247,7 @@ function M.process(context)
                 result.enemyGUID=best.guid
                 result.possessEnemyGUID=best.guid
                 result.links[#result.links+1]=best.guid
-                result.status="purple"
+                highlightPolicy.linkedSource(result)
                 combatEffectAdd(enemyEffects,best.guid,card.guid,{noAttack=true,all=true})
             end
         end
@@ -272,7 +273,7 @@ function M.process(context)
                     local pairCount=snapshot~=nil and snapshot.pairs or 0
                     result.resources={[category]=(chosen[category] or 0)*pairCount}
                     result.complete=pairCount>0
-                    result.status=pairCount>0 and "green" or "blue"
+                    result.status=highlightPolicy.contribution(pairCount>0)
                     result.sacrificePairs=pairCount
                 end
             else
@@ -377,7 +378,7 @@ function M.process(context)
         if enemyTarget~=nil and result.resources~=nil then
             result.enemyGUID=enemyTarget.guid
             result.links[#result.links+1]=enemyTarget.guid
-            result.status="purple"
+            highlightPolicy.linkedSource(result)
         end
         -- Enemy debuffs can have a separate lock from printed Attack resources.
         if rule~=nil and rule.enemyEffect~=nil and result.resources~=nil
@@ -541,7 +542,7 @@ function M.process(context)
         end
         local manaLink=manaByCard[card.guid]
         if manaLink~=nil then
-            result.status="purple"
+            highlightPolicy.linkedSource(result)
             result.links[#result.links+1]=manaLink.skillGUID
             result.convertedMana=manaLink.converted
         end
@@ -587,7 +588,7 @@ function M.process(context)
                 result.pendingTerrainModifiers=result.pendingTerrainModifiers or {}
                 result.pendingTerrainModifiers[#result.pendingTerrainModifiers+1]=rule.extraTerrainMana.effect
                 result.links[#result.links+1]=extraManaGUID
-                result.status="purple"
+                highlightPolicy.linkedSource(result)
             end
         end
         -- Persistent movement rules are non-numeric abilities: collect them

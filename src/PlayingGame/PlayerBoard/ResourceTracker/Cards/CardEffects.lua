@@ -1,6 +1,7 @@
 -- Evaluate played card effects and sideways resources using the coordinator's
 -- existing choice, terrain, payment and combat helpers. No scanning, UI or
 -- lifecycle ownership is transferred here; game data is read live.
+local highlightPolicy=require("PlayingGame.PlayerBoard.ResourceTracker.Core.HighlightPolicy")
 return function(deps)
     local trackerPrivate=deps.trackerPrivate
     local combatConfig=deps.combatConfig
@@ -219,9 +220,9 @@ return function(deps)
         for _,effect in ipairs(cardTerrainEffects(rule,powered) or {}) do
             if terrainEffectActive(effect) then scriptedTerrain=true break end
         end
-        local status=(not known or not sideTracked or posture=="discard"
-            or (choiceIsUntracked and costPaid and not scriptedMovement and not scriptedTerrain)) and "blue"
-            or not complete and "yellow" or "green"
+        local recognized=known and sideTracked and posture~="discard"
+            and not (choiceIsUntracked and costPaid and not scriptedMovement and not scriptedTerrain)
+        local status=highlightPolicy.certainty(recognized,complete)
         -- The printed crystal gain on Savage Harvesting is deliberately manual.
         -- Move is still counted, but a green "fully understood" highlight would lie.
         -- Golden Grail's basic Fame is complete once both Heal points are confirmed;

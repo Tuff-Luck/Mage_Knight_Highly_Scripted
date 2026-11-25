@@ -1,5 +1,6 @@
 -- Evaluate played Skill resource records without owning physical discovery,
 -- links, player choices, or UI. Read the game catalog and turn state live.
+local highlightPolicy=require("PlayingGame.PlayerBoard.ResourceTracker.Core.HighlightPolicy")
 return function(deps)
     local skillChoicesForCurrentTurn=deps.skillChoicesForCurrentTurn
     local chosenEffect=deps.chosenEffect
@@ -99,7 +100,7 @@ return function(deps)
             or (linkedTarget~=nil or unitLinked) and "purple"
             or (unitResolved or inventoryResolved) and "green"
             or rule.linkedCard~=nil and linkedTarget==nil and "yellow"
-            or tracked and (rule.partial and "yellow" or "green")
+            or tracked and highlightPolicy.certainty(true,not rule.partial)
             or targeted and "green"
             or effects~=nil and "blue" or "yellow"
         local links={}

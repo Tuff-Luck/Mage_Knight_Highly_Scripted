@@ -1,6 +1,7 @@
 -- Shared enemy-effect source bookkeeping; actual rules and immunity remain
 -- in CombatEffects. The caller owns eligibility, timing and completion.
 local M={}
+local highlightPolicy=require("PlayingGame.PlayerBoard.ResourceTracker.Core.HighlightPolicy")
 function M.register(record,key)
     record.enemyEffectTargetKeys=record.enemyEffectTargetKeys or {}
     for _,existing in ipairs(record.enemyEffectTargetKeys) do
@@ -22,7 +23,7 @@ function M.link(record,key,guid,policy)
     end
     if key~=nil then M.target(record,key,guid) end
     record.links[#record.links+1]=guid
-    if policy.purple then record.status="purple" end
+    if policy.purple then highlightPolicy.linkedSource(record)
     if policy.complete then record.complete=true end
 end
 return M

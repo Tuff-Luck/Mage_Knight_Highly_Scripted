@@ -37,4 +37,23 @@ assert(totals.attack==7 and totals.attackFire==nil)
 records,totals=scan({a=4,b=5})
 assert(records.reward.links[1]=="b" and records.b.resources.attackFire==4)
 assert(totals.attack==3 and totals.attackFire==4)
+-- Vial of Toxin links to a Unit without stealing the activation outline.
+local unit={guid="unit"}
+env.gameCards.unit={cardType="Regular Unit"}
+local records={
+    unit={kind="unit",resources={attack=3},contributes=true,links={},status="green"},
+    reward={kind="factionReward",modifier="physicalBoost",links={},status="yellow"}
+}
+local totals={attack=3}
+local highlighted={}
+rewards.modifiers({records=records,objects={unit=unit,reward={guid="reward"}},
+    footprint=function(obj) return obj end,overlapArea=function() return 5 end,
+    cardPosture=function() return "upright" end,attackTransforms={},totals=totals,
+    addResourceAmounts=function(record,target)
+        for field,amount in pairs(record.resources) do target[field]=(target[field] or 0)+amount end
+    end,
+    setHighlight=function(obj,status) highlighted[obj.guid]=status end})
+assert(records.unit.status=="green" and records.unit.links[1]=="reward")
+assert(records.reward.status=="purple" and highlighted.reward=="purple")
+assert(highlighted.unit==nil and totals.attack==6)
 print("Physical link ambiguity and Faction Reward scan passed")

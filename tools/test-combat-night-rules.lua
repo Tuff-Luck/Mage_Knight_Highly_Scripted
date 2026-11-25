@@ -1,3 +1,4 @@
+package.path="src/?.lua;"..package.path
 -- Regression for combat Night rules from Dungeon/Tomb and marked enemy tokens.
 -- Run from repo root: lua5.2 tools/test-combat-night-rules.lua
 local file=assert(io.open("src/PlayingGame/PlayerBoard/CardRecognition.lua","r"))
