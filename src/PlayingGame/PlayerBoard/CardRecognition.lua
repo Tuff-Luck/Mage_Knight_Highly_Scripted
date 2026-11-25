@@ -123,11 +123,6 @@ trackerPrivate.commandPickupForUnits={}
 -- Unit outlines require a Command token physically on the card and a valid
 -- activation this turn. Wounds and site restrictions also suppress outlines.
 trackerPrivate.unitHighlightBlocked={}
--- Reuse a single immutable terrain modifier. Constructing a new table on
--- every scan would make the terrain-effect comparison think the cost changed
--- even when Foresters' chosen ability is unchanged.
-trackerPrivate.forestersTerrainModifier={mode="reduce",
-    terrains={forest=true,hills=true,swamp=true},amount=1,minimum=0}
 
 -- Minimizing is OFF: no play-area scanning, Unit automation or tracker overlays.
 -- Reopening starts a new tracking session using the physical table.
@@ -4993,12 +4988,7 @@ local calculateSkill=require("PlayingGame.PlayerBoard.ResourceTracker.Cards.Skil
 })
 
 -- Stable modifier instances prevent false movement redraws on every scan.
-combatConfig.druidicTerrainEffects={}
-for _,terrain in ipairs({"plains","hills","forest","wasteland","desert",
-    "swamp","lake","mountain","city"}) do
-    combatConfig.druidicTerrainEffects[terrain]={
-        mode="reduce",terrains={[terrain]=true},amount=1,minimum=2}
-end
+combatConfig.druidicTerrainEffects=require("PlayingGame.PlayerBoard.ResourceTracker.Cards.TerrainModifiers").selectedTerrainDiscounts
 combatConfig.terrainEffectOrder={set=0,cap=1,reduce=2}
 local function terrainModifierPrecedes(a,b)
     local first,second=combatConfig.terrainEffectOrder[a.mode] or 9,combatConfig.terrainEffectOrder[b.mode] or 9

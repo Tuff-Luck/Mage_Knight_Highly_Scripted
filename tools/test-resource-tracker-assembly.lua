@@ -5,7 +5,7 @@ local root="src/PlayingGame/PlayerBoard/"
 local prefix="PlayingGame.PlayerBoard.ResourceTracker."
 local modules=[[
 Cards.ActionLinks Cards.CardCallbacks Cards.CardEffects Cards.CrossCardEffects Cards.MovementEffects
-Cards.PlayedCardScan Cards.ResourceChoices Cards.SkillEffects Cards.SkillInteractions Cards.SkillLinks
+Cards.PlayedCardScan Cards.ResourceChoices Cards.SkillEffects Cards.SkillInteractions Cards.SkillLinks Cards.TerrainModifiers
 Combat.AttackEligibility Combat.BlockCalculation Combat.BossAllocation Combat.CombatInteraction
 Combat.CombatTargetPolicy Combat.ConditionalBlockEffects Combat.DamageCalculation Combat.DefendAllocation
 Combat.DivisibleResources Combat.EarlyCombatPhase Combat.EnemyEffectRecords Combat.EnemyGroups Combat.EnemyProperties

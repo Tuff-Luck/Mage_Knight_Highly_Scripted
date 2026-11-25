@@ -115,7 +115,7 @@ assert(cardSource:find("chosen=resourceCardsUsesDayMana() and {blockFire=value} 
 local movementFile=assert(io.open("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/MovementEffects.lua","r"))
 local movementSource=movementFile:read("*a")
 movementFile:close()
-assert(movementSource:find("return effect.dayRound==nil or effect.dayRound==(gStates.dayRound==true)",1,true),
+assert(movementSource:find("return terrainModifiers.active(effect,gStates.dayRound)",1,true),
     "Terrain movement must use actual Day/Night, not the combat Night context")
 local observationFile=assert(io.open("src/PlayingGame/PlayerBoard/ResourceTracker/Scanning/ScanObservation.lua","r"))
 local observationSource=observationFile:read("*a")

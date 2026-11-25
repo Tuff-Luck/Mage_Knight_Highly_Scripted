@@ -1,5 +1,6 @@
 -- Per-card record processing after mana and Action links have been resolved. Applies existing conditional resources, target effects, inventory choices, card controls and movement/combat flags; returns scalar flags to the scan coordinator. Does not discover mana, publish scans or change phase ordering.
 local M={}
+local terrainPolicy=require("PlayingGame.PlayerBoard.ResourceTracker.Cards.TerrainModifiers")
 local highlightPolicy=require("PlayingGame.PlayerBoard.ResourceTracker.Core.HighlightPolicy")
 local effectRecords=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.EnemyEffectRecords")
 
@@ -575,18 +576,11 @@ function M.process(context)
                 or (cardData~=nil and cardData.cardType=="Artifact")) then
             result.independentTerrain=cardData~=nil and cardData.cardType=="Artifact"
                 and (tonumber(result.resources.move) or 0)<=0
-            for _=1,(result.repeatCount or 1) do
-                for _,effect in ipairs(cardTerrainEffects(rule,result.powered) or {}) do
-                    if terrainEffectActive(effect) then
-                        result.pendingTerrainModifiers=result.pendingTerrainModifiers or {}
-                        result.pendingTerrainModifiers[#result.pendingTerrainModifiers+1]=effect
-                    end
-                end
-            end
+            terrainPolicy.stage(result,cardTerrainEffects(rule,result.powered),
+                gStates.dayRound,result.repeatCount)
             local extraManaGUID=extraTerrainManaByCard[card.guid]
             if extraManaGUID~=nil and rule.extraTerrainMana~=nil then
-                result.pendingTerrainModifiers=result.pendingTerrainModifiers or {}
-                result.pendingTerrainModifiers[#result.pendingTerrainModifiers+1]=rule.extraTerrainMana.effect
+                terrainPolicy.stage(result,{rule.extraTerrainMana.effect},gStates.dayRound)
                 result.links[#result.links+1]=extraManaGUID
                 highlightPolicy.linkedSource(result)
             end
@@ -623,10 +617,7 @@ function M.process(context)
                 local modifier=selection~=nil
                     and combatConfig.druidicTerrainEffects[selection.terrain] or nil
                 if modifier~=nil then
-                    for _=1,(result.repeatCount or 1) do
-                        result.pendingTerrainModifiers=result.pendingTerrainModifiers or {}
-                        result.pendingTerrainModifiers[#result.pendingTerrainModifiers+1]=modifier
-                    end
+                    terrainPolicy.stage(result,{modifier},gStates.dayRound,result.repeatCount)
                 else
                     -- Only movement-role Druidic Paths needs a terrain choice.
                     result.pendingTerrainChoice=true

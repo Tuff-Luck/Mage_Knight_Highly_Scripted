@@ -47,7 +47,8 @@ local byType={
         special(2,"Ready a Level I or II Unit",{key="ready"}),
         special(3,"Gain a green mana token",{key="gain"})},
     Foresters={
-        value(1,"move",2,"Move 2; forests, hills and swamps cost 1 less (minimum 0)",{terrainReduce=true}),
+        value(1,"move",2,"Move 2; forests, hills and swamps cost 1 less (minimum 0)",{terrainEffects={{mode="reduce",terrains={forest=true,hills=true,swamp=true},
+            amount=1,minimum=0}}}),
         value(2,"block",3,"Block 3")},
     UtemCrossbowmen={
         value(1,"attack",3,"Attack 3"),value(1,"block",3,"Block 3"),

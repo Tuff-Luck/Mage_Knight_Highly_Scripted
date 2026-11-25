@@ -1,5 +1,6 @@
 -- Resource Tracker movement effects. Static weather modifier records retain
 -- their identities across scans; live globals are read when calculating costs.
+local terrainModifiers=require("PlayingGame.PlayerBoard.ResourceTracker.Cards.TerrainModifiers")
 local function ownedSkillAtSeat(guid,seatPos)
     local home=gStates~=nil and gStates.mageSkills~=nil and gStates.mageSkills[guid] or nil
     return home~=nil and home[1]~=nil and home[3]~=nil
@@ -62,13 +63,11 @@ local function resourceCardsWeatherTerrainEffects(seatPos)
 end
 
 local function cardTerrainEffects(rule,powered)
-    if rule==nil or rule.terrainEffects==nil then return nil end
-    if powered then return rule.terrainEffects.powered end
-    return rule.terrainEffects.normal
+    return terrainModifiers.side(rule,powered)
 end
 
 local function terrainEffectActive(effect)
-    return effect.dayRound==nil or effect.dayRound==(gStates.dayRound==true)
+    return terrainModifiers.active(effect,gStates.dayRound)
 end
 
 local function terrainEffectApplies(effect,terrain)
@@ -130,16 +129,11 @@ local function resourceCardsEffectiveExploreCost()
         local seatPos=turnOrder[gStates.turnNumber].seatPos
         for guid,rule in pairs(skillResourceDefinitions) do
             if ownedSkillAtSeat(guid,seatPos) then
-                for _,effect in ipairs(rule.passiveTerrain or {}) do
+                local effects={}
+                terrainModifiers.passive(effects,rule,gStates.dayRound)
+                for _,effect in ipairs(effects) do
                     if effect.mode=="reduce" and terrainEffectApplies(effect,"explore") then
-                        cost=math.max(effect.minimum or 0,cost-effect.amount)
-                    end
-                end
-                if gStates.dayRound~=true then
-                    for _,effect in ipairs(rule.passiveNightTerrain or {}) do
-                        if effect.mode=="reduce" and terrainEffectApplies(effect,"explore") then
-                            cost=math.max(effect.minimum or 0,cost-effect.amount)
-                        end
+                        cost=math.min(cost,math.max(effect.minimum or 0,cost-effect.amount))
                     end
                 end
             end

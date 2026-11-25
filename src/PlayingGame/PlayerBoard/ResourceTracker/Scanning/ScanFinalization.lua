@@ -1,5 +1,6 @@
 -- Passive terrain overlays, remaining Skill/mana/puppet records, linked Unit highlights, Spirit Guides and Wings of Night costs. Runs at original scan boundaries.
 local M={}
+local terrainPolicy=require("PlayingGame.PlayerBoard.ResourceTracker.Cards.TerrainModifiers")
 local highlightPolicy=require("PlayingGame.PlayerBoard.ResourceTracker.Core.HighlightPolicy")
 
 -- Publish only effects belonging to the final, effective movement source.
@@ -9,9 +10,7 @@ function M.playedMovement(context)
     for guid,record in pairs(records) do
         if record.pendingTerrainModifiers~=nil or record.pendingSingleSpaceDiscount~=nil
             or record.pendingIgnoreRampagers or record.pendingTerrainChoice then
-            local movement=record.independentTerrain==true
-                or ((tonumber(record.resources~=nil and record.resources.move) or 0)>0
-                    and context.resourceCardsMoveRole(guid,false)=="movement")
+            local movement=terrainPolicy.movementEligible(record,guid,context.resourceCardsMoveRole)
             if movement then
                 for _,effect in ipairs(record.pendingTerrainModifiers or {}) do
                     terrainModifiers[#terrainModifiers+1]=effect
@@ -40,18 +39,7 @@ function M.passiveTerrain(context)
     -- Read immutable rule tables so identical scans don't invalidate movement.
     for skillGUID,rule in pairs(skillResourceDefinitions) do
         if ownedSkillAtSeat(skillGUID,seatPos) then
-            for _,effect in ipairs(rule.passiveTerrain or {}) do
-                terrainModifiers[#terrainModifiers+1]=effect
-            end
-            if gStates.dayRound~=true then
-                for _,effect in ipairs(rule.passiveNightTerrain or {}) do
-                    terrainModifiers[#terrainModifiers+1]=effect
-                end
-            else
-                for _,effect in ipairs(rule.passiveDayTerrain or {}) do
-                    terrainModifiers[#terrainModifiers+1]=effect
-                end
-            end
+            terrainPolicy.passive(terrainModifiers,rule,gStates.dayRound)
             local extra=rule.skillManaTerrain
             if extra~=nil then
                 local token=getObjectFromGUID(skillGUID)
@@ -60,7 +48,7 @@ function M.passiveTerrain(context)
                     for _,mana in ipairs(manaObjects) do
                         if placements[mana.guid]=="play" and manaColor(mana)==extra.color
                             and manaInsideFootprint(mana,area) then
-                            terrainModifiers[#terrainModifiers+1]=extra.effect
+                            terrainPolicy.append(terrainModifiers,{extra.effect},gStates.dayRound)
                             break
                         end
                     end

@@ -1,6 +1,7 @@
 -- Unit scan passes. Read live activation history and paid abilities; keep scan order,
 -- shared records and final publication with the coordinator.
 local M={}
+local terrainPolicy=require("PlayingGame.PlayerBoard.ResourceTracker.Cards.TerrainModifiers")
 local highlightPolicy=require("PlayingGame.PlayerBoard.ResourceTracker.Core.HighlightPolicy")
 local effectRecords=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.EnemyEffectRecords")
 
@@ -194,8 +195,8 @@ function M.process(context)
                     if unitHistorySelectedNumber(unitGUID)==useIndex then
                         setHighlight(unit,result.status,false)
                     end
-                    if selected~=nil and selected.terrainReduce and result.complete then
-                        result.pendingTerrainModifiers={trackerPrivate.forestersTerrainModifier}
+                    if selected~=nil and selected.terrainEffects~=nil and result.complete then
+                        terrainPolicy.stage(result,selected.terrainEffects,gStates.dayRound)
                     end
                     if selected~=nil and selected.boostOtherUnits and result.complete then
                         shocktroopsBoosts=shocktroopsBoosts+1

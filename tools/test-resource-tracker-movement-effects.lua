@@ -12,6 +12,9 @@ local env=setmetatable({
     resourceCardsPanelOpen=function() return open end
 },{__index=_G})
 env.require=function(name)
+    if name=="PlayingGame.PlayerBoard.ResourceTracker.Cards.TerrainModifiers" then
+        return assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/TerrainModifiers.lua","t",env))()
+    end
     assert(name=="PlayingGame.PlayerBoard.ResourceTracker.Cards.MovementEffects")
     return assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/MovementEffects.lua","t",env))()
 end
