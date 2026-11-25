@@ -16,13 +16,14 @@ return function(trackerPrivate)
         if trackerPrivate.traceEnabled then return trackerPrivate.profileClock() or false end
         return nil
     end
-    trackerPrivate.profileFinish=function(name,started)
+    trackerPrivate.profileFinish=function(name,started,finished)
         if started==nil or not trackerPrivate.traceEnabled then return end
         local stats=trackerPrivate.profileStats[name] or {count=0,ms=0,maxMs=0,timed=0}
         trackerPrivate.profileStats[name]=stats
         stats.count=stats.count+1
         if type(started)=="number" then
-            local now=trackerPrivate.profileClock()
+            local now=finished
+            if now==nil then now=trackerPrivate.profileClock() end
             if type(now)=="number" then
                 local ms=math.max(0,(now-started)*1000)
                 stats.ms=stats.ms+ms
@@ -30,6 +31,15 @@ return function(trackerPrivate)
                 stats.timed=stats.timed+1
             end
         end
+    end
+    -- Consecutive stages share a single clock reading at each boundary.
+    -- A false timestamp means timing is unavailable, but counts still work.
+    -- Disabled profiling does not read the clock or allocate a stats record.
+    trackerPrivate.profileCheckpoint=function(name,started)
+        if started==nil or not trackerPrivate.traceEnabled then return nil end
+        local now=trackerPrivate.profileClock() or false
+        trackerPrivate.profileFinish(name,started,now)
+        return now
     end
     trackerPrivate.profileCount=function(name)
         trackerPrivate.profileFinish(name,false)

@@ -85,10 +85,48 @@ assert(math.abs(private.profileStats["combat.refresh"].maxMs-10)<0.001)
 assert(private.profileStats["block.hit"].count==1)
 assert(command("status"))
 assert(messages[#messages]:find("combat.refresh count=2 total=15.00ms avg=7.50ms max=10.00ms",1,true))
+-- Exclusive stages share the exact boundary and do not double-count.
+local clockReads=0
+private.profileClock=function()
+    clockReads=clockReads+1
+    return tick
+end
+local boundary=private.profileStart()
+tick=tick+0.004
+boundary=private.profileCheckpoint("rows.grouping",boundary)
+tick=tick+0.006
+boundary=private.profileCheckpoint("rows.allocation",boundary)
+tick=tick+0.002
+private.profileFinish("rows.finalLayout",boundary)
+assert(clockReads==4,"One clock sample per stage boundary")
+assert(math.abs(private.profileStats["rows.grouping"].ms-4)<0.001)
+assert(math.abs(private.profileStats["rows.allocation"].ms-6)<0.001)
+assert(math.abs(private.profileStats["rows.finalLayout"].ms-2)<0.001)
+assert(math.abs(private.profileStats["rows.grouping"].ms
+    +private.profileStats["rows.allocation"].ms
+    +private.profileStats["rows.finalLayout"].ms-12)<0.001)
+local rowStart=assert(source:find("local function combatAssignmentRefreshRows(entries,sources)",1,true))
+local rowEnd=assert(source:find("local function combatCalcShutdown()",rowStart,true))
+local rowSource=source:sub(rowStart,rowEnd-1)
+local last=1
+for _,name in ipairs({"grouping","enemyHeaders","allocation","earlyCombat","damage",
+    "lateAttack","bossUpdates","rewards","defeatMarks","resourceDisplay",
+    "resultRenderer","columnLayout","woundSummary"}) do
+    local pos=assert(rowSource:find('profileCheckpoint("rows.'..name..'",stageProfile)',last,true),
+        "Missing ordered combat profiling stage "..name)
+    last=pos+1
+end
+assert(rowSource:find('profileFinish("rows.finalLayout",stageProfile)',last,true))
 private.profileClock=function() return nil end
+local untimed=private.profileCheckpoint("rows.untimed",private.profileStart())
+assert(untimed==false and private.profileStats["rows.untimed"].count==1
+    and private.profileStats["rows.untimed"].timed==0)
 private.profileFinish("clock.unavailable",private.profileStart())
 assert(private.profileStats["clock.unavailable"].count==1 and private.profileStats["clock.unavailable"].timed==0)
 assert(command("off"))
+private.profileClock=function() error("Disabled profiler must not sample the clock") end
+assert(private.profileCheckpoint("rows.disabled",private.profileStart())==nil)
+assert(private.profileStats["rows.disabled"]==nil)
 private.profileCount("block.hit")
 assert(private.profileStats["block.hit"].count==1,"Disabled trace has no profiling side effects")
 assert(command("on"))

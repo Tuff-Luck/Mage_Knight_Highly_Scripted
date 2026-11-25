@@ -2813,6 +2813,10 @@ trackerPrivate.combatPanelRenderer=require("PlayingGame.PlayerBoard.ResourceTrac
     function(...) return joinLang(...) end)
 
 local function combatAssignmentRefreshRows(entries,sources)
+    -- Exclusive stage timings within combat.rows. Existing block.result,
+    -- damage.phase and UI counters are nested measurements, not extra time.
+    local stageProfile
+    if trackerPrivate.traceEnabled then stageProfile=trackerPrivate.profileStart() end
     combatConfig.resultRowCache={}
     combatConfig.slotSelection={}
     combatConfig.effectSources={}
@@ -2839,6 +2843,7 @@ local function combatAssignmentRefreshRows(entries,sources)
     -- Text shown in the ability columns and the columns that hold anything, so empty columns can be hidden.
     local shownTraits,shownOffence,shownAttacks,colUsed={},{},{},{range=false,block=false,attack=false}
     local groups,groupOf=trackerPrivate.enemyGroups.build(entries,combatAssignmentJoined)
+    if stageProfile~=nil then stageProfile=trackerPrivate.profileCheckpoint("rows.grouping",stageProfile) end
     local enemyNameWidth=trackerPrivate.combatPanelLayout.nameColumnWidth(entries,groupOf,pageOffset,pageEnd)
     combatConfig.columns.Name=enemyNameWidth
     for row=1,combatConfig.rowCount do
@@ -2911,6 +2916,7 @@ local function combatAssignmentRefreshRows(entries,sources)
         end
     end
 
+    if stageProfile~=nil then stageProfile=trackerPrivate.profileCheckpoint("rows.enemyHeaders",stageProfile) end
     combatAssignmentSlotSources={}
     combatConfig.slotBowFamilies={}
     local allocated=trackerPrivate.sourceTargetAllocation.allocate(
@@ -2920,6 +2926,7 @@ local function combatAssignmentRefreshRows(entries,sources)
                 field.." budget="..tostring(allowed).." allocated="..tostring(actual))
         end or nil)
 
+    if stageProfile~=nil then stageProfile=trackerPrivate.profileCheckpoint("rows.allocation",stageProfile) end
     combatConfig.applyExplosiveBoltRange(entries,groups,allocated,sources)
 
     trackerPrivate.flameWave(entries,groups,allocated,sources)
@@ -2963,6 +2970,7 @@ local function combatAssignmentRefreshRows(entries,sources)
             resourceCardsSourceChanged()
         end
     end
+    if stageProfile~=nil then stageProfile=trackerPrivate.profileCheckpoint("rows.earlyCombat",stageProfile) end
     -- Damage phase: each unblocked attack of an enemy that is not already defeated starts on the Hero.
     local damageSeat=combatAssignmentActiveSeat()
     local selfWoundsEarly,selfWoundsLate=combatConfig.selfWoundingUnitChoices(damageSeat,groups)
@@ -2996,6 +3004,7 @@ local function combatAssignmentRefreshRows(entries,sources)
     end
     if damageProfile~=nil then trackerPrivate.profileFinish("damage.phase",damageProfile) end
 
+    if stageProfile~=nil then stageProfile=trackerPrivate.profileCheckpoint("rows.damage",stageProfile) end
     trackerPrivate.lateCombatPhase.vampiric(entries,groups,rowBlock,damageItems,damageResults)
 
     trackerPrivate.lateCombatPhase.lateEffects(entries,groups,rowBlock,earlyLock,seatScan,combatEffectPostDamageSpecs~=nil)
@@ -3039,6 +3048,7 @@ local function combatAssignmentRefreshRows(entries,sources)
     local defeatFame,defeatRep=trackerPrivate.lateCombatPhase.resolve(
         entries,groups,rowBlock,woundedBeforeAttack,paralysisAttackCards,
         gStates~=nil and gStates.forkedLightningPhase or nil)
+    if stageProfile~=nil then stageProfile=trackerPrivate.profileCheckpoint("rows.lateAttack",stageProfile) end
     -- Scenario modules still own Shields, physical level markers, and
     -- reward finalisation; the calculator only publishes calculated amounts.
     local dragonOwners={}
@@ -3076,6 +3086,7 @@ local function combatAssignmentRefreshRows(entries,sources)
     for owner in pairs(dragonOwners) do apocalypseDragonRefreshGroundFameGain(owner) end
     if leaderChanged then mainUIUpdate("Combat leader levels") end
 
+    if stageProfile~=nil then stageProfile=trackerPrivate.profileCheckpoint("rows.bossUpdates",stageProfile) end
     -- Knockout was resolved before Attack, so a staged card cannot
     -- incorrectly defeat an enemy once the Hero has lost their hand.
     -- An active Sword gives +1 Fame for EACH real enemy defeated, even when
@@ -3180,6 +3191,7 @@ local function combatAssignmentRefreshRows(entries,sources)
     end
     combatDefeatFameRep.fame,combatDefeatFameRep.rep=defeatFame,defeatRep
     resourceCardsApplyFameRep(damageSeat)
+    if stageProfile~=nil then stageProfile=trackerPrivate.profileCheckpoint("rows.rewards",stageProfile) end
     local trackedGuids,defeatedGuids,partialGuids={},{},{}
     for _,group in ipairs(groups) do
         for _,index in ipairs(group.members) do
@@ -3201,18 +3213,22 @@ local function combatAssignmentRefreshRows(entries,sources)
         end
     end
     combatSetDefeatMarks(trackedGuids,defeatedGuids,partialGuids)
+    if stageProfile~=nil then stageProfile=trackerPrivate.profileCheckpoint("rows.defeatMarks",stageProfile) end
     local displayByIndex,overflow=trackerPrivate.combatResourceDisplay(
         entries,groups,allocated,emptyTarget,rowBlock,seatScan,woundedBeforeAttack,
         paralysisAttackCards,damageResults,mitigation,elementMitigation)
+    if stageProfile~=nil then stageProfile=trackerPrivate.profileCheckpoint("rows.resourceDisplay",stageProfile) end
     totalRowHeight=trackerPrivate.combatRowRenderer(entries,groupOf,rowBlock,displayByIndex,
         seatScan,damageResults,knockout,pageOffset,visibleRows,shownTraits,shownOffence,shownAttacks,
         colUsed,maxResourceCounts,combatAssignmentSlotSources,combatAssignmentState,
         combatReductionAttackChoice,combatExpandedResults,combatAttackChoiceByRow,
         gStates.combatBossManual,totalRowHeight)
 
+    if stageProfile~=nil then stageProfile=trackerPrivate.profileCheckpoint("rows.resultRenderer",stageProfile) end
     local columnWidths,baseWidth=trackerPrivate.combatPanelRenderer.columns(
         shownTraits,shownOffence,shownAttacks,colUsed,maxResourceCounts,enemyNameWidth)
 
+    if stageProfile~=nil then stageProfile=trackerPrivate.profileCheckpoint("rows.columnLayout",stageProfile) end
     if earlyLock==nil and combatConfig.phasePreview~=nil then
         combatConfig.phasePreview.attackDiscards=combatFrozenCopy(stagedAttackCards)
     end
@@ -3223,7 +3239,9 @@ local function combatAssignmentRefreshRows(entries,sources)
     totalRowHeight=totalRowHeight+trackerPrivate.combatPanelRenderer.woundSummary(
         totalHeroWounds,totalDiscardWounds,knockout,pendingHand,pendingDiscard,changed,effects)
 
+    if stageProfile~=nil then stageProfile=trackerPrivate.profileCheckpoint("rows.woundSummary",stageProfile) end
     trackerPrivate.combatPanelRenderer.finish(overflow,baseWidth,columnWidths,enemyNameWidth,combatExpandedResults,pages)
+    if stageProfile~=nil then trackerPrivate.profileFinish("rows.finalLayout",stageProfile) end
     return totalRowHeight+(pages>1 and 22 or 0)+(overflow>0 and 18 or 0)
 end
 
