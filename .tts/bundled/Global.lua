@@ -352,7 +352,7 @@ end
 function onChat(message, player)
 	if player~=nil and player.admin==true then
         -- Opt-in resource tracker trace; only the admin can dump the ring log.
-        local traceAction=type(message)=="string" and message:match("^!trackertrace%s*(%a*)%s*$") or nil
+        local traceAction=type(message)=="string" and (message:match("^!trackertrace%s+(slow%s+%d+)%s*$") or message:match("^!trackertrace%s*(%a*)%s*$")) or nil
         if traceAction~=nil and resourceCardsTraceCommand~=nil then
             if traceAction=="" then traceAction="status" end
             if resourceCardsTraceCommand(traceAction,player.color) then return false end
@@ -6093,14 +6093,26 @@ end
 
 local RESOURCE_TRACKER_ZERO_TEXT_COLOR="#555555" -- Adjust this shade to tune empty-resource contrast.
 local resourceTrackerDisplayCache={}
+local resourceTrackerTextInputs={}
 function invalidateResourceTrackerDisplayCache()
     resourceTrackerDisplayCache={}
+    resourceTrackerTextInputs={}
 end
 local function setResourceTrackerDisplayAttribute(id,attribute,value)
     local key=id.."\0"..attribute
     if resourceTrackerDisplayCache[key]==value then return end
-    resourceTrackerDisplayCache[key]=value
     UI.setAttribute(id,attribute,value)
+    resourceTrackerDisplayCache[key]=value
+end
+
+-- joinLang emits every language in one string. Reuse unchanged inputs before
+-- performing that translation work, rather than only skipping the final write.
+local function setResourceTrackerText(id,parts)
+    local first,second=tostring(parts[1]),tostring(parts[2])
+    local previous=resourceTrackerTextInputs[id]
+    if previous~=nil and previous.first==first and previous.second==second then return end
+    setResourceTrackerDisplayAttribute(id,"text",joinLang(parts))
+    resourceTrackerTextInputs[id]={first=first,second=second}
 end
 
 -- Return both the ordinary Influence pool (usable by Learning and other
@@ -6136,8 +6148,9 @@ function refreshResourceTrackerText()
     local interactionTotal,influenceBase,influenceGenerated,reputation,shields,canModifyInfluence=
         trackerSpendableInfluence()
     local rawTotals=resourceCardsCurrentTotals() or {}
+    local valueSnapshot=resourceCardsEffectiveValueSnapshot~=nil and resourceCardsEffectiveValueSnapshot() or nil
     local healingGenerated=tonumber(rawTotals.healing) or 0
-    local healingTotal=math.max(0,resourceCardsEffectiveValue("healing","healing"))
+    local healingTotal=math.max(0,resourceCardsEffectiveValue("healing","healing",valueSnapshot))
     local moveTotal=resourceCardsEffectiveMove()
     local moveGenerated=resourceCardsGeneratedMove~=nil and resourceCardsGeneratedMove() or 0
     local moveState=gStates.resourceTracker.move or {}
@@ -6154,21 +6167,16 @@ function refreshResourceTrackerText()
         if visible then visibleHeight=visibleHeight+(height or 22)+1 end
     end
     showRow("MovemAmountPlain",moveTotal>0 or exploreCount>0,34)
-    setResourceTrackerDisplayAttribute("MovemAmountPlainText","text",
-        joinLang({RESOURCE_TRACKER_FIELDS.MovemAmountPlain[3],moveTotal}))
+    setResourceTrackerText("MovemAmountPlainText",{RESOURCE_TRACKER_FIELDS.MovemAmountPlain[3],moveTotal})
     showRow("MovemGenerated",moveGenerated~=moveTotal)
-    setResourceTrackerDisplayAttribute("MovemGeneratedText","text",
-        joinLang({RESOURCE_TRACKER_FIELDS.InfluAmountPhysi[3],moveGenerated}))
+    setResourceTrackerText("MovemGeneratedText",{RESOURCE_TRACKER_FIELDS.InfluAmountPhysi[3],moveGenerated})
     showRow("MovemSpent",travelSpent>0)
-    setResourceTrackerDisplayAttribute("MovemSpentText","text",
-        joinLang({"{en}Spent : {it}Speso : {ru}Потрачено: {zh-tw}已花費：{zh-cn}已花费：{ko}사용 : {es}Gastado : {fr}Dépensé : {pt-br}Gasto : {de}Ausgegeben : ",
-            travelSpent>0 and ("-"..tostring(travelSpent)) or "0"}))
+    setResourceTrackerText("MovemSpentText",{"{en}Spent : {it}Speso : {ru}Потрачено: {zh-tw}已花費：{zh-cn}已花费：{ko}사용 : {es}Gastado : {fr}Dépensé : {pt-br}Gasto : {de}Ausgegeben : ",
+            travelSpent>0 and ("-"..tostring(travelSpent)) or "0"})
     showRow("MovemExplore",exploreCount>0)
-    setResourceTrackerDisplayAttribute("MovemExploreText","text",
-        joinLang({"{en}Explore : {it}Esplorazione : {ru}Исследование: {zh-tw}探索：{zh-cn}探索：{ko}탐험 : {es}Explorar : {fr}Exploration : {pt-br}Exploração : {de}Erkunden : ",
-            exploreSpent>0 and ("-"..tostring(exploreSpent)) or "0"}))
-    setResourceTrackerDisplayAttribute("CombatMoveText","text",
-        joinLang({"{en}Combat Move : {it}Movimento in combattimento : {ru}Движение в бою: {zh-tw}戰鬥移動：{zh-cn}战斗移动：{ko}전투 이동 : {es}Movimiento en combate : {fr}Déplacement en combat : {pt-br}Movimento em combate : {de}Bewegung im Kampf : ",combatMove}))
+    setResourceTrackerText("MovemExploreText",{"{en}Explore : {it}Esplorazione : {ru}Исследование: {zh-tw}探索：{zh-cn}探索：{ko}탐험 : {es}Explorar : {fr}Exploration : {pt-br}Exploração : {de}Erkunden : ",
+            exploreSpent>0 and ("-"..tostring(exploreSpent)) or "0"})
+    setResourceTrackerText("CombatMoveText",{"{en}Combat Move : {it}Movimento in combattimento : {ru}Движение в бою: {zh-tw}戰鬥移動：{zh-cn}战斗移动：{ko}전투 이동 : {es}Movimiento en combate : {fr}Déplacement en combat : {pt-br}Movimento em combate : {de}Bewegung im Kampf : ",combatMove})
     showRow("CombatMove",combatMove>0)
 
     local elements={{"Physi","physical"},{"Firex","fire"},{"Icexx","ice"},
@@ -6180,15 +6188,14 @@ function refreshResourceTrackerText()
         local only=nil
         for _,element in ipairs(elements) do
             local fieldName=prefix.."Amount"..element[1]
-            local value=math.max(0,resourceCardsEffectiveValue(family,element[2]))
+            local value=math.max(0,resourceCardsEffectiveValue(family,element[2],valueSnapshot))
             values[fieldName]=value
             total=total+value
             if value>0 then nonzero=nonzero+1 only=fieldName end
         end
         showRow(prefix.."AmountPlain",total>0,34)
         local spec=RESOURCE_TRACKER_FIELDS[prefix.."AmountPlain"]
-        setResourceTrackerDisplayAttribute(prefix.."AmountPlainText","text",
-            joinLang({spec[3],total}))
+        setResourceTrackerText(prefix.."AmountPlainText",{spec[3],total})
         local elementName=""
         if nonzero==1 and only~=nil then
             local label=joinLang({RESOURCE_TRACKER_FIELDS[only][3]})
@@ -6199,37 +6206,30 @@ function refreshResourceTrackerText()
             local id=prefix.."Amount"..element[1]
             local value=values[id]
             showRow(id,nonzero>1 and value>0)
-            setResourceTrackerDisplayAttribute(id.."Text","text",
-                joinLang({RESOURCE_TRACKER_FIELDS[id][3],value}))
+            setResourceTrackerText(id.."Text",{RESOURCE_TRACKER_FIELDS[id][3],value})
         end
     end
 
     -- The headline excludes Interaction-only modifiers even when no enemy
     -- is present. Generated is a breakdown only when manually adjusted.
     showRow("InfluAmountPlain",influenceBase>0,34)
-    setResourceTrackerDisplayAttribute("InfluAmountPlainText","text",
-        joinLang({RESOURCE_TRACKER_FIELDS.InfluAmountPlain[3],influenceBase}))
+    setResourceTrackerText("InfluAmountPlainText",{RESOURCE_TRACKER_FIELDS.InfluAmountPlain[3],influenceBase})
     showRow("InfluAmountPhysi",influenceGenerated~=influenceBase)
-    setResourceTrackerDisplayAttribute("InfluAmountPhysiText","text",
-        joinLang({RESOURCE_TRACKER_FIELDS.InfluAmountPhysi[3],influenceGenerated}))
+    setResourceTrackerText("InfluAmountPhysiText",{RESOURCE_TRACKER_FIELDS.InfluAmountPhysi[3],influenceGenerated})
     showRow("InfluAmountReput",canModifyInfluence and reputation~=0)
     local repText=reputation==-99 and "No Interaction"
         or (reputation>0 and "+" or "")..tostring(reputation)
-    setResourceTrackerDisplayAttribute("InfluAmountReputText","text",
-        joinLang({RESOURCE_TRACKER_FIELDS.InfluAmountReput[3],repText}))
+    setResourceTrackerText("InfluAmountReputText",{RESOURCE_TRACKER_FIELDS.InfluAmountReput[3],repText})
     showRow("InfluAmountCityS",canModifyInfluence and shields~=0 and reputation~=-99)
-    setResourceTrackerDisplayAttribute("InfluAmountCitySText","text",
-        joinLang({RESOURCE_TRACKER_FIELDS.InfluAmountCityS[3],shields>0 and ("+"..shields) or shields}))
+    setResourceTrackerText("InfluAmountCitySText",{RESOURCE_TRACKER_FIELDS.InfluAmountCityS[3],shields>0 and ("+"..shields) or shields})
     -- Separate Interaction total makes the modifier scope unambiguous.
     showRow("InfluInteractionTotal",canModifyInfluence and (reputation~=0 or shields~=0))
     local interactionDisplay=reputation==-99 and "No Interaction" or tostring(interactionTotal)
-    setResourceTrackerDisplayAttribute("InfluInteractionTotalText","text",
-        joinLang({"{en}Interaction total : {it}Totale interazione : {ru}Итого взаимодействие: {zh-tw}互動總計：{zh-cn}互动总计：{ko}상호작용 합계 : {es}Total interacción : {fr}Total interaction : {pt-br}Total interação : {de}Interaktion gesamt : ",
-            interactionDisplay}))
+    setResourceTrackerText("InfluInteractionTotalText",{"{en}Interaction total : {it}Totale interazione : {ru}Итого взаимодействие: {zh-tw}互動總計：{zh-cn}互动总计：{ko}상호작용 합계 : {es}Total interacción : {fr}Total interaction : {pt-br}Total interação : {de}Interaktion gesamt : ",
+            interactionDisplay})
 
     showRow("HealiAmountPlain",healingTotal>0,34)
-    setResourceTrackerDisplayAttribute("HealiAmountPlainText","text",
-        joinLang({RESOURCE_TRACKER_FIELDS.HealiAmountPlain[3],healingTotal}))
+    setResourceTrackerText("HealiAmountPlainText",{RESOURCE_TRACKER_FIELDS.HealiAmountPlain[3],healingTotal})
     -- At zero, the main row disappears but an unobtrusive + button remains
     -- so the player can restore a manually reduced resource.
     local missing={MovemAmountPlain=moveTotal<=0 and exploreCount==0,
@@ -6241,12 +6241,10 @@ function refreshResourceTrackerText()
     end
     showRow("ResourceTrackerAdd",anyMissing,28)
     showRow("HealiGenerated",healingGenerated~=healingTotal)
-    setResourceTrackerDisplayAttribute("HealiGeneratedText","text",
-        joinLang({RESOURCE_TRACKER_FIELDS.InfluAmountPhysi[3],healingGenerated}))
+    setResourceTrackerText("HealiGeneratedText",{RESOURCE_TRACKER_FIELDS.InfluAmountPhysi[3],healingGenerated})
     for id,spec in pairs(MOVE_COST_FIELDS) do
         local value=resourceCardsEffectiveTerrainCost(spec[1])
-        setResourceTrackerDisplayAttribute("MoveCost"..id.."Text","text",
-            joinLang({spec[2],value>900 and "X" or tostring(value)}))
+        setResourceTrackerText("MoveCost"..id.."Text",{spec[2],value>900 and "X" or tostring(value)})
     end
     resourceTrackerVisibleHeight=visibleHeight
     resourceTrackerSyncLayout(true)
@@ -23381,11 +23379,10 @@ local function positionAtHeight(position,height)
 	return {position[1],height or assignmentHeight,position[3]}
 end
 
-local function assignmentLines(source,target,color,noHead)
-	if source==nil or target==nil or source.isDestroyed() or target.isDestroyed() then return nil end
+local function assignmentLines(sourcePosition,targetPosition,color,noHead)
 	color=color or assignmentColors.other
-	local from=positionAtHeight(source.getPosition())
-	local to=positionAtHeight(target.getPosition())
+	local from=positionAtHeight(sourcePosition)
+	local to=positionAtHeight(targetPosition)
 	local dx,dz=to[1]-from[1],to[3]-from[3]
 	local distance=math.sqrt(dx*dx+dz*dz)
 	if distance<0.01 then return nil end
@@ -23406,33 +23403,56 @@ local function assignmentLines(source,target,color,noHead)
 	return lines
 end
 
+-- Only the previous pass's static geometry is retained. Positions and live
+-- object validity are sampled anew every pass; no userdata is cached.
+local previousArrowGeometry={}
 local function activeVisualLines()
 	local lines={}
+    local positions,nextGeometry={},{}
+    local function positionOf(guid)
+        if guid==nil then return nil end
+        local position=positions[guid]
+        if position~=nil then return position or nil end
+        local obj=getObjectFromGUID(guid)
+        if obj~=nil and not obj.isDestroyed() then
+            local live=obj.getPosition()
+            position={live[1],0,live[3]}
+        else
+            position=false
+        end
+        positions[guid]=position
+        return position or nil
+    end
+    local function appendStatic(sourceGUID,targetGUID,color,noHead,frozen)
+        local from=frozen or positionOf(sourceGUID)
+        local to=positionOf(targetGUID)
+        if from==nil or to==nil then return end
+        local key=sourceGUID.."\0"..targetGUID.."\0"..tostring(color)
+            .."\0"..tostring(noHead==true).."\0"..tostring(frozen~=nil)
+        local cached=nextGeometry[key] or previousArrowGeometry[key]
+        -- Exact X/Z comparisons preserve the original geometry for even tiny
+        -- changes. Y is deliberately irrelevant at the fixed arrow height.
+        if cached==nil or cached.sx~=from[1] or cached.sz~=from[3]
+            or cached.tx~=to[1] or cached.tz~=to[3] then
+            cached={sx=from[1],sz=from[3],tx=to[1],tz=to[3],
+                lines=assignmentLines(from,to,color,noHead) or {}}
+        end
+        nextGeometry[key]=cached
+        for _,line in ipairs(cached.lines) do lines[#lines+1]=line end
+    end
+    local lock=combatCommittedLock~=nil and combatCommittedLock() or nil
 	for _,entry in pairs(assignmentRegistry) do
-		-- TTS may invalidate userdata for a replaced object without clearing
-		-- its earlier assignment. Resolve fresh objects from the saved GUIDs
-		-- rather than reading a stale cached source/target reference.
-		local source=getObjectFromGUID(assignmentBaseGUID(entry.sourceGUID))
-		local target=getObjectFromGUID(entry.targetGUID)
-        local lock=combatCommittedLock~=nil and combatCommittedLock() or nil
         local frozen=lock~=nil and (lock.sourceKeys or {})[entry.sourceGUID]==true
             and (lock.positions or {})[entry.sourceGUID] or nil
-        if frozen~=nil then
-            -- A frozen arrow stays on the play-area location even when the
-            -- physical card is retrieved, stacked, or moved to the hand.
-            source={getPosition=function() return frozen end,
-                isDestroyed=function() return false end}
-        end
-		local assignment=assignmentLines(source,target,assignmentColorFor(entry.kind))
-		for _,line in ipairs(assignment or {}) do lines[#lines+1]=line end
+        -- Frozen sources use the saved play-area position; targets remain live.
+        appendStatic(assignmentBaseGUID(entry.sourceGUID),entry.targetGUID,
+            assignmentColorFor(entry.kind),false,frozen)
 	end
     -- Readying links remain visible even after their Command token returns to
     -- the ready slot. They identify the specific effect that authorised reuse.
     if resourceCardsPanelOpen~=nil and resourceCardsPanelOpen() then
         for sourceKey,link in pairs(gStates~=nil and gStates.unitReadyLinks or {}) do
-            local arrow=assignmentLines(getObjectFromGUID(unitHistorySourceBase(sourceKey)),
-                getObjectFromGUID(link.unitGUID),assignmentColors.other)
-            for _,line in ipairs(arrow or {}) do lines[#lines+1]=line end
+            appendStatic(unitHistorySourceBase(sourceKey),link.unitGUID,assignmentColors.other)
         end
     end
     for color,pending in pairs(readyUnitPending) do
@@ -23450,25 +23470,22 @@ local function activeVisualLines()
     -- Spirit Guides may link to a Block source anywhere in the play area.
     -- Its purple arrow is separate from enemy Attack/Block assignments.
     for skillGUID,targetGUID in pairs(gStates~=nil and gStates.blockSourceLinks or {}) do
-        local arrow=assignmentLines(getObjectFromGUID(skillGUID),getObjectFromGUID(targetGUID),assignmentColors.other)
-        for _,line in ipairs(arrow or {}) do lines[#lines+1]=line end
+        appendStatic(skillGUID,targetGUID,assignmentColors.other)
     end
     -- Ambush's card buff is independent of its blue Cumbersome Move arrow.
     -- Only the tracker shows this purple, card-to-card targeting link.
     if resourceCardsPanelOpen~=nil and resourceCardsPanelOpen() then
         for sourceGUID,targetGUID in pairs(gStates~=nil and gStates.ambushCombatLinks or {}) do
-            local arrow=assignmentLines(getObjectFromGUID(sourceGUID),
-                getObjectFromGUID(targetGUID),assignmentColors.other)
-            for _,line in ipairs(arrow or {}) do lines[#lines+1]=line end
+            appendStatic(sourceGUID,targetGUID,assignmentColors.other)
         end
     end
 	for key,guids in pairs(damageTargets) do
 		local attack=damageSpec.byKey[key]
-		local owner=attack~=nil and getObjectFromGUID(attack.owner) or nil
-		for _,guid in ipairs(guids) do
-			local assignment=assignmentLines(owner,getObjectFromGUID(guid),assignmentColors.damage,true)
-			for _,line in ipairs(assignment or {}) do lines[#lines+1]=line end
-		end
+		if attack~=nil then
+            for _,guid in ipairs(guids) do
+                appendStatic(attack.owner,guid,assignmentColors.damage,true)
+            end
+        end
 	end
 	-- A forced first recipient is also a real damage assignment and should be visible
 	-- without making the player click an additional control.
@@ -23480,9 +23497,7 @@ local function activeVisualLines()
 				if manual==guid then manuallyLinked=true break end
 			end
 			if not manuallyLinked then
-				local owner=getObjectFromGUID(attack.owner)
-				local assignment=assignmentLines(owner,getObjectFromGUID(guid),assignmentColors.damage,true)
-				for _,line in ipairs(assignment or {}) do lines[#lines+1]=line end
+                appendStatic(attack.owner,guid,assignmentColors.damage,true)
 			end
 		end
 	end
@@ -23516,11 +23531,13 @@ local function activeVisualLines()
 			lines[#lines+1]={points={from,to},color=assignmentColorFor(pending.kind),thickness=previewThickness,rotation={0,0,0}}
 		end
 	end
+    -- Removed assignments and missing objects are pruned automatically.
+    previousArrowGeometry=nextGeometry
 	return lines
 end
 
-function attackAssignmentsAppendVectorLines(lines)
-	local assignmentLinesNow=activeVisualLines()
+function attackAssignmentsAppendVectorLines(lines,prepared)
+	local assignmentLinesNow=prepared or activeVisualLines()
 	local result=attackAssignmentsWithoutVectorLines(lines)
 	for _,line in ipairs(assignmentLinesNow) do result[#result+1]=line end
 	renderedAssignmentLineKeys=assignmentLineKeys(assignmentLinesNow)
@@ -23687,10 +23704,44 @@ function attackAssignmentsRefreshTargetButtons(monsters)
         or next(readyUnitPending)~=nil then syncTargetButtons(monsters) end
 end
 
-local function refreshRenderedLines(force)
-	local signature=vectorLineSignature(activeVisualLines())
-	if not force and signature==renderedSignature then return end
-	Global.setVectorLines(attackAssignmentsAppendVectorLines(Global.getVectorLines() or {}))
+-- Compare the actual assignment geometry and colour as a multiset. Other
+-- vector owners may replace the table's lines between calculator refreshes.
+local function assignmentLinesIntact(desired,current)
+    local function key(line)
+        local geometry=vectorLineKey(line)
+        local r,g,b=vectorComponents(line.color)
+        if geometry==nil or r==nil or g==nil or b==nil then return nil end
+        return geometry..string.format(":%.3f,%.3f,%.3f",r,g,b)
+    end
+    local counts={}
+    for _,line in ipairs(desired) do
+        local k=key(line)
+        if k==nil then return false end
+        counts[k]=(counts[k] or 0)+1
+    end
+    for _,line in pairs(current) do
+        local geometry=vectorLineKey(line)
+        if isAssignmentLine(line) or (geometry~=nil and renderedAssignmentLineKeys[geometry]) then
+            local k=key(line)
+            if k==nil or (counts[k] or 0)==0 then return false end
+            counts[k]=counts[k]-1
+        end
+    end
+    for _,count in pairs(counts) do if count~=0 then return false end end
+    return true
+end
+
+local function refreshRenderedLines(force,verify)
+	local lines=activeVisualLines()
+	local signature=vectorLineSignature(lines)
+    local current
+    if not force and signature==renderedSignature then
+        if not verify then return end
+        current=Global.getVectorLines() or {}
+        if assignmentLinesIntact(lines,current) then return end
+    end
+	Global.setVectorLines(attackAssignmentsAppendVectorLines(current or Global.getVectorLines() or {},lines))
+    if resourceCardsTraceMutation~=nil then resourceCardsTraceMutation("arrow.redraw",#lines.." lines") end
 	renderedSignature=signature
 end
 
@@ -23988,6 +24039,17 @@ function attackAssignmentsDamageSync(spec)
 			damageSpec.reserved[guid]=attack.key
 		end
 	end
+    -- No eligible Units, no red links and no targeting overlays: there is
+    -- nothing to reconcile. Retain the fresh attack index for snapshots,
+    -- but avoid building signatures or forcing a vector redraw on each Block.
+    -- The first transition to this state still runs normal cleanup below.
+    if damageSignature=="#NO_UNITS" and next(damageSpec.units)==nil
+        and next(damageTargets)==nil and damagePending==nil
+        and next(damageButtonObjects)==nil and next(damageOwnerSignatures)==nil
+        and next(damageTargetUnits)==nil then
+        if hasRuntimeWork() then scheduleRefresh() end
+        return
+    end
 	for key,guids in pairs(damageTargets) do
 		local kept={}
 		for _,guid in ipairs(damageSpec.byKey[key]~=nil and guids or {}) do
@@ -24045,10 +24107,15 @@ function attackAssignmentsDamageSync(spec)
     if signature~=damageSignature or clearanceChanged then
         damageSignature=signature
         rebuildDamageButtons()
-		-- Red damage lines coexist with Unit source-target lines. On block/unblock
-		-- transitions, force reconciliation even if another system redrew vectors.
-		refreshRenderedLines(true)
+        -- Damage amounts do not themselves change line geometry. Verify the
+        -- actual lines on the table instead of forcing an identical redraw.
+        refreshRenderedLines(false,true)
 	end
+    if next(damageSpec.units)==nil and next(damageTargets)==nil and damagePending==nil
+        and next(damageButtonObjects)==nil and next(damageOwnerSignatures)==nil
+        and next(damageTargetUnits)==nil then
+        damageSignature="#NO_UNITS"
+    end
 	if hasRuntimeWork() then scheduleRefresh() end
 end
 
@@ -24541,6 +24608,32 @@ local function persistAssignments()
 	gStates.attackAssignments=saved
 end
 
+-- Auto-assignment changes remain visible to the allocation registry immediately,
+-- but persistence and vector rendering are coalesced until the pass completes.
+local sourceTargetBatch
+local function publishSourceTargetChange(schedule)
+    if sourceTargetBatch~=nil then
+        sourceTargetBatch.changed=true
+        sourceTargetBatch.schedule=sourceTargetBatch.schedule or schedule
+    else
+        persistAssignments()
+        refreshRenderedLines()
+        if schedule then scheduleRefresh() end
+    end
+end
+
+function attackAssignmentsWithTargetBatch(callback,...)
+    if sourceTargetBatch~=nil then return callback(...) end
+    local batch={}
+    sourceTargetBatch=batch
+    local ok,result=pcall(callback,...)
+    sourceTargetBatch=nil
+    -- Flush even on a failed pass so the registry and persisted arrows agree.
+    if batch.changed then publishSourceTargetChange(batch.schedule) end
+    if not ok then error(result,0) end
+    return result
+end
+
 -- A source can own several arrows (one primary plus point allocations). Keep
 -- the calculator's primary while it still has an arrow. If that arrow is
 -- removed, promote the oldest remaining assignment, never a random pairs()
@@ -24919,27 +25012,28 @@ function attackAssignmentsSetSourceTarget(sourceGUID,targetGUID,kind)
 	local id=tostring(assignmentCounter)
 	assignmentRegistry[id]={id=id,source=source,target=target,sourceGUID=sourceGUID,
 		targetGUID=targetGUID,resource="panel",playerColor=nil,kind=kind}
-	persistAssignments()
-	refreshRenderedLines()
-	scheduleRefresh()
+    publishSourceTargetChange(true)
 end
 
 -- Auto-targeted sources get the same arrow a manual assignment would draw.
 function attackAssignmentsEnsureTarget(sourceGUID,targetGUID,kind)
     if combatCommittedSource(sourceGUID) then return end
-    local found=false
+    local found,changes=false,nil
     for _,entry in pairs(assignmentRegistry) do
-        if entry.sourceGUID==sourceGUID and entry.targetGUID==targetGUID then
-            found=true
-            break
+        if entry.sourceGUID==sourceGUID then
+            if entry.targetGUID==targetGUID then found=true end
+            if kind~=nil and entry.kind~=kind then
+                changes=changes or {}
+                changes[#changes+1]=entry
+            end
         end
     end
-    if found then
-        -- A split Move/Influence pool can have multiple saved arrows.
-        -- Update every arrow of that source without altering any allocation.
-        if kind~=nil then attackAssignmentsReconcileEffectTarget(sourceGUID,targetGUID,kind) end
-    else
+    if not found then
         attackAssignmentsSetSourceTarget(sourceGUID,targetGUID,kind)
+    elseif changes~=nil and not attackAssignmentsIsTargeting(sourceGUID) then
+        -- Preserve all split Move/Influence arrows; recolour in one registry pass.
+        for _,entry in ipairs(changes) do entry.kind=kind end
+        publishSourceTargetChange(false)
     end
 end
 
@@ -24957,8 +25051,7 @@ function attackAssignmentsReconcileEffectTarget(sourceGUID,targetGUID,kind)
     if not found then
         attackAssignmentsEnsureTarget(sourceGUID,targetGUID,kind)
     elseif changed then
-        persistAssignments()
-        refreshRenderedLines()
+        publishSourceTargetChange(false)
     end
 end
 
@@ -26932,7 +27025,11 @@ function combatSetDefeatMarks(tracked,defeated,partial)
 	combatDefeatMarksActive=true
 	combatDefeatTracked,combatDefeatDefeated,combatDefeatPartial=tracked,defeated,partial
 	combatDefeatRefreshTokens(refresh)
+    if resourceCardsTraceMutation~=nil then
+        for guid in pairs(refresh) do resourceCardsTraceMutation("defeat.reconcile",guid) end
+    end
 	if next(changed)~=nil or trackingChanged or progressChanged then
+        if resourceCardsTraceMutation~=nil then resourceCardsTraceMutation("defeat.mainUIUpdate") end
 		mainUIUpdate("Combat Calculator defeat marks")
 	end
 end
@@ -49973,6 +50070,9 @@ require("PlayingGame.PlayerBoard.ResourceTracker.Core.Diagnostics")(trackerPriva
 function resourceCardsTraceCommand(command,playerColor)
     return trackerPrivate.traceCommand(command,playerColor)
 end
+function resourceCardsTraceMutation(kind,detail)
+    if trackerPrivate.traceEnabled then trackerPrivate.profileMutation(kind,detail) end
+end
 local shown={}
 -- Runtime choices are kept here; explicit played choices are serialized by TrackerLifecycle.
 local selectedResourceByGUID={}
@@ -50072,11 +50172,6 @@ trackerPrivate.commandPickupForUnits={}
 -- Unit outlines require a Command token physically on the card and a valid
 -- activation this turn. Wounds and site restrictions also suppress outlines.
 trackerPrivate.unitHighlightBlocked={}
--- Reuse a single immutable terrain modifier. Constructing a new table on
--- every scan would make the terrain-effect comparison think the cost changed
--- even when Foresters' chosen ability is unchanged.
-trackerPrivate.forestersTerrainModifier={mode="reduce",
-    terrains={forest=true,hills=true,swamp=true},amount=1,minimum=0}
 
 -- Minimizing is OFF: no play-area scanning, Unit automation or tracker overlays.
 -- Reopening starts a new tracking session using the physical table.
@@ -50426,24 +50521,12 @@ local function combatEffectOf(guid)
     return scan~=nil and scan.enemyEffects~=nil and scan.enemyEffects[guid] or nil
 end
 
-combatConfig.transformFamilies={attack=true,ranged=true,siege=true}
-combatConfig.elementSuffixes={"ColdFire","Fire","Ice","Psychic"}
+combatConfig.resourceOperations=require("PlayingGame.PlayerBoard.ResourceTracker.Core.ResourceOperations")
 
 -- The single place that maps a resource key through active attack transformations (Altem Mages).
 -- Cold Fire replaces the element; Siege replaces the family and keeps the element. Block is never changed.
 function resourceCardsTransformedKey(key,transform)
-    if transform==nil or (not transform.coldFire and not transform.siege) then return key end
-    local family,suffix=key,""
-    for _,candidate in ipairs(combatConfig.elementSuffixes) do
-        if key:sub(-#candidate)==candidate and #key>#candidate then
-            family,suffix=key:sub(1,#key-#candidate),candidate
-            break
-        end
-    end
-    if combatConfig.transformFamilies[family]~=true then return key end
-    if transform.siege then family="siege" end
-    if transform.coldFire then suffix="ColdFire" end
-    return family..suffix
+    return combatConfig.resourceOperations.globalAttackKey(key,transform)
 end
 
 -- A primary Move/Psychic arrow owns all the points left on that physical
@@ -50742,6 +50825,10 @@ local function combatAssignmentSources(seat)
                 end
                 amount=amount-consumed
             end
+        end
+        if amount>0 and trackerPrivate.traceEnabled then
+            trackerPrivate.traceEvent("resource.conversionUnderpaid",seat,nil,
+                field.." shortfall="..tostring(amount))
         end
     end
     local function converted(guid,part,original,points,resourceCost)
@@ -51096,14 +51183,22 @@ combatConfig.captureParalyzedUnitSources=function(seat,unitGUID)
     return true
 end
 
-local function combatNearestEnemyGUID(source,entries,eligible)
-    local sourceObject=getObjectFromGUID(source.guid)
-    local sourcePosition=sourceObject~=nil and sourceObject.getPosition()
-        or source.retiredUnitPosition
+local function combatNearestEnemyGUID(source,entries,eligible,positions)
+    -- Allocation passes may share a short-lived physical position snapshot.
+    -- Other callers still obtain fresh positions without a cache.
+    local function positionOf(guid)
+        if positions~=nil and positions[guid]~=nil then
+            return positions[guid] or nil
+        end
+        local obj=getObjectFromGUID(guid)
+        local position=obj~=nil and obj.getPosition() or nil
+        if positions~=nil then positions[guid]=position or false end
+        return position
+    end
+    local sourcePosition=positionOf(source.guid) or source.retiredUnitPosition
     if sourcePosition==nil then return nil end
     local nearestGUID,nearestDistance=nil,nil
     for _,entry in ipairs(entries) do
-        local enemy=getObjectFromGUID(entry.guid)
         local forkDuplicate=false
         if source.forkedLightning then
             for key,target in pairs(combatAssignmentState.targets or {}) do
@@ -51111,16 +51206,18 @@ local function combatNearestEnemyGUID(source,entries,eligible)
                     and target==entry.guid then forkDuplicate=true break end
             end
         end
-        if enemy~=nil and not forkDuplicate and entry.guid~=source.possessExclude
+        if not forkDuplicate and entry.guid~=source.possessExclude
             and (eligible==nil or eligible(entry.guid))
             and (not entry.attackOnly
             or source.ranged+source.siege+source.attack==0) then
-            local position=enemy.getPosition()
-            local dx,dz=position[1]-sourcePosition[1],position[3]-sourcePosition[3]
-            local distance=dx*dx+dz*dz
-            if nearestDistance==nil or distance<nearestDistance
-                or (distance==nearestDistance and entry.guid<nearestGUID) then
-                nearestGUID,nearestDistance=entry.guid,distance
+            local position=positionOf(entry.guid)
+            if position~=nil then
+                local dx,dz=position[1]-sourcePosition[1],position[3]-sourcePosition[3]
+                local distance=dx*dx+dz*dz
+                if nearestDistance==nil or distance<nearestDistance
+                    or (distance==nearestDistance and entry.guid<nearestGUID) then
+                    nearestGUID,nearestDistance=entry.guid,distance
+                end
             end
         end
     end
@@ -51497,9 +51594,26 @@ combatConfig.COMBAT_EFFICIENT_BLOCKS={
 trackerPrivate.combatPanelAttributes={}
 local function combatPanelSetAttribute(id,attribute,value)
     local key=id.."\0"..attribute
-    if trackerPrivate.combatPanelAttributes[key]==value then return end
-    trackerPrivate.combatPanelAttributes[key]=value
+    if trackerPrivate.combatPanelAttributes[key]==value then
+        if trackerPrivate.traceEnabled then trackerPrivate.profileCount("ui.attribute.skipped") end
+        return
+    end
+    local writeProfile
+    if trackerPrivate.traceEnabled then writeProfile=trackerPrivate.profileStart() end
     UI.setAttribute(id,attribute,value)
+    if writeProfile~=nil then
+        trackerPrivate.profileUIWrite(id,writeProfile)
+        if trackerPrivate.profileCapturing~=nil and trackerPrivate.profileCapturing() then
+            trackerPrivate.profileMutation("combat.uiWrite")
+            if (attribute=="active" or attribute=="height" or attribute=="preferredHeight"
+                or attribute=="interactable") and (id:find("CombatApplyWounds",1,true)
+                or id:find("CombatTotal",1,true) or id=="CombatEnemyPanel") then
+                trackerPrivate.profileMutation("combat.layout",id.." "..attribute.."="..tostring(value))
+            end
+        end
+    end
+    trackerPrivate.combatPanelAttributes[key]=value
+    if trackerPrivate.traceEnabled then trackerPrivate.profileCount("ui.attribute.written") end
 end
 
 -- Selection changes affect icon tint only; they cannot change combat outcomes.
@@ -51515,26 +51629,33 @@ end
 local function combatAssignmentIconButton(id,active,amount,icon,tooltip,selected,textColor,wounded,ineffective)
     combatPanelSetAttribute(id,"active",active and "true" or "false")
     if active then
-        combatPanelSetAttribute(id.."Image","image",icon)
-        combatPanelSetAttribute(id.."Image","rectAlignment","MiddleCenter")
-        combatPanelSetAttribute(id.."Image","offsetXY","0 0")
-        combatPanelSetAttribute(id.."Image","width","24")
-        combatPanelSetAttribute(id.."Image","height","24")
-        combatPanelSetAttribute(id.."Image","preserveAspect","true")
-        combatPanelSetAttribute(id.."Amount","text",tostring(amount))
-        combatPanelSetAttribute(id.."Amount","rectAlignment","MiddleCenter")
-        combatPanelSetAttribute(id.."Amount","offsetXY","0 0")
-        combatPanelSetAttribute(id.."Amount","width","24")
-        combatPanelSetAttribute(id.."Amount","height","24")
-        combatPanelSetAttribute(id.."Amount","preferredHeight","24")
-        combatPanelSetAttribute(id.."Amount","alignment","MiddleCenter")
-        combatPanelSetAttribute(id.."Amount","fontSize","18")
-        combatPanelSetAttribute(id.."Amount","fontStyle","Bold")
-        combatPanelSetAttribute(id.."Amount","color",textColor or "White")
-        combatPanelSetAttribute(id.."Amount","outline","rgb(0,0,0)")
-        combatPanelSetAttribute(id.."Amount","outlineSize","1 -1")
-        combatPanelSetAttribute(id,"preferredWidth","24")
-        combatPanelSetAttribute(id,"preferredHeight","26")
+        local imageID,amountID=id.."Image",id.."Amount"
+        -- Fixed geometry is applied once per slot, for the lifetime of the
+        -- same attribute cache. Dynamic text, tint and interaction stay live.
+        local styleKey="style\0"..id
+        if not trackerPrivate.combatPanelAttributes[styleKey] then
+            combatPanelSetAttribute(imageID,"rectAlignment","MiddleCenter")
+            combatPanelSetAttribute(imageID,"offsetXY","0 0")
+            combatPanelSetAttribute(imageID,"width","24")
+            combatPanelSetAttribute(imageID,"height","24")
+            combatPanelSetAttribute(imageID,"preserveAspect","true")
+            combatPanelSetAttribute(amountID,"rectAlignment","MiddleCenter")
+            combatPanelSetAttribute(amountID,"offsetXY","0 0")
+            combatPanelSetAttribute(amountID,"width","24")
+            combatPanelSetAttribute(amountID,"height","24")
+            combatPanelSetAttribute(amountID,"preferredHeight","24")
+            combatPanelSetAttribute(amountID,"alignment","MiddleCenter")
+            combatPanelSetAttribute(amountID,"fontSize","18")
+            combatPanelSetAttribute(amountID,"fontStyle","Bold")
+            combatPanelSetAttribute(amountID,"outline","rgb(0,0,0)")
+            combatPanelSetAttribute(amountID,"outlineSize","1 -1")
+            combatPanelSetAttribute(id,"preferredWidth","24")
+            combatPanelSetAttribute(id,"preferredHeight","26")
+            trackerPrivate.combatPanelAttributes[styleKey]=true
+        end
+        combatPanelSetAttribute(imageID,"image",icon)
+        combatPanelSetAttribute(amountID,"text",tostring(amount))
+        combatPanelSetAttribute(amountID,"color",textColor or "White")
         combatPanelSetAttribute(id,"color",
             (wounded or ineffective) and "rgb(0.90,0.37,0.35)"
             or (selected and "rgb(1,0.75,0.2)" or "rgb(0.85,0.82,0.72)"))
@@ -51622,7 +51743,14 @@ trackerPrivate.blockResults=require("PlayingGame.PlayerBoard.ResourceTracker.Com
     combatConfig,trackerPrivate.blockSolver,combatEnemyAttacks,
     combatNatureVengeanceBlockBonus,combatRich)
 local function combatBlockResult(entry,sources)
-    return trackerPrivate.blockResults(entry,sources,trackerPrivate.combatBlockResultCache)
+    if not trackerPrivate.traceEnabled then
+        return trackerPrivate.blockResults(entry,sources,trackerPrivate.combatBlockResultCache)
+    end
+    local profile=trackerPrivate.traceEnabled and (trackerPrivate.profileStart() or true) or nil
+    local result={trackerPrivate.blockResults(entry,sources,trackerPrivate.combatBlockResultCache,
+        trackerPrivate.profileCount)}
+    trackerPrivate.profileFinish("block.result",profile)
+    return table.unpack(result,1,12)
 end
 
 -- Damage phase. Every unblocked attack starts wholly on the Hero; the player may route it through free Units first
@@ -51849,6 +51977,7 @@ combatConfig.woundRecordPreview=function(seat,items,results,knockout,otherWounds
     local ledger=combatConfig.woundLedger(seat)
     if ledger==nil then return end
     local expected={}
+    local unitAssignments,fortitude=0,{}
     for _,item in ipairs(items or {}) do
         local result=results[item.key] or {}
         -- Previously destroyed Units are no longer physically in the Unit zone.
@@ -51859,6 +51988,12 @@ combatConfig.woundRecordPreview=function(seat,items,results,knockout,otherWounds
             destroyed[guid]=absorbed
         end
         for _,entry in ipairs(result.units or {}) do
+            if entry.unit~=nil and entry.unit.guid~=nil then
+                unitAssignments=unitAssignments+1
+                if entry.fortitudePrevented and entry.unit.fortitudeGUID~=nil then
+                    fortitude[entry.unit.fortitudeGUID]={attackKey=item.key}
+                end
+            end
             if entry.destroyed==true and entry.wounded==true
                 and entry.unit~=nil and entry.unit.guid~=nil then
                 destroyed[entry.unit.guid]=entry.absorbed or 0
@@ -51869,6 +52004,8 @@ combatConfig.woundRecordPreview=function(seat,items,results,knockout,otherWounds
             destroyed=destroyed}
     end
     ledger.preview=expected
+    ledger.previewUnitAssignments=unitAssignments
+    ledger.previewFortitude=fortitude
     ledger.previewKnockout=knockout==true
     ledger.previewOtherWounds=math.max(0,tonumber(otherWounds) or 0)
     -- The confirmed plan survives moving cards away and save/reload.
@@ -51883,10 +52020,12 @@ combatConfig.woundPending=function(ledger)
     local allocations,hand,discard,changed={},0,0,false
     local effects={paralyse={},destroyed={},paralyseCount=0,destroyCount=0,
         stagedDiscards={},stagedDiscardCount=0,
-        knockout=false,handDiscard=false}
+        knockout=false,handDiscard=false,unitAssignments=0,unitCommitPending=false}
     if ledger==nil or not ledger.hasPreview then
         return allocations,hand,discard,changed,effects
     end
+    effects.unitAssignments=ledger.previewUnitAssignments or 0
+    effects.unitCommitPending=effects.unitAssignments>0 and ledger.damageAssignmentsCommitted~=true
     for key,expected in pairs(ledger.preview) do
         local applied=(ledger.applied or {})[key] or {}
         local h=math.max(0,(expected.hand or 0)-(applied.hand or 0))
@@ -51975,10 +52114,13 @@ end
 -- The latest preview is checked after the dialog and again after TTS
 -- records its rewind point; a changed plan must not use stale counts.
 combatConfig.woundCommitSignature=function(ledger)
-    if ledger==nil or ledger.hasPreview~=true then return nil end
+    if combatConfig.scanAwaitingRescan or ledger==nil or ledger.hasPreview~=true then return nil end
     local parts={tostring(ledger.seat),tostring(ledger.previewKnockout==true),
         tostring(ledger.previewOtherWounds or 0),
-        tostring(ledger.handDiscardApplied==true)}
+        tostring(ledger.handDiscardApplied==true),
+        tostring(ledger.previewUnitAssignments or 0),
+        tostring(ledger.damageAssignmentsCommitted==true),
+        combatConfig.decisionFingerprint(ledger.previewFortitude or {})}
     local keys,seen={},{}
     for key in pairs(ledger.preview or {}) do
         keys[#keys+1]=key
@@ -52068,6 +52210,7 @@ end
 function resourceCardsRequestCombatWounds(player)
     local color=player~=nil and player.color or nil
     if not resourceCardsPanelOpen() or not resourceCardsPlayerCanEdit(color)
+        or combatConfig.scanAwaitingRescan
         or combatConfig.woundApplying or combatConfig.woundTransactionPending then return end
     -- A previous partial application may have committed the phase but not
     -- finished its physical consequences. Let the player confirm a safe retry.
@@ -52077,7 +52220,7 @@ function resourceCardsRequestCombatWounds(player)
     if ledger==nil then return end
     local _,hand,discard,changed,effects=combatConfig.woundPending(ledger)
     if hand+discard+effects.destroyCount+effects.stagedDiscardCount==0
-        and not effects.handDiscard then
+        and not effects.handDiscard and not effects.unitCommitPending then
         if changed then
             broadcastToColor("Combat damage changed after consequences were applied. Check physical cards; they cannot be undone automatically.",
                 color,warningColor)
@@ -52130,6 +52273,12 @@ function resourceCardsRequestCombatWounds(player)
         discard
     }
     local summaryHeight=154
+    if effects.unitCommitPending then
+        summaryParts[#summaryParts+1]="\n"
+        summaryParts[#summaryParts+1]="{en}Unit damage assignments: {it}Assegnazioni dei danni alle Unità: {ru}Назначения урона отрядам: {zh-tw}單位傷害分配：{zh-cn}单位伤害分配：{ko}유닛 피해 배정: {es}Asignaciones de daño a unidades: {fr}Affectations de dégâts aux unités : {pt-br}Atribuições de dano às unidades: {de}Schadenszuweisungen an Einheiten: "
+        summaryParts[#summaryParts+1]=effects.unitAssignments
+        summaryHeight=summaryHeight+24
+    end
     if (ledger.previewOtherWounds or 0)>0 then
         summaryParts[#summaryParts+1]="\n"
         summaryParts[#summaryParts+1]="{en}Other combat Wounds already taken: "
@@ -52272,6 +52421,9 @@ combatConfig.woundConfirmChoice=function(player,id)
                 rewindTransactionFinish(owner)
             end)
         if not ok or startedOrError~=true then
+            -- A synchronous exception can bypass the normal finish callback.
+            -- Release the busy flag while retaining the idempotent ledger.
+            combatConfig.woundApplying=false
             -- An exception may occur after a physical move. Preserve the
             -- snapshot conservatively; the next Apply click can retry it.
             if ok and existingLock==nil then
@@ -52300,13 +52452,14 @@ end
 
 function resourceCardsApplyCombatWounds(player,onComplete)
     if not resourceCardsPanelOpen() or not resourceCardsPlayerCanEdit(player and player.color or nil)
-        or combatConfig.woundApplying then return false end
+        or combatConfig.scanAwaitingRescan or combatConfig.woundApplying then return false end
     local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
     local ledger=current~=nil and combatConfig.woundLedger(current.seatPos) or nil
     local allocations,hand,discard,changed,effects=combatConfig.woundPending(ledger)
     if current==nil or ledger==nil then return false end
     if hand+discard==0 and not effects.handDiscard
-        and effects.destroyCount+effects.stagedDiscardCount==0 then
+        and effects.destroyCount+effects.stagedDiscardCount==0
+        and not effects.unitCommitPending then
         if changed then
             broadcastToColor("Combat damage changed after Wounds were dealt. Check the physical cards; none are removed automatically.",
                 player.color,warningColor)
@@ -52341,9 +52494,13 @@ function resourceCardsApplyCombatWounds(player,onComplete)
                     ..". Check the physical cards and click again to finish.",
                     player.color,warningColor)
             end
-            resourceCardsSourceChanged()
-            mainUIUpdate("Combat Wounds applied")
+            -- UI refresh errors must not strand a protected rewind transaction.
+            local refreshed,refreshError=pcall(function()
+                resourceCardsSourceChanged()
+                mainUIUpdate("Combat Wounds applied")
+            end)
             if onComplete~=nil then onComplete(success,reason,physicallyTouched) end
+            if not refreshed then error(refreshError) end
         end
         if onComplete==nil or (not unitAreaTouched and next(settlingGUIDs)==nil)
             or safeWaitFrames==nil or safeWaitCondition==nil then
@@ -52470,6 +52627,17 @@ function resourceCardsApplyCombatWounds(player,onComplete)
                 applied.destroyed[effect.guid]=effect.absorbed
             end
         end
+        -- Commit previewed Banner uses only after all physical consequences
+        -- succeed. A failed transfer can retry against its frozen phase.
+        if effects.unitCommitPending then
+            if next(ledger.previewFortitude or {})~=nil then
+                local uses=trackerPrivate.bannerEffectUses().fortitude
+                for guid,use in pairs(ledger.previewFortitude) do
+                    if uses[guid]==nil then uses[guid]={attackKey=use.attackKey} end
+                end
+            end
+            ledger.damageAssignmentsCommitted=true
+        end
         finish(true)
     end
     if hand+discard==0 then
@@ -52499,6 +52667,11 @@ end
 -- A soft two-click acknowledgement also works if the tracker was minimized.
 -- An in-progress physical transfer is always held until its queue finishes.
 function combatWoundsEndTurnReminder(color)
+    if combatConfig.scanAwaitingRescan then
+        safeBroadcastToColor("Combat resources are being recalculated. Review the calculator before ending the turn.",
+            color,warningColor)
+        return true
+    end
     if combatConfig.woundConfirmation~=nil then
         safeBroadcastToColor("Confirm or cancel Combat Damage before ending the turn.",
             color,warningColor)
@@ -52518,6 +52691,11 @@ function combatWoundsEndTurnReminder(color)
         return true
     end
     local _,hand,discard,changed,effects=combatConfig.woundPending(ledger)
+    if effects.unitCommitPending then
+        safeBroadcastToColor("Confirm Unit damage with Give Wounds, or remove the damage assignments before ending the turn.",
+            color,warningColor)
+        return true
+    end
     if hand+discard==0 and not effects.handDiscard
         and effects.destroyCount+effects.stagedDiscardCount==0
         and not changed then return false end
@@ -52708,12 +52886,16 @@ trackerPrivate.combatRowRenderer=require("PlayingGame.PlayerBoard.ResourceTracke
     combatConfig,combatPanelSetAttribute,combatAssignmentIconButton,combatEnemyHasTrait,
     combatGroupTraitsText,combatEnemyAttacks,combatTypeRich,combatNatureVengeanceBlockBonus,
     combatRich,combatDamageNotes,combatGroupAttackLine,combatCompactResultLines,
-    function(guid) return monsterPugs[guid] end)
+    function(guid) return monsterPugs[guid] end,trackerPrivate)
 trackerPrivate.combatPanelRenderer=require("PlayingGame.PlayerBoard.ResourceTracker.Interface.CombatPanel").renderer(
     combatConfig,combatPanelSetAttribute,combatRich,combatWoundsText,
-    function(...) return joinLang(...) end)
+    function(...) return joinLang(...) end,trackerPrivate)
 
 local function combatAssignmentRefreshRows(entries,sources)
+    -- Exclusive stage timings within combat.rows. Existing block.result,
+    -- damage.phase and UI counters are nested measurements, not extra time.
+    local stageProfile
+    if trackerPrivate.traceEnabled then stageProfile=trackerPrivate.profileStart() end
     combatConfig.resultRowCache={}
     combatConfig.slotSelection={}
     combatConfig.effectSources={}
@@ -52740,6 +52922,7 @@ local function combatAssignmentRefreshRows(entries,sources)
     -- Text shown in the ability columns and the columns that hold anything, so empty columns can be hidden.
     local shownTraits,shownOffence,shownAttacks,colUsed={},{},{},{range=false,block=false,attack=false}
     local groups,groupOf=trackerPrivate.enemyGroups.build(entries,combatAssignmentJoined)
+    if stageProfile~=nil then stageProfile=trackerPrivate.profileCheckpoint("rows.grouping",stageProfile) end
     local enemyNameWidth=trackerPrivate.combatPanelLayout.nameColumnWidth(entries,groupOf,pageOffset,pageEnd)
     combatConfig.columns.Name=enemyNameWidth
     for row=1,combatConfig.rowCount do
@@ -52804,22 +52987,33 @@ local function combatAssignmentRefreshRows(entries,sources)
             shownOffence[row]=offenceText
             combatPanelSetAttribute("CombatEnemyRow"..row.."Offence","text",offenceText)
             local traitLines=math.max(select(2,offenceText:gsub("\n",""))+1,
-                select(2,combatEnemyTraitsText(entry.data,entry.perks,combatConfig.enemyDefenceTraits):gsub("\n",""))+1)
-            for column,width in pairs(combatConfig.columns) do
-                combatPanelSetAttribute("CombatEnemyRow"..row..column,"preferredWidth",tostring(width))
-            end
+                select(2,ownTraits:gsub("\n",""))+1)
+            -- Dynamic text widths are owned by the final column layout.
+            -- Do not overwrite them with legacy defaults before measuring them again.
+            combatPanelSetAttribute("CombatEnemyRow"..row.."Name","preferredWidth",tostring(enemyNameWidth))
+            combatPanelSetAttribute("CombatEnemyRow"..row.."Armour","preferredWidth",tostring(combatConfig.columns.Armour))
             entry.attackCount=math.max(#attacks,traitLines)
         end
     end
 
+    if stageProfile~=nil then stageProfile=trackerPrivate.profileCheckpoint("rows.enemyHeaders",stageProfile) end
     combatAssignmentSlotSources={}
     combatConfig.slotBowFamilies={}
     local allocated=trackerPrivate.sourceTargetAllocation.allocate(
-        entries,sources,rowByGUID,combatAssignmentState,combatCumbersomeActive)
+        entries,sources,rowByGUID,combatAssignmentState,combatCumbersomeActive,
+        trackerPrivate.traceEnabled and function(key,field,allowed,actual)
+            trackerPrivate.traceEvent("resource.overallocated",combatAssignmentActiveSeat(),key,
+                field.." budget="..tostring(allowed).." allocated="..tostring(actual))
+        end or nil,trackerPrivate)
 
+    if stageProfile~=nil then stageProfile=trackerPrivate.profileCheckpoint("rows.allocation",stageProfile) end
+    local earlyProfile
+    if stageProfile~=nil then earlyProfile=trackerPrivate.profileStart() end
     combatConfig.applyExplosiveBoltRange(entries,groups,allocated,sources)
+    if earlyProfile~=nil then earlyProfile=trackerPrivate.profileCheckpoint("early.explosiveBolt",earlyProfile) end
 
     trackerPrivate.flameWave(entries,groups,allocated,sources)
+    if earlyProfile~=nil then earlyProfile=trackerPrivate.profileCheckpoint("early.flameWave",earlyProfile) end
 
     local rangedBeforeBlock,conditionalDestroyed=trackerPrivate.conditionalBlockEffects.destroyAfterBlock(entries,groups,allocated)
     if conditionalDestroyed then
@@ -52838,19 +53032,24 @@ local function combatAssignmentRefreshRows(entries,sources)
         end
     end
 
+    if earlyProfile~=nil then earlyProfile=trackerPrivate.profileCheckpoint("early.conditionalDestroy",earlyProfile) end
     local emptyTarget={sources={},details={}}
     local defended=combatApplyDefend(entries,groups,allocated)
     local defendMarks={}
     for index,amount in pairs(defended) do defendMarks[entries[index].guid]=amount end
     combatSyncDefenderMark(defendMarks)
+    if earlyProfile~=nil then earlyProfile=trackerPrivate.profileCheckpoint("early.defender",earlyProfile) end
     trackerPrivate.conditionalBlockEffects.burningShield(entries,allocated,emptyTarget)
+    if earlyProfile~=nil then earlyProfile=trackerPrivate.profileCheckpoint("early.burningShield",earlyProfile) end
     local function defeatedCount(group,rangedOnly)
         return trackerPrivate.lateCombatPhase.defeatedCount(entries,group,rangedOnly)
     end
-    local rowBlock=trackerPrivate.earlyCombatPhase.resolve(entries,groups,allocated,emptyTarget,rangedBeforeBlock)
+    local rowBlock=trackerPrivate.earlyCombatPhase.resolve(entries,groups,allocated,emptyTarget,rangedBeforeBlock,trackerPrivate)
+    if earlyProfile~=nil then earlyProfile=trackerPrivate.profileCheckpoint("early.resolve",earlyProfile) end
     local earlyLock=combatPhaseLock(combatAssignmentActiveSeat())
     rowBlock=trackerPrivate.earlyCombatPhase.snapshot(
         entries,groups,groupOf,rowBlock,earlyLock,combatConfig.phasePreview)
+    if earlyProfile~=nil then earlyProfile=trackerPrivate.profileCheckpoint("early.snapshot",earlyProfile) end
     local blockedEnemies=trackerPrivate.earlyCombatPhase.countBlockedEnemies(entries,groups,rowBlock)
     local blockSeat=combatAssignmentActiveSeat()
     if blockSeat~=nil then
@@ -52860,29 +53059,47 @@ local function combatAssignmentRefreshRows(entries,sources)
             resourceCardsSourceChanged()
         end
     end
+    if earlyProfile~=nil then trackerPrivate.profileFinish("early.blockedCount",earlyProfile) end
+    if stageProfile~=nil then stageProfile=trackerPrivate.profileCheckpoint("rows.earlyCombat",stageProfile) end
     -- Damage phase: each unblocked attack of an enemy that is not already defeated starts on the Hero.
     local damageSeat=combatAssignmentActiveSeat()
     local selfWoundsEarly,selfWoundsLate=combatConfig.selfWoundingUnitChoices(damageSeat,groups)
+    local damageProfile
+    if trackerPrivate.traceEnabled then damageProfile=trackerPrivate.profileStart() end
     local damageUnits,nativeCommandCount=combatDamageUnits(damageSeat)
+    if damageProfile~=nil then damageProfile=trackerPrivate.profileCheckpoint("damage.unitDiscovery",damageProfile) end
     local damageSpec,damageItems=trackerPrivate.damagePreparation.build(entries,groups,rowBlock,damageUnits,selfWoundsEarly)
+    if damageProfile~=nil then damageProfile=trackerPrivate.profileCheckpoint("damage.prepare",damageProfile) end
     attackAssignmentsDamageSync(damageSpec)
+    if damageProfile~=nil then trackerPrivate.profileFinish("damage.targetSync",damageProfile) end
     local seatScan=damageSeat~=nil and resourceCardScanBySeat[damageSeat] or nil
     local mitigation,elementMitigation=trackerPrivate.damagePreparation.mitigationFor(seatScan,damageItems,gStates)
-    local damageResults=combatDamageResolve(damageItems,damageUnits,
-        combatHeroArmour(nativeCommandCount),attackAssignmentsDamageTargetsOf,
-        mitigation,elementMitigation,seatScan~=nil and seatScan.heroFirstWoundIgnored==true,
-        gStates~=nil and gStates.combatWoundApplication~=nil
-            and gStates.combatWoundApplication.seat==damageSeat
-            and gStates.combatWoundApplication.applied or nil)
+    damageProfile=trackerPrivate.traceEnabled and (trackerPrivate.profileStart() or true) or nil
+    local damageResults
     if earlyLock~=nil and earlyLock.damageResults~=nil then
-        damageResults=combatFrozenCopy(earlyLock.damageResults) or damageResults
-    elseif combatConfig.phasePreview~=nil then
-        combatConfig.phasePreview.damageResults=combatFrozenCopy(damageResults)
-        if attackAssignmentsDamageSnapshot~=nil then
-            combatConfig.phasePreview.damage=attackAssignmentsDamageSnapshot()
+        -- Do not recalculate the committed Damage phase just to discard it.
+        -- Restore the mitigation controls from the same authoritative results.
+        damageResults=combatFrozenCopy(earlyLock.damageResults)
+        trackerPrivate.damagePreparation.restoreMitigations(damageResults,mitigation,elementMitigation)
+        if trackerPrivate.traceEnabled then trackerPrivate.profileCount("damage.frozen") end
+    else
+        damageResults=combatDamageResolve(damageItems,damageUnits,
+            combatHeroArmour(nativeCommandCount),attackAssignmentsDamageTargetsOf,
+            mitigation,elementMitigation,seatScan~=nil and seatScan.heroFirstWoundIgnored==true,
+            gStates~=nil and gStates.combatWoundApplication~=nil
+                and gStates.combatWoundApplication.seat==damageSeat
+                and gStates.combatWoundApplication.applied or nil)
+        if trackerPrivate.traceEnabled then trackerPrivate.profileCount("damage.resolved") end
+        if combatConfig.phasePreview~=nil then
+            combatConfig.phasePreview.damageResults=combatFrozenCopy(damageResults)
+            if attackAssignmentsDamageSnapshot~=nil then
+                combatConfig.phasePreview.damage=attackAssignmentsDamageSnapshot()
+            end
         end
     end
+    if damageProfile~=nil then trackerPrivate.profileFinish("damage.phase",damageProfile) end
 
+    if stageProfile~=nil then stageProfile=trackerPrivate.profileCheckpoint("rows.damage",stageProfile) end
     trackerPrivate.lateCombatPhase.vampiric(entries,groups,rowBlock,damageItems,damageResults)
 
     trackerPrivate.lateCombatPhase.lateEffects(entries,groups,rowBlock,earlyLock,seatScan,combatEffectPostDamageSpecs~=nil)
@@ -52922,10 +53139,13 @@ local function combatAssignmentRefreshRows(entries,sources)
     for guid in pairs(selfWoundsLate) do
         if woundedBeforeAttack[guid]~=true then selfWounds[guid]=true end
     end
+    damageProfile=trackerPrivate.traceEnabled and (trackerPrivate.profileStart() or true) or nil
     attackAssignmentsUnitPreviewSync(damageSeat,damageResults,selfWounds)
+    if damageProfile~=nil then trackerPrivate.profileFinish("damage.unitPreviewSync",damageProfile) end
     local defeatFame,defeatRep=trackerPrivate.lateCombatPhase.resolve(
         entries,groups,rowBlock,woundedBeforeAttack,paralysisAttackCards,
         gStates~=nil and gStates.forkedLightningPhase or nil)
+    if stageProfile~=nil then stageProfile=trackerPrivate.profileCheckpoint("rows.lateAttack",stageProfile) end
     -- Scenario modules still own Shields, physical level markers, and
     -- reward finalisation; the calculator only publishes calculated amounts.
     local dragonOwners={}
@@ -52963,6 +53183,7 @@ local function combatAssignmentRefreshRows(entries,sources)
     for owner in pairs(dragonOwners) do apocalypseDragonRefreshGroundFameGain(owner) end
     if leaderChanged then mainUIUpdate("Combat leader levels") end
 
+    if stageProfile~=nil then stageProfile=trackerPrivate.profileCheckpoint("rows.bossUpdates",stageProfile) end
     -- Knockout was resolved before Attack, so a staged card cannot
     -- incorrectly defeat an enemy once the Hero has lost their hand.
     -- An active Sword gives +1 Fame for EACH real enemy defeated, even when
@@ -53067,6 +53288,7 @@ local function combatAssignmentRefreshRows(entries,sources)
     end
     combatDefeatFameRep.fame,combatDefeatFameRep.rep=defeatFame,defeatRep
     resourceCardsApplyFameRep(damageSeat)
+    if stageProfile~=nil then stageProfile=trackerPrivate.profileCheckpoint("rows.rewards",stageProfile) end
     local trackedGuids,defeatedGuids,partialGuids={},{},{}
     for _,group in ipairs(groups) do
         for _,index in ipairs(group.members) do
@@ -53074,8 +53296,7 @@ local function combatAssignmentRefreshRows(entries,sources)
             local guid=entry.guid
             if not entry.attackOnly and not entry.preview then
                 trackedGuids[guid]=true
-                if group.defeated or entry.rangeDead or entry.attackDead
-                    or (not group.rangeDefeated and entry.attackPhaseDestroyed) then
+                if trackerPrivate.lateCombatPhase.enemyDefeated(entry,group,false) then
                     defeatedGuids[guid]=true
                 elseif entry.bossLevel~=nil
                     and (entry.bossRangeLevels or 0)+(entry.bossAttackLevels or 0)>0 then
@@ -53088,19 +53309,33 @@ local function combatAssignmentRefreshRows(entries,sources)
             end
         end
     end
+    if trackerPrivate.traceEnabled and trackerPrivate.profileCapturing() then
+        local states={}
+        for index,entry in ipairs(entries) do
+            states[entry.guid]=(defeatedGuids[entry.guid] and "defeated"
+                or (partialGuids[entry.guid] and "partial" or "alive"))
+                .."/"..(rowBlock[index].allBlocked and "blocked" or "unblocked")
+        end
+        trackerPrivate.profileCombatState(damageSeat or 0,states,
+            tostring(totalHeroWounds).."/"..tostring(totalDiscardWounds))
+    end
     combatSetDefeatMarks(trackedGuids,defeatedGuids,partialGuids)
+    if stageProfile~=nil then stageProfile=trackerPrivate.profileCheckpoint("rows.defeatMarks",stageProfile) end
     local displayByIndex,overflow=trackerPrivate.combatResourceDisplay(
         entries,groups,allocated,emptyTarget,rowBlock,seatScan,woundedBeforeAttack,
         paralysisAttackCards,damageResults,mitigation,elementMitigation)
+    if stageProfile~=nil then stageProfile=trackerPrivate.profileCheckpoint("rows.resourceDisplay",stageProfile) end
     totalRowHeight=trackerPrivate.combatRowRenderer(entries,groupOf,rowBlock,displayByIndex,
         seatScan,damageResults,knockout,pageOffset,visibleRows,shownTraits,shownOffence,shownAttacks,
         colUsed,maxResourceCounts,combatAssignmentSlotSources,combatAssignmentState,
         combatReductionAttackChoice,combatExpandedResults,combatAttackChoiceByRow,
         gStates.combatBossManual,totalRowHeight)
 
+    if stageProfile~=nil then stageProfile=trackerPrivate.profileCheckpoint("rows.resultRenderer",stageProfile) end
     local columnWidths,baseWidth=trackerPrivate.combatPanelRenderer.columns(
         shownTraits,shownOffence,shownAttacks,colUsed,maxResourceCounts,enemyNameWidth)
 
+    if stageProfile~=nil then stageProfile=trackerPrivate.profileCheckpoint("rows.columnLayout",stageProfile) end
     if earlyLock==nil and combatConfig.phasePreview~=nil then
         combatConfig.phasePreview.attackDiscards=combatFrozenCopy(stagedAttackCards)
     end
@@ -53111,11 +53346,14 @@ local function combatAssignmentRefreshRows(entries,sources)
     totalRowHeight=totalRowHeight+trackerPrivate.combatPanelRenderer.woundSummary(
         totalHeroWounds,totalDiscardWounds,knockout,pendingHand,pendingDiscard,changed,effects)
 
+    if stageProfile~=nil then stageProfile=trackerPrivate.profileCheckpoint("rows.woundSummary",stageProfile) end
     trackerPrivate.combatPanelRenderer.finish(overflow,baseWidth,columnWidths,enemyNameWidth,combatExpandedResults,pages)
+    if stageProfile~=nil then trackerPrivate.profileFinish("rows.finalLayout",stageProfile) end
     return totalRowHeight+(pages>1 and 22 or 0)+(overflow>0 and 18 or 0)
 end
 
 local function combatCalcShutdown()
+    combatConfig.scanAwaitingRescan=false
     combatConfig.shutdownClean=true
     combatConfig.resultRowCache={}
     combatConfig.slotSelection={}
@@ -53148,12 +53386,15 @@ local function combatCalcShutdown()
 end
 
 local function refreshCombatEnemyPanel(monsters,calculated)
+    if combatConfig.scanAwaitingRescan then return end
+    local profile=trackerPrivate.traceEnabled and (trackerPrivate.profileStart() or true) or nil
     local active
     if calculated==true then active=combatCalcOn
     else active=combatCalcUpdate(monsters) end
     if not active then
         -- A closed calculator is already clean; don't repeatedly delete/rebuild overlays.
         if not combatConfig.shutdownClean then combatCalcShutdown() end
+        if trackerPrivate.traceEnabled then trackerPrivate.profileCount("combat.inactive") end
         return
     end
     combatConfig.shutdownClean=false
@@ -53274,6 +53515,7 @@ local function refreshCombatEnemyPanel(monsters,calculated)
             end
         end
     end
+    local arrowProfile=trackerPrivate.traceEnabled and (trackerPrivate.profileStart() or true) or nil
     attackAssignmentsPruneInactive(activeSources,activeObjects,combatSourceKeepsLock)
     local validTargets={}
     for guid,obj in pairs(monsters or {}) do
@@ -53300,7 +53542,10 @@ local function refreshCombatEnemyPanel(monsters,calculated)
     if combatAssignmentState.selected~=nil and activeSources[combatAssignmentState.selected]~=true then
         combatAssignmentState.selected=nil
     end
+    if arrowProfile~=nil then trackerPrivate.profileFinish("combat.arrows",arrowProfile) end
+    local rowProfile=trackerPrivate.traceEnabled and (trackerPrivate.profileStart() or true) or nil
     local rowHeight=combatAssignmentRefreshRows(entries,sources)
+    if rowProfile~=nil then trackerPrivate.profileFinish("combat.rows",rowProfile) end
     if lock==nil and combatConfig.phasePreview~=nil then
         -- Automatic nearest-enemy targeting is resolved inside the calculator,
         -- so capture it AFTER that pass rather than before the first render.
@@ -53308,10 +53553,13 @@ local function refreshCombatEnemyPanel(monsters,calculated)
         combatConfig.phasePreview.explicit=combatFrozenCopy(combatAssignmentState.explicit)
     end
     if attackAssignmentsRefreshTargetButtons~=nil then
+        local buttonProfile=trackerPrivate.traceEnabled and (trackerPrivate.profileStart() or true) or nil
         attackAssignmentsRefreshTargetButtons(monsters)
+        if buttonProfile~=nil then trackerPrivate.profileFinish("combat.targetButtons",buttonProfile) end
     end
     combatConfig.panelHeight=combatConfig.panelBaseHeight+rowHeight
     combatPanelSetAttribute("CombatEnemyPanel","height",tostring(combatConfig.panelHeight))
+    if profile~=nil then trackerPrivate.profileFinish("combat.refresh",profile) end
 end
 
 -- Result expansion is presentation only. Reuse the existing combat solution,
@@ -53456,13 +53704,21 @@ local function resourceCardsRawValue(tracker,totals,category,field)
     return manual+estimated
 end
 
-function resourceCardsEffectiveValue(category,field)
-    if not resourceCardsPanelOpen() then return 0 end
-    local tracker=gStates~=nil and gStates.resourceTracker or nil
+-- A synchronous display pass can reuse the same live totals and phase flags.
+-- No snapshot is retained across scans, turns, or manual resource changes.
+function resourceCardsEffectiveValueSnapshot()
+    if not resourceCardsPanelOpen() then return {open=false} end
     local totals=resourceCardsCurrentTotals()
     local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
     local scan=current~=nil and resourceCardScanBySeat[current.seatPos] or nil
-    local transform=totals~=nil and scan~=nil and scan.attackTransforms or nil
+    return {open=true,tracker=gStates~=nil and gStates.resourceTracker or nil,
+        totals=totals,transform=totals~=nil and scan~=nil and scan.attackTransforms or nil}
+end
+
+function resourceCardsEffectiveValue(category,field,snapshot)
+    local state=snapshot or resourceCardsEffectiveValueSnapshot()
+    if not state.open then return 0 end
+    local tracker,totals,transform=state.tracker,state.totals,state.transform
     if transform==nil or (not transform.coldFire and not transform.siege)
         or (category~="attack" and category~="ranged" and category~="siege") then
         return resourceCardsRawValue(tracker,totals,category,field)
@@ -54954,19 +55210,8 @@ local calculateSkill=require("PlayingGame.PlayerBoard.ResourceTracker.Cards.Skil
 })
 
 -- Stable modifier instances prevent false movement redraws on every scan.
-combatConfig.druidicTerrainEffects={}
-for _,terrain in ipairs({"plains","hills","forest","wasteland","desert",
-    "swamp","lake","mountain","city"}) do
-    combatConfig.druidicTerrainEffects[terrain]={
-        mode="reduce",terrains={[terrain]=true},amount=1,minimum=2}
-end
-combatConfig.terrainEffectOrder={set=0,cap=1,reduce=2}
-local function terrainModifierPrecedes(a,b)
-    local first,second=combatConfig.terrainEffectOrder[a.mode] or 9,combatConfig.terrainEffectOrder[b.mode] or 9
-    if first~=second then return first<second end
-    if a.mode=="reduce" then return (a.minimum or 0)>(b.minimum or 0) end
-    return false
-end
+combatConfig.druidicTerrainEffects=require("PlayingGame.PlayerBoard.ResourceTracker.Cards.TerrainModifiers").selectedTerrainDiscounts
+local terrainModifierPrecedes=require("PlayingGame.PlayerBoard.ResourceTracker.Cards.TerrainModifiers").precedes
 
 -- Count only printed enemy-token icons, not site-given traits.
 -- A Coldfire attack represents both Fire and Ice attack-colour icons.
@@ -55044,7 +55289,8 @@ end
 
 local function combatEffectChosenEnemy(sourceGUID,area,monsters,eligible)
     local chosen=nil
-    for guid in pairs(attackAssignmentsTargetGUIDs(sourceGUID)) do
+    local valid,invalid={},false
+    local function targetFor(guid)
         local target=monsters[guid]
         if target==nil then
             -- Attack-reducing effects can explicitly link to reminder attacks.
@@ -55053,8 +55299,25 @@ local function combatEffectChosenEnemy(sourceGUID,area,monsters,eligible)
             if data~=nil and data.attackOnly then target=special end
         end
         if target~=nil and target.is_face_down~=true
-            and (eligible==nil or eligible(target,guid))
-            and (chosen==nil or guid<chosen.guid) then chosen=target end
+            and (eligible==nil or eligible(target,guid)) then return target end
+        return nil
+    end
+    for guid in pairs(attackAssignmentsTargetGUIDs(sourceGUID)) do
+        local target=targetFor(guid)
+        if target~=nil then
+            valid[guid]=true
+            if chosen==nil or guid<chosen.guid then chosen=target end
+        else invalid=true end
+    end
+    -- A pending source may remain registered with no assigned enemy. Prune
+    -- only actual invalid arrows, not the source or its pending selection.
+    if invalid and attackAssignmentsPruneSourceTargets~=nil then
+        attackAssignmentsPruneSourceTargets(sourceGUID,valid)
+    end
+    local locked=combatAssignmentState.targets[sourceGUID]
+    if locked~=nil and targetFor(locked)==nil then
+        combatAssignmentState.targets[sourceGUID]=nil
+        combatAssignmentState.explicit[sourceGUID]=nil
     end
     return chosen or combatEffectNearestEnemy(area,monsters,footprint,overlapArea,eligible)
 end
@@ -55085,6 +55348,9 @@ local function renderSeat(seatPos)
         end
     end
     trackerPrivate.renderCombatNight=nil
+    local profile=trackerPrivate.traceEnabled and trackerPrivate.profileScanStart(seatPos) or nil
+    local scanStage
+    if profile~=nil then scanStage=profile.started end
 
     local objects,placements,monsters,playMonsters,combatMonsters,
         enemyEntries,inventoryCrystalCounts,cards,wounds,skills,
@@ -55099,6 +55365,7 @@ local function renderSeat(seatPos)
         combatCalcUpdate=combatCalcUpdate, footprint=footprint,
     })
 
+    if scanStage~=nil then scanStage=trackerPrivate.profileCheckpoint("scan.observation",scanStage) end
     local unitState, activations, unitSiteMode, unitSite, chosenSiteUnit, woundCount=
         trackerPrivate.scanObservation.prepare({
         seatPos=seatPos, cards=cards, skills=skills, placements=placements, hasUnits=hasUnits,
@@ -55109,6 +55376,7 @@ local function renderSeat(seatPos)
         clearHighlight=clearHighlight,
     })
 
+    if scanStage~=nil then scanStage=trackerPrivate.profileCheckpoint("scan.unitPreparation",scanStage) end
     local manaByObject,manaBySkill,manaByCard,skillLinksByTarget,skillLinksBySkill,
         sidewaysSkillMana,powered,usedMana,spellCastingPaid,powerManaColorsByCard,
         effectManaByCard,links,boostBy,boostSource,discarded,
@@ -55122,6 +55390,7 @@ local function renderSeat(seatPos)
         manaColor=manaColor, effectManaPossibilities=effectManaPossibilities,
         resolveActionLinks=resolveActionLinks,
     })
+    if scanStage~=nil then scanStage=trackerPrivate.profileCheckpoint("scan.payments",scanStage) end
     local current,records,totals={}, {}, {}
     local usesCurrentHexBlock=false
     local usesCurrentHexHealing=false
@@ -55151,6 +55420,7 @@ local function renderSeat(seatPos)
         end
         return choices
     end
+    if scanStage~=nil then scanStage=trackerPrivate.profileCheckpoint("scan.passiveTerrain",scanStage) end
     usesCurrentHexBlock,usesCurrentHexHealing,ignoreSiteFortifications,
         unitCombatBoost,preventUnitDamage,allUnitResistances,heroFirstWoundIgnored=
         trackerPrivate.playedCardScan.process({
@@ -55164,7 +55434,7 @@ local function renderSeat(seatPos)
         inventoryCrystalCounts=inventoryCrystalCounts, playMonsters=playMonsters, unitState=unitState,
         manaByCard=manaByCard, current=current, records=records, totals=totals, enemyEffects=enemyEffects,
         pendingWingsNight=pendingWingsNight, extraTerrainManaByCard=extraTerrainManaByCard,
-        terrainModifiers=terrainModifiers, movementEffects=movementEffects, cardPosture=cardPosture,
+        movementEffects=movementEffects, cardPosture=cardPosture,
         cardCanPlaySideways=cardCanPlaySideways, linkedColorChoices=linkedColorChoices, overlapArea=overlapArea,
         footprint=footprint, combatNearestEnemyGUID=combatNearestEnemyGUID,
         enemyPrintedIconBonus=enemyPrintedIconBonus, sideChoices=sideChoices,
@@ -55176,7 +55446,7 @@ local function renderSeat(seatPos)
         combatEffectChosenEnemy=combatEffectChosenEnemy, combatEffectTargetEligible=combatEffectTargetEligible,
         resourceCardsRecruitInfluenceBonus=resourceCardsRecruitInfluenceBonus,
         showChoiceButtons=showChoiceButtons, resourceCardsDetailsOpen=resourceCardsDetailsOpen,
-        cardTerrainEffects=cardTerrainEffects, terrainEffectActive=terrainEffectActive,
+        cardTerrainEffects=cardTerrainEffects,
         resourceCardsIgnoreSiteFortification=resourceCardsIgnoreSiteFortification,
         addResourceAmounts=addResourceAmounts, setHighlight=setHighlight,
         usesCurrentHexBlock=usesCurrentHexBlock, usesCurrentHexHealing=usesCurrentHexHealing,
@@ -55184,6 +55454,7 @@ local function renderSeat(seatPos)
         preventUnitDamage=preventUnitDamage, allUnitResistances=allUnitResistances,
         heroFirstWoundIgnored=heroFirstWoundIgnored,
     })
+    if scanStage~=nil then scanStage=trackerPrivate.profileCheckpoint("scan.playedCards",scanStage) end
     trackerPrivate.cardInteractions.process({
         cards=cards, records=records, totals=totals, cardPosture=cardPosture, monsters=monsters,
         current=current, setHighlight=setHighlight, discarded=discarded, choiceCategory=choiceCategory,
@@ -55192,6 +55463,7 @@ local function renderSeat(seatPos)
         calculateSideways=calculateSideways, showChoiceButtons=showChoiceButtons, trackerPrivate=trackerPrivate,
         addResourceAmounts=addResourceAmounts, links=links,
     })
+    if scanStage~=nil then scanStage=trackerPrivate.profileCheckpoint("scan.cardInteractions",scanStage) end
     local attackTransforms,transformingUnits
     unitState,chosenSiteUnit,allUnitResistances,attackTransforms,transformingUnits=
         trackerPrivate.unitScan.process({
@@ -55205,12 +55477,13 @@ local function renderSeat(seatPos)
         unitManaDecision=unitManaDecision, combatOneUnitSelect=combatOneUnitSelect,
         combatUnitSitePermits=combatUnitSitePermits, showUnitAbilityButtons=showUnitAbilityButtons,
         unitAbilityPaid=unitAbilityPaid, addResourceAmounts=addResourceAmounts, totals=totals, current=current,
-        setHighlight=setHighlight, terrainModifiers=terrainModifiers,
+        setHighlight=setHighlight,
         deferredUnfortifiedUnitEffects=deferredUnfortifiedUnitEffects,
         unitAbilityTargetKey=unitAbilityTargetKey, combatEffectChosenEnemy=combatEffectChosenEnemy,
         footprint=footprint, monsters=monsters, combatEffectTargetEligible=combatEffectTargetEligible,
         enemyEffects=enemyEffects,
     })
+    if scanStage~=nil then scanStage=trackerPrivate.profileCheckpoint("scan.units",scanStage) end
     trackerPrivate.skillInteractions.process({
         seatPos=seatPos, skills=skills, cards=cards, wounds=wounds, objects=objects, activations=activations,
         records=records, current=current, totals=totals, manaBySkill=manaBySkill,
@@ -55229,6 +55502,7 @@ local function renderSeat(seatPos)
         currentChoice=currentChoice, effectManaPowerColors=effectManaPowerColors,
         effectManaByCard=effectManaByCard, matchesCardMana=matchesCardMana,
     })
+    if scanStage~=nil then scanStage=trackerPrivate.profileCheckpoint("scan.skills",scanStage) end
     -- This scan has just granted Cumbersome to a target: show Move-target
     -- buttons immediately, without requiring the player to close/reopen the tracker.
     for _,effect in pairs(enemyEffects) do
@@ -55315,6 +55589,25 @@ local function renderSeat(seatPos)
         records=records, totals=totals,
     })
 
+    if scanStage~=nil then scanStage=trackerPrivate.profileCheckpoint("scan.finalization",scanStage) end
+    if profile~=nil and trackerPrivate.profileCapturing() then
+        local descriptions={}
+        for _,card in ipairs(cards) do
+            local record=records[card.guid]
+            local data=gameCards[card.guid]
+            local fields={}
+            for key,value in pairs(record~=nil and record.resources or {}) do
+                if type(value)=="number" and value~=0 then fields[#fields+1]=key.."="..value end
+            end
+            table.sort(fields)
+            local name=trackerPrivate.profileCardName(data,card.guid)
+            descriptions[card.guid]=name.."("..card.guid..","..cardPosture(card)..",powered="..tostring(record~=nil and record.powered==true)
+                ..",links="..tostring(record~=nil and #(record.links or {}) or 0)..","..table.concat(fields,",")..")"
+        end
+        trackerPrivate.profileContext("cards="..#cards.." enemies="..#enemyEntries
+            .." units="..tostring(unitState~=nil and #(unitState.units or {}) or 0)
+            ,descriptions)
+    end
     trackerPrivate.scanPublication.publish({
         seatPos=seatPos, records=records, resourceCardsMoveRole=resourceCardsMoveRole,
         combatForgetPhysicalSourceTargets=combatForgetPhysicalSourceTargets,
@@ -55333,6 +55626,8 @@ local function renderSeat(seatPos)
         clearHighlight=clearHighlight, choiceButtonShown=choiceButtonShown,
         removeChoiceButtons=removeChoiceButtons, choiceExpandedByGUID=choiceExpandedByGUID,
     })
+    if scanStage~=nil then trackerPrivate.profileFinish("scan.publication",scanStage) end
+    if profile~=nil then trackerPrivate.profileScanFinish(profile) end
 end
 
 local function scheduleSeatRender(seatPos)
@@ -55704,9 +55999,120 @@ return function(trackerPrivate,unitAbilityPaid,resourceCardsUsesDayMana)
 end
 
 end)
+__bundle_register("PlayingGame.PlayerBoard.ResourceTracker.Cards.TerrainModifiers", function(require, _LOADED, __bundle_register, __bundle_modules)
+-- Immutable terrain definitions and collection policy. Do not copy individual
+-- modifiers: the published scan compares their identity to avoid redraws.
+local M={}
+function M.side(rule,powered)
+    if rule==nil or rule.terrainEffects==nil then return nil end
+    if powered then return rule.terrainEffects.powered end
+    return rule.terrainEffects.normal
+end
+
+function M.active(effect,dayRound)
+    return effect.dayRound==nil or effect.dayRound==(dayRound==true)
+end
+
+function M.append(target,effects,dayRound,repeatCount)
+    for _=1,(repeatCount or 1) do
+        for _,effect in ipairs(effects or {}) do
+            if M.active(effect,dayRound) then
+                target[#target+1]=effect
+            end
+        end
+    end
+end
+
+function M.stage(record,effects,dayRound,repeatCount)
+    local pending=record.pendingTerrainModifiers or {}
+    M.append(pending,effects,dayRound,repeatCount)
+    if #pending>0 then record.pendingTerrainModifiers=pending end
+end
+
+function M.passive(target,rule,dayRound)
+    M.append(target,rule.passiveTerrain,dayRound)
+    M.append(target,dayRound==true and rule.passiveDayTerrain or
+        (dayRound~=true and rule.passiveNightTerrain or nil),dayRound)
+end
+
+function M.movementEligible(record,guid,moveRole)
+    return record.independentTerrain==true
+        or ((tonumber(record.resources~=nil and record.resources.move) or 0)>0
+            and moveRole(guid,false)=="movement")
+end
+
+-- Selected terrain discounts use stable rule instances across scans.
+local selected={}
+for _,terrain in ipairs({"plains","hills","forest","wasteland","desert",
+    "swamp","lake","mountain","city"}) do
+    selected[terrain]={mode="reduce",terrains={[terrain]=true},amount=1,minimum=2}
+end
+M.selectedTerrainDiscounts=selected
+
+-- Keep the same ordering for active and minimized terrain overlays.
+local order={set=0,cap=1,reduce=2}
+function M.precedes(a,b)
+    local first,second=order[a.mode] or 9,order[b.mode] or 9
+    if first~=second then return first<second end
+    if a.mode=="reduce" then return (a.minimum or 0)>(b.minimum or 0) end
+    return false
+end
+
+local passable={plains=true,hills=true,forest=true,wasteland=true,desert=true,
+    swamp=true,lake=true,mountain=true}
+local function applies(effect,terrain)
+    return effect.terrains=="passable" and passable[terrain]==true
+        or effect.terrains=="weather" and (passable[terrain]==true or terrain=="city")
+        or type(effect.terrains)=="table" and effect.terrains[terrain]==true
+end
+
+function M.cost(base,terrain,effects)
+    if effects==nil then return base end
+    local setCost=nil
+    -- Published scans are already sorted. Only copy/sort if a standalone
+    -- caller supplies unsorted modifiers (e.g. passive-only exploration).
+    local previous,needsSort=nil,false
+    for _,effect in ipairs(effects) do
+        if effect.mode=="set" and applies(effect,terrain) then
+            setCost=setCost==nil and effect.cost or math.min(setCost,effect.cost)
+        elseif effect.mode=="cap" or effect.mode=="reduce" then
+            if previous~=nil and M.precedes(effect,previous) then needsSort=true end
+            previous=effect
+        end
+    end
+    if setCost==nil and base>=900 then return base end
+    local cost=setCost or base
+    local ordered=effects
+    if needsSort then
+        ordered={}
+        for _,effect in ipairs(effects) do ordered[#ordered+1]=effect end
+        table.sort(ordered,M.precedes)
+    end
+    for _,effect in ipairs(ordered) do
+        if applies(effect,terrain) then
+            if effect.mode=="cap" then cost=math.min(cost,effect.cost)
+            elseif effect.mode=="reduce" then
+                cost=math.min(cost,math.max(effect.minimum or 0,cost-effect.amount))
+            end
+        end
+    end
+    -- Preserve the existing Weather order and apply it last.
+    for _,effect in ipairs(effects) do
+        if effect.mode=="weather" and applies(effect,terrain) then
+            if effect.amount<0 then cost=math.max(1,cost+effect.amount)
+            else cost=math.min(5,cost+effect.amount) end
+        end
+    end
+    return cost
+end
+
+return M
+
+end)
 __bundle_register("PlayingGame.PlayerBoard.ResourceTracker.Cards.SkillEffects", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Evaluate played Skill resource records without owning physical discovery,
 -- links, player choices, or UI. Read the game catalog and turn state live.
+local highlightPolicy=require("PlayingGame.PlayerBoard.ResourceTracker.Core.HighlightPolicy")
 return function(deps)
     local skillChoicesForCurrentTurn=deps.skillChoicesForCurrentTurn
     local chosenEffect=deps.chosenEffect
@@ -55806,7 +56212,7 @@ return function(deps)
             or (linkedTarget~=nil or unitLinked) and "purple"
             or (unitResolved or inventoryResolved) and "green"
             or rule.linkedCard~=nil and linkedTarget==nil and "yellow"
-            or tracked and (rule.partial and "yellow" or "green")
+            or tracked and highlightPolicy.certainty(true,not rule.partial)
             or targeted and "green"
             or effects~=nil and "blue" or "yellow"
         local links={}
@@ -55824,9 +56230,39 @@ return function(deps)
 end
 
 end)
+__bundle_register("PlayingGame.PlayerBoard.ResourceTracker.Core.HighlightPolicy", function(require, _LOADED, __bundle_register, __bundle_modules)
+-- Semantic resource highlights. Brightness, lifecycle and actual TTS
+-- highlight calls remain with the coordinator and the current object owner.
+local M={}
+function M.contribution(contributes)
+    return contributes and "green" or "blue"
+end
+function M.certainty(recognized,complete)
+    if not recognized then return "blue" end
+    return complete and "green" or "yellow"
+end
+function M.linkedSource(record)
+    record.status="purple"
+end
+-- A bonus to an activated Unit does not change its activation color
+-- or acquire ownership of the currently displayed historical use.
+function M.linkedTarget(record)
+    if record.kind=="unit" then return false end
+    M.linkedSource(record)
+    return true
+end
+-- Dynamic Skill contributors may also be Units that are NOT activated.
+function M.dynamicUnit(activated,contributes)
+    if activated then return M.contribution(contributes),false end
+    return "purple",true
+end
+return M
+
+end)
 __bundle_register("PlayingGame.PlayerBoard.ResourceTracker.Cards.SkillLinks", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Resolve physical Skill links from the coordinator's current scan candidates.
 -- No zone discovery, payment consumption, UI or saved-state writes occur here.
+local physicalLinks=require("PlayingGame.PlayerBoard.ResourceTracker.Core.PhysicalLinks")
 return function(deps)
     local trackerPrivate=deps.trackerPrivate
     local resourceCardsGoldAllowed=deps.resourceCardsGoldAllowed
@@ -55908,7 +56344,8 @@ return function(deps)
                         and (spec.posture==nil or cardPosture(target)==spec.posture) then
                         local size=overlapArea(footprints[skill.guid],footprints[target.guid])
                         if size>0 then
-                            candidates[#candidates+1]={skill=skill,target=target,size=size,rule=spec.sideways}
+                            candidates[#candidates+1]={skill=skill,target=target,overlap=size,
+                                tieKey=skill.guid,secondaryKey=target.guid,rule=spec.sideways}
                         end
                     end
                 end
@@ -55916,11 +56353,7 @@ return function(deps)
         end
         -- The strongest physical overlap wins when two different Skills touch the
         -- same sideways card; never combine multiple replacement values.
-        table.sort(candidates,function(a,b)
-            if a.size~=b.size then return a.size>b.size end
-            if a.skill.guid~=b.skill.guid then return a.skill.guid<b.skill.guid end
-            return a.target.guid<b.target.guid
-        end)
+        table.sort(candidates,physicalLinks.precedes)
         for _,candidate in ipairs(candidates) do
             local skill,target,descriptor=candidate.skill,candidate.target,candidate.rule
             if bySkill[skill.guid]==nil and byTarget[target.guid]==nil then
@@ -55999,17 +56432,16 @@ return function(deps)
                     bySkill[skill.guid]=link
                     byMana[nearest.guid]=link
                     if converted~=nil then
-                        local best,areaSize=nil,0
+                        local candidates={}
                         for _,card in ipairs(cards) do
                             if byCard[card.guid]==nil and convertedManaMatchesCard(card,converted) then
-                                local size=overlapArea(area,footprints[card.guid])
-                                if size>areaSize or (size>0 and size==areaSize and best~=nil
-                                    and card.guid<best.guid) then best,areaSize=card,size end
+                                candidates[#candidates+1]={card=card,overlap=overlapArea(area,footprints[card.guid])}
                             end
                         end
+                        local best=physicalLinks.unique(candidates)
                         if best~=nil then
-                            link.targetGUID=best.guid
-                            byCard[best.guid]=link
+                            link.targetGUID=best.card.guid
+                            byCard[best.card.guid]=link
                         end
                     end
                 end
@@ -56021,6 +56453,47 @@ return function(deps)
     return {matchingSidewaysMana=matchingSidewaysMana,
         resolveSkillCardLinks=resolveSkillCardLinks,resolveManaSkillLinks=resolveManaSkillLinks}
 end
+
+end)
+__bundle_register("PlayingGame.PlayerBoard.ResourceTracker.Core.PhysicalLinks", function(require, _LOADED, __bundle_register, __bundle_modules)
+-- Shared physical overlap ranking. Eligibility and payment ownership
+-- stay with callers. Single-effect links reject equal best overlaps;
+-- ordered cost allocation deliberately uses a stable GUID tie break.
+local M={}
+local function compare(a,b)
+    local ap,bp=a.priority or 0,b.priority or 0
+    if ap~=bp then return ap>bp and 1 or -1 end
+    if a.overlap~=b.overlap then return a.overlap>b.overlap and 1 or -1 end
+    return 0
+end
+function M.unique(candidates,allowSingleRemote)
+    if allowSingleRemote and #candidates==1 then return candidates[1] end
+    local best,tied=nil,false
+    for _,candidate in ipairs(candidates) do
+        if candidate.overlap>0 then
+            local rank=best==nil and 1 or compare(candidate,best)
+            if rank>0 then best,tied=candidate,false
+            elseif rank==0 then tied=true end
+        end
+    end
+    if tied then return nil end
+    return best
+end
+-- Deterministic ordering is only for deliberately allocated claims.
+function M.precedes(a,b)
+    local rank=compare(a,b)
+    if rank~=0 then return rank>0 end
+    if a.tieKey~=b.tieKey then return a.tieKey<b.tieKey end
+    return (a.secondaryKey or "")<(b.secondaryKey or "")
+end
+function M.ordered(candidates)
+    local best=nil
+    for _,candidate in ipairs(candidates) do
+        if candidate.overlap>0 and (best==nil or M.precedes(candidate,best)) then best=candidate end
+    end
+    return best
+end
+return M
 
 end)
 __bundle_register("PlayingGame.PlayerBoard.ResourceTracker.Units.UnitChoices", function(require, _LOADED, __bundle_register, __bundle_modules)
@@ -56166,58 +56639,56 @@ __bundle_register("PlayingGame.PlayerBoard.ResourceTracker.Scanning.ManaPayments
 -- Special-card scans read the current play zone; Unit scans read the play and
 -- Unit zones or supplied live candidates. The coordinator retains color and posture policies.
 
--- Resolve independent mana roles without relying on placement order or GUID
--- order. A casting payment (if declared), stronger-effect payment, and
--- effect-selection payment must be different physical mana objects. Daytime
--- Gold can fill either a casting or effect role; its effect stays ambiguous.
--- Other cards can reuse this by declaring effectManaChoice.castColor.
-local function effectManaPossibilities(spec,payments,needPower,goldAllowed,blackAllowed)
-    -- Single-boolean call sites/tests retain the ordinary Day/Night pairing.
-    -- The Amulets may independently enable both colors at runtime.
-    if blackAllowed==nil then blackAllowed=not goldAllowed end
-    local possible,anyColor={},false
-    -- Black mana cannot pay for any role during a Day round, including
-    -- the otherwise separate strong-side payment on Mana Bolt/Thunderbolt.
-    if not blackAllowed and needPower and spec.powerColor=="Black" then return possible,anyColor end
-    local function hasDistinctPower(effectGUID,castGUID)
+-- All roles are assigned to distinct physical objects. Gold can fill a
+-- basic casting or power role, but never substitutes for Black power.
+local function castingColorMatches(spec,color,goldAllowed)
+    return color==spec.castColor or (color=="Gold" and goldAllowed)
+end
+
+local function powerColorMatches(spec,color,goldAllowed)
+    return color==spec.powerColor
+        or (goldAllowed and spec.powerColor~="Black" and color=="Gold")
+end
+
+-- Shared enumeration for the possible effect options and Mana Overload's
+-- qualifying stronger-side payment. The chosen effect can have a wildcard;
+-- callers decide how to present it. No payment is reserved by this query.
+local function hasDistinctRoles(spec,payments,effectGUID,needPower,goldAllowed)
+    local function hasPower(castGUID)
         if not needPower then return true end
-        for _,payment in ipairs(payments) do
-            if payment.guid~=effectGUID and payment.guid~=castGUID
-                and (payment.color==spec.powerColor
-                    or (goldAllowed and spec.powerColor~="Black"
-                        and payment.color=="Gold")) then return true end
+        for _,power in ipairs(payments) do
+            if power.guid~=effectGUID and power.guid~=castGUID
+                and powerColorMatches(spec,power.color,goldAllowed) then return true end
         end
         return false
     end
+    if spec.castColor==nil then return hasPower(nil) end
+    for _,casting in ipairs(payments) do
+        if casting.guid~=effectGUID and castingColorMatches(spec,casting.color,goldAllowed)
+            and hasPower(casting.guid) then return true end
+    end
+    return false
+end
+
+local function effectManaPossibilities(spec,payments,needPower,goldAllowed,blackAllowed)
+    -- Single-boolean call sites retain the ordinary Day/Night pairing.
+    -- Amulets may independently enable both colours.
+    if blackAllowed==nil then blackAllowed=not goldAllowed end
+    local possible,anyColor={},false
+    if not blackAllowed and needPower and spec.powerColor=="Black" then return possible,anyColor end
     for _,effect in ipairs(payments) do
         local category=spec.colors[effect.color]
         local wildcard=effect.color=="Gold" and goldAllowed
-        if category~=nil or wildcard then
-            local valid=false
-            if spec.castColor==nil then
-                valid=hasDistinctPower(effect.guid,nil)
-            else
-                for _,casting in ipairs(payments) do
-                    if casting.guid~=effect.guid
-                        and (casting.color==spec.castColor
-                            or (casting.color=="Gold" and goldAllowed))
-                        and hasDistinctPower(effect.guid,casting.guid) then
-                        valid=true
-                        break
-                    end
-                end
-            end
-            if valid then
-                if wildcard then anyColor=true
-                elseif category~=nil then possible[category]=true end
-            end
+        if (category~=nil or wildcard)
+            and hasDistinctRoles(spec,payments,effect.guid,needPower,goldAllowed) then
+            if wildcard then anyColor=true
+            elseif category~=nil then possible[category]=true end
         end
     end
     return possible,anyColor
 end
 
--- Only the separate stronger-effect payment qualifies for Mana Overload.
--- A card's casting mana or a Pure Magic / Mana Bolt option payment does not.
+-- Casting and effect-selection mana do not qualify for Mana Overload.
 local function effectManaPowerColors(spec,payments,goldAllowed,blackAllowed,selectedCategory)
     if selectedCategory==nil and type(blackAllowed)=="string" then
         selectedCategory=blackAllowed
@@ -56227,27 +56698,10 @@ local function effectManaPowerColors(spec,payments,goldAllowed,blackAllowed,sele
     if spec==nil or selectedCategory==nil
         or (not blackAllowed and spec.powerColor=="Black") then return eligible end
     for _,effect in ipairs(payments or {}) do
-        if spec.colors[effect.color]==selectedCategory
-            or (goldAllowed and effect.color=="Gold") then
-            for _,power in ipairs(payments or {}) do
-                if power.guid~=effect.guid
-                    and (power.color==spec.powerColor
-                        or (goldAllowed and spec.powerColor~="Black"
-                            and power.color=="Gold")) then
-                    if spec.castColor==nil then
-                        eligible[spec.powerColor]=true
-                    else
-                        for _,casting in ipairs(payments or {}) do
-                            if casting.guid~=effect.guid and casting.guid~=power.guid
-                                and (casting.color==spec.castColor
-                                    or (goldAllowed and casting.color=="Gold")) then
-                                eligible[spec.powerColor]=true
-                                break
-                            end
-                        end
-                    end
-                end
-            end
+        if (spec.colors[effect.color]==selectedCategory or (goldAllowed and effect.color=="Gold"))
+            and hasDistinctRoles(spec,payments,effect.guid,true,goldAllowed) then
+            eligible[spec.powerColor]=true
+            break
         end
     end
     return eligible
@@ -56286,110 +56740,80 @@ local function bestManaCard(mana,cards,footprints,eligible)
     return best
 end
 
--- Magic Talent's strong side consumes TWO distinct mana objects, not the
--- single mana that normally powers an Advanced Action. Read the same released
--- die faces/crystals as the ordinary tracker, even when its panel is minimized.
-local function magicTalentManaPayments(seatPos,footprint,manaColor,readyForXZ)
-    local card=getObjectFromGUID("3d832c")
-    local zone=seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
-    if card==nil or zone==nil then return {} end
+-- The special-card paths use live zone membership even while the tracker
+-- is minimized. Do not reuse a prior scan or search outside the zone.
+local function playZone(seatPos)
+    return seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
+end
+
+-- All of these special-card checks deliberately use X/Z footprints. They
+-- inspect payments for a specified physical source, not ordinary multi-card
+-- mana allocation (which retains the highest eligible card rule above).
+-- The callback can stop immediately after finding a matching payment.
+local function visitFootprintMana(zone,card,footprint,manaColor,readyForXZ,visit)
+    if zone==nil or card==nil then return end
     local area=footprint(card)
-    local payments,seen={},{}
-    local function consider(obj)
-        if obj==nil or seen[obj.guid] or obj.guid==card.guid
-            or not readyForXZ(obj) then return end
-        seen[obj.guid]=true
-        local p=obj.getPosition()
-        if math.abs(p[1]-area.x)<area.halfX
-            and math.abs(p[3]-area.z)<area.halfZ then
-            local color=manaColor(obj)
-            if color~=nil then
-                payments[#payments+1]={guid=obj.guid,color=color}
+    local seen={}
+    for _,mana in ipairs(zone.getObjects()) do
+        if mana~=nil and mana.guid~=card.guid and not seen[mana.guid]
+            and readyForXZ(mana) then
+            seen[mana.guid]=true
+            local p=mana.getPosition()
+            local x,z=p.x or p[1],p.z or p[3]
+            if math.abs(x-area.x)<area.halfX and math.abs(z-area.z)<area.halfZ then
+                local color=manaColor(mana)
+                if color~=nil and visit(mana.guid,color) then return end
             end
         end
     end
-    for _,obj in ipairs(zone.getObjects()) do consider(obj) end
+end
+
+-- Magic Talent's strong side consumes two distinct physical mana objects.
+local function magicTalentManaPayments(seatPos,footprint,manaColor,readyForXZ)
+    local card=getObjectFromGUID("3d832c")
+    local payments={}
+    visitFootprintMana(playZone(seatPos),card,footprint,manaColor,readyForXZ,function(guid,color)
+        payments[#payments+1]={guid=guid,color=color}
+    end)
     table.sort(payments,function(a,b) return a.guid<b.guid end)
     return payments
 end
 
 -- A borrowed Spell's casting payment must remain on its physical card.
--- This check also works with the Resource Tracker minimized, when its cached
--- records are deliberately cleared. A lone Black die never casts a Spell.
-local function magicTalentSpellCastingPaid(seatPos,guid,footprint,cardPosture,manaColor,readyForXZ,matchesCardMana)
+-- The boolean query stops at the first valid payment; repeated uses count
+-- all distinct physical payments through the same eligibility path.
+local function spellCastingCount(seatPos,guid,footprint,cardPosture,manaColor,readyForXZ,matchesCardMana,firstOnly)
     local card=guid~=nil and getObjectFromGUID(guid) or nil
     local data=card~=nil and gameCards[guid] or nil
-    local zone=seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
     if card==nil or data==nil or data.cardType~="Spell"
-        or zone==nil or card.is_face_down==true
-        or cardPosture(card)~="upright" then return false end
-    local area=footprint(card)
-    local seen={}
-    local function paidBy(mana)
-        if mana==nil or seen[mana.guid] or mana.guid==guid
-            or not readyForXZ(mana) then return false end
-        seen[mana.guid]=true
-        local p=mana.getPosition()
-        if math.abs(p[1]-area.x)>=area.halfX
-            or math.abs(p[3]-area.z)>=area.halfZ then return false end
-        local color=manaColor(mana)
-        return color~=nil and color~="Black" and matchesCardMana(card,color)
-    end
-    for _,mana in ipairs(zone.getObjects()) do
-        if paidBy(mana) then return true end
-    end
-    return false
+        or card.is_face_down==true or cardPosture(card)~="upright" then return 0 end
+    local count=0
+    visitFootprintMana(playZone(seatPos),card,footprint,manaColor,readyForXZ,function(_,color)
+        if color~="Black" and matchesCardMana(card,color) then
+            count=count+1
+            return firstOnly
+        end
+        return false
+    end)
+    return count
 end
 
--- Count distinct physical casting payments for repeated uses of the same
--- Spell through Maximal Effect + Magic Talent. Only play-zone mana qualifies;
--- duplicates are counted only once.
+local function magicTalentSpellCastingPaid(seatPos,guid,footprint,cardPosture,manaColor,readyForXZ,matchesCardMana)
+    return spellCastingCount(seatPos,guid,footprint,cardPosture,manaColor,readyForXZ,matchesCardMana,true)>0
+end
+
 local function magicTalentSpellCastingPaymentCount(seatPos,guid,footprint,cardPosture,manaColor,readyForXZ,matchesCardMana)
-    local card=guid~=nil and getObjectFromGUID(guid) or nil
-    local data=card~=nil and gameCards[guid] or nil
-    local zone=seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
-    if card==nil or data==nil or data.cardType~="Spell" or zone==nil
-        or card.is_face_down==true or cardPosture(card)~="upright" then return 0 end
-    local area=footprint(card)
-    local seen,count={},0
-    local function consider(mana)
-        if mana==nil or seen[mana.guid] or mana.guid==guid
-            or not readyForXZ(mana) then return end
-        seen[mana.guid]=true
-        local p=mana.getPosition()
-        local x,z=p.x or p[1],p.z or p[3]
-        if math.abs(x-area.x)>=area.halfX
-            or math.abs(z-area.z)>=area.halfZ then return end
-        local color=manaColor(mana)
-        if color~=nil and color~="Black" and matchesCardMana(card,color) then
-            count=count+1
-        end
-    end
-    for _,mana in ipairs(zone.getObjects()) do consider(mana) end
-    return count
+    return spellCastingCount(seatPos,guid,footprint,cardPosture,manaColor,readyForXZ,matchesCardMana,false)
 end
 
 -- A Maximal Effect power mana object cannot also be one of Magic Talent's
 -- additional casting/claim payments, even if overlapping cards share X/Z.
 local function resourceCardsMaximalEffectSourceManaGUIDs(seatPos,sourceGUID,footprint,manaColor,readyForXZ,matchesCardMana)
     local source=sourceGUID~=nil and getObjectFromGUID(sourceGUID) or nil
-    local zone=seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
-    if source==nil or zone==nil then return {} end
-    local area=footprint(source)
-    local spent,seen={},{}
-    local function inspect(mana)
-        if mana==nil or seen[mana.guid] or mana.guid==sourceGUID
-            or not readyForXZ(mana) then return end
-        seen[mana.guid]=true
-        local color=manaColor(mana)
-        if color==nil or not matchesCardMana(source,color) then return end
-        local pos=mana.getPosition()
-        local x,z=pos.x or pos[1],pos.z or pos[3]
-        if math.abs(x-area.x)<area.halfX and math.abs(z-area.z)<area.halfZ then
-            spent[mana.guid]=true
-        end
-    end
-    for _,mana in ipairs(zone.getObjects()) do inspect(mana) end
+    local spent={}
+    visitFootprintMana(playZone(seatPos),source,footprint,manaColor,readyForXZ,function(guid,color)
+        if matchesCardMana(source,color) then spent[guid]=true end
+    end)
     return spent
 end
 
@@ -56400,7 +56824,7 @@ local function resourceCardsTimeBendingPaid(seatPos,card,footprint,cardPosture,m
     if card==nil or card.guid~=GUID.card.timeBending
         or card.is_face_down==true or cardPosture(card)~="upright"
         or not resourceCardsBlackAllowed() then return false end
-    local zone=seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
+    local zone=playZone(seatPos)
     if zone==nil then return false end
     local area=footprint(card)
     local blue,black=false,false
@@ -56485,6 +56909,7 @@ end)
 __bundle_register("PlayingGame.PlayerBoard.ResourceTracker.Cards.ActionLinks", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Resolve Action-card links using the coordinator's current scan candidates.
 -- Physical discovery, choice state, marks, cleanup and resource totals stay outside.
+local physicalLinks=require("PlayingGame.PlayerBoard.ResourceTracker.Core.PhysicalLinks")
 return function(deps)
     local overlapArea=deps.overlapArea
     local cardPosture=deps.cardPosture
@@ -56505,22 +56930,23 @@ return function(deps)
             links[source.guid][#links[source.guid]+1]=target.guid
             links[target.guid][#links[target.guid]+1]=source.guid
         end
-        local function nearestOverlap(source,valid,preference)
-            local best,bestArea,bestPriority=nil,0,-1
+        local function nearestOverlap(source,valid,preference,orderedPayment)
+            local candidates={}
             local a=footprints[source.guid]
             for _,target in ipairs(cards) do
                 if target.guid~=source.guid and valid(target) then
                     local area=overlapArea(a,footprints[target.guid])
                     local priority=((preference=="discard" and cardPosture(target)=="discard")
                         or (preference=="faceDown" and target.is_face_down==true)) and 1 or 0
-                    if area>0 and (priority>bestPriority
-                        or (priority==bestPriority and (area>bestArea
-                            or (area==bestArea and best~=nil and target.guid<best.guid)))) then
-                        best,bestArea,bestPriority=target,area,priority
+                    if area>0 then
+                        candidates[#candidates+1]={card=target,overlap=area,priority=priority,tieKey=target.guid}
                     end
                 end
             end
-            return best
+            local best
+            if orderedPayment then best=physicalLinks.ordered(candidates)
+            else best=physicalLinks.unique(candidates) end
+            return best~=nil and best.card or nil
         end
         for _,source in ipairs(cards) do
             local data=gameCards[source.guid]
@@ -56596,7 +57022,7 @@ return function(deps)
                             and discarded[candidate.guid]==nil and not boostClaimed[candidate.guid]
                             and not manaPowered[candidate.guid] and #links[candidate.guid]==0
                             and cardPosture(candidate)=="upright"
-                    end,"faceDown")
+                    end,"faceDown",true)
                     if target==nil then break end
                     discarded[target.guid]=source.guid
                     if paid==0 then linkedCardBySource[source.guid]=target.guid end
@@ -56637,7 +57063,7 @@ return function(deps)
                             and candidate.getGMNotes()~="Wound"
                             and candidate.getGMNotes()~="Quest"
                             and canPayDiscard(candidate)
-                    end,"discard")
+                    end,"discard",true)
                     if target==nil then break end
                     discarded[target.guid]=source.guid
                     if paid==0 then linkedCardBySource[source.guid]=target.guid end
@@ -56675,8 +57101,8 @@ return function(deps)
                 table.sort(choices,function(a,b)
                     local aa=overlapArea(footprints[source.guid],footprints[a.guid])
                     local bb=overlapArea(footprints[source.guid],footprints[b.guid])
-                    if aa==bb then return a.guid<b.guid end
-                    return aa>bb
+                    return physicalLinks.precedes({overlap=aa,tieKey=a.guid},
+                        {overlap=bb,tieKey=b.guid})
                 end)
                 local woundPayments,bonus=0,0
                 local perUse=repeated~=nil and {} or nil
@@ -56747,6 +57173,7 @@ __bundle_register("PlayingGame.PlayerBoard.ResourceTracker.Cards.CardEffects", f
 -- Evaluate played card effects and sideways resources using the coordinator's
 -- existing choice, terrain, payment and combat helpers. No scanning, UI or
 -- lifecycle ownership is transferred here; game data is read live.
+local highlightPolicy=require("PlayingGame.PlayerBoard.ResourceTracker.Core.HighlightPolicy")
 return function(deps)
     local trackerPrivate=deps.trackerPrivate
     local combatConfig=deps.combatConfig
@@ -56965,9 +57392,9 @@ return function(deps)
         for _,effect in ipairs(cardTerrainEffects(rule,powered) or {}) do
             if terrainEffectActive(effect) then scriptedTerrain=true break end
         end
-        local status=(not known or not sideTracked or posture=="discard"
-            or (choiceIsUntracked and costPaid and not scriptedMovement and not scriptedTerrain)) and "blue"
-            or not complete and "yellow" or "green"
+        local recognized=known and sideTracked and posture~="discard"
+            and not (choiceIsUntracked and costPaid and not scriptedMovement and not scriptedTerrain)
+        local status=highlightPolicy.certainty(recognized,complete)
         -- The printed crystal gain on Savage Harvesting is deliberately manual.
         -- Move is still counted, but a green "fully understood" highlight would lie.
         -- Golden Grail's basic Fame is complete once both Heal points are confirmed;
@@ -57184,6 +57611,7 @@ end)
 __bundle_register("PlayingGame.PlayerBoard.ResourceTracker.Interface.UnitControls", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Render Unit-specific choice and targeting buttons; no ownership of activation,
 -- combat assignment, or lifecycle state. Read current flags and cache tables per call.
+local moveOptions=require("PlayingGame.PlayerBoard.ResourceTracker.Interface.MoveRoleOptions")
 return function(deps)
     local combatConfig=deps.combatConfig
     local choiceLetters=deps.choiceLetters
@@ -57309,11 +57737,11 @@ return function(deps)
             local needed={}
             if hasChoices then
                 for _,index in ipairs(expanded and available or {selected or available[1]}) do
-                    local dualMove=combatMoveAvailable
-                        and (tonumber(abilities[index]~=nil and abilities[index].move) or 0)>0
+                    local dualMove=moveOptions.hasAlternative(moveOptions.producesMove(abilities[index]),combatMoveAvailable)
                     local id="ResourceCardChoice_"..unit.guid.."_unit"..index
-                    if expanded or not dualMove or moveRole~="combat" then needed[id]=true end
-                    if dualMove and (expanded or moveRole=="combat") then needed[id.."Combat"]=true end
+                    local showMovement,showCombat=moveOptions.visibleRoles(dualMove,expanded,moveRole)
+                    if showMovement then needed[id]=true end
+                    if showCombat then needed[id.."Combat"]=true end
                 end
             end
             if #targetLabels>0 then
@@ -57345,7 +57773,7 @@ return function(deps)
         -- Influence needs the shield/Influence artwork.
         for _,index in ipairs(displayed) do
             local ability=abilities[index]
-            if combatMoveAvailable and (tonumber(ability.move) or 0)>0 and not seen.move then
+            if moveOptions.hasAlternative(moveOptions.producesMove(ability),combatMoveAvailable) and not seen.move then
                 visibleAssets[#visibleAssets+1]="move"
                 seen.move=true
             end
@@ -57436,8 +57864,9 @@ return function(deps)
                             raycastTarget="false"}}
                     end
                 end
-                if (tonumber(ability.move) or 0)>0 then
-                    local phase=resourceCardsMoveRole(unitHistoryKey(unit.guid,useIndex),false)
+                if moveOptions.producesMove(ability) then
+                    local phase=moveRole
+                    local showMovement,showCombat=moveOptions.visibleRoles(combatMoveAvailable,expanded,phase)
                     -- Only the chosen role is visible in the collapsed menu.
                     local isMovement=phase~="combat"
                     button.attributes.colors=active and isMovement and invalidCombat
@@ -57446,10 +57875,7 @@ return function(deps)
                         and "#387D30|#4CA940|#387D30|#387D30"
                         or "#454D5D|#69798E|#444C63|#454D5D"
                     button.children=button.children or {}
-                    button.children[#button.children+1]={tag="Text",attributes={
-                        text="M",width=82,height=82,alignment="LowerRight",
-                        fontSize=37,fontStyle="Bold",color="#9AFFA4",
-                        outline="#101820",outlineSize="2 -2",raycastTarget="false"}}
+                    button.children[#button.children+1]=moveOptions.badgeNode(moveOptions.badge("movement"))
                     if combatMoveAvailable then
                         local combatButton={tag="Button",attributes={
                         id="ResourceCardChoice_"..unit.guid.."_unit"..index.."Combat",
@@ -57470,13 +57896,10 @@ return function(deps)
                             combatButton.children={{tag="Image",attributes={
                                 image=movement.name,width=82,height=82,preserveAspect="true",
                                 raycastTarget="false",color="#FFFFFF"}},
-                                {tag="Text",attributes={text="C",width=82,height=82,
-                                    alignment="LowerRight",fontSize=37,fontStyle="Bold",
-                                    color="#69AEFF",outline="#101820",
-                                    outlineSize="2 -2",raycastTarget="false"}}}
+                                moveOptions.badgeNode(moveOptions.badge("combat"))}
                         end
-                        if expanded or isMovement then xml[#xml+1]=button end
-                        if expanded or not isMovement then xml[#xml+1]=combatButton end
+                        if showMovement then xml[#xml+1]=button end
+                        if showCombat then xml[#xml+1]=combatButton end
                     else
                         xml[#xml+1]=button
                     end
@@ -57526,9 +57949,62 @@ return function(deps)
 end
 
 end)
+__bundle_register("PlayingGame.PlayerBoard.ResourceTracker.Interface.MoveRoleOptions", function(require, _LOADED, __bundle_register, __bundle_modules)
+-- Shared Move option policy. Choice IDs and activation ownership stay with
+-- their Card/Unit adapters; the saved role remains in resourceCardMoveRoles.
+local M={}
+function M.producesMove(option,category)
+    return option~=nil and ((tonumber(option.move) or 0)>0
+        or (option.shapeshiftTargetGUID~=nil and category=="move"))
+end
+
+function M.hasAlternative(producesMove,available)
+    return producesMove and not not available
+end
+
+-- A nil requested role means an ordinary option. Combat is valid only
+-- for a Move-producing effect when the owning source permits Combat Move.
+function M.resolve(producesMove,available,requestedRole)
+    if requestedRole=="combat" then
+        if M.hasAlternative(producesMove,available) then return "combat",true end
+        return nil,false
+    end
+    return producesMove and "movement" or nil,true
+end
+
+function M.cardCategory(category,role)
+    return role=="combat" and "combatMove"..category or category
+end
+
+function M.decodeCardCategory(category)
+    local original=category:match("^combatMove(.+)$")
+    if original~=nil then return original,"combat" end
+    return category,nil
+end
+
+function M.visibleRoles(dual,expanded,role)
+    return not dual or expanded or role~="combat",
+        dual and (expanded or role=="combat")
+end
+
+function M.badge(role)
+    return role=="combat" and "C" or "M"
+end
+
+function M.badgeNode(letter)
+    return {tag="Text",attributes={text=letter,width=82,height=82,
+        alignment="LowerRight",fontSize=37,fontStyle="Bold",
+        color=letter=="C" and "#69AEFF" or "#9AFFA4",
+        outline="#101820",outlineSize="2 -2",raycastTarget="false"}}
+end
+
+return M
+
+end)
 __bundle_register("PlayingGame.PlayerBoard.ResourceTracker.Interface.CardControls", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Card/Skill object controls. Coordinator retains gameplay, click handlers and state.
 -- Read the current shared cache tables, combat flags and game state on every draw.
+local moveOptions=require("PlayingGame.PlayerBoard.ResourceTracker.Interface.MoveRoleOptions")
 return function(deps)
     local trackerPrivate=deps.trackerPrivate
     local combatConfig=deps.combatConfig
@@ -57621,7 +58097,10 @@ return function(deps)
             if rule~=nil and rule.grailFamePerHealing~=nil and not powered then
                 xml[#xml+1]=trackerPrivate.grailFameButton(card,uiRotation,depth)
             end
-            if not resourceObjectUiSameXML(old,xml) then resourceObjectUiSetTable(card.UI,xml) end
+            if not resourceObjectUiSameXML(old,xml) then
+                resourceObjectUiSetTable(card.UI,xml)
+                if trackerPrivate.traceEnabled and trackerPrivate.profileMutation~=nil then trackerPrivate.profileMutation("card.xml",card.guid) end
+            end
             combatConfig.cardButtonIds[card.guid]=combatConfig.cardChoiceIds(card.guid,xml)
             choiceButtonShown[card.guid]="artifact-break-only:"..tostring(resourceCardsArtifactBroken(card.guid,card))
             return
@@ -57840,12 +58319,7 @@ return function(deps)
                     end
                     if entry.roleBadge~=nil then
                         button.children=button.children or {}
-                        button.children[#button.children+1]={tag="Text",attributes={
-                            text=entry.roleBadge,width=82,height=82,
-                            alignment="LowerRight",fontSize=37,fontStyle="Bold",
-                            color=entry.roleBadge=="C" and "#69AEFF" or "#9AFFA4",
-                            outline="#101820",outlineSize="2 -2",
-                            raycastTarget="false"}}
+                        button.children[#button.children+1]=moveOptions.badgeNode(entry.roleBadge)
                     end
                     -- Text-only alternatives (e.g. Chivalry's Reputation choice) are
                     -- real buttons even when no custom icon asset exists.
@@ -58210,6 +58684,7 @@ return function(deps)
         -- New image registrations still need the asset-list writer.
         if assets~=nil or not resourceObjectUiSameXML(previousXml,xml) then
             resourceObjectUiSetTable(card.UI,xml,assets)
+            if trackerPrivate.traceEnabled and trackerPrivate.profileMutation~=nil then trackerPrivate.profileMutation("card.xml",card.guid) end
             if trackerPrivate.traceEnabled then
                 trackerPrivate.traceEvent("choice.write",nil,card.guid,
                     "buttons="..tostring(#combatConfig.cardChoiceIds(card.guid,xml)))
@@ -58229,6 +58704,7 @@ end)
 __bundle_register("PlayingGame.PlayerBoard.ResourceTracker.Interface.CardControlOptions", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Build card/Skill UI choices and row descriptors, without writing object XML.
 -- Selection persistence, visibility lifecycle and combat assignment remain with the caller.
+local moveOptions=require("PlayingGame.PlayerBoard.ResourceTracker.Interface.MoveRoleOptions")
 return function(deps)
     local choiceLetters=deps.choiceLetters
     local combatConfig=deps.combatConfig
@@ -58304,8 +58780,40 @@ return function(deps)
         return choices
     end
 
+    local sidewaysCache={}
+    local sidewaysCacheCount=0
+    local function simpleSidewaysKey(card,rule,choices,powered,inventorySpec,repeatLink,posture,isSkill,expandedRow,shapeshiftField,combat,psychic,cumbersome)
+        if posture~="sideways" or isSkill or powered or inventorySpec~=nil or repeatLink~=nil
+            or shapeshiftField~=nil or #choices~=4
+            or (rule~=nil and (rule.enemyEffect~=nil or rule.blockSourceBoost~=nil
+                or rule.damageMitigation~=nil or rule.manaOverload or rule.shapeshift
+                or rule.dodgeAttackSplit or rule.forkedLightning)) then return nil end
+        local plain={"move","block","attack","influence"}
+        for i,key in ipairs(plain) do
+            if choices[i][key]~=1 then return nil end
+            for field in pairs(choices[i]) do if field~=key then return nil end end
+        end
+        local _,selected=currentChoice(card.guid,powered,choices,true)
+        return table.concat({tostring(selected),tostring(expandedRow),tostring(combat),
+            tostring(psychic),tostring(cumbersome),tostring(combatConfig.moveRoleAvailable(card.guid)),
+            tostring(resourceCardsMoveRole(card.guid,false)),
+            tostring(resourceCardsHideAutomaticEnemyTarget(card.guid,"block",false)),
+            tostring(resourceCardsHideAutomaticEnemyTarget(card.guid,"attack",false))},"|")
+    end
+    local function copyList(values)
+        local copy={}
+        for key,value in pairs(values) do copy[key]=value end
+        return copy
+    end
     local function buildRows(card,cardData,rule,choices,powered,inventorySpec,inventorySets,repeatLink,posture,isSkill,expandedRow,shapeshiftField)
         local combatCalcOn,combatPsychicActive,combatCumbersomeActive=deps.combatContext()
+        local cacheKey=simpleSidewaysKey(card,rule,choices,powered,inventorySpec,repeatLink,posture,isSkill,
+            expandedRow,shapeshiftField,combatCalcOn,combatPsychicActive,combatCumbersomeActive)
+        local cached=cacheKey~=nil and sidewaysCache[card.guid] or nil
+        if cached~=nil and cached.key==cacheKey then
+            -- The renderer may append to its asset list; never expose cached assets.
+            return cached.rows,cached.signature,copyList(cached.assets),copyList(cached.seen)
+        end
         local function targetResourceFor(choice,category)
             if category=="ready" and cardData~=nil
                 and cardData.resourceKey=="rejuvenate" then return "unitReady" end
@@ -58370,12 +58878,11 @@ return function(deps)
             if selected~=nil and shapeshiftField==nil then
                 for _,option in ipairs(row.choices) do
                     local roleGUID=option.shapeshiftTargetGUID or card.guid
-                    local move=(tonumber(option.move) or 0)>0
-                        or (option.shapeshiftTargetGUID~=nil and choiceCategory(option)=="move")
+                    local move=moveOptions.producesMove(option,choiceCategory(option))
                     if choiceCategory(option)==selected and move
                         and combatConfig.moveRoleAvailable(roleGUID)
                         and resourceCardsMoveRole(roleGUID,false)=="combat" then
-                        row.selected="combatMove"..selected
+                        row.selected=moveOptions.cardCategory(selected,"combat")
                         break
                     end
                 end
@@ -58386,8 +58893,7 @@ return function(deps)
                 local category=choiceCategory(choice)
                 if category~=nil and choiceLetters[category]~=nil and not seen[category] then
                     seen[category]=true
-                    local producesMove=shapeshiftField==nil and ((tonumber(choice.move) or 0)>0
-                        or (choice.shapeshiftTargetGUID~=nil and category=="move"))
+                    local producesMove=shapeshiftField==nil and moveOptions.producesMove(choice,category)
                     local entry={category=category,
                         rank=resourceChoiceRank(category,choice),originalIndex=j,
                         skillFamily=isSkill and skillChoiceFamily(category,choice) or nil,
@@ -58399,7 +58905,7 @@ return function(deps)
                         iconOverlayColor=choice.iconOverlayColor,
                         iconOverlayAlignment=choice.iconOverlayAlignment,
                         iconOverlaySize=choice.iconOverlaySize,
-                        roleBadge=producesMove and "M" or nil}
+                        roleBadge=producesMove and moveOptions.badge("movement") or nil}
                     -- In combat, Influence can be committed to Psychic Block.
                     -- Show its function with shield beneath the Influence symbol.
                     if category=="influence" and combatPsychicActive
@@ -58422,11 +58928,11 @@ return function(deps)
                         if combatConfig.moveRoleAvailable(choice.shapeshiftTargetGUID or card.guid) then
                             local combatEntry={}
                             for key,value in pairs(entry) do combatEntry[key]=value end
-                            combatEntry.category="combatMove"..category
+                            combatEntry.category=moveOptions.cardCategory(category,"combat")
                             combatEntry.originalIndex=j+0.5
                             combatEntry.icon="move"
                             combatEntry.stackedIcons=nil
-                            combatEntry.roleBadge="C"
+                            combatEntry.roleBadge=moveOptions.badge("combat")
                             if splitMoveAttack and combatCalcOn then
                                 -- Keep Attack aimed independently of the Move pool.
                                 combatEntry.targetResource="attack"
@@ -58535,6 +59041,14 @@ return function(deps)
             signatureParts[#signatureParts+1]=row.index..":"..row.selected..":"
                 ..(row.expanded and "open" or "closed")..":"..tostring(#row.entries)
                 ..":"..table.concat(visibleSignatures,",")
+        end
+        if cacheKey~=nil then
+            if sidewaysCache[card.guid]==nil then
+                if sidewaysCacheCount>=256 then sidewaysCache={} sidewaysCacheCount=0 end
+                sidewaysCacheCount=sidewaysCacheCount+1
+            end
+            sidewaysCache[card.guid]={key=cacheKey,rows=rows,signature=signatureParts,
+                assets=copyList(visibleAssets),seen=copyList(assetSeen)}
         end
         return rows,signatureParts,visibleAssets,assetSeen
     end
@@ -58781,16 +59295,12 @@ end)
 __bundle_register("PlayingGame.PlayerBoard.ResourceTracker.Cards.MovementEffects", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Resource Tracker movement effects. Static weather modifier records retain
 -- their identities across scans; live globals are read when calculating costs.
+local terrainModifiers=require("PlayingGame.PlayerBoard.ResourceTracker.Cards.TerrainModifiers")
 local function ownedSkillAtSeat(guid,seatPos)
     local home=gStates~=nil and gStates.mageSkills~=nil and gStates.mageSkills[guid] or nil
     return home~=nil and home[1]~=nil and home[3]~=nil
         and home[3]<-30.5 and math.abs(home[1]-(seatPos*40-109.5))<15
 end
-
-local passableTerrain={
-    plains=true,hills=true,forest=true,wasteland=true,desert=true,swamp=true,
-    lake=true,mountain=true
-}
 
 -- Static rule objects are reused by every scan. The movement panel compares
 -- terrain modifier identity to avoid expensive redraws on unchanged positions.
@@ -58843,19 +59353,11 @@ local function resourceCardsWeatherTerrainEffects(seatPos)
 end
 
 local function cardTerrainEffects(rule,powered)
-    if rule==nil or rule.terrainEffects==nil then return nil end
-    if powered then return rule.terrainEffects.powered end
-    return rule.terrainEffects.normal
+    return terrainModifiers.side(rule,powered)
 end
 
 local function terrainEffectActive(effect)
-    return effect.dayRound==nil or effect.dayRound==(gStates.dayRound==true)
-end
-
-local function terrainEffectApplies(effect,terrain)
-    return effect.terrains=="passable" and passableTerrain[terrain]==true
-        or effect.terrains=="weather" and (passableTerrain[terrain]==true or terrain=="city")
-        or type(effect.terrains)=="table" and effect.terrains[terrain]==true
+    return terrainModifiers.active(effect,gStates.dayRound)
 end
 
 local function resourceCardsEffectiveTerrainCost(terrain)
@@ -58866,37 +59368,7 @@ local function resourceCardsEffectiveTerrainCost(terrain)
         and turnOrder[gStates.turnNumber] or nil
     local scan=player~=nil and resourceCardScanBySeat[player.seatPos] or nil
     local effects=scan~=nil and scan.terrainModifiers or nil
-    if effects==nil then return base end
-    -- Explicit traversal permissions (e.g. Song of Wind + extra Blue mana)
-    -- may open a lake; ordinary discounts cannot open impassable terrain.
-    -- Several simultaneous "set" effects use the lowest applicable cost,
-    -- independently of the order in which card/Skill effects were discovered.
-    local setCost=nil
-    for _,effect in ipairs(effects) do
-        if effect.mode=="set" and terrainEffectApplies(effect,terrain) then
-            setCost=setCost==nil and effect.cost or math.min(setCost,effect.cost)
-        end
-    end
-    if setCost==nil and base>=900 then return base end
-    local cost=setCost or base
-    -- Set effects grant traversal first; Path Finding can then discount that
-    -- newly passable terrain. A minimum is a floor, not a price increase.
-    for _,effect in ipairs(effects) do
-        if terrainEffectApplies(effect,terrain) then
-            if effect.mode=="cap" then
-                cost=math.min(cost,effect.cost)
-            elseif effect.mode=="reduce" then
-                cost=math.min(cost,math.max(effect.minimum or 0,cost-effect.amount))
-            end
-        end
-    end
-    for _,effect in ipairs(effects) do
-        if effect.mode=="weather" and terrainEffectApplies(effect,terrain) then
-            if effect.amount<0 then cost=math.max(1,cost+effect.amount)
-            else cost=math.min(5,cost+effect.amount) end
-        end
-    end
-    return cost
+    return terrainModifiers.cost(base,terrain,effects)
 end
 
 -- Exploring is not ordinary terrain. Apply the existing explicit explore modifiers
@@ -58909,22 +59381,17 @@ local function resourceCardsEffectiveExploreCost()
     if not resourceCardsPanelOpen() and gStates~=nil and turnOrder~=nil
         and turnOrder[gStates.turnNumber]~=nil then
         local seatPos=turnOrder[gStates.turnNumber].seatPos
+        local effects={}
         for guid,rule in pairs(skillResourceDefinitions) do
             if ownedSkillAtSeat(guid,seatPos) then
-                for _,effect in ipairs(rule.passiveTerrain or {}) do
-                    if effect.mode=="reduce" and terrainEffectApplies(effect,"explore") then
-                        cost=math.max(effect.minimum or 0,cost-effect.amount)
-                    end
-                end
-                if gStates.dayRound~=true then
-                    for _,effect in ipairs(rule.passiveNightTerrain or {}) do
-                        if effect.mode=="reduce" and terrainEffectApplies(effect,"explore") then
-                            cost=math.max(effect.minimum or 0,cost-effect.amount)
-                        end
-                    end
-                end
+                terrainModifiers.passive(effects,rule,gStates.dayRound)
             end
         end
+        local reductions={}
+        for _,effect in ipairs(effects) do
+            if effect.mode=="reduce" then reductions[#reductions+1]=effect end
+        end
+        cost=terrainModifiers.cost(cost,"explore",reductions)
     end
     if gStates~=nil and gStates.gameScenario=="The Hidden Valley Blitz" then
         cost=cost*3
@@ -58951,8 +59418,11 @@ local layout=(function()
 -- TTS does not expose Unity's measured text width to Lua. Estimate 13px
 -- display text by glyph type (and UTF-8 codepoint, not byte count), with
 -- room for margins, so even long or translated enemy names stay readable.
+local widthCache,widthCount={},0
 local function estimatedTextWidth(label)
     label=tostring(label or "")
+    local cached=widthCache[label]
+    if cached~=nil then return cached end
     local width=18
     for i=1,#label do
         local byte=label:byte(i)
@@ -58971,6 +59441,10 @@ local function estimatedTextWidth(label)
         elseif byte>=192 and byte<224 then width=width+10
         end
     end
+    -- Bounded cache of pure string measurements; no UI or combat state.
+    if widthCount>=512 then widthCache,widthCount={},0 end
+    widthCache[label]=width
+    widthCount=widthCount+1
     return width
 end
 
@@ -59050,8 +59524,33 @@ end)()
 local renderer=(function()
 local estimatedTextWidth=layout.estimatedTextWidth
 -- Apply panel geometry, damage summary and final header/overflow attributes.
-return function(combatConfig,combatPanelSetAttribute,combatRich,combatWoundsText,joinLang)
+return function(combatConfig,combatPanelSetAttribute,combatRich,combatWoundsText,joinLang,profiler)
+    local prior
+    local function equalRows(a,b)
+        -- Compare both ways: empty/missing rows and page changes must invalidate.
+        for k,value in pairs(a) do if b[k]~=value then return false end end
+        for k,value in pairs(b) do if a[k]~=value then return false end end
+        return true
+    end
+    local function copy(values)
+        local result={}
+        for k,value in pairs(values) do result[k]=value end
+        return result
+    end
     local function columns(shownTraits,shownOffence,shownAttacks,colUsed,maxResourceCounts,enemyNameWidth)
+        local cache=profiler~=nil and profiler.combatPanelAttributes or nil
+        local range=math.max(3,math.min(combatConfig.lineSlotCount,maxResourceCounts.range))
+        local block=math.max(3,math.min(combatConfig.lineSlotCount,maxResourceCounts.block))
+        local attack=math.max(3,math.min(combatConfig.lineSlotCount,maxResourceCounts.attack))
+        if prior~=nil and prior.cache==cache and prior.rowCount==combatConfig.rowCount
+            and prior.name==enemyNameWidth and prior.range==range and prior.block==block
+            and prior.attack==attack and equalRows(prior.used,colUsed)
+            and equalRows(prior.traits,shownTraits) and equalRows(prior.offence,shownOffence)
+            and equalRows(prior.attacks,shownAttacks) then
+            if profiler~=nil and profiler.traceEnabled then profiler.profileCount("layout.columns.hit") end
+            return copy(prior.widths),prior.base
+        end
+        if profiler~=nil and profiler.traceEnabled then profiler.profileCount("layout.columns.miss") end
         -- Hide a column when every visible enemy leaves it blank or "None".
         local function textBlank(text) return text==nil or text=="" or text=="None" or text=="-" end
         local colShown={range=colUsed.range,block=colUsed.block,attack=colUsed.attack,traits=false,offence=false,enemyAttack=false}
@@ -59106,6 +59605,9 @@ return function(combatConfig,combatPanelSetAttribute,combatRich,combatWoundsText
             end
         end
 
+        prior={cache=cache,rowCount=combatConfig.rowCount,name=enemyNameWidth,
+            range=range,block=block,attack=attack,used=copy(colUsed),traits=copy(shownTraits),
+            offence=copy(shownOffence),attacks=copy(shownAttacks),widths=copy(columnWidths),base=baseWidth}
         return columnWidths,baseWidth
     end
 
@@ -59132,10 +59634,10 @@ return function(combatConfig,combatPanelSetAttribute,combatRich,combatWoundsText
     end
 
     local function woundSummary(totalHeroWounds,totalDiscardWounds,knockout,pendingHand,pendingDiscard,changed,effects)
-        -- A Paralyzed Unit needs an Apply button even when all its attack damage
-        -- was absorbed and the Hero has zero Wounds.
+        -- Unit assignments need a phase commit even when no Wound is drawn.
         local showTotal=totalHeroWounds>0 or knockout or effects.destroyCount>0
             or effects.handDiscard or effects.stagedDiscardCount>0
+            or (effects.unitAssignments or 0)>0
         combatConfig.combatPanelShowsWounds=showTotal
         combatPanelSetAttribute("CombatTotalRow","active",showTotal and "true" or "false")
         if showTotal then
@@ -59147,13 +59649,14 @@ return function(combatConfig,combatPanelSetAttribute,combatRich,combatWoundsText
                 or (effects.handDiscard and "Apply: Discard hand"
                     or (effects.stagedDiscardCount>0 and "Apply: Discard Attack"
                         or (knockout and "Knocked out (applied)"
-                        or ("Apply: Destroy "..tostring(effects.destroyCount)..
-                            (effects.destroyCount==1 and " Unit" or " Units")))))
+                        or (effects.destroyCount>0 and ("Apply: Destroy "..tostring(effects.destroyCount)..
+                            (effects.destroyCount==1 and " Unit" or " Units"))
+                            or (effects.unitCommitPending and "Draw: 0 Wounds" or "Damage: Confirmed")))))
             combatPanelSetAttribute("CombatTotalDamage","text",text)
             combatPanelSetAttribute("CombatTotalDamage","font","Fonts/MKCardText")
             local pending=pendingHand+pendingDiscard>0
                 or effects.handDiscard or effects.destroyCount>0
-                or effects.stagedDiscardCount>0
+                or effects.stagedDiscardCount>0 or effects.unitCommitPending
             combatPanelSetAttribute("CombatApplyWounds","interactable",
                 (pending or changed) and not combatConfig.woundApplying and "true" or "false")
             combatPanelSetAttribute("CombatApplyWounds","color",
@@ -59226,223 +59729,274 @@ __bundle_register("PlayingGame.PlayerBoard.ResourceTracker.Interface.CombatRowRe
 return function(combatConfig,combatPanelSetAttribute,combatAssignmentIconButton,
     combatEnemyHasTrait,combatGroupTraitsText,combatEnemyAttacks,combatTypeRich,
     combatNatureVengeanceBlockBonus,combatRich,combatDamageNotes,combatGroupAttackLine,
-    combatCompactResultLines,tokenOf)
+    combatCompactResultLines,tokenOf,profiler)
+    -- XML rows and slots are fixed for the lifetime of the renderer.
+    local families={"range","block","attack"}
+    local emptyItems={}
+    local ids={}
+    for row=1,combatConfig.rowCount do
+        local prefix="CombatEnemyRow"..row
+        local rowIDs={row=prefix,armour=prefix.."Armour",traits=prefix.."Traits",
+            attacks=prefix.."Attacks",offence=prefix.."Offence",result=prefix.."Result",
+            cycle="CombatEnemyAttackCycle"..row,resultToggle="CombatEnemyResultToggle"..row,
+            grids={},cells={},slots={}}
+        ids[row]=rowIDs
+        for _,family in ipairs(families) do
+            rowIDs.grids[family]="CombatSourceGrid"..row..family
+            rowIDs.cells[family]="CombatSourceCell"..row..family
+            local slots={}
+            rowIDs.slots[family]=slots
+            for slot=1,combatConfig.slotCount do
+                slots[slot]="CombatSourceSlot"..row..family..slot
+            end
+        end
+    end
+    local previous={}
+    local attributeCache
     local function render(entries,groupOf,rowBlock,displayByIndex,seatScan,damageResults,knockout,
         pageOffset,visibleRows,shownTraits,shownOffence,shownAttacks,colUsed,maxResourceCounts,
         combatAssignmentSlotSources,combatAssignmentState,combatReductionAttackChoice,
         combatExpandedResults,combatAttackChoiceByRow,bossManual,totalRowHeight)
+        local tracing=profiler~=nil and profiler.traceEnabled
+        -- A replaced UI attribute cache requires a complete initial reconciliation.
+        local currentCache=profiler~=nil and profiler.combatPanelAttributes or nil
+        if currentCache~=attributeCache then previous={} attributeCache=currentCache end
         for row=1,combatConfig.rowCount do
             local index=pageOffset+row
             local entry=row<=visibleRows and entries[index] or nil
-            local group=entry~=nil and groupOf[index] or nil
-            local lists=displayByIndex[index] or {range={},block={},attack={}}
-            local resourceLines=1
-            for _,family in ipairs({"range","block","attack"}) do
-                local items=lists[family]
-                if entry~=nil and #items>0 then
-                    colUsed[family]=true
-                    maxResourceCounts[family]=math.max(maxResourceCounts[family],#items)
-                    resourceLines=math.max(resourceLines,math.ceil(#items/combatConfig.lineSlotCount))
-                end
-                -- Collapse the second icon line completely when unused. The Grid is
-                -- anchored to the cell's centre, so tall text rows don't strand
-                -- their one-line icons against the top of the enemy row.
-                local gridID="CombatSourceGrid"..row..family
-                local gridHeight=math.ceil(#items/combatConfig.lineSlotCount)*26
-                combatPanelSetAttribute(gridID,"height",tostring(gridHeight))
-                combatPanelSetAttribute(gridID,"preferredHeight",tostring(gridHeight))
-                for slot=1,combatConfig.slotCount do
-                    local id="CombatSourceSlot"..row..family..slot
-                    local item=items[slot]
-                    if item~=nil then
-                        combatAssignmentSlotSources[id]=item.source.key
-                        combatConfig.slotBowFamilies[id]=item.detail~=nil
-                            and (item.detail.family=="ranged" or item.detail.family=="siege")
-                            and item.detail.family or nil
-                        combatConfig.slotSelection[id]={key=item.source.key,
-                            wounded=item.wounded,ineffective=item.ineffective}
-                        local tooltip=item.tooltip or (item.source.name..": "..item.text
-                            ..(item.source.dodgeIneligible and
-                                " unavailable: the Hero took Wounds before the Attack phase"
-                                or (item.wounded and " can't apply 'Wounded'" or "")))
-                        -- Cold Toughness's powered icon bonus is automatic. Explain
-                        -- its printed Arcane Immunity exception on the Block source icon.
-                        local coldToughness=seatScan~=nil and seatScan.cards["79bfbd"] or nil
-                        if item.source.guid=="79bfbd" and item.typeKey=="I"
-                            and coldToughness~=nil and coldToughness.powered==true then
-                            local printedEnemy=entry~=nil and tokenOf(entry.guid) or nil
-                            if printedEnemy~=nil and printedEnemy.arcaneImmunity==true then
-                                tooltip=tooltip.."\nCold Toughness: Ice Block 5 + 0 icon bonus (Arcane Immunity)."
-                            else
-                                tooltip=tooltip.."\nCold Toughness: Ice Block 5 + 1 per printed enemy ability, attack type or resistance icon (automatic)."
-                            end
-                        end
-                        if item.paralysisCard then
-                            tooltip=tooltip.."\n"
-                                ..(knockout and "Knockout" or "Paralysis")
-                                ..": the Hero discards non-Wound cards before Attack."
-                                .." This planned card Attack does not count."
-                        end
-                        local bowFamily=combatConfig.slotBowFamilies[id]
-                        if bowFamily~=nil and combatConfig.artifactCombat.bow then
-                            local bowMode=combatConfig.bowSourceModes[
-                                item.source.key.."#"..bowFamily]
-                                or (bowFamily=="ranged" and "double" or "none")
-                            local description=bowFamily=="ranged"
-                                and (bowMode=="siege" and "Convert to Siege (same value)"
-                                    or "Double Ranged")
-                                or (bowMode=="ranged" and "Double and convert to Ranged"
-                                    or "Keep original Siege")
-                            tooltip=tooltip.."\nBow of Starsdawn: "..description
-                                ..". Right-click this source icon to switch."
-                        end
-                        if item.source.phaseLocked then
-                            tooltip=tooltip.."\nLocked by Commit Damage. Use TTS Rewind to change."
-                        end
-                        combatAssignmentIconButton(id,true,item.amount,item.icon,
-                            tooltip,combatAssignmentState.selected==item.source.key,
-                            (item.wounded or item.ineffective) and "#292323" or (item.typeKey~=nil
-                                and combatConfig.typeColors[item.typeKey][item.reduced and 2 or 1] or nil),
-                            item.wounded,item.ineffective)
-                        combatPanelSetAttribute(id,"interactable",
-                            item.source.phaseLocked and "false" or "true")
-                    else
-                        combatAssignmentIconButton(id,false,0,"","",false)
+            local prior=previous[row]
+            if entry~=nil or prior==nil or prior.visible then
+                local iconProfile
+                if tracing then iconProfile=profiler.profileStart() end
+                local rowIDs=ids[row]
+                local group=entry~=nil and groupOf[index] or nil
+                -- Never populate a hidden row with an enemy from the next page.
+                local lists=entry~=nil and displayByIndex[index] or nil
+                local counts={}
+                local resourceLines=1
+                for _,family in ipairs(families) do
+                    local items=lists~=nil and lists[family] or emptyItems
+                    if entry~=nil and #items>0 then
+                        colUsed[family]=true
+                        maxResourceCounts[family]=math.max(maxResourceCounts[family],#items)
+                        resourceLines=math.max(resourceLines,math.ceil(#items/combatConfig.lineSlotCount))
                     end
-                end
-            end
-            local merged=group~=nil and #group.members>1
-            for _,family in ipairs({"range","attack"}) do
-                combatPanelSetAttribute("CombatSourceCell"..row..family,"color",
-                    merged and "rgba(1,1,1,0.10)" or "rgba(0,0,0,0)")
-            end
-            local rowHeight=math.max(combatConfig.rowHeight,resourceLines*26+4)
-            if entry~=nil and group~=nil then
-                -- Final armour for the current layout: Elusive doubles unless every attack is blocked.
-                local armourValue=entry.baseArmour
-                if combatEnemyHasTrait(entry.data,entry.perks,"elusive") and not rowBlock[index].allBlocked then
-                    armourValue=entry.elusiveArmour
-                end
-                combatPanelSetAttribute("CombatEnemyRow"..row.."Armour","text",
-                    (entry.destroyed or entry.attackOnly) and "-" or tostring(armourValue))
-                -- Use actual modified defenses even on a single enemy (Sorcerers,
-                -- stripped fortification, and other effects may change them).
-                local sharedText=combatGroupTraitsText(entry,group.entry)
-                shownTraits[row]=sharedText
-                combatPanelSetAttribute("CombatEnemyRow"..row.."Traits","text",sharedText)
-                entry.attackCount=math.max(entry.attackCount or 1,select(2,sharedText:gsub("\n",""))+1)
-                -- An enemy defeated before the Block phase has no attack or
-                -- offensive abilities to resolve, even if its printed token has them.
-                local noEnemyAttack=group.rangeDefeated or entry.rangeDead
-                    or group.destroyed or entry.destroyed
-                local attacks=combatEnemyAttacks(entry)
-                local attackLines={}
-                if not noEnemyAttack then
-                    for attackIndex,attack in ipairs(attacks) do
-                        local reduction=rowBlock[index].reductions[attackIndex] or 0
-                        local markers={}
-                        local selections=combatReductionAttackChoice[entry.guid] or {}
-                        for rank,effect in ipairs(entry.attackReductions) do
-                            if selections[effect.id or tostring(effect.source)]==attackIndex then
-                                markers[#markers+1]=tostring(rank)
-                            end
-                        end
-                        attackLines[#attackLines+1]=(#markers>0 and ("▶"..table.concat(markers,",").." ") or "")
-                            ..combatTypeRich(attack.label.." "..tostring(attack.value-reduction)
-                                ..(combatNatureVengeanceBlockBonus()>0 and " (Block +1)" or ""),
-                                attack.key,reduction>0)
-                    end
-                end
-                local attackText=noEnemyAttack and ""
-                    or (#attackLines>0 and table.concat(attackLines,"\n") or "-")
-                shownAttacks[row]=attackText
-                combatPanelSetAttribute("CombatEnemyRow"..row.."Attacks","text",attackText)
-                if noEnemyAttack then
-                    shownOffence[row]=""
-                    combatPanelSetAttribute("CombatEnemyRow"..row.."Offence","text","")
-                    combatPanelSetAttribute("CombatEnemyAttackCycle"..row,"active","false")
-                    -- Removed attack lines must not leave extra empty height.
-                    entry.attackCount=math.max(1,select(2,sharedText:gsub("\n",""))+1)
-                end
-                local lines={}
-                local isLast=group.members[#group.members]==index
-                if group.destroyed then
-                    lines[1]=combatRich("Destroyed",combatConfig.COMBAT_GREEN)
-                elseif entry.rangeDead then
-                    lines[1]=combatRich("Ranged defeated",combatConfig.COMBAT_GREEN)
-                elseif group.rangeDefeated then
-                    -- Group results sit under the last enemy of the group.
-                    if isLast then
-                        lines[1]=combatRich("Ranged "..tostring(group.rangeTotal).."/"..tostring(group.rangeArmour)
-                            .." Defeated",combatConfig.COMBAT_GREEN)
-                    end
-                else
-                    -- Keep each source's Block status and wound distribution together.
-                    for lineIndex,line in ipairs(rowBlock[index].lines) do
-                        local item=rowBlock[index].damageItems[lineIndex]
-                        local attack=attacks[lineIndex]
-                        if attack~=nil and not attack.pending then
-                            local value=math.max(0,attack.value-(rowBlock[index].reductions[lineIndex] or 0))
-                            line=attack.label.." "..tostring(value)..": "..line
-                        end
-                        lines[#lines+1]=line
+                    -- Collapse the second icon line completely when unused. The Grid is
+                    -- anchored to the cell's centre, so tall text rows don't strand
+                    -- their one-line icons against the top of the enemy row.
+                    local gridID=rowIDs.grids[family]
+                    local gridHeight=math.ceil(#items/combatConfig.lineSlotCount)*26
+                    combatPanelSetAttribute(gridID,"height",tostring(gridHeight))
+                    combatPanelSetAttribute(gridID,"preferredHeight",tostring(gridHeight))
+                    local occupied=math.min(#items,combatConfig.slotCount)
+                    counts[family]=occupied
+                    -- First render clears all XML slots. Later renders only visit
+                    -- occupied slots and the tail of slots that just became empty.
+                    local limit=math.max(occupied,prior~=nil and prior.counts[family] or combatConfig.slotCount)
+                    for slot=1,limit do
+                        local id=rowIDs.slots[family][slot]
+                        local item=items[slot]
                         if item~=nil then
-                            for _,note in ipairs(combatDamageNotes(item,damageResults[item.key])) do
-                                lines[#lines+1]=note
+                            combatAssignmentSlotSources[id]=item.source.key
+                            combatConfig.slotBowFamilies[id]=item.detail~=nil
+                                and (item.detail.family=="ranged" or item.detail.family=="siege")
+                                and item.detail.family or nil
+                            combatConfig.slotSelection[id]={key=item.source.key,
+                                wounded=item.wounded,ineffective=item.ineffective}
+                            local tooltipProfile
+                            if tracing then tooltipProfile=profiler.profileStart() end
+                            local tooltip=item.tooltip or (item.source.name..": "..item.text
+                                ..(item.source.dodgeIneligible and
+                                    " unavailable: the Hero took Wounds before the Attack phase"
+                                    or (item.wounded and " can't apply 'Wounded'" or "")))
+                            -- Cold Toughness's powered icon bonus is automatic. Explain
+                            -- its printed Arcane Immunity exception on the Block source icon.
+                            local coldToughness=seatScan~=nil and seatScan.cards["79bfbd"] or nil
+                            if item.source.guid=="79bfbd" and item.typeKey=="I"
+                                and coldToughness~=nil and coldToughness.powered==true then
+                                local printedEnemy=entry~=nil and tokenOf(entry.guid) or nil
+                                if printedEnemy~=nil and printedEnemy.arcaneImmunity==true then
+                                    tooltip=tooltip.."\nCold Toughness: Ice Block 5 + 0 icon bonus (Arcane Immunity)."
+                                else
+                                    tooltip=tooltip.."\nCold Toughness: Ice Block 5 + 1 per printed enemy ability, attack type or resistance icon (automatic)."
+                                end
                             end
-                        elseif rowBlock[index].lines[lineIndex]:find("Blocked",1,true) then
-                            lines[#lines+1]="Wounds: None"
-                        end
-                    end
-                    if isLast and not entry.attackOnly then
-                        if group.bossSpecial then
-                            if group.attackTotal>0 then
-                                lines[#lines+1]="Attack "..tostring(group.attackTotal).." (level attack)"
+                            if item.paralysisCard then
+                                tooltip=tooltip.."\n"
+                                    ..(knockout and "Knockout" or "Paralysis")
+                                    ..": the Hero discards non-Wound cards before Attack."
+                                    .." This planned card Attack does not count."
                             end
+                            local bowFamily=combatConfig.slotBowFamilies[id]
+                            if bowFamily~=nil and combatConfig.artifactCombat.bow then
+                                local bowMode=combatConfig.bowSourceModes[
+                                    item.source.key.."#"..bowFamily]
+                                    or (bowFamily=="ranged" and "double" or "none")
+                                local description=bowFamily=="ranged"
+                                    and (bowMode=="siege" and "Convert to Siege (same value)"
+                                        or "Double Ranged")
+                                    or (bowMode=="ranged" and "Double and convert to Ranged"
+                                        or "Keep original Siege")
+                                tooltip=tooltip.."\nBow of Starsdawn: "..description
+                                    ..". Right-click this source icon to switch."
+                            end
+                            if item.source.phaseLocked then
+                                tooltip=tooltip.."\nLocked by Commit Damage. Use TTS Rewind to change."
+                            end
+                            if tooltipProfile~=nil then profiler.profileFinish("renderer.tooltip",tooltipProfile) end
+                            combatAssignmentIconButton(id,true,item.amount,item.icon,
+                                tooltip,combatAssignmentState.selected==item.source.key,
+                                (item.wounded or item.ineffective) and "#292323" or (item.typeKey~=nil
+                                    and combatConfig.typeColors[item.typeKey][item.reduced and 2 or 1] or nil),
+                                item.wounded,item.ineffective)
+                            combatPanelSetAttribute(id,"interactable",
+                                item.source.phaseLocked and "false" or "true")
                         else
-                            local line=combatGroupAttackLine(group.attackTotal,group.attackArmour)
-                            if line~=nil then lines[#lines+1]=line end
+                            combatAssignmentIconButton(id,false,0,"","",false)
                         end
                     end
                 end
-                if entry.bossType=="control" then
-                    lines[#lines+1]="Control: cannot be attacked"
-                elseif entry.bossLevel~=nil then
-                    local ranged,melee=entry.bossRangeLevels or 0,entry.bossAttackLevels or 0
-                    local manual=bossManual~=nil and bossManual[entry.guid]~=nil
-                    lines[#lines+1]="Levels: -"..tostring(ranged+melee).."/"..tostring(entry.bossLevel)
-                        .." (R "..tostring(ranged)..", A "..tostring(melee)..")"
-                        ..(manual and (group.bossSpecial and #group.members>1
-                            and " [Manual priority]" or " [Manual]") or "")
+                if iconProfile~=nil then iconProfile=profiler.profileCheckpoint("renderer.iconSlots",iconProfile) end
+                local merged=group~=nil and #group.members>1
+                for _,family in ipairs({"range","attack"}) do
+                    combatPanelSetAttribute(rowIDs.cells[family],"color",
+                        merged and "rgba(1,1,1,0.10)" or "rgba(0,0,0,0)")
                 end
-                local compactLines=combatCompactResultLines(lines,rowBlock[index].damageItems,damageResults)
-                local detailText=table.concat(lines,"\n")
-                local compactText=table.concat(compactLines,"\n")
-                local hasDetails=detailText~=compactText
-                local expanded=hasDetails and combatExpandedResults[entry.guid]==true
-                local displayText=expanded and detailText or compactText
-                if hasDetails then displayText=displayText..(expanded and " [-]" or " [+]") end
-                -- Only explicit newlines take vertical space; Result text may overflow horizontally.
-                local displayLines=expanded and #lines or #compactLines
-                local minHeight=rowHeight
-                rowHeight=math.max(rowHeight,math.max(displayLines,entry.attackCount or 1)*15+4)
-                -- Only the Result text and its row/panel heights change when expanded.
-                combatConfig.resultRowCache[row]={guid=entry.guid,detailText=detailText,
-                    compactText=compactText,hasDetails=hasDetails,detailLines=#lines,
-                    compactLines=#compactLines,minHeight=minHeight,rowHeight=rowHeight,
-                    attackCount=entry.attackCount or 1}
-                local resultID="CombatEnemyRow"..row.."Result"
-                combatPanelSetAttribute(resultID,"text",displayText)
-                combatPanelSetAttribute("CombatEnemyResultToggle"..row,"tooltip","")
-                combatPanelSetAttribute(resultID,"fontSize","12")
-                combatPanelSetAttribute(resultID,"font","Fonts/MKCardText")
-                combatPanelSetAttribute(resultID,"color","White")
-                totalRowHeight=totalRowHeight+rowHeight
-            end
-            combatPanelSetAttribute("CombatEnemyRow"..row,"preferredHeight",tostring(rowHeight))
-            if entry==nil then
+                local rowHeight=math.max(combatConfig.rowHeight,resourceLines*26+4)
+                if entry~=nil and group~=nil then
+                    -- Final armour for the current layout: Elusive doubles unless every attack is blocked.
+                    local armourValue=entry.baseArmour
+                    if combatEnemyHasTrait(entry.data,entry.perks,"elusive") and not rowBlock[index].allBlocked then
+                        armourValue=entry.elusiveArmour
+                    end
+                    combatPanelSetAttribute(rowIDs.armour,"text",
+                        (entry.destroyed or entry.attackOnly) and "-" or tostring(armourValue))
+                    -- Use actual modified defenses even on a single enemy (Sorcerers,
+                    -- stripped fortification, and other effects may change them).
+                    local sharedText=combatGroupTraitsText(entry,group.entry)
+                    shownTraits[row]=sharedText
+                    combatPanelSetAttribute(rowIDs.traits,"text",sharedText)
+                    entry.attackCount=math.max(entry.attackCount or 1,select(2,sharedText:gsub("\n",""))+1)
+                    -- An enemy defeated before the Block phase has no attack or
+                    -- offensive abilities to resolve, even if its printed token has them.
+                    local noEnemyAttack=group.rangeDefeated or entry.rangeDead
+                        or group.destroyed or entry.destroyed
+                    local attacks=combatEnemyAttacks(entry)
+                    local attackLines={}
+                    if not noEnemyAttack then
+                        for attackIndex,attack in ipairs(attacks) do
+                            local reduction=rowBlock[index].reductions[attackIndex] or 0
+                            local markers={}
+                            local selections=combatReductionAttackChoice[entry.guid] or {}
+                            for rank,effect in ipairs(entry.attackReductions) do
+                                if selections[effect.id or tostring(effect.source)]==attackIndex then
+                                    markers[#markers+1]=tostring(rank)
+                                end
+                            end
+                            attackLines[#attackLines+1]=(#markers>0 and ("▶"..table.concat(markers,",").." ") or "")
+                                ..combatTypeRich(attack.label.." "..tostring(attack.value-reduction)
+                                    ..(combatNatureVengeanceBlockBonus()>0 and " (Block +1)" or ""),
+                                    attack.key,reduction>0)
+                        end
+                    end
+                    local attackText=noEnemyAttack and ""
+                        or (#attackLines>0 and table.concat(attackLines,"\n") or "-")
+                    shownAttacks[row]=attackText
+                    combatPanelSetAttribute(rowIDs.attacks,"text",attackText)
+                    if noEnemyAttack then
+                        shownOffence[row]=""
+                        combatPanelSetAttribute(rowIDs.offence,"text","")
+                        combatPanelSetAttribute(rowIDs.cycle,"active","false")
+                        -- Removed attack lines must not leave extra empty height.
+                        entry.attackCount=math.max(1,select(2,sharedText:gsub("\n",""))+1)
+                    end
+                    local lines={}
+                    local isLast=group.members[#group.members]==index
+                    if group.destroyed then
+                        lines[1]=combatRich("Destroyed",combatConfig.COMBAT_GREEN)
+                    elseif entry.rangeDead then
+                        lines[1]=combatRich("Ranged defeated",combatConfig.COMBAT_GREEN)
+                    elseif group.rangeDefeated then
+                        -- Group results sit under the last enemy of the group.
+                        if isLast then
+                            lines[1]=combatRich("Ranged "..tostring(group.rangeTotal).."/"..tostring(group.rangeArmour)
+                                .." Defeated",combatConfig.COMBAT_GREEN)
+                        end
+                    else
+                        -- Keep each source's Block status and wound distribution together.
+                        for lineIndex,line in ipairs(rowBlock[index].lines) do
+                            local item=rowBlock[index].damageItems[lineIndex]
+                            local attack=attacks[lineIndex]
+                            if attack~=nil and not attack.pending then
+                                local value=math.max(0,attack.value-(rowBlock[index].reductions[lineIndex] or 0))
+                                line=attack.label.." "..tostring(value)..": "..line
+                            end
+                            lines[#lines+1]=line
+                            if item~=nil then
+                                for _,note in ipairs(combatDamageNotes(item,damageResults[item.key])) do
+                                    lines[#lines+1]=note
+                                end
+                            elseif rowBlock[index].lines[lineIndex]:find("Blocked",1,true) then
+                                lines[#lines+1]="Wounds: None"
+                            end
+                        end
+                        if entry.attackPhaseDestroyed and not entry.attackOnly then
+                            lines[#lines+1]=combatRich("Destroyed in Attack",combatConfig.COMBAT_GREEN)
+                        end
+                        if isLast and not entry.attackOnly then
+                            if group.bossSpecial then
+                                if group.attackTotal>0 then
+                                    lines[#lines+1]="Attack "..tostring(group.attackTotal).." (level attack)"
+                                end
+                            else
+                                local line=combatGroupAttackLine(group.attackTotal,group.attackArmour)
+                                if line~=nil then lines[#lines+1]=line end
+                            end
+                        end
+                    end
+                    if entry.bossType=="control" then
+                        lines[#lines+1]="Control: cannot be attacked"
+                    elseif entry.bossLevel~=nil then
+                        local ranged,melee=entry.bossRangeLevels or 0,entry.bossAttackLevels or 0
+                        local manual=bossManual~=nil and bossManual[entry.guid]~=nil
+                        lines[#lines+1]="Levels: -"..tostring(ranged+melee).."/"..tostring(entry.bossLevel)
+                            .." (R "..tostring(ranged)..", A "..tostring(melee)..")"
+                            ..(manual and (group.bossSpecial and #group.members>1
+                                and " [Manual priority]" or " [Manual]") or "")
+                    end
+                    local compactLines=combatCompactResultLines(lines,rowBlock[index].damageItems,damageResults)
+                    local detailText=table.concat(lines,"\n")
+                    local compactText=table.concat(compactLines,"\n")
+                    local hasDetails=detailText~=compactText
+                    local expanded=hasDetails and combatExpandedResults[entry.guid]==true
+                    local displayText=expanded and detailText or compactText
+                    if hasDetails then displayText=displayText..(expanded and " [-]" or " [+]") end
+                    -- Only explicit newlines take vertical space; Result text may overflow horizontally.
+                    local displayLines=expanded and #lines or #compactLines
+                    local minHeight=rowHeight
+                    rowHeight=math.max(rowHeight,math.max(displayLines,entry.attackCount or 1)*15+4)
+                    -- Only the Result text and its row/panel heights change when expanded.
+                    combatConfig.resultRowCache[row]={guid=entry.guid,detailText=detailText,
+                        compactText=compactText,hasDetails=hasDetails,detailLines=#lines,
+                        compactLines=#compactLines,minHeight=minHeight,rowHeight=rowHeight,
+                        attackCount=entry.attackCount or 1}
+                    local resultID=rowIDs.result
+                    combatPanelSetAttribute(resultID,"text",displayText)
+                    combatPanelSetAttribute(rowIDs.resultToggle,"tooltip","")
+                    combatPanelSetAttribute(resultID,"fontSize","12")
+                    combatPanelSetAttribute(resultID,"font","Fonts/MKCardText")
+                    combatPanelSetAttribute(resultID,"color","White")
+                    totalRowHeight=totalRowHeight+rowHeight
+                end
+                combatPanelSetAttribute(rowIDs.row,"preferredHeight",tostring(rowHeight))
+                if entry==nil then
+                    combatAttackChoiceByRow[row]=nil
+                    combatPanelSetAttribute(rowIDs.cycle,"active","false")
+                end
+                if iconProfile~=nil then profiler.profileFinish("renderer.resultText",iconProfile) end
+                previous[row]={visible=entry~=nil,counts=counts}
+            else
                 combatAttackChoiceByRow[row]=nil
-                combatPanelSetAttribute("CombatEnemyAttackCycle"..row,"active","false")
             end
         end
         return totalRowHeight
@@ -59479,7 +60033,8 @@ return function(combatConfig,skillRuleOf,combatDetailPhase,combatEnemyResists,co
                             icon=item.detail.icon,text=item.detail.text,typeKey=item.detail.typeKey,
                             reduced=rowBlock[index].wrongBlock[item.source.key..tostring(item.detail.key)]==true}
                     end
-                    if item.detail.family~="block" and item.detail.family~="move" then
+                    if item.detail.family~="block" and item.detail.family~="move"
+                        and item.detail.family~="influence" then
                         local phase=combatDetailPhase(item.detail,
                             group.rangeDefeated or group.rangeSpent,group.fortification,item.source)
                         -- Keep invalidated Attack-phase Unit icons visible so players
@@ -59565,20 +60120,18 @@ return function(combatGroupEntry,combatEnemyHasTrait,combatEnemyFortificationCou
     -- Joined boss attacks may defeat an ordinary enemy or one head without
     -- defeating the whole group. Per-defeat bonuses count each actual kill,
     -- never every level removed from a still-living boss.
+    local function enemyDefeated(entry,group,rangedOnly)
+        if entry.preview or entry.attackOnly then return false end
+        if entry.rangeDead or group.rangeDefeated then return true end
+        if rangedOnly then return false end
+        return group.defeated==true or entry.attackDead==true
+            or entry.attackPhaseDestroyed==true
+    end
+
     local function defeatedCount(entries,group,rangedOnly)
         local count=0
         for _,index in ipairs(group.members) do
-            local entry=entries[index]
-            if not entry.preview and not entry.attackOnly then
-                local dead
-                if group.bossSpecial then
-                    dead=entry.rangeDead==true or (not rangedOnly and
-                        (entry.attackDead==true or entry.attackPhaseDestroyed==true))
-                else
-                    dead=group.defeated and (not rangedOnly or group.rangeDefeated)
-                end
-                if dead then count=count+1 end
-            end
+            if enemyDefeated(entries[index],group,rangedOnly) then count=count+1 end
         end
         return count
     end
@@ -59809,7 +60362,7 @@ return function(combatGroupEntry,combatEnemyHasTrait,combatEnemyFortificationCou
         return defeatFame,defeatRep
     end
 
-    return {defeatedCount=defeatedCount,vampiric=vampiric,lateEffects=lateEffects,
+    return {enemyDefeated=enemyDefeated,defeatedCount=defeatedCount,vampiric=vampiric,lateEffects=lateEffects,
         dodgeAfterDamage=dodgeAfterDamage,resolve=resolve}
 end
 
@@ -59905,7 +60458,22 @@ return function(skillRuleOf)
         return mitigation,elementMitigation
     end
 
-    return {build=build,mitigationFor=mitigationFor}
+    -- Damage resolution can use at most one attack per mitigation effect.
+    -- Reuse these recorded values rather than resolving mutable live Units again.
+    local function restoreMitigations(results,mitigation,elementMitigation)
+        for key,result in pairs(results or {}) do
+            if mitigation~=nil and (result.prevented or 0)>0 then
+                mitigation.used=true
+                mitigation.appliedKey=key
+            end
+            if elementMitigation~=nil and (result.elementPrevented or 0)>0 then
+                elementMitigation.used=true
+                elementMitigation.appliedKey=key
+            end
+        end
+    end
+
+    return {build=build,mitigationFor=mitigationFor,restoreMitigations=restoreMitigations}
 end
 end)()
 
@@ -59923,6 +60491,8 @@ return function(cardDataOf,summonedBy,fortitudeUses)
     -- items: {key,type,damage,poison,paralyse,assassination} in resolution order; targetsOf(key) lists the Unit GUIDs the player chose.
     local function combatDamageResolve(items,units,heroArmour,targetsOf,mitigation,elementMitigation,ignoreFirstHeroWound,appliedDamage)
         local used,results={},{}
+        -- Read committed Banner uses, but reserve new uses only within this preview.
+        local reservedFortitude={}
         local firstHeroWoundIgnored=false
         -- Reserve a Unit required to receive its own protected enemy's damage first.
         -- An earlier, unrelated enemy must not consume that Unit before its forced assignment.
@@ -59972,12 +60542,11 @@ return function(cardDataOf,summonedBy,fortitudeUses)
                     entry.wounds=item.poison and 2 or 1
                     entry.destroyed=item.paralyse==true and unit.arcaneImmunity~=true
                     if unit.fortitudeUsed and unit.fortitudeGUID~=nil then
-                        -- Once per Round, on one printed attack; calculator rescans
-                        -- of this same attack may preview it without recharging.
-                        local uses=fortitudeUses()
-                        local prior=uses[unit.fortitudeGUID]
-                        if prior==nil or prior.attackKey==item.key then
-                            if prior==nil then uses[unit.fortitudeGUID]={attackKey=item.key} end
+                        -- Only the damage commit consumes the once-per-Round use.
+                        -- The frozen damage results retain its protection after commit.
+                        local guid=unit.fortitudeGUID
+                        if fortitudeUses()[guid]==nil and not reservedFortitude[guid] then
+                            reservedFortitude[guid]=true
                             entry.wounded=false
                             entry.wounds=nil
                             entry.destroyed=nil
@@ -60055,10 +60624,13 @@ __bundle_register("PlayingGame.PlayerBoard.ResourceTracker.Combat.EarlyCombatPha
 -- Ranged/Siege and Block phase resolution; immutable earlier-phase snapshots.
 return function(combatBlockResult,combatGroupEntry,combatRangeResult,combatRangeGroupEntry,
     combatBossPhasePlan,combatEnemyAttacks,combatEnemyHasTrait,combatFrozenCopy)
-    local function resolve(entries,groups,allocated,emptyTarget,rangedBeforeBlock)
+    local function resolve(entries,groups,allocated,emptyTarget,rangedBeforeBlock,profiler)
+        local tracing=profiler~=nil and profiler.traceEnabled
         local rowBlock={}
         for _,group in ipairs(groups) do
             local members,blockedAll={},{}
+            local profile
+            if tracing then profile=profiler.profileStart() end
             for _,index in ipairs(group.members) do
                 local entry=entries[index]
                 local target=allocated[index] or emptyTarget
@@ -60073,6 +60645,7 @@ return function(combatBlockResult,combatGroupEntry,combatRangeResult,combatRange
                     group.sources[#group.sources+1]=source
                 end
             end
+            if profile~=nil then profile=profiler.profileCheckpoint("early.resolveBlock",profile) end
             group.entry,group.attackArmour=combatGroupEntry(members,blockedAll)
             group.rangeTotal,group.rangeArmour,group.rangeDefeated,group.fortification=
                 combatRangeResult(combatRangeGroupEntry(members),group.sources)
@@ -60088,6 +60661,7 @@ return function(combatBlockResult,combatGroupEntry,combatRangeResult,combatRange
                     member.rangeDead=plan.killed[member.guid]==true
                 end
             end
+            if profile~=nil then profile=profiler.profileCheckpoint("early.resolveRange",profile) end
             -- Disease resolves after Block, not during Ranged/Siege. Every attack
             -- of the actual enemy must be blocked; an immune enemy gets no effect.
             if not group.rangeDefeated then
@@ -60157,6 +60731,7 @@ return function(combatBlockResult,combatGroupEntry,combatRangeResult,combatRange
             -- the damage assignments establish which Units survive into Attack.
             group.destroyed=not members[1].attackOnly and #group.members==1
                 and entries[group.members[1]].destroyed==true
+            if profile~=nil then profiler.profileFinish("early.postBlockEffects",profile) end
         end
         return rowBlock
     end
@@ -60352,11 +60927,17 @@ return function(combatApplyDefend,collectGroup,combatRangeGroupEntry,combatRange
         local burningShieldTriggered={}
         for index,entry in ipairs(entries) do
             local target=allocated[index] or emptyTarget
-            local _,_,_,_,_,_,_,successfulSources=combatBlockResult(entry,target.sources)
+            local successfulSources
             for _,source in ipairs(target.sources) do
-                if source.conditionalFireAttack~=nil and source.block>0
-                    and successfulSources[source.guid]==true then
-                    burningShieldTriggered[source.guid]=true
+                if source.conditionalFireAttack~=nil and source.block>0 then
+                    -- No need to ask the Block solver on unrelated enemies.
+                    if successfulSources==nil then
+                        local _,_,_,_,_,_,_,resolved=combatBlockResult(entry,target.sources)
+                        successfulSources=resolved
+                    end
+                    if successfulSources[source.guid]==true then
+                        burningShieldTriggered[source.guid]=true
+                    end
                 end
             end
         end
@@ -60469,11 +61050,11 @@ return function(attackAssignmentsTargetGUIDs,attackAssignmentsClearForObject,
         if targetGUID==nil then
             -- Restore the saved visual assignment for every source after a reload.
             -- Persisted/manual assignments win over nearest-enemy defaults.
-            local saved={}
-            for guid in pairs(attackAssignmentsTargetGUIDs(source.key)) do
-                if rowByGUID[guid]~=nil then saved[#saved+1]=guid end
+            local saved=attackAssignmentsTargetGUIDs(source.key)
+            local first
+            for guid in pairs(saved) do
+                if rowByGUID[guid]~=nil and (first==nil or guid<first) then first=guid end
             end
-            table.sort(saved)
             -- Prefer the persisted primary target when available; otherwise
             -- use a deterministic fallback for older saves.
             local primary=gStates~=nil and gStates.resourceCardPrimaryTargets
@@ -60482,7 +61063,7 @@ return function(attackAssignmentsTargetGUIDs,attackAssignmentsClearForObject,
                 gStates.resourceCardPrimaryTargets[source.key]=nil
             end
             targetGUID=primary~=nil and rowByGUID[primary]~=nil
-                and attackAssignmentsTargetGUIDs(source.key)[primary] and primary or saved[1]
+                and saved[primary] and primary or first
             if targetGUID~=nil then
                 combatAssignmentState.targets[source.key]=targetGUID
                 combatAssignmentState.explicit[source.key]=true
@@ -60491,7 +61072,8 @@ return function(attackAssignmentsTargetGUIDs,attackAssignmentsClearForObject,
         return targetGUID
     end
 
-    local function resolveTarget(source,entries,rowByGUID,combatAssignmentState,combatCumbersomeActive)
+    local function resolveTarget(source,entries,rowByGUID,combatAssignmentState,combatCumbersomeActive,observation)
+        local cumbersome=observation~=nil and observation.cumbersome or combatGUIDHasCumbersome
         local moveOnly=source.ranged+source.siege+source.block+source.attack==0
             and source.psychicInfluence==0
         local influenceOnly=source.ranged+source.siege+source.block+source.attack==0
@@ -60518,7 +61100,7 @@ return function(attackAssignmentsTargetGUIDs,attackAssignmentsClearForObject,
             attackAssignmentsClearForObject(source.key)
             targetGUID,targetIndex=nil,nil
         end
-        if moveOnly and targetGUID~=nil and not combatGUIDHasCumbersome(targetGUID) then
+        if moveOnly and targetGUID~=nil and not cumbersome(targetGUID) then
             -- Move can only be aimed at a Cumbersome enemy.
             combatAssignmentState.targets[source.key]=nil
             combatAssignmentState.explicit[source.key]=nil
@@ -60534,7 +61116,7 @@ return function(attackAssignmentsTargetGUIDs,attackAssignmentsClearForObject,
             and not attackAssignmentsIsTargeting(source.key)
         if targetIndex==nil and (autoCombatMove or (not moveOnly and not influenceOnly)) then
             targetGUID=combatNearestEnemyGUID(source,entries,
-                autoCombatMove and combatGUIDHasCumbersome or nil)
+                autoCombatMove and cumbersome or nil,observation~=nil and observation.positions or nil)
             combatAssignmentState.targets[source.key]=targetGUID
             combatAssignmentState.explicit[source.key]=autoCombatMove and targetGUID~=nil or nil
             targetIndex=targetGUID~=nil and rowByGUID[targetGUID] or nil
@@ -60546,21 +61128,76 @@ return function(attackAssignmentsTargetGUIDs,attackAssignmentsClearForObject,
         return targetGUID,targetIndex
     end
 
-    local function allocate(entries,sources,rowByGUID,combatAssignmentState,combatCumbersomeActive)
-        local allocated={}
+    -- Trace-only accounting captures original amounts before the divisible
+    -- allocator mutates its fresh source records. Unassigned resources are legal;
+    -- only allocation above the original source budget is a violation.
+    local fields={"ranged","siege","block","attack","move","psychicInfluence"}
+    local function addBudget(budgets,source)
+        local budget=budgets[source.key] or {}
+        budgets[source.key]=budget
+        for _,field in ipairs(fields) do
+            budget[field]=(budget[field] or 0)+(tonumber(source[field]) or 0)
+        end
+    end
+
+    local function checkBudget(original,allocated,report)
+        local actual={}
+        for _,row in pairs(allocated) do
+            for _,source in ipairs(row.sources) do addBudget(actual,source) end
+        end
+        for key,budget in pairs(actual) do
+            for _,field in ipairs(fields) do
+                local allowed=(original[key] or {})[field] or 0
+                if budget[field]>allowed then report(key,field,allowed,budget[field]) end
+            end
+        end
+    end
+
+    local function allocatePass(entries,sources,rowByGUID,combatAssignmentState,combatCumbersomeActive,report,profiler)
+        local profile
+        if profiler~=nil and profiler.traceEnabled then profile=profiler.profileStart() end
+        local allocated,activeSources={},{}
+        -- These observations are valid only during this allocation pass.
+        -- Later phases can change attacks and the next refresh sees live positions.
+        local cumbersomeCache,attackCache={},{}
+        local observation={positions={}}
+        observation.cumbersome=function(guid)
+            if cumbersomeCache[guid]==nil then
+                cumbersomeCache[guid]=combatGUIDHasCumbersome(guid)==true
+            end
+            return cumbersomeCache[guid]
+        end
+        observation.attacks=function(entry)
+            local cached=attackCache[entry]
+            if cached==nil then
+                cached=combatEnemyAttacks(entry)
+                attackCache[entry]=cached
+            end
+            return cached
+        end
+        local original=report~=nil and {} or nil
+        if original~=nil then
+            for _,source in ipairs(sources) do addBudget(original,source) end
+        end
+        if profile~=nil then profile=profiler.profileCheckpoint("allocation.setup",profile) end
         for _,source in ipairs(sources) do
-            local targetGUID,targetIndex=resolveTarget(source,entries,rowByGUID,combatAssignmentState,combatCumbersomeActive)
+            local targetProfile
+            if profile~=nil then targetProfile=profiler.profileStart() end
+            activeSources[source.key]=true
+            local targetGUID,targetIndex=resolveTarget(source,entries,rowByGUID,combatAssignmentState,combatCumbersomeActive,observation)
+            if targetProfile~=nil then targetProfile=profiler.profileCheckpoint("targets.resolve",targetProfile) end
             if targetIndex~=nil then
                 -- The arrow follows the lock, and returns if a cancelled retarget removed it.
                 if not attackAssignmentsIsTargeting(source.key) then
                     attackAssignmentsEnsureTarget(source.key,targetGUID,combatSourceArrowKind(source))
                 end
+                if targetProfile~=nil then targetProfile=profiler.profileCheckpoint("targets.arrows",targetProfile) end
                 local manuallyTargeted=combatAssignmentState.explicit[source.key]==true
-                local explicit=manuallyTargeted and combatGUIDHasCumbersome(targetGUID)
+                local explicit=manuallyTargeted and observation.cumbersome(targetGUID)
                 source.moveCounts=explicit
                 source.psychicInfluenceCounts=manuallyTargeted
                     and source.psychicInfluence>0 and (function()
-                        for _,attack in ipairs(combatEnemyAttacks(entries[targetIndex])) do
+                        for _,attack in ipairs(observation.attacks(entries[targetIndex])) do
                             if attack.key=="M" then return true end
                         end
                         return false
@@ -60573,31 +61210,44 @@ return function(attackAssignmentsTargetGUIDs,attackAssignmentsClearForObject,
                 if source.dueling then
                     -- A target with no Block phase cannot receive Dueling's later Attack.
                     source.duelingEligible=false
-                    for _,attack in ipairs(combatEnemyAttacks(entries[targetIndex])) do
+                    for _,attack in ipairs(observation.attacks(entries[targetIndex])) do
                         if not attack.pending then source.duelingEligible=true break end
                     end
                 end
-                divisibleResources(source,target,targetGUID,explicit,rowByGUID,entries,allocated)
+                divisibleResources(source,target,targetGUID,explicit,rowByGUID,entries,allocated,observation)
+                if targetProfile~=nil then profiler.profileFinish("targets.distribute",targetProfile) end
             end
         end
-        local effectOnly={}
-        local currentScan=scanOfActiveSeat()
-        for _,record in pairs(currentScan~=nil and currentScan.cards or {}) do
-            for _,key in ipairs(record.enemyEffectTargetKeys or {}) do effectOnly[key]=true end
-        end
+        if profile~=nil then profile=profiler.profileCheckpoint("allocation.targets",profile) end
+        local effectOnly
         for key in pairs(combatAssignmentState.targets) do
-            local active=effectOnly[key]==true
-            for _,source in ipairs(sources) do
-                if source.key==key then active=true break end
-            end
-            -- Enemy-effect Skills and Units are also real target sources even
-            -- when they generate no numeric Attack or Block.
-            if not active and not combatSourceKeepsLock(key) then
-                combatAssignmentState.targets[key]=nil
-                combatAssignmentState.explicit[key]=nil
+            if activeSources[key]~=true then
+                -- Most scans have only active numeric targets. Build the effect
+                -- index lazily, once, only if a nonnumeric/stale target exists.
+                if effectOnly==nil then
+                    effectOnly={}
+                    local currentScan=scanOfActiveSeat()
+                    for _,record in pairs(currentScan~=nil and currentScan.cards or {}) do
+                        for _,effectKey in ipairs(record.enemyEffectTargetKeys or {}) do effectOnly[effectKey]=true end
+                    end
+                end
+                if effectOnly[key]~=true and not combatSourceKeepsLock(key) then
+                    combatAssignmentState.targets[key]=nil
+                    combatAssignmentState.explicit[key]=nil
+                end
             end
         end
+        if profile~=nil then profile=profiler.profileCheckpoint("allocation.cleanup",profile) end
+        if original~=nil then checkBudget(original,allocated,report) end
+        if profile~=nil then profiler.profileFinish("allocation.audit",profile) end
         return allocated
+    end
+
+    local function allocate(...)
+        if attackAssignmentsWithTargetBatch~=nil then
+            return attackAssignmentsWithTargetBatch(allocatePass,...)
+        end
+        return allocatePass(...)
     end
 
     return {recoverTarget=recoverTarget,resolveTarget=resolveTarget,allocate=allocate}
@@ -60608,11 +61258,17 @@ __bundle_register("PlayingGame.PlayerBoard.ResourceTracker.Combat.DivisibleResou
 -- Distribute one physical resource source across its assigned enemy targets.
 -- The coordinator chooses targets and owns arrow state; only fresh allocation records are changed here.
 return function(attackAssignmentsTargetCounts,combatGUIDHasCumbersome,combatEnemyAttacks)
-    local function allocate(source,target,targetGUID,explicit,rowByGUID,entries,allocated)
+    local function allocate(source,target,targetGUID,explicit,rowByGUID,entries,allocated,observation)
+        local cumbersome=observation~=nil and observation.cumbersome or combatGUIDHasCumbersome
+        local attacks=observation~=nil and observation.attacks or combatEnemyAttacks
+        local counts
+        if source.convertedResource~=nil or (source.moveCounts and (source.move or 0)>0)
+            or source.psychicInfluenceCounts then
+            counts=attackAssignmentsTargetCounts(source.key)
+        end
         if source.convertedResource~=nil then
             -- A right-click adds an arrow to another enemy. Each extra
             -- arrow spends ONE converted point, never a second full pool.
-            local counts=attackAssignmentsTargetCounts(source.key)
             local other={}
             for guid in pairs(counts) do
                 if guid~=targetGUID and rowByGUID[guid]~=nil then other[#other+1]=guid end
@@ -60665,7 +61321,6 @@ return function(attackAssignmentsTargetCounts,combatGUIDHasCumbersome,combatEnem
             -- Primary target receives the remaining Cumbersome Move.
             -- Each extra arrow transfers one point to another Cumbersome
             -- enemy, exactly as divisible Psychic Influence does.
-            local counts=attackAssignmentsTargetCounts(source.key)
             local other={}
             for guid in pairs(counts) do
                 if guid~=targetGUID and rowByGUID[guid]~=nil then
@@ -60676,7 +61331,7 @@ return function(attackAssignmentsTargetCounts,combatGUIDHasCumbersome,combatEnem
             local remaining=source.move
             for _,guid in ipairs(other) do
                 if remaining<=0 then break end
-                if combatGUIDHasCumbersome(guid) then
+                if cumbersome(guid) then
                     local amount=math.min(counts[guid],remaining)
                     local portion={guid=source.guid,key=source.key,name=source.name,
                         ranged=0,siege=0,block=0,attack=0,
@@ -60713,7 +61368,7 @@ return function(attackAssignmentsTargetCounts,combatGUIDHasCumbersome,combatEnem
             -- The primary left-click target initially receives all Influence.
             -- Each additional right-click arrow transfers one point; repeated
             -- arrows to the same enemy transfer more. No point is double-spent.
-            local targetCounts=attackAssignmentsTargetCounts(source.key)
+            local targetCounts=counts
             local extraTargets={}
             for guid in pairs(targetCounts) do
                 if guid~=targetGUID and rowByGUID[guid]~=nil then
@@ -60726,7 +61381,7 @@ return function(attackAssignmentsTargetCounts,combatGUIDHasCumbersome,combatEnem
                 if remaining<=0 then break end
                 local index=rowByGUID[guid]
                 local psychic=false
-                for _,attack in ipairs(combatEnemyAttacks(entries[index])) do
+                for _,attack in ipairs(attacks(entries[index])) do
                     if attack.key=="M" then psychic=true break end
                 end
                 if psychic then
@@ -61790,13 +62445,17 @@ return function(combatConfig)
                 and item.key~="blockPsychic")
     end
 
-    local function combatSolveBlocks(attacks,items,movePool)
+    local function sortItems(items)
         table.sort(items,function(a,b)
             if a.value~=b.value then return a.value>b.value end
             if a.source.key~=b.source.key then return a.source.key<b.source.key end
             if a.key~=b.key then return a.key<b.key end
             return (a.part or 0)<(b.part or 0)
         end)
+    end
+
+    local function combatSolveBlocks(attacks,items,movePool)
+        sortItems(items)
         local targets={}
         local initial={}
         for index,attack in ipairs(attacks) do
@@ -61819,7 +62478,8 @@ return function(combatConfig)
             local function retain(points,spent,route)
                 local key=table.concat(points,",")
                 local prior=nextStates[key]
-                if prior==nil or spent<prior.spent then
+                if prior==nil or spent<prior.spent
+                    or (spent==prior.spent and route<prior.route) then
                     nextStates[key]={points=points,spent=spent,route=route}
                 end
             end
@@ -61889,7 +62549,9 @@ return function(combatConfig)
                 end
             end
             score=score+state.spent*100
-            if bestScore==nil or score<bestScore then
+            -- Equal-cost routes must not depend on Lua hash iteration order.
+            if bestScore==nil or score<bestScore
+                or (score==bestScore and state.route<bestState.route) then
                 bestScore,bestState,bestReductions=score,state,reductions
             end
         end
@@ -61928,7 +62590,7 @@ return function(combatConfig)
     end
 
     return {legal=combatBlockLegal,efficient=combatBlockEfficient,
-        solve=combatSolveBlocks,spent=combatBlockSpent}
+        sortItems=sortItems,solve=combatSolveBlocks,spent=combatBlockSpent}
 end
 end)()
 
@@ -61942,7 +62604,7 @@ return function(combatConfig,solver,combatEnemyAttacks,combatNatureVengeanceBloc
     local combatSolveBlocks=solver.solve
     local combatBlockSpent=solver.spent
 
-    local function combatBlockResult(entry,sources,cache)
+    local function combatBlockResult(entry,sources,cache,profileCount)
         local items={}
         local movePool=0
         for _,source in ipairs(sources) do
@@ -61984,6 +62646,8 @@ return function(combatConfig,solver,combatEnemyAttacks,combatNatureVengeanceBloc
                 end
             end
         end
+        -- Canonicalize the same resource set before keying the exact solver.
+        solver.sortItems(items)
         local parts={tostring(movePool),tostring(#attacks),tostring(#items)}
         for _,attack in ipairs(attacks) do
             parts[#parts+1]=table.concat({
@@ -61991,11 +62655,12 @@ return function(combatConfig,solver,combatEnemyAttacks,combatNatureVengeanceBloc
                 tostring(attack.slot),tostring(attack.pending),tostring(attack.swift),
                 tostring(attack.brutal),tostring(attack.cumbersome),tostring(attack.poison),
                 tostring(attack.paralyse),tostring(attack.assassination),
-                tostring(attack.firstDamageUnit)},":")
+                tostring(attack.firstDamageUnit),tostring(attack.label),
+                tostring(attack.block),tostring(attack.abilitiesStripped)},":")
         end
         for _,item in ipairs(items) do
             parts[#parts+1]=table.concat({
-                tostring(item.source.key),tostring(item.key),tostring(item.value),
+                tostring(item.source.key),tostring(item.source.guid),tostring(item.key),tostring(item.value),
                 tostring(item.swiftDouble),tostring(item.part),
                 tostring(item.source.heroPsychicBlock),
                 tostring(item.source.excessBlockArmour)},":")
@@ -62011,8 +62676,23 @@ return function(combatConfig,solver,combatEnemyAttacks,combatNatureVengeanceBloc
         table.sort(moveSignature)
         for _,piece in ipairs(moveSignature) do parts[#parts+1]="move:"..piece end
         local key=table.concat(parts,";")
-        local cached=entry.guid~=nil and cache[entry.guid] or nil
-        if cached~=nil and cached.key==key then return table.unpack(cached.result,1,12) end
+        -- Conditional effects can alternate between a few valid attack/source
+        -- variants in a single refresh. Retain the four most recent exact
+        -- solutions per enemy rather than evicting one on every phase pass.
+        local variants=entry.guid~=nil and cache[entry.guid] or nil
+        if variants~=nil then
+            for index,cached in ipairs(variants) do
+                if cached.key==key then
+                    if index>1 then
+                        table.remove(variants,index)
+                        table.insert(variants,1,cached)
+                    end
+                    if profileCount~=nil then profileCount("block.cache.hit") end
+                    return table.unpack(cached.result,1,12)
+                end
+            end
+        end
+        if profileCount~=nil then profileCount("block.cache.miss") end
         local plan,solved,leftover=combatSolveBlocks(attacks,items,movePool)
         -- Capture only the resources assigned to a successful Block. The later
         -- display of spare/failed Block icons must never commit their sources.
@@ -62074,6 +62754,13 @@ return function(combatConfig,solver,combatEnemyAttacks,combatNatureVengeanceBloc
                     local owner=attack.owner or entry.guid
                     if excess>0 then
                         shieldBashExcess[owner]=(shieldBashExcess[owner] or 0)+excess*bashCount
+                            -- Every point used to generate the frozen Armour reduction
+                            -- was spent, including surplus Block assigned after solving.
+                            for itemIndex,item in ipairs(solved) do
+                                if step.used[itemIndex] then
+                                    successfulSourceKeys[item.source.key]=true
+                                end
+                            end
                     end
                 end
             end
@@ -62129,9 +62816,11 @@ return function(combatConfig,solver,combatEnemyAttacks,combatNatureVengeanceBloc
             end
         end
         if entry.guid~=nil then
-            cache[entry.guid]={key=key,result={
+            if variants==nil then variants={} cache[entry.guid]=variants end
+            table.insert(variants,1,{key=key,result={
                 lines,totalDamage,damageCount,allBlocked,reductions,wrongBlock,unblocked,
-                successfulSources,successfulOwners,shieldBashExcess,successfulSourceKeys,spentMoveKeys}}
+                successfulSources,successfulOwners,shieldBashExcess,successfulSourceKeys,spentMoveKeys}})
+            if #variants>4 then table.remove(variants) end
         end
         return lines,totalDamage,damageCount,allBlocked,reductions,wrongBlock,unblocked,
             successfulSources,successfulOwners,shieldBashExcess,successfulSourceKeys,spentMoveKeys
@@ -62567,6 +63256,85 @@ end)()
 return {attacks=attacks,defences=defences}
 
 end)
+__bundle_register("PlayingGame.PlayerBoard.ResourceTracker.Core.ResourceOperations", function(require, _LOADED, __bundle_register, __bundle_modules)
+-- Pure resource-key and live-record operations. Printed catalog tables are immutable.
+local M={}
+local suffixes={"ColdFire","Fire","Ice","Psychic"}
+local combatFamilies={attack=true,ranged=true,siege=true}
+local elementalFamilies={attack=true,ranged=true,siege=true,block=true}
+
+function M.splitKey(key)
+    for _,suffix in ipairs(suffixes) do
+        if #key>#suffix and key:sub(-#suffix)==suffix then
+            return key:sub(1,#key-#suffix),suffix
+        end
+    end
+    return key,""
+end
+
+function M.changeFamily(key,family)
+    local _,suffix=M.splitKey(key)
+    -- Movement has no element; converting from Move starts physical.
+    return family=="move" and "move" or family..suffix
+end
+
+function M.addElement(key,element)
+    local family,suffix=M.splitKey(key)
+    if not elementalFamilies[family] then return nil end
+    if element~="Fire" and element~="Ice" then return nil end
+    if suffix=="" then return family..element end
+    if (suffix=="Fire" and element=="Ice") or (suffix=="Ice" and element=="Fire") then
+        return family.."ColdFire"
+    end
+    return nil
+end
+
+function M.globalAttackKey(key,transform)
+    if transform==nil or (not transform.coldFire and not transform.siege) then return key end
+    local family,suffix=M.splitKey(key)
+    if not combatFamilies[family] then return key end
+    if transform.siege then family="siege" end
+    if transform.coldFire then suffix="ColdFire" end
+    return family..suffix
+end
+
+local function copyResources(record)
+    local copy={}
+    for key,value in pairs(record.resources) do copy[key]=value end
+    return copy
+end
+
+-- The caller supplies an already published, eligible resource record. These
+-- operations adjust only that record and its scan totals, not links, payment,
+-- contribution flags, highlights, target locks or effect ordering.
+function M.addAmounts(record,totals,amounts)
+    local copy=copyResources(record)
+    for field,amount in pairs(amounts) do
+        copy[field]=(copy[field] or 0)+amount
+        totals[field]=(totals[field] or 0)+amount
+    end
+    record.resources=copy
+end
+function M.add(record,totals,field,amount)
+    M.addAmounts(record,totals,{[field]=amount})
+end
+
+-- Replace the complete original field. An omitted amount preserves its value;
+-- an explicit amount supports a conversion with a bonus (e.g. Leadership).
+function M.replace(record,totals,from,to,amount)
+    local copy=copyResources(record)
+    local old=copy[from] or 0
+    if amount==nil then amount=old end
+    copy[from]=nil
+    copy[to]=(copy[to] or 0)+amount
+    record.resources=copy
+    totals[from]=(totals[from] or 0)-old
+    totals[to]=(totals[to] or 0)+amount
+end
+
+return M
+
+end)
 __bundle_register("PlayingGame.PlayerBoard.ResourceTracker.Core.Diagnostics", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Runtime-only Resource Tracker diagnostics. The coordinator supplies its
 -- existing private state table so status always reads the current live queues.
@@ -62576,12 +63344,288 @@ return function(trackerPrivate)
     trackerPrivate.traceEnabled=false
     trackerPrivate.traceLines={}
     trackerPrivate.traceSequence=0
+    trackerPrivate.profileStats={}
+    -- Slow capture is separately opt-in. Reports are bounded and printed on
+    -- demand, so console output does not itself hitch during the drop.
+    local slowThreshold,activeReport,lastReport
+    local slowReports,pendingTriggers,previousCombat,previousCards={}, {}, {}, {}
+    local function resetReports()
+        activeReport,lastReport=nil,nil
+        slowReports,pendingTriggers,previousCombat,previousCards={}, {}, {}, {}
+    end
+    trackerPrivate.profileMutation=function(kind,detail)
+        local report=activeReport
+        if report==nil then return end
+        report.mutations[kind]=(report.mutations[kind] or 0)+1
+        if detail~=nil and #report.changes<24 then
+            report.changes[#report.changes+1]=kind.." "..tostring(detail)
+        end
+    end
+    trackerPrivate.profileCardName=function(data,guid)
+        local name=data~=nil and data.name or nil
+        if type(name)=="table" then name=name.en or name[1] end
+        if type(name)~="string" or name=="" then name=data~=nil and data.resourceKey or nil end
+        return type(name)=="string" and name or tostring(guid)
+    end
+    trackerPrivate.profileContext=function(context,cards)
+        if activeReport==nil then return end
+        activeReport.context=context
+        if cards==nil then return end
+        local seat=activeReport.seat or 0
+        local before=previousCards[seat]
+        local descriptions={}
+        for guid,description in pairs(cards) do
+            descriptions[#descriptions+1]=description
+            if before~=nil and before[guid]~=description then
+                trackerPrivate.profileMutation(before[guid]==nil and "card.added" or "card.changed",description)
+            end
+        end
+        if before~=nil then
+            for guid,description in pairs(before) do
+                if cards[guid]==nil then trackerPrivate.profileMutation("card.removed",description) end
+            end
+        end
+        previousCards[seat]=cards
+        table.sort(descriptions)
+        activeReport.context=context.." | "..table.concat(descriptions,"; ")
+    end
+    trackerPrivate.profileCombatState=function(seat,states,wounds)
+        if activeReport==nil then return end
+        local before=previousCombat[seat]
+        if before~=nil then
+            for guid,state in pairs(states) do
+                if before.states[guid]~=state then
+                    trackerPrivate.profileMutation("combat.transition",guid.." "..tostring(before.states[guid] or "new").." -> "..state)
+                end
+            end
+            for guid in pairs(before.states) do
+                if states[guid]==nil then trackerPrivate.profileMutation("combat.transition",guid.." removed") end
+            end
+            if before.wounds~=wounds then
+                trackerPrivate.profileMutation("wounds.transition",before.wounds.." -> "..wounds)
+            end
+        end
+        previousCombat[seat]={states=states,wounds=wounds}
+        activeReport.wounds=wounds
+    end
+    trackerPrivate.profileCapturing=function() return activeReport~=nil end
+    local function printReport(report)
+        if report==nil then log("[TrackerHitch] No completed captured scan") return end
+        local elapsed=report.ms~=nil and string.format("%.2fms",report.ms) or "clock unavailable"
+        local frames={}
+        for index=1,3 do
+            local ms=(report.frames or {})[index]
+            frames[index]=ms~=nil and string.format("%.2f",ms) or "-"
+        end
+        log("[TrackerHitch] scan="..report.id.." seat="..tostring(report.seat).." "..elapsed
+            .." frames(ms)="..table.concat(frames,",")
+            ..(report.followup and " followup scan queued" or ""))
+        log("[TrackerHitch] "..(report.context or "context unavailable").." wounds="..tostring(report.wounds or "-"))
+        log("[TrackerHitch] triggers="..(#report.triggers>0 and table.concat(report.triggers,"; ") or "no identified object event"))
+        local stages={}
+        for name,stat in pairs(report.stages) do
+            if stat.ms>0 then stages[#stages+1]={name=name,ms=stat.ms} end
+        end
+        table.sort(stages,function(a,b) return a.ms==b.ms and a.name<b.name or a.ms>b.ms end)
+        local parts={}
+        for i=1,math.min(#stages,16) do
+            local stage=stages[i]
+            parts[#parts+1]=stage.name.."="..string.format("%.2f",stage.ms)
+        end
+        log("[TrackerHitch] stages (nested, ms): "..table.concat(parts," "))
+        parts={}
+        for kind,count in pairs(report.mutations) do parts[#parts+1]=kind.."="..count end
+        table.sort(parts)
+        log("[TrackerHitch] mutations: "..table.concat(parts," "))
+        for _,change in ipairs(report.changes) do log("[TrackerHitch] "..change) end
+    end
+    -- Lua CPU time when available; counts still work without os.clock.
+    trackerPrivate.profileClock=function()
+        if os~=nil and type(os.clock)=="function" then return os.clock() end
+        return nil
+    end
+    trackerPrivate.profileStart=function()
+        if trackerPrivate.traceEnabled then return trackerPrivate.profileClock() or false end
+        return nil
+    end
+    trackerPrivate.profileFinish=function(name,started,finished)
+        if started==nil or not trackerPrivate.traceEnabled then return end
+        local stats=trackerPrivate.profileStats[name] or {count=0,ms=0,maxMs=0,timed=0}
+        trackerPrivate.profileStats[name]=stats
+        stats.count=stats.count+1
+        if type(started)=="number" then
+            local now=finished
+            if now==nil then now=trackerPrivate.profileClock() end
+            if type(now)=="number" then
+                local ms=math.max(0,(now-started)*1000)
+                stats.ms=stats.ms+ms
+                stats.maxMs=math.max(stats.maxMs,ms)
+                stats.timed=stats.timed+1
+                if activeReport~=nil then
+                    local stage=activeReport.stages[name] or {ms=0,count=0}
+                    activeReport.stages[name]=stage
+                    stage.ms=stage.ms+ms
+                    stage.count=stage.count+1
+                end
+            end
+        end
+    end
+    -- Consecutive stages share a single clock reading at each boundary.
+    -- A false timestamp means timing is unavailable, but counts still work.
+    -- Disabled profiling does not read the clock or allocate a stats record.
+    trackerPrivate.profileCheckpoint=function(name,started)
+        if started==nil or not trackerPrivate.traceEnabled then return nil end
+        local now=trackerPrivate.profileClock() or false
+        trackerPrivate.profileFinish(name,started,now)
+        return now
+    end
+    trackerPrivate.profileCount=function(name)
+        trackerPrivate.profileFinish(name,false)
+    end
+    -- Group actual UI writes by displayed column, not by individual element ID.
+    -- Use one elapsed measurement for both the total and the column breakdown.
+    trackerPrivate.profileUIWrite=function(id,started)
+        if started==nil or not trackerPrivate.traceEnabled then return end
+        local finished=trackerPrivate.profileClock() or false
+        trackerPrivate.profileFinish("ui.setAttribute",started,finished)
+        local family=id:match("^CombatSourceSlot%d+(%a+)%d+")
+            or id:match("^CombatSourceGrid%d+(%a+)$")
+            or id:match("^CombatSourceCell%d+(%a+)$")
+        if family~="range" and family~="block" and family~="attack" then
+            local column=id:match("^CombatEnemyRow%d+(%a+)$")
+            if id:match("^CombatEnemyResultToggle") or id=="CombatResultHeader" then column="Result"
+            elseif id:match("^CombatEnemyAttackCell") or id:match("^CombatEnemyAttackCycle")
+                or id=="CombatEnemyAttackHeader" then column="Attacks"
+            elseif id=="CombatRangeSiegeHeader" then family="range"
+            elseif id=="CombatBlockHeader" then family="block"
+            elseif id=="CombatAssignedAttackHeader" then family="attack"
+            elseif id:match("^CombatEnemyNameCell") or id=="CombatMonsterHeader" then column="Name"
+            elseif id=="CombatArmourHeader" then column="Armour"
+            elseif id=="CombatDefenceTraitsHeader" then column="Traits"
+            elseif id=="CombatOffenceHeader" then column="Offence" end
+            if family~="range" and family~="block" and family~="attack" then
+                if column=="Result" or column=="Attacks" or column=="Name" or column=="Armour"
+                    or column=="Traits" or column=="Offence" then family=column
+                elseif id:match("^CombatTotal") or id:match("^CombatApplyWounds")
+                    or id:match("^CombatKnockoutWarning") then family="wounds"
+                else family="layout" end
+            end
+        end
+        trackerPrivate.profileFinish("ui.write."..family,started,finished)
+    end
+
+    -- Heap sampling is observational only: never force or stop garbage collection.
+    -- Some TTS Lua environments restrict collectgarbage; fall back to timings.
+    trackerPrivate.profileHeap=function()
+        if type(collectgarbage)~="function" then return nil end
+        local ok,kb=pcall(collectgarbage,"count")
+        return ok and type(kb)=="number" and kb or nil
+    end
+    trackerPrivate.profileMemory={}
+    trackerPrivate.profileScanStart=function(seat)
+        if not trackerPrivate.traceEnabled then return nil end
+        if slowThreshold~=nil then
+            activeReport={id=trackerPrivate.traceSequence,seat=seat,stages={},mutations={},changes={},
+                triggers=pendingTriggers[seat or 0] or {}}
+            pendingTriggers[seat or 0]=nil
+        end
+        local memory=trackerPrivate.profileMemory
+        local kb
+        if not memory.unavailable then
+            kb=trackerPrivate.profileHeap()
+            if kb==nil then memory.unavailable=true end
+        end
+        return {started=trackerPrivate.profileStart(),kb=kb}
+    end
+    trackerPrivate.profileScanFinish=function(sample)
+        if sample==nil or not trackerPrivate.traceEnabled then return end
+        local finished=trackerPrivate.profileClock() or false
+        trackerPrivate.profileFinish("tracker.scan",sample.started,finished)
+        local report=activeReport
+        activeReport=nil
+        if report~=nil then
+            if type(sample.started)=="number" and type(finished)=="number" then
+                report.ms=math.max(0,(finished-sample.started)*1000)
+            end
+            lastReport=report
+            report.followup=trackerPrivate.pendingSeatRender~=nil
+                and trackerPrivate.pendingSeatRender[report.seat or 0]~=nil
+            local threshold=slowThreshold
+            local saved=false
+            local function retain()
+                if saved or threshold==nil or not trackerPrivate.traceEnabled then return end
+                if (report.ms or 0)>=threshold or (report.frameMs or 0)>=threshold then
+                    saved=true
+                    slowReports[#slowReports+1]=report
+                    if #slowReports>8 then table.remove(slowReports,1) end
+                end
+            end
+            retain()
+            -- TTS frame delta is an engine timing observation, not a CPU timer.
+            -- Guard missing/restricted APIs and do not hold live object handles.
+            if Wait~=nil and type(Wait.frames)=="function" then
+                local reports=slowReports
+                report.frames={}
+                local index=0
+                local function sampleFrame()
+                    if reports~=slowReports or not trackerPrivate.traceEnabled or slowThreshold==nil then return end
+                    index=index+1
+                    local ok,delta=pcall(function() return Time.delta_time end)
+                    if ok and type(delta)=="number" then
+                        report.frames[index]=delta*1000
+                        report.frameMs=math.max(report.frameMs or 0,report.frames[index])
+                    end
+                    retain()
+                    if index<3 then Wait.frames(sampleFrame,1) end
+                end
+                Wait.frames(sampleFrame,1)
+            end
+        end
+        if sample.kb==nil then return end
+        local memory=trackerPrivate.profileMemory
+        local kb=trackerPrivate.profileHeap()
+        if kb==nil then memory.unavailable=true return end
+        local delta=kb-sample.kb
+        memory.count=(memory.count or 0)+1
+        memory.firstKB=memory.firstKB or sample.kb
+        memory.lastKB=kb
+        memory.minKB=math.min(memory.minKB or sample.kb,sample.kb,kb)
+        memory.maxKB=math.max(memory.maxKB or sample.kb,sample.kb,kb)
+        memory.totalDelta=(memory.totalDelta or 0)+delta
+        if delta<0 then
+            memory.drops=(memory.drops or 0)+1
+            memory.dropKB=(memory.dropKB or 0)-delta
+        end
+        if type(sample.started)=="number" and type(finished)=="number" then
+            local ms=math.max(0,(finished-sample.started)*1000)
+            if memory.slowestMs==nil or ms>memory.slowestMs then
+                memory.slowestMs=ms
+                memory.slowestDelta=delta
+            end
+            -- Record each completed scan for correlation, without spamming trace
+            -- events or altering the ordinary render.* event sequence.
+            local samples=memory.samples or {}
+            memory.samples=samples
+            samples[#samples+1]={ms=ms,delta=delta}
+            if #samples>12 then table.remove(samples,1) end
+        end
+    end
     trackerPrivate.traceEvent=function(event,seat,guid,detail)
         if not trackerPrivate.traceEnabled then return end
         trackerPrivate.traceSequence=trackerPrivate.traceSequence+1
         local line=string.format("%04d %s seat=%s guid=%s %s",
             trackerPrivate.traceSequence,tostring(event),tostring(seat or "-"),
             tostring(guid or "-"),tostring(detail or ""))
+        if slowThreshold~=nil and seat~=nil
+            and (event=="move.complete" or event=="settle.ready" or event=="settle.done"
+                or event=="render.queued" or event=="render.coalesced" or event=="source.changed"
+                or event=="zone.enter" or event=="zone.leave") then
+            local list=pendingTriggers[seat] or {}
+            pendingTriggers[seat]=list
+            list[#list+1]=event..(guid~=nil and " "..guid or "")
+                ..(detail~=nil and " "..tostring(detail) or "")
+            if #list>12 then table.remove(list,1) end
+        end
         local lines=trackerPrivate.traceLines
         lines[#lines+1]=line
         if #lines>180 then table.remove(lines,1) end
@@ -62589,14 +63633,36 @@ return function(trackerPrivate)
 
     trackerPrivate.traceCommand=function(command,playerColor)
         command=command or "status"
-        if command=="on" then
+        local threshold=command:match("^slow%s+(%d+)$")
+        if threshold~=nil then
+            threshold=tonumber(threshold)
+            if threshold<1 or threshold>10000 then return false end
+            if not trackerPrivate.traceEnabled then trackerPrivate.traceCommand("on") end
+            slowThreshold=threshold
+            resetReports()
+            log("[TrackerHitch] Capture enabled; threshold="..threshold.."ms; use !trackertrace last or !trackertrace slow")
+            return true
+        elseif command=="last" then
+            printReport(lastReport)
+            return true
+        elseif command=="slow" then
+            log("[TrackerHitch] retained="..#slowReports)
+            for _,report in ipairs(slowReports) do printReport(report) end
+            return true
+        elseif command=="on" then
             trackerPrivate.traceEnabled=true
             trackerPrivate.traceLines={}
             trackerPrivate.traceSequence=0
+            trackerPrivate.profileStats={}
+            trackerPrivate.profileMemory={}
+            slowThreshold=nil
+            resetReports()
             trackerPrivate.traceEvent("trace.enabled")
         elseif command=="off" then
             trackerPrivate.traceEvent("trace.disabled")
             trackerPrivate.traceEnabled=false
+            activeReport=nil
+            slowThreshold=nil
         elseif command=="dump" then
             log("[TrackerTrace] BEGIN "..tostring(#trackerPrivate.traceLines).." events")
             for _,line in ipairs(trackerPrivate.traceLines) do
@@ -62631,6 +63697,35 @@ return function(trackerPrivate)
             .."; movements="..(#movements>0 and table.concat(movements,", ") or "none")
             .."; events="..#trackerPrivate.traceLines
         log("[TrackerTrace] "..status)
+        if command=="dump" or command=="status" then
+            local names={}
+            for name in pairs(trackerPrivate.profileStats) do names[#names+1]=name end
+            table.sort(names)
+            for _,name in ipairs(names) do
+                local stats=trackerPrivate.profileStats[name]
+                local timing=stats.timed>0 and string.format(
+                    " total=%.2fms avg=%.2fms max=%.2fms",stats.ms,stats.ms/stats.timed,stats.maxMs)
+                    or ""
+                log("[TrackerProfile] "..name.." count="..stats.count..timing)
+            end
+            local memory=trackerPrivate.profileMemory
+            if memory.count~=nil then
+                log(string.format("[TrackerProfile] heap scans=%d first=%.1fKB last=%.1fKB min=%.1fKB max=%.1fKB netScanDelta=%+.1fKB drops=%d dropKB=%.1fKB",
+                    memory.count,memory.firstKB,memory.lastKB,memory.minKB,memory.maxKB,
+                    memory.totalDelta,memory.drops or 0,memory.dropKB or 0))
+                if memory.slowestMs~=nil then
+                    log(string.format("[TrackerProfile] heap.slowestScan %.2fms delta=%+.1fKB",
+                        memory.slowestMs,memory.slowestDelta))
+                    local samples={}
+                    for _,sample in ipairs(memory.samples or {}) do
+                        samples[#samples+1]=string.format("%.2fms/%+.1fKB",sample.ms,sample.delta)
+                    end
+                    log("[TrackerProfile] heap.recent "..table.concat(samples," "))
+                end
+            elseif memory.unavailable then
+                log("[TrackerProfile] heap unavailable (Lua memory sampling restricted)")
+            end
+        end
         if playerColor~=nil then
             broadcastToColor(status,playerColor,{0.7,0.9,1})
         end
@@ -62642,6 +63737,7 @@ end)
 __bundle_register("PlayingGame.PlayerBoard.ResourceTracker.Cards.CardCallbacks", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Player-facing card, Skill and Artifact choice callbacks, interaction rewards, Ready links and Throw/Recover. Uses live selections and coordinator helpers; public protected UI names remain unchanged.
 local M={}
+local moveOptions=require("PlayingGame.PlayerBoard.ResourceTracker.Interface.MoveRoleOptions")
 
 function M.healUnits(player,value,id,combatCalcOn,combatEnemyInPlay,trackerPrivate,cardPosture,cardInSeatPlayArea)
     if not resourceCardsPanelOpen()
@@ -62894,9 +63990,8 @@ function M.choiceClicked(player,value,id,combatConfig,resourceCardsDetailsOpen,f
         if inventorySpec==nil or setIndex<1 or setIndex>inventorySets then return end
         choices=inventorySpec.choices
     end
-    local selectedMoveCategory=category:match("^combatMove(.+)$")
-    local requestedMoveRole=selectedMoveCategory~=nil and "combat" or nil
-    if selectedMoveCategory~=nil then category=selectedMoveCategory end
+    local decodedCategory,requestedMoveRole=moveOptions.decodeCardCategory(category)
+    category=decodedCategory
     if data~=nil and data.resourceKey=="artifactDruidicStaff"
         and combatEnemyInPlay and category~="blue" then
         safeBroadcastToColor("Druidic Staff: only the two-crystal option is usable in combat.",
@@ -62910,15 +64005,17 @@ function M.choiceClicked(player,value,id,combatConfig,resourceCardsDetailsOpen,f
     if rule~=nil and rule.shapeshift==true and shapeshiftTarget==nil then return end
     local producesMove=shapeshiftTarget~=nil and category=="move"
     for _,option in ipairs(choices) do
-        if choiceCategory(option)==category and (tonumber(option.move) or 0)>0 then
+        if choiceCategory(option)==category and moveOptions.producesMove(option,category) then
             producesMove=true
             break
         end
     end
     -- Validate the actual selected resource and its owning physical source.
-    if requestedMoveRole=="combat" and (not producesMove
-        or not combatConfig.moveRoleAvailable(shapeshiftTarget or guid)) then return end
-    if producesMove and requestedMoveRole==nil then requestedMoveRole="movement" end
+    local validMoveRole
+    requestedMoveRole,validMoveRole=moveOptions.resolve(producesMove,
+        requestedMoveRole=="combat" and combatConfig.moveRoleAvailable(shapeshiftTarget or guid),
+        requestedMoveRole)
+    if not validMoveRole then return end
     -- Any card whose newly selected effect is Move-only must start without
     -- an enemy assignment. Move can Block Cumbersome, but only when the
     -- player explicitly targets it; never carry an old Attack/Block arrow.
@@ -62933,7 +64030,7 @@ function M.choiceClicked(player,value,id,combatConfig,resourceCardsDetailsOpen,f
     local selectedMoveOnly=false
     if previousCategory~=category then
         for _,option in ipairs(choices or {}) do
-            if choiceCategory(option)==category and (tonumber(option.move) or 0)>0 then
+            if choiceCategory(option)==category and moveOptions.producesMove(option,category) then
                 selectedMoveOnly=true
                 for _,field in ipairs(combatConfig.sourceFields) do
                     if (tonumber(option[field.key]) or 0)>0 then
@@ -63889,6 +64986,8 @@ function M.publish(context)
     local refreshCombatEnemyPanel, combatMonsters, resourceCardsApplyFameRep = context.refreshCombatEnemyPanel, context.combatMonsters, context.resourceCardsApplyFameRep
     local clearHighlight, choiceButtonShown, removeChoiceButtons = context.clearHighlight, context.choiceButtonShown, context.removeChoiceButtons
     local choiceExpandedByGUID = context.choiceExpandedByGUID
+    local profile
+    if trackerPrivate.traceEnabled then profile=trackerPrivate.profileStart() end
     -- First recognition determines phase; later enemy arrivals do not change it.
     local moveSplit={movement=0,combat=0}
     for guid,record in pairs(records) do
@@ -63934,7 +65033,8 @@ function M.publish(context)
             if prior[i]~=effect then terrainChanged=true break end
         end
     end
-    local totalsChanged=previousScan==nil
+    -- The prior candidate may have been withheld while reconciling Unit history.
+    local totalsChanged=previousScan==nil or combatConfig.scanAwaitingRescan==true
     if not totalsChanged then
         for category in pairs(trackerPrivate.totalsKeys) do
             if (previousScan.totals[category] or 0)~=(totals[category] or 0) then
@@ -64009,12 +65109,18 @@ function M.publish(context)
     if attackAssignmentsRefreshAmbushLinks~=nil then attackAssignmentsRefreshAmbushLinks() end
     -- This also retracts a saved Ready if its card loses power or the new
     -- Rejuvenate side can no longer ready that Unit level.
-    if unitHistoryValidSources(seatPos) or readyNeedsRescan then
-        -- Links can undo earlier Unit resources; rebuild from the updated
-        -- history rather than showing those stale contributions for one scan.
+    if profile~=nil then profile=trackerPrivate.profileCheckpoint("publish.state",profile) end
+    combatConfig.scanAwaitingRescan=unitHistoryValidSources(seatPos) or readyNeedsRescan==true
+    if profile~=nil then profile=trackerPrivate.profileCheckpoint("publish.unitHistory",profile) end
+    if combatConfig.scanAwaitingRescan then
+        -- Source validation needs the candidate scan above, but the Combat
+        -- Calculator must not accept it as an authoritative damage plan.
         resourceCardsSourceChanged()
+    else
+        refreshCombatEnemyPanel(combatMonsters,true)
     end
-    refreshCombatEnemyPanel(combatMonsters,true)
+    if profile~=nil then profile=trackerPrivate.profileCheckpoint("publish.combat",profile) end
+    local resourceProfile=profile
     -- Refresh conversion counters against the just-published shared budget,
     -- not the preceding scan used during the initial card UI pass.
     for guid,record in pairs(records) do
@@ -64023,7 +65129,9 @@ function M.publish(context)
                 nil,nil,record.resources,record.repeatLink,record.shapeshiftField)
         end
     end
+    if resourceProfile~=nil then resourceProfile=trackerPrivate.profileCheckpoint("resources.conversions",resourceProfile) end
     resourceCardsApplyFameRep(seatPos)
+    if resourceProfile~=nil then resourceProfile=trackerPrivate.profileCheckpoint("resources.fameRep",resourceProfile) end
     -- Refresh Reputation on every settled Skill scan so flipping Arcane
     -- Disguise updates Influence without requiring a panel toggle.
     local reputationBefore=gStates.resourceTracker~=nil
@@ -64033,14 +65141,21 @@ function M.publish(context)
     local reputationAfter=gStates.resourceTracker~=nil
         and gStates.resourceTracker.influence~=nil
         and gStates.resourceTracker.influence.reputation or nil
+    if resourceProfile~=nil then resourceProfile=trackerPrivate.profileCheckpoint("resources.reputation",resourceProfile) end
     -- Redraw movement when ability flags change, even if total Move stays equal.
     if totalsChanged or terrainChanged or transformChanged or moveSplitChanged
         or enemyStateChanged or reputationBefore~=reputationAfter then
         refreshResourceTrackerText()
     end
+    if resourceProfile~=nil then resourceProfile=trackerPrivate.profileCheckpoint("resources.trackerText",resourceProfile) end
     if previousMove~=(totals.move or 0) or moveSplitChanged
         or terrainChanged or movementChanged then
         updateMoveDisplay()
+    end
+    if resourceProfile~=nil then
+        local finished=trackerPrivate.profileCheckpoint("resources.moveDisplay",resourceProfile)
+        trackerPrivate.profileFinish("publish.resources",profile,finished)
+        profile=finished
     end
     for guid in pairs(previous) do
         if current[guid]~=true then
@@ -64077,6 +65192,7 @@ function M.publish(context)
             end
         end
     end
+    if profile~=nil then profile=trackerPrivate.profileCheckpoint("publish.departed",profile) end
     -- A borrowed offer Unit is not a normal Unit-zone object. Zone-exit
     -- tracker refreshes can drop its independent cycling UI during dragging.
     -- Restore it after all tracker-owned UI writes, without touching resources.
@@ -64088,6 +65204,7 @@ function M.publish(context)
     end
     trackerPrivate.renderCombatNight=nil
     if trackerPrivate.traceEnabled then trackerPrivate.traceEvent("render.done",seatPos) end
+    if profile~=nil then trackerPrivate.profileFinish("publish.controls",profile) end
 end
 
 return M
@@ -64096,6 +65213,10 @@ end)
 __bundle_register("PlayingGame.PlayerBoard.ResourceTracker.Scanning.FactionRewardScan", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Faction reward choices, enemy effects, and ordered physical element/Attack modifiers; updates current records without changing immutable catalogs.
 local M={}
+local highlightPolicy=require("PlayingGame.PlayerBoard.ResourceTracker.Core.HighlightPolicy")
+local effectRecords=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.EnemyEffectRecords")
+local physicalLinks=require("PlayingGame.PlayerBoard.ResourceTracker.Core.PhysicalLinks")
+local resourceOps=require("PlayingGame.PlayerBoard.ResourceTracker.Core.ResourceOperations")
 
 function M.read(context)
     local objects, placements, resourceObjectKind = context.objects, context.placements, context.resourceObjectKind
@@ -64148,7 +65269,7 @@ function M.read(context)
                 splitTargets=splitMoveAttack and {"block","attack"} or nil,
                 modifier=not flipped and rule~=nil and rule.modifier or nil,
                 powered=flipped,links={},contributes=contributes,
-                status=contributes and "green" or "blue",
+                status=highlightPolicy.contribution(contributes),
                 nameKey=rule~=nil and rule.name or nil}
             if rule~=nil and not flipped and (rule.partial or rule.modifier~=nil) then
                 result.status="yellow"
@@ -64161,14 +65282,12 @@ function M.read(context)
                 heroPsychicBlock=true
             end
             if not flipped and rule~=nil and rule.enemyEffect~=nil then
+                effectRecords.register(result,guid)
                 local target=combatEffectChosenEnemy(guid,footprint(token),monsters,
                     combatEffectTargetEligible(rule.enemyEffect))
                 if target~=nil then
                     combatEffectAdd(enemyEffects,target.guid,guid,rule.enemyEffect)
-                    result.enemyEffectTargetKeys={guid}
-                    result.enemyEffectTargetGUIDs={[guid]=target.guid}
-                    result.links[#result.links+1]=target.guid
-                    result.status="purple"
+                    effectRecords.link(result,guid,target.guid,{purple=true})
                 end
             end
             showChoiceButtons(token,choices,flipped,nil,nil,effect)
@@ -64191,20 +65310,14 @@ function M.modifiers(context)
     -- Attack source. Nothing is awarded for a missing or ambiguous target.
     local function rewardConversion(mode,category)
         if mode=="makeRanged" then
-            return ({attack="ranged",attackFire="rangedFire",
-                attackIce="rangedIce",attackColdFire="rangedColdFire"})[category]
-        end
-        local family,suffix=category:match("^(attack)(.*)$")
-        if family==nil then family,suffix=category:match("^(ranged)(.*)$") end
-        if family==nil then family,suffix=category:match("^(siege)(.*)$") end
-        if family==nil then family,suffix=category:match("^(block)(.*)$") end
-        if family==nil then return nil end
-        if mode=="addFire" then
-            if suffix=="" then return family.."Fire" end
-            if suffix=="Ice" then return family.."ColdFire" end
+            local family,suffix=resourceOps.splitKey(category)
+            if family=="attack" and suffix~="Psychic" then
+                return resourceOps.changeFamily(category,"ranged")
+            end
+        elseif mode=="addFire" then
+            return resourceOps.addElement(category,"Fire")
         elseif mode=="addIce" then
-            if suffix=="" then return family.."Ice" end
-            if suffix=="Fire" then return family.."ColdFire" end
+            return resourceOps.addElement(category,"Ice")
         end
         return nil
     end
@@ -64215,10 +65328,7 @@ function M.modifiers(context)
             local token=reward.kind=="factionReward" and reward.modifier==mode
                 and objects[rewardGUID] or nil
             if token~=nil then
-                local winner,selected,bestArea=nil,nil,0
-                -- Inline record type avoids a duplicate global class declaration in the generated TTS bundle.
-                ---@type {resources: table<string, number>?, links: string[], status: string, powered: boolean}|nil
-                local sourceRecord=nil
+                local candidates={}
                 local tokenArea=footprint(token)
                 for sourceGUID,candidate in pairs(objects) do
                     local data=gameCards[sourceGUID]
@@ -64232,7 +65342,7 @@ function M.modifiers(context)
                         and (unit or (candidate.is_face_down~=true
                             and cardPosture(candidate)=="upright")) then
                         local overlap=overlapArea(tokenArea,footprint(candidate))
-                        if overlap>bestArea then
+                        if overlap>0 then
                             local possible={}
                             for field,amount in pairs(record.resources) do
                                 if type(amount)=="number" and amount>0 then
@@ -64251,13 +65361,15 @@ function M.modifiers(context)
                                 end
                             end
                             if #possible==1 then
-                                winner,sourceRecord,selected,bestArea=
-                                    candidate,record,possible[1],overlap
+                                candidates[#candidates+1]={card=candidate,record=record,
+                                    selected=possible[1],overlap=overlap}
                             end
                         end
                     end
                 end
-                if winner~=nil and sourceRecord~=nil and selected~=nil then
+                local chosen=physicalLinks.unique(candidates)
+                if chosen~=nil then
+                    local winner,sourceRecord,selected=chosen.card,chosen.record,chosen.selected
                     local from,to=selected.from,selected.to
                     if mode=="physicalBoost" then
                         local effectiveFamily=attackTransforms.siege and "siege" or from
@@ -64271,17 +65383,11 @@ function M.modifiers(context)
                         if sourceRecord.resources==nil then
                             error("The linked resource source has no resource values.",2)
                         end
-                        local newResources={}
-                        for k,v in pairs(sourceRecord.resources) do newResources[k]=v end
-                        local amount=newResources[from]
+                        local amount=sourceRecord.resources[from]
                         if type(amount)~="number" then
                             error("The linked resource source is missing its selected value.",2)
                         end
-                        newResources[from]=nil
-                        newResources[to]=(newResources[to] or 0)+amount
-                        sourceRecord.resources=newResources
-                        totals[from]=(totals[from] or 0)-amount
-                        totals[to]=(totals[to] or 0)+amount
+                        resourceOps.replace(sourceRecord,totals,from,to,amount)
                         reward.contributes=true
                     end
                     if reward.links==nil or sourceRecord.links==nil then
@@ -64289,10 +65395,12 @@ function M.modifiers(context)
                     end
                     reward.links[#reward.links+1]=winner.guid
                     sourceRecord.links[#sourceRecord.links+1]=rewardGUID
-                    reward.status="purple"
-                    sourceRecord.status="purple"
+                    highlightPolicy.linkedSource(reward)
+                    local redrawTarget=highlightPolicy.linkedTarget(sourceRecord)
                     setHighlight(token,reward.status,true)
-                    setHighlight(winner,sourceRecord.status,sourceRecord.powered)
+                    if redrawTarget then
+                        setHighlight(winner,sourceRecord.status,sourceRecord.powered)
+                    end
                 end
             end
         end
@@ -64302,9 +65410,44 @@ end
 return M
 
 end)
+__bundle_register("PlayingGame.PlayerBoard.ResourceTracker.Combat.EnemyEffectRecords", function(require, _LOADED, __bundle_register, __bundle_modules)
+-- Shared enemy-effect source bookkeeping; actual rules and immunity remain
+-- in CombatEffects. The caller owns eligibility, timing and completion.
+local M={}
+local highlightPolicy=require("PlayingGame.PlayerBoard.ResourceTracker.Core.HighlightPolicy")
+function M.register(record,key)
+    record.enemyEffectTargetKeys=record.enemyEffectTargetKeys or {}
+    for _,existing in ipairs(record.enemyEffectTargetKeys) do
+        if existing==key then return end
+    end
+    record.enemyEffectTargetKeys[#record.enemyEffectTargetKeys+1]=key
+end
+function M.target(record,key,guid)
+    record.enemyEffectTargetGUIDs=record.enemyEffectTargetGUIDs or {}
+    record.enemyEffectTargetGUIDs[key]=guid
+end
+-- Do not merge repeated effects on the same enemy or assume immunity means
+-- that a target is absent. Units retain their own activation highlight.
+function M.link(record,key,guid,policy)
+    if policy.primary=="replace" then
+        record.enemyGUID=guid
+    elseif policy.primary=="first" then
+        record.enemyGUID=record.enemyGUID or guid
+    end
+    if key~=nil then M.target(record,key,guid) end
+    record.links[#record.links+1]=guid
+    if policy.purple then highlightPolicy.linkedSource(record) end
+    if policy.complete then record.complete=true end
+end
+return M
+
+end)
 __bundle_register("PlayingGame.PlayerBoard.ResourceTracker.Scanning.ScanFinalization", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Passive terrain overlays, remaining Skill/mana/puppet records, linked Unit highlights, Spirit Guides and Wings of Night costs. Runs at original scan boundaries.
 local M={}
+local resourceOps=require("PlayingGame.PlayerBoard.ResourceTracker.Core.ResourceOperations")
+local terrainPolicy=require("PlayingGame.PlayerBoard.ResourceTracker.Cards.TerrainModifiers")
+local highlightPolicy=require("PlayingGame.PlayerBoard.ResourceTracker.Core.HighlightPolicy")
 
 -- Publish only effects belonging to the final, effective movement source.
 -- Owned passives and independent non-Move effects are handled separately.
@@ -64313,9 +65456,7 @@ function M.playedMovement(context)
     for guid,record in pairs(records) do
         if record.pendingTerrainModifiers~=nil or record.pendingSingleSpaceDiscount~=nil
             or record.pendingIgnoreRampagers or record.pendingTerrainChoice then
-            local movement=record.independentTerrain==true
-                or ((tonumber(record.resources~=nil and record.resources.move) or 0)>0
-                    and context.resourceCardsMoveRole(guid,false)=="movement")
+            local movement=terrainPolicy.movementEligible(record,guid,context.resourceCardsMoveRole)
             if movement then
                 for _,effect in ipairs(record.pendingTerrainModifiers or {}) do
                     terrainModifiers[#terrainModifiers+1]=effect
@@ -64344,18 +65485,7 @@ function M.passiveTerrain(context)
     -- Read immutable rule tables so identical scans don't invalidate movement.
     for skillGUID,rule in pairs(skillResourceDefinitions) do
         if ownedSkillAtSeat(skillGUID,seatPos) then
-            for _,effect in ipairs(rule.passiveTerrain or {}) do
-                terrainModifiers[#terrainModifiers+1]=effect
-            end
-            if gStates.dayRound~=true then
-                for _,effect in ipairs(rule.passiveNightTerrain or {}) do
-                    terrainModifiers[#terrainModifiers+1]=effect
-                end
-            else
-                for _,effect in ipairs(rule.passiveDayTerrain or {}) do
-                    terrainModifiers[#terrainModifiers+1]=effect
-                end
-            end
+            terrainPolicy.passive(terrainModifiers,rule,gStates.dayRound)
             local extra=rule.skillManaTerrain
             if extra~=nil then
                 local token=getObjectFromGUID(skillGUID)
@@ -64364,7 +65494,7 @@ function M.passiveTerrain(context)
                     for _,mana in ipairs(manaObjects) do
                         if placements[mana.guid]=="play" and manaColor(mana)==extra.color
                             and manaInsideFootprint(mana,area) then
-                            terrainModifiers[#terrainModifiers+1]=extra.effect
+                            terrainPolicy.append(terrainModifiers,{extra.effect},gStates.dayRound)
                             break
                         end
                     end
@@ -64407,7 +65537,7 @@ function M.remainingObjects(context)
                 local choices=obj.is_face_down~=true and puppetResourceOptions(guid) or nil
                 local selected=choices~=nil and chosenEffect(guid,false,choices) or nil
                 result={guid=guid,kind="puppet",known=true,complete=selected~=nil,
-                    status=selected~=nil and "green" or "blue",
+                    status=highlightPolicy.contribution(selected~=nil),
                     resources=selected,choices=choices,powered=false,links={}}
                 showChoiceButtons(obj,choices,false)
                 addResourceAmounts(result,totals)
@@ -64444,7 +65574,7 @@ function M.remainingObjects(context)
                     end
                 end
                 if conversion~=nil then
-                    result.status="purple"
+                    highlightPolicy.linkedSource(result)
                     result.powered=conversion.targetGUID~=nil
                     result.links={conversion.manaGUID}
                     if conversion.targetGUID~=nil then
@@ -64498,10 +65628,8 @@ function M.linkedUnits(context)
                     -- Linked Skill sources normally show purple, but a Unit
                     -- currently activated by its Command token keeps its
                     -- own green/blue Resource Tracker status.
-                    unitRecord.status=activated
-                        and (effectHasTrackedResource(unitRecord.resources) and "green" or "blue")
-                        or "purple"
-                    unitRecord.powered=not activated
+                    unitRecord.status,unitRecord.powered=highlightPolicy.dynamicUnit(
+                        activated,activated and effectHasTrackedResource(unitRecord.resources))
                     unitRecord.contributes=true
                     unitRecord.links[#unitRecord.links+1]=guid
                     setHighlight(unit,unitRecord.status,unitRecord.powered)
@@ -64529,21 +65657,19 @@ function M.spiritGuides(context)
             if value>bestValue then bestKey,bestValue=field,value end
         end
         if bestKey~=nil then
-            local replacement={}
-            for key,value in pairs(boosted.resources) do replacement[key]=value end
-            replacement[bestKey]=replacement[bestKey]+1
-            boosted.resources=replacement
-            totals[bestKey]=(totals[bestKey] or 0)+1
+            resourceOps.add(boosted,totals,bestKey,1)
             guide.links[#guide.links+1]=linkedGUID
             boosted.links=boosted.links or {}
             boosted.links[#boosted.links+1]=guideGUID
-            guide.status="purple"
+            highlightPolicy.linkedSource(guide)
             guide.complete=true
             -- Activated Units keep their normal resource-state highlight;
             -- the Spirit Guides arrow itself still shows the purple link.
-            if boosted.kind~="unit" then boosted.status="purple" end
+            local redrawTarget=highlightPolicy.linkedTarget(boosted)
             setHighlight(objects[guideGUID],guide.status,guide.powered)
-            setHighlight(objects[linkedGUID],boosted.status,boosted.powered)
+            if redrawTarget then
+                setHighlight(objects[linkedGUID],boosted.status,boosted.powered)
+            end
         end
     end
 end
@@ -65223,6 +66349,7 @@ end)
 __bundle_register("PlayingGame.PlayerBoard.ResourceTracker.Units.UnitManagement", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Command and Unit activation lifecycle, using live saved history and coordinator helpers.
 local M={}
+local moveOptions=require("PlayingGame.PlayerBoard.ResourceTracker.Interface.MoveRoleOptions")
 
 function M.spentCommands()
     local round=tonumber(gStates.currentRound) or 0
@@ -65495,8 +66622,11 @@ function M.choiceClicked(player,value,id,moveRoleAvailable,trackerPrivate,unitMa
         unitGUID,nil,current~=nil and current.seatPos) or nil
     if activation==nil or abilities==nil or current==nil or index==nil
         or abilities[index]==nil or activation.seatPos~=current.seatPos then return end
-    if combatMoveChoice and ((tonumber(abilities[index].move) or 0)<=0
-        or not moveRoleAvailable(unitHistoryKey(unitGUID,useIndex))) then return end
+    local producesMove=moveOptions.producesMove(abilities[index])
+    local requestedRole,validRole=moveOptions.resolve(producesMove,
+        combatMoveChoice and moveRoleAvailable(unitHistoryKey(unitGUID,useIndex)),
+        combatMoveChoice and "combat" or nil)
+    if not validRole then return end
     local unit=getObjectFromGUID(unitGUID)
     if unit==nil then return end
     resourceCardsCombatSelectOneUnit(unitGUID)
@@ -65512,8 +66642,8 @@ function M.choiceClicked(player,value,id,moveRoleAvailable,trackerPrivate,unitMa
         if candidate==index then available=true break end
     end
     if not available then return end
-    local dualMove=(tonumber(abilities[index].move) or 0)>0
-        and moveRoleAvailable(unitHistoryKey(unitGUID,useIndex))
+    local dualMove=moveOptions.hasAlternative(producesMove,
+        producesMove and moveRoleAvailable(unitHistoryKey(unitGUID,useIndex)))
     if (not decision.ambiguous or abilities.paidChoiceExpandable or decision.index~=nil)
         and choiceExpandedByGUID[unitGUID]~=true and (#decision.display>1 or dualMove) then
         -- Clicking the collapsed option (including either Move role) opens
@@ -65569,10 +66699,10 @@ function M.choiceClicked(player,value,id,moveRoleAvailable,trackerPrivate,unitMa
         activation.lastPaidIndex=nil
         choiceExpandedByGUID[unitGUID]=nil
     end
-    if (tonumber(abilities[index].move) or 0)>0 then
+    if requestedRole~=nil then
         gStates.resourceCardMoveRoles=gStates.resourceCardMoveRoles or {}
         local sourceKey=unitHistoryKey(unitGUID,useIndex)
-        gStates.resourceCardMoveRoles[sourceKey]=combatMoveChoice and "combat" or "movement"
+        gStates.resourceCardMoveRoles[sourceKey]=requestedRole
         -- Reconcile exact activation keys below; clearing the bare GUID
         -- would also remove every later use of this same physical Unit.
     end
@@ -65674,6 +66804,10 @@ __bundle_register("PlayingGame.PlayerBoard.ResourceTracker.Units.UnitScan", func
 -- Unit scan passes. Read live activation history and paid abilities; keep scan order,
 -- shared records and final publication with the coordinator.
 local M={}
+local resourceOps=require("PlayingGame.PlayerBoard.ResourceTracker.Core.ResourceOperations")
+local terrainPolicy=require("PlayingGame.PlayerBoard.ResourceTracker.Cards.TerrainModifiers")
+local highlightPolicy=require("PlayingGame.PlayerBoard.ResourceTracker.Core.HighlightPolicy")
+local effectRecords=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.EnemyEffectRecords")
 
 function M.process(context)
     local seatPos, cards, records = context.seatPos, context.cards, context.records
@@ -65686,7 +66820,7 @@ function M.process(context)
     local unitManaDecision, combatOneUnitSelect, combatUnitSitePermits = context.unitManaDecision, context.combatOneUnitSelect, context.combatUnitSitePermits
     local showUnitAbilityButtons, unitAbilityPaid, addResourceAmounts = context.showUnitAbilityButtons, context.unitAbilityPaid, context.addResourceAmounts
     local totals, current, setHighlight = context.totals, context.current, context.setHighlight
-    local terrainModifiers, deferredUnfortifiedUnitEffects, unitAbilityTargetKey = context.terrainModifiers, context.deferredUnfortifiedUnitEffects, context.unitAbilityTargetKey
+    local deferredUnfortifiedUnitEffects, unitAbilityTargetKey = context.deferredUnfortifiedUnitEffects, context.unitAbilityTargetKey
     local combatEffectChosenEnemy, footprint, monsters = context.combatEffectChosenEnemy, context.footprint, context.monsters
     local combatEffectTargetEligible, enemyEffects = context.combatEffectTargetEligible, context.enemyEffects
     -- Unit activation is historical: a Command token may stay on the card for
@@ -65859,14 +66993,14 @@ function M.process(context)
                         fameRep=selected~=nil and selected.fameRep or nil}
                     result.fameRep=result.complete and result.fameRep or nil
                     addResourceAmounts(result,totals)
-                    result.status=result.contributes and "green" or "blue"
+                    result.status=highlightPolicy.contribution(result.contributes)
                     records[recordKey]=result
                     current[unitGUID]=true
                     if unitHistorySelectedNumber(unitGUID)==useIndex then
                         setHighlight(unit,result.status,false)
                     end
-                    if selected~=nil and selected.terrainReduce and result.complete then
-                        result.pendingTerrainModifiers={trackerPrivate.forestersTerrainModifier}
+                    if selected~=nil and selected.terrainEffects~=nil and result.complete then
+                        terrainPolicy.stage(result,selected.terrainEffects,gStates.dayRound)
                     end
                     if selected~=nil and selected.boostOtherUnits and result.complete then
                         shocktroopsBoosts=shocktroopsBoosts+1
@@ -65894,8 +67028,7 @@ function M.process(context)
                             if ability.enemyEffect~=nil or ability.targetableEnemy==true then
                                 local sourceKey=unitAbilityTargetKey(unitGUID,index,ability,useIndex)
                                 if sourceKey~=unitGUID then
-                                    result.enemyEffectTargetKeys=result.enemyEffectTargetKeys or {}
-                                    result.enemyEffectTargetKeys[#result.enemyEffectTargetKeys+1]=sourceKey
+                                    effectRecords.register(result,sourceKey)
                                 end
                                 -- Every enemy-targeting Unit ability starts on a nearby
                                 -- enemy, even if it is a non-resource/manual effect.
@@ -65913,20 +67046,22 @@ function M.process(context)
                                     if target~=nil then
                                         if ability.enemyEffect~=nil then
                                             combatEffectAdd(enemyEffects,target.guid,unitGUID,ability.enemyEffect,sourceKey)
-                                            result.links[#result.links+1]=target.guid
+                                            effectRecords.link(result,sourceKey~=unitGUID and sourceKey or nil,
+                                                target.guid,{})
                                             -- The Unit is spent for Fear rather than
                                             -- its printed ability. Fame requires a legal
                                             -- enemy target; Arcane Immunity negates it.
                                             if ability.bannerFear and not combatEffectImmune(target.guid) then
                                                 result.fameRep={fame=1}
                                                 result.contributes=true
-                                                result.status="purple"
-                                                setHighlight(unit,"purple",false)
+                                                highlightPolicy.linkedSource(result)
+                                                if unitHistorySelectedNumber(unitGUID)==useIndex then
+                                                    setHighlight(unit,result.status,false)
+                                                end
                                             end
                                         end
-                                        if sourceKey~=unitGUID then
-                                            result.enemyEffectTargetGUIDs=result.enemyEffectTargetGUIDs or {}
-                                            result.enemyEffectTargetGUIDs[sourceKey]=target.guid
+                                        if ability.enemyEffect==nil and sourceKey~=unitGUID then
+                                            effectRecords.target(result,sourceKey,target.guid)
                                         end
                                     end
                                 end
@@ -65954,14 +67089,15 @@ function M.process(context)
             local ownBoost=selected~=nil and selected.boostOtherUnits and 1 or 0
             local bonus=shocktroopsBoosts-ownBoost
             if bonus>0 and record~=nil and record.resources~=nil then
+                local amounts={}
                 for category,value in pairs(record.resources) do
-                    if type(value)=="number" and (category:sub(1,6)=="attack"
-                        or category:sub(1,6)=="ranged"
-                        or category:sub(1,5)=="siege") then
-                        record.resources[category]=value+bonus
-                        totals[category]=(totals[category] or 0)+bonus
+                    local family=resourceOps.splitKey(category)
+                    if type(value)=="number" and (family=="attack"
+                        or family=="ranged" or family=="siege") then
+                        amounts[category]=bonus
                     end
                 end
+                if next(amounts)~=nil then resourceOps.addAmounts(record,totals,amounts) end
             end
         end
     end
@@ -65995,9 +67131,7 @@ function M.resolveUnfortifiedTargets(context)
             monsters,function(_,guid) return eligible[guid]==true end)
         if target~=nil then
             combatEffectAdd(enemyEffects,target.guid,pending.unitGUID,pending.spec,pending.sourceKey)
-            pending.result.links[#pending.result.links+1]=target.guid
-            pending.result.enemyEffectTargetGUIDs=pending.result.enemyEffectTargetGUIDs or {}
-            pending.result.enemyEffectTargetGUIDs[pending.sourceKey]=target.guid
+            effectRecords.link(pending.result,pending.sourceKey,target.guid,{})
         end
     end
 end
@@ -66026,7 +67160,7 @@ function M.markTransforms(context)
         local record=records[sourceKey]
         if record~=nil then
             record.contributes=affected
-            record.status=affected and "green" or "blue"
+            record.status=highlightPolicy.contribution(affected)
             local unitGUID=unitHistorySourceBase(sourceKey)
             -- Only the Command's displayed use owns the physical highlight;
             -- earlier uses retain their own record for History and Undo.
@@ -66090,6 +67224,10 @@ end)
 __bundle_register("PlayingGame.PlayerBoard.ResourceTracker.Cards.SkillInteractions", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Linked Skill processing after activated Unit records exist: Leadership, Shapeshift, copying basic Actions, enemy effects, cooperative Skills, damage mitigation, Deadly Aim and Mana Overload. Receives live scan data and helpers; final object rendering, state publication and lifecycle remain with CardRecognition.
 local M={}
+local highlightPolicy=require("PlayingGame.PlayerBoard.ResourceTracker.Core.HighlightPolicy")
+local effectRecords=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.EnemyEffectRecords")
+local physicalLinks=require("PlayingGame.PlayerBoard.ResourceTracker.Core.PhysicalLinks")
+local resourceOps=require("PlayingGame.PlayerBoard.ResourceTracker.Core.ResourceOperations")
 
 function M.process(context)
     local seatPos, skills, cards = context.seatPos, context.skills, context.cards
@@ -66143,31 +67281,22 @@ function M.process(context)
         if skillRecord==nil or targetRecord==nil or targetRecord.resources==nil then return end
         -- Cards often return the catalog's immutable basic-effect table.
         -- Never mutate a rule entry by adjusting the live played result.
-        local copy={}
-        for k,v in pairs(targetRecord.resources) do copy[k]=v end
-        targetRecord.resources=copy
-        local old=copy[field] or 0
         if replaceField~=nil then
-            targetRecord.resources[field]=nil
-            totals[field]=(totals[field] or 0)-old
-            targetRecord.resources[replaceField]=(targetRecord.resources[replaceField] or 0)+amount
-            totals[replaceField]=(totals[replaceField] or 0)+amount
+            resourceOps.replace(targetRecord,totals,field,replaceField,amount)
         else
-            targetRecord.resources[field]=old+amount
-            totals[field]=(totals[field] or 0)+amount
+            resourceOps.add(targetRecord,totals,field,amount)
         end
         skillRecord.complete=true
         skillRecord.contributes=true
         skillRecord.powered=true
-        skillRecord.status="purple"
+        highlightPolicy.linkedSource(skillRecord)
         skillRecord.links[#skillRecord.links+1]=target.guid
         targetRecord.links[#targetRecord.links+1]=skill.guid
-        if targetRecord.kind~="unit" then targetRecord.status="purple" end
-        setHighlight(skill,"purple",true)
-        -- Activated Units retain their green/blue highlight; they are not
-        -- reclassified purple merely because Leadership enhanced the effect.
-        if targetRecord.kind~="unit" then
-            setHighlight(target,"purple",targetRecord.powered)
+        local redrawTarget=highlightPolicy.linkedTarget(targetRecord)
+        setHighlight(skill,skillRecord.status,true)
+        -- A linked Unit's activation owns its physical highlight.
+        if redrawTarget then
+            setHighlight(target,targetRecord.status,targetRecord.powered)
         end
     end
     for _,skill in ipairs(skills) do
@@ -66201,10 +67330,10 @@ function M.process(context)
                             local siege=resourceFieldForFamily(record.resources,"siege")
                             if ranged~=nil and siege==nil then
                                 field=ranged
-                                replacement="attack"..ranged:sub(7)
+                                replacement=resourceOps.changeFamily(ranged,"attack")
                             elseif siege~=nil and ranged==nil then
                                 field=siege
-                                replacement="attack"..siege:sub(6)
+                                replacement=resourceOps.changeFamily(siege,"attack")
                             end
                         end
                         if field~=nil then
@@ -66214,15 +67343,10 @@ function M.process(context)
                         end
                     end
                 end
-                table.sort(eligible,function(a,b)
-                    if a.overlap~=b.overlap then return a.overlap>b.overlap end
-                    return a.unit.guid<b.unit.guid
-                end)
                 -- One matching activated Unit is unambiguous. With several,
                 -- require a physical overlap to indicate the target.
-                if #eligible==1 or (#eligible>1 and eligible[1].overlap>0
-                    and eligible[1].overlap>eligible[2].overlap) then
-                    local chosenUnit=eligible[1]
+                local chosenUnit=physicalLinks.unique(eligible,true)
+                if chosenUnit~=nil then
                     local bonus=choice[family] or unitBoost[family]
                     if chosenUnit.replaceField~=nil then
                         local resources=records[chosenUnit.unit.guid].resources
@@ -66240,7 +67364,7 @@ function M.process(context)
     for _,skill in ipairs(skills) do
         local rule=skillResourceDefinitions[skill.guid]
         if rule~=nil and rule.shapeshift then
-            local best,bestOverlap=nil,0
+            local candidates={}
             for _,card in ipairs(cards) do
                 local data=gameCards[card.guid]
                 local record=records[card.guid]
@@ -66259,21 +67383,20 @@ function M.process(context)
                     end
                     if matches==1 then
                         local area=overlapArea(footprints[skill.guid],footprints[card.guid])
-                        if area>bestOverlap then
-                            best,bestOverlap={card=card,field=field},area
+                        if area>0 then
+                            candidates[#candidates+1]={card=card,field=field,overlap=area}
                         end
                     end
                 end
             end
+            local best=physicalLinks.unique(candidates)
             local sourceField=best~=nil and best.field or nil
             if best~=nil and sourceField~=nil then
-                local sourceFamily=sourceField=="move" and "move"
-                    or (sourceField:sub(1,6)=="attack" and "attack" or "block")
-                local suffix=sourceField:sub(#sourceFamily+1)
+                local sourceFamily,suffix=resourceOps.splitKey(sourceField)
                 local choices={}
                 for _,family in ipairs({"move","block","attack"}) do
                     if family~=sourceFamily then
-                        local field=family=="move" and "move" or family..suffix
+                        local field=resourceOps.changeFamily(sourceField,family)
                         local option={key=family,icon=family,[field]=0,
                             shapeshiftTargetGUID=best.card.guid}
                         if family~="move" then
@@ -66293,7 +67416,7 @@ function M.process(context)
                 local selected=chosenEffect(skill.guid,false,choices)
                 if selected~=nil then
                     local family=choiceCategory(selected)
-                    local newField=family=="move" and "move" or family..suffix
+                    local newField=resourceOps.changeFamily(sourceField,family)
                     local original=records[best.card.guid].resources[sourceField]
                     skillTargetLinked(skill,best.card,sourceField,original,newField)
                     local target=records[best.card.guid]
@@ -66314,16 +67437,20 @@ function M.process(context)
     for _,skill in ipairs(skills) do
         local skillRule=skillResourceDefinitions[skill.guid]
         if skillRule~=nil and skillRule.copyBasicAction then
-            local sideways,bestOverlap=nil,0
+            local sidewaysCandidates={}
             for _,card in ipairs(cards) do
                 local record=records[card.guid]
                 if cardPosture(card)=="sideways" and record~=nil
                     and record.resources~=nil
                     and skillLinksByTarget[card.guid]==nil then
                     local area=overlapArea(footprints[skill.guid],footprints[card.guid])
-                    if area>bestOverlap then sideways,bestOverlap=card,area end
+                    if area>0 then
+                        sidewaysCandidates[#sidewaysCandidates+1]={card=card,overlap=area}
+                    end
                 end
             end
+            local sidewaysChoice=physicalLinks.unique(sidewaysCandidates)
+            local sideways=sidewaysChoice~=nil and sidewaysChoice.card or nil
             if sideways~=nil then
                 local sidewaysData=gameCards[sideways.guid]
                 local sideIsArtifact=sidewaysData~=nil
@@ -66371,12 +67498,8 @@ function M.process(context)
                         end
                     end
                 end
-                table.sort(candidates,function(a,b)
-                    if a.overlap~=b.overlap then return a.overlap>b.overlap end
-                    return a.source.guid<b.source.guid
-                end)
-                if #candidates==1 or (#candidates>1 and candidates[1].overlap>0
-                    and candidates[1].overlap>candidates[2].overlap) then
+                local chosen=physicalLinks.unique(candidates,true)
+                if chosen~=nil then
                     local original=records[sideways.guid]
                     local oldField,oldCount=nil,0
                     for key,value in pairs(original.resources) do
@@ -66385,15 +67508,14 @@ function M.process(context)
                         end
                     end
                     if oldCount==1 then
-                        local chosen=candidates[1]
                         skillTargetLinked(skill,sideways,oldField,chosen.value,chosen.field)
                         local origin=records[chosen.source.guid]
                         local skillRecord=records[skill.guid]
                         if origin~=nil and skillRecord~=nil then
                             origin.links[#origin.links+1]=skill.guid
                             skillRecord.links[#skillRecord.links+1]=chosen.source.guid
-                            origin.status="purple"
-                            setHighlight(chosen.source,"purple",origin.powered)
+                            highlightPolicy.linkedSource(origin)
+                            setHighlight(chosen.source,origin.status,origin.powered)
                         end
                         -- The copied effect replaces the generic sideways
                         -- choice, but copied Move still needs its M/C selector.
@@ -66461,16 +67583,13 @@ function M.process(context)
                 local target=combatEffectChosenEnemy(skill.guid,footprints[skill.guid],monsters,eligible)
                 local options=combatConfig.preyChoices(target~=nil and target.guid or nil)
                 record.choices=options
-                record.enemyEffectTargetKeys={skill.guid}
+                effectRecords.register(record,skill.guid)
                 local selected=chosenEffect(skill.guid,false,options)
                 spec=selected~=nil and selected.preySpec or nil
                 if target~=nil and spec~=nil then
                     combatEffectAdd(enemyEffects,target.guid,skill.guid,spec)
-                    record.enemyGUID=target.guid
-                    record.links[#record.links+1]=target.guid
-                    record.status="purple"
-                    record.complete=true
-                    record.enemyEffectTargetGUIDs={[skill.guid]=target.guid}
+                    effectRecords.link(record,skill.guid,target.guid,
+                        {primary="replace",purple=true,complete=true})
                 else
                     record.status="yellow"
                     record.complete=false
@@ -66480,7 +67599,7 @@ function M.process(context)
             -- player is choosing a new enemy; otherwise a rescan can erase
             -- the purple preview arrow before the target click is applied.
             if spec~=nil and not spec.all then
-                record.enemyEffectTargetKeys={skill.guid}
+                effectRecords.register(record,skill.guid)
             end
             if skill.guid=="6a33c1" and spec~=nil and spec.armourReduce~=nil then
                 -- Switching from Attack -1 to Armour -1 invalidates a saved
@@ -66517,13 +67636,8 @@ function M.process(context)
                 eligible or combatEffectTargetEligible(spec)) or nil
             if spec~=nil and target~=nil then
                 combatEffectAdd(enemyEffects,target.guid,skill.guid,spec)
-                record.enemyGUID=target.guid
-                record.links[#record.links+1]=target.guid
-                record.status="purple"
-                if not spec.all then
-                    record.enemyEffectTargetKeys={skill.guid}
-                    record.enemyEffectTargetGUIDs={[skill.guid]=target.guid}
-                end
+                effectRecords.link(record,not spec.all and skill.guid or nil,target.guid,
+                    {primary="replace",purple=true})
             end
         end
     end
@@ -66541,7 +67655,7 @@ function M.process(context)
             or fallback~=nil and footprint(fallback) or nil
         local record=records[key] or {guid=key,kind="skill",known=true,
             resources=nil,status="yellow",powered=false,complete=false,links={}}
-        record.enemyEffectTargetKeys={key}
+        effectRecords.register(record,key)
         records[key]=record
         current[key]=true
         if area~=nil then
@@ -66549,11 +67663,8 @@ function M.process(context)
                 combatEffectTargetEligible(spec))
             if target~=nil then
                 combatEffectAdd(enemyEffects,target.guid,key,spec)
-                record.enemyGUID=target.guid
-                record.links[#record.links+1]=target.guid
-                record.status="purple"
-                record.complete=true
-                record.enemyEffectTargetGUIDs={[key]=target.guid}
+                effectRecords.link(record,key,target.guid,
+                    {primary="replace",purple=true,complete=true})
             end
         end
     end
@@ -66572,7 +67683,7 @@ function M.process(context)
             or fallback~=nil and footprint(fallback) or nil
         local record=records[key] or {guid=key,kind="skill",known=true,
             resources=nil,status="yellow",powered=false,complete=false,links={}}
-        record.enemyEffectTargetKeys={key}
+        effectRecords.register(record,key)
         records[key]=record
         current[key]=true
         if area~=nil then
@@ -66583,11 +67694,8 @@ function M.process(context)
                 end)
             if target~=nil then
                 combatEffectAdd(enemyEffects,target.guid,key,spec)
-                record.enemyGUID=target.guid
-                record.links[#record.links+1]=target.guid
-                record.status="purple"
-                record.complete=true
-                record.enemyEffectTargetGUIDs={[key]=target.guid}
+                effectRecords.link(record,key,target.guid,
+                    {primary="replace",purple=true,complete=true})
             end
         end
     end
@@ -66601,7 +67709,7 @@ function M.process(context)
             -- Advertise the effect-only source even before the first target
             -- click. Otherwise an immediate calculator refresh prunes its new
             -- arrow before the pending Skill scan can apply the mitigation.
-            record.enemyEffectTargetKeys={skill.guid}
+            effectRecords.register(record,skill.guid)
             local targetGUID=combatAssignmentState.targets[skill.guid]
             if targetGUID==nil then
                 for guid in pairs(attackAssignmentsTargetGUIDs(skill.guid)) do
@@ -66610,12 +67718,8 @@ function M.process(context)
             end
             local target=targetGUID~=nil and combatMonsters[targetGUID] or nil
             if target~=nil and target.is_face_down~=true then
-                record.enemyGUID=targetGUID
-                record.links[#record.links+1]=targetGUID
-                record.status="purple"
-                record.complete=true
-                record.enemyEffectTargetKeys={skill.guid}
-                record.enemyEffectTargetGUIDs={[skill.guid]=targetGUID}
+                effectRecords.link(record,skill.guid,targetGUID,
+                    {primary="replace",purple=true,complete=true})
             end
         end
     end
@@ -66624,7 +67728,7 @@ function M.process(context)
     for _,skill in ipairs(skills) do
         local rule=skillResourceDefinitions[skill.guid]
         if rule~=nil and rule.attackCardBoost then
-            local best,bestOverlap=nil,0
+            local candidates={}
             local targets={}
             for _,card in ipairs(cards) do targets[#targets+1]=card end
             -- Power of Pain / Ritual of Pain can make a sideways Wound a real
@@ -66650,12 +67754,13 @@ function M.process(context)
                             end
                         end
                         local area=overlapArea(footprints[skill.guid],footprints[card.guid])
-                        if chosenField~=nil and area>bestOverlap then
-                            best,bestOverlap={card=card,field=chosenField,amount=amount},area
+                        if chosenField~=nil and area>0 then
+                            candidates[#candidates+1]={card=card,field=chosenField,amount=amount,overlap=area}
                         end
                     end
                 end
             end
+            local best=physicalLinks.unique(candidates)
             if best~=nil then
                 skillTargetLinked(skill,best.card,best.field,best.amount)
             end
@@ -66735,13 +67840,8 @@ function M.process(context)
                     end
                 end
             end
-            table.sort(candidates,function(a,b)
-                if a.overlap~=b.overlap then return a.overlap>b.overlap end
-                return a.card.guid<b.card.guid
-            end)
-            if #candidates==1 or (#candidates>1 and candidates[1].overlap>0
-                and candidates[1].overlap>candidates[2].overlap) then
-                local chosen=candidates[1]
+            local chosen=physicalLinks.unique(candidates,true)
+            if chosen~=nil then
                 local options,fieldByKey={},{}
                 for _,fieldInfo in ipairs(chosen.fields) do
                     local field,family=fieldInfo.field,fieldInfo.family
@@ -66772,6 +67872,9 @@ end)
 __bundle_register("PlayingGame.PlayerBoard.ResourceTracker.Cards.CrossCardEffects", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Cross-card bonuses and conversions, including Tirelessness, borrowed-enemy highlights, Deadly Precision, Ambush, and linked or discarded Wounds. Uses the current scan's records, resources and existing targeting callbacks.
 local M={}
+local highlightPolicy=require("PlayingGame.PlayerBoard.ResourceTracker.Core.HighlightPolicy")
+local physicalLinks=require("PlayingGame.PlayerBoard.ResourceTracker.Core.PhysicalLinks")
+local resourceOps=require("PlayingGame.PlayerBoard.ResourceTracker.Core.ResourceOperations")
 
 function M.process(context)
     local cards, records, totals = context.cards, context.records, context.totals
@@ -66839,33 +67942,22 @@ function M.process(context)
                     local area=overlapArea(footprints[source.guid],footprints[target.guid])
                     if attackKey~=nil and not ambiguous and area>0 then
                         candidates[#candidates+1]={card=target,record=targetRecord,
-                            key=attackKey,area=area}
+                            key=attackKey,overlap=area}
                     end
                 end
             end
-            table.sort(candidates,function(a,b)
-                if a.area~=b.area then return a.area>b.area end
-                return a.card.guid<b.card.guid
-            end)
-            local best=candidates[1]
-            if best~=nil and (candidates[2]==nil or best.area>candidates[2].area) then
-                local to="ranged"..best.key:sub(7)
-                local amount=best.record.resources[best.key]
-                local updated={}
-                for key,value in pairs(best.record.resources) do updated[key]=value end
-                updated[best.key]=nil
-                updated[to]=(updated[to] or 0)+amount
-                best.record.resources=updated
-                totals[best.key]=(totals[best.key] or 0)-amount
-                totals[to]=(totals[to] or 0)+amount
+            local best=physicalLinks.unique(candidates)
+            if best~=nil then
+                local to=resourceOps.changeFamily(best.key,"ranged")
+                resourceOps.replace(best.record,totals,best.key,to)
                 sourceRecord.links[#sourceRecord.links+1]=best.card.guid
                 best.record.links[#best.record.links+1]=source.guid
                 sourceRecord.complete=true
                 sourceRecord.contributes=true
-                sourceRecord.status="purple"
-                best.record.status="purple"
-                setHighlight(source,"purple",true)
-                setHighlight(best.card,"purple",best.record.powered)
+                highlightPolicy.linkedSource(sourceRecord)
+                highlightPolicy.linkedTarget(best.record)
+                setHighlight(source,sourceRecord.status,true)
+                setHighlight(best.card,best.record.status,best.record.powered)
             end
         end
     end
@@ -66879,7 +67971,7 @@ function M.process(context)
         if rule~=nil and rule.combatLink~=nil and sourceRecord~=nil
             and sourceRecord.resources~=nil and cardPosture(source)=="upright"
             and (discarded[source.guid]==nil or repeatByTarget[source.guid]~=nil) then
-            local best,bestCategory,bestType,bestOverlap=nil,nil,nil,0
+            local best,bestCategory,bestType=nil,nil,nil
             local function chooseCategory(target)
                 local record=records[target.guid]
                 if discarded[target.guid]~=nil
@@ -66910,16 +68002,20 @@ function M.process(context)
                 end
             end
             if best==nil and savedGUID==nil then
+                local candidates={}
                 for _,target in ipairs(cards) do
                     local area=target.guid~=source.guid
                         and overlapArea(footprints[source.guid],footprints[target.guid]) or 0
                     if area>0 then
                         local category,kind=chooseCategory(target)
-                        if category~=nil and (area>bestOverlap
-                            or (area==bestOverlap and best~=nil and target.guid<best.guid)) then
-                            best,bestCategory,bestType,bestOverlap=target,category,kind,area
+                        if category~=nil then
+                            candidates[#candidates+1]={card=target,category=category,kind=kind,overlap=area}
                         end
                     end
+                end
+                local chosen=physicalLinks.unique(candidates)
+                if chosen~=nil then
+                    best,bestCategory,bestType=chosen.card,chosen.category,chosen.kind
                 end
             end
             if best~=nil and bestCategory~=nil and bestType~=nil then
@@ -66930,28 +68026,24 @@ function M.process(context)
                 if targetRecord==nil or targetRecord.resources==nil then
                     error("The linked combat target has no resource record.",2)
                 end
-                local adjusted={}
-                for key,value in pairs(targetRecord.resources) do adjusted[key]=value end
-                local targetAmount=adjusted[bestCategory]
+                local targetAmount=targetRecord.resources[bestCategory]
                 if type(targetAmount)~="number" then
                     error("The linked combat target is missing its selected resource.",2)
                 end
-                adjusted[bestCategory]=targetAmount+bonus
-                targetRecord.resources=adjusted
+                resourceOps.add(targetRecord,totals,bestCategory,bonus)
                 -- Shield of the Fallen Kings keeps separate Block effects.
                 -- Ambush augments only the first one, not each equal split.
                 if bestType=="block" and (tonumber(targetRecord.repeatBlocks) or 1)>1 then
                     targetRecord.ambushFirstBlockBonus=
                         (targetRecord.ambushFirstBlockBonus or 0)+bonus
                 end
-                totals[bestCategory]=(totals[bestCategory] or 0)+bonus
                 if sourceRecord.links==nil or targetRecord.links==nil then
                     error("A linked combat record has no link list.",2)
                 end
                 sourceRecord.links[#sourceRecord.links+1]=best.guid
                 targetRecord.links[#targetRecord.links+1]=source.guid
-                sourceRecord.status="purple"
-                targetRecord.status="purple"
+                highlightPolicy.linkedSource(sourceRecord)
+                highlightPolicy.linkedTarget(targetRecord)
                 sourceRecord.contributes=true
                 setHighlight(source,sourceRecord.status,sourceRecord.powered)
                 setHighlight(best,targetRecord.status,targetRecord.powered)
@@ -67034,12 +68126,8 @@ function M.tirelessness(cards,records,totals,cardPosture)
                 local record=records[target.guid]
                 -- The calculator may return a shared printed resource table.
                 -- Copy before applying this scan-only modifier.
-                local adjusted={}
-                for key,value in pairs(record.resources) do adjusted[key]=value end
-                adjusted.move=adjusted.move+extra
-                record.resources=adjusted
+                resourceOps.add(record,totals,"move",extra)
                 record.tirelessnessBonus=(record.tirelessnessBonus or 0)+extra
-                totals.move=(totals.move or 0)+extra
             end
         end
     end
@@ -67051,6 +68139,9 @@ end)
 __bundle_register("PlayingGame.PlayerBoard.ResourceTracker.Cards.PlayedCardScan", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Per-card record processing after mana and Action links have been resolved. Applies existing conditional resources, target effects, inventory choices, card controls and movement/combat flags; returns scalar flags to the scan coordinator. Does not discover mana, publish scans or change phase ordering.
 local M={}
+local terrainPolicy=require("PlayingGame.PlayerBoard.ResourceTracker.Cards.TerrainModifiers")
+local highlightPolicy=require("PlayingGame.PlayerBoard.ResourceTracker.Core.HighlightPolicy")
+local effectRecords=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.EnemyEffectRecords")
 
 function M.process(context)
     local seatPos, cards, powered = context.seatPos, context.cards, context.powered
@@ -67063,7 +68154,7 @@ function M.process(context)
     local paidManaChoices, inventoryCrystalCounts, playMonsters = context.paidManaChoices, context.inventoryCrystalCounts, context.playMonsters
     local unitState, manaByCard, current = context.unitState, context.manaByCard, context.current
     local records, totals, enemyEffects = context.records, context.totals, context.enemyEffects
-    local pendingWingsNight, extraTerrainManaByCard, terrainModifiers = context.pendingWingsNight, context.extraTerrainManaByCard, context.terrainModifiers
+    local pendingWingsNight, extraTerrainManaByCard = context.pendingWingsNight, context.extraTerrainManaByCard
     local movementEffects, cardPosture, cardCanPlaySideways = context.movementEffects, context.cardPosture, context.cardCanPlaySideways
     local linkedColorChoices, overlapArea, footprint = context.linkedColorChoices, context.overlapArea, context.footprint
     local combatNearestEnemyGUID, enemyPrintedIconBonus, sideChoices = context.combatNearestEnemyGUID, context.enemyPrintedIconBonus, context.sideChoices
@@ -67072,13 +68163,16 @@ function M.process(context)
     local combatEnemyData, combatIsSummonedToken, currentSpellTerrain = context.combatEnemyData, context.combatIsSummonedToken, context.currentSpellTerrain
     local inventorySetChoice, effectHasTrackedResource, combatEffectChosenEnemy = context.inventorySetChoice, context.effectHasTrackedResource, context.combatEffectChosenEnemy
     local combatEffectTargetEligible, resourceCardsRecruitInfluenceBonus, showChoiceButtons = context.combatEffectTargetEligible, context.resourceCardsRecruitInfluenceBonus, context.showChoiceButtons
-    local resourceCardsDetailsOpen, cardTerrainEffects, terrainEffectActive = context.resourceCardsDetailsOpen, context.cardTerrainEffects, context.terrainEffectActive
+    local resourceCardsDetailsOpen, cardTerrainEffects = context.resourceCardsDetailsOpen, context.cardTerrainEffects
     local resourceCardsIgnoreSiteFortification, addResourceAmounts, setHighlight = context.resourceCardsIgnoreSiteFortification, context.addResourceAmounts, context.setHighlight
     local usesCurrentHexBlock, usesCurrentHexHealing, ignoreSiteFortifications = context.usesCurrentHexBlock, context.usesCurrentHexHealing, context.ignoreSiteFortifications
     local unitCombatBoost, preventUnitDamage, allUnitResistances = context.unitCombatBoost, context.preventUnitDamage, context.allUnitResistances
     local heroFirstWoundIgnored = context.heroFirstWoundIgnored
     local claimedPossessEnemies={}
+    local tracing=trackerPrivate.traceEnabled
     for _,card in ipairs(cards) do
+        local cardProfile
+        if tracing then cardProfile=trackerPrivate.profileStart() end
         local cardData=gameCards[card.guid]
         local rule=cardData~=nil and cardResourceDefinitions[cardData.resourceKey] or nil
         local artifactBreak=cardData~=nil and cardData.cardType=="Artifact"
@@ -67296,7 +68390,7 @@ function M.process(context)
                 result.enemyGUID=best.guid
                 result.possessEnemyGUID=best.guid
                 result.links[#result.links+1]=best.guid
-                result.status="purple"
+                highlightPolicy.linkedSource(result)
                 combatEffectAdd(enemyEffects,best.guid,card.guid,{noAttack=true,all=true})
             end
         end
@@ -67322,7 +68416,7 @@ function M.process(context)
                     local pairCount=snapshot~=nil and snapshot.pairs or 0
                     result.resources={[category]=(chosen[category] or 0)*pairCount}
                     result.complete=pairCount>0
-                    result.status=pairCount>0 and "green" or "blue"
+                    result.status=highlightPolicy.contribution(pairCount>0)
                     result.sacrificePairs=pairCount
                 end
             else
@@ -67427,7 +68521,7 @@ function M.process(context)
         if enemyTarget~=nil and result.resources~=nil then
             result.enemyGUID=enemyTarget.guid
             result.links[#result.links+1]=enemyTarget.guid
-            result.status="purple"
+            highlightPolicy.linkedSource(result)
         end
         -- Enemy debuffs can have a separate lock from printed Attack resources.
         if rule~=nil and rule.enemyEffect~=nil and result.resources~=nil
@@ -67453,7 +68547,7 @@ function M.process(context)
                         if effect~=nil then
                             local key=card.guid.."#rep"..index
                             if not effect.all then
-                                result.enemyEffectTargetKeys[#result.enemyEffectTargetKeys+1]=key
+                                effectRecords.register(result,key)
                             end
                             local target=combatEffectChosenEnemy(key,footprints[card.guid],
                                 monsters,combatEffectTargetEligible(effect))
@@ -67461,16 +68555,12 @@ function M.process(context)
                                 for enemyGUID,monster in pairs(monsters) do
                                     if monster.is_face_down~=true then
                                         combatEffectAdd(enemyEffects,enemyGUID,card.guid,effect,key)
-                                        result.links[#result.links+1]=enemyGUID
-                                        result.status="purple"
+                                        effectRecords.link(result,nil,enemyGUID,{purple=true})
                                     end
                                 end
                             elseif target~=nil then
                                 combatEffectAdd(enemyEffects,target.guid,card.guid,effect,key)
-                                result.enemyGUID=result.enemyGUID or target.guid
-                                result.enemyEffectTargetGUIDs[key]=target.guid
-                                result.links[#result.links+1]=target.guid
-                                result.status="purple"
+                                effectRecords.link(result,key,target.guid,{primary="first",purple=true})
                             end
                         end
                     end
@@ -67485,7 +68575,7 @@ function M.process(context)
                         local key=card.guid.."#effect"..index
                         local target=combatEffectChosenEnemy(key,footprints[card.guid],
                             monsters,combatEffectTargetEligible({attackReduce=2}))
-                        result.enemyEffectTargetKeys[#result.enemyEffectTargetKeys+1]=key
+                        effectRecords.register(result,key)
                         if target~=nil then
                             -- Do not merge the two reductions. When both aim
                             -- at one multi-attack enemy, the calculator can
@@ -67493,10 +68583,7 @@ function M.process(context)
                             -- Two selections of the SAME Attack still total -4.
                             combatEffectAdd(enemyEffects,target.guid,card.guid,
                                 {attackReduce=2},key)
-                            result.enemyGUID=result.enemyGUID or target.guid
-                            result.enemyEffectTargetGUIDs[key]=target.guid
-                            result.links[#result.links+1]=target.guid
-                            result.status="purple"
+                            effectRecords.link(result,key,target.guid,{primary="first",purple=true})
                         end
                     end
                 elseif spec~=nil then
@@ -67508,9 +68595,9 @@ function M.process(context)
                     -- Banner of Fear (Lost Legion): at most three different
                     -- enemies are unable to attack. Each target is its own
                     -- persistent physical arrow; right-click adds another.
-                    local targets=attackAssignmentsTargetGUIDs(key)
                     local primary=combatEffectChosenEnemy(key,footprints[card.guid],
                         monsters,combatEffectTargetEligible(spec))
+                    local targets=attackAssignmentsTargetGUIDs(key)
                     if next(targets)==nil and primary~=nil then targets[primary.guid]=true end
                     local ordered={}
                     for guid in pairs(targets) do
@@ -67520,24 +68607,20 @@ function M.process(context)
                         end
                     end
                     table.sort(ordered)
-                    result.enemyEffectTargetKeys={key}
+                    effectRecords.register(result,key)
                     for index=1,math.min(#ordered,spec.maxTargets) do
                         local targetGUID=ordered[index]
                         combatEffectAdd(enemyEffects,targetGUID,card.guid,spec,key)
-                        result.links[#result.links+1]=targetGUID
-                        if result.enemyGUID==nil then
-                            result.enemyGUID=targetGUID
-                            result.enemyEffectTargetGUIDs={[key]=targetGUID}
-                        end
-                        result.status="purple"
+                        local primaryKey=result.enemyGUID==nil and key or nil
+                        effectRecords.link(result,primaryKey,targetGUID,{primary="first",purple=true})
                     end
                 elseif spec.multiTargetMove then
                     -- Right-click target to add further enemies; cost is settled
                     -- after all Move-producing cards/Units/Skills have been read.
-                    result.enemyEffectTargetKeys={key}
-                    local targets=attackAssignmentsTargetGUIDs(key)
+                    effectRecords.register(result,key)
                     local primary=combatEffectChosenEnemy(key,footprints[card.guid],
                         monsters,combatEffectTargetEligible(spec))
+                    local targets=attackAssignmentsTargetGUIDs(key)
                     if next(targets)==nil and primary~=nil then targets[primary.guid]=true end
                     local ordered={}
                     for guid in pairs(targets) do
@@ -67555,12 +68638,13 @@ function M.process(context)
                     end)
                     if #ordered>0 then
                         pendingWingsNight[#pendingWingsNight+1]={source=card.guid,targets=ordered}
-                        result.enemyEffectTargetGUIDs={[key]=ordered[1]}
-                        result.enemyGUID=ordered[1]
-                        for _,guid in ipairs(ordered) do result.links[#result.links+1]=guid end
-                        result.status="purple"
+                        for index,guid in ipairs(ordered) do
+                            effectRecords.link(result,index==1 and key or nil,guid,
+                                {primary=index==1 and "replace" or nil,purple=true})
+                        end
                     end
                 else
+                    if not spec.all then effectRecords.register(result,key) end
                     local target=combatEffectChosenEnemy(key,footprints[card.guid],
                         monsters,combatEffectTargetEligible(spec))
                     if target~=nil then
@@ -67584,13 +68668,8 @@ function M.process(context)
                                 end
                             end
                         end
-                        result.enemyGUID=targetGUID
-                        result.links[#result.links+1]=targetGUID
-                        result.status="purple"
-                        if not spec.all then
-                            result.enemyEffectTargetKeys={key}
-                            result.enemyEffectTargetGUIDs={[key]=targetGUID}
-                        end
+                        effectRecords.link(result,not spec.all and key or nil,targetGUID,
+                            {primary="replace",purple=true})
                     end
                 end
                 end -- Dodge and Weave separate effect targets
@@ -67606,7 +68685,7 @@ function M.process(context)
         end
         local manaLink=manaByCard[card.guid]
         if manaLink~=nil then
-            result.status="purple"
+            highlightPolicy.linkedSource(result)
             result.links[#result.links+1]=manaLink.skillGUID
             result.convertedMana=manaLink.converted
         end
@@ -67620,6 +68699,7 @@ function M.process(context)
             result.resources=adjusted
         end
         result.choices=choices -- Also authoritative for payment-restricted click validation.
+        if cardProfile~=nil then cardProfile=trackerPrivate.profileCheckpoint("cards.recognition",cardProfile) end
         showChoiceButtons(card,choices,result.powered,inventorySpec,inventorySets,result.resources,
             repeatByTarget[card.guid])
         if cardData~=nil and cardData.resourceKey=="spellCure" then
@@ -67627,10 +68707,11 @@ function M.process(context)
                 result.complete==true and result.powered~=true
                 and resourceCardsDetailsOpen())
         end
+        if cardProfile~=nil then cardProfile=trackerPrivate.profileCheckpoint("cards.choiceButtons",cardProfile) end
         -- Expose a separate Armour-reduction source. It is independent of the
         -- card's Ranged Attack target and becomes effective only after a kill.
         if result.explosiveBolt~=nil and combatCalcOn then
-            result.enemyEffectTargetKeys={card.guid.."#explosiveAttack"}
+            effectRecords.register(result,card.guid.."#explosiveAttack")
         end
         -- Stage terrain effects until linked conversions have resolved.
         -- Amulets grant no numeric Move and retain their independent effects.
@@ -67639,20 +68720,13 @@ function M.process(context)
                 or (cardData~=nil and cardData.cardType=="Artifact")) then
             result.independentTerrain=cardData~=nil and cardData.cardType=="Artifact"
                 and (tonumber(result.resources.move) or 0)<=0
-            for _=1,(result.repeatCount or 1) do
-                for _,effect in ipairs(cardTerrainEffects(rule,result.powered) or {}) do
-                    if terrainEffectActive(effect) then
-                        result.pendingTerrainModifiers=result.pendingTerrainModifiers or {}
-                        result.pendingTerrainModifiers[#result.pendingTerrainModifiers+1]=effect
-                    end
-                end
-            end
+            terrainPolicy.stage(result,cardTerrainEffects(rule,result.powered),
+                gStates.dayRound,result.repeatCount)
             local extraManaGUID=extraTerrainManaByCard[card.guid]
             if extraManaGUID~=nil and rule.extraTerrainMana~=nil then
-                result.pendingTerrainModifiers=result.pendingTerrainModifiers or {}
-                result.pendingTerrainModifiers[#result.pendingTerrainModifiers+1]=rule.extraTerrainMana.effect
+                terrainPolicy.stage(result,{rule.extraTerrainMana.effect},gStates.dayRound)
                 result.links[#result.links+1]=extraManaGUID
-                result.status="purple"
+                highlightPolicy.linkedSource(result)
             end
         end
         -- Persistent movement rules are non-numeric abilities: collect them
@@ -67687,10 +68761,7 @@ function M.process(context)
                 local modifier=selection~=nil
                     and combatConfig.druidicTerrainEffects[selection.terrain] or nil
                 if modifier~=nil then
-                    for _=1,(result.repeatCount or 1) do
-                        result.pendingTerrainModifiers=result.pendingTerrainModifiers or {}
-                        result.pendingTerrainModifiers[#result.pendingTerrainModifiers+1]=modifier
-                    end
+                    terrainPolicy.stage(result,{modifier},gStates.dayRound,result.repeatCount)
                 else
                     -- Only movement-role Druidic Paths needs a terrain choice.
                     result.pendingTerrainChoice=true
@@ -67728,7 +68799,9 @@ function M.process(context)
         records[card.guid]=result
         current[card.guid]=true
         if result.usesTerrainBlock then usesCurrentHexBlock=true end
+        if cardProfile~=nil then cardProfile=trackerPrivate.profileCheckpoint("cards.effects",cardProfile) end
         setHighlight(card,result.status,result.powered)
+        if cardProfile~=nil then trackerPrivate.profileFinish("cards.highlight",cardProfile) end
     end
     return usesCurrentHexBlock,usesCurrentHexHealing,ignoreSiteFortifications,
         unitCombatBoost,preventUnitDamage,allUnitResistances,heroFirstWoundIgnored
@@ -70034,7 +71107,8 @@ local byType={
         special(2,"Ready a Level I or II Unit",{key="ready"}),
         special(3,"Gain a green mana token",{key="gain"})},
     Foresters={
-        value(1,"move",2,"Move 2; forests, hills and swamps cost 1 less (minimum 0)",{terrainReduce=true}),
+        value(1,"move",2,"Move 2; forests, hills and swamps cost 1 less (minimum 0)",{terrainEffects={{mode="reduce",terrains={forest=true,hills=true,swamp=true},
+            amount=1,minimum=0}}}),
         value(2,"block",3,"Block 3")},
     UtemCrossbowmen={
         value(1,"attack",3,"Attack 3"),value(1,"block",3,"Block 3"),
