@@ -83,4 +83,21 @@ objects.zone=oldZone check(1)
 members={black}
 assert(not env.magicTalentSpellCastingPaid(1,"spell"),"Black alone never casts a Spell")
 assert(env.magicTalentSpellCastingPaymentCount(1,"spell")==0)
+-- Named vector coordinates and array coordinates use the same boundary.
+blue.getPosition=function() return {x=0,y=2,z=0} end
+members={blue,blue} check(1)
+blue.getPosition=function() return {x=1,y=2,z=0} end
+check(0)
+blue.getPosition=function() return {x=0,y=2,z=0} end
+check(1)
+-- Boolean casting still stops at the first payment; counting visits all.
+local reads=0
+second.getPosition=function() reads=reads+1 return {x=0,y=2,z=0} end
+members={blue,second}
+assert(env.magicTalentSpellCastingPaid(1,"spell"))
+assert(reads==0,"Boolean query stops after the first eligible payment")
+assert(env.magicTalentSpellCastingPaymentCount(1,"spell")==2 and reads==1)
+members={black,blue,blue}
+assert(env.magicTalentSpellCastingPaid(1,"spell"))
+assert(env.magicTalentSpellCastingPaymentCount(1,"spell")==1)
 print("Mana zone boundary regressions passed")

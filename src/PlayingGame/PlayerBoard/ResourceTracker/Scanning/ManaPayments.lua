@@ -2,58 +2,56 @@
 -- Special-card scans read the current play zone; Unit scans read the play and
 -- Unit zones or supplied live candidates. The coordinator retains color and posture policies.
 
--- Resolve independent mana roles without relying on placement order or GUID
--- order. A casting payment (if declared), stronger-effect payment, and
--- effect-selection payment must be different physical mana objects. Daytime
--- Gold can fill either a casting or effect role; its effect stays ambiguous.
--- Other cards can reuse this by declaring effectManaChoice.castColor.
-local function effectManaPossibilities(spec,payments,needPower,goldAllowed,blackAllowed)
-    -- Single-boolean call sites/tests retain the ordinary Day/Night pairing.
-    -- The Amulets may independently enable both colors at runtime.
-    if blackAllowed==nil then blackAllowed=not goldAllowed end
-    local possible,anyColor={},false
-    -- Black mana cannot pay for any role during a Day round, including
-    -- the otherwise separate strong-side payment on Mana Bolt/Thunderbolt.
-    if not blackAllowed and needPower and spec.powerColor=="Black" then return possible,anyColor end
-    local function hasDistinctPower(effectGUID,castGUID)
+-- All roles are assigned to distinct physical objects. Gold can fill a
+-- basic casting or power role, but never substitutes for Black power.
+local function castingColorMatches(spec,color,goldAllowed)
+    return color==spec.castColor or (color=="Gold" and goldAllowed)
+end
+
+local function powerColorMatches(spec,color,goldAllowed)
+    return color==spec.powerColor
+        or (goldAllowed and spec.powerColor~="Black" and color=="Gold")
+end
+
+-- Shared enumeration for the possible effect options and Mana Overload's
+-- qualifying stronger-side payment. The chosen effect can have a wildcard;
+-- callers decide how to present it. No payment is reserved by this query.
+local function hasDistinctRoles(spec,payments,effectGUID,needPower,goldAllowed)
+    local function hasPower(castGUID)
         if not needPower then return true end
-        for _,payment in ipairs(payments) do
-            if payment.guid~=effectGUID and payment.guid~=castGUID
-                and (payment.color==spec.powerColor
-                    or (goldAllowed and spec.powerColor~="Black"
-                        and payment.color=="Gold")) then return true end
+        for _,power in ipairs(payments) do
+            if power.guid~=effectGUID and power.guid~=castGUID
+                and powerColorMatches(spec,power.color,goldAllowed) then return true end
         end
         return false
     end
+    if spec.castColor==nil then return hasPower(nil) end
+    for _,casting in ipairs(payments) do
+        if casting.guid~=effectGUID and castingColorMatches(spec,casting.color,goldAllowed)
+            and hasPower(casting.guid) then return true end
+    end
+    return false
+end
+
+local function effectManaPossibilities(spec,payments,needPower,goldAllowed,blackAllowed)
+    -- Single-boolean call sites retain the ordinary Day/Night pairing.
+    -- Amulets may independently enable both colours.
+    if blackAllowed==nil then blackAllowed=not goldAllowed end
+    local possible,anyColor={},false
+    if not blackAllowed and needPower and spec.powerColor=="Black" then return possible,anyColor end
     for _,effect in ipairs(payments) do
         local category=spec.colors[effect.color]
         local wildcard=effect.color=="Gold" and goldAllowed
-        if category~=nil or wildcard then
-            local valid=false
-            if spec.castColor==nil then
-                valid=hasDistinctPower(effect.guid,nil)
-            else
-                for _,casting in ipairs(payments) do
-                    if casting.guid~=effect.guid
-                        and (casting.color==spec.castColor
-                            or (casting.color=="Gold" and goldAllowed))
-                        and hasDistinctPower(effect.guid,casting.guid) then
-                        valid=true
-                        break
-                    end
-                end
-            end
-            if valid then
-                if wildcard then anyColor=true
-                elseif category~=nil then possible[category]=true end
-            end
+        if (category~=nil or wildcard)
+            and hasDistinctRoles(spec,payments,effect.guid,needPower,goldAllowed) then
+            if wildcard then anyColor=true
+            elseif category~=nil then possible[category]=true end
         end
     end
     return possible,anyColor
 end
 
--- Only the separate stronger-effect payment qualifies for Mana Overload.
--- A card's casting mana or a Pure Magic / Mana Bolt option payment does not.
+-- Casting and effect-selection mana do not qualify for Mana Overload.
 local function effectManaPowerColors(spec,payments,goldAllowed,blackAllowed,selectedCategory)
     if selectedCategory==nil and type(blackAllowed)=="string" then
         selectedCategory=blackAllowed
@@ -63,27 +61,10 @@ local function effectManaPowerColors(spec,payments,goldAllowed,blackAllowed,sele
     if spec==nil or selectedCategory==nil
         or (not blackAllowed and spec.powerColor=="Black") then return eligible end
     for _,effect in ipairs(payments or {}) do
-        if spec.colors[effect.color]==selectedCategory
-            or (goldAllowed and effect.color=="Gold") then
-            for _,power in ipairs(payments or {}) do
-                if power.guid~=effect.guid
-                    and (power.color==spec.powerColor
-                        or (goldAllowed and spec.powerColor~="Black"
-                            and power.color=="Gold")) then
-                    if spec.castColor==nil then
-                        eligible[spec.powerColor]=true
-                    else
-                        for _,casting in ipairs(payments or {}) do
-                            if casting.guid~=effect.guid and casting.guid~=power.guid
-                                and (casting.color==spec.castColor
-                                    or (goldAllowed and casting.color=="Gold")) then
-                                eligible[spec.powerColor]=true
-                                break
-                            end
-                        end
-                    end
-                end
-            end
+        if (spec.colors[effect.color]==selectedCategory or (goldAllowed and effect.color=="Gold"))
+            and hasDistinctRoles(spec,payments,effect.guid,true,goldAllowed) then
+            eligible[spec.powerColor]=true
+            break
         end
     end
     return eligible
@@ -122,110 +103,80 @@ local function bestManaCard(mana,cards,footprints,eligible)
     return best
 end
 
--- Magic Talent's strong side consumes TWO distinct mana objects, not the
--- single mana that normally powers an Advanced Action. Read the same released
--- die faces/crystals as the ordinary tracker, even when its panel is minimized.
-local function magicTalentManaPayments(seatPos,footprint,manaColor,readyForXZ)
-    local card=getObjectFromGUID("3d832c")
-    local zone=seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
-    if card==nil or zone==nil then return {} end
+-- The special-card paths use live zone membership even while the tracker
+-- is minimized. Do not reuse a prior scan or search outside the zone.
+local function playZone(seatPos)
+    return seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
+end
+
+-- All of these special-card checks deliberately use X/Z footprints. They
+-- inspect payments for a specified physical source, not ordinary multi-card
+-- mana allocation (which retains the highest eligible card rule above).
+-- The callback can stop immediately after finding a matching payment.
+local function visitFootprintMana(zone,card,footprint,manaColor,readyForXZ,visit)
+    if zone==nil or card==nil then return end
     local area=footprint(card)
-    local payments,seen={},{}
-    local function consider(obj)
-        if obj==nil or seen[obj.guid] or obj.guid==card.guid
-            or not readyForXZ(obj) then return end
-        seen[obj.guid]=true
-        local p=obj.getPosition()
-        if math.abs(p[1]-area.x)<area.halfX
-            and math.abs(p[3]-area.z)<area.halfZ then
-            local color=manaColor(obj)
-            if color~=nil then
-                payments[#payments+1]={guid=obj.guid,color=color}
+    local seen={}
+    for _,mana in ipairs(zone.getObjects()) do
+        if mana~=nil and mana.guid~=card.guid and not seen[mana.guid]
+            and readyForXZ(mana) then
+            seen[mana.guid]=true
+            local p=mana.getPosition()
+            local x,z=p.x or p[1],p.z or p[3]
+            if math.abs(x-area.x)<area.halfX and math.abs(z-area.z)<area.halfZ then
+                local color=manaColor(mana)
+                if color~=nil and visit(mana.guid,color) then return end
             end
         end
     end
-    for _,obj in ipairs(zone.getObjects()) do consider(obj) end
+end
+
+-- Magic Talent's strong side consumes two distinct physical mana objects.
+local function magicTalentManaPayments(seatPos,footprint,manaColor,readyForXZ)
+    local card=getObjectFromGUID("3d832c")
+    local payments={}
+    visitFootprintMana(playZone(seatPos),card,footprint,manaColor,readyForXZ,function(guid,color)
+        payments[#payments+1]={guid=guid,color=color}
+    end)
     table.sort(payments,function(a,b) return a.guid<b.guid end)
     return payments
 end
 
 -- A borrowed Spell's casting payment must remain on its physical card.
--- This check also works with the Resource Tracker minimized, when its cached
--- records are deliberately cleared. A lone Black die never casts a Spell.
-local function magicTalentSpellCastingPaid(seatPos,guid,footprint,cardPosture,manaColor,readyForXZ,matchesCardMana)
+-- The boolean query stops at the first valid payment; repeated uses count
+-- all distinct physical payments through the same eligibility path.
+local function spellCastingCount(seatPos,guid,footprint,cardPosture,manaColor,readyForXZ,matchesCardMana,firstOnly)
     local card=guid~=nil and getObjectFromGUID(guid) or nil
     local data=card~=nil and gameCards[guid] or nil
-    local zone=seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
     if card==nil or data==nil or data.cardType~="Spell"
-        or zone==nil or card.is_face_down==true
-        or cardPosture(card)~="upright" then return false end
-    local area=footprint(card)
-    local seen={}
-    local function paidBy(mana)
-        if mana==nil or seen[mana.guid] or mana.guid==guid
-            or not readyForXZ(mana) then return false end
-        seen[mana.guid]=true
-        local p=mana.getPosition()
-        if math.abs(p[1]-area.x)>=area.halfX
-            or math.abs(p[3]-area.z)>=area.halfZ then return false end
-        local color=manaColor(mana)
-        return color~=nil and color~="Black" and matchesCardMana(card,color)
-    end
-    for _,mana in ipairs(zone.getObjects()) do
-        if paidBy(mana) then return true end
-    end
-    return false
+        or card.is_face_down==true or cardPosture(card)~="upright" then return 0 end
+    local count=0
+    visitFootprintMana(playZone(seatPos),card,footprint,manaColor,readyForXZ,function(_,color)
+        if color~="Black" and matchesCardMana(card,color) then
+            count=count+1
+            return firstOnly
+        end
+        return false
+    end)
+    return count
 end
 
--- Count distinct physical casting payments for repeated uses of the same
--- Spell through Maximal Effect + Magic Talent. Only play-zone mana qualifies;
--- duplicates are counted only once.
+local function magicTalentSpellCastingPaid(seatPos,guid,footprint,cardPosture,manaColor,readyForXZ,matchesCardMana)
+    return spellCastingCount(seatPos,guid,footprint,cardPosture,manaColor,readyForXZ,matchesCardMana,true)>0
+end
+
 local function magicTalentSpellCastingPaymentCount(seatPos,guid,footprint,cardPosture,manaColor,readyForXZ,matchesCardMana)
-    local card=guid~=nil and getObjectFromGUID(guid) or nil
-    local data=card~=nil and gameCards[guid] or nil
-    local zone=seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
-    if card==nil or data==nil or data.cardType~="Spell" or zone==nil
-        or card.is_face_down==true or cardPosture(card)~="upright" then return 0 end
-    local area=footprint(card)
-    local seen,count={},0
-    local function consider(mana)
-        if mana==nil or seen[mana.guid] or mana.guid==guid
-            or not readyForXZ(mana) then return end
-        seen[mana.guid]=true
-        local p=mana.getPosition()
-        local x,z=p.x or p[1],p.z or p[3]
-        if math.abs(x-area.x)>=area.halfX
-            or math.abs(z-area.z)>=area.halfZ then return end
-        local color=manaColor(mana)
-        if color~=nil and color~="Black" and matchesCardMana(card,color) then
-            count=count+1
-        end
-    end
-    for _,mana in ipairs(zone.getObjects()) do consider(mana) end
-    return count
+    return spellCastingCount(seatPos,guid,footprint,cardPosture,manaColor,readyForXZ,matchesCardMana,false)
 end
 
 -- A Maximal Effect power mana object cannot also be one of Magic Talent's
 -- additional casting/claim payments, even if overlapping cards share X/Z.
 local function resourceCardsMaximalEffectSourceManaGUIDs(seatPos,sourceGUID,footprint,manaColor,readyForXZ,matchesCardMana)
     local source=sourceGUID~=nil and getObjectFromGUID(sourceGUID) or nil
-    local zone=seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
-    if source==nil or zone==nil then return {} end
-    local area=footprint(source)
-    local spent,seen={},{}
-    local function inspect(mana)
-        if mana==nil or seen[mana.guid] or mana.guid==sourceGUID
-            or not readyForXZ(mana) then return end
-        seen[mana.guid]=true
-        local color=manaColor(mana)
-        if color==nil or not matchesCardMana(source,color) then return end
-        local pos=mana.getPosition()
-        local x,z=pos.x or pos[1],pos.z or pos[3]
-        if math.abs(x-area.x)<area.halfX and math.abs(z-area.z)<area.halfZ then
-            spent[mana.guid]=true
-        end
-    end
-    for _,mana in ipairs(zone.getObjects()) do inspect(mana) end
+    local spent={}
+    visitFootprintMana(playZone(seatPos),source,footprint,manaColor,readyForXZ,function(guid,color)
+        if matchesCardMana(source,color) then spent[guid]=true end
+    end)
     return spent
 end
 
@@ -236,7 +187,7 @@ local function resourceCardsTimeBendingPaid(seatPos,card,footprint,cardPosture,m
     if card==nil or card.guid~=GUID.card.timeBending
         or card.is_face_down==true or cardPosture(card)~="upright"
         or not resourceCardsBlackAllowed() then return false end
-    local zone=seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
+    local zone=playZone(seatPos)
     if zone==nil then return false end
     local area=footprint(card)
     local blue,black=false,false
