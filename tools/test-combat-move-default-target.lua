@@ -46,7 +46,7 @@ assert(assets:find('move={name="MKChoiceMove"',1,true)
     "Composite layers must reuse registered icon assets")
 
 local nearestCode=section(reader,
-    "local function combatNearestEnemyGUID(source,entries,eligible)",
+    "local function combatNearestEnemyGUID(source,entries,eligible,positions)",
     "combatConfig.attackTypes=")
 -- Exercise the real target selection with the production nearest-enemy helper.
 local positions={
