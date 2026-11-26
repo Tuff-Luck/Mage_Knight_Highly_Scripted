@@ -105,7 +105,7 @@ assert(math.abs(private.profileStats["rows.finalLayout"].ms-2)<0.001)
 assert(math.abs(private.profileStats["rows.grouping"].ms
     +private.profileStats["rows.allocation"].ms
     +private.profileStats["rows.finalLayout"].ms-12)<0.001)
-local rowStart=assert(source:find("local function combatAssignmentRefreshRows(entries,sources)",1,true))
+local rowStart=assert(source:find("local function combatAssignmentRefreshRows(entries,sources,scopeRewards,observedDamageUnits,observedCommandCount)",1,true))
 local rowEnd=assert(source:find("local function combatCalcShutdown()",rowStart,true))
 local rowSource=source:sub(rowStart,rowEnd-1)
 local last=1
@@ -117,6 +117,10 @@ for _,name in ipairs({"grouping","enemyHeaders","allocation","earlyCombat","dama
     last=pos+1
 end
 assert(rowSource:find('profileFinish("rows.finalLayout",stageProfile)',last,true))
+assert(source:find('profileFinish("combat.phaseSnapshot",snapshotProfile)',1,true),
+    "Phase snapshot cost remains independently measurable")
+assert(source:find('profileCount("combat.refresh.unchanged")',1,true),
+    "Skipped combat solves are counted")
 local scanStart=assert(source:find("local function renderSeat(seatPos)",1,true))
 local scanEnd=assert(source:find("local function scheduleSeatRender",scanStart,true))
 local scanSource=source:sub(scanStart,scanEnd-1)

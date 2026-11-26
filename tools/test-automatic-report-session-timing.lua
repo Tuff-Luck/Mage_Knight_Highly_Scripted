@@ -54,7 +54,9 @@ fakeTime=fakeTime+15.25
 env.reportAutomaticLuaDiagnostic("testSessionTiming","first check","diagnostic context")
 assert(#posted==1)
 local comment=posted[1].Comment
-assert(comment:find("Reporter Version: 470",1,true))
+local expectedVersion=assert(read("src/ErrorReporting.lua"):match('local automaticLuaErrorReporterVersion="(%d+)"'),
+    "Reporter version must be a numeric string")
+assert(comment:find("Reporter Version: "..expectedVersion.."\n",1,true))
 assert(comment:find("Mod loaded (UTC): "..os.date("!%Y-%m-%d %H:%M:%S UTC",loadAt),1,true))
 assert(comment:find("Report generated (UTC): "..os.date("!%Y-%m-%d %H:%M:%S UTC",fakeTime),1,true))
 assert(comment:find("Time since mod load: 90s (1m 30s)",1,true))

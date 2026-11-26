@@ -2,6 +2,7 @@
 local root="src/PlayingGame/PlayerBoard/ResourceTracker/"
 local arrows,clears,ensures,kept,records={},{},{},{},{}
 local nearestCalls,scanCalls=0,0
+local checkedSource
 local cumbersomeCalls,attackCalls={},{}
 local function cumbersome(guid)
     cumbersomeCalls[guid]=(cumbersomeCalls[guid] or 0)+1
@@ -15,7 +16,10 @@ local split=dofile(root.."Combat/DivisibleResources.lua")(function() return {} e
 local engine=dofile(root.."Combat/SourceTargetAllocation.lua")(
     function(key) return arrows[key] or {} end,
     function(key) clears[#clears+1]=key arrows[key]=nil end,
-    function(key,guid) return guid~="bad" end,cumbersome,
+    function(key,guid,knownSource)
+        checkedSource=knownSource
+        return guid~="bad"
+    end,cumbersome,
     function(source,entries,eligible)
         nearestCalls=nearestCalls+1
         for _,entry in ipairs(entries) do
@@ -61,6 +65,7 @@ eq(state.targets.saved,"c","Saved arrow restored")
 eq(state.explicit.saved,true,"Saved target is explicit")
 eq(state.targets.possess,"c","Possessed enemy cannot target itself")
 eq(state.targets.fork,"normal","Rejected Forked Lightning target is replaced")
+eq(checkedSource,sources[4],"Target validation receives already-built source")
 eq(state.targets.badAttack,"normal","Attack-only reminder rejected for Attack")
 eq(state.targets.move,"c","Combat Move finds Cumbersome enemy")
 eq(state.explicit.move,true,"Automatic Move reserves pool")

@@ -21,7 +21,8 @@ assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CardControlOp
     "Ambush must use the shared card/enemy target control")
 assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CardControls.lua"):find('global/attackAssignmentAmbushSourceClicked',1,true),
     "Ambush target button must use the dual-target callback")
-assert(arrows:find('getObjectFromGUID(targetGUID),assignmentColors.other)',1,true),
+local ambushLines=section(arrows,"-- Ambush's card buff is independent", "for key,guids in pairs(damageTargets) do")
+assert(ambushLines:find('appendStatic(sourceGUID,targetGUID,assignmentColors.other)',1,true),
     "The separate card bonus must draw a purple arrow")
 assert(arrows:find('for sourceGUID,targetGUID in pairs(gStates~=nil and gStates.ambushCombatLinks or {})',1,true),
     "The saved bonus must survive independent enemy-target changes")
