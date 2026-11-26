@@ -2553,6 +2553,7 @@ local function handleHandZoneEnter(ctx)
 	--Record Cards in hand as part of a players deed deck
 	if objType=="Card" and zoneInfo~=nil and zoneInfo.kind=="hand" then
 		scheduleSettledZoneEntry(ctx,function(liveCtx)
+			resourceCardsReturnedToHand(liveCtx.obj,liveCtx.zoneInfo.seatPos)
 			local handPlayerIndex=turnOrderIndexAtSeat(liveCtx.zoneInfo.seatPos)
 			local cardType=gameCardType(liveCtx.obj)
 			if handPlayerIndex~=nil and cardType~="Regular Unit" and cardType~="Elite Unit" then
@@ -26948,9 +26949,9 @@ local function combatDefeatUpdateMarker(obj, defeated)
 	local scale=obj.getScale()
 	local height=bounds~=nil and bounds.size~=nil and (bounds.size.y or bounds.size[2]) or 0
 	local scaleY=scale~=nil and (scale.y or scale[2]) or 1
-	local y=math.max(0.12,height/(2*math.max(0.01,scaleY))+0.08)
+	local y=math.max(0.0,height/(2*math.max(0.01,scaleY))+0.00)
 	obj.createButton({click_function=combatDefeatMarkerClick,function_owner=Global,label="X",
-		position={0,y,0},rotation={0,0,0},width=0,height=0,font_size=640,
+		position={0,y,0.1},rotation={0,0,0},width=0,height=0,font_size=700,
 		font_color={1,0.04,0.04}})
 end
 
@@ -50999,12 +51000,40 @@ end
 -- Preserve resolved pre-Damage Unit contributions before removing the card
 -- from its zone. Snapshot plain scalar data only so TTS JSON save/reload
 -- does not capture objects or userdata.
-local function combatFrozenCopy(value)
+local function combatFrozenCopy(value,previous)
     if type(value)~="table" then
         if type(value)=="string" or type(value)=="number" or type(value)=="boolean" then
             return value
         end
         return nil
+    end
+    -- previous is an immutable preview subtree, never a live calculation.
+    -- Skip allocating an equivalent tree; changed parents may still share
+    -- unchanged children. Calls without previous always make an independent copy.
+    if type(previous)=="table" then
+        local copy=nil
+        for key,entry in pairs(value) do
+            if type(key)=="string" or type(key)=="number" then
+                local child=combatFrozenCopy(entry,previous[key])
+                if child~=previous[key] then
+                    if copy==nil then
+                        copy={}
+                        for k,v in pairs(previous) do copy[k]=v end
+                    end
+                    copy[key]=child
+                end
+            end
+        end
+        for key in pairs(previous) do
+            if value[key]==nil then
+                if copy==nil then
+                    copy={}
+                    for k,v in pairs(previous) do copy[k]=v end
+                end
+                copy[key]=nil
+            end
+        end
+        return copy or previous
     end
     local copy={}
     for key,entry in pairs(value) do
@@ -51398,8 +51427,12 @@ end
 
 -- Reminders accept only Block/Move and enemy-attack effects, not attacks
 -- against Armour. Unknown source keys represent effect-only targeting links.
-function resourceCardsCombatTargetAcceptsSource(sourceKey,targetGUID)
-    return trackerPrivate.combatTargetPolicy.acceptsSource(sourceKey,targetGUID,combatAssignmentActiveSeat,combatEnemyData,combatConfig,combatAssignmentSources,combatAssignmentState,selectedResourceByGUID)
+function resourceCardsCombatTargetAcceptsSource(sourceKey,targetGUID,knownSource)
+    -- The allocation pass already has this source. Do not reconstruct every
+    -- card/Unit/conversion just to check this one numeric source.
+    local sourceProvider=knownSource~=nil and function() return {knownSource} end
+        or combatAssignmentSources
+    return trackerPrivate.combatTargetPolicy.acceptsSource(sourceKey,targetGUID,combatAssignmentActiveSeat,combatEnemyData,combatConfig,sourceProvider,combatAssignmentState,selectedResourceByGUID)
 end
 
 -- A lifted card keeps its target while its arrow still exists.
@@ -52848,7 +52881,7 @@ trackerPrivate.divisibleResources=require("PlayingGame.PlayerBoard.ResourceTrack
 trackerPrivate.sourceTargetAllocation=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.SourceTargetAllocation")(
     function(key) return attackAssignmentsTargetGUIDs(key) end,
     function(key) return attackAssignmentsClearForObject(key) end,
-    function(key,guid) return resourceCardsCombatTargetAcceptsSource(key,guid) end,
+    function(key,guid,source) return resourceCardsCombatTargetAcceptsSource(key,guid,source) end,
     combatGUIDHasCumbersome,combatNearestEnemyGUID,
     function(key) return attackAssignmentsIsTargeting(key) end,
     function(...) return attackAssignmentsEnsureTarget(...) end,
@@ -52891,7 +52924,7 @@ trackerPrivate.combatPanelRenderer=require("PlayingGame.PlayerBoard.ResourceTrac
     combatConfig,combatPanelSetAttribute,combatRich,combatWoundsText,
     function(...) return joinLang(...) end,trackerPrivate)
 
-local function combatAssignmentRefreshRows(entries,sources)
+local function combatAssignmentRefreshRows(entries,sources,scopeRewards,observedDamageUnits,observedCommandCount)
     -- Exclusive stage timings within combat.rows. Existing block.result,
     -- damage.phase and UI counters are nested measurements, not extra time.
     local stageProfile
@@ -53066,7 +53099,8 @@ local function combatAssignmentRefreshRows(entries,sources)
     local selfWoundsEarly,selfWoundsLate=combatConfig.selfWoundingUnitChoices(damageSeat,groups)
     local damageProfile
     if trackerPrivate.traceEnabled then damageProfile=trackerPrivate.profileStart() end
-    local damageUnits,nativeCommandCount=combatDamageUnits(damageSeat)
+    local damageUnits,nativeCommandCount=observedDamageUnits,observedCommandCount
+    if damageUnits==nil then damageUnits,nativeCommandCount=combatDamageUnits(damageSeat) end
     if damageProfile~=nil then damageProfile=trackerPrivate.profileCheckpoint("damage.unitDiscovery",damageProfile) end
     local damageSpec,damageItems=trackerPrivate.damagePreparation.build(entries,groups,rowBlock,damageUnits,selfWoundsEarly)
     if damageProfile~=nil then damageProfile=trackerPrivate.profileCheckpoint("damage.prepare",damageProfile) end
@@ -53227,7 +53261,7 @@ local function combatAssignmentRefreshRows(entries,sources)
 
     -- Sources that reward every defeated enemy, whichever attack defeated it.
     local seenScope={}
-    for _,source in ipairs(combatAssignmentSources(damageSeat)) do
+    for _,source in ipairs(scopeRewards or combatAssignmentSources(damageSeat)) do
         local spec=source.defeatFameRep
         if spec~=nil and spec.scope~=nil and not seenScope[source.guid] then
             seenScope[source.guid]=true
@@ -53355,6 +53389,7 @@ end
 local function combatCalcShutdown()
     combatConfig.scanAwaitingRescan=false
     combatConfig.shutdownClean=true
+    combatConfig.lastSimpleScanKey=nil
     combatConfig.resultRowCache={}
     combatConfig.slotSelection={}
     combatConfig.effectSources={}
@@ -53385,8 +53420,98 @@ local function combatCalcShutdown()
     attackAssignmentsClearAll()
 end
 
+-- Conservative reuse for ordinary sideways-card combat. Complex effects,
+-- Units, boss fights, active transactions and explicit UI refreshes use the
+-- full calculation. Never treat identical aggregate totals as equivalent.
+combatConfig.simpleScanKey=function(seat,entries,sources,scan,otherWounds,units,commands)
+    if scan==nil or seat==nil or #entries==0 or combatConfig.woundApplying
+        or combatConfig.woundTransactionPending or combatConfig.woundConfirmation
+        or combatPhaseLock(seat)~=nil or combatCumbersomeActive or combatPsychicActive
+        or next(units or {})~=nil or scan.unitState~=nil
+        or scan.ignoreSiteFortifications or scan.preventUnitDamage
+        or scan.allUnitResistances or scan.heroFirstWoundIgnored or scan.heroPsychicBlock
+        or next(scan.enemyEffects or {})~=nil
+        or (scan.attackTransforms~=nil and (scan.attackTransforms.coldFire or scan.attackTransforms.siege))
+        or combatConfig.artifactCombat.sword or combatConfig.artifactCombat.bow
+        or combatConfig.artifactCombat.swordFame or combatConfig.artifactCombat.bowFame
+        or next(gStates.competitiveSkillReminders or {})~=nil
+        or next(gStates.combatBossManual or {})~=nil
+        or next(gStates.unitResourceActivations or {})~=nil then return nil end
+    for _,entry in ipairs(entries) do
+        if entry.bossType~=nil or entry.preview or entry.attackOnly
+            or entry.summoned~=nil or entry.data.monsters~=nil then return nil end
+    end
+    local positions,cardState,validTargets={},{},{}
+    for _,entry in ipairs(entries) do validTargets[entry.guid]=true end
+    for guid,record in pairs(scan.cards or {}) do
+        local obj=getObjectFromGUID(guid)
+        if record.kind~="card" or obj==nil or obj.is_face_down
+            or obj.held_by_color~=nil and obj.held_by_color~=""
+            or obj.isSmoothMoving() then return nil end
+        -- Check the physical sideways orientation without depending on the
+        -- later lexical declaration of cardPosture.
+        local rot=obj.getRotation()[2]%180
+        if math.min(rot,180-rot)<=70 then return nil end
+        if record.combatConversion~=nil or record.splitTargets~=nil
+            or record.enemyEffectTargetKeys~=nil and next(record.enemyEffectTargetKeys)~=nil
+            or record.defeatFameRep~=nil or record.repeatLink~=nil
+            or record.links~=nil and next(record.links)~=nil
+            or record.enemyGUID~=nil or record.fameRep~=nil
+            or record.conditionalFireAttack~=nil then return nil end
+        cardState[guid]={complete=record.complete,status=record.status,resources=record.resources}
+        local p=obj.getPosition()
+        positions[guid]={p[1],p[2],p[3]}
+    end
+    local arrows,activeKeys={},{}
+    for _,source in ipairs(sources) do
+        if source.kind~="card" or source.convertedResource~=nil or source.move>0
+            or source.psychicInfluence>0 or attackAssignmentsIsTargeting(source.key) then return nil end
+        local target=combatAssignmentState.targets[source.key]
+        local counts=attackAssignmentsTargetCounts(source.key)
+        -- A first assignment, a removed arrow or an extra arrow can mutate
+        -- target state during resolution. Only cache settled one-arrow sources.
+        if target==nil or not validTargets[target] or counts[target]~=1 then return nil end
+        for guid in pairs(counts) do if guid~=target then return nil end end
+        arrows[source.key]=counts
+        activeKeys[source.key]=true
+    end
+    for key in pairs(combatAssignmentState.targets) do
+        if not activeKeys[key] then return nil end
+    end
+    for _,entry in ipairs(entries) do
+        local obj=getObjectFromGUID(entry.guid)
+        if obj==nil or obj.isSmoothMoving() or obj.held_by_color~=nil and obj.held_by_color~="" then return nil end
+        local p=obj.getPosition()
+        positions[entry.guid]={p[1],p[2],p[3]}
+    end
+    local damage=attackAssignmentsDamageSnapshot()
+    if next(damage.targets or {})~=nil then return nil end
+    local player=turnOrder[gStates.turnNumber]
+    local ledger=gStates.combatWoundApplication or {}
+    return combatConfig.decisionFingerprint({
+        seat=seat,turn=gStates.turnNumber,round=gStates.currentRound,day=gStates.dayRound,
+        level=player.level,hand=player.baseHand,location=player.avatarLocation,
+        armour=combatHeroArmour(commands),otherWounds=otherWounds,
+        entries=entries,sources=sources,positions=positions,arrows=arrows,cardState=cardState,
+        joined=combatAssignmentJoined,targets=combatAssignmentState.targets,
+        explicit=combatAssignmentState.explicit,selected=combatAssignmentState.selected,
+        page=combatEnemyPage,expanded=combatExpandedResults,
+        reductions=combatReductionAttackChoice,activeReduction=combatReductionActiveSource,
+        damage=damage.targets,applied=ledger.applied,cards=ledger.cards,
+        staged=ledger.playDiscardApplied,discarded=ledger.handDiscardApplied,
+        committed=ledger.damageAssignmentsCommitted,
+        primary=gStates.resourceCardPrimaryTargets,
+        hardened=gStates.battleHardenedAttackKey,elemental=gStates.elementalResistanceAttackKey,
+        forked=gStates.forkedLightningPhase
+    })
+end
+
 local function refreshCombatEnemyPanel(monsters,calculated)
-    if combatConfig.scanAwaitingRescan then return end
+    if combatConfig.scanAwaitingRescan then
+        combatConfig.lastSimpleScanKey=nil
+        return
+    end
+    if calculated~=true then combatConfig.lastSimpleScanKey=nil end
     local profile=trackerPrivate.traceEnabled and (trackerPrivate.profileStart() or true) or nil
     local active
     if calculated==true then active=combatCalcOn
@@ -53421,8 +53546,9 @@ local function refreshCombatEnemyPanel(monsters,calculated)
     -- Establish the pre-combat Wound baseline as soon as enemies appear.
     -- Doing this before resources resolve prevents an old Wound moved into
     -- the play area from being mistaken for a newly taken card-cost Wound.
+    local otherWounds=0
     if #entries>0 and currentSeat~=nil then
-        combatConfig.combatOtherWounds(currentSeat)
+        otherWounds=combatConfig.combatOtherWounds(currentSeat)
     end
     local seatScan=currentSeat~=nil and resourceCardScanBySeat[currentSeat] or nil
     local enemyEffects=seatScan~=nil and seatScan.enemyEffects or nil
@@ -53457,6 +53583,31 @@ local function refreshCombatEnemyPanel(monsters,calculated)
     end
     local lock=combatPhaseLock(currentSeat)
     local sources=combatAssignmentSources(currentSeat)
+    local scopeRewards={}
+    for _,source in ipairs(sources) do
+        local spec=source.defeatFameRep
+        if spec~=nil and spec.scope~=nil then
+            scopeRewards[#scopeRewards+1]={guid=source.guid,defeatFameRep=combatFrozenCopy(spec)}
+        end
+    end
+    local observedDamageUnits,observedCommandCount,scanKey
+    if calculated==true and lock==nil and seatScan~=nil and seatScan.unitState==nil then
+        observedDamageUnits,observedCommandCount=combatDamageUnits(currentSeat)
+        scanKey=combatConfig.simpleScanKey(currentSeat,entries,sources,seatScan,
+            otherWounds,observedDamageUnits,observedCommandCount)
+        if scanKey~=nil and scanKey==combatConfig.lastSimpleScanKey then
+            -- Target buttons are physical controls and can need reconciliation
+            -- independently of the numeric result.
+            if attackAssignmentsRefreshTargetButtons~=nil then attackAssignmentsRefreshTargetButtons(monsters) end
+            if trackerPrivate.traceEnabled then
+                trackerPrivate.profileCount("combat.refresh.unchanged")
+                if profile~=nil then trackerPrivate.profileFinish("combat.refresh",profile) end
+            end
+            return
+        end
+    end
+    combatConfig.lastSimpleScanKey=nil
+    local snapshotProfile=trackerPrivate.traceEnabled and trackerPrivate.profileStart() or nil
     if lock~=nil then
         -- Use the exact enemy state and grouping that existed when Damage
         -- was confirmed, rather than newly changed earlier-phase effects.
@@ -53483,17 +53634,18 @@ local function refreshCombatEnemyPanel(monsters,calculated)
                 end
             end
         end
+        local previous=combatConfig.phasePreview
+        if previous~=nil and (previous.seat~=currentSeat or previous.turn~=gStates.turnNumber) then previous=nil end
         combatConfig.phasePreview={
             seat=currentSeat,turn=gStates.turnNumber,
-            entries=combatFrozenCopy(entries),
-            sources=combatFrozenCopy(sources),
-            enemyEffects=combatFrozenCopy(enemyEffects or {}),
+            entries=combatFrozenCopy(entries,previous~=nil and previous.entries or nil),
+            sources=combatFrozenCopy(sources,previous~=nil and previous.sources or nil),
+            enemyEffects=combatFrozenCopy(enemyEffects or {},previous~=nil and previous.enemyEffects or nil),
             sourceKeys=keys,objectKeys=objects,positions=positions,
-            joined=combatFrozenCopy(combatAssignmentJoined),
-            targets=combatFrozenCopy(combatAssignmentState.targets),
-            explicit=combatFrozenCopy(combatAssignmentState.explicit)
+            joined=combatFrozenCopy(combatAssignmentJoined,previous~=nil and previous.joined or nil)
         }
     end
+    if snapshotProfile~=nil then trackerPrivate.profileFinish("combat.phaseSnapshot",snapshotProfile) end
     local activeSources,activeObjects={},{}
     -- Unit effects such as Illusionists and Delphana Masters can target an enemy
     -- without creating Attack/Block points. Keep their arrows while that ability is active.
@@ -53507,12 +53659,8 @@ local function refreshCombatEnemyPanel(monsters,calculated)
         activeSources[source.key]=true
         activeObjects[source.guid]=true
         -- Move only has a target while a Cumbersome attacker is in play.
-        if not combatCumbersomeActive and source.move>0 then
-            combatAssignmentState.explicit[source.key]=nil
-            if source.ranged+source.siege+source.block+source.attack==0 then
-                combatAssignmentState.targets[source.key]=nil
-                attackAssignmentsClearForObject(source.key)
-            end
+        if not combatCumbersomeActive then
+            trackerPrivate.sourceTargetAllocation.clearUnavailableMoveTarget(source,combatAssignmentState)
         end
     end
     local arrowProfile=trackerPrivate.traceEnabled and (trackerPrivate.profileStart() or true) or nil
@@ -53544,7 +53692,7 @@ local function refreshCombatEnemyPanel(monsters,calculated)
     end
     if arrowProfile~=nil then trackerPrivate.profileFinish("combat.arrows",arrowProfile) end
     local rowProfile=trackerPrivate.traceEnabled and (trackerPrivate.profileStart() or true) or nil
-    local rowHeight=combatAssignmentRefreshRows(entries,sources)
+    local rowHeight=combatAssignmentRefreshRows(entries,sources,scopeRewards,observedDamageUnits,observedCommandCount)
     if rowProfile~=nil then trackerPrivate.profileFinish("combat.rows",rowProfile) end
     if lock==nil and combatConfig.phasePreview~=nil then
         -- Automatic nearest-enemy targeting is resolved inside the calculator,
@@ -53559,6 +53707,14 @@ local function refreshCombatEnemyPanel(monsters,calculated)
     end
     combatConfig.panelHeight=combatConfig.panelBaseHeight+rowHeight
     combatPanelSetAttribute("CombatEnemyPanel","height",tostring(combatConfig.panelHeight))
+    -- Pagination or target reconciliation can change the input during the
+    -- render. Do not cache the pre-render key when that happened.
+    if scanKey~=nil then
+        local preview=combatConfig.phasePreview
+        local settledKey=combatConfig.simpleScanKey(currentSeat,preview.entries,preview.sources,
+            seatScan,otherWounds,observedDamageUnits,observedCommandCount)
+        if settledKey==scanKey then combatConfig.lastSimpleScanKey=scanKey end
+    end
     if profile~=nil then trackerPrivate.profileFinish("combat.refresh",profile) end
 end
 
@@ -54939,6 +55095,7 @@ end
 function resourceCardsMaximalEffectSyncMarks(seatPos,cards,repeats,discarded,hasDiscard)
     trackerPrivate.throwAwayLinksByGUID=trackerPrivate.throwAwayLinksByGUID or {}
     local prior=trackerPrivate.throwAwayLinksByGUID
+    if discarded~=nil then trackerPrivate.throwAwaySourcesByGUID={} end
     local present={}
     for _,card in ipairs(cards or {}) do
         present[card.guid]=true
@@ -54957,6 +55114,9 @@ function resourceCardsMaximalEffectSyncMarks(seatPos,cards,repeats,discarded,has
             and prior[card.guid]=="ritualAttack" then ritual=true end
         prior[card.guid]=repeated and "maximalEffect"
             or ritual and "ritualAttack" or nil
+        if discarded~=nil and prior[card.guid]~=nil then
+            trackerPrivate.throwAwaySourcesByGUID[card.guid]=costSource
+        end
         local artifactThrown=resourceCardsArtifactBroken~=nil
             and resourceCardsArtifactBroken(card.guid,card)==true
         local data=gameCards~=nil and gameCards[card.guid] or nil
@@ -54969,6 +55129,110 @@ function resourceCardsMaximalEffectSyncMarks(seatPos,cards,repeats,discarded,has
     end
     for guid in pairs(prior) do
         if not present[guid] then prior[guid]=nil end
+    end
+    -- Use the same shallow-zone height window as tilted discard. The
+    -- tracker can scan before vertical physics settles, so sample before
+    -- dispatch and keep the temporary guard until the actual move settles.
+    -- No per-link history: a later genuine rearrangement can tuck again.
+    if discarded~=nil and gStates~=nil and gStates.preEndTurn~=true
+        and playerBoardSendCardUnder~=nil and not trackerPrivate.throwUnderPending then
+        for _,card in ipairs(cards or {}) do
+            local guid=card.guid
+            local sourceGUID=discarded[guid]
+            local reason=prior[guid]
+            local source=sourceGUID~=nil and getObjectFromGUID(sourceGUID) or nil
+            if reason~=nil and source~=nil and present[sourceGUID] then
+                local p,q=card.getPosition(),source.getPosition()
+                local delta=(p.y or p[2])-(q.y or q[2])
+                if delta>=-0.008 then
+                    local pending={tries=0,session=trackerPrivate.trackerSession}
+                    trackerPrivate.throwUnderPending=pending
+                    local function finish()
+                        if trackerPrivate.throwUnderPending==pending then
+                            trackerPrivate.throwUnderPending=nil
+                        end
+                    end
+                    local function current()
+                        return trackerPrivate.throwUnderPending==pending
+                            and trackerPrivate.trackerSession==pending.session
+                            and gStates~=nil and gStates.preEndTurn~=true
+                            and resourceCardsPanelOpen()
+                            and trackerPrivate.throwAwayLinksByGUID[guid]==reason
+                            and trackerPrivate.throwAwaySourcesByGUID[guid]==sourceGUID
+                    end
+                    local function sample()
+                        if not current() then finish() return end
+                        local lower,upper=getObjectFromGUID(guid),getObjectFromGUID(sourceGUID)
+                        if lower==nil or upper==nil or overlapArea(footprint(lower),footprint(upper))<=0 then
+                            finish() return
+                        end
+                        pending.tries=pending.tries+1
+                        if not combatConfig.cardInTransit(lower) and not combatConfig.cardInTransit(upper)
+                            and cardInSeatPlayArea(guid,seatPos) and cardInSeatPlayArea(sourceGUID,seatPos) then
+                            local lp,up=lower.getPosition(),upper.getPosition()
+                            local ly,uy=lp.y or lp[2],up.y or up[2]
+                            local gap=ly-uy
+                            if gap< -0.008 then finish() return end
+                            -- Like tilted discard, wait until the source
+                            -- is stable and the falling card is close to it.
+                            -- Near-equal Y is only a fallback for genuinely
+                            -- stable overlapping cards, not a transient bounce.
+                            local previous=pending.previous
+                            if previous~=nil and math.abs(uy-previous.uy)<0.008 then
+                                pending.stableUpper=(pending.stableUpper or 0)+1
+                            else pending.stableUpper=0 end
+                            if previous~=nil and math.abs(ly-previous.ly)<0.008 then
+                                pending.stableLower=(pending.stableLower or 0)+1
+                            else pending.stableLower=0 end
+                            pending.previous={ly=ly,uy=uy}
+                            if pending.stableUpper>=2 and gap<=0.45
+                                and (gap>0.008 or pending.stableLower>=2) then
+                                if trackerPrivate.traceEnabled then
+                                    trackerPrivate.traceEvent("throw.under",seatPos,guid,
+                                        "source="..sourceGUID.." gap="..tostring(gap))
+                                end
+                                -- Smooth completion is not physics completion:
+                                -- both cards can still fall after it. Keep only
+                                -- an in-flight guard until their Y positions
+                                -- stop changing, then resume ordinary scans.
+                                playerBoardSendCardUnder(lower,upper,function()
+                                    local tries,stable,last=0,0,nil
+                                    local function settled()
+                                        if not current() then finish() return end
+                                        local l,u=getObjectFromGUID(guid),getObjectFromGUID(sourceGUID)
+                                        if l==nil or u==nil then finish() return end
+                                        tries=tries+1
+                                        local a,b=l.getPosition(),u.getPosition()
+                                        local y1,y2=a.y or a[2],b.y or b[2]
+                                        if not combatConfig.cardInTransit(l) and not combatConfig.cardInTransit(u)
+                                            and last~=nil and math.abs(y1-last[1])<0.008
+                                            and math.abs(y2-last[2])<0.008 then
+                                            stable=stable+1
+                                        else stable=0 end
+                                        last={y1,y2}
+                                        if stable>=3 or tries>=90 then
+                                            finish()
+                                            resourceCardsSourceChanged()
+                                        else
+                                            safeWaitFrames("PlayerBoard.CardRecognition.throwUnderSettle",settled,1)
+                                        end
+                                    end
+                                    safeWaitFrames("PlayerBoard.CardRecognition.throwUnderSettle",settled,1)
+                                end)
+                                return
+                            end
+                        else
+                            pending.previous=nil
+                            pending.stableUpper,pending.stableLower=0,0
+                        end
+                        if pending.tries>=90 then finish()
+                        else safeWaitFrames("PlayerBoard.CardRecognition.throwUnder",sample,1) end
+                    end
+                    safeWaitFrames("PlayerBoard.CardRecognition.throwUnder",sample,1)
+                    break
+                end
+            end
+        end
     end
     for guid in pairs(trackerPrivate.maximalMarkedByGUID or {}) do
         if not present[guid] then
@@ -55636,6 +55900,53 @@ end
 
 local function queueSeat(seatPos,triggerGUID)
     return trackerPrivate.scanScheduler.queue(seatPos,triggerGUID,trackerPrivate,scheduleSeatRender)
+end
+
+-- Confirmed hand entry is stronger evidence than a transient play-zone
+-- exit. Retire physical target arrows and previous play state even if the
+-- scan has already removed this card's resources or throw-away marker.
+function resourceCardsReturnedToHand(card,seatPos)
+    if card==nil or card.type~="Card" or gStates==nil
+        or gStates.preEndTurn==true then return end
+    local guid=card.guid
+    -- The calculator and the physical arrow registry have separate lifetimes.
+    -- A scan can remove the resource while a movement snapshot still keeps
+    -- its arrow alive. Clear the registry even if play-order/marker data
+    -- was already retired. The arrow owner preserves committed phase history
+    -- and handles split sources, pending targeting and vector redraw.
+    local arrowsRemoved=attackAssignmentsClearForObject(guid)
+    local linked=trackerPrivate.throwAwayLinksByGUID
+    local marked=trackerPrivate.maximalMarkedByGUID
+    if arrowsRemoved==0 and trackerPrivate.playCardMovements[guid]==nil
+        and not (linked~=nil and linked[guid]~=nil)
+        and not (marked~=nil and marked[guid]~=nil)
+        and not resourceCardsMaximalEffectMarked(card)
+        and not (gStates.artifactBreaks~=nil and gStates.artifactBreaks[guid]~=nil)
+        -- The scan may already have erased the X before settled hand entry.
+        and not (gStates.resourceCardPlayOrder~=nil and gStates.resourceCardPlayOrder[guid]~=nil) then return end
+    if linked~=nil then linked[guid]=nil end
+    if trackerPrivate.throwAwaySourcesByGUID~=nil then trackerPrivate.throwAwaySourcesByGUID[guid]=nil end
+    if gStates.throwAwayCleanupByGUID~=nil then gStates.throwAwayCleanupByGUID[guid]=nil end
+    resourceCardsMaximalEffectMark(card,false)
+    -- Invalidate the pickup snapshot and delayed departure reset before
+    -- clearing choices; neither may restore the previous play on replay.
+    trackerPrivate.playCardMovements[guid]=nil
+    trackerPrivate.choiceResetGenerationByGUID[guid]=
+        (trackerPrivate.choiceResetGenerationByGUID[guid] or 0)+1
+    trackerPrivate.cardUIRecheckSerial[guid]=(trackerPrivate.cardUIRecheckSerial[guid] or 0)+1
+    for _,candidates in pairs(trackerPrivate.playCandidatesBySeat) do candidates[guid]=nil end
+    trackerPrivate.objectEvents.resetDepartedCard(guid,seatPos,
+        function() return selectedResourceByGUID end,function() return choiceExpandedByGUID end)
+    local prefix=guid.."#"
+    for key in pairs(combatAssignmentState.targets) do
+        if key==guid or key:sub(1,#prefix)==prefix then
+            combatAssignmentState.targets[key]=nil
+            combatAssignmentState.explicit[key]=nil
+        end
+    end
+    removeChoiceButtons(card)
+    choiceButtonShown[guid]=nil
+    if resourceCardsPanelOpen() then queueSeat(seatPos,nil) end
 end
 
 function resourceCardsSourceChanged()
@@ -59846,7 +60157,7 @@ return function(combatConfig,combatPanelSetAttribute,combatAssignmentIconButton,
                             if tooltipProfile~=nil then profiler.profileFinish("renderer.tooltip",tooltipProfile) end
                             combatAssignmentIconButton(id,true,item.amount,item.icon,
                                 tooltip,combatAssignmentState.selected==item.source.key,
-                                (item.wounded or item.ineffective) and "#292323" or (item.typeKey~=nil
+                                (item.typeKey~=nil
                                     and combatConfig.typeColors[item.typeKey][item.reduced and 2 or 1] or nil),
                                 item.wounded,item.ineffective)
                             combatPanelSetAttribute(id,"interactable",
@@ -60038,7 +60349,7 @@ return function(combatConfig,skillRuleOf,combatDetailPhase,combatEnemyResists,co
                         local phase=combatDetailPhase(item.detail,
                             group.rangeDefeated or group.rangeSpent,group.fortification,item.source)
                         -- Keep invalidated Attack-phase Unit icons visible so players
-                        -- can see what was assigned, but make the unavailable value grey
+                        -- can see what was assigned, but give the unavailable button a red background
                         -- and explain why it does not count. Earlier Ranged/Block stands.
                         local wounded=phase=="attack" and (woundedBeforeAttack[item.source.guid]==true
                             or item.source.dodgeIneligible==true)
@@ -61043,6 +61354,17 @@ return function(attackAssignmentsTargetGUIDs,attackAssignmentsClearForObject,
     resourceCardsCombatTargetAcceptsSource,combatGUIDHasCumbersome,combatNearestEnemyGUID,
     attackAssignmentsIsTargeting,attackAssignmentsEnsureTarget,combatSourceArrowKind,
     combatEnemyAttacks,divisibleResources,scanOfActiveSeat,combatSourceKeepsLock)
+    local function clearUnavailableMoveTarget(source,state)
+        if not source.phaseLocked and (source.move or 0)>0 and (source.ranged or 0)+(source.siege or 0)
+            +(source.block or 0)+(source.attack or 0)+(source.psychicInfluence or 0)==0 then
+            state.explicit[source.key]=nil
+            state.targets[source.key]=nil
+            attackAssignmentsClearForObject(source.key)
+            return true
+        end
+        return false
+    end
+
     local function recoverTarget(source,rowByGUID,combatAssignmentState)
         -- Explicit calculator targets remain authoritative. If none exists,
         -- the saved arrow is recovered below (including after reload).
@@ -61087,7 +61409,7 @@ return function(attackAssignmentsTargetGUIDs,attackAssignmentsClearForObject,
             targetGUID,targetIndex=nil,nil
         end
         if source.forkedLightning and targetIndex~=nil
-            and not resourceCardsCombatTargetAcceptsSource(source.key,targetGUID) then
+            and not resourceCardsCombatTargetAcceptsSource(source.key,targetGUID,source) then
             combatAssignmentState.targets[source.key]=nil
             combatAssignmentState.explicit[source.key]=nil
             attackAssignmentsClearForObject(source.key)
@@ -61250,65 +61572,90 @@ return function(attackAssignmentsTargetGUIDs,attackAssignmentsClearForObject,
         return allocatePass(...)
     end
 
-    return {recoverTarget=recoverTarget,resolveTarget=resolveTarget,allocate=allocate}
+    return {recoverTarget=recoverTarget,resolveTarget=resolveTarget,allocate=allocate,
+        clearUnavailableMoveTarget=clearUnavailableMoveTarget}
 end
 
 end)
 __bundle_register("PlayingGame.PlayerBoard.ResourceTracker.Combat.DivisibleResources", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Distribute one physical resource source across its assigned enemy targets.
--- The coordinator chooses targets and owns arrow state; only fresh allocation records are changed here.
+-- The coordinator owns arrows; only fresh allocation records are changed.
 return function(attackAssignmentsTargetCounts,combatGUIDHasCumbersome,combatEnemyAttacks)
+    local function append(allocated,index,portion)
+        local extra=allocated[index]
+        if extra==nil then
+            extra={range={},block={},attack={},sources={},details={}}
+            allocated[index]=extra
+        end
+        extra.sources[#extra.sources+1]=portion
+        extra.details[#extra.details+1]={source=portion,detail=portion.details[1]}
+    end
+
+    local function distribute(other,counts,remaining,rowByGUID,allocated,eligible,makePortion)
+        for _,guid in ipairs(other) do
+            if remaining<=0 then break end
+            local index=rowByGUID[guid]
+            if eligible==nil or eligible(guid,index) then
+                local amount=math.min(remaining,counts[guid])
+                if amount>0 then
+                    append(allocated,index,makePortion(amount))
+                    remaining=remaining-amount
+                end
+            end
+        end
+        return remaining
+    end
+
+    local function portion(source,name)
+        return {guid=source.guid,key=source.key,name=name or source.name,
+            ranged=0,siege=0,block=0,attack=0,move=0,psychicInfluence=0,
+            resources={},details={}}
+    end
+
+    local function updatePrimary(target,source,family,remaining,label)
+        for i=#target.details,1,-1 do
+            local item=target.details[i]
+            if item.source==source and item.detail.family==family then
+                if remaining<=0 then table.remove(target.details,i)
+                else
+                    item.detail.amount=remaining
+                    item.detail.text=label(remaining)
+                end
+            end
+        end
+    end
+
     local function allocate(source,target,targetGUID,explicit,rowByGUID,entries,allocated,observation)
         local cumbersome=observation~=nil and observation.cumbersome or combatGUIDHasCumbersome
         local attacks=observation~=nil and observation.attacks or combatEnemyAttacks
-        local counts
+        local counts,other
         if source.convertedResource~=nil or (source.moveCounts and (source.move or 0)>0)
             or source.psychicInfluenceCounts then
             counts=attackAssignmentsTargetCounts(source.key)
-        end
-        if source.convertedResource~=nil then
-            -- A right-click adds an arrow to another enemy. Each extra
-            -- arrow spends ONE converted point, never a second full pool.
-            local other={}
+            other={}
             for guid in pairs(counts) do
                 if guid~=targetGUID and rowByGUID[guid]~=nil then other[#other+1]=guid end
             end
             table.sort(other)
-            local remaining=source.convertedAmount
-            for _,guid in ipairs(other) do
-                local amount=math.min(remaining,counts[guid])
-                if amount>0 then
-                    local family=source.convertedFamily
-                    local key=source.convertedResource
-                    local detail=source.details[1]
-                    local portion={guid=source.guid,key=source.key,name=source.name,
-                        ranged=family=="ranged" and amount or 0,
-                        siege=family=="siege" and amount or 0,
-                        attack=family=="attack" and amount or 0,
-                        block=family=="block" and amount or 0,move=0,
-                        psychicInfluence=0,resources={[key]=amount},
-                        details={{text=key.." "..amount,amount=amount,
-                            key=key,icon=detail~=nil and detail.icon or "MKChoiceAttack",
-                            family=family,typeKey=detail~=nil and detail.typeKey or "P"}}}
-                    local index=rowByGUID[guid]
-                    local extra=allocated[index]
-                    if extra==nil then
-                        extra={range={},block={},attack={},sources={},details={}}
-                        allocated[index]=extra
-                    end
-                    extra.sources[#extra.sources+1]=portion
-                    extra.details[#extra.details+1]={source=portion,detail=portion.details[1]}
-                    remaining=remaining-amount
-                end
-            end
-            source[source.convertedFamily]=remaining
-            source.resources[source.convertedResource]=remaining
-            if remaining>0 and source.details[1]~=nil then
-                source.details[1].amount=remaining
-                source.details[1].text=source.convertedResource.." "..remaining
-            else
-                source.details={}
-            end
+        end
+        if source.convertedResource~=nil then
+            local family,key=source.convertedFamily,source.convertedResource
+            local detail=source.details[1]
+            local remaining=distribute(other,counts,source.convertedAmount,rowByGUID,allocated,nil,function(amount)
+                local part=portion(source)
+                part[family]=amount
+                part.resources[key]=amount
+                part.details[1]={text=key.." "..amount,amount=amount,key=key,
+                    icon=detail~=nil and detail.icon or "MKChoiceAttack",family=family,
+                    typeKey=detail~=nil and detail.typeKey or "P"}
+                return part
+            end)
+            source[family]=remaining
+            source.resources[key]=remaining
+            if remaining>0 and detail~=nil then
+                detail.amount=remaining
+                detail.text=key.." "..remaining
+            else source.details={} end
         end
         target.sources[#target.sources+1]=source
         for _,detail in ipairs(source.details) do
@@ -61318,101 +61665,33 @@ return function(attackAssignmentsTargetCounts,combatGUIDHasCumbersome,combatEnem
             end
         end
         if source.moveCounts and (source.move or 0)>0 then
-            -- Primary target receives the remaining Cumbersome Move.
-            -- Each extra arrow transfers one point to another Cumbersome
-            -- enemy, exactly as divisible Psychic Influence does.
-            local other={}
-            for guid in pairs(counts) do
-                if guid~=targetGUID and rowByGUID[guid]~=nil then
-                    other[#other+1]=guid
-                end
-            end
-            table.sort(other)
-            local remaining=source.move
-            for _,guid in ipairs(other) do
-                if remaining<=0 then break end
-                if cumbersome(guid) then
-                    local amount=math.min(counts[guid],remaining)
-                    local portion={guid=source.guid,key=source.key,name=source.name,
-                        ranged=0,siege=0,block=0,attack=0,
-                        move=amount,moveCounts=true,
-                        psychicInfluence=0,resources={move=amount},
-                        details={{text="Move "..tostring(amount),amount=amount,
-                            icon="MKChoiceMove",key="move",family="move"}}}
-                    local index=rowByGUID[guid]
-                    local extra=allocated[index]
-                    if extra==nil then
-                        extra={range={},block={},attack={},sources={},details={}}
-                        allocated[index]=extra
-                    end
-                    extra.sources[#extra.sources+1]=portion
-                    extra.details[#extra.details+1]={
-                        source=portion,detail=portion.details[1]}
-                    remaining=remaining-amount
-                end
-            end
+            local function label(amount) return "Move "..tostring(amount) end
+            local remaining=distribute(other,counts,source.move,rowByGUID,allocated,cumbersome,function(amount)
+                local part=portion(source)
+                part.move,part.moveCounts=amount,true
+                part.resources.move=amount
+                part.details[1]={text=label(amount),amount=amount,icon="MKChoiceMove",key="move",family="move"}
+                return part
+            end)
             source.move=remaining
             if source.resources~=nil then source.resources.move=remaining end
-            for i=#target.details,1,-1 do
-                local item=target.details[i]
-                if item.source==source and item.detail.family=="move" then
-                    if remaining<=0 then table.remove(target.details,i)
-                    else
-                        item.detail.amount=remaining
-                        item.detail.text="Move "..tostring(remaining)
-                    end
-                end
-            end
+            updatePrimary(target,source,"move",remaining,label)
         end
         if source.psychicInfluenceCounts then
-            -- The primary left-click target initially receives all Influence.
-            -- Each additional right-click arrow transfers one point; repeated
-            -- arrows to the same enemy transfer more. No point is double-spent.
-            local targetCounts=counts
-            local extraTargets={}
-            for guid in pairs(targetCounts) do
-                if guid~=targetGUID and rowByGUID[guid]~=nil then
-                    extraTargets[#extraTargets+1]=guid
-                end
-            end
-            table.sort(extraTargets)
-            local remaining=source.psychicInfluence
-            for _,guid in ipairs(extraTargets) do
-                if remaining<=0 then break end
-                local index=rowByGUID[guid]
-                local psychic=false
+            local function label(amount) return "Influence "..tostring(amount).." → Psychic Block" end
+            local remaining=distribute(other,counts,source.psychicInfluence,rowByGUID,allocated,function(_,index)
                 for _,attack in ipairs(attacks(entries[index])) do
-                    if attack.key=="M" then psychic=true break end
+                    if attack.key=="M" then return true end
                 end
-                if psychic then
-                    local amount=math.min(targetCounts[guid],remaining)
-                    local portion={guid=source.guid,key=source.key,name=source.name.." (Influence)",
-                        ranged=0,siege=0,block=0,attack=0,move=0,resources={},
-                        psychicInfluence=amount,psychicInfluenceCounts=true,details={}}
-                    local detail={text="Influence "..tostring(amount).." → Psychic Block",
-                        amount=amount,icon="MKChoiceBlock",key="influence",family="influence"}
-                    portion.details[1]=detail
-                    local extra=allocated[index]
-                    if extra==nil then
-                        extra={range={},block={},attack={},sources={},details={}}
-                        allocated[index]=extra
-                    end
-                    extra.sources[#extra.sources+1]=portion
-                    extra.details[#extra.details+1]={source=portion,detail=detail}
-                    remaining=remaining-amount
-                end
-            end
+                return false
+            end,function(amount)
+                local part=portion(source,source.name.." (Influence)")
+                part.psychicInfluence,part.psychicInfluenceCounts=amount,true
+                part.details[1]={text=label(amount),amount=amount,icon="MKChoiceBlock",key="influence",family="influence"}
+                return part
+            end)
             source.psychicInfluence=remaining
-            for i=#target.details,1,-1 do
-                local item=target.details[i]
-                if item.source==source and item.detail.family=="influence" then
-                    if remaining<=0 then table.remove(target.details,i)
-                    else
-                        item.detail.amount=remaining
-                        item.detail.text="Influence "..tostring(remaining).." → Psychic Block"
-                    end
-                end
-            end
+            updatePrimary(target,source,"influence",remaining,label)
         end
     end
 
@@ -64146,6 +64425,32 @@ __bundle_register("PlayingGame.PlayerBoard.ResourceTracker.Core.ObjectEvents", f
 -- Relevant-zone filtering, played-source pickup/drop reconciliation, native Place Under, delayed choice reset and missing-control repair. Delayed callbacks resolve replaceable tables through live accessors.
 local M={}
 
+function M.resetDepartedCard(guid,seatPos,getChoices,getExpanded)
+    -- A genuine departure retires this play's time-order slot;
+    -- moving a card in/out again starts a fresh play sequence.
+    if gStates~=nil and gStates.resourceCardPlayOrder~=nil then
+        gStates.resourceCardPlayOrder[guid]=nil
+    end
+    getChoices()[guid]=nil
+    if gStates~=nil and gStates.resourceCardMoveRoles~=nil then
+        gStates.resourceCardMoveRoles[guid]=nil
+    end
+    -- A genuinely departed conversion card starts fresh on replay.
+    local kind=guid=="878d92" and "agility" or guid=="8c3de6" and "diplomacy" or nil
+    local conversions=gStates~=nil and gStates.resourceCardConversions or nil
+    local seat=type(conversions)=="table" and conversions[tostring(seatPos)] or nil
+    if kind~=nil and type(seat)=="table" then seat[kind]=nil end
+    getExpanded()[guid]=nil
+    resourceCardsArtifactBreakClear(guid)
+    if gStates~=nil and gStates.artifactGrailHealingUsed~=nil then
+        gStates.artifactGrailHealingUsed[guid]=nil
+    end
+    if gStates~=nil and gStates.unitReadyCardChoices~=nil then
+        gStates.unitReadyCardChoices[guid]=nil
+    end
+    unitHistoryValidSources(seatPos)
+end
+
 function M.scheduleChoiceReset(guid,seatPos,getChoices,getExpanded,trackerPrivate,cardInSeatPlayArea)
     if guid==nil or seatPos==nil then return end
     -- Avoid physics waits for mana, enemies and unrelated play-area objects.
@@ -64166,29 +64471,7 @@ function M.scheduleChoiceReset(guid,seatPos,getChoices,getExpanded,trackerPrivat
         safeWaitCondition("PlayerBoard.CardRecognition",function()
             if trackerPrivate.choiceResetGenerationByGUID[guid]~=serial then return end
             if not cardInSeatPlayArea(guid,seatPos) then
-                -- A genuine departure retires this play's time-order slot;
-                -- moving a card in/out again starts a fresh play sequence.
-                if gStates~=nil and gStates.resourceCardPlayOrder~=nil then
-                    gStates.resourceCardPlayOrder[guid]=nil
-                end
-                getChoices()[guid]=nil
-                if gStates~=nil and gStates.resourceCardMoveRoles~=nil then
-                    gStates.resourceCardMoveRoles[guid]=nil
-                end
-                -- A genuinely departed conversion card starts fresh on replay.
-                local kind=guid=="878d92" and "agility" or guid=="8c3de6" and "diplomacy" or nil
-                local conversions=gStates~=nil and gStates.resourceCardConversions or nil
-                local seat=type(conversions)=="table" and conversions[tostring(seatPos)] or nil
-                if kind~=nil and type(seat)=="table" then seat[kind]=nil end
-                getExpanded()[guid]=nil
-                resourceCardsArtifactBreakClear(guid)
-                if gStates~=nil and gStates.artifactGrailHealingUsed~=nil then
-                    gStates.artifactGrailHealingUsed[guid]=nil
-                end
-                if gStates~=nil and gStates.unitReadyCardChoices~=nil then
-                    gStates.unitReadyCardChoices[guid]=nil
-                end
-                unitHistoryValidSources(seatPos)
+                M.resetDepartedCard(guid,seatPos,getChoices,getExpanded)
             end
         end,function()
             if trackerPrivate.choiceResetGenerationByGUID[guid]~=serial then return true end
@@ -70375,6 +70658,47 @@ local function playerBoardCrookedUnderOverlaps(a,b)
     return overlapX>math.min(ax,bx)*0.35 and overlapZ>math.min(az,bz)*0.35
 end
 
+function playerBoardSendCardUnder(card,top,finished,isCurrent)
+    local guid,topGUID=card.guid,top.guid
+    local topPosition=top.getPosition()
+    local topX,topY,topZ=topPosition.x or topPosition[1],
+        topPosition.y or topPosition[2],topPosition.z or topPosition[3]
+    local cardPosition=card.getPosition()
+    local cardX,cardZ=cardPosition.x or cardPosition[1],
+        cardPosition.z or cardPosition[3]
+    -- Preserve explicit card options/target locks through the move.
+    if resourceCardsObjectPickedUp~=nil then
+        resourceCardsObjectPickedUp(card)
+        resourceCardsObjectPickedUp(top)
+    end
+    -- With collision disabled during smooth movement, both cards can
+    -- exchange Y order directly. No large lift across the shallow zone
+    -- (or deck-merging putObject call) is necessary.
+    top.setPositionSmooth({topX,topY+0.13,topZ},false,false)
+    card.setPositionSmooth({cardX,topY,cardZ},false,false)
+    local function reconcile()
+        if isCurrent~=nil and not isCurrent() then return end
+        local lower=getObjectFromGUID(guid)
+        local upper=getObjectFromGUID(topGUID)
+        if resourceCardsObjectMoved~=nil then
+            if lower~=nil and lower.held_by_color==nil then
+                resourceCardsObjectMoved(lower)
+            end
+            if upper~=nil and upper.held_by_color==nil then
+                resourceCardsObjectMoved(upper)
+            end
+        end
+        if finished~=nil then finished() end
+    end
+    safeWaitCondition("PlayerBoard.Events.crookedUnder",reconcile,function()
+        local lower=getObjectFromGUID(guid)
+        local upper=getObjectFromGUID(topGUID)
+        if lower==nil or upper==nil then return true end
+        if lower.held_by_color~=nil or upper.held_by_color~=nil then return true end
+        return not lower.isSmoothMoving() and not upper.isSmoothMoving()
+    end,4,reconcile)
+end
+
 local function playerBoardScheduleCrookedUnder(obj)
     if gStates==nil or gStates.firstStarted~=true or obj==nil
         or obj.type~="Card" or gameCards[obj.guid]==nil
@@ -70393,43 +70717,9 @@ local function playerBoardScheduleCrookedUnder(obj)
             and playerBoardPlayMatSeat(card)==seat
     end
     local function sendUnder(card,top,seat)
-        local topPosition=top.getPosition()
-        local topX,topY,topZ=topPosition.x or topPosition[1],
-            topPosition.y or topPosition[2],topPosition.z or topPosition[3]
-        local cardPosition=card.getPosition()
-        local cardX,cardZ=cardPosition.x or cardPosition[1],
-            cardPosition.z or cardPosition[3]
-        -- Preserve explicit card options/target locks through the move.
-        if resourceCardsObjectPickedUp~=nil then
-            resourceCardsObjectPickedUp(card)
-            resourceCardsObjectPickedUp(top)
-        end
-        -- With collision disabled during smooth movement, both cards can
-        -- exchange Y order directly. No large lift across the shallow zone
-        -- (or deck-merging putObject call) is necessary.
-        top.setPositionSmooth({topX,topY+0.13,topZ},false,false)
-        card.setPositionSmooth({cardX,topY,cardZ},false,false)
-        local function reconcile()
-            if playerBoardCrookedUnderPending[guid]~=state then return end
-            local lower=getObjectFromGUID(guid)
-            local upper=getObjectFromGUID(top.guid)
-            if resourceCardsObjectMoved~=nil then
-                if lower~=nil and lower.held_by_color==nil then
-                    resourceCardsObjectMoved(lower)
-                end
-                if upper~=nil and upper.held_by_color==nil then
-                    resourceCardsObjectMoved(upper)
-                end
-            end
-            finish()
-        end
-        safeWaitCondition("PlayerBoard.Events.crookedUnder",reconcile,function()
-            local lower=getObjectFromGUID(guid)
-            local upper=getObjectFromGUID(top.guid)
-            if lower==nil or upper==nil then return true end
-            if lower.held_by_color~=nil or upper.held_by_color~=nil then return true end
-            return not lower.isSmoothMoving() and not upper.isSmoothMoving()
-        end,4,reconcile)
+        playerBoardSendCardUnder(card,top,finish,function()
+            return playerBoardCrookedUnderPending[guid]==state
+        end)
     end
     local function sample()
         if playerBoardCrookedUnderPending[guid]~=state then return end
@@ -78311,7 +78601,7 @@ local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
 local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="470"
+local automaticLuaErrorReporterVersion="471"
 
 -- Per-script-session wall-clock timestamps. They are deliberately not saved:
 -- onLoad / rewind creates a new TTS script session. Keep these helpers together

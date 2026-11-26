@@ -1591,9 +1591,9 @@ local function combatDefeatUpdateMarker(obj, defeated)
 	local scale=obj.getScale()
 	local height=bounds~=nil and bounds.size~=nil and (bounds.size.y or bounds.size[2]) or 0
 	local scaleY=scale~=nil and (scale.y or scale[2]) or 1
-	local y=math.max(0.12,height/(2*math.max(0.01,scaleY))+0.08)
+	local y=math.max(0.0,height/(2*math.max(0.01,scaleY))+0.00)
 	obj.createButton({click_function=combatDefeatMarkerClick,function_owner=Global,label="X",
-		position={0,y,0},rotation={0,0,0},width=0,height=0,font_size=640,
+		position={0,y,0.1},rotation={0,0,0},width=0,height=0,font_size=700,
 		font_color={1,0.04,0.04}})
 end
 
