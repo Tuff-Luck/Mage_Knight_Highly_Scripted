@@ -5048,6 +5048,7 @@ end
 function resourceCardsMaximalEffectSyncMarks(seatPos,cards,repeats,discarded,hasDiscard)
     trackerPrivate.throwAwayLinksByGUID=trackerPrivate.throwAwayLinksByGUID or {}
     local prior=trackerPrivate.throwAwayLinksByGUID
+    if discarded~=nil then trackerPrivate.throwAwaySourcesByGUID={} end
     local present={}
     for _,card in ipairs(cards or {}) do
         present[card.guid]=true
@@ -5066,6 +5067,9 @@ function resourceCardsMaximalEffectSyncMarks(seatPos,cards,repeats,discarded,has
             and prior[card.guid]=="ritualAttack" then ritual=true end
         prior[card.guid]=repeated and "maximalEffect"
             or ritual and "ritualAttack" or nil
+        if discarded~=nil and prior[card.guid]~=nil then
+            trackerPrivate.throwAwaySourcesByGUID[card.guid]=costSource
+        end
         local artifactThrown=resourceCardsArtifactBroken~=nil
             and resourceCardsArtifactBroken(card.guid,card)==true
         local data=gameCards~=nil and gameCards[card.guid] or nil
@@ -5098,7 +5102,8 @@ function resourceCardsMaximalEffectSyncMarks(seatPos,cards,repeats,discarded,has
                     safeWaitFrames("PlayerBoard.CardRecognition.throwUnder",function()
                         trackerPrivate.throwUnderPending=nil
                         if gStates==nil or gStates.preEndTurn==true or not resourceCardsPanelOpen()
-                            or trackerPrivate.throwAwayLinksByGUID[guid]~=reason then return end
+                            or trackerPrivate.throwAwayLinksByGUID[guid]~=reason
+                            or trackerPrivate.throwAwaySourcesByGUID[guid]~=sourceGUID then return end
                         local lower,upper=getObjectFromGUID(guid),getObjectFromGUID(sourceGUID)
                         if lower==nil or upper==nil or combatConfig.cardInTransit(lower)
                             or combatConfig.cardInTransit(upper)
@@ -5796,8 +5801,11 @@ function resourceCardsReturnedToHand(card,seatPos)
     if not (linked~=nil and linked[guid]~=nil)
         and not (marked~=nil and marked[guid]~=nil)
         and not resourceCardsMaximalEffectMarked(card)
-        and not (gStates.artifactBreaks~=nil and gStates.artifactBreaks[guid]~=nil) then return end
+        and not (gStates.artifactBreaks~=nil and gStates.artifactBreaks[guid]~=nil)
+        -- The scan may already have erased the X before settled hand entry.
+        and not (gStates.resourceCardPlayOrder~=nil and gStates.resourceCardPlayOrder[guid]~=nil) then return end
     if linked~=nil then linked[guid]=nil end
+    if trackerPrivate.throwAwaySourcesByGUID~=nil then trackerPrivate.throwAwaySourcesByGUID[guid]=nil end
     if gStates.throwAwayCleanupByGUID~=nil then gStates.throwAwayCleanupByGUID[guid]=nil end
     resourceCardsMaximalEffectMark(card,false)
     -- Invalidate the pickup snapshot and delayed departure reset before

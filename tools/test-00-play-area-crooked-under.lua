@@ -159,4 +159,13 @@ crooked.held_by_color="Blue"
 drain()
 assert(base.moves==0 and crooked.moves==0,
     "Never restack a card the player has picked up again")
-print("Play Area crooked Auto-Under regressions passed")
+-- A straight linked throw-away uses exactly the same Y-swap helper.
+base=makeCard("base",0,1.20,0,0)
+local linked=makeCard("linked",0.1,1.27,0.1,0)
+setup(base,linked)
+env.playerBoardSendCardUnder(linked,base)
+assert(linked.pos.y==1.20 and base.pos.y>linked.pos.y
+    and linked.rotation.y==0 and linked.pos.x==0.1
+    and choices==2 and updates==2,
+    "Straight thrown-away cards use the discard restack without changing posture")
+print("Play Area crooked and linked Auto-Under regressions passed")
