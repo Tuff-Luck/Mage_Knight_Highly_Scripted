@@ -3394,7 +3394,8 @@ combatConfig.simpleScanKey=function(seat,entries,sources,scan,otherWounds,units,
         if entry.bossType~=nil or entry.preview or entry.attackOnly
             or entry.summoned~=nil or entry.data.monsters~=nil then return nil end
     end
-    local positions={}
+    local positions,cardState,validTargets={},{},{}
+    for _,entry in ipairs(entries) do validTargets[entry.guid]=true end
     for guid,record in pairs(scan.cards or {}) do
         local obj=getObjectFromGUID(guid)
         if record.kind~="card" or obj==nil or obj.is_face_down
@@ -3406,15 +3407,29 @@ combatConfig.simpleScanKey=function(seat,entries,sources,scan,otherWounds,units,
         if math.min(rot,180-rot)<=70 then return nil end
         if record.combatConversion~=nil or record.splitTargets~=nil
             or record.enemyEffectTargetKeys~=nil and next(record.enemyEffectTargetKeys)~=nil
-            or record.defeatFameRep~=nil or record.repeatLink~=nil then return nil end
+            or record.defeatFameRep~=nil or record.repeatLink~=nil
+            or record.links~=nil and next(record.links)~=nil
+            or record.enemyGUID~=nil or record.fameRep~=nil
+            or record.conditionalFireAttack~=nil then return nil end
+        cardState[guid]={complete=record.complete,status=record.status,resources=record.resources}
         local p=obj.getPosition()
         positions[guid]={p[1],p[2],p[3]}
     end
-    local arrows={}
+    local arrows,activeKeys={},{}
     for _,source in ipairs(sources) do
         if source.kind~="card" or source.convertedResource~=nil or source.move>0
             or source.psychicInfluence>0 or attackAssignmentsIsTargeting(source.key) then return nil end
-        arrows[source.key]=attackAssignmentsTargetCounts(source.key)
+        local target=combatAssignmentState.targets[source.key]
+        local counts=attackAssignmentsTargetCounts(source.key)
+        -- A first assignment, a removed arrow or an extra arrow can mutate
+        -- target state during resolution. Only cache settled one-arrow sources.
+        if target==nil or not validTargets[target] or counts[target]~=1 then return nil end
+        for guid in pairs(counts) do if guid~=target then return nil end end
+        arrows[source.key]=counts
+        activeKeys[source.key]=true
+    end
+    for key in pairs(combatAssignmentState.targets) do
+        if not activeKeys[key] then return nil end
     end
     for _,entry in ipairs(entries) do
         local obj=getObjectFromGUID(entry.guid)
@@ -3430,7 +3445,7 @@ combatConfig.simpleScanKey=function(seat,entries,sources,scan,otherWounds,units,
         seat=seat,turn=gStates.turnNumber,round=gStates.currentRound,day=gStates.dayRound,
         level=player.level,hand=player.baseHand,location=player.avatarLocation,
         armour=combatHeroArmour(commands),otherWounds=otherWounds,
-        entries=entries,sources=sources,positions=positions,arrows=arrows,
+        entries=entries,sources=sources,positions=positions,arrows=arrows,cardState=cardState,
         joined=combatAssignmentJoined,targets=combatAssignmentState.targets,
         explicit=combatAssignmentState.explicit,selected=combatAssignmentState.selected,
         page=combatEnemyPage,expanded=combatExpandedResults,
@@ -3534,6 +3549,9 @@ local function refreshCombatEnemyPanel(monsters,calculated)
         scanKey=combatConfig.simpleScanKey(currentSeat,entries,sources,seatScan,
             otherWounds,observedDamageUnits,observedCommandCount)
         if scanKey~=nil and scanKey==combatConfig.lastSimpleScanKey then
+            -- Target buttons are physical controls and can need reconciliation
+            -- independently of the numeric result.
+            if attackAssignmentsRefreshTargetButtons~=nil then attackAssignmentsRefreshTargetButtons(monsters) end
             if trackerPrivate.traceEnabled then
                 trackerPrivate.profileCount("combat.refresh.unchanged")
                 if profile~=nil then trackerPrivate.profileFinish("combat.refresh",profile) end
@@ -3642,7 +3660,14 @@ local function refreshCombatEnemyPanel(monsters,calculated)
     end
     combatConfig.panelHeight=combatConfig.panelBaseHeight+rowHeight
     combatPanelSetAttribute("CombatEnemyPanel","height",tostring(combatConfig.panelHeight))
-    combatConfig.lastSimpleScanKey=scanKey
+    -- Pagination or target reconciliation can change the input during the
+    -- render. Do not cache the pre-render key when that happened.
+    if scanKey~=nil then
+        local preview=combatConfig.phasePreview
+        local settledKey=combatConfig.simpleScanKey(currentSeat,preview.entries,preview.sources,
+            seatScan,otherWounds,observedDamageUnits,observedCommandCount)
+        if settledKey==scanKey then combatConfig.lastSimpleScanKey=scanKey end
+    end
     if profile~=nil then trackerPrivate.profileFinish("combat.refresh",profile) end
 end
 

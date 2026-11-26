@@ -176,6 +176,10 @@ eq(engine.clearUnavailableMoveTarget(source("moveOnly",{move=2}),mixedState),tru
 eq(mixedState.targets.moveOnly,nil,"Pure Move target removed")
 eq(mixedState.explicit.moveOnly,nil,"Pure Move explicit state removed")
 eq(#clears,beforeClear+1,"Only pure Move arrows removed")
+mixedState.targets.frozen="c" mixedState.explicit.frozen=true
+eq(engine.clearUnavailableMoveTarget(source("frozen",{move=2,phaseLocked=true}),mixedState),false,
+    "Committed Move target preserved")
+eq(mixedState.targets.frozen,"c","Committed target not removed")
 
 -- Immutable snapshot reuse must not change the prior preview or committed copy.
 local snapStart=assert(code:find("local function combatFrozenCopy(",1,true))
@@ -193,4 +197,64 @@ eq(changed.old,nil,"Removed key not retained")
 local committed=freeze(changed)
 changed.a.block=9
 eq(committed.a.block,4,"Commit makes independent deep copy")
+-- The ordinary-combat cache must compare actual sources, target and physical
+-- state, never only the aggregate point totals. Complex states must opt out.
+local cacheStart=assert(code:find("combatConfig.simpleScanKey=function",1,true))
+local cacheEnd=assert(code:find("local function refreshCombatEnemyPanel(",cacheStart,true))
+local fingerprintStart=assert(code:find("combatConfig.decisionFingerprint=function",1,true))
+local fingerprintEnd=assert(code:find("-- A Damage commit is a deliberate phase boundary",fingerprintStart,true))
+local objects={
+    cardA={getRotation=function() return {0,90,0} end,getPosition=function() return {0,1,0} end,
+        isSmoothMoving=function() return false end},
+    enemyA={getPosition=function() return {1,1,0} end,isSmoothMoving=function() return false end},
+    enemyB={getPosition=function() return {2,1,0} end,isSmoothMoving=function() return false end}
+}
+local target="enemyA"
+local cacheEnv={combatConfig={artifactCombat={}},gStates={turnNumber=1,currentRound=1},
+    turnOrder={{level=1,baseHand=5}},combatAssignmentState={targets={cardA=target},explicit={}},
+    combatPhaseLock=function() return nil end,combatHeroArmour=function() return 2 end,
+    getObjectFromGUID=function(guid) return objects[guid] end,
+    attackAssignmentsIsTargeting=function() return false end,
+    attackAssignmentsTargetCounts=function() return {[target]=1} end,
+    attackAssignmentsDamageSnapshot=function() return {targets={}} end,
+    combatAssignmentJoined={},combatEnemyPage=1,combatExpandedResults={},
+    combatReductionAttackChoice={},combatReductionActiveSource={}}
+setmetatable(cacheEnv,{__index=_G})
+assert(load(code:sub(fingerprintStart,fingerprintEnd-1)..code:sub(cacheStart,cacheEnd-1),
+    "Combat unchanged scan key","t",cacheEnv))()
+local plainEntries={{guid="enemyA",data={armour=4}},{guid="enemyB",data={armour=4}}}
+local plainSource=source("cardA",{kind="card",block=1})
+local plainScan={cards={cardA={kind="card",complete=true,resources={block=1}}}}
+local function key() return cacheEnv.combatConfig.simpleScanKey(1,plainEntries,{plainSource},plainScan,0,{},0) end
+local baseline=assert(key(),"Ordinary settled combat should be cacheable")
+eq(key(),baseline,"Identical settled scan has same key")
+plainSource.block=2
+assert(key()~=baseline,"Different resource amount changes key")
+plainSource.block=1
+target="enemyB" cacheEnv.combatAssignmentState.targets.cardA=target
+assert(key()~=baseline,"Same amount aimed at another enemy changes key")
+target="enemyA" cacheEnv.combatAssignmentState.targets.cardA=target
+eq(key(),baseline,"Restoring original input restores key")
+objects.cardA.getPosition=function() return {1,1,0} end
+assert(key()~=baseline,"Moved source changes key")
+objects.cardA.getPosition=function() return {0,1,0} end
+plainEntries[1].data.armour=5
+assert(key()~=baseline,"Enemy change invalidates cache")
+plainEntries[1].data.armour=4
+cacheEnv.turnOrder[1].baseHand=6
+assert(key()~=baseline,"Hero state change invalidates cache")
+cacheEnv.turnOrder[1].baseHand=5
+cacheEnv.combatAssignmentState.targets.cardA=nil
+eq(key(),nil,"Unsettled target cannot be cached")
+cacheEnv.combatAssignmentState.targets.cardA=target
+cacheEnv.combatConfig.woundTransactionPending=true
+eq(key(),nil,"Damage transaction bypasses reuse")
+cacheEnv.combatConfig.woundTransactionPending=false
+plainScan.unitState={}
+eq(key(),nil,"Unit combat bypasses reuse")
+plainScan.unitState=nil
+plainScan.enemyEffects={enemyA={noAttack=true}}
+eq(key(),nil,"Complex enemy effects bypass reuse")
+plainScan.enemyEffects=nil
+eq(key(),baseline,"Ordinary scan becomes eligible again")
 print("Source target authority, eligibility, allocation and cleanup passed")

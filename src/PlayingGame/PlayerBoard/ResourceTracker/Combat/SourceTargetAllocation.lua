@@ -5,7 +5,7 @@ return function(attackAssignmentsTargetGUIDs,attackAssignmentsClearForObject,
     attackAssignmentsIsTargeting,attackAssignmentsEnsureTarget,combatSourceArrowKind,
     combatEnemyAttacks,divisibleResources,scanOfActiveSeat,combatSourceKeepsLock)
     local function clearUnavailableMoveTarget(source,state)
-        if (source.move or 0)>0 and (source.ranged or 0)+(source.siege or 0)
+        if not source.phaseLocked and (source.move or 0)>0 and (source.ranged or 0)+(source.siege or 0)
             +(source.block or 0)+(source.attack or 0)+(source.psychicInfluence or 0)==0 then
             state.explicit[source.key]=nil
             state.targets[source.key]=nil

@@ -439,7 +439,7 @@ eq(after["enemyB:1"].units[1].alreadyApplied,true,
 assert(recognition:find('retiredUnitSources',1,true)
     and recognition:find('source.retiredUnitPosition',1,true),
     "destroyed Ranged/Siege Unit must survive calculation as a frozen source")
-local snapshot=isolated(recognition,"local function combatFrozenCopy(value)",
+local snapshot=isolated(recognition,"local function combatFrozenCopy(value,previous)",
     "local function combatNearestEnemyGUID",
     "return combatConfig.captureParalyzedUnitSources")
 combatAssignmentState={targets={unitR="enemyA"},explicit={unitR=true}}
@@ -994,7 +994,7 @@ eq(combatConfig.woundTransactionPending,false,"automatic commit completes normal
 -- Regression: an earlier Block remains fixed when its card leaves play;
 -- playing the same GUID again cannot produce a second Block or more Attack.
 local phaseSources=isolated(recognition,
-    "local function combatFrozenCopy(value)",
+    "local function combatFrozenCopy(value,previous)",
     "combatConfig.captureParalyzedUnitSources=function",
     "return combatPhaseLockSources")
 local original={guid="played",key="played",name="Played",kind="card",
