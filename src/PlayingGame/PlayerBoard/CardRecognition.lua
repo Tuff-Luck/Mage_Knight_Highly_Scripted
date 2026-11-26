@@ -953,12 +953,40 @@ end
 -- Preserve resolved pre-Damage Unit contributions before removing the card
 -- from its zone. Snapshot plain scalar data only so TTS JSON save/reload
 -- does not capture objects or userdata.
-local function combatFrozenCopy(value)
+local function combatFrozenCopy(value,previous)
     if type(value)~="table" then
         if type(value)=="string" or type(value)=="number" or type(value)=="boolean" then
             return value
         end
         return nil
+    end
+    -- previous is an immutable preview subtree, never a live calculation.
+    -- Skip allocating an equivalent tree; changed parents may still share
+    -- unchanged children. Calls without previous always make an independent copy.
+    if type(previous)=="table" then
+        local copy=nil
+        for key,entry in pairs(value) do
+            if type(key)=="string" or type(key)=="number" then
+                local child=combatFrozenCopy(entry,previous[key])
+                if child~=previous[key] then
+                    if copy==nil then
+                        copy={}
+                        for k,v in pairs(previous) do copy[k]=v end
+                    end
+                    copy[key]=child
+                end
+            end
+        end
+        for key in pairs(previous) do
+            if value[key]==nil then
+                if copy==nil then
+                    copy={}
+                    for k,v in pairs(previous) do copy[k]=v end
+                end
+                copy[key]=nil
+            end
+        end
+        return copy or previous
     end
     local copy={}
     for key,entry in pairs(value) do
@@ -1352,8 +1380,12 @@ end
 
 -- Reminders accept only Block/Move and enemy-attack effects, not attacks
 -- against Armour. Unknown source keys represent effect-only targeting links.
-function resourceCardsCombatTargetAcceptsSource(sourceKey,targetGUID)
-    return trackerPrivate.combatTargetPolicy.acceptsSource(sourceKey,targetGUID,combatAssignmentActiveSeat,combatEnemyData,combatConfig,combatAssignmentSources,combatAssignmentState,selectedResourceByGUID)
+function resourceCardsCombatTargetAcceptsSource(sourceKey,targetGUID,knownSource)
+    -- The allocation pass already has this source. Do not reconstruct every
+    -- card/Unit/conversion just to check this one numeric source.
+    local sourceProvider=knownSource~=nil and function() return {knownSource} end
+        or combatAssignmentSources
+    return trackerPrivate.combatTargetPolicy.acceptsSource(sourceKey,targetGUID,combatAssignmentActiveSeat,combatEnemyData,combatConfig,sourceProvider,combatAssignmentState,selectedResourceByGUID)
 end
 
 -- A lifted card keeps its target while its arrow still exists.
@@ -2802,7 +2834,7 @@ trackerPrivate.divisibleResources=require("PlayingGame.PlayerBoard.ResourceTrack
 trackerPrivate.sourceTargetAllocation=require("PlayingGame.PlayerBoard.ResourceTracker.Combat.SourceTargetAllocation")(
     function(key) return attackAssignmentsTargetGUIDs(key) end,
     function(key) return attackAssignmentsClearForObject(key) end,
-    function(key,guid) return resourceCardsCombatTargetAcceptsSource(key,guid) end,
+    function(key,guid,source) return resourceCardsCombatTargetAcceptsSource(key,guid,source) end,
     combatGUIDHasCumbersome,combatNearestEnemyGUID,
     function(key) return attackAssignmentsIsTargeting(key) end,
     function(...) return attackAssignmentsEnsureTarget(...) end,
@@ -2845,7 +2877,7 @@ trackerPrivate.combatPanelRenderer=require("PlayingGame.PlayerBoard.ResourceTrac
     combatConfig,combatPanelSetAttribute,combatRich,combatWoundsText,
     function(...) return joinLang(...) end,trackerPrivate)
 
-local function combatAssignmentRefreshRows(entries,sources)
+local function combatAssignmentRefreshRows(entries,sources,scopeRewards,observedDamageUnits,observedCommandCount)
     -- Exclusive stage timings within combat.rows. Existing block.result,
     -- damage.phase and UI counters are nested measurements, not extra time.
     local stageProfile
@@ -3020,7 +3052,8 @@ local function combatAssignmentRefreshRows(entries,sources)
     local selfWoundsEarly,selfWoundsLate=combatConfig.selfWoundingUnitChoices(damageSeat,groups)
     local damageProfile
     if trackerPrivate.traceEnabled then damageProfile=trackerPrivate.profileStart() end
-    local damageUnits,nativeCommandCount=combatDamageUnits(damageSeat)
+    local damageUnits,nativeCommandCount=observedDamageUnits,observedCommandCount
+    if damageUnits==nil then damageUnits,nativeCommandCount=combatDamageUnits(damageSeat) end
     if damageProfile~=nil then damageProfile=trackerPrivate.profileCheckpoint("damage.unitDiscovery",damageProfile) end
     local damageSpec,damageItems=trackerPrivate.damagePreparation.build(entries,groups,rowBlock,damageUnits,selfWoundsEarly)
     if damageProfile~=nil then damageProfile=trackerPrivate.profileCheckpoint("damage.prepare",damageProfile) end
@@ -3181,7 +3214,7 @@ local function combatAssignmentRefreshRows(entries,sources)
 
     -- Sources that reward every defeated enemy, whichever attack defeated it.
     local seenScope={}
-    for _,source in ipairs(combatAssignmentSources(damageSeat)) do
+    for _,source in ipairs(scopeRewards or combatAssignmentSources(damageSeat)) do
         local spec=source.defeatFameRep
         if spec~=nil and spec.scope~=nil and not seenScope[source.guid] then
             seenScope[source.guid]=true
@@ -3309,6 +3342,7 @@ end
 local function combatCalcShutdown()
     combatConfig.scanAwaitingRescan=false
     combatConfig.shutdownClean=true
+    combatConfig.lastSimpleScanKey=nil
     combatConfig.resultRowCache={}
     combatConfig.slotSelection={}
     combatConfig.effectSources={}
@@ -3339,8 +3373,83 @@ local function combatCalcShutdown()
     attackAssignmentsClearAll()
 end
 
+-- Conservative reuse for ordinary sideways-card combat. Complex effects,
+-- Units, boss fights, active transactions and explicit UI refreshes use the
+-- full calculation. Never treat identical aggregate totals as equivalent.
+combatConfig.simpleScanKey=function(seat,entries,sources,scan,otherWounds,units,commands)
+    if scan==nil or seat==nil or #entries==0 or combatConfig.woundApplying
+        or combatConfig.woundTransactionPending or combatConfig.woundConfirmation
+        or combatPhaseLock(seat)~=nil or combatCumbersomeActive or combatPsychicActive
+        or next(units or {})~=nil or scan.unitState~=nil
+        or scan.ignoreSiteFortifications or scan.preventUnitDamage
+        or scan.allUnitResistances or scan.heroFirstWoundIgnored or scan.heroPsychicBlock
+        or next(scan.enemyEffects or {})~=nil
+        or (scan.attackTransforms~=nil and (scan.attackTransforms.coldFire or scan.attackTransforms.siege))
+        or combatConfig.artifactCombat.sword or combatConfig.artifactCombat.bow
+        or combatConfig.artifactCombat.swordFame or combatConfig.artifactCombat.bowFame
+        or next(gStates.competitiveSkillReminders or {})~=nil
+        or next(gStates.combatBossManual or {})~=nil
+        or next(gStates.unitResourceActivations or {})~=nil then return nil end
+    for _,entry in ipairs(entries) do
+        if entry.bossType~=nil or entry.preview or entry.attackOnly
+            or entry.summoned~=nil or entry.data.monsters~=nil then return nil end
+    end
+    local positions={}
+    for guid,record in pairs(scan.cards or {}) do
+        local obj=getObjectFromGUID(guid)
+        if record.kind~="card" or obj==nil or obj.is_face_down
+            or obj.held_by_color~=nil and obj.held_by_color~=""
+            or obj.isSmoothMoving() then return nil end
+        -- Check the physical sideways orientation without depending on the
+        -- later lexical declaration of cardPosture.
+        local rot=obj.getRotation()[2]%180
+        if math.min(rot,180-rot)<=70 then return nil end
+        if record.combatConversion~=nil or record.splitTargets~=nil
+            or record.enemyEffectTargetKeys~=nil and next(record.enemyEffectTargetKeys)~=nil
+            or record.defeatFameRep~=nil or record.repeatLink~=nil then return nil end
+        local p=obj.getPosition()
+        positions[guid]={p[1],p[2],p[3]}
+    end
+    local arrows={}
+    for _,source in ipairs(sources) do
+        if source.kind~="card" or source.convertedResource~=nil or source.move>0
+            or source.psychicInfluence>0 or attackAssignmentsIsTargeting(source.key) then return nil end
+        arrows[source.key]=attackAssignmentsTargetCounts(source.key)
+    end
+    for _,entry in ipairs(entries) do
+        local obj=getObjectFromGUID(entry.guid)
+        if obj==nil or obj.isSmoothMoving() or obj.held_by_color~=nil and obj.held_by_color~="" then return nil end
+        local p=obj.getPosition()
+        positions[entry.guid]={p[1],p[2],p[3]}
+    end
+    local damage=attackAssignmentsDamageSnapshot()
+    if next(damage.targets or {})~=nil then return nil end
+    local player=turnOrder[gStates.turnNumber]
+    local ledger=gStates.combatWoundApplication or {}
+    return combatConfig.decisionFingerprint({
+        seat=seat,turn=gStates.turnNumber,round=gStates.currentRound,day=gStates.dayRound,
+        level=player.level,hand=player.baseHand,location=player.avatarLocation,
+        armour=combatHeroArmour(commands),otherWounds=otherWounds,
+        entries=entries,sources=sources,positions=positions,arrows=arrows,
+        joined=combatAssignmentJoined,targets=combatAssignmentState.targets,
+        explicit=combatAssignmentState.explicit,selected=combatAssignmentState.selected,
+        page=combatEnemyPage,expanded=combatExpandedResults,
+        reductions=combatReductionAttackChoice,activeReduction=combatReductionActiveSource,
+        damage=damage.targets,applied=ledger.applied,cards=ledger.cards,
+        staged=ledger.playDiscardApplied,discarded=ledger.handDiscardApplied,
+        committed=ledger.damageAssignmentsCommitted,
+        primary=gStates.resourceCardPrimaryTargets,
+        hardened=gStates.battleHardenedAttackKey,elemental=gStates.elementalResistanceAttackKey,
+        forked=gStates.forkedLightningPhase
+    })
+end
+
 local function refreshCombatEnemyPanel(monsters,calculated)
-    if combatConfig.scanAwaitingRescan then return end
+    if combatConfig.scanAwaitingRescan then
+        combatConfig.lastSimpleScanKey=nil
+        return
+    end
+    if calculated~=true then combatConfig.lastSimpleScanKey=nil end
     local profile=trackerPrivate.traceEnabled and (trackerPrivate.profileStart() or true) or nil
     local active
     if calculated==true then active=combatCalcOn
@@ -3375,8 +3484,9 @@ local function refreshCombatEnemyPanel(monsters,calculated)
     -- Establish the pre-combat Wound baseline as soon as enemies appear.
     -- Doing this before resources resolve prevents an old Wound moved into
     -- the play area from being mistaken for a newly taken card-cost Wound.
+    local otherWounds=0
     if #entries>0 and currentSeat~=nil then
-        combatConfig.combatOtherWounds(currentSeat)
+        otherWounds=combatConfig.combatOtherWounds(currentSeat)
     end
     local seatScan=currentSeat~=nil and resourceCardScanBySeat[currentSeat] or nil
     local enemyEffects=seatScan~=nil and seatScan.enemyEffects or nil
@@ -3411,6 +3521,28 @@ local function refreshCombatEnemyPanel(monsters,calculated)
     end
     local lock=combatPhaseLock(currentSeat)
     local sources=combatAssignmentSources(currentSeat)
+    local scopeRewards={}
+    for _,source in ipairs(sources) do
+        local spec=source.defeatFameRep
+        if spec~=nil and spec.scope~=nil then
+            scopeRewards[#scopeRewards+1]={guid=source.guid,defeatFameRep=combatFrozenCopy(spec)}
+        end
+    end
+    local observedDamageUnits,observedCommandCount,scanKey
+    if calculated==true and lock==nil and seatScan~=nil and seatScan.unitState==nil then
+        observedDamageUnits,observedCommandCount=combatDamageUnits(currentSeat)
+        scanKey=combatConfig.simpleScanKey(currentSeat,entries,sources,seatScan,
+            otherWounds,observedDamageUnits,observedCommandCount)
+        if scanKey~=nil and scanKey==combatConfig.lastSimpleScanKey then
+            if trackerPrivate.traceEnabled then
+                trackerPrivate.profileCount("combat.refresh.unchanged")
+                if profile~=nil then trackerPrivate.profileFinish("combat.refresh",profile) end
+            end
+            return
+        end
+    end
+    combatConfig.lastSimpleScanKey=nil
+    local snapshotProfile=trackerPrivate.traceEnabled and trackerPrivate.profileStart() or nil
     if lock~=nil then
         -- Use the exact enemy state and grouping that existed when Damage
         -- was confirmed, rather than newly changed earlier-phase effects.
@@ -3437,17 +3569,18 @@ local function refreshCombatEnemyPanel(monsters,calculated)
                 end
             end
         end
+        local previous=combatConfig.phasePreview
+        if previous~=nil and (previous.seat~=currentSeat or previous.turn~=gStates.turnNumber) then previous=nil end
         combatConfig.phasePreview={
             seat=currentSeat,turn=gStates.turnNumber,
-            entries=combatFrozenCopy(entries),
-            sources=combatFrozenCopy(sources),
-            enemyEffects=combatFrozenCopy(enemyEffects or {}),
+            entries=combatFrozenCopy(entries,previous~=nil and previous.entries or nil),
+            sources=combatFrozenCopy(sources,previous~=nil and previous.sources or nil),
+            enemyEffects=combatFrozenCopy(enemyEffects or {},previous~=nil and previous.enemyEffects or nil),
             sourceKeys=keys,objectKeys=objects,positions=positions,
-            joined=combatFrozenCopy(combatAssignmentJoined),
-            targets=combatFrozenCopy(combatAssignmentState.targets),
-            explicit=combatFrozenCopy(combatAssignmentState.explicit)
+            joined=combatFrozenCopy(combatAssignmentJoined,previous~=nil and previous.joined or nil)
         }
     end
+    if snapshotProfile~=nil then trackerPrivate.profileFinish("combat.phaseSnapshot",snapshotProfile) end
     local activeSources,activeObjects={},{}
     -- Unit effects such as Illusionists and Delphana Masters can target an enemy
     -- without creating Attack/Block points. Keep their arrows while that ability is active.
@@ -3461,12 +3594,8 @@ local function refreshCombatEnemyPanel(monsters,calculated)
         activeSources[source.key]=true
         activeObjects[source.guid]=true
         -- Move only has a target while a Cumbersome attacker is in play.
-        if not combatCumbersomeActive and source.move>0 then
-            combatAssignmentState.explicit[source.key]=nil
-            if source.ranged+source.siege+source.block+source.attack==0 then
-                combatAssignmentState.targets[source.key]=nil
-                attackAssignmentsClearForObject(source.key)
-            end
+        if not combatCumbersomeActive then
+            trackerPrivate.sourceTargetAllocation.clearUnavailableMoveTarget(source,combatAssignmentState)
         end
     end
     local arrowProfile=trackerPrivate.traceEnabled and (trackerPrivate.profileStart() or true) or nil
@@ -3498,7 +3627,7 @@ local function refreshCombatEnemyPanel(monsters,calculated)
     end
     if arrowProfile~=nil then trackerPrivate.profileFinish("combat.arrows",arrowProfile) end
     local rowProfile=trackerPrivate.traceEnabled and (trackerPrivate.profileStart() or true) or nil
-    local rowHeight=combatAssignmentRefreshRows(entries,sources)
+    local rowHeight=combatAssignmentRefreshRows(entries,sources,scopeRewards,observedDamageUnits,observedCommandCount)
     if rowProfile~=nil then trackerPrivate.profileFinish("combat.rows",rowProfile) end
     if lock==nil and combatConfig.phasePreview~=nil then
         -- Automatic nearest-enemy targeting is resolved inside the calculator,
@@ -3513,6 +3642,7 @@ local function refreshCombatEnemyPanel(monsters,calculated)
     end
     combatConfig.panelHeight=combatConfig.panelBaseHeight+rowHeight
     combatPanelSetAttribute("CombatEnemyPanel","height",tostring(combatConfig.panelHeight))
+    combatConfig.lastSimpleScanKey=scanKey
     if profile~=nil then trackerPrivate.profileFinish("combat.refresh",profile) end
 end
 

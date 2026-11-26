@@ -1,57 +1,81 @@
 -- Distribute one physical resource source across its assigned enemy targets.
--- The coordinator chooses targets and owns arrow state; only fresh allocation records are changed here.
+-- The coordinator owns arrows; only fresh allocation records are changed.
 return function(attackAssignmentsTargetCounts,combatGUIDHasCumbersome,combatEnemyAttacks)
+    local function append(allocated,index,portion)
+        local extra=allocated[index]
+        if extra==nil then
+            extra={range={},block={},attack={},sources={},details={}}
+            allocated[index]=extra
+        end
+        extra.sources[#extra.sources+1]=portion
+        extra.details[#extra.details+1]={source=portion,detail=portion.details[1]}
+    end
+
+    local function distribute(other,counts,remaining,rowByGUID,allocated,eligible,makePortion)
+        for _,guid in ipairs(other) do
+            if remaining<=0 then break end
+            local index=rowByGUID[guid]
+            if eligible==nil or eligible(guid,index) then
+                local amount=math.min(remaining,counts[guid])
+                if amount>0 then
+                    append(allocated,index,makePortion(amount))
+                    remaining=remaining-amount
+                end
+            end
+        end
+        return remaining
+    end
+
+    local function portion(source,name)
+        return {guid=source.guid,key=source.key,name=name or source.name,
+            ranged=0,siege=0,block=0,attack=0,move=0,psychicInfluence=0,
+            resources={},details={}}
+    end
+
+    local function updatePrimary(target,source,family,remaining,label)
+        for i=#target.details,1,-1 do
+            local item=target.details[i]
+            if item.source==source and item.detail.family==family then
+                if remaining<=0 then table.remove(target.details,i)
+                else
+                    item.detail.amount=remaining
+                    item.detail.text=label(remaining)
+                end
+            end
+        end
+    end
+
     local function allocate(source,target,targetGUID,explicit,rowByGUID,entries,allocated,observation)
         local cumbersome=observation~=nil and observation.cumbersome or combatGUIDHasCumbersome
         local attacks=observation~=nil and observation.attacks or combatEnemyAttacks
-        local counts
+        local counts,other
         if source.convertedResource~=nil or (source.moveCounts and (source.move or 0)>0)
             or source.psychicInfluenceCounts then
             counts=attackAssignmentsTargetCounts(source.key)
-        end
-        if source.convertedResource~=nil then
-            -- A right-click adds an arrow to another enemy. Each extra
-            -- arrow spends ONE converted point, never a second full pool.
-            local other={}
+            other={}
             for guid in pairs(counts) do
                 if guid~=targetGUID and rowByGUID[guid]~=nil then other[#other+1]=guid end
             end
             table.sort(other)
-            local remaining=source.convertedAmount
-            for _,guid in ipairs(other) do
-                local amount=math.min(remaining,counts[guid])
-                if amount>0 then
-                    local family=source.convertedFamily
-                    local key=source.convertedResource
-                    local detail=source.details[1]
-                    local portion={guid=source.guid,key=source.key,name=source.name,
-                        ranged=family=="ranged" and amount or 0,
-                        siege=family=="siege" and amount or 0,
-                        attack=family=="attack" and amount or 0,
-                        block=family=="block" and amount or 0,move=0,
-                        psychicInfluence=0,resources={[key]=amount},
-                        details={{text=key.." "..amount,amount=amount,
-                            key=key,icon=detail~=nil and detail.icon or "MKChoiceAttack",
-                            family=family,typeKey=detail~=nil and detail.typeKey or "P"}}}
-                    local index=rowByGUID[guid]
-                    local extra=allocated[index]
-                    if extra==nil then
-                        extra={range={},block={},attack={},sources={},details={}}
-                        allocated[index]=extra
-                    end
-                    extra.sources[#extra.sources+1]=portion
-                    extra.details[#extra.details+1]={source=portion,detail=portion.details[1]}
-                    remaining=remaining-amount
-                end
-            end
-            source[source.convertedFamily]=remaining
-            source.resources[source.convertedResource]=remaining
-            if remaining>0 and source.details[1]~=nil then
-                source.details[1].amount=remaining
-                source.details[1].text=source.convertedResource.." "..remaining
-            else
-                source.details={}
-            end
+        end
+        if source.convertedResource~=nil then
+            local family,key=source.convertedFamily,source.convertedResource
+            local detail=source.details[1]
+            local remaining=distribute(other,counts,source.convertedAmount,rowByGUID,allocated,nil,function(amount)
+                local part=portion(source)
+                part[family]=amount
+                part.resources[key]=amount
+                part.details[1]={text=key.." "..amount,amount=amount,key=key,
+                    icon=detail~=nil and detail.icon or "MKChoiceAttack",family=family,
+                    typeKey=detail~=nil and detail.typeKey or "P"}
+                return part
+            end)
+            source[family]=remaining
+            source.resources[key]=remaining
+            if remaining>0 and detail~=nil then
+                detail.amount=remaining
+                detail.text=key.." "..remaining
+            else source.details={} end
         end
         target.sources[#target.sources+1]=source
         for _,detail in ipairs(source.details) do
@@ -61,101 +85,33 @@ return function(attackAssignmentsTargetCounts,combatGUIDHasCumbersome,combatEnem
             end
         end
         if source.moveCounts and (source.move or 0)>0 then
-            -- Primary target receives the remaining Cumbersome Move.
-            -- Each extra arrow transfers one point to another Cumbersome
-            -- enemy, exactly as divisible Psychic Influence does.
-            local other={}
-            for guid in pairs(counts) do
-                if guid~=targetGUID and rowByGUID[guid]~=nil then
-                    other[#other+1]=guid
-                end
-            end
-            table.sort(other)
-            local remaining=source.move
-            for _,guid in ipairs(other) do
-                if remaining<=0 then break end
-                if cumbersome(guid) then
-                    local amount=math.min(counts[guid],remaining)
-                    local portion={guid=source.guid,key=source.key,name=source.name,
-                        ranged=0,siege=0,block=0,attack=0,
-                        move=amount,moveCounts=true,
-                        psychicInfluence=0,resources={move=amount},
-                        details={{text="Move "..tostring(amount),amount=amount,
-                            icon="MKChoiceMove",key="move",family="move"}}}
-                    local index=rowByGUID[guid]
-                    local extra=allocated[index]
-                    if extra==nil then
-                        extra={range={},block={},attack={},sources={},details={}}
-                        allocated[index]=extra
-                    end
-                    extra.sources[#extra.sources+1]=portion
-                    extra.details[#extra.details+1]={
-                        source=portion,detail=portion.details[1]}
-                    remaining=remaining-amount
-                end
-            end
+            local function label(amount) return "Move "..tostring(amount) end
+            local remaining=distribute(other,counts,source.move,rowByGUID,allocated,cumbersome,function(amount)
+                local part=portion(source)
+                part.move,part.moveCounts=amount,true
+                part.resources.move=amount
+                part.details[1]={text=label(amount),amount=amount,icon="MKChoiceMove",key="move",family="move"}
+                return part
+            end)
             source.move=remaining
             if source.resources~=nil then source.resources.move=remaining end
-            for i=#target.details,1,-1 do
-                local item=target.details[i]
-                if item.source==source and item.detail.family=="move" then
-                    if remaining<=0 then table.remove(target.details,i)
-                    else
-                        item.detail.amount=remaining
-                        item.detail.text="Move "..tostring(remaining)
-                    end
-                end
-            end
+            updatePrimary(target,source,"move",remaining,label)
         end
         if source.psychicInfluenceCounts then
-            -- The primary left-click target initially receives all Influence.
-            -- Each additional right-click arrow transfers one point; repeated
-            -- arrows to the same enemy transfer more. No point is double-spent.
-            local targetCounts=counts
-            local extraTargets={}
-            for guid in pairs(targetCounts) do
-                if guid~=targetGUID and rowByGUID[guid]~=nil then
-                    extraTargets[#extraTargets+1]=guid
-                end
-            end
-            table.sort(extraTargets)
-            local remaining=source.psychicInfluence
-            for _,guid in ipairs(extraTargets) do
-                if remaining<=0 then break end
-                local index=rowByGUID[guid]
-                local psychic=false
+            local function label(amount) return "Influence "..tostring(amount).." → Psychic Block" end
+            local remaining=distribute(other,counts,source.psychicInfluence,rowByGUID,allocated,function(_,index)
                 for _,attack in ipairs(attacks(entries[index])) do
-                    if attack.key=="M" then psychic=true break end
+                    if attack.key=="M" then return true end
                 end
-                if psychic then
-                    local amount=math.min(targetCounts[guid],remaining)
-                    local portion={guid=source.guid,key=source.key,name=source.name.." (Influence)",
-                        ranged=0,siege=0,block=0,attack=0,move=0,resources={},
-                        psychicInfluence=amount,psychicInfluenceCounts=true,details={}}
-                    local detail={text="Influence "..tostring(amount).." → Psychic Block",
-                        amount=amount,icon="MKChoiceBlock",key="influence",family="influence"}
-                    portion.details[1]=detail
-                    local extra=allocated[index]
-                    if extra==nil then
-                        extra={range={},block={},attack={},sources={},details={}}
-                        allocated[index]=extra
-                    end
-                    extra.sources[#extra.sources+1]=portion
-                    extra.details[#extra.details+1]={source=portion,detail=detail}
-                    remaining=remaining-amount
-                end
-            end
+                return false
+            end,function(amount)
+                local part=portion(source,source.name.." (Influence)")
+                part.psychicInfluence,part.psychicInfluenceCounts=amount,true
+                part.details[1]={text=label(amount),amount=amount,icon="MKChoiceBlock",key="influence",family="influence"}
+                return part
+            end)
             source.psychicInfluence=remaining
-            for i=#target.details,1,-1 do
-                local item=target.details[i]
-                if item.source==source and item.detail.family=="influence" then
-                    if remaining<=0 then table.remove(target.details,i)
-                    else
-                        item.detail.amount=remaining
-                        item.detail.text="Influence "..tostring(remaining).." → Psychic Block"
-                    end
-                end
-            end
+            updatePrimary(target,source,"influence",remaining,label)
         end
     end
 

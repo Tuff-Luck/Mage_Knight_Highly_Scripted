@@ -91,4 +91,19 @@ a=run(source,false)
 eq(#a[1].details,1,"Uncommitted Influence filtered out")
 eq(a[1].details[1].detail.family,"attack","Ordinary Attack detail retained")
 eq(a[2],nil,"Ordinary Attack not duplicated across arrows")
+-- One mixed source may contribute to both independently bounded pools.
+source=base()
+source.move,source.moveCounts,source.resources.move=3,true,3
+source.psychicInfluence,source.psychicInfluenceCounts=4,true
+source.details={{family="move",key="move",amount=3},
+    {family="influence",key="influence",amount=4}}
+counts={a=2,b=8,c=1}
+cumbersome={a=true,c=true}
+a=run(source,true)
+eq(source.move,0,"Mixed Move pool exhausted")
+eq(source.psychicInfluence,1,"Mixed Influence retains independent remainder")
+eq(a[2].sources[1].move+a[4].sources[1].move,3,"Mixed Move conserved")
+eq(a[2].sources[2].psychicInfluence+a[4].sources[2].psychicInfluence+source.psychicInfluence,4,"Mixed Influence conserved")
+eq(a[3],nil,"Ineligible enemy receives neither pool")
+eq(#a[1].details,1,"Only remaining Influence shown")
 print("Divisible combat resources, target eligibility and conservation passed")

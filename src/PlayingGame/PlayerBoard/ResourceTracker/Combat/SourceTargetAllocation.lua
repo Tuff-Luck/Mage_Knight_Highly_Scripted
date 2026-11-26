@@ -4,6 +4,17 @@ return function(attackAssignmentsTargetGUIDs,attackAssignmentsClearForObject,
     resourceCardsCombatTargetAcceptsSource,combatGUIDHasCumbersome,combatNearestEnemyGUID,
     attackAssignmentsIsTargeting,attackAssignmentsEnsureTarget,combatSourceArrowKind,
     combatEnemyAttacks,divisibleResources,scanOfActiveSeat,combatSourceKeepsLock)
+    local function clearUnavailableMoveTarget(source,state)
+        if (source.move or 0)>0 and (source.ranged or 0)+(source.siege or 0)
+            +(source.block or 0)+(source.attack or 0)+(source.psychicInfluence or 0)==0 then
+            state.explicit[source.key]=nil
+            state.targets[source.key]=nil
+            attackAssignmentsClearForObject(source.key)
+            return true
+        end
+        return false
+    end
+
     local function recoverTarget(source,rowByGUID,combatAssignmentState)
         -- Explicit calculator targets remain authoritative. If none exists,
         -- the saved arrow is recovered below (including after reload).
@@ -48,7 +59,7 @@ return function(attackAssignmentsTargetGUIDs,attackAssignmentsClearForObject,
             targetGUID,targetIndex=nil,nil
         end
         if source.forkedLightning and targetIndex~=nil
-            and not resourceCardsCombatTargetAcceptsSource(source.key,targetGUID) then
+            and not resourceCardsCombatTargetAcceptsSource(source.key,targetGUID,source) then
             combatAssignmentState.targets[source.key]=nil
             combatAssignmentState.explicit[source.key]=nil
             attackAssignmentsClearForObject(source.key)
@@ -211,5 +222,6 @@ return function(attackAssignmentsTargetGUIDs,attackAssignmentsClearForObject,
         return allocatePass(...)
     end
 
-    return {recoverTarget=recoverTarget,resolveTarget=resolveTarget,allocate=allocate}
+    return {recoverTarget=recoverTarget,resolveTarget=resolveTarget,allocate=allocate,
+        clearUnavailableMoveTarget=clearUnavailableMoveTarget}
 end

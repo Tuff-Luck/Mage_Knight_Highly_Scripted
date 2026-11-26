@@ -162,4 +162,35 @@ eq(reads.b,1,"Second enemy position reused")
 coordinates.b={0.5,0,0}
 eq(nearest(src,enemies,nil,{}),"b","Next allocation observes moved enemy")
 eq(nearest(src,enemies),"b","Standalone caller observes live positions")
+-- Removing Cumbersome must never clear a mixed source's Psychic/Block target.
+local mixed=source("mixed",{move=2,psychicInfluence=3})
+local mixedState={targets={mixed="psychic",moveOnly="c",blockMove="normal"},
+    explicit={mixed=true,moveOnly=true,blockMove=true}}
+local beforeClear=#clears
+eq(engine.clearUnavailableMoveTarget(mixed,mixedState),false,"Mixed Psychic source retains target")
+eq(mixedState.targets.mixed,"psychic","Psychic target retained")
+eq(mixedState.explicit.mixed,true,"Psychic explicit state retained")
+eq(engine.clearUnavailableMoveTarget(source("blockMove",{move=2,block=3}),mixedState),false,"Mixed Block target retained")
+eq(mixedState.explicit.blockMove,true,"Block explicit state retained")
+eq(engine.clearUnavailableMoveTarget(source("moveOnly",{move=2}),mixedState),true,"Pure Move target cleared")
+eq(mixedState.targets.moveOnly,nil,"Pure Move target removed")
+eq(mixedState.explicit.moveOnly,nil,"Pure Move explicit state removed")
+eq(#clears,beforeClear+1,"Only pure Move arrows removed")
+
+-- Immutable snapshot reuse must not change the prior preview or committed copy.
+local snapStart=assert(code:find("local function combatFrozenCopy(",1,true))
+local snapEnd=assert(code:find("-- A committed Damage phase",snapStart,true))
+local freeze=assert(load(code:sub(snapStart,snapEnd-1).."\nreturn combatFrozenCopy"))()
+local original={a={block=3},b={attack=2},old=true}
+local frozen=freeze(original)
+eq(freeze(original,frozen),frozen,"Identical snapshot reuses root")
+original.a.block=4 original.old=nil
+local changed=freeze(original,frozen)
+eq(changed.a.block,4,"Changed value captured")
+eq(frozen.a.block,3,"Previous snapshot remains immutable")
+eq(changed.b,frozen.b,"Unchanged subtree reused")
+eq(changed.old,nil,"Removed key not retained")
+local committed=freeze(changed)
+changed.a.block=9
+eq(committed.a.block,4,"Commit makes independent deep copy")
 print("Source target authority, eligibility, allocation and cleanup passed")
