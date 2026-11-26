@@ -20,6 +20,7 @@ local private={
 }
 local cards,frames,swaps={}, {},0
 local open=true
+local moving=false
 local function card(guid,y)
     local obj={guid=guid,type="Card",y=y}
     obj.getPosition=function() return {x=0,y=obj.y,z=0} end
@@ -33,10 +34,11 @@ local choices,expanded,shown={}, {},{}
 local env=setmetatable({
     trackerPrivate=private,
     gameCards={main={resourceKey="maximal"},target={},ordinary={}},
-    cardResourceDefinitions={maximal={requiredLink={mode="repeat"}}},
+    cardResourceDefinitions={maximal={requiredLink={mode="repeat"}},
+        ritual={requiredLink={mode="throwAway"}}},
     gStates={artifactBreaks={},artifactGrailHealingUsed={},resourceCardMoveRoles={},
         resourceCardPlayOrder={},unitReadyCardChoices={},throwAwayCleanupByGUID={}},
-    combatConfig={cardInTransit=function() return false end},
+    combatConfig={cardInTransit=function(obj) return moving and obj==target end},
     getObjectFromGUID=function(guid) return cards[guid] end,
     resourceCardsPanelOpen=function() return open end,
     resourceCardsArtifactBroken=function() return false end,
@@ -79,6 +81,39 @@ table.remove(frames,1)()
 assert(swaps==1 and target.y<source.y,"Linked payment goes under its owner")
 scan()
 assert(#frames==0 and swaps==1,"An already-under payment is not moved again")
+
+-- Ritual Attack uses the paid throwAway link, not the repeat branch.
+env.gameCards.main.resourceKey="ritual"
+local function ritualScan()
+    env.resourceCardsMaximalEffectSyncMarks(1,{source,target,ordinary},
+        {}, {target=source.guid},{main=true})
+end
+target.y=source.y
+ritualScan()
+assert(target.marked and private.throwAwayLinksByGUID[target.guid]=="ritualAttack"
+    and #frames==1,"Ritual Attack must schedule placement even at equal Y")
+-- The one-frame callback may land during another physics transition.
+moving=true
+table.remove(frames,1)()
+assert(swaps==1 and #frames==1,"Transient motion must defer rather than abandon the tuck")
+moving=false
+target.y=source.y+0.6
+table.remove(frames,1)()
+assert(swaps==1 and #frames==1,"A high falling card must be sampled again")
+target.y=source.y+0.2
+table.remove(frames,1)()
+assert(swaps==2 and target.y<source.y,"Ritual Attack must tuck after physics settles")
+ritualScan()
+assert(#frames==0,"Ritual Attack already below its owner must stay put")
+-- If the player removes the link during the delay, don't move the card.
+target.y=source.y
+ritualScan()
+env.resourceCardsMaximalEffectSyncMarks(1,{source,target,ordinary},{},{},{})
+table.remove(frames,1)()
+assert(swaps==2 and #frames==0 and not target.marked,"A cancelled link must not restack")
+ritualScan()
+table.remove(frames,1)()
+assert(swaps==3 and target.marked,"A subsequent valid Ritual Attack link can tuck again")
 
 open=false
 local guid=target.guid

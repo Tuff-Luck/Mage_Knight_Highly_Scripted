@@ -5083,9 +5083,9 @@ function resourceCardsMaximalEffectSyncMarks(seatPos,cards,repeats,discarded,has
     for guid in pairs(prior) do
         if not present[guid] then prior[guid]=nil end
     end
-    -- Use the same physical Y swap as crooked discard cards. Only an
-    -- authoritative paid link may trigger movement, never the OFF fallback
-    -- or End Turn's final verdict reconciliation.
+    -- Only an authoritative paid link may trigger the shared physical
+    -- restack. A newly linked card may still be falling in Y: don't let a
+    -- single near-equal height or transient motion silently cancel it.
     if discarded~=nil and gStates~=nil and gStates.preEndTurn~=true
         and playerBoardSendCardUnder~=nil and not trackerPrivate.throwUnderPending then
         for _,card in ipairs(cards or {}) do
@@ -5093,29 +5093,54 @@ function resourceCardsMaximalEffectSyncMarks(seatPos,cards,repeats,discarded,has
             local sourceGUID=discarded[guid]
             local reason=prior[guid]
             local source=sourceGUID~=nil and getObjectFromGUID(sourceGUID) or nil
-            if reason~=nil and source~=nil and present[sourceGUID]
-                and not combatConfig.cardInTransit(card) and not combatConfig.cardInTransit(source) then
+            if reason~=nil and source~=nil and present[sourceGUID] then
                 local p,q=card.getPosition(),source.getPosition()
                 local delta=(p.y or p[2])-(q.y or q[2])
-                if delta>0.008 and delta<=0.45 then
-                    trackerPrivate.throwUnderPending=true
-                    safeWaitFrames("PlayerBoard.CardRecognition.throwUnder",function()
-                        trackerPrivate.throwUnderPending=nil
-                        if gStates==nil or gStates.preEndTurn==true or not resourceCardsPanelOpen()
-                            or trackerPrivate.throwAwayLinksByGUID[guid]~=reason
-                            or trackerPrivate.throwAwaySourcesByGUID[guid]~=sourceGUID then return end
-                        local lower,upper=getObjectFromGUID(guid),getObjectFromGUID(sourceGUID)
-                        if lower==nil or upper==nil or combatConfig.cardInTransit(lower)
-                            or combatConfig.cardInTransit(upper)
-                            or not cardInSeatPlayArea(guid,seatPos)
-                            or not cardInSeatPlayArea(sourceGUID,seatPos)
-                            or overlapArea(footprint(lower),footprint(upper))<=0 then return end
-                        local lp,up=lower.getPosition(),upper.getPosition()
-                        local gap=(lp.y or lp[2])-(up.y or up[2])
-                        if gap>0.008 and gap<=0.45 then
-                            playerBoardSendCardUnder(lower,upper)
+                if delta>=-0.008 then
+                    local pending={tries=0,session=trackerPrivate.trackerSession}
+                    trackerPrivate.throwUnderPending=pending
+                    local function finish()
+                        if trackerPrivate.throwUnderPending==pending then
+                            trackerPrivate.throwUnderPending=nil
                         end
-                    end,1)
+                    end
+                    local function sample()
+                        if trackerPrivate.throwUnderPending~=pending then return end
+                        if trackerPrivate.trackerSession~=pending.session or gStates==nil
+                            or gStates.preEndTurn==true or not resourceCardsPanelOpen()
+                            or trackerPrivate.throwAwayLinksByGUID[guid]~=reason
+                            or trackerPrivate.throwAwaySourcesByGUID[guid]~=sourceGUID then
+                            finish() return
+                        end
+                        local lower,upper=getObjectFromGUID(guid),getObjectFromGUID(sourceGUID)
+                        if lower==nil or upper==nil or overlapArea(footprint(lower),footprint(upper))<=0 then
+                            finish() return
+                        end
+                        pending.tries=pending.tries+1
+                        if not combatConfig.cardInTransit(lower) and not combatConfig.cardInTransit(upper)
+                            and cardInSeatPlayArea(guid,seatPos) and cardInSeatPlayArea(sourceGUID,seatPos) then
+                            local lp,up=lower.getPosition(),upper.getPosition()
+                            local gap=(lp.y or lp[2])-(up.y or up[2])
+                            if gap< -0.008 then finish() return end
+                            -- The normal shallow-zone pair can be moved at
+                            -- once, including equal-height cards. For a larger
+                            -- falling gap, wait for Y to settle before moving.
+                            if gap<=0.45 or (pending.lastGap~=nil
+                                and math.abs(gap-pending.lastGap)<0.008) then
+                                finish()
+                                if trackerPrivate.traceEnabled then
+                                    trackerPrivate.traceEvent("throw.under",seatPos,guid,
+                                        "source="..sourceGUID.." gap="..tostring(gap))
+                                end
+                                playerBoardSendCardUnder(lower,upper)
+                                return
+                            end
+                            pending.lastGap=gap
+                        end
+                        if pending.tries>=90 then finish()
+                        else safeWaitFrames("PlayerBoard.CardRecognition.throwUnder",sample,1) end
+                    end
+                    safeWaitFrames("PlayerBoard.CardRecognition.throwUnder",sample,1)
                     break
                 end
             end
