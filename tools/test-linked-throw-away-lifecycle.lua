@@ -105,9 +105,21 @@ table.remove(frames,1)()
 assert(swaps==2 and target.y<source.y,"Ritual Attack must tuck after physics settles")
 ritualScan()
 assert(#frames==0,"Ritual Attack already below its owner must stay put")
--- If the player removes the link during the delay, don't move the card.
+-- The automatic movement itself triggers further scans. TTS physics can
+-- temporarily report equal or even inverted heights after the first swap.
 target.y=source.y
 ritualScan()
+target.y=source.y+0.1
+ritualScan()
+assert(swaps==2 and #frames==0 and target.marked,
+    "The same paid Ritual Attack link must never dispatch a second tuck")
+-- A genuinely broken and re-established link may tuck again.
+env.resourceCardsMaximalEffectSyncMarks(1,{source,target,ordinary},{},{},{})
+assert(private.throwUnderCompletedByGUID[target.guid]==nil and not target.marked,
+    "Breaking the link retires the previous physical movement")
+ritualScan()
+assert(#frames==1,"Re-linking must allow a fresh movement")
+-- If the player removes the link during the delay, don't move the card.
 env.resourceCardsMaximalEffectSyncMarks(1,{source,target,ordinary},{},{},{})
 table.remove(frames,1)()
 assert(swaps==2 and #frames==0 and not target.marked,"A cancelled link must not restack")
@@ -136,6 +148,7 @@ env.resourceCardsReturnedToHand(target,1)
 assert(not target.marked and private.maximalMarkedByGUID[guid]==nil
     and private.throwAwayLinksByGUID[guid]==nil
     and private.throwAwaySourcesByGUID[guid]==nil
+    and private.throwUnderCompletedByGUID[guid]==nil
     and state.throwAwayCleanupByGUID[guid]==nil,
     "Hand recovery must clear marker and every throw-away verdict")
 assert(state.resourceCardPlayOrder[guid]==nil and state.artifactBreaks[guid]==nil

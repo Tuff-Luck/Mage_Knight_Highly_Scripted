@@ -5083,6 +5083,18 @@ function resourceCardsMaximalEffectSyncMarks(seatPos,cards,repeats,discarded,has
     for guid in pairs(prior) do
         if not present[guid] then prior[guid]=nil end
     end
+    -- Movement itself triggers another settled resource scan. Remember an
+    -- already dispatched tuck for the lifetime of this paid link so a
+    -- transient equal/inverted Y cannot send the same pair under twice.
+    trackerPrivate.throwUnderCompletedByGUID=trackerPrivate.throwUnderCompletedByGUID or {}
+    if discarded~=nil then
+        for guid,completed in pairs(trackerPrivate.throwUnderCompletedByGUID) do
+            if prior[guid]~=completed.reason
+                or trackerPrivate.throwAwaySourcesByGUID[guid]~=completed.sourceGUID then
+                trackerPrivate.throwUnderCompletedByGUID[guid]=nil
+            end
+        end
+    end
     -- Only an authoritative paid link may trigger the shared physical
     -- restack. A newly linked card may still be falling in Y: don't let a
     -- single near-equal height or transient motion silently cancel it.
@@ -5093,7 +5105,8 @@ function resourceCardsMaximalEffectSyncMarks(seatPos,cards,repeats,discarded,has
             local sourceGUID=discarded[guid]
             local reason=prior[guid]
             local source=sourceGUID~=nil and getObjectFromGUID(sourceGUID) or nil
-            if reason~=nil and source~=nil and present[sourceGUID] then
+            if reason~=nil and source~=nil and present[sourceGUID]
+                and trackerPrivate.throwUnderCompletedByGUID[guid]==nil then
                 local p,q=card.getPosition(),source.getPosition()
                 local delta=(p.y or p[2])-(q.y or q[2])
                 if delta>=-0.008 then
@@ -5127,6 +5140,10 @@ function resourceCardsMaximalEffectSyncMarks(seatPos,cards,repeats,discarded,has
                             -- falling gap, wait for Y to settle before moving.
                             if gap<=0.45 or (pending.lastGap~=nil
                                 and math.abs(gap-pending.lastGap)<0.008) then
+                                -- Record before moving: the shared restack
+                                -- immediately starts pickup/drop reconciliation.
+                                trackerPrivate.throwUnderCompletedByGUID[guid]={
+                                    sourceGUID=sourceGUID,reason=reason}
                                 finish()
                                 if trackerPrivate.traceEnabled then
                                     trackerPrivate.traceEvent("throw.under",seatPos,guid,
@@ -5831,6 +5848,7 @@ function resourceCardsReturnedToHand(card,seatPos)
         and not (gStates.resourceCardPlayOrder~=nil and gStates.resourceCardPlayOrder[guid]~=nil) then return end
     if linked~=nil then linked[guid]=nil end
     if trackerPrivate.throwAwaySourcesByGUID~=nil then trackerPrivate.throwAwaySourcesByGUID[guid]=nil end
+    if trackerPrivate.throwUnderCompletedByGUID~=nil then trackerPrivate.throwUnderCompletedByGUID[guid]=nil end
     if gStates.throwAwayCleanupByGUID~=nil then gStates.throwAwayCleanupByGUID[guid]=nil end
     resourceCardsMaximalEffectMark(card,false)
     -- Invalidate the pickup snapshot and delayed departure reset before
